@@ -2,7 +2,7 @@
   "stage1": 1,
   "stage2": 10,
   "room_name": "",
-  "room_password": "111",
+  "room_password": "",
   "new_room_every_times": true,
   "query_timeout": 120,
   "game_timeout": 15,
