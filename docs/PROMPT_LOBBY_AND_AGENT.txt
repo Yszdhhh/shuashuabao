@@ -1,0 +1,73 @@
+================================================================================
+复制给「一直不明白」的外部 Agent — 大厅/房间为什么不点开始
+工作区：C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\
+================================================================================
+
+# 你必须先建立的分层模型（读完再改任何代码）
+
+自动化分两层，禁止混为一谈：
+
+L0 大厅/房间（Lobby-Room）
+  - 创建房间、房间名/密码、等待成员、点击「开始游戏」
+  - 官方方法痕迹：CreateRoom, BeginGame, LaunchGame, EntryF1, creatRoomNode
+  - 模板极少：Images/startGameBtn.png, jihuo.png, continueGame.png（匹配常失败）
+  - 本地 mediator.py：基本没有 L0 状态机
+  - 官方帮助：独狼模式 =「自己点击房间开始游戏」；带队车头 = 自动开始、不主动点开始；
+    房间名/密码/每局新房间 = 仅带队有效
+
+L1 局内（In-Game，选关之后/战斗中）
+  - 选关、选卡、技能、龙珠、锚点Boss、秘境、退出
+  - 模板 90%+ 在 assets/Images/
+  - 日志关键词：开始主线、卡都找完了、锚点BOSS、查找龙珠、QuitGame
+  - 本地与多数 Agent 工作都集中在这一层
+
+用户现状：GameMode=0 独狼，自己建好房间坐着，脚本在跑但不点开始。
+这是 L0 缺口 + 独狼语义，不是 L1 选卡坏了。
+
+# 强制阅读顺序
+1. docs/LOBBY_ROOM_GAP.md                    ← 本文配套结论
+2. docs/LOGIC_ROOM_STAGE_REP_SKILL.md        ← 等待进入游戏UI 卡点
+3. docs/SUCCESS_FLOW.md
+4. docs/使用前阅读.plain.txt 中「游戏模式」段（独狼/带队原文）
+5. %LocalAppData%\GameScript\*\log.log 搜：等待进入游戏UI、开始主线、未找到关卡
+6. config/scenes.json 的 "start" 节点（只有 3 个模板）
+7. src/gamescript/mediator.py 的 PREPARE / WAIT_UI 分支
+8. assets/Images/ 根目录（确认没有 createRoom/password 类图）
+9. docs/runtime_sample/CaptureScreen_*.png 里房间截图（若有房间号+开始游戏）
+
+# 日志如何判断卡在 L0 还是 L1
+- 只有「等待进入游戏UI」→ 超时「未找到关卡/主线UI」= 卡在 L0→L1，人多半还在房间或分辨率不对
+- 出现「开始主线」之后才是 L1
+- 「已经准备游戏了」不等于已经点了房间开始并加载完
+
+# 技能中文
+Skills 在 Settings 只有短码 asj/jq…；Images/skills 也是短码。不是同步 bug。
+中文需 config/skill_labels.json 人工标注。
+
+# 关卡 / 声望（简述）
+- Stage1—Stage2 = 目标关卡范围两个数
+- SGZXBoss / CJBBoss = boss/ 与 chuanjiaobao/ 文件名
+- Reputation* = 平行另一套；本地未完整实现声望自动化
+
+# 你的任务
+P0 文档/UI 文案：
+  - 控制面板醒目提示：「独狼模式需在房间内手动点开始，或进入选关页再挂机」
+  - 阶段显示：若长期 WAIT_UI，提示「疑似仍在房间 L0」
+P0 若实现 L0 点击（自己刷图最小集）：
+  - 新增目录 assets/Images/lobby/（用户需提供当前客户端「开始游戏」截图标）
+  - mediator 增加 LOBBY_ROOM 相位：匹配 lobby 开始按钮并点击，成功后再进 WAIT_UI
+  - 不要声称已实现「自动建房设密码」除非补齐模板与输入流程（带队，后做）
+P1：skill_labels 中文；关卡文案「范围 A—B」
+禁止：伪造证书；假装 L0 已完整；删除 Images
+
+# 验收
+- 能向用户用 3 句话解释：为何房间里不点开始
+- 文档区分 L0/L1
+- 若补了 lobby 点击：独狼下在房间内 dry-run 能日志打印「尝试点击开始」
+
+先读 LOBBY_ROOM_GAP.md 全文。
+
+【更新】执行向完整提示词（含参考项目与验收）请改用：
+  docs/PROMPT_EXEC_LOBBY_FIRST.md
+  共享日志目录：docs/agent_shared_logs/
+================================================================================

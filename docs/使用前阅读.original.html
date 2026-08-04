@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>游戏设置说明 · 完整版</title>
+    <style>
+        /* 极简重置 + 清晰排版 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            color: #1e1e1e;
+            line-height: 1.6;
+            padding: 30px 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .doc {
+            max-width: 860px;
+            width: 100%;
+            background: #fff;
+        }
+        .doc-header {
+            border-bottom: 2px solid #222;
+            padding-bottom: 12px;
+            margin-bottom: 24px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: baseline;
+        }
+        .doc-header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+        .doc-header .meta {
+            font-size: 14px;
+            color: #444;
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+        .doc-header .meta span {
+            background: #f2f2f2;
+            padding: 2px 12px;
+            border-radius: 12px;
+        }
+        .section {
+            margin-bottom: 28px;
+            border-left: 4px solid #bbb;
+            padding-left: 20px;
+        }
+        .section.warning {
+            border-left-color: #d97706;
+            background: #fefaf0;
+            padding: 16px 20px 16px 24px;
+            border-radius: 0 8px 8px 0;
+        }
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .section-title .badge {
+            font-size: 13px;
+            font-weight: 600;
+            background: #222;
+            color: #fff;
+            padding: 0 12px;
+            border-radius: 20px;
+            line-height: 24px;
+            white-space: nowrap;
+        }
+        .section-title .badge.orange {
+            background: #d97706;
+        }
+        .section ul {
+            list-style: none;
+            padding: 0;
+            margin: 6px 0 8px 0;
+        }
+        .section ul li {
+            padding: 4px 0 4px 24px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23333" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>') left center no-repeat;
+            background-size: 16px;
+        }
+        .section ul li strong {
+            font-weight: 700;
+        }
+        .section ul li .tag {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            background: #eaeaea;
+            padding: 0 10px;
+            border-radius: 12px;
+            line-height: 20px;
+            margin-left: 4px;
+            color: #333;
+        }
+        .section ul li .tag.green {
+            background: #d4edda;
+            color: #155724;
+        }
+        .section ul li .tag.orange {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .section ul li .tag.blue {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .section ul li .tag.purple {
+            background: #e8daef;
+            color: #6c3483;
+        }
+        .sub-note {
+            background: #f7f7f7;
+            padding: 8px 14px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+            border: 1px solid #e5e5e5;
+        }
+        .sub-note strong {
+            font-weight: 700;
+        }
+        .osk-box {
+            background: #f2f6fc;
+            border: 1px solid #cbdae9;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin: 12px 0 6px 0;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px 20px;
+        }
+        .osk-box .label {
+            font-weight: 600;
+            color: #004080;
+        }
+        .osk-box kbd {
+            background: #e2e8f0;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 14px;
+            border: 1px solid #b0c0d0;
+        }
+        .osk-box .tag {
+            background: #d4e2f5;
+            padding: 2px 14px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #00337a;
+            margin-left: auto;
+        }
+        .func-group {
+            margin-top: 14px;
+        }
+        .func-group h3 {
+            font-size: 17px;
+            font-weight: 700;
+            margin: 10px 0 4px 0;
+            color: #222;
+            border-bottom: 1px dashed #ddd;
+            padding-bottom: 4px;
+        }
+        .func-group h3:first-of-type {
+            margin-top: 0;
+        }
+        .func-group ul {
+            list-style: none;
+            padding: 0;
+            margin: 4px 0 8px 0;
+        }
+        .func-group ul li {
+            padding: 5px 0 5px 24px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%23333" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>') left center no-repeat;
+            background-size: 16px;
+        }
+        .func-group ul li strong {
+            font-weight: 700;
+        }
+        .func-group ul li .tag {
+            display: inline-block;
+            font-size: 12px;
+            font-weight: 600;
+            background: #eaeaea;
+            padding: 0 10px;
+            border-radius: 12px;
+            line-height: 20px;
+            margin-left: 4px;
+            color: #333;
+        }
+        .func-group ul li .tag.green {
+            background: #d4edda;
+            color: #155724;
+        }
+        .func-group ul li .tag.orange {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .func-group ul li .tag.blue {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+        .func-group ul li .tag.purple {
+            background: #e8daef;
+            color: #6c3483;
+        }
+        .func-group .sub-item {
+            font-size: 14px;
+            color: #444;
+            padding-left: 28px;
+            margin: 2px 0 4px 0;
+            border-left: 2px solid #ddd;
+            padding-left: 16px;
+            margin-left: 8px;
+        }
+        .func-group .sub-item strong {
+            font-weight: 700;
+        }
+        .custom-alert {
+            background: #e8f4fd;
+            border-left: 4px solid #0066cc;
+            padding: 10px 16px;
+            border-radius: 4px;
+            margin: 16px 0 8px 0;
+            font-size: 15px;
+        }
+        .custom-alert strong {
+            font-weight: 700;
+        }
+        .quick-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px 30px;
+            background: #f8f8f8;
+            padding: 12px 18px;
+            border-radius: 6px;
+            margin: 16px 0 4px 0;
+            border: 1px solid #e0e0e0;
+        }
+        .quick-stats div {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+        .quick-stats div strong {
+            font-weight: 700;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid #ddd;
+            margin: 20px 0;
+        }
+        .section, .sub-note, .osk-box, .quick-stats, .custom-alert, .func-group {
+            box-shadow: none;
+        }
+        .badge {
+            display: inline-block;
+        }
+        .badge.orange {
+            background: #d97706;
+            color: #fff;
+        }
+        .badge {
+            background: #222;
+            color: #fff;
+        }
+        @media (max-width: 600px) {
+            .doc-header {
+                flex-direction: column;
+                gap: 8px;
+            }
+            .doc-header .meta span {
+                font-size: 12px;
+                padding: 1px 10px;
+            }
+            .section {
+                padding-left: 14px;
+            }
+            .osk-box {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+            .osk-box .tag {
+                margin-left: 0;
+            }
+            .quick-stats {
+                flex-direction: column;
+                gap: 6px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="doc">
+
+        <!-- 头部 -->
+        <div class="doc-header">
+            <h1>游戏运行设置说明</h1>
+            <div class="meta">
+                <span>v1.8</span>
+                <span>2026-07-15</span>
+                <span>Win 10/11</span>
+                <span>缩放 100%</span>
+            </div>
+        </div>
+
+        <!-- 0. 环境检测（新增） -->
+        <div class="section" style="border-left-color:#0066cc; background:#f0f7ff; padding:16px 20px 16px 24px; border-radius:0 8px 8px 0;">
+            <div class="section-title">
+                🔍 环境检测（必须）
+                <span class="badge" style="background:#0066cc;">前置操作</span>
+            </div>
+            <ul>
+                <li><strong>每次使用程序前，必须先打开游戏，然后点击程序内的“环境检测”按钮</strong>，验证环境是否正常。</li>
+                <li>环境检测通过后，方可进行后续设置与启动。</li>
+                <li>若检测失败，请根据提示调整系统设置（缩放、分辨率、窗口化等）。</li>
+            </ul>
+            <div class="sub-note" style="border-left-color:#0066cc; background:#e8f4fd;">
+                ⚠️ <strong>重要：</strong> 跳过环境检测可能导致程序无法正常运行或出现未知错误。
+            </div>
+        </div>
+
+        <!-- 1. 窗口化 & 分辨率 -->
+        <div class="section">
+            <div class="section-title">
+                ⚙️ 窗口化 &amp; 分辨率
+                <span class="badge">必须</span>
+            </div>
+            <ul>
+                <li>游戏画面 <strong>必须设置为窗口化模式</strong>（非全屏 / 无边框窗口）。</li>
+                <li>游戏分辨率固定为 <strong>1600 × 900</strong>（16:9）。</li>
+                <li>电脑显示缩放 <strong>必须为 100%</strong>（系统设置 → 显示 → 缩放与布局）。</li>
+                <li><strong>⚠️ 不建议使用双屏</strong> — 双屏会导致游戏 UI 大小异常（拉伸或压缩）。</li>
+            </ul>
+            <div class="sub-note">
+                💡 <strong>检查方法：</strong> 右键桌面 → 显示设置 → 缩放与布局确认 100%；游戏内视频选项选择“窗口化”并设置分辨率 1600×900。
+            </div>
+        </div>
+
+        <!-- 2. OSK 键盘 -->
+        <div class="section warning">
+            <div class="section-title">
+                ⌨️ OSK 键盘（屏幕键盘）
+                <span class="badge orange">赌木模式 · 强制</span>
+            </div>
+            <ul>
+                <li><strong>赌木模式</strong>下 <strong>强制使用</strong> Windows 自带 OSK 键盘（osk.exe）。</li>
+                <li>其他模式 <strong>不强制</strong>，但 <strong>强烈建议使用</strong>（英雄死亡后可能导致游戏内 UI 丢失，OSK 可保持输入稳定）。</li>
+                <li>开启方式：<strong>Win+R 输入 <kbd>osk</kbd> 回车</strong>，或使用快捷键 <kbd>Win+Ctrl+O</kbd>。</li>
+            </ul>
+            <div class="osk-box">
+                <span class="label">⌨️ 推荐开启方式</span>
+                <span><kbd>Win + R</kbd> 输入 <kbd>osk</kbd> 并回车</span>
+                <span style="color:#555;">或</span>
+                <span><kbd>Win + Ctrl + O</kbd></span>
+                <span class="tag">✅ 系统原生 · 无风险</span>
+            </div>
+            <div class="sub-note" style="border-left-color:#d97706; background:#fefaf0;">
+                ⚡ <strong>为什么建议使用 OSK？</strong> 游戏内输入框可能因英雄阵亡、界面重载而失去焦点，OSK 独立于游戏进程，确保连续操作。
+            </div>
+        </div>
+
+        <!-- 3. 游戏模式 & 功能设置 -->
+        <div class="section" style="border-left-color:#555;">
+            <div class="section-title">
+                🎮 游戏模式 &amp; 功能设置
+                <span class="badge">完整说明</span>
+            </div>
+
+            <div class="func-group">
+
+                <!-- ===== 游戏模式 ===== -->
+                <h3>📌 游戏模式</h3>
+                <ul>
+                    <li>
+                        <strong>独狼模式</strong>
+                        <span class="tag blue">单人</span>
+                        — 自己点击房间开始游戏，如果队友不卡游戏房间，也可以组队使用这个模式。
+                    </li>
+                    <li>
+                        <strong>带队模式（车头）</strong>
+                        <span class="tag green">队长</span>
+                        — 会使用房间的自动开始功能，不会主动开始游戏。其他行为与独狼模式一致。
+                        <div class="sub-item">
+                            🏷️ <strong>房间名称 / 密码 / 每局新房间</strong>（仅带队模式有效）：
+                            可自定义房间名称和密码，并支持 <strong>每局结束后自动建立新房间</strong>，避免重复手动创建。
+                        </div>
+                    </li>
+                    <li>
+                        <strong>赌木模式</strong>
+                        <span class="tag orange">强制 OSK</span>
+                        — 只会开主线，然后选择第一个宝物。刷新次数为 0 且没找到赌木，会 <strong>ZS 重开</strong>；
+                        找到赌木会 <strong>暂停游戏</strong>，如果设置了通知程序，会触发程序发送游戏暂停消息。
+                    </li>
+                    <li>
+                        <strong>邪修秘境</strong>
+                        <span class="tag purple">新 · 独立模式</span>
+                        — 打开后 <strong>其他所有功能无效</strong>，仅针对boss 进行自动化。
+                        <div class="sub-item">⚙️ 通关后，点击BOSS挑战，选好BOSS，然后启动脚本就可以不用管了。</div>
+                    </li>
+                </ul>
+
+                <!-- ===== 自动功能 ===== -->
+                <h3>⚡ 自动功能</h3>
+                <ul>
+                    <li>
+                        <strong>自动秘境</strong>
+                        <span class="tag purple">常规</span>
+                        — 开启后游戏结束会自动进入秘境，直到秘境失败。
+                        <div class="sub-item">⚠️ 秘境成功可能会导致不退出（作者正在解决）。</div>
+                    </li>
+                    <li>
+                        <strong>自动 F4</strong>
+                        <span class="tag">5-5 触发</span>
+                        — 开启后，过完主线 5-5 会自动清理怪物并关闭主线，避免卡关。
+                        <div class="sub-item"><strong>一局游戏只会触发一次</strong>，不会重复执行。</div>
+                    </li>
+                    <li>
+                        <strong>自动清理</strong>
+                        <span class="tag">背包整理</span>
+                        — 连续指定游戏次数后，触发自动分解装备、传家宝、合成宝石。
+                        <div class="sub-item">⚠️ 请提前在程序中设置好 <strong>清理品质</strong> 和 <strong>锁</strong>，防止误清重要装备！程序不会修改规则。</div>
+                    </li>
+                    <li>
+                        <strong>奥数增伤</strong>
+                        <span class="tag blue">新增</span>
+                        — 开启后会优先拿 <strong>奥数激光 → 瓦解光线，奥数射线 → 焦点</strong> 四张卡。
+                    </li>
+                    <li>
+                        <strong>关闭羁绊 &amp; 升级武器</strong>
+                        <span class="tag orange">可选</span>
+                        — 支持在程序中 <strong>单独关闭</strong> 羁绊合成和武器升级功能，以适应不同打法需求。
+                    </li>
+                    <li>
+                        <strong>自动声望</strong>
+                        <span class="tag green">新</span>
+                        — 开启后游戏会自动去打声望。如果检测到可获得声望为 0，则按照常规运行。
+                        <div class="sub-item"><strong>赌木模式不会触发</strong> 自动声望和清理背包。</div>
+                    </li>
+                </ul>
+
+                <!-- ===== 参数设置 ===== -->
+                <h3>🔧 参数设置</h3>
+                <ul>
+                    <li>
+                        <strong>龙珠数量</strong>
+                        <span class="tag">宝物配置</span>
+                        — 买了宝物的大佬设置为 <strong>6</strong>，没买的就是 <strong>7</strong>。
+                    </li>
+                    <li>
+                        <strong>等待时长</strong>
+                        <span class="tag">容错</span>
+                        — 开始游戏到关卡页面、开始游戏到主线页面的等待时长，请根据自己的网络/硬件估算。
+                        <div class="sub-item">⏱️ 长了没影响，短了会导致异常。</div>
+                    </li>
+                    <li>
+                        <strong>单局时长</strong>
+                        <span class="tag">配合通知</span>
+                        — 配合通知程序使用，超过这个预估时间，会发送 <strong>异常超时消息</strong> 给程序。
+                        <div class="sub-item">📨 如果不使用通知程序，可以不设置此项。</div>
+                    </li>
+                </ul>
+
+                <!-- ===== 快捷键 ===== -->
+                <h3>⌨️ 快捷键</h3>
+                <ul>
+                    <li>
+                        <strong><kbd>Shift + F12</kbd></strong>
+                        <span class="tag red" style="background:#f8d7da;color:#721c24;">紧急停止</span>
+                        — 一键关闭程序（紧急停止所有操作）。
+                    </li>
+                </ul>
+
+            </div>
+
+            <!-- 附加提醒 -->
+            <div class="sub-note" style="margin-top:16px; border-left:4px solid #999;">
+                💡 <strong>提示：</strong> 程序通知功能已在“赌木模式”和“单局时长”中集成说明。如不使用通知程序，相关设置可忽略。
+            </div>
+        </div>
+
+        <hr />
+
+        <!-- 快速状态一览 -->
+        <div class="quick-stats">
+            <div><strong>分辨率</strong> 1600×900</div>
+            <div><strong>窗口化</strong> 强制开启</div>
+            <div><strong>缩放</strong> 100%</div>
+            <div><strong>OSK 键盘</strong> 赌木模式必开</div>
+            <div><strong>关闭程序</strong> Shift+F12</div>
+            <div><strong>龙珠</strong> 6 / 7</div>
+        </div>
+
+        <!-- Q群联系区块 -->
+        <div class="custom-alert">
+            <strong>💬 详情与异常反馈：</strong> 可加 Q群 <strong>1062616934</strong> 获取帮助。
+        </div>
+
+        <!-- 底部 -->
+        <div class="footer">
+            <span>📌 文档版本 1.8 · 最后修订 2026-07-15</span>
+            <span>✅ 请严格按照以上设置运行</span>
+        </div>
+
+    </div>
+</body>
+</html>

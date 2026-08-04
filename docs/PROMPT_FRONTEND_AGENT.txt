@@ -1,0 +1,101 @@
+================================================================================
+复制下面整段 → 发给「前端设计 Agent」
+================================================================================
+
+# 任务：为 GameScript-Local 设计并实现「自己刷图」控制面板前端
+
+## 0. 交付
+1) 高保真控制面板 UI（推荐 Vite+React+TS+Tailwind，或精美 HTML；可加 FastAPI）
+2) 对接配置与启动协议（见第 6 节）
+3) 字段/状态/校验/空态运行态错误态完整
+4) 启动说明 README
+
+不要：重写 OpenCV 自动化核心；证书联网；带队建房。
+
+## 1. 背景
+魔兽题材挂机助手本地版。官方是 WPF exe（不可直接套用界面）。本仓库已恢复配置模型、模板库、Mediator 状态机。用户要「按现有字段自己设计控制面板」，范围仅「自己刷图」。
+
+## 2. 工程根目录
+C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\
+
+必读：
+- docs/HANDOFF_FRONTEND_CONTROL_PANEL.md（完整版交接）
+- docs/runtime_sample/CaptureScreen_20260803150054.png（官方面板视觉）
+- docs/SUCCESS_FLOW.md
+- config/default_settings.json
+- config/scenes.json
+- src/gamescript/settings.py
+- src/gamescript/mediator.py
+- assets/Images/skills|boss|chuanjiaobao|cards/
+- controller.py（旧 tk 原型，可推翻）
+
+官方配置同步源：%AppData%\Roaming\GameScript\Settings\Settings.json
+
+## 3. 信息架构（主面板）
+深色风格对齐官方截图：
+- 顶：标题 + 「本地·自己刷图」+ 状态徽章（空闲/运行中/错误）
+- 状态：当前局数、阶段文案、最近错误
+- 常规运行配置：目标关卡 stage1—stage2；主线 Boss 下拉；传家宝 Boss 下拉；龙珠；等待UI秒；发育时间；开关（自动卡/武器/奥数/发育优先/自动秘境）
+- 声望配置（可折叠）：总开关 + 关卡 + Boss
+- 技能：多选网格，选项=assets/Images/skills/*.png 文件名
+- 环境：window_title_contains、dry_run、match_threshold、提示「游戏窗口化 1600×900」
+- 操作：同步官方配置 | 保存 | 开始游戏（主按钮）| 停止
+- 底部/侧：日志滚动区
+
+禁止 v1：机器码/证书、房间名密码、带队、赌木完整流。
+
+## 4. 配置字段（P0 必须可编辑）
+stage1, stage2, sgzx_boss, cjb_boss, dragon_ball_count, query_timeout, develop_time,
+skills[], window_title_contains, dry_run, match_threshold,
+auto_secret_realm, auto_card, auto_weapon, damage_increase_card, develop_priority
+
+P1：auto_reputation, reputation_stage1/2, reputation_cjb_boss, reputation_sgzx_boss
+P2 高级折叠：game_timeout, auto_clean_interval, boss_live_time, archive_boss_time,
+kill_boss_num, cycle_num, treasure_num, click_delay_ms, loop_sleep_ms, cards[],
+auto_close_main_line, images_dir
+
+game_mode 固定 0，UI 只读「自己刷图」。
+保存路径：config/default_settings.json（snake_case UTF-8）。
+
+Boss 下拉数据：扫描 assets/Images/boss 与 chuanjiaobao 的 png stem，禁止写死列表。
+
+## 5. 运行阶段展示（中文）
+BOOT 就绪 | WAIT_EXIT 等待退出 | PREPARE 准备游戏 | WAIT_UI 等待进入UI |
+MAIN_LINE 主线选卡 | ANCHOR_BOSS 锚点Boss | LONGZHU 查找龙珠 | QUIT 退出 | NEXT 下一局
+
+日志关键字：卡都找完了；未找到集火点击F1；提前挑战；锚点BOSS名称；开始查找龙珠N；
+自动主线失败等下轮继续；游戏被中断了。
+
+## 6. 后端 API（实现或 Mock）
+GET  /api/health
+GET  /api/settings
+PUT  /api/settings
+POST /api/settings/sync-official
+GET  /api/options/skills|bosses|cards
+POST /api/run/start   body:{dry_run?, max_steps?}
+POST /api/run/stop
+GET  /api/run/status  → {running, phase, game_count, last_error}
+GET  /api/run/logs?since=
+
+后端可调：gamescript.settings.Settings / gamescript.mediator.Mediator
+Python 依赖见 requirements.txt（opencv, mss, pyautogui…）
+
+## 7. 验收
+- 同步官方后 skills 显示 asj,asjg,assx,jq（以用户机器实时为准）
+- 关卡 1-10 可改可存
+- Dry-run 点开始，状态变运行中，日志有 phase/截屏类输出
+- 停止有效
+- 不出现证书流程；不出现带队必填项
+
+## 8. 技术建议
+Vite+React+TS+Tailwind + FastAPI 静态托管；图标 Lucide；深色 #0b1220/#151c2c/#2563eb。
+可离线运行。
+
+## 9. 交付
+web/ 或 ui/ 源码；启动命令；可选 api_server.py；空闲/运行截图各一；说明如何替换 controller.py。
+
+先读 HANDOFF 全文与官方面板截图再写代码。工作目录必须是 GameScript-Local。
+
+================================================================================
+详细版见：docs/HANDOFF_FRONTEND_CONTROL_PANEL.md
+================================================================================

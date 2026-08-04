@@ -1,0 +1,124 @@
+================================================================================
+【新 Agent 一键提示词 · 逻辑核查 + 控制面板/进房问题】
+复制本文件从「# 角色」起到文末，整段粘贴给新 Agent。
+日期：2026-08-04
+================================================================================
+
+# 角色
+你是全栈 Agent（偏业务逻辑梳理 + 控制面板前端/本地工具）。
+工作区必须：C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\
+
+# 背景（先读再改）
+本项目是游戏自动刷图助手「本地版」。官方 WPF 为 GameScript 1.3.3.3（同级目录 1.3.3.3\GameScript.exe）。
+本地有模板库、Settings 同步、Mediator 状态机、tk 控制台原型。用户反馈：
+
+1) 人在房间里想进游戏，脚本经常进不去、不知道卡在哪
+2) 技能同步后不是中文名，是 asj/jq 短码
+3) 关卡 Stage1/Stage2、声望逻辑不清晰
+4) 需要按「读哪些文件 → 逻辑如何梳理 → 再改代码/UI」的方式工作
+
+# 强制阅读顺序（按序打开，不要跳）
+
+## A. 卡点与业务逻辑（必读）
+1. docs/LOGIC_ROOM_STAGE_REP_SKILL.md          ← 本次核查结论（房间卡点/关卡/声望/技能）
+2. docs/SUCCESS_FLOW.md                         ← 成功一局日志阶段
+3. docs/RUNTIME_AFTER_AUTH.md                   ← 官方运行时路径
+4. %LocalAppData%\GameScript\20260803\log.log   ← 真机日志（搜「等待进入游戏UI」「未找到关卡」）
+5. docs/runtime_sample/CaptureWindow_20260803141607.png  ← 选关页长什么样
+6. docs/runtime_sample/CaptureScreen_20260803150054.png  ← 官方面板字段长什么样
+7. docs/runtime_sample/QuitGame_*.png           ← 局末/秘境失败
+
+## B. 配置与字段
+8. %AppData%\Roaming\GameScript\Settings\Settings.json   ← 官方存盘（PascalCase）
+9. config/default_settings.json                          ← 本地 snake_case
+10. src/gamescript/settings.py                           ← 映射表 _OFFICIAL_MAP、load_official
+11. docs/SETTINGS.md
+
+## C. 自动化实现
+12. src/gamescript/mediator.py                ← 本地阶段机（房间→UI 弱点在此）
+13. config/scenes.json                        ← start/stage/skill 模板分组
+14. docs/SCENES.md
+15. assets/Images/skills/                     ← 技能只有短码 png，无中文文件名
+16. assets/Images/boss/ 与 chuanjiaobao/      ← Boss 下拉 stem
+17. controller.py                             ← 现有控制台（可重做）
+18. docs/HANDOFF_FRONTEND_CONTROL_PANEL.md    ← 前端字段与 API 约定
+
+## D. 官方包（只读参考）
+19. ..\1.3.3.3\使用前阅读.html / Help.html
+20. ..\1.3.3.3\GameScript.exe.config
+
+# 已核实结论（改代码前必须承认）
+
+## 1) 房间进游戏卡点
+- 高发卡死日志：**「等待进入游戏UI」** → 超时 **「未找到关卡/主线UI,未找到位置」**
+- 超时时间 ≈ Settings.QueryTimeOut（默认 120 秒）
+- 含义：脚本在等 **选关/主线界面**，不是「房间里站着就行」
+- 房间界面（成员+开始游戏）≠ 选关界面（1-3…地图列表）
+- 成功样例：等 UI 约 1 分钟后出现「开始主线！」
+- 失败样例（16:25）：从房间重开后直接「等待进入游戏UI」120s 失败
+- 本地 mediator：PREPARE 点 start 模板 → WAIT_UI 点 stage 模板；**无独立房间状态机**
+- 修复方向（若做本地）：
+  a. 区分 ROOM / STAGE_SELECT / IN_GAME 三态
+  b. 房间专用模板或 OCR「开始游戏」
+  c. window_title_contains 锁窗，禁止全屏误匹配
+  d. 文档提示：先 1600×900，或人先点进选关再开脚本
+
+## 2) 技能不是中文的原因
+- 官方 Settings.json 里 Skills 就是 ["asj","asjg","assx","jq"] 短码
+- assets/Images/skills/*.png 文件名也是短码，**没有中文资源被同步**
+- Skill.CnName 在 exe 类型里存在，但未写入用户配置文件
+- UI 若要中文：新建 config/skill_labels.json 映射（需游戏内对照或用户标注），找图仍用短码
+
+## 3) 关卡逻辑
+- Stage1 + Stage2 = 官方 UI「目标关卡 A — B」两个数字框
+- SGZXBoss = 主线/地图 Boss 下拉（boss/ 目录 stem）
+- CJBBoss = 传家宝 Boss（chuanjiaobao/ stem）
+- 局内「锚点BOSS名称」是运行时识别结果，可与设置 Boss 不同
+
+## 4) 声望逻辑
+- AutoReputation 总开关
+- ReputationStage1/2、ReputationCJBBoss/ReputationSGZXBoss 与常规 Stage/Boss **平行配置**
+- 官方：可领声望时走声望目标，否则常规；赌木不触发声望
+- 本地 mediator **几乎未实现声望分支**，UI 开关目前主要是存盘展示
+
+# 你的任务（按优先级）
+
+## P0
+1. 读完 A/B/C 后，用中文写一份「逻辑说明」确认：房间卡点、关卡、声望、技能短码（可更新 LOGIC_ROOM_STAGE_REP_SKILL.md）
+2. 在控制面板/文档上明确展示：
+   - 阶段进度（等待进入游戏UI 时黄条警告：请确认已离开房间进入选关/对局）
+   - 技能：短码 + 中文标签（无映射则显示「未命名」）
+   - 关卡：文案改为「目标关卡范围 Stage1 — Stage2」，不要叫含糊的「关卡1/关卡2」
+   - 声望：标注「与常规配置平行；本地自动化完整度有限」
+3. 若改代码：mediator 增加 ROOM 检测提示或房间开始按钮模板位（不要假实现带队）
+
+## P1
+4. 新增 config/skill_labels.json（短码→中文，未知填空让用户编）
+5. 重做或增强控制面板（见 HANDOFF_FRONTEND_CONTROL_PANEL.md），字段绑定 default_settings.json
+6. 可选 FastAPI：/api/settings、/api/run/start|stop|status|logs、/api/options/*
+
+## P2
+7. 声望分支最小实现或明确禁用并写 UI 说明
+8. 环境检测：检测窗口标题、分辨率提示
+
+# 禁止
+- 破解官方证书 / 伪造 License
+- 实现带队建房完整流（用户明确先不做）
+- 删除 assets/Images
+- 编造不存在的中文技能名当官方数据（无依据就标「待标注」）
+
+# 验收
+- 能指出「从房间进入」卡在日志哪一句、为何超时
+- 能说明 Skills 为何是短码
+- 能说明 Stage1/2 与声望字段平行关系
+- 控制面板文案不再误导为「中文技能官方同步」
+- 给出用户操作建议：官方 exe 进房时如何站位/分辨率
+
+# 输出格式
+1) 简短核查结论（中文）
+2) 改了哪些文件
+3) 用户怎么操作才能从房间进得去（步骤列表）
+4) 若有 skill_labels.json，列出条目
+
+先读文件，再改代码。工作目录：GameScript-Local
+================================================================================

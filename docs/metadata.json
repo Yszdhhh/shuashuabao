@@ -1,0 +1,365 @@
+{
+  "namespaces": {
+    "(empty)": [
+      "<<RegisterHubEvents>b__34_2>d",
+      "<<RegisterHubEvents>b__34_3>d",
+      "<<RegisterHubEvents>b__34_6>d",
+      "<<RegisterHubEvents>b__34_7>d",
+      "<>O",
+      "<>c",
+      "<>c",
+      "<>c",
+      "<>c",
+      "<>c",
+      "<>c",
+      "<>c",
+      "<>c__3`1",
+      "<>c__DisplayClass0_0",
+      "<>c__DisplayClass12_0",
+      "<>c__DisplayClass1_0",
+      "<>c__DisplayClass1_0",
+      "<>c__DisplayClass1_0",
+      "<>c__DisplayClass1_0",
+      "<>c__DisplayClass1_0",
+      "<>c__DisplayClass21_0",
+      "<>c__DisplayClass21_1",
+      "<>c__DisplayClass22_0",
+      "<>c__DisplayClass24_0",
+      "<>c__DisplayClass259_0",
+      "<>c__DisplayClass259_1",
+      "<>c__DisplayClass259_2",
+      "<>c__DisplayClass25_0",
+      "<>c__DisplayClass273_0",
+      "<>c__DisplayClass278_0",
+      "<>c__DisplayClass278_1",
+      "<>c__DisplayClass2_0",
+      "<>c__DisplayClass2_0",
+      "<>c__DisplayClass2_1",
+      "<>c__DisplayClass32_0",
+      "<>c__DisplayClass32_0",
+      "<>c__DisplayClass7_0",
+      "<>c__DisplayClass7_0",
+      "<>c__DisplayClass7_0",
+      "<>c__DisplayClass9_0",
+      "<DisposeAsync>d__33",
+      "<GetNetworkTimeAsync>d__2",
+      "<GetNetworkTimeAsync>d__6",
+      "<GetNetworkTimeAsync>d__7",
+      "<Module>",
+      "<Module>{547D5C2A-14DC-404D-B607-712D552BCBAD}",
+      "<PrivateImplementationDetails>{5534A37A-1786-4996-83C4-DBD6BC24CFDA}",
+      "<Recalibrate>d__270",
+      "<StartAsync>d__31",
+      "<StopAsync>d__32",
+      "<Timer_Tick>d__269",
+      "Axn8MIFAMvhmyIdnYpp",
+      "DPlelK1a1xoQeRptV1V",
+      "DRexC7l0nmQ9X61BQsP",
+      "EXECUTION_STATE",
+      "F48htFF5t5xGygJPx8T",
+      "FfiHYTFXPaIIIMjW87W",
+      "GrKmfPBahrLGJ9taJ7s",
+      "KgdofJF3OXGqq6nBa4t",
+      "NZ6F8AFIyfaip1f2by0",
+      "PaMkXJFGTspqqbkTweY",
+      "QkMDqfFeD5AftNbshpg`1",
+      "SHtkBfFWlICYjDANKtl",
+      "WTSInfoClass",
+      "__StaticArrayInitTypeSize=16",
+      "__StaticArrayInitTypeSize=18",
+      "__StaticArrayInitTypeSize=256",
+      "__StaticArrayInitTypeSize=30",
+      "__StaticArrayInitTypeSize=32",
+      "__StaticArrayInitTypeSize=40",
+      "__StaticArrayInitTypeSize=64",
+      "eVlfl2Fxmmc7klnXelB",
+      "fgW1L1FbWnRPO2JjMMW",
+      "gWVLAsFEnTlkdBEXoJe",
+      "jyf0MqFJvCf9vsrqdj2",
+      "pBWoxvFHiNe3jy1SyvW",
+      "vhF5MwFfKCXRdX0KvaD",
+      "xO1tFd1RFotNuj6ktj7",
+      "yw00wuFObupRFHA6o4E"
+    ],
+    "Microsoft.CodeAnalysis": [
+      "EmbeddedAttribute"
+    ],
+    "System.Runtime.CompilerServices": [
+      "NullableAttribute",
+      "NullableContextAttribute"
+    ],
+    "GameScript": [
+      "App",
+      "MainWindow",
+      "MutexHelper"
+    ],
+    "mfhPwxQex8vxYfCxay": [
+      "ps10PTgL4aqy5p3Jkn"
+    ],
+    "mGOtF4H94S3BY4CTrg": [
+      "VUdMTcS2P8Q58BRtOk"
+    ],
+    "VaiZBj9Zg7PGxPdBr93": [
+      "G6DaSV94ndqOLhP7ccl"
+    ],
+    "uB01g59hvi7vLc20sef": [
+      "cStS9g91CRSSF8V4W41"
+    ],
+    "GameScript.Jobs": [
+      "AutoJob",
+      "CardGroup",
+      "LongzhuJob"
+    ],
+    "LqSrAm9W1secrsZWuA4": [
+      "u49Wa49JPMK5sKYHJG6"
+    ],
+    "P9DF7M9b5K2ojV7Uq41": [
+      "L6hOrF9G8udjyT67BOQ"
+    ],
+    "UKPMPX9Yqs5Cqi0rdbG": [
+      "uWxt6u9UGsF35QLhORc"
+    ],
+    "lGXvGc9iy1sL0Tkwcab": [
+      "kGvs2X9CJLs1iTddZXh"
+    ],
+    "HKGGoWlD5FdXSJsIn9W": [
+      "SgrsgxlKd2UEg7dv878"
+    ],
+    "d4XrQTlbuJo3LObVYJB": [
+      "KktJnFlGaEraAHYgOcW"
+    ],
+    "wAv9ISln0udBN53BYjv": [
+      "AbOmPwlPE8t05ZOWUCd"
+    ],
+    "UZ3dIYRQ6197k6h7G8T": [
+      "wyf5lYRgWJJffWENgqD"
+    ],
+    "c5jjpbR8nNjA15Ec6jk": [
+      "KUHKRbRMOeGlqS3Pu7J"
+    ],
+    "QXcQ2ERx2Wxf9M7c1Tj": [
+      "Skl5INRmdsiie52Hhlk"
+    ],
+    "PfOn8qRXByxISRBLB3H": [
+      "i5fF55RAskGI1MGfT6m"
+    ],
+    "JESOsLRHAU3ZZnkSmPc": [
+      "Mfyy9eRSMeqeW6RNMMX"
+    ],
+    "X0phPkRk35L2S9s5RM0": [
+      "jVjeecRtR47ZWE1YWwm"
+    ],
+    "D717jgRTLsIdDl7YCnj": [
+      "WrBhqdRq9TaTc5ldOSy"
+    ],
+    "fPbZXARIYY0klqplp0q": [
+      "v5cnsHRETXiTkryAKKc"
+    ],
+    "hLwLpPRW2pwRYVcRHWS": [
+      "ejRhh0RJaFcNbMOZXpj"
+    ],
+    "npE4VkRbbxbWe22wAQL": [
+      "DqSBWNRGBtxGyirHxgZ"
+    ],
+    "GameScript.Models": [
+      "CertClient",
+      "EnvironmentUtils",
+      "JsonSettingsBase",
+      "PowerHelper",
+      "Settings",
+      "Skill"
+    ],
+    "FQTUnaR0wiFdBTl2Npe": [
+      "Si1C6nRuFVxgVrOXId8"
+    ],
+    "aM0wwOctMK9LSTangME": [
+      "HYK5RrcHWCTf26NXfHf"
+    ],
+    "DaSOSxcJrPfLCZHrFwS": [
+      "euaYXyc5hxmju12Z1QC"
+    ],
+    "m9fCOJcaHIvrXS4VmqB": [
+      "HFQts0cYvUEYMIbgB4R"
+    ],
+    "M08ifLKSlGU68UAqelD": [
+      "SpjQy4K2YYXSDfSgTA5"
+    ],
+    "X4GA7sDhOSMhTWdEBhq": [
+      "NekYNZD1NC3WiqVsHFk"
+    ],
+    "MxVVrB71Clu5KDV08dx": [
+      "c1eyYp7B0NyCbJlRrxF"
+    ],
+    "ONOhQhB0dCslGYag14M": [
+      "vnBStMBuKoUtEkBVKOB"
+    ],
+    "GameScript.Extensions": [
+      "ListBoxHelper",
+      "LoopAction",
+      "NetworkTimeHelper"
+    ],
+    "n6MIW716ccsl7Mfpolb": [
+      "kUFCqdBzouKAp0Gd35u"
+    ],
+    "dXOq2i1KwWO5ewGXcFm": [
+      "LXCQP31cQgKmlLsdPjA"
+    ],
+    "caQgVx1tBrsJtg09XBo": [
+      "zv6YDj1HFrOa6CfNVVw"
+    ],
+    "wvY7L71JqYw03heALwy": [
+      "zCuxcO15Dka19WqXRiD"
+    ],
+    "Costura": [
+      "AssemblyLoader"
+    ],
+    "vQfNcg1nfoTjg8EoDLe": [
+      "DjYUdb1PbRWRwf1wP1t"
+    ],
+    "pMiBvn1U9cfhkjddDP3": [
+      "EsJGDU1w1YhD7SSFJRy"
+    ],
+    "NvrVo51i9qpaZZCrApg": [
+      "hFPLkj1C72X7YSaJfTZ"
+    ],
+    "bVv5t4FnxVXG0KA3CiC": [
+      "AQhEdXFPRis6INjOnTo"
+    ],
+    "bGy6CZFa8pQiLjep2uf": [
+      "xa9MTvFY3n4naTuoKc5"
+    ]
+  },
+  "interesting_methods": [
+    "CaptureWin",
+    "GetAllCardGroups",
+    "GetAllSkill",
+    "GetBoss",
+    "GetSettingsFilePath",
+    "NextRetryDelay",
+    "OnStartup",
+    "SetStateMachine",
+    "StartAsync",
+    "StopAsync",
+    "System.Windows.Markup.IComponentConnector.Connect",
+    "add_OnLicenseAccepted",
+    "add_OnLicenseRejected",
+    "add_OnRequestLocalCertificate",
+    "get_ArchiveBossTime",
+    "get_AutoCard",
+    "get_AutoCleanInterval",
+    "get_AutoCloseMainLine",
+    "get_AutoGamblingTime",
+    "get_AutoReputation",
+    "get_AutoSecretRealm",
+    "get_AutoWeapon",
+    "get_CJBBoss",
+    "get_Cards",
+    "get_CertEnable",
+    "get_DamageIncreaseCard",
+    "get_DragonBallCount",
+    "get_FindLongzhuWhereMultiGame",
+    "get_GameMode",
+    "get_Images",
+    "get_KillBossNum",
+    "get_LicenseTxt",
+    "get_NewRoomEveryTimes",
+    "get_NextCardGroup",
+    "get_ReputationCJBBoss",
+    "get_ReputationSGZXBoss",
+    "get_ReputationStage1",
+    "get_ReputationStage2",
+    "get_RoomName",
+    "get_RoomPassword",
+    "get_SGZXBoss",
+    "get_Skills",
+    "get_Stage1",
+    "get_Stage2",
+    "remove_OnLicenseAccepted",
+    "remove_OnLicenseRejected",
+    "remove_OnRequestLocalCertificate",
+    "set_ArchiveBossTime",
+    "set_AutoCard",
+    "set_AutoCleanInterval",
+    "set_AutoCloseMainLine",
+    "set_AutoGamblingTime",
+    "set_AutoReputation",
+    "set_AutoSecretRealm",
+    "set_AutoWeapon",
+    "set_CJBBoss",
+    "set_Cards",
+    "set_CertEnable",
+    "set_DamageIncreaseCard",
+    "set_DragonBallCount",
+    "set_FindLongzhuWhereMultiGame",
+    "set_GameMode",
+    "set_Images",
+    "set_KillBossNum",
+    "set_LicenseTxt",
+    "set_NewRoomEveryTimes",
+    "set_NextCardGroup",
+    "set_ReputationCJBBoss",
+    "set_ReputationSGZXBoss",
+    "set_ReputationStage1",
+    "set_ReputationStage2",
+    "set_RoomName",
+    "set_RoomPassword",
+    "set_SGZXBoss",
+    "set_Skills",
+    "set_Stage1",
+    "set_Stage2"
+  ],
+  "interesting_fields": [
+    "GameWindow",
+    "Stage1Rec",
+    "anchorBossName",
+    "autoReputation",
+    "cardGroup",
+    "cardNumber",
+    "creatRoomNode",
+    "findDic",
+    "findIdx",
+    "gameMode",
+    "gameWindow",
+    "gameWindows",
+    "infiniteBoss",
+    "license",
+    "machineCode",
+    "sgzxBossName",
+    "strictMode",
+    "targetImage",
+    "userStage1",
+    "woodMode"
+  ],
+  "filtered_strings": [],
+  "assembly_refs": [
+    "mscorlib 4.0.0.0",
+    "PresentationFramework 4.0.0.0",
+    "CommunityToolkit.Mvvm 8.4.0.0",
+    "Lan.InteropCore 1.0.0.0",
+    "System 4.0.0.0",
+    "System.Drawing 4.0.0.0",
+    "HandyControl 3.5.1.0",
+    "System.Xaml 4.0.0.0",
+    "System.Core 4.0.0.0",
+    "Lan.UIAutomationCore 1.0.0.0",
+    "H.InputSimulator 1.0.0.0",
+    "OpenCvSharp 4.0.0.0",
+    "OpenCvSharp.Extensions 4.0.0.0",
+    "NLog 6.0.0.0",
+    "Microsoft.AspNetCore.SignalR.Client.Core 10.0.10.0",
+    "System.Threading.Tasks.Extensions 4.2.4.0",
+    "Standard.Licensing 1.2.2.0",
+    "Microsoft.Bcl.AsyncInterfaces 10.0.0.10",
+    "Microsoft.AspNetCore.SignalR.Client 10.0.10.0",
+    "Newtonsoft.Json 13.0.0.0",
+    "Gma.System.MouseKeyHook 5.7.1.0",
+    "DeviceId 6.11.0.0",
+    "DeviceId.Windows 6.11.0.0",
+    "System.Windows.Forms 4.0.0.0",
+    "WindowsBase 4.0.0.0",
+    "DeviceId.Windows.Wmi 6.11.0.0",
+    "NetworkTime 1.0.0.0",
+    "PresentationCore 4.0.0.0",
+    "mscorlib 65535.65535.65535.65535"
+  ]
+}

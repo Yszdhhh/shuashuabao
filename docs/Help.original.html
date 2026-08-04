@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>游戏脚本助手 · 使用说明</title>
+    <style>
+        /* ===== 全局重置 & 字体 ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: #f4f7fc;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 30px 20px;
+            line-height: 1.6;
+            color: #1e293b;
+        }
+
+        /* ===== 主卡片容器 ===== */
+        .container {
+            max-width: 880px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            padding: 40px 45px 50px;
+            transition: all 0.2s ease;
+            border: 1px solid rgba(226, 232, 240, 0.6);
+        }
+
+        /* ===== 头部 ===== */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 28px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #eef2f6;
+        }
+
+        .header-icon {
+            background: #2563eb;
+            color: #fff;
+            width: 52px;
+            height: 52px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            flex-shrink: 0;
+            box-shadow: 0 8px 16px -6px rgba(37, 99, 235, 0.25);
+        }
+
+        .header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            color: #0b1e33;
+        }
+
+        .header .badge {
+            background: #dbeafe;
+            color: #1e4f8a;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 4px 14px;
+            border-radius: 40px;
+            margin-left: 8px;
+            white-space: nowrap;
+        }
+
+        /* ===== 步骤列表 ===== */
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            counter-reset: step-counter;
+        }
+
+        .step-item {
+            display: flex;
+            gap: 16px;
+            padding: 14px 16px 14px 18px;
+            border-radius: 18px;
+            background: #fafcff;
+            transition: background 0.15s ease;
+            border: 1px solid transparent;
+            counter-increment: step-counter;
+        }
+
+        .step-item:hover {
+            background: #f1f6fe;
+            border-color: #dce7fa;
+        }
+
+        /* 步骤序号 (圆形) */
+        .step-number {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            background: #e8edf9;
+            color: #1e4a7a;
+            font-weight: 700;
+            font-size: 18px;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 2px;
+            transition: 0.2s;
+        }
+
+        .step-item:hover .step-number {
+            background: #2563eb;
+            color: #fff;
+            box-shadow: 0 4px 10px -2px rgba(37, 99, 235, 0.3);
+        }
+
+        .step-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .step-content .step-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: #0b1e33;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 8px 6px;
+        }
+
+        .step-content .step-title .highlight {
+            background: #eef2ff;
+            color: #2563eb;
+            font-size: 13px;
+            font-weight: 500;
+            padding: 0 12px;
+            border-radius: 30px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            letter-spacing: 0.2px;
+        }
+
+        .step-content .step-desc {
+            font-size: 15px;
+            color: #334155;
+            margin-top: 2px;
+            word-break: break-word;
+        }
+
+        .step-content .step-desc .icon {
+            display: inline-block;
+            width: 1.2em;
+            text-align: center;
+            font-size: 1.1em;
+            color: #2563eb;
+        }
+
+        .step-content .step-desc .code {
+            background: #eef2f6;
+            padding: 0 8px;
+            border-radius: 6px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 14px;
+            color: #0b2d4f;
+        }
+
+        /* ===== 子步骤 (a1, a2, a3) ===== */
+        .sub-steps {
+            margin-top: 12px;
+            padding-left: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .sub-step {
+            background: #f8faff;
+            border-left: 4px solid #2563eb;
+            padding: 12px 18px 12px 20px;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+        }
+
+        .sub-step .sub-label {
+            font-weight: 700;
+            font-size: 15px;
+            color: #1e3a5f;
+            display: inline-block;
+            min-width: 32px;
+            background: #dbeafe;
+            padding: 0 10px 0 12px;
+            border-radius: 30px;
+            margin-right: 8px;
+            text-align: center;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+
+        .sub-step .sub-text {
+            font-size: 15px;
+            color: #1e293b;
+        }
+
+        .sub-step .sub-text strong {
+            color: #0b2d4f;
+            font-weight: 600;
+        }
+
+        .sub-step .sub-text .tag {
+            display: inline-block;
+            background: #e2e8f0;
+            padding: 0 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #1e3a5f;
+            margin: 0 4px;
+        }
+
+        .sub-step .sub-text .icon {
+            display: inline-block;
+            width: 1.2em;
+            text-align: center;
+            color: #2563eb;
+        }
+
+        /* ===== 分割装饰 ===== */
+        .divider-light {
+            height: 1px;
+            background: linear-gradient(to right, #e2e8f0, transparent);
+            margin: 16px 0 10px 0;
+        }
+
+        /* ===== 底部提示 ===== */
+        .footer-note {
+            margin-top: 32px;
+            background: #f1f5f9;
+            border-radius: 20px;
+            padding: 18px 24px;
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .footer-note .icon {
+            font-size: 22px;
+            color: #2563eb;
+            margin-top: 3px;
+            flex-shrink: 0;
+        }
+
+        .footer-note p {
+            font-size: 15px;
+            color: #1e293b;
+        }
+
+        .footer-note p strong {
+            color: #0b2d4f;
+        }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 700px) {
+            .container {
+                padding: 24px 20px 30px;
+            }
+
+            .header h1 {
+                font-size: 21px;
+            }
+
+            .step-item {
+                padding: 12px 12px 12px 14px;
+                gap: 12px;
+            }
+
+            .step-number {
+                width: 34px;
+                height: 34px;
+                font-size: 16px;
+            }
+
+            .step-content .step-title {
+                font-size: 15px;
+            }
+
+            .sub-step {
+                padding: 10px 14px;
+            }
+
+            .footer-note {
+                flex-direction: column;
+                gap: 6px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 18px 14px 24px;
+                border-radius: 24px;
+            }
+
+            .header {
+                flex-wrap: wrap;
+            }
+
+            .header .badge {
+                margin-left: 0;
+            }
+
+            .step-content .step-desc {
+                font-size: 14px;
+            }
+
+            .sub-step .sub-text {
+                font-size: 14px;
+            }
+        }
+
+        /* 小工具 —— 让滚动提示更明显 */
+        .scroll-hint {
+            display: inline-block;
+            background: #f1f5f9;
+            border-radius: 40px;
+            padding: 2px 14px 2px 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: #475569;
+            margin-left: 6px;
+        }
+
+        .scroll-hint .icon {
+            margin-right: 4px;
+            font-size: 12px;
+        }
+
+        /* 内联图标通用 */
+        .icon-em {
+            display: inline-block;
+            width: 1.2em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+
+        <!-- ===== 头部 ===== -->
+        <div class="header">
+            <div class="header-icon">
+                <span>🎮</span>
+            </div>
+            <div>
+                <h1>
+                    脚本助手 · 使用说明
+                    <span class="badge"><span class="icon-em">▶️</span> v2.0</span>
+                </h1>
+                <div style="font-size: 14px; color: #64748b; margin-top: 2px;">
+                    <span class="icon-em">🖥️</span> 单屏 · 缩放 100% · 分辨率 1600×900
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== 步骤列表 ===== -->
+        <div class="steps">
+
+            <!-- 步骤 1 -->
+            <div class="step-item">
+                <div class="step-number">1</div>
+                <div class="step-content">
+                    <div class="step-title">
+                        确保电脑是单屏且缩放为 100%
+                        <span class="highlight"><span class="icon-em">➡️</span> 修改缩放需重启游戏平台</span>
+                    </div>
+                    <div class="step-desc">
+                        <span class="icon">✅</span> 单屏模式 + 系统缩放 100%，避免界面错位。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步骤 2 -->
+            <div class="step-item">
+                <div class="step-number">2</div>
+                <div class="step-content">
+                    <div class="step-title">
+                        下载软件，解压，双击 <span class="highlight">GameScript</span> 程序
+                    </div>
+                    <div class="step-desc">
+                        <span class="icon">📂</span> 解压后直接运行 <span class="code">GameScript.exe</span>，无需安装。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步骤 3 -->
+            <div class="step-item">
+                <div class="step-number">3</div>
+                <div class="step-content">
+                    <div class="step-title">
+                        进入游戏，到达选择关卡页面
+                    </div>
+                    <div class="step-desc">
+                        <span class="icon">⚙️</span> 右上角设置游戏分辨率为 <span class="code">1600×900</span> ；
+                        <span style="display: inline-block; margin-top: 4px;">
+                            <span class="icon">🖱️</span> 通用设置 → <strong>“鼠标固定在游戏画面”</strong> 设为 <span class="code">关闭</span>。
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步骤 4 -->
+            <div class="step-item">
+                <div class="step-number">4</div>
+                <div class="step-content">
+                    <div class="step-title">
+                        点击助手程序的 <span class="highlight">环境检测</span>
+                    </div>
+                    <div class="step-desc">
+                        <span class="icon">🔄</span> 按照错误提示操作，直到提示 <strong>“一切准备就绪”</strong>。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步骤 5 -->
+            <div class="step-item">
+                <div class="step-number">5</div>
+                <div class="step-content">
+                    <div class="step-title">
+                        复制机器码给作者，获取证书
+                    </div>
+                    <div class="step-desc">
+                        <span class="icon">📜</span> 拿到证书文件后，点击脚本的 <span class="code">选择证书</span> 导入。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步骤 6 -->
+            <div class="step-item">
+                <div class="step-number">6</div>
+                <div class="step-content">
+                    <div class="step-title">
+                        检验脚本的设定值
+                        <span class="scroll-hint"><span class="icon">⬇️</span> 滚动可查看下方 UI</span>
+                    </div>
+                    <div class="step-desc">
+                        <span class="icon">🎛️</span> 脚本配置较多，请仔细核对所有参数。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 步骤 7 （含子步骤 a1, a2, a3） -->
+            <div class="step-item" style="border-color: #dce7fa; background: #f5f9ff;">
+                <div class="step-number">7</div>
+                <div class="step-content">
+                    <div class="step-title">
+                        常见设置错误 &amp; 调整建议
+                        <span class="highlight" style="background: #dbeafe;"><span class="icon-em">⚠️</span> 重点</span>
+                    </div>
+                    <div class="step-desc" style="margin-bottom: 2px;">
+                        <span class="icon">🔧</span> 以下三个参数最容易出错，请务必确认：
+                    </div>
+
+                    <!-- 子步骤 -->
+                    <div class="sub-steps">
+
+                        <!-- a1 -->
+                        <div class="sub-step">
+                            <div class="sub-text">
+                                <span class="sub-label">a1</span>
+                                <strong>等待时间</strong> — 从点击“开始游戏”到显示选择关卡等多个环节的
+                                <span class="tag">最大等待时间</span>
+                            </div>
+                            <div class="sub-text" style="margin-top: 4px;">
+                                <span class="icon">⏱️</span>
+                                建议 <strong>200</strong> 秒（可长不可短）。
+                            </div>
+                        </div>
+
+                        <!-- a2 -->
+                        <div class="sub-step">
+                            <div class="sub-text">
+                                <span class="sub-label">a2</span>
+                                <strong>发育时间</strong> — 游戏主线开始时计算
+                            </div>
+                            <div class="sub-text" style="margin-top: 4px;">
+                                <span class="icon">🚀</span>
+                                • 快刷模式：设为 <span class="code">0</span> &nbsp;·&nbsp;
+                                • 慢刷模式：按自身实力调整 &nbsp;·&nbsp;
+                                • 刷满 24 分钟：直接设为 <span class="code">1500</span>
+                            </div>
+                        </div>
+
+                        <!-- a3 -->
+                        <div class="sub-step">
+                            <div class="sub-text">
+                                <span class="sub-label">a3</span>
+                                <strong>存档挑战时间</strong> — 点击最终 BOSS（传家宝 BOSS）后开始计时
+                            </div>
+                            <div class="sub-text" style="margin-top: 4px;">
+                                <span class="icon">⌛</span>
+                                除 <strong>蹭车模式</strong> 及 <strong>龙珠数量 &lt; 6</strong> 外，基本无需修改。
+                                <span style="display: block; margin-top: 4px; color: #b45309; background: #fef3c7; padding: 4px 12px; border-radius: 30px; font-size: 14px;">
+                                    <span class="icon">💡</span> 若打完所有 BOSS 后罚站，可酌情减少此值。
+                                </span>
+                            </div>
+                        </div>
+
+                    </div> <!-- /sub-steps -->
+                </div>
+            </div>
+
+        </div> <!-- /steps -->
+
+        <!-- ===== 底部温馨提醒 ===== -->
+        <div class="footer-note">
+            <span class="icon">ℹ️</span>
+            <p>
+                <strong>💡 小贴士：</strong> 所有配置项均可在脚本 UI 中滚动查看。
+                如遇异常，优先检查 <strong>分辨率</strong>、<strong>鼠标固定</strong> 及 <strong>等待时间</strong> 三项。
+                <span style="display: inline-block; margin-top: 4px; color: #475569;">
+                    <span class="icon">➡️</span> 证书导入后即可开始使用。
+                </span>
+            </p>
+        </div>
+
+    </div>
+
+</body>
+</html>

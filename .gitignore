@@ -1,0 +1,19 @@
+﻿.venv/
+__pycache__/
+*.pyc
+logs/*.log
+logs/*.png
+.idea/
+.vscode/
+*.user
+ui/node_modules/
+ui/dist/
+node_modules/
+
+# Local machine/license/runtime captures; do not publish
+assets/Images/shortKey.png
+docs/agent_shared_logs/official_raw/
+docs/agent_shared_logs/exports/Settings.latest.full.json
+docs/runtime_sample/session_*/Settings.before.json
+_stage_templates/
+docs/agent_shared_logs/exports/session_*/Settings.before.json

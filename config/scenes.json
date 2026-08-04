@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "notes": "Recovered from 1.3.3.3 Images + method closures + help docs",
+  "method_pipeline": [
+    "LaunchGame",
+    "BeginGame",
+    "CreateRoom",
+    "EntryF1",
+    "SelectStage",
+    "FindAllMatchImages",
+    "FindCardImages",
+    "FindNodeWithTimeOut",
+    "CloseCardPanel",
+    "CloseSkillPanel",
+    "ChangeMainLineStatus",
+    "ClickOKBtn",
+    "MonitorGameOver",
+    "QuitGame",
+    "Run"
+  ],
+  "priority": [
+    "disconnect",
+    "fail",
+    "pause",
+    "ok",
+    "lobby_start",
+    "start",
+    "card_panel",
+    "skill_panel",
+    "stage",
+    "longzhu",
+    "treasure",
+    "wood",
+    "secret",
+    "boss_entry",
+    "archive",
+    "clean",
+    "close"
+  ],
+  "scenes": {
+    "lobby_start": {
+      "templates": ["lobby/room_start", "lobby/room_start_alt", "roomStart", "startGameBtn", "kk_start", "jihuo"],
+      "method": "EntryF1",
+      "action": "click"
+    },
+    "lobby_room": {
+      "templates": ["lobby/room_start", "lobby/room_start_alt", "roomStart", "startGameBtn", "kk_start", "jihuo"],
+      "method": "EntryF1",
+      "action": "click",
+      "also_scan_dir": "lobby",
+      "_note": "与 lobby_start 统一模板，供 L0 大厅使用"
+    },
+    "start": {
+      "templates": ["lobby/room_start", "lobby/room_start_alt", "roomStart", "startGameBtn", "kk_start", "jihuo"],
+      "method": "EntryF1",
+      "action": "click"
+    },
+    "ok": {
+      "templates": ["ok", "yes"],
+      "method": "ClickOKBtn",
+      "action": "click"
+    },
+    "close": {
+      "templates": ["close", "failGiftClose", "quit"],
+      "method": "QuitGame",
+      "action": "click"
+    },
+    "fail": {
+      "templates": ["fail", "gameFail", "giveUp"],
+      "method": "MonitorGameOver",
+      "action": "click"
+    },
+    "disconnect": {
+      "templates": ["gameDisconnect", "retryConnect"],
+      "method": "MonitorGameOver",
+      "action": "click"
+    },
+    "pause": {
+      "templates": ["pauseGame"],
+      "method": "Run",
+      "action": "log"
+    },
+    "stage": {
+      "templates": ["stage", "stage1", "stage2", "stage3", "stage4", "toHero", "HeroChallenge"],
+      "method": "SelectStage",
+      "action": "click"
+    },
+    "card_panel": {
+      "templates": ["card_hide", "hide", "cardRefresh", "heroRefresh"],
+      "method": "CloseCardPanel",
+      "action": "click",
+      "also_scan_dir": "cards"
+    },
+    "skill_panel": {
+      "templates": ["skill_hide", "noSkillNum", "skillRefreshGift", "skillchallenge"],
+      "method": "CloseSkillPanel",
+      "action": "click",
+      "also_scan_dir": "skills",
+      "prefer_settings_skills": true
+    },
+    "longzhu": {
+      "templates": ["longzhu", "longzhu2", "closeLongzhu"],
+      "method": "LongzhuJob",
+      "action": "click"
+    },
+    "treasure": {
+      "templates": [
+        "treasurechest",
+        "treasureRefreshGift",
+        "baowushuaxin",
+        "bwRefresh",
+        "2000baowu",
+        "refresh",
+        "shuaxinquan",
+        "shuaxinquan3"
+      ],
+      "method": "FindAllMatchImages",
+      "action": "click"
+    },
+    "wood": {
+      "templates": ["woodgift", "woodSuccess"],
+      "method": "AutoGambling",
+      "action": "click_or_pause"
+    },
+    "secret": {
+      "templates": ["damijing", "mijingOk", "kaogu", "kaoguMode"],
+      "method": "AutoSecretRealm",
+      "action": "click"
+    },
+    "boss_entry": {
+      "templates": ["boosIcon", "cjbBoss", "cjbBossbak", "sgzxBoss", "cjbtiaozhan"],
+      "method": "GetBoss",
+      "action": "click",
+      "also_scan_dir": ["boss", "chuanjiaobao"]
+    },
+    "archive": {
+      "templates": ["archiveChallenge", "cundang", "cundangInfo", "tuanben"],
+      "method": "FindNodeWithTimeOut",
+      "action": "click"
+    },
+    "clean": {
+      "templates": ["decompose", "zhuangbei", "baoshi", "cibao"],
+      "method": "AutoClean",
+      "action": "click"
+    },
+    "env_anchor": {
+      "templates": ["mainIdentifier", "shortKey", "zidong"],
+      "method": "Valida",
+      "action": "detect_only"
+    },
+    "rarity": {
+      "templates": ["r", "sr", "ssr", "ur", "ex", "hc"],
+      "method": "FindCardImages",
+      "action": "context"
+    },
+    "quality": {
+      "templates": ["pinfu", "pingfu1", "pingfu2", "pingfu3", "pingfu4", "pingfu6"],
+      "method": "AutoClean",
+      "action": "context"
+    },
+    "wave_markers": {
+      "templates": ["1-23", "5-6", "5-7", "5-8", "5-9", "5-10"],
+      "method": "ChangeMainLineStatus",
+      "action": "detect_only"
+    }
+  },
+  "combat_templates_root_unclassified": [
+    "bbx", "bingjianguanchuang", "bingjianlianfa", "bingjianqishe", "bolidapao",
+    "bpoint", "bzjs", "chongnengzhanchui", "chuangjiabao", "chuanjiabao",
+    "danGif", "duochongjian", "fashu", "fengwuzhe", "gongjian", "guangshe",
+    "jisu", "jscj", "jingyingshashou", "jianshu", "kfds", "laser", "laser2",
+    "lingzhushashou", "manjidalao", "manwuzhe", "mcsh", "meimiaominjie",
+    "mofashi", "moneng", "moshu", "onepiece", "ray", "ray2", "sanlingbingjian",
+    "shadililiang", "shadiminjie", "shadizhili", "shencimucai", "shenpanzhilei",
+    "sheshu", "shiguzhihan", "sugong", "sword", "tiaozhanshashou", "tqtz",
+    "wzjh", "xianzhen", "xzcz", "yalizhuanyi", "yanmozhiwang", "yazhi",
+    "yinwuzhe", "yishenshenzhuang", "yuansushi", "yueren"
+  ]
+}
