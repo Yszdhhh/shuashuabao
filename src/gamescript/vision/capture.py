@@ -136,14 +136,16 @@ def capture(title_contains: str = "") -> Frame:
         raise RuntimeError("mss not installed")
     rect = _find_window_rect(title_contains)
     left, top = 0, 0
+    if rect is None:
+        # Strict L0/L1 safety rule: never fall back to a desktop screenshot.
+        # A full-screen frame can match an unrelated blue button and cause an
+        # absolute-coordinate click outside the game window.
+        print(f"[capture] target window not found: {title_contains!r}")
+        return Frame(bgr=np.zeros((900, 1600, 3), dtype=np.uint8))
     try:
         with mss.mss() as sct:
-            if rect:
-                left, top, w, h = rect
-                mon = {"left": left, "top": top, "width": w, "height": h}
-            else:
-                mon = sct.monitors[1] if len(sct.monitors) > 1 else sct.monitors[0]
-                left, top = mon["left"], mon["top"]
+            left, top, w, h = rect
+            mon = {"left": left, "top": top, "width": w, "height": h}
             raw = np.array(sct.grab(mon))
             # BGRA -> BGR
             bgr = raw[:, :, :3].copy()

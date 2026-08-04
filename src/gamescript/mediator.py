@@ -73,6 +73,7 @@ class Mediator:
         self._longzhu_deadline: float | None = None
         self._f1_fallback_done = False
         self._boss_clicked = False  # ANCHOR_BOSS 是否已尝试点击
+        self._stage_click_cooldown_until = 0.0
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -268,18 +269,16 @@ class Mediator:
                 return LoopAction.Continue
 
             # 2. 定位并点击关卡/主线 SelectStage 按钮
-            hit_stage = self.find_scene(frame, "stage") or self.find_scene(frame, "stage", threshold=0.70)
+            hit_stage = None
+            if time.time() >= self._stage_click_cooldown_until:
+                hit_stage = self.find_scene(frame, "stage") or self.find_scene(frame, "stage", threshold=0.70)
             if hit_stage:
                 print(f"[L0] 选关 SelectStage {hit_stage.name} score={hit_stage.score:.3f} @ {hit_stage.center}")
                 self.act_click(hit_stage, "SelectStage")
+                self._stage_click_cooldown_until = time.time() + 2.0
                 return LoopAction.Continue
 
-            # 3. 尝试重新点击大厅/房间“开始游戏”按钮 (防漏点)
-            hit_start = self.find_scene(frame, "lobby_start") or self.find_scene(frame, "start")
-            if hit_start:
-                print(f"[L0] re-match {hit_start.name} score={hit_start.score:.3f} @ {hit_start.center}")
-                self.act_click(hit_start, "SelectStageStart")
-                return LoopAction.Continue
+            # 3. 不在 WAIT_UI 盲点大厅按钮；点击失败交给超时后的 LOBBY_ROOM 重试。
 
             if self.wait_ui_timed_out():
                 print("[L0] WAIT_UI timeout → 回退到 LOBBY_ROOM 重试")
@@ -301,10 +300,13 @@ class Mediator:
                     self._f1_fallback_done = True
                 return LoopAction.Continue
             # 关卡选关：若局内呈现关卡选关 UI，点击 SelectStage 推进
-            hit_stage = self.find_scene(frame, "stage")
+            hit_stage = None
+            if time.time() >= self._stage_click_cooldown_until:
+                hit_stage = self.find_scene(frame, "stage")
             if hit_stage:
                 print(f"[L1] 局内选关 SelectStage {hit_stage.name} score={hit_stage.score:.3f} @ {hit_stage.center}")
                 self.act_click(hit_stage, "SelectStage-InGame")
+                self._stage_click_cooldown_until = time.time() + 2.0
                 return LoopAction.Continue
             # 提前挑战：有 archive 节点则跳过发育
             if self.find_scene(frame, "archive"):

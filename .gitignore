@@ -17,3 +17,5 @@ docs/agent_shared_logs/exports/Settings.latest.full.json
 docs/runtime_sample/session_*/Settings.before.json
 _stage_templates/
 docs/agent_shared_logs/exports/session_*/Settings.before.json
+docs/agent_shared_logs/exports/
+docs/runtime_sample/
