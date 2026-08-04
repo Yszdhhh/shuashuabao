@@ -20,6 +20,7 @@ from gamescript.scenes import load_scenes, priority_keys, scene_templates
 from gamescript.settings import Settings
 from gamescript.vision.capture import Frame, capture, L0_WINDOW_KEYWORDS, L1_WINDOW_KEYWORDS
 from gamescript.vision.matcher import MatchResult, match_any
+from gamescript.vision.stage_selector import find_stage_in_range
 
 
 class Phase(Enum):
@@ -74,6 +75,8 @@ class Mediator:
         self._f1_fallback_done = False
         self._boss_clicked = False  # ANCHOR_BOSS 是否已尝试点击
         self._stage_click_cooldown_until = 0.0
+        self._stage_selected = False
+        self._start_click_cooldown_until = 0.0
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -164,6 +167,9 @@ class Mediator:
     def set_phase(self, phase: Phase, note: str = "") -> None:
         if phase != self.phase:
             print(f"[med] phase {self.phase.name} → {phase.name} {note}")
+        if phase == Phase.LOBBY_ROOM and self.phase != Phase.LOBBY_ROOM:
+            self._stage_selected = False
+            self._start_click_cooldown_until = 0.0
         self.phase = phase
         if phase == Phase.WAIT_UI:
             self._wait_ui_since = time.time()
@@ -268,17 +274,40 @@ class Mediator:
                 self.set_phase(Phase.MAIN_LINE, "开始主线(in-panel)")
                 return LoopAction.Continue
 
-            # 2. 定位并点击关卡/主线 SelectStage 按钮
-            hit_stage = None
-            if time.time() >= self._stage_click_cooldown_until:
-                hit_stage = self.find_scene(frame, "stage") or self.find_scene(frame, "stage", threshold=0.70)
-            if hit_stage:
-                print(f"[L0] 选关 SelectStage {hit_stage.name} score={hit_stage.score:.3f} @ {hit_stage.center}")
-                self.act_click(hit_stage, "SelectStage")
-                self._stage_click_cooldown_until = time.time() + 2.0
-                return LoopAction.Continue
+            # 2. 旧版把 stage.png（地图卡片）当成了“选关按钮”，只会点中间大图，
+            #    不会点右侧的 1-4 / 1-10 等编号。现在按 Stage1—Stage2 识别编号行。
+            now = time.time()
+            if not self._stage_selected and now >= self._stage_click_cooldown_until:
+                hit_stage = find_stage_in_range(
+                    frame,
+                    self.images,
+                    self.settings.stage1,
+                    self.settings.stage2,
+                )
+                if hit_stage:
+                    print(
+                        f"[L0] 选关 SelectStage {hit_stage.name} "
+                        f"@ {hit_stage.screen_x},{hit_stage.screen_y}"
+                    )
+                    self.act_click(hit_stage, "SelectStage-target")
+                    self._stage_selected = True
+                    self._stage_click_cooldown_until = now + 2.0
+                    return LoopAction.Continue
+                print(
+                    f"[L0] 未识别目标关卡编号 "
+                    f"{self.settings.stage1}-{self.settings.stage2}，不点击地图卡片"
+                )
 
-            # 3. 不在 WAIT_UI 盲点大厅按钮；点击失败交给超时后的 LOBBY_ROOM 重试。
+            # 3. 选中编号后点击页面底部“开始游戏”，否则只选中关卡仍不会进局。
+            if self._stage_selected and now >= self._start_click_cooldown_until:
+                hit_start = self.find_scene(frame, "lobby_start") or self.find_scene(frame, "start")
+                if hit_start:
+                    print(f"[L0] click stage start {hit_start.name} score={hit_start.score:.3f}")
+                    self.act_click(hit_start, "BeginGame-after-SelectStage")
+                    self._start_click_cooldown_until = now + 3.0
+                    return LoopAction.Continue
+
+            # 4. 不在 WAIT_UI 盲点大厅按钮；点击失败交给超时后的 LOBBY_ROOM 重试。
 
             if self.wait_ui_timed_out():
                 print("[L0] WAIT_UI timeout → 回退到 LOBBY_ROOM 重试")
@@ -299,15 +328,19 @@ class Mediator:
                     self.act_key("f1", "未找到集火，点击F1")
                     self._f1_fallback_done = True
                 return LoopAction.Continue
-            # 关卡选关：若局内呈现关卡选关 UI，点击 SelectStage 推进
-            hit_stage = None
+            # 关卡选关：只点击右侧编号行，不能把 stage.png 地图卡片当按钮。
             if time.time() >= self._stage_click_cooldown_until:
-                hit_stage = self.find_scene(frame, "stage")
-            if hit_stage:
-                print(f"[L1] 局内选关 SelectStage {hit_stage.name} score={hit_stage.score:.3f} @ {hit_stage.center}")
-                self.act_click(hit_stage, "SelectStage-InGame")
-                self._stage_click_cooldown_until = time.time() + 2.0
-                return LoopAction.Continue
+                hit_stage = find_stage_in_range(
+                    frame,
+                    self.images,
+                    self.settings.stage1,
+                    self.settings.stage2,
+                )
+                if hit_stage:
+                    print(f"[L1] 局内选关 SelectStage {hit_stage.name}")
+                    self.act_click(hit_stage, "SelectStage-InGame-target")
+                    self._stage_click_cooldown_until = time.time() + 2.0
+                    return LoopAction.Continue
             # 提前挑战：有 archive 节点则跳过发育
             if self.find_scene(frame, "archive"):
                 if self.settings.develop_time == 0 or self.find_scene(frame, "archive"):
