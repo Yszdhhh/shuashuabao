@@ -283,7 +283,7 @@ class MainWindow(QMainWindow):
             "⚠️ <b style='color:#f59e0b;'>【独狼模式说明】</b>："
             "独狼模式 (GameMode=0) 会优先在游戏窗口内自动识别并点击房间「开始游戏」，随后识别局内选关/主线 UI。<br/>"
             "若日志提示 <code>miss lobby start</code>，请确认窗口化 1600×900、缩放 100%，并更新 <code>assets/Images/lobby/room_start.png</code>。<br/>"
-            "<span style='color:#94a3b8;'>（自动建房需勾选 L0；输入框/按钮识别不安全时脚本会停住，不会盲点）</span>"
+            "<span style='color:#94a3b8;'>（自动建房需勾选 L0；同名大厅/房间会按页面按钮内容选择；输入框/按钮识别不安全或窗口被完全遮挡时脚本会停住，不会盲点）</span>"
         )
         lbl_notice.setWordWrap(True)
         lbl_notice.setStyleSheet(

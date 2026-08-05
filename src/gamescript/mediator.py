@@ -18,7 +18,15 @@ from gamescript.input.keyboard_mouse import click, hotkey, paste_text, press_key
 from gamescript.loop_action import LoopAction
 from gamescript.scenes import load_scenes, scene_templates
 from gamescript.settings import Settings
-from gamescript.vision.capture import Frame, capture, L0_WINDOW_KEYWORDS, L1_WINDOW_KEYWORDS
+from gamescript.vision.capture import (
+    Frame,
+    L0_WINDOW_KEYWORDS,
+    L1_WINDOW_KEYWORDS,
+    activate_window,
+    capture,
+    capture_target,
+    find_window_targets,
+)
 from gamescript.vision.matcher import (
     MatchResult,
     find_blue_button,
@@ -77,6 +85,11 @@ class Mediator:
         self._room_action_attempts = 0
         self._stage_scroll_attempts = 0
         self._missing_window_since: float | None = None
+        self._last_frame: Frame | None = None
+        self._last_capture_role: str | None = None
+        self._context_cache_frame: Frame | None = None
+        self._context_cache_role: str | None = None
+        self._context_cache_value = "UNKNOWN"
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -106,6 +119,65 @@ class Mediator:
                 return user_title
             return ",".join(L1_WINDOW_KEYWORDS)
 
+    def _detect_context(self, frame: Frame, role: str | None = None) -> str:
+        """Classify the visible page before taking a state-machine action."""
+        if self._context_cache_frame is frame and self._context_cache_role == role:
+            return self._context_cache_value
+
+        # L0 does not need to scan the whole card/skill library.  L1 starts
+        # with the in-game anchors, then checks the numbered stage list.
+        if role != "l0" and (
+            self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel")
+        ):
+            value = "IN_GAME"
+        elif role == "l1":
+            value = "STAGE_SELECT" if self._find_stage_page(frame) else "UNKNOWN"
+        elif self._find_room_start(frame):
+            value = "ROOM_WAITING"
+        elif self._find_stage_page(frame):
+            value = "STAGE_SELECT"
+        elif self._find_create_confirm(frame):
+            value = "CREATE_ROOM"
+        elif self._auto_room_enabled() and self._find_map_create_room(frame):
+            value = "PLATFORM_MAP"
+        elif role == "l0" and (
+            self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel")
+        ):
+            value = "IN_GAME"
+        else:
+            value = "UNKNOWN"
+
+        self._context_cache_frame = frame
+        self._context_cache_role = role
+        self._context_cache_value = value
+        return value
+
+    def _frame_signal(self, frame: Frame, role: str) -> int:
+        """Give anchor-bearing windows precedence over title-only matches."""
+        context = self._detect_context(frame, role)
+        return {
+            "ROOM_WAITING": 100,
+            "STAGE_SELECT": 90,
+            "CREATE_ROOM": 80,
+            "PLATFORM_MAP": 70,
+            "IN_GAME": 60,
+        }.get(context, 0)
+
+    def _capture_best(self, title: str, role: str) -> Frame:
+        """Capture all matching windows without focusing, then use scene pixels."""
+        targets = find_window_targets(title, role=role)
+        if not targets:
+            return capture(title, role=role, activate=False)
+        frames = [capture_target(target) for target in targets]
+        previous_hwnd = self._last_frame.hwnd if self._last_capture_role == role and self._last_frame else None
+        return max(
+            frames,
+            key=lambda frame: (
+                self._frame_signal(frame, role),
+                int(frame.hwnd == previous_hwnd),
+            ),
+        )
+
     def see(self, reason: str = "") -> Frame:
         title = self._capture_title()
         l0_phases = {
@@ -118,18 +190,23 @@ class Mediator:
             Phase.ROOM_WAITING,
         }
         role = "l0" if self.phase in l0_phases else "l1"
-        frame = capture(title, role=role)
-        if self.phase == Phase.BOOT and frame.hwnd is None and not frame.window_title:
-            # A user may launch the script after the game window is already
-            # open and the platform window is hidden/closed.  BOOT may probe
-            # L1 once; later L0 phases must stay platform-bound.
-            print("[med] BOOT 未找到平台窗口，尝试直接绑定游戏窗口")
-            frame = capture(",".join(L1_WINDOW_KEYWORDS), role="l1")
+        frame = self._capture_best(title, role)
+        if self.phase == Phase.BOOT and self._frame_signal(frame, role) == 0:
+            # BOOT is the only phase allowed to ask both windows which one is
+            # already in the game.  Later phases stay role-bound.
+            game_title = ",".join(L1_WINDOW_KEYWORDS)
+            game_frame = self._capture_best(game_title, "l1")
+            if self._frame_signal(game_frame, "l1") > 0:
+                print("[med] BOOT 检测到游戏窗口，切换到 L1")
+                frame = game_frame
+        self._last_frame = frame
+        self._last_capture_role = role
+        context = "NO_WINDOW" if frame.hwnd is None and not frame.window_title else self._detect_context(frame, role)
         print(
             f"[med] capture {reason or '-'} "
             f"{frame.width}x{frame.height} @({frame.left},{frame.top}) "
             f"phase={self.phase.name} target='{title}' "
-            f"window='{frame.window_title}' hwnd={frame.hwnd}"
+            f"window='{frame.window_title}' hwnd={frame.hwnd} context={context}"
         )
         return frame
 
@@ -174,26 +251,42 @@ class Mediator:
         } else (1.0,)
         return self.find(frame, self.templates(scene_key), threshold=threshold, scales=scales)
 
-    def act_click(self, hit: MatchResult, reason: str = "") -> None:
+    def _focus_last_window(self) -> bool:
+        if self.settings.dry_run:
+            return True
+        if not self._last_frame or not self._last_frame.hwnd:
+            print("[med] real input skipped: no target HWND")
+            return False
+        if not activate_window(self._last_frame.hwnd):
+            print(f"[med] real input skipped: cannot focus hwnd={self._last_frame.hwnd}")
+            return False
+        return True
+
+    def act_click(self, hit: MatchResult, reason: str = "") -> bool:
         print(f"[med] click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
+        if not self._focus_last_window():
+            return False
         click(
             hit.screen_x,
             hit.screen_y,
             dry_run=self.settings.dry_run,
             delay_ms=self.settings.click_delay_ms,
         )
+        return True
 
-    def act_key(self, key: str, reason: str = "") -> None:
+    def act_key(self, key: str, reason: str = "") -> bool:
         print(f"[med] key {key!r} ({reason})")
+        if not self._focus_last_window():
+            return False
         press_key(key, dry_run=self.settings.dry_run)
+        return True
 
     def click_scene(self, frame: Frame, scene_key: str, reason: str = "", threshold: float | None = None) -> bool:
         hit = self.find_scene(frame, scene_key, threshold=threshold)
         if not hit:
             print(f"[med] miss scene={scene_key} th={threshold or self.settings.match_threshold} ({reason})")
             return False
-        self.act_click(hit, reason or scene_key)
-        return True
+        return self.act_click(hit, reason or scene_key)
 
     # ---------- 阶段推进 ----------
 
@@ -203,9 +296,10 @@ class Mediator:
         if phase in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP) and self.phase not in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP):
             self._stage_selected = False
             self._room_dialog_filled = False
+        if phase in (Phase.PLATFORM_MAP, Phase.CREATE_ROOM):
+            self._room_action_deadline = time.time() + self.settings.query_timeout
         if phase == Phase.CREATE_ROOM:
             self._room_dialog_filled = False
-            self._room_action_deadline = time.time() + self.settings.query_timeout
         if phase in (Phase.ROOM_STARTING, Phase.STAGE_STARTING):
             self._room_action_deadline = time.time() + self.settings.query_timeout
             self._room_action_attempts = 0
@@ -271,7 +365,10 @@ class Mediator:
         hit = self.find_scene(frame, "create_room_confirm")
         if hit:
             return hit
-        candidates = find_blue_buttons(frame, roi=(0.28, 0.25, 0.82, 0.65))
+        # The real KK dialog is a separate ~584x488 window; its two inputs
+        # are in the upper half and the Create/Cancel buttons are at the
+        # bottom.  The old center ROI never saw this button.
+        candidates = find_blue_buttons(frame, roi=(0.25, 0.72, 0.90, 0.99))
         for candidate in reversed(candidates):
             if len(find_input_boxes(frame, anchor=candidate)) >= 2:
                 return candidate
@@ -296,7 +393,8 @@ class Mediator:
             return False
         values = (self.settings.room_name, self.settings.room_password)
         for box, value in zip(boxes[:2], values):
-            self.act_click(box, "CreateRoom-focus-input")
+            if not self.act_click(box, "CreateRoom-focus-input"):
+                return False
             hotkey("ctrl", "a", dry_run=self.settings.dry_run)
             paste_text(value, dry_run=self.settings.dry_run)
         print("[L0] 建房弹窗已填写房间名/密码")
@@ -307,13 +405,14 @@ class Mediator:
 
     def _tick_l0(self, frame: Frame) -> LoopAction:
         """Handle map → create dialog → room → stage without guessing clicks."""
+        context = self._detect_context(frame, "l0")
+        print(f"[med] decision context={context} phase={self.phase.name}")
+        if context == "IN_GAME":
+            print("[L1] 开始主线 / phase=MAIN_LINE")
+            self.set_phase(Phase.MAIN_LINE, "already in game")
+            return LoopAction.Continue
         room_start = self._find_room_start(frame)
         stage_page = False if room_start else self._find_stage_page(frame)
-        if not room_start and not stage_page:
-            if self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel"):
-                print("[L1] 开始主线 / phase=MAIN_LINE")
-                self.set_phase(Phase.MAIN_LINE, "in-game panel")
-                return LoopAction.Continue
 
         if self.phase in (Phase.BOOT, Phase.WAIT_EXIT, Phase.PREPARE, Phase.LOBBY_ROOM, Phase.WAIT_UI):
             if stage_page:
@@ -321,6 +420,9 @@ class Mediator:
                 return LoopAction.Continue
             if room_start:
                 self.set_phase(Phase.ROOM_WAITING, "room page detected")
+                return LoopAction.Continue
+            if context == "CREATE_ROOM":
+                self.set_phase(Phase.CREATE_ROOM, "create dialog detected")
                 return LoopAction.Continue
             if self._auto_room_enabled():
                 self.set_phase(Phase.PLATFORM_MAP, "auto create room enabled")
@@ -343,9 +445,15 @@ class Mediator:
             create = self._find_map_create_room(frame)
             if create:
                 print(f"[L0] 检测到创建房间按钮 {create.name} @ {create.center}")
-                self.act_click(create, "CreateRoom-open")
+                if not self.act_click(create, "CreateRoom-open"):
+                    return LoopAction.Continue
                 self.set_phase(Phase.CREATE_ROOM, "clicked map create room")
                 return LoopAction.Continue
+            if self._action_timed_out():
+                print("[L0] 地图页超时仍未安全识别创建房间按钮，停止而不是点击快速加入")
+                self.set_phase(Phase.ERROR, "create room button not found")
+                self.stop()
+                return LoopAction.Break
             print("[L0] 未找到创建房间按钮；拒绝点击快速加入/快速匹配")
             return LoopAction.Continue
 
@@ -366,7 +474,8 @@ class Mediator:
                     return LoopAction.Continue
                 self._room_dialog_filled = True
                 return LoopAction.Continue
-            self.act_click(confirm, "CreateRoom-confirm")
+            if not self.act_click(confirm, "CreateRoom-confirm"):
+                return LoopAction.Continue
             self._room_action_deadline = time.time() + self.settings.query_timeout
             self.set_phase(Phase.ROOM_WAITING, "create confirmed")
             return LoopAction.Continue
@@ -377,7 +486,8 @@ class Mediator:
                 return LoopAction.Continue
             if room_start:
                 print(f"[L0] 房间内点击开始 {room_start.name} score={room_start.score:.3f}")
-                self.act_click(room_start, "RoomStart")
+                if not self.act_click(room_start, "RoomStart"):
+                    return LoopAction.Continue
                 self._room_action_attempts = 1
                 self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
                 self.set_phase(Phase.ROOM_STARTING, "room start clicked")
@@ -400,7 +510,8 @@ class Mediator:
             if room_start and self._action_timed_out():
                 if self._room_action_attempts < 2:
                     print("[L0] 房间页面未变化，重试点击开始")
-                    self.act_click(room_start, "RoomStart-retry")
+                    if not self.act_click(room_start, "RoomStart-retry"):
+                        return LoopAction.Continue
                     self._room_action_attempts += 1
                     self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
                 else:
@@ -425,14 +536,22 @@ class Mediator:
                 if not target:
                     if self.settings.stage_targets and self._stage_scroll_attempts < 3:
                         x, y = stage_list_scroll_point(frame)
+                        if not self._focus_last_window():
+                            return LoopAction.Continue
                         scroll(x, y, 5, dry_run=self.settings.dry_run)
                         self._stage_scroll_attempts += 1
                         print(f"[L0] 目标关卡不在当前列表，滚动寻找 ({self._stage_scroll_attempts}/3)")
                     else:
                         print("[L0] 未找到配置目标关卡，拒绝点击任意可见关卡")
+                    if self._action_timed_out():
+                        print("[L0] 选关页超时仍未找到配置目标，停止而不是点击任意关卡")
+                        self.set_phase(Phase.ERROR, "configured stage not found")
+                        self.stop()
+                        return LoopAction.Break
                     return LoopAction.Continue
                 print(f"[L0] 选关 SelectStage {target.name} @ {target.center}")
-                self.act_click(target, "SelectStage-target")
+                if not self.act_click(target, "SelectStage-target"):
+                    return LoopAction.Continue
                 self._stage_selected = True
                 self._stage_click_cooldown_until = now + 1.5
                 return LoopAction.Continue
@@ -444,7 +563,8 @@ class Mediator:
                 print("[L0] 已选关，但未找到棕色开始游戏按钮")
                 return LoopAction.Continue
             print(f"[L0] 选关后点击开始 {start.name} score={start.score:.3f}")
-            self.act_click(start, "StageStart")
+            if not self.act_click(start, "StageStart"):
+                return LoopAction.Continue
             self._room_action_attempts = 1
             self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
             self.set_phase(Phase.STAGE_STARTING, "stage start clicked")
@@ -459,7 +579,8 @@ class Mediator:
                 start = self._find_stage_start(frame)
                 if start and self._room_action_attempts < 2:
                     print("[L0] 选关后页面未变化，重试点击开始")
-                    self.act_click(start, "StageStart-retry")
+                    if not self.act_click(start, "StageStart-retry"):
+                        return LoopAction.Continue
                     self._room_action_attempts += 1
                     self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
                 else:
@@ -549,7 +670,8 @@ class Mediator:
                 )
                 if hit_stage:
                     print(f"[L1] 局内选关 SelectStage {hit_stage.name}")
-                    self.act_click(hit_stage, "SelectStage-InGame-target")
+                    if not self.act_click(hit_stage, "SelectStage-InGame-target"):
+                        return LoopAction.Continue
                     self._stage_click_cooldown_until = time.time() + 2.0
                     return LoopAction.Continue
             # 提前挑战：有 archive 节点则跳过发育
@@ -579,7 +701,8 @@ class Mediator:
             hit = self.find(frame, bosses) if bosses else None
             if hit:
                 print(f"[med] 锚点BOSS名称为{hit.name}")
-                self.act_click(hit, "找到锚点Boss了")
+                if not self.act_click(hit, "找到锚点Boss了"):
+                    return LoopAction.Continue
                 self._boss_clicked = True
                 return LoopAction.Continue
             if self.click_scene(frame, "boss_entry", "boss_entry"):
@@ -640,6 +763,8 @@ class Mediator:
             f"targets={self.settings.stage_targets or '-'} "
             f"threshold={self.settings.match_threshold} images={self.images}"
         )
+        if self.settings.dry_run:
+            print("[med] DRY-RUN 仅识别/打印坐标，不会真的点击；要跑全链路请关闭 Dry-run")
         while self._running:
             action = self.tick()
             steps += 1

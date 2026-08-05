@@ -50,7 +50,7 @@
       "templates": ["lobby/create_room_confirm", "lobby/createRoomConfirm", "createRoomConfirm"],
       "method": "CreateRoom",
       "action": "click",
-      "fallback": "blue_right_dialog_roi"
+      "fallback": "blue_bottom_dialog_roi"
     },
     "room_start": {
       "templates": ["kk_start"],

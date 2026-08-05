@@ -56,6 +56,21 @@ class LobbyDetectorTests(unittest.TestCase):
         boxes = find_input_boxes(Frame(frame), anchor=anchor)
         self.assertEqual(len(boxes), 2)
 
+    def test_create_dialog_button_is_found_in_bottom_roi(self):
+        frame = np.zeros((488, 584, 3), dtype=np.uint8)
+        for y in (98, 194):
+            cv2.rectangle(frame, (203, y), (485, y + 32), (60, 60, 60), -1)
+            cv2.rectangle(frame, (203, y), (485, y + 32), (180, 180, 180), 2)
+        # Current KK create dialog: Create is left of Cancel at the bottom.
+        cv2.rectangle(frame, (262, 418), (373, 458), (230, 150, 20), -1)
+        cv2.rectangle(frame, (390, 420), (506, 456), (230, 150, 20), -1)
+        root = Path(__file__).resolve().parents[1]
+        med = Mediator(Settings(auto_create_room=True), root)
+        hit = med._find_create_confirm(Frame(frame))
+        self.assertIsNotNone(hit)
+        self.assertLess(hit.x, 350)
+        self.assertEqual(med._detect_context(Frame(frame)), "CREATE_ROOM")
+
     @staticmethod
     def images_dir():
         from pathlib import Path
