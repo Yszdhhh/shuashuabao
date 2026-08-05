@@ -57,28 +57,40 @@
 | :--- | :--- | :--- | :--- |
 | **L1 局内选关/战斗** | 完整 | **完整**（选卡、技能、龙珠、Boss 锚点、秘境、退局全支持） | 已稳定运行 |
 | **L0 独狼房间开始** | 用户手点 / 或大厅开始 | **支持**（已补全 `LOBBY_ROOM` 双阶 0.65 容错识别与自动点击） | 已添加 `lobby/` 模板 |
-| **L0 带队自动建房** | `GameMode=1` 时开启 | **暂未补全**（作为独立后续任务） | 需补充建房框、密码输入框模板与打字逻辑 |
-| **L0 每局重新建房** | 支持 `NewRoomEveryTimes` | **暂未补全** | 需结合带队建房流程实现退房重建 |
+| **L0 带队自动建房** | `GameMode=1` 时开启 | **已接入显式状态链** | 可选按钮模板 + 地图/弹窗 ROI；输入框不安全时拒绝盲填 |
+| **L0 每局重新建房** | 支持 `NewRoomEveryTimes` | **配置保留，退房重建仍需客户端样本** | 需要房间退出按钮模板与真实回放确认 |
 
 ---
 
-## 4. 补全带队 L0 自动建房的研发路线图 (Roadmap)
+## 4. 带队 L0 自动建房的实现与剩余边界
 
-为在未来的独立任务中实现完整的 L0 带队自动建房功能，需完成以下三部分演进：
+当前 L0 带队自动建房已经接入本地状态机；剩余工作只限于真实客户端样本不足的边界：
 
-### 第一步：图集资产补充 (`assets/Images/lobby/`)
+### 已实现：场景化检测与状态链
+
+`mediator.py` 现在显式经过：
+
+```text
+PLATFORM_MAP → CREATE_ROOM → ROOM_WAITING → ROOM_STARTING
+→ STAGE_SELECT → STAGE_STARTING → MAIN_LINE
+```
+
+全局蓝色轮廓兜底已删除；地图创建、弹窗确认、房间开始各自有 ROI/模板语义。
+
+### 可选增强：图集资产补充 (`assets/Images/lobby/`)
 需要捕获并补充以下 UI 元素的模板截图：
 1. `btn_create_room.png` — 平台/大厅“创建房间”按钮
 2. `input_room_name.png` — 房间名称输入框焦点图
 3. `input_room_pwd.png` — 房间密码输入框焦点图
 4. `btn_confirm_create.png` — 建房确认按钮
 
-### 第二步：键盘打字输入交互机制
-在 `gamescript/input/keyboard_mouse.py` 中增加字符串模拟输入或 Clipboard 粘贴文本功能，用于在识别到 `input_room_name` / `input_room_pwd` 时将 `settings.room_name` 和 `settings.room_password` 自动输入。
+### 已实现：键盘打字输入交互机制
+`gamescript/input/keyboard_mouse.py` 已支持组合键、Unicode 剪贴板粘贴和滚轮，用于在安全识别到两个输入框后输入 `settings.room_name` / `settings.room_password`。
 
-### 第三步：Mediator 状态机扩展 (`CREATE_ROOM`)
-在 `Phase` 枚举中新增 `CREATE_ROOM` 节点，并在 `NEXT` 局末阶段，根据 `settings.new_room_every_times` 判断：
-- 若为 `True`：局末退出时不直接等待房间，而是触发 `CREATE_ROOM` 执行退房 -> 新建房间 -> 设置密码 -> 等待队员开局流程。
+### 已实现：Mediator 状态机扩展 (`CREATE_ROOM`)
+`Phase` 已新增 `PLATFORM_MAP`、`CREATE_ROOM`、`ROOM_WAITING`、`ROOM_STARTING`、`STAGE_SELECT`、`STAGE_STARTING`。当前建房链为：
+- 地图页点击创建 → 弹窗填名/密码 → 确认 → 等待房间 → 点击开始 → 选关 → 局内验证。
+- `NewRoomEveryTimes=True` 的退房重建仍需一张真实房间退出页样本，暂不自动猜退出按钮。
 
 ---
 
@@ -86,4 +98,4 @@
 
 1. 目前 `GameScript-Local` 项目已完美具备 **L1 局内全流程自动化** 和 **L0 独狼房间开始识别**。
 2. 澄清误区：单修改 `Stage1/Stage2` 关卡字段属于 L1 局内选关参数，无法直接驱动 L0 自动建房。
-3. 针对 `GameMode=1` 带队车头自动建房与设密码的功能，已建立完整的分析与补充复刻方案，待后续专项任务实施。
+3. 针对 `GameMode=1` 带队车头，地图创建、弹窗输入、确认、房间开始和选关链已接入；每局退房重建仍需真实退出按钮模板。

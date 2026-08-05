@@ -23,11 +23,13 @@
     "fail",
     "pause",
     "ok",
-    "lobby_start",
-    "start",
+    "create_room_confirm",
+    "room_start",
+    "stage_start",
+    "map_create_room",
     "card_panel",
     "skill_panel",
-    "stage",
+    "stage_page",
     "longzhu",
     "treasure",
     "wood",
@@ -38,22 +40,51 @@
     "close"
   ],
   "scenes": {
-    "lobby_start": {
-      "templates": ["lobby/room_start", "lobby/room_start_alt", "roomStart", "startGameBtn", "kk_start", "jihuo"],
-      "method": "EntryF1",
-      "action": "click"
+    "map_create_room": {
+      "templates": ["lobby/create_room", "lobby/createRoom", "createRoom", "roomCreate"],
+      "method": "CreateRoom",
+      "action": "click",
+      "fallback": "blue_left_bottom_roi"
     },
-    "lobby_room": {
-      "templates": ["lobby/room_start", "lobby/room_start_alt", "roomStart", "startGameBtn", "kk_start", "jihuo"],
+    "create_room_confirm": {
+      "templates": ["lobby/create_room_confirm", "lobby/createRoomConfirm", "createRoomConfirm"],
+      "method": "CreateRoom",
+      "action": "click",
+      "fallback": "blue_right_dialog_roi"
+    },
+    "room_start": {
+      "templates": ["kk_start"],
       "method": "EntryF1",
       "action": "click",
-      "also_scan_dir": "lobby",
-      "_note": "与 lobby_start 统一模板，供 L0 大厅使用"
+      "fallback": "blue_room_start_roi"
+    },
+    "stage_start": {
+      "templates": ["lobby/room_start", "lobby/room_start_alt", "startGameBtn"],
+      "method": "BeginGame",
+      "action": "click"
+    },
+    "stage_page": {
+      "templates": ["stage", "stage1", "stage2", "stage3", "stage4", "toHero", "HeroChallenge"],
+      "method": "SelectStage",
+      "action": "detect_only"
+    },
+    "lobby_start": {
+      "templates": ["kk_start"],
+      "method": "EntryF1",
+      "action": "click",
+      "alias_of": "room_start"
+    },
+    "lobby_room": {
+      "templates": ["kk_start"],
+      "method": "EntryF1",
+      "action": "click",
+      "alias_of": "room_start"
     },
     "start": {
-      "templates": ["lobby/room_start", "lobby/room_start_alt", "roomStart", "startGameBtn", "kk_start", "jihuo"],
+      "templates": ["startGameBtn"],
       "method": "EntryF1",
-      "action": "click"
+      "action": "click",
+      "alias_of": "stage_start"
     },
     "ok": {
       "templates": ["ok", "yes"],
@@ -83,7 +114,8 @@
     "stage": {
       "templates": ["stage", "stage1", "stage2", "stage3", "stage4", "toHero", "HeroChallenge"],
       "method": "SelectStage",
-      "action": "click"
+      "action": "detect_only",
+      "alias_of": "stage_page"
     },
     "card_panel": {
       "templates": ["card_hide", "hide", "cardRefresh", "heroRefresh"],

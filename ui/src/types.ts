@@ -1,8 +1,11 @@
 export interface AppSettings {
   stage1: number;
   stage2: number;
+  stage_targets: string[];
   room_name: string;
   room_password: string;
+  auto_create_room: boolean;
+  room_create_side: 'left' | 'right';
   new_room_every_times: boolean;
   query_timeout: number;
   game_timeout: number;

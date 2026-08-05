@@ -229,15 +229,15 @@ export const App: React.FC = () => {
 
       {/* 主体区域 */}
       <main className="max-w-6xl mx-auto px-4 pt-4 space-y-4">
-        {/* 官方 GameMode=0 独狼模式说明 Banner */}
+        {/* L0 / L1 运行说明 Banner */}
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3.5 text-xs text-slate-300 flex items-start gap-2.5">
           <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div className="space-y-0.5">
             <p className="font-semibold text-amber-300">
-              【独狼模式说明 (GameMode=0)】：脚本会优先在游戏窗口内识别并点击房间「开始游戏」，然后继续识别选关/主线界面。
+              【大厅 → 房间 → 选关】：脚本会按页面状态识别创建房间、填写配置、点击房间开始，再识别目标关卡并点击棕色开始按钮。
             </p>
             <p className="text-slate-400">
-              提示：目标关卡范围 (Stage1 — Stage2) 只作用于局内 L1；自动建房/设密码属于带队车头模式，当前不包含完整建房流程。若提示 miss lobby start，请检查窗口化 1600×900、缩放 100% 和大厅模板。
+              提示：自动建房需打开下方 L0 开关；Dry-run 只打印坐标不真实点击。地图颜色兜底若只有一个蓝色候选会停住，弹窗输入框识别不安全也会停住，不要降低阈值盲点。
             </p>
           </div>
         </div>

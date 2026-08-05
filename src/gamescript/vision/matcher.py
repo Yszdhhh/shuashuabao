@@ -101,43 +101,133 @@ def match_one(
         )
     return best
 
-def find_kk_blue_button(frame: Frame) -> MatchResult | None:
-    """KK对战平台房间'开始游戏'蓝底按钮 HSV/RGB 色彩特征识别算法兜底。"""
+def find_blue_buttons(
+    frame: Frame,
+    roi: tuple[float, float, float, float] | None = None,
+    min_size: tuple[int, int] = (70, 25),
+    max_size: tuple[int, int] = (280, 90),
+) -> list[MatchResult]:
+    """Return blue button candidates inside one scene-specific ROI.
+
+    This is deliberately not part of :func:`match_any`: blue is a color, not
+    a semantic button.  Callers must provide the page/ROI meaning before
+    turning a candidate into a click.
+    """
     try:
         bgr = frame.bgr
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-        # KK 平台蓝色/天蓝色按钮 HSV 范围 (H: 90~130, S: 100~255, V: 100~255)
-        lower_blue = np.array([90, 100, 100])
+        # KK 平台蓝色/天蓝色按钮 HSV 范围。
+        lower_blue = np.array([90, 80, 70])
         upper_blue = np.array([130, 255, 255])
         mask = cv2.inRange(hsv, lower_blue, upper_blue)
+        if roi is not None:
+            rx1, ry1, rx2, ry2 = roi
+            x1, y1 = int(frame.width * rx1), int(frame.height * ry1)
+            x2, y2 = int(frame.width * rx2), int(frame.height * ry2)
+            clipped = np.zeros_like(mask)
+            clipped[max(0, y1):min(frame.height, y2), max(0, x1):min(frame.width, x2)] = 255
+            mask = cv2.bitwise_and(mask, clipped)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        
-        best_rect = None
+        found: list[MatchResult] = []
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
-            # 按钮尺寸约束：宽 80..220，高 25..70，长宽比 2.0..4.5
-            if 70 <= w <= 250 and 25 <= h <= 80 and 2.0 <= (w / h) <= 5.0:
-                # KK 房间开始按钮位于窗口中下部 (y > 0.4 * frame_height)
-                if y > frame.height * 0.3:
-                    best_rect = (x, y, w, h)
-                    break
-        if best_rect:
-            x, y, w, h = best_rect
+            if not (min_size[0] <= w <= max_size[0] and min_size[1] <= h <= max_size[1]):
+                continue
+            if not 2.0 <= (w / h) <= 5.5:
+                continue
+            area = float(cv2.contourArea(cnt))
+            coverage = area / max(1, w * h)
+            if coverage < 0.35:
+                continue
             cx = frame.left + x + w // 2
             cy = frame.top + y + h // 2
-            return MatchResult(
-                name="kk_start_blue_button_color",
-                score=0.99,
+            found.append(MatchResult(
+                name="blue_button_color",
+                score=min(0.99, 0.8 + 0.19 * coverage),
                 x=x,
                 y=y,
                 w=w,
                 h=h,
                 screen_x=cx,
                 screen_y=cy,
-            )
+            ))
+        return sorted(found, key=lambda hit: (hit.x, hit.y))
     except Exception:
-        pass
+        return []
+
+
+def find_blue_button(
+    frame: Frame,
+    roi: tuple[float, float, float, float],
+    side: str = "only",
+) -> MatchResult | None:
+    """Choose one blue candidate from a narrow, semantic scene ROI."""
+    candidates = find_blue_buttons(frame, roi=roi)
+    if len(candidates) == 1:
+        # A single blue rectangle is not enough evidence on a map page: it
+        # may be the equally blue quick-join action.  Accept lone candidates
+        # only when the caller explicitly says that the ROI has one semantic
+        # action; map-side callers must choose from multiple positioned
+        # candidates or provide a template.
+        return candidates[0] if side == "only" else None
+    if not candidates:
+        return None
+    if side == "left":
+        return candidates[0]
+    if side == "right":
+        return candidates[-1]
     return None
+
+
+def find_input_boxes(
+    frame: Frame,
+    anchor: MatchResult | None = None,
+) -> list[MatchResult]:
+    """Find two similarly sized dark text boxes above a dialog button."""
+    try:
+        gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 60, 160)
+        contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+        candidates: list[MatchResult] = []
+        for cnt in contours:
+            x, y, w, h = cv2.boundingRect(cnt)
+            if not (240 <= w <= frame.width * 0.55 and 18 <= h <= 75):
+                continue
+            if not 3.0 <= (w / h) <= 20.0:
+                continue
+            if y < frame.height * 0.12 or y > frame.height * 0.78:
+                continue
+            cx, cy = x + w // 2, y + h // 2
+            if anchor is not None:
+                ax, ay = anchor.x + anchor.w // 2, anchor.y + anchor.h // 2
+                if abs(cx - ax) > frame.width * 0.14 or cy >= ay:
+                    continue
+            fill = float(np.mean(gray[y + 2 : y + h - 2, x + 2 : x + w - 2]))
+            if fill > 150:
+                continue
+            candidates.append(MatchResult(
+                name="room_input",
+                score=0.8,
+                x=x,
+                y=y,
+                w=w,
+                h=h,
+                screen_x=frame.left + cx,
+                screen_y=frame.top + cy,
+            ))
+        unique: list[MatchResult] = []
+        for hit in sorted(candidates, key=lambda item: (item.y, -item.w)):
+            if any(abs(hit.x - old.x) < 8 and abs(hit.y - old.y) < 8 for old in unique):
+                continue
+            unique.append(hit)
+        for i in range(len(unique) - 1):
+            first, second = unique[i], unique[i + 1]
+            if abs(first.w - second.w) <= max(20, first.w * 0.2) and 10 <= second.y - first.y <= 140:
+                return [first, second]
+        return []
+    except Exception:
+        return []
 
 
 def match_any(
@@ -156,12 +246,6 @@ def match_any(
         if hit and (best is None or hit.score > best.score):
             best = hit
     
-    # 若模板未能匹配，且包含 kk_start/start 关键字，调用色域轮廓识别兜底
-    if best is None and any("start" in n.lower() or "kk" in n.lower() for n in names):
-        color_hit = find_kk_blue_button(frame)
-        if color_hit:
-            return color_hit
-
     return best
 
 

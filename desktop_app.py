@@ -283,7 +283,7 @@ class MainWindow(QMainWindow):
             "⚠️ <b style='color:#f59e0b;'>【独狼模式说明】</b>："
             "独狼模式 (GameMode=0) 会优先在游戏窗口内自动识别并点击房间「开始游戏」，随后识别局内选关/主线 UI。<br/>"
             "若日志提示 <code>miss lobby start</code>，请确认窗口化 1600×900、缩放 100%，并更新 <code>assets/Images/lobby/room_start.png</code>。<br/>"
-            "<span style='color:#94a3b8;'>（自动建房/设密码属于带队车头 L0，当前仍未实现）</span>"
+            "<span style='color:#94a3b8;'>（自动建房需勾选 L0；输入框/按钮识别不安全时脚本会停住，不会盲点）</span>"
         )
         lbl_notice.setWordWrap(True)
         lbl_notice.setStyleSheet(
@@ -342,6 +342,35 @@ class MainWindow(QMainWindow):
         r_stage.addWidget(QLabel("关 (目标范围 Stage1—Stage2)"))
         r_stage.addStretch()
         l_reg.addLayout(r_stage)
+
+        # L0 大厅自动建房与精确选关
+        r_l0 = QHBoxLayout()
+        self.chk_auto_room = QCheckBox("大厅自动建房 (L0)")
+        r_l0.addWidget(self.chk_auto_room)
+        r_l0.addWidget(QLabel("房间名:"))
+        self.txt_room_name = QLineEdit()
+        self.txt_room_name.setPlaceholderText("可空")
+        r_l0.addWidget(self.txt_room_name)
+        r_l0.addWidget(QLabel("密码:"))
+        self.txt_room_password = QLineEdit()
+        self.txt_room_password.setEchoMode(QLineEdit.Password)
+        self.txt_room_password.setPlaceholderText("可空")
+        r_l0.addWidget(self.txt_room_password)
+        r_l0.addWidget(QLabel("创建按钮:"))
+        self.cmb_room_side = QComboBox()
+        self.cmb_room_side.addItem("左侧", "left")
+        self.cmb_room_side.addItem("右侧", "right")
+        r_l0.addWidget(self.cmb_room_side)
+        self.chk_new_room = QCheckBox("每局重建（需退出模板）")
+        r_l0.addWidget(self.chk_new_room)
+        l_reg.addLayout(r_l0)
+
+        r_exact_stage = QHBoxLayout()
+        r_exact_stage.addWidget(QLabel("精确关卡（可选，逗号分隔）:"))
+        self.txt_stage_targets = QLineEdit()
+        self.txt_stage_targets.setPlaceholderText("例如 1-10；留空则使用上面的范围")
+        r_exact_stage.addWidget(self.txt_stage_targets)
+        l_reg.addLayout(r_exact_stage)
 
         # Boss 下拉
         grid_boss = QGridLayout()
@@ -639,6 +668,13 @@ class MainWindow(QMainWindow):
         self.settings = s
         self.spn_s1.setValue(s.stage1)
         self.spn_s2.setValue(s.stage2)
+        self.txt_stage_targets.setText(",".join(s.stage_targets or []))
+        self.chk_auto_room.setChecked(s.auto_create_room)
+        self.txt_room_name.setText(s.room_name)
+        self.txt_room_password.setText(s.room_password)
+        side_index = self.cmb_room_side.findData(s.room_create_side)
+        self.cmb_room_side.setCurrentIndex(side_index if side_index >= 0 else 0)
+        self.chk_new_room.setChecked(s.new_room_every_times)
         self.spn_db.setValue(s.dragon_ball_count)
         self.spn_qto.setValue(s.query_timeout)
         self.spn_dev.setValue(s.develop_time)
@@ -684,6 +720,12 @@ class MainWindow(QMainWindow):
         s.game_mode = 0
         s.stage1 = self.spn_s1.value()
         s.stage2 = self.spn_s2.value()
+        s.stage_targets = [item.strip() for item in self.txt_stage_targets.text().split(",") if item.strip()]
+        s.auto_create_room = self.chk_auto_room.isChecked()
+        s.room_name = self.txt_room_name.text().strip()
+        s.room_password = self.txt_room_password.text()
+        s.room_create_side = self.cmb_room_side.currentData() or "left"
+        s.new_room_every_times = self.chk_new_room.isChecked()
         s.dragon_ball_count = self.spn_db.value()
         s.query_timeout = self.spn_qto.value()
         s.develop_time = self.spn_dev.value()

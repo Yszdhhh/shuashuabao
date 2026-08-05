@@ -31,6 +31,6 @@
 |------|------|
 | scenes.json 驱动 AutoJob | 已接 |
 | 找图 / 截屏 / dry-run | 已有 |
-| CreateRoom 真建房 | 占位 |
+| CreateRoom 真建房 | 已接入场景化状态链；无真实弹窗模板时仅使用严格 ROI，输入框不安全则停住 |
 | Shift+F12 全局热键 | 未接 |
 | 防息屏 / NTP / 证书 | 不做或后补 |

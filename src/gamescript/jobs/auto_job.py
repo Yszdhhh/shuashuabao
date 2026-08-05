@@ -16,6 +16,7 @@ from gamescript.scenes import load_scenes, priority_keys, scene_templates
 from gamescript.settings import Settings
 from gamescript.vision.capture import capture
 from gamescript.vision.matcher import MatchResult, match_any, match_one, resolve_template
+from gamescript.vision.stage_selector import find_stage_in_range, find_stage_labels
 
 
 class AutoJob:
@@ -72,11 +73,21 @@ class AutoJob:
         return self.click_names(self.templates(key), reason or key, frame=frame)
 
     def entry_f1(self, frame=None) -> LoopAction:
-        self.click_scene("start", "EntryF1", frame=frame)
+        self.click_scene("room_start", "EntryF1", frame=frame)
         return LoopAction.Continue
 
     def select_stage(self, frame=None) -> LoopAction:
-        self.click_scene("stage", "SelectStage", frame=frame)
+        if frame is None:
+            frame = self.capture_win("stage")
+        hit = (
+            find_stage_labels(frame, self.images, self.settings.stage_targets)
+            if self.settings.stage_targets
+            else find_stage_in_range(frame, self.images, self.settings.stage1, self.settings.stage2)
+        )
+        if hit:
+            self._click_hit(hit, "SelectStage-target")
+        else:
+            print("[auto] miss configured stage target")
         return LoopAction.Continue
 
     def close_card_panel(self, frame=None) -> LoopAction:
@@ -153,11 +164,14 @@ class AutoJob:
             if key == "ok":
                 self._click_hit(hit, "ClickOKBtn")
                 return LoopAction.Continue
-            if key == "start":
+            if key in ("room_start", "lobby_start", "start"):
                 if self.settings.game_mode == 0:
                     self._click_hit(hit, "EntryF1")
                 else:
                     print("[auto] start visible, game_mode!=0 skip click")
+                return LoopAction.Continue
+            if key == "stage_start":
+                self._click_hit(hit, "StageStart")
                 return LoopAction.Continue
             if key == "card_panel":
                 self._click_hit(hit, "CloseCardPanel")
@@ -165,8 +179,11 @@ class AutoJob:
             if key == "skill_panel":
                 self._click_hit(hit, "CloseSkillPanel")
                 return LoopAction.Continue
-            if key == "stage":
-                self._click_hit(hit, "SelectStage")
+            if key in ("stage", "stage_page"):
+                self.select_stage(frame)
+                return LoopAction.Continue
+            if key in ("map_create_room", "create_room_confirm"):
+                print("[auto] CreateRoom requires Mediator; use the non-legacy runner")
                 return LoopAction.Continue
             if key in ("longzhu", "treasure", "wood", "secret", "archive", "clean", "boss_entry"):
                 if key == "boss_entry":

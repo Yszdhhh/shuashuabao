@@ -173,3 +173,36 @@ def find_stage_in_range(
         screen_x=frame.left + chosen.center_x,
         screen_y=frame.top + chosen.center_y,
     )
+
+
+def find_stage_labels(
+    frame: Frame,
+    images_dir: Path,
+    labels: list[str],
+) -> MatchResult | None:
+    """Find one exact visible ``chapter-stage`` label."""
+    wanted = {label.strip() for label in labels if label.strip()}
+    if not wanted:
+        return None
+    rows = visible_stage_rows(frame, images_dir)
+    chosen = next((row for row in rows if row.label in wanted), None)
+    if chosen is None:
+        return None
+    return MatchResult(
+        name=f"stage_target_{chosen.label}",
+        score=1.0,
+        x=chosen.center_x,
+        y=chosen.center_y,
+        w=0,
+        h=0,
+        screen_x=frame.left + chosen.center_x,
+        screen_y=frame.top + chosen.center_y,
+    )
+
+
+def stage_list_scroll_point(frame: Frame) -> tuple[int, int]:
+    """Approximate the center of the numbered-stage list for scrolling."""
+    return (
+        frame.left + int(frame.width * 0.675),
+        frame.top + int(frame.height * 0.52),
+    )

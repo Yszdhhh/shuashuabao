@@ -1,9 +1,12 @@
 {
   "stage1": 1,
   "stage2": 10,
+  "stage_targets": [],
   "room_name": "",
   "room_password": "",
-  "new_room_every_times": true,
+  "auto_create_room": false,
+  "room_create_side": "left",
+  "new_room_every_times": false,
   "query_timeout": 120,
   "game_timeout": 15,
   "game_mode": 0,

@@ -56,6 +56,27 @@ export const RegularConfigCard: React.FC<RegularConfigCardProps> = ({
               />
               <span className="text-xs text-[#8b9bb4] ml-2">关 (推荐 1 — 10)</span>
             </div>
+            <div className="mt-3">
+              <label className="text-[11px] text-[#8b9bb4] block mb-1">
+                精确目标（可选，多个用逗号；例如 1-10）
+              </label>
+              <input
+                type="text"
+                value={(settings.stage_targets || []).join(',')}
+                disabled={disabled}
+                onChange={(e) =>
+                  onChange(
+                    'stage_targets',
+                    e.target.value
+                      .split(',')
+                      .map((item) => item.trim())
+                      .filter(Boolean),
+                  )
+                }
+                placeholder="留空则按 stage1 — stage2"
+                className="w-full bg-[#151c2c] border border-[#243044] rounded px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
           </div>
 
           {/* 龙珠数 / 超时 / 发育时间 */}
@@ -105,6 +126,63 @@ export const RegularConfigCard: React.FC<RegularConfigCardProps> = ({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* L0 建房配置 */}
+        <div className="bg-[#0b1220] p-3 rounded-lg border border-amber-500/30">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-medium text-amber-300 flex items-center gap-1.5">
+              <ToggleLeft className="w-3.5 h-3.5" />
+              <span>大厅自动建房 (L0)</span>
+            </label>
+            <input
+              type="checkbox"
+              checked={settings.auto_create_room}
+              disabled={disabled}
+              onChange={(e) => onChange('auto_create_room', e.target.checked)}
+              className="w-4 h-4 rounded border-[#243044] bg-[#151c2c] text-amber-500 focus:ring-0 cursor-pointer"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+            <input
+              type="text"
+              value={settings.room_name}
+              disabled={disabled || !settings.auto_create_room}
+              onChange={(e) => onChange('room_name', e.target.value)}
+              placeholder="房间名（可空）"
+              className="bg-[#151c2c] border border-[#243044] rounded px-3 py-1.5 text-xs text-white focus:border-amber-500 focus:outline-none disabled:opacity-50"
+            />
+            <input
+              type="password"
+              value={settings.room_password}
+              disabled={disabled || !settings.auto_create_room}
+              onChange={(e) => onChange('room_password', e.target.value)}
+              placeholder="密码（可空）"
+              className="bg-[#151c2c] border border-[#243044] rounded px-3 py-1.5 text-xs text-white focus:border-amber-500 focus:outline-none disabled:opacity-50"
+            />
+            <select
+              value={settings.room_create_side}
+              disabled={disabled || !settings.auto_create_room}
+              onChange={(e) => onChange('room_create_side', e.target.value as 'left' | 'right')}
+              className="bg-[#151c2c] border border-[#243044] rounded px-3 py-1.5 text-xs text-slate-100 focus:border-amber-500 focus:outline-none disabled:opacity-50"
+            >
+              <option value="left">创建按钮在左侧</option>
+              <option value="right">创建按钮在右侧</option>
+            </select>
+          </div>
+          <label className="mt-2 flex items-center gap-2 text-[11px] text-[#8b9bb4]">
+            <input
+              type="checkbox"
+              checked={settings.new_room_every_times}
+              disabled={disabled || !settings.auto_create_room}
+              onChange={(e) => onChange('new_room_every_times', e.target.checked)}
+              className="w-3.5 h-3.5 rounded border-[#243044] bg-[#151c2c] text-amber-500 focus:ring-0"
+            />
+            每局结束后返回地图并重新建房（需房间退出模板）
+          </label>
+          <p className="text-[11px] text-[#8b9bb4] mt-2">
+            建房弹窗必须能识别到两个输入框；识别不安全时脚本会停在当前阶段，不会误点取消或快速加入。
+          </p>
         </div>
 
         {/* Boss 下拉选项 */}

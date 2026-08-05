@@ -262,7 +262,7 @@ class App:
         warn = (
             "【大厅/房间】独狼模式会尝试在游戏窗口内识别并点击「开始游戏」。\n"
             "脚本随后继续识别选关/主线 UI；若日志提示 miss lobby start，请确认窗口标题、1600×900/100% 缩放并更新模板。\n"
-            "自动建房/密码 = 带队模式能力，本地仍未实现。\n"
+            "自动建房/密码请在 Web 控制面板的 L0 配置中开启；此旧版 Tk 面板仅保留已有配置，不提供建房字段编辑。\n"
             "完整官方：..\\1.3.3.3\\GameScript.exe"
         )
         tk.Label(
@@ -359,8 +359,6 @@ class App:
         s.window_title_contains = self.var_title.get().strip()
         s.skills = [c for c, v in self.skill_vars.items() if v.get()]
         s.dry_run = bool(self.var_dry.get())
-        s.new_room_every_times = False
-        s.room_name = ""
         return s
 
     def save_local(self) -> None:

@@ -47,6 +47,13 @@ PHASE_NAME_MAP = {
     "LOBBY_ROOM": "房间大厅",
     "PREPARE": "准备游戏",
     "WAIT_UI": "等待进入UI",
+    "PLATFORM_MAP": "地图页",
+    "CREATE_ROOM": "创建房间",
+    "ROOM_WAITING": "等待房间开始",
+    "ROOM_STARTING": "进入游戏",
+    "STAGE_SELECT": "选择关卡",
+    "STAGE_STARTING": "启动关卡",
+    "ERROR": "目标窗口不可用",
     "MAIN_LINE": "主线选卡",
     "EARLY_CHALLENGE": "提前挑战",
     "ANCHOR_BOSS": "锚点Boss",
@@ -263,7 +270,8 @@ def start_run(req: StartRunRequest = StartRunRequest()):
     max_steps = req.max_steps if (req.max_steps and req.max_steps > 0) else None
 
     runner.add_log(
-        f"[启动] 刷图任务启动 | Dry-run={s.dry_run} | 关卡={s.stage1}-{s.stage2} | 技能={s.skills}",
+        f"[启动] 刷图任务启动 | Dry-run={s.dry_run} | 关卡={s.stage1}-{s.stage2} "
+        f"| 精确目标={s.stage_targets or '-'} | 技能={s.skills}",
         "info",
     )
 

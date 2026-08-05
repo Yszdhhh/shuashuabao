@@ -55,8 +55,11 @@ _OFFICIAL_MAP = {
 class Settings:
     stage1: int = 3
     stage2: int = 2
+    stage_targets: list[str] = field(default_factory=list)
     room_name: str = ""
     room_password: str = ""
+    auto_create_room: bool = False
+    room_create_side: str = "left"
     new_room_every_times: bool = False
     query_timeout: int = 60
     game_timeout: int = 15
@@ -140,7 +143,7 @@ class Settings:
                 if k in ("room_name", "room_password", "cjb_boss", "sgzx_boss",
                          "reputation_cjb_boss", "reputation_sgzx_boss", "window_title_contains"):
                     clean[k] = ""
-                elif k in ("skills", "cards"):
+                elif k in ("skills", "cards", "stage_targets"):
                     clean[k] = []
         return cls(**clean)
 
