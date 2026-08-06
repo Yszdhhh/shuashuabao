@@ -23,6 +23,8 @@ export interface AppSettings {
   develop_time: number;
   auto_reputation: boolean;
   continue_reputation: boolean;
+  reputation_type: number;
+  reputation_level: number;
   reputation_stage1: number;
   reputation_stage2: number;
   reputation_cjb_boss: string;

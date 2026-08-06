@@ -23,6 +23,8 @@
   "develop_time": 0,
   "auto_reputation": true,
   "continue_reputation": false,
+  "reputation_type": 1,
+  "reputation_level": 1,
   "reputation_stage1": 1,
   "reputation_stage2": 10,
   "reputation_cjb_boss": "01暴掠龙",

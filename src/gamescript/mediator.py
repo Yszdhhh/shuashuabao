@@ -328,24 +328,19 @@ class Mediator:
         return 0.24, 0.16, 0.76, 0.66
 
     def _selection_anchor(self, frame: Frame) -> MatchResult | None:
-        """Find the bottom ``暂时隐藏`` anchor of a reward-choice panel.
-
-        The old ``skill_panel`` scene also contains refresh counters which
-        are always visible in combat.  Only the central hide button is a
-        safe signal that a selectable panel is actually open.
-        """
-        threshold = max(0.80, self.settings.match_threshold)
+        """Find the bottom ``暂时隐藏`` anchor of a reward-choice panel."""
+        threshold = min(0.70, self.settings.match_threshold)
         hit = self.find(
             frame,
             ["skill_hide", "card_hide", "hide"],
             threshold=threshold,
-            scales=(0.9, 1.0, 1.1, 1.15, 1.2),
+            scales=(0.85, 0.9, 1.0, 1.1, 1.15, 1.2),
         )
         if not hit:
             return None
-        if hit.x < frame.width * 0.25 or hit.x > frame.width * 0.70:
+        if hit.x < frame.width * 0.20 or hit.x > frame.width * 0.80:
             return None
-        if hit.y < frame.height * 0.62:
+        if hit.y < frame.height * 0.50:
             return None
         return hit
 
@@ -361,14 +356,12 @@ class Mediator:
             names.extend(f"{directory}/{path.stem}" for path in sorted(folder.glob("*.png")))
         names = list(dict.fromkeys(names))
         kwargs = {
-            "threshold": max(0.82, self.settings.match_threshold),
+            "threshold": min(0.70, self.settings.match_threshold),
             "roi": self._selection_roi(),
             "max_results": 12,
         }
-        hits = match_all(frame, self.images, names, scales=(1.0,), **kwargs)
-        if hits:
-            return hits
-        return match_all(frame, self.images, names, scales=(0.9, 1.1, 1.15), **kwargs)
+        hits = match_all(frame, self.images, names, scales=(0.85, 0.95, 1.0, 1.05, 1.1), **kwargs)
+        return hits
 
     @staticmethod
     def _preferred_choice(hits: list[MatchResult], preferred: list[str]) -> MatchResult | None:
@@ -376,12 +369,6 @@ class Mediator:
         return next((hit for hit in hits if hit.name in wanted), None)
 
     def _generic_choice_slot(self, frame: Frame, index: int = 0) -> MatchResult | None:
-        """Return a conservative slot center when a panel has no item asset.
-
-        Treasure icons are not present in the recovered image pack.  The game
-        still uses the fixed three-card layout, so this fallback is only
-        allowed after ``_selection_anchor`` proves that the modal is open.
-        """
         if frame.width < 800 or frame.height < 500 or not 0 <= index <= 2:
             return None
         x = int(frame.width * (0.355 + index * 0.145))
@@ -411,15 +398,13 @@ class Mediator:
             hit = self._preferred_choice(cards, self.settings.cards) or cards[0]
             return "羁绊", hit
 
-        # No treasure image set was recovered from the original package.  A
-        # verified three-card modal is safer than clicking refresh/hide, so
-        # choose its first card and leave a grep-able diagnostic line.
-        hit = self._generic_choice_slot(frame)
+        hit = self._generic_choice_slot(frame, 0)
         return ("宝物/未标注奖励", hit) if hit else None
 
     def _find_challenge_button(self, frame: Frame, scene_key: str) -> tuple[MatchResult, MatchResult] | None:
         """Return (label hit, icon click hit) for one bottom challenge toggle."""
-        label = self.find_scene(frame, scene_key)
+        threshold = min(0.68, self.settings.match_threshold)
+        label = self.find_scene(frame, scene_key, threshold=threshold)
         if not label:
             return None
         click_hit = MatchResult(
@@ -444,8 +429,8 @@ class Mediator:
         if roi.size == 0:
             return False
         b, g, r = cv2.split(roi)
-        green = (g > 100) & (g > r + 25) & (g > b + 10)
-        return int(green.sum()) >= 8
+        green = (g > 100) & (g > r + 20) & (g > b + 10)
+        return int(green.sum()) >= 6
 
     def _ensure_challenge_buttons(self, frame: Frame) -> bool:
         for scene_key, label in (
@@ -464,11 +449,81 @@ class Mediator:
                 print(f"[L1] {label}挑战已是自动模式")
                 self._challenge_done.add(scene_key)
                 continue
-            print(f"[L1] 开启{label}挑战 {click_hit.center}")
+            print(f"[L1] 自动开启【{label}挑战】 {click_hit.center}")
             if self.act_click(click_hit, f"{label}Challenge"):
                 self._challenge_done.add(scene_key)
                 return True
         return False
+
+    def _handle_hero_mode_reputation(self, frame: Frame) -> bool:
+        """开启并配置英雄模式（声望挑战）: 1:黑锋骑士团, 2:银色北伐军, 3:肯瑞托, 4:探险者协会, 5:元素领主, 6:守护巨龙"""
+        hero_btn = self.find(frame, ["toHero", "HeroChallenge"], threshold=0.70)
+        if not hero_btn:
+            x = int(frame.width * 0.79)
+            y = int(frame.height * 0.94)
+            hero_btn = MatchResult(
+                name="hero_mode_fallback",
+                score=0.0,
+                x=x, y=y, w=0, h=0,
+                screen_x=frame.left + x,
+                screen_y=frame.top + y
+            )
+
+        cancel_btn = self.find(frame, ["cancelChallenge", "quxiao"], threshold=0.70)
+        confirm_btn = self.find(frame, ["startChallenge", "kaishiChallenge"], threshold=0.70)
+
+        if not (cancel_btn or confirm_btn):
+            print(f"[L0] 点击右下角【英雄模式】按钮 @ {hero_btn.center}")
+            self.act_click(hero_btn, "OpenHeroModeModal")
+            time.sleep(0.6)
+            return False
+
+        rep_type = max(1, min(6, getattr(self.settings, "reputation_type", 1)))
+        rep_level = max(1, min(10, getattr(self.settings, "reputation_level", 1)))
+
+        names_map = {
+            1: "黑锋骑士团",
+            2: "银色北伐军",
+            3: "肯瑞托",
+            4: "探险者协会",
+            5: "元素领主",
+            6: "守护巨龙"
+        }
+        rep_name = names_map.get(rep_type, "黑锋骑士团")
+        print(f"[L0] 英雄模式配置：选择声望【{rep_name}】(序号{rep_type})，难度【{rep_level}级】")
+
+        card_coords = {
+            1: (0.17, 0.20),
+            2: (0.33, 0.20),
+            3: (0.49, 0.20),
+            4: (0.65, 0.20),
+            5: (0.17, 0.60),
+            6: (0.33, 0.60),
+        }
+
+        zero_x_map = {1: 0.09, 2: 0.25, 3: 0.41, 4: 0.57, 5: 0.09, 6: 0.25}
+        plus_x_map = {1: 0.18, 2: 0.34, 3: 0.50, 4: 0.66, 5: 0.18, 6: 0.34}
+
+        cx, cy = card_coords[rep_type]
+        self.act_click(MatchResult("rep_card", 0.0, int(frame.width*cx), int(frame.height*cy), 0, 0, frame.left + int(frame.width*cx), frame.top + int(frame.height*cy)), f"SelectReputation-{rep_name}")
+        time.sleep(0.25)
+
+        zx = zero_x_map[rep_type]
+        zy = 0.34 if rep_type <= 4 else 0.74
+        self.act_click(MatchResult("rep_zero", 0.0, int(frame.width*zx), int(frame.height*zy), 0, 0, frame.left + int(frame.width*zx), frame.top + int(frame.height*zy)), "ReputationLevelZero")
+        time.sleep(0.2)
+
+        px = plus_x_map[rep_type]
+        py = zy
+        for i in range(rep_level):
+            self.act_click(MatchResult("rep_plus", 0.0, int(frame.width*px), int(frame.height*py), 0, 0, frame.left + int(frame.width*px), frame.top + int(frame.height*py)), f"ReputationLevelPlus-{i+1}")
+            time.sleep(0.12)
+
+        start_x = int(frame.width * 0.41)
+        start_y = int(frame.height * 0.95)
+        click_start = MatchResult("rep_start_challenge", 0.0, start_x, start_y, 0, 0, frame.left + start_x, frame.top + start_y)
+        print(f"[L0] 点击【开启挑战】英雄模式声望挑战 @ {click_start.center}")
+        return self.act_click(click_start, "StartHeroModeChallenge")
 
     # ---------- 阶段推进 ----------
 
@@ -782,6 +837,13 @@ class Mediator:
                 return LoopAction.Continue
             if now < self._stage_click_cooldown_until:
                 print("[L0] 等待关卡选中状态稳定…")
+                return LoopAction.Continue
+            if self.settings.auto_reputation:
+                if not self._handle_hero_mode_reputation(frame):
+                    return LoopAction.Continue
+                self._room_action_attempts = 1
+                self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
+                self.set_phase(Phase.STAGE_STARTING, "hero mode reputation challenge clicked")
                 return LoopAction.Continue
             start = self._find_stage_start(frame)
             if not start:
