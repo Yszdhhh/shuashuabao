@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import time
 import unittest
 from unittest.mock import MagicMock, patch
@@ -10,6 +11,9 @@ import numpy as np
 
 from gamescript.input.emergency_stop import EmergencyStopListener
 from gamescript.input.keyboard_mouse import InputExecutor, get_clipboard_text, paste_text, set_clipboard_text
+from gamescript.loop_action import LoopAction
+from gamescript.mediator import Mediator, Phase
+from gamescript.settings import Settings
 from gamescript.stop_signal import StopSignal
 from gamescript.vision.capture import (
     Frame,
@@ -30,7 +34,7 @@ from gamescript.vision.capture import (
 
 
 class P0SecurityFoundationTests(unittest.TestCase):
-    # ---------- Task 1: Window Identity ----------
+    # ---------- Task 1: Window Identity & Fail-Closed Title Search ----------
 
     def test_window_target_identity_fields(self) -> None:
         target = WindowTarget(
@@ -68,10 +72,16 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertEqual(pid, 0)
         self.assertEqual(exe, "")
 
+    def test_fail_closed_window_keyword_search(self) -> None:
+        # Searching for a non-existent title without allow_fallback must return []
+        with patch("gamescript.vision.capture.find_window_targets") as mock_find:
+            mock_find.return_value = []
+            targets = find_window_targets("NON_EXISTENT_TITLE_99999", allow_fallback=False)
+            self.assertEqual(targets, [])
+
     # ---------- Task 2: Client-to-Screen Coords ----------
 
     def test_client_to_screen_conversion(self) -> None:
-        # Given client top-left at screen (108, 130)
         screen_x, screen_y = client_to_screen(None, 50, 60, client_origin=(108, 130))
         self.assertEqual((screen_x, screen_y), (158, 190))
 
@@ -85,7 +95,6 @@ class P0SecurityFoundationTests(unittest.TestCase):
     # ---------- Task 3: Frame Health Checks ----------
 
     def test_check_frame_health_healthy(self) -> None:
-        # Create a varied image frame
         arr = np.random.randint(50, 200, size=(100, 100, 3), dtype=np.uint8)
         frame = Frame(bgr=arr, left=0, top=0, window_title="Game", hwnd=123, is_valid=True)
         res = check_frame_health(frame)
@@ -100,7 +109,6 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertIn(FrameHealthIssue.BLACK_FRAME, res.issues)
 
     def test_check_frame_health_low_entropy(self) -> None:
-        # Uniform solid white frame -> std is 0 (< 1.0)
         white = np.ones((100, 100, 3), dtype=np.uint8) * 200
         frame = Frame(bgr=white, left=0, top=0, window_title="Game", hwnd=123, is_valid=True)
         res = check_frame_health(frame)
@@ -125,14 +133,54 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertFalse(res.is_healthy)
         self.assertIn(FrameHealthIssue.OLD_FRAME, res.issues)
 
-    # ---------- Task 4: Explicit Capture Failure ----------
+    def test_unhealthy_frame_blocks_decision_and_inputs(self) -> None:
+        settings = Settings()
+        project_root = Path(".")
+        mediator = Mediator(settings, project_root)
+
+        black_frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=123, window_title="KK", is_valid=True)
+        with patch.object(mediator, "see", return_value=black_frame), \
+             patch.object(mediator, "act_click") as mock_click, \
+             patch.object(mediator, "act_key") as mock_key, \
+             patch.object(mediator, "find_scene") as mock_find_scene:
+
+            action = mediator.tick()
+            self.assertEqual(action, LoopAction.Continue)
+            mock_click.assert_not_called()
+            mock_key.assert_not_called()
+            mock_find_scene.assert_not_called()
+
+    def test_frozen_frame_history_reference_fix(self) -> None:
+        settings = Settings()
+        project_root = Path(".")
+        mediator = Mediator(settings, project_root)
+
+        arr = np.random.randint(50, 200, size=(50, 50, 3), dtype=np.uint8)
+        f1 = Frame(bgr=arr.copy(), timestamp=time.time() - 10.0, hwnd=100, window_title="KK", is_valid=True)
+        f2 = Frame(bgr=arr.copy(), timestamp=time.time(), hwnd=100, window_title="KK", is_valid=True)
+
+        frames = [f1, f1, f2, f2]
+        with patch.object(mediator, "_capture_best", side_effect=frames):
+            mediator.see("step 1")
+            self.assertIs(mediator._last_frame, f1)
+            self.assertIsNone(mediator._prev_frame)
+
+            mediator.see("step 2")
+            self.assertIs(mediator._last_frame, f2)
+            self.assertIs(mediator._prev_frame, f1)
+
+            health = check_frame_health(mediator._last_frame, prev_frame=mediator._prev_frame)
+            self.assertFalse(health.is_healthy)
+            self.assertIn(FrameHealthIssue.FROZEN, health.issues)
+
+    # ---------- Task 4: Explicit Capture Failure & Real Input HWND Binding ----------
 
     def test_capture_target_not_found_explicit_failure(self) -> None:
-        # Calling capture with a non-existent title must return is_valid=False
-        frame = capture(title_contains="NON_EXISTENT_WINDOW_TITLE_12345")
-        self.assertFalse(frame.is_valid)
-        self.assertIsNotNone(frame.error)
-        self.assertIn("Target window not found", frame.error or "")
+        with patch("gamescript.vision.capture.find_window_targets", return_value=[]):
+            frame = capture(title_contains="NON_EXISTENT_WINDOW_TITLE_12345", allow_fallback=False)
+            self.assertFalse(frame.is_valid)
+            self.assertIsNotNone(frame.error)
+            self.assertIn("Target window not found", frame.error or "")
 
     def test_capture_minimized_window_explicit_failure(self) -> None:
         target = WindowTarget(hwnd=9999, title="Minimized", left=0, top=0, width=800, height=600)
@@ -141,7 +189,21 @@ class P0SecurityFoundationTests(unittest.TestCase):
             self.assertFalse(frame.is_valid)
             self.assertEqual(frame.error, "Window is minimized")
 
-    # ---------- Task 5: Cancellable InputExecutor ----------
+    def test_real_input_without_hwnd_is_rejected(self) -> None:
+        executor = InputExecutor()
+        with patch("gamescript.input.keyboard_mouse.click") as mock_click, \
+             patch("gamescript.input.keyboard_mouse.press_key") as mock_press:
+            res_click = executor.click(100, 200, target_hwnd=None, dry_run=False)
+            self.assertFalse(res_click.success)
+            self.assertEqual(res_click.status, "CANCELLED_NO_TARGET_HWND")
+            mock_click.assert_not_called()
+
+            res_press = executor.press_key("f1", target_hwnd=0, dry_run=False)
+            self.assertFalse(res_press.success)
+            self.assertEqual(res_press.status, "CANCELLED_NO_TARGET_HWND")
+            mock_press.assert_not_called()
+
+    # ---------- Task 5: Cancellable InputExecutor & Safety Checks ----------
 
     def test_input_executor_precheck_emergency_stop(self) -> None:
         stop_signal = StopSignal()
@@ -174,11 +236,9 @@ class P0SecurityFoundationTests(unittest.TestCase):
         executor = InputExecutor(stop_signal=signal)
         self.assertFalse(signal.is_set())
 
-        # Trigger emergency stop
         signal.trigger("Shift+F12 emergency stop")
         self.assertTrue(signal.is_set())
 
-        # Executor must cancel action
         res = executor.press_key("f1", dry_run=True)
         self.assertFalse(res.success)
         self.assertEqual(res.status, "CANCELLED_EMERGENCY_STOP")
@@ -187,7 +247,6 @@ class P0SecurityFoundationTests(unittest.TestCase):
         signal = StopSignal()
         listener = EmergencyStopListener(stop_signal=signal, poll_interval=0.01)
 
-        # Mock check_key_pressed_win32 to simulate Shift+F12 pressed
         with patch("gamescript.input.emergency_stop.check_key_pressed_win32", side_effect=lambda vk: vk in (0x10, 0x7B)):
             listener.start()
             time.sleep(0.05)
@@ -199,7 +258,6 @@ class P0SecurityFoundationTests(unittest.TestCase):
     # ---------- Task 7: Clipboard Save & Restore ----------
 
     def test_paste_text_preserves_clipboard(self) -> None:
-        # Mock get_clipboard_text and set_clipboard_text
         clipboard_state: list[str] = ["ORIGINAL_CLIPBOARD_TEXT"]
         set_calls: list[str] = []
 
@@ -216,7 +274,6 @@ class P0SecurityFoundationTests(unittest.TestCase):
              patch("pyautogui.hotkey") as mock_hotkey:
             paste_text("NEW_PASTE_TEXT", dry_run=False)
 
-        # Set should be called first with NEW_PASTE_TEXT, then restored with ORIGINAL_CLIPBOARD_TEXT
         self.assertEqual(set_calls, ["NEW_PASTE_TEXT", "ORIGINAL_CLIPBOARD_TEXT"])
         self.assertEqual(clipboard_state[0], "ORIGINAL_CLIPBOARD_TEXT")
         mock_hotkey.assert_called_with("ctrl", "v")

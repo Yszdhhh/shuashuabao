@@ -96,6 +96,7 @@ class Mediator:
         self._stage_scroll_attempts = 0
         self._missing_window_since: float | None = None
         self._last_frame: Frame | None = None
+        self._prev_frame: Frame | None = None
         self._last_capture_role: str | None = None
         self._context_cache_frame: Frame | None = None
         self._context_cache_role: str | None = None
@@ -222,6 +223,7 @@ class Mediator:
             if self._frame_signal(game_frame, "l1") > 0:
                 print("[med] BOOT 检测到游戏窗口，切换到 L1")
                 frame = game_frame
+        self._prev_frame = self._last_frame
         self._last_frame = frame
         self._last_capture_role = role
         context = "NO_WINDOW" if frame.hwnd is None and not frame.window_title else self._detect_context(frame, role)
@@ -909,31 +911,29 @@ class Mediator:
 
         frame = self.see("tick")
 
-        health = check_frame_health(frame, prev_frame=self._last_frame)
+        health = check_frame_health(frame, prev_frame=self._prev_frame)
         if not health.is_healthy:
-            print(f"[med] Frame health check: {health.details}")
-
-        if not frame.is_valid or (frame.hwnd is None and not frame.window_title):
+            print(f"[med] Frame health check failed ({health.details}), skipping decision and input")
             now = time.time()
             self._missing_window_since = self._missing_window_since or now
             elapsed = now - self._missing_window_since
-            print(f"[med] 未找到目标窗口/捕获失败 ({frame.error or 'invalid'}), 等待 {elapsed:.1f}s phase={self.phase.name}")
+            print(f"[med] Unhealthy frame ({health.details}), waiting {elapsed:.1f}s phase={self.phase.name}")
             in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
             if self.phase == Phase.ROOM_STARTING:
                 pass  # Use normal retry deadline
             elif self.phase in in_game_phases:
                 if elapsed >= 60:
-                    print("[med] 局内阶段窗口消失超过 60s，停止运行")
-                    self.set_phase(Phase.ERROR, "game window disappeared")
+                    print("[med] 局内阶段不健康帧持续超过 60s，停止运行")
+                    self.set_phase(Phase.ERROR, "unhealthy frame timeout")
                     self.stop()
                     return LoopAction.Break
             elif elapsed >= min(self.settings.query_timeout, 15):
-                self.set_phase(Phase.ERROR, "target window unavailable")
+                self.set_phase(Phase.ERROR, "unhealthy frame timeout")
                 self.stop()
                 return LoopAction.Break
             return LoopAction.Continue
-        else:
-            self._missing_window_since = None
+
+        self._missing_window_since = None
 
         # 全局：断线/失败优先
         if self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):

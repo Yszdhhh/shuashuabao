@@ -111,24 +111,47 @@ class InputExecutor:
         if dry_run:
             return ActionResult(success=True, status="DRY_RUN", message="Dry run mode")
 
-        if target_hwnd is not None:
-            if not is_window_valid(target_hwnd):
-                return ActionResult(
-                    success=False,
-                    status="CANCELLED_WINDOW_INVALID",
-                    message=f"Target window {target_hwnd} is missing, minimized, or invalid",
-                )
+        if not target_hwnd or target_hwnd <= 0:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_NO_TARGET_HWND",
+                message="Real input rejected: target_hwnd is required when dry_run=False",
+            )
+
+        if not is_window_valid(target_hwnd):
+            return ActionResult(
+                success=False,
+                status="CANCELLED_WINDOW_INVALID",
+                message=f"Target window {target_hwnd} is missing, minimized, or invalid",
+            )
+        fg = get_foreground_window()
+        if fg != target_hwnd:
+            activate_window(target_hwnd)
             fg = get_foreground_window()
             if fg != target_hwnd:
-                activate_window(target_hwnd)
-                fg = get_foreground_window()
-                if fg != target_hwnd:
-                    return ActionResult(
-                        success=False,
-                        status="CANCELLED_WINDOW_CHANGED",
-                        message=f"Target window {target_hwnd} is not foreground (current={fg})",
-                    )
+                return ActionResult(
+                    success=False,
+                    status="CANCELLED_WINDOW_CHANGED",
+                    message=f"Target window {target_hwnd} is not foreground (current={fg})",
+                )
         return ActionResult(success=True, status="OK", message="Window verified")
+
+    def _post_check(self, target_hwnd: int | None, dry_run: bool) -> ActionResult | None:
+        if self.stop_signal.is_set():
+            return ActionResult(
+                success=False,
+                status="CANCELLED_EMERGENCY_STOP",
+                message=f"Emergency stop active after action: {self.stop_signal.reason}",
+            )
+        if not dry_run and target_hwnd is not None:
+            fg = get_foreground_window()
+            if fg != target_hwnd:
+                return ActionResult(
+                    success=False,
+                    status="CANCELLED_WINDOW_CHANGED",
+                    message=f"Foreground window changed after action from {target_hwnd} to {fg}",
+                )
+        return None
 
     def click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 120) -> ActionResult:
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
@@ -137,16 +160,11 @@ class InputExecutor:
             return check
 
         click(x, y, dry_run=dry_run, delay_ms=delay_ms)
-
-        if not dry_run and target_hwnd is not None:
-            fg = get_foreground_window()
-            if fg != target_hwnd:
-                return ActionResult(
-                    success=False,
-                    status="CANCELLED_WINDOW_CHANGED",
-                    message=f"Foreground window changed after click from {target_hwnd} to {fg}",
-                )
-        return ActionResult(success=True, status="SUCCESS", message=f"Clicked ({x}, {y})")
+        post = self._post_check(target_hwnd, dry_run)
+        if post:
+            return post
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message=f"Clicked ({x}, {y})")
 
     def right_click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 120) -> ActionResult:
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
@@ -155,7 +173,11 @@ class InputExecutor:
             return check
 
         right_click(x, y, dry_run=dry_run, delay_ms=delay_ms)
-        return ActionResult(success=True, status="SUCCESS", message=f"Right-clicked ({x}, {y})")
+        post = self._post_check(target_hwnd, dry_run)
+        if post:
+            return post
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message=f"Right-clicked ({x}, {y})")
 
     def press_key(self, key: str, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
@@ -164,7 +186,11 @@ class InputExecutor:
             return check
 
         press_key(key, dry_run=dry_run)
-        return ActionResult(success=True, status="SUCCESS", message=f"Pressed key {key}")
+        post = self._post_check(target_hwnd, dry_run)
+        if post:
+            return post
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message=f"Pressed key {key}")
 
     def hotkey(self, *keys: str, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
@@ -173,7 +199,11 @@ class InputExecutor:
             return check
 
         hotkey(*keys, dry_run=dry_run)
-        return ActionResult(success=True, status="SUCCESS", message=f"Pressed hotkey {keys}")
+        post = self._post_check(target_hwnd, dry_run)
+        if post:
+            return post
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message=f"Pressed hotkey {keys}")
 
     def paste_text(self, text: str, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
@@ -182,7 +212,11 @@ class InputExecutor:
             return check
 
         paste_text(text, dry_run=dry_run)
-        return ActionResult(success=True, status="SUCCESS", message="Pasted text with clipboard preservation")
+        post = self._post_check(target_hwnd, dry_run)
+        if post:
+            return post
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message="Pasted text with clipboard preservation")
 
     def scroll(self, x: int, y: int, clicks: int, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
@@ -191,7 +225,11 @@ class InputExecutor:
             return check
 
         scroll(x, y, clicks, dry_run=dry_run)
-        return ActionResult(success=True, status="SUCCESS", message=f"Scrolled {clicks} at ({x}, {y})")
+        post = self._post_check(target_hwnd, dry_run)
+        if post:
+            return post
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message=f"Scrolled {clicks} at ({x}, {y})")
 
 
 # ---------- Standalone functions (Backward Compatible) ----------

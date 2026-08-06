@@ -325,13 +325,18 @@ def _parse_window_keywords(title_contains: str) -> list[str]:
     return keywords or [k.lower() for k in DEFAULT_WINDOW_FALLBACKS]
 
 
-def find_window_targets(title_contains: str = "", role: str | None = None) -> list[WindowTarget]:
+def find_window_targets(
+    title_contains: str = "",
+    role: str | None = None,
+    allow_fallback: bool = False,
+) -> list[WindowTarget]:
     """List all visible targets, ranked by role and foreground status."""
     try:
         import ctypes
         from ctypes import wintypes
 
         user32 = ctypes.windll.user32
+        has_user_keywords = bool(title_contains and title_contains.strip())
         requested = _parse_window_keywords(title_contains)
         fallbacks = [k.lower() for k in DEFAULT_WINDOW_FALLBACKS]
 
@@ -387,7 +392,8 @@ def find_window_targets(title_contains: str = "", role: str | None = None) -> li
             return found
 
         found = collect(requested)
-        if not found and requested != fallbacks:
+        # Fail-closed: only fallback if explicitly requested or if title_contains was omitted/empty.
+        if not found and (allow_fallback or not has_user_keywords):
             found = collect(fallbacks)
 
         if role in ("l0", "l1"):
@@ -480,9 +486,10 @@ def _find_window_rect(
     title_contains: str,
     role: str | None = None,
     activate: bool = True,
+    allow_fallback: bool = False,
 ) -> WindowTarget | None:
     """Return the highest-ranked target, optionally activating it."""
-    targets = find_window_targets(title_contains, role=role)
+    targets = find_window_targets(title_contains, role=role, allow_fallback=allow_fallback)
     if not targets:
         return None
     target = targets[0]
@@ -561,14 +568,14 @@ def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
         )
 
 
-def capture(title_contains: str = "", role: str | None = None, activate: bool = True) -> Frame:
+def capture(title_contains: str = "", role: str | None = None, activate: bool = True, allow_fallback: bool = False) -> Frame:
     if mss is None:
         return Frame(
             bgr=np.zeros((0, 0, 3), dtype=np.uint8),
             is_valid=False,
             error="mss not installed",
         )
-    target = _find_window_rect(title_contains, role=role, activate=False)
+    target = _find_window_rect(title_contains, role=role, activate=False, allow_fallback=allow_fallback)
     if target is None:
         print(f"[capture] target window not found: {title_contains!r}")
         return Frame(
