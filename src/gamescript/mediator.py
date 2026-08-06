@@ -16,17 +16,21 @@ from pathlib import Path
 
 import cv2
 
-from gamescript.input.keyboard_mouse import click, hotkey, paste_text, press_key, scroll
+from gamescript.input.emergency_stop import EmergencyStopListener
+from gamescript.input.keyboard_mouse import InputExecutor, click, hotkey, paste_text, press_key, scroll
 from gamescript.loop_action import LoopAction
 from gamescript.scenes import load_scenes, scene_templates
 from gamescript.settings import Settings
+from gamescript.stop_signal import StopSignal
 from gamescript.vision.capture import (
     Frame,
+    FrameHealthIssue,
     L0_WINDOW_KEYWORDS,
     L1_WINDOW_KEYWORDS,
     activate_window,
     capture,
     capture_target,
+    check_frame_health,
     find_window_targets,
 )
 from gamescript.vision.matcher import (
@@ -69,11 +73,14 @@ class Phase(Enum):
 
 
 class Mediator:
-    def __init__(self, settings: Settings, project_root: Path):
+    def __init__(self, settings: Settings, project_root: Path, stop_signal: StopSignal | None = None):
         self.settings = settings
         self.root = project_root
         self.images = settings.images_path(project_root)
         self.scenes_doc = load_scenes(project_root)
+        self.stop_signal = stop_signal or StopSignal()
+        self.executor = InputExecutor(stop_signal=self.stop_signal)
+        self.emergency_listener: EmergencyStopListener | None = None
         self.phase = Phase.BOOT
         self.game_count = 0
         self._running = False
@@ -296,22 +303,25 @@ class Mediator:
 
     def act_click(self, hit: MatchResult, reason: str = "") -> bool:
         print(f"[med] click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
-        if not self._focus_last_window():
-            return False
-        click(
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        res = self.executor.click(
             hit.screen_x,
             hit.screen_y,
+            target_hwnd=target_hwnd,
             dry_run=self.settings.dry_run,
             delay_ms=self.settings.click_delay_ms,
         )
-        return True
+        return res.success
 
     def act_key(self, key: str, reason: str = "") -> bool:
         print(f"[med] key {key!r} ({reason})")
-        if not self._focus_last_window():
-            return False
-        press_key(key, dry_run=self.settings.dry_run)
-        return True
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        res = self.executor.press_key(
+            key,
+            target_hwnd=target_hwnd,
+            dry_run=self.settings.dry_run,
+        )
+        return res.success
 
     def click_scene(self, frame: Frame, scene_key: str, reason: str = "", threshold: float | None = None) -> bool:
         hit = self.find_scene(frame, scene_key, threshold=threshold)
@@ -888,21 +898,26 @@ class Mediator:
 
     def stop(self) -> None:
         self._running = False
+        self.stop_signal.trigger("Mediator.stop()")
 
     def tick(self) -> LoopAction:
         """单步：一帧截屏 → 按阶段决策 → 执行。"""
+        if self.stop_signal.is_set():
+            print(f"[med] Stop signal active ({self.stop_signal.reason}), breaking loop")
+            self._running = False
+            return LoopAction.Break
+
         frame = self.see("tick")
 
-        if frame.hwnd is None and not frame.window_title:
+        health = check_frame_health(frame, prev_frame=self._last_frame)
+        if not health.is_healthy:
+            print(f"[med] Frame health check: {health.details}")
+
+        if not frame.is_valid or (frame.hwnd is None and not frame.window_title):
             now = time.time()
             self._missing_window_since = self._missing_window_since or now
             elapsed = now - self._missing_window_since
-            print(f"[med] 未找到目标窗口，等待 {elapsed:.1f}s phase={self.phase.name}")
-            # After clicking room start the game window can take a few
-            # seconds to appear.  Let ROOM_STARTING use its normal retry
-            # deadline.  In-game phases get a longer tolerance (60s) since
-            # the game may be briefly minimized or obscured by system popups.
-            # L0 phases fail closed after 15s to avoid looping on a black frame.
+            print(f"[med] 未找到目标窗口/捕获失败 ({frame.error or 'invalid'}), 等待 {elapsed:.1f}s phase={self.phase.name}")
             in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
             if self.phase == Phase.ROOM_STARTING:
                 pass  # Use normal retry deadline
@@ -916,6 +931,7 @@ class Mediator:
                 self.set_phase(Phase.ERROR, "target window unavailable")
                 self.stop()
                 return LoopAction.Break
+            return LoopAction.Continue
         else:
             self._missing_window_since = None
 
@@ -1085,6 +1101,7 @@ class Mediator:
 
     def run(self, max_steps: int | None = None) -> None:
         self._running = True
+        self.stop_signal.reset()
         self.set_phase(Phase.BOOT)
         steps = 0
         print(
@@ -1096,14 +1113,21 @@ class Mediator:
         )
         if self.settings.dry_run:
             print("[med] DRY-RUN 仅识别/打印坐标，不会真的点击；要跑全链路请关闭 Dry-run")
-        while self._running:
-            action = self.tick()
-            steps += 1
-            if action == LoopAction.Break:
-                break
-            if max_steps is not None and steps >= max_steps:
-                print(f"[med] max_steps={max_steps}")
-                break
-            time.sleep(self.settings.loop_sleep_ms / 1000.0)
+        self.emergency_listener = EmergencyStopListener(self.stop_signal)
+        self.emergency_listener.start()
+        try:
+            while self._running and not self.stop_signal.is_set():
+                action = self.tick()
+                steps += 1
+                if action == LoopAction.Break:
+                    break
+                if max_steps is not None and steps >= max_steps:
+                    print(f"[med] max_steps={max_steps}")
+                    break
+                time.sleep(self.settings.loop_sleep_ms / 1000.0)
+        finally:
+            if self.emergency_listener:
+                self.emergency_listener.stop()
+                self.emergency_listener = None
         print(f"[med] end steps={steps} games={self.game_count}")
 
