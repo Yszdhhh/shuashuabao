@@ -64,7 +64,7 @@
       "action": "click"
     },
     "stage_page": {
-      "templates": ["stage", "stage1", "stage2", "stage3", "stage4", "toHero", "HeroChallenge"],
+      "templates": ["stage", "stage1", "stage2", "stage3", "stage4"],
       "method": "SelectStage",
       "action": "detect_only"
     },

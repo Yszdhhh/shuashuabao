@@ -75,32 +75,54 @@ fixtures:
   expected_state: QUIT
   expected_action: QuitGame
   is_negative: false
-- fixture_id: missing_room_waiting_page
-  file_path: fixtures/missing_room_waiting.png
+- fixture_id: room_waiting_host
+  file_path: fixtures/replay/room_waiting_host.png
   resolution:
-  - 1600
-  - 900
+  - 1040
+  - 719
   dpi_scale: 1.0
+  window_title: KK
+  window_role: l0
+  sha256: 63a3dea4f279758bf559c2330fdd74762dc9c94cc1984597631e44334003a7a4
   page: ROOM_WAITING
   target_scene: room_start
   forbidden_click_regions: []
   expected_state: ROOM_WAITING
   expected_action: RoomStart
-  missing_resource: true
   is_negative: false
-- fixture_id: missing_in_game_main_line
-  file_path: fixtures/missing_in_game.png
+  required: true
+- fixture_id: main_line_auto_off
+  file_path: fixtures/replay/main_line_auto_off.png
   resolution:
-  - 1600
-  - 900
+  - 1599
+  - 933
   dpi_scale: 1.0
+  window_title: 英雄三国KK
+  window_role: l1
+  sha256: 6c08f5a3d926fc0171bce9e7435b768c49a401ddec160a56e09c23b99fb17b37
   page: MAIN_LINE
-  target_scene: card_panel
+  target_scene: coin_challenge
   forbidden_click_regions: []
   expected_state: MAIN_LINE
-  expected_action: InGameChoice
-  missing_resource: true
+  expected_action: EnableAutoChallenges
   is_negative: false
+  required: true
+- fixture_id: main_line_auto_on
+  file_path: fixtures/replay/main_line_auto_on.png
+  resolution:
+  - 1609
+  - 932
+  dpi_scale: 1.0
+  window_title: 英雄三国KK
+  window_role: l1
+  sha256: 1c7a37e4d5741e0e770ad11fd6d7a7b58c6f12a09f7a8b17b78ed720f4a3cd72
+  page: MAIN_LINE
+  target_scene: none
+  forbidden_click_regions: []
+  expected_state: MAIN_LINE
+  expected_action: none
+  is_negative: false
+  required: true
 - fixture_id: missing_disconnect_modal
   file_path: fixtures/missing_disconnect.png
   resolution:

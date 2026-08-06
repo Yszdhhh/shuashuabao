@@ -111,6 +111,7 @@ class Mediator:
         # L1 reward/challenge actions are one-shot until the next game.
         self._selection_click_cooldown_until = 0.0
         self._challenge_done: set[str] = set()
+        self._challenge_attempts: dict[str, int] = {}
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -140,6 +141,16 @@ class Mediator:
                 return user_title
             return ",".join(L1_WINDOW_KEYWORDS)
 
+    def _is_in_game_hud(self, frame: Frame) -> bool:
+        if self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel"):
+            return True
+        for sc in ("coin_challenge", "wood_challenge", "experience_challenge", "treasure_challenge"):
+            if self.find_scene(frame, sc):
+                return True
+        if self.find_scene(frame, "env_anchor"):
+            return True
+        return False
+
     def _detect_context(self, frame: Frame, role: str | None = None) -> str:
         """Classify the visible page before taking a state-machine action."""
         if self._context_cache_frame is frame and self._context_cache_role == role:
@@ -147,26 +158,18 @@ class Mediator:
 
         if self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
             value = "QUIT"
-        # L0 does not need to scan the whole card/skill library.  L1 starts
-        # with the in-game anchors, then checks the numbered stage list.
-        elif role != "l0" and (
-            self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel")
-        ):
-            value = "IN_GAME"
-        elif role == "l1":
-            value = "STAGE_SELECT" if self._find_stage_page(frame) else "UNKNOWN"
+        elif role == "l1" and self._find_stage_page(frame):
+            value = "STAGE_SELECT"
         elif self._find_room_start(frame):
             value = "ROOM_WAITING"
         elif self._find_stage_page(frame):
             value = "STAGE_SELECT"
+        elif self._is_in_game_hud(frame):
+            value = "MAIN_LINE"
         elif self._find_create_confirm(frame):
             value = "CREATE_ROOM"
         elif self._auto_room_enabled() and self._find_map_create_room(frame):
             value = "PLATFORM_MAP"
-        elif role == "l0" and (
-            self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel")
-        ):
-            value = "IN_GAME"
         else:
             value = "UNKNOWN"
 
@@ -183,6 +186,7 @@ class Mediator:
             "STAGE_SELECT": 90,
             "CREATE_ROOM": 80,
             "PLATFORM_MAP": 70,
+            "MAIN_LINE": 60,
             "IN_GAME": 60,
         }.get(context, 0)
 
@@ -226,6 +230,7 @@ class Mediator:
             if self._frame_signal(game_frame, "l1") > 0:
                 print("[med] BOOT 检测到游戏窗口，切换到 L1")
                 frame = game_frame
+                role = "l1"
         self._prev_frame = self._last_frame
         self._last_frame = frame
         self._last_capture_role = role
@@ -310,6 +315,18 @@ class Mediator:
         print(f"[med] click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
         res = self.executor.click(
+            hit.screen_x,
+            hit.screen_y,
+            target_hwnd=target_hwnd,
+            dry_run=self.settings.dry_run,
+            delay_ms=self.settings.click_delay_ms,
+        )
+        return res.success
+
+    def act_right_click(self, hit: MatchResult, reason: str = "") -> bool:
+        print(f"[med] right_click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        res = self.executor.right_click(
             hit.screen_x,
             hit.screen_y,
             target_hwnd=target_hwnd,
@@ -436,16 +453,17 @@ class Mediator:
 
     @staticmethod
     def _challenge_is_auto(frame: Frame, label: MatchResult) -> bool:
-        x1 = max(0, label.x - 12)
-        x2 = min(frame.width, label.x + label.w + 12)
-        y1 = max(0, label.y - 74)
-        y2 = max(y1, min(frame.height, label.y - 42))
+        # The green "自动" text is displayed in a strict ROI directly above the card label
+        x1 = max(0, label.x - 5)
+        x2 = min(frame.width, label.x + label.w + 5)
+        y1 = max(0, label.y - 60)
+        y2 = max(y1, label.y - 25)
         roi = frame.bgr[y1:y2, x1:x2]
         if roi.size == 0:
             return False
         b, g, r = cv2.split(roi)
-        green = (g > 100) & (g > r + 20) & (g > b + 10)
-        return int(green.sum()) >= 6
+        green = (g > 120) & (g.astype(int) - r.astype(int) > 30) & (g.astype(int) - b.astype(int) > 20)
+        return int(green.sum()) >= 30
 
     def _ensure_challenge_buttons(self, frame: Frame) -> bool:
         for scene_key, label in (
@@ -464,9 +482,17 @@ class Mediator:
                 print(f"[L1] {label}挑战已是自动模式")
                 self._challenge_done.add(scene_key)
                 continue
-            print(f"[L1] 自动开启【{label}挑战】 {click_hit.center}")
-            if self.act_click(click_hit, f"{label}Challenge"):
-                self._challenge_done.add(scene_key)
+            if not hasattr(self, "_challenge_attempts"):
+                self._challenge_attempts: dict[str, int] = {}
+            attempts = self._challenge_attempts.get(scene_key, 0)
+            if attempts >= 3:
+                print(f"[L1] {label}挑战右键重试已达上限 ({attempts})，停止重复右键")
+                continue
+            print(f"[L1] 自动开启【{label}挑战】右键 @ {click_hit.center}")
+            if self.act_right_click(click_hit, f"{label}Challenge-right_click"):
+                self._challenge_attempts[scene_key] = attempts + 1
+                # Do NOT add scene_key to _challenge_done here!
+                # It will only be confirmed when subsequent frame detects green "自动" state.
                 return True
         return False
 
@@ -572,6 +598,7 @@ class Mediator:
             self._main_line_since = time.time()
             self._selection_click_cooldown_until = 0.0
             self._challenge_done.clear()
+            self._challenge_attempts.clear()
         if phase == Phase.LONGZHU:
             # 对齐「退出游戏时间还剩下 ~178 秒」
             sec = max(self.settings.archive_boss_time, self.settings.boss_live_time, 180)
@@ -611,13 +638,15 @@ class Mediator:
         game_keywords = [keyword for keyword in L1_WINDOW_KEYWORDS if keyword.lower() != "kk"]
         if not title or not any(keyword.lower() in title for keyword in game_keywords):
             return False
-        names = [name for name in self.templates("stage_page") if Path(name).stem != "stage"]
+        names = [name for name in self.templates("stage_page") if Path(name).stem not in ("stage", "toHero", "HeroChallenge")]
+        if not names:
+            return False
         hit = self.find(frame, names, scales=(0.9, 1.0, 1.1, 1.15, 1.2))
-        # stage.png is the large map card; it is not sufficient to prove that
-        # the numbered stage list is open.
+        # stage.png is the large map card; toHero/HeroChallenge are hero icons.
+        # They are not sufficient to prove that the numbered stage list is open.
         return bool(
             hit
-            and hit.name != "stage"
+            and hit.name not in ("stage", "toHero", "HeroChallenge")
             and hit.x >= int(frame.width * 0.55)
         )
 
@@ -702,7 +731,7 @@ class Mediator:
         """Handle map → create dialog → room → stage without guessing clicks."""
         context = self._detect_context(frame, "l0")
         print(f"[med] decision context={context} phase={self.phase.name}")
-        if context == "IN_GAME":
+        if context in ("MAIN_LINE", "IN_GAME"):
             print("[L1] 开始主线 / phase=MAIN_LINE")
             self.set_phase(Phase.MAIN_LINE, "already in game")
             return LoopAction.Continue

@@ -132,6 +132,8 @@ def _classify_glyph(glyph: np.ndarray, templates: dict[str, list[np.ndarray]]) -
     if not len(ys):
         return None
     glyph = glyph[ys.min() : ys.max() + 1, :]
+    if glyph.shape[0] < 2 or glyph.shape[1] < 2:
+        return None
     best: tuple[float, str] | None = None
     for char, candidates in templates.items():
         for candidate in candidates:
@@ -181,6 +183,8 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
     templates = _glyph_templates(images_dir)
     rows: list[StageRow] = []
     for top, bottom in row_runs:
+        if bottom - top > 35:
+            continue
         row = _read_row(mask[top:bottom, :], x1, y1 + top, templates)
         if row is not None:
             rows.append(row)
