@@ -33,6 +33,10 @@ class Frame:
 L0_WINDOW_KEYWORDS = ["KK官方", "KK对战", "KK竞技", "对战平台", "竞技平台", "KK"]
 L1_WINDOW_KEYWORDS = ["英雄三国", "魔兽世界", "warcraft", "魔兽争霸", "KK"]
 DEFAULT_WINDOW_FALLBACKS = L0_WINDOW_KEYWORDS + L1_WINDOW_KEYWORDS
+# The local control panel contains the game name in its own title.  It must
+# never be selected as the L1 game window, otherwise its blue controls can be
+# mistaken for the in-game stage UI.
+LOCAL_HELPER_WINDOW_KEYWORDS = ("挂机助手", "GameScript-Local", "本地版")
 
 
 @dataclass(frozen=True)
@@ -90,6 +94,12 @@ def _window_title_score(title: str, role: str | None = None) -> int:
     return 0
 
 
+def is_local_helper_title(title: str) -> bool:
+    """Return whether a title belongs to this project's control panel."""
+    lowered = title.lower()
+    return any(keyword.lower() in lowered for keyword in LOCAL_HELPER_WINDOW_KEYWORDS)
+
+
 def _parse_window_keywords(title_contains: str) -> list[str]:
     keywords = [
         k.strip().lower()
@@ -128,6 +138,8 @@ def find_window_targets(title_contains: str = "", role: str | None = None) -> li
                 user32.GetWindowTextW(hwnd, buf, length + 1)
                 title = buf.value.strip()
                 if not title or not any(k in title.lower() for k in keywords):
+                    return True
+                if role == "l1" and is_local_helper_title(title):
                     return True
                 rect = wintypes.RECT()
                 user32.GetWindowRect(hwnd, ctypes.byref(rect))
@@ -188,6 +200,53 @@ def activate_window(hwnd: int | None) -> bool:
         return False
 
 
+def _foreground_window() -> int | None:
+    try:
+        import ctypes
+
+        hwnd = int(ctypes.windll.user32.GetForegroundWindow())
+        return hwnd or None
+    except Exception:
+        return None
+
+
+def _capture_print_window(target: WindowTarget) -> Frame | None:
+    """Capture a covered Win32 window without reading the desktop behind it.
+
+    MSS reads visible screen pixels, so a browser covering KK would otherwise
+    be returned as if it were the game.  Pillow's Windows ImageGrab uses the
+    window capture path (PrintWindow) and works for the KK Chromium window.
+    If a renderer does not implement that path, callers can safely fall back
+    to MSS or to a no-match frame.
+    """
+    try:
+        from PIL import ImageGrab
+
+        try:
+            image = ImageGrab.grab(window=target.hwnd, include_layered_windows=True)
+        except TypeError:  # Pillow versions without the optional keyword.
+            image = ImageGrab.grab(window=target.hwnd)
+        rgb = np.asarray(image)
+        if rgb.ndim != 3 or rgb.shape[0] < 4 or rgb.shape[1] < 4:
+            return None
+        if rgb.shape[2] >= 4:
+            rgb = rgb[:, :, :3]
+        bgr = rgb[:, :, ::-1].copy()
+        # ImageGrab may omit a 1px non-client border.  Keep click coordinates
+        # aligned with the captured pixels rather than the larger window rect.
+        left = target.left + max(0, (target.width - bgr.shape[1]) // 2)
+        top = target.top + max(0, (target.height - bgr.shape[0]) // 2)
+        return Frame(
+            bgr=bgr,
+            left=left,
+            top=top,
+            window_title=target.title,
+            hwnd=target.hwnd,
+        )
+    except Exception:
+        return None
+
+
 def _find_window_rect(
     title_contains: str,
     role: str | None = None,
@@ -209,6 +268,12 @@ def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
         raise RuntimeError("mss not installed")
     if activate:
         activate_window(target.hwnd)
+    elif _foreground_window() != target.hwnd:
+        # Prefer an off-screen window capture.  Falling straight back to MSS
+        # here can read Chrome/ChatGPT and create false scene matches.
+        offscreen = _capture_print_window(target)
+        if offscreen is not None:
+            return offscreen
     try:
         with mss.mss() as sct:
             mon = {

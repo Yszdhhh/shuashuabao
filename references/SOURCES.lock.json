@@ -1,0 +1,44 @@
+{
+  "snapshot_date": "2026-08-06",
+  "purpose": "read-only review references; not runtime dependencies",
+  "sources": [
+    {
+      "name": "airtest",
+      "url": "https://github.com/AirtestProject/Airtest",
+      "commit": "d729c631d2032521be1e2168a249a2a89d79af2a",
+      "license": "Apache-2.0",
+      "retained": [
+        "LICENSE",
+        "README.md",
+        "airtest/core/api.py",
+        "airtest/core/assertions.py",
+        "airtest/core/cv.py",
+        "airtest/core/device.py",
+        "airtest/core/helper.py",
+        "airtest/core/settings.py",
+        "airtest/core/win/"
+      ]
+    },
+    {
+      "name": "pywinauto",
+      "url": "https://github.com/pywinauto/pywinauto",
+      "commit": "18d2a95cebed2f0061ab4e4c80c3a76ece5dd4f3",
+      "license": "BSD-3-Clause",
+      "retained": ["LICENSE", "README.md", "pywinauto/"]
+    },
+    {
+      "name": "python-mss",
+      "url": "https://github.com/BoboTiG/python-mss",
+      "commit": "c845c854fcb79bfcfb41b8ef2e85d6096ef6a2d3",
+      "license": "MIT",
+      "retained": ["LICENSE.txt", "README.md", "src/mss/"]
+    },
+    {
+      "name": "ComputerVision_bot",
+      "url": "https://github.com/edd-ie/ComputerVision_bot",
+      "commit": "f78c67e151767f4b3d90fa680cba76b56c6fe67a",
+      "license": "BSD-3-Clause (stated in upstream README; no separate LICENSE file in snapshot)",
+      "retained": ["README.md", "Test.py"]
+    }
+  ]
+}

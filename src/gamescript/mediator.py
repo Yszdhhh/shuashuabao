@@ -90,6 +90,7 @@ class Mediator:
         self._context_cache_frame: Frame | None = None
         self._context_cache_role: str | None = None
         self._context_cache_value = "UNKNOWN"
+        self._scene_cache: dict[int, tuple[Frame, dict[tuple[str, float | None], MatchResult | None]]] = {}
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -179,6 +180,10 @@ class Mediator:
         )
 
     def see(self, reason: str = "") -> Frame:
+        # A single tick asks the same scene questions from capture ranking,
+        # context classification and the phase handler.  Reuse those results
+        # for this frame; template matching is the dominant hot path.
+        self._scene_cache.clear()
         title = self._capture_title()
         l0_phases = {
             Phase.BOOT,
@@ -238,6 +243,16 @@ class Mediator:
         return match_any(frame, self.images, names, threshold=th, scales=scales)
 
     def find_scene(self, frame: Frame, scene_key: str, threshold: float | None = None) -> MatchResult | None:
+        frame_key = id(frame)
+        cached = self._scene_cache.get(frame_key)
+        if cached is None or cached[0] is not frame:
+            cached_results: dict[tuple[str, float | None], MatchResult | None] = {}
+            self._scene_cache[frame_key] = (frame, cached_results)
+        else:
+            cached_results = cached[1]
+        cache_key = (scene_key, threshold)
+        if cache_key in cached_results:
+            return cached_results[cache_key]
         # 官方截图常见 1600x900；窗口/系统缩放会让当前帧达到 1936x1066。
         # 只对 L0 门闩和选关标识做多尺度，避免卡牌/技能全库扫描变慢。
         scales = (0.9, 1.0, 1.1, 1.15, 1.2) if scene_key in {
@@ -249,7 +264,9 @@ class Mediator:
             "stage",
             "stage_page",
         } else (1.0,)
-        return self.find(frame, self.templates(scene_key), threshold=threshold, scales=scales)
+        result = self.find(frame, self.templates(scene_key), threshold=threshold, scales=scales)
+        cached_results[cache_key] = result
+        return result
 
     def _focus_last_window(self) -> bool:
         if self.settings.dry_run:
@@ -339,6 +356,13 @@ class Mediator:
     def _find_stage_page(self, frame: Frame) -> bool:
         if visible_stage_rows(frame, self.images):
             return True
+        # The numbered-row parser above is the preferred detector.  The
+        # legacy image fallback is only meaningful on the actual game window;
+        # scanning it on a KK map page is both slow and prone to false hits.
+        title = frame.window_title.lower()
+        game_keywords = [keyword for keyword in L1_WINDOW_KEYWORDS if keyword.lower() != "kk"]
+        if not title or not any(keyword.lower() in title for keyword in game_keywords):
+            return False
         names = [name for name in self.templates("stage_page") if Path(name).stem != "stage"]
         hit = self.find(frame, names, scales=(0.9, 1.0, 1.1, 1.15, 1.2))
         # stage.png is the large map card; it is not sufficient to prove that
@@ -354,10 +378,20 @@ class Mediator:
         if hit:
             return hit
         # The map page has multiple blue actions.  Only the configured side
-        # of the bottom-left ROI is eligible; quick-join is never global.
+        # of the bottom action strip is eligible; quick-join is never global.
+        hit = find_blue_button(
+            frame,
+            (0.45, 0.88, 0.99, 0.99),
+            side=self.settings.room_create_side,
+        )
+        if hit:
+            return hit
+        # Older layouts place the action farther left.  Keep this as a
+        # second, still bottom-strip-bound probe rather than a full-screen
+        # blue fallback.
         return find_blue_button(
             frame,
-            (0.12, 0.66, 0.64, 0.98),
+            (0.12, 0.88, 0.64, 0.99),
             side=self.settings.room_create_side,
         )
 
@@ -365,6 +399,11 @@ class Mediator:
         hit = self.find_scene(frame, "create_room_confirm")
         if hit:
             return hit
+        # KK opens the create form as a small ~584x488 child window.  Do not
+        # run the relatively expensive edge/contour fallback on the full
+        # platform page every tick.
+        if frame.width > 800 or frame.height > 700:
+            return None
         # The real KK dialog is a separate ~584x488 window; its two inputs
         # are in the upper half and the Create/Cancel buttons are at the
         # bottom.  The old center ROI never saw this button.
@@ -759,6 +798,7 @@ class Mediator:
         steps = 0
         print(
             f"[med] Run dry_run={self.settings.dry_run} mode={self.settings.game_mode} "
+            f"auto_room={self._auto_room_enabled()} "
             f"stage={self.settings.stage1}/{self.settings.stage2} "
             f"targets={self.settings.stage_targets or '-'} "
             f"threshold={self.settings.match_threshold} images={self.images}"

@@ -5,7 +5,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from gamescript.vision.capture import Frame, _window_title_score
+from gamescript.vision.capture import Frame, _window_title_score, is_local_helper_title
 from gamescript.vision.matcher import MatchResult, find_blue_button, find_input_boxes, match_any
 from gamescript.loop_action import LoopAction
 from gamescript.mediator import Mediator, Phase
@@ -39,6 +39,11 @@ class LobbyDetectorTests(unittest.TestCase):
         self.assertGreater(_window_title_score(game, "l1"), 0)
         self.assertLess(_window_title_score(game, "l0"), 0)
 
+    def test_local_control_panel_is_not_a_game_window(self):
+        helper = "英雄三国挂机助手 (懒人系列之魔兽世界刷刷刷) · 1.3.3.3 本地版"
+        self.assertTrue(is_local_helper_title(helper))
+        self.assertFalse(is_local_helper_title("英雄三国KK"))
+
     def test_missing_window_fails_closed(self):
         root = Path(__file__).resolve().parents[1]
         med = Mediator(Settings(query_timeout=10), root)
@@ -70,6 +75,23 @@ class LobbyDetectorTests(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertLess(hit.x, 350)
         self.assertEqual(med._detect_context(Frame(frame)), "CREATE_ROOM")
+
+    def test_map_create_template_is_preferred_over_quick_join(self):
+        root = Path(__file__).resolve().parents[1]
+        template = cv2.imdecode(
+            np.fromfile(str(root / "assets" / "Images" / "lobby" / "create_room.png"), dtype=np.uint8),
+            cv2.IMREAD_COLOR,
+        )
+        self.assertIsNotNone(template)
+        frame = np.zeros((932, 1328, 3), dtype=np.uint8)
+        y, x = 862, 723
+        h, w = template.shape[:2]
+        frame[y:y + h, x:x + w] = template
+        med = Mediator(Settings(auto_create_room=True), root)
+        hit = med._find_map_create_room(Frame(frame))
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.name, "create_room")
+        self.assertEqual((hit.x, hit.y), (x, y))
 
     @staticmethod
     def images_dir():

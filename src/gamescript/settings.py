@@ -58,7 +58,9 @@ class Settings:
     stage_targets: list[str] = field(default_factory=list)
     room_name: str = ""
     room_password: str = ""
-    auto_create_room: bool = False
+    # Solo is expected to be a complete L0→L1 chain in this local build.
+    # Keep real input separately guarded by dry_run=True by default.
+    auto_create_room: bool = True
     room_create_side: str = "left"
     new_room_every_times: bool = False
     query_timeout: int = 60

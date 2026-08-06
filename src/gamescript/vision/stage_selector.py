@@ -8,6 +8,7 @@ configured Stage1/Stage2 values can be applied without adding OCR dependencies.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 import re
 
 import cv2
@@ -57,6 +58,7 @@ def _runs(values: np.ndarray, minimum: int = 2) -> list[tuple[int, int]]:
     return runs
 
 
+@lru_cache(maxsize=4)
 def _glyph_templates(images_dir: Path) -> dict[str, list[np.ndarray]]:
     templates: dict[str, list[np.ndarray]] = {}
     for asset, label in _LABEL_ASSETS.items():
