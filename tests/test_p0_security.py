@@ -1,7 +1,8 @@
-"""Unit tests for P0 security foundation: window identity, client coords, frame health, cancellable executor, Shift+F12 emergency stop, and clipboard preservation."""
+"""Unit tests for P0 security foundation: window identity, client coords, frame health, cancellable executor, Shift+F12 emergency stop, clipboard preservation, and Mediator input chain integration."""
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 import time
 import unittest
@@ -15,6 +16,7 @@ from gamescript.loop_action import LoopAction
 from gamescript.mediator import Mediator, Phase
 from gamescript.settings import Settings
 from gamescript.stop_signal import StopSignal
+from gamescript.vision.matcher import MatchResult
 from gamescript.vision.capture import (
     Frame,
     FrameHealthIssue,
@@ -31,6 +33,7 @@ from gamescript.vision.capture import (
     is_window_valid,
     screen_to_client,
 )
+import main
 
 
 class P0SecurityFoundationTests(unittest.TestCase):
@@ -73,7 +76,6 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertEqual(exe, "")
 
     def test_fail_closed_window_keyword_search(self) -> None:
-        # Searching for a non-existent title without allow_fallback must return []
         with patch("gamescript.vision.capture.find_window_targets") as mock_find:
             mock_find.return_value = []
             targets = find_window_targets("NON_EXISTENT_TITLE_99999", allow_fallback=False)
@@ -277,6 +279,85 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertEqual(set_calls, ["NEW_PASTE_TEXT", "ORIGINAL_CLIPBOARD_TEXT"])
         self.assertEqual(clipboard_state[0], "ORIGINAL_CLIPBOARD_TEXT")
         mock_hotkey.assert_called_with("ctrl", "v")
+
+    # ---------- Task 8: Mediator Input Chain Integration Tests ----------
+
+    def test_mediator_fill_room_dialog_uses_executor(self) -> None:
+        settings = Settings()
+        settings.room_name = "TestRoom"
+        settings.room_password = "123"
+        mediator = Mediator(settings, Path("."))
+        frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=777, is_valid=True)
+        mediator._last_frame = frame
+        confirm = MatchResult("confirm", 0.9, 10, 10, 20, 20, 10, 10)
+
+        boxes = [
+            MatchResult("box1", 0.9, 5, 5, 10, 10, 5, 5),
+            MatchResult("box2", 0.9, 5, 15, 10, 10, 5, 15),
+        ]
+        with patch("gamescript.mediator.find_input_boxes", return_value=boxes), \
+             patch.object(mediator, "act_click", return_value=True), \
+             patch.object(mediator.executor, "hotkey", wraps=mediator.executor.hotkey) as mock_hk, \
+             patch.object(mediator.executor, "paste_text", wraps=mediator.executor.paste_text) as mock_paste:
+
+            res = mediator._fill_room_dialog(frame, confirm)
+            self.assertTrue(res)
+            self.assertEqual(mock_hk.call_count, 2)
+            self.assertEqual(mock_paste.call_count, 2)
+
+            # Check that target_hwnd was passed to executor
+            for call_args in mock_hk.call_args_list:
+                self.assertEqual(call_args.kwargs.get("target_hwnd"), 777)
+            for call_args in mock_paste.call_args_list:
+                self.assertEqual(call_args.kwargs.get("target_hwnd"), 777)
+
+    def test_mediator_fill_room_dialog_cancels_on_executor_failure(self) -> None:
+        settings = Settings()
+        settings.room_name = "TestRoom"
+        settings.room_password = "123"
+        mediator = Mediator(settings, Path("."))
+        frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=777, is_valid=True)
+        mediator._last_frame = frame
+        confirm = MatchResult("confirm", 0.9, 10, 10, 20, 20, 10, 10)
+        boxes = [
+            MatchResult("box1", 0.9, 5, 5, 10, 10, 5, 5),
+            MatchResult("box2", 0.9, 5, 15, 10, 10, 5, 15),
+        ]
+
+        # Trigger emergency stop before room dialog fill
+        mediator.stop_signal.trigger("Emergency stop inside dialog")
+
+        with patch("gamescript.mediator.find_input_boxes", return_value=boxes), \
+             patch.object(mediator, "act_click", return_value=True), \
+             patch.object(mediator.executor, "paste_text") as mock_paste:
+
+            res = mediator._fill_room_dialog(frame, confirm)
+            self.assertFalse(res)
+            mock_paste.assert_not_called()
+
+    def test_mediator_stage_scroll_uses_executor(self) -> None:
+        settings = Settings()
+        settings.stage_targets = ["2-1"]
+        mediator = Mediator(settings, Path("."))
+        mediator.phase = Phase.STAGE_SELECT
+        frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=888, is_valid=True)
+        mediator._last_frame = frame
+
+        with patch.object(mediator, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(mediator, "_find_stage_page", return_value=True), \
+             patch.object(mediator, "_find_stage_target", return_value=None), \
+             patch.object(mediator.executor, "scroll", wraps=mediator.executor.scroll) as mock_scroll:
+
+            action = mediator._tick_l0(frame)
+            self.assertEqual(action, LoopAction.Continue)
+            mock_scroll.assert_called_once()
+            self.assertEqual(mock_scroll.call_args.kwargs.get("target_hwnd"), 888)
+            self.assertEqual(mediator._stage_scroll_attempts, 1)
+
+    def test_legacy_real_mode_prohibited(self) -> None:
+        args = argparse.Namespace(config=None, legacy=True, longzhu=False, steps=10)
+        ret = main.cmd_run(args)
+        self.assertEqual(ret, 1)
 
 
 if __name__ == "__main__":

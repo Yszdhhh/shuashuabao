@@ -17,7 +17,7 @@ from pathlib import Path
 import cv2
 
 from gamescript.input.emergency_stop import EmergencyStopListener
-from gamescript.input.keyboard_mouse import InputExecutor, click, hotkey, paste_text, press_key, scroll
+from gamescript.input.keyboard_mouse import InputExecutor
 from gamescript.loop_action import LoopAction
 from gamescript.scenes import load_scenes, scene_templates
 from gamescript.settings import Settings
@@ -674,11 +674,18 @@ class Mediator:
             print("[L0] 建房弹窗未安全识别到房间名/密码输入框，拒绝盲填")
             return False
         values = (self.settings.room_name, self.settings.room_password)
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
         for box, value in zip(boxes[:2], values):
             if not self.act_click(box, "CreateRoom-focus-input"):
                 return False
-            hotkey("ctrl", "a", dry_run=self.settings.dry_run)
-            paste_text(value, dry_run=self.settings.dry_run)
+            res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            if not res_hk.success:
+                print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {res_hk.message}")
+                return False
+            res_paste = self.executor.paste_text(value, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            if not res_paste.success:
+                print(f"[L0] 建房弹窗 paste_text 失败/取消: {res_paste.message}")
+                return False
         print("[L0] 建房弹窗已填写房间名/密码")
         return True
 
@@ -828,11 +835,13 @@ class Mediator:
                 if not target:
                     if self.settings.stage_targets and self._stage_scroll_attempts < 3:
                         x, y = stage_list_scroll_point(frame)
-                        if not self._focus_last_window():
-                            return LoopAction.Continue
-                        scroll(x, y, 5, dry_run=self.settings.dry_run)
-                        self._stage_scroll_attempts += 1
-                        print(f"[L0] 目标关卡不在当前列表，滚动寻找 ({self._stage_scroll_attempts}/3)")
+                        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+                        res_scroll = self.executor.scroll(x, y, 5, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                        if res_scroll.success:
+                            self._stage_scroll_attempts += 1
+                            print(f"[L0] 目标关卡不在当前列表，滚动寻找 ({self._stage_scroll_attempts}/3)")
+                        else:
+                            print(f"[L0] 关卡列表滚动取消/失败: {res_scroll.message}")
                     else:
                         print("[L0] 未找到配置目标关卡，拒绝点击任意可见关卡")
                     if self._action_timed_out():

@@ -65,13 +65,12 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
 def cmd_run(args: argparse.Namespace) -> int:
     s = load_settings(Path(args.config) if args.config else None)
     s.dry_run = False
+    if args.legacy:
+        print("[SECURITY ERROR] --legacy mode does not support real input (dry_run=False) because it bypasses P0 security chain. Use Mediator runner instead.")
+        return 1
     print("WARNING: will move mouse / click. Ctrl+C to stop.")
     try:
-        if args.legacy:
-            job = LongzhuJob(s, ROOT) if args.longzhu else AutoJob(s, ROOT)
-            job.run(max_steps=args.steps)
-        else:
-            Mediator(s, ROOT).run(max_steps=args.steps)
+        Mediator(s, ROOT).run(max_steps=args.steps)
     except KeyboardInterrupt:
         print("stopped by user")
     return 0
