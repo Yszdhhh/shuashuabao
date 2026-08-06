@@ -86,7 +86,7 @@
 2. **本地未跟踪素材库**（`fixtures/reborn_wow/`）：用户提供的当前版本完整全屏截图与规则说明。**当前未被 `src/` 或 `tools/run_replay.py` 消费**。
 3. **P0-B 真实回放 Manifest**（`fixtures/manifest.json`）：`run_replay.py` 唯一消费的门禁清单。
 
-### 3.2 当前 P0-B 回放门禁实际状态
+### 3.2 当前 P0-B 回放门禁实际状态与素材缺口说明
 - **P0-A 安全执行链**：已在 `src/gamescript/` 中实装并通过全部 55 个单元测试。
 - **P0-B 回放门禁现状**：运行 `python tools/run_replay.py` 实际结果为：
   ```text
@@ -94,11 +94,10 @@
   [ERROR] Replay failed gatekeeper check: Required Missing=3, Failed=0
   exit code = 1
   ```
-- **门禁阻塞原因**：仍缺少 3 个必需（Required）场景资源：
-  1. `missing_room_waiting_page`（房间等待页）
-  2. `missing_in_game_main_line`（局内主线运行页）
-  3. `missing_disconnect_modal`（断线弹窗）
-- **结论**：**P0-B 代码与单测已通过，但端到端 Replay 门禁尚未通过**。局内自动挑战、胜利结算、存档挑战、传家宝、大秘境等功能尚未单独实装或通过门禁，**不得描述为“已可直接复用”或“已通过回放验证”**。
+- **门禁阻塞真正原因与素材澄清**：
+  1. **房间等待页 (`missing_room_waiting_page`)** 与 **局内主线运行页 (`missing_in_game_main_line`)**：用户在本地 `fixtures/reborn_wow/` 中**已经提供了相关截图**（`room_waiting_host.png`, `main_line_auto_off.png`, `main_line_auto_on.png`），**不需要用户重复上传**。真实缺口是下一阶段需要将这些已有本地素材转换并注册进根 `fixtures/manifest.json` 供 `run_replay.py` 读取。
+  2. **断线弹窗 (`missing_disconnect_modal`)**：这是当前**唯一真正缺少**的当前版本全屏截图。
+- **结论**：**P0-B 代码与单测已通过，但端到端 Replay 门禁尚未通过**。局内自动挑战、选卡偏好等虽然已有局部 `Mediator` 识别逻辑，但尚未用全屏素材形成端到端 Replay 验收，也未形成结算—存档挑战—传家宝—大秘境的完整安全状态机。
 
 ---
 
@@ -116,7 +115,7 @@
 * **C. 当前代码/回放实际覆盖**：
   - `src/gamescript/vision/lobby_detector.py` 已实现大厅/建房识别；
   - 静态资源检验 `validate_scenes.py` 通过 (99/99)；
-  - 回放测试门禁被 `missing_room_waiting_page` 阻塞（`run_replay.py` 退出码 1）。
+  - 回放测试门禁被 `missing_room_waiting_page` 阻塞（本地已有截图 `room_waiting_host.png`，待接入根 manifest）。
 * **D. 建议的安全迁移策略**：
   - 房主模式校验 HWND，确认房间等待页后方可点击 `startGameBtn`；非房主/队员模式静默等待，超时 60s 抛出异常或触发恢复。
 * **证据等级**：`CONFIRMED`（直接配置与 PDB/模板）/ `INFERRED`（带队模式建房重试逻辑）
@@ -144,7 +143,7 @@
 * **B. 用户已确认的当前版本行为**：
   - 左下角金币、木材、经验、宝物挑战卡片通过“悬停 + 右键”开启自动；后置确认必须显示绿色 `自动` 标识；若已为绿色 `自动` 禁止重复右键。
 * **C. 当前代码/回放实际覆盖**：
-  - `fixtures/reborn_wow/manifest.json` 已记录该规则Guard；`src/` 中局内战局循环尚未完整实装为独立状态机。
+  - `Mediator` 已包含识别挑战卡片自动状态和避免重复右键的局部逻辑（`test_challenge_label_maps_to_icon_click_and_detects_auto`）；但本地素材 `main_line_auto_off.png` / `main_line_auto_on.png` 尚未接入根 manifest 形成端到端回放验收。
 * **D. 建议的安全迁移策略**：
   - 识别到 `MAIN_LINE_AUTO_OFF` 后，依次执行悬停+右键；检测到 `MAIN_LINE_AUTO_ON` 立即停止右键动作。
 * **证据等级**：`CONFIRMED`（PDB/模板/用户规则）/ `INFERRED`（原版波次检测算法）
@@ -156,9 +155,9 @@
   - PDB 字符串线索：`Cards`, `AutoCard`, `AutoWeapon`, `DamageIncreaseCard`（配置默认值 `UNKNOWN`）
   - 模板：`Images/skills/` (16 个), `Images/cards/` (36 个), `woodgift.png`, `treasurechest.png`, `bbx.png`
 * **B. 用户已确认的当前版本行为**：
-  - 当前用户素材包含三选一技能 (`skill_choice_3.png`)、羁绊 (`bond_choice_3.png`)、宝物 (`treasure_choice_3.png`) 与黑商截条 (`black_merchant_card_strip.png`)。四选一、五选一及全屏黑商仍需截图补充。
+  - 当前用户素材包含三选一技能 (`skill_choice_3.png`)、羁绊 (`bond_choice_3.png`)、宝物 (`treasure_choice_3.png`) 与黑商截条 (`black_merchant_card_strip.png`)。四选一、五选一及全屏黑商仍可作为未来补充证据。
 * **C. 当前代码/回放实际覆盖**：
-  - `src/gamescript/` 尚无完整的卡牌/技能优先度匹配决策器；仅包含基础视觉检测。
+  - `Mediator` 已包含按配置技能偏好寻找奖励项的局部逻辑（`test_reward_choice_prefers_configured_skill_in_center_roi`）；但尚未形成完整的卡牌/技能优先度匹配决策器与回放门禁。
 * **D. 建议的安全迁移策略**：
   - 原版不匹配时的退回/刷新逻辑记为 `UNKNOWN`；新工程应采用配置规则树，匹配失败时优先选择默认第一项或防卡死跳过，不盲目刷新。
 * **证据等级**：`CONFIRMED`（`Skills`配置与模板存在）/ `UNKNOWN`（原版未匹配时的兜底策略）
@@ -214,7 +213,7 @@
   - `fixtures/reborn_wow/manifest.json` 登记了 `great_rift_confirm` 状态；`src/` 尚未实装大秘境前置状态校验。
 * **D. 建议的安全迁移策略**：
   - 严格执行用户确认的三前置条件，前置不满足时跳过大秘境；右键 NPC 后必须在弹窗中确认识别到 `mijingOk` 按钮方可点击“是”。
-* **证据等级**：`CONFIRMED`（`AutoSecretRealm`配置与模板存在）/ `INFERRED`（原版前置条件与动作序列）
+* **证据等级**：`CONFIRMED`（`AutoSecretRealm="False"` 配置与模板存在）/ `INFERRED`（原版前置条件与动作序列）
 
 ### 功能域 9：退出游戏 / 断线 / 重试 / 超时
 * **A. 原版直接证据**：
@@ -226,7 +225,7 @@
   - 局内主动退出目标为左上角 `退出游戏` 按钮，严禁作为故障恢复猜点。断线重连需当前版本全屏截图。
 * **C. 当前代码/回放实际覆盖**：
   - `src/gamescript/input/emergency_stop.py` 已实现真正可取消的 `Shift+F12` 全局急停；
-  - P0-B 回放包含 `quit_game_1616x939` 测试，但回放门禁被 `missing_disconnect_modal` 阻塞。
+  - P0-B 回放包含 `quit_game_1616x939` 测试，但回放门禁被 `missing_disconnect_modal` 阻塞（这是当前唯一真正缺少的当前版本全屏截图）。
 * **D. 建议的安全迁移策略**：
   - 保留全局 `Shift+F12` 急停；检测到未前台绑定或超时 60s 立即强行停机，不盲目重试。
 * **证据等级**：`CONFIRMED`（直接配置、急停实现与模板存在）/ `UNKNOWN`（原版断线重试上限与强平细节）
@@ -235,30 +234,38 @@
 * **A. 原版直接证据**：
   - `GameScript.exe.config` 中 13 项确切配置与初始值（`Stage1=3`, `Stage2=2`, `RoomPassword=""`, `QueryTimeOut=60`, `DragonBallCount=7`, `AutoSecretRealm=False`, `Skills=jq,pg`, `CJBBoss=""`, `SGZXBoss=""`, `GameMode=0`, `GameTimeOut=15`, `LicenseTxt=""`, `BatFile=""`）。
 * **B. 用户已确认的当前版本行为**：
-  - `AutoSecretRealm` 默认关闭；未配置 Boss 时退回为当前屏幕最后一个可见启用 Boss；关卡选择必须与账号实际解锁相符。
+  - 未配置 Boss 时退回为当前屏幕最后一个可见启用 Boss；关卡选择必须与账号实际解锁相符。
 * **C. 当前代码/回放实际覆盖**：
-  - `src/` 中 `StageId` 和安全执行链保持安全默认值，不覆盖当前配置；不忽略未知配置字段。
+  - 当前实现 (`Settings._from_dict()`) 会自动过滤/静默忽略未知配置字段；`StageId` 和安全执行链保持安全默认值。严格配置校验（拒绝未知配置字段）为后续安全建议策略，非当前已覆盖能力。
 * **D. 建议的安全迁移策略**：
-  - 优先级：用户显式配置 > 视觉安全退回 > 终止停机。配置无效或目标未解锁时，必须 Fail-Safe 拒绝动作，严禁盲点击。
+  - 优先级：用户显式配置 > 视觉安全退回 > 终止停机。配置无效或目标未解锁时，必须 Fail-Safe 拒绝动作，严禁盲点击；后续版本应补充未知字段校验。
 * **证据等级**：`CONFIRMED`（`exe.config` 键值对存在）/ `INFERRED`（原版内部配置解析与优先级代码）
 
 ---
 
 ## 5. 当前版本人工补充最小清单
 
-以下清单仅列出**真正无法从原版 1.3.8 静态提取、且会阻止当前版本自动化验收**的内容：
+以下清单准确标明当前版本的素材缺口状态：
 
-1. **当前版本完整退出 / 断线确认弹窗全屏截图** (`missing_disconnect_modal`)
-   - **用途**：解除 `tools/run_replay.py` 的 P0-B 门禁阻塞，验证网络抖动与异常退出场景。
-2. **当前版本房间等待页全屏截图** (`missing_room_waiting_page`)
-   - **用途**：解除 `tools/run_replay.py` 的 P0-B 门禁阻塞，验证建房到房间等待的状态转换。
-3. **当前版本局内主线运行页全屏截图** (`missing_in_game_main_line`)
-   - **用途**：解除 `tools/run_replay.py` 的 P0-B 门禁阻塞，验证主线战局与挑战卡片识别。
-4. **当前版本完整黑商状态全屏截图**
+### 5.1 唯一真正缺少、需要用户补充的当前版本截图
+1. **当前版本完整断线确认弹窗全屏截图** (`missing_disconnect_modal`)
+   - **状态**：**确实缺少**。
+   - **用途**：用于解封 `tools/run_replay.py` 的 P0-B 回放门禁，验证网络断线场景。
+
+### 5.2 本地已有素材、仅需后续接入根 Manifest 的项目（无需用户重复提供）
+1. **当前版本房间等待页全屏截图** (`missing_room_waiting_page`)
+   - **状态**：**本地已有**（`fixtures/reborn_wow/room/room_waiting_host.png`）。
+   - **任务**：下一阶段将其转换并注册进根 `fixtures/manifest.json`，无需用户重复上传。
+2. **当前版本局内主线运行页全屏截图** (`missing_in_game_main_line`)
+   - **状态**：**本地已有**（`fixtures/reborn_wow/main_line/main_line_auto_off.png` 与 `main_line_auto_on.png`）。
+   - **任务**：下一阶段将其转换并注册进根 `fixtures/manifest.json`，无需用户重复上传。
+
+### 5.3 未来扩展可选补充证据
+1. **当前版本完整黑商状态全屏截图**
    - **用途**：替换仅 350x88 局部裁剪的 `black_merchant_card_strip.png`，建立完整黑市识别与防误触边界。
-5. **四选一与五选一技能选择界面全屏截图**
+2. **四选一与五选一技能选择界面全屏截图**
    - **用途**：补充 `skill_choice_3.png` 之外的高阶技能选择布局，适配选卡坐标计算。
-6. **当前账号实际要刷的目标关卡视图全屏截图**
+3. **当前账号实际要刷的目标关卡视图全屏截图**
    - **用途**：如配置 `4-2` 或 `5-10`，需提供对应章节翻页及目标关卡行高亮的真实截图。
 
 ---
@@ -266,5 +273,5 @@
 ## 6. 结论与后续推进路线
 
 1. 原版 1.3.8 的静态资源与配置文件提供了丰富的状态与特征参考，但必须严格区分直接事实（`CONFIRMED`）与推断/未确认项（`INFERRED`/`UNKNOWN`）。
-2. 当前新工程 `GameScript-Local` 已完成 P0-A 安全执行链与 55 个单元测试；P0-B 端到端回放门禁目前处于 `Required Missing=3` 的已知阻塞状态。
+2. 当前新工程 `GameScript-Local` 已完成 P0-A 安全执行链与 55 个单元测试；P0-B 端到端回放门禁目前处于 `Required Missing=3` 的已知阻塞状态（其中 2 个所需素材在 `fixtures/reborn_wow/` 中已有，待接入根 manifest）。
 3. 后续功能推进严格遵循：**原版行为提炼 → 当前 UI 截图验证 → 安全迁移 → 回送 Replay 验收** 闭环。

@@ -41,7 +41,7 @@ KK 地图页
 - L0 大厅/建房/房间/选关状态链已经存在，不需要重新设计入口流程。
 - 当前 **55** 个单元测试全部通过 (`set PYTHONPATH=src && python -m unittest discover -s tests -v`)，场景资源静态校验通过 (`99/99`)。
 - **P0-A 运行安全基础**：已完成 HWND 绑定、窗口身份校验、帧健康检查、全局 Shift+F12 急停与真实输入封锁，已验收通过。
-- **P0-B 回放与关卡语义现状**：代码与单元测试已通过，但**端到端真实截图回放门禁尚未通过**（`python tools/run_replay.py` 退出码为 1，结果为 `Passed=14, Failed=0, Required Missing=3`，被 `missing_room_waiting_page`、`missing_in_game_main_line`、`missing_disconnect_modal` 三个必需资源阻塞）。
+- **P0-B 回放与关卡语义现状**：代码与单元测试已通过，但**端到端真实截图回放门禁尚未通过**（`python tools/run_replay.py` 退出码为 1，结果为 `Passed=14, Failed=0, Required Missing=3`，被 `missing_room_waiting_page`、`missing_in_game_main_line`、`missing_disconnect_modal` 三个必需资源阻塞；其中房间等待与局内主线已有本地截图 `fixtures/reborn_wow/`，待安全接入根 `fixtures/manifest.json`）。
 - `docs/REBORN_WOW_GAME_STRATEGY_RESEARCH.md` 已完成外部研究，策略资料作为候选数据，不直接改变默认行为。
 
 ## 2. 外部调研与原版迁移策略
@@ -71,7 +71,7 @@ asj / asjg / assx / jq
 
 1. **原版作为行为与模板参考**：原版已有的“状态识别 → 配置项 → 决策 → 动作 → 后置状态/超时”逻辑作为功能与模板特征词典参考，不盲目从零设计状态机。
 2. **保留 P0-A 安全执行链**：新工程严格保留 HWND 绑定、窗口身份校验、帧健康检查、全局急停与真实输入封锁，绝不直接使用原版的裸 Win32 / WinForms 输入调用。
-3. **当前截图用于版本差异验证**：`fixtures/reborn_wow/` 中的全屏截图是当前版本界面识别与 Dry-run 回放的唯一权威来源，旧版小模板仅用于特征命名比对。
+3. **素材库与回放清单区分**：`fixtures/reborn_wow/` 是本地未跟踪的当前版本用户证据与素材库；可执行的 P0-B 回放（`run_replay.py`）实际读取根目录 `fixtures/manifest.json`。后续工作是将 `fixtures/reborn_wow/` 中已有房间等待与局内主线截图安全接入 `fixtures/manifest.json`，旧版小模板仅用于特征命名比对。
 4. **四步推进闭环**：后续所有功能按“**原版行为提炼 → 当前 UI 截图验证 → 安全迁移 → 回送 Replay 验收**”的标准顺序推进。
 
 ## 3. 三方分工
@@ -132,7 +132,7 @@ asj / asjg / assx / jq
 
 门禁状态：
 - 55 个单元测试全部通过。
-- `tools/run_replay.py` 仍缺少 `missing_room_waiting_page`、`missing_in_game_main_line`、`missing_disconnect_modal` 三个必需资源，门禁未通过。
+- `tools/run_replay.py` 仍缺少 `missing_room_waiting_page`、`missing_in_game_main_line`、`missing_disconnect_modal` 三个必需资源，门禁未通过（其中房间等待与局内主线已有本地截图 `fixtures/reborn_wow/`，待接入根 manifest）。
 
 ### P1：识别和架构收敛 (待开展)
 
