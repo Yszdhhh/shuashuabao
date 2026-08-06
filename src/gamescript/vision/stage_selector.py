@@ -12,6 +12,8 @@ from functools import lru_cache
 import re
 
 import cv2
+
+import cv2
 import numpy as np
 
 from gamescript.vision.capture import Frame
@@ -19,13 +21,37 @@ from gamescript.vision.matcher import MatchResult, _load_template, resolve_templ
 
 
 @dataclass(frozen=True)
+class StageId:
+    """Explicit chapter and index for game stage levels (e.g. 1-10 vs 5-10)."""
+
+    chapter: int
+    index: int
+
+    @classmethod
+    def parse(cls, label: str) -> StageId | None:
+        if not label:
+            return None
+        match = re.fullmatch(r"(\d+)-(\d+)", label.strip())
+        if not match:
+            return None
+        return cls(int(match.group(1)), int(match.group(2)))
+
+    def __str__(self) -> str:
+        return f"{self.chapter}-{self.index}"
+
+
+@dataclass(frozen=True)
 class StageRow:
     """A visible numbered stage row and its screen click position."""
 
     label: str
-    number: int
+    stage_id: StageId
     center_x: int
     center_y: int
+
+    @property
+    def number(self) -> int:
+        return self.stage_id.index
 
 
 # Existing label assets provide the same font for every digit used by the UI.
@@ -112,12 +138,12 @@ def _read_row(mask: np.ndarray, x_offset: int, y_offset: int, templates: dict[st
             return None
         chars.append(char)
     label = "".join(chars)
-    match = re.fullmatch(r"\d+-(\d+)", label)
-    if not match:
+    stage_id = StageId.parse(label)
+    if stage_id is None:
         return None
     return StageRow(
         label=label,
-        number=int(match.group(1)),
+        stage_id=stage_id,
         center_x=x_offset + int((columns[0][0] + columns[-1][1]) / 2),
         center_y=y_offset + mask.shape[0] // 2,
     )
@@ -142,29 +168,60 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
     return rows
 
 
+def _parse_stage_spec(value: StageId | str | int, default_chapter: int = 1) -> StageId:
+    if isinstance(value, StageId):
+        return value
+    if isinstance(value, int):
+        return StageId(default_chapter, value)
+    parsed = StageId.parse(str(value))
+    if parsed is not None:
+        return parsed
+    try:
+        return StageId(default_chapter, int(value))
+    except ValueError:
+        return StageId(default_chapter, 1)
+
+
 def find_stage_in_range(
     frame: Frame,
     images_dir: Path,
-    start: int,
-    end: int,
+    start: StageId | str | int,
+    end: StageId | str | int,
 ) -> MatchResult | None:
     """Find a visible stage in the configured inclusive range.
 
-    Prefer the configured start, then the configured end.  If the start is
-    scrolled out of view, selecting the visible end keeps the run moving while
-    remaining inside the requested range.
+    Prefer the exact start, then end, then any visible stage inside the range.
+    Uses StageId(chapter, index) to ensure chapter match when explicit.
     """
-    low, high = sorted((int(start), int(end)))
+    start_parsed = StageId.parse(str(start)) if not isinstance(start, int) else None
+    end_parsed = StageId.parse(str(end)) if not isinstance(end, int) else None
+
     rows = visible_stage_rows(frame, images_dir)
     if not rows:
         return None
-    chosen = next((r for r in rows if r.number == low), None)
+
+    # Check if explicit chapter was specified
+    explicit_chapter = start_parsed.chapter if start_parsed else (end_parsed.chapter if end_parsed else None)
+    if explicit_chapter is not None:
+        eligible_rows = [r for r in rows if r.stage_id.chapter == explicit_chapter]
+    else:
+        eligible_rows = rows
+
+    if not eligible_rows:
+        return None
+
+    low_index = start_parsed.index if start_parsed else int(start)
+    high_index = end_parsed.index if end_parsed else int(end)
+    low_index, high_index = sorted((low_index, high_index))
+
+    chosen = next((r for r in eligible_rows if r.stage_id.index == low_index), None)
     if chosen is None:
-        chosen = next((r for r in rows if r.number == high), None)
+        chosen = next((r for r in eligible_rows if r.stage_id.index == high_index), None)
     if chosen is None:
-        chosen = next((r for r in rows if low <= r.number <= high), None)
+        chosen = next((r for r in eligible_rows if low_index <= r.stage_id.index <= high_index), None)
     if chosen is None:
         return None
+
     return MatchResult(
         name=f"stage_target_{chosen.label}",
         score=1.0,
@@ -182,14 +239,30 @@ def find_stage_labels(
     images_dir: Path,
     labels: list[str],
 ) -> MatchResult | None:
-    """Find one exact visible ``chapter-stage`` label."""
-    wanted = {label.strip() for label in labels if label.strip()}
-    if not wanted:
+    """Find one exact visible ``chapter-stage`` label matching StageId."""
+    wanted_ids: set[StageId | str] = set()
+    for label in labels:
+        if not label or not label.strip():
+            continue
+        parsed = StageId.parse(label)
+        if parsed:
+            wanted_ids.add(parsed)
+        else:
+            wanted_ids.add(label.strip())
+
+    if not wanted_ids:
         return None
+
     rows = visible_stage_rows(frame, images_dir)
-    chosen = next((row for row in rows if row.label in wanted), None)
+    chosen = None
+    for row in rows:
+        if row.stage_id in wanted_ids or row.label in wanted_ids:
+            chosen = row
+            break
+
     if chosen is None:
         return None
+
     return MatchResult(
         name=f"stage_target_{chosen.label}",
         score=1.0,
@@ -200,6 +273,23 @@ def find_stage_labels(
         screen_x=frame.left + chosen.center_x,
         screen_y=frame.top + chosen.center_y,
     )
+
+
+def verify_stage_selection(frame: Frame, hit: MatchResult | None = None) -> bool:
+    """Verify that a stage row or target has been selected in the UI.
+
+    Checks for visible stage list region and selection highlight evidence.
+    """
+    if frame.width < 600 or frame.height < 400:
+        return False
+    gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+    x1, x2 = int(frame.width * 0.55), int(frame.width * 0.95)
+    y1, y2 = int(frame.height * 0.10), int(frame.height * 0.90)
+    crop = gray[y1:y2, x1:x2]
+    if crop.size == 0:
+        return False
+    bright_pixels = np.sum(crop > 200)
+    return int(bright_pixels) > 50
 
 
 def stage_list_scroll_point(frame: Frame) -> tuple[int, int]:

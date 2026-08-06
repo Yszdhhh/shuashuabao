@@ -144,9 +144,11 @@ class Mediator:
         if self._context_cache_frame is frame and self._context_cache_role == role:
             return self._context_cache_value
 
+        if self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
+            value = "QUIT"
         # L0 does not need to scan the whole card/skill library.  L1 starts
         # with the in-game anchors, then checks the numbered stage list.
-        if role != "l0" and (
+        elif role != "l0" and (
             self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel")
         ):
             value = "IN_GAME"
@@ -594,6 +596,8 @@ class Mediator:
         return self.find_scene(frame, "room_start")
 
     def _find_stage_start(self, frame: Frame) -> MatchResult | None:
+        if not self._find_stage_page(frame):
+            return None
         return self.find_scene(frame, "stage_start")
 
     def _find_stage_page(self, frame: Frame) -> bool:
@@ -615,6 +619,7 @@ class Mediator:
             and hit.name != "stage"
             and hit.x >= int(frame.width * 0.55)
         )
+
 
     def _find_map_create_room(self, frame: Frame) -> MatchResult | None:
         hit = self.find_scene(frame, "map_create_room")
@@ -858,6 +863,11 @@ class Mediator:
                 return LoopAction.Continue
             if now < self._stage_click_cooldown_until:
                 print("[L0] 等待关卡选中状态稳定…")
+                return LoopAction.Continue
+            if not verify_stage_selection(frame):
+                print("[L0] 关卡选中态未通过验证，等待或重新选关")
+                if self._action_timed_out():
+                    self._stage_selected = False
                 return LoopAction.Continue
             if self.settings.auto_reputation:
                 if not self._handle_hero_mode_reputation(frame):

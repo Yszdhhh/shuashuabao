@@ -1,0 +1,376 @@
+{
+  "version": "1.0",
+  "baseline": "26c5a9fb469951c1ee0e40a00386a13b5af6e3d9",
+  "fixtures": [
+    {
+      "fixture_id": "map_page_1330x934",
+      "file_path": "docs/runtime_sample/live_l0_0_857518.png",
+      "resolution": [
+        1330,
+        934
+      ],
+      "dpi_scale": 1.0,
+      "page": "PLATFORM_MAP",
+      "target_scene": "map_create_room",
+      "forbidden_click_regions": [
+        {
+          "tag": "quick_join",
+          "box": [
+            600,
+            850,
+            200,
+            60
+          ]
+        }
+      ],
+      "expected_state": "PLATFORM_MAP",
+      "expected_action": "CreateRoom-open",
+      "is_negative": false
+    },
+    {
+      "fixture_id": "create_dialog_584x488",
+      "file_path": "docs/runtime_sample/live_l0_1_269026374.png",
+      "resolution": [
+        584,
+        488
+      ],
+      "dpi_scale": 1.0,
+      "page": "CREATE_ROOM",
+      "target_scene": "create_room_confirm",
+      "forbidden_click_regions": [
+        {
+          "tag": "cancel",
+          "box": [
+            350,
+            420,
+            100,
+            40
+          ]
+        }
+      ],
+      "expected_state": "CREATE_ROOM",
+      "expected_action": "CreateRoom-confirm",
+      "is_negative": false
+    },
+    {
+      "fixture_id": "stage_select_1616x939",
+      "file_path": "docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803154629.png",
+      "resolution": [
+        1616,
+        939
+      ],
+      "dpi_scale": 1.0,
+      "page": "STAGE_SELECT",
+      "target_scene": "stage_target_4-4",
+      "forbidden_click_regions": [],
+      "expected_state": "STAGE_SELECT",
+      "expected_action": "SelectStage-target",
+      "expected_stage": "4-4",
+      "is_negative": false
+    },
+    {
+      "fixture_id": "stage_select_1936x1066",
+      "file_path": "docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803141607.png",
+      "resolution": [
+        1936,
+        1066
+      ],
+      "dpi_scale": 1.2,
+      "page": "STAGE_SELECT",
+      "target_scene": "stage_target_1-10",
+      "forbidden_click_regions": [],
+      "expected_state": "STAGE_SELECT",
+      "expected_action": "SelectStage-target",
+      "expected_stage": "1-10",
+      "is_negative": false
+    },
+    {
+      "fixture_id": "quit_game_1616x939",
+      "file_path": "docs/agent_shared_logs/official_raw/20260803_QuitGame_20260803152112.png",
+      "resolution": [
+        1616,
+        939
+      ],
+      "dpi_scale": 1.0,
+      "page": "QUIT",
+      "target_scene": "close",
+      "forbidden_click_regions": [],
+      "expected_state": "QUIT",
+      "expected_action": "QuitGame",
+      "is_negative": false
+    },
+    {
+      "fixture_id": "missing_room_waiting_page",
+      "file_path": "fixtures/missing_room_waiting.png",
+      "resolution": [
+        1600,
+        900
+      ],
+      "dpi_scale": 1.0,
+      "page": "ROOM_WAITING",
+      "target_scene": "room_start",
+      "forbidden_click_regions": [],
+      "expected_state": "ROOM_WAITING",
+      "expected_action": "RoomStart",
+      "missing_resource": true,
+      "is_negative": false
+    },
+    {
+      "fixture_id": "missing_in_game_main_line",
+      "file_path": "fixtures/missing_in_game.png",
+      "resolution": [
+        1600,
+        900
+      ],
+      "dpi_scale": 1.0,
+      "page": "MAIN_LINE",
+      "target_scene": "card_panel",
+      "forbidden_click_regions": [],
+      "expected_state": "MAIN_LINE",
+      "expected_action": "InGameChoice",
+      "missing_resource": true,
+      "is_negative": false
+    },
+    {
+      "fixture_id": "missing_disconnect_modal",
+      "file_path": "fixtures/missing_disconnect.png",
+      "resolution": [
+        1600,
+        900
+      ],
+      "dpi_scale": 1.0,
+      "page": "QUIT",
+      "target_scene": "disconnect",
+      "forbidden_click_regions": [],
+      "expected_state": "QUIT",
+      "expected_action": "QuitGame-ok",
+      "missing_resource": true,
+      "is_negative": false
+    },
+    {
+      "fixture_id": "neg_quick_join",
+      "file_path": "docs/runtime_sample/live_l0_0_857518.png",
+      "resolution": [
+        1330,
+        934
+      ],
+      "dpi_scale": 1.0,
+      "page": "PLATFORM_MAP",
+      "target_scene": "quick_join",
+      "forbidden_click_regions": [
+        {
+          "tag": "quick_join_strip",
+          "box": [
+            0,
+            800,
+            1330,
+            134
+          ]
+        }
+      ],
+      "expected_state": "PLATFORM_MAP",
+      "expected_action": "none",
+      "is_negative": true
+    },
+    {
+      "fixture_id": "neg_cancel",
+      "file_path": "docs/runtime_sample/after_1.png",
+      "resolution": [
+        584,
+        488
+      ],
+      "dpi_scale": 1.0,
+      "page": "CREATE_ROOM",
+      "target_scene": "cancel",
+      "forbidden_click_regions": [
+        {
+          "tag": "cancel_btn",
+          "box": [
+            300,
+            400,
+            200,
+            80
+          ]
+        }
+      ],
+      "expected_state": "CREATE_ROOM",
+      "expected_action": "none",
+      "is_negative": true
+    },
+    {
+      "fixture_id": "neg_quit",
+      "file_path": "docs/agent_shared_logs/official_raw/20260803_QuitGame_20260803154007.png",
+      "resolution": [
+        1616,
+        939
+      ],
+      "dpi_scale": 1.0,
+      "page": "QUIT",
+      "target_scene": "dangerous_quit",
+      "forbidden_click_regions": [
+        {
+          "tag": "quit_area",
+          "box": [
+            0,
+            0,
+            1616,
+            939
+          ]
+        }
+      ],
+      "expected_state": "QUIT",
+      "expected_action": "none",
+      "is_negative": true
+    },
+    {
+      "fixture_id": "neg_assistant_window",
+      "file_path": "fixtures/assistant_window_neg.png",
+      "resolution": [
+        800,
+        600
+      ],
+      "dpi_scale": 1.0,
+      "page": "UNKNOWN",
+      "target_scene": "assistant_title",
+      "forbidden_click_regions": [
+        {
+          "tag": "full_window",
+          "box": [
+            0,
+            0,
+            800,
+            600
+          ]
+        }
+      ],
+      "expected_state": "ERROR",
+      "expected_action": "none",
+      "is_negative": true
+    },
+    {
+      "fixture_id": "neg_black_frame",
+      "file_path": "fixtures/black_frame.png",
+      "resolution": [
+        1600,
+        900
+      ],
+      "dpi_scale": 1.0,
+      "page": "UNKNOWN",
+      "target_scene": "none",
+      "forbidden_click_regions": [
+        {
+          "tag": "full_screen",
+          "box": [
+            0,
+            0,
+            1600,
+            900
+          ]
+        }
+      ],
+      "expected_state": "ERROR",
+      "expected_action": "none",
+      "is_negative": true
+    },
+    {
+      "fixture_id": "neg_frozen_frame",
+      "file_path": "fixtures/frozen_frame.png",
+      "resolution": [
+        1600,
+        900
+      ],
+      "dpi_scale": 1.0,
+      "page": "UNKNOWN",
+      "target_scene": "none",
+      "forbidden_click_regions": [
+        {
+          "tag": "full_screen",
+          "box": [
+            0,
+            0,
+            1600,
+            900
+          ]
+        }
+      ],
+      "expected_state": "ERROR",
+      "expected_action": "none",
+      "is_negative": true
+    },
+    {
+      "fixture_id": "neg_unknown_page",
+      "file_path": "fixtures/unknown_page.png",
+      "resolution": [
+        1600,
+        900
+      ],
+      "dpi_scale": 1.0,
+      "page": "UNKNOWN",
+      "target_scene": "none",
+      "forbidden_click_regions": [
+        {
+          "tag": "full_screen",
+          "box": [
+            0,
+            0,
+            1600,
+            900
+          ]
+        }
+      ],
+      "expected_state": "UNKNOWN",
+      "expected_action": "none",
+      "is_negative": true
+    },
+    {
+      "fixture_id": "neg_stage_not_found",
+      "file_path": "docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803154629.png",
+      "resolution": [
+        1616,
+        939
+      ],
+      "dpi_scale": 1.0,
+      "page": "STAGE_SELECT",
+      "target_scene": "stage_target_99-99",
+      "forbidden_click_regions": [
+        {
+          "tag": "stage_list",
+          "box": [
+            900,
+            100,
+            400,
+            700
+          ]
+        }
+      ],
+      "expected_state": "STAGE_SELECT",
+      "expected_action": "none",
+      "is_negative": true
+    },
+    {
+      "fixture_id": "neg_stage_ambiguous",
+      "file_path": "docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803154629.png",
+      "resolution": [
+        1616,
+        939
+      ],
+      "dpi_scale": 1.0,
+      "page": "STAGE_SELECT",
+      "target_scene": "stage_unconfirmed",
+      "forbidden_click_regions": [
+        {
+          "tag": "start_button",
+          "box": [
+            1000,
+            800,
+            200,
+            60
+          ]
+        }
+      ],
+      "expected_state": "STAGE_SELECT",
+      "expected_action": "none",
+      "is_negative": true
+    }
+  ]
+}

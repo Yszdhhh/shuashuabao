@@ -1,4 +1,4 @@
-﻿"""OpenCV 模板匹配（对齐原 OpenCvSharp 找图思路）。"""
+"""OpenCV 模板匹配（对齐原 OpenCvSharp 找图思路）。"""
 
 from __future__ import annotations
 
@@ -230,6 +230,13 @@ def find_input_boxes(
         return []
 
 
+@dataclass
+class MatchMarginResult:
+    best: MatchResult | None
+    second_best: MatchResult | None
+    margin: float
+
+
 def match_any(
     frame: Frame,
     images_dir: Path,
@@ -237,16 +244,39 @@ def match_any(
     threshold: float = 0.85,
     scales: tuple[float, ...] = (1.0,),
 ) -> MatchResult | None:
-    best: MatchResult | None = None
+    res = match_any_with_margin(frame, images_dir, names, threshold=threshold, scales=scales)
+    return res.best
+
+
+def match_any_with_margin(
+    frame: Frame,
+    images_dir: Path,
+    names: list[str],
+    threshold: float = 0.85,
+    scales: tuple[float, ...] = (1.0,),
+    min_margin: float = 0.0,
+) -> MatchMarginResult:
+    results: list[MatchResult] = []
     for n in names:
         path = resolve_template(images_dir, n)
         if not path:
             continue
         hit = match_one(frame, path, threshold=threshold, name=path.stem, scales=scales)
-        if hit and (best is None or hit.score > best.score):
-            best = hit
-    
-    return best
+        if hit:
+            results.append(hit)
+
+    results.sort(key=lambda m: m.score, reverse=True)
+    if not results:
+        return MatchMarginResult(best=None, second_best=None, margin=0.0)
+
+    best = results[0]
+    second = results[1] if len(results) > 1 else None
+    margin = (best.score - second.score) if second else best.score
+
+    if min_margin > 0.0 and margin < min_margin:
+        return MatchMarginResult(best=None, second_best=second, margin=margin)
+
+    return MatchMarginResult(best=best, second_best=second, margin=margin)
 
 
 def match_all(
