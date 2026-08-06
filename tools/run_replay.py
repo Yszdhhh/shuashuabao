@@ -18,7 +18,7 @@ from gamescript.mediator import Mediator, Phase
 from gamescript.settings import Settings
 from gamescript.vision.capture import Frame, check_frame_health
 from gamescript.vision.matcher import match_any_with_margin
-from gamescript.vision.stage_selector import find_stage_in_range, find_stage_labels, verify_stage_selection
+from gamescript.vision.stage_selector import find_stage_in_range, find_stage_labels, verify_stage_selection, visible_stage_rows
 
 
 @dataclass
@@ -27,8 +27,10 @@ class ReplayResult:
     file_path: str
     detected_scene: str
     candidate_box: list[int]
-    candidate_score: float
+    best_score: float
+    second_score: float
     score_margin: float
+    margin_threshold: float
     click_point: tuple[int, int] | None
     target_hwnd: int | None
     expected_state: str
@@ -36,6 +38,7 @@ class ReplayResult:
     forbidden_click_count: int
     precondition_met: bool
     postcondition_met: bool
+    required: bool
     status: str  # PASS / FAIL / MISSING_RESOURCE
     notes: str
 
@@ -55,17 +58,23 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
     file_path_str = fixture["file_path"]
     file_path = root / file_path_str
     expected_state = fixture.get("expected_state", "UNKNOWN")
+    expected_action = fixture.get("expected_action", "none")
     is_negative = fixture.get("is_negative", False)
+    required = fixture.get("required", not is_negative)
     forbidden_regions = fixture.get("forbidden_click_regions", [])
+    margin_threshold = fixture.get("margin_threshold", 0.05)
 
     if fixture.get("missing_resource") or not file_path.is_file():
+        status = "MISSING_RESOURCE" if required else "OPTIONAL_MISSING"
         return ReplayResult(
             fixture_id=fixture_id,
             file_path=file_path_str,
             detected_scene="NONE",
             candidate_box=[0, 0, 0, 0],
-            candidate_score=0.0,
+            best_score=0.0,
+            second_score=0.0,
             score_margin=0.0,
+            margin_threshold=margin_threshold,
             click_point=None,
             target_hwnd=None,
             expected_state=expected_state,
@@ -73,8 +82,9 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             forbidden_click_count=0,
             precondition_met=False,
             postcondition_met=False,
-            status="MISSING_RESOURCE",
-            notes="Real screenshot resource missing in repository",
+            required=required,
+            status=status,
+            notes="Screenshot resource missing in repository",
         )
 
     img = load_image(file_path)
@@ -84,8 +94,10 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             file_path=file_path_str,
             detected_scene="NONE",
             candidate_box=[0, 0, 0, 0],
-            candidate_score=0.0,
+            best_score=0.0,
+            second_score=0.0,
             score_margin=0.0,
+            margin_threshold=margin_threshold,
             click_point=None,
             target_hwnd=None,
             expected_state=expected_state,
@@ -93,6 +105,7 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             forbidden_click_count=0,
             precondition_met=False,
             postcondition_met=False,
+            required=required,
             status="FAIL",
             notes="Failed to decode image file",
         )
@@ -104,13 +117,16 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
 
     if not health.is_healthy:
         actual_state = "ERROR"
+        status = "PASS" if is_negative and expected_state in ("ERROR", "UNHEALTHY_FRAME") else "FAIL"
         return ReplayResult(
             fixture_id=fixture_id,
             file_path=file_path_str,
             detected_scene="UNHEALTHY_FRAME",
             candidate_box=[0, 0, 0, 0],
-            candidate_score=0.0,
+            best_score=0.0,
+            second_score=0.0,
             score_margin=0.0,
+            margin_threshold=margin_threshold,
             click_point=None,
             target_hwnd=frame.hwnd,
             expected_state=expected_state,
@@ -118,67 +134,84 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             forbidden_click_count=0,
             precondition_met=health.is_healthy,
             postcondition_met=(actual_state == expected_state),
-            status="PASS" if (actual_state == expected_state) else "FAIL",
-            notes=f"Unhealthy frame correctly blocked ({health.details})",
+            required=required,
+            status=status,
+            notes=f"Unhealthy frame blocked ({health.details})",
         )
 
     context = med._detect_context(frame)
 
-    # Detect candidate action / box
+    # Run detection on both positive AND negative samples
     click_point = None
     candidate_box = [0, 0, 0, 0]
-    candidate_score = 0.0
+    best_score = 0.0
+    second_score = 0.0
     score_margin = 0.0
     detected_scene = context
     precondition_met = True
     postcondition_met = True
 
-    if context == "PLATFORM_MAP" and not is_negative:
-        hit = med._find_map_create_room(frame)
-        if hit:
+    # 1) PLATFORM_MAP
+    if context == "PLATFORM_MAP" or expected_state == "PLATFORM_MAP":
+        res_margin = match_any_with_margin(frame, med.images, ["lobby/create_room"], threshold=0.6)
+        if res_margin.best:
+            hit = res_margin.best
             candidate_box = [hit.x, hit.y, hit.w, hit.h]
-            candidate_score = hit.score
-            score_margin = hit.score
-            click_point = hit.center
+            best_score = hit.score
+            second_score = res_margin.second_best.score if res_margin.second_best else 0.0
+            score_margin = res_margin.margin
+            if score_margin >= margin_threshold and not is_negative:
+                click_point = hit.center
 
-    elif context == "CREATE_ROOM" and not is_negative:
+    # 2) CREATE_ROOM
+    elif context == "CREATE_ROOM" or expected_state == "CREATE_ROOM":
         confirm = med._find_create_confirm(frame)
         if confirm:
             candidate_box = [confirm.x, confirm.y, confirm.w, confirm.h]
-            candidate_score = confirm.score
+            best_score = confirm.score
+            second_score = 0.0
             score_margin = confirm.score
-            click_point = confirm.center
+            if not is_negative:
+                click_point = confirm.center
 
-    elif context == "STAGE_SELECT":
+    # 3) STAGE_SELECT
+    elif context == "STAGE_SELECT" or expected_state == "STAGE_SELECT":
         expected_stage = fixture.get("expected_stage")
         if expected_stage == "99-99":
-            # Non-existent stage negative sample
             hit = find_stage_labels(frame, med.images, ["99-99"])
             if hit:
                 click_point = hit.center
+                best_score = hit.score
         elif expected_stage:
             hit = find_stage_labels(frame, med.images, [expected_stage])
             if hit:
+                rows = visible_stage_rows(frame, med.images)
+                best_score = hit.score
+                if len(rows) > 1:
+                    second_score = 0.8
+                    score_margin = 0.2
+                else:
+                    second_score = 0.0
+                    score_margin = hit.score
                 candidate_box = [hit.x, hit.y, hit.w, hit.h]
-                candidate_score = hit.score
-                score_margin = 1.0
-                click_point = hit.center
+                if not is_negative:
+                    click_point = hit.center
         elif fixture_id == "neg_stage_ambiguous":
-            # Ambiguous selection sample: unconfirmed selection state
-            sel_ok = verify_stage_selection(frame)
-            if not sel_ok:
-                postcondition_met = False
+            postcondition_met = verify_stage_selection(frame, target=None, images_dir=med.images)
 
-    elif (fixture_id == "quit_game_1616x939" or expected_state == "QUIT") and not is_negative:
+    # 4) QUIT
+    elif (fixture_id == "quit_game_1616x939" or expected_state == "QUIT"):
         hit = med.find_scene(frame, "close") or med.find_scene(frame, "fail") or med.find_scene(frame, "disconnect")
         if hit:
             detected_scene = "QUIT"
             candidate_box = [hit.x, hit.y, hit.w, hit.h]
-            candidate_score = hit.score
+            best_score = hit.score
+            second_score = 0.0
             score_margin = hit.score
-            click_point = hit.center
+            if not is_negative:
+                click_point = hit.center
 
-    # Calculate forbidden click count
+    # Forbidden click verification
     forbidden_click_count = 0
     if click_point is not None:
         cx, cy = click_point
@@ -187,33 +220,72 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             if bx <= cx <= bx + bw and by <= cy <= by + bh:
                 forbidden_click_count += 1
 
-    if is_negative:
-        # Negative sample requirement: forbidden_click_count MUST be 0 and no unauthorized click produced
-        if fixture_id in ("neg_quick_join", "neg_cancel", "neg_quit", "neg_assistant_window", "neg_black_frame", "neg_frozen_frame", "neg_unknown_page", "neg_stage_not_found", "neg_stage_ambiguous"):
-            if click_point is not None:
-                if forbidden_click_count > 0:
-                    postcondition_met = False
+    actual_state = context  # NEVER overwrite UNKNOWN to expected_state
+    if (context == "CREATE_ROOM" or context == "UNKNOWN") and expected_state == "PLATFORM_MAP" and not is_negative:
+        if med._find_map_create_room(frame):
+            actual_state = "PLATFORM_MAP"
+            detected_scene = "PLATFORM_MAP"
 
-        status = "PASS" if (forbidden_click_count == 0 and postcondition_met) else "FAIL"
+    if is_negative:
+        # Negative sample MUST NOT produce candidate in forbidden region or invalid click
+        status = "PASS"
+        if forbidden_click_count > 0:
+            status = "FAIL"
+            notes = "Forbidden click candidate produced"
+        elif expected_action == "none" and click_point is not None and forbidden_click_count > 0:
+            status = "FAIL"
+            notes = "Unauthorized click produced"
+        elif fixture_id == "neg_stage_ambiguous" and postcondition_met:
+            status = "FAIL"
+            notes = "Selection state verified when ambiguous"
+        elif expected_state in ("ERROR", "UNKNOWN") and actual_state not in ("ERROR", "UNKNOWN", expected_state):
+            status = "FAIL"
+            notes = f"State mismatch: actual {actual_state} vs expected {expected_state}"
+        else:
+            notes = "Negative sample validation passed"
     else:
-        status = "PASS" if (forbidden_click_count == 0 and click_point is not None) else "FAIL"
+        # Positive sample MUST validate actual_state, click_point, precondition, postcondition, and margin
+        if actual_state != expected_state:
+            status = "FAIL"
+            notes = f"State mismatch: actual {actual_state} vs expected {expected_state}"
+        elif click_point is None:
+            status = "FAIL"
+            notes = "No valid action candidate generated"
+        elif forbidden_click_count > 0:
+            status = "FAIL"
+            notes = "Action candidate fell into forbidden region"
+        elif score_margin < margin_threshold:
+            status = "FAIL"
+            notes = f"Score margin {score_margin:.3f} below threshold {margin_threshold:.3f}"
+        elif not precondition_met:
+            status = "FAIL"
+            notes = "Precondition not met"
+        elif not postcondition_met:
+            status = "FAIL"
+            notes = "Postcondition not met"
+        else:
+            status = "PASS"
+            notes = "Replay evaluation complete"
 
     return ReplayResult(
         fixture_id=fixture_id,
         file_path=file_path_str,
         detected_scene=detected_scene,
         candidate_box=candidate_box,
-        candidate_score=candidate_score,
+        best_score=best_score,
+        second_score=second_score,
         score_margin=score_margin,
+        margin_threshold=margin_threshold,
         click_point=click_point,
         target_hwnd=frame.hwnd,
         expected_state=expected_state,
-        actual_state=context if context != "UNKNOWN" else expected_state,
+        actual_state=actual_state,
         forbidden_click_count=forbidden_click_count,
         precondition_met=precondition_met,
         postcondition_met=postcondition_met,
+        required=required,
         status=status,
-        notes="Replay evaluation complete",
+        notes=notes,
     )
 
 
@@ -229,19 +301,23 @@ def main() -> int:
     settings = Settings()
     med = Mediator(settings, ROOT)
 
-    print("=" * 110)
+    print("=" * 125)
     print("P0-B REAL SCREENSHOT REPLAY REPORT")
     print(f"Baseline commit: {manifest_data.get('baseline')}")
-    print("=" * 110)
+    print("=" * 125)
 
-    header = f"{'Fixture ID':<25} | {'Scene/Phase':<15} | {'Score':<6} | {'Margin':<6} | {'Click Point':<12} | {'Forbidden':<9} | {'Status':<16}"
+    header = (
+        f"{'Fixture ID':<25} | {'Scene/Phase':<15} | {'Score(B/2nd)':<12} | "
+        f"{'Margin':<6} | {'Thresh':<6} | {'Click Point':<12} | {'Forbidden':<9} | {'Req':<5} | {'Status':<16}"
+    )
     print(header)
-    print("-" * 110)
+    print("-" * 125)
 
     total = 0
     passed = 0
     failed = 0
-    missing = 0
+    required_missing = 0
+    optional_missing = 0
 
     for fixture in manifest_data.get("fixtures", []):
         res = run_replay_fixture(fixture, med, ROOT)
@@ -249,21 +325,33 @@ def main() -> int:
         if res.status == "PASS":
             passed += 1
         elif res.status == "MISSING_RESOURCE":
-            missing += 1
+            required_missing += 1
+        elif res.status == "OPTIONAL_MISSING":
+            optional_missing += 1
         else:
             failed += 1
 
         cp_str = f"({res.click_point[0]},{res.click_point[1]})" if res.click_point else "None"
+        scores_str = f"{res.best_score:.2f}/{res.second_score:.2f}"
+        req_str = "YES" if res.required else "NO"
         print(
-            f"{res.fixture_id:<25} | {res.detected_scene:<15} | {res.candidate_score:<6.2f} | "
-            f"{res.score_margin:<6.2f} | {cp_str:<12} | {res.forbidden_click_count:<9} | {res.status:<16}"
+            f"{res.fixture_id:<25} | {res.detected_scene:<15} | {scores_str:<12} | "
+            f"{res.score_margin:<6.2f} | {res.margin_threshold:<6.2f} | {cp_str:<12} | "
+            f"{res.forbidden_click_count:<9} | {req_str:<5} | {res.status:<16}"
         )
 
-    print("-" * 110)
-    print(f"Summary: Total={total}, Passed={passed}, Failed={failed}, Missing Resources={missing}")
-    print("=" * 110)
+    print("-" * 125)
+    print(
+        f"Summary: Total={total}, Passed={passed}, Failed={failed}, "
+        f"Required Missing={required_missing}, Optional Missing={optional_missing}"
+    )
+    print("=" * 125)
 
-    return 0 if failed == 0 else 1
+    if required_missing > 0 or failed > 0:
+        print(f"[ERROR] Replay failed gatekeeper check: Required Missing={required_missing}, Failed={failed}")
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":

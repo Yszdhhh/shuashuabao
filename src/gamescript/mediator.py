@@ -45,6 +45,7 @@ from gamescript.vision.stage_selector import (
     find_stage_in_range,
     find_stage_labels,
     stage_list_scroll_point,
+    verify_stage_selection,
     visible_stage_rows,
 )
 
@@ -864,7 +865,8 @@ class Mediator:
             if now < self._stage_click_cooldown_until:
                 print("[L0] 等待关卡选中状态稳定…")
                 return LoopAction.Continue
-            if not verify_stage_selection(frame):
+            target_spec = self.settings.stage_targets[0] if self.settings.stage_targets else self.settings.stage1
+            if not verify_stage_selection(frame, target=target_spec, images_dir=self.images):
                 print("[L0] 关卡选中态未通过验证，等待或重新选关")
                 if self._action_timed_out():
                     self._stage_selected = False

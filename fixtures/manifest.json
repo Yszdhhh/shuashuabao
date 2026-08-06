@@ -25,7 +25,8 @@
       ],
       "expected_state": "PLATFORM_MAP",
       "expected_action": "CreateRoom-open",
-      "is_negative": false
+      "is_negative": false,
+      "required": true
     },
     {
       "fixture_id": "create_dialog_584x488",
@@ -50,7 +51,8 @@
       ],
       "expected_state": "CREATE_ROOM",
       "expected_action": "CreateRoom-confirm",
-      "is_negative": false
+      "is_negative": false,
+      "required": true
     },
     {
       "fixture_id": "stage_select_1616x939",
@@ -66,7 +68,8 @@
       "expected_state": "STAGE_SELECT",
       "expected_action": "SelectStage-target",
       "expected_stage": "4-4",
-      "is_negative": false
+      "is_negative": false,
+      "required": true
     },
     {
       "fixture_id": "stage_select_1936x1066",
@@ -82,7 +85,8 @@
       "expected_state": "STAGE_SELECT",
       "expected_action": "SelectStage-target",
       "expected_stage": "1-10",
-      "is_negative": false
+      "is_negative": false,
+      "required": true
     },
     {
       "fixture_id": "quit_game_1616x939",
@@ -97,7 +101,8 @@
       "forbidden_click_regions": [],
       "expected_state": "QUIT",
       "expected_action": "QuitGame",
-      "is_negative": false
+      "is_negative": false,
+      "required": true
     },
     {
       "fixture_id": "missing_room_waiting_page",
@@ -113,7 +118,8 @@
       "expected_state": "ROOM_WAITING",
       "expected_action": "RoomStart",
       "missing_resource": true,
-      "is_negative": false
+      "is_negative": false,
+      "required": true
     },
     {
       "fixture_id": "missing_in_game_main_line",
@@ -129,7 +135,8 @@
       "expected_state": "MAIN_LINE",
       "expected_action": "InGameChoice",
       "missing_resource": true,
-      "is_negative": false
+      "is_negative": false,
+      "required": true
     },
     {
       "fixture_id": "missing_disconnect_modal",
@@ -145,7 +152,8 @@
       "expected_state": "QUIT",
       "expected_action": "QuitGame-ok",
       "missing_resource": true,
-      "is_negative": false
+      "is_negative": false,
+      "required": true
     },
     {
       "fixture_id": "neg_quick_join",

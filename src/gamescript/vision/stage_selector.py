@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 import re
-
-import cv2
 
 import cv2
 import numpy as np
@@ -29,12 +28,32 @@ class StageId:
 
     @classmethod
     def parse(cls, label: str) -> StageId | None:
-        if not label:
+        if not label or not str(label).strip():
             return None
-        match = re.fullmatch(r"(\d+)-(\d+)", label.strip())
+        match = re.fullmatch(r"(\d+)-(\d+)", str(label).strip())
         if not match:
             return None
         return cls(int(match.group(1)), int(match.group(2)))
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, StageId):
+            return NotImplemented
+        return (self.chapter, self.index) < (other.chapter, other.index)
+
+    def __le__(self, other: object) -> bool:
+        if not isinstance(other, StageId):
+            return NotImplemented
+        return (self.chapter, self.index) <= (other.chapter, other.index)
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, StageId):
+            return NotImplemented
+        return (self.chapter, self.index) > (other.chapter, other.index)
+
+    def __ge__(self, other: object) -> bool:
+        if not isinstance(other, StageId):
+            return NotImplemented
+        return (self.chapter, self.index) >= (other.chapter, other.index)
 
     def __str__(self) -> str:
         return f"{self.chapter}-{self.index}"
@@ -172,14 +191,19 @@ def _parse_stage_spec(value: StageId | str | int, default_chapter: int = 1) -> S
     if isinstance(value, StageId):
         return value
     if isinstance(value, int):
+        if value <= 0:
+            raise ValueError(f"Invalid stage index: {value}")
         return StageId(default_chapter, value)
-    parsed = StageId.parse(str(value))
+    val_str = str(value).strip()
+    parsed = StageId.parse(val_str)
     if parsed is not None:
         return parsed
-    try:
-        return StageId(default_chapter, int(value))
-    except ValueError:
-        return StageId(default_chapter, 1)
+    if val_str.isdigit():
+        idx = int(val_str)
+        if idx <= 0:
+            raise ValueError(f"Invalid stage index: {val_str}")
+        return StageId(default_chapter, idx)
+    raise ValueError(f"Invalid StageId spec: {value!r}")
 
 
 def find_stage_in_range(
@@ -193,32 +217,37 @@ def find_stage_in_range(
     Prefer the exact start, then end, then any visible stage inside the range.
     Uses StageId(chapter, index) to ensure chapter match when explicit.
     """
-    start_parsed = StageId.parse(str(start)) if not isinstance(start, int) else None
-    end_parsed = StageId.parse(str(end)) if not isinstance(end, int) else None
-
     rows = visible_stage_rows(frame, images_dir)
     if not rows:
         return None
 
-    # Check if explicit chapter was specified
-    explicit_chapter = start_parsed.chapter if start_parsed else (end_parsed.chapter if end_parsed else None)
-    if explicit_chapter is not None:
+    start_parsed = StageId.parse(str(start)) if not isinstance(start, int) else None
+    end_parsed = StageId.parse(str(end)) if not isinstance(end, int) else None
+
+    if start_parsed or end_parsed:
+        explicit_chapter = start_parsed.chapter if start_parsed else end_parsed.chapter
         eligible_rows = [r for r in rows if r.stage_id.chapter == explicit_chapter]
+        low_idx = start_parsed.index if start_parsed else int(start)
+        high_idx = end_parsed.index if end_parsed else int(end)
     else:
+        try:
+            low_idx = int(start)
+            high_idx = int(end)
+        except ValueError:
+            return None
         eligible_rows = rows
 
     if not eligible_rows:
         return None
 
-    low_index = start_parsed.index if start_parsed else int(start)
-    high_index = end_parsed.index if end_parsed else int(end)
-    low_index, high_index = sorted((low_index, high_index))
+    low_idx, high_idx = sorted((low_idx, high_idx))
 
-    chosen = next((r for r in eligible_rows if r.stage_id.index == low_index), None)
+    chosen = next((r for r in eligible_rows if r.stage_id.index == low_idx), None)
     if chosen is None:
-        chosen = next((r for r in eligible_rows if r.stage_id.index == high_index), None)
+        chosen = next((r for r in eligible_rows if r.stage_id.index == high_idx), None)
     if chosen is None:
-        chosen = next((r for r in eligible_rows if low_index <= r.stage_id.index <= high_index), None)
+        chosen = next((r for r in eligible_rows if low_idx <= r.stage_id.index <= high_idx), None)
+
     if chosen is None:
         return None
 
@@ -242,13 +271,13 @@ def find_stage_labels(
     """Find one exact visible ``chapter-stage`` label matching StageId."""
     wanted_ids: set[StageId | str] = set()
     for label in labels:
-        if not label or not label.strip():
+        if not label or not str(label).strip():
             continue
         parsed = StageId.parse(label)
         if parsed:
             wanted_ids.add(parsed)
         else:
-            wanted_ids.add(label.strip())
+            wanted_ids.add(str(label).strip())
 
     if not wanted_ids:
         return None
@@ -275,21 +304,80 @@ def find_stage_labels(
     )
 
 
-def verify_stage_selection(frame: Frame, hit: MatchResult | None = None) -> bool:
+def verify_stage_selection(
+    frame: Frame,
+    target: StageRow | MatchResult | StageId | str | None = None,
+    images_dir: Path | None = None,
+) -> bool:
     """Verify that a stage row or target has been selected in the UI.
 
-    Checks for visible stage list region and selection highlight evidence.
+    Checks for target row selection highlight and contrast against adjacent unselected rows.
     """
     if frame.width < 600 or frame.height < 400:
         return False
+
+    target_cy: int | None = None
+    target_cx: int | None = None
+
+    if isinstance(target, StageRow):
+        target_cx, target_cy = target.center_x, target.center_y
+    elif isinstance(target, MatchResult):
+        target_cx = target.x if target.x > 0 else (target.screen_x - frame.left)
+        target_cy = target.y if target.y > 0 else (target.screen_y - frame.top)
+    elif target is not None and images_dir is not None:
+        target_str = str(target)
+        rows = visible_stage_rows(frame, images_dir)
+        matched = next((r for r in rows if r.label == target_str or str(r.stage_id) == target_str), None)
+        if matched:
+            target_cx, target_cy = matched.center_x, matched.center_y
+
+    if target_cy is None or target_cx is None:
+        if images_dir is not None:
+            rows = visible_stage_rows(frame, images_dir)
+            for r in rows:
+                if verify_stage_selection(frame, target=r):
+                    return True
+            return False
+        target_cx = int(frame.width * 0.67)
+        target_cy = int(frame.height * 0.50)
+
     gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
-    x1, x2 = int(frame.width * 0.55), int(frame.width * 0.95)
-    y1, y2 = int(frame.height * 0.10), int(frame.height * 0.90)
-    crop = gray[y1:y2, x1:x2]
-    if crop.size == 0:
+
+    y_min = max(0, target_cy - 15)
+    y_max = min(frame.height, target_cy + 15)
+    x_min = max(0, target_cx - 80)
+    x_max = min(frame.width, target_cx + 80)
+
+    target_crop = gray[y_min:y_max, x_min:x_max]
+    if target_crop.size == 0:
         return False
-    bright_pixels = np.sum(crop > 200)
-    return int(bright_pixels) > 50
+
+    above_ymin = max(0, target_cy - 45)
+    above_ymax = max(0, target_cy - 15)
+    above_crop = gray[above_ymin:above_ymax, x_min:x_max]
+
+    below_ymin = min(frame.height, target_cy + 15)
+    below_ymax = min(frame.height, target_cy + 45)
+    below_crop = gray[below_ymin:below_ymax, x_min:x_max]
+
+    target_val = float(np.mean(target_crop))
+    bright_pixels = int(np.sum(target_crop > 180))
+
+    if bright_pixels < 10 or target_val < 80.0:
+        return False
+
+    adj_vals = []
+    if above_crop.size > 0:
+        adj_vals.append(float(np.mean(above_crop)))
+    if below_crop.size > 0:
+        adj_vals.append(float(np.mean(below_crop)))
+
+    if adj_vals:
+        adj_avg = sum(adj_vals) / len(adj_vals)
+        if (target_val - adj_avg) < 10.0:
+            return False
+
+    return True
 
 
 def stage_list_scroll_point(frame: Frame) -> tuple[int, int]:
