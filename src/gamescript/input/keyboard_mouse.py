@@ -9,10 +9,35 @@ def click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> None:
     print(f"[input] click ({x}, {y}) dry_run={dry_run}")
     if dry_run:
         return
+    import ctypes
     import pyautogui
 
+    pyautogui.FAILSAFE = False
     pyautogui.moveTo(x, y, duration=0.05)
-    pyautogui.click()
+    user32 = ctypes.windll.user32
+    user32.SetCursorPos(x, y)
+    time.sleep(0.02)
+    user32.mouse_event(0x0002, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTDOWN
+    time.sleep(0.05)                        # 50ms press duration for Chromium/game UI
+    user32.mouse_event(0x0004, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTUP
+    time.sleep(delay_ms / 1000.0)
+
+
+def right_click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> None:
+    print(f"[input] right_click ({x}, {y}) dry_run={dry_run}")
+    if dry_run:
+        return
+    import ctypes
+    import pyautogui
+
+    pyautogui.FAILSAFE = False
+    pyautogui.moveTo(x, y, duration=0.05)
+    user32 = ctypes.windll.user32
+    user32.SetCursorPos(x, y)
+    time.sleep(0.02)
+    user32.mouse_event(0x0008, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTDOWN
+    time.sleep(0.05)                        # 50ms press duration
+    user32.mouse_event(0x0010, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTUP
     time.sleep(delay_ms / 1000.0)
 
 

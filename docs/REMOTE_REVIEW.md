@@ -54,6 +54,27 @@ python tools\diagnose_lobby.py --save-dir "$env:TEMP\gamescript-lobby-diagnose"
 
 第一次真机验证建议在 UI 中勾选“大厅自动建房 (L0)”、取消 Dry-run，并把“测试步数”设为 10—20；确认日志出现 `CreateRoom-open`、`CreateRoom-confirm`、`RoomStart`、`SelectStage` 后再长跑。
 
+## 2026-08-06 局内选择/挑战回放重点
+
+当前实机截图已经能够进入 `英雄三国KK`，但旧的局内分支有两个高风险点：
+
+1. `set_phase()` 被改成只更新少数 L0 阶段，切到 `MAIN_LINE` 后实际 phase 仍可能停在 `STAGE_STARTING`；
+2. `card_panel` / `skill_panel` 的最高匹配经常是右下角刷新次数或“暂时隐藏”，不能直接当成选择按钮；固定坐标点击四个挑战也会把已经开启的“自动”再次切换掉。
+
+最新实现改为：
+
+- 先验证中央“暂时隐藏”锚点，再在中央三选一 ROI 扫描全部技能/羁绊候选，并优先选择设置中的短码；
+- 宝物没有可复用图集时，只在已确认的三选一面板内点第一张卡，不点击刷新计数；
+- 金币、木材、经验、宝物挑战使用底部标签模板定位；检测到绿色“自动”就跳过，未开启时才点击图标中心；
+- 每次选择/挑战动作有冷却和本局去重，避免同一按钮反复切换；
+- `match_all()` 只在选择 ROI 内做多目标模板匹配，并做重叠抑制；
+- 修复 `MAIN_LINE` 之后的 Boss/龙珠/退出分支不可达问题，并保留无法确认时等待/停止的安全策略。
+
+云端审查优先检查：`src/gamescript/mediator.py` 的 `_tick_main_line()`、
+`_find_reward_choice()`、`_ensure_challenge_buttons()`，以及
+`src/gamescript/vision/matcher.py` 的 `match_all()`。本次新增的四张挑战标签模板位于
+`assets/Images/challenges/`，来源是当前客户端窗口内的标签裁剪，不是全屏模板。
+
 ## 参考项目
 
 完整的来源、许可证、锁定 commit 和本项目对应的审查点见 [`references/README.md`](../references/README.md)。这些参考代码只用于审查和对比，不会被运行时自动导入，也没有修改 `requirements.txt`。

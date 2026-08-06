@@ -249,6 +249,99 @@ def match_any(
     return best
 
 
+def match_all(
+    frame: Frame,
+    images_dir: Path,
+    names: list[str],
+    threshold: float = 0.85,
+    scales: tuple[float, ...] = (1.0,),
+    roi: tuple[float, float, float, float] | None = None,
+    max_results: int = 32,
+) -> list[MatchResult]:
+    """Return non-overlapping template hits, optionally limited to an ROI.
+
+    ``match_any`` is correct for a single button, but reward panels contain
+    several selectable cards.  This keeps that case explicit instead of
+    making every existing caller pay for a full multi-hit scan.
+    """
+    if not names or max_results <= 0:
+        return []
+
+    target = frame
+    if roi is not None:
+        rx1, ry1, rx2, ry2 = roi
+        x1 = max(0, min(frame.width, int(frame.width * rx1)))
+        y1 = max(0, min(frame.height, int(frame.height * ry1)))
+        x2 = max(x1, min(frame.width, int(frame.width * rx2)))
+        y2 = max(y1, min(frame.height, int(frame.height * ry2)))
+        target = Frame(
+            frame.bgr[y1:y2, x1:x2],
+            left=frame.left + x1,
+            top=frame.top + y1,
+            window_title=frame.window_title,
+            hwnd=frame.hwnd,
+        )
+
+    candidates: list[MatchResult] = []
+    for name in names:
+        path = resolve_template(images_dir, name)
+        if not path:
+            continue
+        tmpl = _load_template(path)
+        if tmpl is None:
+            continue
+        fh, fw = target.bgr.shape[:2]
+        for scale in scales:
+            candidate = tmpl if scale == 1.0 else cv2.resize(
+                tmpl,
+                None,
+                fx=scale,
+                fy=scale,
+                interpolation=cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA,
+            )
+            th, tw = candidate.shape[:2]
+            if th > fh or tw > fw or th < 4 or tw < 4:
+                continue
+            result = cv2.matchTemplate(target.bgr, candidate, cv2.TM_CCOEFF_NORMED)
+            ys, xs = np.where(result >= threshold)
+            for y, x in zip(ys.tolist(), xs.tolist()):
+                candidates.append(MatchResult(
+                    name=path.stem,
+                    score=float(result[y, x]),
+                    x=x + (target.left - frame.left),
+                    y=y + (target.top - frame.top),
+                    w=tw,
+                    h=th,
+                    screen_x=target.left + x + tw // 2,
+                    screen_y=target.top + y + th // 2,
+                ))
+
+    def iou(first: MatchResult, second: MatchResult) -> float:
+        left = max(first.x, second.x)
+        top = max(first.y, second.y)
+        right = min(first.x + first.w, second.x + second.w)
+        bottom = min(first.y + first.h, second.y + second.h)
+        overlap = max(0, right - left) * max(0, bottom - top)
+        union = first.w * first.h + second.w * second.h - overlap
+        return overlap / union if union else 0.0
+
+    kept: list[MatchResult] = []
+    for hit in sorted(candidates, key=lambda item: item.score, reverse=True):
+        if any(
+            iou(hit, old) >= 0.25
+            or (
+                abs(hit.screen_x - old.screen_x) < max(8, min(hit.w, old.w) * 0.45)
+                and abs(hit.screen_y - old.screen_y) < max(8, min(hit.h, old.h) * 0.45)
+            )
+            for old in kept
+        ):
+            continue
+        kept.append(hit)
+        if len(kept) >= max_results:
+            break
+    return kept
+
+
 def match_scenes(
     frame: Frame,
     images_dir: Path,

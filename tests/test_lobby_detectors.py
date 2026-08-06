@@ -6,7 +6,7 @@ import cv2
 import numpy as np
 
 from gamescript.vision.capture import Frame, _window_title_score, is_local_helper_title
-from gamescript.vision.matcher import MatchResult, find_blue_button, find_input_boxes, match_any
+from gamescript.vision.matcher import MatchResult, _load_template, find_blue_button, find_input_boxes, match_all, match_any
 from gamescript.loop_action import LoopAction
 from gamescript.mediator import Mediator, Phase
 from gamescript.settings import Settings
@@ -52,6 +52,12 @@ class LobbyDetectorTests(unittest.TestCase):
         self.assertEqual(med.tick(), LoopAction.Break)
         self.assertEqual(med.phase, Phase.ERROR)
 
+    def test_phase_transition_to_main_line_is_not_ignored(self):
+        med = Mediator(Settings(), Path(__file__).resolve().parents[1])
+        med.set_phase(Phase.STAGE_STARTING)
+        med.set_phase(Phase.MAIN_LINE, "stage start verified")
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+
     def test_dialog_fields_need_two_similar_boxes(self):
         frame = np.zeros((720, 1280, 3), dtype=np.uint8)
         for y in (300, 360):
@@ -75,6 +81,53 @@ class LobbyDetectorTests(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertLess(hit.x, 350)
         self.assertEqual(med._detect_context(Frame(frame)), "CREATE_ROOM")
+
+    def test_match_all_keeps_two_reward_choices(self):
+        template = _load_template(self.images_dir() / "skills" / "asj.png")
+        self.assertIsNotNone(template)
+        frame = np.zeros((500, 900, 3), dtype=np.uint8)
+        frame[100:100 + template.shape[0], 260:260 + template.shape[1]] = template
+        frame[100:100 + template.shape[0], 520:520 + template.shape[1]] = template
+        hits = match_all(
+            Frame(frame),
+            self.images_dir(),
+            ["skills/asj"],
+            threshold=0.99,
+            roi=(0.20, 0.10, 0.90, 0.70),
+        )
+        self.assertEqual(len(hits), 2)
+        self.assertEqual([hit.x for hit in hits], [260, 520])
+
+    def test_reward_choice_prefers_configured_skill_in_center_roi(self):
+        root = Path(__file__).resolve().parents[1]
+        frame = np.zeros((939, 1616, 3), dtype=np.uint8)
+        hide = _load_template(root / "assets" / "Images" / "hide.png")
+        first = _load_template(root / "assets" / "Images" / "skills" / "asj.png")
+        preferred = _load_template(root / "assets" / "Images" / "skills" / "assx.png")
+        self.assertIsNotNone(hide)
+        self.assertIsNotNone(first)
+        self.assertIsNotNone(preferred)
+        frame[595:595 + hide.shape[0], 542:542 + hide.shape[1]] = hide
+        frame[261:261 + first.shape[0], 526:526 + first.shape[1]] = first
+        frame[261:261 + preferred.shape[0], 759:759 + preferred.shape[1]] = preferred
+        med = Mediator(Settings(skills=["assx"], match_threshold=0.85), root)
+        kind, hit = med._find_reward_choice(Frame(frame))
+        self.assertEqual(kind, "技能")
+        self.assertEqual(hit.name, "assx")
+
+    def test_challenge_label_maps_to_icon_click_and_detects_auto(self):
+        root = Path(__file__).resolve().parents[1]
+        frame = np.zeros((900, 800, 3), dtype=np.uint8)
+        label = _load_template(root / "assets" / "Images" / "challenges" / "coin_challenge.png")
+        self.assertIsNotNone(label)
+        frame[698:698 + label.shape[0], 150:150 + label.shape[1]] = label
+        frame[624:656, 138:237] = (0, 220, 0)
+        med = Mediator(Settings(), root)
+        found = med._find_challenge_button(Frame(frame), "coin_challenge")
+        self.assertIsNotNone(found)
+        label_hit, click_hit = found
+        self.assertEqual(click_hit.screen_y, label_hit.screen_y - 42)
+        self.assertTrue(med._challenge_is_auto(Frame(frame), label_hit))
 
     def test_map_create_template_is_preferred_over_quick_join(self):
         root = Path(__file__).resolve().parents[1]

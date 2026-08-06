@@ -98,6 +98,10 @@ Boss 配置值 = 模板 stem，例如 `CJBBoss=10马格纳斯` → `chuanjiaobao
 | cards/* | 36 张属性/职业卡（FindCardImages） |
 | skills/* | 16 个技能短码（Settings.skills 默认 jq,pg） |
 
+`skill_choice` / `fetter_choice` 使用中央三选一 ROI；若设置项可见，优先点击
+`Settings.skills` / `Settings.cards` 中的图标。`treasure_choice` 在缺少宝物图集
+时只在已确认的选择面板内点第一张卡，不会点击右下角刷新计数。
+
 ### 3.4 龙珠 / 宝物 / 赌木
 
 | 逻辑键 | 模板 |
@@ -106,6 +110,13 @@ Boss 配置值 = 模板 stem，例如 `CJBBoss=10马格纳斯` → `chuanjiaobao
 | treasure | treasurechest, treasureRefreshGift, baowushuaxin, bwRefresh, 2000baowu |
 | wood | woodgift, woodSuccess |
 | refresh | refresh, shuaxinquan, shuaxinquan3 |
+| coin_challenge | challenges/coin_challenge |
+| wood_challenge | challenges/wood_challenge |
+| experience_challenge | challenges/experience_challenge |
+| treasure_challenge | challenges/treasure_challenge |
+
+挑战按钮先匹配底部标签，再把点击点上移到图标中心；若按钮上方已经是绿色
+“自动”，只记录为已开启，不重复点击切换状态。
 
 ### 3.5 秘境 / 考古
 

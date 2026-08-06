@@ -41,13 +41,13 @@
   ],
   "scenes": {
     "map_create_room": {
-      "templates": ["lobby/create_room", "lobby/createRoom", "createRoom", "roomCreate"],
+      "templates": ["lobby/create_room"],
       "method": "CreateRoom",
       "action": "click",
       "fallback": "blue_left_bottom_roi"
     },
     "create_room_confirm": {
-      "templates": ["lobby/create_room_confirm", "lobby/createRoomConfirm", "createRoomConfirm"],
+      "templates": ["lobby/create_room_confirm"],
       "method": "CreateRoom",
       "action": "click",
       "fallback": "blue_bottom_dialog_roi"
@@ -81,7 +81,7 @@
       "alias_of": "room_start"
     },
     "start": {
-      "templates": ["startGameBtn"],
+      "templates": ["startGameBtn", "continueGame", "jihuo"],
       "method": "EntryF1",
       "action": "click",
       "alias_of": "stage_start"
@@ -129,6 +129,46 @@
       "action": "click",
       "also_scan_dir": "skills",
       "prefer_settings_skills": true
+    },
+    "skill_choice": {
+      "templates": [],
+      "method": "FindAllMatchImages",
+      "action": "select",
+      "also_scan_dir": "skills",
+      "roi": "center_three_cards"
+    },
+    "fetter_choice": {
+      "templates": [],
+      "method": "FindAllMatchImages",
+      "action": "select",
+      "also_scan_dir": "cards",
+      "roi": "center_three_cards"
+    },
+    "treasure_choice": {
+      "templates": [],
+      "method": "FindAllMatchImages",
+      "action": "select_first_verified_card",
+      "roi": "center_three_cards"
+    },
+    "coin_challenge": {
+      "templates": ["challenges/coin_challenge"],
+      "method": "FindNodeWithTimeOut",
+      "action": "click_if_not_auto"
+    },
+    "wood_challenge": {
+      "templates": ["challenges/wood_challenge"],
+      "method": "FindNodeWithTimeOut",
+      "action": "click_if_not_auto"
+    },
+    "experience_challenge": {
+      "templates": ["challenges/experience_challenge"],
+      "method": "FindNodeWithTimeOut",
+      "action": "click_if_not_auto"
+    },
+    "treasure_challenge": {
+      "templates": ["challenges/treasure_challenge"],
+      "method": "FindNodeWithTimeOut",
+      "action": "click_if_not_auto"
     },
     "longzhu": {
       "templates": ["longzhu", "longzhu2", "closeLongzhu"],

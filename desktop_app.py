@@ -520,7 +520,7 @@ class MainWindow(QMainWindow):
 
         r_env1 = QHBoxLayout()
         r_env1.addWidget(QLabel("窗口标题包含:"))
-        self.txt_title = QLineEdit("英雄三国,魔兽世界,Warcraft,KK,对战")
+        self.txt_title = QLineEdit("英雄三国,Single Player,魔兽世界,Warcraft,KK,对战")
         self.txt_title.setToolTip("支持逗号分隔多个关键字，例：英雄三国,魔兽世界,KK,对战")
         r_env1.addWidget(self.txt_title)
 
@@ -782,10 +782,26 @@ class MainWindow(QMainWindow):
 
         # 真机提示
         if not s.dry_run:
+            is_admin = False
+            try:
+                import ctypes
+                is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+            except Exception:
+                pass
+
+            admin_msg = ""
+            if not is_admin:
+                admin_msg = (
+                    "\n\n⚠️ 【重要权限提醒】：\n"
+                    "检测到当前控制面板未以“管理员身份”运行。\n"
+                    "如果 KK 对战平台或游戏是以管理员权限启动的，Windows (UIPI) 会系统级拦截并丢弃普通权限脚本的鼠标按压事件！\n"
+                    "若出现“看得见移动但点不下去”，请右键以【管理员身份运行】本控制面板！"
+                )
+
             ret = QMessageBox.warning(
                 self,
                 "准备发起真机点击",
-                "您关闭了 Dry-run 模式！\n脚本将向游戏窗口发送真实鼠标点击。\n\n是否确认开始？",
+                f"您关闭了 Dry-run 模式！\n脚本将向游戏窗口发送真实鼠标点击。{admin_msg}\n\n是否确认开始？",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
             )

@@ -31,7 +31,7 @@ class Frame:
 
 # L0: KK platform/lobby/room. L1: the game window.
 L0_WINDOW_KEYWORDS = ["KK官方", "KK对战", "KK竞技", "对战平台", "竞技平台", "KK"]
-L1_WINDOW_KEYWORDS = ["英雄三国", "魔兽世界", "warcraft", "魔兽争霸", "KK"]
+L1_WINDOW_KEYWORDS = ["英雄三国", "魔兽世界", "warcraft", "魔兽争霸", "single player", "single", "troubl", "KK"]
 DEFAULT_WINDOW_FALLBACKS = L0_WINDOW_KEYWORDS + L1_WINDOW_KEYWORDS
 # The local control panel contains the game name in its own title.  It must
 # never be selected as the L1 game window, otherwise its blue controls can be
@@ -195,7 +195,12 @@ def activate_window(hwnd: int | None) -> bool:
         user32 = ctypes.windll.user32
         if user32.IsIconic(hwnd):
             user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-        return bool(user32.SetForegroundWindow(hwnd))
+        user32.BringWindowToTop(hwnd)
+        # Windows foreground lock unblock via Alt key tap
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.SetForegroundWindow(hwnd)
+        user32.keybd_event(0x12, 0, 2, 0)
+        return int(user32.GetForegroundWindow()) == hwnd
     except Exception:
         return False
 
