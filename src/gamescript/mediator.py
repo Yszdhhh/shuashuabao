@@ -130,6 +130,12 @@ class Mediator:
         }
         self._auto_task_done: bool = False
         self._auto_task_attempts: int = 0
+        # P1-B1: victory-continue flow (multi-anchor post-game classification).
+        self._victory_continue_attempts: int = 0
+        self._victory_continue_since: float | None = None
+        # While True, frames that no classifier recognizes must yield ZERO input
+        # (no auto-task / challenge / stage actions) until timeout -> ERROR.
+        self._post_game_pending: bool = False
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -531,6 +537,64 @@ class Mediator:
         _, best_hit = configured_candidates[0]
         return ("技能", best_hit)
 
+    # ---------- 战后页面多锚点判别（P1-B0/B1）----------
+
+    def _post_game_state(self, frame: Frame) -> str | None:
+        """Multi-anchor post-game page classifier.
+
+        Combines legacy-template anchors with normalized position checks. The
+        legacy anchors alone are NOT page-specific (archiveChallenge/cjb/ok/close
+        all hit shared post-game HUD elements), so position disambiguation is
+        required. Thresholds validated against fixtures/reborn_wow/endgame/*.
+
+        Returns one of:
+          POST_VICTORY        victory modal + continue button
+          HEIRLOOM_DIALOG     heirloom boss dialog (cjbtiaozhan banner)
+          GREAT_RIFT_CONFIRM  great-rift confirm dialog (center ok/mijingOk)
+          ARCHIVE_PANEL       archive challenge panel (modal close, no rift NPC)
+          NPC_HUB             post-victory world lobby (quit top-left + rift NPC right)
+        or None when no post-game page is recognized.
+        """
+        w, h = frame.width, frame.height
+        if w < 800 or h < 600:
+            return None
+
+        def find(name: str, threshold: float) -> MatchResult | None:
+            return self.find(frame, [name], threshold=threshold, scales=(0.9, 1.0, 1.1))
+
+        # 1) Victory: continue button is unique to the victory modal.
+        if find("continueGame", 0.80):
+            return "POST_VICTORY"
+
+        # 2) Heirloom: cjbtiaozhan banner is unique to the heirloom dialog.
+        if find("cjbtiaozhan", 0.80):
+            return "HEIRLOOM_DIALOG"
+
+        # 3) Great rift confirm: ok/mijingOk in the dialog body (center), not the
+        #    right-side rift NPC icon or the bottom action strip.
+        for name, th in (("mijingOk", 0.75), ("ok", 0.85)):
+            m = find(name, th)
+            if m and w * 0.30 <= m.x <= w * 0.60 and h * 0.40 <= m.y <= h * 0.65:
+                return "GREAT_RIFT_CONFIRM"
+
+        # 4) Archive panel: archive tab + a modal close button (right of center,
+        #    upper half) and NO rift NPC icon on the right side.
+        arch = find("archiveChallenge", 0.85)
+        close_hit = find("close", 0.85)
+        rift_npc = find("damijing", 0.80)
+        rift_npc_right = rift_npc and rift_npc.x >= w * 0.60 and h * 0.15 <= rift_npc.y <= h * 0.55
+        if arch and close_hit and close_hit.x >= w * 0.55 and close_hit.y <= h * 0.40 and not rift_npc_right:
+            return "ARCHIVE_PANEL"
+
+        # 5) NPC hub: quit button at the very top-left + rift NPC on the right +
+        #    the hero challenge indicator.
+        quit_hit = find("quit", 0.75)
+        hero_hit = find("HeroChallenge", 0.85)
+        if quit_hit and quit_hit.x <= w * 0.10 and quit_hit.y <= h * 0.15 and rift_npc_right and hero_hit:
+            return "NPC_HUB"
+
+        return None
+
     def _find_challenge_button(self, frame: Frame, scene_key: str) -> tuple[MatchResult, MatchResult] | None:
         """Return (label hit, icon click hit) for one bottom challenge toggle."""
         threshold = min(0.68, self.settings.match_threshold)
@@ -760,6 +824,9 @@ class Mediator:
             }
             self._auto_task_done = False
             self._auto_task_attempts = 0
+            self._victory_continue_attempts = 0
+            self._victory_continue_since = None
+            self._post_game_pending = False
         if phase == Phase.LONGZHU:
             # 对齐「退出游戏时间还剩下 ~178 秒」
             sec = max(self.settings.archive_boss_time, self.settings.boss_live_time, 180)
@@ -1186,6 +1253,45 @@ class Mediator:
 
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
+
+        # 战后页面多锚点判别（P1-B0/B1）：优先于一切局内动作。
+        # POST_VICTORY 是唯一获准动作（点击继续游戏，后置确认 NPC_HUB）；
+        # 其余战后页面全部 Fail-Closed 停机，零输入。
+        post_game = self._post_game_state(frame)
+        if post_game:
+            if post_game == "POST_VICTORY":
+                if self._victory_continue_attempts >= 3:
+                    print("[med] 胜利结算点击继续游戏重试已达上限，Fail-Closed 停止运行")
+                    self.set_phase(Phase.ERROR, "victory continue attempts exhausted")
+                    self.stop()
+                    return LoopAction.Break
+                hit = self.find(frame, ["continueGame"], threshold=0.80, scales=(0.9, 1.0, 1.1))
+                if not hit:
+                    return LoopAction.Continue
+                self._victory_continue_attempts += 1
+                self._post_game_pending = True
+                self._victory_continue_since = now
+                print(f"[med] 胜利结算 点击继续游戏 @ {hit.center} (尝试 {self._victory_continue_attempts}/3)")
+                if self.act_click(hit, "ContinueGame"):
+                    self._main_line_since = now
+                return LoopAction.Continue
+
+            print(f"[med] 识别到战后页面 {post_game}，Fail-Closed 停止运行（零输入）")
+            self.set_phase(Phase.ERROR, f"unverified post-game page {post_game}")
+            self.stop()
+            return LoopAction.Break
+
+        # 点击继续游戏后、页面确认前：不认识的页面一律零动作等待，绝不落到
+        # 自动任务/挑战/选关分支（防止胜利→大厅过渡期误触）。
+        if self._post_game_pending:
+            elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
+            if elapsed >= min(self.settings.query_timeout, 30):
+                print("[med] 继续游戏后未确认到战后页面，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "post-game transition timeout")
+                self.stop()
+                return LoopAction.Break
+            print("[med] 等待继续游戏后的页面确认（零动作）")
+            return LoopAction.Continue
 
         # 提前挑战 / Boss / 龙珠入口：未验证战后入口，Fail-Closed（最高优先，必须在任何选择、自动任务、挑战或选关之前）
         if self.find_scene(frame, "archive"):

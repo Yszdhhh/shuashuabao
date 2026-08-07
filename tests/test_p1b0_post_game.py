@@ -52,8 +52,16 @@ class P1B0PostGameTests(unittest.TestCase):
     # ---------- 1. Fail-Closed: no post-game page may produce input ----------
 
     def test_post_game_pages_fail_closed_with_zero_input(self):
-        """All 5 endgame screenshots must cause Fail-Closed stop with zero executor calls."""
+        """Archive/hub/heirloom/rift pages must cause Fail-Closed stop with zero executor calls."""
+        fail_closed_ids = {
+            "archive_challenge_panel",
+            "challenge_npc_hub",
+            "heirloom_challenge_bosses",
+            "great_rift_confirm",
+        }
         for shot in sorted(ENDGAME.glob("*.png")) + sorted(ENDGAME.glob("*.jpg")):
+            if shot.stem not in fail_closed_ids:
+                continue
             frame = load_fixture_frame(f"fixtures/reborn_wow/endgame/{shot.name}")
             with patch.object(self.med.executor, "click") as mock_click, \
                  patch.object(self.med.executor, "right_click") as mock_right_click, \
@@ -70,10 +78,78 @@ class P1B0PostGameTests(unittest.TestCase):
             mock_act.assert_not_called()
             mock_act_rc.assert_not_called()
 
-    # ---------- 2. Observe-only root Replay entries stay no-action ----------
+    def test_victory_page_clicks_continue_game(self):
+        """The victory modal drives a ContinueGame left click (owner-authorized), not a stop."""
+        frame = load_fixture_frame("fixtures/replay/victory_continue.png")
+        with patch.object(self.med, "act_click", return_value=True) as mock_act, \
+             patch.object(self.med.executor, "right_click") as mock_right_click:
+            action = self.med._tick_main_line(frame)
+            self.assertEqual(action, LoopAction.Continue)
+            mock_act.assert_called_once()
+            hit_arg, reason = mock_act.call_args[0]
+            self.assertEqual(reason, "ContinueGame")
+            self.assertIn("continueGame", hit_arg.name)
+            self.assertTrue(self.med._post_game_pending)
+            self.assertEqual(self.med._victory_continue_attempts, 1)
+            mock_right_click.assert_not_called()
 
-    def test_post_game_manifest_entries_observe_only_pass(self):
-        """The 5 P1-B0 manifest entries must PASS with action none and no click point."""
+    def test_victory_continue_retry_limit_fails_closed(self):
+        """3 failed continue attempts must Fail-Closed into ERROR."""
+        frame = load_fixture_frame("fixtures/replay/victory_continue.png")
+        self.med._victory_continue_attempts = 3
+        with patch.object(self.med, "act_click") as mock_act:
+            action = self.med._tick_main_line(frame)
+            self.assertEqual(action, LoopAction.Break)
+            self.assertEqual(self.med.phase, Phase.ERROR)
+            mock_act.assert_not_called()
+
+    def test_post_game_pending_gate_blocks_main_line_actions(self):
+        """After a continue click, unrecognized frames must yield zero input (no auto-task/challenge/stage)."""
+        frame = load_fixture_frame("fixtures/replay/main_line_auto_off.png")
+        self.med._post_game_pending = True
+        self.med._victory_continue_since = 0.0
+        with patch.object(self.med.executor, "click") as mock_click, \
+             patch.object(self.med.executor, "right_click") as mock_right_click, \
+             patch.object(self.med, "act_click") as mock_act:
+            action = self.med._tick_main_line(frame)
+            self.assertEqual(action, LoopAction.Continue)
+            mock_click.assert_not_called()
+            mock_right_click.assert_not_called()
+            mock_act.assert_not_called()
+
+    # ---------- 2. Multi-anchor classifier ----------
+
+    def test_classifier_maps_all_endgame_pages(self):
+        cases = {
+            "victory_continue": "POST_VICTORY",
+            "archive_challenge_panel": "ARCHIVE_PANEL",
+            "challenge_npc_hub": "NPC_HUB",
+            "heirloom_challenge_bosses": "HEIRLOOM_DIALOG",
+            "great_rift_confirm": "GREAT_RIFT_CONFIRM",
+        }
+        for name, expected in cases.items():
+            frame = load_fixture_frame(f"fixtures/replay/{name}.png")
+            self.assertEqual(self.med._post_game_state(frame), expected, f"{name} classifier")
+
+    def test_classifier_no_false_positive_on_in_game_pages(self):
+        """In-game pages (main line, choices, room, stage) must classify as None."""
+        negatives = [
+            "fixtures/replay/main_line_auto_off.png",
+            "fixtures/replay/main_line_auto_on.png",
+            "fixtures/replay/skill_choice_3.png",
+            "fixtures/replay/skill_choice_4.jpg",
+            "fixtures/replay/bond_choice_3.png",
+            "fixtures/replay/treasure_choice_3.png",
+            "fixtures/replay/room_waiting_host.png",
+        ]
+        for rel in negatives:
+            frame = load_fixture_frame(rel)
+            self.assertIsNone(self.med._post_game_state(frame), f"false positive on {rel}")
+
+    # ---------- 3. Observe-only root Replay entries ----------
+
+    def test_post_game_manifest_entries(self):
+        """Victory entry drives ContinueGame; the other 4 stay no-action and click-free."""
         manifest = json.loads((ROOT / "fixtures" / "manifest.json").read_text(encoding="utf-8"))
         ids = {
             "post_game_victory_continue",
@@ -88,10 +164,14 @@ class P1B0PostGameTests(unittest.TestCase):
         for fixture in entries:
             res = run_replay_fixture(fixture, self.med, ROOT)
             self.assertEqual(res.status, "PASS", f"{fixture['fixture_id']}: {res.notes}")
-            self.assertEqual(res.action_name, "none")
-            self.assertEqual(res.action_kind, "none")
-            self.assertIsNone(res.click_point, f"{fixture['fixture_id']} must not produce a click")
             self.assertEqual(res.forbidden_click_count, 0)
+            if fixture["fixture_id"] == "post_game_victory_continue":
+                self.assertEqual(res.action_name, "ContinueGame")
+                self.assertEqual(res.action_kind, "left_click")
+                self.assertIsNotNone(res.click_point)
+            else:
+                self.assertEqual(res.action_name, "none")
+                self.assertIsNone(res.click_point, f"{fixture['fixture_id']} must not produce a click")
 
     # ---------- 3. Page-discriminating anchor evidence ----------
 

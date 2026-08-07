@@ -646,8 +646,9 @@
         }
       ],
       "expected_state": "MAIN_LINE",
-      "expected_action": "none",
-      "note": "P1-B0 observe-only: victory modal must produce zero input until P1-B1 gate",
+      "expected_action": "ContinueGame",
+      "expected_input_kind": "left_click",
+      "note": "P1-B1: victory modal drives ContinueGame with post-confirm to NPC_HUB",
       "required": true
     },
     {

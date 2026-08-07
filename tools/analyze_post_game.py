@@ -108,6 +108,13 @@ def replay_sim(med: Mediator, frame: Frame, context: str) -> tuple[str, tuple[in
 def would_act(med: Mediator, frame: Frame) -> list[str]:
     """Simulate the mediator's main-line decision chain; collect would-be inputs."""
     acts: list[str] = []
+    post_game = med._post_game_state(frame)
+    if post_game:
+        if post_game == "POST_VICTORY":
+            acts.append("POST_VICTORY: would LEFT-CLICK continueGame (ContinueGame)")
+        else:
+            acts.append(f"Fail-Closed stop ({post_game}) - no input")
+        return acts
     if med.find_scene(frame, "archive"):
         acts.append("Fail-Closed stop (archive) - no input")
         return acts
@@ -214,7 +221,9 @@ def main() -> int:
             print("    - none (zero input)")
 
         replay_action, replay_click = replay_sim(med, frame, context)
+        post_game = med._post_game_state(frame)
         evidence = "CONFIRMED" if any(h[1] >= 0.70 for h in hits) else ("INFERRED" if hits else "UNKNOWN")
+        print(f"  multi-anchor classifier: {post_game}")
         print(f"  replay-sim (expected_state={context}): action={replay_action} click={replay_click}")
         print(f"  verdict: {evidence} | would_click={any('CLICK' in a for a in acts)}")
 
@@ -228,6 +237,7 @@ def main() -> int:
                 "anchor_hits": [{"name": n, "score": round(s, 3), "center": list(c)} for n, s, c in hits],
                 "would_inputs": acts,
                 "would_click": any("CLICK" in a for a in acts),
+                "post_game_state": post_game,
                 "replay_action": replay_action,
                 "replay_click": replay_click,
             }

@@ -255,8 +255,24 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
     # 5) MAIN_LINE
     elif context in ("MAIN_LINE", "IN_GAME") or expected_state in ("MAIN_LINE", "IN_GAME"):
         detected_scene = "MAIN_LINE"
+        post_game = med._post_game_state(frame)
         target_challenge = fixture.get("target_challenge")
-        if target_challenge:
+        if post_game == "POST_VICTORY":
+            hit = med.find(frame, ["continueGame"], threshold=0.80, scales=(0.9, 1.0, 1.1))
+            if hit:
+                candidate_box = [hit.x, hit.y, hit.w, hit.h]
+                best_score = hit.score
+                second_score = 0.0
+                score_margin = hit.score
+                action_name = "ContinueGame"
+                action_kind = "left_click"
+                if not is_negative:
+                    click_point = hit.center
+        elif post_game in ("HEIRLOOM_DIALOG", "GREAT_RIFT_CONFIRM", "ARCHIVE_PANEL", "NPC_HUB"):
+            # Observe-only post-game pages must never produce a click candidate.
+            action_name = "none"
+            action_kind = "none"
+        elif target_challenge:
             found = med._find_challenge_button(frame, target_challenge)
             if found:
                 label_hit, click_hit = found
