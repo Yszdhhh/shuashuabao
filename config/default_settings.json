@@ -12,7 +12,7 @@
   "game_mode": 0,
   "dragon_ball_count": 7,
   "find_longzhu_where_multi_game": false,
-  "auto_secret_realm": true,
+  "auto_secret_realm": false,
   "auto_close_main_line": false,
   "close_main_line_time": 0,
   "auto_clean_interval": 5,

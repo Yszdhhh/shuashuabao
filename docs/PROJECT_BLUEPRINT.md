@@ -39,9 +39,9 @@ KK 地图页
 ## 1. 当前基线结论
 
 - L0 大厅/建房/房间/选关状态链已经存在，不需要重新设计入口流程。
-- 当前 **55** 个单元测试全部通过 (`set PYTHONPATH=src && python -m unittest discover -s tests -v`)，场景资源静态校验通过 (`99/99`)。
+- P0-B1 已合入 commit 1176097。当前全量 **71** 个单元测试全部通过 (`set PYTHONPATH=src && python -m unittest discover -s tests -v`)，场景资源静态校验通过 (`ok=97 missing=0`)。
 - **P0-A 运行安全基础**：已完成 HWND 绑定、窗口身份校验、帧健康检查、全局 Shift+F12 急停与真实输入封锁，已验收通过。
-- **P0-B 回放与关卡语义现状**：代码与单元测试已通过，但**端到端真实截图回放门禁尚未通过**（`python tools/run_replay.py` 退出码为 1，结果为 `Passed=14, Failed=0, Required Missing=3`，被 `missing_room_waiting_page`、`missing_in_game_main_line`、`missing_disconnect_modal` 三个必需资源阻塞；其中房间等待与局内主线已有本地截图 `fixtures/reborn_wow/`，待安全接入根 `fixtures/manifest.json`）。
+- **P0-B 回放与关卡语义现状**：P0-B1 已合入 commit 1176097。真实截图回放（`python tools/run_replay.py`）摘要为 `Total=18, Passed=17, Failed=0, Required Missing=1`，退出码仍为 1。唯一必需缺口为 `missing_disconnect_modal`；已追踪回放素材包含房间等待页 (`room_waiting_host.png`)、局内自动关闭页 (`main_line_auto_off.png`)、局内自动开启页 (`main_line_auto_on.png`)。明确标记：战后存档、传家宝、大秘境、黑商、四选一选择策略尚未迁移，旧模板/字段不能被描述为“已实现”。
 - `docs/REBORN_WOW_GAME_STRATEGY_RESEARCH.md` 已完成外部研究，策略资料作为候选数据，不直接改变默认行为。
 
 ## 2. 外部调研与原版迁移策略
@@ -119,7 +119,7 @@ asj / asjg / assx / jq
 - 真正的 `Shift+F12` 全局急停。
 - 剪贴板上下文保存和恢复。
 
-### P0-B：真实回放和关卡语义 (代码完成，门禁等待 3 个必需资源)
+### P0-B：真实回放和关卡语义 (P0-B1 已合入 commit 1176097)
 
 第二轮处理：
 
@@ -131,8 +131,10 @@ asj / asjg / assx / jq
 - 场景锚点、ROI、候选分差和危险动作后置条件。
 
 门禁状态：
-- 55 个单元测试全部通过。
-- `tools/run_replay.py` 仍缺少 `missing_room_waiting_page`、`missing_in_game_main_line`、`missing_disconnect_modal` 三个必需资源，门禁未通过（其中房间等待与局内主线已有本地截图 `fixtures/reborn_wow/`，待接入根 manifest）。
+- P0-B1 已合入 commit 1176097。
+- 全量 71 个单元测试全部通过。
+- `tools/run_replay.py` 摘要为 `Total=18, Passed=17, Failed=0, Required Missing=1`，退出码仍为 1，唯一必需缺口为 `missing_disconnect_modal`；已追踪回放素材包含房间等待页 (`room_waiting_host.png`)、局内自动关闭页 (`main_line_auto_off.png`) 与局内自动开启页 (`main_line_auto_on.png`)。
+- **明确标记**：战后存档、传家宝、大秘境、黑商、四选一选择策略尚未迁移，旧模板/字段不能被描述为“已实现”。
 
 ### P1：识别和架构收敛 (待开展)
 

@@ -1066,17 +1066,22 @@ class Mediator:
                     self._main_line_since = now
                     return LoopAction.Continue
 
-        # 提前挑战 / Boss / 龙珠入口。
+        # 提前挑战 / Boss / 龙珠入口：未验证战后入口，Fail-Closed
         if self.find_scene(frame, "archive"):
-            print("[med] 提前挑战/无需发育")
-            self.set_phase(Phase.ANCHOR_BOSS, "early challenge")
-            return LoopAction.Continue
-        if self.find_scene(frame, "longzhu"):
-            self.set_phase(Phase.LONGZHU, "see longzhu")
-            return LoopAction.Continue
+            print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, "unverified archive entry")
+            self.stop()
+            return LoopAction.Break
         if self.find_scene(frame, "boss_entry"):
-            self.set_phase(Phase.ANCHOR_BOSS, "see boss")
-            return LoopAction.Continue
+            print("[med] 识别到未验证战后入口 boss_entry，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, "unverified boss_entry")
+            self.stop()
+            return LoopAction.Break
+        if self.find_scene(frame, "longzhu"):
+            print("[med] 识别到未验证战后入口 longzhu，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, "unverified longzhu entry")
+            self.stop()
+            return LoopAction.Break
 
         print("[med] 主线 idle（等待局内选择/挑战 UI）")
         if self._main_line_since is not None:
@@ -1090,54 +1095,17 @@ class Mediator:
         return LoopAction.Continue
 
     def _tick_l1_tail(self, frame: Frame) -> LoopAction:
-        if self.phase == Phase.EARLY_CHALLENGE:
-            self.set_phase(Phase.ANCHOR_BOSS)
-            return LoopAction.Continue
-
-        if self.phase == Phase.ANCHOR_BOSS:
-            bosses: list[str] = []
-            for boss in (self.settings.cjb_boss, self.settings.sgzx_boss):
-                if boss:
-                    bosses.extend([boss, f"boss/{boss}", f"chuanjiaobao/{boss}"])
-            hit = self.find(frame, bosses) if bosses else None
-            if hit:
-                print(f"[med] 锚点BOSS名称为{hit.name}")
-                if self.act_click(hit, "找到锚点Boss了"):
-                    self._boss_clicked = True
-                return LoopAction.Continue
-            if self.click_scene(frame, "boss_entry", "boss_entry"):
-                self._boss_clicked = True
-                return LoopAction.Continue
-            if self._boss_clicked:
-                print(f"[med] Boss 已处理，开始查找龙珠{self.settings.dragon_ball_count}")
-            else:
-                print("[med] 锚点 Boss 未命中，直接进入龙珠阶段")
-            self._boss_clicked = False
-            self.set_phase(Phase.LONGZHU)
-            return LoopAction.Continue
-
-        if self.phase == Phase.LONGZHU:
-            if self.longzhu_timed_out():
-                print("[med] 龙珠阶段超时 → 退出")
-                self.set_phase(Phase.QUIT)
-                return LoopAction.Continue
-            left = int(self._longzhu_deadline - time.time()) if self._longzhu_deadline else 0
-            if left >= 0 and left % 30 == 0:
-                print(f"[med] 退出游戏时间还剩下{left}秒；找龙珠，需要判断是否有战斗画面")
-            if self.click_scene(frame, "longzhu", "longzhu"):
-                return LoopAction.Continue
-            if self.click_scene(frame, "card_panel", "longzhu-card"):
-                return LoopAction.Continue
-            if not self._f1_fallback_done:
-                self.act_key("f1", "龙珠阶段 F1")
-                self._f1_fallback_done = True
-            return LoopAction.Continue
+        if self.phase in (Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU):
+            print(f"[med] 战后/大秘境阶段 ({self.phase.name}) 未完成前置校验与安全状态机，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, f"unverified {self.phase.name} phase")
+            self.stop()
+            return LoopAction.Break
 
         if self.phase in (Phase.QUIT, Phase.NEXT):
             self.click_scene(frame, "close", "QuitGame")
             self.click_scene(frame, "ok", "QuitGame-ok")
             if self.settings.auto_secret_realm:
-                self.click_scene(frame, "secret", "AutoSecretRealm")
+                print("[med] 当前版本大秘境未完成前置校验，拒绝自动执行")
             self.game_count += 1
             print(f"[med] 局结束 count={self.game_count} → 下一局")
             self.set_phase(Phase.PREPARE, "next")

@@ -87,17 +87,17 @@
 3. **P0-B 真实回放 Manifest**（`fixtures/manifest.json`）：`run_replay.py` 唯一消费的门禁清单。
 
 ### 3.2 当前 P0-B 回放门禁实际状态与素材缺口说明
-- **P0-A 安全执行链**：已在 `src/gamescript/` 中实装并通过全部 55 个单元测试。
-- **P0-B 回放门禁现状**：运行 `python tools/run_replay.py` 实际结果为：
+- **P0-A 安全执行链**：已在 `src/gamescript/` 中实装并通过全量单元测试。
+- **P0-B 回放门禁现状**：P0-B1 已合入 commit `1176097`。运行 `python tools/run_replay.py` 实际结果为：
   ```text
-  Summary: Total=17, Passed=14, Failed=0, Required Missing=3, Optional Missing=0
-  [ERROR] Replay failed gatekeeper check: Required Missing=3, Failed=0
+  Summary: Total=18, Passed=17, Failed=0, Required Missing=1, Optional Missing=0
+  [ERROR] Replay failed gatekeeper check: Required Missing=1, Failed=0
   exit code = 1
   ```
 - **门禁阻塞真正原因与素材澄清**：
-  1. **房间等待页 (`missing_room_waiting_page`)** 与 **局内主线运行页 (`missing_in_game_main_line`)**：用户在本地 `fixtures/reborn_wow/` 中**已经提供了相关截图**（`room_waiting_host.png`, `main_line_auto_off.png`, `main_line_auto_on.png`），**不需要用户重复上传**。真实缺口是下一阶段需要将这些已有本地素材转换并注册进根 `fixtures/manifest.json` 供 `run_replay.py` 读取。
-  2. **断线弹窗 (`missing_disconnect_modal`)**：这是当前**唯一真正缺少**的当前版本全屏截图。
-- **结论**：**P0-B 代码与单测已通过，但端到端 Replay 门禁尚未通过**。局内自动挑战、选卡偏好等虽然已有局部 `Mediator` 识别逻辑，但尚未用全屏素材形成端到端 Replay 验收，也未形成结算—存档挑战—传家宝—大秘境的完整安全状态机。
+  1. **房间等待页 (`room_waiting_host`)** 与 **局内主线运行页 (`main_line_auto_off` / `main_line_auto_on`)**：已安全接入根 `fixtures/manifest.json` 并通过真实截图回放验证。
+  2. **断线弹窗 (`missing_disconnect_modal`)**：这是当前**唯一真正缺少**的必需当前版本全屏截图缺口。
+- **结论**：**P0-B1 代码、全量 71 个单测与已追踪素材回放均已通过，唯一必需缺口为 missing_disconnect_modal**。同时明确标记：战后存档、传家宝、大秘境、黑商、四选一选择策略尚未迁移，旧模板/字段不能被描述为“已实现”。
 
 ---
 
