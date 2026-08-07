@@ -16,7 +16,6 @@ from enum import Enum, auto
 from pathlib import Path
 
 import cv2
-import numpy as np
 
 from gamescript.input.emergency_stop import EmergencyStopListener
 from gamescript.input.keyboard_mouse import InputExecutor

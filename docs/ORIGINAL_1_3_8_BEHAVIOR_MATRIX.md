@@ -88,16 +88,16 @@
 
 ### 3.2 当前 P0-B 回放门禁实际状态与素材缺口说明
 - **P0-A 安全执行链**：已在 `src/gamescript/` 中实装并通过全量单元测试。
-- **P0-B 回放门禁现状**：P0-B1 已合入 commit `1176097`。运行 `python tools/run_replay.py` 实际结果为：
+- **P0-B / P1-A1 回放门禁现状**：P1-A1 已合入。运行 `python tools/run_replay.py` 实际结果为：
   ```text
-  Summary: Total=18, Passed=17, Failed=0, Required Missing=1, Optional Missing=0
+  Summary: Total=23, Passed=22, Failed=0, Required Missing=1, Optional Missing=0
   [ERROR] Replay failed gatekeeper check: Required Missing=1, Failed=0
   exit code = 1
   ```
 - **门禁阻塞真正原因与素材澄清**：
-  1. **房间等待页 (`room_waiting_host`)** 与 **局内主线运行页 (`main_line_auto_off` / `main_line_auto_on`)**：已安全接入根 `fixtures/manifest.json` 并通过真实截图回放验证。
+  1. **房间等待页 (`room_waiting_host`)**、**局内主线运行页 (`main_line_auto_off` / `main_line_auto_on`)**、**技能选择页 (`skill_choice_3` / `skill_choice_4`)**：已安全接入根 `fixtures/manifest.json` 并通过真实截图回放验证。
   2. **断线弹窗 (`missing_disconnect_modal`)**：这是当前**唯一真正缺少**的必需当前版本全屏截图缺口。
-- **结论**：**P0-B1 代码、全量 71 个单测与已追踪素材回放均已通过，唯一必需缺口为 missing_disconnect_modal**。同时明确标记：战后存档、传家宝、大秘境、黑商、四选一选择策略尚未迁移，旧模板/字段不能被描述为“已实现”。
+- **结论**：**P1-A1 代码、全量 86 个单测与已追踪素材回放均已通过，唯一必需缺口仍为 missing_disconnect_modal**。同时明确标记：P1-A1 自动任务 OFF/ON 与技能三/四选一已完成；羁绊、宝物、黑商当前保持零动作；P0-C1 战后/大秘境入口仍为 Fail-Closed 停机保护，尚未恢复自动化。
 
 ---
 

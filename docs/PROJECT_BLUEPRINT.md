@@ -38,10 +38,9 @@ KK 地图页
 
 ## 1. 当前基线结论
 
-- L0 大厅/建房/房间/选关状态链已经存在，不需要重新设计入口流程。
-- P0-B1 已合入 commit 1176097。当前全量 **71** 个单元测试全部通过 (`set PYTHONPATH=src && python -m unittest discover -s tests -v`)，场景资源静态校验通过 (`ok=97 missing=0`)。
+- P1-A1 已合入。当前全量 **86** 个单元测试全部通过 (`$env:PYTHONPATH="src"; python -m unittest discover -s tests -v`)，场景资源静态校验通过 (`ok=99 missing=0 root_unreferenced=0`)。
 - **P0-A 运行安全基础**：已完成 HWND 绑定、窗口身份校验、帧健康检查、全局 Shift+F12 急停与真实输入封锁，已验收通过。
-- **P0-B 回放与关卡语义现状**：P0-B1 已合入 commit 1176097。真实截图回放（`python tools/run_replay.py`）摘要为 `Total=18, Passed=17, Failed=0, Required Missing=1`，退出码仍为 1。唯一必需缺口为 `missing_disconnect_modal`；已追踪回放素材包含房间等待页 (`room_waiting_host.png`)、局内自动关闭页 (`main_line_auto_off.png`)、局内自动开启页 (`main_line_auto_on.png`)。明确标记：战后存档、传家宝、大秘境、黑商、四选一选择策略尚未迁移，旧模板/字段不能被描述为“已实现”。
+- **P0-B / P1-A1 回放与关卡语义现状**：真实截图回放（`python tools/run_replay.py`）摘要为 `Total=23, Passed=22, Failed=0, Required Missing=1`，退出码仍为 1。唯一必需缺口仍为 `missing_disconnect_modal`；已追踪回放素材包含房间等待页 (`room_waiting_host.png`)、局内自动任务关闭页 (`main_line_auto_off.png`)、局内自动任务开启页 (`main_line_auto_on.png`)、技能 3 选一 (`skill_choice_3.png`)、技能 4 选一 (`skill_choice_4.jpg`) 等。P1-A1 自动任务 OFF/ON 正向模板检测与技能三/四选一选择已完成；羁绊、宝物、黑商当前保持零动作；P0-C1 战后/大秘境入口仍为 Fail-Closed 停机保护，尚未恢复自动化。
 - `docs/REBORN_WOW_GAME_STRATEGY_RESEARCH.md` 已完成外部研究，策略资料作为候选数据，不直接改变默认行为。
 
 ## 2. 外部调研与原版迁移策略
@@ -131,10 +130,10 @@ asj / asjg / assx / jq
 - 场景锚点、ROI、候选分差和危险动作后置条件。
 
 门禁状态：
-- P0-B1 已合入 commit 1176097。
-- 全量 71 个单元测试全部通过。
-- `tools/run_replay.py` 摘要为 `Total=18, Passed=17, Failed=0, Required Missing=1`，退出码仍为 1，唯一必需缺口为 `missing_disconnect_modal`；已追踪回放素材包含房间等待页 (`room_waiting_host.png`)、局内自动关闭页 (`main_line_auto_off.png`) 与局内自动开启页 (`main_line_auto_on.png`)。
-- **明确标记**：战后存档、传家宝、大秘境、黑商、四选一选择策略尚未迁移，旧模板/字段不能被描述为“已实现”。
+- P1-A1 已合入。
+- 全量 86 个单元测试全部通过。
+- `tools/run_replay.py` 摘要为 `Total=23, Passed=22, Failed=0, Required Missing=1`，退出码仍为 1，唯一必需缺口仍为 `missing_disconnect_modal`；已追踪回放素材包含房间等待页 (`room_waiting_host.png`)、局内自动任务关闭页 (`main_line_auto_off.png`)、局内自动任务开启页 (`main_line_auto_on.png`)、技能 3 选一 (`skill_choice_3.png`)、技能 4 选一 (`skill_choice_4.jpg`) 等。
+- **明确标记**：P1-A1 自动任务 OFF/ON 与技能三/四选一已完成；羁绊、宝物、黑商当前保持零动作；P0-C1 战后/大秘境入口仍为 Fail-Closed 停机保护，尚未恢复自动化。
 
 ### P1：识别和架构收敛 (待开展)
 

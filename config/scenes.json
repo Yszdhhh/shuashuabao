@@ -150,6 +150,11 @@
       "action": "select_first_verified_card",
       "roi": "center_three_cards"
     },
+    "auto_task_toggle": {
+      "templates": ["auto_task_off", "auto_task_on"],
+      "method": "ChangeMainLineStatus",
+      "action": "click_if_off"
+    },
     "coin_challenge": {
       "templates": ["challenges/coin_challenge"],
       "method": "FindNodeWithTimeOut",
