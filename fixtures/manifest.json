@@ -135,10 +135,11 @@
       "window_role": "l1",
       "sha256": "6c08f5a3d926fc0171bce9e7435b768c49a401ddec160a56e09c23b99fb17b37",
       "page": "MAIN_LINE",
-      "target_scene": "coin_challenge",
+      "target_scene": "auto_task_toggle",
       "forbidden_click_regions": [],
       "expected_state": "MAIN_LINE",
-      "expected_action": "EnableAutoChallenges",
+      "expected_action": "EnableAutoTask",
+      "expected_input_kind": "left_click",
       "is_negative": false,
       "required": true
     },
@@ -158,7 +159,113 @@
       "forbidden_click_regions": [],
       "expected_state": "MAIN_LINE",
       "expected_action": "none",
+      "expected_input_kind": "none",
       "is_negative": false,
+      "required": true
+    },
+    {
+      "fixture_id": "skill_choice_3",
+      "file_path": "fixtures/replay/skill_choice_3.png",
+      "resolution": [
+        1610,
+        935
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "sha256": "34752bfb22ef1c665593bef1b99a397f0c93be305b6d2fe3a23c98b7ca7670ed",
+      "page": "MAIN_LINE",
+      "target_scene": "skill_choice",
+      "configured_skills": ["asj", "dz"],
+      "forbidden_click_regions": [],
+      "expected_state": "MAIN_LINE",
+      "expected_action": "SelectSkill",
+      "expected_input_kind": "left_click",
+      "is_negative": false,
+      "required": true
+    },
+    {
+      "fixture_id": "skill_choice_4",
+      "file_path": "fixtures/replay/skill_choice_4.jpg",
+      "resolution": [
+        2348,
+        1080
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "sha256": "7a2cbfc0d02328f3d9dc48e16dc33703eb7e3f876eccf20470187a341afb4c6b",
+      "page": "MAIN_LINE",
+      "target_scene": "skill_choice",
+      "configured_skills": ["dcw", "byj"],
+      "forbidden_click_regions": [],
+      "expected_state": "MAIN_LINE",
+      "expected_action": "SelectSkill",
+      "expected_input_kind": "left_click",
+      "is_negative": false,
+      "required": true
+    },
+    {
+      "fixture_id": "bond_choice_3",
+      "file_path": "fixtures/replay/bond_choice_3.png",
+      "resolution": [
+        1610,
+        935
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "sha256": "e96834d0cd48f438a2e1d7cf9d261e46b0ed3aebc7bd4487d2efd978a3c8fbfa",
+      "page": "MAIN_LINE",
+      "target_scene": "none",
+      "configured_skills": ["asj", "dz"],
+      "forbidden_click_regions": [],
+      "expected_state": "MAIN_LINE",
+      "expected_action": "none",
+      "expected_input_kind": "none",
+      "is_negative": true,
+      "required": true
+    },
+    {
+      "fixture_id": "treasure_choice_3",
+      "file_path": "fixtures/replay/treasure_choice_3.png",
+      "resolution": [
+        1610,
+        935
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "sha256": "24aa3b846085a5beec65f7c32bfb55f69c0d38b093fe78d655f5f401cb18be17",
+      "page": "MAIN_LINE",
+      "target_scene": "none",
+      "configured_skills": ["asj", "dz"],
+      "forbidden_click_regions": [],
+      "expected_state": "MAIN_LINE",
+      "expected_action": "none",
+      "expected_input_kind": "none",
+      "is_negative": true,
+      "required": true
+    },
+    {
+      "fixture_id": "black_merchant_card_strip",
+      "file_path": "fixtures/replay/black_merchant_card_strip.png",
+      "resolution": [
+        1610,
+        935
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "sha256": "8431826551fbfa58ca661c9aa2ae5c793ff06497f1fbd33a39e80ceaa83d5a4a",
+      "page": "MAIN_LINE",
+      "target_scene": "none",
+      "configured_skills": ["asj", "dz"],
+      "forbidden_click_regions": [],
+      "expected_state": "MAIN_LINE",
+      "expected_action": "none",
+      "expected_input_kind": "none",
+      "is_negative": true,
       "required": true
     },
     {
@@ -176,7 +283,7 @@
       "expected_action": "QuitGame-ok",
       "missing_resource": true,
       "is_negative": false,
-      "required": true
+      "required": false
     },
     {
       "fixture_id": "neg_quick_join",

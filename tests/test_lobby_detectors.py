@@ -104,12 +104,15 @@ class LobbyDetectorTests(unittest.TestCase):
         hide = _load_template(root / "assets" / "Images" / "hide.png")
         first = _load_template(root / "assets" / "Images" / "skills" / "asj.png")
         preferred = _load_template(root / "assets" / "Images" / "skills" / "assx.png")
+        third = _load_template(root / "assets" / "Images" / "skills" / "dz.png")
         self.assertIsNotNone(hide)
         self.assertIsNotNone(first)
         self.assertIsNotNone(preferred)
+        self.assertIsNotNone(third)
         frame[595:595 + hide.shape[0], 542:542 + hide.shape[1]] = hide
         frame[261:261 + first.shape[0], 526:526 + first.shape[1]] = first
         frame[261:261 + preferred.shape[0], 759:759 + preferred.shape[1]] = preferred
+        frame[261:261 + third.shape[0], 992:992 + third.shape[1]] = third
         med = Mediator(Settings(skills=["assx"], match_threshold=0.85), root)
         kind, hit = med._find_reward_choice(Frame(frame))
         self.assertEqual(kind, "技能")

@@ -35,6 +35,10 @@ class ReplayResult:
     target_hwnd: int | None
     expected_state: str
     actual_state: str
+    expected_action: str
+    action_name: str
+    expected_input_kind: str
+    action_kind: str
     forbidden_click_count: int
     precondition_met: bool
     postcondition_met: bool
@@ -59,6 +63,7 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
     file_path = root / file_path_str
     expected_state = fixture.get("expected_state", "UNKNOWN")
     expected_action = fixture.get("expected_action", "none")
+    expected_input_kind = fixture.get("expected_input_kind", "none" if expected_action == "none" else "left_click")
     is_negative = fixture.get("is_negative", False)
     required = fixture.get("required", not is_negative)
     forbidden_regions = fixture.get("forbidden_click_regions", [])
@@ -79,6 +84,10 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             target_hwnd=None,
             expected_state=expected_state,
             actual_state="MISSING",
+            expected_action=expected_action,
+            action_name="none",
+            expected_input_kind=expected_input_kind,
+            action_kind="none",
             forbidden_click_count=0,
             precondition_met=False,
             postcondition_met=False,
@@ -102,6 +111,10 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             target_hwnd=None,
             expected_state=expected_state,
             actual_state="READ_ERROR",
+            expected_action=expected_action,
+            action_name="none",
+            expected_input_kind=expected_input_kind,
+            action_kind="none",
             forbidden_click_count=0,
             precondition_met=False,
             postcondition_met=False,
@@ -109,6 +122,9 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             status="FAIL",
             notes="Failed to decode image file",
         )
+
+    if "configured_skills" in fixture:
+        med.settings.skills = list(fixture["configured_skills"])
 
     window_title = fixture.get("window_title")
     if not window_title:
@@ -140,6 +156,10 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             target_hwnd=frame.hwnd,
             expected_state=expected_state,
             actual_state=actual_state,
+            expected_action=expected_action,
+            action_name="none",
+            expected_input_kind=expected_input_kind,
+            action_kind="none",
             forbidden_click_count=0,
             precondition_met=health.is_healthy,
             postcondition_met=(actual_state == expected_state),
@@ -159,6 +179,8 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
     detected_scene = context
     precondition_met = True
     postcondition_met = True
+    action_name = "none"
+    action_kind = "none"
 
     # 1) PLATFORM_MAP
     if context == "PLATFORM_MAP" or expected_state == "PLATFORM_MAP":
@@ -171,6 +193,8 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             score_margin = res_margin.margin
             if score_margin >= margin_threshold and not is_negative:
                 click_point = hit.center
+                action_name = "CreateRoom-open"
+                action_kind = "left_click"
 
     # 2) CREATE_ROOM
     elif context == "CREATE_ROOM" or expected_state == "CREATE_ROOM":
@@ -182,6 +206,8 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             score_margin = confirm.score
             if not is_negative:
                 click_point = confirm.center
+                action_name = "CreateRoom-confirm"
+                action_kind = "left_click"
 
     # 3) ROOM_WAITING
     elif context == "ROOM_WAITING" or expected_state == "ROOM_WAITING":
@@ -193,6 +219,8 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             score_margin = room_start.score
             if not is_negative:
                 click_point = room_start.center
+                action_name = "RoomStart"
+                action_kind = "left_click"
 
     # 4) STAGE_SELECT
     elif context == "STAGE_SELECT" or expected_state == "STAGE_SELECT":
@@ -203,6 +231,8 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
                 best_score = hit.score
                 if not is_negative:
                     click_point = hit.center
+                    action_name = "SelectStage-target"
+                    action_kind = "left_click"
         elif expected_stage:
             hit = find_stage_labels(frame, med.images, [expected_stage])
             if hit:
@@ -217,29 +247,57 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
                 candidate_box = [hit.x, hit.y, hit.w, hit.h]
                 if not is_negative:
                     click_point = hit.center
+                    action_name = "SelectStage-target"
+                    action_kind = "left_click"
         elif fixture_id == "neg_stage_ambiguous":
             postcondition_met = verify_stage_selection(frame, target=None, images_dir=med.images)
 
     # 5) MAIN_LINE
     elif context in ("MAIN_LINE", "IN_GAME") or expected_state in ("MAIN_LINE", "IN_GAME"):
         detected_scene = "MAIN_LINE"
-        for scene_key, label in (
-            ("coin_challenge", "金币"),
-            ("wood_challenge", "木材"),
-            ("experience_challenge", "经验"),
-            ("treasure_challenge", "宝物"),
-        ):
-            found = med._find_challenge_button(frame, scene_key)
-            if found:
-                label_hit, click_hit = found
-                if not med._challenge_is_auto(frame, label_hit):
-                    candidate_box = [click_hit.x, click_hit.y, click_hit.w, click_hit.h]
-                    best_score = click_hit.score
-                    second_score = 0.0
-                    score_margin = click_hit.score
-                    if not is_negative:
-                        click_point = click_hit.center
-                    break
+        if med._selection_anchor(frame):
+            choice = med._find_reward_choice(frame)
+            if choice:
+                kind, hit = choice
+                candidate_box = [hit.x, hit.y, hit.w, hit.h]
+                best_score = hit.score
+                second_score = 0.0
+                score_margin = hit.score
+                action_name = "SelectSkill"
+                action_kind = "left_click"
+                if not is_negative:
+                    click_point = hit.center
+        elif med._find_auto_task_toggle(frame):
+            toggle = med._find_auto_task_toggle(frame)
+            if toggle:
+                candidate_box = [toggle.x, toggle.y, toggle.w, toggle.h]
+                best_score = toggle.score
+                second_score = 0.0
+                score_margin = toggle.score
+                action_name = "EnableAutoTask"
+                action_kind = "left_click"
+                if not is_negative:
+                    click_point = toggle.center
+        else:
+            for scene_key, label in (
+                ("coin_challenge", "金币"),
+                ("wood_challenge", "木材"),
+                ("experience_challenge", "经验"),
+                ("treasure_challenge", "宝物"),
+            ):
+                found = med._find_challenge_button(frame, scene_key)
+                if found:
+                    label_hit, click_hit = found
+                    if not med._challenge_is_auto(frame, label_hit):
+                        candidate_box = [click_hit.x, click_hit.y, click_hit.w, click_hit.h]
+                        best_score = click_hit.score
+                        second_score = 0.0
+                        score_margin = click_hit.score
+                        action_name = "EnableAutoChallenges"
+                        action_kind = "right_click"
+                        if not is_negative:
+                            click_point = click_hit.center
+                        break
 
     # 6) QUIT
     elif (fixture_id == "quit_game_1616x939" or expected_state == "QUIT"):
@@ -250,6 +308,8 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             best_score = hit.score
             second_score = 0.0
             score_margin = hit.score
+            action_name = "QuitGame"
+            action_kind = "left_click"
             if not is_negative:
                 click_point = hit.center
 
@@ -277,6 +337,9 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
         elif expected_action == "none" and click_point is not None:
             status = "FAIL"
             notes = f"Unauthorized click candidate produced: {click_point}"
+        elif expected_input_kind != "none" and action_kind != expected_input_kind:
+            status = "FAIL"
+            notes = f"Input kind mismatch: actual {action_kind} vs expected {expected_input_kind}"
         elif fixture_id == "neg_stage_ambiguous" and postcondition_met:
             status = "FAIL"
             notes = "Selection state verified when ambiguous"
@@ -286,7 +349,7 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
         else:
             notes = "Negative sample validation passed"
     else:
-        # Positive sample MUST validate actual_state, click_point, precondition, postcondition, and margin
+        # Positive sample MUST validate actual_state, click_point, precondition, postcondition, margin, action_name, input_kind
         if actual_state != expected_state:
             status = "FAIL"
             notes = f"State mismatch: actual {actual_state} vs expected {expected_state}"
@@ -296,6 +359,12 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
         elif expected_action != "none" and click_point is None:
             status = "FAIL"
             notes = "No valid action candidate generated"
+        elif expected_action != "none" and action_name != expected_action:
+            status = "FAIL"
+            notes = f"Action mismatch: actual {action_name} vs expected {expected_action}"
+        elif expected_input_kind != "none" and action_kind != expected_input_kind:
+            status = "FAIL"
+            notes = f"Input kind mismatch: actual {action_kind} vs expected {expected_input_kind}"
         elif forbidden_click_count > 0:
             status = "FAIL"
             notes = "Action candidate fell into forbidden region"
@@ -325,6 +394,10 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
         target_hwnd=frame.hwnd,
         expected_state=expected_state,
         actual_state=actual_state,
+        expected_action=expected_action,
+        action_name=action_name,
+        expected_input_kind=expected_input_kind,
+        action_kind=action_kind,
         forbidden_click_count=forbidden_click_count,
         precondition_met=precondition_met,
         postcondition_met=postcondition_met,
@@ -346,17 +419,17 @@ def main() -> int:
     settings = Settings()
     med = Mediator(settings, ROOT)
 
-    print("=" * 125)
+    print("=" * 135)
     print("P0-B REAL SCREENSHOT REPLAY REPORT")
     print(f"Baseline commit: {manifest_data.get('baseline')}")
-    print("=" * 125)
+    print("=" * 135)
 
     header = (
-        f"{'Fixture ID':<25} | {'Scene/Phase':<15} | {'Score(B/2nd)':<12} | "
-        f"{'Margin':<6} | {'Thresh':<6} | {'Click Point':<12} | {'Forbidden':<9} | {'Req':<5} | {'Status':<16}"
+        f"{'Fixture ID':<26} | {'Scene/Phase':<12} | {'Action(Kind)':<25} | {'Score(B/2nd)':<12} | "
+        f"{'Margin':<6} | {'Click Point':<12} | {'Req':<4} | {'Status':<16}"
     )
     print(header)
-    print("-" * 125)
+    print("-" * 135)
 
     total = 0
     passed = 0
@@ -379,18 +452,19 @@ def main() -> int:
         cp_str = f"({res.click_point[0]},{res.click_point[1]})" if res.click_point else "None"
         scores_str = f"{res.best_score:.2f}/{res.second_score:.2f}"
         req_str = "YES" if res.required else "NO"
+        action_str = f"{res.action_name}({res.action_kind})"
         print(
-            f"{res.fixture_id:<25} | {res.detected_scene:<15} | {scores_str:<12} | "
-            f"{res.score_margin:<6.2f} | {res.margin_threshold:<6.2f} | {cp_str:<12} | "
-            f"{res.forbidden_click_count:<9} | {req_str:<5} | {res.status:<16}"
+            f"{res.fixture_id:<26} | {res.detected_scene:<12} | {action_str:<25} | {scores_str:<12} | "
+            f"{res.score_margin:<6.2f} | {cp_str:<12} | "
+            f"{req_str:<4} | {res.status:<16}"
         )
 
-    print("-" * 125)
+    print("-" * 135)
     print(
         f"Summary: Total={total}, Passed={passed}, Failed={failed}, "
         f"Required Missing={required_missing}, Optional Missing={optional_missing}"
     )
-    print("=" * 125)
+    print("=" * 135)
 
     if required_missing > 0 or failed > 0:
         print(f"[ERROR] Replay failed gatekeeper check: Required Missing={required_missing}, Failed={failed}")

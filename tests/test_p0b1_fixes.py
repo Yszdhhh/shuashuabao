@@ -89,7 +89,8 @@ class P0B1FixesTests(unittest.TestCase):
             "window_title": "英雄三国KK",
             "page": "MAIN_LINE",
             "expected_state": "MAIN_LINE",
-            "expected_action": "EnableAutoChallenges",
+            "expected_action": "EnableAutoTask",
+            "expected_input_kind": "left_click",
             "required": True,
         }
         res_off = run_replay_fixture(fix_off, self.med, ROOT)

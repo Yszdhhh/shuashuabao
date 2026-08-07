@@ -10,11 +10,13 @@ Jobs 不直接碰 OpenCV/输入；只通过本中介 see / act。
 
 from __future__ import annotations
 
+import math
 import time
 from enum import Enum, auto
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from gamescript.input.emergency_stop import EmergencyStopListener
 from gamescript.input.keyboard_mouse import InputExecutor
@@ -112,6 +114,8 @@ class Mediator:
         self._selection_click_cooldown_until = 0.0
         self._challenge_done: set[str] = set()
         self._challenge_attempts: dict[str, int] = {}
+        self._auto_task_done: bool = False
+        self._auto_task_attempts: int = 0
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -142,7 +146,7 @@ class Mediator:
             return ",".join(L1_WINDOW_KEYWORDS)
 
     def _is_in_game_hud(self, frame: Frame) -> bool:
-        if self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel"):
+        if self._selection_anchor(frame) or self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel"):
             return True
         for sc in ("coin_challenge", "wood_challenge", "experience_challenge", "treasure_challenge"):
             if self.find_scene(frame, sc):
@@ -156,7 +160,9 @@ class Mediator:
         if self._context_cache_frame is frame and self._context_cache_role == role:
             return self._context_cache_value
 
-        if self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
+        if self._selection_anchor(frame):
+            value = "MAIN_LINE"
+        elif self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
             value = "QUIT"
         elif role == "l1" and self._find_stage_page(frame):
             value = "STAGE_SELECT"
@@ -400,38 +406,117 @@ class Mediator:
         wanted = {Path(value).stem for value in preferred if value}
         return next((hit for hit in hits if hit.name in wanted), None)
 
-    def _generic_choice_slot(self, frame: Frame, index: int = 0) -> MatchResult | None:
-        if frame.width < 800 or frame.height < 500 or not 0 <= index <= 2:
+    def _is_auto_task_enabled(self, frame: Frame) -> bool:
+        """Check if the right task panel '自动任务' checkbox is enabled (green checkmark present in narrow ROI)."""
+        if frame.bgr is None or frame.bgr.size == 0 or frame.width < 1000 or frame.height < 600:
+            return False
+        h, w = frame.height, frame.width
+        x1, x2 = int(0.87 * w), int(0.93 * w)
+        y1, y2 = int(0.55 * h), int(0.62 * h)
+        roi = frame.bgr[y1:y2, x1:x2]
+        if roi.size == 0:
+            return False
+        b, g, r = cv2.split(roi)
+        green_mask = (g > 120) & (g.astype(int) - r.astype(int) > 30) & (g.astype(int) - b.astype(int) > 20)
+        return int(green_mask.sum()) >= 15
+
+    def _find_auto_task_toggle(self, frame: Frame) -> MatchResult | None:
+        """Return a left-click candidate for the right-side auto task checkbox if it is explicitly OFF."""
+        if frame.bgr is None or frame.bgr.size == 0 or frame.width < 1000 or frame.height < 600:
             return None
-        x = int(frame.width * (0.355 + index * 0.145))
-        y = int(frame.height * 0.42)
+        if self._selection_anchor(frame):
+            return None
+        if self._is_auto_task_enabled(frame):
+            return None
+        if frame.bgr is None or frame.bgr.size == 0:
+            return None
+        h, w = frame.height, frame.width
+        x1, x2 = int(0.87 * w), int(0.93 * w)
+        y1, y2 = int(0.55 * h), int(0.62 * h)
+        roi = frame.bgr[y1:y2, x1:x2]
+        if roi.size == 0:
+            return None
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        mean_val = float(np.mean(gray))
+        std_val = float(np.std(gray))
+        if not (30.0 <= mean_val <= 180.0 and std_val > 5.0):
+            return None
+        cx = int(w * (1435.0 / 1600.0))
+        cy = int(h * (530.0 / 900.0))
         return MatchResult(
-            name=f"choice_slot_{index + 1}",
-            score=0.0,
-            x=x,
-            y=y,
-            w=0,
-            h=0,
-            screen_x=frame.left + x,
-            screen_y=frame.top + y,
+            name="auto_task_toggle",
+            score=1.0,
+            x=max(0, cx - 10),
+            y=max(0, cy - 10),
+            w=20,
+            h=20,
+            screen_x=frame.left + max(0, cx - 10),
+            screen_y=frame.top + max(0, cy - 10),
         )
+
+    def _ensure_auto_task_enabled(self, frame: Frame) -> bool:
+        """Ensure right-side auto task checkbox is clicked ON via left click."""
+        if getattr(self, "_auto_task_done", False):
+            return False
+        if self._is_auto_task_enabled(frame):
+            print("[L1] 自动任务开启模式已验证（已勾选）")
+            self._auto_task_done = True
+            return False
+        if not hasattr(self, "_auto_task_attempts"):
+            self._auto_task_attempts = 0
+        if self._auto_task_attempts >= 3:
+            print(f"[L1] 自动任务点击重试已达上限 ({self._auto_task_attempts})，停止重复点击")
+            return False
+        toggle = self._find_auto_task_toggle(frame)
+        if not toggle:
+            return False
+        print(f"[L1] 自动开启【自动任务】左键 @ {toggle.center}")
+        if self.act_click(toggle, "EnableAutoTask"):
+            self._auto_task_attempts += 1
+            return True
+        return False
 
     def _find_reward_choice(self, frame: Frame) -> tuple[str, MatchResult] | None:
         if not self._selection_anchor(frame):
             return None
 
-        skills = self._choice_hits(frame, "skills", self.settings.skills)
-        if skills:
-            hit = self._preferred_choice(skills, self.settings.skills) or skills[0]
-            return "技能", hit
+        skills_dir = self.images / "skills"
+        if not skills_dir.is_dir():
+            return None
 
-        cards = self._choice_hits(frame, "cards", self.settings.cards)
-        if cards and self.settings.auto_card:
-            hit = self._preferred_choice(cards, self.settings.cards) or cards[0]
-            return "羁绊", hit
+        names = [f"skills/{p.stem}" for p in sorted(skills_dir.glob("*.png"))]
+        kwargs = {
+            "threshold": min(0.70, self.settings.match_threshold),
+            "roi": self._selection_roi(),
+            "max_results": 16,
+        }
+        all_hits = match_all(frame, self.images, names, scales=(0.90, 1.0, 1.05, 1.10), **kwargs)
 
-        hit = self._generic_choice_slot(frame, 0)
-        return ("宝物/未标注奖励", hit) if hit else None
+        hits_sorted = sorted(all_hits, key=lambda h: h.score, reverse=True)
+        candidates: list[MatchResult] = []
+        for h in hits_sorted:
+            if not any(math.hypot(h.x - c.x, h.y - c.y) < 40.0 for c in candidates):
+                candidates.append(h)
+
+        count = len(candidates)
+        if count not in (3, 4):
+            print(f"[L1] 发现选择面板，但技能候选数量 ({count}) 不属于 3 或 4 选一，返回无动作")
+            return None
+
+        configured_candidates: list[tuple[int, MatchResult]] = []
+        for c in candidates:
+            stem = Path(c.name).stem
+            if stem in self.settings.skills:
+                idx = self.settings.skills.index(stem)
+                configured_candidates.append((idx, c))
+
+        if not configured_candidates:
+            print(f"[L1] 发现 {count}选一 技能面板，但画面中无配置匹配技能，保持无动作")
+            return None
+
+        configured_candidates.sort(key=lambda item: item[0])
+        best_priority_idx, best_hit = configured_candidates[0]
+        return ("技能", best_hit)
 
     def _find_challenge_button(self, frame: Frame, scene_key: str) -> tuple[MatchResult, MatchResult] | None:
         """Return (label hit, icon click hit) for one bottom challenge toggle."""
@@ -486,13 +571,11 @@ class Mediator:
                 self._challenge_attempts: dict[str, int] = {}
             attempts = self._challenge_attempts.get(scene_key, 0)
             if attempts >= 3:
-                print(f"[L1] {label}挑战右键重试已达上限 ({attempts})，停止重复右键")
+                print(f"[L1] {label}挑战点击重试已达上限 ({attempts})，停止重复点击")
                 continue
             print(f"[L1] 自动开启【{label}挑战】右键 @ {click_hit.center}")
             if self.act_right_click(click_hit, f"{label}Challenge-right_click"):
                 self._challenge_attempts[scene_key] = attempts + 1
-                # Do NOT add scene_key to _challenge_done here!
-                # It will only be confirmed when subsequent frame detects green "自动" state.
                 return True
         return False
 
@@ -599,6 +682,8 @@ class Mediator:
             self._selection_click_cooldown_until = 0.0
             self._challenge_done.clear()
             self._challenge_attempts.clear()
+            self._auto_task_done = False
+            self._auto_task_attempts = 0
         if phase == Phase.LONGZHU:
             # 对齐「退出游戏时间还剩下 ~178 秒」
             sec = max(self.settings.archive_boss_time, self.settings.boss_live_time, 180)
@@ -1040,6 +1125,11 @@ class Mediator:
                 self._main_line_since = now
                 return LoopAction.Continue
             print("[L1] 发现选择面板但没有安全选项，保持等待")
+            return LoopAction.Continue
+
+        # 右侧“自动任务”复选框（左键点击）
+        if self._ensure_auto_task_enabled(frame):
+            self._main_line_since = now
             return LoopAction.Continue
 
         # 挑战按钮有自己的模板和自动状态检测，避免固定坐标反复切换开关。
