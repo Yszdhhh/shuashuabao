@@ -102,7 +102,7 @@
       "fallback": "blue_room_start_roi"
     },
     "stage_start": {
-      "templates": ["lobby/roomStart", "startGameBtn"],
+      "templates": ["lobby/stage_begin_btn", "lobby/roomStart", "startGameBtn"],
       "method": "BeginGame",
       "action": "click"
     },

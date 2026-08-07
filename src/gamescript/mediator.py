@@ -715,10 +715,11 @@ class Mediator:
 
     def _handle_hero_mode_reputation(self, frame: Frame) -> bool:
         """开启并配置英雄模式（声望挑战）: 1:黑锋骑士团, 2:银色北伐军, 3:肯瑞托, 4:探险者协会, 5:元素领主, 6:守护巨龙"""
-        hero_btn = self.find(frame, ["toHero", "HeroChallenge"], threshold=0.70)
+        hero_btn = self.find(frame, ["lobby/stage_hero_mode_btn", "toHero", "HeroChallenge"], threshold=0.70)
         if not hero_btn:
-            x = int(frame.width * 0.79)
-            y = int(frame.height * 0.94)
+            # 录屏实测（1600×900 帧）：英雄模式按钮在选关页底部 (0.64, 0.82)
+            x = int(frame.width * 0.64)
+            y = int(frame.height * 0.82)
             hero_btn = MatchResult(
                 name="hero_mode_fallback",
                 score=0.0,
@@ -1096,17 +1097,22 @@ class Mediator:
             if not self._stage_selected:
                 target = self._find_stage_target(frame)
                 if not target:
-                    if self.settings.stage_targets and self._stage_scroll_attempts < 3:
+                    # 目标不在可见列表：滚动寻找。
+                    # 原版 SelectStage 语义：stage2>12 时在关卡列表 (1090,390) 向下滚轮
+                    # （pyautogui 负值=向下；录屏确认 1-24+ 在列表下方）。
+                    # 触发条件覆盖 stage_targets 与 stage1/stage2 范围两种配置。
+                    if self._stage_scroll_attempts < 8:
                         x, y = stage_list_scroll_point(frame)
                         target_hwnd = self._last_frame.hwnd if self._last_frame else None
-                        res_scroll = self.executor.scroll(x, y, 5, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                        # 向下滚动：正值=上滚（更早关卡），负值=下滚（更高关卡）
+                        res_scroll = self.executor.scroll(x, y, -5, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
                         if res_scroll.success:
                             self._stage_scroll_attempts += 1
-                            print(f"[L0] 目标关卡不在当前列表，滚动寻找 ({self._stage_scroll_attempts}/3)")
+                            print(f"[L0] 目标关卡不在当前列表，向下滚动寻找 ({self._stage_scroll_attempts}/8)")
                         else:
                             print(f"[L0] 关卡列表滚动取消/失败: {res_scroll.message}")
                     else:
-                        print("[L0] 未找到配置目标关卡，拒绝点击任意可见关卡")
+                        print("[L0] 滚动 8 次仍未找到目标关卡，拒绝点击任意可见关卡")
                     if self._action_timed_out():
                         print("[L0] 选关页超时仍未找到配置目标，停止而不是点击任意关卡")
                         self.set_phase(Phase.ERROR, "configured stage not found")
