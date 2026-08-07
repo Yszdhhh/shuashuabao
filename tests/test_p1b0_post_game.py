@@ -16,6 +16,7 @@ templates matched against current-version full screenshots):
 
 import json
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -217,6 +218,42 @@ class P1B0PostGameTests(unittest.TestCase):
         # The confirm button sits in the dialog body, not the top-left exit area
         self.assertGreater(hit.x, frame.width * 0.30)
         self.assertGreater(hit.y, frame.height * 0.40)
+
+
+    # ---------- 4. Static-frame (frozen/old) must not kill the flow ----------
+
+    def test_static_frame_allows_recognition_and_no_timeout_kill(self):
+        """A frozen/old frame (static dialog) must continue recognition instead of ERROR-stopping."""
+        arr = np.random.randint(40, 200, size=(300, 500, 3), dtype=np.uint8)
+        t0 = time.time() - 10.0  # old timestamps -> OLD_FRAME
+        f_prev = Frame(bgr=arr.copy(), timestamp=t0, hwnd=10001, window_title="KK", is_valid=True)
+        f_curr = Frame(bgr=arr.copy(), timestamp=time.time(), hwnd=10001, window_title="KK", is_valid=True)
+        # identical content + >=5s gap -> FROZEN; curr timestamp fresh so not OLD
+        med = Mediator(self.settings, ROOT)
+        med._prev_frame = f_prev
+        med.phase = Phase.BOOT
+        with patch.object(med, "_tick_l0", return_value=LoopAction.Continue) as mock_tick:
+            with patch.object(med, "see", return_value=f_curr):
+                action = med.tick()
+                self.assertEqual(action, LoopAction.Continue)
+                mock_tick.assert_called_once()  # recognition ran despite frozen frame
+                self.assertNotEqual(med.phase, Phase.ERROR)
+
+    def test_black_frame_still_blocks_and_accumulates_timeout(self):
+        """Real anomalies (black frame) must still skip decision and count toward the stop timeout."""
+        black = Frame(bgr=np.zeros((300, 500, 3), dtype=np.uint8), timestamp=time.time(), hwnd=10001,
+                      window_title="KK", is_valid=True)
+        med = Mediator(self.settings, ROOT)
+        med.phase = Phase.BOOT
+        with patch.object(med, "see", return_value=black), \
+             patch.object(med, "_tick_l0") as mock_tick, \
+             patch("gamescript.mediator.time") as mock_time:
+            mock_time.time.return_value = 1000.0
+            mock_time.sleep.return_value = None
+            action = med.tick()
+            self.assertEqual(action, LoopAction.Continue)
+            mock_tick.assert_not_called()
+            self.assertIsNotNone(med._missing_window_since)
 
 
 if __name__ == "__main__":

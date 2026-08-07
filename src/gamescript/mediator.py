@@ -1191,25 +1191,34 @@ class Mediator:
 
         health = check_frame_health(frame, prev_frame=self._prev_frame)
         if not health.is_healthy:
-            print(f"[med] Frame health check failed ({health.details}), skipping decision and input")
-            now = time.time()
-            self._missing_window_since = self._missing_window_since or now
-            elapsed = now - self._missing_window_since
-            print(f"[med] Unhealthy frame ({health.details}), waiting {elapsed:.1f}s phase={self.phase.name}")
-            in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
-            if self.phase == Phase.ROOM_STARTING:
-                pass  # Use normal retry deadline
-            elif self.phase in in_game_phases:
-                if elapsed >= 60:
-                    print("[med] 局内阶段不健康帧持续超过 60s，停止运行")
+            issue_values = {i.value for i in health.issues}
+            static_frame_ok = issue_values.issubset({"frozen", "old_frame"})
+            if static_frame_ok:
+                # 静止帧 / 捕获耗时造成的陈旧帧：页面内容可信（与上一帧相同），
+                # 常见于静态弹窗（建房、断线确认）或双窗口捕获慢的伪影。
+                # 放行识别与阶段推进；输入仍受 InputExecutor 的 HWND/前台/急停检查保护。
+                print(f"[med] 静态/陈旧帧（{health.details}），继续识别（坐标可信）")
+                self._missing_window_since = None
+            else:
+                print(f"[med] Frame health check failed ({health.details}), skipping decision and input")
+                now = time.time()
+                self._missing_window_since = self._missing_window_since or now
+                elapsed = now - self._missing_window_since
+                print(f"[med] Unhealthy frame ({health.details}), waiting {elapsed:.1f}s phase={self.phase.name}")
+                in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
+                if self.phase == Phase.ROOM_STARTING:
+                    pass  # Use normal retry deadline
+                elif self.phase in in_game_phases:
+                    if elapsed >= 60:
+                        print("[med] 局内阶段不健康帧持续超过 60s，停止运行")
+                        self.set_phase(Phase.ERROR, "unhealthy frame timeout")
+                        self.stop()
+                        return LoopAction.Break
+                elif elapsed >= min(self.settings.query_timeout, 15):
                     self.set_phase(Phase.ERROR, "unhealthy frame timeout")
                     self.stop()
                     return LoopAction.Break
-            elif elapsed >= min(self.settings.query_timeout, 15):
-                self.set_phase(Phase.ERROR, "unhealthy frame timeout")
-                self.stop()
-                return LoopAction.Break
-            return LoopAction.Continue
+                return LoopAction.Continue
 
         self._missing_window_since = None
 
