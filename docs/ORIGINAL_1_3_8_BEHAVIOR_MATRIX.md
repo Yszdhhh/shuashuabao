@@ -257,13 +257,13 @@
 
 ### 5.2 已接入根 Manifest 并通过 Replay 验收的项目（无需用户重复提供）
 1. **当前版本房间等待页全屏截图** (`room_waiting_host`)
-   - **状态**：**已接入**（`fixtures/reborn_wow/room/room_waiting_host.png` 登记为 `room_waiting_host`）。
+   - **状态**：**已接入**（权威 Replay 路径 `fixtures/replay/room_waiting_host.png`；原始素材 `fixtures/reborn_wow/room/room_waiting_host.png`）。
    - **结论**：已接入根 `fixtures/manifest.json` 并通过 Replay 验收。
 2. **当前版本局内主线运行页全屏截图** (`main_line_auto_off` / `main_line_auto_on`)
-   - **状态**：**已接入**（`fixtures/reborn_wow/main_line/main_line_auto_off.png` 与 `main_line_auto_on.png`）。
+   - **状态**：**已接入**（权威 Replay 路径 `fixtures/replay/main_line_auto_off.png` 与 `fixtures/replay/main_line_auto_on.png`；原始素材 `fixtures/reborn_wow/main_line/main_line_auto_off.png` 与 `main_line_auto_on.png`）。
    - **结论**：已接入根 `fixtures/manifest.json` 并通过 Replay 验收。
 3. **技能选择三选一/四选一全屏截图** (`skill_choice_3` / `skill_choice_4`)
-   - **状态**：**已接入**（`fixtures/reborn_wow/skills/skill_choice_3.png` 与 `skill_choice_4.png`）。
+   - **状态**：**已接入**（权威 Replay 路径 `fixtures/replay/skill_choice_3.png` 与 `fixtures/replay/skill_choice_4.jpg`；原始素材三选一 `fixtures/reborn_wow/choices/skill_choice_3.png`）。
    - **结论**：已接入根 `fixtures/manifest.json` 并通过 Replay 验收。
 
 ### 5.3 未来扩展可选补充证据
