@@ -52,6 +52,49 @@
       "action": "click",
       "fallback": "blue_bottom_dialog_roi"
     },
+    "archive_start": {
+      "templates": ["lobby/archive_start_btn"],
+      "method": "CreateRoom",
+      "action": "click",
+      "fallback": "blue_bottom_roi"
+    },
+    "archive_challenges": {
+      "templates": [
+        "lobby/archive_skill",
+        "lobby/archive_strengthen",
+        "lobby/archive_gem",
+        "lobby/archive_key",
+        "lobby/archive_recast",
+        "lobby/archive_bless"
+      ],
+      "method": "FindAllMatchImages",
+      "action": "detect_only"
+    },
+    "exit_confirm": {
+      "templates": ["lobby/exit_confirm_btn", "lobby/exit_cancel_btn"],
+      "method": "QuitGame",
+      "action": "click"
+    },
+    "choice_panel": {
+      "templates": ["lobby/choice_hide_btn", "lobby/choice_refresh_btn", "lobby/choice_giveup_btn"],
+      "method": "FindCardImages",
+      "action": "detect_only"
+    },
+    "hero_challenge": {
+      "templates": ["lobby/hero_hide_btn", "lobby/hero_refresh_btn"],
+      "method": "FindCardImages",
+      "action": "detect_only"
+    },
+    "f4_challenge": {
+      "templates": ["lobby/f4_clear_challenge"],
+      "method": "ChangeMainLineStatus",
+      "action": "click"
+    },
+    "stage_begin": {
+      "templates": ["lobby/stage_begin_btn", "lobby/stage_hero_mode_btn", "lobby/stage_archaeology_btn"],
+      "method": "BeginGame",
+      "action": "click"
+    },
     "room_start": {
       "templates": ["kk_start", "lobby/room_start", "lobby/room_start_alt", "lobby/startGameBtn", "startGameBtn"],
       "method": "EntryF1",
