@@ -122,7 +122,12 @@ class Mediator:
         self._selection_click_cooldown_until = 0.0
         self._challenge_done: set[str] = set()
         self._challenge_attempts: dict[str, int] = {}
-        self._challenge_states: dict[str, ChallengeState] = {}
+        self._challenge_states: dict[str, ChallengeState] = {
+            "coin_challenge": ChallengeState.PENDING,
+            "wood_challenge": ChallengeState.PENDING,
+            "experience_challenge": ChallengeState.PENDING,
+            "treasure_challenge": ChallengeState.PENDING,
+        }
         self._auto_task_done: bool = False
         self._auto_task_attempts: int = 0
 
@@ -623,11 +628,12 @@ class Mediator:
 
             elif state == ChallengeState.OFF:
                 click_hit = found[1]
-                self._challenge_states[scene_key] = ChallengeState.OFF
                 self._challenge_attempts[scene_key] = attempts + 1
                 current_attempts = self._challenge_attempts[scene_key]
                 print(f"[L1] 自动开启【{label}挑战】右键 @ {click_hit.center} (尝试 {current_attempts}/3)")
                 act_res = self.act_right_click(click_hit, f"{label}Challenge-right_click")
+                # Right-click sent -> transition state to PENDING (waiting for confirmation in subsequent frames)
+                self._challenge_states[scene_key] = ChallengeState.PENDING
 
                 if self.phase == Phase.ERROR or self.stop_signal.is_set():
                     return LoopAction.Break
@@ -746,7 +752,12 @@ class Mediator:
             self._selection_click_cooldown_until = 0.0
             self._challenge_done.clear()
             self._challenge_attempts.clear()
-            self._challenge_states.clear()
+            self._challenge_states = {
+                "coin_challenge": ChallengeState.PENDING,
+                "wood_challenge": ChallengeState.PENDING,
+                "experience_challenge": ChallengeState.PENDING,
+                "treasure_challenge": ChallengeState.PENDING,
+            }
             self._auto_task_done = False
             self._auto_task_attempts = 0
         if phase == Phase.LONGZHU:

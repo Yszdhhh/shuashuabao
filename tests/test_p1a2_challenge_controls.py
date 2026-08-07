@@ -116,7 +116,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.assertEqual(len(recorded_calls), 1)
         self.assertEqual(recorded_calls[0], "金币Challenge-right_click")
         self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 1)
-        self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.OFF)
+        self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.PENDING)
         self.assertNotIn("coin_challenge", self.med._challenge_done, "Right click success must NOT mark done immediately")
 
         # If on tick 2 coin_challenge is now ON (simulate via _challenge_done)
@@ -154,7 +154,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         res = self.med._ensure_challenge_buttons(self.frame_off)
         self.assertEqual(res, LoopAction.Continue)
         self.assertNotIn("coin_challenge", self.med._challenge_done)
-        self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.OFF)
+        self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.PENDING)
 
         # Second tick with frame_on (green auto visible): now marks ON
         res_on = self.med._ensure_challenge_buttons(self.frame_on)
@@ -226,7 +226,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
             self.assertEqual(self.med.phase, Phase.ERROR)
 
     def test_reset_challenge_state_on_entering_new_main_line(self):
-        """8. Check that set_phase(Phase.MAIN_LINE) resets all challenge done/attempts/states."""
+        """8. Check that set_phase(Phase.MAIN_LINE) resets challenge done/attempts and initializes states to PENDING."""
         self.med._challenge_done.add("coin_challenge")
         self.med._challenge_attempts["coin_challenge"] = 2
         self.med._challenge_states["coin_challenge"] = ChallengeState.ON
@@ -235,7 +235,32 @@ class TestP1A2ChallengeControls(unittest.TestCase):
 
         self.assertEqual(len(self.med._challenge_done), 0)
         self.assertEqual(len(self.med._challenge_attempts), 0)
-        self.assertEqual(len(self.med._challenge_states), 0)
+        for key in ("coin_challenge", "wood_challenge", "experience_challenge", "treasure_challenge"):
+            self.assertEqual(self.med._challenge_states.get(key), ChallengeState.PENDING)
+
+    def test_pending_lifecycle_and_transitions(self):
+        """Check PENDING lifecycle: initialized at PENDING, transitions to PENDING on right-click, ON when confirmed."""
+        self.med._auto_task_done = True
+        dummy_label = MatchResult("coin_challenge", 0.9, 100, 500, 50, 20, 100, 500)
+
+        # 1. Initially PENDING
+        self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.PENDING)
+
+        # 2. Right-click sent -> state transitions to PENDING waiting for confirmation
+        with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+             patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.OFF), \
+             patch.object(self.med.executor, "right_click", return_value=ActionResult(success=True, status="DRY_RUN")) as mock_rc:
+            res = self.med._ensure_challenge_buttons(self.frame_off)
+            self.assertEqual(res, LoopAction.Continue)
+            mock_rc.assert_called_once()
+            self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.PENDING)
+
+        # 3. Subsequent frame confirms green auto text -> transitions PENDING -> ON
+        with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+             patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.ON):
+            res_on = self.med._ensure_challenge_buttons(self.frame_on)
+            self.assertIn("coin_challenge", self.med._challenge_done)
+            self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.ON)
 
     # --- New Required Refactoring Regression Tests ---
 
@@ -307,7 +332,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
             acted = self.med._ensure_challenge_buttons(self.frame_off)
             self.assertEqual(acted, LoopAction.Continue)
             mock_rc.assert_called_once()
-            self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.OFF)
+            self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.PENDING)
 
 
 if __name__ == "__main__":

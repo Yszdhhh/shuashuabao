@@ -38,9 +38,9 @@ KK 地图页
 
 ## 1. 当前基线结论
 
-- P1-A2 已合入。当前全量 **94** 个单元测试全部通过 (`$env:PYTHONPATH="src"; python -m unittest discover -s tests -v`)，场景资源静态校验通过 (`ok=99 missing=0 root_unreferenced=0`)。
+- P1-A2 最终收尾已合入。当前全量 **100** 个单元测试全部通过 (`$env:PYTHONPATH="src"; python -m unittest discover -s tests -v`)，场景资源静态校验通过 (`ok=99 missing=0 root_unreferenced=0`)。
 - **P0-A 运行安全基础**：已完成 HWND 绑定、窗口身份校验、帧健康检查、全局 Shift+F12 急停与真实输入封锁，已验收通过。
-- **P0-B / P1-A2 回放与关卡语义现状**：真实截图回放（`python tools/run_replay.py`）摘要为 `Total=27, Passed=26, Failed=0, Required Missing=1`，退出码仍为 1。唯一必需缺口仍为 `missing_disconnect_modal`；已追踪回放素材包含房间等待页 (`room_waiting_host.png`)、局内自动任务关闭页 (`main_line_auto_off.png`)、局内自动任务开启页 (`main_line_auto_on.png`)、技能 3 选一 (`skill_choice_3.png`)、技能 4 选一 (`skill_choice_4.jpg`)，以及目标化 4 挑战按钮（`challenge_coin_off`, `challenge_wood_off`, `challenge_experience_off`, `challenge_treasure_off`）。P1-A2 四挑战按钮已完成安全自动化闭环与目标化 Replay 验收，按金币→木材→经验→宝物固定顺序分 tick 处理，仅在 OFF 状态发送右键且进行后置验证与 3 次重试 Fail-Closed 保护。右侧自动任务与左下角四挑战为两条独立控制链。战后、Boss、传家宝、大秘境、黑商当前仍保持 Fail-Closed 停机保护，尚未恢复自动化。
+- **P0-B / P1-A2 回放与关卡语义现状**：真实截图回放（`python tools/run_replay.py`）摘要为 `Total=27, Passed=26, Failed=0, Required Missing=1`，退出码仍为 1。唯一必需缺口仍为 `missing_disconnect_modal`；已追踪回放素材包含房间等待页 (`room_waiting_host.png`)、局内自动任务关闭页 (`main_line_auto_off.png`)、局内自动任务开启页 (`main_line_auto_on.png`)、技能 3 选一 (`skill_choice_3.png`)、技能 4 选一 (`skill_choice_4.jpg`)，以及目标化 4 挑战按钮（`challenge_coin_off`, `challenge_wood_off`, `challenge_experience_off`, `challenge_treasure_off`）。P1-A2 四挑战按钮已完成完整 4-State 状态机（`PENDING` -> `ON`/`OFF`/`UNKNOWN`）、右键后置确认、`UNKNOWN`/右键失败阻断选关及 3 次重试 Fail-Closed 保护。右侧自动任务与左下角四挑战为两条独立控制链。战后、Boss、传家宝、大秘境、羁绊、宝物、黑商当前仍保持 Fail-Closed 停机保护，尚未恢复自动化。
 - `docs/REBORN_WOW_GAME_STRATEGY_RESEARCH.md` 已完成外部研究，策略资料作为候选数据，不直接改变默认行为。
 
 ## 2. 外部调研与原版迁移策略
@@ -130,10 +130,10 @@ asj / asjg / assx / jq
 - 场景锚点、ROI、候选分差和危险动作后置条件。
 
 门禁状态：
-- P1-A2 已合入。
-- 全量 94 个单元测试全部通过。
+- P1-A2 已完成最终收尾。
+- 全量 100 个单元测试全部通过。
 - `tools/run_replay.py` 摘要为 `Total=27, Passed=26, Failed=0, Required Missing=1`，退出码仍为 1，唯一必需缺口仍为 `missing_disconnect_modal`；已追踪回放素材包含房间等待页 (`room_waiting_host.png`)、局内自动任务关闭页 (`main_line_auto_off.png`)、局内自动任务开启页 (`main_line_auto_on.png`)、技能 3 选一 (`skill_choice_3.png`)、技能 4 选一 (`skill_choice_4.jpg`)，以及目标化 4 挑战按钮（`challenge_coin_off`, `challenge_wood_off`, `challenge_experience_off`, `challenge_treasure_off`）。
-- **明确标记**：P1-A2 自动任务 OFF/ON、四个挑战按钮（金币/木材/经验/宝物）与技能三/四选一已完成；羁绊、宝物、黑商当前保持零动作；P0-C1 战后/大秘境入口仍为 Fail-Closed 停机保护，尚未恢复自动化。
+- **明确标记**：P1-A2 自动任务 OFF/ON、四个挑战按钮（金币/木材/经验/宝物，完整 PENDING 4-State 状态机与防泄露控制）与技能三/四选一已完成；羁绊、宝物、黑商当前保持零动作；P0-C1 战后/Boss/传家宝/大秘境入口仍为 Fail-Closed 停机保护，尚未恢复自动化。
 
 ### P1：识别和架构收敛 (待开展)
 

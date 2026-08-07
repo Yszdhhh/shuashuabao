@@ -97,7 +97,7 @@
 - **门禁阻塞真正原因与素材澄清**：
   1. **房间等待页 (`room_waiting_host`)**、**局内主线运行页 (`main_line_auto_off` / `main_line_auto_on`)**、**技能选择页 (`skill_choice_3` / `skill_choice_4`)**、**四挑战目标化条目 (`challenge_coin_off` ~ `challenge_treasure_off`)**：已安全接入根 `fixtures/manifest.json` 并通过真实截图回放验证。
   2. **断线弹窗 (`missing_disconnect_modal`)**：这是当前**唯一真正缺少**的必需当前版本全屏截图缺口。
-- **结论**：**P1-A2 代码、全量 94 个单测与已追踪素材回放均已通过，唯一必需缺口仍为 missing_disconnect_modal**。同时明确标记：P1-A2 自动任务 OFF/ON、四挑战按钮与技能三/四选一已完成；羁绊、宝物、黑商当前保持零动作；P0-C1 战后/大秘境入口仍为 Fail-Closed 停机保护，尚未恢复自动化。
+- **结论**：**P1-A2 收尾代码、全量 100 个单测与已追踪素材回放均已通过，唯一必需缺口仍为 missing_disconnect_modal**。同时明确标记：P1-A2 自动任务 OFF/ON、四挑战按钮（完整 PENDING 4-State 状态机与防泄露控制）与技能三/四选一已完成；羁绊、宝物、黑商当前保持零动作；P0-C1 战后/Boss/传家宝/大秘境入口仍为 Fail-Closed 停机保护，尚未恢复自动化。
 
 ---
 
@@ -280,5 +280,5 @@
 ## 6. 结论与后续推进路线
 
 1. 原版 1.3.8 的静态资源与配置文件提供了丰富的状态与特征参考，但必须严格区分直接事实（`CONFIRMED`）与推断/未确认项（`INFERRED`/`UNKNOWN`）。
-2. 当前新工程 `GameScript-Local` 已完成 P0-A 安全执行链与全量 94 个单元测试；P0-B / P1-A2 端到端回放门禁中，自动任务 OFF/ON、四挑战按钮（金币/木材/经验/宝物）与技能三/四选一均已通过 Replay 验证，唯一必需缺口仍为 `missing_disconnect_modal`（Required Missing=1）。
+2. 当前新工程 `GameScript-Local` 已完成 P0-A 安全执行链与全量 100 个单元测试；P0-B / P1-A2 端到端回放门禁中，自动任务 OFF/ON、四挑战按钮（金币/木材/经验/宝物，完整 PENDING 4-State 状态机）与技能三/四选一均已通过 Replay 验证，唯一必需缺口仍为 `missing_disconnect_modal`（Required Missing=1）。
 3. 后续功能推进严格遵循：**原版行为提炼 → 当前 UI 截图验证 → 安全迁移 → 回送 Replay 验收** 闭环。
