@@ -53,13 +53,13 @@
       "fallback": "blue_bottom_dialog_roi"
     },
     "room_start": {
-      "templates": ["kk_start"],
+      "templates": ["kk_start", "lobby/room_start", "lobby/room_start_alt", "lobby/startGameBtn", "startGameBtn"],
       "method": "EntryF1",
       "action": "click",
       "fallback": "blue_room_start_roi"
     },
     "stage_start": {
-      "templates": ["lobby/room_start", "lobby/room_start_alt", "startGameBtn"],
+      "templates": ["lobby/roomStart", "startGameBtn"],
       "method": "BeginGame",
       "action": "click"
     },
@@ -69,19 +69,19 @@
       "action": "detect_only"
     },
     "lobby_start": {
-      "templates": ["kk_start"],
+      "templates": ["kk_start", "lobby/room_start", "lobby/room_start_alt", "lobby/startGameBtn", "startGameBtn"],
       "method": "EntryF1",
       "action": "click",
       "alias_of": "room_start"
     },
     "lobby_room": {
-      "templates": ["kk_start"],
+      "templates": ["kk_start", "lobby/room_start", "lobby/room_start_alt", "lobby/startGameBtn", "startGameBtn"],
       "method": "EntryF1",
       "action": "click",
       "alias_of": "room_start"
     },
     "start": {
-      "templates": ["startGameBtn", "continueGame", "jihuo"],
+      "templates": ["lobby/roomStart", "startGameBtn", "continueGame", "jihuo"],
       "method": "EntryF1",
       "action": "click",
       "alias_of": "stage_start"
