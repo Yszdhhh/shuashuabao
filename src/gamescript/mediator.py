@@ -42,6 +42,8 @@ from gamescript.vision.matcher import (
     find_input_boxes,
     match_all,
     match_any,
+    match_one,
+    resolve_template,
 )
 from gamescript.vision.stage_selector import (
     find_stage_in_range,
@@ -406,75 +408,74 @@ class Mediator:
         wanted = {Path(value).stem for value in preferred if value}
         return next((hit for hit in hits if hit.name in wanted), None)
 
-    def _is_auto_task_enabled(self, frame: Frame) -> bool:
-        """Check if the right task panel '自动任务' checkbox is enabled (green checkmark present in narrow ROI)."""
-        if frame.bgr is None or frame.bgr.size == 0 or frame.width < 1000 or frame.height < 600:
-            return False
-        h, w = frame.height, frame.width
-        x1, x2 = int(0.87 * w), int(0.93 * w)
-        y1, y2 = int(0.55 * h), int(0.62 * h)
-        roi = frame.bgr[y1:y2, x1:x2]
-        if roi.size == 0:
-            return False
-        b, g, r = cv2.split(roi)
-        green_mask = (g > 120) & (g.astype(int) - r.astype(int) > 30) & (g.astype(int) - b.astype(int) > 20)
-        return int(green_mask.sum()) >= 15
-
-    def _find_auto_task_toggle(self, frame: Frame) -> MatchResult | None:
-        """Return a left-click candidate for the right-side auto task checkbox if it is explicitly OFF."""
+    def _auto_task_roi_frame(self, frame: Frame) -> Frame | None:
         if frame.bgr is None or frame.bgr.size == 0 or frame.width < 1000 or frame.height < 600:
             return None
+        h, w = frame.height, frame.width
+        x1, x2 = int(0.85 * w), int(0.95 * w)
+        y1, y2 = int(0.50 * h), int(0.65 * h)
+        roi_bgr = frame.bgr[y1:y2, x1:x2]
+        if roi_bgr.size == 0:
+            return None
+        return Frame(bgr=roi_bgr, left=frame.left + x1, top=frame.top + y1)
+
+    def _is_auto_task_enabled(self, frame: Frame) -> bool:
+        """Check if the right task panel '自动任务' checkbox is explicitly ON using auto_task_on template match."""
+        roi_frame = self._auto_task_roi_frame(frame)
+        if roi_frame is None:
+            return False
+        tmpl_on = resolve_template(self.images, "auto_task_on")
+        if tmpl_on is None or not tmpl_on.is_file():
+            return False
+        hit = match_one(roi_frame, tmpl_on, threshold=0.85, name="auto_task_on", scales=(0.9, 1.0, 1.1))
+        return hit is not None
+
+    def _find_auto_task_toggle(self, frame: Frame) -> MatchResult | None:
+        """Return a left-click candidate for the right-side auto task checkbox ONLY if explicitly OFF via auto_task_off template match."""
         if self._selection_anchor(frame):
             return None
         if self._is_auto_task_enabled(frame):
             return None
-        if frame.bgr is None or frame.bgr.size == 0:
+        roi_frame = self._auto_task_roi_frame(frame)
+        if roi_frame is None:
             return None
-        h, w = frame.height, frame.width
-        x1, x2 = int(0.87 * w), int(0.93 * w)
-        y1, y2 = int(0.55 * h), int(0.62 * h)
-        roi = frame.bgr[y1:y2, x1:x2]
-        if roi.size == 0:
+        tmpl_off = resolve_template(self.images, "auto_task_off")
+        if tmpl_off is None or not tmpl_off.is_file():
             return None
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        mean_val = float(np.mean(gray))
-        std_val = float(np.std(gray))
-        if not (30.0 <= mean_val <= 180.0 and std_val > 5.0):
-            return None
-        cx = int(w * (1435.0 / 1600.0))
-        cy = int(h * (530.0 / 900.0))
-        return MatchResult(
-            name="auto_task_toggle",
-            score=1.0,
-            x=max(0, cx - 10),
-            y=max(0, cy - 10),
-            w=20,
-            h=20,
-            screen_x=frame.left + max(0, cx - 10),
-            screen_y=frame.top + max(0, cy - 10),
-        )
+        hit = match_one(roi_frame, tmpl_off, threshold=0.85, name="auto_task_toggle", scales=(0.9, 1.0, 1.1))
+        return hit
 
-    def _ensure_auto_task_enabled(self, frame: Frame) -> bool:
+    def _ensure_auto_task_enabled(self, frame: Frame) -> LoopAction | None:
         """Ensure right-side auto task checkbox is clicked ON via left click."""
         if getattr(self, "_auto_task_done", False):
-            return False
+            return None
         if self._is_auto_task_enabled(frame):
             print("[L1] 自动任务开启模式已验证（已勾选）")
             self._auto_task_done = True
-            return False
+            return None
         if not hasattr(self, "_auto_task_attempts"):
             self._auto_task_attempts = 0
         if self._auto_task_attempts >= 3:
-            print(f"[L1] 自动任务点击重试已达上限 ({self._auto_task_attempts})，停止重复点击")
-            return False
+            print(f"[L1] 自动任务点击重试已达上限 ({self._auto_task_attempts})，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, "auto_task attempt limit reached")
+            self.stop()
+            return LoopAction.Break
+
         toggle = self._find_auto_task_toggle(frame)
         if not toggle:
-            return False
-        print(f"[L1] 自动开启【自动任务】左键 @ {toggle.center}")
+            return None
+
+        self._auto_task_attempts += 1
+        print(f"[L1] 自动开启【自动任务】左键 @ {toggle.center} (尝试 {self._auto_task_attempts}/3)")
         if self.act_click(toggle, "EnableAutoTask"):
-            self._auto_task_attempts += 1
-            return True
-        return False
+            return LoopAction.Continue
+
+        if self._auto_task_attempts >= 3:
+            print(f"[L1] 自动任务点击失败且重试已达上限 ({self._auto_task_attempts})，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, "EnableAutoTask click failed")
+            self.stop()
+            return LoopAction.Break
+        return LoopAction.Continue
 
     def _find_reward_choice(self, frame: Frame) -> tuple[str, MatchResult] | None:
         if not self._selection_anchor(frame):
@@ -515,7 +516,7 @@ class Mediator:
             return None
 
         configured_candidates.sort(key=lambda item: item[0])
-        best_priority_idx, best_hit = configured_candidates[0]
+        _, best_hit = configured_candidates[0]
         return ("技能", best_hit)
 
     def _find_challenge_button(self, frame: Frame, scene_key: str) -> tuple[MatchResult, MatchResult] | None:
@@ -1111,6 +1112,23 @@ class Mediator:
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
 
+        # 提前挑战 / Boss / 龙珠入口：未验证战后入口，Fail-Closed（最高优先，必须在任何选择、自动任务、挑战或选关之前）
+        if self.find_scene(frame, "archive"):
+            print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, "unverified archive entry")
+            self.stop()
+            return LoopAction.Break
+        if self.find_scene(frame, "boss_entry"):
+            print("[med] 识别到未验证战后入口 boss_entry，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, "unverified boss_entry")
+            self.stop()
+            return LoopAction.Break
+        if self.find_scene(frame, "longzhu"):
+            print("[med] 识别到未验证战后入口 longzhu，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, "unverified longzhu entry")
+            self.stop()
+            return LoopAction.Break
+
         # 选择面板优先；面板存在时禁止把刷新计数或快捷键当成按钮。
         if self._selection_anchor(frame):
             if now < self._selection_click_cooldown_until:
@@ -1128,9 +1146,10 @@ class Mediator:
             return LoopAction.Continue
 
         # 右侧“自动任务”复选框（左键点击）
-        if self._ensure_auto_task_enabled(frame):
+        auto_res = self._ensure_auto_task_enabled(frame)
+        if auto_res is not None:
             self._main_line_since = now
-            return LoopAction.Continue
+            return auto_res
 
         # 挑战按钮有自己的模板和自动状态检测，避免固定坐标反复切换开关。
         if self._ensure_challenge_buttons(frame):
@@ -1155,23 +1174,6 @@ class Mediator:
                     self._stage_click_cooldown_until = now + 2.0
                     self._main_line_since = now
                     return LoopAction.Continue
-
-        # 提前挑战 / Boss / 龙珠入口：未验证战后入口，Fail-Closed
-        if self.find_scene(frame, "archive"):
-            print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
-            self.set_phase(Phase.ERROR, "unverified archive entry")
-            self.stop()
-            return LoopAction.Break
-        if self.find_scene(frame, "boss_entry"):
-            print("[med] 识别到未验证战后入口 boss_entry，Fail-Closed 停止运行")
-            self.set_phase(Phase.ERROR, "unverified boss_entry")
-            self.stop()
-            return LoopAction.Break
-        if self.find_scene(frame, "longzhu"):
-            print("[med] 识别到未验证战后入口 longzhu，Fail-Closed 停止运行")
-            self.set_phase(Phase.ERROR, "unverified longzhu entry")
-            self.stop()
-            return LoopAction.Break
 
         print("[med] 主线 idle（等待局内选择/挑战 UI）")
         if self._main_line_since is not None:
