@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from gamescript.input.keyboard_mouse import ActionResult, InputExecutor
-from gamescript.mediator import Mediator, Phase
+from gamescript.mediator import LoopAction, Mediator, Phase
 from gamescript.settings import Settings
 from gamescript.stop_signal import StopSignal
 from gamescript.vision.capture import Frame
@@ -120,7 +120,7 @@ class P0B1FixesTests(unittest.TestCase):
         with patch.object(self.med.executor, "right_click", return_value=ActionResult(success=True, status="DRY_RUN")) as mock_rc:
             self.med._last_frame = f_off
             acted = self.med._ensure_challenge_buttons(f_off)
-            self.assertTrue(acted)
+            self.assertEqual(acted, LoopAction.Continue)
             mock_rc.assert_called_once()
             _, kwargs = mock_rc.call_args
             self.assertEqual(kwargs.get("target_hwnd"), 12345)
@@ -134,7 +134,7 @@ class P0B1FixesTests(unittest.TestCase):
         with patch.object(self.med.executor, "right_click", return_value=ActionResult(success=False, status="CANCELLED_WINDOW_CHANGED", message="Window changed")) as mock_rc:
             self.med._last_frame = f_off
             acted = self.med._ensure_challenge_buttons(f_off)
-            self.assertFalse(acted)
+            self.assertEqual(acted, LoopAction.Continue)
             # scene_key should NOT be marked done
             self.assertEqual(len(self.med._challenge_done), 0)
 
@@ -208,7 +208,7 @@ class P0B1FixesTests(unittest.TestCase):
         with patch.object(self.med.executor, "right_click", return_value=ActionResult(success=True, status="DRY_RUN")) as mock_rc:
             self.med._last_frame = f_off
             acted = self.med._ensure_challenge_buttons(f_off)
-            self.assertTrue(acted)
+            self.assertEqual(acted, LoopAction.Continue)
             mock_rc.assert_called_once()
             _, kwargs = mock_rc.call_args
             self.assertEqual(kwargs.get("target_hwnd"), 12345)

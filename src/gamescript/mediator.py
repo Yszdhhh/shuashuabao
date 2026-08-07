@@ -545,23 +545,48 @@ class Mediator:
         return label, click_hit
 
     @staticmethod
-    def _challenge_is_auto(frame: Frame, label: MatchResult) -> bool:
-        # The green "自动" text is displayed in a strict ROI directly above the card label
-        x1 = max(0, label.x - 5)
-        x2 = min(frame.width, label.x + label.w + 5)
-        y1 = max(0, label.y - 60)
-        y2 = max(y1, label.y - 25)
+    def _resolve_challenge_state(frame: Frame, label_hit: MatchResult | None) -> ChallengeState:
+        """Explicitly resolve ChallengeState (ON/OFF/UNKNOWN) for a bottom challenge toggle.
+
+        Rules:
+        - ON: Explicit green '自动' text detected above label (green_count >= 30).
+        - OFF: Explicit OFF evidence (label_hit score >= 0.70 AND green_count < 10).
+        - UNKNOWN: Label missing, score < 0.70, ROI size 0, or ambiguous green text (10 <= green_count < 30).
+        """
+        if not label_hit or label_hit.score < 0.70:
+            return ChallengeState.UNKNOWN
+
+        x1 = max(0, label_hit.x - 5)
+        x2 = min(frame.width, label_hit.x + label_hit.w + 5)
+        y1 = max(0, label_hit.y - 60)
+        y2 = max(y1, label_hit.y - 25)
         roi = frame.bgr[y1:y2, x1:x2]
         if roi.size == 0:
-            return False
+            return ChallengeState.UNKNOWN
+
         b, g, r = cv2.split(roi)
         green = (g > 120) & (g.astype(int) - r.astype(int) > 30) & (g.astype(int) - b.astype(int) > 20)
-        return int(green.sum()) >= 30
+        green_count = int(green.sum())
 
-    def _ensure_challenge_buttons(self, frame: Frame) -> bool:
+        if green_count >= 30:
+            return ChallengeState.ON
+        elif green_count < 10:
+            return ChallengeState.OFF
+        else:
+            return ChallengeState.UNKNOWN
+
+    @staticmethod
+    def _challenge_is_auto(frame: Frame, label: MatchResult) -> bool:
+        """Backward compatibility wrapper returning True if challenge state is ON."""
+        return Mediator._resolve_challenge_state(frame, label) == ChallengeState.ON
+
+    def _ensure_challenge_buttons(self, frame: Frame) -> LoopAction | None:
         """Process bottom challenge buttons in strict fixed order: coin -> wood -> experience -> treasure.
         Each tick processes at most ONE challenge.
-        Returns True if a right-click action was executed in this tick, False otherwise.
+        Returns:
+          - LoopAction.Continue: If right-click attempted (success/failed) OR state is UNKNOWN (ends tick, blocks downstream input).
+          - LoopAction.Break: If Phase.ERROR or StopSignal triggered (breaks main loop).
+          - None: ONLY when all 4 challenges are confirmed ON/done (allows downstream non-input logic).
         """
         for scene_key, label in (
             ("coin_challenge", "金币"),
@@ -578,36 +603,45 @@ class Mediator:
                 print(f"[L1] {label}挑战重试次数已达上限 ({attempts}) 且未确认开启，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, f"{scene_key} attempt limit reached")
                 self.stop()
-                return False
+                return LoopAction.Break
 
             found = self._find_challenge_button(frame, scene_key)
-            if not found:
-                self._challenge_states[scene_key] = ChallengeState.UNKNOWN
-                continue
+            label_hit = found[0] if found else None
+            state = self._resolve_challenge_state(frame, label_hit)
 
-            label_hit, click_hit = found
-            if self._challenge_is_auto(frame, label_hit):
+            if state == ChallengeState.ON:
                 print(f"[L1] {label}挑战已是自动模式")
                 self._challenge_states[scene_key] = ChallengeState.ON
                 self._challenge_done.add(scene_key)
                 continue
 
-            self._challenge_states[scene_key] = ChallengeState.OFF
-            self._challenge_attempts[scene_key] = attempts + 1
-            print(f"[L1] 自动开启【{label}挑战】右键 @ {click_hit.center} (尝试 {self._challenge_attempts[scene_key]}/3)")
-            act_res = self.act_right_click(click_hit, f"{label}Challenge-right_click")
-            if self.phase == Phase.ERROR or self.stop_signal.is_set():
-                return False
+            elif state == ChallengeState.UNKNOWN:
+                print(f"[L1] {label}挑战状态为 UNKNOWN（未发现/模糊/低置信），零动作等待")
+                self._challenge_states[scene_key] = ChallengeState.UNKNOWN
+                # End this tick immediately, preventing downstream stage select or other inputs
+                return LoopAction.Continue
 
-            if not act_res and self._challenge_attempts[scene_key] >= 3:
-                print(f"[L1] {label}挑战右键发送失败且重试已达上限 ({self._challenge_attempts[scene_key]})，Fail-Closed 停止运行")
-                self.set_phase(Phase.ERROR, f"{scene_key} right_click failed limit reached")
-                self.stop()
-                return False
+            elif state == ChallengeState.OFF:
+                click_hit = found[1]
+                self._challenge_states[scene_key] = ChallengeState.OFF
+                self._challenge_attempts[scene_key] = attempts + 1
+                current_attempts = self._challenge_attempts[scene_key]
+                print(f"[L1] 自动开启【{label}挑战】右键 @ {click_hit.center} (尝试 {current_attempts}/3)")
+                act_res = self.act_right_click(click_hit, f"{label}Challenge-right_click")
 
-            return bool(act_res)
+                if self.phase == Phase.ERROR or self.stop_signal.is_set():
+                    return LoopAction.Break
 
-        return False
+                if not act_res and current_attempts >= 3:
+                    print(f"[L1] {label}挑战右键发送失败且重试已达上限 ({current_attempts})，Fail-Closed 停止运行")
+                    self.set_phase(Phase.ERROR, f"{scene_key} right_click failed limit reached")
+                    self.stop()
+                    return LoopAction.Break
+
+                # Right-click attempted (succeeded or failed with attempts < 3) -> end this tick!
+                return LoopAction.Continue
+
+        return None
 
     def _handle_hero_mode_reputation(self, frame: Frame) -> bool:
         """开启并配置英雄模式（声望挑战）: 1:黑锋骑士团, 2:银色北伐军, 3:肯瑞托, 4:探险者协会, 5:元素领主, 6:守护巨龙"""
@@ -1182,11 +1216,10 @@ class Mediator:
             return auto_res
 
         # 挑战按钮有自己的模板和自动状态检测，避免固定坐标反复切换开关。
-        if self._ensure_challenge_buttons(frame):
+        ch_res = self._ensure_challenge_buttons(frame)
+        if ch_res is not None:
             self._main_line_since = now
-            return LoopAction.Continue
-        if self.phase == Phase.ERROR or self.stop_signal.is_set():
-            return LoopAction.Break
+            return ch_res
 
         # 关卡选关：只点击右侧编号行，不能把 stage.png 地图卡片当按钮。
         if now >= self._stage_click_cooldown_until:

@@ -8,6 +8,7 @@ Tests cover:
 - Retry limit (3) and Fail-Closed stop in Phase.ERROR
 - Safety cancellation (StopSignal, HWND mismatch, dry_run=False without target_hwnd)
 - Regression protections for P0 Fail-Closed archive/boss_entry/longzhu and skill selection
+- Explicit 4-State resolution (ON, OFF, UNKNOWN, PENDING) and zero-leakage of downstream inputs on UNKNOWN/failures
 """
 
 import math
@@ -23,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
+from gamescript.input.keyboard_mouse import ActionResult
 from gamescript.mediator import ChallengeState, LoopAction, Mediator, Phase
 from gamescript.settings import Settings
 from gamescript.stop_signal import StopSignal
@@ -72,9 +74,9 @@ class TestP1A2ChallengeControls(unittest.TestCase):
             is_in_auto_task_roi = (bx <= cx <= bx + bw) and (by <= cy <= by + bh)
             self.assertFalse(is_in_auto_task_roi, f"{key} click point {click_hit.center} fell into auto_task ROI")
 
-            # Check that green auto status is NOT detected on main_line_auto_off.png
-            is_auto = self.med._challenge_is_auto(self.frame_off, label_hit)
-            self.assertFalse(is_auto, f"{key} detected green auto on main_line_auto_off.png when it should be OFF")
+            # Check explicit state resolution on main_line_auto_off.png (should be OFF)
+            state = self.med._resolve_challenge_state(self.frame_off, label_hit)
+            self.assertEqual(state, ChallengeState.OFF, f"{key} should be resolved as OFF on main_line_auto_off.png")
 
     def test_all_challenges_on_main_line_auto_on(self):
         """2. Check that on main_line_auto_on.png, all 4 challenges are confirmed ON and produce zero right click."""
@@ -84,13 +86,13 @@ class TestP1A2ChallengeControls(unittest.TestCase):
             found = self.med._find_challenge_button(self.frame_on, key)
             self.assertIsNotNone(found, f"Challenge button {key} not found on main_line_auto_on.png")
             label_hit, _ = found
-            is_auto = self.med._challenge_is_auto(self.frame_on, label_hit)
-            self.assertTrue(is_auto, f"{key} should be detected as ON (green auto) on main_line_auto_on.png")
+            state = self.med._resolve_challenge_state(self.frame_on, label_hit)
+            self.assertEqual(state, ChallengeState.ON, f"{key} should be detected as ON (green auto) on main_line_auto_on.png")
 
-        # When auto task is already ON (as in main_line_auto_on.png), Mediator takes no action on auto task or challenges
+        # When all 4 challenges are ON, _ensure_challenge_buttons returns None
         self.med._auto_task_done = True
-        acted = self.med._ensure_challenge_buttons(self.frame_on)
-        self.assertFalse(acted, "Should produce zero right click (False) when all 4 challenges are ON")
+        res = self.med._ensure_challenge_buttons(self.frame_on)
+        self.assertIsNone(res, "Should return None when all 4 challenges are ON (allowing downstream non-input logic)")
         for key in keys:
             self.assertEqual(self.med._challenge_states.get(key), ChallengeState.ON)
             self.assertIn(key, self.med._challenge_done)
@@ -110,7 +112,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
 
         # Tick 1: Should trigger coin_challenge only
         res1 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertTrue(res1)
+        self.assertEqual(res1, LoopAction.Continue)
         self.assertEqual(len(recorded_calls), 1)
         self.assertEqual(recorded_calls[0], "金币Challenge-right_click")
         self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 1)
@@ -120,28 +122,28 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         # If on tick 2 coin_challenge is now ON (simulate via _challenge_done)
         self.med._challenge_done.add("coin_challenge")
         res2 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertTrue(res2)
+        self.assertEqual(res2, LoopAction.Continue)
         self.assertEqual(len(recorded_calls), 2)
         self.assertEqual(recorded_calls[1], "木材Challenge-right_click")
 
         # Tick 3: wood_challenge now ON
         self.med._challenge_done.add("wood_challenge")
         res3 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertTrue(res3)
+        self.assertEqual(res3, LoopAction.Continue)
         self.assertEqual(len(recorded_calls), 3)
         self.assertEqual(recorded_calls[2], "经验Challenge-right_click")
 
         # Tick 4: experience_challenge now ON
         self.med._challenge_done.add("experience_challenge")
         res4 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertTrue(res4)
+        self.assertEqual(res4, LoopAction.Continue)
         self.assertEqual(len(recorded_calls), 4)
         self.assertEqual(recorded_calls[3], "宝物Challenge-right_click")
 
-        # Tick 5: treasure_challenge now ON -> all done -> returns False
+        # Tick 5: treasure_challenge now ON -> all done -> returns None
         self.med._challenge_done.add("treasure_challenge")
         res5 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertFalse(res5)
+        self.assertIsNone(res5)
 
     def test_post_verification_requires_green_auto_on_subsequent_frame(self):
         """4. Check post-verification: right-click does NOT mark challenge ON immediately."""
@@ -150,13 +152,13 @@ class TestP1A2ChallengeControls(unittest.TestCase):
 
         # First tick: right-clicks coin_challenge
         res = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertTrue(res)
+        self.assertEqual(res, LoopAction.Continue)
         self.assertNotIn("coin_challenge", self.med._challenge_done)
         self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.OFF)
 
         # Second tick with frame_on (green auto visible): now marks ON
         res_on = self.med._ensure_challenge_buttons(self.frame_on)
-        self.assertFalse(res_on)  # frame_on marks all ON and takes no click action
+        self.assertIsNone(res_on)  # frame_on marks all ON -> returns None
         self.assertIn("coin_challenge", self.med._challenge_done)
         self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.ON)
 
@@ -167,22 +169,22 @@ class TestP1A2ChallengeControls(unittest.TestCase):
 
         # Attempt 1
         res1 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertTrue(res1)
+        self.assertEqual(res1, LoopAction.Continue)
         self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 1)
 
         # Attempt 2 (still OFF on frame_off)
         res2 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertTrue(res2)
+        self.assertEqual(res2, LoopAction.Continue)
         self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 2)
 
         # Attempt 3 (still OFF on frame_off)
         res3 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertTrue(res3)
+        self.assertEqual(res3, LoopAction.Continue)
         self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 3)
 
         # Attempt 4: attempts >= 3 and still OFF -> Fail-Closed stop in Phase.ERROR
         res4 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertFalse(res4)
+        self.assertEqual(res4, LoopAction.Break)
         self.assertEqual(self.med.phase, Phase.ERROR)
         self.assertFalse(self.med._running)
 
@@ -193,7 +195,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         # StopSignal active
         self.stop_signal.trigger("test stop")
         res_stop = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertFalse(res_stop)
+        self.assertEqual(res_stop, LoopAction.Break)
 
         # Reset stop signal & mediator
         self.stop_signal.reset()
@@ -234,6 +236,78 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.assertEqual(len(self.med._challenge_done), 0)
         self.assertEqual(len(self.med._challenge_attempts), 0)
         self.assertEqual(len(self.med._challenge_states), 0)
+
+    # --- New Required Refactoring Regression Tests ---
+
+    def test_unknown_state_blocks_input_and_blocks_stage_select(self):
+        """Regression 1: UNKNOWN state due to blurry/gray/obstructed ROI produces 0 clicks, 0 attempts, and blocks stage select."""
+        self.med._auto_task_done = True
+        dummy_label = MatchResult("coin_challenge", 0.8, 100, 500, 50, 20, 100, 500)
+
+        with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+             patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.UNKNOWN), \
+             patch.object(self.med.executor, "right_click") as mock_rc, \
+             patch("gamescript.mediator.find_stage_labels") as mock_stage_find:
+
+            res = self.med._tick_main_line(self.frame_off)
+            self.assertEqual(res, LoopAction.Continue)
+            mock_rc.assert_not_called()
+            mock_stage_find.assert_not_called()
+            self.assertEqual(self.med._challenge_attempts.get("coin_challenge", 0), 0)
+            self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.UNKNOWN)
+
+    def test_right_click_failure_attempt_1_blocks_stage_select(self):
+        """Regression 2: Right click failure on attempt 1 increments attempt, returns Continue, and blocks stage select."""
+        self.med._auto_task_done = True
+
+        with patch.object(self.med.executor, "right_click", return_value=ActionResult(success=False, status="FAILED")) as mock_rc, \
+             patch("gamescript.mediator.find_stage_labels") as mock_stage_find:
+
+            res = self.med._tick_main_line(self.frame_off)
+            self.assertEqual(res, LoopAction.Continue)
+            mock_rc.assert_called_once()
+            mock_stage_find.assert_not_called()
+            self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 1)
+
+    def test_right_click_failure_attempt_3_enters_phase_error(self):
+        """Regression 3: Consecutive 3rd failed attempt sets Phase.ERROR, stops mediator, and returns Break."""
+        self.med._auto_task_done = True
+        self.med._challenge_attempts["coin_challenge"] = 2
+
+        with patch.object(self.med.executor, "right_click", return_value=ActionResult(success=False, status="FAILED")) as mock_rc, \
+             patch("gamescript.mediator.find_stage_labels") as mock_stage_find:
+
+            res = self.med._tick_main_line(self.frame_off)
+            self.assertEqual(res, LoopAction.Break)
+            self.assertEqual(self.med.phase, Phase.ERROR)
+            self.assertFalse(self.med._running)
+            mock_stage_find.assert_not_called()
+
+    def test_explicit_on_state_produces_zero_click(self):
+        """Regression 4: Explicit ON state (green auto text >= 30) produces zero clicks."""
+        dummy_label = MatchResult("coin_challenge", 0.9, 100, 500, 50, 20, 100, 500)
+
+        with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+             patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.ON), \
+             patch.object(self.med.executor, "right_click") as mock_rc:
+
+            acted = self.med._ensure_challenge_buttons(self.frame_on)
+            self.assertIsNone(acted)  # all ON -> returns None
+            mock_rc.assert_not_called()
+            self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.ON)
+
+    def test_explicit_off_state_only_triggers_right_click(self):
+        """Regression 5: Right click is only triggered when state is explicitly OFF."""
+        dummy_label = MatchResult("coin_challenge", 0.9, 100, 500, 50, 20, 100, 500)
+
+        with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+             patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.OFF), \
+             patch.object(self.med.executor, "right_click", return_value=ActionResult(success=True, status="DRY_RUN")) as mock_rc:
+
+            acted = self.med._ensure_challenge_buttons(self.frame_off)
+            self.assertEqual(acted, LoopAction.Continue)
+            mock_rc.assert_called_once()
+            self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.OFF)
 
 
 if __name__ == "__main__":
