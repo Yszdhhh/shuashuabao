@@ -255,7 +255,21 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
     # 5) MAIN_LINE
     elif context in ("MAIN_LINE", "IN_GAME") or expected_state in ("MAIN_LINE", "IN_GAME"):
         detected_scene = "MAIN_LINE"
-        if med._selection_anchor(frame):
+        target_challenge = fixture.get("target_challenge")
+        if target_challenge:
+            found = med._find_challenge_button(frame, target_challenge)
+            if found:
+                label_hit, click_hit = found
+                if not med._challenge_is_auto(frame, label_hit):
+                    candidate_box = [click_hit.x, click_hit.y, click_hit.w, click_hit.h]
+                    best_score = click_hit.score
+                    second_score = 0.0
+                    score_margin = click_hit.score
+                    action_name = "EnableAutoChallenges"
+                    action_kind = "right_click"
+                    if not is_negative:
+                        click_point = click_hit.center
+        elif med._selection_anchor(frame):
             choice = med._find_reward_choice(frame)
             if choice:
                 kind, hit = choice

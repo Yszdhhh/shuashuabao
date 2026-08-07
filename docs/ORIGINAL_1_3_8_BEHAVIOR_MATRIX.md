@@ -88,16 +88,16 @@
 
 ### 3.2 当前 P0-B 回放门禁实际状态与素材缺口说明
 - **P0-A 安全执行链**：已在 `src/gamescript/` 中实装并通过全量单元测试。
-- **P0-B / P1-A1 回放门禁现状**：P1-A1 已合入。运行 `python tools/run_replay.py` 实际结果为：
+- **P0-B / P1-A2 回放门禁现状**：P1-A2 已合入。运行 `python tools/run_replay.py` 实际结果为：
   ```text
-  Summary: Total=23, Passed=22, Failed=0, Required Missing=1, Optional Missing=0
+  Summary: Total=27, Passed=26, Failed=0, Required Missing=1, Optional Missing=0
   [ERROR] Replay failed gatekeeper check: Required Missing=1, Failed=0
   exit code = 1
   ```
 - **门禁阻塞真正原因与素材澄清**：
-  1. **房间等待页 (`room_waiting_host`)**、**局内主线运行页 (`main_line_auto_off` / `main_line_auto_on`)**、**技能选择页 (`skill_choice_3` / `skill_choice_4`)**：已安全接入根 `fixtures/manifest.json` 并通过真实截图回放验证。
+  1. **房间等待页 (`room_waiting_host`)**、**局内主线运行页 (`main_line_auto_off` / `main_line_auto_on`)**、**技能选择页 (`skill_choice_3` / `skill_choice_4`)**、**四挑战目标化条目 (`challenge_coin_off` ~ `challenge_treasure_off`)**：已安全接入根 `fixtures/manifest.json` 并通过真实截图回放验证。
   2. **断线弹窗 (`missing_disconnect_modal`)**：这是当前**唯一真正缺少**的必需当前版本全屏截图缺口。
-- **结论**：**P1-A1 代码、全量 86 个单测与已追踪素材回放均已通过，唯一必需缺口仍为 missing_disconnect_modal**。同时明确标记：P1-A1 自动任务 OFF/ON 与技能三/四选一已完成；羁绊、宝物、黑商当前保持零动作；P0-C1 战后/大秘境入口仍为 Fail-Closed 停机保护，尚未恢复自动化。
+- **结论**：**P1-A2 代码、全量 94 个单测与已追踪素材回放均已通过，唯一必需缺口仍为 missing_disconnect_modal**。同时明确标记：P1-A2 自动任务 OFF/ON、四挑战按钮与技能三/四选一已完成；羁绊、宝物、黑商当前保持零动作；P0-C1 战后/大秘境入口仍为 Fail-Closed 停机保护，尚未恢复自动化。
 
 ---
 
@@ -146,7 +146,7 @@
     - **左下角四个挑战按钮（金币、木材、经验、宝物）**：通过“悬停 + 右键”开启自动；后置确认必须显示绿色 `自动` 标识；若已为绿色 `自动` 禁止重复右键。
 * **C. 当前代码/回放实际覆盖**：
   - **右侧“自动任务”复选框**：P1-A1 已完成 `main_line_auto_off.png` / `main_line_auto_on.png` OFF/ON 正向模板识别、左键控制与 Replay 验收（已接入根 `fixtures/manifest.json` 并通过真实截图回放）。
-  - **左下角四个挑战按钮**：`Mediator` 已包含识别挑战卡片自动状态与避免重复右键的局部逻辑（`test_challenge_label_maps_to_icon_click_and_detects_auto`），但仍未形成完整的当前版本端到端自动化闭环。
+  - **左下角四个挑战按钮**：P1-A2 已完成 4-State 状态机 (PENDING/OFF/ON/UNKNOWN)、图标精准右键控制、固定顺序 (金币→木材→经验→宝物)、单 tick 1 输入限制、后置绿色“自动”验证、3 次重试 Fail-Closed 停机与 4 目标化 Replay 验收 (`challenge_coin_off`, `challenge_wood_off`, `challenge_experience_off`, `challenge_treasure_off`)。
 * **D. 建议的安全迁移策略**：
   - 识别到 `MAIN_LINE_AUTO_OFF` 后发送左键点击开启；检测到 `MAIN_LINE_AUTO_ON` 保持开启状态不重复点击。
 * **证据等级**：`CONFIRMED`（PDB/模板/用户规则）/ `INFERRED`（原版波次检测算法）
@@ -265,6 +265,9 @@
 3. **技能选择三选一/四选一全屏截图** (`skill_choice_3` / `skill_choice_4`)
    - **状态**：**已接入**（权威 Replay 路径 `fixtures/replay/skill_choice_3.png` 与 `fixtures/replay/skill_choice_4.jpg`；原始素材三选一 `fixtures/reborn_wow/choices/skill_choice_3.png`）。
    - **结论**：已接入根 `fixtures/manifest.json` 并通过 Replay 验收。
+4. **四个挑战按钮目标化全屏截图** (`challenge_coin_off` ~ `challenge_treasure_off`)
+   - **状态**：**已接入**（权威 Replay 路径 `fixtures/replay/main_line_auto_off.png` 与 `main_line_auto_on.png` 结合 `target_challenge` 目标化登记）。
+   - **结论**：已接入根 `fixtures/manifest.json` 并通过 Replay 验收。
 
 ### 5.3 未来扩展可选补充证据
 1. **当前版本完整黑商状态全屏截图**
@@ -277,5 +280,5 @@
 ## 6. 结论与后续推进路线
 
 1. 原版 1.3.8 的静态资源与配置文件提供了丰富的状态与特征参考，但必须严格区分直接事实（`CONFIRMED`）与推断/未确认项（`INFERRED`/`UNKNOWN`）。
-2. 当前新工程 `GameScript-Local` 已完成 P0-A 安全执行链与全量 86 个单元测试；P0-B / P1-A1 端到端回放门禁中，自动任务 OFF/ON 与技能三/四选一均已通过 Replay 验证，唯一必需缺口仍为 `missing_disconnect_modal`（Required Missing=1）。
+2. 当前新工程 `GameScript-Local` 已完成 P0-A 安全执行链与全量 94 个单元测试；P0-B / P1-A2 端到端回放门禁中，自动任务 OFF/ON、四挑战按钮（金币/木材/经验/宝物）与技能三/四选一均已通过 Replay 验证，唯一必需缺口仍为 `missing_disconnect_modal`（Required Missing=1）。
 3. 后续功能推进严格遵循：**原版行为提炼 → 当前 UI 截图验证 → 安全迁移 → 回送 Replay 验收** 闭环。

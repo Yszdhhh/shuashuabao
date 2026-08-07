@@ -164,6 +164,118 @@
       "required": true
     },
     {
+      "fixture_id": "challenge_coin_off",
+      "file_path": "fixtures/replay/main_line_auto_off.png",
+      "expected_state": "MAIN_LINE",
+      "target_challenge": "coin_challenge",
+      "expected_action": "EnableAutoChallenges",
+      "expected_input_kind": "right_click",
+      "forbidden_click_regions": [
+        {
+          "tag": "auto_task_checkbox",
+          "box": [1400, 500, 150, 100]
+        },
+        {
+          "tag": "wood_challenge_region",
+          "box": [210, 640, 90, 80]
+        },
+        {
+          "tag": "experience_challenge_region",
+          "box": [290, 640, 90, 80]
+        },
+        {
+          "tag": "treasure_challenge_region",
+          "box": [360, 640, 90, 80]
+        }
+      ],
+      "is_negative": false,
+      "required": true
+    },
+    {
+      "fixture_id": "challenge_wood_off",
+      "file_path": "fixtures/replay/main_line_auto_off.png",
+      "expected_state": "MAIN_LINE",
+      "target_challenge": "wood_challenge",
+      "expected_action": "EnableAutoChallenges",
+      "expected_input_kind": "right_click",
+      "forbidden_click_regions": [
+        {
+          "tag": "auto_task_checkbox",
+          "box": [1400, 500, 150, 100]
+        },
+        {
+          "tag": "coin_challenge_region",
+          "box": [130, 640, 90, 80]
+        },
+        {
+          "tag": "experience_challenge_region",
+          "box": [290, 640, 90, 80]
+        },
+        {
+          "tag": "treasure_challenge_region",
+          "box": [360, 640, 90, 80]
+        }
+      ],
+      "is_negative": false,
+      "required": true
+    },
+    {
+      "fixture_id": "challenge_experience_off",
+      "file_path": "fixtures/replay/main_line_auto_off.png",
+      "expected_state": "MAIN_LINE",
+      "target_challenge": "experience_challenge",
+      "expected_action": "EnableAutoChallenges",
+      "expected_input_kind": "right_click",
+      "forbidden_click_regions": [
+        {
+          "tag": "auto_task_checkbox",
+          "box": [1400, 500, 150, 100]
+        },
+        {
+          "tag": "coin_challenge_region",
+          "box": [130, 640, 90, 80]
+        },
+        {
+          "tag": "wood_challenge_region",
+          "box": [210, 640, 90, 80]
+        },
+        {
+          "tag": "treasure_challenge_region",
+          "box": [360, 640, 90, 80]
+        }
+      ],
+      "is_negative": false,
+      "required": true
+    },
+    {
+      "fixture_id": "challenge_treasure_off",
+      "file_path": "fixtures/replay/main_line_auto_off.png",
+      "expected_state": "MAIN_LINE",
+      "target_challenge": "treasure_challenge",
+      "expected_action": "EnableAutoChallenges",
+      "expected_input_kind": "right_click",
+      "forbidden_click_regions": [
+        {
+          "tag": "auto_task_checkbox",
+          "box": [1400, 500, 150, 100]
+        },
+        {
+          "tag": "coin_challenge_region",
+          "box": [130, 640, 90, 80]
+        },
+        {
+          "tag": "wood_challenge_region",
+          "box": [210, 640, 90, 80]
+        },
+        {
+          "tag": "experience_challenge_region",
+          "box": [290, 640, 90, 80]
+        }
+      ],
+      "is_negative": false,
+      "required": true
+    },
+    {
       "fixture_id": "skill_choice_3",
       "file_path": "fixtures/replay/skill_choice_3.png",
       "resolution": [

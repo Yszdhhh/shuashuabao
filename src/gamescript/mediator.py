@@ -76,6 +76,13 @@ class Phase(Enum):
     NEXT = auto()  # 下一局
 
 
+class ChallengeState(Enum):
+    PENDING = auto()
+    OFF = auto()
+    ON = auto()
+    UNKNOWN = auto()
+
+
 class Mediator:
     def __init__(self, settings: Settings, project_root: Path, stop_signal: StopSignal | None = None):
         self.settings = settings
@@ -115,6 +122,7 @@ class Mediator:
         self._selection_click_cooldown_until = 0.0
         self._challenge_done: set[str] = set()
         self._challenge_attempts: dict[str, int] = {}
+        self._challenge_states: dict[str, ChallengeState] = {}
         self._auto_task_done: bool = False
         self._auto_task_attempts: int = 0
 
@@ -550,7 +558,11 @@ class Mediator:
         green = (g > 120) & (g.astype(int) - r.astype(int) > 30) & (g.astype(int) - b.astype(int) > 20)
         return int(green.sum()) >= 30
 
-    def _ensure_challenge_buttons(self, frame: Frame) -> bool:
+    def _ensure_challenge_buttons(self, frame: Frame) -> LoopAction | None:
+        """Process bottom challenge buttons in strict fixed order: coin -> wood -> experience -> treasure.
+        Each tick processes at most ONE challenge.
+        Returns LoopAction.Continue if right-click sent, LoopAction.Break if limit reached / stopped, or None if no action.
+        """
         for scene_key, label in (
             ("coin_challenge", "金币"),
             ("wood_challenge", "木材"),
@@ -558,26 +570,44 @@ class Mediator:
             ("treasure_challenge", "宝物"),
         ):
             if scene_key in self._challenge_done:
+                self._challenge_states[scene_key] = ChallengeState.ON
                 continue
+
+            attempts = self._challenge_attempts.get(scene_key, 0)
+            if attempts >= 3:
+                print(f"[L1] {label}挑战重试次数已达上限 ({attempts}) 且未确认开启，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, f"{scene_key} attempt limit reached")
+                self.stop()
+                return LoopAction.Break
+
             found = self._find_challenge_button(frame, scene_key)
             if not found:
+                self._challenge_states[scene_key] = ChallengeState.UNKNOWN
                 continue
+
             label_hit, click_hit = found
             if self._challenge_is_auto(frame, label_hit):
                 print(f"[L1] {label}挑战已是自动模式")
+                self._challenge_states[scene_key] = ChallengeState.ON
                 self._challenge_done.add(scene_key)
                 continue
-            if not hasattr(self, "_challenge_attempts"):
-                self._challenge_attempts: dict[str, int] = {}
-            attempts = self._challenge_attempts.get(scene_key, 0)
-            if attempts >= 3:
-                print(f"[L1] {label}挑战点击重试已达上限 ({attempts})，停止重复点击")
-                continue
-            print(f"[L1] 自动开启【{label}挑战】右键 @ {click_hit.center}")
-            if self.act_right_click(click_hit, f"{label}Challenge-right_click"):
-                self._challenge_attempts[scene_key] = attempts + 1
-                return True
-        return False
+
+            self._challenge_states[scene_key] = ChallengeState.OFF
+            self._challenge_attempts[scene_key] = attempts + 1
+            print(f"[L1] 自动开启【{label}挑战】右键 @ {click_hit.center} (尝试 {self._challenge_attempts[scene_key]}/3)")
+            act_res = self.act_right_click(click_hit, f"{label}Challenge-right_click")
+            if self.phase == Phase.ERROR or self.stop_signal.is_set():
+                return LoopAction.Break
+
+            if not act_res and self._challenge_attempts[scene_key] >= 3:
+                print(f"[L1] {label}挑战右键发送失败且重试已达上限 ({self._challenge_attempts[scene_key]})，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, f"{scene_key} right_click failed limit reached")
+                self.stop()
+                return LoopAction.Break
+
+            return LoopAction.Continue
+
+        return None
 
     def _handle_hero_mode_reputation(self, frame: Frame) -> bool:
         """开启并配置英雄模式（声望挑战）: 1:黑锋骑士团, 2:银色北伐军, 3:肯瑞托, 4:探险者协会, 5:元素领主, 6:守护巨龙"""
@@ -682,6 +712,7 @@ class Mediator:
             self._selection_click_cooldown_until = 0.0
             self._challenge_done.clear()
             self._challenge_attempts.clear()
+            self._challenge_states.clear()
             self._auto_task_done = False
             self._auto_task_attempts = 0
         if phase == Phase.LONGZHU:
@@ -1151,9 +1182,10 @@ class Mediator:
             return auto_res
 
         # 挑战按钮有自己的模板和自动状态检测，避免固定坐标反复切换开关。
-        if self._ensure_challenge_buttons(frame):
+        ch_res = self._ensure_challenge_buttons(frame)
+        if ch_res is not None:
             self._main_line_since = now
-            return LoopAction.Continue
+            return ch_res
 
         # 关卡选关：只点击右侧编号行，不能把 stage.png 地图卡片当按钮。
         if now >= self._stage_click_cooldown_until:
