@@ -1414,6 +1414,20 @@ class Mediator:
         )
         if self.settings.dry_run:
             print("[med] DRY-RUN 仅识别/打印坐标，不会真的点击；要跑全链路请关闭 Dry-run")
+        else:
+            from gamescript.input.keyboard_mouse import is_current_process_elevated
+
+            if not is_current_process_elevated():
+                print(
+                    "[med] FATAL: dry_run=False 但当前进程不是管理员。"
+                    "原版 GameScript 与 KK 平台均以管理员运行；"
+                    "非提权进程的 SendInput 会被 Windows UIPI 静默丢弃（返回成功但游戏无响应）。"
+                    "请用 启动面板.bat / 右键管理员身份重新启动。"
+                )
+                self.set_phase(Phase.ERROR, "real input requires elevation (UIPI)")
+                self._running = False
+                return
+            print("[med] elevation OK — real SendInput path enabled")
         self.emergency_listener = EmergencyStopListener(self.stop_signal)
         self.emergency_listener.start()
         try:

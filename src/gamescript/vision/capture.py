@@ -424,20 +424,52 @@ def find_window_targets(
 
 
 def activate_window(hwnd: int | None) -> bool:
-    """Bring a target forward only immediately before a real input action."""
+    """Bring a target forward only immediately before a real input action.
+
+    Mirrors original Lan.InteropCore WindowTopmost path:
+    AttachThreadInput(current, foreground/target) → restore if minimized →
+    SetForegroundWindow → detach → short settle sleep.
+    """
     if not hwnd:
         return False
     try:
         import ctypes
+        from ctypes import wintypes as w
 
         user32 = ctypes.windll.user32
-        if user32.IsIconic(hwnd):
-            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-        user32.BringWindowToTop(hwnd)
-        user32.keybd_event(0x12, 0, 0, 0)
-        user32.SetForegroundWindow(hwnd)
-        user32.keybd_event(0x12, 0, 2, 0)
-        return int(user32.GetForegroundWindow()) == hwnd
+        kernel32 = ctypes.windll.kernel32
+        target = int(hwnd)
+
+        if user32.IsIconic(target):
+            user32.ShowWindow(target, 9)  # SW_RESTORE
+
+        fg = int(user32.GetForegroundWindow() or 0)
+        pid = w.DWORD()
+        tid_fg = int(user32.GetWindowThreadProcessId(fg, ctypes.byref(pid)) or 0) if fg else 0
+        tid_tg = int(user32.GetWindowThreadProcessId(target, ctypes.byref(pid)) or 0)
+        tid_cur = int(kernel32.GetCurrentThreadId())
+
+        attached_fg = False
+        attached_tg = False
+        try:
+            if tid_fg and tid_fg != tid_cur:
+                attached_fg = bool(user32.AttachThreadInput(tid_cur, tid_fg, True))
+            if tid_tg and tid_tg != tid_cur and tid_tg != tid_fg:
+                attached_tg = bool(user32.AttachThreadInput(tid_cur, tid_tg, True))
+
+            user32.BringWindowToTop(target)
+            user32.SetForegroundWindow(target)
+            # HWND_TOPMOST then HWND_NOTOPMOST (flags 0x43 = SWP_NOMOVE|SWP_NOSIZE|SWP_SHOWWINDOW)
+            user32.SetWindowPos(target, -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040)
+            user32.SetWindowPos(target, -2, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0040)
+        finally:
+            if attached_tg:
+                user32.AttachThreadInput(tid_cur, tid_tg, False)
+            if attached_fg:
+                user32.AttachThreadInput(tid_cur, tid_fg, False)
+
+        time.sleep(0.05)
+        return int(user32.GetForegroundWindow()) == target
     except Exception:
         return False
 

@@ -16,13 +16,29 @@ class ActionResult:
     message: str = ""
 
 
+def is_current_process_elevated() -> bool:
+    """True when this process has an elevated (admin) token.
+
+    Original GameScript.exe requires requireAdministrator. KK platform is also
+    typically elevated; Windows UIPI drops mouse/keyboard injection from a
+    medium-IL process into a high-IL target (SendInput returns success, UI
+    ignores the click). Real input therefore requires elevation.
+    """
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())
+    except Exception:
+        return False
+
+
 def get_foreground_window() -> int | None:
     """Return current foreground window HWND."""
     try:
         import ctypes
 
         hwnd = int(ctypes.windll.user32.GetForegroundWindow())
-        return hwnd if hwnd > 0 else None
+        return hwnd or None
     except Exception:
         return None
 
@@ -110,6 +126,17 @@ class InputExecutor:
             )
         if dry_run:
             return ActionResult(success=True, status="DRY_RUN", message="Dry run mode")
+
+        if not is_current_process_elevated():
+            return ActionResult(
+                success=False,
+                status="CANCELLED_NOT_ELEVATED",
+                message=(
+                    "Real input rejected: process is not elevated. "
+                    "KK/GameScript run as admin; UIPI drops SendInput from a non-admin script. "
+                    "Relaunch the panel via 启动面板.bat (UAC) or 'Run as administrator'."
+                ),
+            )
 
         if not target_hwnd or target_hwnd <= 0:
             return ActionResult(
@@ -235,39 +262,22 @@ class InputExecutor:
 # ---------- Standalone functions (Backward Compatible) ----------
 
 def click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> None:
+    """Left click at screen coords.
+
+    Aligned with original Lan.UIAutomationCore.Input.Mouse path used by 1.3.8/1.3.9:
+    SetCursorPos → sleep ~200ms → SendInput left down/up → post delay.
+    """
     print(f"[input] click ({x}, {y}) dry_run={dry_run}")
     if dry_run:
         return
-    import ctypes
-    import pyautogui
-
-    pyautogui.FAILSAFE = False
-    pyautogui.moveTo(x, y, duration=0.05)
-    user32 = ctypes.windll.user32
-    user32.SetCursorPos(x, y)
-    time.sleep(0.02)
-    user32.mouse_event(0x0002, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTDOWN
-    time.sleep(0.05)                        # 50ms press duration for Chromium/game UI
-    user32.mouse_event(0x0004, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTUP
-    time.sleep(delay_ms / 1000.0)
+    _send_mouse_click(int(x), int(y), right=False, delay_ms=delay_ms)
 
 
 def right_click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> None:
     print(f"[input] right_click ({x}, {y}) dry_run={dry_run}")
     if dry_run:
         return
-    import ctypes
-    import pyautogui
-
-    pyautogui.FAILSAFE = False
-    pyautogui.moveTo(x, y, duration=0.05)
-    user32 = ctypes.windll.user32
-    user32.SetCursorPos(x, y)
-    time.sleep(0.02)
-    user32.mouse_event(0x0008, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTDOWN
-    time.sleep(0.05)                        # 50ms press duration
-    user32.mouse_event(0x0010, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTUP
-    time.sleep(delay_ms / 1000.0)
+    _send_mouse_click(int(x), int(y), right=True, delay_ms=delay_ms)
 
 
 def press_key(key: str, dry_run: bool = True) -> None:
@@ -318,3 +328,56 @@ def scroll(x: int, y: int, clicks: int, dry_run: bool = True) -> None:
 
     pyautogui.moveTo(x, y, duration=0.05)
     pyautogui.scroll(clicks)
+
+
+def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> None:
+    """user32 SetCursorPos + SendInput click (original GameScript path)."""
+    import ctypes
+    from ctypes import wintypes as w
+
+    user32 = ctypes.windll.user32
+
+    class MOUSEINPUT(ctypes.Structure):
+        _fields_ = [
+            ("dx", w.LONG),
+            ("dy", w.LONG),
+            ("mouseData", w.DWORD),
+            ("dwFlags", w.DWORD),
+            ("time", w.DWORD),
+            ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+        ]
+
+    class INPUT_UNION(ctypes.Union):
+        _fields_ = [("mi", MOUSEINPUT)]
+
+    class INPUT(ctypes.Structure):
+        _fields_ = [("type", w.DWORD), ("union", INPUT_UNION)]
+
+    INPUT_MOUSE = 0
+    MOUSEEVENTF_MOVE = 0x0001
+    MOUSEEVENTF_ABSOLUTE = 0x8000
+    if right:
+        down_flag, up_flag = 0x0008, 0x0010  # RIGHTDOWN / RIGHTUP
+    else:
+        down_flag, up_flag = 0x0002, 0x0004  # LEFTDOWN / LEFTUP
+
+    sw = max(int(user32.GetSystemMetrics(0)), 1)
+    sh = max(int(user32.GetSystemMetrics(1)), 1)
+    ax = int(x * 65535 / max(sw - 1, 1))
+    ay = int(y * 65535 / max(sh - 1, 1))
+
+    def send(flags: int, dx: int = 0, dy: int = 0) -> int:
+        inp = INPUT()
+        inp.type = INPUT_MOUSE
+        inp.union.mi = MOUSEINPUT(dx, dy, 0, flags, 0, None)
+        return int(user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT)))
+
+    # Original: Mouse.set_Position → Sleep(200) → Click → Sleep(500)
+    user32.SetCursorPos(int(x), int(y))
+    time.sleep(0.20)
+    send(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, ax, ay)
+    time.sleep(0.02)
+    send(down_flag)
+    time.sleep(0.05)
+    send(up_flag)
+    time.sleep(max(delay_ms, 0) / 1000.0)

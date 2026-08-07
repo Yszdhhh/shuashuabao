@@ -780,7 +780,7 @@ class MainWindow(QMainWindow):
 
         s = self.collect_settings_from_ui()
 
-        # 真机提示
+        # 真机提示 + 管理员硬门禁（UIPI：非提权进程点不进管理员 KK/游戏）
         if not s.dry_run:
             is_admin = False
             try:
@@ -789,21 +789,28 @@ class MainWindow(QMainWindow):
             except Exception:
                 pass
 
-            admin_msg = ""
             if not is_admin:
-                admin_msg = (
-                    "\n\n⚠️ 【重要权限提醒】：\n"
-                    "检测到当前控制面板未以“管理员身份”运行。\n"
-                    "如果 KK 对战平台或游戏是以管理员权限启动的，Windows (UIPI) 会系统级拦截并丢弃普通权限脚本的鼠标按压事件！\n"
-                    "若出现“看得见移动但点不下去”，请右键以【管理员身份运行】本控制面板！"
+                QMessageBox.critical(
+                    self,
+                    "需要管理员权限",
+                    "已关闭 Dry-run，但当前控制面板不是管理员进程。\n\n"
+                    "原版 GameScript.exe 清单为 requireAdministrator；\n"
+                    "KK 对战平台也通常以管理员运行。\n"
+                    "Windows UIPI 会静默丢弃「普通权限 → 管理员窗口」的鼠标点击\n"
+                    "（SendInput 返回成功，但游戏完全无响应）。\n\n"
+                    "请关闭本窗口，用【启动面板.bat】或右键「以管理员身份运行」后再开真机。",
                 )
+                self.log("[阻断] dry_run=False 且未提权 — 已拒绝启动（UIPI）", "error")
+                return
 
             ret = QMessageBox.warning(
                 self,
                 "准备发起真机点击",
-                f"您关闭了 Dry-run 模式！\n脚本将向游戏窗口发送真实鼠标点击。{admin_msg}\n\n是否确认开始？",
+                "您关闭了 Dry-run 模式！\n"
+                "当前已是管理员进程，脚本将向游戏窗口发送真实鼠标点击（SendInput）。\n\n"
+                "是否确认开始？",
                 QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
+                QMessageBox.No,
             )
             if ret != QMessageBox.Yes:
                 return

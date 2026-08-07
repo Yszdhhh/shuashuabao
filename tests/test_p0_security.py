@@ -193,7 +193,8 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
     def test_real_input_without_hwnd_is_rejected(self) -> None:
         executor = InputExecutor()
-        with patch("gamescript.input.keyboard_mouse.click") as mock_click, \
+        with patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
+             patch("gamescript.input.keyboard_mouse.click") as mock_click, \
              patch("gamescript.input.keyboard_mouse.press_key") as mock_press:
             res_click = executor.click(100, 200, target_hwnd=None, dry_run=False)
             self.assertFalse(res_click.success)
@@ -215,16 +216,27 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertFalse(res.success)
         self.assertEqual(res.status, "CANCELLED_EMERGENCY_STOP")
 
+    def test_input_executor_not_elevated_cancels_real_input(self) -> None:
+        executor = InputExecutor()
+        with patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=False), \
+             patch("gamescript.input.keyboard_mouse.click") as mock_click:
+            res = executor.click(100, 200, target_hwnd=123, dry_run=False)
+            self.assertFalse(res.success)
+            self.assertEqual(res.status, "CANCELLED_NOT_ELEVATED")
+            mock_click.assert_not_called()
+
     def test_input_executor_window_invalid_cancels(self) -> None:
         executor = InputExecutor()
-        with patch("gamescript.input.keyboard_mouse.is_window_valid", return_value=False):
+        with patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
+             patch("gamescript.input.keyboard_mouse.is_window_valid", return_value=False):
             res = executor.click(100, 200, target_hwnd=123, dry_run=False)
             self.assertFalse(res.success)
             self.assertEqual(res.status, "CANCELLED_WINDOW_INVALID")
 
     def test_input_executor_window_changed_cancels(self) -> None:
         executor = InputExecutor()
-        with patch("gamescript.input.keyboard_mouse.is_window_valid", return_value=True), \
+        with patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
+             patch("gamescript.input.keyboard_mouse.is_window_valid", return_value=True), \
              patch("gamescript.input.keyboard_mouse.get_foreground_window", return_value=999), \
              patch("gamescript.input.keyboard_mouse.activate_window", return_value=False):
             res = executor.click(100, 200, target_hwnd=123, dry_run=False)
