@@ -115,7 +115,7 @@
 * **C. 当前代码/回放实际覆盖**：
   - `src/gamescript/vision/lobby_detector.py` 已实现大厅/建房识别；
   - 静态资源检验 `validate_scenes.py` 通过 (99/99)；
-  - 回放测试门禁被 `missing_room_waiting_page` 阻塞（本地已有截图 `room_waiting_host.png`，待接入根 manifest）。
+  - `room_waiting_host` 已接入根 `fixtures/manifest.json` 并通过 Replay 验收。
 * **D. 建议的安全迁移策略**：
   - 房主模式校验 HWND，确认房间等待页后方可点击 `startGameBtn`；非房主/队员模式静默等待，超时 60s 抛出异常或触发恢复。
 * **证据等级**：`CONFIRMED`（直接配置与 PDB/模板）/ `INFERRED`（带队模式建房重试逻辑）
@@ -141,11 +141,14 @@
   - HTML 说明：5-5 波次后可自动清理怪物并关闭主线；一局只触发一次
   - 模板：左下角挑战图标 `tqtz.png`, `xzcz.png`, `bpoint.png` 等
 * **B. 用户已确认的当前版本行为**：
-  - 左下角金币、木材、经验、宝物挑战卡片通过“悬停 + 右键”开启自动；后置确认必须显示绿色 `自动` 标识；若已为绿色 `自动` 禁止重复右键。
+  - 明确区分右侧“自动任务”复选框与左下角四个挑战按钮：
+    - **右侧“自动任务”复选框**：需识别复选框 OFF/ON 状态，未开启时发送左键点击开启。
+    - **左下角四个挑战按钮（金币、木材、经验、宝物）**：通过“悬停 + 右键”开启自动；后置确认必须显示绿色 `自动` 标识；若已为绿色 `自动` 禁止重复右键。
 * **C. 当前代码/回放实际覆盖**：
-  - `Mediator` 已包含识别挑战卡片自动状态和避免重复右键的局部逻辑（`test_challenge_label_maps_to_icon_click_and_detects_auto`）；但本地素材 `main_line_auto_off.png` / `main_line_auto_on.png` 尚未接入根 manifest 形成端到端回放验收。
+  - **右侧“自动任务”复选框**：P1-A1 已完成 `main_line_auto_off.png` / `main_line_auto_on.png` OFF/ON 正向模板识别、左键控制与 Replay 验收（已接入根 `fixtures/manifest.json` 并通过真实截图回放）。
+  - **左下角四个挑战按钮**：`Mediator` 已包含识别挑战卡片自动状态与避免重复右键的局部逻辑（`test_challenge_label_maps_to_icon_click_and_detects_auto`），但仍未形成完整的当前版本端到端自动化闭环。
 * **D. 建议的安全迁移策略**：
-  - 识别到 `MAIN_LINE_AUTO_OFF` 后，依次执行悬停+右键；检测到 `MAIN_LINE_AUTO_ON` 立即停止右键动作。
+  - 识别到 `MAIN_LINE_AUTO_OFF` 后发送左键点击开启；检测到 `MAIN_LINE_AUTO_ON` 保持开启状态不重复点击。
 * **证据等级**：`CONFIRMED`（PDB/模板/用户规则）/ `INFERRED`（原版波次检测算法）
 
 ### 功能域 4：技能选择 / 卡片选择 / 羁绊 / 宝物 / 黑商
@@ -155,9 +158,9 @@
   - PDB 字符串线索：`Cards`, `AutoCard`, `AutoWeapon`, `DamageIncreaseCard`（配置默认值 `UNKNOWN`）
   - 模板：`Images/skills/` (16 个), `Images/cards/` (36 个), `woodgift.png`, `treasurechest.png`, `bbx.png`
 * **B. 用户已确认的当前版本行为**：
-  - 当前用户素材包含三选一技能 (`skill_choice_3.png`)、羁绊 (`bond_choice_3.png`)、宝物 (`treasure_choice_3.png`) 与黑商截条 (`black_merchant_card_strip.png`)。四选一、五选一及全屏黑商仍可作为未来补充证据。
+  - 当前目标只包含技能三选一 (`skill_choice_3.png`) 与四选一 (`skill_choice_4.png`)；羁绊 (`bond_choice_3.png`)、宝物 (`treasure_choice_3.png`) 与黑商截条 (`black_merchant_card_strip.png`) 保持当前范围；不包含五选一。
 * **C. 当前代码/回放实际覆盖**：
-  - `Mediator` 已包含按配置技能偏好寻找奖励项的局部逻辑（`test_reward_choice_prefers_configured_skill_in_center_roi`）；但尚未形成完整的卡牌/技能优先度匹配决策器与回放门禁。
+  - `skill_choice_3` 和 `skill_choice_4` 已接入根 `fixtures/manifest.json` 并通过 Replay 验收；技能选择按配置偏好寻找匹配项，且代码对候选数量不是 3 或 4 的情况严格保持零动作。羁绊、宝物与黑商当前保持零动作。
 * **D. 建议的安全迁移策略**：
   - 原版不匹配时的退回/刷新逻辑记为 `UNKNOWN`；新工程应采用配置规则树，匹配失败时优先选择默认第一项或防卡死跳过，不盲目刷新。
 * **证据等级**：`CONFIRMED`（`Skills`配置与模板存在）/ `UNKNOWN`（原版未匹配时的兜底策略）
@@ -252,20 +255,21 @@
    - **状态**：**确实缺少**。
    - **用途**：用于解封 `tools/run_replay.py` 的 P0-B 回放门禁，验证网络断线场景。
 
-### 5.2 本地已有素材、仅需后续接入根 Manifest 的项目（无需用户重复提供）
-1. **当前版本房间等待页全屏截图** (`missing_room_waiting_page`)
-   - **状态**：**本地已有**（`fixtures/reborn_wow/room/room_waiting_host.png`）。
-   - **任务**：下一阶段将其转换并注册进根 `fixtures/manifest.json`，无需用户重复上传。
-2. **当前版本局内主线运行页全屏截图** (`missing_in_game_main_line`)
-   - **状态**：**本地已有**（`fixtures/reborn_wow/main_line/main_line_auto_off.png` 与 `main_line_auto_on.png`）。
-   - **任务**：下一阶段将其转换并注册进根 `fixtures/manifest.json`，无需用户重复上传。
+### 5.2 已接入根 Manifest 并通过 Replay 验收的项目（无需用户重复提供）
+1. **当前版本房间等待页全屏截图** (`room_waiting_host`)
+   - **状态**：**已接入**（`fixtures/reborn_wow/room/room_waiting_host.png` 登记为 `room_waiting_host`）。
+   - **结论**：已接入根 `fixtures/manifest.json` 并通过 Replay 验收。
+2. **当前版本局内主线运行页全屏截图** (`main_line_auto_off` / `main_line_auto_on`)
+   - **状态**：**已接入**（`fixtures/reborn_wow/main_line/main_line_auto_off.png` 与 `main_line_auto_on.png`）。
+   - **结论**：已接入根 `fixtures/manifest.json` 并通过 Replay 验收。
+3. **技能选择三选一/四选一全屏截图** (`skill_choice_3` / `skill_choice_4`)
+   - **状态**：**已接入**（`fixtures/reborn_wow/skills/skill_choice_3.png` 与 `skill_choice_4.png`）。
+   - **结论**：已接入根 `fixtures/manifest.json` 并通过 Replay 验收。
 
 ### 5.3 未来扩展可选补充证据
 1. **当前版本完整黑商状态全屏截图**
    - **用途**：替换仅 350x88 局部裁剪的 `black_merchant_card_strip.png`，建立完整黑市识别与防误触边界。
-2. **四选一与五选一技能选择界面全屏截图**
-   - **用途**：补充 `skill_choice_3.png` 之外的高阶技能选择布局，适配选卡坐标计算。
-3. **当前账号实际要刷的目标关卡视图全屏截图**
+2. **当前账号实际要刷的目标关卡视图全屏截图**
    - **用途**：如配置 `4-2` 或 `5-10`，需提供对应章节翻页及目标关卡行高亮的真实截图。
 
 ---
@@ -273,5 +277,5 @@
 ## 6. 结论与后续推进路线
 
 1. 原版 1.3.8 的静态资源与配置文件提供了丰富的状态与特征参考，但必须严格区分直接事实（`CONFIRMED`）与推断/未确认项（`INFERRED`/`UNKNOWN`）。
-2. 当前新工程 `GameScript-Local` 已完成 P0-A 安全执行链与 55 个单元测试；P0-B 端到端回放门禁目前处于 `Required Missing=3` 的已知阻塞状态（其中 2 个所需素材在 `fixtures/reborn_wow/` 中已有，待接入根 manifest）。
+2. 当前新工程 `GameScript-Local` 已完成 P0-A 安全执行链与全量 86 个单元测试；P0-B / P1-A1 端到端回放门禁中，自动任务 OFF/ON 与技能三/四选一均已通过 Replay 验证，唯一必需缺口仍为 `missing_disconnect_modal`（Required Missing=1）。
 3. 后续功能推进严格遵循：**原版行为提炼 → 当前 UI 截图验证 → 安全迁移 → 回送 Replay 验收** 闭环。
