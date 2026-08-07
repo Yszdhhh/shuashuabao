@@ -621,6 +621,106 @@
       "expected_state": "STAGE_SELECT",
       "expected_action": "none",
       "is_negative": true
+    },
+    {
+      "fixture_id": "post_game_victory_continue",
+      "file_path": "fixtures/replay/victory_continue.png",
+      "resolution": [
+        1608,
+        929
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "page": "POST_VICTORY",
+      "target_scene": "continueGame",
+      "forbidden_click_regions": [
+        {
+          "tag": "exit_game",
+          "box": [
+            40,
+            20,
+            90,
+            60
+          ]
+        }
+      ],
+      "expected_state": "MAIN_LINE",
+      "expected_action": "none",
+      "note": "P1-B0 observe-only: victory modal must produce zero input until P1-B1 gate",
+      "required": true
+    },
+    {
+      "fixture_id": "post_game_archive_panel",
+      "file_path": "fixtures/replay/archive_challenge_panel.png",
+      "resolution": [
+        1596,
+        921
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "page": "ARCHIVE_CHALLENGE_PANEL",
+      "target_scene": "archiveChallenge",
+      "forbidden_click_regions": [],
+      "expected_state": "MAIN_LINE",
+      "expected_action": "none",
+      "note": "P1-B0 observe-only: archive panel must produce zero input",
+      "required": true
+    },
+    {
+      "fixture_id": "post_game_npc_hub",
+      "file_path": "fixtures/replay/challenge_npc_hub.png",
+      "resolution": [
+        1602,
+        934
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "page": "CHALLENGE_NPC_HUB",
+      "target_scene": "secret",
+      "forbidden_click_regions": [],
+      "expected_state": "UNKNOWN",
+      "expected_action": "none",
+      "note": "P1-B0 observe-only: NPC hub (secret-realm icon + hero indicator) must produce zero input",
+      "required": true
+    },
+    {
+      "fixture_id": "post_game_heirloom_bosses",
+      "file_path": "fixtures/replay/heirloom_challenge_bosses.png",
+      "resolution": [
+        1597,
+        929
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "page": "HEIRLOOM_CHALLENGE",
+      "target_scene": "cjbtiaozhan",
+      "forbidden_click_regions": [],
+      "expected_state": "UNKNOWN",
+      "expected_action": "none",
+      "note": "P1-B0 observe-only: heirloom boss dialog must produce zero input; right-click is loot-details only",
+      "required": true
+    },
+    {
+      "fixture_id": "post_game_great_rift_confirm",
+      "file_path": "fixtures/replay/great_rift_confirm.png",
+      "resolution": [
+        1602,
+        933
+      ],
+      "dpi_scale": 1.0,
+      "window_title": "英雄三国KK",
+      "window_role": "l1",
+      "page": "GREAT_RIFT_CONFIRM",
+      "target_scene": "mijingOk",
+      "forbidden_click_regions": [],
+      "expected_state": "UNKNOWN",
+      "expected_action": "none",
+      "note": "P1-B0 observe-only: great-rift confirm dialog must produce zero input until preconditions are machine-verified",
+      "required": true
     }
   ]
 }
