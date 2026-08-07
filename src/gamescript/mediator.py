@@ -184,12 +184,13 @@ class Mediator:
             value = "MAIN_LINE"
         elif self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
             value = "QUIT"
-        elif role == "l1" and self._find_stage_page(frame):
+        elif self._find_stage_page(frame):
+            # 选关页特征（关卡编号数字）优先于通用「开始游戏」按钮：
+            # 选关页底部也有开始/扫荡/英雄模式按钮，room_start 模板会误匹配
+            # （官方 1936x1066 选关截图实测 roomStart 0.84 / kk_start 0.92）。
             value = "STAGE_SELECT"
         elif self._find_room_start(frame):
             value = "ROOM_WAITING"
-        elif self._find_stage_page(frame):
-            value = "STAGE_SELECT"
         elif self._is_in_game_hud(frame):
             value = "MAIN_LINE"
         elif self._find_create_confirm(frame):
