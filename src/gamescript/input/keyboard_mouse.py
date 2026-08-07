@@ -43,6 +43,36 @@ def get_foreground_window() -> int | None:
         return None
 
 
+def _window_pid(hwnd: int | None) -> int:
+    """PID for hwnd; 0 if unknown."""
+    if not hwnd:
+        return 0
+    try:
+        import ctypes
+        from ctypes import wintypes as w
+
+        pid = w.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(int(hwnd), ctypes.byref(pid))
+        return int(pid.value)
+    except Exception:
+        return 0
+
+
+def foreground_matches_target(target_hwnd: int, fg: int | None) -> bool:
+    """True if fg is target, or another top-level window of the same process.
+
+    KK create-room is a separate Qt HWND in the Platform process; requiring an
+    exact HWND match rejects valid clicks after the dialog steals focus.
+    """
+    if fg is None:
+        return False
+    if int(fg) == int(target_hwnd):
+        return True
+    tp = _window_pid(target_hwnd)
+    fp = _window_pid(fg)
+    return tp > 0 and tp == fp
+
+
 def get_clipboard_text() -> str | None:
     """Retrieve text from Win32 clipboard."""
     try:
@@ -152,10 +182,10 @@ class InputExecutor:
                 message=f"Target window {target_hwnd} is missing, minimized, or invalid",
             )
         fg = get_foreground_window()
-        if fg != target_hwnd:
+        if not foreground_matches_target(target_hwnd, fg):
             activate_window(target_hwnd)
             fg = get_foreground_window()
-            if fg != target_hwnd:
+            if not foreground_matches_target(target_hwnd, fg):
                 return ActionResult(
                     success=False,
                     status="CANCELLED_WINDOW_CHANGED",
@@ -172,7 +202,7 @@ class InputExecutor:
             )
         if not dry_run and target_hwnd is not None:
             fg = get_foreground_window()
-            if fg != target_hwnd:
+            if not foreground_matches_target(target_hwnd, fg):
                 return ActionResult(
                     success=False,
                     status="CANCELLED_WINDOW_CHANGED",
@@ -258,6 +288,19 @@ class InputExecutor:
         status = "DRY_RUN" if dry_run else "SUCCESS"
         return ActionResult(success=True, status=status, message=f"Scrolled {clicks} at ({x}, {y})")
 
+    def type_text(self, text: str, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
+        """Type literal characters (digits/ascii) via key events — more reliable than paste in CEF."""
+        check = self.check_can_execute(target_hwnd, dry_run=dry_run)
+        if not check.success:
+            print(f"[input] type_text CANCELLED: {check.message}")
+            return check
+        type_text(text, dry_run=dry_run)
+        post = self._post_check(target_hwnd, dry_run)
+        if post:
+            return post
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message=f"Typed text len={len(text)}")
+
 
 # ---------- Standalone functions (Backward Compatible) ----------
 
@@ -317,6 +360,71 @@ def paste_text(text: str, dry_run: bool = True) -> None:
     finally:
         if saved_text is not None:
             set_clipboard_text(saved_text)
+
+
+def type_text(text: str, dry_run: bool = True) -> None:
+    """Type ASCII/digits with key events (CEF-friendlier than clipboard paste)."""
+    print(f"[input] type_text len={len(text)} dry_run={dry_run}")
+    if dry_run or not text:
+        return
+    import ctypes
+    from ctypes import wintypes as w
+
+    user32 = ctypes.windll.user32
+    KEYEVENTF_KEYUP = 0x0002
+
+    class KEYBDINPUT(ctypes.Structure):
+        _fields_ = [
+            ("wVk", w.WORD),
+            ("wScan", w.WORD),
+            ("dwFlags", w.DWORD),
+            ("time", w.DWORD),
+            ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+        ]
+
+    class INPUT_UNION(ctypes.Union):
+        _fields_ = [("ki", KEYBDINPUT)]
+
+    class INPUT(ctypes.Structure):
+        _fields_ = [("type", w.DWORD), ("union", INPUT_UNION)]
+
+    def tap(vk: int) -> None:
+        down = INPUT()
+        down.type = 1  # INPUT_KEYBOARD
+        down.union.ki = KEYBDINPUT(vk, 0, 0, 0, None)
+        up = INPUT()
+        up.type = 1
+        up.union.ki = KEYBDINPUT(vk, 0, KEYEVENTF_KEYUP, 0, None)
+        user32.SendInput(1, ctypes.byref(down), ctypes.sizeof(INPUT))
+        time.sleep(0.02)
+        user32.SendInput(1, ctypes.byref(up), ctypes.sizeof(INPUT))
+        time.sleep(0.03)
+
+    for ch in str(text):
+        if "0" <= ch <= "9":
+            tap(ord(ch))  # VK_0..VK_9 == ASCII
+        elif "a" <= ch.lower() <= "z":
+            tap(ord(ch.upper()))
+        elif ch in (" ", "\t"):
+            tap(0x20 if ch == " " else 0x09)
+        else:
+            # fallback scan via VkKeyScanW
+            vk_full = int(user32.VkKeyScanW(ord(ch)))
+            if vk_full == -1:
+                continue
+            vk = vk_full & 0xFF
+            shift = bool(vk_full & 0x100)
+            if shift:
+                tap_shift_down = INPUT()
+                tap_shift_down.type = 1
+                tap_shift_down.union.ki = KEYBDINPUT(0x10, 0, 0, 0, None)
+                user32.SendInput(1, ctypes.byref(tap_shift_down), ctypes.sizeof(INPUT))
+            tap(vk)
+            if shift:
+                tap_shift_up = INPUT()
+                tap_shift_up.type = 1
+                tap_shift_up.union.ki = KEYBDINPUT(0x10, 0, KEYEVENTF_KEYUP, 0, None)
+                user32.SendInput(1, ctypes.byref(tap_shift_up), ctypes.sizeof(INPUT))
 
 
 def scroll(x: int, y: int, clicks: int, dry_run: bool = True) -> None:
