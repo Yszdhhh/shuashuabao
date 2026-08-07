@@ -283,7 +283,7 @@
       "expected_action": "QuitGame-ok",
       "missing_resource": true,
       "is_negative": false,
-      "required": false
+      "required": true
     },
     {
       "fixture_id": "neg_quick_join",
