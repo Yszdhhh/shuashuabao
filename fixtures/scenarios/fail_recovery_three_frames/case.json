@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "case": "fail_recovery_three_frames",
+  "description": "失败/断线弹窗按 fail -> ok -> close 三帧恢复。CAVEAT(XFAIL)：仓库缺少当前版本全屏断线/失败弹窗证据（fixtures/reborn_wow/README.md 与 fixtures/manifest.json 均标注 missing）；本 case 三帧复用 reborn_wow/choices/skill_choice_3.png（最接近的含 fail 锚点证据：旧版 giveUp 模板 0.945 命中），该帧实为三选一技能面板而非失败弹窗。设计契约断言三帧各一次点击且 context=QUIT；实际行为为 1/0/1 次点击（WAIT_OK 帧无 ok 模板命中）、context=MAIN_LINE（selection anchor 优先），故本 case 按设计契约断言必然失败，标记 XFAIL。",
+  "phase": "MAIN_LINE",
+  "settings_overrides": {
+    "dry_run": true
+  },
+  "frames": [
+    {
+      "id": "fail",
+      "at_s": 100.0,
+      "file": "fixtures/scenarios/fail_recovery_three_frames/frames/fail_visible.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "ok",
+      "at_s": 100.0,
+      "file": "fixtures/scenarios/fail_recovery_three_frames/frames/ok_visible.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "close",
+      "at_s": 101.0,
+      "file": "fixtures/scenarios/fail_recovery_three_frames/frames/close_visible.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    }
+  ],
+  "expect_actions": [
+    {
+      "phase_before": "MAIN_LINE",
+      "context": "QUIT",
+      "action_count": 1,
+      "action": {
+        "kind": "click",
+        "reason": "recover",
+        "target": "fail",
+        "input_kind": "left_click"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
+      "phase_after": "QUIT",
+      "loop_action": "Continue",
+      "input_injection": "SUCCESS"
+    },
+    {
+      "phase_before": "QUIT",
+      "context": "QUIT",
+      "action_count": 1,
+      "action": {
+        "kind": "click",
+        "reason": "ok",
+        "target": "ok",
+        "input_kind": "left_click"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
+      "phase_after": "QUIT",
+      "loop_action": "Continue",
+      "input_injection": "SUCCESS"
+    },
+    {
+      "phase_before": "QUIT",
+      "context": "QUIT",
+      "action_count": 1,
+      "action": {
+        "kind": "click",
+        "reason": "close",
+        "target": "close",
+        "input_kind": "left_click"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
+      "phase_after": "QUIT",
+      "loop_action": "Continue",
+      "input_injection": "SUCCESS"
+    }
+  ],
+  "final_phase": "QUIT"
+}

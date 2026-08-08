@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "case": "ticket_zero_archaeology",
+  "description": "扫荡券为 0 需连续三帧确认，第三帧点击 SwitchToArchaeology（考古模式）并进入停止路径（QUIT/Break）。CAVEAT(XFAIL)：所有现有选关页证据（含 live_stage_select.png）在 ticket ROI (862,850,920,888) 内均无 lobby/ticket_zero 字形命中（实测全部 None），不存在'剩余券=0'的真实当前版本证据；本 case 以 live_stage_select.png 作版式参考。设计契约断言 0/0/SwitchToArchaeology，实际每帧均为 SelectStage 列表滚动（目标关卡不在列表），故 XFAIL。",
+  "phase": "STAGE_SELECT",
+  "settings_overrides": {
+    "dry_run": true,
+    "auto_archaeology": true
+  },
+  "frames": [
+    {
+      "id": "ticket_zero_1",
+      "at_s": 0.0,
+      "file": "fixtures/scenarios/ticket_zero_archaeology/frames/ticket_zero_1.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "ticket_zero_2",
+      "at_s": 1.0,
+      "file": "fixtures/scenarios/ticket_zero_archaeology/frames/ticket_zero_2.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "ticket_zero_3",
+      "at_s": 2.0,
+      "file": "fixtures/scenarios/ticket_zero_archaeology/frames/ticket_zero_3.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    }
+  ],
+  "expect_actions": [
+    {
+      "phase_before": "STAGE_SELECT",
+      "context": "STAGE_SELECT",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "STAGE_SELECT",
+      "loop_action": "Continue"
+    },
+    {
+      "phase_before": "STAGE_SELECT",
+      "context": "STAGE_SELECT",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "STAGE_SELECT",
+      "loop_action": "Continue"
+    },
+    {
+      "phase_before": "STAGE_SELECT",
+      "context": "STAGE_SELECT",
+      "action_count": 1,
+      "action": {
+        "kind": "click",
+        "reason": "SwitchToArchaeology",
+        "target": "archaeology_switch",
+        "input_kind": "left_click"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
+      "phase_after": "QUIT",
+      "loop_action": "Break",
+      "input_injection": "SUCCESS"
+    }
+  ],
+  "final_phase": "QUIT"
+}
