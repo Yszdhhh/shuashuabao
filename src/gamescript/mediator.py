@@ -746,12 +746,37 @@ class Mediator:
         _, best_hit = configured_candidates[0]
         return ("技能", best_hit)
 
-    def _maybe_fire_artifacts(self) -> LoopAction | None:
-        """Periodic Q/W artifact release (fixed 180s cooldown per slot).
+    # 神器槽位几何（1600x900 基准，相对比例）：Q(1205,744) W(1205,806) E(1205,868)
+    ARTIFACT_SLOT_X = 0.753
+    ARTIFACT_SLOT_Y0 = 0.827
+    ARTIFACT_SLOT_DY = 0.069
 
-        The Q/W slots (1205,744)/(1205,806 in 1600x900) are artifact triggers;
-        releasing early is harmless (in-cooldown), so a plain interval loop is
-        safe. First fire is deferred ~30s after entering MAIN_LINE.
+    def _slot_has_artifact(self, frame: Frame, idx: int) -> bool:
+        """True when the idx-th artifact slot shows an icon (saturated pixels).
+
+        Empty slots are near-black (video-measured: Q=1245, W=1483, E=86
+        saturated pixels in 70x70 ROI); threshold 300 separates cleanly.
+        """
+        try:
+            import cv2 as _cv2
+        except Exception:
+            return True
+        cx = int(frame.width * self.ARTIFACT_SLOT_X)
+        cy = int(frame.height * (self.ARTIFACT_SLOT_Y0 + idx * self.ARTIFACT_SLOT_DY))
+        w = max(20, int(frame.width * 0.044))
+        h = max(20, int(frame.height * 0.078))
+        roi = frame.bgr[max(0, cy - h // 2) : cy + h // 2, max(0, cx - w // 2) : cx + w // 2]
+        if roi is None or roi.size == 0:
+            return True
+        hsv = _cv2.cvtColor(roi, _cv2.COLOR_BGR2HSV)
+        return int((hsv[:, :, 1] > 80).sum()) >= 300
+
+    def _maybe_fire_artifacts(self, frame: Frame | None = None) -> LoopAction | None:
+        """Periodic Q/W/E artifact release (fixed 180s cooldown per slot).
+
+        Slots = artifact_slots (1-3) mapping to Q/W/E keys; a slot is skipped
+        when its icon is absent (unlocked but empty, or fewer slots). First
+        fire deferred ~30s after entering MAIN_LINE.
         """
         if not getattr(self.settings, "auto_artifact", True):
             return None
@@ -761,15 +786,22 @@ class Mediator:
         if now - self._main_line_since < 30:
             return None
         cd = max(30, int(getattr(self.settings, "artifact_cd", 180)))
+        slots = max(1, min(3, int(getattr(self.settings, "artifact_slots", 2))))
+        keys = ("q", "w", "e")[:slots]
         acted = False
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
-        for key, attr in (("q", "_artifact_next_q"), ("w", "_artifact_next_w")):
-            next_at = getattr(self, attr, 0.0)
-            if now >= next_at:
-                setattr(self, attr, now + cd)
-                print(f"[L1] 释放神器 {key.upper()}（冷却 {cd}s）")
-                self.executor.press_key(key, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-                acted = True
+        for idx, key in enumerate(keys):
+            next_at = getattr(self, f"_artifact_next_{key}", 0.0)
+            if now < next_at:
+                continue
+            if frame is not None and not self._slot_has_artifact(frame, idx):
+                print(f"[L1] 神器槽{idx + 1}({key.upper()})为空，跳过释放")
+                setattr(self, f"_artifact_next_{key}", now + cd)
+                continue
+            setattr(self, f"_artifact_next_{key}", now + cd)
+            print(f"[L1] 释放神器 {key.upper()}（冷却 {cd}s）")
+            self.executor.press_key(key, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            acted = True
         return LoopAction.Continue if acted else None
 
     def _maybe_open_choice_panel(self, frame: Frame) -> LoopAction | None:
@@ -1983,8 +2015,8 @@ class Mediator:
                     self._main_line_since = now
                     return LoopAction.Continue
 
-        # 神器 Q/W 定时释放（180s CD，进局 30s 后开始）
-        artifact_res = self._maybe_fire_artifacts()
+        # 神器 Q/W/E 定时释放（180s CD，进局 30s 后开始，空槽跳过）
+        artifact_res = self._maybe_fire_artifacts(frame)
         if artifact_res is not None:
             self._main_line_since = now
             return artifact_res

@@ -94,6 +94,7 @@ class Settings:
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
     auto_artifact: bool = True   # 神器 Q/W 槽定时释放（固定冷却 180s）
     artifact_cd: int = 180       # 神器冷却秒数
+    artifact_slots: int = 3      # 神器槽位数（1-3，对应 Q/W/E；空槽自动跳过）
     boss_live_time: int = 0
     kill_boss_num: int = 0
     cycle_num: int = 0
