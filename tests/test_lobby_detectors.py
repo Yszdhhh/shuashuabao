@@ -101,15 +101,17 @@ class LobbyDetectorTests(unittest.TestCase):
     def test_reward_choice_prefers_configured_skill_in_center_roi(self):
         root = Path(__file__).resolve().parents[1]
         frame = np.zeros((939, 1616, 3), dtype=np.uint8)
-        hide = _load_template(root / "assets" / "Images" / "hide.png")
+        # 用新版面板按钮模板作 anchor（hide.png 为旧版 UI 模板，会与新按钮
+        # 模板交叉误匹配导致分类漂移）
+        anchor_btn = _load_template(root / "assets" / "Images" / "skill_giveup_btn.png")
         first = _load_template(root / "assets" / "Images" / "skills" / "asj.png")
         preferred = _load_template(root / "assets" / "Images" / "skills" / "assx.png")
         third = _load_template(root / "assets" / "Images" / "skills" / "dz.png")
-        self.assertIsNotNone(hide)
+        self.assertIsNotNone(anchor_btn)
         self.assertIsNotNone(first)
         self.assertIsNotNone(preferred)
         self.assertIsNotNone(third)
-        frame[595:595 + hide.shape[0], 542:542 + hide.shape[1]] = hide
+        frame[595:595 + anchor_btn.shape[0], 542:542 + anchor_btn.shape[1]] = anchor_btn
         frame[261:261 + first.shape[0], 526:526 + first.shape[1]] = first
         frame[261:261 + preferred.shape[0], 759:759 + preferred.shape[1]] = preferred
         frame[261:261 + third.shape[0], 992:992 + third.shape[1]] = third

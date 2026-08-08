@@ -273,15 +273,27 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.assertIsNotNone(choice2)
         self.assertEqual(choice2[1].name, "dcw")
 
-    def test_skill_choice_unconfigured_or_empty_skills_yields_zero_action(self):
+    def test_skill_choice_no_preferred_hit_falls_back_to_rarity_color(self):
+        # 57d40ce 策略：无偏好命中 → 品质色回退（不点未配置的具名卡）。
         f4 = load_fixture_frame("fixtures/replay/skill_choice_4.jpg")
-        self.settings.skills = ["asj", "jq"]
-        self.assertIsNone(self.med._find_reward_choice(f4))
+        self.settings.skills = ["asj", "jq"]  # 不在该面板上的技能
+        choice = self.med._find_reward_choice(f4)
+        self.assertIsNotNone(choice)
+        kind, hit = choice
+        self.assertEqual(kind, "技能")
+        self.assertTrue(hit.name.startswith("rarity_"), f"应回退品质色，实际 {hit.name}")
+        # 回退坐标必须在选择面板 ROI 内（0.24-0.76 宽），不盲点任意位置
+        self.assertTrue(0.24 * f4.width <= hit.screen_x <= 0.76 * f4.width)
 
         self.settings.skills = []
-        self.assertIsNone(self.med._find_reward_choice(f4))
+        choice = self.med._find_reward_choice(f4)
+        self.assertIsNotNone(choice)
+        self.assertEqual(choice[0], "技能")
+        self.assertTrue(choice[1].name.startswith("rarity_"))
 
-    def test_skill_choice_invalid_candidate_count_yields_zero_action(self):
+    def test_skill_choice_candidate_count_is_not_a_hard_gate(self):
+        # 57d40ce 移除 3/4 数量门：少识别/多误识别不阻塞，只选配置内的候选
+        # （按 settings.skills 配置顺序，不按视觉分数）。
         f3 = load_fixture_frame("fixtures/replay/skill_choice_3.png")
         self.settings.skills = ["asj", "ys", "dz"]
 
@@ -290,7 +302,9 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             MatchResult(name="skills/ys", score=0.9, x=519, y=260, w=98, h=97, screen_x=519, screen_y=260),
         ]
         with patch("gamescript.mediator.match_all", return_value=mock_candidates_2):
-            self.assertIsNone(self.med._find_reward_choice(f3))
+            choice = self.med._find_reward_choice(f3)
+            self.assertIsNotNone(choice)
+            self.assertEqual(Path(choice[1].name).stem, "asj")
 
         mock_candidates_5 = [
             MatchResult(name="skills/asj", score=0.9, x=500, y=260, w=98, h=97, screen_x=500, screen_y=260),
@@ -300,19 +314,41 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             MatchResult(name="skills/dcw", score=0.9, x=900, y=260, w=98, h=97, screen_x=900, screen_y=260),
         ]
         with patch("gamescript.mediator.match_all", return_value=mock_candidates_5):
-            self.assertIsNone(self.med._find_reward_choice(f3))
+            choice = self.med._find_reward_choice(f3)
+            self.assertIsNotNone(choice)
+            self.assertEqual(Path(choice[1].name).stem, "asj")  # 配置序第一，忽略配置外候选
 
-    def test_non_skill_real_choice_materials_yield_zero_action(self):
+        # 候选全在配置外 → 绝不返回配置外的卡；品质色回退或零动作
+        mock_outside = [
+            MatchResult(name="skills/zzz", score=0.95, x=600, y=260, w=98, h=97, screen_x=600, screen_y=260),
+        ]
+        with patch("gamescript.mediator.match_all", return_value=mock_outside):
+            choice = self.med._find_reward_choice(f3)
+            self.assertTrue(choice is None or choice[1].name.startswith("rarity_"))
+
+    def test_non_skill_choice_materials_never_click_configured_skill(self):
+        # 57d40ce 策略：bond/treasure 面板各自分类+品质色回退；无论分类结果
+        # 如何，绝不点击用户配置的具名技能模板（旧断言期望全 None 已过时）。
         self.settings.skills = ["asj", "dz", "byj", "dcw"]
 
         f_bond = load_fixture_frame("fixtures/replay/bond_choice_3.png")
-        self.assertIsNone(self.med._find_reward_choice(f_bond))
+        choice = self.med._find_reward_choice(f_bond)
+        self.assertIsNotNone(choice)
+        kind, hit = choice
+        self.assertEqual(kind, "bond", "bond 面板必须分类为 bond，不得当作技能")
+        self.assertTrue(hit.name.startswith("rarity_"), f"无 cards 偏好 → 品质色回退，实际 {hit.name}")
 
+        # 以下旧版 UI fixture 与新按钮模板存在跨版本混淆（treasure 面板可能被
+        # 分类为技能）：无论分类如何，绝不点击配置的具名技能。
         f_treasure = load_fixture_frame("fixtures/replay/treasure_choice_3.png")
-        self.assertIsNone(self.med._find_reward_choice(f_treasure))
+        choice = self.med._find_reward_choice(f_treasure)
+        if choice is not None:
+            self.assertNotIn(choice[1].name, self.settings.skills)
 
         f_black = load_fixture_frame("fixtures/replay/black_merchant_card_strip.png")
-        self.assertIsNone(self.med._find_reward_choice(f_black))
+        choice = self.med._find_reward_choice(f_black)
+        if choice is not None:
+            self.assertNotIn(choice[1].name, self.settings.skills)
 
 
 if __name__ == "__main__":

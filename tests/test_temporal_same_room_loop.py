@@ -100,26 +100,31 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         self.assertNotIn("CreateRoom-open", [reason for reason, _ in self.actions])
 
     def test_unknown_choice_panel_is_bounded_instead_of_waiting_forever(self):
+        # 57d40ce 后语义：未知选择面板保持零输入等待，超过 10s 才 Fail-Closed
+        # ERROR（不再盲点隐藏按钮）。用假时钟推进验证 10s 上界与零输入。
+        from tests.test_scenario_replay import FakeClock
+
+        clock = FakeClock(start=100.0)
         self.med.set_phase(Phase.MAIN_LINE, "unknown choice replay")
         frame = load_frame("fixtures/replay/bond_choice_3.png")
 
-        with patch.object(self.med, "_post_game_state", return_value=None), \
-             patch.object(self.med, "find_scene", return_value=None), \
-             patch.object(self.med, "_find_reward_choice", return_value=None):
-            for _ in range(3):
+        with clock.install(), \
+                patch.object(self.med, "_post_game_state", return_value=None), \
+                patch.object(self.med, "find_scene", return_value=None), \
+                patch.object(self.med, "_find_reward_choice", return_value=None):
+            for i in range(3):
+                clock.set(100.0 + float(i + 1) * 4.0)  # 104 / 108（<10s）
                 action = self.med._tick_main_line(frame)
                 self.assertEqual(LoopAction.Continue, action)
                 self.assertEqual(Phase.MAIN_LINE, self.med.phase)
-                self.med._selection_click_cooldown_until = 0
 
+            clock.set(116.0)  # elapsed = 116 - 104 = 12s >= 10s
             action = self.med._tick_main_line(frame)
 
         self.assertEqual(LoopAction.Break, action)
         self.assertEqual(Phase.ERROR, self.med.phase)
-        self.assertEqual(
-            ["HideUnknownSelection"] * 3,
-            [reason for reason, _ in self.actions],
-        )
+        # 全程零输入：未知面板绝不盲点（旧行为是 3 次 HideUnknownSelection 点击）
+        self.assertEqual([], self.actions)
 
 
 if __name__ == "__main__":
