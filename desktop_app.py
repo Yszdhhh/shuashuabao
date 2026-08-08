@@ -427,10 +427,10 @@ class MainWindow(QMainWindow):
         core_layout.addWidget(self.chk_dry)
         main_layout.addWidget(core)
 
-        self.grp_skill = QGroupBox("技能搭配（选 1–4 个，选满自动收起）")
+        self.grp_skill = QGroupBox("技能搭配（可选，不选也能跑）")
         self.grp_skill.setCheckable(True)
         self.grp_skill.setChecked(True)
-        self.grp_skill.setToolTip("勾选=展开技能卡片；选满 4 个自动收起，保持面板简洁")
+        self.grp_skill.setToolTip("勾选=展开技能卡片；选满 4 个自动收起；不选也能运行（按品质色自动选卡）")
         skill_layout = QVBoxLayout(self.grp_skill)
         self.skill_grid = SkillCardGrid(SKILL_STEMS, SKILL_LABELS)
         skill_layout.addWidget(self.skill_grid)
@@ -477,7 +477,7 @@ class MainWindow(QMainWindow):
         if names:
             self.grp_skill.setTitle(f"技能搭配（已选 {'、'.join(names)}）")
         else:
-            self.grp_skill.setTitle("技能搭配（选 1–4 个）")
+            self.grp_skill.setTitle("技能搭配（可选，不选也能跑）")
         # 选满 4 个自动收起，保持面板简洁
         if len(names) == self.skill_grid.MAX_SKILLS:
             self.grp_skill.setChecked(False)
@@ -566,8 +566,9 @@ class MainWindow(QMainWindow):
             raise ValueError("目标关卡必须是“章节-关卡”，例如 1-10")
 
         skills = self.skill_grid.get_skills()
+        # 技能可选：不选也能跑（技能面板出现时按颜色稀有度选卡/关闭）
         if not skills:
-            raise ValueError("请至少选择 1 个技能")
+            self.log("[设置] 未选择技能：技能面板将按品质色自动选卡", "info")
 
         _, stage_index = (int(value) for value in match.groups())
         settings = self.settings

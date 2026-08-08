@@ -1245,6 +1245,58 @@ class Mediator:
         self.set_phase(Phase.HERO_SETUP, "hero entry clicked")
         return LoopAction.Continue
 
+    def _ticket_exhausted(self, frame: Frame) -> bool:
+        """True when the sweep-ticket remainder shows 0 on the stage-select page.
+
+        Ticket number sits below the 扫荡 button: (862,850,985,888) in the
+        1600x900 window; the remainder digit(s) occupy the left part
+        (862..920). A '0' glyph template matched inside that ROI means the
+        remainder is zero (ticket_zero template sourced from live UI).
+        """
+        if not getattr(self.settings, "auto_archaeology", True):
+            return False
+        hit = self.find(
+            frame,
+            ["lobby/ticket_zero"],
+            threshold=0.72,
+            scales=(0.9, 1.0, 1.1, 1.2),
+            roi=(862 / 1600.0, 850 / 900.0, 920 / 1600.0, 888 / 900.0),
+        )
+        return hit is not None
+
+    def _maybe_switch_to_archaeology(self, frame: Frame) -> LoopAction | None:
+        """Ticket exhausted -> click 考古模式 (1376,813) -> stop script.
+
+        Confirms 3 consecutive frames before acting to avoid a flicker false
+        positive. Returns LoopAction.Break after switching, None otherwise.
+        """
+        if not getattr(self.settings, "auto_archaeology", True):
+            return None
+        if self._ticket_exhausted(frame):
+            count = getattr(self, "_ticket_zero_frames", 0) + 1
+            self._ticket_zero_frames = count
+            if count < 3:
+                print(f"[L0] 扫荡券剩余为 0（确认 {count}/3），等待稳定…")
+                return LoopAction.Continue
+            print("[L0] 扫荡券已清空，点击考古模式并结束脚本")
+            arch_hit = MatchResult(
+                name="archaeology_switch",
+                score=1.0,
+                x=int(frame.width * 0.86),
+                y=int(frame.height * 0.903),
+                w=0,
+                h=0,
+                screen_x=frame.left + int(frame.width * 0.86),
+                screen_y=frame.top + int(frame.height * 0.903),
+            )
+            self.act_click(arch_hit, "SwitchToArchaeology")
+            self._ticket_zero_frames = 0
+            self.set_phase(Phase.QUIT, "archaeology mode after ticket exhausted")
+            self.stop()
+            return LoopAction.Break
+        self._ticket_zero_frames = 0
+        return None
+
     def _tick_hero_setup(self, frame: Frame) -> LoopAction:
         now = time.time()
         if not self._hero_reference_frame(frame):
@@ -1720,6 +1772,10 @@ class Mediator:
                     print("[L0] 选关页消失但未出现局内 UI，回到房间等待")
                     self.set_phase(Phase.ROOM_WAITING, "stage page disappeared")
                 return LoopAction.Continue
+            # 扫荡券清空 → 自动进考古模式并结束脚本
+            arch_res = self._maybe_switch_to_archaeology(frame)
+            if arch_res is not None:
+                return arch_res
             now = time.time()
             if not self._stage_selected:
                 target = self._find_stage_target(frame)
