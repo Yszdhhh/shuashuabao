@@ -413,13 +413,10 @@ class MainWindow(QMainWindow):
         core_layout.addWidget(self.chk_dry)
         main_layout.addWidget(core)
 
-        self.grp_skill = QGroupBox("技能（请选择 1–4 个）")
-        self.grp_skill.setCheckable(True)
-        self.grp_skill.setChecked(True)
+        self.grp_skill = QGroupBox("技能搭配（选 1–4 个，脚本自动按此搭配选卡，无需其他操作）")
         skill_layout = QVBoxLayout(self.grp_skill)
         self.skill_grid = SkillCardGrid(SKILL_STEMS, SKILL_LABELS)
         skill_layout.addWidget(self.skill_grid)
-        self.grp_skill.toggled.connect(self._set_skill_panel_expanded)
         self.skill_grid.skills_changed.connect(self._on_skills_changed)
         main_layout.addWidget(self.grp_skill)
 
@@ -451,17 +448,12 @@ class MainWindow(QMainWindow):
     def _update_hero_visibility(self):
         self.hero_options.setVisible(bool(self.cmb_mode.currentData()))
 
-    def _set_skill_panel_expanded(self, expanded: bool):
-        self.skill_grid.setVisible(expanded)
-        self.grp_skill.setMaximumHeight(16777215 if expanded else 36)
-        target_height = 650 if expanded else 460
-        self.resize(self.width(), max(self.minimumHeight(), target_height))
-
     def _on_skills_changed(self):
         names = self.skill_grid.selected_names()
-        self.grp_skill.setTitle(f"技能：{'、'.join(names)}" if names else "技能（请选择 1–4 个）")
-        if len(names) == self.skill_grid.MAX_SKILLS:
-            self.grp_skill.setChecked(False)
+        self.grp_skill.setTitle(
+            f"技能搭配（选 1–4 个：{'、'.join(names)}）" if names
+            else "技能搭配（选 1–4 个，脚本自动按此搭配选卡，无需其他操作）"
+        )
 
     def log(self, text: str, level: str = "info"):
         text = str(text)
