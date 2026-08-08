@@ -13,7 +13,7 @@ import sys
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from PySide6.QtCore import QLockFile, QObject, Qt, QThread, Signal
+from PySide6.QtCore import QLockFile, QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -249,9 +249,16 @@ class MainWindow(QMainWindow):
         self.settings = Settings()
         self.worker_thread: MediatorWorker | None = None
 
+        # 设置自动保存（防抖 800ms；关闭/运行时也会落盘）
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(800)
+        self._save_timer.timeout.connect(self._save_settings_now)
+
         self._setup_style()
         self._build_ui()
         self.load_local_settings(silent=True)
+        self._wire_auto_save()
 
     def _setup_style(self):
         self.setStyleSheet("""
@@ -420,10 +427,14 @@ class MainWindow(QMainWindow):
         core_layout.addWidget(self.chk_dry)
         main_layout.addWidget(core)
 
-        self.grp_skill = QGroupBox("技能搭配（选 1–4 个，脚本自动按此搭配选卡，无需其他操作）")
+        self.grp_skill = QGroupBox("技能搭配（选 1–4 个，选满自动收起）")
+        self.grp_skill.setCheckable(True)
+        self.grp_skill.setChecked(True)
+        self.grp_skill.setToolTip("勾选=展开技能卡片；选满 4 个自动收起，保持面板简洁")
         skill_layout = QVBoxLayout(self.grp_skill)
         self.skill_grid = SkillCardGrid(SKILL_STEMS, SKILL_LABELS)
         skill_layout.addWidget(self.skill_grid)
+        self.grp_skill.toggled.connect(self._set_skill_panel_expanded)
         self.skill_grid.skills_changed.connect(self._on_skills_changed)
         main_layout.addWidget(self.grp_skill)
 
@@ -455,12 +466,44 @@ class MainWindow(QMainWindow):
     def _update_hero_visibility(self):
         self.hero_options.setVisible(bool(self.cmb_mode.currentData()))
 
+    def _set_skill_panel_expanded(self, expanded: bool):
+        self.skill_grid.setVisible(expanded)
+        if not expanded:
+            names = self.skill_grid.selected_names()
+            self.grp_skill.setTitle(f"技能搭配（已选 {'、'.join(names)}，点勾展开）" if names else "技能搭配（点勾展开）")
+
     def _on_skills_changed(self):
         names = self.skill_grid.selected_names()
-        self.grp_skill.setTitle(
-            f"技能搭配（选 1–4 个：{'、'.join(names)}）" if names
-            else "技能搭配（选 1–4 个，脚本自动按此搭配选卡，无需其他操作）"
-        )
+        if names:
+            self.grp_skill.setTitle(f"技能搭配（已选 {'、'.join(names)}）")
+        else:
+            self.grp_skill.setTitle("技能搭配（选 1–4 个）")
+        # 选满 4 个自动收起，保持面板简洁
+        if len(names) == self.skill_grid.MAX_SKILLS:
+            self.grp_skill.setChecked(False)
+        self._schedule_auto_save()
+
+    def _wire_auto_save(self):
+        """控件变更 → 防抖自动保存（下次打开沿用上次设置）。"""
+        self.txt_stage_target.textChanged.connect(self._schedule_auto_save)
+        self.cmb_mode.currentIndexChanged.connect(self._schedule_auto_save)
+        self.cmb_reputation.currentIndexChanged.connect(self._schedule_auto_save)
+        self.spn_reputation_level.valueChanged.connect(self._schedule_auto_save)
+        self.chk_dry.toggled.connect(self._schedule_auto_save)
+
+    def _schedule_auto_save(self):
+        try:
+            self._save_timer.start()
+        except Exception:
+            pass
+
+    def _save_settings_now(self):
+        try:
+            settings = self.collect_settings_from_ui()
+            settings.save(ROOT / "config" / "default_settings.json")
+        except (ValueError, Exception):
+            # 非法/未完成配置（如空技能）不落盘，保留上次有效配置
+            pass
 
     def log(self, text: str, level: str = "info"):
         text = str(text)
@@ -554,6 +597,11 @@ class MainWindow(QMainWindow):
         except ValueError as exc:
             QMessageBox.warning(self, "请检查运行设置", str(exc))
             return
+        # 运行前落盘，保证下次打开沿用本次设置
+        try:
+            settings.save(ROOT / "config" / "default_settings.json")
+        except Exception:
+            pass
 
         if not settings.dry_run:
             is_admin = False
@@ -598,6 +646,12 @@ class MainWindow(QMainWindow):
                 self.log("[关闭] 任务线程未在 3s 内退出，强制结束", "warn")
                 worker.terminate()
                 worker.wait(1000)
+        # 关闭前持久化当前设置
+        try:
+            settings = self.collect_settings_from_ui()
+            settings.save(ROOT / "config" / "default_settings.json")
+        except Exception:
+            pass
         event.accept()
 
 _INSTANCE_LOCK: QLockFile | None = None
