@@ -210,11 +210,44 @@ class InputExecutor:
                 )
         return None
 
+    def _check_point_obscured(self, target_hwnd: int, x: int, y: int) -> ActionResult | None:
+        """Reject clicks whose screen point is covered by a foreign window.
+
+        Real-machine failure mode: game window partially covered by editor/
+        terminal; SendInput lands on the covering window and the game never
+        reacts. WindowFromPoint tells us the topmost window at the click point.
+        """
+        try:
+            import ctypes
+            from ctypes import wintypes as w
+
+            pt = w.POINT(int(x), int(y))
+            top = int(ctypes.windll.user32.WindowFromPoint(pt))
+        except Exception:
+            return None
+        if top == 0:
+            return None
+        if foreground_matches_target(target_hwnd, top):
+            return None
+        return ActionResult(
+            success=False,
+            status="CANCELLED_WINDOW_OBSCURED",
+            message=(
+                f"Click point ({x},{y}) is covered by another window (hwnd={top}). "
+                "Move editors/terminals off the game window or bring the game to front."
+            ),
+        )
+
     def click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 120) -> ActionResult:
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
         if not check.success:
             print(f"[input] click ({x}, {y}) CANCELLED: {check.message}")
             return check
+        if not dry_run and target_hwnd:
+            obscured = self._check_point_obscured(target_hwnd, x, y)
+            if obscured:
+                print(f"[input] click ({x}, {y}) CANCELLED: {obscured.message}")
+                return obscured
 
         click(x, y, dry_run=dry_run, delay_ms=delay_ms)
         post = self._post_check(target_hwnd, dry_run)
@@ -228,6 +261,11 @@ class InputExecutor:
         if not check.success:
             print(f"[input] right_click ({x}, {y}) CANCELLED: {check.message}")
             return check
+        if not dry_run and target_hwnd:
+            obscured = self._check_point_obscured(target_hwnd, x, y)
+            if obscured:
+                print(f"[input] right_click ({x}, {y}) CANCELLED: {obscured.message}")
+                return obscured
 
         right_click(x, y, dry_run=dry_run, delay_ms=delay_ms)
         post = self._post_check(target_hwnd, dry_run)
