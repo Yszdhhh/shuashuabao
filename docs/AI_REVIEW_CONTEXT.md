@@ -60,12 +60,15 @@ GameScript-Local/
 
 ## 5. 已知边界（审查时注意）
 
-- 坐标基准 1600×900 窗口（含标题栏偏移 ~30px）；其他分辨率按比例缩放，未全面验证
+- 坐标基准 1600×900 窗口（含标题栏偏移 ~30px）；**会话级 ui_scale 校准已落地**（每帧按窗口宽高自动求缩放比，模板匹配 scales 并入 ui_scale 邻域；960x540 / 852x480 已测试）
 - 英雄模式面板坐标来自原版 IL 逆向 + 实机，阵营/难度按钮未全部实机校准
 - 战后存档/传家宝/秘境/龙珠/Boss 入口目前 Fail-Closed（未实现）
-- `monitor_game_over.py` 独立未接入
+- `monitor_game_over.py` 独立未接入（文件顶部 NOT_WIRED 标记，仅作活动/静止辅助证据）
 - 测试用 mock 覆盖输入链，遮挡检测分支未实机全验证
-- 模板 313 个，部分来自旧版本 UI（可能过时）
+- 模板 313 个，部分来自旧版本 UI（可能过时）；选择面板分类对旧版 fixture 存在跨版本混淆（treasure_lock_btn 0.70+ 误命中旧 hide 按钮），新 UI 实机未回归验证
+- **JSONL tick trace**：CLI/API 每次运行自动写 `logs/trace_<ts>.jsonl`（tick/phase/context/hwnd/size/actions/scenes/elapsed_ms），卡死或误操作后看最后几十行即可定位；已 gitignore
+- 黑商 `auto_gambling_time` 设置项未接入状态机（调研报告 P2）
+- legacy `AutoJob` 模块裸输入已私有化（`_click`/`_press_key`），CLI 仍拒绝 legacy 真机输入
 
 ## 6. 合规声明
 
