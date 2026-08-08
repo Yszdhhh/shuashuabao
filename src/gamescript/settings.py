@@ -89,8 +89,8 @@ class Settings:
     sgzx_boss: str = ""
     skills: list[str] = field(default_factory=lambda: ["jq", "pg"])
     cards: list[str] = field(default_factory=list)
-    auto_bond: bool = False      # 主动按 F 开羁绊面板（低频，防烧木材）
-    auto_treasure: bool = False  # 主动按 V 开宝物面板（低频，防烧刷新次数）
+    auto_bond: bool = True       # 主动按 F 开羁绊面板（低频，防烧木材）
+    auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
     boss_live_time: int = 0
     kill_boss_num: int = 0

@@ -561,6 +561,90 @@ class Mediator:
             return LoopAction.Break
         return LoopAction.Continue
 
+    # 卡牌品质色（用户规则）：蓝EX > 红UR > 橙SSR > 紫SR > 浅蓝R；绿=选中框排除
+    RARITY_BANDS = (
+        ("ex", 55, 75, 5),
+        ("ur", 0, 15, 4),
+        ("ssr", 15, 25, 3),
+        ("sr", 100, 125, 2),
+        ("r", 75, 95, 1),
+    )
+
+    def _card_rarity_score(self, frame: Frame, cx: int, cy: int) -> tuple[int, str, int] | None:
+        """Score a card's border-ring color by rarity band.
+
+        Returns (score, band, saturated_pixels) or None when no rarity color.
+        """
+        try:
+            import numpy as np
+            import cv2 as _cv2
+        except Exception:
+            return None
+        w, h = int(frame.width * 0.094), int(frame.height * 0.122)
+        x0, y0 = max(0, cx - w // 2), max(0, cy - h // 2)
+        roi = frame.bgr[y0 : y0 + h, x0 : x0 + w]
+        if roi is None or roi.size == 0:
+            return None
+        ring = np.concatenate(
+            [
+                roi[:5, :].reshape(-1, 3),
+                roi[-5:, :].reshape(-1, 3),
+                roi[:, :5].reshape(-1, 3),
+                roi[:, -5:].reshape(-1, 3),
+            ]
+        )
+        hsv = _cv2.cvtColor(ring.reshape(-1, 1, 3), _cv2.COLOR_BGR2HSV)
+        hues = hsv[:, 0, 0]
+        sat = hsv[:, 0, 1]
+        saturated = sat > 60
+        if int(saturated.sum()) < 30:
+            return None
+        hue_vals = hues[saturated]
+        best: tuple[int, str, int] | None = None
+        for band, lo, hi, score in self.RARITY_BANDS:
+            if band == "ur":
+                count = int(((hue_vals >= 0) & (hue_vals <= 15)).sum()) + int(
+                    ((hue_vals >= 165) & (hue_vals <= 180)).sum()
+                )
+            else:
+                count = int(((hue_vals >= lo) & (hue_vals <= hi)).sum())
+            if count >= 30 and (best is None or count > best[2]):
+                best = (score, band, count)
+        return best
+
+    def _rarity_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
+        """Pick the highest-rarity card in a 3-choice panel by border color."""
+        if panel_kind == "treasure":
+            xs = (0.234, 0.363, 0.491)
+            cy_ratio = 0.367
+        else:
+            xs = (0.331, 0.450, 0.569)
+            cy_ratio = 0.333
+        best: tuple[int, str, int, int, int] | None = None
+        for x_ratio in xs:
+            cx = int(frame.width * x_ratio)
+            cy = int(frame.height * cy_ratio)
+            r = self._card_rarity_score(frame, cx, cy)
+            if r is None:
+                continue
+            score, band, count = r
+            if best is None or score > best[0] or (score == best[0] and count > best[3]):
+                best = (score, band, count, cx, cy)
+        if best is None:
+            return None
+        _, band, count, cx, cy = best
+        print(f"[L1] 按品质色选卡：{band} (饱和像素 {count}) @ ({cx},{cy})")
+        return MatchResult(
+            name=f"rarity_{band}",
+            score=min(1.0, count / 200.0),
+            x=cx,
+            y=cy,
+            w=0,
+            h=0,
+            screen_x=frame.left + cx,
+            screen_y=frame.top + cy,
+        )
+
     def _find_reward_choice(self, frame: Frame) -> tuple[str, MatchResult] | None:
         if not self._selection_anchor(frame):
             return None
@@ -603,6 +687,10 @@ class Mediator:
                         if c.name in wanted:
                             return (kind, c)
                     return (kind, candidates[0])
+            # 无 cards 模板匹配 → 按品质色选最高稀有度
+            rarity_hit = self._rarity_choice(frame, kind)
+            if rarity_hit is not None:
+                return (kind, rarity_hit)
             # 无匹配 → 点「暂时隐藏」关闭面板
             hide = self.find(
                 frame,
@@ -647,7 +735,11 @@ class Mediator:
                 configured_candidates.append((idx, c))
 
         if not configured_candidates:
-            print(f"[L1] 发现 {count}选一 技能面板，但画面中无配置匹配技能，保持无动作")
+            # 无配置匹配 → 按品质色选最高稀有度卡
+            rarity_hit = self._rarity_choice(frame, "skill")
+            if rarity_hit is not None:
+                return ("技能", rarity_hit)
+            print(f"[L1] 发现 {count}选一 技能面板，无配置匹配且无品质色，保持无动作")
             return None
 
         configured_candidates.sort(key=lambda item: item[0])
@@ -1847,6 +1939,21 @@ class Mediator:
                 print(f"[L1] 局内选关 SelectStage {hit_stage.name}")
                 if self.act_click(hit_stage, "SelectStage-InGame-target"):
                     self._stage_click_cooldown_until = now + 2.0
+                    self._main_line_since = now
+                    return LoopAction.Continue
+
+        # 点击进化（未满5级时中下方出现，实机坐标 1600x900 内 (525,778)）
+        if now >= getattr(self, "_evolve_click_cooldown_until", 0.0):
+            evolve_hit = self.find(
+                frame,
+                ["click_evolve"],
+                threshold=0.75,
+                scales=(0.9, 1.0, 1.1),
+            )
+            if evolve_hit:
+                print(f"[L1] 点击进化 @ {evolve_hit.center}")
+                if self.act_click(evolve_hit, "ClickEvolve"):
+                    self._evolve_click_cooldown_until = now + 5.0
                     self._main_line_since = now
                     return LoopAction.Continue
 

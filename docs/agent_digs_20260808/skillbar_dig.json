@@ -1,0 +1,74 @@
+{
+  "skill_slots": [
+    {
+      "key": "Q",
+      "label": "Q",
+      "x": 1205,
+      "y": 744,
+      "hotkey_text": "Q"
+    },
+    {
+      "key": "W",
+      "label": "W",
+      "x": 1205,
+      "y": 806,
+      "hotkey_text": "W"
+    },
+    {
+      "key": "A",
+      "label": "集火",
+      "x": 1278,
+      "y": 806,
+      "hotkey_text": "集火[A]"
+    },
+    {
+      "key": "D",
+      "label": "D",
+      "x": 1322,
+      "y": 806,
+      "hotkey_text": "D"
+    },
+    {
+      "key": "F",
+      "label": "羁绊",
+      "x": 1400,
+      "y": 806,
+      "hotkey_text": "羁绊[F]"
+    },
+    {
+      "key": "G",
+      "label": "技能",
+      "x": 1444,
+      "y": 806,
+      "hotkey_text": "技能[G]"
+    },
+    {
+      "key": "V",
+      "label": "宝物",
+      "x": 1400,
+      "y": 744,
+      "hotkey_text": "宝物[V]"
+    },
+    {
+      "key": "L",
+      "label": "已吞噬",
+      "x": 1444,
+      "y": 744,
+      "hotkey_text": "已吞噬[L]"
+    },
+    {
+      "key": "Z",
+      "label": "Z",
+      "x": 1530,
+      "y": 690,
+      "hotkey_text": "[Z]"
+    },
+    {
+      "key": "B",
+      "label": "B",
+      "x": 1530,
+      "y": 735,
+      "hotkey_text": "[B]"
+    }
+  ]
+}
