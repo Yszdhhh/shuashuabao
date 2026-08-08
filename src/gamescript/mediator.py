@@ -746,6 +746,32 @@ class Mediator:
         _, best_hit = configured_candidates[0]
         return ("技能", best_hit)
 
+    def _maybe_fire_artifacts(self) -> LoopAction | None:
+        """Periodic Q/W artifact release (fixed 180s cooldown per slot).
+
+        The Q/W slots (1205,744)/(1205,806 in 1600x900) are artifact triggers;
+        releasing early is harmless (in-cooldown), so a plain interval loop is
+        safe. First fire is deferred ~30s after entering MAIN_LINE.
+        """
+        if not getattr(self.settings, "auto_artifact", True):
+            return None
+        if not self._main_line_since:
+            return None
+        now = time.time()
+        if now - self._main_line_since < 30:
+            return None
+        cd = max(30, int(getattr(self.settings, "artifact_cd", 180)))
+        acted = False
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        for key, attr in (("q", "_artifact_next_q"), ("w", "_artifact_next_w")):
+            next_at = getattr(self, attr, 0.0)
+            if now >= next_at:
+                setattr(self, attr, now + cd)
+                print(f"[L1] 释放神器 {key.upper()}（冷却 {cd}s）")
+                self.executor.press_key(key, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                acted = True
+        return LoopAction.Continue if acted else None
+
     def _maybe_open_choice_panel(self, frame: Frame) -> LoopAction | None:
         """Low-frequency proactive bond (F) / treasure (V) panel opening.
 
@@ -1956,6 +1982,12 @@ class Mediator:
                     self._evolve_click_cooldown_until = now + 5.0
                     self._main_line_since = now
                     return LoopAction.Continue
+
+        # 神器 Q/W 定时释放（180s CD，进局 30s 后开始）
+        artifact_res = self._maybe_fire_artifacts()
+        if artifact_res is not None:
+            self._main_line_since = now
+            return artifact_res
 
         # 主动羁绊/宝物（快捷键 F/V，低频防烧资源；配置开启才动作）
         if self.settings.auto_bond or self.settings.auto_treasure:
