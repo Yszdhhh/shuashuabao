@@ -390,7 +390,15 @@ def match_all(
             if th > fh or tw > fw or th < 4 or tw < 4:
                 continue
             result = cv2.matchTemplate(target.bgr, candidate, cv2.TM_CCOEFF_NORMED)
-            ys, xs = np.where(result >= threshold)
+            # 局部非极大抑制：只收集每个局部峰（膨胀后相等处），
+            # 避免低阈值+重复纹理时把成千上万个过阈值像素转成 Python 对象
+            if result.size > 0:
+                kernel = np.ones((3, 3), np.uint8)
+                local_max = cv2.dilate(result, kernel)
+                peaks = (result == local_max) & (result >= threshold)
+                ys, xs = np.where(peaks)
+            else:
+                ys, xs = np.array([], dtype=int), np.array([], dtype=int)
             for y, x in zip(ys.tolist(), xs.tolist()):
                 candidates.append(MatchResult(
                     name=path.stem,

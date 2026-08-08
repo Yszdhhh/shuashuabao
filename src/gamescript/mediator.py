@@ -489,25 +489,6 @@ class Mediator:
             return "card"
         return None
 
-    def _choice_hits(self, frame: Frame, directory: str, preferred: list[str]) -> list[MatchResult]:
-        folder = self.images / directory
-        names: list[str] = []
-        for value in preferred:
-            value = (value or "").strip()
-            if not value:
-                continue
-            names.append(value if "/" in value else f"{directory}/{value}")
-        if folder.is_dir():
-            names.extend(f"{directory}/{path.stem}" for path in sorted(folder.glob("*.png")))
-        names = list(dict.fromkeys(names))
-        kwargs = {
-            "threshold": min(0.70, self.settings.match_threshold),
-            "roi": self._selection_roi(),
-            "max_results": 12,
-        }
-        hits = match_all(frame, self.images, names, scales=(0.85, 0.95, 1.0, 1.05, 1.1), **kwargs)
-        return hits
-
     @staticmethod
     def _preferred_choice(hits: list[MatchResult], preferred: list[str]) -> MatchResult | None:
         wanted = {Path(value).stem for value in preferred if value}
@@ -666,7 +647,7 @@ class Mediator:
             screen_y=frame.top + cy,
         )
 
-    def _find_reward_choice(self, frame: Frame) -> tuple[str, MatchResult] | None:
+    def _find_reward_choice(self, frame: Frame, anchor: MatchResult | None = None) -> tuple[str, MatchResult] | None:
         """Decision layer for an open reward-choice panel.
 
         Policy (one action max, preferred-only):
@@ -679,7 +660,8 @@ class Mediator:
         The full skills/cards library is NOT scanned online; it is only used
         for offline diagnostics/template maintenance.
         """
-        anchor = self._selection_anchor(frame)
+        if anchor is None:
+            anchor = self._selection_anchor(frame)
         if not anchor:
             return None
 
@@ -824,7 +806,7 @@ class Mediator:
             acted = True
         return LoopAction.Continue if acted else None
 
-    def _maybe_open_choice_panel(self, frame: Frame) -> LoopAction | None:
+    def _maybe_open_choice_panel(self, frame: Frame, anchor: MatchResult | None = None) -> LoopAction | None:
         """Proactive skill (G) / bond (F) / treasure (V) panel opening.
 
         Skill panel is the priority (60s interval): configured skills are the
@@ -832,7 +814,9 @@ class Mediator:
         opened here are remembered so the close-button fallback may close them
         safely instead of Fail-Closed.
         """
-        if self._selection_anchor(frame):
+        if anchor is None:
+            anchor = self._selection_anchor(frame)
+        if anchor:
             return None
         now = time.time()
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
@@ -2120,7 +2104,7 @@ class Mediator:
             if now < self._selection_click_cooldown_until:
                 print("[L1] 选择面板等待点击结果…")
                 return LoopAction.Continue
-            choice = self._find_reward_choice(frame)
+            choice = self._find_reward_choice(frame, anchor=selection_anchor)
             if choice:
                 kind, hit = choice
                 print(f"[L1] {kind}选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
@@ -2212,7 +2196,7 @@ class Mediator:
 
         # 主动羁绊/宝物（快捷键 F/V，低频防烧资源；配置开启才动作）
         if self.settings.auto_bond or self.settings.auto_treasure:
-            opened = self._maybe_open_choice_panel(frame)
+            opened = self._maybe_open_choice_panel(frame, anchor=selection_anchor)
             if opened is not None:
                 self._main_line_since = now
                 return opened
