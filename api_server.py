@@ -75,7 +75,8 @@ class RunnerState:
         self.lock = threading.Lock()
         self.thread: Optional[threading.Thread] = None
         self.mediator: Any = None
-        self.running: bool = False
+        self.state: str = "IDLE"  # IDLE / STARTING / RUNNING / STOPPING
+        self.generation: int = 0  # 递增代次：旧 worker 不得覆盖新 worker 状态
         self.phase: str = "BOOT"
         self.phase_name: str = "就绪"
         self.game_count: int = 0
@@ -104,7 +105,7 @@ class RunnerState:
 
     def reset_status(self):
         with self.lock:
-            self.running = False
+            self.state = "IDLE"
             self.phase = "BOOT"
             self.phase_name = "就绪"
             self.game_count = 0
@@ -241,9 +242,15 @@ def list_cards():
 
 @app.post("/api/run/start")
 def start_run(req: StartRunRequest = StartRunRequest()):
+    # 同一把锁内完成 IDLE→STARTING 占位与线程赋值；旧线程未退出即拒绝。
     with runner.lock:
-        if runner.running and runner.thread and runner.thread.is_alive():
+        if runner.thread is not None and runner.thread.is_alive():
             return {"status": "already_running", "message": "任务已经在运行中"}
+        if runner.state != "IDLE":
+            return {"status": "already_running", "message": f"任务状态为 {runner.state}"}
+        runner.state = "STARTING"
+        runner.generation += 1
+        gen = runner.generation
 
     config_file = ROOT / "config" / "default_settings.json"
     try:
@@ -257,12 +264,14 @@ def start_run(req: StartRunRequest = StartRunRequest()):
     try:
         MedCls, PhEnum = get_mediator_cls()
     except Exception as e:
+        with runner.lock:
+            if runner.generation == gen:
+                runner.state = "IDLE"
         runner.add_log(f"[错误] 依赖加载失败: {e}", "error")
         raise HTTPException(
             status_code=500, detail=f"无法加载 Mediator 自动化模块（缺乏 OpenCV 等）：{e}"
         )
 
-    runner.running = True
     runner.last_error = None
     runner.phase = "BOOT"
     runner.phase_name = "就绪"
@@ -275,7 +284,7 @@ def start_run(req: StartRunRequest = StartRunRequest()):
         "info",
     )
 
-    def worker():
+    def worker(gen: int):
         real_print = builtins.print
 
         def hook_print(*args, **kwargs):
@@ -297,8 +306,9 @@ def start_run(req: StartRunRequest = StartRunRequest()):
                     if len(parts) > 1:
                         p_str = parts[1].split()[0]
                         p_name = p_str.split("→")[-1].strip()
-                        runner.phase = p_name
-                        runner.phase_name = PHASE_NAME_MAP.get(p_name, p_name)
+                        if runner.generation == gen:
+                            runner.phase = p_name
+                            runner.phase_name = PHASE_NAME_MAP.get(p_name, p_name)
                 except Exception:
                     pass
 
@@ -306,23 +316,33 @@ def start_run(req: StartRunRequest = StartRunRequest()):
 
         try:
             med = MedCls(s, ROOT)
-            runner.mediator = med
+            with runner.lock:
+                if runner.generation != gen:
+                    return
+                runner.mediator = med
+                runner.state = "RUNNING"
             med.run(max_steps=max_steps)
-            runner.game_count = med.game_count
+            with runner.lock:
+                if runner.generation == gen:
+                    runner.game_count = med.game_count
         except Exception as e:
             err_str = f"运行过程中抛出异常: {e}\n{traceback.format_exc()}"
-            runner.last_error = str(e)
+            if runner.generation == gen:
+                runner.last_error = str(e)
             runner.add_log(f"[异常] 游戏中断: {e}", "error")
         finally:
             builtins.print = real_print
             with runner.lock:
-                runner.running = False
-                if runner.mediator:
-                    runner.game_count = runner.mediator.game_count
+                if runner.generation == gen:
+                    runner.state = "IDLE"
+                    runner.mediator = None
+                    if runner.thread is threading.current_thread():
+                        runner.thread = None
             runner.add_log("[停止] 任务运行结束", "info")
 
-    t = threading.Thread(target=worker, daemon=True)
-    runner.thread = t
+    t = threading.Thread(target=worker, args=(gen,), daemon=True)
+    with runner.lock:
+        runner.thread = t
     t.start()
 
     return {"status": "started", "dry_run": s.dry_run, "max_steps": max_steps}
@@ -330,11 +350,18 @@ def start_run(req: StartRunRequest = StartRunRequest()):
 
 @app.post("/api/run/stop")
 def stop_run():
-    if runner.mediator:
-        runner.mediator.stop()
-        runner.add_log("[操作] 用户请求停止任务...", "warn")
+    # 只触发停止，不提前宣布已停止；由 worker finally 进入 IDLE
     with runner.lock:
-        runner.running = False
+        if runner.state == "IDLE":
+            return {"status": "idle", "message": "任务未在运行"}
+        if runner.state in ("STARTING", "RUNNING"):
+            runner.state = "STOPPING"
+    if runner.mediator:
+        try:
+            runner.mediator.stop()
+        except Exception:
+            pass
+    runner.add_log("[操作] 用户请求停止任务...", "warn")
     return {"status": "stopping"}
 
 
@@ -347,7 +374,8 @@ def get_run_status():
         runner.phase_name = PHASE_NAME_MAP.get(p_name, p_name)
 
     return {
-        "running": runner.running,
+        "running": runner.state in ("STARTING", "RUNNING", "STOPPING"),
+        "state": runner.state,
         "phase": runner.phase,
         "phase_name": runner.phase_name,
         "game_count": runner.game_count,

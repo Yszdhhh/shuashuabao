@@ -182,29 +182,60 @@ class Settings:
         for k in bool_fields:
             if k in clean and not isinstance(clean[k], bool):
                 v = clean[k]
-                clean[k] = str(v).strip().lower() in ("1", "true", "yes", "on")
+                if isinstance(v, str):
+                    low = v.strip().lower()
+                    if low in ("1", "true", "yes", "on"):
+                        clean[k] = True
+                    elif low in ("0", "false", "no", "off", ""):
+                        clean[k] = False
+                    else:
+                        # 未知字符串：回落字段默认值，绝不悄悄改变功能开关
+                        clean.pop(k)
+                else:
+                    # 非 bool/str 数值：按真值转换
+                    clean[k] = bool(v)
         if "match_threshold" in clean:
             try:
                 clean["match_threshold"] = float(clean["match_threshold"])
             except (TypeError, ValueError):
                 clean.pop("match_threshold")
-        # 范围钳制
-        for k, lo, hi in (("stage1", 1, 50), ("stage2", 1, 50),
-                          ("reputation_type", 1, 6), ("reputation_level", 1, 10),
-                          ("artifact_slots", 1, 3)):
+        # 范围钳制（集中表）：负数/极端值回落到安全区间
+        _RANGES: dict[str, tuple[int, int]] = {
+            "stage1": (1, 50), "stage2": (1, 50),
+            "reputation_type": (1, 6), "reputation_level": (1, 10),
+            "artifact_slots": (1, 3),
+            "query_timeout": (10, 600), "game_timeout": (1, 120),
+            "click_delay_ms": (0, 2000), "loop_sleep_ms": (0, 5000),
+            "choice_interval": (30, 3600), "artifact_cd": (30, 3600),
+            "dragon_ball_count": (1, 10), "treasure_num": (0, 20),
+            "cycle_num": (0, 999), "kill_boss_num": (0, 9999),
+            "boss_live_time": (0, 3600), "archive_boss_time": (0, 3600),
+            "auto_clean_interval": (0, 99), "develop_time": (0, 3000),
+            "close_main_line_time": (0, 3600), "auto_gambling_time": (0, 3600),
+            "reputation_stage1": (0, 50), "reputation_stage2": (0, 50),
+        }
+        for k, (lo, hi) in _RANGES.items():
             if k in clean:
-                clean[k] = max(lo, min(hi, int(clean[k])))
-        for k in ("skills", "cards", "stage_targets"):
-            if k in clean and not isinstance(clean[k], list):
-                clean[k] = []
-        if "window_size" in clean and not isinstance(clean["window_size"], list):
-            clean.pop("window_size")
+                try:
+                    clean[k] = max(lo, min(hi, int(clean[k])))
+                except (TypeError, ValueError):
+                    clean.pop(k)
+        if "match_threshold" in clean:
+            clean["match_threshold"] = max(0.5, min(0.99, float(clean["match_threshold"])))
+        if "window_size" in clean:
+            ws = clean["window_size"]
+            if not (isinstance(ws, list) and len(ws) == 2
+                    and all(isinstance(v, int) and v > 0 for v in ws)):
+                clean.pop("window_size")
         return cls(**clean)
 
     def save(self, path: str | Path) -> None:
+        """原子写：先写同目录临时文件再 os.replace，避免中断截断配置。"""
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp = p.with_suffix(p.suffix + ".tmp")
+        tmp.write_text(json.dumps(asdict(self), ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(tmp, p)
 
     def images_path(self, root: Path) -> Path:
         p = Path(self.images_dir)

@@ -667,27 +667,31 @@ class Mediator:
         )
 
     def _find_reward_choice(self, frame: Frame) -> tuple[str, MatchResult] | None:
-        if not self._selection_anchor(frame):
+        """Decision layer for an open reward-choice panel.
+
+        Policy (one action max, preferred-only):
+        1. classify panel kind; UNKNOWN → None (caller handles: close if we
+           opened it, else zero-input)
+        2. match ONLY user-preferred templates (skills/cards); a preferred hit
+           is chosen directly
+        3. no preferred hit → rarity color pick
+        4. still nothing → safe close button (暂时隐藏/放弃)
+        The full skills/cards library is NOT scanned online; it is only used
+        for offline diagnostics/template maintenance.
+        """
+        anchor = self._selection_anchor(frame)
+        if not anchor:
             return None
 
         kind = self._classify_choice_panel(frame)
         if kind is None:
-            # fall back to legacy skill matching
-            kind = "skill"
+            # 分类失败：绝不假装 skill（旧行为会把 UNKNOWN 当技能面板扫全库）
+            return None
 
         if kind in ("bond", "treasure", "card"):
-            # 羁绊/宝物/卡牌面板：匹配 cards/ 目录模板 + 用户配置 cards；
-            # 无配置或无匹配 → 返回「暂时隐藏」关闭动作（不烧资源、不卡面板）。
-            cards_dir = self.images / "cards"
-            names: list[str] = []
-            for value in self.settings.cards:
-                value = (value or "").strip()
-                if value:
-                    names.append(value if "/" in value else f"cards/{value}")
-            if cards_dir.is_dir():
-                names.extend(f"cards/{p.stem}" for p in sorted(cards_dir.glob("*.png")))
-            names = list(dict.fromkeys(names))
-            if names:
+            preferred = [v.strip() for v in self.settings.cards if v and v.strip()]
+            if preferred:
+                names = [v if "/" in v else f"cards/{v}" for v in preferred]
                 hits = match_all(
                     frame,
                     self.images,
@@ -703,12 +707,11 @@ class Mediator:
                     if not any(math.hypot(h.x - c.x, h.y - c.y) < 40.0 for c in candidates):
                         candidates.append(h)
                 if candidates:
-                    wanted = {Path(v).stem for v in self.settings.cards if v}
+                    wanted = {Path(v).stem for v in preferred}
                     for c in candidates:
-                        if c.name in wanted:
+                        if Path(c.name).stem in wanted:
                             return (kind, c)
-                    return (kind, candidates[0])
-            # 无 cards 模板匹配 → 按品质色选最高稀有度
+            # 无偏好命中 → 按品质色选最高稀有度
             rarity_hit = self._rarity_choice(frame, kind)
             if rarity_hit is not None:
                 return (kind, rarity_hit)
@@ -724,53 +727,40 @@ class Mediator:
                 return (kind, hide)
             return None
 
-        # skill panel: existing 3/4-choice matching against configured skills
-        skills_dir = self.images / "skills"
-        if not skills_dir.is_dir():
-            return None
-
-        names = [f"skills/{p.stem}" for p in sorted(skills_dir.glob("*.png"))]
-        kwargs = {
-            "threshold": min(0.70, self.settings.match_threshold),
-            "roi": self._selection_roi(),
-            "max_results": 16,
-        }
-        all_hits = match_all(frame, self.images, names, scales=(0.90, 1.0, 1.05, 1.10), **kwargs)
-
-        hits_sorted = sorted(all_hits, key=lambda h: h.score, reverse=True)
-        candidates: list[MatchResult] = []
-        for h in hits_sorted:
-            if not any(math.hypot(h.x - c.x, h.y - c.y) < 40.0 for c in candidates):
-                candidates.append(h)
-
-        count = len(candidates)
-        if count not in (3, 4):
-            print(f"[L1] 发现选择面板，但技能候选数量 ({count}) 不属于 3 或 4 选一")
-            close_hit = self._close_current_panel(frame)
-            if close_hit is not None:
-                self._panel_opened_by_us = None
-                print(f"[L1] 点击关闭按钮 {close_hit.name}（非标准选卡面板）")
-                return (kind, close_hit)
-            return None
-
-        configured_candidates: list[tuple[int, MatchResult]] = []
-        for c in candidates:
-            stem = Path(c.name).stem
-            if stem in self.settings.skills:
-                idx = self.settings.skills.index(stem)
-                configured_candidates.append((idx, c))
-
-        if not configured_candidates:
-            # 无配置匹配 → 按品质色选最高稀有度卡
-            rarity_hit = self._rarity_choice(frame, "skill")
-            if rarity_hit is not None:
-                return ("技能", rarity_hit)
-            print(f"[L1] 发现 {count}选一 技能面板，无配置匹配且无品质色，保持无动作")
-            return None
-
-        configured_candidates.sort(key=lambda item: item[0])
-        _, best_hit = configured_candidates[0]
-        return ("技能", best_hit)
+        # skill panel: preferred-only
+        preferred = [v.strip() for v in self.settings.skills if v and v.strip()]
+        if preferred:
+            names = [v if "/" in v else f"skills/{v}" for v in preferred]
+            hits = match_all(
+                frame,
+                self.images,
+                names,
+                threshold=min(0.70, self.settings.match_threshold),
+                roi=self._selection_roi(),
+                max_results=8,
+                scales=(0.90, 1.0, 1.05, 1.10),
+            )
+            hits = sorted(hits, key=lambda h: h.score, reverse=True)
+            candidates: list[MatchResult] = []
+            for h in hits:
+                if not any(math.hypot(h.x - c.x, h.y - c.y) < 40.0 for c in candidates):
+                    candidates.append(h)
+            if candidates:
+                wanted = {Path(v).stem for v in preferred}
+                for c in candidates:
+                    if Path(c.name).stem in wanted:
+                        return ("技能", c)
+        # 无偏好命中 → 按品质色选最高稀有度
+        rarity_hit = self._rarity_choice(frame, "skill")
+        if rarity_hit is not None:
+            return ("技能", rarity_hit)
+        # 无匹配 → 点「放弃/暂时隐藏」关闭
+        close_hit = self._close_current_panel(frame)
+        if close_hit is not None:
+            self._panel_opened_by_us = None
+            print(f"[L1] 技能面板无配置匹配，点击关闭 {close_hit.name}")
+            return ("技能", close_hit)
+        return None
 
     # 神器槽位几何（1600x900 基准，相对比例）：Q(1205,744) W(1205,806) E(1205,868)
     ARTIFACT_SLOT_X = 0.753
@@ -824,9 +814,13 @@ class Mediator:
                 print(f"[L1] 神器槽{idx + 1}({key.upper()})为空，跳过释放")
                 setattr(self, f"_artifact_next_{key}", now + cd)
                 continue
+            res = self.executor.press_key(key, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            if not res.success:
+                # 输入被拒（前台/急停/遮挡）：不推进 CD，下轮重试
+                print(f"[L1] 神器 {key.upper()} 释放被拒绝: {res.message}（不推进冷却）")
+                continue
             setattr(self, f"_artifact_next_{key}", now + cd)
             print(f"[L1] 释放神器 {key.upper()}（冷却 {cd}s）")
-            self.executor.press_key(key, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
             acted = True
         return LoopAction.Continue if acted else None
 
@@ -844,26 +838,35 @@ class Mediator:
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
         # 技能 G：核心，60s
         if now - getattr(self, "_last_skill_panel", 0.0) >= 60:
-            self._last_skill_panel = now
-            self._panel_opened_by_us = "skill"
-            print("[L1] 主动按 G 打开技能面板（核心，60s 一次）")
-            self.executor.press_key("g", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            res = self.executor.press_key("g", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            if res.success:
+                self._last_skill_panel = now
+                self._panel_opened_by_us = "skill"
+                print("[L1] 主动按 G 打开技能面板（核心，60s 一次）")
+            else:
+                print(f"[L1] 按 G 被拒绝: {res.message}（不推进冷却）")
             return LoopAction.Continue
         interval = max(30, getattr(self.settings, "choice_interval", 120))
         # 羁绊 F / 宝物 V：低频
         if getattr(self.settings, "auto_bond", True):
             if now - getattr(self, "_last_bond_attempt", 0.0) >= interval:
-                self._last_bond_attempt = now
-                self._panel_opened_by_us = "bond"
-                print("[L1] 主动按 F 打开羁绊面板（低频）")
-                self.executor.press_key("f", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                res = self.executor.press_key("f", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                if res.success:
+                    self._last_bond_attempt = now
+                    self._panel_opened_by_us = "bond"
+                    print("[L1] 主动按 F 打开羁绊面板（低频）")
+                else:
+                    print(f"[L1] 按 F 被拒绝: {res.message}（不推进冷却）")
                 return LoopAction.Continue
         if getattr(self.settings, "auto_treasure", True):
             if now - getattr(self, "_last_treasure_attempt", 0.0) >= interval:
-                self._last_treasure_attempt = now
-                self._panel_opened_by_us = "treasure"
-                print("[L1] 主动按 V 打开宝物面板（低频）")
-                self.executor.press_key("v", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                res = self.executor.press_key("v", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                if res.success:
+                    self._last_treasure_attempt = now
+                    self._panel_opened_by_us = "treasure"
+                    print("[L1] 主动按 V 打开宝物面板（低频）")
+                else:
+                    print(f"[L1] 按 V 被拒绝: {res.message}（不推进冷却）")
                 return LoopAction.Continue
         return None
 
@@ -1849,7 +1852,8 @@ class Mediator:
             return LoopAction.Continue
 
         if self.phase == Phase.STAGE_STARTING:
-            if self.find_scene(frame, "card_panel") or self.find_scene(frame, "skill_panel"):
+            # 统一"已进局"定义：选择面板/四挑战/环境锚点任一可信证据即可
+            if self._is_in_game_hud(frame) or self._detect_context(frame, role="l1") == "MAIN_LINE":
                 print("[L1] 开始主线 / phase=MAIN_LINE")
                 self.set_phase(Phase.MAIN_LINE, "stage start verified")
                 return LoopAction.Continue
@@ -1949,12 +1953,35 @@ class Mediator:
 
         self._missing_window_since = None
 
-        # 全局：断线/失败优先
+        # 全局：断线/失败优先（一帧最多一个改变 UI 的动作）
         if self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
-            self.set_phase(Phase.QUIT, "fail/disconnect")
-            self.click_scene(frame, "fail", "recover")
-            self.click_scene(frame, "ok", "ok")
-            self.click_scene(frame, "close", "close")
+            if self.phase != Phase.QUIT:
+                self.set_phase(Phase.QUIT, "fail/disconnect")
+            # RecoveryState 状态机：每次动作后重新抓帧，防止旧帧连点
+            recovery = getattr(self, "_recovery_step", "FAIL_VISIBLE")
+            if recovery == "FAIL_VISIBLE":
+                hit = self.find_scene(frame, "fail")
+                if hit:
+                    self.click_scene(frame, "fail", "recover")
+                    self._recovery_step = "WAIT_OK"
+                else:
+                    self._recovery_step = "WAIT_OK"
+                return LoopAction.Continue
+            if recovery == "WAIT_OK":
+                hit = self.find_scene(frame, "ok")
+                if hit:
+                    self.click_scene(frame, "ok", "ok")
+                    self._recovery_step = "WAIT_CLOSE"
+                else:
+                    self._recovery_step = "WAIT_CLOSE"
+                return LoopAction.Continue
+            if recovery == "WAIT_CLOSE":
+                hit = self.find_scene(frame, "close")
+                if hit:
+                    self.click_scene(frame, "close", "close")
+                self._recovery_step = "DONE"
+                return LoopAction.Continue
+            # DONE：等待画面恢复（QUIT 相位处理退出）
             return LoopAction.Continue
 
         if self.phase in {

@@ -249,7 +249,13 @@ class InputExecutor:
                 print(f"[input] click ({x}, {y}) CANCELLED: {obscured.message}")
                 return obscured
 
-        click(x, y, dry_run=dry_run, delay_ms=delay_ms)
+        injected = click(x, y, dry_run=dry_run, delay_ms=delay_ms)
+        if not dry_run and not injected:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_SENDINPUT_FAILED",
+                message=f"SendInput did not inject click at ({x}, {y})",
+            )
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -267,7 +273,13 @@ class InputExecutor:
                 print(f"[input] right_click ({x}, {y}) CANCELLED: {obscured.message}")
                 return obscured
 
-        right_click(x, y, dry_run=dry_run, delay_ms=delay_ms)
+        injected = right_click(x, y, dry_run=dry_run, delay_ms=delay_ms)
+        if not dry_run and not injected:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_SENDINPUT_FAILED",
+                message=f"SendInput did not inject right-click at ({x}, {y})",
+            )
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -347,23 +359,24 @@ class InputExecutor:
 
 # ---------- Standalone functions (Backward Compatible) ----------
 
-def click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> None:
+def click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> bool:
     """Left click at screen coords.
 
     Aligned with original Lan.UIAutomationCore.Input.Mouse path used by 1.3.8/1.3.9:
     SetCursorPos → sleep ~200ms → SendInput left down/up → post delay.
+    Returns True only when SendInput actually injected both events.
     """
     print(f"[input] click ({x}, {y}) dry_run={dry_run}")
     if dry_run:
-        return
-    _send_mouse_click(int(x), int(y), right=False, delay_ms=delay_ms)
+        return True
+    return _send_mouse_click(int(x), int(y), right=False, delay_ms=delay_ms)
 
 
-def right_click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> None:
+def right_click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> bool:
     print(f"[input] right_click ({x}, {y}) dry_run={dry_run}")
     if dry_run:
-        return
-    _send_mouse_click(int(x), int(y), right=True, delay_ms=delay_ms)
+        return True
+    return _send_mouse_click(int(x), int(y), right=True, delay_ms=delay_ms)
 
 
 def press_key(key: str, dry_run: bool = True) -> None:
@@ -497,8 +510,14 @@ def scroll(x: int, y: int, clicks: int, dry_run: bool = True) -> None:
     pyautogui.scroll(clicks)
 
 
-def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> None:
-    """user32 SetCursorPos + SendInput click (original GameScript path)."""
+def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> bool:
+    """user32 SetCursorPos + SendInput click (original GameScript path).
+
+    Returns True only when both down and up were successfully injected
+    (SendInput reports inserted events). Multi-monitor: absolute MOVE uses the
+    virtual desktop origin/size with MOUSEEVENTF_VIRTUALDESK so the pointer
+    lands where WindowFromPoint validated.
+    """
     import ctypes
     from ctypes import wintypes as w
 
@@ -523,15 +542,23 @@ def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> None:
     INPUT_MOUSE = 0
     MOUSEEVENTF_MOVE = 0x0001
     MOUSEEVENTF_ABSOLUTE = 0x8000
+    MOUSEEVENTF_VIRTUALDESK = 0x4000
+    SM_XVIRTUALSCREEN = 76
+    SM_YVIRTUALSCREEN = 77
+    SM_CXVIRTUALSCREEN = 78
+    SM_CYVIRTUALSCREEN = 79
     if right:
         down_flag, up_flag = 0x0008, 0x0010  # RIGHTDOWN / RIGHTUP
     else:
         down_flag, up_flag = 0x0002, 0x0004  # LEFTDOWN / LEFTUP
 
-    sw = max(int(user32.GetSystemMetrics(0)), 1)
-    sh = max(int(user32.GetSystemMetrics(1)), 1)
-    ax = int(x * 65535 / max(sw - 1, 1))
-    ay = int(y * 65535 / max(sh - 1, 1))
+    # 虚拟桌面坐标：支持多显示器/负坐标（副屏在左侧时 x 可为负）
+    vx = int(user32.GetSystemMetrics(SM_XVIRTUALSCREEN))
+    vy = int(user32.GetSystemMetrics(SM_YVIRTUALSCREEN))
+    vw = max(int(user32.GetSystemMetrics(SM_CXVIRTUALSCREEN)), 1)
+    vh = max(int(user32.GetSystemMetrics(SM_CYVIRTUALSCREEN)), 1)
+    ax = int((x - vx) * 65535 / max(vw - 1, 1))
+    ay = int((y - vy) * 65535 / max(vh - 1, 1))
 
     def send(flags: int, dx: int = 0, dy: int = 0) -> int:
         inp = INPUT()
@@ -542,9 +569,10 @@ def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> None:
     # Original: Mouse.set_Position → Sleep(200) → Click → Sleep(500)
     user32.SetCursorPos(int(x), int(y))
     time.sleep(0.20)
-    send(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE, ax, ay)
+    move_ok = send(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, ax, ay)
     time.sleep(0.02)
-    send(down_flag)
+    down_ok = send(down_flag)
     time.sleep(0.05)
-    send(up_flag)
+    up_ok = send(up_flag)
     time.sleep(max(delay_ms, 0) / 1000.0)
+    return bool(down_ok) and bool(up_ok)
