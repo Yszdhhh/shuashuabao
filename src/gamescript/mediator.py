@@ -1233,26 +1233,46 @@ class Mediator:
         return LoopAction.Continue
 
     def _ticket_exhausted(self, frame: Frame) -> bool:
-        """True when the sweep-ticket remainder shows 0 on the stage-select page.
+        """True when the yellow challenge-ticket remainder is 0.
 
-        Ticket number sits below the 扫荡 button: (862,850,985,888) in the
-        1600x900 window; the remainder digit(s) occupy the left part
-        (862..920). A '0' glyph template matched inside that ROI means the
-        remainder is zero (ticket_zero template sourced from live UI).
+        The counter is below the 选关页「开始游戏」button, not below「扫荡」:
+        full region (1032,850)-(1155,888) in a 1600x900 client. The current
+        remainder is right-aligned in the first number slot; detect a zero in
+        its right digit position and reject frames with ink in the two
+        preceding digit positions (so 120/120 does not match its own zero).
         """
         if not getattr(self.settings, "auto_archaeology", True):
             return False
-        hit = self.find(
-            frame,
+        # Remainder text band: x≈1067..1102, y≈868..888. The rightmost
+        x1 = int(frame.width * 1067 / 1600.0)
+        y1 = int(frame.height * 850 / 900.0)
+        x2 = int(frame.width * 1102 / 1600.0)
+        y2 = int(frame.height * 888 / 900.0)
+        if x2 <= x1 or y2 <= y1:
+            return False
+        remainder = Frame(
+            frame.bgr[y1:y2, x1:x2],
+            left=frame.left + x1,
+            top=frame.top + y1,
+            window_title=frame.window_title,
+            hwnd=frame.hwnd,
+        )
+        zero = self.find(
+            Frame(remainder.bgr[:, 21:35], left=remainder.left + 21, top=remainder.top,
+                  window_title=remainder.window_title, hwnd=remainder.hwnd),
             ["lobby/ticket_zero"],
             threshold=0.72,
             scales=(0.9, 1.0, 1.1, 1.2),
-            roi=(862 / 1600.0, 850 / 900.0, 920 / 1600.0, 888 / 900.0),
         )
-        return hit is not None
+        if zero is None:
+            return False
+        # Reject 120/120 and other multi-digit remainders: left digit area must
+        # contain no bright digit ink in the central text band.
+        gray = cv2.cvtColor(remainder.bgr[14:34, :21], cv2.COLOR_BGR2GRAY)
+        return int((gray > 150).sum()) < 18
 
     def _maybe_switch_to_archaeology(self, frame: Frame) -> LoopAction | None:
-        """Ticket exhausted -> click 考古模式 (1376,813) -> stop script.
+        """Challenge ticket exhausted → click 考古模式 → stop script.
 
         Confirms 3 consecutive frames before acting to avoid a flicker false
         positive. Returns LoopAction.Break after switching, None otherwise.
@@ -1263,9 +1283,9 @@ class Mediator:
             count = getattr(self, "_ticket_zero_frames", 0) + 1
             self._ticket_zero_frames = count
             if count < 3:
-                print(f"[L0] 扫荡券剩余为 0（确认 {count}/3），等待稳定…")
+                print(f"[L0] 挑战券剩余为 0（确认 {count}/3），等待稳定…")
                 return LoopAction.Continue
-            print("[L0] 扫荡券已清空，点击考古模式并结束脚本")
+            print("[L0] 挑战券已清空，点击考古模式并结束脚本")
             arch_hit = MatchResult(
                 name="archaeology_switch",
                 score=1.0,
@@ -1276,9 +1296,13 @@ class Mediator:
                 screen_x=frame.left + int(frame.width * 0.86),
                 screen_y=frame.top + int(frame.height * 0.903),
             )
-            self.act_click(arch_hit, "SwitchToArchaeology")
+            result = self.act_click(arch_hit, "SwitchToArchaeology")
             self._ticket_zero_frames = 0
-            self.set_phase(Phase.QUIT, "archaeology mode after ticket exhausted")
+            if not result:
+                self.set_phase(Phase.ERROR, "archaeology switch input rejected")
+                self.stop()
+                return LoopAction.Break
+            self.set_phase(Phase.QUIT, "archaeology mode after challenge ticket exhausted")
             self.stop()
             return LoopAction.Break
         self._ticket_zero_frames = 0
@@ -1759,7 +1783,7 @@ class Mediator:
                     print("[L0] 选关页消失但未出现局内 UI，回到房间等待")
                     self.set_phase(Phase.ROOM_WAITING, "stage page disappeared")
                 return LoopAction.Continue
-            # 扫荡券清空 → 自动进考古模式并结束脚本
+            # 黄色挑战券清空 → 自动进考古模式并结束脚本
             arch_res = self._maybe_switch_to_archaeology(frame)
             if arch_res is not None:
                 return arch_res

@@ -95,7 +95,7 @@ class Settings:
     auto_artifact: bool = True   # 神器 Q/W 槽定时释放（固定冷却 180s）
     artifact_cd: int = 180       # 神器冷却秒数
     artifact_slots: int = 3      # 神器槽位数（1-3，对应 Q/W/E；空槽自动跳过）
-    auto_archaeology: bool = True  # 选关页扫荡券清空后自动进考古模式并结束脚本
+    auto_archaeology: bool = True  # 选关页黄色挑战券清空后自动进考古模式并结束脚本
     boss_live_time: int = 0
     kill_boss_num: int = 0
     cycle_num: int = 0

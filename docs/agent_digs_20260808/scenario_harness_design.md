@@ -439,11 +439,9 @@ tick 0 的底层 `action_count` 是 1，因为曾尝试执行输入；tick 1 是
 
 首批最小契约只包含上述一个 tick，`final_phase=MAIN_LINE`；不要把后续主线自动任务或挑战动作混入此 case。核心硬断言是 action_count=0，防止环境 HUD 被误判为仍需点开始。
 
-### 9.5 `ticket_zero_archaeology`：券 0 自动考古
+**目的**：验证挑战券为 0 需要连续三帧确认，第三帧点击 `SwitchToArchaeology` 并进入停止路径，避免一帧闪烁就切模式。
 
-**目的**：验证扫荡券为 0 需要连续三帧确认，第三帧点击 `SwitchToArchaeology` 并进入停止路径，避免一帧闪烁就切模式。
-
-使用当前版本选关页的真实“剩余券=0”证据；现有 stage 截图只能作为版式参考，不能假定其包含 ticket-zero 数字。
+使用当前版本选关页的真实“挑战券=0”证据；现有 stage 截图只能作为版式参考，不能假定其包含 ticket-zero 数字。
 
 | tick | 输入帧 | phase_before | context | 期望动作 | 结果 | phase_after |
 |---:|---|---|---|---|---|---|

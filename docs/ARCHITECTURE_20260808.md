@@ -74,7 +74,7 @@ flowchart TD
 | `src/gamescript/stop_signal.py` | `StopSignal` | ~50 行 | 线程安全的急停信号共享对象，提供 `trigger()`, `is_set()`, `reset()` 接口。 |
 | `src/gamescript/vision/capture.py` | `Frame`, `WindowTarget`, `check_frame_health`, `capture_target`, `capture` | ~640 行 | Win32 窗口查找与截屏捕获。支持客户端区域 (Client Area) 屏幕坐标转换、窗口黑帧/低熵/陈旧帧/冻结帧健康度检查。 |
 | `src/gamescript/vision/matcher.py` | `MatchResult`, `match_one`, `match_any`, `match_all`, `find_blue_buttons`, `find_input_boxes` | ~450 行 | 基于 OpenCV (`cv2.matchTemplate`) 的模板匹配引擎。支持 0.85~1.2 尺度缓存 (`_SCALE_CACHE`)、ROI 局域匹配、卡牌品质 HSV 颜色评分。 |
-| `src/gamescript/vision/stage_selector.py` | `StageId`, `StageRow`, `visible_stage_rows`, `find_stage_in_range`, `verify_stage_selection` | ~400 行 | 关卡识别与交互。通过数字字形匹配解析关卡编号行，计算选关点击坐标；识别扫荡券剩余数量（`ticket_zero` 模板）。 |
+| `src/gamescript/vision/stage_selector.py` | `StageId`, `StageRow`, `visible_stage_rows`, `find_stage_in_range`, `verify_stage_selection` | ~400 行 | 关卡数字行识别与交互；黄色挑战券 0 检测由 `Mediator._ticket_exhausted()` 使用 `ticket_zero` 模板。|
 | `src/gamescript/vision/scenes.py` | `load_scenes`, `scene_templates` | ~80 行 | 加载解析 `config/scenes.json`，提供场景 key 到模板列表的字典映射。 |
 | `src/gamescript/settings.py` | `Settings` | ~250 行 | 全局配置数据结构。提供配置项类型强制转换、自动保存、与官方 `Settings.json` 的字段双向映射。 |
 | `src/gamescript/monitor_game_over.py` | `GameOverMonitor` | ~120 行 | 基于滑动窗口像素熵与标准差检测游戏窗口静止/卡死状态（独立备用模块）。 |
@@ -169,11 +169,11 @@ flowchart TD
 - 当状态机切入 `Phase.STAGE_SELECT` 或 `Phase.MAIN_LINE` 时，`Mediator.set_phase()` 自动重置所有内部状态。
 - **重置项包括**：`_stage_selected`（选关标志）、`_challenge_done` / `_challenge_states`（四挑战开启状态）、`_auto_task_done`（自动任务勾选状态）、`_panel_opened_by_us`（主动面板标记）、`_artifact_next_q/w/e`（神器 CD 时间戳）及 `_evolve_click_cooldown_until`（进化冷却）。
 
-### 4.5 扫荡券检测与考古切断 (Sweep Ticket Detection)
+### 4.5 挑战券检测与考古切断 (Challenge Ticket Detection)
 在选关页 (`STAGE_SELECT`) 具备自动化止损与切换机制：
-- 识别选关页底栏扫荡按钮下方的剩余券数区域（坐标 ROI `(862/1600, 850/900)` 至 `(920/1600, 888/900)`）。
-- 使用 `lobby/ticket_zero` 模板比对。若连续 3 帧确认剩余扫荡券为 `0`：
-- 脚本自动点击底栏 `考古模式` 按钮 (`(1376, 813)`)，随后触发 `Phase.QUIT` 并安全结束主循环。
+- 识别选关页底栏**开始游戏按钮下方的黄色挑战券**剩余数区域（1600×900 窗内 ROI `(1032,850)-(1155,888)`，剩余数字左侧子区 `(1032,850)-(1090,888)`）。
+- 使用 `lobby/ticket_zero` 同字体 0 模板比对。若连续 3 帧确认剩余挑战券为 `0`：
+- 脚本自动点击底栏 `考古模式` 按钮 (`(1376,813)`)，随后触发 `Phase.QUIT` 并安全结束主循环。
 
 ### 4.6 UIPI 提权隔离门禁 (UIPI Elevation Protection)
 - Windows UIPI (User Interface Privilege Isolation) 机制会**静默丢弃**由低权限进程向高权限进程发送的 SendInput 消息。

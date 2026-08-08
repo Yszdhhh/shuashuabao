@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "case": "ticket_zero_archaeology",
-  "description": "扫荡券为 0 需连续三帧确认，第三帧点击 SwitchToArchaeology（考古模式）并进入停止路径（QUIT/Break）。CAVEAT(XFAIL)：所有现有选关页证据（含 live_stage_select.png）在 ticket ROI (862,850,920,888) 内均无 lobby/ticket_zero 字形命中（实测全部 None），不存在'剩余券=0'的真实当前版本证据；本 case 以 live_stage_select.png 作版式参考。设计契约断言 0/0/SwitchToArchaeology，实际每帧均为 SelectStage 列表滚动（目标关卡不在列表），故 XFAIL。",
+  "description": "挑战券为 0 需连续三帧确认，第三帧点击 SwitchToArchaeology（考古模式）并进入停止路径（QUIT/Break）。CAVEAT(XFAIL)：当前仓库缺少选关页黄色挑战券 0/120 的真实三帧证据；live_stage_select.png 仅作为版式参考。设计契约断言 0/0/SwitchToArchaeology，补齐黄色挑战券截图后转 PASS。",
   "phase": "STAGE_SELECT",
   "settings_overrides": {
     "dry_run": true,
