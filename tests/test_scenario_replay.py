@@ -730,13 +730,10 @@ class ScenarioReplayTests(unittest.TestCase):
             "模板 0.945 命中）作为三帧，但该帧实为选择面板而非失败弹窗：无任何现有帧同时命中 fail/disconnect "
             "锚点与 ok 模板，设计契约的 fail→ok→close 各一次点击实际为 1/0/1（WAIT_OK 帧无 ok 命中）。"
         ),
-        "skill_panel_one_missing": (
-            "设计基线 fixtures/replay/skill_choice_4.jpg 在当前生产策略下命中品质色回退（rarity_ur @(777,359)）"
-            "产生点击，不满足两帧零输入契约；仓库不存在'三张可见、仅两张可靠模板命中且零输入'的当前版本全屏证据。"
-        ),
         "ticket_zero_archaeology": (
-            "所有现有选关页证据（含 live_stage_select.png）在 ticket ROI (862,850,920,888) 内均无 "
-            "lobby/ticket_zero 字形命中（实测全部 None）；case 以 live_stage_select.png 作版式参考（caveat），"
+            "所有现有选关页证据（含 live_stage_select.png 与 2026-08-09 B站视频归档帧，见 "
+            "frames_unverified/）在 ticket ROI 内均无 lobby/ticket_zero 字形命中（视频全部 120/120 非 0，"
+            "zero 模板最高 0.698 < 0.72）；case 以 live_stage_select.png 作版式参考（caveat），"
             "设计契约的 0/0/SwitchToArchaeology 实际为连续滚动（SelectStage 目标不在列表）。"
         ),
     }

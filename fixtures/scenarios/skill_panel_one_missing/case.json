@@ -1,17 +1,22 @@
 {
   "schema_version": 1,
   "case": "skill_panel_one_missing",
-  "description": "技能面板可见卡牌与可靠识别结果不完整时，不能盲点'看起来像'的位置，也不能把未识别卡当成偏好命中。CAVEAT(XFAIL)：设计基线 fixtures/replay/skill_choice_4.jpg 在当前生产策略下命中品质色回退（_rarity_choice 检出 rarity_ur @(777,359)）而产生点击，不满足两帧零输入契约；仓库不存在'三张可见、仅两张可靠模板命中且零输入'的当前版本全屏证据。case 断言设计契约（两帧零输入、final MAIN_LINE），实际 tick 0 触发一次技能选择点击，故 XFAIL。",
+  "description": "技能面板可见卡牌与可靠识别结果不完整时，不能盲点'看起来像'的位置，也不能把未识别卡当成偏好命中。EVIDENCE(UPDATE 2026-08-09)：新增 B站视频（BV1HrMf6ZEFR 萌新坐车攻略 t=41.5s，852x480 全屏帧）真实证据 skill_panel_video_zero_input.png——技能面板三张卡可见（三卡位均检出 sr 品质色边框）、面板按钮模板（放弃/刷新）低于 0.70 阈值导致面板不可分类、无偏好技能命中、无品质色回退、无战后入口误报；生产 tick 实测两帧均零输入（'当前选择无配置命中，保持零输入等待'）、context=MAIN_LINE、final MAIN_LINE，满足设计契约。若移除 XFAIL 标记该 case 应转 PASS。旧基线 fixtures/replay/skill_choice_4.jpg（2348x1080）仍命中偏好技能 sdl 0.782 产生点击，保留作为对照。",
   "phase": "MAIN_LINE",
   "settings_overrides": {
     "dry_run": true,
-    "skills": ["jq", "pg", "jf", "sdl"]
+    "skills": [
+      "jq",
+      "pg",
+      "jf",
+      "sdl"
+    ]
   },
   "frames": [
     {
       "id": "panel_first",
       "at_s": 0.0,
-      "file": "fixtures/scenarios/skill_panel_one_missing/frames/skill_panel_three_of_four.jpg",
+      "file": "fixtures/scenarios/skill_panel_one_missing/frames/skill_panel_video_zero_input.png",
       "window_title": "英雄三国KK",
       "hwnd": 10001,
       "left": 0,
@@ -25,7 +30,7 @@
     {
       "id": "panel_unchanged",
       "at_s": 1.0,
-      "file": "fixtures/scenarios/skill_panel_one_missing/frames/skill_panel_three_of_four.jpg",
+      "file": "fixtures/scenarios/skill_panel_one_missing/frames/skill_panel_video_zero_input.png",
       "window_title": "英雄三国KK",
       "hwnd": 10001,
       "left": 0,
