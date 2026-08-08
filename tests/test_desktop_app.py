@@ -44,15 +44,14 @@ class DesktopPanelTests(unittest.TestCase):
         ):
             self.assertNotIn(removed_text, panel_text)
 
-    def test_skill_buttons_show_chinese_names_and_collapse_at_four(self):
+    def test_skill_buttons_show_chinese_names_and_keep_visible_at_four(self):
         for code, button in self.window.skill_grid.cards.items():
             self.assertNotIn(code, button.text())
             self.assertNotIn("(", button.text())
 
-        self.window.grp_skill.setChecked(True)
+        # 选满 4 个：面板保持可见（勾选折叠语义已移除，标题更新为搭配）
         self.window.skill_grid.set_skills(["asj", "asjg", "assx", "jq"])
-        self.assertFalse(self.window.grp_skill.isChecked())
-        self.assertTrue(self.window.skill_grid.isHidden())
+        self.assertFalse(self.window.skill_grid.isHidden())
         self.assertIn("奥数箭", self.window.grp_skill.title())
 
     def test_exact_stage_and_solo_defaults_are_fixed(self):
