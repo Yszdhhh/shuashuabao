@@ -1,6 +1,8 @@
 """
 对齐原 GameScript.Jobs.AutoJob。
 
+legacy 模块：仅 dry-run/离线使用，真机输入一律走 InputExecutor 安全链。
+
 场景表：config/scenes.json
 每步只截屏一次，再按 priority 匹配。
 """
@@ -10,7 +12,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
-from gamescript.input.keyboard_mouse import click, press_key
+from gamescript.input.keyboard_mouse import click as _click, press_key as _press_key
 from gamescript.loop_action import LoopAction
 from gamescript.scenes import load_scenes, priority_keys, scene_templates
 from gamescript.settings import Settings
@@ -52,7 +54,7 @@ class AutoJob:
 
     def _click_hit(self, hit: MatchResult, reason: str) -> None:
         print(f"[auto] hit {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
-        click(
+        _click(
             hit.screen_x,
             hit.screen_y,
             dry_run=self.settings.dry_run,
@@ -108,7 +110,7 @@ class AutoJob:
                 frame = self.capture_win("wave")
             if self._match_names(frame, self.templates("wave_markers")):
                 print("[auto] ChangeMainLineStatus: wave → F4")
-                press_key("f4", dry_run=self.settings.dry_run)
+                _press_key("f4", dry_run=self.settings.dry_run)
                 self._f4_done = True
         return LoopAction.Continue
 

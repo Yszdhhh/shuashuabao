@@ -101,7 +101,7 @@ class Settings:
     cycle_num: int = 0
     archive_boss_time: int = 0
     treasure_num: int = 0
-    auto_gambling_time: int = 0
+    auto_gambling_time: int = 0  # 黑商功能未接入状态机（调研报告 P2）
     match_threshold: float = 0.85
     click_delay_ms: int = 120
     loop_sleep_ms: int = 400

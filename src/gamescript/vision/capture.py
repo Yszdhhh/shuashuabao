@@ -519,6 +519,12 @@ def _capture_print_window(target: WindowTarget) -> Frame | None:
         if rgb.shape[2] >= 4:
             rgb = rgb[:, :, :3]
         bgr = rgb[:, :, ::-1].copy()
+        # 尺寸自证：ImageGrab 抓取窗口位图尺寸 vs 期望 client 尺寸（不裁剪、不改坐标，先观察）
+        cap_w, cap_h = bgr.shape[1], bgr.shape[0]
+        expect_w = target.client_width if target.client_width > 0 else target.width
+        expect_h = target.client_height if target.client_height > 0 else target.height
+        if (cap_w, cap_h) != (expect_w, expect_h):
+            print(f"[capture] 尺寸自证：ImageGrab 捕获 {cap_w}x{cap_h} vs client {expect_w}x{expect_h}，不一致（不裁剪，先观察）")
         left = target.client_left if target.client_left > 0 else target.left + max(0, (target.width - bgr.shape[1]) // 2)
         top = target.client_top if target.client_top > 0 else target.top + max(0, (target.height - bgr.shape[0]) // 2)
         return Frame(

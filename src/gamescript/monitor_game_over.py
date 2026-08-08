@@ -1,3 +1,5 @@
+# NOT_WIRED: 未接入主循环，仅作活动/静止辅助证据参考，不得自行点击
+
 """Frame-activity signal used as one input to game-over classification.
 
 This module never declares a game over.  Callers must combine the stillness
