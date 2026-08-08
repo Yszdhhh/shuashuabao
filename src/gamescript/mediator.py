@@ -724,7 +724,12 @@ class Mediator:
 
         count = len(candidates)
         if count not in (3, 4):
-            print(f"[L1] 发现选择面板，但技能候选数量 ({count}) 不属于 3 或 4 选一，返回无动作")
+            print(f"[L1] 发现选择面板，但技能候选数量 ({count}) 不属于 3 或 4 选一")
+            close_hit = self._close_current_panel(frame)
+            if close_hit is not None:
+                self._panel_opened_by_us = None
+                print(f"[L1] 点击关闭按钮 {close_hit.name}（非标准选卡面板）")
+                return (kind, close_hit)
             return None
 
         configured_candidates: list[tuple[int, MatchResult]] = []
@@ -805,32 +810,63 @@ class Mediator:
         return LoopAction.Continue if acted else None
 
     def _maybe_open_choice_panel(self, frame: Frame) -> LoopAction | None:
-        """Low-frequency proactive bond (F) / treasure (V) panel opening.
+        """Proactive skill (G) / bond (F) / treasure (V) panel opening.
 
-        Only when the respective setting is enabled AND no choice panel is
-        already open; interval-guarded so wood/refresh resources are not burned.
-        Returns LoopAction.Continue when a hotkey was pressed (wait for the
-        panel next tick); None otherwise.
+        Skill panel is the priority (60s interval): configured skills are the
+        core power source. Bond/treasure run at the longer interval. Panels
+        opened here are remembered so the close-button fallback may close them
+        safely instead of Fail-Closed.
         """
         if self._selection_anchor(frame):
             return None
         now = time.time()
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        # 技能 G：核心，60s
+        if now - getattr(self, "_last_skill_panel", 0.0) >= 60:
+            self._last_skill_panel = now
+            self._panel_opened_by_us = "skill"
+            print("[L1] 主动按 G 打开技能面板（核心，60s 一次）")
+            self.executor.press_key("g", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+            return LoopAction.Continue
         interval = max(30, getattr(self.settings, "choice_interval", 120))
-        if getattr(self.settings, "auto_bond", False):
-            last = getattr(self, "_last_bond_attempt", 0.0)
-            if now - last >= interval:
+        # 羁绊 F / 宝物 V：低频
+        if getattr(self.settings, "auto_bond", True):
+            if now - getattr(self, "_last_bond_attempt", 0.0) >= interval:
                 self._last_bond_attempt = now
+                self._panel_opened_by_us = "bond"
                 print("[L1] 主动按 F 打开羁绊面板（低频）")
-                self.executor.press_key("f", target_hwnd=(self._last_frame.hwnd if self._last_frame else None), dry_run=self.settings.dry_run)
+                self.executor.press_key("f", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
                 return LoopAction.Continue
-        if getattr(self.settings, "auto_treasure", False):
-            last = getattr(self, "_last_treasure_attempt", 0.0)
-            if now - last >= interval:
+        if getattr(self.settings, "auto_treasure", True):
+            if now - getattr(self, "_last_treasure_attempt", 0.0) >= interval:
                 self._last_treasure_attempt = now
+                self._panel_opened_by_us = "treasure"
                 print("[L1] 主动按 V 打开宝物面板（低频）")
-                self.executor.press_key("v", target_hwnd=(self._last_frame.hwnd if self._last_frame else None), dry_run=self.settings.dry_run)
+                self.executor.press_key("v", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
                 return LoopAction.Continue
         return None
+
+    def _close_current_panel(self, frame: Frame) -> MatchResult | None:
+        """Find the close button (放弃/暂时隐藏) for the currently open panel.
+
+        Used as a safe fallback when a panel we proactively opened cannot be
+        matched to any card choice.
+        """
+        kind = getattr(self, "_panel_opened_by_us", None)
+        if kind == "skill":
+            names = ["skill_giveup_btn", "skill_refresh_btn"]
+        elif kind == "treasure":
+            names = ["treasure_hide_btn", "treasure_lock_btn"]
+        elif kind == "bond":
+            names = ["bond_hide_btn", "bond_refresh_btn"]
+        else:
+            names = ["skill_giveup_btn", "bond_hide_btn", "treasure_hide_btn", "card_hide"]
+        return self.find(
+            frame,
+            names,
+            threshold=min(0.70, self.settings.match_threshold),
+            scales=(0.9, 1.0, 1.1),
+        )
 
     # ---------- 战后页面多锚点判别（P1-B0/B1）----------
 
@@ -1951,11 +1987,23 @@ class Mediator:
                     self._selection_click_cooldown_until = now + 1.5
                 self._selection_unknown_attempts = 0
                 self._selection_unknown_since = None
+                self._panel_opened_by_us = None
                 self._main_line_since = now
                 return LoopAction.Continue
 
             self._selection_unknown_since = self._selection_unknown_since or now
             elapsed = now - self._selection_unknown_since
+            # 主动打开的面板：尝试点关闭按钮安全退出（放弃/暂时隐藏）
+            if getattr(self, "_panel_opened_by_us", None):
+                close_hit = self._close_current_panel(frame)
+                if close_hit is not None:
+                    print(f"[L1] 主动面板无法匹配卡牌，点击关闭 {close_hit.name}")
+                    if self.act_click(close_hit, "CloseSelfOpenedPanel"):
+                        self._selection_click_cooldown_until = now + 1.5
+                    self._panel_opened_by_us = None
+                    self._selection_unknown_attempts = 0
+                    self._selection_unknown_since = None
+                    return LoopAction.Continue
             if elapsed >= 10:
                 print("[L1] 未知选择面板无法识别，Fail-Closed 停止运行（零输入，不盲点隐藏）")
                 self.set_phase(Phase.ERROR, "unknown selection panel timeout")
