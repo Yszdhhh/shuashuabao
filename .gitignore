@@ -21,3 +21,12 @@ _stage_templates/
 docs/agent_shared_logs/exports/session_*/Settings.before.json
 docs/agent_shared_logs/exports/
 docs/runtime_sample/
+
+# build artifacts (packaging candidates)
+build-candidate/
+build-candidate2/
+build-candidate3/
+dist-candidate/
+dist-candidate2/
+dist-candidate3/
+packaging/
