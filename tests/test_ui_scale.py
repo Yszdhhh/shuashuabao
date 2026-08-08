@@ -82,6 +82,26 @@ class ScaleDetectionTest(unittest.TestCase):
         fr = Frame(bgr=img, left=0, top=0, window_title="英雄三国KK", hwnd=10001, role="l1")
         self.assertEqual(med._detect_context(fr, role="l1"), "STAGE_SELECT")
 
+    def test_real_bilibili_480p_stage_select_and_ticket_not_exhausted(self) -> None:
+        # B站 852x480 真实选关页帧（BV1ScKp6aEko t=892s，压缩视频帧）：
+        # ui_scale=0.53 校准下必须识别 STAGE_SELECT，且挑战券 120/120 不得误报。
+        img = cv2.imdecode(
+            np.frombuffer(
+                (ROOT / "fixtures/scenarios/ticket_zero_archaeology/frames_unverified"
+                 "/stage_select_ticket_counter_arch_s068.png").read_bytes(),
+                np.uint8,
+            ),
+            cv2.IMREAD_COLOR,
+        )
+        med = Mediator(Settings(), ROOT)
+        med._ui_scale = 0.532  # 852/1600
+        fr = Frame(bgr=img, left=0, top=0, window_title="英雄三国KK", hwnd=10001, role="l1")
+        self.assertEqual(med._detect_context(fr, role="l1"), "STAGE_SELECT")
+        self.assertFalse(med._ticket_exhausted(fr), "120/120 剩余不得触发考古切换")
+        start = med._find_room_start(fr)
+        self.assertIsNotNone(start)
+        self.assertEqual(start.name, "startGameBtn")
+
 
 class AutoCalibrationTest(unittest.TestCase):
     """see() 每帧自动校准 _ui_scale。"""
