@@ -420,11 +420,29 @@ class Mediator:
         return 0.24, 0.16, 0.76, 0.66
 
     def _selection_anchor(self, frame: Frame) -> MatchResult | None:
-        """Find the bottom ``暂时隐藏`` anchor of a reward-choice panel."""
+        """Find the bottom anchor of a reward-choice panel.
+
+        Panel types (live ops-video 2026-08-08, 1600x900 window coords):
+        - skill:   放弃(580,552) / 刷新(3)(860,552)   [no 暂时隐藏]
+        - bond:    暂时隐藏(580,552) / 刷新40(860,552)
+        - treasure:暂时隐藏(375,572) / 锁定(580,572) / 刷新(3)(785,572)
+        Legacy templates skill_hide/card_hide/hide cover older UIs.
+        """
         threshold = min(0.70, self.settings.match_threshold)
         hit = self.find(
             frame,
-            ["skill_hide", "card_hide", "hide"],
+            [
+                "skill_giveup_btn",
+                "skill_refresh_btn",
+                "bond_hide_btn",
+                "bond_refresh_btn",
+                "treasure_hide_btn",
+                "treasure_lock_btn",
+                "treasure_refresh_btn",
+                "skill_hide",
+                "card_hide",
+                "hide",
+            ],
             threshold=threshold,
             scales=(0.85, 0.9, 1.0, 1.1, 1.15, 1.2),
         )
@@ -435,6 +453,20 @@ class Mediator:
         if hit.y < frame.height * 0.50:
             return None
         return hit
+
+    def _classify_choice_panel(self, frame: Frame) -> str | None:
+        """Distinguish skill / bond / treasure choice panels by their unique buttons."""
+        threshold = min(0.70, self.settings.match_threshold)
+        scales = (0.9, 1.0, 1.1)
+        if self.find(frame, ["skill_giveup_btn", "skill_refresh_btn"], threshold=threshold, scales=scales):
+            return "skill"
+        if self.find(frame, ["treasure_lock_btn"], threshold=threshold, scales=scales):
+            return "treasure"
+        if self.find(frame, ["bond_hide_btn", "bond_refresh_btn"], threshold=threshold, scales=scales):
+            return "bond"
+        if self.find(frame, ["card_hide"], threshold=threshold, scales=scales):
+            return "card"
+        return None
 
     def _choice_hits(self, frame: Frame, directory: str, preferred: list[str]) -> list[MatchResult]:
         folder = self.images / directory
@@ -533,6 +565,57 @@ class Mediator:
         if not self._selection_anchor(frame):
             return None
 
+        kind = self._classify_choice_panel(frame)
+        if kind is None:
+            # fall back to legacy skill matching
+            kind = "skill"
+
+        if kind in ("bond", "treasure", "card"):
+            # 羁绊/宝物/卡牌面板：匹配 cards/ 目录模板 + 用户配置 cards；
+            # 无配置或无匹配 → 返回「暂时隐藏」关闭动作（不烧资源、不卡面板）。
+            cards_dir = self.images / "cards"
+            names: list[str] = []
+            for value in self.settings.cards:
+                value = (value or "").strip()
+                if value:
+                    names.append(value if "/" in value else f"cards/{value}")
+            if cards_dir.is_dir():
+                names.extend(f"cards/{p.stem}" for p in sorted(cards_dir.glob("*.png")))
+            names = list(dict.fromkeys(names))
+            if names:
+                hits = match_all(
+                    frame,
+                    self.images,
+                    names,
+                    threshold=min(0.70, self.settings.match_threshold),
+                    roi=self._selection_roi(),
+                    max_results=12,
+                    scales=(0.90, 1.0, 1.05, 1.10),
+                )
+                hits = sorted(hits, key=lambda h: h.score, reverse=True)
+                candidates: list[MatchResult] = []
+                for h in hits:
+                    if not any(math.hypot(h.x - c.x, h.y - c.y) < 40.0 for c in candidates):
+                        candidates.append(h)
+                if candidates:
+                    wanted = {Path(v).stem for v in self.settings.cards if v}
+                    for c in candidates:
+                        if c.name in wanted:
+                            return (kind, c)
+                    return (kind, candidates[0])
+            # 无匹配 → 点「暂时隐藏」关闭面板
+            hide = self.find(
+                frame,
+                ["bond_hide_btn", "treasure_hide_btn", "card_hide"],
+                threshold=min(0.70, self.settings.match_threshold),
+                scales=(0.9, 1.0, 1.1),
+            )
+            if hide:
+                print(f"[L1] {kind}面板无配置匹配，点击暂时隐藏关闭")
+                return (kind, hide)
+            return None
+
+        # skill panel: existing 3/4-choice matching against configured skills
         skills_dir = self.images / "skills"
         if not skills_dir.is_dir():
             return None
@@ -570,6 +653,34 @@ class Mediator:
         configured_candidates.sort(key=lambda item: item[0])
         _, best_hit = configured_candidates[0]
         return ("技能", best_hit)
+
+    def _maybe_open_choice_panel(self, frame: Frame) -> LoopAction | None:
+        """Low-frequency proactive bond (F) / treasure (V) panel opening.
+
+        Only when the respective setting is enabled AND no choice panel is
+        already open; interval-guarded so wood/refresh resources are not burned.
+        Returns LoopAction.Continue when a hotkey was pressed (wait for the
+        panel next tick); None otherwise.
+        """
+        if self._selection_anchor(frame):
+            return None
+        now = time.time()
+        interval = max(30, getattr(self.settings, "choice_interval", 120))
+        if getattr(self.settings, "auto_bond", False):
+            last = getattr(self, "_last_bond_attempt", 0.0)
+            if now - last >= interval:
+                self._last_bond_attempt = now
+                print("[L1] 主动按 F 打开羁绊面板（低频）")
+                self.executor.press_key("f", target_hwnd=(self._last_frame.hwnd if self._last_frame else None), dry_run=self.settings.dry_run)
+                return LoopAction.Continue
+        if getattr(self.settings, "auto_treasure", False):
+            last = getattr(self, "_last_treasure_attempt", 0.0)
+            if now - last >= interval:
+                self._last_treasure_attempt = now
+                print("[L1] 主动按 V 打开宝物面板（低频）")
+                self.executor.press_key("v", target_hwnd=(self._last_frame.hwnd if self._last_frame else None), dry_run=self.settings.dry_run)
+                return LoopAction.Continue
+        return None
 
     # ---------- 战后页面多锚点判别（P1-B0/B1）----------
 
@@ -1738,6 +1849,13 @@ class Mediator:
                     self._stage_click_cooldown_until = now + 2.0
                     self._main_line_since = now
                     return LoopAction.Continue
+
+        # 主动羁绊/宝物（快捷键 F/V，低频防烧资源；配置开启才动作）
+        if self.settings.auto_bond or self.settings.auto_treasure:
+            opened = self._maybe_open_choice_panel(frame)
+            if opened is not None:
+                self._main_line_since = now
+                return opened
 
         print("[med] 主线 idle（等待局内选择/挑战 UI）")
         if self._main_line_since is not None:

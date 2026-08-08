@@ -423,6 +423,17 @@ class MainWindow(QMainWindow):
         self.skill_grid.skills_changed.connect(self._on_skills_changed)
         main_layout.addWidget(self.grp_skill)
 
+        # 主动羁绊/宝物（低频快捷键，防烧资源；默认关闭）
+        self.chk_bond = QCheckBox("主动刷羁绊（按F，约2分钟1次）")
+        self.chk_bond.setToolTip("开启后脚本会周期性按 F 打开羁绊面板，优先选择已配置的羁绊卡；无匹配则关闭面板。")
+        self.chk_treasure = QCheckBox("主动刷宝物（按V，约2分钟1次）")
+        self.chk_treasure.setToolTip("开启后脚本会周期性按 V 打开宝物面板，优先选择已配置的宝物；无匹配则关闭面板。")
+        choice_row = QHBoxLayout()
+        choice_row.addWidget(self.chk_bond)
+        choice_row.addWidget(self.chk_treasure)
+        choice_row.addStretch()
+        main_layout.addLayout(choice_row)
+
         self.btn_main = QPushButton("开  始  运  行")
         self.btn_main.setObjectName("btnStart")
         self.btn_main.clicked.connect(self.toggle_run)
@@ -515,6 +526,8 @@ class MainWindow(QMainWindow):
         self.spn_reputation_level.setValue(
             max(1, min(5, int(getattr(settings, "reputation_level", 1) or 1)))
         )
+        self.chk_bond.setChecked(bool(getattr(settings, "auto_bond", False)))
+        self.chk_treasure.setChecked(bool(getattr(settings, "auto_treasure", False)))
         self._update_hero_visibility()
 
     def collect_settings_from_ui(self) -> Settings:
@@ -542,6 +555,8 @@ class MainWindow(QMainWindow):
         settings.auto_reputation = bool(self.cmb_mode.currentData())
         settings.reputation_type = int(self.cmb_reputation.currentData() or 3)
         settings.reputation_level = self.spn_reputation_level.value()
+        settings.auto_bond = self.chk_bond.isChecked()
+        settings.auto_treasure = self.chk_treasure.isChecked()
         return settings
 
     def toggle_run(self):

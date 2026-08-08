@@ -292,36 +292,28 @@
     },
     "coin_challenge": {
       "templates": [
-        "challenges/coin_challenge",
-        "coin_challenge_btn",
-        "coin_challenge_auto"
+        "challenges/coin_challenge"
       ],
       "method": "FindNodeWithTimeOut",
       "action": "click_if_not_auto"
     },
     "wood_challenge": {
       "templates": [
-        "challenges/wood_challenge",
-        "wood_challenge_btn",
-        "wood_challenge_auto"
+        "challenges/wood_challenge"
       ],
       "method": "FindNodeWithTimeOut",
       "action": "click_if_not_auto"
     },
     "experience_challenge": {
       "templates": [
-        "challenges/experience_challenge",
-        "exp_challenge_btn",
-        "exp_challenge_auto"
+        "challenges/experience_challenge"
       ],
       "method": "FindNodeWithTimeOut",
       "action": "click_if_not_auto"
     },
     "treasure_challenge": {
       "templates": [
-        "challenges/treasure_challenge",
-        "treasure_challenge_btn",
-        "treasure_challenge_auto"
+        "challenges/treasure_challenge"
       ],
       "method": "FindNodeWithTimeOut",
       "action": "click_if_not_auto"
