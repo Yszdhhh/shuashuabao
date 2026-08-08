@@ -117,6 +117,9 @@ class Mediator:
         self._context_cache_frame: Frame | None = None
         self._context_cache_role: str | None = None
         self._context_cache_value = "UNKNOWN"
+        # 会话级 UI 缩放（1600x900 基准）：窗口非基准分辨率（如 960x540=0.6x）
+        # 时，模板匹配 scales 需包含 ui_scale 邻域才能命中。
+        self._ui_scale: float = 1.0
         self._scene_cache: dict[int, tuple[Frame, dict[tuple[str, float | None], MatchResult | None]]] = {}
         # Safety: L0 cycle counter — prevent infinite PLATFORM_MAP ↔ ROOM_WAITING loops
         self._l0_cycle_count = 0
@@ -278,6 +281,10 @@ class Mediator:
         }
         role = "l0" if self.phase in l0_phases else "l1"
         frame = self._capture_best(title, role)
+        # 会话级 UI 缩放校准：取宽高相对 1600x900 的较小缩放比（保守）
+        if frame.bgr is not None and frame.width >= 200 and frame.height >= 200:
+            scale = min(frame.width / 1600.0, frame.height / 900.0)
+            self._ui_scale = round(min(scale, 1.0), 3) if scale < 1.0 else 1.0
         if (
             self._last_frame is not None
             and self._last_frame.bgr is not None
@@ -333,6 +340,22 @@ class Mediator:
                     names.insert(0, f"chuanjiaobao/{b}")
         return names
 
+    def _adapt_scales(self, scales: tuple[float, ...]) -> tuple[float, ...]:
+        """Merge the session ui_scale neighborhood into the given scales.
+
+        960x540 (=0.6x of 1600x900) needs scales around 0.6; the default
+        0.85-1.2 band misses it entirely, which previously made every
+        detector report UNKNOWN on non-baseline resolutions.
+        """
+        us = getattr(self, "_ui_scale", 1.0)
+        if abs(us - 1.0) < 0.05 or not scales:
+            return scales
+        out = list(scales)
+        for s in (us * 0.94, us, us * 1.06):
+            if not any(abs(s - x) < 0.03 for x in out):
+                out.append(round(s, 3))
+        return tuple(sorted(out))
+
     def find(
         self,
         frame: Frame,
@@ -344,7 +367,7 @@ class Mediator:
         if not names:
             return None
         th = threshold if threshold is not None else self.settings.match_threshold
-        return match_any(frame, self.images, names, threshold=th, scales=scales, roi=roi)
+        return match_any(frame, self.images, names, threshold=th, scales=self._adapt_scales(scales), roi=roi)
 
     def find_scene(self, frame: Frame, scene_key: str, threshold: float | None = None) -> MatchResult | None:
         frame_key = id(frame)
@@ -513,7 +536,7 @@ class Mediator:
         tmpl_on = resolve_template(self.images, "auto_task_on")
         if tmpl_on is None or not tmpl_on.is_file():
             return False
-        hit = match_one(roi_frame, tmpl_on, threshold=0.85, name="auto_task_on", scales=(0.9, 1.0, 1.1))
+        hit = match_one(roi_frame, tmpl_on, threshold=0.85, name="auto_task_on", scales=self._adapt_scales((0.9, 1.0, 1.1)))
         return hit is not None
 
     def _find_auto_task_toggle(self, frame: Frame) -> MatchResult | None:
@@ -528,7 +551,7 @@ class Mediator:
         tmpl_off = resolve_template(self.images, "auto_task_off")
         if tmpl_off is None or not tmpl_off.is_file():
             return None
-        hit = match_one(roi_frame, tmpl_off, threshold=0.85, name="auto_task_toggle", scales=(0.9, 1.0, 1.1))
+        hit = match_one(roi_frame, tmpl_off, threshold=0.85, name="auto_task_toggle", scales=self._adapt_scales((0.9, 1.0, 1.1)))
         return hit
 
     def _ensure_auto_task_enabled(self, frame: Frame) -> LoopAction | None:
@@ -681,7 +704,7 @@ class Mediator:
                     threshold=min(0.70, self.settings.match_threshold),
                     roi=self._selection_roi(),
                     max_results=12,
-                    scales=(0.90, 1.0, 1.05, 1.10),
+                    scales=self._adapt_scales((0.90, 1.0, 1.05, 1.10)),
                 )
                 hits = sorted(hits, key=lambda h: h.score, reverse=True)
                 candidates: list[MatchResult] = []
@@ -1771,8 +1794,14 @@ class Mediator:
                     print("[L0] 房间开始重试耗尽，回到房间等待，不假报进入游戏")
                     self.set_phase(Phase.ROOM_WAITING, "room start retries exhausted")
             elif self._action_timed_out():
-                print("[L0] 房间开始后未出现选关/局内 UI")
-                self.set_phase(Phase.ROOM_WAITING, "room start verify timeout")
+                # 游戏窗口已出现（如 960x540 加载中）：不应回退到已消失的平台房间页，
+                # 继续等待选关/局内 UI；只有窗口仍不存在时才回退。
+                if frame.hwnd is not None and frame.bgr is not None and frame.bgr.size > 0:
+                    print("[L0] 房间开始后游戏窗口已出现，等待选关/局内 UI（不回退）")
+                    self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
+                else:
+                    print("[L0] 房间开始后未出现选关/局内 UI")
+                    self.set_phase(Phase.ROOM_WAITING, "room start verify timeout")
             else:
                 print("[L0] 等待游戏窗口/选关页…")
             return LoopAction.Continue
