@@ -79,8 +79,8 @@ class Settings:
     develop_time: int = 0
     auto_reputation: bool = False
     continue_reputation: bool = False
-    reputation_type: int = 1  # 1:黑锋骑士团, 2:银色北伐军, 3:肯瑞托, 4:探险者协会, 5:元素领主, 6:守护巨龙
-    reputation_level: int = 1 # 难度 1-10
+    reputation_type: int = 3  # 安全首版仅开放录屏验证过的肯瑞托
+    reputation_level: int = 1  # 已验证难度 1-5
     reputation_stage1: int = 0
     reputation_stage2: int = 0
     reputation_cjb_boss: str = ""

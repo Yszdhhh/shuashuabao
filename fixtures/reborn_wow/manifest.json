@@ -1,0 +1,239 @@
+{
+  "version": 1,
+  "purpose": "User-supplied full-screen evidence for Reborn WoW state recognition, replay, and later dry-run action verification.",
+  "scope": "Catalog only. These assets are not yet part of tools/run_replay.py's P0-B gatekeeper manifest.",
+  "global_rules": {
+    "exit_game": {
+      "state": "ANY_IN_GAME_STATE",
+      "target": "top_left_exit_game",
+      "input": "left_click",
+      "guard": "Only after the runner has decided to stop or exit; never use it as a recovery guess."
+    },
+    "great_rift": {
+      "preconditions": [
+        "All map challenges are complete.",
+        "No active boss remains on the map.",
+        "The upper-left Hero Challenge indicator is visible."
+      ],
+      "absence_rule": "If Hero Challenge is absent, Great Rift is not considered open and no Great Rift input is allowed."
+    }
+  },
+  "assets": [
+    {
+      "id": "room_waiting_host",
+      "file_path": "fixtures/reborn_wow/room/room_waiting_host.png",
+      "resolution": [1040, 719],
+      "sha256": "63a3dea4f279758bf559c2330fdd74762dc9c94cc1984597631e44334003a7a4",
+      "state": "ROOM_WAITING",
+      "action": {
+        "id": "RoomStart",
+        "target": "start_game_button",
+        "input": "left_click",
+        "postcondition": "stage_selection_or_loading"
+      }
+    },
+    {
+      "id": "stage_select_old_world_1",
+      "file_path": "fixtures/reborn_wow/stage/stage_select_old_world_1.png",
+      "resolution": [1598, 932],
+      "sha256": "5a6f1f9b7a4047f23cdb788df19ebf4eb8f26e4587fa16b5b2b6018dc43ab6c5",
+      "state": "STAGE_SELECT",
+      "chapter": 1,
+      "chapter_name": "旧世大陆",
+      "action": {
+        "id": "SelectStage-target",
+        "target": "configured_visible_stage",
+        "input": "left_click",
+        "guard": "Verify the exact target row is selected before StartGame."
+      }
+    },
+    {
+      "id": "stage_select_molten_core_2",
+      "file_path": "fixtures/reborn_wow/stage/stage_select_molten_core_2.png",
+      "resolution": [1602, 933],
+      "sha256": "494476da48675eb0e515de5148c2a697b1285cfe62302cef3dc61525aff81edc",
+      "state": "STAGE_SELECT",
+      "chapter": 2,
+      "chapter_name": "熔火之心",
+      "action": {
+        "id": "SelectStage-target",
+        "target": "configured_visible_stage",
+        "input": "left_click",
+        "guard": "Visible rows are account-unlock dependent; never infer unavailable 2-x rows."
+      }
+    },
+    {
+      "id": "main_line_auto_off",
+      "file_path": "fixtures/reborn_wow/main_line/main_line_auto_off.png",
+      "resolution": [1599, 933],
+      "sha256": "6c08f5a3d926fc0171bce9e7435b768c49a401ddec160a56e09c23b99fb17b37",
+      "state": "MAIN_LINE_AUTO_OFF",
+      "action": {
+        "id": "EnableAutoChallenges",
+        "targets": ["gold_challenge", "wood_challenge", "experience_challenge", "treasure_challenge"],
+        "input": "hover_then_right_click",
+        "postcondition": "all_target_cards_show_green_auto"
+      }
+    },
+    {
+      "id": "main_line_auto_on",
+      "file_path": "fixtures/reborn_wow/main_line/main_line_auto_on.png",
+      "resolution": [1609, 932],
+      "sha256": "1c7a37e4d5741e0e770ad11fd6d7a7b58c6f12a09f7a8b17b78ed720f4a3cd72",
+      "state": "MAIN_LINE_AUTO_ON",
+      "action": {
+        "id": "NoToggleNeeded",
+        "guard": "Do not repeat right-clicks after all target cards show green auto."
+      }
+    },
+    {
+      "id": "skill_choice_3",
+      "file_path": "fixtures/reborn_wow/choices/skill_choice_3.png",
+      "resolution": [1610, 935],
+      "sha256": "34752bfb22ef1c665593bef1b99a397f0c93be305b6d2fe3a23c98b7ca7670ed",
+      "state": "SKILL_CHOICE",
+      "visible_choice_count": 3,
+      "action": {
+        "id": "ChooseSkill",
+        "target": "policy_ranked_choice",
+        "input": "left_click",
+        "guard": "Selection policy is required before real input; four- and five-choice layouts need separate evidence."
+      }
+    },
+    {
+      "id": "bond_choice_3",
+      "file_path": "fixtures/reborn_wow/choices/bond_choice_3.png",
+      "resolution": [1595, 927],
+      "sha256": "e96834d0cd486a8bcd5ee1a9250b7a8c00a2c26d9b0a310a8089e6d4c5382c79",
+      "state": "BOND_CHOICE",
+      "visible_choice_count": 3,
+      "action": {
+        "id": "ChooseBond",
+        "target": "policy_ranked_choice",
+        "input": "left_click",
+        "guard": "Selection policy is required before real input."
+      }
+    },
+    {
+      "id": "treasure_choice_3",
+      "file_path": "fixtures/reborn_wow/choices/treasure_choice_3.png",
+      "resolution": [1609, 931],
+      "sha256": "24aa3b846085e876f2f1cdb05722509a7e1577f3ddfdf78155c72d2aa1f234b7",
+      "state": "TREASURE_CHOICE",
+      "visible_choice_count": 3,
+      "action": {
+        "id": "ChooseTreasure",
+        "target": "policy_ranked_choice",
+        "input": "left_click",
+        "guard": "Selection policy is required before real input."
+      }
+    },
+    {
+      "id": "black_merchant_card_strip",
+      "file_path": "fixtures/reborn_wow/choices/black_merchant_card_strip.png",
+      "resolution": [350, 88],
+      "sha256": "8431826551fb4006ef9580d71ee56ba733290347c99f01fd8d1f5b4028dafecf",
+      "state": "BLACK_MERCHANT_CARD_STRIP",
+      "action": {
+        "id": "ObserveOnly",
+        "guard": "This is a cropped reference only. A full-screen Black Merchant fixture is required before scene-level action automation."
+      }
+    },
+    {
+      "id": "victory_continue",
+      "file_path": "fixtures/reborn_wow/endgame/victory_continue.png",
+      "resolution": [1608, 929],
+      "sha256": "c6ffe642c9227854a1edb9ae5dace13fc22196f2978edb2c81958dd0aa49feea",
+      "state": "POST_VICTORY",
+      "action": {
+        "id": "ContinueGame",
+        "target": "continue_game_button",
+        "input": "left_click",
+        "postcondition": "archive_challenge_panel"
+      },
+      "legacy_reference": "1.3.8/Images/continueGame.png"
+    },
+    {
+      "id": "archive_challenge_panel",
+      "file_path": "fixtures/reborn_wow/endgame/archive_challenge_panel.png",
+      "resolution": [1596, 921],
+      "sha256": "2e5fba81d1b1343ad88cd67c9780464cfed54473d441f8be511693a6114957f4",
+      "state": "ARCHIVE_CHALLENGE_PANEL",
+      "actions": [
+        {
+          "id": "RunAvailableArchiveChallenges",
+          "target": "each_visible_unlocked_archive_challenge",
+          "input": "left_click",
+          "guard": "Skip locked or unavailable cards; do not click by fixed count."
+        },
+        {
+          "id": "SelectArchiveBoss",
+          "target": "configured_boss_or_last_visible_enabled_boss",
+          "input": "left_click",
+          "default": "last_visible_enabled_boss"
+        }
+      ],
+      "legacy_reference": "1.3.8/Images/archiveChallenge.png"
+    },
+    {
+      "id": "challenge_npc_hub",
+      "file_path": "fixtures/reborn_wow/endgame/challenge_npc_hub.png",
+      "resolution": [1602, 934],
+      "sha256": "ab59aab1d577a3214080ef313932d18546b003dfa3e33ad154e482f9f0ddb7d1",
+      "state": "CHALLENGE_NPC_HUB",
+      "actions": [
+        {
+          "id": "OpenArchiveChallenge",
+          "target": "archive_challenge_npc",
+          "input": "left_click"
+        },
+        {
+          "id": "OpenHeirloomChallenge",
+          "target": "heirloom_challenge_npc",
+          "input": "left_click"
+        },
+        {
+          "id": "OpenGreatRiftConfirmation",
+          "target": "great_rift_npc",
+          "input": "right_click",
+          "guard": "Apply the global Great Rift preconditions."
+        }
+      ]
+    },
+    {
+      "id": "heirloom_challenge_bosses",
+      "file_path": "fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png",
+      "resolution": [1597, 929],
+      "sha256": "ca7050de65cfc250e5a2f600f4b55337792031eb5e7d6001ac117e2cb472d215",
+      "state": "HEIRLOOM_CHALLENGE",
+      "action": {
+        "id": "SelectHeirloomBoss",
+        "target": "configured_boss_or_last_visible_enabled_boss",
+        "input": "left_click",
+        "default": "last_visible_enabled_boss",
+        "guard": "The UI's right-click is for loot details, not challenge start."
+      },
+      "legacy_reference": "1.3.8/Images/cjbtiaozhan.png"
+    },
+    {
+      "id": "great_rift_confirm",
+      "file_path": "fixtures/reborn_wow/endgame/great_rift_confirm.png",
+      "resolution": [1602, 933],
+      "sha256": "a18f6dcf4ac3f65357fe3f6240a5ee88d03dfd4f0e1366de2b668352daca29f4",
+      "state": "GREAT_RIFT_CONFIRM",
+      "action": {
+        "id": "ConfirmGreatRift",
+        "target": "yes_button",
+        "input": "left_click",
+        "postcondition": "great_rift_challenge"
+      },
+      "legacy_reference": "1.3.8/Images/damijing.png + 1.3.8/Images/mijingOk.png"
+    }
+  ],
+  "known_missing_evidence": [
+    "Current-version full-screen disconnect/exit-confirmation modal.",
+    "Current-version full-screen Black Merchant state.",
+    "Four-choice and five-choice skill-selection layouts.",
+    "Current target-stage view for the account's selected runtime target."
+  ]
+}

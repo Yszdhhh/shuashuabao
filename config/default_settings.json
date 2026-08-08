@@ -1,7 +1,9 @@
 {
   "stage1": 1,
   "stage2": 10,
-  "stage_targets": [],
+  "stage_targets": [
+    "1-10"
+  ],
   "room_name": "",
   "room_password": "",
   "auto_create_room": true,
@@ -21,9 +23,9 @@
   "damage_increase_card": true,
   "develop_priority": true,
   "develop_time": 0,
-  "auto_reputation": true,
+  "auto_reputation": false,
   "continue_reputation": false,
-  "reputation_type": 1,
+  "reputation_type": 3,
   "reputation_level": 1,
   "reputation_stage1": 1,
   "reputation_stage2": 10,

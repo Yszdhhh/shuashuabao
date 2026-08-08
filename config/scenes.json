@@ -41,19 +41,25 @@
   ],
   "scenes": {
     "map_create_room": {
-      "templates": ["lobby/create_room"],
+      "templates": [
+        "lobby/create_room"
+      ],
       "method": "CreateRoom",
       "action": "click",
       "fallback": "blue_left_bottom_roi"
     },
     "create_room_confirm": {
-      "templates": ["lobby/create_room_confirm"],
+      "templates": [
+        "lobby/create_room_confirm"
+      ],
       "method": "CreateRoom",
       "action": "click",
       "fallback": "blue_bottom_dialog_roi"
     },
     "archive_start": {
-      "templates": ["lobby/archive_start_btn"],
+      "templates": [
+        "lobby/archive_start_btn"
+      ],
       "method": "CreateRoom",
       "action": "click",
       "fallback": "blue_bottom_roi"
@@ -71,103 +77,186 @@
       "action": "detect_only"
     },
     "exit_confirm": {
-      "templates": ["lobby/exit_confirm_btn", "lobby/exit_cancel_btn"],
+      "templates": [
+        "lobby/exit_confirm_btn",
+        "lobby/exit_cancel_btn"
+      ],
       "method": "QuitGame",
       "action": "click"
     },
     "choice_panel": {
-      "templates": ["lobby/choice_hide_btn", "lobby/choice_refresh_btn", "lobby/choice_giveup_btn"],
+      "templates": [
+        "lobby/choice_hide_btn",
+        "lobby/choice_refresh_btn",
+        "lobby/choice_giveup_btn"
+      ],
       "method": "FindCardImages",
       "action": "detect_only"
     },
     "hero_challenge": {
-      "templates": ["lobby/hero_hide_btn", "lobby/hero_refresh_btn"],
+      "templates": [
+        "lobby/hero_hide_btn",
+        "lobby/hero_refresh_btn"
+      ],
       "method": "FindCardImages",
       "action": "detect_only"
     },
     "f4_challenge": {
-      "templates": ["lobby/f4_clear_challenge"],
+      "templates": [
+        "lobby/f4_clear_challenge"
+      ],
       "method": "ChangeMainLineStatus",
       "action": "click"
     },
     "stage_begin": {
-      "templates": ["lobby/stage_begin_btn", "lobby/stage_hero_mode_btn", "lobby/stage_archaeology_btn"],
+      "templates": [
+        "lobby/stage_begin_btn",
+        "lobby/stage_hero_mode_btn",
+        "lobby/stage_archaeology_btn"
+      ],
       "method": "BeginGame",
       "action": "click"
     },
     "room_start": {
-      "templates": ["kk_start", "lobby/room_start", "lobby/room_start_alt", "lobby/startGameBtn", "startGameBtn"],
+      "templates": [
+        "kk_start",
+        "lobby/room_start",
+        "lobby/room_start_alt",
+        "lobby/startGameBtn",
+        "startGameBtn"
+      ],
       "method": "EntryF1",
       "action": "click",
       "fallback": "blue_room_start_roi"
     },
     "stage_start": {
-      "templates": ["lobby/stage_begin_btn", "lobby/roomStart", "startGameBtn"],
+      "templates": [
+        "lobby/stage_begin_btn",
+        "lobby/roomStart",
+        "startGameBtn"
+      ],
       "method": "BeginGame",
       "action": "click"
     },
     "stage_page": {
-      "templates": ["stage", "stage1", "stage2", "stage3", "stage4"],
+      "templates": [
+        "stage",
+        "stage1",
+        "stage2",
+        "stage3",
+        "stage4"
+      ],
       "method": "SelectStage",
       "action": "detect_only"
     },
     "lobby_start": {
-      "templates": ["kk_start", "lobby/room_start", "lobby/room_start_alt", "lobby/startGameBtn", "startGameBtn"],
+      "templates": [
+        "kk_start",
+        "lobby/room_start",
+        "lobby/room_start_alt",
+        "lobby/startGameBtn",
+        "startGameBtn"
+      ],
       "method": "EntryF1",
       "action": "click",
       "alias_of": "room_start"
     },
     "lobby_room": {
-      "templates": ["kk_start", "lobby/room_start", "lobby/room_start_alt", "lobby/startGameBtn", "startGameBtn"],
+      "templates": [
+        "kk_start",
+        "lobby/room_start",
+        "lobby/room_start_alt",
+        "lobby/startGameBtn",
+        "startGameBtn"
+      ],
       "method": "EntryF1",
       "action": "click",
       "alias_of": "room_start"
     },
     "start": {
-      "templates": ["lobby/roomStart", "startGameBtn", "continueGame", "jihuo"],
+      "templates": [
+        "lobby/roomStart",
+        "startGameBtn",
+        "continueGame",
+        "jihuo"
+      ],
       "method": "EntryF1",
       "action": "click",
       "alias_of": "stage_start"
     },
     "ok": {
-      "templates": ["ok", "yes"],
+      "templates": [
+        "ok",
+        "yes"
+      ],
       "method": "ClickOKBtn",
       "action": "click"
     },
     "close": {
-      "templates": ["close", "failGiftClose", "quit"],
+      "templates": [
+        "close",
+        "failGiftClose",
+        "quit"
+      ],
       "method": "QuitGame",
       "action": "click"
     },
     "fail": {
-      "templates": ["fail", "gameFail", "giveUp"],
+      "templates": [
+        "fail",
+        "gameFail",
+        "giveUp"
+      ],
       "method": "MonitorGameOver",
       "action": "click"
     },
     "disconnect": {
-      "templates": ["gameDisconnect", "retryConnect"],
+      "templates": [
+        "gameDisconnect",
+        "retryConnect"
+      ],
       "method": "MonitorGameOver",
       "action": "click"
     },
     "pause": {
-      "templates": ["pauseGame"],
+      "templates": [
+        "pauseGame"
+      ],
       "method": "Run",
       "action": "log"
     },
     "stage": {
-      "templates": ["stage", "stage1", "stage2", "stage3", "stage4", "toHero", "HeroChallenge"],
+      "templates": [
+        "stage",
+        "stage1",
+        "stage2",
+        "stage3",
+        "stage4",
+        "toHero",
+        "HeroChallenge"
+      ],
       "method": "SelectStage",
       "action": "detect_only",
       "alias_of": "stage_page"
     },
     "card_panel": {
-      "templates": ["card_hide", "hide", "cardRefresh", "heroRefresh"],
+      "templates": [
+        "card_hide",
+        "hide",
+        "cardRefresh",
+        "heroRefresh"
+      ],
       "method": "CloseCardPanel",
       "action": "click",
       "also_scan_dir": "cards"
     },
     "skill_panel": {
-      "templates": ["skill_hide", "noSkillNum", "skillRefreshGift", "skillchallenge"],
+      "templates": [
+        "skill_hide",
+        "noSkillNum",
+        "skillRefreshGift",
+        "skillchallenge"
+      ],
       "method": "CloseSkillPanel",
       "action": "click",
       "also_scan_dir": "skills",
@@ -194,32 +283,55 @@
       "roi": "center_three_cards"
     },
     "auto_task_toggle": {
-      "templates": ["auto_task_off", "auto_task_on"],
+      "templates": [
+        "auto_task_off",
+        "auto_task_on"
+      ],
       "method": "ChangeMainLineStatus",
       "action": "click_if_off"
     },
     "coin_challenge": {
-      "templates": ["challenges/coin_challenge"],
+      "templates": [
+        "challenges/coin_challenge",
+        "coin_challenge_btn",
+        "coin_challenge_auto"
+      ],
       "method": "FindNodeWithTimeOut",
       "action": "click_if_not_auto"
     },
     "wood_challenge": {
-      "templates": ["challenges/wood_challenge"],
+      "templates": [
+        "challenges/wood_challenge",
+        "wood_challenge_btn",
+        "wood_challenge_auto"
+      ],
       "method": "FindNodeWithTimeOut",
       "action": "click_if_not_auto"
     },
     "experience_challenge": {
-      "templates": ["challenges/experience_challenge"],
+      "templates": [
+        "challenges/experience_challenge",
+        "exp_challenge_btn",
+        "exp_challenge_auto"
+      ],
       "method": "FindNodeWithTimeOut",
       "action": "click_if_not_auto"
     },
     "treasure_challenge": {
-      "templates": ["challenges/treasure_challenge"],
+      "templates": [
+        "challenges/treasure_challenge",
+        "treasure_challenge_btn",
+        "treasure_challenge_auto"
+      ],
       "method": "FindNodeWithTimeOut",
       "action": "click_if_not_auto"
     },
     "longzhu": {
-      "templates": ["longzhu", "longzhu2", "closeLongzhu"],
+      "templates": [
+        "longzhu",
+        "longzhu2",
+        "closeLongzhu"
+      ],
       "method": "LongzhuJob",
       "action": "click"
     },
@@ -238,62 +350,160 @@
       "action": "click"
     },
     "wood": {
-      "templates": ["woodgift", "woodSuccess"],
+      "templates": [
+        "woodgift",
+        "woodSuccess"
+      ],
       "method": "AutoGambling",
       "action": "click_or_pause"
     },
     "secret": {
-      "templates": ["damijing", "mijingOk", "kaogu", "kaoguMode"],
+      "templates": [
+        "damijing",
+        "mijingOk",
+        "kaogu",
+        "kaoguMode"
+      ],
       "method": "AutoSecretRealm",
       "action": "click"
     },
     "boss_entry": {
-      "templates": ["boosIcon", "cjbBoss", "cjbBossbak", "sgzxBoss", "cjbtiaozhan"],
+      "templates": [
+        "boosIcon",
+        "cjbBoss",
+        "cjbBossbak",
+        "sgzxBoss",
+        "cjbtiaozhan"
+      ],
       "method": "GetBoss",
       "action": "click",
-      "also_scan_dir": ["boss", "chuanjiaobao"]
+      "also_scan_dir": [
+        "boss",
+        "chuanjiaobao"
+      ]
     },
     "archive": {
-      "templates": ["archiveChallenge", "cundang", "cundangInfo", "tuanben"],
+      "templates": [
+        "archiveChallenge",
+        "cundang",
+        "cundangInfo",
+        "tuanben"
+      ],
       "method": "FindNodeWithTimeOut",
       "action": "click"
     },
     "clean": {
-      "templates": ["decompose", "zhuangbei", "baoshi", "cibao"],
+      "templates": [
+        "decompose",
+        "zhuangbei",
+        "baoshi",
+        "cibao"
+      ],
       "method": "AutoClean",
       "action": "click"
     },
     "env_anchor": {
-      "templates": ["mainIdentifier", "shortKey", "zidong"],
+      "templates": [
+        "mainIdentifier",
+        "shortKey",
+        "zidong"
+      ],
       "method": "Valida",
       "action": "detect_only"
     },
     "rarity": {
-      "templates": ["r", "sr", "ssr", "ur", "ex", "hc"],
+      "templates": [
+        "r",
+        "sr",
+        "ssr",
+        "ur",
+        "ex",
+        "hc"
+      ],
       "method": "FindCardImages",
       "action": "context"
     },
     "quality": {
-      "templates": ["pinfu", "pingfu1", "pingfu2", "pingfu3", "pingfu4", "pingfu6"],
+      "templates": [
+        "pinfu",
+        "pingfu1",
+        "pingfu2",
+        "pingfu3",
+        "pingfu4",
+        "pingfu6"
+      ],
       "method": "AutoClean",
       "action": "context"
     },
     "wave_markers": {
-      "templates": ["1-23", "5-6", "5-7", "5-8", "5-9", "5-10"],
+      "templates": [
+        "1-23",
+        "5-6",
+        "5-7",
+        "5-8",
+        "5-9",
+        "5-10"
+      ],
       "method": "ChangeMainLineStatus",
       "action": "detect_only"
     }
   },
   "combat_templates_root_unclassified": [
-    "bbx", "bingjianguanchuang", "bingjianlianfa", "bingjianqishe", "bolidapao",
-    "bpoint", "bzjs", "chongnengzhanchui", "chuangjiabao", "chuanjiabao",
-    "danGif", "duochongjian", "fashu", "fengwuzhe", "gongjian", "guangshe",
-    "jisu", "jscj", "jingyingshashou", "jianshu", "kfds", "laser", "laser2",
-    "lingzhushashou", "manjidalao", "manwuzhe", "mcsh", "meimiaominjie",
-    "mofashi", "moneng", "moshu", "onepiece", "ray", "ray2", "sanlingbingjian",
-    "shadililiang", "shadiminjie", "shadizhili", "shencimucai", "shenpanzhilei",
-    "sheshu", "shiguzhihan", "sugong", "sword", "tiaozhanshashou", "tqtz",
-    "wzjh", "xianzhen", "xzcz", "yalizhuanyi", "yanmozhiwang", "yazhi",
-    "yinwuzhe", "yishenshenzhuang", "yuansushi", "yueren"
+    "bbx",
+    "bingjianguanchuang",
+    "bingjianlianfa",
+    "bingjianqishe",
+    "bolidapao",
+    "bpoint",
+    "bzjs",
+    "chongnengzhanchui",
+    "chuangjiabao",
+    "chuanjiabao",
+    "danGif",
+    "duochongjian",
+    "fashu",
+    "fengwuzhe",
+    "gongjian",
+    "guangshe",
+    "jisu",
+    "jscj",
+    "jingyingshashou",
+    "jianshu",
+    "kfds",
+    "laser",
+    "laser2",
+    "lingzhushashou",
+    "manjidalao",
+    "manwuzhe",
+    "mcsh",
+    "meimiaominjie",
+    "mofashi",
+    "moneng",
+    "moshu",
+    "onepiece",
+    "ray",
+    "ray2",
+    "sanlingbingjian",
+    "shadililiang",
+    "shadiminjie",
+    "shadizhili",
+    "shencimucai",
+    "shenpanzhilei",
+    "sheshu",
+    "shiguzhihan",
+    "sugong",
+    "sword",
+    "tiaozhanshashou",
+    "tqtz",
+    "wzjh",
+    "xianzhen",
+    "xzcz",
+    "yalizhuanyi",
+    "yanmozhiwang",
+    "yazhi",
+    "yinwuzhe",
+    "yishenshenzhuang",
+    "yuansushi",
+    "yueren"
   ]
 }

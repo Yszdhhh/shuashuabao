@@ -10,6 +10,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from gamescript.loop_action import LoopAction
 from gamescript.mediator import Mediator, Phase
 from gamescript.settings import Settings
 from gamescript.vision.capture import Frame
@@ -33,7 +34,7 @@ class P0C1FixesTests(unittest.TestCase):
         self.assertFalse(data.get("auto_secret_realm"))
         self.assertFalse(self.settings.auto_secret_realm)
 
-    def test_auto_secret_realm_true_in_quit_next_no_secret_click(self):
+    def test_quit_next_use_only_dedicated_anchors(self):
         self.settings.auto_secret_realm = True
         frame = create_dummy_frame()
 
@@ -42,18 +43,12 @@ class P0C1FixesTests(unittest.TestCase):
              patch.object(self.med.executor, "click") as mock_exec_click:
 
             for phase in (Phase.QUIT, Phase.NEXT):
-                self.med.phase = phase
+                self.med.set_phase(phase)
                 action = self.med._tick_l1_tail(frame)
 
-                # close and ok should be checked / clicked as design
-                mock_click_scene.assert_any_call(frame, "close", "QuitGame")
-                mock_click_scene.assert_any_call(frame, "ok", "QuitGame-ok")
-
-                # secret MUST NOT be called
-                for call_args in mock_click_scene.call_args_list:
-                    args, _ = call_args
-                    self.assertNotEqual(args[1], "secret", "secret click_scene must not be called")
-
+                self.assertEqual(action, LoopAction.Continue)
+                self.assertEqual(self.med.game_count, 0)
+                mock_click_scene.assert_not_called()
                 mock_act_click.assert_not_called()
                 mock_exec_click.assert_not_called()
 

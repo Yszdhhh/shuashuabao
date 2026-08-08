@@ -1,38 +1,15 @@
 @echo off
-chcp 65001 >nul
-cd /d "%~dp0"
+setlocal
+set "APP=%~dp0dist\GameScript\GameScript.exe"
+if not exist "%APP%" set "APP=%~dp0dist-candidate\GameScript\GameScript.exe"
+if not exist "%APP%" set "APP=%~dp0dist-candidate3\GameScript\GameScript.exe"
+if not exist "%APP%" set "APP=%~dp0dist-candidate2\GameScript\GameScript.exe"
 
-:: 自动触发 UAC 管理员权限弹窗 (若未提权)
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    powershell -Command "Start-Process '%~f0' -Verb RunAs"
-    exit /b
+if exist "%APP%" (
+    start "" "%APP%"
+    exit /b 0
 )
 
-:: 已具备管理员权限，使用绝对路径静默启动 GUI
-set "PY=C:\Users\10639\AppData\Local\hermes\hermes-agent\venv\Scripts\pythonw.exe"
-if exist "%PY%" (
-    start "" "%PY%" desktop_app.py
-    exit /b
-)
-
-set "PY2=C:\Users\10639\AppData\Local\hermes\hermes-agent\venv\Scripts\python.exe"
-if exist "%PY2%" (
-    start "" "%PY2%" desktop_app.py
-    exit /b
-)
-
-where pythonw >nul 2>&1
-if %errorlevel%==0 (
-    start "" pythonw desktop_app.py
-    exit /b
-)
-
-where python >nul 2>&1
-if %errorlevel%==0 (
-    start "" python desktop_app.py
-    exit /b
-)
-
-echo [错误] 未找到 Python 环境！
-pause
+powershell.exe -NoProfile -WindowStyle Hidden -Command ^
+  "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('GameScript.exe not found. Run build_release.ps1 first.','GameScript') | Out-Null"
+exit /b 1

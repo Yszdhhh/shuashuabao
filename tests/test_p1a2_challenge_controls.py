@@ -229,12 +229,14 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         """8. Check that set_phase(Phase.MAIN_LINE) resets challenge done/attempts and initializes states to PENDING."""
         self.med._challenge_done.add("coin_challenge")
         self.med._challenge_attempts["coin_challenge"] = 2
+        self.med._challenge_unknown_since["coin_challenge"] = 123.0
         self.med._challenge_states["coin_challenge"] = ChallengeState.ON
 
         self.med.set_phase(Phase.MAIN_LINE, "new game")
 
         self.assertEqual(len(self.med._challenge_done), 0)
         self.assertEqual(len(self.med._challenge_attempts), 0)
+        self.assertEqual(len(self.med._challenge_unknown_since), 0)
         for key in ("coin_challenge", "wood_challenge", "experience_challenge", "treasure_challenge"):
             self.assertEqual(self.med._challenge_states.get(key), ChallengeState.PENDING)
 
@@ -280,6 +282,23 @@ class TestP1A2ChallengeControls(unittest.TestCase):
             mock_stage_find.assert_not_called()
             self.assertEqual(self.med._challenge_attempts.get("coin_challenge", 0), 0)
             self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.UNKNOWN)
+
+    def test_unknown_state_has_bounded_zero_input_timeout(self):
+        """Persistent UNKNOWN stays fail-closed and eventually stops instead of waiting forever."""
+        self.med._auto_task_done = True
+        self.med.settings.query_timeout = 3
+        dummy_label = MatchResult("coin_challenge", 0.8, 100, 500, 50, 20, 100, 500)
+
+        with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+             patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.UNKNOWN), \
+             patch.object(self.med.executor, "right_click") as mock_rc, \
+             patch("gamescript.mediator.time.time", side_effect=(100.0, 103.0)):
+            self.assertEqual(self.med._ensure_challenge_buttons(self.frame_off), LoopAction.Continue)
+            self.assertEqual(self.med._ensure_challenge_buttons(self.frame_off), LoopAction.Break)
+
+        mock_rc.assert_not_called()
+        self.assertEqual(self.med.phase, Phase.ERROR)
+        self.assertTrue(self.stop_signal.is_set())
 
     def test_right_click_failure_attempt_1_blocks_stage_select(self):
         """Regression 2: Right click failure on attempt 1 increments attempt, returns Continue, and blocks stage select."""

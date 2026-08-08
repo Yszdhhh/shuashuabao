@@ -16,6 +16,7 @@ from enum import Enum, auto
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from gamescript.input.emergency_stop import EmergencyStopListener
 from gamescript.input.keyboard_mouse import InputExecutor
@@ -36,6 +37,7 @@ from gamescript.vision.capture import (
 )
 from gamescript.vision.matcher import (
     MatchResult,
+    _load_template,
     find_blue_button,
     find_blue_buttons,
     find_input_boxes,
@@ -67,13 +69,14 @@ class Phase(Enum):
     ROOM_STARTING = auto()  # 已点击房间开始，等待游戏窗口
     STAGE_SELECT = auto()  # 选关页
     STAGE_STARTING = auto()  # 已点击关卡开始，等待局内 UI
+    HERO_SETUP = auto()  # 英雄模式弹窗：阵营/难度/开启的后置确认链
     ERROR = auto()  # 目标窗口不可用
     MAIN_LINE = auto()  # 开始主线 / 选卡
     EARLY_CHALLENGE = auto()  # 提前挑战
     ANCHOR_BOSS = auto()  # 锚点 Boss
     LONGZHU = auto()  # 找龙珠
-    QUIT = auto()  # 退出
-    NEXT = auto()  # 下一局
+    QUIT = auto()  # 点击局内专用退出按钮
+    NEXT = auto()  # 确认退出并返回原 KK 房间
 
 
 class ChallengeState(Enum):
@@ -101,6 +104,8 @@ class Mediator:
         self._boss_clicked = False  # ANCHOR_BOSS 是否已尝试点击
         self._stage_click_cooldown_until = 0.0
         self._stage_selected = False
+        self._stage_target_name: str | None = None
+        self._stage_target_position: tuple[int, int] | None = None
         self._room_dialog_filled = False
         self._room_action_deadline: float | None = None
         self._room_action_attempts = 0
@@ -122,6 +127,7 @@ class Mediator:
         self._selection_click_cooldown_until = 0.0
         self._challenge_done: set[str] = set()
         self._challenge_attempts: dict[str, int] = {}
+        self._challenge_unknown_since: dict[str, float] = {}
         self._challenge_states: dict[str, ChallengeState] = {
             "coin_challenge": ChallengeState.PENDING,
             "wood_challenge": ChallengeState.PENDING,
@@ -136,6 +142,22 @@ class Mediator:
         # While True, frames that no classifier recognizes must yield ZERO input
         # (no auto-task / challenge / stage actions) until timeout -> ERROR.
         self._post_game_pending: bool = False
+        self._post_game_close_attempts: int = 0
+        self._exit_button_attempts: int = 0
+        self._exit_confirm_attempts: int = 0
+        self._exit_since: float | None = None
+        self._awaiting_room_return: bool = False
+        self._selection_unknown_attempts: int = 0
+        self._selection_unknown_since: float | None = None
+        # Hero-mode automation is intentionally limited to the one complete
+        # recorded path: Kenrito, level 1..5, 1600x900 client capture.
+        self._hero_state = "IDLE"
+        self._hero_verified_level = 0
+        self._hero_level_baseline: np.ndarray | None = None
+        self._hero_level_candidate: np.ndarray | None = None
+        self._hero_card_baseline: np.ndarray | None = None
+        self._hero_step_deadline: float | None = None
+        self._hero_modal_missing_frames = 0
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -177,7 +199,9 @@ class Mediator:
 
     def _detect_context(self, frame: Frame, role: str | None = None) -> str:
         """Classify the visible page before taking a state-machine action."""
-        if self._context_cache_frame is frame and self._context_cache_role == role:
+        # Classification does not depend on role. Reuse it for both L0/L1
+        # handlers when they inspect the same frame.
+        if self._context_cache_frame is frame:
             return self._context_cache_value
 
         if self._selection_anchor(frame):
@@ -222,6 +246,8 @@ class Mediator:
         targets = find_window_targets(title, role=role)
         if not targets:
             return capture(title, role=role, activate=False)
+        if len(targets) == 1:
+            return capture_target(targets[0])
         frames = [capture_target(target) for target in targets]
         previous_hwnd = self._last_frame.hwnd if self._last_capture_role == role and self._last_frame else None
         return max(
@@ -261,7 +287,14 @@ class Mediator:
         self._prev_frame = self._last_frame
         self._last_frame = frame
         self._last_capture_role = role
-        context = "NO_WINDOW" if frame.hwnd is None and not frame.window_title else self._detect_context(frame, role)
+        if frame.hwnd is None and not frame.window_title:
+            context = "NO_WINDOW"
+        elif self.phase == Phase.HERO_SETUP:
+            # Hero setup has exact modal/ROI guards; generic context matching
+            # is an unnecessary full-screen scan for every slow capture.
+            context = "HERO_SETUP"
+        else:
+            context = self._detect_context(frame, role)
         print(
             f"[med] capture {reason or '-'} "
             f"{frame.width}x{frame.height} @({frame.left},{frame.top}) "
@@ -596,6 +629,44 @@ class Mediator:
 
         return None
 
+    def _find_archive_panel_close(self, frame: Frame) -> MatchResult | None:
+        hit = self.find(
+            frame,
+            ["lobby/archive_panel_close"],
+            threshold=0.85,
+            scales=(0.9, 1.0, 1.1),
+        )
+        if not hit:
+            return None
+        if not (frame.width * 0.55 <= hit.x <= frame.width * 0.70):
+            return None
+        if not (frame.height * 0.15 <= hit.y <= frame.height * 0.35):
+            return None
+        return hit
+
+    def _find_game_exit(self, frame: Frame) -> MatchResult | None:
+        hit = self.find(frame, ["quit"], threshold=0.78, scales=(0.9, 1.0, 1.1))
+        if not hit:
+            return None
+        if hit.x > frame.width * 0.12 or hit.y > frame.height * 0.15:
+            return None
+        return hit
+
+    def _find_exit_confirm(self, frame: Frame) -> MatchResult | None:
+        hit = self.find(
+            frame,
+            ["lobby/exit_confirm_btn"],
+            threshold=0.88,
+            scales=(0.9, 1.0, 1.1),
+        )
+        if not hit:
+            return None
+        if not (frame.width * 0.38 <= hit.x <= frame.width * 0.50):
+            return None
+        if not (frame.height * 0.50 <= hit.y <= frame.height * 0.68):
+            return None
+        return hit
+
     def _find_challenge_button(self, frame: Frame, scene_key: str) -> tuple[MatchResult, MatchResult] | None:
         """Return (label hit, icon click hit) for one bottom challenge toggle."""
         threshold = min(0.68, self.settings.match_threshold)
@@ -666,6 +737,7 @@ class Mediator:
         ):
             if scene_key in self._challenge_done:
                 self._challenge_states[scene_key] = ChallengeState.ON
+                self._challenge_unknown_since.pop(scene_key, None)
                 continue
 
             attempts = self._challenge_attempts.get(scene_key, 0)
@@ -683,15 +755,29 @@ class Mediator:
                 print(f"[L1] {label}挑战已是自动模式")
                 self._challenge_states[scene_key] = ChallengeState.ON
                 self._challenge_done.add(scene_key)
+                self._challenge_unknown_since.pop(scene_key, None)
                 continue
 
             elif state == ChallengeState.UNKNOWN:
-                print(f"[L1] {label}挑战状态为 UNKNOWN（未发现/模糊/低置信），零动作等待")
+                now = time.time()
+                unknown_since = self._challenge_unknown_since.setdefault(scene_key, now)
+                unknown_timeout = max(3, min(self.settings.query_timeout, 30))
+                unknown_elapsed = now - unknown_since
                 self._challenge_states[scene_key] = ChallengeState.UNKNOWN
+                if unknown_elapsed >= unknown_timeout:
+                    print(f"[L1] {label}挑战状态连续 UNKNOWN {unknown_elapsed:.1f}s，Fail-Closed 停止运行")
+                    self.set_phase(Phase.ERROR, f"{scene_key} unknown timeout")
+                    self.stop()
+                    return LoopAction.Break
+                print(
+                    f"[L1] {label}挑战状态为 UNKNOWN（未发现/模糊/低置信），"
+                    f"零动作等待 {unknown_elapsed:.1f}/{unknown_timeout}s"
+                )
                 # End this tick immediately, preventing downstream stage select or other inputs
                 return LoopAction.Continue
 
             elif state == ChallengeState.OFF:
+                self._challenge_unknown_since.pop(scene_key, None)
                 click_hit = found[1]
                 self._challenge_attempts[scene_key] = attempts + 1
                 current_attempts = self._challenge_attempts[scene_key]
@@ -714,76 +800,230 @@ class Mediator:
 
         return None
 
-    def _handle_hero_mode_reputation(self, frame: Frame) -> bool:
-        """开启并配置英雄模式（声望挑战）: 1:黑锋骑士团, 2:银色北伐军, 3:肯瑞托, 4:探险者协会, 5:元素领主, 6:守护巨龙"""
-        hero_btn = self.find(frame, ["lobby/stage_hero_mode_btn", "toHero", "HeroChallenge"], threshold=0.70)
-        if not hero_btn:
-            # 录屏实测（1600×900 帧）：英雄模式按钮在选关页底部 (0.64, 0.82)
-            x = int(frame.width * 0.64)
-            y = int(frame.height * 0.82)
-            hero_btn = MatchResult(
-                name="hero_mode_fallback",
-                score=0.0,
-                x=x, y=y, w=0, h=0,
-                screen_x=frame.left + x,
-                screen_y=frame.top + y
-            )
+    @staticmethod
+    def _hero_reference_frame(frame: Frame) -> bool:
+        """The recorded hero controls are only proven on a 1600x900 client frame."""
+        return frame.width == 1600 and frame.height == 900
 
-        cancel_btn = self.find(frame, ["cancelChallenge", "quxiao"], threshold=0.70)
-        confirm_btn = self.find(frame, ["startChallenge", "kaishiChallenge"], threshold=0.70)
+    @staticmethod
+    def _hero_roi(frame: Frame, box: tuple[int, int, int, int]) -> np.ndarray | None:
+        if not Mediator._hero_reference_frame(frame):
+            return None
+        x1, y1, x2, y2 = box
+        roi = frame.bgr[y1:y2, x1:x2]
+        if roi.shape[:2] != (y2 - y1, x2 - x1):
+            return None
+        return cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
 
-        if not (cancel_btn or confirm_btn):
-            print(f"[L0] 点击右下角【英雄模式】按钮 @ {hero_btn.center}")
-            self.act_click(hero_btn, "OpenHeroModeModal")
-            time.sleep(0.6)
+    @staticmethod
+    def _hero_changed_pixels(before: np.ndarray, after: np.ndarray) -> int:
+        if before.shape != after.shape:
+            return 0
+        difference = cv2.absdiff(before, after)
+        _, changed = cv2.threshold(difference, 15, 255, cv2.THRESH_BINARY)
+        return int(cv2.countNonZero(changed))
+
+    @staticmethod
+    def _hero_point(frame: Frame, name: str, x: int, y: int) -> MatchResult:
+        return MatchResult(
+            name=name,
+            score=1.0,
+            x=x,
+            y=y,
+            w=0,
+            h=0,
+            screen_x=frame.left + x,
+            screen_y=frame.top + y,
+        )
+
+    def _find_hero_entry(self, frame: Frame) -> MatchResult | None:
+        if not self._hero_reference_frame(frame):
+            return None
+        hit = self.find(frame, ["lobby/stage_hero_mode_btn"], threshold=0.90)
+        if not hit or not (1170 <= hit.x <= 1270 and 790 <= hit.y <= 840):
+            return None
+        return hit
+
+    def _hero_modal_buttons(self, frame: Frame) -> tuple[MatchResult, MatchResult] | None:
+        if not self._hero_reference_frame(frame):
+            return None
+        start = self.find(frame, ["lobby/hero_modal_start"], threshold=0.90)
+        cancel = self.find(frame, ["lobby/hero_modal_cancel"], threshold=0.90)
+        if not start or not cancel:
+            return None
+        if not (540 <= start.x <= 730 and 820 <= start.y <= 890):
+            return None
+        if not (750 <= cancel.x <= 940 and 820 <= cancel.y <= 890):
+            return None
+        return start, cancel
+
+    def _hero_initial_zero_confirmed(self, frame: Frame) -> bool:
+        card = self.find(frame, ["lobby/hero_kenrito_unselected"], threshold=0.90)
+        if not card or not (650 <= card.x <= 675 and 110 <= card.y <= 130):
             return False
+        roi = self._hero_roi(frame, (724, 314, 752, 342))
+        template_path = resolve_template(self.images, "lobby/hero_level_zero")
+        if roi is None or template_path is None:
+            return False
+        template = _load_template(template_path)
+        if template is None:
+            return False
+        template_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
+        if template_gray.shape != roi.shape:
+            return False
+        score = float(cv2.matchTemplate(roi, template_gray, cv2.TM_CCOEFF_NORMED)[0, 0])
+        return score >= 0.95
 
-        rep_type = max(1, min(6, getattr(self.settings, "reputation_type", 1)))
-        rep_level = max(1, min(10, getattr(self.settings, "reputation_level", 1)))
+    def _hero_fail(self, reason: str) -> LoopAction:
+        print(f"[英雄模式] {reason}，Fail-Closed 停止运行")
+        self.set_phase(Phase.ERROR, reason)
+        self.stop()
+        return LoopAction.Break
 
-        names_map = {
-            1: "黑锋骑士团",
-            2: "银色北伐军",
-            3: "肯瑞托",
-            4: "探险者协会",
-            5: "元素领主",
-            6: "守护巨龙"
-        }
-        rep_name = names_map.get(rep_type, "黑锋骑士团")
-        print(f"[L0] 英雄模式配置：选择声望【{rep_name}】(序号{rep_type})，难度【{rep_level}级】")
+    def _hero_observation_timeout(self) -> float:
+        """Allow for the slowest real client capture before failing closed.
 
-        card_coords = {
-            1: (0.17, 0.20),
-            2: (0.33, 0.20),
-            3: (0.49, 0.20),
-            4: (0.65, 0.20),
-            5: (0.17, 0.60),
-            6: (0.33, 0.60),
-        }
+        Hero setup uses full-frame template matching.  On the recorded 1600x900
+        client a fresh frame can take roughly 9–10 seconds, so the old 2–3s
+        deadlines expired before the next frame could prove the click worked.
+        Keep the bound finite while leaving enough room for one slow capture
+        plus one confirmation frame.
+        """
+        return max(20.0, min(float(self.settings.query_timeout), 60.0))
 
-        zero_x_map = {1: 0.09, 2: 0.25, 3: 0.41, 4: 0.57, 5: 0.09, 6: 0.25}
-        plus_x_map = {1: 0.18, 2: 0.34, 3: 0.50, 4: 0.66, 5: 0.18, 6: 0.34}
+    def _begin_hero_setup(self, frame: Frame) -> LoopAction:
+        rep_type = int(getattr(self.settings, "reputation_type", 0) or 0)
+        rep_level = int(getattr(self.settings, "reputation_level", 0) or 0)
+        if rep_type != 3 or not 1 <= rep_level <= 5:
+            return self._hero_fail("当前仅有肯瑞托 1–5 级的完整实机证据")
+        if not self._hero_reference_frame(frame):
+            return self._hero_fail(
+                f"英雄模式要求 1600x900 游戏客户区，当前为 {frame.width}x{frame.height}"
+            )
+        entry = self._find_hero_entry(frame)
+        if not entry:
+            if self._action_timed_out():
+                return self._hero_fail("未找到经录屏验证的英雄模式入口")
+            print("[英雄模式] 等待右下角专用入口（零动作）")
+            return LoopAction.Continue
+        if not self.act_click(entry, "OpenHeroModeModal"):
+            return LoopAction.Continue
+        self._hero_state = "WAIT_MODAL"
+        self._hero_verified_level = 0
+        self._hero_level_baseline = None
+        self._hero_level_candidate = None
+        self._hero_card_baseline = None
+        self._hero_modal_missing_frames = 0
+        self._hero_step_deadline = time.time() + self._hero_observation_timeout()
+        self.set_phase(Phase.HERO_SETUP, "hero entry clicked")
+        return LoopAction.Continue
 
-        cx, cy = card_coords[rep_type]
-        self.act_click(MatchResult("rep_card", 0.0, int(frame.width*cx), int(frame.height*cy), 0, 0, frame.left + int(frame.width*cx), frame.top + int(frame.height*cy)), f"SelectReputation-{rep_name}")
-        time.sleep(0.25)
+    def _tick_hero_setup(self, frame: Frame) -> LoopAction:
+        now = time.time()
+        if not self._hero_reference_frame(frame):
+            return self._hero_fail(
+                f"英雄模式过程中客户区尺寸改变为 {frame.width}x{frame.height}"
+            )
+        if self._hero_step_deadline is not None and now >= self._hero_step_deadline:
+            return self._hero_fail(f"英雄模式步骤 {self._hero_state} 超时")
 
-        zx = zero_x_map[rep_type]
-        zy = 0.34 if rep_type <= 4 else 0.74
-        self.act_click(MatchResult("rep_zero", 0.0, int(frame.width*zx), int(frame.height*zy), 0, 0, frame.left + int(frame.width*zx), frame.top + int(frame.height*zy)), "ReputationLevelZero")
-        time.sleep(0.2)
+        buttons = self._hero_modal_buttons(frame)
+        level_roi = self._hero_roi(frame, (724, 314, 752, 342))
+        card_roi = self._hero_roi(frame, (662, 118, 815, 286))
+        target_level = int(self.settings.reputation_level)
 
-        px = plus_x_map[rep_type]
-        py = zy
-        for i in range(rep_level):
-            self.act_click(MatchResult("rep_plus", 0.0, int(frame.width*px), int(frame.height*py), 0, 0, frame.left + int(frame.width*px), frame.top + int(frame.height*py)), f"ReputationLevelPlus-{i+1}")
-            time.sleep(0.12)
+        if self._hero_state == "WAIT_MODAL":
+            if not buttons or level_roi is None or card_roi is None:
+                print("[英雄模式] 等待开启/取消双按钮同时出现（零动作）")
+                return LoopAction.Continue
+            if not self._hero_initial_zero_confirmed(frame):
+                print("[英雄模式] 弹窗已出现，但肯瑞托未选中卡和初始 0 级未同时确认（零动作）")
+                return LoopAction.Continue
+            self._hero_level_baseline = level_roi.copy()
+            self._hero_card_baseline = card_roi.copy()
+            plus = self._hero_point(frame, "hero_kenrito_plus", 772, 327)
+            if not self.act_click(plus, "HeroKenritoPlus-1"):
+                return LoopAction.Continue
+            self._hero_state = "WAIT_LEVEL_CHANGE"
+            self._hero_step_deadline = now + self._hero_observation_timeout()
+            return LoopAction.Continue
 
-        start_x = int(frame.width * 0.41)
-        start_y = int(frame.height * 0.95)
-        click_start = MatchResult("rep_start_challenge", 0.0, start_x, start_y, 0, 0, frame.left + start_x, frame.top + start_y)
-        print(f"[L0] 点击【开启挑战】英雄模式声望挑战 @ {click_start.center}")
-        return self.act_click(click_start, "StartHeroModeChallenge")
+        if self._hero_state == "WAIT_LEVEL_CHANGE":
+            if not buttons or level_roi is None or self._hero_level_baseline is None:
+                return self._hero_fail("难度变化确认时英雄弹窗丢失")
+            changed = self._hero_changed_pixels(self._hero_level_baseline, level_roi)
+            if changed < 50:
+                print(f"[英雄模式] 等待难度数字变化（{changed}/50 像素，零动作）")
+                return LoopAction.Continue
+            self._hero_level_candidate = level_roi.copy()
+            self._hero_state = "WAIT_LEVEL_STABLE"
+            self._hero_step_deadline = now + self._hero_observation_timeout()
+            return LoopAction.Continue
+
+        if self._hero_state == "WAIT_LEVEL_STABLE":
+            if not buttons or level_roi is None or self._hero_level_candidate is None:
+                return self._hero_fail("难度稳定确认时英雄弹窗丢失")
+            stable_delta = self._hero_changed_pixels(self._hero_level_candidate, level_roi)
+            if stable_delta > 20:
+                self._hero_level_candidate = level_roi.copy()
+                print(f"[英雄模式] 难度数字仍在变化（{stable_delta} 像素，零动作）")
+                return LoopAction.Continue
+
+            self._hero_verified_level += 1
+            if self._hero_verified_level == 1:
+                if card_roi is None or self._hero_card_baseline is None:
+                    return self._hero_fail("无法确认肯瑞托选中态")
+                selected_delta = self._hero_changed_pixels(self._hero_card_baseline, card_roi)
+                if selected_delta < 10000:
+                    return self._hero_fail(
+                        f"第一次加级后肯瑞托卡片未切换为选中态（{selected_delta}/10000 像素）"
+                    )
+
+            print(f"[英雄模式] 已确认肯瑞托难度 {self._hero_verified_level}/{target_level}")
+            if self._hero_verified_level < target_level:
+                self._hero_level_baseline = level_roi.copy()
+                plus = self._hero_point(frame, "hero_kenrito_plus", 772, 327)
+                next_level = self._hero_verified_level + 1
+                if not self.act_click(plus, f"HeroKenritoPlus-{next_level}"):
+                    return LoopAction.Continue
+                self._hero_state = "WAIT_LEVEL_CHANGE"
+                self._hero_step_deadline = now + self._hero_observation_timeout()
+                return LoopAction.Continue
+
+            start = buttons[0]
+            if not self.act_click(start, "StartHeroModeChallenge"):
+                return LoopAction.Continue
+            self._hero_state = "WAIT_MODAL_CLOSE"
+            self._hero_modal_missing_frames = 0
+            self._hero_step_deadline = now + self._hero_observation_timeout()
+            return LoopAction.Continue
+
+        if self._hero_state == "WAIT_MODAL_CLOSE":
+            if buttons:
+                self._hero_modal_missing_frames = 0
+                print("[英雄模式] 已点击开启，等待弹窗消失（零动作，不重复点击）")
+                return LoopAction.Continue
+            self._hero_modal_missing_frames += 1
+            if self._hero_modal_missing_frames < 2:
+                print("[英雄模式] 弹窗按钮首帧消失，等待连续确认（零动作）")
+                return LoopAction.Continue
+            self._hero_state = "WAIT_INGAME"
+            self._hero_step_deadline = now + self._hero_observation_timeout()
+            return LoopAction.Continue
+
+        if self._hero_state == "WAIT_INGAME":
+            hero_hud = self.find(frame, ["HeroChallenge"], threshold=0.85)
+            if hero_hud and hero_hud.x <= 400 and hero_hud.y <= 150:
+                print("[英雄模式] 已确认局内【英雄挑战】标识，开始主线")
+                self._hero_state = "DONE"
+                self.set_phase(Phase.MAIN_LINE, "hero mode in-game HUD verified")
+                return LoopAction.Continue
+            if self._find_hero_entry(frame):
+                return self._hero_fail("开启挑战后返回选关页")
+            print("[英雄模式] 等待加载完成和局内英雄挑战标识（零动作）")
+            return LoopAction.Continue
+
+        return self._hero_fail(f"未知英雄模式内部状态 {self._hero_state}")
 
     # ---------- 阶段推进 ----------
 
@@ -792,6 +1032,8 @@ class Mediator:
             print(f"[med] phase {self.phase.name} → {phase.name} {note}")
         if phase in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP) and self.phase not in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP):
             self._stage_selected = False
+            self._stage_target_name = None
+            self._stage_target_position = None
             self._room_dialog_filled = False
         if phase in (Phase.PLATFORM_MAP, Phase.CREATE_ROOM):
             self._room_action_deadline = time.time() + self.settings.query_timeout
@@ -803,6 +1045,13 @@ class Mediator:
         if phase == Phase.STAGE_SELECT:
             self._stage_scroll_attempts = 0
             self._room_action_deadline = time.time() + self.settings.query_timeout
+            self._hero_state = "IDLE"
+            self._hero_verified_level = 0
+            self._hero_level_baseline = None
+            self._hero_level_candidate = None
+            self._hero_card_baseline = None
+            self._hero_step_deadline = None
+            self._hero_modal_missing_frames = 0
         # L0 cycle counter: increment when falling back to PLATFORM_MAP from a later L0 phase
         if phase == Phase.PLATFORM_MAP and self.phase in (Phase.ROOM_WAITING, Phase.ROOM_STARTING):
             self._l0_cycle_count += 1
@@ -816,8 +1065,11 @@ class Mediator:
         if phase == Phase.MAIN_LINE:
             self._main_line_since = time.time()
             self._selection_click_cooldown_until = 0.0
+            self._selection_unknown_attempts = 0
+            self._selection_unknown_since = None
             self._challenge_done.clear()
             self._challenge_attempts.clear()
+            self._challenge_unknown_since.clear()
             self._challenge_states = {
                 "coin_challenge": ChallengeState.PENDING,
                 "wood_challenge": ChallengeState.PENDING,
@@ -829,6 +1081,13 @@ class Mediator:
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
             self._post_game_pending = False
+            self._post_game_close_attempts = 0
+        if phase == Phase.QUIT:
+            self._exit_button_attempts = 0
+            self._exit_since = time.time()
+        if phase == Phase.NEXT:
+            self._exit_confirm_attempts = 0
+            self._exit_since = time.time()
         if phase == Phase.LONGZHU:
             # 对齐「退出游戏时间还剩下 ~178 秒」
             sec = max(self.settings.archive_boss_time, self.settings.boss_live_time, 180)
@@ -959,14 +1218,39 @@ class Mediator:
 
     def _tick_l0(self, frame: Frame) -> LoopAction:
         """Handle map → create dialog → room → stage without guessing clicks."""
+        # The hero modal has its own exact guards.  Skipping the generic L0
+        # classifier here also avoids several full-screen template scans while
+        # waiting for one small, time-sensitive digit change.
+        if self.phase == Phase.HERO_SETUP:
+            return self._tick_hero_setup(frame)
+
         context = self._detect_context(frame, "l0")
         print(f"[med] decision context={context} phase={self.phase.name}")
+        # 选关页底部也会误匹配通用 room_start；沿用分类器的优先级，
+        # 先确认编号关卡页，再查房间开始按钮。
+        stage_page = context == "STAGE_SELECT"
+        room_start = None if stage_page else self._find_room_start(frame)
+
+        if self._awaiting_room_return:
+            if room_start:
+                self._awaiting_room_return = False
+                self.game_count += 1
+                print(f"[med] 已返回原 KK 房间 count={self.game_count} → 准备下一局")
+                self.set_phase(Phase.ROOM_WAITING, "same room verified")
+                self._room_action_deadline = time.time() + self.settings.query_timeout
+                return LoopAction.Continue
+            if self._action_timed_out():
+                print("[med] 退出游戏后未验证回到原 KK 房间，停止而不是重新建房")
+                self.set_phase(Phase.ERROR, "same room return timeout")
+                self.stop()
+                return LoopAction.Break
+            print("[med] 等待返回原 KK 房间（零动作，不重建房间）")
+            return LoopAction.Continue
+
         if context in ("MAIN_LINE", "IN_GAME"):
             print("[L1] 开始主线 / phase=MAIN_LINE")
             self.set_phase(Phase.MAIN_LINE, "already in game")
             return LoopAction.Continue
-        room_start = self._find_room_start(frame)
-        stage_page = False if room_start else self._find_stage_page(frame)
 
         if self.phase in (Phase.BOOT, Phase.WAIT_EXIT, Phase.PREPARE, Phase.LOBBY_ROOM, Phase.WAIT_UI):
             if stage_page:
@@ -1124,24 +1408,36 @@ class Mediator:
                 if not self.act_click(target, "SelectStage-target"):
                     return LoopAction.Continue
                 self._stage_selected = True
+                self._stage_target_name = target.name
+                self._stage_target_position = (target.x, target.y)
                 self._stage_click_cooldown_until = now + 1.5
+                self._room_action_deadline = now + max(10, min(self.settings.query_timeout, 30))
                 return LoopAction.Continue
             if now < self._stage_click_cooldown_until:
                 print("[L0] 等待关卡选中状态稳定…")
                 return LoopAction.Continue
             target_spec = self.settings.stage_targets[0] if self.settings.stage_targets else self.settings.stage1
             if not verify_stage_selection(frame, target=target_spec, images_dir=self.images):
-                print("[L0] 关卡选中态未通过验证，等待或重新选关")
-                if self._action_timed_out():
-                    self._stage_selected = False
-                return LoopAction.Continue
-            if self.settings.auto_reputation:
-                if not self._handle_hero_mode_reputation(frame):
+                # The live stage list does not render a reliable persistent
+                # row highlight.  Confirm the exact same target label remains
+                # at the clicked client coordinate and require the dedicated
+                # start button before advancing.  This avoids the old endless
+                # re-click loop without allowing an arbitrary visible stage.
+                current_target = self._find_stage_target(frame)
+                # The live list can move the selected row; the exact label is
+                # unique, so position persistence is not a useful guard.
+                same_target = bool(current_target and current_target.name == self._stage_target_name)
+                ready = self._find_hero_entry(frame) if self.settings.auto_reputation else self._find_stage_start(frame)
+                if not same_target or not ready:
+                    print("[L0] 关卡选中态未确认，等待精确目标与专用开始按钮同时稳定")
+                    if self._action_timed_out():
+                        self._stage_selected = False
+                        self._stage_target_name = None
+                        self._stage_target_position = None
                     return LoopAction.Continue
-                self._room_action_attempts = 1
-                self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
-                self.set_phase(Phase.STAGE_STARTING, "hero mode reputation challenge clicked")
-                return LoopAction.Continue
+                print("[L0] 目标行无持久高亮；已用精确目标位置 + 专用开始按钮完成复合确认")
+            if self.settings.auto_reputation:
+                return self._begin_hero_setup(frame)
             start = self._find_stage_start(frame)
             if not start:
                 print("[L0] 已选关，但未找到棕色开始游戏按钮")
@@ -1221,6 +1517,19 @@ class Mediator:
                         self.set_phase(Phase.ERROR, "unhealthy frame timeout")
                         self.stop()
                         return LoopAction.Break
+                elif self.phase == Phase.BOOT:
+                    # The platform/game process can take longer than one
+                    # capture cycle to create a visible window.  Keep waiting
+                    # for a bounded period instead of failing after two slow
+                    # splash-screen captures.
+                    boot_timeout = min(self.settings.query_timeout, 15)
+                    if self.settings.query_timeout > 15:
+                        boot_timeout = max(30, min(self.settings.query_timeout, 60))
+                    if elapsed >= boot_timeout:
+                        print(f"[med] 启动阶段等待窗口超过 {boot_timeout}s，停止运行")
+                        self.set_phase(Phase.ERROR, "unhealthy frame timeout")
+                        self.stop()
+                        return LoopAction.Break
                 elif elapsed >= min(self.settings.query_timeout, 15):
                     self.set_phase(Phase.ERROR, "unhealthy frame timeout")
                     self.stop()
@@ -1249,6 +1558,7 @@ class Mediator:
             Phase.ROOM_STARTING,
             Phase.STAGE_SELECT,
             Phase.STAGE_STARTING,
+            Phase.HERO_SETUP,
         }:
             return self._tick_l0(frame)
 
@@ -1270,29 +1580,69 @@ class Mediator:
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
 
-        # 战后页面多锚点判别（P1-B0/B1）：优先于一切局内动作。
-        # POST_VICTORY 是唯一获准动作（点击继续游戏，后置确认 NPC_HUB）；
-        # 其余战后页面全部 Fail-Closed 停机，零输入。
+        # 战后页面优先于一切局内动作。胜利后只允许以下专用链：
+        # 继续游戏 → 关闭存档面板（如出现）→ NPC 广场 → 局内退出。
         post_game = self._post_game_state(frame)
-        if post_game:
-            if post_game == "POST_VICTORY":
-                if self._victory_continue_attempts >= 3:
-                    print("[med] 胜利结算点击继续游戏重试已达上限，Fail-Closed 停止运行")
-                    self.set_phase(Phase.ERROR, "victory continue attempts exhausted")
+        if post_game == "POST_VICTORY":
+            if self._post_game_pending:
+                elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
+                if elapsed >= min(self.settings.query_timeout, 30):
+                    print("[med] 继续游戏后胜利页未消失，Fail-Closed 停止运行")
+                    self.set_phase(Phase.ERROR, "victory page did not close")
                     self.stop()
                     return LoopAction.Break
-                hit = self.find(frame, ["continueGame"], threshold=0.80, scales=(0.9, 1.0, 1.1))
-                if not hit:
-                    return LoopAction.Continue
-                self._victory_continue_attempts += 1
-                self._post_game_pending = True
-                self._victory_continue_since = now
-                print(f"[med] 胜利结算 点击继续游戏 @ {hit.center} (尝试 {self._victory_continue_attempts}/3)")
-                if self.act_click(hit, "ContinueGame"):
-                    self._main_line_since = now
+                print("[med] 已点击继续游戏，等待胜利页消失（零动作）")
                 return LoopAction.Continue
 
-            print(f"[med] 识别到战后页面 {post_game}，Fail-Closed 停止运行（零输入）")
+            if self._victory_continue_attempts >= 3:
+                print("[med] 胜利结算点击继续游戏重试已达上限，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "victory continue attempts exhausted")
+                self.stop()
+                return LoopAction.Break
+
+            hit = self.find(frame, ["continueGame"], threshold=0.80, scales=(0.9, 1.0, 1.1))
+            if not hit:
+                return LoopAction.Continue
+            self._victory_continue_attempts += 1
+            print(f"[med] 胜利结算 点击继续游戏 @ {hit.center} (尝试 {self._victory_continue_attempts}/3)")
+            if self.act_click(hit, "ContinueGame"):
+                self._post_game_pending = True
+                self._victory_continue_since = now
+                self._main_line_since = now
+            return LoopAction.Continue
+
+        if post_game == "ARCHIVE_PANEL":
+            if not self._post_game_pending:
+                print("[med] 非胜利链路进入存档面板，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "unexpected archive panel")
+                self.stop()
+                return LoopAction.Break
+            if self._post_game_close_attempts >= 3:
+                print("[med] 存档面板关闭重试已达上限，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "archive close attempts exhausted")
+                self.stop()
+                return LoopAction.Break
+            close_hit = self._find_archive_panel_close(frame)
+            if not close_hit:
+                print("[med] 存档面板未找到专用关闭按钮，零动作等待")
+                return LoopAction.Continue
+            self._post_game_close_attempts += 1
+            print(f"[med] 关闭存档面板 @ {close_hit.center} (尝试 {self._post_game_close_attempts}/3)")
+            self.act_click(close_hit, "CloseArchivePanel")
+            return LoopAction.Continue
+
+        if post_game == "NPC_HUB":
+            if not self._post_game_pending:
+                print("[med] 非胜利链路进入挑战广场，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "unexpected post-game NPC hub")
+                self.stop()
+                return LoopAction.Break
+            self._post_game_pending = False
+            self.set_phase(Phase.QUIT, "post-game NPC hub verified")
+            return LoopAction.Continue
+
+        if post_game:
+            print(f"[med] 识别到尚未实现的战后页面 {post_game}，Fail-Closed 停止运行（零输入）")
             self.set_phase(Phase.ERROR, f"unverified post-game page {post_game}")
             self.stop()
             return LoopAction.Break
@@ -1302,7 +1652,7 @@ class Mediator:
         if self._post_game_pending:
             elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
             if elapsed >= min(self.settings.query_timeout, 30):
-                print("[med] 继续游戏后未确认到战后页面，Fail-Closed 停止运行")
+                print("[med] 继续游戏后未确认到存档面板或挑战广场，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "post-game transition timeout")
                 self.stop()
                 return LoopAction.Break
@@ -1327,7 +1677,8 @@ class Mediator:
             return LoopAction.Break
 
         # 选择面板优先；面板存在时禁止把刷新计数或快捷键当成按钮。
-        if self._selection_anchor(frame):
+        selection_anchor = self._selection_anchor(frame)
+        if selection_anchor:
             if now < self._selection_click_cooldown_until:
                 print("[L1] 选择面板等待点击结果…")
                 return LoopAction.Continue
@@ -1337,10 +1688,25 @@ class Mediator:
                 print(f"[L1] {kind}选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
                 if self.act_click(hit, f"{kind}选择"):
                     self._selection_click_cooldown_until = now + 1.5
+                self._selection_unknown_attempts = 0
+                self._selection_unknown_since = None
                 self._main_line_since = now
                 return LoopAction.Continue
-            print("[L1] 发现选择面板但没有安全选项，保持等待")
+
+            self._selection_unknown_since = self._selection_unknown_since or now
+            elapsed = now - self._selection_unknown_since
+            if elapsed >= 10:
+                print("[L1] 未知选择面板无法识别，Fail-Closed 停止运行（零输入，不盲点隐藏）")
+                self.set_phase(Phase.ERROR, "unknown selection panel timeout")
+                self.stop()
+                return LoopAction.Break
+            print(
+                f"[L1] 当前选择无配置命中（已等 {elapsed:.0f}s），保持零输入等待…"
+            )
             return LoopAction.Continue
+
+        self._selection_unknown_attempts = 0
+        self._selection_unknown_since = None
 
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)
@@ -1391,14 +1757,45 @@ class Mediator:
             self.stop()
             return LoopAction.Break
 
-        if self.phase in (Phase.QUIT, Phase.NEXT):
-            self.click_scene(frame, "close", "QuitGame")
-            self.click_scene(frame, "ok", "QuitGame-ok")
-            if self.settings.auto_secret_realm:
-                print("[med] 当前版本大秘境未完成前置校验，拒绝自动执行")
-            self.game_count += 1
-            print(f"[med] 局结束 count={self.game_count} → 下一局")
-            self.set_phase(Phase.PREPARE, "next")
+        timeout = max(3, min(self.settings.query_timeout, 15))
+        elapsed = time.time() - self._exit_since if self._exit_since else 0.0
+
+        if self.phase == Phase.QUIT:
+            if self._find_exit_confirm(frame):
+                self.set_phase(Phase.NEXT, "exit confirmation already visible")
+                return LoopAction.Continue
+            if self._exit_button_attempts >= 3 or elapsed >= timeout:
+                print("[med] 未能打开专用退出确认框，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "exit button timeout")
+                self.stop()
+                return LoopAction.Break
+            exit_hit = self._find_game_exit(frame)
+            if not exit_hit:
+                print("[med] 等待局内左上角专用退出按钮（零动作）")
+                return LoopAction.Continue
+            self._exit_button_attempts += 1
+            print(f"[med] 点击局内退出 @ {exit_hit.center} (尝试 {self._exit_button_attempts}/3)")
+            if self.act_click(exit_hit, "QuitGame-open-confirm"):
+                self.set_phase(Phase.NEXT, "exit button clicked")
+            return LoopAction.Continue
+
+        if self.phase == Phase.NEXT:
+            if self._exit_confirm_attempts >= 3 or elapsed >= timeout:
+                print("[med] 退出确认框未能安全确认，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "exit confirmation timeout")
+                self.stop()
+                return LoopAction.Break
+            confirm_hit = self._find_exit_confirm(frame)
+            if not confirm_hit:
+                print("[med] 等待专用退出确认按钮（零动作）")
+                return LoopAction.Continue
+            self._exit_confirm_attempts += 1
+            print(f"[med] 确认退出当前游戏 @ {confirm_hit.center} (尝试 {self._exit_confirm_attempts}/3)")
+            if not self.act_click(confirm_hit, "QuitGame-confirm"):
+                return LoopAction.Continue
+            self._awaiting_room_return = True
+            self.set_phase(Phase.PREPARE, "exit confirmed; verify same room")
+            self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
             self._wait_ui_since = None
             self._longzhu_deadline = None
             self._f1_fallback_done = False
@@ -1429,7 +1826,7 @@ class Mediator:
                     "[med] FATAL: dry_run=False 但当前进程不是管理员。"
                     "原版 GameScript 与 KK 平台均以管理员运行；"
                     "非提权进程的 SendInput 会被 Windows UIPI 静默丢弃（返回成功但游戏无响应）。"
-                    "请用 启动面板.bat / 右键管理员身份重新启动。"
+                    "请右键 GameScript.exe，以管理员身份重新启动。"
                 )
                 self.set_phase(Phase.ERROR, "real input requires elevation (UIPI)")
                 self._running = False

@@ -164,7 +164,7 @@ class InputExecutor:
                 message=(
                     "Real input rejected: process is not elevated. "
                     "KK/GameScript run as admin; UIPI drops SendInput from a non-admin script. "
-                    "Relaunch the panel via 启动面板.bat (UAC) or 'Run as administrator'."
+                    "Relaunch GameScript.exe with 'Run as administrator'."
                 ),
             )
 
