@@ -1,5 +1,5 @@
 {
-  "stage1": 1,
+  "stage1": 10,
   "stage2": 10,
   "stage_targets": [
     "1-10"
@@ -23,10 +23,10 @@
   "damage_increase_card": true,
   "develop_priority": true,
   "develop_time": 0,
-  "auto_reputation": false,
+  "auto_reputation": true,
   "continue_reputation": false,
   "reputation_type": 3,
-  "reputation_level": 1,
+  "reputation_level": 5,
   "reputation_stage1": 1,
   "reputation_stage2": 10,
   "reputation_cjb_boss": "01暴掠龙",
@@ -40,6 +40,13 @@
     "jq"
   ],
   "cards": [],
+  "auto_bond": true,
+  "auto_treasure": true,
+  "choice_interval": 120,
+  "auto_artifact": true,
+  "artifact_cd": 180,
+  "artifact_slots": 3,
+  "auto_archaeology": true,
   "boss_live_time": 200,
   "kill_boss_num": 800,
   "cycle_num": 99,
