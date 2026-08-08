@@ -155,6 +155,49 @@ class Settings:
                     clean[k] = ""
                 elif k in ("skills", "cards", "stage_targets"):
                     clean[k] = []
+        # 类型/范围强制：损坏或异常值回落到安全默认，避免整份配置加载失败
+        int_fields = {
+            "stage1", "stage2", "query_timeout", "game_timeout", "game_mode",
+            "dragon_ball_count", "close_main_line_time", "auto_clean_interval",
+            "develop_time", "reputation_type", "reputation_level",
+            "reputation_stage1", "reputation_stage2", "boss_live_time",
+            "kill_boss_num", "cycle_num", "archive_boss_time", "treasure_num",
+            "auto_gambling_time", "click_delay_ms", "loop_sleep_ms",
+            "artifact_cd", "artifact_slots", "choice_interval",
+        }
+        for k in int_fields:
+            if k in clean:
+                try:
+                    clean[k] = int(clean[k])
+                except (TypeError, ValueError):
+                    clean.pop(k)
+        bool_fields = {
+            "auto_create_room", "new_room_every_times", "find_longzhu_where_multi_game",
+            "auto_secret_realm", "auto_close_main_line", "auto_card", "auto_weapon",
+            "damage_increase_card", "develop_priority", "auto_reputation",
+            "continue_reputation", "auto_bond", "auto_treasure", "auto_artifact",
+            "dry_run",
+        }
+        for k in bool_fields:
+            if k in clean and not isinstance(clean[k], bool):
+                v = clean[k]
+                clean[k] = str(v).strip().lower() in ("1", "true", "yes", "on")
+        if "match_threshold" in clean:
+            try:
+                clean["match_threshold"] = float(clean["match_threshold"])
+            except (TypeError, ValueError):
+                clean.pop("match_threshold")
+        # 范围钳制
+        for k, lo, hi in (("stage1", 1, 50), ("stage2", 1, 50),
+                          ("reputation_type", 1, 6), ("reputation_level", 1, 10),
+                          ("artifact_slots", 1, 3)):
+            if k in clean:
+                clean[k] = max(lo, min(hi, int(clean[k])))
+        for k in ("skills", "cards", "stage_targets"):
+            if k in clean and not isinstance(clean[k], list):
+                clean[k] = []
+        if "window_size" in clean and not isinstance(clean["window_size"], list):
+            clean.pop("window_size")
         return cls(**clean)
 
     def save(self, path: str | Path) -> None:

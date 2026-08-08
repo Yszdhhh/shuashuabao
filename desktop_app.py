@@ -85,6 +85,7 @@ class MediatorWorker(QThread):
         self.max_steps = max_steps
         self.signals = LogSignal()
         self.mediator = None
+        self._stop_requested = False
 
     def run(self):
         try:
@@ -92,6 +93,11 @@ class MediatorWorker(QThread):
         except Exception as e:
             self.signals.log_emitted.emit(f"[错误] 无法加载 Mediator 自动化引擎: {e}", "error")
             self.signals.status_changed.emit(False, "错误", 0)
+            return
+
+        if self._stop_requested:
+            self.signals.log_emitted.emit("[启动] 已请求停止，取消本次启动", "info")
+            self.signals.status_changed.emit(False, "空闲", 0)
             return
 
         self.signals.status_changed.emit(True, "就绪", 0)
@@ -141,6 +147,7 @@ class MediatorWorker(QThread):
             self.signals.log_emitted.emit("[结束] 任务运行结束", "info")
 
     def stop(self):
+        self._stop_requested = True
         if self.mediator:
             self.mediator.stop()
 
@@ -581,6 +588,17 @@ class MainWindow(QMainWindow):
         self.worker_thread.signals.log_emitted.connect(self.log)
         self.worker_thread.signals.status_changed.connect(self.update_status)
         self.worker_thread.start()
+
+    def closeEvent(self, event):
+        """Stop the worker before destroying the window (thread-safety)."""
+        worker = getattr(self, "worker_thread", None)
+        if worker is not None and worker.isRunning():
+            worker.stop()
+            if not worker.wait(3000):
+                self.log("[关闭] 任务线程未在 3s 内退出，强制结束", "warn")
+                worker.terminate()
+                worker.wait(1000)
+        event.accept()
 
 _INSTANCE_LOCK: QLockFile | None = None
 

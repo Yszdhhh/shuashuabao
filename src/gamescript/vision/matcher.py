@@ -27,19 +27,65 @@ class MatchResult:
         return self.screen_x, self.screen_y
 
 
+_TEMPLATE_CACHE: dict[Path, np.ndarray | None] = {}
+_RESOLVE_CACHE: dict[tuple[Path, str], Path | None] = {}
+_SCALE_CACHE: dict[tuple[Path, float], np.ndarray | None] = {}
+CACHED_SCALES: tuple[float, ...] = (0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2)
+
+
+def clear_template_cache() -> None:
+    """Clear all cached templates/resolutions (tests or asset hot-reload)."""
+    _TEMPLATE_CACHE.clear()
+    _RESOLVE_CACHE.clear()
+    _SCALE_CACHE.clear()
+
+
 def _load_template(path: Path) -> np.ndarray | None:
+    cached = _TEMPLATE_CACHE.get(path)
+    if cached is not None or path in _TEMPLATE_CACHE:
+        return cached
     # Windows + 非 ASCII 路径下 cv2.imread 常失败，改 imdecode
     try:
         data = np.fromfile(str(path), dtype=np.uint8)
         if data.size == 0:
+            _TEMPLATE_CACHE[path] = None
             return None
-        return cv2.imdecode(data, cv2.IMREAD_COLOR)
+        arr = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        _TEMPLATE_CACHE[path] = arr
+        return arr
     except Exception:
+        _TEMPLATE_CACHE[path] = None
         return None
+
+
+def _scale_template(path: Path, scale: float) -> np.ndarray | None:
+    key = (path, scale)
+    cached = _SCALE_CACHE.get(key)
+    if cached is not None or key in _SCALE_CACHE:
+        return cached
+    tmpl = _load_template(path)
+    if tmpl is None:
+        _SCALE_CACHE[key] = None
+        return None
+    if scale == 1.0:
+        _SCALE_CACHE[key] = tmpl
+        return tmpl
+    candidate = cv2.resize(
+        tmpl,
+        None,
+        fx=scale,
+        fy=scale,
+        interpolation=cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA,
+    )
+    _SCALE_CACHE[key] = candidate
+    return candidate
 
 
 def resolve_template(images_dir: Path, name: str) -> Path | None:
     """name 可为 startGameBtn / startGameBtn.png / skills/jq.png。"""
+    key = (images_dir, name)
+    if key in _RESOLVE_CACHE:
+        return _RESOLVE_CACHE[key]
     n = name if name.lower().endswith(".png") else f"{name}.png"
     candidates = [
         images_dir / n,
@@ -52,12 +98,15 @@ def resolve_template(images_dir: Path, name: str) -> Path | None:
     ]
     for c in candidates:
         if c.is_file():
+            _RESOLVE_CACHE[key] = c
             return c
     # fuzzy: stem match under tree
     stem = Path(n).stem
     for f in images_dir.rglob("*.png"):
         if f.stem == stem:
+            _RESOLVE_CACHE[key] = f
             return f
+    _RESOLVE_CACHE[key] = None
     return None
 
 
@@ -74,13 +123,9 @@ def match_one(
     fh, fw = frame.bgr.shape[:2]
     best: MatchResult | None = None
     for scale in scales:
-        candidate = tmpl if scale == 1.0 else cv2.resize(
-            tmpl,
-            None,
-            fx=scale,
-            fy=scale,
-            interpolation=cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA,
-        )
+        candidate = _scale_template(template_path, scale)
+        if candidate is None:
+            continue
         th, tw = candidate.shape[:2]
         if th > fh or tw > fw or th < 4 or tw < 4:
             continue
@@ -243,8 +288,9 @@ def match_any(
     names: list[str],
     threshold: float = 0.85,
     scales: tuple[float, ...] = (1.0,),
+    roi: tuple[float, float, float, float] | None = None,
 ) -> MatchResult | None:
-    res = match_any_with_margin(frame, images_dir, names, threshold=threshold, scales=scales)
+    res = match_any_with_margin(frame, images_dir, names, threshold=threshold, scales=scales, roi=roi)
     return res.best
 
 
@@ -255,13 +301,28 @@ def match_any_with_margin(
     threshold: float = 0.85,
     scales: tuple[float, ...] = (1.0,),
     min_margin: float = 0.0,
+    roi: tuple[float, float, float, float] | None = None,
 ) -> MatchMarginResult:
     results: list[MatchResult] = []
+    target = frame
+    if roi is not None:
+        rx1, ry1, rx2, ry2 = roi
+        x1 = max(0, min(frame.width, int(frame.width * rx1)))
+        y1 = max(0, min(frame.height, int(frame.height * ry1)))
+        x2 = max(x1, min(frame.width, int(frame.width * rx2)))
+        y2 = max(y1, min(frame.height, int(frame.height * ry2)))
+        target = Frame(
+            frame.bgr[y1:y2, x1:x2],
+            left=frame.left + x1,
+            top=frame.top + y1,
+            window_title=frame.window_title,
+            hwnd=frame.hwnd,
+        )
     for n in names:
         path = resolve_template(images_dir, n)
         if not path:
             continue
-        hit = match_one(frame, path, threshold=threshold, name=path.stem, scales=scales)
+        hit = match_one(target, path, threshold=threshold, name=path.stem, scales=scales)
         if hit:
             results.append(hit)
 
@@ -322,13 +383,9 @@ def match_all(
             continue
         fh, fw = target.bgr.shape[:2]
         for scale in scales:
-            candidate = tmpl if scale == 1.0 else cv2.resize(
-                tmpl,
-                None,
-                fx=scale,
-                fy=scale,
-                interpolation=cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA,
-            )
+            candidate = _scale_template(path, scale)
+            if candidate is None:
+                continue
             th, tw = candidate.shape[:2]
             if th > fh or tw > fw or th < 4 or tw < 4:
                 continue

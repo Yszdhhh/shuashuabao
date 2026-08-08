@@ -168,12 +168,17 @@ class P0SecurityFoundationTests(unittest.TestCase):
             self.assertIsNone(mediator._prev_frame)
 
             mediator.see("step 2")
-            self.assertIs(mediator._last_frame, f2)
+            # 内容+位置相同的静态帧复用上一帧对象（场景缓存命中，避免重复模板扫描）
+            self.assertIs(mediator._last_frame, f1)
             self.assertIs(mediator._prev_frame, f1)
 
             health = check_frame_health(mediator._last_frame, prev_frame=mediator._prev_frame)
             self.assertFalse(health.is_healthy)
-            self.assertIn(FrameHealthIssue.FROZEN, health.issues)
+            # 复用对象保留原时间戳 → 静态帧标记（OLD_FRAME 或 FROZEN）
+            self.assertTrue(
+                FrameHealthIssue.OLD_FRAME in health.issues or FrameHealthIssue.FROZEN in health.issues,
+                f"expected static marker, got {health.issues}",
+            )
 
     # ---------- Task 4: Explicit Capture Failure & Real Input HWND Binding ----------
 

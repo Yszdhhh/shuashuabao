@@ -318,6 +318,11 @@ class InputExecutor:
         if not check.success:
             print(f"[input] scroll CANCELLED: {check.message}")
             return check
+        if not dry_run and target_hwnd:
+            obscured = self._check_point_obscured(target_hwnd, x, y)
+            if obscured:
+                print(f"[input] scroll ({x}, {y}) CANCELLED: {obscured.message}")
+                return obscured
 
         scroll(x, y, clicks, dry_run=dry_run)
         post = self._post_check(target_hwnd, dry_run)
@@ -382,7 +387,12 @@ def hotkey(*keys: str, dry_run: bool = True) -> None:
 
 
 def paste_text(text: str, dry_run: bool = True) -> None:
-    """Paste text while preserving and restoring prior clipboard content."""
+    """Paste text while preserving and restoring prior clipboard content.
+
+    Safety: if the previous clipboard cannot be captured (non-text/API
+    failure), the pasted text (e.g. room password) is explicitly cleared
+    afterwards instead of being left system-wide.
+    """
     print(f"[input] paste_text len={len(text)} dry_run={dry_run}")
     if dry_run or not text:
         return
@@ -398,6 +408,17 @@ def paste_text(text: str, dry_run: bool = True) -> None:
     finally:
         if saved_text is not None:
             set_clipboard_text(saved_text)
+        else:
+            # Prior clipboard unavailable: never leave the secret behind
+            try:
+                import ctypes
+
+                user32 = ctypes.windll.user32
+                if user32.OpenClipboard(0):
+                    user32.EmptyClipboard()
+                    user32.CloseClipboard()
+            except Exception:
+                pass
 
 
 def type_text(text: str, dry_run: bool = True) -> None:

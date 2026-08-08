@@ -26,6 +26,26 @@ class Frame:
     error: str | None = None
     role: str | None = None
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_gray_cache", None)
+        object.__setattr__(self, "_hsv_cache", None)
+
+    def gray(self) -> np.ndarray | None:
+        """Lazy BGR2GRAY, computed once per frame."""
+        if self._gray_cache is None and self.bgr is not None and self.bgr.size > 0:
+            import cv2
+
+            object.__setattr__(self, "_gray_cache", cv2.cvtColor(self.bgr, cv2.COLOR_BGR2GRAY))
+        return self._gray_cache
+
+    def hsv(self) -> np.ndarray | None:
+        """Lazy BGR2HSV, computed once per frame."""
+        if self._hsv_cache is None and self.bgr is not None and self.bgr.size > 0:
+            import cv2
+
+            object.__setattr__(self, "_hsv_cache", cv2.cvtColor(self.bgr, cv2.COLOR_BGR2HSV))
+        return self._hsv_cache
+
     @property
     def width(self) -> int:
         if self.bgr is None or self.bgr.ndim < 2:

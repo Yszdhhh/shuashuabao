@@ -262,6 +262,9 @@ class Mediator:
         # A single tick asks the same scene questions from capture ranking,
         # context classification and the phase handler.  Reuse those results
         # for this frame; template matching is the dominant hot path.
+        # Static frames (identical pixels AND same window position) reuse the
+        # previous Frame object so the per-tick scene cache hits instead of
+        # re-scanning every template.
         self._scene_cache.clear()
         title = self._capture_title()
         l0_phases = {
@@ -275,6 +278,18 @@ class Mediator:
         }
         role = "l0" if self.phase in l0_phases else "l1"
         frame = self._capture_best(title, role)
+        if (
+            self._last_frame is not None
+            and self._last_frame.bgr is not None
+            and frame.bgr is not None
+            and self._last_frame.bgr.shape == frame.bgr.shape
+            and self._last_frame.left == frame.left
+            and self._last_frame.top == frame.top
+            and bool(np.array_equal(self._last_frame.bgr, frame.bgr))
+        ):
+            # 内容+位置相同：复用上一帧对象（场景缓存命中）。
+            # 保持原时间戳：OLD_FRAME/FROZEN 静态检测仍会标记该帧为静态帧。
+            frame = self._last_frame
         if self.phase == Phase.BOOT and self._frame_signal(frame, role) == 0:
             # BOOT is the only phase allowed to ask both windows which one is
             # already in the game.  Later phases stay role-bound.
@@ -324,11 +339,12 @@ class Mediator:
         names: list[str],
         threshold: float | None = None,
         scales: tuple[float, ...] = (1.0,),
+        roi: tuple[float, float, float, float] | None = None,
     ) -> MatchResult | None:
         if not names:
             return None
         th = threshold if threshold is not None else self.settings.match_threshold
-        return match_any(frame, self.images, names, threshold=th, scales=scales)
+        return match_any(frame, self.images, names, threshold=th, scales=scales, roi=roi)
 
     def find_scene(self, frame: Frame, scene_key: str, threshold: float | None = None) -> MatchResult | None:
         frame_key = id(frame)
@@ -427,6 +443,7 @@ class Mediator:
         - bond:    暂时隐藏(580,552) / 刷新40(860,552)
         - treasure:暂时隐藏(375,572) / 锁定(580,572) / 刷新(3)(785,572)
         Legacy templates skill_hide/card_hide/hide cover older UIs.
+        ROI is pruned to the mid-lower band where these buttons live.
         """
         threshold = min(0.70, self.settings.match_threshold)
         hit = self.find(
@@ -445,12 +462,16 @@ class Mediator:
             ],
             threshold=threshold,
             scales=(0.85, 0.9, 1.0, 1.1, 1.15, 1.2),
+            roi=(0.20, 0.45, 0.80, 0.80),
         )
         if not hit:
             return None
-        if hit.x < frame.width * 0.20 or hit.x > frame.width * 0.80:
+        # hit.x/y 在 ROI 裁剪后是 ROI 内坐标；用屏幕坐标换算回帧坐标做位置校验
+        fx = hit.screen_x - frame.left
+        fy = hit.screen_y - frame.top
+        if fx < frame.width * 0.20 or fx > frame.width * 0.80:
             return None
-        if hit.y < frame.height * 0.50:
+        if fy < frame.height * 0.50:
             return None
         return hit
 
@@ -1046,6 +1067,14 @@ class Mediator:
 
             found = self._find_challenge_button(frame, scene_key)
             label_hit = found[0] if found else None
+
+            if label_hit is None:
+                # 按钮缺失（开局 HUD 未刷出/未解锁）：不占 Fail-Closed 计时，
+                # 不阻断下游（选关/进化/神器），仅记录。
+                self._challenge_unknown_since.pop(scene_key, None)
+                print(f"[L1] {label}挑战按钮未出现（MISSING），跳过本 tick 继续")
+                continue
+
             state = self._resolve_challenge_state(frame, label_hit)
 
             if state == ChallengeState.ON:
@@ -1062,12 +1091,13 @@ class Mediator:
                 unknown_elapsed = now - unknown_since
                 self._challenge_states[scene_key] = ChallengeState.UNKNOWN
                 if unknown_elapsed >= unknown_timeout:
-                    print(f"[L1] {label}挑战状态连续 UNKNOWN {unknown_elapsed:.1f}s，Fail-Closed 停止运行")
-                    self.set_phase(Phase.ERROR, f"{scene_key} unknown timeout")
-                    self.stop()
-                    return LoopAction.Break
+                    # 有按钮但绿字长期模糊：降级为跳过该挑战，不再整机停机
+                    print(f"[L1] {label}挑战状态连续 UNKNOWN {unknown_elapsed:.1f}s，跳过该挑战继续")
+                    self._challenge_done.add(scene_key)
+                    self._challenge_unknown_since.pop(scene_key, None)
+                    continue
                 print(
-                    f"[L1] {label}挑战状态为 UNKNOWN（未发现/模糊/低置信），"
+                    f"[L1] {label}挑战状态为 UNKNOWN（模糊/低置信），"
                     f"零动作等待 {unknown_elapsed:.1f}/{unknown_timeout}s"
                 )
                 # End this tick immediately, preventing downstream stage select or other inputs
@@ -1337,10 +1367,16 @@ class Mediator:
         if phase == Phase.CREATE_ROOM:
             self._room_dialog_filled = False
         if phase in (Phase.ROOM_STARTING, Phase.STAGE_STARTING):
-            self._room_action_deadline = time.time() + self.settings.query_timeout
-            self._room_action_attempts = 0
+            # 不覆盖调用方已设置的重试上下文（deadline/attempts 由点击发起方写入）；
+            # 仅当未设置时才填默认值，避免 15s 验证窗被改写成 60s、attempts 被清零。
+            if self._room_action_deadline is None:
+                self._room_action_deadline = time.time() + self.settings.query_timeout
         if phase == Phase.STAGE_SELECT:
             self._stage_scroll_attempts = 0
+            # 跨局重置：次局进入选关页必须重新选关（上一局残留会跳过选关/点错关）
+            self._stage_selected = False
+            self._stage_target_name = None
+            self._stage_target_position = None
             self._room_action_deadline = time.time() + self.settings.query_timeout
             self._hero_state = "IDLE"
             self._hero_verified_level = 0
@@ -1379,6 +1415,15 @@ class Mediator:
             self._victory_continue_since = None
             self._post_game_pending = False
             self._post_game_close_attempts = 0
+            # 跨局 L1 瞬态重置：主动面板标记/神器 CD/主动面板时间戳/进化冷却
+            self._panel_opened_by_us = None
+            self._last_skill_panel = 0.0
+            self._last_bond_attempt = 0.0
+            self._last_treasure_attempt = 0.0
+            self._artifact_next_q = 0.0
+            self._artifact_next_w = 0.0
+            self._artifact_next_e = 0.0
+            self._evolve_click_cooldown_until = 0.0
         if phase == Phase.QUIT:
             self._exit_button_attempts = 0
             self._exit_since = time.time()
@@ -1807,10 +1852,23 @@ class Mediator:
                 print(f"[med] Unhealthy frame ({health.details}), waiting {elapsed:.1f}s phase={self.phase.name}")
                 in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
                 if self.phase == Phase.ROOM_STARTING:
-                    pass  # Use normal retry deadline
+                    # 房间点开始后的黑屏/捕获失败：用正常重试 deadline 兜底，避免永久挂起
+                    if self._action_timed_out():
+                        print("[med] ROOM_STARTING 不健康帧超过动作期限，回退房间等待")
+                        self.set_phase(Phase.ROOM_WAITING, "room start unhealthy timeout")
+                    return LoopAction.Continue
                 elif self.phase in in_game_phases:
                     if elapsed >= 60:
                         print("[med] 局内阶段不健康帧持续超过 60s，停止运行")
+                        self.set_phase(Phase.ERROR, "unhealthy frame timeout")
+                        self.stop()
+                        return LoopAction.Break
+                elif self.phase in (Phase.HERO_SETUP, Phase.STAGE_STARTING):
+                    # 英雄弹窗/加载过场的黑帧可能较长：与观察窗对齐（最高 60s），不提前误杀
+                    hero_window = getattr(self, "_hero_observation_timeout", lambda: 60)()
+                    window = max(hero_window, self.settings.query_timeout)
+                    if elapsed >= window:
+                        print(f"[med] {self.phase.name} 不健康帧持续超过 {window:.0f}s，停止运行")
                         self.set_phase(Phase.ERROR, "unhealthy frame timeout")
                         self.stop()
                         return LoopAction.Break
