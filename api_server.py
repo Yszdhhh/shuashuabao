@@ -12,6 +12,7 @@ import datetime
 import os
 import sys
 import threading
+import time
 import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -316,6 +317,7 @@ def start_run(req: StartRunRequest = StartRunRequest()):
 
         try:
             med = MedCls(s, ROOT)
+            med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
             with runner.lock:
                 if runner.generation != gen:
                     return

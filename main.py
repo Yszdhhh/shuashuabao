@@ -58,7 +58,9 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         job = LongzhuJob(s, ROOT) if args.longzhu else AutoJob(s, ROOT)
         job.run(max_steps=args.steps)
     else:
-        Mediator(s, ROOT).run(max_steps=args.steps)
+        med = Mediator(s, ROOT)
+        med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
+        med.run(max_steps=args.steps)
     return 0
 
 
@@ -70,7 +72,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
     print("WARNING: will move mouse / click. Ctrl+C to stop.")
     try:
-        Mediator(s, ROOT).run(max_steps=args.steps)
+        med = Mediator(s, ROOT)
+        med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
+        med.run(max_steps=args.steps)
     except KeyboardInterrupt:
         print("stopped by user")
     return 0

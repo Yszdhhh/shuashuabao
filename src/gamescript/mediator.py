@@ -10,6 +10,7 @@ Jobs 不直接碰 OpenCV/输入；只通过本中介 see / act。
 
 from __future__ import annotations
 
+import json
 import math
 import time
 from enum import Enum, auto
@@ -98,14 +99,12 @@ class Mediator:
         self.phase = Phase.BOOT
         self.game_count = 0
         self._running = False
-        self._wait_ui_since: float | None = None
         self._longzhu_deadline: float | None = None
         self._f1_fallback_done = False
         self._boss_clicked = False  # ANCHOR_BOSS 是否已尝试点击
         self._stage_click_cooldown_until = 0.0
         self._stage_selected = False
         self._stage_target_name: str | None = None
-        self._stage_target_position: tuple[int, int] | None = None
         self._room_dialog_filled = False
         self._room_action_deadline: float | None = None
         self._room_action_attempts = 0
@@ -120,6 +119,12 @@ class Mediator:
         # 会话级 UI 缩放（1600x900 基准）：窗口非基准分辨率（如 960x540=0.6x）
         # 时，模板匹配 scales 需包含 ui_scale 邻域才能命中。
         self._ui_scale: float = 1.0
+        # JSONL tick trace：卡死/误操作诊断（set_trace 开启）
+        self._trace_path: str | None = None
+        self._trace_fh = None
+        self._tick_no = 0
+        self._trace_actions: list[dict] = []
+        self._trace_scenes: list[dict] = []
         self._scene_cache: dict[int, tuple[Frame, dict[tuple[str, float | None], MatchResult | None]]] = {}
         # Safety: L0 cycle counter — prevent infinite PLATFORM_MAP ↔ ROOM_WAITING loops
         self._l0_cycle_count = 0
@@ -397,6 +402,8 @@ class Mediator:
         } else (1.0,)
         result = self.find(frame, self.templates(scene_key), threshold=threshold, scales=scales)
         cached_results[cache_key] = result
+        if result is not None and len(self._trace_scenes) < 12:
+            self._trace_scenes.append({"scene": scene_key, "name": result.name, "score": round(result.score, 3)})
         return result
 
     def _focus_last_window(self) -> bool:
@@ -420,6 +427,7 @@ class Mediator:
             dry_run=self.settings.dry_run,
             delay_ms=self.settings.click_delay_ms,
         )
+        self._trace_actions.append({"intent": f"click:{hit.name}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success})
         return res.success
 
     def act_right_click(self, hit: MatchResult, reason: str = "") -> bool:
@@ -432,6 +440,7 @@ class Mediator:
             dry_run=self.settings.dry_run,
             delay_ms=self.settings.click_delay_ms,
         )
+        self._trace_actions.append({"intent": f"right_click:{hit.name}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success})
         return res.success
 
     def act_key(self, key: str, reason: str = "") -> bool:
@@ -442,6 +451,7 @@ class Mediator:
             target_hwnd=target_hwnd,
             dry_run=self.settings.dry_run,
         )
+        self._trace_actions.append({"intent": f"key:{key}", "reason": reason, "ok": res.success})
         return res.success
 
     def click_scene(self, frame: Frame, scene_key: str, reason: str = "", threshold: float | None = None) -> bool:
@@ -712,10 +722,12 @@ class Mediator:
                     if not any(math.hypot(h.x - c.x, h.y - c.y) < 40.0 for c in candidates):
                         candidates.append(h)
                 if candidates:
-                    wanted = {Path(v).stem for v in preferred}
-                    for c in candidates:
-                        if Path(c.name).stem in wanted:
-                            return (kind, c)
+                    # 尊重用户配置顺序（settings.cards），不按视觉分数排序
+                    by_stem = {Path(c.name).stem: c for c in candidates}
+                    for pref in preferred:
+                        hit = by_stem.get(Path(pref).stem)
+                        if hit is not None:
+                            return (kind, hit)
             # 无偏好命中 → 按品质色选最高稀有度
             rarity_hit = self._rarity_choice(frame, kind)
             if rarity_hit is not None:
@@ -751,10 +763,12 @@ class Mediator:
                 if not any(math.hypot(h.x - c.x, h.y - c.y) < 40.0 for c in candidates):
                     candidates.append(h)
             if candidates:
-                wanted = {Path(v).stem for v in preferred}
-                for c in candidates:
-                    if Path(c.name).stem in wanted:
-                        return ("技能", c)
+                # 尊重用户配置顺序（settings.skills），不按视觉分数排序
+                by_stem = {Path(c.name).stem: c for c in candidates}
+                for pref in preferred:
+                    hit = by_stem.get(Path(pref).stem)
+                    if hit is not None:
+                        return ("技能", hit)
         # 无偏好命中 → 按品质色选最高稀有度
         rarity_hit = self._rarity_choice(frame, "skill")
         if rarity_hit is not None:
@@ -984,7 +998,7 @@ class Mediator:
         hit = self.find(
             frame,
             ["lobby/exit_confirm_btn"],
-            threshold=0.88,
+            threshold=0.78,
             scales=(0.9, 1.0, 1.1),
         )
         if not hit:
@@ -1446,7 +1460,6 @@ class Mediator:
         if phase in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP) and self.phase not in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP):
             self._stage_selected = False
             self._stage_target_name = None
-            self._stage_target_position = None
             self._room_dialog_filled = False
         if phase in (Phase.PLATFORM_MAP, Phase.CREATE_ROOM):
             self._room_action_deadline = time.time() + self.settings.query_timeout
@@ -1462,7 +1475,6 @@ class Mediator:
             # 跨局重置：次局进入选关页必须重新选关（上一局残留会跳过选关/点错关）
             self._stage_selected = False
             self._stage_target_name = None
-            self._stage_target_position = None
             self._room_action_deadline = time.time() + self.settings.query_timeout
             self._hero_state = "IDLE"
             self._hero_verified_level = 0
@@ -1479,8 +1491,6 @@ class Mediator:
         if phase in (Phase.STAGE_SELECT, Phase.MAIN_LINE):
             self._l0_cycle_count = 0
         self.phase = phase
-        if phase == Phase.WAIT_UI:
-            self._wait_ui_since = time.time()
         if phase == Phase.MAIN_LINE:
             self._main_line_since = time.time()
             self._selection_click_cooldown_until = 0.0
@@ -1521,11 +1531,6 @@ class Mediator:
             sec = max(self.settings.archive_boss_time, self.settings.boss_live_time, 180)
             self._longzhu_deadline = time.time() + sec
             self._f1_fallback_done = False
-
-    def wait_ui_timed_out(self) -> bool:
-        if self._wait_ui_since is None:
-            return False
-        return (time.time() - self._wait_ui_since) >= self.settings.query_timeout
 
     def longzhu_timed_out(self) -> bool:
         if self._longzhu_deadline is None:
@@ -1847,7 +1852,6 @@ class Mediator:
                     return LoopAction.Continue
                 self._stage_selected = True
                 self._stage_target_name = target.name
-                self._stage_target_position = (target.x, target.y)
                 self._stage_click_cooldown_until = now + 1.5
                 self._room_action_deadline = now + max(10, min(self.settings.query_timeout, 30))
                 return LoopAction.Continue
@@ -1857,23 +1861,22 @@ class Mediator:
             target_spec = self.settings.stage_targets[0] if self.settings.stage_targets else self.settings.stage1
             if not verify_stage_selection(frame, target=target_spec, images_dir=self.images):
                 # The live stage list does not render a reliable persistent
-                # row highlight.  Confirm the exact same target label remains
-                # at the clicked client coordinate and require the dedicated
-                # start button before advancing.  This avoids the old endless
-                # re-click loop without allowing an arbitrary visible stage.
+                # row highlight.  Confirm the exact same target label is
+                # still visible and require the dedicated start button before
+                # advancing.  This avoids the old endless re-click loop
+                # without allowing an arbitrary visible stage.
                 current_target = self._find_stage_target(frame)
                 # The live list can move the selected row; the exact label is
                 # unique, so position persistence is not a useful guard.
                 same_target = bool(current_target and current_target.name == self._stage_target_name)
                 ready = self._find_hero_entry(frame) if self.settings.auto_reputation else self._find_stage_start(frame)
                 if not same_target or not ready:
-                    print("[L0] 关卡选中态未确认，等待精确目标与专用开始按钮同时稳定")
+                    print("[L0] 关卡选中态未确认，等待目标关卡名称匹配与专用开始按钮同时稳定")
                     if self._action_timed_out():
                         self._stage_selected = False
                         self._stage_target_name = None
-                        self._stage_target_position = None
                     return LoopAction.Continue
-                print("[L0] 目标行无持久高亮；已用精确目标位置 + 专用开始按钮完成复合确认")
+                print("[L0] 目标行无持久高亮；已用目标关卡名称匹配 + 专用开始按钮完成复合确认")
             if self.settings.auto_reputation:
                 return self._begin_hero_setup(frame)
             start = self._find_stage_start(frame)
@@ -1924,6 +1927,47 @@ class Mediator:
 
     def tick(self) -> LoopAction:
         """单步：一帧截屏 → 按阶段决策 → 执行。"""
+        self._tick_no += 1
+        t0 = time.perf_counter()
+        phase_before = self.phase.name
+        try:
+            return self._tick_impl()
+        finally:
+            self._trace_tick(phase_before, t0)
+
+    def set_trace(self, path: str | None) -> None:
+        """开启/关闭 JSONL tick trace（卡死/误操作后最后几十个 tick 的可回放诊断）。"""
+        if self._trace_fh is not None:
+            self._trace_fh.close()
+            self._trace_fh = None
+        self._trace_path = path
+        if path:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            self._trace_fh = open(path, "a", encoding="utf-8")
+
+    def _trace_tick(self, phase_before: str, t0: float) -> None:
+        if self._trace_fh is None:
+            return
+        frame = self._last_frame
+        row: dict = {
+            "tick": self._tick_no,
+            "ts": round(time.time(), 3),
+            "elapsed_ms": round((time.perf_counter() - t0) * 1000.0, 1),
+            "phase_before": phase_before,
+            "phase_after": self.phase.name,
+            "context": self._context_cache_value,
+            "hwnd": frame.hwnd if frame is not None else None,
+            "size": [frame.width, frame.height] if frame is not None else None,
+            "actions": self._trace_actions,
+            "scenes": self._trace_scenes,
+        }
+        self._trace_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        self._trace_fh.flush()
+
+    def _tick_impl(self) -> LoopAction:
+        """单步：一帧截屏 → 按阶段决策 → 执行。"""
+        self._trace_actions = []
+        self._trace_scenes = []
         if self.stop_signal.is_set():
             print(f"[med] Stop signal active ({self.stop_signal.reason}), breaking loop")
             self._running = False
@@ -2311,7 +2355,6 @@ class Mediator:
             self._awaiting_room_return = True
             self.set_phase(Phase.PREPARE, "exit confirmed; verify same room")
             self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
-            self._wait_ui_since = None
             self._longzhu_deadline = None
             self._f1_fallback_done = False
             return LoopAction.Continue
