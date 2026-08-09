@@ -2141,6 +2141,15 @@ class Mediator:
                         self.set_phase(Phase.ERROR, "unhealthy frame timeout")
                         self.stop()
                         return LoopAction.Break
+                elif self.phase in (Phase.CREATE_ROOM, Phase.PLATFORM_MAP):
+                    # 建房弹窗/平台窗短暂不可见（用户操作间隙、弹窗切换）不应 15s 误杀；
+                    # 与 BOOT 同窗容忍，超时才 Fail-Closed。
+                    l0_timeout = max(30, min(self.settings.query_timeout, 60))
+                    if elapsed >= l0_timeout:
+                        print(f"[med] {self.phase.name} 等待窗口超过 {l0_timeout}s，停止运行")
+                        self.set_phase(Phase.ERROR, "unhealthy frame timeout")
+                        self.stop()
+                        return LoopAction.Break
                 elif elapsed >= min(self.settings.query_timeout, 15):
                     self.set_phase(Phase.ERROR, "unhealthy frame timeout")
                     self.stop()
@@ -2151,34 +2160,40 @@ class Mediator:
 
         # 全局：断线/失败优先（一帧最多一个改变 UI 的动作）
         if self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
-            if self.phase != Phase.QUIT:
-                self.set_phase(Phase.QUIT, "fail/disconnect")
-            # RecoveryState 状态机：每次动作后重新抓帧，防止旧帧连点
-            recovery = getattr(self, "_recovery_step", "FAIL_VISIBLE")
-            if recovery == "FAIL_VISIBLE":
-                hit = self.find_scene(frame, "fail")
-                if hit:
-                    self.click_scene(frame, "fail", "recover")
-                    self._recovery_step = "WAIT_OK"
-                else:
-                    self._recovery_step = "WAIT_OK"
+            # 选择面板的"放弃"按钮与失败弹窗 giveUp 模板同源（实机 2026-08-09
+            # 证据：局内 bond/card 选择面板弹出时 giveUp 0.945 误命中 → 误判失败）。
+            # 真实失败弹窗会遮挡面板，两者互斥；面板存在时跳过 fail 检测。
+            if self.phase == Phase.MAIN_LINE and self._selection_anchor(frame):
+                print("[med] 选择面板存在，忽略 giveUp/fail 误检（面板放弃按钮非失败弹窗）")
+            else:
+                if self.phase != Phase.QUIT:
+                    self.set_phase(Phase.QUIT, "fail/disconnect")
+                # RecoveryState 状态机：每次动作后重新抓帧，防止旧帧连点
+                recovery = getattr(self, "_recovery_step", "FAIL_VISIBLE")
+                if recovery == "FAIL_VISIBLE":
+                    hit = self.find_scene(frame, "fail")
+                    if hit:
+                        self.click_scene(frame, "fail", "recover")
+                        self._recovery_step = "WAIT_OK"
+                    else:
+                        self._recovery_step = "WAIT_OK"
+                    return LoopAction.Continue
+                if recovery == "WAIT_OK":
+                    hit = self.find_scene(frame, "ok")
+                    if hit:
+                        self.click_scene(frame, "ok", "ok")
+                        self._recovery_step = "WAIT_CLOSE"
+                    else:
+                        self._recovery_step = "WAIT_CLOSE"
+                    return LoopAction.Continue
+                if recovery == "WAIT_CLOSE":
+                    hit = self.find_scene(frame, "close")
+                    if hit:
+                        self.click_scene(frame, "close", "close")
+                    self._recovery_step = "DONE"
+                    return LoopAction.Continue
+                # DONE：等待画面恢复（QUIT 相位处理退出）
                 return LoopAction.Continue
-            if recovery == "WAIT_OK":
-                hit = self.find_scene(frame, "ok")
-                if hit:
-                    self.click_scene(frame, "ok", "ok")
-                    self._recovery_step = "WAIT_CLOSE"
-                else:
-                    self._recovery_step = "WAIT_CLOSE"
-                return LoopAction.Continue
-            if recovery == "WAIT_CLOSE":
-                hit = self.find_scene(frame, "close")
-                if hit:
-                    self.click_scene(frame, "close", "close")
-                self._recovery_step = "DONE"
-                return LoopAction.Continue
-            # DONE：等待画面恢复（QUIT 相位处理退出）
-            return LoopAction.Continue
 
         if self.phase in {
             Phase.BOOT,

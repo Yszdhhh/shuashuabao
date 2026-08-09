@@ -131,5 +131,33 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         self.assertEqual([], self.actions)
 
 
+    def test_create_room_window_blip_does_not_error_early(self):
+        # 实机 2026-08-09：dry-run 观察模式下建房弹窗被手动关闭后窗口短暂不可见，
+        # 15s 即 ERROR 太激进。CREATE_ROOM 无窗口容忍应 ≥30s（与 BOOT 同窗）。
+        from tests.test_scenario_replay import FakeClock
+
+        clock = FakeClock(start=1000.0)
+        self.med.settings.query_timeout = 30  # 容忍窗 = max(30, min(30,60)) = 30s
+        self.med.set_phase(Phase.CREATE_ROOM, "window blip test")
+        src = _EmptyFrameSource()
+        self.med._capture_best = src.capture_best
+        with clock.install():
+            # 20s：仍在容忍窗内 → 不 ERROR
+            for i in range(5):
+                clock.set(1000.0 + float(i + 1) * 4.0)
+                action = self.med.tick()
+                self.assertEqual(LoopAction.Continue, action)
+                self.assertNotEqual(self.med.phase, Phase.ERROR, f"tick {i+1} 不应提前 ERROR")
+            # 36s：since=1004，elapsed=32s 超过容忍窗 30s → Fail-Closed ERROR
+            clock.set(1036.0)
+            action = self.med.tick()
+            self.assertEqual(self.med.phase, Phase.ERROR)
+
+
+class _EmptyFrameSource:
+    def capture_best(self, *a, **k) -> Frame:
+        return Frame(bgr=None, left=0, top=0, window_title="", hwnd=None, is_valid=False)
+
+
 if __name__ == "__main__":
     unittest.main()

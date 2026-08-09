@@ -326,6 +326,28 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             choice = self.med._find_reward_choice(f3)
             self.assertTrue(choice is None or choice[1].name.startswith("rarity_"))
 
+    def test_choice_panel_giveup_not_treated_as_fail(self):
+        # 实机 2026-08-09：局内选择面板的"放弃"按钮与失败弹窗 giveUp 模板同源
+        # （0.945 命中）→ 误判 fail → 误进退出流程。选择面板存在时必须跳过 fail 检测。
+        f3 = load_fixture_frame("fixtures/replay/skill_choice_3.png")
+        f3.hwnd = 10001
+        self.med.set_phase(Phase.MAIN_LINE, "choice panel fail guard")
+        self.assertIsNotNone(self.med._selection_anchor(f3))
+        self.assertIsNotNone(self.med.find_scene(f3, "fail"), "前置：giveUp 模板必须命中选择面板")
+        with patch.object(self.med, "_capture_best", return_value=f3), \
+             patch.object(self.med, "_post_game_state", return_value=None), \
+             patch.object(self.med.executor, "click") as mock_click, \
+             patch.object(self.med.executor, "right_click") as mock_rc:
+            action = self.med.tick()
+            self.assertEqual(action, gamescript.loop_action.LoopAction.Continue)
+            self.assertEqual(self.med.phase, Phase.MAIN_LINE, "选择面板存在时不得进入 fail/QUIT 流程")
+            self.assertNotEqual(self.med.phase, Phase.QUIT)
+            # 允许技能选择点击，但绝不允许 fail 恢复链的 giveUp 点击（reason='recover'）
+            for call in mock_click.call_args_list:
+                args = call.args
+                self.assertNotIn("recover", str(args))
+            mock_rc.assert_not_called()
+
     def test_non_skill_choice_materials_never_click_configured_skill(self):
         # 57d40ce 策略：bond/treasure 面板各自分类+品质色回退；无论分类结果
         # 如何，绝不点击用户配置的具名技能模板（旧断言期望全 None 已过时）。
