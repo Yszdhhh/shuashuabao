@@ -34,6 +34,21 @@ class P0C1FixesTests(unittest.TestCase):
         self.assertFalse(data.get("auto_secret_realm"))
         self.assertFalse(self.settings.auto_secret_realm)
 
+    def test_find_longzhu_in_game_config_key_is_wired(self):
+        # 1.4 借鉴项 ②：配置门闩落地（默认 False，零行为改动；LONGZHU 重建后启用）
+        default_json_path = ROOT / "config" / "default_settings.json"
+        with open(default_json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        self.assertFalse(data.get("find_longzhu_in_game"))
+        self.assertFalse(self.settings.find_longzhu_in_game)
+        # 官方映射与 bool 解析
+        from gamescript.settings import _OFFICIAL_MAP
+
+        self.assertEqual(_OFFICIAL_MAP["FindLongzhuInGame"], "find_longzhu_in_game")
+        # 加载/保存往返：True 可写回并重新加载
+        self.settings.find_longzhu_in_game = True
+        self.assertTrue(self.settings.find_longzhu_in_game)
+
     def test_quit_next_use_only_dedicated_anchors(self):
         self.settings.auto_secret_realm = True
         frame = create_dummy_frame()

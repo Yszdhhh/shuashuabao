@@ -48,6 +48,7 @@ _OFFICIAL_MAP = {
     "CloseMainLineTime": "close_main_line_time",
     "DevelopPriority": "develop_priority",
     "FindLongzhuWhereMultiGame": "find_longzhu_where_multi_game",
+    "FindLongzhuInGame": "find_longzhu_in_game",
 }
 
 
@@ -68,6 +69,7 @@ class Settings:
     game_mode: int = 0  # 0=独狼/自己刷图
     dragon_ball_count: int = 7
     find_longzhu_where_multi_game: bool = False
+    find_longzhu_in_game: bool = False  # 1.4 新增：游戏内找龙珠（LONGZHU 重建后启用，现仅配置门闩）
     auto_secret_realm: bool = False
     auto_close_main_line: bool = False
     close_main_line_time: int = 0
@@ -174,6 +176,7 @@ class Settings:
                     clean.pop(k)
         bool_fields = {
             "auto_create_room", "new_room_every_times", "find_longzhu_where_multi_game",
+            "find_longzhu_in_game",
             "auto_secret_realm", "auto_close_main_line", "auto_card", "auto_weapon",
             "damage_increase_card", "develop_priority", "auto_reputation",
             "continue_reputation", "auto_bond", "auto_treasure", "auto_artifact",

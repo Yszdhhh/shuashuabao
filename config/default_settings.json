@@ -62,5 +62,6 @@
     900
   ],
   "images_dir": "assets/Images",
-  "dry_run": true
+  "dry_run": true,
+  "find_longzhu_in_game": false
 }
