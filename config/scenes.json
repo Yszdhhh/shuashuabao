@@ -133,6 +133,7 @@
       "templates": [
         "lobby/stage_begin_btn",
         "lobby/roomStart",
+        "lobby/startChallenge",
         "startGameBtn"
       ],
       "method": "BeginGame",
