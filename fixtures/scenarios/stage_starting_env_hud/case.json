@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "case": "stage_starting_env_hud",
-  "description": "进入 STAGE_STARTING 后，环境 HUD（env_anchor / 选择面板）是可信进局证据：识别到 HUD 时只推进 phase（STAGE_STARTING -> MAIN_LINE），不再次点击 StageStart，action_count=0。帧复用 live_postgame_20260808/live_hero_challenge.png（selection_anchor bond_refresh_btn 0.902 / env_anchor shortKey 0.91 命中）。",
+  "description": "进入 STAGE_STARTING 后，环境 HUD（env_anchor / 选择面板）是可信进局证据：识别到 HUD 时只推进 phase（STAGE_STARTING -> MAIN_LINE），不再次点击 StageStart，action_count=0。startChallenge 子状态机要求局内锚点连续 2 帧确认：第一帧进入 VERIFY_INGAME（phase 保持 STAGE_STARTING、零动作），第二帧推进 MAIN_LINE。帧复用 live_postgame_20260808/live_hero_challenge.png（selection_anchor bond_refresh_btn 0.902 / env_anchor shortKey 0.91 命中）。",
   "phase": "STAGE_STARTING",
   "settings_overrides": {
     "dry_run": true
@@ -20,9 +20,32 @@
         "stop_signal": "unchanged",
         "before_action": null
       }
+    },
+    {
+      "id": "env_hud_confirm",
+      "at_s": 1.0,
+      "file": "fixtures/scenarios/stage_starting_env_hud/frames/env_hud_visible.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
     }
   ],
   "expect_actions": [
+    {
+      "phase_before": "STAGE_STARTING",
+      "context": "MAIN_LINE",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "STAGE_STARTING",
+      "loop_action": "Continue"
+    },
     {
       "phase_before": "STAGE_STARTING",
       "context": "MAIN_LINE",

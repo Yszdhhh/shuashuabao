@@ -82,6 +82,10 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         with patch("gamescript.mediator.verify_stage_selection", return_value=True):
             self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
         self.assertEqual(Phase.STAGE_STARTING, self.med.phase)
+        # startChallenge 子状态机：局内锚点需连续 2 帧确认，
+        # 首帧仅进入 VERIFY_INGAME（phase 保持 STAGE_STARTING），第二帧推进 MAIN_LINE
+        self._assert_one_input_at_most(lambda: self.med._tick_l0(main_line))
+        self.assertEqual(Phase.STAGE_STARTING, self.med.phase)
         self._assert_one_input_at_most(lambda: self.med._tick_l0(main_line))
         self.assertEqual(Phase.MAIN_LINE, self.med.phase)
 

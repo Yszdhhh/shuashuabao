@@ -108,6 +108,14 @@ class Mediator:
         self._room_dialog_filled = False
         self._room_action_deadline: float | None = None
         self._room_action_attempts = 0
+        # startChallenge 显式子状态机（STAGE_STARTING 分支内部状态，枚举不变）：
+        # WAIT_TRANSITION → VERIFY_INGAME → DONE，带超时/失败分支/有界重试
+        self._challenge_start_state: str | None = None   # WAIT_TRANSITION/VERIFY_INGAME/DONE
+        self._challenge_start_source: str = "stage"      # stage / hero
+        self._challenge_start_attempts: int = 0
+        self._challenge_start_deadline: float | None = None
+        self._challenge_start_hud_frames: int = 0        # VERIFY_INGAME 连续锚点帧计数
+        self._challenge_start_hero_modal_frames: int = 0 # hero 弹窗消失计数
         self._stage_scroll_attempts = 0
         self._missing_window_since: float | None = None
         self._last_frame: Frame | None = None
@@ -1470,6 +1478,21 @@ class Mediator:
             # 仅当未设置时才填默认值，避免 15s 验证窗被改写成 60s、attempts 被清零。
             if self._room_action_deadline is None:
                 self._room_action_deadline = time.time() + self.settings.query_timeout
+        if phase == Phase.STAGE_STARTING:
+            # startChallenge 子状态机惰性初始化：测试/回放 harness 直接
+            # set_phase(STAGE_STARTING) 时补建默认上下文，避免 None 状态卡死。
+            if self._challenge_start_state is None:
+                self._challenge_start_state = "WAIT_TRANSITION"
+                self._challenge_start_source = "stage"
+                self._challenge_start_deadline = time.time() + max(20, min(self.settings.query_timeout, 60))
+                self._challenge_start_hud_frames = 0
+                self._challenge_start_hero_modal_frames = 0
+        if self.phase == Phase.STAGE_STARTING and phase != Phase.STAGE_STARTING:
+            # 离开 STAGE_STARTING：清空帧级进度；attempts 是跨回退的重试预算，
+            # 只在超时分支 +1（>=2 时 Fail-Closed），此处不重置以保证有界重试。
+            self._challenge_start_state = None
+            self._challenge_start_hud_frames = 0
+            self._challenge_start_hero_modal_frames = 0
         if phase == Phase.STAGE_SELECT:
             self._stage_scroll_attempts = 0
             # 跨局重置：次局进入选关页必须重新选关（上一局残留会跳过选关/点错关）
@@ -1649,6 +1672,36 @@ class Mediator:
     def _action_timed_out(self) -> bool:
         return self._room_action_deadline is not None and time.time() >= self._room_action_deadline
 
+    def _challenge_start_timeout(self, stage_page: bool) -> LoopAction:
+        """startChallenge 超时与失败分支：Fail-Closed，不猜测点击。
+
+        有界重试：source=stage 且选关页仍在时回选关页重选（attempts 预算 +1，
+        达到 2 次仍无局内锚点 → ERROR 停机）；其余情况一律 ERROR 停机。
+        """
+        if self._challenge_start_source == "hero":
+            # 英雄链严格证据：不做未验证回退
+            print("[L0] 英雄挑战开始超时（无局内锚点），停止运行")
+            self.set_phase(Phase.ERROR, "hero challenge start timeout")
+            self.stop()
+            return LoopAction.Break
+        if stage_page:
+            self._challenge_start_attempts += 1
+            if self._challenge_start_attempts >= 2:
+                print("[L0] 选关开始重试耗尽（2 次均未出现局内 UI），停止运行")
+                self.set_phase(Phase.ERROR, "challenge start retries exhausted")
+                self.stop()
+                return LoopAction.Break
+            print(f"[L0] 选关后超时未进局（attempts={self._challenge_start_attempts}/2），回到选关页重选")
+            self._stage_selected = False
+            self._stage_target_name = None
+            self.set_phase(Phase.STAGE_SELECT, "challenge start verify timeout")
+            return LoopAction.Continue
+        # 选关页/英雄入口都消失：页面异变 → 不识别=不动作，Fail-Closed
+        print("[L0] 选关后超时且选关页/英雄入口均消失（页面异变），停止运行")
+        self.set_phase(Phase.ERROR, "challenge start page mutation")
+        self.stop()
+        return LoopAction.Break
+
     def _tick_l0(self, frame: Frame) -> LoopAction:
         """Handle map → create dialog → room → stage without guessing clicks."""
         # The hero modal has its own exact guards.  Skipping the generic L0
@@ -1680,7 +1733,9 @@ class Mediator:
             print("[med] 等待返回原 KK 房间（零动作，不重建房间）")
             return LoopAction.Continue
 
-        if context in ("MAIN_LINE", "IN_GAME"):
+        if context in ("MAIN_LINE", "IN_GAME") and self.phase != Phase.STAGE_STARTING:
+            # STAGE_STARTING 的进局判定归 startChallenge 子状态机（锚点连续 2 帧
+            # 确认），不走全局"已在局内"捷径
             print("[L1] 开始主线 / phase=MAIN_LINE")
             self.set_phase(Phase.MAIN_LINE, "already in game")
             return LoopAction.Continue
@@ -1888,34 +1943,94 @@ class Mediator:
                 return LoopAction.Continue
             self._room_action_attempts = 1
             self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
+            # startChallenge 子状态机初始化（进入 STAGE_STARTING）：
+            # attempts 是跨回退保留的重试预算，此处不重置（超时分支 +1，>=2 时 Fail-Closed）
+            self._challenge_start_state = "WAIT_TRANSITION"
+            self._challenge_start_source = "stage"  # hero 弹窗开始走 HERO_SETUP，不经本分支
+            self._challenge_start_deadline = time.time() + max(20, min(self.settings.query_timeout, 60))
+            self._challenge_start_hud_frames = 0
+            self._challenge_start_hero_modal_frames = 0
             self.set_phase(Phase.STAGE_STARTING, "stage start clicked")
             return LoopAction.Continue
 
         if self.phase == Phase.STAGE_STARTING:
+            # ---- startChallenge 显式子状态机：WAIT_TRANSITION → VERIFY_INGAME → DONE ----
+            # 每 tick 至多一个输入；未知/超时/页面异变 → Fail-Closed 停机，不猜测点击
+            now = time.time()
+            window = max(20, min(self.settings.query_timeout, 60))
+            state = self._challenge_start_state or "WAIT_TRANSITION"
+            if self._challenge_start_state is None:
+                # 防御：直接进入本分支但子状态缺失时按 WAIT_TRANSITION 处理
+                self._challenge_start_state = state
+                if self._challenge_start_deadline is None:
+                    self._challenge_start_deadline = now + window
             # 统一"已进局"定义：选择面板/四挑战/环境锚点任一可信证据即可
-            if self._is_in_game_hud(frame) or self._detect_context(frame, role="l1") == "MAIN_LINE":
-                print("[L1] 开始主线 / phase=MAIN_LINE")
-                self.set_phase(Phase.MAIN_LINE, "stage start verified")
+            in_game = self._is_in_game_hud(frame) or context == "MAIN_LINE"
+            if self._challenge_start_source == "hero":
+                # hero 来源额外接受 HeroChallenge 左上角局内锚点
+                hero_hud = self.find(frame, ["HeroChallenge"], threshold=0.85)
+                if hero_hud and hero_hud.x <= 400 and hero_hud.y <= 150:
+                    in_game = True
+
+            if state == "DONE":
+                # DONE 但仍在 STAGE_STARTING（正常路径 set_phase 已离开）：直接推进
+                self.set_phase(Phase.MAIN_LINE, "challenge start verified (DONE)")
                 return LoopAction.Continue
-            if stage_page and self._action_timed_out():
-                start = self._find_stage_start(frame)
-                if start and self._room_action_attempts < 2:
-                    print("[L0] 选关后页面未变化，重试点击开始")
-                    if not self.act_click(start, "StageStart-retry"):
+
+            if state == "VERIFY_INGAME":
+                if in_game:
+                    self._challenge_start_hud_frames += 1
+                    if self._challenge_start_hud_frames >= 2:
+                        self._challenge_start_state = "DONE"
+                        print("[L0] 局内锚点连续 2 帧确认，进入 MAIN_LINE")
+                        self.set_phase(Phase.MAIN_LINE, "challenge start verified")
                         return LoopAction.Continue
-                    self._room_action_attempts += 1
-                    self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
-                else:
-                    print("[L0] 选关开始重试耗尽，回到选关页")
-                    self._stage_selected = False
-                    self.set_phase(Phase.STAGE_SELECT, "stage start retries exhausted")
-            elif self._action_timed_out():
-                print("[L0] 选关后未出现局内 UI，回到选关页")
-                self._stage_selected = False
-                self.set_phase(Phase.STAGE_SELECT, "stage start verify timeout")
-            else:
-                print("[L0] 等待局内卡牌/技能 UI…")
-            return LoopAction.Continue
+                    print(f"[L0] 等待目标帧（追帧中）…（局内锚点第 {self._challenge_start_hud_frames} 帧，"
+                          f"需连续 2 帧确认）")
+                    return LoopAction.Continue
+                # 锚点中断 1 帧 → 回 WAIT_TRANSITION（不算失败）
+                self._challenge_start_state = "WAIT_TRANSITION"
+                self._challenge_start_hud_frames = 0
+                print("[L0] 局内锚点中断，回到 WAIT_TRANSITION（不算失败）")
+                return LoopAction.Continue
+
+            if state == "WAIT_TRANSITION":
+                if in_game:
+                    self._challenge_start_state = "VERIFY_INGAME"
+                    self._challenge_start_hud_frames = 1
+                    self._challenge_start_deadline = now + window  # 锚点出现，延长同窗
+                    print(f"[L0] 局内锚点出现（第 1 帧），进入 VERIFY_INGAME 连续确认"
+                          f" [source={self._challenge_start_source}/attempts={self._challenge_start_attempts}/"
+                          f"deadline={self._challenge_start_deadline - now:.0f}s]")
+                    return LoopAction.Continue
+                hero_note = ""
+                if self._challenge_start_source == "hero":
+                    # hero 来源且弹窗按钮消失满 2 帧：继续留在 WAIT_TRANSITION
+                    # 等待局内锚点，不额外动作
+                    if not self._hero_modal_buttons(frame):
+                        self._challenge_start_hero_modal_frames += 1
+                    else:
+                        self._challenge_start_hero_modal_frames = 0
+                    if self._challenge_start_hero_modal_frames >= 2:
+                        hero_note = "（英雄弹窗已关闭，等待局内锚点）"
+                # 超时与失败分支：deadline 到期仍未 VERIFY_INGAME
+                if self._challenge_start_deadline is not None and now >= self._challenge_start_deadline:
+                    return self._challenge_start_timeout(stage_page)
+                remain = (
+                    self._challenge_start_deadline - now
+                    if self._challenge_start_deadline is not None
+                    else float("inf")
+                )
+                print(f"[L0] 等待目标帧（追帧中）…"
+                      f" [source={self._challenge_start_source}/attempts={self._challenge_start_attempts}/"
+                      f"deadline={remain:.0f}s]{hero_note}")
+                return LoopAction.Continue
+
+            # 未知子状态：Fail-Closed，不猜测点击
+            print(f"[L0] 未知 startChallenge 子状态 {state}，停止运行")
+            self.set_phase(Phase.ERROR, f"unknown challenge start state {state}")
+            self.stop()
+            return LoopAction.Break
 
         return LoopAction.Continue
 
