@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -27,6 +28,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -365,10 +367,20 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
+        # 内容放进 QScrollArea：窗口被拖矮时技能卡片网格滚动而非压缩重叠
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        content = QWidget()
+        main_layout = QVBoxLayout(content)
         main_layout.setContentsMargins(14, 12, 14, 12)
         main_layout.setSpacing(10)
         main_layout.setAlignment(Qt.AlignTop)
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
 
         header = QHBoxLayout()
         title = QLabel("重生魔兽刷刷刷")
