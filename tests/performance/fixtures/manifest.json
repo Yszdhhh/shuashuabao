@@ -1,0 +1,132 @@
+{
+  "schema": "N0-fixture-manifest-v1",
+  "notes": "N0 基准 fixture 清单（蓝图 §6 十二类）。每项声明 expected phase/context/health；benchmark_hot_path.py 以此为准运行并逐项核对。视频来源帧：fail_panel=rec_fine_bug/bug_00007.jpg（秘境局 t=2083s，Linus 阵亡+面板+光标移动 bug 证据窗），giveup_panel=idx_b/000105.jpg（三普通局 t=104s，giveUp 模板命中面板「放弃」按钮，生产 fail 场景经 giveUp 0.88 误命中）。",
+  "fixtures": [
+    {
+      "fixture_id": "idle_hud",
+      "class": "空闲HUD",
+      "file": "idle_hud.png",
+      "source": "fixtures/replay/main_line_auto_on.png",
+      "expected_context": "MAIN_LINE",
+      "expected_phase": "MAIN_LINE",
+      "expected_health": "healthy",
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "skill_panel",
+      "class": "技能",
+      "file": "skill_panel.png",
+      "source": "fixtures/replay/skill_choice_3.png",
+      "expected_context": "MAIN_LINE",
+      "expected_phase": "MAIN_LINE",
+      "expected_health": "healthy",
+      "skills": ["asj", "dz"],
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "bond_panel",
+      "class": "羁绊",
+      "file": "bond_panel.png",
+      "source": "fixtures/replay/bond_choice_3.png",
+      "expected_context": "MAIN_LINE",
+      "expected_phase": "MAIN_LINE",
+      "expected_health": "healthy",
+      "skills": ["asj"],
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "treasure_panel",
+      "class": "宝物",
+      "file": "treasure_panel.png",
+      "source": "fixtures/replay/treasure_choice_3.png",
+      "expected_context": "MAIN_LINE",
+      "expected_phase": "MAIN_LINE",
+      "expected_health": "healthy",
+      "skills": ["asj"],
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "victory",
+      "class": "胜利",
+      "file": "victory.png",
+      "source": "fixtures/replay/victory_continue.png",
+      "expected_context": "MAIN_LINE",
+      "expected_phase": "MAIN_LINE",
+      "expected_health": "healthy",
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "fail_panel",
+      "class": "失败+面板",
+      "file": "fail_panel.jpg",
+      "source": "C:/tmp/agent_out/rec_fine_bug/bug_00007.jpg（秘境局 20260810_214444 t=2083s）",
+      "expected_context": "MAIN_LINE",
+      "expected_phase": "MAIN_LINE",
+      "expected_health": "healthy",
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "giveup_panel",
+      "class": "giveUp+面板",
+      "file": "giveup_panel.jpg",
+      "source": "C:/tmp/recordings/idx_b/000105.jpg（三普通局 20260810_224848 t=104s）",
+      "expected_context": "MAIN_LINE",
+      "expected_phase": "MAIN_LINE",
+      "expected_health": "healthy",
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "disconnect_modal",
+      "class": "断线",
+      "file": "disconnect_modal.png",
+      "source": null,
+      "missing_resource": true,
+      "expected_context": "QUIT",
+      "expected_phase": "QUIT",
+      "expected_health": "healthy",
+      "window_title": "英雄三国KK",
+      "notes": "素材缺失：两段录屏 1fps 索引（idx_a 2778 + idx_b 2569 帧）与 legacy rec 目录（986 帧）共 6333 帧扫描 gameDisconnect/retryConnect 模板 0 命中（阈值 0.70，scale 1.0）。与仓库既有 fixtures/manifest.json missing_disconnect_modal 记录一致。N0 以 missing 记录，不伪造帧。"
+    },
+    {
+      "fixture_id": "stage_select",
+      "class": "stage",
+      "file": "stage_select.png",
+      "source": "fixtures/live_postgame_20260808/live_stage_select.png",
+      "expected_context": "STAGE_SELECT",
+      "expected_phase": "STAGE_SELECT",
+      "expected_health": "healthy",
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "room_waiting",
+      "class": "房间",
+      "file": "room_waiting.png",
+      "source": "fixtures/replay/room_waiting_host.png",
+      "expected_context": "ROOM_WAITING",
+      "expected_phase": "ROOM_WAITING",
+      "expected_health": "healthy",
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "unknown_page",
+      "class": "unknown",
+      "file": "unknown_page.png",
+      "source": "fixtures/unknown_page.png",
+      "expected_context": "UNKNOWN",
+      "expected_phase": "MAIN_LINE",
+      "expected_health": "healthy",
+      "window_title": "英雄三国KK"
+    },
+    {
+      "fixture_id": "black_frame",
+      "class": "黑屏",
+      "file": "black_frame.png",
+      "source": "fixtures/black_frame.png",
+      "expected_context": "UNKNOWN",
+      "expected_phase": "MAIN_LINE",
+      "expected_health": "unhealthy:black_frame",
+      "window_title": "英雄三国KK",
+      "notes": "健康门禁应在决策前拦截（black_frame + low_entropy），decision_ms=0"
+    }
+  ]
+}
