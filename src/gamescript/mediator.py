@@ -654,24 +654,44 @@ class Mediator:
 
         return self._memo(key, frame, compute)
 
+    # L0 门闩/选关/挑战场景：模板是绝对尺寸资产（如 kk_start/startGameBtn 在
+    # 1040x719 平台窗口以 1.0 命中），不受 1600x900 相对 ui_scale 启发式支配。
+    # 这些场景用宽尺度档 + 优先级早停一次扫完（不做 hot 双扫）。
+    _L0_GATE_SCENES = frozenset({
+        "lobby_start", "lobby_room", "room_start", "stage_start", "start",
+        "stage", "stage_page", "coin_challenge", "wood_challenge",
+        "experience_challenge", "treasure_challenge",
+    })
+
+    def _l0_scales(self) -> tuple[float, ...]:
+        """L0 门闩尺度：绝对 0.9-1.2 档 + 会话 ui_scale 邻域（旧多尺度语义）。"""
+        return self._adapt_scales((0.9, 1.0, 1.1, 1.15, 1.2))
+
     def find_scene(self, frame: Frame, scene_key: str, threshold: float | None = None) -> MatchResult | None:
         """场景模板找图（evidence 级 memo；热路径只试主/邻尺度）。"""
         th = threshold if threshold is not None else self.settings.match_threshold
         names = self.templates(scene_key)
         if not names:
             return None
-        scales = self._hot_scales()
         key = ("scene", scene_key, th)
 
         def compute():
-            hit = self.find(frame, names, threshold=th, scales=scales, mode=f"scene:{scene_key}")
+            if scene_key in self._L0_GATE_SCENES:
+                # L0 门闩：宽尺度档 + early_stop（首个过阈值命中即止，见 _find_room_start 分析）
+                hit = self.find(
+                    frame, names, threshold=th,
+                    scales=self._l0_scales(), early_stop=True,
+                    mode=f"scene:{scene_key}:l0",
+                )
+            else:
+                hit = self.find(frame, names, threshold=th, scales=self._hot_scales(), mode=f"scene:{scene_key}")
             if hit is not None and len(self._trace_scenes) < 12:
                 self._trace_scenes.append({
                     "scene": scene_key,
                     "name": hit.name,
                     "score": round(hit.score, 3),
-                    "early_stop": False,
-                    "compared_all": True,
+                    "early_stop": scene_key in self._L0_GATE_SCENES,
+                    "compared_all": scene_key not in self._L0_GATE_SCENES,
                 })
             return hit
 
