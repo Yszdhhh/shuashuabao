@@ -1,30 +1,58 @@
 {
+  "schema_version": 2,
+  "purpose": "OCR 评测模型清单（O0: 合法 JSON + 真实哈希/大小/license/source_url/model_dir；哈希门禁由 tools/evaluate_choice_ocr.py 实际计算校验，不硬编码 PASS）",
   "models": [
     {
       "name": "PP-OCRv5_mobile_rec_infer",
+      "display_name": "PP-OCRv5_mobile_rec",
       "task": "text_recognition",
       "language": "ch",
       "version": "PP-OCRv5_mobile_rec (paddleocr 3.7.0 / paddlex 3.7.2)",
-      "license": "Apache-2.0 (PaddleOCR 官方发布模型)",
+      "license": "Apache-2.0",
+      "license_source": "PaddleOCR 官方发布模型（https://github.com/PaddlePaddle/PaddleOCR）",
       "source_url": "https://paddleocr.bj.bcebos.com/PP-OCRv5/chinese/PP-OCRv5_mobile_rec_infer.tar",
-      "sha256_tar": "566B9512B34E34A9F0DB54D87B51FA5A0B9ED2CF1AB7E49728CC0B8B5A64F414",
-      "size_bytes_tar": 16834560,
-      "size_mb_unpacked": 17,
-      "local_dir": "models/ocr/PP-OCRv5_mobile_rec_infer/",
-      "offline_note": "推理全程 download_enable=False；已断网验证（出站阻断下加载+推理成功）。模型二进制不入库（.gitignore），需要时从 source_url 重新下载并按本清单校验 SHA256。",
+      "model_dir": "models/ocr/PP-OCRv5_mobile_rec_infer",
+      "present_in_repo": true,
+      "archive": {
+        "file": "models/ocr/PP-OCRv5_mobile_rec_infer.tar",
+        "sha256": "566B9512B34E34A9F0DB54D87B51FA5A0B9ED2CF1AB7E49728CC0B8B5A64F414",
+        "size_bytes": 16834560
+      },
+      "files": {
+        "inference.json": {
+          "sha256": "24587345250C7332D0FC6F9A44E794D078CDAEB64C302FEF906F325619DE2569",
+          "size_bytes": 217724
+        },
+        "inference.pdiparams": {
+          "sha256": "2460DA90875937C94DB97EBA74AE3D9E5D4C4C57C42F1F41531C09A26BCC771A",
+          "size_bytes": 16458665
+        },
+        "inference.yml": {
+          "sha256": "5DFEB2777F6D0DB8177D8128A8ACFCF6E6276DC4AC73EA3BF0DC06D6A5E85D8E",
+          "size_bytes": 148345
+        }
+      },
+      "offline_note": "推理全程 download_enable=False；已断网验证（出站阻断下加载+推理成功）。模型二进制不入库（.gitignore），需要时从 source_url 重新下载并按本清单校验 SHA256/size。",
       "windows_path_note": "Paddle C++ loader 无法读取含非 ASCII 字符的 Windows 路径（仓库路径含 🎮 必失败）；推理前复制到 ASCII 暂存目录（默认 %LOCALAPPDATA%\\Temp\\gamescript_ocr_stage，evaluate_choice_ocr.py --staging-dir 可覆盖）。"
-    }
+    },
     {
       "name": "PP-OCRv5_server_rec_infer",
+      "display_name": "PP-OCRv5_server_rec",
       "task": "text_recognition",
       "language": "ch",
       "version": "PP-OCRv5_server_rec (paddleocr 3.7.0 / paddlex 3.7.2)",
-      "license": "Apache-2.0 (PaddleOCR 官方发布模型)",
+      "license": "Apache-2.0",
+      "license_source": "PaddleOCR 官方发布模型（https://github.com/PaddlePaddle/PaddleOCR）",
       "source_url": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar",
-      "sha256_tar": "D99BE2FFD348943AB52876179168BE4FB5B14F5F0812F2AE4C76D89EC2EA750A",
-      "size_bytes_tar": 84869120,
-      "local_dir": "(评测暂存 C:/tmp/ocr_models/PP-OCRv5_server_rec_infer；不入库)",
-      "eval_note": "2026-08-10 评测：准确率与 mobile 完全一致（Top-1 4.55%），单槽 P95 2020ms（mobile 42.9ms）、三槽 P95 5620ms（mobile 82.3ms）、RSS 增量 615MB（mobile 53.2MB）→ server 无增益且慢 47 倍，不选为生产实现。"
+      "model_dir": null,
+      "present_in_repo": false,
+      "archive": {
+        "file": null,
+        "sha256": "D99BE2FFD348943AB52876179168BE4FB5B14F5F0812F2AE4C76D89EC2EA750A",
+        "size_bytes": 84869120
+      },
+      "files": null,
+      "eval_note": "2026-08-10 评测：准确率与 mobile 完全一致（Top-1 4.55%），单槽 P95 2020ms（mobile 42.9ms）、三槽 P95 5620ms（mobile 82.3ms）、RSS 增量 615MB（mobile 53.2MB）→ server 无增益且慢 47 倍，不选为生产实现。文件不入库，哈希为归档记录，hash gate 不校验 absent 模型。"
     }
   ]
 }
