@@ -602,7 +602,7 @@
   {
    "id": "d0_a_000442_ep005",
    "frame": "fixtures\\ocr_choices\\frames\\rec9_mijing_20260810\\d0_a_000442.png",
-   "kind": "bond",
+   "kind": "treasure",
    "session_id": "rec9_mijing_20260810",
    "source": "video_frame",
    "game_version": "unknown",
@@ -3614,7 +3614,7 @@
   {
    "id": "d0_a_001960_ep032",
    "frame": "fixtures\\ocr_choices\\frames\\rec9_mijing_20260810\\d0_a_001960.png",
-   "kind": "treasure",
+   "kind": "bond",
    "session_id": "rec9_mijing_20260810",
    "source": "video_frame",
    "game_version": "unknown",
