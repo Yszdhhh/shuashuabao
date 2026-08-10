@@ -33,6 +33,42 @@ _SCALE_CACHE: dict[tuple[Path, float], np.ndarray | None] = {}
 CACHED_SCALES: tuple[float, ...] = (0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2)
 
 
+@dataclass(frozen=True)
+class MatchSearch:
+    """一次场景级搜索的完整配置（N2.1 热路径）。
+
+    早停是显式模式：只有 ``early_stop=True`` 且 ``min_margin == 0`` 时才按
+    ``names`` 顺序返回首个达到 threshold 的命中；``min_margin > 0`` 自动转全扫描
+    以保留歧义检测。``roi`` 是 (x1, y1, x2, y2) 比例坐标。
+    """
+
+    names: tuple[str, ...]
+    threshold: float = 0.85
+    primary_scale: float = 1.0
+    neighbor_scale: float | None = None
+    roi: tuple[float, float, float, float] | None = None
+    early_stop: bool = False
+    min_margin: float = 0.0
+
+
+def preferred_scales(primary_scale: float, neighbor_scale: float | None = None) -> tuple[float, ...]:
+    """主尺度 + 一个邻域的最终尺度元组：去重、保序、夹在支持区间。
+
+    邻域缺省时取主尺度的 1.06 倍（与 mediator ``_adapt_scales`` 的邻域约定一致）；
+    支持区间以 CACHED_SCALES 为基准，但允许低于 0.85 的主尺度（如 960x540 窗口
+    的 0.6）不被夹掉。
+    """
+    neighbor = neighbor_scale if neighbor_scale is not None else round(primary_scale * 1.06, 3)
+    lo = min(min(CACHED_SCALES), float(primary_scale))
+    hi = max(max(CACHED_SCALES), float(primary_scale))
+    out: list[float] = []
+    for s in (float(primary_scale), float(neighbor)):
+        clamped = round(max(lo, min(hi, s)), 3)
+        if not any(abs(clamped - x) < 1e-6 for x in out):
+            out.append(clamped)
+    return tuple(sorted(out))
+
+
 def clear_template_cache() -> None:
     """Clear all cached templates/resolutions (tests or asset hot-reload)."""
     _TEMPLATE_CACHE.clear()
@@ -116,7 +152,15 @@ def match_one(
     threshold: float = 0.85,
     name: str | None = None,
     scales: tuple[float, ...] = (1.0,),
+    *,
+    early_stop_scale: bool = False,
 ) -> MatchResult | None:
+    """单模板匹配。
+
+    ``early_stop_scale=True``：按尺度顺序在第一个达到 threshold 的 scale 返回；
+    否则保留既有“全 scales 取最高分”语义。热路径只试主尺度与一个邻域时使用
+    早停模式，宽尺度（5-8 档）保持全扫描。
+    """
     tmpl = _load_template(template_path)
     if tmpl is None:
         return None
@@ -131,6 +175,18 @@ def match_one(
             continue
         result = cv2.matchTemplate(frame.bgr, candidate, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
+        if early_stop_scale and max_val >= threshold:
+            x, y = max_loc
+            return MatchResult(
+                name=name or template_path.stem,
+                score=float(max_val),
+                x=x,
+                y=y,
+                w=tw,
+                h=th,
+                screen_x=frame.left + x + tw // 2,
+                screen_y=frame.top + y + th // 2,
+            )
         if max_val < threshold or (best is not None and max_val <= best.score):
             continue
         x, y = max_loc
@@ -159,19 +215,28 @@ def find_blue_buttons(
     turning a candidate into a click.
     """
     try:
-        bgr = frame.bgr
+        # N2.1：先裁 ROI 再做 cvtColor/inRange/形态学，contour 坐标回映原帧。
+        # roi=None 才允许全图；空/退化 ROI 直接返回 []。
+        if roi is not None:
+            rx1, ry1, rx2, ry2 = roi
+            x1 = max(0, min(frame.width, int(frame.width * rx1)))
+            y1 = max(0, min(frame.height, int(frame.height * ry1)))
+            x2 = max(x1, min(frame.width, int(frame.width * rx2)))
+            y2 = max(y1, min(frame.height, int(frame.height * ry2)))
+            if x2 - x1 < 1 or y2 - y1 < 1:
+                return []
+            bgr = frame.bgr[y1:y2, x1:x2]
+            if bgr is None or bgr.size == 0:
+                return []
+            ox, oy = x1, y1
+        else:
+            bgr = frame.bgr
+            ox, oy = 0, 0
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
         # KK 平台蓝色/天蓝色按钮 HSV 范围。
         lower_blue = np.array([90, 80, 70])
         upper_blue = np.array([130, 255, 255])
         mask = cv2.inRange(hsv, lower_blue, upper_blue)
-        if roi is not None:
-            rx1, ry1, rx2, ry2 = roi
-            x1, y1 = int(frame.width * rx1), int(frame.height * ry1)
-            x2, y2 = int(frame.width * rx2), int(frame.height * ry2)
-            clipped = np.zeros_like(mask)
-            clipped[max(0, y1):min(frame.height, y2), max(0, x1):min(frame.width, x2)] = 255
-            mask = cv2.bitwise_and(mask, clipped)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8))
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         found: list[MatchResult] = []
@@ -185,13 +250,14 @@ def find_blue_buttons(
             coverage = area / max(1, w * h)
             if coverage < 0.35:
                 continue
-            cx = frame.left + x + w // 2
-            cy = frame.top + y + h // 2
+            gx, gy = x + ox, y + oy  # 回映到原帧坐标
+            cx = frame.left + gx + w // 2
+            cy = frame.top + gy + h // 2
             found.append(MatchResult(
                 name="blue_button_color",
                 score=min(0.99, 0.8 + 0.19 * coverage),
-                x=x,
-                y=y,
+                x=gx,
+                y=gy,
                 w=w,
                 h=h,
                 screen_x=cx,
@@ -280,6 +346,7 @@ class MatchMarginResult:
     best: MatchResult | None
     second_best: MatchResult | None
     margin: float
+    compared_all: bool = True  # False 仅当 early_stop 在 names 耗尽前返回（局部比较）
 
 
 def match_any(
@@ -289,9 +356,30 @@ def match_any(
     threshold: float = 0.85,
     scales: tuple[float, ...] = (1.0,),
     roi: tuple[float, float, float, float] | None = None,
+    *,
+    early_stop: bool = False,
 ) -> MatchResult | None:
-    res = match_any_with_margin(frame, images_dir, names, threshold=threshold, scales=scales, roi=roi)
+    res = match_any_with_margin(
+        frame, images_dir, names, threshold=threshold, scales=scales, roi=roi, early_stop=early_stop
+    )
     return res.best
+
+
+def _crop_for_roi(frame: Frame, roi: tuple[float, float, float, float]) -> tuple[Frame, int, int]:
+    """按比例 ROI 裁出匹配目标帧，返回 (crop, x1, y1) 供坐标回映。"""
+    rx1, ry1, rx2, ry2 = roi
+    x1 = max(0, min(frame.width, int(frame.width * rx1)))
+    y1 = max(0, min(frame.height, int(frame.height * ry1)))
+    x2 = max(x1, min(frame.width, int(frame.width * rx2)))
+    y2 = max(y1, min(frame.height, int(frame.height * ry2)))
+    target = Frame(
+        frame.bgr[y1:y2, x1:x2],
+        left=frame.left + x1,
+        top=frame.top + y1,
+        window_title=frame.window_title,
+        hwnd=frame.hwnd,
+    )
+    return target, x1, y1
 
 
 def match_any_with_margin(
@@ -302,22 +390,38 @@ def match_any_with_margin(
     scales: tuple[float, ...] = (1.0,),
     min_margin: float = 0.0,
     roi: tuple[float, float, float, float] | None = None,
+    *,
+    early_stop: bool = False,
 ) -> MatchMarginResult:
-    results: list[MatchResult] = []
+    """多模板匹配（可早停）。
+
+    - ``early_stop=False``（默认）：全 names × scales 扫描取全局最高分，
+      ``compared_all=True``，与 N0 语义完全一致。
+    - ``early_stop=True, min_margin == 0``：按 names 顺序返回首个达到 threshold
+      的命中；``compared_all=False``、``second_best=None``，margin 仅为诊断值。
+    - ``early_stop=True, min_margin > 0``：禁止早停，自动转全扫描，保留歧义检测。
+    """
+    if not names:
+        return MatchMarginResult(best=None, second_best=None, margin=0.0, compared_all=True)
+    if early_stop and min_margin > 0.0:
+        early_stop = False  # min_margin>0 自动全扫描
+
     target = frame
     if roi is not None:
-        rx1, ry1, rx2, ry2 = roi
-        x1 = max(0, min(frame.width, int(frame.width * rx1)))
-        y1 = max(0, min(frame.height, int(frame.height * ry1)))
-        x2 = max(x1, min(frame.width, int(frame.width * rx2)))
-        y2 = max(y1, min(frame.height, int(frame.height * ry2)))
-        target = Frame(
-            frame.bgr[y1:y2, x1:x2],
-            left=frame.left + x1,
-            top=frame.top + y1,
-            window_title=frame.window_title,
-            hwnd=frame.hwnd,
-        )
+        target, _x1, _y1 = _crop_for_roi(frame, roi)
+
+    if early_stop:
+        for n in names:
+            path = resolve_template(images_dir, n)
+            if not path:
+                continue
+            hit = match_one(target, path, threshold=threshold, name=path.stem, scales=scales, early_stop_scale=True)
+            if hit:
+                # 局部比较：未扫描的候选不能充当 second_best / 全局 margin
+                return MatchMarginResult(best=hit, second_best=None, margin=hit.score, compared_all=False)
+        return MatchMarginResult(best=None, second_best=None, margin=0.0, compared_all=False)
+
+    results: list[MatchResult] = []
     for n in names:
         path = resolve_template(images_dir, n)
         if not path:
@@ -328,16 +432,16 @@ def match_any_with_margin(
 
     results.sort(key=lambda m: m.score, reverse=True)
     if not results:
-        return MatchMarginResult(best=None, second_best=None, margin=0.0)
+        return MatchMarginResult(best=None, second_best=None, margin=0.0, compared_all=True)
 
     best = results[0]
     second = results[1] if len(results) > 1 else None
     margin = (best.score - second.score) if second else best.score
 
     if min_margin > 0.0 and margin < min_margin:
-        return MatchMarginResult(best=None, second_best=second, margin=margin)
+        return MatchMarginResult(best=None, second_best=second, margin=margin, compared_all=True)
 
-    return MatchMarginResult(best=best, second_best=second, margin=margin)
+    return MatchMarginResult(best=best, second_best=second, margin=margin, compared_all=True)
 
 
 def match_all(
@@ -440,13 +544,25 @@ def match_all(
 def match_scenes(
     frame: Frame,
     images_dir: Path,
-    scene_name_lists: list[tuple[str, list[str]]],
-    threshold: float = 0.85,
+    scene_searches: list[tuple[str, MatchSearch]],
 ) -> tuple[str, MatchResult] | None:
-    """Return first priority scene that hits, with best template in that scene."""
-    for key, names in scene_name_lists:
-        hit = match_any(frame, images_dir, names, threshold=threshold)
-        if hit:
-            return key, hit
+    """按场景优先级顺序搜索，命中即停（N2.1 场景级 API）。
+
+    每个场景携带自己的 threshold / ROI / 主-邻尺度 / 早停策略；只给
+    ``_post_game_state``、退出、挑战、stage 等已知候选集合的热路径使用。
+    """
+    for key, search in scene_searches:
+        res = match_any_with_margin(
+            frame,
+            images_dir,
+            list(search.names),
+            threshold=search.threshold,
+            scales=preferred_scales(search.primary_scale, search.neighbor_scale),
+            roi=search.roi,
+            min_margin=search.min_margin,
+            early_stop=search.early_stop,
+        )
+        if res.best:
+            return key, res.best
     return None
 

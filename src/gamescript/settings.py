@@ -106,6 +106,9 @@ class Settings:
     auto_gambling_time: int = 0  # 黑商功能未接入状态机（调研报告 P2）
     match_threshold: float = 0.85
     click_delay_ms: int = 120
+    # N2.3 替代语义：主循环已改为状态分级 cadence（动作后 100ms / 稳定 HUD 300ms /
+    # loading 500ms，见 Mediator._cadence_for_current_state）。本字段仅保留为兼容
+    # 默认/上限：run() 中 sleep = max(0, min(cadence, loop_sleep_ms/1000) - elapsed)。
     loop_sleep_ms: int = 400
     window_title_contains: str = "英雄三国"
     window_size: list[int] = field(default_factory=lambda: [1600, 900])

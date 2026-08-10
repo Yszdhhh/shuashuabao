@@ -1,41 +1,210 @@
-﻿from pathlib import Path
+from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
 
+import gamescript.vision.matcher as matcher_mod
 from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import match_any, _load_template
+from gamescript.vision.matcher import (
+    MatchSearch,
+    _load_template,
+    find_blue_buttons,
+    match_any,
+    match_any_with_margin,
+    match_one,
+    match_scenes,
+    preferred_scales,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCALES = (0.9, 1.0, 1.1, 1.15, 1.2)
+_IMAGES = ROOT / "assets" / "Images"
+
+
+def _scaled_fixture(name: str, scale: float = 1.15) -> Frame:
+    path = _IMAGES / f"{name}.png"
+    template = _load_template(path)
+    assert template is not None
+    scaled = cv2.resize(template, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    frame = np.zeros((max(320, scaled.shape[0] + 80), max(480, scaled.shape[1] + 120), 3), dtype=np.uint8)
+    y, x = 40, 60
+    frame[y:y + scaled.shape[0], x:x + scaled.shape[1]] = scaled
+    return Frame(frame)
 
 
 class MultiScaleMatcherTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.images = ROOT / "assets" / "Images"
-
-    def _scaled_fixture(self, name: str, scale: float = 1.15) -> Frame:
-        path = self.images / f"{name}.png"
-        template = _load_template(path)
-        self.assertIsNotNone(template)
-        scaled = cv2.resize(template, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-        frame = np.zeros((max(320, scaled.shape[0] + 80), max(480, scaled.shape[1] + 120), 3), dtype=np.uint8)
-        y, x = 40, 60
-        frame[y:y + scaled.shape[0], x:x + scaled.shape[1]] = scaled
-        return Frame(frame)
+        cls.images = _IMAGES
 
     def test_start_button_survives_window_scaling(self):
-        hit = match_any(self._scaled_fixture("startGameBtn"), self.images, ["startGameBtn"], scales=SCALES)
+        hit = match_any(_scaled_fixture("startGameBtn"), self.images, ["startGameBtn"], scales=SCALES)
         self.assertIsNotNone(hit)
         self.assertGreaterEqual(hit.score, 0.95)
 
     def test_stage_marker_survives_window_scaling(self):
-        hit = match_any(self._scaled_fixture("stage"), self.images, ["stage"], scales=SCALES)
+        hit = match_any(_scaled_fixture("stage"), self.images, ["stage"], scales=SCALES)
         self.assertIsNotNone(hit)
         self.assertGreaterEqual(hit.score, 0.95)
+
+
+class EarlyStopTests(unittest.TestCase):
+    """N2.1：优先级早停、margin 语义、主/邻尺度、ROI-first 蓝色按钮、场景级 match_scenes。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.images = ROOT / "assets" / "Images"
+
+    def _two_hit_frame(self) -> Frame:
+        """startGameBtn（加噪 20%，分数≈0.8x）与 stage（原样，分数≈1.0）同帧。"""
+        h1, w1 = _load_template(self.images / "startGameBtn.png").shape[:2]
+        h2, w2 = _load_template(self.images / "stage.png").shape[:2]
+        frame = np.zeros((max(h1, h2) + 80, w1 + w2 + 240, 3), dtype=np.uint8)
+        self._paste(frame, self.images, "startGameBtn", 60, 40, noise=0.20)
+        self._paste(frame, self.images, "stage", 60 + w1 + 120, 40)
+        return Frame(frame)
+
+    @staticmethod
+    def _paste(frame: np.ndarray, images: Path, name: str, x: int, y: int, noise: float = 0.0) -> None:
+        template = _load_template(images / f"{name}.png")
+        h, w = template.shape[:2]
+        patch_img = template.copy()
+        if noise > 0.0:
+            rng = np.random.default_rng(42)
+            mask = rng.random((h, w)) < noise
+            patch_img[mask] = rng.integers(0, 256, size=(int(mask.sum()), 3), dtype=np.uint8)
+        frame[y:y + h, x:x + w] = patch_img
+
+    def test_early_stop_returns_first_configured_threshold_hit_and_marks_partial_margin(self):
+        frame = self._two_hit_frame()
+        with patch.object(matcher_mod.cv2, "matchTemplate", wraps=matcher_mod.cv2.matchTemplate) as mt:
+            res = match_any_with_margin(
+                frame, self.images, ["startGameBtn", "stage"],
+                threshold=0.80, scales=(1.0,), early_stop=True,
+            )
+        self.assertIsNotNone(res.best)
+        self.assertEqual(res.best.name, "startGameBtn", "early_stop 必须按配置顺序返回第一个过阈值命中")
+        self.assertFalse(res.compared_all, "提前停止必须标记局部比较")
+        self.assertIsNone(res.second_best)
+        self.assertEqual(mt.call_count, 1, "early_stop 命中后不得扫描后续 names")
+
+        # 对照：全扫描取全局最高分（stage 分数更高）
+        full = match_any_with_margin(frame, self.images, ["startGameBtn", "stage"], threshold=0.80, scales=(1.0,))
+        self.assertTrue(full.compared_all)
+        self.assertEqual(full.best.name, "stage")
+        self.assertIsNotNone(full.second_best)
+        self.assertGreaterEqual(full.margin, 0.0)
+
+    def test_margin_request_disables_early_stop_and_keeps_second_best(self):
+        frame = self._two_hit_frame()
+        # min_margin>0 → 禁止早停，自动全扫描，保留完整 margin 语义
+        res = match_any_with_margin(
+            frame, self.images, ["startGameBtn", "stage"],
+            threshold=0.80, scales=(1.0,), min_margin=0.10, early_stop=True,
+        )
+        self.assertTrue(res.compared_all, "min_margin>0 必须自动转全扫描")
+        self.assertEqual(res.best.name, "stage")
+        self.assertIsNotNone(res.second_best)
+        self.assertGreaterEqual(res.margin, 0.10)
+        # margin 不足 → 拒绝
+        res2 = match_any_with_margin(
+            frame, self.images, ["startGameBtn", "stage"],
+            threshold=0.80, scales=(1.0,), min_margin=0.95, early_stop=True,
+        )
+        self.assertIsNone(res2.best)
+        self.assertIsNotNone(res2.second_best)
+
+    def test_primary_scale_hit_skips_neighbor_and_later_scales(self):
+        template_path = self.images / "startGameBtn.png"
+        frame = _scaled_fixture("startGameBtn", scale=1.0)
+        with patch.object(matcher_mod.cv2, "matchTemplate", wraps=matcher_mod.cv2.matchTemplate) as mt:
+            hit = match_one(frame, template_path, threshold=0.85, scales=(1.0, 1.06, 1.12), early_stop_scale=True)
+        self.assertIsNotNone(hit)
+        self.assertEqual(mt.call_count, 1, "主尺度命中后不得再试邻域/后续尺度")
+
+        # 对照：无 early_stop_scale 时全 scales 扫描
+        with patch.object(matcher_mod.cv2, "matchTemplate", wraps=matcher_mod.cv2.matchTemplate) as mt2:
+            match_one(frame, template_path, threshold=0.85, scales=(1.0, 1.06, 1.12))
+        self.assertEqual(mt2.call_count, 3)
+
+    def test_primary_scale_miss_tries_exactly_one_neighbor(self):
+        template_path = self.images / "startGameBtn.png"
+        # 模板按 1.06 缩放粘贴：主尺度 1.0 miss，邻域 1.06 命中
+        frame = _scaled_fixture("startGameBtn", scale=1.06)
+        with patch.object(matcher_mod.cv2, "matchTemplate", wraps=matcher_mod.cv2.matchTemplate) as mt:
+            hit = match_one(frame, template_path, threshold=0.85, scales=(1.0, 1.06, 1.12), early_stop_scale=True)
+        self.assertIsNotNone(hit)
+        self.assertEqual(mt.call_count, 2, "主尺度 miss 后最多尝试一个邻域")
+
+        # 邻域也 miss：恰好一个邻域后停止，不试更远尺度
+        frame2 = _scaled_fixture("startGameBtn", scale=1.20)
+        with patch.object(matcher_mod.cv2, "matchTemplate", wraps=matcher_mod.cv2.matchTemplate) as mt2:
+            hit2 = match_one(frame2, template_path, threshold=0.85, scales=(1.0, 1.06), early_stop_scale=True)
+        self.assertIsNone(hit2)
+        self.assertEqual(mt2.call_count, 2)
+
+    def test_preferred_scales_dedup_sorts_and_clamps(self):
+        self.assertEqual(preferred_scales(1.0), (1.0, 1.06))
+        self.assertEqual(preferred_scales(0.6), (0.6, 0.636))
+        self.assertEqual(preferred_scales(1.0, 1.0), (1.0,))
+        self.assertEqual(preferred_scales(1.15, 1.2), (1.15, 1.2))
+        # 主尺度保持调用方意图；邻域夹在 [min(0.85, primary), max(1.2, primary)]
+        self.assertEqual(preferred_scales(1.3), (1.3,))
+
+    def test_find_blue_buttons_converts_only_roi_and_returns_global_coordinates(self):
+        frame = np.zeros((300, 500, 3), dtype=np.uint8)
+        # ROI (0.2,0.2,0.5,0.5) → x∈[100,250] y∈[60,150]：只含第一个矩形
+        cv2.rectangle(frame, (100, 60), (240, 110), (255, 0, 0), -1)   # 140x50 蓝色
+        cv2.rectangle(frame, (300, 200), (410, 250), (255, 0, 0), -1)  # 110x50 ROI 外
+        fr = Frame(frame)
+        shapes: list[tuple[int, int]] = []
+        orig_cvt = matcher_mod.cv2.cvtColor
+
+        def spy(src, *a, **k):
+            shapes.append(src.shape[:2])
+            return orig_cvt(src, *a, **k)
+
+        with patch.object(matcher_mod.cv2, "cvtColor", side_effect=spy):
+            hits = find_blue_buttons(fr, roi=(0.2, 0.2, 0.5, 0.5))
+        self.assertEqual(shapes, [(90, 150)], "必须只对 ROI 区域做 cvtColor/HSV")
+        self.assertEqual(len(hits), 1, "ROI 外候选不得出现")
+        self.assertEqual((hits[0].x, hits[0].y), (100, 60), "contour 坐标必须回映到原帧")
+        # roi=None → 全图
+        with patch.object(matcher_mod.cv2, "cvtColor", side_effect=spy):
+            hits_all = find_blue_buttons(fr)
+        self.assertEqual(shapes[-1], (300, 500))
+        self.assertEqual(len(hits_all), 2)
+        # 空/退化 ROI → []
+        self.assertEqual(find_blue_buttons(fr, roi=(0.5, 0.5, 0.4, 0.9)), [])
+
+    def test_match_scenes_respects_scene_priority_and_scene_specific_roi(self):
+        h1, w1 = _load_template(self.images / "startGameBtn.png").shape[:2]
+        h2, w2 = _load_template(self.images / "stage.png").shape[:2]
+        frame = np.zeros((max(h1, h2) + 80, w1 + w2 + 240, 3), dtype=np.uint8)
+        self._paste(frame, self.images, "startGameBtn", 60, 40)
+        self._paste(frame, self.images, "stage", 60 + w1 + 120, 40)
+        fr = Frame(frame)
+        searches = [
+            ("alpha", MatchSearch(names=("startGameBtn",), threshold=0.85, roi=(0.0, 0.0, 0.35, 0.6))),
+            ("beta", MatchSearch(names=("stage",), threshold=0.85, roi=(0.35, 0.0, 1.0, 0.6))),
+        ]
+        key, hit = match_scenes(fr, self.images, searches)
+        self.assertEqual(key, "alpha", "场景必须按优先级顺序，命中即停")
+        self.assertEqual(hit.name, "startGameBtn")
+        # 场景级 ROI：把 stage 移到 beta 的 ROI 之外 → beta miss，alpha 命中
+        frame2 = np.zeros((max(h1, h2) + 420, w1 + w2 + 240, 3), dtype=np.uint8)
+        self._paste(frame2, self.images, "startGameBtn", 60, 250)  # 下区：仅在 alpha ROI
+        self._paste(frame2, self.images, "stage", 60, 300)         # 更下：beta/alpha ROI 之外
+        fr2 = Frame(frame2)
+        searches2 = [
+            ("beta", MatchSearch(names=("stage",), threshold=0.85, roi=(0.0, 0.0, 0.9, 0.45))),
+            ("alpha", MatchSearch(names=("startGameBtn",), threshold=0.85, roi=(0.0, 0.45, 0.5, 1.0))),
+        ]
+        key2, hit2 = match_scenes(fr2, self.images, searches2)
+        self.assertEqual(key2, "alpha", "scene 专属 ROI 必须生效")
 
 
 if __name__ == "__main__":
