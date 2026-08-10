@@ -49,8 +49,9 @@ from gamescript.vision.choice_ocr import (  # noqa: E402
 DEFAULT_MANIFEST = REPO_ROOT / "fixtures" / "ocr_choices" / "manifest.json"
 DEFAULT_MODELS_DIR = REPO_ROOT / "models" / "ocr"
 DEFAULT_OUT_DIR = REPO_ROOT / "docs" / "baselines"
-MODEL_SUBDIR = "PP-OCRv5_mobile_rec_infer"
-MODEL_NAME = "PP-OCRv5_mobile_rec"
+MODEL_SUBDIR = "PP-OCRv5_mobile_rec_infer"  # --model-subdir 覆盖（如 PP-OCRv5_server_rec_infer）
+MODEL_NAME = "PP-OCRv5_mobile_rec"          # --model-name 覆盖（如 PP-OCRv5_server_rec）
+MODEL_TAG = "PP-OCRv5_mobile_rec"           # 输出文件标识
 
 # 预处理：2 倍 LANCZOS 放大 + 固定对比度增强（1.5 倍对比度乘子）
 PRE_SCALE = 2
@@ -869,17 +870,22 @@ def render_markdown(report: dict) -> str:
 def write_reports(report: dict, out_dir: Path) -> tuple[Path, Path]:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir.mkdir(parents=True, exist_ok=True)
-    json_path = out_dir / f"B2_OCR_EVAL_{ts}.json"
-    md_path = out_dir / f"B2_OCR_EVAL_{ts}.md"
+    json_path = out_dir / f"B2_OCR_EVAL_{MODEL_TAG}_{ts}.json"
+    md_path = out_dir / f"B2_OCR_EVAL_{MODEL_TAG}_{ts}.md"
     json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     md_path.write_text(render_markdown(report), encoding="utf-8")
     return json_path, md_path
 
 
 def main(argv: list[str] | None = None) -> int:
+    global MODEL_SUBDIR, MODEL_NAME, MODEL_TAG
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     ap.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS_DIR)
+    ap.add_argument("--model-subdir", default=MODEL_SUBDIR,
+                    help="模型目录名（默认 PP-OCRv5_mobile_rec_infer；server 用 PP-OCRv5_server_rec_infer）")
+    ap.add_argument("--model-name", default=MODEL_NAME,
+                    help="paddlex 模型名（默认 PP-OCRv5_mobile_rec；server 用 PP-OCRv5_server_rec）")
     ap.add_argument(
         "--staging-dir",
         type=Path,
@@ -890,6 +896,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--device", default="cpu", choices=["cpu", "gpu:0", "gpu"])
     ap.add_argument("--cpu-threads", type=int, default=10)
     args = ap.parse_args(argv)
+    MODEL_SUBDIR, MODEL_NAME, MODEL_TAG = args.model_subdir, args.model_name, args.model_name
 
     report = run_eval(args)
     json_path, md_path = write_reports(report, args.out_dir)

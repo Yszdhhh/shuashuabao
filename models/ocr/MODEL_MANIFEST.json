@@ -14,5 +14,17 @@
       "offline_note": "推理全程 download_enable=False；已断网验证（出站阻断下加载+推理成功）。模型二进制不入库（.gitignore），需要时从 source_url 重新下载并按本清单校验 SHA256。",
       "windows_path_note": "Paddle C++ loader 无法读取含非 ASCII 字符的 Windows 路径（仓库路径含 🎮 必失败）；推理前复制到 ASCII 暂存目录（默认 %LOCALAPPDATA%\\Temp\\gamescript_ocr_stage，evaluate_choice_ocr.py --staging-dir 可覆盖）。"
     }
+    {
+      "name": "PP-OCRv5_server_rec_infer",
+      "task": "text_recognition",
+      "language": "ch",
+      "version": "PP-OCRv5_server_rec (paddleocr 3.7.0 / paddlex 3.7.2)",
+      "license": "Apache-2.0 (PaddleOCR 官方发布模型)",
+      "source_url": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_server_rec_infer.tar",
+      "sha256_tar": "D99BE2FFD348943AB52876179168BE4FB5B14F5F0812F2AE4C76D89EC2EA750A",
+      "size_bytes_tar": 84869120,
+      "local_dir": "(评测暂存 C:/tmp/ocr_models/PP-OCRv5_server_rec_infer；不入库)",
+      "eval_note": "2026-08-10 评测：准确率与 mobile 完全一致（Top-1 4.55%），单槽 P95 2020ms（mobile 42.9ms）、三槽 P95 5620ms（mobile 82.3ms）、RSS 增量 615MB（mobile 53.2MB）→ server 无增益且慢 47 倍，不选为生产实现。"
+    }
   ]
 }
