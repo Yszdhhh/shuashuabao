@@ -31,3 +31,7 @@ dist-candidate/
 dist-candidate2/
 dist-candidate3/
 packaging/
+
+# per-stage packaging outputs (dist_release2 = rollback baseline, kept local)
+build_*/
+dist_*/
