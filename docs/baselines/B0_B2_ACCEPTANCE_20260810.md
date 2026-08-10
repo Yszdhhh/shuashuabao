@@ -10,8 +10,8 @@
 | 1 | 审查 commit 范围、dirty worktree、用户文件保护 | `git status --short`（clean）；提交链 `d753ab6`→`41ea8f5`；`dist_release2` 哈希 `05055049…50BF` 记录于 `docs/baselines/B0_BASELINE.md` | ✅ |
 | 2 | 15 条安全不变量 | B0-B2 全部提交未触碰输入链/决策链；`tests/test_p0_security.py`、`tests/test_scenario_replay.py` 绿；`choice_ocr.py` 纯函数无输入权；incidents 只写盘 | ✅ |
 | 3 | 新增依赖必要性与模型来源/许可证 | `.venv-ocr`（隔离）paddlepaddle 3.3.1/paddleocr 3.7.0；模型 `models/ocr/MODEL_MANIFEST.json`（SHA256/许可证/source_url）；`docs/venv_ocr.md` | ✅ |
-| 4 | compileall/unittest/scenes/replay | **210 tests OK (2 预期 XFAIL)** 830-940s；scenes ok=130 missing=0；replay Failed=0、**Required Missing=1**（`missing_disconnect_modal` 断线弹窗素材缺口，XFAIL 同源） | ⚠️ 见缺口 |
-| 5 | OCR 离线评测 + 抽查错例 | `docs/baselines/B2_OCR_EVAL_*`（3 份：mobile 44 槽/扩充 131 槽/85 面板终版 + server 对比）；错例清单完整；预处理探针 6 变体报告；标注审计 `B2_ANNOTATION_AUDIT_20260810.md`（20 面板 60 槽 0 错 + 10 处按钮字段修正） | ✅ |
+| 4 | compileall/unittest/scenes/replay | **210 tests OK (2 预期 XFAIL)** 830-940s；scenes ok=131 missing=0；replay Failed=0、**Required Missing=1**（`missing_disconnect_modal` 断线弹窗素材缺口，XFAIL 同源） | ⚠️ 见缺口 |
+| 5 | OCR 离线评测 + 抽查错例 | `docs/baselines/B2_OCR_EVAL_*`（4 份：mobile 44 槽/扩充 131 槽/85 面板终版/server 对比）+ PyInstaller 可行性评测 `B2_PYINSTALLER_EVAL_20260810.md`；错例清单完整；预处理探针 6 变体报告；标注审计 `B2_ANNOTATION_AUDIT_20260810.md`（20 面板 60 槽 0 错 + 10 处按钮字段修正） | ✅ |
 | 6 | action ledger 与 B0 等价 | `tools/compare_ledger.py fixtures/baselines/action_ledger_b0.jsonl <候选>` → 实测 `diffs=0 [OK]`（多次运行） | ✅ |
 | 7 | 技能白名单/UNKNOWN/低分差/错误页面/错误 HWND 负路径 | 误归一=0（全部评测）；词典 margin 不足返 None（17 单测）；负样本 37 条；`test_p0_security.py` 绿 | ✅ |
 | 8 | 每动作前置证据/一 tick 一输入/后置确认/有界恢复 | 本阶段零动作（B0-B2 无运行时改动）；基线动作链由 ledger 证明未变；B1-2 incidents 有界等待+Fail-Closed 前留证 | ✅ |
