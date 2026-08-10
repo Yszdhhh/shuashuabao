@@ -30,7 +30,7 @@
 | 统计 | 值 |
 |---|---:|
 | 总事件 | 152 |
-| 可测事件（含证据） | 143（STRONG 138 + MEDIUM 5） |
+| 可测事件（含证据） | 143（STRONG 139 + MEDIUM 4） |
 | insufficient_evidence | 9 |
 | P50 | 0.8 s |
 | P75 | 1.0 s |
