@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import sys
+from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -139,14 +140,34 @@ class MediatorWorker(QThread):
 
         try:
             self.mediator = Mediator(self.settings, self.root_dir)
+            self._start_trace()
             self.mediator.run(max_steps=self.max_steps)
         except Exception as e:
             self.signals.log_emitted.emit(f"[异常] 任务异常退出: {e}", "error")
         finally:
+            # 正常结束与异常结束都关闭 trace 句柄，保证最后一行 JSONL 完整落盘
+            if self.mediator is not None:
+                self.mediator.set_trace(None)
             builtins.print = real_print
             count = getattr(self.mediator, "game_count", 0) if self.mediator else 0
             self.signals.status_changed.emit(False, "空闲", count)
             self.signals.log_emitted.emit("[结束] 任务运行结束", "info")
+
+    def _start_trace(self) -> str | None:
+        """桌面自动 trace：%LocalAppData%/GameScript-Local/YYYYMMDD/trace_<ts>.jsonl。
+
+        按当天日期分目录，不写安装目录；启动失败只降级为无 trace，不阻断任务。
+        """
+        try:
+            now = datetime.now()
+            trace_dir = APP_DATA / now.strftime("%Y%m%d")
+            trace_path = trace_dir / f"trace_{now.strftime('%Y%m%d_%H%M%S')}.jsonl"
+            self.mediator.set_trace(str(trace_path))
+            self.signals.log_emitted.emit(f"[Trace] 自动 trace: {trace_path}", "info")
+            return str(trace_path)
+        except Exception as e:
+            self.signals.log_emitted.emit(f"[Trace] 无法开启 trace: {e}", "error")
+            return None
 
     def stop(self):
         self._stop_requested = True

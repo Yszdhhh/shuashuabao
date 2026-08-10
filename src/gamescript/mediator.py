@@ -10,6 +10,7 @@ Jobs 不直接碰 OpenCV/输入；只通过本中介 see / act。
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import time
@@ -54,6 +55,27 @@ from gamescript.vision.stage_selector import (
     verify_stage_selection,
     visible_stage_rows,
 )
+
+# 构建标识：写入 JSONL tick trace（B1-1），用于区分版本/里程碑来源。
+# 每次发布里程碑时更新；配合 git 提交哈希可精确定位产生该日志的代码。
+BUILD_ID = "ocr-hybrid-dev"
+
+
+def _scrub_sensitive_keys(value):
+    """递归剔除密码类键（如 room_password），保证 trace 永不携带凭据。
+
+    设置摘要由显式白名单构建，此函数是第二道防线：未来新增的嵌套
+    设置字段即使误入白名单，只要键名含 password 也不会落到 trace。
+    """
+    if isinstance(value, dict):
+        return {
+            k: _scrub_sensitive_keys(v)
+            for k, v in value.items()
+            if "password" not in str(k).lower()
+        }
+    if isinstance(value, list):
+        return [_scrub_sensitive_keys(v) for v in value]
+    return value
 
 
 class Phase(Enum):
@@ -2294,14 +2316,20 @@ class Mediator:
             self._trace_tick(phase_before, t0)
 
     def set_trace(self, path: str | None) -> None:
-        """开启/关闭 JSONL tick trace（卡死/误操作后最后几十个 tick 的可回放诊断）。"""
-        if self._trace_fh is not None:
-            self._trace_fh.close()
-            self._trace_fh = None
+        """开启/关闭 JSONL tick trace（卡死/误操作后最后几十个 tick 的可回放诊断）。
+
+        幂等：先开新句柄、后关旧句柄，任何时刻至多一个打开的 trace 文件；
+        新路径打开失败时旧 trace 不被意外关闭。
+        """
+        new_fh = None
         self._trace_path = path
         if path:
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-            self._trace_fh = open(path, "a", encoding="utf-8")
+            new_fh = open(path, "a", encoding="utf-8")
+        if self._trace_fh is not None:
+            self._trace_fh.close()
+            self._trace_fh = None
+        self._trace_fh = new_fh
 
     def _trace_tick(self, phase_before: str, t0: float) -> None:
         if self._trace_fh is None:
@@ -2320,9 +2348,85 @@ class Mediator:
             "size": [frame.width, frame.height] if frame is not None else None,
             "actions": self._trace_actions,
             "scenes": self._trace_scenes,
+            # B1-1 证据与遥测扩展
+            "build_id": BUILD_ID,
+            "settings_summary": self._trace_settings_summary(),
+            "frame_fingerprint": self._trace_frame_fingerprint(frame),
+            "panel": self._trace_panel_candidates(),
+            "ocr_suggestion": None,  # B3 shadow 阶段填充；当前无运行时 OCR
+            "decision": self._trace_decision(),
+            "post_confirm": self._trace_post_confirm(),
         }
         self._trace_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         self._trace_fh.flush()
+
+    def _trace_settings_summary(self) -> dict:
+        """掩码设置摘要：仅白名单字段进 trace，密码类字段显式排除。
+
+        ocr_mode 在 Settings 尚未定义该字段时按 "off" 处理（B3 前无运行时
+        OCR，与基线动作序列一致）。challenge 记录挑战相关配置名。
+        """
+        s = self.settings
+        summary = {
+            "ocr_mode": getattr(s, "ocr_mode", "off"),
+            "skills": list(s.skills or []),
+            "challenge": {
+                "stage_targets": list(s.stage_targets or []) or [f"{s.stage1}-{s.stage2}"],
+                "cjb_boss": s.cjb_boss,
+                "sgzx_boss": s.sgzx_boss,
+            },
+        }
+        return _scrub_sensitive_keys(summary)
+
+    def _trace_frame_fingerprint(self, frame: Frame | None) -> str | None:
+        """帧指纹：size + bgr md5（无现成指纹函数时的简单实现）。
+
+        相同 Frame 对象（静态帧复用）缓存指纹，避免每 tick 重复哈希。
+        """
+        if frame is None or frame.bgr is None:
+            return None
+        cached = getattr(self, "_trace_fingerprint_cache", None)
+        if cached is not None and cached[0] is id(frame):
+            return cached[1]
+        try:
+            digest = hashlib.md5(frame.bgr.tobytes()).hexdigest()
+        except Exception:
+            return None
+        fingerprint = f"{frame.width}x{frame.height}:{digest}"
+        self._trace_fingerprint_cache = (id(frame), fingerprint)
+        return fingerprint
+
+    def _trace_panel_candidates(self) -> list[dict]:
+        """面板模板候选 top3（name+score），按分差取，复用 _trace_scenes 截断逻辑。"""
+        top = sorted(self._trace_scenes, key=lambda s: s.get("score", 0.0), reverse=True)[:3]
+        return [{"name": s["name"], "score": s["score"]} for s in top]
+
+    def _trace_decision(self) -> str | None:
+        """本 tick 最终决策 reason_code，从 _tick_impl 现有分支状态取。
+
+        优先级：Fail-Closed/错误原因 → 停止原因 → 最后一条动作的 reason；
+        没有现成决策点时返回 None。
+        """
+        if self._interrupt_reason:
+            return f"error:{self._interrupt_reason}"
+        if self.stop_signal.is_set() and self.stop_signal.reason:
+            return f"stop:{self.stop_signal.reason}"
+        if self._trace_actions:
+            reason = self._trace_actions[-1].get("reason")
+            if reason:
+                return f"act:{reason}"
+        return None
+
+    def _trace_post_confirm(self) -> bool | None:
+        """后置确认结果：仅在有现成确认点处填写，其余为 None。
+
+        现成确认点：失败恢复链完成（_recovery_step == "DONE"）说明
+        FAIL→OK→CLOSE 三步点击均已被后续帧确认。B3/B4 的 OCR/选择
+        后置确认在此阶段尚未实现。
+        """
+        if self._recovery_step == "DONE":
+            return True
+        return None
 
     def _tick_impl(self) -> LoopAction:
         """单步：一帧截屏 → 按阶段决策 → 执行。"""
