@@ -92,7 +92,7 @@ class DesktopPanelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "章节-关卡"):
             self.window.collect_settings_from_ui()
 
-        # 技能可选：空技能不再拦截（按品质色自动选卡兜底）
+        # 技能可选：空技能不拦截，但运行时只刷新并放弃，不学习配置外技能。
         self.window.txt_stage_target.setText("1-10")
         self.window.skill_grid.set_skills([])
         settings = self.window.collect_settings_from_ui()

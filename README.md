@@ -142,4 +142,4 @@ powershell -File tools\export_agent_logs.ps1
 
 KK 平台允许大厅主窗口与房间窗口同名；运行时会枚举所有可见、未最小化的候选窗口，按页面锚点选择真正含有“创建/开始/选关”内容的窗口。截图阶段不抢前台；真实点击前只把已验证的目标 HWND 临时置前，避免后台坐标落到其他程序。
 
-> `dry_run=true` 只找图和打印坐标，不会点击；首次真机验证请先用少量 `max_steps`，确认日志出现 `context=ROOM_WAITING` / `ROOM_STARTING` / `STAGE_SELECT` 后再关闭 Dry-run。被其他窗口完全遮挡或最小化的游戏画面不能由 MSS 可靠读取，脚本会等待而不是盲点。
+> `dry_run=true` 是观察模式：只找图、记录 incident 和打印坐标，不会点击，也不会因未知/未支持页面自行终止；首次真机验证请先用少量 `max_steps`，确认日志出现 `context=ROOM_WAITING` / `ROOM_STARTING` / `STAGE_SELECT` 后再关闭 Dry-run。被其他窗口完全遮挡或最小化的游戏画面不能由 MSS 可靠读取，脚本会等待而不是盲点。`dry_run=false` 仍对识别不确定保持 Fail-Closed。

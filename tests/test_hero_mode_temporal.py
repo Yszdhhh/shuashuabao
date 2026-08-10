@@ -178,7 +178,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.assertEqual("WAIT_INGAME", self.med._hero_state)
         self.assertGreaterEqual(self.med._hero_step_deadline, 138.0)
 
-    def test_stage_confirmation_accepts_exact_target_after_row_moves(self) -> None:
+    def test_stage_confirmation_rejects_target_after_row_moves(self) -> None:
         stage = fixture("live_stage_select.png")
         self.med.set_phase(Phase.STAGE_SELECT)
         target = self.med._find_stage_target(stage)
@@ -193,8 +193,22 @@ class HeroModeTemporalTests(unittest.TestCase):
         ) as click:
             self.med._tick_l0(stage)
 
-        self.assertEqual(Phase.HERO_SETUP, self.med.phase)
-        self.assertEqual("OpenHeroModeModal", click.call_args.args[1])
+        self.assertEqual(Phase.STAGE_SELECT, self.med.phase)
+        self.assertFalse(self.med._stage_selected)
+        click.assert_not_called()
+
+    def test_stage_target_requires_two_stable_frames_before_click(self) -> None:
+        stage = fixture("live_stage_select.png")
+        self.med.set_phase(Phase.STAGE_SELECT)
+
+        with patch.object(self.med, "act_click", return_value=True) as click:
+            self.med._tick_l0(stage)
+            click.assert_not_called()
+
+            self.med._tick_l0(stage)
+            self.assertEqual(1, click.call_count)
+            self.assertEqual("SelectStage-target", click.call_args.args[1])
+            self.assertTrue(self.med._stage_selected)
 
     def test_ordinary_mode_uses_exact_target_and_start_when_row_has_no_highlight(self) -> None:
         self.settings.auto_reputation = False

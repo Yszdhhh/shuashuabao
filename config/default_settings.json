@@ -14,6 +14,7 @@
   "game_mode": 0,
   "dragon_ball_count": 7,
   "find_longzhu_where_multi_game": false,
+  "find_longzhu_in_game": false,
   "auto_secret_realm": false,
   "auto_close_main_line": false,
   "close_main_line_time": 0,
@@ -44,7 +45,7 @@
   "auto_treasure": true,
   "choice_interval": 120,
   "auto_artifact": true,
-  "artifact_cd": 180,
+  "artifact_cd": 120,
   "artifact_slots": 3,
   "auto_archaeology": true,
   "boss_live_time": 200,
@@ -62,6 +63,5 @@
     900
   ],
   "images_dir": "assets/Images",
-  "dry_run": true,
-  "find_longzhu_in_game": false
+  "dry_run": true
 }

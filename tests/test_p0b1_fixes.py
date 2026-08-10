@@ -138,19 +138,13 @@ class P0B1FixesTests(unittest.TestCase):
             # scene_key should NOT be marked done
             self.assertEqual(len(self.med._challenge_done), 0)
 
-    def test_existing_stage_select_positive_fixtures_pass(self):
-        fix1 = {
-            "fixture_id": "stage_select_1616x939",
-            "file_path": "docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803154629.png",
-            "resolution": [1616, 939],
-            "page": "STAGE_SELECT",
-            "expected_state": "STAGE_SELECT",
-            "expected_action": "SelectStage-target",
-            "expected_stage": "4-4",
-            "required": True,
-        }
-        res1 = run_replay_fixture(fix1, self.med, ROOT)
-        self.assertEqual(res1.status, "PASS")
+    def test_in_game_stage_glyph_is_negative_and_real_stage_fixture_passes(self):
+        # External review + rec1: this frame is visibly in-game (backpack/HUD)
+        # and its task text "4-4" used to be mislabeled as a positive stage page.
+        false_stage = load_fixture_frame(
+            "docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803154629.png"
+        )
+        self.assertEqual(self.med._detect_context(false_stage, role="l1"), "MAIN_LINE")
 
         fix2 = {
             "fixture_id": "stage_select_1936x1066",

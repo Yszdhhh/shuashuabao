@@ -46,7 +46,9 @@ class LobbyDetectorTests(unittest.TestCase):
 
     def test_missing_window_fails_closed(self):
         root = Path(__file__).resolve().parents[1]
-        med = Mediator(Settings(query_timeout=10), root)
+        # LIVE remains Fail-Closed; dry_run/OBSERVE is covered separately and
+        # records this timeout without terminating.
+        med = Mediator(Settings(query_timeout=10, dry_run=False), root)
         med.see = lambda reason="": Frame(np.zeros((720, 1280, 3), dtype=np.uint8))
         med._missing_window_since = time.time() - 20
         self.assertEqual(med.tick(), LoopAction.Break)

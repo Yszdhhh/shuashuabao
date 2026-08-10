@@ -273,23 +273,21 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.assertIsNotNone(choice2)
         self.assertEqual(choice2[1].name, "dcw")
 
-    def test_skill_choice_no_preferred_hit_falls_back_to_rarity_color(self):
-        # 57d40ce 策略：无偏好命中 → 品质色回退（不点未配置的具名卡）。
+    def test_skill_choice_no_preferred_hit_refreshes_then_gives_up(self):
+        # 技能只允许用户配置项：无命中先刷新，用完后放弃。
         f4 = load_fixture_frame("fixtures/replay/skill_choice_4.jpg")
         self.settings.skills = ["asj", "jq"]  # 不在该面板上的技能
         choice = self.med._find_reward_choice(f4)
         self.assertIsNotNone(choice)
         kind, hit = choice
-        self.assertEqual(kind, "技能")
-        self.assertTrue(hit.name.startswith("rarity_"), f"应回退品质色，实际 {hit.name}")
-        # 回退坐标必须在选择面板 ROI 内（0.24-0.76 宽），不盲点任意位置
-        self.assertTrue(0.24 * f4.width <= hit.screen_x <= 0.76 * f4.width)
+        self.assertEqual(kind, "技能刷新")
+        self.assertEqual(hit.name, "skill_refresh_btn")
 
-        self.settings.skills = []
+        self.med._skill_refresh_attempts = 3
         choice = self.med._find_reward_choice(f4)
         self.assertIsNotNone(choice)
-        self.assertEqual(choice[0], "技能")
-        self.assertTrue(choice[1].name.startswith("rarity_"))
+        self.assertEqual(choice[0], "技能放弃")
+        self.assertIn(choice[1].name, ("skill_giveup_btn", "giveUp"))
 
     def test_skill_choice_candidate_count_is_not_a_hard_gate(self):
         # 57d40ce 移除 3/4 数量门：少识别/多误识别不阻塞，只选配置内的候选
@@ -324,7 +322,18 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         ]
         with patch("gamescript.mediator.match_all", return_value=mock_outside):
             choice = self.med._find_reward_choice(f3)
-            self.assertTrue(choice is None or choice[1].name.startswith("rarity_"))
+            self.assertIsNotNone(choice)
+            self.assertEqual(choice[1].name, "skill_refresh_btn")
+
+    def test_treasure_fixture_uses_real_card_centers_and_not_skill_layout(self):
+        frame = load_fixture_frame("fixtures/replay/treasure_choice_3.png")
+        self.settings.cards = []
+        choice = self.med._find_reward_choice(frame)
+        self.assertIsNotNone(choice)
+        kind, hit = choice
+        self.assertEqual(kind, "treasure")
+        self.assertAlmostEqual(hit.x / frame.width, 0.348, delta=0.02)
+        self.assertAlmostEqual(hit.y / frame.height, 0.300, delta=0.03)
 
     def test_choice_panel_giveup_not_treated_as_fail(self):
         # 实机 2026-08-09：局内选择面板的"放弃"按钮与失败弹窗 giveUp 模板同源
@@ -347,6 +356,21 @@ class P1A1MainLineControlsTests(unittest.TestCase):
                 args = call.args
                 self.assertNotIn("recover", str(args))
             mock_rc.assert_not_called()
+
+    def test_treasure_panel_precedes_generic_longzhu_stop(self):
+        frame = load_fixture_frame("fixtures/replay/treasure_choice_3.png")
+        frame.hwnd = 10001
+        self.med.set_phase(Phase.MAIN_LINE, "treasure longzhu guard")
+        false_longzhu = MatchResult("longzhu", 0.95, 700, 250, 80, 80, 700, 250)
+        with patch.object(self.med, "_post_game_state", return_value=None), \
+             patch.object(self.med, "find_scene", return_value=false_longzhu) as scene, \
+             patch.object(self.med, "act_click", return_value=True) as click:
+            action = self.med._tick_main_line(frame)
+        self.assertEqual(action, gamescript.loop_action.LoopAction.Continue)
+        self.assertEqual(self.med.phase, Phase.MAIN_LINE)
+        scene.assert_not_called()
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "treasure选择")
 
     def test_non_skill_choice_materials_never_click_configured_skill(self):
         # 57d40ce 策略：bond/treasure 面板各自分类+品质色回退；无论分类结果

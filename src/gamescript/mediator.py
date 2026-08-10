@@ -103,8 +103,14 @@ class Mediator:
         self._f1_fallback_done = False
         self._boss_clicked = False  # ANCHOR_BOSS 是否已尝试点击
         self._stage_click_cooldown_until = 0.0
+        self._stage_scroll_cooldown_until = 0.0
         self._stage_selected = False
         self._stage_target_name: str | None = None
+        self._stage_target_position: tuple[int, int] | None = None
+        self._stage_candidate_name: str | None = None
+        self._stage_candidate_position: tuple[int, int] | None = None
+        self._stage_candidate_frames = 0
+        self._stage_select_attempts = 0
         self._room_dialog_filled = False
         self._room_action_deadline: float | None = None
         self._room_action_attempts = 0
@@ -133,12 +139,14 @@ class Mediator:
         self._tick_no = 0
         self._trace_actions: list[dict] = []
         self._trace_scenes: list[dict] = []
+        self._interrupt_reason: str | None = None
         self._scene_cache: dict[int, tuple[Frame, dict[tuple[str, float | None], MatchResult | None]]] = {}
         # Safety: L0 cycle counter — prevent infinite PLATFORM_MAP ↔ ROOM_WAITING loops
         self._l0_cycle_count = 0
         self._l0_cycle_limit = 5
         # Safety: MAIN_LINE idle deadline — prevent infinite idle on unexpected screens
         self._main_line_since: float | None = None
+        self._main_line_started_at: float | None = None
         # L1 reward/challenge actions are one-shot until the next game.
         self._selection_click_cooldown_until = 0.0
         self._challenge_done: set[str] = set()
@@ -165,6 +173,12 @@ class Mediator:
         self._awaiting_room_return: bool = False
         self._selection_unknown_attempts: int = 0
         self._selection_unknown_since: float | None = None
+        self._selection_repeat_key: tuple[str, str, int, int] | None = None
+        self._selection_repeat_attempts = 0
+        self._skill_refresh_attempts = 0
+        self._failure_candidate_frames: int = 0
+        self._recovery_step: str | None = None
+        self._aux_dialog_attempts = {"HEIRLOOM_DIALOG": 0, "GREAT_RIFT_CONFIRM": 0}
         # Hero-mode automation is intentionally limited to the one complete
         # recorded path: Kenrito, level 1..5, 1600x900 client capture.
         self._hero_state = "IDLE"
@@ -224,6 +238,10 @@ class Mediator:
             value = "MAIN_LINE"
         elif self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
             value = "QUIT"
+        elif self._is_in_game_hud(frame):
+            # The task bar/Boss timer can parse as a stage row.  Strong HUD
+            # anchors revoke STAGE_SELECT classification authority.
+            value = "MAIN_LINE"
         elif self._find_stage_page(frame):
             # 选关页特征（关卡编号数字）优先于通用「开始游戏」按钮：
             # 选关页底部也有开始/扫荡/英雄模式按钮，room_start 模板会误匹配
@@ -231,8 +249,6 @@ class Mediator:
             value = "STAGE_SELECT"
         elif self._find_room_start(frame):
             value = "ROOM_WAITING"
-        elif self._is_in_game_hud(frame):
-            value = "MAIN_LINE"
         elif self._find_create_confirm(frame):
             value = "CREATE_ROOM"
         elif self._auto_room_enabled() and self._find_map_create_room(frame):
@@ -518,14 +534,23 @@ class Mediator:
 
     def _classify_choice_panel(self, frame: Frame) -> str | None:
         """Distinguish skill / bond / treasure choice panels by their unique buttons."""
+        opened = getattr(self, "_panel_opened_by_us", None)
+        if opened in ("skill", "bond", "treasure"):
+            return opened
         threshold = min(0.70, self.settings.match_threshold)
         scales = (0.9, 1.0, 1.1)
+        if self.find(frame, ["bond_hide_btn", "bond_refresh_btn"], threshold=0.75, scales=scales):
+            return "bond"
+        # Current treasure and skill panels share refresh/give-up artwork.
+        # The generic hide anchor is near-perfect only on the treasure layout.
+        treasure_lock = self.find(frame, ["treasure_lock_btn"], threshold=threshold, scales=scales)
+        treasure_hide = self.find(frame, ["hide"], threshold=0.95, scales=scales)
+        if treasure_lock and treasure_hide:
+            return "treasure"
         if self.find(frame, ["skill_giveup_btn", "skill_refresh_btn"], threshold=threshold, scales=scales):
             return "skill"
-        if self.find(frame, ["treasure_lock_btn"], threshold=threshold, scales=scales):
+        if treasure_lock:
             return "treasure"
-        if self.find(frame, ["bond_hide_btn", "bond_refresh_btn"], threshold=threshold, scales=scales):
-            return "bond"
         if self.find(frame, ["card_hide"], threshold=threshold, scales=scales):
             return "card"
         return None
@@ -536,7 +561,7 @@ class Mediator:
         return next((hit for hit in hits if hit.name in wanted), None)
 
     def _auto_task_roi_frame(self, frame: Frame) -> Frame | None:
-        if frame.bgr is None or frame.bgr.size == 0 or frame.width < 1000 or frame.height < 600:
+        if frame.bgr is None or frame.bgr.size == 0 or frame.width < 320 or frame.height < 180:
             return None
         h, w = frame.height, frame.width
         x1, x2 = int(0.85 * w), int(0.95 * w)
@@ -547,30 +572,39 @@ class Mediator:
         return Frame(bgr=roi_bgr, left=frame.left + x1, top=frame.top + y1)
 
     def _is_auto_task_enabled(self, frame: Frame) -> bool:
-        """Check if the right task panel '自动任务' checkbox is explicitly ON using auto_task_on template match."""
+        """Check the right task panel using relative ON/OFF template scores."""
+        state, _ = self._auto_task_state(frame)
+        return state == "ON"
+
+    def _auto_task_state(self, frame: Frame) -> tuple[str, MatchResult | None]:
+        """Return ON/OFF/UNKNOWN for the right-side auto-task checkbox.
+
+        Live 1600x900 recording compression lowers the OFF template to about
+        0.75 while the wrong ON template stays around 0.59.  Comparing both
+        scores inside the narrow task ROI is more stable than one 0.85 cutoff.
+        """
         roi_frame = self._auto_task_roi_frame(frame)
         if roi_frame is None:
-            return False
+            return "UNKNOWN", None
         tmpl_on = resolve_template(self.images, "auto_task_on")
-        if tmpl_on is None or not tmpl_on.is_file():
-            return False
-        hit = match_one(roi_frame, tmpl_on, threshold=0.85, name="auto_task_on", scales=self._adapt_scales((0.9, 1.0, 1.1)))
-        return hit is not None
+        tmpl_off = resolve_template(self.images, "auto_task_off")
+        if not tmpl_on or not tmpl_off or not tmpl_on.is_file() or not tmpl_off.is_file():
+            return "UNKNOWN", None
+        scales = self._adapt_scales((0.9, 1.0, 1.1))
+        on = match_one(roi_frame, tmpl_on, threshold=0.50, name="auto_task_on", scales=scales)
+        off = match_one(roi_frame, tmpl_off, threshold=0.50, name="auto_task_toggle", scales=scales)
+        on_score = on.score if on else 0.0
+        off_score = off.score if off else 0.0
+        if max(on_score, off_score) < 0.72 or abs(on_score - off_score) < 0.06:
+            return "UNKNOWN", None
+        return ("ON", on) if on_score > off_score else ("OFF", off)
 
     def _find_auto_task_toggle(self, frame: Frame) -> MatchResult | None:
         """Return a left-click candidate for the right-side auto task checkbox ONLY if explicitly OFF via auto_task_off template match."""
         if self._selection_anchor(frame):
             return None
-        if self._is_auto_task_enabled(frame):
-            return None
-        roi_frame = self._auto_task_roi_frame(frame)
-        if roi_frame is None:
-            return None
-        tmpl_off = resolve_template(self.images, "auto_task_off")
-        if tmpl_off is None or not tmpl_off.is_file():
-            return None
-        hit = match_one(roi_frame, tmpl_off, threshold=0.85, name="auto_task_toggle", scales=self._adapt_scales((0.9, 1.0, 1.1)))
-        return hit
+        state, hit = self._auto_task_state(frame)
+        return hit if state == "OFF" else None
 
     def _ensure_auto_task_enabled(self, frame: Frame) -> LoopAction | None:
         """Ensure right-side auto task checkbox is clicked ON via left click."""
@@ -604,16 +638,22 @@ class Mediator:
             return LoopAction.Break
         return LoopAction.Continue
 
-    # 卡牌品质色（用户规则）：蓝EX > 红UR > 橙SSR > 紫SR > 浅蓝R；绿=选中框排除
+    # 卡牌品质色（用户规则）：红 > 橙 > 紫 > 蓝 > 白；绿=面板装饰色排除
     RARITY_BANDS = (
-        ("ex", 55, 75, 5),
-        ("ur", 0, 15, 4),
-        ("ssr", 15, 25, 3),
-        ("sr", 100, 125, 2),
-        ("r", 75, 95, 1),
+        ("red", 5),
+        ("orange", 4),
+        ("purple", 3),
+        ("blue", 2),
+        ("white", 1),
     )
 
-    def _card_rarity_score(self, frame: Frame, cx: int, cy: int) -> tuple[int, str, int] | None:
+    def _card_rarity_score(
+        self,
+        frame: Frame,
+        cx: int,
+        cy: int,
+        panel_kind: str = "card",
+    ) -> tuple[int, str, int] | None:
         """Score a card's border-ring color by rarity band.
 
         Returns (score, band, saturated_pixels) or None when no rarity color.
@@ -623,7 +663,12 @@ class Mediator:
             import cv2 as _cv2
         except Exception:
             return None
-        w, h = int(frame.width * 0.094), int(frame.height * 0.122)
+        if panel_kind == "treasure":
+            w, h = int(frame.width * 0.128), int(frame.height * 0.180)
+            minimum = 400
+        else:
+            w, h = int(frame.width * 0.094), int(frame.height * 0.122)
+            minimum = 30
         x0, y0 = max(0, cx - w // 2), max(0, cy - h // 2)
         roi = frame.bgr[y0 : y0 + h, x0 : x0 + w]
         if roi is None or roi.size == 0:
@@ -639,27 +684,28 @@ class Mediator:
         hsv = _cv2.cvtColor(ring.reshape(-1, 1, 3), _cv2.COLOR_BGR2HSV)
         hues = hsv[:, 0, 0]
         sat = hsv[:, 0, 1]
-        saturated = sat > 60
-        if int(saturated.sum()) < 30:
-            return None
-        hue_vals = hues[saturated]
+        value = hsv[:, 0, 2]
         best: tuple[int, str, int] | None = None
-        for band, lo, hi, score in self.RARITY_BANDS:
-            if band == "ur":
-                count = int(((hue_vals >= 0) & (hue_vals <= 15)).sum()) + int(
-                    ((hue_vals >= 165) & (hue_vals <= 180)).sum()
-                )
-            else:
-                count = int(((hue_vals >= lo) & (hue_vals <= hi)).sum())
-            if count >= 30 and (best is None or count > best[2]):
+        masks = {
+            "red": (((hues <= 10) | (hues >= 170)) & (sat > 70) & (value > 60)),
+            "orange": ((hues > 10) & (hues <= 30) & (sat > 70) & (value > 60)),
+            "purple": ((hues >= 125) & (hues < 170) & (sat > 60) & (value > 50)),
+            "blue": ((hues >= 90) & (hues < 125) & (sat > 60) & (value > 50)),
+            "white": ((sat < 45) & (value > 150)),
+        }
+        for band, score in self.RARITY_BANDS:
+            count = int(masks[band].sum())
+            if count >= minimum and (
+                best is None or score > best[0] or (score == best[0] and count > best[2])
+            ):
                 best = (score, band, count)
         return best
 
     def _rarity_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
         """Pick the highest-rarity card in a 3-choice panel by border color."""
         if panel_kind == "treasure":
-            xs = (0.234, 0.363, 0.491)
-            cy_ratio = 0.367
+            xs = (0.348, 0.497, 0.646)
+            cy_ratio = 0.300
         else:
             xs = (0.331, 0.450, 0.569)
             cy_ratio = 0.333
@@ -667,11 +713,11 @@ class Mediator:
         for x_ratio in xs:
             cx = int(frame.width * x_ratio)
             cy = int(frame.height * cy_ratio)
-            r = self._card_rarity_score(frame, cx, cy)
+            r = self._card_rarity_score(frame, cx, cy, panel_kind)
             if r is None:
                 continue
             score, band, count = r
-            if best is None or score > best[0] or (score == best[0] and count > best[3]):
+            if best is None or score > best[0] or (score == best[0] and count > best[2]):
                 best = (score, band, count, cx, cy)
         if best is None:
             return None
@@ -688,16 +734,25 @@ class Mediator:
             screen_y=frame.top + cy,
         )
 
+    def _fallback_choice(self, frame: Frame, panel_kind: str) -> MatchResult:
+        """Choose the first real card when bond/treasure has no configured or rarity hit."""
+        if panel_kind == "treasure":
+            x_ratio, y_ratio = 0.348, 0.300
+        else:
+            x_ratio, y_ratio = 0.331, 0.333
+        x, y = int(frame.width * x_ratio), int(frame.height * y_ratio)
+        return MatchResult("fallback_first", 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
+
     def _find_reward_choice(self, frame: Frame, anchor: MatchResult | None = None) -> tuple[str, MatchResult] | None:
         """Decision layer for an open reward-choice panel.
 
-        Policy (one action max, preferred-only):
+        Policy (one action max):
         1. classify panel kind; UNKNOWN → None (caller handles: close if we
            opened it, else zero-input)
         2. match ONLY user-preferred templates (skills/cards); a preferred hit
            is chosen directly
-        3. no preferred hit → rarity color pick
-        4. still nothing → safe close button (暂时隐藏/放弃)
+        3. bond/treasure: no preferred hit → rarity pick → first card
+        4. skill: no preferred hit → refresh up to 3 times → give up
         The full skills/cards library is NOT scanned online; it is only used
         for offline diagnostics/template maintenance.
         """
@@ -740,17 +795,8 @@ class Mediator:
             rarity_hit = self._rarity_choice(frame, kind)
             if rarity_hit is not None:
                 return (kind, rarity_hit)
-            # 无匹配 → 点「暂时隐藏」关闭面板
-            hide = self.find(
-                frame,
-                ["bond_hide_btn", "treasure_hide_btn", "card_hide"],
-                threshold=min(0.70, self.settings.match_threshold),
-                scales=(0.9, 1.0, 1.1),
-            )
-            if hide:
-                print(f"[L1] {kind}面板无配置匹配，点击暂时隐藏关闭")
-                return (kind, hide)
-            return None
+            # 无品质色也不阻塞：羁绊/宝物可以任选一张。
+            return (kind, self._fallback_choice(frame, kind))
 
         # skill panel: preferred-only
         preferred = [v.strip() for v in self.settings.skills if v and v.strip()]
@@ -763,7 +809,7 @@ class Mediator:
                 threshold=min(0.70, self.settings.match_threshold),
                 roi=self._selection_roi(),
                 max_results=8,
-                scales=(0.90, 1.0, 1.05, 1.10),
+                scales=self._adapt_scales((0.90, 1.0, 1.05, 1.10)),
             )
             hits = sorted(hits, key=lambda h: h.score, reverse=True)
             candidates: list[MatchResult] = []
@@ -777,17 +823,35 @@ class Mediator:
                     hit = by_stem.get(Path(pref).stem)
                     if hit is not None:
                         return ("技能", hit)
-        # 无偏好命中 → 按品质色选最高稀有度
-        rarity_hit = self._rarity_choice(frame, "skill")
-        if rarity_hit is not None:
-            return ("技能", rarity_hit)
-        # 无匹配 → 点「放弃/暂时隐藏」关闭
-        close_hit = self._close_current_panel(frame)
-        if close_hit is not None:
-            self._panel_opened_by_us = None
-            print(f"[L1] 技能面板无配置匹配，点击关闭 {close_hit.name}")
-            return ("技能", close_hit)
+        # 技能格有上限：绝不选未配置技能。先用完 3 次免费刷新，再放弃。
+        if self._skill_refresh_attempts < 3:
+            refresh = self.find(
+                frame,
+                ["skill_refresh_btn"],
+                threshold=min(0.70, self.settings.match_threshold),
+                scales=(0.9, 1.0, 1.1),
+            )
+            if refresh is not None:
+                return ("技能刷新", refresh)
+        give_up = self.find(
+            frame,
+            ["skill_giveup_btn", "giveUp"],
+            threshold=min(0.70, self.settings.match_threshold),
+            scales=(0.85, 0.9, 1.0, 1.1, 1.15, 1.2),
+        )
+        if give_up is not None:
+            return ("技能放弃", give_up)
         return None
+
+    CHOICE_BUTTON_RATIOS = {
+        "skill": (0.9025, 0.867),
+        "bond": (0.864, 0.867),
+        "treasure": (0.861, 0.811),
+    }
+
+    def _hud_button_hit(self, frame: Frame, name: str, ratios: tuple[float, float]) -> MatchResult:
+        x, y = int(frame.width * ratios[0]), int(frame.height * ratios[1])
+        return MatchResult(name, 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
 
     # 神器槽位几何（1600x900 基准，相对比例）：Q(1205,744) W(1205,806) E(1205,868)
     ARTIFACT_SLOT_X = 0.753
@@ -815,7 +879,7 @@ class Mediator:
         return int((hsv[:, :, 1] > 80).sum()) >= 300
 
     def _maybe_fire_artifacts(self, frame: Frame | None = None) -> LoopAction | None:
-        """Periodic Q/W/E artifact release (fixed 180s cooldown per slot).
+        """Periodic Q/W/E artifact release (configured cooldown per slot).
 
         Slots = artifact_slots (1-3) mapping to Q/W/E keys; a slot is skipped
         when its icon is absent (unlocked but empty, or fewer slots). First
@@ -823,16 +887,20 @@ class Mediator:
         """
         if not getattr(self.settings, "auto_artifact", True):
             return None
-        if not self._main_line_since:
+        # `_main_line_since` is the idle watchdog timestamp and is refreshed
+        # after every successful action.  Artifact warm-up must instead use
+        # the immutable start time for this game, otherwise active runs can
+        # postpone Q/W/E forever.
+        if not self._main_line_started_at:
             return None
         now = time.time()
-        if now - self._main_line_since < 30:
+        if now - self._main_line_started_at < 30:
             return None
-        cd = max(30, int(getattr(self.settings, "artifact_cd", 180)))
+        cd = max(30, int(getattr(self.settings, "artifact_cd", 120)))
         slots = max(1, min(3, int(getattr(self.settings, "artifact_slots", 2))))
         keys = ("q", "w", "e")[:slots]
-        acted = False
-        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        if frame is None:
+            return None
         for idx, key in enumerate(keys):
             next_at = getattr(self, f"_artifact_next_{key}", 0.0)
             if now < next_at:
@@ -841,15 +909,20 @@ class Mediator:
                 print(f"[L1] 神器槽{idx + 1}({key.upper()})为空，跳过释放")
                 setattr(self, f"_artifact_next_{key}", now + cd)
                 continue
-            res = self.executor.press_key(key, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not res.success:
+            hit = self._hud_button_hit(
+                frame,
+                f"artifact_{key}",
+                (self.ARTIFACT_SLOT_X, self.ARTIFACT_SLOT_Y0 + idx * self.ARTIFACT_SLOT_DY),
+            )
+            if not self.act_click(hit, f"Artifact-{key.upper()}"):
                 # 输入被拒（前台/急停/遮挡）：不推进 CD，下轮重试
-                print(f"[L1] 神器 {key.upper()} 释放被拒绝: {res.message}（不推进冷却）")
+                print(f"[L1] 神器 {key.upper()} 点击被拒绝（不推进冷却）")
                 continue
             setattr(self, f"_artifact_next_{key}", now + cd)
             print(f"[L1] 释放神器 {key.upper()}（冷却 {cd}s）")
-            acted = True
-        return LoopAction.Continue if acted else None
+            # Production invariant: at most one UI-changing action per tick.
+            return LoopAction.Continue
+        return None
 
     def _maybe_open_choice_panel(self, frame: Frame, anchor: MatchResult | None = None) -> LoopAction | None:
         """Proactive skill (G) / bond (F) / treasure (V) panel opening.
@@ -864,61 +937,98 @@ class Mediator:
         if anchor:
             return None
         now = time.time()
-        target_hwnd = self._last_frame.hwnd if self._last_frame else None
         # 技能 G：核心，60s
         if now - getattr(self, "_last_skill_panel", 0.0) >= 60:
-            res = self.executor.press_key("g", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if res.success:
+            if self.act_click(self._hud_button_hit(frame, "skill_button", self.CHOICE_BUTTON_RATIOS["skill"]), "OpenSkillPanel"):
                 self._last_skill_panel = now
                 self._panel_opened_by_us = "skill"
-                print("[L1] 主动按 G 打开技能面板（核心，60s 一次）")
+                self._skill_refresh_attempts = 0
+                print("[L1] 主动点击 G 技能按钮（核心，60s 一次）")
             else:
-                print(f"[L1] 按 G 被拒绝: {res.message}（不推进冷却）")
+                print("[L1] G 技能按钮点击被拒绝（不推进冷却）")
             return LoopAction.Continue
         interval = max(30, getattr(self.settings, "choice_interval", 120))
         # 羁绊 F / 宝物 V：低频
         if getattr(self.settings, "auto_bond", True):
             if now - getattr(self, "_last_bond_attempt", 0.0) >= interval:
-                res = self.executor.press_key("f", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-                if res.success:
+                if self.act_click(self._hud_button_hit(frame, "bond_button", self.CHOICE_BUTTON_RATIOS["bond"]), "OpenBondPanel"):
                     self._last_bond_attempt = now
                     self._panel_opened_by_us = "bond"
-                    print("[L1] 主动按 F 打开羁绊面板（低频）")
+                    print("[L1] 主动点击 F 羁绊按钮（低频）")
                 else:
-                    print(f"[L1] 按 F 被拒绝: {res.message}（不推进冷却）")
+                    print("[L1] F 羁绊按钮点击被拒绝（不推进冷却）")
                 return LoopAction.Continue
         if getattr(self.settings, "auto_treasure", True):
             if now - getattr(self, "_last_treasure_attempt", 0.0) >= interval:
-                res = self.executor.press_key("v", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-                if res.success:
+                if self.act_click(self._hud_button_hit(frame, "treasure_button", self.CHOICE_BUTTON_RATIOS["treasure"]), "OpenTreasurePanel"):
                     self._last_treasure_attempt = now
                     self._panel_opened_by_us = "treasure"
-                    print("[L1] 主动按 V 打开宝物面板（低频）")
+                    print("[L1] 主动点击 V 宝物按钮（低频）")
                 else:
-                    print(f"[L1] 按 V 被拒绝: {res.message}（不推进冷却）")
+                    print("[L1] V 宝物按钮点击被拒绝（不推进冷却）")
                 return LoopAction.Continue
         return None
 
-    def _close_current_panel(self, frame: Frame) -> MatchResult | None:
+    def _find_compact_skill_choice(self, frame: Frame) -> MatchResult | None:
+        """Find a configured skill in the live bottom-right G quick panel."""
+        preferred = [v.strip() for v in self.settings.skills if v and v.strip()]
+        if not preferred:
+            return None
+        hits = match_all(
+            frame,
+            self.images,
+            [v if "/" in v else f"skills/{v}" for v in preferred],
+            threshold=0.72,
+            roi=(0.68, 0.62, 0.95, 0.80),
+            max_results=12,
+            scales=self._adapt_scales((0.45, 0.50, 0.55, 0.60)),
+        )
+        by_stem = {Path(hit.name).stem: hit for hit in hits}
+        return next((by_stem[Path(name).stem] for name in preferred if Path(name).stem in by_stem), None)
+
+    def _handle_self_opened_compact_panel(self, frame: Frame) -> LoopAction | None:
+        """Choose from, or safely close, a G/F/V panel without central anchors."""
+        kind = getattr(self, "_panel_opened_by_us", None)
+        if kind not in ("skill", "bond", "treasure"):
+            return None
+        if kind == "skill":
+            hit = self._find_compact_skill_choice(frame)
+            if hit is not None:
+                print(f"[L1] 右下角技能候选选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
+                if self.act_click(hit, "CompactSkillChoice"):
+                    self._panel_opened_by_us = None
+                return LoopAction.Continue
+
+        hit = self._hud_button_hit(frame, f"{kind}_button", self.CHOICE_BUTTON_RATIOS[kind])
+        if self.act_click(hit, f"Close{kind.title()}Panel"):
+            print(f"[L1] {kind} 候选无配置命中，再点按钮关闭")
+            self._panel_opened_by_us = None
+        else:
+            print(f"[L1] 关闭 {kind} 候选被拒绝（不推进冷却）")
+        return LoopAction.Continue
+
+    def _close_current_panel(self, frame: Frame, panel_kind: str | None = None) -> MatchResult | None:
         """Find the close button (放弃/暂时隐藏) for the currently open panel.
 
         Used as a safe fallback when a panel we proactively opened cannot be
         matched to any card choice.
         """
-        kind = getattr(self, "_panel_opened_by_us", None)
+        kind = panel_kind or getattr(self, "_panel_opened_by_us", None)
+        if kind in ("技能", "技能刷新", "技能放弃"):
+            kind = "skill"
         if kind == "skill":
-            names = ["skill_giveup_btn", "skill_refresh_btn"]
+            names = ["skill_giveup_btn", "giveUp"]
         elif kind == "treasure":
-            names = ["treasure_hide_btn", "treasure_lock_btn"]
+            names = ["treasure_hide_btn", "hide"]
         elif kind == "bond":
-            names = ["bond_hide_btn", "bond_refresh_btn"]
+            names = ["bond_hide_btn", "hide"]
         else:
-            names = ["skill_giveup_btn", "bond_hide_btn", "treasure_hide_btn", "card_hide"]
+            names = ["skill_giveup_btn", "bond_hide_btn", "treasure_hide_btn", "card_hide", "hide"]
         return self.find(
             frame,
             names,
             threshold=min(0.70, self.settings.match_threshold),
-            scales=(0.9, 1.0, 1.1),
+            scales=(0.85, 0.9, 1.0, 1.1, 1.15, 1.2),
         )
 
     # ---------- 战后页面多锚点判别（P1-B0/B1）----------
@@ -932,6 +1042,7 @@ class Mediator:
         required. Thresholds validated against fixtures/reborn_wow/endgame/*.
 
         Returns one of:
+          PAUSED              game pause overlay (zero-action wait)
           POST_VICTORY        victory modal + continue button
           HEIRLOOM_DIALOG     heirloom boss dialog (cjbtiaozhan banner)
           GREAT_RIFT_CONFIRM  great-rift confirm dialog (center ok/mijingOk)
@@ -940,11 +1051,16 @@ class Mediator:
         or None when no post-game page is recognized.
         """
         w, h = frame.width, frame.height
-        if w < 800 or h < 600:
+        if w < 480 or h < 270:
             return None
 
         def find(name: str, threshold: float) -> MatchResult | None:
             return self.find(frame, [name], threshold=threshold, scales=(0.9, 1.0, 1.1))
+
+        # Pause overlay must precede generic center-button classifiers.
+        paused = find("pauseGame", 0.80)
+        if paused and w * 0.35 <= paused.x <= w * 0.60 and h * 0.35 <= paused.y <= h * 0.55:
+            return "PAUSED"
 
         # 1) Victory: continue button is unique to the victory modal.
         if find("continueGame", 0.80):
@@ -993,6 +1109,29 @@ class Mediator:
         if not (frame.height * 0.15 <= hit.y <= frame.height * 0.35):
             return None
         return hit
+
+    def _find_heirloom_close(self, frame: Frame) -> MatchResult | None:
+        hit = self.find(frame, ["close"], threshold=0.85, scales=(0.9, 1.0, 1.1))
+        if not hit:
+            return None
+        if not (frame.width * 0.55 <= hit.x <= frame.width * 0.70):
+            return None
+        if not (frame.height * 0.15 <= hit.y <= frame.height * 0.35):
+            return None
+        return hit
+
+    def _find_great_rift_cancel(self, frame: Frame) -> MatchResult | None:
+        yes = self.find(frame, ["mijingOk", "ok"], threshold=0.80, scales=(0.9, 1.0, 1.1))
+        if not yes:
+            return None
+        yes_x, yes_y = yes.center
+        x = yes_x - frame.left + int(frame.width * 0.104)
+        y = yes_y - frame.top
+        if not (frame.width * 0.50 <= x <= frame.width * 0.65):
+            return None
+        if not (frame.height * 0.45 <= y <= frame.height * 0.60):
+            return None
+        return MatchResult("great_rift_cancel", yes.score, x, y, 0, 0, frame.left + x, frame.top + y)
 
     def _find_game_exit(self, frame: Frame) -> MatchResult | None:
         hit = self.find(frame, ["quit"], threshold=0.78, scales=(0.9, 1.0, 1.1))
@@ -1468,6 +1607,7 @@ class Mediator:
         if phase in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP) and self.phase not in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP):
             self._stage_selected = False
             self._stage_target_name = None
+            self._stage_target_position = None
             self._room_dialog_filled = False
         if phase in (Phase.PLATFORM_MAP, Phase.CREATE_ROOM):
             self._room_action_deadline = time.time() + self.settings.query_timeout
@@ -1498,6 +1638,12 @@ class Mediator:
             # 跨局重置：次局进入选关页必须重新选关（上一局残留会跳过选关/点错关）
             self._stage_selected = False
             self._stage_target_name = None
+            self._stage_target_position = None
+            self._stage_candidate_name = None
+            self._stage_candidate_position = None
+            self._stage_candidate_frames = 0
+            self._stage_select_attempts = 0
+            self._stage_scroll_cooldown_until = 0.0
             self._room_action_deadline = time.time() + self.settings.query_timeout
             self._hero_state = "IDLE"
             self._hero_verified_level = 0
@@ -1514,11 +1660,17 @@ class Mediator:
         if phase in (Phase.STAGE_SELECT, Phase.MAIN_LINE):
             self._l0_cycle_count = 0
         self.phase = phase
+        if phase == Phase.ERROR:
+            self._interrupt_reason = note or "unspecified"
         if phase == Phase.MAIN_LINE:
             self._main_line_since = time.time()
+            self._main_line_started_at = self._main_line_since
             self._selection_click_cooldown_until = 0.0
             self._selection_unknown_attempts = 0
             self._selection_unknown_since = None
+            self._selection_repeat_key = None
+            self._selection_repeat_attempts = 0
+            self._skill_refresh_attempts = 0
             self._challenge_done.clear()
             self._challenge_attempts.clear()
             self._challenge_unknown_since.clear()
@@ -1534,6 +1686,12 @@ class Mediator:
             self._victory_continue_since = None
             self._post_game_pending = False
             self._post_game_close_attempts = 0
+            self._aux_dialog_attempts = {"HEIRLOOM_DIALOG": 0, "GREAT_RIFT_CONFIRM": 0}
+            # A verified game start owns a fresh retry/recovery episode.  A
+            # timeout retry keeps its budget until this transition succeeds.
+            self._challenge_start_attempts = 0
+            self._failure_candidate_frames = 0
+            self._recovery_step = None
             # 跨局 L1 瞬态重置：主动面板标记/神器 CD/主动面板时间戳/进化冷却
             self._panel_opened_by_us = None
             self._last_skill_panel = 0.0
@@ -1645,6 +1803,31 @@ class Mediator:
             self.settings.stage1,
             self.settings.stage2,
         )
+
+    def _stage_target_has_consistent_neighbor(self, frame: Frame, target: MatchResult) -> bool:
+        """Reject an isolated or transient OCR row before it becomes a click."""
+        rows = visible_stage_rows(frame, self.images)
+        selected = next(
+            (
+                row
+                for row in rows
+                if abs(row.center_x - target.x) <= 3 and abs(row.center_y - target.y) <= 3
+            ),
+            None,
+        )
+        if selected is None:
+            return False
+        for other in rows:
+            dy = other.center_y - selected.center_y
+            if not 25 <= abs(dy) <= 80:
+                continue
+            expected_step = 1 if dy > 0 else -1
+            if (
+                other.stage_id.chapter == selected.stage_id.chapter
+                and other.stage_id.index - selected.stage_id.index == expected_step
+            ):
+                return True
+        return False
 
     def _fill_room_dialog(self, frame: Frame, confirm: MatchResult) -> bool:
         if not self.settings.room_name and not self.settings.room_password:
@@ -1878,6 +2061,9 @@ class Mediator:
                 return arch_res
             now = time.time()
             if not self._stage_selected:
+                if now < self._stage_scroll_cooldown_until:
+                    print("[L0] 关卡列表滚动后等待稳定…")
+                    return LoopAction.Continue
                 target = self._find_stage_target(frame)
                 if not target:
                     # 目标不在可见列表：滚动寻找。
@@ -1888,9 +2074,13 @@ class Mediator:
                         x, y = stage_list_scroll_point(frame)
                         target_hwnd = self._last_frame.hwnd if self._last_frame else None
                         # 向下滚动：正值=上滚（更早关卡），负值=下滚（更高关卡）
-                        res_scroll = self.executor.scroll(x, y, -5, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                        res_scroll = self.executor.scroll(x, y, -1, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
                         if res_scroll.success:
                             self._stage_scroll_attempts += 1
+                            self._stage_scroll_cooldown_until = now + 0.8
+                            self._stage_candidate_name = None
+                            self._stage_candidate_position = None
+                            self._stage_candidate_frames = 0
                             print(f"[L0] 目标关卡不在当前列表，向下滚动寻找 ({self._stage_scroll_attempts}/8)")
                         else:
                             print(f"[L0] 关卡列表滚动取消/失败: {res_scroll.message}")
@@ -1902,11 +2092,35 @@ class Mediator:
                         self.stop()
                         return LoopAction.Break
                     return LoopAction.Continue
+                if not self._stage_target_has_consistent_neighbor(frame, target):
+                    self._stage_candidate_name = None
+                    self._stage_candidate_position = None
+                    self._stage_candidate_frames = 0
+                    print("[L0] 目标关卡行缺少连续相邻关卡佐证，等待下一帧（零动作）")
+                    return LoopAction.Continue
+                position = (target.x, target.y)
+                stable_candidate = (
+                    self._stage_candidate_name == target.name
+                    and self._stage_candidate_position is not None
+                    and abs(self._stage_candidate_position[0] - position[0]) <= 3
+                    and abs(self._stage_candidate_position[1] - position[1]) <= 3
+                )
+                if stable_candidate:
+                    self._stage_candidate_frames += 1
+                else:
+                    self._stage_candidate_name = target.name
+                    self._stage_candidate_position = position
+                    self._stage_candidate_frames = 1
+                if self._stage_candidate_frames < 2:
+                    print(f"[L0] 目标关卡 {target.name} 首帧命中，等待坐标稳定复核（零动作）")
+                    return LoopAction.Continue
                 print(f"[L0] 选关 SelectStage {target.name} @ {target.center}")
                 if not self.act_click(target, "SelectStage-target"):
                     return LoopAction.Continue
                 self._stage_selected = True
                 self._stage_target_name = target.name
+                self._stage_target_position = position
+                self._stage_select_attempts += 1
                 self._stage_click_cooldown_until = now + 1.5
                 self._room_action_deadline = now + max(10, min(self.settings.query_timeout, 30))
                 return LoopAction.Continue
@@ -1921,17 +2135,30 @@ class Mediator:
                 # advancing.  This avoids the old endless re-click loop
                 # without allowing an arbitrary visible stage.
                 current_target = self._find_stage_target(frame)
-                # The live list can move the selected row; the exact label is
-                # unique, so position persistence is not a useful guard.
                 same_target = bool(current_target and current_target.name == self._stage_target_name)
+                same_position = bool(
+                    current_target
+                    and self._stage_target_position is not None
+                    and abs(current_target.x - self._stage_target_position[0]) <= 6
+                    and abs(current_target.y - self._stage_target_position[1]) <= 6
+                )
                 ready = self._find_hero_entry(frame) if self.settings.auto_reputation else self._find_stage_start(frame)
-                if not same_target or not ready:
-                    print("[L0] 关卡选中态未确认，等待目标关卡名称匹配与专用开始按钮同时稳定")
-                    if self._action_timed_out():
-                        self._stage_selected = False
-                        self._stage_target_name = None
+                consistent = bool(current_target and self._stage_target_has_consistent_neighbor(frame, current_target))
+                if not same_target or not same_position or not consistent or not ready:
+                    print("[L0] 关卡点击后名称/坐标/相邻关卡未保持稳定，拒绝开始游戏")
+                    if self._stage_select_attempts >= 3:
+                        print("[L0] 目标关卡稳定确认连续失败 3 次，停止而不进入错误关卡")
+                        self.set_phase(Phase.ERROR, "configured stage selection unstable")
+                        self.stop()
+                        return LoopAction.Break
+                    self._stage_selected = False
+                    self._stage_target_name = None
+                    self._stage_target_position = None
+                    self._stage_candidate_name = None
+                    self._stage_candidate_position = None
+                    self._stage_candidate_frames = 0
                     return LoopAction.Continue
-                print("[L0] 目标行无持久高亮；已用目标关卡名称匹配 + 专用开始按钮完成复合确认")
+                print("[L0] 目标行无持久高亮；已用点击前后同一坐标 + 连续相邻关卡 + 专用开始按钮完成复合确认")
             if self.settings.auto_reputation:
                 return self._begin_hero_setup(frame)
             start = self._find_stage_start(frame)
@@ -2045,8 +2272,24 @@ class Mediator:
         self._tick_no += 1
         t0 = time.perf_counter()
         phase_before = self.phase.name
+        phase_before_value = self.phase
         try:
-            return self._tick_impl()
+            action = self._tick_impl()
+            # dry_run is observation mode: an uncertain/unsupported page may
+            # record an incident, but must not terminate the replay/observer.
+            if (
+                self.settings.dry_run
+                and action is LoopAction.Break
+                and self.phase == Phase.ERROR
+                and (not self.stop_signal.is_set() or self.stop_signal.reason == "Mediator.stop()")
+            ):
+                print(f"[med] OBSERVE incident: {self._interrupt_reason}; continue with zero input")
+                if self.stop_signal.reason == "Mediator.stop()":
+                    self.stop_signal.reset()
+                self.phase = phase_before_value
+                self._running = True
+                return LoopAction.Continue
+            return action
         finally:
             self._trace_tick(phase_before, t0)
 
@@ -2070,6 +2313,8 @@ class Mediator:
             "elapsed_ms": round((time.perf_counter() - t0) * 1000.0, 1),
             "phase_before": phase_before,
             "phase_after": self.phase.name,
+            "run_mode": "OBSERVE" if self.settings.dry_run else "LIVE",
+            "interrupt_reason": self._interrupt_reason,
             "context": self._context_cache_value,
             "hwnd": frame.hwnd if frame is not None else None,
             "size": [frame.width, frame.height] if frame is not None else None,
@@ -2083,12 +2328,17 @@ class Mediator:
         """单步：一帧截屏 → 按阶段决策 → 执行。"""
         self._trace_actions = []
         self._trace_scenes = []
+        self._interrupt_reason = None
         if self.stop_signal.is_set():
             print(f"[med] Stop signal active ({self.stop_signal.reason}), breaking loop")
             self._running = False
             return LoopAction.Break
 
         frame = self.see("tick")
+        if self.stop_signal.is_set():
+            print(f"[med] Stop signal active after capture ({self.stop_signal.reason}), skipping decision")
+            self._running = False
+            return LoopAction.Break
 
         health = check_frame_health(frame, prev_frame=self._prev_frame)
         if not health.is_healthy:
@@ -2158,42 +2408,55 @@ class Mediator:
 
         self._missing_window_since = None
 
-        # 全局：断线/失败优先（一帧最多一个改变 UI 的动作）
-        if self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
+        # 全局：断线/失败优先。单帧相似只算候选；连续两帧才取得
+        # QUIT 动作权限。恢复 episode 一旦开始，后续步骤不再依赖 fail
+        # 模板持续可见（点击后页面本来就应变化）。
+        failure_hit = self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail")
+        if self._recovery_step and self._recovery_step != "DONE":
+            recovery = self._recovery_step
+            if recovery == "FAIL_VISIBLE":
+                hit = self.find_scene(frame, "fail")
+                if hit:
+                    self.click_scene(frame, "fail", "recover")
+                self._recovery_step = "WAIT_OK"
+                return LoopAction.Continue
+            if recovery == "WAIT_OK":
+                hit = self.find_scene(frame, "ok")
+                if hit:
+                    self.click_scene(frame, "ok", "ok")
+                self._recovery_step = "WAIT_CLOSE"
+                return LoopAction.Continue
+            if recovery == "WAIT_CLOSE":
+                hit = self.find_scene(frame, "close")
+                if hit:
+                    self.click_scene(frame, "close", "close")
+                self._recovery_step = "DONE"
+                return LoopAction.Continue
+
+        if failure_hit:
             # 选择面板的"放弃"按钮与失败弹窗 giveUp 模板同源（实机 2026-08-09
             # 证据：局内 bond/card 选择面板弹出时 giveUp 0.945 误命中 → 误判失败）。
             # 真实失败弹窗会遮挡面板，两者互斥；面板存在时跳过 fail 检测。
-            if self.phase == Phase.MAIN_LINE and self._selection_anchor(frame):
+            if self._selection_anchor(frame):
+                self._failure_candidate_frames = 0
                 print("[med] 选择面板存在，忽略 giveUp/fail 误检（面板放弃按钮非失败弹窗）")
+            elif self._recovery_step == "DONE":
+                # The old failure pixels may remain while QUIT opens the exit
+                # dialog; do not let a completed episode swallow the tail.
+                pass
             else:
+                self._failure_candidate_frames += 1
+                if self._failure_candidate_frames < 2:
+                    print("[med] fail/disconnect 候选第 1 帧，等待连续证据（零动作）")
+                    return LoopAction.Continue
                 if self.phase != Phase.QUIT:
                     self.set_phase(Phase.QUIT, "fail/disconnect")
-                # RecoveryState 状态机：每次动作后重新抓帧，防止旧帧连点
-                recovery = getattr(self, "_recovery_step", "FAIL_VISIBLE")
-                if recovery == "FAIL_VISIBLE":
-                    hit = self.find_scene(frame, "fail")
-                    if hit:
-                        self.click_scene(frame, "fail", "recover")
-                        self._recovery_step = "WAIT_OK"
-                    else:
-                        self._recovery_step = "WAIT_OK"
-                    return LoopAction.Continue
-                if recovery == "WAIT_OK":
-                    hit = self.find_scene(frame, "ok")
-                    if hit:
-                        self.click_scene(frame, "ok", "ok")
-                        self._recovery_step = "WAIT_CLOSE"
-                    else:
-                        self._recovery_step = "WAIT_CLOSE"
-                    return LoopAction.Continue
-                if recovery == "WAIT_CLOSE":
-                    hit = self.find_scene(frame, "close")
-                    if hit:
-                        self.click_scene(frame, "close", "close")
-                    self._recovery_step = "DONE"
-                    return LoopAction.Continue
-                # DONE：等待画面恢复（QUIT 相位处理退出）
+                self._recovery_step = "FAIL_VISIBLE"
                 return LoopAction.Continue
+        else:
+            self._failure_candidate_frames = 0
+            if self._recovery_step == "DONE":
+                self._recovery_step = None
 
         if self.phase in {
             Phase.BOOT,
@@ -2232,6 +2495,13 @@ class Mediator:
         # 战后页面优先于一切局内动作。胜利后只允许以下专用链：
         # 继续游戏 → 关闭存档面板（如出现）→ NPC 广场 → 局内退出。
         post_game = self._post_game_state(frame)
+        for dialog in self._aux_dialog_attempts:
+            if post_game != dialog:
+                self._aux_dialog_attempts[dialog] = 0
+        if post_game == "PAUSED":
+            self._main_line_since = now
+            print("[med] 游戏处于暂停界面，零动作等待恢复")
+            return LoopAction.Continue
         if post_game == "POST_VICTORY":
             if self._post_game_pending:
                 elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
@@ -2290,6 +2560,40 @@ class Mediator:
             self.set_phase(Phase.QUIT, "post-game NPC hub verified")
             return LoopAction.Continue
 
+        if post_game == "HEIRLOOM_DIALOG":
+            attempts = self._aux_dialog_attempts[post_game]
+            if attempts >= 3:
+                print("[med] 传家宝弹窗关闭重试已达上限，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "heirloom dialog close attempts exhausted")
+                self.stop()
+                return LoopAction.Break
+            close_hit = self._find_heirloom_close(frame)
+            if not close_hit:
+                print("[med] 传家宝弹窗未找到受约束的关闭按钮，零动作等待")
+                return LoopAction.Continue
+            self._aux_dialog_attempts[post_game] = attempts + 1
+            print(f"[med] 关闭传家宝弹窗 @ {close_hit.center} (尝试 {attempts + 1}/3)")
+            self.act_click(close_hit, "DismissHeirloomDialog")
+            self._main_line_since = now
+            return LoopAction.Continue
+
+        if post_game == "GREAT_RIFT_CONFIRM":
+            attempts = self._aux_dialog_attempts[post_game]
+            if attempts >= 3:
+                print("[med] 大秘境确认框取消重试已达上限，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "great rift cancel attempts exhausted")
+                self.stop()
+                return LoopAction.Break
+            cancel_hit = self._find_great_rift_cancel(frame)
+            if not cancel_hit:
+                print("[med] 大秘境确认框未找到受锚定的“否”按钮，零动作等待")
+                return LoopAction.Continue
+            self._aux_dialog_attempts[post_game] = attempts + 1
+            print(f"[med] 大秘境未满足自动前置，点击“否” @ {cancel_hit.center} (尝试 {attempts + 1}/3)")
+            self.act_click(cancel_hit, "CancelGreatRift")
+            self._main_line_since = now
+            return LoopAction.Continue
+
         if post_game:
             print(f"[med] 识别到尚未实现的战后页面 {post_game}，Fail-Closed 停止运行（零输入）")
             self.set_phase(Phase.ERROR, f"unverified post-game page {post_game}")
@@ -2308,25 +2612,28 @@ class Mediator:
             print("[med] 等待继续游戏后的页面确认（零动作）")
             return LoopAction.Continue
 
-        # 提前挑战 / Boss / 龙珠入口：未验证战后入口，Fail-Closed（最高优先，必须在任何选择、自动任务、挑战或选关之前）
-        if self.find_scene(frame, "archive"):
+        # 中央选择面板比 archive/boss/longzhu 泛模板更具体；龙珠宝物卡
+        # 本身可能命中 longzhu，不能因此抢占选卡并误停。
+        selection_anchor = self._selection_anchor(frame)
+
+        # 提前挑战 / Boss / 龙珠入口：仅在不存在选择面板时 Fail-Closed。
+        if not selection_anchor and self.find_scene(frame, "archive"):
             print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "unverified archive entry")
             self.stop()
             return LoopAction.Break
-        if self.find_scene(frame, "boss_entry"):
+        if not selection_anchor and self.find_scene(frame, "boss_entry"):
             print("[med] 识别到未验证战后入口 boss_entry，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "unverified boss_entry")
             self.stop()
             return LoopAction.Break
-        if self.find_scene(frame, "longzhu"):
+        if not selection_anchor and self.find_scene(frame, "longzhu"):
             print("[med] 识别到未验证战后入口 longzhu，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "unverified longzhu entry")
             self.stop()
             return LoopAction.Break
 
         # 选择面板优先；面板存在时禁止把刷新计数或快捷键当成按钮。
-        selection_anchor = self._selection_anchor(frame)
         if selection_anchor:
             if now < self._selection_click_cooldown_until:
                 print("[L1] 选择面板等待点击结果…")
@@ -2334,12 +2641,37 @@ class Mediator:
             choice = self._find_reward_choice(frame, anchor=selection_anchor)
             if choice:
                 kind, hit = choice
+                repeat_key = (kind, hit.name, hit.screen_x // 8, hit.screen_y // 8)
+                if repeat_key == self._selection_repeat_key:
+                    self._selection_repeat_attempts += 1
+                else:
+                    self._selection_repeat_key = repeat_key
+                    self._selection_repeat_attempts = 1
+                if self._selection_repeat_attempts > 3:
+                    close_hit = self._close_current_panel(frame, kind)
+                    if close_hit is not None:
+                        print(f"[L1] 同一选择连续 3 次无画面变化，关闭面板避免活锁")
+                        if self.act_click(close_hit, "CloseRepeatedChoicePanel"):
+                            self._selection_click_cooldown_until = now + 1.5
+                        self._panel_opened_by_us = None
+                        self._selection_repeat_key = None
+                        self._selection_repeat_attempts = 0
+                        self._skill_refresh_attempts = 0
+                        return LoopAction.Continue
                 print(f"[L1] {kind}选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
-                if self.act_click(hit, f"{kind}选择"):
+                clicked = self.act_click(hit, f"{kind}选择")
+                if clicked:
                     self._selection_click_cooldown_until = now + 1.5
+                    if hit.name == "skill_refresh_btn":
+                        self._skill_refresh_attempts += 1
+                        self._panel_opened_by_us = "skill"
+                    else:
+                        if kind == "技能":
+                            # 配置技能成功后立即再开 G，直到没有可学点数。
+                            self._last_skill_panel = 0.0
+                        self._panel_opened_by_us = None
                 self._selection_unknown_attempts = 0
                 self._selection_unknown_since = None
-                self._panel_opened_by_us = None
                 self._main_line_since = now
                 return LoopAction.Continue
 
@@ -2368,12 +2700,18 @@ class Mediator:
 
         self._selection_unknown_attempts = 0
         self._selection_unknown_since = None
+        self._selection_repeat_key = None
+        self._selection_repeat_attempts = 0
+        self._skill_refresh_attempts = 0
 
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)
         if auto_res is not None:
             self._main_line_since = now
             return auto_res
+        if not self._auto_task_done:
+            print("[L1] 尚未确认【自动任务】已开启，阻断四挑战和其他局内动作")
+            return LoopAction.Continue
 
         # 挑战按钮有自己的模板和自动状态检测，避免固定坐标反复切换开关。
         ch_res = self._ensure_challenge_buttons(frame)
@@ -2381,24 +2719,30 @@ class Mediator:
             self._main_line_since = now
             return ch_res
 
-        # 关卡选关：只点击右侧编号行，不能把 stage.png 地图卡片当按钮。
-        if now >= self._stage_click_cooldown_until:
-            hit_stage = (
-                find_stage_labels(frame, self.images, self.settings.stage_targets)
-                if self.settings.stage_targets
-                else find_stage_in_range(
-                    frame,
-                    self.images,
-                    self.settings.stage1,
-                    self.settings.stage2,
-                )
-            )
-            if hit_stage:
-                print(f"[L1] 局内选关 SelectStage {hit_stage.name}")
-                if self.act_click(hit_stage, "SelectStage-InGame-target"):
-                    self._stage_click_cooldown_until = now + 2.0
-                    self._main_line_since = now
-                    return LoopAction.Continue
+        # Stage rows never grant click authority inside MAIN_LINE.  A genuine
+        # stage page is handed back to the guarded L0 state; in-game HUD anchors
+        # suppress glyph false positives from task text / Boss countdowns.
+        if self._find_stage_page(frame) and not self._is_in_game_hud(frame):
+            self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
+            return LoopAction.Continue
+
+        # 我们主动打开的 G/F/V 候选条可能没有中央面板锚点。
+        compact_res = self._handle_self_opened_compact_panel(frame)
+        if compact_res is not None:
+            self._main_line_since = now
+            return compact_res
+
+        # 技能/羁绊/宝物优先于会重复出现的进化按钮，避免 G/F/V 饿饿。
+        opened = self._maybe_open_choice_panel(frame, anchor=selection_anchor)
+        if opened is not None:
+            self._main_line_since = now
+            return opened
+
+        # 神器优先于会反复出现的进化按钮，避免 Q/W/E 饿饿。
+        artifact_res = self._maybe_fire_artifacts(frame)
+        if artifact_res is not None:
+            self._main_line_since = now
+            return artifact_res
 
         # 点击进化（未满5级时中下方出现，实机坐标 1600x900 内 (525,778)）
         if now >= getattr(self, "_evolve_click_cooldown_until", 0.0):
@@ -2414,19 +2758,6 @@ class Mediator:
                     self._evolve_click_cooldown_until = now + 5.0
                     self._main_line_since = now
                     return LoopAction.Continue
-
-        # 神器 Q/W/E 定时释放（180s CD，进局 30s 后开始，空槽跳过）
-        artifact_res = self._maybe_fire_artifacts(frame)
-        if artifact_res is not None:
-            self._main_line_since = now
-            return artifact_res
-
-        # 主动羁绊/宝物（快捷键 F/V，低频防烧资源；配置开启才动作）
-        if self.settings.auto_bond or self.settings.auto_treasure:
-            opened = self._maybe_open_choice_panel(frame, anchor=selection_anchor)
-            if opened is not None:
-                self._main_line_since = now
-                return opened
 
         print("[med] 主线 idle（等待局内选择/挑战 UI）")
         if self._main_line_since is not None:

@@ -1,9 +1,8 @@
 """P1-B0 read-only post-game evidence tests.
 
-Defends the P1-B0 invariant: every post-game page (victory modal, archive
-panel, NPC hub, heirloom boss dialog, great-rift confirm) must produce ZERO
-input with the current mediator, and the observe-only root Replay entries
-must keep passing as no-action fixtures.
+Defends the P1-B0 invariant: verified post-game pages use only their dedicated
+safe action. Optional heirloom/rift dialogs are dismissed with X/“否”; pages
+without an authorized transition still fail closed.
 
 Anchor evidence levels (from tools/analyze_post_game.py, legacy 1.3.8
 templates matched against current-version full screenshots):
@@ -54,12 +53,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_post_game_pages_fail_closed_with_zero_input(self):
         """Archive/hub/heirloom/rift pages must cause Fail-Closed stop with zero executor calls."""
-        fail_closed_ids = {
-            "archive_challenge_panel",
-            "challenge_npc_hub",
-            "heirloom_challenge_bosses",
-            "great_rift_confirm",
-        }
+        fail_closed_ids = {"archive_challenge_panel", "challenge_npc_hub"}
         for shot in sorted(ENDGAME.glob("*.png")) + sorted(ENDGAME.glob("*.jpg")):
             if shot.stem not in fail_closed_ids:
                 continue
@@ -78,6 +72,28 @@ class P1B0PostGameTests(unittest.TestCase):
             mock_key.assert_not_called()
             mock_act.assert_not_called()
             mock_act_rc.assert_not_called()
+
+    def test_optional_dialogs_are_safely_dismissed(self):
+        cases = {
+            "heirloom_challenge_bosses": "DismissHeirloomDialog",
+            "great_rift_confirm": "CancelGreatRift",
+        }
+        for name, expected_reason in cases.items():
+            with self.subTest(name=name):
+                med = Mediator(Settings(), ROOT)
+                med.set_phase(Phase.MAIN_LINE, "optional dialog")
+                frame = load_fixture_frame(f"fixtures/replay/{name}.png")
+                with patch.object(med, "act_click", return_value=True) as click:
+                    action = med._tick_main_line(frame)
+                self.assertEqual(action, LoopAction.Continue)
+                self.assertEqual(med.phase, Phase.MAIN_LINE)
+                click.assert_called_once()
+                hit, reason = click.call_args.args
+                self.assertEqual(reason, expected_reason)
+                if name == "great_rift_confirm":
+                    self.assertEqual(hit.name, "great_rift_cancel")
+                    self.assertGreaterEqual(hit.x, frame.width * 0.50)
+                    self.assertLessEqual(hit.x, frame.width * 0.65)
 
     def test_victory_page_clicks_continue_game(self):
         """The victory modal drives a ContinueGame left click (owner-authorized), not a stop."""
@@ -150,7 +166,7 @@ class P1B0PostGameTests(unittest.TestCase):
     # ---------- 3. Observe-only root Replay entries ----------
 
     def test_post_game_manifest_entries(self):
-        """Victory entry drives ContinueGame; the other 4 stay no-action and click-free."""
+        """Root replay entries preserve their explicitly authorized actions."""
         manifest = json.loads((ROOT / "fixtures" / "manifest.json").read_text(encoding="utf-8"))
         ids = {
             "post_game_victory_continue",
@@ -170,9 +186,13 @@ class P1B0PostGameTests(unittest.TestCase):
                 self.assertEqual(res.action_name, "ContinueGame")
                 self.assertEqual(res.action_kind, "left_click")
                 self.assertIsNotNone(res.click_point)
-            else:
+            elif fixture["fixture_id"] in {"post_game_archive_panel", "post_game_npc_hub"}:
                 self.assertEqual(res.action_name, "none")
                 self.assertIsNone(res.click_point, f"{fixture['fixture_id']} must not produce a click")
+            else:
+                self.assertIn(res.action_name, {"DismissHeirloomDialog", "CancelGreatRift"})
+                self.assertEqual(res.action_kind, "left_click")
+                self.assertIsNotNone(res.click_point)
 
     # ---------- 3. Page-discriminating anchor evidence ----------
 

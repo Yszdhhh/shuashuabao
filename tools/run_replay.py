@@ -253,7 +253,11 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             postcondition_met = verify_stage_selection(frame, target=None, images_dir=med.images)
 
     # 5) MAIN_LINE
-    elif context in ("MAIN_LINE", "IN_GAME") or expected_state in ("MAIN_LINE", "IN_GAME"):
+    elif (
+        context in ("MAIN_LINE", "IN_GAME")
+        or expected_state in ("MAIN_LINE", "IN_GAME")
+        or fixture_id.startswith("post_game_")
+    ):
         detected_scene = "MAIN_LINE"
         post_game = med._post_game_state(frame)
         target_challenge = fixture.get("target_challenge")
@@ -268,8 +272,27 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
                 action_kind = "left_click"
                 if not is_negative:
                     click_point = hit.center
-        elif post_game in ("HEIRLOOM_DIALOG", "GREAT_RIFT_CONFIRM", "ARCHIVE_PANEL", "NPC_HUB"):
-            # Observe-only post-game pages must never produce a click candidate.
+        elif post_game == "HEIRLOOM_DIALOG":
+            hit = med._find_heirloom_close(frame)
+            if hit:
+                candidate_box = [hit.x, hit.y, hit.w, hit.h]
+                best_score = hit.score
+                score_margin = hit.score
+                action_name = "DismissHeirloomDialog"
+                action_kind = "left_click"
+                if not is_negative:
+                    click_point = hit.center
+        elif post_game == "GREAT_RIFT_CONFIRM":
+            hit = med._find_great_rift_cancel(frame)
+            if hit:
+                candidate_box = [hit.x, hit.y, hit.w, hit.h]
+                best_score = hit.score
+                score_margin = hit.score
+                action_name = "CancelGreatRift"
+                action_kind = "left_click"
+                if not is_negative:
+                    click_point = hit.center
+        elif post_game in ("ARCHIVE_PANEL", "NPC_HUB"):
             action_name = "none"
             action_kind = "none"
         elif target_challenge:

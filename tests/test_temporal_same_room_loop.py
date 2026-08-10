@@ -81,6 +81,8 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         self.med._stage_click_cooldown_until = 0
         with patch("gamescript.mediator.verify_stage_selection", return_value=True):
             self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
+            self.med._stage_click_cooldown_until = 0
+            self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
         self.assertEqual(Phase.STAGE_STARTING, self.med.phase)
         # startChallenge 子状态机：局内锚点需连续 2 帧确认，
         # 首帧仅进入 VERIFY_INGAME（phase 保持 STAGE_STARTING），第二帧推进 MAIN_LINE
@@ -148,10 +150,13 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
                 action = self.med.tick()
                 self.assertEqual(LoopAction.Continue, action)
                 self.assertNotEqual(self.med.phase, Phase.ERROR, f"tick {i+1} 不应提前 ERROR")
-            # 36s：since=1004，elapsed=32s 超过容忍窗 30s → Fail-Closed ERROR
+            # 36s：since=1004，elapsed=32s 超过容忍窗 30s。dry-run 是观察
+            # 模式：记录 incident，但不得自行终止或丢失当前 phase。
             clock.set(1036.0)
             action = self.med.tick()
-            self.assertEqual(self.med.phase, Phase.ERROR)
+            self.assertEqual(action, LoopAction.Continue)
+            self.assertEqual(self.med.phase, Phase.CREATE_ROOM)
+            self.assertEqual(self.med._interrupt_reason, "unhealthy frame timeout")
 
 
 class _EmptyFrameSource:

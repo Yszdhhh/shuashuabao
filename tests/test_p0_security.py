@@ -369,6 +369,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
             self.assertEqual(action, LoopAction.Continue)
             mock_scroll.assert_called_once()
             self.assertEqual(mock_scroll.call_args.kwargs.get("target_hwnd"), 888)
+            self.assertEqual(mock_scroll.call_args.args[2], -1)
             self.assertEqual(mediator._stage_scroll_attempts, 1)
 
     def test_legacy_real_mode_prohibited(self) -> None:

@@ -94,8 +94,8 @@ class Settings:
     auto_bond: bool = True       # 主动按 F 开羁绊面板（低频，防烧木材）
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
-    auto_artifact: bool = True   # 神器 Q/W 槽定时释放（固定冷却 180s）
-    artifact_cd: int = 180       # 神器冷却秒数
+    auto_artifact: bool = True   # 神器 Q/W/E 槽定时释放
+    artifact_cd: int = 120       # 神器冷却秒数
     artifact_slots: int = 3      # 神器槽位数（1-3，对应 Q/W/E；空槽自动跳过）
     auto_archaeology: bool = True  # 选关页黄色挑战券清空后自动进考古模式并结束脚本
     boss_live_time: int = 0
