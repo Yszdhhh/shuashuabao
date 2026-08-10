@@ -461,6 +461,13 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
 
 
 def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="P0-B screenshot replay runner")
+    parser.add_argument("--ledger", metavar="PATH", default=None,
+                        help="Append one tick-level action ledger line per fixture to PATH (JSONL).")
+    args = parser.parse_args()
+
     manifest_path = ROOT / "fixtures" / "manifest.json"
     if not manifest_path.is_file():
         print(f"Manifest file not found: {manifest_path}")
@@ -471,6 +478,13 @@ def main() -> int:
 
     settings = Settings()
     med = Mediator(settings, ROOT)
+
+    ledger_fh = None
+    if args.ledger:
+        ledger_path = Path(args.ledger)
+        ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        ledger_fh = open(ledger_path, "a", encoding="utf-8")
+        print(f"[ledger] appending to {ledger_path}")
 
     print("=" * 135)
     print("P0-B REAL SCREENSHOT REPLAY REPORT")
@@ -502,6 +516,24 @@ def main() -> int:
         else:
             failed += 1
 
+        if ledger_fh is not None:
+            row = {
+                "fixture_id": res.fixture_id,
+                "phase": res.detected_scene,
+                "context": res.actual_state,
+                "action_name": res.action_name,
+                "action_kind": res.action_kind,
+                "click_point": res.click_point,
+                "hwnd": res.target_hwnd,
+                "score": round(res.best_score, 3),
+                "margin": round(res.score_margin, 3),
+                "status": res.status,
+                "required": res.required,
+                "dry_run": True,
+            }
+            ledger_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            ledger_fh.flush()
+
         cp_str = f"({res.click_point[0]},{res.click_point[1]})" if res.click_point else "None"
         scores_str = f"{res.best_score:.2f}/{res.second_score:.2f}"
         req_str = "YES" if res.required else "NO"
@@ -511,6 +543,9 @@ def main() -> int:
             f"{res.score_margin:<6.2f} | {cp_str:<12} | "
             f"{req_str:<4} | {res.status:<16}"
         )
+
+    if ledger_fh is not None:
+        ledger_fh.close()
 
     print("-" * 135)
     print(
