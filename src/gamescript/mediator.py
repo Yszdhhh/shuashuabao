@@ -574,15 +574,20 @@ class Mediator:
         return (round(us, 3), round(us * 1.06, 3))
 
     def _wide_scales(self) -> tuple[float, ...]:
-        """宽尺度（仅主尺度 miss 回退用）：覆盖 DPI 缩放窗口（如 2348x1080≈1.47x）。
+        """宽尺度（仅 DPI 放大窗口 miss 回退用）：覆盖 2348x1080≈1.47x 等。
 
         N2.1 设计原则 4：宽尺度只保留给 hwnd/尺寸变化、UNKNOWN 恢复和离线校准，
-        不作为正常 HUD/面板每 tick 默认（与旧 0.85-1.2 档一致）。
+        不作为正常 HUD/面板每 tick 默认。
         """
         if abs(self._ui_scale - 1.0) < 0.05:
             return (1.0, 1.06, 1.1, 1.15, 1.2)
         us = round(self._ui_scale, 3)
         return tuple(sorted({us, round(us * 0.94, 3), round(us * 1.06, 3), round(us * 1.1, 3), round(us * 1.15, 3)}))
+
+    def _scaled_up_frame(self, frame: Frame) -> bool:
+        """窗口显著大于 1600x900 基准（如 2348x1080≈1.47x / 1920x1080）时
+        才允许宽尺度回退，避免基准分辨率每 tick miss 时全宽扫描。"""
+        return frame.width > 1600 * 1.05 or frame.height > 900 * 1.05
 
     def _action_gate_ok(self, reason: str = "") -> bool:
         """动作授权断言：``self._evidence is tick_evidence`` 且 generation 未变。
@@ -858,18 +863,19 @@ class Mediator:
                 )
                 if hit is not None and position_ok(hit):
                     return hit
-            # 主尺度全 miss → 宽尺度回退（DPI 缩放窗口；仅 miss 时发生）
-            hit = self.find(
-                frame,
-                self._ANCHOR_NAMES,
-                threshold=threshold,
-                scales=self._wide_scales(),
-                roi=roi,
-                early_stop=True,
-                mode="anchor:es-wide",
-            )
-            if hit is not None and position_ok(hit):
-                return hit
+            # 主尺度全 miss → 宽尺度回退（仅 DPI 放大窗口；基准窗口不宽搜）
+            if self._scaled_up_frame(frame):
+                hit = self.find(
+                    frame,
+                    self._ANCHOR_NAMES,
+                    threshold=threshold,
+                    scales=self._wide_scales(),
+                    roi=roi,
+                    early_stop=True,
+                    mode="anchor:es-wide",
+                )
+                if hit is not None and position_ok(hit):
+                    return hit
             return None
 
         return self._memo(key, frame, compute)
@@ -881,8 +887,8 @@ class Mediator:
             return opened
         threshold = min(0.70, self.settings.match_threshold)
         kind = self._classify_choice_panel_at(frame, threshold, self._hot_scales())
-        if kind is None:
-            # 主尺度无法归类 → 宽尺度回退（DPI 缩放窗口）
+        if kind is None and self._scaled_up_frame(frame):
+            # 主尺度无法归类 → 宽尺度回退（仅 DPI 放大窗口）
             kind = self._classify_choice_panel_at(frame, threshold, self._wide_scales())
         return kind
 
@@ -1229,8 +1235,10 @@ class Mediator:
             )
 
         hits = collect(self._hot_scales())
-        if not hits:
-            return collect(self._wide_scales())
+        if not hits or not self._scaled_up_frame(frame):
+            if not hits and self._scaled_up_frame(frame):
+                return collect(self._wide_scales())
+            return hits
         hit_stems = {Path(h.name).stem for h in hits}
         preferred_stems = [Path(n).stem for n in names]
         if any(ps not in hit_stems for ps in preferred_stems):

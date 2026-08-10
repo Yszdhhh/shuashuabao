@@ -54,8 +54,13 @@ class BenchmarkSmokeTest(unittest.TestCase):
         self.assertEqual(len(entries), 3, "expected 3 modes for victory fixture")
         for r in entries:
             self.assertGreater(r["total_ms"]["p50_ms"], 0.0)
-            self.assertGreater(r["match_calls"]["p50_ms"], 0)
-            self.assertGreater(r["match_pixels"]["p50_ms"], 0)
+            # N2 exact-static：同帧无输入时复用只读证据，matcher 调用可为 0
+            if r["mode"] == "exact_static":
+                self.assertGreaterEqual(r["match_calls"]["p50_ms"], 0)
+                self.assertGreaterEqual(r["match_pixels"]["p50_ms"], 0)
+            else:
+                self.assertGreater(r["match_calls"]["p50_ms"], 0)
+                self.assertGreater(r["match_pixels"]["p50_ms"], 0)
             self.assertEqual(r["contexts"], ["MAIN_LINE"])
             self.assertTrue(r["context_verified"])
 

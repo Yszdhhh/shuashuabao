@@ -1,0 +1,2394 @@
+{
+ "schema": "N0-benchmark-v1",
+ "generated_at": "2026-08-11T07:43:39",
+ "elapsed_s": 140.3,
+ "git": {
+  "repo_head": "0f8681e153583abb2537f81cfa98c62f312474bb",
+  "branch": "codex/ocr-hybrid",
+  "dirty": true
+ },
+ "environment": {
+  "python": "3.11.15",
+  "opencv": "4.14.0",
+  "numpy": "2.4.6",
+  "cpu": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+  "machine": "AMD64",
+  "os": "Windows-10-10.0.19045-SP0"
+ },
+ "template_sha256": "9060a146c803eae50409dbd03b8ec5659e3c8f0bf680304dd9dc7750d6523ff8",
+ "template_count": 316,
+ "iterations_per_mode": 3,
+ "fixtures": [
+  {
+   "mode": "cold",
+   "fixture": "idle_hud",
+   "total_ms": {
+    "p50_ms": 2111.4,
+    "p95_ms": 2154.1,
+    "min_ms": 2039.5,
+    "max_ms": 2154.1,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 20.4,
+    "p95_ms": 20.4,
+    "min_ms": 20.4,
+    "max_ms": 20.4,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.0,
+    "p95_ms": 18.2,
+    "min_ms": 17.9,
+    "max_ms": 18.2,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 603.3,
+    "p95_ms": 608.5,
+    "min_ms": 587.3,
+    "max_ms": 608.5,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 1485.8,
+    "p95_ms": 1507.1,
+    "min_ms": 1397.4,
+    "max_ms": 1507.1,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 58,
+    "p95_ms": 58,
+    "min_ms": 58,
+    "max_ms": 58,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 52307393,
+    "p95_ms": 52307393,
+    "min_ms": 52307393,
+    "max_ms": 52307393,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "idle_hud",
+   "file": "idle_hud.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "idle_hud",
+   "total_ms": {
+    "p50_ms": 2057.3,
+    "p95_ms": 2066.8,
+    "min_ms": 2034.8,
+    "max_ms": 2066.8,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 20.6,
+    "p95_ms": 20.6,
+    "min_ms": 20.6,
+    "max_ms": 20.6,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.3,
+    "p95_ms": 19.8,
+    "min_ms": 17.8,
+    "max_ms": 19.8,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 599.2,
+    "p95_ms": 605.2,
+    "min_ms": 598.0,
+    "max_ms": 605.2,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 1417.8,
+    "p95_ms": 1423.2,
+    "min_ms": 1397.9,
+    "max_ms": 1423.2,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 58,
+    "p95_ms": 58,
+    "min_ms": 58,
+    "max_ms": 58,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 52307393,
+    "p95_ms": 52307393,
+    "min_ms": 52307393,
+    "max_ms": 52307393,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "idle_hud",
+   "file": "idle_hud.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "idle_hud",
+   "total_ms": {
+    "p50_ms": 18.5,
+    "p95_ms": 18.7,
+    "min_ms": 17.8,
+    "max_ms": 18.7,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.2,
+    "p95_ms": 18.3,
+    "min_ms": 17.5,
+    "max_ms": 18.3,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.3,
+    "p95_ms": 0.4,
+    "min_ms": 0.3,
+    "max_ms": 0.4,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "idle_hud",
+   "file": "idle_hud.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "skill_panel",
+   "total_ms": {
+    "p50_ms": 515.5,
+    "p95_ms": 520.0,
+    "min_ms": 515.5,
+    "max_ms": 520.0,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 23.0,
+    "p95_ms": 23.0,
+    "min_ms": 23.0,
+    "max_ms": 23.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 24.8,
+    "p95_ms": 25.6,
+    "min_ms": 18.0,
+    "max_ms": 25.6,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 35.2,
+    "p95_ms": 35.6,
+    "min_ms": 29.3,
+    "max_ms": 35.6,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 435.8,
+    "p95_ms": 445.1,
+    "min_ms": 432.5,
+    "max_ms": 445.1,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 20,
+    "p95_ms": 20,
+    "min_ms": 20,
+    "max_ms": 20,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 18589110,
+    "p95_ms": 18589110,
+    "min_ms": 18589110,
+    "max_ms": 18589110,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "skill_panel",
+   "file": "skill_panel.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "skill_panel",
+   "total_ms": {
+    "p50_ms": 504.0,
+    "p95_ms": 515.8,
+    "min_ms": 500.7,
+    "max_ms": 515.8,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 19.7,
+    "p95_ms": 19.7,
+    "min_ms": 19.7,
+    "max_ms": 19.7,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.7,
+    "p95_ms": 21.5,
+    "min_ms": 18.4,
+    "max_ms": 21.5,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 30.9,
+    "p95_ms": 32.0,
+    "min_ms": 30.2,
+    "max_ms": 32.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 432.1,
+    "p95_ms": 446.8,
+    "min_ms": 430.7,
+    "max_ms": 446.8,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 20,
+    "p95_ms": 20,
+    "min_ms": 20,
+    "max_ms": 20,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 18589110,
+    "p95_ms": 18589110,
+    "min_ms": 18589110,
+    "max_ms": 18589110,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "skill_panel",
+   "file": "skill_panel.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "skill_panel",
+   "total_ms": {
+    "p50_ms": 50.3,
+    "p95_ms": 50.8,
+    "min_ms": 50.3,
+    "max_ms": 50.8,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.8,
+    "p95_ms": 18.2,
+    "min_ms": 17.6,
+    "max_ms": 18.2,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 32.7,
+    "p95_ms": 32.7,
+    "min_ms": 32.4,
+    "max_ms": 32.7,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 2,
+    "p95_ms": 2,
+    "min_ms": 2,
+    "max_ms": 2,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 783432,
+    "p95_ms": 783432,
+    "min_ms": 783432,
+    "max_ms": 783432,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "skill_panel",
+   "file": "skill_panel.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "bond_panel",
+   "total_ms": {
+    "p50_ms": 241.0,
+    "p95_ms": 242.4,
+    "min_ms": 235.3,
+    "max_ms": 242.4,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 24.6,
+    "p95_ms": 24.6,
+    "min_ms": 24.6,
+    "max_ms": 24.6,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 19.4,
+    "p95_ms": 23.7,
+    "min_ms": 18.7,
+    "max_ms": 23.7,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 47.5,
+    "p95_ms": 48.7,
+    "min_ms": 44.8,
+    "max_ms": 48.7,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 147.2,
+    "p95_ms": 149.7,
+    "min_ms": 145.3,
+    "max_ms": 149.7,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 15,
+    "p95_ms": 15,
+    "min_ms": 15,
+    "max_ms": 15,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 11882533,
+    "p95_ms": 11882533,
+    "min_ms": 11882533,
+    "max_ms": 11882533,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "bond_panel",
+   "file": "bond_panel.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "bond_panel",
+   "total_ms": {
+    "p50_ms": 226.9,
+    "p95_ms": 229.0,
+    "min_ms": 224.5,
+    "max_ms": 229.0,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 19.7,
+    "p95_ms": 19.7,
+    "min_ms": 19.7,
+    "max_ms": 19.7,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.7,
+    "p95_ms": 17.9,
+    "min_ms": 17.6,
+    "max_ms": 17.9,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 44.8,
+    "p95_ms": 45.0,
+    "min_ms": 44.5,
+    "max_ms": 45.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 144.4,
+    "p95_ms": 146.6,
+    "min_ms": 142.6,
+    "max_ms": 146.6,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 15,
+    "p95_ms": 15,
+    "min_ms": 15,
+    "max_ms": 15,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 11882533,
+    "p95_ms": 11882533,
+    "min_ms": 11882533,
+    "max_ms": 11882533,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "bond_panel",
+   "file": "bond_panel.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "bond_panel",
+   "total_ms": {
+    "p50_ms": 17.7,
+    "p95_ms": 18.9,
+    "min_ms": 17.6,
+    "max_ms": 18.9,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.4,
+    "p95_ms": 18.5,
+    "min_ms": 17.2,
+    "max_ms": 18.5,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.4,
+    "p95_ms": 0.4,
+    "min_ms": 0.4,
+    "max_ms": 0.4,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "bond_panel",
+   "file": "bond_panel.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "treasure_panel",
+   "total_ms": {
+    "p50_ms": 346.8,
+    "p95_ms": 348.9,
+    "min_ms": 337.6,
+    "max_ms": 348.9,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 22.9,
+    "p95_ms": 22.9,
+    "min_ms": 22.9,
+    "max_ms": 22.9,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.3,
+    "p95_ms": 23.9,
+    "min_ms": 17.0,
+    "max_ms": 23.9,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 31.4,
+    "p95_ms": 35.0,
+    "min_ms": 29.5,
+    "max_ms": 35.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 268.2,
+    "p95_ms": 276.3,
+    "min_ms": 265.0,
+    "max_ms": 276.3,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 16,
+    "p95_ms": 16,
+    "min_ms": 16,
+    "max_ms": 16,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 14722369,
+    "p95_ms": 14722369,
+    "min_ms": 14722369,
+    "max_ms": 14722369,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "treasure_panel",
+   "file": "treasure_panel.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "treasure_panel",
+   "total_ms": {
+    "p50_ms": 337.3,
+    "p95_ms": 349.6,
+    "min_ms": 334.0,
+    "max_ms": 349.6,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 22.3,
+    "p95_ms": 22.3,
+    "min_ms": 22.3,
+    "max_ms": 22.3,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.5,
+    "p95_ms": 23.6,
+    "min_ms": 17.3,
+    "max_ms": 23.6,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 29.5,
+    "p95_ms": 34.8,
+    "min_ms": 29.4,
+    "max_ms": 34.8,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 268.2,
+    "p95_ms": 268.9,
+    "min_ms": 264.7,
+    "max_ms": 268.9,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 16,
+    "p95_ms": 16,
+    "min_ms": 16,
+    "max_ms": 16,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 14722369,
+    "p95_ms": 14722369,
+    "min_ms": 14722369,
+    "max_ms": 14722369,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "treasure_panel",
+   "file": "treasure_panel.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "treasure_panel",
+   "total_ms": {
+    "p50_ms": 17.9,
+    "p95_ms": 17.9,
+    "min_ms": 17.7,
+    "max_ms": 17.9,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.5,
+    "p95_ms": 17.5,
+    "min_ms": 17.3,
+    "max_ms": 17.5,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.4,
+    "p95_ms": 0.4,
+    "min_ms": 0.4,
+    "max_ms": 0.4,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "treasure_panel",
+   "file": "treasure_panel.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "victory",
+   "total_ms": {
+    "p50_ms": 1125.8,
+    "p95_ms": 1134.7,
+    "min_ms": 1116.6,
+    "max_ms": 1134.7,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 21.4,
+    "p95_ms": 21.4,
+    "min_ms": 21.4,
+    "max_ms": 21.4,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.1,
+    "p95_ms": 23.0,
+    "min_ms": 17.6,
+    "max_ms": 23.0,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 1068.0,
+    "p95_ms": 1081.4,
+    "min_ms": 1064.5,
+    "max_ms": 1081.4,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 13.3,
+    "p95_ms": 13.8,
+    "min_ms": 13.1,
+    "max_ms": 13.8,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 28,
+    "p95_ms": 28,
+    "min_ms": 28,
+    "max_ms": 28,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 27310223,
+    "p95_ms": 27310223,
+    "min_ms": 27310223,
+    "max_ms": 27310223,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "victory",
+   "file": "victory.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "victory",
+   "total_ms": {
+    "p50_ms": 1132.0,
+    "p95_ms": 1146.7,
+    "min_ms": 1113.1,
+    "max_ms": 1146.7,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 19.5,
+    "p95_ms": 19.5,
+    "min_ms": 19.5,
+    "max_ms": 19.5,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.0,
+    "p95_ms": 18.3,
+    "min_ms": 17.5,
+    "max_ms": 18.3,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 1082.0,
+    "p95_ms": 1096.4,
+    "min_ms": 1062.5,
+    "max_ms": 1096.4,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 12.8,
+    "p95_ms": 13.3,
+    "min_ms": 12.4,
+    "max_ms": 13.3,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 28,
+    "p95_ms": 28,
+    "min_ms": 28,
+    "max_ms": 28,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 27310223,
+    "p95_ms": 27310223,
+    "min_ms": 27310223,
+    "max_ms": 27310223,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "victory",
+   "file": "victory.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "victory",
+   "total_ms": {
+    "p50_ms": 17.5,
+    "p95_ms": 17.7,
+    "min_ms": 17.5,
+    "max_ms": 17.7,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.4,
+    "p95_ms": 17.7,
+    "min_ms": 17.4,
+    "max_ms": 17.7,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.1,
+    "p95_ms": 0.1,
+    "min_ms": 0.1,
+    "max_ms": 0.1,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "victory",
+   "file": "victory.png",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "fail_panel",
+   "total_ms": {
+    "p50_ms": 975.0,
+    "p95_ms": 986.7,
+    "min_ms": 971.0,
+    "max_ms": 986.7,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 6.4,
+    "p95_ms": 6.4,
+    "min_ms": 6.4,
+    "max_ms": 6.4,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 26.3,
+    "p95_ms": 29.6,
+    "min_ms": 25.0,
+    "max_ms": 29.6,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 41.3,
+    "p95_ms": 45.4,
+    "min_ms": 38.5,
+    "max_ms": 45.4,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 905.1,
+    "p95_ms": 909.4,
+    "min_ms": 892.9,
+    "max_ms": 909.4,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 31,
+    "p95_ms": 31,
+    "min_ms": 31,
+    "max_ms": 31,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 33072624,
+    "p95_ms": 33072624,
+    "min_ms": 33072624,
+    "max_ms": 33072624,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "fail_panel",
+   "file": "fail_panel.jpg",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "fail_panel",
+   "total_ms": {
+    "p50_ms": 987.1,
+    "p95_ms": 993.3,
+    "min_ms": 985.9,
+    "max_ms": 993.3,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 5.8,
+    "p95_ms": 5.8,
+    "min_ms": 5.8,
+    "max_ms": 5.8,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 24.6,
+    "p95_ms": 26.6,
+    "min_ms": 24.5,
+    "max_ms": 26.6,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 39.3,
+    "p95_ms": 44.0,
+    "min_ms": 38.9,
+    "max_ms": 44.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 917.4,
+    "p95_ms": 923.9,
+    "min_ms": 909.4,
+    "max_ms": 923.9,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 31,
+    "p95_ms": 31,
+    "min_ms": 31,
+    "max_ms": 31,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 33072624,
+    "p95_ms": 33072624,
+    "min_ms": 33072624,
+    "max_ms": 33072624,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "fail_panel",
+   "file": "fail_panel.jpg",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "fail_panel",
+   "total_ms": {
+    "p50_ms": 299.5,
+    "p95_ms": 308.9,
+    "min_ms": 297.1,
+    "max_ms": 308.9,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 25.4,
+    "p95_ms": 25.4,
+    "min_ms": 24.8,
+    "max_ms": 25.4,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 274.1,
+    "p95_ms": 284.1,
+    "min_ms": 271.6,
+    "max_ms": 284.1,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 12,
+    "p95_ms": 12,
+    "min_ms": 12,
+    "max_ms": 12,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 6473520,
+    "p95_ms": 6473520,
+    "min_ms": 6473520,
+    "max_ms": 6473520,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "fail_panel",
+   "file": "fail_panel.jpg",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "giveup_panel",
+   "total_ms": {
+    "p50_ms": 289.5,
+    "p95_ms": 296.4,
+    "min_ms": 278.2,
+    "max_ms": 296.4,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 6.1,
+    "p95_ms": 6.1,
+    "min_ms": 6.1,
+    "max_ms": 6.1,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 25.2,
+    "p95_ms": 37.2,
+    "min_ms": 24.7,
+    "max_ms": 37.2,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 40.9,
+    "p95_ms": 41.9,
+    "min_ms": 39.9,
+    "max_ms": 41.9,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 211.2,
+    "p95_ms": 218.7,
+    "min_ms": 206.0,
+    "max_ms": 218.7,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 14,
+    "p95_ms": 14,
+    "min_ms": 14,
+    "max_ms": 14,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 16231104,
+    "p95_ms": 16231104,
+    "min_ms": 16231104,
+    "max_ms": 16231104,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "giveup_panel",
+   "file": "giveup_panel.jpg",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "giveup_panel",
+   "total_ms": {
+    "p50_ms": 281.4,
+    "p95_ms": 286.7,
+    "min_ms": 279.1,
+    "max_ms": 286.7,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 5.5,
+    "p95_ms": 5.5,
+    "min_ms": 5.5,
+    "max_ms": 5.5,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 25.6,
+    "p95_ms": 25.8,
+    "min_ms": 25.1,
+    "max_ms": 25.8,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 39.7,
+    "p95_ms": 39.9,
+    "min_ms": 38.7,
+    "max_ms": 39.9,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 210.3,
+    "p95_ms": 216.9,
+    "min_ms": 208.6,
+    "max_ms": 216.9,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 14,
+    "p95_ms": 14,
+    "min_ms": 14,
+    "max_ms": 14,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 16231104,
+    "p95_ms": 16231104,
+    "min_ms": 16231104,
+    "max_ms": 16231104,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "giveup_panel",
+   "file": "giveup_panel.jpg",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "giveup_panel",
+   "total_ms": {
+    "p50_ms": 25.5,
+    "p95_ms": 25.9,
+    "min_ms": 25.0,
+    "max_ms": 25.9,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 25.1,
+    "p95_ms": 25.5,
+    "min_ms": 24.6,
+    "max_ms": 25.5,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.4,
+    "p95_ms": 0.4,
+    "min_ms": 0.4,
+    "max_ms": 0.4,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    "MAIN_LINE"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "giveup_panel",
+   "file": "giveup_panel.jpg",
+   "expected_context": "MAIN_LINE",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "stage_select",
+   "total_ms": {
+    "p50_ms": 2342.5,
+    "p95_ms": 2352.3,
+    "min_ms": 2337.9,
+    "max_ms": 2352.3,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 17.0,
+    "p95_ms": 17.0,
+    "min_ms": 17.0,
+    "max_ms": 17.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.0,
+    "p95_ms": 22.1,
+    "min_ms": 17.1,
+    "max_ms": 22.1,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 2294.5,
+    "p95_ms": 2307.7,
+    "min_ms": 2293.5,
+    "max_ms": 2307.7,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 9.7,
+    "p95_ms": 9.8,
+    "min_ms": 9.4,
+    "max_ms": 9.8,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 54,
+    "p95_ms": 54,
+    "min_ms": 54,
+    "max_ms": 54,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 60626128,
+    "p95_ms": 60626128,
+    "min_ms": 60626128,
+    "max_ms": 60626128,
+    "samples": 3
+   },
+   "contexts": [
+    "STAGE_SELECT"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "stage_select",
+   "file": "stage_select.png",
+   "expected_context": "STAGE_SELECT",
+   "expected_phase": "STAGE_SELECT",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "stage_select",
+   "total_ms": {
+    "p50_ms": 2361.8,
+    "p95_ms": 2412.1,
+    "min_ms": 2337.1,
+    "max_ms": 2412.1,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 17.8,
+    "p95_ms": 17.8,
+    "min_ms": 17.8,
+    "max_ms": 17.8,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.1,
+    "p95_ms": 18.2,
+    "min_ms": 17.9,
+    "max_ms": 18.2,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 2315.2,
+    "p95_ms": 2365.1,
+    "min_ms": 2290.9,
+    "max_ms": 2365.1,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 10.7,
+    "p95_ms": 11.1,
+    "min_ms": 10.5,
+    "max_ms": 11.1,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 54,
+    "p95_ms": 54,
+    "min_ms": 54,
+    "max_ms": 54,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 60626128,
+    "p95_ms": 60626128,
+    "min_ms": 60626128,
+    "max_ms": 60626128,
+    "samples": 3
+   },
+   "contexts": [
+    "STAGE_SELECT"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "stage_select",
+   "file": "stage_select.png",
+   "expected_context": "STAGE_SELECT",
+   "expected_phase": "STAGE_SELECT",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "stage_select",
+   "total_ms": {
+    "p50_ms": 27.3,
+    "p95_ms": 28.5,
+    "min_ms": 26.8,
+    "max_ms": 28.5,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.6,
+    "p95_ms": 18.7,
+    "min_ms": 17.4,
+    "max_ms": 18.7,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 9.6,
+    "p95_ms": 9.8,
+    "min_ms": 9.5,
+    "max_ms": 9.8,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 4,
+    "p95_ms": 4,
+    "min_ms": 4,
+    "max_ms": 4,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 2128,
+    "p95_ms": 2128,
+    "min_ms": 2128,
+    "max_ms": 2128,
+    "samples": 3
+   },
+   "contexts": [
+    "STAGE_SELECT"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "stage_select",
+   "file": "stage_select.png",
+   "expected_context": "STAGE_SELECT",
+   "expected_phase": "STAGE_SELECT",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "room_waiting",
+   "total_ms": {
+    "p50_ms": 3303.5,
+    "p95_ms": 3340.1,
+    "min_ms": 3271.0,
+    "max_ms": 3340.1,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 3.3,
+    "p95_ms": 3.3,
+    "min_ms": 3.3,
+    "max_ms": 3.3,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 8.3,
+    "p95_ms": 13.2,
+    "min_ms": 8.2,
+    "max_ms": 13.2,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 3291.8,
+    "p95_ms": 3323.5,
+    "min_ms": 3259.5,
+    "max_ms": 3323.5,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.1,
+    "p95_ms": 0.1,
+    "min_ms": 0.1,
+    "max_ms": 0.1,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 139,
+    "p95_ms": 139,
+    "min_ms": 139,
+    "max_ms": 139,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 86223280,
+    "p95_ms": 86223280,
+    "min_ms": 86223280,
+    "max_ms": 86223280,
+    "samples": 3
+   },
+   "contexts": [
+    "ROOM_WAITING"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "room_waiting",
+   "file": "room_waiting.png",
+   "expected_context": "ROOM_WAITING",
+   "expected_phase": "ROOM_WAITING",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "room_waiting",
+   "total_ms": {
+    "p50_ms": 3290.4,
+    "p95_ms": 3320.0,
+    "min_ms": 3281.0,
+    "max_ms": 3320.0,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 3.4,
+    "p95_ms": 3.4,
+    "min_ms": 3.4,
+    "max_ms": 3.4,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 9.1,
+    "p95_ms": 9.2,
+    "min_ms": 8.5,
+    "max_ms": 9.2,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 3278.4,
+    "p95_ms": 3307.4,
+    "min_ms": 3268.3,
+    "max_ms": 3307.4,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.1,
+    "p95_ms": 0.1,
+    "min_ms": 0.1,
+    "max_ms": 0.1,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 139,
+    "p95_ms": 139,
+    "min_ms": 139,
+    "max_ms": 139,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 86223280,
+    "p95_ms": 86223280,
+    "min_ms": 86223280,
+    "max_ms": 86223280,
+    "samples": 3
+   },
+   "contexts": [
+    "ROOM_WAITING"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "room_waiting",
+   "file": "room_waiting.png",
+   "expected_context": "ROOM_WAITING",
+   "expected_phase": "ROOM_WAITING",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "room_waiting",
+   "total_ms": {
+    "p50_ms": 8.6,
+    "p95_ms": 8.6,
+    "min_ms": 8.3,
+    "max_ms": 8.6,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 8.6,
+    "p95_ms": 8.6,
+    "min_ms": 8.2,
+    "max_ms": 8.6,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    "ROOM_WAITING"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "room_waiting",
+   "file": "room_waiting.png",
+   "expected_context": "ROOM_WAITING",
+   "expected_phase": "ROOM_WAITING",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "unknown_page",
+   "total_ms": {
+    "p50_ms": 4759.1,
+    "p95_ms": 4785.9,
+    "min_ms": 4736.2,
+    "max_ms": 4785.9,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 6.8,
+    "p95_ms": 6.8,
+    "min_ms": 6.8,
+    "max_ms": 6.8,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 18.9,
+    "p95_ms": 23.8,
+    "min_ms": 18.4,
+    "max_ms": 23.8,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 4050.1,
+    "p95_ms": 4063.1,
+    "min_ms": 4025.5,
+    "max_ms": 4063.1,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 684.9,
+    "p95_ms": 692.2,
+    "min_ms": 683.8,
+    "max_ms": 692.2,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 109,
+    "p95_ms": 109,
+    "min_ms": 109,
+    "max_ms": 109,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 123669360,
+    "p95_ms": 123669360,
+    "min_ms": 123669360,
+    "max_ms": 123669360,
+    "samples": 3
+   },
+   "contexts": [
+    "UNKNOWN"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "unknown_page",
+   "file": "unknown_page.png",
+   "expected_context": "UNKNOWN",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "unknown_page",
+   "total_ms": {
+    "p50_ms": 4708.4,
+    "p95_ms": 4743.5,
+    "min_ms": 4695.0,
+    "max_ms": 4743.5,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 5.7,
+    "p95_ms": 5.7,
+    "min_ms": 5.7,
+    "max_ms": 5.7,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 19.6,
+    "p95_ms": 20.9,
+    "min_ms": 17.1,
+    "max_ms": 20.9,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 4010.8,
+    "p95_ms": 4022.7,
+    "min_ms": 3996.4,
+    "max_ms": 4022.7,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 674.8,
+    "p95_ms": 694.2,
+    "min_ms": 673.3,
+    "max_ms": 694.2,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 109,
+    "p95_ms": 109,
+    "min_ms": 109,
+    "max_ms": 109,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 123669360,
+    "p95_ms": 123669360,
+    "min_ms": 123669360,
+    "max_ms": 123669360,
+    "samples": 3
+   },
+   "contexts": [
+    "UNKNOWN"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "unknown_page",
+   "file": "unknown_page.png",
+   "expected_context": "UNKNOWN",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "unknown_page",
+   "total_ms": {
+    "p50_ms": 17.5,
+    "p95_ms": 17.6,
+    "min_ms": 17.1,
+    "max_ms": 17.6,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.5,
+    "p95_ms": 17.5,
+    "min_ms": 17.1,
+    "max_ms": 17.5,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.1,
+    "p95_ms": 0.1,
+    "min_ms": 0.1,
+    "max_ms": 0.1,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    "UNKNOWN"
+   ],
+   "actions": [
+    "Continue"
+   ],
+   "fixture_id": "unknown_page",
+   "file": "unknown_page.png",
+   "expected_context": "UNKNOWN",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "healthy",
+   "context_verified": true
+  },
+  {
+   "mode": "cold",
+   "fixture": "black_frame",
+   "total_ms": {
+    "p50_ms": 23.1,
+    "p95_ms": 25.3,
+    "min_ms": 22.5,
+    "max_ms": 25.3,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 5.1,
+    "p95_ms": 5.1,
+    "min_ms": 5.1,
+    "max_ms": 5.1,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.9,
+    "p95_ms": 20.2,
+    "min_ms": 17.4,
+    "max_ms": 20.2,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    null
+   ],
+   "actions": [],
+   "fixture_id": "black_frame",
+   "file": "black_frame.png",
+   "expected_context": "UNKNOWN",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "unhealthy:black_frame",
+   "context_verified": true
+  },
+  {
+   "mode": "warm_changed",
+   "fixture": "black_frame",
+   "total_ms": {
+    "p50_ms": 23.0,
+    "p95_ms": 24.8,
+    "min_ms": 22.6,
+    "max_ms": 24.8,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 5.1,
+    "p95_ms": 5.1,
+    "min_ms": 5.1,
+    "max_ms": 5.1,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.9,
+    "p95_ms": 19.8,
+    "min_ms": 17.5,
+    "max_ms": 19.8,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    null
+   ],
+   "actions": [],
+   "fixture_id": "black_frame",
+   "file": "black_frame.png",
+   "expected_context": "UNKNOWN",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "unhealthy:black_frame",
+   "context_verified": true
+  },
+  {
+   "mode": "exact_static",
+   "fixture": "black_frame",
+   "total_ms": {
+    "p50_ms": 17.2,
+    "p95_ms": 17.7,
+    "min_ms": 17.0,
+    "max_ms": 17.7,
+    "samples": 3
+   },
+   "capture_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "health_ms": {
+    "p50_ms": 17.2,
+    "p95_ms": 17.7,
+    "min_ms": 17.0,
+    "max_ms": 17.7,
+    "samples": 3
+   },
+   "context_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "decision_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "action_ms": {
+    "p50_ms": 0.0,
+    "p95_ms": 0.0,
+    "min_ms": 0.0,
+    "max_ms": 0.0,
+    "samples": 3
+   },
+   "match_calls": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "match_pixels": {
+    "p50_ms": 0,
+    "p95_ms": 0,
+    "min_ms": 0,
+    "max_ms": 0,
+    "samples": 3
+   },
+   "contexts": [
+    null
+   ],
+   "actions": [],
+   "fixture_id": "black_frame",
+   "file": "black_frame.png",
+   "expected_context": "UNKNOWN",
+   "expected_phase": "MAIN_LINE",
+   "expected_health": "unhealthy:black_frame",
+   "context_verified": true
+  }
+ ],
+ "live_capture_ms": {}
+}
