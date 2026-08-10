@@ -35,6 +35,15 @@
     "物理伤害": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
     "攻坚": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
     "四星球": { "aliases": ["4星球"], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": "龙珠" },
-    "六星球": { "aliases": ["6星球"], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": "龙珠" }
+    "六星球": { "aliases": ["6星球"], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": "龙珠" },
+    "乱世三国": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": ["三国"], "set_membership": "三国" },
+    "体魄": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
+    "攻击提升": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
+    "智力祝福": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
+    "敏捷祝福": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
+    "力量祝福": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
+    "贪婪献祭": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
+    "卡牌大师": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
+    "双倍神符": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null }
   }
 }
