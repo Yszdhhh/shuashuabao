@@ -460,13 +460,13 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
     )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="P0-B screenshot replay runner")
     parser.add_argument("--ledger", metavar="PATH", default=None,
                         help="Append one tick-level action ledger line per fixture to PATH (JSONL).")
-    args = parser.parse_args()
+    args = parser.parse_args(argv if argv is not None else [])
 
     manifest_path = ROOT / "fixtures" / "manifest.json"
     if not manifest_path.is_file():
@@ -562,4 +562,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))
