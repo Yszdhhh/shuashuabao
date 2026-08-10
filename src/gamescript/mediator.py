@@ -20,6 +20,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from gamescript.incidents import IncidentArchiver
 from gamescript.input.emergency_stop import EmergencyStopListener
 from gamescript.input.keyboard_mouse import InputExecutor
 from gamescript.loop_action import LoopAction
@@ -29,6 +30,7 @@ from gamescript.stop_signal import StopSignal
 from gamescript.vision.capture import (
     Frame,
     FrameHealthIssue,
+    FrameHealthResult,
     L0_WINDOW_KEYWORDS,
     L1_WINDOW_KEYWORDS,
     activate_window,
@@ -110,7 +112,13 @@ class ChallengeState(Enum):
 
 
 class Mediator:
-    def __init__(self, settings: Settings, project_root: Path, stop_signal: StopSignal | None = None):
+    def __init__(
+        self,
+        settings: Settings,
+        project_root: Path,
+        stop_signal: StopSignal | None = None,
+        incident_dir: str | Path | None = None,
+    ):
         self.settings = settings
         self.root = project_root
         self.images = settings.images_path(project_root)
@@ -210,6 +218,14 @@ class Mediator:
         self._hero_card_baseline: np.ndarray | None = None
         self._hero_step_deadline: float | None = None
         self._hero_modal_missing_frames = 0
+        # B1-2：未知页面/未知选择自动归档。incident_dir=None → 不建档（默认关闭，
+        # 测试/回放零副作用）；桌面/LIVE 接入时传入 %LocalAppData%\GameScript-Local。
+        self._incident_dir = incident_dir
+        self._archiver: IncidentArchiver | None = IncidentArchiver(root=incident_dir) if incident_dir else None
+        self._incident_pending_fp: str | None = None  # 待补齐 frame_after 的 incident 指纹
+        self._unknown_since: float | None = None      # context=UNKNOWN 连续计时起点
+        self._unknown_recorded_fp: str | None = None  # 本 UNKNOWN episode 已归档的页面指纹
+        self._last_health: FrameHealthResult | None = None  # 最近一帧健康结果（Fail-Closed 归档用）
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -786,6 +802,7 @@ class Mediator:
         kind = self._classify_choice_panel(frame)
         if kind is None:
             # 分类失败：绝不假装 skill（旧行为会把 UNKNOWN 当技能面板扫全库）
+            self._record_selection_unknown(frame, anchor, "panel classification failed")
             return None
 
         if kind in ("bond", "treasure", "card"):
@@ -1681,6 +1698,9 @@ class Mediator:
         # Reset cycle counter when successfully advancing to game phases
         if phase in (Phase.STAGE_SELECT, Phase.MAIN_LINE):
             self._l0_cycle_count = 0
+        if phase == Phase.ERROR:
+            # B1-2：进入 Fail-Closed 前留档（此时 self.phase 仍是发生错误的原阶段）
+            self._record_fail_closed_incident(note)
         self.phase = phase
         if phase == Phase.ERROR:
             self._interrupt_reason = note or "unspecified"
@@ -1739,6 +1759,125 @@ class Mediator:
         if self._longzhu_deadline is None:
             return False
         return time.time() >= self._longzhu_deadline
+
+    # ---------- B1-2 incident 归档辅助（无 incident_dir 时全部空转）----------
+
+    def _record_fail_closed_incident(self, note: str) -> None:
+        """B1-2：进入 Phase.ERROR（LIVE Fail-Closed / dry-run OBSERVE）前归档当前帧证据。
+
+        事件来源：所有 Fail-Closed 停机分支统一经 set_phase(Phase.ERROR, ...)
+        汇合；在此留档可覆盖未知页超时、重试耗尽、页面异变、不健康帧超时等
+        全部场景，无需逐个分支埋点。调用发生在 self.phase 赋值之前，
+        metadata.phase 因此是发生错误的原阶段而非 ERROR。
+        """
+        if self._archiver is None:
+            return
+        frame = self._last_frame
+        if frame is None or frame.bgr is None or frame.bgr.size == 0:
+            return
+        health = self._last_health
+        saved = self._archiver.maybe_record(
+            frame_before=self._prev_frame,
+            frame_now=frame,
+            metadata={
+                "kind": "fail_closed",
+                "phase": self.phase.name,
+                "hwnd": frame.hwnd,
+                "window_title": frame.window_title,
+                "size": [frame.width, frame.height],
+                "score": None,
+                "candidate_actions": list(self._trace_actions),
+                "final_action": "stop",
+                "reason": note or "unspecified",
+            },
+            healthy=bool(health is None or health.is_healthy),
+            health_issues=[i.value for i in (health.issues if health else [])],
+            health_details=health.details if health else "",
+        )
+        if saved is not None:
+            self._incident_pending_fp = saved
+
+    def _record_selection_unknown(self, frame: Frame, anchor: MatchResult | None, reason: str) -> None:
+        """B1-2：选择面板分类失败/无候选命中时归档（不产生任何输入）。
+
+        事件来源：_find_reward_choice 中 _classify_choice_panel 返回 None
+        （面板锚点存在但按钮组合无法归类）——旧行为会因此假装 skill 扫全库。
+        """
+        if self._archiver is None:
+            return
+        saved = self._archiver.maybe_record(
+            frame_before=self._prev_frame,
+            frame_now=frame,
+            metadata={
+                "kind": "selection_unknown",
+                "phase": self.phase.name,
+                "hwnd": frame.hwnd,
+                "window_title": frame.window_title,
+                "size": [frame.width, frame.height],
+                "score": anchor.score if anchor is not None else None,
+                "candidate_actions": list(self._trace_actions),
+                "final_action": "wait",
+                "reason": reason,
+                "rois": self._panel_roi(frame),
+            },
+            healthy=True,
+            health_issues=[],
+            health_details="",
+        )
+        if saved is not None:
+            self._incident_pending_fp = saved
+
+    def _record_repeat_click(self, frame: Frame, choice: tuple[str, MatchResult], attempts: int) -> None:
+        """B1-2：同一选择连续 2 次点击无页面变化时归档。
+
+        事件来源：_tick_main_line 的 _selection_repeat_key/attempts 重试检测；
+        attempts==3 表示同面板同选项已连续出现 3 次（第 1、2 次点击均未改变
+        页面），正是蓝图 B4-3「连续 2 次无变化」的检测点。
+        """
+        if self._archiver is None:
+            return
+        kind, hit = choice
+        saved = self._archiver.maybe_record(
+            frame_before=self._prev_frame,
+            frame_now=frame,
+            metadata={
+                "kind": "repeat_click_no_change",
+                "phase": self.phase.name,
+                "hwnd": frame.hwnd,
+                "window_title": frame.window_title,
+                "size": [frame.width, frame.height],
+                "score": hit.score,
+                "candidate_actions": [
+                    {
+                        "intent": f"click:{hit.name}",
+                        "at": [hit.screen_x, hit.screen_y],
+                        "reason": f"{kind}选择",
+                        "repeat_attempts": attempts,
+                    }
+                ],
+                "final_action": "close_panel",
+                "reason": f"{kind}选择 {hit.name} 连续 {attempts} 次点击无页面变化",
+                "rois": self._panel_roi(frame),
+            },
+            healthy=True,
+            health_issues=[],
+            health_details="",
+        )
+        if saved is not None:
+            self._incident_pending_fp = saved
+
+    def _panel_roi(self, frame: Frame) -> list[dict]:
+        """选择面板 ROI（帧内坐标），供 incident 裁剪参考图。"""
+        x1, y1, x2, y2 = self._selection_roi()
+        return [
+            {
+                "label": "panel",
+                "x": int(frame.width * x1),
+                "y": int(frame.height * y1),
+                "w": int(frame.width * (x2 - x1)),
+                "h": int(frame.height * (y2 - y1)),
+            }
+        ]
 
     # ---------- L0 显式页面链 ----------
 
@@ -2445,6 +2584,7 @@ class Mediator:
             return LoopAction.Break
 
         health = check_frame_health(frame, prev_frame=self._prev_frame)
+        self._last_health = health
         if not health.is_healthy:
             issue_values = {i.value for i in health.issues}
             static_frame_ok = issue_values.issubset({"frozen", "old_frame"})
@@ -2511,6 +2651,46 @@ class Mediator:
                 return LoopAction.Continue
 
         self._missing_window_since = None
+
+        # ---- B1-2 证据归档（无 incident_dir 时全部空转；归档不产生任何输入）----
+        # 注：此处仅健康帧/静态帧可达（不健康非静态分支均已 return）。
+        if self._archiver is not None:
+            # 1) 触发后下一帧补齐 frame_after（同一 incident 只补一次）
+            if self._incident_pending_fp:
+                if self._archiver.attach_frame_after(self._incident_pending_fp, frame):
+                    self._incident_pending_fp = None
+            # 2) context=UNKNOWN 连续 2 秒 → 未知页面 incident；
+            #    同一 UNKNOWN episode 内每个不同页面只记一次（episode 结束重置）。
+            now = time.time()
+            if self._context_cache_value == "UNKNOWN":
+                self._unknown_since = self._unknown_since or now
+                if now - self._unknown_since >= 2.0:
+                    fp_now = self._archiver.fingerprint(frame)
+                    if fp_now is not None and fp_now != self._unknown_recorded_fp:
+                        saved = self._archiver.maybe_record(
+                            frame_before=self._prev_frame,
+                            frame_now=frame,
+                            metadata={
+                                "kind": "unknown_page",
+                                "phase": self.phase.name,
+                                "hwnd": frame.hwnd,
+                                "window_title": frame.window_title,
+                                "size": [frame.width, frame.height],
+                                "score": None,
+                                "candidate_actions": [],
+                                "final_action": "wait",
+                                "reason": "context=UNKNOWN >= 2s",
+                            },
+                            healthy=True,  # 本路径仅健康/静态帧可达
+                            health_issues=[],
+                            health_details="",
+                        )
+                        self._unknown_recorded_fp = fp_now
+                        if saved is not None:
+                            self._incident_pending_fp = saved
+            else:
+                self._unknown_since = None
+                self._unknown_recorded_fp = None
 
         # 全局：断线/失败优先。单帧相似只算候选；连续两帧才取得
         # QUIT 动作权限。恢复 episode 一旦开始，后续步骤不再依赖 fail
@@ -2751,6 +2931,10 @@ class Mediator:
                 else:
                     self._selection_repeat_key = repeat_key
                     self._selection_repeat_attempts = 1
+                if self._selection_repeat_attempts == 3:
+                    # B1-2：同一选择连续 2 次点击无页面变化 → 归档证据
+                    # （attempts==3 = 第 1、2 次点击后页面均未变化）
+                    self._record_repeat_click(frame, choice, self._selection_repeat_attempts)
                 if self._selection_repeat_attempts > 3:
                     close_hit = self._close_current_panel(frame, kind)
                     if close_hit is not None:
