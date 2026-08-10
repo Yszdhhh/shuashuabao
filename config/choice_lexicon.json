@@ -2,48 +2,661 @@
   "version": "1.0",
   "_comment": "B2-3 OCR 词典归一化事实数据。来源：config/skill_labels.json 技能白名单(16 短码)、rec1/ops 实机帧画面文字、REBORN_WOW_GAME_STRATEGY_RESEARCH 奥术/奥数同义词对齐、CLOUD_REVIEW 龙珠面板。aliases=常见 OCR 混淆/简称(R 后缀、空格、数字变体)；confusions=明确观察到的易混对(前缀共享)；set_membership=套装归属(仅龙珠/三国已证实)。未观察到的不写入。",
   "entries": {
-    "奥数箭": { "aliases": ["奥术箭"], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "奥数激光": { "aliases": ["奥术激光"], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "奥数射线": { "aliases": ["奥术射线"], "kind": "skill", "version_seen": "1.3.x", "confusions": ["射线"], "set_membership": null },
-    "冰霜新星": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "爆炎箭": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "电磁网": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "地震": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "寒冰箭": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "火球": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "飓风": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "剑气": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "龙卷风": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "普攻": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "闪电链": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "天雷": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "陨石": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "次级箭": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": ["次级增伤"], "set_membership": null },
-    "焦点": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "箭矢齐射": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "光法": { "aliases": ["光法R", "光法r"], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "潮汐猎人": { "aliases": ["潮汐猎人SR", "潮汐猎人sr"], "kind": "skill", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "次级增伤": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": ["次级箭"], "set_membership": null },
-    "射线增幅": { "aliases": [], "kind": "skill", "version_seen": "1.3.x", "confusions": ["射线"], "set_membership": null },
-    "三国": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": "三国" },
-    "体术": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "成长": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "修仙": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "魔术": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "封神": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "奥术神符": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "物理伤害": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "攻坚": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "四星球": { "aliases": ["4星球"], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": "龙珠" },
-    "六星球": { "aliases": ["6星球"], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": "龙珠" },
-    "乱世三国": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": ["三国"], "set_membership": "三国" },
-    "体魄": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "攻击提升": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "智力祝福": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "敏捷祝福": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "力量祝福": { "aliases": [], "kind": "bond", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "贪婪献祭": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "卡牌大师": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null },
-    "双倍神符": { "aliases": [], "kind": "treasure", "version_seen": "1.3.x", "confusions": [], "set_membership": null }
+    "奥数箭": {
+      "aliases": [
+        "奥术箭"
+      ],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "奥数激光": {
+      "aliases": [
+        "奥术激光"
+      ],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "奥数射线": {
+      "aliases": [
+        "奥术射线"
+      ],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [
+        "射线"
+      ],
+      "set_membership": null
+    },
+    "冰霜新星": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "爆炎箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "电磁网": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "地震": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "寒冰箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "火球": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "飓风": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "剑气": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "龙卷风": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "普攻": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "闪电链": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "天雷": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "陨石": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "次级箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [
+        "次级增伤"
+      ],
+      "set_membership": null
+    },
+    "焦点": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "箭矢齐射": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "光法": {
+      "aliases": [
+        "光法R",
+        "光法r"
+      ],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "潮汐猎人": {
+      "aliases": [
+        "潮汐猎人SR",
+        "潮汐猎人sr"
+      ],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "次级增伤": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [
+        "次级箭"
+      ],
+      "set_membership": null
+    },
+    "射线增幅": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [
+        "射线"
+      ],
+      "set_membership": null
+    },
+    "三国": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "三国"
+    },
+    "体术": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "成长": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "修仙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "魔术": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "封神": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "奥术神符": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "物理伤害": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "攻坚": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "四星球": {
+      "aliases": [
+        "4星球"
+      ],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "龙珠"
+    },
+    "六星球": {
+      "aliases": [
+        "6星球"
+      ],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "龙珠"
+    },
+    "乱世三国": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [
+        "三国"
+      ],
+      "set_membership": "三国"
+    },
+    "体魄": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "攻击提升": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "智力祝福": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "敏捷祝福": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "力量祝福": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "贪婪献祭": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "卡牌大师": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "双倍神符": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "七星球": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "龙珠"
+    },
+    "五星球": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "龙珠"
+    },
+    "伯邑考": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "全能神符": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "力之极": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "力量提升": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "压制": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "奥术增幅α": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "奥术增幅β": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "奥术激光": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "射线延续": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "属性神符": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "巨龙军团": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "强力箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "挑战杀手": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "控符大师": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "敏捷提升": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "智力提升": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "暴怒神符": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "杀敌多多": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "极速神符": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "气势": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "法师奥义": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "法术增幅": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "法术威力": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "流星泪": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "激光增幅": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "灵智": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "焦点爆破": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "燃烧的远征": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "爆炸增伤": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "瓦解光线": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "百宝箱": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "箭矢增幅": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "箭矢扩散": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "箭矢连发": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "精英杀手": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "经验(中)": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "经验多多": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "藏宝图(三)": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "蛮舞者": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "调焦": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "赏金神符": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "透支力量": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "金币猎人": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "魔法权杖": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "魔爆能量": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    }
   }
 }
