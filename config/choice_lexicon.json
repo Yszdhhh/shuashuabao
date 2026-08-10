@@ -392,13 +392,6 @@
       "confusions": [],
       "set_membership": null
     },
-    "奥术激光": {
-      "aliases": [],
-      "kind": "skill",
-      "version_seen": "1.3.x",
-      "confusions": [],
-      "set_membership": null
-    },
     "射线延续": {
       "aliases": [],
       "kind": "skill",

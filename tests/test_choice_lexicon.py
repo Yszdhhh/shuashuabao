@@ -131,13 +131,15 @@ class LookupNegativeTests(unittest.TestCase):
         self.assertIsNone(canon_strict)
 
     def test_unknown_returns_none_without_writeback(self):
-        canon, top2, margin = lookup_lexicon("完全没见过的技能名")
+        # 使用与词典完全不相交的符号，验证真正未知项无候选且不写回。
+        unknown = "☃☄★"
+        canon, top2, margin = lookup_lexicon(unknown)
         self.assertIsNone(canon)
         self.assertEqual(top2, ())
         self.assertEqual(margin, 0.0)
         # 词典未被写回
         data = load_lexicon()
-        self.assertNotIn("完全没见过的技能名", data["entries"])
+        self.assertNotIn(unknown, data["entries"])
 
 
 if __name__ == "__main__":
