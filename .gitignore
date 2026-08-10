@@ -1,4 +1,5 @@
 .venv/
+.venv-ocr/
 build/
 dist/
 __pycache__/
@@ -12,6 +13,10 @@ logs/trace_*.jsonl
 ui/node_modules/
 ui/dist/
 node_modules/
+
+# OCR model binaries (MODEL_MANIFEST.json 除外)
+models/ocr/*
+!models/ocr/MODEL_MANIFEST.json
 
 # Local machine/license/runtime captures; do not publish
 assets/Images/shortKey.png

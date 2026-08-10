@@ -1,0 +1,18 @@
+{
+  "models": [
+    {
+      "name": "PP-OCRv5_mobile_rec_infer",
+      "task": "text_recognition",
+      "language": "ch",
+      "version": "PP-OCRv5_mobile_rec (paddleocr 3.7.0 / paddlex 3.7.2)",
+      "license": "Apache-2.0 (PaddleOCR 官方发布模型)",
+      "source_url": "https://paddleocr.bj.bcebos.com/PP-OCRv5/chinese/PP-OCRv5_mobile_rec_infer.tar",
+      "sha256_tar": "566B9512B34E34A9F0DB54D87B51FA5A0B9ED2CF1AB7E49728CC0B8B5A64F414",
+      "size_bytes_tar": 16834560,
+      "size_mb_unpacked": 17,
+      "local_dir": "models/ocr/PP-OCRv5_mobile_rec_infer/",
+      "offline_note": "推理全程 download_enable=False；已断网验证（出站阻断下加载+推理成功）。模型二进制不入库（.gitignore），需要时从 source_url 重新下载并按本清单校验 SHA256。",
+      "windows_path_note": "Paddle C++ loader 无法读取含非 ASCII 字符的 Windows 路径（仓库路径含 🎮 必失败）；推理前复制到 ASCII 暂存目录（默认 %LOCALAPPDATA%\\Temp\\gamescript_ocr_stage，evaluate_choice_ocr.py --staging-dir 可覆盖）。"
+    }
+  ]
+}
