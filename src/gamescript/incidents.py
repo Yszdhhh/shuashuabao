@@ -186,6 +186,54 @@ class IncidentArchiver:
                 meta_path.write_text(json.dumps(row, ensure_ascii=False, indent=2), encoding="utf-8")
         return True
 
+    def sample_panel(
+        self,
+        frame,
+        metadata: dict | None = None,
+        *,
+        dedup_seconds: float = 300.0,
+    ) -> str | None:
+        """轻量"正常选择面板"抽样归档（B2 数据集收集用，非异常 incident）。
+
+        与 maybe_record 的区别：只在面板正常出现时记录全帧 + 少量元数据，
+        不存 before/after/ROI；独立去重窗口（默认 300 秒，按内容指纹），
+        同一静态面板不会反复落盘。kind 强制为 "panel_sample"。
+        无任何输入动作权，只是旁路证据（蓝图 §3）。
+        """
+        if frame is None:
+            return None
+        bgr = getattr(frame, "bgr", None)
+        fp = self._thumb_hash(bgr)
+        if fp is None:
+            return None
+        with self._lock:
+            now = self._now()
+            last = self._last_saved.get(fp)
+            if last is not None and now - last < dedup_seconds:
+                return None
+            day = datetime.fromtimestamp(now).strftime("%Y%m%d")
+            stamp = datetime.fromtimestamp(now).strftime("%H%M%S_%f")[:-3]
+            out_dir = self.root / day / "panels"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            img_name = f"panel_{stamp}_{fp[:8]}.jpg"
+            self._save_jpg(out_dir / img_name, bgr)
+            meta = dict(metadata or {})
+            meta.update({
+                "kind": "panel_sample",
+                "fingerprint": fp,
+                "saved_at": datetime.fromtimestamp(now).isoformat(timespec="milliseconds"),
+                "frame": img_name,
+                "hwnd": getattr(frame, "hwnd", None),
+                "window_title": getattr(frame, "window_title", ""),
+                "size": [getattr(frame, "width", 0), getattr(frame, "height", 0)],
+            })
+            (out_dir / f"{Path(img_name).stem}.json").write_text(
+                json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+            self._last_saved[fp] = now
+            self._prune_dedup(now)
+            self._enforce_limits(now, keep=None)
+        return fp
+
     def cleanup(self) -> None:
         """按保留期/容量上限清理过期 incident（幂等，随时可调）。"""
         with self._lock:

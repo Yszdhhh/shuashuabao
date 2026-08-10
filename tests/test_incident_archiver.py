@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -269,6 +270,50 @@ class IncidentArchiverTest(unittest.TestCase):
         self.assertIsNone(med._archiver)
         med.set_phase(Phase.ERROR, "some failure")
         self.assertIsNone(med._archiver)
+
+    def test_sample_panel_saves_frame_with_metadata(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        clock = FakeClock()
+        arch = IncidentArchiver(root=tmp, now_fn=clock.now)
+        frame = _gradient_frame(seed=42)
+        fp = arch.sample_panel(frame, {"phase": "MAIN_LINE", "panel_kind": "bond"})
+        self.assertIsNotNone(fp)
+        panels = sorted(tmp.rglob("panel_*.jpg"))
+        self.assertEqual(len(panels), 1)
+        meta_path = panels[0].with_suffix(".json")
+        self.assertTrue(meta_path.is_file())
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        self.assertEqual(meta["kind"], "panel_sample")
+        self.assertEqual(meta["panel_kind"], "bond")
+        self.assertEqual(meta["size"], [90, 160])
+
+    def test_sample_panel_dedup_window(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        clock = FakeClock()
+        arch = IncidentArchiver(root=tmp, now_fn=clock.now)
+        frame = _gradient_frame(seed=7)
+        self.assertIsNotNone(arch.sample_panel(frame, {"panel_kind": "skill"}))
+        clock.advance(60)
+        self.assertIsNone(arch.sample_panel(frame, {"panel_kind": "skill"}))  # 去重窗口内
+        clock.advance(300)
+        self.assertIsNotNone(arch.sample_panel(frame, {"panel_kind": "skill"}))  # 窗口外
+        n = len(sorted(tmp.rglob("panel_*.jpg")))
+        self.assertEqual(n, 2)
+
+    def test_sample_panel_different_frames_both_saved(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        clock = FakeClock()
+        arch = IncidentArchiver(root=tmp, now_fn=clock.now)
+        a = arch.sample_panel(_gradient_frame(seed=1), {"panel_kind": "skill"})
+        b = arch.sample_panel(_gradient_frame(seed=2), {"panel_kind": "treasure"})
+        self.assertIsNotNone(a)
+        self.assertIsNotNone(b)
+        self.assertNotEqual(a, b)
+        n = len(sorted(tmp.rglob("panel_*.jpg")))
+        self.assertEqual(n, 2)
 
 
 if __name__ == "__main__":

@@ -805,6 +805,18 @@ class Mediator:
             self._record_selection_unknown(frame, anchor, "panel classification failed")
             return None
 
+        # B1-2 扩展：正常选择面板抽样（数据集收集；无 incident_dir 时空转）
+        if self._archiver is not None:
+            self._archiver.sample_panel(
+                frame,
+                {
+                    "phase": str(getattr(self, "phase", "")),
+                    "panel_kind": kind,
+                    "anchor_score": round(anchor.score, 3),
+                    "source": "mediator_panel_sample",
+                },
+            )
+
         if kind in ("bond", "treasure", "card"):
             preferred = [v.strip() for v in self.settings.cards if v and v.strip()]
             if preferred:
