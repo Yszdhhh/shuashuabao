@@ -54,11 +54,11 @@
     "hard_constraint": "all crop box bottoms <= rel_y 0.62 (button strip 0.67-0.79, giveUp 0.945 misdetection lesson)"
   },
   "stats": {
-    "total_entries": 81,
+    "total_entries": 85,
     "panel_counts": {
-      "skill": 15,
-      "bond": 13,
-      "treasure": 16,
+      "skill": 16,
+      "bond": 14,
+      "treasure": 18,
       "negative": 37
     },
     "dimension_distribution": {
@@ -71,7 +71,7 @@
       "1586x892": 16,
       "1595x927": 1,
       "1597x929": 1,
-      "1600x900": 52,
+      "1600x900": 56,
       "1602x933": 1,
       "1609x931": 1,
       "1610x935": 1,
@@ -87,7 +87,8 @@
       "rec1_ingame_boss_20260809",
       "rec2_postgame_exit_20260809",
       "rec3_260810",
-      "rec5_260808"
+      "rec5_260808",
+      "rec7_short2_20260808"
     ],
     "960x540_gap": {
       "present": 1,
@@ -3616,6 +3617,270 @@
         }
       ],
       "notes": "OCR + independent vision confirmation; dragon ball"
+    },
+    {
+      "id": "rec7_short2_20260808_f_022_skill",
+      "panel_kind": "skill",
+      "original_frame": "fixtures/ocr_choices/frames/rec7_short2_20260808/f_022.jpg",
+      "crops": [
+        "fixtures/ocr_choices/skill/rec7_short2_20260808/f_022_slot0_name.png",
+        "fixtures/ocr_choices/skill/rec7_short2_20260808/f_022_slot0_progress.png",
+        "fixtures/ocr_choices/skill/rec7_short2_20260808/f_022_slot1_name.png",
+        "fixtures/ocr_choices/skill/rec7_short2_20260808/f_022_slot1_progress.png",
+        "fixtures/ocr_choices/skill/rec7_short2_20260808/f_022_slot2_name.png",
+        "fixtures/ocr_choices/skill/rec7_short2_20260808/f_022_slot2_progress.png"
+      ],
+      "window_size": [
+        1600,
+        900
+      ],
+      "game_version": "unknown",
+      "session_id": "rec7_short2_20260808",
+      "source": "video_frame",
+      "refresh_count": 3,
+      "has_giveup": true,
+      "has_hide": true,
+      "has_refresh": true,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；ROI 下沿硬约束 0.620"
+      },
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "天雷",
+          "raw_text": "天雷",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "焦点",
+          "raw_text": "焦点",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "次级增伤",
+          "raw_text": "次级增伤",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "vision-confirmed skill panel; f_023/f_024 same static card set (cursor/hover only); retained f_022"
+    },
+    {
+      "id": "rec7_short2_20260808_f_027_bond",
+      "panel_kind": "bond",
+      "original_frame": "fixtures/ocr_choices/frames/rec7_short2_20260808/f_027.jpg",
+      "crops": [
+        "fixtures/ocr_choices/bond/rec7_short2_20260808/f_027_slot0_name.png",
+        "fixtures/ocr_choices/bond/rec7_short2_20260808/f_027_slot0_progress.png",
+        "fixtures/ocr_choices/bond/rec7_short2_20260808/f_027_slot1_name.png",
+        "fixtures/ocr_choices/bond/rec7_short2_20260808/f_027_slot1_progress.png",
+        "fixtures/ocr_choices/bond/rec7_short2_20260808/f_027_slot2_name.png",
+        "fixtures/ocr_choices/bond/rec7_short2_20260808/f_027_slot2_progress.png"
+      ],
+      "window_size": [
+        1600,
+        900
+      ],
+      "game_version": "unknown",
+      "session_id": "rec7_short2_20260808",
+      "source": "video_frame",
+      "refresh_count": null,
+      "has_giveup": false,
+      "has_hide": true,
+      "has_refresh": true,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（羁绊画面仅暂时隐藏/刷新 40；无放弃）"
+      },
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "力量祝福",
+          "raw_text": "力量祝福",
+          "rarity": "N",
+          "set_progress": "0/3",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "智力祝福",
+          "raw_text": "智力祝福",
+          "rarity": "N",
+          "set_progress": "0/3",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "敏捷祝福",
+          "raw_text": "敏捷祝福",
+          "rarity": "N",
+          "set_progress": "0/3",
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "vision-confirmed bond panel; f_028/f_029 same static card set; 刷新 40 is wood cost, not a numeric refresh_count"
+    },
+    {
+      "id": "rec7_short2_20260808_f_033_treasure_3star",
+      "panel_kind": "treasure",
+      "original_frame": "fixtures/ocr_choices/frames/rec7_short2_20260808/f_033.jpg",
+      "crops": [
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_033_slot0_name.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_033_slot0_progress.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_033_slot1_name.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_033_slot1_progress.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_033_slot2_name.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_033_slot2_progress.png"
+      ],
+      "window_size": [
+        1600,
+        900
+      ],
+      "game_version": "unknown",
+      "session_id": "rec7_short2_20260808",
+      "source": "video_frame",
+      "refresh_count": 3,
+      "has_giveup": true,
+      "has_hide": true,
+      "has_refresh": true,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；ROI 下沿硬约束 0.620"
+      },
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "金币(中)",
+          "raw_text": "金币(中)",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "恢复神符",
+          "raw_text": "恢复神符",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "三星球",
+          "raw_text": "三星球",
+          "rarity": null,
+          "set_progress": "0/7",
+          "is_valid": true,
+          "is_dragon_ball": true
+        }
+      ],
+      "notes": "vision-confirmed treasure panel; distinct Dragon Ball card combo; f_030/f_031/f_032 are gameplay/no-panel frames and excluded"
+    },
+    {
+      "id": "rec7_short2_20260808_f_034_treasure_2star",
+      "panel_kind": "treasure",
+      "original_frame": "fixtures/ocr_choices/frames/rec7_short2_20260808/f_034.jpg",
+      "crops": [
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_034_slot0_name.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_034_slot0_progress.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_034_slot1_name.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_034_slot1_progress.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_034_slot2_name.png",
+        "fixtures/ocr_choices/treasure/rec7_short2_20260808/f_034_slot2_progress.png"
+      ],
+      "window_size": [
+        1600,
+        900
+      ],
+      "game_version": "unknown",
+      "session_id": "rec7_short2_20260808",
+      "source": "video_frame",
+      "refresh_count": 3,
+      "has_giveup": true,
+      "has_hide": true,
+      "has_refresh": true,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；ROI 下沿硬约束 0.620"
+      },
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "金币(中)",
+          "raw_text": "金币(中)",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "恢复神符",
+          "raw_text": "恢复神符",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "二星球",
+          "raw_text": "二星球",
+          "rarity": null,
+          "set_progress": "0/7",
+          "is_valid": true,
+          "is_dragon_ball": true
+        }
+      ],
+      "notes": "vision-confirmed treasure panel; distinct Dragon Ball card combo from f_033; f_035/f_036/f_037 same static card set (cursor/hover only); retained f_034"
     }
   ]
 }
