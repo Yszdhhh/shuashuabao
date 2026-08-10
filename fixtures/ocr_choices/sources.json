@@ -1,0 +1,1330 @@
+{
+  "game_version": "unknown",
+  "entries": [
+    {
+      "id": "rec1_ingame_boss_20260809_t_015s_技能面板_giveUp证据",
+      "frame": "C:/tmp/recordings/keyframes/t_015s_技能面板_giveUp证据.png",
+      "kind": "skill",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 3,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": null,
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "次级箭",
+          "raw_text": "次级箭",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "焦点",
+          "raw_text": "焦点",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "箭矢齐射",
+          "raw_text": "箭矢齐射",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "技能面板（rec1 15-24s 区间）；刷新(3)"
+    },
+    {
+      "id": "rec1_ingame_boss_20260809_t_063s_技能面板",
+      "frame": "C:/tmp/recordings/keyframes/t_063s_技能面板.png",
+      "kind": "skill",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 3,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": "per_slot",
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "光法",
+          "raw_text": "光法",
+          "rarity": "R",
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false,
+          "roi": {
+            "name": [
+              0.39,
+              0.45,
+              0.185,
+              0.235
+            ],
+            "progress": false
+          }
+        },
+        {
+          "index": 1,
+          "canonical_name": "潮汐猎人",
+          "raw_text": "潮汐猎人",
+          "rarity": "SR",
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false,
+          "roi": {
+            "name": [
+              0.54,
+              0.64,
+              0.185,
+              0.235
+            ],
+            "progress": false
+          }
+        }
+      ],
+      "notes": "英雄技能二选一（双卡居中，非三槽布局）"
+    },
+    {
+      "id": "rec1_ingame_boss_20260809_t_234s_技能面板",
+      "frame": "C:/tmp/recordings/keyframes/t_234s_技能面板.png",
+      "kind": "skill",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 2,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": null,
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "次级增伤",
+          "raw_text": "次级增伤",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "地震",
+          "raw_text": "地震",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "射线增幅",
+          "raw_text": "射线增幅",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "技能面板；刷新(2)"
+    },
+    {
+      "id": "live_postgame_20260808_live_skill_choice",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/live_postgame_20260808/live_skill_choice.png",
+      "kind": "skill",
+      "session_id": "live_postgame_20260808",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 0,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": null,
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "射线增幅",
+          "raw_text": "射线增幅",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "奥术激光",
+          "raw_text": "奥术激光",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "剑气",
+          "raw_text": "剑气",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "实机截图；刷新次数不足"
+    },
+    {
+      "id": "reborn_wow_screens_20260806_skill_choice_3",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/reborn_wow/choices/skill_choice_3.png",
+      "kind": "skill",
+      "session_id": "reborn_wow_screens_20260806",
+      "source": "user_screenshot",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 1,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": null,
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "陨石",
+          "raw_text": "陨石",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "次级箭",
+          "raw_text": "次级箭",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "地震",
+          "raw_text": "地震",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "用户截图；刷新(1)"
+    },
+    {
+      "id": "rec1_ingame_boss_20260809_t_036s_羁绊面板",
+      "frame": "C:/tmp/recordings/keyframes/t_036s_羁绊面板.png",
+      "kind": "bond",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "has_giveup": false,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 0,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": null,
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "乱世三国",
+          "raw_text": "乱世三国",
+          "rarity": "N",
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "体魄",
+          "raw_text": "体魄",
+          "rarity": "R",
+          "set_progress": "0/3",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "攻击提升",
+          "raw_text": "攻击提升",
+          "rarity": "R",
+          "set_progress": "1/4",
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "羁绊面板；刷新 40 木材"
+    },
+    {
+      "id": "rec1_ingame_boss_20260809_t_417s_转折点",
+      "frame": "C:/tmp/recordings/keyframes/t_417s_转折点.png",
+      "kind": "bond",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "has_giveup": false,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 0,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": null,
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "修仙",
+          "raw_text": "修仙",
+          "rarity": "SR",
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "魔术",
+          "raw_text": "魔术",
+          "rarity": "R",
+          "set_progress": "0/2",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "封神",
+          "raw_text": "封神",
+          "rarity": "SR",
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "羁绊面板；刷新 40 木材"
+    },
+    {
+      "id": "reborn_wow_screens_20260806_bond_choice_3",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/reborn_wow/choices/bond_choice_3.png",
+      "kind": "bond",
+      "session_id": "reborn_wow_screens_20260806",
+      "source": "user_screenshot",
+      "game_version": "unknown",
+      "has_giveup": false,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 0,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": null,
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "智力祝福",
+          "raw_text": "智力祝福",
+          "rarity": "N",
+          "set_progress": "0/3",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "敏捷祝福",
+          "raw_text": "敏捷祝福",
+          "rarity": "N",
+          "set_progress": "0/3",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "力量祝福",
+          "raw_text": "力量祝福",
+          "rarity": "N",
+          "set_progress": "0/3",
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "用户截图；祝福套装 0/3；刷新 40"
+    },
+    {
+      "id": "rec1_ingame_boss_20260809_t_393s_技能面板_龙珠首现",
+      "frame": "C:/tmp/recordings/keyframes/t_393s_技能面板_龙珠首现.png",
+      "kind": "treasure",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 2,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": "per_slot",
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "奥术神符",
+          "raw_text": "奥术神符",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "六星球",
+          "raw_text": "六星球",
+          "rarity": null,
+          "set_progress": "0/7",
+          "is_valid": true,
+          "is_dragon_ball": true,
+          "roi": {
+            "name": [
+              0.435,
+              0.565,
+              0.25,
+              0.34
+            ],
+            "progress": [
+              0.435,
+              0.565,
+              0.35,
+              0.42
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "canonical_name": "物理伤害",
+          "raw_text": "物理伤害",
+          "rarity": null,
+          "set_progress": "0/2",
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "宝物面板；龙珠（六星球）中槽首现；刷新(2)"
+    },
+    {
+      "id": "rec1_ingame_boss_20260809_t_423s_持久面板起点",
+      "frame": "C:/tmp/recordings/keyframes/t_423s_持久面板起点.png",
+      "kind": "treasure",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 2,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": "per_slot",
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "攻坚",
+          "raw_text": "攻坚",
+          "rarity": null,
+          "set_progress": "0/2",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "四星球",
+          "raw_text": "四星球",
+          "rarity": null,
+          "set_progress": "1/7",
+          "is_valid": true,
+          "is_dragon_ball": true,
+          "roi": {
+            "name": [
+              0.435,
+              0.565,
+              0.25,
+              0.34
+            ],
+            "progress": [
+              0.435,
+              0.565,
+              0.35,
+              0.42
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "canonical_name": "奥术神符",
+          "raw_text": "奥术神符",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "宝物面板常驻起点"
+    },
+    {
+      "id": "rec1_ingame_boss_20260809_t_507s_持久面板中段",
+      "frame": "C:/tmp/recordings/keyframes/t_507s_持久面板中段.png",
+      "kind": "treasure",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 2,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": "per_slot",
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "攻坚",
+          "raw_text": "攻坚",
+          "rarity": null,
+          "set_progress": "0/2",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "四星球",
+          "raw_text": "四星球",
+          "rarity": null,
+          "set_progress": "1/7",
+          "is_valid": true,
+          "is_dragon_ball": true,
+          "roi": {
+            "name": [
+              0.435,
+              0.565,
+              0.25,
+              0.34
+            ],
+            "progress": [
+              0.435,
+              0.565,
+              0.35,
+              0.42
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "canonical_name": "奥术神符",
+          "raw_text": "奥术神符",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "宝物面板常驻中段；与 423/630 同卡（常驻面板）"
+    },
+    {
+      "id": "rec1_ingame_boss_20260809_t_630s_结尾",
+      "frame": "C:/tmp/recordings/keyframes/t_630s_结尾.png",
+      "kind": "treasure",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 2,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": "per_slot",
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "攻坚",
+          "raw_text": "攻坚",
+          "rarity": null,
+          "set_progress": "0/2",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "四星球",
+          "raw_text": "四星球",
+          "rarity": null,
+          "set_progress": "1/7",
+          "is_valid": true,
+          "is_dragon_ball": true,
+          "roi": {
+            "name": [
+              0.435,
+              0.565,
+              0.25,
+              0.34
+            ],
+            "progress": [
+              0.435,
+              0.565,
+              0.35,
+              0.42
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "canonical_name": "奥术神符",
+          "raw_text": "奥术神符",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "宝物面板常驻结尾；与 423/507 同卡（常驻面板）"
+    },
+    {
+      "id": "reborn_wow_screens_20260806_treasure_choice_3",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/reborn_wow/choices/treasure_choice_3.png",
+      "kind": "treasure",
+      "session_id": "reborn_wow_screens_20260806",
+      "source": "user_screenshot",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 3,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": null,
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "贪婪献祭",
+          "raw_text": "贪婪献祭",
+          "rarity": "SSR",
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "卡牌大师",
+          "raw_text": "卡牌大师",
+          "rarity": "SR",
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 2,
+          "canonical_name": "双倍神符",
+          "raw_text": "双倍神符",
+          "rarity": "R",
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "用户截图；品质 SSR/SR/R；刷新(3)"
+    },
+    {
+      "id": "dragonball_webp_20260807_image-c875a13d94b45218",
+      "frame": "C:/Users/10639/.omp/agent/sessions/--C--tmp--/2026-08-07T10-44-20-425Z_019fdbd2-e948-7000-ae6d-6769997136ba/local/image-c875a13d94b45218.webp",
+      "kind": "treasure",
+      "session_id": "dragonball_webp_20260807",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 2,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": "per_slot",
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "奥术神符",
+          "raw_text": "奥术神符",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "六星球",
+          "raw_text": "六星球",
+          "rarity": null,
+          "set_progress": "0/7",
+          "is_valid": true,
+          "is_dragon_ball": true,
+          "roi": {
+            "name": [
+              0.435,
+              0.565,
+              0.25,
+              0.34
+            ],
+            "progress": [
+              0.435,
+              0.565,
+              0.35,
+              0.42
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "canonical_name": "物理伤害",
+          "raw_text": "物理伤害",
+          "rarity": null,
+          "set_progress": "0/2",
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "龙珠截图（六星球面板，webp；与同会话 image-2d8f2275 像素相同去重）"
+    },
+    {
+      "id": "dragonball_webp_20260807_image-ef3f2be8fc5d1103",
+      "frame": "C:/Users/10639/.omp/agent/sessions/--C--tmp--/2026-08-07T10-44-20-425Z_019fdbd2-e948-7000-ae6d-6769997136ba/local/image-ef3f2be8fc5d1103.webp",
+      "kind": "treasure",
+      "session_id": "dragonball_webp_20260807",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "has_giveup": true,
+      "has_refresh": true,
+      "has_hide": true,
+      "refresh_count": 2,
+      "expected_click_slot": null,
+      "forbidden_area": {
+        "x": [
+          0.0,
+          1.0
+        ],
+        "y": [
+          0.67,
+          0.79
+        ],
+        "reason": "按钮区（暂时隐藏/放弃/刷新）；giveUp 模板在 rel_y 0.945 误检教训，ROI 下沿硬约束 0.620"
+      },
+      "roi_mode": "per_slot",
+      "slots": [
+        {
+          "index": 0,
+          "canonical_name": "攻坚",
+          "raw_text": "攻坚",
+          "rarity": null,
+          "set_progress": "0/2",
+          "is_valid": true,
+          "is_dragon_ball": false
+        },
+        {
+          "index": 1,
+          "canonical_name": "四星球",
+          "raw_text": "四星球",
+          "rarity": null,
+          "set_progress": "1/7",
+          "is_valid": true,
+          "is_dragon_ball": true,
+          "roi": {
+            "name": [
+              0.435,
+              0.565,
+              0.25,
+              0.34
+            ],
+            "progress": [
+              0.435,
+              0.565,
+              0.35,
+              0.42
+            ]
+          }
+        },
+        {
+          "index": 2,
+          "canonical_name": "奥术神符",
+          "raw_text": "奥术神符",
+          "rarity": null,
+          "set_progress": null,
+          "is_valid": true,
+          "is_dragon_ball": false
+        }
+      ],
+      "notes": "龙珠截图（四星球面板，webp；与同会话 image-ec68cc32 像素相同去重）"
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_000s_loading",
+      "frame": "C:/tmp/recordings/keyframes/t_000s_loading.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "加载画面",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec1_ingame_boss_20260809_t_000s_开局",
+      "frame": "C:/tmp/recordings/keyframes/t_000s_开局.png",
+      "kind": "negative",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（开局准备）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_001s_victory",
+      "frame": "C:/tmp/recordings/keyframes/t_001s_victory.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "胜利结算页",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec1_ingame_boss_20260809_t_003s_局内HUD",
+      "frame": "C:/tmp/recordings/keyframes/t_003s_局内HUD.png",
+      "kind": "negative",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（主线任务栏）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_003s_stage_select_archive_panel",
+      "frame": "C:/tmp/recordings/keyframes/t_003s_stage_select_archive_panel.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "选关页+存档挑战入口",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec1_ingame_boss_20260809_t_006s_面板底部按钮",
+      "frame": "C:/tmp/recordings/keyframes/t_006s_面板底部按钮.png",
+      "kind": "negative",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（准备阶段）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_010s_stage_select_hover",
+      "frame": "C:/tmp/recordings/keyframes/t_010s_stage_select_hover.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "选关页",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_020s_ingame_boss_mengmo",
+      "frame": "C:/tmp/recordings/keyframes/t_020s_ingame_boss_mengmo.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "Boss 战（梦魔之王，倒计时悬浮条）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_022s_chuanjiabao_panel",
+      "frame": "C:/tmp/recordings/keyframes/t_022s_chuanjiabao_panel.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "传家宝挑战弹窗（4 Boss 图标）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_023s_ingame_npc_arrow",
+      "frame": "C:/tmp/recordings/keyframes/t_023s_ingame_npc_arrow.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（NPC 箭头）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_024s_chuanjiabao_panel_2",
+      "frame": "C:/tmp/recordings/keyframes/t_024s_chuanjiabao_panel_2.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "传家宝挑战弹窗 2",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_027s_ingame_boss_click",
+      "frame": "C:/tmp/recordings/keyframes/t_027s_ingame_boss_click.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "Boss 战点击",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_027s_STAGESELECT疑似面板",
+      "frame": "C:/tmp/recordings/keyframes/t_027s_STAGESELECT疑似面板.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_039s_exit_confirm",
+      "frame": "C:/tmp/recordings/keyframes/t_039s_exit_confirm.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "退出确认弹窗",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_041s_ingame_after_cancel",
+      "frame": "C:/tmp/recordings/keyframes/t_041s_ingame_after_cancel.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（取消退出后）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec1_ingame_boss_20260809_t_120s_STAGESELECT疑似面板",
+      "frame": "C:/tmp/recordings/keyframes/t_120s_STAGESELECT疑似面板.png",
+      "kind": "negative",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec1_ingame_boss_20260809_t_303s_STAGESELECT疑似面板",
+      "frame": "C:/tmp/recordings/keyframes/t_303s_STAGESELECT疑似面板.png",
+      "kind": "negative",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec1_ingame_boss_20260809_t_414s_最后STAGESELECT",
+      "frame": "C:/tmp/recordings/keyframes/t_414s_最后STAGESELECT.png",
+      "kind": "negative",
+      "session_id": "rec1_ingame_boss_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_008",
+      "frame": "C:/tmp/recordings/rec2_frames/t_008.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "存档挑战弹窗（时光之穴选择）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_014",
+      "frame": "C:/tmp/recordings/rec2_frames/t_014.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "存档挑战弹窗+战利品/聊天文本",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_026",
+      "frame": "C:/tmp/recordings/rec2_frames/t_026.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "传家宝挑战弹窗（掉落详情）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_032",
+      "frame": "C:/tmp/recordings/rec2_frames/t_032.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "Boss 战（克雷什之父）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_rec2_postgame_exit_20260809_t_038",
+      "frame": "C:/tmp/recordings/rec2_frames/t_038.png",
+      "kind": "negative",
+      "session_id": "rec2_postgame_exit_20260809",
+      "source": "video_frame",
+      "game_version": "unknown",
+      "negative_reason": "局内 HUD（安全区地图）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_live_e2e_20260807_20_t9_1968096",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/live_e2e_20260807/20_t9_1968096.png",
+      "kind": "negative",
+      "session_id": "live_e2e_20260807",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "加载画面（960x540）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_live_e2e_20260807_watch_78_1968096_1600x900",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/live_e2e_20260807/watch_78_1968096_1600x900.png",
+      "kind": "negative",
+      "session_id": "live_e2e_20260807",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "选关页（大厅）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_live_e2e_20260807_03_dialog",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/live_e2e_20260807/03_dialog.png",
+      "kind": "negative",
+      "session_id": "live_e2e_20260807",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "创建房间对话框（584x488）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_live_e2e_20260807_10_room",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/live_e2e_20260807/10_room.png",
+      "kind": "negative",
+      "session_id": "live_e2e_20260807",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "房间等待页（1224x904）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_live_postgame_20260808_live_exit_confirm",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/live_postgame_20260808/live_exit_confirm.png",
+      "kind": "negative",
+      "session_id": "live_postgame_20260808",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "退出确认弹窗",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_live_postgame_20260808_live_archive_panel",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/live_postgame_20260808/live_archive_panel.png",
+      "kind": "negative",
+      "session_id": "live_postgame_20260808",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "局内安全区 HUD",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_live_postgame_20260808_live_stage_select",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/live_postgame_20260808/live_stage_select.png",
+      "kind": "negative",
+      "session_id": "live_postgame_20260808",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "选关页",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_live_postgame_20260808_live_fullscreen",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/live_postgame_20260808/live_fullscreen.png",
+      "kind": "negative",
+      "session_id": "live_postgame_20260808",
+      "source": "live_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "局内全屏（1920x1080）",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_reborn_wow_screens_20260806_great_rift_confirm",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/reborn_wow/endgame/great_rift_confirm.png",
+      "kind": "negative",
+      "session_id": "reborn_wow_screens_20260806",
+      "source": "user_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "大裂隙确认弹窗",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_reborn_wow_screens_20260806_heirloom_challenge_bosses",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png",
+      "kind": "negative",
+      "session_id": "reborn_wow_screens_20260806",
+      "source": "user_screenshot",
+      "game_version": "unknown",
+      "negative_reason": "传家宝挑战 Boss 选择",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_legacy_fixtures_black_frame",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/black_frame.png",
+      "kind": "negative",
+      "session_id": "legacy_fixtures",
+      "source": "fixture",
+      "game_version": "unknown",
+      "negative_reason": "黑帧",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_legacy_fixtures_frozen_frame",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/frozen_frame.png",
+      "kind": "negative",
+      "session_id": "legacy_fixtures",
+      "source": "fixture",
+      "game_version": "unknown",
+      "negative_reason": "冻结帧",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_legacy_fixtures_unknown_page",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/unknown_page.png",
+      "kind": "negative",
+      "session_id": "legacy_fixtures",
+      "source": "fixture",
+      "game_version": "unknown",
+      "negative_reason": "未知页面",
+      "forbidden_area": null,
+      "notes": null
+    },
+    {
+      "id": "neg_legacy_fixtures_assistant_window_neg",
+      "frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/assistant_window_neg.png",
+      "kind": "negative",
+      "session_id": "legacy_fixtures",
+      "source": "fixture",
+      "game_version": "unknown",
+      "negative_reason": "助手窗口（非游戏页）",
+      "forbidden_area": null,
+      "notes": null
+    }
+  ]
+}
