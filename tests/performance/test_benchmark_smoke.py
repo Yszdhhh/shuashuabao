@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -19,31 +20,34 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
 TOOL = ROOT / "tools" / "benchmark_hot_path.py"
-OUT_JSON = ROOT / "docs" / "baselines" / "N0_BENCHMARK.json"
 
 
 class BenchmarkSmokeTest(unittest.TestCase):
     def test_smoke_run_single_fixture(self):
-        if OUT_JSON.exists():
-            OUT_JSON.unlink()
-        proc = subprocess.run(
-            [
-                sys.executable,
-                str(TOOL),
-                "--fixture",
-                "victory",
-                "--iterations",
-                "1",
-                "--no-live-capture",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=600,
-        )
-        self.assertEqual(proc.returncode, 0, msg=f"benchmark exit != 0: {proc.stderr[-800:]}")
-        self.assertTrue(OUT_JSON.is_file(), "N0_BENCHMARK.json not written")
-        report = json.loads(OUT_JSON.read_text(encoding="utf-8"))
-        self.assertEqual(report["schema"], "N0-benchmark-v1")
+        # 用临时 out-dir，避免覆写官方 docs/baselines/N0_BENCHMARK.json
+        with tempfile.TemporaryDirectory() as tmp:
+            out_dir = Path(tmp)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(TOOL),
+                    "--fixture",
+                    "victory",
+                    "--iterations",
+                    "1",
+                    "--no-live-capture",
+                    "--out-dir",
+                    str(out_dir),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            self.assertEqual(proc.returncode, 0, msg=f"benchmark exit != 0: {proc.stderr[-800:]}")
+            out_json = out_dir / "N0_BENCHMARK.json"
+            self.assertTrue(out_json.is_file(), "N0_BENCHMARK.json not written")
+            report = json.loads(out_json.read_text(encoding="utf-8"))
+            self.assertEqual(report["schema"], "N0-benchmark-v1")
         self.assertTrue(report["git"]["repo_head"], "repo_head missing")
         self.assertTrue(report["template_sha256"], "template sha missing")
         entries = [r for r in report["fixtures"] if r["fixture_id"] == "victory"]
