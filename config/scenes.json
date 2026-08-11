@@ -46,7 +46,7 @@
       ],
       "method": "CreateRoom",
       "action": "click",
-      "fallback": "blue_left_bottom_roi"
+      "fallback": null
     },
     "create_room_confirm": {
       "templates": [
@@ -127,7 +127,7 @@
       ],
       "method": "EntryF1",
       "action": "click",
-      "fallback": "blue_room_start_roi"
+      "fallback": null
     },
     "stage_start": {
       "templates": [

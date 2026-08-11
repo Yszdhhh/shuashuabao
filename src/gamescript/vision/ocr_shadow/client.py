@@ -34,17 +34,23 @@ class ShadowClient:
         python_executable: str | Path | None = None,
         model_dir: str | Path | None = None,
         timeout_ms: int = 400,
+        startup_timeout_ms: int = 6000,
         max_restarts: int = 3,
         trace_path: str | Path | None = None,
         worker_command: Iterable[str] | None = None,
     ) -> None:
-        self.repo_root = Path(repo_root or Path(__file__).resolve().parents[4])
+        self.repo_root = Path(
+            repo_root
+            or os.environ.get("GAMESCRIPT_OCR_REPO_ROOT", "")
+            or Path(__file__).resolve().parents[4]
+        )
         self.python_executable = str(
             python_executable
             or self.repo_root / ".venv-ocr" / "Scripts" / "python.exe"
         )
         self.model_dir = Path(model_dir or self.repo_root / "models" / "ocr")
         self.timeout_ms = max(1, int(timeout_ms))
+        self.startup_timeout_ms = max(self.timeout_ms, int(startup_timeout_ms))
         self.max_restarts = max(0, int(max_restarts))
         self.trace_path = Path(trace_path) if trace_path else None
         self.worker_command = list(worker_command) if worker_command else None
@@ -105,7 +111,7 @@ class ShadowClient:
         self._ready = False
         self._reader = threading.Thread(target=self._read_lines, args=(proc,), daemon=True)
         self._reader.start()
-        self._await_ready(min(self.timeout_ms / 1000, 0.3))
+        self._await_ready(self.startup_timeout_ms / 1000)
         if not self._ready:
             self._ready_reason = "starting"
         return self._ready
@@ -237,6 +243,7 @@ class ShadowClient:
                     seq=seq, status=cached.status, candidates=cached.candidates,
                     elapsed_ms=(time.perf_counter() - started) * 1000,
                     reason=cached.reason, cache_hit=True,
+                    raw_text=cached.raw_text, rec_score=cached.rec_score,
                 )
                 self._write_trace(response, session, panel_id, slot_id, bbox, fp, True)
                 return response
@@ -284,6 +291,7 @@ class ShadowClient:
                 response = ShadowResponse(
                     seq=seq, status=response.status, candidates=response.candidates,
                     elapsed_ms=elapsed, reason=response.reason,
+                    raw_text=response.raw_text, rec_score=response.rec_score,
                 )
                 if response.status == "ok":
                     self._crashes = 0
@@ -323,6 +331,12 @@ class ShadowClient:
                 candidates=candidates,
                 elapsed_ms=float(data.get("elapsed_ms", 0.0)),
                 reason=data.get("reason"),
+                raw_text=data.get("raw_text"),
+                rec_score=(
+                    float(data["rec_score"])
+                    if isinstance(data.get("rec_score"), (int, float))
+                    else None
+                ),
             )
 
     def _write_trace(
@@ -346,6 +360,8 @@ class ShadowClient:
             "panel_fingerprint": fingerprint,
             "status": response.status,
             "candidates": [c.as_dict() for c in response.candidates],
+            "raw_text": response.raw_text,
+            "rec_score": response.rec_score,
             "elapsed_ms": round(response.elapsed_ms, 3),
             "cache_hit": cache_hit,
         }

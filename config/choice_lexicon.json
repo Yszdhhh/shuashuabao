@@ -231,6 +231,55 @@
       "confusions": [],
       "set_membership": null
     },
+    "祝福": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.4.11",
+      "confusions": [],
+      "set_membership": null
+    },
+    "海盗": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.4.11",
+      "confusions": [],
+      "set_membership": null
+    },
+    "智力": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.4.11",
+      "confusions": [],
+      "set_membership": null
+    },
+    "力量": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.4.11",
+      "confusions": [],
+      "set_membership": null
+    },
+    "暴击": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.4.11",
+      "confusions": [],
+      "set_membership": null
+    },
+    "法术": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.4.11",
+      "confusions": [],
+      "set_membership": null
+    },
+    "异火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.4.11",
+      "confusions": [],
+      "set_membership": null
+    },
     "奥术神符": {
       "aliases": [],
       "kind": "treasure",

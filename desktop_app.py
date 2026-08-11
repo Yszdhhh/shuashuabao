@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / "src"))
 
+from gamescript import __version__
 from gamescript.settings import Settings
 
 APP_DATA = Path(os.environ.get("LOCALAPPDATA", ROOT)) / "GameScript-Local"
@@ -116,12 +117,15 @@ class MediatorWorker(QThread):
         target = (self.settings.stage_targets or [
             f"{self.settings.stage1}-{self.settings.stage2}"
         ])[0]
-        room = self.settings.room_name or "<空>"
-        password = "已设置" if self.settings.room_password else "未设置"
         width, height = (self.settings.window_size or [1600, 900])[:2]
+        mode = "英雄" if self.settings.auto_reputation else "普通"
+        difficulty = (
+            f"{self.settings.reputation_type}-{self.settings.reputation_level}"
+            if self.settings.auto_reputation else "-"
+        )
         self.signals.log_emitted.emit(
-            f"[启动] 刷图任务启动 | Dry-run={self.settings.dry_run} | "
-            f"关卡={target} | 房间={room} | 密码={password} | "
+            f"[启动] v{__version__} 刷图任务启动 | Dry-run={self.settings.dry_run} | "
+            f"关卡={target} | 模式={mode} | 难度={difficulty} | "
             f"分辨率={width}x{height} | 技能={self.settings.skills}",
             "info"
         )
@@ -278,7 +282,7 @@ class SkillCardGrid(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("重生魔兽刷刷刷 · 单人挂机助手")
+        self.setWindowTitle(f"重生魔兽刷刷刷 · 单人挂机助手 · v{__version__}")
         self.resize(520, 460)
         self.setMinimumSize(460, 420)
 
@@ -471,6 +475,12 @@ class MainWindow(QMainWindow):
         self.chk_dry.setChecked(True)
         self.chk_dry.setStyleSheet("color:#f59e0b; font-weight:bold;")
         core_layout.addWidget(self.chk_dry)
+
+        self.chk_secret_realm = QCheckBox("胜利后自动挑战秘境")
+        self.chk_secret_realm.setToolTip(
+            "开启后：胜利结算进入挑战广场，右键大秘境并确认；秘境失败后退出并重开下一局。"
+        )
+        core_layout.addWidget(self.chk_secret_realm)
         main_layout.addWidget(core)
 
         self.grp_skill = QGroupBox("技能搭配（可选，不选也能跑）")
@@ -536,6 +546,7 @@ class MainWindow(QMainWindow):
         self.cmb_reputation.currentIndexChanged.connect(self._schedule_auto_save)
         self.spn_reputation_level.valueChanged.connect(self._schedule_auto_save)
         self.chk_dry.toggled.connect(self._schedule_auto_save)
+        self.chk_secret_realm.toggled.connect(self._schedule_auto_save)
 
     def _schedule_auto_save(self):
         try:
@@ -593,6 +604,7 @@ class MainWindow(QMainWindow):
         target = targets[0] if targets else f"1-{max(1, int(settings.stage2))}"
         self.txt_stage_target.setText(target)
         self.chk_dry.setChecked(settings.dry_run)
+        self.chk_secret_realm.setChecked(settings.auto_secret_realm)
         self.skill_grid.set_skills(settings.skills or [])
 
         mode_index = self.cmb_mode.findData(bool(settings.auto_reputation))
@@ -623,8 +635,14 @@ class MainWindow(QMainWindow):
         settings.stage2 = stage_index
         settings.stage_targets = [target]
         settings.auto_create_room = True
+        # The current control panel intentionally has no room-name/password
+        # controls.  Do not let values from an older config re-enable the
+        # experimental room-dialog fill path.
+        settings.room_name = ""
+        settings.room_password = ""
         settings.new_room_every_times = False
         settings.dry_run = self.chk_dry.isChecked()
+        settings.auto_secret_realm = self.chk_secret_realm.isChecked()
         settings.skills = skills
         settings.auto_reputation = bool(self.cmb_mode.currentData())
         settings.reputation_type = int(self.cmb_reputation.currentData() or 3)
@@ -648,11 +666,10 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         target = settings.stage_targets[0] if settings.stage_targets else f"{settings.stage1}-{settings.stage2}"
-        room = settings.room_name or "<空>"
-        password = "已设置" if settings.room_password else "未设置"
         width, height = (settings.window_size or [1600, 900])[:2]
         self.log(
-            f"[启动配置] 关卡={target} 房间={room} 密码={password} 分辨率={width}x{height} "
+            f"[启动配置] 版本=v{__version__} 关卡={target} 分辨率={width}x{height} "
+            f"秘境={'开启' if settings.auto_secret_realm else '关闭'} "
             f"配置源={ROOT / 'config' / 'default_settings.json'}"
         )
 

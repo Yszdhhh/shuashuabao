@@ -1,11 +1,11 @@
 {
-  "stage1": 1,
+  "stage1": 15,
   "stage2": 15,
   "stage_targets": [
     "1-15"
   ],
-  "room_name": "2",
-  "room_password": "111",
+  "room_name": "",
+  "room_password": "",
   "auto_create_room": true,
   "room_create_side": "left",
   "new_room_every_times": false,
@@ -67,6 +67,9 @@
   "panel_action_limit_per_fingerprint": 3,
   "panel_episode_limit_per_kind": 5,
   "incident_sample_rate": 0.1,
+  "ocr_mode": "live",
+  "ocr_repo_root": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local",
+  "ocr_timeout_ms": 1200,
   "loop_sleep_ms": 400,
   "window_title_contains": "英雄三国",
   "window_size": [

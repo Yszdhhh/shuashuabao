@@ -36,10 +36,15 @@ class DesktopPanelTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self):
+        # The real window persists settings on close.  Unit tests must never
+        # rewrite the production config with whichever value a case last used.
+        self.save_patch = patch.object(Settings, "save", autospec=True)
+        self.save_patch.start()
         self.window = desktop_app.MainWindow()
 
     def tearDown(self):
         self.window.close()
+        self.save_patch.stop()
 
     def test_panel_contains_only_core_controls(self):
         text_widgets = (QLabel, QPushButton, QCheckBox, QGroupBox)
@@ -74,6 +79,10 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertFalse(self.window.skill_grid.isHidden())
 
     def test_exact_stage_and_solo_defaults_are_fixed(self):
+        # Stale values from the removed room-name/password controls must not
+        # affect the direct-create path.
+        self.window.settings.room_name = "old-room"
+        self.window.settings.room_password = "old-password"
         self.window.txt_stage_target.setText("2-7")
         self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(False))
         settings = self.window.collect_settings_from_ui()
@@ -85,6 +94,8 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertTrue(settings.auto_create_room)
         self.assertFalse(settings.new_room_every_times)
         self.assertFalse(settings.auto_reputation)
+        self.assertEqual("", settings.room_name)
+        self.assertEqual("", settings.room_password)
 
     def test_hero_mode_maps_faction_and_difficulty(self):
         self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(True))
@@ -100,6 +111,15 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual(5, settings.reputation_level)
         self.assertEqual(5, self.window.spn_reputation_level.maximum())
         self.assertFalse(self.window.hero_options.isHidden())
+
+    def test_secret_realm_checkbox_round_trips_settings(self):
+        settings = Settings(auto_secret_realm=True)
+        self.window.apply_settings_to_ui(settings)
+        self.assertTrue(self.window.chk_secret_realm.isChecked())
+        self.assertTrue(self.window.collect_settings_from_ui().auto_secret_realm)
+
+        self.window.chk_secret_realm.setChecked(False)
+        self.assertFalse(self.window.collect_settings_from_ui().auto_secret_realm)
 
     def test_rejects_invalid_or_empty_core_configuration(self):
         self.window.txt_stage_target.setText("第十关")

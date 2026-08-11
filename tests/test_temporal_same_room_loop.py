@@ -108,23 +108,27 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
     def test_unknown_choice_panel_is_bounded_instead_of_waiting_forever(self):
         # 57d40ce 后语义：未知选择面板保持零输入等待，超过 10s 才 Fail-Closed
         # ERROR（不再盲点隐藏按钮）。用假时钟推进验证 10s 上界与零输入。
+        # P0-3：自然面板需同类型锚点连续 2 帧才进入面板处理——首帧只建立候选
+        # （零输入），第二帧才进入 ACTIVE 起算 unknown 计时。
+        # R8-REVIEW：本场景用 skill 面板 fixture（card_hide 不命中、无自然关闭
+        # 权）——bond 面板（card_hide 0.85 命中）现走安全关闭而非超时（另测）。
         from tests.test_scenario_replay import FakeClock
 
         clock = FakeClock(start=100.0)
         self.med.set_phase(Phase.MAIN_LINE, "unknown choice replay")
-        frame = load_frame("fixtures/replay/bond_choice_3.png")
+        frame = load_frame("fixtures/replay/skill_choice_3.png")
 
         with clock.install(), \
                 patch.object(self.med, "_post_game_state", return_value=None), \
                 patch.object(self.med, "find_scene", return_value=None), \
                 patch.object(self.med, "_find_reward_choice", return_value=None):
-            for i in range(3):
-                clock.set(100.0 + float(i + 1) * 4.0)  # 104 / 108（<10s）
+            for i in range(4):
+                clock.set(100.0 + float(i + 1) * 4.0)  # 104（候选）/ 108（确认→ACTIVE）/ 112 / 116（<10s）
                 action = self.med._tick_main_line(frame)
                 self.assertEqual(LoopAction.Continue, action)
                 self.assertEqual(Phase.MAIN_LINE, self.med.phase)
 
-            clock.set(116.0)  # elapsed = 116 - 104 = 12s >= 10s
+            clock.set(120.0)  # 确认后 elapsed = 120 - 108 = 12s >= 10s
             action = self.med._tick_main_line(frame)
 
         self.assertEqual(LoopAction.Break, action)

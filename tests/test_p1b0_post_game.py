@@ -95,6 +95,81 @@ class P1B0PostGameTests(unittest.TestCase):
                     self.assertGreaterEqual(hit.x, frame.width * 0.50)
                     self.assertLessEqual(hit.x, frame.width * 0.65)
 
+    def test_enabled_secret_realm_uses_npc_then_yes_and_verifies_hud(self):
+        settings = Settings(auto_secret_realm=True)
+        med = Mediator(settings, ROOT)
+        med.set_phase(Phase.MAIN_LINE, "secret realm setup")
+        med._post_game_pending = True
+        med._victory_continue_since = time.time()
+
+        hub = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        with patch.object(med, "act_right_click", return_value=True) as right_click:
+            action = med._tick_main_line(hub)
+        self.assertEqual(action, LoopAction.Continue)
+        right_click.assert_called_once()
+        npc_hit, reason = right_click.call_args.args
+        self.assertEqual(reason, "OpenGreatRift")
+        self.assertEqual(npc_hit.name, "damijing")
+        self.assertTrue(med._secret_realm_request_pending)
+        self.assertTrue(med._post_game_pending)
+
+        confirm = load_fixture_frame("fixtures/replay/great_rift_confirm.png")
+        with patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(confirm)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once()
+        yes_hit, reason = click.call_args.args
+        self.assertEqual(reason, "ConfirmGreatRift")
+        self.assertIn(yes_hit.name, {"mijingOk", "ok"})
+        self.assertIsNotNone(med._secret_realm_entering_since)
+        self.assertTrue(med._post_game_pending)
+
+        # Real 1.4.1 footage briefly shows the NPC hub again after “yes”.  It is
+        # a loading transition, not authority to right-click the rift NPC twice.
+        transition_at = med._secret_realm_entering_since + settings.ui_action_interval_s + 0.05
+        with patch("gamescript.mediator.time.time", return_value=transition_at), \
+             patch.object(med, "act_click") as transition_click, \
+             patch.object(med, "act_right_click") as transition_right_click:
+            action = med._tick_main_line(hub)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertIsNotNone(med._secret_realm_entering_since)
+        transition_click.assert_not_called()
+        transition_right_click.assert_not_called()
+
+        active = load_fixture_frame("fixtures/replay/main_line_auto_on.png")
+        verified_at = transition_at + 0.1
+        with patch("gamescript.mediator.time.time", return_value=verified_at), \
+             patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "_is_in_game_hud", return_value=True), \
+             patch.object(med, "act_click") as extra_click, \
+             patch.object(med, "act_right_click") as extra_right_click:
+            action = med._tick_main_line(active)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertTrue(med._secret_realm_active)
+        self.assertFalse(med._secret_realm_request_pending)
+        self.assertFalse(med._post_game_pending)
+        self.assertIsNone(med._secret_realm_entering_since)
+        extra_click.assert_not_called()
+        extra_right_click.assert_not_called()
+
+    def test_secret_realm_dialog_timeout_fails_closed_without_guessing(self):
+        settings = Settings(auto_secret_realm=True)
+        med = Mediator(settings, ROOT)
+        med.set_phase(Phase.MAIN_LINE, "secret realm timeout")
+        med._post_game_pending = True
+        med._secret_realm_request_pending = True
+        med._secret_realm_request_since = time.time() - 16.0
+        frame = load_fixture_frame("fixtures/replay/main_line_auto_on.png")
+
+        with patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "act_click") as click, \
+             patch.object(med, "act_right_click") as right_click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Break)
+        self.assertEqual(med.phase, Phase.ERROR)
+        click.assert_not_called()
+        right_click.assert_not_called()
+
     def test_victory_page_clicks_continue_game(self):
         """The victory modal drives a ContinueGame left click (owner-authorized), not a stop."""
         frame = load_fixture_frame("fixtures/replay/victory_continue.png")

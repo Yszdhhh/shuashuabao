@@ -62,11 +62,14 @@ def main() -> int:
         print(f"role={role} candidates={len(targets)} title_query={title!r}")
         for index, target in enumerate(targets):
             frame = capture_target(target)
+            if frame.width >= 200 and frame.height >= 200:
+                mediator._ui_scale = round(min(frame.width / 1600.0, frame.height / 900.0, 1.0), 3)
             context = mediator._detect_context(frame, role)
             values = {
                 "hwnd": target.hwnd,
                 "title": target.title,
                 "frame": f"{frame.width}x{frame.height}@({frame.left},{frame.top})",
+                "ui_scale": mediator._ui_scale,
                 "context": context,
             }
             if role == "l0":

@@ -56,6 +56,22 @@ class P0B1FixesTests(unittest.TestCase):
         self.assertIsNotNone(res.click_point)
         self.assertEqual(res.forbidden_click_count, 0)
 
+    def test_right_side_activity_button_cannot_claim_room_start(self):
+        template = cv2.imdecode(
+            np.fromfile(ROOT / "assets/Images/kk_start.png", dtype=np.uint8),
+            cv2.IMREAD_COLOR,
+        )
+        canvas = np.zeros((945, 1328, 3), dtype=np.uint8)
+        # Reproduce trace 203937: the false candidate center was x=0.883 of
+        # the KK client, on the activity/pet side rather than the host button.
+        x, y = 1100, 550
+        h, w = template.shape[:2]
+        canvas[y : y + h, x : x + w] = template
+        frame = Frame(canvas, window_title="KK", hwnd=10001)
+
+        self.assertIsNone(self.med._find_room_start(frame))
+        self.assertNotEqual("ROOM_WAITING", self.med._detect_context(frame, role="l0"))
+
     def test_main_line_images_not_stage_select(self):
         f_off = load_fixture_frame("fixtures/replay/main_line_auto_off.png")
         f_on = load_fixture_frame("fixtures/replay/main_line_auto_on.png")

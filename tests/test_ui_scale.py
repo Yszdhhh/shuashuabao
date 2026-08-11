@@ -49,21 +49,36 @@ class AdaptScalesTest(unittest.TestCase):
         med._ui_scale = 1.03
         self.assertEqual(med._adapt_scales((0.9, 1.0, 1.1)), (0.9, 1.0, 1.1))
 
-    def test_ui_scale_neighborhood_merged(self) -> None:
+    def test_ui_scale_neighborhood_merged_preserves_input_order(self) -> None:
         med = Mediator(Settings(), ROOT)
         med._ui_scale = 0.6
         out = med._adapt_scales((0.9, 1.0, 1.1))
-        for expected in (round(0.6 * 0.94, 3), 0.6, round(0.6 * 1.06, 3), 0.9, 1.0, 1.1):
-            self.assertIn(expected, out)
-        self.assertEqual(out, tuple(sorted(out)))
+        # P0-1（LOBBY_AUDIT P1）：_adapt_scales 必须保序追加 ui 邻域，不得 sorted() 反转
+        # 调用方的绝对档优先序（L0 门闩要求 1.0 在 ui 邻域之前）。输入序保持不变，
+        # 邻域追加在末尾。
+        self.assertEqual(out, (0.9, 1.0, 1.1, round(0.6 * 0.94, 3), 0.6, round(0.6 * 1.06, 3)))
 
     def test_no_duplicate_when_overlapping(self) -> None:
         med = Mediator(Settings(), ROOT)
         med._ui_scale = 0.95
         out = med._adapt_scales((0.9, 1.0, 1.1))
         # 0.95*0.94=0.893 与 0.9 间距 <0.03 → 不插；0.95 本身与 0.9/1.0 各差 0.05 → 插入；
-        # 0.95*1.06=1.007 与 1.0 间距 <0.03 → 不插 → 共 4 个
-        self.assertEqual(out, (0.9, 0.95, 1.0, 1.1))
+        # 0.95*1.06=1.007 与 1.0 间距 <0.03 → 不插 → 输入序 (0.9, 1.0, 1.1) 保序 + 追加 0.95
+        self.assertEqual(out, (0.9, 1.0, 1.1, 0.95))
+
+    def test_l0_absolute_scales_precede_ui_neighborhood(self) -> None:
+        # P0-1（LOBBY_AUDIT P1 实证）：ui_scale=0.83 时旧实现 sorted() 把
+        # _l0_scales() 的绝对 1.0 优先序反转成 (0.78, 0.83, 0.88, 0.9, 1.0, …)，
+        # 非 1.0 KK 窗口上 L0 门闩先扫 ui 邻域后扫绝对档，扩大 early-stop 假阳性面。
+        med = Mediator(Settings(), ROOT)
+        med._ui_scale = 0.83
+        l0 = med._l0_scales()
+        self.assertEqual(l0[:5], (1.0, 1.1, 0.9, 1.15, 1.2))  # 绝对档在前
+        out = med._adapt_scales(l0)
+        self.assertEqual(out[:5], (1.0, 1.1, 0.9, 1.15, 1.2))  # 保序：绝对档仍在前
+        self.assertEqual(out[0], 1.0)
+        self.assertLess(out.index(1.0), out.index(0.83))  # 绝对 1.0 先于 ui 邻域
+        self.assertEqual(set(out), set(l0))
 
 
 class ScaleDetectionTest(unittest.TestCase):

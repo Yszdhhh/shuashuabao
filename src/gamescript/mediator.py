@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -21,6 +22,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from gamescript import __version__
 from gamescript.incidents import IncidentArchiver
 from gamescript.input.emergency_stop import EmergencyStopListener
 from gamescript.input.keyboard_mouse import InputExecutor
@@ -43,7 +45,6 @@ from gamescript.vision.capture import (
 from gamescript.vision.matcher import (
     MatchResult,
     _load_template,
-    find_blue_button,
     find_blue_buttons,
     find_input_boxes,
     match_all,
@@ -59,10 +60,11 @@ from gamescript.vision.stage_selector import (
     verify_stage_selection,
     visible_stage_rows,
 )
+from gamescript.vision.ocr_shadow.client import ShadowClient
 
 # 构建标识：写入 JSONL tick trace（B1-1），用于区分版本/里程碑来源。
 # 每次发布里程碑时更新；配合 git 提交哈希可精确定位产生该日志的代码。
-BUILD_ID = "ocr-hybrid-dev"
+BUILD_ID = f"v{__version__}"
 
 
 @dataclass
@@ -157,6 +159,7 @@ class RecoveryStep(Enum):
     """恢复脚本步骤（每步带 anchor/动作/后置确认门闩）。"""
 
     FAIL_CONFIRM = auto()  # 失败弹窗可见 → 点 ok（确定）→ 弹窗消失或 close 出现
+    FAIL_EXIT_CONFIRM = auto()  # 失败状态 → 左上退出 → 标准退出确认框 → 点确认
     FAIL_CLOSE = auto()    # 确认后出现 close → 点 close → 全部消失
     DISCONNECT_RETRY = auto()  # 断线弹窗可见 → 点 retryConnect（重连）→ 弹窗消失或回局内
     DONE = auto()
@@ -205,12 +208,30 @@ class RecoveryState:
     waiting_confirm: bool = False
     input_at: float = 0.0
     confirm_window: float = 15.0
+    direct_exit: bool = False
+    opening_exit_confirm: bool = False
 
 
 class Mediator:
     _CREATE_ROOM_CONFIRM_WINDOW_S = 4.0
     _CREATE_ROOM_TOTAL_TIMEOUT_S = 15.0
     _CREATE_ROOM_MAX_ATTEMPTS = 3  # 首次点击 + 最多两次重试
+    _OCR_SLOT_ROIS = {
+        "skill": ((0.286, 0.178, 0.421, 0.255), (0.433, 0.178, 0.568, 0.255), (0.579, 0.178, 0.714, 0.255)),
+        "bond": ((0.254, 0.180, 0.410, 0.265), (0.425, 0.180, 0.581, 0.265), (0.596, 0.180, 0.752, 0.265)),
+        "treasure": ((0.286, 0.190, 0.418, 0.265), (0.433, 0.190, 0.565, 0.265), (0.582, 0.190, 0.714, 0.265)),
+    }
+    _CHOICE_SLOT_CENTERS = {
+        "skill": ((0.354, 0.42), (0.500, 0.42), (0.646, 0.42)),
+        "bond": ((0.331, 0.44), (0.503, 0.44), (0.676, 0.44)),
+        "treasure": ((0.352, 0.42), (0.500, 0.42), (0.648, 0.42)),
+    }
+    # 高级/复合羁绊常以具体卡名出现（如“白赚海盗”“亡灵天灾”），
+    # 不能只用规范体系名做完全相等判断，否则会被误当成基础卡。
+    _ADVANCED_BOND_MARKERS = (
+        "海盗", "亡灵", "三国", "修仙", "异火", "封神", "龙族", "军团",
+    )
+    _ADVANCED_BOND_MIN_OCCUPANCY = 4
 
     def __init__(
         self,
@@ -315,6 +336,9 @@ class Mediator:
         self._auto_task_attempts: int = 0
         self._auto_task_pending_since: float | None = None
         self._auto_task_next_observe_at: float | None = None
+        self._auto_task_recheck_at: float = 0.0
+        self._control_recheck_interval_s: float = 120.0
+        self._challenge_recheck_at: dict[str, float] = {}
         # P1-B1: victory-continue flow (multi-anchor post-game classification).
         self._victory_continue_attempts: int = 0
         self._victory_continue_since: float | None = None
@@ -322,6 +346,16 @@ class Mediator:
         # (no auto-task / challenge / stage actions) until timeout -> ERROR.
         self._post_game_pending: bool = False
         self._post_game_close_attempts: int = 0
+        # Optional post-victory great-rift chain.  Every input has a dedicated
+        # anchor and a bounded post-click observation window.
+        self._secret_realm_request_pending: bool = False
+        self._secret_realm_request_since: float | None = None
+        self._secret_realm_request_attempts: int = 0
+        self._secret_realm_next_observe_at: float = 0.0
+        self._secret_realm_entering_since: float | None = None
+        self._secret_realm_confirm_attempts: int = 0
+        self._secret_realm_confirm_next_observe_at: float = 0.0
+        self._secret_realm_active: bool = False
         self._exit_button_attempts: int = 0
         self._exit_confirm_attempts: int = 0
         self._exit_since: float | None = None
@@ -364,6 +398,34 @@ class Mediator:
         self._panel_fingerprint: tuple | None = None
         self._panel_fingerprint_attempts = 0
         self._panel_f1_used_this_episode = False
+        # P0-3（215302）：自然面板进入需同类型锚点连续 2 帧（或单帧 ≥0.85）。
+        # 跨 tick 保留上一帧锚点类型；类型漂移/锚点消失即重置，防单帧贴阈值
+        # （0.742/0.799）误入面板处理。
+        self._panel_anchor_candidate: tuple[str, float] | None = None
+        # One explicit L1 cycle owns the proactive G/F/V panels.  Per-panel
+        # fingerprint guards remain the anti-loop safety boundary; a lifetime
+        # "five panels per game" cap must not permanently starve later skill
+        # points in a long round.
+        self._l1_cycle_step = "skill"
+        self._l1_cycle_owned_panel = False
+        self._l1_cycle_selected = False
+        self._merchant_next_at = 0.0
+        self._equipment_next_at = 0.0
+        self._equipment_pending_until = 0.0
+        self._pickup_next_at = 0.0
+        self._fail_gift_attempts = 0
+        self._evolution_attempts = 0
+        self._evolution_next_at = 0.0
+        self._evolution_baseline: np.ndarray | None = None
+        # P0-2：click_evolve 后置确认（164929 42 次空点 / 215302 423 次狂点）。
+        # 点击必须带来面板/画面反馈才视为成功；无反馈计失败重试，每轮 ≤3 次后
+        # 放弃本轮进化。冷却 _evolve_click_cooldown_until（5s）保留。
+        self._evolve_click_cooldown_until = 0.0
+        self._evolve_feedback_pending = False
+        self._evolve_click_at = 0.0
+        self._evolve_fail_count = 0
+        self._evolve_baseline: np.ndarray | None = None
+        self._evolve_feedback_window_s = 3.0
         self._ambiguous_giveup_frames = 0
         self._f1_shadow_correct = 0
         self._f1_shadow_misfire = 0
@@ -386,6 +448,22 @@ class Mediator:
         self._unknown_since: float | None = None      # context=UNKNOWN 连续计时起点
         self._unknown_recorded_fp: str | None = None  # 本 UNKNOWN episode 已归档的页面指纹
         self._last_health: FrameHealthResult | None = None  # 最近一帧健康结果（Fail-Closed 归档用）
+        self._trace_ocr_suggestion: dict | None = None
+        self._ocr_client: ShadowClient | None = None
+        self._skill_labels: dict[str, str] = {}
+        labels_path = project_root / "config" / "skill_labels.json"
+        try:
+            self._skill_labels = json.loads(labels_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            self._skill_labels = {}
+        if getattr(settings, "ocr_mode", "off") in {"shadow", "live"}:
+            repo_root = Path(settings.ocr_repo_root) if settings.ocr_repo_root else project_root
+            self._ocr_client = ShadowClient(
+                repo_root=repo_root,
+                timeout_ms=settings.ocr_timeout_ms,
+                startup_timeout_ms=6000,
+                trace_path=(Path(incident_dir) / "ocr_shadow.jsonl") if incident_dir else None,
+            )
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -656,6 +734,11 @@ class Mediator:
         960x540 (=0.6x of 1600x900) needs scales around 0.6; the default
         0.85-1.2 band misses it entirely, which previously made every
         detector report UNKNOWN on non-baseline resolutions.
+
+        P0-1（LOBBY_AUDIT P1）：必须保序追加、不得 sorted()。旧实现的升序排序把
+        ``_l0_scales()`` 的"绝对 1.0 优先"顺序反转成升序，非 1.0 KK 窗口上 L0 门闩
+        先扫 ui 邻域再扫绝对档（1328×945→0.83 实证：1.0 排在 0.78/0.83/0.88 之后），
+        既违背 N2.4 文档序，又扩大 early-stop 假阳性面（r5/r6 误点同族）。
         """
         us = getattr(self, "_ui_scale", 1.0)
         if abs(us - 1.0) < 0.05 or not scales:
@@ -664,7 +747,7 @@ class Mediator:
         for s in (us * 0.94, us, us * 1.06):
             if not any(abs(s - x) < 0.03 for x in out):
                 out.append(round(s, 3))
-        return tuple(sorted(out))
+        return tuple(out)
 
     # ---------- N2.2 FrameEvidence 生命周期 / memo ----------
 
@@ -752,7 +835,10 @@ class Mediator:
     _HUD_CHALLENGE_ROI = (0.0, 0.62, 0.60, 1.0)
     _CARD_PANEL_ROI = (0.24, 0.14, 0.80, 0.74)
     _STAGE_ROWS_ROI = (0.45, 0.05, 0.85, 0.60)
-    _ROOM_START_ROI = (0.45, 0.55, 0.95, 0.95)
+    # Host room start is centered at x=0.738 on the real 1040x719 fixture.
+    # The KK activity/pet page false-positive from trace 203937 was x=0.883;
+    # keep right-side activity/task buttons outside the action trust boundary.
+    _ROOM_START_ROI = (0.60, 0.55, 0.86, 0.95)
     _ENV_ZIDONG_ROI = (0.05, 0.58, 0.42, 0.82)
     _ENV_SHORTKEY_ROI = (0.70, 0.10, 1.0, 0.55)
     # 面板底部按钮行（选择锚点/面板分类/刷新/放弃都在此带，y≈0.59-0.64）
@@ -878,7 +964,8 @@ class Mediator:
     # 1040x719 平台窗口以 1.0 命中），不受 1600x900 相对 ui_scale 启发式支配。
     # 这些场景用宽尺度档 + 优先级早停一次扫完（不做 hot 双扫）。
     _L0_GATE_SCENES = frozenset({
-        "lobby_start", "lobby_room", "room_start", "stage_start", "start",
+        "lobby_start", "lobby_room", "map_create_room", "create_room_confirm",
+        "room_start", "stage_start", "start",
         "stage", "stage_page", "coin_challenge", "wood_challenge",
         "experience_challenge", "treasure_challenge",
     })
@@ -1134,7 +1221,11 @@ class Mediator:
     def _classify_choice_panel_at(self, frame: Frame, threshold: float, scales: tuple[float, ...]) -> str | None:
         # N2.4：面板按钮行位置已知（实测 y≈0.59-0.64），全帧扫描不再必要。
         roi = self._PANEL_BUTTONS_ROI
-        if self.find(frame, ["bond_hide_btn", "bond_refresh_btn"], threshold=0.75, scales=scales, roi=roi):
+        # P0-3（215302）：bond 定类需要 bond_hide_btn + bond_refresh_btn 联合证据；
+        # 单独 bond_refresh_btn（0.70-0.79 贴阈值）不得定类 bond（曾单锚点误入面板）。
+        bond_hide = self.find(frame, ["bond_hide_btn"], threshold=threshold, scales=scales, roi=roi)
+        bond_refresh = self.find(frame, ["bond_refresh_btn"], threshold=threshold, scales=scales, roi=roi)
+        if bond_hide is not None and bond_refresh is not None:
             return "bond"
         # Current treasure and skill panels share refresh/give-up artwork.
         # The generic hide anchor is near-perfect only on the treasure layout.
@@ -1229,10 +1320,24 @@ class Mediator:
 
     def _ensure_auto_task_enabled(self, frame: Frame) -> LoopAction | None:
         """Enable auto-task with a bounded post-click observation window."""
-        if getattr(self, "_auto_task_done", False):
-            return None
-
         now = time.time()
+        if getattr(self, "_auto_task_done", False):
+            if self._auto_task_recheck_at <= 0.0 or now < self._auto_task_recheck_at:
+                return None
+            state, hit, on_score, off_score = self._auto_task_state_detail(frame)
+            if state == "ON":
+                self._trace_auto_task_control(state, on_score, off_score, hit, None)
+                self._auto_task_recheck_at = now + self._control_recheck_interval_s
+                return None
+            if state != "OFF":
+                self._trace_auto_task_control(state, on_score, off_score, hit, None)
+                self._auto_task_recheck_at = now + self.settings.ui_action_interval_s
+                return None
+            # A failed main-line attempt may turn this control off again.
+            # Re-arm only on explicit OFF evidence; UNKNOWN stays zero-input.
+            self._auto_task_done = False
+            self._auto_task_attempts = 0
+
         state, hit = self._auto_task_state(frame)
         detail = self._auto_task_state_detail(frame)
         on_score, off_score = detail[2], detail[3]
@@ -1244,6 +1349,7 @@ class Mediator:
                 self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
                 print("[L1] 自动任务开启模式已验证（已勾选）")
                 self._auto_task_done = True
+                self._auto_task_recheck_at = now + self._control_recheck_interval_s
                 self._auto_task_pending_since = None
                 self._auto_task_next_observe_at = None
                 return None
@@ -1265,6 +1371,7 @@ class Mediator:
             self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
             print("[L1] 自动任务开启模式已验证（已勾选）")
             self._auto_task_done = True
+            self._auto_task_recheck_at = now + self._control_recheck_interval_s
             return None
         if self._auto_task_attempts >= 3:
             self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
@@ -1359,6 +1466,132 @@ class Mediator:
                 best = (score, band, count)
         return best
 
+    @staticmethod
+    def _normalized_bbox(frame: Frame, roi: tuple[float, float, float, float]) -> tuple[int, int, int, int]:
+        x0, y0, x1, y1 = roi
+        return (
+            int(frame.width * x0), int(frame.height * y0),
+            int(frame.width * x1), int(frame.height * y1),
+        )
+
+    def _ocr_panel_slots(self, frame: Frame, kind: str) -> list[dict]:
+        """Read the three title lines. OCR supplies names only, never coordinates."""
+        if self._ocr_client is None or (frame.width, frame.height) != (1600, 900):
+            return []
+        rois = self._OCR_SLOT_ROIS.get(kind)
+        if rois is None:
+            return []
+        panel_id = f"{kind}:{self._trace_frame_fingerprint(frame)}"
+        slots: list[dict] = []
+        for index, roi in enumerate(rois):
+            bbox = self._normalized_bbox(frame, roi)
+            response = self._ocr_client.shadow_predict(
+                frame,
+                panel_id,
+                {"index": index, "bbox": bbox, "kind": kind},
+                panel_bbox=(int(frame.width * 0.24), int(frame.height * 0.14),
+                             int(frame.width * 0.76), int(frame.height * 0.58)),
+            )
+            if response.elapsed_ms >= 1000 and self._tick_reason is None:
+                self._tick_reason = "ocr_cold_start"
+            top = response.candidates[0] if response.candidates else None
+            slots.append({
+                "index": index,
+                "name": top.name if top else None,
+                "confidence": float(top.confidence) if top else 0.0,
+                "raw_text": response.raw_text or "",
+                "rec_score": response.rec_score,
+                "status": response.status,
+                "reason": response.reason,
+            })
+        self._trace_ocr_suggestion = {"kind": kind, "slots": slots}
+        return slots
+
+    def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str) -> MatchResult:
+        x_ratio, y_ratio = self._CHOICE_SLOT_CENTERS[kind][index]
+        x, y = int(frame.width * x_ratio), int(frame.height * y_ratio)
+        return MatchResult(name, 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
+
+    @staticmethod
+    def _progress_from_text(text: str) -> tuple[int, int] | None:
+        match = re.search(r"(\d+)\s*/\s*(\d+)", text or "")
+        if not match:
+            return None
+        have, need = int(match.group(1)), int(match.group(2))
+        return (have, need) if 0 <= have <= need and need > 0 else None
+
+    @staticmethod
+    def _bond_bar_occupancy(frame: Frame) -> int | None:
+        """Count occupied 1600x900 bond-bar cells; used only as an overflow guard."""
+        if frame.bgr is None or (frame.width, frame.height) != (1600, 900):
+            return None
+        hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
+        occupied = 0
+        for cx in (603, 655, 707, 759, 811, 863, 915, 967, 1019, 1071):
+            roi = hsv[635:680, cx - 20 : cx + 20]
+            colored = (roi[:, :, 1] > 70) & (roi[:, :, 2] > 60)
+            if int(colored.sum()) >= 250:
+                occupied += 1
+        return occupied
+
+    def _ocr_reward_choice(self, frame: Frame, kind: str) -> MatchResult | None:
+        slots = self._ocr_panel_slots(frame, kind)
+        if not slots:
+            return None
+        if kind == "skill":
+            configured = {
+                self._skill_labels.get(code, ""): code
+                for code in self.settings.skills
+                if self._skill_labels.get(code)
+            }
+            for slot in slots:
+                code = configured.get(slot["name"])
+                if code and slot["confidence"] >= 0.60:
+                    return self._choice_slot_hit(frame, kind, slot["index"], code)
+            return None
+
+        if kind == "bond":
+            occupancy = self._bond_bar_occupancy(frame)
+            ranked: list[tuple[tuple[int, int, int, int], dict]] = []
+            for slot in slots:
+                name = slot["name"]
+                if not name or slot["confidence"] < 0.60:
+                    continue
+                progress = self._progress_from_text(slot["raw_text"])
+                if progress and progress[0] >= progress[1]:
+                    continue
+                gap = progress[1] - progress[0] if progress else 99
+                # 格子接近满时只允许“差一张即可合成”的动作，禁止继续铺新羁绊。
+                if occupancy is not None and occupancy >= 8 and gap != 1:
+                    continue
+                close_to_merge = 0 if gap == 1 else 1
+                advanced = 1 if any(marker in name for marker in self._ADVANCED_BOND_MARKERS) else 0
+                have = progress[0] if progress else 0
+                # 前期先建立基础羁绊。海盗/亡灵等高级体系只有在已有进度，
+                # 或基础栏至少形成 4 格后才允许从零起卡；检测不到占用时安全隐藏。
+                if (
+                    advanced
+                    and have == 0
+                    and (occupancy is None or occupancy < self._ADVANCED_BOND_MIN_OCCUPANCY)
+                ):
+                    continue
+                have_rank = -(progress[0] if progress else 0)
+                # Basic bonds are always built before composite/advanced ones;
+                # within the same tier, finish the closest combination first.
+                ranked.append(((advanced, close_to_merge, gap, have_rank), slot))
+            if not ranked:
+                return None
+            ranked.sort(key=lambda item: (item[0], item[1]["index"]))
+            slot = ranked[0][1]
+            return self._choice_slot_hit(frame, kind, slot["index"], f"ocr_bond:{slot['name']}")
+
+        if kind == "treasure":
+            recognized = [s for s in slots if s["name"] and s["confidence"] >= 0.60]
+            if recognized:
+                slot = min(recognized, key=lambda s: s["index"])
+                return self._choice_slot_hit(frame, kind, slot["index"], f"ocr_treasure:{slot['name']}")
+        return None
+
     def _rarity_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
         """Pick the highest-rarity card in a 3-choice panel by border color."""
         if panel_kind == "treasure":
@@ -1419,8 +1652,8 @@ class Mediator:
         if not anchor:
             return None
 
-        kind = self._classify_choice_panel(frame)
-        if kind is None:
+        kind = self._panel_kind_of(frame, anchor)
+        if kind == "unknown":
             # 分类失败：绝不假装 skill（旧行为会把 UNKNOWN 当技能面板扫全库）
             self._record_selection_unknown(frame, anchor, "panel classification failed")
             return None
@@ -1437,7 +1670,34 @@ class Mediator:
                 },
             )
 
+        ocr_mode = getattr(self.settings, "ocr_mode", "off")
+        if ocr_mode in {"shadow", "live"} and kind in {"skill", "bond", "treasure"}:
+            ocr_hit = self._ocr_reward_choice(frame, kind)
+            if ocr_mode == "live":
+                if ocr_hit is not None:
+                    return ("技能" if kind == "skill" else kind, ocr_hit)
+                if kind == "bond":
+                    # 没有可靠名字/接近合成证据，或羁绊栏接近满：隐藏而不是按颜色乱学。
+                    close_hit = self._close_current_panel(frame, "bond")
+                    return ("bond", close_hit) if close_hit is not None else None
+                if kind == "skill":
+                    # 继续落到下面“刷新三次→放弃”，禁止图标模板绕过名字门禁。
+                    preferred = []
+                else:
+                    preferred = None
+            else:
+                preferred = None
+        else:
+            preferred = None
+
         if kind in ("bond", "treasure", "card"):
+            if kind == "bond" and ocr_mode == "live":
+                # Live bond choices require a recognized name and policy
+                # approval.  Never fall through to color/random selection.
+                return None
+            if kind == "card" and ocr_mode == "live":
+                # 未经分类的卡组/禁用卡界面不具有选择授权。
+                return None
             preferred = [v.strip() for v in self.settings.cards if v and v.strip()]
             if preferred:
                 names = [v if "/" in v else f"cards/{v}" for v in preferred]
@@ -1464,7 +1724,11 @@ class Mediator:
             return (kind, self._fallback_choice(frame, kind))
 
         # skill panel: preferred-only
-        preferred = [v.strip() for v in self.settings.skills if v and v.strip()]
+        preferred = (
+            []
+            if ocr_mode == "live"
+            else [v.strip() for v in self.settings.skills if v and v.strip()]
+        )
         if preferred:
             names = [v if "/" in v else f"skills/{v}" for v in preferred]
             hits = self._match_all_preferred(
@@ -1641,13 +1905,23 @@ class Mediator:
             return LoopAction.Continue
         return None
 
+    _L1_CYCLE_ORDER = ("skill", "bond", "treasure", "evolve", "equipment", "pickup", "merchant", "artifact")
+
+    def _advance_l1_cycle(self, completed: str | None = None) -> None:
+        current = completed or self._l1_cycle_step
+        try:
+            index = self._L1_CYCLE_ORDER.index(current)
+        except ValueError:
+            index = -1
+        self._l1_cycle_step = self._L1_CYCLE_ORDER[(index + 1) % len(self._L1_CYCLE_ORDER)]
+
     def _maybe_open_choice_panel(self, frame: Frame, anchor: MatchResult | None = None) -> LoopAction | None:
         """Proactive skill (G) / bond (F) / treasure (V) panel opening.
 
-        Skill panel is the priority (60s interval): configured skills are the
-        core power source. Bond/treasure run at the longer interval. Panels
-        opened here are remembered so the close-button fallback may close them
-        safely instead of Fail-Closed.
+        The owned cycle drains configured skills first, then bond and treasure.
+        A panel kind advances only after an owned episode yields no selectable
+        result (or reaches its per-cycle safety budget).  The next full cycle
+        reopens skill instead of permanently starving it for the rest of a game.
         """
         if anchor is None:
             anchor = self._selection_anchor(frame)
@@ -1657,10 +1931,19 @@ class Mediator:
             # 已有面板会话进行中（WAIT_VISIBLE/ACTIVE/…）：不再发起新打开
             return LoopAction.Continue
         now = time.time()
-        # 技能 G：核心，60s
-        if now - getattr(self, "_last_skill_panel", 0.0) >= 60:
+        if not self._panel_episode_count and not self._l1_cycle_owned_panel:
+            # Resume compatibility for snapshots created before the explicit
+            # cycle field existed.  Fresh games have all three timestamps at 0.
+            if self._l1_cycle_step == "skill" and self._last_skill_panel > 0:
+                self._l1_cycle_step = (
+                    "treasure" if self._last_bond_attempt > 0 else "bond"
+                )
+        # 技能 G：核心，持续到无可选项后才进入羁绊。
+        if self._l1_cycle_step == "skill":
             if self._panel_episode_count.get("skill", 0) >= self.settings.panel_episode_limit_per_kind:
-                print("[L1] 技能面板本局会话数已达上限，不再主动打开")
+                self._panel_episode_count["skill"] = 0
+                self._advance_l1_cycle("skill")
+                print("[L1] 技能本轮安全预算已用完，转入羁绊；下一轮重新开放")
                 self._last_skill_panel = now
                 return LoopAction.Continue
             if self.act_click(self._hud_button_hit(frame, "skill_button", self.CHOICE_BUTTON_RATIOS["skill"]), "OpenSkillPanel"):
@@ -1669,42 +1952,298 @@ class Mediator:
                 self._panel_kind = "skill"
                 self._panel_state = PanelState.OPEN_REQUESTED
                 self._skill_refresh_attempts = 0
-                print("[L1] 主动点击 G 技能按钮（核心，60s 一次）")
+                self._l1_cycle_owned_panel = True
+                self._l1_cycle_selected = False
+                print("[L1] 主动点击 G 技能按钮（本轮持续至无可选项）")
             else:
                 print("[L1] G 技能按钮点击被拒绝（不推进冷却）")
             return LoopAction.Continue
-        interval = max(30, getattr(self.settings, "choice_interval", 120))
-        # 羁绊 F / 宝物 V：低频
-        if getattr(self.settings, "auto_bond", True):
-            if now - getattr(self, "_last_bond_attempt", 0.0) >= interval:
-                if self._panel_episode_count.get("bond", 0) >= self.settings.panel_episode_limit_per_kind:
-                    print("[L1] 羁绊面板本局会话数已达上限，不再主动打开")
-                    self._last_bond_attempt = now
-                    return LoopAction.Continue
-                if self.act_click(self._hud_button_hit(frame, "bond_button", self.CHOICE_BUTTON_RATIOS["bond"]), "OpenBondPanel"):
-                    self._last_bond_attempt = now
-                    self._panel_opened_by_us = "bond"
-                    self._panel_kind = "bond"
-                    self._panel_state = PanelState.OPEN_REQUESTED
-                    print("[L1] 主动点击 F 羁绊按钮（低频）")
-                else:
-                    print("[L1] F 羁绊按钮点击被拒绝（不推进冷却）")
+        # 羁绊 F / 宝物 V：按显式循环顺序执行。
+        if self._l1_cycle_step == "bond" and getattr(self.settings, "auto_bond", True):
+            if self._panel_episode_count.get("bond", 0) >= self.settings.panel_episode_limit_per_kind:
+                self._panel_episode_count["bond"] = 0
+                self._advance_l1_cycle("bond")
+                print("[L1] 羁绊本轮安全预算已用完，转入宝物；下一轮重新开放")
+                self._last_bond_attempt = now
                 return LoopAction.Continue
-        if getattr(self.settings, "auto_treasure", True):
-            if now - getattr(self, "_last_treasure_attempt", 0.0) >= interval:
-                if self._panel_episode_count.get("treasure", 0) >= self.settings.panel_episode_limit_per_kind:
-                    print("[L1] 宝物面板本局会话数已达上限，不再主动打开")
-                    self._last_treasure_attempt = now
-                    return LoopAction.Continue
-                if self.act_click(self._hud_button_hit(frame, "treasure_button", self.CHOICE_BUTTON_RATIOS["treasure"]), "OpenTreasurePanel"):
-                    self._last_treasure_attempt = now
-                    self._panel_opened_by_us = "treasure"
-                    self._panel_kind = "treasure"
-                    self._panel_state = PanelState.OPEN_REQUESTED
-                    print("[L1] 主动点击 V 宝物按钮（低频）")
-                else:
-                    print("[L1] V 宝物按钮点击被拒绝（不推进冷却）")
+            if self.act_click(self._hud_button_hit(frame, "bond_button", self.CHOICE_BUTTON_RATIOS["bond"]), "OpenBondPanel"):
+                self._last_bond_attempt = now
+                self._panel_opened_by_us = "bond"
+                self._panel_kind = "bond"
+                self._panel_state = PanelState.OPEN_REQUESTED
+                self._l1_cycle_owned_panel = True
+                self._l1_cycle_selected = False
+                print("[L1] 主动点击 F 羁绊按钮（本轮持续至无可选项）")
+            else:
+                print("[L1] F 羁绊按钮点击被拒绝（不推进循环）")
+            return LoopAction.Continue
+        if self._l1_cycle_step == "treasure" and getattr(self.settings, "auto_treasure", True):
+            if self._panel_episode_count.get("treasure", 0) >= self.settings.panel_episode_limit_per_kind:
+                self._panel_episode_count["treasure"] = 0
+                self._advance_l1_cycle("treasure")
+                print("[L1] 宝物本轮安全预算已用完，转入进化；下一轮重新开放")
+                self._last_treasure_attempt = now
                 return LoopAction.Continue
+            if self.act_click(self._hud_button_hit(frame, "treasure_button", self.CHOICE_BUTTON_RATIOS["treasure"]), "OpenTreasurePanel"):
+                self._last_treasure_attempt = now
+                self._panel_opened_by_us = "treasure"
+                self._panel_kind = "treasure"
+                self._panel_state = PanelState.OPEN_REQUESTED
+                self._l1_cycle_owned_panel = True
+                self._l1_cycle_selected = False
+                print("[L1] 主动点击 V 宝物按钮（本轮持续至无可选项）")
+            else:
+                print("[L1] V 宝物按钮点击被拒绝（不推进循环）")
+            return LoopAction.Continue
+        if self._l1_cycle_step in ("bond", "treasure"):
+            # Disabled panel kind: advance without granting click authority.
+            self._advance_l1_cycle()
+            return LoopAction.Continue
+        return None
+
+    @staticmethod
+    def _equipment_slot_one_occupied(frame: Frame) -> bool:
+        if frame.bgr is None or (frame.width, frame.height) != (1600, 900):
+            return False
+        roi = frame.bgr[710:762, 1062:1115]
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        colored = (hsv[:, :, 1] > 65) & (hsv[:, :, 2] > 55)
+        return int(colored.sum()) >= 220
+
+    def _find_equipment_affix_choice(self, frame: Frame) -> MatchResult | None:
+        """Detect the four-row level-10 affix modal and pick color priority."""
+        if frame.bgr is None or (frame.width, frame.height) != (1600, 900):
+            return None
+        hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
+        gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+        body = gray[210:445, 560:1040]
+        if body.size == 0 or float((body < 80).mean()) < 0.85:
+            return None
+        gold = ((hsv[:, :, 0] >= 10) & (hsv[:, :, 0] <= 35)
+                & (hsv[:, :, 1] > 80) & (hsv[:, :, 2] > 80))
+        if int(gold[195:245, 560:1040].sum()) < 2000:
+            return None
+        if int(gold[405:455, 560:1040].sum()) < 900:
+            return None
+        rows = (240, 285, 330, 375)
+        if any(int((gray[y:y + 40, 650:950] > 140).sum()) < 450 for y in rows):
+            return None
+
+        def row_rank(y: int) -> int:
+            roi = hsv[y:y + 35, 650:950]
+            hue, sat, val = roi[:, :, 0], roi[:, :, 1], roi[:, :, 2]
+            masks = (
+                (5, ((hue <= 10) | (hue >= 170)) & (sat > 80) & (val > 90)),
+                (4, (hue > 10) & (hue <= 30) & (sat > 80) & (val > 90)),
+                (3, (hue >= 125) & (hue < 170) & (sat > 60) & (val > 80)),
+                (2, (hue >= 90) & (hue < 125) & (sat > 60) & (val > 80)),
+            )
+            for rank, mask in masks:
+                if int(mask.sum()) >= 20:
+                    return rank
+            return 1
+
+        index = max(range(4), key=lambda i: (row_rank(rows[i]), -i))
+        x, y = 800, rows[index] + 20
+        return MatchResult(f"equipment_affix_{index}", 1.0, x, y, 0, 0,
+                           frame.left + x, frame.top + y)
+
+    def _find_evolution_choice(self, frame: Frame, anchor: MatchResult | None) -> MatchResult | None:
+        """Recognize the two-card hero-evolution modal and choose its best rarity."""
+        if (
+            anchor is None
+            or anchor.name not in {"skill_giveup_btn", "skill_refresh_btn"}
+            or frame.bgr is None
+            or (frame.width, frame.height) != (1600, 900)
+        ):
+            return None
+        gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+        gradient = np.abs(cv2.Sobel(gray, cv2.CV_32F, 1, 0, ksize=3))
+
+        def edge_count(x: int) -> int:
+            return int((gradient[150:510, x - 4:x + 5] > 80).sum())
+
+        # Evolution uses two wide cards (x≈550..1050).  Skill/bond/treasure
+        # use three narrower cards and have strong outer edges near x=408/1201.
+        if not (
+            edge_count(816) >= 900
+            and edge_count(1050) >= 700
+            and edge_count(408) < 500
+            and edge_count(1201) < 500
+        ):
+            return None
+
+        hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
+
+        def rarity_rank(x1: int, x2: int) -> int:
+            roi = hsv[145:515, x1:x2]
+            colored = (roi[:, :, 1] > 80) & (roi[:, :, 2] > 70)
+            if int(colored.sum()) < 6000:
+                return 0  # unknown/grey card
+            hue = roi[:, :, 0][colored]
+            bands = (
+                (6, (hue <= 8) | (hue >= 170)),   # UR/red
+                (5, (hue >= 80) & (hue < 103)),   # EX/cyan
+                (4, (hue >= 10) & (hue <= 30)),   # SSR/orange
+                (3, (hue >= 125) & (hue < 170)),  # SR/purple
+                (2, (hue >= 103) & (hue < 125)),  # R/blue
+                (1, (hue >= 35) & (hue < 80)),    # N/green
+            )
+            return max(bands, key=lambda item: int(item[1].sum()))[0]
+
+        ranks = (rarity_rank(540, 790), rarity_rank(810, 1060))
+        index = max(range(2), key=lambda i: (ranks[i], -i))
+        x, y = ((666, 300), (933, 300))[index]
+        return MatchResult(
+            f"evolution_card_{index}_rank_{ranks[index]}", 1.0,
+            x, y, 0, 0, frame.left + x, frame.top + y,
+        )
+
+    def _evolve_feedback_seen(self, frame: Frame) -> bool:
+        """P0-2：点击进化后的后置确认 —— 选择面板锚点出现 ∨ 中央区域像素变化。
+
+        164929 假命中现场：模板命中于窗口底部空白/底边框区，点击无任何反馈；
+        本函数用于把"点击成功"从 SendInput 成功（act_click 返回 True）中分离出来，
+        只有画面证据才算成功推进。
+        """
+        if self._selection_anchor(frame) is not None:
+            return True
+        baseline = self._evolve_baseline
+        if baseline is None:
+            return False
+        roi = self._panel_roi_region(frame)
+        if roi is None or roi.shape != baseline.shape:
+            return roi is not None  # 尺寸变化本身即画面异变
+        return self._hero_changed_pixels(baseline, roi) >= 2000
+
+    def _maybe_use_inventory_item(self, frame: Frame) -> LoopAction | None:
+        """Use inventory consumables in the verified bottom-right inventory ROI."""
+        inventory_roi = (0.64, 0.77, 0.74, 0.98)
+        if self._bond_bar_nonempty(frame):
+            pill = self.find(
+                frame, ["danGif"], threshold=0.55,
+                scales=(0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0),
+                roi=inventory_roi,
+            )
+            if pill is not None and self.act_click(pill, "UseInventory-swallow_pill"):
+                return LoopAction.Continue
+
+        hero_card = self.find(
+            frame, ["hero_card_item"], threshold=0.55,
+            scales=(0.8, 0.9, 1.0, 1.1, 1.2),
+            roi=inventory_roi,
+        )
+        if hero_card is not None and self.act_click(hero_card, "UseInventory-hero-card"):
+            return LoopAction.Continue
+        return None
+
+    def _maybe_upgrade_equipment(self, frame: Frame) -> LoopAction:
+        now = time.time()
+        item = self._maybe_use_inventory_item(frame)
+        if item is not None:
+            return item
+        if self._equipment_pending_until:
+            if now < self._equipment_pending_until:
+                return LoopAction.Continue
+            self._equipment_pending_until = 0.0
+            self._advance_l1_cycle("equipment")
+            return LoopAction.Continue
+        if now < self._equipment_next_at or not self._equipment_slot_one_occupied(frame):
+            self._advance_l1_cycle("equipment")
+            return LoopAction.Continue
+        hit = self._hud_button_hit(frame, "equipment_slot_1", (1087 / 1600, 737 / 900))
+        if self.act_right_click(hit, "UpgradeEquipmentSlot1-max"):
+            self._equipment_pending_until = now + self.settings.ui_action_interval_s
+            self._equipment_next_at = now + 8.0
+        return LoopAction.Continue
+
+    @staticmethod
+    def _black_merchant_present(frame: Frame) -> bool:
+        """Detect the five-card merchant strip above the bottom-right inventory."""
+        if frame.bgr is None or frame.width != 1600 or frame.height != 900:
+            return False
+        roi = frame.bgr[
+            int(frame.height * 0.67) : int(frame.height * 0.79),
+            int(frame.width * 0.70) : int(frame.width * 0.94),
+        ]
+        if roi.size == 0:
+            return False
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        green = (
+            (hsv[:, :, 0] >= 35)
+            & (hsv[:, :, 0] <= 90)
+            & (hsv[:, :, 1] > 100)
+            & (hsv[:, :, 2] > 80)
+        )
+        return int(green.sum()) >= 1000
+
+    @staticmethod
+    def _bond_bar_nonempty(frame: Frame) -> bool:
+        """Conservative prerequisite for consuming a merchant swallow pill."""
+        if frame.bgr is None or frame.width != 1600 or frame.height != 900:
+            return False
+        roi = frame.bgr[
+            int(frame.height * 0.68) : int(frame.height * 0.78),
+            int(frame.width * 0.35) : int(frame.width * 0.42),
+        ]
+        if roi.size == 0:
+            return False
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        colored = (hsv[:, :, 1] > 85) & (hsv[:, :, 2] > 65)
+        return int(colored.sum()) >= 250
+
+    @staticmethod
+    def _merchant_refresh_available(frame: Frame) -> bool:
+        if frame.bgr is None or frame.width != 1600 or frame.height != 900:
+            return False
+        roi = frame.bgr[
+            int(frame.height * 0.67) : int(frame.height * 0.78),
+            int(frame.width * 0.89) : int(frame.width * 0.93),
+        ]
+        if roi.size == 0:
+            return False
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        gold = (
+            (hsv[:, :, 0] >= 10)
+            & (hsv[:, :, 0] <= 35)
+            & (hsv[:, :, 1] > 80)
+            & (hsv[:, :, 2] > 90)
+        )
+        return int(gold.sum()) >= 80
+
+    def _maybe_black_merchant(self, frame: Frame) -> LoopAction | None:
+        """Buy known safe merchant items, otherwise perform one guarded refresh."""
+        now = time.time()
+        if now < self._merchant_next_at or not self._black_merchant_present(frame):
+            return None
+        roi = (0.70, 0.67, 0.90, 0.79)
+        if self._bond_bar_nonempty(frame):
+            pill = self.find(
+                frame,
+                ["danGif"],
+                threshold=0.50,
+                scales=(0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5),
+                roi=roi,
+            )
+            if pill is not None and self.act_click(pill, "BlackMerchant-swallow_pill"):
+                self._merchant_next_at = now + 15.0
+                return LoopAction.Continue
+        wood = self.find(
+            frame,
+            ["merchant_wood", "woodgift"],
+            threshold=0.72,
+            scales=(0.75, 0.9, 1.0, 1.1, 1.25),
+            roi=roi,
+        )
+        if wood is not None and self.act_click(wood, "BlackMerchant-wood"):
+            self._merchant_next_at = now + 15.0
+            return LoopAction.Continue
+        if self._merchant_refresh_available(frame):
+            refresh = self._hud_button_hit(frame, "black_merchant_refresh", (0.91, 0.72))
+            if self.act_click(refresh, "BlackMerchant-refresh"):
+                self._merchant_next_at = now + self._control_recheck_interval_s
+                return LoopAction.Continue
+        self._merchant_next_at = now + 15.0
         return None
 
     def _find_compact_skill_choice(self, frame: Frame) -> MatchResult | None:
@@ -1759,7 +2298,7 @@ class Mediator:
         elif kind == "treasure":
             names = ["treasure_hide_btn", "hide"]
         elif kind == "bond":
-            names = ["bond_hide_btn", "hide"]
+            names = ["bond_hide_btn", "card_hide", "hide"]
         else:
             names = ["skill_giveup_btn", "bond_hide_btn", "treasure_hide_btn", "card_hide", "hide"]
         return self.find(
@@ -1907,6 +2446,38 @@ class Mediator:
             return None
         return MatchResult("great_rift_cancel", yes.score, x, y, 0, 0, frame.left + x, frame.top + y)
 
+    def _find_secret_realm_npc(self, frame: Frame) -> MatchResult | None:
+        hit = self.find(
+            frame,
+            ["damijing"],
+            threshold=0.80,
+            scales=self._hot_scales(),
+            roi=(0.60, 0.15, 0.85, 0.55),
+        )
+        if not hit:
+            return None
+        if not (frame.width * 0.60 <= hit.x <= frame.width * 0.85):
+            return None
+        if not (frame.height * 0.15 <= hit.y <= frame.height * 0.55):
+            return None
+        return hit
+
+    def _find_great_rift_accept(self, frame: Frame) -> MatchResult | None:
+        hit = self.find(
+            frame,
+            ["mijingOk", "ok"],
+            threshold=0.80,
+            scales=self._hot_scales(),
+            roi=(0.30, 0.40, 0.60, 0.65),
+        )
+        if not hit:
+            return None
+        if not (frame.width * 0.30 <= hit.x <= frame.width * 0.60):
+            return None
+        if not (frame.height * 0.40 <= hit.y <= frame.height * 0.65):
+            return None
+        return hit
+
     def _find_game_exit(self, frame: Frame) -> MatchResult | None:
         hit = self.find(frame, ["quit"], threshold=0.78, scales=self._hot_scales(), roi=(0.0, 0.0, 0.12, 0.15))
         if not hit:
@@ -2001,6 +2572,7 @@ class Mediator:
 
     def _ensure_challenge_buttons(self, frame: Frame) -> LoopAction | None:
         """Enable four challenge toggles in fixed order with post-click settle windows."""
+        now = time.time()
         for scene_key, label in (
             ("coin_challenge", "金币"),
             ("wood_challenge", "木材"),
@@ -2008,9 +2580,37 @@ class Mediator:
             ("treasure_challenge", "宝物"),
         ):
             if scene_key in self._challenge_done:
-                self._challenge_states[scene_key] = ChallengeState.ON
-                self._challenge_unknown_since.pop(scene_key, None)
-                continue
+                recheck_at = self._challenge_recheck_at.get(scene_key)
+                if recheck_at is None or now < recheck_at:
+                    self._challenge_states[scene_key] = ChallengeState.ON
+                    self._challenge_unknown_since.pop(scene_key, None)
+                    continue
+                found = self._find_challenge_button(frame, scene_key)
+                label_hit = found[0] if found else None
+                click_hit = found[1] if found else None
+                state = (
+                    self._resolve_challenge_state(frame, label_hit)
+                    if label_hit is not None
+                    else ChallengeState.UNKNOWN
+                )
+                green_count = self._challenge_green_count(frame, label_hit)
+                self._trace_challenge_control(
+                    scene_key, state, green_count, label_hit, click_hit, None
+                )
+                if state == ChallengeState.ON:
+                    self._challenge_recheck_at[scene_key] = (
+                        now + self._control_recheck_interval_s
+                    )
+                    continue
+                if state != ChallengeState.OFF:
+                    # Periodic UNKNOWN/MISSING is not click authority.  Retry
+                    # soon without discarding the last verified ON state.
+                    self._challenge_recheck_at[scene_key] = (
+                        now + self.settings.ui_action_interval_s
+                    )
+                    continue
+                self._challenge_done.remove(scene_key)
+                self._challenge_attempts[scene_key] = 0
 
             found = self._find_challenge_button(frame, scene_key)
             label_hit = found[0] if found else None
@@ -2021,7 +2621,6 @@ class Mediator:
                 else ChallengeState.UNKNOWN
             )
             green_count = self._challenge_green_count(frame, label_hit)
-            now = time.time()
             pending_since = self._challenge_pending_since.get(scene_key)
             pending_age = round(now - pending_since, 2) if pending_since is not None else None
             self._trace_challenge_control(
@@ -2033,6 +2632,7 @@ class Mediator:
                     print(f"[L1] {label}挑战已是自动模式")
                     self._challenge_states[scene_key] = ChallengeState.ON
                     self._challenge_done.add(scene_key)
+                    self._challenge_recheck_at[scene_key] = now + self._control_recheck_interval_s
                     self._challenge_pending_since.pop(scene_key, None)
                     self._challenge_next_observe_at.pop(scene_key, None)
                     self._challenge_unknown_since.pop(scene_key, None)
@@ -2057,6 +2657,7 @@ class Mediator:
                     if unknown_elapsed >= unknown_timeout:
                         print(f"[L1] {label}挑战状态连续 UNKNOWN {unknown_elapsed:.1f}s，跳过该挑战继续")
                         self._challenge_done.add(scene_key)
+                        self._challenge_recheck_at[scene_key] = now + self.settings.ui_action_interval_s
                         self._challenge_unknown_since.pop(scene_key, None)
                         continue
                     print(f"[L1] {label}挑战观察期后仍 UNKNOWN，零动作等待")
@@ -2078,6 +2679,7 @@ class Mediator:
                 print(f"[L1] {label}挑战已是自动模式")
                 self._challenge_states[scene_key] = ChallengeState.ON
                 self._challenge_done.add(scene_key)
+                self._challenge_recheck_at[scene_key] = now + self._control_recheck_interval_s
                 self._challenge_unknown_since.pop(scene_key, None)
                 continue
 
@@ -2089,6 +2691,7 @@ class Mediator:
                 if unknown_elapsed >= unknown_timeout:
                     print(f"[L1] {label}挑战状态连续 UNKNOWN {unknown_elapsed:.1f}s，跳过该挑战继续")
                     self._challenge_done.add(scene_key)
+                    self._challenge_recheck_at[scene_key] = now + self.settings.ui_action_interval_s
                     self._challenge_unknown_since.pop(scene_key, None)
                     continue
                 print(
@@ -2501,6 +3104,7 @@ class Mediator:
             self._panel_opened_by_us = None
             self._panel_fingerprint = None
             self._panel_fingerprint_attempts = 0
+            self._panel_anchor_candidate = None
             self._selection_unknown_attempts = 0
             self._selection_unknown_since = None
         # L0 cycle counter: increment when falling back to PLATFORM_MAP from a later L0 phase
@@ -2530,6 +3134,7 @@ class Mediator:
             self._challenge_unknown_since.clear()
             self._challenge_pending_since.clear()
             self._challenge_next_observe_at.clear()
+            self._challenge_recheck_at.clear()
             self._challenge_states = {
                 "coin_challenge": ChallengeState.PENDING,
                 "wood_challenge": ChallengeState.PENDING,
@@ -2540,10 +3145,19 @@ class Mediator:
             self._auto_task_attempts = 0
             self._auto_task_pending_since = None
             self._auto_task_next_observe_at = None
+            self._auto_task_recheck_at = 0.0
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
             self._post_game_pending = False
             self._post_game_close_attempts = 0
+            self._secret_realm_request_pending = False
+            self._secret_realm_request_since = None
+            self._secret_realm_request_attempts = 0
+            self._secret_realm_next_observe_at = 0.0
+            self._secret_realm_entering_since = None
+            self._secret_realm_confirm_attempts = 0
+            self._secret_realm_confirm_next_observe_at = 0.0
+            self._secret_realm_active = False
             self._aux_dialog_attempts = {"HEIRLOOM_DIALOG": 0, "GREAT_RIFT_CONFIRM": 0}
             # A verified game start owns a fresh retry/recovery episode.  A
             # timeout retry keeps its budget until this transition succeeds.
@@ -2568,6 +3182,21 @@ class Mediator:
             self._artifact_next_w = 0.0
             self._artifact_next_e = 0.0
             self._evolve_click_cooldown_until = 0.0
+            self._evolve_feedback_pending = False
+            self._evolve_click_at = 0.0
+            self._evolve_fail_count = 0
+            self._evolve_baseline = None
+            self._l1_cycle_step = "skill"
+            self._l1_cycle_owned_panel = False
+            self._l1_cycle_selected = False
+            self._merchant_next_at = 0.0
+            self._equipment_next_at = 0.0
+            self._equipment_pending_until = 0.0
+            self._pickup_next_at = 0.0
+            self._fail_gift_attempts = 0
+            self._evolution_attempts = 0
+            self._evolution_next_at = 0.0
+            self._evolution_baseline = None
         if phase == Phase.QUIT:
             self._exit_button_attempts = 0
             self._exit_since = time.time()
@@ -2610,6 +3239,8 @@ class Mediator:
         """本步前置锚点（任一命中才允许动作；缺锚点 = 一次有界重试消耗）。"""
         if rs.step == RecoveryStep.FAIL_CONFIRM:
             return self.find_scene(frame, "fail")
+        if rs.step == RecoveryStep.FAIL_EXIT_CONFIRM:
+            return self._find_exit_confirm(frame)
         if rs.step == RecoveryStep.FAIL_CLOSE:
             return self.find_scene(frame, "close")
         if rs.step == RecoveryStep.DISCONNECT_RETRY:
@@ -2623,7 +3254,27 @@ class Mediator:
         命中的若是 gameDisconnect 文字模板则零输入等待，绝不点击 fail 的 ok/close。
         """
         if rs.step == RecoveryStep.FAIL_CONFIRM:
-            return self.find_scene(frame, "ok")
+            hit = self.find_scene(frame, "ok") or self._find_failure_exit_button(frame)
+            if hit is not None:
+                return hit
+            # The real secret-realm failure page has no center modal.  It keeps
+            # the strong fail anchor visible and requires the dedicated top-left
+            # game exit, followed by the standard exit confirmation dialog.
+            exit_hit = self._find_game_exit(frame)
+            if exit_hit is None:
+                return None
+            return MatchResult(
+                "failure_open_exit",
+                exit_hit.score,
+                exit_hit.x,
+                exit_hit.y,
+                exit_hit.w,
+                exit_hit.h,
+                exit_hit.screen_x,
+                exit_hit.screen_y,
+            )
+        if rs.step == RecoveryStep.FAIL_EXIT_CONFIRM:
+            return self._find_exit_confirm(frame)
         if rs.step == RecoveryStep.FAIL_CLOSE:
             return self.find_scene(frame, "close")
         if rs.step == RecoveryStep.DISCONNECT_RETRY:
@@ -2633,12 +3284,63 @@ class Mediator:
             return None
         return None
 
+    def _find_failure_exit_button(self, frame: Frame) -> MatchResult | None:
+        """Find the red 退出游戏 button on the real 1.4.11 failure modal.
+
+        The modal has no OK button. Authority requires the strong gameFail
+        anchor plus a red/green sibling pair in its constrained bottom row.
+        """
+        fail = self.find_scene(frame, "fail")
+        if fail is None or frame.bgr is None or frame.width < 1000 or frame.height < 600:
+            return None
+        x0, x1 = int(frame.width * 0.30), int(frame.width * 0.70)
+        y0, y1 = int(frame.height * 0.55), int(frame.height * 0.74)
+        roi = frame.bgr[y0:y1, x0:x1]
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+
+        def components(mask: np.ndarray) -> list[tuple[int, int, int, int, int]]:
+            count, _labels, stats, _centers = cv2.connectedComponentsWithStats(
+                mask.astype("uint8")
+            )
+            out = []
+            for x, y, w, h, area in stats[1:count]:
+                if 70 <= w <= 180 and 22 <= h <= 65 and area >= 1200:
+                    out.append((int(x), int(y), int(w), int(h), int(area)))
+            return out
+
+        red = components(
+            ((hsv[:, :, 0] <= 10) | (hsv[:, :, 0] >= 170))
+            & (hsv[:, :, 1] > 100) & (hsv[:, :, 2] > 80)
+        )
+        green = components(
+            (hsv[:, :, 0] >= 35) & (hsv[:, :, 0] <= 90)
+            & (hsv[:, :, 1] > 100) & (hsv[:, :, 2] > 80)
+        )
+        for rx, ry, rw, rh, area in sorted(red, key=lambda item: -item[4]):
+            rcx, rcy = rx + rw // 2, ry + rh // 2
+            if any(gx > rx and abs((gy + gh // 2) - rcy) <= 15
+                   for gx, gy, gw, gh, _area in green):
+                x, y = x0 + rcx, y0 + rcy
+                return MatchResult(
+                    "failure_exit", min(1.0, area / 2500.0), x, y, rw, rh,
+                    frame.left + x, frame.top + y,
+                )
+        return None
+
     def _recovery_post_confirmed(self, frame: Frame, rs: RecoveryState) -> bool:
         """WAIT_CONFIRM 后置确认：画面 mutation（模板消失）∨ 必需 post-anchor 出现。"""
         if rs.step == RecoveryStep.FAIL_CONFIRM:
+            if rs.opening_exit_confirm:
+                confirm = self._find_exit_confirm(frame)
+                if confirm is not None:
+                    rs.post_anchor_seen = True
+                    return True
+                return False
             if self.find_scene(frame, "fail") is None:
                 rs.mutation_seen = True
                 return True
+            if rs.direct_exit:
+                return False
             if self.find_scene(frame, "close") is not None:
                 rs.post_anchor_seen = True
                 return True
@@ -2661,11 +3363,25 @@ class Mediator:
     def _advance_recovery(self, frame: Frame, rs: RecoveryState, now: float) -> LoopAction:
         """后置确认成立：推进到下一步或完成。"""
         if rs.step == RecoveryStep.FAIL_CONFIRM:
+            if rs.opening_exit_confirm:
+                rs.step = RecoveryStep.FAIL_EXIT_CONFIRM
+                rs.opening_exit_confirm = False
+                rs.waiting_confirm = False
+                rs.next_allowed_at = max(
+                    now,
+                    rs.input_at + self.settings.ui_action_interval_s,
+                )
+                print("[med] 失败页已打开标准退出确认框，等待安全点击确认")
+                return LoopAction.Continue
+            if rs.direct_exit:
+                return self._finish_direct_failure_exit(rs, now)
             # ok 点击后：close 按钮出现 → FAIL_CLOSE；失败弹窗消失 → 直接完成
             if self.find_scene(frame, "close") is not None:
                 rs.step = RecoveryStep.FAIL_CLOSE
             else:
                 return self._finish_recovery(rs, now)
+        elif rs.step == RecoveryStep.FAIL_EXIT_CONFIRM:
+            return self._finish_direct_failure_exit(rs, now)
         elif rs.step == RecoveryStep.FAIL_CLOSE:
             return self._finish_recovery(rs, now)
         elif rs.step == RecoveryStep.DISCONNECT_RETRY:
@@ -2673,6 +3389,26 @@ class Mediator:
         rs.waiting_confirm = False
         rs.next_allowed_at = now
         print(f"[med] 恢复步骤推进：{rs.kind.name}/{rs.step.name}")
+        return LoopAction.Continue
+
+    def _finish_direct_failure_exit(self, rs: RecoveryState, now: float) -> LoopAction:
+        """A verified failure-exit action was sent; verify return to the same room."""
+        rs.step = RecoveryStep.DONE
+        if self._secret_realm_active:
+            # A great-rift run naturally ends on its first failed layer.  The
+            # main map was already won, so this is a completed unattended cycle,
+            # not one strike toward the consecutive real-failure fuse.
+            self._record_round_outcome(
+                RoundOutcome.VICTORY,
+                "secret realm ended; verified exit",
+            )
+        else:
+            self._record_round_outcome(RoundOutcome.FAILURE, "verified failure exit")
+        self._recovery_step = "DONE"
+        self._recovery_state = None
+        self._awaiting_room_return = True
+        self.set_phase(Phase.PREPARE, "failure exit clicked; verify same room")
+        self._room_action_deadline = now + min(self.settings.query_timeout, 30)
         return LoopAction.Continue
 
     def _recovery_failed(self, rs: RecoveryState, reason: str) -> LoopAction:
@@ -2737,6 +3473,16 @@ class Mediator:
         rs.attempts[step] = rs.attempts.get(step, 0) + 1
         rs.next_allowed_at = now + self.settings.recovery_retry_interval_s
         if clicked:
+            if action_hit.name == "failure_exit":
+                rs.direct_exit = True
+            elif action_hit.name == "failure_open_exit":
+                rs.opening_exit_confirm = True
+            elif step == RecoveryStep.FAIL_EXIT_CONFIRM:
+                # Match the normal NEXT handler: after a dedicated confirmation
+                # anchor and successful input, PREPARE owns the bounded room
+                # return verification.  Waiting on the closing game HWND here
+                # would turn a successful exit into a capture failure.
+                return self._finish_direct_failure_exit(rs, now)
             rs.waiting_confirm = True
             rs.input_at = now
             rs.confirm_window = min(15.0, rs.deadline - now)
@@ -3077,7 +3823,16 @@ class Mediator:
                 return False
             # N2.4：关卡编号列实测 x≈0.655（stage_select 1600x900 实测 x=1048），
             # 只扫编号列 ROI，不再全帧。
-            hit = self.find(frame, names, scales=self._hot_scales(), roi=self._STAGE_ROWS_ROI)
+            # P1-1（LOBBY_AUDIT P2）：遗留模板 fallback 复用 L0 绝对尺度优先序
+            # （stage_page 在 _L0_GATE_SCENES；find_scene 的 names 过滤语义不适用
+            # ——stage/toHero/HeroChallenge 必须排除），非 1.0 窗口不再先扫 ui 邻域。
+            hit = self.find(
+                frame, names,
+                scales=self._l0_scales(),
+                roi=self._STAGE_ROWS_ROI,
+                early_stop=True,
+                mode="stage_page:l0",
+            )
             # stage.png is the large map card; toHero/HeroChallenge are hero icons.
             # They are not sufficient to prove that the numbered stage list is open.
             return bool(
@@ -3090,26 +3845,11 @@ class Mediator:
 
 
     def _find_map_create_room(self, frame: Frame) -> MatchResult | None:
-        hit = self.find_scene(frame, "map_create_room")
-        if hit:
-            return hit
-        # The map page has multiple blue actions.  Only the configured side
-        # of the bottom action strip is eligible; quick-join is never global.
-        hit = find_blue_button(
-            frame,
-            (0.45, 0.88, 0.99, 0.99),
-            side=self.settings.room_create_side,
-        )
-        if hit:
-            return hit
-        # Older layouts place the action farther left.  Keep this as a
-        # second, still bottom-strip-bound probe rather than a full-screen
-        # blue fallback.
-        return find_blue_button(
-            frame,
-            (0.12, 0.88, 0.64, 0.99),
-            side=self.settings.room_create_side,
-        )
+        # The map page renders both "create room" and "quick join" as blue
+        # actions.  Colour and relative position are therefore not click
+        # authority.  Only the dedicated create-room template may authorize
+        # this input; a transient template miss must stay observe-only.
+        return self.find_scene(frame, "map_create_room")
 
     def _find_create_confirm(self, frame: Frame) -> MatchResult | None:
         # 注：场景扫描必须先于尺寸门禁——大窗口内也可能渲染建房确认按钮
@@ -3724,7 +4464,7 @@ class Mediator:
             "settings_summary": self._trace_settings_summary(),
             "frame_fingerprint": self._trace_frame_fingerprint(frame),
             "panel": self._trace_panel_candidates(),
-            "ocr_suggestion": None,  # B3 shadow 阶段填充；当前无运行时 OCR
+            "ocr_suggestion": self._trace_ocr_suggestion,
             "decision": self._trace_decision(),
             "post_confirm": self._trace_post_confirm(),
             # S0：阶段转换 reason/outcome/deadline 与 panel FSM 状态（增量字段，
@@ -3818,6 +4558,7 @@ class Mediator:
         self._trace_actions = []
         self._trace_scenes = []
         self._trace_controls = []
+        self._trace_ocr_suggestion = None
         self._interrupt_reason = None
         self._tick_reason = None
         self._tick_input_executed = False
@@ -3954,8 +4695,9 @@ class Mediator:
                 self._unknown_recorded_fp = None
 
         # ---- S0 ② 全局抢占：disconnect / STRONG_FAIL 优先于 selection/panel FSM ----
-        # 每类强证据单独连续帧计数；同 evidence generation（同帧对象/无输入）下连续
-        # 两帧才授权抢占（两帧中断即归零）；giveup 不计入强失败。抢占后先失效证据
+        # 每类强证据单独按连续 tick 计数；真实视频每次捕获都会产生新的 evidence
+        # generation，不能把“同 generation”误当成“连续帧”。两帧中断即归零；
+        # giveup 不计入强失败。抢占后先失效证据
         # （旧帧动作授权不得延续），再进入 RECOVER_FAILURE——本 tick 不再执行任何
         # selection/panel/artifact/challenge/主动开面板输入。
         if self.phase == Phase.RECOVER_FAILURE:
@@ -3969,12 +4711,12 @@ class Mediator:
                 # 恢复完成后旧失败像素可能残留（QUIT 打开退出确认期间）：不重复恢复。
                 self._failure_candidate_frames = 0
             else:
-                if self._failure_candidate_kind != kind or self._failure_candidate_gen != self._tick_gen:
+                if self._failure_candidate_kind != kind:
                     self._failure_candidate_frames = 1
                     self._failure_candidate_kind = kind
-                    self._failure_candidate_gen = self._tick_gen
                 else:
                     self._failure_candidate_frames += 1
+                self._failure_candidate_gen = self._tick_gen
                 if self._failure_candidate_frames < 2:
                     print(f"[med] {kind} 候选第 {self._failure_candidate_frames} 帧，等待连续证据（零动作）")
                     return LoopAction.Continue
@@ -4070,8 +4812,40 @@ class Mediator:
         return False
 
     def _panel_kind_of(self, frame: Frame, anchor: MatchResult) -> str:
-        """面板种类：优先用主动打开标记（_classify_choice_panel 同语义）。"""
+        """面板种类：当前画面强证据优先，主动打开标记只作弱兜底。"""
         opened = getattr(self, "_panel_opened_by_us", None)
+        if anchor.name in {"bond_hide_btn", "bond_refresh_btn"}:
+            # P0-3（215302）：单一 bond 锚点（bond_refresh_btn 0.742 贴阈值单独出现）
+            # 不足为 bond 定类；bond 需 bond_hide+bond_refresh 联合证据
+            # （_classify_choice_panel 裁决），或主动打开标记 / card_hide 关闭兜底。
+            if opened == "bond" or self._classify_choice_panel(frame) == "bond":
+                return "bond"
+            # R8-REVIEW 补修：joint bond 失败（215302：bond_hide 0.39 miss）但
+            # card_hide 高置信（≥match_threshold）命中时仍按 bond 处理——card_hide
+            # 是该类面板的"暂时隐藏"关闭按钮，允许 OCR/关闭路径，避免 215302 式
+            # 自然面板落入 unknown timeout。
+            if self.find(
+                frame, ["card_hide"],
+                threshold=self.settings.match_threshold,
+                scales=self._hot_scales(),
+                roi=self._PANEL_BUTTONS_ROI,
+            ) is not None:
+                return "bond"
+            # 单锚点证据不足：继续用其它锚点/分类器裁决，不轻信 bond 定类
+        elif anchor.name == "card_hide" and (frame.width, frame.height) == (1600, 900):
+            return "bond"
+        elif (
+            anchor.name in {"skill_giveup_btn", "skill_refresh_btn"}
+            and frame.bgr is not None
+            and (frame.width, frame.height) == (1600, 900)
+        ):
+            hsv = cv2.cvtColor(frame.bgr[180:515, 450:1145], cv2.COLOR_BGR2HSV)
+            colored = (hsv[:, :, 1] > 70) & (hsv[:, :, 2] > 60)
+            return "treasure" if int(colored.sum()) >= 60000 else "skill"
+        elif anchor.name == "skill_hide":
+            return "skill"
+        elif anchor.name in {"treasure_hide_btn", "treasure_lock_btn", "treasure_refresh_btn"}:
+            return "treasure"
         if opened in ("skill", "bond", "treasure"):
             return opened
         return self._classify_choice_panel(frame) or "unknown"
@@ -4087,6 +4861,9 @@ class Mediator:
             self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
 
     def _finish_panel_episode(self) -> None:
+        cycle_kind = self._panel_kind
+        cycle_owned = self._l1_cycle_owned_panel
+        cycle_selected = self._l1_cycle_selected
         self._panel_state = PanelState.CLOSED
         self._panel_kind = None
         self._panel_episode_started = None
@@ -4094,10 +4871,20 @@ class Mediator:
         self._panel_fingerprint = None
         self._panel_fingerprint_attempts = 0
         self._panel_opened_by_us = None
+        self._panel_anchor_candidate = None
         self._selection_repeat_key = None
         self._selection_repeat_attempts = 0
         self._selection_unknown_attempts = 0
         self._selection_unknown_since = None
+        self._l1_cycle_owned_panel = False
+        self._l1_cycle_selected = False
+        if (
+            cycle_owned
+            and cycle_kind == self._l1_cycle_step
+            and not cycle_selected
+            and cycle_kind in ("skill", "bond", "treasure")
+        ):
+            self._advance_l1_cycle(cycle_kind)
 
     def _panel_roi_region(self, frame: Frame) -> np.ndarray | None:
         """面板中央三选区域（帧内坐标）——WAIT_MUTATION 的像素 mutation 对比。"""
@@ -4145,6 +4932,23 @@ class Mediator:
             self._f1_shadow_misfire += 1
             print(f"[L1] F1 兜底 shadow 误触（累计 {self._f1_shadow_misfire} 次），清零并保持关闭")
 
+    def _panel_anchor_confirmed(self, anchor: MatchResult) -> bool:
+        """P0-3（215302）：自然面板进入需同类型锚点连续 2 帧，或单帧 score ≥0.85。
+
+        旧行为：单帧贴阈值锚点（0.742 bond_refresh_btn / 0.799 card_hide）即进入
+        面板处理，检测空洞期间脚本盲点进化、恢复后又因单一弱锚点误入面板。
+        本门闩跨 tick 保留锚点类型；类型漂移或锚点消失（调用方清零）即重置。
+        """
+        if anchor.score >= 0.85:
+            self._panel_anchor_candidate = (anchor.name, anchor.score)
+            return True
+        cand = self._panel_anchor_candidate
+        if cand is not None and cand[0] == anchor.name:
+            self._panel_anchor_candidate = (anchor.name, anchor.score)
+            return True
+        self._panel_anchor_candidate = (anchor.name, anchor.score)
+        return False
+
     def _tick_panel_fsm(self, frame: Frame, anchor: MatchResult | None, now: float) -> LoopAction | None:
         """S0 ⑤ 面板会话 FSM：CLOSED→OPEN_REQUESTED→WAIT_VISIBLE→ACTIVE→
         WAIT_MUTATION→CLOSING→COOLDOWN。
@@ -4156,7 +4960,13 @@ class Mediator:
 
         if st == PanelState.CLOSED:
             if anchor is None:
+                self._panel_anchor_candidate = None
                 return None  # 无面板活动：落到无面板链（自动任务/挑战/主动开面板）
+            if not self._panel_anchor_confirmed(anchor):
+                # P0-3：锚点已见但未达双帧/高分确认 → 零输入等待，禁止盲点进化/
+                # 开面板（215302：0.742/0.799 贴阈值单帧不得进入面板处理）。
+                print(f"[L1] 面板锚点 {anchor.name} {anchor.score:.3f} 待双帧确认（零输入）")
+                return LoopAction.Continue
             kind = self._panel_kind_of(frame, anchor)
             self._enter_panel_episode(frame, anchor, kind, opened=False)
             # 自然面板：本 tick 直接进入 ACTIVE 处理
@@ -4217,6 +5027,20 @@ class Mediator:
                 print(f"[L1] {kind}选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
                 clicked = self.act_click(hit, f"{kind}选择")
                 if clicked:
+                    if (
+                        self._l1_cycle_owned_panel
+                        and self._panel_kind == self._l1_cycle_step
+                        and "refresh" not in hit.name.lower()
+                            and "giveup" not in hit.name.lower()
+                            and "close" not in hit.name.lower()
+                            and "hide" not in hit.name.lower()
+                        and (
+                            self._panel_kind != "skill"
+                            or Path(hit.name).stem
+                            in {Path(name).stem for name in self.settings.skills}
+                        )
+                    ):
+                        self._l1_cycle_selected = True
                     self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
                     self._panel_last_input_at = now
                     self._panel_mutation_baseline = self._panel_roi_region(frame)
@@ -4244,20 +5068,39 @@ class Mediator:
                 print("[L1] F1 兜底 shadow：记录候选（不产生输入）")
             self._selection_unknown_since = self._selection_unknown_since or now
             elapsed = now - self._selection_unknown_since
-            # 主动打开的面板：尝试点关闭按钮安全退出（放弃/暂时隐藏）
-            if getattr(self, "_panel_opened_by_us", None):
+            # 尝试点关闭按钮安全退出（放弃/暂时隐藏）。主动打开的面板按 kind 查
+            # 关闭按钮；自然面板（非我们打开）若分类明确（bond/card）且关闭按钮
+            # 高置信命中（card_hide/bond_hide_btn ≥ match_threshold），也授权
+            # 关闭——215302 面板 bond_hide 0.39 miss 但 card_hide 0.85 命中，
+            # 点击"暂时隐藏"是锚点确认的有界动作（WAIT_MUTATION 后置确认），
+            # 不再零输入等到 10s unknown timeout（R8-REVIEW）。
+            opened_by_us = getattr(self, "_panel_opened_by_us", None)
+            if opened_by_us:
                 close_hit = self._close_current_panel(frame)
-                if close_hit is not None:
-                    print(f"[L1] 主动面板无法匹配卡牌，点击关闭 {close_hit.name}")
-                    if self.act_click(close_hit, "CloseSelfOpenedPanel"):
-                        self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
-                        self._panel_state = PanelState.WAIT_MUTATION
-                        self._panel_mutation_baseline = self._panel_roi_region(frame)
-                        self._panel_last_input_at = now
-                    self._panel_opened_by_us = None
-                    self._selection_unknown_attempts = 0
-                    self._selection_unknown_since = None
-                    return LoopAction.Continue
+                close_reason = "CloseSelfOpenedPanel"
+            elif self._panel_kind in ("bond", "card"):
+                close_hit = self.find(
+                    frame,
+                    ["card_hide", "bond_hide_btn"],
+                    threshold=self.settings.match_threshold,
+                    scales=self._hot_scales(),
+                    roi=self._PANEL_BUTTONS_ROI,
+                    early_stop=True,
+                )
+                close_reason = "CloseNaturalPanel"
+            else:
+                close_hit = None
+            if close_hit is not None:
+                print(f"[L1] 面板无法匹配卡牌，点击关闭 {close_hit.name} ({close_reason})")
+                if self.act_click(close_hit, close_reason):
+                    self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
+                    self._panel_state = PanelState.WAIT_MUTATION
+                    self._panel_mutation_baseline = self._panel_roi_region(frame)
+                    self._panel_last_input_at = now
+                self._panel_opened_by_us = None
+                self._selection_unknown_attempts = 0
+                self._selection_unknown_since = None
+                return LoopAction.Continue
             if elapsed >= 10:
                 print("[L1] 未知选择面板无法识别，Fail-Closed 停止运行（零输入，不盲点隐藏）")
                 self.set_phase(Phase.ERROR, "unknown selection panel timeout")
@@ -4295,8 +5138,7 @@ class Mediator:
 
         if st == PanelState.COOLDOWN:
             if now >= self._panel_cooldown_until.get(self._panel_kind, 0):
-                self._panel_state = PanelState.CLOSED
-                self._panel_kind = None
+                self._finish_panel_episode()
                 return None  # 落到无面板链
             return LoopAction.Continue
 
@@ -4406,6 +5248,47 @@ class Mediator:
                 self.set_phase(Phase.ERROR, "unexpected post-game NPC hub")
                 self.stop()
                 return LoopAction.Break
+            if self._secret_realm_entering_since is not None:
+                # The real recording briefly returns one NPC-hub frame after
+                # clicking “是” and before the rift HUD appears.  During this
+                # transition a second right-click would reopen the dialog and
+                # corrupt an otherwise successful entry.
+                elapsed = now - self._secret_realm_entering_since
+                timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
+                if elapsed >= timeout:
+                    print("[med] 大秘境确认后仍停留挑战广场，Fail-Closed 停止运行")
+                    self.set_phase(Phase.ERROR, "great rift entry remained on npc hub")
+                    self.stop()
+                    return LoopAction.Break
+                print("[med] 大秘境确认后挑战广场过渡帧，零动作等待局内 HUD")
+                return LoopAction.Continue
+            if self.settings.auto_secret_realm:
+                timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
+                if self._secret_realm_request_since is None:
+                    self._secret_realm_request_since = now
+                elapsed = now - self._secret_realm_request_since
+                if self._secret_realm_request_attempts >= 3 or elapsed >= timeout:
+                    print("[med] 大秘境 NPC 未能打开确认框，Fail-Closed 停止运行")
+                    self.set_phase(Phase.ERROR, "great rift npc request timeout")
+                    self.stop()
+                    return LoopAction.Break
+                if now < self._secret_realm_next_observe_at:
+                    print("[med] 已右键大秘境 NPC，等待确认框（零动作）")
+                    return LoopAction.Continue
+                rift_npc = self._find_secret_realm_npc(frame)
+                if not rift_npc:
+                    print("[med] 挑战广场未找到受锚定的大秘境 NPC，零动作等待")
+                    return LoopAction.Continue
+                self._secret_realm_request_attempts += 1
+                print(
+                    f"[med] 自动秘境开启，右键大秘境 NPC @ {rift_npc.center} "
+                    f"(尝试 {self._secret_realm_request_attempts}/3)"
+                )
+                self._secret_realm_next_observe_at = now + self.settings.ui_action_interval_s
+                if self.act_right_click(rift_npc, "OpenGreatRift"):
+                    self._secret_realm_request_pending = True
+                    self._main_line_since = now
+                return LoopAction.Continue
             self._post_game_pending = False
             # S0 ⑥：完整胜利链确认点（继续游戏→存档→NPC 广场）→ success+1、streak 清零
             self._record_round_outcome(RoundOutcome.VICTORY, "post-game NPC hub verified")
@@ -4430,6 +5313,36 @@ class Mediator:
             return LoopAction.Continue
 
         if post_game == "GREAT_RIFT_CONFIRM":
+            if (
+                self.settings.auto_secret_realm
+                and self._post_game_pending
+                and self._secret_realm_request_pending
+            ):
+                timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
+                started = self._secret_realm_request_since or now
+                if self._secret_realm_confirm_attempts >= 3 or now - started >= timeout:
+                    print("[med] 大秘境确认未能进入局内，Fail-Closed 停止运行")
+                    self.set_phase(Phase.ERROR, "great rift confirm timeout")
+                    self.stop()
+                    return LoopAction.Break
+                if now < self._secret_realm_confirm_next_observe_at:
+                    print("[med] 已确认大秘境，等待确认框消失（零动作）")
+                    return LoopAction.Continue
+                accept_hit = self._find_great_rift_accept(frame)
+                if not accept_hit:
+                    print("[med] 大秘境确认框未找到受锚定的“是”按钮，零动作等待")
+                    return LoopAction.Continue
+                self._secret_realm_confirm_attempts += 1
+                print(
+                    f"[med] 点击大秘境“是” @ {accept_hit.center} "
+                    f"(尝试 {self._secret_realm_confirm_attempts}/3)"
+                )
+                self._secret_realm_confirm_next_observe_at = now + self.settings.ui_action_interval_s
+                if self.act_click(accept_hit, "ConfirmGreatRift"):
+                    self._secret_realm_entering_since = now
+                    self._main_line_since = now
+                return LoopAction.Continue
+
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
                 print("[med] 大秘境确认框取消重试已达上限，Fail-Closed 停止运行")
@@ -4452,9 +5365,124 @@ class Mediator:
             self.stop()
             return LoopAction.Break
 
+        # 点击“是”后只观察页面变化；确认框消失且重新检测到局内 HUD，才允许
+        # 恢复 G/F/V 等局内循环。失败时仍由全局强失败抢占进入原有退出重开链。
+        if self._secret_realm_entering_since is not None:
+            elapsed = now - self._secret_realm_entering_since
+            timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
+            if now < self._secret_realm_confirm_next_observe_at:
+                print("[med] 等待大秘境局内 HUD（零动作）")
+                return LoopAction.Continue
+            if self._is_in_game_hud(frame):
+                self._secret_realm_active = True
+                self._secret_realm_request_pending = False
+                self._secret_realm_request_since = None
+                self._secret_realm_request_attempts = 0
+                self._secret_realm_next_observe_at = 0.0
+                self._secret_realm_entering_since = None
+                self._secret_realm_confirm_attempts = 0
+                self._secret_realm_confirm_next_observe_at = 0.0
+                self._post_game_pending = False
+                self._post_game_close_attempts = 0
+                self._victory_continue_attempts = 0
+                self._victory_continue_since = None
+                self._round_started_at = now
+                self._round_deadline = now + self.settings.round_timeout_s
+                self._main_line_since = now
+                print("[med] 大秘境局内 HUD 已确认，恢复局内循环；失败后沿原退出重开链处理")
+                return LoopAction.Continue
+            if elapsed >= timeout:
+                print("[med] 大秘境确认后未出现局内 HUD，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "great rift entry verification timeout")
+                self.stop()
+                return LoopAction.Break
+            print("[med] 大秘境载入中，等待局内 HUD（零动作）")
+            return LoopAction.Continue
+
+        if self._secret_realm_request_pending:
+            started = self._secret_realm_request_since or now
+            timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
+            if now - started >= timeout:
+                print("[med] 大秘境确认框未出现，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "great rift dialog verification timeout")
+                self.stop()
+                return LoopAction.Break
+            print("[med] 等待大秘境确认框（零动作）")
+            return LoopAction.Continue
+
+        # 上局失败带入的神赐奖励会遮住 G/F/V 和初始化控件；专用小叉是唯一授权。
+        fail_gift_close = self.find(
+            frame,
+            ["failGiftClose"],
+            threshold=0.82,
+            scales=self._hot_scales(),
+            roi=(0.45, 0.15, 0.70, 0.45),
+        )
+        if isinstance(fail_gift_close, MatchResult):
+            if self._fail_gift_attempts >= 3:
+                self.set_phase(Phase.ERROR, "failure reward popup did not close")
+                self.stop()
+                return LoopAction.Break
+            self._fail_gift_attempts += 1
+            if self.act_click(fail_gift_close, "DismissFailureReward"):
+                self._main_line_since = now
+            return LoopAction.Continue
+        self._fail_gift_attempts = 0
+
+        affix = self._find_equipment_affix_choice(frame)
+        if affix is not None:
+            print(f"[L1] 装备十级词缀选择 {affix.name} @ {affix.center}")
+            if self.act_click(affix, "SelectEquipmentAffix"):
+                self._equipment_pending_until = 0.0
+                if self._l1_cycle_step == "equipment":
+                    self._advance_l1_cycle("equipment")
+                self._main_line_since = now
+            return LoopAction.Continue
+
         # 中央选择面板比 archive/boss/longzhu 泛模板更具体；龙珠宝物卡
         # 本身可能命中 longzhu，不能因此抢占选卡并误停。
         selection_anchor = self._selection_anchor(frame)
+        if selection_anchor is None:
+            # P0-3：锚点消失 → 双帧确认候选清零（防 22.6s 检测空洞后旧类型复活即入）
+            self._panel_anchor_candidate = None
+
+        # 英雄进化是两张大卡，但底部复用了技能的“放弃/刷新”按钮。它必须在
+        # 通用选择 FSM 之前处理，否则会被当成技能刷新或宝物选择。
+        evolution_choice = self._find_evolution_choice(frame, selection_anchor)
+        if evolution_choice is not None:
+            # P0-2：进化面板已出现 = 点击进化成功反馈；清除待确认标记（不重复计失败）
+            self._evolve_feedback_pending = False
+            self._evolve_fail_count = 0
+            self._evolve_baseline = None
+            roi = frame.bgr[145:515, 540:1060].copy()
+            if (
+                self._evolution_baseline is not None
+                and self._hero_changed_pixels(self._evolution_baseline, roi) >= 2000
+            ):
+                self._evolution_attempts = 0
+                self._evolution_baseline = None
+            if now < self._evolution_next_at:
+                return LoopAction.Continue
+            if self._evolution_attempts >= 3:
+                self.set_phase(Phase.ERROR, "evolution choice did not mutate")
+                self.stop()
+                return LoopAction.Break
+            if self.act_click(evolution_choice, "SelectEvolutionCard"):
+                self._evolution_attempts += 1
+                self._evolution_baseline = roi
+                self._evolution_next_at = now + self.settings.ui_action_interval_s
+                self._panel_state = PanelState.CLOSED
+                self._panel_opened_by_us = None
+                self._selection_unknown_attempts = 0
+                self._selection_unknown_since = None
+                self._main_line_since = now
+                if self._l1_cycle_step == "evolve":
+                    # P0-2：进化面板真实出现并已处理 = 点击成功反馈 → 推进循环
+                    # （与反馈分支一致；避免进化在有点数时饿死 equipment/pickup 等）
+                    self._advance_l1_cycle("evolve")
+            return LoopAction.Continue
+        self._evolution_attempts = 0
+        self._evolution_baseline = None
 
         # ---- S0 ⑧ 阶段门控：未验证战后入口检查只在局尾窗口触发 ----
         # 正常中段 idle HUD 不再每 tick 支付 archive/boss/longzhu 全帧扫描
@@ -4524,6 +5552,17 @@ class Mediator:
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
 
+        # During the pre-wave setup the game can show its banned-card picker.
+        # Pressing F/V there overlays our panel on top of that UI and caused the
+        # recorded random-card episode.  Natural reward panels still preempt
+        # above; only proactive G/F/V input is delayed.
+        if (
+            not self.settings.dry_run
+            and self._main_line_started_at is not None
+            and now - self._main_line_started_at < 20.0
+        ):
+            return LoopAction.Continue
+
         # 我们主动打开的 G/F/V 候选条可能没有中央面板锚点。
         compact_res = self._handle_self_opened_compact_panel(frame)
         if compact_res is not None:
@@ -4536,14 +5575,43 @@ class Mediator:
             self._main_line_since = now
             return opened
 
-        # 神器优先于会反复出现的进化按钮，避免 Q/W/E 饿饿。
-        artifact_res = self._maybe_fire_artifacts(frame)
-        if artifact_res is not None:
-            self._main_line_since = now
-            return artifact_res
+        # 显式循环中的神器阶段；无到期槽位时推进到技能。
+        if self._l1_cycle_step == "artifact":
+            artifact_res = self._maybe_fire_artifacts(frame)
+            if artifact_res is not None:
+                self._main_line_since = now
+                return artifact_res
+            self._advance_l1_cycle("artifact")
+            return LoopAction.Continue
 
-        # 点击进化（未满5级时中下方出现，实机坐标 1600x900 内 (525,778)）
-        if now >= getattr(self, "_evolve_click_cooldown_until", 0.0):
+        # 显式循环中的进化阶段（逻辑顺序在神器之前）。
+        if self._l1_cycle_step == "evolve":
+            # P0-2（164929/215302）：进化点击后置确认。点击后必须观察到面板/
+            # 画面反馈才算成功；无反馈计失败并重试（5s 冷却保留），每轮 ≤3 次后
+            # 放弃本轮进化，绝不连续空点。
+            if getattr(self, "_evolve_feedback_pending", False):
+                if self._evolve_feedback_seen(frame):
+                    # 反馈出现（进化面板锚点 / 中央区域像素变化）→ 成功推进
+                    self._evolve_feedback_pending = False
+                    self._evolve_fail_count = 0
+                    self._evolve_baseline = None
+                    self._advance_l1_cycle("evolve")
+                    self._main_line_since = now
+                    return LoopAction.Continue
+                if now - self._evolve_click_at >= self._evolve_feedback_window_s:
+                    # 反馈窗超时：无反馈计失败（等冷却后重试）
+                    self._evolve_feedback_pending = False
+                    self._evolve_baseline = None
+                    self._evolve_fail_count += 1
+                    print(f"[L1] 点击进化无反馈（第 {self._evolve_fail_count} 次失败），等待冷却后重试")
+                    if self._evolve_fail_count >= 3:
+                        print("[L1] 进化连续 3 次无反馈，放弃本轮进化（不连续空点）")
+                        self._evolve_fail_count = 0
+                        self._advance_l1_cycle("evolve")
+                        return LoopAction.Continue
+                return LoopAction.Continue
+            if now < getattr(self, "_evolve_click_cooldown_until", 0.0):
+                return LoopAction.Continue
             evolve_hit = self.find(
                 frame,
                 ["click_evolve"],
@@ -4554,8 +5622,37 @@ class Mediator:
                 print(f"[L1] 点击进化 @ {evolve_hit.center}")
                 if self.act_click(evolve_hit, "ClickEvolve"):
                     self._evolve_click_cooldown_until = now + 5.0
+                    self._evolve_feedback_pending = True
+                    self._evolve_click_at = now
+                    self._evolve_baseline = self._panel_roi_region(frame)
                     self._main_line_since = now
                     return LoopAction.Continue
+            # 模板未命中或输入失败：本轮进化无事可做，推进循环
+            self._advance_l1_cycle("evolve")
+            return LoopAction.Continue
+
+        if self._l1_cycle_step == "equipment":
+            if not self.settings.auto_weapon:
+                self._advance_l1_cycle("equipment")
+                return LoopAction.Continue
+            result = self._maybe_upgrade_equipment(frame)
+            self._main_line_since = now
+            return result
+
+        if self._l1_cycle_step == "pickup":
+            if now >= self._pickup_next_at and self.act_key("z", "Pickup-Z"):
+                self._pickup_next_at = now + 10.0
+                self._main_line_since = now
+            self._advance_l1_cycle("pickup")
+            return LoopAction.Continue
+
+        if self._l1_cycle_step == "merchant":
+            merchant_res = self._maybe_black_merchant(frame)
+            self._advance_l1_cycle("merchant")
+            if merchant_res is not None:
+                self._main_line_since = now
+                return merchant_res
+            return LoopAction.Continue
 
         print("[med] 主线 idle（等待局内选择/挑战 UI）")
         if self._main_line_since is not None:
@@ -4638,6 +5735,7 @@ class Mediator:
             f"auto_room={self._auto_room_enabled()} "
             f"stage={self.settings.stage1}/{self.settings.stage2} "
             f"targets={self.settings.stage_targets or '-'} "
+            f"secret_realm={self.settings.auto_secret_realm} "
             f"threshold={self.settings.match_threshold} images={self.images} "
             "l0_uia=disabled"
         )
@@ -4682,6 +5780,8 @@ class Mediator:
             if self.emergency_listener:
                 self.emergency_listener.stop()
                 self.emergency_listener = None
+            if self._ocr_client is not None:
+                self._ocr_client.close()
         print(f"[med] end steps={steps} games={self.game_count}")
 
     def _cadence_for_current_state(self) -> float:

@@ -1,6 +1,7 @@
 import unittest
 import time
 from pathlib import Path
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -25,6 +26,15 @@ class LobbyDetectorTests(unittest.TestCase):
         frame = np.zeros((720, 1280, 3), dtype=np.uint8)
         cv2.rectangle(frame, (760, 540), (960, 590), (230, 150, 20), -1)
         self.assertIsNone(find_blue_button(frame=Frame(frame), roi=(0.10, 0.70, 0.99, 0.99), side="left"))
+
+    def test_map_create_room_rejects_blue_only_quick_join_candidates(self):
+        root = Path(__file__).resolve().parents[1]
+        frame = np.zeros((945, 1328, 3), dtype=np.uint8)
+        cv2.rectangle(frame, (700, 875), (880, 923), (230, 150, 20), -1)
+        cv2.rectangle(frame, (911, 875), (1091, 923), (230, 150, 20), -1)
+        med = Mediator(Settings(auto_create_room=True), root)
+        with patch.object(med, "find_scene", return_value=None):
+            self.assertIsNone(med._find_map_create_room(Frame(frame)))
 
     def test_match_any_has_no_global_blue_fallback(self):
         frame = np.zeros((200, 300, 3), dtype=np.uint8)
@@ -152,6 +162,46 @@ class LobbyDetectorTests(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertEqual(hit.name, "create_room")
         self.assertEqual((hit.x, hit.y), (x, y))
+
+    def test_map_create_uses_absolute_l0_scale_on_1328_platform(self):
+        root = Path(__file__).resolve().parents[1]
+        template = cv2.imdecode(
+            np.fromfile(str(root / "assets" / "Images" / "lobby" / "create_room.png"), dtype=np.uint8),
+            cv2.IMREAD_COLOR,
+        )
+        self.assertIsNotNone(template)
+        frame = np.zeros((945, 1328, 3), dtype=np.uint8)
+        y, x = 871, 719
+        h, w = template.shape[:2]
+        frame[y:y + h, x:x + w] = template
+        med = Mediator(Settings(auto_create_room=True), root)
+        med._ui_scale = 0.83  # r6 trace: platform size was incorrectly treated as scaled game UI
+
+        hit = med._find_map_create_room(Frame(frame))
+
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.name, "create_room")
+        self.assertEqual((hit.x, hit.y), (x, y))
+
+    def test_stage_page_legacy_fallback_uses_l0_absolute_scales(self):
+        # P1-1（LOBBY_AUDIT P2）：_find_stage_page 遗留模板 fallback 必须复用 L0
+        # 绝对尺度优先序（stage_page 在 _L0_GATE_SCENES），不再直调 hot scales
+        # 在非 1.0 窗口先扫 ui 邻域。
+        root = Path(__file__).resolve().parents[1]
+        med = Mediator(Settings(), root)
+        med._ui_scale = 0.83
+        fr = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="英雄三国", hwnd=10001,
+        )
+        hit = MatchResult("stage1", 0.9, 1048, 300, 40, 40, 1048, 300)
+        with patch.object(med, "_visible_stage_rows", return_value=[]), \
+                patch.object(med, "find", return_value=hit) as find:
+            self.assertTrue(med._find_stage_page(fr))
+        kwargs = find.call_args.kwargs
+        self.assertEqual(kwargs["scales"], med._l0_scales())
+        self.assertTrue(kwargs["early_stop"])
+        self.assertNotEqual(kwargs["scales"], med._hot_scales())
 
     @staticmethod
     def images_dir():

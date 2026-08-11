@@ -125,6 +125,11 @@ class Settings:
     panel_action_limit_per_fingerprint: int = 3  # 同 fingerprint 同动作上限
     panel_episode_limit_per_kind: int = 5       # 每局每类面板会话上限
     incident_sample_rate: float = 0.1           # 正常 panel episode 抽样归档率
+    # OCR 只给三选一面板提供“名字证据”；live 时技能/羁绊没有可靠名字就不点。
+    # Paddle 运行在独立 sidecar，主 EXE 不加载模型依赖。
+    ocr_mode: str = "off"                       # off / shadow / live
+    ocr_repo_root: str = ""                     # sidecar 的本地源码/模型根目录
+    ocr_timeout_ms: int = 1200                   # 单槽热推理超时（模型启动另有 6s 窗）
     # N2.3 替代语义：主循环已改为状态分级 cadence（动作后 100ms / 稳定 HUD 300ms /
     # loading 500ms，见 Mediator._cadence_for_current_state）。本字段仅保留为兼容
     # 默认/上限：run() 中 sleep = max(0, min(cadence, loop_sleep_ms/1000) - elapsed)。
@@ -192,6 +197,7 @@ class Settings:
             "round_timeout_s", "round_tail_window_s", "recovery_timeout_s",
             "recovery_action_limit", "failure_streak_limit",
             "panel_action_limit_per_fingerprint", "panel_episode_limit_per_kind",
+            "ocr_timeout_ms",
         }
         float_fields = {
             "recovery_retry_interval_s", "panel_visible_timeout_s",
@@ -257,6 +263,7 @@ class Settings:
             "failure_streak_limit": (1, 10),
             "panel_action_limit_per_fingerprint": (1, 10),
             "panel_episode_limit_per_kind": (1, 50),
+            "ocr_timeout_ms": (200, 5000),
         }
         for k, (lo, hi) in _RANGES.items():
             if k in clean:
@@ -289,6 +296,8 @@ class Settings:
             if not (isinstance(ws, list) and len(ws) == 2
                     and all(isinstance(v, int) and v > 0 for v in ws)):
                 clean.pop("window_size")
+        mode = str(clean.get("ocr_mode", "off")).strip().lower()
+        clean["ocr_mode"] = mode if mode in {"off", "shadow", "live"} else "off"
         return cls(**clean)
 
     def save(self, path: str | Path) -> None:

@@ -27,6 +27,8 @@ class ShadowResponse:
     elapsed_ms: float = 0.0
     reason: str | None = None
     cache_hit: bool = False
+    raw_text: str | None = None
+    rec_score: float | None = None
 
     @property
     def available(self) -> bool:
@@ -45,6 +47,10 @@ class ShadowResponse:
         }
         if self.reason:
             out["reason"] = self.reason
+        if self.raw_text is not None:
+            out["raw_text"] = self.raw_text
+        if self.rec_score is not None:
+            out["rec_score"] = round(float(self.rec_score), 4)
         return out
 
 

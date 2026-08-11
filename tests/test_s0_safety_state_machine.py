@@ -274,6 +274,65 @@ class S0RecoveryTests(unittest.TestCase):
         self.assertFalse(any("FAIL" in r for r in clicked), "断线路径不得调用 fail 脚本")
         self.assertFalse(any(r in ("ok", "close") for r in clicked))
 
+    def test_secret_realm_failure_uses_top_exit_then_standard_confirm(self) -> None:
+        """Strong rift failure has no center modal: quit and confirm stay anchored."""
+        clock = FakeClock(start=100.0)
+        med = self._recovery_mediator(clock)
+        med._secret_realm_active = True
+        frame = _noise_frame(seed=23)
+        clicked: list[tuple[str, str]] = []
+        exit_dialog_visible = False
+
+        def find_scene(_frame, scene, **_kwargs):
+            if scene == "fail":
+                return _hit("gameFail", 800, 90)
+            return None
+
+        def find_exit_confirm(_frame):
+            if exit_dialog_visible:
+                return _hit("exit_confirm_btn", 740, 554)
+            return None
+
+        def act_click(hit, reason=""):
+            clicked.append((hit.name, reason))
+            return True
+
+        with clock.install(), \
+                patch.object(med, "find_scene", side_effect=find_scene), \
+                patch.object(med, "_find_failure_exit_button", return_value=None), \
+                patch.object(med, "_find_game_exit", return_value=_hit("quit", 76, 58)), \
+                patch.object(med, "_find_exit_confirm", side_effect=find_exit_confirm), \
+                patch.object(med, "act_click", side_effect=act_click):
+            med._begin_recovery(RecoveryKind.FAIL)
+            clock.set(100.1)
+            self.assertIs(med._tick_recovery(frame), LoopAction.Continue)
+            self.assertEqual(clicked, [
+                ("failure_open_exit", "Recovery-FAIL-FAIL_CONFIRM")
+            ])
+            self.assertTrue(med._recovery_state.opening_exit_confirm)
+            self.assertTrue(med._recovery_state.waiting_confirm)
+
+            # The standard confirmation dialog is a required post-click anchor;
+            # seeing it advances the state but sends no second input in this tick.
+            exit_dialog_visible = True
+            clock.set(101.7)
+            self.assertIs(med._tick_recovery(frame), LoopAction.Continue)
+            self.assertEqual(med._recovery_state.step, RecoveryStep.FAIL_EXIT_CONFIRM)
+            self.assertEqual(len(clicked), 1)
+
+            clock.set(103.3)
+            self.assertIs(med._tick_recovery(frame), LoopAction.Continue)
+
+        self.assertEqual(clicked[-1], (
+            "exit_confirm_btn", "Recovery-FAIL-FAIL_EXIT_CONFIRM"
+        ))
+        self.assertIs(med.phase, Phase.PREPARE)
+        self.assertTrue(med._awaiting_room_return)
+        self.assertIs(med._round_outcome, RoundOutcome.VICTORY)
+        self.assertEqual(med._success_count, 1)
+        self.assertEqual(med._failure_streak, 0)
+        self.assertIsNone(med._recovery_state)
+
     def test_recovery_exit_timeout_starts_after_recovery(self) -> None:
         """46.9s 恢复后退出期限从恢复完成时刻起算，而非恢复开始时刻。"""
         med = self._recovery_mediator(FakeClock(start=100.0))

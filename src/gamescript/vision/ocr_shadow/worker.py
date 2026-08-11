@@ -96,35 +96,69 @@ def _load_recognizer(model: Path):
 
 def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str, Any]], str | None, float]:
     import io
-    from PIL import Image, ImageEnhance
+    from PIL import Image
 
     raw = base64.b64decode(image_b64, validate=True)
+    import numpy as np
+    import cv2
+
     with Image.open(io.BytesIO(raw)).convert("RGB") as image:
-        image = image.resize((image.width * 2, image.height * 2), Image.Resampling.LANCZOS)
-        image = ImageEnhance.Contrast(image).enhance(1.5)
-        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as fh:
-            path = fh.name
-        try:
-            image.save(path)
-            result = rec.predict(path)
-        finally:
-            try:
-                os.unlink(path)
-            except OSError:
-                pass
-    item = result[0] if result else {}
-    text = str(item.get("rec_text") or "")
-    rec_score = float(item.get("rec_score") or 0.0)
+        rgb = np.asarray(image)
+
+    # 金边/红绿蓝品质字在深色卡面上。单一“2x+增强对比度”会把红字压黑，
+    # 本次 1600x900 实机的“海盗/军团”即因此变成 unknown。先跑原图；仅当
+    # 词典不接受时，再跑三种颜色差分和灰度阈值。候选仍必须过词典门禁。
+    bgr = rgb[:, :, ::-1]
+    b, g, r = (bgr[:, :, i] for i in range(3))
+    gray = np.asarray(Image.fromarray(rgb).convert("L"))
+    _unused, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    variants = [
+        bgr,
+        np.maximum(r.astype(np.int16) - b.astype(np.int16), 0).astype("uint8"),
+        np.maximum(g.astype(np.int16) - b.astype(np.int16), 0).astype("uint8"),
+        np.maximum(b.astype(np.int16) - r.astype(np.int16), 0).astype("uint8"),
+        otsu,
+        (gray >= 180).astype("uint8") * 255,
+    ]
     # Importing the normalizer here keeps the parent process Paddle-free.
     src = str(_repo_root() / "src")
     if src not in sys.path:
         sys.path.insert(0, src)
     from gamescript.vision.choice_ocr import load_lexicon, lookup_lexicon, normalize_choice_text
 
-    normalized = normalize_choice_text(text)
-    lookup = lookup_lexicon(normalized, kind=kind, lexicon=load_lexicon())
-    if lookup.canonical is None:
-        return [], normalized, rec_score
+    best: tuple[str, float, Any] | None = None
+    progress_text: tuple[str, str, float] | None = None
+    best_raw: tuple[str, float] = ("", 0.0)
+    for variant in variants:
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as fh:
+            path = fh.name
+        try:
+            Image.fromarray(variant).save(path)
+            result = rec.predict(path)
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        item = result[0] if result else {}
+        text = str(item.get("rec_text") or "")
+        rec_score = float(item.get("rec_score") or 0.0)
+        normalized = normalize_choice_text(text)
+        if rec_score > best_raw[1]:
+            best_raw = (normalized, rec_score)
+        lookup = lookup_lexicon(normalized, kind=kind, lexicon=load_lexicon())
+        if lookup.canonical is not None and "/" in normalized:
+            if progress_text is None or rec_score > progress_text[2]:
+                progress_text = (lookup.canonical, normalized, rec_score)
+        if lookup.canonical is not None and (best is None or rec_score > best[1]):
+            best = (normalized, rec_score, lookup)
+            if rec_score >= 0.98:
+                break
+    if best is None:
+        return [], best_raw[0], best_raw[1]
+    normalized, rec_score, lookup = best
+    if progress_text is not None and progress_text[0] == lookup.canonical:
+        normalized = progress_text[1]
     names = list(lookup.top2_names) or [lookup.canonical]
     candidates = [{"name": names[0], "confidence": max(0.0, min(1.0, rec_score))}]
     if len(names) > 1:
@@ -183,8 +217,10 @@ def main() -> int:
                 _emit({"seq": seq, "status": "unavailable", "candidates": [], "elapsed_ms": (time.perf_counter() - started) * 1000, "reason": model_reason or "model_missing"})
                 continue
             try:
-                candidates, _normalized, _score = _predict(rec, str(request.get("image_b64", "")), request.get("kind"))
-                _emit({"seq": seq, "status": "ok", "candidates": candidates, "elapsed_ms": (time.perf_counter() - started) * 1000})
+                candidates, normalized, score = _predict(rec, str(request.get("image_b64", "")), request.get("kind"))
+                _emit({"seq": seq, "status": "ok", "candidates": candidates,
+                       "raw_text": normalized, "rec_score": score,
+                       "elapsed_ms": (time.perf_counter() - started) * 1000})
             except Exception:
                 _emit({"seq": seq, "status": "unavailable", "candidates": [], "elapsed_ms": (time.perf_counter() - started) * 1000, "reason": "inference_error"})
     finally:
