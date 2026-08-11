@@ -143,10 +143,13 @@ def _emit(value: dict[str, Any]) -> None:
 def main() -> int:
     model, model_reason, stage = _stage_model(_model_dir())
     rec = None
+    load_ms = 0.0
     if model is not None:
+        load_started = time.perf_counter()
         try:
             rec = _load_recognizer(model)
             model_reason = None
+            load_ms = (time.perf_counter() - load_started) * 1000
         except Exception:  # Paddle may fail for a damaged/incompatible local model.
             model_reason = "model_corrupt"
     _emit({
@@ -155,6 +158,8 @@ def main() -> int:
         "status": "ok" if rec is not None else "unavailable",
         "candidates": [],
         "elapsed_ms": 0.0,
+        "load_ms": round(load_ms, 1),
+        "model_validated": model_reason is None,
         **({"reason": model_reason} if model_reason else {}),
     })
     try:

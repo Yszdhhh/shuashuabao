@@ -56,6 +56,8 @@ class ShadowClient:
         self._crashes = 0
         self._disabled = False
         self._ready_reason: str | None = None
+        self._load_ms = 0.0
+        self._model_validated = False
         self._cache: dict[str, tuple[str, dict[str, ShadowResponse]]] = {}
         self._max_cache_panels = 256
         self._trace_lock = threading.Lock()
@@ -117,6 +119,8 @@ class ShadowClient:
             if ready.get("seq") != 0 or ready.get("type") not in {"ready", None}:
                 raise ValueError("invalid worker ready response")
             self._ready_reason = ready.get("reason")
+            self._load_ms = float(ready.get("load_ms", 0.0) or 0.0)
+            self._model_validated = bool(ready.get("model_validated", False))
             self._ready = True
             return True
         except (queue.Empty, ValueError, json.JSONDecodeError):
@@ -174,6 +178,8 @@ class ShadowClient:
             self._disabled = False
             self._crashes = 0
             self._ready_reason = None
+            self._load_ms = 0.0
+            self._model_validated = False
             self._cache.clear()
 
     def _ensure_process(self) -> bool:

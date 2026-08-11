@@ -1,0 +1,105 @@
+{
+  "requests": 10000,
+  "warmup_s": 6.55,
+  "elapsed_total_s": 485.119,
+  "single_slot_p50_ms": 33.275,
+  "single_slot_p95_ms": 74.499,
+  "three_slot_panels": 3333,
+  "three_slot_p95_ms": 188.609,
+  "unavailable": 0,
+  "unavailable_reasons": {},
+  "protocol_errors": 0,
+  "worker_restarts": 0,
+  "rss_samples": [
+    {
+      "i": 0,
+      "rss_mb": 503.8046875
+    },
+    {
+      "i": 500,
+      "rss_mb": 1000.3359375
+    },
+    {
+      "i": 1000,
+      "rss_mb": 1133.85546875
+    },
+    {
+      "i": 1500,
+      "rss_mb": 1550.55859375
+    },
+    {
+      "i": 2000,
+      "rss_mb": 1532.1875
+    },
+    {
+      "i": 2500,
+      "rss_mb": 1576.4453125
+    },
+    {
+      "i": 3000,
+      "rss_mb": 1560.796875
+    },
+    {
+      "i": 3500,
+      "rss_mb": 1512.8359375
+    },
+    {
+      "i": 4000,
+      "rss_mb": 1600.51953125
+    },
+    {
+      "i": 4500,
+      "rss_mb": 1609.93359375
+    },
+    {
+      "i": 5000,
+      "rss_mb": 1621.19140625
+    },
+    {
+      "i": 5500,
+      "rss_mb": 1635.23828125
+    },
+    {
+      "i": 6000,
+      "rss_mb": 1653.12890625
+    },
+    {
+      "i": 6500,
+      "rss_mb": 1667.05859375
+    },
+    {
+      "i": 7000,
+      "rss_mb": 1660.58203125
+    },
+    {
+      "i": 7500,
+      "rss_mb": 1673.11328125
+    },
+    {
+      "i": 8000,
+      "rss_mb": 1672.70703125
+    },
+    {
+      "i": 8500,
+      "rss_mb": 1687.47265625
+    },
+    {
+      "i": 9000,
+      "rss_mb": 1676.15625
+    },
+    {
+      "i": 9500,
+      "rss_mb": 1658.6484375
+    }
+  ],
+  "rss_start_mb": 503.8,
+  "rss_end_mb": 1652.79,
+  "rss_delta_mb": 1148.98,
+  "max_child_processes": 1,
+  "child_clean_exit": true,
+  "cache_panel_bound": true,
+  "model_load_ms": 6073.4,
+  "model_validated": true,
+  "model_dir": "models\\ocr",
+  "pass": true
+}
