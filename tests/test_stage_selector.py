@@ -114,6 +114,75 @@ class StageSelectorTests(unittest.TestCase):
                 self.assertEqual(action, LoopAction.Continue)
                 mock_click.assert_not_called()
 
+    def test_mediator_allows_stage_row_reposition_with_semantic_evidence(self):
+        settings = Settings()
+        med = Mediator(settings, ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="KK", hwnd=1000)
+        med._stage_selected = True
+        med._stage_target_name = "stage_target_5-6"
+        med._stage_target_position = (1080, 200)
+        med._stage_click_cooldown_until = 0.0
+        current = MatchResult("stage_target_5-6", 1.0, 1100, 260, 40, 20, 1100, 260)
+        start = MatchResult("stage_start", 1.0, 1000, 700, 80, 30, 1000, 700)
+
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch("gamescript.mediator.verify_stage_selection", return_value=False), \
+             patch.object(med, "_find_stage_target", return_value=current), \
+             patch.object(med, "_stage_target_has_consistent_neighbor", return_value=True), \
+             patch.object(med, "_find_stage_start", return_value=start), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_l0(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once_with(start, "StageStart")
+
+    def test_mediator_rejects_changed_stage_semantics_without_input(self):
+        cases = (
+            ("changed label", MatchResult("stage_target_5-7", 1.0, 1100, 260, 40, 20, 1100, 260), True, True),
+            ("broken neighbor", MatchResult("stage_target_5-6", 1.0, 1100, 260, 40, 20, 1100, 260), False, True),
+            ("missing entry", MatchResult("stage_target_5-6", 1.0, 1100, 260, 40, 20, 1100, 260), True, False),
+        )
+        for _name, current, neighbor_ok, entry_ok in cases:
+            with self.subTest(_name):
+                med = Mediator(Settings(), ROOT)
+                med.set_phase(Phase.STAGE_SELECT)
+                frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="KK", hwnd=1000)
+                med._stage_selected = True
+                med._stage_target_name = "stage_target_5-6"
+                med._stage_target_position = (1080, 200)
+                med._stage_click_cooldown_until = 0.0
+                start = MatchResult("stage_start", 1.0, 1000, 700, 80, 30, 1000, 700) if entry_ok else None
+                with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+                     patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+                     patch("gamescript.mediator.verify_stage_selection", return_value=False), \
+                     patch.object(med, "_find_stage_target", return_value=current), \
+                     patch.object(med, "_stage_target_has_consistent_neighbor", return_value=neighbor_ok), \
+                     patch.object(med, "_find_stage_start", return_value=start), \
+                     patch.object(med, "act_click", return_value=True) as click:
+                    action = med._tick_l0(frame)
+                self.assertEqual(action, LoopAction.Continue)
+                click.assert_not_called()
+
+    def test_stage_settle_window_does_not_click_again(self):
+        settings = Settings()
+        med = Mediator(settings, ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="KK", hwnd=1000)
+        med._stage_selected = True
+        med._stage_click_cooldown_until = 9999999999.0
+
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch("gamescript.mediator.verify_stage_selection") as verify, \
+             patch.object(med, "act_click") as click:
+            action = med._tick_l0(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        verify.assert_not_called()
+        click.assert_not_called()
+
     def test_stage_id_cross_chapter_comparison(self):
         s1_10 = StageId(1, 10)
         s2_1 = StageId(2, 1)
@@ -121,7 +190,6 @@ class StageSelectorTests(unittest.TestCase):
         self.assertTrue(s1_10 <= s2_1)
         self.assertFalse(s1_10 > s2_1)
         self.assertFalse(s1_10 >= s2_1)
-
     def test_stage_id_invalid_input(self):
         self.assertIsNone(StageId.parse(""))
         self.assertIsNone(StageId.parse("invalid"))

@@ -178,13 +178,19 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.assertEqual("WAIT_INGAME", self.med._hero_state)
         self.assertGreaterEqual(self.med._hero_step_deadline, 138.0)
 
-    def test_stage_confirmation_rejects_target_after_row_moves(self) -> None:
+    def test_stage_confirmation_allows_target_after_row_moves_with_semantics(self) -> None:
+        """Normal list movement is allowed when target, neighbors, and hero entry remain valid.
+
+        Rejection of changed labels, broken neighbors, and missing entries is covered by
+        StageSelectorTests.test_mediator_rejects_changed_stage_semantics_without_input.
+        """
         stage = fixture("live_stage_select.png")
         self.med.set_phase(Phase.STAGE_SELECT)
         target = self.med._find_stage_target(stage)
         self.assertIsNotNone(target)
         self.med._stage_selected = True
         self.med._stage_target_name = target.name
+        # Simulate a post-click list displacement greater than the old 6px gate.
         self.med._stage_target_position = (target.x, target.y + 80)
         self.med._stage_click_cooldown_until = 0.0
 
@@ -193,9 +199,10 @@ class HeroModeTemporalTests(unittest.TestCase):
         ) as click:
             self.med._tick_l0(stage)
 
-        self.assertEqual(Phase.STAGE_SELECT, self.med.phase)
-        self.assertFalse(self.med._stage_selected)
-        click.assert_not_called()
+        self.assertEqual(Phase.HERO_SETUP, self.med.phase)
+        self.assertTrue(self.med._stage_selected)
+        click.assert_called_once()
+        self.assertEqual("OpenHeroModeModal", click.call_args.args[1])
 
     def test_stage_target_requires_two_stable_frames_before_click(self) -> None:
         stage = fixture("live_stage_select.png")
