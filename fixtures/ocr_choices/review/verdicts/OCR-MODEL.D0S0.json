@@ -1,0 +1,284 @@
+{
+ "verdicts": [
+  {
+   "confidence": 1,
+   "id": "d0_a_000224_ep000_s0",
+   "is_card_name": false,
+   "note": "UI status label",
+   "text": "禁用"
+  },
+  {
+   "confidence": 1,
+   "id": "d0_a_000224_ep000_s1",
+   "note": "full card name",
+   "text": "激光超载",
+   "is_card_name": true
+  },
+  {
+   "is_card_name": true,
+   "id": "d0_a_000224_ep000_s2",
+   "note": "full card name",
+   "confidence": 1,
+   "text": "衰弱光线"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "full card name",
+   "text": "箭矢增幅",
+   "id": "d0_a_000259_ep001_s0"
+  },
+  {
+   "note": "full card name",
+   "confidence": 1,
+   "id": "d0_a_000306_ep003_s0",
+   "text": "恢复神符",
+   "is_card_name": true
+  },
+  {
+   "is_card_name": false,
+   "note": "description text fragment",
+   "confidence": 1,
+   "text": "在接下来30秒内：攻速",
+   "id": "d0_a_000306_ep003_s1"
+  },
+  {
+   "is_card_name": true,
+   "note": "full card name",
+   "confidence": 1,
+   "id": "d0_a_000306_ep003_s2",
+   "text": "屠夫之刃"
+  },
+  {
+   "is_card_name": true,
+   "note": "full card name",
+   "confidence": 1,
+   "text": "奥能扫射",
+   "id": "d0_a_000421_ep004_s0"
+  },
+  {
+   "text": "奥能洪流",
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "full card name",
+   "id": "d0_a_000421_ep004_s2"
+  },
+  {
+   "text": "率大幅度提高",
+   "note": "description text fragment",
+   "id": "d0_a_000442_ep005_s0",
+   "is_card_name": false,
+   "confidence": 1
+  },
+  {
+   "note": "description text fragment",
+   "id": "d0_a_000462_ep006_s0",
+   "text": "在接下来30秒内：攻击增",
+   "confidence": 1,
+   "is_card_name": false
+  },
+  {
+   "id": "d0_a_000462_ep006_s1",
+   "confidence": 1,
+   "note": "stat line with numbers",
+   "text": "杀敌数+400",
+   "is_card_name": false
+  },
+  {
+   "text": "9",
+   "is_card_name": false,
+   "id": "d0_a_000462_ep006_s2",
+   "note": "junk fragment / single digit",
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "text": "致残剑气",
+   "is_card_name": true,
+   "note": "full card name",
+   "id": "d0_a_000536_ep007_s0"
+  },
+  {
+   "is_card_name": true,
+   "confidence": 1,
+   "text": "爆炸箭矢",
+   "id": "d0_a_000536_ep007_s2",
+   "note": "full card name"
+  },
+  {
+   "is_card_name": true,
+   "note": "full card name",
+   "text": "风舞者",
+   "confidence": 1,
+   "id": "d0_a_000589_ep008_s0"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "full item name",
+   "id": "d0_a_000589_ep008_s1",
+   "text": "一星球"
+  },
+  {
+   "id": "d0_a_000610_ep009_s0",
+   "confidence": 1,
+   "note": "stat line with numbers and percent",
+   "text": "物理暴伤+20%",
+   "is_card_name": false
+  },
+  {
+   "is_card_name": false,
+   "note": "stat line with numbers",
+   "id": "d0_a_000610_ep009_s1",
+   "confidence": 1,
+   "text": "经验+600"
+  },
+  {
+   "confidence": 1,
+   "id": "d0_a_000621_ep010_s0",
+   "is_card_name": true,
+   "note": "full card name",
+   "text": "爆炸箭矢"
+  },
+  {
+   "text": "150",
+   "is_card_name": false,
+   "confidence": 1,
+   "note": "stat number / progress counter",
+   "id": "d0_a_000621_ep010_s1"
+  },
+  {
+   "id": "d0_a_000654_ep011_s0",
+   "note": "full card name",
+   "is_card_name": true,
+   "text": "激光闪射",
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "note": "full card name",
+   "is_card_name": true,
+   "text": "制导箭矢",
+   "id": "d0_a_000654_ep011_s1"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "full card name",
+   "id": "d0_a_000654_ep011_s2",
+   "text": "箭矢齐射"
+  },
+  {
+   "id": "d0_a_000667_ep012_s1",
+   "note": "full card name",
+   "is_card_name": true,
+   "text": "重创",
+   "confidence": 1
+  },
+  {
+   "text": "激光闪射",
+   "id": "d0_a_000667_ep012_s2",
+   "note": "full card name",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_000756_ep013_s1",
+   "note": "full card name",
+   "text": "伐木契约"
+  },
+  {
+   "is_card_name": true,
+   "confidence": 1,
+   "text": "等级优势",
+   "id": "d0_a_000756_ep013_s2",
+   "note": "full card name"
+  },
+  {
+   "note": "full card name",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_000763_ep014_s0",
+   "text": "幻影刺客"
+  },
+  {
+   "is_card_name": false,
+   "note": "English UI text fragment",
+   "id": "d0_a_000763_ep014_s1",
+   "text": "linus",
+   "confidence": 0.9
+  },
+  {
+   "note": "full card name",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_000763_ep014_s2",
+   "text": "熊猫酒仙"
+  },
+  {
+   "note": "full card name",
+   "id": "d0_a_000782_ep015_s0",
+   "text": "剑气冲击",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "is_card_name": true,
+   "id": "d0_a_000782_ep015_s2",
+   "confidence": 1,
+   "text": "爆炸箭矢",
+   "note": "full card name"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": false,
+   "note": "single character fragment",
+   "id": "d0_a_000875_ep016_s2",
+   "text": "战"
+  },
+  {
+   "is_card_name": true,
+   "note": "full card name",
+   "id": "d0_a_000901_ep017_s0",
+   "confidence": 1,
+   "text": "箭矢齐射"
+  },
+  {
+   "text": "疾行剑气",
+   "is_card_name": true,
+   "confidence": 1,
+   "id": "d0_a_000901_ep017_s1",
+   "note": "full card name"
+  },
+  {
+   "note": "full card name",
+   "id": "d0_a_000901_ep017_s2",
+   "is_card_name": true,
+   "text": "连续剑气",
+   "confidence": 1
+  },
+  {
+   "id": "d0_a_001066_ep018_s0",
+   "is_card_name": true,
+   "confidence": 1,
+   "note": "full card name",
+   "text": "双头龙"
+  },
+  {
+   "note": "English UI text fragment",
+   "is_card_name": false,
+   "text": "linus",
+   "id": "d0_a_001066_ep018_s1",
+   "confidence": 0.9
+  },
+  {
+   "confidence": 1,
+   "note": "full card name",
+   "id": "d0_a_001066_ep018_s2",
+   "text": "圣堂刺客",
+   "is_card_name": true
+  }
+ ]
+}

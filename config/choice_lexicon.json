@@ -74,7 +74,9 @@
       "set_membership": null
     },
     "飓风": {
-      "aliases": [],
+      "aliases": [
+        "风风"
+      ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -139,7 +141,9 @@
       "set_membership": null
     },
     "箭矢齐射": {
-      "aliases": [],
+      "aliases": [
+        "箭失卉射"
+      ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -212,7 +216,9 @@
       "set_membership": null
     },
     "魔术": {
-      "aliases": [],
+      "aliases": [
+        "厕术"
+      ],
       "kind": "bond",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -265,7 +271,9 @@
       "set_membership": "龙珠"
     },
     "乱世三国": {
-      "aliases": [],
+      "aliases": [
+        "世三图"
+      ],
       "kind": "bond",
       "version_seen": "1.3.x",
       "confusions": [
@@ -274,7 +282,9 @@
       "set_membership": "三国"
     },
     "体魄": {
-      "aliases": [],
+      "aliases": [
+        "体"
+      ],
       "kind": "bond",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -295,7 +305,9 @@
       "set_membership": null
     },
     "敏捷祝福": {
-      "aliases": [],
+      "aliases": [
+        "福"
+      ],
       "kind": "bond",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -456,7 +468,9 @@
       "set_membership": null
     },
     "杀敌多多": {
-      "aliases": [],
+      "aliases": [
+        "希故多"
+      ],
       "kind": "bond",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -519,7 +533,9 @@
       "set_membership": null
     },
     "焦点爆破": {
-      "aliases": [],
+      "aliases": [
+        "焦点慢破"
+      ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -568,7 +584,9 @@
       "set_membership": null
     },
     "箭矢连发": {
-      "aliases": [],
+      "aliases": [
+        "失速发"
+      ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -645,6 +663,468 @@
       "set_membership": null
     },
     "魔爆能量": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "一星球": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "龙珠"
+    },
+    "三星球": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "龙珠"
+    },
+    "二星球": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "龙珠"
+    },
+    "亡灵": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "亡灵天灾": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "伐木契约": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "元素之力": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "军团": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "冷缩": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "利刃": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "利刃海盗": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "制导箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "刷新券": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "剑气冲击": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "剑气增幅": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "力量之源": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "双头龙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "吕岳": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "封神"
+    },
+    "命运骰子": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "圣堂刺客": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "奥能扫射": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "奥能洪流": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "如意空空手": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "姜子牙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "封神"
+    },
+    "射手姿态": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "小绿瓶": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "屠夫之刃": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "幻影刺客": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "恢复神符": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "敌法师": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "敏捷之源": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "斧王": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "普攻伤害": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "木材(中)": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "木材(小)": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "未知的进化": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "末日使者": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "杀敌(小)": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "杀敌加成": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "杀敌敏捷": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "杀敌梭哈": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "杀敌经验": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "杀敌金币": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "沙王": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "海盗劫掠者": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "激光超载": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "激光闪射": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "熊猫酒仙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "爆炸箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "疾行剑气": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "痛苦女王": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "白赚海盗": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "神秘戒指": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "等级优势": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "经验压制": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "致残剑气": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "蓝胖": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "衰弱光线": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "连续剑气": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "重创": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "金币(中)": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "金转木": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "风舞者": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "魔力增加": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "黄金之力": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "龙族": {
       "aliases": [],
       "kind": "bond",
       "version_seen": "1.3.x",

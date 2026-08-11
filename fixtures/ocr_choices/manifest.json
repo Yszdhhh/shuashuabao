@@ -8331,14 +8331,14 @@
       "slots": [
         {
           "index": 0,
-          "canonical_name": null,
+          "canonical_name": "白赚海盗",
           "canonical_corrected_from": null,
           "raw_text": "白赚海盗",
           "rarity": "N",
           "set_progress": null,
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_086_slot0_name.png",
@@ -8370,7 +8370,8 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_086.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_086.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 1,
@@ -8413,18 +8414,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_086.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_086.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB): crop is stat text, keep unknown"
         },
         {
           "index": 2,
-          "canonical_name": null,
+          "canonical_name": "吕岳",
           "canonical_corrected_from": null,
           "raw_text": "吕岳",
           "rarity": "R",
           "set_progress": null,
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_086_slot2_name.png",
@@ -8456,7 +8458,8 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_086.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_086.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         }
       ],
       "notes": "Vision+OCR confirmed bond; s1 set 力量(0/4) vision-read (OCR weak)"
@@ -8496,14 +8499,14 @@
       "slots": [
         {
           "index": 0,
-          "canonical_name": null,
+          "canonical_name": "射手姿态",
           "canonical_corrected_from": null,
           "raw_text": "射手姿态",
           "rarity": "R",
           "set_progress": "0/3",
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_104_slot0_name.png",
@@ -8535,18 +8538,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_104.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_104.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 1,
-          "canonical_name": null,
+          "canonical_name": "海盗劫掠者",
           "canonical_corrected_from": null,
           "raw_text": "海盗劫掠者",
           "rarity": "SR",
           "set_progress": null,
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_104_slot1_name.png",
@@ -8578,18 +8582,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_104.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_104.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 2,
-          "canonical_name": null,
+          "canonical_name": "力量之源",
           "canonical_corrected_from": null,
           "raw_text": "力量之源",
           "rarity": "SSR",
           "set_progress": "0/4",
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_104_slot2_name.png",
@@ -8621,7 +8626,8 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_104.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_104.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         }
       ],
       "notes": "Vision+OCR confirmed bond; s1 name 3-way vision arbitration -> 海盗劫掠者"
@@ -8661,14 +8667,14 @@
       "slots": [
         {
           "index": 0,
-          "canonical_name": null,
+          "canonical_name": "力量之源",
           "canonical_corrected_from": null,
           "raw_text": "力量之源",
           "rarity": "SSR",
           "set_progress": "0/4",
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_159_slot0_name.png",
@@ -8700,18 +8706,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_159.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_159.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 1,
-          "canonical_name": null,
+          "canonical_name": "元素之力",
           "canonical_corrected_from": null,
           "raw_text": "元素之力",
           "rarity": "SSR",
           "set_progress": "1/3",
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_159_slot1_name.png",
@@ -8743,18 +8750,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_159.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_159.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 2,
-          "canonical_name": null,
+          "canonical_name": "射手姿态",
           "canonical_corrected_from": null,
           "raw_text": "射手姿态",
           "rarity": "R",
           "set_progress": "0/3",
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_159_slot2_name.png",
@@ -8786,7 +8794,8 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_159.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_159.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         }
       ],
       "notes": "Vision+OCR confirmed bond"
@@ -8826,14 +8835,14 @@
       "slots": [
         {
           "index": 0,
-          "canonical_name": null,
+          "canonical_name": "利刃",
           "canonical_corrected_from": null,
           "raw_text": "利刃",
           "rarity": "R",
           "set_progress": "0/3",
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_232_slot0_name.png",
@@ -8865,18 +8874,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_232.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_232.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 1,
-          "canonical_name": null,
+          "canonical_name": "利刃海盗",
           "canonical_corrected_from": null,
           "raw_text": "利刃海盗",
           "rarity": "N",
           "set_progress": null,
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/bond/rec5_260808/f_232_slot1_name.png",
@@ -8908,7 +8918,8 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_232.jpg"
+          "bbox_source_frame": "C:/tmp/recordings/dataset_frames/rec5_260808/f_232.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 2,
@@ -9322,14 +9333,14 @@
       "slots": [
         {
           "index": 0,
-          "canonical_name": null,
+          "canonical_name": "金币(中)",
           "canonical_corrected_from": null,
           "raw_text": "金币(中)",
           "rarity": null,
           "set_progress": null,
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/treasure/rec7_short2_20260808/f_033_slot0_name.png",
@@ -9361,18 +9372,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_033.jpg"
+          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_033.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 1,
-          "canonical_name": null,
+          "canonical_name": "恢复神符",
           "canonical_corrected_from": null,
           "raw_text": "恢复神符",
           "rarity": null,
           "set_progress": null,
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/treasure/rec7_short2_20260808/f_033_slot1_name.png",
@@ -9404,18 +9416,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_033.jpg"
+          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_033.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 2,
-          "canonical_name": null,
+          "canonical_name": "三星球",
           "canonical_corrected_from": null,
           "raw_text": "三星球",
           "rarity": null,
           "set_progress": "0/7",
           "is_valid": true,
           "is_dragon_ball": true,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/treasure/rec7_short2_20260808/f_033_slot2_name.png",
@@ -9465,7 +9478,8 @@
               ]
             }
           },
-          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_033.jpg"
+          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_033.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         }
       ],
       "notes": "vision-confirmed treasure panel; distinct Dragon Ball card combo; f_030/f_031/f_032 are gameplay/no-panel frames and excluded"
@@ -9506,14 +9520,14 @@
       "slots": [
         {
           "index": 0,
-          "canonical_name": null,
+          "canonical_name": "金币(中)",
           "canonical_corrected_from": null,
           "raw_text": "金币(中)",
           "rarity": null,
           "set_progress": null,
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/treasure/rec7_short2_20260808/f_034_slot0_name.png",
@@ -9545,18 +9559,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_034.jpg"
+          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_034.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 1,
-          "canonical_name": null,
+          "canonical_name": "恢复神符",
           "canonical_corrected_from": null,
           "raw_text": "恢复神符",
           "rarity": null,
           "set_progress": null,
           "is_valid": true,
           "is_dragon_ball": false,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/treasure/rec7_short2_20260808/f_034_slot1_name.png",
@@ -9588,18 +9603,19 @@
             },
             "progress": null
           },
-          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_034.jpg"
+          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_034.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         },
         {
           "index": 2,
-          "canonical_name": null,
+          "canonical_name": "二星球",
           "canonical_corrected_from": null,
           "raw_text": "二星球",
           "rarity": null,
           "set_progress": "0/7",
           "is_valid": true,
           "is_dragon_ball": true,
-          "truth_status": "unknown",
+          "truth_status": "in_lexicon",
           "layout_status": "verified",
           "crops": {
             "name": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/treasure/rec7_short2_20260808/f_034_slot2_name.png",
@@ -9649,7 +9665,8 @@
               ]
             }
           },
-          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_034.jpg"
+          "bbox_source_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/frames/rec7_short2_20260808/f_034.jpg",
+          "reviewed_by": "O2-2 vision review (CALIB designer, gemini)"
         }
       ],
       "notes": "vision-confirmed treasure panel; distinct Dragon Ball card combo from f_033; f_035/f_036/f_037 same static card set (cursor/hover only); retained f_034"

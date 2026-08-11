@@ -1,0 +1,165 @@
+{
+ "verdicts": [
+  {
+   "id": "d0_b_001859_ep106_s0",
+   "text": "致残剑气",
+   "note": "clear card name",
+   "confidence": 1,
+   "is_card_name": true
+  },
+  {
+   "id": "d0_b_001859_ep106_s1",
+   "note": "English text",
+   "is_card_name": false,
+   "text": "Linus",
+   "confidence": 1
+  },
+  {
+   "text": "爆炸箭矢",
+   "is_card_name": true,
+   "confidence": 1,
+   "id": "d0_b_001870_ep107_s0",
+   "note": "clear card name"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "clear card name",
+   "text": "重创",
+   "id": "d0_b_001870_ep107_s1"
+  },
+  {
+   "confidence": 1,
+   "id": "d0_b_001870_ep107_s2",
+   "note": "clear card name",
+   "text": "箭矢增幅",
+   "is_card_name": true
+  },
+  {
+   "is_card_name": false,
+   "id": "d0_b_001888_ep108_s0",
+   "note": "single letter / icon fragment",
+   "confidence": 1,
+   "text": "R"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_b_001888_ep108_s2",
+   "note": "clear card name",
+   "text": "姜子牙"
+  },
+  {
+   "confidence": 1,
+   "note": "clear card name",
+   "id": "d0_b_001907_ep109_s1",
+   "is_card_name": true,
+   "text": "经验压制"
+  },
+  {
+   "note": "clear card name",
+   "id": "d0_b_002058_ep112_s2",
+   "text": "黄金之力",
+   "confidence": 1,
+   "is_card_name": true
+  },
+  {
+   "text": "恒",
+   "is_card_name": false,
+   "note": "severely clipped text fragment",
+   "id": "d0_b_002072_ep113_s1",
+   "confidence": 0.7
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "text": "未知的进化",
+   "note": "card name with mouse cursor overlay",
+   "id": "d0_b_002072_ep113_s2"
+  },
+  {
+   "id": "d0_b_002080_ep114_s0",
+   "note": "clear card name",
+   "text": "爆炸箭矢",
+   "confidence": 1,
+   "is_card_name": true
+  },
+  {
+   "id": "d0_b_002080_ep114_s1",
+   "text": "致残剑气",
+   "note": "clear card name",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "note": "clear card name",
+   "id": "d0_b_002080_ep114_s2",
+   "is_card_name": true,
+   "confidence": 1,
+   "text": "重创"
+  },
+  {
+   "confidence": 1,
+   "note": "clear card name",
+   "is_card_name": true,
+   "id": "d0_b_002169_ep116_s1",
+   "text": "军团"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "clear card name",
+   "id": "d0_b_002169_ep116_s2",
+   "text": "龙族"
+  },
+  {
+   "confidence": 1,
+   "id": "d0_b_002193_ep117_s0",
+   "note": "clear card name",
+   "is_card_name": true,
+   "text": "箭矢增幅"
+  },
+  {
+   "id": "d0_b_002193_ep117_s1",
+   "confidence": 1,
+   "is_card_name": true,
+   "text": "致残剑气",
+   "note": "clear card name"
+  },
+  {
+   "text": "爆炸箭矢",
+   "note": "clear card name",
+   "is_card_name": true,
+   "confidence": 1,
+   "id": "d0_b_002193_ep117_s2"
+  },
+  {
+   "text": "杀敌加成",
+   "confidence": 1,
+   "note": "clear card name",
+   "is_card_name": true,
+   "id": "d0_b_002209_ep118_s1"
+  },
+  {
+   "text": "命运骰子",
+   "is_card_name": true,
+   "note": "clear card name",
+   "confidence": 1,
+   "id": "d0_b_002209_ep118_s2"
+  },
+  {
+   "text": "金转木",
+   "note": "clear card name",
+   "id": "d0_b_002329_ep119_s1",
+   "confidence": 1,
+   "is_card_name": true
+  },
+  {
+   "id": "d0_b_002329_ep119_s2",
+   "confidence": 1,
+   "is_card_name": false,
+   "note": "single char fragment / clipped text",
+   "text": "战"
+  }
+ ]
+}

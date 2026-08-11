@@ -1,0 +1,250 @@
+{
+ "panel_reports": [
+  {
+   "notes": "Treasure panel (宝物). Identified by bottom prompt '宝物免费刷新次数+1' and active HUD button '宝物挑战'. Card names visible in strip are '未知进化', '力量提升', and '攻坚', with item set bonus descriptions.",
+   "frame": "ep005",
+   "panel_type": "treasure",
+   "card_names": [
+    "未知进化",
+    "力量提升",
+    "攻坚"
+   ]
+  },
+  {
+   "frame": "ep032",
+   "panel_type": "treasure",
+   "card_names": [
+    "双倍神符",
+    "力量提升",
+    "全能神符"
+   ],
+   "notes": "Treasure panel (宝物). Identified by bottom prompt '宝物免费刷新次数+1'. Features mixed items: temporary rune buffs ('双倍神符' giving +100% ATK for 30s, '全能神符' giving +30% HP/all stats and armor/block for 30s) alongside permanent set treasure ('力量提升')."
+  }
+ ],
+ "verdicts": [
+  {
+   "confidence": 1,
+   "note": "truth visible ('箭矢齐射'), complete card name, unclipped",
+   "is_card_name": true,
+   "id": "rec1_ingame_boss_20260809_t_015s_技能面板_giveUp证据_s2 truth=箭矢齐射",
+   "text": "箭矢齐射"
+  },
+  {
+   "is_card_name": true,
+   "note": "truth visible ('乱世三国'), complete card name, unclipped",
+   "text": "乱世三国",
+   "confidence": 1,
+   "id": "rec1_ingame_boss_20260809_t_036s_羁绊面板_s0 truth=乱世三国"
+  },
+  {
+   "note": "truth visible ('体魄'), complete card name, unclipped",
+   "is_card_name": true,
+   "confidence": 1,
+   "id": "rec1_ingame_boss_20260809_t_036s_羁绊面板_s1 truth=体魄",
+   "text": "体魄"
+  },
+  {
+   "confidence": 0.95,
+   "text": "魔术(0/2)",
+   "is_card_name": false,
+   "note": "truth visible ('魔术'), text unclipped, contains progress counter fragment (0/2)",
+   "id": "rec1_ingame_boss_20260809_t_417s_转折点_s1 truth=魔术"
+  },
+  {
+   "note": "truth visible ('箭矢连发'), complete card name, unclipped",
+   "id": "rec3_260810_f_008_skill_corrected_s0 truth=箭矢连发",
+   "confidence": 1,
+   "text": "箭矢连发",
+   "is_card_name": true
+  },
+  {
+   "text": "敏捷祝福",
+   "id": "rec3_260810_f_015_bond_corrected_s0 truth=敏捷祝福",
+   "is_card_name": true,
+   "confidence": 1,
+   "note": "truth visible ('敏捷祝福'), complete card name, unclipped"
+  },
+  {
+   "note": "truth visible ('奥术增幅β'), card name unclipped, contains background HUD on left",
+   "text": "奥术增幅β",
+   "id": "rec5_260808_f_010_skill_corrected_s0 truth=奥术增幅β",
+   "is_card_name": true,
+   "confidence": 0.95
+  },
+  {
+   "note": "truth visible ('飓风'), text unclipped, contains NEW badge on right",
+   "id": "rec5_260808_f_027_skill_corrected_s0 truth=飓风",
+   "text": "飓风 NEW",
+   "is_card_name": false,
+   "confidence": 0.95
+  },
+  {
+   "id": "rec5_260808_f_027_skill_corrected_s1 truth=陨石",
+   "confidence": 0.95,
+   "text": "陨石 NEW",
+   "is_card_name": false,
+   "note": "truth visible ('陨石'), text unclipped, contains NEW badge on right"
+  },
+  {
+   "note": "truth visible ('电磁网'), left char '电' partially overlapped by icon, contains NEW badge",
+   "is_card_name": false,
+   "confidence": 0.9,
+   "id": "rec5_260808_f_027_skill_corrected_s2 truth=电磁网",
+   "text": "电磁网 NEW"
+  },
+  {
+   "is_card_name": true,
+   "note": "truth visible ('焦点爆破'), complete card name, unclipped",
+   "id": "rec5_260808_f_043_skill_corrected_s2 truth=焦点爆破",
+   "confidence": 1,
+   "text": "焦点爆破"
+  },
+  {
+   "note": "truth visible ('飓风'), text unclipped, contains NEW badge on right",
+   "confidence": 0.95,
+   "is_card_name": false,
+   "id": "rec5_260808_f_044_skill_corrected_s0 truth=飓风",
+   "text": "飓风 NEW"
+  },
+  {
+   "is_card_name": false,
+   "text": "飞箭 NEW 奥术增幅α",
+   "confidence": 0.9,
+   "note": "truth visible ('奥术增幅α'), card name unclipped, contains adjacent slot fragment '飞箭 NEW' on left",
+   "id": "rec5_260808_f_045_skill_corrected_s1 truth=奥术增幅α"
+  },
+  {
+   "note": "truth visible ('飓风'), text unclipped, contains left badge fragment 'EW' and right 'NEW' badge",
+   "is_card_name": false,
+   "id": "rec5_260808_f_083_skill_corrected_s1 truth=飓风",
+   "text": "EW 飓风 NEW",
+   "confidence": 0.9
+  },
+  {
+   "text": "杀敌多多",
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "truth visible ('杀敌多多'), complete card name, unclipped",
+   "id": "rec5_260808_f_035_bond_corrected_s1 truth=杀敌多多"
+  },
+  {
+   "is_card_name": true,
+   "note": "raw OCR matched ('白赚海盗'), valid bond card name",
+   "id": "rec5_260808_f_086_bond_corrected_s0 raw=白赚海盗",
+   "confidence": 1,
+   "text": "白赚海盗"
+  },
+  {
+   "is_card_name": false,
+   "text": "力量+100(+10",
+   "confidence": 0.85,
+   "id": "rec5_260808_f_086_bond_corrected_s1 raw=力量之源",
+   "note": "crop contains stat description text ('力量+100(+10'), not card name"
+  },
+  {
+   "id": "rec5_260808_f_086_bond_corrected_s2 raw=吕岳",
+   "is_card_name": true,
+   "text": "吕岳",
+   "confidence": 0.8,
+   "note": "card name '吕岳' visible but severely clipped at bottom edge"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "text": "射手姿态",
+   "id": "rec5_260808_f_104_bond_corrected_s0 raw=射手姿态",
+   "note": "raw OCR matched ('射手姿态'), valid bond card name"
+  },
+  {
+   "confidence": 1,
+   "note": "raw OCR matched ('海盗劫掠者'), valid bond card name",
+   "is_card_name": true,
+   "id": "rec5_260808_f_104_bond_corrected_s1 raw=海盗劫掠者",
+   "text": "海盗劫掠者"
+  },
+  {
+   "confidence": 1,
+   "note": "raw OCR matched ('力量之源'), valid bond card name",
+   "is_card_name": true,
+   "id": "rec5_260808_f_104_bond_corrected_s2 raw=力量之源",
+   "text": "力量之源"
+  },
+  {
+   "id": "rec5_260808_f_159_bond_corrected_s0 raw=力量之源",
+   "note": "raw OCR matched ('力量之源'), valid bond card name",
+   "confidence": 1,
+   "is_card_name": true,
+   "text": "力量之源"
+  },
+  {
+   "id": "rec5_260808_f_159_bond_corrected_s1 raw=元素之力",
+   "text": "元素之力",
+   "note": "raw OCR matched ('元素之力'), valid bond card name",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "id": "rec5_260808_f_159_bond_corrected_s2 raw=射手姿态",
+   "text": "射手姿态",
+   "is_card_name": true,
+   "confidence": 1,
+   "note": "raw OCR matched ('射手姿态'), valid bond card name, panel border on right edge"
+  },
+  {
+   "text": "利刃 攻击力+50(+5",
+   "confidence": 0.9,
+   "is_card_name": false,
+   "note": "contains card name '利刃' plus stat description fragment ('攻击力+50...')",
+   "id": "rec5_260808_f_232_bond_corrected_s0 raw=利刃"
+  },
+  {
+   "text": "利刃海盗",
+   "confidence": 1,
+   "id": "rec5_260808_f_232_bond_corrected_s1 raw=利刃海盗",
+   "is_card_name": true,
+   "note": "raw OCR matched ('利刃海盗'), valid bond card name"
+  },
+  {
+   "confidence": 0.95,
+   "note": "raw OCR matched ('金币(中)'), item name with parens modifier, includes background HUD on top left",
+   "is_card_name": false,
+   "id": "rec7_short2_20260808_f_033_treasure_3star_s0 raw=金币(中)",
+   "text": "金币(中)"
+  },
+  {
+   "confidence": 1,
+   "id": "rec7_short2_20260808_f_033_treasure_3star_s1 raw=恢复神符",
+   "text": "恢复神符",
+   "note": "raw OCR matched ('恢复神符'), complete treasure item name",
+   "is_card_name": true
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "raw OCR matched ('三星球'), complete treasure item name",
+   "text": "三星球",
+   "id": "rec7_short2_20260808_f_033_treasure_3star_s2 raw=三星球"
+  },
+  {
+   "id": "rec7_short2_20260808_f_034_treasure_2star_s0 raw=金币(中)",
+   "note": "raw OCR matched ('金币(中)'), item name with parens modifier",
+   "confidence": 0.95,
+   "is_card_name": false,
+   "text": "金币(中)"
+  },
+  {
+   "confidence": 1,
+   "note": "raw OCR matched ('恢复神符'), complete treasure item name",
+   "id": "rec7_short2_20260808_f_034_treasure_2star_s1 raw=恢复神符",
+   "is_card_name": true,
+   "text": "恢复神符"
+  },
+  {
+   "is_card_name": true,
+   "text": "二星球",
+   "confidence": 1,
+   "note": "raw OCR matched ('二星球'), complete treasure item name",
+   "id": "rec7_short2_20260808_f_034_treasure_2star_s2 raw=二星球"
+  }
+ ]
+}

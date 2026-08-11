@@ -1,0 +1,284 @@
+{
+ "verdicts": [
+  {
+   "id": "d0_b_000618_ep075_s1",
+   "confidence": 1,
+   "is_card_name": true,
+   "text": "木材(中)",
+   "note": "item name with size suffix"
+  },
+  {
+   "note": "valid card name",
+   "is_card_name": true,
+   "confidence": 1,
+   "text": "杀敌经验",
+   "id": "d0_b_000618_ep075_s2"
+  },
+  {
+   "is_card_name": false,
+   "note": "UI badge / English text",
+   "text": "NEW",
+   "confidence": 1,
+   "id": "d0_b_000630_ep076_s1"
+  },
+  {
+   "id": "d0_b_000740_ep078_s0",
+   "is_card_name": true,
+   "text": "命运骰子",
+   "confidence": 1,
+   "note": "valid treasure card name"
+  },
+  {
+   "confidence": 1,
+   "id": "d0_b_000879_ep079_s0",
+   "is_card_name": false,
+   "note": "two skill names merged in crop",
+   "text": "闪电链地震"
+  },
+  {
+   "is_card_name": true,
+   "note": "valid skill card name",
+   "text": "箭失连发",
+   "confidence": 1,
+   "id": "d0_b_000879_ep079_s1"
+  },
+  {
+   "confidence": 1,
+   "id": "d0_b_001051_ep084_s0",
+   "note": "valid bond card name",
+   "text": "敏捷之源",
+   "is_card_name": true
+  },
+  {
+   "note": "valid bond card name",
+   "is_card_name": true,
+   "confidence": 1,
+   "id": "d0_b_001051_ep084_s1",
+   "text": "亡灵"
+  },
+  {
+   "note": "valid bond card name",
+   "id": "d0_b_001051_ep084_s2",
+   "text": "射手姿态",
+   "confidence": 1,
+   "is_card_name": true
+  },
+  {
+   "is_card_name": true,
+   "id": "d0_b_001077_ep085_s1",
+   "text": "等级优势",
+   "note": "valid treasure card name",
+   "confidence": 1
+  },
+  {
+   "id": "d0_b_001155_ep087_s0",
+   "text": "恢复神符",
+   "is_card_name": true,
+   "note": "valid skill card name",
+   "confidence": 1
+  },
+  {
+   "note": "valid skill card name",
+   "text": "魔力增加",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_b_001155_ep087_s1"
+  },
+  {
+   "text": "9",
+   "id": "d0_b_001155_ep087_s2",
+   "note": "digit fragment / UI counter",
+   "is_card_name": false,
+   "confidence": 1
+  },
+  {
+   "is_card_name": false,
+   "note": "English text / player name",
+   "confidence": 1,
+   "text": "Linus",
+   "id": "d0_b_001182_ep088_s1"
+  },
+  {
+   "confidence": 1,
+   "note": "keybind prompt / UI button icon",
+   "id": "d0_b_001182_ep088_s2",
+   "is_card_name": false,
+   "text": "[F4]"
+  },
+  {
+   "text": "荐",
+   "note": "UI recommendation badge (<2 chars)",
+   "is_card_name": false,
+   "confidence": 1,
+   "id": "d0_b_001252_ep090_s0"
+  },
+  {
+   "text": "射手姿态",
+   "note": "valid bond card name",
+   "id": "d0_b_001252_ep090_s2",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "valid treasure card name",
+   "id": "d0_b_001266_ep091_s1",
+   "text": "金转木"
+  },
+  {
+   "text": "三星",
+   "id": "d0_b_001266_ep091_s2",
+   "confidence": 1,
+   "is_card_name": false,
+   "note": "star level badge / status text"
+  },
+  {
+   "note": "English text / player name",
+   "confidence": 1,
+   "is_card_name": false,
+   "text": "Linus",
+   "id": "d0_b_001289_ep092_s1"
+  },
+  {
+   "confidence": 1,
+   "text": "[F4]",
+   "id": "d0_b_001289_ep092_s2",
+   "is_card_name": false,
+   "note": "keybind prompt / UI button icon"
+  },
+  {
+   "confidence": 1,
+   "text": "敌法师",
+   "is_card_name": true,
+   "id": "d0_b_001301_ep093_s0",
+   "note": "valid bond card name"
+  },
+  {
+   "confidence": 1,
+   "id": "d0_b_001301_ep093_s1",
+   "note": "single character tag (<2 chars)",
+   "is_card_name": false,
+   "text": "恒"
+  },
+  {
+   "confidence": 1,
+   "note": "valid bond card name",
+   "is_card_name": true,
+   "id": "d0_b_001301_ep093_s2",
+   "text": "蓝胖"
+  },
+  {
+   "text": "军团",
+   "note": "valid bond card name",
+   "is_card_name": true,
+   "confidence": 1,
+   "id": "d0_b_001386_ep094_s1"
+  },
+  {
+   "id": "d0_b_001417_ep095_s2",
+   "confidence": 1,
+   "note": "valid treasure card name",
+   "text": "二星球",
+   "is_card_name": true
+  },
+  {
+   "text": "箭失增幅",
+   "note": "valid treasure card name",
+   "confidence": 1,
+   "id": "d0_b_001478_ep098_s0",
+   "is_card_name": true
+  },
+  {
+   "is_card_name": true,
+   "note": "valid treasure card name",
+   "id": "d0_b_001478_ep098_s1",
+   "text": "奥能扫射",
+   "confidence": 1
+  },
+  {
+   "is_card_name": true,
+   "confidence": 1,
+   "note": "valid treasure card name",
+   "text": "剑气增幅",
+   "id": "d0_b_001478_ep098_s2"
+  },
+  {
+   "is_card_name": false,
+   "note": "single character tag (<2 chars)",
+   "text": "战",
+   "confidence": 1,
+   "id": "d0_b_001541_ep099_s2"
+  },
+  {
+   "id": "d0_b_001673_ep100_s0",
+   "note": "two skill names merged in crop",
+   "text": "闪电链地震",
+   "confidence": 1,
+   "is_card_name": false
+  },
+  {
+   "confidence": 1,
+   "note": "valid bond card name",
+   "is_card_name": true,
+   "id": "d0_b_001788_ep102_s0",
+   "text": "射手姿态"
+  },
+  {
+   "note": "valid bond card name",
+   "text": "冷缩",
+   "id": "d0_b_001788_ep102_s1",
+   "confidence": 1,
+   "is_card_name": true
+  },
+  {
+   "confidence": 1,
+   "is_card_name": false,
+   "id": "d0_b_001788_ep102_s2",
+   "text": "荐",
+   "note": "UI recommendation badge (<2 chars)"
+  },
+  {
+   "id": "d0_b_001818_ep103_s0",
+   "is_card_name": true,
+   "note": "valid treasure card name",
+   "confidence": 1,
+   "text": "杀敌梭哈"
+  },
+  {
+   "id": "d0_b_001829_ep104_s0",
+   "is_card_name": true,
+   "text": "蓝胖",
+   "note": "valid treasure card name",
+   "confidence": 1
+  },
+  {
+   "text": "恒",
+   "is_card_name": false,
+   "id": "d0_b_001829_ep104_s1",
+   "note": "single character tag (<2 chars)",
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "text": "末日使者",
+   "id": "d0_b_001829_ep104_s2",
+   "is_card_name": true,
+   "note": "valid treasure card name"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": false,
+   "id": "d0_b_001843_ep105_s1",
+   "note": "English text / player name",
+   "text": "Linus"
+  },
+  {
+   "note": "keybind prompt / UI button icon",
+   "confidence": 1,
+   "is_card_name": false,
+   "text": "[F4]",
+   "id": "d0_b_001843_ep105_s2"
+  }
+ ]
+}

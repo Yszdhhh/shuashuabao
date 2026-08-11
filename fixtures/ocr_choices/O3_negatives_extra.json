@@ -1,0 +1,313 @@
+{
+ "schema_version": 2,
+ "purpose": "O3 新增负面板（rec9/rec10 非面板帧）",
+ "generated_at": "2026-08-11",
+ "entries": [
+  {
+   "id": "neg_rec9rec10_a_000120",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/a_000120.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec9_mijing_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_a_0450",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/a_0450.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec9_mijing_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_a_0480",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/a_0480.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec9_mijing_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_a_0570",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/a_0570.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec9_mijing_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_a_0930",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/a_0930.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec9_mijing_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_a_1020",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/a_1020.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec9_mijing_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_a_1140",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/a_1140.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec9_mijing_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_a_2400",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/a_2400.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec9_mijing_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_0060",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_0060.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_0090",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_0090.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_0570",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_0570.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_0600",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_0600.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_1050",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_1050.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_1170",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_1170.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_1350",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_1350.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_1530",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_1530.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_1800",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_1800.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  },
+  {
+   "id": "neg_rec9rec10_b_2550",
+   "panel_kind": "negative",
+   "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+   "original_frame": "fixtures/ocr_choices/negatives/rec9_rec10_20260810/b_2550.png",
+   "crops": [],
+   "window_size": [
+    1920,
+    1080
+   ],
+   "game_version": "unknown",
+   "session_id": "rec10_3normal_20260810",
+   "source": "video_frame",
+   "forbidden_area": null,
+   "slots": [],
+   "notes": "O3 新增负面板（D0 录屏采样，采样纪律：episode 区间外 + anchor=null）"
+  }
+ ]
+}

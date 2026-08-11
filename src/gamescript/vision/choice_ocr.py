@@ -40,14 +40,24 @@ _DECORATOR_RE = re.compile(
     r"|[（(][^()（）]*?(?:新|NEW|新技能)[^()（）]*?[）)]",
     re.IGNORECASE,
 )
+# 纯文本 NEW 徽章（无方括号，如 "风NEW" / "石 NEW" / "NEW 次级箭"）：亮绿角标被 OCR
+# 直接拼进卡名文本；词典内没有任何规范名/别名含 "NEW"，按整词剥离是安全的。
+_NEW_TOKEN_RE = re.compile(r"(?<![A-Za-z])NEW(?![A-Za-z])", re.IGNORECASE)
+# 套装进度数字串（x/y 或 [x/y]），OCR 常把进度文本带进 name crop（如 "厕术(0/2)"）。
+# 仅匹配纯数字比例，不影响 经验(中)/藏宝图(三) 等中文括号后缀。
+_PROGRESS_RATIO_RE = re.compile(r"[\[（(]\s*\d+\s*/\s*\d+\s*[\])）)]")
 _STAR_RE = re.compile(r"[★☆✦✧]+")
 _WS_RE = re.compile(r"\s+")
 
 # 常见 OCR 混淆替换表（受限模糊匹配时对两侧文本做等价化）。
-# 全角→半角已由 NFKC 覆盖；这里只放 NFKC 不处理的字符级混淆。
+# 全角→半角已由 NFKC 覆盖；这里只放 NFKC 不处理的字符级混淆：
+# 繁简同形字（游戏金边艺术字常出现繁体异体，如 奧/颶/風 等）。
 _OCR_CONFUSION_REPLACEMENTS = {
     "＊": "*",
     "·": "・",
+    "奧": "奥",
+    "颶": "飓",
+    "風": "风",
 }
 
 
@@ -63,7 +73,8 @@ def normalize_choice_text(raw: str) -> str:
     """Unicode NFKC → 去装饰符/多余空白 → 返回规范化串。
 
     - NFKC：全角数字/字母/空格转半角（如 ``４星球`` → ``4星球``）；
-    - 去掉 ``[新]`` / ``[NEW]`` / ``（新）`` 角标与 ``★☆`` 装饰；
+    - 去掉 ``[新]`` / ``[NEW]`` / ``（新）`` 角标、纯文本 ``NEW`` 徽章（``"风 NEW"`` →
+      ``"风"``）与 ``★☆`` 装饰；
     - 去掉全部空白：中文规范名不含内部空格，OCR 插入的空格一律清除
       （``"剑 气"`` → ``"剑气"``，``" 天雷[NEW] "`` → ``"天雷"``）。
     """
@@ -72,6 +83,7 @@ def normalize_choice_text(raw: str) -> str:
     text = unicodedata.normalize("NFKC", raw)
     text = _DECORATOR_RE.sub("", text)
     text = _STAR_RE.sub("", text)
+    text = _NEW_TOKEN_RE.sub("", text)
     text = _WS_RE.sub("", text)
     return text
 
@@ -194,6 +206,12 @@ def lookup_lexicon(
     if kind is not None and kind not in VALID_KINDS:
         raise ValueError(f"kind must be one of {sorted(VALID_KINDS)} or None")
     normalized = normalize_choice_text(text)
+    # 繁简/OCR 混淆替换（与词条 surface 侧同表，保证两侧等价）
+    normalized = _apply_replacements(normalized)
+    # 套装进度数字串（(x/y) 或 [x/y]）常被 OCR 带进卡名文本（如 "厕术(0/2)"）——
+    # 仅在 name 查找输入侧剥离（normalize_choice_text 保持原样，套装进度提取依赖
+    # 方括号数字串，不能在这里被删掉）。
+    normalized = _PROGRESS_RATIO_RE.sub("", normalized)
     if not normalized:
         return LexiconMatch(None, (), 0.0)
     data = lexicon if lexicon is not None else load_lexicon()

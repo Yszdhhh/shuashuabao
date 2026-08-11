@@ -48,6 +48,21 @@ class LexiconDataTests(unittest.TestCase):
         ):
             self.assertIn(required, names)
 
+    def test_o2_entries_present(self):
+        """O2 补录：误归一修复 + D0 复核转 canonical 的词条必须存在。"""
+        data = load_lexicon()
+        names = set(data["entries"])
+        for required in (
+            "金币(中)", "吕岳", "恢复神符", "三星球", "二星球", "一星球",
+            "白赚海盗", "射手姿态", "海盗劫掠者", "力量之源", "元素之力",
+            "利刃", "利刃海盗", "爆炸箭矢", "致残剑气", "杀敌加成", "龙族",
+            "亡灵天灾", "末日使者", "金转木", "木材(中)", "杀敌(小)",
+        ):
+            self.assertIn(required, names)
+        self.assertEqual(data["entries"]["金币(中)"]["kind"], "treasure")
+        self.assertEqual(data["entries"]["吕岳"]["kind"], "bond")
+        self.assertEqual(data["entries"]["二星球"]["set_membership"], "龙珠")
+
     def test_dragon_ball_set_membership(self):
         entries = load_lexicon()["entries"]
         self.assertEqual(entries["四星球"]["set_membership"], "龙珠")
@@ -76,6 +91,20 @@ class NormalizeTests(unittest.TestCase):
     def test_strips_stars(self):
         self.assertEqual(normalize_choice_text("★四星球★"), "四星球")
 
+    def test_strips_plain_new_token(self):
+        """O2-1：无方括号的纯文本 NEW 徽章也要剥离（亮绿角标被 OCR 直接拼进卡名）。"""
+        self.assertEqual(normalize_choice_text("风 NEW"), "风")
+        self.assertEqual(normalize_choice_text("石NEW"), "石")
+        self.assertEqual(normalize_choice_text("NEW 次级箭"), "次级箭")
+        self.assertEqual(normalize_choice_text("W风NEW"), "W风")
+        # 词典名不含 NEW，剥离不误伤
+        self.assertEqual(normalize_choice_text("魔法权杖"), "魔法权杖")
+
+    def test_progress_ratio_preserved_in_normalize(self):
+        """套装进度方括号数字串必须保留（extract_progress 依赖），仅在 lookup 输入侧剥离。"""
+        self.assertEqual(normalize_choice_text("套装[0/7]"), "套装[0/7]")
+        self.assertEqual(normalize_choice_text("厕术(0/2)"), "厕术(0/2)")
+
 
 class LookupExactTests(unittest.TestCase):
     """已知技能精确命中、别名命中。"""
@@ -100,6 +129,31 @@ class LookupExactTests(unittest.TestCase):
         self.assertIsNone(lookup_lexicon("成长", kind="skill").canonical)
         self.assertEqual(lookup_lexicon("四星球", kind="treasure").canonical, "四星球")
         self.assertIsNone(lookup_lexicon("四星球", kind="skill").canonical)
+
+    def test_o2_misnorm_fixes(self):
+        """O2-1：误归一修复 —— 金币(中) 精确命中、吕岳 不再被 三国 覆盖。"""
+        self.assertEqual(lookup_lexicon("金币(中)").canonical, "金币(中)")
+        self.assertEqual(lookup_lexicon("金币（中）").canonical, "金币(中)")
+        self.assertEqual(lookup_lexicon("吕岳", kind="bond").canonical, "吕岳")
+
+    def test_o2_vision_confirmed_aliases(self):
+        """O2-1：视觉复核确认 crop 完整后，金边艺术字 OCR 误读别名。"""
+        self.assertEqual(lookup_lexicon("箭失卉射").canonical, "箭矢齐射")
+        self.assertEqual(lookup_lexicon("世三图", kind="bond").canonical, "乱世三国")
+        self.assertEqual(lookup_lexicon("厕术(0/2)", kind="bond").canonical, "魔术")
+        self.assertEqual(lookup_lexicon("失速发").canonical, "箭矢连发")
+        self.assertEqual(lookup_lexicon("希故多", kind="bond").canonical, "杀敌多多")
+        self.assertEqual(lookup_lexicon("焦点慢破").canonical, "焦点爆破")
+        self.assertEqual(lookup_lexicon("风风").canonical, "飓风")
+        self.assertEqual(lookup_lexicon("体", kind="bond").canonical, "体魄")
+        self.assertEqual(lookup_lexicon("福", kind="bond").canonical, "敏捷祝福")
+        # 二星球 数字前缀丢失：'星球' 别名已撤销（会给 星球 系列截断文本引入竞争候选压低 margin）
+        self.assertIsNone(lookup_lexicon("星球", kind="treasure").canonical)
+
+    def test_traditional_char_equivalence(self):
+        """O2：繁简同形字（金边艺术字常用繁体异体）在 lookup 输入侧等价。"""
+        self.assertEqual(lookup_lexicon("奧能扫射", kind="skill").canonical, "奥能扫射")
+        self.assertEqual(lookup_lexicon("風舞者", kind="bond").canonical, "风舞者")
 
     def test_invalid_kind_raises(self):
         with self.assertRaises(ValueError):
