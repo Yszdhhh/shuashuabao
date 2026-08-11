@@ -3304,7 +3304,7 @@ class Mediator:
                 self._clear_create_room_request()
                 self.set_phase(Phase.STAGE_SELECT, "stage page detected")
                 return LoopAction.Continue
-            if room_start:
+            if room_start and self._create_room_pending_since is None:
                 self._clear_create_room_request()
                 self.set_phase(Phase.ROOM_WAITING, "room already exists")
                 return LoopAction.Continue

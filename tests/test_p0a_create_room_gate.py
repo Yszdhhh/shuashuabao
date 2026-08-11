@@ -75,6 +75,20 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         self.assertTrue(event["post_confirm"])
         self.assertEqual(event["candidate"]["name"], "blue_button_color")
 
+    def test_existing_room_anchor_cannot_bypass_pending_dialog_gate(self):
+        self.med._create_room_pending_since = time.time()
+        self.med._create_room_next_observe_at = time.time() + 4.0
+        p = (
+            patch.object(self.med, "_detect_context", return_value="PLATFORM_MAP"),
+            patch.object(self.med, "_find_room_start", return_value=_hit("kk_start")),
+            patch.object(self.med, "_find_create_confirm", return_value=None),
+            patch.object(self.med, "_find_map_create_room", return_value=None),
+        )
+        with p[0], p[1], p[2], p[3]:
+            self.med._tick_l0(_frame())
+
+        self.assertEqual(self.med.phase, Phase.PLATFORM_MAP)
+
     def test_missing_dialog_fails_closed_after_bounded_budget(self):
         self.med._create_room_pending_since = 100.0
         self.med._create_room_next_observe_at = 104.0
