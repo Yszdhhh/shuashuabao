@@ -298,12 +298,18 @@ class TickReasonWhitelistTests(unittest.TestCase):
 
         slow_ticks = [
             {"elapsed_ms": 1200.0, "reason": "capture_wait"},
-            {"elapsed_ms": 1500.0, "reason": "input_executor_wait"},
+            # N2-REVIEW #2：input_executor_wait 必须有 action_ms>=800 的成功输入
+            {"elapsed_ms": 1500.0, "reason": "input_executor_wait",
+             "actions": [{"intent": "click:x", "action_ms": 812.0}]},
             {"elapsed_ms": 1100.0, "reason": "incident_write"},
             {"elapsed_ms": 1300.0, "reason": "debug_trace_io"},
             {"elapsed_ms": 2000.0, "reason": "external_pause"},
             {"elapsed_ms": 900.0, "reason": None},
             {"elapsed_ms": 1400.0, "reason": None},  # 无法解释
+            # 只写 reason、无 ≥800ms 动作（dry-run/短点击假绿）→ 无法解释
+            {"elapsed_ms": 1600.0, "reason": "input_executor_wait",
+             "actions": [{"intent": "click:x", "action_ms": 12.0}]},
+            {"elapsed_ms": 1700.0, "reason": "input_executor_wait", "actions": []},
         ]
         buckets: dict[str, int] = {}
         unexplained = 0
@@ -312,8 +318,10 @@ class TickReasonWhitelistTests(unittest.TestCase):
             if verdict == "unexplained":
                 unexplained += 1
             buckets[verdict] = buckets.get(verdict, 0) + 1
-        self.assertEqual(unexplained, 1)
+        self.assertEqual(unexplained, 3, "只写 reason 的 input_executor_wait 必须按无法解释处理")
         self.assertEqual(buckets.get("ok"), 1)
+        self.assertEqual(buckets.get("input_executor_wait"), 1, "有 ≥800ms 动作才白名单")
+        self.assertEqual(buckets.get("capture_wait"), 1)
 
 
 class _StageSource:
@@ -330,6 +338,168 @@ class _StageSource:
 
     def capture_best(self, *a, **k) -> Frame:
         return self._frame
+
+
+class ReviewFixTests(unittest.TestCase):
+    """N2-REVIEW 六项修复的回归测试（随 N2.4 交付）。"""
+
+    def setUp(self):
+        self.med = Mediator(Settings(), ROOT)
+
+    # #3 dry-run 成功输入也走输入序列授权（LIVE/OBSERVE 语义等价）
+    def test_dry_run_successful_input_advances_input_seq_and_blocks_second_action(self):
+        from gamescript.vision.matcher import MatchResult
+
+        f = _load("fixtures/replay/skill_choice_3.png")
+        self.med._last_frame = f
+        self.med.set_phase(Phase.MAIN_LINE, "evidence test")
+        self.med.settings.dry_run = True
+        self.med._detect_context(f)
+        anchor = self.med._selection_anchor(f)
+        self.assertIsNotNone(anchor)
+        ev = self.med._evidence
+        gen_before = ev.gen
+        self.med._tick_evidence = ev
+        self.med._tick_gen = ev.gen
+        self.med._tick_input_seq = self.med._input_seq
+        with patch.object(self.med.executor, "click", return_value=ActionResult(success=True, status="DRY_RUN")):
+            ok = self.med.act_click(anchor, "dry-run-test")
+            self.assertTrue(ok)
+        self.assertEqual(ev.gen, gen_before, "dry-run 不推进 evidence gen（保留 exact-static 性能复用）")
+        self.assertGreater(self.med._input_seq, 0, "dry-run 成功输入必须推进输入序列")
+        with patch.object(self.med.executor, "click", return_value=ActionResult(success=True, status="DRY_RUN")) as c2:
+            ok2 = self.med.act_click(anchor, "duplicate")
+            self.assertFalse(ok2, "同 tick 第二次动作必须被输入序列门禁拒绝（dry-run 亦同）")
+            c2.assert_not_called()
+
+    # #2 input_executor_wait 只给真实 ≥800ms 输入
+    def test_finish_input_reason_only_for_real_slow_action(self):
+        res_ok = ActionResult(success=True, status="DRY_RUN")
+        self.med.settings.dry_run = True
+        self.med._tick_reason = None
+        self.med._finish_input(res_ok, "x", action_ms=900.0)
+        self.assertIsNone(self.med._tick_reason, "dry-run 点击不得标 input_executor_wait")
+        self.med.settings.dry_run = False
+        self.med._tick_reason = None
+        self.med._finish_input(res_ok, "y", action_ms=50.0)
+        self.assertIsNone(self.med._tick_reason, "真实短点击不得标 input_executor_wait")
+        self.med._tick_reason = None
+        self.med._finish_input(res_ok, "z", action_ms=812.0)
+        self.assertEqual(self.med._tick_reason, "input_executor_wait", "真实 ≥800ms 输入才白名单")
+
+    # #5 loading cadence 不被 loop_sleep_ms 上限压缩
+    def test_loading_cadence_not_compressed_by_loop_sleep_ms(self):
+        med = Mediator(Settings(), ROOT)
+        frame = _noise_frame()
+        med._capture_best = lambda *a, **k: frame
+        med.set_phase(Phase.ROOM_STARTING, "loading")
+        med._context_cache_value = "MAIN_LINE"  # loading 档判定不依赖 UNKNOWN 快捷档
+        mono_ticks = iter([100.0, 100.02, 200.0, 200.01])
+        sleeps: list[float] = []
+
+        class _NoopListener:
+            def __init__(self, *a, **k):
+                pass
+
+            def start(self):
+                pass
+
+            def stop(self):
+                pass
+
+        with patch("gamescript.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
+             patch("gamescript.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
+             patch("gamescript.mediator.EmergencyStopListener", _NoopListener), \
+             patch.object(med, "set_phase", lambda phase, note="": None), \
+             patch.object(med, "_detect_context", return_value="MAIN_LINE"), \
+             patch.object(med, "stop") as stop:
+            med.run(max_steps=2)
+            stop.assert_not_called()
+        self.assertEqual(len(sleeps), 1)
+        # loading 档 cadence 500ms - tick 20ms = 480ms（不被 loop_sleep_ms=400 压缩成 380ms）
+        self.assertAlmostEqual(sleeps[0], 0.48, places=6)
+
+    # #4 HERO_SETUP 也建立 evidence（hero 点击链受 generation 门禁）
+    def test_hero_setup_establishes_evidence_for_generation_gating(self):
+        med = Mediator(Settings(), ROOT)
+        f = _noise_frame()
+        med._capture_best = lambda *a, **k: f
+        med.set_phase(Phase.HERO_SETUP, "hero test")
+        med.see("hero-evidence-test")
+        ev = med._evidence
+        self.assertIsNotNone(ev, "HERO_SETUP 帧必须建立 evidence（N2-REVIEW #4）")
+        self.assertIs(ev.frame_ref, f)
+        self.assertEqual(med._context_cache_value, "UNKNOWN", "context 覆盖语义保持不变")
+
+    # #1 sticky 快路径：像素有效但无廉价信号 → 连续 2 帧后候选枚举
+    def test_capture_best_sticky_valid_but_no_signal_reenumerates(self):
+        med = Mediator(Settings(), ROOT)
+        med._last_capture_role = "l1"
+        med._last_frame = _noise_frame(hwnd=101)
+        targets = [
+            WindowTarget(hwnd=101, title="游戏A", left=0, top=0, width=1600, height=900, role="l1"),
+            WindowTarget(hwnd=202, title="游戏B", left=0, top=0, width=1600, height=900, role="l1"),
+        ]
+        frames = {101: _noise_frame(hwnd=101), 202: _noise_frame(hwnd=202)}
+
+        def fake_capture(t: WindowTarget) -> Frame:
+            return frames[t.hwnd]
+
+        with patch("gamescript.mediator.find_window_targets", return_value=targets), \
+             patch("gamescript.mediator.capture_target", side_effect=fake_capture) as ct, \
+             patch.object(med, "_sticky_frame_signal", return_value=False):
+            f1 = med._capture_best("英雄三国KK", "l1")
+            self.assertEqual(ct.call_count, 1, "第 1 帧无信号仍返回上次 hwnd（容忍 1 帧）")
+            self.assertIs(f1, frames[101])
+            med._capture_best("英雄三国KK", "l1")
+            self.assertGreaterEqual(ct.call_count, 4, "第 2 帧连续无信号必须候选枚举（上次 hwnd + 全部候选）")
+
+    # #1 反向：像素有效且有信号 → 一直 sticky（不重排）
+    def test_capture_best_sticky_with_signal_keeps_last_hwnd(self):
+        med = Mediator(Settings(), ROOT)
+        med._last_capture_role = "l1"
+        med._last_frame = _noise_frame(hwnd=101)
+        targets = [
+            WindowTarget(hwnd=101, title="游戏A", left=0, top=0, width=1600, height=900, role="l1"),
+            WindowTarget(hwnd=202, title="游戏B", left=0, top=0, width=1600, height=900, role="l1"),
+        ]
+        frames = {101: _noise_frame(hwnd=101), 202: _noise_frame(hwnd=202)}
+
+        def fake_capture(t: WindowTarget) -> Frame:
+            return frames[t.hwnd]
+
+        with patch("gamescript.mediator.find_window_targets", return_value=targets), \
+             patch("gamescript.mediator.capture_target", side_effect=fake_capture) as ct, \
+             patch.object(med, "_sticky_frame_signal", return_value=True):
+            for _ in range(3):
+                f = med._capture_best("英雄三国KK", "l1")
+                self.assertIs(f, frames[101], "有信号时必须持续 sticky 上次健康 hwnd")
+            self.assertEqual(ct.call_count, 3, "有信号时不枚举候选")
+
+    # #6 refresh/give_up 宽尺度回退受 _scaled_up_frame 门禁
+    def test_reward_choice_wide_fallback_gated_by_scaled_up_frame(self):
+        from gamescript.vision.matcher import MatchResult
+
+        f = _load("fixtures/replay/skill_choice_3.png")
+        self.med._last_frame = f
+        self.med.phase = Phase.MAIN_LINE
+        anchor = MatchResult("skill_giveup_btn", 0.9, 100, 100, 50, 50, 200, 200)
+        calls: list[tuple[list, tuple]] = []
+
+        def fake_find(frame, names, **kw):
+            calls.append((list(names), kw.get("scales")))
+            return None
+
+        with patch.object(self.med, "_selection_anchor", return_value=anchor), \
+             patch.object(self.med, "_classify_choice_panel", return_value="skill"), \
+             patch.object(self.med, "_match_all_preferred", return_value=[]), \
+             patch.object(self.med, "find", side_effect=fake_find), \
+             patch.object(self.med, "_scaled_up_frame", return_value=False):
+            result = self.med._find_reward_choice(f, anchor=anchor)
+        self.assertIsNone(result)
+        for names, scales in calls:
+            if names == ["skill_refresh_btn"] or names == ["skill_giveup_btn", "giveUp"]:
+                self.assertEqual(scales, (1.0,), "基准窗口不得触发宽尺度回退（N2-REVIEW #6）")
 
 
 if __name__ == "__main__":

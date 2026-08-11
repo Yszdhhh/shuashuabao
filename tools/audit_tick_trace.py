@@ -27,14 +27,25 @@ WHITELIST = {"capture_wait", "input_executor_wait", "incident_write", "debug_tra
 
 
 def classify_tick(row: dict) -> str:
-    """返回 'ok'（<=1000ms）/ 'unexplained' / 白名单 reason 名。"""
+    """返回 'ok'（<=1000ms）/ 'unexplained' / 白名单 reason 名。
+
+    N2-REVIEW #2：input_executor_wait 仅当本 tick 存在 action_ms>=800 的
+    成功输入才认可——仅写 reason 字符串（如 dry-run/短点击）按无法解释处理。
+    """
     elapsed = float(row.get("elapsed_ms") or 0.0)
     if elapsed <= 1000.0:
         return "ok"
     reason = row.get("reason")
-    if isinstance(reason, str) and reason in WHITELIST:
-        return reason
-    return "unexplained"
+    if not (isinstance(reason, str) and reason in WHITELIST):
+        return "unexplained"
+    if reason == "input_executor_wait":
+        actions = row.get("actions")
+        if not (isinstance(actions, list) and any(
+            isinstance(a, dict) and float(a.get("action_ms") or 0.0) >= 800.0
+            for a in actions
+        )):
+            return "unexplained"
+    return reason
 
 
 def audit(path: Path) -> dict:

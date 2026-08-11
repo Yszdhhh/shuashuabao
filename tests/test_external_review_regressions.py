@@ -250,7 +250,13 @@ class ExternalReviewRegressionTests(unittest.TestCase):
             action = med._tick_main_line(frame)
         self.assertIs(action, LoopAction.Continue)
         panels.assert_called_once()
-        find.assert_not_called()
+        # N2.4：_is_in_game_hud 会先调用 find（环境锚点 ROI 检查）；契约是
+        # 「选择快捷键先于重复进化按钮」——进化按钮（click_evolve）不得被扫描。
+        evolve_calls = [
+            c for c in find.call_args_list
+            if c.args and isinstance(c.args[1], list) and "click_evolve" in c.args[1]
+        ]
+        self.assertEqual(evolve_calls, [], "选择快捷键存在时不得扫描进化按钮")
 
     def test_compact_skill_panel_respects_configured_priority(self) -> None:
         med = Mediator(Settings(skills=["asj", "asjg", "jq"]), ROOT)

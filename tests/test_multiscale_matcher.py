@@ -207,5 +207,98 @@ class EarlyStopTests(unittest.TestCase):
         self.assertEqual(key2, "alpha", "scene 专属 ROI 必须生效")
 
 
+class N24GrayTests(unittest.TestCase):
+    """N2.4：灰度候选 + 局部彩色复核 + hue 彩色路径 + 模板灰度缓存。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.images = _IMAGES
+
+    def setUp(self):
+        matcher_mod.clear_template_cache()
+
+    def _paste(self, frame, name, x, y):
+        tpl = _load_template(self.images / f"{name}.png")
+        frame[y : y + tpl.shape[0], x : x + tpl.shape[1]] = tpl
+
+    def test_gray_first_returns_color_verified_hit(self):
+        """形状/文字类模板：灰度候选命中且局部彩色复核通过 → 返回彩色分数命中。"""
+        tpl = _load_template(self.images / "startGameBtn.png")
+        frame = np.zeros((max(320, tpl.shape[0] + 80), max(480, tpl.shape[1] + 120), 3), dtype=np.uint8)
+        x, y = 60, 40
+        frame[y : y + tpl.shape[0], x : x + tpl.shape[1]] = tpl
+        fr = Frame(frame)
+        hit = match_one(fr, self.images / "startGameBtn.png", threshold=0.85, name="startGameBtn")
+        self.assertIsNotNone(hit, "灰度候选 + 彩色复核必须命中真实粘贴的模板")
+        self.assertGreaterEqual(hit.score, 0.85, "返回的分数是彩色复核分数（原彩色刻度）")
+        self.assertLessEqual(abs(hit.x - x), 1)
+        self.assertLessEqual(abs(hit.y - y), 1)
+
+    def test_gray_hit_rejected_by_color_recheck_is_miss(self):
+        """灰度峰通过但局部彩色复核不过 → 视为假阳性，不产出结果。"""
+        tpl = _load_template(self.images / "startGameBtn.png")
+        frame = np.zeros((max(320, tpl.shape[0] + 80), max(480, tpl.shape[1] + 120), 3), dtype=np.uint8)
+        x, y = 60, 40
+        frame[y : y + tpl.shape[0], x : x + tpl.shape[1]] = tpl
+        fr = Frame(frame)
+        with patch.object(matcher_mod, "_color_verify", return_value=(False, 0.1)) as cv:
+            hit = match_one(fr, self.images / "startGameBtn.png", threshold=0.85, name="startGameBtn")
+        cv.assert_called()
+        self.assertIsNone(hit, "彩色复核否决的灰度命中必须作为 miss（假阳性过滤）")
+
+    def test_hue_templates_stay_on_color_path(self):
+        """龙珠卡蓝框等 hue 模板保持彩色：matchTemplate 的输入必须是 3 通道 BGR。"""
+        seen: list[int] = []
+        orig_match = matcher_mod.cv2.matchTemplate
+
+        def spy(image, templ, method, *a, **k):
+            seen.append(image.ndim)
+            return orig_match(image, templ, method, *a, **k)
+
+        tpl = _load_template(self.images / "longzhu.png")
+        frame = np.zeros((max(320, tpl.shape[0] + 80), max(480, tpl.shape[1] + 120), 3), dtype=np.uint8)
+        frame[40 : 40 + tpl.shape[0], 60 : 60 + tpl.shape[1]] = tpl
+        fr = Frame(frame)
+        with patch.object(matcher_mod.cv2, "matchTemplate", side_effect=spy):
+            hit = match_one(fr, self.images / "longzhu.png", threshold=0.85, name="longzhu")
+        self.assertTrue(all(nd == 3 for nd in seen), "hue 模板必须走彩色路径")
+        self.assertIsNotNone(hit, "龙珠卡在彩色路径下必须命中")
+
+    def test_gray_template_converted_once_per_path(self):
+        """灰度模板在加载时一次转换并缓存（同路径不重复 cvtColor）。"""
+        tpl = _load_template(self.images / "startGameBtn.png")
+        frame = np.zeros((max(320, tpl.shape[0] + 80), max(480, tpl.shape[1] + 120), 3), dtype=np.uint8)
+        frame[40 : 40 + tpl.shape[0], 60 : 60 + tpl.shape[1]] = tpl
+        fr = Frame(frame)
+        path = self.images / "startGameBtn.png"
+        orig_cvt = matcher_mod.cv2.cvtColor
+
+        def spy(src, *a, **k):
+            if a and a[0] == getattr(matcher_mod.cv2, "COLOR_BGR2GRAY"):
+                gray_calls.append(src.shape)
+            return orig_cvt(src, *a, **k)
+
+        gray_calls: list = []
+        with patch.object(matcher_mod.cv2, "cvtColor", side_effect=spy):
+            match_one(fr, path, threshold=0.85, name="a", scales=(1.0,))
+            match_one(fr, path, threshold=0.85, name="b", scales=(1.0,))
+        tpl_gray = [s for s in gray_calls if s == (tpl.shape[0], tpl.shape[1], 3)]
+        self.assertEqual(tpl_gray, [(tpl.shape[0], tpl.shape[1], 3)], "模板灰度必须只转换一次")
+
+    def test_content_dedup_skips_identical_template_files(self):
+        """同图多名（字节相同）只扫描一次：kk_start/lobby/room_start 内容相同。"""
+        tpl = _load_template(self.images / "kk_start.png")
+        frame = np.zeros((max(320, tpl.shape[0] + 80), max(480, tpl.shape[1] + 120), 3), dtype=np.uint8)
+        frame[40 : 40 + tpl.shape[0], 60 : 60 + tpl.shape[1]] = tpl
+        fr = Frame(frame)
+        names = ["kk_start", "lobby/room_start", "lobby/room_start_alt", "lobby/startGameBtn"]
+        orig_match = matcher_mod.cv2.matchTemplate
+        calls = []
+        with patch.object(matcher_mod.cv2, "matchTemplate", side_effect=lambda *a, **k: (calls.append(1), orig_match(*a, **k))[1]):
+            res = match_any_with_margin(fr, self.images, names, threshold=0.85, scales=(1.0,), early_stop=True)
+        self.assertEqual(len(calls), 1, "字节相同的 4 个名字必须去重为 1 次扫描")
+        self.assertIsNotNone(res.best)
+
+
 if __name__ == "__main__":
     unittest.main()

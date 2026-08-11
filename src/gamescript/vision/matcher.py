@@ -30,7 +30,29 @@ class MatchResult:
 _TEMPLATE_CACHE: dict[Path, np.ndarray | None] = {}
 _RESOLVE_CACHE: dict[tuple[Path, str], Path | None] = {}
 _SCALE_CACHE: dict[tuple[Path, float], np.ndarray | None] = {}
+_CONTENT_HASH_CACHE: dict[Path, str] = {}
+# N2.4：灰度模板缓存——模板灰度在加载时一次转换（复用彩色加载），
+# 尺度化灰度也缓存，与彩色路径完全对称。
+_TEMPLATE_GRAY_CACHE: dict[Path, np.ndarray | None] = {}
+_SCALE_GRAY_CACHE: dict[tuple[Path, float], np.ndarray | None] = {}
 CACHED_SCALES: tuple[float, ...] = (0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2)
+
+# N2.4：灰度候选阈值相对彩色阈值的偏移（离线重标，见
+# docs/baselines/n2_runs/N2_4_THRESHOLD_RECAL_20260811.md）。灰度分数与彩色分数在
+# 同一模板/帧上实测差异中位数 0.000、p90 0.017、最大 0.058（全部在 0.05 内），
+# 取 0.05 保守偏移保证召回；精度由命中后的局部彩色复核（原彩色阈值）兜底。
+GRAY_THRESHOLD_OFFSET = 0.05
+
+# N2.4：hue 相关模板保持彩色路径（蓝框/品质色语义依赖色相，灰度会丢失判别力）。
+# longzhu/longzhu2 是龙珠卡（蓝框为色相判别依据）→ 彩色；closeLongzhu 是关闭
+# 按钮（形状/文字）→ 灰度路径。
+_COLOR_ONLY_TEMPLATE_STEMS = frozenset({
+    # 龙珠卡蓝框
+    "longzhu", "longzhu2",
+    # 品质/稀有度色
+    "r", "sr", "ssr", "ur", "ex", "hc",
+    "pinfu", "pingfu1", "pingfu2", "pingfu3", "pingfu4", "pingfu6",
+})
 
 
 @dataclass(frozen=True)
@@ -74,6 +96,27 @@ def clear_template_cache() -> None:
     _TEMPLATE_CACHE.clear()
     _RESOLVE_CACHE.clear()
     _SCALE_CACHE.clear()
+    _TEMPLATE_GRAY_CACHE.clear()
+    _SCALE_GRAY_CACHE.clear()
+    _CONTENT_HASH_CACHE.clear()
+
+
+def _template_content_hash(path: Path) -> str | None:
+    """模板文件字节 MD5（缓存）。同图多名的场景（kk_start/room_start/… 字节相同）
+    按内容去重，避免同一图像按 N 个名字重复全帧扫描。"""
+    cached = _CONTENT_HASH_CACHE.get(path)
+    if cached is not None:
+        return cached
+    try:
+        data = np.fromfile(str(path), dtype=np.uint8)
+        if data.size == 0:
+            return None
+        import hashlib
+        digest = hashlib.md5(data.tobytes()).hexdigest()
+        _CONTENT_HASH_CACHE[path] = digest
+        return digest
+    except Exception:
+        return None
 
 
 def _load_template(path: Path) -> np.ndarray | None:
@@ -117,6 +160,85 @@ def _scale_template(path: Path, scale: float) -> np.ndarray | None:
     return candidate
 
 
+def _load_template_gray(path: Path) -> np.ndarray | None:
+    """灰度模板：加载时一次转换并缓存（复用彩色加载，避免二次解码）。"""
+    cached = _TEMPLATE_GRAY_CACHE.get(path)
+    if cached is not None or path in _TEMPLATE_GRAY_CACHE:
+        return cached
+    tmpl = _load_template(path)
+    if tmpl is None:
+        _TEMPLATE_GRAY_CACHE[path] = None
+        return None
+    gray = cv2.cvtColor(tmpl, cv2.COLOR_BGR2GRAY)
+    _TEMPLATE_GRAY_CACHE[path] = gray
+    return gray
+
+
+def _scale_template_gray(path: Path, scale: float) -> np.ndarray | None:
+    """尺度化灰度模板（缓存；与 _scale_template 对称）。"""
+    key = (path, scale)
+    cached = _SCALE_GRAY_CACHE.get(key)
+    if cached is not None or key in _SCALE_GRAY_CACHE:
+        return cached
+    tgray = _load_template_gray(path)
+    if tgray is None:
+        _SCALE_GRAY_CACHE[key] = None
+        return None
+    if scale == 1.0:
+        _SCALE_GRAY_CACHE[key] = tgray
+        return tgray
+    candidate = cv2.resize(
+        tgray,
+        None,
+        fx=scale,
+        fy=scale,
+        interpolation=cv2.INTER_CUBIC if scale > 1.0 else cv2.INTER_AREA,
+    )
+    _SCALE_GRAY_CACHE[key] = candidate
+    return candidate
+
+
+def _color_verify(frame_bgr: np.ndarray, color_tpl: np.ndarray, x: int, y: int, threshold: float) -> tuple[bool, float]:
+    """命中后的局部彩色复核：在灰度候选位置 ±1px 邻域用彩色 NCC 验证。
+
+    - 与 cv2.TM_CCOEFF_NORMED 同式（减均值归一化互相关），但只用 numpy 在
+      候选局部计算，不产生新的 matchTemplate 调用（benchmark match_calls 与
+      灰度扫描保持 1:1，见 N2.4 验收「选择 tick matchTemplate ≤20 不倒退」）。
+    - 先试精确位置（绝大多数真命中在此通过），失败再试 3×3 邻域。
+    - 返回 (是否通过原彩色阈值, 彩色分数)。分数即后续阈值/margin/比较使用的
+      权威分数，保证灰度引入后所有阈值语义仍处于彩色刻度。
+    """
+    th, tw = color_tpl.shape[:2]
+    fh, fw = frame_bgr.shape[:2]
+    tflat = color_tpl.astype(np.float32).reshape(-1)
+    tmean = tflat.mean()
+    tdev = tflat - tmean
+    tnorm = float(np.sqrt(float((tdev * tdev).sum())))
+
+    def score_at(dx: int, dy: int) -> float:
+        x0, y0 = x + dx, y + dy
+        if x0 < 0 or y0 < 0 or x0 + tw > fw or y0 + th > fh:
+            return -1.0
+        crop = frame_bgr[y0 : y0 + th, x0 : x0 + tw].astype(np.float32).reshape(-1)
+        cdev = crop - crop.mean()
+        denom = tnorm * float(np.sqrt(float((cdev * cdev).sum())))
+        if denom <= 0.0:
+            return -1.0
+        return float((tdev * cdev).sum()) / denom
+
+    best = score_at(0, 0)
+    if best >= threshold:
+        return True, best
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            if dx == 0 and dy == 0:
+                continue
+            s = score_at(dx, dy)
+            if s > best:
+                best = s
+    return best >= threshold, best
+
+
 def resolve_template(images_dir: Path, name: str) -> Path | None:
     """name 可为 startGameBtn / startGameBtn.png / skills/jq.png。"""
     key = (images_dir, name)
@@ -146,6 +268,38 @@ def resolve_template(images_dir: Path, name: str) -> Path | None:
     return None
 
 
+def _gray_peak_verified(
+    frame: Frame,
+    result: np.ndarray,
+    gray_tpl: np.ndarray,
+    color_tpl: np.ndarray,
+    threshold: float,
+    gray_th: float,
+) -> tuple[int, int, float] | None:
+    """在单尺度灰度匹配结果上找首个通过『灰度阈值 + 局部彩色复核』的峰。
+
+    命中即返回 (x, y, 彩色分数)；被复核否决的峰整块排除后继续找次峰
+    （防灰度假峰压过真峰）。最多试 3 个峰。
+    """
+    th, tw = gray_tpl.shape[:2]
+    res = result
+    for _ in range(3):
+        _, max_val, _, max_loc = cv2.minMaxLoc(res)
+        if float(max_val) < gray_th:
+            return None
+        x, y = int(max_loc[0]), int(max_loc[1])
+        ok, cscore = _color_verify(frame.bgr, color_tpl, x, y, threshold)
+        if ok:
+            return x, y, cscore
+        # 否决该峰（连同其邻域，避免同一个假峰反复命中）
+        x0 = max(0, x - tw)
+        y0 = max(0, y - th)
+        x1 = min(res.shape[1], x + tw)
+        y1 = min(res.shape[0], y + th)
+        res[y0:y1, x0:x1] = -2.0
+    return None
+
+
 def match_one(
     frame: Frame,
     template_path: Path,
@@ -160,39 +314,51 @@ def match_one(
     ``early_stop_scale=True``：按尺度顺序在第一个达到 threshold 的 scale 返回；
     否则保留既有“全 scales 取最高分”语义。热路径只试主尺度与一个邻域时使用
     早停模式，宽尺度（5-8 档）保持全扫描。
+
+    N2.4：形状/文字类模板先灰度候选（灰度阈值 = 彩色阈值 - 0.05，离线重标），
+    命中后在候选局部用彩色复核（原彩色阈值）；hue 相关模板（龙珠蓝框/品质色）
+    保持纯彩色路径。灰度命中但彩色复核不过 = 假阳性，不产出结果。
     """
     tmpl = _load_template(template_path)
     if tmpl is None:
         return None
+    gray_mode = Path(template_path).stem not in _COLOR_ONLY_TEMPLATE_STEMS
+    gframe = frame.gray() if gray_mode else None
+    if gray_mode and gframe is None:
+        gray_mode = False  # 无灰度帧（异常帧）→ 回退彩色语义
     fh, fw = frame.bgr.shape[:2]
+    gray_th = max(0.40, threshold - GRAY_THRESHOLD_OFFSET)
     best: MatchResult | None = None
     for scale in scales:
-        candidate = _scale_template(template_path, scale)
+        if gray_mode:
+            candidate = _scale_template_gray(template_path, scale)
+        else:
+            candidate = _scale_template(template_path, scale)
         if candidate is None:
             continue
         th, tw = candidate.shape[:2]
         if th > fh or tw > fw or th < 4 or tw < 4:
             continue
-        result = cv2.matchTemplate(frame.bgr, candidate, cv2.TM_CCOEFF_NORMED)
+        src = gframe if gray_mode else frame.bgr
+        result = cv2.matchTemplate(src, candidate, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
-        if early_stop_scale and max_val >= threshold:
-            x, y = max_loc
-            return MatchResult(
-                name=name or template_path.stem,
-                score=float(max_val),
-                x=x,
-                y=y,
-                w=tw,
-                h=th,
-                screen_x=frame.left + x + tw // 2,
-                screen_y=frame.top + y + th // 2,
+        if gray_mode:
+            hit = _gray_peak_verified(
+                frame, result, candidate, _scale_template(template_path, scale), threshold, gray_th
             )
-        if max_val < threshold or (best is not None and max_val <= best.score):
+            if hit is None:
+                continue
+            x, y, score = hit
+        else:
+            if float(max_val) < threshold:
+                continue
+            x, y = max_loc
+            score = float(max_val)
+        if best is not None and score <= best.score:
             continue
-        x, y = max_loc
         best = MatchResult(
             name=name or template_path.stem,
-            score=float(max_val),
+            score=score,
             x=x,
             y=y,
             w=tw,
@@ -200,6 +366,8 @@ def match_one(
             screen_x=frame.left + x + tw // 2,
             screen_y=frame.top + y + th // 2,
         )
+        if early_stop_scale:
+            return best
     return best
 
 def find_blue_buttons(
@@ -411,10 +579,17 @@ def match_any_with_margin(
         target, _x1, _y1 = _crop_for_roi(frame, roi)
 
     if early_stop:
+        scanned: set[Path] = set()
+        seen_content: set[str] = set()
         for n in names:
             path = resolve_template(images_dir, n)
-            if not path:
+            if not path or path in scanned:
                 continue
+            scanned.add(path)
+            digest = _template_content_hash(path)
+            if digest is None or digest in seen_content:
+                continue  # 与已扫描模板字节相同（同图多名）→ 跳过重复扫描
+            seen_content.add(digest)
             hit = match_one(target, path, threshold=threshold, name=path.stem, scales=scales, early_stop_scale=True)
             if hit:
                 # 局部比较：未扫描的候选不能充当 second_best / 全局 margin
@@ -422,10 +597,17 @@ def match_any_with_margin(
         return MatchMarginResult(best=None, second_best=None, margin=0.0, compared_all=False)
 
     results: list[MatchResult] = []
+    scanned = set()
+    seen_content = set()
     for n in names:
         path = resolve_template(images_dir, n)
-        if not path:
+        if not path or path in scanned:
             continue
+        scanned.add(path)
+        digest = _template_content_hash(path)
+        if digest is None or digest in seen_content:
+            continue
+        seen_content.add(digest)
         hit = match_one(target, path, threshold=threshold, name=path.stem, scales=scales)
         if hit:
             results.append(hit)
@@ -478,35 +660,57 @@ def match_all(
         )
 
     candidates: list[MatchResult] = []
+    seen_paths: set[Path] = set()
+    seen_content: set[str] = set()
     for name in names:
         path = resolve_template(images_dir, name)
-        if not path:
+        if not path or path in seen_paths:
             continue
+        seen_paths.add(path)
+        digest = _template_content_hash(path)
+        if digest is None or digest in seen_content:
+            continue  # 同图多名 → 跳过重复扫描
+        seen_content.add(digest)
         tmpl = _load_template(path)
         if tmpl is None:
             continue
+        gray_mode = path.stem not in _COLOR_ONLY_TEMPLATE_STEMS
+        gframe = target.gray() if gray_mode else None
+        if gray_mode and gframe is None:
+            gray_mode = False
         fh, fw = target.bgr.shape[:2]
+        gray_th = max(0.40, threshold - GRAY_THRESHOLD_OFFSET)
         for scale in scales:
-            candidate = _scale_template(path, scale)
+            if gray_mode:
+                candidate = _scale_template_gray(path, scale)
+            else:
+                candidate = _scale_template(path, scale)
             if candidate is None:
                 continue
             th, tw = candidate.shape[:2]
             if th > fh or tw > fw or th < 4 or tw < 4:
                 continue
-            result = cv2.matchTemplate(target.bgr, candidate, cv2.TM_CCOEFF_NORMED)
+            src = gframe if gray_mode else target.bgr
+            result = cv2.matchTemplate(src, candidate, cv2.TM_CCOEFF_NORMED)
             # 局部非极大抑制：只收集每个局部峰（膨胀后相等处），
             # 避免低阈值+重复纹理时把成千上万个过阈值像素转成 Python 对象
             if result.size > 0:
                 kernel = np.ones((3, 3), np.uint8)
                 local_max = cv2.dilate(result, kernel)
-                peaks = (result == local_max) & (result >= threshold)
+                peaks = (result == local_max) & (result >= gray_th if gray_mode else result >= threshold)
                 ys, xs = np.where(peaks)
             else:
                 ys, xs = np.array([], dtype=int), np.array([], dtype=int)
             for y, x in zip(ys.tolist(), xs.tolist()):
+                score = float(result[y, x])
+                if gray_mode:
+                    ok, cscore = _color_verify(target.bgr, _scale_template(path, scale), x, y, threshold)
+                    if not ok:
+                        continue  # 灰度峰彩色复核不过 → 假阳性，丢弃
+                    score = cscore
                 candidates.append(MatchResult(
                     name=path.stem,
-                    score=float(result[y, x]),
+                    score=score,
                     x=x + (target.left - frame.left),
                     y=y + (target.top - frame.top),
                     w=tw,

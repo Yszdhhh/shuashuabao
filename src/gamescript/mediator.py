@@ -194,6 +194,11 @@ class Mediator:
         self._evidence: FrameEvidence | None = None
         self._tick_evidence: FrameEvidence | None = None
         self._tick_gen: int | None = None
+        # N2-REVIEW #3：独立输入序列号——每次成功输入（含 dry-run 观测）递增，
+        # 用于动作授权（本 tick 至多一个输入、缓存命中不延续旧帧授权）；
+        # 与 evidence.gen/缓存解耦：dry-run 不丢性能复用（benchmark exact-static）。
+        self._input_seq = 0
+        self._tick_input_seq: int | None = None
         # trace/incident 兼容镜像：_detect_context 每次计算后同步（evidence.context 是权威值）
         self._context_cache_value = "UNKNOWN"
         # 多窗口捕获：上次健康 hwnd 优先；连续 N=2 不健康/失配才枚举候选
@@ -302,15 +307,26 @@ class Mediator:
 
         N2.2：结果按证据 memo；环境锚点（HUD 常驻元素）优先命中即止，
         再查技能/卡牌面板场景，最后挑战开关——布尔 OR 语义与旧顺序等价。
+        N2.4：env_anchor 按实测位置拆分 ROI（zidong 左下 / shortKey 右上，
+        mainIdentifier 位置未知保留全帧），技能/卡牌/挑战场景套场景级 ROI。
         """
         def compute() -> bool:
             if self._selection_anchor(frame):
                 return True
-            for sc in ("env_anchor", "skill_panel", "card_panel"):
+            th = self.settings.match_threshold
+            if self.find(frame, ["zidong"], threshold=th, scales=self._hot_scales(), roi=self._ENV_ZIDONG_ROI):
+                return True
+            if self.find(frame, ["shortKey"], threshold=th, scales=self._hot_scales(), roi=self._ENV_SHORTKEY_ROI):
+                return True
+            if self.find(frame, ["mainIdentifier"], threshold=th, scales=self._hot_scales()):
+                return True
+            for sc in ("skill_panel", "card_panel"):
                 if self.find_scene(frame, sc):
                     return True
             for sc in ("coin_challenge", "wood_challenge", "experience_challenge", "treasure_challenge"):
-                if self.find_scene(frame, sc):
+                # N2.4：与 _ensure_challenge_buttons 统一阈值（min(0.68, …)），
+                # 同证据同 key → 面板处理直接复用本扫描，不再每 tick 双扫。
+                if self.find_scene(frame, sc, threshold=min(0.68, self.settings.match_threshold)):
                     return True
             return False
 
@@ -366,11 +382,35 @@ class Mediator:
             "IN_GAME": 60,
         }.get(context, 0)
 
+    def _sticky_frame_signal(self, frame: Frame, role: str) -> bool:
+        """上次健康 hwnd 的廉价锚点校验（N2-REVIEW #1）。
+
+        多窗口时「能抓到像素」不足以证明仍是目标局内窗：旧 hwnd 可能被
+        最小化/遮挡/切到非目标页，仍返回有效帧。sticky 快路径必须看到
+        廉价场景信号（选择锚点 / HUD 元素 / 房间页）才继续；异常时保守
+        沿用旧 hwnd（与旧行为一致）。
+        """
+        try:
+            if self._selection_anchor(frame):
+                return True
+            if role == "l1":
+                th = self.settings.match_threshold
+                return bool(
+                    self.find(frame, ["zidong"], threshold=th, scales=(1.0,), roi=self._ENV_ZIDONG_ROI)
+                    or self.find(frame, ["shortKey"], threshold=th, scales=(1.0,), roi=self._ENV_SHORTKEY_ROI)
+                    or self.find_scene(frame, "skill_panel")
+                )
+            return bool(self.find_scene(frame, "room_start") or self.find_scene(frame, "map_create_room"))
+        except Exception:
+            return True
+
     def _capture_best(self, title: str, role: str) -> Frame:
         """Capture all matching windows without focusing, then use scene pixels.
 
-        N2.2：上次健康 hwnd 优先抓取；仅连续 N=2 不健康/失配后才枚举候选。
+        N2.2：上次健康 hwnd 优先抓取；仅连续 N=2 不健康/失配后枚举候选。
         候选枚举先用廉价固定锚点筛出最高分，再对最高分做完整 context 分类。
+        N2-REVIEW #1：sticky 快路径在像素有效之外增加廉价锚点校验，
+        有效但无信号（非目标局内窗）计入失配，连续 2 帧后候选重排。
         """
         targets = find_window_targets(title, role=role)
         self._capture_candidates = len(targets)
@@ -383,13 +423,15 @@ class Mediator:
             prev_target = next((t for t in targets if t.hwnd == prev.hwnd), None)
             if prev_target is not None:
                 frame = capture_target(prev_target)
-                if frame.bgr is not None and frame.bgr.size > 0 and frame.is_valid and frame.width > 0:
+                valid = frame.bgr is not None and frame.bgr.size > 0 and frame.is_valid and frame.width > 0
+                if valid and self._sticky_frame_signal(frame, role):
                     self._capture_miss_streak = 0
                     return frame
                 self._capture_miss_streak += 1
                 if self._capture_miss_streak < 2:
                     # 连续第 1 帧失配：仍返回该 hwnd 帧，下一帧才重选
                     return frame
+                # 连续 2 帧失配（无效或无信号）→ 候选枚举重排
         self._capture_miss_streak = 0
         frames = [capture_target(target) for target in targets]
         previous_hwnd = prev.hwnd if prev is not None else None
@@ -464,6 +506,9 @@ class Mediator:
         elif self.phase == Phase.HERO_SETUP:
             # Hero setup has exact modal/ROI guards; generic context matching
             # is an unnecessary full-screen scan for every slow capture.
+            # N2-REVIEW #4：仍建立本帧 evidence——hero 点击链必须受 generation
+            # 与输入序列门禁保护（旧路径 _evidence 恒 None → _action_gate_ok 放行）。
+            self._ensure_evidence(frame)
             context = "HERO_SETUP"
         else:
             context = self._detect_context(frame, role)
@@ -584,6 +629,39 @@ class Mediator:
         us = round(self._ui_scale, 3)
         return tuple(sorted({us, round(us * 0.94, 3), round(us * 1.06, 3), round(us * 1.1, 3), round(us * 1.15, 3)}))
 
+    # ---------- N2.4：场景级 ROI（比例坐标，命中位置经 fixture/录屏测量）----------
+    # 依据 docs/baselines/n2_runs/N2_4_THRESHOLD_RECAL_20260811.md 的位置测量：
+    #   挑战开关行        y≈0.71-0.75（idle 1609x932 / fail 1920x1080 均在此带）
+    #   中央选择/技能面板  (0.24,0.16,0.76,0.66)（既有 _selection_roi 语义）
+    #   卡牌面板          heroRefresh 实测 (0.65,0.68)
+    #   选关编号列        x≈0.655（stage_select 实测 x=1048/1600）
+    #   KK 房间开始按钮   (0.67,0.70)（room_waiting 1040x719 实测 (694,501)）
+    _HUD_CHALLENGE_ROI = (0.0, 0.62, 0.60, 1.0)
+    _CARD_PANEL_ROI = (0.24, 0.14, 0.80, 0.74)
+    _STAGE_ROWS_ROI = (0.45, 0.05, 0.85, 0.60)
+    _ROOM_START_ROI = (0.45, 0.55, 0.95, 0.95)
+    _ENV_ZIDONG_ROI = (0.05, 0.58, 0.42, 0.82)
+    _ENV_SHORTKEY_ROI = (0.70, 0.10, 1.0, 0.55)
+    # 面板底部按钮行（选择锚点/面板分类/刷新/放弃都在此带，y≈0.59-0.64）
+    _PANEL_BUTTONS_ROI = (0.20, 0.50, 0.80, 0.75)
+
+    _SCENE_ROIS: dict[str, tuple[float, float, float, float]] = {
+        # 技能面板场景含技能卡（y≈0.30）与按钮行（y≈0.59-0.64），用全面板 ROI
+        "skill_panel": (0.24, 0.16, 0.76, 0.66),
+        "card_panel": _CARD_PANEL_ROI,
+        "coin_challenge": _HUD_CHALLENGE_ROI,
+        "wood_challenge": _HUD_CHALLENGE_ROI,
+        "experience_challenge": _HUD_CHALLENGE_ROI,
+        "treasure_challenge": _HUD_CHALLENGE_ROI,
+        "room_start": _ROOM_START_ROI,
+        # 存档入口：archiveChallenge 顶部标签实测 (0.47,0.04)（victory 1608x929），
+        # tuanben/cundangInfo 实测左上角 (0.02-0.04,0.08)；顶部带覆盖全部已知位置。
+        "archive": (0.0, 0.0, 1.0, 0.18),
+    }
+
+    def _scene_roi(self, scene_key: str) -> tuple[float, float, float, float] | None:
+        return self._SCENE_ROIS.get(scene_key)
+
     def _scaled_up_frame(self, frame: Frame) -> bool:
         """窗口显著大于 1600x900 基准（如 2348x1080≈1.47x / 1920x1080）时
         才允许宽尺度回退，避免基准分辨率每 tick miss 时全宽扫描。"""
@@ -593,12 +671,24 @@ class Mediator:
         """动作授权断言：``self._evidence is tick_evidence`` 且 generation 未变。
 
         任一成功输入后 generation 推进 → 同控制流后续动作被拒（每 tick≤1 输入；
-        缓存命中不得延续旧帧动作授权）。未处于 tick 控制流（如 benchmark 直调）
-        或未建立证据时不额外拒绝。
+        缓存命中不得延续旧帧动作授权）。N2-REVIEW #3：dry-run 观测模式经独立
+        ``_input_seq`` 走同一授权语义（证据缓存保留以维持 exact-static 复用）。
+        未处于 tick 控制流（如 benchmark 直调）或未建立证据时不额外拒绝。
         """
         ev = self._evidence
         if ev is None or self._tick_gen is None:
             return True
+        if self._tick_input_seq is not None and self._input_seq != self._tick_input_seq:
+            print(f"[med] stale evidence: 动作被拒（{reason}：本 tick 已有成功输入）")
+            if len(self._trace_scenes) < 12:
+                self._trace_scenes.append({
+                    "scene": "stale_evidence",
+                    "name": reason,
+                    "score": 0.0,
+                    "early_stop": False,
+                    "compared_all": False,
+                })
+            return False
         if ev is not self._tick_evidence or ev.gen != self._tick_gen:
             print(f"[med] stale evidence: 动作被拒（{reason}）")
             if len(self._trace_scenes) < 12:
@@ -669,27 +759,45 @@ class Mediator:
     })
 
     def _l0_scales(self) -> tuple[float, ...]:
-        """L0 门闩尺度：绝对 0.9-1.2 档 + 会话 ui_scale 邻域（旧多尺度语义）。"""
-        return self._adapt_scales((0.9, 1.0, 1.1, 1.15, 1.2))
+        """L0 门闩尺度：绝对 0.9-1.2 档主尺度优先 + 会话 ui_scale 邻域。
+
+        N2.4：按距主尺度（1.0，绝对尺寸资产）的距离排序——实测 kk_start/
+        stage_begin_btn/roomStart/stage 全部在 1.0 命中（room_waiting kk_start
+        1.0→1.000），旧的升序（0.611 起）会让每次命中都先白扫低档位；ui_scale
+        邻域仍保留给真正按窗口缩放渲染的游戏内资产（如小窗口挑战开关），
+        但排在绝对档之后。
+        """
+        absolute = (1.0, 1.1, 0.9, 1.15, 1.2)
+        if abs(self._ui_scale - 1.0) < 0.05:
+            return absolute
+        us = round(self._ui_scale, 3)
+        # ui 邻域按距 us 的距离排序（0.94/1.06 等距，0.94 在前）
+        nb = sorted({round(us * 0.94, 3), us, round(us * 1.06, 3)}, key=lambda s: abs(s - us))
+        return absolute + tuple(nb)
 
     def find_scene(self, frame: Frame, scene_key: str, threshold: float | None = None) -> MatchResult | None:
-        """场景模板找图（evidence 级 memo；热路径只试主/邻尺度）。"""
+        """场景模板找图（evidence 级 memo；热路径只试主/邻尺度）。
+
+        N2.4：命中位置已知的场景（挑战开关行/面板/房间开始按钮）自动套用
+        场景级 ROI，全帧宽搜不再是每 tick 默认。
+        """
         th = threshold if threshold is not None else self.settings.match_threshold
         names = self.templates(scene_key)
         if not names:
             return None
         key = ("scene", scene_key, th)
+        roi = self._scene_roi(scene_key)
 
         def compute():
             if scene_key in self._L0_GATE_SCENES:
                 # L0 门闩：宽尺度档 + early_stop（首个过阈值命中即止，见 _find_room_start 分析）
                 hit = self.find(
                     frame, names, threshold=th,
-                    scales=self._l0_scales(), early_stop=True,
+                    scales=self._l0_scales(), early_stop=True, roi=roi,
                     mode=f"scene:{scene_key}:l0",
                 )
             else:
-                hit = self.find(frame, names, threshold=th, scales=self._hot_scales(), mode=f"scene:{scene_key}")
+                hit = self.find(frame, names, threshold=th, scales=self._hot_scales(), roi=roi, mode=f"scene:{scene_key}")
             if hit is not None and len(self._trace_scenes) < 12:
                 self._trace_scenes.append({
                     "scene": scene_key,
@@ -713,15 +821,19 @@ class Mediator:
             return False
         return True
 
-    def _finish_input(self, res, reason: str) -> bool:
+    def _finish_input(self, res, reason: str, action_ms: float = 0.0) -> bool:
         """输入返回后的统一收尾：输入标记、白名单 reason、证据失效。
 
-        任一输入成功后（真实注入）在同一控制流立即 ``invalidate_evidence``：
-        gen+1、丢弃缓存，缓存命中不得延续旧帧动作授权。输入失败不推进状态。
+        N2-REVIEW #2/#3：
+        - 仅真实输入（非 dry-run）且 action_ms≥800ms 才标 input_executor_wait
+          （dry-run 点击 ~0ms，慢 tick 不得借成功输入假绿）；
+        - 每次成功输入（含 dry-run）递增 ``_input_seq``：同 tick 第二次动作
+          被 _action_gate_ok 拒绝；LIVE 另有 invalidate_evidence 推进 gen。
         """
         if res.success:
             self._tick_input_executed = True
-            if self._tick_reason is None:
+            self._input_seq += 1
+            if action_ms >= 800.0 and not self.settings.dry_run and self._tick_reason is None:
                 self._tick_reason = "input_executor_wait"
             if not self.settings.dry_run:
                 self.invalidate_evidence("input")
@@ -741,16 +853,15 @@ class Mediator:
             delay_ms=self.settings.click_delay_ms,
         )
         action_ms = (time.perf_counter() - t0) * 1000.0
-        self._trace_actions.append({"intent": f"click:{hit.name}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success})
-        if action_ms >= 800.0 and self._tick_reason is None:
-            self._tick_reason = "input_executor_wait"
-        return self._finish_input(res, reason)
+        self._trace_actions.append({"intent": f"click:{hit.name}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
 
     def act_right_click(self, hit: MatchResult, reason: str = "") -> bool:
         if not self._action_gate_ok(reason):
             return False
         print(f"[med] right_click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        t0 = time.perf_counter()
         res = self.executor.right_click(
             hit.screen_x,
             hit.screen_y,
@@ -758,21 +869,24 @@ class Mediator:
             dry_run=self.settings.dry_run,
             delay_ms=self.settings.click_delay_ms,
         )
-        self._trace_actions.append({"intent": f"right_click:{hit.name}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success})
-        return self._finish_input(res, reason)
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": f"right_click:{hit.name}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
 
     def act_key(self, key: str, reason: str = "") -> bool:
         if not self._action_gate_ok(reason):
             return False
         print(f"[med] key {key!r} ({reason})")
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        t0 = time.perf_counter()
         res = self.executor.press_key(
             key,
             target_hwnd=target_hwnd,
             dry_run=self.settings.dry_run,
         )
-        self._trace_actions.append({"intent": f"key:{key}", "reason": reason, "ok": res.success})
-        return self._finish_input(res, reason)
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": f"key:{key}", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
 
     def click_scene(self, frame: Frame, scene_key: str, reason: str = "", threshold: float | None = None) -> bool:
         hit = self.find_scene(frame, scene_key, threshold=threshold)
@@ -817,7 +931,7 @@ class Mediator:
         """
         threshold = min(0.70, self.settings.match_threshold)
         scales = self._hot_scales()
-        roi = (0.20, 0.45, 0.80, 0.80)
+        roi = (0.20, 0.50, 0.80, 0.75)  # N2.4：按钮实测 y≈0.59-0.64，收紧竖带
         key = ("anchor", tuple(self._ANCHOR_NAMES), threshold, scales, roi, ("early_stop", 0.0))
 
         def position_ok(hit: MatchResult) -> bool:
@@ -893,19 +1007,21 @@ class Mediator:
         return kind
 
     def _classify_choice_panel_at(self, frame: Frame, threshold: float, scales: tuple[float, ...]) -> str | None:
-        if self.find(frame, ["bond_hide_btn", "bond_refresh_btn"], threshold=0.75, scales=scales):
+        # N2.4：面板按钮行位置已知（实测 y≈0.59-0.64），全帧扫描不再必要。
+        roi = self._PANEL_BUTTONS_ROI
+        if self.find(frame, ["bond_hide_btn", "bond_refresh_btn"], threshold=0.75, scales=scales, roi=roi):
             return "bond"
         # Current treasure and skill panels share refresh/give-up artwork.
         # The generic hide anchor is near-perfect only on the treasure layout.
-        treasure_lock = self.find(frame, ["treasure_lock_btn"], threshold=threshold, scales=scales)
-        treasure_hide = self.find(frame, ["hide"], threshold=0.95, scales=scales)
+        treasure_lock = self.find(frame, ["treasure_lock_btn"], threshold=threshold, scales=scales, roi=roi)
+        treasure_hide = self.find(frame, ["hide"], threshold=0.95, scales=scales, roi=roi)
         if treasure_lock and treasure_hide:
             return "treasure"
-        if self.find(frame, ["skill_giveup_btn", "skill_refresh_btn"], threshold=threshold, scales=scales):
+        if self.find(frame, ["skill_giveup_btn", "skill_refresh_btn"], threshold=threshold, scales=scales, roi=roi):
             return "skill"
         if treasure_lock:
             return "treasure"
-        if self.find(frame, ["card_hide"], threshold=threshold, scales=scales):
+        if self.find(frame, ["card_hide"], threshold=threshold, scales=scales, roi=roi):
             return "card"
         return None
 
@@ -1184,19 +1300,23 @@ class Mediator:
                     if hit is not None:
                         return ("技能", hit)
         # 技能格有上限：绝不选未配置技能。先用完 3 次免费刷新，再放弃。
+        # N2.4：按钮行 ROI；宽尺度回退与 anchor/classify/preferred 一致，
+        # 仅 DPI 放大窗口触发（N2-REVIEW #6）。
         if self._skill_refresh_attempts < 3:
             refresh = self.find(
                 frame,
                 ["skill_refresh_btn"],
                 threshold=min(0.70, self.settings.match_threshold),
                 scales=self._hot_scales(),
+                roi=self._PANEL_BUTTONS_ROI,
             )
-            if refresh is None:
+            if refresh is None and self._scaled_up_frame(frame):
                 refresh = self.find(
                     frame,
                     ["skill_refresh_btn"],
                     threshold=min(0.70, self.settings.match_threshold),
                     scales=self._wide_scales(),
+                    roi=self._PANEL_BUTTONS_ROI,
                 )
             if refresh is not None:
                 return ("技能刷新", refresh)
@@ -1205,13 +1325,15 @@ class Mediator:
             ["skill_giveup_btn", "giveUp"],
             threshold=min(0.70, self.settings.match_threshold),
             scales=self._hot_scales(),
+            roi=self._PANEL_BUTTONS_ROI,
         )
-        if give_up is None:
+        if give_up is None and self._scaled_up_frame(frame):
             give_up = self.find(
                 frame,
                 ["skill_giveup_btn", "giveUp"],
                 threshold=min(0.70, self.settings.match_threshold),
                 scales=self._wide_scales(),
+                roi=self._PANEL_BUTTONS_ROI,
             )
         if give_up is not None:
             return ("技能放弃", give_up)
@@ -1222,7 +1344,12 @@ class Mediator:
 
         主尺度（基准窗口）通常一次命中全部偏好卡，回退仅在 DPI 缩放窗口
         （如 2348x1080≈1.47x）等主尺度漏检时发生，保证配置序第一的偏好不被吞。
+
+        N2.4：evidence 级 memo（只读检测，无动作授权）——exact-static 同帧
+        复用不再每 tick 重扫 match_all（fail_panel exact-static 12 次调用的根因）。
         """
+        key = ("match_all_preferred", tuple(names), max_results, round(self._ui_scale, 3))
+
         def collect(scales: tuple[float, ...]) -> list:
             return match_all(
                 frame,
@@ -1234,18 +1361,21 @@ class Mediator:
                 scales=scales,
             )
 
-        hits = collect(self._hot_scales())
-        if not hits or not self._scaled_up_frame(frame):
-            if not hits and self._scaled_up_frame(frame):
-                return collect(self._wide_scales())
+        def compute() -> list:
+            hits = collect(self._hot_scales())
+            if not hits or not self._scaled_up_frame(frame):
+                if not hits and self._scaled_up_frame(frame):
+                    return collect(self._wide_scales())
+                return hits
+            hit_stems = {Path(h.name).stem for h in hits}
+            preferred_stems = [Path(n).stem for n in names]
+            if any(ps not in hit_stems for ps in preferred_stems):
+                wide = collect(self._wide_scales())
+                if wide:
+                    return wide
             return hits
-        hit_stems = {Path(h.name).stem for h in hits}
-        preferred_stems = [Path(n).stem for n in names]
-        if any(ps not in hit_stems for ps in preferred_stems):
-            wide = collect(self._wide_scales())
-            if wide:
-                return wide
-        return hits
+
+        return self._memo(key, frame, compute)
 
     CHOICE_BUTTON_RATIOS = {
         "skill": (0.9025, 0.867),
@@ -1493,6 +1623,12 @@ class Mediator:
             if paused and w * 0.35 <= paused.x <= w * 0.60 and h * 0.35 <= paused.y <= h * 0.55:
                 return "PAUSED"
 
+            # 选择面板存在时，战后独占页（胜利/传家宝/大秘境/存档/广场）不可能与
+            # 局内选择面板同时出现：跳过剩余战后扫描（N2.4：提前到 victory 锚点
+            # 之前，选择 tick 不再每 tick 扫战后库；PAUSED 已先行检查不受影响）。
+            if self._selection_anchor(frame):
+                return None
+
             # 1) Victory: continue button is unique to the victory modal.
             if find("continueGame", 0.80):
                 return "POST_VICTORY"
@@ -1507,11 +1643,6 @@ class Mediator:
                 m = find(name, th)
                 if m and w * 0.30 <= m.x <= w * 0.60 and h * 0.40 <= m.y <= h * 0.65:
                     return "GREAT_RIFT_CONFIRM"
-
-            # 选择面板存在时，ARCHIVE_PANEL/NPC_HUB（战后独占页）不可能同时出现：
-            # 跳过剩余战后扫描，正常局内面板 tick 不再每 tick 扫全战后库。
-            if self._selection_anchor(frame):
-                return None
 
             # 4) Archive panel: archive tab + a modal close button (right of center,
             #    upper half) and NO rift NPC icon on the right side.
@@ -2313,7 +2444,9 @@ class Mediator:
             names = [name for name in self.templates("stage_page") if Path(name).stem not in ("stage", "toHero", "HeroChallenge")]
             if not names:
                 return False
-            hit = self.find(frame, names, scales=self._hot_scales())
+            # N2.4：关卡编号列实测 x≈0.655（stage_select 1600x900 实测 x=1048），
+            # 只扫编号列 ROI，不再全帧。
+            hit = self.find(frame, names, scales=self._hot_scales(), roi=self._STAGE_ROWS_ROI)
             # stage.png is the large map card; toHero/HeroChallenge are hero icons.
             # They are not sufficient to prove that the numbered stage list is open.
             return bool(
@@ -2348,6 +2481,8 @@ class Mediator:
         )
 
     def _find_create_confirm(self, frame: Frame) -> MatchResult | None:
+        # 注：场景扫描必须先于尺寸门禁——大窗口内也可能渲染建房确认按钮
+        # （neg_quick_join 等负样本 fixture 是 1600x900 大窗含建房弹窗）。
         hit = self.find_scene(frame, "create_room_confirm")
         if hit:
             return hit
@@ -2424,6 +2559,7 @@ class Mediator:
             sent_any = True
         if sent_any:
             self._tick_input_executed = True
+            self._input_seq += 1  # N2-REVIEW #3：与 _finish_input 同语义
             if not self.settings.dry_run:
                 # 填写是同一逻辑动作序列（目标来自本帧证据）；序列结束后统一失效，
                 # 防止下一 tick 用填写前的旧证据授权动作。
@@ -2658,6 +2794,7 @@ class Mediator:
                             self._stage_scroll_attempts += 1
                             self._stage_scroll_cooldown_until = now + 0.8
                             self._tick_input_executed = True
+                            self._input_seq += 1  # N2-REVIEW #3：与 _finish_input 同语义
                             if not self.settings.dry_run:
                                 self.invalidate_evidence("input")  # 滚轮成功 → 本帧证据失效
                             self._stage_candidate_name = None
@@ -3079,10 +3216,12 @@ class Mediator:
         self._missing_window_since = None
 
         # N2.2：本 tick 动作授权锚点（健康放行后才建立）。
-        # 任一成功输入会推进 evidence.gen；act_* 前置断言 gen 未变，stale → 零输入。
+        # 任一成功输入会推进 evidence.gen / _input_seq；act_* 前置断言
+        # gen 与输入序列未变，stale → 零输入。
         tick_ev = self._evidence
         self._tick_evidence = tick_ev
         self._tick_gen = tick_ev.gen if tick_ev is not None else None
+        self._tick_input_seq = self._input_seq
 
         # ---- B1-2 证据归档（无 incident_dir 时全部空转；归档不产生任何输入）----
         # 注：此处仅健康帧/静态帧可达（不健康非静态分支均已 return）。
@@ -3337,21 +3476,26 @@ class Mediator:
         selection_anchor = self._selection_anchor(frame)
 
         # 提前挑战 / Boss / 龙珠入口：仅在不存在选择面板时 Fail-Closed。
-        if not selection_anchor and self.find_scene(frame, "archive"):
-            print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
-            self.set_phase(Phase.ERROR, "unverified archive entry")
-            self.stop()
-            return LoopAction.Break
-        if not selection_anchor and self.find_scene(frame, "boss_entry"):
-            print("[med] 识别到未验证战后入口 boss_entry，Fail-Closed 停止运行")
-            self.set_phase(Phase.ERROR, "unverified boss_entry")
-            self.stop()
-            return LoopAction.Break
-        if not selection_anchor and self.find_scene(frame, "longzhu"):
-            print("[med] 识别到未验证战后入口 longzhu，Fail-Closed 停止运行")
-            self.set_phase(Phase.ERROR, "unverified longzhu entry")
-            self.stop()
-            return LoopAction.Break
+        # 注：N2.4 曾尝试以「局内 HUD 证据」跳过这 12 次全帧扫描——但 victory
+        # 等战后页实测仍可见 HUD 元素（skillchallenge 0.92），p1a2 优先级测试
+        # 也要求 archive/boss/longzhu 命中即停；为保持 Fail-Closed 契约，此处
+        # 不做 HUD 短路（代价见交付报告：idle/unknown 时间门禁 FAIL 的根因）。
+        if not selection_anchor:
+            if self.find_scene(frame, "archive"):
+                print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "unverified archive entry")
+                self.stop()
+                return LoopAction.Break
+            if self.find_scene(frame, "boss_entry"):
+                print("[med] 识别到未验证战后入口 boss_entry，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "unverified boss_entry")
+                self.stop()
+                return LoopAction.Break
+            if self.find_scene(frame, "longzhu"):
+                print("[med] 识别到未验证战后入口 longzhu，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "unverified longzhu entry")
+                self.stop()
+                return LoopAction.Break
 
         # 选择面板优先；面板存在时禁止把刷新计数或快捷键当成按钮。
         if selection_anchor:
@@ -3592,7 +3736,10 @@ class Mediator:
                 elapsed = time.monotonic() - tick_started
                 cadence = self._cadence_for_current_state()
                 cap = max(0.0, self.settings.loop_sleep_ms / 1000.0)
-                time.sleep(max(0.0, min(cadence, cap) - elapsed))
+                # N2-REVIEW #5：loop_sleep_ms 仅作稳定档兼容上限，loading/转场档
+                # （500ms，无可动作证据的安全等待）不被 400ms 上限压缩。
+                sleep = cadence if cadence >= 0.5 else min(cadence, cap)
+                time.sleep(max(0.0, sleep - elapsed))
         finally:
             if self.emergency_listener:
                 self.emergency_listener.stop()
