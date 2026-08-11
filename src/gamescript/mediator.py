@@ -280,6 +280,7 @@ class Mediator:
         self._tick_no = 0
         self._trace_actions: list[dict] = []
         self._trace_scenes: list[dict] = []
+        self._trace_controls: list[dict] = []
         self._interrupt_reason: str | None = None
         # Safety: L0 cycle counter — prevent infinite PLATFORM_MAP ↔ ROOM_WAITING loops
         self._l0_cycle_count = 0
@@ -292,6 +293,8 @@ class Mediator:
         self._challenge_done: set[str] = set()
         self._challenge_attempts: dict[str, int] = {}
         self._challenge_unknown_since: dict[str, float] = {}
+        self._challenge_pending_since: dict[str, float] = {}
+        self._challenge_next_observe_at: dict[str, float] = {}
         self._challenge_states: dict[str, ChallengeState] = {
             "coin_challenge": ChallengeState.PENDING,
             "wood_challenge": ChallengeState.PENDING,
@@ -300,6 +303,8 @@ class Mediator:
         }
         self._auto_task_done: bool = False
         self._auto_task_attempts: int = 0
+        self._auto_task_pending_since: float | None = None
+        self._auto_task_next_observe_at: float | None = None
         # P1-B1: victory-continue flow (multi-anchor post-game classification).
         self._victory_continue_attempts: int = 0
         self._victory_continue_since: float | None = None
@@ -1156,52 +1161,103 @@ class Mediator:
         state, _ = self._auto_task_state(frame)
         return state == "ON"
 
-    def _auto_task_state(self, frame: Frame) -> tuple[str, MatchResult | None]:
-        """Return ON/OFF/UNKNOWN for the right-side auto-task checkbox.
-
-        Live 1600x900 recording compression lowers the OFF template to about
-        0.75 while the wrong ON template stays around 0.59.  Comparing both
-        scores inside the narrow task ROI is more stable than one 0.85 cutoff.
-        """
+    def _auto_task_state_detail(
+        self,
+        frame: Frame,
+    ) -> tuple[str, MatchResult | None, float, float]:
+        """Return state, hit, and the existing ON/OFF scores for diagnostics."""
         key = ("auto_task", round(self._ui_scale, 3))
 
-        def compute() -> tuple[str, MatchResult | None]:
+        def compute() -> tuple[str, MatchResult | None, float, float]:
             roi_frame = self._auto_task_roi_frame(frame)
             if roi_frame is None:
-                return "UNKNOWN", None
+                return "UNKNOWN", None, 0.0, 0.0
             tmpl_on = resolve_template(self.images, "auto_task_on")
             tmpl_off = resolve_template(self.images, "auto_task_off")
             if not tmpl_on or not tmpl_off or not tmpl_on.is_file() or not tmpl_off.is_file():
-                return "UNKNOWN", None
+                return "UNKNOWN", None, 0.0, 0.0
             scales = self._adapt_scales((0.9, 1.0, 1.1))
             on = match_one(roi_frame, tmpl_on, threshold=0.50, name="auto_task_on", scales=scales)
             off = match_one(roi_frame, tmpl_off, threshold=0.50, name="auto_task_toggle", scales=scales)
             on_score = on.score if on else 0.0
             off_score = off.score if off else 0.0
             if max(on_score, off_score) < 0.72 or abs(on_score - off_score) < 0.06:
-                return "UNKNOWN", None
-            return ("ON", on) if on_score > off_score else ("OFF", off)
+                return "UNKNOWN", None, on_score, off_score
+            return (("ON", on) if on_score > off_score else ("OFF", off)) + (on_score, off_score)
 
         return self._memo(key, frame, compute)
 
+    def _auto_task_state(self, frame: Frame) -> tuple[str, MatchResult | None]:
+        """Return ON/OFF/UNKNOWN while preserving the existing two-value API."""
+        state, hit, _on_score, _off_score = self._auto_task_state_detail(frame)
+        return state, hit
+
+    def _trace_auto_task_control(
+        self,
+        state: str,
+        on_score: float,
+        off_score: float,
+        hit: MatchResult | None,
+        pending_age: float | None,
+    ) -> None:
+        self._trace_controls.append({
+            "control": "auto_task",
+            "state": state,
+            "on_score": round(on_score, 3),
+            "off_score": round(off_score, 3),
+            "label_bbox": [hit.x, hit.y, hit.w, hit.h] if hit else None,
+            "click_point": list(hit.center) if hit else None,
+            "pending_age": pending_age,
+        })
+
     def _find_auto_task_toggle(self, frame: Frame) -> MatchResult | None:
-        """Return a left-click candidate for the right-side auto task checkbox ONLY if explicitly OFF via auto_task_off template match."""
+        """Return a left-click candidate only for explicit OFF evidence."""
         if self._selection_anchor(frame):
             return None
         state, hit = self._auto_task_state(frame)
         return hit if state == "OFF" else None
 
     def _ensure_auto_task_enabled(self, frame: Frame) -> LoopAction | None:
-        """Ensure right-side auto task checkbox is clicked ON via left click."""
+        """Enable auto-task with a bounded post-click observation window."""
         if getattr(self, "_auto_task_done", False):
             return None
-        if self._is_auto_task_enabled(frame):
+
+        now = time.time()
+        state, hit = self._auto_task_state(frame)
+        detail = self._auto_task_state_detail(frame)
+        on_score, off_score = detail[2], detail[3]
+        pending_since = self._auto_task_pending_since
+        pending_age = round(now - pending_since, 2) if pending_since is not None else None
+
+        if pending_since is not None:
+            if state == "ON":
+                self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
+                print("[L1] 自动任务开启模式已验证（已勾选）")
+                self._auto_task_done = True
+                self._auto_task_pending_since = None
+                self._auto_task_next_observe_at = None
+                return None
+            if now < (self._auto_task_next_observe_at or now):
+                self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
+                print(
+                    f"[L1] 自动任务等待勾选状态稳定（零输入，"
+                    f"{pending_age:.1f}/{self.settings.ui_action_interval_s:.1f}s）"
+                )
+                return LoopAction.Continue
+            self._auto_task_pending_since = None
+            self._auto_task_next_observe_at = None
+            if state != "OFF":
+                self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
+                print("[L1] 自动任务观察窗到期仍 UNKNOWN，保守零输入")
+                return LoopAction.Continue
+
+        if state == "ON":
+            self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
             print("[L1] 自动任务开启模式已验证（已勾选）")
             self._auto_task_done = True
             return None
-        if not hasattr(self, "_auto_task_attempts"):
-            self._auto_task_attempts = 0
         if self._auto_task_attempts >= 3:
+            self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
             print(f"[L1] 自动任务点击重试已达上限 ({self._auto_task_attempts})，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "auto_task attempt limit reached")
             self.stop()
@@ -1209,11 +1265,17 @@ class Mediator:
 
         toggle = self._find_auto_task_toggle(frame)
         if not toggle:
+            self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
             return None
 
         self._auto_task_attempts += 1
+        self._trace_auto_task_control(state, on_score, off_score, toggle, pending_age)
         print(f"[L1] 自动开启【自动任务】左键 @ {toggle.center} (尝试 {self._auto_task_attempts}/3)")
         if self.act_click(toggle, "EnableAutoTask"):
+            self._auto_task_pending_since = time.time()
+            self._auto_task_next_observe_at = (
+                self._auto_task_pending_since + self.settings.ui_action_interval_s
+            )
             return LoopAction.Continue
 
         if self._auto_task_attempts >= 3:
@@ -1222,6 +1284,7 @@ class Mediator:
             self.stop()
             return LoopAction.Break
         return LoopAction.Continue
+
 
     # 卡牌品质色（用户规则）：红 > 橙 > 紫 > 蓝 > 白；绿=面板装饰色排除
     RARITY_BANDS = (
@@ -1877,35 +1940,49 @@ class Mediator:
         return label, click_hit
 
     @staticmethod
-    def _resolve_challenge_state(frame: Frame, label_hit: MatchResult | None) -> ChallengeState:
-        """Explicitly resolve ChallengeState (ON/OFF/UNKNOWN) for a bottom challenge toggle.
-
-        Rules:
-        - ON: Explicit green '自动' text detected above label (green_count >= 30).
-        - OFF: Explicit OFF evidence (label_hit score >= 0.70 AND green_count < 10).
-        - UNKNOWN: Label missing, score < 0.70, ROI size 0, or ambiguous green text (10 <= green_count < 30).
-        """
-        if not label_hit or label_hit.score < 0.70:
-            return ChallengeState.UNKNOWN
-
+    def _challenge_green_count(frame: Frame, label_hit: MatchResult | None) -> int | None:
+        if not label_hit or label_hit.score < 0.70 or frame.bgr is None:
+            return None
         x1 = max(0, label_hit.x - 5)
         x2 = min(frame.width, label_hit.x + label_hit.w + 5)
         y1 = max(0, label_hit.y - 60)
         y2 = max(y1, label_hit.y - 25)
         roi = frame.bgr[y1:y2, x1:x2]
         if roi.size == 0:
-            return ChallengeState.UNKNOWN
-
+            return None
         b, g, r = cv2.split(roi)
         green = (g > 120) & (g.astype(int) - r.astype(int) > 30) & (g.astype(int) - b.astype(int) > 20)
-        green_count = int(green.sum())
+        return int(green.sum())
 
+    @staticmethod
+    def _resolve_challenge_state(frame: Frame, label_hit: MatchResult | None) -> ChallengeState:
+        """Resolve ON/OFF/UNKNOWN from the existing green counter evidence."""
+        green_count = Mediator._challenge_green_count(frame, label_hit)
+        if green_count is None:
+            return ChallengeState.UNKNOWN
         if green_count >= 30:
             return ChallengeState.ON
-        elif green_count < 10:
+        if green_count < 10:
             return ChallengeState.OFF
-        else:
-            return ChallengeState.UNKNOWN
+        return ChallengeState.UNKNOWN
+
+    def _trace_challenge_control(
+        self,
+        scene_key: str,
+        state: ChallengeState,
+        green_count: int | None,
+        label_hit: MatchResult | None,
+        click_hit: MatchResult | None,
+        pending_age: float | None,
+    ) -> None:
+        self._trace_controls.append({
+            "control": scene_key,
+            "state": state.name,
+            "green_count": green_count,
+            "label_bbox": [label_hit.x, label_hit.y, label_hit.w, label_hit.h] if label_hit else None,
+            "click_point": list(click_hit.center) if click_hit else None,
+            "pending_age": pending_age,
+        })
 
     @staticmethod
     def _challenge_is_auto(frame: Frame, label: MatchResult) -> bool:
@@ -1913,13 +1990,7 @@ class Mediator:
         return Mediator._resolve_challenge_state(frame, label) == ChallengeState.ON
 
     def _ensure_challenge_buttons(self, frame: Frame) -> LoopAction | None:
-        """Process bottom challenge buttons in strict fixed order: coin -> wood -> experience -> treasure.
-        Each tick processes at most ONE challenge.
-        Returns:
-          - LoopAction.Continue: If right-click attempted (success/failed) OR state is UNKNOWN (ends tick, blocks downstream input).
-          - LoopAction.Break: If Phase.ERROR or StopSignal triggered (breaks main loop).
-          - None: ONLY when all 4 challenges are confirmed ON/done (allows downstream non-input logic).
-        """
+        """Enable four challenge toggles in fixed order with post-click settle windows."""
         for scene_key, label in (
             ("coin_challenge", "金币"),
             ("wood_challenge", "木材"),
@@ -1931,6 +2002,56 @@ class Mediator:
                 self._challenge_unknown_since.pop(scene_key, None)
                 continue
 
+            found = self._find_challenge_button(frame, scene_key)
+            label_hit = found[0] if found else None
+            click_hit = found[1] if found else None
+            state = (
+                self._resolve_challenge_state(frame, label_hit)
+                if label_hit is not None
+                else ChallengeState.UNKNOWN
+            )
+            green_count = self._challenge_green_count(frame, label_hit)
+            now = time.time()
+            pending_since = self._challenge_pending_since.get(scene_key)
+            pending_age = round(now - pending_since, 2) if pending_since is not None else None
+            self._trace_challenge_control(
+                scene_key, state, green_count, label_hit, click_hit, pending_age
+            )
+
+            if pending_since is not None:
+                if state == ChallengeState.ON:
+                    print(f"[L1] {label}挑战已是自动模式")
+                    self._challenge_states[scene_key] = ChallengeState.ON
+                    self._challenge_done.add(scene_key)
+                    self._challenge_pending_since.pop(scene_key, None)
+                    self._challenge_next_observe_at.pop(scene_key, None)
+                    self._challenge_unknown_since.pop(scene_key, None)
+                    continue
+                if now < self._challenge_next_observe_at.get(scene_key, now):
+                    self._challenge_states[scene_key] = ChallengeState.PENDING
+                    print(
+                        f"[L1] {label}挑战等待确认（零输入，"
+                        f"{pending_age:.1f}/{self.settings.ui_action_interval_s:.1f}s）"
+                    )
+                    return LoopAction.Continue
+                self._challenge_pending_since.pop(scene_key, None)
+                self._challenge_next_observe_at.pop(scene_key, None)
+                if state != ChallengeState.OFF:
+                    self._challenge_states[scene_key] = ChallengeState.UNKNOWN
+                    if label_hit is None:
+                        print(f"[L1] {label}挑战观察期后按钮缺失，保守零输入")
+                        return LoopAction.Continue
+                    unknown_since = self._challenge_unknown_since.setdefault(scene_key, now)
+                    unknown_timeout = max(3, min(self.settings.query_timeout, 30))
+                    unknown_elapsed = now - unknown_since
+                    if unknown_elapsed >= unknown_timeout:
+                        print(f"[L1] {label}挑战状态连续 UNKNOWN {unknown_elapsed:.1f}s，跳过该挑战继续")
+                        self._challenge_done.add(scene_key)
+                        self._challenge_unknown_since.pop(scene_key, None)
+                        continue
+                    print(f"[L1] {label}挑战观察期后仍 UNKNOWN，零动作等待")
+                    return LoopAction.Continue
+
             attempts = self._challenge_attempts.get(scene_key, 0)
             if attempts >= 3:
                 print(f"[L1] {label}挑战重试次数已达上限 ({attempts}) 且未确认开启，Fail-Closed 停止运行")
@@ -1938,17 +2059,10 @@ class Mediator:
                 self.stop()
                 return LoopAction.Break
 
-            found = self._find_challenge_button(frame, scene_key)
-            label_hit = found[0] if found else None
-
             if label_hit is None:
-                # 按钮缺失（开局 HUD 未刷出/未解锁）：不占 Fail-Closed 计时，
-                # 不阻断下游（选关/进化/神器），仅记录。
                 self._challenge_unknown_since.pop(scene_key, None)
                 print(f"[L1] {label}挑战按钮未出现（MISSING），跳过本 tick 继续")
                 continue
-
-            state = self._resolve_challenge_state(frame, label_hit)
 
             if state == ChallengeState.ON:
                 print(f"[L1] {label}挑战已是自动模式")
@@ -1957,14 +2071,12 @@ class Mediator:
                 self._challenge_unknown_since.pop(scene_key, None)
                 continue
 
-            elif state == ChallengeState.UNKNOWN:
-                now = time.time()
+            if state == ChallengeState.UNKNOWN:
                 unknown_since = self._challenge_unknown_since.setdefault(scene_key, now)
                 unknown_timeout = max(3, min(self.settings.query_timeout, 30))
                 unknown_elapsed = now - unknown_since
                 self._challenge_states[scene_key] = ChallengeState.UNKNOWN
                 if unknown_elapsed >= unknown_timeout:
-                    # 有按钮但绿字长期模糊：降级为跳过该挑战，不再整机停机
                     print(f"[L1] {label}挑战状态连续 UNKNOWN {unknown_elapsed:.1f}s，跳过该挑战继续")
                     self._challenge_done.add(scene_key)
                     self._challenge_unknown_since.pop(scene_key, None)
@@ -1973,30 +2085,28 @@ class Mediator:
                     f"[L1] {label}挑战状态为 UNKNOWN（模糊/低置信），"
                     f"零动作等待 {unknown_elapsed:.1f}/{unknown_timeout}s"
                 )
-                # End this tick immediately, preventing downstream stage select or other inputs
                 return LoopAction.Continue
 
-            elif state == ChallengeState.OFF:
-                self._challenge_unknown_since.pop(scene_key, None)
-                click_hit = found[1]
-                self._challenge_attempts[scene_key] = attempts + 1
-                current_attempts = self._challenge_attempts[scene_key]
-                print(f"[L1] 自动开启【{label}挑战】右键 @ {click_hit.center} (尝试 {current_attempts}/3)")
-                act_res = self.act_right_click(click_hit, f"{label}Challenge-right_click")
-                # Right-click sent -> transition state to PENDING (waiting for confirmation in subsequent frames)
-                self._challenge_states[scene_key] = ChallengeState.PENDING
-
-                if self.phase == Phase.ERROR or self.stop_signal.is_set():
-                    return LoopAction.Break
-
-                if not act_res and current_attempts >= 3:
-                    print(f"[L1] {label}挑战右键发送失败且重试已达上限 ({current_attempts})，Fail-Closed 停止运行")
-                    self.set_phase(Phase.ERROR, f"{scene_key} right_click failed limit reached")
-                    self.stop()
-                    return LoopAction.Break
-
-                # Right-click attempted (succeeded or failed with attempts < 3) -> end this tick!
-                return LoopAction.Continue
+            self._challenge_unknown_since.pop(scene_key, None)
+            self._challenge_attempts[scene_key] = attempts + 1
+            current_attempts = self._challenge_attempts[scene_key]
+            print(f"[L1] 自动开启【{label}挑战】右键 @ {click_hit.center} (尝试 {current_attempts}/3)")
+            act_res = self.act_right_click(click_hit, f"{label}Challenge-right_click")
+            self._challenge_states[scene_key] = ChallengeState.PENDING
+            if self.phase == Phase.ERROR or self.stop_signal.is_set():
+                return LoopAction.Break
+            if not act_res and current_attempts >= 3:
+                print(f"[L1] {label}挑战右键发送失败且重试已达上限 ({current_attempts})，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, f"{scene_key} right_click failed limit reached")
+                self.stop()
+                return LoopAction.Break
+            if act_res:
+                clicked_at = time.time()
+                self._challenge_pending_since[scene_key] = clicked_at
+                self._challenge_next_observe_at[scene_key] = (
+                    clicked_at + self.settings.ui_action_interval_s
+                )
+            return LoopAction.Continue
 
         return None
 
@@ -2395,14 +2505,11 @@ class Mediator:
             self._main_line_since = time.time()
             self._main_line_started_at = self._main_line_since
             self._selection_click_cooldown_until = 0.0
-            self._selection_unknown_attempts = 0
-            self._selection_unknown_since = None
-            self._selection_repeat_key = None
-            self._selection_repeat_attempts = 0
-            self._skill_refresh_attempts = 0
             self._challenge_done.clear()
             self._challenge_attempts.clear()
             self._challenge_unknown_since.clear()
+            self._challenge_pending_since.clear()
+            self._challenge_next_observe_at.clear()
             self._challenge_states = {
                 "coin_challenge": ChallengeState.PENDING,
                 "wood_challenge": ChallengeState.PENDING,
@@ -2411,6 +2518,8 @@ class Mediator:
             }
             self._auto_task_done = False
             self._auto_task_attempts = 0
+            self._auto_task_pending_since = None
+            self._auto_task_next_observe_at = None
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
             self._post_game_pending = False
@@ -3297,16 +3406,10 @@ class Mediator:
                 # without allowing an arbitrary visible stage.
                 current_target = self._find_stage_target(frame)
                 same_target = bool(current_target and current_target.name == self._stage_target_name)
-                same_position = bool(
-                    current_target
-                    and self._stage_target_position is not None
-                    and abs(current_target.x - self._stage_target_position[0]) <= 6
-                    and abs(current_target.y - self._stage_target_position[1]) <= 6
-                )
                 ready = self._find_hero_entry(frame) if self.settings.auto_reputation else self._find_stage_start(frame)
                 consistent = bool(current_target and self._stage_target_has_consistent_neighbor(frame, current_target))
-                if not same_target or not same_position or not consistent or not ready:
-                    print("[L0] 关卡点击后名称/坐标/相邻关卡未保持稳定，拒绝开始游戏")
+                if not same_target or not consistent or not ready:
+                    print("[L0] 关卡点击后名称/相邻关卡/专用入口未保持稳定，拒绝开始游戏")
                     if self._stage_select_attempts >= 3:
                         print("[L0] 目标关卡稳定确认连续失败 3 次，停止而不进入错误关卡")
                         self.set_phase(Phase.ERROR, "configured stage selection unstable")
@@ -3319,7 +3422,7 @@ class Mediator:
                     self._stage_candidate_position = None
                     self._stage_candidate_frames = 0
                     return LoopAction.Continue
-                print("[L0] 目标行无持久高亮；已用点击前后同一坐标 + 连续相邻关卡 + 专用开始按钮完成复合确认")
+                print("[L0] 目标行无持久高亮；已用同名目标 + 连续相邻关卡 + 专用开始按钮完成复合确认")
             if self.settings.auto_reputation:
                 return self._begin_hero_setup(frame)
             start = self._find_stage_start(frame)
@@ -3486,6 +3589,7 @@ class Mediator:
             "hwnd": frame.hwnd if frame is not None else None,
             "size": [frame.width, frame.height] if frame is not None else None,
             "actions": self._trace_actions,
+            "controls": self._trace_controls,
             "scenes": self._trace_scenes,
             # N2：无法解释 tick>1s 白名单 reason + evidence generation
             "reason": self._tick_reason,
@@ -3586,9 +3690,9 @@ class Mediator:
         return None
 
     def _tick_impl(self) -> LoopAction:
-        """单步：一帧截屏 → 按阶段决策 → 执行。"""
         self._trace_actions = []
         self._trace_scenes = []
+        self._trace_controls = []
         self._interrupt_reason = None
         self._tick_reason = None
         self._tick_input_executed = False

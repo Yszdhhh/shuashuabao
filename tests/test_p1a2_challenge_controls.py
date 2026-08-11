@@ -11,8 +11,10 @@ Tests cover:
 - Explicit 4-State resolution (ON, OFF, UNKNOWN, PENDING) and zero-leakage of downstream inputs on UNKNOWN/failures
 """
 
+import json
 import math
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -31,6 +33,7 @@ from gamescript.stop_signal import StopSignal
 from gamescript.vision.capture import Frame
 from gamescript.vision.matcher import MatchResult
 from run_replay import load_image
+from tests.test_scenario_replay import FakeClock, FakeInputExecutor
 
 
 class TestP1A2ChallengeControls(unittest.TestCase):
@@ -163,31 +166,92 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.ON)
 
     def test_retry_limit_enters_phase_error_and_stops(self):
-        """5. Check that 3 consecutive failed/unconfirmed attempts cause Fail-Closed stop in Phase.ERROR."""
+        """Three unconfirmed retries still Fail-Closed, with 1.5s observation spacing."""
         self.med._auto_task_done = True
         self.med.act_right_click = MagicMock(return_value=True)
+        clock = FakeClock(start=100.0)
 
-        # Attempt 1
-        res1 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertEqual(res1, LoopAction.Continue)
-        self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 1)
+        with clock.install():
+            # Attempt 1
+            res1 = self.med._ensure_challenge_buttons(self.frame_off)
+            self.assertEqual(res1, LoopAction.Continue)
+            self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 1)
 
-        # Attempt 2 (still OFF on frame_off)
-        res2 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertEqual(res2, LoopAction.Continue)
-        self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 2)
+            # The observation window suppresses a second right-click.
+            clock.advance(self.settings.ui_action_interval_s - 0.1)
+            res_wait = self.med._ensure_challenge_buttons(self.frame_off)
+            self.assertEqual(res_wait, LoopAction.Continue)
+            self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 1)
 
-        # Attempt 3 (still OFF on frame_off)
-        res3 = self.med._ensure_challenge_buttons(self.frame_off)
-        self.assertEqual(res3, LoopAction.Continue)
-        self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 3)
+            # Attempts 2 and 3 are only consumed after each window expires.
+            clock.advance(0.1)
+            res2 = self.med._ensure_challenge_buttons(self.frame_off)
+            self.assertEqual(res2, LoopAction.Continue)
+            self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 2)
 
-        # Attempt 4: attempts >= 3 and still OFF -> Fail-Closed stop in Phase.ERROR
-        res4 = self.med._ensure_challenge_buttons(self.frame_off)
+            clock.advance(self.settings.ui_action_interval_s)
+            res3 = self.med._ensure_challenge_buttons(self.frame_off)
+            self.assertEqual(res3, LoopAction.Continue)
+            self.assertEqual(self.med._challenge_attempts.get("coin_challenge"), 3)
+
+            clock.advance(self.settings.ui_action_interval_s)
+            res4 = self.med._ensure_challenge_buttons(self.frame_off)
         self.assertEqual(res4, LoopAction.Break)
         self.assertEqual(self.med.phase, Phase.ERROR)
         self.assertFalse(self.med._running)
 
+    def test_auto_task_observation_window_suppresses_second_click(self):
+        """Auto-task ON confirmation is observed for 1.5s before retrying."""
+        toggle = MatchResult("auto_task_toggle", 0.9, 1400, 500, 30, 30, 1400, 500)
+        clock = FakeClock(start=100.0)
+        self.med._last_frame = self.frame_off
+
+        with clock.install(), \
+             patch.object(self.med, "_auto_task_state",
+                          side_effect=[("OFF", toggle), ("OFF", toggle), ("ON", toggle)]), \
+             patch.object(self.med, "_find_auto_task_toggle", return_value=toggle), \
+             patch.object(self.med, "act_click", return_value=True) as click:
+            first = self.med._ensure_auto_task_enabled(self.frame_off)
+            self.assertEqual(first, LoopAction.Continue)
+            self.assertEqual(click.call_count, 1)
+
+            clock.advance(self.settings.ui_action_interval_s - 0.1)
+            waiting = self.med._ensure_auto_task_enabled(self.frame_off)
+            self.assertEqual(waiting, LoopAction.Continue)
+            self.assertEqual(click.call_count, 1)
+
+            clock.advance(0.1)
+            done = self.med._ensure_auto_task_enabled(self.frame_off)
+        self.assertIsNone(done)
+        self.assertTrue(self.med._auto_task_done)
+        self.assertEqual(click.call_count, 1)
+
+    def test_control_trace_jsonl_records_ordered_observation_schema(self):
+        """Challenge trace controls remain independently parseable JSON objects."""
+        dummy_label = MatchResult("coin_challenge", 0.9, 100, 500, 50, 20, 100, 500)
+        clock = FakeClock(start=100.0)
+
+        with tempfile.TemporaryDirectory() as tmp, clock.install():
+            trace_path = Path(tmp) / "trace.jsonl"
+            self.med.set_trace(str(trace_path))
+            self.med._last_frame = self.frame_off
+            self.med._auto_task_done = True
+            with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+                 patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.OFF), \
+                 patch.object(self.med, "act_right_click", return_value=True):
+                self.assertEqual(self.med._ensure_challenge_buttons(self.frame_off), LoopAction.Continue)
+            self.med._trace_tick("MAIN_LINE", 0.0)
+            self.med.set_trace(None)
+
+            row = json.loads(trace_path.read_text(encoding="utf-8").strip())
+        self.assertIsInstance(row["controls"], list)
+        entry = row["controls"][0]
+        self.assertEqual(
+            list(entry),
+            ["control", "state", "green_count", "label_bbox", "click_point", "pending_age"],
+        )
+        self.assertEqual(entry["control"], "coin_challenge")
+        self.assertEqual(entry["state"], "OFF")
     def test_safety_stop_signal_and_hwnd_cancellation(self):
         """6. Check safety cancellation under StopSignal, HWND invalidation, or missing target_hwnd."""
         self.med._auto_task_done = True
