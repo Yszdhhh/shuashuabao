@@ -679,5 +679,40 @@ class S0SettingsTests(unittest.TestCase):
         self.assertEqual(s.round_timeout_s, s.game_timeout * 60)
 
 
+
+class HeroChangedPixelsRegressionTests(unittest.TestCase):
+    """_panel_mutation_confirmed 崩溃回归：cv2.countNonZero 仅接受单通道，
+    BGR ROI（刷新按钮场景）实测抛 'cn == 1'；修复为 BGR->灰度后不崩溃。"""
+
+    def test_bgr_input_does_not_crash_and_matches_gray(self) -> None:
+        import numpy as np
+        import cv2
+        from gamescript.mediator import Mediator
+
+        before = np.random.randint(0, 255, (300, 500, 3), dtype=np.uint8)
+        after = before.copy()
+        after[50:80, 60:120] = np.random.randint(0, 255, (30, 60, 3), dtype=np.uint8)
+        bgr_n = Mediator._hero_changed_pixels(before, after)
+        g1 = cv2.cvtColor(before, cv2.COLOR_BGR2GRAY)
+        g2 = cv2.cvtColor(after, cv2.COLOR_BGR2GRAY)
+        self.assertEqual(bgr_n, Mediator._hero_changed_pixels(g1, g2))
+        self.assertGreater(bgr_n, 0)
+
+    def test_identical_bgr_frames_zero(self) -> None:
+        import numpy as np
+        from gamescript.mediator import Mediator
+
+        before = np.random.randint(0, 255, (300, 500, 3), dtype=np.uint8)
+        self.assertEqual(Mediator._hero_changed_pixels(before, before.copy()), 0)
+
+    def test_shape_mismatch_zero(self) -> None:
+        import numpy as np
+        from gamescript.mediator import Mediator
+
+        a = np.zeros((100, 100, 3), dtype=np.uint8)
+        b = np.zeros((90, 90, 3), dtype=np.uint8)
+        self.assertEqual(Mediator._hero_changed_pixels(a, b), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

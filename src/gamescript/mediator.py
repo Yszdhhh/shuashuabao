@@ -2019,6 +2019,10 @@ class Mediator:
     def _hero_changed_pixels(before: np.ndarray, after: np.ndarray) -> int:
         if before.shape != after.shape:
             return 0
+        if before.ndim == 3:
+            # cv2.countNonZero 仅接受单通道；BGR ROI 先转灰度（面板刷新/WAIT_MUTATION 场景实测崩溃 'cn == 1'）
+            before = cv2.cvtColor(before, cv2.COLOR_BGR2GRAY)
+            after = cv2.cvtColor(after, cv2.COLOR_BGR2GRAY)
         difference = cv2.absdiff(before, after)
         _, changed = cv2.threshold(difference, 15, 255, cv2.THRESH_BINARY)
         return int(cv2.countNonZero(changed))
