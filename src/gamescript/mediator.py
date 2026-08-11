@@ -208,6 +208,10 @@ class RecoveryState:
 
 
 class Mediator:
+    _CREATE_ROOM_CONFIRM_WINDOW_S = 4.0
+    _CREATE_ROOM_TOTAL_TIMEOUT_S = 15.0
+    _CREATE_ROOM_MAX_ATTEMPTS = 3  # 首次点击 + 最多两次重试
+
     def __init__(
         self,
         settings: Settings,
@@ -285,6 +289,12 @@ class Mediator:
         # Safety: L0 cycle counter — prevent infinite PLATFORM_MAP ↔ ROOM_WAITING loops
         self._l0_cycle_count = 0
         self._l0_cycle_limit = 5
+        # L0 建房请求：点击成功不等于弹窗已打开，必须等待专用锚点确认。
+        self._create_room_pending_since: float | None = None
+        self._create_room_next_observe_at: float | None = None
+        self._create_room_flow_deadline: float | None = None
+        self._create_room_attempts = 0
+        self._create_room_last_candidate: dict | None = None
         # Safety: MAIN_LINE idle deadline — prevent infinite idle on unexpected screens
         self._main_line_since: float | None = None
         self._main_line_started_at: float | None = None
@@ -2425,6 +2435,11 @@ class Mediator:
             self._stage_target_name = None
             self._stage_target_position = None
             self._room_dialog_filled = False
+            self._create_room_pending_since = None
+            self._create_room_next_observe_at = None
+            self._create_room_flow_deadline = None
+            self._create_room_attempts = 0
+            self._create_room_last_candidate = None
         if phase in (Phase.PLATFORM_MAP, Phase.CREATE_ROOM):
             self._room_action_deadline = time.time() + self.settings.query_timeout
         if phase == Phase.CREATE_ROOM:
@@ -2505,6 +2520,11 @@ class Mediator:
             self._main_line_since = time.time()
             self._main_line_started_at = self._main_line_since
             self._selection_click_cooldown_until = 0.0
+            self._selection_unknown_attempts = 0
+            self._selection_unknown_since = None
+            self._selection_repeat_key = None
+            self._selection_repeat_attempts = 0
+            self._skill_refresh_attempts = 0
             self._challenge_done.clear()
             self._challenge_attempts.clear()
             self._challenge_unknown_since.clear()
@@ -2954,6 +2974,79 @@ class Mediator:
     def _auto_room_enabled(self) -> bool:
         return self.settings.auto_create_room or self.settings.game_mode == 1
 
+    @staticmethod
+    def _create_room_candidate_payload(hit: MatchResult | None) -> dict | None:
+        if hit is None:
+            return None
+        return {
+            "name": hit.name,
+            "score": round(hit.score, 3),
+            "bbox": [hit.x, hit.y, hit.w, hit.h],
+            "click_point": [hit.screen_x, hit.screen_y],
+        }
+
+    def _trace_create_room_control(
+        self,
+        state: str,
+        *,
+        candidate: MatchResult | None = None,
+        click_ok: bool | None = None,
+        post_confirm: bool | None = None,
+        now: float | None = None,
+    ) -> None:
+        """Record the bounded L0 create-room request without granting input authority."""
+        pending_age = None
+        if self._create_room_pending_since is not None:
+            pending_age = round(max(0.0, (now or time.time()) - self._create_room_pending_since), 3)
+        self._trace_controls.append(
+            {
+                "control": "create_room",
+                "state": state,
+                "candidate": (
+                    self._create_room_candidate_payload(candidate)
+                    if candidate is not None
+                    else self._create_room_last_candidate
+                ),
+                "click_ok": click_ok,
+                "post_confirm": post_confirm,
+                "pending_age": pending_age,
+                "attempt": self._create_room_attempts,
+            }
+        )
+
+    def _clear_create_room_request(self) -> None:
+        self._create_room_pending_since = None
+        self._create_room_next_observe_at = None
+        self._create_room_flow_deadline = None
+        self._create_room_attempts = 0
+        self._create_room_last_candidate = None
+
+    def _request_create_room(self, candidate: MatchResult, now: float) -> LoopAction:
+        """Click a candidate, then stay on PLATFORM_MAP until dialog confirmation."""
+        if self._create_room_flow_deadline is None:
+            self._create_room_flow_deadline = now + self._CREATE_ROOM_TOTAL_TIMEOUT_S
+        if self._create_room_attempts >= self._CREATE_ROOM_MAX_ATTEMPTS:
+            self._create_room_next_observe_at = now + 0.5
+            return LoopAction.Continue
+
+        self._create_room_attempts += 1
+        self._create_room_last_candidate = self._create_room_candidate_payload(candidate)
+        clicked = self.act_click(candidate, "CreateRoom-open")
+        self._trace_create_room_control(
+            "OPEN_REQUESTED" if clicked else "CLICK_FAILED",
+            candidate=candidate,
+            click_ok=clicked,
+            now=now,
+        )
+        if clicked:
+            self._create_room_pending_since = now
+            self._create_room_next_observe_at = now + self._CREATE_ROOM_CONFIRM_WINDOW_S
+        else:
+            # 输入失败也必须有节流，避免在同一帧/同一窗口连续轰击。
+            self._create_room_pending_since = None
+            self._create_room_next_observe_at = now + self.settings.ui_action_interval_s
+        return LoopAction.Continue
+
     def _find_room_start(self, frame: Frame) -> MatchResult | None:
         return self.find_scene(frame, "room_start")
 
@@ -3208,22 +3301,54 @@ class Mediator:
 
         if self.phase == Phase.PLATFORM_MAP:
             if stage_page:
+                self._clear_create_room_request()
                 self.set_phase(Phase.STAGE_SELECT, "stage page detected")
                 return LoopAction.Continue
             if room_start:
+                self._clear_create_room_request()
                 self.set_phase(Phase.ROOM_WAITING, "room already exists")
                 return LoopAction.Continue
+            now = time.time()
             confirm = self._find_create_confirm(frame)
             if confirm:
+                self._trace_create_room_control(
+                    "CONFIRMED",
+                    post_confirm=self._create_room_pending_since is not None,
+                    now=now,
+                )
+                self._clear_create_room_request()
                 self.set_phase(Phase.CREATE_ROOM, "create dialog detected")
                 return LoopAction.Continue
+
+            if self._create_room_pending_since is not None:
+                # Observe-only settle window: never click again before the
+                # dedicated dialog anchor had its full 3–5s opportunity.
+                if self._create_room_next_observe_at is not None and now < self._create_room_next_observe_at:
+                    print("[L0] 创房请求等待专用弹窗确认（零动作）")
+                    return LoopAction.Continue
+                self._trace_create_room_control("CONFIRM_TIMEOUT", post_confirm=False, now=now)
+                self._create_room_pending_since = None
+                self._create_room_next_observe_at = None
+            elif self._create_room_next_observe_at is not None and now < self._create_room_next_observe_at:
+                print("[L0] 创房点击失败，等待输入节流窗口（零动作）")
+                return LoopAction.Continue
+
+            if self._create_room_flow_deadline is not None:
+                if now >= self._create_room_flow_deadline:
+                    self._trace_create_room_control("TIMEOUT", post_confirm=False, now=now)
+                    print("[L0] 创房弹窗确认总预算已耗尽，Fail-Closed")
+                    self.set_phase(Phase.ERROR, "create dialog confirmation timeout")
+                    self.stop()
+                    return LoopAction.Break
+                if self._create_room_attempts >= self._CREATE_ROOM_MAX_ATTEMPTS:
+                    self._create_room_next_observe_at = now + 0.5
+                    print("[L0] 创房已用尽两次重试，等待总预算到期（零动作）")
+                    return LoopAction.Continue
+
             create = self._find_map_create_room(frame)
             if create:
                 print(f"[L0] 检测到创建房间按钮 {create.name} @ {create.center}")
-                if not self.act_click(create, "CreateRoom-open"):
-                    return LoopAction.Continue
-                self.set_phase(Phase.CREATE_ROOM, "clicked map create room")
-                return LoopAction.Continue
+                return self._request_create_room(create, now)
             if self._action_timed_out():
                 print("[L0] 地图页超时仍未安全识别创建房间按钮，停止而不是点击快速加入")
                 self.set_phase(Phase.ERROR, "create room button not found")
@@ -4513,7 +4638,8 @@ class Mediator:
             f"auto_room={self._auto_room_enabled()} "
             f"stage={self.settings.stage1}/{self.settings.stage2} "
             f"targets={self.settings.stage_targets or '-'} "
-            f"threshold={self.settings.match_threshold} images={self.images}"
+            f"threshold={self.settings.match_threshold} images={self.images} "
+            "l0_uia=disabled"
         )
         if self.settings.dry_run:
             print("[med] DRY-RUN 仅识别/打印坐标，不会真的点击；要跑全链路请关闭 Dry-run")

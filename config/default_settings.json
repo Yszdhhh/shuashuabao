@@ -1,11 +1,11 @@
 {
-  "stage1": 10,
-  "stage2": 10,
+  "stage1": 1,
+  "stage2": 15,
   "stage_targets": [
-    "1-10"
+    "1-15"
   ],
-  "room_name": "",
-  "room_password": "",
+  "room_name": "2",
+  "room_password": "111",
   "auto_create_room": true,
   "room_create_side": "left",
   "new_room_every_times": false,

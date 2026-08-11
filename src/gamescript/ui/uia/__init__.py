@@ -11,6 +11,11 @@
 
 from __future__ import annotations
 
+# Deliberately disabled in production until a real KK window passes the UIA
+# tree/dry-run gate.  The mediator therefore uses its visual L0 confirmation
+# path; importing this package must not be mistaken for live UIA wiring.
+UIA_PRODUCTION_ENABLED = False
+
 from .adapter import AdapterOptions, LobbyUiaAdapter, VisualFallback
 from .backend import CtypesUiaBackend
 from .mappings import KK_LOBBY_MAPPINGS, WINDOW_PLATFORM_MAP, WINDOW_ROOM
@@ -50,6 +55,7 @@ __all__ = [
     "UiaSelector",
     "UiaWindowSpec",
     "VisualFallback",
+    "UIA_PRODUCTION_ENABLED",
     "WINDOW_PLATFORM_MAP",
     "WINDOW_ROOM",
     "build_snapshot",

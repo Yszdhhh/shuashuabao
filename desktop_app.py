@@ -116,9 +116,13 @@ class MediatorWorker(QThread):
         target = (self.settings.stage_targets or [
             f"{self.settings.stage1}-{self.settings.stage2}"
         ])[0]
+        room = self.settings.room_name or "<空>"
+        password = "已设置" if self.settings.room_password else "未设置"
+        width, height = (self.settings.window_size or [1600, 900])[:2]
         self.signals.log_emitted.emit(
             f"[启动] 刷图任务启动 | Dry-run={self.settings.dry_run} | "
-            f"关卡={target} | 技能={self.settings.skills}",
+            f"关卡={target} | 房间={room} | 密码={password} | "
+            f"分辨率={width}x{height} | 技能={self.settings.skills}",
             "info"
         )
 
@@ -619,8 +623,6 @@ class MainWindow(QMainWindow):
         settings.stage2 = stage_index
         settings.stage_targets = [target]
         settings.auto_create_room = True
-        settings.room_name = ""
-        settings.room_password = ""
         settings.new_room_every_times = False
         settings.dry_run = self.chk_dry.isChecked()
         settings.skills = skills
@@ -645,6 +647,14 @@ class MainWindow(QMainWindow):
             settings.save(ROOT / "config" / "default_settings.json")
         except Exception:
             pass
+        target = settings.stage_targets[0] if settings.stage_targets else f"{settings.stage1}-{settings.stage2}"
+        room = settings.room_name or "<空>"
+        password = "已设置" if settings.room_password else "未设置"
+        width, height = (settings.window_size or [1600, 900])[:2]
+        self.log(
+            f"[启动配置] 关卡={target} 房间={room} 密码={password} 分辨率={width}x{height} "
+            f"配置源={ROOT / 'config' / 'default_settings.json'}"
+        )
 
         if not settings.dry_run:
             is_admin = False

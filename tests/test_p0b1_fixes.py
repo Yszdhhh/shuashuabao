@@ -208,6 +208,22 @@ class P0B1FixesTests(unittest.TestCase):
             self.assertEqual(kwargs.get("target_hwnd"), 12345)
             self.assertEqual(kwargs.get("dry_run"), self.settings.dry_run)
 
+    def test_next_round_after_unknown_panel_resets_selection_state(self):
+        """上一局未知面板不能阻塞下一局技能面板的首帧处理。"""
+        self.med._selection_unknown_attempts = 3
+        self.med._selection_unknown_since = 123.0
+        self.med._selection_repeat_key = ("unknown", "skill", 1, 2)
+        self.med._selection_repeat_attempts = 2
+        self.med._skill_refresh_attempts = 3
+
+        self.med.set_phase(Phase.MAIN_LINE, "next round skill panel")
+
+        self.assertEqual(self.med._selection_unknown_attempts, 0)
+        self.assertIsNone(self.med._selection_unknown_since)
+        self.assertIsNone(self.med._selection_repeat_key)
+        self.assertEqual(self.med._selection_repeat_attempts, 0)
+        self.assertEqual(self.med._skill_refresh_attempts, 0)
+
     def test_stage_id_generic_parsing_unbounded(self):
         from gamescript.vision.stage_selector import StageId
         self.assertEqual(StageId.parse("6-1"), StageId(6, 1))
