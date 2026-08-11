@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "purpose": "O3 frozen-crop blind audit; only independent 1600x900 sessions may enter the gate",
+  "status": "insufficient_pending_new_session",
+  "required_resolution": [1600, 900],
+  "truth_source_required": ["independent_manual", "independent_double_annotation"],
+  "frozen_rules": {
+    "slot_x": [[0.23, 0.4], [0.415, 0.585], [0.6, 0.77]],
+    "name_y_bands": {
+      "skill": [0.16, 0.25],
+      "bond": [0.25, 0.35],
+      "treasure": [0.17, 0.27]
+    },
+    "progress_y": [0.36, 0.45],
+    "rule": "No per-sample bbox adjustment; no OCR/label feedback"
+  },
+  "o3_reference": {
+    "report": "docs/baselines/O3_GATE_20260811_110236.json",
+    "valid_slots": 387,
+    "sessions": [
+      "dragonball_webp_20260807",
+      "live_postgame_20260808",
+      "reborn_wow_screens_20260806",
+      "rec1_ingame_boss_20260809",
+      "rec3_260810",
+      "rec5_260808",
+      "rec7_short2_20260808",
+      "rec9_mijing_20260810",
+      "rec10_3normal_20260810"
+    ]
+  },
+  "candidate_source": {
+    "manifest": "fixtures/ocr_choices/D0_extended_manifest.json",
+    "provenance": "D0_STATUS_20260811.md §3.4: OCR detection-box coordinates; OCR+dictionary truth suggestions",
+    "sessions": {
+      "rec9_mijing_20260810": {
+        "episodes": 56,
+        "valid_slots": 137,
+        "source_resolution": [1920, 1080],
+        "reason_rejected": ["session_overlap_with_o3", "not_1600x900_game_frame"]
+      },
+      "rec10_3normal_20260810": {
+        "episodes": 41,
+        "valid_slots": 96,
+        "source_resolution": [1920, 1080],
+        "reason_rejected": ["session_overlap_with_o3", "not_1600x900_game_frame"]
+      }
+    },
+    "total_episodes": 97,
+    "total_valid_slots": 233
+  },
+  "entries": []
+}

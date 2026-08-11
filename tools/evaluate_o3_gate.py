@@ -32,12 +32,17 @@ from gamescript.vision.choice_ocr import (  # noqa: E402
     lookup_lexicon,
     normalize_choice_text,
 )
+from crop_ocr_choices import frozen_roi_for_slot  # noqa: E402
+
 
 DEFAULT_O1_MANIFEST = REPO_ROOT / "fixtures" / "ocr_choices" / "manifest.json"
 DEFAULT_D0_MANIFEST = REPO_ROOT / "fixtures" / "ocr_choices" / "D0_extended_manifest.json"
 DEFAULT_REVIEW = REPO_ROOT / "fixtures" / "ocr_choices" / "D0_vision_review.json"
 DEFAULT_NEG_EXTRA = REPO_ROOT / "fixtures" / "ocr_choices" / "O3_negatives_extra.json"
 DEFAULT_OUT_DIR = REPO_ROOT / "docs" / "baselines"
+DEFAULT_BLIND_MANIFEST = REPO_ROOT / "fixtures" / "ocr_choices" / "o3_blind_manifest.json"
+
+
 
 # session 切分（蓝图 §10/§11：按采集 session，不得帧级泄漏）
 # test = 最难的既有 session（rec5 金边艺术字、rec7 宝物面板）；val = 中等；train = 其余。
@@ -54,6 +59,11 @@ SPLIT = {
     "val": ["rec3_260810"],
     "test": ["rec5_260808", "rec7_short2_20260808"],
 }
+# Blind evaluation is allowed only for a session absent from the frozen O3
+# dataset.  This is intentionally the union, not a frame-level subtraction.
+O3_SESSIONS = frozenset(session for sessions in SPLIT.values() for session in sessions)
+BLIND_REQUIRED_RESOLUTION = (1600, 900)
+
 
 O3_GATES = {
     "held_out_top1": 0.95,
@@ -66,6 +76,86 @@ O3_GATES = {
     "first_load_s": 4.0,
     "rss_delta_mb": 800.0,
 }
+
+def frozen_blind_boxes(kind: str, slot_index: int) -> dict[str, tuple[float, float, float, float]]:
+    """Return name/progress boxes from the frozen layout prior only."""
+    return {
+        "name": frozen_roi_for_slot(kind, slot_index, "name"),
+        "progress": frozen_roi_for_slot(kind, slot_index, "progress"),
+    }
+
+
+def blind_audit(manifest_path: Path) -> dict:
+    """Audit blind fixtures before model execution.
+
+    Entries fail closed when they reuse an O3 session, are not 1600x900, or
+    lack an independent human annotation.  Existing D0 OCR/dictionary truth
+    is intentionally not accepted as blind truth.
+    """
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entries = data.get("entries", [])
+    issues = []
+    accepted = []
+
+    def check_entry(entry: dict) -> list[dict]:
+        entry_issues = []
+        session = entry.get("session_id")
+        resolution = tuple(entry.get("resolution", ()))
+        truth_source = entry.get("truth_source")
+        if session in O3_SESSIONS:
+            entry_issues.append({"id": entry.get("id"), "reason": "session_overlap", "session": session})
+        if resolution != BLIND_REQUIRED_RESOLUTION:
+            entry_issues.append({"id": entry.get("id"), "reason": "resolution_not_1600x900",
+                                 "resolution": list(resolution)})
+        if truth_source not in ("independent_manual", "independent_double_annotation"):
+            entry_issues.append({"id": entry.get("id"), "reason": "truth_not_independent",
+                                 "truth_source": truth_source})
+        return entry_issues
+
+    for entry in entries:
+        entry_issues = check_entry(entry)
+        issues.extend(entry_issues)
+        if not entry_issues:
+            accepted.append(entry)
+
+    candidate = data.get("candidate_source", {})
+    candidate_entries = []
+    candidate_path = REPO_ROOT / candidate["manifest"] if candidate.get("manifest") else None
+    if candidate_path and candidate_path.exists():
+        candidate_entries = json.loads(candidate_path.read_text(encoding="utf-8")).get("entries", [])
+    candidate_reasons = Counter(
+        issue["reason"] for entry in candidate_entries for issue in check_entry({
+            "id": entry.get("id"),
+            "session_id": entry.get("session_id"),
+            "resolution": entry.get("window_size"),
+            "truth_source": "ocr_dictionary_suggestion",
+        })
+    )
+    return {
+        "schema_version": data.get("schema_version"),
+        "entries_total": len(entries),
+        "accepted_entries": len(accepted),
+        "accepted": accepted,
+        "issues": issues,
+        "o3_sessions": sorted(O3_SESSIONS),
+        "candidate_source": data.get("candidate_source", {}),
+        "candidate_audit": {
+            "entries": len(candidate_entries),
+            "rejections": dict(sorted(candidate_reasons.items())),
+        },
+        "o3_reference": data.get("o3_reference", {}),
+        "frozen_rules": data.get("frozen_rules", {
+            "required_resolution": list(BLIND_REQUIRED_RESOLUTION),
+            "slot_x": [[0.23, 0.40], [0.415, 0.585], [0.60, 0.77]],
+            "name_y_bands": {
+                "skill": [0.160, 0.250],
+                "bond": [0.250, 0.350],
+                "treasure": [0.170, 0.270],
+            },
+            "progress_y": [0.360, 0.450],
+        }),
+        "blind_gate_evidence": bool(accepted),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -463,6 +553,9 @@ def render_markdown(report: dict) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--blind", action="store_true",
+                    help="audit the frozen-crop blind fixture instead of the legacy O3 gate")
+    ap.add_argument("--blind-manifest", type=Path, default=DEFAULT_BLIND_MANIFEST)
     ap.add_argument("--o1-manifest", type=Path, default=DEFAULT_O1_MANIFEST)
     ap.add_argument("--d0-manifest", type=Path, default=DEFAULT_D0_MANIFEST)
     ap.add_argument("--review", type=Path, default=DEFAULT_REVIEW)
@@ -475,6 +568,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cpu-threads", type=int, default=10)
     ap.add_argument("--pre-dir", type=Path, default=Path(r"C:/tmp/o3_pre"))
     args = ap.parse_args(argv)
+
+    if args.blind:
+        audit = blind_audit(args.blind_manifest)
+        print(json.dumps(audit, ensure_ascii=False, indent=2))
+        # An empty/rejected fixture is a valid correction result: it must not
+        # silently become an OCR gate.  Nonzero is reserved for malformed input.
+        return 0
 
     dataset = build_dataset(args.o1_manifest, args.d0_manifest, args.review)
     slots = dataset["slots"]

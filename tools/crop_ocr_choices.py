@@ -63,6 +63,36 @@ DRAGON_PROGRESS_ROI = (0.435, 0.565, 0.350, 0.420)
 # 硬约束：任何裁剪框下沿不得超过该归一化 y
 MAX_ROI_BOTTOM_Y = 0.620
 BUTTON_STRIP_Y = (0.67, 0.79)  # 暂时隐藏/放弃/刷新 按钮区（禁止点击）
+# Frozen blind-test layout prior (O3 correction, 1600x900 only).  These
+# bands are deliberately wider than the O1 per-sample bboxes and are never
+# adjusted from the truth label or OCR result.
+FROZEN_NAME_Y_BANDS = {
+    "skill": (0.160, 0.250),    # O1 cross-session median y0 ~= 0.174
+    "bond": (0.250, 0.350),     # O1 cross-session median y0 ~= 0.270
+    "treasure": (0.170, 0.270), # O1 cross-session median y0 ~= 0.186
+}
+
+
+def frozen_roi_for_slot(kind: str, slot_index: int, field: str = "name") -> tuple[float, float, float, float]:
+    """Return the immutable blind-test ROI for one 1600x900 slot.
+
+    ``kind`` and ``slot_index`` select only the frozen layout prior.  No
+    manifest bbox, truth label, or detection result is consulted.
+    """
+    if kind not in FROZEN_NAME_Y_BANDS:
+        raise ValueError(f"unsupported blind-test kind: {kind!r}")
+    if slot_index not in range(len(SLOT_X)):
+        raise ValueError(f"slot index must be 0..{len(SLOT_X) - 1}: {slot_index!r}")
+    if field == "name":
+        y0, y1 = FROZEN_NAME_Y_BANDS[kind]
+    elif field == "progress":
+        y0, y1 = PROGRESS_Y
+    else:
+        raise ValueError(f"unsupported blind-test field: {field!r}")
+    x0, x1 = SLOT_X[slot_index]
+    return (x0, y0, x1, y1)
+
+
 
 
 def truth_status_of(canonical: str | None, lexicon: dict) -> str:
