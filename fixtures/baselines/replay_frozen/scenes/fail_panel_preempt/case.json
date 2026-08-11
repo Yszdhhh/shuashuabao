@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "case": "fail_panel_preempt",
+  "description": "R0.1-#1 fail+panel 独立场景：真实失败弹窗帧（rec9_mijing idx_a 帧 002238/002694，fail 模板 0.916/0.956 命中 + 选择面板锚点并存）。S0 ② 语义：STRONG_FAIL 连续两帧抢占 selection/panel FSM → RECOVER_FAILURE，选卡输入恒为 0；第三帧（002694 变体）RECOVER_FAILURE FAIL_CONFIRM 等待 ok 按钮（当前 ok/close 模板在本帧无命中 → 零输入有界等待，不消耗尝试）。帧来源：fixtures/ocr_choices/frames/rec9_mijing_20260810/（1920×1080 全桌面捕获，内含 1600×900 游戏窗；与 D0_SESSION_MAP §5 a fail(fail) 002238/002694 一致）。",
+  "phase": "MAIN_LINE",
+  "settings_overrides": {
+    "dry_run": true
+  },
+  "frames": [
+    {
+      "id": "fail_238_f1",
+      "at_s": 0.0,
+      "file": "fixtures/ocr_choices/frames/rec9_mijing_20260810/d0_a_002238.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "fail_238_f2",
+      "at_s": 1.0,
+      "file": "fixtures/ocr_choices/frames/rec9_mijing_20260810/d0_a_002238.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "fail_694_f3",
+      "at_s": 2.0,
+      "file": "fixtures/ocr_choices/frames/rec9_mijing_20260810/d0_a_002694.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    }
+  ],
+  "expect_actions": [
+    {
+      "phase_before": "MAIN_LINE",
+      "context": "MAIN_LINE",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "MAIN_LINE",
+      "loop_action": "Continue"
+    },
+    {
+      "phase_before": "MAIN_LINE",
+      "context": "MAIN_LINE",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "RECOVER_FAILURE",
+      "loop_action": "Continue"
+    },
+    {
+      "phase_before": "RECOVER_FAILURE",
+      "context": "MAIN_LINE",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "RECOVER_FAILURE",
+      "loop_action": "Continue"
+    }
+  ],
+  "final_phase": "RECOVER_FAILURE"
+}

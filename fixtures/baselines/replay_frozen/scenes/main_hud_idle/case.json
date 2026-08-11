@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "case": "main_hud_idle",
+  "description": "R0.1-#4 主线 HUD 独立场景：真实帧 fixtures/replay/main_line_auto_on.png（1600×900 窗口捕获，idle HUD，无选择面板）。生产语义：context=MAIN_LINE；首帧点击进化按钮（click_evolve 0.982 @ (525,810)，自动进化策略），随后 5s 进化冷却内零输入 idle 等待（第二帧 t=2.0 actions=0）。HUD 锚点识别与零盲点由本场景冻结。",
+  "phase": "MAIN_LINE",
+  "settings_overrides": {
+    "dry_run": true
+  },
+  "frames": [
+    {
+      "id": "hud_f1",
+      "at_s": 0.0,
+      "file": "fixtures/replay/main_line_auto_on.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "hud_f2",
+      "at_s": 2.0,
+      "file": "fixtures/replay/main_line_auto_on.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    }
+  ],
+  "expect_actions": [
+    {
+      "phase_before": "MAIN_LINE",
+      "context": "MAIN_LINE",
+      "action_count": 1,
+      "action": {
+        "kind": "click",
+        "reason": "ClickEvolve",
+        "target": "click_evolve",
+        "input_kind": "left_click"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
+      "phase_after": "MAIN_LINE",
+      "loop_action": "Continue"
+    },
+    {
+      "phase_before": "MAIN_LINE",
+      "context": "MAIN_LINE",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "MAIN_LINE",
+      "loop_action": "Continue"
+    }
+  ],
+  "final_phase": "MAIN_LINE"
+}

@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "case": "exit_confirm_quit",
+  "description": "R0.1-#6 退出确认独立场景：真实帧 fixtures/live_postgame_20260808/live_exit_confirm.png（1600×900 窗口捕获，退出确认弹窗 + exit_confirm_btn 0.815）。生产语义：QUIT → 退出确认已可见 → NEXT（首帧零动作，不重复点开）；第二帧点专用退出锚点 exit_confirm_btn（绝不用 cancel/close 泛化锚点）→ PREPARE 回房验证。与 tests/test_external_review_regressions.py::test_exit_confirm_fixture_never_selects_cancel 同口径。",
+  "phase": "QUIT",
+  "settings_overrides": {
+    "dry_run": true
+  },
+  "frames": [
+    {
+      "id": "exit_confirm_f1",
+      "at_s": 0.0,
+      "file": "fixtures/live_postgame_20260808/live_exit_confirm.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "exit_confirm_f2",
+      "at_s": 2.0,
+      "file": "fixtures/live_postgame_20260808/live_exit_confirm.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    }
+  ],
+  "expect_actions": [
+    {
+      "phase_before": "QUIT",
+      "context": "UNKNOWN",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "NEXT",
+      "loop_action": "Continue"
+    },
+    {
+      "phase_before": "NEXT",
+      "context": "UNKNOWN",
+      "action_count": 1,
+      "action": {
+        "kind": "click",
+        "reason": "QuitGame-confirm",
+        "target": "exit_confirm_btn",
+        "input_kind": "left_click"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
+      "phase_after": "PREPARE",
+      "loop_action": "Continue"
+    }
+  ],
+  "final_phase": "PREPARE"
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "case": "archive_challenge_open",
+  "description": "R0.1-#3 存档挑战独立场景：真实帧 fixtures/replay/archive_challenge_panel.png（post_game=ARCHIVE_PANEL，1600×900 窗口捕获）。生产语义：存档面板零动作（无恢复点击、无卡片点击）；本帧处于非胜利链路直接进入存档面板 → Fail-Closed 守卫触发（记录 incident，dry-run 观察模式恢复 MAIN_LINE，输入恒为 0）。与 fixtures/manifest.json post_game_archive_panel（expected_action none）口径一致。",
+  "phase": "MAIN_LINE",
+  "settings_overrides": {
+    "dry_run": true
+  },
+  "frames": [
+    {
+      "id": "archive_panel_f1",
+      "at_s": 0.0,
+      "file": "fixtures/replay/archive_challenge_panel.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    }
+  ],
+  "expect_actions": [
+    {
+      "phase_before": "MAIN_LINE",
+      "context": "MAIN_LINE",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "MAIN_LINE",
+      "loop_action": "Continue"
+    }
+  ],
+  "final_phase": "MAIN_LINE"
+}

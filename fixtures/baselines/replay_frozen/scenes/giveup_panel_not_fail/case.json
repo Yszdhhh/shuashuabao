@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "case": "giveup_panel_not_fail",
+  "description": "R0.1-#2 giveUp+panel 独立场景：真实帧 idx_b/000105（giveup_panel.jpg，giveUp 模板 0.926 命中 + 技能面板锚点并存）。S0 ① 语义：giveUp 独立场景 → AMBIGUOUS_GIVEUP，非失败、不进恢复、不变 QUIT；面板 FSM 正常继续（本帧按品质色选卡点击 bond rarity_red @ (864,359)）。第二帧（idle_hud.png，面板已关闭、锚点消失）→ panel episode 干净结束，零输入。帧来源：tests/performance/fixtures/giveup_panel.jpg（idx_b 000105，N0 giveup_panel 同源）+ tests/performance/fixtures/idle_hud.png（= fixtures/replay/main_line_auto_on.png）。",
+  "phase": "MAIN_LINE",
+  "settings_overrides": {
+    "dry_run": true
+  },
+  "frames": [
+    {
+      "id": "giveup_panel_f1",
+      "at_s": 0.0,
+      "file": "tests/performance/fixtures/giveup_panel.jpg",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "hud_panel_closed_f2",
+      "at_s": 2.0,
+      "file": "tests/performance/fixtures/idle_hud.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l1",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    }
+  ],
+  "expect_actions": [
+    {
+      "phase_before": "MAIN_LINE",
+      "context": "MAIN_LINE",
+      "action_count": 1,
+      "action": {
+        "kind": "click",
+        "reason": "bond选择",
+        "target": "rarity_red",
+        "input_kind": "left_click"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
+      "phase_after": "MAIN_LINE",
+      "loop_action": "Continue"
+    },
+    {
+      "phase_before": "MAIN_LINE",
+      "context": "MAIN_LINE",
+      "action_count": 0,
+      "action": null,
+      "action_result": null,
+      "phase_after": "MAIN_LINE",
+      "loop_action": "Continue"
+    }
+  ],
+  "final_phase": "MAIN_LINE"
+}
