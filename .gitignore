@@ -40,3 +40,8 @@ packaging/
 # per-stage packaging outputs (dist_release2 = rollback baseline, kept local)
 build_*/
 dist_*/
+
+# agent scratch dirs (keep on disk, not in repo)
+agent_out/
+docs/baselines/O1_contact_sheet/debug_crops/
+docs/baselines/O1_contact_sheet/ocr_cache.json

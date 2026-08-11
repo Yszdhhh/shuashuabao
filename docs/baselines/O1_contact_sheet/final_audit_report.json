@@ -1,0 +1,314 @@
+[
+  {
+    "id": "rec1_ingame_boss_20260809_t_015s_技能面板_giveUp证据",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:次级箭, slot1:焦点, slot2:箭矢齐射)."
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_063s_技能面板",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 2 slots (slot0:光法, slot1:潮汐猎人)."
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_234s_技能面板",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:次级增伤, slot1:地震, slot2:射线增幅)."
+  },
+  {
+    "id": "live_postgame_20260808_live_skill_choice",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:射线增幅, slot1:奥数激光, slot2:剑气)."
+  },
+  {
+    "id": "reborn_wow_screens_20260806_skill_choice_3",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:陨石, slot1:次级箭, slot2:地震)."
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_036s_羁绊面板",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:乱世三国, slot1:体魄, slot2:攻击提升)."
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_417s_转折点",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:修仙, slot1:魔术, slot2:封神)."
+  },
+  {
+    "id": "reborn_wow_screens_20260806_bond_choice_3",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:智力祝福, slot1:敏捷祝福, slot2:力量祝福)."
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_393s_技能面板_龙珠首现",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:奥术神符, slot1:六星球(prog), slot2:物理伤害(prog))."
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_423s_持久面板起点",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:攻坚(prog), slot1:四星球(prog), slot2:奥术神符)."
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_507s_持久面板中段",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:攻坚(prog), slot1:四星球(prog), slot2:奥术神符)."
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_630s_结尾",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:攻坚(prog), slot1:四星球(prog), slot2:奥术神符)."
+  },
+  {
+    "id": "reborn_wow_screens_20260806_treasure_choice_3",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:贪婪献祭, slot1:卡牌大师, slot2:双倍神符)."
+  },
+  {
+    "id": "dragonball_webp_20260807_image-c875a13d94b45218",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:奥术神符, slot1:六星球, slot2:物理伤害(prog))."
+  },
+  {
+    "id": "dragonball_webp_20260807_image-ef3f2be8fc5d1103",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:攻坚(prog), slot1:四星球, slot2:奥术神符)."
+  },
+  {
+    "id": "rec3_260810_f_008_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:箭矢连发, slot1:电磁网, slot2:冰霜新星)."
+  },
+  {
+    "id": "rec3_260810_f_015_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:敏捷祝福, slot1:智力祝福, slot2:力量祝福)."
+  },
+  {
+    "id": "rec3_260810_f_021_treasure_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:奥术神符, slot1:极速神符, slot2:赏金神符)."
+  },
+  {
+    "id": "rec3_260810_f_046_treasure_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:奥术神符, slot1:极速神符, slot2:赏金神符)."
+  },
+  {
+    "id": "rec5_260808_f_010_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:奥术增幅β, slot1:箭矢增幅, slot2:箭矢齐射)."
+  },
+  {
+    "id": "rec5_260808_f_024_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:天雷, slot1:焦点, slot2:强力箭矢)."
+  },
+  {
+    "id": "rec5_260808_f_027_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:飓风, slot1:陨石, slot2:电磁网)."
+  },
+  {
+    "id": "rec5_260808_f_042_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:射线增幅, slot1:奥数激光, slot2:剑气)."
+  },
+  {
+    "id": "rec5_260808_f_043_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:爆炸增伤, slot1:天雷, slot2:焦点爆破)."
+  },
+  {
+    "id": "rec5_260808_f_044_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:飓风, slot1:次级箭, slot2:调焦)."
+  },
+  {
+    "id": "rec5_260808_f_045_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:爆炎箭, slot1:奥术增幅α, slot2:射线延续)."
+  },
+  {
+    "id": "rec5_260808_f_083_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:闪电链, slot1:飓风, slot2:地震)."
+  },
+  {
+    "id": "rec5_260808_f_174_skill_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:瓦解光线, slot1:射线增幅, slot2:激光增幅)."
+  },
+  {
+    "id": "rec5_260808_f_030_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:力量祝福, slot1:敏捷祝福, slot2:乱世三国)."
+  },
+  {
+    "id": "rec5_260808_f_031_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:敏捷祝福, slot1:法师奥义, slot2:法术威力)."
+  },
+  {
+    "id": "rec5_260808_f_033_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:敏捷祝福, slot1:藏宝图(三), slot2:箭矢扩散)."
+  },
+  {
+    "id": "rec5_260808_f_034_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:敏捷祝福, slot1:经验多多, slot2:流星泪)."
+  },
+  {
+    "id": "rec5_260808_f_035_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:敏捷祝福, slot1:杀敌多多, slot2:法术增幅)."
+  },
+  {
+    "id": "rec5_260808_f_039_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:法术威力, slot1:巨龙军团, slot2:法术增幅)."
+  },
+  {
+    "id": "rec5_260808_f_041_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:敏捷提升, slot1:燃烧的远征, slot2:气势)."
+  },
+  {
+    "id": "rec5_260808_f_050_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:力量提升, slot1:金币猎人, slot2:魔法权杖)."
+  },
+  {
+    "id": "rec5_260808_f_051_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:魔爆能量, slot1:伯邑考, slot2:灵智)."
+  },
+  {
+    "id": "rec5_260808_f_017_treasure_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:极速神符, slot1:挑战杀手(prog), slot2:属性神符)."
+  },
+  {
+    "id": "rec5_260808_f_018_treasure_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:百宝箱, slot1:蛮舞者(prog), slot2:属性神符)."
+  },
+  {
+    "id": "rec5_260808_f_020_treasure_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:经验(中), slot1:全能神符, slot2:属性神符)."
+  },
+  {
+    "id": "rec5_260808_f_053_treasure_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:力之极, slot1:精英杀手(prog), slot2:控符大师)."
+  },
+  {
+    "id": "rec5_260808_f_112_treasure_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:六星球(prog), slot1:智力提升(prog), slot2:压制(prog))."
+  },
+  {
+    "id": "rec5_260808_f_130_treasure_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:物理伤害(prog), slot1:七星球(prog), slot2:透支力量)."
+  },
+  {
+    "id": "rec5_260808_f_162_treasure_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:属性神符, slot1:暴怒神符, slot2:五星球(prog))."
+  },
+  {
+    "id": "rec5_260808_f_086_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:UNKNOWN, slot1:UNKNOWN, slot2:UNKNOWN)."
+  },
+  {
+    "id": "rec5_260808_f_104_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:UNKNOWN, slot1:UNKNOWN, slot2:UNKNOWN)."
+  },
+  {
+    "id": "rec5_260808_f_159_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:UNKNOWN, slot1:UNKNOWN, slot2:UNKNOWN)."
+  },
+  {
+    "id": "rec5_260808_f_232_bond_corrected",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:UNKNOWN, slot1:UNKNOWN, slot2:燃烧的远征)."
+  },
+  {
+    "id": "rec7_short2_20260808_f_022_skill",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:天雷, slot1:焦点, slot2:次级增伤)."
+  },
+  {
+    "id": "rec7_short2_20260808_f_027_bond",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:力量祝福, slot1:智力祝福, slot2:敏捷祝福)."
+  },
+  {
+    "id": "rec7_short2_20260808_f_033_treasure_3star",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:UNKNOWN, slot1:UNKNOWN, slot2:UNKNOWN(prog))."
+  },
+  {
+    "id": "rec7_short2_20260808_f_034_treasure_2star",
+    "ok": true,
+    "issues": [],
+    "notes": "Verified 3 slots (slot0:UNKNOWN, slot1:UNKNOWN, slot2:UNKNOWN(prog))."
+  }
+]
