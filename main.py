@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from gamescript.incidents import default_incident_dir
 from gamescript.jobs import AutoJob, LongzhuJob
 from gamescript.mediator import Mediator
 from gamescript.models.skill import get_all_card_groups, get_all_skills, get_boss_list
@@ -58,7 +59,8 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         job = LongzhuJob(s, ROOT) if args.longzhu else AutoJob(s, ROOT)
         job.run(max_steps=args.steps)
     else:
-        med = Mediator(s, ROOT)
+        # S0.5：CLI 生产入口也传入 incident 目录（默认 %LocalAppData%/GameScript-Local/incidents）
+        med = Mediator(s, ROOT, incident_dir=default_incident_dir())
         med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
         med.run(max_steps=args.steps)
     return 0
@@ -72,7 +74,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
     print("WARNING: will move mouse / click. Ctrl+C to stop.")
     try:
-        med = Mediator(s, ROOT)
+        # S0.5：CLI 生产入口也传入 incident 目录（默认 %LocalAppData%/GameScript-Local/incidents）
+        med = Mediator(s, ROOT, incident_dir=default_incident_dir())
         med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
         med.run(max_steps=args.steps)
     except KeyboardInterrupt:

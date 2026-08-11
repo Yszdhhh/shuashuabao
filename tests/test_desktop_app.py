@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import json
 import os
+import sys
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import numpy as np  # noqa: E402
 
 from PySide6.QtWidgets import (  # noqa: E402
     QApplication,
@@ -13,7 +20,14 @@ from PySide6.QtWidgets import (  # noqa: E402
     QPushButton,
 )
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src"))
+
 import desktop_app  # noqa: E402
+from gamescript.mediator import Mediator as RealMediator  # noqa: E402
+from gamescript.mediator import Phase  # noqa: E402
+from gamescript.settings import Settings  # noqa: E402
+from gamescript.vision.capture import Frame  # noqa: E402
 
 
 class DesktopPanelTests(unittest.TestCase):
@@ -97,6 +111,56 @@ class DesktopPanelTests(unittest.TestCase):
         self.window.skill_grid.set_skills([])
         settings = self.window.collect_settings_from_ui()
         self.assertEqual([], settings.skills)
+
+    def test_desktop_worker_writes_fail_closed_incident(self):
+        """S0.5：desktop worker 的 Mediator 构造路径传 temp incident_dir，触发
+        Fail-Closed 后 incident 组含 3 帧（before/now/after）+ 完整 S0 metadata
+        （phase/context/evidence/action/attempt/deadline/outcome），密码不泄露。"""
+        import gamescript.mediator as mediator_mod
+
+        class FailClosedProbeMediator(RealMediator):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.probe_incident_dir = kwargs.get("incident_dir")
+
+            @staticmethod
+            def _probe_frame() -> Frame:
+                rng = np.random.default_rng(99)
+                return Frame(
+                    bgr=rng.integers(0, 255, (900, 1600, 3), dtype=np.uint8),
+                    window_title="英雄三国KK",
+                    hwnd=10001,
+                )
+
+            def run(self, max_steps=None):
+                frame = self._probe_frame()
+                self._last_frame = frame
+                self._prev_frame = frame
+                self.settings.room_password = "top-secret-pw"
+                self._context_cache_value = "MAIN_LINE"
+                # Fail-Closed 归档路径（与生产 set_phase(ERROR) 同一入口）
+                self.set_phase(Phase.ERROR, "probe fail closed")
+                fp = self._incident_pending_fp
+                if fp is not None:
+                    self._archiver.attach_frame_after(fp, self._probe_frame())
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch.object(mediator_mod, "Mediator", FailClosedProbeMediator):
+                worker = desktop_app.MediatorWorker(
+                    Settings(dry_run=True), ROOT, max_steps=1, incident_dir=tmp
+                )
+                worker._start_trace = lambda: None  # 测试不写 APP_DATA trace
+                worker.run()
+            groups = sorted(Path(tmp).rglob("incident_*"))
+            self.assertEqual(len(groups), 1, "Fail-Closed 必须产生 incident 组")
+            group = groups[0]
+            for frame_name in ("frame_before.jpg", "frame_now.jpg", "frame_after.jpg"):
+                self.assertTrue((group / frame_name).is_file(), f"incident 必须含 {frame_name}")
+            meta = json.loads((group / "metadata.json").read_text(encoding="utf-8"))
+            for field in ("phase", "context", "evidence", "action", "attempt", "deadline", "outcome"):
+                self.assertIn(field, meta, f"metadata 必须含 {field}")
+            raw = (group / "metadata.json").read_text(encoding="utf-8")
+            self.assertNotIn("top-secret-pw", raw, "密码不得归档")
 
 
 if __name__ == "__main__":

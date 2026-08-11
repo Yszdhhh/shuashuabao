@@ -106,6 +106,25 @@ class Settings:
     auto_gambling_time: int = 0  # 黑商功能未接入状态机（调研报告 P2）
     match_threshold: float = 0.85
     click_delay_ms: int = 120
+    # ---- S0 长期运行安全状态机（2026-08-11，迁移决定见下）----
+    # 旧字段映射决定（CODEX_N2_S0_IMPLEMENTATION S0-④ 前置文档）：
+    #   game_timeout=15 的官方语义是"单局超时"（分钟，review_mediator.md 实测作为
+    #   MAIN_LINE idle watchdog：idle_minutes >= max(game_timeout,5)），不是秒。
+    #   本轮不再把 game_timeout 直接接成 hard deadline；新增 round_timeout_s 作为
+    #   独立的、从进入 MAIN_LINE 起不可续期的单局硬期限（秒），默认 = 15 分钟换算
+    #   （15*60=900s），保留官方"整局最长 15 分钟"语义为硬上限。game_timeout 继续
+    #   只承担 idle watchdog（可被受确认的正常进展刷新），与 hard deadline 分离。
+    round_timeout_s: int = 900
+    round_tail_window_s: int = 120      # 局尾窗口：距 round deadline 不足该秒数才做未验证战后入口检查
+    recovery_timeout_s: int = 60        # 失败/断线恢复总预算（不可续期）
+    recovery_action_limit: int = 3      # 每恢复步骤动作/观测尝试上限
+    recovery_retry_interval_s: float = 1.5  # 恢复动作最小间隔
+    failure_streak_limit: int = 3       # 连续不成功局上限（FAILURE/TIMEOUT/DISCONNECT 均累计）
+    panel_visible_timeout_s: float = 2.0    # 主动打开面板的可见确认窗
+    ui_action_interval_s: float = 1.5       # UI-changing 输入最小间隔
+    panel_action_limit_per_fingerprint: int = 3  # 同 fingerprint 同动作上限
+    panel_episode_limit_per_kind: int = 5       # 每局每类面板会话上限
+    incident_sample_rate: float = 0.1           # 正常 panel episode 抽样归档率
     # N2.3 替代语义：主循环已改为状态分级 cadence（动作后 100ms / 稳定 HUD 300ms /
     # loading 500ms，见 Mediator._cadence_for_current_state）。本字段仅保留为兼容
     # 默认/上限：run() 中 sleep = max(0, min(cadence, loop_sleep_ms/1000) - elapsed)。
@@ -170,7 +189,20 @@ class Settings:
             "kill_boss_num", "cycle_num", "archive_boss_time", "treasure_num",
             "auto_gambling_time", "click_delay_ms", "loop_sleep_ms",
             "artifact_cd", "artifact_slots", "choice_interval",
+            "round_timeout_s", "round_tail_window_s", "recovery_timeout_s",
+            "recovery_action_limit", "failure_streak_limit",
+            "panel_action_limit_per_fingerprint", "panel_episode_limit_per_kind",
         }
+        float_fields = {
+            "recovery_retry_interval_s", "panel_visible_timeout_s",
+            "ui_action_interval_s", "incident_sample_rate",
+        }
+        for k in float_fields:
+            if k in clean:
+                try:
+                    clean[k] = float(clean[k])
+                except (TypeError, ValueError):
+                    clean.pop(k)
         for k in int_fields:
             if k in clean:
                 try:
@@ -219,7 +251,31 @@ class Settings:
             "auto_clean_interval": (0, 99), "develop_time": (0, 3000),
             "close_main_line_time": (0, 3600), "auto_gambling_time": (0, 3600),
             "reputation_stage1": (0, 50), "reputation_stage2": (0, 50),
+            # S0 安全默认范围（超出回落安全区间，绝不静默放大时限/次数）
+            "round_timeout_s": (60, 7200), "round_tail_window_s": (30, 600),
+            "recovery_timeout_s": (10, 600), "recovery_action_limit": (1, 10),
+            "failure_streak_limit": (1, 10),
+            "panel_action_limit_per_fingerprint": (1, 10),
+            "panel_episode_limit_per_kind": (1, 50),
         }
+        for k, (lo, hi) in _RANGES.items():
+            if k in clean:
+                try:
+                    clean[k] = max(lo, min(hi, int(clean[k])))
+                except (TypeError, ValueError):
+                    clean.pop(k)
+        float_ranges: dict[str, tuple[float, float]] = {
+            "recovery_retry_interval_s": (0.5, 30.0),
+            "panel_visible_timeout_s": (0.5, 10.0),
+            "ui_action_interval_s": (0.5, 10.0),
+            "incident_sample_rate": (0.0, 1.0),
+        }
+        for k, (lo, hi) in float_ranges.items():
+            if k in clean:
+                try:
+                    clean[k] = max(lo, min(hi, float(clean[k])))
+                except (TypeError, ValueError):
+                    clean.pop(k)
         for k, (lo, hi) in _RANGES.items():
             if k in clean:
                 try:

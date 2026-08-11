@@ -68,11 +68,14 @@ class P0C1FixesTests(unittest.TestCase):
                 mock_exec_click.assert_not_called()
 
     def test_main_line_unverified_entries_fail_closed(self):
+        """S0 ⑧ 阶段门控后：archive/boss_entry 只在局尾窗口检查（Fail-Closed 保留）；
+        longzhu 色相检查移至 LONGZHU 阶段。"""
         frame = create_dummy_frame()
 
-        for scene_key in ("archive", "boss_entry", "longzhu"):
+        for scene_key in ("archive", "boss_entry"):
             self.med = Mediator(self.settings, ROOT)
             self.med.set_phase(Phase.MAIN_LINE)
+            self.med._post_game_pending = True  # 局尾窗口（战后流程进行中）
 
             def mock_find_scene(f, sk, threshold=None):
                 if sk == scene_key:
@@ -97,6 +100,26 @@ class P0C1FixesTests(unittest.TestCase):
                 mock_act_right_click.assert_not_called()
                 mock_act_key.assert_not_called()
                 mock_exec_click.assert_not_called()
+
+        # longzhu：仅在 LONGZHU 阶段检查并 Fail-Closed（MAIN_LINE 不再每 tick 扫）
+        self.med = Mediator(self.settings, ROOT)
+        self.med.set_phase(Phase.LONGZHU)
+
+        def mock_find_scene_lz(f, sk, threshold=None):
+            if sk == "longzhu":
+                return MatchResult(name="longzhu", score=0.95, x=700, y=250, w=50, h=50, screen_x=700, screen_y=250)
+            return None
+
+        with patch.object(self.med, "find_scene", side_effect=mock_find_scene_lz), \
+             patch.object(self.med, "act_click") as mock_act_click, \
+             patch.object(self.med.executor, "click") as mock_exec_click:
+            action = self.med._tick_l1_tail(frame)
+
+        self.assertEqual(action, LoopAction.Break)
+        self.assertEqual(self.med.phase, Phase.ERROR)
+        self.assertTrue(self.med.stop_signal.is_set())
+        mock_act_click.assert_not_called()
+        mock_exec_click.assert_not_called()
 
     def test_l1_tail_legacy_phases_fail_closed(self):
         frame = create_dummy_frame()

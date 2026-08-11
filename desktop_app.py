@@ -81,11 +81,20 @@ class LogSignal(QObject):
 
 
 class MediatorWorker(QThread):
-    def __init__(self, settings: Settings, root_dir: Path, max_steps: int | None = None):
+    def __init__(
+        self,
+        settings: Settings,
+        root_dir: Path,
+        max_steps: int | None = None,
+        incident_dir: str | Path | None = None,
+    ):
         super().__init__()
         self.settings = settings
         self.root_dir = root_dir
         self.max_steps = max_steps
+        # S0.5：incident 目录（默认 %LocalAppData%/GameScript-Local/incidents；
+        # 测试传 tempdir），异常/超时/恢复/未知/Fail-Closed 落图证据
+        self.incident_dir = Path(incident_dir) if incident_dir else APP_DATA / "incidents"
         self.signals = LogSignal()
         self.mediator = None
         self._stop_requested = False
@@ -139,7 +148,7 @@ class MediatorWorker(QThread):
         builtins.print = hook_print
 
         try:
-            self.mediator = Mediator(self.settings, self.root_dir)
+            self.mediator = Mediator(self.settings, self.root_dir, incident_dir=self.incident_dir)
             self._start_trace()
             self.mediator.run(max_steps=self.max_steps)
         except Exception as e:

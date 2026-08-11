@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
+from gamescript.mediator import Mediator, Phase, RoundOutcome
 from gamescript.settings import Settings
 from gamescript.vision.capture import Frame
 from gamescript.vision.matcher import MatchResult
@@ -71,30 +71,54 @@ class ExternalReviewRegressionTests(unittest.TestCase):
         self.assertIs(med.phase, Phase.STAGE_SELECT)
 
     def test_fail_requires_two_frames_and_recovery_owns_followup(self) -> None:
+        """S0 ②③：STRONG_FAIL 连续两帧抢占（即使面板锚点存在也不否决），
+        恢复按锚点+输入成功+后置确认门闩推进，完成后才进 QUIT。"""
+        from tests.test_scenario_replay import FakeClock
+
         med = Mediator(Settings(), ROOT)
         image = np.random.default_rng(42).integers(0, 255, (900, 1600, 3), dtype=np.uint8)
         frame = Frame(image, window_title="英雄三国KK", hwnd=10001)
         med.set_phase(Phase.MAIN_LINE, "test")
         med._capture_best = lambda *args, **kwargs: frame
         clicked: list[str] = []
+        fail_visible = True
+        clock = FakeClock(start=100.0)
 
         def find_scene(_frame, scene, **_kwargs):
-            return hit("fail") if scene == "fail" else None
+            if scene == "fail":
+                return hit("fail") if fail_visible else None
+            if scene == "ok":
+                return hit("ok")
+            return None
 
-        with patch.object(med, "find_scene", side_effect=find_scene), \
+        with clock.install(), \
+                patch.object(med, "find_scene", side_effect=find_scene), \
                 patch.object(med, "_selection_anchor", return_value=None), \
-                patch.object(med, "click_scene", side_effect=lambda _f, _s, reason="", **_k: clicked.append(reason) or True):
+                patch.object(med, "act_click", side_effect=lambda _h, reason="": clicked.append(reason) or True):
+            # 帧1：STRONG_FAIL 候选第 1 帧（零输入，phase 不变）
+            clock.set(101.0)
             self.assertIs(med.tick(), LoopAction.Continue)
             self.assertIs(med.phase, Phase.MAIN_LINE)
             self.assertEqual(clicked, [])
 
+            # 帧2：连续两帧 → 抢占进入 RECOVER_FAILURE（零输入，不点面板）
+            clock.set(101.4)
             self.assertIs(med.tick(), LoopAction.Continue)
-            self.assertIs(med.phase, Phase.QUIT)
+            self.assertIs(med.phase, Phase.RECOVER_FAILURE)
             self.assertEqual(clicked, [])
 
+            # 帧3：恢复 READY：fail 锚点 + ok 动作 → 点击 ok（门闩第一段）
+            clock.set(103.0)
             self.assertIs(med.tick(), LoopAction.Continue)
-            self.assertEqual(clicked, ["recover"])
-            self.assertEqual(med._recovery_step, "WAIT_OK")
+            self.assertEqual(clicked, ["Recovery-FAIL-FAIL_CONFIRM"])
+
+            # 帧4（≥1.5s 后）：ok 已点且失败弹窗消失（mutation）→ 完成 → QUIT
+            clock.set(104.6)
+            fail_visible = False
+            self.assertIs(med.tick(), LoopAction.Continue)
+            self.assertIs(med.phase, Phase.QUIT)
+            self.assertEqual(med._round_outcome, RoundOutcome.FAILURE)
+            self.assertEqual(med._failure_streak, 1)
 
     def test_verified_main_line_resets_cross_game_retry_budget(self) -> None:
         med = Mediator(Settings(), ROOT)

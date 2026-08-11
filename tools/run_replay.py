@@ -354,7 +354,14 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
 
     # 6) QUIT
     elif (fixture_id == "quit_game_1616x939" or expected_state == "QUIT"):
-        hit = med.find_scene(frame, "close") or med.find_scene(frame, "fail") or med.find_scene(frame, "disconnect")
+        # S0 ①：close 场景 ROI 已排除左上角 quit（恢复脚本不得误点局内退出）；
+        # 回放检测先走生产专用退出锚点 _find_game_exit，保持 B0 ledger 点击点等价。
+        hit = (
+            med._find_game_exit(frame)
+            or med.find_scene(frame, "close")
+            or med.find_scene(frame, "fail")
+            or med.find_scene(frame, "disconnect")
+        )
         if hit:
             detected_scene = "QUIT"
             candidate_box = [hit.x, hit.y, hit.w, hit.h]

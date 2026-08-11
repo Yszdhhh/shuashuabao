@@ -216,8 +216,9 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.med.executor.dry_run = True
 
     def test_regressions_post_game_archive_boss_longzhu_priority(self):
-        """7. Check regression: archive/boss_entry/longzhu have highest priority and cause Fail-Closed stop."""
+        """7. Check regression: archive/boss_entry/longzhu Fail-Closed 保留（S0 ⑧ 阶段门控）。"""
         self.med._auto_task_done = True
+        self.med._post_game_pending = True  # 局尾窗口（战后流程进行中）才检查
 
         # Create dummy frame with 'archive' template matched
         with patch.object(self.med, "find_scene", side_effect=lambda f, name, **kw: MatchResult("archive", 0.9, 100, 100, 50, 50, 100, 100) if name == "archive" else None):

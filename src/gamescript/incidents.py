@@ -44,6 +44,16 @@ _DEFAULT_DEDUP_SECONDS = 60.0
 _INCIDENT_PREFIX = "incident_"
 
 
+def default_incident_dir() -> Path:
+    """生产入口（桌面/API/CLI）构造 Mediator 时使用的默认 incident 目录。
+
+    S0.5：`%LocalAppData%/GameScript-Local/incidents`；测试必须传临时目录，
+    生产入口一律经本函数，避免三处入口各自硬编码路径漂移。
+    """
+    local = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    return Path(local) / "GameScript-Local" / "incidents"
+
+
 class IncidentArchiver:
     """未知页面/未知选择事件证据归档器（线程安全）。"""
 
@@ -61,8 +71,7 @@ class IncidentArchiver:
         incident 落在 <root>/YYYYMMDD/incidents/ 下，按天分目录。
         """
         if root is None:
-            local = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-            root = Path(local) / "GameScript-Local"
+            root = default_incident_dir()
         self.root = Path(root)
         self.max_bytes = int(max_bytes)
         self.retention_days = int(retention_days)

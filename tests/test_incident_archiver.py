@@ -19,6 +19,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -28,10 +29,12 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from gamescript.incidents import IncidentArchiver
+from gamescript.loop_action import LoopAction
 from gamescript.mediator import Mediator, Phase
 from gamescript.settings import Settings
 from gamescript.stop_signal import StopSignal
 from gamescript.vision.capture import Frame
+from gamescript.vision.matcher import MatchResult
 from tests.test_scenario_replay import FakeClock, FakeInputExecutor
 
 
@@ -314,6 +317,131 @@ class IncidentArchiverTest(unittest.TestCase):
         self.assertNotEqual(a, b)
         n = len(sorted(tmp.rglob("panel_*.jpg")))
         self.assertEqual(n, 2)
+
+    # ---- 7. S0.5 生产 incident：metadata 完整性 / 触发点 / 不泄露密码 ----
+
+    def test_mediator_fail_closed_metadata_s0_fields_no_password(self) -> None:
+        """Fail-Closed incident 含 phase/context/evidence/action/attempt/deadline/
+        outcome/rois，且绝不归档 room_password。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            med = Mediator(Settings(), ROOT, incident_dir=tmp)
+            med.settings.room_password = "top-secret-pw"
+            frame = _frame(41, size=(900, 1600))
+            med._last_frame = frame
+            med._prev_frame = frame
+            med._context_cache_value = "MAIN_LINE"
+            med.set_phase(Phase.MAIN_LINE, "wiring setup")
+            med.set_phase(Phase.ERROR, "probe fail closed")
+            groups = sorted(Path(tmp).rglob("incident_*"))
+            self.assertEqual(len(groups), 1)
+            meta = json.loads((groups[0] / "metadata.json").read_text(encoding="utf-8"))
+            for field in ("phase", "context", "evidence", "action", "attempt", "deadline", "outcome", "rois"):
+                self.assertIn(field, meta, f"metadata 必须含 {field}")
+            self.assertIsInstance(meta["evidence"], dict)
+            self.assertIsInstance(meta["rois"], list)
+            raw = (groups[0] / "metadata.json").read_text(encoding="utf-8")
+            self.assertNotIn("top-secret-pw", raw, "密码不得归档")
+            # frame_before / frame_now 已保存
+            self.assertTrue((groups[0] / "frame_before.jpg").is_file())
+            self.assertTrue((groups[0] / "frame_now.jpg").is_file())
+
+    def test_round_timeout_records_incident_with_deadline_outcome(self) -> None:
+        """round hard deadline 到期产生完整 incident（round_timeout + deadline/outcome）。"""
+        clock = FakeClock(start=100.0)
+        stop_signal = StopSignal()
+        with tempfile.TemporaryDirectory() as tmp:
+            with clock.install():
+                med = Mediator(Settings(dry_run=False, round_timeout_s=60), ROOT,
+                               stop_signal=stop_signal, incident_dir=tmp)
+                med.executor = FakeInputExecutor(stop_signal, clock)
+                frame = _frame(42, size=(900, 1600))
+                med.see = lambda reason="": frame
+                med._last_frame = frame
+                med._prev_frame = frame
+                med.set_phase(Phase.MAIN_LINE, "round start")
+                clock.set(161.0)
+                self.assertEqual(med.tick(), LoopAction.Continue)
+                self.assertIs(med.phase, Phase.QUIT)
+            groups = sorted(Path(tmp).rglob("incident_*"))
+            self.assertEqual(len(groups), 1)
+            meta = json.loads((groups[0] / "metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["kind"], "round_timeout")
+            self.assertEqual(meta["outcome"], "TIMEOUT")
+            self.assertIsNotNone(meta["deadline"])
+            self.assertEqual(meta["phase"], "MAIN_LINE")
+
+    def test_recovery_start_records_incident(self) -> None:
+        """恢复 episode 起点产生 incident（recovery_start + recovery_kind/step）。"""
+        clock = FakeClock(start=100.0)
+        stop_signal = StopSignal()
+        with tempfile.TemporaryDirectory() as tmp:
+            with clock.install():
+                med = Mediator(Settings(dry_run=False), ROOT,
+                               stop_signal=stop_signal, incident_dir=tmp)
+                med.executor = FakeInputExecutor(stop_signal, clock)
+                frame = _frame(43, size=(900, 1600))
+                med.see = lambda reason="": frame
+                med._last_frame = frame
+                med._prev_frame = frame
+                med.set_phase(Phase.MAIN_LINE, "recovery incident")
+                with patch.object(
+                    med, "find_scene",
+                    side_effect=lambda _f, s, **_k: MatchResult("fail", 0.95, 100, 100, 20, 20, 100, 100)
+                    if s == "fail" else None,
+                ), patch.object(med, "_selection_anchor", return_value=None):
+                    clock.set(100.5)
+                    med.tick()
+                    clock.set(100.9)
+                    med.tick()
+                self.assertIs(med.phase, Phase.RECOVER_FAILURE)
+            groups = sorted(Path(tmp).rglob("incident_*"))
+            self.assertEqual(len(groups), 1)
+            meta = json.loads((groups[0] / "metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["kind"], "recovery_recovery_start")
+            self.assertEqual(meta["recovery_kind"], "FAIL")
+            self.assertEqual(meta["recovery_step"], "FAIL_CONFIRM")
+
+    def test_normal_ticks_do_not_write_incidents(self) -> None:
+        """正常 HUD 每 tick 不得写图（10 tick 零 incident）。"""
+        clock = FakeClock(start=100.0)
+        stop_signal = StopSignal()
+        with tempfile.TemporaryDirectory() as tmp:
+            with clock.install():
+                med = Mediator(Settings(dry_run=True), ROOT,
+                               stop_signal=stop_signal, incident_dir=tmp)
+                med.executor = FakeInputExecutor(stop_signal, clock)
+                frame = _frame(44, size=(900, 1600))
+                med.see = lambda reason="": frame
+                med._last_frame = frame
+                med._prev_frame = frame
+                med._context_cache_value = "MAIN_LINE"  # 正常 HUD 上下文
+                med.set_phase(Phase.MAIN_LINE, "normal ticks")
+                with patch.object(med, "_post_game_state", return_value=None), \
+                        patch.object(med, "find_scene", return_value=None), \
+                        patch.object(med, "_selection_anchor", return_value=None), \
+                        patch.object(med, "_find_reward_choice", return_value=None), \
+                        patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
+                        patch.object(med, "_ensure_challenge_buttons", return_value=None), \
+                        patch.object(med, "_find_stage_page", return_value=False), \
+                        patch.object(med, "_maybe_open_choice_panel", return_value=None), \
+                        patch.object(med, "_maybe_fire_artifacts", return_value=None):
+                    for i in range(10):
+                        clock.set(101.0 + i * 0.3)
+                        self.assertEqual(med.tick(), LoopAction.Continue)
+            groups = sorted(Path(tmp).rglob("incident_*"))
+            self.assertEqual(len(groups), 0, "正常 HUD 每 tick 不得落图")
+
+    def test_frame_after_attached_only_once(self) -> None:
+        """frame_after 仅补一次：第二次 attach 返回 False。"""
+        arch = IncidentArchiver(self.root)
+        now = _frame(45)
+        fp = arch.maybe_record(frame_before=None, frame_now=now, metadata=_meta())
+        self.assertIsNotNone(fp)
+        after = _frame(46)
+        self.assertTrue(arch.attach_frame_after(fp, after))
+        self.assertFalse(arch.attach_frame_after(fp, after), "frame_after 只补一次")
+        groups = sorted(self.root.rglob("incident_*"))
+        self.assertTrue((groups[0] / "frame_after.jpg").is_file())
 
 
 if __name__ == "__main__":

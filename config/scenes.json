@@ -205,11 +205,19 @@
     "fail": {
       "templates": [
         "fail",
-        "gameFail",
+        "gameFail"
+      ],
+      "method": "MonitorGameOver",
+      "action": "click",
+      "notes": "S0 STRONG_FAIL：仅高阈值位置受限的失败弹窗证据；giveUp（面板放弃按钮，与失败同源 0.945 误命中）已移出，独立为 giveup 场景，无恢复动作权"
+    },
+    "giveup": {
+      "templates": [
         "giveUp"
       ],
       "method": "MonitorGameOver",
-      "action": "click"
+      "action": "detect_only",
+      "notes": "S0 AMBIGUOUS_GIVEUP：giveUp 模板与选择面板放弃按钮同源；单独出现+面板锚点成立时不判失败，无恢复动作权；不进强失败优先级"
     },
     "disconnect": {
       "templates": [

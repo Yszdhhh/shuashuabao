@@ -133,8 +133,10 @@ class Phase(Enum):
     EARLY_CHALLENGE = auto()  # 提前挑战
     ANCHOR_BOSS = auto()  # 锚点 Boss
     LONGZHU = auto()  # 找龙珠
+    RECOVER_FAILURE = auto()  # S0 ③ 失败/断线有门闩恢复（完成才进 QUIT）
     QUIT = auto()  # 点击局内专用退出按钮
     NEXT = auto()  # 确认退出并返回原 KK 房间
+    COMPLETE = auto()  # S0 ⑥ cycle_num 达成：停止 run，绝不点下一局开始
 
 
 class ChallengeState(Enum):
@@ -142,6 +144,67 @@ class ChallengeState(Enum):
     OFF = auto()
     ON = auto()
     UNKNOWN = auto()
+
+
+class RecoveryKind(Enum):
+    """S0 ③ 恢复脚本种类：FAIL 与 DISCONNECT 使用不同 anchors/动作。"""
+
+    FAIL = auto()
+    DISCONNECT = auto()
+
+
+class RecoveryStep(Enum):
+    """恢复脚本步骤（每步带 anchor/动作/后置确认门闩）。"""
+
+    FAIL_CONFIRM = auto()  # 失败弹窗可见 → 点 ok（确定）→ 弹窗消失或 close 出现
+    FAIL_CLOSE = auto()    # 确认后出现 close → 点 close → 全部消失
+    DISCONNECT_RETRY = auto()  # 断线弹窗可见 → 点 retryConnect（重连）→ 弹窗消失或回局内
+    DONE = auto()
+
+
+class RoundOutcome(Enum):
+    """S0 终局 outcome：一局只能记录一个（_outcome_recorded 守卫）。"""
+
+    VICTORY = auto()
+    FAILURE = auto()
+    TIMEOUT = auto()
+    DISCONNECT = auto()
+
+
+class PanelState(Enum):
+    """S0 ⑤ 面板会话 FSM：CLOSED→OPEN_REQUESTED→WAIT_VISIBLE→ACTIVE→WAIT_MUTATION→CLOSING→COOLDOWN。"""
+
+    CLOSED = auto()
+    OPEN_REQUESTED = auto()
+    WAIT_VISIBLE = auto()
+    ACTIVE = auto()
+    WAIT_MUTATION = auto()
+    CLOSING = auto()
+    COOLDOWN = auto()
+
+
+@dataclass
+class RecoveryState:
+    """S0 ③ 恢复状态：步骤门闩 + 有限预算。
+
+    - 一步从 READY（等待锚点）进入 WAIT_CONFIRM（已点击，等待 mutation/后置锚点）；
+    - 每步尝试上限 recovery_action_limit、间隔 recovery_retry_interval_s、
+      总预算 recovery_timeout_s（开始时固定，任何 periodic 行为不得续期）。
+    """
+
+    kind: RecoveryKind
+    step: RecoveryStep
+    started_at: float
+    deadline: float
+    attempts: dict = field(default_factory=dict)
+    next_allowed_at: float = 0.0
+    anchor_before: "MatchResult | None" = None
+    input_ok: bool = False
+    mutation_seen: bool = False
+    post_anchor_seen: bool = False
+    waiting_confirm: bool = False
+    input_at: float = 0.0
+    confirm_window: float = 15.0
 
 
 class Mediator:
@@ -253,8 +316,43 @@ class Mediator:
         self._selection_repeat_key: tuple[str, str, int, int] | None = None
         self._selection_repeat_attempts = 0
         self._skill_refresh_attempts = 0
+        # ---- S0 ② 全局抢占：每类强证据独立连续帧计数（同 evidence generation 才累计）----
         self._failure_candidate_frames: int = 0
+        self._failure_candidate_kind: str | None = None
+        self._failure_candidate_gen: int | None = None
+        # S0 ③ 恢复：结构化 RecoveryState 取代字符串 _recovery_step（后者仅作
+        # trace/benchmark 兼容镜像：DONE/None，不承载推进语义）。
+        self._recovery_state: RecoveryState | None = None
         self._recovery_step: str | None = None
+        # S0 ④ round hard deadline（进入 MAIN_LINE 时固定，不可续期）
+        self._round_started_at: float | None = None
+        self._round_deadline: float | None = None
+        # S0 ⑥ 跨局语义：一局一个 outcome + 独立计数
+        self._outcome_recorded: bool = False
+        self._round_outcome: RoundOutcome | None = None
+        self._last_outcome: RoundOutcome | None = None
+        self._success_count = 0
+        self._failure_count = 0
+        self._disconnect_count = 0
+        self._timeout_count = 0
+        self._failure_streak = 0
+        # S0 ⑤ 面板会话 FSM + F1 shadow 灰度
+        self._panel_state = PanelState.CLOSED
+        self._panel_kind: str | None = None
+        self._panel_episode_started: float | None = None
+        self._panel_visible_deadline: float | None = None
+        self._panel_mutation_baseline: Frame | None = None
+        self._panel_last_input_at: float = 0.0
+        self._panel_confirm_window: float = 8.0
+        self._panel_episode_count: dict[str, int] = {}
+        self._panel_cooldown_until: dict[str, float] = {}
+        self._panel_fingerprint: tuple | None = None
+        self._panel_fingerprint_attempts = 0
+        self._panel_f1_used_this_episode = False
+        self._ambiguous_giveup_frames = 0
+        self._f1_shadow_correct = 0
+        self._f1_shadow_misfire = 0
+        self._f1_live = False
         self._aux_dialog_attempts = {"HEIRLOOM_DIALOG": 0, "GREAT_RIFT_CONFIRM": 0}
         # Hero-mode automation is intentionally limited to the one complete
         # recorded path: Kenrito, level 1..5, 1600x900 client capture.
@@ -657,6 +755,18 @@ class Mediator:
         # 存档入口：archiveChallenge 顶部标签实测 (0.47,0.04)（victory 1608x929），
         # tuanben/cundangInfo 实测左上角 (0.02-0.04,0.08)；顶部带覆盖全部已知位置。
         "archive": (0.0, 0.0, 1.0, 0.18),
+        # S0 ① STRONG_FAIL / 断线：上部弹窗带（位置受限；实测 quit 对话框标题区
+        # fail 0.907 命中于 (0.49,0.063)，故上界放宽到 0.05；下界 0.55 排除面板
+        # 按钮带 y≈0.59-0.64 的 giveUp 同源按钮——giveUp 也已从 fail 模板移除）。
+        "fail": (0.05, 0.05, 0.95, 0.55),
+        "disconnect": (0.05, 0.05, 0.95, 0.55),
+        # S0 ① AMBIGUOUS_GIVEUP：giveUp 模板是面板放弃按钮（实测 0.88-0.945 命中
+        # y≈0.62 带），只在面板按钮带检测；无恢复动作权。
+        "giveup": _PANEL_BUTTONS_ROI,
+        # S0 ③ 恢复脚本锚点：确定/关闭按钮（居中；ROI 排除左上角 quit，防止恢复
+        # 误点局内退出按钮；无真实素材，测试用合成 matcher 证据驱动）。
+        "ok": (0.20, 0.20, 0.80, 0.80),
+        "close": (0.20, 0.20, 0.80, 0.80),
     }
 
     def _scene_roi(self, scene_key: str) -> tuple[float, float, float, float] | None:
@@ -1470,12 +1580,21 @@ class Mediator:
             anchor = self._selection_anchor(frame)
         if anchor:
             return None
+        if self._panel_state != PanelState.CLOSED:
+            # 已有面板会话进行中（WAIT_VISIBLE/ACTIVE/…）：不再发起新打开
+            return LoopAction.Continue
         now = time.time()
         # 技能 G：核心，60s
         if now - getattr(self, "_last_skill_panel", 0.0) >= 60:
+            if self._panel_episode_count.get("skill", 0) >= self.settings.panel_episode_limit_per_kind:
+                print("[L1] 技能面板本局会话数已达上限，不再主动打开")
+                self._last_skill_panel = now
+                return LoopAction.Continue
             if self.act_click(self._hud_button_hit(frame, "skill_button", self.CHOICE_BUTTON_RATIOS["skill"]), "OpenSkillPanel"):
                 self._last_skill_panel = now
                 self._panel_opened_by_us = "skill"
+                self._panel_kind = "skill"
+                self._panel_state = PanelState.OPEN_REQUESTED
                 self._skill_refresh_attempts = 0
                 print("[L1] 主动点击 G 技能按钮（核心，60s 一次）")
             else:
@@ -1485,18 +1604,30 @@ class Mediator:
         # 羁绊 F / 宝物 V：低频
         if getattr(self.settings, "auto_bond", True):
             if now - getattr(self, "_last_bond_attempt", 0.0) >= interval:
+                if self._panel_episode_count.get("bond", 0) >= self.settings.panel_episode_limit_per_kind:
+                    print("[L1] 羁绊面板本局会话数已达上限，不再主动打开")
+                    self._last_bond_attempt = now
+                    return LoopAction.Continue
                 if self.act_click(self._hud_button_hit(frame, "bond_button", self.CHOICE_BUTTON_RATIOS["bond"]), "OpenBondPanel"):
                     self._last_bond_attempt = now
                     self._panel_opened_by_us = "bond"
+                    self._panel_kind = "bond"
+                    self._panel_state = PanelState.OPEN_REQUESTED
                     print("[L1] 主动点击 F 羁绊按钮（低频）")
                 else:
                     print("[L1] F 羁绊按钮点击被拒绝（不推进冷却）")
                 return LoopAction.Continue
         if getattr(self.settings, "auto_treasure", True):
             if now - getattr(self, "_last_treasure_attempt", 0.0) >= interval:
+                if self._panel_episode_count.get("treasure", 0) >= self.settings.panel_episode_limit_per_kind:
+                    print("[L1] 宝物面板本局会话数已达上限，不再主动打开")
+                    self._last_treasure_attempt = now
+                    return LoopAction.Continue
                 if self.act_click(self._hud_button_hit(frame, "treasure_button", self.CHOICE_BUTTON_RATIOS["treasure"]), "OpenTreasurePanel"):
                     self._last_treasure_attempt = now
                     self._panel_opened_by_us = "treasure"
+                    self._panel_kind = "treasure"
+                    self._panel_state = PanelState.OPEN_REQUESTED
                     print("[L1] 主动点击 V 宝物按钮（低频）")
                 else:
                     print("[L1] V 宝物按钮点击被拒绝（不推进冷却）")
@@ -2223,6 +2354,26 @@ class Mediator:
             self._hero_card_baseline = None
             self._hero_step_deadline = None
             self._hero_modal_missing_frames = 0
+            # S0 ④/⑥：进入选关页 = 新一轮开始 → 清 round 字段与 outcome 守卫，
+            # 下一局拥有全新 hard deadline 与一次 outcome 记录权。
+            self._round_started_at = None
+            self._round_deadline = None
+            self._outcome_recorded = False
+            self._round_outcome = None
+            # S0 ⑤：跨局每类面板会话计数清零（上限按"每局每类"计）
+            self._panel_episode_count = {}
+            self._panel_state = PanelState.CLOSED
+            self._panel_opened_by_us = None
+            self._panel_fingerprint = None
+            self._panel_fingerprint_attempts = 0
+        if phase == Phase.RECOVER_FAILURE and self.phase != Phase.RECOVER_FAILURE:
+            # 进入恢复：清面板许可与待输入 token（抢占后 panel FSM 全部状态让位）
+            self._panel_state = PanelState.CLOSED
+            self._panel_opened_by_us = None
+            self._panel_fingerprint = None
+            self._panel_fingerprint_attempts = 0
+            self._selection_unknown_attempts = 0
+            self._selection_unknown_since = None
         # L0 cycle counter: increment when falling back to PLATFORM_MAP from a later L0 phase
         if phase == Phase.PLATFORM_MAP and self.phase in (Phase.ROOM_WAITING, Phase.ROOM_STARTING):
             self._l0_cycle_count += 1
@@ -2265,8 +2416,17 @@ class Mediator:
             # timeout retry keeps its budget until this transition succeeds.
             self._challenge_start_attempts = 0
             self._failure_candidate_frames = 0
+            self._failure_candidate_kind = None
+            self._failure_candidate_gen = None
             self._recovery_step = None
-            # 跨局 L1 瞬态重置：主动面板标记/神器 CD/主动面板时间戳/进化冷却
+            self._recovery_state = None
+            # S0 ④：首次经连续局内锚点进入 MAIN_LINE 才设置不可续期 hard deadline；
+            # 同一局重复 set_phase(MAIN_LINE)（挑战/英雄验证过渡）不得覆盖。
+            if self._round_deadline is None:
+                self._round_started_at = time.time()
+                self._round_deadline = self._round_started_at + self.settings.round_timeout_s
+            # S0 ⑤ 跨局 L1 瞬态重置：主动面板标记/神器 CD/主动面板时间戳/进化冷却
+            self._panel_state = PanelState.CLOSED
             self._panel_opened_by_us = None
             self._last_skill_panel = 0.0
             self._last_bond_attempt = 0.0
@@ -2292,15 +2452,291 @@ class Mediator:
             return False
         return time.time() >= self._longzhu_deadline
 
+    # ---------- S0 ③ RECOVER_FAILURE：有门闩、分脚本、有限预算 ----------
+
+    def _begin_recovery(self, kind: RecoveryKind) -> None:
+        """抢占确认后启动恢复 episode：总预算 recovery_timeout_s 固定，不可续期。
+
+        恢复期间不进入 QUIT；恢复完成（_finish_recovery）才 set_phase(QUIT)，
+        届时 _exit_since 初始化 —— 退出期限从恢复完成那一刻开始计算。
+        """
+        now = time.time()
+        self._recovery_state = RecoveryState(
+            kind=kind,
+            step=RecoveryStep.FAIL_CONFIRM if kind == RecoveryKind.FAIL else RecoveryStep.DISCONNECT_RETRY,
+            started_at=now,
+            deadline=now + self.settings.recovery_timeout_s,
+            attempts={},
+            next_allowed_at=now,
+        )
+        self._recovery_step = None
+        self.set_phase(Phase.RECOVER_FAILURE, f"recovery start ({kind.name})")
+        self._record_recovery_incident("recovery_start")
+
+    def _recovery_anchor(self, frame: Frame, rs: RecoveryState) -> MatchResult | None:
+        """本步前置锚点（任一命中才允许动作；缺锚点 = 一次有界重试消耗）。"""
+        if rs.step == RecoveryStep.FAIL_CONFIRM:
+            return self.find_scene(frame, "fail")
+        if rs.step == RecoveryStep.FAIL_CLOSE:
+            return self.find_scene(frame, "close")
+        if rs.step == RecoveryStep.DISCONNECT_RETRY:
+            return self.find_scene(frame, "disconnect")
+        return None
+
+    def _recovery_action(self, frame: Frame, rs: RecoveryState) -> MatchResult | None:
+        """本步动作：FAIL=点 ok（确定）；FAIL_CLOSE=点 close；DISCONNECT=仅点重连按钮。
+
+        断线脚本只操作 disconnect/retry/reconnect 独立锚点：find_scene("disconnect")
+        命中的若是 gameDisconnect 文字模板则零输入等待，绝不点击 fail 的 ok/close。
+        """
+        if rs.step == RecoveryStep.FAIL_CONFIRM:
+            return self.find_scene(frame, "ok")
+        if rs.step == RecoveryStep.FAIL_CLOSE:
+            return self.find_scene(frame, "close")
+        if rs.step == RecoveryStep.DISCONNECT_RETRY:
+            hit = self.find_scene(frame, "disconnect")
+            if hit is not None and hit.name == "retryConnect":
+                return hit
+            return None
+        return None
+
+    def _recovery_post_confirmed(self, frame: Frame, rs: RecoveryState) -> bool:
+        """WAIT_CONFIRM 后置确认：画面 mutation（模板消失）∨ 必需 post-anchor 出现。"""
+        if rs.step == RecoveryStep.FAIL_CONFIRM:
+            if self.find_scene(frame, "fail") is None:
+                rs.mutation_seen = True
+                return True
+            if self.find_scene(frame, "close") is not None:
+                rs.post_anchor_seen = True
+                return True
+            return False
+        if rs.step == RecoveryStep.FAIL_CLOSE:
+            gone = self.find_scene(frame, "fail") is None and self.find_scene(frame, "close") is None
+            if gone:
+                rs.mutation_seen = True
+            return gone
+        if rs.step == RecoveryStep.DISCONNECT_RETRY:
+            if self.find_scene(frame, "disconnect") is None:
+                rs.mutation_seen = True
+                return True
+            if self._selection_anchor(frame) or self._is_in_game_hud(frame):
+                rs.post_anchor_seen = True
+                return True
+            return False
+        return False
+
+    def _advance_recovery(self, frame: Frame, rs: RecoveryState, now: float) -> LoopAction:
+        """后置确认成立：推进到下一步或完成。"""
+        if rs.step == RecoveryStep.FAIL_CONFIRM:
+            # ok 点击后：close 按钮出现 → FAIL_CLOSE；失败弹窗消失 → 直接完成
+            if self.find_scene(frame, "close") is not None:
+                rs.step = RecoveryStep.FAIL_CLOSE
+            else:
+                return self._finish_recovery(rs, now)
+        elif rs.step == RecoveryStep.FAIL_CLOSE:
+            return self._finish_recovery(rs, now)
+        elif rs.step == RecoveryStep.DISCONNECT_RETRY:
+            return self._finish_recovery(rs, now)
+        rs.waiting_confirm = False
+        rs.next_allowed_at = now
+        print(f"[med] 恢复步骤推进：{rs.kind.name}/{rs.step.name}")
+        return LoopAction.Continue
+
+    def _recovery_failed(self, rs: RecoveryState, reason: str) -> LoopAction:
+        """恢复重试耗尽/总预算到期：直接 ERROR、停止、写 incident；不能盲目 QUIT。"""
+        print(f"[med] 恢复失败（{reason}）：Fail-Closed 停止运行")
+        self._record_recovery_incident("recovery_failed", reason=reason)
+        self.set_phase(Phase.ERROR, f"recovery failed: {reason}")
+        self.stop()
+        return LoopAction.Break
+
+    def _finish_recovery(self, rs: RecoveryState, now: float) -> LoopAction:
+        """恢复确认完毕：outcome = FAILURE/DISCONNECT，然后才进入 QUIT（退出期限此刻起算）。"""
+        rs.step = RecoveryStep.DONE
+        outcome = RoundOutcome.DISCONNECT if rs.kind == RecoveryKind.DISCONNECT else RoundOutcome.FAILURE
+        self._record_round_outcome(outcome, f"recovery complete ({rs.kind.name})")
+        self._recovery_step = "DONE"  # trace/benchmark 兼容镜像；不承载推进语义
+        self._recovery_state = None
+        print(f"[med] 恢复完成（{rs.kind.name}），进入 QUIT（退出窗口从现在开始）")
+        self.set_phase(Phase.QUIT, f"recovery complete ({rs.kind.name})")
+        return LoopAction.Continue
+
+    def _tick_recovery(self, frame: Frame) -> LoopAction:
+        """RECOVER_FAILURE 阶段处理器：每步门闩 anchor∧input_ok∧(mutation∨post_anchor)。
+
+        每动作 ≤ recovery_action_limit 次、间隔 ≥ recovery_retry_interval_s、
+        总预算 recovery_timeout_s（开始时固定）；恢复完成前 QUIT 输入为 0。
+        """
+        rs = self._recovery_state
+        if rs is None:
+            # 防御：无状态但进入 RECOVER_FAILURE（异常回放/直接 set_phase）
+            self.set_phase(Phase.ERROR, "recovery state missing")
+            self.stop()
+            return LoopAction.Break
+        now = time.time()
+        if now >= rs.deadline:
+            return self._recovery_failed(rs, "recovery timeout")
+        step = rs.step
+        if rs.waiting_confirm:
+            # 已点击成功：每 tick 观察 mutation/后置锚点（不受输入间隔限制）；
+            # 未确认不得再次选择。
+            if self._recovery_post_confirmed(frame, rs):
+                return self._advance_recovery(frame, rs, now)
+            if now - rs.input_at >= rs.confirm_window:
+                # 确认窗超时：本步保留，消耗一次有界重试后回 READY
+                rs.waiting_confirm = False
+                return self._recovery_retry_or_fail(rs, step, now, "no mutation/post-anchor")
+            return LoopAction.Continue
+        if now < rs.next_allowed_at:
+            return LoopAction.Continue  # 输入间隔 ≥1.5s（零动作）
+        # READY：前置锚点 + 动作 + 输入成功门闩
+        anchor = self._recovery_anchor(frame, rs)
+        if anchor is None:
+            return self._recovery_retry_or_fail(rs, step, now, "anchor missing")
+        action_hit = self._recovery_action(frame, rs)
+        if action_hit is None:
+            # 锚点存在但本步动作按钮未出现（如断线弹窗只有文字）：零输入等待，
+            # 不消耗尝试（属正常等待，非失败尝试）。
+            return LoopAction.Continue
+        rs.anchor_before = anchor
+        clicked = self.act_click(action_hit, reason=f"Recovery-{rs.kind.name}-{rs.step.name}")
+        rs.input_ok = clicked
+        rs.attempts[step] = rs.attempts.get(step, 0) + 1
+        rs.next_allowed_at = now + self.settings.recovery_retry_interval_s
+        if clicked:
+            rs.waiting_confirm = True
+            rs.input_at = now
+            rs.confirm_window = min(15.0, rs.deadline - now)
+            print(f"[med] 恢复步骤 {rs.kind.name}/{rs.step.name} 已输入（等待后置确认）")
+        else:
+            if rs.attempts[step] > self.settings.recovery_action_limit or now >= rs.deadline:
+                return self._recovery_failed(rs, "input rejected, attempts exhausted")
+            print(f"[med] 恢复输入被拒（{action_hit.name}），保留本步等待重试间隔")
+        return LoopAction.Continue
+
+    def _recovery_retry_or_fail(
+        self, rs: RecoveryState, step: RecoveryStep, now: float, reason: str
+    ) -> LoopAction:
+        """缺锚点/无后置确认：保留本步并消耗/等待其有界重试。"""
+        rs.attempts[step] = rs.attempts.get(step, 0) + 1
+        rs.next_allowed_at = now + self.settings.recovery_retry_interval_s
+        if rs.attempts[step] > self.settings.recovery_action_limit or now >= rs.deadline:
+            return self._recovery_failed(rs, reason)
+        print(f"[med] 恢复 {rs.kind.name}/{step.name} 未推进（{reason}，尝试 {rs.attempts[step]}/"
+              f"{self.settings.recovery_action_limit}）")
+        return LoopAction.Continue
+
+    def _record_round_outcome(self, outcome: RoundOutcome, reason: str) -> None:
+        """一局只能落一个终局 outcome（_outcome_recorded 守卫，防恢复/退出双重计数）。
+
+        仅确认完整胜利链才 success_count+1 且 failure_streak=0；FAILURE/TIMEOUT/
+        DISCONNECT 均属于不成功局而递增 streak（防断线/超时绕开熔断）。
+        """
+        if self._outcome_recorded:
+            return
+        self._outcome_recorded = True
+        self._round_outcome = outcome
+        self._last_outcome = outcome
+        if outcome == RoundOutcome.VICTORY:
+            self._success_count += 1
+            self._failure_streak = 0
+            print(f"[med] outcome=VICTORY（{reason}）success={self._success_count} streak=0")
+        else:
+            if outcome == RoundOutcome.FAILURE:
+                self._failure_count += 1
+            elif outcome == RoundOutcome.DISCONNECT:
+                self._disconnect_count += 1
+            elif outcome == RoundOutcome.TIMEOUT:
+                self._timeout_count += 1
+            self._failure_streak += 1
+            print(f"[med] outcome={outcome.name}（{reason}）failure_streak={self._failure_streak}"
+                  f"/{self.settings.failure_streak_limit}")
+
     # ---------- B1-2 incident 归档辅助（无 incident_dir 时全部空转）----------
 
+    def _incident_meta(
+        self,
+        kind: str,
+        reason: str,
+        *,
+        score: float | None = None,
+        final_action: str = "stop",
+        action: str | None = None,
+        attempt: int | None = None,
+        deadline: float | None = None,
+        rois: list | None = None,
+        extra: dict | None = None,
+    ) -> dict:
+        """S0.5 统一 incident metadata：至少 phase/context/evidence/action/attempt/
+        deadline/outcome/reason/health；ROI 与模板分数来自已裁检测区域；敏感字段
+        由 _scrub_sensitive_keys 兜底（房间密码等永不落盘）。
+        """
+        frame = self._last_frame
+        meta: dict = {
+            "kind": kind,
+            "phase": self.phase.name,
+            "context": self._context_cache_value,
+            "hwnd": frame.hwnd if frame is not None else None,
+            "window_title": frame.window_title if frame is not None else "",
+            "size": [frame.width, frame.height] if frame is not None else None,
+            "score": score,
+            "candidate_actions": list(self._trace_actions),
+            "action": action,
+            "attempt": attempt,
+            "deadline": deadline,
+            "outcome": self._round_outcome.name if self._round_outcome else None,
+            "final_action": final_action,
+            "reason": reason,
+            "rois": rois if rois is not None else (self._panel_roi(frame) if frame is not None else []),
+            "evidence": {
+                "scenes": list(self._trace_scenes),
+                "generation": self._evidence.gen if self._evidence is not None else None,
+                "hwnd": frame.hwnd if frame is not None else None,
+                "ui_scale": self._ui_scale,
+            },
+        }
+        if extra:
+            meta.update(extra)
+        return _scrub_sensitive_keys(meta)
+
+    def _record_recovery_incident(self, kind: str, reason: str = "") -> None:
+        """S0.5：恢复 episode 起点/失败归档（dedup 由 archiver 指纹窗口承担）。"""
+        if self._archiver is None:
+            return
+        frame = self._last_frame
+        if frame is None or frame.bgr is None or frame.bgr.size == 0:
+            return
+        rs = self._recovery_state
+        saved = self._archiver.maybe_record(
+            frame_before=self._prev_frame,
+            frame_now=frame,
+            metadata=self._incident_meta(
+                f"recovery_{kind}",
+                reason or f"recovery {kind}",
+                final_action="wait" if kind == "recovery_start" else "stop",
+                attempt=None,
+                deadline=rs.deadline if rs is not None else None,
+                extra={
+                    "recovery_kind": rs.kind.name if rs is not None else None,
+                    "recovery_step": rs.step.name if rs is not None else None,
+                },
+            ),
+            healthy=True,
+            health_issues=[],
+            health_details="",
+        )
+        if saved is not None:
+            self._incident_pending_fp = saved
+            if self._tick_reason is None:
+                self._tick_reason = "incident_write"
+
     def _record_fail_closed_incident(self, note: str) -> None:
-        """B1-2：进入 Phase.ERROR（LIVE Fail-Closed / dry-run OBSERVE）前归档当前帧证据。
+        """B1-2/S0.5：进入 Phase.ERROR（LIVE Fail-Closed / dry-run OBSERVE）前归档当前帧证据。
 
         事件来源：所有 Fail-Closed 停机分支统一经 set_phase(Phase.ERROR, ...)
-        汇合；在此留档可覆盖未知页超时、重试耗尽、页面异变、不健康帧超时等
-        全部场景，无需逐个分支埋点。调用发生在 self.phase 赋值之前，
-        metadata.phase 因此是发生错误的原阶段而非 ERROR。
+        汇合；在此留档可覆盖未知页超时、重试耗尽、页面异变、不健康帧超时、
+        round/recovery/exit timeout 等全部场景，无需逐个分支埋点。调用发生在
+        self.phase 赋值之前，metadata.phase 因此是发生错误的原阶段而非 ERROR。
         """
         if self._archiver is None:
             return
@@ -2311,17 +2747,11 @@ class Mediator:
         saved = self._archiver.maybe_record(
             frame_before=self._prev_frame,
             frame_now=frame,
-            metadata={
-                "kind": "fail_closed",
-                "phase": self.phase.name,
-                "hwnd": frame.hwnd,
-                "window_title": frame.window_title,
-                "size": [frame.width, frame.height],
-                "score": None,
-                "candidate_actions": list(self._trace_actions),
-                "final_action": "stop",
-                "reason": note or "unspecified",
-            },
+            metadata=self._incident_meta(
+                "fail_closed",
+                note or "unspecified",
+                deadline=self._round_deadline,
+            ),
             healthy=bool(health is None or health.is_healthy),
             health_issues=[i.value for i in (health.issues if health else [])],
             health_details=health.details if health else "",
@@ -2340,18 +2770,13 @@ class Mediator:
         saved = self._archiver.maybe_record(
             frame_before=self._prev_frame,
             frame_now=frame,
-            metadata={
-                "kind": "selection_unknown",
-                "phase": self.phase.name,
-                "hwnd": frame.hwnd,
-                "window_title": frame.window_title,
-                "size": [frame.width, frame.height],
-                "score": anchor.score if anchor is not None else None,
-                "candidate_actions": list(self._trace_actions),
-                "final_action": "wait",
-                "reason": reason,
-                "rois": self._panel_roi(frame),
-            },
+            metadata=self._incident_meta(
+                "selection_unknown",
+                reason,
+                score=anchor.score if anchor is not None else None,
+                final_action="wait",
+                deadline=self._round_deadline,
+            ),
             healthy=True,
             health_issues=[],
             health_details="",
@@ -2372,25 +2797,25 @@ class Mediator:
         saved = self._archiver.maybe_record(
             frame_before=self._prev_frame,
             frame_now=frame,
-            metadata={
-                "kind": "repeat_click_no_change",
-                "phase": self.phase.name,
-                "hwnd": frame.hwnd,
-                "window_title": frame.window_title,
-                "size": [frame.width, frame.height],
-                "score": hit.score,
-                "candidate_actions": [
-                    {
-                        "intent": f"click:{hit.name}",
-                        "at": [hit.screen_x, hit.screen_y],
-                        "reason": f"{kind}选择",
-                        "repeat_attempts": attempts,
-                    }
-                ],
-                "final_action": "close_panel",
-                "reason": f"{kind}选择 {hit.name} 连续 {attempts} 次点击无页面变化",
-                "rois": self._panel_roi(frame),
-            },
+            metadata=self._incident_meta(
+                "repeat_click_no_change",
+                f"{kind}选择 {hit.name} 连续 {attempts} 次点击无页面变化",
+                score=hit.score,
+                final_action="close_panel",
+                attempt=attempts,
+                deadline=self._round_deadline,
+                rois=self._panel_roi(frame),
+                extra={
+                    "candidate_actions": [
+                        {
+                            "intent": f"click:{hit.name}",
+                            "at": [hit.screen_x, hit.screen_y],
+                            "reason": f"{kind}选择",
+                            "repeat_attempts": attempts,
+                        }
+                    ]
+                },
+            ),
             healthy=True,
             health_issues=[],
             health_details="",
@@ -2620,6 +3045,19 @@ class Mediator:
                 self._awaiting_room_return = False
                 self.game_count += 1
                 print(f"[med] 已返回原 KK 房间 count={self.game_count} → 准备下一局")
+                # S0 ⑥：连续不成功局熔断 —— streak 达上限（完成当前安全回房后）
+                # 转 ERROR 停止，不得尝试下一局。
+                if self._failure_streak >= self.settings.failure_streak_limit:
+                    print(f"[med] 连续 {self._failure_streak} 局失败/超时/断线，Fail-Closed 停止运行")
+                    self.set_phase(Phase.ERROR, "failure streak limit reached")
+                    self.stop()
+                    return LoopAction.Break
+                # S0 ⑥：cycle_num>0 且已完成指定局数 → COMPLETE 停止，绝不点下一局开始
+                if self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num:
+                    print(f"[med] 已完成 cycle_num={self.settings.cycle_num} 局，转 COMPLETE 停止（不点下一局开始）")
+                    self.set_phase(Phase.COMPLETE, "cycle_num reached")
+                    self.stop()
+                    return LoopAction.Break
                 self.set_phase(Phase.ROOM_WAITING, "same room verified")
                 self._room_action_deadline = time.time() + self.settings.query_timeout
                 return LoopAction.Continue
@@ -3056,6 +3494,21 @@ class Mediator:
             "ocr_suggestion": None,  # B3 shadow 阶段填充；当前无运行时 OCR
             "decision": self._trace_decision(),
             "post_confirm": self._trace_post_confirm(),
+            # S0：阶段转换 reason/outcome/deadline 与 panel FSM 状态（增量字段，
+            # 不改变 N0 action ledger 动作行；compare_ledger.py 显式忽略）。
+            "s0": {
+                "round_deadline": round(self._round_deadline, 1) if self._round_deadline else None,
+                "round_outcome": self._round_outcome.name if self._round_outcome else None,
+                "last_outcome": self._last_outcome.name if self._last_outcome else None,
+                "failure_streak": self._failure_streak,
+                "game_count": self.game_count,
+                "panel_state": self._panel_state.name,
+                "recovery_step": self._recovery_state.step.name if self._recovery_state else self._recovery_step,
+                "recovery_kind": self._recovery_state.kind.name if self._recovery_state else None,
+                "f1_live": self._f1_live,
+                "f1_shadow_correct": self._f1_shadow_correct,
+                "f1_shadow_misfire": self._f1_shadow_misfire,
+            },
         }
         self._trace_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         self._trace_fh.flush()
@@ -3267,55 +3720,66 @@ class Mediator:
                 self._unknown_since = None
                 self._unknown_recorded_fp = None
 
-        # 全局：断线/失败优先。单帧相似只算候选；连续两帧才取得
-        # QUIT 动作权限。恢复 episode 一旦开始，后续步骤不再依赖 fail
-        # 模板持续可见（点击后页面本来就应变化）。
-        failure_hit = self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail")
-        if self._recovery_step and self._recovery_step != "DONE":
-            recovery = self._recovery_step
-            if recovery == "FAIL_VISIBLE":
-                hit = self.find_scene(frame, "fail")
-                if hit:
-                    self.click_scene(frame, "fail", "recover")
-                self._recovery_step = "WAIT_OK"
-                return LoopAction.Continue
-            if recovery == "WAIT_OK":
-                hit = self.find_scene(frame, "ok")
-                if hit:
-                    self.click_scene(frame, "ok", "ok")
-                self._recovery_step = "WAIT_CLOSE"
-                return LoopAction.Continue
-            if recovery == "WAIT_CLOSE":
-                hit = self.find_scene(frame, "close")
-                if hit:
-                    self.click_scene(frame, "close", "close")
-                self._recovery_step = "DONE"
-                return LoopAction.Continue
+        # ---- S0 ② 全局抢占：disconnect / STRONG_FAIL 优先于 selection/panel FSM ----
+        # 每类强证据单独连续帧计数；同 evidence generation（同帧对象/无输入）下连续
+        # 两帧才授权抢占（两帧中断即归零）；giveup 不计入强失败。抢占后先失效证据
+        # （旧帧动作授权不得延续），再进入 RECOVER_FAILURE——本 tick 不再执行任何
+        # selection/panel/artifact/challenge/主动开面板输入。
+        if self.phase == Phase.RECOVER_FAILURE:
+            return self._tick_recovery(frame)
 
-        if failure_hit:
-            # 选择面板的"放弃"按钮与失败弹窗 giveUp 模板同源（实机 2026-08-09
-            # 证据：局内 bond/card 选择面板弹出时 giveUp 0.945 误命中 → 误判失败）。
-            # 真实失败弹窗会遮挡面板，两者互斥；面板存在时跳过 fail 检测。
-            if self._selection_anchor(frame):
+        disconnect_hit = self.find_scene(frame, "disconnect")
+        strong_fail_hit = None if disconnect_hit else self.find_scene(frame, "fail")
+        if disconnect_hit or strong_fail_hit:
+            kind = "DISCONNECT" if disconnect_hit else "FAIL"
+            if self._recovery_step == "DONE" and self.phase == Phase.QUIT:
+                # 恢复完成后旧失败像素可能残留（QUIT 打开退出确认期间）：不重复恢复。
                 self._failure_candidate_frames = 0
-                print("[med] 选择面板存在，忽略 giveUp/fail 误检（面板放弃按钮非失败弹窗）")
-            elif self._recovery_step == "DONE":
-                # The old failure pixels may remain while QUIT opens the exit
-                # dialog; do not let a completed episode swallow the tail.
-                pass
             else:
-                self._failure_candidate_frames += 1
+                if self._failure_candidate_kind != kind or self._failure_candidate_gen != self._tick_gen:
+                    self._failure_candidate_frames = 1
+                    self._failure_candidate_kind = kind
+                    self._failure_candidate_gen = self._tick_gen
+                else:
+                    self._failure_candidate_frames += 1
                 if self._failure_candidate_frames < 2:
-                    print("[med] fail/disconnect 候选第 1 帧，等待连续证据（零动作）")
+                    print(f"[med] {kind} 候选第 {self._failure_candidate_frames} 帧，等待连续证据（零动作）")
                     return LoopAction.Continue
-                if self.phase != Phase.QUIT:
-                    self.set_phase(Phase.QUIT, "fail/disconnect")
-                self._recovery_step = "FAIL_VISIBLE"
+                print(f"[med] {kind} 连续两帧确认，抢占并进入 RECOVER_FAILURE")
+                self.invalidate_evidence("failure-preempt")
+                self._begin_recovery(
+                    RecoveryKind.DISCONNECT if disconnect_hit else RecoveryKind.FAIL
+                )
                 return LoopAction.Continue
         else:
             self._failure_candidate_frames = 0
+            self._failure_candidate_kind = None
+            self._failure_candidate_gen = None
             if self._recovery_step == "DONE":
                 self._recovery_step = None
+            # S0 ① giveUp 单独出现：AMBIGUOUS_GIVEUP —— 非失败、无恢复动作权。
+            # 有面板锚点 → 记 ambiguous 证据并继续 panel FSM（选卡遵守 panel FSM）；
+            # 无面板锚点 → 未知/安全等待（零输入），不得自动判为失败。
+            if self.find_scene(frame, "giveup") is not None:
+                if self._selection_anchor(frame):
+                    self._ambiguous_giveup_frames += 1
+                    print("[med] giveUp + 选择面板锚点：AMBIGUOUS_GIVEUP，非失败，继续面板 FSM")
+                elif self.phase in (
+                    Phase.MAIN_LINE,
+                    Phase.RECOVER_FAILURE,
+                    Phase.EARLY_CHALLENGE,
+                    Phase.ANCHOR_BOSS,
+                    Phase.LONGZHU,
+                    Phase.QUIT,
+                    Phase.NEXT,
+                ):
+                    # giveUp 单独出现且无面板锚点（局内）：未知/安全等待（零输入），
+                    # 不得自动判为失败；round hard deadline 兜底有界。
+                    print("[med] giveUp 单独出现（无面板锚点）：非失败，零输入安全等待")
+                    return LoopAction.Continue
+                else:
+                    # L0 等非局内阶段：仅记录 ambiguous 证据，不阻断 L0 链
+                    self._ambiguous_giveup_frames += 1
 
         if self.phase in {
             Phase.BOOT,
@@ -3336,6 +3800,9 @@ class Mediator:
         if self.phase == Phase.MAIN_LINE:
             return self._tick_main_line(frame)
 
+        if self.phase == Phase.RECOVER_FAILURE:
+            return self._tick_recovery(frame)
+
         if self.phase in {
             Phase.EARLY_CHALLENGE,
             Phase.ANCHOR_BOSS,
@@ -3345,11 +3812,302 @@ class Mediator:
         }:
             return self._tick_l1_tail(frame)
 
+        if self.phase == Phase.COMPLETE:
+            # S0 ⑥：cycle_num 达成即安全停止；绝不点下一局开始。
+            print("[med] 已达 cycle_num 目标局数，COMPLETE 停止运行")
+            self.stop()
+            return LoopAction.Break
+
         print(f"[med] unhandled phase {self.phase}")
         return LoopAction.Continue
 
+    # ---------- S0 ⑤ 面板会话 FSM / S0 ⑧ 局尾门控 ----------
+
+    def _round_tail_checks_active(self) -> bool:
+        """S0 ⑧ archive/boss 未验证入口检查的触发条件（局尾窗口）：
+
+        - 战后流程进行中（_post_game_pending / 胜利链已点击继续）；
+        - 或距 round hard deadline 不足 round_tail_window_s（boss 等出现在局尾）。
+        LONGZHU 色相检查只在 LONGZHU 阶段（_tick_l1_tail）执行，不在此列。
+        """
+        if self._post_game_pending or self._victory_continue_attempts > 0:
+            return True
+        if self._round_deadline is not None:
+            return self._round_deadline - time.time() <= self.settings.round_tail_window_s
+        return False
+
+    def _panel_kind_of(self, frame: Frame, anchor: MatchResult) -> str:
+        """面板种类：优先用主动打开标记（_classify_choice_panel 同语义）。"""
+        opened = getattr(self, "_panel_opened_by_us", None)
+        if opened in ("skill", "bond", "treasure"):
+            return opened
+        return self._classify_choice_panel(frame) or "unknown"
+
+    def _enter_panel_episode(self, frame: Frame, anchor: MatchResult, kind: str, opened: bool) -> None:
+        """进入 ACTIVE 会话：记录 kind/指纹起点；主动打开的面板计 episode 数。"""
+        self._panel_state = PanelState.ACTIVE
+        self._panel_kind = kind
+        self._panel_episode_started = time.time()
+        self._panel_mutation_baseline = None
+        self._panel_f1_used_this_episode = False
+        if opened:
+            self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
+
+    def _finish_panel_episode(self) -> None:
+        self._panel_state = PanelState.CLOSED
+        self._panel_kind = None
+        self._panel_episode_started = None
+        self._panel_mutation_baseline = None
+        self._panel_fingerprint = None
+        self._panel_fingerprint_attempts = 0
+        self._panel_opened_by_us = None
+        self._selection_repeat_key = None
+        self._selection_repeat_attempts = 0
+        self._selection_unknown_attempts = 0
+        self._selection_unknown_since = None
+
+    def _panel_roi_region(self, frame: Frame) -> np.ndarray | None:
+        """面板中央三选区域（帧内坐标）——WAIT_MUTATION 的像素 mutation 对比。"""
+        if frame.bgr is None or frame.bgr.size == 0 or frame.width < 100 or frame.height < 100:
+            return None
+        x1 = int(frame.width * 0.24)
+        y1 = int(frame.height * 0.16)
+        x2 = int(frame.width * 0.76)
+        y2 = int(frame.height * 0.66)
+        roi = frame.bgr[y1:y2, x1:x2]
+        return roi if roi.size > 0 else None
+
+    def _panel_mutation_confirmed(self, frame: Frame) -> bool:
+        """WAIT_MUTATION 后置确认：面板中央区域内容相对点击前 baseline 发生变化。"""
+        baseline = self._panel_mutation_baseline
+        if baseline is None:
+            return False
+        roi = self._panel_roi_region(frame)
+        if roi is None or roi.shape != baseline.shape:
+            return True  # 尺寸变化本身即画面异变
+        return self._hero_changed_pixels(baseline, roi) >= 2000
+
+    def _panel_f1_shadow_record(self, would_trigger: bool, correct: bool | None) -> None:
+        """F1 兜底 shadow 灰度：累计 20 次正确、0 误触才写 LIVE 标志。
+
+        - would_trigger=True 且 correct=True → correct+1；correct=False → 误触清零；
+        - 每 panel episode 最多一次（_panel_f1_used_this_episode 守卫）；
+        - F1 不得用于 UNKNOWN/无 anchor（调用方保证）。
+        """
+        if not would_trigger:
+            return
+        if self._f1_live:
+            return
+        if correct is None:
+            # 生产 shadow：只记录候选（无法即时判定正确性），不改变计数
+            return
+        if correct:
+            self._f1_shadow_correct += 1
+            self._f1_shadow_misfire = 0
+            if self._f1_shadow_correct >= 20:
+                print("[L1] F1 兜底 shadow 累计 20 次正确、0 误触，允许 LIVE")
+                self._f1_live = True
+        else:
+            self._f1_shadow_correct = 0
+            self._f1_shadow_misfire += 1
+            print(f"[L1] F1 兜底 shadow 误触（累计 {self._f1_shadow_misfire} 次），清零并保持关闭")
+
+    def _tick_panel_fsm(self, frame: Frame, anchor: MatchResult | None, now: float) -> LoopAction | None:
+        """S0 ⑤ 面板会话 FSM：CLOSED→OPEN_REQUESTED→WAIT_VISIBLE→ACTIVE→
+        WAIT_MUTATION→CLOSING→COOLDOWN。
+
+        强失败/断线在全部状态抢占（_tick_impl 先于本 FSM 执行）；round hard
+        deadline 在所有非恢复状态抢占（_tick_main_line 顶部）。
+        """
+        st = self._panel_state
+
+        if st == PanelState.CLOSED:
+            if anchor is None:
+                return None  # 无面板活动：落到无面板链（自动任务/挑战/主动开面板）
+            kind = self._panel_kind_of(frame, anchor)
+            self._enter_panel_episode(frame, anchor, kind, opened=False)
+            # 自然面板：本 tick 直接进入 ACTIVE 处理
+            st = self._panel_state
+
+        if st == PanelState.OPEN_REQUESTED:
+            # 已按 G/F/V：2s 可见窗内零动作（不得下一 tick 反点关闭）
+            self._panel_state = PanelState.WAIT_VISIBLE
+            self._panel_visible_deadline = now + self.settings.panel_visible_timeout_s
+            return LoopAction.Continue
+
+        if st == PanelState.WAIT_VISIBLE:
+            if anchor is not None:
+                kind = self._panel_kind_of(frame, anchor)
+                self._enter_panel_episode(frame, anchor, kind, opened=True)
+                print(f"[L1] 主动面板 {kind} 已可见（{self.settings.panel_visible_timeout_s}s 窗内）")
+            elif now >= self._panel_visible_deadline:
+                # 2s 未出现：COOLDOWN，零盲点/盲关闭
+                print(f"[L1] 主动面板 {self._panel_kind} 可见窗超时，进入 COOLDOWN（零输入）")
+                self._panel_state = PanelState.COOLDOWN
+                self._panel_cooldown_until[self._panel_kind] = now + self.settings.ui_action_interval_s
+                self._panel_opened_by_us = None
+                return LoopAction.Continue
+            else:
+                return LoopAction.Continue  # 零动作等待可见
+            st = self._panel_state
+
+        if st == PanelState.ACTIVE:
+            if anchor is None:
+                # 面板已自然消失（episode 结束）
+                self._finish_panel_episode()
+                return LoopAction.Continue
+            if now < self._selection_click_cooldown_until:
+                print("[L1] 选择面板等待输入间隔…")
+                return LoopAction.Continue
+            # 同 fingerprint 同动作 ≤ panel_action_limit_per_fingerprint 次
+            choice = self._find_reward_choice(frame, anchor=anchor)
+            if choice:
+                kind, hit = choice
+                fingerprint = (kind, hit.name, hit.screen_x // 8, hit.screen_y // 8)
+                if fingerprint == self._panel_fingerprint:
+                    self._panel_fingerprint_attempts += 1
+                else:
+                    self._panel_fingerprint = fingerprint
+                    self._panel_fingerprint_attempts = 1
+                if self._panel_fingerprint_attempts == 3:
+                    # 同一选择连续 2 次点击无页面变化 → 归档证据
+                    self._record_repeat_click(frame, choice, self._panel_fingerprint_attempts)
+                if self._panel_fingerprint_attempts > self.settings.panel_action_limit_per_fingerprint:
+                    # 同指纹同动作超限：进入 COOLDOWN（零输入），不再盲点
+                    print(f"[L1] 同一选择连续 {self.settings.panel_action_limit_per_fingerprint} 次无画面变化，"
+                          f"面板进入 COOLDOWN 避免活锁")
+                    self._panel_state = PanelState.COOLDOWN
+                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                    self._panel_opened_by_us = None
+                    self._skill_refresh_attempts = 0
+                    return LoopAction.Continue
+                print(f"[L1] {kind}选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
+                clicked = self.act_click(hit, f"{kind}选择")
+                if clicked:
+                    self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
+                    self._panel_last_input_at = now
+                    self._panel_mutation_baseline = self._panel_roi_region(frame)
+                    self._panel_state = PanelState.WAIT_MUTATION
+                    self._panel_confirm_window = max(
+                        5.0, min(15.0, self.settings.recovery_timeout_s)
+                    )
+                    if hit.name == "skill_refresh_btn":
+                        self._skill_refresh_attempts += 1
+                        self._panel_opened_by_us = "skill"
+                    else:
+                        if kind == "技能":
+                            # 配置技能成功后立即再开 G，直到没有可学点数。
+                            self._last_skill_panel = 0.0
+                        self._panel_opened_by_us = None
+                self._selection_unknown_attempts = 0
+                self._selection_unknown_since = None
+                self._main_line_since = now
+                return LoopAction.Continue
+
+            # 无候选：F1 兜底 shadow（每 episode ≤1 次，LIVE 门槛 20 正确/0 误触）
+            if not self._panel_f1_used_this_episode:
+                self._panel_f1_used_this_episode = True
+                self._panel_f1_shadow_record(True, None)
+                print("[L1] F1 兜底 shadow：记录候选（不产生输入）")
+            self._selection_unknown_since = self._selection_unknown_since or now
+            elapsed = now - self._selection_unknown_since
+            # 主动打开的面板：尝试点关闭按钮安全退出（放弃/暂时隐藏）
+            if getattr(self, "_panel_opened_by_us", None):
+                close_hit = self._close_current_panel(frame)
+                if close_hit is not None:
+                    print(f"[L1] 主动面板无法匹配卡牌，点击关闭 {close_hit.name}")
+                    if self.act_click(close_hit, "CloseSelfOpenedPanel"):
+                        self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
+                        self._panel_state = PanelState.WAIT_MUTATION
+                        self._panel_mutation_baseline = self._panel_roi_region(frame)
+                        self._panel_last_input_at = now
+                    self._panel_opened_by_us = None
+                    self._selection_unknown_attempts = 0
+                    self._selection_unknown_since = None
+                    return LoopAction.Continue
+            if elapsed >= 10:
+                print("[L1] 未知选择面板无法识别，Fail-Closed 停止运行（零输入，不盲点隐藏）")
+                self.set_phase(Phase.ERROR, "unknown selection panel timeout")
+                self.stop()
+                return LoopAction.Break
+            print(f"[L1] 当前选择无配置命中（已等 {elapsed:.0f}s），保持零输入等待…")
+            return LoopAction.Continue
+
+        if st == PanelState.WAIT_MUTATION:
+            if anchor is None:
+                # 面板已关闭：episode 完成
+                self._finish_panel_episode()
+                return LoopAction.Continue
+            if self._panel_mutation_confirmed(frame):
+                # 内容变化（刷新/新候选）：回到 ACTIVE 继续
+                self._panel_state = PanelState.ACTIVE
+                self._panel_mutation_baseline = None
+                return LoopAction.Continue
+            if now - self._panel_last_input_at >= self._panel_confirm_window:
+                # 确认窗超时：回 ACTIVE（同 fingerprint 重试计数将捕获无变化点击）
+                print("[L1] 面板 mutation 确认窗超时，回到 ACTIVE（零输入）")
+                self._panel_state = PanelState.ACTIVE
+            return LoopAction.Continue
+
+        if st == PanelState.CLOSING:
+            close_hit = self._close_current_panel(frame, self._panel_kind)
+            if close_hit is None:
+                return LoopAction.Continue  # 零动作等待明确 close 锚点
+            if self.act_click(close_hit, "PanelClose"):
+                self._panel_state = PanelState.WAIT_MUTATION
+                self._panel_last_input_at = now
+                self._panel_mutation_baseline = self._panel_roi_region(frame)
+                self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
+            return LoopAction.Continue
+
+        if st == PanelState.COOLDOWN:
+            if now >= self._panel_cooldown_until.get(self._panel_kind, 0):
+                self._panel_state = PanelState.CLOSED
+                self._panel_kind = None
+                return None  # 落到无面板链
+            return LoopAction.Continue
+
+        return None
+
+    def _record_round_timeout_incident(self) -> None:
+        """S0.5：round hard deadline 到期归档。"""
+        if self._archiver is None:
+            return
+        frame = self._last_frame
+        if frame is None or frame.bgr is None or frame.bgr.size == 0:
+            return
+        saved = self._archiver.maybe_record(
+            frame_before=self._prev_frame,
+            frame_now=frame,
+            metadata=self._incident_meta(
+                "round_timeout",
+                "round hard deadline expired",
+                final_action="quit",
+                deadline=self._round_deadline,
+            ),
+            healthy=True,
+            health_issues=[],
+            health_details="",
+        )
+        if saved is not None:
+            self._incident_pending_fp = saved
+            if self._tick_reason is None:
+                self._tick_reason = "incident_write"
+
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
+
+        # ---- S0 ④ round hard deadline：进入 MAIN_LINE 即固定，不可续期 ----
+        # 技能/面板/神器/挑战/进化等任何动作都不得延期；到期先记录 TIMEOUT、
+        # 清 input/evidence token，转 QUIT 由正常退出链处理（退出打开/确认失败才
+        # ERROR）。idle watchdog（_main_line_since + game_timeout 分钟）与之分离。
+        if self._round_deadline is not None and now >= self._round_deadline:
+            print(f"[med] round hard deadline 到期（{self.settings.round_timeout_s}s），记录 TIMEOUT 并转 QUIT")
+            self._record_round_outcome(RoundOutcome.TIMEOUT, "round deadline")
+            self._record_round_timeout_incident()
+            self.invalidate_evidence("round-deadline")
+            self.set_phase(Phase.QUIT, "round deadline expired")
+            return LoopAction.Continue
 
         # 战后页面优先于一切局内动作。胜利后只允许以下专用链：
         # 继续游戏 → 关闭存档面板（如出现）→ NPC 广场 → 局内退出。
@@ -3416,6 +4174,8 @@ class Mediator:
                 self.stop()
                 return LoopAction.Break
             self._post_game_pending = False
+            # S0 ⑥：完整胜利链确认点（继续游戏→存档→NPC 广场）→ success+1、streak 清零
+            self._record_round_outcome(RoundOutcome.VICTORY, "post-game NPC hub verified")
             self.set_phase(Phase.QUIT, "post-game NPC hub verified")
             return LoopAction.Continue
 
@@ -3459,6 +4219,28 @@ class Mediator:
             self.stop()
             return LoopAction.Break
 
+        # 中央选择面板比 archive/boss/longzhu 泛模板更具体；龙珠宝物卡
+        # 本身可能命中 longzhu，不能因此抢占选卡并误停。
+        selection_anchor = self._selection_anchor(frame)
+
+        # ---- S0 ⑧ 阶段门控：未验证战后入口检查只在局尾窗口触发 ----
+        # 正常中段 idle HUD 不再每 tick 支付 archive/boss/longzhu 全帧扫描
+        # （N2 waiver 复评项）；longzhu 色相检查已移至 LONGZHU 阶段（_tick_l1_tail）。
+        # Fail-Closed 语义保留：局尾窗口内 archive/boss_entry 命中即 ERROR 零输入。
+        # 本检查放在战后 pending 等待之前：继续游戏后出现未分类战后页时先 Fail-Closed，
+        # 不得无限零动作等待。
+        if not selection_anchor and self._round_tail_checks_active():
+            if self.find_scene(frame, "archive"):
+                print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "unverified archive entry")
+                self.stop()
+                return LoopAction.Break
+            if self.find_scene(frame, "boss_entry"):
+                print("[med] 识别到未验证战后入口 boss_entry，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "unverified boss_entry")
+                self.stop()
+                return LoopAction.Break
+
         # 点击继续游戏后、页面确认前：不认识的页面一律零动作等待，绝不落到
         # 自动任务/挑战/选关分支（防止胜利→大厅过渡期误触）。
         if self._post_game_pending:
@@ -3471,106 +4253,21 @@ class Mediator:
             print("[med] 等待继续游戏后的页面确认（零动作）")
             return LoopAction.Continue
 
-        # 中央选择面板比 archive/boss/longzhu 泛模板更具体；龙珠宝物卡
-        # 本身可能命中 longzhu，不能因此抢占选卡并误停。
-        selection_anchor = self._selection_anchor(frame)
-
-        # 提前挑战 / Boss / 龙珠入口：仅在不存在选择面板时 Fail-Closed。
-        # 注：N2.4 曾尝试以「局内 HUD 证据」跳过这 12 次全帧扫描——但 victory
-        # 等战后页实测仍可见 HUD 元素（skillchallenge 0.92），p1a2 优先级测试
-        # 也要求 archive/boss/longzhu 命中即停；为保持 Fail-Closed 契约，此处
-        # 不做 HUD 短路（代价见交付报告：idle/unknown 时间门禁 FAIL 的根因）。
-        if not selection_anchor:
-            if self.find_scene(frame, "archive"):
-                print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
-                self.set_phase(Phase.ERROR, "unverified archive entry")
-                self.stop()
-                return LoopAction.Break
-            if self.find_scene(frame, "boss_entry"):
-                print("[med] 识别到未验证战后入口 boss_entry，Fail-Closed 停止运行")
-                self.set_phase(Phase.ERROR, "unverified boss_entry")
-                self.stop()
-                return LoopAction.Break
-            if self.find_scene(frame, "longzhu"):
-                print("[med] 识别到未验证战后入口 longzhu，Fail-Closed 停止运行")
-                self.set_phase(Phase.ERROR, "unverified longzhu entry")
-                self.stop()
-                return LoopAction.Break
-
-        # 选择面板优先；面板存在时禁止把刷新计数或快捷键当成按钮。
-        if selection_anchor:
-            if now < self._selection_click_cooldown_until:
-                print("[L1] 选择面板等待点击结果…")
-                return LoopAction.Continue
-            choice = self._find_reward_choice(frame, anchor=selection_anchor)
-            if choice:
-                kind, hit = choice
-                repeat_key = (kind, hit.name, hit.screen_x // 8, hit.screen_y // 8)
-                if repeat_key == self._selection_repeat_key:
-                    self._selection_repeat_attempts += 1
-                else:
-                    self._selection_repeat_key = repeat_key
-                    self._selection_repeat_attempts = 1
-                if self._selection_repeat_attempts == 3:
-                    # B1-2：同一选择连续 2 次点击无页面变化 → 归档证据
-                    # （attempts==3 = 第 1、2 次点击后页面均未变化）
-                    self._record_repeat_click(frame, choice, self._selection_repeat_attempts)
-                if self._selection_repeat_attempts > 3:
-                    close_hit = self._close_current_panel(frame, kind)
-                    if close_hit is not None:
-                        print(f"[L1] 同一选择连续 3 次无画面变化，关闭面板避免活锁")
-                        if self.act_click(close_hit, "CloseRepeatedChoicePanel"):
-                            self._selection_click_cooldown_until = now + 1.5
-                        self._panel_opened_by_us = None
-                        self._selection_repeat_key = None
-                        self._selection_repeat_attempts = 0
-                        self._skill_refresh_attempts = 0
-                        return LoopAction.Continue
-                print(f"[L1] {kind}选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
-                clicked = self.act_click(hit, f"{kind}选择")
-                if clicked:
-                    self._selection_click_cooldown_until = now + 1.5
-                    if hit.name == "skill_refresh_btn":
-                        self._skill_refresh_attempts += 1
-                        self._panel_opened_by_us = "skill"
-                    else:
-                        if kind == "技能":
-                            # 配置技能成功后立即再开 G，直到没有可学点数。
-                            self._last_skill_panel = 0.0
-                        self._panel_opened_by_us = None
-                self._selection_unknown_attempts = 0
-                self._selection_unknown_since = None
-                self._main_line_since = now
-                return LoopAction.Continue
-
-            self._selection_unknown_since = self._selection_unknown_since or now
-            elapsed = now - self._selection_unknown_since
-            # 主动打开的面板：尝试点关闭按钮安全退出（放弃/暂时隐藏）
-            if getattr(self, "_panel_opened_by_us", None):
-                close_hit = self._close_current_panel(frame)
-                if close_hit is not None:
-                    print(f"[L1] 主动面板无法匹配卡牌，点击关闭 {close_hit.name}")
-                    if self.act_click(close_hit, "CloseSelfOpenedPanel"):
-                        self._selection_click_cooldown_until = now + 1.5
-                    self._panel_opened_by_us = None
-                    self._selection_unknown_attempts = 0
-                    self._selection_unknown_since = None
-                    return LoopAction.Continue
-            if elapsed >= 10:
-                print("[L1] 未知选择面板无法识别，Fail-Closed 停止运行（零输入，不盲点隐藏）")
-                self.set_phase(Phase.ERROR, "unknown selection panel timeout")
-                self.stop()
-                return LoopAction.Break
-            print(
-                f"[L1] 当前选择无配置命中（已等 {elapsed:.0f}s），保持零输入等待…"
-            )
-            return LoopAction.Continue
+        # ---- S0 ⑤ 面板会话 FSM：锚点存在或面板会话进行中 → FSM 全权处理 ----
+        # 面板存在时禁止把刷新计数或快捷键当成按钮；强失败/断线/round deadline
+        # 在 FSM 全部状态优先抢占（分别由 _tick_impl / _tick_main_line 顶部执行）。
+        if selection_anchor is not None or self._panel_state != PanelState.CLOSED:
+            res = self._tick_panel_fsm(frame, selection_anchor, now)
+            if res is not None:
+                return res
 
         self._selection_unknown_attempts = 0
         self._selection_unknown_since = None
         self._selection_repeat_key = None
         self._selection_repeat_attempts = 0
         self._skill_refresh_attempts = 0
+        self._panel_fingerprint = None
+        self._panel_fingerprint_attempts = 0
 
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)
@@ -3640,6 +4337,13 @@ class Mediator:
 
     def _tick_l1_tail(self, frame: Frame) -> LoopAction:
         if self.phase in (Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU):
+            # S0 ⑧：longzhu 色相检查只在 LONGZHU 阶段执行（N2 waiver 复评：
+            # MAIN_LINE 不再每 tick 全帧扫 longzhu）。本阶段 G0 未实现，仍 Fail-Closed。
+            if self.phase == Phase.LONGZHU and self.find_scene(frame, "longzhu"):
+                print("[med] LONGZHU 阶段识别到龙珠入口但状态机未实现，Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "unverified longzhu entry (LONGZHU phase)")
+                self.stop()
+                return LoopAction.Break
             print(f"[med] 战后/大秘境阶段 ({self.phase.name}) 未完成前置校验与安全状态机，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, f"unverified {self.phase.name} phase")
             self.stop()
@@ -3756,6 +4460,8 @@ class Mediator:
             return 0.100  # 成功输入后短观察窗；不能成为连续输入许可
         if getattr(self, "_failure_candidate_frames", 0) > 0:
             return 0.300  # FAIL/DISCONNECT 候选：安全检测优先，不放慢
+        if self.phase == Phase.RECOVER_FAILURE:
+            return 0.300  # 恢复：每步门闩确认，安全检测优先
         context = self._context_cache_value
         if context in ("UNKNOWN", "QUIT"):
             return 0.300  # UNKNOWN/退出候选：300ms 或更快

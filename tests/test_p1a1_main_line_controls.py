@@ -38,6 +38,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
         self.med._last_frame = f
         self.med.phase = Phase.MAIN_LINE
+        self.med._post_game_pending = True  # S0 ⑧：局尾窗口才检查未验证战后入口
 
         archive_hit = MatchResult(name="archive", score=0.9, x=100, y=100, w=50, h=50, screen_x=100, screen_y=100)
         toggle_hit = MatchResult(name="auto_task_toggle", score=0.9, x=1400, y=500, w=30, h=30, screen_x=1400, screen_y=500)
@@ -65,11 +66,14 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             mock_press_key.assert_not_called()
 
     def test_all_unverified_post_game_scenes_halt_before_any_input(self):
-        for scene_key in ["archive", "boss_entry", "longzhu"]:
+        # S0 ⑧：archive/boss_entry 在局尾窗口（战后流程进行中）Fail-Closed；
+        # longzhu 色相检查移至 LONGZHU 阶段（MAIN_LINE 不再扫描）。
+        for scene_key in ["archive", "boss_entry"]:
             med = Mediator(self.settings, ROOT)
             f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
             med._last_frame = f
             med.phase = Phase.MAIN_LINE
+            med._post_game_pending = True
 
             scene_hit = MatchResult(name=scene_key, score=0.9, x=100, y=100, w=50, h=50, screen_x=100, screen_y=100)
             toggle_hit = MatchResult(name="auto_task_toggle", score=0.9, x=1400, y=500, w=30, h=30, screen_x=1400, screen_y=500)
@@ -84,6 +88,20 @@ class P1A1MainLineControlsTests(unittest.TestCase):
                 self.assertEqual(med.phase, Phase.ERROR)
                 mock_click.assert_not_called()
                 mock_right_click.assert_not_called()
+
+        # longzhu：LONGZHU 阶段才检查并 Fail-Closed
+        med = Mediator(self.settings, ROOT)
+        f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
+        med.set_phase(Phase.LONGZHU)
+        scene_hit = MatchResult(name="longzhu", score=0.9, x=700, y=250, w=50, h=50, screen_x=700, screen_y=250)
+        with patch.object(med, "find_scene", side_effect=lambda frame, scene, **kw: scene_hit if scene == "longzhu" else None), \
+             patch.object(med.executor, "click") as mock_click, \
+             patch.object(med.executor, "right_click") as mock_right_click:
+            action = med._tick_l1_tail(f)
+            self.assertEqual(action, gamescript.loop_action.LoopAction.Break)
+            self.assertEqual(med.phase, Phase.ERROR)
+            mock_click.assert_not_called()
+            mock_right_click.assert_not_called()
 
     # 2. 自动任务真实素材与识别测试 (Section II & III)
     def test_auto_task_off_triggers_left_click_in_right_roi(self):
@@ -336,21 +354,24 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.assertAlmostEqual(hit.y / frame.height, 0.300, delta=0.03)
 
     def test_choice_panel_giveup_not_treated_as_fail(self):
-        # 实机 2026-08-09：局内选择面板的"放弃"按钮与失败弹窗 giveUp 模板同源
-        # （0.945 命中）→ 误判 fail → 误进退出流程。选择面板存在时必须跳过 fail 检测。
+        # S0 ①：实机 2026-08-09 局内选择面板"放弃"按钮与 giveUp 模板同源（0.945 命中）
+        # → 旧版经 fail 场景误判失败。S0 把 giveUp 移出 STRONG_FAIL、独立为 giveup 场景：
+        # giveUp+面板锚点 → AMBIGUOUS_GIVEUP，非失败，继续 panel FSM。
         f3 = load_fixture_frame("fixtures/replay/skill_choice_3.png")
         f3.hwnd = 10001
         self.med.set_phase(Phase.MAIN_LINE, "choice panel fail guard")
         self.assertIsNotNone(self.med._selection_anchor(f3))
-        self.assertIsNotNone(self.med.find_scene(f3, "fail"), "前置：giveUp 模板必须命中选择面板")
+        self.assertIsNone(self.med.find_scene(f3, "fail"), "S0：giveUp 已移出 STRONG_FAIL（fail）模板集")
+        self.assertIsNotNone(self.med.find_scene(f3, "giveup"), "giveUp 作为独立 giveup 场景仍可加载")
         with patch.object(self.med, "_capture_best", return_value=f3), \
              patch.object(self.med, "_post_game_state", return_value=None), \
              patch.object(self.med.executor, "click") as mock_click, \
              patch.object(self.med.executor, "right_click") as mock_rc:
             action = self.med.tick()
             self.assertEqual(action, gamescript.loop_action.LoopAction.Continue)
-            self.assertEqual(self.med.phase, Phase.MAIN_LINE, "选择面板存在时不得进入 fail/QUIT 流程")
+            self.assertEqual(self.med.phase, Phase.MAIN_LINE, "giveUp+面板锚点不得进入 fail/QUIT 流程")
             self.assertNotEqual(self.med.phase, Phase.QUIT)
+            self.assertIsNone(self.med._recovery_state, "giveUp+面板锚点不得触发恢复")
             # 允许技能选择点击，但绝不允许 fail 恢复链的 giveUp 点击（reason='recover'）
             for call in mock_click.call_args_list:
                 args = call.args

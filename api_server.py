@@ -316,7 +316,10 @@ def start_run(req: StartRunRequest = StartRunRequest()):
         builtins.print = hook_print
 
         try:
-            med = MedCls(s, ROOT)
+            # S0.5：API 生产入口也传入 incident 目录（默认 %LocalAppData%/GameScript-Local/incidents）
+            from gamescript.incidents import default_incident_dir
+
+            med = MedCls(s, ROOT, incident_dir=default_incident_dir())
             med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
             with runner.lock:
                 if runner.generation != gen:

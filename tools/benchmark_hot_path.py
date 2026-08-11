@@ -33,7 +33,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import Mediator, Phase  # noqa: E402
+from gamescript.mediator import Mediator, PanelState, Phase  # noqa: E402
 from gamescript.settings import Settings  # noqa: E402
 from gamescript.vision.capture import Frame, check_frame_health  # noqa: E402
 from gamescript.vision.matcher import clear_template_cache  # noqa: E402
@@ -211,13 +211,34 @@ def reset_tick_state(med: Mediator, manifest_entry: dict) -> None:
     med._challenge_unknown_since = {}
     med._challenge_states = {k: ChallengeState.PENDING for k in med._challenge_states}
     med._failure_candidate_frames = 0
+    med._failure_candidate_kind = None
+    med._failure_candidate_gen = None
     med._recovery_step = None
+    med._recovery_state = None
     med._main_line_since = None
     med._last_skill_panel = 0.0
     med._panel_opened_by_us = None
     med._selection_unknown_attempts = 0
     med._selection_unknown_since = None
     med._evolve_click_cooldown_until = 0.0
+    # S0 状态机 tick 可变字段：与生产同语义重置（统计口径不变）
+    med._round_started_at = None
+    med._round_deadline = None
+    med._outcome_recorded = False
+    med._round_outcome = None
+    med._last_outcome = None
+    med._failure_streak = 0
+    med._panel_state = PanelState.CLOSED
+    med._panel_kind = None
+    med._panel_episode_started = None
+    med._panel_visible_deadline = None
+    med._panel_mutation_baseline = None
+    med._panel_last_input_at = 0.0
+    med._panel_episode_count = {}
+    med._panel_cooldown_until = {}
+    med._panel_fingerprint = None
+    med._panel_fingerprint_attempts = 0
+    med._ambiguous_giveup_frames = 0
     med._exit_button_attempts = 0
     med._exit_confirm_attempts = 0
     med._exit_since = None
