@@ -91,17 +91,50 @@
     {
       "name": "奥术箭流",
       "codes": ["asj", "asjg", "assx", "jq"],
-      "hint": "奥术三件套 + 剑气补普攻，当前实机验证最多的配置"
+      "hint": "奥术三件套 + 剑气补普攻；0氪下限高（KK 夙愿系）",
+      "source": "community+default"
+    },
+    {
+      "name": "天雷经典",
+      "codes": ["tl", "sdl", "asjg", "assx"],
+      "hint": "天雷 + 闪电链 + 双奥术；秘境向",
+      "source": "kk_S4"
+    },
+    {
+      "name": "天雷狂轰",
+      "codes": ["tl", "sdl", "dcw", "asj"],
+      "hint": "天雷 + 闪电链 + 电磁网 + 奥数箭（双雷/电系变体）",
+      "source": "community_douyin_kk"
+    },
+    {
+      "name": "剑气物理",
+      "codes": ["jq", "ys", "dz", "asjg"],
+      "hint": "剑气主 C；陨石/地震过渡；需瓦王更佳",
+      "source": "kk_sword_qi"
+    },
+    {
+      "name": "普攻万金油",
+      "codes": ["pg", "ys", "dz", "jq"],
+      "hint": "普攻 23 真实分裂向；秘境通用",
+      "source": "kk_aa"
+    },
+    {
+      "name": "爆炎箭流",
+      "codes": ["byj", "hq", "dz", "jq"],
+      "hint": "爆炎箭社区帖；与奥术抢宝石，勿与奥术箭流混用",
+      "source": "kk_byj"
     },
     {
       "name": "冰法控场",
       "codes": ["hbj", "bsxx", "jq", "pg"],
-      "hint": "寒冰箭 + 冰霜新星减速控场"
+      "hint": "寒冰箭 + 冰霜新星；门槛较高",
+      "source": "kk_ice"
     },
     {
-      "name": "天雷狂轰",
-      "codes": ["tl", "sdl", "dcw", "jq"],
-      "hint": "天雷 + 闪电链电系爆发，带麻痹"
+      "name": "龙卷风备选",
+      "codes": ["ljf", "sdl", "tl", "asj"],
+      "hint": "高难法系备选；新手勿默认",
+      "source": "kk_wind"
     }
   ]
 }

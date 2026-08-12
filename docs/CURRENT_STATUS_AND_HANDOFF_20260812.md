@@ -1,5 +1,68 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-12 基建线：习惯权重 / 许可 stub / 批量抽帧 / 预设契约
+
+- 层：感知/策略纯函数/工具（**未改** mediator LIVE 采集习惯；**未接** 许可进启动；未改大厅红线）
+- `src/gamescript/habit_preference.py` + `PolicySettings.habit_name_scores`：允许集内 tie-break；空习惯行为与旧版一致
+- `src/gamescript/licensing.py`：租约 fail-closed stub（机器码/到期/宽限期）
+- `tools/video_breakdown.py`：支持 `--batch-dir`；已抽 `录屏素材/20260812_*.mp4` → `C:\tmp\frame_candidates_20260812\`
+- 测试：`tests/test_skill_meta_presets.py`、`test_habit_preference.py`、`test_licensing_stub.py`；负面 pattern 契约收紧为仅「贪婪献祭/等级优势」靠名字
+- `DEFAULT_NEGATIVE_PATTERNS` 与 JSON 对齐（消耗全部金币/将恒定/杀敌数清0/宝物效果-）
+
+---
+
+## 2026-08-12 调研线：外部补挖 + 双权重 + 防泄露规划
+
+- 层：感知/素材/规划（未改 mediator / 大厅红线；未改 GATE 基线）
+- 文档：`docs/research/EXTERNAL_DIG_SUPPLEMENT_20260812.md`、`SCRIPTABLE_LOGIC_MAP_20260812.md`、`MATERIAL_GAP_AND_FRAME_PLAN_20260812.md`、`DISTRIBUTION_AND_IP_PLAN_20260812.md`
+- 改造：`config/skill_meta.json` 官方流派预设扩充；`config/choice_policy.json` 负面描述候选 4 条；`config/habit_preference.schema.json`（本地习惯权重、免订阅，尚未接线）
+- 产品拍板：习惯权重本地免订阅；官方权重随包；许可先家庭电脑再 VPS；核心链路日后 Nuitka/原生加固（对标参考项目）
+- **仍缺真机**：断线全屏、OCR blind `entries=0`、黑市全屏、4/5 选；优先吃 `录屏素材/2026081*.mp4` 再下 B 站
+- 相关单测：`test_choice_policy` / `test_choice_lexicon` / choice semantics / treasure_negative / `test_desktop_app` 已过
+- 面板重构 agent：可直接用 `skill_meta.presets` + habit schema；不要与本线抢 mediator
+
+---
+
+## 2026-08-12 L0：录屏 180825 拆解升级（六阵营几何校准）
+
+- 素材：`fixtures/hero_modal_20260812_180825/`（来自 `录屏素材/20260812_180825.mp4` 客户区 1600×900）
+- 六阵营未选中模板全部回写 `assets/Images/lobby/hero_*_unselected.png`；均 `verified=True`
+- **`level_roi` 按录屏 `hero_level_zero` 滑动匹配校准**（底行 Y≈639，非公式 `y1+196`）；零级自匹配 ≥0.99
+- `plus_xy` 仍为卡片相对 `(+110,+209)`，与肯瑞托 `(772,327)` 一致
+- 同录屏有五阵营点加号后等级 ROI 像素突变旁证（`frame_*_peak.png`）；**仍不是**非肯瑞托完整加号确认闭环
+- `20260812_110511.mp4` / `180003.mp4` 无可用英雄弹窗；勿当证据
+- 验收：Dry-run 任一阵营；日志见对应 `Hero*Plus`；窗口保持 1600×900 且勿最小化
+
+---
+
+## 2026-08-12 外壳+L0：刷刷宝 V0.2（六阵营 + 技能/宝物分开展开）
+
+- 桌面：`ShuaBao-V0.2` + 快捷方式 `刷刷宝 V0.2.lnk`（V0.1 归档）
+- UI：去掉总「深入设置」；技能 / 宝物各自折叠；六阵营可选；运行日志默认收起
+- L0：`FactionSpec` 六阵营；见上节校准后黑锋亦有未选中模板
+- 真机：非肯瑞托加号闭环仍待 Dry-run/真跑确认；窗口勿最小化
+- 验收：先 Dry-run 守护/元素 1 级；日志应出现 `HeroShouhuPlus` / `HeroYuansuPlus`
+
+---
+
+## 2026-08-12 外壳：刷刷宝 V0.1 桌面同步
+
+- 版本约定改为用户可见「刷刷宝 V0.1」（`__version__=0.1`），不再用 `2026.08.12-rN`
+- 桌面发布物：`C:\Users\10639\Desktop\ShuaBao-V0.1\` + 快捷方式 `刷刷宝 V0.1.lnk`
+- 含浅色精简首页（关卡/模式/安全测试/开始；深入设置默认折叠）
+- 旧 `ShuaBao-2026.08.12-r12` 与无版本「刷刷宝.lnk」已归档到 `刷刷宝-旧版归档`
+- 只动外壳；局内/大厅逻辑未改。后续版本按 V0.2 / V0.3 递增
+
+---
+
+## 2026-08-12 外壳：桌面面板浅色精简首页
+
+- 只动一层：**外壳**（`desktop_app.py` + `tests/test_desktop_app.py`）
+- 浅色系；首页只留关卡 / 模式 / 安全测试 / 开始；技能、负面宝物、秘境、日志收入「深入设置」（默认折叠）
+- 未改大厅/局内逻辑；未动门禁基线。源码预览：`调试启动_源码.bat`
+
+---
+
 ## 2026-08-12 A 组：选卡策略 mediator 接线（L1 局内）
 
 - 分支：`cursor/choice-policy-wiring-l1-9866`（基于 `origin/codex/ocr-hybrid@2067952`）

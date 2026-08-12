@@ -76,6 +76,11 @@ DEFAULT_NEGATIVE_PATTERNS = (
     "无法升级",
     "停止获得",
     "停止升级",
+    # 2026-08-12：fixtures/treasure_negative/DESCRIPTIONS.json pattern_hints 已证实
+    "消耗全部金币",
+    "将恒定",
+    "杀敌数清0",
+    "宝物效果-",
 )
 
 # 用户 2026-08-12 逐张确认的负面宝物（拿了会断资源/断成长）。
@@ -149,6 +154,8 @@ class PolicySettings:
     treasure_negative_names: tuple[str, ...] = DEFAULT_NEGATIVE_NAMES
     # 负面宝物放行名单（UI 里折叠勾选后才进来）：只有名字在此名单内的负面宝物才可选。
     treasure_allow_negative: tuple[str, ...] = ()
+    # 本地习惯权重：规范名 → 分数。仅在已允许集合内做 tie-break；空 = 行为与旧版一致。
+    habit_name_scores: tuple[tuple[str, float], ...] = ()
 
     def __post_init__(self) -> None:
         if self.bond_whitelist_mode not in VALID_WHITELIST_MODES:
@@ -170,6 +177,15 @@ class PolicySettings:
         qo = raw.get("quality_order")
         neg = raw.get("treasure_negative_patterns")
         neg_names = raw.get("treasure_negative_names")
+        habit_raw = raw.get("habit_name_scores") or {}
+        if isinstance(habit_raw, Mapping):
+            habit_scores = tuple(
+                (str(k), float(v)) for k, v in habit_raw.items()
+            )
+        else:
+            habit_scores = tuple(
+                (str(k), float(v)) for k, v in (habit_raw or ())
+            )
         return cls(
             skill_presets=tuple(str(s) for s in raw.get("skill_presets", ())),
             bond_presets=tuple(str(s) for s in raw.get("bond_presets", ())),
@@ -192,6 +208,7 @@ class PolicySettings:
             treasure_allow_negative=tuple(
                 str(s) for s in raw.get("treasure_allow_negative", ())
             ),
+            habit_name_scores=habit_scores,
         )
 
 
@@ -350,6 +367,7 @@ def _decide_skill(
         settings.min_confidence,
         quality_order=settings.quality_order,
         rarity_first=True,
+        habit_name_scores=settings.habit_name_scores,
     )
     if preset_hit is not None:
         name = _slot_name(cands.slots, preset_hit)
@@ -387,6 +405,7 @@ def _decide_collectible(
     preset_hit = _match_preset(
         eligible, presets, settings.min_confidence,
         quality_order=settings.quality_order,
+        habit_name_scores=settings.habit_name_scores,
     )
     if preset_hit is not None:
         name = _slot_name(cands.slots, preset_hit)
@@ -449,6 +468,7 @@ def _match_preset(
     min_confidence: float,
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER,
     rarity_first: bool = False,
+    habit_name_scores: tuple[tuple[str, float], ...] = (),
 ) -> int | None:
     """预设命中；同一预设的多个槽位用稀有度做 tie-break。
 
@@ -459,10 +479,15 @@ def _match_preset(
     （红>橙>紫>蓝>白>绿），同稀有度再按配置顺序，最后按 index。
     修复「预设里有橙色却选了紫/蓝」（旧实现按槽位从左到右取第一个命中）。
 
+    ``habit_name_scores``：仅在上述键并列时影响排序（分数越高越优先）；
+    空元组时行为与旧版逐字节一致。不得引入预设外的名字。
+
     仅匹配名称与预设完全一致的槽位；unknown（name 为 None）永不命中。
     """
     preset_rank = {preset: rank for rank, preset in enumerate(presets)}
-    hits: list[tuple[int, int, int, int]] = []  # (主键, 次键, index, index)
+    habit = dict(habit_name_scores)
+    # (主键, 次键, 习惯分负数, index)
+    hits: list[tuple[float, float, float, int]] = []
     for slot in slots:
         if slot.name is None or slot.confidence < min_confidence:
             continue
@@ -470,10 +495,13 @@ def _match_preset(
         if rank is None:
             continue
         rarity_rank = _rarity_rank(slot.rarity, quality_order)
+        habit_key = -float(habit.get(slot.name, 0.0))
         if rarity_first:
-            hits.append((rarity_rank, rank, slot.index, slot.index))
+            # 稀有度 → 习惯分 → 配置序 → index
+            hits.append((rarity_rank, habit_key, float(rank), slot.index))
         else:
-            hits.append((rank, rarity_rank, slot.index, slot.index))
+            # 配置序 → 稀有度 → 习惯分 → index
+            hits.append((rank, rarity_rank, habit_key, slot.index))
     if not hits:
         return None
     hits.sort()

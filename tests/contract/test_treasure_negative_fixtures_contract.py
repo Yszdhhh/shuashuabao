@@ -181,10 +181,10 @@ class TreasureNegativePatternCoverage(unittest.TestCase):
                 )
 
     def test_document_real_description_pattern_gaps(self):
-        """真机原文相对 DEFAULT_NEGATIVE_PATTERNS 的缺口清单（只文档化，不改 config）。
+        """真机原文相对 DEFAULT_NEGATIVE_PATTERNS 的缺口清单。
 
-        缺口详情与建议追加串见 DESCRIPTIONS.json::suggested_pattern_appends_for_main_agent。
-        本测试锁定「哪些卡目前无法仅靠 patterns 拦」，避免 silent drift。
+        2026-08-12 已追加：消耗全部金币 / 将恒定 / 杀敌数清0 / 宝物效果-。
+        仍靠名字兜底：贪婪献祭、等级优势（真机描述无可用 pattern）。
         """
         cards = _load_descriptions()["cards"]
         gaps = {
@@ -192,17 +192,30 @@ class TreasureNegativePatternCoverage(unittest.TestCase):
             for name, meta in cards.items()
             if not _patterns_hit(meta["description"])
         }
-        # 六张真机原文目前均不能仅靠现有 patterns 兜底（贪婪/等级等甚至无可用 hint）。
         self.assertEqual(
             set(gaps),
-            set(DEFAULT_NEGATIVE_NAMES),
-            "若主 agent 已补 patterns 使某卡 description-only 可拦，请同步收紧本断言",
+            {"贪婪献祭", "等级优势"},
+            "pattern 覆盖变化时请同步本断言与 DESCRIPTIONS.json",
         )
+        # 已覆盖的卡：description-only 即可拦（无名字也行）
+        covered = set(cards) - set(gaps)
+        self.assertEqual(
+            covered,
+            {"透支力量", "金转木", "杀敌梭哈", "伐木契约"},
+        )
+        anon = PolicySettings(treasure_negative_names=())
+        for name in covered:
+            with self.subTest(name=name):
+                self.assertTrue(
+                    is_negative_treasure(
+                        _slot(0, "未知新卡", description=cards[name]["description"]),
+                        anon,
+                    )
+                )
         suggested = _load_descriptions()["suggested_pattern_appends_for_main_agent"]
         for token in ("消耗全部金币", "将恒定", "杀敌数清0"):
             self.assertIn(token, suggested)
 
-        # 带 pattern_hints 的卡：hints 本身应出现在建议列表或描述中，便于主 agent 追加。
         for name, meta in cards.items():
             for hint in meta.get("pattern_hints") or []:
                 with self.subTest(name=name, hint=hint):

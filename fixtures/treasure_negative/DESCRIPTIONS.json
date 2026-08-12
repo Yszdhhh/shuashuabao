@@ -69,5 +69,6 @@
     "将恒定",
     "杀敌数清0",
     "宝物效果-"
-  ]
+  ],
+  "_suggested_status_20260812": "已写入 config/choice_policy.json 与 choice_policy.DEFAULT_NEGATIVE_PATTERNS；契约 test_document_real_description_pattern_gaps 已收紧为仅贪婪献祭/等级优势仍靠名字。"
 }
