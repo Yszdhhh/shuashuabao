@@ -17,7 +17,7 @@
       "ledger_expectation": [
         {"frame_index": 0, "frame_id": "fail_238_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null},
         {"frame_index": 1, "frame_id": "fail_238_f2", "phase": "RECOVER_FAILURE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null},
-        {"frame_index": 2, "frame_id": "fail_694_f3", "phase": "RECOVER_FAILURE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
+        {"frame_index": 2, "frame_id": "fail_694_f3", "phase": "RECOVER_FAILURE", "context": "MAIN_LINE", "action_name": "Recovery-FAIL-FAIL_CONFIRM", "action_kind": "left_click", "click_point": [800, 689]}
       ]
     },
     {
@@ -31,8 +31,9 @@
       "required": true,
       "missing_resource": false,
       "ledger_expectation": [
-        {"frame_index": 0, "frame_id": "giveup_panel_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "bond选择", "action_kind": "left_click", "click_point": [864, 359]},
-        {"frame_index": 1, "frame_id": "hud_panel_closed_f2", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
+        {"frame_index": 0, "frame_id": "giveup_panel_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null},
+        {"frame_index": 1, "frame_id": "giveup_panel_f2", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "技能刷新选择", "action_kind": "left_click", "click_point": [1020, 654]},
+        {"frame_index": 2, "frame_id": "hud_panel_closed_f3", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
       ]
     },
     {
@@ -60,7 +61,7 @@
       "required": true,
       "missing_resource": false,
       "ledger_expectation": [
-        {"frame_index": 0, "frame_id": "hud_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "ClickEvolve", "action_kind": "left_click", "click_point": [525, 810]},
+        {"frame_index": 0, "frame_id": "hud_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "OpenSkillPanel", "action_kind": "left_click", "click_point": [1452, 808]},
         {"frame_index": 1, "frame_id": "hud_f2", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
       ]
     },

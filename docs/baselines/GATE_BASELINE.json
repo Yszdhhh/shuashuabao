@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-12 13:56:45",
-  "reason": "初次建立门禁快照（2026-08-12）：pytest tests/ 全绿；冻结回放 3 场景期望过期（e997b39 有意行为变更未同步夹具）；断线素材缺失 BLOCKED",
+  "updated_at": "2026-08-12 14:15:06",
+  "reason": "修复 3 个过期冻结回放期望后重设快照：main_hud_idle 首帧改为 OpenSkillPanel（L1 循环重排）；fail_panel_preempt 第三帧改为点击 failure_exit（真实失败弹窗无 OK 按钮，红/绿按钮对受强失败锚点门控）；giveup_panel_not_fail 补第二帧同图使双帧确认成立、并纠正原夹具把技能面板误判为羁绊面板的错误期望。仅剩 disconnect_modal_missing BLOCKED（真实断线素材缺失，不得合成）",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
@@ -14,21 +14,17 @@
     "frozen_replay": {
       "title": "冻结端到端回放（fixtures/baselines/replay_frozen）",
       "observed": {
-        "fail_panel_preempt": "FAIL",
-        "giveup_panel_not_fail": "FAIL",
+        "fail_panel_preempt": "PASS",
+        "giveup_panel_not_fail": "PASS",
         "archive_challenge_open": "PASS",
-        "main_hud_idle": "FAIL",
+        "main_hud_idle": "PASS",
         "stage_select_scroll": "PASS",
         "exit_confirm_quit": "PASS",
         "disconnect_modal_missing": "BLOCKED"
       },
       "known_failures": {
-        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。",
-        "fail_panel_preempt": "期望过期·非新增缺陷：f2 期望零输入，实际点击 failure_exit（Recovery-FAIL-FAIL_CONFIRM）。根因 e997b39 给恢复脚本了真实点击权（失败恢复真实帧回归），夹具期望写在该变更之前。待办：确认『失败态主动点退出』为目标行为后同步 case.json + manifest ledger_expectation。",
-        "giveup_panel_not_fail": "期望过期·非新增缺陷：f0 期望立即点 rarity_red（bond选择），实际首帧零输入。根因 e997b39 引入面板双帧确认（防误点空面板），首帧按设计只观察。待办：把夹具首帧期望改为零输入、次帧才选卡。",
-        "main_hud_idle": "期望过期·非新增缺陷：f0 期望 ClickEvolve，实际 OpenSkillPanel。根因 L1 循环顺序重排为 skill→bond→treasure→evolve→equipment→pickup→merchant→artifact，进化不再是首步。待办：夹具期望改为 OpenSkillPanel。"
-      },
-      "known_failures_note": "以上 3 项 FAIL 在 r11（42f3e95）提交时即已存在，且在本门禁建立前无人发现——正是『有资产、没闸门』的实证。修好任一项后请重新 --update-baseline。"
+        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。"
+      }
     },
     "scene_templates": {
       "title": "scenes.json 模板完整性",
