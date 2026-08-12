@@ -50,9 +50,33 @@ VALID_PANEL_KINDS = frozenset({PANEL_SKILL, PANEL_BOND, PANEL_TREASURE})
 # 的套装当作合成候选）。
 MAX_SYNTHESIS_GAP = 2
 
-# 默认品质序（与 mediator.RARITY_BANDS 对齐：红 > 橙 > 紫 > 蓝 > 白）。
+# 默认品质序（与 mediator.RARITY_BANDS 对齐：红 > 橙 > 紫 > 蓝 > 白 > 绿）。
+# green 在实机宝物面板确有出现（如「双倍神符」绿边），且是最低档；旧版本
+# RARITY_BANDS 缺 green 会让绿边卡在品质逻辑里变成「无颜色」。
 # 品质带不在序中或缺失的槽位一律排最末（最差），保证确定性。
-DEFAULT_QUALITY_ORDER = ("red", "orange", "purple", "blue", "white")
+DEFAULT_QUALITY_ORDER = ("red", "orange", "purple", "blue", "white", "green")
+
+# 羁绊/卡牌白名单语义：
+#   "hard" —— 未勾选（不在 presets 内）一律不可选；三槽全未勾选 → 刷新/放弃/隐藏，
+#             宁可不拿也不乱拿。用户 2026-08-12 明确要求（"海盗都明确 ban 了还是每次拿"）。
+#   "soft" —— 旧行为：预设未命中时仍按套装进度/品质兜底挑一张。
+WHITELIST_HARD = "hard"
+WHITELIST_SOFT = "soft"
+VALID_WHITELIST_MODES = frozenset({WHITELIST_HARD, WHITELIST_SOFT})
+
+# 负面宝物默认判定模式（描述文本中出现即视为负面）。
+# 依据：实机宝物面板的效果描述就在卡名下方且可 OCR（如「每消耗500金币，获得1点
+# 随机属性」）。按描述判定而非卡名黑名单，可覆盖未见过的新卡。
+DEFAULT_NEGATIVE_PATTERNS = (
+    "不再获得",
+    "不再增长",
+    "不再升级",
+    "不再提升",
+    "无法获得",
+    "无法升级",
+    "停止获得",
+    "停止升级",
+)
 
 # 会话/动作上限默认值（蓝图 §12：技能 3 次免费刷新后放弃；WAIT 有总次数上限；
 # 每个 panel episode 有尝试上限）。集成波可用配置覆盖。
@@ -93,7 +117,8 @@ class SlotCandidate:
     name: str | None = None       # 词典规范名；None 表示 unknown（绝不可点击）
     confidence: float = 0.0
     evidence: str = ""            # trace：证据说明（ROI/锚点/帧号等）
-    rarity: str | None = None     # 品质带（red/orange/purple/blue/white 或 SSR/SR/R/N…）
+    rarity: str | None = None     # 品质带（red/orange/purple/blue/white/green 或 SSR/SR/R/N…）
+    description: str = ""         # 卡面效果描述原文（宝物负面判定用；识别层填，可为空）
 
 
 @dataclass(frozen=True)
@@ -105,6 +130,19 @@ class PolicySettings:
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
     min_confidence: float = 0.0   # 可点击下限；低于该置信度的槽位不可选
+    # 羁绊/卡牌白名单语义（默认硬禁用：未勾选一律不选）。
+    bond_whitelist_mode: str = WHITELIST_HARD
+    # 宝物负面描述模式；命中即视为负面。
+    treasure_negative_patterns: tuple[str, ...] = DEFAULT_NEGATIVE_PATTERNS
+    # 负面宝物放行名单（UI 里折叠勾选后才进来）：只有名字在此名单内的负面宝物才可选。
+    treasure_allow_negative: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.bond_whitelist_mode not in VALID_WHITELIST_MODES:
+            raise ValueError(
+                f"bond_whitelist_mode={self.bond_whitelist_mode!r} "
+                f"not in {sorted(VALID_WHITELIST_MODES)}"
+            )
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> "PolicySettings":
@@ -117,6 +155,7 @@ class PolicySettings:
         if isinstance(raw, PolicySettings):
             return raw
         qo = raw.get("quality_order")
+        neg = raw.get("treasure_negative_patterns")
         return cls(
             skill_presets=tuple(str(s) for s in raw.get("skill_presets", ())),
             bond_presets=tuple(str(s) for s in raw.get("bond_presets", ())),
@@ -125,6 +164,15 @@ class PolicySettings:
                 tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER
             ),
             min_confidence=float(raw.get("min_confidence", 0.0)),
+            bond_whitelist_mode=str(raw.get("bond_whitelist_mode", WHITELIST_HARD)),
+            treasure_negative_patterns=(
+                tuple(str(s) for s in neg)
+                if neg is not None
+                else DEFAULT_NEGATIVE_PATTERNS
+            ),
+            treasure_allow_negative=tuple(
+                str(s) for s in raw.get("treasure_allow_negative", ())
+            ),
         )
 
 
@@ -275,11 +323,20 @@ def choose_action(
 def _decide_skill(
     cands: PanelCandidates, state: SessionState, settings: PolicySettings
 ) -> PolicyDecision:
-    preset_hit = _match_preset(cands.slots, settings.skill_presets, settings.min_confidence)
+    # 多个预设技能同时出现时按稀有度优先（红>橙>紫>蓝>白>绿）。
+    # 旧行为按槽位从左到右取第一个，导致「预设里有橙色却选了紫/蓝」。
+    preset_hit = _match_preset(
+        cands.slots,
+        settings.skill_presets,
+        settings.min_confidence,
+        quality_order=settings.quality_order,
+        rarity_first=True,
+    )
     if preset_hit is not None:
         name = _slot_name(cands.slots, preset_hit)
+        rarity = _slot_rarity(cands.slots, preset_hit) or "未知品质"
         return PolicyDecision.select(
-            preset_hit, f"技能预设命中：{name} @ slot {preset_hit}"
+            preset_hit, f"技能预设命中（稀有度优先）：{name}/{rarity} @ slot {preset_hit}"
         )
     # 预设不存在（含全部槽位 unknown）→ 刷新；非预设技能槽绝不返回 SELECT。
     if state.refreshes < state.max_refreshes:
@@ -301,34 +358,59 @@ def _decide_collectible(
     presets = (
         settings.bond_presets if kind == PANEL_BOND else settings.treasure_presets
     )
-    preset_hit = _match_preset(cands.slots, presets, settings.min_confidence)
+    # 宝物：负面效果卡先整体剔除（未勾选放行则永不进入任何候选路径，
+    # 含预设/套装/品质三条），避免「拿了就断金币/断木材/断升级」。
+    if kind == PANEL_TREASURE:
+        eligible = _drop_negative_treasures(cands.slots, settings)
+    else:
+        eligible = cands.slots
+
+    preset_hit = _match_preset(
+        eligible, presets, settings.min_confidence,
+        quality_order=settings.quality_order,
+    )
     if preset_hit is not None:
         name = _slot_name(cands.slots, preset_hit)
         return PolicyDecision.select(
             preset_hit, f"{kind} 预设命中：{name} @ slot {preset_hit}"
         )
 
-    synth_hit = _match_synthesis(cands, settings.min_confidence)
+    # 羁绊/卡牌硬禁用：未勾选的一律不选，绝不落到套装/品质兜底。
+    # 三槽全未勾选 → WAIT/REFRESH/GIVEUP（宁可不拿也不乱拿）。
+    if kind == PANEL_BOND and settings.bond_whitelist_mode == WHITELIST_HARD:
+        return _no_safe_candidate(
+            cands, state, kind, "白名单外不可选（硬禁用）"
+        )
+
+    synth_hit = _match_synthesis(cands, settings.min_confidence, slots=eligible)
     if synth_hit is not None:
         name = _slot_name(cands.slots, synth_hit)
         return PolicyDecision.select(
             synth_hit, f"{kind} 套装进度优先：{name} @ slot {synth_hit}"
         )
 
-    quality_hit = _match_quality(cands, settings)
+    quality_hit = _match_quality(cands, settings, slots=eligible)
     if quality_hit is not None:
         name = _slot_name(cands.slots, quality_hit)
         return PolicyDecision.select(
             quality_hit, f"{kind} 品质降级：{name} @ slot {quality_hit}"
         )
 
-    # 无安全候选（全部 unknown / 置信度不足）：
-    # WAIT（有上限）→ REFRESH → GIVEUP / CLOSE；禁止无限等待。
+    return _no_safe_candidate(cands, state, kind, "无安全候选")
+
+
+def _no_safe_candidate(
+    cands: PanelCandidates, state: SessionState, kind: str | None, why: str
+) -> PolicyDecision:
+    """没有可选候选时的统一收口：WAIT（有上限）→ REFRESH → GIVEUP / CLOSE。
+
+    禁止无限等待，也禁止「反正要动一下」式的兜底点击。
+    """
     if state.waits < state.max_waits and state.refreshes < state.max_refreshes:
         return PolicyDecision(
             PolicyAction.WAIT,
             None,
-            f"{kind} 无安全候选，等待重观察（{state.waits + 1}/{state.max_waits}）",
+            f"{kind} {why}，等待重观察（{state.waits + 1}/{state.max_waits}）",
         )
     if state.refreshes < state.max_refreshes:
         return PolicyDecision(
@@ -343,20 +425,80 @@ def _decide_collectible(
 # 匹配原语（全部确定性；并列用固定 tie-break）。
 # ---------------------------------------------------------------------------
 def _match_preset(
-    slots: tuple[SlotCandidate, ...], presets: tuple[str, ...], min_confidence: float
+    slots: tuple[SlotCandidate, ...],
+    presets: tuple[str, ...],
+    min_confidence: float,
+    quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER,
+    rarity_first: bool = False,
 ) -> int | None:
-    """配置顺序优先（用户顺序有意义），同预设多槽位取最小 index。
+    """预设命中；同一预设的多个槽位用稀有度做 tie-break。
+
+    ``rarity_first=False``（羁绊/宝物）：配置顺序优先（用户顺序有意义），
+    同一预设名的多个槽位取稀有度更高者，再取最小 index。
+
+    ``rarity_first=True``（技能）：稀有度优先——预设集合内先比稀有度
+    （红>橙>紫>蓝>白>绿），同稀有度再按配置顺序，最后按 index。
+    修复「预设里有橙色却选了紫/蓝」（旧实现按槽位从左到右取第一个命中）。
 
     仅匹配名称与预设完全一致的槽位；unknown（name 为 None）永不命中。
     """
-    for preset in presets:
-        for slot in slots:
-            if slot.name == preset and slot.confidence >= min_confidence:
-                return slot.index
-    return None
+    preset_rank = {preset: rank for rank, preset in enumerate(presets)}
+    hits: list[tuple[int, int, int, int]] = []  # (主键, 次键, index, index)
+    for slot in slots:
+        if slot.name is None or slot.confidence < min_confidence:
+            continue
+        rank = preset_rank.get(slot.name)
+        if rank is None:
+            continue
+        rarity_rank = _rarity_rank(slot.rarity, quality_order)
+        if rarity_first:
+            hits.append((rarity_rank, rank, slot.index, slot.index))
+        else:
+            hits.append((rank, rarity_rank, slot.index, slot.index))
+    if not hits:
+        return None
+    hits.sort()
+    return hits[0][3]
 
 
-def _match_synthesis(cands: PanelCandidates, min_confidence: float) -> int | None:
+def _rarity_rank(rarity: str | None, quality_order: tuple[str, ...]) -> int:
+    """品质带 → 序号（越小越好）；未知/缺失一律排最末，保证确定性。"""
+    if rarity and rarity in quality_order:
+        return quality_order.index(rarity)
+    return len(quality_order)
+
+
+def is_negative_treasure(slot: SlotCandidate, settings: PolicySettings) -> bool:
+    """宝物是否带负面效果（描述命中负面模式，且未被勾选放行）。
+
+    判定基于**卡面描述原文**而不是卡名黑名单：实机宝物面板的效果描述就在
+    卡名下方且可 OCR，按描述判定能覆盖没见过的新卡（如「获得50万金币，
+    5分钟后不再获得金币」）。描述为空时无法判定负面 → 视为非负面
+    （由识别层负责把描述读出来；读不到不在本模块伪造结论）。
+
+    勾选放行（``treasure_allow_negative``）后返回 False——用户在 UI 折叠区
+    显式打勾的负面宝物才允许被选。
+    """
+    if slot.name and slot.name in settings.treasure_allow_negative:
+        return False
+    text = slot.description or ""
+    if not text:
+        return False
+    return any(pattern in text for pattern in settings.treasure_negative_patterns)
+
+
+def _drop_negative_treasures(
+    slots: tuple[SlotCandidate, ...], settings: PolicySettings
+) -> tuple[SlotCandidate, ...]:
+    """剔除负面宝物槽位（默认不选；勾选放行的保留）。"""
+    return tuple(s for s in slots if not is_negative_treasure(s, settings))
+
+
+def _match_synthesis(
+    cands: PanelCandidates,
+    min_confidence: float,
+    slots: tuple[SlotCandidate, ...] | None = None,
+) -> int | None:
     """接近合成者：need - have 最小（1 格优先）且不超过 MAX_SYNTHESIS_GAP。
 
     套装进度必须来自可验证字段
@@ -392,7 +534,7 @@ def _match_synthesis(cands: PanelCandidates, min_confidence: float) -> int | Non
             continue  # 已完成 / 差距过大 → 跳过
         members = tuple(members_raw)
         owned_set = {str(o) for o in owned_raw}
-        for slot in cands.slots:
+        for slot in (cands.slots if slots is None else slots):
             if (
                 slot.name is not None
                 and slot.name in members
@@ -406,25 +548,31 @@ def _match_synthesis(cands: PanelCandidates, min_confidence: float) -> int | Non
     return hits[0][2]
 
 
-def _match_quality(cands: PanelCandidates, settings: PolicySettings) -> int | None:
+def _match_quality(
+    cands: PanelCandidates,
+    settings: PolicySettings,
+    slots: tuple[SlotCandidate, ...] | None = None,
+) -> int | None:
     """品质降级：quality_order 中 rank 最小者胜；未知/缺失品质带排最末。
 
     仅词典内规范名（name 非空）且置信度达标者可入选——unknown 绝不点击；
     并列取最小槽位 index。
     """
-    order = settings.quality_order
     best: tuple[int, int] | None = None
-    for slot in cands.slots:
+    for slot in (cands.slots if slots is None else slots):
         if not slot.name or slot.confidence < settings.min_confidence:
             continue  # unknown / 低置信不可选
-        if slot.rarity and slot.rarity in order:
-            rank = order.index(slot.rarity)
-        else:
-            rank = len(order)  # 未知品质带 → 最差
-        key = (rank, slot.index)
+        key = (_rarity_rank(slot.rarity, settings.quality_order), slot.index)
         if best is None or key < best:
             best = key
     return best[1] if best is not None else None
+
+
+def _slot_rarity(slots: tuple[SlotCandidate, ...], index: int) -> str | None:
+    for slot in slots:
+        if slot.index == index:
+            return slot.rarity
+    return None
 
 
 def _slot_name(slots: tuple[SlotCandidate, ...], index: int) -> str:

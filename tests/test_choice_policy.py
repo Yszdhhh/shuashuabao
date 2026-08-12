@@ -208,7 +208,9 @@ class TestBondTreasureUnknown(unittest.TestCase):
         cands = bond_cands(
             [slot(0, None, confidence=0.99, rarity="red"),
              slot(1, "三国", confidence=0.99, rarity="white")],
-            settings=settings(bond_presets=["封神"]),  # 词典内但非预设
+            # 词典内但非预设；本用例测的是「unknown 不得冒充已知」，
+            # 走 soft 品质阶梯才能观察到「被选中的是已知名槽位」。
+            settings=settings(bond_presets=["封神"], bond_whitelist_mode="soft"),
         )
         d = choose_action(cands, SessionState())
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
@@ -283,7 +285,7 @@ class TestBondPriority(unittest.TestCase):
 
     def test_synthesis_beats_quality(self):
         # 无预设：接近合成（三国 1/2，缺乱世三国）优先于红色品质卡。
-        d = choose_action(self._bonds(settings=settings(bond_presets=[])))
+        d = choose_action(self._bonds(settings=settings(bond_presets=[], bond_whitelist_mode='soft')))
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
 
     def test_synthesis_smaller_gap_wins(self):
@@ -302,7 +304,7 @@ class TestBondPriority(unittest.TestCase):
                     "owned": [],
                 },
             },
-            settings=settings(bond_presets=[]),
+            settings=settings(bond_presets=[], bond_whitelist_mode='soft'),
         )
         d = choose_action(cands)
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
@@ -318,7 +320,7 @@ class TestBondPriority(unittest.TestCase):
                     "owned": [],
                 }
             },
-            settings=settings(bond_presets=[]),
+            settings=settings(bond_presets=[], bond_whitelist_mode='soft'),
         )
         d = choose_action(cands)
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
@@ -334,7 +336,7 @@ class TestBondPriority(unittest.TestCase):
                     "owned": ["三国", "乱世三国"],
                 }
             },
-            settings=settings(bond_presets=[]),
+            settings=settings(bond_presets=[], bond_whitelist_mode='soft'),
         )
         d = choose_action(cands)
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
@@ -350,7 +352,7 @@ class TestBondPriority(unittest.TestCase):
                 "体术": {"have": "?", "need": 2, "members": ["体术"],
                          "owned": []},  # have 解析失败
             },
-            settings=settings(bond_presets=[]),
+            settings=settings(bond_presets=[], bond_whitelist_mode='soft'),
         )
         d = choose_action(cands)
         # 三个套装均不可验证 → 落品质降级（purple 槽 0）。
@@ -367,7 +369,7 @@ class TestBondPriority(unittest.TestCase):
                     "owned": ["三国"],
                 }
             },
-            settings=settings(bond_presets=[]),
+            settings=settings(bond_presets=[], bond_whitelist_mode='soft'),
         )
         d = choose_action(cands)
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
@@ -379,7 +381,7 @@ class TestBondPriority(unittest.TestCase):
                 slot(1, "三国", rarity="purple"),
                 slot(2, "乱世三国", rarity="red"),
             ],
-            settings=settings(),
+            settings=settings(bond_whitelist_mode="soft"),
         )
         d = choose_action(cands)
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 2))
@@ -387,7 +389,7 @@ class TestBondPriority(unittest.TestCase):
     def test_quality_unknown_rarity_last(self):
         cands = bond_cands(
             [slot(0, "体术", rarity=None), slot(1, "三国", rarity="white")],
-            settings=settings(),
+            settings=settings(bond_whitelist_mode="soft"),
         )
         d = choose_action(cands)
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
@@ -395,7 +397,7 @@ class TestBondPriority(unittest.TestCase):
     def test_quality_tie_break_lowest_index(self):
         cands = bond_cands(
             [slot(2, "体术", rarity="blue"), slot(0, "三国", rarity="blue")],
-            settings=settings(),
+            settings=settings(bond_whitelist_mode="soft"),
         )
         d = choose_action(cands)
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
@@ -404,7 +406,7 @@ class TestBondPriority(unittest.TestCase):
         # 品质最高但 name 为 None 的槽位不得被品质路径选中。
         cands = bond_cands(
             [slot(0, None, rarity="red", confidence=0.99), slot(1, "体术", rarity="white")],
-            settings=settings(),
+            settings=settings(bond_whitelist_mode="soft"),
         )
         d = choose_action(cands)
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
