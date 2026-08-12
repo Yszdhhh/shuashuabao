@@ -14,7 +14,8 @@ from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-from PySide6.QtCore import QLockFile, QObject, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QLockFile, QObject, QSize, Qt, QThread, QTimer, Signal
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -30,6 +31,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -68,12 +70,39 @@ def _load_json_labels(file_path: Path) -> dict[str, str]:
     return {}
 
 
+def _load_json_doc(file_path: Path) -> dict:
+    if file_path.is_file():
+        try:
+            data = json.loads(file_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except Exception:
+            pass
+    return {}
+
+
 # 静态扫描资源
 SKILL_STEMS = _stems(ROOT / "assets" / "Images" / "skills") or [
     "asj", "asjg", "assx", "bsxx", "byj", "dcw", "dz", "hbj",
     "hq", "jf", "jq", "ljf", "pg", "sdl", "tl", "ys",
 ]
 SKILL_LABELS = _load_json_labels(ROOT / "config" / "skill_labels.json")
+SKILL_ICON_DIR = ROOT / "assets" / "Images" / "skills"
+
+# 技能说明（悬停提示）与流派预设；缺说明的显示"说明待补"，绝不编游戏数值。
+_SKILL_META_DOC = _load_json_doc(ROOT / "config" / "skill_meta.json")
+SKILL_META: dict[str, dict] = _SKILL_META_DOC.get("skills") or {}
+SKILL_PRESETS: list[dict] = _SKILL_META_DOC.get("presets") or [
+    {"name": "奥术箭流", "codes": ["asj", "asjg", "assx", "jq"], "hint": ""},
+    {"name": "冰法控场", "codes": ["hbj", "bsxx", "jq", "pg"], "hint": ""},
+    {"name": "天雷狂轰", "codes": ["tl", "sdl", "dcw", "jq"], "hint": ""},
+]
+
+# 负面宝物（拿了会断资源/断成长）；默认一张都不选，逐张勾选才放行。
+_CHOICE_POLICY_DOC = _load_json_doc(ROOT / "config" / "choice_policy.json")
+NEGATIVE_TREASURES: list[str] = (
+    (_CHOICE_POLICY_DOC.get("treasure") or {}).get("negative_names") or []
+)
 
 
 class LogSignal(QObject):
@@ -206,40 +235,73 @@ class SkillCardGrid(QWidget):
         self._selected: list[str] = []
         self._init_ui()
 
+    CARD_QSS = (
+        "QPushButton { background:#0a101c; border:1px solid #243044; border-radius:8px;"
+        " color:#cbd5e1; font-size:12px; padding:6px 4px; text-align:center; }"
+        "QPushButton:hover { border:1px solid #3b82f6; color:#ffffff; }"
+        "QPushButton:checked { background:#16305c; border:2px solid #3b82f6; color:#ffffff;"
+        " font-weight:bold; }"
+    )
+
+    def _tooltip_for(self, code: str) -> str:
+        """悬停说明：中文名 + 卡面效果。没有实机证据的显示待补，不编数值。"""
+        meta = SKILL_META.get(code) or {}
+        name = meta.get("label") or self.skill_labels.get(code, "未命名技能")
+        desc = (meta.get("description") or "").strip()
+        body = desc if desc else "说明待补（尚无实机卡面截图，未编造数值）"
+        return f"<b>{name}</b><br/>{body}<br/><span style='color:#64748b'>短码 {code}</span>"
+
     def _init_ui(self):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(6)
+        lay.setSpacing(8)
 
-        # 流派预设
+        hint = QLabel("勾选你要学的技能（最多 4 个）。未选中的技能永远不会被学习；"
+                      "都没命中时只刷新，刷完仍没有就放弃。")
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#8b9bb4; font-size:11px; background:transparent;")
+        lay.addWidget(hint)
+
+        # 流派预设（一键套用；悬停看配置说明）
         preset = QHBoxLayout()
-        preset.addWidget(QLabel("流派预设:"))
-        presets = [
-            ("奥术箭流", ["asj", "asjg", "assx", "jq"]),
-            ("冰法控场", ["hbj", "bsxx", "jq", "pg"]),
-            ("天雷狂轰", ["tl", "sdl", "dcw", "jq"]),
-            ("清空", []),
-        ]
-        for label, codes in presets:
-            btn = QPushButton(label)
+        preset.setSpacing(6)
+        preset_label = QLabel("流派预设")
+        preset_label.setStyleSheet("color:#94a3b8; background:transparent;")
+        preset.addWidget(preset_label)
+        for item in SKILL_PRESETS:
+            codes = [str(c) for c in (item.get("codes") or [])]
+            btn = QPushButton(str(item.get("name") or "预设"))
+            names = "、".join(
+                (SKILL_META.get(c) or {}).get("label") or self.skill_labels.get(c, c)
+                for c in codes
+            )
+            tip = str(item.get("hint") or "").strip()
+            btn.setToolTip(f"{names}<br/><span style='color:#8b9bb4'>{tip}</span>" if tip else names)
             btn.clicked.connect(lambda _=False, c=codes: self.set_skills(c))
             preset.addWidget(btn)
+        clear_btn = QPushButton("清空")
+        clear_btn.setToolTip("清空全部技能：技能面板将只刷新并放弃，不学任何技能")
+        clear_btn.clicked.connect(lambda: self.set_skills([]))
+        preset.addWidget(clear_btn)
         preset.addStretch()
         lay.addLayout(preset)
 
-        # 卡片网格
+        # 卡片网格：图标 + 中文名 + 悬停说明
         grid = QGridLayout()
-        grid.setSpacing(6)
+        grid.setSpacing(8)
         for idx, code in enumerate(self.skill_stems):
-            cn = self.skill_labels.get(code, "未命名技能")
+            meta = SKILL_META.get(code) or {}
+            cn = meta.get("label") or self.skill_labels.get(code, "未命名技能")
             btn = QPushButton(cn)
             btn.setCheckable(True)
-            btn.setMinimumHeight(38)
-            btn.setStyleSheet(
-                "QPushButton { background:#0a101c; border:1px solid #243044; border-radius:6px;"
-                " color:#cbd5e1; font-size:12px; padding:2px; }"
-                "QPushButton:checked { background:#1e3a5f; border:2px solid #2563eb; color:#ffffff; }"
-            )
+            btn.setMinimumHeight(64)
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            icon_path = SKILL_ICON_DIR / f"{code}.png"
+            if icon_path.is_file():
+                btn.setIcon(QIcon(str(icon_path)))
+                btn.setIconSize(QSize(30, 30))
+            btn.setStyleSheet(self.CARD_QSS)
+            btn.setToolTip(self._tooltip_for(code))
             btn.clicked.connect(lambda checked, c=code: self._toggle(c, checked))
             self.cards[code] = btn
             grid.addWidget(btn, idx // 4, idx % 4)
@@ -275,16 +337,106 @@ class SkillCardGrid(QWidget):
     def _refresh_cards(self):
         order = {code: index + 1 for index, code in enumerate(self._selected)}
         for code, btn in self.cards.items():
-            name = self.skill_labels.get(code, "未命名技能")
+            meta = SKILL_META.get(code) or {}
+            name = meta.get("label") or self.skill_labels.get(code, "未命名技能")
             btn.setText(f"{order[code]}. {name}" if code in order else name)
+
+
+class NegativeTreasureGroup(QGroupBox):
+    """负面宝物放行区（默认折叠、默认全不勾）。
+
+    这些宝物拿了会断资源/断成长（如「获得一笔金币，之后不再获得金币」）。
+    默认一张都不选；用户在这里逐张打勾才允许脚本选它。放行是逐卡的，
+    不是全局开关——语义与 gamescript.choice_policy.is_negative_treasure 一致。
+    """
+
+    changed = Signal()
+
+    TIP = {
+        "透支力量": "先给力量、之后要还回去的透支型收益",
+        "贪婪献祭": "用消耗换随机属性，长期期望为负",
+        "金转木": "把金币转成木材，断掉金币来源",
+        "杀敌梭哈": "一次性梭哈，之后收益中断",
+        "伐木契约": "一次性木材，之后不再获得木材",
+        "等级优势": "直接拉到某等级，之后不再升级",
+    }
+
+    def __init__(self, names: list[str], parent=None):
+        super().__init__("宝物 · 负面卡放行（默认全不选，点勾展开）", parent)
+        self._boxes: dict[str, QCheckBox] = {}
+        self.setCheckable(True)
+        self.setChecked(False)
+        self.setToolTip(
+            "这些宝物拿了会断资源或断成长，默认不选。\n"
+            "只有在这里打勾的那一张才会被脚本选择；不勾的永远不选。"
+        )
+        lay = QVBoxLayout(self)
+        lay.setSpacing(6)
+        lay.setContentsMargins(0, 0, 0, 0)
+
+        # 说明与勾选框放同一个容器：收起时整块隐藏，不留空盒子。
+        self.body = QWidget()
+        body_lay = QVBoxLayout(self.body)
+        body_lay.setContentsMargins(0, 0, 0, 0)
+        body_lay.setSpacing(6)
+
+        note = QLabel("勾选 = 允许脚本选这张负面宝物；不勾 = 永不选。逐张生效。")
+        note.setWordWrap(True)
+        note.setStyleSheet("color:#f59e0b; font-size:11px; background:transparent;")
+        body_lay.addWidget(note)
+
+        if names:
+            grid_host = QWidget()
+            grid = QGridLayout(grid_host)
+            grid.setContentsMargins(0, 0, 0, 0)
+            grid.setSpacing(6)
+            for idx, name in enumerate(names):
+                box = QCheckBox(name)
+                box.setToolTip(self.TIP.get(name, "拿了会中断某项收益"))
+                box.toggled.connect(lambda _=False: self.changed.emit())
+                self._boxes[name] = box
+                grid.addWidget(box, idx // 2, idx % 2)
+            body_lay.addWidget(grid_host)
+        else:
+            empty = QLabel("未配置负面宝物名单（config/choice_policy.json）")
+            empty.setStyleSheet("color:#64748b; background:transparent;")
+            body_lay.addWidget(empty)
+
+        lay.addWidget(self.body)
+        self.body.setVisible(False)
+        self.toggled.connect(self._on_toggled)
+
+    def _on_toggled(self, expanded: bool):
+        self.body.setVisible(expanded)
+        if not expanded:
+            self._refresh_title()
+
+    def _refresh_title(self):
+        allowed = self.get_allowed()
+        if allowed:
+            self.setTitle(f"宝物 · 负面卡放行（已放行 {len(allowed)} 张：{'、'.join(allowed)}）")
+        else:
+            self.setTitle("宝物 · 负面卡放行（默认全不选，点勾展开）")
+
+    def get_allowed(self) -> list[str]:
+        return [name for name, box in self._boxes.items() if box.isChecked()]
+
+    def set_allowed(self, names: list[str]):
+        wanted = {str(n).strip() for n in (names or [])}
+        for name, box in self._boxes.items():
+            box.blockSignals(True)
+            box.setChecked(name in wanted)
+            box.blockSignals(False)
+        self._refresh_title()
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle(f"重生魔兽刷刷刷 · 单人挂机助手 · v{__version__}")
-        self.resize(520, 460)
-        self.setMinimumSize(460, 420)
+        # 技能网格 + 负面宝物分区后内容变高；给足默认高度，避免一打开就要滚动
+        self.resize(560, 720)
+        self.setMinimumSize(520, 520)
 
         self.settings = Settings()
         self.worker_thread: MediatorWorker | None = None
@@ -314,14 +466,45 @@ class MainWindow(QMainWindow):
             QGroupBox {
                 background-color: #151c2c;
                 border: 1px solid #243044;
-                border-radius: 8px;
-                margin-top: 12px;
-                padding-top: 14px;
+                border-radius: 10px;
+                margin-top: 14px;
+                padding: 16px 12px 12px 12px;
                 font-weight: bold;
-                color: #60a5fa;
+                font-size: 13px;
+                color: #93c5fd;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                subcontrol-position: top left;
+                left: 12px;
+                padding: 2px 8px;
+                background-color: #1d2739;
+                border-radius: 6px;
             }
             QLabel {
                 background-color: transparent;
+            }
+            QLabel#statusPill {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 11px;
+                color: #94a3b8;
+                font-weight: bold;
+                padding: 3px 12px;
+            }
+            QLabel#statusPill[state="running"] {
+                background-color: #052e1a;
+                border: 1px solid #15803d;
+                color: #4ade80;
+            }
+            QLabel#statusPill[state="stopping"] {
+                background-color: #3b1d05;
+                border: 1px solid #b45309;
+                color: #fbbf24;
+            }
+            QCheckBox#chkDry {
+                color: #fbbf24;
+                font-weight: bold;
             }
             QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
                 background-color: #0a101c;
@@ -421,20 +604,46 @@ class MainWindow(QMainWindow):
         outer.addWidget(scroll)
 
         header = QHBoxLayout()
+        header.setSpacing(10)
+        title_box = QVBoxLayout()
+        title_box.setSpacing(0)
         title = QLabel("重生魔兽刷刷刷")
-        title.setStyleSheet("font-size:17px; font-weight:bold; color:#60a5fa;")
-        header.addWidget(title)
+        title.setStyleSheet("font-size:20px; font-weight:bold; color:#e8eef8; background:transparent;")
+        subtitle = QLabel(f"单人挂机助手 · v{__version__}")
+        subtitle.setStyleSheet("font-size:11px; color:#64748b; background:transparent;")
+        title_box.addWidget(title)
+        title_box.addWidget(subtitle)
+        header.addLayout(title_box)
         header.addStretch()
-        self.lbl_games = QLabel("0 局")
-        self.lbl_games.setStyleSheet("color:#60a5fa; font-weight:bold;")
-        header.addWidget(self.lbl_games)
+
         self.lbl_run_status = QLabel("空闲")
-        self.lbl_run_status.setStyleSheet("color:#94a3b8; font-weight:bold;")
+        self.lbl_run_status.setObjectName("statusPill")
+        self.lbl_run_status.setAlignment(Qt.AlignCenter)
+        self.lbl_run_status.setMinimumWidth(76)
         header.addWidget(self.lbl_run_status)
+
+        games_box = QVBoxLayout()
+        games_box.setSpacing(0)
+        self.lbl_games = QLabel("0")
+        self.lbl_games.setAlignment(Qt.AlignRight)
+        self.lbl_games.setStyleSheet(
+            "font-size:20px; font-weight:bold; color:#60a5fa; background:transparent;")
+        games_cap = QLabel("已完成局数")
+        games_cap.setAlignment(Qt.AlignRight)
+        games_cap.setStyleSheet("font-size:10px; color:#64748b; background:transparent;")
+        games_box.addWidget(self.lbl_games)
+        games_box.addWidget(games_cap)
+        header.addLayout(games_box)
         main_layout.addLayout(header)
 
-        core = QGroupBox("运行设置")
+        divider = QFrame()
+        divider.setFrameShape(QFrame.HLine)
+        divider.setStyleSheet("color:#1e293b;")
+        main_layout.addWidget(divider)
+
+        core = QGroupBox("① 运行设置")
         core_layout = QVBoxLayout(core)
+        core_layout.setSpacing(8)
 
         stage_row = QHBoxLayout()
         stage_row.addWidget(QLabel("目标关卡"))
@@ -471,9 +680,13 @@ class MainWindow(QMainWindow):
         hero_row.addStretch()
         core_layout.addWidget(self.hero_options)
 
-        self.chk_dry = QCheckBox("安全测试（只识别，不点击）")
+        self.chk_dry = QCheckBox("安全测试模式（只识别、不点击）")
         self.chk_dry.setChecked(True)
-        self.chk_dry.setStyleSheet("color:#f59e0b; font-weight:bold;")
+        self.chk_dry.setObjectName("chkDry")
+        self.chk_dry.setToolTip(
+            "开启时脚本只做识别并打印将要点击的坐标，不会对游戏产生任何真实输入。\n"
+            "第一次配置或改完设置后，建议先用它跑一轮确认识别正常。"
+        )
         core_layout.addWidget(self.chk_dry)
 
         self.chk_secret_realm = QCheckBox("胜利后自动挑战秘境")
@@ -483,10 +696,13 @@ class MainWindow(QMainWindow):
         core_layout.addWidget(self.chk_secret_realm)
         main_layout.addWidget(core)
 
-        self.grp_skill = QGroupBox("技能搭配（可选，不选也能跑）")
+        self.grp_skill = QGroupBox("② 技能搭配（可选，不选也能跑）")
         self.grp_skill.setCheckable(True)
         self.grp_skill.setChecked(True)
-        self.grp_skill.setToolTip("勾选=展开技能卡片；选满 4 个自动收起；未选择时只刷新并放弃，不会学习其他技能")
+        self.grp_skill.setToolTip(
+            "点勾展开/收起。选满 4 个自动收起。\n"
+            "只学勾选的技能：都没出现时刷新，刷完仍没有就放弃，绝不学别的。"
+        )
         skill_layout = QVBoxLayout(self.grp_skill)
         self.skill_grid = SkillCardGrid(SKILL_STEMS, SKILL_LABELS)
         skill_layout.addWidget(self.skill_grid)
@@ -494,14 +710,21 @@ class MainWindow(QMainWindow):
         self.skill_grid.skills_changed.connect(self._on_skills_changed)
         main_layout.addWidget(self.grp_skill)
 
+        self.grp_negative = NegativeTreasureGroup(NEGATIVE_TREASURES)
+        self.grp_negative.setTitle("③ " + self.grp_negative.title())
+        self.grp_negative.changed.connect(self._on_negative_changed)
+        main_layout.addWidget(self.grp_negative)
+
         self.btn_main = QPushButton("开  始  运  行")
         self.btn_main.setObjectName("btnStart")
+        self.btn_main.setMinimumHeight(46)
         self.btn_main.clicked.connect(self.toggle_run)
         main_layout.addWidget(self.btn_main)
 
         self.lbl_latest = QLabel("就绪 · Shift+F12 可紧急停止")
         self.lbl_latest.setWordWrap(True)
-        self.lbl_latest.setStyleSheet("color:#8b9bb4; font-size:11px;")
+        self.lbl_latest.setStyleSheet(
+            "color:#8b9bb4; font-size:11px; background:transparent;")
         main_layout.addWidget(self.lbl_latest)
 
         self.grp_details = QGroupBox("运行详情")
@@ -526,14 +749,28 @@ class MainWindow(QMainWindow):
         self.skill_grid.setVisible(expanded)
         if not expanded:
             names = self.skill_grid.selected_names()
-            self.grp_skill.setTitle(f"技能搭配（已选 {'、'.join(names)}，点勾展开）" if names else "技能搭配（点勾展开）")
+            self.grp_skill.setTitle(
+                f"② 技能搭配（已选 {'、'.join(names)}，点勾展开）"
+                if names
+                else "② 技能搭配（未选择 · 只刷新不学习，点勾展开）"
+            )
+
+    def _on_negative_changed(self):
+        allowed = self.grp_negative.get_allowed()
+        base = (
+            f"③ 宝物 · 负面卡放行（已放行 {len(allowed)} 张：{'、'.join(allowed)}）"
+            if allowed
+            else "③ 宝物 · 负面卡放行（默认全不选，点勾展开）"
+        )
+        self.grp_negative.setTitle(base)
+        self._schedule_auto_save()
 
     def _on_skills_changed(self):
         names = self.skill_grid.selected_names()
         if names:
-            self.grp_skill.setTitle(f"技能搭配（已选 {'、'.join(names)}）")
+            self.grp_skill.setTitle(f"② 技能搭配（已选 {'、'.join(names)}）")
         else:
-            self.grp_skill.setTitle("技能搭配（可选，不选也能跑）")
+            self.grp_skill.setTitle("② 技能搭配（可选，不选也能跑）")
         # 选满 4 个自动收起，保持面板简洁
         if len(names) == self.skill_grid.MAX_SKILLS:
             self.grp_skill.setChecked(False)
@@ -574,17 +811,21 @@ class MainWindow(QMainWindow):
 
     def update_status(self, running: bool, phase: str, game_count: int):
         if running:
-            self.lbl_run_status.setText(f"运行中 · {phase}")
-            self.lbl_run_status.setStyleSheet("color:#34d399; font-weight:bold; font-size:13px;")
+            self.lbl_run_status.setText("运行中")
+            self.lbl_run_status.setToolTip(f"当前阶段：{phase}")
+            self.lbl_run_status.setProperty("state", "running")
             self.btn_main.setText("停  止  运  行")
             self.btn_main.setObjectName("btnStop")
         else:
             self.lbl_run_status.setText("空闲")
-            self.lbl_run_status.setStyleSheet("color:#94a3b8; font-weight:bold; font-size:13px;")
+            self.lbl_run_status.setToolTip("未运行")
+            self.lbl_run_status.setProperty("state", "idle")
             self.btn_main.setText("开  始  运  行")
             self.btn_main.setObjectName("btnStart")
-        self.btn_main.setStyle(self.btn_main.style())
-        self.lbl_games.setText(f"{game_count} 局")
+        # 属性选择器换色需要重新求值样式
+        for widget in (self.lbl_run_status, self.btn_main):
+            widget.setStyle(widget.style())
+        self.lbl_games.setText(str(game_count))
 
     def load_local_settings(self, silent: bool = False):
         config_file = ROOT / "config" / "default_settings.json"
@@ -606,6 +847,10 @@ class MainWindow(QMainWindow):
         self.chk_dry.setChecked(settings.dry_run)
         self.chk_secret_realm.setChecked(settings.auto_secret_realm)
         self.skill_grid.set_skills(settings.skills or [])
+        self.grp_negative.set_allowed(
+            list(getattr(settings, "treasure_allow_negative", []) or [])
+        )
+        self._on_negative_changed()
 
         mode_index = self.cmb_mode.findData(bool(settings.auto_reputation))
         self.cmb_mode.setCurrentIndex(mode_index if mode_index >= 0 else 0)
@@ -644,6 +889,14 @@ class MainWindow(QMainWindow):
         settings.dry_run = self.chk_dry.isChecked()
         settings.auto_secret_realm = self.chk_secret_realm.isChecked()
         settings.skills = skills
+        # 负面宝物：只放行用户逐张勾选的；没勾就是一张都不选。
+        settings.treasure_allow_negative = self.grp_negative.get_allowed()
+        if settings.treasure_allow_negative:
+            self.log(
+                "[设置] 已放行负面宝物："
+                + "、".join(settings.treasure_allow_negative),
+                "warn",
+            )
         settings.auto_reputation = bool(self.cmb_mode.currentData())
         settings.reputation_type = int(self.cmb_reputation.currentData() or 3)
         settings.reputation_level = self.spn_reputation_level.value()

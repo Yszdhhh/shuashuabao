@@ -78,6 +78,55 @@ class DesktopPanelTests(unittest.TestCase):
         self.window.grp_skill.setChecked(True)
         self.assertFalse(self.window.skill_grid.isHidden())
 
+    def test_skill_cards_carry_icon_and_hover_description(self):
+        """技能卡要有图标和悬停说明；没有实机证据的必须写『待补』而不是编数值。"""
+        grid = self.window.skill_grid
+        for code, button in grid.cards.items():
+            with self.subTest(code=code):
+                self.assertFalse(button.icon().isNull(), f"{code} 缺技能图标")
+                tip = button.toolTip()
+                self.assertIn(code, tip)
+                self.assertTrue(tip.strip())
+
+        # 有实机卡面证据的：显示原文
+        self.assertIn("麻痹", grid.cards["tl"].toolTip())
+        # 没有证据的：显式标注待补，不得出现伪造的数值说明
+        asj_tip = grid.cards["asj"].toolTip()
+        self.assertIn("待补", asj_tip)
+        self.assertNotIn("%", asj_tip)
+
+    def test_negative_treasures_default_to_none_allowed(self):
+        """负面宝物默认一张都不放行，且分区默认收起。"""
+        group = self.window.grp_negative
+        self.assertEqual([], group.get_allowed())
+        self.assertFalse(group.isChecked())
+        self.assertTrue(group.body.isHidden())
+        self.assertEqual([], self.window.collect_settings_from_ui().treasure_allow_negative)
+
+    def test_negative_treasure_opt_in_round_trips_through_settings(self):
+        """勾选 → collect → apply 往返一致；放行是逐卡的，不牵连其它卡。"""
+        group = self.window.grp_negative
+        self.assertIn("金转木", group._boxes, "配置里的负面宝物应出现在面板上")
+        group.set_allowed(["金转木"])
+        collected = self.window.collect_settings_from_ui()
+        self.assertEqual(["金转木"], collected.treasure_allow_negative)
+
+        self.window.apply_settings_to_ui(collected)
+        self.assertEqual(["金转木"], self.window.grp_negative.get_allowed())
+        self.assertFalse(
+            self.window.grp_negative._boxes["等级优势"].isChecked(),
+            "放行一张不得连带放行其它负面宝物",
+        )
+
+    def test_negative_treasure_list_matches_policy_config(self):
+        """面板展示的负面宝物必须与策略配置同源，避免 UI 与判定脱节。"""
+        from gamescript.choice_policy import DEFAULT_NEGATIVE_NAMES
+
+        self.assertEqual(
+            sorted(DEFAULT_NEGATIVE_NAMES),
+            sorted(self.window.grp_negative._boxes),
+        )
+
     def test_exact_stage_and_solo_defaults_are_fixed(self):
         # Stale values from the removed room-name/password controls must not
         # affect the direct-create path.
