@@ -198,6 +198,141 @@ class PanelState(Enum):
     COOLDOWN = auto()
 
 
+@dataclass(frozen=True)
+class FactionSpec:
+    """英雄模式声望阵营的界面几何 + 模板配置（2026-08-12）。
+
+    ``card_roi``/``level_roi``/``plus_xy`` 均以 1600x900 客户区坐标衡量。
+    卡片网格来自 ``fixtures/live_postgame_20260808/live_archive_start_panel.png``：
+    行1（黑锋/银色/肯瑞托/探险者）y=118..286，行2（元素/守护）y=438..606，
+    列宽 153px，列间距 207px。
+
+    ``level_roi`` 在录屏 ``20260812_180825.mp4`` 客户区帧上用 ``hero_level_zero``
+    滑动匹配校准（六阵营零级自匹配 ≥0.99）；底行数字 Y 比网格公式 +196 多约 5px，
+    不可再统一用 ``y1+196``。``plus_xy`` 仍为卡片相对偏移 ``(+110,+209)``，
+    与肯瑞托既有真机点 ``(772,327)`` 一致。
+
+    ``verified`` 表示未选中态卡面模板可用（在 ``fixtures/hero_modal_20260812_180825``
+    上自匹配 ≥0.90）。完整「点加号 → 等级确认 → 再点」时序链仍只有肯瑞托有
+    既有录屏逐步验证；其余阵营仅有同录屏上等级 ROI 像素突变的离线旁证，
+    不宣称已完成真机加号闭环。
+    """
+
+    rep_type: int
+    name: str
+    slug: str  # 用于模板文件名与英文 action 名（HeroXxxPlus-N）
+    plus_xy: tuple[int, int]
+    card_roi: tuple[int, int, int, int]
+    level_roi: tuple[int, int, int, int]
+    unselected_template: str | None
+    card_match_window: tuple[int, int, int, int]  # (x_min,x_max,y_min,y_max) for find() hit position
+    verified: bool
+
+    @property
+    def action_label(self) -> str:
+        return f"Hero{self.slug.capitalize()}Plus"
+
+
+def _faction_card_roi(col_x1: int, row_y1: int) -> tuple[int, int, int, int]:
+    return (col_x1, row_y1, col_x1 + 153, row_y1 + 168)
+
+
+def _faction_plus_xy(card_roi: tuple[int, int, int, int]) -> tuple[int, int]:
+    x1, y1, _x2, _y2 = card_roi
+    return (x1 + 110, y1 + 209)
+
+
+def _faction_card_match_window(card_roi: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    x1, y1, _x2, _y2 = card_roi
+    return (x1 - 12, x1 + 13, y1 - 8, y1 + 12)
+
+
+# 行1 4 列 x1：黑锋 248 / 银色 455 / 肯瑞托 662 / 探险者 869（y1=118）
+# 行2 2 列 x1：元素 248 / 守护 455（y1=438）
+_HEIFENG_CARD_ROI = _faction_card_roi(248, 118)
+_YINSE_CARD_ROI = _faction_card_roi(455, 118)
+_KENRITO_CARD_ROI = (662, 118, 815, 286)  # 既有已验证数值，未改动
+_TANXIAN_CARD_ROI = _faction_card_roi(869, 118)
+_YUANSU_CARD_ROI = _faction_card_roi(248, 438)
+_SHOUHU_CARD_ROI = _faction_card_roi(455, 438)
+
+# 20260812_180825 客户区上 hero_level_zero 最佳匹配 TL（28x28）
+_HEIFENG_LEVEL_ROI = (307, 314, 335, 342)
+_YINSE_LEVEL_ROI = (516, 314, 544, 342)
+_TANXIAN_LEVEL_ROI = (932, 314, 960, 342)
+_YUANSU_LEVEL_ROI = (307, 639, 335, 667)
+_SHOUHU_LEVEL_ROI = (516, 639, 544, 667)
+
+FACTION_SPECS: dict[int, FactionSpec] = {
+    1: FactionSpec(
+        rep_type=1,
+        name="黑锋骑士团",
+        slug="heifeng",
+        plus_xy=_faction_plus_xy(_HEIFENG_CARD_ROI),
+        card_roi=_HEIFENG_CARD_ROI,
+        level_roi=_HEIFENG_LEVEL_ROI,
+        unselected_template="lobby/hero_heifeng_unselected",
+        card_match_window=_faction_card_match_window(_HEIFENG_CARD_ROI),
+        verified=True,
+    ),
+    2: FactionSpec(
+        rep_type=2,
+        name="银色北伐军",
+        slug="yinse",
+        plus_xy=_faction_plus_xy(_YINSE_CARD_ROI),
+        card_roi=_YINSE_CARD_ROI,
+        level_roi=_YINSE_LEVEL_ROI,
+        unselected_template="lobby/hero_yinse_unselected",
+        card_match_window=_faction_card_match_window(_YINSE_CARD_ROI),
+        verified=True,
+    ),
+    3: FactionSpec(
+        rep_type=3,
+        name="肯瑞托",
+        slug="kenrito",
+        plus_xy=(772, 327),  # 既有已验证数值，未改动
+        card_roi=_KENRITO_CARD_ROI,
+        level_roi=(724, 314, 752, 342),  # 既有已验证数值，未改动
+        unselected_template="lobby/hero_kenrito_unselected",
+        card_match_window=(650, 675, 110, 130),  # 既有已验证数值，未改动
+        verified=True,
+    ),
+    4: FactionSpec(
+        rep_type=4,
+        name="探险者协会",
+        slug="tanxian",
+        plus_xy=_faction_plus_xy(_TANXIAN_CARD_ROI),
+        card_roi=_TANXIAN_CARD_ROI,
+        level_roi=_TANXIAN_LEVEL_ROI,
+        unselected_template="lobby/hero_tanxian_unselected",
+        card_match_window=_faction_card_match_window(_TANXIAN_CARD_ROI),
+        verified=True,
+    ),
+    5: FactionSpec(
+        rep_type=5,
+        name="元素领主",
+        slug="yuansu",
+        plus_xy=_faction_plus_xy(_YUANSU_CARD_ROI),
+        card_roi=_YUANSU_CARD_ROI,
+        level_roi=_YUANSU_LEVEL_ROI,
+        unselected_template="lobby/hero_yuansu_unselected",
+        card_match_window=_faction_card_match_window(_YUANSU_CARD_ROI),
+        verified=True,
+    ),
+    6: FactionSpec(
+        rep_type=6,
+        name="守护巨龙",
+        slug="shouhu",
+        plus_xy=_faction_plus_xy(_SHOUHU_CARD_ROI),
+        card_roi=_SHOUHU_CARD_ROI,
+        level_roi=_SHOUHU_LEVEL_ROI,
+        unselected_template="lobby/hero_shouhu_unselected",
+        card_match_window=_faction_card_match_window(_SHOUHU_CARD_ROI),
+        verified=True,
+    ),
+}
+
+
 @dataclass
 class RecoveryState:
     """S0 ③ 恢复状态：步骤门闩 + 有限预算。
@@ -3139,11 +3274,14 @@ class Mediator:
             return None
         return start, cancel
 
-    def _hero_initial_zero_confirmed(self, frame: Frame) -> bool:
-        card = self.find(frame, ["lobby/hero_kenrito_unselected"], threshold=0.90)
-        if not card or not (650 <= card.x <= 675 and 110 <= card.y <= 130):
+    def _hero_initial_zero_confirmed(self, frame: Frame, spec: "FactionSpec") -> bool:
+        if not spec.unselected_template:
             return False
-        roi = self._hero_roi(frame, (724, 314, 752, 342))
+        card = self.find(frame, [spec.unselected_template], threshold=0.90)
+        xmin, xmax, ymin, ymax = spec.card_match_window
+        if not card or not (xmin <= card.x <= xmax and ymin <= card.y <= ymax):
+            return False
+        roi = self._hero_roi(frame, spec.level_roi)
         template_path = resolve_template(self.images, "lobby/hero_level_zero")
         if roi is None or template_path is None:
             return False
@@ -3176,8 +3314,13 @@ class Mediator:
     def _begin_hero_setup(self, frame: Frame) -> LoopAction:
         rep_type = int(getattr(self.settings, "reputation_type", 0) or 0)
         rep_level = int(getattr(self.settings, "reputation_level", 0) or 0)
-        if rep_type != 3 or not 1 <= rep_level <= 5:
-            return self._hero_fail("当前仅有肯瑞托 1–5 级的完整实机证据")
+        if not 1 <= rep_level <= 5:
+            return self._hero_fail("英雄模式仅支持 1–5 级")
+        spec = FACTION_SPECS.get(rep_type)
+        if spec is None:
+            return self._hero_fail(f"未知阵营类型 {rep_type}")
+        if not spec.verified:
+            return self._hero_fail(f"阵营{spec.name}缺少实机未选中模板")
         if not self._hero_reference_frame(frame):
             return self._hero_fail(
                 f"英雄模式要求 1600x900 游戏客户区，当前为 {frame.width}x{frame.height}"
@@ -3276,6 +3419,10 @@ class Mediator:
         self._ticket_zero_frames = 0
         return None
 
+    def _current_faction_spec(self) -> "FactionSpec":
+        rep_type = int(getattr(self.settings, "reputation_type", 0) or 0)
+        return FACTION_SPECS.get(rep_type, FACTION_SPECS[3])
+
     def _tick_hero_setup(self, frame: Frame) -> LoopAction:
         now = time.time()
         if not self._hero_reference_frame(frame):
@@ -3285,22 +3432,23 @@ class Mediator:
         if self._hero_step_deadline is not None and now >= self._hero_step_deadline:
             return self._hero_fail(f"英雄模式步骤 {self._hero_state} 超时")
 
+        spec = self._current_faction_spec()
         buttons = self._hero_modal_buttons(frame)
-        level_roi = self._hero_roi(frame, (724, 314, 752, 342))
-        card_roi = self._hero_roi(frame, (662, 118, 815, 286))
+        level_roi = self._hero_roi(frame, spec.level_roi)
+        card_roi = self._hero_roi(frame, spec.card_roi)
         target_level = int(self.settings.reputation_level)
 
         if self._hero_state == "WAIT_MODAL":
             if not buttons or level_roi is None or card_roi is None:
                 print("[英雄模式] 等待开启/取消双按钮同时出现（零动作）")
                 return LoopAction.Continue
-            if not self._hero_initial_zero_confirmed(frame):
-                print("[英雄模式] 弹窗已出现，但肯瑞托未选中卡和初始 0 级未同时确认（零动作）")
+            if not self._hero_initial_zero_confirmed(frame, spec):
+                print(f"[英雄模式] 弹窗已出现，但{spec.name}未选中卡和初始 0 级未同时确认（零动作）")
                 return LoopAction.Continue
             self._hero_level_baseline = level_roi.copy()
             self._hero_card_baseline = card_roi.copy()
-            plus = self._hero_point(frame, "hero_kenrito_plus", 772, 327)
-            if not self.act_click(plus, "HeroKenritoPlus-1"):
+            plus = self._hero_point(frame, f"hero_{spec.slug}_plus", *spec.plus_xy)
+            if not self.act_click(plus, f"{spec.action_label}-1"):
                 return LoopAction.Continue
             self._hero_state = "WAIT_LEVEL_CHANGE"
             self._hero_step_deadline = now + self._hero_observation_timeout()
@@ -3330,19 +3478,19 @@ class Mediator:
             self._hero_verified_level += 1
             if self._hero_verified_level == 1:
                 if card_roi is None or self._hero_card_baseline is None:
-                    return self._hero_fail("无法确认肯瑞托选中态")
+                    return self._hero_fail(f"无法确认{spec.name}选中态")
                 selected_delta = self._hero_changed_pixels(self._hero_card_baseline, card_roi)
                 if selected_delta < 10000:
                     return self._hero_fail(
-                        f"第一次加级后肯瑞托卡片未切换为选中态（{selected_delta}/10000 像素）"
+                        f"第一次加级后{spec.name}卡片未切换为选中态（{selected_delta}/10000 像素）"
                     )
 
-            print(f"[英雄模式] 已确认肯瑞托难度 {self._hero_verified_level}/{target_level}")
+            print(f"[英雄模式] 已确认{spec.name}难度 {self._hero_verified_level}/{target_level}")
             if self._hero_verified_level < target_level:
                 self._hero_level_baseline = level_roi.copy()
-                plus = self._hero_point(frame, "hero_kenrito_plus", 772, 327)
+                plus = self._hero_point(frame, f"hero_{spec.slug}_plus", *spec.plus_xy)
                 next_level = self._hero_verified_level + 1
-                if not self.act_click(plus, f"HeroKenritoPlus-{next_level}"):
+                if not self.act_click(plus, f"{spec.action_label}-{next_level}"):
                     return LoopAction.Continue
                 self._hero_state = "WAIT_LEVEL_CHANGE"
                 self._hero_step_deadline = now + self._hero_observation_timeout()
