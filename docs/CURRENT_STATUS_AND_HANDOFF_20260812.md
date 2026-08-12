@@ -10,7 +10,7 @@
 - `habit_preference`：路径改 `ShuaBao`；新增 `append_learning_observation` / `observations_to_name_scores`（聚合后可进 name_scores，决策接线另开）
 - L0：学习模式下创建房间只记 `LEARN_OBSERVE`，不进 pending 弹窗等待、不烧 attempts/deadline
 - **云端改完不会自动出现在桌面包**；本机仓库根执行：
-  `powershell -ExecutionPolicy Bypass -File .\同步到桌面.ps1 -SkipGate`
+  `powershell -ExecutionPolicy Bypass -File .\sync_to_desktop.ps1 -SkipGate`
   （或 `build_release.ps1`）。验收：窗口标题 **V0.3**，运行区有「学习模式」勾选
 
 ---

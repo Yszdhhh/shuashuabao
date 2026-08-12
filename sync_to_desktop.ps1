@@ -1,7 +1,7 @@
-# 拉取当前学习模式分支并打包部署到桌面（ShuaBao-Vx.y + 快捷方式）。
+# 拉取学习模式分支并打包部署到桌面（ShuaBao-Vx.y + 快捷方式）。
 # 用法（在仓库根目录，Windows PowerShell）：
-#   powershell -ExecutionPolicy Bypass -File .\同步到桌面.ps1
-# 需要本机已装 uv / Python；门禁可加 -SkipGate 跳过。
+#   powershell -ExecutionPolicy Bypass -File .\sync_to_desktop.ps1 -SkipGate
+# 需要本机已装 uv / Python。
 
 param(
     [switch]$SkipGate,
