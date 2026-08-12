@@ -9,6 +9,7 @@
 - 未伪造新卡图；36 短码与 `fetter_labels.json` 已对齐。等待用户新卡面素材的短码见 `docs/baselines/B_CARD_LEXICON_ASSERTIONS_20260812.md`
 - **提醒 C 组**：`FettersCard.tsx` 的 `FETTER_NAMES` 手抄副本需同步或改 API 拉取
 - 实机证据：无新增；卡面匹配链路仍需实机抽检（idle_hud 上 14 个旧文字模板 WARN>0.4 但 <0.9）
+- 门禁：`python tools/release_gate.py` 4/4 PASS（pytest 462 / frozen_replay 含 disconnect BLOCKED / scene_templates ok=131 / contract 32）。`GATE_BASELINE` 已按 Linux/cloud 可达集更新（UIA 不可收集、OCR 模型与 official_raw gitignore → skip）；Windows 满资产通过数会更高（允许上涨）
 
 ## 2026-08-12 r11 创房进房回归（当前唯一可测）
 
