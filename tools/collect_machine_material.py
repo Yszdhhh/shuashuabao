@@ -37,10 +37,10 @@ docs/SCOPE_OVERRIDE_1600X900_20260811.md：
   断线弹窗帧  <root>\\disconnect\\gameDisconnect_<ts>.png / retryConnect_<ts>.png
                （文件名必须含 gameDisconnect / retryConnect 标识，与 SCENES.md 模板名一致）
                （也可用 tools/net_block.py 自动阻断+抓屏：默认输出 C:\\tmp\\disconnect_captures）
-  panel episodes（自动收集）  %LocalAppData%\\GameScript-Local\\YYYYMMDD\\panels\\
+  panel episodes（自动收集）  %LocalAppData%\\ShuaBao\\YYYYMMDD\\panels\\
                panel_<HHMMSS_mmm>_<fp8>.jpg + <同名>.json（kind=panel_sample，
                300s 内容指纹去重；Mediator 旁路归档，无输入动作权 —— src/gamescript/incidents.py）
-  incidents（异常归档）       %LocalAppData%\\GameScript-Local\\incidents\\YYYYMMDD\\incidents\\
+  incidents（异常归档）       %LocalAppData%\\ShuaBao\\incidents\\YYYYMMDD\\incidents\\
   录屏/索引  C:\\tmp\\recordings\\（rec1-rec8 既有；idx_a/idx_b 为 1fps 索引帧目录，
                video_index_meta.json 记录 probe/sha256/frames）
   会话映射   视频 → rec<seq>_<内容>_<YYYYMMDD>（参照 D0_SESSION_MAP：idx_a→rec9_mijing_20260810、
@@ -431,11 +431,11 @@ def scan_videos(directory: Path) -> list[dict]:
 
 
 def scan_panel_days(localappdata: Path, days: int, want: tuple[int, int], tol_w: int, tol_h: int) -> list[dict]:
-    """panel_sample 自动收集目录：%LocalAppData%\\GameScript-Local\\YYYYMMDD\\panels\\。
+    """panel_sample 自动收集目录：%LocalAppData%\\ShuaBao\\YYYYMMDD\\panels\\。
 
     每个日目录 = 一个采集 session（panel_sample_<YYYYMMDD>）；记录 jpg 数、
     1600×900 窗口分辨率帧数（真实窗口证据，want±tol_w×tol_h）、SHA 样例与时间范围。"""
-    base = localappdata / "GameScript-Local"
+    base = localappdata / "ShuaBao"
     out: list[dict] = []
     if not base.is_dir():
         return out
@@ -528,8 +528,8 @@ GUIDE = """\
   素材根目录      GSL_MATERIAL_ROOT 或 --root（默认 <桌面>\\录屏素材）
   1600×900 帧     <root>\\1600x900\\skill|bond|treasure\\panel_<日期_时间>_<fp8>.png
   断线弹窗帧      <root>\\disconnect\\gameDisconnect_<时间戳>.png / retryConnect_<时间戳>.png
-  panel episodes  %LocalAppData%\\GameScript-Local\\YYYYMMDD\\panels\\（panel_sample 自动收集）
-  incidents       %LocalAppData%\\GameScript-Local\\incidents\\YYYYMMDD\\incidents\\
+  panel episodes  %LocalAppData%\\ShuaBao\\YYYYMMDD\\panels\\（panel_sample 自动收集）
+  incidents       %LocalAppData%\\ShuaBao\\incidents\\YYYYMMDD\\incidents\\
   每条素材记录 SHA256(16)/时间戳/分辨率/会话映射（会话 id 形如
   rec<seq>_<内容>_<YYYYMMDD>、1600x900_<YYYYMMDD>、panel_sample_<YYYYMMDD>、
   disconnect_<YYYYMMDD>；参照 docs/baselines/D0_SESSION_MAP_20260811.md）
@@ -542,7 +542,7 @@ GUIDE = """\
      落在 1600×900±20×40 内。960×540 为 NOT_APPLICABLE（游戏无此分辨率），
      不采集、不缩放、不伪造。
   A2 打开录屏软件（OBS / Win+G 录制），或直接使用带 panel_sample 的构建
-     （dist_release2\\GameScript\\*.exe 或后续 release）自动收集（见步骤 C）。
+     （dist\\ShuaBao\\ShuaBao.exe 或后续 release）自动收集（见步骤 C）。
   A3 实机打局，确保每局至少出现 技能/羁绊/宝物 三类选择面板；
      每个面板停留 ≥2 秒（保证静止帧可用，参照 D0 的 panel episode 采样纪律）。
      目标：每类 ≥10 个独立面板 episode（不是 10 帧连拍，是 10 个独立面板）。
@@ -577,7 +577,7 @@ GUIDE = """\
 ────────────────────────────────────────────
   C1 使用带 panel_sample 的构建实机跑局；Mediator 在面板正常出现时旁路归档
      （无任何输入动作权，见 src/gamescript/incidents.py sample_panel）：
-       %LocalAppData%\\GameScript-Local\\YYYYMMDD\\panels\\
+       %LocalAppData%\\ShuaBao\\YYYYMMDD\\panels\\
        panel_<HHMMSS_mmm>_<fp8>.jpg  +  <同名>.json（kind=panel_sample，300s 指纹去重）
   C2 若以 1600×900 窗口跑局，panels 帧即为真实 1600×900 正样本；
      注意 panels 帧未分类（json 不含面板类型），计入门禁前需按类标注
@@ -743,7 +743,7 @@ def render_checklist(res: CheckResult, panels_days: int) -> str:
                 lines.append(f"    样例 {s}")
     else:
         lines.append(f"  （无。步骤 C1：用带 panel_sample 的构建实机跑局；"
-                     f"检查 %LocalAppData%\\GameScript-Local\\YYYYMMDD\\panels\\）")
+                     f"检查 %LocalAppData%\\ShuaBao\\YYYYMMDD\\panels\\）")
     lines.append("")
     lines.append("— 素材到位检查表（对照 SCOPE_OVERRIDE 1600×900 门禁）—")
     lines.append("| 门禁 | 目标 | 当前 | 状态 |")

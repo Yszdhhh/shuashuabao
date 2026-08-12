@@ -198,7 +198,7 @@ export const App: React.FC = () => {
       <div className="min-h-screen bg-[#0b1220] flex items-center justify-center text-slate-300">
         <div className="flex items-center gap-3 bg-[#151c2c] border border-[#243044] px-6 py-4 rounded-xl shadow-lg">
           <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-medium">正在加载 GameScript 控制面板与配置...</span>
+          <span className="text-sm font-medium">正在加载刷刷宝控制面板与配置...</span>
         </div>
       </div>
     );

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-GameScript-Local 本地桌面控制台启动器 (Native Desktop GUI)
+刷刷宝 本地桌面控制台启动器 (Native Desktop GUI)
 使用 pywebview 挂载高保真 Web 控制面板，双击直接打开独立桌面窗口。
 """
 

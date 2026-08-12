@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""N0 性能基准：统一复现 GameScript-Local 热路径耗时（冷 / warm-changed / exact-static）。
+"""N0 性能基准：统一复现 刷刷宝热路径耗时（冷 / warm-changed / exact-static）。
 
 对每个 fixture 帧记录 capture(decode)/context/health/decision/action 耗时，
 统计 cv2.matchTemplate 调用次数与搜索像素总量，输出 JSON + Markdown。

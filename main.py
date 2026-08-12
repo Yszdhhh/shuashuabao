@@ -59,7 +59,7 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
         job = LongzhuJob(s, ROOT) if args.longzhu else AutoJob(s, ROOT)
         job.run(max_steps=args.steps)
     else:
-        # S0.5：CLI 生产入口也传入 incident 目录（默认 %LocalAppData%/GameScript-Local/incidents）
+        # S0.5：CLI 生产入口也传入 incident 目录（默认 %LocalAppData%/ShuaBao/incidents）
         med = Mediator(s, ROOT, incident_dir=default_incident_dir())
         med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
         med.run(max_steps=args.steps)
@@ -74,7 +74,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
     print("WARNING: will move mouse / click. Ctrl+C to stop.")
     try:
-        # S0.5：CLI 生产入口也传入 incident 目录（默认 %LocalAppData%/GameScript-Local/incidents）
+        # S0.5：CLI 生产入口也传入 incident 目录（默认 %LocalAppData%/ShuaBao/incidents）
         med = Mediator(s, ROOT, incident_dir=default_incident_dir())
         med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
         med.run(max_steps=args.steps)

@@ -124,7 +124,7 @@ class MediatorWorker(QThread):
         self.settings = settings
         self.root_dir = root_dir
         self.max_steps = max_steps
-        # S0.5：incident 目录（默认 %LocalAppData%/GameScript-Local/incidents；
+        # S0.5：incident 目录（默认 %LocalAppData%/ShuaBao/incidents；
         # 测试传 tempdir），异常/超时/恢复/未知/Fail-Closed 落图证据
         self.incident_dir = Path(incident_dir) if incident_dir else APP_DATA / "incidents"
         self.signals = LogSignal()
@@ -202,7 +202,7 @@ class MediatorWorker(QThread):
             self.signals.log_emitted.emit("[结束] 任务运行结束", "info")
 
     def _start_trace(self) -> str | None:
-        """桌面自动 trace：%LocalAppData%/GameScript-Local/YYYYMMDD/trace_<ts>.jsonl。
+        """桌面自动 trace：%LocalAppData%/ShuaBao/YYYYMMDD/trace_<ts>.jsonl。
 
         按当天日期分目录，不写安装目录；启动失败只降级为无 trace，不阻断任务。
         """

@@ -482,7 +482,7 @@ class Mediator:
         self._hero_step_deadline: float | None = None
         self._hero_modal_missing_frames = 0
         # B1-2：未知页面/未知选择自动归档。incident_dir=None → 不建档（默认关闭，
-        # 测试/回放零副作用）；桌面/LIVE 接入时传入 %LocalAppData%\GameScript-Local。
+        # 测试/回放零副作用）；桌面/LIVE 接入时传入 %LocalAppData%\ShuaBao。
         self._incident_dir = incident_dir
         self._archiver: IncidentArchiver | None = IncidentArchiver(root=incident_dir) if incident_dir else None
         self._incident_pending_fp: str | None = None  # 待补齐 frame_after 的 incident 指纹

@@ -69,7 +69,7 @@ class IncidentArchiver:
         dedup_seconds: float = _DEFAULT_DEDUP_SECONDS,
         now_fn: Callable[[], float] | None = None,
     ) -> None:
-        """root 为可注入的基目录（测试用临时目录）；默认 %LocalAppData%/GameScript-Local。
+        """root 为可注入的基目录（测试用临时目录）；默认 %LocalAppData%/ShuaBao。
 
         incident 落在 <root>/YYYYMMDD/incidents/ 下，按天分目录。
         """

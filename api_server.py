@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-GameScript-Local FastAPI 后端服务
+刷刷宝 FastAPI 后端服务
 提供配置管理、官方同步、选项动态扫描与 Mediator 运行控制接口。
 """
 
@@ -115,7 +115,7 @@ class RunnerState:
 
 runner = RunnerState()
 
-app = FastAPI(title="GameScript-Local API", version="1.3.3.3-local")
+app = FastAPI(title="刷刷宝 API", version="1.3.3.3-local")
 
 app.add_middleware(
     CORSMiddleware,
@@ -316,7 +316,7 @@ def start_run(req: StartRunRequest = StartRunRequest()):
         builtins.print = hook_print
 
         try:
-            # S0.5：API 生产入口也传入 incident 目录（默认 %LocalAppData%/GameScript-Local/incidents）
+            # S0.5：API 生产入口也传入 incident 目录（默认 %LocalAppData%/ShuaBao/incidents）
             from gamescript.incidents import default_incident_dir
 
             med = MedCls(s, ROOT, incident_dir=default_incident_dir())
@@ -405,7 +405,7 @@ if __name__ == "__main__":
     import uvicorn
 
     print("==================================================")
-    print(" GameScript-Local Web 控制台后端已启动")
+    print(" 刷刷宝 Web 控制台后端已启动")
     print(" 访问地址: http://localhost:17880")
     print("==================================================")
     uvicorn.run(app, host="127.0.0.1", port=17880, log_level="info")
