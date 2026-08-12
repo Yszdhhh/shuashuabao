@@ -157,14 +157,48 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(choice[1].name, "card_hide")
 
     def test_inventory_hero_card_does_not_loop_on_static_evolution_label(self) -> None:
-        med = Mediator(Settings(), ROOT)
+        med = Mediator(Settings(ui_action_interval_s=0.0), ROOT)
         hero = MatchResult("hero_card_item", 0.99, 1100, 800, 10, 10, 1100, 800)
         med._bond_bar_nonempty = lambda _frame: False
+        med._evolve_ok_this_cycle = True
         with patch.object(med, "find", return_value=hero) as find, \
                 patch.object(med, "act_click", return_value=True) as click:
             self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)
         click.assert_called_once_with(hero, "UseInventory-hero-card")
         self.assertEqual(find.call_args.args[1], ["hero_card_item"])
+
+    def test_inventory_hero_card_requires_evolve_and_caps_per_visit(self) -> None:
+        """r11 live：未点进化不得点英雄卡；单次 equipment 访问最多 2 次。"""
+        med = Mediator(Settings(ui_action_interval_s=0.0), ROOT)
+        hero = MatchResult("hero_card_item", 0.99, 1303, 898, 10, 10, 1303, 898)
+        med._bond_bar_nonempty = lambda _frame: False
+        with patch.object(med, "find", return_value=hero), \
+                patch.object(med, "act_click", return_value=True) as click:
+            self.assertIsNone(med._maybe_use_inventory_item(frame()))
+            self.assertEqual(click.call_count, 0)
+            med._evolve_ok_this_cycle = True
+            self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)
+            med._inventory_next_at = 0.0
+            self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)
+            med._inventory_next_at = 0.0
+            self.assertIsNone(med._maybe_use_inventory_item(frame()))
+        self.assertEqual(click.call_count, 2)
+
+    def test_affix_prefers_green_positive_row(self) -> None:
+        """装备十级词缀优先绿字「积极属性」，而非永远点第一行。"""
+        med = Mediator(Settings(), ROOT)
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        cv2.rectangle(image, (560, 215), (1039, 219), (0, 170, 230), -1)
+        cv2.rectangle(image, (560, 430), (1039, 434), (0, 170, 230), -1)
+        for y in (240, 285, 330, 375):
+            cv2.rectangle(image, (735, y + 10), (865, y + 18), (230, 230, 230), -1)
+        # 小色块即可触发 HSV 排名；大色块会破坏 body 暗底门闩（需 ≥85% gray<80）。
+        # BGR：第 0 行红、第 2 行绿（积极属性）→ 应选 equipment_affix_2。
+        cv2.rectangle(image, (700, 250), (760, 268), (40, 40, 220), -1)
+        cv2.rectangle(image, (700, 340), (760, 358), (40, 200, 40), -1)
+        hit = med._find_equipment_affix_choice(Frame(image))
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.name, "equipment_affix_2")
 
     def test_single_low_score_bond_anchor_never_classifies_as_bond(self) -> None:
         # P0-3（215302 证据）：bond_refresh_btn 0.742 贴阈值单独出现曾单帧误入 bond

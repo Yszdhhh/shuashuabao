@@ -426,6 +426,13 @@ class Mediator:
         self._evolve_fail_count = 0
         self._evolve_baseline: np.ndarray | None = None
         self._evolve_feedback_window_s = 3.0
+        # r11 live：未点进化就狂点物品栏英雄卡（trace_110618: inventoy 1829 / evolve 0）。
+        # 本轮进化成功后才允许 hero_card；单次 equipment 访问最多 2 次且同点粘滞即停。
+        self._evolve_ok_this_cycle = False
+        self._inventory_clicks_this_visit = 0
+        self._inventory_last_pt: tuple[int, int] | None = None
+        self._inventory_same_pt_hits = 0
+        self._inventory_next_at = 0.0
         self._ambiguous_giveup_frames = 0
         self._f1_shadow_correct = 0
         self._f1_shadow_misfire = 0
@@ -1936,7 +1943,15 @@ class Mediator:
             index = self._L1_CYCLE_ORDER.index(current)
         except ValueError:
             index = -1
-        self._l1_cycle_step = self._L1_CYCLE_ORDER[(index + 1) % len(self._L1_CYCLE_ORDER)]
+        nxt = self._L1_CYCLE_ORDER[(index + 1) % len(self._L1_CYCLE_ORDER)]
+        if nxt == "evolve":
+            self._evolve_ok_this_cycle = False
+        if nxt == "equipment":
+            self._inventory_clicks_this_visit = 0
+            self._inventory_last_pt = None
+            self._inventory_same_pt_hits = 0
+            self._inventory_next_at = 0.0
+        self._l1_cycle_step = nxt
 
     def _maybe_open_choice_panel(self, frame: Frame, anchor: MatchResult | None = None) -> LoopAction | None:
         """Proactive skill (G) / bond (F) / treasure (V) panel opening.
@@ -2055,7 +2070,9 @@ class Mediator:
         def row_rank(y: int) -> int:
             roi = hsv[y:y + 35, 650:950]
             hue, sat, val = roi[:, :, 0], roi[:, :, 1], roi[:, :, 2]
+            # 积极属性多为绿字；优先于红/橙品质色，避免永远点第一行 equipment_affix_0。
             masks = (
+                (6, (hue >= 35) & (hue < 90) & (sat > 60) & (val > 80)),
                 (5, ((hue <= 10) | (hue >= 170)) & (sat > 80) & (val > 90)),
                 (4, (hue > 10) & (hue <= 30) & (sat > 80) & (val > 90)),
                 (3, (hue >= 125) & (hue < 170) & (sat > 60) & (val > 80)),
@@ -2142,6 +2159,7 @@ class Mediator:
     def _maybe_use_inventory_item(self, frame: Frame) -> LoopAction | None:
         """Use inventory consumables in the verified bottom-right inventory ROI."""
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
+        now = time.time()
         if self._bond_bar_nonempty(frame):
             pill = self.find(
                 frame, ["danGif"], threshold=0.55,
@@ -2151,12 +2169,31 @@ class Mediator:
             if pill is not None and self.act_click(pill, "UseInventory-swallow_pill"):
                 return LoopAction.Continue
 
+        # 未先完成「点击进化」不得选物品栏英雄卡（r11 卡死根因）。
+        if not self._evolve_ok_this_cycle:
+            return None
+        if now < self._inventory_next_at or self._inventory_clicks_this_visit >= 2:
+            return None
         hero_card = self.find(
-            frame, ["hero_card_item"], threshold=0.55,
+            frame, ["hero_card_item"], threshold=0.75,
             scales=(0.8, 0.9, 1.0, 1.1, 1.2),
             roi=inventory_roi,
         )
-        if hero_card is not None and self.act_click(hero_card, "UseInventory-hero-card"):
+        if hero_card is None:
+            return None
+        pt = (int(hero_card.center[0]), int(hero_card.center[1]))
+        if self._inventory_last_pt == pt:
+            self._inventory_same_pt_hits += 1
+            if self._inventory_same_pt_hits >= 2:
+                # 同点粘滞：多为静态误匹配，禁止本轮继续点卡。
+                self._inventory_clicks_this_visit = 2
+                return None
+        else:
+            self._inventory_last_pt = pt
+            self._inventory_same_pt_hits = 0
+        if self.act_click(hero_card, "UseInventory-hero-card"):
+            self._inventory_clicks_this_visit += 1
+            self._inventory_next_at = now + max(0.35, float(self.settings.ui_action_interval_s))
             return LoopAction.Continue
         return None
 
@@ -3220,6 +3257,11 @@ class Mediator:
             self._evolution_attempts = 0
             self._evolution_next_at = 0.0
             self._evolution_baseline = None
+            self._evolve_ok_this_cycle = False
+            self._inventory_clicks_this_visit = 0
+            self._inventory_last_pt = None
+            self._inventory_same_pt_hits = 0
+            self._inventory_next_at = 0.0
         if phase == Phase.QUIT:
             self._exit_button_attempts = 0
             self._exit_since = time.time()
@@ -5505,6 +5547,7 @@ class Mediator:
                 self._selection_unknown_attempts = 0
                 self._selection_unknown_since = None
                 self._main_line_since = now
+                self._evolve_ok_this_cycle = True
                 if self._l1_cycle_step == "evolve":
                     # P0-2：进化面板真实出现并已处理 = 点击成功反馈 → 推进循环
                     # （与反馈分支一致；避免进化在有点数时饿死 equipment/pickup 等）
@@ -5624,6 +5667,7 @@ class Mediator:
                     self._evolve_feedback_pending = False
                     self._evolve_fail_count = 0
                     self._evolve_baseline = None
+                    self._evolve_ok_this_cycle = True
                     self._advance_l1_cycle("evolve")
                     self._main_line_since = now
                     return LoopAction.Continue
@@ -5643,7 +5687,7 @@ class Mediator:
                 return LoopAction.Continue
             evolve_hit = self.find(
                 frame,
-                ["click_evolve"],
+                ["click_evolve", "click_evolve_v2"],
                 threshold=0.75,
                 scales=(0.9, 1.0, 1.1),
             )
