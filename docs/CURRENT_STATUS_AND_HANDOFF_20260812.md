@@ -1,5 +1,17 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-12 外壳：Dry-run → 学习模式（观察记录 + 本机自适应入口）
+
+- 层：外壳为主 + 习惯观测 API + L0 学习模式创房节流（未改大厅红线 / 真机创房确认门闩）
+- **根因**：V0.2 建了「安全测试」勾选框但**未 `addWidget` 进布局**，看板看不见；`default_settings.dry_run=true` 静默假点击 → 创房永远等不到弹窗
+- 看板：首页运行区显示「学习模式（只观察记录，不实操）」；底层字段仍是 `settings.dry_run`
+- 默认：**关闭**（真机实操）；开启后零真实输入，观测写入 `%LocalAppData%\ShuaBao\learning\observations_YYYYMMDD.jsonl`
+- `habit_preference`：路径改 `ShuaBao`；新增 `append_learning_observation` / `observations_to_name_scores`（聚合后可进 name_scores，决策接线另开）
+- L0：学习模式下创建房间只记 `LEARN_OBSERVE`，不进 pending 弹窗等待、不烧 attempts/deadline
+- 验收：看板可见学习模式；关闭后管理员真机应能走创房；开启时日志见「学习模式」且 learning JSONL 有 `create_room_intent` / `choice_decision`
+
+---
+
 ## 2026-08-12 基建线：习惯权重 / 许可 stub / 批量抽帧 / 预设契约
 
 - 层：感知/策略纯函数/工具（**未改** mediator LIVE 采集习惯；**未接** 许可进启动；未改大厅红线）

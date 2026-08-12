@@ -20,7 +20,7 @@ export const EnvironmentCard: React.FC<EnvironmentCardProps> = ({
           <Monitor className="w-4 h-4" />
           <span>环境与匹配设置</span>
         </div>
-        <span className="text-xs text-[#8b9bb4]">锁窗、Dry-run 调试与匹配阈值</span>
+        <span className="text-xs text-[#8b9bb4]">锁窗、学习模式与匹配阈值</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -40,12 +40,12 @@ export const EnvironmentCard: React.FC<EnvironmentCardProps> = ({
           />
         </div>
 
-        {/* Dry-run 调试模式 */}
+        {/* 学习模式（底层 settings.dry_run） */}
         <div className="bg-[#0b1220] p-3 rounded-lg border border-[#243044] flex flex-col justify-between">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-slate-200 flex items-center gap-1.5">
               <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-              <span>Dry-run 演示模式</span>
+              <span>学习模式（只观察记录）</span>
             </label>
             <input
               type="checkbox"
@@ -58,7 +58,7 @@ export const EnvironmentCard: React.FC<EnvironmentCardProps> = ({
 
           <p className="text-[11px] text-[#8b9bb4] mt-1">
             {settings.dry_run ? (
-              <span className="text-amber-400">只查找图像并打印坐标，不会真实点击鼠标。</span>
+              <span className="text-amber-400">只观察/记录决策，不实操；写入本机 learning 日志供自适应调参。</span>
             ) : (
               <span className="text-emerald-400">真机模式：将对游戏窗口发起自动化点击。</span>
             )}

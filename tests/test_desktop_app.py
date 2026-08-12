@@ -215,6 +215,21 @@ class DesktopPanelTests(unittest.TestCase):
         self.window.chk_secret_realm.setChecked(False)
         self.assertFalse(self.window.collect_settings_from_ui().auto_secret_realm)
 
+    def test_learning_mode_checkbox_is_visible_and_maps_to_dry_run(self):
+        """学习模式必须挂在首页运行区；底层仍写 settings.dry_run。"""
+        self.assertTrue(hasattr(self.window, "chk_learn"))
+        self.assertIn("学习模式", self.window.chk_learn.text())
+        # 控件必须进布局，否则用户看不见（V0.2 曾漏挂 chk_dry）
+        self.assertIsNotNone(self.window.chk_learn.parent())
+
+        self.window.chk_learn.setChecked(True)
+        self.assertTrue(self.window.collect_settings_from_ui().dry_run)
+        self.window.chk_learn.setChecked(False)
+        self.assertFalse(self.window.collect_settings_from_ui().dry_run)
+
+        self.window.apply_settings_to_ui(Settings(dry_run=True))
+        self.assertTrue(self.window.chk_learn.isChecked())
+
     def test_rejects_invalid_or_empty_core_configuration(self):
         self.window.txt_stage_target.setText("第十关")
         with self.assertRaisesRegex(ValueError, "章节-关卡"):

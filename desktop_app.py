@@ -156,12 +156,19 @@ class MediatorWorker(QThread):
             f"{self.settings.reputation_type}-{self.settings.reputation_level}"
             if self.settings.auto_reputation else "-"
         )
+        learn = "开启" if self.settings.dry_run else "关闭"
         self.signals.log_emitted.emit(
-            f"[启动] {APP_VERSION_LABEL} 刷图任务启动 | Dry-run={self.settings.dry_run} | "
+            f"[启动] {APP_VERSION_LABEL} 刷图任务启动 | 学习模式={learn} | "
             f"关卡={target} | 模式={mode} | 难度={difficulty} | "
             f"分辨率={width}x{height} | 技能={self.settings.skills}",
             "info"
         )
+        if self.settings.dry_run:
+            self.signals.log_emitted.emit(
+                "[学习模式] 只观察/记录，不向游戏发送真实点击；"
+                f"观测写入 {APP_DATA / 'learning'}",
+                "info",
+            )
 
         real_print = builtins.print
 
@@ -542,7 +549,7 @@ class MainWindow(QMainWindow):
                 border: 1px solid #fdba74;
                 color: #c2410c;
             }
-            QCheckBox#chkDry {
+            QCheckBox#chkLearn {
                 color: #b45309;
                 font-weight: bold;
             }
@@ -751,17 +758,21 @@ class MainWindow(QMainWindow):
         hero_row.addStretch()
         core_layout.addWidget(self.hero_options)
 
-        self.chk_dry = QCheckBox("安全测试（只识别、不点击）")
-        self.chk_dry.setChecked(True)
-        self.chk_dry.setObjectName("chkDry")
-        self.chk_dry.setToolTip(
-            "开启时只做识别并打印坐标，不会对游戏产生真实输入。\n"
-            "第一次配置或改完设置后，建议先用它跑一轮。"
+        self.chk_learn = QCheckBox("学习模式（只观察记录，不实操）")
+        self.chk_learn.setChecked(False)
+        self.chk_learn.setObjectName("chkLearn")
+        self.chk_learn.setToolTip(
+            "开启后：脚本只识别画面、记录决策与面板观测，不向游戏发送真实点击。\n"
+            "记录写入本机 %LocalAppData%\\ShuaBao\\learning\\，供后续自适应调参。\n"
+            "要自动创房/刷图请保持关闭。"
         )
+        # 兼容旧属性名（测试/外部脚本可能仍引用 chk_dry）
+        self.chk_dry = self.chk_learn
         self.chk_secret_realm = QCheckBox("胜利后自动挑战秘境")
         self.chk_secret_realm.setToolTip(
             "开启后：胜利结算进入挑战广场，右键大秘境并确认；秘境失败后退出并重开下一局。"
         )
+        core_layout.addWidget(self.chk_learn)
         core_layout.addWidget(self.chk_secret_realm)
         main_layout.addWidget(core)
 
@@ -840,7 +851,7 @@ class MainWindow(QMainWindow):
         self.cmb_mode.currentIndexChanged.connect(self._schedule_auto_save)
         self.cmb_reputation.currentIndexChanged.connect(self._schedule_auto_save)
         self.spn_reputation_level.valueChanged.connect(self._schedule_auto_save)
-        self.chk_dry.toggled.connect(self._schedule_auto_save)
+        self.chk_learn.toggled.connect(self._schedule_auto_save)
         self.chk_secret_realm.toggled.connect(self._schedule_auto_save)
 
     def _on_negative_changed(self):
@@ -905,7 +916,7 @@ class MainWindow(QMainWindow):
         targets = [item.strip() for item in (settings.stage_targets or []) if item.strip()]
         target = targets[0] if targets else f"1-{max(1, int(settings.stage2))}"
         self.txt_stage_target.setText(target)
-        self.chk_dry.setChecked(settings.dry_run)
+        self.chk_learn.setChecked(bool(settings.dry_run))
         self.chk_secret_realm.setChecked(settings.auto_secret_realm)
         self.skill_grid.set_skills(settings.skills or [])
         self.grp_negative.set_allowed(
@@ -946,7 +957,8 @@ class MainWindow(QMainWindow):
         settings.room_name = ""
         settings.room_password = ""
         settings.new_room_every_times = False
-        settings.dry_run = self.chk_dry.isChecked()
+        # dry_run 底层字段 = 学习模式（观察记录、零真实输入）
+        settings.dry_run = self.chk_learn.isChecked()
         settings.auto_secret_realm = self.chk_secret_realm.isChecked()
         settings.skills = skills
         # 负面宝物：只放行用户逐张勾选的；没勾就是一张都不选。
@@ -983,10 +995,16 @@ class MainWindow(QMainWindow):
         self.log(
             f"[启动配置] 版本={APP_VERSION_LABEL} 关卡={target} 分辨率={width}x{height} "
             f"秘境={'开启' if settings.auto_secret_realm else '关闭'} "
+            f"学习模式={'开启' if settings.dry_run else '关闭'} "
             f"配置源={ROOT / 'config' / 'default_settings.json'}"
         )
 
-        if not settings.dry_run:
+        if settings.dry_run:
+            self.log(
+                "[学习模式] 本次只观察记录、不实操；可手动玩，脚本对照记录面板与决策",
+                "warn",
+            )
+        else:
             is_admin = False
             try:
                 import ctypes
@@ -1000,7 +1018,7 @@ class MainWindow(QMainWindow):
                     "需要管理员权限",
                     "游戏和 KK 对战平台通常以管理员身份运行，普通权限程序无法可靠点击它们。\n\n"
                     f"请关闭本窗口，右键 {APP_ID}.exe（或桌面「{APP_NAME} {APP_VERSION_LABEL}」快捷方式），"
-            "选择“以管理员身份运行”后再开始。",
+                    "选择“以管理员身份运行”后再开始。",
                 )
                 self.log("[阻断] 真机运行需要管理员权限", "error")
                 return
@@ -1008,7 +1026,7 @@ class MainWindow(QMainWindow):
             answer = QMessageBox.warning(
                 self,
                 "确认开始真机运行",
-                "安全测试已关闭，程序将向游戏窗口发送真实鼠标和键盘输入。\n\n"
+                "学习模式已关闭，程序将向游戏窗口发送真实鼠标和键盘输入。\n\n"
                 "确认开始吗？",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,

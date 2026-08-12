@@ -21,9 +21,12 @@ from gamescript.choice_policy import (  # noqa: E402
     choose_action,
 )
 from gamescript.habit_preference import (  # noqa: E402
+    append_learning_observation,
+    default_habit_path,
     habit_scores_for_panel,
     load_habit_preference,
     merge_habit_into_mapping,
+    observations_to_name_scores,
 )
 
 
@@ -100,6 +103,51 @@ class HabitTieBreakTests(unittest.TestCase):
             "skill",
         )
         self.assertEqual(merged["habit_name_scores"]["奥数箭"], 2.0)
+
+    def test_habit_path_uses_shuabao_appdata(self):
+        self.assertTrue(str(default_habit_path()).replace("\\", "/").endswith("ShuaBao/habit_preference.json"))
+
+    def test_append_learning_observation_jsonl(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "obs.jsonl"
+            written = append_learning_observation(
+                {
+                    "panel_kind": "skill",
+                    "event": "choice_decision",
+                    "slots": [{"index": 0, "name": "奥数箭"}],
+                    "decision": {"action": "SELECT_SLOT", "index": 0},
+                },
+                path=path,
+            )
+            self.assertEqual(written, path)
+            rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(1, len(rows))
+            self.assertEqual("learning", rows[0]["mode"])
+            self.assertEqual("skill", rows[0]["panel_kind"])
+            self.assertIn("ts", rows[0])
+
+    def test_observations_to_name_scores(self):
+        records = [
+            {
+                "panel_kind": "skill",
+                "slots": [{"index": 0, "name": "奥数箭"}, {"index": 1, "name": "剑气"}],
+                "decision": {"action": "SELECT_SLOT", "index": 1},
+            },
+            {
+                "panel_kind": "skill",
+                "slots": [{"index": 0, "name": "剑气"}],
+                "decision": {"action": "SELECT_SLOT", "index": 0},
+            },
+            {
+                "panel_kind": "bond",
+                "slots": [{"index": 0, "name": "海盗"}],
+                "decision": {"action": "SELECT_SLOT", "index": 0},
+            },
+        ]
+        scores = observations_to_name_scores(records, "skill")
+        self.assertEqual(scores["剑气"], 2.0)
+        self.assertNotIn("奥数箭", scores)
+        self.assertEqual(observations_to_name_scores(records, "bond")["海盗"], 1.0)
 
 
 if __name__ == "__main__":

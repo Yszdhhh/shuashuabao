@@ -25,7 +25,8 @@ def _hit(name: str, x: int = 700, y: int = 800) -> MatchResult:
 
 class P0ACreateRoomGateTests(unittest.TestCase):
     def setUp(self):
-        self.med = Mediator(Settings(auto_create_room=True, dry_run=True), ROOT)
+        # 真机创房门闩用 dry_run=False；学习模式有独立用例。
+        self.med = Mediator(Settings(auto_create_room=True, dry_run=False), ROOT)
         self.med.set_phase(Phase.PLATFORM_MAP, "test")
 
     def _patch_map(self, *, confirm=None, candidate=None):
@@ -57,6 +58,33 @@ class P0ACreateRoomGateTests(unittest.TestCase):
             self.med._tick_l0(_frame())
         candidate_lookup.assert_not_called()
         self.assertEqual(click.call_count, 1)
+
+    def test_learning_mode_records_intent_without_pending_dialog_wait(self):
+        """学习模式：记录创建房间意图，不进入等弹窗 / 不烧 attempts。"""
+        self.med.settings.dry_run = True
+        candidate = _hit("create_room")
+        click = MagicMock(return_value=True)
+        p = self._patch_map(candidate=candidate)
+        with (
+            p[0],
+            p[1],
+            p[2],
+            p[3],
+            patch.object(self.med, "act_click", click),
+            patch("gamescript.mediator.append_learning_observation") as obs,
+        ):
+            self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Continue)
+        self.assertEqual(self.med.phase, Phase.PLATFORM_MAP)
+        self.assertEqual(self.med._create_room_attempts, 0)
+        self.assertIsNone(self.med._create_room_pending_since)
+        self.assertIsNone(self.med._create_room_flow_deadline)
+        self.assertIsNotNone(self.med._create_room_next_observe_at)
+        self.assertEqual(self.med._trace_controls[-1]["state"], "LEARN_OBSERVE")
+        click.assert_called_once_with(candidate, "CreateRoom-open")
+        obs.assert_called_once()
+        payload = obs.call_args.args[0]
+        self.assertEqual(payload["event"], "create_room_intent")
+        self.assertEqual(payload["decision"]["action"], "WOULD_CLICK")
 
     def test_dialog_anchor_confirms_and_preserves_candidate_trace(self):
         self.med._create_room_pending_since = 100.0

@@ -60,7 +60,7 @@ class Settings:
     room_name: str = ""
     room_password: str = ""
     # Solo is expected to be a complete L0→L1 chain in this local build.
-    # Keep real input separately guarded by dry_run=True by default.
+    # Real input is guarded by dry_run / 看板「学习模式」（默认关闭=真机实操）。
     auto_create_room: bool = True
     room_create_side: str = "left"
     new_room_every_times: bool = False
@@ -141,7 +141,9 @@ class Settings:
     window_title_contains: str = "英雄三国"
     window_size: list[int] = field(default_factory=lambda: [1600, 900])
     images_dir: str = "assets/Images"
-    dry_run: bool = True
+    # 看板称「学习模式」：True=只观察记录、零真实输入；False=真机实操。
+    # 默认关闭，避免「看不见的 dry_run」导致创房永远等不到弹窗。
+    dry_run: bool = False
 
     @classmethod
     def load(cls, path: str | Path) -> "Settings":
@@ -168,7 +170,7 @@ class Settings:
             mapped[lk] = v
         # 本地自用默认：独狼 + 不点真机除非改
         mapped.setdefault("game_mode", 0)
-        mapped.setdefault("dry_run", True)
+        mapped.setdefault("dry_run", False)
         mapped.setdefault("window_title_contains", "英雄三国")
         mapped.setdefault("images_dir", "assets/Images")
         mapped.setdefault("match_threshold", 0.85)

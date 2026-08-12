@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "_comment": "用户本地习惯权重 schema（免订阅）。文件建议落在 %LocalAppData%/GameScript-Local/habit_preference.json。只影响 choice_policy 允许集合内的排序，不得突破技能预设/羁绊硬白名单/负面宝物默认拦截。实现接线另开任务；本文件先冻结字段，供学习系统与面板重构对齐。",
+  "_comment": "用户本地习惯权重 schema（免订阅）。文件建议落在 %LocalAppData%/ShuaBao/habit_preference.json。学习模式观测 JSONL 在 %LocalAppData%/ShuaBao/learning/。只影响 choice_policy 允许集合内的排序，不得突破技能预设/羁绊硬白名单/负面宝物默认拦截。看板「学习模式」= settings.dry_run，纯观察写入 learning/*.jsonl，后续可聚合进本 schema。",
   "type": "object",
   "required": ["version", "updated_at", "panels"],
   "properties": {

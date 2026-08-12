@@ -73,6 +73,7 @@ from gamescript.choice_policy import (
     SlotCandidate,
     choose_action,
 )
+from gamescript.habit_preference import append_learning_observation
 
 # 构建标识：写入 JSONL tick trace（B1-1），用于区分版本/里程碑来源。
 # 每次发布里程碑时更新；配合 git 提交哈希可精确定位产生该日志的代码。
@@ -2064,6 +2065,29 @@ class Mediator:
             ),
             self._choice_session,
         )
+        if self.settings.dry_run:
+            append_learning_observation(
+                {
+                    "panel_kind": kind,
+                    "event": "choice_decision",
+                    "slots": [
+                        {
+                            "index": s.index,
+                            "name": s.name,
+                            "rarity": s.rarity,
+                            "confidence": round(float(s.confidence or 0.0), 3),
+                        }
+                        for s in slots
+                    ],
+                    "decision": {
+                        "action": getattr(decision.action, "name", str(decision.action)),
+                        "index": decision.index,
+                        "reason": getattr(decision, "reason", "") or "",
+                    },
+                    "phase": self.phase.name,
+                    "context": self._context_cache_value,
+                }
+            )
         mapped = self._policy_decision_to_hit(frame, kind, decision, slots)
         if mapped is None:
             return None
@@ -4276,7 +4300,42 @@ class Mediator:
         self._create_room_last_candidate = None
 
     def _request_create_room(self, candidate: MatchResult, now: float) -> LoopAction:
-        """Click a candidate, then stay on PLATFORM_MAP until dialog confirmation."""
+        """Click a candidate, then stay on PLATFORM_MAP until dialog confirmation.
+
+        学习模式（dry_run）：只记录意图，不进入「等弹窗」状态——假点击不会弹出
+        对话框，否则会误报 create dialog confirmation timeout。
+        """
+        self._create_room_last_candidate = self._create_room_candidate_payload(candidate)
+
+        if self.settings.dry_run:
+            self.act_click(candidate, "CreateRoom-open")
+            self._trace_create_room_control(
+                "LEARN_OBSERVE",
+                candidate=candidate,
+                click_ok=False,
+                now=now,
+            )
+            print(
+                f"[L0] 学习模式：记录「创建房间」@{candidate.center} "
+                "（不点击、不等待弹窗）"
+            )
+            append_learning_observation(
+                {
+                    "panel_kind": "l0",
+                    "event": "create_room_intent",
+                    "candidate": self._create_room_last_candidate,
+                    "decision": {"action": "WOULD_CLICK", "reason": "CreateRoom-open"},
+                    "phase": self.phase.name,
+                    "context": self._context_cache_value,
+                }
+            )
+            # 节流：避免同一按钮每 tick 刷屏；不烧 attempts / flow_deadline
+            self._create_room_pending_since = None
+            self._create_room_next_observe_at = now + max(
+                2.0, float(self.settings.ui_action_interval_s)
+            )
+            return LoopAction.Continue
+
         if self._create_room_flow_deadline is None:
             self._create_room_flow_deadline = now + self._CREATE_ROOM_TOTAL_TIMEOUT_S
         if self._create_room_attempts >= self._CREATE_ROOM_MAX_ATTEMPTS:
@@ -4284,7 +4343,6 @@ class Mediator:
             return LoopAction.Continue
 
         self._create_room_attempts += 1
-        self._create_room_last_candidate = self._create_room_candidate_payload(candidate)
         clicked = self.act_click(candidate, "CreateRoom-open")
         self._trace_create_room_control(
             "OPEN_REQUESTED" if clicked else "CLICK_FAILED",
@@ -4584,7 +4642,10 @@ class Mediator:
                 self._create_room_pending_since = None
                 self._create_room_next_observe_at = None
             elif self._create_room_next_observe_at is not None and now < self._create_room_next_observe_at:
-                print("[L0] 创房点击失败，等待输入节流窗口（零动作）")
+                if self.settings.dry_run:
+                    print("[L0] 学习模式观察节流（零动作）")
+                else:
+                    print("[L0] 创房点击失败，等待输入节流窗口（零动作）")
                 return LoopAction.Continue
 
             if self._create_room_flow_deadline is not None:
@@ -6255,7 +6316,7 @@ class Mediator:
         self.set_phase(Phase.BOOT)
         steps = 0
         print(
-            f"[med] Run dry_run={self.settings.dry_run} mode={self.settings.game_mode} "
+            f"[med] Run learning_mode={self.settings.dry_run} mode={self.settings.game_mode} "
             f"auto_room={self._auto_room_enabled()} "
             f"stage={self.settings.stage1}/{self.settings.stage2} "
             f"targets={self.settings.stage_targets or '-'} "
@@ -6264,7 +6325,10 @@ class Mediator:
             "l0_uia=disabled"
         )
         if self.settings.dry_run:
-            print("[med] DRY-RUN 仅识别/打印坐标，不会真的点击；要跑全链路请关闭 Dry-run")
+            print(
+                "[med] 学习模式：只观察/记录决策，不会真的点击；"
+                "要自动创房刷图请关闭「学习模式」"
+            )
         else:
             from gamescript.input.keyboard_mouse import is_current_process_elevated
 
