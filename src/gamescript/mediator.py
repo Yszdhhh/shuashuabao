@@ -604,9 +604,26 @@ class Mediator:
         有效但无信号（非目标局内窗）计入失配，连续 2 帧后候选重排。
         """
         targets = find_window_targets(title, role=role)
+        create_dialog_probe = role == "l0" and (
+            self._create_room_pending_since is not None
+            or self.phase == Phase.CREATE_ROOM
+        )
         self._capture_candidates = len(targets)
         if not targets:
             return capture(title, role=role, activate=False)
+        # KK exposes the create-room form as a second same-title HWND.  The
+        # sticky parent window still looks healthy, so the generic fast path
+        # would otherwise starve the dialog forever.  Probe every candidate
+        # only during this bounded episode and prefer the structurally
+        # confirmed form.  No focus change or input is performed here.
+        if create_dialog_probe:
+            frames = [capture_target(target) for target in targets]
+            for candidate in frames:
+                if self._find_create_confirm(candidate):
+                    self._capture_miss_streak = 0
+                    return candidate
+            if frames:
+                return max(frames, key=lambda item: item.width * item.height)
         if len(targets) == 1:
             return capture_target(targets[0])
         prev = self._last_frame if self._last_capture_role == role else None
@@ -3857,18 +3874,24 @@ class Mediator:
         hit = self.find_scene(frame, "create_room_confirm")
         if hit:
             return hit
-        # KK opens the create form as a small ~584x488 child window.  Do not
-        # run the relatively expensive edge/contour fallback on the full
-        # platform page every tick.
-        if frame.width > 800 or frame.height > 700:
-            return None
-        # The real KK dialog is a separate ~584x488 window; its two inputs
-        # are in the upper half and the Create/Cancel buttons are at the
-        # bottom.  The old center ROI never saw this button.
-        candidates = find_blue_buttons(frame, roi=(0.25, 0.72, 0.90, 0.99))
-        for candidate in reversed(candidates):
-            if len(find_input_boxes(frame, anchor=candidate)) >= 2:
-                return candidate
+        # KK can render the same form either as a ~584x488 child window or as
+        # a modal embedded in the 1328x945 platform window.  A blue button by
+        # itself is never authority: require the form's two input boxes and
+        # the same-row Create/Cancel pair, then choose the left (Create) one.
+        roi = (0.25, 0.62, 0.90, 0.99) if frame.width <= 800 else (0.35, 0.62, 0.75, 0.78)
+        candidates = sorted(find_blue_buttons(frame, roi=roi), key=lambda item: item.x)
+        for left, right in zip(candidates, candidates[1:]):
+            left_cy = left.y + left.h // 2
+            right_cy = right.y + right.h // 2
+            if (
+                right.x <= left.x
+                or abs(left_cy - right_cy) > max(12, left.h // 2)
+                or abs(left.w - right.w) > max(30, left.w * 0.35)
+                or not (20 <= left.h <= 70 and 20 <= right.h <= 70)
+            ):
+                continue
+            if len(find_input_boxes(frame, anchor=left)) >= 2:
+                return left
         return None
 
     def _find_stage_target(self, frame: Frame) -> MatchResult | None:

@@ -147,6 +147,83 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertLess(hit.x, 350)
 
+    def test_embedded_create_dialog_requires_form_structure_and_chooses_left_button(self):
+        """The current KK client embeds the create form in its 1328x945 window."""
+        import cv2
+
+        image = np.zeros((945, 1328, 3), dtype=np.uint8)
+        for y in (325, 421):
+            cv2.rectangle(image, (574, y), (856, y + 32), (60, 60, 60), -1)
+            cv2.rectangle(image, (574, y), (856, y + 32), (180, 180, 180), 2)
+        cv2.rectangle(image, (633, 645), (745, 685), (230, 150, 20), -1)
+        cv2.rectangle(image, (761, 647), (877, 683), (230, 150, 20), -1)
+
+        with patch.object(self.med, "find_scene", return_value=None):
+            hit = self.med._find_create_confirm(Frame(image))
+
+        self.assertIsNotNone(hit)
+        self.assertLess(hit.x, 700)  # left Create, never right Cancel
+
+    def test_embedded_single_blue_button_is_not_create_dialog_authority(self):
+        import cv2
+
+        image = np.zeros((945, 1328, 3), dtype=np.uint8)
+        for y in (325, 421):
+            cv2.rectangle(image, (574, y), (856, y + 32), (60, 60, 60), -1)
+            cv2.rectangle(image, (574, y), (856, y + 32), (180, 180, 180), 2)
+        cv2.rectangle(image, (633, 645), (745, 685), (230, 150, 20), -1)
+
+        with patch.object(self.med, "find_scene", return_value=None):
+            self.assertIsNone(self.med._find_create_confirm(Frame(image)))
+
+    def test_pending_create_request_prefers_separate_dialog_hwnd(self):
+        """A healthy sticky parent must not starve KK's separate dialog HWND."""
+        from gamescript.vision.capture import WindowTarget
+
+        parent = WindowTarget(
+            hwnd=123,
+            title="KK",
+            left=0,
+            top=0,
+            width=1328,
+            height=945,
+            client_left=0,
+            client_top=0,
+            client_width=1328,
+            client_height=945,
+            role="l0",
+        )
+        dialog = WindowTarget(
+            hwnd=456,
+            title="KK",
+            left=300,
+            top=200,
+            width=584,
+            height=488,
+            client_left=300,
+            client_top=200,
+            client_width=584,
+            client_height=488,
+            role="l0",
+        )
+        self.med._create_room_pending_since = time.time()
+        sticky = _frame()
+        form = Frame(np.zeros((488, 584, 3), dtype=np.uint8), window_title="KK", hwnd=456)
+        self.med._last_frame = sticky
+        self.med._last_capture_role = "l0"
+
+        def capture_one(target):
+            return form if target.hwnd == 456 else sticky
+
+        def find_confirm(frame):
+            return _hit("create_room_confirm") if frame.hwnd == 456 else None
+
+        with patch("gamescript.mediator.find_window_targets", return_value=[parent, dialog]), \
+                patch("gamescript.mediator.capture_target", side_effect=capture_one) as capture_call, \
+                patch.object(self.med, "_find_create_confirm", side_effect=find_confirm):
+            self.assertIs(self.med._capture_best("KK", "l0"), form)
+        self.assertEqual([call.args[0].hwnd for call in capture_call.call_args_list], [123, 456])
+
 
 if __name__ == "__main__":
     unittest.main()
