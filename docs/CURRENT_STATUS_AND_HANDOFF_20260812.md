@@ -347,3 +347,13 @@ Get-FileHash 'C:\Users\10639\Desktop\GameScript-v2026.08.12-r7\GameScript.exe' -
 - 不得放宽阈值、删失败样本、改分母或新增 XFAIL 来制造通过；
 - 不得把录像离线回放、单测或一次人工介入运行写成长期稳定；
 - 不得在当前主链未跑通时继续扩存档/时光之穴/传家宝或本地判断模型。
+
+---
+
+## 9. D 组负面宝物描述取证（2026-08-12 cloud）
+
+- 素材包：`fixtures/treasure_negative/`（`DESCRIPTIONS.json` / `INDEX.json` / 六卡真机 panel+desc 裁剪；来自 `2067952`）。
+- 新增契约：`tests/contract/test_treasure_negative_fixtures_contract.py`（**未改** `test_choice_semantics_contract.py`）。
+- **贪婪献祭**：现有真机帧描述为「每消耗500金币，获得1点随机属性」（与 S3 正面样例同文），**patterns 拦不住**；继续靠 `treasure_negative_names` 名单拦截。若实机另有负面版本文案，需补帧。
+- patterns 缺口（只补不删，交主 agent 评估追加，见 `DESCRIPTIONS.json::suggested_pattern_appends_for_main_agent`）：`消耗全部金币` · `将恒定` · `杀敌数清0` · `宝物效果-`。
+- 六张均有真机面板帧；描述模式兜底仍弱，生产不阻塞（名字判定已生效）。需主 agent 接线 A 组描述 ROI 后，用本夹具做实机 OCR 回归。
