@@ -1,3 +1,7 @@
-"""GameScript-Local — recovered automation framework."""
+"""刷刷宝（ShuaBao）— 重生魔兽刷刷刷单人挂机助手。
 
-__version__ = "2026.08.12-r11"
+包名 gamescript 保留不改：它出现在 176 个文件里，改名收益纯美观、风险是
+把整套测试与门禁搞红。用户可见的名字（exe / 窗口 / 数据目录）已统一为刷刷宝。
+"""
+
+__version__ = "2026.08.12-r12"

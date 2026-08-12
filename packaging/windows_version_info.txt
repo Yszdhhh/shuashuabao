@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(2026, 8, 12, 11),
-    prodvers=(2026, 8, 12, 11),
+    filevers=(2026, 8, 12, 12),
+    prodvers=(2026, 8, 12, 12),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -14,14 +14,14 @@ VSVersionInfo(
       StringTable(
         u'080404b0',
         [
-          StringStruct(u'CompanyName', u'GameScript Local'),
-          StringStruct(u'FileDescription', u'重生魔兽刷刷刷单人挂机助手'),
-          StringStruct(u'FileVersion', u'2026.8.12.11'),
-          StringStruct(u'InternalName', u'GameScript'),
+          StringStruct(u'CompanyName', u'刷刷宝'),
+          StringStruct(u'FileDescription', u'刷刷宝 · 重生魔兽刷刷刷单人挂机助手'),
+          StringStruct(u'FileVersion', u'2026.8.12.12'),
+          StringStruct(u'InternalName', u'ShuaBao'),
           StringStruct(u'LegalCopyright', u'Local build'),
-          StringStruct(u'OriginalFilename', u'GameScript.exe'),
-          StringStruct(u'ProductName', u'GameScript Local'),
-          StringStruct(u'ProductVersion', u'2026.8.12.11')
+          StringStruct(u'OriginalFilename', u'ShuaBao.exe'),
+          StringStruct(u'ProductName', u'刷刷宝'),
+          StringStruct(u'ProductVersion', u'2026.8.12.12')
         ]
       )
     ]),

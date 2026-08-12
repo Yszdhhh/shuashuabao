@@ -1,4 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
+"""刷刷宝（ShuaBao）打包配置。
+
+exe 文件名用 ASCII 的 ShuaBao.exe：中文文件名在 PyInstaller、命令行工具与部分
+杀软白名单里容易出问题；用户看到的中文名由版本信息（ProductName/
+FileDescription）和桌面快捷方式「刷刷宝」提供。
+
+刻意不叫 GameScript.exe——参考目录里的原版 C# 程序就叫这个名字，同名会让
+任务管理器、崩溃日志和快捷方式无法区分两个程序。
+"""
 
 from pathlib import Path
 
@@ -29,7 +38,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="GameScript",
+    name="ShuaBao",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -45,5 +54,5 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    name="GameScript",
+    name="ShuaBao",
 )

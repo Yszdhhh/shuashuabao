@@ -47,11 +47,14 @@ _INCIDENT_PREFIX = "incident_"
 def default_incident_dir() -> Path:
     """生产入口（桌面/API/CLI）构造 Mediator 时使用的默认 incident 目录。
 
-    S0.5：`%LocalAppData%/GameScript-Local/incidents`；测试必须传临时目录，
+    S0.5：`%LocalAppData%/ShuaBao/incidents`；测试必须传临时目录，
     生产入口一律经本函数，避免三处入口各自硬编码路径漂移。
+
+    2026-08-12 改名（GameScript-Local → ShuaBao）：旧目录里的历史 incident
+    不会自动迁移，需要考古时去 `%LocalAppData%/GameScript-Local` 找。
     """
     local = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    return Path(local) / "GameScript-Local" / "incidents"
+    return Path(local) / "ShuaBao" / "incidents"
 
 
 class IncidentArchiver:

@@ -5822,7 +5822,7 @@ class Mediator:
                     "[med] FATAL: dry_run=False 但当前进程不是管理员。"
                     "原版 GameScript 与 KK 平台均以管理员运行；"
                     "非提权进程的 SendInput 会被 Windows UIPI 静默丢弃（返回成功但游戏无响应）。"
-                    "请右键 GameScript.exe，以管理员身份重新启动。"
+                    "请右键刷刷宝（ShuaBao.exe），以管理员身份重新启动。"
                 )
                 self.set_phase(Phase.ERROR, "real input requires elevation (UIPI)")
                 self._running = False

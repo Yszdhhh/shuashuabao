@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""GameScript-Local 单人挂机桌面面板。"""
+"""刷刷宝（ShuaBao）· 重生魔兽刷刷刷单人挂机桌面面板。"""
 
 from __future__ import annotations
 
@@ -44,10 +44,12 @@ sys.path.insert(0, str(ROOT / "src"))
 from gamescript import __version__
 from gamescript.settings import Settings
 
-APP_DATA = Path(os.environ.get("LOCALAPPDATA", ROOT)) / "GameScript-Local"
-LOG_FILE = APP_DATA / "logs" / "GameScript.log"
+APP_NAME = "刷刷宝"
+APP_ID = "ShuaBao"  # 文件/目录用 ASCII，避免非 ASCII 路径在打包与命令行工具里出问题
+APP_DATA = Path(os.environ.get("LOCALAPPDATA", ROOT)) / APP_ID
+LOG_FILE = APP_DATA / "logs" / f"{APP_ID}.log"
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-LOGGER = logging.getLogger("GameScript-Local")
+LOGGER = logging.getLogger(APP_ID)
 if not LOGGER.handlers:
     LOGGER.setLevel(logging.INFO)
     _handler = RotatingFileHandler(LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
@@ -438,7 +440,7 @@ class NegativeTreasureGroup(QGroupBox):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"重生魔兽刷刷刷 · 单人挂机助手 · v{__version__}")
+        self.setWindowTitle(f"{APP_NAME} · 重生魔兽刷刷刷挂机助手 · v{__version__}")
         # 技能网格 + 负面宝物分区后内容变高；给足默认高度，避免一打开就要滚动
         self.resize(560, 720)
         self.setMinimumSize(520, 520)
@@ -612,9 +614,9 @@ class MainWindow(QMainWindow):
         header.setSpacing(10)
         title_box = QVBoxLayout()
         title_box.setSpacing(0)
-        title = QLabel("重生魔兽刷刷刷")
+        title = QLabel(APP_NAME)
         title.setStyleSheet("font-size:20px; font-weight:bold; color:#e8eef8; background:transparent;")
-        subtitle = QLabel(f"单人挂机助手 · v{__version__}")
+        subtitle = QLabel(f"重生魔兽刷刷刷 · 单人挂机助手 · v{__version__}")
         subtitle.setStyleSheet("font-size:11px; color:#64748b; background:transparent;")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
@@ -932,7 +934,8 @@ class MainWindow(QMainWindow):
                     self,
                     "需要管理员权限",
                     "游戏和 KK 对战平台通常以管理员身份运行，普通权限程序无法可靠点击它们。\n\n"
-                    "请关闭本窗口，右键 GameScript.exe，选择“以管理员身份运行”后再开始。",
+                    f"请关闭本窗口，右键 {APP_ID}.exe（或桌面「{APP_NAME}」快捷方式），"
+            "选择“以管理员身份运行”后再开始。",
                 )
                 self.log("[阻断] 真机运行需要管理员权限", "error")
                 return
@@ -980,7 +983,7 @@ def _handle_unhandled_exception(exc_type, exc_value, exc_traceback):
     )
     QMessageBox.critical(
         None,
-        "GameScript 启动失败",
+        f"{APP_NAME} 启动失败",
         f"程序遇到异常，详情已写入：\n{LOG_FILE}\n\n{exc_value}",
     )
 
@@ -990,9 +993,9 @@ def main():
     app = QApplication(sys.argv)
     sys.excepthook = _handle_unhandled_exception
 
-    _INSTANCE_LOCK = QLockFile(str(APP_DATA / "GameScript.lock"))
+    _INSTANCE_LOCK = QLockFile(str(APP_DATA / f"{APP_ID}.lock"))
     if not _INSTANCE_LOCK.tryLock(100):
-        QMessageBox.information(None, "GameScript", "程序已经在运行。")
+        QMessageBox.information(None, APP_NAME, "程序已经在运行。")
         return
 
     window = MainWindow()
