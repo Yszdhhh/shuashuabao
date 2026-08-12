@@ -118,6 +118,21 @@ class DesktopPanelTests(unittest.TestCase):
             "放行一张不得连带放行其它负面宝物",
         )
 
+    def test_negative_group_keeps_its_section_number(self):
+        """分组自己刷新标题时不得冲掉外部序号前缀（曾因两处写标题而丢失 ③）。"""
+        group = self.window.grp_negative
+        for action in (
+            lambda: group.set_allowed(["金转木"]),
+            lambda: group.setChecked(True),
+            lambda: group.setChecked(False),
+            lambda: group.set_allowed([]),
+        ):
+            action()
+            self.assertTrue(
+                group.title().startswith("③"),
+                f"标题丢了序号前缀：{group.title()!r}",
+            )
+
     def test_negative_treasure_list_matches_policy_config(self):
         """面板展示的负面宝物必须与策略配置同源，避免 UI 与判定脱节。"""
         from gamescript.choice_policy import DEFAULT_NEGATIVE_NAMES

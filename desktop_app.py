@@ -361,8 +361,11 @@ class NegativeTreasureGroup(QGroupBox):
         "等级优势": "直接拉到某等级，之后不再升级",
     }
 
-    def __init__(self, names: list[str], parent=None):
-        super().__init__("宝物 · 负面卡放行（默认全不选，点勾展开）", parent)
+    def __init__(self, names: list[str], prefix: str = "", parent=None):
+        super().__init__(parent)
+        # 标题只有这一个写入源：外部改前缀请传 prefix，不要在外面 setTitle，
+        # 否则分组自己刷新标题时（勾选/折叠）会把外部前缀冲掉。
+        self._prefix = prefix
         self._boxes: dict[str, QCheckBox] = {}
         self.setCheckable(True)
         self.setChecked(False)
@@ -405,18 +408,20 @@ class NegativeTreasureGroup(QGroupBox):
         lay.addWidget(self.body)
         self.body.setVisible(False)
         self.toggled.connect(self._on_toggled)
+        self.changed.connect(self._refresh_title)
+        self._refresh_title()
 
     def _on_toggled(self, expanded: bool):
         self.body.setVisible(expanded)
-        if not expanded:
-            self._refresh_title()
+        self._refresh_title()
 
     def _refresh_title(self):
         allowed = self.get_allowed()
         if allowed:
-            self.setTitle(f"宝物 · 负面卡放行（已放行 {len(allowed)} 张：{'、'.join(allowed)}）")
+            body = f"宝物 · 负面卡放行（已放行 {len(allowed)} 张：{'、'.join(allowed)}）"
         else:
-            self.setTitle("宝物 · 负面卡放行（默认全不选，点勾展开）")
+            body = "宝物 · 负面卡放行（默认全不选，点勾展开）"
+        self.setTitle(f"{self._prefix}{body}")
 
     def get_allowed(self) -> list[str]:
         return [name for name, box in self._boxes.items() if box.isChecked()]
@@ -710,9 +715,8 @@ class MainWindow(QMainWindow):
         self.skill_grid.skills_changed.connect(self._on_skills_changed)
         main_layout.addWidget(self.grp_skill)
 
-        self.grp_negative = NegativeTreasureGroup(NEGATIVE_TREASURES)
-        self.grp_negative.setTitle("③ " + self.grp_negative.title())
-        self.grp_negative.changed.connect(self._on_negative_changed)
+        self.grp_negative = NegativeTreasureGroup(NEGATIVE_TREASURES, prefix="③ ")
+        self.grp_negative.changed.connect(self._schedule_auto_save)
         main_layout.addWidget(self.grp_negative)
 
         self.btn_main = QPushButton("开  始  运  行")
@@ -754,16 +758,6 @@ class MainWindow(QMainWindow):
                 if names
                 else "② 技能搭配（未选择 · 只刷新不学习，点勾展开）"
             )
-
-    def _on_negative_changed(self):
-        allowed = self.grp_negative.get_allowed()
-        base = (
-            f"③ 宝物 · 负面卡放行（已放行 {len(allowed)} 张：{'、'.join(allowed)}）"
-            if allowed
-            else "③ 宝物 · 负面卡放行（默认全不选，点勾展开）"
-        )
-        self.grp_negative.setTitle(base)
-        self._schedule_auto_save()
 
     def _on_skills_changed(self):
         names = self.skill_grid.selected_names()
@@ -850,7 +844,6 @@ class MainWindow(QMainWindow):
         self.grp_negative.set_allowed(
             list(getattr(settings, "treasure_allow_negative", []) or [])
         )
-        self._on_negative_changed()
 
         mode_index = self.cmb_mode.findData(bool(settings.auto_reputation))
         self.cmb_mode.setCurrentIndex(mode_index if mode_index >= 0 else 0)
