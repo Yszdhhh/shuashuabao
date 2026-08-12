@@ -1,4 +1,4 @@
-# 刷刷宝打包脚本：构建 exe → 部署到桌面 → 建/更新桌面快捷方式。
+﻿# 刷刷宝打包脚本：构建 exe → 部署到桌面 → 建/更新桌面快捷方式。
 #
 # 打包前强制过发版门禁（tools/release_gate.py）。要跳过请显式加 -SkipGate，
 # 并自己清楚为什么——门禁红着发版正是 8-12 连出两个紧急修复的原因。
@@ -24,7 +24,13 @@ if (-not (Test-Path -LiteralPath $python)) {
 
 if (-not $SkipGate) {
     Write-Host "[1/3] 发版门禁 ..." -ForegroundColor Cyan
-    & $python tools\release_gate.py
+    # 用开发环境跑门禁：.venv 只装了打包依赖（PySide6 + PyInstaller），
+    # 没有 pytest/opencv，拿它跑会得到"0 passed"这种假失败。
+    $gatePython = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if (-not $gatePython) {
+        throw "PATH 上没有 python，无法跑门禁。装好开发环境，或明确知道后果时用 -SkipGate。"
+    }
+    & $gatePython tools\release_gate.py
     if ($LASTEXITCODE -ne 0) {
         throw "门禁未通过，已中止打包。修好再来，或明确知道后果时用 -SkipGate。"
     }
