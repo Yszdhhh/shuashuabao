@@ -274,9 +274,42 @@ class S3NegativeTreasureOptIn(unittest.TestCase):
         self.assertEqual(decision.index, 1, "只有被勾选的那张负面卡可选")
 
     def test_missing_description_is_not_guessed_negative(self):
-        """识别层没读到描述时不得凭卡名猜负面（宁可当正面，由白名单/品质把关）。"""
+        """未确认的卡在读不到描述时不得凭卡名猜负面（宁可当正面，由白名单/品质把关）。
+
+        注意与已确认名单的区别：用户逐张确认过的 6 张（见 CONFIRMED_NEGATIVE）
+        即使描述缺失也照拦；这里测的是名单之外的卡。
+        """
+        settings = PolicySettings()
+        for name in ("命运骰子", "百宝箱", "刷新券"):
+            with self.subTest(name=name):
+                self.assertNotIn(name, settings.treasure_negative_names)
+                self.assertFalse(
+                    is_negative_treasure(_slot(0, name, description=""), settings)
+                )
+
+    CONFIRMED_NEGATIVE = (
+        "透支力量", "贪婪献祭", "金转木", "杀敌梭哈", "伐木契约", "等级优势",
+    )
+
+    def test_confirmed_negative_names_blocked_without_description(self):
+        """用户 2026-08-12 逐张确认的 6 张：描述 OCR 失败时也必须拦住。"""
+        settings = PolicySettings()
+        for name in self.CONFIRMED_NEGATIVE:
+            with self.subTest(name=name):
+                self.assertTrue(
+                    is_negative_treasure(_slot(0, name, description=""), settings),
+                    f"{name} 已确认为负面宝物，缺描述时仍应拦截",
+                )
+
+    def test_confirmed_negative_still_respects_opt_in(self):
+        """确认名单不是死锁：勾选放行后照样可选（放行优先级最高）。"""
+        settings = PolicySettings(treasure_allow_negative=("贪婪献祭",))
         self.assertFalse(
-            is_negative_treasure(_slot(0, "透支力量", description=""), PolicySettings())
+            is_negative_treasure(_slot(0, "贪婪献祭", description=""), settings)
+        )
+        self.assertTrue(
+            is_negative_treasure(_slot(1, "金转木", description=""), settings),
+            "放行是逐卡的，不得连带放行其它负面卡",
         )
 
 

@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "_comment": "技能中文名 + 悬停说明。名字与 config/skill_labels.json 一致（那份是识别用的权威映射，这份只加说明文本）。图标取 assets/Images/skills/<短码>.png。",
+  "_evidence_policy": "description 只填有实机证据的：来源写在 source 字段。没有证据的留空字符串，面板会显示『说明待补』——不要凭想象编游戏数值，选错技能的代价由用户承担。",
+  "_todo": "待补说明的短码见下方 description 为空者。补法：局内开技能面板截图，把卡面描述原文抄进来并把 source 写成帧文件名。",
+
+  "skills": {
+    "asj": {
+      "label": "奥数箭",
+      "description": "",
+      "source": ""
+    },
+    "asjg": {
+      "label": "奥数激光",
+      "description": "",
+      "source": ""
+    },
+    "assx": {
+      "label": "奥数射线",
+      "description": "",
+      "source": ""
+    },
+    "bsxx": {
+      "label": "冰霜新星",
+      "description": "",
+      "source": ""
+    },
+    "byj": {
+      "label": "爆炎箭",
+      "description": "射出爆炎箭，对命中目标造成280%攻击的伤害",
+      "source": "tests/performance/fixtures/giveup_panel.jpg（技能面板实机帧）"
+    },
+    "dcw": {
+      "label": "电磁网",
+      "description": "",
+      "source": ""
+    },
+    "dz": {
+      "label": "地震",
+      "description": "",
+      "source": ""
+    },
+    "hbj": {
+      "label": "寒冰箭",
+      "description": "",
+      "source": ""
+    },
+    "hq": {
+      "label": "火球",
+      "description": "",
+      "source": ""
+    },
+    "jf": {
+      "label": "飓风",
+      "description": "",
+      "source": ""
+    },
+    "jq": {
+      "label": "剑气",
+      "description": "",
+      "source": ""
+    },
+    "ljf": {
+      "label": "龙卷风",
+      "description": "",
+      "source": ""
+    },
+    "pg": {
+      "label": "普攻",
+      "description": "",
+      "source": ""
+    },
+    "sdl": {
+      "label": "闪电链",
+      "description": "",
+      "source": ""
+    },
+    "tl": {
+      "label": "天雷",
+      "description": "召唤天雷，对命中目标造成180%攻击的[电系]魔法伤害，并附加1秒麻痹",
+      "source": "tests/performance/fixtures/giveup_panel.jpg（技能面板实机帧）"
+    },
+    "ys": {
+      "label": "陨石",
+      "description": "",
+      "source": ""
+    }
+  },
+
+  "presets": [
+    {
+      "name": "奥术箭流",
+      "codes": ["asj", "asjg", "assx", "jq"],
+      "hint": "奥术三件套 + 剑气补普攻，当前实机验证最多的配置"
+    },
+    {
+      "name": "冰法控场",
+      "codes": ["hbj", "bsxx", "jq", "pg"],
+      "hint": "寒冰箭 + 冰霜新星减速控场"
+    },
+    {
+      "name": "天雷狂轰",
+      "codes": ["tl", "sdl", "dcw", "jq"],
+      "hint": "天雷 + 闪电链电系爆发，带麻痹"
+    }
+  ]
+}

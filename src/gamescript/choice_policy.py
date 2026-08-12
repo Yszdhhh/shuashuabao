@@ -78,6 +78,17 @@ DEFAULT_NEGATIVE_PATTERNS = (
     "停止升级",
 )
 
+# 用户 2026-08-12 逐张确认的负面宝物（拿了会断资源/断成长）。
+# 名字判定与描述判定并存：描述读不到时名字仍然拦得住；名字变了描述仍然拦得住。
+DEFAULT_NEGATIVE_NAMES = (
+    "透支力量",
+    "贪婪献祭",
+    "金转木",
+    "杀敌梭哈",
+    "伐木契约",
+    "等级优势",
+)
+
 # 会话/动作上限默认值（蓝图 §12：技能 3 次免费刷新后放弃；WAIT 有总次数上限；
 # 每个 panel episode 有尝试上限）。集成波可用配置覆盖。
 DEFAULT_MAX_ATTEMPTS = 12
@@ -134,6 +145,8 @@ class PolicySettings:
     bond_whitelist_mode: str = WHITELIST_HARD
     # 宝物负面描述模式；命中即视为负面。
     treasure_negative_patterns: tuple[str, ...] = DEFAULT_NEGATIVE_PATTERNS
+    # 已确认的负面宝物名单（与描述判定并存，互为冗余）。
+    treasure_negative_names: tuple[str, ...] = DEFAULT_NEGATIVE_NAMES
     # 负面宝物放行名单（UI 里折叠勾选后才进来）：只有名字在此名单内的负面宝物才可选。
     treasure_allow_negative: tuple[str, ...] = ()
 
@@ -156,6 +169,7 @@ class PolicySettings:
             return raw
         qo = raw.get("quality_order")
         neg = raw.get("treasure_negative_patterns")
+        neg_names = raw.get("treasure_negative_names")
         return cls(
             skill_presets=tuple(str(s) for s in raw.get("skill_presets", ())),
             bond_presets=tuple(str(s) for s in raw.get("bond_presets", ())),
@@ -169,6 +183,11 @@ class PolicySettings:
                 tuple(str(s) for s in neg)
                 if neg is not None
                 else DEFAULT_NEGATIVE_PATTERNS
+            ),
+            treasure_negative_names=(
+                tuple(str(s) for s in neg_names)
+                if neg_names is not None
+                else DEFAULT_NEGATIVE_NAMES
             ),
             treasure_allow_negative=tuple(
                 str(s) for s in raw.get("treasure_allow_negative", ())
@@ -469,18 +488,27 @@ def _rarity_rank(rarity: str | None, quality_order: tuple[str, ...]) -> int:
 
 
 def is_negative_treasure(slot: SlotCandidate, settings: PolicySettings) -> bool:
-    """宝物是否带负面效果（描述命中负面模式，且未被勾选放行）。
+    """宝物是否带负面效果（拿了会断资源/断成长），且未被勾选放行。
 
-    判定基于**卡面描述原文**而不是卡名黑名单：实机宝物面板的效果描述就在
-    卡名下方且可 OCR，按描述判定能覆盖没见过的新卡（如「获得50万金币，
-    5分钟后不再获得金币」）。描述为空时无法判定负面 → 视为非负面
-    （由识别层负责把描述读出来；读不到不在本模块伪造结论）。
+    两条互为冗余的判定，任一命中即为负面：
 
-    勾选放行（``treasure_allow_negative``）后返回 False——用户在 UI 折叠区
+    1. **已确认名单**（``treasure_negative_names``）：用户逐张确认过的卡
+       （透支力量/贪婪献祭/金转木/杀敌梭哈/伐木契约/等级优势）。描述 OCR
+       读失败时这条仍然拦得住。
+    2. **描述原文模式**（``treasure_negative_patterns``）：实机宝物面板的效果
+       描述就在卡名下方且可 OCR，按描述判定能覆盖没见过的新卡（如「获得
+       50万金币，5分钟后不再获得金币」）。卡名换皮时这条仍然拦得住。
+
+    描述为空且不在名单内 → 视为非负面（不在本模块凭卡名臆测；识别层负责
+    把描述读出来，读不到就由白名单/品质继续把关）。
+
+    勾选放行（``treasure_allow_negative``）优先于上述两条——用户在 UI 折叠区
     显式打勾的负面宝物才允许被选。
     """
     if slot.name and slot.name in settings.treasure_allow_negative:
         return False
+    if slot.name and slot.name in settings.treasure_negative_names:
+        return True
     text = slot.description or ""
     if not text:
         return False

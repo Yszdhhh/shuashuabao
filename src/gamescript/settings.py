@@ -91,6 +91,10 @@ class Settings:
     sgzx_boss: str = ""
     skills: list[str] = field(default_factory=lambda: ["jq", "pg"])
     cards: list[str] = field(default_factory=list)
+    # 负面宝物放行名单（拿了会断资源/断成长的卡，默认一张都不选）。
+    # 面板『宝物 · 负面卡』折叠区逐张打勾后写入；放行是逐卡的，不是全局开关。
+    # 语义与判定见 config/choice_policy.json 与 gamescript.choice_policy。
+    treasure_allow_negative: list[str] = field(default_factory=list)
     auto_bond: bool = True       # 主动按 F 开羁绊面板（低频，防烧木材）
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
@@ -183,7 +187,7 @@ class Settings:
                 if k in ("room_name", "room_password", "cjb_boss", "sgzx_boss",
                          "reputation_cjb_boss", "reputation_sgzx_boss", "window_title_contains"):
                     clean[k] = ""
-                elif k in ("skills", "cards", "stage_targets"):
+                elif k in ("skills", "cards", "stage_targets", "treasure_allow_negative"):
                     clean[k] = []
         # 类型/范围强制：损坏或异常值回落到安全默认，避免整份配置加载失败
         int_fields = {
@@ -291,6 +295,15 @@ class Settings:
                     clean.pop(k)
         if "match_threshold" in clean:
             clean["match_threshold"] = max(0.5, min(0.99, float(clean["match_threshold"])))
+        # 负面宝物放行名单：只接受字符串列表；类型不对一律回落为空（不放行任何负面卡）。
+        if "treasure_allow_negative" in clean:
+            raw_allow = clean["treasure_allow_negative"]
+            if isinstance(raw_allow, (list, tuple)):
+                clean["treasure_allow_negative"] = [
+                    str(v).strip() for v in raw_allow if str(v).strip()
+                ]
+            else:
+                clean["treasure_allow_negative"] = []
         if "window_size" in clean:
             ws = clean["window_size"]
             if not (isinstance(ws, list) and len(ws) == 2
