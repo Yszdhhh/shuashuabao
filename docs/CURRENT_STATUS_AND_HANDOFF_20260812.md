@@ -1,5 +1,27 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-12 A 组：选卡策略 mediator 接线（L1 局内）
+
+- 分支：`cursor/choice-policy-wiring-l1-9866`（基于 `origin/codex/ocr-hybrid@2067952`）
+- 只动一层：**L1 局内选卡决策**（`src/gamescript/mediator.py` + 相关期望/契约测试）
+- 已接线：`_ocr_panel_slots` → `SlotCandidate` → `choice_policy.choose_action` → SELECT/REFRESH/GIVEUP/CLOSE/WAIT
+- A3 旁路已切断：bond/card 不再走 `_rarity_choice` / `_fallback_choice`；`_ADVANCED_BOND_MARKERS` 启发式已移除；宝物禁止无脑第一张
+- `RARITY_BANDS` 已补 `green`；描述 ROI 按 `fixtures/treasure_negative` 的 `desc2_*` 回投标定（`y0=0.275,y1=0.420,half_w=0.088`，x 中心 `(0.348,0.497,0.646)`）
+- 新增契约：`tests/contract/test_choice_policy_wiring_contract.py`
+
+### 因此失效、需重测的实机链路
+
+1. **技能三选一面板**：日志应出现「稀有度优先」；预设内按红>橙>紫>蓝>白>绿，不再从左到右取第一张
+2. **羁绊面板**：未勾选卡不得再被品质色/启发式选中；三槽全未勾选 → WAIT/刷新/隐藏
+3. **宝物面板**：负面六名单（透支力量/贪婪献祭/金转木/杀敌梭哈/伐木契约/等级优势）默认不选；描述 OCR 读失败时仍靠名字拦
+
+### 未改（红线）
+
+- 未改 `choice_policy.py` / `settings.py` / `config/choice_policy.json` / `desktop_app.py` / `ui/**`
+- 未改大厅/恢复逻辑；未为变绿改 `GATE_BASELINE.json`
+
+---
+
 ## 2026-08-12 r11 创房进房回归（当前唯一可测）
 
 - 当前唯一桌面可测版：C:\Users\10639\Desktop\GameScript-v2026.08.12-r11

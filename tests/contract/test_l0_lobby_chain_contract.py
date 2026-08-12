@@ -140,6 +140,10 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_inventory_same_pt_hits": 5,
         "_inventory_next_at": 1.0e9,
         "_skill_refresh_attempts": 3,
+        "_choice_session": __import__(
+            "gamescript.choice_policy", fromlist=["SessionState"]
+        ).SessionState(attempts=9, refreshes=3, waits=4),
+        "_choice_policy_idle": True,
         "_panel_fingerprint_attempts": 4,
         "_panel_f1_used_this_episode": True,
         "_merchant_next_at": 1.0e9,

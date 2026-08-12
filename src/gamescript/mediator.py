@@ -61,6 +61,18 @@ from gamescript.vision.stage_selector import (
     visible_stage_rows,
 )
 from gamescript.vision.ocr_shadow.client import ShadowClient
+from gamescript.choice_policy import (
+    DEFAULT_MAX_ATTEMPTS,
+    DEFAULT_MAX_REFRESHES,
+    DEFAULT_MAX_WAITS,
+    PanelCandidates,
+    PolicyAction,
+    PolicyDecision,
+    PolicySettings,
+    SessionState,
+    SlotCandidate,
+    choose_action,
+)
 
 # 构建标识：写入 JSONL tick trace（B1-1），用于区分版本/里程碑来源。
 # 每次发布里程碑时更新；配合 git 提交哈希可精确定位产生该日志的代码。
@@ -226,12 +238,30 @@ class Mediator:
         "bond": ((0.331, 0.44), (0.503, 0.44), (0.676, 0.44)),
         "treasure": ((0.352, 0.42), (0.500, 0.42), (0.648, 0.42)),
     }
-    # 高级/复合羁绊常以具体卡名出现（如“白赚海盗”“亡灵天灾”），
-    # 不能只用规范体系名做完全相等判断，否则会被误当成基础卡。
-    _ADVANCED_BOND_MARKERS = (
-        "海盗", "亡灵", "三国", "修仙", "异火", "封神", "龙族", "军团",
-    )
-    _ADVANCED_BOND_MIN_OCCUPANCY = 4
+    # 卡面效果描述 ROI（归一化）。宝物三槽 x 中心与品质色采样一致；
+    # y/半宽按 fixtures/treasure_negative desc2_* 在整帧上的模板回投标定
+    # （_panels/treasure_panel.png + 贪婪献祭 desc2；覆盖 DESCRIPTIONS.json 证据）。
+    _OCR_DESC_ROIS = {
+        "treasure": {
+            "centers_x": (0.348, 0.497, 0.646),
+            "half_w": 0.088,
+            "y0": 0.275,
+            "y1": 0.420,
+        },
+    }
+    # 品质色采样中心（与 _rarity_choice / 描述 ROI 对齐）。
+    _RARITY_SAMPLE_XS = {
+        "treasure": (0.348, 0.497, 0.646),
+        "bond": (0.331, 0.450, 0.569),
+        "card": (0.331, 0.450, 0.569),
+        "skill": (0.354, 0.500, 0.646),
+    }
+    _RARITY_SAMPLE_CY = {
+        "treasure": 0.300,
+        "bond": 0.333,
+        "card": 0.333,
+        "skill": 0.333,
+    }
 
     def __init__(
         self,
@@ -365,6 +395,10 @@ class Mediator:
         self._selection_repeat_key: tuple[str, str, int, int] | None = None
         self._selection_repeat_attempts = 0
         self._skill_refresh_attempts = 0
+        # L1 选卡策略会话（choice_policy.SessionState）；按 panel episode 重置。
+        self._choice_session = SessionState()
+        self._choice_policy_idle = False
+        self._choice_policy_last_reason = ""
         # ---- S0 ② 全局抢占：每类强证据独立连续帧计数（同 evidence generation 才累计）----
         self._failure_candidate_frames: int = 0
         self._failure_candidate_kind: str | None = None
@@ -463,6 +497,17 @@ class Mediator:
             self._skill_labels = json.loads(labels_path.read_text(encoding="utf-8"))
         except (OSError, ValueError, TypeError):
             self._skill_labels = {}
+        self._fetter_labels: dict[str, str] = {}
+        fetter_path = project_root / "config" / "fetter_labels.json"
+        try:
+            raw_fetters = json.loads(fetter_path.read_text(encoding="utf-8"))
+            self._fetter_labels = {
+                str(k): str(v)
+                for k, v in raw_fetters.items()
+                if not str(k).startswith("_") and isinstance(v, str)
+            }
+        except (OSError, ValueError, TypeError):
+            self._fetter_labels = {}
         if getattr(settings, "ocr_mode", "off") in {"shadow", "live"}:
             repo_root = Path(settings.ocr_repo_root) if settings.ocr_repo_root else project_root
             self._ocr_client = ShadowClient(
@@ -1433,13 +1478,14 @@ class Mediator:
         return LoopAction.Continue
 
 
-    # 卡牌品质色（用户规则）：红 > 橙 > 紫 > 蓝 > 白；绿=面板装饰色排除
+    # 卡牌品质色（用户规则）：红 > 橙 > 紫 > 蓝 > 白 > 绿（最低档）
     RARITY_BANDS = (
         ("red", 5),
         ("orange", 4),
         ("purple", 3),
         ("blue", 2),
         ("white", 1),
+        ("green", 0),
     )
 
     def _card_rarity_score(
@@ -1484,6 +1530,8 @@ class Mediator:
         masks = {
             "red": (((hues <= 10) | (hues >= 170)) & (sat > 70) & (value > 60)),
             "orange": ((hues > 10) & (hues <= 30) & (sat > 70) & (value > 60)),
+            # green：hue 约 35–90；夹在 orange 与 blue 之间，实机绿边卡（如双倍神符）
+            "green": ((hues > 35) & (hues < 90) & (sat > 70) & (value > 60)),
             "purple": ((hues >= 125) & (hues < 170) & (sat > 60) & (value > 50)),
             "blue": ((hues >= 90) & (hues < 125) & (sat > 60) & (value > 50)),
             "white": ((sat < 45) & (value > 150)),
@@ -1505,13 +1553,19 @@ class Mediator:
         )
 
     def _ocr_panel_slots(self, frame: Frame, kind: str) -> list[dict]:
-        """Read the three title lines. OCR supplies names only, never coordinates."""
+        """Read title (+ treasure description) lines. OCR supplies names only, never coordinates."""
         if self._ocr_client is None or (frame.width, frame.height) != (1600, 900):
             return []
         rois = self._OCR_SLOT_ROIS.get(kind)
         if rois is None:
             return []
         panel_id = f"{kind}:{self._trace_frame_fingerprint(frame)}"
+        panel_bbox = (
+            int(frame.width * 0.24),
+            int(frame.height * 0.14),
+            int(frame.width * 0.76),
+            int(frame.height * 0.58),
+        )
         slots: list[dict] = []
         for index, roi in enumerate(rois):
             bbox = self._normalized_bbox(frame, roi)
@@ -1519,8 +1573,7 @@ class Mediator:
                 frame,
                 panel_id,
                 {"index": index, "bbox": bbox, "kind": kind},
-                panel_bbox=(int(frame.width * 0.24), int(frame.height * 0.14),
-                             int(frame.width * 0.76), int(frame.height * 0.58)),
+                panel_bbox=panel_bbox,
             )
             if response.elapsed_ms >= 1000 and self._tick_reason is None:
                 self._tick_reason = "ocr_cold_start"
@@ -1533,11 +1586,301 @@ class Mediator:
                 "rec_score": response.rec_score,
                 "status": response.status,
                 "reason": response.reason,
+                "rarity": self._slot_rarity_band(frame, kind, index),
+                "description": "",
             })
+        # 描述 ROI：仅宝物需要（负面判定）；读不到留空，绝不猜测。
+        desc_spec = self._OCR_DESC_ROIS.get(kind)
+        if desc_spec is not None:
+            half_w = float(desc_spec["half_w"])
+            y0 = float(desc_spec["y0"])
+            y1 = float(desc_spec["y1"])
+            for slot, cx in zip(slots, desc_spec["centers_x"]):
+                desc_roi = (float(cx) - half_w, y0, float(cx) + half_w, y1)
+                bbox = self._normalized_bbox(frame, desc_roi)
+                response = self._ocr_client.shadow_predict(
+                    frame,
+                    f"{panel_id}:desc",
+                    {"index": slot["index"], "bbox": bbox, "kind": f"{kind}_desc"},
+                    panel_bbox=panel_bbox,
+                )
+                text = (response.raw_text or "").strip()
+                if not text and response.candidates:
+                    text = (response.candidates[0].name or "").strip()
+                slot["description"] = text
         self._trace_ocr_suggestion = {"kind": kind, "slots": slots}
         return slots
 
+    def _slot_rarity_band(self, frame: Frame, kind: str, index: int) -> str | None:
+        """Map slot index → rarity band via border color (includes green)."""
+        xs = self._RARITY_SAMPLE_XS.get(kind) or self._RARITY_SAMPLE_XS.get("card")
+        cy_ratio = self._RARITY_SAMPLE_CY.get(kind, 0.333)
+        if xs is None or index < 0 or index >= len(xs):
+            return None
+        cx = int(frame.width * xs[index])
+        cy = int(frame.height * cy_ratio)
+        scored = self._card_rarity_score(frame, cx, cy, kind)
+        return scored[1] if scored is not None else None
+
+    def _slots_to_candidates(self, frame: Frame, kind: str, slots: list[dict]) -> tuple[SlotCandidate, ...]:
+        """Map OCR slot dicts → SlotCandidate (rarity/description filled when present)."""
+        out: list[SlotCandidate] = []
+        for slot in slots:
+            index = int(slot.get("index", 0))
+            rarity = slot.get("rarity")
+            if rarity is None and frame is not None:
+                rarity = self._slot_rarity_band(frame, kind, index)
+            description = str(slot.get("description") or "")
+            out.append(
+                SlotCandidate(
+                    index=index,
+                    name=slot.get("name"),
+                    confidence=float(slot.get("confidence") or 0.0),
+                    evidence=str(slot.get("raw_text") or ""),
+                    rarity=rarity if isinstance(rarity, str) else None,
+                    description=description,
+                )
+            )
+        return tuple(out)
+
+    def _policy_settings(self) -> PolicySettings:
+        """Assemble PolicySettings from Settings + config/choice_policy.json."""
+        raw: dict = {}
+        cfg_path = self.root / "config" / "choice_policy.json"
+        try:
+            loaded = json.loads(cfg_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                raw.update(loaded)
+        except (OSError, ValueError, TypeError):
+            pass
+        bond_cfg = raw.get("bond") if isinstance(raw.get("bond"), dict) else {}
+        treasure_cfg = raw.get("treasure") if isinstance(raw.get("treasure"), dict) else {}
+        skill_presets = tuple(
+            self._skill_labels[code]
+            for code in self.settings.skills
+            if self._skill_labels.get(code)
+        )
+        bond_presets: list[str] = []
+        for item in self.settings.cards:
+            text = str(item or "").strip()
+            if not text:
+                continue
+            stem = Path(text).stem
+            bond_presets.append(self._fetter_labels.get(stem, stem))
+        allow_neg = tuple(
+            str(x) for x in (getattr(self.settings, "treasure_allow_negative", None) or [])
+        )
+        mapping = {
+            "skill_presets": skill_presets,
+            "bond_presets": tuple(bond_presets),
+            "treasure_presets": (),
+            "quality_order": raw.get("quality_order"),
+            "min_confidence": 0.60,
+            "bond_whitelist_mode": bond_cfg.get("whitelist_mode", "hard"),
+            "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
+            "treasure_negative_names": treasure_cfg.get("negative_names"),
+            "treasure_allow_negative": allow_neg,
+        }
+        return PolicySettings.from_mapping(mapping)
+
+    def _reset_choice_session(self) -> None:
+        self._choice_session = SessionState(
+            max_attempts=DEFAULT_MAX_ATTEMPTS,
+            max_refreshes=DEFAULT_MAX_REFRESHES,
+            max_waits=DEFAULT_MAX_WAITS,
+        )
+        self._skill_refresh_attempts = 0
+        self._choice_policy_idle = False
+        self._choice_policy_last_reason = ""
+
+    def _record_choice_session(self, decision: PolicyDecision) -> None:
+        """Update SessionState after a policy decision.
+
+        WAIT increments waits only (not attempts). SELECT/REFRESH/GIVEUP/CLOSE
+        attempts/refreshes are committed after a successful click in the panel
+        FSM so a rejected click does not burn budget; before choose_action we
+        sync refreshes from ``_skill_refresh_attempts``.
+        """
+        cur = self._choice_session
+        if decision.action == PolicyAction.WAIT:
+            self._choice_session = SessionState(
+                attempts=cur.attempts,
+                refreshes=max(cur.refreshes, self._skill_refresh_attempts),
+                waits=cur.waits + 1,
+                deadline_exceeded=cur.deadline_exceeded,
+                max_attempts=cur.max_attempts,
+                max_refreshes=cur.max_refreshes,
+                max_waits=cur.max_waits,
+            )
+            return
+        # Keep refreshes mirror in sync for the next tick's choose_action input.
+        self._choice_session = SessionState(
+            attempts=cur.attempts,
+            refreshes=max(cur.refreshes, self._skill_refresh_attempts),
+            waits=cur.waits,
+            deadline_exceeded=cur.deadline_exceeded,
+            max_attempts=cur.max_attempts,
+            max_refreshes=cur.max_refreshes,
+            max_waits=cur.max_waits,
+        )
+
+    def _sync_choice_session_refreshes(self) -> None:
+        cur = self._choice_session
+        refreshes = max(cur.refreshes, int(self._skill_refresh_attempts))
+        if refreshes == cur.refreshes:
+            return
+        self._choice_session = SessionState(
+            attempts=cur.attempts,
+            refreshes=refreshes,
+            waits=cur.waits,
+            deadline_exceeded=cur.deadline_exceeded,
+            max_attempts=cur.max_attempts,
+            max_refreshes=cur.max_refreshes,
+            max_waits=cur.max_waits,
+        )
+
+    def _panel_has_giveup(self, frame: Frame, kind: str) -> bool:
+        names = {
+            "skill": ["skill_giveup_btn", "giveUp"],
+            "bond": ["skill_giveup_btn", "giveUp", "bond_hide_btn"],
+            "treasure": ["skill_giveup_btn", "giveUp", "treasure_hide_btn"],
+        }.get(kind, ["skill_giveup_btn", "giveUp"])
+        return self.find(
+            frame,
+            names,
+            threshold=min(0.70, self.settings.match_threshold),
+            scales=self._hot_scales(),
+            roi=self._PANEL_BUTTONS_ROI,
+            early_stop=True,
+        ) is not None
+
+    def _find_panel_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
+        names = {
+            "skill": ["skill_refresh_btn"],
+            "bond": ["bond_refresh_btn"],
+            "treasure": ["treasure_refresh_btn"],
+        }.get(kind, ["skill_refresh_btn"])
+        hit = self.find(
+            frame,
+            names,
+            threshold=min(0.70, self.settings.match_threshold),
+            scales=self._hot_scales(),
+            roi=self._PANEL_BUTTONS_ROI,
+        )
+        if hit is None and self._scaled_up_frame(frame):
+            hit = self.find(
+                frame,
+                names,
+                threshold=min(0.70, self.settings.match_threshold),
+                scales=self._wide_scales(),
+                roi=self._PANEL_BUTTONS_ROI,
+            )
+        return hit
+
+    def _find_panel_giveup(self, frame: Frame, kind: str) -> MatchResult | None:
+        names = {
+            "skill": ["skill_giveup_btn", "giveUp"],
+            "bond": ["skill_giveup_btn", "giveUp"],
+            "treasure": ["skill_giveup_btn", "giveUp"],
+        }.get(kind, ["skill_giveup_btn", "giveUp"])
+        hit = self.find(
+            frame,
+            names,
+            threshold=min(0.70, self.settings.match_threshold),
+            scales=self._hot_scales(),
+            roi=self._PANEL_BUTTONS_ROI,
+        )
+        if hit is None and self._scaled_up_frame(frame):
+            hit = self.find(
+                frame,
+                names,
+                threshold=min(0.70, self.settings.match_threshold),
+                scales=self._wide_scales(),
+                roi=self._PANEL_BUTTONS_ROI,
+            )
+        return hit
+
+    def _policy_decision_to_hit(
+        self,
+        frame: Frame,
+        kind: str,
+        decision: PolicyDecision,
+        slots: tuple[SlotCandidate, ...],
+    ) -> tuple[str, MatchResult] | None:
+        """Map PolicyDecision → (label, MatchResult). WAIT/NONE → idle (None)."""
+        self._choice_policy_last_reason = decision.reason or ""
+        self._record_choice_session(decision)
+        if decision.action == PolicyAction.WAIT:
+            self._choice_policy_idle = True
+            print(f"[L1] 选卡策略 WAIT：{decision.reason}")
+            return None
+        if decision.action == PolicyAction.NONE:
+            return None
+        if decision.action == PolicyAction.SELECT_SLOT:
+            if decision.index is None:
+                return None
+            name = None
+            for slot in slots:
+                if slot.index == decision.index:
+                    name = slot.name
+                    break
+            if kind == "skill" and name:
+                # Prefer skill short-code for downstream cycle ownership checks.
+                reverse = {v: k for k, v in self._skill_labels.items()}
+                hit_name = reverse.get(name, name)
+            elif name:
+                hit_name = f"ocr_{kind}:{name}"
+            else:
+                hit_name = f"ocr_{kind}:slot{decision.index}"
+            if decision.reason:
+                print(f"[L1] 选卡策略：{decision.reason}")
+            hit = self._choice_slot_hit(frame, kind, int(decision.index), hit_name)
+            label = "技能" if kind == "skill" else kind
+            return (label, hit)
+        if decision.action == PolicyAction.REFRESH:
+            refresh = self._find_panel_refresh(frame, kind)
+            if refresh is None:
+                self._choice_policy_idle = True
+                print(f"[L1] 选卡策略 REFRESH 但无刷新按钮：{decision.reason}")
+                return None
+            print(f"[L1] 选卡策略 REFRESH：{decision.reason}")
+            label = "技能刷新" if kind == "skill" else f"{kind}刷新"
+            return (label, refresh)
+        if decision.action == PolicyAction.GIVEUP:
+            give_up = self._find_panel_giveup(frame, kind)
+            if give_up is None:
+                close_hit = self._close_current_panel(frame, kind)
+                if close_hit is not None:
+                    print(f"[L1] 选卡策略 GIVEUP→CLOSE：{decision.reason}")
+                    return (kind if kind != "skill" else "技能放弃", close_hit)
+                self._choice_policy_idle = True
+                return None
+            print(f"[L1] 选卡策略 GIVEUP：{decision.reason}")
+            label = "技能放弃" if kind == "skill" else f"{kind}放弃"
+            return (label, give_up)
+        if decision.action == PolicyAction.CLOSE:
+            close_hit = self._close_current_panel(frame, kind)
+            if close_hit is None:
+                self._choice_policy_idle = True
+                print(f"[L1] 选卡策略 CLOSE 但无关闭按钮：{decision.reason}")
+                return None
+            print(f"[L1] 选卡策略 CLOSE：{decision.reason}")
+            return (kind if kind != "skill" else "技能", close_hit)
+        return None
+
+    @staticmethod
+    def _label_choice_hit(kind: str, hit: MatchResult) -> tuple[str, MatchResult]:
+        name = (hit.name or "").lower()
+        if "refresh" in name:
+            return ("技能刷新" if kind == "skill" else f"{kind}刷新", hit)
+        if "giveup" in name or name == "giveup":
+            return ("技能放弃" if kind == "skill" else f"{kind}放弃", hit)
+        if "hide" in name or name in {"hide", "card_hide"}:
+            return (kind if kind != "skill" else "技能", hit)
+        return ("技能" if kind == "skill" else kind, hit)
+
     def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str) -> MatchResult:
+
         x_ratio, y_ratio = self._CHOICE_SLOT_CENTERS[kind][index]
         x, y = int(frame.width * x_ratio), int(frame.height * y_ratio)
         return MatchResult(name, 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
@@ -1565,71 +1908,42 @@ class Mediator:
         return occupied
 
     def _ocr_reward_choice(self, frame: Frame, kind: str) -> MatchResult | None:
-        slots = self._ocr_panel_slots(frame, kind)
-        if not slots:
-            return None
-        if kind == "skill":
-            configured = {
-                self._skill_labels.get(code, ""): code
-                for code in self.settings.skills
-                if self._skill_labels.get(code)
-            }
-            for slot in slots:
-                code = configured.get(slot["name"])
-                if code and slot["confidence"] >= 0.60:
-                    return self._choice_slot_hit(frame, kind, slot["index"], code)
-            return None
+        """OCR → SlotCandidate → choice_policy.choose_action → click target.
 
-        if kind == "bond":
-            occupancy = self._bond_bar_occupancy(frame)
-            ranked: list[tuple[tuple[int, int, int, int], dict]] = []
-            for slot in slots:
-                name = slot["name"]
-                if not name or slot["confidence"] < 0.60:
-                    continue
-                progress = self._progress_from_text(slot["raw_text"])
-                if progress and progress[0] >= progress[1]:
-                    continue
-                gap = progress[1] - progress[0] if progress else 99
-                # 格子接近满时只允许“差一张即可合成”的动作，禁止继续铺新羁绊。
-                if occupancy is not None and occupancy >= 8 and gap != 1:
-                    continue
-                close_to_merge = 0 if gap == 1 else 1
-                advanced = 1 if any(marker in name for marker in self._ADVANCED_BOND_MARKERS) else 0
-                have = progress[0] if progress else 0
-                # 前期先建立基础羁绊。海盗/亡灵等高级体系只有在已有进度，
-                # 或基础栏至少形成 4 格后才允许从零起卡；检测不到占用时安全隐藏。
-                if (
-                    advanced
-                    and have == 0
-                    and (occupancy is None or occupancy < self._ADVANCED_BOND_MIN_OCCUPANCY)
-                ):
-                    continue
-                have_rank = -(progress[0] if progress else 0)
-                # Basic bonds are always built before composite/advanced ones;
-                # within the same tier, finish the closest combination first.
-                ranked.append(((advanced, close_to_merge, gap, have_rank), slot))
-            if not ranked:
-                return None
-            ranked.sort(key=lambda item: (item[0], item[1]["index"]))
-            slot = ranked[0][1]
-            return self._choice_slot_hit(frame, kind, slot["index"], f"ocr_bond:{slot['name']}")
-
-        if kind == "treasure":
-            recognized = [s for s in slots if s["name"] and s["confidence"] >= 0.60]
-            if recognized:
-                slot = min(recognized, key=lambda s: s["index"])
-                return self._choice_slot_hit(frame, kind, slot["index"], f"ocr_treasure:{slot['name']}")
-        return None
+        Old left-to-right / advanced-bond / min-index heuristics are intentionally
+        gone; hard whitelist + rarity-first + negative-treasure live in choose_action.
+        """
+        slots_raw = self._ocr_panel_slots(frame, kind)
+        if not slots_raw:
+            return None
+        self._sync_choice_session_refreshes()
+        slots = self._slots_to_candidates(frame, kind, slots_raw)
+        decision = choose_action(
+            PanelCandidates(
+                panel_kind=kind,
+                slots=slots,
+                set_progress=None,
+                refresh_count=self._choice_session.refreshes,
+                has_giveup=self._panel_has_giveup(frame, kind),
+                settings=self._policy_settings(),
+            ),
+            self._choice_session,
+        )
+        mapped = self._policy_decision_to_hit(frame, kind, decision, slots)
+        if mapped is None:
+            return None
+        return mapped[1]
 
     def _rarity_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
-        """Pick the highest-rarity card in a 3-choice panel by border color."""
-        if panel_kind == "treasure":
-            xs = (0.348, 0.497, 0.646)
-            cy_ratio = 0.300
-        else:
-            xs = (0.331, 0.450, 0.569)
-            cy_ratio = 0.333
+        """Pick the highest-rarity card by border color. Treasure-only (A3).
+
+        Bond/card must NOT call this as a whitelist bypass. Treasure may use it
+        when OCR names are unavailable and choose_action cannot run.
+        """
+        if panel_kind not in ("treasure",):
+            return None
+        xs = self._RARITY_SAMPLE_XS.get(panel_kind, (0.348, 0.497, 0.646))
+        cy_ratio = self._RARITY_SAMPLE_CY.get(panel_kind, 0.300)
         best: tuple[int, str, int, int, int] | None = None
         for x_ratio in xs:
             cx = int(frame.width * x_ratio)
@@ -1655,27 +1969,20 @@ class Mediator:
             screen_y=frame.top + cy,
         )
 
-    def _fallback_choice(self, frame: Frame, panel_kind: str) -> MatchResult:
-        """Choose the first real card when bond/treasure has no configured or rarity hit."""
-        if panel_kind == "treasure":
-            x_ratio, y_ratio = 0.348, 0.300
-        else:
-            x_ratio, y_ratio = 0.331, 0.333
-        x, y = int(frame.width * x_ratio), int(frame.height * y_ratio)
-        return MatchResult("fallback_first", 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
+    def _fallback_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
+        """Disabled: never pick 'first card' for bond/card/treasure (A3)."""
+        return None
 
     def _find_reward_choice(self, frame: Frame, anchor: MatchResult | None = None) -> tuple[str, MatchResult] | None:
         """Decision layer for an open reward-choice panel.
 
         Policy (one action max):
-        1. classify panel kind; UNKNOWN → None (caller handles: close if we
-           opened it, else zero-input)
-        2. match ONLY user-preferred templates (skills/cards); a preferred hit
-           is chosen directly
-        3. bond/treasure: no preferred hit → rarity pick → first card
-        4. skill: no preferred hit → refresh up to 3 times → give up
-        The full skills/cards library is NOT scanned online; it is only used
-        for offline diagnostics/template maintenance.
+        1. classify panel kind; UNKNOWN → None (caller handles)
+        2. OCR live/shadow with candidates → choice_policy.choose_action
+        3. template preferred (skills/cards) when OCR unavailable
+        4. bond/card: never rarity / first-card bypass
+        5. treasure: quality only as last resort; never first-card
+        6. skill: refresh up to max → give up
         """
         if anchor is None:
             anchor = self._selection_anchor(frame)
@@ -1684,11 +1991,9 @@ class Mediator:
 
         kind = self._panel_kind_of(frame, anchor)
         if kind == "unknown":
-            # 分类失败：绝不假装 skill（旧行为会把 UNKNOWN 当技能面板扫全库）
             self._record_selection_unknown(frame, anchor, "panel classification failed")
             return None
 
-        # B1-2 扩展：正常选择面板抽样（数据集收集；无 incident_dir 时空转）
         if self._archiver is not None:
             self._archiver.sample_panel(
                 frame,
@@ -1702,31 +2007,49 @@ class Mediator:
 
         ocr_mode = getattr(self.settings, "ocr_mode", "off")
         if ocr_mode in {"shadow", "live"} and kind in {"skill", "bond", "treasure"}:
-            ocr_hit = self._ocr_reward_choice(frame, kind)
             if ocr_mode == "live":
+                # Live：走 _ocr_reward_choice（choose_action）；测试可 patch 该缝。
+                ocr_hit = self._ocr_reward_choice(frame, kind)
+                if self._choice_policy_idle:
+                    return None
                 if ocr_hit is not None:
-                    return ("技能" if kind == "skill" else kind, ocr_hit)
+                    return self._label_choice_hit(kind, ocr_hit)
                 if kind == "bond":
-                    # 没有可靠名字/接近合成证据，或羁绊栏接近满：隐藏而不是按颜色乱学。
                     close_hit = self._close_current_panel(frame, "bond")
                     return ("bond", close_hit) if close_hit is not None else None
-                if kind == "skill":
-                    # 继续落到下面“刷新三次→放弃”，禁止图标模板绕过名字门禁。
-                    preferred = []
-                else:
-                    preferred = None
+                if kind == "card":
+                    return None
+                # skill / treasure：无命中时落到下方刷新/放弃/品质收口
             else:
-                preferred = None
-        else:
-            preferred = None
+                # Shadow：只观察 OCR + 策略，不记账、不授权点击。
+                slots_raw = self._ocr_panel_slots(frame, kind)
+                if slots_raw:
+                    self._sync_choice_session_refreshes()
+                    slots = self._slots_to_candidates(frame, kind, slots_raw)
+                    decision = choose_action(
+                        PanelCandidates(
+                            panel_kind=kind,
+                            slots=slots,
+                            set_progress=None,
+                            refresh_count=self._choice_session.refreshes,
+                            has_giveup=self._panel_has_giveup(frame, kind),
+                            settings=self._policy_settings(),
+                        ),
+                        self._choice_session,
+                    )
+                    self._trace_ocr_suggestion = {
+                        "kind": kind,
+                        "slots": slots_raw,
+                        "policy_action": decision.action.value,
+                        "policy_reason": decision.reason,
+                        "policy_index": decision.index,
+                    }
 
         if kind in ("bond", "treasure", "card"):
             if kind == "bond" and ocr_mode == "live":
-                # Live bond choices require a recognized name and policy
-                # approval.  Never fall through to color/random selection.
+                # Live bond without policy SELECT already returned above.
                 return None
             if kind == "card" and ocr_mode == "live":
-                # 未经分类的卡组/禁用卡界面不具有选择授权。
                 return None
             preferred = [v.strip() for v in self.settings.cards if v and v.strip()]
             if preferred:
@@ -1740,20 +2063,23 @@ class Mediator:
                     if not any(math.hypot(h.x - c.x, h.y - c.y) < 40.0 for c in candidates):
                         candidates.append(h)
                 if candidates:
-                    # 尊重用户配置顺序（settings.cards），不按视觉分数排序
                     by_stem = {Path(c.name).stem: c for c in candidates}
                     for pref in preferred:
                         hit = by_stem.get(Path(pref).stem)
                         if hit is not None:
                             return (kind, hit)
-            # 无偏好命中 → 按品质色选最高稀有度
+            # A3：bond/card 禁止品质色 / 第一张旁路；未命中 → 关闭或零输入。
+            if kind in ("bond", "card"):
+                close_hit = self._close_current_panel(frame, kind)
+                return (kind, close_hit) if close_hit is not None else None
+            # treasure：无 OCR 时品质色可作末位；禁止无脑第一张。
             rarity_hit = self._rarity_choice(frame, kind)
             if rarity_hit is not None:
                 return (kind, rarity_hit)
-            # 无品质色也不阻塞：羁绊/宝物可以任选一张。
-            return (kind, self._fallback_choice(frame, kind))
+            close_hit = self._close_current_panel(frame, kind)
+            return (kind, close_hit) if close_hit is not None else None
 
-        # skill panel: preferred-only
+        # skill panel: preferred-only (OCR live already returned above)
         preferred = (
             []
             if ocr_mode == "live"
@@ -1770,48 +2096,17 @@ class Mediator:
                 if not any(math.hypot(h.x - c.x, h.y - c.y) < 40.0 for c in candidates):
                     candidates.append(h)
             if candidates:
-                # 尊重用户配置顺序（settings.skills），不按视觉分数排序
                 by_stem = {Path(c.name).stem: c for c in candidates}
                 for pref in preferred:
                     hit = by_stem.get(Path(pref).stem)
                     if hit is not None:
                         return ("技能", hit)
-        # 技能格有上限：绝不选未配置技能。先用完 3 次免费刷新，再放弃。
-        # N2.4：按钮行 ROI；宽尺度回退与 anchor/classify/preferred 一致，
-        # 仅 DPI 放大窗口触发（N2-REVIEW #6）。
-        if self._skill_refresh_attempts < 3:
-            refresh = self.find(
-                frame,
-                ["skill_refresh_btn"],
-                threshold=min(0.70, self.settings.match_threshold),
-                scales=self._hot_scales(),
-                roi=self._PANEL_BUTTONS_ROI,
-            )
-            if refresh is None and self._scaled_up_frame(frame):
-                refresh = self.find(
-                    frame,
-                    ["skill_refresh_btn"],
-                    threshold=min(0.70, self.settings.match_threshold),
-                    scales=self._wide_scales(),
-                    roi=self._PANEL_BUTTONS_ROI,
-                )
+        self._sync_choice_session_refreshes()
+        if self._choice_session.refreshes < self._choice_session.max_refreshes:
+            refresh = self._find_panel_refresh(frame, "skill")
             if refresh is not None:
                 return ("技能刷新", refresh)
-        give_up = self.find(
-            frame,
-            ["skill_giveup_btn", "giveUp"],
-            threshold=min(0.70, self.settings.match_threshold),
-            scales=self._hot_scales(),
-            roi=self._PANEL_BUTTONS_ROI,
-        )
-        if give_up is None and self._scaled_up_frame(frame):
-            give_up = self.find(
-                frame,
-                ["skill_giveup_btn", "giveUp"],
-                threshold=min(0.70, self.settings.match_threshold),
-                scales=self._wide_scales(),
-                roi=self._PANEL_BUTTONS_ROI,
-            )
+        give_up = self._find_panel_giveup(frame, "skill")
         if give_up is not None:
             return ("技能放弃", give_up)
         return None
@@ -4928,6 +5223,7 @@ class Mediator:
         self._panel_episode_started = time.time()
         self._panel_mutation_baseline = None
         self._panel_f1_used_this_episode = False
+        self._reset_choice_session()
         if opened:
             self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
 
@@ -4949,6 +5245,7 @@ class Mediator:
         self._selection_unknown_since = None
         self._l1_cycle_owned_panel = False
         self._l1_cycle_selected = False
+        self._reset_choice_session()
         if (
             cycle_owned
             and cycle_kind == self._l1_cycle_step
@@ -5075,6 +5372,11 @@ class Mediator:
                 return LoopAction.Continue
             # 同 fingerprint 同动作 ≤ panel_action_limit_per_fingerprint 次
             choice = self._find_reward_choice(frame, anchor=anchor)
+            if choice is None and self._choice_policy_idle:
+                # 策略明确 WAIT：本 tick 零输入，不走关闭/未知超时收口。
+                self._choice_policy_idle = False
+                print(f"[L1] 选卡策略本 tick 零输入（{self._choice_policy_last_reason or 'WAIT'}）")
+                return LoopAction.Continue
             if choice:
                 kind, hit = choice
                 fingerprint = (kind, hit.name, hit.screen_x // 8, hit.screen_y // 8)
@@ -5121,6 +5423,7 @@ class Mediator:
                     )
                     if hit.name == "skill_refresh_btn":
                         self._skill_refresh_attempts += 1
+                        self._sync_choice_session_refreshes()
                         self._panel_opened_by_us = "skill"
                     else:
                         if kind == "技能":
