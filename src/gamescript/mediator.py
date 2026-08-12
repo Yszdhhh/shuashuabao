@@ -622,8 +622,14 @@ class Mediator:
                 if self._find_create_confirm(candidate):
                     self._capture_miss_streak = 0
                     return candidate
-            if frames:
-                return max(frames, key=lambda item: item.width * item.height)
+            # Dialog closed (Create accepted or dismissed). Prefer an already
+            # open room over the larger platform map — max(size) would always
+            # pick 1328x945 and starve room_start (r10 trace_20260812_102844).
+            for candidate in frames:
+                if self._find_room_start(candidate):
+                    self._capture_miss_streak = 0
+                    return candidate
+            # Otherwise fall through to sticky / signal ranking.
         if len(targets) == 1:
             return capture_target(targets[0])
         prev = self._last_frame if self._last_capture_role == role else None

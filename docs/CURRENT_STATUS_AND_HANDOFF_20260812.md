@@ -1,58 +1,38 @@
-# GameScript 当前状态与后续 Agent 交接（2026-08-12）
+# GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
-## 2026-08-12 10:25 — r10 创房回归修复（当前最高优先级）
+## 2026-08-12 r11 创房进房回归（当前唯一可测）
 
-- 当前唯一桌面测试版：`C:\Users\10639\Desktop\GameScript-v2026.08.12-r10`
-- 唯一桌面入口：`C:\Users\10639\Desktop\GameScript 单人挂机助手 v2026.08.12-r10.lnk`
-- r7/r8/r9 已移动到：`C:\Users\10639\Desktop\GameScript-旧版归档`
-- r10 EXE SHA256：`742BB75CC46399F683785E12162F7558A9C653DDDF640C35B12929F8E5457289`
-- 配置：`1-15`、`1600x900`、`dry_run=false`、自动创房开启、房名/密码为空（不执行改名或密码输入）。
+- 当前唯一桌面可测版：C:\Users\10639\Desktop\GameScript-v2026.08.12-r11
+- 唯一快捷入口：C:\Users\10639\Desktop\GameScript 单人挂机脚本 v2026.08.12-r11.lnk
+- r7/r8/r9/r10 已移入：C:\Users\10639\Desktop\GameScript-旧版归档
+- r11 EXE SHA256：52FB83E61CC5E221748A8F6698DE1277CBCB8D643AF7E015C0C425F9A3931C1B
+- File/Product version：2026.8.12.11 / build_id：2026.08.12-r11
+- 配置：1-15、1600x900、dry_run=false、自动创房开、房名/密码为空
 
-r8/r9 在创房弹窗处停止的真实根因不是按钮模板，也不是房名/密码流程：KK 在点击创建后同时暴露两个同标题窗口——`1328x945` 主窗口与 `584x488` 创建弹窗。N2 的 sticky-hwnd 快路径认为主窗口仍然健康，于是每 tick 都继续捕获主窗口，独立弹窗从未进入识别候选，最终触发 `create dialog confirmation timeout`。因此继续调弹窗阈值无法解决问题。
+### r10 实机失败 → r11 修复
 
-r10 只修改窗口选择层：在“创建请求待确认 / CREATE_ROOM”这个有界阶段枚举所有 KK 候选窗口，只优先选择满足创建表单结构的窗口（两个输入框 + 同行 Create/Cancel 双按钮，选择左侧 Create）；没有结构确认则不赋予点击权限。没有恢复蓝色按钮兜底，也没有加入改房名/密码链路。
+r10 已能打开并识别 584x488 创建对话框（sticky 双窗问题已修），但确认创建后仍报 create dialog confirmation timeout。
 
-验证证据：
+根因：create_dialog_probe 在对话框消失后 
+eturn max(frames, size)，永远选中更大的平台窗 1328x945，饿死更小的房间窗 ~1224x904，永远看不到 
+oom_start。
 
-- 新增“健康 sticky 主窗口 + 独立创建弹窗 HWND”回归测试，确认返回弹窗而非主窗口；
-- 当前系统的真实 `584x488` KK 弹窗取帧已被测试路径识别为 `context=CREATE_ROOM`；
-- 全量：`Ran 468 tests in 53.393s`，`OK (expected failures=2)`；
-- 尚未宣称实机创房完成：下一步只做 r10 自动创房 1 次烟测。若通过，再进入局内验证；若失败，保留现场并读取最新 trace/incident，不再扩功能。
+证据：%LocalAppData%\GameScript-Local\20260812\trace_20260812_102844.jsonl（全程 size 只有 1328/584，无 1224）；incident incident_103102_648_82b61749。
 
-### 后续 Agent 接手清单（以此为准）
+r11 只改捕获排序：创房探测期仍优先独立对话框；对话框没了优先带 
+oom_start 的房间窗；否则回落 sticky/signal 排序。**禁止**恢复快速加入 / 房名密码 / blue 创房权限。
 
-1. 先读本文本节，再读 `docs/baselines/EVIDENCE_MATRIX_20260812.md`；后者是历史证据矩阵，凡写 r7 的地方均不能覆盖本节的 r10 状态。
-2. 当前分支：`codex/ocr-hybrid`；当前已推送提交：`de77a19 fix(lobby): prioritize separate create-room dialog window`。
-3. r9 失败 trace：`%LocalAppData%\GameScript-Local\20260812\trace_20260812_101103.jsonl`；对应 incident：`%LocalAppData%\GameScript-Local\incidents\20260812\incidents\incident_101120_870_a56c3b57`。
-4. 失败现场同时枚举到两个 KK HWND：主窗口 `1328x945`、创建弹窗 `584x488`。后续不得再次把问题描述成“按钮模板阈值不足”或“需要填写房名/密码”。
-5. r10 代码落点：`Mediator._capture_best()` 的有界 `create_dialog_probe` 候选枚举；`Mediator._find_create_confirm()` 的创建表单结构确认。回归测试集中在 `tests/test_p0a_create_room_gate.py`。
-6. 唯一下一步：让用户运行桌面 r10，完成一次自动创房烟测。成功标准是 trace 出现创建弹窗 `584x488`/`context=CREATE_ROOM`，随后点击左侧 Create，并进入房间/选关链；不是仅凭 EXE 未退出判成功。
-7. 若仍失败：保留 KK 和脚本现场，先读取最新 trace、incident、所有同标题 HWND/尺寸及各窗口取帧；只修第一个被证据证明的阻断点。
+落点：Mediator._capture_best()；回归：	ests/test_p0a_create_room_gate.py::test_create_room_phase_does_not_starve_room_window_after_dialog_closes；全量 unittest 通过。
 
-### 当前冻结边界
+### 验收顺序（r11）
 
-- 不恢复 `blue_button_color`、左右位置猜测或按钮数量作为地图页创建按钮的点击权限；这些曾导致误点“快速加入”。
-- 不新增或恢复房名、密码输入；当前控制面板没有这项需求，配置为空即直接创建。
-- 不在 r10 创房烟测前继续改技能、羁绊、宝物、黑商、装备、秘境或失败退出。
-- 不把 `468 tests OK` 写成“实机已解决”；当前证据等级仍是实现/单测，缺 r10 真机 L 级证据。
-- 不覆盖用户工作树，不执行 `git reset --hard`/`git checkout --`，不从归档版复制代码回当前分支。
+1. 双开 r11 → 自动创房：trace 应见 584x488/CREATE_ROOM → 确认创建 → ~1224x904 + RoomStart（EXE 不因 create dialog confirmation timeout 退出）
+2. 选关 1-15 / 到 5/5
+3. 完整一局 → 3 局 → 秘境 → 10 局
 
-### r10 之后的验收顺序
+历史 r7/r10 文档段落保留为快照，**不能覆盖本 r11 状态**。
 
-1. 自动创房单次烟测；
-2. 自动创房连续 `5/5`；
-3. 普通模式一整局，核对主线、四挑战、G/F/V、进化、装备/消耗品、黑商、神器、胜败退出；
-4. 普通模式连续 3 局；
-5. 秘境单独验证；
-6. 最后才做 10 局无人干预长稳。
-
-以下原正文保留为 r7 及更早版本的历史调查材料，不能作为当前发布版、当前测试结果或下一步动作的依据。
-
-
-> 最后更新：2026-08-12 00:37（Asia/Shanghai）  
-> 历史快照桌面测试版：`v2026.08.12-r7`（已被上方 r10 状态取代）
-> 当前验收范围：本机、游戏窗口 `1600×900`  
-> 结论：代码、单测、录像真帧回放和桌面构建已完成一批修复；**r7 尚未完成真机一整局验证，更不能宣称长期无人值守已经完成。**
+---
 
 ## 0. 后续 Agent 先读这里
 

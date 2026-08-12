@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(2026, 8, 12, 10),
-    prodvers=(2026, 8, 12, 10),
+    filevers=(2026, 8, 12, 11),
+    prodvers=(2026, 8, 12, 11),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -16,12 +16,12 @@ VSVersionInfo(
         [
           StringStruct(u'CompanyName', u'GameScript Local'),
           StringStruct(u'FileDescription', u'重生魔兽刷刷刷单人挂机助手'),
-          StringStruct(u'FileVersion', u'2026.8.12.10'),
+          StringStruct(u'FileVersion', u'2026.8.12.11'),
           StringStruct(u'InternalName', u'GameScript'),
           StringStruct(u'LegalCopyright', u'Local build'),
           StringStruct(u'OriginalFilename', u'GameScript.exe'),
           StringStruct(u'ProductName', u'GameScript Local'),
-          StringStruct(u'ProductVersion', u'2026.8.12.10')
+          StringStruct(u'ProductVersion', u'2026.8.12.11')
         ]
       )
     ]),

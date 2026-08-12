@@ -225,5 +225,75 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         self.assertEqual([call.args[0].hwnd for call in capture_call.call_args_list], [123, 456])
 
 
+    def test_create_room_phase_does_not_starve_room_window_after_dialog_closes(self):
+        """After Create, room HWND is smaller than the map; max(size) must not win.
+
+        r10 live regression: create_dialog_probe fell back to largest window
+        (1328x945 map) and never saw room_start on 1224x904, hanging until
+        create dialog confirmation timeout.
+        """
+        from gamescript.vision.capture import WindowTarget
+
+        parent = WindowTarget(
+            hwnd=123,
+            title="KK",
+            left=0,
+            top=0,
+            width=1328,
+            height=945,
+            client_left=0,
+            client_top=0,
+            client_width=1328,
+            client_height=945,
+            role="l0",
+        )
+        room = WindowTarget(
+            hwnd=789,
+            title="KK",
+            left=50,
+            top=50,
+            width=1224,
+            height=904,
+            client_left=50,
+            client_top=50,
+            client_width=1224,
+            client_height=904,
+            role="l0",
+        )
+        self.med.phase = Phase.CREATE_ROOM
+        map_frame = Frame(
+            np.zeros((945, 1328, 3), dtype=np.uint8),
+            window_title="KK",
+            hwnd=123,
+        )
+        room_frame = Frame(
+            np.zeros((904, 1224, 3), dtype=np.uint8),
+            window_title="KK",
+            hwnd=789,
+        )
+        # Last capture was the dialog; it is gone now.
+        self.med._last_frame = Frame(
+            np.zeros((488, 584, 3), dtype=np.uint8),
+            window_title="KK",
+            hwnd=456,
+        )
+        self.med._last_capture_role = "l0"
+
+        def capture_one(target):
+            return room_frame if target.hwnd == 789 else map_frame
+
+        def find_room_start(frame):
+            return _hit("kk_start") if frame.hwnd == 789 else None
+
+        with patch("gamescript.mediator.find_window_targets", return_value=[parent, room]), \
+                patch("gamescript.mediator.capture_target", side_effect=capture_one), \
+                patch.object(self.med, "_find_create_confirm", return_value=None), \
+                patch.object(self.med, "_find_room_start", side_effect=find_room_start):
+            chosen = self.med._capture_best("KK", "l0")
+        self.assertIs(chosen, room_frame)
+        self.assertEqual(chosen.hwnd, 789)
+
+
+
 if __name__ == "__main__":
     unittest.main()
