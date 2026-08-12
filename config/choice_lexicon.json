@@ -142,7 +142,8 @@
     },
     "箭矢齐射": {
       "aliases": [
-        "箭失卉射"
+        "箭失卉射",
+        "箭失齐射"
       ],
       "kind": "skill",
       "version_seen": "1.3.x",
@@ -619,7 +620,9 @@
       "set_membership": null
     },
     "箭矢增幅": {
-      "aliases": [],
+      "aliases": [
+        "箭失增幅"
+      ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -634,7 +637,8 @@
     },
     "箭矢连发": {
       "aliases": [
-        "失速发"
+        "失速发",
+        "箭失连发"
       ],
       "kind": "skill",
       "version_seen": "1.3.x",
@@ -649,7 +653,9 @@
       "set_membership": null
     },
     "经验(中)": {
-      "aliases": [],
+      "aliases": [
+        "经验（中）"
+      ],
       "kind": "treasure",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -796,7 +802,9 @@
       "set_membership": null
     },
     "制导箭矢": {
-      "aliases": [],
+      "aliases": [
+        "制导箭失"
+      ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -950,14 +958,18 @@
       "set_membership": null
     },
     "木材(中)": {
-      "aliases": [],
+      "aliases": [
+        "木材（中）"
+      ],
       "kind": "treasure",
       "version_seen": "1.3.x",
       "confusions": [],
       "set_membership": null
     },
     "木材(小)": {
-      "aliases": [],
+      "aliases": [
+        "木材（小）"
+      ],
       "kind": "treasure",
       "version_seen": "1.3.x",
       "confusions": [],
@@ -978,7 +990,9 @@
       "set_membership": null
     },
     "杀敌(小)": {
-      "aliases": [],
+      "aliases": [
+        "杀敌（小）"
+      ],
       "kind": "treasure",
       "version_seen": "1.3.x",
       "confusions": [],

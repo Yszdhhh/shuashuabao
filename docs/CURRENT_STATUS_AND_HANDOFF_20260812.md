@@ -1,5 +1,15 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-12 B 组（感知/素材）云端交付
+
+- 分支：`cursor/b-card-lexicon-bidirectional-1245`（基于 `2067952`）
+- 层：感知/素材（未改 mediator / choice_policy / desktop_app / fixtures 真值内容）
+- `tools/validate_scenes.py`：接入 `fixtures/card_template_assertions/` 双向断言（正 ≥0.9、空白 ≤0.4、无关帧不得 ≥0.9 误点；`zhufu` 面板命中锁定）
+- `config/choice_lexicon.json`：六负面宝物确认在库；补 D0 证实 OCR 别名（箭失* / 全角括号资源名）
+- 未伪造新卡图；36 短码与 `fetter_labels.json` 已对齐。等待用户新卡面素材的短码见 `docs/baselines/B_CARD_LEXICON_ASSERTIONS_20260812.md`
+- **提醒 C 组**：`FettersCard.tsx` 的 `FETTER_NAMES` 手抄副本需同步或改 API 拉取
+- 实机证据：无新增；卡面匹配链路仍需实机抽检（idle_hud 上 14 个旧文字模板 WARN>0.4 但 <0.9）
+
 ## 2026-08-12 r11 创房进房回归（当前唯一可测）
 
 - 当前唯一桌面可测版：C:\Users\10639\Desktop\GameScript-v2026.08.12-r11
