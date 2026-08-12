@@ -22,6 +22,18 @@
 
 ---
 
+## 2026-08-12 B 组（感知/素材）云端交付
+
+- 分支：`cursor/b-card-lexicon-bidirectional-1245`（基于 `2067952`）
+- 层：感知/素材（未改 mediator / choice_policy / desktop_app / fixtures 真值内容）
+- `tools/validate_scenes.py`：接入 `fixtures/card_template_assertions/` 双向断言（正 ≥0.9、空白 ≤0.4、无关帧不得 ≥0.9 误点；`zhufu` 面板命中锁定）
+- `config/choice_lexicon.json`：六负面宝物确认在库；补 D0 证实 OCR 别名（箭失* / 全角括号资源名）
+- 未伪造新卡图；36 短码与 `fetter_labels.json` 已对齐。等待用户新卡面素材的短码见 `docs/baselines/B_CARD_LEXICON_ASSERTIONS_20260812.md`
+- **提醒 C 组**：`FettersCard.tsx` 的 `FETTER_NAMES` 手抄副本需同步或改 API 拉取
+- 实机证据：无新增；卡面匹配链路仍需实机抽检（idle_hud 上 14 个旧文字模板 WARN>0.4 但 <0.9）
+- 门禁：云端 `python tools/release_gate.py` 4/4 PASS（pytest 462 / frozen_replay 含 disconnect BLOCKED / scene_templates ok=131 / contract 32）
+- **快照已在合入时按 Windows 满资产重定**：B 组提交的 462 是云端缺资产的数字，直接沿用等于把基线下调 40+ 条（gate 规则是「通过数只许涨不许跌」，低基线会让真实回归漏网）。云端数字仅作参考，不作基线
+
 ## 2026-08-12 r11 创房进房回归（当前唯一可测）
 
 - 当前唯一桌面可测版：C:\Users\10639\Desktop\GameScript-v2026.08.12-r11
