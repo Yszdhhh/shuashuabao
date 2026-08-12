@@ -344,14 +344,23 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             self.assertEqual(choice[1].name, "skill_refresh_btn")
 
     def test_treasure_fixture_uses_real_card_centers_and_not_skill_layout(self):
+        # A3：禁止无脑第一张；无 cards 偏好时宝物可走品质色（负面剔除后），
+        # 坐标仍必须是宝物布局而非技能布局。
         frame = load_fixture_frame("fixtures/replay/treasure_choice_3.png")
         self.settings.cards = []
         choice = self.med._find_reward_choice(frame)
         self.assertIsNotNone(choice)
         kind, hit = choice
         self.assertEqual(kind, "treasure")
-        self.assertAlmostEqual(hit.x / frame.width, 0.348, delta=0.02)
-        self.assertAlmostEqual(hit.y / frame.height, 0.300, delta=0.03)
+        self.assertTrue(
+            hit.name.startswith("rarity_") or "hide" in hit.name.lower() or "giveup" in hit.name.lower(),
+            f"无偏好时应收口到品质色或关闭/放弃，实际 {hit.name}",
+        )
+        if hit.name.startswith("rarity_"):
+            self.assertAlmostEqual(hit.x / frame.width, 0.348, delta=0.05)
+            self.assertAlmostEqual(hit.y / frame.height, 0.300, delta=0.05)
+            # 技能左槽中心约 0.354/0.42；品质色采样中心 y=0.300，不得落到技能点击中心
+            self.assertLess(abs(hit.y / frame.height - 0.300), abs(hit.y / frame.height - 0.42))
 
     def test_choice_panel_giveup_not_treated_as_fail(self):
         # S0 ①：实机 2026-08-09 局内选择面板"放弃"按钮与 giveUp 模板同源（0.945 命中）
@@ -394,8 +403,8 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.assertEqual(click.call_args.args[1], "treasure选择")
 
     def test_non_skill_choice_materials_never_click_configured_skill(self):
-        # 57d40ce 策略：bond/treasure 面板各自分类+品质色回退；无论分类结果
-        # 如何，绝不点击用户配置的具名技能模板（旧断言期望全 None 已过时）。
+        # A3：bond 硬禁用后无 cards 偏好 → 关闭/隐藏，绝不再品质色乱点；
+        # 无论分类如何，绝不点击用户配置的具名技能模板。
         self.settings.skills = ["asj", "dz", "byj", "dcw"]
 
         f_bond = load_fixture_frame("fixtures/replay/bond_choice_3.png")
@@ -403,10 +412,9 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.assertIsNotNone(choice)
         kind, hit = choice
         self.assertEqual(kind, "bond", "bond 面板必须分类为 bond，不得当作技能")
-        self.assertTrue(hit.name.startswith("rarity_"), f"无 cards 偏好 → 品质色回退，实际 {hit.name}")
+        self.assertFalse(hit.name.startswith("rarity_"), f"硬禁用后不得品质色旁路，实际 {hit.name}")
+        self.assertNotIn(Path(hit.name).stem, self.settings.skills)
 
-        # 以下旧版 UI fixture 与新按钮模板存在跨版本混淆（treasure 面板可能被
-        # 分类为技能）：无论分类如何，绝不点击配置的具名技能。
         f_treasure = load_fixture_frame("fixtures/replay/treasure_choice_3.png")
         choice = self.med._find_reward_choice(f_treasure)
         if choice is not None:

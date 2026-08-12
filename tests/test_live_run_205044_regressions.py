@@ -67,14 +67,19 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(hit.x, int(1600 * 0.646))
 
     def test_bond_full_bar_allows_only_one_away_merge(self) -> None:
-        med = Mediator(Settings(), ROOT)
+        # A3：硬白名单取代占用启发式。未勾选一律不选（WAIT→None）；
+        # 勾选「祝福」后才可选中，与栏位是否接近满无关。
+        med = Mediator(Settings(cards=["祝福"]), ROOT)
         unsafe = [
             {"index": 0, "name": "海盗", "confidence": 0.99, "raw_text": "海盗"},
             {"index": 1, "name": "智力", "confidence": 0.99, "raw_text": "智力(0/4)"},
             {"index": 2, "name": "军团", "confidence": 0.99, "raw_text": "军团"},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=unsafe), \
-                patch.object(med, "_bond_bar_occupancy", return_value=9):
+                patch.object(med, "_bond_bar_occupancy", return_value=9), \
+                patch.object(med, "_find_panel_refresh", return_value=None), \
+                patch.object(med, "_find_panel_giveup", return_value=None), \
+                patch.object(med, "_close_current_panel", return_value=None):
             self.assertIsNone(med._ocr_reward_choice(frame(), "bond"))
 
         safe = list(unsafe)
@@ -86,7 +91,8 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(hit.name, "ocr_bond:祝福")
 
     def test_basic_bond_precedes_advanced_bond(self) -> None:
-        med = Mediator(Settings(), ROOT)
+        # 硬白名单：只勾「法术」时选法术；未勾的「亡灵天灾」即使接近合成也不选。
+        med = Mediator(Settings(cards=["法术"]), ROOT)
         slots = [
             {"index": 0, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(2/3)"},
             {"index": 1, "name": "法术", "confidence": 0.99, "raw_text": "法术(0/3)"},
@@ -106,11 +112,15 @@ class LiveRun205044Tests(unittest.TestCase):
             {"index": 2, "name": "海盗劫掠者", "confidence": 0.99, "raw_text": "海盗劫掠者(0/3)"},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=slots), \
-                patch.object(med, "_bond_bar_occupancy", return_value=2):
+                patch.object(med, "_bond_bar_occupancy", return_value=2), \
+                patch.object(med, "_find_panel_refresh", return_value=None), \
+                patch.object(med, "_find_panel_giveup", return_value=None), \
+                patch.object(med, "_close_current_panel", return_value=None):
             self.assertIsNone(med._ocr_reward_choice(frame(), "bond"))
 
     def test_existing_advanced_bond_progress_can_still_be_finished(self) -> None:
-        med = Mediator(Settings(), ROOT)
+        # 硬白名单：用户勾选「亡灵天灾」后才可完成进度；未勾选的海盗变体仍不可选。
+        med = Mediator(Settings(cards=["亡灵天灾"]), ROOT)
         slots = [
             {"index": 0, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(2/3)"},
             {"index": 1, "name": "白赚海盗", "confidence": 0.99, "raw_text": "白赚海盗(0/3)"},
@@ -525,10 +535,9 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertIs(med._panel_state, PanelState.ACTIVE)
 
     def test_natural_bond_panel_invokes_ocr_slots(self) -> None:
-        # P0-3：自然面板（非我们打开）必须走 _ocr_panel_slots（215302 旧 build
-        # 自然面板路径无 ocr_suggestion 的修复）：card_hide ≥0.85 单帧进入 →
-        # bond 分类 → OCR 读名 → 点击。
-        med = Mediator(Settings(ocr_mode="live"), ROOT)
+        # P0-3：自然面板（非我们打开）必须走 _ocr_panel_slots；硬白名单勾选后
+        # 才授权点击（A3），未勾选则 WAIT/关闭而非品质色乱点。
+        med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
         anchor = MatchResult("card_hide", 0.85, 758, 574, 10, 10, 758, 574)
         slots = [
             {"index": 0, "name": "祝福", "confidence": 0.99, "raw_text": "祝福(2/3)"},
