@@ -2,7 +2,7 @@
 
 > 阶段：GameScript-Local 深度修复第一阶段（A 阶段）· 只读，不修改生产代码。
 > 仓库：`C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local`，分支 `codex/ocr-hybrid`，HEAD=`8b946fa`（工作树未提交改动属项目所有，本文件仅新增产物，不提交）。
-> 权威交接：`docs/CURRENT_STATUS_AND_HANDOFF_20260812.md`；外部审查：`goal-objective.md`（问题 1-12）。
+> 历史证据矩阵（冻结在 r7 口径）。当前发布、根因、测试边界和下一步必须以 `docs/CURRENT_STATUS_AND_HANDOFF_20260812.md` 顶部 r10 接手清单为准；本文中的“当前 r7”均不是当前桌面版本。外部审查：`goal-objective.md`（问题 1-12）。
 > 验收口径：仅 `1600×900`；禁止通用 `blue_button_color` 创房兜底；每 tick ≤1 输入；不得新增 XFAIL。
 > 证据等级（沿用交接文档）：**I**=已实现（代码级）｜**U**=单元测试/合成回放（447 tests，2 XFAIL）｜**R**=真实录像帧离线回放/当前版本截图 fixtures｜**L**=桌面版本真机跑通｜**S**=3/10 局无人干预长稳（当前均未达到）。
 
