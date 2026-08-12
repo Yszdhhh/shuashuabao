@@ -78,6 +78,16 @@ class DesktopPanelTests(unittest.TestCase):
         self.window.grp_skill.setChecked(True)
         self.assertFalse(self.window.skill_grid.isHidden())
 
+    def test_home_page_keeps_optional_sections_collapsed(self):
+        """首页默认不展开「深入设置」这类umbrella；技能/宝物/日志各自独立折叠。"""
+        self.assertFalse(hasattr(self.window, "grp_deep"))
+        self.assertFalse(self.window.grp_skill.isChecked())
+        self.assertTrue(self.window.skill_grid.isHidden())
+        self.assertFalse(self.window.grp_negative.isChecked())
+        self.assertTrue(self.window.grp_negative.body.isHidden())
+        self.assertFalse(self.window.grp_details.isChecked())
+        self.assertTrue(self.window.txt_log.isHidden())
+
     def test_skill_cards_carry_icon_and_hover_description(self):
         """技能卡要有图标和悬停说明；没有实机证据的必须写『待补』而不是编数值。"""
         grid = self.window.skill_grid
@@ -118,8 +128,8 @@ class DesktopPanelTests(unittest.TestCase):
             "放行一张不得连带放行其它负面宝物",
         )
 
-    def test_negative_group_keeps_its_section_number(self):
-        """分组自己刷新标题时不得冲掉外部序号前缀（曾因两处写标题而丢失 ③）。"""
+    def test_negative_group_keeps_title_stable_on_refresh(self):
+        """分组自己刷新标题时语义仍在（曾因两处写标题而丢前缀）。"""
         group = self.window.grp_negative
         for action in (
             lambda: group.set_allowed(["金转木"]),
@@ -128,9 +138,10 @@ class DesktopPanelTests(unittest.TestCase):
             lambda: group.set_allowed([]),
         ):
             action()
-            self.assertTrue(
-                group.title().startswith("③"),
-                f"标题丢了序号前缀：{group.title()!r}",
+            self.assertIn(
+                "负面",
+                group.title(),
+                f"标题丢了负面语义：{group.title()!r}",
             )
 
     def test_negative_treasure_list_matches_policy_config(self):
@@ -170,11 +181,30 @@ class DesktopPanelTests(unittest.TestCase):
         settings = self.window.collect_settings_from_ui()
 
         self.assertTrue(settings.auto_reputation)
-        self.assertEqual(1, self.window.cmb_reputation.count())
         self.assertEqual(3, settings.reputation_type)
         self.assertEqual(5, settings.reputation_level)
         self.assertEqual(5, self.window.spn_reputation_level.maximum())
         self.assertFalse(self.window.hero_options.isHidden())
+
+    def test_reputation_combo_exposes_all_six_factions(self):
+        """六大声望阵营都应可选（mediator 侧的门控是另一回事）。"""
+        expected = {
+            1: "黑锋骑士团",
+            2: "银色北伐军",
+            3: "肯瑞托",
+            4: "探险者协会",
+            5: "元素领主",
+            6: "守护巨龙",
+        }
+        combo = self.window.cmb_reputation
+        self.assertEqual(6, combo.count())
+        actual = {combo.itemData(i): combo.itemText(i) for i in range(combo.count())}
+        self.assertEqual(expected, actual)
+
+        for faction_id in expected:
+            combo.setCurrentIndex(combo.findData(faction_id))
+            settings = self.window.collect_settings_from_ui()
+            self.assertEqual(faction_id, settings.reputation_type)
 
     def test_secret_realm_checkbox_round_trips_settings(self):
         settings = Settings(auto_secret_realm=True)

@@ -1,5 +1,6 @@
 ﻿# 刷刷宝打包脚本：构建 exe → 部署到桌面 → 建/更新桌面快捷方式。
 #
+# 版本命名：用户可见为「刷刷宝 V0.1」；文件夹用 ASCII「ShuaBao-V0.1」。
 # 打包前强制过发版门禁（tools/release_gate.py）。要跳过请显式加 -SkipGate，
 # 并自己清楚为什么——门禁红着发版正是 8-12 连出两个紧急修复的原因。
 param(
@@ -49,19 +50,53 @@ if ($NoDeploy) { return }
 
 Write-Host "[3/3] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cyan
 $version = (& $python -c "import sys; sys.path.insert(0,'src'); import gamescript; print(gamescript.__version__)").Trim()
+$versionLabel = "V$version"
 $desktop = [Environment]::GetFolderPath("Desktop")
-$target  = Join-Path $desktop "$APP_ID-$version"
+$target  = Join-Path $desktop "$APP_ID-$versionLabel"
+$archive = Join-Path $desktop "$APP_NAME-旧版归档"
+
+# 归档桌面上旧版目录（ShuaBao-* / 历史 GameScript-*），只留当前这一份
+if (-not (Test-Path -LiteralPath $archive)) {
+    New-Item -ItemType Directory -Path $archive | Out-Null
+}
+Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
+    Where-Object {
+        ($_.Name -like "$APP_ID-*" -or $_.Name -like "GameScript-*") -and
+        ($_.FullName -ne $target)
+    } |
+    ForEach-Object {
+        $dest = Join-Path $archive $_.Name
+        if (Test-Path -LiteralPath $dest) {
+            Remove-Item -LiteralPath $dest -Recurse -Force
+        }
+        Move-Item -LiteralPath $_.FullName -Destination $dest -Force
+        Write-Host "已归档：$($_.Name)" -ForegroundColor DarkYellow
+    }
 
 if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "dist\$APP_ID") -Destination $target -Recurse
 
-# 桌面只保留一个中文快捷方式，始终指向最新版本
-$lnk = Join-Path $desktop "$APP_NAME.lnk"
+# 桌面快捷方式带版本号：「刷刷宝 V0.1」；清掉无版本的旧快捷方式
+$lnkName = "$APP_NAME $versionLabel.lnk"
+$lnk = Join-Path $desktop $lnkName
+Get-ChildItem -LiteralPath $desktop -Filter "*.lnk" -ErrorAction SilentlyContinue |
+    Where-Object {
+        $_.Name -eq "$APP_NAME.lnk" -or
+        $_.Name -like "$APP_NAME V*.lnk" -or
+        $_.Name -like "GameScript*.lnk"
+    } |
+    Where-Object { $_.Name -ne $lnkName } |
+    ForEach-Object {
+        $dest = Join-Path $archive $_.Name
+        Move-Item -LiteralPath $_.FullName -Destination $dest -Force
+        Write-Host "已归档快捷方式：$($_.Name)" -ForegroundColor DarkYellow
+    }
+
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($lnk)
 $shortcut.TargetPath = Join-Path $target "$APP_ID.exe"
 $shortcut.WorkingDirectory = $target
-$shortcut.Description = "$APP_NAME · 重生魔兽刷刷刷单人挂机助手 $version"
+$shortcut.Description = "$APP_NAME $versionLabel · 重生魔兽刷刷刷单人挂机助手"
 $shortcut.Save()
 
 Write-Host "已部署：$target" -ForegroundColor Green

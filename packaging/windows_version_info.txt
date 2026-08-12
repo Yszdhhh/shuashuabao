@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(2026, 8, 12, 12),
-    prodvers=(2026, 8, 12, 12),
+    filevers=(0, 2, 0, 0),
+    prodvers=(0, 2, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -16,12 +16,12 @@ VSVersionInfo(
         [
           StringStruct(u'CompanyName', u'刷刷宝'),
           StringStruct(u'FileDescription', u'刷刷宝 · 重生魔兽刷刷刷单人挂机助手'),
-          StringStruct(u'FileVersion', u'2026.8.12.12'),
+          StringStruct(u'FileVersion', u'0.2.0'),
           StringStruct(u'InternalName', u'ShuaBao'),
           StringStruct(u'LegalCopyright', u'Local build'),
           StringStruct(u'OriginalFilename', u'ShuaBao.exe'),
           StringStruct(u'ProductName', u'刷刷宝'),
-          StringStruct(u'ProductVersion', u'2026.8.12.12')
+          StringStruct(u'ProductVersion', u'0.2')
         ]
       )
     ]),

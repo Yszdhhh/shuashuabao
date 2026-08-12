@@ -46,6 +46,8 @@ from gamescript.settings import Settings
 
 APP_NAME = "刷刷宝"
 APP_ID = "ShuaBao"  # 文件/目录用 ASCII，避免非 ASCII 路径在打包与命令行工具里出问题
+# 用户可见版本：0.1 → V0.1（桌面快捷方式 / 窗口标题都用这个）
+APP_VERSION_LABEL = f"V{__version__}" if not str(__version__).upper().startswith("V") else str(__version__)
 APP_DATA = Path(os.environ.get("LOCALAPPDATA", ROOT)) / APP_ID
 LOG_FILE = APP_DATA / "logs" / f"{APP_ID}.log"
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -155,7 +157,7 @@ class MediatorWorker(QThread):
             if self.settings.auto_reputation else "-"
         )
         self.signals.log_emitted.emit(
-            f"[启动] v{__version__} 刷图任务启动 | Dry-run={self.settings.dry_run} | "
+            f"[启动] {APP_VERSION_LABEL} 刷图任务启动 | Dry-run={self.settings.dry_run} | "
             f"关卡={target} | 模式={mode} | 难度={difficulty} | "
             f"分辨率={width}x{height} | 技能={self.settings.skills}",
             "info"
@@ -238,10 +240,10 @@ class SkillCardGrid(QWidget):
         self._init_ui()
 
     CARD_QSS = (
-        "QPushButton { background:#0a101c; border:1px solid #243044; border-radius:8px;"
-        " color:#cbd5e1; font-size:12px; padding:6px 4px; text-align:center; }"
-        "QPushButton:hover { border:1px solid #3b82f6; color:#ffffff; }"
-        "QPushButton:checked { background:#16305c; border:2px solid #3b82f6; color:#ffffff;"
+        "QPushButton { background:#ffffff; border:1px solid #d7dee8; border-radius:8px;"
+        " color:#334155; font-size:12px; padding:6px 4px; text-align:center; }"
+        "QPushButton:hover { border:1px solid #0ea5e9; color:#0f172a; background:#f0f9ff; }"
+        "QPushButton:checked { background:#e0f2fe; border:2px solid #0284c7; color:#0c4a6e;"
         " font-weight:bold; }"
     )
 
@@ -258,17 +260,16 @@ class SkillCardGrid(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
 
-        hint = QLabel("勾选你要学的技能（最多 4 个）。未选中的技能永远不会被学习；"
-                      "都没命中时只刷新，刷完仍没有就放弃。")
+        hint = QLabel("最多选 4 个；未选中的永远不学。都没命中时只刷新，刷完仍没有就放弃。")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color:#8b9bb4; font-size:11px; background:transparent;")
+        hint.setObjectName("hintLabel")
         lay.addWidget(hint)
 
         # 流派预设（一键套用；悬停看配置说明）
         preset = QHBoxLayout()
         preset.setSpacing(6)
-        preset_label = QLabel("流派预设")
-        preset_label.setStyleSheet("color:#94a3b8; background:transparent;")
+        preset_label = QLabel("流派")
+        preset_label.setObjectName("hintLabel")
         preset.addWidget(preset_label)
         for item in SKILL_PRESETS:
             codes = [str(c) for c in (item.get("codes") or [])]
@@ -385,9 +386,9 @@ class NegativeTreasureGroup(QGroupBox):
         body_lay.setContentsMargins(0, 0, 0, 0)
         body_lay.setSpacing(6)
 
-        note = QLabel("勾选 = 允许脚本选这张负面宝物；不勾 = 永不选。逐张生效。")
+        note = QLabel("勾选 = 允许选这张；不勾 = 永不选。逐张生效。")
         note.setWordWrap(True)
-        note.setStyleSheet("color:#f59e0b; font-size:11px; background:transparent;")
+        note.setObjectName("warnHint")
         body_lay.addWidget(note)
 
         if names:
@@ -404,7 +405,7 @@ class NegativeTreasureGroup(QGroupBox):
             body_lay.addWidget(grid_host)
         else:
             empty = QLabel("未配置负面宝物名单（config/choice_policy.json）")
-            empty.setStyleSheet("color:#64748b; background:transparent;")
+            empty.setObjectName("hintLabel")
             body_lay.addWidget(empty)
 
         lay.addWidget(self.body)
@@ -420,9 +421,9 @@ class NegativeTreasureGroup(QGroupBox):
     def _refresh_title(self):
         allowed = self.get_allowed()
         if allowed:
-            body = f"宝物 · 负面卡放行（已放行 {len(allowed)} 张：{'、'.join(allowed)}）"
+            body = f"负面宝物放行（已放行 {len(allowed)}：{'、'.join(allowed)}）"
         else:
-            body = "宝物 · 负面卡放行（默认全不选，点勾展开）"
+            body = "负面宝物放行（默认全不选）"
         self.setTitle(f"{self._prefix}{body}")
 
     def get_allowed(self) -> list[str]:
@@ -440,10 +441,10 @@ class NegativeTreasureGroup(QGroupBox):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(f"{APP_NAME} · 重生魔兽刷刷刷挂机助手 · v{__version__}")
-        # 技能网格 + 负面宝物分区后内容变高；给足默认高度，避免一打开就要滚动
-        self.resize(560, 720)
-        self.setMinimumSize(520, 520)
+        self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL} · 重生魔兽刷刷刷")
+        # 首页精简后默认窗口更矮；技能/宝物/日志各自独立折叠，靠滚动区承接
+        self.resize(480, 420)
+        self.setMinimumSize(440, 360)
 
         self.settings = Settings()
         self.worker_thread: MediatorWorker | None = None
@@ -462,69 +463,103 @@ class MainWindow(QMainWindow):
     def _setup_style(self):
         self.setStyleSheet("""
             QMainWindow {
-                background-color: #0b1220;
+                background-color: #f4f7fb;
             }
             QWidget {
-                background-color: #0b1220;
-                color: #e8eef8;
+                background-color: #f4f7fb;
+                color: #1e293b;
                 font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
                 font-size: 12px;
             }
             QGroupBox {
-                background-color: #151c2c;
-                border: 1px solid #243044;
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
                 border-radius: 10px;
-                margin-top: 14px;
-                padding: 16px 12px 12px 12px;
+                margin-top: 12px;
+                padding: 14px 12px 10px 12px;
                 font-weight: bold;
                 font-size: 13px;
-                color: #93c5fd;
+                color: #0f172a;
             }
             QGroupBox::title {
                 subcontrol-origin: margin;
                 subcontrol-position: top left;
                 left: 12px;
                 padding: 2px 8px;
-                background-color: #1d2739;
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
                 border-radius: 6px;
+                color: #334155;
             }
             QLabel {
                 background-color: transparent;
             }
-            QLabel#statusPill {
-                background-color: #1e293b;
-                border: 1px solid #334155;
-                border-radius: 11px;
+            QLabel#brandTitle {
+                font-size: 22px;
+                font-weight: bold;
+                color: #0f172a;
+            }
+            QLabel#brandSub {
+                font-size: 11px;
                 color: #94a3b8;
+            }
+            QLabel#hintLabel {
+                color: #64748b;
+                font-size: 11px;
+            }
+            QLabel#warnHint {
+                color: #b45309;
+                font-size: 11px;
+            }
+            QLabel#statusLine {
+                color: #64748b;
+                font-size: 11px;
+            }
+            QLabel#gamesCount {
+                font-size: 20px;
+                font-weight: bold;
+                color: #0284c7;
+            }
+            QLabel#gamesCap {
+                font-size: 10px;
+                color: #94a3b8;
+            }
+            QLabel#statusPill {
+                background-color: #e2e8f0;
+                border: 1px solid #cbd5e1;
+                border-radius: 11px;
+                color: #64748b;
                 font-weight: bold;
                 padding: 3px 12px;
             }
             QLabel#statusPill[state="running"] {
-                background-color: #052e1a;
-                border: 1px solid #15803d;
-                color: #4ade80;
+                background-color: #dcfce7;
+                border: 1px solid #86efac;
+                color: #15803d;
             }
             QLabel#statusPill[state="stopping"] {
-                background-color: #3b1d05;
-                border: 1px solid #b45309;
-                color: #fbbf24;
+                background-color: #ffedd5;
+                border: 1px solid #fdba74;
+                color: #c2410c;
             }
             QCheckBox#chkDry {
-                color: #fbbf24;
+                color: #b45309;
                 font-weight: bold;
             }
             QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
-                background-color: #0a101c;
-                border: 1px solid #243044;
-                border-radius: 4px;
-                color: #ffffff;
-                padding: 4px 6px;
+                background-color: #ffffff;
+                border: 1px solid #cbd5e1;
+                border-radius: 6px;
+                color: #0f172a;
+                padding: 5px 8px;
+                min-height: 22px;
             }
             QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
-                border: 1px solid #2563eb;
+                border: 1px solid #0284c7;
             }
             QComboBox::drop-down {
                 border: none;
+                width: 20px;
             }
             QCheckBox {
                 background-color: transparent;
@@ -533,69 +568,85 @@ class MainWindow(QMainWindow):
             QCheckBox::indicator {
                 width: 14px;
                 height: 14px;
-                border: 1px solid #243044;
+                border: 1px solid #cbd5e1;
                 border-radius: 3px;
-                background: #0a101c;
+                background: #ffffff;
             }
             QCheckBox::indicator:checked {
-                background-color: #2563eb;
-                border: 1px solid #3b82f6;
+                background-color: #0284c7;
+                border: 1px solid #0369a1;
             }
             QPushButton {
-                background-color: #1e293b;
-                border: 1px solid #334155;
+                background-color: #ffffff;
+                border: 1px solid #cbd5e1;
                 border-radius: 6px;
-                color: #e2e8f0;
+                color: #334155;
                 padding: 6px 12px;
                 font-weight: 500;
             }
             QPushButton:hover {
-                background-color: #334155;
-                color: #ffffff;
+                background-color: #f1f5f9;
+                border: 1px solid #94a3b8;
+                color: #0f172a;
             }
             QPushButton#btnStart {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #2563eb, stop:1 #4f46e5);
+                background-color: #0284c7;
                 border: none;
                 color: #ffffff;
-                font-size: 14px;
+                font-size: 15px;
                 font-weight: bold;
-                padding: 10px;
+                padding: 12px;
                 border-radius: 8px;
             }
             QPushButton#btnStart:hover {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1d4ed8, stop:1 #4338ca);
+                background-color: #0369a1;
             }
             QPushButton#btnStop {
-                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #dc2626, stop:1 #be123c);
+                background-color: #dc2626;
                 border: none;
                 color: #ffffff;
-                font-size: 14px;
+                font-size: 15px;
                 font-weight: bold;
-                padding: 10px;
+                padding: 12px;
                 border-radius: 8px;
             }
+            QPushButton#btnStop:hover {
+                background-color: #b91c1c;
+            }
             QPlainTextEdit {
-                background-color: #080d16;
-                border: 1px solid #243044;
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
                 border-radius: 6px;
-                color: #cbd5e1;
+                color: #334155;
                 font-family: "Consolas", monospace;
                 font-size: 11px;
             }
+            QScrollArea {
+                background: transparent;
+                border: none;
+            }
             QScrollBar:vertical {
-                background: #0b1220;
-                width: 6px;
+                background: transparent;
+                width: 8px;
+                margin: 2px;
             }
             QScrollBar::handle:vertical {
-                background: #243044;
-                border-radius: 3px;
+                background: #cbd5e1;
+                border-radius: 4px;
+                min-height: 24px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0;
+            }
+            QFrame#homeDivider {
+                color: #e2e8f0;
+                max-height: 1px;
             }
         """)
 
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-        # 内容放进 QScrollArea：窗口被拖矮时技能卡片网格滚动而非压缩重叠
         outer = QVBoxLayout(central)
         outer.setContentsMargins(0, 0, 0, 0)
         scroll = QScrollArea()
@@ -604,20 +655,21 @@ class MainWindow(QMainWindow):
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         content = QWidget()
         main_layout = QVBoxLayout(content)
-        main_layout.setContentsMargins(14, 12, 14, 12)
+        main_layout.setContentsMargins(16, 14, 16, 14)
         main_layout.setSpacing(10)
         main_layout.setAlignment(Qt.AlignTop)
         scroll.setWidget(content)
         outer.addWidget(scroll)
 
+        # —— 首页：品牌 + 状态 ——
         header = QHBoxLayout()
         header.setSpacing(10)
         title_box = QVBoxLayout()
         title_box.setSpacing(0)
-        title = QLabel(APP_NAME)
-        title.setStyleSheet("font-size:20px; font-weight:bold; color:#e8eef8; background:transparent;")
-        subtitle = QLabel(f"重生魔兽刷刷刷 · 单人挂机助手 · v{__version__}")
-        subtitle.setStyleSheet("font-size:11px; color:#64748b; background:transparent;")
+        title = QLabel(f"{APP_NAME} {APP_VERSION_LABEL}")
+        title.setObjectName("brandTitle")
+        subtitle = QLabel("重生魔兽刷刷刷 · 单人挂机")
+        subtitle.setObjectName("brandSub")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
         header.addLayout(title_box)
@@ -626,49 +678,51 @@ class MainWindow(QMainWindow):
         self.lbl_run_status = QLabel("空闲")
         self.lbl_run_status.setObjectName("statusPill")
         self.lbl_run_status.setAlignment(Qt.AlignCenter)
-        self.lbl_run_status.setMinimumWidth(76)
+        self.lbl_run_status.setMinimumWidth(72)
         header.addWidget(self.lbl_run_status)
 
         games_box = QVBoxLayout()
         games_box.setSpacing(0)
         self.lbl_games = QLabel("0")
         self.lbl_games.setAlignment(Qt.AlignRight)
-        self.lbl_games.setStyleSheet(
-            "font-size:20px; font-weight:bold; color:#60a5fa; background:transparent;")
-        games_cap = QLabel("已完成局数")
+        self.lbl_games.setObjectName("gamesCount")
+        games_cap = QLabel("已完成")
         games_cap.setAlignment(Qt.AlignRight)
-        games_cap.setStyleSheet("font-size:10px; color:#64748b; background:transparent;")
+        games_cap.setObjectName("gamesCap")
         games_box.addWidget(self.lbl_games)
         games_box.addWidget(games_cap)
         header.addLayout(games_box)
         main_layout.addLayout(header)
 
         divider = QFrame()
+        divider.setObjectName("homeDivider")
         divider.setFrameShape(QFrame.HLine)
-        divider.setStyleSheet("color:#1e293b;")
         main_layout.addWidget(divider)
 
-        core = QGroupBox("① 运行设置")
+        # —— 首页：只留跑起来必需的项 ——
+        core = QGroupBox("运行")
         core_layout = QVBoxLayout(core)
         core_layout.setSpacing(8)
 
         stage_row = QHBoxLayout()
-        stage_row.addWidget(QLabel("目标关卡"))
+        stage_row.setSpacing(8)
+        stage_row.addWidget(QLabel("关卡"))
         self.txt_stage_target = QLineEdit("1-10")
         self.txt_stage_target.setObjectName("stageTarget")
         self.txt_stage_target.setPlaceholderText("例如 1-10")
-        self.txt_stage_target.setMaximumWidth(120)
+        self.txt_stage_target.setMaximumWidth(100)
         stage_row.addWidget(self.txt_stage_target)
-        stage_row.addSpacing(12)
+        stage_row.addSpacing(8)
         stage_row.addWidget(QLabel("模式"))
         self.cmb_mode = QComboBox()
-        self.cmb_mode.addItem("普通模式", False)
-        self.cmb_mode.addItem("英雄模式", True)
+        self.cmb_mode.addItem("普通", False)
+        self.cmb_mode.addItem("英雄", True)
         self.cmb_mode.setItemData(
             1,
             "当前开放录像与实机证据完整的肯瑞托 1–5 级。",
             Qt.ToolTipRole,
         )
+        self.cmb_mode.setMinimumWidth(88)
         stage_row.addWidget(self.cmb_mode)
         stage_row.addStretch()
         core_layout.addLayout(stage_row)
@@ -676,9 +730,19 @@ class MainWindow(QMainWindow):
         self.hero_options = QWidget()
         hero_row = QHBoxLayout(self.hero_options)
         hero_row.setContentsMargins(0, 0, 0, 0)
-        hero_row.addWidget(QLabel("英雄阵营"))
+        hero_row.setSpacing(8)
+        hero_row.addWidget(QLabel("阵营"))
         self.cmb_reputation = QComboBox()
-        self.cmb_reputation.addItem("肯瑞托", 3)
+        for name, faction_id in (
+            ("黑锋骑士团", 1),
+            ("银色北伐军", 2),
+            ("肯瑞托", 3),
+            ("探险者协会", 4),
+            ("元素领主", 5),
+            ("守护巨龙", 6),
+        ):
+            self.cmb_reputation.addItem(name, faction_id)
+        self.cmb_reputation.setCurrentIndex(self.cmb_reputation.findData(3))
         hero_row.addWidget(self.cmb_reputation)
         hero_row.addWidget(QLabel("难度"))
         self.spn_reputation_level = QSpinBox()
@@ -687,15 +751,13 @@ class MainWindow(QMainWindow):
         hero_row.addStretch()
         core_layout.addWidget(self.hero_options)
 
-        self.chk_dry = QCheckBox("安全测试模式（只识别、不点击）")
+        self.chk_dry = QCheckBox("安全测试（只识别、不点击）")
         self.chk_dry.setChecked(True)
         self.chk_dry.setObjectName("chkDry")
         self.chk_dry.setToolTip(
-            "开启时脚本只做识别并打印将要点击的坐标，不会对游戏产生任何真实输入。\n"
-            "第一次配置或改完设置后，建议先用它跑一轮确认识别正常。"
+            "开启时只做识别并打印坐标，不会对游戏产生真实输入。\n"
+            "第一次配置或改完设置后，建议先用它跑一轮。"
         )
-        core_layout.addWidget(self.chk_dry)
-
         self.chk_secret_realm = QCheckBox("胜利后自动挑战秘境")
         self.chk_secret_realm.setToolTip(
             "开启后：胜利结算进入挑战广场，右键大秘境并确认；秘境失败后退出并重开下一局。"
@@ -703,43 +765,46 @@ class MainWindow(QMainWindow):
         core_layout.addWidget(self.chk_secret_realm)
         main_layout.addWidget(core)
 
-        self.grp_skill = QGroupBox("② 技能搭配（可选，不选也能跑）")
+        self.btn_main = QPushButton("开始运行")
+        self.btn_main.setObjectName("btnStart")
+        self.btn_main.setMinimumHeight(44)
+        self.btn_main.clicked.connect(self.toggle_run)
+        main_layout.addWidget(self.btn_main)
+
+        self.lbl_latest = QLabel("就绪 · Shift+F12 紧急停止")
+        self.lbl_latest.setWordWrap(True)
+        self.lbl_latest.setObjectName("statusLine")
+        main_layout.addWidget(self.lbl_latest)
+
+        # —— 技能：独立可勾选分组，默认收起 ——
+        self.grp_skill = QGroupBox("技能")
         self.grp_skill.setCheckable(True)
-        self.grp_skill.setChecked(True)
+        self.grp_skill.setChecked(False)
         self.grp_skill.setToolTip(
-            "点勾展开/收起。选满 4 个自动收起。\n"
-            "只学勾选的技能：都没出现时刷新，刷完仍没有就放弃，绝不学别的。"
+            "点勾展开。选满 4 个自动收起。\n"
+            "只学勾选的技能：都没出现时刷新，刷完仍没有就放弃。"
         )
         skill_layout = QVBoxLayout(self.grp_skill)
         self.skill_grid = SkillCardGrid(SKILL_STEMS, SKILL_LABELS)
         skill_layout.addWidget(self.skill_grid)
+        self.skill_grid.setVisible(False)
         self.grp_skill.toggled.connect(self._set_skill_panel_expanded)
         self.skill_grid.skills_changed.connect(self._on_skills_changed)
         main_layout.addWidget(self.grp_skill)
 
-        self.grp_negative = NegativeTreasureGroup(NEGATIVE_TREASURES, prefix="③ ")
-        self.grp_negative.changed.connect(self._schedule_auto_save)
+        # —— 宝物：独立可勾选分组（负面宝物放行），默认收起 ——
+        self.grp_negative = NegativeTreasureGroup(NEGATIVE_TREASURES)
+        self.grp_negative.changed.connect(self._on_negative_changed)
         main_layout.addWidget(self.grp_negative)
 
-        self.btn_main = QPushButton("开  始  运  行")
-        self.btn_main.setObjectName("btnStart")
-        self.btn_main.setMinimumHeight(46)
-        self.btn_main.clicked.connect(self.toggle_run)
-        main_layout.addWidget(self.btn_main)
-
-        self.lbl_latest = QLabel("就绪 · Shift+F12 可紧急停止")
-        self.lbl_latest.setWordWrap(True)
-        self.lbl_latest.setStyleSheet(
-            "color:#8b9bb4; font-size:11px; background:transparent;")
-        main_layout.addWidget(self.lbl_latest)
-
-        self.grp_details = QGroupBox("运行详情")
+        # —— 运行日志：独立折叠，默认收起 ——
+        self.grp_details = QGroupBox("运行日志")
         self.grp_details.setCheckable(True)
         self.grp_details.setChecked(False)
         details_layout = QVBoxLayout(self.grp_details)
         self.txt_log = QPlainTextEdit()
         self.txt_log.setReadOnly(True)
-        self.txt_log.setMaximumHeight(150)
+        self.txt_log.setMaximumHeight(140)
         self.txt_log.setVisible(False)
         self.grp_details.toggled.connect(self.txt_log.setVisible)
         details_layout.addWidget(self.txt_log)
@@ -751,24 +816,21 @@ class MainWindow(QMainWindow):
     def _update_hero_visibility(self):
         self.hero_options.setVisible(bool(self.cmb_mode.currentData()))
 
+    def _refresh_skill_title(self):
+        names = self.skill_grid.selected_names()
+        self.grp_skill.setTitle(
+            f"技能（已选 {'、'.join(names)}）" if names else "技能（未选 · 只刷新不学习）"
+        )
+
     def _set_skill_panel_expanded(self, expanded: bool):
         self.skill_grid.setVisible(expanded)
-        if not expanded:
-            names = self.skill_grid.selected_names()
-            self.grp_skill.setTitle(
-                f"② 技能搭配（已选 {'、'.join(names)}，点勾展开）"
-                if names
-                else "② 技能搭配（未选择 · 只刷新不学习，点勾展开）"
-            )
+        self._refresh_skill_title()
 
     def _on_skills_changed(self):
         names = self.skill_grid.selected_names()
-        if names:
-            self.grp_skill.setTitle(f"② 技能搭配（已选 {'、'.join(names)}）")
-        else:
-            self.grp_skill.setTitle("② 技能搭配（可选，不选也能跑）")
-        # 选满 4 个自动收起，保持面板简洁
-        if len(names) == self.skill_grid.MAX_SKILLS:
+        self._refresh_skill_title()
+        # 选满 4 个自动收起，保持面板简洁（仅在用户勾选过程中触发）
+        if len(names) == self.skill_grid.MAX_SKILLS and self.grp_skill.isChecked():
             self.grp_skill.setChecked(False)
         self._schedule_auto_save()
 
@@ -780,6 +842,9 @@ class MainWindow(QMainWindow):
         self.spn_reputation_level.valueChanged.connect(self._schedule_auto_save)
         self.chk_dry.toggled.connect(self._schedule_auto_save)
         self.chk_secret_realm.toggled.connect(self._schedule_auto_save)
+
+    def _on_negative_changed(self):
+        self._schedule_auto_save()
 
     def _schedule_auto_save(self):
         try:
@@ -810,13 +875,13 @@ class MainWindow(QMainWindow):
             self.lbl_run_status.setText("运行中")
             self.lbl_run_status.setToolTip(f"当前阶段：{phase}")
             self.lbl_run_status.setProperty("state", "running")
-            self.btn_main.setText("停  止  运  行")
+            self.btn_main.setText("停止运行")
             self.btn_main.setObjectName("btnStop")
         else:
             self.lbl_run_status.setText("空闲")
             self.lbl_run_status.setToolTip("未运行")
             self.lbl_run_status.setProperty("state", "idle")
-            self.btn_main.setText("开  始  运  行")
+            self.btn_main.setText("开始运行")
             self.btn_main.setObjectName("btnStart")
         # 属性选择器换色需要重新求值样式
         for widget in (self.lbl_run_status, self.btn_main):
@@ -916,7 +981,7 @@ class MainWindow(QMainWindow):
         target = settings.stage_targets[0] if settings.stage_targets else f"{settings.stage1}-{settings.stage2}"
         width, height = (settings.window_size or [1600, 900])[:2]
         self.log(
-            f"[启动配置] 版本=v{__version__} 关卡={target} 分辨率={width}x{height} "
+            f"[启动配置] 版本={APP_VERSION_LABEL} 关卡={target} 分辨率={width}x{height} "
             f"秘境={'开启' if settings.auto_secret_realm else '关闭'} "
             f"配置源={ROOT / 'config' / 'default_settings.json'}"
         )
@@ -934,7 +999,7 @@ class MainWindow(QMainWindow):
                     self,
                     "需要管理员权限",
                     "游戏和 KK 对战平台通常以管理员身份运行，普通权限程序无法可靠点击它们。\n\n"
-                    f"请关闭本窗口，右键 {APP_ID}.exe（或桌面「{APP_NAME}」快捷方式），"
+                    f"请关闭本窗口，右键 {APP_ID}.exe（或桌面「{APP_NAME} {APP_VERSION_LABEL}」快捷方式），"
             "选择“以管理员身份运行”后再开始。",
                 )
                 self.log("[阻断] 真机运行需要管理员权限", "error")
