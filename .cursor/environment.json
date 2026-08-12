@@ -1,0 +1,15 @@
+{
+  "name": "GameScript-Local",
+  "install": "bash .cursor/install.sh",
+  "terminals": [
+    {
+      "name": "backend",
+      "command": ". .venv/bin/activate && PYTHONPATH=src python api_server.py"
+    },
+    {
+      "name": "ui-dev",
+      "command": "cd ui && npm run dev"
+    }
+  ],
+  "ports": [17880, 3000]
+}
