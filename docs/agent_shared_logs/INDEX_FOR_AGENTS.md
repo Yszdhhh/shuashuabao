@@ -1,6 +1,9 @@
 # INDEX · 外部 Agent 快速入口
 
-> **先读当前状态：** [`docs/CURRENT_STATUS_AND_HANDOFF_20260812.md`](../CURRENT_STATUS_AND_HANDOFF_20260812.md)。本索引下方内容以早期 L0 日志研究为主，若与当前状态冲突，以新交接文档和最新 trace 为准。
+> **先读规矩：** [`AGENTS.md`](../../AGENTS.md)（仓库根）——硬规矩、两条红线、发版门禁命令。
+> **再读当前状态：** [`docs/CURRENT_STATUS_AND_HANDOFF_20260812.md`](../CURRENT_STATUS_AND_HANDOFF_20260812.md)。本索引下方内容以早期 L0 日志研究为主，若与当前状态冲突，以新交接文档和最新 trace 为准。
+>
+> **提交前必过：** `python tools/release_gate.py`（退出码 0）。细则见 [`docs/CONTRIBUTING_GATE.md`](../CONTRIBUTING_GATE.md)。
 
 ## 一句话问题
 
