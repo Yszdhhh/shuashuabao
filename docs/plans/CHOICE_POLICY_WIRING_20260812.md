@@ -3,6 +3,29 @@
 面向接手的 agent。**动手前先读仓库根 `AGENTS.md`**，尤其"一 commit 一层"和
 "提交前必过 `python tools/release_gate.py`"。
 
+---
+
+## ⚠️ 并行作业须知（2026-08-12 15:20 更新）
+
+主 agent 正在**同时进行**面板 UI 重构与核心算法。为避免撞车，先看这张表：
+
+| 文件 / 目录 | 归属 | 外部 agent 可否改 |
+|---|---|---|
+| `desktop_app.py` | 主 agent（UI 重构中） | ❌ 不要动 |
+| `src/gamescript/choice_policy.py` | 主 agent（已交付 `f7717fc`） | ❌ 不要动，只读它的 API |
+| `config/choice_policy.json` · `config/skill_meta.json` | 主 agent | ❌ 不要动 |
+| `src/gamescript/settings.py` | 主 agent（刚加 `treasure_allow_negative`） | ⚠️ 需加字段先说 |
+| `tests/contract/test_choice_semantics_contract.py` | 主 agent | ❌ 不要动（可新增**别的**契约文件） |
+| `src/gamescript/mediator.py` | **A 组** | ✅ |
+| `assets/Images/cards/**` · `config/fetter_labels.json` · `config/choice_lexicon.json` | **B 组** | ✅ |
+| `ui/**`（React 网页面板） | **C 组** | ✅（见下方 C 组改动） |
+| `fixtures/**` | **D 组** | ✅ |
+
+**起点 commit：`f7717fc`。开工前先 `git pull` / rebase 到它之后**，否则你拿到的
+`PolicySettings` 是旧的（缺 `treasure_negative_names` / `bond_whitelist_mode`）。
+
+三组彼此不冲突，可同时开三个 agent。A 组是关键路径。
+
 ## 0. 背景：现在是什么状况
 
 用户 2026-08-12 实机报了三个选卡问题，根因已定位：
@@ -99,29 +122,67 @@ decision = choose_action(PanelCandidates(
 参照 `docs/baselines/EVOLVE_TEMPLATE_RECUT_20260812.md`——进化模板就是因为缺负向
 断言而误命中数百次。加进 `tools/validate_scenes.py` 的强制项。
 
-## 4. 待做 · C 组：UI 折叠勾选（前端）
+## 4. 待做 · C 组：React 网页面板对齐（**已重新划分**）
 
-用户要求：负面宝物在宝物区**折叠**展示，逐卡打勾才会选，不勾不选。
+> **改动说明**：原 C 组是"做负面宝物折叠勾选 UI"。经查，打包进 exe 的是
+> **PySide6 桌面面板 `desktop_app.py`**（`GameScript.spec` 把 fastapi/uvicorn 都
+> excludes 了，`ui/dist` 也不在 datas 里），React 那套只是可选网页面板。
+> 折叠勾选 UI 由**主 agent 在 `desktop_app.py` 里做**，C 组不要重复实现，
+> 更不要动 `desktop_app.py`。
 
-- 前端：`ui/src/components/` 新增可折叠列表，选项来自 `config/choice_policy.json` 的
-  `treasure.candidate_negative_names_unverified` + 实机已确认的负面卡名
-- 写回：`treasure.allow_negative` 数组（逐卡，不是全局开关）
-- 默认：全不勾
+C 组现在的范围只剩 React 面板与后端字段对齐（**低优先级，可最后做**）：
 
-## 5. 待做 · D 组：负面卡措辞取证（需用户配合）
+1. `ui/src/types.ts` 的 `AppSettings` 补 `treasure_allow_negative: string[]`
+2. `FettersCard.tsx` 里那份 `FETTER_NAMES` 是 `config/fetter_labels.json` 的**手抄副本**，
+   两处不同步会导致网页显示和后端识别对不上。改成运行时从
+   `/api/options/fetter-labels` 拉取（该端点需在 `api_server.py` 新增，读同一个 json），
+   删掉硬编码副本。
+3. 若要在网页面板也做负面宝物勾选，**照抄桌面面板落地后的语义**：逐卡勾选、
+   默认全不勾、写回 `treasure_allow_negative`。等主 agent 那版合入后再做，别抢先定义。
 
-`config/choice_policy.json` 的 `negative_patterns` 目前是按用户口述推断的模式。
-需要三张卡的**实机截图**确认准确措辞（+50万金币断金币 / 666木材断木材 / 直升25级断升级）。
+## 5. 待做 · D 组：负面卡描述取证（**卡名已确认，只差描述原文**）
 
-拿到后：
-1. 把描述原文加进契约 `S3NegativeTreasureOptIn.NEGATIVE_SAMPLES`
-2. 把帧存成夹具，做一条端到端断言（面板帧 → 不选该卡）
-3. `candidate_negative_names_unverified` 里被证实的移到正式名单
+用户 2026-08-12 已逐张确认负面宝物共 6 张，已写入 `choice_policy.json`
+的 `treasure.negative_names` 并被契约锁定：
 
-**在取证完成前，不得**把 `透支力量`/`贪婪献祭` 等仅凭名字可疑的卡拉黑——
-名字不能证明效果。
+> 透支力量 · 贪婪献祭 · 金转木 · 杀敌梭哈 · 伐木契约 · 等级优势
 
-## 6. 建议顺序
+**名字判定已经生效**（描述读不到也拦得住），所以 D 组不再是阻塞项。剩下的活是
+补描述原文，让**没见过的新卡**也能被模式匹配拦住：
 
-A 组（接线）是关键路径，B/C/D 可并行。A3 删旁路那步风险最高，做完立刻跑门禁 +
-实机 1 局。D 组取证完成前，负面识别只对已确认措辞生效，属正常状态，不是缺陷。
+1. 局内开宝物面板，截到这 6 张中任意一张的帧 → 存 `fixtures/treasure_negative/`
+2. 把卡面描述原文加进契约 `S3NegativeTreasureOptIn.NEGATIVE_SAMPLES`
+3. 核对 `negative_patterns` 是否覆盖该措辞；不覆盖就补模式（**只补，不删**）
+4. 做一条端到端断言：真实面板帧 → 该卡不被选中
+
+红线不变：**名单外的卡不得仅凭名字可疑就拉黑**（契约
+`test_missing_description_is_not_guessed_negative` 守着这条）。
+
+## 6. 建议顺序与并行度
+
+三条独立轨道，可同时开三个 agent：
+
+| 轨道 | 优先级 | 阻塞谁 | 备注 |
+|---|---|---|---|
+| **A** mediator 接线 | 🔴 关键路径 | 用户实机体验 | A3「删三条旁路」风险最高，做完立刻跑门禁 + 实机 1 局 |
+| **B** 素材词典 | 🟡 中 | 无 | 纯数据活，用户会陆续给卡牌素材 |
+| **D** 描述取证 | 🟢 低 | 无 | 名字判定已生效，这步是给新卡兜底 |
+| **C** React 对齐 | ⚪ 最低 | 无 | 等主 agent 的桌面面板语义落地后再做 |
+
+**主 agent 同期在做**：面板 UI 重构（`desktop_app.py`：技能图标 + 悬停说明、
+负面宝物折叠勾选、整体版式）+ 核心算法。与 A/B/D 无文件重叠。
+
+### 每个 agent 开工前的自检
+
+```powershell
+git log --oneline -1          # 应看到 f7717fc 或更新
+python tools/release_gate.py  # 起点必须是 PASS，不是 PASS 先别动手
+```
+
+收工前同样跑一遍 gate；红了先判断「哪边才对」，**不要改快照让它变绿**。
+
+### 交回时说清三件事
+
+1. 改了哪一层（对应 commit 拆分）
+2. gate 结果（贴 4 个阶段的观测值）
+3. 哪些链路的实机证据因此失效、需要重测
