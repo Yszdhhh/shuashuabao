@@ -193,7 +193,8 @@ def compare(result: StageResult, baseline: dict) -> None:
                 result.deviations.append(f"{scene}: 快照={exp_status} 实际={act_status}")
         for scene in sorted(set(result.observed) - set(exp_observed)):
             result.deviations.append(f"{scene}: 快照中不存在的新场景={result.observed[scene]}")
-    elif result.name == "pytest":
+    elif result.name in ("pytest", "contract"):
+        # 通过数只许涨不许跌：新增测试无需更新快照，删测试/跳过测试会被抓住。
         exp_pass = exp_observed.get("passed", 0)
         act_pass = result.observed.get("passed", 0)
         if result.observed.get("failed") or result.observed.get("error"):
@@ -202,6 +203,8 @@ def compare(result: StageResult, baseline: dict) -> None:
             )
         elif act_pass < exp_pass:
             result.deviations.append(f"通过数下降：快照={exp_pass} 实际={act_pass}（测试被删或被跳过？）")
+        elif result.name == "contract" and not exp_observed.get("present"):
+            result.deviations.append("快照记录 tests/contract/ 不存在，请更新快照")
     else:
         for key, exp_value in exp_observed.items():
             act_value = result.observed.get(key)
