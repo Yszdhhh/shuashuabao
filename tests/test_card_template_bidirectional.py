@@ -54,23 +54,24 @@ class CardBidirectionalTests(unittest.TestCase):
         self.assertEqual(fail, 0, msg="\n".join(errors))
 
     def test_zhufu_panel_positive_and_blank_negative(self):
-        import cv2
-        from tools.validate_scenes import _match_score
+        # 必须用 imread_unicode：仓库目录含非 ASCII（🎮 影音游戏），
+        # cv2.imread 在 Windows 上对这类路径静默返回 None。
+        from tools.validate_scenes import _match_score, imread_unicode
 
         index = json.loads(INDEX.read_text(encoding="utf-8"))
         positive_min = float(index["thresholds"]["positive_min"])
         negative_max = float(index["thresholds"]["negative_max"])
-        tpl = cv2.imread(str(CARDS / "zhufu.png"))
+        tpl = imread_unicode(CARDS / "zhufu.png")
         self.assertIsNotNone(tpl)
 
-        bond = cv2.imread(
-            str(ROOT / "fixtures/card_template_assertions/positives/bond_choice_3.png")
+        bond = imread_unicode(
+            ROOT / "fixtures/card_template_assertions/positives/bond_choice_3.png"
         )
-        black = cv2.imread(
-            str(ROOT / "fixtures/card_template_assertions/negatives/black_frame.png")
+        black = imread_unicode(
+            ROOT / "fixtures/card_template_assertions/negatives/black_frame.png"
         )
-        idle = cv2.imread(
-            str(ROOT / "fixtures/card_template_assertions/negatives/idle_hud.png")
+        idle = imread_unicode(
+            ROOT / "fixtures/card_template_assertions/negatives/idle_hud.png"
         )
         pos = _match_score(bond, tpl)
         blank = _match_score(black, tpl)

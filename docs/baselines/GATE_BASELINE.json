@@ -1,15 +1,14 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-12 08:02:01",
-  "reason": "Linux/cloud：UIA 用例依赖 ctypes.HRESULT 无法收集；OCR 模型二进制与 official_raw 为 gitignore 本地资产，相关用例 skip（非行为回归）。B 组新增卡牌双向断言用例。Windows 满资产主机通过数会更高（门禁允许上涨）。合并 2067952 后 contract 通过数随选卡契约增长。",
+  "updated_at": "2026-08-12 16:24:45",
+  "reason": "三组 PR（#1 A接线 / #2 D取证 / #3 B断言）在 Windows 满资产主机合并后重定基线：pytest 537（云端 462 是缺 OCR/official_raw/UIA 资产的降级数字，不作基线）；contract 56（新增选卡接线契约 + 负面宝物夹具契约）。合并时修掉 B 组新代码用 cv2.imread 在非 ASCII 仓库路径下静默失败的问题（改 imdecode，与 matcher.py 一致）",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 462,
-        "xfailed": 2,
-        "skipped": 11
+        "passed": 537,
+        "xfailed": 2
       }
     },
     "frozen_replay": {
@@ -37,7 +36,7 @@
     "contract": {
       "title": "L0 大厅全链契约回放（tests/contract/）",
       "observed": {
-        "passed": 32,
+        "passed": 56,
         "present": 1
       }
     }

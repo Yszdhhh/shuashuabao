@@ -31,6 +31,28 @@ REQUIRED_PANEL_HITS: dict[str, tuple[str, ...]] = {
 }
 
 
+def imread_unicode(path: Path):
+    """读图；必须走 imdecode 而不是 cv2.imread。
+
+    仓库实际所在目录含非 ASCII 字符（`🎮 影音游戏`），Windows 上 cv2.imread
+    对这类路径会静默返回 None。生产侧 `vision/matcher.py` 早就为此改用
+    np.fromfile + imdecode，工具与测试必须保持一致，否则在云端（ASCII 路径）
+    全绿、到用户机器上全红。
+    """
+    import cv2
+    import numpy as np
+
+    if not path.is_file():
+        return None
+    try:
+        data = np.fromfile(str(path), dtype=np.uint8)
+    except OSError:
+        return None
+    if data.size == 0:
+        return None
+    return cv2.imdecode(data, cv2.IMREAD_COLOR)
+
+
 def resolve(name: str) -> Path | None:
     n = name if name.lower().endswith(".png") else f"{name}.png"
     for c in [
@@ -118,7 +140,7 @@ def validate_card_bidirectional() -> tuple[int, int, list[str]]:
     positive_frames: list[tuple[str, object]] = []
     for rel in index.get("positive_frames") or []:
         path = ROOT / rel
-        img = cv2.imread(str(path)) if path.is_file() else None
+        img = imread_unicode(path) if path.is_file() else None
         if img is None:
             errors.append(f"positive frame unreadable: {rel}")
         else:
@@ -128,7 +150,7 @@ def validate_card_bidirectional() -> tuple[int, int, list[str]]:
     unrelated_frames: list[tuple[str, object]] = []
     for rel in index.get("negative_frames") or []:
         path = ROOT / rel
-        img = cv2.imread(str(path)) if path.is_file() else None
+        img = imread_unicode(path) if path.is_file() else None
         if img is None:
             errors.append(f"negative frame unreadable: {rel}")
             continue
@@ -148,7 +170,7 @@ def validate_card_bidirectional() -> tuple[int, int, list[str]]:
         tpl_path = templates_dir / f"{code}.png"
         if not tpl_path.is_file():
             continue
-        template = cv2.imread(str(tpl_path))
+        template = imread_unicode(tpl_path)
         if template is None:
             errors.append(f"{code}: unreadable PNG")
             continue
@@ -199,12 +221,12 @@ def validate_card_bidirectional() -> tuple[int, int, list[str]]:
     # Required panel hits (regression lock for evidenced templates)
     for code, frames in REQUIRED_PANEL_HITS.items():
         tpl_path = templates_dir / f"{code}.png"
-        template = cv2.imread(str(tpl_path)) if tpl_path.is_file() else None
+        template = imread_unicode(tpl_path) if tpl_path.is_file() else None
         if template is None:
             errors.append(f"required panel hit {code}: template missing")
             continue
         for rel in frames:
-            img = cv2.imread(str(ROOT / rel))
+            img = imread_unicode(ROOT / rel)
             score = _match_score(img, template)
             if score < positive_min:
                 errors.append(
