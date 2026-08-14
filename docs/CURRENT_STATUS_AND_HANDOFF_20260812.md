@@ -1,5 +1,61 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-14 15:35 板块 1：控制中心 P0 已落地（只动外壳）
+
+- 新包 `src/gamescript/shell/`：`mode_catalog` / `runner_service` / `runtime_status` / `main_window`。`desktop_app.py` 瘦身为入口并再导出，`tests/test_desktop_app.py` 仍从 `desktop_app` import。
+- 左栏六个 ModeSpec（id 对齐 `config/mode_specs.json` 的 `normal_farm`，不是方案文 `solo_farm`）。只有 `normal_farm` 可启动；跟车/赌木/站团本/蹭车主按钮「待验证 · 不可启动」；实验室只读 CLI 说明。
+- `RunnerService.start` 是唯一 LIVE 入口，内部 `desktop_may_start()`。未验证方式零 Mediator、零输入。托盘只有「打开控制中心 / 停止 / 退出」，没有未验证启动项。
+- 底栏钉死：摘要 + 预检灯 + 开始/停止。用词「运行方式」≠「关卡难度」。
+- 用户设置写 `%LOCALAPPDATA%/ShuaBao/user_settings.json`（测试可注入 `app_data`）；仓库 `default_settings.json` 只当出厂默认。`collect_settings_from_ui` 返回深拷贝；`1-10`→`stage1/stage2=10` quirk 未改。
+- 四大设置板块（`normal_farm` 右栏）：技能（常用搭配 + 自定义组合 + 16 格存档等级）/ 羁绊（四轮方案 + 反选 + 三线 UR）/ 宝物与资源（EX 四宝只读「策略必拿」、负面 opt-in、赌木待接线、龙珠待验证、木材阈值置灰）/ 运行（关卡、关卡难度、局数、学习模式、秘境）。
+- 已拍板文案：蹭车只认准备/已准备/取消准备、无锁定按钮、只露 3/4 前缀、精确关卡灰化「后续拓展」、F1=切自身英雄、F2=回基地。`hitch_reject_list` 编辑器未露出。
+- **未改**任何 `live_enabled`、mediator / scenes.json / choice_policy 判定。未做宠物（P1）、图鉴 UI（P2）。print hook 只转发日志，不再抠 phase。
+- 关闭窗口走 `stop()` + 等待，不用 `terminate()`。预留 `ShuaBao.live.lock`。
+- 单测：`tests/test_desktop_app.py` + `tests/test_shell_progress.py`。
+- 真机：自己刷图启动路径需要重新点一次确认（底栏 + 学习/真机确认框仍在）。跟车等不可启动，无需真机。
+
+---
+
+## 2026-08-14 15:25 板块 2 第 1 步：AtlasView 数据层（只读 join，无 UI）
+
+- 新增 `src/gamescript/atlas_view.py`：运行时 join lexicon / catalog / meta / archive / rarity / bond_stack / fetter / official_strategy / policy，**没有** `atlas.json`。
+- 一致性闸 `tests/test_atlas_view.py`：技能规范名 ⊆ lexicon∪catalog；负面名 = `choice_policy.treasure.negative_names`；属性链名字都能词典解析。
+- 搜「极速」落到「急速」；「湮灭者」带智力链 + `fixtures/ur_attr_routes/` 三件套路径。
+- `apply_to_run` 单向出口：升级卡名进不了 `settings.skills`；运行中全拒；无短码羁绊不能勾。
+- 黑商页数据是空态 + 待补清单，不编货品。空说明显示「待补」，不编数值。
+- 第 2 步（图鉴 UI / 应用到本局按钮 / `ATLAS_GAPS_AUTO.md`）等板块 1 shell P0 合入后再做。`shell/` 未齐，数据层先放在 `gamescript/atlas_view.py`。
+- 未改 mediator / scenes.json / choice_policy 判定。无新的真机验证项。
+
+---
+
+## 2026-08-14 15:20 板块 3：F4 / 压力转移解禁（只改知识库，未接线）
+
+user 拍板：这两条**分情况，不是永远禁止**。
+
+- **压力转移**：跟车 / 蹭车**一进游戏就点**。自己开房 / 独狼 / 当 1P 仍禁止误点。
+- **F4**：打不过场上挑战怪就按（主线/资源/压过来的怪都算）。还打得过时禁止误按。「打不过」判定未钉，不猜阈值。
+- **`-zs` 仍绝对禁止。**
+
+已写入 `config/game_mechanics_kb.json` → `script_situational`（从 `script_forbidden` 移出）。总索引 [`docs/research/GAME_LOGIC_LIBRARY_INDEX_20260814.md`](research/GAME_LOGIC_LIBRARY_INDEX_20260814.md) §1.9。`wired_to_decision` 仍 false。未改 mediator / choice_policy / `lobby_hitch.live_enabled`。无链路需重新真机验证。
+
+接线另立项：压力转移走蹭车局内阶段；F4 走挑战失败恢复。都不和拿卡 B1 混提交。
+
+---
+
+## 2026-08-14 15:20 板块 4-P0：玩家画像采集器（只读，未进主循环）
+
+新模块 `src/gamescript/player_profile.py` + `tools/profile_scan.py`。截图→OCR→`%LocalAppData%/ShuaBao/profile/`。零点击、零按键，不写 Settings、不写仓库 config。
+
+- 技能：OCR 16 系等级徽标；conf 低 = unverified；>50 丢弃。
+- TAB 属性：力/敏/智/攻速/暴击/技能急速/掉宝率等；攻速>1000% 或急速>80% 当 OCR 错丢弃。
+- 真机入口：`测试夹\11-画像采集-只识别.bat`（人先停在存档技能总览或已打开 TAB）。占 `ShuaBao.live.lock`，与 08/09/10/看板 LIVE 互斥。
+- 夹具约定：`fixtures/player_profile_20260814/`。整屏真机帧还没有，禁止合成。本号对照：奥术箭 47 / 爆炎箭 8 / 剑气 13。
+- 未做 P1 建议引擎、P2 看板。未碰 mediator。
+
+真机还没跑 11.bat。跑完把 profile 目录里的 PNG 拷进夹具再验收。
+
+---
+
 ## 2026-08-12 外壳：Dry-run → 学习模式（观察记录 + 本机自适应入口）
 
 - 层：外壳为主 + 习惯观测 API + L0 学习模式创房节流（未改大厅红线 / 真机创房确认门闩）

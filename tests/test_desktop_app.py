@@ -17,7 +17,9 @@ from PySide6.QtWidgets import (  # noqa: E402
     QCheckBox,
     QGroupBox,
     QLabel,
+    QProgressBar,
     QPushButton,
+    QScrollArea,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,21 +40,28 @@ class DesktopPanelTests(unittest.TestCase):
     def setUp(self):
         # The real window persists settings on close.  Unit tests must never
         # rewrite the production config with whichever value a case last used.
-        self.save_patch = patch.object(Settings, "save", autospec=True)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.save_patch = patch.object(Settings, "save", lambda *a, **k: None)
         self.save_patch.start()
-        self.window = desktop_app.MainWindow()
+        self.window = desktop_app.MainWindow(app_data=Path(self.tmp.name))
 
     def tearDown(self):
-        self.window.close()
-        self.save_patch.stop()
+        try:
+            self.window.close()
+        finally:
+            self.save_patch.stop()
+            self.tmp.cleanup()
 
-    def test_panel_contains_only_core_controls(self):
+    def _panel_text(self) -> str:
         text_widgets = (QLabel, QPushButton, QCheckBox, QGroupBox)
-        panel_text = "\n".join(
+        return "\n".join(
             widget.text() if hasattr(widget, "text") else widget.title()
             for kind in text_widgets
             for widget in self.window.findChildren(kind)
         )
+
+    def test_panel_contains_only_core_controls(self):
+        panel_text = self._panel_text()
         for removed_text in (
             "认证状态",
             "官方 Settings",
@@ -105,6 +114,29 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertIn("待补", asj_tip)
         self.assertNotIn("%", asj_tip)
 
+    def test_skill_archive_levels_default_unknown_and_round_trip(self):
+        """存档等级默认全 0=未知（策略走保守前置）；填了要能往返。"""
+        grid = self.window.archive_grid
+        self.assertFalse(self.window.grp_archive.isChecked())
+        self.assertTrue(grid.isHidden())
+        self.assertEqual({}, grid.get_levels())
+        self.assertEqual({}, self.window.collect_settings_from_ui().skill_archive_levels)
+
+        grid.set_levels({"asj": 47, "byj": 8, "jq": 13})
+        collected = self.window.collect_settings_from_ui()
+        self.assertEqual({"asj": 47, "byj": 8, "jq": 13}, collected.skill_archive_levels)
+        self.window.apply_settings_to_ui(collected)
+        self.assertEqual(47, grid.boxes["asj"].value())
+        self.assertEqual(0, grid.boxes["tl"].value())
+
+    def test_skill_archive_levels_clamp_and_drop_zeros(self):
+        grid = self.window.archive_grid
+        grid.set_levels({"asj": 999, "tl": -5, "hq": 0})
+        self.assertEqual(grid.MAX_LEVEL, grid.boxes["asj"].value())
+        self.assertEqual(0, grid.boxes["tl"].value())
+        self.assertEqual({"asj": grid.MAX_LEVEL}, grid.get_levels())
+        grid.set_levels({})
+
     def test_negative_treasures_default_to_none_allowed(self):
         """负面宝物默认一张都不放行，且分区默认收起。"""
         group = self.window.grp_negative
@@ -129,7 +161,11 @@ class DesktopPanelTests(unittest.TestCase):
         )
 
     def test_negative_group_keeps_title_stable_on_refresh(self):
-        """分组自己刷新标题时语义仍在（曾因两处写标题而丢前缀）。"""
+        """分组自己刷新标题时语义仍在（曾因两处写标题而丢前缀）。
+
+        2026-08-13 改名：负面宝物放行 → 特殊宝物选择（用户可见措辞），
+        契约不变——刷新标题不得丢掉「特殊宝物」语义前缀。
+        """
         group = self.window.grp_negative
         for action in (
             lambda: group.set_allowed(["金转木"]),
@@ -139,9 +175,9 @@ class DesktopPanelTests(unittest.TestCase):
         ):
             action()
             self.assertIn(
-                "负面",
+                "特殊宝物",
                 group.title(),
-                f"标题丢了负面语义：{group.title()!r}",
+                f"标题丢了特殊宝物语义：{group.title()!r}",
             )
 
     def test_negative_treasure_list_matches_policy_config(self):
@@ -158,6 +194,7 @@ class DesktopPanelTests(unittest.TestCase):
         # affect the direct-create path.
         self.window.settings.room_name = "old-room"
         self.window.settings.room_password = "old-password"
+        self.window.settings.lab_focus = "skill,reenter"
         self.window.txt_stage_target.setText("2-7")
         self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(False))
         settings = self.window.collect_settings_from_ui()
@@ -171,6 +208,7 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertFalse(settings.auto_reputation)
         self.assertEqual("", settings.room_name)
         self.assertEqual("", settings.room_password)
+        self.assertEqual("", settings.lab_focus)
 
     def test_hero_mode_maps_faction_and_difficulty(self):
         self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(True))
@@ -290,6 +328,91 @@ class DesktopPanelTests(unittest.TestCase):
                 self.assertIn(field, meta, f"metadata 必须含 {field}")
             raw = (group / "metadata.json").read_text(encoding="utf-8")
             self.assertNotIn("top-secret-pw", raw, "密码不得归档")
+
+    def test_run_mode_and_stage_difficulty_are_not_mixed(self):
+        text = self._panel_text()
+        self.assertIn("运行方式", text)
+        self.assertIn("关卡难度", text)
+        self.assertEqual("普通", self.window.cmb_mode.itemText(0))
+        self.assertEqual("英雄", self.window.cmb_mode.itemText(1))
+
+    def test_start_button_lives_on_pinned_footer(self):
+        self.assertTrue(self.window.footer.isAncestorOf(self.window.btn_main))
+        parent = self.window.btn_main.parentWidget()
+        while parent is not None:
+            self.assertNotIsInstance(parent, QScrollArea)
+            parent = parent.parentWidget()
+
+    def test_collect_returns_detached_settings_copy(self):
+        first = self.window.collect_settings_from_ui()
+        second = self.window.collect_settings_from_ui()
+        self.assertIsNot(first, self.window.settings)
+        self.assertIsNot(first, second)
+        first.skills = ["changed-in-test"]
+        self.assertNotEqual(first.skills, second.skills)
+
+    def test_user_settings_path_is_under_app_data(self):
+        path = self.window.user_settings_path()
+        self.assertEqual(path.parent, Path(self.tmp.name))
+        self.assertEqual(path.name, "user_settings.json")
+        self.assertNotIn("config", path.parts[-2:])
+
+    def test_unverified_mode_start_is_zero_input(self):
+        from gamescript.shell.runner_service import ModeNotEnabled, RunnerService
+
+        svc = RunnerService(Path(self.tmp.name), ROOT)
+        with patch("gamescript.shell.runner_service.MediatorWorker") as worker_cls:
+            for mode_id in ("follow_team", "gambling_wood", "raid_wait", "lobby_hitch", "lab"):
+                with self.subTest(mode_id=mode_id):
+                    with self.assertRaises(ModeNotEnabled):
+                        svc.start(mode_id, Settings(dry_run=True))
+            worker_cls.assert_not_called()
+        self.assertIsNone(svc.worker)
+
+    def test_tray_menu_has_no_unverified_start(self):
+        texts = [action.text() for action in self.window.tray_menu.actions()]
+        joined = "\n".join(texts)
+        self.assertIn("打开控制中心", joined)
+        self.assertIn("停止运行", joined)
+        for banned in ("跟车", "赌木", "站团本", "大厅找房", "开始运行", "lobby_hitch"):
+            self.assertNotIn(banned, joined)
+
+    def test_apply_official_build_fills_skills_bonds_reputation(self):
+        ok = self.window.apply_official_build("arcane_open", confirm=False)
+        self.assertTrue(ok)
+        collected = self.window.collect_settings_from_ui()
+        self.assertEqual(["asj", "asjg", "assx", "jq"], collected.skills)
+        self.assertEqual(["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe", "fs"], collected.cards)
+        self.assertEqual(3, collected.reputation_type)
+
+    def test_bond_invert_writes_scheme_minus_inverted(self):
+        self.window.set_bond_scheme(["tishu", "chengzhang", "zhufu"], inverted=["chengzhang"])
+        self.assertEqual(["tishu", "zhufu"], self.window.effective_bond_codes())
+        self.assertEqual(["tishu", "zhufu"], self.window.collect_settings_from_ui().cards)
+
+    def test_treasure_and_wood_controls_are_labeled_or_disabled(self):
+        text = self._panel_text()
+        self.assertIn("待接线", text)
+        self.assertIn("待验证", text)
+        self.assertIn("策略必拿", text)
+        self.assertFalse(self.window.spn_wood_open_f.isEnabled())
+        self.assertFalse(self.window.spn_wood_refresh.isEnabled())
+        self.assertFalse(self.window.txt_hitch_exact.isEnabled())
+        self.assertIn("后续拓展", self.window.txt_hitch_exact.placeholderText())
+
+    def test_cycle_num_zero_does_not_draw_a_bar(self):
+        self.window.spn_cycle_num.setValue(0)
+        self.window.update_status(False, "空闲", 3)
+        self.assertEqual([], self.window.findChildren(QProgressBar))
+        self.assertIn("已完成", self.window.lbl_games_cap.text())
+
+    def test_hitch_copy_has_no_lock_button_and_corrected_f_keys(self):
+        text = self._panel_text()
+        self.assertIn("只认 准备 / 已准备 / 取消准备", text)
+        self.assertIn("无「锁定」按钮", text)
+        self.assertIn("F1 = 操作切回自身英雄", text)
+        self.assertIn("F2 = 回基地", text)
+        self.assertNotIn("hitch_reject_list", text)
 
 
 if __name__ == "__main__":
