@@ -1,0 +1,79 @@
+{
+  "source_dir": "C:\\Program Files (x86)\\kkduizhan\\ScreenRecord\\y3",
+  "write_to_source_denied": "对路径“...\\y3\\_write_probe.txt”的访问被拒绝。",
+  "kept_policy": "全量 seek 抽帧约 231MB，仓库只留片头+代表帧。完整时间点见各 timeline.json。",
+  "lobby_room_list": "none",
+  "items": [
+    {
+      "name": "左上角推出游戏点击后画面.jpg",
+      "kind": "image",
+      "shape": [1602, 928],
+      "kept": "左上角推出游戏点击后画面.jpg",
+      "seen": "局内退出确认，不是房间列表"
+    },
+    {
+      "name": "重生魔兽刷刷刷-260808002938.mp4",
+      "kind": "video",
+      "shape": [1600, 900],
+      "duration_s": 852.5,
+      "kept": ["t0000.00.png", "t0030.00.png"],
+      "seen": "KK 黑屏片头 → 局内技能三选"
+    },
+    {
+      "name": "重生魔兽刷刷刷-260808005503.mp4",
+      "kind": "video",
+      "shape": [1600, 900],
+      "duration_s": 6.7,
+      "kept": ["t0000.00.png", "t0002.00.png"],
+      "seen": "大秘境局内"
+    },
+    {
+      "name": "重生魔兽刷刷刷-260808183703.mp4",
+      "kind": "video",
+      "shape": [1600, 900],
+      "duration_s": 30.4,
+      "kept": ["t0000.00.png", "t0002.00.png"],
+      "seen": "局内自动任务"
+    },
+    {
+      "name": "重生魔兽刷刷刷-260808184634.mp4",
+      "kind": "video",
+      "shape": [1600, 900],
+      "duration_s": 4.8,
+      "kept": ["t0000.00.png", "t0002.00.png"],
+      "seen": "局内退出确认"
+    },
+    {
+      "name": "重生魔兽刷刷刷-260809143044.mp4",
+      "kind": "video",
+      "shape": [1600, 900],
+      "duration_s": 632.8,
+      "kept": ["t0000.00.png", "t0030.00.png"],
+      "seen": "羁绊三选，刷新 40 木"
+    },
+    {
+      "name": "重生魔兽刷刷刷-260809144122.mp4",
+      "kind": "video",
+      "shape": [1586, 892],
+      "duration_s": 42.4,
+      "kept": ["t0000.00.png", "t0002.00.png", "t0040.00.png"],
+      "seen": "胜利继续 → 退出确认"
+    },
+    {
+      "name": "重生魔兽刷刷刷-260809223113.mp4",
+      "kind": "video",
+      "shape": [1600, 900],
+      "duration_s": 160.5,
+      "kept": ["t0000.00.png", "t0015.00.png"],
+      "seen": "局内宝物挑战提示"
+    },
+    {
+      "name": "重生魔兽刷刷刷-260810002343.mp4",
+      "kind": "video",
+      "shape": [1600, 900],
+      "duration_s": 309.1,
+      "kept": ["t0000.00.png", "t0030.00.png"],
+      "seen": "局内技能刷新"
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "_comment": "三属性 UR 羁绊三件套。截图来自用户录像；规范名与 choice_lexicon set_membership / official_strategy_defaults.attr_routes 对齐。",
+  "routes": {
+    "intelligence": {
+      "attr": "智力",
+      "set": "湮灭者",
+      "fetter_code": "yanmiezhe",
+      "set_effect": "杀敌智力+0.2；造成的魔法伤害，结算时x1.08",
+      "pieces": {
+        "聚能之虹": {
+          "stats": "技能急速+30(+10)",
+          "evidence": "fixtures/ur_attr_routes/聚能之虹/source.png"
+        },
+        "洞察之眼": {
+          "stats": "魔法暴击+5%(+1.75%)；魔法暴伤+25%(+8.75%)",
+          "evidence": "fixtures/ur_attr_routes/洞察之眼/source.png"
+        },
+        "奥法之辉": {
+          "stats": "智力+250(+87)；智力增幅+25%(+8.75%)",
+          "evidence": "fixtures/ur_attr_routes/奥法之辉/source.png"
+        }
+      }
+    },
+    "strength": {
+      "attr": "力量",
+      "set": "屠戮者",
+      "fetter_code": "tuluzhe",
+      "set_effect": "杀敌力量+0.2；造成的所有伤害，结算时x1.05",
+      "pieces": {
+        "战斗咆哮": {
+          "stats": "力量+250(+120)；力量增幅+25%(+12%)",
+          "evidence": "fixtures/ur_attr_routes/战斗咆哮/source.png"
+        },
+        "屠戮之刃": {
+          "stats": "所有伤害+20%(+9.6%)；普攻伤害+10%(+4.8%)；技能伤害+10%(+4.8%)",
+          "evidence": "fixtures/ur_attr_routes/屠戮之刃/source.png"
+        },
+        "杀戮之血": {
+          "stats": "杀敌恢复+10(+4)；杀敌生命+0.5(+0.24)",
+          "evidence": "fixtures/ur_attr_routes/杀戮之血/source.png"
+        }
+      }
+    },
+    "agility": {
+      "attr": "敏捷",
+      "set": "收割者",
+      "fetter_code": "shougezhe",
+      "set_effect": "杀敌敏捷+0.2；造成的物理伤害，结算时x1.08",
+      "pieces": {
+        "亡者之轮": {
+          "stats": "敏捷+250(+87)；敏捷增幅+25%(+8.75%)",
+          "evidence": "fixtures/ur_attr_routes/亡者之轮/source.png"
+        },
+        "多重打击": {
+          "stats": "多重数量+2；多重伤害+20%(+7%)",
+          "evidence": "fixtures/ur_attr_routes/多重打击/source.png"
+        },
+        "支配死灵": {
+          "stats": "杀敌攻击+0.2(+0.07)",
+          "evidence": "fixtures/ur_attr_routes/支配死灵/source.png"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "_comment": "EX 必拿宝物。截图来自用户录像；规范名与 choice_policy.must_take_names / choice_lexicon 对齐。",
+  "cards": {
+    "ONEPIECE": {
+      "description": "恭喜你找到了ONEPIECE!! 金币+100w 木材+3000",
+      "evidence": ["fixtures/treasure_must_take/ONEPIECE/source.png"],
+      "aliases": ["ONE PIECE", "OnePiece"]
+    },
+    "至高进化": {
+      "description": "等级提升5级，本局进化时，变为至高进化(解禁全部进化英雄，极大幅度提升高品级英雄出现概率)",
+      "evidence": ["fixtures/treasure_must_take/至高进化/source.png"],
+      "aliases": []
+    },
+    "一身神装": {
+      "description": "立即获得神器：王者之冠、燃烧军团之徽、远古王者之刃、高洁七星龙渊剑（不会触发装备成就）",
+      "evidence": ["fixtures/treasure_must_take/一身神装/source.png"],
+      "aliases": []
+    },
+    "满级大佬": {
+      "description": "立即提升至50级",
+      "evidence": ["fixtures/treasure_must_take/满级大佬/source.png"],
+      "aliases": []
+    }
+  }
+}

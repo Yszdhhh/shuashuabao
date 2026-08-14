@@ -1,0 +1,51 @@
+{
+ "video": "C:\\Program Files (x86)\\kkduizhan\\ScreenRecord\\y3\\重生魔兽刷刷刷-260808184634.mp4",
+ "fps": 30.0,
+ "total_frames": 143,
+ "duration_s": 4.77,
+ "size": [
+  1600,
+  900
+ ],
+ "sample_times": [
+  0.0,
+  2.0,
+  4.0,
+  4.72
+ ],
+ "frames": [
+  {
+   "t": 0.0,
+   "frame": "t0000.00.png",
+   "shape": [
+    1600,
+    900
+   ]
+  },
+  {
+   "t": 2.0,
+   "frame": "t0002.00.png",
+   "shape": [
+    1600,
+    900
+   ]
+  },
+  {
+   "t": 4.0,
+   "frame": "t0004.00.png",
+   "shape": [
+    1600,
+    900
+   ]
+  },
+  {
+   "t": 4.72,
+   "frame": "t0004.72.png",
+   "shape": [
+    1600,
+    900
+   ]
+  }
+ ],
+ "note": "seek 抽帧，不是逐帧 scene-diff；用于大厅/房间列表取证，不声称实机流程已通过"
+}

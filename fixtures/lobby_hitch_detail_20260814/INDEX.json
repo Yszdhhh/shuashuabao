@@ -1,0 +1,51 @@
+{
+  "_comment": "蹭车详细版本.mp4 代表帧。桌面 1920x1080，客户区 (203,84) 1600x900。不是合成帧。不证明已可真机加入。",
+  "source_video": "C:\\Users\\10639\\Desktop\\录屏素材\\蹭车详细版本.mp4",
+  "duration_s": 1413.37,
+  "fps": 30.0,
+  "size_mb": 587.5,
+  "desktop_shape": [1920, 1080],
+  "client_crop": {"xy": [203, 84], "wh": [1600, 900], "same_as": "fixtures/stage_select_20260814"},
+  "write_to_program_files": false,
+  "live_join_claimed": false,
+  "live_enabled": false,
+  "act_click": false,
+  "items": [
+    {"file": "t0000.00.png", "t": 0.0, "kind": "client_crop", "seen": "房间列表，搜索框空"},
+    {"file": "t0002.00.png", "t": 2.0, "kind": "client_crop", "seen": "搜索框=4，刷新5s，多行游戏中，有锁标"},
+    {"file": "t0016.00.png", "t": 16.0, "kind": "client_crop", "seen": "搜索框=3"},
+    {"file": "t0046.00.png", "t": 46.0, "kind": "client_crop", "seen": "房间已满弹窗：快速加入房间 / 取消。只许取消"},
+    {"file": "t0048.00.png", "t": 48.0, "kind": "client_crop", "seen": "43速 2/4 可进；锁标密码房"},
+    {"file": "t0092.00.png", "t": 92.0, "kind": "client_crop", "seen": "房 761425 30敏10力 密码无；准备；房主 Silverwolf"},
+    {"file": "t0104.00.png", "t": 104.0, "kind": "client_crop", "seen": "四人已准备，状态列房主"},
+    {"file": "t0112.00.png", "t": 112.0, "kind": "client_crop", "seen": "倒计时3 游戏即将开始"},
+    {"file": "t0224.00.png", "t": 224.0, "kind": "client_crop", "seen": "等待玩家1选择难度，客人零输入"},
+    {"file": "t0238.00.png", "t": 238.0, "kind": "client_crop", "seen": "压力转移 56s；自动任务未勾；四挑战可见。yalizhuanyi 0.96"},
+    {"file": "t0250.00.png", "t": 250.0, "kind": "client_crop", "seen": "黑市一身神装；四挑战已自动"},
+    {"file": "t0282.00.png", "t": 282.0, "kind": "client_crop", "seen": "地上神赐吞噬丹；主线3-1"},
+    {"file": "t0310.00.png", "t": 310.0, "kind": "client_crop", "seen": "物品栏英雄卡/神符；主线4-3；自动任务已勾"},
+    {"file": "t0420.00.png", "t": 420.0, "kind": "client_crop", "seen": "主线5-7，自动任务未勾"},
+    {"file": "t0740.00.png", "t": 740.0, "kind": "client_crop", "seen": "传家宝挑战弹窗。chuanjiabao/cjbtiaozhan 0.96"},
+    {"file": "t0852.00.png", "t": 852.0, "kind": "client_crop", "seen": "同房第二局选关，仍等玩家1"},
+    {"file": "t0880.00.png", "t": 880.0, "kind": "client_crop", "seen": "第二局压力转移再出现"},
+    {"file": "t1370.00.png", "t": 1370.0, "kind": "client_crop", "seen": "胜利继续游戏；左栏 F1查看英雄 F2返回阵地"},
+    {"file": "t1390.00.png", "t": 1390.0, "kind": "client_crop", "seen": "第二局传家宝挑战"},
+    {"file": "t1410.00.png", "t": 1410.0, "kind": "client_crop", "seen": "回 KK 房间列表，搜索框仍是3"},
+    {"file": "yishenshenzhuang_user_phone.png", "kind": "user_phone_still", "seen": "一身神装卡面（用户手机静帧）"}
+  ],
+  "template_probe_on_client_crop": {
+    "yalizhuanyi_t0238": 0.967,
+    "yalizhuanyi_t0880": 0.968,
+    "chuanjiabao_t0740": 0.958,
+    "cjbtiaozhan_t0740": 0.961,
+    "create_room_list_page": 0.98,
+    "notes": "只读探测。未入 scenes 的 yalizhuanyi 能对上实机。不接点击。"
+  },
+  "not_in_representative_frames": [
+    "F1/F2 按键瞬间",
+    "右键装备再左键丢地的手势",
+    "5-5 之前主线失败隔 2 分钟重开",
+    "退房前房主对照（只看到回了列表）",
+    "团本/秘境好心打完再退"
+  ]
+}
