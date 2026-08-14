@@ -835,6 +835,19 @@ class MainWindow(QMainWindow):
         lay.addWidget(loot_box)
 
         run_box, run_lay = self._section("④ 运行", "关卡难度 ≠ 运行方式；局数 0=手动停")
+        lab_hint = QLabel(
+            "测试夹 bat 会读这份保存。改完等自动保存（约 1 秒）再双击 bat。不要同时开 LIVE。"
+        )
+        lab_hint.setObjectName("warnHint")
+        lab_hint.setWordWrap(True)
+        run_lay.addWidget(lab_hint)
+        save_row = QHBoxLayout()
+        self.btn_save_settings = QPushButton("保存设置")
+        self.btn_save_settings.setObjectName("btnSaveSettings")
+        self.btn_save_settings.clicked.connect(self._on_save_settings_clicked)
+        save_row.addWidget(self.btn_save_settings)
+        save_row.addStretch()
+        run_lay.addLayout(save_row)
         core = QGroupBox("运行")
         core_layout = QVBoxLayout(core)
         stage_row = QHBoxLayout()
@@ -1013,6 +1026,7 @@ class MainWindow(QMainWindow):
         bl = QVBoxLayout(box)
         for text in (
             "入口只有 tools/lab_run.py 或测试夹 bat。",
+            "测试夹 bat 读控制室保存的技能/关卡/英雄模式/羁绊（看板 user_settings.json）。",
             "看板不启动实验室。实验室与看板抢 ShuaBao.live.lock，禁止双 LIVE。",
             "preset 与 lab_focus 只存在内存 overlay，不得写入用户默认。",
         ):
@@ -1298,6 +1312,19 @@ class MainWindow(QMainWindow):
             self._write_user_bundle(settings)
         except (ValueError, Exception):
             pass
+
+    def _on_save_settings_clicked(self) -> None:
+        try:
+            settings = self.collect_settings_from_ui()
+            self.settings = copy.deepcopy(settings)
+            self._write_user_bundle(settings)
+        except ValueError as exc:
+            QMessageBox.warning(self, "请检查运行设置", str(exc))
+            return
+        except Exception as exc:
+            self.log(f"[保存失败] {exc}", "error")
+            return
+        self.log(f"[保存] 已写入 {self.user_settings_path()}")
 
     def _write_user_bundle(self, settings: Settings) -> None:
         path = self.user_settings_path()

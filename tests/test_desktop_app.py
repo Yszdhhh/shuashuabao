@@ -406,6 +406,23 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual([], self.window.findChildren(QProgressBar))
         self.assertIn("已完成", self.window.lbl_games_cap.text())
 
+    def test_save_settings_writes_user_settings_for_lab(self):
+        text = self._panel_text()
+        self.assertIn("测试夹 bat 会读这份保存", text)
+        self.assertEqual("保存设置", self.window.btn_save_settings.text())
+        self.assertNotIn("保存本地配置", text)
+        self.window.txt_stage_target.setText("1-12")
+        self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(False))
+        self.window.skill_grid.set_skills(["asj", "asjg", "assx", "jq"])
+        self.window._on_save_settings_clicked()
+        path = self.window.user_settings_path()
+        self.assertTrue(path.is_file())
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(["1-12"], data["stage_targets"])
+        self.assertFalse(data["auto_reputation"])
+        self.assertEqual(["asj", "asjg", "assx", "jq"], data["skills"])
+        self.assertNotIn("lab_focus", data)
+
     def test_hitch_copy_has_no_lock_button_and_corrected_f_keys(self):
         text = self._panel_text()
         self.assertIn("只认 准备 / 已准备 / 取消准备", text)
