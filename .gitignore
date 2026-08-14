@@ -41,7 +41,11 @@ packaging/
 build_*/
 dist_*/
 
-# agent scratch dirs (keep on disk, not in repo)
+# pytest / agent scratch (keep on disk, not in repo)
+.pytest_cache/
+tmp_review_*/
+tmp_stage_*/
+tools/_tmp_*.py
 agent_out/
 docs/baselines/O1_contact_sheet/debug_crops/
 docs/baselines/O1_contact_sheet/ocr_cache.json
