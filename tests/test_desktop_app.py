@@ -543,6 +543,99 @@ class DesktopPanelTests(unittest.TestCase):
                 self.assertTrue(settings.dry_run)
         self.assertIsNone(self.window.worker_thread)
 
+    def test_v0_profile_applies_exact_settings_on_legacy_state(self):
+        legacy = Settings(
+            stage_targets=["1-15"],
+            cycle_num=99,
+            auto_create_room=False,
+            new_room_every_times=True,
+            auto_reputation=True,
+            reputation_type=3,
+            reputation_level=5,
+            auto_secret_realm=True,
+            skills=["tl"],
+            cards=["fs"],
+            treasure_allow_negative=["some_negative"],
+        )
+        self.window.apply_settings_to_ui(legacy)
+        self.window.chk_learn.setChecked(True)
+
+        v0_doc = load_test_profiles(ROOT / "config" / "dashboard_test_profiles.json")[0]
+        self.assertEqual("V0 单局闭环（普通模式）", v0_doc["name"])
+        self.assertTrue(self.window._apply_test_profile_document(v0_doc, confirm=False))
+
+        applied = self.window.collect_settings_from_ui()
+        self.assertEqual(["1-12"], applied.stage_targets)
+        self.assertEqual(1, applied.cycle_num)
+        self.assertTrue(applied.auto_create_room)
+        self.assertFalse(applied.new_room_every_times)
+        self.assertFalse(applied.auto_reputation)
+        self.assertFalse(applied.auto_secret_realm)
+        self.assertEqual(["asj", "assx", "jq", "bsxx"], applied.skills)
+        self.assertEqual(
+            ["zhufu", "chengzhang", "tishu", "liliang", "tuluzhe", "zhili", "yanmiezhe", "fs"],
+            applied.cards,
+        )
+        self.assertEqual([], applied.treasure_allow_negative)
+        self.assertTrue(applied.dry_run)
+        self.assertIsNone(self.window.worker_thread)
+
+        # dry_run=False 时应用 V0 仍保持 False
+        self.window.chk_learn.setChecked(False)
+        self.assertTrue(self.window._apply_test_profile_document(v0_doc, confirm=False))
+        self.assertFalse(self.window.collect_settings_from_ui().dry_run)
+        self.assertIsNone(self.window.worker_thread)
+
+        # 保存后重新构造 MainWindow，V0 字段保持一致且无遗留 .tmp 文件
+        self.window._on_save_settings_clicked()
+        user_path = self.window.user_settings_path()
+        self.assertTrue(user_path.is_file())
+        self.assertFalse(user_path.with_suffix(user_path.suffix + ".tmp").exists())
+
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            c = restored.collect_settings_from_ui()
+            self.assertEqual(["1-12"], c.stage_targets)
+            self.assertEqual(1, c.cycle_num)
+            self.assertTrue(c.auto_create_room)
+            self.assertFalse(c.new_room_every_times)
+            self.assertFalse(c.auto_reputation)
+            self.assertFalse(c.auto_secret_realm)
+            self.assertEqual(["asj", "assx", "jq", "bsxx"], c.skills)
+            self.assertEqual(
+                ["zhufu", "chengzhang", "tishu", "liliang", "tuluzhe", "zhili", "yanmiezhe", "fs"],
+                c.cards,
+            )
+            self.assertEqual([], c.treasure_allow_negative)
+        finally:
+            restored.close()
+
+    def test_test_profiles_reject_non_empty_treasure_allow_negative(self):
+        doc_bad = {
+            "schema_version": 1,
+            "name": "bad_negative",
+            "mode_id": "normal_farm",
+            "settings": {"stage_targets": ["1-12"], "treasure_allow_negative": ["any_item"]},
+        }
+        with self.assertRaises(TestProfileError):
+            validate_profile_document(doc_bad)
+
+        before = self.window.collect_settings_from_ui()
+        with patch.object(desktop_app.QMessageBox, "warning"):
+            self.assertFalse(self.window._apply_test_profile_document(doc_bad, confirm=False))
+        after = self.window.collect_settings_from_ui()
+        self.assertEqual(before.stage_targets, after.stage_targets)
+        self.assertEqual(before.cards, after.cards)
+
+        doc_good = {
+            "schema_version": 1,
+            "name": "good_negative",
+            "mode_id": "normal_farm",
+            "settings": {"stage_targets": ["1-12"], "treasure_allow_negative": []},
+        }
+        validated = validate_profile_document(doc_good)
+        self.assertEqual([], validated["settings"]["treasure_allow_negative"])
+
     def test_test_profiles_reject_unknown_and_sensitive_fields(self):
         document = {
             "schema_version": 1,
@@ -553,6 +646,9 @@ class DesktopPanelTests(unittest.TestCase):
         with self.assertRaises(TestProfileError):
             validate_profile_document(document)
         document["settings"] = {"stage_targets": ["1-12"], "room_password": "secret"}
+        with self.assertRaises(TestProfileError):
+            validate_profile_document(document)
+        document["settings"] = {"stage_targets": ["1-12"], "dry_run": True}
         with self.assertRaises(TestProfileError):
             validate_profile_document(document)
         document["schema_version"] = 99

@@ -1257,6 +1257,7 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
         self._bond_plan_boxes = {}
         self._advanced_pack_boxes = {}
+        has_scheme = bool(self._shell_extras.get("bond_scheme"))
         inverted = set(self._shell_extras.get("bond_inverted") or [])
         scheme = set(self._effective_scheme_codes())
         cap = QLabel("基础卡组（选择 / 反选）")
@@ -1279,7 +1280,7 @@ class MainWindow(QMainWindow):
         for col, name in enumerate(BASIC_PACK_NAMES):
             code = code_for_bond_name(str(name)) or str(name)
             box = QCheckBox(str(name))
-            if scheme:
+            if has_scheme:
                 box.setChecked(code in scheme and code not in inverted)
             else:
                 box.setChecked(code not in inverted)
@@ -1308,9 +1309,10 @@ class MainWindow(QMainWindow):
         scheme = [c for c in (self._shell_extras.get("bond_scheme") or []) if c in FETTER_LABELS]
         if not scheme:
             scheme = [c for c in (self.settings.cards or []) if c in FETTER_LABELS]
-        return scheme[: BondCardGrid.MAX_BONDS]
+        return scheme
 
     def _sync_bonds_from_scheme(self) -> None:
+        has_scheme = bool(self._shell_extras.get("bond_scheme"))
         inverted = set(self._shell_extras.get("bond_inverted") or [])
         scheme = self._effective_scheme_codes()
         effective = [c for c in scheme if c not in inverted]
@@ -1319,8 +1321,8 @@ class MainWindow(QMainWindow):
             self.bond_grid.set_bonds(effective[: BondCardGrid.MAX_BONDS])
             for code, box in self._bond_plan_boxes.items():
                 box.blockSignals(True)
-                if scheme:
-                    box.setChecked(code in effective)
+                if has_scheme:
+                    box.setChecked(code in scheme and code not in inverted)
                 else:
                     box.setChecked(code not in inverted)
                 box.blockSignals(False)
@@ -1384,8 +1386,9 @@ class MainWindow(QMainWindow):
         selected = self._shell_extras.get("attr_route") or []
         if isinstance(selected, str):
             selected = [selected]
-        for row in ATTR_LINE_OPTIONS:
-            if row.get("id") not in selected:
+        for rid in selected:
+            row = next((item for item in ATTR_LINE_OPTIONS if item.get("id") == rid), None)
+            if row is None:
                 continue
             for name in (row.get("gate"), row.get("ur")):
                 text = str(name or "").strip()
@@ -1797,11 +1800,17 @@ class MainWindow(QMainWindow):
             text = str(item or "").strip()
             if text:
                 card_stems.append(Path(text).stem)
-        if not self._shell_extras.get("bond_scheme"):
+        if card_stems:
             self._shell_extras["bond_scheme"] = list(card_stems)
+            self._shell_extras["bond_inverted"] = [
+                code for code in self._bond_plan_boxes if code not in set(card_stems)
+            ]
+        else:
+            self._shell_extras["bond_scheme"] = []
+            self._shell_extras["bond_inverted"] = []
         self._syncing_bonds = True
         try:
-            self.bond_grid.set_bonds(card_stems)
+            self.bond_grid.set_bonds(card_stems[: BondCardGrid.MAX_BONDS])
         finally:
             self._syncing_bonds = False
         self._rebuild_bond_plan()
@@ -1812,11 +1821,23 @@ class MainWindow(QMainWindow):
         rep_index = self.cmb_reputation.findData(rep_type)
         self.cmb_reputation.setCurrentIndex(rep_index if rep_index >= 0 else 0)
         self.spn_reputation_level.setValue(max(1, min(5, int(getattr(settings, "reputation_level", 1) or 1))))
-        routes = self._shell_extras.get("attr_route") or []
-        if isinstance(routes, str):
-            routes = [routes]
+        routes = []
+        for c in card_stems:
+            if c in ("liliang", "tuluzhe") and "strength" not in routes:
+                routes.append("strength")
+            elif c in ("zhili", "yanmiezhe") and "intelligence" not in routes:
+                routes.append("intelligence")
+            elif c in ("mingjie", "shougezhe") and "agility" not in routes:
+                routes.append("agility")
+        if not routes:
+            routes = self._shell_extras.get("attr_route") or []
+            if isinstance(routes, str):
+                routes = [routes]
+        self._shell_extras["attr_route"] = routes
         for route, button in self.route_buttons.items():
+            button.blockSignals(True)
             button.setChecked(route in routes)
+            button.blockSignals(False)
         enabled = set(self._shell_extras.get("advanced_packs") or [])
         for pack_id, box in self._advanced_pack_boxes.items():
             box.blockSignals(True)

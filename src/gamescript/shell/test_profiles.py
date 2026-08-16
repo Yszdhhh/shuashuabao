@@ -27,6 +27,7 @@ PROFILE_SETTING_FIELDS = frozenset(
         "auto_secret_realm",
         "skills",
         "cards",
+        "treasure_allow_negative",
     }
 )
 PROFILE_ROOT_FIELDS = frozenset({"schema_version", "name", "mode_id", "settings"})
@@ -80,6 +81,12 @@ def validate_profile_document(document: Any) -> dict[str, Any]:
     for key in ("skills", "cards"):
         if key in settings:
             _require(isinstance(settings[key], list) and all(isinstance(item, str) for item in settings[key]), f"{key} 必须是字符串数组")
+    if "treasure_allow_negative" in settings:
+        _require(
+            isinstance(settings["treasure_allow_negative"], list)
+            and len(settings["treasure_allow_negative"]) == 0,
+            "测试配置中的 treasure_allow_negative 仅允许为空数组 []",
+        )
     return copy.deepcopy(document)
 
 
@@ -103,6 +110,8 @@ def apply_profile(settings: Settings, document: Any) -> Settings:
 def export_profile(settings: Settings, name: str = "当前看板配置") -> dict[str, Any]:
     raw = asdict(settings)
     selected = {key: copy.deepcopy(raw[key]) for key in PROFILE_SETTING_FIELDS if key in raw}
+    if "treasure_allow_negative" in selected and selected["treasure_allow_negative"] != []:
+        selected["treasure_allow_negative"] = []
     return {
         "schema_version": SCHEMA_VERSION,
         "name": name,

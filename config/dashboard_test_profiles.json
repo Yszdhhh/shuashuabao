@@ -2,14 +2,27 @@
   "profiles": [
     {
       "schema_version": 1,
-      "name": "V0 单局闭环",
+      "name": "V0 单局闭环（普通模式）",
       "mode_id": "normal_farm",
       "settings": {
         "stage_targets": ["1-12"],
         "auto_create_room": true,
         "new_room_every_times": false,
         "cycle_num": 1,
-        "auto_secret_realm": false
+        "auto_reputation": false,
+        "auto_secret_realm": false,
+        "skills": ["asj", "assx", "jq", "bsxx"],
+        "cards": [
+          "zhufu",
+          "chengzhang",
+          "tishu",
+          "liliang",
+          "tuluzhe",
+          "zhili",
+          "yanmiezhe",
+          "fs"
+        ],
+        "treasure_allow_negative": []
       }
     },
     {
