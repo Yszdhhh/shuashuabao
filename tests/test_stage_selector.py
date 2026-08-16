@@ -14,6 +14,7 @@ from gamescript.vision.stage_selector import (
     StageId,
     find_stage_in_range,
     find_stage_labels,
+    find_unselected_old_world_tab,
     selected_stage_row,
     verify_stage_selection,
     visible_stage_rows,
@@ -275,6 +276,68 @@ class StageSelectorTests(unittest.TestCase):
         self.assertIsNone(StageId.parse("invalid"))
         self.assertIsNone(StageId.parse("-1"))
         self.assertIsNone(StageId.parse("1-"))
+
+    # ---------- 旧世大陆大区页签自动切换（CORE02-L0-STAGE-REGION-TAB-AUTO-RECOVERY） ----------
+
+    def _reborn_stage_frame(self, name: str) -> Frame:
+        path = ROOT / "fixtures/reborn_wow/stage" / name
+        img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(img)
+        return Frame(img, window_title="英雄三国KK", hwnd=1000, left=203, top=84)
+
+    def _raid_region_frame(self) -> Frame:
+        """团本分页（熔火之心）：右侧列表是 2-x 行，旧世大陆页签未选中。"""
+        return self._reborn_stage_frame("stage_select_molten_core_2.png")
+
+    def test_finds_old_world_tab_on_raid_region_page(self):
+        frame = self._raid_region_frame()
+        hit = find_unselected_old_world_tab(frame, IMAGES)
+        self.assertIsNotNone(hit)
+        # 点击目标必须落在实测页签带内（窗口相对坐标，含窗口偏移）
+        rx = (hit.screen_x - frame.left) / frame.width
+        ry = (hit.screen_y - frame.top) / frame.height
+        self.assertGreaterEqual(rx, 0.44)
+        self.assertLessEqual(rx, 0.64)
+        self.assertGreaterEqual(ry, 0.05)
+        self.assertLessEqual(ry, 0.30)
+
+    def test_old_world_tab_none_when_already_on_old_world(self):
+        # 已在旧世大陆：可见行是 1-x，页签状态不构成点击理由
+        for frame in (self._live_20260814_frame(),
+                      self._reborn_stage_frame("stage_select_old_world_1.png")):
+            self.assertIsNone(find_unselected_old_world_tab(frame, IMAGES))
+
+    def test_mediator_switches_old_world_tab_before_scanning_stage_list(self):
+        """缺陷 20260816_204613：团本分页进入 STAGE_SELECT 时必须先切页签，
+        不得在未切页前扫描/滚动关卡列表。"""
+        med = Mediator(Settings(stage_targets=["1-12"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = self._raid_region_frame()
+        med._last_frame = frame
+        # 模拟缺陷现场：滚动预算耗尽、误在团本分页选中了关卡
+        med._stage_selected = True
+        med._stage_target_name = "stage_target_2-1"
+        med._stage_scroll_attempts = 8
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "act_click", return_value=True) as click, \
+             patch.object(med, "_find_stage_target") as find_target:
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "SwitchOldWorldTab")
+        hit = click.call_args.args[0]
+        rx = (hit.screen_x - frame.left) / frame.width
+        ry = (hit.screen_y - frame.top) / frame.height
+        self.assertGreaterEqual(rx, 0.44)
+        self.assertLessEqual(rx, 0.64)
+        self.assertGreaterEqual(ry, 0.05)
+        self.assertLessEqual(ry, 0.30)
+        find_target.assert_not_called()
+        self.assertFalse(med._stage_selected)
+        self.assertIsNone(med._stage_target_name)
+        self.assertEqual(med._stage_scroll_attempts, 0)
+        self.assertGreater(med._stage_scroll_cooldown_until, 0.0)
 
 
 if __name__ == "__main__":

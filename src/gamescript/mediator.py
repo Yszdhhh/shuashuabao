@@ -57,6 +57,7 @@ from gamescript.vision.stage_selector import (
     configured_stage_id,
     find_stage_in_range,
     find_stage_labels,
+    find_unselected_old_world_tab,
     selected_stage_row,
     stage_list_scroll_point,
     visible_stage_rows,
@@ -4810,6 +4811,38 @@ class Mediator:
             if arch_res is not None:
                 return arch_res
             now = time.time()
+            # L0-RECOVERY（实机 20260816_204613）：客户端记忆停留在团本分页时，
+            # 右侧列表没有 1-x 行，直接扫描会盲目滚动并误点未开放关卡。普通主线
+            # （chapter=1，1-1~1-23）都在「旧世大陆」大区页签下——先切回再扫列表。
+            wanted_id = configured_stage_id(
+                self.settings.stage_targets,
+                self.settings.stage1,
+                self.settings.stage2,
+            )
+            if (
+                wanted_id is not None
+                and wanted_id.chapter == 1
+                and now >= self._stage_scroll_cooldown_until
+            ):
+                old_world_tab = find_unselected_old_world_tab(frame, self.images)
+                if old_world_tab is not None:
+                    if self._action_timed_out():
+                        print("[L0] 旧世大陆页签切换超时，停止运行")
+                        self.set_phase(Phase.ERROR, "old world tab switch timeout")
+                        self.stop()
+                        return LoopAction.Break
+                    print("[L0] 检测到当前不在旧世大陆，点击切换至【旧世大陆】大区页签")
+                    if not self.act_click(old_world_tab, "SwitchOldWorldTab"):
+                        return LoopAction.Continue
+                    self._stage_selected = False
+                    self._stage_target_name = None
+                    self._stage_target_position = None
+                    self._stage_candidate_name = None
+                    self._stage_candidate_position = None
+                    self._stage_candidate_frames = 0
+                    self._stage_scroll_attempts = 0
+                    self._stage_scroll_cooldown_until = now + 0.8
+                    return LoopAction.Continue
             if not self._stage_selected:
                 if now < self._stage_scroll_cooldown_until:
                     print("[L0] 关卡列表滚动后等待稳定…")
@@ -4885,11 +4918,6 @@ class Mediator:
             # 一律重点目标行，绝不靠「同名 + 相邻 + 有开始按钮」放行——20260814 实机
             # 就是高亮还留在 1-1（首次点击被窗口激活吞掉），脚本却按间接证据开了 1-1。
             highlighted = selected_stage_row(frame, self.images)
-            wanted_id = configured_stage_id(
-                self.settings.stage_targets,
-                self.settings.stage1,
-                self.settings.stage2,
-            )
             if (
                 highlighted is not None
                 and wanted_id is not None

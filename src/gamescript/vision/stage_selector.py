@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 
 from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult, _load_template, resolve_template
+from gamescript.vision.matcher import MatchResult, _load_template, match_any, resolve_template
 
 
 @dataclass(frozen=True)
@@ -516,4 +516,29 @@ def stage_list_scroll_point(frame: Frame) -> tuple[int, int]:
     return (
         frame.left + int(frame.width * 0.675),
         frame.top + int(frame.height * 0.52),
+    )
+
+
+# 「旧世大陆」大区页签带（窗口相对比例）。1600x900 客户端实测页签位于
+# x 0.49~0.59、y 0.10~0.26（fixtures/reborn_wow/stage 与 20260814 实机帧）。
+_OLD_WORLD_TAB_ROI = (0.44, 0.05, 0.64, 0.30)
+
+
+def find_unselected_old_world_tab(frame: Frame, images_dir: Path) -> MatchResult | None:
+    """当前不在旧世大陆大区时，返回「旧世大陆」页签的点击目标。
+
+    实测该页签选中/未选中两种状态像素几乎不变（NCC 均 >=0.98），模板分数无法
+    区分状态，因此「不在旧世大陆」由右侧关卡列表判定：可见行存在且都不是
+    chapter=1（如团本分页的 2-x）才认页签命中。已在旧世大陆（可见 1-x 行）或
+    列表不可读时返回 None，保持零动作。
+    """
+    rows = visible_stage_rows(frame, images_dir)
+    if not rows or any(row.stage_id.chapter == 1 for row in rows):
+        return None
+    return match_any(
+        frame,
+        images_dir,
+        ["lobby/stage_region_jiushidalu_unselected"],
+        threshold=0.85,
+        roi=_OLD_WORLD_TAB_ROI,
     )
