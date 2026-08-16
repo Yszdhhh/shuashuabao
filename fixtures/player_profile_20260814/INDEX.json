@@ -1,0 +1,28 @@
+{
+  "_comment": "玩家画像真机帧。用户 2026-08-15 贴图，聊天压缩约 1024x595，不是合成。不把本号数字写成全局默认。",
+  "kind": "player_profile",
+  "date": "20260815",
+  "client_resolution": "1600x900（原窗；本目录是压缩静帧）",
+  "entry": "测试夹\\11-画像采集-只识别.bat / 11-画像绑定.bat → tools/profile_scan.py",
+  "output": "%LocalAppData%/ShuaBao/profile/",
+  "zero_input": true,
+  "opt_in_bind": true,
+  "writes_repo_config": false,
+  "writes_settings": false,
+  "live_claimed": false,
+  "known_truth_this_account_only": {
+    "combat_power": 12295,
+    "enhance_level": 630,
+    "asj": 47,
+    "byj": 9,
+    "jq": 13,
+    "pg": 18
+  },
+  "frames": [
+    {"file": "lobby_game_hall.png", "seen": "游戏大厅。顶栏第二格「存档」。未采。"},
+    {"file": "archive_equipment.png", "seen": "存档→装备。头上战力 12295，脚下强化 630。"},
+    {"file": "archive_skills.png", "seen": "存档→技能。16 系格：普攻18 奥术箭47 爆炎箭9 剑气13…"},
+    {"file": "ingame_tab_hud.png", "seen": "局内 HUD + 部分属性条。底左有存档钮。时机未核为开局，不当进图默认盘。"},
+    {"file": "ingame_tab_panel.png", "seen": "TAB 属性面板。急速 198/49.7% 取百分号侧。打一半的盘（杀敌已高），tab_window=mid_run，海报不吃。"}
+  ]
+}
