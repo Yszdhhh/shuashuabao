@@ -1,0 +1,2120 @@
+{
+  "version": 1,
+  "_comment": "用户技能树截图入库：卡名、效果、归属主技能。never_pick 的卡即使套系命中也不选。社区数值以游戏内为准。",
+  "source": "user screenshots 2026-08-12 + recording 20260813_003003 卡牌查看",
+  "family_to_code": {
+    "奥数箭": "asj",
+    "奥数激光": "asjg",
+    "奥数射线": "assx",
+    "剑气": "jq",
+    "爆炎箭": "byj",
+    "寒冰箭": "hbj",
+    "天雷": "tl",
+    "普攻": "pg",
+    "冰霜新星": "bsxx",
+    "闪电链": "sdl",
+    "地震": "dz",
+    "龙卷风": "ljf",
+    "电磁网": "dcw",
+    "陨石": "ys",
+    "飓风": "jf",
+    "火球": "hq"
+  },
+  "cards": [
+    {
+      "name": "奥术箭矢",
+      "family": "奥数箭",
+      "effect": "普攻附魔能量，射程+200，伤害类型改为能量",
+      "prereq": "普攻,奥术箭",
+      "exclude": "火焰箭矢,冰霜箭矢,闪电箭矢,疾风箭矢,神箭手",
+      "aliases": [
+        "奥术箭矢"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "箭矢增幅",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+40%",
+      "prereq": "奥术箭",
+      "exclude": "",
+      "aliases": [
+        "箭失增幅"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "箭矢齐射",
+      "family": "奥数箭",
+      "effect": "奥术箭数量+1，伤害-20%",
+      "prereq": "奥术箭",
+      "exclude": "",
+      "aliases": [
+        "箭失齐射"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "箭矢连发",
+      "family": "奥数箭",
+      "effect": "奥术箭额外释放1次，伤害-30%",
+      "prereq": "箭矢增幅",
+      "exclude": "",
+      "aliases": [
+        "箭失连发"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "次级箭",
+      "family": "奥数箭",
+      "effect": "奥术箭首次命中分裂出次级箭",
+      "prereq": "箭矢增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "次级增伤",
+      "family": "奥数箭",
+      "effect": "次级箭伤害+80%",
+      "prereq": "次级箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "次级扩散",
+      "family": "奥数箭",
+      "effect": "次级箭数量+1",
+      "prereq": "次级箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆炸箭矢",
+      "family": "奥数箭",
+      "effect": "奥术箭命中爆炸，180范围造成75%攻击能量魔法伤害",
+      "prereq": "奥术箭,爆炎箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆炸增伤",
+      "family": "奥数箭",
+      "effect": "爆炸箭矢伤害+60%",
+      "prereq": "爆炸箭矢",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆炸扩散",
+      "family": "奥数箭",
+      "effect": "爆炸箭矢范围+80%",
+      "prereq": "爆炸箭矢",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆破箭矢",
+      "family": "奥数箭",
+      "effect": "爆炸箭伤害+50%，范围+25%",
+      "prereq": "爆炸增伤,爆炸扩散",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "贯通箭矢",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+20%，穿透+1",
+      "prereq": "奥术箭,寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "蓄力射击",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+100%，穿透+2，冷却-50%，爆炸箭伤害+100%",
+      "prereq": "贯通箭矢x2",
+      "exclude": "火焰射击",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "never_pick": true,
+      "never_pick_reason": "攻略：蓄力射击负收益，官方预设不点"
+    },
+    {
+      "name": "强力箭矢",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+80%",
+      "prereq": "箭矢增幅x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "急速抽箭",
+      "family": "奥数箭",
+      "effect": "奥术箭冷却缩减+30%",
+      "prereq": "箭矢增幅,强化箭矢",
+      "exclude": "爆炸箭矢",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化飞箭",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+20%",
+      "prereq": "箭矢增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火焰射击",
+      "family": "奥数箭",
+      "effect": "爆炸箭命中附加3秒燃烧",
+      "prereq": "爆炸箭矢,火箭增幅",
+      "exclude": "次级箭",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "集束箭矢",
+      "family": "奥数箭",
+      "effect": "50级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "50级"
+    },
+    {
+      "name": "奥术增幅α",
+      "family": "奥数箭",
+      "effect": "奥术箭与奥术激光伤害+50%",
+      "prereq": "奥术箭,奥术激光",
+      "exclude": "",
+      "aliases": [
+        "奥术增幅a",
+        "奥术增幅A"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥术增幅β",
+      "family": "奥数箭",
+      "effect": "奥术箭与奥术射线伤害+50%",
+      "prereq": "奥术箭,奥术射线",
+      "exclude": "",
+      "aliases": [
+        "奥术增幅b",
+        "奥术增幅B"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "激光增幅",
+      "family": "奥数激光",
+      "effect": "奥术激光伤害+40%",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "稳定光线",
+      "family": "奥数激光",
+      "effect": "奥术激光持续时间+60%",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "激光超载",
+      "family": "奥数激光",
+      "effect": "奥术激光伤害频率翻倍，冷却-50%",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "衰弱光线",
+      "family": "奥数激光",
+      "effect": "被奥术激光命中的敌人移速-80%（1秒）",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "瓦解光线",
+      "family": "奥数激光",
+      "effect": "处于奥术激光中的敌人受伤+25%（5秒）",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高能脉冲",
+      "family": "奥数激光",
+      "effect": "奥术激光范围+150%",
+      "prereq": "激光增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "激光闪射",
+      "family": "奥数激光",
+      "effect": "奥术激光期间每0.5秒脉冲，造成250%攻击魔法伤害",
+      "prereq": "激光增幅,激光超载",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥能洪流",
+      "family": "奥数激光",
+      "effect": "奥术激光进化为奥能洪流：范围+150%，伤害+150%",
+      "prereq": "激光超载,高能脉冲",
+      "exclude": "奥能扫射",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥能扫射",
+      "family": "奥数激光",
+      "effect": "奥术激光进化为扫射：伤害-20%，改为扫过全场",
+      "prereq": "激光超载,衰弱光线,高能脉冲",
+      "exclude": "奥能洪流",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化激光",
+      "family": "奥数激光",
+      "effect": "奥术激光伤害+20%",
+      "prereq": "激光增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "奥能天球",
+      "family": "奥数激光",
+      "effect": "奥能洪流期间每0.3秒发射奥能天球，对范围内敌人造成280%奥术激光伤害",
+      "prereq": "奥能洪流",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "50级"
+    },
+    {
+      "name": "射线增幅",
+      "family": "奥数射线",
+      "effect": "奥术射线伤害+40%",
+      "prereq": "奥术射线",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "射线延续",
+      "family": "奥数射线",
+      "effect": "奥术射线持续时间+75%",
+      "prereq": "奥术射线",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "焦点",
+      "family": "奥数射线",
+      "effect": "被奥术射线命中期间受伤+20%",
+      "prereq": "奥术射线",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "制导箭失",
+      "family": "奥数射线",
+      "effect": "奥术射线期间每0.2秒对敌人发射未升级奥术箭",
+      "prereq": "奥术箭,焦点",
+      "exclude": "",
+      "aliases": [
+        "制导箭矢"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "焦点爆破",
+      "family": "奥数射线",
+      "effect": "奥术射线在目标处爆炸，220范围75%攻击魔法伤害",
+      "prereq": "焦点",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重射线",
+      "family": "奥数射线",
+      "effect": "奥术射线初始目标+1",
+      "prereq": "射线增幅,射线延续",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "调焦",
+      "family": "奥数射线",
+      "effect": "奥术射线每0.2秒伤害+5%，最高+120%",
+      "prereq": "焦点",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化射线",
+      "family": "奥数射线",
+      "effect": "奥术射线伤害+20%",
+      "prereq": "射线增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "永恒箭矢",
+      "family": "奥数射线",
+      "effect": "制导箭间隔降至0.1秒，触发箭继承全部强化",
+      "prereq": "制导箭失",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "50级"
+    },
+    {
+      "name": "剑气增幅",
+      "family": "剑气",
+      "effect": "剑气伤害+40%",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "致残剑气",
+      "family": "剑气",
+      "effect": "剑气伤害+20%，附加6秒减速",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "重创",
+      "family": "剑气",
+      "effect": "被剑气命中的敌人6秒内受伤+20%",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "疾行剑气",
+      "family": "剑气",
+      "effect": "剑气弹速+40%，冷却缩减+20%",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "剑气冲击",
+      "family": "剑气",
+      "effect": "剑气击退+30%，20%几率命中眩晕1秒",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "巨型剑气",
+      "family": "剑气",
+      "effect": "剑气体型+60%",
+      "prereq": "剑气增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连续剑气",
+      "family": "剑气",
+      "effect": "剑气额外释放1次，伤害-20%",
+      "prereq": "剑气增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "碎冰",
+      "family": "剑气",
+      "effect": "剑气命中冻结敌人伤害+300%",
+      "prereq": "剑气,冰霜新星",
+      "exclude": "烈焰斩",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "湮灭斩",
+      "family": "剑气",
+      "effect": "剑气进化为湮灭斩：伤害/体型/弹速+60%，伤害频率翻倍且不可拦截",
+      "prereq": "巨型剑气,疾行剑气,剑气冲击",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "剑气爆发",
+      "family": "剑气",
+      "effect": "敌人进入400范围立即释放5道剑气，冷却45秒",
+      "prereq": "致残剑气,巨型剑气",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "烈焰斩",
+      "family": "剑气",
+      "effect": "剑气命中附加3秒燃烧",
+      "prereq": "爆炎箭,巨型剑气",
+      "exclude": "碎冰",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "剑气连斩",
+      "family": "剑气",
+      "effect": "20级解锁",
+      "prereq": "连续剑气x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "20级"
+    },
+    {
+      "name": "强化剑气",
+      "family": "剑气",
+      "effect": "43级解锁",
+      "prereq": "剑气增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "剑刃乱舞",
+      "family": "剑气",
+      "effect": "50级解锁",
+      "prereq": "强化剑气",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "50级"
+    },
+    {
+      "name": "火箭增幅",
+      "family": "爆炎箭",
+      "effect": "爆炎箭命中伤害+60%",
+      "prereq": "爆炎箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火箭爆破",
+      "family": "爆炎箭",
+      "effect": "爆炎箭爆炸伤害+60%",
+      "prereq": "爆炎箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连珠火箭",
+      "family": "爆炎箭",
+      "effect": "爆炎箭额外释放1次，伤害-20%",
+      "prereq": "爆炎箭",
+      "exclude": "炎爆术",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆燃火箭",
+      "family": "爆炎箭",
+      "effect": "爆炎箭附加6秒燃烧",
+      "prereq": "火箭爆破",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "猛烈燃烧",
+      "family": "爆炎箭",
+      "effect": "燃烧伤害+200%",
+      "prereq": "爆燃火箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火箭精通",
+      "family": "爆炎箭",
+      "effect": "爆炎箭伤害×1.4，冷却缩减+10%",
+      "prereq": "火箭增幅,爆炸扩散",
+      "exclude": "",
+      "aliases": [
+        "火焰精通"
+      ],
+      "alias_note": "user 20260814 爆炎箭Lv8 卡面截图的 40 级档写的是「火焰精通提供的效果翻倍」。本系其余卡都是火箭*，两名指同一张；哪个是卡面正名仍待该卡截图。",
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "渗透火焰",
+      "family": "爆炎箭",
+      "effect": "炎爆术穿透+2",
+      "prereq": "炎爆术",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火花",
+      "family": "爆炎箭",
+      "effect": "爆炎箭首次命中后释放2个火花，各造成300%攻击火系物理伤害",
+      "prereq": "火箭增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "传火",
+      "family": "爆炎箭",
+      "effect": "燃烧状态敌人死亡时爆炸，280范围500%攻击火系物理伤害",
+      "prereq": "爆燃火箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "超连珠火箭",
+      "family": "爆炎箭",
+      "effect": "爆炎箭额外释放2次，伤害-30%",
+      "prereq": "连珠火箭x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "10级"
+    },
+    {
+      "name": "炎爆术",
+      "family": "爆炎箭",
+      "effect": "爆炎箭进化为炎爆术：爆炸伤害+120%，附加穿透+2，无视火抗",
+      "prereq": "爆炸扩散",
+      "exclude": "连珠火箭",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "13级",
+      "exclude_source": "user 20260814 爆炎箭系卡牌总览截图：连珠火箭 排斥:[炎爆术]"
+    },
+    {
+      "name": "火花内爆",
+      "family": "爆炎箭",
+      "effect": "火花先对主目标造成1次伤害再释放，火花数量+1",
+      "prereq": "火花",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "36级"
+    },
+    {
+      "name": "强化火箭",
+      "family": "爆炎箭",
+      "effect": "爆炎箭伤害+20%",
+      "prereq": "火箭增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "冰箭增幅",
+      "family": "寒冰箭",
+      "effect": "寒冰箭伤害+40%",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "极寒冰箭",
+      "family": "寒冰箭",
+      "effect": "伤害+20%，命中冻结1秒",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰箭贯穿",
+      "family": "寒冰箭",
+      "effect": "伤害+20%，穿透+2",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰箭冲击",
+      "family": "寒冰箭",
+      "effect": "击退+50%，穿透+2",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰箭连发",
+      "family": "寒冰箭",
+      "effect": "额外发射+1，伤害-20%",
+      "prereq": "寒冰箭",
+      "exclude": "冰箭齐射",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "小冰箭",
+      "family": "寒冰箭",
+      "effect": "首次命中分裂小冰箭，造成300%冰系魔法伤害",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "重冰箭",
+      "family": "寒冰箭",
+      "effect": "弹速-40%，伤害+80%，穿透+1",
+      "prereq": "冰箭贯穿",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "蚀骨之寒",
+      "family": "寒冰箭",
+      "effect": "命中附加10秒霜寒，最多叠5层",
+      "prereq": "极寒冰箭,冰箭贯穿",
+      "exclude": "三棱冰箭",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰片增伤",
+      "family": "寒冰箭",
+      "effect": "小冰箭伤害+100%",
+      "prereq": "小冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "蚀骨冰棱",
+      "family": "寒冰箭",
+      "effect": "小冰箭数量+1",
+      "prereq": "小冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "三棱冰箭",
+      "family": "寒冰箭",
+      "effect": "寒冰箭进化为三棱：每次命中再分裂1支并继承强化",
+      "prereq": "极寒冰箭,冰箭贯穿,冰箭增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰箭齐射",
+      "family": "寒冰箭",
+      "effect": "寒冰箭数量+1，伤害-40%",
+      "prereq": "极寒冰箭",
+      "exclude": "冰箭连发",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰晶爆裂",
+      "family": "寒冰箭",
+      "effect": "小冰箭先对主目标造成1次伤害再释放，小冰箭数量+1",
+      "prereq": "蚀骨冰棱",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "36级"
+    },
+    {
+      "name": "强化冰箭",
+      "family": "寒冰箭",
+      "effect": "寒冰箭伤害+20%",
+      "prereq": "冰箭增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "永冻天球",
+      "family": "寒冰箭",
+      "effect": "50级解锁",
+      "prereq": "强化冰箭,蚀骨之寒",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "50级"
+    },
+    {
+      "name": "雷击增幅",
+      "family": "天雷",
+      "effect": "天雷伤害+40%",
+      "prereq": "天雷",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高压雷击",
+      "family": "天雷",
+      "effect": "天雷伤害+25%，麻痹时间+0.2秒",
+      "prereq": "天雷",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连续雷击",
+      "family": "天雷",
+      "effect": "天雷额外释放1次，伤害-20%",
+      "prereq": "天雷",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "磁暴增幅",
+      "family": "天雷",
+      "effect": "磁暴伤害+50%",
+      "prereq": "磁暴",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "磁暴扩张",
+      "family": "天雷",
+      "effect": "磁暴范围+80%",
+      "prereq": "磁暴",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电磁场",
+      "family": "天雷",
+      "effect": "磁暴范围内生成2秒电磁场，每秒100%攻击电系魔法伤害并减速1秒",
+      "prereq": "磁暴",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "稳定电场",
+      "family": "天雷",
+      "effect": "电磁场持续时间+3秒",
+      "prereq": "电磁场",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高压电场",
+      "family": "天雷",
+      "effect": "电磁场伤害+200%",
+      "prereq": "电磁场",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "闪电球",
+      "family": "天雷",
+      "effect": "天雷命中后向不同方向释放2个穿透电球，各150%攻击电系魔法伤害",
+      "prereq": "雷击增幅,高压雷击",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高压电球",
+      "family": "天雷",
+      "effect": "闪电球伤害+40%，附加0.2秒麻痹",
+      "prereq": "闪电球",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "磁暴",
+      "family": "天雷",
+      "effect": "天雷命中触发爆炸，220范围100%攻击电系魔法伤害",
+      "prereq": "天雷",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "雷电制裁",
+      "family": "天雷",
+      "effect": "天雷伤害+100%；击杀后对400范围内随机敌人再放一次天雷（只继承雷击增幅）",
+      "prereq": "雷击增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "审判之雷",
+      "family": "天雷",
+      "effect": "20级解锁",
+      "prereq": "",
+      "exclude": "磁暴",
+      "exclude_asymmetric": true,
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "20级"
+    },
+    {
+      "name": "电球爆裂",
+      "family": "天雷",
+      "effect": "36级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "36级"
+    },
+    {
+      "name": "强化天雷",
+      "family": "天雷",
+      "effect": "43级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "强化箭矢",
+      "family": "普攻",
+      "effect": "基础普攻伤害+50%",
+      "prereq": "普攻",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重箭",
+      "family": "普攻",
+      "effect": "多重数量+1",
+      "prereq": "普攻",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "弹射箭",
+      "family": "普攻",
+      "effect": "弹射次数+1",
+      "prereq": "普攻",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "攻速提升",
+      "family": "普攻",
+      "effect": "攻速+60%",
+      "prereq": "普攻",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "急速射击",
+      "family": "普攻",
+      "effect": "攻速+120%",
+      "prereq": "攻速提升x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重增伤",
+      "family": "普攻",
+      "effect": "多重伤害+30%",
+      "prereq": "多重箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "弹射增伤",
+      "family": "普攻",
+      "effect": "弹射伤害+30%",
+      "prereq": "弹射箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "超速射击",
+      "family": "普攻",
+      "effect": "攻击间隔-0.15",
+      "prereq": "攻速提升x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火焰箭矢",
+      "family": "普攻",
+      "effect": "火附魔，伤害+50%",
+      "prereq": "普攻,爆炎箭",
+      "exclude": "奥术箭矢等互斥箭",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰霜箭矢",
+      "family": "普攻",
+      "effect": "冰附魔，多重+1",
+      "prereq": "普攻,寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "闪电箭矢",
+      "family": "普攻",
+      "effect": "电附魔，弹射+1",
+      "prereq": "普攻,天雷",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "疾风箭矢",
+      "family": "普攻",
+      "effect": "风附魔，攻速+60%，伤害类型风",
+      "prereq": "普攻,飓风",
+      "exclude": "神箭手,奥术箭矢,火焰箭矢等",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "破甲强弩",
+      "family": "普攻",
+      "effect": "20级解锁",
+      "prereq": "强化箭矢x2",
+      "exclude": "",
+      "aliases": [
+        "破甲穿刺"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "20级"
+    },
+    {
+      "name": "神箭手",
+      "family": "普攻",
+      "effect": "多重+1，弹射+1，普攻附加150%物理伤害",
+      "prereq": "多重箭,攻速提升",
+      "exclude": "奥术箭矢,火焰箭矢,冰霜箭矢,闪电箭矢,疾风箭矢",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥能喷发",
+      "family": "普攻",
+      "effect": "命中10%触发奥能喷发，500%能量伤害并击退",
+      "prereq": "普攻,奥术箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火焰爆炸",
+      "family": "普攻",
+      "effect": "命中10%触发火焰爆炸，250%火系伤害",
+      "prereq": "普攻,爆炎箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "贯穿冰箭",
+      "family": "普攻",
+      "effect": "命中10%发射穿透冰箭，300%冰系伤害",
+      "prereq": "普攻,寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连环闪电",
+      "family": "普攻",
+      "effect": "命中10%触发连环闪电，300%电系伤害",
+      "prereq": "普攻,天雷",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "狂风之力",
+      "family": "普攻",
+      "effect": "命中10%触发狂风之力，提高攻速并降低攻击间隔",
+      "prereq": "普攻,飓风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "真实分裂",
+      "family": "普攻",
+      "effect": "23级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "23级"
+    },
+    {
+      "name": "剑气纵横",
+      "family": "普攻",
+      "effect": "40级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "40级"
+    },
+    {
+      "name": "强化普攻",
+      "family": "普攻",
+      "effect": "43级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "新星增幅",
+      "family": "冰霜新星",
+      "effect": "冰霜新星伤害+40%",
+      "prereq": "冰霜新星",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连环霜爆",
+      "family": "冰霜新星",
+      "effect": "冰霜新星额外释放1次",
+      "prereq": "冰霜新星",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "极寒新星",
+      "family": "冰霜新星",
+      "effect": "冰霜新星伤害+20%，并附加1秒冻结",
+      "prereq": "冰霜新星",
+      "exclude": "",
+      "aliases": [
+        "极蹇新星"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "寒霜之心",
+      "family": "冰霜新星",
+      "effect": "冰霜新星额外造成一次500%攻击的[冰系]魔法伤害",
+      "prereq": "新星增幅,极寒新星",
+      "exclude": "",
+      "aliases": [
+        "赛霜之心"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "绝对零度",
+      "family": "冰霜新星",
+      "effect": "冰霜新星的冻结持续时间提升50%",
+      "prereq": "极寒新星",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "新星扩张",
+      "family": "冰霜新星",
+      "effect": "冰霜新星范围+100%",
+      "prereq": "新星增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "小冰片",
+      "family": "冰霜新星",
+      "effect": "冰霜新星结束后分裂出1个穿透2、造成300%攻击[冰系]魔法伤害的小冰片",
+      "prereq": "寒冰箭,冰霜新星",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰片飞溅",
+      "family": "冰霜新星",
+      "effect": "小冰片数量+1",
+      "prereq": "小冰片",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "刺骨寒霜",
+      "family": "冰霜新星",
+      "effect": "冰霜新星、寒冰箭伤害+80%",
+      "prereq": "极寒新星",
+      "exclude": "",
+      "aliases": [
+        "刺骨寒意"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "13级"
+    },
+    {
+      "name": "冷冻场",
+      "family": "冰霜新星",
+      "effect": "冰霜新星生成持续3秒的冷冻场，每秒造成200%攻击[冰系]魔法伤害并附加1层冻伤",
+      "prereq": "寒霜之心",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "20级"
+    },
+    {
+      "name": "极寒精通",
+      "family": "冰霜新星",
+      "effect": "寒冰箭、冰霜新星冷却缩减+25%",
+      "prereq": "寒冰箭,冰霜新星",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "23级"
+    },
+    {
+      "name": "冰片爆裂",
+      "family": "冰霜新星",
+      "effect": "小冰片先对原本主目标造成1次伤害再释放，小冰片数量+1",
+      "prereq": "冰片飞溅",
+      "exclude": "",
+      "aliases": [
+        "冰片爆发"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "40级"
+    },
+    {
+      "name": "强化新星",
+      "family": "冰霜新星",
+      "effect": "冰霜新星伤害+20%",
+      "prereq": "新星增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "闪电增幅",
+      "family": "闪电链",
+      "effect": "闪电链伤害+40%",
+      "prereq": "闪电链",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "交叉闪电",
+      "family": "闪电链",
+      "effect": "闪电链初始目标+1，伤害-20%",
+      "prereq": "闪电链",
+      "exclude": "",
+      "aliases": [
+        "多重闪电"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "note": "卡名以 user 20260814 闪电链系卡牌总览截图为准；旧名（技能树抽帧误读）留作 alias。"
+    },
+    {
+      "name": "高压闪电",
+      "family": "闪电链",
+      "effect": "闪电链伤害+20%，附加0.5秒麻痹",
+      "prereq": "闪电链",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "闪电延续",
+      "family": "闪电链",
+      "effect": "闪电链伤害+20%，弹射次数+2",
+      "prereq": "闪电链",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "离子扩散",
+      "family": "闪电链",
+      "effect": "离子爆破伤害范围+100%",
+      "prereq": "离子爆破",
+      "exclude": "",
+      "aliases": [
+        "离子扩张"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "note": "卡名以 user 20260814 闪电链系卡牌总览截图为准；旧名（技能树抽帧误读）留作 alias。"
+    },
+    {
+      "name": "离子电压",
+      "family": "闪电链",
+      "effect": "离子爆破伤害+50%，附加0.5秒麻痹",
+      "prereq": "离子爆破",
+      "exclude": "",
+      "aliases": [
+        "离子增幅"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "note": "卡名以 user 20260814 闪电链系卡牌总览截图为准；旧名（技能树抽帧误读）留作 alias。"
+    },
+    {
+      "name": "离子爆破",
+      "family": "闪电链",
+      "effect": "闪电链每次命中产生爆炸，170范围造成180%攻击[电系]魔法伤害",
+      "prereq": "高压闪电",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "交感电击",
+      "family": "闪电链",
+      "effect": "闪电链命中麻痹敌人时，对600范围一名敌人迸发电流，造成300%攻击[电系]魔法伤害",
+      "prereq": "高压闪电",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "雷电增幅",
+      "family": "闪电链",
+      "effect": "天雷、闪电链伤害+50%",
+      "prereq": "天雷,闪电链",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "永动电流",
+      "family": "闪电链",
+      "effect": "闪电链每次弹射有20%概率分裂出继承全部强化的闪电链（弹射次数继承剩余次数）",
+      "prereq": "高压闪电,闪电增幅,闪电延续",
+      "exclude": "",
+      "aliases": [
+        "汞动电流",
+        "永动电波"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "20级"
+    },
+    {
+      "name": "雷电精通",
+      "family": "闪电链",
+      "effect": "天雷、闪电链冷却缩减+20%",
+      "prereq": "天雷,闪电链",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "23级"
+    },
+    {
+      "name": "霹雳闪电",
+      "family": "闪电链",
+      "effect": "交感电击先对主目标造成1次伤害，电流伤害+80%",
+      "prereq": "交感电击",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "40级"
+    },
+    {
+      "name": "强化闪电",
+      "family": "闪电链",
+      "effect": "闪电链伤害+20%",
+      "prereq": "闪电增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "地震增幅",
+      "family": "地震",
+      "effect": "地震伤害+40%",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "地震重击",
+      "family": "地震",
+      "effect": "地震伤害+20%，眩晕时间+0.3秒",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "地震连击",
+      "family": "地震",
+      "effect": "地震额外释放1次",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强震",
+      "family": "地震",
+      "effect": "地震范围+80%",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "地震速击",
+      "family": "地震",
+      "effect": "地震伤害+20%，速度+50%",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "36级"
+    },
+    {
+      "name": "精准打击",
+      "family": "地震",
+      "effect": "地震中心区域伤害翻倍",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "地震狂轰",
+      "family": "地震",
+      "effect": "地震额外释放2次",
+      "prereq": "地震连击x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "余烬延续",
+      "family": "地震",
+      "effect": "余烬持续时间+2秒",
+      "prereq": "爆燃地震",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高温余烬",
+      "family": "地震",
+      "effect": "余烬伤害+60%",
+      "prereq": "爆燃地震",
+      "exclude": "",
+      "aliases": [
+        "高温余燃"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆燃地震",
+      "family": "地震",
+      "effect": "地震进阶为爆燃地震：额外造成400%攻击[火系]伤害，残留2秒余烬每秒造成500%攻击[火系]魔法伤害",
+      "prereq": "爆炎箭,精准打击,地震增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "末日地震",
+      "family": "地震",
+      "effect": "地震结束后在范围内触发一次回荡，造成500%攻击[物系]物理伤害",
+      "prereq": "地震增幅,地震连击",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "浩劫",
+      "family": "地震",
+      "effect": "地震、陨石伤害+100%",
+      "prereq": "地震,陨石",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "40级"
+    },
+    {
+      "name": "强化地震",
+      "family": "地震",
+      "effect": "地震伤害+20%",
+      "prereq": "地震增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "龙卷增幅",
+      "family": "龙卷风",
+      "effect": "龙卷风伤害+40%",
+      "prereq": "龙卷风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "龙卷延续",
+      "family": "龙卷风",
+      "effect": "龙卷风持续时间+80%",
+      "prereq": "龙卷风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强袭龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风移动速度+40%，持续时间+30%",
+      "prereq": "龙卷风",
+      "exclude": "",
+      "aliases": [
+        "强袭龙卷风"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强力龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风牵引力度+50%",
+      "prereq": "龙卷风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "龙卷扩张",
+      "family": "龙卷风",
+      "effect": "龙卷风范围+60%",
+      "prereq": "龙卷增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风暴汇聚",
+      "family": "龙卷风",
+      "effect": "龙卷风结束时在原位置再生成持续5秒的龙卷风",
+      "prereq": "龙卷延续,强袭龙卷",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "闪电龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风进阶为闪电龙卷，额外造成250%攻击[电系]魔法伤害",
+      "prereq": "闪电链,龙卷延续,龙卷扩张",
+      "exclude": "双重龙卷",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "双重龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风持续时间减半，同时释放2个龙卷风",
+      "prereq": "龙卷延续,龙卷扩张",
+      "exclude": "闪电龙卷",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风力增幅",
+      "family": "龙卷风",
+      "effect": "龙卷风、飓风伤害+50%",
+      "prereq": "龙卷风,飓风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "20级"
+    },
+    {
+      "name": "风力精通",
+      "family": "龙卷风",
+      "effect": "龙卷风、飓风冷却缩减+20%",
+      "prereq": "龙卷风,飓风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "23级"
+    },
+    {
+      "name": "强化龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风伤害+20%",
+      "prereq": "龙卷增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "龙卷风暴",
+      "family": "龙卷风",
+      "effect": "龙卷风伤害+150%，额外释放1个龙卷风",
+      "prereq": "双重龙卷",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "50级"
+    },
+    {
+      "name": "电磁增幅",
+      "family": "电磁网",
+      "effect": "电磁网伤害+40%",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高频电网",
+      "family": "电磁网",
+      "effect": "电磁网额外释放1次，伤害-30%",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电网扩张",
+      "family": "电磁网",
+      "effect": "电磁网范围+80%",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "跃迁电流",
+      "family": "电磁网",
+      "effect": "电磁网命中的敌人产生1道跃迁电流，对500范围随机敌人造成300%攻击[电系]魔法伤害",
+      "prereq": "闪电链,电磁网",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电能激荡",
+      "family": "电磁网",
+      "effect": "跃迁电流可以弹射2次",
+      "prereq": "跃迁电流",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "抗拒电网",
+      "family": "电磁网",
+      "effect": "电磁网伤害+20%，附加轻微击退",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [
+        "抗拒电"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电网过载",
+      "family": "电磁网",
+      "effect": "电磁网伤害+20%，额外释放1次，冷却缩减+20%",
+      "prereq": "高频电网",
+      "exclude": "",
+      "aliases": [
+        "申网过载"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高压电网",
+      "family": "电磁网",
+      "effect": "电磁网伤害+20%，使敌人麻痹1秒",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "超过载",
+      "family": "电磁网",
+      "effect": "电网过载升级：电磁网伤害+100%，额外释放2次",
+      "prereq": "电网过载",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "23级"
+    },
+    {
+      "name": "电力增幅",
+      "family": "电磁网",
+      "effect": "天雷、电磁网伤害+50%",
+      "prereq": "天雷,电磁网",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "40级"
+    },
+    {
+      "name": "强化电网",
+      "family": "电磁网",
+      "effect": "电磁网伤害+20%",
+      "prereq": "电磁增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "感电",
+      "family": "电磁网",
+      "effect": "电磁网命中后附加5秒感电",
+      "prereq": "高压电网,电网扩张,电磁增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "50级"
+    },
+    {
+      "name": "陨石增幅",
+      "family": "陨石",
+      "effect": "陨石伤害+40%",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "陨石坠落",
+      "family": "陨石",
+      "effect": "陨石冷却缩减+20%",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "陨石连击",
+      "family": "陨石",
+      "effect": "陨石额外释放1次",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "陨石爆破",
+      "family": "陨石",
+      "effect": "陨石伤害范围+100%",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "星落",
+      "family": "陨石",
+      "effect": "陨石伤害×2.5，冷却缩减-20%",
+      "prereq": "毁灭陨石",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重迸射",
+      "family": "陨石",
+      "effect": "陨石碎片数量+1",
+      "prereq": "陨石碎片",
+      "exclude": "",
+      "aliases": [
+        "多重进射"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重陨石",
+      "family": "陨石",
+      "effect": "陨石数量+1，伤害-20%",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "震撼陨石",
+      "family": "陨石",
+      "effect": "陨石造成伤害时附加0.5秒眩晕",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [
+        "震撼晚石"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "毁灭陨石",
+      "family": "陨石",
+      "effect": "陨石伤害+200%",
+      "prereq": "陨石增幅x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "陨石碎片",
+      "family": "陨石",
+      "effect": "陨石落地后迸射1个碎片，对250范围造成400%攻击[物理]物理伤害",
+      "prereq": "陨石增幅",
+      "exclude": "",
+      "aliases": [
+        "瞬石碎片"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆破碎片",
+      "family": "陨石",
+      "effect": "陨石碎片迸射更集中、爆炸范围更大，碎片数量+1",
+      "prereq": "多重迸射",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "36级"
+    },
+    {
+      "name": "强化陨石",
+      "family": "陨石",
+      "effect": "陨石伤害+20%",
+      "prereq": "陨石增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "飓风增幅",
+      "family": "飓风",
+      "effect": "飓风伤害+40%",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [
+        "愿风增幅"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重飓风",
+      "family": "飓风",
+      "effect": "飓风额外释放1次，伤害-20%",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "贯通之风",
+      "family": "飓风",
+      "effect": "飓风穿透+6",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强袭飓风",
+      "family": "飓风",
+      "effect": "飓风伤害+20%，击退效果+30%",
+      "prereq": "飓风",
+      "exclude": "真空",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风阻",
+      "family": "飓风",
+      "effect": "飓风伤害+20%，附加3秒减速",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风暴加剧",
+      "family": "飓风",
+      "effect": "小飓风数量+1",
+      "prereq": "小飓风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "真空塌陷",
+      "family": "飓风",
+      "effect": "真空伤害+80%，并附加0.5秒眩晕",
+      "prereq": "真空",
+      "exclude": "",
+      "aliases": [
+        "真空塌"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重风暴",
+      "family": "飓风",
+      "effect": "飓风额外释放2次，伤害-30%",
+      "prereq": "多重飓风x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "小龙卷",
+      "family": "飓风",
+      "effect": "飓风命中首个敌人处生成持续3秒的小龙卷，每1秒对200范围造成200%攻击[风系]魔法伤害",
+      "prereq": "龙卷风,飓风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "真空",
+      "family": "飓风",
+      "effect": "飓风命中时牵引200范围敌人，并造成150%攻击[风系]魔法伤害",
+      "prereq": "飓风",
+      "exclude": "强袭飓风",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "小飓风",
+      "family": "飓风",
+      "effect": "飓风每次命中生成1个穿透2、造成250%攻击[风系]魔法伤害的小飓风",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "乱流",
+      "family": "飓风",
+      "effect": "小飓风先对原本主目标造成1次伤害再释放，小飓风数量+1",
+      "prereq": "风暴加剧",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "36级"
+    },
+    {
+      "name": "风力回旋",
+      "family": "飓风",
+      "effect": "飓风消失时往回再释放1个保留全部强化的飓风",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "40级"
+    },
+    {
+      "name": "强化飓风",
+      "family": "飓风",
+      "effect": "飓风伤害+20%",
+      "prereq": "飓风增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    },
+    {
+      "name": "火球增幅",
+      "family": "火球",
+      "effect": "火球伤害+50%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火球延续",
+      "family": "火球",
+      "effect": "火球持续时间+60%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "巨化火球",
+      "family": "火球",
+      "effect": "火球体积+60%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火球加速",
+      "family": "火球",
+      "effect": "火球移动速度+50%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重火球",
+      "family": "火球",
+      "effect": "火球数量+1，伤害-20%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "烈焰火球",
+      "family": "火球",
+      "effect": "火球命中后附加3秒燃烧",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火焰飞弹",
+      "family": "火球",
+      "effect": "火球持续期间每1秒发射一颗火焰飞弹，造成300%攻击[火系]物理伤害",
+      "prereq": "烈焰火球",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "疾行火球",
+      "family": "火球",
+      "effect": "火球移动速度+100%",
+      "prereq": "火球延续,火球增幅,火球加速",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高频火球",
+      "family": "火球",
+      "effect": "火球弹道速度-80%，伤害频率翻倍",
+      "prereq": "火球延续,巨化火球,火球增幅",
+      "exclude": "火球加速,疾行火球",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "乾蓝冰焰",
+      "family": "火球",
+      "effect": "火球进阶为乾蓝冰焰：命中燃烧敌人将燃烧转化为持续10秒的燃霜，可叠3层",
+      "prereq": "爆炎箭,寒冰箭,火球",
+      "exclude": "",
+      "aliases": [
+        "乾蓝冰"
+      ],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "23级"
+    },
+    {
+      "name": "幸运火球",
+      "family": "火球",
+      "effect": "释放火球时20%数量×3、30%数量×2、50%数量不变",
+      "prereq": "多重火球x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "40级"
+    },
+    {
+      "name": "强化火球",
+      "family": "火球",
+      "effect": "火球伤害+25%",
+      "prereq": "火球增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "unlock": "43级"
+    }
+  ]
+}
