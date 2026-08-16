@@ -2,11 +2,14 @@
  "version": 1,
  "kb_id": "official_game_mechanics",
  "ingested_at": "2026-08-15",
+ "updated_at": "2026-08-17",
  "wired_to_decision": false,
  "status": "official_help",
- "_comment": "游戏内官方说明底库。比攻略优先。整份 JSON 仍不驱动公式。partially_wired 只列源码真接上的。白绿先刷 / 目录压 OCR / 审判排斥 曾误登记，见 skill_card_colors。不要把截图 PNG 复制进仓库。",
+ "_comment": "游戏内官方说明底库。比攻略优先。整份 JSON 仍不驱动公式。partially_wired 只列源码真接上的。白绿先刷 / 目录压 OCR / 审判排斥 曾误登记，见 skill_card_colors。不要把截图 PNG 复制进仓库。2026-08-17 新增批次契约条目标注为 status=wired_contract，非游戏机制。",
  "partially_wired": [
-  "skill_points_via_G_before_wood_F"
+  "skill_points_via_G_before_wood_F",
+  "skill_mode_strict_all_round",
+  "challenge_toggle_periodic_reobserve"
  ],
  "precedence": [
   "official_help",
@@ -303,7 +306,9 @@
      "100_pct": "原价 300/500 并存（yihuo t=208 原价300；013304 t=1463.5 价目 300/500/400/60/300）"
     },
     "script_rule": "not_wired",
-    "note": "常驻4格商品扣木材；手动刷新扣杀敌数或木材。实测原文（013304 t=1463.5）：黑市每180秒获得1次免费刷新机会；黑市商店等级越高刷新出的物品越好；黑市每秒自动获得1点经验；消耗杀敌数购买商品也会获得经验，经验满后则晋升为下一级；快捷键[H]。黑市升级走经验而非纯时间（经验条 369/500 互证）；升级聊天行\"黑市等级升为：2级，可以刷新更高级的物品了\"（t=875/1596）。do_not_auto_enable 仍禁止自动购买序。"
+    "wired": false,
+    "batch_status": "experimental_unverified_zero_input",
+    "note": "常驻4格商品扣木材；手动刷新扣杀敌数或木材。实测原文（013304 t=1463.5）：黑市每180秒获得1次免费刷新机会；黑市商店等级越高刷新出的物品越好；黑市每秒自动获得1点经验；消耗杀敌数购买商品也会获得经验，经验满后则晋升为下一级；快捷键[H]。黑市升级走经验而非纯时间（经验条 369/500 互证）；升级聊天行\"黑市等级升为：2级，可以刷新更高级的物品了\"（t=875/1596）。do_not_auto_enable 仍禁止自动购买序。本批次（2026-08-17）离线契约：黑商自动购买/自动刷新默认零输入，仅 auto_gambling_time>0 才可能放行；看板文案须标注实验性/未实机验证。仍 not_wired、不标 complete；Merchant C6 保持 failed/unverified，等 LabVerify 实机证据。"
    }
   }
  },
@@ -427,6 +432,16 @@
     "other_2"
    ],
    "status": "official_help"
+  },
+  "challenge_toggle_recheck": {
+   "name": "挑战/自动任务开关：周期重观察，不假设永久 ON（2026-08-17 离线接线）",
+   "text": "脚本对已锚定的开关类控件（自动任务/挑战开关）按 challenge_recheck_interval_s（默认 30s，钳制 5–300s）周期重观察：观察到 ON 只安排下一次观察，不置永久完成；OFF 时点击仍按标签锚点、有界、带变更为防抖保护。",
+   "source": [
+    "batch_contract_20260817"
+   ],
+   "status": "wired_contract",
+   "wired_to_decision": true,
+   "_note": "2026-08-17 离线接线契约；游戏本身无此机制描述。实机表现由 LabVerify 承接验证。"
   },
   "skill_card_viewer": {
    "name": "技能卡牌查看",
@@ -912,13 +927,29 @@
     "green"
    ],
    "no_ex_tier": true,
-   "hsv_trap": "mediator._card_rarity_score 仍采 red（hue≤10 或 ≥170）。橙边金环常被采成 red。长测「红巨型剑气」应按橙边 + 名字 conf 0.575<0.60 被跳过理解，不是游戏有红技能卡。",
+   "taxonomy_conflict": "user 2026-08-17 报告：技能卡可出现蓝/紫/橙/粉/红，且红色有多档。与 2026-08-14『技能卡只有橙紫蓝白、无红粉』冲突，未解决。既有证据行保留；运行期不得因红/粉出现而判为宝物或拒绝识别（容忍未来红/粉档），但不得新造 HSV 阈值。",
+   "hsv_trap": "mediator._card_rarity_score 仍采 red（hue≤10 或 ≥170）。橙边金环常被采成 red。长测「红巨型剑气」应按橙边 + 名字 conf 0.575<0.60 被跳过理解，不是游戏有红技能卡。2026-08-17 user 报告红/粉档后此结论存疑，见 taxonomy_conflict。",
    "script_now": "choice_policy quality_order 仍是 red>orange>purple>blue>white>green。技能路径误把 red 当最高档，碰巧仍会优先那张橙卡；真正丢掉它的是 min_confidence=0.60。白/绿先刷、目录稀有度压 OCR 不在 choose_action 里。",
    "rewire_at": "B1：技能品质序改成橙>紫>蓝>白；技能面板把 HSV red 当成 orange 或丢弃；conf 与边框解耦。宝物仍保留 green。不要改装备词条红>橙那条。",
    "source": "user_confirmed",
    "status": "user_confirmed",
    "policy_at": "2026-08-14",
    "wired_to_decision": false
+  },
+  "skill_choice_mode": {
+   "name": "技能选卡模式：0–4 系严格 / 5+ 系全才（2026-08-17 离线接线）",
+   "text": "看板勾选的技能系数量决定选卡模式：0–4 个 → hard（严格：只选配置系经 skill_catalog 展开出的合法技能卡，配置外一律不选，宁可 WAIT/隐藏也不乱拿）；5–16 个 → all_round（全才：任何目录可识别的合法技能卡都可选，配置系仅作聚焦优先）。",
+   "ranking": "两种模式共用同一确定性排序：目录合法性（never_pick / 互斥 exclude / 前置 prereq，skill_catalog.is_skill_choice_legal）→ 组合与链路（skill_combo_rank / skill_chain_rank）→ 存档解锁与降伤惩罚（card_unlocked_by_archive / skill_penalty_rank，未知存档 fail-closed）→ 稀有度 → 配置顺序 → 槽位下标。",
+   "ownership": "排序与前置判定所用的 owned 集合只来自运行时面板确认的已学技能（panel 变更/关闭后确认，每局重置）；缺失即未知，绝不从卡名猜测。",
+   "archive_grant": "学得主技能即获得的白卡（skill_catalog.grant_on_learn_card）只经 skill_archive_unlocks 已核实行记账，未经核实不记账。",
+   "unknown_names": "目录无法识别的名字在任何模式下都没有点击权。",
+   "source": [
+    "batch_contract_20260817",
+    "skill_catalog.py"
+   ],
+   "status": "wired_contract",
+   "wired_to_decision": true,
+   "_note": "这是脚本离线行为契约，不是游戏机制描述；实机表现由 LabVerify 承接验证。"
   },
   "asymmetric_exclude": {
    "name": "技能排斥（不对称）",
@@ -2757,6 +2788,7 @@
   "大圣残躯6张/五件套/五大成小卡未上帧；实机(0/3)天命人 vs 攻略启动+6残躯",
   "法天象地卡面神通 vs 攻略大圣EX；残躯链未跑通前不当相等",
   "技能卡无红色已 user_confirmed；HSV 仍会把橙边采成 red，B1 再改 quality_order / 采色",
+  "技能色阶分类冲突未解决：2026-08-14『无红粉』vs 2026-08-17 user 报告蓝/紫/橙/粉/红且红有多档；运行期容忍未来红/粉档、不新造 HSV 阈值",
   "封神榜6/9、法宝三连跳各5、2400木未上帧；姜子牙 t=765 无 tooltip OCR",
   "亡灵残骸100/符文各≥10/邪爆2次未上帧；生产者「巫妖」未上帧（英雄卡巫妖已见）",
   "神兽同名互吞链与4 UR→祖龙未上帧；吞食丹跳过异兽蛋60秒未上帧",

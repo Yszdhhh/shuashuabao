@@ -1,5 +1,17 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-17 CORE02/CORE03 集成批次：技能严格-全才模式 + 必拿宝物 + 挑战重观察（离线接线，未实机）
+
+工作区 HEAD `6584445` 之上，本批次完成配置、L1 策略/状态、Settings、看板与契约测试集成；未跑真机。离线验收：策略/看板定向集 `227 passed, 109 subtests passed`；`python tools/release_gate.py` 4/4 PASS（pytest 756 passed、2 xfailed、11 skipped；frozen replay PASS；templates 132/0；contract 72 passed、1 present）。
+
+- 技能：choice_policy.json 显式 min_confidence=0.60、allow_skill_giveup=false；选卡模式运行期推导——勾选 0–4 系 → hard（严格，只选配置系展开出的合法技能卡，宁可 WAIT/隐藏也不乱拿），5–16 系 → all_round（全才，目录可识别的合法技能卡都可选，配置系仅作聚焦优先）；两种模式共用排序 = 目录合法性（never_pick/互斥）→ 前置/链路 → 存档解锁/降伤惩罚（未知存档 fail-closed）→ 稀有度 → 焦点/非焦点 → 本地习惯分 → 配置顺序 → 槽位下标；目录未识别名无点击权。owned 只取运行时面板确认的已学技能（panel 变更/关闭后确认，每局重置），保留同卡重复次数供 x2 前置计数；缺失即未知，绝不从卡名猜测。
+- 宝物：treasure.must_take_names = 原 4 个 EX（ONEPIECE/至高进化/一身神装/满级大佬）+ 全都要（覆盖实测『我全都要·获得本页全部宝物』）+ 卡牌大师；与负面名单互斥保持。
+- 挑战：Settings 后端 challenge_recheck_interval_s（默认 30s，钳 5–300s）周期重观察锚定开关——ON 只安排下一次观察，不永久置 ON；OFF 点击仍标签锚点、有界、变更防抖。
+- 黑商：自动购买/刷新默认零输入（仅 auto_gambling_time>0 才可能放行），看板须标实验性/未实机验证；**Merchant C6 保持 failed/unverified**，不标 wired/complete。
+- 色阶：user 2026-08-17 报告技能卡可出现蓝/紫/橙/粉/红且红有多档，与 2026-08-14『技能卡只有橙紫蓝白、无红粉』冲突未解决；KB/配置只标记冲突（保留既有证据行），运行期容忍未来红/粉档、不新造 HSV 阈值。
+
+**未验证/实机缺口**：技能 all_round 模式真实选卡是否符合预期；挑战开关周期重观察的实际间隔与无抖动点击；黑商零输入真机不误点；全都要/卡牌大师 OCR 识别与特权命中；红/粉档真实存在性与多档映射。**LabVerify 待办**：13 号真机（技能选中>0、刷新不换不放弃）复核技能模式；确认黑商默认零输入；观察挑战开关周期重观察。离线 release_gate 4/4 已由主 agent 完成，不替代真机 L 结论。
+
 ## 2026-08-16 CORE-02 Infra：选关高亮亮块恢复（U，待 L）
 
 CORE-02 worktree 基线 `6f80f016df8a4efec5c6004fc437f7b1f574dd28` 上，真实夹具 `fixtures/lab13_200601_stage_card/02_q2_stage_select_click2_t1567.0s.jpg` 复现：选中的 1-12 亮边与标签/背景合并为超长亮块，旧 `visible_stage_rows()` 直接丢弃，`selected_stage_row()` 返回 `None`，L0 因 fail-closed 不点开始。首版 `433e7ed` 宣称"前后关卡形成唯一连续缺口才恢复"，但实现里 below 缺失时仍按单个上邻合成、且允许多块各自恢复，与描述不符并可能把推断坐标送进真实点击链路；返工 `ef72f99` 收紧为：同时存在同章节上/下邻且 `below.index == above.index + 2`、亮边评分 ≥ `SELECTED_RING_RATIO`、全程只允许一个可验证候选，任何缺失/跨章节/非 +2/亮边不足/多候选歧义一律不恢复。Lab13 恢复 1-12 的正例保留，另加 6 个 fail-closed 负例（对首版实现已验证会红）。`python tools/release_gate.py` 4/4 PASS（660 passed）为 U 证据；未跑真机，L 结论交 LabVerify。
