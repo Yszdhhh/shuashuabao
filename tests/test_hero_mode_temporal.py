@@ -15,6 +15,12 @@ from gamescript.loop_action import LoopAction
 from gamescript.mediator import FACTION_SPECS, Mediator, Phase
 from gamescript.settings import Settings
 from gamescript.vision.capture import Frame
+from gamescript.vision.stage_selector import StageId, StageRow
+
+
+def _confirmed_highlight(chapter: int, index: int) -> StageRow:
+    """2026-08-14 起 L0 选关只认正向高亮证据（旧 verify_stage_selection 旁路已移除）。"""
+    return StageRow(label=f"{chapter}-{index}", stage_id=StageId(chapter, index), center_x=0, center_y=0)
 from gamescript.vision.matcher import _load_template, resolve_template
 
 
@@ -72,7 +78,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._stage_target_position = (target.x, target.y)
         self.med._stage_click_cooldown_until = 0.0
 
-        with patch("gamescript.mediator.verify_stage_selection", return_value=False), patch.object(
+        with patch("gamescript.mediator.selected_stage_row", return_value=_confirmed_highlight(1, 15)), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
             before = click.call_count
@@ -324,7 +330,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._stage_target_position = (target.x, target.y + 80)
         self.med._stage_click_cooldown_until = 0.0
 
-        with patch("gamescript.mediator.verify_stage_selection", return_value=False), patch.object(
+        with patch("gamescript.mediator.selected_stage_row", return_value=_confirmed_highlight(1, 15)), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
             self.med._tick_l0(stage)
@@ -347,7 +353,9 @@ class HeroModeTemporalTests(unittest.TestCase):
             self.assertEqual("SelectStage-target", click.call_args.args[1])
             self.assertTrue(self.med._stage_selected)
 
-    def test_ordinary_mode_uses_exact_target_and_start_when_row_has_no_highlight(self) -> None:
+    def test_ordinary_mode_uses_exact_target_and_start_when_highlight_confirms_target(self) -> None:
+        # 2026-08-16 L0 裁决：无高亮不得开局（20260814 实机教训），
+        # 旧「无高亮也开始」断言改为高亮确认后开局；精确目标+专用开始按钮断言保留。
         self.settings.auto_reputation = False
         stage = fixture("live_stage_select.png")
         self.med.set_phase(Phase.STAGE_SELECT)
@@ -358,7 +366,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._stage_target_position = (target.x, target.y)
         self.med._stage_click_cooldown_until = 0.0
 
-        with patch("gamescript.mediator.verify_stage_selection", return_value=False), patch.object(
+        with patch("gamescript.mediator.selected_stage_row", return_value=_confirmed_highlight(1, 15)), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
             action = self.med._tick_l0(stage)

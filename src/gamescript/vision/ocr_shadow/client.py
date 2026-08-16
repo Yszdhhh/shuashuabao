@@ -36,6 +36,7 @@ class ShadowClient:
         timeout_ms: int = 400,
         startup_timeout_ms: int = 6000,
         max_restarts: int = 3,
+        restart_cooldown_s: float = 2.0,
         trace_path: str | Path | None = None,
         worker_command: Iterable[str] | None = None,
     ) -> None:
@@ -44,33 +45,48 @@ class ShadowClient:
             or os.environ.get("GAMESCRIPT_OCR_REPO_ROOT", "")
             or Path(__file__).resolve().parents[4]
         )
-        self.python_executable = str(
-            python_executable
-            or self.repo_root / ".venv-ocr" / "Scripts" / "python.exe"
+        self.model_dir = Path(
+            model_dir
+            or os.environ.get("GAMESCRIPT_OCR_MODEL_DIR", "")
+            or self.repo_root / "models" / "ocr"
         )
-        self.model_dir = Path(model_dir or self.repo_root / "models" / "ocr")
+        self.python_executable = _resolve_ocr_python(
+            self.repo_root, python_executable
+        )
         self.timeout_ms = max(1, int(timeout_ms))
         self.startup_timeout_ms = max(self.timeout_ms, int(startup_timeout_ms))
         self.max_restarts = max(0, int(max_restarts))
+        self.restart_cooldown_s = max(0.0, float(restart_cooldown_s))
         self.trace_path = Path(trace_path) if trace_path else None
         self.worker_command = list(worker_command) if worker_command else None
         self._proc: subprocess.Popen[str] | None = None
         self._lines: queue.Queue[str] = queue.Queue()
+        self._stderr_chunks: list[str] = []
         self._reader: threading.Thread | None = None
+        self._err_reader: threading.Thread | None = None
         self._lock = threading.RLock()
         self._seq = 0
         self._crashes = 0
         self._disabled = False
+        self._cooldown_until = 0.0
+        self._ready = False
         self._ready_reason: str | None = None
         self._load_ms = 0.0
         self._model_validated = False
+        self._announced = False
         self._cache: dict[str, tuple[str, dict[str, ShadowResponse]]] = {}
         self._max_cache_panels = 256
         self._trace_lock = threading.Lock()
+        print(
+            f"[ocr] configured worker={' '.join(self._command())} "
+            f"model_dir={self.model_dir} python={self.python_executable} "
+            f"python_exists={Path(self.python_executable).is_file()}",
+            flush=True,
+        )
 
     @property
     def disabled(self) -> bool:
-        return self._disabled
+        return self._disabled and time.monotonic() < self._cooldown_until
 
     @property
     def process(self) -> subprocess.Popen[str] | None:
@@ -82,7 +98,8 @@ class ShadowClient:
         return [self.python_executable, "-m", "gamescript.vision.ocr_shadow.worker"]
 
     def _spawn(self) -> bool:
-        if self._disabled:
+        self._maybe_rearm()
+        if self._disabled and time.monotonic() < self._cooldown_until:
             return False
         command = self._command()
         env = os.environ.copy()
@@ -90,20 +107,31 @@ class ShadowClient:
         env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
         env["GAMESCRIPT_OCR_MODEL_DIR"] = str(self.model_dir)
         env["GAMESCRIPT_OCR_REPO_ROOT"] = str(self.repo_root)
+        exe = command[0] if command else ""
+        if exe and not Path(exe).is_file() and self.worker_command is None:
+            self._note_spawn_failure(
+                "spawn",
+                command,
+                detail=f"python missing: {exe}",
+            )
+            self._record_crash("spawn")
+            return False
+        self._stderr_chunks = []
         try:
             proc = subprocess.Popen(
                 command,
                 cwd=str(self.repo_root),
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 bufsize=1,
                 env=env,
             )
-        except (OSError, ValueError):
+        except (OSError, ValueError) as exc:
+            self._note_spawn_failure("spawn", command, detail=str(exc))
             self._record_crash("spawn")
             return False
         self._proc = proc
@@ -111,10 +139,23 @@ class ShadowClient:
         self._ready = False
         self._reader = threading.Thread(target=self._read_lines, args=(proc,), daemon=True)
         self._reader.start()
+        self._err_reader = threading.Thread(
+            target=self._read_stderr, args=(proc,), daemon=True
+        )
+        self._err_reader.start()
         self._await_ready(self.startup_timeout_ms / 1000)
         if not self._ready:
-            self._ready_reason = "starting"
-        return self._ready
+            err = self._stderr_text()
+            reason = "ready_timeout"
+            if proc.poll() not in (None, 0):
+                reason = "spawn"
+            self._ready_reason = reason
+            self._note_spawn_failure(reason, command, detail=err or "worker produced no ready line")
+            self._record_crash(reason)
+            self._terminate()
+            return False
+        self._announce(ready=True, command=command)
+        return True
 
     def _await_ready(self, timeout_s: float) -> bool:
         if self._ready:
@@ -131,6 +172,7 @@ class ShadowClient:
             return True
         except (queue.Empty, ValueError, json.JSONDecodeError):
             return False
+
     def _read_lines(self, proc: subprocess.Popen[str]) -> None:
         stream = proc.stdout
         if stream is None:
@@ -141,11 +183,83 @@ class ShadowClient:
         finally:
             self._lines.put("")
 
+    def _read_stderr(self, proc: subprocess.Popen[str]) -> None:
+        stream = proc.stderr
+        if stream is None:
+            return
+        try:
+            for line in stream:
+                text = line.rstrip("\r\n")
+                if text:
+                    self._stderr_chunks.append(text)
+                    if len(self._stderr_chunks) > 40:
+                        del self._stderr_chunks[:-40]
+        except OSError:
+            return
+
+    def _stderr_text(self) -> str:
+        return "\n".join(self._stderr_chunks[-20:])
+
+    def _maybe_rearm(self) -> None:
+        if not self._disabled:
+            return
+        if time.monotonic() < self._cooldown_until:
+            return
+        self._disabled = False
+        self._crashes = 0
+        if self._ready_reason in {"spawn", "ready_timeout", "disabled"}:
+            self._ready_reason = None
+
     def _record_crash(self, reason: str) -> None:
         self._ready_reason = reason
         self._crashes += 1
         if self._crashes >= self.max_restarts:
+            # Skip this frame / a short cooldown, then allow another spawn wave.
             self._disabled = True
+            self._cooldown_until = time.monotonic() + self.restart_cooldown_s
+
+    def _announce(self, *, ready: bool, command: list[str], detail: str = "") -> None:
+        if self._announced:
+            return
+        self._announced = True
+        reason = self._ready_reason or ("ok" if ready else "unknown")
+        line = (
+            f"[ocr] worker={' '.join(command)} model_dir={self.model_dir} "
+            f"ready={ready} reason={reason}"
+        )
+        if detail:
+            line = f"{line} detail={detail[:400]}"
+        print(line, flush=True)
+        self._write_lifecycle(
+            {
+                "event": "ocr_worker",
+                "command": command,
+                "python_executable": self.python_executable,
+                "model_dir": str(self.model_dir),
+                "repo_root": str(self.repo_root),
+                "ready": ready,
+                "reason": reason,
+                "detail": detail[:800],
+            }
+        )
+
+    def _note_spawn_failure(self, reason: str, command: list[str], *, detail: str) -> None:
+        self._ready_reason = reason
+        self._announce(ready=False, command=command, detail=detail)
+        print(f"[ocr] spawn failed reason={reason} {detail[:400]}", flush=True)
+        self._write_lifecycle(
+            {
+                "event": "ocr_spawn_failure",
+                "command": command,
+                "python_executable": self.python_executable,
+                "model_dir": str(self.model_dir),
+                "repo_root": str(self.repo_root),
+                "ready": False,
+                "reason": reason,
+                "detail": detail[:800],
+                "stderr": self._stderr_text()[:800],
+            }
+        )
 
     def _terminate(self) -> None:
         proc, self._proc = self._proc, None
@@ -182,18 +296,28 @@ class ShadowClient:
         with self._lock:
             self._terminate()
             self._disabled = False
+            self._cooldown_until = 0.0
             self._crashes = 0
             self._ready_reason = None
             self._load_ms = 0.0
             self._model_validated = False
+            self._announced = False
             self._cache.clear()
 
     def _ensure_process(self) -> bool:
-        if self._disabled:
+        self._maybe_rearm()
+        if self._disabled and time.monotonic() < self._cooldown_until:
             return False
         if self._proc is not None and self._proc.poll() is None:
-            return self._await_ready(0.0)
-        self._terminate()
+            if self._ready or self._await_ready(0.0):
+                return True
+            self._terminate()
+            self._record_crash("ready_timeout")
+            self._maybe_rearm()
+            if self._disabled and time.monotonic() < self._cooldown_until:
+                return False
+        else:
+            self._terminate()
         return self._spawn()
 
     def ping(self, timeout_ms: int | None = None) -> bool:
@@ -247,7 +371,8 @@ class ShadowClient:
                 )
                 self._write_trace(response, session, panel_id, slot_id, bbox, fp, True)
                 return response
-            if self._disabled:
+            self._maybe_rearm()
+            if self._disabled and time.monotonic() < self._cooldown_until:
                 response = ShadowResponse.unavailable(seq, "disabled", (time.perf_counter() - started) * 1000)
                 self._write_trace(response, session, panel_id, slot_id, bbox, fp, False)
                 return response
@@ -373,6 +498,47 @@ class ShadowClient:
                 fh.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
         except OSError:
             pass
+
+    def _write_lifecycle(self, event: dict[str, Any]) -> None:
+        if self.trace_path is None:
+            return
+        payload = {"ts": time.time(), **event}
+        try:
+            self.trace_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._trace_lock, self.trace_path.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
+        except OSError:
+            pass
+
+
+def _resolve_ocr_python(
+    repo_root: Path, python_executable: str | Path | None
+) -> str:
+    """Pick a real python.exe. InfraB often has no .venv-ocr; don't silently FileNotFound."""
+    candidates: list[Path] = []
+    if python_executable:
+        candidates.append(Path(python_executable))
+    env_py = os.environ.get("GAMESCRIPT_OCR_PYTHON", "").strip()
+    if env_py:
+        candidates.append(Path(env_py))
+    candidates.append(repo_root / ".venv-ocr" / "Scripts" / "python.exe")
+    for parent in (repo_root.parent, repo_root.parent.parent):
+        candidates.append(parent / "GameScript-Local" / ".venv-ocr" / "Scripts" / "python.exe")
+        candidates.append(
+            parent / "🎮 影音游戏" / "GameScript-Local" / ".venv-ocr" / "Scripts" / "python.exe"
+        )
+    seen: set[str] = set()
+    for path in candidates:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            if path.is_file():
+                return str(path)
+        except OSError:
+            continue
+    return str(candidates[0] if candidates else repo_root / ".venv-ocr" / "Scripts" / "python.exe")
 
 
 def _slot_fields(slot: Any) -> tuple[int, tuple[int, int, int, int], str | None]:

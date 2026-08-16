@@ -129,6 +129,33 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         self.assertEqual(self.med.phase, Phase.ERROR)
         self.assertEqual(self.med._trace_controls[-1]["state"], "TIMEOUT")
 
+    def test_successful_open_does_not_reclick_while_waiting_for_dialog(self):
+        """点成功后即使按钮还在、4s 观察窗过了，也不再点（下载地图）。"""
+        candidate = _hit("create_room")
+        click = MagicMock(return_value=True)
+        t0 = 1000.0
+        p = self._patch_map(candidate=candidate)
+        with p[0], p[1], p[2], p[3], patch.object(self.med, "act_click", click), patch(
+            "gamescript.mediator.time.time", return_value=t0
+        ):
+            self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Continue)
+        self.assertEqual(click.call_count, 1)
+        self.assertTrue(self.med._create_room_opened_ok)
+        self.assertGreaterEqual(
+            self.med._create_room_flow_deadline or 0,
+            t0 + Mediator._CREATE_ROOM_DOWNLOAD_WAIT_S - 0.01,
+        )
+
+        later = t0 + 8.0
+        p = self._patch_map(candidate=candidate)
+        with p[0], p[1], p[2], p[3], patch.object(self.med, "act_click", click), patch(
+            "gamescript.mediator.time.time", return_value=later
+        ):
+            self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Continue)
+        self.assertEqual(click.call_count, 1)
+        self.assertEqual(self.med.phase, Phase.PLATFORM_MAP)
+        self.assertEqual(self.med._create_room_attempts, 1)
+
     def test_retry_cap_prevents_fourth_click(self):
         self.med._create_room_flow_deadline = time.time() + 100.0
         self.med._create_room_attempts = 3

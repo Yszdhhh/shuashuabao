@@ -54,10 +54,11 @@ from gamescript.vision.matcher import (
     resolve_template,
 )
 from gamescript.vision.stage_selector import (
+    configured_stage_id,
     find_stage_in_range,
     find_stage_labels,
+    selected_stage_row,
     stage_list_scroll_point,
-    verify_stage_selection,
     visible_stage_rows,
 )
 from gamescript.vision.ocr_shadow.client import ShadowClient
@@ -364,7 +365,8 @@ class RecoveryState:
 class Mediator:
     _CREATE_ROOM_CONFIRM_WINDOW_S = 4.0
     _CREATE_ROOM_TOTAL_TIMEOUT_S = 15.0
-    _CREATE_ROOM_MAX_ATTEMPTS = 3  # 首次点击 + 最多两次重试
+    _CREATE_ROOM_DOWNLOAD_WAIT_S = 90.0
+    _CREATE_ROOM_MAX_ATTEMPTS = 3  # 仅点击失败才重试；点成功后零输入等弹窗
     _OCR_SLOT_ROIS = {
         "skill": ((0.286, 0.178, 0.421, 0.255), (0.433, 0.178, 0.568, 0.255), (0.579, 0.178, 0.714, 0.255)),
         "bond": ((0.254, 0.180, 0.410, 0.265), (0.425, 0.180, 0.581, 0.265), (0.596, 0.180, 0.752, 0.265)),
@@ -482,6 +484,7 @@ class Mediator:
         self._create_room_next_observe_at: float | None = None
         self._create_room_flow_deadline: float | None = None
         self._create_room_attempts = 0
+        self._create_room_opened_ok = False
         self._create_room_last_candidate: dict | None = None
         # Safety: MAIN_LINE idle deadline — prevent infinite idle on unexpected screens
         self._main_line_since: float | None = None
@@ -3588,6 +3591,7 @@ class Mediator:
             self._create_room_next_observe_at = None
             self._create_room_flow_deadline = None
             self._create_room_attempts = 0
+            self._create_room_opened_ok = False
             self._create_room_last_candidate = None
         if phase in (Phase.PLATFORM_MAP, Phase.CREATE_ROOM):
             self._room_action_deadline = time.time() + self.settings.query_timeout
@@ -4316,6 +4320,7 @@ class Mediator:
         self._create_room_next_observe_at = None
         self._create_room_flow_deadline = None
         self._create_room_attempts = 0
+        self._create_room_opened_ok = False
         self._create_room_last_candidate = None
 
     def _request_create_room(self, candidate: MatchResult, now: float) -> LoopAction:
@@ -4355,6 +4360,8 @@ class Mediator:
             )
             return LoopAction.Continue
 
+        if self._create_room_opened_ok:
+            return LoopAction.Continue
         if self._create_room_flow_deadline is None:
             self._create_room_flow_deadline = now + self._CREATE_ROOM_TOTAL_TIMEOUT_S
         if self._create_room_attempts >= self._CREATE_ROOM_MAX_ATTEMPTS:
@@ -4370,8 +4377,10 @@ class Mediator:
             now=now,
         )
         if clicked:
+            self._create_room_opened_ok = True
             self._create_room_pending_since = now
             self._create_room_next_observe_at = now + self._CREATE_ROOM_CONFIRM_WINDOW_S
+            self._create_room_flow_deadline = now + self._CREATE_ROOM_DOWNLOAD_WAIT_S
         else:
             # 输入失败也必须有节流，避免在同一帧/同一窗口连续轰击。
             self._create_room_pending_since = None
@@ -4657,6 +4666,18 @@ class Mediator:
                 if self._create_room_next_observe_at is not None and now < self._create_room_next_observe_at:
                     print("[L0] 创房请求等待专用弹窗确认（零动作）")
                     return LoopAction.Continue
+                if self._create_room_opened_ok:
+                    if (
+                        self._create_room_flow_deadline is not None
+                        and now >= self._create_room_flow_deadline
+                    ):
+                        self._trace_create_room_control("TIMEOUT", post_confirm=False, now=now)
+                        print("[L0] 创房后等待弹窗超时（含下载地图），Fail-Closed")
+                        self.set_phase(Phase.ERROR, "create dialog confirmation timeout")
+                        self.stop()
+                        return LoopAction.Break
+                    print("[L0] 已点创建房间，等待弹窗（下载地图中不连点）")
+                    return LoopAction.Continue
                 self._trace_create_room_control("CONFIRM_TIMEOUT", post_confirm=False, now=now)
                 self._create_room_pending_since = None
                 self._create_room_next_observe_at = None
@@ -4678,6 +4699,10 @@ class Mediator:
                     self._create_room_next_observe_at = now + 0.5
                     print("[L0] 创房已用尽两次重试，等待总预算到期（零动作）")
                     return LoopAction.Continue
+
+            if self._create_room_opened_ok:
+                print("[L0] 已点创建房间，等待弹窗（下载地图中不连点）")
+                return LoopAction.Continue
 
             create = self._find_map_create_room(frame)
             if create:
@@ -4856,32 +4881,51 @@ class Mediator:
             if now < self._stage_click_cooldown_until:
                 print("[L0] 等待关卡选中状态稳定…")
                 return LoopAction.Continue
-            target_spec = self.settings.stage_targets[0] if self.settings.stage_targets else self.settings.stage1
-            if not verify_stage_selection(frame, target=target_spec, images_dir=self.images):
-                # The live stage list does not render a reliable persistent
-                # row highlight.  Confirm the exact same target label is
-                # still visible and require the dedicated start button before
-                # advancing.  This avoids the old endless re-click loop
-                # without allowing an arbitrary visible stage.
-                current_target = self._find_stage_target(frame)
-                same_target = bool(current_target and current_target.name == self._stage_target_name)
-                ready = self._find_hero_entry(frame) if self.settings.auto_reputation else self._find_stage_start(frame)
-                consistent = bool(current_target and self._stage_target_has_consistent_neighbor(frame, current_target))
-                if not same_target or not consistent or not ready:
-                    print("[L0] 关卡点击后名称/相邻关卡/专用入口未保持稳定，拒绝开始游戏")
-                    if self._stage_select_attempts >= 3:
-                        print("[L0] 目标关卡稳定确认连续失败 3 次，停止而不进入错误关卡")
-                        self.set_phase(Phase.ERROR, "configured stage selection unstable")
-                        self.stop()
-                        return LoopAction.Break
-                    self._stage_selected = False
-                    self._stage_target_name = None
-                    self._stage_target_position = None
-                    self._stage_candidate_name = None
-                    self._stage_candidate_position = None
-                    self._stage_candidate_frames = 0
-                    return LoopAction.Continue
-                print("[L0] 目标行无持久高亮；已用同名目标 + 连续相邻关卡 + 专用开始按钮完成复合确认")
+            # 正向证据优先：整圈奶白亮边的那一行才是选中行。高亮明确落在别的关卡时
+            # 一律重点目标行，绝不靠「同名 + 相邻 + 有开始按钮」放行——20260814 实机
+            # 就是高亮还留在 1-1（首次点击被窗口激活吞掉），脚本却按间接证据开了 1-1。
+            highlighted = selected_stage_row(frame, self.images)
+            wanted_id = configured_stage_id(
+                self.settings.stage_targets,
+                self.settings.stage1,
+                self.settings.stage2,
+            )
+            if (
+                highlighted is not None
+                and wanted_id is not None
+                and highlighted.stage_id != wanted_id
+            ):
+                print(
+                    f"[L0] 高亮在 {highlighted.stage_id} 而不是目标 {wanted_id}，"
+                    "重点目标行，不开始游戏"
+                )
+                if self._stage_select_attempts >= 3:
+                    print("[L0] 连续 3 次点不中目标关卡，停止而不进入错误关卡")
+                    self.set_phase(Phase.ERROR, "configured stage selection unstable")
+                    self.stop()
+                    return LoopAction.Break
+                self._stage_selected = False
+                self._stage_target_name = None
+                self._stage_target_position = None
+                self._stage_candidate_name = None
+                self._stage_candidate_position = None
+                self._stage_candidate_frames = 0
+                return LoopAction.Continue
+            if highlighted is None or wanted_id is None:
+                print("[L0] 目标行无高亮，重点目标行，不开始游戏")
+                if self._stage_select_attempts >= 3:
+                    print("[L0] 连续 3 次看不到目标高亮，停止而不进入错误关卡")
+                    self.set_phase(Phase.ERROR, "configured stage selection unstable")
+                    self.stop()
+                    return LoopAction.Break
+                self._stage_selected = False
+                self._stage_target_name = None
+                self._stage_target_position = None
+                self._stage_candidate_name = None
+                self._stage_candidate_position = None
+                self._stage_candidate_frames = 0
+                return LoopAction.Continue
+            print(f"[L0] 目标关卡 {wanted_id} 高亮已确认")
             if self.settings.auto_reputation:
                 return self._begin_hero_setup(frame)
             start = self._find_stage_start(frame)

@@ -77,7 +77,13 @@ class TestProtocol(unittest.TestCase):
 
 class TestClientLifecycle(unittest.TestCase):
     def new_client(self, **kwargs) -> ShadowClient:
-        return ShadowClient(worker_command=fake_command(), timeout_ms=kwargs.pop("timeout_ms", 400), max_restarts=kwargs.pop("max_restarts", 3), **kwargs)
+        return ShadowClient(
+            worker_command=fake_command(),
+            timeout_ms=kwargs.pop("timeout_ms", 400),
+            max_restarts=kwargs.pop("max_restarts", 3),
+            restart_cooldown_s=kwargs.pop("restart_cooldown_s", 2.0),
+            **kwargs,
+        )
 
     def test_jsonl_round_trip_and_ping(self):
         client = self.new_client()
@@ -115,8 +121,8 @@ class TestClientLifecycle(unittest.TestCase):
         finally:
             client.close()
 
-    def test_crash_restarts_then_disables_after_bound(self):
-        client = self.new_client(max_restarts=3)
+    def test_crash_skips_this_frame_then_can_rearm(self):
+        client = self.new_client(max_restarts=3, restart_cooldown_s=30)
         try:
             for _ in range(3):
                 response = client.shadow_predict(frame(), "crash", slot(), fingerprint=str(time.time_ns()))
@@ -126,6 +132,38 @@ class TestClientLifecycle(unittest.TestCase):
             self.assertEqual(response.reason, "disabled")
         finally:
             client.close()
+
+    def test_spawn_fail_does_not_permanently_disable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            trace = Path(tmp) / "ocr_shadow.jsonl"
+            client = ShadowClient(
+                worker_command=["__no_such_ocr_worker__"],
+                timeout_ms=200,
+                max_restarts=2,
+                restart_cooldown_s=0.0,
+                trace_path=trace,
+            )
+            try:
+                first = client.shadow_predict(frame(), "missing", slot(), fingerprint="a")
+                second = client.shadow_predict(frame(), "missing", slot(), fingerprint="b")
+                self.assertEqual(first.status, "unavailable")
+                self.assertEqual(second.status, "unavailable")
+                self.assertIn(first.reason, {"spawn", "disabled"})
+                records = [
+                    json.loads(line)
+                    for line in trace.read_text(encoding="utf-8").splitlines()
+                    if line.strip()
+                ]
+                self.assertTrue(
+                    any(row.get("event") == "ocr_spawn_failure" for row in records),
+                    records,
+                )
+                client.worker_command = fake_command()
+                recovered = client.shadow_predict(frame(), "after-spawn", slot(), fingerprint="c")
+                self.assertTrue(recovered.available)
+                self.assertFalse(client.disabled)
+            finally:
+                client.close()
 
     def test_cache_is_bound_to_panel_fingerprint_and_invalidates(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -141,7 +179,11 @@ class TestClientLifecycle(unittest.TestCase):
                 frame_changed[0, 0, 0] = 1
                 content_changed = client.shadow_predict(frame_changed, "panel", slot())
                 self.assertFalse(content_changed.cache_hit)
-                records = [json.loads(line) for line in (Path(tmp) / "shadow.jsonl").read_text(encoding="utf-8").splitlines()]
+                records = [
+                    json.loads(line)
+                    for line in (Path(tmp) / "shadow.jsonl").read_text(encoding="utf-8").splitlines()
+                    if '"panel_id"' in line
+                ]
                 self.assertEqual(len(records), 4)
                 self.assertTrue(records[1]["cache_hit"])
                 self.assertEqual(records[2]["panel_fingerprint"], "fp2")

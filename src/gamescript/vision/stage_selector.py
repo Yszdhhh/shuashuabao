@@ -384,6 +384,83 @@ def verify_stage_selection(
     return True
 
 
+def _row_border_bright_ratio(gray: np.ndarray, row: StageRow, scale: float) -> float:
+    """选中行整圈是奶白亮边（>200）；未选中行只有细灰边。返回边框环亮像素占比。
+
+    实测 20260814_002537 客户端帧：选中的 1-1 占比 0.52，其余 11 行全为 0.000。
+    """
+    half_h = max(6, int(round(22 * scale)))
+    inner_h = max(4, int(round(16 * scale)))
+    half_w = max(20, int(round(96 * scale)))
+    inner_w = max(16, int(round(90 * scale)))
+    cx, cy = row.center_x, row.center_y
+    height, width = gray.shape[:2]
+
+    def band(y0: int, y1: int, x0: int, x1: int) -> np.ndarray:
+        y0, y1 = max(0, y0), min(height, y1)
+        x0, x1 = max(0, x0), min(width, x1)
+        if y1 <= y0 or x1 <= x0:
+            return np.empty(0, dtype=gray.dtype)
+        return gray[y0:y1, x0:x1].ravel()
+
+    ring = np.concatenate([
+        band(cy - half_h, cy - inner_h, cx - inner_w, cx + inner_w),
+        band(cy + inner_h, cy + half_h, cx - inner_w, cx + inner_w),
+        band(cy - half_h, cy + half_h, cx - half_w, cx - inner_w),
+        band(cy - half_h, cy + half_h, cx + inner_w, cx + half_w),
+    ])
+    if ring.size == 0:
+        return 0.0
+    return float((ring > 200).mean())
+
+
+SELECTED_RING_RATIO = 0.15
+SELECTED_RING_MARGIN = 3.0
+
+
+def selected_stage_row(frame: Frame, images_dir: Path) -> StageRow | None:
+    """返回当前高亮（已选中）的关卡行；判不出唯一一行时返回 None。
+
+    正向证据：只有点中的那一行会整圈变奶白亮边。用它替代「同名 + 相邻 + 有开始按钮」
+    这种间接推断——20260814 实机就是高亮还在 1-1、脚本却按间接证据开了 1-1。
+    """
+    rows = visible_stage_rows(frame, images_dir)
+    if not rows:
+        return None
+    gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+    scale = frame.height / 900.0
+    scored = sorted(
+        ((_row_border_bright_ratio(gray, row, scale), row) for row in rows),
+        key=lambda item: (-item[0], str(item[1].stage_id)),
+    )
+    best_ratio, best_row = scored[0]
+    if best_ratio < SELECTED_RING_RATIO:
+        return None
+    runner_up = scored[1][0] if len(scored) > 1 else 0.0
+    if runner_up > 0 and best_ratio < runner_up * SELECTED_RING_MARGIN:
+        return None
+    return best_row
+
+
+def configured_stage_id(
+    targets: list[str] | None,
+    stage1: int = 1,
+    stage2: int = 1,
+) -> StageId | None:
+    """Best-effort target for scroll direction. Exact ``章-关`` wins."""
+    for raw in targets or ():
+        parsed = StageId.parse(str(raw))
+        if parsed is not None:
+            return parsed
+    try:
+        low = min(int(stage1), int(stage2))
+    except (TypeError, ValueError):
+        return None
+    if low <= 0:
+        return None
+    return StageId(1, low)
+
+
 def stage_list_scroll_point(frame: Frame) -> tuple[int, int]:
     """Approximate the center of the numbered-stage list for scrolling."""
     return (
