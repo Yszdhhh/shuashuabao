@@ -32,6 +32,9 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
             auto_create_room=True,
             new_room_every_times=False,
             query_timeout=30,
+            # 本文件验证观察模式契约（OBSERVE incident 只记录不终止）；
+            # 1d8f101 把 dry_run 默认翻成 False，显式钉回测试出生时的模式。
+            dry_run=True,
         )
         self.med = Mediator(settings, ROOT)
         self.actions: list[tuple[str, tuple[int, int]]] = []
