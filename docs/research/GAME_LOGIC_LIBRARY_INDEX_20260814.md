@@ -1,11 +1,11 @@
 # 游戏逻辑库总索引（2026-08-14）
 
-> **给后续写脚本 / 图鉴 / 自学习的 agent：先查本页，再打开对应 JSON。**  
-> 本页是索引，不是第七份表。数值与规则以权威文件字段为准；本页只回答「去哪查、接没接」。  
-> 机器可读底库：[`config/game_mechanics_kb.json`](../../config/game_mechanics_kb.json)（整份仍 `wired_to_decision=false`）。  
+> **给后续写脚本 / 图鉴 / 自学习的 agent：先查本页，再打开对应 JSON。**<br>
+> 本页是索引，不是第七份表。数值与规则以权威文件字段为准；本页只回答「去哪查、接没接」。<br>
+> 机器可读底库：[`config/game_mechanics_kb.json`](../../config/game_mechanics_kb.json)（整份仍 `wired_to_decision=false`）。<br>
 > 人类可读底库：[`OFFICIAL_GAME_MECHANICS_KB_20260814.md`](OFFICIAL_GAME_MECHANICS_KB_20260814.md)。
 
-**采信优先级（已定，缺口不许用攻略数字填）：**  
+**采信优先级（已定，缺口不许用攻略数字填）：**<br>
 游戏内官方说明（`status=official_help`）> 实机 OCR / 夹具 > 用户截图 > 用户口述（`source=user_confirmed`）> 外部攻略。
 
 **本轮范围：** 交付物 A（索引 + F1/F2 入库）。交付物 B（L1 算法接线）未开工——须等 Infra 确认 L1 车道空闲（其 D3/D4 同车道）。
@@ -265,7 +265,7 @@ B1 催截图（给素材 agent，不填攻略推断色）：剑气系 14、陨�
 
 ## 2. 单一数据源纪律
 
-任何新知识先问「归哪个文件」。**禁止开第七份机制表。**  
+任何新知识先问「归哪个文件」。**禁止开第七份机制表。**<br>
 机制库就是下面 6 份 JSON；`choice_lexicon` / `choice_policy` 是运行词典与决策开关，不是第 7 份机制表。`skill_meta.json` 只是桌面预设短码，不是机制权威。
 
 | 要改的东西 | 只写这里 | 不要写到 |

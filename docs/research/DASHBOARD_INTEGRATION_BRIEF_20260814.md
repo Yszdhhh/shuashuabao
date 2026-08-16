@@ -1,7 +1,7 @@
 # 看板整合简报（2026-08-14）
 
-> 只读汇总：调研 + 测试夹收集结果，供 `desktop_app` / 控制中心对接。  
-> **不改** `live_enabled`、不接 Mediator 点击、不 commit。  
+> 只读汇总：调研 + 测试夹收集结果，供 `desktop_app` / 控制中心对接。<br>
+> **不改** `live_enabled`、不接 Mediator 点击、不 commit。<br>
 > 权威方案：`CONTROL_CENTER_PET_ATLAS_PLAN_20260814.md`；蹭车细节：`MODE_SKELETON_AND_LOBBY_HITCH_20260814.md`。
 
 ---
@@ -39,9 +39,9 @@
 
 ### C.1 产品规则（已写入 ModeSpec + `LobbyHitchFlow`）
 
-1. 可设精确关卡（`stage_targets` 可选）；3/4 是搜索**前缀**（房间名子串），精确名优先否则进空房。  
-2. 密码房锁定跳过（`skip_password_rooms=true`，不可关）。  
-3. 点准备进局 → 压力转移；局末 Boss / 时光之穴 / 传家宝；打完退出。  
+1. 可设精确关卡（`stage_targets` 可选）；3/4 是搜索**前缀**（房间名子串），精确名优先否则进空房。<br>
+2. 密码房锁定跳过（`skip_password_rooms=true`，不可关）。<br>
+3. 点准备进局 → 压力转移；局末 Boss / 时光之穴 / 传家宝；打完退出。<br>
 4. 顶层必选搜 `3` 或 `4`（`hitch_stage_prefix`）。
 
 `can_start=False`，`click_intents=[]`，`evidence_status=video_detail_no_click`。
@@ -106,7 +106,7 @@ python hitch_find_room.py --prefix 4 --stage 速30
 python hitch_find_room.py --prefix 3 --live
 ```
 
-模板目录：`测试夹\hitch_templates\`（leave / cancel / full_room_cancel / ready 金+蓝 / refresh / search_box）。  
+模板目录：`测试夹\hitch_templates\`（leave / cancel / full_room_cancel / ready 金+蓝 / refresh / search_box）。<br>
 先开 KK 停在房间列表；**不要同时开刷刷宝看板**；停 Ctrl+C；画框在 `hitch_annotate\`。
 
 ---
@@ -181,13 +181,13 @@ python hitch_find_room.py --prefix 3 --live
 
 ## F. 需要用户拍板的开放项
 
-1. **「锁定」按钮**：是否存在？若有，补特殊房锁定态截图；否则看板文案写死「无锁定 / 只认准备」。  
-2. **反选 UI**：`hitch_reject_list`（房间名/房主/地图）默认空——P0 看板要不要露出编辑器，还是等接线再露？  
-3. **精确关卡 vs 模糊房**：录像进的是「速30 / 30敏10力」，不是关卡名；看板是否默认「只搜前缀、精确关卡选填」并黄字提示「录像未演示精确过滤」？  
-4. **找房 dry 是否先挂看板**：建议 **否**——看板只展示 ModeSpec +「请用测试夹 09」链接；或只读「证据状态」徽章。不要在外壳层嵌 `hitch_find_room.py`。  
-5. **F1/F2**：口述「两次 F2」vs UI「F1 查看英雄 / F2 返回阵地」——以哪次为准再接线。  
-6. **蹭车局内范围**：压力转移 / 丢地 / 局末三挑战是否等找房列表稳定后再做第二阶段（推荐：是）。  
-7. **桌面英雄 spritesheet**：有无原创像素稿；没有则 P1 剪影+文案。  
+1. **「锁定」按钮**：是否存在？若有，补特殊房锁定态截图；否则看板文案写死「无锁定 / 只认准备」。<br>
+2. **反选 UI**：`hitch_reject_list`（房间名/房主/地图）默认空——P0 看板要不要露出编辑器，还是等接线再露？<br>
+3. **精确关卡 vs 模糊房**：录像进的是「速30 / 30敏10力」，不是关卡名；看板是否默认「只搜前缀、精确关卡选填」并黄字提示「录像未演示精确过滤」？<br>
+4. **找房 dry 是否先挂看板**：建议 **否**——看板只展示 ModeSpec +「请用测试夹 09」链接；或只读「证据状态」徽章。不要在外壳层嵌 `hitch_find_room.py`。<br>
+5. **F1/F2**：口述「两次 F2」vs UI「F1 查看英雄 / F2 返回阵地」——以哪次为准再接线。<br>
+6. **蹭车局内范围**：压力转移 / 丢地 / 局末三挑战是否等找房列表稳定后再做第二阶段（推荐：是）。<br>
+7. **桌面英雄 spritesheet**：有无原创像素稿；没有则 P1 剪影+文案。<br>
 8. **左栏是否显示 `lobby_hitch`**：方案 §5 跟车卡写「找房证据见专项」——是否单独一张「大厅蹭车」卡（推荐：是，与 `follow_team` 分开）。
 
 ---
@@ -225,8 +225,8 @@ python hitch_find_room.py --prefix 3 --live
 
 ## 硬约束（整合时勿破）
 
-- 不要把任何模式的 `live_enabled` 改成 true（除已是 true 的 `normal_farm` / lab CLI）。  
-- C4：进房/建房禁止颜色兜底；蹭车禁止快速加入。  
-- 一层提交：外壳 ≠ L0 点击 ≠ L1 拿卡。  
-- 合成帧不得冒充实机证据。  
+- 不要把任何模式的 `live_enabled` 改成 true（除已是 true 的 `normal_farm` / lab CLI）。<br>
+- C4：进房/建房禁止颜色兜底；蹭车禁止快速加入。<br>
+- 一层提交：外壳 ≠ L0 点击 ≠ L1 拿卡。<br>
+- 合成帧不得冒充实机证据。<br>
 - 不确定 → fail-closed 零输入。

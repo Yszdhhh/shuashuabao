@@ -1,11 +1,11 @@
 # 游戏内官方说明底库（2026-08-14）
 
-> **给后续写脚本决策的 agent。先理解游戏，再谈算法。**  
-> **总索引（先读）：** [`GAME_LOGIC_LIBRARY_INDEX_20260814.md`](GAME_LOGIC_LIBRARY_INDEX_20260814.md)  
-> 机器可读：[`config/game_mechanics_kb.json`](../../config/game_mechanics_kb.json)  
+> **给后续写脚本决策的 agent。先理解游戏，再谈算法。**<br>
+> **总索引（先读）：** [`GAME_LOGIC_LIBRARY_INDEX_20260814.md`](GAME_LOGIC_LIBRARY_INDEX_20260814.md)<br>
+> 机器可读：[`config/game_mechanics_kb.json`](../../config/game_mechanics_kb.json)<br>
 > 整份 JSON 仍 `wired_to_decision=false`。源码真接上的只有 G 优先于 F。白/绿先刷新、目录稀有度压 OCR、审判排斥曾误登记。技能卡只有橙紫蓝白（无红）。CDR/攻速公式、木头阈值不接。
 
-采信：**游戏内官方说明 > 真机 OCR / 夹具 > 用户卡面截图 > 用户口述 > 外部攻略。**  
+采信：**游戏内官方说明 > 真机 OCR / 夹具 > 用户卡面截图 > 用户口述 > 外部攻略。**<br>
 `status: official_help` 的条目比攻略优先。不确定标未知，不猜公式。缺口不许用攻略数字填。
 
 ---

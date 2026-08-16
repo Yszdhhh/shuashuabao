@@ -1,8 +1,8 @@
 # 游戏关卡 1-1 至 1-23、2-1 至 2-3 及大秘境全量实机拆解报告
 
-> **拆解员**：抽帧拆解临时工（板块 8）  
-> **录屏素材来源**：`C:\Users\10639\Desktop\录屏素材\20260815_152149.mp4`（1920x1080，时长 174.47s）  
-> **夹具资产目录**：[fixtures/stage_breakdown_20260815/](file:///C:/Users/10639/Desktop/🎮%20影音游戏/GameScript-Local/fixtures/stage_breakdown_20260815/)  
+> **拆解员**：抽帧拆解临时工（板块 8）<br>
+> **录屏素材来源**：`C:\Users\10639\Desktop\录屏素材\20260815_152149.mp4`（1920x1080，时长 174.47s）<br>
+> **夹具资产目录**：[fixtures/stage_breakdown_20260815/](file:///C:/Users/10639/Desktop/🎮%20影音游戏/GameScript-Local/fixtures/stage_breakdown_20260815/)<br>
 > **交接目标**：交接给检验官与知识库（KB），支撑选关状态机、卡组条件检测与大秘境调度策略开发。
 
 ---

@@ -1,9 +1,9 @@
 # 实机卡牌与核心机制全量拆解交接报告 (2026-08-15 Live Breakdown)
 
-> **执单人**：板块 8 · 抽帧拆解员  
-> **数据基准**：2026-08-15 真实录屏素材（严禁脑补与猜测，全量由实机画面与高精 OCR / 多模态视觉提取）  
-> **夹具目录**：[`fixtures/cards_breakdown_20260815_live/`](file:///c:/Users/10639/Desktop/🎮%20影音游戏/GameScript-Local/fixtures/cards_breakdown_20260815_live/)  
-> **结构化数据**：[`fixtures/cards_breakdown_20260815_live/verified_cards.json`](file:///c:/Users/10639/Desktop/🎮%20影音游戏/GameScript-Local/fixtures/cards_breakdown_20260815_live/verified_cards.json)  
+> **执单人**：板块 8 · 抽帧拆解员<br>
+> **数据基准**：2026-08-15 真实录屏素材（严禁脑补与猜测，全量由实机画面与高精 OCR / 多模态视觉提取）<br>
+> **夹具目录**：[`fixtures/cards_breakdown_20260815_live/`](file:///c:/Users/10639/Desktop/🎮%20影音游戏/GameScript-Local/fixtures/cards_breakdown_20260815_live/)<br>
+> **结构化数据**：[`fixtures/cards_breakdown_20260815_live/verified_cards.json`](file:///c:/Users/10639/Desktop/🎮%20影音游戏/GameScript-Local/fixtures/cards_breakdown_20260815_live/verified_cards.json)<br>
 
 ---
 
@@ -212,7 +212,7 @@
 └──────────────┴──────────────┴──────────────────────────────────────────┘
 ```
 
-> ⚠️ **关于红框的权威核验判定**：  
+> ⚠️ **关于红框的权威核验判定**：<br>
 > 实机技能选择池中 **不存在独立的纯红框技能品阶**。红色视觉元素仅出现在以下两种特殊场景：
 > 1. **EX 终极合成卡牌**（如 `帝炎 EX`、`兵主 EX`）的金红双色光效标识；
 > 2. **危险 / 除外惩罚词条** 的文字高亮背景（如贪婪宝物的“放弃后直接除外”）。

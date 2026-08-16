@@ -1,7 +1,7 @@
 # 控制中心 + 桌面英雄 + 图鉴库 · 对抗终稿（2026-08-14）
 
-> 只动**外壳层**的产品/安全/工程规格。不实现真机点击，不改 `mediator` 决策。  
-> 可视化方案页：Cursor Canvas `control-center-pet-atlas-plan.canvas.tsx`（可在对话旁打开）。  
+> 只动**外壳层**的产品/安全/工程规格。不实现真机点击，不改 `mediator` 决策。<br>
+> 可视化方案页：Cursor Canvas `control-center-pet-atlas-plan.canvas.tsx`（可在对话旁打开）。<br>
 > 过期文档：`docs/HANDOFF_FRONTEND_CONTROL_PANEL.md` 仍写「Web 面板 / 不做带队」——**以本文为准**。
 
 ---
@@ -36,7 +36,7 @@
 [med] phase MAIN_LINE → QUIT note
 ```
 
-hook 取 `"phase "` 之后的**第一个空白分词**，得到 `MAIN_LINE`（旧值）。`split("→")[-1]` 救不了，因为箭头在第二个 token。  
+hook 取 `"phase "` 之后的**第一个空白分词**，得到 `MAIN_LINE`（旧值）。`split("→")[-1]` 救不了，因为箭头在第二个 token。<br>
 对照：`api_server.get_run_status` 在 mediator 存活时读 `runner.mediator.phase.name`（这条是对的），但同一文件的 print hook 与 `PHASE_NAME_MAP` 仍会把桌面/旧前端带偏。
 
 `PHASE_NAME_MAP` 缺：`HERO_SETUP`、`RECOVER_FAILURE`、`COMPLETE`（`Phase` 枚举里这三项是存在的）。宠物若继续用这张残表，英雄弹窗和「局数到了安全停」都会显示成英文枚举名或错阶段。
@@ -378,10 +378,10 @@ AtlasView（运行时 join，可缓存）
 
 ### 7.6 单一数据源纪律
 
-改名/别名 → 只改 `choice_lexicon`。  
-改张数 → 只改 `bond_stack_catalog`。  
-改升级效果 → 只改 `skill_card_catalog`。  
-改必拿/负面 → 只改 `choice_policy`（测契约）。  
+改名/别名 → 只改 `choice_lexicon`。<br>
+改张数 → 只改 `bond_stack_catalog`。<br>
+改升级效果 → 只改 `skill_card_catalog`。<br>
+改必拿/负面 → 只改 `choice_policy`（测契约）。<br>
 图鉴代码只 join。P2 加一个测试：投影里的技能规范名 ⊆ lexicon ∪ catalog；负面名 = policy。
 
 ---
@@ -420,7 +420,7 @@ GUI 200ms 取最新快照。print hook **只转发日志**。
 | **循环读条** | L0：`PLATFORM_MAP` `CREATE_ROOM` `ROOM_*` `STAGE_SELECT` `STAGE_STARTING` `HERO_SETUP`；以及等锚点 | **不定条** + 准确文字，例如「选关 · 等 1-8 出现」「建房 · 等房间锚点」 |
 | **无条** | 空闲、COMPLETE、ERROR/Fail-Closed | 只给文字：「空闲」「已达局数，已安全停止」「Fail-Closed · 零输入」 |
 
-禁止：`ordinal(phase)/count(Phase)`、把 BOOT→COMPLETE 映射成 0–100、把不定阶段画成 30%。  
+禁止：`ordinal(phase)/count(Phase)`、把 BOOT→COMPLETE 映射成 0–100、把不定阶段画成 30%。<br>
 `cycle_num==0` 时**不要**把「已完成 3 局」画成满条。
 
 ### 8.3 宠物动画：8–10 个，由 Phase×context×S0 映射
@@ -499,25 +499,25 @@ SetWindowPos(..., SWP_NOACTIVATE)
 
 ## 10. 对抗后被否决的坏主意
 
-1. **可点击宠物（暂停/喂养/打开看板）** — 与穿透互斥；失败即误点游戏。  
-2. **用 phase 下标画 0–100% 总进度** — 用户已否决伪造全局百分比。  
-3. **修 print 正则取箭头右侧** — 格式不唯一；结构化字段已存在。  
-4. **图鉴网格直接当技能/羁绊白名单** — 220≠4、65≠6；升级卡名写入 `skills` 会让找图与策略崩。  
-5. **P0 实现跟车/赌木/站团本点击** — 无证据；C4 风险；跨层。  
-6. **实验室和看板同时 LIVE** — 双 Mediator 双输入。  
-7. **拆到 `src/gamescript/ui/`** — 与 `ui/uia` 撞名。  
-8. **把 `default_settings.json` 继续当用户偏好文件** — 污染仓库/安装目录。  
-9. **原作角色当桌面英雄** — 版权；用户已拍板原创像素。  
-10. **Electron/WebView 透明宠物** — 多进程、焦点、杀软；现有 PySide6 足够。  
-11. **五份 Mediator / 五份 flow 复制** — 学隔离不学复制；本阶段不拆 mediator。  
-12. **启动前三连确认框** — 毁 10 秒路径；未验证方式应直接禁用。  
-13. **托盘「重复上次」不检查 live_enabled** — 门禁旁路。  
-14. **黑商图鉴先编一份货品表** — 无 lexicon、无全屏帧。  
-15. **P0 就画宠物占位动画** — 未做穿透自检的置顶窗比没有更危险。  
-16. **运行中允许切运行方式** — 点错进房。  
-17. **跟车用颜色兜底点快速加入** — C4。  
-18. **为图鉴手写 atlas.json 卡名** — 与 lexicon/catalog 三份漂移。  
-19. **关闭窗口 terminate 线程** — 可能截断 SendInput。  
+1. **可点击宠物（暂停/喂养/打开看板）** — 与穿透互斥；失败即误点游戏。<br>
+2. **用 phase 下标画 0–100% 总进度** — 用户已否决伪造全局百分比。<br>
+3. **修 print 正则取箭头右侧** — 格式不唯一；结构化字段已存在。<br>
+4. **图鉴网格直接当技能/羁绊白名单** — 220≠4、65≠6；升级卡名写入 `skills` 会让找图与策略崩。<br>
+5. **P0 实现跟车/赌木/站团本点击** — 无证据；C4 风险；跨层。<br>
+6. **实验室和看板同时 LIVE** — 双 Mediator 双输入。<br>
+7. **拆到 `src/gamescript/ui/`** — 与 `ui/uia` 撞名。<br>
+8. **把 `default_settings.json` 继续当用户偏好文件** — 污染仓库/安装目录。<br>
+9. **原作角色当桌面英雄** — 版权；用户已拍板原创像素。<br>
+10. **Electron/WebView 透明宠物** — 多进程、焦点、杀软；现有 PySide6 足够。<br>
+11. **五份 Mediator / 五份 flow 复制** — 学隔离不学复制；本阶段不拆 mediator。<br>
+12. **启动前三连确认框** — 毁 10 秒路径；未验证方式应直接禁用。<br>
+13. **托盘「重复上次」不检查 live_enabled** — 门禁旁路。<br>
+14. **黑商图鉴先编一份货品表** — 无 lexicon、无全屏帧。<br>
+15. **P0 就画宠物占位动画** — 未做穿透自检的置顶窗比没有更危险。<br>
+16. **运行中允许切运行方式** — 点错进房。<br>
+17. **跟车用颜色兜底点快速加入** — C4。<br>
+18. **为图鉴手写 atlas.json 卡名** — 与 lexicon/catalog 三份漂移。<br>
+19. **关闭窗口 terminate 线程** — 可能截断 SendInput。<br>
 20. **控制中心必须 820×620** — 品牌尺寸；底栏钉死比尺寸重要。
 
 ---
@@ -628,7 +628,7 @@ P2：图鉴投影 ⊆ 权威 JSON；点击图鉴升级卡不改 `settings.skills
 
 ## 14. 给实现 agent 的边界
 
-做：`shell/`、桌面入口、托盘、宠物窗、图鉴投影、文档。  
+做：`shell/`、桌面入口、托盘、宠物窗、图鉴投影、文档。<br>
 不做：mediator 选卡/建房/跟车点击、scenes 颜色兜底、伪造断线帧、原作角色、实验室与看板双开 LIVE。
 
 权威现状仍是 `docs/CURRENT_STATUS_AND_HANDOFF_20260812.md`。本文只约束外壳方案；真机选关/技能策略以交接文档顶部为准。
