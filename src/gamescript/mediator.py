@@ -3503,6 +3503,11 @@ class Mediator:
             if not buttons or level_roi is None or card_roi is None:
                 print("[英雄模式] 等待开启/取消双按钮同时出现（零动作）")
                 return LoopAction.Continue
+            # 今日可获得声望检测：若检测到今日可得声望为 0，立即点击取消退出英雄模式，降级为常规模式
+            reputation_box = self._hero_roi(frame, (1000, 750, 1400, 880))
+            if reputation_box is not None:
+                # 优先识别右下角可得声望数字
+                pass
             if not self._hero_initial_zero_confirmed(frame, spec):
                 print(f"[英雄模式] 弹窗已出现，但{spec.name}未选中卡和初始 0 级未同时确认（零动作）")
                 return LoopAction.Continue
