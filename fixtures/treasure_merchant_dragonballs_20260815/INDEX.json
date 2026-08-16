@@ -1,0 +1,1014 @@
+{
+  "_comment": "板块8：刀刀大圣与异火兵主两段录屏的一次性抽帧拆解（龙珠体系/宝物体系/黑商体系）。证据文件按来源使用 daodao_ / yihuo_ 前缀；时间戳=视频内秒；OCR 为准，模糊处标[待补/模糊]。",
+  "videos": [
+    {
+      "source": "daodao_",
+      "file": "G:\\测试视频+抽帧\\录屏素材\\新建文件夹\\刀刀大圣mp4.mp4",
+      "duration_seconds": 998.17,
+      "fps": 30,
+      "resolution": "1920x1080",
+      "recorded_at": "2026-08-15",
+      "hero": "希女王（玩家 Linus，刀刀/大圣 build）",
+      "in_game_time": "主线1-1 至 主线4-10",
+      "verification_method": "关键帧模板匹配 → 12 路 designer 视觉扫描 → PP-OCRv5 rec 条带扫描逐帧仲裁（OCR 为准，视觉仅作线索；视觉读数多处证伪）"
+    },
+    {
+      "source": "yihuo_",
+      "file": "G:/测试视频+抽帧/录屏素材/新建文件夹/异火兵主.mp4",
+      "duration_seconds": 2093.13,
+      "fps": 30,
+      "resolution": "1920x1080",
+      "recorded_at": "2026-08-15",
+      "hero": "希女王（玩家 Linus）",
+      "in_game_time": "主线1-1 至主线6-1；大秘境第2层至第60层",
+      "verification_method": "1fps 单线程分批抽帧 + 真实帧目标复核；RapidOCR 坐标 OCR，OCR 为准；不可读处标[待补/模糊]"
+    },
+    {
+      "source": "013304_",
+      "file": "G:/测试视频+抽帧/录屏素材/20260815_013304.mp4",
+      "duration_seconds": 1915.77,
+      "fps": 30,
+      "resolution": "1920x1080",
+      "recorded_at": "2026-08-15",
+      "hero": "希女王（玩家 Linus）",
+      "in_game_time": "主线3-3 至 主线5-15（含暂停存档界面 t=1904-1907）",
+      "verification_method": "1fps 分批抽帧（90s×22 批）→ 半分辨率面板区 OCR 全扫 1916 帧 → 真实帧目标复核；PP-OCRv5 rec 条带逐卡读原文 + RapidOCR 交叉验证；黑市面板 t=1463.5 右侧面板"
+    }
+  ],
+  "dragon_ball_timeline": [
+    {
+      "t": 700.5,
+      "star": "三星球",
+      "set_badge": "套装[0/7]",
+      "panel": "宝物三选",
+      "evidence": [
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_card_t0700.50_三星球_dragon_ball.jpg",
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0700.50_treasure_choice.jpg"
+      ],
+      "new": true
+    },
+    {
+      "t": 772.0,
+      "star": "五星球",
+      "set_badge": "套装[1/7]",
+      "panel": "宝物三选",
+      "evidence": [
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_card_t0772.00_五星球_dragon_ball.jpg",
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0772.00_treasure_choice.jpg"
+      ],
+      "new": true
+    },
+    {
+      "t": 902.0,
+      "star": "七星球",
+      "set_badge": "套装[2/7]",
+      "panel": "宝物三选",
+      "evidence": [
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_card_t0902.00_七星球_dragon_ball.jpg",
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0902.00_treasure_choice.jpg"
+      ],
+      "new": true
+    },
+    {
+      "t": 949.98,
+      "star": "二星球",
+      "set_badge": "套装[0/7]",
+      "panel": "宝物三选",
+      "wish_text": "集齐七颗龙珠，触发神龙许愿",
+      "evidence": [
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_card_t0949.98_二星球_dragon_ball.jpg",
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t0949.98_treasure_choice.jpg"
+      ],
+      "new": true,
+      "not_seen_in_yihuo": [
+        "一星球",
+        "三星球",
+        "五星球",
+        "六星球",
+        "七星球"
+      ]
+    },
+    {
+      "t": 1219.98,
+      "star": "四星球",
+      "set_badge": "套装[1/7]",
+      "panel": "宝物三选",
+      "wish_text": "集齐七颗龙珠，触发神龙许愿",
+      "evidence": [
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_card_t1219.98_四星球_dragon_ball.jpg",
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t1219.98_treasure_choice.jpg"
+      ],
+      "new": true
+    },
+    {
+      "t": 1018.48,
+      "source": "013304_",
+      "star": "七星球",
+      "set_badge": "套装[0/7]",
+      "panel": "宝物三选",
+      "rewards": "金币+10000、木材+100（OCR 0.92-0.98）；宝物免费刷新次数+1",
+      "refresh": "刷新（3）",
+      "evidence": [
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_card_t1018.48_七星球_dragon_ball.jpg",
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1018.48_treasure_choice.jpg"
+      ],
+      "new": true
+    },
+    {
+      "t": 1066.5,
+      "source": "013304_",
+      "star": "四星球",
+      "set_badge": "套装[1/7]",
+      "panel": "宝物三选",
+      "rewards": "英雄卡*1；宝物免费刷新次数+1",
+      "refresh": "刷新（3）",
+      "evidence": [
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_card_t1066.50_四星球_dragon_ball.jpg",
+        "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1066.50_treasure_choice.jpg"
+      ],
+      "new": true
+    }
+  ],
+  "treasure_panel_timeline": [
+    {
+      "t": 205.5,
+      "cards": [
+        "属性神符",
+        "智力提升",
+        "敏之极"
+      ],
+      "refresh": "刷新(N)[待补]",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0205.50_treasure_choice.jpg"
+    },
+    {
+      "t": 373.5,
+      "cards": [
+        "刷新券",
+        "攻坚",
+        "杀敌加成"
+      ],
+      "refresh": "刷新(N)[待补]",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0373.50_treasure_choice.jpg"
+    },
+    {
+      "t": 377.0,
+      "cards": [
+        "等级优势",
+        "杀敌(中)",
+        "极速神符"
+      ],
+      "refresh": "刷新(N)[待补]",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0377.00_treasure_choice.jpg"
+    },
+    {
+      "t": 504.0,
+      "cards": [
+        "控符大师",
+        "奥术神符",
+        "经验(小)"
+      ],
+      "refresh": "刷新(N)[待补]",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0504.00_treasure_choice.jpg"
+    },
+    {
+      "t": 506.5,
+      "cards": [
+        "魔法暴伤",
+        "杀敌经验",
+        "玻璃大炮"
+      ],
+      "refresh": "刷新(N)[待补]",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0506.50_treasure_choice.jpg"
+    },
+    {
+      "t": 700.5,
+      "cards": [
+        "全能神符",
+        "三星球",
+        "恢复神符"
+      ],
+      "refresh": "刷新(N)[待补]",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0700.50_treasure_choice.jpg"
+    },
+    {
+      "t": 706.5,
+      "cards": [
+        "影舞者",
+        "暴怒神符",
+        "力量提升"
+      ],
+      "refresh": "刷新(N)[待补]",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0706.50_treasure_choice.jpg"
+    },
+    {
+      "t": 772.0,
+      "cards": [
+        "杀敌经验",
+        "刷新券",
+        "五星球"
+      ],
+      "refresh": "刷新(2)",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0772.00_treasure_choice.jpg"
+    },
+    {
+      "t": 902.0,
+      "cards": [
+        "七星球",
+        "吞噬丹大礼包",
+        "力之极"
+      ],
+      "refresh": "刷新(N)[待补]",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0902.00_treasure_choice.jpg"
+    },
+    {
+      "t": 930.5,
+      "cards": [
+        "极速神符",
+        "暴怒神符",
+        "每秒智力"
+      ],
+      "refresh": "刷新(4)",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0930.50_treasure_choice.jpg"
+    },
+    {
+      "t": 328.99,
+      "source": "yihuo_",
+      "cards": [
+        "精英杀手",
+        "杀敌（中）",
+        "暴怒神符"
+      ],
+      "refresh": "刷新（2）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t0328.99_treasure_choice.jpg"
+    },
+    {
+      "t": 518.99,
+      "source": "yihuo_",
+      "cards": [
+        "贪欲之刃",
+        "[待补/模糊]",
+        "[待补/模糊]"
+      ],
+      "negative_warning": "该卡牌放弃后直接除外，不会返回卡池",
+      "refresh": "刷新（待补）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t0518.99_treasure_choice.jpg"
+    },
+    {
+      "t": 949.98,
+      "source": "yihuo_",
+      "cards": [
+        "二星球",
+        "杀敌力量",
+        "技能伤害"
+      ],
+      "refresh": "刷新（1）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t0949.98_treasure_choice.jpg"
+    },
+    {
+      "t": 1219.98,
+      "source": "yihuo_",
+      "cards": [
+        "暴怒神符",
+        "四星球",
+        "技能点礼包"
+      ],
+      "refresh": "刷新（1）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t1219.98_treasure_choice.jpg"
+    },
+    {
+      "t": 427.5,
+      "source": "013304_",
+      "cards": [
+        "杀敌金币",
+        "未知进化",
+        "全能神符"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0427.50_treasure_choice.jpg"
+    },
+    {
+      "t": 957.5,
+      "source": "013304_",
+      "cards": [
+        "敏之极",
+        "木材梭哈",
+        "经验(小)"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0957.50_treasure_choice.jpg"
+    },
+    {
+      "t": 972.5,
+      "source": "013304_",
+      "cards": [
+        "魔法暴伤",
+        "技能大师",
+        "杀敌梭哈"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0972.50_treasure_choice.jpg"
+    },
+    {
+      "t": 983.5,
+      "source": "013304_",
+      "cards": [
+        "魔法伤害",
+        "控符大师",
+        "杀敌(小)"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0983.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1004.5,
+      "source": "013304_",
+      "cards": [
+        "极速神符",
+        "挑战杀手",
+        "全能神符"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1004.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1018.48,
+      "source": "013304_",
+      "cards": [
+        "七星球",
+        "精英杀手",
+        "等级优势"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1018.48_treasure_choice.jpg"
+    },
+    {
+      "t": 1030.5,
+      "source": "013304_",
+      "cards": [
+        "杀敌加成",
+        "魔法暴伤",
+        "我全都要"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1030.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1066.5,
+      "source": "013304_",
+      "cards": [
+        "百宝箱",
+        "金币(中)",
+        "四星球"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1066.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1080.5,
+      "source": "013304_",
+      "cards": [
+        "经验(中)",
+        "力之极",
+        "金币(小)"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1080.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1224.5,
+      "source": "013304_",
+      "cards": [
+        "杀敌(小)",
+        "极速神符",
+        "敏之极"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1224.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1245.5,
+      "source": "013304_",
+      "cards": [
+        "属性神符",
+        "登神长阶",
+        "玻璃大炮"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1245.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1429.5,
+      "source": "013304_",
+      "cards": [
+        "暴怒神符",
+        "敏捷提升",
+        "蛮舞者"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1429.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1460.5,
+      "source": "013304_",
+      "cards": [
+        "木材之力",
+        "杀敌力量",
+        "领主杀手"
+      ],
+      "refresh": "刷新（3）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1460.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1572.5,
+      "source": "013304_",
+      "cards": [
+        "属性神符",
+        "恢复神符",
+        "双倍神符"
+      ],
+      "refresh": "刷新（4）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1572.50_treasure_choice.jpg"
+    },
+    {
+      "t": 1725.5,
+      "source": "013304_",
+      "cards": [
+        "赏金神符",
+        "全能神符",
+        "攻坚"
+      ],
+      "refresh": "刷新（4）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1725.50_treasure_choice.jpg"
+    }
+  ],
+  "skill_panel_timeline": [
+    {
+      "t": 107.0,
+      "cards": [
+        "多重箭",
+        "射线延续",
+        "奥能喷发"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0107.00_skill_choice.jpg"
+    },
+    {
+      "t": 307.0,
+      "cards": [
+        "剑气冲击",
+        "致残",
+        "剑气衰弱"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0307.00_skill_choice.jpg"
+    },
+    {
+      "t": 310.0,
+      "cards": [
+        "爆炸增伤",
+        "强化箭矢",
+        "调焦"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0310.00_skill_choice.jpg"
+    },
+    {
+      "t": 311.5,
+      "cards": [
+        "奥术箭矢",
+        "奥术增幅",
+        "箭失齐射"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0311.50_skill_choice.jpg"
+    },
+    {
+      "t": 314.0,
+      "cards": [
+        "重创",
+        "箭失齐射",
+        "剑气冲击"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0314.00_skill_choice.jpg"
+    },
+    {
+      "t": 363.0,
+      "cards": [
+        "激光增幅",
+        "致残",
+        "剑气冲击"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0363.00_skill_choice.jpg"
+    },
+    {
+      "t": 421.5,
+      "cards": [
+        "多重箭",
+        "重创",
+        "次级扩散"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0421.50_skill_choice.jpg"
+    },
+    {
+      "t": 495.0,
+      "cards": [
+        "瓦解光线",
+        "制导箭失",
+        "奥术增幅"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0495.00_skill_choice.jpg"
+    },
+    {
+      "t": 509.0,
+      "cards": [
+        "瓦解光线",
+        "弹射箭",
+        "奥术箭矢"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0509.00_skill_choice.jpg"
+    },
+    {
+      "t": 985.5,
+      "cards": [
+        "剑气增幅",
+        "射线延续",
+        "激光超载"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0985.50_skill_choice.jpg"
+    },
+    {
+      "t": 130.0,
+      "source": "yihuo_",
+      "cards": [
+        "射线增幅",
+        "急速抽箭",
+        "焦点"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t0130.00_skill_choice.jpg"
+    },
+    {
+      "t": 822.99,
+      "source": "yihuo_",
+      "cards": [
+        "激光增幅",
+        "奥术增幅",
+        "瓦解光线"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t0822.99_skill_choice.jpg"
+    },
+    {
+      "t": 378.5,
+      "source": "013304_",
+      "cards": [
+        "次级箭",
+        "天雷NEW",
+        "箭矢连发"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0378.50_skill_choice.jpg"
+    },
+    {
+      "t": 395.5,
+      "source": "013304_",
+      "cards": [
+        "箭矢增幅",
+        "奥术箭矢",
+        "弹射箭"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0395.50_skill_choice.jpg"
+    },
+    {
+      "t": 406.5,
+      "source": "013304_",
+      "cards": [
+        "冰霜新星NEW",
+        "多重箭",
+        "焦点"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0406.50_skill_choice.jpg"
+    },
+    {
+      "t": 417.5,
+      "source": "013304_",
+      "cards": [
+        "天雷NEW",
+        "闪电链NEW",
+        "制导箭矢"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0417.50_skill_choice.jpg"
+    },
+    {
+      "t": 530.5,
+      "source": "013304_",
+      "cards": [
+        "天雷NEW",
+        "强力箭矢",
+        "电磁网NEW"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0530.50_skill_choice.jpg"
+    },
+    {
+      "t": 874.5,
+      "source": "013304_",
+      "cards": [
+        "电磁网NEW",
+        "弹射箭",
+        "奥能喷发"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0874.50_skill_choice.jpg"
+    },
+    {
+      "t": 939.5,
+      "source": "013304_",
+      "cards": [
+        "衰弱光线",
+        "弹射箭",
+        "次级增伤"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0939.50_skill_choice.jpg"
+    },
+    {
+      "t": 962.5,
+      "source": "013304_",
+      "cards": [
+        "稳定光线",
+        "射线增幅",
+        "瓦解光线"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t0962.50_skill_choice.jpg"
+    },
+    {
+      "t": 1071.5,
+      "source": "013304_",
+      "cards": [
+        "箭矢增幅",
+        "焦点爆破",
+        "爆炸增伤"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1071.50_skill_choice.jpg"
+    },
+    {
+      "t": 1181.5,
+      "source": "013304_",
+      "cards": [
+        "弹射箭",
+        "箭矢增幅",
+        "射线延续"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1181.50_skill_choice.jpg"
+    },
+    {
+      "t": 1202.5,
+      "source": "013304_",
+      "cards": [
+        "射线延续",
+        "弹射箭",
+        "强化箭矢"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1202.50_skill_choice.jpg"
+    },
+    {
+      "t": 1215.5,
+      "source": "013304_",
+      "cards": [
+        "射线增幅",
+        "箭矢齐射",
+        "重创"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1215.50_skill_choice.jpg"
+    },
+    {
+      "t": 1231.5,
+      "source": "013304_",
+      "cards": [
+        "攻速提升",
+        "奥术增幅β",
+        "剑气增幅"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1231.50_skill_choice.jpg"
+    },
+    {
+      "t": 1250.5,
+      "source": "013304_",
+      "cards": [
+        "强力箭矢",
+        "剑气增幅",
+        "剑气冲击"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1250.50_skill_choice.jpg"
+    },
+    {
+      "t": 1397.5,
+      "source": "013304_",
+      "cards": [
+        "弹射箭",
+        "多重箭",
+        "射线增幅"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1397.50_skill_choice.jpg"
+    },
+    {
+      "t": 1448.5,
+      "source": "013304_",
+      "cards": [
+        "瓦解光线",
+        "攻速提升",
+        "连续剑气"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1448.50_skill_choice.jpg"
+    },
+    {
+      "t": 1464.5,
+      "source": "013304_",
+      "cards": [
+        "激光增幅",
+        "攻速提升",
+        "瓦解光线"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1464.50_skill_choice.jpg"
+    },
+    {
+      "t": 1527.5,
+      "source": "013304_",
+      "cards": [
+        "奥术增幅β",
+        "焦点",
+        "射线延续"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1527.50_skill_choice.jpg"
+    },
+    {
+      "t": 1622.5,
+      "source": "013304_",
+      "cards": [
+        "射线延续",
+        "奥能喷发",
+        "激光超载"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1622.50_skill_choice.jpg"
+    },
+    {
+      "t": 1705.5,
+      "source": "013304_",
+      "cards": [
+        "奥能喷发",
+        "爆炸箭矢",
+        "激光增幅"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1705.50_skill_choice.jpg"
+    },
+    {
+      "t": 1761.5,
+      "source": "013304_",
+      "cards": [
+        "巨型剑气",
+        "激光增幅",
+        "奥能喷发"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1761.50_skill_choice.jpg"
+    },
+    {
+      "t": 1864.5,
+      "source": "013304_",
+      "cards": [
+        "奥能喷发",
+        "攻速提升",
+        "强化箭矢"
+      ],
+      "rarity_note": "技能卡四色：橙/紫/蓝/白；本帧为技能三选",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1864.50_skill_choice.jpg"
+    }
+  ],
+  "hero_card_panel_timeline": [
+    {
+      "t": 290.0,
+      "cards": [
+        "痛苦女王",
+        "山岭巨人"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0290.00_herocard_痛苦女王_山岭巨人.jpg"
+    },
+    {
+      "t": 317.5,
+      "cards": [
+        "未知的进化",
+        "沙王"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0317.50_herocard_未知的进化_沙王.jpg"
+    },
+    {
+      "t": 334.0,
+      "cards": [
+        "痛苦女王",
+        "未知的进化"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0334.00_herocard_痛苦女王_未知的进化.jpg"
+    },
+    {
+      "t": 498.0,
+      "cards": [
+        "未知的进化",
+        "宙斯"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0498.00_herocard_未知的进化_宙斯.jpg"
+    },
+    {
+      "t": 785.0,
+      "cards": [
+        "骷髅弓箭手",
+        "沉默术士"
+      ],
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0785.00_herocard_骷髅弓箭手_沉默术士.jpg"
+    }
+  ],
+  "merchant_panel_timeline": {
+    "present": true,
+    "daodao": {
+      "present": false,
+      "note": "刀刀大圣视频未出现黑商/黑市面板。"
+    },
+    "yihuo": {
+      "present": true,
+      "timeline": [
+        {
+          "t": 208.0,
+          "refresh": "刷新60",
+          "discounts": [
+            "2折",
+            "8折",
+            "5折"
+          ],
+          "price_map": {
+            "2折": "400",
+            "8折": "320",
+            "5折": "150",
+            "原价": "300"
+          },
+          "visible_prices": [
+            "60",
+            "400",
+            "320",
+            "150",
+            "300"
+          ],
+          "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t0208.00_merchant_prices.jpg"
+        },
+        {
+          "t": 826.99,
+          "panel_text": "黑市每180秒获得1次免费刷新机会；黑市商店等级越高刷新出的物品越好；黑市每秒自动获得1点经验；消耗杀敌数购买商品也会获得经验，经验满后则晋升为下一级",
+          "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/yihuo_panel_t0826.99_merchant.jpg"
+        }
+      ]
+    },
+    "013304": {
+      "present": true,
+      "timeline": [
+        {
+          "t": 1463.5,
+          "panel_text": "黑市每180秒获得1次免费刷新机会；黑市商店等级越高刷新出的物品越好；黑市每秒自动获得1点经验；消耗杀敌数购买商品也会获得经验，经验满后则晋升为下一级",
+          "prices": [
+            "300",
+            "500",
+            "400",
+            "60",
+            "300"
+          ],
+          "discount": "2折（对应 60 价商品）",
+          "exp": "369/500",
+          "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_panel_t1463.50_merchant.jpg"
+        },
+        {
+          "t": 875.5,
+          "chat_line": "黑市等级升为：2级，可以刷新更高级的物品了（OCR 0.82-0.96）",
+          "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_chat_t0875.50_黑市等级升2级.jpg"
+        },
+        {
+          "t": 1596.5,
+          "chat_line": "黑市等级升为：2级，可以刷新更高级的物品了（OCR 片段）",
+          "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/013304_chat_t1596.50_黑市等级升2级.jpg"
+        }
+      ]
+    }
+  },
+  "exclusive_affix_panel_timeline": [
+    {
+      "t": 301.0,
+      "note": "选择词缀（新手弓 800 残破）",
+      "evidence": "fixtures/treasure_merchant_dragonballs_20260815/cards/daodao_panel_t0525_exclusive_affix.jpg"
+    },
+    {
+      "t": 321.5,
+      "note": "选择词缀：生命值+100/力量+50/生命恢复+2/敏捷+50，免费刷新(3)"
+    },
+    {
+      "t": 525.0,
+      "note": "选择词缀：冰系伤害+4%/能量伤害+4%/电系伤害+6%/火系伤害+4%，免费刷新(3)，狩猎长弓 1800 普通"
+    },
+    {
+      "t": 742.5,
+      "note": "选择词缀：物理伤害+10%/火焰伤害+10%/力量增幅+10%/攻速+20%"
+    },
+    {
+      "t": 789.5,
+      "note": "选择词缀：物理伤害+10%/火系伤害+10%/力量增幅+10%/攻速+20%"
+    }
+  ],
+  "tooltip_evidence": [
+    {
+      "t": 930.5,
+      "name": "宝物V提示",
+      "category": "treasure",
+      "text": "宝物 / 快捷键[V] / 选择并获得1件宝物",
+      "image": "fixtures/treasure_merchant_dragonballs_20260815/tooltips/daodao_e_t0930.50_宝物V提示_treasure.jpg"
+    },
+    {
+      "t": 845.5,
+      "name": "技能G提示",
+      "category": "skill",
+      "text": "快捷键[G] / 选择1次技能，可以获得初始技能或者衍生技能 / 英雄每次升级，获得1点技能点",
+      "image": "fixtures/treasure_merchant_dragonballs_20260815/tooltips/daodao_e_t0845.50_技能G提示_skill.jpg"
+    },
+    {
+      "t": 949.98,
+      "source": "yihuo_",
+      "name": "二星球",
+      "category": "dragon_ball",
+      "text": "集齐七颗龙珠，触发神龙许愿；套装[0/7]",
+      "image": "fixtures/treasure_merchant_dragonballs_20260815/tooltips/e_t0949.98_二星球_dragon_ball.jpg"
+    },
+    {
+      "t": 1219.98,
+      "source": "yihuo_",
+      "name": "四星球",
+      "category": "dragon_ball",
+      "text": "集齐七颗龙珠，触发神龙许愿；套装[1/7]",
+      "image": "fixtures/treasure_merchant_dragonballs_20260815/tooltips/e_t1219.98_四星球_dragon_ball.jpg"
+    },
+    {
+      "t": 208.0,
+      "source": "yihuo_",
+      "name": "黑市折扣",
+      "category": "merchant",
+      "text": "刷新60；2折/8折/5折；价格60/400/320/150/300",
+      "image": "fixtures/treasure_merchant_dragonballs_20260815/tooltips/e_t0208.00_黑市折扣_merchant.jpg"
+    },
+    {
+      "t": 130.0,
+      "source": "yihuo_",
+      "name": "技能三选",
+      "category": "skill",
+      "text": "射线增幅 / 急速抽箭 / 焦点",
+      "image": "fixtures/treasure_merchant_dragonballs_20260815/tooltips/e_t0130.00_射线增幅_skill.jpg"
+    },
+    {
+      "t": 1018.48,
+      "source": "013304_",
+      "name": "七星球",
+      "category": "dragon_ball",
+      "text": "套装[0/7]；金币+10000、木材+100；集齐七颗龙珠，触发神龙许愿",
+      "image": "fixtures/treasure_merchant_dragonballs_20260815/tooltips/e_t1018.48_七星球_dragon_ball.jpg"
+    },
+    {
+      "t": 1066.5,
+      "source": "013304_",
+      "name": "四星球",
+      "category": "dragon_ball",
+      "text": "套装[1/7]；英雄卡*1；集齐七颗龙珠，触发神龙许愿",
+      "image": "fixtures/treasure_merchant_dragonballs_20260815/tooltips/e_t1066.50_四星球_dragon_ball.jpg"
+    },
+    {
+      "t": 1463.5,
+      "source": "013304_",
+      "name": "黑市",
+      "category": "merchant",
+      "text": "黑市每180秒获得1次免费刷新机会；快捷键[H]；货架 300/500/400/60/300，2折；经验 369/500",
+      "image": "fixtures/treasure_merchant_dragonballs_20260815/tooltips/e_t1463.50_黑市_merchant.jpg"
+    }
+  ],
+  "known_hallucinated_reads_corrections": [
+    "KFScan04 的\"黑市商人\"面板读数（t=306.5-311.5）经 OCR 证伪：该段为技能三选面板（t=307 剑气冲击/致残/剑气衰弱；t=310 爆炸增伤/强化箭矢/调焦；t=311.5 奥术箭矢/奥术增幅/箭失齐射）。",
+    "KFScan08 的\"三星球\"面板读数（t=643.5/650/697.5 等）经 OCR 证伪：那些帧为 HUD/技能/羁绊面板；本视频真实三星球只在 t=700.5。",
+    "KFScan11 的 t=918.5/926.5 读数（重斩/杀心/鬼泣、刷新(67)/(59)）经 OCR 证伪：t=918.5 为羁绊面板（标枪/秘银锤/坚盾，刷新 40），t=926.5 为 HUD。",
+    "KFScan05 的 t=334 读数（等级优势/杀敌(中)/极速神符）经 OCR 证伪：t=334 为英雄卡面板（痛苦女王/未知的进化）；真实等级优势面板在 t=377。",
+    "KFScan10 的 t=902 读数（羁绊面板）经 OCR 证伪：t=902 为宝物三选（七星球/吞噬丹大礼包/力之极）。",
+    "KFScan00 的 t=97.5/106.5 技能面板读数未通过 OCR 复核（该两帧无面板文字），仅 t=107.0 技能面板（多重箭/射线延续/奥能喷发）获证。"
+  ]
+}
