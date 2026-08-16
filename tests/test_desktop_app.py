@@ -220,6 +220,11 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual("test-room", self.window.txt_room_name.text())
         self.assertEqual("top-secret-pw", self.window.txt_room_password.text())
         self.assertEqual(QLineEdit.Password, self.window.txt_room_password.echoMode())
+        self.window._on_save_settings_clicked()
+        saved = json.loads(self.window.user_settings_path().read_text(encoding="utf-8"))
+        self.assertTrue(saved["auto_create_room"])
+        self.assertTrue(saved["new_room_every_times"])
+        self.assertEqual("test-room", saved["room_name"])
 
     def test_hero_mode_maps_faction_and_difficulty(self):
         self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(True))
