@@ -245,6 +245,7 @@ class CadenceTests(unittest.TestCase):
 
         with patch("gamescript.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
              patch("gamescript.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
+             patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
              patch("gamescript.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "stop") as stop:
             med.run(max_steps=2)
@@ -409,6 +410,7 @@ class ReviewFixTests(unittest.TestCase):
 
         with patch("gamescript.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
              patch("gamescript.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
+             patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
              patch("gamescript.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "set_phase", lambda phase, note="": None), \
              patch.object(med, "_detect_context", return_value="MAIN_LINE"), \
