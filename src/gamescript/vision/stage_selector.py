@@ -527,13 +527,19 @@ _OLD_WORLD_TAB_ROI = (0.44, 0.05, 0.64, 0.30)
 def find_unselected_old_world_tab(frame: Frame, images_dir: Path) -> MatchResult | None:
     """当前不在旧世大陆大区时，返回「旧世大陆」页签的点击目标。
 
+    判别规则：
+    1. 若右侧关卡列表已有可见行，且存在任一行 chapter == 1，说明已在旧世大陆，
+       立即返回 None（零动作）。
+    2. 若可见行均为非 chapter 1（如团本 2-x），或者暂无可见行（切页/加载过渡态）：
+       在 _OLD_WORLD_TAB_ROI 内进行 stage_region_jiushidalu_unselected 模板匹配
+       （threshold >= 0.85）。命中则返回 MatchResult，未命中返回 None。
+
     实测该页签选中/未选中两种状态像素几乎不变（NCC 均 >=0.98），模板分数无法
-    区分状态，因此「不在旧世大陆」由右侧关卡列表判定：可见行存在且都不是
-    chapter=1（如团本分页的 2-x）才认页签命中。已在旧世大陆（可见 1-x 行）或
-    列表不可读时返回 None，保持零动作。
+    区分状态，因此「已在旧世大陆」由可见 1-x 行否决；空 rows 不否决（过渡态
+    仍准许切页，误点已选中页签无害，由 mediator 的尝试预算兜底）。
     """
     rows = visible_stage_rows(frame, images_dir)
-    if not rows or any(row.stage_id.chapter == 1 for row in rows):
+    if rows and any(row.stage_id.chapter == 1 for row in rows):
         return None
     return match_any(
         frame,

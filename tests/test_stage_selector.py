@@ -307,6 +307,40 @@ class StageSelectorTests(unittest.TestCase):
                       self._reborn_stage_frame("stage_select_old_world_1.png")):
             self.assertIsNone(find_unselected_old_world_tab(frame, IMAGES))
 
+    def test_find_unselected_old_world_tab_when_rows_empty_but_tab_visible(self):
+        """返工契约 1：空 rows（切页/加载过渡态）不得拦截切页判定。"""
+        img = np.zeros((900, 1600, 3), dtype=np.uint8)
+        tpl = _load_template(IMAGES / "lobby" / "stage_region_jiushidalu_unselected.png")
+        self.assertIsNotNone(tpl)
+        # 实机 1600x900 客户端的页签位置（x=780, y=90，模板 170x140）
+        img[90:90 + tpl.shape[0], 780:780 + tpl.shape[1]] = tpl
+        frame = Frame(img, window_title="英雄三国KK", hwnd=1000)
+        self.assertEqual(visible_stage_rows(frame, IMAGES), [])
+        hit = find_unselected_old_world_tab(frame, IMAGES)
+        self.assertIsNotNone(hit)
+        rx = (hit.screen_x - frame.left) / frame.width
+        ry = (hit.screen_y - frame.top) / frame.height
+        self.assertGreaterEqual(rx, 0.44)
+        self.assertLessEqual(rx, 0.64)
+        self.assertGreaterEqual(ry, 0.05)
+        self.assertLessEqual(ry, 0.30)
+
+    def test_mediator_stops_after_two_failed_old_world_tab_switches(self):
+        """返工契约 2：连续 2 次切页后仍在团本分页 → 立即 Fail-Closed 停机，
+        禁止第三次点击（防 livelock 连点）。"""
+        med = Mediator(Settings(stage_targets=["1-12"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = self._raid_region_frame()
+        med._last_frame = frame
+        med._old_world_switch_attempts = 2  # 已用满预算，仍检测到团本分页
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Break)
+        self.assertIs(med.phase, Phase.ERROR)
+        click.assert_not_called()
+
     def test_mediator_switches_old_world_tab_before_scanning_stage_list(self):
         """缺陷 20260816_204613：团本分页进入 STAGE_SELECT 时必须先切页签，
         不得在未切页前扫描/滚动关卡列表。"""

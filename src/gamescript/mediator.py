@@ -444,6 +444,9 @@ class Mediator:
         self._challenge_start_hud_frames: int = 0        # VERIFY_INGAME 连续锚点帧计数
         self._challenge_start_hero_modal_frames: int = 0 # hero 弹窗消失计数
         self._stage_scroll_attempts = 0
+        # 旧世大陆页签切换尝试预算（上限 2 次）：防 UI 刷新延迟/模板残影导致的
+        # livelock 连点，超限 Fail-Closed 停机。
+        self._old_world_switch_attempts = 0
         self._missing_window_since: float | None = None
         self._last_frame: Frame | None = None
         self._prev_frame: Frame | None = None
@@ -3620,6 +3623,7 @@ class Mediator:
             self._challenge_start_hero_modal_frames = 0
         if phase == Phase.STAGE_SELECT:
             self._stage_scroll_attempts = 0
+            self._old_world_switch_attempts = 0
             # 跨局重置：次局进入选关页必须重新选关（上一局残留会跳过选关/点错关）
             self._stage_selected = False
             self._stage_target_name = None
@@ -4826,14 +4830,15 @@ class Mediator:
             ):
                 old_world_tab = find_unselected_old_world_tab(frame, self.images)
                 if old_world_tab is not None:
-                    if self._action_timed_out():
-                        print("[L0] 旧世大陆页签切换超时，停止运行")
-                        self.set_phase(Phase.ERROR, "old world tab switch timeout")
+                    if self._old_world_switch_attempts >= 2:
+                        print("[L0] 切换【旧世大陆】页签已达 2 次仍未切回主线，Fail-Closed 停机")
+                        self.set_phase(Phase.ERROR, "old world tab switch failed")
                         self.stop()
                         return LoopAction.Break
-                    print("[L0] 检测到当前不在旧世大陆，点击切换至【旧世大陆】大区页签")
+                    print(f"[L0] 检测到当前不在旧世大陆，点击切换至【旧世大陆】大区页签 ({self._old_world_switch_attempts + 1}/2)")
                     if not self.act_click(old_world_tab, "SwitchOldWorldTab"):
                         return LoopAction.Continue
+                    self._old_world_switch_attempts += 1
                     self._stage_selected = False
                     self._stage_target_name = None
                     self._stage_target_position = None
@@ -4841,7 +4846,7 @@ class Mediator:
                     self._stage_candidate_position = None
                     self._stage_candidate_frames = 0
                     self._stage_scroll_attempts = 0
-                    self._stage_scroll_cooldown_until = now + 0.8
+                    self._stage_scroll_cooldown_until = now + 1.0  # 给予 1.0s 充分刷新时间
                     return LoopAction.Continue
             if not self._stage_selected:
                 if now < self._stage_scroll_cooldown_until:
