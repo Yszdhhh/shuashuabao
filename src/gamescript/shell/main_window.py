@@ -224,7 +224,7 @@ def _is_admin() -> bool:
 class SkillCardGrid(QWidget):
     """中文技能卡片多选网格：显示中文名，内部存拼音短码，最多 4 个。"""
 
-    MAX_SKILLS = 4
+    MAX_SKILLS = 16
     skills_changed = Signal()
 
     CARD_QSS = (
@@ -254,10 +254,10 @@ class SkillCardGrid(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
-        hint = QLabel("基础技能库：点选 / 再点取消（最多 4）。未选中的永远不学。都没命中时只刷新，刷完仍没有就放弃。")
-        hint.setWordWrap(True)
-        hint.setObjectName("hintLabel")
-        lay.addWidget(hint)
+        self.hint = QLabel(self._mode_hint_text())
+        self.hint.setWordWrap(True)
+        self.hint.setObjectName("hintLabel")
+        lay.addWidget(self.hint)
         row = QHBoxLayout()
         clear_btn = QPushButton("清空")
         clear_btn.setToolTip("清空全部技能：技能面板将只刷新并放弃，不学任何技能")
@@ -289,12 +289,13 @@ class SkillCardGrid(QWidget):
             if code not in self._selected:
                 if len(self._selected) >= self.MAX_SKILLS:
                     self.cards[code].setChecked(False)
-                    QMessageBox.information(self, "技能限制", f"主刷图技能最多选择 {self.MAX_SKILLS} 个")
+                    QMessageBox.information(self, "技能限制", f"技能最多选择 {self.MAX_SKILLS} 个")
                     return
                 self._selected.append(code)
         elif code in self._selected:
             self._selected.remove(code)
         self._refresh_cards()
+        self._refresh_hint()
         self.skills_changed.emit()
 
     def set_skills(self, codes: list[str]):
@@ -302,6 +303,7 @@ class SkillCardGrid(QWidget):
         for code, btn in self.cards.items():
             btn.setChecked(code in self._selected)
         self._refresh_cards()
+        self._refresh_hint()
         self.skills_changed.emit()
 
     def get_skills(self) -> list[str]:
@@ -315,6 +317,19 @@ class SkillCardGrid(QWidget):
         for code, btn in self.cards.items():
             name = skill_display_name(code)
             btn.setText(f"{order[code]}. {name}" if code in order else name)
+
+    def _mode_hint_text(self) -> str:
+        count = len(self._selected)
+        if count == 0:
+            return "当前已选 0 个技能：不自动学习任何技能（只刷新并放弃）。"
+        elif 1 <= count <= 4:
+            return f"当前已选 {count} 个技能【严格模式】：仅学习勾选技能，未选中的永远不学。"
+        else:
+            return f"当前已选 {count} 个技能【全能模式】：可学习全部合法技能，优先聚焦勾选的 {count} 系技能。"
+
+    def _refresh_hint(self):
+        if hasattr(self, "hint"):
+            self.hint.setText(self._mode_hint_text())
 
 
 class BondCardGrid(QWidget):
@@ -786,7 +801,7 @@ class MainWindow(QMainWindow):
         stage_row.addWidget(self.cmb_chapter)
         stage_row.addWidget(QLabel("关卡"))
         stage_row.addWidget(self.cmb_stage)
-        stage_row.addWidget(QLabel("模式"))
+        stage_row.addWidget(QLabel("关卡难度"))
         self.cmb_mode = QComboBox()
         self.cmb_mode.addItem("普通", False)
         self.cmb_mode.addItem("英雄", True)
@@ -831,6 +846,40 @@ class MainWindow(QMainWindow):
         core_layout.addWidget(self.secret_options)
         run_lay.addWidget(core)
 
+        save_row = QHBoxLayout()
+        self.btn_save_settings = QPushButton("保存设置")
+        self.btn_save_settings.setObjectName("btnSaveSettings")
+        self.btn_save_settings.clicked.connect(self._on_save_settings_clicked)
+        save_row.addWidget(self.btn_save_settings)
+        save_row.addStretch()
+        run_lay.addLayout(save_row)
+        lay.addWidget(run_box)
+
+        quick_box, quick_lay = self._section("② 常用搭配", "官方推荐流派一键套用")
+        combo_row = QHBoxLayout()
+        combo_row.addWidget(QLabel("常用搭配"))
+        self.cmb_build = QComboBox()
+        self.cmb_build.addItem("（不套用）", "")
+        for build in OFFICIAL_BUILDS:
+            self.cmb_build.addItem(str(build.get("name") or build.get("id")), str(build.get("id") or ""))
+        combo_row.addWidget(self.cmb_build, 1)
+        self.btn_apply_build = QPushButton("应用流派")
+        self.btn_apply_build.clicked.connect(self._on_apply_build_clicked)
+        combo_row.addWidget(self.btn_apply_build)
+        self.btn_save_custom = QPushButton("自定义搭配…")
+        self.btn_save_custom.clicked.connect(self._on_save_custom_build)
+        combo_row.addWidget(self.btn_save_custom)
+        quick_lay.addLayout(combo_row)
+        lay.addWidget(quick_box)
+
+        self.grp_advanced = QGroupBox("高级配置（手动技能 / 存档 / 羁绊 / 房间 / 诊断）")
+        self.grp_advanced.setCheckable(True)
+        self.grp_advanced.setChecked(False)
+        advanced_layout = QVBoxLayout(self.grp_advanced)
+        self.advanced_host = QWidget()
+        adv_lay = QVBoxLayout(self.advanced_host)
+        adv_lay.setContentsMargins(0, 0, 0, 0)
+
         room_box = QGroupBox("房间设置（默认：游戏结束后在原房间继续）")
         self.grp_room_settings = room_box
         room_box.setCheckable(True)
@@ -854,39 +903,10 @@ class MainWindow(QMainWindow):
         room_box.toggled.connect(lambda expanded: [child.setVisible(expanded) for child in room_box.findChildren(QWidget) if child is not room_box])
         for child in room_box.findChildren(QWidget):
             child.setVisible(False)
-        run_lay.addWidget(room_box)
-        lab_hint = QLabel(
-            "测试夹 bat 会读这份保存。改完等自动保存（约 1 秒）再双击 bat。不要同时开 LIVE。"
-        )
-        lab_hint.setObjectName("warnHint")
-        lab_hint.setWordWrap(True)
-        run_lay.addWidget(lab_hint)
-        save_row = QHBoxLayout()
-        self.btn_save_settings = QPushButton("保存设置")
-        self.btn_save_settings.setObjectName("btnSaveSettings")
-        self.btn_save_settings.clicked.connect(self._on_save_settings_clicked)
-        save_row.addWidget(self.btn_save_settings)
-        save_row.addStretch()
-        run_lay.addLayout(save_row)
-        self._build_test_profiles(run_lay)
-        lay.addWidget(run_box)
+        adv_lay.addWidget(room_box)
 
-        skill_box, skill_lay = self._section("② 技能", "基础技能库 16 系：点选 / 再点取消（最多 4）")
-        combo_row = QHBoxLayout()
-        combo_row.addWidget(QLabel("常用搭配"))
-        self.cmb_build = QComboBox()
-        self.cmb_build.addItem("（不套用）", "")
-        for build in OFFICIAL_BUILDS:
-            self.cmb_build.addItem(str(build.get("name") or build.get("id")), str(build.get("id") or ""))
-        combo_row.addWidget(self.cmb_build, 1)
-        self.btn_apply_build = QPushButton("应用流派")
-        self.btn_apply_build.clicked.connect(self._on_apply_build_clicked)
-        combo_row.addWidget(self.btn_apply_build)
-        self.btn_save_custom = QPushButton("自定义搭配…")
-        self.btn_save_custom.clicked.connect(self._on_save_custom_build)
-        combo_row.addWidget(self.btn_save_custom)
-        skill_lay.addLayout(combo_row)
-        adj = QLabel("可调设置 · 改格子后可另存为本地方案（不写仓库）")
+        skill_box, skill_lay = self._section("技能配置", "0=不自动学; 1-4=严格仅学已选; 5-16=全能模式(已选系优先聚焦)")
+        adj = QLabel("手动技能与存档等级")
         adj.setObjectName("sectionCap")
         skill_lay.addWidget(adj)
         self.grp_skill = QGroupBox("技能")
@@ -910,9 +930,9 @@ class MainWindow(QMainWindow):
         self.grp_archive.toggled.connect(self._set_archive_panel_expanded)
         self.archive_grid.levels_changed.connect(self._on_archive_levels_changed)
         skill_lay.addWidget(self.grp_archive)
-        lay.addWidget(skill_box)
+        adv_lay.addWidget(skill_box)
 
-        bond_box, bond_lay = self._section("羁绊", "基础卡组默认生效；需要时再调整")
+        bond_box, bond_lay = self._section("羁绊与卡包", "基础卡组默认生效；需要时再调整")
         route_row = QHBoxLayout()
         route_row.addWidget(QLabel("属性线"))
         self.route_buttons: dict[str, QCheckBox] = {}
@@ -955,7 +975,7 @@ class MainWindow(QMainWindow):
         self.grp_bond.toggled.connect(self._set_bond_panel_expanded)
         self.bond_grid.bonds_changed.connect(self._on_bonds_changed)
         bond_lay.addWidget(self.grp_bond)
-        lay.addWidget(bond_box)
+        adv_lay.addWidget(bond_box)
 
         loot_box, loot_lay = self._section("宝物与资源", "特殊宝物默认全不放行")
         self.grp_negative = NegativeTreasureGroup(NEGATIVE_TREASURES)
@@ -984,7 +1004,7 @@ class MainWindow(QMainWindow):
         self.grp_gambling_mode.toggled.connect(lambda expanded: [child.setVisible(expanded) for child in self.grp_gambling_mode.findChildren(QWidget) if child is not self.grp_gambling_mode])
         for child in self.grp_gambling_mode.findChildren(QWidget):
             child.setVisible(False)
-        lay.addWidget(self.grp_gambling_mode)
+        adv_lay.addWidget(self.grp_gambling_mode)
 
         ball = QLabel("龙珠（待验证）：LONGZHU 链 Fail-Closed，开关可展示但真机链未通。")
         ball.setObjectName("warnHint")
@@ -1003,12 +1023,14 @@ class MainWindow(QMainWindow):
         d_row.addStretch()
         loot_lay.addLayout(d_row)
 
-        pill = QLabel("吞噬丹：满槽先吃丹→再黑商（bond_capacity）。黑商只买木/丹。不提供自动购买序开关。")
-        pill.setObjectName("hintLabel")
+        pill = QLabel("吞噬丹与黑商（实验性 · 默认不执行自动操作）：bond_capacity 未实机验证连线，黑商/吞噬自动策略保持关断。")
+        pill.setObjectName("warnHint")
         pill.setWordWrap(True)
         loot_lay.addWidget(pill)
 
-        lay.addWidget(loot_box)
+        adv_lay.addWidget(loot_box)
+
+        self._build_test_profiles(adv_lay)
 
         self.grp_details = QGroupBox("运行日志")
         self.grp_details.setCheckable(True)
@@ -1021,42 +1043,20 @@ class MainWindow(QMainWindow):
         self.txt_log.document().setMaximumBlockCount(1000)
         self.grp_details.toggled.connect(self.txt_log.setVisible)
         dl.addWidget(self.txt_log)
-        lay.addWidget(self.grp_details)
+        adv_lay.addWidget(self.grp_details)
 
         atlas = QLabel("图鉴入口：P2（本轮不做）。")
         atlas.setObjectName("hintLabel")
-        lay.addWidget(atlas)
+        adv_lay.addWidget(atlas)
+
+        advanced_layout.addWidget(self.advanced_host)
+        self.advanced_host.setVisible(False)
+        self.grp_advanced.toggled.connect(self._set_advanced_expanded)
+
+        lay.addWidget(self.grp_advanced)
 
         self.cmb_mode.currentIndexChanged.connect(self._update_hero_visibility)
         self._update_hero_visibility()
-
-    def _build_must_take_row(self) -> QWidget:
-        host = QWidget()
-        grid = QGridLayout(host)
-        grid.setContentsMargins(0, 0, 0, 0)
-        for idx, name in enumerate(MUST_TAKE_TREASURES):
-            cell = QVBoxLayout()
-            icon = QLabel()
-            icon.setFixedSize(56, 56)
-            path = ROOT / "fixtures" / "treasure_must_take" / name / "source.png"
-            if path.is_file():
-                pix = QPixmap(str(path)).scaled(56, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                icon.setPixmap(pix)
-            else:
-                icon.setText(name)
-                icon.setStyleSheet("background:#151d2e; border:1px solid #243048; border-radius:6px; color:#94a3b8;")
-                icon.setAlignment(Qt.AlignCenter)
-            cap = QLabel(f"{name}\n策略必拿")
-            cap.setObjectName("hintLabel")
-            cap.setAlignment(Qt.AlignCenter)
-            cell.addWidget(icon, alignment=Qt.AlignCenter)
-            cell.addWidget(cap)
-            wrap = QWidget()
-            wrap.setLayout(cell)
-            grid.addWidget(wrap, 0, idx)
-        if not MUST_TAKE_TREASURES:
-            grid.addWidget(QLabel("未配置 must_take_names"))
-        return host
 
     def _build_test_profiles(self, lay: QVBoxLayout) -> None:
         box = QGroupBox("测试配置（仅配置，不自动启动）")
@@ -1239,7 +1239,7 @@ class MainWindow(QMainWindow):
         bl = QVBoxLayout(box)
         for text in (
             "入口只有 tools/lab_run.py 或测试夹 bat。",
-            "测试夹 bat 读控制室保存的技能/关卡/英雄模式/羁绊（看板 user_settings.json）。",
+            "测试夹 bat 会读这份保存的技能/关卡/英雄模式/羁绊（看板 user_settings.json）。",
             "看板不启动实验室。实验室与看板抢 ShuaBao.live.lock，禁止双 LIVE。",
             "preset 与 lab_focus 只存在内存 overlay，不得写入用户默认。",
         ):
@@ -1614,10 +1614,17 @@ class MainWindow(QMainWindow):
         self._refresh_chrome()
 
     def _refresh_skill_title(self):
+        count = len(self.skill_grid.get_skills())
         names = self.skill_grid.selected_names()
-        self.grp_skill.setTitle(
-            f"技能（已选 {'、'.join(names)}）" if names else "技能（未选 · 只刷新不学习）"
-        )
+        if not names:
+            self.grp_skill.setTitle("技能（未选 · 不学技能）")
+        elif count <= 4:
+            self.grp_skill.setTitle(f"技能（严格模式 {count}/16：{'、'.join(names)}）")
+        else:
+            self.grp_skill.setTitle(f"技能（全能模式 {count}/16：优先 {'、'.join(names[:4])} 等 {count} 系）")
+
+    def _set_advanced_expanded(self, expanded: bool):
+        self.advanced_host.setVisible(expanded)
 
     def _set_skill_panel_expanded(self, expanded: bool):
         self.skill_grid.setVisible(expanded)

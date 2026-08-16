@@ -80,21 +80,28 @@ class DesktopPanelTests(unittest.TestCase):
         ):
             self.assertNotIn(removed_text, panel_text)
 
-    def test_skill_buttons_show_chinese_names_and_fold_at_four(self):
+    def test_skill_buttons_show_chinese_names_and_supports_up_to_16(self):
         for code, button in self.window.skill_grid.cards.items():
             self.assertNotIn(code, button.text())
             self.assertNotIn("(", button.text())
 
-        # 选满 4 个：自动折叠（保持面板简洁），标题显示已选技能
-        self.window.grp_skill.setChecked(True)
+        # 选 4 个：严格模式标题与提示
         self.window.skill_grid.set_skills(["asj", "asjg", "assx", "jq"])
-        self.assertFalse(self.window.grp_skill.isChecked())
-        self.assertTrue(self.window.skill_grid.isHidden())
         self.assertIn("奥数箭", self.window.grp_skill.title())
-        # 点勾可重新展开
-        self.window.grp_skill.setChecked(True)
-        self.assertFalse(self.window.skill_grid.isHidden())
+        self.assertIn("严格模式", self.window.grp_skill.title())
+        self.assertIn("严格模式", self.window.skill_grid.hint.text())
 
+        # 选 5 个及以上：全能模式标题与提示，可达 16 个
+        all_16 = list(self.window.skill_grid.cards.keys())[:16]
+        self.window.skill_grid.set_skills(all_16)
+        self.assertEqual(len(self.window.skill_grid.get_skills()), 16)
+        self.assertIn("全能模式", self.window.grp_skill.title())
+        self.assertIn("全能模式", self.window.skill_grid.hint.text())
+
+        # 选 0 个：未选模式提示
+        self.window.skill_grid.set_skills([])
+        self.assertIn("未选", self.window.grp_skill.title())
+        self.assertIn("不自动学习任何技能", self.window.skill_grid.hint.text())
     def test_home_page_keeps_optional_sections_collapsed(self):
         """首页默认不展开「深入设置」这类umbrella；技能/宝物/日志各自独立折叠。"""
         self.assertFalse(hasattr(self.window, "grp_deep"))
@@ -808,6 +815,52 @@ class DesktopPanelTests(unittest.TestCase):
             self.window.worker_thread = None
             self.window.runner.release_after_finish()
 
+
+    def test_progressive_disclosure_and_advanced_group_defaults(self):
+        """验证渐进展开：默认精简首屏，高级配置默认折叠且可展开，配置不丢失。"""
+        self.window._select_mode("normal_farm")
+        self.assertTrue(hasattr(self.window, "grp_advanced"))
+        self.assertFalse(self.window.grp_advanced.isChecked())
+        self.assertFalse(self.window.cmb_mode.isHidden())
+        self.assertFalse(self.window.spn_cycle_num.isHidden())
+        self.assertFalse(self.window.btn_apply_build.isHidden())
+
+        # 展开高级配置
+        self.window.grp_advanced.setChecked(True)
+        self.assertTrue(self.window.grp_advanced.isChecked())
+        self.assertFalse(self.window.grp_skill.isChecked())
+        self.assertTrue(self.window.skill_grid.isHidden())
+        self.assertFalse(self.window.grp_archive.isChecked())
+        self.assertTrue(self.window.archive_grid.isHidden())
+        self.assertFalse(self.window.grp_details.isChecked())
+        self.assertTrue(self.window.txt_log.isHidden())
+
+        # 快速流派套用即使折叠也生效
+        self.window.grp_advanced.setChecked(False)
+        self.window.cmb_build.setCurrentIndex(1)
+        with patch.object(
+            shell_window.QMessageBox,
+            "question",
+            return_value=shell_window.QMessageBox.Yes,
+        ):
+            self.window._on_apply_build_clicked()
+        collected = self.window.collect_settings_from_ui()
+        self.assertTrue(len(collected.skills) > 0 or len(collected.cards) > 0)
+
+    def test_stage_difficulty_label_and_five_plus_skill_roundtrip(self):
+        """关卡难度标签存在，5+ 技能往返无损。"""
+        panel_text = self._panel_text()
+        self.assertIn("关卡难度", panel_text)
+
+        skills_7 = ["asj", "asjg", "assx", "jq", "byj", "tl", "dz"]
+        self.window.skill_grid.set_skills(skills_7)
+        collected = self.window.collect_settings_from_ui()
+        self.assertEqual(skills_7, collected.skills)
+
+        self.window.skill_grid.set_skills([])
+        self.window.apply_settings_to_ui(collected)
+        self.assertEqual(skills_7, self.window.skill_grid.get_skills())
+        self.assertIn("全能模式", self.window.grp_skill.title())
 
 if __name__ == "__main__":
     unittest.main()
