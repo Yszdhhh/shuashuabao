@@ -149,7 +149,7 @@ BOND_PRIORITY: dict = _STRATEGY.get("bond_priority") or {}
 _CARD_PACKS = _STRATEGY.get("card_packs") or {}
 BASIC_PACK_NAMES = [
     str(name) for name in ((_CARD_PACKS.get("basic") or {}).get("cards") or []) if str(name).strip()
-] or ["祝福", "成长", "经济", "贪婪", "挑战", "提速", "体术", "固守", "陷阵", "急速"]
+] or ["祝福", "成长", "经济", "贪婪", "挑战", "提速", "体术", "固守", "陷阵", "急速", "力量", "智力", "敏捷"]
 ADVANCED_PACKS: dict[str, dict] = {
     str(key): value
     for key, value in (_CARD_PACKS.get("advanced") or {}).items()
