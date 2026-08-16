@@ -3267,9 +3267,9 @@ class Mediator:
             if act_res:
                 clicked_at = time.time()
                 self._challenge_pending_since[scene_key] = clicked_at
-                # 点击后锁定 3.0s 观察冷却，避免动画期间误判连续右键反关
-                self._challenge_next_observe_at[scene_key] = clicked_at + 3.0
-                self._challenge_recheck_at[scene_key] = clicked_at + 3.0
+                self._challenge_next_observe_at[scene_key] = (
+                    clicked_at + self.settings.ui_action_interval_s
+                )
             return LoopAction.Continue
 
         return None
