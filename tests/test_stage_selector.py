@@ -125,6 +125,67 @@ class StageSelectorTests(unittest.TestCase):
         row = selected_stage_row(self._lab13_stage_frame(), IMAGES)
         self.assertIsNotNone(row)
         self.assertEqual(str(row.stage_id), "1-12")
+
+    def _recovery_frame(
+        self,
+        labels: list[tuple[int, str]],
+        blocks: list[tuple[int, int]],
+    ) -> Frame:
+        """Synthetic stage list: readable label rows plus oversized bright blocks.
+
+        The wide block (200px) mimics a selected row whose bright border merges
+        with its label; the narrow one (24px) never reaches SELECTED_RING_RATIO.
+        """
+        img = np.zeros((939, 1616, 3), dtype=np.uint8)
+        x0 = int(img.shape[1] * 0.62) + 50
+        for y, name in labels:
+            label = _load_template(IMAGES / f"{name}.png")
+            self.assertIsNotNone(label)
+            h, w = label.shape[:2]
+            img[y:y + h, x0:x0 + w] = label
+        for top, width in blocks:
+            cx = x0 + 20
+            img[top:top + 44, cx - width // 2:cx + width // 2] = 255
+        return Frame(img)
+
+    def test_recovers_middle_row_when_both_neighbors_and_ring_confirm(self):
+        frame = self._recovery_frame([(160, "5-6"), (480, "5-8")], [(300, 200)])
+        rows = visible_stage_rows(frame, IMAGES)
+        self.assertEqual([str(r.stage_id) for r in rows], ["5-6", "5-7", "5-8"])
+
+    def test_recovery_negative_without_below_neighbor(self):
+        frame = self._recovery_frame([(160, "5-6")], [(300, 200)])
+        rows = visible_stage_rows(frame, IMAGES)
+        self.assertEqual([str(r.stage_id) for r in rows], ["5-6"])
+
+    def test_recovery_negative_without_above_neighbor(self):
+        frame = self._recovery_frame([(480, "5-8")], [(300, 200)])
+        rows = visible_stage_rows(frame, IMAGES)
+        self.assertEqual([str(r.stage_id) for r in rows], ["5-8"])
+
+    def test_recovery_negative_across_chapters(self):
+        frame = self._recovery_frame([(160, "5-6"), (480, "1-23")], [(300, 200)])
+        rows = visible_stage_rows(frame, IMAGES)
+        self.assertEqual([str(r.stage_id) for r in rows], ["5-6", "1-23"])
+
+    def test_recovery_negative_when_neighbors_not_two_apart(self):
+        frame = self._recovery_frame([(160, "5-6"), (480, "5-9")], [(300, 200)])
+        rows = visible_stage_rows(frame, IMAGES)
+        self.assertEqual([str(r.stage_id) for r in rows], ["5-6", "5-9"])
+
+    def test_recovery_negative_when_ring_too_dim(self):
+        frame = self._recovery_frame([(160, "5-6"), (480, "5-8")], [(300, 24)])
+        rows = visible_stage_rows(frame, IMAGES)
+        self.assertEqual([str(r.stage_id) for r in rows], ["5-6", "5-8"])
+
+    def test_recovery_negative_when_two_blocks_qualify(self):
+        frame = self._recovery_frame(
+            [(160, "5-6"), (480, "5-8"), (760, "5-10")],
+            [(300, 200), (620, 200)],
+        )
+        rows = visible_stage_rows(frame, IMAGES)
+        self.assertEqual([str(r.stage_id) for r in rows], ["5-6", "5-8", "5-10"])
+
     def test_selected_stage_row_reads_the_highlighted_row(self):
         frame = self._live_20260814_frame()
         row = selected_stage_row(frame, IMAGES)

@@ -192,7 +192,10 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
             rows.append(row)
 
     # A selected row has a bright border that merges with its label/background.
-    # Recover it only when neighboring rows prove one unique missing stage.
+    # Recover it only when BOTH a same-chapter above and below row prove one
+    # unique consecutive gap (below == above + 2). A single neighbor proves
+    # nothing, and more than one recoverable block is ambiguous: recover none.
+    recovered: list[StageRow] = []
     for top, bottom in oversized:
         above = max(
             (row for row in rows if row.center_y < y1 + top),
@@ -204,14 +207,13 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
             key=lambda row: row.center_y,
             default=None,
         )
-        if above is None:
+        if above is None or below is None:
             continue
-        if below is not None:
-            if (
-                below.stage_id.chapter != above.stage_id.chapter
-                or below.stage_id.index != above.stage_id.index + 2
-            ):
-                continue
+        if (
+            below.stage_id.chapter != above.stage_id.chapter
+            or below.stage_id.index != above.stage_id.index + 2
+        ):
+            continue
         candidate_id = above.stage_id.index + 1
         candidate_label = f"{above.stage_id.chapter}-{candidate_id}"
         best: tuple[float, int] | None = None
@@ -226,7 +228,7 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
             if best is None or ratio > best[0]:
                 best = (ratio, center_y)
         if best is not None and best[0] >= SELECTED_RING_RATIO:
-            rows.append(
+            recovered.append(
                 StageRow(
                     label=candidate_label,
                     stage_id=StageId(above.stage_id.chapter, candidate_id),
@@ -234,6 +236,8 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
                     center_y=best[1],
                 )
             )
+    if len(recovered) == 1:
+        rows.append(recovered[0])
     return sorted(rows, key=lambda row: row.center_y)
 
 
