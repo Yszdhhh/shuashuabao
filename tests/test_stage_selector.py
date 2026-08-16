@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -372,6 +373,83 @@ class StageSelectorTests(unittest.TestCase):
         self.assertIsNone(med._stage_target_name)
         self.assertEqual(med._stage_scroll_attempts, 0)
         self.assertGreater(med._stage_scroll_cooldown_until, 0.0)
+
+    # ---------- 选关页底栏直取开始游戏（CORE02-L0-STAGE-START-DIRECT-BUTTON） ----------
+
+    def test_stage_start_scene_prefers_direct_bottom_bar_templates(self):
+        """配置面：direct 模板必须排最前（early_stop 按序取首个命中），
+        底栏 ROI 生效；stage_begin_btn 实测是「扫荡」按钮（t0224 OCR 0.95
+        @ (838,818)），不得再持有开局点击权。"""
+        doc = json.loads((ROOT / "config" / "scenes.json").read_text(encoding="utf-8"))
+        templates = doc["scenes"]["stage_start"]["templates"]
+        self.assertEqual("lobby/stage_start_btn_direct", templates[0])
+        self.assertLess(templates.index("lobby/stage_action_buttons"), 3)
+        self.assertNotIn("lobby/stage_begin_btn", templates)
+        for name in ("stage_start_btn_direct", "stage_action_buttons"):
+            self.assertTrue((IMAGES / "lobby" / f"{name}.png").is_file())
+        self.assertEqual((0.50, 0.70, 0.98, 0.98), Mediator._SCENE_ROIS["stage_start"])
+
+    def test_find_stage_start_clicks_real_button_across_client_generations(self):
+        """三代客户端实机帧（0601 / 0807-0814 / 0816 渲染）上，底栏直取
+        必须命中真实「开始游戏」按钮——不 patch 匹配器，全真实链路。
+        按钮带由 OCR 校准（两个布局世代的 plate 中心实测 (0.681,0.908) 与
+        (0.654,0.928)）。"""
+        med = Mediator(Settings(), ROOT)
+        cases = (
+            ("lab13_200601", ROOT / "fixtures/lab13_200601_stage_card/01_q1_stage_select_click1_t1563.3s.jpg", (84, 203)),
+            ("live_20260807", ROOT / "fixtures/live_e2e_20260807/watch_60_1968096_1600x900.png", None),
+            ("postgame_20260808", ROOT / "fixtures/live_postgame_20260808/live_stage_select.png", None),
+            ("select_20260814", ROOT / "fixtures/stage_select_20260814/highlight_on_1_1_client_1600x900.png", None),
+            ("hitch_detail_20260814", ROOT / "fixtures/lobby_hitch_detail_20260814/t0224.00.png", None),
+        )
+        for name, path, crop in cases:
+            with self.subTest(frame=name):
+                img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
+                self.assertIsNotNone(img)
+                if crop is not None:
+                    top, left = crop
+                    img = img[top:top + 900, left:left + 1600].copy()
+                frame = Frame(img, window_title="英雄三国KK", hwnd=1000, left=203, top=84)
+                hit = med._find_stage_start(frame)
+                self.assertIsNotNone(hit, "真实选关页必须能直取到开始按钮")
+                cx = (hit.screen_x - frame.left) / frame.width
+                cy = (hit.screen_y - frame.top) / frame.height
+                self.assertGreaterEqual(cx, 0.60)
+                self.assertLessEqual(cx, 0.75)
+                self.assertGreaterEqual(cy, 0.85)
+                self.assertLessEqual(cy, 0.95)
+
+    def test_combo_hit_click_point_shifts_to_start_game_half(self):
+        """组合图（扫荡+开始游戏）命中后点击点必须平移到右半（开始游戏）
+        侧；整框几何中心落在两按钮间隙/扫荡侧，不可点。"""
+        med = Mediator(Settings(), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=1000, left=203, top=84)
+        # screen_* 与 matcher 语义一致：left + x + w//2 / top + y + h//2
+        combo = MatchResult("stage_action_buttons", 0.99, 815, 710, 375, 160, 203 + 815 + 187, 84 + 710 + 80)
+        with patch.object(med, "_find_stage_page", return_value=True), \
+             patch.object(med, "find_scene", return_value=combo):
+            hit = med._find_stage_start(frame)
+        self.assertIsNotNone(hit)
+        cx = (hit.screen_x - frame.left) / frame.width
+        cy = (hit.screen_y - frame.top) / frame.height
+        self.assertAlmostEqual(cx, 0.684, delta=0.01)
+        self.assertAlmostEqual(cy, 0.904, delta=0.01)
+
+    def test_ingame_lookalike_button_not_clicked_without_highlight(self):
+        """局内 HUD 存在同款金色按钮（direct 模板可 0.978 误中）——但
+        无选关高亮时不得点击开局，先重点目标行。"""
+        med = Mediator(Settings(stage_targets=["1-12"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        path = ROOT / "fixtures/longtest_20260814/focus/f_t01030.0_ingame_g3.jpg"
+        img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
+        frame = Frame(img, window_title="英雄三国KK", hwnd=1000, left=0, top=0)
+        med._last_frame = frame
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_not_called()
 
 
 if __name__ == "__main__":

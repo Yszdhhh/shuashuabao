@@ -1,14 +1,15 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-12 16:24:45",
-  "reason": "三组 PR（#1 A接线 / #2 D取证 / #3 B断言）在 Windows 满资产主机合并后重定基线：pytest 537（云端 462 是缺 OCR/official_raw/UIA 资产的降级数字，不作基线）；contract 56（新增选卡接线契约 + 负面宝物夹具契约）。合并时修掉 B 组新代码用 cv2.imread 在非 ASCII 仓库路径下静默失败的问题（改 imdecode，与 matcher.py 一致）",
+  "updated_at": "2026-08-16 22:39:07",
+  "reason": "CORE02-L0 stage_start direct buttons: +lobby/stage_start_btn_direct +lobby/stage_action_buttons -lobby/stage_begin_btn(sweep btn, misclick root cause); templates 131->132",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 537,
-        "xfailed": 2
+        "passed": 686,
+        "xfailed": 2,
+        "skipped": 11
       }
     },
     "frozen_replay": {
@@ -29,7 +30,7 @@
     "scene_templates": {
       "title": "scenes.json 模板完整性",
       "observed": {
-        "ok": 131,
+        "ok": 132,
         "missing": 0
       }
     },

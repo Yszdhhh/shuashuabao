@@ -131,7 +131,8 @@
     },
     "stage_start": {
       "templates": [
-        "lobby/stage_begin_btn",
+        "lobby/stage_start_btn_direct",
+        "lobby/stage_action_buttons",
         "lobby/roomStart",
         "lobby/startChallenge",
         "startGameBtn"

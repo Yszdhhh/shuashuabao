@@ -782,6 +782,32 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertFalse(path.with_suffix(path.suffix + ".tmp").exists())
         self.assertIsInstance(json.loads(path.read_text(encoding="utf-8")), dict)
 
+    def test_start_run_keeps_dashboard_visible(self):
+        """CORE02：点火后看板不再自隐藏——窗口保持可见、状态栏「运行中」、
+        主按钮切换为停止；用户随时可中断，不必找回窗口。"""
+        from gamescript.shell.runner_service import MediatorWorker
+
+        self.window.show()
+        self.app.processEvents()
+        self.assertTrue(self.window.isVisible())
+        self.window.chk_learn.setChecked(True)  # 学习模式：免管理员/确认弹窗
+
+        try:
+            with patch.object(MediatorWorker, "start", lambda self: None), \
+                 patch.object(MediatorWorker, "isRunning", lambda self: True):
+                self.window.toggle_run()
+                self.assertIsNotNone(self.window.worker_thread)
+                self.assertTrue(self.window.isVisible(), "点火后看板必须保持可见")
+                self.assertIn("看板保持显示", self.window.txt_log.toPlainText())
+                # worker 上报运行态：状态栏与主按钮同步切换
+                self.window.worker_thread.signals.status_changed.emit(True, "就绪", 0)
+                self.assertEqual("运行中", self.window.lbl_run_status.text())
+                self.assertIn("停止", self.window.btn_main.text())
+        finally:
+            self.window._status_timer.stop()
+            self.window.worker_thread = None
+            self.window.runner.release_after_finish()
+
 
 if __name__ == "__main__":
     unittest.main()

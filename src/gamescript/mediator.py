@@ -1063,6 +1063,13 @@ class Mediator:
     _ENV_SHORTKEY_ROI = (0.70, 0.10, 1.0, 0.55)
     # 面板底部按钮行（选择锚点/面板分类/刷新/放弃都在此带，y≈0.59-0.64）
     _PANEL_BUTTONS_ROI = (0.20, 0.50, 0.80, 0.75)
+    # 选关页底栏操作带：扫荡/开始游戏都在 y≈0.80-0.95（1600x900 实测
+    # 开始游戏 plate (1012,784)-(1168,850)，OCR 置信 1.0），y0.70-0.98 全覆盖。
+    _STAGE_ACTION_BAR_ROI = (0.50, 0.70, 0.98, 0.98)
+    # CORE02-L0 stage_start 专用阈值：直取模板跨渲染世代（0807/0814/0816
+    # 三批实机帧）实测命中带 0.757-1.0，非选关页全帧噪声地板 ≤0.29；0.72
+    # 同时覆盖旧世代渲染与本世代，假阳性由 stage_page 门闩 + 底栏 ROI 拦截。
+    _STAGE_START_THRESHOLD = 0.72
 
     _SCENE_ROIS: dict[str, tuple[float, float, float, float]] = {
         # 技能面板场景含技能卡（y≈0.30）与按钮行（y≈0.59-0.64），用全面板 ROI
@@ -1073,6 +1080,10 @@ class Mediator:
         "experience_challenge": _HUD_CHALLENGE_ROI,
         "treasure_challenge": _HUD_CHALLENGE_ROI,
         "room_start": _ROOM_START_ROI,
+        # CORE02-L0：stage_start 只信底栏操作带——旧全帧扫描在 (1462,426) 等
+        # 画面中部产生 0.5x 误中（点错位置的根因），ROI 收紧后模板只可能
+        # 命中真实的扫荡/开始游戏按钮行。
+        "stage_start": _STAGE_ACTION_BAR_ROI,
         # 存档入口：archiveChallenge 顶部标签实测 (0.47,0.04)（victory 1608x929），
         # tuanben/cundangInfo 实测左上角 (0.02-0.04,0.08)；顶部带覆盖全部已知位置。
         "archive": (0.0, 0.0, 1.0, 0.18),
@@ -4398,7 +4409,19 @@ class Mediator:
     def _find_stage_start(self, frame: Frame) -> MatchResult | None:
         if not self._find_stage_page(frame):
             return None
-        return self.find_scene(frame, "stage_start")
+        hit = self.find_scene(frame, "stage_start", threshold=self._STAGE_START_THRESHOLD)
+        if hit is not None and hit.name == "stage_action_buttons":
+            # 组合图（扫荡+开始游戏）整框中心落在两按钮之间；点击点取右半
+            # （开始游戏）区域中心：1600x900 实测开始游戏文字中心在组合图
+            # (0.71w, 0.65h)，取 (0.75w, 0.65h) 落在按钮 plate 内且避开
+            # 底部票数徽标（y>0.73h）。
+            dx = int(hit.w * 0.25)
+            dy = int(hit.h * 0.15)
+            hit.x += dx
+            hit.y += dy
+            hit.screen_x += dx
+            hit.screen_y += dy
+        return hit
 
     def _visible_stage_rows(self, frame: Frame) -> list:
         """证据级 memo 的选关行解析（无 matchTemplate；numpy 字形比对）。"""

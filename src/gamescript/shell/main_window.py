@@ -2048,7 +2048,9 @@ class MainWindow(QMainWindow):
         worker.finished.connect(self._on_worker_finished)
         worker.start()
         self._status_timer.start()
-        self.hide()
+        # CORE02：看板不再隐藏——窗口保持可见，状态栏「运行中」，主按钮由
+        # _refresh_chrome 切换为「停止」；F12 或停止按钮可中断。
+        self.log("[点火] 脚本运行中，看板保持显示；按 F12 或点击「停止」可中断", "warn")
 
     def _on_worker_finished(self) -> None:
         self._status_timer.stop()
