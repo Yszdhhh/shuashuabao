@@ -2,7 +2,7 @@
 
 ## 2026-08-16 CORE-02 Infra：选关高亮亮块恢复（U，待 L）
 
-CORE-02 worktree 基线 `6f80f016df8a4efec5c6004fc437f7b1f574dd28` 上，真实夹具 `fixtures/lab13_200601_stage_card/02_q2_stage_select_click2_t1567.0s.jpg` 复现：选中的 1-12 亮边与标签/背景合并为超长亮块，旧 `visible_stage_rows()` 直接丢弃，`selected_stage_row()` 返回 `None`，L0 因 fail-closed 不点开始。`433e7ed` 只在前后关卡形成唯一连续缺口且亮边评分足够时恢复该行；证据不足仍不输入。针对修复的 50 个 L0/过渡测试与 `python tools/release_gate.py`（653 passed，冻结回放/模板/契约通过）为 U 证据；未跑真机，L 结论交 LabVerify。
+CORE-02 worktree 基线 `6f80f016df8a4efec5c6004fc437f7b1f574dd28` 上，真实夹具 `fixtures/lab13_200601_stage_card/02_q2_stage_select_click2_t1567.0s.jpg` 复现：选中的 1-12 亮边与标签/背景合并为超长亮块，旧 `visible_stage_rows()` 直接丢弃，`selected_stage_row()` 返回 `None`，L0 因 fail-closed 不点开始。首版 `433e7ed` 宣称"前后关卡形成唯一连续缺口才恢复"，但实现里 below 缺失时仍按单个上邻合成、且允许多块各自恢复，与描述不符并可能把推断坐标送进真实点击链路；返工 `ef72f99` 收紧为：同时存在同章节上/下邻且 `below.index == above.index + 2`、亮边评分 ≥ `SELECTED_RING_RATIO`、全程只允许一个可验证候选，任何缺失/跨章节/非 +2/亮边不足/多候选歧义一律不恢复。Lab13 恢复 1-12 的正例保留，另加 6 个 fail-closed 负例（对首版实现已验证会红）。`python tools/release_gate.py` 4/4 PASS（660 passed）为 U 证据；未跑真机，L 结论交 LabVerify。
 
 ## 2026-08-15 02:25 板块 3：海盗+宝藏蓝图入库（未接线）
 
