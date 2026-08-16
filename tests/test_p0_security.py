@@ -303,6 +303,9 @@ class P0SecurityFoundationTests(unittest.TestCase):
         settings = Settings()
         settings.room_name = "TestRoom"
         settings.room_password = "123"
+        # 验证的是 executor 调用形状（target_hwnd 透传），不是真实输入；
+        # 1d8f101 把 dry_run 默认翻成 False 后会落入提权/窗口守卫，显式钉住。
+        settings.dry_run = True
         mediator = Mediator(settings, Path("."))
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=777, is_valid=True)
         mediator._last_frame = frame
@@ -355,6 +358,8 @@ class P0SecurityFoundationTests(unittest.TestCase):
     def test_mediator_stage_scroll_uses_executor(self) -> None:
         settings = Settings()
         settings.stage_targets = ["2-1"]
+        # 同 fill_room 测试：钉住 dry_run，避免落入与本测试无关的提权/窗口守卫。
+        settings.dry_run = True
         mediator = Mediator(settings, Path("."))
         mediator.phase = Phase.STAGE_SELECT
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=888, is_valid=True)
