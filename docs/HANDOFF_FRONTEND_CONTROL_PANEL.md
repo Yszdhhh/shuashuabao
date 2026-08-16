@@ -28,7 +28,7 @@
 
 ## 2. 工程路径（Windows）
 根目录：
-  C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\
+  G:\刷刷宝\GameScript-Local\
 
 关键路径：
   config/default_settings.json     # 本地配置（snake_case）

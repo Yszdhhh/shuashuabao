@@ -138,6 +138,29 @@ ATTR_ROUTES: dict[str, dict] = {
     if isinstance(v, dict) and not str(k).startswith("_")
 }
 BOND_PRIORITY: dict = _STRATEGY.get("bond_priority") or {}
+_CARD_PACKS = _STRATEGY.get("card_packs") or {}
+BASIC_PACK_NAMES = [
+    str(name) for name in ((_CARD_PACKS.get("basic") or {}).get("cards") or []) if str(name).strip()
+] or ["祝福", "成长", "经济", "贪婪", "挑战", "提速", "体术", "固守", "陷阵", "急速"]
+ADVANCED_PACKS: dict[str, dict] = {
+    str(key): value
+    for key, value in (_CARD_PACKS.get("advanced") or {}).items()
+    if isinstance(value, dict) and not str(key).startswith("_")
+}
+ATTR_LINE_OPTIONS: list[dict] = [
+    row for row in ((_CARD_PACKS.get("attr_line") or {}).get("options") or [])
+    if isinstance(row, dict) and row.get("id")
+] or [
+    {"id": "intelligence", "label": "智力", "gate": "智力", "ur": "湮灭者"},
+    {"id": "strength", "label": "力量", "gate": "力量", "ur": "屠戮者"},
+    {"id": "agility", "label": "敏捷", "gate": "敏捷", "ur": "收割者"},
+]
+MAINLINE_STAGES: list[tuple[int, int, str]] = [
+    (int(row["chapter"]), int(row["count"]), str(row.get("label") or f"主线{row['chapter']}"))
+    for row in (_STRATEGY.get("mainline_stages") or [])
+    if isinstance(row, dict) and row.get("chapter") and row.get("count")
+] or [(1, 23, "主线1"), (2, 7, "主线2"), (3, 9, "主线3"), (4, 3, "主线4")]
+STAGE_MAX = {chapter: count for chapter, count, _label in MAINLINE_STAGES}
 _BOND_STACK = _load_json_doc(ROOT / "config" / "bond_stack_catalog.json")
 BOND_STACK_NAMES = set((_BOND_STACK.get("needs") or {}).keys())
 FACTIONS = (
@@ -191,11 +214,11 @@ class SkillCardGrid(QWidget):
     skills_changed = Signal()
 
     CARD_QSS = (
-        "QPushButton { background:#ffffff; border:1px solid #d7dee8; border-radius:8px;"
-        " color:#334155; font-size:12px; padding:6px 4px; text-align:center; }"
-        "QPushButton:hover { border:1px solid #0ea5e9; color:#0f172a; background:#f0f9ff; }"
-        "QPushButton:checked { background:#e0f2fe; border:2px solid #0284c7; color:#0c4a6e;"
-        " font-weight:bold; }"
+        "QPushButton { background:#151d2e; border:1px solid #243048; border-radius:8px;"
+        " color:#cbd5e1; font-size:12px; padding:6px 4px; text-align:center; }"
+        "QPushButton:hover { border:1px solid #38bdf8; color:#ffffff; background:#1e293b; }"
+        "QPushButton:checked { background:qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0c4a6e, stop:1 #075985);"
+        " border:2px solid #38bdf8; color:#f0f9ff; font-weight:bold; }"
     )
 
     def __init__(self, skill_stems: list[str], skill_labels: dict[str, str], parent=None):
@@ -217,7 +240,7 @@ class SkillCardGrid(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(8)
-        hint = QLabel("最多选 4 个；未选中的永远不学。都没命中时只刷新，刷完仍没有就放弃。")
+        hint = QLabel("基础技能库：点选 / 再点取消（最多 4）。未选中的永远不学。都没命中时只刷新，刷完仍没有就放弃。")
         hint.setWordWrap(True)
         hint.setObjectName("hintLabel")
         lay.addWidget(hint)
@@ -505,6 +528,7 @@ class MainWindow(QMainWindow):
             "bond_scheme": [],
             "bond_inverted": [],
             "attr_route": "intelligence",
+            "advanced_packs": [],
             "hitch_stage_prefix": "3",
         }
         self.runner = RunnerService(self.app_data, ROOT)
@@ -529,44 +553,66 @@ class MainWindow(QMainWindow):
 
     def _setup_style(self):
         self.setStyleSheet("""
-            QMainWindow { background-color: #f4f7fb; }
-            QWidget { background-color: #f4f7fb; color: #1e293b;
+            QMainWindow { background-color: #0b0f19; }
+            QWidget { background-color: transparent; color: #e2e8f0;
                 font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif; font-size: 12px; }
-            QGroupBox { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 10px;
-                margin-top: 12px; padding: 14px 12px 10px 12px; font-weight: bold; font-size: 13px; color: #0f172a; }
-            QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 12px;
-                padding: 2px 8px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 6px; color: #334155; }
+            QGroupBox { background-color: #151d2e; border: 1px solid #243048; border-radius: 10px;
+                margin-top: 14px; padding: 16px 14px 12px 14px; font-weight: bold; font-size: 13px; color: #38bdf8; }
+            QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 14px;
+                padding: 2px 10px; background-color: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #38bdf8; }
             QLabel { background-color: transparent; }
-            QLabel#brandTitle { font-size: 20px; font-weight: bold; color: #0f172a; }
-            QLabel#brandSub { font-size: 11px; color: #94a3b8; }
-            QLabel#hintLabel { color: #64748b; font-size: 11px; }
-            QLabel#warnHint { color: #b45309; font-size: 11px; }
-            QLabel#statusLine { color: #64748b; font-size: 11px; }
-            QLabel#gamesCount { font-size: 18px; font-weight: bold; color: #0284c7; }
-            QLabel#gamesCap { font-size: 10px; color: #94a3b8; }
-            QLabel#statusPill { background-color: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 11px;
-                color: #64748b; font-weight: bold; padding: 3px 12px; }
-            QLabel#statusPill[state="running"] { background-color: #dcfce7; border: 1px solid #86efac; color: #15803d; }
+            QLabel#brandTitle { font-size: 20px; font-weight: 800; color: #f8fafc; }
+            QLabel#brandSub { font-size: 11px; color: #64748b; }
+            QLabel#hintLabel { color: #94a3b8; font-size: 11px; }
+            QLabel#warnHint { color: #fbbf24; font-size: 11px; }
+            QLabel#statusLine { color: #94a3b8; font-size: 11px; }
+            QLabel#gamesCount { font-size: 20px; font-weight: 800; color: #38bdf8; }
+            QLabel#gamesCap { font-size: 10px; color: #64748b; font-weight: 600; }
+            QLabel#statusPill { background-color: #1e293b; border: 1px solid #334155; border-radius: 11px;
+                color: #94a3b8; font-weight: bold; padding: 3px 12px; }
+            QLabel#statusPill[state="running"] { background-color: #064e3b; border: 1px solid #059669; color: #34d399; }
             QLabel#precheckLamp { font-weight: bold; padding: 2px 8px; border-radius: 8px; }
-            QLabel#sectionCap { color: #64748b; font-size: 11px; font-weight: normal; }
-            QCheckBox#chkLearn { color: #b45309; font-weight: bold; }
+            QLabel#sectionCap { color: #7dd3fc; font-size: 11px; font-weight: normal; margin-bottom: 2px; }
+            QCheckBox, QRadioButton { color: #cbd5e1; spacing: 6px; }
+            QCheckBox::indicator, QRadioButton::indicator { width: 15px; height: 15px; border-radius: 3px;
+                border: 1px solid #3b4d6b; background-color: #0d1524; }
+            QRadioButton::indicator { border-radius: 8px; }
+            QCheckBox::indicator:checked { background-color: #0284c7; border: 1px solid #38bdf8; }
+            QRadioButton::indicator:checked { background-color: #0284c7; border: 2px solid #38bdf8; }
+            QCheckBox#chkLearn { color: #fbbf24; font-weight: bold; }
             QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
-                background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;
-                color: #0f172a; padding: 5px 8px; min-height: 22px; }
-            QListWidget#modeList { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; }
-            QListWidget#modeList::item { padding: 8px; margin: 2px; border-radius: 6px; }
-            QListWidget#modeList::item:selected { background: #e0f2fe; color: #0c4a6e; }
-            QPushButton { background-color: #ffffff; border: 1px solid #cbd5e1; border-radius: 6px;
-                color: #334155; padding: 6px 12px; font-weight: 500; }
-            QPushButton#btnStart { background-color: #0284c7; border: none; color: #ffffff;
-                font-size: 15px; font-weight: bold; padding: 12px; border-radius: 8px; }
-            QPushButton#btnStop { background-color: #dc2626; border: none; color: #ffffff;
-                font-size: 15px; font-weight: bold; padding: 12px; border-radius: 8px; }
-            QPushButton:disabled { background-color: #e2e8f0; color: #94a3b8; border: 1px solid #e2e8f0; }
-            QPlainTextEdit { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px;
-                color: #334155; font-family: Consolas, monospace; font-size: 11px; }
+                background-color: #0d1524; border: 1px solid #2a3b55; border-radius: 6px;
+                color: #f1f5f9; padding: 5px 8px; min-height: 24px; }
+            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+                border: 1px solid #0ea5e9; background-color: #101c30; }
+            QComboBox QAbstractItemView { background-color: #151d2e; border: 1px solid #243048;
+                color: #f1f5f9; selection-background-color: #0284c7; selection-color: #ffffff; outline: none; }
+            QListWidget#modeList { background-color: #101726; border: 1px solid #1e293b; border-radius: 8px; outline: none; }
+            QListWidget#modeList::item { background-color: transparent; color: #94a3b8; padding: 10px 8px;
+                margin: 3px 4px; border-radius: 6px; border: 1px solid transparent; }
+            QListWidget#modeList::item:hover { background-color: #192338; color: #f1f5f9; border: 1px solid #2a3b55; }
+            QListWidget#modeList::item:selected { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0369a1, stop:1 #0284c7);
+                color: #ffffff; font-weight: bold; border: 1px solid #38bdf8; }
+            QPushButton { background-color: #1e293b; border: 1px solid #334155; border-radius: 6px;
+                color: #e2e8f0; padding: 6px 14px; font-weight: 500; }
+            QPushButton:hover { background-color: #27354f; border: 1px solid #38bdf8; color: #ffffff; }
+            QPushButton:pressed { background-color: #0f172a; }
+            QPushButton#btnStart { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284c7, stop:1 #06b6d4);
+                border: 1px solid #38bdf8; color: #ffffff; font-size: 15px; font-weight: bold; padding: 10px; border-radius: 8px; }
+            QPushButton#btnStart:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0369a1, stop:1 #0891b2);
+                border: 1px solid #7dd3fc; }
+            QPushButton#btnStop { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #e11d48, stop:1 #be123c);
+                border: 1px solid #fb7185; color: #ffffff; font-size: 15px; font-weight: bold; padding: 10px; border-radius: 8px; }
+            QPushButton#btnStop:hover { background: #9f1239; }
+            QPushButton:disabled { background-color: #131b2a; color: #475569; border: 1px solid #1e293b; }
+            QPlainTextEdit { background-color: #090d16; border: 1px solid #1e293b; border-radius: 6px;
+                color: #94a3b8; font-family: Consolas, monospace; font-size: 11px; }
             QScrollArea { background: transparent; border: none; }
-            QFrame#footerBar { background: #ffffff; border-top: 1px solid #e2e8f0; }
+            QScrollBar:vertical { background: #0b0f19; width: 8px; margin: 0; }
+            QScrollBar::handle:vertical { background: #243048; min-height: 20px; border-radius: 4px; }
+            QScrollBar::handle:vertical:hover { background: #38bdf8; }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+            QFrame#footerBar { background-color: #090d16; border-top: 1px solid #1e293b; }
         """)
 
     def _build_ui(self):
@@ -693,7 +739,84 @@ class MainWindow(QMainWindow):
         return box, lay
 
     def _build_normal_farm_page(self, lay: QVBoxLayout) -> None:
-        skill_box, skill_lay = self._section("① 技能", "出厂四系来自 default_settings / official_strategy_defaults")
+        run_box, run_lay = self._section("① 运行配置", "关卡难度 ≠ 运行方式；局数 0=手动停")
+        core = QGroupBox("运行")
+        core_layout = QVBoxLayout(core)
+        stage_row = QHBoxLayout()
+        stage_row.addWidget(QLabel("关卡"))
+        self.cmb_chapter = QComboBox()
+        self.cmb_chapter.setObjectName("stageChapter")
+        for chapter, count, label in MAINLINE_STAGES:
+            self.cmb_chapter.addItem(f"{label}（{count}关）", chapter)
+        self.cmb_stage = QComboBox()
+        self.cmb_stage.setObjectName("stageIndex")
+        self.txt_stage_target = QLineEdit("1-10")
+        self.txt_stage_target.setObjectName("stageTarget")
+        self.txt_stage_target.setMaximumWidth(72)
+        self.txt_stage_target.setToolTip("由主线/关卡下拉生成，也可手改已开放的关")
+        self._filling_stage = False
+        self._refill_stage_combo(keep_stage=10)
+        self.cmb_chapter.currentIndexChanged.connect(self._on_chapter_changed)
+        self.cmb_stage.currentIndexChanged.connect(self._on_stage_combo_changed)
+        self.txt_stage_target.textChanged.connect(self._on_stage_target_edited)
+        stage_row.addWidget(self.cmb_chapter)
+        stage_row.addWidget(self.cmb_stage)
+        stage_row.addWidget(self.txt_stage_target)
+        stage_row.addWidget(QLabel("关卡难度"))
+        self.cmb_mode = QComboBox()
+        self.cmb_mode.addItem("普通", False)
+        self.cmb_mode.addItem("英雄", True)
+        self.cmb_mode.setMinimumWidth(88)
+        stage_row.addWidget(self.cmb_mode)
+        stage_row.addWidget(QLabel("局数"))
+        self.spn_cycle_num = QSpinBox()
+        self.spn_cycle_num.setRange(0, 999)
+        self.spn_cycle_num.setSpecialValueText("手动停")
+        self.spn_cycle_num.setToolTip("0 = 直到手动停止，不画满条")
+        stage_row.addWidget(self.spn_cycle_num)
+        stage_row.addStretch()
+        core_layout.addLayout(stage_row)
+        self.hero_options = QWidget()
+        hero_row = QHBoxLayout(self.hero_options)
+        hero_row.setContentsMargins(0, 0, 0, 0)
+        hero_row.addWidget(QLabel("阵营"))
+        self.cmb_reputation = QComboBox()
+        for name, faction_id in FACTIONS:
+            self.cmb_reputation.addItem(name, faction_id)
+        self.cmb_reputation.setCurrentIndex(self.cmb_reputation.findData(3))
+        hero_row.addWidget(self.cmb_reputation)
+        hero_row.addWidget(QLabel("难度"))
+        self.spn_reputation_level = QSpinBox()
+        self.spn_reputation_level.setRange(1, 5)
+        hero_row.addWidget(self.spn_reputation_level)
+        hero_note = QLabel("英雄阵营的 L0 门控另算；未验证阵营请谨慎。")
+        hero_note.setObjectName("warnHint")
+        hero_row.addWidget(hero_note)
+        hero_row.addStretch()
+        core_layout.addWidget(self.hero_options)
+        self.chk_learn = QCheckBox("学习模式（只观察记录，不实操）")
+        self.chk_learn.setObjectName("chkLearn")
+        self.chk_dry = self.chk_learn
+        self.chk_secret_realm = QCheckBox("胜利后自动挑战秘境")
+        core_layout.addWidget(self.chk_learn)
+        core_layout.addWidget(self.chk_secret_realm)
+        run_lay.addWidget(core)
+        lab_hint = QLabel(
+            "测试夹 bat 会读这份保存。改完等自动保存（约 1 秒）再双击 bat。不要同时开 LIVE。"
+        )
+        lab_hint.setObjectName("warnHint")
+        lab_hint.setWordWrap(True)
+        run_lay.addWidget(lab_hint)
+        save_row = QHBoxLayout()
+        self.btn_save_settings = QPushButton("保存设置")
+        self.btn_save_settings.setObjectName("btnSaveSettings")
+        self.btn_save_settings.clicked.connect(self._on_save_settings_clicked)
+        save_row.addWidget(self.btn_save_settings)
+        save_row.addStretch()
+        run_lay.addLayout(save_row)
+        lay.addWidget(run_box)
+
+        skill_box, skill_lay = self._section("② 技能", "基础技能库 16 系：点选 / 再点取消（最多 4）")
         combo_row = QHBoxLayout()
         combo_row.addWidget(QLabel("常用搭配"))
         self.cmb_build = QComboBox()
@@ -713,11 +836,11 @@ class MainWindow(QMainWindow):
         skill_lay.addWidget(adj)
         self.grp_skill = QGroupBox("技能")
         self.grp_skill.setCheckable(True)
-        self.grp_skill.setChecked(False)
+        self.grp_skill.setChecked(True)
         sl = QVBoxLayout(self.grp_skill)
         self.skill_grid = SkillCardGrid(SKILL_STEMS, SKILL_LABELS)
         sl.addWidget(self.skill_grid)
-        self.skill_grid.setVisible(False)
+        self.skill_grid.setVisible(True)
         self.grp_skill.toggled.connect(self._set_skill_panel_expanded)
         self.skill_grid.skills_changed.connect(self._on_skills_changed)
         skill_lay.addWidget(self.grp_skill)
@@ -733,21 +856,28 @@ class MainWindow(QMainWindow):
         skill_lay.addWidget(self.grp_archive)
         lay.addWidget(skill_box)
 
-        bond_box, bond_lay = self._section("② 羁绊", "硬白名单 ≤6 短码；无短码条目只能看不能勾")
+        bond_box, bond_lay = self._section("③ 羁绊", "基础卡组可勾/反选；属性线只选一行；刀刀/异火/大圣是高级卡组")
         route_row = QHBoxLayout()
-        route_row.addWidget(QLabel("三线 UR 链"))
+        route_row.addWidget(QLabel("属性线"))
         self.route_group = QButtonGroup(self)
         self.route_buttons: dict[str, QRadioButton] = {}
-        for rid, label in (("intelligence", "智力"), ("strength", "力量"), ("agility", "敏捷")):
-            btn = QRadioButton(label)
+        for row in ATTR_LINE_OPTIONS:
+            rid = str(row.get("id") or "")
+            btn = QRadioButton(str(row.get("label") or rid))
             self.route_group.addButton(btn)
             self.route_buttons[rid] = btn
             route_row.addWidget(btn)
-        self.route_buttons["intelligence"].setChecked(True)
+        if "intelligence" in self.route_buttons:
+            self.route_buttons["intelligence"].setChecked(True)
+        elif self.route_buttons:
+            next(iter(self.route_buttons.values())).setChecked(True)
         self.route_group.buttonClicked.connect(self._on_attr_route_clicked)
+        route_note = QLabel("智力 / 力量 / 敏捷汇总成一行，不展开链上各环。")
+        route_note.setObjectName("hintLabel")
+        route_row.addWidget(route_note)
         route_row.addStretch()
         bond_lay.addLayout(route_row)
-        note = QLabel("无短码的羁绊只能看不能勾（bond_stack_catalog 与 fetter_labels 不对称）。")
+        note = QLabel("无短码的高级卡组用中文名进白名单。EX 最终形态不进白名单。")
         note.setObjectName("hintLabel")
         note.setWordWrap(True)
         bond_lay.addWidget(note)
@@ -755,6 +885,7 @@ class MainWindow(QMainWindow):
         self.bond_plan_lay = QVBoxLayout(self.bond_plan_host)
         self.bond_plan_lay.setContentsMargins(0, 0, 0, 0)
         self._bond_plan_boxes: dict[str, QCheckBox] = {}
+        self._advanced_pack_boxes: dict[str, QCheckBox] = {}
         self._rebuild_bond_plan()
         bond_lay.addWidget(self.bond_plan_host)
         self.grp_bond = QGroupBox("羁绊")
@@ -769,7 +900,7 @@ class MainWindow(QMainWindow):
         bond_lay.addWidget(self.grp_bond)
         lay.addWidget(bond_box)
 
-        loot_box, loot_lay = self._section("③ 宝物与资源", "EX 四宝策略必拿；负面宝物默认全不放行")
+        loot_box, loot_lay = self._section("④ 宝物与资源", "EX 四宝策略必拿；负面宝物默认全不放行")
         loot_lay.addWidget(self._build_must_take_row())
         self.grp_negative = NegativeTreasureGroup(NEGATIVE_TREASURES)
         self.grp_negative.changed.connect(self._on_negative_changed)
@@ -834,68 +965,6 @@ class MainWindow(QMainWindow):
         loot_lay.addLayout(w_row)
         lay.addWidget(loot_box)
 
-        run_box, run_lay = self._section("④ 运行", "关卡难度 ≠ 运行方式；局数 0=手动停")
-        lab_hint = QLabel(
-            "测试夹 bat 会读这份保存。改完等自动保存（约 1 秒）再双击 bat。不要同时开 LIVE。"
-        )
-        lab_hint.setObjectName("warnHint")
-        lab_hint.setWordWrap(True)
-        run_lay.addWidget(lab_hint)
-        save_row = QHBoxLayout()
-        self.btn_save_settings = QPushButton("保存设置")
-        self.btn_save_settings.setObjectName("btnSaveSettings")
-        self.btn_save_settings.clicked.connect(self._on_save_settings_clicked)
-        save_row.addWidget(self.btn_save_settings)
-        save_row.addStretch()
-        run_lay.addLayout(save_row)
-        core = QGroupBox("运行")
-        core_layout = QVBoxLayout(core)
-        stage_row = QHBoxLayout()
-        stage_row.addWidget(QLabel("关卡"))
-        self.txt_stage_target = QLineEdit("1-10")
-        self.txt_stage_target.setObjectName("stageTarget")
-        self.txt_stage_target.setPlaceholderText("例如 1-10")
-        self.txt_stage_target.setMaximumWidth(100)
-        stage_row.addWidget(self.txt_stage_target)
-        stage_row.addWidget(QLabel("关卡难度"))
-        self.cmb_mode = QComboBox()
-        self.cmb_mode.addItem("普通", False)
-        self.cmb_mode.addItem("英雄", True)
-        self.cmb_mode.setMinimumWidth(88)
-        stage_row.addWidget(self.cmb_mode)
-        stage_row.addWidget(QLabel("局数"))
-        self.spn_cycle_num = QSpinBox()
-        self.spn_cycle_num.setRange(0, 999)
-        self.spn_cycle_num.setSpecialValueText("手动停")
-        self.spn_cycle_num.setToolTip("0 = 直到手动停止，不画满条")
-        stage_row.addWidget(self.spn_cycle_num)
-        stage_row.addStretch()
-        core_layout.addLayout(stage_row)
-        self.hero_options = QWidget()
-        hero_row = QHBoxLayout(self.hero_options)
-        hero_row.setContentsMargins(0, 0, 0, 0)
-        hero_row.addWidget(QLabel("阵营"))
-        self.cmb_reputation = QComboBox()
-        for name, faction_id in FACTIONS:
-            self.cmb_reputation.addItem(name, faction_id)
-        self.cmb_reputation.setCurrentIndex(self.cmb_reputation.findData(3))
-        hero_row.addWidget(self.cmb_reputation)
-        hero_row.addWidget(QLabel("难度"))
-        self.spn_reputation_level = QSpinBox()
-        self.spn_reputation_level.setRange(1, 5)
-        hero_row.addWidget(self.spn_reputation_level)
-        hero_note = QLabel("英雄阵营的 L0 门控另算；未验证阵营请谨慎。")
-        hero_note.setObjectName("warnHint")
-        hero_row.addWidget(hero_note)
-        hero_row.addStretch()
-        core_layout.addWidget(self.hero_options)
-        self.chk_learn = QCheckBox("学习模式（只观察记录，不实操）")
-        self.chk_learn.setObjectName("chkLearn")
-        self.chk_dry = self.chk_learn
-        self.chk_secret_realm = QCheckBox("胜利后自动挑战秘境")
-        core_layout.addWidget(self.chk_learn)
-        core_layout.addWidget(self.chk_secret_realm)
-        run_lay.addWidget(core)
         self.grp_details = QGroupBox("运行日志")
         self.grp_details.setCheckable(True)
         self.grp_details.setChecked(False)
@@ -907,11 +976,12 @@ class MainWindow(QMainWindow):
         self.txt_log.document().setMaximumBlockCount(1000)
         self.grp_details.toggled.connect(self.txt_log.setVisible)
         dl.addWidget(self.txt_log)
-        run_lay.addWidget(self.grp_details)
+        lay.addWidget(self.grp_details)
+
         atlas = QLabel("图鉴入口：P2（本轮不做）。")
         atlas.setObjectName("hintLabel")
-        run_lay.addWidget(atlas)
-        lay.addWidget(run_box)
+        lay.addWidget(atlas)
+
         self.cmb_mode.currentIndexChanged.connect(self._update_hero_visibility)
         self._update_hero_visibility()
 
@@ -929,7 +999,7 @@ class MainWindow(QMainWindow):
                 icon.setPixmap(pix)
             else:
                 icon.setText(name)
-                icon.setStyleSheet("background:#e2e8f0; color:#64748b;")
+                icon.setStyleSheet("background:#151d2e; border:1px solid #243048; border-radius:6px; color:#94a3b8;")
                 icon.setAlignment(Qt.AlignCenter)
             cap = QLabel(f"{name}\n策略必拿")
             cap.setObjectName("hintLabel")
@@ -1043,39 +1113,53 @@ class MainWindow(QMainWindow):
             if widget is not None:
                 widget.deleteLater()
         self._bond_plan_boxes = {}
-        route_id = self._shell_extras.get("attr_route") or "intelligence"
-        route = ATTR_ROUTES.get(route_id) or {}
-        rounds = [
-            ("round1 必做", list(BOND_PRIORITY.get("round1_must") or [])),
-            ("属性链", list(route.get("chain") or [])),
-            ("生存", list(BOND_PRIORITY.get("round3_survival") or [])),
-            ("必选急速", list(BOND_PRIORITY.get("must_take") or [])),
-            ("第四轮选做", list(BOND_PRIORITY.get("round4_optional") or [])),
-        ]
+        self._advanced_pack_boxes = {}
         inverted = set(self._shell_extras.get("bond_inverted") or [])
         scheme = set(self._effective_scheme_codes())
-        for title, names in rounds:
-            cap = QLabel(title)
-            cap.setObjectName("sectionCap")
-            self.bond_plan_lay.addWidget(cap)
-            row = QWidget()
-            grid = QGridLayout(row)
-            grid.setContentsMargins(0, 0, 0, 0)
-            col = 0
-            for name in names:
-                code = code_for_bond_name(str(name))
-                if code:
-                    box = QCheckBox(str(name))
-                    box.setChecked(code in scheme and code not in inverted)
-                    box.toggled.connect(lambda checked, c=code: self._on_plan_toggled(c, checked))
-                    self._bond_plan_boxes[code] = box
-                    grid.addWidget(box, col // 4, col % 4)
-                else:
-                    lbl = QLabel(f"{name}（仅知识，不能勾）")
-                    lbl.setObjectName("hintLabel")
-                    grid.addWidget(lbl, col // 4, col % 4)
-                col += 1
-            self.bond_plan_lay.addWidget(row)
+        cap = QLabel("基础卡组（选择 / 反选）")
+        cap.setObjectName("sectionCap")
+        self.bond_plan_lay.addWidget(cap)
+        tools = QHBoxLayout()
+        btn_all = QPushButton("全选")
+        btn_inv = QPushButton("反选")
+        btn_all.clicked.connect(self._select_all_basic_pack)
+        btn_inv.clicked.connect(self._invert_basic_pack)
+        tools.addWidget(btn_all)
+        tools.addWidget(btn_inv)
+        tools.addStretch()
+        tools_host = QWidget()
+        tools_host.setLayout(tools)
+        self.bond_plan_lay.addWidget(tools_host)
+        row = QWidget()
+        grid = QGridLayout(row)
+        grid.setContentsMargins(0, 0, 0, 0)
+        for col, name in enumerate(BASIC_PACK_NAMES):
+            code = code_for_bond_name(str(name)) or str(name)
+            box = QCheckBox(str(name))
+            if scheme:
+                box.setChecked(code in scheme and code not in inverted)
+            else:
+                box.setChecked(code not in inverted)
+            box.toggled.connect(lambda checked, c=code: self._on_plan_toggled(c, checked))
+            self._bond_plan_boxes[code] = box
+            grid.addWidget(box, col // 5, col % 5)
+        self.bond_plan_lay.addWidget(row)
+        adv_cap = QLabel("高级卡组（后续可选；EX 不进白名单）")
+        adv_cap.setObjectName("sectionCap")
+        self.bond_plan_lay.addWidget(adv_cap)
+        adv_row = QHBoxLayout()
+        enabled = set(self._shell_extras.get("advanced_packs") or [])
+        for pack_id, spec in ADVANCED_PACKS.items():
+            box = QCheckBox(str(spec.get("label") or pack_id))
+            box.setChecked(pack_id in enabled)
+            box.setToolTip("、".join(str(n) for n in (spec.get("cards") or [])))
+            box.toggled.connect(lambda checked, pid=pack_id: self._on_advanced_pack_toggled(pid, checked))
+            self._advanced_pack_boxes[pack_id] = box
+            adv_row.addWidget(box)
+        adv_row.addStretch()
+        adv_host = QWidget()
+        adv_host.setLayout(adv_row)
+        self.bond_plan_lay.addWidget(adv_host)
 
     def _effective_scheme_codes(self) -> list[str]:
         scheme = [c for c in (self._shell_extras.get("bond_scheme") or []) if c in FETTER_LABELS]
@@ -1085,13 +1169,17 @@ class MainWindow(QMainWindow):
 
     def _sync_bonds_from_scheme(self) -> None:
         inverted = set(self._shell_extras.get("bond_inverted") or [])
-        effective = [c for c in self._effective_scheme_codes() if c not in inverted][: BondCardGrid.MAX_BONDS]
+        scheme = self._effective_scheme_codes()
+        effective = [c for c in scheme if c not in inverted]
         self._syncing_bonds = True
         try:
-            self.bond_grid.set_bonds(effective)
+            self.bond_grid.set_bonds(effective[: BondCardGrid.MAX_BONDS])
             for code, box in self._bond_plan_boxes.items():
                 box.blockSignals(True)
-                box.setChecked(code in effective)
+                if scheme:
+                    box.setChecked(code in effective)
+                else:
+                    box.setChecked(code not in inverted)
                 box.blockSignals(False)
         finally:
             self._syncing_bonds = False
@@ -1117,8 +1205,150 @@ class MainWindow(QMainWindow):
             if btn.isChecked():
                 self._shell_extras["attr_route"] = rid
                 break
-        self._rebuild_bond_plan()
         self._schedule_auto_save()
+
+    def _select_all_basic_pack(self) -> None:
+        self._syncing_bonds = True
+        try:
+            for box in self._bond_plan_boxes.values():
+                box.setChecked(True)
+        finally:
+            self._syncing_bonds = False
+        self._shell_extras["bond_inverted"] = []
+        self._sync_bonds_from_scheme()
+        self._schedule_auto_save()
+
+    def _invert_basic_pack(self) -> None:
+        self._syncing_bonds = True
+        try:
+            for box in self._bond_plan_boxes.values():
+                box.setChecked(not box.isChecked())
+        finally:
+            self._syncing_bonds = False
+        inverted = [code for code, box in self._bond_plan_boxes.items() if not box.isChecked()]
+        self._shell_extras["bond_inverted"] = inverted
+        self._sync_bonds_from_scheme()
+        self._schedule_auto_save()
+
+    def _on_advanced_pack_toggled(self, pack_id: str, checked: bool) -> None:
+        enabled = [str(x) for x in (self._shell_extras.get("advanced_packs") or []) if str(x)]
+        if checked and pack_id not in enabled:
+            enabled.append(pack_id)
+        if not checked:
+            enabled = [x for x in enabled if x != pack_id]
+        self._shell_extras["advanced_packs"] = enabled
+        self._schedule_auto_save()
+
+    def _attr_line_tokens(self) -> list[str]:
+        route_id = str(self._shell_extras.get("attr_route") or "intelligence")
+        row = next((item for item in ATTR_LINE_OPTIONS if item.get("id") == route_id), None)
+        if row is None and ATTR_LINE_OPTIONS:
+            row = ATTR_LINE_OPTIONS[0]
+        tokens: list[str] = []
+        for name in ((row or {}).get("gate"), (row or {}).get("ur")):
+            text = str(name or "").strip()
+            if not text:
+                continue
+            tokens.append(code_for_bond_name(text) or text)
+        return tokens
+
+    def _advanced_pack_tokens(self) -> list[str]:
+        enabled = set(self._shell_extras.get("advanced_packs") or [])
+        banned = {"解放的圣剑", "帝炎", "法天象地"}
+        tokens: list[str] = []
+        for pack_id, spec in ADVANCED_PACKS.items():
+            if pack_id not in enabled:
+                continue
+            banned.update(str(n) for n in (spec.get("exclude_ex") or []))
+            for name in spec.get("cards") or []:
+                text = str(name).strip()
+                if not text or text in banned:
+                    continue
+                token = code_for_bond_name(text) or text
+                if token not in tokens:
+                    tokens.append(token)
+        return tokens
+
+    def assemble_whitelist_cards(self) -> list[str]:
+        inverted = set(self._shell_extras.get("bond_inverted") or [])
+        out: list[str] = []
+        for code, box in self._bond_plan_boxes.items():
+            if box.isChecked() and code not in inverted and code not in out:
+                out.append(code)
+        for token in self._attr_line_tokens():
+            if token not in out:
+                out.append(token)
+        for token in self._advanced_pack_tokens():
+            if token not in out:
+                out.append(token)
+        for code in self._effective_scheme_codes():
+            if code not in inverted and code not in out:
+                out.append(code)
+        return out
+
+    def _refill_stage_combo(self, keep_stage: int | None = None) -> None:
+        chapter = int(self.cmb_chapter.currentData() or 1)
+        maximum = STAGE_MAX.get(chapter, 1)
+        current = keep_stage
+        if current is None:
+            current = int(self.cmb_stage.currentData() or 1)
+        self._filling_stage = True
+        try:
+            self.cmb_stage.clear()
+            for index in range(1, maximum + 1):
+                self.cmb_stage.addItem(str(index), index)
+            self.cmb_stage.setCurrentIndex(max(0, min(maximum, current) - 1))
+        finally:
+            self._filling_stage = False
+
+    def _write_stage_target_from_combos(self) -> None:
+        chapter = int(self.cmb_chapter.currentData() or 1)
+        stage = int(self.cmb_stage.currentData() or 1)
+        text = f"{chapter}-{stage}"
+        if self.txt_stage_target.text() == text:
+            return
+        self._filling_stage = True
+        try:
+            self.txt_stage_target.setText(text)
+        finally:
+            self._filling_stage = False
+
+    def _on_chapter_changed(self) -> None:
+        if self._filling_stage:
+            return
+        self._refill_stage_combo()
+        self._write_stage_target_from_combos()
+        self._schedule_auto_save()
+        self._refresh_summary()
+
+    def _on_stage_combo_changed(self) -> None:
+        if self._filling_stage:
+            return
+        self._write_stage_target_from_combos()
+        self._schedule_auto_save()
+        self._refresh_summary()
+
+    def _on_stage_target_edited(self, text: str) -> None:
+        if self._filling_stage:
+            return
+        match = re.fullmatch(r"([1-9]\d*)-([1-9]\d*)", text.strip())
+        if match is None:
+            return
+        chapter, stage = (int(value) for value in match.groups())
+        if chapter not in STAGE_MAX or stage > STAGE_MAX[chapter]:
+            return
+        self._filling_stage = True
+        try:
+            idx = self.cmb_chapter.findData(chapter)
+            if idx >= 0:
+                self.cmb_chapter.setCurrentIndex(idx)
+            self._refill_stage_combo(keep_stage=stage)
+        finally:
+            self._filling_stage = False
+
+    def _apply_stage_target(self, text: str) -> None:
+        self.txt_stage_target.setText(text)
+        self._on_stage_target_edited(text)
 
     def _setup_tray(self) -> None:
         self.tray_menu = QMenu(self)
@@ -1187,21 +1417,21 @@ class MainWindow(QMainWindow):
         if not desktop_may_start(mode_id):
             self.lbl_precheck.setText("预检 ● 红")
             self.lbl_precheck.setToolTip("运行方式未验证，零输入")
-            self.lbl_precheck.setStyleSheet("color:#b91c1c;")
+            self.lbl_precheck.setStyleSheet("color:#f87171;")
             return
         if live_lock_busy(self.app_data) and not self._is_running():
             self.lbl_precheck.setText("预检 ● 红")
             self.lbl_precheck.setToolTip("live.lock 被占用")
-            self.lbl_precheck.setStyleSheet("color:#b91c1c;")
+            self.lbl_precheck.setStyleSheet("color:#f87171;")
             return
         if not self.chk_learn.isChecked() and not _is_admin():
             self.lbl_precheck.setText("预检 ● 黄")
             self.lbl_precheck.setToolTip("可学习；真机需要管理员")
-            self.lbl_precheck.setStyleSheet("color:#b45309;")
+            self.lbl_precheck.setStyleSheet("color:#fbbf24;")
             return
         self.lbl_precheck.setText("预检 ● 绿")
         self.lbl_precheck.setToolTip("可启动")
-        self.lbl_precheck.setStyleSheet("color:#15803d;")
+        self.lbl_precheck.setStyleSheet("color:#34d399;")
 
     def _refresh_progress(self) -> None:
         cycle = int(self.spn_cycle_num.value()) if hasattr(self, "spn_cycle_num") else 0
@@ -1380,7 +1610,7 @@ class MainWindow(QMainWindow):
         self.settings = copy.deepcopy(settings)
         targets = [item.strip() for item in (settings.stage_targets or []) if item.strip()]
         target = targets[0] if targets else f"1-{max(1, int(settings.stage2))}"
-        self.txt_stage_target.setText(target)
+        self._apply_stage_target(target)
         self.chk_learn.setChecked(bool(settings.dry_run))
         self.chk_secret_realm.setChecked(settings.auto_secret_realm)
         self.spn_cycle_num.setValue(int(settings.cycle_num or 0))
@@ -1414,6 +1644,12 @@ class MainWindow(QMainWindow):
         route = str(self._shell_extras.get("attr_route") or "intelligence")
         if route in self.route_buttons:
             self.route_buttons[route].setChecked(True)
+        enabled = set(self._shell_extras.get("advanced_packs") or [])
+        for pack_id, box in self._advanced_pack_boxes.items():
+            box.blockSignals(True)
+            box.setChecked(pack_id in enabled)
+            box.blockSignals(False)
+        self._sync_bonds_from_scheme()
         self._refresh_custom_builds_combo()
         self._update_hero_visibility()
 
@@ -1422,10 +1658,14 @@ class MainWindow(QMainWindow):
         match = re.fullmatch(r"([1-9]\d*)-([1-9]\d*)", target)
         if match is None:
             raise ValueError("目标关卡必须是“章节-关卡”，例如 1-10")
+        chapter, stage_index = (int(value) for value in match.groups())
+        if chapter not in STAGE_MAX or stage_index > STAGE_MAX[chapter]:
+            raise ValueError(
+                f"关卡 {target} 不在当前主线范围内（主线{chapter} 现有 1-{STAGE_MAX.get(chapter, 0)}）"
+            )
         skills = self.skill_grid.get_skills()
         if not skills:
             self.log("[设置] 未选择技能：技能面板只刷新并放弃，不会学习其他技能", "info")
-        _, stage_index = (int(value) for value in match.groups())
         settings = copy.deepcopy(self.settings)
         settings.game_mode = 0
         settings.stage1 = stage_index
@@ -1446,7 +1686,7 @@ class MainWindow(QMainWindow):
         settings.find_longzhu_in_game = self.chk_longzhu_in_game.isChecked()
         settings.skills = skills
         settings.skill_archive_levels = self.archive_grid.get_levels()
-        settings.cards = self.bond_grid.get_bonds()
+        settings.cards = self.assemble_whitelist_cards()
         if not settings.cards:
             self.log("[设置] 未选择羁绊：羁绊面板只刷新，刷不动就暂时隐藏", "info")
         settings.treasure_allow_negative = self.grp_negative.get_allowed()
@@ -1490,7 +1730,23 @@ class MainWindow(QMainWindow):
                 return False
         self.skill_grid.set_skills(new_skills)
         self._shell_extras["bond_scheme"] = list(new_cards)
-        self._shell_extras["bond_inverted"] = []
+        self._shell_extras["bond_inverted"] = [
+            code for code in self._bond_plan_boxes if code not in set(new_cards)
+        ]
+        self._shell_extras["advanced_packs"] = []
+        if "yanmiezhe" in new_cards or "zhili" in new_cards:
+            self._shell_extras["attr_route"] = "intelligence"
+        elif "tuluzhe" in new_cards or "liliang" in new_cards:
+            self._shell_extras["attr_route"] = "strength"
+        elif "shougezhe" in new_cards or "mingjie" in new_cards:
+            self._shell_extras["attr_route"] = "agility"
+        route = str(self._shell_extras.get("attr_route") or "intelligence")
+        if route in self.route_buttons:
+            self.route_buttons[route].setChecked(True)
+        for pack_id, box in self._advanced_pack_boxes.items():
+            box.blockSignals(True)
+            box.setChecked(False)
+            box.blockSignals(False)
         self._sync_bonds_from_scheme()
         idx = self.cmb_reputation.findData(new_rep)
         if idx >= 0:

@@ -382,13 +382,59 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertTrue(ok)
         collected = self.window.collect_settings_from_ui()
         self.assertEqual(["asj", "asjg", "assx", "jq"], collected.skills)
-        self.assertEqual(["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe", "fs"], collected.cards)
+        for code in ("tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe", "fs"):
+            self.assertIn(code, collected.cards)
         self.assertEqual(3, collected.reputation_type)
 
     def test_bond_invert_writes_scheme_minus_inverted(self):
         self.window.set_bond_scheme(["tishu", "chengzhang", "zhufu"], inverted=["chengzhang"])
         self.assertEqual(["tishu", "zhufu"], self.window.effective_bond_codes())
-        self.assertEqual(["tishu", "zhufu"], self.window.collect_settings_from_ui().cards)
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertIn("tishu", cards)
+        self.assertNotIn("chengzhang", cards)
+
+    def test_mainline_stage_picker_covers_current_chapters(self):
+        expected = {1: 23, 2: 7, 3: 9, 4: 3}
+        actual = {int(self.window.cmb_chapter.itemData(i)): None for i in range(self.window.cmb_chapter.count())}
+        self.assertEqual(set(expected), set(actual))
+        self.window.cmb_chapter.setCurrentIndex(self.window.cmb_chapter.findData(1))
+        self.assertEqual(23, self.window.cmb_stage.count())
+        self.window.cmb_chapter.setCurrentIndex(self.window.cmb_chapter.findData(4))
+        self.assertEqual(3, self.window.cmb_stage.count())
+        self.window._apply_stage_target("4-3")
+        self.assertEqual("4-3", self.window.collect_settings_from_ui().stage_targets[0])
+        self.window.txt_stage_target.setText("4-4")
+        with self.assertRaisesRegex(ValueError, "主线"):
+            self.window.collect_settings_from_ui()
+
+    def test_attr_line_is_summary_and_advanced_packs_optional(self):
+        text = self._panel_text()
+        self.assertIn("属性线", text)
+        self.assertIn("刀刀", text)
+        self.assertIn("异火", text)
+        self.assertIn("大圣", text)
+        self.assertNotIn("属性链", text)
+        self.assertNotIn("round1 必做", text)
+        self.window._advanced_pack_boxes["daodao"].setChecked(True)
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertIn("刀刀", cards)
+        self.assertIn("幽灵系带", cards)
+        self.assertNotIn("解放的圣剑", cards)
+        self.window._advanced_pack_boxes["yihuo"].setChecked(True)
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertIn("阴阳双炎", cards)
+        self.assertNotIn("帝炎", cards)
+        self.window._advanced_pack_boxes["dasheng"].setChecked(True)
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertIn("齐天大圣", cards)
+        self.assertNotIn("法天象地", cards)
+
+    def test_basic_pack_invert_toggles_whitelist(self):
+        before = list(self.window.assemble_whitelist_cards())
+        self.assertIn("zhufu", before)
+        self.window._invert_basic_pack()
+        after = self.window.assemble_whitelist_cards()
+        self.assertNotIn("zhufu", after)
 
     def test_treasure_and_wood_controls_are_labeled_or_disabled(self):
         text = self._panel_text()
