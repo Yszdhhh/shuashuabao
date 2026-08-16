@@ -442,7 +442,11 @@ class S0PanelFsmTests(unittest.TestCase):
     """⑤ Panel FSM：可见窗 / 间隔 / 指纹上限 / F1 shadow。"""
 
     def _panel_mediator(self, clock: FakeClock, **kw) -> Mediator:
-        med = Mediator(Settings(**kw), ROOT)
+        # FSM 时序测试与输入模式无关（act_click 整体 mock）；钉住 dry_run，
+        # 否则 1d8f101 翻默认后 tick1 落进真实输入专属的 20s 预部署静默窗。
+        settings = Settings(**kw)
+        settings.dry_run = True
+        med = Mediator(settings, ROOT)
         med.executor = FakeInputExecutor(StopSignal(), clock)
         med.set_phase(Phase.MAIN_LINE, "panel fsm test")
         med._auto_task_done = True
