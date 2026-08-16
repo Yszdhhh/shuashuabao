@@ -786,15 +786,17 @@ class MainWindow(QMainWindow):
         stage_row.addWidget(self.cmb_chapter)
         stage_row.addWidget(QLabel("关卡"))
         stage_row.addWidget(self.cmb_stage)
+        stage_row.addWidget(QLabel("模式"))
         self.cmb_mode = QComboBox()
         self.cmb_mode.addItem("普通", False)
         self.cmb_mode.addItem("英雄", True)
-        self.cmb_mode.setVisible(False)
+        stage_row.addWidget(self.cmb_mode)
+        stage_row.addWidget(QLabel("局数"))
         self.spn_cycle_num = QSpinBox()
         self.spn_cycle_num.setRange(0, 999)
         self.spn_cycle_num.setSpecialValueText("手动停")
         self.spn_cycle_num.setToolTip("0 = 直到手动停止，不画满条")
-        self.spn_cycle_num.setVisible(False)
+        stage_row.addWidget(self.spn_cycle_num)
         stage_row.addStretch()
         core_layout.addLayout(stage_row)
         self.hero_options = QWidget()
@@ -1604,7 +1606,8 @@ class MainWindow(QMainWindow):
         self._refresh_progress()
 
     def _update_hero_visibility(self):
-        self.hero_options.setVisible(False)
+        is_hero = bool(self.cmb_mode.currentData())
+        self.hero_options.setVisible(is_hero)
         self._refresh_chrome()
 
     def _refresh_skill_title(self):

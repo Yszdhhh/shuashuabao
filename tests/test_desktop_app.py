@@ -227,8 +227,14 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertTrue(saved["new_room_every_times"])
         self.assertEqual("test-room", saved["room_name"])
 
-    def test_hero_settings_remain_hidden_from_streamlined_stage_picker(self):
+    def test_hero_settings_visibility_toggles_with_mode(self):
+        # 默认普通模式：hero_options 隐藏
+        self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(False))
+        self.assertTrue(self.window.hero_options.isHidden())
+
+        # 切换到英雄模式：hero_options 展开显示
         self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(True))
+        self.assertFalse(self.window.hero_options.isHidden())
         self.window.cmb_reputation.setCurrentIndex(
             self.window.cmb_reputation.findData(3)
         )
@@ -239,6 +245,9 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual(3, settings.reputation_type)
         self.assertEqual(5, settings.reputation_level)
         self.assertEqual(5, self.window.spn_reputation_level.maximum())
+
+        # 切回普通模式：hero_options 再次隐藏
+        self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(False))
         self.assertTrue(self.window.hero_options.isHidden())
 
     def test_reputation_combo_exposes_all_six_factions(self):
@@ -346,14 +355,31 @@ class DesktopPanelTests(unittest.TestCase):
             raw = (group / "metadata.json").read_text(encoding="utf-8")
             self.assertNotIn("top-secret-pw", raw, "密码不得归档")
 
-    def test_streamlined_stage_picker_hides_difficulty_and_raw_target(self):
+    def test_streamlined_stage_picker_exposes_mode_and_cycle_and_hides_raw_target(self):
         text = self._panel_text()
         self.assertIn("先选运行方式", text)
-        self.assertTrue(self.window.cmb_mode.isHidden())
+        self.assertFalse(self.window.cmb_mode.isHidden())
+        self.assertFalse(self.window.spn_cycle_num.isHidden())
         self.assertTrue(self.window.txt_stage_target.isHidden())
         chapters = [self.window.cmb_chapter.itemText(i) for i in range(self.window.cmb_chapter.count())]
         self.assertEqual(["旧世界大陆（一阶段）", "熔火之心（二阶段）", "黑翼之潮（三阶段）", "安琪拉（四阶段）"], chapters)
         self.assertNotIn("多少关", "\n".join(chapters))
+
+    def test_load_legacy_settings_shows_real_values_in_ui(self):
+        legacy = Settings(
+            cycle_num=99,
+            auto_reputation=True,
+            reputation_type=3,
+            reputation_level=5,
+        )
+        self.window.apply_settings_to_ui(legacy)
+        self.assertEqual(99, self.window.spn_cycle_num.value())
+        self.assertTrue(self.window.cmb_mode.currentData())
+        self.assertEqual(3, self.window.cmb_reputation.currentData())
+        self.assertEqual(5, self.window.spn_reputation_level.value())
+        self.assertFalse(self.window.hero_options.isHidden())
+        self.assertFalse(self.window.cmb_mode.isHidden())
+        self.assertFalse(self.window.spn_cycle_num.isHidden())
 
     def test_start_button_lives_on_pinned_footer(self):
         self.assertTrue(self.window.footer.isAncestorOf(self.window.btn_main))
