@@ -169,6 +169,12 @@ MAINLINE_STAGES: list[tuple[int, int, str]] = [
     if isinstance(row, dict) and row.get("chapter") and row.get("count")
 ] or [(1, 23, "主线1"), (2, 7, "主线2"), (3, 9, "主线3"), (4, 3, "主线4")]
 STAGE_MAX = {chapter: count for chapter, count, _label in MAINLINE_STAGES}
+MAINLINE_DISPLAY = {
+    1: "旧世界大陆（一阶段）",
+    2: "熔火之心（二阶段）",
+    3: "黑翼之潮（三阶段）",
+    4: "安琪拉（四阶段）",
+}
 _BOND_STACK = _load_json_doc(ROOT / "config" / "bond_stack_catalog.json")
 BOND_STACK_NAMES = set((_BOND_STACK.get("needs") or {}).keys())
 FACTIONS = (
@@ -526,8 +532,8 @@ class MainWindow(QMainWindow):
         self.app_data = Path(app_data) if app_data is not None else _app_data_dir()
         self.app_data.mkdir(parents=True, exist_ok=True)
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL} · 重生魔兽刷刷刷")
-        self.resize(720, 560)
-        self.setMinimumSize(640, 500)
+        self.resize(900, 720)
+        self.setMinimumSize(720, 600)
 
         self.settings = Settings()
         self._shell_extras: dict = {
@@ -557,7 +563,7 @@ class MainWindow(QMainWindow):
         self._setup_tray()
         self.load_local_settings(silent=True)
         self._wire_auto_save()
-        self._refresh_chrome()
+        self._show_mode_choice()
 
     def _setup_style(self):
         self.setStyleSheet("""
@@ -636,7 +642,7 @@ class MainWindow(QMainWindow):
         title_box.setSpacing(0)
         title = QLabel(f"{APP_NAME} {APP_VERSION_LABEL}")
         title.setObjectName("brandTitle")
-        subtitle = QLabel("控制中心 · 运行方式与关卡难度分开")
+        subtitle = QLabel("控制中心 · 先选运行方式，再配置任务")
         subtitle.setObjectName("brandSub")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
@@ -664,7 +670,8 @@ class MainWindow(QMainWindow):
         body.setContentsMargins(12, 0, 12, 0)
         body.setSpacing(10)
 
-        mode_box = QGroupBox("运行方式")
+        mode_box = QGroupBox("选择运行方式")
+        self.mode_box = mode_box
         mode_layout = QVBoxLayout(mode_box)
         primary_row = QHBoxLayout()
         self.primary_mode_group = QButtonGroup(self)
@@ -673,38 +680,15 @@ class MainWindow(QMainWindow):
         for button in (self.btn_solo_mode, self.btn_hitch_mode):
             button.setCheckable(True)
             button.setMinimumHeight(42)
-            button.setMinimumWidth(250)
+            button.setMinimumWidth(300)
             self.primary_mode_group.addButton(button)
             primary_row.addWidget(button, 1)
         self.primary_mode_group.setExclusive(False)
         mode_layout.addLayout(primary_row)
+        mode_layout.addStretch()
 
-        secondary_row = QHBoxLayout()
-        secondary_row.addWidget(QLabel("蹭车方式"))
-        self.cmb_hitch_mode = QComboBox()
-        self.cmb_hitch_mode.addItem("大厅找房蹭车 · 待验证", "lobby_hitch")
-        self.cmb_hitch_mode.addItem("已在房间跟车 · 待验证", "follow_team")
-        self.cmb_hitch_mode.setMinimumHeight(38)
-        self.cmb_hitch_mode.setMinimumWidth(max(self.cmb_hitch_mode.fontMetrics().horizontalAdvance(self.cmb_hitch_mode.itemText(i)) for i in range(self.cmb_hitch_mode.count())) + 36)
-        secondary_row.addWidget(self.cmb_hitch_mode, 1)
-        secondary_row.addWidget(QLabel("更多模式"))
-        self.cmb_more_modes = QComboBox()
-        self.cmb_more_modes.addItem("更多模式", "")
-        for mode_id in ("gambling_wood", "raid_wait", "lab"):
-            spec = get_spec(mode_id)
-            self.cmb_more_modes.addItem(f"{spec.label} · {badge_text(spec)}", mode_id)
-        self.cmb_more_modes.setMinimumHeight(38)
-        self.cmb_more_modes.setMinimumWidth(max(self.cmb_more_modes.fontMetrics().horizontalAdvance(self.cmb_more_modes.itemText(i)) for i in range(self.cmb_more_modes.count())) + 36)
-        secondary_row.addWidget(self.cmb_more_modes, 1)
-        mode_layout.addLayout(secondary_row)
         self.btn_solo_mode.clicked.connect(lambda: self._select_mode("normal_farm"))
-        self.btn_hitch_mode.clicked.connect(lambda: self._select_mode(str(self.cmb_hitch_mode.currentData())))
-        self.cmb_hitch_mode.currentIndexChanged.connect(
-            lambda: self._select_mode(str(self.cmb_hitch_mode.currentData())) if self.btn_hitch_mode.isChecked() else None
-        )
-        self.cmb_more_modes.currentIndexChanged.connect(
-            lambda: self._select_mode(str(self.cmb_more_modes.currentData())) if self.cmb_more_modes.currentData() else None
-        )
+        self.btn_hitch_mode.clicked.connect(lambda: self._select_mode("lobby_hitch"))
         body.addWidget(mode_box)
 
         self.right_stack = QStackedWidget()
@@ -723,6 +707,9 @@ class MainWindow(QMainWindow):
         self.lbl_summary = QLabel("就绪")
         self.lbl_summary.setObjectName("statusLine")
         self.lbl_summary.setWordWrap(True)
+        self.btn_choose_mode = QPushButton("切换运行方式")
+        self.btn_choose_mode.clicked.connect(self._show_mode_choice)
+        foot.addWidget(self.btn_choose_mode)
         foot.addWidget(self.lbl_summary, 1)
         self.lbl_precheck = QLabel("预检 ●")
         self.lbl_precheck.setObjectName("precheckLamp")
@@ -776,20 +763,20 @@ class MainWindow(QMainWindow):
         return box, lay
 
     def _build_normal_farm_page(self, lay: QVBoxLayout) -> None:
-        run_box, run_lay = self._section("① 运行配置", "关卡难度 ≠ 运行方式；局数 0=手动停")
+        run_box, run_lay = self._section("运行", "先选主线与关卡；默认刷完票")
         core = QGroupBox("运行")
         core_layout = QVBoxLayout(core)
         stage_row = QHBoxLayout()
-        stage_row.addWidget(QLabel("关卡"))
+        stage_row.addWidget(QLabel("主线"))
         self.cmb_chapter = QComboBox()
         self.cmb_chapter.setObjectName("stageChapter")
-        for chapter, count, label in MAINLINE_STAGES:
-            self.cmb_chapter.addItem(f"{label}（{count}关）", chapter)
+        for chapter, _count, label in MAINLINE_STAGES:
+            self.cmb_chapter.addItem(MAINLINE_DISPLAY.get(chapter, label), chapter)
         self.cmb_stage = QComboBox()
         self.cmb_stage.setObjectName("stageIndex")
         self.txt_stage_target = QLineEdit("1-10")
         self.txt_stage_target.setObjectName("stageTarget")
-        self.txt_stage_target.setMaximumWidth(72)
+        self.txt_stage_target.setVisible(False)
         self.txt_stage_target.setToolTip("由主线/关卡下拉生成，也可手改已开放的关")
         self._filling_stage = False
         self._refill_stage_combo(keep_stage=10)
@@ -797,23 +784,21 @@ class MainWindow(QMainWindow):
         self.cmb_stage.currentIndexChanged.connect(self._on_stage_combo_changed)
         self.txt_stage_target.textChanged.connect(self._on_stage_target_edited)
         stage_row.addWidget(self.cmb_chapter)
+        stage_row.addWidget(QLabel("关卡"))
         stage_row.addWidget(self.cmb_stage)
-        stage_row.addWidget(self.txt_stage_target)
-        stage_row.addWidget(QLabel("关卡难度"))
         self.cmb_mode = QComboBox()
         self.cmb_mode.addItem("普通", False)
         self.cmb_mode.addItem("英雄", True)
-        self.cmb_mode.setMinimumWidth(88)
-        stage_row.addWidget(self.cmb_mode)
-        stage_row.addWidget(QLabel("局数"))
+        self.cmb_mode.setVisible(False)
         self.spn_cycle_num = QSpinBox()
         self.spn_cycle_num.setRange(0, 999)
         self.spn_cycle_num.setSpecialValueText("手动停")
         self.spn_cycle_num.setToolTip("0 = 直到手动停止，不画满条")
-        stage_row.addWidget(self.spn_cycle_num)
+        self.spn_cycle_num.setVisible(False)
         stage_row.addStretch()
         core_layout.addLayout(stage_row)
         self.hero_options = QWidget()
+        self.hero_options.setVisible(False)
         hero_row = QHBoxLayout(self.hero_options)
         hero_row.setContentsMargins(0, 0, 0, 0)
         hero_row.addWidget(QLabel("阵营"))
@@ -834,12 +819,20 @@ class MainWindow(QMainWindow):
         self.chk_learn = QCheckBox("学习模式（只观察记录，不实操）")
         self.chk_learn.setObjectName("chkLearn")
         self.chk_dry = self.chk_learn
-        self.chk_secret_realm = QCheckBox("胜利后自动挑战秘境")
+        self.chk_secret_realm = QCheckBox("秘境")
+        self.secret_options = QLabel("已启用秘境：按当前默认路线执行")
+        self.secret_options.setObjectName("hintLabel")
+        self.secret_options.setVisible(False)
+        self.chk_secret_realm.toggled.connect(self.secret_options.setVisible)
         core_layout.addWidget(self.chk_learn)
         core_layout.addWidget(self.chk_secret_realm)
+        core_layout.addWidget(self.secret_options)
         run_lay.addWidget(core)
 
-        room_box = QGroupBox("房间")
+        room_box = QGroupBox("房间设置（默认：游戏结束后在原房间继续）")
+        self.grp_room_settings = room_box
+        room_box.setCheckable(True)
+        room_box.setChecked(False)
         room_layout = QHBoxLayout(room_box)
         self.chk_auto_create_room = QCheckBox("自动创建房间")
         room_layout.addWidget(self.chk_auto_create_room)
@@ -856,6 +849,9 @@ class MainWindow(QMainWindow):
         self.cmb_room_reuse.addItem("复用原房间", False)
         self.cmb_room_reuse.addItem("每局新建房间", True)
         room_layout.addWidget(self.cmb_room_reuse)
+        room_box.toggled.connect(lambda expanded: [child.setVisible(expanded) for child in room_box.findChildren(QWidget) if child is not room_box])
+        for child in room_box.findChildren(QWidget):
+            child.setVisible(False)
         run_lay.addWidget(room_box)
         lab_hint = QLabel(
             "测试夹 bat 会读这份保存。改完等自动保存（约 1 秒）再双击 bat。不要同时开 LIVE。"
@@ -884,7 +880,7 @@ class MainWindow(QMainWindow):
         self.btn_apply_build = QPushButton("应用流派")
         self.btn_apply_build.clicked.connect(self._on_apply_build_clicked)
         combo_row.addWidget(self.btn_apply_build)
-        self.btn_save_custom = QPushButton("保存自定义组合")
+        self.btn_save_custom = QPushButton("自定义搭配…")
         self.btn_save_custom.clicked.connect(self._on_save_custom_build)
         combo_row.addWidget(self.btn_save_custom)
         skill_lay.addLayout(combo_row)
@@ -893,13 +889,14 @@ class MainWindow(QMainWindow):
         skill_lay.addWidget(adj)
         self.grp_skill = QGroupBox("技能")
         self.grp_skill.setCheckable(True)
-        self.grp_skill.setChecked(True)
+        self.grp_skill.setChecked(False)
         sl = QVBoxLayout(self.grp_skill)
         self.skill_grid = SkillCardGrid(SKILL_STEMS, SKILL_LABELS)
         sl.addWidget(self.skill_grid)
         self.skill_grid.setVisible(True)
         self.grp_skill.toggled.connect(self._set_skill_panel_expanded)
         self.skill_grid.skills_changed.connect(self._on_skills_changed)
+        self.skill_grid.setVisible(False)
         skill_lay.addWidget(self.grp_skill)
         self.grp_archive = QGroupBox("技能存档等级（未填=未知）")
         self.grp_archive.setCheckable(True)
@@ -913,23 +910,17 @@ class MainWindow(QMainWindow):
         skill_lay.addWidget(self.grp_archive)
         lay.addWidget(skill_box)
 
-        bond_box, bond_lay = self._section("③ 羁绊", "基础卡组可勾/反选；属性线只选一行；刀刀/异火/大圣是高级卡组")
+        bond_box, bond_lay = self._section("羁绊", "基础卡组默认生效；需要时再调整")
         route_row = QHBoxLayout()
         route_row.addWidget(QLabel("属性线"))
-        self.route_group = QButtonGroup(self)
-        self.route_buttons: dict[str, QRadioButton] = {}
+        self.route_buttons: dict[str, QCheckBox] = {}
         for row in ATTR_LINE_OPTIONS:
             rid = str(row.get("id") or "")
-            btn = QRadioButton(str(row.get("label") or rid))
-            self.route_group.addButton(btn)
+            btn = QCheckBox(str(row.get("label") or rid))
             self.route_buttons[rid] = btn
+            btn.toggled.connect(self._on_attr_route_clicked)
             route_row.addWidget(btn)
-        if "intelligence" in self.route_buttons:
-            self.route_buttons["intelligence"].setChecked(True)
-        elif self.route_buttons:
-            next(iter(self.route_buttons.values())).setChecked(True)
-        self.route_group.buttonClicked.connect(self._on_attr_route_clicked)
-        route_note = QLabel("智力 / 力量 / 敏捷汇总成一行，不展开链上各环。")
+        route_note = QLabel("属性线可多选。")
         route_note.setObjectName("hintLabel")
         route_row.addWidget(route_note)
         route_row.addStretch()
@@ -944,7 +935,14 @@ class MainWindow(QMainWindow):
         self._bond_plan_boxes: dict[str, QCheckBox] = {}
         self._advanced_pack_boxes: dict[str, QCheckBox] = {}
         self._rebuild_bond_plan()
-        bond_lay.addWidget(self.bond_plan_host)
+        self.grp_bond_basic = QGroupBox("基础卡组（默认已启用；点击调整）")
+        self.grp_bond_basic.setCheckable(True)
+        self.grp_bond_basic.setChecked(False)
+        basic_lay = QVBoxLayout(self.grp_bond_basic)
+        basic_lay.addWidget(self.bond_plan_host)
+        self.grp_bond_basic.toggled.connect(self.bond_plan_host.setVisible)
+        self.bond_plan_host.setVisible(False)
+        bond_lay.addWidget(self.grp_bond_basic)
         self.grp_bond = QGroupBox("羁绊")
         self.grp_bond.setCheckable(True)
         self.grp_bond.setChecked(False)
@@ -957,16 +955,19 @@ class MainWindow(QMainWindow):
         bond_lay.addWidget(self.grp_bond)
         lay.addWidget(bond_box)
 
-        loot_box, loot_lay = self._section("④ 宝物与资源", "EX 四宝策略必拿；负面宝物默认全不放行")
-        loot_lay.addWidget(self._build_must_take_row())
+        loot_box, loot_lay = self._section("宝物与资源", "特殊宝物默认全不放行")
         self.grp_negative = NegativeTreasureGroup(NEGATIVE_TREASURES)
         self.grp_negative.changed.connect(self._on_negative_changed)
         loot_lay.addWidget(self.grp_negative)
 
-        gamble = QLabel("赌木（待接线）：auto_gambling_time 未进状态机；闭环属「赌木」运行方式，不可启动。")
+        gamble = QLabel("赌木（待验证 · 不可启动）")
         gamble.setObjectName("warnHint")
         gamble.setWordWrap(True)
-        loot_lay.addWidget(gamble)
+        self.grp_gambling_mode = QGroupBox("高级模式 · 赌木")
+        self.grp_gambling_mode.setCheckable(True)
+        self.grp_gambling_mode.setChecked(False)
+        gamble_lay = QVBoxLayout(self.grp_gambling_mode)
+        gamble_lay.addWidget(gamble)
         g_row = QHBoxLayout()
         g_row.addWidget(QLabel("第几个宝物"))
         self.spn_treasure_num = QSpinBox()
@@ -977,7 +978,11 @@ class MainWindow(QMainWindow):
         self.spn_gambling_time.setRange(0, 3600)
         g_row.addWidget(self.spn_gambling_time)
         g_row.addStretch()
-        loot_lay.addLayout(g_row)
+        gamble_lay.addLayout(g_row)
+        self.grp_gambling_mode.toggled.connect(lambda expanded: [child.setVisible(expanded) for child in self.grp_gambling_mode.findChildren(QWidget) if child is not self.grp_gambling_mode])
+        for child in self.grp_gambling_mode.findChildren(QWidget):
+            child.setVisible(False)
+        lay.addWidget(self.grp_gambling_mode)
 
         ball = QLabel("龙珠（待验证）：LONGZHU 链 Fail-Closed，开关可展示但真机链未通。")
         ball.setObjectName("warnHint")
@@ -1001,25 +1006,6 @@ class MainWindow(QMainWindow):
         pill.setWordWrap(True)
         loot_lay.addWidget(pill)
 
-        wood = QLabel("木材阈值（待接线 · 置灰）：<100 不开 F / <40 不刷新。由逻辑库板块接线。")
-        wood.setObjectName("warnHint")
-        wood.setWordWrap(True)
-        loot_lay.addWidget(wood)
-        w_row = QHBoxLayout()
-        w_row.addWidget(QLabel("不开 F"))
-        self.spn_wood_open_f = QSpinBox()
-        self.spn_wood_open_f.setRange(0, 999)
-        self.spn_wood_open_f.setValue(100)
-        self.spn_wood_open_f.setEnabled(False)
-        w_row.addWidget(self.spn_wood_open_f)
-        w_row.addWidget(QLabel("不刷新"))
-        self.spn_wood_refresh = QSpinBox()
-        self.spn_wood_refresh.setRange(0, 999)
-        self.spn_wood_refresh.setValue(40)
-        self.spn_wood_refresh.setEnabled(False)
-        w_row.addWidget(self.spn_wood_refresh)
-        w_row.addStretch()
-        loot_lay.addLayout(w_row)
         lay.addWidget(loot_box)
 
         self.grp_details = QGroupBox("运行日志")
@@ -1165,6 +1151,9 @@ class MainWindow(QMainWindow):
     def _build_follow_page(self, lay: QVBoxLayout) -> None:
         box = QGroupBox("跟车（待验证 · 不可启动）")
         bl = QVBoxLayout(box)
+        switch = QPushButton("改为大厅找房蹭车")
+        switch.clicked.connect(lambda: self._select_mode("lobby_hitch"))
+        bl.addWidget(switch)
         for text in (
             "跟车不建房、不点开始游戏。已在房等队长。",
             "F1 = 操作切回自身英雄（防 G/V/F 无法操作）。",
@@ -1211,6 +1200,9 @@ class MainWindow(QMainWindow):
     def _build_hitch_page(self, lay: QVBoxLayout) -> None:
         box = QGroupBox("大厅找房蹭车（待验证 · 不可启动）")
         bl = QVBoxLayout(box)
+        switch = QPushButton("我已在房间，改为跟车")
+        switch.clicked.connect(lambda: self._select_mode("follow_team"))
+        bl.addWidget(switch)
         for text in (
             "只认 准备 / 已准备 / 取消准备。特殊房无「锁定」按钮；金/蓝两套只是颜色不同，识别以文字为主锚。",
             "F1 = 操作切回自身英雄。F2 = 回基地。",
@@ -1350,10 +1342,7 @@ class MainWindow(QMainWindow):
         self._schedule_auto_save()
 
     def _on_attr_route_clicked(self) -> None:
-        for rid, btn in self.route_buttons.items():
-            if btn.isChecked():
-                self._shell_extras["attr_route"] = rid
-                break
+        self._shell_extras["attr_route"] = [rid for rid, btn in self.route_buttons.items() if btn.isChecked()]
         self._schedule_auto_save()
 
     def _select_all_basic_pack(self) -> None:
@@ -1389,16 +1378,17 @@ class MainWindow(QMainWindow):
         self._schedule_auto_save()
 
     def _attr_line_tokens(self) -> list[str]:
-        route_id = str(self._shell_extras.get("attr_route") or "intelligence")
-        row = next((item for item in ATTR_LINE_OPTIONS if item.get("id") == route_id), None)
-        if row is None and ATTR_LINE_OPTIONS:
-            row = ATTR_LINE_OPTIONS[0]
         tokens: list[str] = []
-        for name in ((row or {}).get("gate"), (row or {}).get("ur")):
-            text = str(name or "").strip()
-            if not text:
+        selected = self._shell_extras.get("attr_route") or []
+        if isinstance(selected, str):
+            selected = [selected]
+        for row in ATTR_LINE_OPTIONS:
+            if row.get("id") not in selected:
                 continue
-            tokens.append(code_for_bond_name(text) or text)
+            for name in (row.get("gate"), row.get("ur")):
+                text = str(name or "").strip()
+                if text:
+                    tokens.append(code_for_bond_name(text) or text)
         return tokens
 
     def _advanced_pack_tokens(self) -> list[str]:
@@ -1531,22 +1521,25 @@ class MainWindow(QMainWindow):
         self._shell_extras["selected_mode_id"] = mode_id
         idx = self._page_index.get(mode_id, 0)
         self.right_stack.setCurrentIndex(idx)
-        for control in (self.btn_solo_mode, self.btn_hitch_mode, self.cmb_hitch_mode, self.cmb_more_modes):
+        for control in (self.btn_solo_mode, self.btn_hitch_mode):
             control.blockSignals(True)
         try:
             self.btn_solo_mode.setChecked(mode_id == "normal_farm")
             self.btn_hitch_mode.setChecked(mode_id in {"lobby_hitch", "follow_team"})
-            if mode_id in {"lobby_hitch", "follow_team"}:
-                self.cmb_hitch_mode.setCurrentIndex(self.cmb_hitch_mode.findData(mode_id))
-                self.cmb_more_modes.setCurrentIndex(0)
-            elif mode_id in {"gambling_wood", "raid_wait", "lab"}:
-                self.cmb_more_modes.setCurrentIndex(self.cmb_more_modes.findData(mode_id))
-            else:
-                self.cmb_more_modes.setCurrentIndex(0)
         finally:
-            for control in (self.btn_solo_mode, self.btn_hitch_mode, self.cmb_hitch_mode, self.cmb_more_modes):
+            for control in (self.btn_solo_mode, self.btn_hitch_mode):
                 control.blockSignals(False)
+        self.mode_box.setVisible(False)
+        self.right_stack.setVisible(True)
+        self.footer.setVisible(True)
         self._refresh_chrome()
+
+    def _show_mode_choice(self) -> None:
+        self.mode_box.setVisible(True)
+        self.right_stack.setVisible(False)
+        self.footer.setVisible(False)
+        self.btn_solo_mode.setEnabled(True)
+        self.btn_hitch_mode.setEnabled(True)
 
     def _is_running(self) -> bool:
         return bool(self.worker_thread and self.worker_thread.isRunning())
@@ -1556,7 +1549,7 @@ class MainWindow(QMainWindow):
             return
         spec = get_spec(self.selected_mode_id())
         running = self._is_running()
-        for control in (self.btn_solo_mode, self.btn_hitch_mode, self.cmb_hitch_mode, self.cmb_more_modes):
+        for control in (self.btn_solo_mode, self.btn_hitch_mode):
             control.setEnabled(not running)
         self.btn_main.setText(start_button_text(spec, running=running))
         can = desktop_may_start(spec.id) or running
@@ -1611,7 +1604,7 @@ class MainWindow(QMainWindow):
         self._refresh_progress()
 
     def _update_hero_visibility(self):
-        self.hero_options.setVisible(bool(self.cmb_mode.currentData()))
+        self.hero_options.setVisible(False)
         self._refresh_chrome()
 
     def _refresh_skill_title(self):
@@ -1816,9 +1809,11 @@ class MainWindow(QMainWindow):
         rep_index = self.cmb_reputation.findData(rep_type)
         self.cmb_reputation.setCurrentIndex(rep_index if rep_index >= 0 else 0)
         self.spn_reputation_level.setValue(max(1, min(5, int(getattr(settings, "reputation_level", 1) or 1))))
-        route = str(self._shell_extras.get("attr_route") or "intelligence")
-        if route in self.route_buttons:
-            self.route_buttons[route].setChecked(True)
+        routes = self._shell_extras.get("attr_route") or []
+        if isinstance(routes, str):
+            routes = [routes]
+        for route, button in self.route_buttons.items():
+            button.setChecked(route in routes)
         enabled = set(self._shell_extras.get("advanced_packs") or [])
         for pack_id, box in self._advanced_pack_boxes.items():
             box.blockSignals(True)

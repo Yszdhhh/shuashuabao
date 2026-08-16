@@ -227,7 +227,7 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertTrue(saved["new_room_every_times"])
         self.assertEqual("test-room", saved["room_name"])
 
-    def test_hero_mode_maps_faction_and_difficulty(self):
+    def test_hero_settings_remain_hidden_from_streamlined_stage_picker(self):
         self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(True))
         self.window.cmb_reputation.setCurrentIndex(
             self.window.cmb_reputation.findData(3)
@@ -239,7 +239,7 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual(3, settings.reputation_type)
         self.assertEqual(5, settings.reputation_level)
         self.assertEqual(5, self.window.spn_reputation_level.maximum())
-        self.assertFalse(self.window.hero_options.isHidden())
+        self.assertTrue(self.window.hero_options.isHidden())
 
     def test_reputation_combo_exposes_all_six_factions(self):
         """六大声望阵营都应可选（mediator 侧的门控是另一回事）。"""
@@ -346,12 +346,14 @@ class DesktopPanelTests(unittest.TestCase):
             raw = (group / "metadata.json").read_text(encoding="utf-8")
             self.assertNotIn("top-secret-pw", raw, "密码不得归档")
 
-    def test_run_mode_and_stage_difficulty_are_not_mixed(self):
+    def test_streamlined_stage_picker_hides_difficulty_and_raw_target(self):
         text = self._panel_text()
-        self.assertIn("运行方式", text)
-        self.assertIn("关卡难度", text)
-        self.assertEqual("普通", self.window.cmb_mode.itemText(0))
-        self.assertEqual("英雄", self.window.cmb_mode.itemText(1))
+        self.assertIn("先选运行方式", text)
+        self.assertTrue(self.window.cmb_mode.isHidden())
+        self.assertTrue(self.window.txt_stage_target.isHidden())
+        chapters = [self.window.cmb_chapter.itemText(i) for i in range(self.window.cmb_chapter.count())]
+        self.assertEqual(["旧世界大陆（一阶段）", "熔火之心（二阶段）", "黑翼之潮（三阶段）", "安琪拉（四阶段）"], chapters)
+        self.assertNotIn("多少关", "\n".join(chapters))
 
     def test_start_button_lives_on_pinned_footer(self):
         self.assertTrue(self.window.footer.isAncestorOf(self.window.btn_main))
@@ -453,13 +455,12 @@ class DesktopPanelTests(unittest.TestCase):
         after = self.window.assemble_whitelist_cards()
         self.assertNotIn("zhufu", after)
 
-    def test_treasure_and_wood_controls_are_labeled_or_disabled(self):
+    def test_resource_page_hides_backend_must_take_and_wood_thresholds(self):
         text = self._panel_text()
-        self.assertIn("待接线", text)
         self.assertIn("待验证", text)
-        self.assertIn("策略必拿", text)
-        self.assertFalse(self.window.spn_wood_open_f.isEnabled())
-        self.assertFalse(self.window.spn_wood_refresh.isEnabled())
+        self.assertNotIn("策略必拿", text)
+        self.assertNotIn("不开 F", text)
+        self.assertNotIn("不刷新", text)
         self.assertFalse(self.window.txt_hitch_exact.isEnabled())
         self.assertIn("后续拓展", self.window.txt_hitch_exact.placeholderText())
 
@@ -610,14 +611,31 @@ class DesktopPanelTests(unittest.TestCase):
         finally:
             restored.close()
 
-    def test_compact_mode_controls_keep_current_text_visible_at_minimum_size(self):
-        self.window.resize(640, 500)
+    def test_mode_choice_is_two_large_entries_without_top_switching(self):
+        self.window.resize(720, 600)
         self.window.show()
         self.app.processEvents()
-        for combo in (self.window.cmb_hitch_mode, self.window.cmb_more_modes):
-            with self.subTest(combo=combo.objectName() or combo.currentText()):
-                required = combo.fontMetrics().horizontalAdvance(combo.currentText()) + 36
-                self.assertGreaterEqual(combo.width(), required)
+        self.assertTrue(self.window.mode_box.isVisible())
+        self.assertFalse(self.window.right_stack.isVisible())
+        self.assertGreaterEqual(self.window.btn_solo_mode.width(), 300)
+        self.assertGreaterEqual(self.window.btn_hitch_mode.width(), 300)
+        self.window.btn_solo_mode.click()
+        self.assertFalse(self.window.mode_box.isVisible())
+        self.assertTrue(self.window.right_stack.isVisible())
+
+    def test_solo_hides_room_by_default_and_supports_secret_and_multi_attr_lines(self):
+        self.window._select_mode("normal_farm")
+        self.assertFalse(self.window.grp_room_settings.isChecked())
+        self.assertFalse(self.window.grp_bond_basic.isChecked())
+        self.assertFalse(self.window.chk_secret_realm.isChecked())
+        self.assertTrue(self.window.secret_options.isHidden())
+        self.window.chk_secret_realm.setChecked(True)
+        self.assertFalse(self.window.secret_options.isHidden())
+        self.window.route_buttons["intelligence"].setChecked(True)
+        self.window.route_buttons["strength"].setChecked(True)
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertIn("zhili", cards)
+        self.assertIn("liliang", cards)
 
     def test_test_profile_export_is_atomic(self):
         with tempfile.TemporaryDirectory() as tmp:
