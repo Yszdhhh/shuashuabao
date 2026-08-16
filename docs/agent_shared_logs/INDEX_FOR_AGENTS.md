@@ -5,6 +5,11 @@
 >
 > **提交前必过：** `python tools/release_gate.py`（退出码 0）。细则见 [`docs/CONTRIBUTING_GATE.md`](../CONTRIBUTING_GATE.md)。
 
+## 当前进度（2026-08-14）
+
+- **板块 3 逻辑库：** 总索引 [`docs/research/GAME_LOGIC_LIBRARY_INDEX_20260814.md`](../research/GAME_LOGIC_LIBRARY_INDEX_20260814.md)。**刷新必须分账**：羁绊=木头，黑商=杀敌（180s 免费 1 次），宝物/技能/英雄卡=词条或局外卡次数。F1/F2 已入库。F4 / 压力转移分情况解禁。`-zs` 仍禁。均未接线。
+- **板块 4 画像绑定（只读）：** 不选不抓。`--bind` 才写 `first_login`。人点顶栏存档：装备战力/强化 + 技能 16 系。TAB 只认刚入局默认盘（装备堆叠），打一半不当画像。夹具 `fixtures/player_profile_20260814/`。`11-画像绑定.bat`。不代点、不写 config。P2 看板未做。
+
 ## 一句话问题
 
 原始投诉是用户开着脚本站在**游戏房间/大厅**，脚本**不点「开始游戏」**，一直空转；

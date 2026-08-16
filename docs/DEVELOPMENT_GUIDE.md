@@ -20,7 +20,7 @@
 
 1. **克隆仓库并进入根目录**：
    ```powershell
-   cd "C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local"
+   cd "G:\刷刷宝\GameScript-Local"
    ```
 
 2. **创建虚拟环境**：

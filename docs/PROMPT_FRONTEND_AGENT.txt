@@ -16,7 +16,7 @@
 魔兽题材挂机助手本地版。官方是 WPF exe（不可直接套用界面）。本仓库已恢复配置模型、模板库、Mediator 状态机。用户要「按现有字段自己设计控制面板」，范围仅「自己刷图」。
 
 ## 2. 工程根目录
-C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\
+G:\刷刷宝\GameScript-Local\
 
 必读：
 - docs/HANDOFF_FRONTEND_CONTROL_PANEL.md（完整版交接）

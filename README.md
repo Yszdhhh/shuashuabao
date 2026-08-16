@@ -11,7 +11,7 @@
 ## 🚀 快速启动控制面板
 
 ```powershell
-cd "C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local"
+cd "G:\刷刷宝\GameScript-Local"
 pip install -r requirements.txt
 
 # 方式 1：双击或在命令行运行启动脚本

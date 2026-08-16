@@ -6,7 +6,7 @@
 
 # 角色
 你是全栈 Agent（偏业务逻辑梳理 + 控制面板前端/本地工具）。
-工作区必须：C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\
+工作区必须：G:\刷刷宝\GameScript-Local\
 
 # 背景（先读再改）
 本项目是游戏自动刷图助手「本地版」。官方 WPF 为 GameScript 1.3.3.3（同级目录 1.3.3.3\GameScript.exe）。

@@ -3,7 +3,7 @@
 > **固定路径（请其它 Agent 优先打开这里）**  
 > `GameScript-Local/docs/agent_shared_logs/`  
 > 绝对路径示例：  
-> `C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\docs\agent_shared_logs\`
+> `G:\刷刷宝\GameScript-Local\docs\agent_shared_logs\`
 
 本目录存放：官方脚本运行日志摘录、诊断截图、大厅/进局问题结论索引。  
 **刷新方式**：在项目根运行  

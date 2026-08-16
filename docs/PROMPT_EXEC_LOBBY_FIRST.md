@@ -1,7 +1,7 @@
 # 执行 Agent 提示词 · 优先解决「大厅/房间进不去」
 
 > **用法**：把本文从「# 角色与任务」到文末整段复制给执行 Agent。  
-> **工作区**：`C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\`  
+> **工作区**：`G:\刷刷宝\GameScript-Local\`
 > **优先级**：先打通 **L0 大厅/房间 → 进入游戏**；局内选卡/龙珠/面板美化一律后置。
 
 ---
@@ -59,7 +59,7 @@
 刷新日志（若用户刚跑过官方）：
 
 ```powershell
-cd "C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local"
+cd "G:\刷刷宝\GameScript-Local"
 powershell -File tools\export_agent_logs.ps1
 ```
 
