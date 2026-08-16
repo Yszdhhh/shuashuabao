@@ -30,6 +30,7 @@ import desktop_app  # noqa: E402
 from gamescript.mediator import Mediator as RealMediator  # noqa: E402
 from gamescript.mediator import Phase  # noqa: E402
 from gamescript.settings import Settings  # noqa: E402
+from gamescript.shell import main_window as shell_window  # noqa: E402
 from gamescript.shell.test_profiles import (  # noqa: E402
     TestProfileError,
     export_profile,
@@ -531,6 +532,101 @@ class DesktopPanelTests(unittest.TestCase):
         document["settings"] = {"stage_targets": ["1-12"]}
         with self.assertRaises(TestProfileError):
             validate_profile_document(document)
+
+    def test_test_profiles_reject_invalid_stage_and_numeric_ranges(self):
+        base = {
+            "schema_version": 1,
+            "name": "bad",
+            "mode_id": "normal_farm",
+            "settings": {"stage_targets": ["1-12"]},
+        }
+        for targets in ([], ["1-12", "1-13"], [""], ["garbage"], ["1-x"], ["0-1"], ["1-24"], ["5-1"]):
+            with self.subTest(targets=targets):
+                document = json.loads(json.dumps(base))
+                document["settings"]["stage_targets"] = targets
+                with self.assertRaises(TestProfileError):
+                    validate_profile_document(document)
+        for key, value in (("cycle_num", -1), ("cycle_num", 1000), ("reputation_type", 0), ("reputation_type", 7), ("reputation_level", 0), ("reputation_level", 6)):
+            with self.subTest(key=key, value=value):
+                document = json.loads(json.dumps(base))
+                document["settings"][key] = value
+                with self.assertRaises(TestProfileError):
+                    validate_profile_document(document)
+
+    def test_invalid_profile_does_not_change_ui_learning_or_runner(self):
+        self.window.chk_learn.setChecked(True)
+        before = self.window.collect_settings_from_ui()
+        invalid = {
+            "schema_version": 1,
+            "name": "bad",
+            "mode_id": "normal_farm",
+            "settings": {"stage_targets": ["1-12", "1-13"]},
+        }
+        with patch.object(desktop_app.QMessageBox, "warning"):
+            self.assertFalse(self.window._apply_test_profile_document(invalid, confirm=False))
+        after = self.window.collect_settings_from_ui()
+        self.assertEqual(before.stage_targets, after.stage_targets)
+        self.assertTrue(after.dry_run)
+        self.assertIsNone(self.window.worker_thread)
+
+    def test_missing_corrupt_or_invalid_builtin_profiles_keep_window_available(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cases = {
+                "missing": root / "missing.json",
+                "corrupt": root / "corrupt.json",
+                "invalid": root / "invalid.json",
+            }
+            cases["corrupt"].write_text("{", encoding="utf-8")
+            cases["invalid"].write_text('{"profiles":[{"schema_version":1}]}', encoding="utf-8")
+            for name, profile_path in cases.items():
+                with self.subTest(name=name), patch.object(shell_window, "TEST_PROFILES_PATH", profile_path):
+                    window = desktop_app.MainWindow(app_data=root / name)
+                    try:
+                        self.assertFalse(window.btn_apply_test_profile.isEnabled())
+                        self.assertIn("内置方案不可用", window.cmb_test_profile.itemText(1))
+                    finally:
+                        window.close()
+
+    def test_saved_follow_team_mode_restores_and_remains_disabled(self):
+        self.window._select_mode("follow_team")
+        self.window._on_save_settings_clicked()
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual("follow_team", restored.selected_mode_id())
+            self.assertFalse(restored.btn_main.isEnabled())
+            self.assertEqual("待验证 · 不可启动", restored.btn_main.text())
+        finally:
+            restored.close()
+
+    def test_invalid_saved_mode_falls_back_to_normal_farm(self):
+        self.window.user_settings_path().write_text(
+            json.dumps({"stage_targets": ["1-12"], "_shell": {"selected_mode_id": "not-a-mode"}}),
+            encoding="utf-8",
+        )
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual("normal_farm", restored.selected_mode_id())
+        finally:
+            restored.close()
+
+    def test_compact_mode_controls_keep_current_text_visible_at_minimum_size(self):
+        self.window.resize(640, 500)
+        self.window.show()
+        self.app.processEvents()
+        for combo in (self.window.cmb_hitch_mode, self.window.cmb_more_modes):
+            with self.subTest(combo=combo.objectName() or combo.currentText()):
+                required = combo.fontMetrics().horizontalAdvance(combo.currentText()) + 36
+                self.assertGreaterEqual(combo.width(), required)
+
+    def test_test_profile_export_is_atomic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "profile.json"
+            with patch.object(shell_window.QFileDialog, "getSaveFileName", return_value=(str(path), "JSON 文件 (*.json)")):
+                self.window._on_export_test_profile()
+            self.assertTrue(path.is_file())
+            self.assertFalse(path.with_suffix(path.suffix + ".tmp").exists())
+            self.assertNotIn("room_password", path.read_text(encoding="utf-8"))
 
     def test_profile_export_and_logs_do_not_contain_room_password(self):
         self.window.txt_room_password.setText("top-secret-pw")

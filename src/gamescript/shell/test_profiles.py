@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ PROFILE_SETTING_FIELDS = frozenset(
     }
 )
 PROFILE_ROOT_FIELDS = frozenset({"schema_version", "name", "mode_id", "settings"})
+MAINLINE_STAGE_MAX = {1: 23, 2: 7, 3: 9, 4: 3}
 
 
 class TestProfileError(ValueError):
@@ -54,17 +56,24 @@ def validate_profile_document(document: Any) -> dict[str, Any]:
     unknown_settings = set(settings) - PROFILE_SETTING_FIELDS
     _require(not unknown_settings, f"测试配置含禁止或未知 settings 字段：{', '.join(sorted(unknown_settings))}")
     _require("stage_targets" in settings, "测试配置必须指定 stage_targets")
-    _require(
-        isinstance(settings["stage_targets"], list)
-        and all(isinstance(item, str) and item.strip() for item in settings["stage_targets"]),
-        "stage_targets 必须是非空字符串数组",
-    )
+    targets = settings["stage_targets"]
+    _require(isinstance(targets, list) and len(targets) == 1 and isinstance(targets[0], str), "stage_targets 必须恰好含一个关卡")
+    match = re.fullmatch(r"([1-9]\d*)-([1-9]\d*)", targets[0])
+    _require(match is not None, "stage_targets 必须是“章节-关卡”正整数格式")
+    chapter, stage = (int(value) for value in match.groups())
+    _require(chapter in MAINLINE_STAGE_MAX and stage <= MAINLINE_STAGE_MAX[chapter], "stage_targets 不在当前主线范围内")
     for key in ("auto_create_room", "new_room_every_times", "auto_reputation", "auto_secret_realm"):
         if key in settings:
             _require(isinstance(settings[key], bool), f"{key} 必须是布尔值")
     for key in ("cycle_num", "reputation_type", "reputation_level"):
         if key in settings:
             _require(isinstance(settings[key], int) and not isinstance(settings[key], bool), f"{key} 必须是整数")
+    if "cycle_num" in settings:
+        _require(0 <= settings["cycle_num"] <= 999, "cycle_num 必须在 0..999")
+    if "reputation_type" in settings:
+        _require(1 <= settings["reputation_type"] <= 6, "reputation_type 必须在 1..6")
+    if "reputation_level" in settings:
+        _require(1 <= settings["reputation_level"] <= 5, "reputation_level 必须在 1..5")
     for key in ("room_name",):
         if key in settings:
             _require(isinstance(settings[key], str), f"{key} 必须是字符串")
@@ -87,10 +96,7 @@ def apply_profile(settings: Settings, document: Any) -> Settings:
         setattr(updated, key, copy.deepcopy(value))
     # stage1/stage2 are legacy fields; retain the UI's existing parsing quirk.
     first = updated.stage_targets[0]
-    try:
-        updated.stage1, updated.stage2 = (int(part) for part in first.split("-", 1))
-    except (TypeError, ValueError):
-        pass
+    updated.stage1 = updated.stage2 = int(first.split("-", 1)[1])
     return updated
 
 

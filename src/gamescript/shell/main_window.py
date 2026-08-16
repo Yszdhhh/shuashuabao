@@ -665,32 +665,38 @@ class MainWindow(QMainWindow):
         body.setSpacing(10)
 
         mode_box = QGroupBox("运行方式")
-        mode_layout = QHBoxLayout(mode_box)
-        left_cap = QLabel("运行方式")
-        left_cap.setObjectName("sectionCap")
-        mode_layout.addWidget(left_cap)
+        mode_layout = QVBoxLayout(mode_box)
+        primary_row = QHBoxLayout()
         self.primary_mode_group = QButtonGroup(self)
         self.btn_solo_mode = QPushButton("单人刷图")
         self.btn_hitch_mode = QPushButton("蹭车 / 跟车")
         for button in (self.btn_solo_mode, self.btn_hitch_mode):
             button.setCheckable(True)
             button.setMinimumHeight(42)
-            button.setMinimumWidth(154)
+            button.setMinimumWidth(250)
             self.primary_mode_group.addButton(button)
-            mode_layout.addWidget(button)
+            primary_row.addWidget(button, 1)
         self.primary_mode_group.setExclusive(False)
+        mode_layout.addLayout(primary_row)
+
+        secondary_row = QHBoxLayout()
+        secondary_row.addWidget(QLabel("蹭车方式"))
         self.cmb_hitch_mode = QComboBox()
         self.cmb_hitch_mode.addItem("大厅找房蹭车 · 待验证", "lobby_hitch")
         self.cmb_hitch_mode.addItem("已在房间跟车 · 待验证", "follow_team")
         self.cmb_hitch_mode.setMinimumHeight(38)
-        mode_layout.addWidget(self.cmb_hitch_mode, 1)
+        self.cmb_hitch_mode.setMinimumWidth(max(self.cmb_hitch_mode.fontMetrics().horizontalAdvance(self.cmb_hitch_mode.itemText(i)) for i in range(self.cmb_hitch_mode.count())) + 36)
+        secondary_row.addWidget(self.cmb_hitch_mode, 1)
+        secondary_row.addWidget(QLabel("更多模式"))
         self.cmb_more_modes = QComboBox()
         self.cmb_more_modes.addItem("更多模式", "")
         for mode_id in ("gambling_wood", "raid_wait", "lab"):
             spec = get_spec(mode_id)
             self.cmb_more_modes.addItem(f"{spec.label} · {badge_text(spec)}", mode_id)
         self.cmb_more_modes.setMinimumHeight(38)
-        mode_layout.addWidget(self.cmb_more_modes)
+        self.cmb_more_modes.setMinimumWidth(max(self.cmb_more_modes.fontMetrics().horizontalAdvance(self.cmb_more_modes.itemText(i)) for i in range(self.cmb_more_modes.count())) + 36)
+        secondary_row.addWidget(self.cmb_more_modes, 1)
+        mode_layout.addLayout(secondary_row)
         self.btn_solo_mode.clicked.connect(lambda: self._select_mode("normal_farm"))
         self.btn_hitch_mode.clicked.connect(lambda: self._select_mode(str(self.cmb_hitch_mode.currentData())))
         self.cmb_hitch_mode.currentIndexChanged.connect(
@@ -1072,14 +1078,17 @@ class MainWindow(QMainWindow):
         self.cmb_test_profile.addItem("选择内置方案", None)
         try:
             self._test_profiles = load_test_profiles(TEST_PROFILES_PATH)
-        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            profiles_available = True
+        except (OSError, ValueError, json.JSONDecodeError):
             self._test_profiles = []
-            self.log(f"[测试配置] 内置方案不可用：{exc}", "error")
+            profiles_available = False
+            self.cmb_test_profile.addItem("内置方案不可用", None)
         for profile in self._test_profiles:
             self.cmb_test_profile.addItem(profile["name"], profile)
         row.addWidget(self.cmb_test_profile, 1)
         self.btn_apply_test_profile = QPushButton("查看差异并应用")
         self.btn_apply_test_profile.clicked.connect(self._on_apply_builtin_profile)
+        self.btn_apply_test_profile.setEnabled(profiles_available)
         row.addWidget(self.btn_apply_test_profile)
         self.btn_import_test_profile = QPushButton("导入 JSON")
         self.btn_import_test_profile.clicked.connect(self._on_import_test_profile)
@@ -1144,7 +1153,10 @@ class MainWindow(QMainWindow):
             return
         try:
             document = export_profile(self.collect_settings_from_ui())
-            Path(filename).write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
+            path = Path(filename)
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(path)
         except (OSError, ValueError) as exc:
             QMessageBox.warning(self, "导出测试配置失败", str(exc))
             return
@@ -1757,6 +1769,8 @@ class MainWindow(QMainWindow):
             else:
                 return
             self.apply_settings_to_ui(settings)
+            mode_id = str(self._shell_extras.get("selected_mode_id") or "normal_farm")
+            self._select_mode(mode_id if mode_id in self._page_index else "normal_farm")
             if not silent:
                 self.log(f"[加载] 已载入 {source}")
         except Exception as exc:
