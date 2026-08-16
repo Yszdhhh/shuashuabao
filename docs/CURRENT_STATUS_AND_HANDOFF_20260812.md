@@ -1,5 +1,9 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-16 CORE-02 Infra：选关高亮亮块恢复（U，待 L）
+
+CORE-02 worktree 基线 `6f80f016df8a4efec5c6004fc437f7b1f574dd28` 上，真实夹具 `fixtures/lab13_200601_stage_card/02_q2_stage_select_click2_t1567.0s.jpg` 复现：选中的 1-12 亮边与标签/背景合并为超长亮块，旧 `visible_stage_rows()` 直接丢弃，`selected_stage_row()` 返回 `None`，L0 因 fail-closed 不点开始。`433e7ed` 只在前后关卡形成唯一连续缺口且亮边评分足够时恢复该行；证据不足仍不输入。针对修复的 50 个 L0/过渡测试与 `python tools/release_gate.py`（653 passed，冻结回放/模板/契约通过）为 U 证据；未跑真机，L 结论交 LabVerify。
+
 ## 2026-08-15 02:25 板块 3：海盗+宝藏蓝图入库（未接线）
 
 `haidao_chain`：藏宝图(三)/贪婪/白赚/劫掠者 need=3 已实机；UR 毁灭战舰卡面开池 N三张+重拳先生。黄金猿=装备栏左键开宝藏（user_confirmed，语音黄金元是错字）。禁止自动点装备栏。
