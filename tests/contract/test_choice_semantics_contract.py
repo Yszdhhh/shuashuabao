@@ -32,20 +32,26 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
 from gamescript.choice_policy import (  # noqa: E402
     DEFAULT_QUALITY_ORDER,
+    DEFAULT_TREASURE_MUST_TAKE,
     PANEL_BOND,
     PANEL_SKILL,
     PANEL_TREASURE,
+    SKILL_MODE_ALL_ROUND,
+    SKILL_MODE_HARD,
+    WHITELIST_HARD,
     PanelCandidates,
     PolicyAction,
     PolicySettings,
     SessionState,
     SlotCandidate,
+    assemble_policy_settings,
     choose_action,
     is_negative_treasure,
 )
@@ -53,6 +59,12 @@ from gamescript.choice_policy import (  # noqa: E402
 PICK_ACTIONS = {PolicyAction.SELECT_SLOT}
 NO_PICK_ACTIONS = {PolicyAction.WAIT, PolicyAction.REFRESH,
                    PolicyAction.GIVEUP, PolicyAction.CLOSE}
+
+# 组装测试用的技能短码 → 中文主技能名（与 config/skill_labels.json 同构）。
+SKILL_LABELS = {
+    "jq": "剑气", "pg": "普攻", "asj": "奥数箭",
+    "asjg": "奥术激光", "hbj": "寒冰箭",
+}
 
 
 def _slot(index, name=None, rarity=None, confidence=0.95, description=""):
@@ -345,6 +357,208 @@ class S5DeterminismStillHolds(unittest.TestCase):
         first = choose_action(panel, SessionState())
         for _ in range(20):
             self.assertEqual(choose_action(panel, SessionState()), first)
+
+
+class S6SkillModeHardAllRound(unittest.TestCase):
+    """S6：技能 HARD（≤4 原始勾选，仅焦点）/ ALL_ROUND（5+，目录合法卡，焦点优先）。"""
+
+    @staticmethod
+    def _runtime(skills, **extra):
+        return SimpleNamespace(
+            skills=list(skills), cards=[], treasure_allow_negative=[], **extra
+        )
+
+    def test_assembly_hard_for_zero_to_four_raw_skills(self):
+        for count in range(5):
+            with self.subTest(count=count):
+                ps = assemble_policy_settings(
+                    settings=self._runtime(list(SKILL_LABELS)[:count]),
+                    skill_labels=SKILL_LABELS, fetter_labels={}, policy_doc={},
+                )
+                self.assertEqual(ps.skill_whitelist_mode, SKILL_MODE_HARD)
+
+    def test_assembly_all_round_for_five_raw_skills(self):
+        ps = assemble_policy_settings(
+            settings=self._runtime(list(SKILL_LABELS)[:5]),
+            skill_labels=SKILL_LABELS, fetter_labels={}, policy_doc={},
+        )
+        self.assertEqual(ps.skill_whitelist_mode, SKILL_MODE_ALL_ROUND)
+
+    def test_hard_mode_rejects_non_focus_card(self):
+        """≤4：面板出现目录合法但未勾选系的卡 → 宁可刷新也不拿（硬拒绝）。"""
+        decision = choose_action(_panel(
+            PANEL_SKILL,
+            [_slot(0, "箭矢增幅", rarity="red")],
+            settings=PolicySettings(skill_focus_families=("剑气",)),
+        ), SessionState())
+        self.assertIn(decision.action, NO_PICK_ACTIONS)
+        self.assertIsNone(decision.index)
+
+    def test_all_round_selects_recognized_non_focus_card(self):
+        """5+：目录识别合法的非焦点卡直接选，不再刷新。"""
+        decision = choose_action(_panel(
+            PANEL_SKILL,
+            [_slot(0, "箭矢增幅")],
+            settings=PolicySettings(skill_whitelist_mode="all_round",
+                                    skill_focus_families=("剑气",)),
+        ), SessionState())
+        self.assertEqual((decision.action, decision.index),
+                         (PolicyAction.SELECT_SLOT, 0))
+
+    def test_all_round_focus_family_wins(self):
+        """同品质下焦点系卡优先于非焦点卡（焦点配置顺序优先）。"""
+        decision = choose_action(_panel(
+            PANEL_SKILL,
+            [_slot(0, "箭矢增幅", rarity="white"),
+             _slot(1, "剑气增幅", rarity="white")],
+            settings=PolicySettings(skill_whitelist_mode="all_round",
+                                    skill_focus_families=("剑气",)),
+        ), SessionState())
+        self.assertEqual((decision.action, decision.index),
+                         (PolicyAction.SELECT_SLOT, 1))
+
+    def test_all_round_unrecognized_name_no_click(self):
+        decision = choose_action(_panel(
+            PANEL_SKILL,
+            [_slot(0, "不存在的技能", rarity="red")],
+            settings=PolicySettings(skill_whitelist_mode="all_round"),
+        ), SessionState())
+        self.assertIn(decision.action, NO_PICK_ACTIONS)
+        self.assertIsNone(decision.index)
+
+    def test_all_round_low_confidence_no_click(self):
+        decision = choose_action(_panel(
+            PANEL_SKILL,
+            [_slot(0, "箭矢增幅", confidence=0.5)],
+            settings=PolicySettings(skill_whitelist_mode="all_round",
+                                    min_confidence=0.8),
+        ), SessionState())
+        self.assertIn(decision.action, NO_PICK_ACTIONS)
+
+    def test_all_round_never_pick_skipped(self):
+        """never_pick 卡目录识别但非法 → ALL_ROUND 也不选。"""
+        decision = choose_action(_panel(
+            PANEL_SKILL,
+            [_slot(0, "蓄力射击")],
+            settings=PolicySettings(skill_whitelist_mode="all_round"),
+        ), SessionState())
+        self.assertIn(decision.action, NO_PICK_ACTIONS)
+
+
+class S7VerifiedEvidencePriority(unittest.TestCase):
+    """S7：已核实前置/存档只影响优先级，绝不硬拒绝。"""
+
+    def test_owned_prereq_affects_priority(self):
+        decision = choose_action(_panel(
+            PANEL_SKILL,
+            [_slot(0, "剑气增幅", rarity="white"),
+             _slot(1, "箭矢增幅", rarity="white")],
+            settings=PolicySettings(skill_whitelist_mode="all_round"),
+        ), SessionState())
+        self.assertEqual(decision.index, 0, "无已拥有时两者前置均未确认，取最小 index")
+        decision = choose_action(PanelCandidates(
+            panel_kind=PANEL_SKILL,
+            slots=[_slot(0, "剑气增幅", rarity="white"),
+                   _slot(1, "箭矢增幅", rarity="white")],
+            settings=PolicySettings(skill_whitelist_mode="all_round"),
+            owned_skill_cards=("奥术箭",),
+        ), SessionState())
+        self.assertEqual(decision.index, 1, "已拥有奥术箭 → 箭矢增幅前置确认优先")
+
+    def test_archive_waiver_and_penalty_affect_priority(self):
+        # 存档奥术箭36 豁免爆炸箭矢的爆炎箭前置（+owned 奥术箭）→ 前置确认优先。
+        decision = choose_action(PanelCandidates(
+            panel_kind=PANEL_SKILL,
+            slots=[_slot(0, "激光增幅", rarity="white"),
+                   _slot(1, "爆炸箭矢", rarity="white")],
+            settings=PolicySettings(skill_whitelist_mode="all_round",
+                                    skill_archive_levels=(("asj", 36),)),
+            owned_skill_cards=("奥术箭",),
+        ), SessionState())
+        self.assertEqual(decision.index, 1)
+        # 存档奥术箭10：箭矢齐射「不再降低伤害」已核实 → 优先。
+        decision = choose_action(_panel(
+            PANEL_SKILL,
+            [_slot(0, "激光增幅", rarity="white"),
+             _slot(1, "箭矢齐射", rarity="white")],
+            settings=PolicySettings(skill_whitelist_mode="all_round",
+                                    skill_archive_levels=(("asj", 10),)),
+        ), SessionState())
+        self.assertEqual(decision.index, 1)
+
+    def test_unmet_prereq_is_priority_penalty_not_rejection(self):
+        """前置未确认 ≠ 禁止：唯一候选仍选（只排序，不否决）。"""
+        decision = choose_action(_panel(
+            PANEL_SKILL,
+            [_slot(0, "爆炸箭矢", rarity="white")],
+            settings=PolicySettings(skill_whitelist_mode="all_round"),
+        ), SessionState())
+        self.assertEqual((decision.action, decision.index),
+                         (PolicyAction.SELECT_SLOT, 0))
+
+    def test_assembly_deterministic_and_raw_count_before_expansion(self):
+        runtime = SimpleNamespace(
+            skills=list(SKILL_LABELS)[:5],
+            cards=[], treasure_allow_negative=[],
+        )
+        kwargs = dict(
+            settings=runtime,
+            skill_labels=SKILL_LABELS, fetter_labels={},
+            policy_doc={"min_confidence": 0.65},
+        )
+        first = assemble_policy_settings(**kwargs)
+        self.assertEqual(first.skill_whitelist_mode, SKILL_MODE_ALL_ROUND)
+        for _ in range(10):
+            self.assertEqual(assemble_policy_settings(**kwargs), first)
+        # 模式按原始技能数：4 个原始技能展开后卡名更多，仍为 hard。
+        ps = assemble_policy_settings(
+            settings=SimpleNamespace(
+                skills=list(SKILL_LABELS)[:4],
+                cards=[], treasure_allow_negative=[],
+            ),
+            skill_labels=SKILL_LABELS, fetter_labels={}, policy_doc={},
+        )
+        self.assertEqual(ps.skill_whitelist_mode, SKILL_MODE_HARD)
+        self.assertGreater(len(ps.skill_presets), 4)
+
+
+class S8TreasureMustTake(unittest.TestCase):
+    """S8：必拿宝物名单来自 settings.treasure_must_take（缺省保留旧版特权）。"""
+
+    def test_must_take_comes_from_settings(self):
+        """配置名单（如 ONEPIECE）里的卡无视品质直接秒选。"""
+        decision = choose_action(_panel(
+            PANEL_TREASURE,
+            [_slot(0, "双倍神符", rarity="green"), _slot(1, "ONEPIECE")],
+            settings=PolicySettings(treasure_must_take=("ONEPIECE",)),
+        ), SessionState())
+        self.assertEqual((decision.action, decision.index),
+                         (PolicyAction.SELECT_SLOT, 1))
+
+    def test_default_must_take_preserves_legacy_privilege(self):
+        """缺省名单保留旧版「全都要/卡牌大师」子串特权（默认行为不回归）。"""
+        decision = choose_action(_panel(
+            PANEL_TREASURE,
+            [_slot(0, "我全都要", rarity="white"),
+             _slot(1, "双倍神符", rarity="red")],
+            settings=PolicySettings(),
+        ), SessionState())
+        self.assertEqual((decision.action, decision.index),
+                         (PolicyAction.SELECT_SLOT, 0),
+                         "特权卡必须压过红色非必拿卡")
+
+    def test_must_take_does_not_bypass_negative(self):
+        """负面剔除优先于必拿：必拿名单内带负面描述的卡仍不可选。"""
+        decision = choose_action(_panel(
+            PANEL_TREASURE,
+            [_slot(0, "ONEPIECE", description="5分钟后不再获得金币")],
+            settings=PolicySettings(treasure_must_take=("ONEPIECE",)),
+        ), SessionState())
+        self.assertIn(decision.action, NO_PICK_ACTIONS)
+
+    def test_default_must_take_constant(self):
+        self.assertEqual(DEFAULT_TREASURE_MUST_TAKE, ("全都要", "卡牌大师"))
+        self.assertEqual(WHITELIST_HARD, "hard")
 
 
 if __name__ == "__main__":

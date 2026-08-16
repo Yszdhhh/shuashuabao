@@ -41,6 +41,7 @@
     "jq"
   ],
   "cards": [],
+  "skill_archive_levels": {},
   "auto_bond": true,
   "auto_treasure": true,
   "choice_interval": 120,
@@ -64,6 +65,7 @@
   "failure_streak_limit": 3,
   "panel_visible_timeout_s": 2.0,
   "ui_action_interval_s": 1.5,
+  "challenge_recheck_interval_s": 30,
   "panel_action_limit_per_fingerprint": 3,
   "panel_episode_limit_per_kind": 5,
   "incident_sample_rate": 0.1,

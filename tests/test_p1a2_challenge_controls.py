@@ -422,6 +422,65 @@ class TestP1A2ChallengeControls(unittest.TestCase):
             mock_rc.assert_called_once()
             self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.PENDING)
 
+    # --- Periodic ON re-observation (configured cadence, not permanent done) ---
+
+    def test_anchored_on_schedules_periodic_recheck_not_permanent_done(self):
+        """Regression: anchored ON schedules periodic re-observation (30s) and clicks nothing."""
+        self.med._auto_task_done = True
+        self.med.settings.challenge_recheck_interval_s = 30.0
+        dummy_label = MatchResult("coin_challenge", 0.9, 100, 500, 50, 20, 100, 500)
+        clock = FakeClock(start=100.0)
+        with clock.install():
+            with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+                 patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.ON), \
+                 patch.object(self.med.executor, "right_click") as mock_rc:
+                acted = self.med._ensure_challenge_buttons(self.frame_on)
+        self.assertIsNone(acted)
+        mock_rc.assert_not_called()
+        self.assertIn("coin_challenge", self.med._challenge_done)
+        # 复查时间按配置 cadence 排程，而非永久 done
+        self.assertAlmostEqual(
+            self.med._challenge_recheck_at["coin_challenge"],
+            clock.now() + 30.0,
+            delta=0.01,
+        )
+
+    def test_on_recheck_due_still_on_is_zero_click_and_reschedules(self):
+        """周期复查到期且仍 ON：零点击，并按配置 cadence 重排下一次复查。"""
+        self.med._auto_task_done = True
+        self.med.settings.challenge_recheck_interval_s = 30.0
+        dummy_label = MatchResult("coin_challenge", 0.9, 100, 500, 50, 20, 100, 500)
+        clock = FakeClock(start=100.0)
+        self.med._challenge_done.add("coin_challenge")
+        self.med._challenge_recheck_at["coin_challenge"] = clock.now() - 1.0  # 到期
+        with clock.install():
+            with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+                 patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.ON), \
+                 patch.object(self.med.executor, "right_click") as mock_rc:
+                acted = self.med._ensure_challenge_buttons(self.frame_on)
+        self.assertIsNone(acted)
+        mock_rc.assert_not_called()
+        self.assertIn("coin_challenge", self.med._challenge_done)
+        self.assertGreater(self.med._challenge_recheck_at["coin_challenge"], clock.now() + 25.0)
+
+    def test_later_anchored_off_toggle_clicked_once_within_cadence(self):
+        """周期复查发现锚定的 OFF → 在配置 cadence 内点一次恢复（不永久 done）。"""
+        self.med._auto_task_done = True
+        self.med.settings.challenge_recheck_interval_s = 30.0
+        dummy_label = MatchResult("coin_challenge", 0.9, 100, 500, 50, 20, 100, 500)
+        clock = FakeClock(start=100.0)
+        self.med._challenge_done.add("coin_challenge")
+        self.med._challenge_recheck_at["coin_challenge"] = clock.now() - 1.0  # 到期复查
+        with clock.install():
+            with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
+                 patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.OFF), \
+                 patch.object(self.med.executor, "right_click", return_value=ActionResult(success=True, status="DRY_RUN")) as mock_rc:
+                acted = self.med._ensure_challenge_buttons(self.frame_off)
+        self.assertEqual(acted, LoopAction.Continue)
+        mock_rc.assert_called_once()
+        self.assertNotIn("coin_challenge", self.med._challenge_done)
+        self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.PENDING)
+
 
 if __name__ == "__main__":
     unittest.main()

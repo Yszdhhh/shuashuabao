@@ -1,4 +1,5 @@
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -10,8 +11,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from gamescript.choice_policy import PolicySettings
 from gamescript.loop_action import LoopAction
-from gamescript.mediator import ChallengeState, Mediator
+from gamescript.mediator import ChallengeState, Mediator, PanelState, Phase
 from gamescript.settings import Settings
 from gamescript.vision.capture import Frame
 from gamescript.vision.matcher import MatchResult
@@ -152,7 +154,182 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertIsNotNone(wood)
         self.assertEqual(wood.name, "merchant_wood")
 
+    def test_merchant_default_zero_auto_gambling_is_zero_input(self):
+        """默认 auto_gambling_time=0：_maybe_black_merchant 第一行即零输入返回。
+
+        不做任何 find/click（不进入购买/刷新路径）；结果 falsy。
+        """
+        self.assertEqual(self.med.settings.auto_gambling_time, 0)
+        self.med._merchant_next_at = 0.0
+        with patch.object(self.med, "_black_merchant_present") as present, \
+                patch.object(self.med, "find", return_value=None) as find, \
+                patch.object(self.med, "act_click", return_value=True) as click:
+            result = self.med._maybe_black_merchant(self.frame)
+        self.assertIsNone(result)
+        self.assertFalse(result)
+        present.assert_not_called()
+        find.assert_not_called()
+        click.assert_not_called()
+
+    def test_policy_settings_cached_no_per_tick_disk_read(self):
+        """_policy_settings 是缓存 getter：绝不每 panel tick 读 choice_policy.json。"""
+        med = self.med
+        first = med._policy_settings()
+        with patch("gamescript.mediator.json.loads",
+                   side_effect=AssertionError("per-tick disk read")), \
+                patch.object(Path, "read_text",
+                             side_effect=AssertionError("per-tick disk read")):
+            second = med._policy_settings()
+        self.assertIs(first, second)
+        self.assertIsInstance(first, PolicySettings)
+
+    def test_policy_settings_consumes_shared_contract(self):
+        """消费 choice_policy.assemble_policy_settings 契约字段（HARD/ALL_ROUND 语义）。"""
+        ps = self.med._policy_settings()
+        # 默认配置 2 个技能（jq/pg）→ 0..4 → HARD 严格白名单。
+        self.assertEqual(ps.skill_whitelist_mode, "hard")
+        self.assertIsInstance(ps.skill_focus_families, tuple)
+        self.assertIsInstance(ps.skill_archive_levels, tuple)
+        self.assertIsInstance(ps.treasure_must_take, tuple)
+        self.assertIsInstance(ps.habit_name_scores, tuple)
+
+    def test_settings_challenge_recheck_interval_default_and_clamp(self):
+        s = Settings()
+        self.assertEqual(s.challenge_recheck_interval_s, 30.0)
+        self.assertEqual(
+            Settings._from_dict({"challenge_recheck_interval_s": 999}).challenge_recheck_interval_s,
+            300.0,
+        )
+        self.assertEqual(
+            Settings._from_dict({"challenge_recheck_interval_s": 1}).challenge_recheck_interval_s,
+            5.0,
+        )
+        self.assertEqual(
+            Settings._from_dict({"challenge_recheck_interval_s": "bad"}).challenge_recheck_interval_s,
+            30.0,
+        )
+
+    def test_settings_skill_archive_levels_normalize_and_round_trip(self):
+        """存档等级是真实 Settings 字段：默认空映射、值域清洗、save/load 往返。"""
+        s = Settings()
+        self.assertEqual(s.skill_archive_levels, {})
+        norm = Settings._from_dict(
+            {"skill_archive_levels": {"asj": 47, "tl": -5, "hq": 0, "bad": "x", "big": 999}}
+        )
+        self.assertEqual(norm.skill_archive_levels, {"asj": 47, "big": 50})
+        s.skill_archive_levels = {"asj": 47, "jq": 13}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "settings.json"
+            s.save(path)
+            loaded = Settings.load(path)
+        self.assertEqual({"asj": 47, "jq": 13}, loaded.skill_archive_levels)
+
+    def test_skill_card_click_stages_canonical_card_only(self):
+        """技能选卡点击成功 → 暂存一个规范卡名；未确认前不算已学。"""
+        med = self.med
+        med._panel_state = PanelState.ACTIVE
+        med._panel_kind = "skill"
+        card_hit = MatchResult("jq", 0.95, 500, 300, 40, 40, 500, 300)
+        with patch.object(med, "_find_reward_choice", return_value=("技能", card_hit)), \
+                patch.object(med, "act_click", return_value=True) as click:
+            result = med._tick_panel_fsm(self.frame, hit("card_hide", 500, 500), time.time())
+        self.assertEqual(result, LoopAction.Continue)
+        click.assert_called_once()
+        self.assertEqual(med._panel_state, PanelState.WAIT_MUTATION)
+        self.assertEqual(med._skill_cards_pending, ["剑气"])
+        self.assertEqual(med._skill_cards_owned, [])
+
+    def test_skill_refresh_click_does_not_stage_ownership(self):
+        """刷新/关闭类点击绝不暂存为技能卡归属。"""
+        med = self.med
+        med._panel_state = PanelState.ACTIVE
+        med._panel_kind = "skill"
+        refresh_hit = MatchResult("skill_refresh_btn", 0.95, 500, 300, 40, 40, 500, 300)
+        with patch.object(med, "_find_reward_choice", return_value=("技能刷新", refresh_hit)), \
+                patch.object(med, "act_click", return_value=True):
+            result = med._tick_panel_fsm(self.frame, hit("card_hide", 500, 500), time.time())
+        self.assertEqual(result, LoopAction.Continue)
+        self.assertEqual(med._skill_cards_pending, [])
+
+    def test_skill_card_ownership_committed_on_mutation_confirm(self):
+        """WAIT_MUTATION 观察到内容变化 → 暂存卡确认学得。"""
+        med = self.med
+        med._panel_state = PanelState.WAIT_MUTATION
+        med._panel_kind = "skill"
+        baseline = np.zeros((900, 1600, 3), dtype=np.uint8)
+        med._panel_mutation_baseline = med._panel_roi_region(
+            Frame(baseline, window_title="game", hwnd=1)
+        )
+        changed = baseline.copy()
+        changed[300:500, 800:1000] = 255  # 200x200 白块 → 40000 变化像素 ≥ 2000
+        frame = Frame(changed, window_title="game", hwnd=1)
+        med._skill_cards_pending.append("奥数箭")
+        result = med._tick_panel_fsm(frame, hit("card_hide", 500, 500), time.time())
+        self.assertEqual(result, LoopAction.Continue)
+        self.assertEqual(med._panel_state, PanelState.ACTIVE)
+        self.assertIn("奥数箭", med._skill_cards_owned)
+        self.assertEqual(med._skill_cards_pending, [])
+
+    def test_skill_card_ownership_committed_on_panel_disappearance(self):
+        """WAIT_MUTATION 面板消失 → 已点技能卡确认学得。"""
+        med = self.med
+        med._panel_state = PanelState.WAIT_MUTATION
+        med._panel_kind = "skill"
+        med._skill_cards_pending.append("剑气")
+        result = med._tick_panel_fsm(self.frame, None, time.time())
+        self.assertEqual(result, LoopAction.Continue)
+        self.assertIn("剑气", med._skill_cards_owned)
+        self.assertEqual(med._skill_cards_pending, [])
+
+    def test_skill_card_ownership_preserves_duplicate_learns(self):
+        """同一升级卡学两次必须保留两条记录，供 x2 前置计数。"""
+        med = self.med
+        med._skill_cards_pending.append("箭矢增幅")
+        med._commit_pending_skill_cards()
+        med._skill_cards_pending.append("箭矢增幅")
+        med._commit_pending_skill_cards()
+        self.assertEqual(
+            med._confirmed_skill_cards(),
+            ("箭矢增幅", "箭矢增幅"),
+        )
+
+    def test_unconfirmed_click_timeout_clears_pending_without_commit(self):
+        """确认窗超时（无 mutation、面板仍在）→ 只清暂存，绝不记为已学。"""
+        med = self.med
+        med._panel_state = PanelState.WAIT_MUTATION
+        med._panel_kind = "skill"
+        med._panel_mutation_baseline = None
+        med._panel_last_input_at = time.time() - 30.0  # 超过确认窗上限 15s
+        med._skill_cards_pending.append("寒冰箭")
+        result = med._tick_panel_fsm(self.frame, hit("card_hide", 500, 500), time.time())
+        self.assertEqual(result, LoopAction.Continue)
+        self.assertEqual(med._panel_state, PanelState.ACTIVE)
+        self.assertEqual(med._skill_cards_pending, [])
+        self.assertNotIn("寒冰箭", med._skill_cards_owned)
+
+    def test_commit_records_verified_grant_on_learn_card(self):
+        """确认学得时，仅通过 verified skill_catalog 助手记录赠卡。"""
+        med = self.med
+        med._skill_cards_pending.append("奥数箭")
+        with patch("gamescript.mediator.grant_on_learn_card", return_value="寒冰箭"):
+            med._commit_pending_skill_cards()
+        self.assertIn("奥数箭", med._skill_cards_owned)
+        self.assertIn("寒冰箭", med._skill_cards_owned)
+        self.assertEqual(med._skill_cards_pending, [])
+
+    def test_round_reset_clears_skill_card_ownership(self):
+        """set_phase(MAIN_LINE) 按局重置 pending/owned；owned 传给 PanelCandidates。"""
+        med = self.med
+        med._skill_cards_pending.append("地震")
+        med._skill_cards_owned.append("奥数箭")
+        med.set_phase(Phase.MAIN_LINE, "new round")
+        self.assertEqual(med._skill_cards_pending, [])
+        self.assertEqual(med._skill_cards_owned, [])
+        med._skill_cards_owned.append("奥数箭")
+        self.assertEqual(med._confirmed_skill_cards(), ("奥数箭",))
+
     def test_merchant_prefers_pill_then_wood_and_refreshes_when_neither_exists(self):
+        self.med.settings.auto_gambling_time = 1  # 显式 opt-in 才进入实验性购买/刷新路径
         pill = hit("danGif", 1160, 640)
         wood = hit("woodgift", 1280, 650)
 

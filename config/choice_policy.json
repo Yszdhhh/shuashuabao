@@ -2,12 +2,19 @@
   "version": 1,
   "_comment": "选卡决策配置。语义契约见 tests/contract/test_choice_semantics_contract.py（S1–S4）；接线指引见 docs/plans/CHOICE_POLICY_WIRING_20260812.md。改这里的任何一项都必须先跑 python tools/release_gate.py。",
 
+  "min_confidence": 0.60,
+  "_min_confidence_note": "可点击下限：低于该置信度的槽位不可选；unknown/低置信槽位永不直接点击。2026-08-14 起线上有效值即 0.60（mediator._policy_settings 曾硬编码），2026-08-17 批次改为本文件显式携带、assemble_policy_settings 读取。",
+
+  "allow_skill_giveup": false,
+  "_allow_skill_giveup_note": "false = 技能面板无名槽位/刷新耗尽时禁止 GIVEUP，只 WAIT/隐藏（零输入兜底）。2026-08-14 策略变更后默认即 false，2026-08-17 批次显式落盘。",
+
   "quality_order": ["red", "orange", "purple", "blue", "white", "green"],
-  "_quality_order_note": "越靠前越优先。这是三面板共用序。技能卡只有橙>紫>蓝>白（user 2026-08-14，无红）；green 是宝物绿边（双倍神符）。B1 再拆技能序，现在不要直接删 red，否则橙边被 HSV 采成 red 会掉到未知档最末。",
+  "_quality_order_note": "越靠前越优先。这是三面板共用序。技能卡只有橙>紫>蓝>白（user 2026-08-14，无红）；green 是宝物绿边（双倍神符）。B1 再拆技能序，现在不要直接删 red，否则橙边被 HSV 采成 red 会掉到未知档最末。2026-08-17 user 报告技能卡可出现蓝/紫/橙/粉/红且红有多档，与『无红粉』冲突未解决：运行期容忍未来红/粉档，不得新造 HSV 阈值。",
 
   "skill": {
     "rarity_first": true,
-    "_note": "先匹配预设（预设内稀有度优先）；未命中则刷新；刷新耗尽则放弃。技能卡只有橙/紫/蓝/白（user 2026-08-14），没有红。quality_order 里的 red/green 是宝物/HSV 遗留，B1 再拆技能序。未命中预设不会按稀有度兜底拿非预设卡。"
+    "_note": "先匹配预设（预设内稀有度优先）；未命中则刷新；刷新耗尽则放弃。技能卡只有橙/紫/蓝/白（user 2026-08-14），没有红。quality_order 里的 red/green 是宝物/HSV 遗留，B1 再拆技能序。未命中预设不会按稀有度兜底拿非预设卡。",
+    "_mode_note": "2026-08-17 批次：选卡模式由勾选技能系数量运行期推导（assemble_policy_settings），不在本文件写死——0–4 个 → SKILL_MODE_HARD（hard，严格：只选配置系经 skill_catalog.expand_skill_preset_names 展开出的合法技能卡，配置外一律不选，宁可 WAIT/隐藏也不乱拿）；5–16 个 → SKILL_MODE_ALL_ROUND（all_round，全才：目录可识别的合法技能卡都可选，配置系仅作聚焦优先）。两种模式共用同一确定性排序：目录合法性（never_pick/互斥/前置）→ 前置/链路 → 存档解锁/降伤惩罚（未知存档 fail-closed）→ 稀有度 → 配置顺序 → 槽位下标；目录无法识别的名字任何模式下都没有点击权。色阶冲突见 _quality_order_note（容忍未来红/粉档，不新造 HSV 阈值）。"
   },
 
   "bond": {
@@ -50,8 +57,10 @@
       "ONEPIECE",
       "至高进化",
       "一身神装",
-      "满级大佬"
+      "满级大佬",
+      "全都要",
+      "卡牌大师"
     ],
-    "_must_take_names_note": "用户 2026-08-13 录像确认的 EX 宝物：三选一里出现即优先拿，压过品质降级。证据 fixtures/treasure_must_take/。与负面名单互斥——同名不得同时出现在 negative_names。"
+    "_must_take_names_note": "用户 2026-08-13 录像确认的 EX 宝物：三选一里出现即优先拿，压过品质降级。证据 fixtures/treasure_must_take/。2026-08-17 批次新增两个全拿型：全都要（覆盖实测『我全都要·获得本页全部宝物』，docs/research/TREASURE_MERCHANT_DRAGONBALLS_20260815.md）与卡牌大师（choice_lexicon kind=treasure，多帧真机三选出现，AUDIT_REPORT_20260817 C-01 特权硬编码同名单；具体效果词条未上帧）。与负面名单互斥——同名不得同时出现在 negative_names。"
   }
 }

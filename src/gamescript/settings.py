@@ -95,6 +95,10 @@ class Settings:
     # 面板『宝物 · 负面卡』折叠区逐张打勾后写入；放行是逐卡的，不是全局开关。
     # 语义与判定见 config/choice_policy.json 与 gamescript.choice_policy。
     treasure_allow_negative: list[str] = field(default_factory=list)
+    # 技能存档等级（短码 → 等级；0=未知不存）。曾只是看板动态属性，
+    # asdict() 静默丢弃导致"填了就丢"（C-04）；现为真实字段，
+    # _from_dict 只接受 {短码: int} 映射并做值域清洗（0..50，0 剔除）。
+    skill_archive_levels: dict[str, int] = field(default_factory=dict)
     auto_bond: bool = True       # 主动按 F 开羁绊面板（低频，防烧木材）
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
@@ -126,6 +130,7 @@ class Settings:
     failure_streak_limit: int = 3       # 连续不成功局上限（FAILURE/TIMEOUT/DISCONNECT 均累计）
     panel_visible_timeout_s: float = 2.0    # 主动打开面板的可见确认窗
     ui_action_interval_s: float = 1.5       # UI-changing 输入最小间隔
+    challenge_recheck_interval_s: float = 30.0  # 四挑战 ON 的周期复查间隔（钳制 5..300s）
     panel_action_limit_per_fingerprint: int = 3  # 同 fingerprint 同动作上限
     panel_episode_limit_per_kind: int = 5       # 每局每类面板会话上限
     incident_sample_rate: float = 0.1           # 正常 panel episode 抽样归档率
@@ -208,6 +213,7 @@ class Settings:
         float_fields = {
             "recovery_retry_interval_s", "panel_visible_timeout_s",
             "ui_action_interval_s", "incident_sample_rate",
+            "challenge_recheck_interval_s",
         }
         for k in float_fields:
             if k in clean:
@@ -282,6 +288,7 @@ class Settings:
             "panel_visible_timeout_s": (0.5, 10.0),
             "ui_action_interval_s": (0.5, 10.0),
             "incident_sample_rate": (0.0, 1.0),
+            "challenge_recheck_interval_s": (5.0, 300.0),
         }
         for k, (lo, hi) in float_ranges.items():
             if k in clean:
@@ -306,6 +313,21 @@ class Settings:
                 ]
             else:
                 clean["treasure_allow_negative"] = []
+        # 技能存档等级：只接受 {短码: int} 映射；值域清洗（0..50，0=未知剔除），
+        # 类型/范围损坏一律回落为空映射（保守：未知存档不放宽任何前置/减伤）。
+        if "skill_archive_levels" in clean:
+            raw_levels = clean["skill_archive_levels"]
+            levels: dict[str, int] = {}
+            if isinstance(raw_levels, dict):
+                for code, lv in raw_levels.items():
+                    try:
+                        value = int(lv)
+                    except (TypeError, ValueError):
+                        continue
+                    if value <= 0:
+                        continue
+                    levels[str(code).strip()] = max(0, min(50, value))
+            clean["skill_archive_levels"] = levels
         if "window_size" in clean:
             ws = clean["window_size"]
             if not (isinstance(ws, list) and len(ws) == 2

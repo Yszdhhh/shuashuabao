@@ -140,6 +140,8 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_inventory_same_pt_hits": 5,
         "_inventory_next_at": 1.0e9,
         "_skill_refresh_attempts": 3,
+        "_skill_cards_pending": ["污染"],
+        "_skill_cards_owned": ["污染", "污染"],
         "_choice_session": __import__(
             "gamescript.choice_policy", fromlist=["SessionState"]
         ).SessionState(attempts=9, refreshes=3, waits=4),

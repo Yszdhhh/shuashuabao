@@ -73,10 +73,16 @@ from gamescript.choice_policy import (
     PolicySettings,
     SessionState,
     SlotCandidate,
+    assemble_policy_settings,
     choose_action,
     slot_fingerprint,
 )
-from gamescript.habit_preference import append_learning_observation
+from gamescript.habit_preference import (
+    append_learning_observation,
+    habit_scores_for_panel,
+    load_habit_preference,
+)
+from gamescript.skill_catalog import grant_on_learn_card
 
 # 构建标识：写入 JSONL tick trace（B1-1），用于区分版本/里程碑来源。
 # 每次发布里程碑时更新；配合 git 提交哈希可精确定位产生该日志的代码。
@@ -544,6 +550,12 @@ class Mediator:
         self._choice_fp_before_refresh: str | None = None
         self._choice_policy_idle = False
         self._choice_policy_last_reason = ""
+        # L1 运行时技能卡归属：pending = 点击后等待 WAIT_MUTATION 确认（episode 级）；
+        # owned = 已确认学得（round 级，set_phase(MAIN_LINE) 重置）。未确认点击
+        # 超时只清 pending，绝不写入 owned（未知/未验证不记账）。
+        # 使用列表保留同卡多次学习；目录里存在明确的 x2 前置。
+        self._skill_cards_pending: list[str] = []
+        self._skill_cards_owned: list[str] = []
         # ---- S0 ② 全局抢占：每类强证据独立连续帧计数（同 evidence generation 才累计）----
         self._failure_candidate_frames: int = 0
         self._failure_candidate_kind: str | None = None
@@ -653,6 +665,25 @@ class Mediator:
             }
         except (OSError, ValueError, TypeError):
             self._fetter_labels = {}
+        # L1 策略文档 + 习惯偏好：Mediator 初始化时各加载一次并快照；
+        # _policy_settings() 之后只返回缓存，绝不每 tick 读 choice_policy.json。
+        self._choice_policy_doc: dict = {}
+        policy_path = project_root / "config" / "choice_policy.json"
+        try:
+            loaded_policy = json.loads(policy_path.read_text(encoding="utf-8"))
+            if isinstance(loaded_policy, dict):
+                self._choice_policy_doc = loaded_policy
+        except (OSError, ValueError, TypeError):
+            self._choice_policy_doc = {}
+        self._habit_preference: dict = {}
+        try:
+            loaded_habit = load_habit_preference()
+            if isinstance(loaded_habit, dict):
+                self._habit_preference = loaded_habit
+        except (OSError, ValueError, TypeError):
+            self._habit_preference = {}
+        self._habit_skill_scores = habit_scores_for_panel(self._habit_preference, "skill")
+        self._cached_policy_settings: PolicySettings | None = None
         if getattr(settings, "ocr_mode", "off") in {"shadow", "live"}:
             repo_root = Path(settings.ocr_repo_root) if settings.ocr_repo_root else project_root
             self._ocr_client = ShadowClient(
@@ -1808,44 +1839,66 @@ class Mediator:
         return tuple(out)
 
     def _policy_settings(self) -> PolicySettings:
-        """Assemble PolicySettings from Settings + config/choice_policy.json."""
-        raw: dict = {}
-        cfg_path = self.root / "config" / "choice_policy.json"
-        try:
-            loaded = json.loads(cfg_path.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                raw.update(loaded)
-        except (OSError, ValueError, TypeError):
-            pass
-        bond_cfg = raw.get("bond") if isinstance(raw.get("bond"), dict) else {}
-        treasure_cfg = raw.get("treasure") if isinstance(raw.get("treasure"), dict) else {}
-        skill_presets = tuple(
-            self._skill_labels[code]
-            for code in self.settings.skills
-            if self._skill_labels.get(code)
-        )
-        bond_presets: list[str] = []
-        for item in self.settings.cards:
-            text = str(item or "").strip()
-            if not text:
-                continue
-            stem = Path(text).stem
-            bond_presets.append(self._fetter_labels.get(stem, stem))
-        allow_neg = tuple(
-            str(x) for x in (getattr(self.settings, "treasure_allow_negative", None) or [])
-        )
-        mapping = {
-            "skill_presets": skill_presets,
-            "bond_presets": tuple(bond_presets),
-            "treasure_presets": (),
-            "quality_order": raw.get("quality_order"),
-            "min_confidence": 0.60,
-            "bond_whitelist_mode": bond_cfg.get("whitelist_mode", "hard"),
-            "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
-            "treasure_negative_names": treasure_cfg.get("negative_names"),
-            "treasure_allow_negative": allow_neg,
-        }
-        return PolicySettings.from_mapping(mapping)
+        """Cached PolicySettings；初始化时已快照 policy_doc + 习惯偏好。
+
+        首次调用惰性构建一次（assemble_policy_settings 为纯函数，无 I/O），
+        之后恒返回同一实例——绝不在每 panel tick 重读 choice_policy.json。
+        本方法保留为可 patch 的测试缝（patch.object(med, "_policy_settings", …)）。
+        """
+        if self._cached_policy_settings is None:
+            self._cached_policy_settings = assemble_policy_settings(
+                settings=self.settings,
+                skill_labels=self._skill_labels,
+                fetter_labels=self._fetter_labels,
+                policy_doc=self._choice_policy_doc,
+                habit_name_scores=self._habit_skill_scores,
+            )
+        return self._cached_policy_settings
+
+    # ---- L1 运行时技能卡归属（pending/owned）----
+
+    @staticmethod
+    def _is_skill_card_click(name: str | None) -> bool:
+        """技能面板上的一次点击是否属于选卡（排除刷新/放弃/关闭/隐藏）。"""
+        text = (name or "").lower()
+        for token in ("refresh", "giveup", "close", "hide"):
+            if token in text:
+                return False
+        return True
+
+    def _stage_skill_card(self, name: str | None) -> None:
+        """点击技能卡后暂存卡名；仅 WAIT_MUTATION 确认后才计入已学。"""
+        text = str(name or "").strip()
+        if not text:
+            return
+        stem = Path(text).stem
+        canonical = str(self._skill_labels.get(stem, stem)).strip()
+        if canonical:
+            self._skill_cards_pending.append(canonical)
+
+    def _commit_pending_skill_cards(self) -> None:
+        """WAIT_MUTATION 观察到内容变化/面板消失 → 确认学得，并入已学序列。
+
+        重复卡必须保留次数（目录含 x2 前置）。赠卡（grant_on_learn）只通过
+        verified 的 skill_catalog 助手记录；未知存档等级不产生任何赠卡。
+        """
+        if not self._skill_cards_pending:
+            return
+        archive_levels = self._policy_settings().skill_archive_levels
+        for name in self._skill_cards_pending:
+            self._skill_cards_owned.append(name)
+            granted = grant_on_learn_card(name, archive_levels)
+            if granted:
+                self._skill_cards_owned.append(str(granted))
+        self._skill_cards_pending.clear()
+
+    def _clear_pending_skill_cards(self) -> None:
+        """确认窗超时/未确认 → 丢弃暂存，绝不记为已学。"""
+        self._skill_cards_pending.clear()
+
+    def _confirmed_skill_cards(self) -> tuple[str, ...]:
+        """已确认学得的技能卡名（含重复次数；传给 PanelCandidates）。"""
+        return tuple(self._skill_cards_owned)
 
     def _reset_choice_session(self) -> None:
         self._choice_session = SessionState(
@@ -2098,6 +2151,7 @@ class Mediator:
                 set_progress=None,
                 refresh_count=self._choice_session.refreshes,
                 has_giveup=self._panel_has_giveup(frame, kind),
+                owned_skill_cards=self._confirmed_skill_cards(),
                 settings=self._policy_settings(),
             ),
             self._choice_session,
@@ -2229,6 +2283,7 @@ class Mediator:
                             set_progress=None,
                             refresh_count=self._choice_session.refreshes,
                             has_giveup=self._panel_has_giveup(frame, kind),
+                            owned_skill_cards=self._confirmed_skill_cards(),
                             settings=self._policy_settings(),
                         ),
                         self._choice_session,
@@ -2763,7 +2818,14 @@ class Mediator:
         return int(gold.sum()) >= 80
 
     def _maybe_black_merchant(self, frame: Frame) -> LoopAction | None:
-        """Buy known safe merchant items, otherwise perform one guarded refresh."""
+        """Buy known safe merchant items, otherwise perform one guarded refresh.
+
+        实验性/未验证（UI 须声明"experimental/unverified"）：仅当显式配置
+        auto_gambling_time > 0 时本路径才可能产生 find/click；默认 0 → 第一行
+        直接零输入返回（falsy），不做任何 find/click。
+        """
+        if int(getattr(self.settings, "auto_gambling_time", 0) or 0) <= 0:
+            return None
         now = time.time()
         if now < self._merchant_next_at or not self._black_merchant_present(frame):
             return None
@@ -3121,6 +3183,19 @@ class Mediator:
         """Backward compatibility wrapper returning True if challenge state is ON."""
         return Mediator._resolve_challenge_state(frame, label) == ChallengeState.ON
 
+    def _challenge_recheck_delay(self) -> float:
+        """四挑战 ON 的周期复查间隔（配置可调，默认 30s，钳制 5..300s）。
+
+        ON 开关是"周期复查"而非永久完成：复查发现被切回 OFF 时，
+        在配置 cadence 内再点一次恢复自动。UNKNOWN 仍走有界零输入收口。
+        """
+        raw = getattr(self.settings, "challenge_recheck_interval_s", 30.0)
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            value = 30.0
+        return max(5.0, min(300.0, value))
+
     def _ensure_challenge_buttons(self, frame: Frame) -> LoopAction | None:
         """Enable four challenge toggles in fixed order with post-click settle windows."""
         now = time.time()
@@ -3133,6 +3208,11 @@ class Mediator:
             if scene_key in self._challenge_done:
                 recheck_at = self._challenge_recheck_at.get(scene_key)
                 if recheck_at is None or now < recheck_at:
+                    if recheck_at is None:
+                        # 防御：已标记 done 却从未排程复查 → 立即排程，绝不永久 done。
+                        self._challenge_recheck_at[scene_key] = (
+                            now + self._challenge_recheck_delay()
+                        )
                     self._challenge_states[scene_key] = ChallengeState.ON
                     self._challenge_unknown_since.pop(scene_key, None)
                     continue
@@ -3150,7 +3230,7 @@ class Mediator:
                 )
                 if state == ChallengeState.ON:
                     self._challenge_recheck_at[scene_key] = (
-                        now + self._control_recheck_interval_s
+                        now + self._challenge_recheck_delay()
                     )
                     continue
                 if state != ChallengeState.OFF:
@@ -3183,7 +3263,7 @@ class Mediator:
                     print(f"[L1] {label}挑战已是自动模式")
                     self._challenge_states[scene_key] = ChallengeState.ON
                     self._challenge_done.add(scene_key)
-                    self._challenge_recheck_at[scene_key] = now + self._control_recheck_interval_s
+                    self._challenge_recheck_at[scene_key] = now + self._challenge_recheck_delay()
                     self._challenge_pending_since.pop(scene_key, None)
                     self._challenge_next_observe_at.pop(scene_key, None)
                     self._challenge_unknown_since.pop(scene_key, None)
@@ -3230,7 +3310,7 @@ class Mediator:
                 print(f"[L1] {label}挑战已是自动模式")
                 self._challenge_states[scene_key] = ChallengeState.ON
                 self._challenge_done.add(scene_key)
-                self._challenge_recheck_at[scene_key] = now + self._control_recheck_interval_s
+                self._challenge_recheck_at[scene_key] = now + self._challenge_recheck_delay()
                 self._challenge_unknown_since.pop(scene_key, None)
                 continue
 
@@ -3700,6 +3780,8 @@ class Mediator:
             self._selection_repeat_key = None
             self._selection_repeat_attempts = 0
             self._skill_refresh_attempts = 0
+            self._skill_cards_pending.clear()
+            self._skill_cards_owned.clear()
             self._challenge_done.clear()
             self._challenge_attempts.clear()
             self._challenge_unknown_since.clear()
@@ -5576,6 +5658,7 @@ class Mediator:
         self._panel_episode_started = time.time()
         self._panel_mutation_baseline = None
         self._panel_f1_used_this_episode = False
+        self._clear_pending_skill_cards()
         self._reset_choice_session()
         if opened:
             self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
@@ -5598,6 +5681,7 @@ class Mediator:
         self._selection_unknown_since = None
         self._l1_cycle_owned_panel = False
         self._l1_cycle_selected = False
+        self._clear_pending_skill_cards()
         self._reset_choice_session()
         if (
             cycle_owned
@@ -5753,6 +5837,10 @@ class Mediator:
                 print(f"[L1] {kind}选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
                 clicked = self.act_click(hit, f"{kind}选择")
                 if clicked:
+                    # 技能选卡点击成功 → 暂存卡名，等 WAIT_MUTATION 确认后才计入已学
+                    # （刷新/放弃/关闭/隐藏不算选卡；未确认点击超时只清暂存不记账）。
+                    if kind == "技能" and self._is_skill_card_click(hit.name):
+                        self._stage_skill_card(hit.name)
                     if (
                         self._l1_cycle_owned_panel
                         and self._panel_kind == self._l1_cycle_step
@@ -5843,17 +5931,21 @@ class Mediator:
 
         if st == PanelState.WAIT_MUTATION:
             if anchor is None:
-                # 面板已关闭：episode 完成
+                # 面板已关闭：episode 完成；已点技能卡视为确认学得。
+                self._commit_pending_skill_cards()
                 self._finish_panel_episode()
                 return LoopAction.Continue
             if self._panel_mutation_confirmed(frame):
-                # 内容变化（刷新/新候选）：回到 ACTIVE 继续
+                # 内容变化（刷新/新候选/选卡生效）：确认学得，回到 ACTIVE 继续
+                self._commit_pending_skill_cards()
                 self._panel_state = PanelState.ACTIVE
                 self._panel_mutation_baseline = None
                 return LoopAction.Continue
             if now - self._panel_last_input_at >= self._panel_confirm_window:
-                # 确认窗超时：回 ACTIVE（同 fingerprint 重试计数将捕获无变化点击）
+                # 确认窗超时：未观察到变化 → 未确认点击不记账（回 ACTIVE，
+                # 同 fingerprint 重试计数将捕获无变化点击）。
                 print("[L1] 面板 mutation 确认窗超时，回到 ACTIVE（零输入）")
+                self._clear_pending_skill_cards()
                 self._panel_state = PanelState.ACTIVE
             return LoopAction.Continue
 
