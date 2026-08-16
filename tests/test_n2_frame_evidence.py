@@ -227,7 +227,10 @@ class CadenceTests(unittest.TestCase):
         self.assertEqual(med2._cadence_for_current_state(), 0.500)
 
     def test_run_loop_sleeps_cadence_minus_elapsed(self):
-        med = Mediator(Settings(), ROOT)
+        settings = Settings()
+        # cadence 数学与输入模式无关；钉住 dry_run 避免落入提权守卫（1d8f101 翻默认后）。
+        settings.dry_run = True
+        med = Mediator(settings, ROOT)
         frame = _noise_frame()
         med._capture_best = lambda *a, **k: frame
         mono_ticks = iter([100.0, 100.02, 200.0, 200.01])
@@ -245,7 +248,6 @@ class CadenceTests(unittest.TestCase):
 
         with patch("gamescript.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
              patch("gamescript.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
-             patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
              patch("gamescript.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "stop") as stop:
             med.run(max_steps=2)
@@ -390,7 +392,10 @@ class ReviewFixTests(unittest.TestCase):
 
     # #5 loading cadence 不被 loop_sleep_ms 上限压缩
     def test_loading_cadence_not_compressed_by_loop_sleep_ms(self):
-        med = Mediator(Settings(), ROOT)
+        settings = Settings()
+        # 同上：cadence 数学与输入模式无关，钉住 dry_run。
+        settings.dry_run = True
+        med = Mediator(settings, ROOT)
         frame = _noise_frame()
         med._capture_best = lambda *a, **k: frame
         med.set_phase(Phase.ROOM_STARTING, "loading")
@@ -410,7 +415,6 @@ class ReviewFixTests(unittest.TestCase):
 
         with patch("gamescript.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
              patch("gamescript.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
-             patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
              patch("gamescript.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "set_phase", lambda phase, note="": None), \
              patch.object(med, "_detect_context", return_value="MAIN_LINE"), \
