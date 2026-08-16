@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -25,8 +26,6 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMainWindow,
     QMenu,
     QMessageBox,
@@ -59,6 +58,14 @@ from gamescript.shell.runner_service import (
     live_lock_busy,
 )
 from gamescript.shell.runtime_status import progress_from_counts
+from gamescript.shell.test_profiles import (
+    TestProfileError,
+    apply_profile,
+    export_profile,
+    load_test_profiles,
+    profile_diff,
+    validate_profile_document,
+)
 
 APP_NAME = "刷刷宝"
 APP_ID = "ShuaBao"
@@ -78,6 +85,7 @@ def _app_data_dir() -> Path:
 APP_DATA = _app_data_dir()
 FACTORY_SETTINGS = ROOT / "config" / "default_settings.json"
 USER_SETTINGS_NAME = "user_settings.json"
+TEST_PROFILES_PATH = ROOT / "config" / "dashboard_test_profiles.json"
 LOG_FILE = APP_DATA / "logs" / f"{APP_ID}.log"
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
 LOGGER = logging.getLogger(APP_ID)
@@ -652,24 +660,46 @@ class MainWindow(QMainWindow):
         header.addLayout(games_box)
         outer.addLayout(header)
 
-        body = QHBoxLayout()
+        body = QVBoxLayout()
         body.setContentsMargins(12, 0, 12, 0)
         body.setSpacing(10)
 
-        left = QVBoxLayout()
+        mode_box = QGroupBox("运行方式")
+        mode_layout = QHBoxLayout(mode_box)
         left_cap = QLabel("运行方式")
         left_cap.setObjectName("sectionCap")
-        left.addWidget(left_cap)
-        self.mode_list = QListWidget()
-        self.mode_list.setObjectName("modeList")
-        self.mode_list.setFixedWidth(168)
-        for spec in iter_specs():
-            item = QListWidgetItem(f"{spec.label}\n{badge_text(spec)}")
-            item.setData(Qt.UserRole, spec.id)
-            self.mode_list.addItem(item)
-        self.mode_list.currentRowChanged.connect(self._on_mode_row_changed)
-        left.addWidget(self.mode_list)
-        body.addLayout(left)
+        mode_layout.addWidget(left_cap)
+        self.primary_mode_group = QButtonGroup(self)
+        self.btn_solo_mode = QPushButton("单人刷图")
+        self.btn_hitch_mode = QPushButton("蹭车 / 跟车")
+        for button in (self.btn_solo_mode, self.btn_hitch_mode):
+            button.setCheckable(True)
+            button.setMinimumHeight(42)
+            button.setMinimumWidth(154)
+            self.primary_mode_group.addButton(button)
+            mode_layout.addWidget(button)
+        self.primary_mode_group.setExclusive(False)
+        self.cmb_hitch_mode = QComboBox()
+        self.cmb_hitch_mode.addItem("大厅找房蹭车 · 待验证", "lobby_hitch")
+        self.cmb_hitch_mode.addItem("已在房间跟车 · 待验证", "follow_team")
+        self.cmb_hitch_mode.setMinimumHeight(38)
+        mode_layout.addWidget(self.cmb_hitch_mode, 1)
+        self.cmb_more_modes = QComboBox()
+        self.cmb_more_modes.addItem("更多模式", "")
+        for mode_id in ("gambling_wood", "raid_wait", "lab"):
+            spec = get_spec(mode_id)
+            self.cmb_more_modes.addItem(f"{spec.label} · {badge_text(spec)}", mode_id)
+        self.cmb_more_modes.setMinimumHeight(38)
+        mode_layout.addWidget(self.cmb_more_modes)
+        self.btn_solo_mode.clicked.connect(lambda: self._select_mode("normal_farm"))
+        self.btn_hitch_mode.clicked.connect(lambda: self._select_mode(str(self.cmb_hitch_mode.currentData())))
+        self.cmb_hitch_mode.currentIndexChanged.connect(
+            lambda: self._select_mode(str(self.cmb_hitch_mode.currentData())) if self.btn_hitch_mode.isChecked() else None
+        )
+        self.cmb_more_modes.currentIndexChanged.connect(
+            lambda: self._select_mode(str(self.cmb_more_modes.currentData())) if self.cmb_more_modes.currentData() else None
+        )
+        body.addWidget(mode_box)
 
         self.right_stack = QStackedWidget()
         self._page_index: dict[str, int] = {}
@@ -702,8 +732,9 @@ class MainWindow(QMainWindow):
         self.lbl_latest = QLabel("就绪 · Shift+F12 紧急停止")
         self.lbl_latest.setVisible(False)
 
-        if self.mode_list.count():
-            self.mode_list.setCurrentRow(0)
+        self._selected_mode_id = "normal_farm"
+        self.btn_solo_mode.setChecked(True)
+        self._select_mode("normal_farm")
 
     def _build_mode_page(self, mode_id: str) -> QWidget:
         scroll = QScrollArea()
@@ -801,6 +832,25 @@ class MainWindow(QMainWindow):
         core_layout.addWidget(self.chk_learn)
         core_layout.addWidget(self.chk_secret_realm)
         run_lay.addWidget(core)
+
+        room_box = QGroupBox("房间")
+        room_layout = QHBoxLayout(room_box)
+        self.chk_auto_create_room = QCheckBox("自动创建房间")
+        room_layout.addWidget(self.chk_auto_create_room)
+        room_layout.addWidget(QLabel("房名"))
+        self.txt_room_name = QLineEdit()
+        self.txt_room_name.setPlaceholderText("留空使用游戏默认")
+        room_layout.addWidget(self.txt_room_name, 1)
+        room_layout.addWidget(QLabel("密码"))
+        self.txt_room_password = QLineEdit()
+        self.txt_room_password.setEchoMode(QLineEdit.Password)
+        self.txt_room_password.setPlaceholderText("默认不显示")
+        room_layout.addWidget(self.txt_room_password, 1)
+        self.cmb_room_reuse = QComboBox()
+        self.cmb_room_reuse.addItem("复用原房间", False)
+        self.cmb_room_reuse.addItem("每局新建房间", True)
+        room_layout.addWidget(self.cmb_room_reuse)
+        run_lay.addWidget(room_box)
         lab_hint = QLabel(
             "测试夹 bat 会读这份保存。改完等自动保存（约 1 秒）再双击 bat。不要同时开 LIVE。"
         )
@@ -814,6 +864,7 @@ class MainWindow(QMainWindow):
         save_row.addWidget(self.btn_save_settings)
         save_row.addStretch()
         run_lay.addLayout(save_row)
+        self._build_test_profiles(run_lay)
         lay.addWidget(run_box)
 
         skill_box, skill_lay = self._section("② 技能", "基础技能库 16 系：点选 / 再点取消（最多 4）")
@@ -1012,6 +1063,92 @@ class MainWindow(QMainWindow):
         if not MUST_TAKE_TREASURES:
             grid.addWidget(QLabel("未配置 must_take_names"))
         return host
+
+    def _build_test_profiles(self, lay: QVBoxLayout) -> None:
+        box = QGroupBox("测试配置（仅配置，不自动启动）")
+        row = QHBoxLayout(box)
+        row.addWidget(QLabel("内置方案"))
+        self.cmb_test_profile = QComboBox()
+        self.cmb_test_profile.addItem("选择内置方案", None)
+        try:
+            self._test_profiles = load_test_profiles(TEST_PROFILES_PATH)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            self._test_profiles = []
+            self.log(f"[测试配置] 内置方案不可用：{exc}", "error")
+        for profile in self._test_profiles:
+            self.cmb_test_profile.addItem(profile["name"], profile)
+        row.addWidget(self.cmb_test_profile, 1)
+        self.btn_apply_test_profile = QPushButton("查看差异并应用")
+        self.btn_apply_test_profile.clicked.connect(self._on_apply_builtin_profile)
+        row.addWidget(self.btn_apply_test_profile)
+        self.btn_import_test_profile = QPushButton("导入 JSON")
+        self.btn_import_test_profile.clicked.connect(self._on_import_test_profile)
+        row.addWidget(self.btn_import_test_profile)
+        self.btn_export_test_profile = QPushButton("导出当前配置")
+        self.btn_export_test_profile.clicked.connect(self._on_export_test_profile)
+        row.addWidget(self.btn_export_test_profile)
+        lay.addWidget(box)
+
+    @staticmethod
+    def _profile_diff_text(diff: dict) -> str:
+        if not diff:
+            return "没有可应用的差异。"
+        return "\n".join(f"{key}: {old!r} → {new!r}" for key, (old, new) in diff.items())
+
+    def _apply_test_profile_document(self, document: dict, *, confirm: bool = True) -> bool:
+        try:
+            current = self.collect_settings_from_ui()
+            updated = apply_profile(current, document)
+        except (TestProfileError, ValueError) as exc:
+            QMessageBox.warning(self, "测试配置已拒绝", str(exc))
+            return False
+        diff_text = self._profile_diff_text(profile_diff(current, updated))
+        if confirm:
+            answer = QMessageBox.question(
+                self,
+                "应用测试配置",
+                f"将应用以下差异（学习模式保持当前选择）：\n\n{diff_text}\n\n导入不会自动启动。",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if answer != QMessageBox.Yes:
+                return False
+        self.apply_settings_to_ui(updated)
+        self._schedule_auto_save()
+        self.log(f"[测试配置] 已应用 {document['name']}；未启动运行", "info")
+        return True
+
+    def _on_apply_builtin_profile(self) -> None:
+        profile = self.cmb_test_profile.currentData()
+        if not isinstance(profile, dict):
+            QMessageBox.information(self, "测试配置", "请先选择一个内置方案。")
+            return
+        self._apply_test_profile_document(profile)
+
+    def _on_import_test_profile(self) -> None:
+        filename, _ = QFileDialog.getOpenFileName(self, "导入测试配置", str(self.app_data), "JSON 文件 (*.json)")
+        if not filename:
+            return
+        try:
+            document = validate_profile_document(json.loads(Path(filename).read_text(encoding="utf-8")))
+        except (OSError, json.JSONDecodeError, TestProfileError) as exc:
+            QMessageBox.warning(self, "测试配置已拒绝", str(exc))
+            return
+        self._apply_test_profile_document(document)
+
+    def _on_export_test_profile(self) -> None:
+        filename, _ = QFileDialog.getSaveFileName(
+            self, "导出当前测试配置", str(self.app_data / "dashboard_test_profile.json"), "JSON 文件 (*.json)"
+        )
+        if not filename:
+            return
+        try:
+            document = export_profile(self.collect_settings_from_ui())
+            Path(filename).write_text(json.dumps(document, ensure_ascii=False, indent=2), encoding="utf-8")
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "导出测试配置失败", str(exc))
+            return
+        self.log(f"[测试配置] 已导出到 {filename}（不含密码、学习模式）", "info")
 
     def _build_follow_page(self, lay: QVBoxLayout) -> None:
         box = QGroupBox("跟车（待验证 · 不可启动）")
@@ -1373,16 +1510,30 @@ class MainWindow(QMainWindow):
             self.runner.stop()
 
     def selected_mode_id(self) -> str:
-        item = self.mode_list.currentItem()
-        if item is None:
-            return "normal_farm"
-        return str(item.data(Qt.UserRole) or "normal_farm")
+        return getattr(self, "_selected_mode_id", "normal_farm")
 
-    def _on_mode_row_changed(self, _row: int) -> None:
-        mode_id = self.selected_mode_id()
+    def _select_mode(self, mode_id: str) -> None:
+        if mode_id not in self._page_index:
+            return
+        self._selected_mode_id = mode_id
         self._shell_extras["selected_mode_id"] = mode_id
         idx = self._page_index.get(mode_id, 0)
         self.right_stack.setCurrentIndex(idx)
+        for control in (self.btn_solo_mode, self.btn_hitch_mode, self.cmb_hitch_mode, self.cmb_more_modes):
+            control.blockSignals(True)
+        try:
+            self.btn_solo_mode.setChecked(mode_id == "normal_farm")
+            self.btn_hitch_mode.setChecked(mode_id in {"lobby_hitch", "follow_team"})
+            if mode_id in {"lobby_hitch", "follow_team"}:
+                self.cmb_hitch_mode.setCurrentIndex(self.cmb_hitch_mode.findData(mode_id))
+                self.cmb_more_modes.setCurrentIndex(0)
+            elif mode_id in {"gambling_wood", "raid_wait", "lab"}:
+                self.cmb_more_modes.setCurrentIndex(self.cmb_more_modes.findData(mode_id))
+            else:
+                self.cmb_more_modes.setCurrentIndex(0)
+        finally:
+            for control in (self.btn_solo_mode, self.btn_hitch_mode, self.cmb_hitch_mode, self.cmb_more_modes):
+                control.blockSignals(False)
         self._refresh_chrome()
 
     def _is_running(self) -> bool:
@@ -1393,7 +1544,8 @@ class MainWindow(QMainWindow):
             return
         spec = get_spec(self.selected_mode_id())
         running = self._is_running()
-        self.mode_list.setEnabled(not running)
+        for control in (self.btn_solo_mode, self.btn_hitch_mode, self.cmb_hitch_mode, self.cmb_more_modes):
+            control.setEnabled(not running)
         self.btn_main.setText(start_button_text(spec, running=running))
         can = desktop_may_start(spec.id) or running
         self.btn_main.setEnabled(can)
@@ -1517,6 +1669,10 @@ class MainWindow(QMainWindow):
         self.spn_cycle_num.valueChanged.connect(self._schedule_auto_save)
         self.chk_learn.toggled.connect(self._schedule_auto_save)
         self.chk_secret_realm.toggled.connect(self._schedule_auto_save)
+        self.chk_auto_create_room.toggled.connect(self._schedule_auto_save)
+        self.txt_room_name.textChanged.connect(self._schedule_auto_save)
+        self.txt_room_password.textChanged.connect(self._schedule_auto_save)
+        self.cmb_room_reuse.currentIndexChanged.connect(self._schedule_auto_save)
         self.spn_treasure_num.valueChanged.connect(self._schedule_auto_save)
         self.spn_gambling_time.valueChanged.connect(self._schedule_auto_save)
         self.spn_dragon_ball.valueChanged.connect(self._schedule_auto_save)
@@ -1613,6 +1769,11 @@ class MainWindow(QMainWindow):
         self._apply_stage_target(target)
         self.chk_learn.setChecked(bool(settings.dry_run))
         self.chk_secret_realm.setChecked(settings.auto_secret_realm)
+        self.chk_auto_create_room.setChecked(bool(settings.auto_create_room))
+        self.txt_room_name.setText(str(settings.room_name or ""))
+        self.txt_room_password.setText(str(settings.room_password or ""))
+        reuse_index = self.cmb_room_reuse.findData(bool(settings.new_room_every_times))
+        self.cmb_room_reuse.setCurrentIndex(reuse_index if reuse_index >= 0 else 0)
         self.spn_cycle_num.setValue(int(settings.cycle_num or 0))
         self.spn_treasure_num.setValue(int(settings.treasure_num or 0))
         self.spn_gambling_time.setValue(int(settings.auto_gambling_time or 0))
@@ -1671,10 +1832,10 @@ class MainWindow(QMainWindow):
         settings.stage1 = stage_index
         settings.stage2 = stage_index
         settings.stage_targets = [target]
-        settings.auto_create_room = True
-        settings.room_name = ""
-        settings.room_password = ""
-        settings.new_room_every_times = False
+        settings.auto_create_room = self.chk_auto_create_room.isChecked()
+        settings.room_name = self.txt_room_name.text()
+        settings.room_password = self.txt_room_password.text()
+        settings.new_room_every_times = bool(self.cmb_room_reuse.currentData())
         settings.lab_focus = ""
         settings.dry_run = self.chk_learn.isChecked()
         settings.auto_secret_realm = self.chk_secret_realm.isChecked()

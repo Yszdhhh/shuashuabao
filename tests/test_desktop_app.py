@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (  # noqa: E402
     QCheckBox,
     QGroupBox,
     QLabel,
+    QLineEdit,
     QProgressBar,
     QPushButton,
     QScrollArea,
@@ -29,6 +30,12 @@ import desktop_app  # noqa: E402
 from gamescript.mediator import Mediator as RealMediator  # noqa: E402
 from gamescript.mediator import Phase  # noqa: E402
 from gamescript.settings import Settings  # noqa: E402
+from gamescript.shell.test_profiles import (  # noqa: E402
+    TestProfileError,
+    export_profile,
+    load_test_profiles,
+    validate_profile_document,
+)
 from gamescript.vision.capture import Frame  # noqa: E402
 
 
@@ -189,14 +196,14 @@ class DesktopPanelTests(unittest.TestCase):
             sorted(self.window.grp_negative._boxes),
         )
 
-    def test_exact_stage_and_solo_defaults_are_fixed(self):
-        # Stale values from the removed room-name/password controls must not
-        # affect the direct-create path.
-        self.window.settings.room_name = "old-room"
-        self.window.settings.room_password = "old-password"
+    def test_solo_room_fields_round_trip(self):
         self.window.settings.lab_focus = "skill,reenter"
         self.window.txt_stage_target.setText("2-7")
         self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(False))
+        self.window.chk_auto_create_room.setChecked(True)
+        self.window.txt_room_name.setText("test-room")
+        self.window.txt_room_password.setText("top-secret-pw")
+        self.window.cmb_room_reuse.setCurrentIndex(self.window.cmb_room_reuse.findData(True))
         settings = self.window.collect_settings_from_ui()
 
         self.assertEqual(["2-7"], settings.stage_targets)
@@ -204,11 +211,15 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual(7, settings.stage2)
         self.assertEqual(0, settings.game_mode)
         self.assertTrue(settings.auto_create_room)
-        self.assertFalse(settings.new_room_every_times)
+        self.assertTrue(settings.new_room_every_times)
         self.assertFalse(settings.auto_reputation)
-        self.assertEqual("", settings.room_name)
-        self.assertEqual("", settings.room_password)
+        self.assertEqual("test-room", settings.room_name)
+        self.assertEqual("top-secret-pw", settings.room_password)
         self.assertEqual("", settings.lab_focus)
+        self.window.apply_settings_to_ui(settings)
+        self.assertEqual("test-room", self.window.txt_room_name.text())
+        self.assertEqual("top-secret-pw", self.window.txt_room_password.text())
+        self.assertEqual(QLineEdit.Password, self.window.txt_room_password.echoMode())
 
     def test_hero_mode_maps_faction_and_difficulty(self):
         self.window.cmb_mode.setCurrentIndex(self.window.cmb_mode.findData(True))
@@ -476,6 +487,59 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertIn("F1 = 操作切回自身英雄", text)
         self.assertIn("F2 = 回基地", text)
         self.assertNotIn("hitch_reject_list", text)
+
+    def test_primary_modes_route_to_hitch_submodes_and_keep_them_disabled(self):
+        self.assertIn("单人刷图", self._panel_text())
+        self.assertIn("蹭车 / 跟车", self._panel_text())
+        for mode_id in ("lobby_hitch", "follow_team"):
+            with self.subTest(mode_id=mode_id):
+                self.window._select_mode(mode_id)
+                self.assertEqual(mode_id, self.window.selected_mode_id())
+                self.assertFalse(self.window.btn_main.isEnabled())
+                self.assertEqual("待验证 · 不可启动", self.window.btn_main.text())
+
+    def test_test_profiles_apply_without_start_or_dry_run_change(self):
+        profiles = load_test_profiles(ROOT / "config" / "dashboard_test_profiles.json")
+        self.window.chk_learn.setChecked(True)
+        for profile, expected_cycles in zip(profiles[:2], (1, 2)):
+            with self.subTest(profile=profile["name"]):
+                self.assertTrue(self.window._apply_test_profile_document(profile, confirm=False))
+                settings = self.window.collect_settings_from_ui()
+                self.assertEqual(["1-12"], settings.stage_targets)
+                self.assertEqual(expected_cycles, settings.cycle_num)
+                self.assertTrue(settings.dry_run)
+        self.assertIsNone(self.window.worker_thread)
+
+    def test_test_profiles_reject_unknown_and_sensitive_fields(self):
+        document = {
+            "schema_version": 1,
+            "name": "bad",
+            "mode_id": "normal_farm",
+            "settings": {"stage_targets": ["1-12"], "ocr_repo_root": "C:/unsafe"},
+        }
+        with self.assertRaises(TestProfileError):
+            validate_profile_document(document)
+        document["settings"] = {"stage_targets": ["1-12"], "room_password": "secret"}
+        with self.assertRaises(TestProfileError):
+            validate_profile_document(document)
+        document["schema_version"] = 99
+        document["settings"] = {"stage_targets": ["1-12"]}
+        with self.assertRaises(TestProfileError):
+            validate_profile_document(document)
+
+    def test_profile_export_and_logs_do_not_contain_room_password(self):
+        self.window.txt_room_password.setText("top-secret-pw")
+        document = export_profile(self.window.collect_settings_from_ui())
+        self.assertNotIn("room_password", json.dumps(document, ensure_ascii=False))
+        self.window._on_save_settings_clicked()
+        self.assertNotIn("top-secret-pw", self.window.txt_log.toPlainText())
+
+    def test_user_settings_save_leaves_no_partial_file(self):
+        self.window._on_save_settings_clicked()
+        path = self.window.user_settings_path()
+        self.assertTrue(path.is_file())
+        self.assertFalse(path.with_suffix(path.suffix + ".tmp").exists())
+        self.assertIsInstance(json.loads(path.read_text(encoding="utf-8")), dict)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,40 @@
+{
+  "profiles": [
+    {
+      "schema_version": 1,
+      "name": "V0 单局闭环",
+      "mode_id": "normal_farm",
+      "settings": {
+        "stage_targets": ["1-12"],
+        "auto_create_room": true,
+        "new_room_every_times": false,
+        "cycle_num": 1,
+        "auto_secret_realm": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "name": "V1 连续两局",
+      "mode_id": "normal_farm",
+      "settings": {
+        "stage_targets": ["1-12"],
+        "auto_create_room": true,
+        "new_room_every_times": false,
+        "cycle_num": 2,
+        "auto_secret_realm": false
+      }
+    },
+    {
+      "schema_version": 1,
+      "name": "秘境一局",
+      "mode_id": "normal_farm",
+      "settings": {
+        "stage_targets": ["1-12"],
+        "auto_create_room": true,
+        "new_room_every_times": false,
+        "cycle_num": 1,
+        "auto_secret_realm": true
+      }
+    }
+  ]
+}
