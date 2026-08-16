@@ -182,13 +182,59 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
     row_runs = _runs(mask.sum(axis=1) > 0, minimum=8)
     templates = _glyph_templates(images_dir)
     rows: list[StageRow] = []
+    oversized: list[tuple[int, int]] = []
     for top, bottom in row_runs:
         if bottom - top > 35:
+            oversized.append((top, bottom))
             continue
         row = _read_row(mask[top:bottom, :], x1, y1 + top, templates)
         if row is not None:
             rows.append(row)
-    return rows
+
+    # A selected row has a bright border that merges with its label/background.
+    # Recover it only when neighboring rows prove one unique missing stage.
+    for top, bottom in oversized:
+        above = max(
+            (row for row in rows if row.center_y < y1 + top),
+            key=lambda row: row.center_y,
+            default=None,
+        )
+        below = min(
+            (row for row in rows if row.center_y > y1 + bottom),
+            key=lambda row: row.center_y,
+            default=None,
+        )
+        if above is None:
+            continue
+        if below is not None:
+            if (
+                below.stage_id.chapter != above.stage_id.chapter
+                or below.stage_id.index != above.stage_id.index + 2
+            ):
+                continue
+        candidate_id = above.stage_id.index + 1
+        candidate_label = f"{above.stage_id.chapter}-{candidate_id}"
+        best: tuple[float, int] | None = None
+        for center_y in range(y1 + top, y1 + bottom + 1):
+            candidate = StageRow(
+                label=candidate_label,
+                stage_id=StageId(above.stage_id.chapter, candidate_id),
+                center_x=above.center_x,
+                center_y=center_y,
+            )
+            ratio = _row_border_bright_ratio(gray, candidate, frame.height / 900.0)
+            if best is None or ratio > best[0]:
+                best = (ratio, center_y)
+        if best is not None and best[0] >= SELECTED_RING_RATIO:
+            rows.append(
+                StageRow(
+                    label=candidate_label,
+                    stage_id=StageId(above.stage_id.chapter, candidate_id),
+                    center_x=above.center_x,
+                    center_y=best[1],
+                )
+            )
+    return sorted(rows, key=lambda row: row.center_y)
 
 
 def _parse_stage_spec(value: StageId | str | int, default_chapter: int = 1) -> StageId:

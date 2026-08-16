@@ -115,6 +115,16 @@ class StageSelectorTests(unittest.TestCase):
         img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
         return Frame(img, window_title="英雄三国KK", hwnd=1000, left=203, top=84)
 
+    def _lab13_stage_frame(self) -> Frame:
+        path = ROOT / "fixtures/lab13_200601_stage_card/02_q2_stage_select_click2_t1567.0s.jpg"
+        full = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(full)
+        return Frame(full[84:984, 203:1803].copy(), window_title="英雄三国KK", hwnd=1000, left=203, top=84)
+
+    def test_selected_stage_row_recovers_lab13_highlighted_1_12(self):
+        row = selected_stage_row(self._lab13_stage_frame(), IMAGES)
+        self.assertIsNotNone(row)
+        self.assertEqual(str(row.stage_id), "1-12")
     def test_selected_stage_row_reads_the_highlighted_row(self):
         frame = self._live_20260814_frame()
         row = selected_stage_row(frame, IMAGES)
