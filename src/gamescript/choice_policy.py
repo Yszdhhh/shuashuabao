@@ -447,9 +447,15 @@ def _decide_collectible(
     # 含预设/套装/品质三条），避免「拿了就断金币/断木材/断升级」。
     if kind == PANEL_TREASURE:
         eligible = _drop_negative_treasures(cands.slots, settings)
+        # 机制宝物优先特权：我全都要 / 卡牌大师 / 4技能点等全能宝物无视预设直接优先秒选
+        for slot in eligible:
+            name_lower = (slot.name or "").lower()
+            if "全都要" in name_lower or "卡牌大师" in name_lower:
+                return PolicyDecision.select(
+                    slot.index, f"宝物特权秒选【{slot.name}】 @ slot {slot.index}"
+                )
     else:
         eligible = cands.slots
-
     preset_hit = _match_preset(
         eligible, presets, settings.min_confidence,
         quality_order=settings.quality_order,

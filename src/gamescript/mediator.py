@@ -3267,9 +3267,9 @@ class Mediator:
             if act_res:
                 clicked_at = time.time()
                 self._challenge_pending_since[scene_key] = clicked_at
-                self._challenge_next_observe_at[scene_key] = (
-                    clicked_at + self.settings.ui_action_interval_s
-                )
+                # 点击后锁定 3.0s 观察冷却，避免动画期间误判连续右键反关
+                self._challenge_next_observe_at[scene_key] = clicked_at + 3.0
+                self._challenge_recheck_at[scene_key] = clicked_at + 3.0
             return LoopAction.Continue
 
         return None
@@ -5769,7 +5769,7 @@ class Mediator:
                     self._panel_confirm_window = max(
                         5.0, min(15.0, self.settings.recovery_timeout_s)
                     )
-                    if hit.name == "skill_refresh_btn":
+                    if "refresh" in (hit.name or "").lower():
                         self._skill_refresh_attempts += 1
                         self._sync_choice_session_refreshes()
                         if self._choice_fp_before_refresh:
@@ -5777,7 +5777,7 @@ class Mediator:
                                 self._choice_session,
                                 last_slot_fingerprint=self._choice_fp_before_refresh,
                             )
-                        self._panel_opened_by_us = "skill"
+                        self._panel_opened_by_us = "skill" if kind == "skill" else None
                     else:
                         if kind == "技能":
                             # 配置技能成功后立即再开 G，直到没有可学点数。
