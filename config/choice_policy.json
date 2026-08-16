@@ -3,11 +3,11 @@
   "_comment": "选卡决策配置。语义契约见 tests/contract/test_choice_semantics_contract.py（S1–S4）；接线指引见 docs/plans/CHOICE_POLICY_WIRING_20260812.md。改这里的任何一项都必须先跑 python tools/release_gate.py。",
 
   "quality_order": ["red", "orange", "purple", "blue", "white", "green"],
-  "_quality_order_note": "越靠前越优先。green 是实机存在的最低档（如「双倍神符」绿边），早期 RARITY_BANDS 漏了它。",
+  "_quality_order_note": "越靠前越优先。这是三面板共用序。技能卡只有橙>紫>蓝>白（user 2026-08-14，无红）；green 是宝物绿边（双倍神符）。B1 再拆技能序，现在不要直接删 red，否则橙边被 HSV 采成 red 会掉到未知档最末。",
 
   "skill": {
     "rarity_first": true,
-    "_note": "预设技能之间按稀有度优先（S1）；同稀有度再按 Settings.skills 的配置顺序，最后按槽位。非预设技能永不选中，与稀有度无关。"
+    "_note": "先匹配预设（预设内稀有度优先）；未命中则刷新；刷新耗尽则放弃。技能卡只有橙/紫/蓝/白（user 2026-08-14），没有红。quality_order 里的 red/green 是宝物/HSV 遗留，B1 再拆技能序。未命中预设不会按稀有度兜底拿非预设卡。"
   },
 
   "bond": {
@@ -44,6 +44,14 @@
     "_negative_names_note": "用户 2026-08-12 逐张确认的负面宝物（拿了会断资源/断成长）。与描述判定互为冗余：描述 OCR 读失败时名字仍拦得住，卡名换皮时描述仍拦得住。默认全部不选，需在面板『宝物·负面卡』折叠区逐张打勾才会选。",
 
     "allow_negative": [],
-    "_allow_negative_note": "负面宝物放行名单：默认空 = 一张都不选。面板宝物区的可折叠列表逐卡打勾后写入本数组（勾选=放行，不勾=不选）。放行是逐卡的，不是全局开关，优先级高于 negative_names 与 negative_patterns。"
+    "_allow_negative_note": "负面宝物放行名单：默认空 = 一张都不选。面板宝物区的可折叠列表逐卡打勾后写入本数组（勾选=放行，不勾=不选）。放行是逐卡的，不是全局开关，优先级高于 negative_names 与 negative_patterns。",
+
+    "must_take_names": [
+      "ONEPIECE",
+      "至高进化",
+      "一身神装",
+      "满级大佬"
+    ],
+    "_must_take_names_note": "用户 2026-08-13 录像确认的 EX 宝物：三选一里出现即优先拿，压过品质降级。证据 fixtures/treasure_must_take/。与负面名单互斥——同名不得同时出现在 negative_names。"
   }
 }

@@ -15,7 +15,7 @@ import json
 import math
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from pathlib import Path
 
@@ -72,6 +72,7 @@ from gamescript.choice_policy import (
     SessionState,
     SlotCandidate,
     choose_action,
+    slot_fingerprint,
 )
 from gamescript.habit_preference import append_learning_observation
 
@@ -533,6 +534,7 @@ class Mediator:
         self._skill_refresh_attempts = 0
         # L1 选卡策略会话（choice_policy.SessionState）；按 panel episode 重置。
         self._choice_session = SessionState()
+        self._choice_fp_before_refresh: str | None = None
         self._choice_policy_idle = False
         self._choice_policy_last_reason = ""
         # ---- S0 ② 全局抢占：每类强证据独立连续帧计数（同 evidence generation 才累计）----
@@ -1440,13 +1442,21 @@ class Mediator:
             return "bond"
         # Current treasure and skill panels share refresh/give-up artwork.
         # The generic hide anchor is near-perfect only on the treasure layout.
+        # G 三选也有「暂时隐藏」，treasure_lock 会误匹配遮罩（13号 200601 tick9）。
+        # 放弃钮是技能独有；锁模板单独命中不足以为宝物（与 bond 单锚点同纪律）。
+        skill_hit = self.find(
+            frame, ["skill_giveup_btn", "skill_refresh_btn"],
+            threshold=threshold, scales=scales, roi=roi,
+        )
         treasure_lock = self.find(frame, ["treasure_lock_btn"], threshold=threshold, scales=scales, roi=roi)
         treasure_hide = self.find(frame, ["hide"], threshold=0.95, scales=scales, roi=roi)
-        if treasure_lock and treasure_hide:
-            return "treasure"
-        if self.find(frame, ["skill_giveup_btn", "skill_refresh_btn"], threshold=threshold, scales=scales, roi=roi):
+        if skill_hit is not None and skill_hit.name == "skill_giveup_btn":
             return "skill"
-        if treasure_lock:
+        if treasure_lock and treasure_hide and skill_hit is None:
+            return "treasure"
+        if skill_hit is not None:
+            return "skill"
+        if treasure_lock and treasure_hide:
             return "treasure"
         if self.find(frame, ["card_hide"], threshold=threshold, scales=scales, roi=roi):
             return "card"
@@ -1826,6 +1836,7 @@ class Mediator:
             max_waits=DEFAULT_MAX_WAITS,
         )
         self._skill_refresh_attempts = 0
+        self._choice_fp_before_refresh = None
         self._choice_policy_idle = False
         self._choice_policy_last_reason = ""
 
@@ -1839,25 +1850,16 @@ class Mediator:
         """
         cur = self._choice_session
         if decision.action == PolicyAction.WAIT:
-            self._choice_session = SessionState(
-                attempts=cur.attempts,
+            self._choice_session = replace(
+                cur,
                 refreshes=max(cur.refreshes, self._skill_refresh_attempts),
                 waits=cur.waits + 1,
-                deadline_exceeded=cur.deadline_exceeded,
-                max_attempts=cur.max_attempts,
-                max_refreshes=cur.max_refreshes,
-                max_waits=cur.max_waits,
             )
             return
         # Keep refreshes mirror in sync for the next tick's choose_action input.
-        self._choice_session = SessionState(
-            attempts=cur.attempts,
+        self._choice_session = replace(
+            cur,
             refreshes=max(cur.refreshes, self._skill_refresh_attempts),
-            waits=cur.waits,
-            deadline_exceeded=cur.deadline_exceeded,
-            max_attempts=cur.max_attempts,
-            max_refreshes=cur.max_refreshes,
-            max_waits=cur.max_waits,
         )
 
     def _sync_choice_session_refreshes(self) -> None:
@@ -1865,15 +1867,7 @@ class Mediator:
         refreshes = max(cur.refreshes, int(self._skill_refresh_attempts))
         if refreshes == cur.refreshes:
             return
-        self._choice_session = SessionState(
-            attempts=cur.attempts,
-            refreshes=refreshes,
-            waits=cur.waits,
-            deadline_exceeded=cur.deadline_exceeded,
-            max_attempts=cur.max_attempts,
-            max_refreshes=cur.max_refreshes,
-            max_waits=cur.max_waits,
-        )
+        self._choice_session = replace(cur, refreshes=refreshes)
 
     def _panel_has_giveup(self, frame: Frame, kind: str) -> bool:
         names = {
@@ -1912,6 +1906,22 @@ class Mediator:
                 roi=self._PANEL_BUTTONS_ROI,
             )
         return hit
+
+    def _find_skill_hide(self, frame: Frame) -> MatchResult | None:
+        return self.find(
+            frame,
+            ["skill_hide"],
+            threshold=min(0.70, self.settings.match_threshold),
+            scales=self._hot_scales(),
+            roi=self._PANEL_BUTTONS_ROI,
+            early_stop=True,
+        )
+
+    def _skill_giveup_blocked(self, slots: tuple[SlotCandidate, ...]) -> bool:
+        if not slots or all(s.name is None for s in slots):
+            return True
+        prev = self._choice_session.last_slot_fingerprint
+        return bool(prev) and slot_fingerprint(slots) == prev
 
     def _find_panel_giveup(self, frame: Frame, kind: str) -> MatchResult | None:
         names = {
@@ -1974,6 +1984,7 @@ class Mediator:
             label = "技能" if kind == "skill" else kind
             return (label, hit)
         if decision.action == PolicyAction.REFRESH:
+            self._choice_fp_before_refresh = slot_fingerprint(slots)
             refresh = self._find_panel_refresh(frame, kind)
             if refresh is None:
                 self._choice_policy_idle = True
@@ -1983,6 +1994,14 @@ class Mediator:
             label = "技能刷新" if kind == "skill" else f"{kind}刷新"
             return (label, refresh)
         if decision.action == PolicyAction.GIVEUP:
+            if kind == "skill" and self._skill_giveup_blocked(slots):
+                hide = self._find_skill_hide(frame)
+                if hide is not None:
+                    print(f"[L1] 选卡策略拦下放弃，改为隐藏：{decision.reason}")
+                    return ("技能", hide)
+                self._choice_policy_idle = True
+                print(f"[L1] 选卡策略拦下放弃，零输入：{decision.reason}")
+                return None
             give_up = self._find_panel_giveup(frame, kind)
             if give_up is None:
                 close_hit = self._close_current_panel(frame, kind)
@@ -2265,9 +2284,9 @@ class Mediator:
             refresh = self._find_panel_refresh(frame, "skill")
             if refresh is not None:
                 return ("技能刷新", refresh)
-        give_up = self._find_panel_giveup(frame, "skill")
-        if give_up is not None:
-            return ("技能放弃", give_up)
+        hide = self._find_skill_hide(frame)
+        if hide is not None:
+            return ("技能", hide)
         return None
 
     def _match_all_preferred(self, frame: Frame, names: list[str], max_results: int) -> list:
@@ -2808,7 +2827,7 @@ class Mediator:
         if kind in ("技能", "技能刷新", "技能放弃"):
             kind = "skill"
         if kind == "skill":
-            names = ["skill_giveup_btn", "giveUp"]
+            names = ["skill_hide"]
         elif kind == "treasure":
             names = ["treasure_hide_btn", "hide"]
         elif kind == "bond":
@@ -5387,8 +5406,15 @@ class Mediator:
         return False
 
     def _panel_kind_of(self, frame: Frame, anchor: MatchResult) -> str:
-        """面板种类：当前画面强证据优先，主动打开标记只作弱兜底。"""
+        """面板种类：主动打开的键位优先于单锚点/色块。
+
+        13号 200601：按了 G 之后 treasure_lock 误匹配、HSV 把金卡三选判成宝物，
+        整局按宝物 OCR（槽位全 disabled）空刷 227 次。我们刚按的 G/F/V
+        比「锁模板单独命中」或中间花屏更可信。
+        """
         opened = getattr(self, "_panel_opened_by_us", None)
+        if opened in ("skill", "bond", "treasure"):
+            return opened
         if anchor.name in {"bond_hide_btn", "bond_refresh_btn"}:
             # P0-3（215302）：单一 bond 锚点（bond_refresh_btn 0.742 贴阈值单独出现）
             # 不足为 bond 定类；bond 需 bond_hide+bond_refresh 联合证据
@@ -5409,18 +5435,31 @@ class Mediator:
             # 单锚点证据不足：继续用其它锚点/分类器裁决，不轻信 bond 定类
         elif anchor.name == "card_hide" and (frame.width, frame.height) == (1600, 900):
             return "bond"
+        elif anchor.name == "skill_giveup_btn":
+            return "skill"
         elif (
-            anchor.name in {"skill_giveup_btn", "skill_refresh_btn"}
+            anchor.name == "skill_refresh_btn"
             and frame.bgr is not None
             and (frame.width, frame.height) == (1600, 900)
         ):
+            # 刷新图与 V 共用。放弃钮在则一定是 G；否则才用色块区分自然弹出的 V。
+            if self.find(
+                frame, ["skill_giveup_btn"],
+                threshold=min(0.70, self.settings.match_threshold),
+                scales=self._hot_scales(),
+                roi=self._PANEL_BUTTONS_ROI,
+            ) is not None:
+                return "skill"
             hsv = cv2.cvtColor(frame.bgr[180:515, 450:1145], cv2.COLOR_BGR2HSV)
             colored = (hsv[:, :, 1] > 70) & (hsv[:, :, 2] > 60)
             return "treasure" if int(colored.sum()) >= 60000 else "skill"
         elif anchor.name == "skill_hide":
             return "skill"
         elif anchor.name in {"treasure_hide_btn", "treasure_lock_btn", "treasure_refresh_btn"}:
-            return "treasure"
+            classified = self._classify_choice_panel(frame)
+            if classified in ("skill", "treasure", "bond"):
+                return classified
+            return "unknown"
         if opened in ("skill", "bond", "treasure"):
             return opened
         return self._classify_choice_panel(frame) or "unknown"
@@ -5633,6 +5672,11 @@ class Mediator:
                     if hit.name == "skill_refresh_btn":
                         self._skill_refresh_attempts += 1
                         self._sync_choice_session_refreshes()
+                        if self._choice_fp_before_refresh:
+                            self._choice_session = replace(
+                                self._choice_session,
+                                last_slot_fingerprint=self._choice_fp_before_refresh,
+                            )
                         self._panel_opened_by_us = "skill"
                     else:
                         if kind == "技能":

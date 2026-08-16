@@ -26,6 +26,7 @@ from gamescript.choice_policy import (
     SlotCandidate,
     choose_action,
     panel_priority,
+    slot_fingerprint,
 )
 
 # 便捷构造 -----------------------------------------------------------------
@@ -106,8 +107,16 @@ class TestSkillPolicy(unittest.TestCase):
             ),
             SessionState(refreshes=3, max_refreshes=3),
         )
-        self.assertEqual(d.action, PolicyAction.GIVEUP)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
         self.assertIsNone(d.index)
+        d = choose_action(
+            skill_cands(
+                [slot(0, "地震")], has_giveup=True,
+                settings=settings(skill_presets=["寒冰箭"], allow_skill_giveup=True),
+            ),
+            SessionState(refreshes=3, max_refreshes=3),
+        )
+        self.assertEqual(d.action, PolicyAction.GIVEUP)
 
     def test_refresh_exhausted_no_giveup_close(self):
         d = choose_action(
@@ -143,7 +152,6 @@ class TestSkillPolicy(unittest.TestCase):
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
 
     def test_unknown_skill_slots_never_select(self):
-        # 全部槽位 unknown：技能路径不允许 WAIT，直接刷新。
         d = choose_action(
             skill_cands(
                 [slot(0, None), slot(1, None)],
@@ -152,19 +160,59 @@ class TestSkillPolicy(unittest.TestCase):
             SessionState(),
         )
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.action, PolicyAction.REFRESH)
+        self.assertEqual(d.action, PolicyAction.WAIT)
 
-    def test_skill_no_wait_path(self):
-        # 技能面板永不返回 WAIT（预设缺失即刷新/退出）。
-        for refresh_count in range(4):
-            d = choose_action(
-                skill_cands(
-                    [slot(0, None)],
-                    settings=settings(skill_presets=["剑气"]),
+    def test_empty_names_never_giveup_even_with_button(self):
+        d = choose_action(
+            skill_cands(
+                [slot(0, None), slot(1, None), slot(2, None)],
+                has_giveup=True,
+                settings=settings(skill_presets=["asj", "爆炸箭矢", "箭矢齐射"]),
+            ),
+            SessionState(waits=5, max_waits=5, refreshes=3, max_refreshes=3),
+        )
+        self.assertNotEqual(d.action, PolicyAction.GIVEUP)
+        self.assertIn(d.action, {PolicyAction.CLOSE, PolicyAction.WAIT, PolicyAction.NONE})
+
+    def test_trace_231455_preset_names_select(self):
+        d = choose_action(
+            skill_cands(
+                [
+                    slot(0, "爆炸箭矢", rarity="purple"),
+                    slot(1, "闪电链", rarity="blue"),
+                    slot(2, "箭矢齐射", rarity="purple"),
+                ],
+                settings=settings(
+                    skill_presets=["爆炸箭矢", "闪电链", "箭矢齐射", "奥术箭矢", "剑气"]
                 ),
-                SessionState(refreshes=refresh_count, max_refreshes=3),
             )
-            self.assertNotEqual(d.action, PolicyAction.WAIT)
+        )
+        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
+        self.assertIn(d.index, (0, 1, 2))
+
+    def test_unchanged_refresh_fingerprint_no_loop_no_giveup(self):
+        slots = [
+            slot(0, "陨石", rarity="red"),
+            slot(1, "地震", rarity="purple"),
+            slot(2, "火球", rarity="blue"),
+        ]
+        fp = slot_fingerprint(tuple(slots))
+        d = choose_action(
+            skill_cands(
+                slots,
+                has_giveup=True,
+                settings=settings(skill_presets=["寒冰箭"]),
+            ),
+            SessionState(
+                refreshes=1,
+                max_refreshes=3,
+                waits=5,
+                max_waits=5,
+                last_slot_fingerprint=fp,
+            ),
+        )
+        self.assertNotEqual(d.action, PolicyAction.REFRESH)
+        self.assertNotEqual(d.action, PolicyAction.GIVEUP)
 
 
 class TestBondTreasureUnknown(unittest.TestCase):
@@ -618,7 +666,7 @@ class TestBudgetAndPreemption(unittest.TestCase):
             settings=settings(skill_presets=["寒冰箭"]),
         )
         d = choose_action(cands)
-        self.assertEqual(d.action, PolicyAction.GIVEUP)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
 
     def test_min_confidence_gate(self):
         # 预设命中但置信度低于 min_confidence → 不可选（刷新）。

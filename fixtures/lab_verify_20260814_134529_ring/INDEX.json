@@ -1,0 +1,83 @@
+{
+  "_comment": "20260814_134529 录屏拆解验证夹具（strength + agility）。只读分析产物，不冒充合成帧。",
+  "kind": "lab_verify_ring",
+  "date": "20260814",
+  "video": "C:\\Users\\10639\\Desktop\\录屏素材\\20260814_134529.mp4",
+  "video_duration_sec": 1136.4,
+  "traces": [
+    "C:\\Users\\10639\\AppData\\Local\\ShuaBao\\20260814\\trace_lab_20260814_134654_strength.jsonl",
+    "C:\\Users\\10639\\AppData\\Local\\ShuaBao\\20260814\\trace_lab_20260814_135944_agility.jsonl"
+  ],
+  "alignment": {
+    "strength": {
+      "start_ts": 1786686415.404,
+      "video_t_offset": 86.0,
+      "lines": 1756
+    },
+    "agility": {
+      "start_ts": 1786687184.711,
+      "video_t_offset": 855.3,
+      "lines": 538
+    }
+  },
+  "focus_note": "拆解员报告文件名与落盘名不一致。检验官已从 C:\\tmp\\lab_verify_20260814_134529 拷入 focus/（173 张）。下列为判定用关键帧。",
+  "focus_frames": [
+    {
+      "filename": "e_t0179.20_L0189_q8.jpg",
+      "video_t": 179.2,
+      "q": 8,
+      "description": "主战斗+技能Tips，无宝物面板（OCR None）"
+    },
+    {
+      "filename": "e_t0191.82_L0218_q1.jpg",
+      "video_t": 191.82,
+      "q": 1,
+      "trace": "strength L218",
+      "description": "羁绊后开 V；三选含等级优势"
+    },
+    {
+      "filename": "crop_q1_L218_center.jpg",
+      "video_t": 191.82,
+      "q": 1,
+      "description": "宝物中央裁剪"
+    },
+    {
+      "filename": "e_t0406.02_L0647_q3_647.jpg",
+      "video_t": 406.02,
+      "q": 3,
+      "trace": "strength L647",
+      "description": "BlackMerchant-refresh 后未购买"
+    },
+    {
+      "filename": "e_t0530.72_L0972_q3_972.jpg",
+      "video_t": 530.72,
+      "q": 3,
+      "trace": "strength L972",
+      "description": "BlackMerchant-refresh 后未购买"
+    },
+    {
+      "filename": "e_t0689.00_L1324_q4_1324.jpg",
+      "video_t": 689.0,
+      "q": 4,
+      "trace": "strength L1324",
+      "description": "BlackMerchant-swallow_pill 点空槽"
+    },
+    {
+      "filename": "crop_q4_L1324_merchant_area.jpg",
+      "video_t": 689.0,
+      "q": 4,
+      "description": "黑商货区裁剪（空槽）"
+    },
+    {
+      "filename": "e_t0406.02_L0647_seg_1_L640_L681.jpg",
+      "video_t": 406.02,
+      "q": 7,
+      "description": "环1 片段对照"
+    }
+  ],
+  "evidence_grade": "R",
+  "not_bat10_L": true,
+  "zero_input": true,
+  "writes_repo_config": false,
+  "writes_settings": false
+}

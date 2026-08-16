@@ -14,6 +14,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
+from gamescript.choice_policy import SessionState
 from gamescript.loop_action import LoopAction
 from gamescript.mediator import Mediator, PanelState, Phase, RecoveryKind, RecoveryStep, RoundOutcome
 from gamescript.settings import Settings
@@ -65,6 +66,24 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertEqual(hit.name, "assx")
         self.assertEqual(hit.x, int(1600 * 0.646))
+
+    def test_empty_skill_ocr_does_not_click_giveup(self) -> None:
+        med = Mediator(Settings(skills=["asj", "asjg", "assx", "jq"], ocr_mode="live"), ROOT)
+        slots = [
+            {"index": 0, "name": None, "confidence": 0.0},
+            {"index": 1, "name": None, "confidence": 0.0},
+            {"index": 2, "name": None, "confidence": 0.0},
+        ]
+        giveup = MatchResult("skill_giveup_btn", 0.99, 580, 552, 40, 20, 580, 552)
+        med._choice_session = SessionState(waits=5, max_waits=5, refreshes=3, max_refreshes=3)
+        with patch.object(med, "_ocr_panel_slots", return_value=slots), \
+                patch.object(med, "_panel_has_giveup", return_value=True), \
+                patch.object(med, "_find_panel_giveup", return_value=giveup), \
+                patch.object(med, "_find_panel_refresh", return_value=None), \
+                patch.object(med, "_find_skill_hide", return_value=None):
+            hit = med._ocr_reward_choice(frame(), "skill")
+        if hit is not None:
+            self.assertNotIn((hit.name or "").lower(), {"skill_giveup_btn", "giveup"})
 
     def test_bond_full_bar_allows_only_one_away_merge(self) -> None:
         # A3：硬白名单取代占用启发式。未勾选一律不选（WAIT→None）；
@@ -266,6 +285,36 @@ class LiveRun205044Tests(unittest.TestCase):
 
         card_hide = MatchResult("card_hide", 0.819, 805, 575, 10, 10, 805, 575)
         self.assertEqual(med._panel_kind_of(frame(), card_hide), "bond")
+
+    def test_opened_skill_beats_hsv_and_lone_treasure_lock(self) -> None:
+        # 13号 200601：按了 G 之后金卡三选被 HSV / treasure_lock 判成宝物。
+        med = Mediator(Settings(), ROOT)
+        med._panel_opened_by_us = "skill"
+        refresh = MatchResult("skill_refresh_btn", 0.763, 860, 552, 10, 10, 860, 552)
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        image[180:515, 450:1145] = (20, 140, 20)
+        self.assertEqual(med._panel_kind_of(Frame(image), refresh), "skill")
+
+        lock = MatchResult("treasure_lock_btn", 0.81, 580, 572, 10, 10, 580, 572)
+        self.assertEqual(med._panel_kind_of(frame(), lock), "skill")
+
+    def test_treasure_lock_alone_is_not_treasure(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        lock = MatchResult("treasure_lock_btn", 0.81, 580, 572, 10, 10, 580, 572)
+        fr = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1, window_title="英雄三国KK")
+
+        def make_find(hits: dict[str, MatchResult]):
+            def fake_find(_frame, names, **_kwargs):
+                for n in names:
+                    if n in hits:
+                        return hits[n]
+                return None
+
+            return fake_find
+
+        with patch.object(med, "find", side_effect=make_find({"treasure_lock_btn": lock})):
+            self.assertNotEqual(med._classify_choice_panel_at(fr, 0.70, (1.0,)), "treasure")
+            self.assertEqual(med._panel_kind_of(fr, lock), "unknown")
 
     def test_two_card_evolution_modal_is_not_a_skill_panel(self) -> None:
         med = Mediator(Settings(), ROOT)

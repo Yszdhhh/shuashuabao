@@ -143,6 +143,7 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_choice_session": __import__(
             "gamescript.choice_policy", fromlist=["SessionState"]
         ).SessionState(attempts=9, refreshes=3, waits=4),
+        "_choice_fp_before_refresh": "0:污染|1:污染|2:污染",
         "_choice_policy_idle": True,
         "_panel_fingerprint_attempts": 4,
         "_panel_f1_used_this_episode": True,

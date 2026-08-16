@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "case": "skill_panel_one_missing",
-  "description": "技能面板可见卡牌与可靠识别结果不完整时，不能盲点'看起来像'的位置，也不能把未识别卡当成偏好命中。EVIDENCE(UPDATE 2026-08-09)：新增 B站视频（BV1HrMf6ZEFR 萌新坐车攻略 t=41.5s，852x480 全屏帧）真实证据 skill_panel_video_zero_input.png——技能面板三张卡可见（三卡位均检出 sr 品质色边框）、面板按钮模板（放弃/刷新）低于 0.70 阈值导致面板不可分类、无偏好技能命中、无品质色回退、无战后入口误报；生产 tick 实测两帧均零输入（'当前选择无配置命中，保持零输入等待'）、context=MAIN_LINE、final MAIN_LINE，满足设计契约。若移除 XFAIL 标记该 case 应转 PASS。旧基线 fixtures/replay/skill_choice_4.jpg（2348x1080）仍命中偏好技能 sdl 0.782 产生点击，保留作为对照。",
+  "description": "技能面板可见卡牌与可靠识别结果不完整时，不能盲点'看起来像'的位置，也不能把未识别卡当成偏好命中。EVIDENCE(UPDATE 2026-08-09)：新增 B站视频（BV1HrMf6ZEFR 萌新坐车攻略 t=41.5s，852x480 全屏帧）真实证据 skill_panel_video_zero_input.png——技能面板三张卡可见（三卡位均检出 sr 品质色边框）、面板按钮模板（放弃/刷新）低于 0.70 阈值导致面板不可分类、无偏好技能命中、无品质色回退、无战后入口误报；生产 tick 实测两帧均零输入（'当前选择无配置命中，保持零输入等待'）、context=MAIN_LINE、final MAIN_LINE，满足设计契约。若移除 XFAIL 标记该 case 应转 PASS。旧基线 fixtures/replay/skill_choice_4.jpg（2348x1080）仍命中偏好技能 sdl 0.782 产生点击，保留作为对照。 UPDATE(2026-08-16, L1 裁决)：选卡策略改为「空名/指纹不变禁止放弃技能点，兜底隐藏」后，第二帧不再零输入——skill_hide 模板（≥0.70）命中即作为面板收口点击（reason=技能选择）；仍不得点任何卡位/放弃钮（核心断言保留）。",
   "phase": "MAIN_LINE",
   "settings_overrides": {
     "dry_run": true,
@@ -55,9 +55,17 @@
     {
       "phase_before": "MAIN_LINE",
       "context": "MAIN_LINE",
-      "action_count": 0,
-      "action": null,
-      "action_result": null,
+      "action_count": 1,
+      "action": {
+        "kind": "click",
+        "reason": "技能选择",
+        "target": "skill_hide",
+        "input_kind": "left_click"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
       "phase_after": "MAIN_LINE",
       "loop_action": "Continue"
     }

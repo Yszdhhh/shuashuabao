@@ -4,8 +4,9 @@
 
 规则（与蓝图 §12 一致）：
 
-- 技能：仅选用户预设（skill_presets）；预设未命中 → REFRESH；刷新耗尽
-  （session.refreshes >= max_refreshes）→ GIVEUP / CLOSE；永不返回非预设技能槽；
+- 技能：仅选用户预设（skill_presets）；预设未命中且卡名可读 → REFRESH；
+  三槽无名或刷新指纹不变 → 只 WAIT/隐藏，禁止放弃技能点；
+  刷新耗尽仍无预设 → 默认隐藏；仅 allow_skill_giveup 才 GIVEUP；
 - 羁绊：预设优先 → 接近合成者（set_progress 可验证字段，含 owned 成员清单）
   → 品质降级（quality_order 确定性规则）；unknown 名称绝不冒充词典内羁绊
   （只能 WAIT/REFRESH）；
@@ -156,6 +157,7 @@ class PolicySettings:
     treasure_allow_negative: tuple[str, ...] = ()
     # 本地习惯权重：规范名 → 分数。仅在已允许集合内做 tie-break；空 = 行为与旧版一致。
     habit_name_scores: tuple[tuple[str, float], ...] = ()
+    allow_skill_giveup: bool = False
 
     def __post_init__(self) -> None:
         if self.bond_whitelist_mode not in VALID_WHITELIST_MODES:
@@ -209,6 +211,7 @@ class PolicySettings:
                 str(s) for s in raw.get("treasure_allow_negative", ())
             ),
             habit_name_scores=habit_scores,
+            allow_skill_giveup=bool(raw.get("allow_skill_giveup", False)),
         )
 
 
@@ -227,6 +230,7 @@ class SessionState:
     max_attempts: int = DEFAULT_MAX_ATTEMPTS
     max_refreshes: int = DEFAULT_MAX_REFRESHES
     max_waits: int = DEFAULT_MAX_WAITS
+    last_slot_fingerprint: str | None = None
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> "SessionState":
@@ -354,13 +358,40 @@ def choose_action(
 
 
 # ---------------------------------------------------------------------------
-# 技能面板：仅预设；预设未命中 → 刷新；刷新耗尽 → 放弃/关闭。
+# 技能面板：仅预设；空名/指纹不变不得放弃；可读非预设才刷新。
 # ---------------------------------------------------------------------------
+def slot_fingerprint(slots: tuple[SlotCandidate, ...] | list[SlotCandidate]) -> str:
+    parts: list[str] = []
+    for slot in slots:
+        parts.append(f"{slot.index}:{slot.name or ''}:{slot.rarity or ''}")
+    return "|".join(parts)
+
+
+def _all_skill_names_missing(slots: tuple[SlotCandidate, ...]) -> bool:
+    return bool(slots) and all(s.name is None for s in slots)
+
+
+def _refresh_unchanged(state: SessionState, slots: tuple[SlotCandidate, ...]) -> bool:
+    prev = state.last_slot_fingerprint
+    return bool(prev) and slot_fingerprint(slots) == prev
+
+
+def _skill_hold_or_hide(why: str) -> PolicyDecision:
+    return PolicyDecision(PolicyAction.CLOSE, None, f"{why}，隐藏（不放弃技能点）")
+
+
+def _skill_last_resort(
+    cands: PanelCandidates, settings: PolicySettings, why: str
+) -> PolicyDecision:
+    if settings.allow_skill_giveup:
+        return _giveup_or_close(cands, why)
+    return _skill_hold_or_hide(why)
+
+
 def _decide_skill(
     cands: PanelCandidates, state: SessionState, settings: PolicySettings
 ) -> PolicyDecision:
     # 多个预设技能同时出现时按稀有度优先（红>橙>紫>蓝>白>绿）。
-    # 旧行为按槽位从左到右取第一个，导致「预设里有橙色却选了紫/蓝」。
     preset_hit = _match_preset(
         cands.slots,
         settings.skill_presets,
@@ -375,14 +406,31 @@ def _decide_skill(
         return PolicyDecision.select(
             preset_hit, f"技能预设命中（稀有度优先）：{name}/{rarity} @ slot {preset_hit}"
         )
-    # 预设不存在（含全部槽位 unknown）→ 刷新；非预设技能槽绝不返回 SELECT。
+    unread = _all_skill_names_missing(cands.slots) or not any(s.name for s in cands.slots)
+    stale = _refresh_unchanged(state, cands.slots)
+    if unread:
+        if state.waits < state.max_waits:
+            return PolicyDecision(
+                PolicyAction.WAIT,
+                None,
+                "技能卡名未读出，等待（不刷新/放弃）",
+            )
+        return _skill_hold_or_hide("技能卡名未读出")
+    if stale:
+        if state.waits < state.max_waits:
+            return PolicyDecision(
+                PolicyAction.WAIT,
+                None,
+                "刷新后三张卡指纹未变，等待（不刷新/放弃）",
+            )
+        return _skill_hold_or_hide("刷新后三张卡指纹未变")
     if state.refreshes < state.max_refreshes:
         return PolicyDecision(
             PolicyAction.REFRESH,
             None,
             f"技能预设未命中（已刷新 {state.refreshes}/{state.max_refreshes}），刷新",
         )
-    return _giveup_or_close(cands, "刷新耗尽仍无预设技能")
+    return _skill_last_resort(cands, settings, "刷新耗尽仍无预设技能")
 
 
 # ---------------------------------------------------------------------------

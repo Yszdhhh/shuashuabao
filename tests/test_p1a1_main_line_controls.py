@@ -291,8 +291,10 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.assertIsNotNone(choice2)
         self.assertEqual(choice2[1].name, "dcw")
 
-    def test_skill_choice_no_preferred_hit_refreshes_then_gives_up(self):
-        # 技能只允许用户配置项：无命中先刷新，用完后放弃。
+    def test_skill_choice_no_preferred_hit_refreshes_then_blocks_giveup(self):
+        # 技能只允许用户配置项：无命中先刷新；2026-08-14 策略变更——刷新耗尽
+        # 禁止放弃技能点（allow_skill_giveup 默认 false），兜底为隐藏或零输入。
+        # 本帧无 skill_hide 模板 → 策略拦下放弃，零输入（choice=None）。
         f4 = load_fixture_frame("fixtures/replay/skill_choice_4.jpg")
         self.settings.skills = ["asj", "jq"]  # 不在该面板上的技能
         choice = self.med._find_reward_choice(f4)
@@ -303,9 +305,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
 
         self.med._skill_refresh_attempts = 3
         choice = self.med._find_reward_choice(f4)
-        self.assertIsNotNone(choice)
-        self.assertEqual(choice[0], "技能放弃")
-        self.assertIn(choice[1].name, ("skill_giveup_btn", "giveUp"))
+        self.assertIsNone(choice, "刷新耗尽不得放弃技能点；无隐藏钮时零输入")
 
     def test_skill_choice_candidate_count_is_not_a_hard_gate(self):
         # 57d40ce 移除 3/4 数量门：少识别/多误识别不阻塞，只选配置内的候选
@@ -346,8 +346,12 @@ class P1A1MainLineControlsTests(unittest.TestCase):
     def test_treasure_fixture_uses_real_card_centers_and_not_skill_layout(self):
         # A3：禁止无脑第一张；无 cards 偏好时宝物可走品质色（负面剔除后），
         # 坐标仍必须是宝物布局而非技能布局。
+        # 2026-08-16 L1 裁决：新判别纪律下自然宝物面板（lock 0.785 弱命中 +
+        # 共用刷新图 0.916）不再单凭模板定类为 treasure；按 V 键打开的
+        # 面板走「主动打开键位优先」路径，kind=treasure 由键位保证。
         frame = load_fixture_frame("fixtures/replay/treasure_choice_3.png")
         self.settings.cards = []
+        self.med._panel_opened_by_us = "treasure"
         choice = self.med._find_reward_choice(frame)
         self.assertIsNotNone(choice)
         kind, hit = choice
@@ -391,6 +395,9 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         frame = load_fixture_frame("fixtures/replay/treasure_choice_3.png")
         frame.hwnd = 10001
         self.med.set_phase(Phase.MAIN_LINE, "treasure longzhu guard")
+        # 2026-08-16 L1 裁决：同上——按 V 打开的宝物面板，kind 由键位优先保证；
+        # 本测试核心是「面板处理优先于龙珠停手」，不是模板定类本身。
+        self.med._panel_opened_by_us = "treasure"
         false_longzhu = MatchResult("longzhu", 0.95, 700, 250, 80, 80, 700, 250)
         with patch.object(self.med, "_post_game_state", return_value=None), \
              patch.object(self.med, "find_scene", return_value=false_longzhu) as scene, \
