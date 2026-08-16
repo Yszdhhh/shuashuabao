@@ -1,0 +1,2771 @@
+{
+ "version": 1,
+ "kb_id": "official_game_mechanics",
+ "ingested_at": "2026-08-15",
+ "wired_to_decision": false,
+ "status": "official_help",
+ "_comment": "游戏内官方说明底库。比攻略优先。整份 JSON 仍不驱动公式。partially_wired 只列源码真接上的。白绿先刷 / 目录压 OCR / 审判排斥 曾误登记，见 skill_card_colors。不要把截图 PNG 复制进仓库。",
+ "partially_wired": [
+  "skill_points_via_G_before_wood_F"
+ ],
+ "precedence": [
+  "official_help",
+  "live_ocr",
+  "user_card_screenshot",
+  "user_confirmed",
+  "guide"
+ ],
+ "evidence_shots": [
+  {
+   "id": "play_help",
+   "title": "玩法说明",
+   "filename": "image-38581c58-9dac-4323-a4da-0b6415ce5f95.png",
+   "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-38581c58-9dac-4323-a4da-0b6415ce5f95.png"
+  },
+  {
+   "id": "basic_attr",
+   "title": "基础属性说明",
+   "filename": "1786677308236_d-176e9aa4-aeb4-4dfb-95d5-590b157fe58e.png",
+   "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_1786677308236_d-176e9aa4-aeb4-4dfb-95d5-590b157fe58e.png"
+  },
+  {
+   "id": "special_attr",
+   "title": "特殊属性说明",
+   "filename": "image-8647855e-7347-42b5-9b49-cd4961d8f134.png",
+   "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-8647855e-7347-42b5-9b49-cd4961d8f134.png"
+  },
+  {
+   "id": "status_p1",
+   "title": "状态效果说明（页1）",
+   "filename": "image-7b9a6232-84f4-4281-921d-d6825ede92a7.png",
+   "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-7b9a6232-84f4-4281-921d-d6825ede92a7.png",
+   "note": "与 status_p2 重复；圣盾以 status_p2 为准，本页条目已合并进 status_effects"
+  },
+  {
+   "id": "status_p2",
+   "title": "状态效果说明（页2，含圣盾）",
+   "filename": "image-ff165022-ba56-45f4-8bc3-f88bb727592f.png",
+   "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-ff165022-ba56-45f4-8bc3-f88bb727592f.png"
+  },
+  {
+   "id": "other_1",
+   "title": "其他说明",
+   "filename": "image-8ae8f78a-edca-4861-9f52-1ca882e97f90.png",
+   "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-8ae8f78a-edca-4861-9f52-1ca882e97f90.png"
+  },
+  {
+   "id": "other_2",
+   "title": "其他说明续",
+   "filename": "image-b0396b8e-d5e1-4530-b062-b83a3e559571.png",
+   "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-b0396b8e-d5e1-4530-b062-b83a3e559571.png"
+  }
+ ],
+ "script_forbidden": [
+  {
+   "id": "suicide_chat",
+   "keys": [
+    "-zs",
+    "-ZS"
+   ],
+   "text": "局内输入 -zs / -ZS 自杀，并清空全部剩余复活次数。",
+   "source": "other_1",
+   "status": "official_help",
+   "script_rule": "fail_closed_never_type"
+  },
+  {
+   "id": "sword_form_chat",
+   "keys": [
+    "-永恒",
+    "-岚",
+    "-终焉",
+    "-1",
+    "-2",
+    "-3"
+   ],
+   "text": "解放的圣剑用聊天切永恒/岚/终焉。与 -zs 同属聊天输入，脚本禁止自动键入。",
+   "source": "user_card_screenshot",
+   "status": "user_card_screenshot",
+   "script_rule": "fail_closed_never_type",
+   "note": "fixtures/ex_finals_20260814/06。默认永恒。接线也禁止。"
+  },
+  {
+   "id": "equipment_bar_lmb",
+   "keys": [
+    "装备栏左键",
+    "黄金猿"
+   ],
+   "text": "黄金猿是装备。在装备栏点左键才开宝藏卡组。锚点未钉。禁止自动点装备栏（可能误点脱装/别的装备）。",
+   "source": "user_confirmed",
+   "status": "user_confirmed",
+   "script_rule": "fail_closed_never_click",
+   "wired": false,
+   "note": "攻略语音识别曾写成黄金元。不是 F 三选卡。"
+  }
+ ],
+ "script_situational": [
+  {
+   "id": "clear_challenge_f4",
+   "keys": [
+    "F4"
+   ],
+   "text": "F4 一键清除自己场上的挑战怪；被压力转移的玩家也可用来清队友传送过来的怪。",
+   "source": [
+    "other_2",
+    "user_confirmed"
+   ],
+   "status": "user_confirmed",
+   "policy_at": "2026-08-14",
+   "script_rule": "press_when_challenge_unwinnable",
+   "allow_when": "打不过场上挑战怪时按 F4 清场。主线 / 资源挑战 / 压力转移送来的怪都算。",
+   "deny_when": "挑战还打得过时禁止误按（会清掉还在打的挑战收益）。",
+   "wired": false,
+   "note": "user 2026-08-14 解禁：打不过就要按。旧规则 fail_closed_never_press 作废。「打不过」的实机判定未钉，接线另立项，不猜血量阈值。"
+  },
+  {
+   "id": "pressure_transfer",
+   "keys": [
+    "压力转移"
+   ],
+   "text": "多人局压力转移会改刷怪与胜负绑定。1P 失败则转移方一起失败。",
+   "source": [
+    "other_1",
+    "user_confirmed"
+   ],
+   "status": "user_confirmed",
+   "policy_at": "2026-08-14",
+   "script_rule": "click_on_hitch_enter",
+   "allow_when": "跟车 / 蹭车模式，一进游戏就点。官方前提仍在：多人、通关 1-1 后、非 1P 可见。",
+   "deny_when": "自己开房 / 独狼 / 当 1P / 非跟车模式禁止误点。",
+   "wired": false,
+   "note": "user 2026-08-14 解禁：跟车进局必点。旧规则 fail_closed_never_click 作废。lobby_hitch live_enabled 仍 false；接线走蹭车局内阶段，不和 normal_farm 拿卡混提交。"
+  }
+ ],
+ "resources": {
+  "gold": {
+   "name": "金币",
+   "primary_use": "专属升级",
+   "text": "主要用于专属升级。",
+   "also_from": [
+    "资源挑战（金币）"
+   ],
+   "source": [
+    "basic_attr",
+    "play_help"
+   ],
+   "status": "official_help",
+   "vs_old_research": "旧研究把金币主用途写成黑市。官方说明只写专属升级。黑市是否另耗金币：未知。"
+  },
+  "wood": {
+   "name": "木材",
+   "primary_use": "羁绊抽卡与羁绊刷新",
+   "text": "F 抽羁绊耗木头。羁绊三选刷新也耗木头（user 2026-08-14）。主线挑战给大量木材。",
+   "also_from": [
+    "主线挑战",
+    "资源挑战（木头）"
+   ],
+   "source": [
+    "basic_attr",
+    "play_help",
+    "user_confirmed"
+   ],
+   "status": "user_confirmed",
+   "vs_old_research": "木头不是技能/宝物/英雄卡/黑商的刷新货币。旧文把「刷羁绊」和「万物刷新」混写。抽卡（开 F）和刷新（羁绊三选再刷）都花木头，单价都未知。"
+  },
+  "exp": {
+   "name": "经验",
+   "primary_use": "英雄升级",
+   "text": "用于英雄升级。每升 1 级获得 1 点技能点。",
+   "also_from": [
+    "资源挑战（经验）"
+   ],
+   "source": [
+    "basic_attr",
+    "play_help"
+   ],
+   "status": "official_help"
+  },
+  "skill_points": {
+   "name": "技能点",
+   "primary_use": "技能抽卡",
+   "text": "来自升级：每级 1 点。G 键抽技能消耗技能点。",
+   "source": [
+    "basic_attr",
+    "play_help"
+   ],
+   "status": "official_help",
+   "vs_old_research": "旧研究把技能点约等于「三选一次数」。官方：经验→升级→技能点→G 抽技能。"
+  },
+  "kill_count": {
+   "name": "杀敌数",
+   "primary_use": "黑商刷新",
+   "official_text": "用于刷新英雄、宝物、技能。",
+   "text": "脚本账本：杀敌数付黑商店铺刷新。每 180 秒有 1 次免费刷新（user 2026-08-14 更正；前记 120 作废）。不要写成「黑商刷英雄卡」。",
+   "source": [
+    "basic_attr",
+    "user_confirmed"
+   ],
+   "status": "user_confirmed",
+   "vs_official_help": "basic_attr 写「杀敌数用于刷新英雄、宝物、技能」。user 2026-08-14：那三面板的刷新次数来自宝物词条或局外效果卡；杀敌只付黑商刷新。官方原文留 official_text，脚本以 refresh_ledgers 为准，待实机杀敌差值核对。",
+   "vs_old_research": "不要把杀敌数当成万物刷新货币。脚本 DEFAULT_MAX_REFRESHES=3 是策略上限，不是游戏硬顶。黑商单次杀敌单价未知。"
+  },
+  "drop_rate": {
+   "name": "掉宝率",
+   "primary_use": "存档物品掉落",
+   "text": "影响存档物品掉落。实际几率可在关卡 BOSS 掉落处查看。",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "refresh_charges": {
+   "name": "刷新次数（宝物词条 / 局外效果卡）",
+   "primary_use": "宝物、技能、英雄卡面板刷新",
+   "text": "宝物、技能、英雄卡三选的刷新次数，只来自宝物效果词条，或局外效果卡。局外效果卡一入局就能看到剩余次数，多半是充值、抽奖、前置装备带来的。没有次数就不能刷，不要扣木头或杀敌。",
+   "source": "user_confirmed",
+   "status": "user_confirmed",
+   "unknown": [
+    "哪些宝物词条给刷新次数",
+    "局外效果卡规范名与张数"
+   ]
+  }
+ },
+ "refresh_ledgers": {
+  "_comment": "「刷新」不是一种货币。开面板/抽卡 ≠ 刷新当前三选。官方 basic_attr 把英雄/宝物/技能刷新写成杀敌数，与本表冲突；原文留在 resources.kill_count.official_text。脚本以本表为准。",
+  "source": "user_confirmed",
+  "status": "user_confirmed",
+  "ingested_at": "2026-08-14",
+  "wired_to_decision": false,
+  "kinds": {
+   "bond": {
+    "name": "羁绊刷新",
+    "panel": "羁绊三选",
+    "distinct_from": "F 抽羁绊（开面板也耗木头，是另一笔）",
+    "cost": "木材",
+    "cost_amount": null,
+    "charges_from": null,
+    "free": null,
+    "script_rule": "wood_gated_not_wired",
+    "note": "B2 木头阈值（<100 不开 F、<40 不刷新）因此更站得住。单价未知，不猜。"
+   },
+   "skill": {
+    "name": "技能刷新",
+    "panel": "技能三选",
+    "distinct_from": "G 抽技能（耗技能点，是另一笔）",
+    "cost": null,
+    "charges_from": [
+     "宝物效果词条",
+     "局外效果卡"
+    ],
+    "free": null,
+    "script_rule": "charge_gated_not_wired",
+    "note": "没有次数就不要点刷新。脚本 skill_refresh_skips_white_green 现在会烧 REFRESH，可能在浪费词条次数；改接线另立项。"
+   },
+   "treasure": {
+    "name": "宝物刷新",
+    "panel": "宝物三选",
+    "cost": null,
+    "charges_from": [
+     "宝物效果词条",
+     "局外效果卡",
+     "龙珠套装（如五星球+2次）"
+    ],
+    "free": null,
+    "script_rule": "charge_gated_not_wired",
+    "dragon_ball_notes": "实测（2026-08-15 板块8，fixtures/treasure_merchant_dragonballs_20260815）：龙珠散件出现在宝物三选面板，不同星球给不同奖励——三星球=宝物免费刷新次数+1；五星球=宝物免费刷新次数+2；二星球=力量增幅类[1星效果]+3%；四星球=英雄卡*1（013304 段另见获得4点技能点）；七星球=金币+10000、木材+10000（daodao_ t=902）/木材+100（013304_ t=1018 双模型确认，两读并存待核）。套装角标 (x/7)=已收集龙珠数（实测 0/7→1/7→2/7 自洽）；集齐 7 颗召唤神龙许愿（至今未达成，无证据）。一星球/六星球无证据。"
+   },
+   "hero_card": {
+    "name": "英雄卡刷新",
+    "panel": "英雄卡",
+    "cost": null,
+    "charges_from": [
+     "宝物效果词条",
+     "局外效果卡"
+    ],
+    "free": null,
+    "script_rule": "charge_gated_not_wired",
+    "note": "和宝物/技能刷新同一类次数来源。不是黑商。禁止再写「黑商刷英雄卡」。"
+   },
+   "black_merchant": {
+    "name": "黑商刷新",
+    "panel": "黑商店铺",
+    "cost": "杀敌数或木材",
+    "cost_amount": null,
+    "charges_from": null,
+    "free": {
+     "interval_sec": 180,
+     "count": 1,
+     "source": "user_confirmed",
+     "corrected_from_sec": 120,
+     "corrected_at": "2026-08-14"
+    },
+    "discount_tiers": {
+     "20_pct": "实测 2折→60（013304 t=1463.5）与 2折→400（yihuo t=208）并存，折扣标签对应商品原价而非固定价",
+     "50_pct": "实测 5折→150（yihuo t=208）",
+     "80_pct": "实测 8折→320（yihuo t=208）",
+     "100_pct": "原价 300/500 并存（yihuo t=208 原价300；013304 t=1463.5 价目 300/500/400/60/300）"
+    },
+    "script_rule": "not_wired",
+    "note": "常驻4格商品扣木材；手动刷新扣杀敌数或木材。实测原文（013304 t=1463.5）：黑市每180秒获得1次免费刷新机会；黑市商店等级越高刷新出的物品越好；黑市每秒自动获得1点经验；消耗杀敌数购买商品也会获得经验，经验满后则晋升为下一级；快捷键[H]。黑市升级走经验而非纯时间（经验条 369/500 互证）；升级聊天行\"黑市等级升为：2级，可以刷新更高级的物品了\"（t=875/1596）。do_not_auto_enable 仍禁止自动购买序。"
+   }
+  }
+ },
+ "hotkeys": {
+  "F": {
+   "action": "羁绊抽卡",
+   "cost": "木材",
+   "source": "play_help",
+   "status": "official_help",
+   "script_rule": "safe_if_wood_gated"
+  },
+  "G": {
+   "action": "技能抽卡",
+   "cost": "技能点",
+   "source": "play_help",
+   "status": "official_help",
+   "script_rule": "safe_if_skill_point_gated"
+  },
+  "C": {
+   "action": "主线挑战",
+   "cost": null,
+   "source": "play_help",
+   "status": "official_help",
+   "script_rule": "existing_l1_challenge_path"
+  },
+  "F4": {
+   "action": "清除场上挑战怪",
+   "cost": null,
+   "source": [
+    "other_2",
+    "user_confirmed"
+   ],
+   "status": "user_confirmed",
+   "script_rule": "press_when_challenge_unwinnable",
+   "note": "打不过时按。还打得过时禁止误按。接线另立项。"
+  },
+  "F1": {
+   "action": "操作切回自身英雄",
+   "cost": null,
+   "source": "user_confirmed",
+   "status": "user_confirmed",
+   "ingested_at": "2026-08-14",
+   "text": "把操作焦点切回自身英雄。用途：G / V / F 面板无法操作时恢复控制。面板无响应时按 F1 恢复操作焦点，可作候选恢复手段。",
+   "script_rule": "candidate_recovery_not_wired",
+   "note": "接线另立项，不在板块 3 做。现网「F1 选卡兜底 shadow」是脚本影子键，不是本条游戏热键，禁止复用。"
+  },
+  "F2": {
+   "action": "回基地",
+   "cost": null,
+   "source": "user_confirmed",
+   "status": "user_confirmed",
+   "ingested_at": "2026-08-14",
+   "text": "镜头回到自己基地。用途：视角偏离，或需要点秘境 / 传家宝却点不到。",
+   "script_rule": "not_wired",
+   "note": "蹭车旧口述「两次 F2」作废。以本条为准：F1=切自身英雄，F2=回基地。"
+  }
+ },
+ "panels": {
+  "bond_gacha": {
+   "name": "羁绊抽卡",
+   "hotkey": "F",
+   "cost": "木材",
+   "text": "集齐羁绊后自动吞噬。持续获取已吞噬羁绊会显著增强战力。",
+   "source": "play_help",
+   "status": "official_help"
+  },
+  "skill_gacha": {
+   "name": "技能抽卡",
+   "hotkey": "G",
+   "cost": "技能点",
+   "text": "技能是主要输出。官方建议优先选择同一技能，升到最终高威力形态。",
+   "source": "play_help",
+   "status": "official_help"
+  },
+  "exclusive_upgrade": {
+   "name": "专属升级",
+   "hotkey": null,
+   "cost": "金币",
+   "text": "升级专属武器提供大量基础属性。每 10 级可选择一条词条。",
+   "source": "play_help",
+   "status": "official_help",
+   "unknown": [
+    "每级金币消耗",
+    "词条池",
+    "热键"
+   ]
+  },
+  "main_story": {
+   "name": "主线挑战",
+   "hotkey": "C",
+   "text": "提供属性奖励和大量木材。击败主线 BOSS 另有材料奖励。",
+   "source": "play_help",
+   "status": "official_help"
+  },
+  "resource_challenge": {
+   "name": "资源挑战",
+   "text": "可分别挑战金币、木头、经验、宝物，获得对应奖励。",
+   "kinds": [
+    "金币",
+    "木头",
+    "经验",
+    "宝物"
+   ],
+   "source": "play_help",
+   "status": "official_help"
+  },
+  "adventure": {
+   "name": "奇遇",
+   "text": "击败 BOSS、击杀特定数量敌人、或完成主线后，有几率触发。击败奇遇敌人有丰厚奖励。",
+   "source": "play_help",
+   "status": "official_help",
+   "unknown": [
+    "触发阈值具体数字"
+   ]
+  },
+  "early_challenge": {
+   "name": "提前挑战",
+   "text": "通关主线 5-5 且本局已进行至少 10 分钟后开启。按钮在界面左上方。",
+   "source": [
+    "other_1",
+    "other_2"
+   ],
+   "status": "official_help"
+  },
+  "skill_card_viewer": {
+   "name": "技能卡牌查看",
+   "text": "存档 → 技能界面右下角放大镜，可查看该技能的衍生卡牌。",
+   "source": [
+    "other_1",
+    "other_2"
+   ],
+   "status": "official_help"
+  }
+ },
+ "attributes": {
+  "hp": {
+   "name": "生命值",
+   "text": "降到 0 角色死亡、本局失败。有 1 次免费复活机会。",
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "attack": {
+   "name": "攻击力",
+   "text": "直接影响普攻伤害和技能伤害。",
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "armor": {
+   "name": "护甲",
+   "text": "同时减少受到的物理伤害和魔法伤害。",
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "strength": {
+   "name": "力量",
+   "text": "每 1 点：+0.3 攻击力、+1 生命。",
+   "per_point": {
+    "attack": 0.3,
+    "hp": 1
+   },
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "agility": {
+   "name": "敏捷",
+   "text": "每 1 点：+0.3 攻击力，并按百分比提高物理伤害。属性越高，该伤害加成的增长比例越低（递减）。",
+   "per_point": {
+    "attack": 0.3,
+    "physical_damage_pct": "diminishing"
+   },
+   "source": "basic_attr",
+   "status": "official_help",
+   "unknown": [
+    "递减公式"
+   ]
+  },
+  "intelligence": {
+   "name": "智力",
+   "text": "每 1 点：+0.3 攻击力，并按百分比提高魔法伤害。属性越高，该伤害加成的增长比例越低（递减）。",
+   "per_point": {
+    "attack": 0.3,
+    "magic_damage_pct": "diminishing"
+   },
+   "source": "basic_attr",
+   "status": "official_help",
+   "unknown": [
+    "递减公式"
+   ]
+  },
+  "attack_range": {
+   "name": "攻击范围",
+   "text": "角色攻击距离。",
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "attack_speed": {
+   "name": "攻击速度",
+   "text": "影响攻击频率。硬上限 1000%。",
+   "cap_pct": 1000,
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "multi_count": {
+   "name": "多重数量",
+   "text": "额外投射物数量。多重不触发普攻特效。",
+   "triggers_aa_effects": false,
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "bounce_count": {
+   "name": "弹射次数",
+   "text": "在目标间弹射的次数。弹射不触发普攻特效。",
+   "triggers_aa_effects": false,
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "multi_damage": {
+   "name": "多重伤害",
+   "text": "额外投射物伤害系数。基础 30%，上限 100%。",
+   "base_pct": 30,
+   "cap_pct": 100,
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "bounce_damage": {
+   "name": "弹射伤害",
+   "text": "弹射伤害系数。基础 30%，上限 100%。",
+   "base_pct": 30,
+   "cap_pct": 100,
+   "source": "basic_attr",
+   "status": "official_help"
+  }
+ },
+ "special_attributes": {
+  "drop_rate": {
+   "name": "掉宝率",
+   "text": "影响存档物品掉落。实际几率可在关卡 BOSS 掉落处查看。",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "card_attr": {
+   "name": "卡牌属性",
+   "text": "提升羁绊卡牌的属性值。羁绊卡牌提供的属性算基础属性（白字）。",
+   "source": [
+    "special_attr",
+    "other_1",
+    "other_2"
+   ],
+   "status": "official_help"
+  },
+  "crit": {
+   "name": "致命一击",
+   "text": "造成伤害时触发，按概率提高伤害倍数。",
+   "source": "special_attr",
+   "status": "official_help",
+   "unknown": [
+    "基础暴击倍率",
+    "暴击率公式"
+   ]
+  },
+  "pierce": {
+   "name": "穿透次数",
+   "text": "增加部分技能可穿透的目标数量。",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "hit": {
+   "name": "命中",
+   "text": "影响造成伤害的概率。",
+   "source": "special_attr",
+   "status": "official_help",
+   "unknown": [
+    "命中公式"
+   ]
+  },
+  "evasion": {
+   "name": "闪避",
+   "text": "影响受害概率。覆盖普攻、技能、物理、魔法、真实伤害（真伤也可被闪避）。",
+   "covers": [
+    "aa",
+    "skill",
+    "physical",
+    "magic",
+    "true"
+   ],
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "aa_damage": {
+   "name": "普攻伤害",
+   "text": "只加成普攻。例外：描述写「视为普攻伤害」的技能可享受。",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "skill_damage": {
+   "name": "技能伤害",
+   "text": "加成所有技能，包括普攻触发的技能。例外：标注「视为普攻伤害」的技能不享受技能伤害加成。",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "skill_haste": {
+   "name": "技能急速",
+   "text": "缩减技能冷却。硬上限 80%。",
+   "cap_pct": 80,
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "all_damage": {
+   "name": "所有伤害",
+   "text": "独立乘区。",
+   "zone": "independent",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "damage_amp": {
+   "name": "伤害增幅",
+   "text": "提高所有类型伤害，独立乘区。",
+   "zone": "independent",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "bonus_damage": {
+   "name": "附加伤害",
+   "text": "伤害结算时直接加在原数值上。不产生额外跳字（官方写明为防卡顿）。",
+   "extra_float_text": false,
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "final_damage": {
+   "name": "最终伤害",
+   "text": "在结算最后阶段进行的加成。",
+   "zone": "final",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "block": {
+   "name": "格挡",
+   "text": "最后结算时减少固定数值的伤害。",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "armor_pen": {
+   "name": "护甲穿透",
+   "text": "造成伤害时无视敌人的固定护甲值。",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "save_attr_colors": {
+   "name": "存档属性颜色",
+   "white": "基础属性：存档装备（套装/词条/强化/特质）以及羁绊卡牌属性。",
+   "green": "增益属性：其余存档属性，除非另有说明。",
+   "source": [
+    "other_1",
+    "other_2"
+   ],
+   "status": "official_help"
+  }
+ },
+ "status_effects": {
+  "_merge_note": "页1与页2正文重复；圣盾只出现在页2，以 status_p2 为准。",
+  "stun": {
+   "name": "眩晕",
+   "text": "无法行动。",
+   "kind": "control",
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "freeze": {
+   "name": "冻结",
+   "text": "无法行动。",
+   "kind": "control",
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "paralyze": {
+   "name": "麻痹",
+   "text": "无法行动。",
+   "kind": "control",
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "burn": {
+   "name": "燃烧",
+   "text": "每秒造成 100% 攻击的[火系]物理伤害。受「燃烧伤害」属性加成。",
+   "kind": "dot",
+   "dps_coeff_pct": 100,
+   "damage_type": "fire_physical",
+   "scaled_by": [
+    "燃烧伤害"
+   ],
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "frostburn": {
+   "name": "燃霜",
+   "text": "每秒造成 200% 攻击的[火系]物理伤害，并使目标火系抗性 -10%。可叠 3 层。受「燃烧伤害」属性加成。",
+   "kind": "dot",
+   "dps_coeff_pct": 200,
+   "damage_type": "fire_physical",
+   "fire_res_pct": -10,
+   "max_stacks": 3,
+   "scaled_by": [
+    "燃烧伤害"
+   ],
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "iceflame": {
+   "name": "冰焰",
+   "text": "每秒造成 200% 攻击的自适应伤害。每层使目标火系/冰系抗性 -6%，且使目标受到的火系与冰系伤害提高 3%。可叠 5 层。同时受「燃烧伤害」与「冻伤伤害」加成。",
+   "kind": "dot",
+   "dps_coeff_pct": 200,
+   "damage_type": "adaptive",
+   "fire_ice_res_pct_per_stack": -6,
+   "fire_ice_taken_pct_per_stack": 3,
+   "max_stacks": 5,
+   "scaled_by": [
+    "燃烧伤害",
+    "冻伤伤害"
+   ],
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "frostbite": {
+   "name": "冻伤",
+   "text": "每秒造成 50% 攻击的[冰系]魔法伤害，并使目标移速 -10%。可叠 5 层。受「冻伤伤害」属性加成。",
+   "kind": "dot",
+   "dps_coeff_pct": 50,
+   "damage_type": "ice_magic",
+   "move_speed_pct": -10,
+   "max_stacks": 5,
+   "scaled_by": [
+    "冻伤伤害"
+   ],
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "shock": {
+   "name": "感电",
+   "text": "受到伤害时，额外附加 25% 全属性的伤害（不额外跳字，直接作用于本次伤害的基础系数），并且受到的[电系]伤害提高 10%。",
+   "kind": "amp",
+   "bonus_all_attr_pct": 25,
+   "extra_float_text": false,
+   "applies_to": "current_hit_base_coeff",
+   "electric_taken_pct": 10,
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "slow": {
+   "name": "减速",
+   "text": "移速 -30%。",
+   "kind": "move",
+   "move_speed_pct": -30,
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "heavy_wound": {
+   "name": "重创",
+   "text": "受到的伤害 +20%。",
+   "kind": "taken",
+   "damage_taken_pct": 20,
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "disintegrate": {
+   "name": "瓦解",
+   "text": "受到的伤害 +25%。",
+   "kind": "taken",
+   "damage_taken_pct": 25,
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "weakness": {
+   "name": "衰弱",
+   "text": "移速 -80%。",
+   "kind": "move",
+   "move_speed_pct": -80,
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "vulnerable": {
+   "name": "易伤",
+   "text": "受到的伤害 +20%。",
+   "kind": "taken",
+   "damage_taken_pct": 20,
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "armor_break": {
+   "name": "破甲",
+   "text": "护甲 -10%。",
+   "kind": "armor",
+   "armor_pct": -10,
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "holy_shield": {
+   "name": "圣盾",
+   "text": "每层可以抵消 1 次伤害。",
+   "kind": "guard",
+   "blocks_per_stack": 1,
+   "source": "status_p2",
+   "status": "official_help"
+  }
+ },
+ "damage_rules": {
+  "adaptive": {
+   "name": "自适应伤害",
+   "text": "按玩家最高相关属性结算：元素取最高系（例如火伤最高则自适应为火）；物理与魔法取较高者决定伤害类型；若归类为技能伤害，则享受技能伤害加成。",
+   "source": "other_1",
+   "status": "official_help"
+  },
+  "aa_vs_skill": {
+   "name": "普攻伤害 vs 技能伤害",
+   "text": "普攻伤害只加成普攻，以及「视为普攻伤害」的技能。技能伤害加成所有技能（含普攻触发的技能），但不加成「视为普攻伤害」的技能。",
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "independent_zones": {
+   "name": "独立乘区",
+   "text": "「所有伤害」与「伤害增幅」都是独立乘区。最终伤害在结算最后阶段加成。",
+   "zones": [
+    "所有伤害",
+    "伤害增幅",
+    "最终伤害"
+   ],
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "bonus_coeff_stack": {
+   "name": "附加伤害系数叠加",
+   "text": "附加系数直接加算在技能原伤害系数上。例：原 [50% 攻击] + [10% 敏捷] → [50% 攻击 + 10% 敏捷]；再加 [10% 攻击] → [60% 攻击]。",
+   "op": "add_to_base_coeff",
+   "source": "other_2",
+   "status": "official_help"
+  },
+  "aa_trigger": {
+   "name": "普攻触发",
+   "text": "仅在普通攻击命中时生效。",
+   "source": "other_2",
+   "status": "official_help"
+  },
+  "main_skill_trigger": {
+   "name": "主技能触发",
+   "text": "仅限初始技能的原形态命中。不计入：奥术箭次级箭、寒冰箭小冰箭、天雷磁暴。计入：剑气、龙卷风等多段伤害，每次造成伤害都视为一次主技能命中。",
+   "not_main_hit": [
+    "次级箭",
+    "小冰箭",
+    "磁暴"
+   ],
+   "multi_hit_counts_each": [
+    "剑气",
+    "龙卷风"
+   ],
+   "source": "other_2",
+   "status": "official_help"
+  },
+  "multi_bounce_no_aa_proc": {
+   "name": "多重/弹射不触发普攻特效",
+   "text": "多重与弹射都不触发普攻特效。",
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "monster_strength": {
+   "name": "怪物强度",
+   "text": "强度提升会等比提升怪物的血量、防御和攻击力。",
+   "scales": [
+    "hp",
+    "defense",
+    "attack"
+   ],
+   "scale_kind": "proportional",
+   "source": "other_2",
+   "status": "official_help"
+  }
+ },
+ "card_pool_rules": {
+  "prereq_all": {
+   "name": "技能前置",
+   "text": "衍生卡若有前置技能，必须拿到全部前置技能后，该卡才可能在卡池中刷新出来。技能升级卡没有 EX 档（最高橙）。EX 是羁绊套装最终形态，不会在 G 三选里刷出。",
+   "require": "all_prereqs",
+   "source": [
+    "other_1",
+    "other_2"
+   ],
+   "status": "official_help"
+  },
+  "skill_card_colors": {
+   "name": "技能卡只有橙紫蓝白",
+   "text": "技能升级卡边框只有橙色、紫色、蓝色、白色四种。没有红色，也没有粉色。橙色是最高档。没有 EX 档——EX 只出现在羁绊最终形态。绿边是宝物（如双倍神符），不是技能卡。",
+   "order_high_to_low": [
+    "orange",
+    "purple",
+    "blue",
+    "white"
+   ],
+   "zh": [
+    "橙",
+    "紫",
+    "蓝",
+    "白"
+   ],
+   "not_a_skill_color": [
+    "red",
+    "pink",
+    "green"
+   ],
+   "no_ex_tier": true,
+   "hsv_trap": "mediator._card_rarity_score 仍采 red（hue≤10 或 ≥170）。橙边金环常被采成 red。长测「红巨型剑气」应按橙边 + 名字 conf 0.575<0.60 被跳过理解，不是游戏有红技能卡。",
+   "script_now": "choice_policy quality_order 仍是 red>orange>purple>blue>white>green。技能路径误把 red 当最高档，碰巧仍会优先那张橙卡；真正丢掉它的是 min_confidence=0.60。白/绿先刷、目录稀有度压 OCR 不在 choose_action 里。",
+   "rewire_at": "B1：技能品质序改成橙>紫>蓝>白；技能面板把 HSV red 当成 orange 或丢弃；conf 与边框解耦。宝物仍保留 green。不要改装备词条红>橙那条。",
+   "source": "user_confirmed",
+   "status": "user_confirmed",
+   "policy_at": "2026-08-14",
+   "wired_to_decision": false
+  },
+  "asymmetric_exclude": {
+   "name": "技能排斥（不对称）",
+   "text": "官方案例：[审判之雷] 排斥 [磁暴]。先选磁暴后，卡池不再刷新审判之雷。磁暴不排斥审判之雷：先拿到审判之雷，后续仍可刷出磁暴。",
+   "example": {
+    "a": "审判之雷",
+    "excludes": "磁暴",
+    "reverse": false
+   },
+   "source": "other_2",
+   "status": "official_help",
+   "vs_old_research": "旧研究写成「审判前勿点磁暴（加点树，脚本暂不控）」。官方是卡池单向排斥，不是单纯加点建议。"
+  },
+  "devoured_no_evolve": {
+   "name": "已吞噬不能进化",
+   "text": "卡牌状态变为已吞噬后固定，不能再进化。",
+   "source": [
+    "other_1",
+    "other_2"
+   ],
+   "status": "official_help"
+  },
+  "bond_auto_devour": {
+   "name": "羁绊集齐自动吞噬",
+   "text": "集齐羁绊后自动吞噬。",
+   "source": "play_help",
+   "status": "official_help"
+  },
+  "devour_kinds": {
+   "name": "吞噬分几种，不要混",
+   "text": "官方「集齐自动吞噬」只覆盖合成满张。另有：击杀随机吞（焚诀）、累计吞后进化（焚诀黄→玄）、EX 获取时掷骰吞并拆卡池（解放的圣剑）。攻略另称神兽同名互吞、封神榜/天仙吞卡、邪爆点残骸——均未上帧，见 guide_*。已吞噬不能再进化仍成立。EX 最终形态全部无法吞噬。",
+   "kinds": {
+    "set_complete_auto": "集齐 (x/y) 后自动吞噬。刀刀三件套→刀刀萌新属此类。",
+    "kill_random": "焚诀·黄阶：每击杀 200 随机吞噬 1 异火。底栏异火(n)是吞噬计数，不是 need。",
+    "evolve_after_count": "黄阶累计吞噬 3 张异火后进化焚诀·玄阶（黄阶 tooltip；玄阶未上帧）。",
+    "capstone_die": "解放的圣剑获取时移除刀刀卡池，掷骰吞噬对应数量刀刀牌。骰值未测。",
+    "hatch_self_devour": "异兽蛋 OCR：获取 60 秒后吞噬本卡并开启神兽卡组。",
+    "guide_pair_evolve": "攻略：栏内两张相同神兽互吞绿→蓝→紫→金→SSR→UR。被吞出栏的不能互吞。未上帧。",
+    "guide_board_devour": "攻略：封神榜/天仙吞封神卡与法宝。未上帧。",
+    "guide_remnant_detonate": "攻略：邪爆立刻消耗全部残骸。未上帧。",
+    "guide_legion_detonate": "攻略：第三张扭曲虚空获取时立刻结算，吞食数≥27才出萨格拉斯；之后再吞无效。未上帧。",
+    "guide_dragon_kill_evolve": "攻略：幼龙/雏龙靠杀敌自动进化或吞食；吞食丹/三国吞的雏龙不进化。未上帧。",
+    "guide_bounty_color": "攻略：悬赏令按颜色消对应海盗卡；红消全部；橙消橙→有的攻略称出毁灭战舰。未上帧。与战舰卡面「开池 N+重拳先生」不是同一句话。"
+   },
+   "source": [
+    "play_help",
+    "live_174547",
+    "user_card_screenshot"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "yihuo_fenjue_pool": {
+   "name": "焚诀阶位决定异火卡池",
+   "text": "焚诀·黄阶开启异火卡组，仅将 N 级异火加入卡池。每击杀 200 随机吞噬 1 异火；累计吞噬 3 张后进化焚诀·玄阶。174547 对局停在黄阶。精选帧+evidence_ocr 只钉住 4 张 N（阴阳双炎/风怒龙炎/幽冥毒火/玄黄炎）。底栏异火(168)是吞噬计数，不是合成张数。",
+   "live_verified": {
+    "source": "fixtures/cards_174547_evidence/evidence_ocr.json",
+    "huang_opens": "N",
+    "devour_kills": 200,
+    "evolve_after_devour": 3,
+    "evolve_to": "焚诀·玄阶",
+    "fenjue_huang": {
+     "t": 165.0,
+     "hp": 50,
+     "atk": 20,
+     "armor": 2
+    },
+    "seen_n": [
+     "阴阳双炎",
+     "风怒龙炎",
+     "幽冥毒火",
+     "玄黄炎"
+    ],
+    "live_20260815": {
+     "source": "fixtures/cards_breakdown_20260815_live/ verified_cards.json",
+     "fenjue_huang_live": {
+      "rarity": "N",
+      "all_attr": "50 (+7)",
+      "atk": "20 (+3)",
+      "effect_1": "开启异火卡组",
+      "effect_2": "每吞噬1张异火卡牌，全属性+10，所有伤害+1.5%"
+     },
+     "devour_rule": "每张异火卡牌200杀后自动吞噬进阶（黄阶→玄阶→地阶→天阶）",
+     "diyan_ex_live": {
+      "rarity": "EX (红金边框)",
+      "burn_damage_pct": 300,
+      "formula": "Damage/sec = Base * N_异火层数 * (1 + 最高主属性/10000) * 4.0",
+      "effect": "全屏敌人自适应燃烧伤害，不受单一抗性免疫影响"
+     }
+    },
+    "n_stats": {
+     "阴阳双炎": {
+      "t": [
+       171.0,
+       172.0
+      ],
+      "phys_pct": 4,
+      "magic_pct": 4,
+      "int": 30,
+      "str": 10,
+      "agi": 10,
+      "atk_per_sec": 0.5,
+      "rank_ocr_line": 20,
+      "rank_note": "OCR 作「异火榜第二十」；或截断的第二十一。用户表 No.20。"
+     },
+     "风怒龙炎": {
+      "t": [
+       183.0,
+       184.0,
+       198.0
+      ],
+      "fire_pct": 4,
+      "wind_pct": 4,
+      "rank": 18,
+      "note": "早前 INDEX/词典误写成物/魔+4%，以 OCR 火/风为准"
+     },
+     "幽冥毒火": {
+      "t": [
+       207.0
+      ],
+      "burn_pct": 10,
+      "phys_crit_pct": 3,
+      "magic_crit_pct": 3,
+      "effect": "毒火：攻击附带加3秒燃烧",
+      "rank": 20,
+      "not_on_ocr": [
+       "抗性削减"
+      ]
+     },
+     "玄黄炎": {
+      "t": [
+       209.0
+      ],
+      "agi": 100,
+      "armor": 3,
+      "fire_pct": 5,
+      "rank": 23,
+      "note": "早前误写成物/魔+4%"
+     }
+    }
+   },
+   "breakdown_scan_unverified": {
+    "source": "docs/cards_breakdown_20260814_174547.md §一 06–13",
+    "names": [
+     "陨落心炎",
+     "海心焰",
+     "龟灵地火",
+     "青莲地心火",
+     "火山石焰",
+     "三千焱炎火",
+     "万兽灵火",
+     "骨灵冷火"
+    ],
+    "status_20260815": "已在 20260815 录屏中全量实机核验（详见 docs/research/CARDS_BREAKDOWN_20260815_LIVE.md）"
+   },
+   "user_catalog_unverified_frame": {
+    "xuan_opens": [
+     "R",
+     "SR"
+    ],
+    "di_opens": [
+     "SSR"
+    ],
+    "tian_opens": [
+     "UR"
+    ],
+    "tian_named": [
+     "虚无吞炎",
+     "净莲妖火",
+     "帝炎"
+    ],
+    "diyan_override": "帝炎用户卡面为 EX 异火榜第一，覆盖早前用户表 UR",
+    "source": "docs/cards_breakdown_20260814_174547.md"
+   },
+   "rank_conflicts": [
+    {
+     "name": "风怒龙炎",
+     "live_tooltip": 18,
+     "catalog_table": 17
+    },
+    {
+     "name": "幽冥毒火",
+     "live_tooltip": 20,
+     "catalog_table": 19
+    },
+    {
+     "name": "阴阳双炎",
+     "live_tooltip": 21,
+     "ocr_line": 20,
+     "catalog_table": 20
+    },
+    {
+     "name": "玄黄炎",
+     "live_tooltip": 23,
+     "catalog_table": 21
+    }
+   ],
+   "rank_rule": "已上帧的以 tooltip 榜名为准；未上帧的用用户表 No.1–23。不要把异火(168)写成 need。拆解表 06–13 不算上帧。",
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "typos": [
+     "焚决→焚诀",
+     "爆炎剑→爆炎箭"
+    ],
+    "stages_claimed": [
+     {
+      "name": "玄阶",
+      "devour": 3,
+      "opens": "蓝/R",
+      "live_match": "黄阶 tooltip 累计3张→焚诀·玄阶"
+     },
+     {
+      "name": "地阶",
+      "devour": 6,
+      "opens": "紫"
+     },
+     {
+      "name": "天阶",
+      "devour": 9,
+      "opens": "橙/SSR"
+     },
+     {
+      "name": "天阶大圆满",
+      "devour": 12
+     },
+     {
+      "name": "帝炎",
+      "devour": 22,
+      "note": "攻称22张异火+1焚诀=23张、2300木。底栏异火(n)是吞噬计数。不写 bond_stack"
+     }
+    ],
+    "stage_cards": [
+     "焚诀·地阶",
+     "焚诀·天阶"
+    ],
+    "priority_cards": [
+     {
+      "name": "虚无吞炎",
+      "guide_effect": "全属性杀敌+0.2",
+      "catalog": "用户图鉴是百分比生命吞噬成长"
+     },
+     {
+      "name": "净莲妖火",
+      "guide_effect": "清敌增益、解自身负面、破盾",
+      "catalog": "用户图鉴是净化全屏负面+光火伤害"
+     },
+     {
+      "name": "生灵之焱",
+      "guide_effect": "百分比回复",
+      "catalog": "用户图鉴是巨额生命恢复+每秒全属性与木材"
+     }
+    ],
+    "wood_claimed": 2300,
+    "play_notes": [
+     "攻称十个EX里最好做：击杀自动吞、不占格子",
+     "帝炎卡面：所有伤害+30% 最终伤害+10% 燃烧+300% 火+80%（已上帧，覆盖攻略一口价）",
+     "非爆炎优先级低；爆炎箭必做（攻略写成爆炎剑）",
+     "可与修仙/刀刀一起搜，避免单刷一个羁绊烧木头",
+     "吞食丹加快未上帧"
+    ]
+   },
+   "conflicts": [
+    "实机只钉住黄阶→玄阶=吞3张。攻略 6/9/12/22 与用户图鉴「玄再进化地、地再进化天」都未上帧，不写 need=22",
+    "攻略焚决是错字，canonical 焚诀",
+    "虚无吞炎攻略杀敌+0.2 vs 用户图鉴百分比生命吞噬。词条以用户图鉴为准，攻略另列"
+   ],
+   "source": [
+    "live_174547",
+    "user_catalog_20260814",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "daodao_chain": {
+   "name": "刀刀三件套→萌新→大成→圣剑",
+   "text": "刀刀以多段攻击特效、触发概率、技能冷却缩减与图纸质变为核心。F 角标刀刀(0/3)。集齐幽灵系带+护腕+空灵挂坠后自动吞噬，置入刀刀萌新并开刀刀卡池；中后期可出 UR 刀刀大成。EX=解放的圣剑。高阶图纸以攻略补链，未上帧不得当实机。",
+   "live_verified": {
+    "source": "fixtures/cards_174547_evidence + fixtures/bond_daodao_20260814",
+    "need": 3,
+    "pieces": [
+     "幽灵系带",
+     "护腕",
+     "空灵挂坠"
+    ],
+    "piece_stats": {
+     "幽灵系带": {
+      "t": 148.0,
+      "rarity": "N",
+      "agi": 30,
+      "str": 10,
+      "int": 10
+     },
+     "护腕": {
+      "t": 154.3,
+      "rarity": "N",
+      "str": 30,
+      "agi": 10,
+      "int": 10
+     },
+     "空灵挂坠": {
+      "t": 157.7,
+      "rarity": "N",
+      "int": 30,
+      "str": 10,
+      "agi": 10
+     }
+    },
+    "unlocks": "刀刀萌新",
+    "mengxin_effect_live": "开启刀刀卡池（OCR 截断「开…」）",
+    "ur": "刀刀大成",
+    "daocheng": {
+     "t": 760.0,
+     "rarity": "UR",
+     "atk": 500,
+     "atk_amp_pct": 15,
+     "skill_cdr_pct": 20,
+     "proc_chance_pct": 50,
+     "devour_other_daodao_add_ur_blueprint": true,
+     "multi_hit": "提升普攻与技能的多段触发伤害"
+    },
+    "phase2_seen_after_daocheng": [
+     {
+      "name": "三元重戟图纸",
+      "rarity": "UR",
+      "t": 765.0
+     }
+    ],
+    "live_20260815": {
+     "source": "fixtures/cards_breakdown_20260815_live/verified_cards.json",
+     "kuaishou": {
+      "name": "快手",
+      "rarity": "N",
+      "effect": "攻速+15%，攻速增幅，角标 [刀刀 0/3]"
+     },
+     "mengxin_live": {
+      "name": "刀刀萌新",
+      "rarity": "R",
+      "effect": "每200杀置入SSR高级图纸，合成1张进化为强力刀刀人"
+     },
+     "xiwa_chain": "王冠(R) + 铁意头盔(R) -> SR纷争面纱 -> SSR希瓦的守护"
+    }
+   },
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "chain_text": "3启动→萌新→合成3/7张一阶段图纸→大成→选5/6张二阶段图纸→解放的圣剑",
+    "mengxin_effect_guide": "每杀敌200随机解锁1张图纸发到卡牌栏",
+    "phase1_blueprints": [
+     {
+      "name": "点金手",
+      "role": "econ",
+      "pick": "most"
+     },
+     {
+      "name": "封神杖",
+      "role": "int",
+      "pick": "ok"
+     },
+     {
+      "name": "深渊之刃",
+      "role": "phys",
+      "pick": "ok"
+     },
+     {
+      "name": "随缘之刃",
+      "role": "dps",
+      "pick": "ok",
+      "aliases": [
+       "绝刃"
+      ]
+     },
+     {
+      "name": "雷神之锤",
+      "role": "dps",
+      "pick": "ok"
+     },
+     {
+      "name": "龙心",
+      "role": "hp",
+      "pick": "ok"
+     },
+     {
+      "name": "希瓦的守护",
+      "role": "def",
+      "pick": "ok"
+     }
+    ],
+    "phase1_need": 3,
+    "phase1_pool": 7,
+    "intermediates": [
+     {
+      "have": 1,
+      "name": "刀刀入门",
+      "guide_rarity": "紫"
+     },
+     {
+      "have": 2,
+      "name": "刀刀小成",
+      "guide_rarity": "金",
+      "aliases": [
+       "刀刀小城"
+      ]
+     },
+     {
+      "have": 3,
+      "name": "刀刀大成",
+      "guide_rarity": "红",
+      "live_rarity": "UR"
+     }
+    ],
+    "phase2_blueprints": [
+     {
+      "name": "阿哈利姆神杖",
+      "rarity": "UR",
+      "pick": "caster"
+     },
+     {
+      "name": "暗夜猎手",
+      "rarity": "UR",
+      "pick": "phys"
+     },
+     {
+      "name": "疾",
+      "rarity": "UR",
+      "pick": "yes",
+      "note": "攻略名过短，可能截断"
+     },
+     {
+      "name": "圣剑",
+      "rarity": "UR",
+      "pick": "yes"
+     },
+     {
+      "name": "三元重戟",
+      "rarity": "UR",
+      "pick": "yes",
+      "aliases": [
+       "三元重疾",
+       "三元重戟图纸"
+      ]
+     },
+     {
+      "name": "时间宝石",
+      "rarity": "UR",
+      "pick": "early_haste_only"
+     }
+    ],
+    "phase2_pick": 5,
+    "phase2_pool": 6,
+    "recommended_phase2": [
+     "阿哈利姆神杖",
+     "暗夜猎手",
+     "疾",
+     "圣剑",
+     "三元重戟"
+    ],
+    "play_notes": [
+     "点金手留到第3张再刷，前两张随便合，避免刷空一阶段池凑不够3张",
+     "三国后做刀刀需宝物神圣刀锋（攻称远古神藏-诸神宝藏SSR）才能右键放弃多余图纸，防吞食天地误吞",
+     "前期永恒叠杀敌属性，进秘境/BOSS前切终焉"
+    ]
+   },
+   "conflicts": [
+    "萌新效果：实机=开刀刀卡池；攻略=每200杀发图纸。结构像焚诀每200吞异火，未证实是否另有效果，不覆盖实机",
+    "大成品级：实机UR；攻略写红。羁绊不是技能四色，不把大成改成红",
+    "刀刀小城是错字，规范名刀刀小成",
+    "三元重疾是错字，实机帧三元重戟图纸",
+    "切形态：卡面是聊天 -永恒/-岚/-终焉 或 -1/-2/-3。攻略 /蓝=/岚，/中烟=/终焉，斜杠前缀不采。脚本禁止自动键入",
+    "攻略写急速无伏羲琴约800满、有琴约600满。官方 CDR 硬顶是 80%。800/600 不入库为数字"
+   ],
+   "not_complete": "一阶段7图纸、入门/小成、二阶段除三元重戟外均无独立帧。萌新/大成/圣剑无独立(x/y)。",
+   "ex": "解放的圣剑",
+   "source": [
+    "live_174547",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "dasheng_chain": {
+   "name": "大圣：天命人→残躯/套装/大成→法天象地",
+   "text": "实机只钉住 F 角标 齐天大圣(0/3) 副标天命人。攻略把终点写成 EX 法天象地；该卡面标签是神通。残躯/五件套/五大成未上帧，不写 need。",
+   "live_verified": {
+    "source": "user 20260814 F面板 齐天大圣(0/3) 天命人",
+    "need": 3,
+    "badge": "齐天大圣",
+    "piece": "天命人",
+    "ex_card": "法天象地",
+    "ex_card_set_tag": "神通",
+    "live_20260815": {
+     "source": "fixtures/cards_breakdown_20260815_live/verified_cards.json",
+     "tianmingren": {
+      "rarity": "N",
+      "agi": "50 (+7)",
+      "effect": "开启大圣再临卡组；激活齐天大圣套装置入UR齐天大圣"
+     },
+     "jingu_bang": {
+      "rarity": "SSR (橙框)",
+      "atk": "200 (+30)",
+      "effect": "普攻附带震地与范围破甲重击"
+     },
+     "shentong_cards": [
+      {
+       "name": "神通·身外身",
+       "rarity": "SR (紫框)",
+       "effect": "召唤2个50%攻击力大圣分身持续15秒"
+      },
+      {
+       "name": "神通·七十二变",
+       "rarity": "SR (紫框)",
+       "effect": "闪避率+15%，闪避后下一次攻击300%暴击"
+      }
+     ]
+    }
+   },
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "chain_text": "齐天大圣启动→6残躯→大圣残躯→5件套装→齐天大圣→5个大成（各3张小卡共15）→法天象地",
+    "starter": "齐天大圣",
+    "remnants_need": 6,
+    "remnants_result": "大圣残躯",
+    "gear": [
+     "如意金箍棒",
+     "锁子黄金甲",
+     "点翠飞龙臂",
+     "凤翅紫金冠",
+     "藕丝步云履"
+    ],
+    "gear_result": "齐天大圣",
+    "dacheng": [
+     {
+      "name": "根基大成",
+      "role": "tank",
+      "pick": "first"
+     },
+     {
+      "name": "术法大成",
+      "role": "life_atk",
+      "order": [
+       "安身法",
+       "近字法"
+      ],
+      "warn": "先安身法回血，再近字法献祭50%生命转攻击；推图先近字法会暴毙"
+     },
+     {
+      "name": "身法大成",
+      "role": "eva_as"
+     },
+     {
+      "name": "奇迹大成",
+      "role": "core_dps"
+     },
+     {
+      "name": "棍法大成",
+      "role": "aa_skill"
+     }
+    ],
+    "dacheng_small_cards_each": 3,
+    "play_notes": [
+     "攻称最简单EX：有木头就能合，不靠杀敌/倒计时",
+     "术法顺序：安身法→近字法",
+     "联动力量链+体术+固守+陷阵+生命+血势+血魔（生命/血势/血魔仍无 OCR 张数）",
+     "已完成的大成可先顶掉省格子，五个齐了再拿回来合 EX",
+     "开荒/推图优先大圣；冲层/大秘境刀刀优先级更高。奥术箭 N20 推图攻称先大圣，秘境两个都做"
+    ]
+   },
+   "ex_live_tooltip": {
+    "source": "fixtures/ex_finals_20260814/10",
+    "hp": 2000,
+    "atk": 1000,
+    "final_hp_pct": 10,
+    "final_atk_pct": 10,
+    "damage_final_pct": 25,
+    "taken_final_pct": -25,
+    "hp_to_all_damage": "生命额外提供所有伤害，转化率=敏/智转化率的1/3"
+   },
+   "conflicts": [
+    "卡面标签神通 vs 攻略称大圣EX。实验室 exclude_ex 已把法天象地挂在大圣。残躯链未跑通前不当实机相等",
+    "实机角标(0/3)天命人 vs 攻略1张启动+6残躯。不改 bond_stack，不写残躯 need=6",
+    "攻略把回血/闪避/截断写进 EX。卡面没有这些；回血属术法安身法，闪避属身法大成",
+    "齐天大圣在攻略里既是启动卡又是五件套合成名，实机 OCR 读的是套装角标"
+   ],
+   "ex": "法天象地",
+   "source": [
+    "live_f_panel",
+    "user_card_screenshot",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "fengshen_chain": {
+   "name": "封神：姜子牙→封神榜→天仙法宝跳→圣人",
+   "text": "实机钉住 174547 t=765 封神姜子牙（无 tooltip OCR）和 EX 圣人卡面。攻略两阶段：6张封神卡成榜、榜吞≥9进天庭+天仙、法宝三连跳各5张到圣人。张数/木头未上帧，不写 bond_stack。",
+   "live_verified": {
+    "source": [
+     "fixtures/cards_174547_evidence/all_slow_looks 25",
+     "fixtures/ex_finals_20260814/01"
+    ],
+    "starter": "姜子牙",
+    "starter_ocr": false,
+    "seen_t": 765.0,
+    "also_live": "吕岳",
+    "ex": "圣人",
+    "remove_pool_on_ex": "法宝",
+    "live_20260815": {
+     "source": "fixtures/cards_breakdown_20260815_live/verified_cards.json",
+     "fengshenbang_ssr": {
+      "rarity": "SSR (橙框)",
+      "effect": "封神系列卡牌效果提升100%，所有封神神将吞噬后额外提供技能急速+50与技能伤害+25%"
+     },
+     "tianting_ur": {
+      "rarity": "UR (金橙边框)",
+      "effect": "全队技能急速+100，技能伤害+40%，每秒释放天庭神雷造成大范围自适应伤害"
+     }
+    },
+    "ex_tooltip": {
+     "all_attr": 300,
+     "all_amp_pct": 30,
+     "skill_damage_pct": 30,
+     "skill_haste": 30,
+     "hunyuan": "最终力/敏/智各+15%",
+     "kongshi": "每35s刷新全部技能CD，掌控时空5s；间隔不受急速影响"
+    }
+   },
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "phase1": {
+     "starter": "姜子牙",
+     "opens": "封神卡池",
+     "board_need": 6,
+     "board": "封神榜",
+     "jiang_counts_as_one": true,
+     "flesh": {
+      "name": "肉身成圣",
+      "bundle": 3,
+      "note": "攻称可直接吞，加速成榜"
+     },
+     "board_devour_to_tian": 9,
+     "unlocks": [
+      "天庭",
+      "天仙"
+     ]
+    },
+    "phase2": {
+     "jumps": [
+      {
+       "from": "天仙",
+       "devour_fabao": 5,
+       "to": "金仙",
+       "pool": "SR及以下法宝"
+      },
+      {
+       "from": "金仙",
+       "devour_fabao": 5,
+       "to": "大罗金仙",
+       "pool": "SSR橙法宝"
+      },
+      {
+       "from": "大罗金仙",
+       "devour_fabao": 5,
+       "to": "圣人"
+      }
+     ]
+    },
+    "fabao": [
+     {
+      "name": "斩仙飞刀",
+      "rarity": "SSR",
+      "guide_effect": "无视护甲、无视抗性、boss伤害+10%",
+      "priority": "must"
+     },
+     {
+      "name": "山河社稷图",
+      "rarity": "SSR",
+      "guide_effect": "复活次数+1",
+      "priority": "optional"
+     },
+     {
+      "name": "十二品莲台",
+      "rarity": "SSR",
+      "guide_effect": "属性增幅",
+      "priority": "optional"
+     },
+     {
+      "name": "奇珍宝树",
+      "rarity": "SSR",
+      "guide_effect": "属性增幅",
+      "priority": "optional"
+     },
+     {
+      "name": "盘古幡",
+      "rarity": "UR",
+      "guide_effect": "力量+最终伤害+全属性增幅",
+      "priority": "must"
+     },
+     {
+      "name": "太极图",
+      "rarity": "UR",
+      "guide_effect": "智力增幅+伤害",
+      "priority": "must"
+     },
+     {
+      "name": "混沌钟",
+      "rarity": "UR",
+      "guide_effect": "敏捷增幅+杀敌属性",
+      "priority": "must"
+     }
+    ],
+    "wood_claimed": 2400,
+    "wood_split_claimed": {
+     "phase1": 900,
+     "phase2": 1500
+    },
+    "play_notes": [
+     "攻称锦上添花型EX，优先级低于大圣/军团/修仙，有余木再做",
+     "可利用进秘境前空闲拖时间吞封神榜，同时做龙族准备（900秒未上帧）",
+     "爆炎派系做封神优先级更低"
+    ]
+   },
+   "conflicts": [
+    "攻略总吞24张/2400木未上帧，不写 need",
+    "圣人卡面是技能急速+30（无百分号）+技能伤害+30%+混元无极，不是攻略「最终伤害」一口价",
+    "技能卡无红；法宝 UR 不要叫红卡"
+   ],
+   "ex": "圣人",
+   "source": [
+    "live_174547_index",
+    "user_card_screenshot",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "wangling_chain": {
+   "name": "亡灵：亡灵天灾→符文/残骸→兵主",
+   "text": "实机：亡灵天灾 need=3（实验室角标 2/3）；EX 兵主卡面有鲜血/冰霜/邪恶符文，冰霜符文技能伤害按原值1.25倍。攻略把亡灵天灾当单张启动、100残骸+三符文各≥10、邪爆点爆。不改 bond_stack。英雄卡巫妖≠克尔苏加德≠巫妖王。",
+   "live_verified": {
+    "starter": "亡灵天灾",
+    "need": 3,
+    "need_source": "bond_stack_catalog lab 亡灵天灾(2/3)",
+    "ex": "兵主",
+    "ex_source": "fixtures/ex_finals_20260814/08",
+    "ex_runes_on_tooltip": [
+     "鲜血符文",
+     "冰霜符文",
+     "邪恶符文"
+    ],
+    "skill_damage_mult_live": 1.25,
+    "hero_not_bond": {
+     "巫妖": "fixtures/cards_174547_evidence t=810 英雄卡选择，不是亡灵加速卡/生产者"
+    }
+   },
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "kill_per_remnant": 50,
+    "n_cards_remnants": [
+     {
+      "name": "尸",
+      "remnants": 10
+     },
+     {
+      "name": "僧",
+      "remnants": 10
+     },
+     {
+      "name": "僵尸",
+      "remnants": 10
+     },
+     {
+      "name": "尸鬼",
+      "remnants": 10
+     }
+    ],
+    "rune_cap_rule": {
+     "max_per_rune": 15,
+     "overflow_behavior": "auto_detonate_fail",
+     "safe_range": "10-15",
+     "note": "每种符文达到10个后停产，超15个自动引爆浪费直接导致兵主合成失败"
+    },
+    "ex_requires": {
+     "remnants": 100,
+     "runes_each": 10,
+     "runes": [
+      "鲜血",
+      "邪恶",
+      "冰霜"
+     ]
+    },
+    "accelerators": [
+     {
+      "name": "克尔苏加德",
+      "rarity": "UR",
+      "role": "双倍残骸+巫妖生产时间减半",
+      "do_not_alias": "巫妖"
+     },
+     {
+      "name": "莫格莱尼",
+      "rarity": "SR",
+      "role": "死亡骑士生产时间减半"
+     },
+     {
+      "name": "辛达苟萨",
+      "rarity": "SR",
+      "role": "冰龙生产时间减半"
+     }
+    ],
+    "produce_seconds_claimed": {
+     "base": 120,
+     "with_accel": 60
+    },
+    "producers": [
+     {
+      "card": "死亡骑士",
+      "count": 5,
+      "rune": "鲜血符文"
+     },
+     {
+      "card": "巫妖",
+      "count": 5,
+      "rune": "邪恶符文",
+      "not_in_lexicon": true,
+      "why": "实机巫妖是英雄卡；不与克尔苏加德/巫妖王互设别名"
+     },
+     {
+      "card": "冰霜巨龙",
+      "count": 5,
+      "rune": "冰霜符文"
+     }
+    ],
+    "producer_consume_remnants": 5,
+    "producer_output_runes": 2,
+    "hall": "亡者大厅",
+    "detonate": "邪爆",
+    "detonate_tries_claimed": 2,
+    "routes": {
+     "ur_lich_king": {
+      "name": "巫妖王",
+      "cards": [
+       "亡灵天灾",
+       "克尔苏加德",
+       "亡者大厅",
+       "邪爆"
+      ],
+      "condition": "亡者大厅解锁邪爆 + 消耗100残骸点爆",
+      "wood_claimed": 400
+     },
+     "ex_bingzhu": {
+      "name": "兵主",
+      "condition": "3加速UR + 3生产卡各5张产各10符文 + 100残骸 + 亡者大厅 + 邪爆点爆",
+      "wood_claimed": 2500
+     }
+    },
+    "play_notes": [
+     "主流攻称海盗+亡灵一起搜（海盗经济攒木材）",
+     "4张绿色N卡（尸、僧、僵尸、尸鬼）每张提供10份残骸",
+     "开局用贪婪吞掉3张加速卡（贪婪吞亡灵芯未上帧）",
+     "亡者大厅不要太早拿（污染卡池，拿到后才刷邪爆）",
+     "符文严禁超15：任意符文到10个停掉对应生产卡，超15自动引爆断节奏",
+     "邪爆攻称只有2次，符文没凑齐前乱点只会出巫妖王",
+     "兵主智力增幅/所有伤害/最终伤害；冰霜符文×1.25已上帧，法系推图攻称必做",
+     "大秘境攻称不必做兵主（费时）；推图开荒必做"
+    ]
+   },
+   "conflicts": [
+    "实机亡灵天灾 need=3 vs 攻略单张启动。保持 need=3，不改 bond_stack",
+    "英雄卡巫妖 vs 克尔苏加德（攻称巫妖UR）vs 生产者巫妖×5 vs 小亡灵巫妖王。四者不互设别名。词典收录英雄卡巫妖（set_membership=null）以免 OCR 认成巫妖王",
+    "100残骸/符文各≥10/邪爆2次未上帧，不写 need"
+   ],
+   "ex": "兵主",
+   "source": [
+    "bond_stack_catalog",
+    "user_card_screenshot",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "shenshou_chain": {
+   "name": "神兽：异兽蛋→同名进化→祖龙",
+   "text": "实机：异兽蛋 OCR「获取该卡60秒后：吞噬该卡，并开启神兽卡组」，t=154.3/158.0 全属性+20。EX 祖龙获取时移除神兽卡池。攻略同名互吞 16绿→1UR、4UR→祖龙。进化链未上帧，不写 need=64。",
+   "live_verified": {
+    "source": "fixtures/cards_174547_evidence/evidence_ocr.json",
+    "starter": "异兽蛋",
+    "t": [
+     154.3,
+     158.0
+    ],
+    "all_attr": 20,
+    "hatch_seconds": 60,
+    "hatch_effect_ocr": "获取该卡60秒后：吞噬该卡，并开启神兽卡组",
+    "ex": "祖龙",
+    "ex_source": "fixtures/ex_finals_20260814/02",
+    "remove_pool_on_ex": "神兽",
+    "ex_kill_stats": {
+     "atk": 0.4,
+     "str": 0.4,
+     "agi": 0.4,
+     "int": 0.4
+    }
+   },
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "swallow_pill_skips_hatch": true,
+    "pair_evolve": "卡牌栏内两张相同神兽互吞",
+    "colors": [
+     "绿",
+     "蓝",
+     "紫",
+     "金",
+     "SSR",
+     "UR"
+    ],
+    "math_claimed": "16绿→8蓝→4紫→2金→1SSR→1UR；4 UR→祖龙；64绿",
+    "greens": [
+     {
+      "name": "小鱼人",
+      "role": "所有伤害"
+     },
+     {
+      "name": "小鲲鲲",
+      "role": "魔法伤害"
+     },
+     {
+      "name": "小兔子",
+      "role": "物理伤害"
+     }
+    ],
+    "ur_examples": [
+     {
+      "name": "白虎",
+      "guide_effect": "杀敌攻击"
+     },
+     {
+      "name": "玄武",
+      "guide_effect": "杀敌防御"
+     }
+    ],
+    "wood_claimed": 3200,
+    "do_before": "三国/吞食天地",
+    "note_red": "攻略红卡=神兽UR，不是技能红卡",
+    "play_notes": [
+     "必须在三国之前做：吞食天地会随机吞紫/橙/SSR神兽",
+     "中后期大秘境攻称必备",
+     "UR被吞仍生效；蓝/紫/金被吞就亏（与官方已吞噬不能进化一致）",
+     "可配合海盗：海盗做完变红箱后拿异兽蛋一边孵一边做"
+    ]
+   },
+   "conflicts": [
+    "攻略4 UR合计≈1.0全属性杀敌是合成口径；祖龙卡面是圣痕每击杀攻/力/敏/智各+0.4",
+    "64绿/3200木/互吞进化链未上帧，不写 need",
+    "吞食丹跳过60秒未上帧；60秒开池已有 OCR"
+   ],
+   "ex": "祖龙",
+   "source": [
+    "live_174547",
+    "user_card_screenshot",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "juntuan_chain": {
+   "name": "军团：燃烧的远征→扭曲虚空点爆→萨格拉斯",
+   "text": "实机钉住启动名燃烧的远征（ocr_choices）和 EX 萨格拉斯卡面。卡面灭世斩永久移除目标当前护甲2%；邪能解放每吞噬1张军团卡攻击+100/增幅+1%。获取萨格拉斯不拆军团卡池（ex_capstones 无 remove_pool）。攻略 27 吞+3张扭曲虚空点爆未上帧，不写 need。",
+   "live_verified": {
+    "starter": "燃烧的远征",
+    "starter_source": "fixtures/ocr_choices 燃烧的远征",
+    "ex": "萨格拉斯",
+    "ex_source": "fixtures/ex_finals_20260814/07",
+    "remove_pool_on_ex": null,
+    "armor_shred": "灭世斩：永久移除目标当前护甲2%",
+    "per_devour": "邪能解放：每吞噬1张军团卡 攻击+100 攻击增幅+1%"
+   },
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "ex_requires": {
+     "devoured_legion": 27,
+     "void_in_bar": 3
+    },
+    "detonate": "第三张扭曲虚空获取时立刻结算；当时吞食数<27则永远不出 EX",
+    "swallow_helpers": [
+     {
+      "name": "阿克蒙德",
+      "rarity": "SR",
+      "brings": [
+       "地狱火",
+       "末日守卫"
+      ],
+      "auto_if_empty_ge": 3
+     },
+     {
+      "name": "玛诺洛斯",
+      "rarity": "SR",
+      "brings": [
+       "深渊领主"
+      ],
+      "auto_if_empty_ge": 2
+     },
+     {
+      "name": "提克迪奥斯",
+      "rarity": "SR",
+      "brings": [
+       "恐惧魔王"
+      ],
+      "auto_swallow": "卡牌栏所有恐惧魔王"
+     }
+    ],
+    "pair_swallow": [
+     "虚空行者",
+     "魅魔"
+    ],
+    "after_three_void": [
+     "基尔加丹",
+     "虚空传送门"
+    ],
+    "wood_claimed": 2700,
+    "play_notes": [
+     "大秘境首选，破甲卡面已有（灭世斩）",
+     "必须最后做：EX后军团卡仍污染卡池（与龙族一样，卡面无 remove_pool）",
+     "扭曲虚空全卡池只有3张，不能顶掉/放弃",
+     "推荐秘境内做"
+    ]
+   },
+   "conflicts": [
+    "27张/3扭曲虚空未上帧，不写 need",
+    "点爆截止与亡灵邪爆同类，未上帧"
+   ],
+   "ex": "萨格拉斯",
+   "source": [
+    "ocr_choices",
+    "user_card_screenshot",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "longzu_chain": {
+   "name": "龙族：巨龙军团→巨龙之魂→迦拉克隆→世界末日",
+   "text": "实机：巨龙军团 OCR「开启龙族卡组」、全属性+20（174547 高阶帧 t=570）。EX 世界末日迦拉克隆卡面兼标签迦拉克隆；浩劫暴伤最终结算*1.3；物/魔暴击+20% 暴伤+50%。获取 EX 不拆龙族卡池。攻略三阶段与祈求10次未上帧。攻略错字迦拉客隆=迦拉克隆。",
+   "live_verified": {
+    "starter": "巨龙军团",
+    "source": "fixtures/cards_174547_evidence/high_tier_fire_cards t=570",
+    "opens": "龙族卡组",
+    "all_attr": 20,
+    "ex": "世界末日迦拉克隆",
+    "also_tag": "迦拉克隆",
+    "ex_source": "fixtures/ex_finals_20260814/03",
+    "crit_final_mult": 1.3,
+    "remove_pool_on_ex": null
+   },
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "typos": [
+     "迦拉客隆→迦拉克隆"
+    ],
+    "phase1": {
+     "starter": "巨龙军团",
+     "colors": [
+      "红",
+      "黑",
+      "蓝",
+      "绿",
+      "青铜"
+     ],
+     "kills_adult": 300,
+     "kills_king": 600,
+     "result": "巨龙之魂"
+    },
+    "phase2": {
+     "opener": "瑞亚斯塔萨",
+     "nest": "纯净龙巢",
+     "hatchling_kills": 150,
+     "result": "迦拉克隆",
+     "note": "雏龙必须杀敌吞才进化；吞食丹/三国吞的不算"
+    },
+    "phase3": {
+     "pray_card": "祈求",
+     "pray5": "天降浩劫迦拉克隆",
+     "pray10": "世界末日迦拉克隆"
+    },
+    "pray_cards": [
+     {
+      "name": "克罗斯龙提",
+      "when": "祈求≥8",
+      "guide_effect": "当前全属性白字+10%",
+      "priority": "must"
+     },
+     {
+      "name": "暗藏的信徒",
+      "when": "祈求≥4",
+      "guide_effect": "+200木",
+      "priority": "high"
+     },
+     {
+      "name": "命运编织者",
+      "guide_effect": "吞食后+2000杀敌数",
+      "priority": "mid"
+     },
+     {
+      "name": "加拉克隆信徒",
+      "guide_effect": "可重复；30%吞掉所有祈求卡",
+      "priority": "space"
+     }
+    ],
+    "wood_save": [
+     "落日玲珑飞翼"
+    ],
+    "wood_claimed": [
+     1500,
+     2500
+    ],
+    "play_notes": [
+     "倒数第二个做（EX后仍污染卡池）",
+     "暴击概率优于暴击伤害（攻略口径）",
+     "推荐第四轮秘境外做第一阶段，秘境里做二三阶段"
+    ]
+   },
+   "conflicts": [
+    "攻略迦拉客隆是错字，canonical 迦拉克隆",
+    "祈求10次/五色龙王/始祖未上帧，不写 need",
+    "瑞亚斯塔萨未与阿莱克斯塔萨互设别名（未上帧）"
+   ],
+   "ex": "世界末日迦拉克隆",
+   "source": [
+    "live_174547",
+    "user_card_screenshot",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "sanguo_chain": {
+   "name": "三国：乱世三国→三阵营→吞食天地",
+   "text": "实机钉住启动名乱世三国（ocr_choices）和 EX 吞食天地卡面：每击杀400随机吞噬1张，每吞噬1张永久全属性增幅+1%。攻略 4选3 阵营、每营吞8张出 UR 武将未上帧，不写 need=8。",
+   "live_verified": {
+    "starter": "乱世三国",
+    "starter_source": "fixtures/ocr_choices 乱世三国",
+    "ex": "吞食天地",
+    "ex_source": "fixtures/ex_finals_20260814/04",
+    "kill_devour": 400,
+    "amp_per_devour_pct": 1,
+    "cannot_devour_ex": true
+   },
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "pick_factions": 3,
+    "devour_per_faction": 8,
+    "cards_per_faction": 10,
+    "factions": [
+     {
+      "start": "曹操",
+      "ur": "司马懿",
+      "name": "魏",
+      "attr": "智力、魔法伤害",
+      "arcane": true
+     },
+     {
+      "start": "刘备",
+      "ur": "赵云",
+      "name": "蜀",
+      "attr": "敏捷、物理伤害"
+     },
+     {
+      "start": "孙权",
+      "ur": "孙策",
+      "name": "吴",
+      "attr": "力量（攻击+生命）"
+     },
+     {
+      "start": "董卓",
+      "ur": "吕布",
+      "name": "群雄",
+      "attr": "攻击、物/魔伤害"
+     }
+    ],
+    "arcane_pick": [
+     "曹操",
+     "孙权",
+     "董卓"
+    ],
+    "devour_cap_claimed": "蓝色及以下，不能吞 EX",
+    "wood_claimed": 2400,
+    "play_notes": [
+     "UR 武将成型后该阵营卡离池，SSR 要在成型前拿",
+     "阵营启动牌被吞仍生效",
+     "大秘境基本都要做"
+    ]
+   },
+   "conflicts": [
+    "每营8张/4选3未上帧，不写 need",
+    "攻略只能吞蓝色及以下；卡面只写每击杀400随机吞噬1张，未写品质上限",
+    "神兽须在三国之前做（见 shenshou_chain）"
+   ],
+   "ex": "吞食天地",
+   "source": [
+    "ocr_choices",
+    "user_card_screenshot",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "xiuxian_chain": {
+   "name": "修仙：三件套→练气期→渡劫→大乘期",
+   "text": "实机：修仙 need=3；t=198 神秘戒指（N，每秒敏捷+0.2）角标修仙(0/3)，集齐将一张N练气期置入并开修仙卡组。流星泪是羁绊（ocr+174547 文件名）。小绿瓶 D0 标宝物，攻略当启动卡——不改 kind。EX 大乘期获取时移除修仙卡组。渡劫概率未上帧。",
+   "live_verified": {
+    "set_need": 3,
+    "set_need_source": "bond_stack_catalog lab 修仙(0/3)",
+    "piece": {
+     "name": "神秘戒指",
+     "t": 198.0,
+     "rarity": "N",
+     "agi_per_sec": 0.2,
+     "source": "fixtures/cards_174547_evidence/evidence_ocr.json"
+    },
+    "also_piece": "流星泪",
+    "set_complete_ocr": "将一张N练气期置入卡牌栏，开启修仙卡组",
+    "ex": "大乘期",
+    "ex_source": "fixtures/ex_finals_20260814/09",
+    "remove_pool_on_ex": "修仙"
+   },
+   "guide": {
+    "source": [
+     "douyin_无胆超人",
+     "douyin_在家零四一",
+     "kk_community"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "starters_claimed": [
+     "小绿瓶",
+     "神秘戒指",
+     "流星泪"
+    ],
+    "stages": [
+     {
+      "to": "练气期",
+      "via": "三启动"
+     },
+     {
+      "to": "筑基期",
+      "via": "筑基丹"
+     },
+     {
+      "to": "金丹期",
+      "via": "妖兽内丹"
+     },
+     {
+      "to": "元婴期",
+      "via": "四九天劫",
+      "sure": true
+     },
+     {
+      "to": "化神期",
+      "via": "五行灵根"
+     },
+     {
+      "to": "合体期",
+      "via": "六九天劫",
+      "success_pct": 50
+     },
+     {
+      "to": "大乘期",
+      "via": "大成三劫",
+      "parts": [
+       "真雷劫",
+       "五行劫",
+       "心魔劫"
+      ],
+      "success_pct_each": 50
+     }
+    ],
+    "sure_items": [
+     {
+      "name": "灵气灌体",
+      "for": "六九天劫",
+      "note": "每杀20得1道灵气，每道+2%，25道=+50%"
+     },
+     {
+      "name": "元和五极山",
+      "for": "真雷劫+五行劫",
+      "pieces": [
+       "阴阳大五行山",
+       "北极元山",
+       "元气神山",
+       "后羿寒魄山",
+       "太乙青山"
+      ]
+     },
+     {
+      "name": "玄天斩灵剑",
+      "for": "心魔劫",
+      "pieces": [
+       "玄天仙藤",
+       "回阳水",
+       "玄天果实",
+       "苍天神草"
+      ]
+     }
+    ],
+    "shortcut_claimed": "先五极山渡前两劫后心魔必成，可省玄天斩灵剑",
+    "fail_reset": "顶掉当前阶段卡再从卡池找回=重塑根基",
+    "treasure": {
+     "name": "九曲灵升丹",
+     "rarity": "SSR",
+     "guide_effect": "+20%渡劫成功率"
+    },
+    "wood_claimed": 2500,
+    "play_notes": [
+     "启动卡每秒成长，建议早做；攻称进秘境后每秒成长无效（未上帧）",
+     "可与异火/刀刀一起搜"
+    ]
+   },
+   "conflicts": [
+    "小绿瓶 D0/词典是宝物，攻略当修仙启动。不改 kind，不写进修仙 route",
+    "神秘戒指 D0 曾标宝物；174547 t=198 是修仙羁绊，以实机为准改 kind=bond",
+    "流星泪 bond_stack 也是 need=3，与修仙 need=3 并存，不合并",
+    "渡劫 50%/灵气25道未上帧，不写 need"
+   ],
+   "ex": "大乘期",
+   "source": [
+    "live_174547",
+    "bond_stack_catalog",
+    "user_card_screenshot",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "haidao_chain": {
+   "name": "海盗：藏宝图→毁灭战舰；黄金猿开宝藏",
+   "text": "海盗无 EX，终点 UR 毁灭战舰。实机：藏宝图(三)/贪婪/白赚海盗/海盗劫掠者 need 都是 3。战舰卡面：攻幅+10%，每击杀300置入随机海盗，每吞1张海盗杀敌金/木+1%，开池 N利刃海盗/战斗海盗/冲浪海盗+SSR重拳先生，无法吞噬。黄金猿是装备，装备栏左键开宝藏（user_confirmed）；禁止自动点装备栏。",
+   "live_verified": {
+    "map_need": {
+     "name": "藏宝图(三)",
+     "need": 3,
+     "source": "bond_stack + longtest 藏宝图(0/3)"
+    },
+    "greedy_need": {
+     "name": "贪婪",
+     "need": 3,
+     "source": "lab 贪婪(2/3)；攻略有的写2张，不改"
+    },
+    "seen_pirates": [
+     "白赚海盗",
+     "海盗劫掠者",
+     "利刃海盗"
+    ],
+    "seen_need": {
+     "白赚海盗": 3,
+     "海盗劫掠者": 3
+    },
+    "ur": "毁灭战舰",
+    "ur_source": "fixtures/ex_finals_20260814/11",
+    "ur_opens": [
+     "利刃海盗",
+     "战斗海盗",
+     "冲浪海盗",
+     "重拳先生"
+    ],
+    "kill_grant_pirate": 300,
+    "per_devour": {
+     "kill_gold_pct": 1,
+     "kill_wood_pct": 1
+    },
+    "cannot_devour_ur": true
+   },
+   "guide": {
+    "source": [
+     "douyin_魔兽从新",
+     "douyin_在家零四一"
+    ],
+    "status": "guide",
+    "ingested_at": "2026-08-15",
+    "typos": [
+     "黄金元→黄金猿",
+     "开剑码头→开进码头（两说并存，见 paths）"
+    ],
+    "open_pool": "3张藏宝图",
+    "paths": [
+     {
+      "id": "bounty_to_ship",
+      "text": "藏宝图算3张海盗，再吞3张→制造混乱；罗杰斯进池；橙色悬赏消橙卡→毁灭战舰"
+     },
+     {
+      "id": "swallow_12",
+      "text": "掘金者+劫掠者+顶尖大盗→开进码头；吞6→制造混乱+罗杰斯；吞9→霍格；吞12→洛卡拉舰长，栏内出毁灭战舰，开重拳先生+3张无限N"
+     }
+    ],
+    "why_path_swallow_closer_to_live": "战舰卡面开池 N三张+重拳先生，更像 swallow_12 的终局，不是「橙悬赏变战舰」",
+    "cards": [
+     {
+      "name": "掘金者",
+      "rarity": "R",
+      "guide_effect": "金币+3000；随机悬赏令"
+     },
+     {
+      "name": "顶尖大盗",
+      "rarity": "SR?",
+      "guide_effect": "悬赏令"
+     },
+     {
+      "name": "空降海盗",
+      "guide_effect": "返50木；攻称必拿"
+     },
+     {
+      "name": "海盗帕奇斯",
+      "guide_effect": "自我吞噬"
+     },
+     {
+      "name": "沙迪",
+      "guide_effect": "可被吞计入进度"
+     },
+     {
+      "name": "天空舰长",
+      "guide_effect": "出空降海盗/帕奇斯"
+     },
+     {
+      "name": "开进码头",
+      "aliases": [
+       "开剑码头"
+      ],
+      "guide_effect": "主卡；吞6进制造混乱"
+     },
+     {
+      "name": "制造混乱",
+      "guide_effect": "吞6后；罗杰斯进池"
+     },
+     {
+      "name": "罗杰斯上将",
+      "guide_effect": "每消耗300木抽卡返1悬赏令；不能被悬赏令吞，能被吞食丹/贪婪/三国吞；被吞仍生效"
+     },
+     {
+      "name": "霍格船长",
+      "guide_effect": "抽卡消耗-10（攻称100→90）"
+     },
+     {
+      "name": "洛卡拉舰长",
+      "guide_effect": "吞12后；栏内出毁灭战舰"
+     },
+     {
+      "name": "猴子",
+      "guide_effect": "刷新消耗-10（攻称40→30）；吃悬赏令有概率给黄金猿。不要与黄金猿互设别名"
+     },
+     {
+      "name": "奎尔德拉",
+      "guide_effect": "剑柄+剑刃同时在栏才合成；三国吞的不算；先拿一个会卡手"
+     }
+    ],
+    "bounty_colors": {
+     "红": "所有颜色",
+     "橙": "橙色海盗",
+     "紫": "紫色海盗",
+     "蓝": "蓝色海盗",
+     "绿": "绿色海盗"
+    },
+    "play_notes": [
+     "经济核心，攻称所有流派先做，约1.5–2分钟",
+     "罗杰斯出来后可开始做其他 EX",
+     "黄金猿等战舰成型再用，提前用会断战舰；尽量等霍格后再用",
+     "剑柄剑刃留最后",
+     "攻称做完海盗后卡池海盗卡清除（与军团/龙族不同）。战舰卡面仍会每300杀置入随机海盗——清池与置入是否同时成立未测",
+     "可与亡灵一起搜；贪婪吞亡灵三加速卡",
+     "做完补成长"
+    ]
+   },
+   "gold_ape": {
+    "canonical": "黄金猿",
+    "not": "黄金元",
+    "kind": "equipment",
+    "user_confirmed": "装备栏左键触发宝藏卡组",
+    "do_not_auto_click_equipment_bar": true,
+    "guide": {
+     "when": "确保能完成12张海盗最终进化后再用；战舰成型后",
+     "effect_claimed": "降低刷新木头；移除卡池内所有海盗卡；解锁宝藏卡池"
+    }
+   },
+   "baozang": {
+    "name": "宝藏卡组",
+    "unlock": "黄金猿装备栏左键",
+    "guide": {
+     "auto_devour_every": 3,
+     "ankh": "2张安卡同时获得→合成1张UR并吞噬",
+     "note": "精确效果以 F9 图鉴为准，未上帧"
+    }
+   },
+   "conflicts": [
+    "贪婪攻略2张 vs 实机 need=3",
+    "开剑码头 vs 开进码头：两说，canonical 开进码头，别名开剑码头",
+    "橙悬赏出战舰 vs 吞12出洛卡拉+战舰。战舰开池以卡面为准",
+    "战舰卡面每300杀仍置入海盗 vs 攻称黄金猿后海盗池清空。未测",
+    "抽卡100/刷新40 是攻略；官方单价仍 unknown，不写进资源账本",
+    "猴子≠黄金猿"
+   ],
+   "ur": "毁灭战舰",
+   "source": [
+    "bond_stack_catalog",
+    "ocr_choices",
+    "user_card_screenshot",
+    "user_confirmed",
+    "guide_20260815"
+   ],
+   "status": "mixed",
+   "wired_to_decision": false
+  },
+  "kongao_ring": {
+   "name": "恐鳌戒指",
+   "text": "174547 中后期 F 三选出现恐鳌戒指套装件。need 未测，不写 bond_stack。精选帧 21–23；evidence_ocr 无这几帧，数值采 INDEX/README。",
+   "live_verified": {
+    "source": "fixtures/cards_174547_evidence/all_slow_looks 21-23",
+    "ocr_dump": false,
+    "pieces": [
+     {
+      "name": "生命之球",
+      "rarity": "R",
+      "t": 750.0,
+      "hp": 250,
+      "str": 50
+     },
+     {
+      "name": "守护指环",
+      "rarity": "R",
+      "t": 755.0,
+      "hp": 150,
+      "armor": 2
+     }
+    ]
+   },
+   "need": null,
+   "source": "live_174547_index",
+   "status": "live_fixture_index",
+   "wired_to_decision": false
+  },
+  "live_174547_sidecars": {
+   "name": "174547 同局还见到（非异火/刀刀主链）",
+   "text": "精选 30 事件清单在 fixtures/cards_174547_evidence/README.md。JPG 未进仓，只有 INDEX/OCR。技能三选已在 skill_card_catalog，不在此重复。",
+   "source": "fixtures/cards_174547_evidence",
+   "status": "live_fixture_index",
+   "wired_to_decision": false,
+   "artifacts": [
+    {
+     "name": "三元重戟图纸",
+     "rarity": "UR",
+     "t": 765.0
+    },
+    {
+     "name": "圣者遗物",
+     "rarity": "SSR",
+     "t": 780.0,
+     "atk": 200,
+     "as_pct": 15
+    },
+    {
+     "name": "散夜对剑",
+     "t": 780.0
+    },
+    {
+     "name": "散慧对剑",
+     "rarity": "SSR",
+     "t": 835.0,
+     "int": 100,
+     "agi": 100,
+     "multi_pct": 5
+    }
+   ],
+   "treasure": [
+    {
+     "name": "时间停止",
+     "t": 805.0,
+     "note": "全屏静止；与物理伤害、混乱转换同面板"
+    }
+   ],
+   "hero_cards": [
+    "巫妖",
+    "小狗"
+   ],
+   "exclusive": {
+    "name": "灾厄长弓",
+    "t": 825.0,
+    "note": "专属史诗进阶词条；INDEX 写全属性+1264 全系伤害+12%，无 OCR"
+   }
+  },
+  "ex_capstones": {
+   "name": "各套装最终形态",
+   "text": "除海盗无 EX、最终为 UR 毁灭战舰外，其余套装最终形态为 EX。全部无法吞噬。部分获取时移除本套或相邻套卡池。解放的圣剑用聊天指令切形态，脚本禁止自动键入（与 -zs 同属聊天，fail-closed）。",
+   "source": "fixtures/ex_finals_20260814",
+   "status": "user_card_screenshot",
+   "wired_to_decision": false,
+   "cannot_devour": true,
+   "do_not_autotype_chat": [
+    "-永恒",
+    "-岚",
+    "-终焉",
+    "-1",
+    "-2",
+    "-3"
+   ],
+   "cards": [
+    {
+     "name": "圣人",
+     "set": "封神",
+     "rarity": "EX",
+     "remove_pool": "法宝"
+    },
+    {
+     "name": "祖龙",
+     "set": "神兽",
+     "rarity": "EX",
+     "remove_pool": "神兽"
+    },
+    {
+     "name": "世界末日迦拉克隆",
+     "set": "龙族",
+     "rarity": "EX",
+     "also_tag": "迦拉克隆"
+    },
+    {
+     "name": "吞食天地",
+     "set": "三国",
+     "rarity": "EX"
+    },
+    {
+     "name": "帝炎",
+     "set": "异火",
+     "rarity": "EX",
+     "rank": 1
+    },
+    {
+     "name": "解放的圣剑",
+     "set": "刀刀",
+     "rarity": "EX",
+     "remove_pool": "刀刀",
+     "devour_die": true
+    },
+    {
+     "name": "萨格拉斯",
+     "set": "军团",
+     "rarity": "EX"
+    },
+    {
+     "name": "兵主",
+     "set": "亡灵",
+     "rarity": "EX"
+    },
+    {
+     "name": "大乘期",
+     "set": "修仙",
+     "rarity": "EX",
+     "remove_pool": "修仙"
+    },
+    {
+     "name": "法天象地",
+     "set": "神通",
+     "rarity": "EX",
+     "guide_dasheng_ex": true,
+     "note": "卡面标签神通。攻略与实验室高级卡组把它当大圣终点。残躯链未上帧。"
+    },
+    {
+     "name": "毁灭战舰",
+     "set": "海盗",
+     "rarity": "UR",
+     "note": "海盗无EX。卡面开池 N利刃/战斗/冲浪+SSR重拳先生。攻略另称黄金猿清海盗池、开宝藏。"
+    }
+   ]
+  }
+ },
+ "multiplayer": {
+  "pressure_transfer": {
+   "name": "压力转移",
+   "text": "仅多人模式、通关 1-1 后启用；只对非 1P 可见。开启后取消多人刷怪加成。被压的 1P 获得「携手同心」。若 1P 打开设置，其他玩家可在准备阶段开启压力转移，其战场怪物传送到 1P。金币和杀敌数归 1P；挑战怪奖励、经验、木头归开启转移的发送方。1P 失败则所有开启压力转移的玩家立刻失败。",
+   "unlock": "after_stage_1_1",
+   "visible_to": "non_p1",
+   "gold_and_kills_to": "p1",
+   "challenge_exp_wood_to": "sender",
+   "fail_binds_to_p1": true,
+   "source": "other_1",
+   "status": "official_help",
+   "script_rule": "click_on_hitch_enter",
+   "note": "跟车进局必点。自己开房/1P/独狼禁止误点。接线走蹭车局内，未接。"
+  },
+  "together_buff": {
+   "name": "携手同心",
+   "text": "1P 每有一名队友转移压力，获得 1 层。每层掉宝率 +5%。最多 3 层（合计 +15%）。",
+   "drop_rate_pct_per_stack": 5,
+   "max_stacks": 3,
+   "source": "other_1",
+   "status": "official_help"
+  }
+ },
+ "win_lose": {
+  "win": {
+   "text": "时限内击败最终 BOSS。",
+   "source": "play_help",
+   "status": "official_help"
+  },
+  "lose": {
+   "text": "阵亡，或时限内未击杀最终 BOSS。生命降到 0 即死亡（有 1 次免费复活）。自杀会清空全部复活次数。",
+   "source": [
+    "play_help",
+    "basic_attr",
+    "other_1"
+   ],
+   "status": "official_help"
+  },
+  "free_revive": {
+   "count": 1,
+   "text": "有 1 次免费复活机会。",
+   "source": "basic_attr",
+   "status": "official_help"
+  }
+ },
+ "caps": {
+  "attack_speed_pct": {
+   "value": 1000,
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "skill_haste_pct": {
+   "value": 80,
+   "source": "special_attr",
+   "status": "official_help"
+  },
+  "multi_damage_pct": {
+   "base": 30,
+   "max": 100,
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "bounce_damage_pct": {
+   "base": 30,
+   "max": 100,
+   "source": "basic_attr",
+   "status": "official_help"
+  },
+  "together_buff_stacks": {
+   "max": 3,
+   "source": "other_1",
+   "status": "official_help"
+  },
+  "frostburn_stacks": {
+   "max": 3,
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "iceflame_stacks": {
+   "max": 5,
+   "source": "status_p2",
+   "status": "official_help"
+  },
+  "frostbite_stacks": {
+   "max": 5,
+   "source": "status_p2",
+   "status": "official_help"
+  }
+ },
+ "unknown": [
+  "F 抽羁绊单次木头消耗（开面板，不是刷新）",
+  "羁绊三选刷新单次木头消耗",
+  "G 抽技能是否即三选一面板（脚本现认三选一；官方只写 G 消耗技能点）",
+  "黑商刷新单次杀敌数（每 180 秒免费 1 次已 user_confirmed，单价未知）",
+  "哪些宝物词条、哪些局外效果卡给宝物/技能/英雄卡刷新次数",
+  "局外效果卡一入局的识别锚点（剩余次数怎么读）",
+  "专属升级每级金币、词条池、热键",
+  "力/敏/智百分比伤害的递减公式",
+  "致命一击基础倍率与命中/闪避公式",
+  "重创/瓦解/易伤是否互相叠加",
+  "状态持续时间",
+  "黑市消耗是否另计（官方说明未提黑市）",
+  "除审判之雷↔磁暴外还有哪些不对称排斥",
+  "F1 恢复操作焦点的成功条件（哪些面板/镜头状态有效；用途已 user_confirmed，未实机钉）",
+  "F2 回基地后可点范围（秘境/传家宝；用途已 user_confirmed，未实机钉）",
+  "「打不过」按 F4 的实机判定信号（血量/挑战失败提示/超时？未钉，不猜阈值）",
+  "焚诀·玄/地/天阶未上帧（用户图鉴称开 R–UR 池，不得标实机）",
+  "拆解表 06–13 八张异火（陨落心炎…骨灵冷火）无独立 OCR/精选帧，不得当黄阶池实机",
+  "恐鳌戒指 need（x/y）未测",
+  "刀刀一阶段7图纸与入门/小成未上帧；萌新「每200杀发图纸」未证实",
+  "刀刀二阶段除三元重戟图纸外未上帧；疾的全名未知",
+  "解放的圣剑掷骰吞噬数量；岚形态技能急速+100 与 CDR 硬顶 80% 如何结算",
+  "圣剑「无视闪避」与官方「闪避覆盖真伤」是否同条规则",
+  "帝炎「异火燃烧」是否即状态表燃烧，燃烧伤害+300% 怎么叠官方 100% 火系物理 DoT",
+  "大圣残躯6张/五件套/五大成小卡未上帧；实机(0/3)天命人 vs 攻略启动+6残躯",
+  "法天象地卡面神通 vs 攻略大圣EX；残躯链未跑通前不当相等",
+  "技能卡无红色已 user_confirmed；HSV 仍会把橙边采成 red，B1 再改 quality_order / 采色",
+  "封神榜6/9、法宝三连跳各5、2400木未上帧；姜子牙 t=765 无 tooltip OCR",
+  "亡灵残骸100/符文各≥10/邪爆2次未上帧；生产者「巫妖」未上帧（英雄卡巫妖已见）",
+  "神兽同名互吞链与4 UR→祖龙未上帧；吞食丹跳过异兽蛋60秒未上帧",
+  "异火攻略 6/9/12/22 与帝炎=22张未上帧；实机只钉住黄阶吞3→玄阶",
+  "军团 27吞+3扭曲虚空点爆未上帧；燃烧的远征无 tooltip OCR",
+  "龙族五色龙王/始祖/祈求10次未上帧；瑞亚斯塔萨未上帧",
+  "三国每营吞8/4选3未上帧；吞食品质上限卡面未写",
+  "修仙渡劫概率/五极山/斩灵剑未上帧；小绿瓶攻略当启动 vs D0 宝物",
+  "海盗主卡进化 6/9/12 与悬赏令出战舰两说未上帧；黄金猿装备栏左键锚点未钉",
+  "宝藏每3张自动吞、安卡合成 UR 未上帧"
+ ]
+}

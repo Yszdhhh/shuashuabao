@@ -1,0 +1,21 @@
+{
+  "kind": "bond_set_panel",
+  "date": "20260814",
+  "title": "已吞噬",
+  "source": "source_yishitun_panel.png",
+  "evidence_grade": "R",
+  "confirmed_set_labels": ["刀刀", "异火", "封神", "法宝", "法术", "急速", "魔术", "魔能"],
+  "primary": {
+    "name": "刀刀",
+    "observation": "套装内每件角标均为刀刀；图标为装备/饰品/武器/法器，非单一卡立绘",
+    "stack_need": null,
+    "base_tooltip_text": null,
+    "attr_formula": null
+  },
+  "lexicon_added": ["刀刀", "法宝"],
+  "next_capture": [
+    "悬停至少 3 张刀刀件（橙/紫/蓝各一）截基础词条原文",
+    "F 三选若出现 刀刀(x/y) 记 need",
+    "勿用 TAB 总属性页冒充基础词条"
+  ]
+}

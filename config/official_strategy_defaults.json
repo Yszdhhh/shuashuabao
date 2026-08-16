@@ -169,6 +169,45 @@
     ],
     "bond_whitelist_mode": "hard"
   },
+  "mainline_stages": [
+    {"chapter": 1, "count": 23, "label": "主线1"},
+    {"chapter": 2, "count": 7, "label": "主线2"},
+    {"chapter": 3, "count": 9, "label": "主线3"},
+    {"chapter": 4, "count": 3, "label": "主线4"}
+  ],
+  "card_packs": {
+    "_comment": "看板用。基础卡组=已实机抓齐的四轮必做/生存/急速。属性线只选智力/力量/敏捷一行，不展开链。高级卡组可选，EX 最终形态不进白名单。",
+    "basic": {
+      "label": "基础卡组",
+      "cards": ["祝福", "成长", "经济", "贪婪", "挑战", "提速", "体术", "固守", "陷阵", "急速"]
+    },
+    "attr_line": {
+      "label": "属性线",
+      "summary_only": true,
+      "options": [
+        {"id": "intelligence", "label": "智力", "gate": "智力", "ur": "湮灭者"},
+        {"id": "strength", "label": "力量", "gate": "力量", "ur": "屠戮者"},
+        {"id": "agility", "label": "敏捷", "gate": "敏捷", "ur": "收割者"}
+      ]
+    },
+    "advanced": {
+      "daodao": {
+        "label": "刀刀",
+        "cards": ["刀刀", "幽灵系带", "护腕", "空灵挂坠", "刀刀萌新", "刀刀大成"],
+        "exclude_ex": ["解放的圣剑"]
+      },
+      "yihuo": {
+        "label": "异火",
+        "cards": ["异火", "焚诀·黄阶", "阴阳双炎", "风怒龙炎", "幽冥毒火", "玄黄炎"],
+        "exclude_ex": ["帝炎"]
+      },
+      "dasheng": {
+        "label": "大圣",
+        "cards": ["齐天大圣", "大圣", "天命人", "大圣残躯", "大圣套装"],
+        "exclude_ex": ["法天象地"]
+      }
+    }
+  },
   "do_not_auto_enable": [
     "黑市自动购买序",
     "木头梭哈/ZS重开",

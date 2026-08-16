@@ -1,0 +1,212 @@
+[
+  {
+    "id": "01",
+    "name": "01_禁用卡组_包含异火与刀刀分类",
+    "timestamp_s": 102.0,
+    "full_image": "01_禁用卡组_包含异火与刀刀分类_full.jpg",
+    "crop_image": "01_禁用卡组_包含异火与刀刀分类_crop.jpg"
+  },
+  {
+    "id": "02",
+    "name": "02_技能卡_奥术箭矢_奥术激光_射线延续",
+    "timestamp_s": 127.0,
+    "full_image": "02_技能卡_奥术箭矢_奥术激光_射线延续_full.jpg",
+    "crop_image": "02_技能卡_奥术箭矢_奥术激光_射线延续_crop.jpg"
+  },
+  {
+    "id": "03",
+    "name": "03_技能卡_稳定光线_地震_激光增幅",
+    "timestamp_s": 134.0,
+    "full_image": "03_技能卡_稳定光线_地震_激光增幅_full.jpg",
+    "crop_image": "03_技能卡_稳定光线_地震_激光增幅_crop.jpg"
+  },
+  {
+    "id": "04",
+    "name": "04_技能卡_寒冰箭_冰霜新星_爆炎箭",
+    "timestamp_s": 136.0,
+    "full_image": "04_技能卡_寒冰箭_冰霜新星_爆炎箭_full.jpg",
+    "crop_image": "04_技能卡_寒冰箭_冰霜新星_爆炎箭_crop.jpg"
+  },
+  {
+    "id": "05",
+    "name": "05_羁绊卡_敏捷祝福_智力祝福_力量祝福",
+    "timestamp_s": 139.0,
+    "full_image": "05_羁绊卡_敏捷祝福_智力祝福_力量祝福_full.jpg",
+    "crop_image": "05_羁绊卡_敏捷祝福_智力祝福_力量祝福_crop.jpg"
+  },
+  {
+    "id": "06",
+    "name": "06_羁绊卡_敏捷祝福_射手姿态_利刃",
+    "timestamp_s": 144.0,
+    "full_image": "06_羁绊卡_敏捷祝福_射手姿态_利刃_full.jpg",
+    "crop_image": "06_羁绊卡_敏捷祝福_射手姿态_利刃_crop.jpg"
+  },
+  {
+    "id": "07",
+    "name": "07_羁绊卡_体术利刃_箭术射手姿态_经济杀敌多多",
+    "timestamp_s": 147.0,
+    "full_image": "07_羁绊卡_体术利刃_箭术射手姿态_经济杀敌多多_full.jpg",
+    "crop_image": "07_羁绊卡_体术利刃_箭术射手姿态_经济杀敌多多_crop.jpg"
+  },
+  {
+    "id": "08",
+    "name": "08_刀刀卡_幽灵系带_法师奥义_法术威力",
+    "timestamp_s": 148.0,
+    "full_image": "08_刀刀卡_幽灵系带_法师奥义_法术威力_full.jpg",
+    "crop_image": "08_刀刀卡_幽灵系带_法师奥义_法术威力_crop.jpg"
+  },
+  {
+    "id": "09",
+    "name": "09_羁绊卡_成长力量提升_体术体魄_暴伤强化",
+    "timestamp_s": 150.4,
+    "full_image": "09_羁绊卡_成长力量提升_体术体魄_暴伤强化_full.jpg",
+    "crop_image": "09_羁绊卡_成长力量提升_体术体魄_暴伤强化_crop.jpg"
+  },
+  {
+    "id": "10",
+    "name": "10_刀刀卡_护腕_法术增幅_神兽异兽蛋",
+    "timestamp_s": 154.3,
+    "full_image": "10_刀刀卡_护腕_法术增幅_神兽异兽蛋_full.jpg",
+    "crop_image": "10_刀刀卡_护腕_法术增幅_神兽异兽蛋_crop.jpg"
+  },
+  {
+    "id": "11",
+    "name": "11_刀刀卡_空灵挂坠_经济金币多多_异兽蛋",
+    "timestamp_s": 158.0,
+    "full_image": "11_刀刀卡_空灵挂坠_经济金币多多_异兽蛋_full.jpg",
+    "crop_image": "11_刀刀卡_空灵挂坠_经济金币多多_异兽蛋_crop.jpg"
+  },
+  {
+    "id": "12",
+    "name": "12_刀刀套装激活吞噬_置入刀刀萌新",
+    "timestamp_s": 163.0,
+    "full_image": "12_刀刀套装激活吞噬_置入刀刀萌新_full.jpg",
+    "crop_image": "12_刀刀套装激活吞噬_置入刀刀萌新_crop.jpg"
+  },
+  {
+    "id": "13",
+    "name": "13_异火核心_焚诀黄阶_经验猎人_箭矢扩散",
+    "timestamp_s": 165.0,
+    "full_image": "13_异火核心_焚诀黄阶_经验猎人_箭矢扩散_full.jpg",
+    "crop_image": "13_异火核心_焚诀黄阶_经验猎人_箭矢扩散_crop.jpg"
+  },
+  {
+    "id": "14",
+    "name": "14_羁绊卡_龙族巨龙军团_修仙流星泪_法术增幅",
+    "timestamp_s": 170.0,
+    "full_image": "14_羁绊卡_龙族巨龙军团_修仙流星泪_法术增幅_full.jpg",
+    "crop_image": "14_羁绊卡_龙族巨龙军团_修仙流星泪_法术增幅_crop.jpg"
+  },
+  {
+    "id": "15",
+    "name": "15_异火卡_阴阳双炎_空灵挂坠_攻击提升",
+    "timestamp_s": 172.0,
+    "full_image": "15_异火卡_阴阳双炎_空灵挂坠_攻击提升_full.jpg",
+    "crop_image": "15_异火卡_阴阳双炎_空灵挂坠_攻击提升_crop.jpg"
+  },
+  {
+    "id": "16",
+    "name": "16_羁绊卡_成长智力提升_金币猎人_贪欲钥匙",
+    "timestamp_s": 179.0,
+    "full_image": "16_羁绊卡_成长智力提升_金币猎人_贪欲钥匙_full.jpg",
+    "crop_image": "16_羁绊卡_成长智力提升_金币猎人_贪欲钥匙_crop.jpg"
+  },
+  {
+    "id": "17",
+    "name": "17_异火卡_风怒龙炎_异火吞噬",
+    "timestamp_s": 183.5,
+    "full_image": "17_异火卡_风怒龙炎_异火吞噬_full.jpg",
+    "crop_image": "17_异火卡_风怒龙炎_异火吞噬_crop.jpg"
+  },
+  {
+    "id": "18",
+    "name": "18_异火卡_风怒龙炎_二次出现",
+    "timestamp_s": 198.0,
+    "full_image": "18_异火卡_风怒龙炎_二次出现_full.jpg",
+    "crop_image": "18_异火卡_风怒龙炎_二次出现_crop.jpg"
+  },
+  {
+    "id": "19",
+    "name": "19_异火卡_幽冥毒火",
+    "timestamp_s": 207.0,
+    "full_image": "19_异火卡_幽冥毒火_full.jpg",
+    "crop_image": "19_异火卡_幽冥毒火_crop.jpg"
+  },
+  {
+    "id": "20",
+    "name": "20_异火卡_玄黄炎",
+    "timestamp_s": 209.0,
+    "full_image": "20_异火卡_玄黄炎_full.jpg",
+    "crop_image": "20_异火卡_玄黄炎_crop.jpg"
+  },
+  {
+    "id": "21",
+    "name": "21_恐鳌戒指套装_体术_箭术",
+    "timestamp_s": 745.0,
+    "full_image": "21_恐鳌戒指套装_体术_箭术_full.jpg",
+    "crop_image": "21_恐鳌戒指套装_体术_箭术_crop.jpg"
+  },
+  {
+    "id": "22",
+    "name": "22_恐鳌戒指生命之球_体魄_箭矢弹射",
+    "timestamp_s": 750.0,
+    "full_image": "22_恐鳌戒指生命之球_体魄_箭矢弹射_full.jpg",
+    "crop_image": "22_恐鳌戒指生命之球_体魄_箭矢弹射_crop.jpg"
+  },
+  {
+    "id": "23",
+    "name": "23_恐鳌戒指守护指环_法术增幅_射手姿态",
+    "timestamp_s": 755.0,
+    "full_image": "23_恐鳌戒指守护指环_法术增幅_射手姿态_full.jpg",
+    "crop_image": "23_恐鳌戒指守护指环_法术增幅_射手姿态_crop.jpg"
+  },
+  {
+    "id": "24",
+    "name": "24_刀刀终极质变_刀刀大成UR",
+    "timestamp_s": 760.0,
+    "full_image": "24_刀刀终极质变_刀刀大成UR_full.jpg",
+    "crop_image": "24_刀刀终极质变_刀刀大成UR_crop.jpg"
+  },
+  {
+    "id": "25",
+    "name": "25_神器三元重戟图纸UR_利刃_封神姜子牙",
+    "timestamp_s": 765.0,
+    "full_image": "25_神器三元重戟图纸UR_利刃_封神姜子牙_full.jpg",
+    "crop_image": "25_神器三元重戟图纸UR_利刃_封神姜子牙_crop.jpg"
+  },
+  {
+    "id": "26",
+    "name": "26_神器圣剑圣者遗物SSR_三元重戟散夜对剑",
+    "timestamp_s": 780.0,
+    "full_image": "26_神器圣剑圣者遗物SSR_三元重戟散夜对剑_full.jpg",
+    "crop_image": "26_神器圣剑圣者遗物SSR_三元重戟散夜对剑_crop.jpg"
+  },
+  {
+    "id": "27",
+    "name": "27_宝物三选_时间停止_物理伤害_混乱转换",
+    "timestamp_s": 805.0,
+    "full_image": "27_宝物三选_时间停止_物理伤害_混乱转换_full.jpg",
+    "crop_image": "27_宝物三选_时间停止_物理伤害_混乱转换_crop.jpg"
+  },
+  {
+    "id": "28",
+    "name": "28_英雄卡选择_巫妖_小狗",
+    "timestamp_s": 810.0,
+    "full_image": "28_英雄卡选择_巫妖_小狗_full.jpg",
+    "crop_image": "28_英雄卡选择_巫妖_小狗_crop.jpg"
+  },
+  {
+    "id": "29",
+    "name": "29_专属武器进阶词条选择_灾厄长弓",
+    "timestamp_s": 825.0,
+    "full_image": "29_专属武器进阶词条选择_灾厄长弓_full.jpg",
+    "crop_image": "29_专属武器进阶词条选择_灾厄长弓_crop.jpg"
+  },
+  {
+    "id": "30",
+    "name": "30_神器三元重戟散慧对剑SSR_赋予力量_箭矢扩散",
+    "timestamp_s": 835.0,
+    "full_image": "30_神器三元重戟散慧对剑SSR_赋予力量_箭矢扩散_full.jpg",
+    "crop_image": "30_神器三元重戟散慧对剑SSR_赋予力量_箭矢扩散_crop.jpg"
+  }
+]

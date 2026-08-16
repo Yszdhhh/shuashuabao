@@ -9,7 +9,7 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "奥数激光": {
       "aliases": [
@@ -18,7 +18,7 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数激光"
     },
     "奥数射线": {
       "aliases": [
@@ -29,49 +29,49 @@
       "confusions": [
         "射线"
       ],
-      "set_membership": null
+      "set_membership": "奥数射线"
     },
     "冰霜新星": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "冰霜新星"
     },
     "爆炎箭": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "爆炎箭"
     },
     "电磁网": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "电磁网"
     },
     "地震": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "地震"
     },
     "寒冰箭": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "寒冰箭"
     },
     "火球": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "火球"
     },
     "飓风": {
       "aliases": [
@@ -80,49 +80,49 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "飓风"
     },
     "剑气": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "剑气"
     },
     "龙卷风": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "龙卷风"
     },
     "普攻": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "普攻"
     },
     "闪电链": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "闪电链"
     },
     "天雷": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "天雷"
     },
     "陨石": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "陨石"
     },
     "次级箭": {
       "aliases": [],
@@ -131,14 +131,14 @@
       "confusions": [
         "次级增伤"
       ],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "焦点": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数射线"
     },
     "箭矢齐射": {
       "aliases": [
@@ -148,7 +148,7 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "光法": {
       "aliases": [
@@ -177,7 +177,7 @@
       "confusions": [
         "次级箭"
       ],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "射线增幅": {
       "aliases": [],
@@ -186,14 +186,15 @@
       "confusions": [
         "射线"
       ],
-      "set_membership": null
+      "set_membership": "奥数射线"
     },
     "三国": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": "三国"
+      "set_membership": "三国",
+      "_note": "套装。最终形态 EX 吞食天地。启动卡乱世三国已见名。"
     },
     "体术": {
       "aliases": [],
@@ -212,9 +213,10 @@
     "修仙": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "修仙",
+      "_note": "套装。最终形态 EX 大乘期。获取大乘期会移除修仙卡组。"
     },
     "魔术": {
       "aliases": [
@@ -228,9 +230,10 @@
     "封神": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "封神",
+      "_note": "套装。最终形态 EX 圣人。获取圣人会移除法宝卡组。"
     },
     "祝福": {
       "aliases": [],
@@ -242,9 +245,10 @@
     "海盗": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.4.11",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "海盗",
+      "_note": "套装。无EX；最终形态 UR 毁灭战舰。藏宝图(三)开池。黄金猿是装备栏左键开宝藏，不是本套 F 卡。"
     },
     "智力": {
       "aliases": [],
@@ -267,19 +271,174 @@
       "confusions": [],
       "set_membership": null
     },
-    "法术": {
+    "贪婪": {
       "aliases": [],
       "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": null,
+      "_note": "实机 need=3（lab 2/3）。经济解锁。随机吞4张可吞食+150木+888杀敌+6000金。攻略海盗段有的写2张，不改 need。不是海盗套装件。"
+    },
+    "经济": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "挑战": {
+      "aliases": [
+        "排战"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "法术": {
+      "aliases": [
+        "法"
+      ],
+      "kind": "bond",
       "version_seen": "1.4.11",
+      "confusions": [],
+      "set_membership": null
+    },
+    "法宝": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "法宝",
+      "_note": "套装。封神EX圣人获取时会从卡池移除本卡组。张数仍未测。攻略法宝名见斩仙飞刀等，未上帧。"
+    },
+    "急速": {
+      "aliases": [
+        "极速"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "大炮": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "敏捷": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [
+        "敏捷之源"
+      ],
+      "set_membership": null
+    },
+    "战术": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [
+        "体术",
+        "箭术"
+      ],
+      "set_membership": null
+    },
+    "箭术": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [
+        "战术",
+        "体术"
+      ],
+      "set_membership": null
+    },
+    "致命": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "提速": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "user-table-20260813",
+      "confusions": [
+        "急速"
+      ],
+      "set_membership": null
+    },
+    "剑术": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "user-table-20260813",
+      "confusions": [
+        "战术",
+        "箭术",
+        "体术"
+      ],
+      "set_membership": null
+    },
+    "固守": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "user-table-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "陷阵": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "user-table-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "生命": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "user-table-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "血势": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "user-table-20260813",
+      "confusions": [
+        "血誓",
+        "血魔"
+      ],
+      "set_membership": null
+    },
+    "血魔": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "fetter_labels",
+      "confusions": [
+        "血势",
+        "血誓"
+      ],
+      "set_membership": null
+    },
+    "魔能": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
       "confusions": [],
       "set_membership": null
     },
     "异火": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.4.11",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "异火",
+      "_note": "套装名。174547 底栏异火(168)是吞噬计数，不是(x/y)。黄阶只开N池；更高阶见 lexicon 焚诀·玄/地/天阶（无独立帧）。"
     },
     "奥术神符": {
       "aliases": [],
@@ -325,11 +484,12 @@
         "世三图"
       ],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [
         "三国"
       ],
-      "set_membership": "三国"
+      "set_membership": "三国",
+      "_note": "实机 ocr_choices 见名。攻略：启动卡，拿后魏/蜀/群雄进池。EX=吞食天地。"
     },
     "体魄": {
       "aliases": [
@@ -338,7 +498,7 @@
       "kind": "bond",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "体术"
     },
     "攻击提升": {
       "aliases": [],
@@ -350,25 +510,25 @@
     "智力祝福": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "祝福"
     },
     "敏捷祝福": {
       "aliases": [
         "福"
       ],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "祝福"
     },
     "力量祝福": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "祝福"
     },
     "贪婪献祭": {
       "aliases": [],
@@ -441,25 +601,31 @@
       "set_membership": null
     },
     "奥术增幅α": {
-      "aliases": [],
+      "aliases": [
+        "奥术增幅a",
+        "奥术增幅A"
+      ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "奥术增幅β": {
-      "aliases": [],
+      "aliases": [
+        "奥术增幅b",
+        "奥术增幅B"
+      ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "射线延续": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数射线"
     },
     "属性神符": {
       "aliases": [],
@@ -471,16 +637,17 @@
     "巨龙军团": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "龙族",
+      "_note": "实机 174547 高阶帧 t=570 OCR：开启龙族卡组；全属性+20。EX=世界末日迦拉克隆。"
     },
     "强力箭矢": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "挑战杀手": {
       "aliases": [],
@@ -545,7 +712,7 @@
       "kind": "bond",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "法术"
     },
     "法术增幅": {
       "aliases": [],
@@ -559,21 +726,22 @@
       "kind": "bond",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "法术"
     },
     "流星泪": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "修仙",
+      "_note": "实机 ocr rec5 流星泪(0/3)；174547 t=170 与巨龙军团同面板。攻略三启动之一。bond_stack need=3 与修仙 need=3 并存，不合并。"
     },
     "激光增幅": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数激光"
     },
     "灵智": {
       "aliases": [],
@@ -589,28 +757,29 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数射线"
     },
     "燃烧的远征": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "军团",
+      "_note": "实机 ocr_choices 见名。攻略：启动卡，拿后军团进池。EX=萨格拉斯。无 tooltip OCR。"
     },
     "爆炸增伤": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "瓦解光线": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数激光"
     },
     "百宝箱": {
       "aliases": [],
@@ -626,7 +795,7 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "箭矢扩散": {
       "aliases": [],
@@ -643,7 +812,7 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "精英杀手": {
       "aliases": [],
@@ -669,11 +838,14 @@
       "set_membership": null
     },
     "藏宝图(三)": {
-      "aliases": [],
+      "aliases": [
+        "藏宝图"
+      ],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "海盗",
+      "_note": "实机 longtest 藏宝图(0/3)，bond_stack need=3。攻略：3张开海盗卡池。"
     },
     "蛮舞者": {
       "aliases": [],
@@ -687,7 +859,7 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数射线"
     },
     "赏金神符": {
       "aliases": [],
@@ -748,16 +920,18 @@
     "亡灵": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "亡灵",
+      "_note": "套装。最终形态 EX 兵主。"
     },
     "亡灵天灾": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "亡灵",
+      "_note": "实机实验室角标 亡灵天灾(2/3)，bond_stack need=3。攻略当单张启动（每击杀50得残骸）。不改 need。EX=兵主。"
     },
     "伐木契约": {
       "aliases": [],
@@ -776,9 +950,10 @@
     "军团": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "军团",
+      "_note": "套装。最终形态 EX 萨格拉斯。获取后不拆本卡池（卡面无 remove_pool）。"
     },
     "冷缩": {
       "aliases": [],
@@ -799,7 +974,16 @@
       "kind": "bond",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "海盗",
+      "_note": " 毁灭战舰开池 N。"
+    },
+    "刀刀": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "套装角标。F见刀刀(0/3)。实机链：三件套→萌新→UR大成→EX解放的圣剑。攻略补一/二阶段图纸，见 KB daodao_chain.guide。"
     },
     "制导箭矢": {
       "aliases": [
@@ -808,7 +992,7 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数射线"
     },
     "刷新券": {
       "aliases": [],
@@ -822,14 +1006,14 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "剑气"
     },
     "剑气增幅": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "剑气"
     },
     "力量之源": {
       "aliases": [],
@@ -871,14 +1055,14 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数激光"
     },
     "奥能洪流": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数激光"
     },
     "如意空空手": {
       "aliases": [],
@@ -890,9 +1074,10 @@
     "姜子牙": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": "封神"
+      "set_membership": "封神",
+      "_note": "实机 174547 t=765 封神姜子牙（INDEX 文件名，无 tooltip OCR）。攻略：启动卡，拿后封神进池；自己算1张封神卡。"
     },
     "射手姿态": {
       "aliases": [],
@@ -906,7 +1091,8 @@
       "kind": "treasure",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": null,
+      "_note": "D0 标宝物。攻略把小绿瓶当修仙三启动之一——不改 kind，未证实是修仙散件。"
     },
     "屠夫之刃": {
       "aliases": [],
@@ -940,8 +1126,10 @@
       "aliases": [],
       "kind": "bond",
       "version_seen": "1.3.x",
-      "confusions": [],
-      "set_membership": null
+      "confusions": [
+        "敏捷"
+      ],
+      "set_membership": "敏捷"
     },
     "斧王": {
       "aliases": [],
@@ -969,6 +1157,16 @@
     "木材(小)": {
       "aliases": [
         "木材（小）"
+      ],
+      "kind": "treasure",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": null
+    },
+    "神赐木材": {
+      "aliases": [
+        "神赐木头",
+        "神赐木村"
       ],
       "kind": "treasure",
       "version_seen": "1.3.x",
@@ -1043,23 +1241,24 @@
     "海盗劫掠者": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "海盗",
+      "_note": "实机 ocr_choices；bond_stack need=3。攻略 SR：每秒金+3、杀敌金/木+3%，随机悬赏令。"
     },
     "激光超载": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数激光"
     },
     "激光闪射": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数激光"
     },
     "熊猫酒仙": {
       "aliases": [],
@@ -1073,14 +1272,14 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数箭"
     },
     "疾行剑气": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "剑气"
     },
     "痛苦女王": {
       "aliases": [],
@@ -1092,16 +1291,18 @@
     "白赚海盗": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "1.3.x",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "海盗",
+      "_note": "实机 ocr_choices；bond_stack need=3。攻略：毁灭战舰无限产出。战舰卡面写每击杀300置入随机海盗，未写只出白赚。"
     },
     "神秘戒指": {
       "aliases": [],
-      "kind": "treasure",
-      "version_seen": "1.3.x",
+      "kind": "bond",
+      "version_seen": "live-20260814",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "修仙",
+      "_note": "实机 t=198 evidence_ocr。N。每秒敏捷+0.2。角标修仙(0/3)。集齐将一张N练气期置入并开修仙卡组。D0 曾标宝物，以本帧为准改 bond。"
     },
     "等级优势": {
       "aliases": [],
@@ -1122,7 +1323,7 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "剑气"
     },
     "蓝胖": {
       "aliases": [],
@@ -1136,21 +1337,21 @@
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "奥数激光"
     },
     "连续剑气": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "剑气"
     },
     "重创": {
       "aliases": [],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": null
+      "set_membership": "剑气"
     },
     "金币(中)": {
       "aliases": [],
@@ -1190,9 +1391,2441 @@
     "龙族": {
       "aliases": [],
       "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "套装。最终形态 EX 世界末日迦拉克隆（兼标签迦拉克隆）。获取后不拆本卡池。"
+    },
+    "奥术箭矢": {
+      "aliases": [
+        "奥术箭矢"
+      ],
+      "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "次级扩散": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "爆炸扩散": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "爆破箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "贯通箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "蓄力射击": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "急速抽箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "强化飞箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "火焰射击": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "集束箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数箭"
+    },
+    "稳定光线": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数激光"
+    },
+    "高能脉冲": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数激光"
+    },
+    "强化激光": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数激光"
+    },
+    "奥能天球": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数激光"
+    },
+    "多重射线": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数射线"
+    },
+    "强化射线": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数射线"
+    },
+    "永恒箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥数射线"
+    },
+    "巨型剑气": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "剑气"
+    },
+    "碎冰": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "剑气"
+    },
+    "湮灭斩": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "剑气"
+    },
+    "剑气爆发": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "剑气"
+    },
+    "烈焰斩": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "剑气"
+    },
+    "剑气连斩": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "剑气"
+    },
+    "强化剑气": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "剑气"
+    },
+    "剑刃乱舞": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "剑气"
+    },
+    "火箭增幅": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "火箭爆破": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "连珠火箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "爆燃火箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "猛烈燃烧": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "火箭精通": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "渗透火焰": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "火花": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "传火": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "超连珠火箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "炎爆术": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "火花内爆": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "强化火箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "爆炎箭"
+    },
+    "冰箭增幅": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "极寒冰箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "冰箭贯穿": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "冰箭冲击": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "冰箭连发": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "小冰箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "重冰箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "蚀骨之寒": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "冰片增伤": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "蚀骨冰棱": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "三棱冰箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "冰箭齐射": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "冰晶爆裂": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "强化冰箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "永冻天球": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
+    },
+    "雷击增幅": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "高压雷击": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "连续雷击": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "磁暴增幅": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "磁暴扩张": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "电磁场": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "稳定电场": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "高压电场": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "闪电球": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "高压电球": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "磁暴": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "雷电制裁": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "审判之雷": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "电球爆裂": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "强化天雷": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "强化箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "多重箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "弹射箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "攻速提升": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "急速射击": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "多重增伤": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "弹射增伤": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "超速射击": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "火焰箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "冰霜箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "闪电箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "疾风箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "破甲强弩": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "神箭手": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "奥能喷发": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "火焰爆炸": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "贯穿冰箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "连环闪电": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "狂风之力": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "真实分裂": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "剑气纵横": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "强化普攻": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "挫锋": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "战术"
+    },
+    "贪欲金币": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260815",
+      "confusions": [],
+      "set_membership": "贪婪",
+      "_note": "实机 F 羁绊 R 蓝框 [贪婪 1/3] 散件：金币+6000。放弃直接除外。集齐3件激活贪婪套装：随机吞噬4张可吞食卡牌+150木+888杀敌+6000金。"
+    },
+    "贪欲钥匙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260815",
+      "confusions": [],
+      "set_membership": "贪婪",
+      "_note": "实机 F 羁绊 R 蓝框 [贪婪 1/3] 散件：木材+150。放弃直接除外。集齐3件激活贪婪套装。"
+    },
+    "ONEPIECE": {
+      "aliases": [
+        "ONE PIECE",
+        "OnePiece",
+        "onepiece"
+      ],
+      "kind": "treasure",
+      "version_seen": "ex-video-20260813",
+      "confusions": [],
       "set_membership": null
+    },
+    "至高进化": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "ex-video-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "一身神装": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "ex-video-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "满级大佬": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "ex-video-20260813",
+      "confusions": [],
+      "set_membership": null
+    },
+    "湮灭者": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "智力"
+    },
+    "聚能之虹": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "湮灭者"
+    },
+    "洞察之眼": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "湮灭者"
+    },
+    "奥法之辉": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "湮灭者"
+    },
+    "屠戮者": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "力量"
+    },
+    "战斗咆哮": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "屠戮者"
+    },
+    "屠戮之刃": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "屠戮者"
+    },
+    "杀戮之血": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "屠戮者"
+    },
+    "收割者": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "敏捷"
+    },
+    "亡者之轮": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "收割者"
+    },
+    "多重打击": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "收割者"
+    },
+    "支配死灵": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "ur-video-20260813",
+      "confusions": [],
+      "set_membership": "收割者"
+    },
+    "秘法师": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [
+        "魔法师"
+      ],
+      "set_membership": "智力"
+    },
+    "魔法师": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [
+        "秘法师"
+      ],
+      "set_membership": "智力"
+    },
+    "元素师": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [],
+      "set_membership": "智力"
+    },
+    "战神": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [
+        "战术",
+        "法神",
+        "弓神"
+      ],
+      "set_membership": "力量"
+    },
+    "猎魔人": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [],
+      "set_membership": "敏捷"
+    },
+    "弓神": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [
+        "法神",
+        "战神"
+      ],
+      "set_membership": "敏捷"
+    },
+    "法神": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [],
+      "set_membership": "智力"
+    },
+    "血誓": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [
+        "血势",
+        "血魔"
+      ],
+      "set_membership": "力量"
+    },
+    "野蛮人": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260813",
+      "confusions": [],
+      "set_membership": "力量"
+    },
+    "齐天大圣": {
+      "aliases": [
+        "大圣"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "实机 F：齐天大圣(0/3) 副标天命人。天命人是散件，不再当别名。攻略里启动卡和五件套合成同名。EX 攻称法天象地，卡面标签神通。"
+    },
+    "幽灵系带": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "实机 t=148s N fixtures/cards_174547_evidence/02。敏+30 力+10 智+10。三件套之一；集齐后置入刀刀萌新、开刀刀卡组。"
+    },
+    "快手": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "实机 20260815 N 白框 [刀刀 0/3]：攻速+15%，攻速增幅。"
+    },
+    "焚诀·黄阶": {
+      "aliases": [
+        "焚诀",
+        "焚诀黄阶",
+        "焚决"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "fixtures/cards_174547_evidence t=165s。生命+50 攻击+20 护甲+2。每击杀200随机吞噬1异火；累计3张进化焚诀·玄阶；效果3仅将N级异火加入卡池（故本局三选只有N）。玄/地/天阶与更高异火无本局帧。攻略常写焚决，是错字。"
+    },
+    "阴阳双炎": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "实机 t=171-172s N evidence_ocr。物伤+4% 魔伤+4% 智+30 力+10 敏+10 每秒攻击+0.5。OCR「异火榜第二十」（或截断的十一；用户表No.20）。焚诀效果吞噬。"
+    },
+    "风怒龙炎": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "实机 t=183/184/198s N evidence_ocr。火系+4% 风系+4%。异火榜第十八（用户表No.17）。焚诀效果吞噬。早前記成物/魔+4%是误读。"
+    },
+    "幽冥毒火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "实机 t=207s N evidence_ocr。燃烧伤害+10% 物暴+3% 魔暴+3%。毒火：攻击附带加3秒燃烧。异火榜第二十。焚诀效果吞噬。拆解表「抗性削减」无本帧OCR，不采。"
+    },
+    "玄黄炎": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "实机 t=209s N evidence_ocr。敏捷+100 护甲+3 火系+5%。异火榜第二十三。焚诀效果吞噬。早前記成物/魔+4%是误读。"
+    },
+    "护腕": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "实机 t=154.3s N fixtures/cards_174547_evidence/03。力+30 敏+10 智+10。三件套之一；集齐后置入刀刀萌新。名短，OCR勿和装备栏护腕混淆。"
+    },
+    "空灵挂坠": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "实机 t=158s N fixtures/cards_174547_evidence/04。智+30 力+10 敏+10。三件套之一；集齐后置入刀刀萌新。"
+    },
+    "刀刀萌新": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "实机 t=163s N：三件套吞噬置入，开启刀刀卡池。攻略另写每杀敌200发图纸，未证实，不覆盖实机。无独立(x/y)。"
+    },
+    "刀刀大成": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "实机 t=760s UR：攻击+500 攻击增幅+15%；CD-20%；触发+50%；吞其余刀刀出 UR 图纸；多段伤害。攻略：3/7 一阶段图纸合成，品级写红不采。无独立(x/y)。"
+    },
+    "帝炎": {
+      "aliases": [
+        "陀舍古帝",
+        "帝炎陀舍古帝"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/05。覆盖早前用户表UR。全属性+500 全属性增幅+15% 所有伤害+30% 最终伤害+10%。佛怒帝炎莲：每30s 1200范围 5000%攻击自适应，异火燃烧10s+眩晕3s；燃烧享受燃烧增伤，每秒300%攻击自适应。焚烧万物：燃烧伤害+300%。万千之火：火+80% 冰/电/风/物/能量各+30%。异火榜第一。无法吞噬。"
+    },
+    "虚无吞炎": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.2 UR 天阶。吞天噬地：吞噬目标百分比最大生命，按吞噬量永久成长全属性。无独立帧。攻略称全属性杀敌+0.2；与图鉴冲突，词条以图鉴为准。"
+    },
+    "净莲妖火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.3 UR 天阶。妖火净世：净化全屏负面，全屏高额光火自适应伤害。无独立帧。攻略称清敌增益、解自身负面、破盾。"
+    },
+    "金帝焚天炎": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.4 SSR 地阶。焚天煮海：攻击附带破甲破魔，焚烧空间与护盾。无独立帧。"
+    },
+    "生灵之焱": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.5 SSR 地阶。生命本源：巨额生命恢复，每秒全属性与木材持续加速。无独立帧。攻略称百分比回复。"
+    },
+    "八荒破灭焱": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.6 SSR 地阶。八荒火海：巨型破灭火海，范围持续灼烧并减速。无独立帧。"
+    },
+    "九幽金祖火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.7 SSR 地阶。金祖破煞：物/魔暴击大幅提升，暴击引发金炎爆炸。无独立帧。"
+    },
+    "红莲业火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.8 SSR 地阶。业火红莲：按敌人已损失生命百分比斩杀。无独立帧。"
+    },
+    "三千焱炎火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.9 SSR 地阶。星辰不灭：高免伤，濒死火体复活。无独立帧。拆解表另有时间戳，未核验，与黄阶只开N冲突。"
+    },
+    "九龙雷罡火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.10 SR 玄阶。雷火双极：火系附带雷霆，攻击概率群体眩晕。无独立帧。"
+    },
+    "骨灵冷火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.11 SR 玄阶。极寒极热：冰减速+火灼烧双重自适应。无独立帧。拆解表另有时间戳，未核验。"
+    },
+    "陨落心炎": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.12 SR 玄阶。心火淬炼：杀敌经验与杀敌属性获取翻倍。无独立帧。拆解表另有时间戳，未核验。"
+    },
+    "海心焰": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.13 SR 玄阶。水火相生：水系与火系双重加成，提升水波火浪。无独立帧。拆解表另有时间戳，未核验。"
+    },
+    "青莲地心火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.14 SR 玄阶。青莲护体：地心青莲护盾，抗性+周围地火。无独立帧。拆解表另有时间戳，未核验。"
+    },
+    "龟灵地火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.15 SR 玄阶。地煞龟甲：护甲与生命恢复转额外火伤。无独立帧。拆解表另有时间戳，未核验。"
+    },
+    "火山石焰": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.16 R 玄阶/黄阶。岩浆喷发：火系伤害+7.5%，召唤熔岩地刺。无独立帧。拆解表另有时间戳，未核验。"
+    },
+    "万兽灵火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.18 R 玄阶。兽魂附体：物伤与攻击加成，召唤万兽火灵。无独立帧。拆解表另有时间戳，未核验。"
+    },
+    "万火灵种": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.22 N 黄阶。基础火系伤害增幅，为后续异火吞噬提供胚胎。无独立帧。"
+    },
+    "初级兽火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴 No.23 N 黄阶。基础火系伤害+2%，入门过渡卡。无独立帧。"
+    },
+    "焚诀·玄阶": {
+      "aliases": [
+        "焚诀玄阶"
+      ],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴：R。黄阶累计吞噬3异火后进化。声称开R/SR异火池。无独立帧。"
+    },
+    "焚诀·地阶": {
+      "aliases": [
+        "焚诀地阶"
+      ],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴：SR。玄阶再进化。声称开SSR异火池（金帝焚天炎等）。无独立帧。"
+    },
+    "焚诀·天阶": {
+      "aliases": [
+        "焚诀天阶"
+      ],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "异火",
+      "_note": "用户图鉴：SSR/UR。地阶再进化。声称开UR（虚无吞炎、净莲妖火、帝炎）。无独立帧。"
+    },
+    "圣人": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "封神",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/01。全属性+300 全属性增幅+30% 技能伤害+30% 技能急速+30。无量劫灭：每30s 1200范围 1500%全属性自适应，20%再放一次。混元无极：最终力/敏/智各+15%。掌控时空：每35s刷新全部技能CD并进入掌控时空5s（期间CD达上限；35s间隔不受急速影响）。获取时移除法宝卡组。无法吞噬。"
+    },
+    "祖龙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "神兽",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/02。最终攻击/力/敏/智/伤害各+18%。圣临打击：威震八方进阶圣临裁决，攻击附加范围 130%全属性自适应。龙翔九天：每12s 1000%全属性自适应并击飞1s。圣痕-祖龙：每击杀攻击/力/敏/智各+0.4。获取时移除神兽卡组。无法吞噬。"
+    },
+    "世界末日迦拉克隆": {
+      "aliases": [
+        "世界末日"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/03。标签龙族+迦拉克隆。物/魔暴击+20% 物/魔暴伤+50% 杀敌全属性+0.4。巨龙爪击：攻击15% (200+20*祈求次数)%攻击物理范围。末日：每30s (500+40*祈求次数)%全属性自适应大范围并击飞2s。浩劫：暴伤最终结算*1.3。无法吞噬。"
+    },
+    "吞食天地": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "三国",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/04。全属性+500 力/敏/智增幅各+20%。每击杀400随机吞噬1张；每吞噬1张永久全属性增幅+1%。无法吞噬。"
+    },
+    "解放的圣剑": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [
+        "圣剑"
+      ],
+      "set_membership": "刀刀",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/06。伤害 80%~140% 随机；无视闪避 200%自适应。聊天 -永恒/-岚/-终焉 或 -1/-2/-3（禁止自动键入）。攻略 /蓝=岚、/中烟=终焉、斜杠前缀不采。永恒杀敌全属性+0.3；岚攻速+100% 间隔-0.1 急速+100；终焉结算*1.1。获取时移除刀刀卡组并掷骰吞噬。无法吞噬。"
+    },
+    "萨格拉斯": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/07。最终攻击+15% 最终伤害+15% 物理伤害+40%。扭曲虚空：每30s (400+20*军团卡数量)%攻击自适应大范围，拉至中心眩晕3s。灭世斩：普攻或主技能命中5% (200+20*军团卡数量)%攻击自适应前方，永久移除目标当前护甲2%。邪能解放：每吞噬1张军团卡 攻击+100 攻击增幅+1%。无法吞噬。"
+    },
+    "兵主": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "亡灵",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/08。智力+600 智力增幅+30% 所有伤害+30% 最终伤害+15%。鲜血符文：最终力量+20%；攻击附加50%最大生命自适应；每次攻击回复[R鲜血符文数量*2]生命。冰霜符文：最终智力+20%；技能伤害按原值1.25倍。邪恶符文：最终敏捷+20%；每25s 20次邪恶之火，每次小范围60%全属性自适应。无法吞噬。"
+    },
+    "大乘期": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/09。全属性+500 力/敏/智增幅各+25% 最终伤害+15%。乾坤剑阵：每25s召唤4把乾坤剑，落地300%全属性自适应，持续7.5s内再造成5次80%全属性自适应，每次附带眩晕1s；普攻5%触发1把。法则之力：造成伤害最终结算+20%。轮回真诀：杀敌力/敏/智各+0.5。获取时移除修仙卡组。无法吞噬。"
+    },
+    "法天象地": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "神通",
+      "_note": "用户卡面 EX fixtures/ex_finals_20260814/10。标签神通。生命+2000 攻击+1000 最终生命+10% 最终攻击+10%；造成伤害结算+25%；受到伤害结算-25%；生命额外提供所有伤害（转化率=敏/智的1/3）。无法吞噬。攻略把此卡当大圣终点，并把回血/闪避/截断写进 EX——卡面没有，那些是大成件。"
+    },
+    "毁灭战舰": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "用户卡面 UR fixtures/ex_finals_20260814/11。海盗无EX，此为最终形态。攻击增幅+10%。每击杀300置入1张随机海盗。炮击：每18s 600%攻击物理范围。劫掠：每吞噬1张海盗 杀敌金币+1% 杀敌木头+1%。开池：N利刃海盗/N战斗海盗/N冲浪海盗/SSR重拳先生。无法吞噬。"
+    },
+    "神兽": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "神兽",
+      "_note": "套装。最终形态 EX 祖龙。获取祖龙会移除神兽卡组。"
+    },
+    "迦拉克隆": {
+      "aliases": [
+        "迦拉客隆"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "迦拉克隆",
+      "_note": "套装角标。与龙族最终形态世界末日迦拉克隆同卡。攻略错字迦拉客隆。攻略里五始祖合成名也叫迦拉克隆，未上帧。"
+    },
+    "神通": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "神通",
+      "_note": "套装。最终形态 EX 法天象地。卡面标签神通。攻略与实验室高级卡组把它当大圣终点，残躯链未上帧。"
+    },
+    "战斗海盗": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "毁灭战舰开池 N。无独立帧。"
+    },
+    "冲浪海盗": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "毁灭战舰开池 N。无独立帧。"
+    },
+    "重拳先生": {
+      "aliases": [
+        "重拳"
+      ],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "毁灭战舰开池 SSR。攻略简称重拳：吞一张SSR海盗木材+30；立刻得（吞海盗数×2000）金+（×10）木。无独立帧。"
+    },
+    "圣剑": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "catalog-20260814",
+      "confusions": [
+        "解放的圣剑"
+      ],
+      "set_membership": "刀刀",
+      "_note": "刀刀二阶段 UR（攻略）。174547 亦见神器 UR 圣剑。与 EX 解放的圣剑勿互设别名。"
+    },
+    "恐鳌戒指": {
+      "aliases": [
+        "恐鳌"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "恐鳌戒指",
+      "_note": "套装。174547 t=745s 三选见角标 fixtures/cards_174547_evidence/all_slow_looks/21。need 未测，不写 bond_stack。"
+    },
+    "生命之球": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "恐鳌戒指",
+      "_note": "实机 t=750s R fixtures/cards_174547_evidence/all_slow_looks/22。生命+250 力量+50。INDEX/README，evidence_ocr 无此帧。"
+    },
+    "守护指环": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "恐鳌戒指",
+      "_note": "实机 t=755s R fixtures/cards_174547_evidence/all_slow_looks/23。生命+150 护甲+2。INDEX/README，evidence_ocr 无此帧。"
+    },
+    "时间停止": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": null,
+      "_note": "174547 t=805s 宝物三选：时间停止（全屏静止）、物理伤害、混乱转换。INDEX/README，evidence_ocr 无此帧。"
+    },
+    "点金手": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略一阶段图纸，经济向最推荐。无独立帧。"
+    },
+    "封神杖": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "封神"
+      ],
+      "set_membership": "刀刀",
+      "_note": "攻略一阶段图纸。无独立帧。勿和封神套混淆。"
+    },
+    "深渊之刃": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略一阶段图纸。无独立帧。"
+    },
+    "随缘之刃": {
+      "aliases": [
+        "绝刃"
+      ],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略一阶段图纸。无独立帧。"
+    },
+    "雷神之锤": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略一阶段图纸。无独立帧。"
+    },
+    "龙心": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略一阶段图纸（生命）。无独立帧。"
+    },
+    "希瓦的守护": {
+      "aliases": [
+        "希瓦"
+      ],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略一阶段图纸（防御）。无独立帧。"
+    },
+    "刀刀入门": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略：合成1张一阶段图纸后的紫卡。无独立帧。"
+    },
+    "刀刀小成": {
+      "aliases": [
+        "刀刀小城"
+      ],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略：合成2张一阶段图纸。小城是错字。无独立帧。"
+    },
+    "阿哈利姆神杖": {
+      "aliases": [
+        "阿哈利姆"
+      ],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略二阶段 UR。法系必拿。无独立帧。"
+    },
+    "暗夜猎手": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略二阶段 UR。物理必拿。无独立帧。"
+    },
+    "疾": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "疾风箭矢"
+      ],
+      "set_membership": "刀刀",
+      "_note": "攻略二阶段 UR，名过短可能截断。无独立帧。OCR 勿和疾风箭矢（技能）混淆。"
+    },
+    "三元重戟": {
+      "aliases": [
+        "三元重疾",
+        "三元重戟图纸"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "实机 t=765s UR 三元重戟图纸 fixtures/cards_174547_evidence。攻略误写三元重疾。二阶段图纸。"
+    },
+    "时间宝石": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "刀刀",
+      "_note": "攻略二阶段 UR。急速未满时拿。攻略 800/600 满急速不入库。无独立帧。"
+    },
+    "神圣刀锋": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": null,
+      "_note": "攻略：远古神藏-诸神宝藏 SSR。三国后做刀刀时用来放弃多余图纸。无独立帧。"
+    },
+    "天命人": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "实机 F 齐天大圣(0/3) 副标。散件，不是齐天大圣的别名。"
+    },
+    "大圣残躯": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略：6张残躯拿完后的合成。无独立帧。不写 need。"
+    },
+    "大圣套装": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略角标/阶段名。五件套见分件。无独立帧。"
+    },
+    "如意金箍棒": {
+      "aliases": [
+        "金箍棒"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "实机 20260815 SSR 专属法宝：攻击力+200，附带震地与范围破甲重击。"
+    },
+    "神通·身外身": {
+      "aliases": [
+        "身外身"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "实机 20260815 SR 紫框神通：召唤2个50%攻击力大圣分身持续15秒。"
+    },
+    "神通·七十二变": {
+      "aliases": [
+        "七十二变"
+      ],
+      "kind": "bond",
+      "version_seen": "live-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "实机 20260815 SR 紫框神通：闪避率+15%，闪避后下一次攻击300%暴击。"
+    },
+    "锁子黄金甲": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略大圣套装护甲。无独立帧。"
+    },
+    "点翠飞龙臂": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略大圣套装臂甲。无独立帧。"
+    },
+    "凤翅紫金冠": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略大圣套装头盔。无独立帧。"
+    },
+    "藕丝步云履": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略大圣套装鞋子。无独立帧。"
+    },
+    "根基大成": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略五大成之一，先做。无独立帧。"
+    },
+    "术法大成": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略五大成。先安身法再近字法。无独立帧。"
+    },
+    "安身法": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略术法大成小卡，回血。应先于近字法。无独立帧。"
+    },
+    "近字法": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略术法大成小卡，献祭50%生命转攻击。推图先拿会暴毙。无独立帧。"
+    },
+    "身法大成": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略五大成，闪避+攻速。无独立帧。"
+    },
+    "奇迹大成": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略五大成，核心输出。无独立帧。"
+    },
+    "棍法大成": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "大圣",
+      "_note": "攻略五大成，普攻/技能伤害。无独立帧。"
+    },
+    "异兽蛋": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "神兽",
+      "_note": "实机 t=154.3/158.0 evidence_ocr。全属性+20。OCR：获取该卡60秒后：吞噬该卡，并开启神兽卡组。攻略：吞食丹可立刻生效（未上帧）。EX=祖龙。"
+    },
+    "封神榜": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "封神",
+      "_note": "攻略：累计6张封神卡获得（姜子牙算1张）。吞≥9张封神卡→天庭+天仙。未上帧，不写 need。"
+    },
+    "肉身成圣": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "封神",
+      "_note": "攻略：3张一组，可直接吞加速封神榜。未上帧。"
+    },
+    "天庭": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "封神",
+      "_note": "攻略：封神榜吞≥9后与天仙一起出现，进入第二阶段。未上帧。"
+    },
+    "天仙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "封神",
+      "_note": "攻略：第二阶段起点。吞5个法宝→金仙。未上帧。"
+    },
+    "金仙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "封神",
+      "_note": "攻略：天仙吞5法宝后。此阶段只能刷到SR及以下法宝。未上帧。"
+    },
+    "大罗金仙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "封神",
+      "_note": "攻略：金仙吞5法宝后，可刷SSR橙法宝。再吞5法宝→圣人。未上帧。"
+    },
+    "斩仙飞刀": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "法宝",
+      "_note": "攻略 SSR 必拿：无视护甲、无视抗性、boss伤害+10%。未上帧。"
+    },
+    "山河社稷图": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "法宝",
+      "_note": "攻略 SSR 选拿：复活次数+1。未上帧。"
+    },
+    "十二品莲台": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "法宝",
+      "_note": "攻略 SSR 选拿：属性增幅。未上帧。"
+    },
+    "奇珍宝树": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "法宝",
+      "_note": "攻略 SSR 选拿：属性增幅。未上帧。"
+    },
+    "盘古幡": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "法宝",
+      "_note": "攻略 UR 必拿：力量+最终伤害+全属性增幅。未上帧。"
+    },
+    "太极图": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "法宝",
+      "_note": "攻略 UR 必拿：智力增幅+伤害。未上帧。"
+    },
+    "混沌钟": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "法宝",
+      "_note": "攻略 UR 必拿：敏捷增幅+杀敌属性。未上帧。"
+    },
+    "克尔苏加德": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "巫妖",
+        "巫妖王"
+      ],
+      "set_membership": "亡灵",
+      "_note": "攻略 UR 加速：双倍残骸+巫妖生产时间减半。不要与英雄卡巫妖、巫妖王互设别名。未上帧。"
+    },
+    "巫妖": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [
+        "克尔苏加德",
+        "巫妖王"
+      ],
+      "set_membership": null,
+      "_note": "实机 t=810 英雄卡选择（与小狗同面板），不是亡灵加速卡、不是符文生产者、不是巫妖王。不要互设别名。"
+    },
+    "莫格莱尼": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "亡灵",
+      "_note": "攻略 SR：死亡骑士生产时间减半。未上帧。"
+    },
+    "辛达苟萨": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "亡灵",
+      "_note": "攻略 SR：冰霜巨龙生产时间减半。不要与冰霜巨龙互设别名。未上帧。"
+    },
+    "死亡骑士": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "亡灵",
+      "_note": "攻略：×5 生产鲜血符文。每120秒（有加速则60）耗5残骸产2符文。未上帧。"
+    },
+    "冰霜巨龙": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "亡灵",
+      "_note": "攻略：×5 生产冰霜符文。不要与辛达苟萨互设别名。未上帧。"
+    },
+    "亡者大厅": {
+      "aliases": [
+        "王者大厅"
+      ],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "亡灵",
+      "_note": "攻略：每消耗1残骸全属性+5，并将邪爆加入卡池。不要太早拿。未上帧。"
+    },
+    "邪爆": {
+      "aliases": [
+        "邪恶爆"
+      ],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "亡灵",
+      "_note": "攻略：立刻消耗全部残骸。攻称只有2次。符文够了再点。未上帧。"
+    },
+    "巫妖王": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "巫妖",
+        "克尔苏加德"
+      ],
+      "set_membership": "亡灵",
+      "_note": "攻略小亡灵 UR：启动+克尔苏加德+亡者大厅+邪爆，点爆100残骸。不要与英雄卡巫妖、克尔苏加德互设别名。未上帧。"
+    },
+    "小鱼人": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "神兽",
+      "_note": "攻略绿色神兽，所有伤害，各派首选。同名互吞进化未上帧。"
+    },
+    "小鲲鲲": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "神兽",
+      "_note": "攻略绿色神兽，魔法伤害。同名互吞进化未上帧。"
+    },
+    "小兔子": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "神兽",
+      "_note": "攻略绿色神兽，物理伤害。同名互吞进化未上帧。"
+    },
+    "白虎": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "神兽",
+      "_note": "攻略 UR 神兽例：杀敌攻击。4 UR→祖龙未上帧。"
+    },
+    "玄武": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "神兽",
+      "_note": "攻略 UR 神兽例：杀敌防御。4 UR→祖龙未上帧。"
+    },
+    "吞食丹": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": null,
+      "_note": "攻略：可立刻让异兽蛋生效、加快异火吞噬。未上帧。不要当成技能卡。"
+    },
+    "扭曲虚空": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略：栏内第3张获取时立刻结算，当时吞食军团卡>=27才出萨格拉斯。全池只有3张。未上帧。"
+    },
+    "阿克蒙德": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略 SR：带来地狱火+末日守卫，空格>=3时自动吞这2张。未上帧。"
+    },
+    "玛诺洛斯": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略 SR：带来深渊领主，空格>=2时自动吞。未上帧。"
+    },
+    "提克迪奥斯": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略 SR：带来恐惧魔王，自动吞栏内所有恐惧魔王。未上帧。"
+    },
+    "地狱火": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略：阿克蒙德带来，可被自动吞。未上帧。"
+    },
+    "末日守卫": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略：阿克蒙德带来，可被自动吞。未上帧。"
+    },
+    "深渊领主": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略：玛诺洛斯带来。未上帧。"
+    },
+    "恐惧魔王": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略：提克迪奥斯带来并互吞。未上帧。"
+    },
+    "虚空行者": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略：与魅魔同时存在时互吞。未上帧。"
+    },
+    "魅魔": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略：与虚空行者同时存在时互吞。未上帧。"
+    },
+    "基尔加丹": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略：3张扭曲虚空后送的 UR。未上帧。"
+    },
+    "虚空传送门": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "军团",
+      "_note": "攻略：3张扭曲虚空后送。杀敌送军团卡；获军团卡30%吞掉所有军团卡。未上帧。"
+    },
+    "巨龙之魂": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "攻略：5色龙王集齐合成。未上帧。"
+    },
+    "瑞亚斯塔萨": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "攻略：开启第二阶段，带来纯净龙巢。未与阿莱克斯塔萨互设别名。未上帧。"
+    },
+    "纯净龙巢": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "攻略：按时间产随机颜色雏龙，也可花木头买。未上帧。"
+    },
+    "天降浩劫迦拉克隆": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "攻略：祈求5次。未上帧。"
+    },
+    "克罗斯龙提": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "攻略祈求卡：祈求>=8时吞食，当前全属性白字+10%。未上帧。"
+    },
+    "暗藏的信徒": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "攻略祈求卡：祈求>=4时吞食，+200木。未上帧。"
+    },
+    "命运编织者": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "攻略祈求卡：吞食后+2000杀敌数。未上帧。"
+    },
+    "加拉克隆信徒": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "迦拉克隆"
+      ],
+      "set_membership": "龙族",
+      "_note": "攻略祈求卡：可重复，30%吞掉所有祈求卡。不要与迦拉克隆互设别名。未上帧。"
+    },
+    "落日玲珑飞翼": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "龙族",
+      "_note": "攻略：获取时吞所有可吞龙族卡，每张返还50木。未上帧。"
+    },
+    "曹操": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "三国",
+      "_note": "攻略魏国启动牌。法系攻称要拿。未上帧。"
+    },
+    "刘备": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "三国",
+      "_note": "攻略蜀国启动牌。未上帧。"
+    },
+    "孙权": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "孙策"
+      ],
+      "set_membership": "三国",
+      "_note": "攻略吴国启动牌。法系攻称要拿。不要与孙策互设别名。未上帧。"
+    },
+    "董卓": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "三国",
+      "_note": "攻略群雄启动牌。法系攻称要拿。未上帧。"
+    },
+    "司马懿": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "三国",
+      "_note": "攻略魏国 UR，智力/魔法。未上帧。"
+    },
+    "赵云": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "三国",
+      "_note": "攻略蜀国 UR，敏捷/物理。未上帧。"
+    },
+    "孙策": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "孙权"
+      ],
+      "set_membership": "三国",
+      "_note": "攻略吴国 UR，力量。不要与孙权互设别名。未上帧。"
+    },
+    "吕布": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "三国",
+      "_note": "攻略群雄 UR。未上帧。"
+    },
+    "练气期": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "live-20260814",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "实机 t=198：修仙集齐置入 N 练气期并开修仙卡组。"
+    },
+    "筑基丹": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略：练气→筑基。未上帧。"
+    },
+    "筑基期": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略境界。未上帧。"
+    },
+    "妖兽内丹": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略：筑基→金丹。未上帧。"
+    },
+    "金丹期": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略境界。未上帧。"
+    },
+    "四九天劫": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略：金丹→元婴，直接渡必成。未上帧。"
+    },
+    "元婴期": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略境界。未上帧。"
+    },
+    "五行灵根": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略：元婴→化神。未上帧。"
+    },
+    "化神期": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略境界。未上帧。"
+    },
+    "六九天劫": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略：化神→合体，50%。未上帧。"
+    },
+    "合体期": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略境界。未上帧。"
+    },
+    "灵气灌体": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略：每杀20得1道灵气，每道渡劫+2%。未上帧。"
+    },
+    "元和五极山": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略：5座山合成，真雷劫+五行劫必成。未上帧。"
+    },
+    "阴阳大五行山": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略五极山散件。未上帧。"
+    },
+    "北极元山": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略五极山散件。未上帧。"
+    },
+    "元气神山": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略五极山散件。未上帧。"
+    },
+    "后羿寒魄山": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略五极山散件。未上帧。"
+    },
+    "太乙青山": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略五极山散件。未上帧。"
+    },
+    "玄天斩灵剑": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略：心魔劫必成。未上帧。"
+    },
+    "玄天仙藤": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略斩灵剑链。未上帧。"
+    },
+    "回阳水": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略斩灵剑链。未上帧。"
+    },
+    "玄天果实": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略斩灵剑链。未上帧。"
+    },
+    "苍天神草": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "修仙",
+      "_note": "攻略斩灵剑链。未上帧。"
+    },
+    "九曲灵升丹": {
+      "aliases": [],
+      "kind": "treasure",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": null,
+      "_note": "攻略 SSR：+20%渡劫成功率。未上帧。"
+    },
+    "宝藏": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "宝藏",
+      "_note": "套装。黄金猿装备栏左键开启。攻略：每3张自动吞；2张安卡合成UR。未上帧。不写 need。"
+    },
+    "黄金猿": {
+      "aliases": [
+        "黄金元"
+      ],
+      "kind": "treasure",
+      "version_seen": "user-20260815",
+      "confusions": [],
+      "set_membership": null,
+      "_note": "user_confirmed：装备栏左键开宝藏卡组。不是 F 三选。攻略语音黄金元是错字。禁止自动点装备栏。"
+    },
+    "掘金者": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略 R：金币+3000，随机悬赏令。未上帧。"
+    },
+    "顶尖大盗": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：悬赏令。未上帧。"
+    },
+    "空降海盗": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：返50木。未上帧。"
+    },
+    "海盗帕奇斯": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：自我吞噬。未上帧。"
+    },
+    "沙迪": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：可被吞计入进度。未上帧。"
+    },
+    "天空舰长": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：出空降海盗/帕奇斯。未上帧。"
+    },
+    "开进码头": {
+      "aliases": [
+        "开剑码头"
+      ],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略主卡。别名开剑码头。吞6→制造混乱。未上帧。"
+    },
+    "制造混乱": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：累计吞6张海盗后。罗杰斯进池。未上帧。"
+    },
+    "罗杰斯上将": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：每消耗300木抽卡返悬赏令。不能被悬赏令吞。被吞仍生效。未上帧。"
+    },
+    "霍格船长": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：抽卡消耗-10。未上帧。"
+    },
+    "洛卡拉舰长": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：吞12后，栏内出毁灭战舰。未上帧。"
+    },
+    "猴子": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "黄金猿"
+      ],
+      "set_membership": "海盗",
+      "_note": "攻略：刷新消耗-10；吃悬赏令有概率给黄金猿。不要与黄金猿互设别名。未上帧。"
+    },
+    "悬赏令": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：按颜色消对应海盗。红消全部。未上帧。"
+    },
+    "奎尔德拉": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "解放的圣剑",
+        "圣剑"
+      ],
+      "set_membership": "海盗",
+      "_note": "攻略隐藏：剑柄+剑刃同时在栏才合成。三国吞的不算。不要与解放的圣剑互设别名。未上帧。"
+    },
+    "剑柄": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "海盗",
+      "_note": "攻略：与剑刃同时在栏→奎尔德拉。先拿会卡手。未上帧。"
+    },
+    "剑刃": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [
+        "利刃",
+        "利刃海盗"
+      ],
+      "set_membership": "海盗",
+      "_note": "攻略：与剑柄同时在栏→奎尔德拉。不要与利刃/利刃海盗互设别名。未上帧。"
+    },
+    "安卡": {
+      "aliases": [],
+      "kind": "bond",
+      "version_seen": "guide-20260815",
+      "confusions": [],
+      "set_membership": "宝藏",
+      "_note": "攻略：宝藏特殊卡，两张同时获得合成1张UR并吞噬。未上帧，F9为准。"
     }
   }
 }

@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "_comment": "技能中文名 + 悬停说明。名字与 config/skill_labels.json 一致（那份是识别用的权威映射，这份只加说明文本）。图标取 assets/Images/skills/<短码>.png。",
+  "_comment": "技能中文名 + 悬停说明 + 流派预设。权威外部调研见 docs/research/；默认挂机构筑见 config/official_strategy_defaults.json（active_build_id=arcane_open）。",
   "_evidence_policy": "description 只填有实机证据的：来源写在 source 字段。没有证据的留空字符串，面板会显示『说明待补』——不要凭想象编游戏数值，选错技能的代价由用户承担。",
-  "_todo": "待补说明的短码见下方 description 为空者。补法：局内开技能面板截图，把卡面描述原文抄进来并把 source 写成帧文件名。",
+  "_todo": "主技能说明仍可补卡面原文。升级卡效果见 config/skill_card_catalog.json（2026-08-12 截图 + 20260813_003003 录屏入库，220 张）。",
 
   "skills": {
     "asj": {
