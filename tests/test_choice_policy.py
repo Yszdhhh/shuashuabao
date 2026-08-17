@@ -225,6 +225,98 @@ class TestSkillPolicy(unittest.TestCase):
         self.assertNotEqual(d.action, PolicyAction.GIVEUP)
 
 
+class TestSkillEmptyHardConfig(unittest.TestCase):
+    """HARD 档且 skill_presets / skill_focus_families 均空（用户零勾选）→ 直接 CLOSE。
+
+    零配置不是"读不到卡名"：不 WAIT 不 REFRESH，立即隐藏/关闭技能面板；
+    也不受 allow_skill_giveup 影响（零勾选绝不花技能点）。非空配置 + OCR
+    不可读、以及 ALL_ROUND 档行为一律不变。
+    """
+
+    def test_hard_empty_config_unreadable_slots_close_directly(self):
+        d = choose_action(
+            skill_cands(
+                [slot(0, None), slot(1, None), slot(2, None)],
+                settings=settings(skill_whitelist_mode=SKILL_MODE_HARD),
+            ),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+
+    def test_hard_empty_config_readable_non_preset_close_directly(self):
+        # 卡名可读但没有配置任何焦点系/卡：同样直接 CLOSE，不得走 REFRESH。
+        d = choose_action(
+            skill_cands(
+                [slot(0, "剑气", confidence=0.99)],
+                settings=settings(skill_whitelist_mode=SKILL_MODE_HARD),
+            ),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+
+    def test_hard_empty_config_never_giveup_even_when_allowed(self):
+        d = choose_action(
+            skill_cands(
+                [slot(0, None), slot(1, None)],
+                has_giveup=True,
+                settings=settings(
+                    skill_whitelist_mode=SKILL_MODE_HARD,
+                    allow_skill_giveup=True,
+                ),
+            ),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+
+    def test_hard_empty_config_waits_refreshes_exhausted_still_close(self):
+        d = choose_action(
+            skill_cands(
+                [slot(0, None)],
+                settings=settings(skill_whitelist_mode=SKILL_MODE_HARD),
+            ),
+            SessionState(waits=5, max_waits=5, refreshes=3, max_refreshes=3),
+        )
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+
+    def test_hard_nonempty_config_unreadable_unchanged_waits(self):
+        # 非空配置 + OCR 不可读：保持旧行为（WAIT → 耗尽后 CLOSE）。
+        d = choose_action(
+            skill_cands(
+                [slot(0, None), slot(1, None)],
+                settings=settings(
+                    skill_whitelist_mode=SKILL_MODE_HARD,
+                    skill_presets=["剑气"],
+                ),
+            ),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.WAIT)
+
+    def test_hard_nonempty_focus_families_unreadable_unchanged_waits(self):
+        d = choose_action(
+            skill_cands(
+                [slot(0, None)],
+                settings=settings(
+                    skill_whitelist_mode=SKILL_MODE_HARD,
+                    skill_focus_families=["箭术"],
+                ),
+            ),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.WAIT)
+
+    def test_all_round_empty_config_unreadable_unchanged_waits(self):
+        # ALL_ROUND：空配置不代表零意图（目录合法卡都可选），OCR 不可读仍 WAIT。
+        d = choose_action(
+            skill_cands(
+                [slot(0, None), slot(1, None)],
+                settings=settings(skill_whitelist_mode=SKILL_MODE_ALL_ROUND),
+            ),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.WAIT)
+
+
 class TestBondTreasureUnknown(unittest.TestCase):
     """羁绊/宝物：unknown 绝不冒充词典内名称；只能 WAIT/REFRESH。"""
 
