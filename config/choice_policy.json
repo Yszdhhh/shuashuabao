@@ -14,7 +14,7 @@
   "skill": {
     "rarity_first": true,
     "_note": "先匹配预设（预设内稀有度优先）；未命中则刷新；刷新耗尽则放弃。技能卡只有橙/紫/蓝/白（user 2026-08-14），没有红。quality_order 里的 red/green 是宝物/HSV 遗留，B1 再拆技能序。未命中预设不会按稀有度兜底拿非预设卡。",
-    "_mode_note": "2026-08-17 批次：选卡模式由勾选技能系数量运行期推导（assemble_policy_settings），不在本文件写死——0–4 个 → SKILL_MODE_HARD（hard，严格：只选配置系经 skill_catalog.expand_skill_preset_names 展开出的合法技能卡，配置外一律不选，宁可 WAIT/隐藏也不乱拿）；5–16 个 → SKILL_MODE_ALL_ROUND（all_round，全才：目录可识别的合法技能卡都可选，配置系仅作聚焦优先）。两种模式共用同一确定性排序：目录合法性（never_pick/互斥/前置）→ 前置/链路 → 存档解锁/降伤惩罚（未知存档 fail-closed）→ 稀有度 → 配置顺序 → 槽位下标；目录无法识别的名字任何模式下都没有点击权。色阶冲突见 _quality_order_note（容忍未来红/粉档，不新造 HSV 阈值）。"
+    "_mode_note": "2026-08-17 批次：选卡恒为严格档（无模式字段，也不在本文件写死）——只选勾选系经 skill_catalog.expand_skill_preset_names 展开出的合法技能卡，配置外一律不选，宁可 WAIT/隐藏也不乱拿；技能上限 4 个（外壳 SkillCardGrid.MAX_SKILLS），旧版 5+ 全才档已删除。排序：目录合法性（never_pick/互斥/前置）→ 前置/链路 → 存档解锁/降伤惩罚（未知存档 fail-closed）→ 稀有度 → 配置顺序 → 槽位下标；目录无法识别的名字没有任何点击权。色阶冲突见 _quality_order_note（容忍未来红/粉档，不新造 HSV 阈值）。"
   },
 
   "bond": {

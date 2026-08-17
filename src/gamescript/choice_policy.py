@@ -4,11 +4,10 @@
 
 规则（与蓝图 §12 一致）：
 
-- 技能：按 HARD / ALL_ROUND 两档决策（:func:`assemble_policy_settings` 按
-  原始勾选技能数判定：0..4 → HARD，5+ → ALL_ROUND）。
-  HARD 只允许已配置焦点系/卡（skill_focus_families 展开 ∪ skill_presets）；
-  ALL_ROUND 允许任意目录识别且合法（is_skill_choice_legal）的升级卡，
-  焦点系为优先。两档统一用 skill_catalog 排序：
+- 技能：恒定严格档（用户至多勾选 4 系；:func:`assemble_policy_settings` 把
+  勾选短码归一为焦点系并展开）。只允许已配置焦点系/卡（skill_focus_families
+  展开 ∪ skill_presets），配置外一律不选；宁可不拿也不乱拿。统一用
+  skill_catalog 排序：
   合法性过滤 → 前置/链条（skill_chain_rank，owned 与存档豁免参与）
   → 存档解锁/减伤核实（skill_penalty_rank / archive unlock）
   → 稀有度（槽位品质缺失/含混时用已核实的目录稀有度兜底）
@@ -32,8 +31,8 @@
   tie-break：配置顺序 → 槽位 index 升序 → set 名字典序）；
 - 返回值仅 :class:`PolicyAction` 枚举 + slot index（:class:`PolicyDecision`），
   绝无坐标/像素/原始文本；
-- 技能 SELECT 仅当槽位名通过技能档判定（HARD：焦点集内；ALL_ROUND：目录
-  识别且合法），且 confidence >= min_confidence；羁绊/宝物 SELECT 仅当
+- 技能 SELECT 仅当槽位名通过严格档判定（焦点集内：skill_focus_families 展开
+  ∪ skill_presets），且 confidence >= min_confidence；羁绊/宝物 SELECT 仅当
   ``slot.name`` 非空（词典规范名）且 ``confidence >= min_confidence``——
   unknown 槽位永不直接点击；
 - WAIT 有总次数上限（``max_waits``），无安全候选且 WAIT/REFRESH 均耗尽时
@@ -63,7 +62,6 @@ from gamescript.skill_catalog import (
     expand_skill_preset_names,
     family_of,
     is_skill_choice_legal,
-    lookup_card,
     names_match,
     normalize_archive_levels,
     skill_chain_rank,
@@ -94,14 +92,10 @@ WHITELIST_HARD = "hard"
 WHITELIST_SOFT = "soft"
 VALID_WHITELIST_MODES = frozenset({WHITELIST_HARD, WHITELIST_SOFT})
 
-# 技能面板白名单语义（按原始勾选技能数由 assemble_policy_settings 派生）：
-#   "hard"（0..4 个）—— 只允许已配置焦点系/卡（skill_focus_families 展开 ∪
-#              skill_presets），未配置一律不可选；宁可不拿也不乱拿。
-#   "all_round"（5+ 个）—— 允许任意目录识别且合法的升级卡；焦点系仍为优先。
-# 两档的候选排序统一见 _decide_skill（skill_catalog 前置/链条/存档/稀有度）。
-SKILL_MODE_HARD = "hard"
-SKILL_MODE_ALL_ROUND = "all_round"
-VALID_SKILL_MODES = frozenset({SKILL_MODE_HARD, SKILL_MODE_ALL_ROUND})
+# 技能面板恒定严格：只允许已配置焦点系/卡（skill_focus_families 展开 ∪
+# skill_presets），未配置一律不可选；宁可不拿也不乱拿（用户 2026-08-17 确认：
+# 技能至多 4 个、无 all_round 全能档）。两字段均空 = 显式零勾选 → CLOSE；
+# 非空 → 只过滤焦点集再按 skill_catalog 排序（前置/链条/存档/稀有度）。
 
 # 必拿宝物缺省名单 = 旧版硬编码的「全能宝物」子串特权（2026-08-13 前行为：
 # 名字含「全都要」或「卡牌大师」即无视预设秒选）。策略配置缺省时原样保留，
@@ -213,10 +207,6 @@ class PolicySettings:
     # 本地习惯权重：规范名 → 分数。仅在已允许集合内做 tie-break；空 = 行为与旧版一致。
     habit_name_scores: tuple[tuple[str, float], ...] = ()
     allow_skill_giveup: bool = False
-    # 技能面板白名单档：hard（仅焦点系/卡）| all_round（目录合法卡，焦点优先）。
-    # 运行时由 assemble_policy_settings 按原始勾选技能数派生；直接构造缺省 hard
-    # （与旧「仅预设」行为一致，源兼容）。
-    skill_whitelist_mode: str = SKILL_MODE_HARD
     # 焦点技能系（原始勾选的主技能中文名，配置顺序即用户意图）。
     skill_focus_families: tuple[str, ...] = ()
     # 各系存档等级（不可变 (名称, 等级) 对；由 skill_catalog 消费，用于
@@ -230,11 +220,6 @@ class PolicySettings:
             raise ValueError(
                 f"bond_whitelist_mode={self.bond_whitelist_mode!r} "
                 f"not in {sorted(VALID_WHITELIST_MODES)}"
-            )
-        if self.skill_whitelist_mode not in VALID_SKILL_MODES:
-            raise ValueError(
-                f"skill_whitelist_mode={self.skill_whitelist_mode!r} "
-                f"not in {sorted(VALID_SKILL_MODES)}"
             )
         # 存档等级归一为 (名称, 等级) 对并按名称字典序排列（确定性）。
         object.__setattr__(
@@ -268,7 +253,6 @@ class PolicySettings:
             )
         min_conf = raw.get("min_confidence")
         bond_mode = raw.get("bond_whitelist_mode")
-        skill_mode = raw.get("skill_whitelist_mode")
         return cls(
             skill_presets=tuple(str(s) for s in (raw.get("skill_presets") or ())),
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
@@ -293,7 +277,6 @@ class PolicySettings:
             ),
             habit_name_scores=habit_scores,
             allow_skill_giveup=bool(raw.get("allow_skill_giveup", False)),
-            skill_whitelist_mode=SKILL_MODE_HARD if skill_mode is None else str(skill_mode),
             skill_focus_families=tuple(
                 str(s) for s in (raw.get("skill_focus_families") or ())
             ),
@@ -330,10 +313,10 @@ def assemble_policy_settings(
       ``treasure.must_take_names``（缺省保留旧版全能宝物特权）/
       ``treasure.allow_negative``（仅当 settings 未提供放行名单时兜底）。
 
-    模式派生（先数原始勾选技能，再展开）：0..4 个 → HARD（仅焦点系/卡）；
-    5+ 个 → ALL_ROUND（目录合法卡，焦点优先）。焦点系 = 勾选短码经
-    skill_labels 归一的中文主技能名（配置顺序，去重）；``skill_presets`` =
-    焦点系经 skill_catalog.expand_skill_preset_names 展开的卡名集。
+    技能恒为严格档（无模式字段）：勾选短码经 skill_labels 归一为焦点系
+    （配置顺序，去重）；``skill_presets`` = 焦点系经
+    skill_catalog.expand_skill_preset_names 展开的卡名集。未配置任何技能
+    时两字段均空 → 面板直接 CLOSE（不刷新/不放弃）。
     """
     raw = dict(policy_doc or {})
     bond_cfg = raw.get("bond") if isinstance(raw.get("bond"), Mapping) else {}
@@ -347,9 +330,6 @@ def assemble_policy_settings(
         if text and text not in seen:
             seen.add(text)
             skill_families.append(text)
-    # 模式按原始勾选技能数判定（展开后卡数再多也不算 all_round）。
-    raw_count = len(skill_families)
-    mode = SKILL_MODE_ALL_ROUND if raw_count >= 5 else SKILL_MODE_HARD
 
     bond_presets: list[str] = []
     for item in getattr(settings, "cards", None) or ():
@@ -368,7 +348,6 @@ def assemble_policy_settings(
         {
             "skill_presets": expand_skill_preset_names(tuple(skill_families)),
             "skill_focus_families": tuple(skill_families),
-            "skill_whitelist_mode": mode,
             "skill_archive_levels": getattr(settings, "skill_archive_levels", None),
             "bond_presets": tuple(bond_presets),
             "treasure_presets": (),
@@ -524,12 +503,11 @@ def choose_action(
     if cands.panel_kind is None:
         return PolicyDecision(PolicyAction.NONE, None, "无面板")
 
-    # HARD 档且未配置任何技能（skill_presets / skill_focus_families 均空）：
-    # 用户显式零勾选 → 必须在任何 attempts/deadline last-resort 之前裁决 CLOSE，
+    # 未配置任何技能（skill_presets / skill_focus_families 均空）：用户显式
+    # 零勾选 → 必须在任何 attempts/deadline last-resort 之前裁决 CLOSE，
     # 绝不 GIVEUP/REFRESH/SELECT，也不受 allow_skill_giveup 影响（零配置绝不花技能点）。
     if (
         cands.panel_kind == PANEL_SKILL
-        and settings.skill_whitelist_mode == SKILL_MODE_HARD
         and not settings.skill_presets
         and not settings.skill_focus_families
     ):
@@ -549,8 +527,8 @@ def choose_action(
 
 
 # ---------------------------------------------------------------------------
-# 技能面板：HARD（仅焦点系/卡）/ ALL_ROUND（目录合法卡，焦点优先）；
-# 空名/指纹不变不得放弃；无可选候选且卡名可读才刷新。
+# 技能面板（恒定严格）：只允许焦点集内卡（skill_focus_families 展开 ∪
+# skill_presets）；空名/指纹不变不得放弃；无可选候选且卡名可读才刷新。
 # ---------------------------------------------------------------------------
 def slot_fingerprint(slots: tuple[SlotCandidate, ...] | list[SlotCandidate]) -> str:
     parts: list[str] = []
@@ -578,14 +556,6 @@ def _skill_last_resort(
     if settings.allow_skill_giveup:
         return _giveup_or_close(cands, why)
     return _skill_hold_or_hide(why)
-
-
-def _catalog_recognized(name: str) -> bool:
-    """目录识别：卡名在升级卡目录或主技能系内。未知名称绝不给点击权。"""
-    text = str(name or "").strip()
-    if not text:
-        return False
-    return lookup_card(text) is not None or family_of(text) is not None
 
 
 def _catalog_rarity_band(name: str) -> str | None:
@@ -633,7 +603,7 @@ def _focus_rank(name: str, settings: PolicySettings) -> int:
     return len(settings.skill_focus_families)
 
 def _skill_focus_presence_rank(name: str, settings: PolicySettings) -> int:
-    """0 = 已配置焦点系；1 = 全能模式下允许的非焦点系。"""
+    """0 = 焦点系内卡；1 = 焦点系展开集内但非焦点系的卡（严格档排序仍区分）。"""
     if not settings.skill_focus_families:
         return 0
     return int(_focus_rank(name, settings) >= len(settings.skill_focus_families))
@@ -666,27 +636,20 @@ def _rank_skill_candidates(
 ) -> list[int]:
     """确定性排序全部可选技能槽位，返回升序槽位 index 列表。
 
-    档位判定：
-
-    - HARD：仅焦点集内卡（用户明确勾选，绝不越权）；
-    - ALL_ROUND：任意目录识别且合法（is_skill_choice_legal）的升级卡，
-      焦点系仍为优先。
+    档位判定：仅焦点集内卡（用户明确勾选，绝不越权）；焦点集 =
+    skill_focus_families 展开 ∪ 显式 skill_presets。
 
     排序键（升序优先）：前置/链条 → 存档减伤核实 → 存档进池门槛 →
     稀有度 → 焦点/非焦点 → 习惯分 → 焦点配置顺序 → 槽位 index。
     unknown / 低置信 / 不合法 / 未识别一律不进入候选（绝不点击）。
     """
-    all_round = settings.skill_whitelist_mode == SKILL_MODE_ALL_ROUND
     focus_set = _skill_focus_set(settings)
     habit = dict(settings.habit_name_scores)
     ranked: list[tuple[float, float, float, int, int, float, int, int]] = []
     for slot in slots:
         if slot.name is None or slot.confidence < settings.min_confidence:
             continue
-        if all_round:
-            if not _catalog_recognized(slot.name):
-                continue
-        elif slot.name not in focus_set:
+        if slot.name not in focus_set:
             continue
         if not is_skill_choice_legal(slot.name, owned):
             continue
@@ -712,12 +675,9 @@ def _decide_skill(
         index = ranked[0]
         name = _slot_name(cands.slots, index)
         rarity = _slot_rarity(cands.slots, index) or "未知品质"
-        mode = (
-            "HARD" if settings.skill_whitelist_mode == SKILL_MODE_HARD else "ALL_ROUND"
-        )
         return PolicyDecision.select(
             index,
-            f"技能{mode}命中（前置/存档/稀有度优先）：{name}/{rarity} @ slot {index}",
+            f"技能严格命中（前置/存档/稀有度优先）：{name}/{rarity} @ slot {index}",
         )
     unread = _all_skill_names_missing(cands.slots) or not any(s.name for s in cands.slots)
     stale = _refresh_unchanged(state, cands.slots)
@@ -847,7 +807,7 @@ def _match_preset(
 
     ``rarity_first=True``：稀有度优先——预设集合内先比稀有度
     （红>橙>紫>蓝>白>绿），同稀有度再按配置顺序，最后按 index。
-    （技能面板自 HARD/ALL_ROUND 决策接入后不再走本原语，见 _decide_skill。）
+    （技能面板自严格档决策接入后不再走本原语，见 _decide_skill。）
 
     ``habit_name_scores``：仅在上述键并列时影响排序（分数越高越优先）；
     空元组时行为与旧版逐字节一致。不得引入预设外的名字。

@@ -43,8 +43,6 @@ from gamescript.choice_policy import (  # noqa: E402
     PANEL_BOND,
     PANEL_SKILL,
     PANEL_TREASURE,
-    SKILL_MODE_ALL_ROUND,
-    SKILL_MODE_HARD,
     WHITELIST_HARD,
     PanelCandidates,
     PolicyAction,
@@ -359,8 +357,9 @@ class S5DeterminismStillHolds(unittest.TestCase):
             self.assertEqual(choose_action(panel, SessionState()), first)
 
 
-class S6SkillModeHardAllRound(unittest.TestCase):
-    """S6：技能 HARD（≤4 原始勾选，仅焦点）/ ALL_ROUND（5+，目录合法卡，焦点优先）。"""
+class S6SkillModeStrict(unittest.TestCase):
+    """S6：技能恒定严格档——仅焦点系/卡（skill_focus_families 展开 ∪ skill_presets），
+    未配置 → CLOSE；非焦点卡宁可刷新/隐藏也不拿。"""
 
     @staticmethod
     def _runtime(skills, **extra):
@@ -368,24 +367,30 @@ class S6SkillModeHardAllRound(unittest.TestCase):
             skills=list(skills), cards=[], treasure_allow_negative=[], **extra
         )
 
-    def test_assembly_hard_for_zero_to_four_raw_skills(self):
+    def test_assembly_zero_to_four_raw_skills_are_focus_families(self):
         for count in range(5):
             with self.subTest(count=count):
                 ps = assemble_policy_settings(
                     settings=self._runtime(list(SKILL_LABELS)[:count]),
                     skill_labels=SKILL_LABELS, fetter_labels={}, policy_doc={},
                 )
-                self.assertEqual(ps.skill_whitelist_mode, SKILL_MODE_HARD)
+                self.assertEqual(
+                    ps.skill_focus_families,
+                    tuple(SKILL_LABELS[c] for c in list(SKILL_LABELS)[:count]),
+                )
 
-    def test_assembly_all_round_for_five_raw_skills(self):
+    def test_assembly_five_or_more_raw_skills_stay_strict(self):
         ps = assemble_policy_settings(
             settings=self._runtime(list(SKILL_LABELS)[:5]),
             skill_labels=SKILL_LABELS, fetter_labels={}, policy_doc={},
         )
-        self.assertEqual(ps.skill_whitelist_mode, SKILL_MODE_ALL_ROUND)
+        self.assertEqual(
+            ps.skill_focus_families, tuple(SKILL_LABELS[c] for c in list(SKILL_LABELS)[:5])
+        )
+        self.assertFalse(hasattr(ps, "skill_whitelist_mode"))
 
     def test_hard_mode_rejects_non_focus_card(self):
-        """≤4：面板出现目录合法但未勾选系的卡 → 宁可刷新也不拿（硬拒绝）。"""
+        """面板出现目录合法但未勾选系的卡 → 宁可刷新也不拿（硬拒绝）。"""
         decision = choose_action(_panel(
             PANEL_SKILL,
             [_slot(0, "箭矢增幅", rarity="red")],
@@ -393,56 +398,6 @@ class S6SkillModeHardAllRound(unittest.TestCase):
         ), SessionState())
         self.assertIn(decision.action, NO_PICK_ACTIONS)
         self.assertIsNone(decision.index)
-
-    def test_all_round_selects_recognized_non_focus_card(self):
-        """5+：目录识别合法的非焦点卡直接选，不再刷新。"""
-        decision = choose_action(_panel(
-            PANEL_SKILL,
-            [_slot(0, "箭矢增幅")],
-            settings=PolicySettings(skill_whitelist_mode="all_round",
-                                    skill_focus_families=("剑气",)),
-        ), SessionState())
-        self.assertEqual((decision.action, decision.index),
-                         (PolicyAction.SELECT_SLOT, 0))
-
-    def test_all_round_focus_family_wins(self):
-        """同品质下焦点系卡优先于非焦点卡（焦点配置顺序优先）。"""
-        decision = choose_action(_panel(
-            PANEL_SKILL,
-            [_slot(0, "箭矢增幅", rarity="white"),
-             _slot(1, "剑气增幅", rarity="white")],
-            settings=PolicySettings(skill_whitelist_mode="all_round",
-                                    skill_focus_families=("剑气",)),
-        ), SessionState())
-        self.assertEqual((decision.action, decision.index),
-                         (PolicyAction.SELECT_SLOT, 1))
-
-    def test_all_round_unrecognized_name_no_click(self):
-        decision = choose_action(_panel(
-            PANEL_SKILL,
-            [_slot(0, "不存在的技能", rarity="red")],
-            settings=PolicySettings(skill_whitelist_mode="all_round"),
-        ), SessionState())
-        self.assertIn(decision.action, NO_PICK_ACTIONS)
-        self.assertIsNone(decision.index)
-
-    def test_all_round_low_confidence_no_click(self):
-        decision = choose_action(_panel(
-            PANEL_SKILL,
-            [_slot(0, "箭矢增幅", confidence=0.5)],
-            settings=PolicySettings(skill_whitelist_mode="all_round",
-                                    min_confidence=0.8),
-        ), SessionState())
-        self.assertIn(decision.action, NO_PICK_ACTIONS)
-
-    def test_all_round_never_pick_skipped(self):
-        """never_pick 卡目录识别但非法 → ALL_ROUND 也不选。"""
-        decision = choose_action(_panel(
-            PANEL_SKILL,
-            [_slot(0, "蓄力射击")],
-            settings=PolicySettings(skill_whitelist_mode="all_round"),
-        ), SessionState())
-        self.assertIn(decision.action, NO_PICK_ACTIONS)
 
 
 class S7VerifiedEvidencePriority(unittest.TestCase):
@@ -453,14 +408,14 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
             PANEL_SKILL,
             [_slot(0, "剑气增幅", rarity="white"),
              _slot(1, "箭矢增幅", rarity="white")],
-            settings=PolicySettings(skill_whitelist_mode="all_round"),
+            settings=PolicySettings(skill_focus_families=("剑气", "奥数箭")),
         ), SessionState())
         self.assertEqual(decision.index, 0, "无已拥有时两者前置均未确认，取最小 index")
         decision = choose_action(PanelCandidates(
             panel_kind=PANEL_SKILL,
             slots=[_slot(0, "剑气增幅", rarity="white"),
                    _slot(1, "箭矢增幅", rarity="white")],
-            settings=PolicySettings(skill_whitelist_mode="all_round"),
+            settings=PolicySettings(skill_focus_families=("剑气", "奥数箭")),
             owned_skill_cards=("奥术箭",),
         ), SessionState())
         self.assertEqual(decision.index, 1, "已拥有奥术箭 → 箭矢增幅前置确认优先")
@@ -471,7 +426,7 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
             panel_kind=PANEL_SKILL,
             slots=[_slot(0, "激光增幅", rarity="white"),
                    _slot(1, "爆炸箭矢", rarity="white")],
-            settings=PolicySettings(skill_whitelist_mode="all_round",
+            settings=PolicySettings(skill_focus_families=("奥数箭", "奥数激光"),
                                     skill_archive_levels=(("asj", 36),)),
             owned_skill_cards=("奥术箭",),
         ), SessionState())
@@ -481,7 +436,7 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
             PANEL_SKILL,
             [_slot(0, "激光增幅", rarity="white"),
              _slot(1, "箭矢齐射", rarity="white")],
-            settings=PolicySettings(skill_whitelist_mode="all_round",
+            settings=PolicySettings(skill_focus_families=("奥数箭", "奥数激光"),
                                     skill_archive_levels=(("asj", 10),)),
         ), SessionState())
         self.assertEqual(decision.index, 1)
@@ -491,12 +446,12 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
         decision = choose_action(_panel(
             PANEL_SKILL,
             [_slot(0, "爆炸箭矢", rarity="white")],
-            settings=PolicySettings(skill_whitelist_mode="all_round"),
+            settings=PolicySettings(skill_focus_families=("奥数箭",)),
         ), SessionState())
         self.assertEqual((decision.action, decision.index),
                          (PolicyAction.SELECT_SLOT, 0))
 
-    def test_assembly_deterministic_and_raw_count_before_expansion(self):
+    def test_assembly_deterministic_and_focus_families(self):
         runtime = SimpleNamespace(
             skills=list(SKILL_LABELS)[:5],
             cards=[], treasure_allow_negative=[],
@@ -507,10 +462,10 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
             policy_doc={"min_confidence": 0.65},
         )
         first = assemble_policy_settings(**kwargs)
-        self.assertEqual(first.skill_whitelist_mode, SKILL_MODE_ALL_ROUND)
+        self.assertEqual(first.skill_focus_families, tuple(SKILL_LABELS[c] for c in list(SKILL_LABELS)[:5]))
         for _ in range(10):
             self.assertEqual(assemble_policy_settings(**kwargs), first)
-        # 模式按原始技能数：4 个原始技能展开后卡名更多，仍为 hard。
+        # 4 个原始技能展开后卡名更多，焦点系仍为原始 4 个。
         ps = assemble_policy_settings(
             settings=SimpleNamespace(
                 skills=list(SKILL_LABELS)[:4],
@@ -518,7 +473,7 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
             ),
             skill_labels=SKILL_LABELS, fetter_labels={}, policy_doc={},
         )
-        self.assertEqual(ps.skill_whitelist_mode, SKILL_MODE_HARD)
+        self.assertEqual(ps.skill_focus_families, tuple(SKILL_LABELS[c] for c in list(SKILL_LABELS)[:4]))
         self.assertGreater(len(ps.skill_presets), 4)
 
 

@@ -184,11 +184,11 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertIsInstance(first, PolicySettings)
 
     def test_policy_settings_consumes_shared_contract(self):
-        """消费 choice_policy.assemble_policy_settings 契约字段（HARD/ALL_ROUND 语义）。"""
+        """消费 choice_policy.assemble_policy_settings 契约字段（严格档焦点系语义）。"""
         ps = self.med._policy_settings()
-        # 默认配置 2 个技能（jq/pg）→ 0..4 → HARD 严格白名单。
-        self.assertEqual(ps.skill_whitelist_mode, "hard")
+        # 默认配置 2 个技能（jq/pg）→ 焦点系非空（严格白名单，无模式字段）。
         self.assertIsInstance(ps.skill_focus_families, tuple)
+        self.assertGreaterEqual(len(ps.skill_focus_families), 1)
         self.assertIsInstance(ps.skill_archive_levels, tuple)
         self.assertIsInstance(ps.treasure_must_take, tuple)
         self.assertIsInstance(ps.habit_name_scores, tuple)
