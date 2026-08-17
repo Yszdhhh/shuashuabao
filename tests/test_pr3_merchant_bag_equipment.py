@@ -18,7 +18,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shuabao.mediator import Mediator, PanelState, LoopAction
+from shuabao.mediator import Mediator, PanelState, LoopAction, Phase
 from shuabao.merchant_scanner import MerchantScanner, MerchantSlotItem
 from shuabao.interaction_surface import InteractionSurface, PendingAction
 from shuabao.vision.capture import Frame
@@ -119,6 +119,23 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
             self.assertEqual(self.med._pending_action.target_id, "hero_card_item")
 
 
+    @patch("shuabao.mediator.time.time", return_value=100.0)
+    def test_hero_card_writes_back_inventory_last_pt_for_sticky_protection(self, mock_time):
+        """B5 invariant: _maybe_use_hero_card writes back self._inventory_last_pt = pt on first match."""
+        with patch.object(self.med, "_black_merchant_present", return_value=False), \
+             patch.object(self.med, "_bond_bar_nonempty", return_value=False), \
+             patch.object(self.med, "find") as mock_find, \
+             patch.object(self.med, "act_click", return_value=True):
+            
+            hero_card_match = MatchResult("hero_card_item", 0.9, 1150, 750, 20, 20, 1150, 750)
+            mock_find.return_value = hero_card_match
+
+            self.assertIsNone(self.med._inventory_last_pt)
+            action = self.med._maybe_use_inventory_item(self.frame)
+            self.assertEqual(action, LoopAction.Continue)
+            self.assertEqual(self.med._inventory_last_pt, (1150, 750))
+            self.assertEqual(self.med._inventory_same_pt_hits, 1)
+
 class TestEquipmentPeriodicInspection(unittest.TestCase):
     def setUp(self):
         self.med = Mediator(Settings(), ROOT)
@@ -163,6 +180,80 @@ class TestEquipmentPeriodicInspection(unittest.TestCase):
             self.assertEqual(action2, LoopAction.Continue)
             self.assertEqual(self.med._equipment_round_current_slot, 4)
 
+    @patch("shuabao.mediator.time.time", return_value=100.0)
+    def test_equipment_slot_advances_only_if_click_succeeds(self, mock_time):
+        """B6 invariant: advance _equipment_round_current_slot ONLY if self.act_click(...) succeeds."""
+        self.med._equipment_next_at = 200.0
+        self.med._equipment_round_next_at = 0.0
+        self.med._equipment_round_current_slot = 2
+
+        with patch.object(self.med, "_black_merchant_present", return_value=False), \
+             patch.object(self.med, "_maybe_use_inventory_item", return_value=None), \
+             patch.object(self.med, "act_click", return_value=False) as mock_click:
+            
+            # act_click fails -> slot does not advance
+            action = self.med._maybe_upgrade_equipment(self.frame)
+            self.assertEqual(action, LoopAction.Continue)
+            self.assertEqual(self.med._equipment_round_current_slot, 2)
+
+
+class TestPendingActionAndSurfaceMediatorIntegration(unittest.TestCase):
+    def setUp(self):
+        self.med = Mediator(Settings(), ROOT)
+        self.frame = make_test_frame()
+
+    def test_pending_action_timeout_lifecycle(self):
+        """B2 invariant: pending action timeout clears, applies target cooldown, records unconfirmed metric."""
+        self.med.phase = Phase.MAIN_LINE
+        self.med._pending_action = PendingAction(
+            kind="WAIT_HERO_CHOICE",
+            target_id="hero_card_item",
+            deadline=50.0,
+            verifier=lambda f: False,
+        )
+        with patch("shuabao.mediator.time.time", return_value=60.0):
+            # Action is expired at t=60.0 (deadline was 50.0)
+            with patch.object(self.med, "_round_deadline", 1000.0), \
+                 patch.object(self.med, "_find_failure_gift", return_value=None), \
+                 patch.object(self.med, "_find_equipment_affix_choice", return_value=None), \
+                 patch.object(self.med, "_selection_anchor", return_value=None), \
+                 patch.object(self.med, "_black_merchant_present", return_value=False):
+                self.med._tick_main_line(self.frame)
+
+        self.assertIsNone(self.med._pending_action)
+    def test_surface_conflict_bounded_budget_escalation(self):
+        """B4 invariant: surface conflict zeroes input and escalates to Phase.ERROR after bounded budget."""
+        self.med.phase = Phase.MAIN_LINE
+        self.med._pending_action = None
+        
+        # Simulate conflict (both affix modal and center card modal present -> CONFLICT)
+        mock_affix = MatchResult(name="affix", score=0.9, x=10, y=10, w=50, h=50, screen_x=35, screen_y=35)
+        with patch.object(self.med, "_find_equipment_affix_choice", return_value=mock_affix), \
+             patch.object(self.med, "_selection_anchor", return_value=(100, 100)), \
+             patch.object(self.med, "_find_evolution_choice", return_value=None), \
+             patch.object(self.med, "_black_merchant_present", return_value=False), \
+             patch.object(self.med, "_find_failure_gift", return_value=None), \
+             patch.object(self.med, "_round_deadline", 1000.0):
+            
+            # First conflict at t=100.0 -> zero input, continue
+            with patch("shuabao.mediator.time.time", return_value=100.0):
+                act1 = self.med._tick_main_line(self.frame)
+                self.assertEqual(act1, LoopAction.Continue)
+                self.assertEqual(self.med.phase, Phase.MAIN_LINE)
+                self.assertEqual(self.med._surface_conflict_since, 100.0)
+            
+            # Still in conflict at t=101.5 (< 2.5s) -> continue
+            with patch("shuabao.mediator.time.time", return_value=101.5):
+                act2 = self.med._tick_main_line(self.frame)
+                self.assertEqual(act2, LoopAction.Continue)
+                self.assertEqual(self.med.phase, Phase.MAIN_LINE)
+
+            # Exceeded conflict budget at t=103.0 (3.0s >= 2.5s) -> Phase.ERROR
+            with patch("shuabao.mediator.time.time", return_value=103.0):
+                act3 = self.med._tick_main_line(self.frame)
+                self.assertEqual(act3, LoopAction.Break)
+                self.assertEqual(self.med.phase, Phase.ERROR)
+                self.assertEqual(self.med._interrupt_reason, "interaction surface conflict timeout (3.00s)")
 
 if __name__ == "__main__":
     unittest.main()

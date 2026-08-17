@@ -14,8 +14,8 @@ class InteractionSurface(Enum):
 
     Priorities:
     1. RECOVERY_MODAL: Disconnect / system popups (freeze all game controls)
-    2. HERO_CHOICE_MODAL: Hero selection / evolution modal
-    3. EQUIPMENT_AFFIX_MODAL: Equipment affix 4-choice modal
+    2. EQUIPMENT_AFFIX_MODAL: Equipment affix 4-choice modal
+    3. HERO_CHOICE_MODAL: Hero selection / evolution modal
     4. CENTER_CARD_MODAL: In-game 3-choice card / skill modal
     5. MERCHANT: Black merchant 5-slot panel
     6. HUD_ONLY: No blocking modals (allows equipment upgrade, bag devour, pickup)
@@ -102,6 +102,10 @@ class PendingAction:
         except Exception:
             return False
 
+    def is_expired(self, now: float) -> bool:
+        """Check if pending action has timed out."""
+        return now >= self.deadline
+
 
 def resolve_interaction_surface(
     recovery_modal: bool = False,
@@ -113,12 +117,12 @@ def resolve_interaction_surface(
     """Arbitrate interaction surface based on active modal detections.
 
     Priority:
-    RECOVERY_MODAL > HERO_CHOICE_MODAL > EQUIPMENT_AFFIX_MODAL > CENTER_CARD_MODAL > MERCHANT > HUD_ONLY
+    RECOVERY_MODAL > EQUIPMENT_AFFIX_MODAL > HERO_CHOICE_MODAL > CENTER_CARD_MODAL > MERCHANT > HUD_ONLY
     CONFLICT: If >=2 mutually exclusive modals are detected simultaneously.
     """
     blocking_modals = [
-        ("hero", hero_choice_modal),
         ("affix", equipment_affix_modal),
+        ("hero", hero_choice_modal),
         ("card", center_card_modal),
         ("merchant", merchant_modal),
     ]
@@ -132,10 +136,10 @@ def resolve_interaction_surface(
     if len(active_blocking) > 1:
         return InteractionSurface.CONFLICT
 
-    if hero_choice_modal:
-        return InteractionSurface.HERO_CHOICE_MODAL
     if equipment_affix_modal:
         return InteractionSurface.EQUIPMENT_AFFIX_MODAL
+    if hero_choice_modal:
+        return InteractionSurface.HERO_CHOICE_MODAL
     if center_card_modal:
         return InteractionSurface.CENTER_CARD_MODAL
     if merchant_modal:

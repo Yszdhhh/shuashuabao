@@ -650,6 +650,8 @@ class Mediator:
         self._devour_dan_consecutive_clicks = 0
         self._ambiguous_giveup_frames = 0
         self._pending_action: PendingAction | None = None
+        self._pending_action_unconfirmed_count = 0
+        self._surface_conflict_since: float | None = None
         self._merchant_next_at = 0.0
         self._f1_shadow_correct = 0
         self._f1_shadow_misfire = 0
@@ -2812,6 +2814,9 @@ class Mediator:
                 # 同点粘滞：超过2次视为静态误匹配，禁止本轮继续点卡。
                 self._inventory_clicks_this_visit = 2
                 return None
+        else:
+            self._inventory_last_pt = pt
+            self._inventory_same_pt_hits = 1
         if self.act_click(hero_card, "UseInventory-hero-card"):
             self._inventory_clicks_this_visit += 1
             self._inventory_next_at = now + 1.0
@@ -2867,12 +2872,12 @@ class Mediator:
             }
             if slot_idx in slot_coords:
                 hit_slot = self._hud_button_hit(frame, f"equipment_slot_{slot_idx}", slot_coords[slot_idx])
-                self.act_click(hit_slot, f"UpgradeEquipmentSlot{slot_idx}-check")
-                self._equipment_round_current_slot += 1
-                if self._equipment_round_current_slot > 6:
-                    self._equipment_round_current_slot = 2
-                    self._equipment_round_next_at = now + 30.0
-                self._equipment_pending_until = now + float(self.settings.ui_action_interval_s)
+                if self.act_click(hit_slot, f"UpgradeEquipmentSlot{slot_idx}-check"):
+                    self._equipment_round_current_slot += 1
+                    if self._equipment_round_current_slot > 6:
+                        self._equipment_round_current_slot = 2
+                        self._equipment_round_next_at = now + 30.0
+                    self._equipment_pending_until = now + float(self.settings.ui_action_interval_s)
                 return LoopAction.Continue
 
         self._advance_l1_cycle("equipment")
@@ -6179,6 +6184,12 @@ class Mediator:
                 self._pending_action = None
             elif self._pending_action.is_expired(now):
                 print(f"[med][pending] 后置动作验证超时: {self._pending_action.kind} ({self._pending_action.target_id})")
+                self._pending_action_unconfirmed_count += 1
+                # B2: timeout -> clear, apply target cooldown, record unconfirmed metric, do not advance state blindly
+                if self._pending_action.target_id == "hero_card_item" or self._pending_action.kind == "WAIT_HERO_CHOICE":
+                    self._inventory_next_at = now + 1.0
+                elif self._pending_action.target_id == "equipment_upgrade" or self._pending_action.kind == "EQUIPMENT_UPGRADE":
+                    self._equipment_pending_until = now + 1.0
                 self._pending_action = None
             else:
                 return LoopAction.Continue
@@ -6452,9 +6463,18 @@ class Mediator:
             merchant_modal=has_merchant,
         )
         if surface == InteractionSurface.CONFLICT:
-            print("[med][surface] 检测到互斥弹窗冲突 (CONFLICT)，严格零输入等待下一帧 (INV-CONFLICT-01)")
+            if self._surface_conflict_since is None:
+                self._surface_conflict_since = now
+            conflict_duration = now - self._surface_conflict_since
+            print(f"[med][surface] 检测到互斥弹窗冲突 (CONFLICT)，严格零输入等待下一帧 (INV-CONFLICT-01, elapsed={conflict_duration:.2f}s)")
+            if conflict_duration >= 2.5:
+                print(f"[med][surface] 互斥弹窗冲突持续超时 ({conflict_duration:.2f}s >= 2.5s)，记录 incident 并转 Phase.ERROR")
+                self.set_phase(Phase.ERROR, f"interaction surface conflict timeout ({conflict_duration:.2f}s)")
+                self.stop()
+                return LoopAction.Break
             return LoopAction.Continue
-
+        else:
+            self._surface_conflict_since = None
         if surface == InteractionSurface.EQUIPMENT_AFFIX_MODAL:
             affix = self._find_equipment_affix_choice(frame)
             if affix is not None:

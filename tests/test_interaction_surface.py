@@ -22,16 +22,7 @@ def test_interaction_surface_priority():
         merchant_modal=True,
     ) == InteractionSurface.RECOVERY_MODAL
 
-    # 2. Hero choice modal priority
-    assert resolve_interaction_surface(
-        recovery_modal=False,
-        hero_choice_modal=True,
-        equipment_affix_modal=False,
-        center_card_modal=False,
-        merchant_modal=False,
-    ) == InteractionSurface.HERO_CHOICE_MODAL
-
-    # 3. Equipment affix modal priority
+    # 2. Equipment affix modal priority (AFFIX > HERO > CARD > MERCHANT > HUD)
     assert resolve_interaction_surface(
         recovery_modal=False,
         hero_choice_modal=False,
@@ -39,6 +30,15 @@ def test_interaction_surface_priority():
         center_card_modal=False,
         merchant_modal=False,
     ) == InteractionSurface.EQUIPMENT_AFFIX_MODAL
+
+    # 3. Hero choice modal priority
+    assert resolve_interaction_surface(
+        recovery_modal=False,
+        hero_choice_modal=True,
+        equipment_affix_modal=False,
+        center_card_modal=False,
+        merchant_modal=False,
+    ) == InteractionSurface.HERO_CHOICE_MODAL
 
     # 4. Center card modal priority
     assert resolve_interaction_surface(
@@ -130,3 +130,14 @@ def test_pending_action_verification():
         baseline_count=3,
         occupied_bonds_decreased=False,
     ) is False
+
+def test_pending_action_is_expired():
+    action = PendingAction(
+        kind="WAIT_HERO_CHOICE",
+        target_id="hero_card_item",
+        deadline=100.0,
+        verifier=lambda: True,
+    )
+    assert action.is_expired(99.9) is False
+    assert action.is_expired(100.0) is True
+    assert action.is_expired(100.1) is True
