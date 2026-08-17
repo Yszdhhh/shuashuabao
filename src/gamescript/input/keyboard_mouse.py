@@ -36,17 +36,29 @@ def _failsafe_action_result(exc: BaseException, action: str) -> ActionResult | N
     return None
 
 
-def _clear_clipboard() -> None:
-    """Empty the Win32 clipboard (used when the prior content is unknown)."""
+def _clear_clipboard() -> bool:
+    """Empty the Win32 clipboard. True only after open+empty+close all succeed."""
+    opened = False
+    user32 = None
     try:
         import ctypes
 
         user32 = ctypes.windll.user32
-        if user32.OpenClipboard(0):
-            user32.EmptyClipboard()
-            user32.CloseClipboard()
+        if not user32.OpenClipboard(0):
+            return False
+        opened = True
+        emptied = bool(user32.EmptyClipboard())
+        closed = bool(user32.CloseClipboard())
+        opened = False
+        return emptied and closed
     except Exception:
-        pass
+        return False
+    finally:
+        if opened and user32 is not None:
+            try:
+                user32.CloseClipboard()
+            except Exception:
+                pass
 
 
 def is_current_process_elevated() -> bool:
@@ -488,10 +500,16 @@ def paste_text(text: str, dry_run: bool = True) -> None:
         if saved_text is not None:
             if not set_clipboard_text(saved_text):
                 # 恢复 prior 失败：最终 best-effort 清空，绝不让 secret 留在系统剪贴板
-                _clear_clipboard()
+                if not _clear_clipboard():
+                    print(
+                        "[input] WARNING 无法清空剪贴板，可能残留敏感文本",
+                    )
         else:
             # Prior clipboard unavailable: never leave the secret behind
-            _clear_clipboard()
+            if not _clear_clipboard():
+                print(
+                    "[input] WARNING 无法清空剪贴板，可能残留敏感文本",
+                )
 
 
 def type_text(text: str, dry_run: bool = True) -> None:

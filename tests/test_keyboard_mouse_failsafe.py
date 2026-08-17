@@ -19,7 +19,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -183,6 +183,86 @@ class PasteTextClipboardRestoreTests(unittest.TestCase):
              patch.object(pyautogui, "hotkey"):
             kb.paste_text("secret", dry_run=False)
         clear_mock.assert_not_called()
+
+
+class ClearClipboardResultTests(unittest.TestCase):
+    """_clear_clipboard 只在 Open+Empty+Close 全成功时返回 True。"""
+
+    def _user32(self, open_ok=True, empty_ok=True, close_ok=True):
+        user32 = MagicMock()
+        user32.OpenClipboard.return_value = open_ok
+        user32.EmptyClipboard.return_value = empty_ok
+        user32.CloseClipboard.return_value = close_ok
+        return user32
+
+    def test_clear_returns_true_when_open_empty_close_succeed(self):
+        user32 = self._user32()
+        with patch("ctypes.windll.user32", user32):
+            self.assertTrue(kb._clear_clipboard())
+        user32.OpenClipboard.assert_called_once()
+        user32.EmptyClipboard.assert_called_once()
+        user32.CloseClipboard.assert_called()
+
+    def test_clear_returns_false_when_open_fails(self):
+        user32 = self._user32(open_ok=False)
+        with patch("ctypes.windll.user32", user32):
+            self.assertFalse(kb._clear_clipboard())
+        user32.EmptyClipboard.assert_not_called()
+        user32.CloseClipboard.assert_not_called()
+
+    def test_clear_returns_false_when_empty_fails_and_still_closes(self):
+        user32 = self._user32(empty_ok=False)
+        with patch("ctypes.windll.user32", user32):
+            self.assertFalse(kb._clear_clipboard())
+        user32.CloseClipboard.assert_called()
+
+    def test_clear_returns_false_on_exception_and_closes_if_opened(self):
+        user32 = self._user32()
+        user32.EmptyClipboard.side_effect = OSError("boom")
+        with patch("ctypes.windll.user32", user32):
+            self.assertFalse(kb._clear_clipboard())
+        user32.CloseClipboard.assert_called()
+
+
+class PasteTextClearWarningTests(unittest.TestCase):
+    """prior 未知或 restore 失败时，clear 失败必须打出 [input] WARNING。"""
+
+    def test_restore_failure_and_clear_failure_prints_input_warning(self):
+        def fake_set(text: str) -> bool:
+            return text == "secret"
+
+        with patch.object(kb, "get_clipboard_text", return_value="prior"), \
+             patch.object(kb, "set_clipboard_text", side_effect=fake_set), \
+             patch.object(kb, "_clear_clipboard", return_value=False), \
+             patch.object(pyautogui, "hotkey"), \
+             patch("builtins.print") as printed:
+            kb.paste_text("secret", dry_run=False)
+        joined = " ".join(str(call) for call in printed.call_args_list)
+        self.assertIn("[input] WARNING", joined)
+        self.assertIn("无法清空", joined)
+        self.assertIn("敏感", joined)
+
+    def test_prior_none_and_clear_failure_prints_input_warning(self):
+        with patch.object(kb, "get_clipboard_text", return_value=None), \
+             patch.object(kb, "set_clipboard_text", return_value=True), \
+             patch.object(kb, "_clear_clipboard", return_value=False), \
+             patch.object(pyautogui, "hotkey"), \
+             patch("builtins.print") as printed:
+            kb.paste_text("secret", dry_run=False)
+        joined = " ".join(str(call) for call in printed.call_args_list)
+        self.assertIn("[input] WARNING", joined)
+        self.assertIn("无法清空", joined)
+        self.assertIn("敏感", joined)
+
+    def test_restore_success_does_not_print_clear_warning(self):
+        with patch.object(kb, "get_clipboard_text", return_value="prior"), \
+             patch.object(kb, "set_clipboard_text", return_value=True), \
+             patch.object(kb, "_clear_clipboard", return_value=False), \
+             patch.object(pyautogui, "hotkey"), \
+             patch("builtins.print") as printed:
+            kb.paste_text("secret", dry_run=False)
+        joined = " ".join(str(call) for call in printed.call_args_list)
+        self.assertNotIn("[input] WARNING", joined)
 
 
 class ExecutorFailSafeActionTests(unittest.TestCase):
