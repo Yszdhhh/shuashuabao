@@ -1301,11 +1301,13 @@ class MainWindow(QMainWindow):
         adv_host.setLayout(adv_row)
         self.bond_plan_lay.addWidget(adv_host)
 
+    def _valid_scheme_code(self, code: str) -> bool:
+        return code in FETTER_LABELS or code in getattr(self, "_bond_plan_boxes", {}) or code_for_bond_name(code) is not None
+
     def _effective_scheme_codes(self) -> list[str]:
-        scheme = [c for c in (self._shell_extras.get("bond_scheme") or []) if c in FETTER_LABELS]
-        if not scheme:
-            scheme = [c for c in (self.settings.cards or []) if c in FETTER_LABELS]
-        return scheme
+        if "bond_scheme" in self._shell_extras:
+            return [c for c in (self._shell_extras.get("bond_scheme") or []) if self._valid_scheme_code(c)]
+        return [c for c in (self.settings.cards or []) if self._valid_scheme_code(c)]
 
     def _sync_bonds_from_scheme(self) -> None:
         has_scheme = "bond_scheme" in self._shell_extras
@@ -1328,7 +1330,7 @@ class MainWindow(QMainWindow):
     def _on_plan_toggled(self, code: str, checked: bool) -> None:
         if self._syncing_bonds:
             return
-        inverted = [c for c in (self._shell_extras.get("bond_inverted") or []) if c in FETTER_LABELS]
+        inverted = [c for c in (self._shell_extras.get("bond_inverted") or []) if self._valid_scheme_code(c)]
         scheme = self._effective_scheme_codes()
         if code not in scheme:
             scheme.append(code)
@@ -1972,9 +1974,9 @@ class MainWindow(QMainWindow):
         return True
 
     def set_bond_scheme(self, codes: list[str], inverted: list[str] | None = None) -> None:
-        self._shell_extras["bond_scheme"] = [c for c in codes if c in FETTER_LABELS]
+        self._shell_extras["bond_scheme"] = [c for c in codes if self._valid_scheme_code(c)]
         if inverted is not None:
-            self._shell_extras["bond_inverted"] = [c for c in inverted if c in FETTER_LABELS]
+            self._shell_extras["bond_inverted"] = [c for c in inverted if self._valid_scheme_code(c)]
         self._sync_bonds_from_scheme()
 
     def effective_bond_codes(self) -> list[str]:

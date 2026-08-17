@@ -93,11 +93,22 @@ class ApplyModeOverlayTests(unittest.TestCase):
         self.assertIsInstance(out.round_timeout_s, int)
 
     def test_invalid_hidden_default_falls_back_to_base(self):
-        # 损坏的 hidden_default 回落到 base 值，不会崩溃或赋予非法类型。
+        # 损坏的 hidden_default 回落到 base 值，不会崩溃或以 dataclass 默认值覆盖用户 base。
         spec = _spec(hidden_defaults={"auto_create_room": "invalid_bool"})
         with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
-            out = apply_mode_overlay(Settings(auto_create_room=True), "test")
-        self.assertTrue(out.auto_create_room)
+            out = apply_mode_overlay(Settings(auto_create_room=False), "test")
+        self.assertFalse(out.auto_create_room)
+
+        # 同时保留合法 False 与 True 叠加
+        spec_false = _spec(hidden_defaults={"auto_create_room": False})
+        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec_false):
+            out_false = apply_mode_overlay(Settings(auto_create_room=True), "test")
+        self.assertFalse(out_false.auto_create_room)
+
+        spec_true = _spec(hidden_defaults={"auto_create_room": True})
+        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec_true):
+            out_true = apply_mode_overlay(Settings(auto_create_room=False), "test")
+        self.assertTrue(out_true.auto_create_room)
 
     def test_overlay_does_not_reclean_unrelated_fields(self):
         # overlay 只允许改变命名字段：stage1=0 是 base 用户值，overlay 没碰它，

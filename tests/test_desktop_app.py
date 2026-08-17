@@ -584,6 +584,71 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertIn("tishu", cards)
         self.assertNotIn("chengzhang", cards)
 
+
+    def test_explicit_empty_scheme_keeps_effective_and_collect_empty_despite_cards(self):
+        """Settings(cards=['zhufu']) 后 set_bond_scheme([]) 的 effective/collect 基础卡为空，
+        且缺失 bond_scheme 键时保持 factory default (回落 cards)。
+        """
+        self.window.apply_settings_to_ui(Settings(cards=["zhufu"]))
+        self.window.set_bond_scheme([])
+        self.assertEqual([], self.window.effective_bond_codes())
+        self.assertNotIn("zhufu", self.window.collect_settings_from_ui().cards)
+
+        # 缺失 scheme 键时回落 settings.cards
+        self.window._shell_extras.pop("bond_scheme", None)
+        self.assertEqual(["zhufu"], self.window._effective_scheme_codes())
+
+    def test_explicit_empty_scheme_with_attr_route_or_advanced_pack_survives_save_reload(self):
+        """显式空 scheme + attr_route 或 advanced pack 保存/重载不得重新引入基础包。"""
+        self.window.apply_settings_to_ui(Settings(cards=["zhufu"]))
+        self.window.set_bond_scheme([])
+        self.window.route_buttons["intelligence"].setChecked(True)
+        self.window._on_attr_route_clicked()
+        self.window._on_save_settings_clicked()
+
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            collected = restored.collect_settings_from_ui().cards
+            self.assertNotIn("zhufu", collected)
+            self.assertIn("zhili", collected)
+        finally:
+            restored.close()
+
+        # 高级包同理
+        self.window.apply_settings_to_ui(Settings(cards=["zhufu"]))
+        self.window.set_bond_scheme([])
+        self.window._on_advanced_pack_toggled("daodao", True)
+        self.window._on_save_settings_clicked()
+
+        restored2 = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            collected2 = restored2.collect_settings_from_ui().cards
+            self.assertNotIn("zhufu", collected2)
+            self.assertIn("刀刀", collected2)
+        finally:
+            restored2.close()
+
+    def test_select_all_recovers_all_basic_packs_and_deselect_round_trips_accurately(self):
+        """全选从空方案恢复所有基础包；反选后保存重载集合准确。"""
+        self.window.apply_settings_to_ui(Settings(cards=["zhufu"]))
+        self.window.set_bond_scheme([])
+        self.window._select_all_basic_pack()
+        all_codes = set(self.window._bond_plan_boxes.keys())
+        self.assertEqual(all_codes, set(self.window.assemble_whitelist_cards()))
+        self.assertTrue(set(self.window.effective_bond_codes()).issubset(all_codes))
+        self.assertEqual(6, len(self.window.effective_bond_codes()))
+        # 反选特定卡并保存重载
+        self.window.set_bond_scheme(list(all_codes), inverted=["zhufu", "chengzhang"])
+        self.window._on_save_settings_clicked()
+
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            cards = restored.collect_settings_from_ui().cards
+            self.assertNotIn("zhufu", cards)
+            self.assertNotIn("chengzhang", cards)
+            self.assertIn("tishu", cards)
+        finally:
+            restored.close()
     def test_legacy_string_attr_route_is_treated_as_implicit_default(self):
         """旧 schema（无 _shell_schema 标记）的 string attr_route 是旧版默认/推断值，
         不是用户显式选择：加载即清空，不勾选任何属性线，也不贡献 token。"""
