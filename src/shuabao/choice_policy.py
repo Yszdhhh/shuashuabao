@@ -601,8 +601,7 @@ def _skill_hold_or_hide(why: str) -> PolicyDecision:
 def _skill_last_resort(
     cands: PanelCandidates, settings: PolicySettings, why: str
 ) -> PolicyDecision:
-    if settings.allow_skill_giveup:
-        return _giveup_or_close(cands, why)
+    # 技能面板恒定严格且不乱花点：兜底裁决恒为 CLOSE，绝不 GIVEUP 或 REFRESH。
     return _skill_hold_or_hide(why)
 
 def _catalog_rarity_band(name: str) -> str | None:
@@ -741,23 +740,18 @@ def _rank_skill_candidates(
             continue
 
         # 1. Prereq marker / verified chain
-        # Only verified prereq markers in card catalog count as prereqs (or explicit fact with valid card)
-        has_prereq_marker = False
+        has_prereq = False
         if slot.name:
             card_info = lookup_card(slot.name)
             if card_info and card_info.get("prereq"):
-                # Verified prereq in catalog: prereq_met or prereq_marker from card_fact
                 if prereq_met(card_info["prereq"], owned, waived_prereq_names(slot.name, settings.skill_archive_levels)):
-                    has_prereq_marker = True
-                elif slot.card_fact and slot.card_fact.prereq_marker:
-                    has_prereq_marker = True
-                elif getattr(slot, "prereq_marker", False):
-                    has_prereq_marker = True
-        elif slot.card_fact and slot.card_fact.prereq_marker:
-            has_prereq_marker = True
-        elif getattr(slot, "prereq_marker", False):
-            has_prereq_marker = True
-        prereq_rank = 0 if has_prereq_marker else 1
+                    has_prereq = True
+        if not has_prereq:
+            if slot.card_fact and slot.card_fact.prereq_marker:
+                has_prereq = True
+            elif getattr(slot, "prereq_marker", False):
+                has_prereq = True
+        prereq_rank = 0 if has_prereq else 1
 
         # 2. Rarity order (red > orange > purple > blue > white > green)
         rarity_rank = _skill_effective_rarity_rank(slot, settings)
@@ -784,28 +778,27 @@ def _rank_skill_candidates(
             fam_order_rank = focus_families.index(fam)
         elif not settings.skill_focus_families and slot.name:
             fam_order_rank = _skill_config_rank(slot.name, settings)
-        # Legacy chain / archive ranks for fine-tuning
-        chain_rank = skill_chain_rank(slot.name or "", owned, settings.skill_archive_levels) if slot.name else 1
-        penalty_rank = skill_penalty_rank(slot.name or "", settings.skill_archive_levels) if slot.name else 0
-        archive_rank = _skill_archive_unlock_rank(slot.name or "", settings.skill_archive_levels) if slot.name else 0
-        habit_key = -float(habit.get(slot.name or "", 0.0))
 
+        # 严格 6 元组：
+        # (prereq_rank, rarity_rank, -skill_level, new_rank, family_preference_rank, slot.index)
+        # - prereq_rank: 0=已核实前置满足, 1=前置未核实
+        # - rarity_rank: 0=red ... 5=green, unknown=6（按 quality_order 索引，缺失/未知排最末）
+        # - -skill_level: 等级高者优先（5 级优先于 1 级）
+        # - new_rank: 0=新技能, 1=非新技能（或未标记）
+        # - family_preference_rank: 0=命中焦点系/拥有系, 1=未命中 (fam_order_rank)
+        # - slot.index: 确定性兜底 (0, 1, 2)
         ranked.append(
             (
                 prereq_rank,
                 rarity_rank,
-                chain_rank,
-                penalty_rank,
-                archive_rank,
-                habit_key,
-                fam_order_rank,
                 level_key,
                 is_new_rank,
+                fam_order_rank,
                 slot.index,
             )
         )
     ranked.sort()
-    return [int(entry[9]) for entry in ranked]
+    return [int(entry[5]) for entry in ranked]
 
 
 def _decide_skill(
@@ -835,27 +828,23 @@ def _decide_skill(
             None,
             f"技能卡名未读出，已观察 {state.waits} 次，严格关闭面板",
         )
-    if stale:
-        if state.waits < max_skill_waits:
-            return PolicyDecision(
-                PolicyAction.WAIT,
-                None,
-                "刷新后三张卡指纹未变，等待（不刷新/放弃）",
-            )
+    # 可读槽位均未命中焦点系/预设技能（Focus-Miss）：
+    # 技能面板恒定严格：宁可不拿也不乱拿，不消耗刷新次数（REFRESH 不可达），不放弃技能点（GIVEUP 不可达）。
+    # 遇到焦点未命中直接关闭面板。
+    readable_count = sum(
+        1 for s in cands.slots if (
+            s.name or (s.card_fact and (getattr(s.card_fact, "exact_name", None) or getattr(s.card_fact, "family", None)))
+            or s.family
+        )
+    )
+    if readable_count > 0 and not ranked:
         return PolicyDecision(
             PolicyAction.CLOSE,
             None,
-            f"刷新后三张卡指纹未变，已观察 {state.waits} 次，严格关闭面板",
+            "技能未命中预设/焦点系且不满足选择条件，关闭面板",
         )
-    if state.refreshes < state.max_refreshes:
-        return PolicyDecision(
-            PolicyAction.REFRESH,
-            None,
-            f"技能未命中预设/焦点系（已刷新 {state.refreshes}/{state.max_refreshes}），刷新",
-        )
-    if not settings.skill_focus_families and not settings.skill_presets:
-        return PolicyDecision.close(reason="Focus-Miss: 未勾选技能焦点系，严格关闭面板")
-    return _skill_last_resort(cands, settings, "刷新耗尽仍无预设/焦点技能")
+    # 无任何合法候选（如全槽位空名或不可识别），兜底恒定 CLOSE
+    return _skill_last_resort(cands, settings, "无预设/焦点技能")
 
 # ---------------------------------------------------------------------------
 # 羁绊/宝物面板：预设 → 接近合成 → 品质降级；无安全候选 → WAIT→REFRESH→退出。

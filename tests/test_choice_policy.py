@@ -32,6 +32,7 @@ from shuabao.choice_policy import (
     choose_action,
     panel_priority,
     slot_fingerprint,
+    _rank_skill_candidates,
 )
 
 # 便捷构造 -----------------------------------------------------------------
@@ -105,7 +106,7 @@ class TestSkillPolicy(unittest.TestCase):
             ),
             SessionState(),
         )
-        self.assertEqual(d.action, PolicyAction.REFRESH)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
         self.assertIsNone(d.index)
 
     def test_refresh_exhausted_giveup(self):
@@ -125,8 +126,10 @@ class TestSkillPolicy(unittest.TestCase):
             ),
             SessionState(refreshes=3, max_refreshes=3),
         )
-        # 技能 panel：allow_skill_giveup=True + 刷新耗尽 + has_giveup=True → GIVEUP
-        self.assertEqual(d.action, PolicyAction.GIVEUP)
+        # 技能 panel 恒定严格：即使 allow_skill_giveup=True，Focus-Miss 也恒定 CLOSE，永不 GIVEUP
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+        self.assertIsNone(d.index)
+
     def test_refresh_exhausted_no_giveup_close(self):
         d = choose_action(
             skill_cands(
@@ -139,7 +142,7 @@ class TestSkillPolicy(unittest.TestCase):
         self.assertIsNone(d.index)
 
     def test_never_select_high_confidence_non_preset_skill(self):
-        # 候选含高置信非预设技能：必须返回非 SELECT（有刷新预算时先刷新）。
+        # 候选含高置信非预设技能：未命中预设恒定 CLOSE（宁可不选也不乱拿，不刷新）。
         d = choose_action(
             skill_cands(
                 [slot(0, "剑气", confidence=0.99), slot(1, "地震", confidence=0.98)],
@@ -148,8 +151,7 @@ class TestSkillPolicy(unittest.TestCase):
             SessionState(),
         )
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.action, PolicyAction.REFRESH)
-    def test_never_select_non_preset_even_when_presets_empty(self):
+        self.assertEqual(d.action, PolicyAction.CLOSE)
         d = choose_action(
             skill_cands(
                 [slot(0, "剑气", confidence=0.99)],
@@ -798,14 +800,14 @@ class TestBudgetAndPreemption(unittest.TestCase):
         self.assertEqual(d.action, PolicyAction.CLOSE)
 
     def test_min_confidence_gate(self):
-        # 预设命中但置信度低于 min_confidence → 不可选；有刷新预算时先刷新。
+        # 预设命中但置信度低于 min_confidence → 不可选；技能面板宁可不拿也不乱拿，直接关闭面板。
         cands = skill_cands(
             [slot(0, "剑气", confidence=0.5)],
             settings=settings(skill_presets=["剑气"], min_confidence=0.8),
         )
         d = choose_action(cands, SessionState())
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.action, PolicyAction.REFRESH)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
 
 class TestPanelPriority(unittest.TestCase):
     def test_skill_first(self):
@@ -910,7 +912,7 @@ class TestSkillModeStrict(unittest.TestCase):
     """技能恒定严格档：仅焦点系/卡（skill_focus_families 展开 ∪ skill_presets）。"""
 
     def test_hard_mode_rejects_non_focus_card(self):
-        # 目录合法但未勾选系的卡 → 有刷新预算时先刷新。
+        # 目录合法但未勾选系的卡 → 技能恒定严格，直接 CLOSE。
         d = choose_action(
             skill_cands(
                 [slot(0, "箭矢增幅", confidence=0.99)],
@@ -919,7 +921,7 @@ class TestSkillModeStrict(unittest.TestCase):
             SessionState(),
         )
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.action, PolicyAction.REFRESH)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
         self.assertIsNone(d.index)
     def test_hard_mode_rejects_non_focus_even_highest_rarity(self):
         # 非焦点卡品质再高也不选（宁可不拿也不乱拿）。
@@ -991,14 +993,14 @@ class TestOwnedBranchAndRarityPriority(unittest.TestCase):
         d = choose_action(cands, SessionState())
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
 
-    def test_zero_preset_match_refresh_then_giveup_close(self):
-        # 0 预设命中且有刷新预算 → REFRESH。
+    def test_zero_preset_match_close(self):
+        # 0 预设命中（Focus-Miss）→ 恒定 CLOSE（不消耗刷新预算，永不 REFRESH/GIVEUP）。
         cands = skill_cands(
             [slot(0, "地震", confidence=0.99)],
             settings=settings(skill_presets=["寒冰箭"]),
         )
         d = choose_action(cands, SessionState(refreshes=0, max_refreshes=3))
-        self.assertEqual(d.action, PolicyAction.REFRESH)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
 
         # 刷新耗尽且 allow_skill_giveup=False → CLOSE（不 GIVEUP）。
         d2 = choose_action(
@@ -1007,14 +1009,13 @@ class TestOwnedBranchAndRarityPriority(unittest.TestCase):
         )
         self.assertEqual(d2.action, PolicyAction.CLOSE)
 
-        # 刷新耗尽且 allow_skill_giveup=True 且 has_giveup=True → GIVEUP。
+        # 即使 allow_skill_giveup=True 且 has_giveup=True → 技能面板 Focus-Miss 依然恒定 CLOSE（永不 GIVEUP）。
         cands_giveup = skill_cands(
             [slot(0, "地震", confidence=0.99)], has_giveup=True,
             settings=settings(skill_presets=["寒冰箭"], allow_skill_giveup=True),
         )
         d3 = choose_action(cands_giveup, SessionState(refreshes=3, max_refreshes=3))
-        self.assertEqual(d3.action, PolicyAction.GIVEUP)
-
+        self.assertEqual(d3.action, PolicyAction.CLOSE)
 class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
     """已核实前置/存档影响优先级，但不构成硬拒绝（唯一候选仍可选）。"""
 
@@ -1237,10 +1238,10 @@ class TestAssemblePolicySettings(unittest.TestCase):
             SessionState(),
         )
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.action, PolicyAction.REFRESH)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
 
     def test_four_raw_skills_strict_rejects_non_focus(self):
-        """4 个原始技能：严格路径不变，非焦点卡硬拒（有刷新预算时先刷新）。"""
+        """4 个原始技能：严格路径不变，非焦点卡硬拒（直接 CLOSE 面板）。"""
         ps = assemble_policy_settings(
             settings=self.fake_settings(["jq", "pg", "asjg", "hbj"]),
             skill_labels=self.LABELS, fetter_labels={}, policy_doc={},
@@ -1254,7 +1255,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
             SessionState(),
         )
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.action, PolicyAction.REFRESH)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
         self.assertIsNone(d.index)
     def test_zero_to_four_raw_skills_become_focus_families(self):
         for count in range(5):
@@ -1552,5 +1553,105 @@ class TestCardFactAndBadgeFirstSelection(unittest.TestCase):
         self.assertNotEqual(fp_a, fp_b)
         self.assertIn("奥术箭", fp_a)
         self.assertIn("冰霜", fp_b)
+
+
+class TestSkillInvariantsA1toA6(unittest.TestCase):
+    """Skill invariant tests A1-A6 covering P0-1 and P1-2."""
+
+    def test_a1_fresh_session_focus_miss_closes_no_refresh_no_giveup(self):
+        """A1: fresh session (refreshes=0) + readable focus miss => CLOSE (refreshes=0, giveup=0)."""
+        cands = skill_cands(
+            [slot(0, "毒素增幅", confidence=0.99), slot(1, "烈焰风暴", confidence=0.99)],
+            settings=settings(skill_focus_families=["剑气"]),
+        )
+        state = SessionState(refreshes=0, max_refreshes=3)
+        dec = choose_action(cands, state)
+        self.assertEqual(dec.action, PolicyAction.CLOSE)
+        self.assertIsNone(dec.index)
+        self.assertIsNone(dec.target_slot)
+        self.assertEqual(state.refreshes, 0)
+        self.assertIn("关闭面板", dec.reason)
+
+    def test_a2_allow_skill_giveup_focus_miss_closes_never_giveup(self):
+        """A2: allow_skill_giveup=True + focus miss => CLOSE (never GIVEUP)."""
+        cands = skill_cands(
+            [slot(0, "地震", confidence=0.99), slot(1, "火球术", confidence=0.99)],
+            has_giveup=True,
+            settings=settings(skill_presets=["寒冰箭"], allow_skill_giveup=True),
+        )
+        state = SessionState(refreshes=0, max_refreshes=3)
+        dec = choose_action(cands, state)
+        self.assertEqual(dec.action, PolicyAction.CLOSE)
+        self.assertNotEqual(dec.action, PolicyAction.GIVEUP)
+        self.assertNotEqual(dec.action, PolicyAction.REFRESH)
+
+    def test_a3_arbitrary_refreshes_focus_miss_closes(self):
+        """A3: refreshes arbitrary value => CLOSE."""
+        for r in (0, 1, 2, 5, 99):
+            with self.subTest(refreshes=r):
+                cands = skill_cands(
+                    [slot(0, "毒云", confidence=0.99)],
+                    has_giveup=True,
+                    settings=settings(skill_focus_families=["剑气"], allow_skill_giveup=True),
+                )
+                state = SessionState(refreshes=r, max_refreshes=3)
+                dec = choose_action(cands, state)
+                self.assertEqual(dec.action, PolicyAction.CLOSE)
+                self.assertEqual(state.refreshes, r)
+
+    def test_a4_exact_sorting_tuple_verification(self):
+        """A4: exact sorting tuple verification (prereq > rarity > -level > new > fam_pref > slot)."""
+        ps = PolicySettings(
+            skill_focus_families=("剑气", "奥术箭"),
+            skill_presets=(),
+        )
+        # 槽0: 剑气, 红品质(rank=0), level=1, new=1, fam_pref=0
+        # 槽1: 剑气, 红品质(rank=0), level=5, new=1, fam_pref=0 -> -level 更小，优先
+        s0 = SlotCandidate(index=0, name="剑气A", rarity="red", confidence=0.99, skill_level=1, family="剑气")
+        s1 = SlotCandidate(index=1, name="剑气B", rarity="red", confidence=0.99, skill_level=5, family="剑气")
+        ranked = _rank_skill_candidates((s0, s1), ps, ())
+        self.assertEqual(ranked[0], s1.index)
+        self.assertEqual(ranked[1], s0.index)
+
+        # 槽0: 剑气(fam_pref=0), 槽1: 奥术箭(fam_pref=1), 同品质同level -> fam_pref 优先
+        s0 = SlotCandidate(index=0, name="奥术箭1", rarity="red", confidence=0.99, skill_level=1, family="奥术箭")
+        s1 = SlotCandidate(index=1, name="剑气1", rarity="red", confidence=0.99, skill_level=1, family="剑气")
+        ranked = _rank_skill_candidates((s0, s1), ps, ())
+        self.assertEqual(ranked[0], s1.index)  # 剑气 rank 0 < 奥术箭 rank 1
+
+        # unknown rarity 必须排在所有已知品质之后
+        s_unknown = SlotCandidate(index=0, name="剑气X", rarity="unknown", confidence=0.99, skill_level=10, family="剑气")
+        s_white = SlotCandidate(index=1, name="剑气Y", rarity="white", confidence=0.99, skill_level=1, family="剑气")
+        ranked = _rank_skill_candidates((s_unknown, s_white), ps, ())
+        self.assertEqual(ranked[0], s_white.index)  # white (rank=5) < unknown (rank=6)
+
+    def test_a5_prereq_beats_higher_rarity(self):
+        """A5: prereq_rank beats higher rarity."""
+        ps = PolicySettings(
+            skill_focus_families=("剑气",),
+            skill_presets=(),
+        )
+        # s0: red rarity, no prereq (prereq_rank=1)
+        # s1: blue rarity, prereq met (prereq_rank=0)
+        s0 = SlotCandidate(index=0, name="剑气红", rarity="red", confidence=0.99, skill_level=1, family="剑气", prereq_marker=False)
+        s1 = SlotCandidate(index=1, name="剑气蓝", rarity="blue", confidence=0.99, skill_level=1, family="剑气", prereq_marker=True)
+        ranked = _rank_skill_candidates((s0, s1), ps, ())
+        self.assertEqual(ranked[0], s1.index)
+
+    def test_a6_card_fact_focus_miss_closes_without_refresh(self):
+        """A6: CardFact badge-first focus miss closes immediately without refresh."""
+        ps = PolicySettings(
+            skill_focus_families=("奥术箭",),
+            skill_presets=(),
+        )
+        cands = [
+            CardFact(slot=0, family="毒素", rarity="red"),
+            CardFact(slot=1, family="火焰", rarity="gold"),
+        ]
+        panel = PanelCandidates(panel_kind=PANEL_SKILL, slots=tuple(cands), settings=ps)
+        state = SessionState(refreshes=0, max_refreshes=3)
+        dec = choose_action(panel, session=state)
+        self.assertEqual(dec.action, PolicyAction.CLOSE)
+        self.assertEqual(state.refreshes, 0)
 if __name__ == "__main__":
     unittest.main()
