@@ -94,7 +94,9 @@ class ApplyModeOverlayTests(unittest.TestCase):
 
     def test_invalid_hidden_default_falls_back_to_base(self):
         # 损坏的 hidden_default 回落到 base 值，不会崩溃或以 dataclass 默认值覆盖用户 base。
-        # 覆盖 invalid [] / {} / None / bad_string / non-dict 等多类型，防止 32633f4 时代的 _is_overlay_value_accepted 误放行
+        # 覆盖 invalid [] / {} / None / bad_string。这是 fallback 保留 base 的覆盖，
+        # 不是声称 32633f4 无 fallback 下所有 invalid bool 都会红：未知字符串回落
+        # dataclass default True，只有 [] / {} / None 经 bool(v) 变成 False。
         for invalid in ([], {}, None, "invalid_bool"):
             with self.subTest(invalid=invalid):
                 spec = _spec(hidden_defaults={"auto_create_room": invalid})
@@ -162,28 +164,16 @@ class ApplyModeOverlayTests(unittest.TestCase):
                     out = apply_mode_overlay(base, "test")
                 self.assertEqual(out.ocr_mode, "live")
 
-    def test_legacy_32633f4_logic_would_fail_invalid_overlay(self):
-        # 明确对照测试：证明在 32633f4 的 `_is_overlay_value_accepted` 实现下，
-        # invalid [] / {} 会因为 isinstance(v, (bool, int, float, list, dict)) 误放行
-        # 导致 Settings(auto_create_room=False) 被 dataclass 默认值 True 覆盖。
-        def legacy_is_overlay_value_accepted(k: str, v: any, parsed_v: any) -> bool:
-            default_v = getattr(Settings(), k)
-            if parsed_v != default_v or v == default_v:
-                return True
-            if isinstance(v, (bool, int, float, list, dict)):
-                return True
-            return False
+    def test_invalid_overlay_keeps_true_auto_create_room(self):
+        # 32633f4 无 fallback：[] / {} / None 经 bool(v) 把 auto_create_room=True 盖成 False。
+        # apply_mode_overlay 必须走 fallback，invalid 值不得改写用户 True。
+        for invalid in ([], {}, None):
+            with self.subTest(invalid=invalid):
+                spec = _spec(hidden_defaults={"auto_create_room": invalid})
+                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                    out = apply_mode_overlay(Settings(auto_create_room=True), "test")
+                self.assertTrue(out.auto_create_room)
 
-        # 在 32633f4 逻辑下，auto_create_room={} 被 parsed_v 认为是 True（因为 _from_dict pop 掉了 {} 回到 default True），
-        # 且 legacy validator 返回 True（因为 isinstance({}, dict) 为真），从而错误覆盖 base=False。
-        self.assertTrue(legacy_is_overlay_value_accepted("auto_create_room", {}, True))
-        self.assertTrue(legacy_is_overlay_value_accepted("auto_create_room", [], True))
-        # 当前 Settings._from_dict(fallback=...) 能够正确拦截并保留 base=False
-        base = Settings(auto_create_room=False)
-        self.assertFalse(Settings._from_dict({"auto_create_room": {}}, fallback=base).auto_create_room)
-        self.assertFalse(Settings._from_dict({"auto_create_room": []}, fallback=base).auto_create_room)
-        self.assertFalse(Settings._from_dict({"auto_create_room": None}, fallback=base).auto_create_room)
-        self.assertFalse(Settings._from_dict({"auto_create_room": "invalid_bool"}, fallback=base).auto_create_room)
     def test_overlay_does_not_reclean_unrelated_fields(self):
         # overlay 只允许改变命名字段：stage1=0 是 base 用户值，overlay 没碰它，
         # 不得被全量 asdict 重清洗成 1（_from_dict 的 stage1 区间钳制下限是 1）。
