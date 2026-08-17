@@ -74,6 +74,12 @@ ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[3]))
 if not (ROOT / "config").is_dir():
     ROOT = Path(__file__).resolve().parents[3]
 
+# user_settings.json 顶层 _shell_schema：user bundle 的 shell 结构版本。
+# 2 = 新格式：attr_route 恒为 list，且只由属性线 UI 显式勾选写入（可证明确是用户选择）。
+# 缺失/1 = 旧格式：attr_route 可能是字符串 "intelligence"/"strength"/"agility"——
+# 那是旧版默认值或从 cards 推断的隐式值，与显式选择无法区分，加载时需一次性清空。
+SHELL_SCHEMA_VERSION = 2
+
 
 def _app_data_dir() -> Path:
     override = os.environ.get("SHUABAO_APP_DATA")
@@ -543,8 +549,9 @@ class MainWindow(QMainWindow):
         self._shell_extras: dict = {
             "selected_mode_id": "normal_farm",
             "custom_builds": [],
-            "bond_scheme": [],
-            "bond_inverted": [],
+            # bond_scheme/bond_inverted 不在初始默认里：键缺失 = 无方案数据 =
+            # 默认 profile（基础卡组全选）。显式空卡组（cards=[]）会写入空 list 键，
+            # 表示"显式一张不选"，与默认全选严格区分。
             "attr_route": [],
             "advanced_packs": [],
             "hitch_stage_prefix": "3",
@@ -1246,7 +1253,7 @@ class MainWindow(QMainWindow):
                 widget.deleteLater()
         self._bond_plan_boxes = {}
         self._advanced_pack_boxes = {}
-        has_scheme = bool(self._shell_extras.get("bond_scheme"))
+        has_scheme = "bond_scheme" in self._shell_extras
         inverted = set(self._shell_extras.get("bond_inverted") or [])
         scheme = set(self._effective_scheme_codes())
         cap = QLabel("基础卡组（选择 / 反选）")
@@ -1301,7 +1308,7 @@ class MainWindow(QMainWindow):
         return scheme
 
     def _sync_bonds_from_scheme(self) -> None:
-        has_scheme = bool(self._shell_extras.get("bond_scheme"))
+        has_scheme = "bond_scheme" in self._shell_extras
         inverted = set(self._shell_extras.get("bond_inverted") or [])
         scheme = self._effective_scheme_codes()
         effective = [c for c in scheme if c not in inverted]
@@ -1345,6 +1352,8 @@ class MainWindow(QMainWindow):
                 box.setChecked(True)
         finally:
             self._syncing_bonds = False
+        # 全选即写入显式完整方案：显式空卡组状态下按"全选"也必须全部生效。
+        self._shell_extras["bond_scheme"] = list(self._bond_plan_boxes.keys())
         self._shell_extras["bond_inverted"] = []
         self._sync_bonds_from_scheme()
         self._schedule_auto_save()
@@ -1356,6 +1365,10 @@ class MainWindow(QMainWindow):
                 box.setChecked(not box.isChecked())
         finally:
             self._syncing_bonds = False
+        # 反选后的勾选集就是新方案（空方案 = 显式一张不选），保证 sync 不被旧键覆盖。
+        self._shell_extras["bond_scheme"] = [
+            code for code, box in self._bond_plan_boxes.items() if box.isChecked()
+        ]
         inverted = [code for code, box in self._bond_plan_boxes.items() if not box.isChecked()]
         self._shell_extras["bond_inverted"] = inverted
         self._sync_bonds_from_scheme()
@@ -1726,6 +1739,7 @@ class MainWindow(QMainWindow):
         path.parent.mkdir(parents=True, exist_ok=True)
         data = collect_persistable_settings(settings)
         data["_shell"] = dict(self._shell_extras)
+        data["_shell_schema"] = SHELL_SCHEMA_VERSION
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(path)
@@ -1757,15 +1771,26 @@ class MainWindow(QMainWindow):
                 raw = json.loads(user_path.read_text(encoding="utf-8"))
                 extras = raw.pop("_shell", {}) if isinstance(raw, dict) else {}
                 if isinstance(extras, dict):
+                    if raw.get("_shell_schema") != SHELL_SCHEMA_VERSION:
+                        # 旧 schema 一次性迁移：字符串型 attr_route 只可能是旧版默认
+                        # 或从 cards 推断的隐式值（旧 UI 的显式勾选恒写 list），
+                        # 无法与用户显式选择区分，视为隐式默认并清空。
+                        # 不猜 cards 内容；带 _shell_schema 标记的新版数据原样保留。
+                        route = extras.get("attr_route")
+                        if isinstance(route, str):
+                            extras["attr_route"] = []
                     self._shell_extras.update(extras)
                 settings = Settings._from_dict(raw if isinstance(raw, dict) else {})
                 source = "user_settings.json"
+                default_bond = False
             elif FACTORY_SETTINGS.is_file():
                 settings = Settings.load(FACTORY_SETTINGS)
                 source = FACTORY_SETTINGS.name
+                # 工厂默认 profile：无用户方案数据，基础卡组保持默认全选。
+                default_bond = True
             else:
                 return
-            self.apply_settings_to_ui(settings)
+            self.apply_settings_to_ui(settings, bond_default=default_bond)
             mode_id = str(self._shell_extras.get("selected_mode_id") or "normal_farm")
             self._select_mode(mode_id if mode_id in self._page_index else "normal_farm")
             if not silent:
@@ -1773,7 +1798,13 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.log(f"[加载失败] {exc}", "error")
 
-    def apply_settings_to_ui(self, settings: Settings):
+    def apply_settings_to_ui(self, settings: Settings, *, bond_default: bool = False):
+        """把 Settings 铺到 UI。
+
+        bond_default=True 仅用于工厂默认 profile 加载：cards 为空时表示"无方案数据"，
+        基础卡组保持默认全选（_shell_extras 不含 bond_scheme 键）。其余调用方把
+        cards=[] 视为显式空卡组——写入空 list 键，_rebuild_bond_plan 不当作全选。
+        """
         self.settings = copy.deepcopy(settings)
         targets = [item.strip() for item in (settings.stage_targets or []) if item.strip()]
         target = targets[0] if targets else f"1-{max(1, int(settings.stage2))}"
@@ -1803,7 +1834,12 @@ class MainWindow(QMainWindow):
             self._shell_extras["bond_inverted"] = [
                 code for code in self._bond_plan_boxes if code not in set(card_stems)
             ]
+        elif bond_default:
+            # 默认 profile：无方案数据 → 键缺失 = 基础卡组默认全选。
+            self._shell_extras.pop("bond_scheme", None)
+            self._shell_extras.pop("bond_inverted", None)
         else:
+            # 显式空卡组：空 list 键存在，_rebuild_bond_plan 视为"一张不选"。
             self._shell_extras["bond_scheme"] = []
             self._shell_extras["bond_inverted"] = []
         self._syncing_bonds = True

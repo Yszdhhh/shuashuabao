@@ -548,6 +548,93 @@ class DesktopPanelTests(unittest.TestCase):
         after = self.window.assemble_whitelist_cards()
         self.assertNotIn("zhufu", after)
 
+    def test_factory_default_keeps_basic_packs_selected(self):
+        """默认 profile（工厂加载、无用户方案数据）行为保持：基础卡组默认全选。"""
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertIn("zhufu", cards)
+        self.assertIn("chengzhang", cards)
+        self.assertIn("tishu", cards)
+
+    def test_empty_cards_round_trip_stays_strictly_empty(self):
+        """Settings(cards=[]) 经 apply_settings_to_ui→collect_settings_from_ui 后必须仍严格 []。
+
+        空卡组是显式"一张不选"，不得被 _rebuild_bond_plan 的空 scheme 语义
+        解释成"全选基础包"。
+        """
+        self.window.apply_settings_to_ui(Settings(cards=[]))
+        self.assertEqual([], self.window.collect_settings_from_ui().cards)
+
+    def test_empty_cards_bundle_restores_empty(self):
+        """cards=[] 的 bundle 保存→重载后 collect 仍为 []（往返保留，不膨胀成基础包）。"""
+        self.window.apply_settings_to_ui(Settings(cards=[]))
+        self.window._on_save_settings_clicked()
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual([], restored.collect_settings_from_ui().cards)
+        finally:
+            restored.close()
+
+    def test_explicit_basic_scheme_round_trip_unchanged(self):
+        """显式 basic scheme 行为保持：非空 cards 往返不变，反选方案仍然生效。"""
+        self.window.apply_settings_to_ui(Settings(cards=["zhufu", "chengzhang"]))
+        self.assertEqual(["zhufu", "chengzhang"], self.window.collect_settings_from_ui().cards)
+        self.window.set_bond_scheme(["tishu", "chengzhang", "zhufu"], inverted=["chengzhang"])
+        self.assertEqual(["tishu", "zhufu"], self.window.effective_bond_codes())
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertIn("tishu", cards)
+        self.assertNotIn("chengzhang", cards)
+
+    def test_legacy_string_attr_route_is_treated_as_implicit_default(self):
+        """旧 schema（无 _shell_schema 标记）的 string attr_route 是旧版默认/推断值，
+        不是用户显式选择：加载即清空，不勾选任何属性线，也不贡献 token。"""
+        self.window.user_settings_path().write_text(
+            json.dumps({
+                "stage_targets": ["1-12"],
+                "_shell": {"attr_route": "intelligence", "selected_mode_id": "normal_farm"},
+            }),
+            encoding="utf-8",
+        )
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual([], restored._shell_extras.get("attr_route") or [])
+            self.assertFalse(any(b.isChecked() for b in restored.route_buttons.values()))
+            self.assertEqual([], restored._attr_line_tokens())
+        finally:
+            restored.close()
+
+    def test_marked_bundle_explicit_attr_route_is_preserved(self):
+        """新版 bundle（含 _shell_schema 标记）的显式 attr_route 必须原样保留，
+        不得被迁移逻辑抹掉。"""
+        self.window.user_settings_path().write_text(
+            json.dumps({
+                "_shell_schema": 2,
+                "stage_targets": ["1-12"],
+                "_shell": {"attr_route": ["intelligence"], "selected_mode_id": "normal_farm"},
+            }),
+            encoding="utf-8",
+        )
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual(["intelligence"], restored._shell_extras.get("attr_route"))
+            self.assertTrue(restored.route_buttons["intelligence"].isChecked())
+            self.assertIn("zhili", restored._attr_line_tokens())
+        finally:
+            restored.close()
+
+    def test_saved_bundle_carries_shell_schema_marker_and_round_trips_route(self):
+        """保存必须写入 _shell_schema 标记；显式勾选属性线后保存→重载往返保留。"""
+        self.window.route_buttons["strength"].setChecked(True)
+        self.window._on_save_settings_clicked()
+        saved = json.loads(self.window.user_settings_path().read_text(encoding="utf-8"))
+        self.assertEqual(2, saved.get("_shell_schema"))
+        self.assertEqual(["strength"], saved["_shell"]["attr_route"])
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual(["strength"], restored._shell_extras.get("attr_route"))
+            self.assertTrue(restored.route_buttons["strength"].isChecked())
+        finally:
+            restored.close()
+
     def test_resource_page_hides_backend_must_take_and_wood_thresholds(self):
         text = self._panel_text()
         self.assertIn("待验证", text)

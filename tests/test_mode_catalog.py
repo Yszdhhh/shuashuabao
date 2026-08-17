@@ -99,6 +99,24 @@ class ApplyModeOverlayTests(unittest.TestCase):
             out = apply_mode_overlay(Settings(auto_create_room=True), "test")
         self.assertTrue(out.auto_create_room)
 
+    def test_overlay_does_not_reclean_unrelated_fields(self):
+        # overlay 只允许改变命名字段：stage1=0 是 base 用户值，overlay 没碰它，
+        # 不得被全量 asdict 重清洗成 1（_from_dict 的 stage1 区间钳制下限是 1）。
+        spec = _spec(budgets={"round_timeout_s": 900})
+        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+            out = apply_mode_overlay(Settings(stage1=0, round_timeout_s=123), "test")
+        self.assertEqual(0, out.stage1)
+        self.assertEqual(900, out.round_timeout_s)
+
+    def test_real_mode_overlay_preserves_unrelated_stage1(self):
+        # 真实模式叠加同样只改命名字段：normal_farm 只消费 round_timeout_s /
+        # game_mode / auto_create_room，stage1=0 必须保留。
+        out = apply_mode_overlay(Settings(stage1=0), "normal_farm")
+        self.assertEqual(0, out.stage1)
+        self.assertEqual(900, out.round_timeout_s)
+        self.assertEqual(0, out.game_mode)
+        self.assertTrue(out.auto_create_room)
+
 
 if __name__ == "__main__":
     unittest.main()
