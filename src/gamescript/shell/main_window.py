@@ -129,7 +129,6 @@ SKILL_LABELS = {
     if not str(k).startswith("_") and isinstance(v, str)
 }
 SKILL_ICON_DIR = ROOT / "assets" / "Images" / "skills"
-BOND_ICON_DIR = ROOT / "assets" / "Images" / "cards"
 _SKILL_META_DOC = _load_json_doc(ROOT / "config" / "skill_meta.json")
 SKILL_META: dict[str, dict] = _SKILL_META_DOC.get("skills") or {}
 SKILL_PRESETS: list[dict] = _SKILL_META_DOC.get("presets") or []
@@ -143,7 +142,6 @@ FETTER_LABELS: dict[str, str] = {
     for k, v in _FETTER_DOC.items()
     if not str(k).startswith("_") and isinstance(v, str) and v.strip()
 }
-FETTER_STEMS: list[str] = sorted(FETTER_LABELS.keys(), key=lambda c: FETTER_LABELS[c])
 FETTER_NAME_TO_CODE = {name: code for code, name in FETTER_LABELS.items()}
 _STRATEGY = _load_json_doc(ROOT / "config" / "official_strategy_defaults.json")
 OFFICIAL_BUILDS: list[dict] = [b for b in (_STRATEGY.get("builds") or []) if isinstance(b, dict)]
@@ -206,6 +204,16 @@ def code_for_bond_name(name: str) -> str | None:
     return FETTER_NAME_TO_CODE.get(name)
 
 
+# factory/no-user-scheme 的默认羁绊勾选集 = bond_priority.round1_must
+# （祝福/成长/经济/贪婪/挑战）。round1_must 有短码用短码，无短码保留中文名
+# （与基础卡组勾选框的 code 形态一致）。全部可编辑，可任意取消/清空。
+DEFAULT_BOND_CODES: list[str] = [
+    code_for_bond_name(str(name)) or str(name)
+    for name in (BOND_PRIORITY.get("round1_must") or [])
+    if str(name).strip()
+]
+
+
 
 
 def _is_admin() -> bool:
@@ -219,7 +227,7 @@ def _is_admin() -> bool:
 class SkillCardGrid(QWidget):
     """中文技能卡片多选网格：显示中文名，内部存拼音短码，最多 4 个。"""
 
-    MAX_SKILLS = 16
+    MAX_SKILLS = 4
     skills_changed = Signal()
 
     CARD_QSS = (
@@ -317,94 +325,11 @@ class SkillCardGrid(QWidget):
         count = len(self._selected)
         if count == 0:
             return "当前已选 0 个技能：不自动学习任何技能（技能面板直接关闭/隐藏，不刷新、不放弃技能点）。"
-        elif 1 <= count <= 4:
-            return f"当前已选 {count} 个技能【严格模式】：仅学习勾选技能，未选中的永远不学。"
-        else:
-            return f"当前已选 {count} 个技能【全能模式】：可学习全部合法技能，优先聚焦勾选的 {count} 系技能。"
+        return f"当前已选 {count} 个技能【严格模式】：仅学习勾选技能，未选中的永远不学。"
 
     def _refresh_hint(self):
         if hasattr(self, "hint"):
             self.hint.setText(self._mode_hint_text())
-
-
-class BondCardGrid(QWidget):
-    """羁绊多选：中文名展示，内部存短码（写入 settings.cards），最多 6 个。"""
-
-    MAX_BONDS = 6
-    bonds_changed = Signal()
-    CARD_QSS = SkillCardGrid.CARD_QSS
-
-    def __init__(self, stems: list[str], labels: dict[str, str], parent=None):
-        super().__init__(parent)
-        self.stems = stems
-        self.labels = labels
-        self.cards: dict[str, QPushButton] = {}
-        self._selected: list[str] = []
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(8)
-        hint = QLabel(
-            "最多选 6 个套系；只拿勾选套系里的卡。这是最终生效白名单。"
-            "智力 UR=湮灭者，力量 UR=屠戮者，敏捷 UR=收割者。"
-        )
-        hint.setWordWrap(True)
-        hint.setObjectName("hintLabel")
-        lay.addWidget(hint)
-        row = QHBoxLayout()
-        clear_btn = QPushButton("清空")
-        clear_btn.clicked.connect(lambda: self.set_bonds([]))
-        row.addWidget(clear_btn)
-        row.addStretch()
-        lay.addLayout(row)
-        grid = QGridLayout()
-        grid.setSpacing(6)
-        for idx, code in enumerate(self.stems):
-            cn = self.labels.get(code, code)
-            btn = QPushButton(cn)
-            btn.setCheckable(True)
-            btn.setMinimumHeight(36)
-            icon_path = BOND_ICON_DIR / f"{code}.png"
-            if icon_path.is_file():
-                btn.setIcon(QIcon(str(icon_path)))
-                btn.setIconSize(QSize(22, 22))
-            btn.setStyleSheet(self.CARD_QSS)
-            btn.setToolTip(f"{cn}（短码 {code}）")
-            btn.clicked.connect(lambda checked, c=code: self._toggle(c, checked))
-            self.cards[code] = btn
-            grid.addWidget(btn, idx // 5, idx % 5)
-        lay.addLayout(grid)
-
-    def _toggle(self, code: str, checked: bool):
-        if checked:
-            if code not in self._selected:
-                if len(self._selected) >= self.MAX_BONDS:
-                    self.cards[code].setChecked(False)
-                    QMessageBox.information(self, "羁绊限制", f"羁绊最多选择 {self.MAX_BONDS} 个")
-                    return
-                self._selected.append(code)
-        elif code in self._selected:
-            self._selected.remove(code)
-        self._refresh()
-        self.bonds_changed.emit()
-
-    def set_bonds(self, codes: list[str]):
-        self._selected = [c for c in codes if c in self.cards][: self.MAX_BONDS]
-        for code, btn in self.cards.items():
-            btn.setChecked(code in self._selected)
-        self._refresh()
-        self.bonds_changed.emit()
-
-    def get_bonds(self) -> list[str]:
-        return list(self._selected)
-
-    def selected_names(self) -> list[str]:
-        return [self.labels.get(code, code) for code in self._selected]
-
-    def _refresh(self):
-        order = {code: i + 1 for i, code in enumerate(self._selected)}
-        for code, btn in self.cards.items():
-            name = self.labels.get(code, code)
-            btn.setText(f"{order[code]}. {name}" if code in order else name)
 
 
 class SkillArchiveLevelGrid(QWidget):
@@ -550,8 +475,8 @@ class MainWindow(QMainWindow):
             "selected_mode_id": "normal_farm",
             "custom_builds": [],
             # bond_scheme/bond_inverted 不在初始默认里：键缺失 = 无方案数据 =
-            # 默认 profile（基础卡组全选）。显式空卡组（cards=[]）会写入空 list 键，
-            # 表示"显式一张不选"，与默认全选严格区分。
+            # 默认 profile（基础卡组默认勾选 round1_must 五张）。显式空卡组
+            # （cards=[]）会写入空 list 键，表示"显式一张不选"，与默认严格区分。
             "attr_route": [],
             "advanced_packs": [],
             "hitch_stage_prefix": "3",
@@ -901,7 +826,7 @@ class MainWindow(QMainWindow):
             child.setVisible(False)
         adv_lay.addWidget(room_box)
 
-        skill_box, skill_lay = self._section("技能配置", "0=不自动学; 1-4=严格仅学已选; 5-16=全能模式(已选系优先聚焦)")
+        skill_box, skill_lay = self._section("技能配置", "0=不自动学; 1-4=严格仅学已选")
         adj = QLabel("手动技能与存档等级")
         adj.setObjectName("sectionCap")
         skill_lay.addWidget(adj)
@@ -961,16 +886,6 @@ class MainWindow(QMainWindow):
         self.grp_bond_basic.toggled.connect(self.bond_plan_host.setVisible)
         self.bond_plan_host.setVisible(False)
         bond_lay.addWidget(self.grp_bond_basic)
-        self.grp_bond = QGroupBox("羁绊")
-        self.grp_bond.setCheckable(True)
-        self.grp_bond.setChecked(False)
-        bl = QVBoxLayout(self.grp_bond)
-        self.bond_grid = BondCardGrid(FETTER_STEMS, FETTER_LABELS)
-        bl.addWidget(self.bond_grid)
-        self.bond_grid.setVisible(False)
-        self.grp_bond.toggled.connect(self._set_bond_panel_expanded)
-        self.bond_grid.bonds_changed.connect(self._on_bonds_changed)
-        bond_lay.addWidget(self.grp_bond)
         adv_lay.addWidget(bond_box)
 
         loot_box, loot_lay = self._section("宝物与资源", "特殊宝物默认全不放行")
@@ -1279,7 +1194,7 @@ class MainWindow(QMainWindow):
             if has_scheme:
                 box.setChecked(code in scheme and code not in inverted)
             else:
-                box.setChecked(code not in inverted)
+                box.setChecked(code in DEFAULT_BOND_CODES and code not in inverted)
             box.toggled.connect(lambda checked, c=code: self._on_plan_toggled(c, checked))
             self._bond_plan_boxes[code] = box
             grid.addWidget(box, col // 5, col % 5)
@@ -1313,16 +1228,14 @@ class MainWindow(QMainWindow):
         has_scheme = "bond_scheme" in self._shell_extras
         inverted = set(self._shell_extras.get("bond_inverted") or [])
         scheme = self._effective_scheme_codes()
-        effective = [c for c in scheme if c not in inverted]
         self._syncing_bonds = True
         try:
-            self.bond_grid.set_bonds(effective[: BondCardGrid.MAX_BONDS])
             for code, box in self._bond_plan_boxes.items():
                 box.blockSignals(True)
                 if has_scheme:
                     box.setChecked(code in scheme and code not in inverted)
                 else:
-                    box.setChecked(code not in inverted)
+                    box.setChecked(code in DEFAULT_BOND_CODES and code not in inverted)
                 box.blockSignals(False)
         finally:
             self._syncing_bonds = False
@@ -1332,6 +1245,11 @@ class MainWindow(QMainWindow):
             return
         inverted = [c for c in (self._shell_extras.get("bond_inverted") or []) if self._valid_scheme_code(c)]
         scheme = self._effective_scheme_codes()
+        if "bond_scheme" not in self._shell_extras:
+            # 隐式默认态（factory/no-user-scheme）：先把当前可见勾选集实体化为
+            # 显式方案，再应用本次切换——取消一个默认不得连带取消其余默认。
+            scheme = [c for c, box in self._bond_plan_boxes.items() if box.isChecked()]
+            self._shell_extras["bond_scheme"] = scheme
         if code not in scheme:
             scheme.append(code)
             self._shell_extras["bond_scheme"] = scheme
@@ -1624,10 +1542,8 @@ class MainWindow(QMainWindow):
         names = self.skill_grid.selected_names()
         if not names:
             self.grp_skill.setTitle("技能（未选 · 不学技能）")
-        elif count <= 4:
-            self.grp_skill.setTitle(f"技能（严格模式 {count}/16：{'、'.join(names)}）")
         else:
-            self.grp_skill.setTitle(f"技能（全能模式 {count}/16：优先 {'、'.join(names[:4])} 等 {count} 系）")
+            self.grp_skill.setTitle(f"技能（严格模式 {count}/4：{'、'.join(names)}）")
 
     def _set_advanced_expanded(self, expanded: bool):
         self.advanced_host.setVisible(expanded)
@@ -1658,28 +1574,6 @@ class MainWindow(QMainWindow):
 
     def _on_archive_levels_changed(self):
         self._refresh_archive_title()
-        self._schedule_auto_save()
-
-    def _refresh_bond_title(self):
-        names = self.bond_grid.selected_names()
-        self.grp_bond.setTitle(
-            f"羁绊（已选 {'、'.join(names)}）" if names else "羁绊（未选 · 只刷新后暂时隐藏）"
-        )
-
-    def _set_bond_panel_expanded(self, expanded: bool):
-        self.bond_grid.setVisible(expanded)
-        self._refresh_bond_title()
-
-    def _on_bonds_changed(self):
-        if not self._syncing_bonds:
-            selected = self.bond_grid.get_bonds()
-            scheme = self._effective_scheme_codes() or list(selected)
-            self._shell_extras["bond_scheme"] = scheme
-            self._shell_extras["bond_inverted"] = [c for c in scheme if c not in selected]
-        names = self.bond_grid.selected_names()
-        self._refresh_bond_title()
-        if len(names) == self.bond_grid.MAX_BONDS and self.grp_bond.isChecked():
-            self.grp_bond.setChecked(False)
         self._schedule_auto_save()
 
     def _on_negative_changed(self):
@@ -1804,8 +1698,9 @@ class MainWindow(QMainWindow):
         """把 Settings 铺到 UI。
 
         bond_default=True 仅用于工厂默认 profile 加载：cards 为空时表示"无方案数据"，
-        基础卡组保持默认全选（_shell_extras 不含 bond_scheme 键）。其余调用方把
-        cards=[] 视为显式空卡组——写入空 list 键，_rebuild_bond_plan 不当作全选。
+        基础卡组保持默认勾选 round1_must 五张（_shell_extras 不含 bond_scheme 键）。
+        其余调用方把 cards=[] 视为显式空卡组——写入空 list 键，_rebuild_bond_plan
+        不当作默认勾选。
         """
         self.settings = copy.deepcopy(settings)
         targets = [item.strip() for item in (settings.stage_targets or []) if item.strip()]
@@ -1824,7 +1719,16 @@ class MainWindow(QMainWindow):
         self.spn_dragon_ball.setValue(int(settings.dragon_ball_count or 7))
         self.chk_longzhu_multi.setChecked(bool(settings.find_longzhu_where_multi_game))
         self.chk_longzhu_in_game.setChecked(bool(settings.find_longzhu_in_game))
-        self.skill_grid.set_skills(settings.skills or [])
+        skills_in = list(settings.skills or [])
+        if len(skills_in) > SkillCardGrid.MAX_SKILLS:
+            # 旧版错误持久化的 5+ 技能：确定性截断为前 4 个，并给一条用户可见
+            # 警告（不列技能名，避免泄露多余数据）。
+            self.log(
+                f"[加载] 已保存技能 {len(skills_in)} 个超过上限 {SkillCardGrid.MAX_SKILLS}，"
+                f"仅保留前 {SkillCardGrid.MAX_SKILLS} 个（其余忽略）",
+                "warn",
+            )
+        self.skill_grid.set_skills(skills_in)
         self.archive_grid.set_levels(dict(getattr(settings, "skill_archive_levels", None) or {}))
         card_stems = []
         for item in settings.cards or []:
@@ -1844,11 +1748,6 @@ class MainWindow(QMainWindow):
             # 显式空卡组：空 list 键存在，_rebuild_bond_plan 视为"一张不选"。
             self._shell_extras["bond_scheme"] = []
             self._shell_extras["bond_inverted"] = []
-        self._syncing_bonds = True
-        try:
-            self.bond_grid.set_bonds(card_stems[: BondCardGrid.MAX_BONDS])
-        finally:
-            self._syncing_bonds = False
         self._rebuild_bond_plan()
         self.grp_negative.set_allowed(list(getattr(settings, "treasure_allow_negative", []) or []))
         mode_index = self.cmb_mode.findData(bool(settings.auto_reputation))
@@ -1932,7 +1831,7 @@ class MainWindow(QMainWindow):
         if not build:
             return False
         new_skills = [str(c) for c in (build.get("skills") or [])][: SkillCardGrid.MAX_SKILLS]
-        new_cards = [str(c) for c in (build.get("cards") or [])][: BondCardGrid.MAX_BONDS]
+        new_cards = [str(c) for c in (build.get("cards") or [])]
         new_rep = int(build.get("reputation_type") or 3)
         if confirm:
             cur = self.collect_settings_from_ui()
@@ -1981,7 +1880,7 @@ class MainWindow(QMainWindow):
 
     def effective_bond_codes(self) -> list[str]:
         inverted = set(self._shell_extras.get("bond_inverted") or [])
-        return [c for c in self._effective_scheme_codes() if c not in inverted][: BondCardGrid.MAX_BONDS]
+        return [c for c in self._effective_scheme_codes() if c not in inverted]
 
     def _on_apply_build_clicked(self) -> None:
         build_id = str(self.cmb_build.currentData() or "")

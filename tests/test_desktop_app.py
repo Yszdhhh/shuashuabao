@@ -80,7 +80,7 @@ class DesktopPanelTests(unittest.TestCase):
         ):
             self.assertNotIn(removed_text, panel_text)
 
-    def test_skill_buttons_show_chinese_names_and_supports_up_to_16(self):
+    def test_skill_buttons_show_chinese_names_and_enforce_max_four(self):
         for code, button in self.window.skill_grid.cards.items():
             self.assertNotIn(code, button.text())
             self.assertNotIn("(", button.text())
@@ -91,17 +91,110 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertIn("严格模式", self.window.grp_skill.title())
         self.assertIn("严格模式", self.window.skill_grid.hint.text())
 
-        # 选 5 个及以上：全能模式标题与提示，可达 16 个
-        all_16 = list(self.window.skill_grid.cards.keys())[:16]
-        self.window.skill_grid.set_skills(all_16)
-        self.assertEqual(len(self.window.skill_grid.get_skills()), 16)
-        self.assertIn("全能模式", self.window.grp_skill.title())
-        self.assertIn("全能模式", self.window.skill_grid.hint.text())
-
         # 选 0 个：未选模式提示
         self.window.skill_grid.set_skills([])
         self.assertIn("未选", self.window.grp_skill.title())
         self.assertIn("不自动学习任何技能", self.window.skill_grid.hint.text())
+
+    def test_skill_max_four_fifth_toggle_rejected(self):
+        """第 5 个技能勾选被拒：按钮复位、计数仍为 4、无全能/all_round 文案。"""
+        grid = self.window.skill_grid
+        grid.set_skills(["asj", "asjg", "assx", "jq"])
+        self.assertEqual(4, len(grid.get_skills()))
+        with patch("gamescript.shell.main_window.QMessageBox.information") as info:
+            grid._toggle("tl", True)
+        info.assert_called_once()
+        self.assertEqual(4, len(grid.get_skills()))
+        self.assertFalse(grid.cards["tl"].isChecked())
+        panel_text = self._panel_text()
+        self.assertNotIn("全能", panel_text)
+        self.assertNotIn("all_round", panel_text)
+
+    def test_skill_max_four_truncates_on_set(self):
+        """set_skills 传入 5+ 只保留前 4 个（确定性，未知码丢弃）。"""
+        grid = self.window.skill_grid
+        grid.set_skills(["asj", "asjg", "assx", "jq", "byj", "tl", "nonexistent"])
+        self.assertEqual(["asj", "asjg", "assx", "jq"], grid.get_skills())
+        self.assertEqual(4, grid.MAX_SKILLS)
+        self.assertNotIn("全能", self.window.skill_grid.hint.text())
+
+    def test_skill_persisted_five_plus_loads_first_four_and_warns(self):
+        """已保存 5+ 技能：加载确定性截断为前 4 个，并输出一条用户可见警告（不泄露技能名）。"""
+        self.window.user_settings_path().write_text(
+            json.dumps({
+                "_shell_schema": 2,
+                "stage_targets": ["1-10"],
+                "skills": ["asj", "asjg", "assx", "jq", "byj", "tl"],
+                "cards": [],
+                "_shell": {"selected_mode_id": "normal_farm"},
+            }),
+            encoding="utf-8",
+        )
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual(["asj", "asjg", "assx", "jq"], restored.skill_grid.get_skills())
+            self.assertEqual(["asj", "asjg", "assx", "jq"], restored.collect_settings_from_ui().skills)
+            self.assertIn("超过上限", restored.txt_log.toPlainText())
+            self.assertNotIn("byj", restored.txt_log.toPlainText())
+        finally:
+            restored.close()
+
+    def test_factory_default_bonds_exactly_five_round1_must(self):
+        """factory/no-user-scheme：基础羁绊默认恰为 祝福/成长/经济/贪婪/挑战。"""
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertEqual(
+            {"zhufu", "chengzhang", "经济", "tanlan", "挑战"},
+            set(cards),
+        )
+        self.assertEqual(5, len(cards))
+
+    def test_each_default_bond_can_be_deselected(self):
+        """五个默认羁绊任选取消/恢复：取消一个不得连带取消其余默认。"""
+        defaults = ["zhufu", "chengzhang", "经济", "tanlan", "挑战"]
+        for code in defaults:
+            self.window._on_plan_toggled(code, False)
+            cards = self.window.collect_settings_from_ui().cards
+            self.assertNotIn(code, cards)
+            self.assertEqual(
+                set(defaults) - {code}, set(cards),
+                "取消一个默认不得连带取消其余默认",
+            )
+            self.window._on_plan_toggled(code, True)
+            self.assertEqual(
+                set(defaults), set(self.window.collect_settings_from_ui().cards)
+            )
+
+    def test_factory_defaults_all_deselected_persist_empty(self):
+        """全取消默认五羁绊 = 显式空：保存重载后仍严格为空。"""
+        for code in ("zhufu", "chengzhang", "经济", "tanlan", "挑战"):
+            self.window._on_plan_toggled(code, False)
+        self.assertEqual([], self.window.collect_settings_from_ui().cards)
+        self.window._on_save_settings_clicked()
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual([], restored.collect_settings_from_ui().cards)
+            self.assertEqual([], restored.assemble_whitelist_cards())
+        finally:
+            restored.close()
+
+    def test_two_attr_routes_still_expand_and_persist(self):
+        """智力+力量两条属性线同时勾选：各自展开进白名单，保存重载后仍生效。"""
+        self.window.route_buttons["intelligence"].setChecked(True)
+        self.window.route_buttons["strength"].setChecked(True)
+        self.window._on_attr_route_clicked()
+        cards = self.window.collect_settings_from_ui().cards
+        for token in ("zhili", "yanmiezhe", "tuluzhe", "xueshi"):
+            self.assertIn(token, cards)
+        self.window._on_save_settings_clicked()
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual(["intelligence", "strength"], restored._shell_extras.get("attr_route"))
+            collected = restored.collect_settings_from_ui().cards
+            for token in ("zhili", "yanmiezhe", "tuluzhe", "xueshi"):
+                self.assertIn(token, collected)
+        finally:
+            restored.close()
+
     def test_home_page_keeps_optional_sections_collapsed(self):
         """首页默认不展开「深入设置」这类umbrella；技能/宝物/日志各自独立折叠。"""
         self.assertFalse(hasattr(self.window, "grp_deep"))
@@ -582,12 +675,15 @@ class DesktopPanelTests(unittest.TestCase):
         after = self.window.assemble_whitelist_cards()
         self.assertNotIn("zhufu", after)
 
-    def test_factory_default_keeps_basic_packs_selected(self):
-        """默认 profile（工厂加载、无用户方案数据）行为保持：基础卡组默认全选。"""
+    def test_factory_default_keeps_five_round1_must_selected(self):
+        """默认 profile（工厂加载、无用户方案数据）：基础卡组默认勾选 round1_must 五张。"""
         cards = self.window.collect_settings_from_ui().cards
         self.assertIn("zhufu", cards)
         self.assertIn("chengzhang", cards)
-        self.assertIn("tishu", cards)
+        self.assertIn("经济", cards)
+        self.assertIn("tanlan", cards)
+        self.assertIn("挑战", cards)
+        self.assertEqual(5, len(cards))
 
     def test_empty_cards_round_trip_stays_strictly_empty(self):
         """Settings(cards=[]) 经 apply_settings_to_ui→collect_settings_from_ui 后必须仍严格 []。
@@ -669,8 +765,7 @@ class DesktopPanelTests(unittest.TestCase):
         self.window._select_all_basic_pack()
         all_codes = set(self.window._bond_plan_boxes.keys())
         self.assertEqual(all_codes, set(self.window.assemble_whitelist_cards()))
-        self.assertTrue(set(self.window.effective_bond_codes()).issubset(all_codes))
-        self.assertEqual(6, len(self.window.effective_bond_codes()))
+        self.assertEqual(all_codes, set(self.window.effective_bond_codes()))
         # 反选特定卡并保存重载
         self.window.set_bond_scheme(list(all_codes), inverted=["zhufu", "chengzhang"])
         self.window._on_save_settings_clicked()
@@ -1097,20 +1192,22 @@ class DesktopPanelTests(unittest.TestCase):
         collected = self.window.collect_settings_from_ui()
         self.assertTrue(len(collected.skills) > 0 or len(collected.cards) > 0)
 
-    def test_stage_difficulty_label_and_five_plus_skill_roundtrip(self):
-        """关卡难度标签存在，5+ 技能往返无损。"""
+    def test_stage_difficulty_label_and_four_skill_roundtrip(self):
+        """关卡难度标签存在；5+ 技能往返截断为前 4 个且无全能文案。"""
         panel_text = self._panel_text()
         self.assertIn("关卡难度", panel_text)
 
         skills_7 = ["asj", "asjg", "assx", "jq", "byj", "tl", "dz"]
         self.window.skill_grid.set_skills(skills_7)
         collected = self.window.collect_settings_from_ui()
-        self.assertEqual(skills_7, collected.skills)
+        self.assertEqual(skills_7[:4], collected.skills)
 
         self.window.skill_grid.set_skills([])
         self.window.apply_settings_to_ui(collected)
-        self.assertEqual(skills_7, self.window.skill_grid.get_skills())
-        self.assertIn("全能模式", self.window.grp_skill.title())
+        self.assertEqual(skills_7[:4], self.window.skill_grid.get_skills())
+        self.assertIn("严格模式", self.window.grp_skill.title())
+        self.assertNotIn("全能", self.window.grp_skill.title())
+        self.assertNotIn("全能", self.window.skill_grid.hint.text())
 
 if __name__ == "__main__":
     unittest.main()
