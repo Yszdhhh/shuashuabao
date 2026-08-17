@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -185,10 +185,11 @@ class Settings:
         return cls._from_dict(mapped)
 
     @classmethod
-    def _from_dict(cls, data: dict[str, Any]) -> "Settings":
+    def _from_dict(cls, data: dict[str, Any] | None, fallback: Settings | None = None) -> "Settings":
+        if not isinstance(data, dict):
+            return copy.deepcopy(fallback) if fallback is not None else cls()
         known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
         clean = {k: v for k, v in data.items() if k in known}
-        # None → 安全默认
         for k, v in list(clean.items()):
             if v is None:
                 if k in ("room_name", "room_password", "cjb_boss", "sgzx_boss",
@@ -197,6 +198,18 @@ class Settings:
                 elif k in ("skills", "cards", "stage_targets", "treasure_allow_negative"):
                     clean[k] = []
         # 类型/范围强制：损坏或异常值回落到安全默认，避免整份配置加载失败
+        str_fields = {
+            "room_name", "room_password", "room_create_side",
+            "reputation_cjb_boss", "reputation_sgzx_boss",
+            "cjb_boss", "sgzx_boss", "window_title_contains",
+            "ocr_repo_root", "images_dir",
+        }
+        for k in str_fields:
+            if k in clean:
+                if isinstance(clean[k], (list, dict)):
+                    clean.pop(k)
+                elif not isinstance(clean[k], str):
+                    clean[k] = str(clean[k])
         int_fields = {
             "stage1", "stage2", "query_timeout", "game_timeout", "game_mode",
             "dragon_ball_count", "close_main_line_time", "auto_clean_interval",
@@ -217,16 +230,22 @@ class Settings:
         }
         for k in float_fields:
             if k in clean:
-                try:
-                    clean[k] = float(clean[k])
-                except (TypeError, ValueError):
+                if isinstance(clean[k], (list, dict)) or clean[k] is None:
                     clean.pop(k)
+                else:
+                    try:
+                        clean[k] = float(clean[k])
+                    except (TypeError, ValueError):
+                        clean.pop(k)
         for k in int_fields:
             if k in clean:
-                try:
-                    clean[k] = int(clean[k])
-                except (TypeError, ValueError):
+                if isinstance(clean[k], (list, dict)) or clean[k] is None:
                     clean.pop(k)
+                else:
+                    try:
+                        clean[k] = int(clean[k])
+                    except (TypeError, ValueError):
+                        clean.pop(k)
         bool_fields = {
             "auto_create_room", "new_room_every_times", "find_longzhu_where_multi_game",
             "find_longzhu_in_game",
@@ -247,14 +266,18 @@ class Settings:
                     else:
                         # 未知字符串：回落字段默认值，绝不悄悄改变功能开关
                         clean.pop(k)
-                else:
-                    # 非 bool/str 数值：按真值转换
+                elif isinstance(v, (int, float)):
                     clean[k] = bool(v)
+                else:
+                    clean.pop(k)
         if "match_threshold" in clean:
-            try:
-                clean["match_threshold"] = float(clean["match_threshold"])
-            except (TypeError, ValueError):
+            if isinstance(clean["match_threshold"], (list, dict)) or clean["match_threshold"] is None:
                 clean.pop("match_threshold")
+            else:
+                try:
+                    clean["match_threshold"] = float(clean["match_threshold"])
+                except (TypeError, ValueError):
+                    clean.pop("match_threshold")
         # 范围钳制（集中表）：负数/极端值回落到安全区间
         _RANGES: dict[str, tuple[int, int]] = {
             "stage1": (1, 50), "stage2": (1, 50),
@@ -296,12 +319,6 @@ class Settings:
                     clean[k] = max(lo, min(hi, float(clean[k])))
                 except (TypeError, ValueError):
                     clean.pop(k)
-        for k, (lo, hi) in _RANGES.items():
-            if k in clean:
-                try:
-                    clean[k] = max(lo, min(hi, int(clean[k])))
-                except (TypeError, ValueError):
-                    clean.pop(k)
         if "match_threshold" in clean:
             clean["match_threshold"] = max(0.5, min(0.99, float(clean["match_threshold"])))
         # 负面宝物放行名单：只接受字符串列表；类型不对一律回落为空（不放行任何负面卡）。
@@ -311,14 +328,16 @@ class Settings:
                 clean["treasure_allow_negative"] = [
                     str(v).strip() for v in raw_allow if str(v).strip()
                 ]
+            elif fallback is not None:
+                clean.pop("treasure_allow_negative")
             else:
                 clean["treasure_allow_negative"] = []
         # 技能存档等级：只接受 {短码: int} 映射；值域清洗（0..50，0=未知剔除），
         # 类型/范围损坏一律回落为空映射（保守：未知存档不放宽任何前置/减伤）。
         if "skill_archive_levels" in clean:
             raw_levels = clean["skill_archive_levels"]
-            levels: dict[str, int] = {}
             if isinstance(raw_levels, dict):
+                levels: dict[str, int] = {}
                 for code, lv in raw_levels.items():
                     try:
                         value = int(lv)
@@ -327,14 +346,29 @@ class Settings:
                     if value <= 0:
                         continue
                     levels[str(code).strip()] = max(0, min(50, value))
-            clean["skill_archive_levels"] = levels
+                clean["skill_archive_levels"] = levels
+            elif fallback is not None:
+                clean.pop("skill_archive_levels")
+            else:
+                clean["skill_archive_levels"] = {}
         if "window_size" in clean:
             ws = clean["window_size"]
             if not (isinstance(ws, list) and len(ws) == 2
                     and all(isinstance(v, int) and v > 0 for v in ws)):
                 clean.pop("window_size")
-        mode = str(clean.get("ocr_mode", "off")).strip().lower()
-        clean["ocr_mode"] = mode if mode in {"off", "shadow", "live"} else "off"
+        if "ocr_mode" in clean:
+            v = clean["ocr_mode"]
+            if isinstance(v, str):
+                mode = v.strip().lower()
+                if mode in {"off", "shadow", "live"}:
+                    clean["ocr_mode"] = mode
+                else:
+                    clean.pop("ocr_mode")
+            else:
+                clean.pop("ocr_mode")
+
+        if fallback is not None:
+            return replace(fallback, **clean)
         return cls(**clean)
 
     def save(self, path: str | Path) -> None:

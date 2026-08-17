@@ -87,24 +87,6 @@ def desktop_may_start(mode_id: str) -> bool:
     return bool(spec.live_enabled and spec.desktop_start)
 
 
-def _is_overlay_value_accepted(k: str, v: Any, parsed_v: Any) -> bool:
-    default_v = getattr(Settings(), k)
-    if parsed_v != default_v or v == default_v:
-        return True
-    if isinstance(v, (bool, int, float, list, dict)):
-        return True
-    if isinstance(v, str):
-        s = v.strip().lower()
-        if s in ("1", "true", "yes", "on", "0", "false", "no", "off", ""):
-            return True
-        try:
-            if int(s) == parsed_v or float(s) == parsed_v:
-                return True
-        except (ValueError, TypeError):
-            pass
-    return False
-
-
 def apply_mode_overlay(settings: Settings, mode_id: str) -> Settings:
     spec = get_spec(mode_id)
     # budgets 与 hidden_defaults 都消费，但只接受真实 Settings 字段（未知键忽略）；
@@ -114,16 +96,7 @@ def apply_mode_overlay(settings: Settings, mode_id: str) -> Settings:
         for k, v in source.items():
             if k in _SETTINGS_FIELDS:
                 merged[k] = v
-    # 复用 Settings._from_dict 的清洗语义（类型强制、区间钳制、损坏值回落），但只对
-    # overlay 命名字段生效：每个键在最小 payload 中清洗后再 replace 仅这些键。
-    # 绝不把整个 asdict 重清洗一遍——那会改到 overlay 没碰的字段（如 stage1=0 → 1）。
-    # 损坏值在 _from_dict 中会被 pop，回落 dataclass 默认值；此时不得用默认值覆盖 base。
-    cleaned: dict[str, Any] = {}
-    for k, v in merged.items():
-        parsed_v = getattr(Settings._from_dict({k: v}), k)
-        if _is_overlay_value_accepted(k, v, parsed_v):
-            cleaned[k] = parsed_v
-    return replace(settings, **cleaned)
+    return Settings._from_dict(merged, fallback=settings)
 
 
 def collect_persistable_settings(settings: Settings) -> dict[str, Any]:
