@@ -1,6 +1,6 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
-## 2026-08-17 39881f4 技能选卡模型修正：至多 4 系恒严格（docs/KB-only；完整 gate 未跑，未真机）
+## 2026-08-17 39881f4 技能选卡模型修正：至多 4 系恒严格（docs/KB-only；release_gate 4/4 PASS @ eb739de；未真机）
 
 工作区 `G:\刷刷宝\Worktrees\GameScript-SelectionModelFix-20260817`，当前 HEAD `39881f4`。本提交只改 `config/game_mechanics_kb.json` 与本文档，不改生产/测试代码。早前「0–4 严格 / 5–16 全才（all_round）」选卡模型已按用户 2026-08-17 确认**显式作废**，活动契约改为：
 
@@ -8,7 +8,7 @@
 - **基础羁绊**：看板为单一勾选区块（无重复网格）。工厂/无方案默认恰为 祝福、成长、经济、贪婪、挑战（`bond_priority.round1_must` 五张，由 `DEFAULT_BOND_CODES` 生成），可编辑、可任意取消/清空；显式清空（`cards=[]` 空 list 键）保持为空，与默认严格区分。
 - **属性路线**：智力/力量/敏捷 各自独立多选（显式勾选才写 `attr_route`，恒为 list），消费端唯一展开 chain + support。
 
-**证据（修正后定向回归，非完整 release_gate）**：TDD 初始 RED 6 failed/3 passed；跨条目 RED 5 failed/3 passed；最终受影响回归 288 passed/115 subtests；渲染 Qt 截图技能与羁绊 PASS（无裁剪/无重叠）。**完整 `python tools/release_gate.py` 尚未在修正后重跑（full gate pending）；无任何真机验证。**
+**证据**：修正后定向回归——TDD 初始 RED 6 failed/3 passed；跨条目 RED 5 failed/3 passed；最终受影响回归 288 passed/115 subtests；渲染 Qt 截图技能与羁绊 PASS（无裁剪/无重叠）。**完整 `python tools/release_gate.py` 主 agent 已在 eb739de 执行，退出码 0，4/4 PASS**：pytest 871 passed、2 xfailed、11 skipped；frozen_replay PASS（`disconnect_modal_missing` 仍 BLOCKED，属既有可接受观测）；scene_templates 132 ok/0 missing；contract 67 passed/1 present。contract 计数由 72 变为 67，是因为五条过时的 all_round 契约用例被干净移除/迁移，并非跳过或压制测试。**无任何真机验证；离线 gate 不替代真机。**
 
 下文「2026-08-17 CORE02/CORE03 集成批次」一节中 5–16 / all_round / 全才 描述已被本节取代，仅保留为历史批注，**不得再当作现行行为**。
 
