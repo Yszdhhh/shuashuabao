@@ -135,6 +135,55 @@ class PasteTextClipboardRestoreTests(unittest.TestCase):
                 kb.paste_text("secret", dry_run=False)
         clear_mock.assert_called_once_with()
 
+    def test_restore_failure_after_failsafe_clears_clipboard(self):
+        # Major confidentiality：secret 已写入剪贴板，pyautogui FailSafe 退出后
+        # 恢复 prior 失败（set_clipboard_text 返回 False）→ 必须 _clear_clipboard 兜底，
+        # 绝不让 secret 留在系统剪贴板。
+        def fake_set(text: str) -> bool:
+            return text == "secret"  # secret 写入成功，prior 恢复失败
+
+        with patch.object(kb, "get_clipboard_text", return_value="prior"), \
+             patch.object(kb, "set_clipboard_text", side_effect=fake_set), \
+             patch.object(kb, "_clear_clipboard") as clear_mock, \
+             patch.object(pyautogui, "hotkey", side_effect=pyautogui.FailSafeException("corner")):
+            with self.assertRaises(pyautogui.FailSafeException):
+                kb.paste_text("secret", dry_run=False)
+        clear_mock.assert_called_once_with()
+
+    def test_restore_failure_after_normal_paste_clears_clipboard(self):
+        # 正常退出（hotkey 成功）后恢复 prior 失败同样必须清空
+        def fake_set(text: str) -> bool:
+            return text == "secret"
+
+        with patch.object(kb, "get_clipboard_text", return_value="prior"), \
+             patch.object(kb, "set_clipboard_text", side_effect=fake_set), \
+             patch.object(kb, "_clear_clipboard") as clear_mock, \
+             patch.object(pyautogui, "hotkey"):
+            kb.paste_text("secret", dry_run=False)
+        clear_mock.assert_called_once_with()
+
+    def test_restore_failure_after_other_exception_clears_clipboard(self):
+        # 非 FailSafe 异常退出同样先清空剪贴板，再原样传播异常
+        def fake_set(text: str) -> bool:
+            return text == "secret"
+
+        with patch.object(kb, "get_clipboard_text", return_value="prior"), \
+             patch.object(kb, "set_clipboard_text", side_effect=fake_set), \
+             patch.object(kb, "_clear_clipboard") as clear_mock, \
+             patch.object(pyautogui, "hotkey", side_effect=RuntimeError("boom")):
+            with self.assertRaises(RuntimeError):
+                kb.paste_text("secret", dry_run=False)
+        clear_mock.assert_called_once_with()
+
+    def test_restore_success_does_not_clear_clipboard(self):
+        # 恢复成功 → 不额外清空（prior 内容保留，且不误伤其他剪贴板内容）
+        with patch.object(kb, "get_clipboard_text", return_value="prior"), \
+             patch.object(kb, "set_clipboard_text", return_value=True), \
+             patch.object(kb, "_clear_clipboard") as clear_mock, \
+             patch.object(pyautogui, "hotkey"):
+            kb.paste_text("secret", dry_run=False)
+        clear_mock.assert_not_called()
+
 
 class ExecutorFailSafeActionTests(unittest.TestCase):
     """InputExecutor 四方法边界：FailSafeException → CANCELLED_FAILSAFE。"""

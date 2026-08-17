@@ -152,6 +152,65 @@ class CaptureTargetRoutingTests(unittest.TestCase):
         self.assertEqual((800, 600), (frame.width, frame.height))
         mss_mock.assert_called_once()
 
+    def test_offscreen_size_mismatch_mss_none_returns_print_window_invalid_frame(self):
+        # mss 未安装但 PIL 可用：非前台窗口尺寸不一致 → 仍返回 PrintWindow 无效帧
+        # （尺寸诊断），不得提前返回 'mss not installed'
+        target = self._target(800, 600)
+        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
+             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+             patch("gamescript.vision.capture.mss", None), \
+             patch("PIL.ImageGrab.grab", return_value=_bitmap(780, 590)):
+            frame = capture_target(target, activate=False)
+        self.assertFalse(frame.is_valid, "尺寸不一致必须返回 PrintWindow 无效帧")
+        self.assertIn("780", frame.error)
+        self.assertNotIn("mss not installed", frame.error)
+        self.assertEqual((0, 0), (frame.width, frame.height))
+
+    def test_offscreen_valid_print_window_mss_none_returns_valid_frame(self):
+        # mss 未安装但 PIL 可用：非前台窗口 PrintWindow 有效 → 返回有效帧
+        target = self._target(800, 600)
+        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
+             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+             patch("gamescript.vision.capture.mss", None), \
+             patch("PIL.ImageGrab.grab", return_value=_bitmap(800, 600)):
+            frame = capture_target(target, activate=False)
+        self.assertTrue(frame.is_valid, "mss=None 时非前台有效 PrintWindow 帧必须返回")
+        self.assertEqual((800, 600), (frame.width, frame.height))
+
+    def test_foreground_mss_none_returns_invalid_mss_not_installed(self):
+        # 前台窗口 + mss=None：不回退 PrintWindow，仍返回 invalid 'mss not installed'
+        target = self._target(800, 600)
+        with patch("gamescript.vision.capture._foreground_window", return_value=42), \
+             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+             patch("gamescript.vision.capture.mss", None), \
+             patch("PIL.ImageGrab.grab", side_effect=AssertionError("must not call")):
+            frame = capture_target(target, activate=False)
+        self.assertFalse(frame.is_valid)
+        self.assertEqual("mss not installed", frame.error)
+
+    def test_activate_true_mss_none_returns_invalid_mss_not_installed(self):
+        # activate=True + mss=None：同样因 mss 缺失返回 invalid 'mss not installed'
+        target = self._target(800, 600)
+        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
+             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+             patch("gamescript.vision.capture.activate_window"), \
+             patch("gamescript.vision.capture.mss", None), \
+             patch("PIL.ImageGrab.grab", side_effect=AssertionError("must not call")):
+            frame = capture_target(target, activate=True)
+        self.assertFalse(frame.is_valid)
+        self.assertEqual("mss not installed", frame.error)
+
+    def test_print_window_none_mss_none_returns_invalid_mss_not_installed(self):
+        # PrintWindow 返回 None → 回落 mss 检查：无 mss 时返回 invalid，不允许继续
+        target = self._target(800, 600)
+        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
+             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+             patch("gamescript.vision.capture.mss", None), \
+             patch("gamescript.vision.capture._capture_print_window", return_value=None):
+            frame = capture_target(target, activate=False)
+        self.assertFalse(frame.is_valid)
+        self.assertEqual("mss not installed", frame.error)
+
 
 if __name__ == "__main__":
     unittest.main()

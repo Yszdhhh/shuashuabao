@@ -468,8 +468,9 @@ def paste_text(text: str, dry_run: bool = True) -> None:
     """Paste text while preserving and restoring prior clipboard content.
 
     Safety: if the previous clipboard cannot be captured (non-text/API
-    failure), the pasted text (e.g. room password) is explicitly cleared
-    afterwards instead of being left system-wide.
+    failure), or the restore of a captured prior content fails, the pasted
+    text (e.g. room password) is explicitly cleared afterwards instead of
+    being left system-wide.
     """
     print(f"[input] paste_text len={len(text)} dry_run={dry_run}")
     if dry_run or not text:
@@ -485,7 +486,9 @@ def paste_text(text: str, dry_run: bool = True) -> None:
             pyautogui.write(text, interval=0.01)
     finally:
         if saved_text is not None:
-            set_clipboard_text(saved_text)
+            if not set_clipboard_text(saved_text):
+                # 恢复 prior 失败：最终 best-effort 清空，绝不让 secret 留在系统剪贴板
+                _clear_clipboard()
         else:
             # Prior clipboard unavailable: never leave the secret behind
             _clear_clipboard()

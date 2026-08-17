@@ -573,18 +573,6 @@ def _find_window_rect(
 
 def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
     """Capture one visible target aligned to client area coordinates."""
-    if mss is None:
-        return Frame(
-            bgr=np.zeros((0, 0, 3), dtype=np.uint8),
-            left=target.client_left or target.left,
-            top=target.client_top or target.top,
-            window_title=target.title,
-            hwnd=target.hwnd,
-            role=target.role,
-            is_valid=False,
-            error="mss not installed",
-        )
-
     if is_window_minimized(target.hwnd):
         return Frame(
             bgr=np.zeros((0, 0, 3), dtype=np.uint8),
@@ -603,6 +591,21 @@ def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
         offscreen = _capture_print_window(target)
         if offscreen is not None:
             return offscreen
+
+    # mss availability 检查放在非前台 PrintWindow 尝试之后：PIL 可用且 mss 缺失时，
+    # offscreen 帧（含尺寸自证无效帧）仍然返回；仅当前台/激活或 PrintWindow 失败
+    # 且无 mss 时，才以 'mss not installed' 无效帧收敛。
+    if mss is None:
+        return Frame(
+            bgr=np.zeros((0, 0, 3), dtype=np.uint8),
+            left=target.client_left or target.left,
+            top=target.client_top or target.top,
+            window_title=target.title,
+            hwnd=target.hwnd,
+            role=target.role,
+            is_valid=False,
+            error="mss not installed",
+        )
 
     c_left = target.client_left if (target.client_width > 0 and target.client_height > 0) else target.left
     c_top = target.client_top if (target.client_width > 0 and target.client_height > 0) else target.top
