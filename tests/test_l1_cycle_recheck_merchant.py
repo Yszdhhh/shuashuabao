@@ -346,6 +346,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(click.call_args.args[1], "BlackMerchant-swallow_pill")
 
         self.med._merchant_next_at = 0.0
+        self.med.settings.auto_gambling = True  # 显式开启自动刷新
         with patch.object(self.med, "_black_merchant_present", return_value=True), patch.object(
             self.med, "_bond_bar_nonempty", return_value=False
         ), patch.object(self.med, "find", return_value=None), patch.object(

@@ -201,7 +201,7 @@ class SlotCandidate:
     is_new: bool = False          # 是否有 NEW 标记
     skill_level: int | None = None  # 数字技能等级
     card_fact: Any = None         # 关联的 CardFact 实例
-
+    family_source: str = "unknown" # 来源 ("badge" | "legacy_name" | "unknown")
     def to_card_fact(self) -> Any:
         """转换为 Badge-first 的 CardFact 事实对象。"""
         from shuabao.card_fact import CardFact
@@ -778,7 +778,9 @@ def _rank_skill_candidates(
             fam_order_rank = focus_families.index(fam)
         elif not settings.skill_focus_families and slot.name:
             fam_order_rank = _skill_config_rank(slot.name, settings)
-
+        if slot.name and habit:
+            habit_val = float(habit.get(slot.name, 0.0))
+            fam_order_rank = (-habit_val, fam_order_rank)
         # 严格 6 元组：
         # (prereq_rank, rarity_rank, -skill_level, new_rank, family_preference_rank, slot.index)
         # - prereq_rank: 0=已核实前置满足, 1=前置未核实
