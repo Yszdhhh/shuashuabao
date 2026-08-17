@@ -2095,6 +2095,12 @@ class MainWindow(QMainWindow):
             if not worker.wait(15000):
                 self.log("[关闭] 任务线程未在 15s 内退出，继续等待（不强制杀掉）", "warn")
                 worker.wait(60000)
+            if worker.isRunning():
+                # worker 仍未退出：不关窗、不释放 live.lock、不强杀线程。
+                # 保留窗口与锁，等待用户再次发起关闭（stop 已被再次请求）。
+                self.log("[关闭] worker 仍在运行，窗口不关闭（live.lock 保留，不强制杀线程）", "warn")
+                event.ignore()
+                return
         try:
             settings = self.collect_settings_from_ui()
             self.settings = copy.deepcopy(settings)
