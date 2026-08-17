@@ -1,8 +1,8 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
-## 2026-08-17 ba19fe7 机制收口（基线 e292132，集成 13 提交；未跑最终 release_gate，未真机）
+## 2026-08-17 ba19fe7 机制收口（基线 e292132，集成 13 提交；release_gate 4/4 PASS，未真机）
 
-工作区基线 `e292132`，集成 13 提交收到 `ba19fe7`。本条只记录机制收口与已完成定向回归；**本轮最终 `release_gate` 尚未运行，未真机，不得写 PASS。**
+工作区基线 `e292132`，集成 13 提交收到 `ba19fe7`。当前集成树 HEAD `6dcb18d`。主 agent 刚在当前集成树实测 `python tools/release_gate.py`：退出码 0，4/4 PASS。精确记录：pytest 857 passed、2 xfailed、11 skipped；frozen_replay PASS（`disconnect_modal_missing` 仍 BLOCKED，属于既有可接受观测）；scene_templates 132 ok/0 missing；contract 72 passed/1 present。**未真机；离线 gate 不替代真机。**
 
 ### Policy
 
