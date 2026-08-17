@@ -707,15 +707,6 @@ def _rank_skill_candidates(
 def _decide_skill(
     cands: PanelCandidates, state: SessionState, settings: PolicySettings
 ) -> PolicyDecision:
-    # HARD 档且未配置任何技能（skill_presets / skill_focus_families 均空）：
-    # 用户显式零勾选 → 面板无可学内容，直接 CLOSE（不 WAIT 不 REFRESH，
-    # 也不受 allow_skill_giveup 影响——零配置绝不花技能点）。
-    if (
-        settings.skill_whitelist_mode == SKILL_MODE_HARD
-        and not settings.skill_presets
-        and not settings.skill_focus_families
-    ):
-        return _skill_hold_or_hide("未配置任何技能（HARD 档空配置）")
     ranked = _rank_skill_candidates(cands.slots, settings, cands.owned_skill_cards)
     if ranked:
         index = ranked[0]
