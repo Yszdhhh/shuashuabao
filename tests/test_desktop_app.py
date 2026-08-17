@@ -459,6 +459,48 @@ class DesktopPanelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "主线"):
             self.window.collect_settings_from_ui()
 
+    def test_attr_route_consumes_chain_and_support_in_order(self):
+        # 智力线按 attr_routes 顺序消费 chain（智力/秘法师/法神/湮灭者）
+        # + support（法术/魔能/魔术/魔法师/元素师），去重；可解析短码用短码。
+        self.window.route_buttons["intelligence"].setChecked(True)
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertIn("秘法师", cards)
+        self.assertIn("法神", cards)
+        self.assertIn("魔能", cards)
+        self.assertIn("魔术", cards)
+        self.assertIn("元素师", cards)
+        self.assertIn("mfs", cards)  # 魔法师 → 短码
+        self.assertEqual(cards.count("yanmiezhe"), 1, "chain 与 fetter_code 去重")
+        # 顺序：chain 逐环在前，support 在后；support 内部保持 attr_routes 顺序。
+        self.assertLess(cards.index("秘法师"), cards.index("法神"))
+        self.assertLess(cards.index("法神"), cards.index("fs"))
+        self.assertLess(cards.index("fs"), cards.index("魔能"))
+        self.assertLess(cards.index("魔能"), cards.index("魔术"))
+        self.assertLess(cards.index("魔术"), cards.index("mfs"))
+        self.assertLess(cards.index("mfs"), cards.index("元素师"))
+
+    def test_attr_route_multi_route_chain_support_dedup(self):
+        # 力量线 chain+support（血誓）与智力线同时勾选：各自去重且都在白名单。
+        self.window.route_buttons["intelligence"].setChecked(True)
+        self.window.route_buttons["strength"].setChecked(True)
+        cards = self.window.collect_settings_from_ui().cards
+        self.assertIn("yemanren", cards)   # 野蛮人
+        self.assertIn("zhanshen", cards)   # 战神
+        self.assertIn("xueshi", cards)     # 血誓（support）
+        self.assertEqual(cards.count("tuluzhe"), 1)
+        self.assertEqual(cards.count("zhili"), 1)
+
+    def test_route_fetter_codes_consumes_chain_and_support(self):
+        # 纯函数：codes-only 视角，chain 顺序 + support 顺序、去重。
+        self.assertEqual(
+            shell_window.route_fetter_codes("intelligence"),
+            ["zhili", "yanmiezhe", "fs", "mfs"],
+        )
+        self.assertEqual(
+            shell_window.route_fetter_codes("strength"),
+            ["liliang", "yemanren", "zhanshen", "tuluzhe", "xueshi"],
+        )
+
     def test_attr_line_is_summary_and_advanced_packs_optional(self):
         text = self._panel_text()
         self.assertIn("属性线", text)
@@ -580,7 +622,11 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertFalse(applied.auto_secret_realm)
         self.assertEqual(["asj", "assx", "jq", "bsxx"], applied.skills)
         self.assertEqual(
-            ["zhufu", "chengzhang", "tishu", "liliang", "tuluzhe", "zhili", "yanmiezhe", "fs"],
+            [
+                "zhufu", "chengzhang", "tishu", "liliang", "yemanren", "zhanshen",
+                "tuluzhe", "xueshi", "zhili", "秘法师", "法神", "yanmiezhe", "fs",
+                "魔能", "魔术", "mfs", "元素师",
+            ],
             applied.cards,
         )
         self.assertEqual([], applied.treasure_allow_negative)
@@ -610,7 +656,11 @@ class DesktopPanelTests(unittest.TestCase):
             self.assertFalse(c.auto_secret_realm)
             self.assertEqual(["asj", "assx", "jq", "bsxx"], c.skills)
             self.assertEqual(
-                ["zhufu", "chengzhang", "tishu", "liliang", "tuluzhe", "zhili", "yanmiezhe", "fs"],
+                [
+                    "zhufu", "chengzhang", "tishu", "liliang", "yemanren", "zhanshen",
+                    "tuluzhe", "xueshi", "zhili", "秘法师", "法神", "yanmiezhe", "fs",
+                    "魔能", "魔术", "mfs", "元素师",
+                ],
                 c.cards,
             )
             self.assertEqual([], c.treasure_allow_negative)

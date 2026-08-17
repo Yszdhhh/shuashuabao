@@ -89,8 +89,14 @@ def desktop_may_start(mode_id: str) -> bool:
 
 def apply_mode_overlay(settings: Settings, mode_id: str) -> Settings:
     spec = get_spec(mode_id)
-    kwargs = {k: v for k, v in spec.hidden_defaults.items() if k in _SETTINGS_FIELDS}
-    return replace(settings, **kwargs)
+    # budgets 与 hidden_defaults 都消费，但只接受真实 Settings 字段（未知键忽略）；
+    # 同键冲突时 hidden_defaults 优先（显式默认压过预算推导）。
+    merged: dict[str, Any] = {}
+    for source in (spec.budgets, spec.hidden_defaults):
+        for k, v in source.items():
+            if k in _SETTINGS_FIELDS:
+                merged[k] = v
+    return replace(settings, **merged)
 
 
 def collect_persistable_settings(settings: Settings) -> dict[str, Any]:

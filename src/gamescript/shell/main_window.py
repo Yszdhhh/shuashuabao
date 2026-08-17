@@ -201,9 +201,13 @@ def code_for_bond_name(name: str) -> str | None:
 
 
 def route_fetter_codes(route_id: str) -> list[str]:
+    """属性路线 fetter 短码：按 attr_routes 顺序消费 chain + support，去重。
+
+    只返回能解析成短码的名称；无法解析的名称由 _attr_line_tokens 保留中文名。
+    """
     route = ATTR_ROUTES.get(route_id) or {}
     codes: list[str] = []
-    for name in route.get("chain") or []:
+    for name in (route.get("chain") or []) + (route.get("support") or []):
         code = code_for_bond_name(str(name))
         if code and code not in codes:
             codes.append(code)
@@ -1387,13 +1391,21 @@ class MainWindow(QMainWindow):
         if isinstance(selected, str):
             selected = [selected]
         for rid in selected:
-            row = next((item for item in ATTR_LINE_OPTIONS if item.get("id") == rid), None)
-            if row is None:
-                continue
-            for name in (row.get("gate"), row.get("ur")):
+            route = ATTR_ROUTES.get(rid) or {}
+            names = (route.get("chain") or []) + (route.get("support") or [])
+            if not names:
+                # 配置漂移兜底：路由不在 attr_routes 时沿用旧 gate+ur 摘要。
+                row = next((item for item in ATTR_LINE_OPTIONS if item.get("id") == rid), None)
+                if row is None:
+                    continue
+                names = (row.get("gate"), row.get("ur"))
+            for name in names:
                 text = str(name or "").strip()
-                if text:
-                    tokens.append(code_for_bond_name(text) or text)
+                if not text:
+                    continue
+                token = code_for_bond_name(text) or text
+                if token not in tokens:
+                    tokens.append(token)
         return tokens
 
     def _advanced_pack_tokens(self) -> list[str]:
