@@ -185,38 +185,29 @@ class P0ACreateRoomGateTests(unittest.TestCase):
                     f"大窗 {w}x{h} 不得走蓝色兜底",
                 )
 
-    def test_create_confirm_blue_fallback_still_works_on_small_dialog(self):
-        # P1-3 正向控制：小窗（584×488）含蓝色确认按钮 + 上方 ≥2 输入框 → 兜底命中。
+    def test_create_confirm_never_uses_blue_fallback_on_small_or_large_windows(self):
+        # P0-3: 无论大窗还是小窗，即便含 2 个蓝色按钮 + 2 个输入框，未匹配到场景模板均不得授权点击。
         import cv2
 
-        image = np.zeros((488, 584, 3), dtype=np.uint8)
+        # 1. 小窗负样本 (584x488)
+        small_image = np.zeros((488, 584, 3), dtype=np.uint8)
         for y in (98, 194):
-            cv2.rectangle(image, (203, y), (485, y + 32), (60, 60, 60), -1)
-            cv2.rectangle(image, (203, y), (485, y + 32), (180, 180, 180), 2)
-        cv2.rectangle(image, (262, 418), (373, 458), (230, 150, 20), -1)
-        cv2.rectangle(image, (390, 420), (506, 456), (230, 150, 20), -1)
+            cv2.rectangle(small_image, (203, y), (485, y + 32), (60, 60, 60), -1)
+            cv2.rectangle(small_image, (203, y), (485, y + 32), (180, 180, 180), 2)
+        cv2.rectangle(small_image, (262, 418), (373, 458), (230, 150, 20), -1)
+        cv2.rectangle(small_image, (390, 420), (506, 456), (230, 150, 20), -1)
         with patch.object(self.med, "find_scene", return_value=None):
-            hit = self.med._find_create_confirm(Frame(image))
-        self.assertIsNotNone(hit)
-        self.assertLess(hit.x, 350)
+            self.assertIsNone(self.med._find_create_confirm(Frame(small_image)))
 
-    def test_embedded_create_dialog_requires_form_structure_and_chooses_left_button(self):
-        """The current KK client embeds the create form in its 1328x945 window."""
-        import cv2
-
-        image = np.zeros((945, 1328, 3), dtype=np.uint8)
+        # 2. 内嵌大窗负样本 (1328x945)
+        large_image = np.zeros((945, 1328, 3), dtype=np.uint8)
         for y in (325, 421):
-            cv2.rectangle(image, (574, y), (856, y + 32), (60, 60, 60), -1)
-            cv2.rectangle(image, (574, y), (856, y + 32), (180, 180, 180), 2)
-        cv2.rectangle(image, (633, 645), (745, 685), (230, 150, 20), -1)
-        cv2.rectangle(image, (761, 647), (877, 683), (230, 150, 20), -1)
-
+            cv2.rectangle(large_image, (574, y), (856, y + 32), (60, 60, 60), -1)
+            cv2.rectangle(large_image, (574, y), (856, y + 32), (180, 180, 180), 2)
+        cv2.rectangle(large_image, (633, 645), (745, 685), (230, 150, 20), -1)
+        cv2.rectangle(large_image, (761, 647), (877, 683), (230, 150, 20), -1)
         with patch.object(self.med, "find_scene", return_value=None):
-            hit = self.med._find_create_confirm(Frame(image))
-
-        self.assertIsNotNone(hit)
-        self.assertLess(hit.x, 700)  # left Create, never right Cancel
-
+            self.assertIsNone(self.med._find_create_confirm(Frame(large_image)))
     def test_embedded_single_blue_button_is_not_create_dialog_authority(self):
         import cv2
 

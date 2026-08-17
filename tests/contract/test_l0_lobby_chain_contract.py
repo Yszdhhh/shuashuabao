@@ -271,6 +271,42 @@ class C4EntryScenesForbidColorFallback(unittest.TestCase):
                 with patch.object(med, "find_scene", return_value=None):
                     self.assertIsNone(med._find_create_confirm(Frame(image)))
 
+    def test_create_confirm_strict_negative_sample_template_miss_zero_click_zero_input(self):
+        """P0-3 负样本：template miss + 2 blue buttons + 2 input boxes => _find_create_confirm() is None => 0 input."""
+        import cv2
+        from unittest.mock import MagicMock
+        from shuabao.mediator import Phase
+
+        med = _new_mediator()
+        med.executor = MagicMock()
+        med._running = True
+        med._active = True
+        med.phase = Phase.CREATE_ROOM
+
+        # 构造包含 2 个输入框 + 2 个蓝色按钮的负样本图像 (小窗 584x488 与 大窗 1328x945)
+        for width, height in ((584, 488), (1328, 945)):
+            with self.subTest(size=f"{width}x{height}"):
+                med.executor.reset_mock()
+                frame_img = np.zeros((height, width, 3), dtype=np.uint8)
+                # 画 2 个输入框
+                cv2.rectangle(frame_img, (int(width * 0.3), int(height * 0.2)), (int(width * 0.8), int(height * 0.28)), (60, 60, 60), -1)
+                cv2.rectangle(frame_img, (int(width * 0.3), int(height * 0.2)), (int(width * 0.8), int(height * 0.28)), (180, 180, 180), 2)
+                cv2.rectangle(frame_img, (int(width * 0.3), int(height * 0.4)), (int(width * 0.8), int(height * 0.48)), (60, 60, 60), -1)
+                cv2.rectangle(frame_img, (int(width * 0.3), int(height * 0.4)), (int(width * 0.8), int(height * 0.48)), (180, 180, 180), 2)
+                # 画 2 个蓝色按钮（左确定右取消）
+                cv2.rectangle(frame_img, (int(width * 0.4), int(height * 0.8)), (int(width * 0.55), int(height * 0.88)), (230, 150, 20), -1)
+                cv2.rectangle(frame_img, (int(width * 0.6), int(height * 0.8)), (int(width * 0.75), int(height * 0.88)), (230, 150, 20), -1)
+
+                frame = Frame(frame_img)
+                with patch.object(med, "find_scene", return_value=None):
+                    confirm_hit = med._find_create_confirm(frame)
+                    self.assertIsNone(confirm_hit, "无模板命中时，_find_create_confirm 必须为 None")
+                    # 在 CREATE_ROOM 状态下运行 tick，由于 confirm 为 None，不会触发任何点击/输入
+                    med._tick_l0(frame)
+                    med.executor.click.assert_not_called()
+                    med.executor.paste_text.assert_not_called()
+                    med.executor.hotkey.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

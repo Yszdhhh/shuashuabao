@@ -79,7 +79,8 @@ class LobbyDetectorTests(unittest.TestCase):
         boxes = find_input_boxes(Frame(frame), anchor=anchor)
         self.assertEqual(len(boxes), 2)
 
-    def test_create_dialog_button_is_found_in_bottom_roi(self):
+    def test_create_dialog_button_without_template_has_no_click_authority(self):
+        # P0-3: 蓝按钮与输入框结构不再单独产生 MatchResult 点击权限
         frame = np.zeros((488, 584, 3), dtype=np.uint8)
         for y in (98, 194):
             cv2.rectangle(frame, (203, y), (485, y + 32), (60, 60, 60), -1)
@@ -89,11 +90,9 @@ class LobbyDetectorTests(unittest.TestCase):
         cv2.rectangle(frame, (390, 420), (506, 456), (230, 150, 20), -1)
         root = Path(__file__).resolve().parents[1]
         med = Mediator(Settings(auto_create_room=True), root)
+        # 无模板命中时，_find_create_confirm 必须为 None
         hit = med._find_create_confirm(Frame(frame))
-        self.assertIsNotNone(hit)
-        self.assertLess(hit.x, 350)
-        self.assertEqual(med._detect_context(Frame(frame)), "CREATE_ROOM")
-
+        self.assertIsNone(hit)
     def test_match_all_keeps_two_reward_choices(self):
         template = _load_template(self.images_dir() / "skills" / "asj.png")
         self.assertIsNotNone(template)

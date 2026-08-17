@@ -4747,25 +4747,9 @@ class Mediator:
         return self.find_scene(frame, "map_create_room")
 
     def _find_create_confirm(self, frame: Frame) -> MatchResult | None:
-        # 场景扫描必须先于尺寸门禁——大窗口内也可能渲染建房确认按钮
-        hit = self.find_scene(frame, "create_room_confirm")
-        if hit:
-            return hit
-
-        # 结构化表单语义锚点判定：必须同时具备输入框和确认按钮对（严格两按钮结构，左确定右取消）
-        if frame.bgr is not None and frame.bgr.size > 0:
-            roi = (0.25, 0.62, 0.90, 0.99) if frame.width <= 800 else (0.35, 0.62, 0.75, 0.78)
-            candidates = sorted(find_blue_buttons(frame, roi=roi), key=lambda item: item.x)
-            for left, right in zip(candidates, candidates[1:]):
-                left_cy = left.y + left.h // 2
-                right_cy = right.y + right.h // 2
-                if abs(left_cy - right_cy) > 16:
-                    continue
-                # 必须存在至少 2 个输入框锚点，避免孤立蓝色按钮误抢权限
-                if len(find_input_boxes(frame, anchor=left)) >= 2:
-                    return left
-
-        return None
+        # 严格语义模板匹配授权：仅限 create_room_confirm 场景模板匹配。
+        # 移除任何颜色/结构兜底对点击授权的输出（颜色兜底不得产生 MatchResult 点击权限）。
+        return self.find_scene(frame, "create_room_confirm")
 
     def _find_stage_target(self, frame: Frame) -> MatchResult | None:
         if self.settings.stage_targets:
