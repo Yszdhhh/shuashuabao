@@ -8,7 +8,7 @@
  "_comment": "游戏内官方说明底库。比攻略优先。整份 JSON 仍不驱动公式。partially_wired 只列源码真接上的。白绿先刷 / 目录压 OCR / 审判排斥 曾误登记，见 skill_card_colors。不要把截图 PNG 复制进仓库。2026-08-17 新增批次契约条目标注为 status=wired_contract，非游戏机制。",
  "partially_wired": [
   "skill_points_via_G_before_wood_F",
-  "skill_mode_strict_all_round",
+  "skill_mode_strict_max_four",
   "challenge_toggle_periodic_reobserve"
  ],
  "precedence": [
@@ -937,19 +937,22 @@
    "wired_to_decision": false
   },
   "skill_choice_mode": {
-   "name": "技能选卡模式：0–4 系严格 / 5+ 系全才（2026-08-17 离线接线）",
-   "text": "看板勾选的技能系数量决定选卡模式：0–4 个 → hard（严格：只选配置系经 skill_catalog 展开出的合法技能卡，配置外一律不选，宁可 WAIT/隐藏也不乱拿）；5–16 个 → all_round（全才：任何目录可识别的合法技能卡都可选，配置系仅作聚焦优先）。",
-   "ranking": "两种模式共用同一确定性排序：目录合法性（never_pick / 互斥 exclude / 前置 prereq，skill_catalog.is_skill_choice_legal）→ 组合与链路（skill_combo_rank / skill_chain_rank）→ 存档解锁与降伤惩罚（card_unlocked_by_archive / skill_penalty_rank，未知存档 fail-closed）→ 稀有度 → 配置顺序 → 槽位下标。",
+   "name": "技能选卡模式：至多 4 系恒严格（2026-08-17 离线接线）",
+   "text": "技能选择恒为严格档，无 all_round 全能档（用户 2026-08-17 确认：技能至多 4 个；Settings.MAX_SELECTED_SKILLS=4 在解析边界统一截断）。看板勾选 1–4 个技能系 → hard（严格：只选配置系经 skill_catalog 展开出的合法技能卡，配置外一律不选，宁可 WAIT/隐藏也不乱拿）；勾选 0 个（焦点与预设两字段均空 = 显式零勾选）→ 直接 CLOSE/隐藏，不刷新、不放弃、不选择。",
+   "ranking": "单一严格模式使用同一确定性排序：目录合法性（never_pick / 互斥 exclude / 前置 prereq，skill_catalog.is_skill_choice_legal）→ 组合与链路（skill_combo_rank / skill_chain_rank）→ 存档解锁与降伤惩罚（card_unlocked_by_archive / skill_penalty_rank，未知存档 fail-closed）→ 稀有度 → 配置顺序 → 槽位下标。",
    "ownership": "排序与前置判定所用的 owned 集合只来自运行时面板确认的已学技能（panel 变更/关闭后确认，每局重置）；缺失即未知，绝不从卡名猜测。",
    "archive_grant": "学得主技能即获得的白卡（skill_catalog.grant_on_learn_card）只经 skill_archive_unlocks 已核实行记账，未经核实不记账。",
-   "unknown_names": "目录无法识别的名字在任何模式下都没有点击权。",
+   "unknown_names": "目录无法识别的名字没有点击权。",
+   "bond_default": "看板基础羁绊为单一勾选区块（无重复网格）。工厂/无用户方案默认勾选 bond_priority.round1_must 五张：祝福、成长、经济、贪婪、挑战（shell.main_window.DEFAULT_BOND_CODES 由 round1_must 生成，短码优先、无短码保留中文名）；全部可编辑、可任意取消/清空；显式清空（cards=[] 写入空 list 键）保持为空，与默认严格区分。",
+   "attr_routes": "属性线 智力/力量/敏捷 三系各自独立多选（shell.main_window.route_buttons），仅显式勾选才写入 attr_route 列表（恒为 list）；消费端唯一展开 chain + support 两组名字（_selected_card_names）。旧版字符串型 attr_route（旧默认/从 cards 推断的隐式值）加载时一次性清空，不猜 cards 内容。",
    "source": [
     "batch_contract_20260817",
-    "skill_catalog.py"
+    "skill_catalog.py",
+    "shell/main_window.py"
    ],
    "status": "wired_contract",
    "wired_to_decision": true,
-   "_note": "这是脚本离线行为契约，不是游戏机制描述；实机表现由 LabVerify 承接验证。"
+   "_note": "这是脚本离线行为契约，不是游戏机制描述；实机表现由 LabVerify 承接验证。2026-08-17 用户确认后取代早前『0–4 严格 / 5–16 全才（all_round）』设计，历史描述见交接文档更早批次。"
   },
   "asymmetric_exclude": {
    "name": "技能排斥（不对称）",

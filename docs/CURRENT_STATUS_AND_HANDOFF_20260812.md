@@ -1,5 +1,17 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-17 39881f4 技能选卡模型修正：至多 4 系恒严格（docs/KB-only；完整 gate 未跑，未真机）
+
+工作区 `G:\刷刷宝\Worktrees\GameScript-SelectionModelFix-20260817`，当前 HEAD `39881f4`。本提交只改 `config/game_mechanics_kb.json` 与本文档，不改生产/测试代码。早前「0–4 严格 / 5–16 全才（all_round）」选卡模型已按用户 2026-08-17 确认**显式作废**，活动契约改为：
+
+- **技能**：上限 4 系（`Settings.MAX_SELECTED_SKILLS=4`，解析边界统一截断）。勾选 1–4 → 恒严格（只选配置系经 skill_catalog 展开出的合法技能卡，配置外一律不选，宁可 WAIT/隐藏也不乱拿）；勾选 0（焦点与预设两字段均空 = 显式零勾选）→ 直接 CLOSE/隐藏，不刷新、不放弃、不选择。**无 all_round 模式**。排序不变：目录合法性（never_pick/互斥 exclude/前置 prereq）→ 组合与链路（skill_combo_rank / skill_chain_rank）→ 存档解锁与降伤惩罚（未知存档 fail-closed）→ 稀有度 → 配置顺序 → 槽位下标；owned 只取运行时面板确认，缺失即未知，绝不从卡名猜测。
+- **基础羁绊**：看板为单一勾选区块（无重复网格）。工厂/无方案默认恰为 祝福、成长、经济、贪婪、挑战（`bond_priority.round1_must` 五张，由 `DEFAULT_BOND_CODES` 生成），可编辑、可任意取消/清空；显式清空（`cards=[]` 空 list 键）保持为空，与默认严格区分。
+- **属性路线**：智力/力量/敏捷 各自独立多选（显式勾选才写 `attr_route`，恒为 list），消费端唯一展开 chain + support。
+
+**证据（修正后定向回归，非完整 release_gate）**：TDD 初始 RED 6 failed/3 passed；跨条目 RED 5 failed/3 passed；最终受影响回归 288 passed/115 subtests；渲染 Qt 截图技能与羁绊 PASS（无裁剪/无重叠）。**完整 `python tools/release_gate.py` 尚未在修正后重跑（full gate pending）；无任何真机验证。**
+
+下文「2026-08-17 CORE02/CORE03 集成批次」一节中 5–16 / all_round / 全才 描述已被本节取代，仅保留为历史批注，**不得再当作现行行为**。
+
 ## 2026-08-17 2c489aa 机制收口（基线 e292132，集成 13 提交；release_gate 4/4 PASS，未真机）
 
 工作区基线 `e292132`，机制收口代码原落到 `ba19fe7`；生产/测试 tip 现为 `2c489aa`。主 agent 刚在 `2c489aa` 执行 `python tools/release_gate.py`，退出码 0，4/4 PASS。精确记录：pytest 866 passed、2 xfailed、11 skipped；frozen_replay PASS（`disconnect_modal_missing` 仍 BLOCKED，属于既有可接受观测）；scene_templates 132 ok/0 missing；contract 72 passed/1 present。本提交只是 docs-only 证据记录，不改生产或测试行为。**未真机；离线 gate 不替代真机。**
@@ -38,7 +50,9 @@
 
 `Settings._from_dict(..., fallback=)` 是浅 `replace`。唯一生产 caller `RunnerService.start` 先 `copy.deepcopy` 再 overlay。新增 caller 必须先隔离可变字段。
 
-## 2026-08-17 CORE02/CORE03 集成批次：技能严格-全才模式 + 必拿宝物 + 挑战重观察（离线接线，未实机）
+## 2026-08-17 CORE02/CORE03 集成批次：技能严格-全才模式 + 必拿宝物 + 挑战重观察（离线接线，未实机）【技能部分已过时，见文首 39881f4 节】
+
+> **已过时（superseded by 39881f4）**：本节的技能选卡模式描述（0–4 严格 / 5–16 all_round 全才）是历史记录，已被文首「39881f4 技能选卡模型修正」一节取代——现行行为为至多 4 系恒严格、无 all_round 模式。其余条目（宝物/挑战/黑商/色阶）仍有效。
 
 工作区 HEAD `6584445` 之上，本批次完成配置、L1 策略/状态、Settings、看板与契约测试集成；未跑真机。离线验收：策略/看板定向集 `227 passed, 109 subtests passed`；`python tools/release_gate.py` 4/4 PASS（pytest 756 passed、2 xfailed、11 skipped；frozen replay PASS；templates 132/0；contract 72 passed、1 present）。
 
@@ -48,7 +62,7 @@
 - 黑商：自动购买/刷新默认零输入（仅 auto_gambling_time>0 才可能放行），看板须标实验性/未实机验证；**Merchant C6 保持 failed/unverified**，不标 wired/complete。
 - 色阶：user 2026-08-17 报告技能卡可出现蓝/紫/橙/粉/红且红有多档，与 2026-08-14『技能卡只有橙紫蓝白、无红粉』冲突未解决；KB/配置只标记冲突（保留既有证据行），运行期容忍未来红/粉档、不新造 HSV 阈值。
 
-**未验证/实机缺口**：技能 all_round 模式真实选卡是否符合预期；挑战开关周期重观察的实际间隔与无抖动点击；黑商零输入真机不误点；全都要/卡牌大师 OCR 识别与特权命中；红/粉档真实存在性与多档映射。**LabVerify 待办**：13 号真机（技能选中>0、刷新不换不放弃）复核技能模式；确认黑商默认零输入；观察挑战开关周期重观察。离线 release_gate 4/4 已由主 agent 完成，不替代真机 L 结论。
+**未验证/实机缺口**：技能 all_round 模式真实选卡是否符合预期（~~已随 39881f4 取消 all_round 模式，该项作废~~）；挑战开关周期重观察的实际间隔与无抖动点击；黑商零输入真机不误点；全都要/卡牌大师 OCR 识别与特权命中；红/粉档真实存在性与多档映射。**LabVerify 待办**：13 号真机（技能选中>0、刷新不换不放弃）复核技能模式；确认黑商默认零输入；观察挑战开关周期重观察。离线 release_gate 4/4 已由主 agent 完成，不替代真机 L 结论。
 
 ## 2026-08-16 CORE-02 Infra：选关高亮亮块恢复（U，待 L）
 
