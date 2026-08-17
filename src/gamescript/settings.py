@@ -187,29 +187,35 @@ class Settings:
     @classmethod
     def _from_dict(cls, data: dict[str, Any] | None, fallback: Settings | None = None) -> "Settings":
         if not isinstance(data, dict):
-            return copy.deepcopy(fallback) if fallback is not None else cls()
+            return replace(fallback) if fallback is not None else cls()
         known = {f.name for f in cls.__dataclass_fields__.values()}  # type: ignore[attr-defined]
         clean = {k: v for k, v in data.items() if k in known}
+        # 1. None 缺损清洗
         for k, v in list(clean.items()):
             if v is None:
-                if k in ("room_name", "room_password", "cjb_boss", "sgzx_boss",
-                         "reputation_cjb_boss", "reputation_sgzx_boss", "window_title_contains"):
-                    clean[k] = ""
-                elif k in ("skills", "cards", "stage_targets", "treasure_allow_negative"):
-                    clean[k] = []
-        # 类型/范围强制：损坏或异常值回落到安全默认，避免整份配置加载失败
+                if fallback is not None:
+                    # fallback 模式：所有 None 视为 overlay 缺损并 pop，保留 base
+                    clean.pop(k)
+                else:
+                    # 无 fallback 模式：精确保持 32633f4 旧语义
+                    if k in ("room_name", "room_password", "cjb_boss", "sgzx_boss",
+                             "reputation_cjb_boss", "reputation_sgzx_boss", "window_title_contains"):
+                        clean[k] = ""
+                    elif k in ("skills", "cards", "stage_targets", "treasure_allow_negative"):
+                        clean[k] = []
+        # 2. 字符串字段防护：仅在 fallback 模式防护（仅接受 str）；无 fallback 精确保持 32633f4 原样
         str_fields = {
             "room_name", "room_password", "room_create_side",
             "reputation_cjb_boss", "reputation_sgzx_boss",
             "cjb_boss", "sgzx_boss", "window_title_contains",
             "ocr_repo_root", "images_dir",
         }
-        for k in str_fields:
-            if k in clean:
-                if isinstance(clean[k], (list, dict)):
-                    clean.pop(k)
-                elif not isinstance(clean[k], str):
-                    clean[k] = str(clean[k])
+        if fallback is not None:
+            for k in str_fields:
+                if k in clean:
+                    if not isinstance(clean[k], str):
+                        clean.pop(k)
+        # 3. int / float 字段清洗
         int_fields = {
             "stage1", "stage2", "query_timeout", "game_timeout", "game_mode",
             "dragon_ball_count", "close_main_line_time", "auto_clean_interval",
@@ -246,6 +252,7 @@ class Settings:
                         clean[k] = int(clean[k])
                     except (TypeError, ValueError):
                         clean.pop(k)
+        # 4. bool 字段清洗
         bool_fields = {
             "auto_create_room", "new_room_every_times", "find_longzhu_where_multi_game",
             "find_longzhu_in_game",
@@ -264,12 +271,15 @@ class Settings:
                     elif low in ("0", "false", "no", "off", ""):
                         clean[k] = False
                     else:
-                        # 未知字符串：回落字段默认值，绝不悄悄改变功能开关
+                        # 未知字符串：回落（无 fallback 默认值，有 fallback 保留 base）
                         clean.pop(k)
-                elif isinstance(v, (int, float)):
-                    clean[k] = bool(v)
+                elif fallback is not None:
+                    if isinstance(v, (int, float)):
+                        clean[k] = bool(v)
+                    else:
+                        clean.pop(k)
                 else:
-                    clean.pop(k)
+                    clean[k] = bool(v)
         if "match_threshold" in clean:
             if isinstance(clean["match_threshold"], (list, dict)) or clean["match_threshold"] is None:
                 clean.pop("match_threshold")

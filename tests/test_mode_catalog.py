@@ -94,10 +94,13 @@ class ApplyModeOverlayTests(unittest.TestCase):
 
     def test_invalid_hidden_default_falls_back_to_base(self):
         # 损坏的 hidden_default 回落到 base 值，不会崩溃或以 dataclass 默认值覆盖用户 base。
-        spec = _spec(hidden_defaults={"auto_create_room": "invalid_bool"})
-        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
-            out = apply_mode_overlay(Settings(auto_create_room=False), "test")
-        self.assertFalse(out.auto_create_room)
+        # 覆盖 invalid [] / {} / None / bad_string / non-dict 等多类型，防止 32633f4 时代的 _is_overlay_value_accepted 误放行
+        for invalid in ([], {}, None, "invalid_bool"):
+            with self.subTest(invalid=invalid):
+                spec = _spec(hidden_defaults={"auto_create_room": invalid})
+                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                    out = apply_mode_overlay(Settings(auto_create_room=False), "test")
+                self.assertFalse(out.auto_create_room)
 
         # 同时保留合法 False 与 True 叠加
         spec_false = _spec(hidden_defaults={"auto_create_room": False})
@@ -110,6 +113,77 @@ class ApplyModeOverlayTests(unittest.TestCase):
             out_true = apply_mode_overlay(Settings(auto_create_room=False), "test")
         self.assertTrue(out_true.auto_create_room)
 
+    def test_invalid_overlay_types_fall_back_to_base(self):
+        # 验证 bool/int/string/dict/ocr 在 overlay 为 invalid [] / {} / None / bad types 时均保留 base
+        base = Settings(
+            auto_create_room=False,
+            round_timeout_s=123,
+            room_name="base_room",
+            skill_archive_levels={"asj": 10},
+            ocr_mode="live",
+        )
+        # 1. invalid [] / {} / None / bad string for bool
+        for bad_bool in ([], {}, None, "not_a_bool"):
+            with self.subTest(bad_bool=bad_bool):
+                spec = _spec(hidden_defaults={"auto_create_room": bad_bool})
+                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                    out = apply_mode_overlay(base, "test")
+                self.assertFalse(out.auto_create_room)
+
+        # 2. invalid [] / {} / None / bad string for int
+        for bad_int in ([], {}, None, "bad_int"):
+            with self.subTest(bad_int=bad_int):
+                spec = _spec(budgets={"round_timeout_s": bad_int})
+                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                    out = apply_mode_overlay(base, "test")
+                self.assertEqual(out.round_timeout_s, 123)
+
+        # 3. invalid [] / {} / None / numeric for string
+        for bad_str in ([], {}, None, 12345):
+            with self.subTest(bad_str=bad_str):
+                spec = _spec(hidden_defaults={"room_name": bad_str})
+                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                    out = apply_mode_overlay(base, "test")
+                self.assertEqual(out.room_name, "base_room")
+
+        # 4. invalid [] / None / bad type for dict (skill_archive_levels)
+        for bad_dict in ([], None, "not_a_dict", 123):
+            with self.subTest(bad_dict=bad_dict):
+                spec = _spec(hidden_defaults={"skill_archive_levels": bad_dict})
+                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                    out = apply_mode_overlay(base, "test")
+                self.assertEqual(out.skill_archive_levels, {"asj": 10})
+
+        # 5. invalid [] / {} / None / bad string for ocr_mode
+        for bad_ocr in ([], {}, None, "invalid_ocr_mode", 123):
+            with self.subTest(bad_ocr=bad_ocr):
+                spec = _spec(hidden_defaults={"ocr_mode": bad_ocr})
+                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                    out = apply_mode_overlay(base, "test")
+                self.assertEqual(out.ocr_mode, "live")
+
+    def test_legacy_32633f4_logic_would_fail_invalid_overlay(self):
+        # 明确对照测试：证明在 32633f4 的 `_is_overlay_value_accepted` 实现下，
+        # invalid [] / {} 会因为 isinstance(v, (bool, int, float, list, dict)) 误放行
+        # 导致 Settings(auto_create_room=False) 被 dataclass 默认值 True 覆盖。
+        def legacy_is_overlay_value_accepted(k: str, v: any, parsed_v: any) -> bool:
+            default_v = getattr(Settings(), k)
+            if parsed_v != default_v or v == default_v:
+                return True
+            if isinstance(v, (bool, int, float, list, dict)):
+                return True
+            return False
+
+        # 在 32633f4 逻辑下，auto_create_room={} 被 parsed_v 认为是 True（因为 _from_dict pop 掉了 {} 回到 default True），
+        # 且 legacy validator 返回 True（因为 isinstance({}, dict) 为真），从而错误覆盖 base=False。
+        self.assertTrue(legacy_is_overlay_value_accepted("auto_create_room", {}, True))
+        self.assertTrue(legacy_is_overlay_value_accepted("auto_create_room", [], True))
+        # 当前 Settings._from_dict(fallback=...) 能够正确拦截并保留 base=False
+        base = Settings(auto_create_room=False)
+        self.assertFalse(Settings._from_dict({"auto_create_room": {}}, fallback=base).auto_create_room)
+        self.assertFalse(Settings._from_dict({"auto_create_room": []}, fallback=base).auto_create_room)
+        self.assertFalse(Settings._from_dict({"auto_create_room": None}, fallback=base).auto_create_room)
+        self.assertFalse(Settings._from_dict({"auto_create_room": "invalid_bool"}, fallback=base).auto_create_room)
     def test_overlay_does_not_reclean_unrelated_fields(self):
         # overlay 只允许改变命名字段：stage1=0 是 base 用户值，overlay 没碰它，
         # 不得被全量 asdict 重清洗成 1（_from_dict 的 stage1 区间钳制下限是 1）。
