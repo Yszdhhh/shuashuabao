@@ -69,6 +69,36 @@ class ApplyModeOverlayTests(unittest.TestCase):
             out = apply_mode_overlay(Settings(round_timeout_s=900), "test")
         self.assertEqual(out.round_timeout_s, 60)
 
+    def test_bad_string_budget_falls_back_to_base_value(self):
+        # 损坏的非数字字符串预算不得进入 runtime：round_timeout_s="bad" 回落到 base 值 900。
+        spec = _spec(budgets={"round_timeout_s": "bad"})
+        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+            out = apply_mode_overlay(Settings(round_timeout_s=900), "test")
+        self.assertEqual(out.round_timeout_s, 900)
+
+    def test_out_of_range_budget_clamped_by_settings_validation(self):
+        # 越界 budget 值被 Settings._from_dict 集中清洗钳制到 safe 区间。
+        spec = _spec(budgets={"round_timeout_s": 1, "recovery_action_limit": 999})
+        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+            out = apply_mode_overlay(Settings(), "test")
+        self.assertEqual(out.round_timeout_s, 60)        # <60 → 60
+        self.assertEqual(out.recovery_action_limit, 10)  # >10 → 10
+
+    def test_numeric_string_budget_coerced_to_int(self):
+        # 数字字符串预算被 Settings._from_dict 清洗强制转为 int。
+        spec = _spec(budgets={"round_timeout_s": "900"})
+        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+            out = apply_mode_overlay(Settings(round_timeout_s=123), "test")
+        self.assertEqual(out.round_timeout_s, 900)
+        self.assertIsInstance(out.round_timeout_s, int)
+
+    def test_invalid_hidden_default_falls_back_to_base(self):
+        # 损坏的 hidden_default 回落到 base 值，不会崩溃或赋予非法类型。
+        spec = _spec(hidden_defaults={"auto_create_room": "invalid_bool"})
+        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+            out = apply_mode_overlay(Settings(auto_create_room=True), "test")
+        self.assertTrue(out.auto_create_room)
+
 
 if __name__ == "__main__":
     unittest.main()

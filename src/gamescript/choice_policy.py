@@ -524,6 +524,17 @@ def choose_action(
     if cands.panel_kind is None:
         return PolicyDecision(PolicyAction.NONE, None, "无面板")
 
+    # HARD 档且未配置任何技能（skill_presets / skill_focus_families 均空）：
+    # 用户显式零勾选 → 必须在任何 attempts/deadline last-resort 之前裁决 CLOSE，
+    # 绝不 GIVEUP/REFRESH/SELECT，也不受 allow_skill_giveup 影响（零配置绝不花技能点）。
+    if (
+        cands.panel_kind == PANEL_SKILL
+        and settings.skill_whitelist_mode == SKILL_MODE_HARD
+        and not settings.skill_presets
+        and not settings.skill_focus_families
+    ):
+        return _skill_hold_or_hide("未配置任何技能（HARD 档空配置）")
+
     # 全局抢占：总期限过期 / 尝试上限耗尽 → 放弃或关闭（不再做任何动作）。
     if state.deadline_exceeded or state.attempts >= state.max_attempts:
         return _giveup_or_close(

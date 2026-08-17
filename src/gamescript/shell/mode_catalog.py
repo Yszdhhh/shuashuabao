@@ -91,12 +91,15 @@ def apply_mode_overlay(settings: Settings, mode_id: str) -> Settings:
     spec = get_spec(mode_id)
     # budgets 与 hidden_defaults 都消费，但只接受真实 Settings 字段（未知键忽略）；
     # 同键冲突时 hidden_defaults 优先（显式默认压过预算推导）。
+    # 复用现有 Settings._from_dict 清洗语义（类型强制、区间钳制、损坏值回落）。
     merged: dict[str, Any] = {}
     for source in (spec.budgets, spec.hidden_defaults):
         for k, v in source.items():
             if k in _SETTINGS_FIELDS:
                 merged[k] = v
-    return replace(settings, **merged)
+    base = asdict(settings)
+    base.update(merged)
+    return Settings._from_dict(base)
 
 
 def collect_persistable_settings(settings: Settings) -> dict[str, Any]:

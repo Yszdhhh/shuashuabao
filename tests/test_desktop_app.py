@@ -490,17 +490,35 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual(cards.count("tuluzhe"), 1)
         self.assertEqual(cards.count("zhili"), 1)
 
-    def test_route_fetter_codes_consumes_chain_and_support(self):
-        # 纯函数：codes-only 视角，chain 顺序 + support 顺序、去重。
+    def test_attr_line_tokens_never_falls_back_to_attr_line_options(self):
+        # 配置漂移时（route 在 ATTR_LINE_OPTIONS 但不在 attr_routes）：必须贡献
+        # 零 token，不得退回旧 gate+ur 摘要（第二事实源）。
+        with patch.object(shell_window, "ATTR_LINE_OPTIONS", [
+            {"id": "ghost_route", "label": "幽灵线", "gate": "幽灵", "ur": "幽灵王"},
+        ]):
+            self.window._shell_extras["attr_route"] = ["ghost_route"]
+            self.assertEqual(self.window._attr_line_tokens(), [])
+
+    def test_attr_line_tokens_is_single_chain_source(self):
+        # 唯一链路：只从 official_strategy_defaults attr_routes 读 chain+support，
+        # 配置顺序去重；可解析短码用短码，无法解析保留中文名。
+        self.window._shell_extras["attr_route"] = ["intelligence"]
         self.assertEqual(
-            shell_window.route_fetter_codes("intelligence"),
-            ["zhili", "yanmiezhe", "fs", "mfs"],
-        )
-        self.assertEqual(
-            shell_window.route_fetter_codes("strength"),
-            ["liliang", "yemanren", "zhanshen", "tuluzhe", "xueshi"],
+            self.window._attr_line_tokens(),
+            ["zhili", "秘法师", "法神", "yanmiezhe", "fs", "魔能", "魔术", "mfs", "元素师"],
         )
 
+    def test_factory_empty_cards_do_not_inject_attr_route(self):
+        # 工厂 Settings.cards=[]：不得从 cards 内容猜测/默认注入属性路线。
+        # 属性线 checkbox 必须全不勾选，_attr_line_tokens() 必须为空，
+        # 且收集到的 cards 不得自动注入整条智力路线。
+        self.window.apply_settings_to_ui(Settings(cards=[]))
+        self.assertEqual(self.window._shell_extras.get("attr_route") or [], [])
+        self.assertFalse(any(b.isChecked() for b in self.window.route_buttons.values()))
+        self.assertEqual(self.window._attr_line_tokens(), [])
+        cards = self.window.collect_settings_from_ui().cards
+        for token in ("秘法师", "fs", "yanmiezhe", "法术", "魔能", "魔术", "mfs", "元素师"):
+            self.assertNotIn(token, cards)
     def test_attr_line_is_summary_and_advanced_packs_optional(self):
         text = self._panel_text()
         self.assertIn("属性线", text)
@@ -623,9 +641,7 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertEqual(["asj", "assx", "jq", "bsxx"], applied.skills)
         self.assertEqual(
             [
-                "zhufu", "chengzhang", "tishu", "liliang", "yemanren", "zhanshen",
-                "tuluzhe", "xueshi", "zhili", "秘法师", "法神", "yanmiezhe", "fs",
-                "魔能", "魔术", "mfs", "元素师",
+                "zhufu", "chengzhang", "tishu", "liliang", "tuluzhe", "zhili", "yanmiezhe", "fs",
             ],
             applied.cards,
         )
@@ -657,9 +673,7 @@ class DesktopPanelTests(unittest.TestCase):
             self.assertEqual(["asj", "assx", "jq", "bsxx"], c.skills)
             self.assertEqual(
                 [
-                    "zhufu", "chengzhang", "tishu", "liliang", "yemanren", "zhanshen",
-                    "tuluzhe", "xueshi", "zhili", "秘法师", "法神", "yanmiezhe", "fs",
-                    "魔能", "魔术", "mfs", "元素师",
+                    "zhufu", "chengzhang", "tishu", "liliang", "tuluzhe", "zhili", "yanmiezhe", "fs",
                 ],
                 c.cards,
             )

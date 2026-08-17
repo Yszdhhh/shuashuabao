@@ -278,6 +278,61 @@ class TestSkillEmptyHardConfig(unittest.TestCase):
         )
         self.assertEqual(d.action, PolicyAction.CLOSE)
 
+    def test_hard_empty_config_attempts_cap_never_giveup(self):
+        # 空 HARD 裁决必须先于 attempts last-resort：attempts=max + has_giveup
+        # 也必须 CLOSE，绝不 GIVEUP/REFRESH/SELECT（零配置绝不花技能点）。
+        d = choose_action(
+            skill_cands(
+                [slot(0, "剑气", confidence=0.99)],
+                has_giveup=True,
+                settings=settings(skill_whitelist_mode=SKILL_MODE_HARD),
+            ),
+            SessionState(attempts=12, max_attempts=12),
+        )
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+        self.assertIsNone(d.index)
+
+    def test_hard_empty_config_deadline_exceeded_never_giveup(self):
+        # 空 HARD 裁决必须先于 deadline last-resort：deadline_exceeded +
+        # has_giveup 也必须 CLOSE，绝不 GIVEUP。
+        d = choose_action(
+            skill_cands(
+                [slot(0, "剑气", confidence=0.99)],
+                has_giveup=True,
+                settings=settings(skill_whitelist_mode=SKILL_MODE_HARD),
+            ),
+            SessionState(deadline_exceeded=True),
+        )
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+        self.assertIsNone(d.index)
+
+    def test_hard_empty_config_never_selects_even_with_remaining_attempts(self):
+        # 空 HARD 在任何会话状态下都只 CLOSE：即使 attempts 未耗尽也不 SELECT。
+        d = choose_action(
+            skill_cands(
+                [slot(0, "剑气", confidence=0.99)],
+                settings=settings(skill_whitelist_mode=SKILL_MODE_HARD),
+            ),
+            SessionState(attempts=3),
+        )
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+
+    def test_hard_nonempty_attempts_cap_still_giveup(self):
+        # 非空 HARD 保持原语义：attempts=max + has_giveup → GIVEUP（不被空配置
+        # 短路误伤）。
+        d = choose_action(
+            skill_cands(
+                [slot(0, "剑气", confidence=0.99)],
+                has_giveup=True,
+                settings=settings(
+                    skill_whitelist_mode=SKILL_MODE_HARD,
+                    skill_presets=["剑气"],
+                ),
+            ),
+            SessionState(attempts=12, max_attempts=12),
+        )
+        self.assertEqual(d.action, PolicyAction.GIVEUP)
+
     def test_hard_nonempty_config_unreadable_unchanged_waits(self):
         # 非空配置 + OCR 不可读：保持旧行为（WAIT → 耗尽后 CLOSE）。
         d = choose_action(

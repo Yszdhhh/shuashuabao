@@ -200,21 +200,6 @@ def code_for_bond_name(name: str) -> str | None:
     return FETTER_NAME_TO_CODE.get(name)
 
 
-def route_fetter_codes(route_id: str) -> list[str]:
-    """属性路线 fetter 短码：按 attr_routes 顺序消费 chain + support，去重。
-
-    只返回能解析成短码的名称；无法解析的名称由 _attr_line_tokens 保留中文名。
-    """
-    route = ATTR_ROUTES.get(route_id) or {}
-    codes: list[str] = []
-    for name in (route.get("chain") or []) + (route.get("support") or []):
-        code = code_for_bond_name(str(name))
-        if code and code not in codes:
-            codes.append(code)
-    extra = route.get("fetter_code")
-    if extra and extra not in codes:
-        codes.append(str(extra))
-    return codes
 
 
 def _is_admin() -> bool:
@@ -560,7 +545,7 @@ class MainWindow(QMainWindow):
             "custom_builds": [],
             "bond_scheme": [],
             "bond_inverted": [],
-            "attr_route": "intelligence",
+            "attr_route": [],
             "advanced_packs": [],
             "hitch_stage_prefix": "3",
         }
@@ -1393,12 +1378,6 @@ class MainWindow(QMainWindow):
         for rid in selected:
             route = ATTR_ROUTES.get(rid) or {}
             names = (route.get("chain") or []) + (route.get("support") or [])
-            if not names:
-                # 配置漂移兜底：路由不在 attr_routes 时沿用旧 gate+ur 摘要。
-                row = next((item for item in ATTR_LINE_OPTIONS if item.get("id") == rid), None)
-                if row is None:
-                    continue
-                names = (row.get("gate"), row.get("ur"))
             for name in names:
                 text = str(name or "").strip()
                 if not text:
@@ -1840,18 +1819,9 @@ class MainWindow(QMainWindow):
         rep_index = self.cmb_reputation.findData(rep_type)
         self.cmb_reputation.setCurrentIndex(rep_index if rep_index >= 0 else 0)
         self.spn_reputation_level.setValue(max(1, min(5, int(getattr(settings, "reputation_level", 1) or 1))))
-        routes = []
-        for c in card_stems:
-            if c in ("liliang", "tuluzhe") and "strength" not in routes:
-                routes.append("strength")
-            elif c in ("zhili", "yanmiezhe") and "intelligence" not in routes:
-                routes.append("intelligence")
-            elif c in ("mingjie", "shougezhe") and "agility" not in routes:
-                routes.append("agility")
-        if not routes:
-            routes = self._shell_extras.get("attr_route") or []
-            if isinstance(routes, str):
-                routes = [routes]
+        routes = self._shell_extras.get("attr_route") or []
+        if isinstance(routes, str):
+            routes = [routes]
         self._shell_extras["attr_route"] = routes
         for route, button in self.route_buttons.items():
             button.blockSignals(True)
@@ -1947,15 +1917,13 @@ class MainWindow(QMainWindow):
             code for code in self._bond_plan_boxes if code not in set(new_cards)
         ]
         self._shell_extras["advanced_packs"] = []
-        if "yanmiezhe" in new_cards or "zhili" in new_cards:
-            self._shell_extras["attr_route"] = "intelligence"
-        elif "tuluzhe" in new_cards or "liliang" in new_cards:
-            self._shell_extras["attr_route"] = "strength"
-        elif "shougezhe" in new_cards or "mingjie" in new_cards:
-            self._shell_extras["attr_route"] = "agility"
-        route = str(self._shell_extras.get("attr_route") or "intelligence")
-        if route in self.route_buttons:
-            self.route_buttons[route].setChecked(True)
+        routes = self._shell_extras.get("attr_route") or []
+        if isinstance(routes, str):
+            routes = [routes]
+        for route, button in self.route_buttons.items():
+            button.blockSignals(True)
+            button.setChecked(route in routes)
+            button.blockSignals(False)
         for pack_id, box in self._advanced_pack_boxes.items():
             box.blockSignals(True)
             box.setChecked(False)
