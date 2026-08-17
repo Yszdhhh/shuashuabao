@@ -325,6 +325,27 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertIn("不放弃", logged)
         self.assertNotIn("只刷新并放弃", logged)
 
+    def test_empty_skills_hint_and_clear_tooltip_match_close_hide_policy(self):
+        """0 选时 hint/清空 tooltip 必须声明关闭/隐藏，而不是刷新并放弃。"""
+        self.window.skill_grid.set_skills([])
+        hint = self.window.skill_grid.hint.text()
+        self.assertIn("直接关闭/隐藏", hint)
+        self.assertIn("不刷新", hint)
+        self.assertIn("不放弃技能点", hint)
+        self.assertNotIn("只刷新并放弃", hint)
+
+        clear_btns = [
+            widget
+            for widget in self.window.skill_grid.findChildren(QPushButton)
+            if widget.text() == "清空"
+        ]
+        self.assertEqual(1, len(clear_btns))
+        tip = clear_btns[0].toolTip()
+        self.assertIn("直接关闭/隐藏", tip)
+        self.assertIn("不刷新", tip)
+        self.assertIn("不放弃技能点", tip)
+        self.assertNotIn("只刷新并放弃", tip)
+
     def test_desktop_worker_writes_fail_closed_incident(self):
         """S0.5：desktop worker 的 Mediator 构造路径传 temp incident_dir，触发
         Fail-Closed 后 incident 组含 3 帧（before/now/after）+ 完整 S0 metadata

@@ -255,7 +255,7 @@ class SkillCardGrid(QWidget):
         lay.addWidget(self.hint)
         row = QHBoxLayout()
         clear_btn = QPushButton("清空")
-        clear_btn.setToolTip("清空全部技能：技能面板将只刷新并放弃，不学任何技能")
+        clear_btn.setToolTip("清空全部技能：技能面板将直接关闭/隐藏，不刷新、不放弃技能点，不学任何技能")
         clear_btn.clicked.connect(lambda: self.set_skills([]))
         row.addWidget(clear_btn)
         row.addStretch()
@@ -316,7 +316,7 @@ class SkillCardGrid(QWidget):
     def _mode_hint_text(self) -> str:
         count = len(self._selected)
         if count == 0:
-            return "当前已选 0 个技能：不自动学习任何技能（只刷新并放弃）。"
+            return "当前已选 0 个技能：不自动学习任何技能（技能面板直接关闭/隐藏，不刷新、不放弃技能点）。"
         elif 1 <= count <= 4:
             return f"当前已选 {count} 个技能【严格模式】：仅学习勾选技能，未选中的永远不学。"
         else:
