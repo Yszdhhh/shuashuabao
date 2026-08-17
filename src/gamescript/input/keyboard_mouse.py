@@ -16,6 +16,10 @@ class ActionResult:
     message: str = ""
 
 
+class InputFailSafeError(RuntimeError):
+    """pyautogui 紧急急停（指针进入屏幕角落）触发的语义化输入失败。"""
+
+
 def is_current_process_elevated() -> bool:
     """True when this process has an elevated (admin) token.
 
@@ -292,7 +296,14 @@ class InputExecutor:
             print(f"[input] press_key {key!r} CANCELLED: {check.message}")
             return check
 
-        press_key(key, dry_run=dry_run)
+        try:
+            press_key(key, dry_run=dry_run)
+        except InputFailSafeError as exc:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_FAILSAFE",
+                message=f"Fail-safe triggered during press_key({key!r}): {exc}",
+            )
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -305,7 +316,14 @@ class InputExecutor:
             print(f"[input] hotkey {keys!r} CANCELLED: {check.message}")
             return check
 
-        hotkey(*keys, dry_run=dry_run)
+        try:
+            hotkey(*keys, dry_run=dry_run)
+        except InputFailSafeError as exc:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_FAILSAFE",
+                message=f"Fail-safe triggered during hotkey({keys!r}): {exc}",
+            )
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -318,7 +336,14 @@ class InputExecutor:
             print(f"[input] paste_text CANCELLED: {check.message}")
             return check
 
-        paste_text(text, dry_run=dry_run)
+        try:
+            paste_text(text, dry_run=dry_run)
+        except InputFailSafeError as exc:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_FAILSAFE",
+                message=f"Fail-safe triggered during paste_text: {exc}",
+            )
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -336,7 +361,14 @@ class InputExecutor:
                 print(f"[input] scroll ({x}, {y}) CANCELLED: {obscured.message}")
                 return obscured
 
-        scroll(x, y, clicks, dry_run=dry_run)
+        try:
+            scroll(x, y, clicks, dry_run=dry_run)
+        except InputFailSafeError as exc:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_FAILSAFE",
+                message=f"Fail-safe triggered during scroll at ({x}, {y}): {exc}",
+            )
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -386,7 +418,10 @@ def press_key(key: str, dry_run: bool = True) -> None:
         return
     import pyautogui
 
-    pyautogui.press(key)
+    try:
+        pyautogui.press(key)
+    except pyautogui.FailSafeException as exc:
+        raise InputFailSafeError(f"pyautogui fail-safe during press_key({key!r}): {exc}") from exc
 
 
 def hotkey(*keys: str, dry_run: bool = True) -> None:
@@ -396,7 +431,10 @@ def hotkey(*keys: str, dry_run: bool = True) -> None:
         return
     import pyautogui
 
-    pyautogui.hotkey(*keys)
+    try:
+        pyautogui.hotkey(*keys)
+    except pyautogui.FailSafeException as exc:
+        raise InputFailSafeError(f"pyautogui fail-safe during hotkey({keys!r}): {exc}") from exc
 
 
 def paste_text(text: str, dry_run: bool = True) -> None:
@@ -413,11 +451,14 @@ def paste_text(text: str, dry_run: bool = True) -> None:
 
     saved_text = get_clipboard_text()
     try:
-        if set_clipboard_text(text):
-            pyautogui.hotkey("ctrl", "v")
-            time.sleep(0.05)
-        else:
-            pyautogui.write(text, interval=0.01)
+        try:
+            if set_clipboard_text(text):
+                pyautogui.hotkey("ctrl", "v")
+                time.sleep(0.05)
+            else:
+                pyautogui.write(text, interval=0.01)
+        except pyautogui.FailSafeException as exc:
+            raise InputFailSafeError(f"pyautogui fail-safe during paste_text: {exc}") from exc
     finally:
         if saved_text is not None:
             set_clipboard_text(saved_text)
@@ -506,8 +547,11 @@ def scroll(x: int, y: int, clicks: int, dry_run: bool = True) -> None:
         return
     import pyautogui
 
-    pyautogui.moveTo(x, y, duration=0.05)
-    pyautogui.scroll(clicks)
+    try:
+        pyautogui.moveTo(x, y, duration=0.05)
+        pyautogui.scroll(clicks)
+    except pyautogui.FailSafeException as exc:
+        raise InputFailSafeError(f"pyautogui fail-safe during scroll at ({x}, {y}): {exc}") from exc
 
 
 def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> bool:
