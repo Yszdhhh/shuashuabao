@@ -485,6 +485,9 @@ class Mediator:
         self._trace_actions: list[dict] = []
         self._trace_scenes: list[dict] = []
         self._trace_controls: list[dict] = []
+        # trace 帧指纹缓存：(Frame 强引用, fingerprint)；用 is 判同，避免
+        # id 复用导致同址新 Frame 误命中旧指纹。
+        self._trace_fingerprint_cache: tuple | None = None
         self._interrupt_reason: str | None = None
         # Safety: L0 cycle counter — prevent infinite PLATFORM_MAP ↔ ROOM_WAITING loops
         self._l0_cycle_count = 0
@@ -600,6 +603,12 @@ class Mediator:
         self._l1_cycle_step = "skill"
         self._l1_cycle_owned_panel = False
         self._l1_cycle_selected = False
+        # 三面板主动打开时间戳（G/F/V）：0.0 = 本局从未成功打开 → 首次立即允许；
+        # 成功打开后按 settings.choice_interval 限制同 kind 重开。set_phase(MAIN_LINE)
+        # 每局重置。
+        self._last_skill_panel = 0.0
+        self._last_bond_attempt = 0.0
+        self._last_treasure_attempt = 0.0
         self._merchant_next_at = 0.0
         self._equipment_next_at = 0.0
         self._equipment_pending_until = 0.0
@@ -1933,6 +1942,14 @@ class Mediator:
             refreshes=max(cur.refreshes, self._skill_refresh_attempts),
         )
 
+    def _bump_choice_attempts(self) -> None:
+        """成功执行的 SELECT/REFRESH/GIVEUP/CLOSE 才计 SessionState.attempts。
+
+        WAIT 与被拒点击（act_click False / 找不到按钮）不产生 UI 动作，不得烧预算。
+        """
+        cur = self._choice_session
+        self._choice_session = replace(cur, attempts=cur.attempts + 1)
+
     def _sync_choice_session_refreshes(self) -> None:
         cur = self._choice_session
         refreshes = max(cur.refreshes, int(self._skill_refresh_attempts))
@@ -2524,11 +2541,13 @@ class Mediator:
                 )
         # 技能 G：核心，持续到无可选项后才进入羁绊。
         if self._l1_cycle_step == "skill":
+            # 成功主动打开后按 choice_interval 限制重开；0.0 = 本局未开过 → 首次立即允许。
+            if self._last_skill_panel > 0.0 and now - self._last_skill_panel < self.settings.choice_interval:
+                return LoopAction.Continue
             if self._panel_episode_count.get("skill", 0) >= self.settings.panel_episode_limit_per_kind:
                 self._panel_episode_count["skill"] = 0
                 self._advance_l1_cycle("skill")
                 print("[L1] 技能本轮安全预算已用完，转入羁绊；下一轮重新开放")
-                self._last_skill_panel = now
                 return LoopAction.Continue
             if self.act_click(self._hud_button_hit(frame, "skill_button", self.CHOICE_BUTTON_RATIOS["skill"]), "OpenSkillPanel"):
                 self._last_skill_panel = now
@@ -2544,11 +2563,12 @@ class Mediator:
             return LoopAction.Continue
         # 羁绊 F / 宝物 V：按显式循环顺序执行。
         if self._l1_cycle_step == "bond" and getattr(self.settings, "auto_bond", True):
+            if self._last_bond_attempt > 0.0 and now - self._last_bond_attempt < self.settings.choice_interval:
+                return LoopAction.Continue
             if self._panel_episode_count.get("bond", 0) >= self.settings.panel_episode_limit_per_kind:
                 self._panel_episode_count["bond"] = 0
                 self._advance_l1_cycle("bond")
                 print("[L1] 羁绊本轮安全预算已用完，转入宝物；下一轮重新开放")
-                self._last_bond_attempt = now
                 return LoopAction.Continue
             if self.act_click(self._hud_button_hit(frame, "bond_button", self.CHOICE_BUTTON_RATIOS["bond"]), "OpenBondPanel"):
                 self._last_bond_attempt = now
@@ -2562,11 +2582,12 @@ class Mediator:
                 print("[L1] F 羁绊按钮点击被拒绝（不推进循环）")
             return LoopAction.Continue
         if self._l1_cycle_step == "treasure" and getattr(self.settings, "auto_treasure", True):
+            if self._last_treasure_attempt > 0.0 and now - self._last_treasure_attempt < self.settings.choice_interval:
+                return LoopAction.Continue
             if self._panel_episode_count.get("treasure", 0) >= self.settings.panel_episode_limit_per_kind:
                 self._panel_episode_count["treasure"] = 0
                 self._advance_l1_cycle("treasure")
                 print("[L1] 宝物本轮安全预算已用完，转入进化；下一轮重新开放")
-                self._last_treasure_attempt = now
                 return LoopAction.Continue
             if self.act_click(self._hud_button_hit(frame, "treasure_button", self.CHOICE_BUTTON_RATIOS["treasure"]), "OpenTreasurePanel"):
                 self._last_treasure_attempt = now
@@ -5289,18 +5310,20 @@ class Mediator:
         """帧指纹：size + bgr md5（无现成指纹函数时的简单实现）。
 
         相同 Frame 对象（静态帧复用）缓存指纹，避免每 tick 重复哈希。
+        缓存持有 Frame 强引用并用 ``is`` 判同：``id(frame)`` 在对象被 GC 后
+        可能被同址新对象复用，导致旧指纹误命中。
         """
         if frame is None or frame.bgr is None:
             return None
-        cached = getattr(self, "_trace_fingerprint_cache", None)
-        if cached is not None and cached[0] is id(frame):
+        cached = self._trace_fingerprint_cache
+        if cached is not None and cached[0] is frame:
             return cached[1]
         try:
             digest = hashlib.md5(frame.bgr.tobytes()).hexdigest()
         except Exception:
             return None
         fingerprint = f"{frame.width}x{frame.height}:{digest}"
-        self._trace_fingerprint_cache = (id(frame), fingerprint)
+        self._trace_fingerprint_cache = (frame, fingerprint)
         return fingerprint
 
     def _trace_panel_candidates(self) -> list[dict]:
@@ -5837,6 +5860,8 @@ class Mediator:
                 print(f"[L1] {kind}选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
                 clicked = self.act_click(hit, f"{kind}选择")
                 if clicked:
+                    # 成功执行的选卡/刷新/放弃/关闭动作才计入尝试预算（WAIT/被拒不加）。
+                    self._bump_choice_attempts()
                     # 技能选卡点击成功 → 暂存卡名，等 WAIT_MUTATION 确认后才计入已学
                     # （刷新/放弃/关闭/隐藏不算选卡；未确认点击超时只清暂存不记账）。
                     if kind == "技能" and self._is_skill_card_click(hit.name):
@@ -5913,6 +5938,7 @@ class Mediator:
             if close_hit is not None:
                 print(f"[L1] 面板无法匹配卡牌，点击关闭 {close_hit.name} ({close_reason})")
                 if self.act_click(close_hit, close_reason):
+                    self._bump_choice_attempts()
                     self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
                     self._panel_state = PanelState.WAIT_MUTATION
                     self._panel_mutation_baseline = self._panel_roi_region(frame)

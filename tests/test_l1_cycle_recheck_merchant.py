@@ -356,5 +356,137 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")
 
 
+class L1RuntimeAccountingTests(unittest.TestCase):
+    """Commit3：三面板时间戳初始化 / choice_interval 重开限制 / attempts 记账 /
+    trace 帧指纹缓存（Frame 强引用 + is 判同）。
+    """
+
+    def setUp(self):
+        self.med = Mediator(Settings(), ROOT)
+        self.frame = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="game",
+            hwnd=1,
+        )
+
+    # ---- 三面板时间戳：__init__ 初始化 0.0（首次立即允许） ----
+
+    def test_init_initializes_three_panel_timestamps_to_zero(self):
+        self.assertEqual(self.med._last_skill_panel, 0.0)
+        self.assertEqual(self.med._last_bond_attempt, 0.0)
+        self.assertEqual(self.med._last_treasure_attempt, 0.0)
+
+    def test_choice_interval_blocks_reopen_within_interval(self):
+        # 当前 kind 成功主动打开后：间隔未满不重开，也不推进循环。
+        self.med.settings.choice_interval = 120
+        self.med._panel_episode_count["skill"] = 1  # 跳过 snapshot 兼容迁移
+        self.med._l1_cycle_step = "skill"
+        self.med._last_skill_panel = 100.0
+        with patch("gamescript.mediator.time.time", return_value=200.0), \
+                patch.object(self.med, "act_click") as click:
+            result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
+        self.assertIs(result, LoopAction.Continue)
+        click.assert_not_called()
+        self.assertEqual(self.med._l1_cycle_step, "skill")
+
+    def test_choice_interval_first_open_immediately_allowed(self):
+        # 首次（时间戳 0.0）：立即允许打开并记录成功时间戳。
+        self.med.settings.choice_interval = 120
+        self.med._l1_cycle_step = "skill"
+        self.assertEqual(self.med._last_skill_panel, 0.0)
+        with patch.object(self.med, "act_click", return_value=True) as click:
+            result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
+        self.assertIs(result, LoopAction.Continue)
+        click.assert_called_once()
+        self.assertGreater(self.med._last_skill_panel, 0.0)
+
+    def test_choice_interval_rejected_open_does_not_advance_timestamp(self):
+        # 打开被拒绝（act_click False）→ 不推进冷却时间戳，下 tick 可重试。
+        self.med.settings.choice_interval = 120
+        self.med._l1_cycle_step = "skill"
+        with patch.object(self.med, "act_click", return_value=False) as click:
+            result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
+        self.assertIs(result, LoopAction.Continue)
+        click.assert_called_once()
+        self.assertEqual(self.med._last_skill_panel, 0.0)
+
+    # ---- attempts：成功 SELECT/REFRESH/GIVEUP/CLOSE 才 +1；WAIT/拒绝不加 ----
+
+    def _enter_live_bond(self, med: Mediator, slots: list[dict]) -> MatchResult:
+        anchor = MatchResult("card_hide", 0.85, 758, 574, 10, 10, 758, 574)
+        with patch.object(med, "_ocr_panel_slots", return_value=slots):
+            self.assertIs(
+                med._tick_panel_fsm(self.frame, anchor, time.time()),
+                LoopAction.Continue,
+            )
+        return anchor
+
+    def test_successful_select_increments_choice_attempts(self):
+        med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
+        slots = [
+            {"index": 0, "name": "祝福", "confidence": 0.99, "raw_text": "祝福(2/3)"},
+        ]
+        with patch.object(med, "act_click", return_value=True) as click:
+            self._enter_live_bond(med, slots)
+        click.assert_called_once()
+        self.assertEqual(med._choice_session.attempts, 1)
+
+    def test_wait_does_not_increment_choice_attempts(self):
+        med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
+        slots = [{"index": 0, "name": None, "confidence": 0.0, "raw_text": ""}]
+        with patch.object(med, "act_click") as click:
+            self._enter_live_bond(med, slots)
+        click.assert_not_called()
+        self.assertEqual(med._choice_session.attempts, 0)
+
+    def test_rejected_click_does_not_increment_choice_attempts(self):
+        med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
+        slots = [
+            {"index": 0, "name": "祝福", "confidence": 0.99, "raw_text": "祝福(2/3)"},
+        ]
+        with patch.object(med, "act_click", return_value=False) as click:
+            self._enter_live_bond(med, slots)
+        click.assert_called_once()
+        self.assertEqual(med._choice_session.attempts, 0)
+
+    # ---- trace 帧指纹缓存：Frame 强引用 + is 判同（不用 id） ----
+
+    def test_trace_fingerprint_cache_holds_frame_strong_reference(self):
+        import gc
+        import weakref
+
+        frame = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="game",
+            hwnd=1,
+        )
+        self.med._trace_frame_fingerprint(frame)
+        ref = weakref.ref(frame)
+        del frame
+        gc.collect()
+        self.assertIsNotNone(ref(), "trace 指纹缓存必须持有 Frame 强引用")
+        self.assertIs(self.med._trace_fingerprint_cache[0], ref())
+
+    def test_trace_fingerprint_cache_uses_is_not_id(self):
+        frame_a = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="game",
+            hwnd=1,
+        )
+        fp_a = self.med._trace_frame_fingerprint(frame_a)
+        self.assertIsNotNone(fp_a)
+        # 缓存项本体就是 Frame（旧实现缓存 id 整数，assertIs 必然失败）
+        self.assertIs(self.med._trace_fingerprint_cache[0], frame_a)
+        # 内容相同但对象不同 → 必须重新计算并切换缓存，而非按 id 误命中
+        frame_b = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="game",
+            hwnd=1,
+        )
+        fp_b = self.med._trace_frame_fingerprint(frame_b)
+        self.assertEqual(fp_a, fp_b)
+        self.assertIs(self.med._trace_fingerprint_cache[0], frame_b)
+
+
 if __name__ == "__main__":
     unittest.main()

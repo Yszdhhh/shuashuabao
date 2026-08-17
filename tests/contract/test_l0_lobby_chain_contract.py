@@ -149,6 +149,9 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_choice_policy_idle": True,
         "_panel_fingerprint_attempts": 4,
         "_panel_f1_used_this_episode": True,
+        "_last_skill_panel": 1.0e9,
+        "_last_bond_attempt": 1.0e9,
+        "_last_treasure_attempt": 1.0e9,
         "_merchant_next_at": 1.0e9,
         "_pickup_next_at": 1.0e9,
     }
