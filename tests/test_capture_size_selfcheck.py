@@ -19,7 +19,11 @@ import numpy as np  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.vision.capture import WindowTarget, _capture_print_window  # noqa: E402
+from gamescript.vision.capture import (  # noqa: E402
+    WindowTarget,
+    _capture_print_window,
+    capture_target,
+)
 
 
 def _bitmap(w: int, h: int) -> np.ndarray:
@@ -80,6 +84,73 @@ class CaptureSizeSelfCheckTests(unittest.TestCase):
             frame = _capture_print_window(self._target(800, 600))
         self.assertFalse(frame.is_valid)
         self.assertEqual((0, 0), (frame.width, frame.height), "无效帧应使用空位图而不是伪装尺寸")
+
+
+class CaptureTargetRoutingTests(unittest.TestCase):
+    """capture_target 公共路由：activate=False 时非前台窗口走 PrintWindow
+    (ImageGrab)，MSS 不得被调用；位图尺寸不一致必须收敛为无效空帧。"""
+
+    def _target(self, client_w=800, client_h=600, window_w=820, window_h=620):
+        return WindowTarget(
+            hwnd=42,
+            title="kk",
+            left=100,
+            top=50,
+            width=window_w,
+            height=window_h,
+            client_left=110,
+            client_top=60,
+            client_width=client_w,
+            client_height=client_h,
+        )
+
+    def test_activate_false_non_foreground_uses_print_window_not_mss(self):
+        target = self._target(800, 600)
+        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
+             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+             patch("gamescript.vision.capture.activate_window") as activate_mock, \
+             patch("PIL.ImageGrab.grab", return_value=_bitmap(800, 600)), \
+             patch("gamescript.vision.capture.mss.mss") as mss_mock:
+            frame = capture_target(target, activate=False)
+        self.assertTrue(frame.is_valid, "非前台窗口应走 PrintWindow 路径拿到有效帧")
+        self.assertEqual((800, 600), (frame.width, frame.height))
+        activate_mock.assert_not_called()
+        mss_mock.assert_not_called()
+
+    def test_offscreen_size_mismatch_invalid_empty_frame_mss_not_called(self):
+        target = self._target(800, 600)
+        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
+             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+             patch("PIL.ImageGrab.grab", return_value=_bitmap(780, 590)), \
+             patch("gamescript.vision.capture.mss.mss") as mss_mock:
+            frame = capture_target(target, activate=False)
+        self.assertFalse(frame.is_valid, "尺寸不一致必须返回无效帧")
+        self.assertEqual((0, 0), (frame.width, frame.height), "无效帧必须为空位图")
+        self.assertIsNotNone(frame.error)
+        self.assertIn("780", frame.error)
+        mss_mock.assert_not_called()
+
+    def test_foreground_match_uses_mss_not_print_window(self):
+        target = self._target(800, 600)
+
+        class _FakeSct:
+            def grab(self, mon):
+                return np.zeros((600, 800, 4), dtype=np.uint8)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        with patch("gamescript.vision.capture._foreground_window", return_value=42), \
+             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+             patch("PIL.ImageGrab.grab", side_effect=AssertionError("must not call")), \
+             patch("gamescript.vision.capture.mss.mss", return_value=_FakeSct()) as mss_mock:
+            frame = capture_target(target, activate=False)
+        self.assertTrue(frame.is_valid, "前台窗口应走 MSS 抓屏")
+        self.assertEqual((800, 600), (frame.width, frame.height))
+        mss_mock.assert_called_once()
 
 
 if __name__ == "__main__":

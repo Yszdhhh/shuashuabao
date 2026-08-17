@@ -2,9 +2,16 @@
 
 背景：pyautogui 0.9.54 的 press/hotkey/write/moveTo 内部会调用
 failSafeCheck()——鼠标进入屏幕角落时抛 pyautogui.FailSafeException。
-此前该异常一路炸穿 InputExecutor，调用方拿不到任何失败信号。
-要求：LIVE press_key/hotkey/paste_text/scroll 捕获 FailSafeException，
-经 InputExecutor 沿用 ActionResult 返回明确失败；其他异常继续抛出。
+要求（Backward Compatible）：
+- standalone press_key/hotkey/paste_text/scroll 一律原样抛
+  pyautogui.FailSafeException，不包任何自定义异常层；其他异常也原样抛。
+  （13685ae 引入的 InputFailSafeError 第二套异常层已被移除。）
+- 只在 InputExecutor 的 press_key/hotkey/paste_text/scroll 四个方法边界
+  捕获 pyautogui.FailSafeException，收敛为
+  ActionResult(success=False, status='CANCELLED_FAILSAFE')。
+- paste_text 在 FailSafeException 传播前仍执行剪贴板恢复/清空：
+  saved_text 存在 → set_clipboard_text 调用顺序 [secret, prior]；
+  saved_text=None → 清空剪贴板，绝不留密。
 """
 
 from __future__ import annotations
@@ -20,56 +27,67 @@ sys.path.insert(0, str(ROOT / "src"))
 import pyautogui  # noqa: E402
 
 from gamescript.input import keyboard_mouse as kb  # noqa: E402
-from gamescript.input.keyboard_mouse import ActionResult, InputFailSafeError  # noqa: E402
+from gamescript.input.keyboard_mouse import ActionResult  # noqa: E402
 from gamescript.stop_signal import StopSignal  # noqa: E402
 
 
-class StandaloneFailSafeConversionTests(unittest.TestCase):
-    """独立函数：FailSafeException → InputFailSafeError；其他异常原样抛出。"""
+class StandaloneFailSafePropagationTests(unittest.TestCase):
+    """独立函数：FailSafeException 原样抛出（类型精确不变），其他异常原样抛出。"""
 
-    def test_press_key_live_converts_failsafe(self):
+    def test_press_key_live_raises_exact_failsafe_exception(self):
         with patch.object(pyautogui, "press", side_effect=pyautogui.FailSafeException("corner")):
-            with self.assertRaises(InputFailSafeError):
+            with self.assertRaises(pyautogui.FailSafeException) as cm:
                 kb.press_key("f4", dry_run=False)
+        self.assertIs(
+            type(cm.exception), pyautogui.FailSafeException,
+            "standalone 必须原样抛 pyautogui.FailSafeException，不得包装",
+        )
 
     def test_press_key_live_propagates_other_exceptions(self):
         with patch.object(pyautogui, "press", side_effect=RuntimeError("boom")):
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(RuntimeError) as cm:
                 kb.press_key("f4", dry_run=False)
+        self.assertIs(type(cm.exception), RuntimeError, "其他异常必须原样抛出")
 
-    def test_hotkey_live_converts_failsafe(self):
+    def test_hotkey_live_raises_exact_failsafe_exception(self):
         with patch.object(pyautogui, "hotkey", side_effect=pyautogui.FailSafeException("corner")):
-            with self.assertRaises(InputFailSafeError):
+            with self.assertRaises(pyautogui.FailSafeException) as cm:
                 kb.hotkey("ctrl", "a", dry_run=False)
+        self.assertIs(type(cm.exception), pyautogui.FailSafeException)
 
     def test_hotkey_live_propagates_other_exceptions(self):
         with patch.object(pyautogui, "hotkey", side_effect=ValueError("bad key")):
-            with self.assertRaises(ValueError):
+            with self.assertRaises(ValueError) as cm:
                 kb.hotkey("ctrl", "a", dry_run=False)
+        self.assertIs(type(cm.exception), ValueError)
 
-    def test_paste_text_live_converts_failsafe(self):
+    def test_paste_text_live_raises_exact_failsafe_exception(self):
         with patch.object(kb, "get_clipboard_text", return_value="prior"), \
              patch.object(kb, "set_clipboard_text", return_value=True), \
              patch.object(pyautogui, "hotkey", side_effect=pyautogui.FailSafeException("corner")):
-            with self.assertRaises(InputFailSafeError):
+            with self.assertRaises(pyautogui.FailSafeException) as cm:
                 kb.paste_text("secret", dry_run=False)
+        self.assertIs(type(cm.exception), pyautogui.FailSafeException)
 
     def test_paste_text_live_propagates_other_exceptions(self):
         with patch.object(kb, "get_clipboard_text", return_value="prior"), \
              patch.object(kb, "set_clipboard_text", return_value=True), \
              patch.object(pyautogui, "hotkey", side_effect=RuntimeError("boom")):
-            with self.assertRaises(RuntimeError):
+            with self.assertRaises(RuntimeError) as cm:
                 kb.paste_text("secret", dry_run=False)
+        self.assertIs(type(cm.exception), RuntimeError)
 
-    def test_scroll_live_converts_failsafe(self):
+    def test_scroll_live_raises_exact_failsafe_exception(self):
         with patch.object(pyautogui, "moveTo", side_effect=pyautogui.FailSafeException("corner")):
-            with self.assertRaises(InputFailSafeError):
+            with self.assertRaises(pyautogui.FailSafeException) as cm:
                 kb.scroll(100, 200, 3, dry_run=False)
+        self.assertIs(type(cm.exception), pyautogui.FailSafeException)
 
     def test_scroll_live_propagates_other_exceptions(self):
         with patch.object(pyautogui, "moveTo", side_effect=OSError("bad")):
-            with self.assertRaises(OSError):
+            with self.assertRaises(OSError) as cm:
                 kb.scroll(100, 200, 3, dry_run=False)
+        self.assertIs(type(cm.exception), OSError)
 
     def test_dry_run_never_touches_pyautogui(self):
         with patch.object(pyautogui, "press", side_effect=AssertionError("must not call")):
@@ -81,8 +99,45 @@ class StandaloneFailSafeConversionTests(unittest.TestCase):
         kb.paste_text("", dry_run=False)  # 空文本不触碰 pyautogui
 
 
+class PasteTextClipboardRestoreTests(unittest.TestCase):
+    """paste_text 的 FailSafeException 传播前必须完成剪贴板恢复/清空。"""
+
+    def test_failsafe_with_prior_clipboard_restores_in_secret_then_prior_order(self):
+        calls: list[str] = []
+
+        def fake_set(text: str) -> bool:
+            calls.append(text)
+            return True
+
+        with patch.object(kb, "get_clipboard_text", return_value="prior"), \
+             patch.object(kb, "set_clipboard_text", side_effect=fake_set), \
+             patch.object(pyautogui, "hotkey", side_effect=pyautogui.FailSafeException("corner")):
+            with self.assertRaises(pyautogui.FailSafeException):
+                kb.paste_text("secret", dry_run=False)
+        self.assertEqual(["secret", "prior"], calls, "必须先写入 secret，再在 finally 恢复 prior")
+
+    def test_failsafe_without_prior_clipboard_clears_clipboard(self):
+        with patch.object(kb, "get_clipboard_text", return_value=None), \
+             patch.object(kb, "set_clipboard_text", return_value=True), \
+             patch.object(kb, "_clear_clipboard") as clear_mock, \
+             patch.object(pyautogui, "hotkey", side_effect=pyautogui.FailSafeException("corner")):
+            with self.assertRaises(pyautogui.FailSafeException):
+                kb.paste_text("secret", dry_run=False)
+        clear_mock.assert_called_once_with()
+
+    def test_write_fallback_failsafe_also_clears_clipboard(self):
+        # set_clipboard_text 失败 → pyautogui.write 路径同样受 FailSafe 保护
+        with patch.object(kb, "get_clipboard_text", return_value=None), \
+             patch.object(kb, "set_clipboard_text", return_value=False), \
+             patch.object(kb, "_clear_clipboard") as clear_mock, \
+             patch.object(pyautogui, "write", side_effect=pyautogui.FailSafeException("corner")):
+            with self.assertRaises(pyautogui.FailSafeException):
+                kb.paste_text("secret", dry_run=False)
+        clear_mock.assert_called_once_with()
+
+
 class ExecutorFailSafeActionTests(unittest.TestCase):
-    """InputExecutor：FailSafeException 必须变成 ActionResult 明确失败。"""
+    """InputExecutor 四方法边界：FailSafeException → CANCELLED_FAILSAFE。"""
 
     def setUp(self):
         self.executor = kb.InputExecutor(StopSignal())
@@ -92,7 +147,7 @@ class ExecutorFailSafeActionTests(unittest.TestCase):
 
     def test_press_key_returns_failsafe_failure(self):
         with patch.object(kb.InputExecutor, "check_can_execute", return_value=self._ok_check()), \
-             patch.object(kb, "press_key", side_effect=InputFailSafeError("corner")):
+             patch.object(kb, "press_key", side_effect=pyautogui.FailSafeException("corner")):
             result = self.executor.press_key("f4", target_hwnd=1, dry_run=False)
         self.assertFalse(result.success)
         self.assertEqual("CANCELLED_FAILSAFE", result.status)
@@ -100,14 +155,14 @@ class ExecutorFailSafeActionTests(unittest.TestCase):
 
     def test_hotkey_returns_failsafe_failure(self):
         with patch.object(kb.InputExecutor, "check_can_execute", return_value=self._ok_check()), \
-             patch.object(kb, "hotkey", side_effect=InputFailSafeError("corner")):
+             patch.object(kb, "hotkey", side_effect=pyautogui.FailSafeException("corner")):
             result = self.executor.hotkey("ctrl", "a", target_hwnd=1, dry_run=False)
         self.assertFalse(result.success)
         self.assertEqual("CANCELLED_FAILSAFE", result.status)
 
     def test_paste_text_returns_failsafe_failure(self):
         with patch.object(kb.InputExecutor, "check_can_execute", return_value=self._ok_check()), \
-             patch.object(kb, "paste_text", side_effect=InputFailSafeError("corner")):
+             patch.object(kb, "paste_text", side_effect=pyautogui.FailSafeException("corner")):
             result = self.executor.paste_text("secret", target_hwnd=1, dry_run=False)
         self.assertFalse(result.success)
         self.assertEqual("CANCELLED_FAILSAFE", result.status)
@@ -115,7 +170,7 @@ class ExecutorFailSafeActionTests(unittest.TestCase):
     def test_scroll_returns_failsafe_failure(self):
         with patch.object(kb.InputExecutor, "check_can_execute", return_value=self._ok_check()), \
              patch.object(kb.InputExecutor, "_check_point_obscured", return_value=None), \
-             patch.object(kb, "scroll", side_effect=InputFailSafeError("corner")):
+             patch.object(kb, "scroll", side_effect=pyautogui.FailSafeException("corner")):
             result = self.executor.scroll(100, 200, 3, target_hwnd=1, dry_run=False)
         self.assertFalse(result.success)
         self.assertEqual("CANCELLED_FAILSAFE", result.status)
@@ -125,6 +180,24 @@ class ExecutorFailSafeActionTests(unittest.TestCase):
              patch.object(kb, "press_key", side_effect=RuntimeError("boom")):
             with self.assertRaises(RuntimeError):
                 self.executor.press_key("f4", target_hwnd=1, dry_run=False)
+
+    def test_paste_text_end_to_end_failsafe_converges_and_restores_clipboard(self):
+        # 真实 standalone paste_text 链路：FailSafeException 从 pyautogui 一路
+        # 传到 executor 边界，收敛为 CANCELLED_FAILSAFE，且剪贴板已按序恢复。
+        calls: list[str] = []
+
+        def fake_set(text: str) -> bool:
+            calls.append(text)
+            return True
+
+        with patch.object(kb.InputExecutor, "check_can_execute", return_value=self._ok_check()), \
+             patch.object(kb, "get_clipboard_text", return_value="prior"), \
+             patch.object(kb, "set_clipboard_text", side_effect=fake_set), \
+             patch.object(pyautogui, "hotkey", side_effect=pyautogui.FailSafeException("corner")):
+            result = self.executor.paste_text("secret", target_hwnd=1, dry_run=False)
+        self.assertFalse(result.success)
+        self.assertEqual("CANCELLED_FAILSAFE", result.status)
+        self.assertEqual(["secret", "prior"], calls)
 
 
 if __name__ == "__main__":

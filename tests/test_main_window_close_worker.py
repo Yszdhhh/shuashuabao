@@ -27,6 +27,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from gamescript.shell.main_window import MainWindow  # noqa: E402
 from gamescript.shell.runner_service import live_lock_path  # noqa: E402
+from gamescript.shell.runtime_status import RUNNER_IDLE  # noqa: E402
 
 
 class _StuckWorker:
@@ -136,6 +137,80 @@ class MainWindowCloseWorkerTests(unittest.TestCase):
             self.assertTrue(event.isAccepted())
             release_mock.assert_called_once()
             write_mock.assert_called_once()
+
+
+class MainWindowCloseNormalStopTests(unittest.TestCase):
+    """正常停止后 closeEvent accept 的锁释放与 queued finished 幂等性。
+
+    用真实 RunnerService/QLockFile（不 mock release_after_finish）证明：
+    - worker 已停止 → closeEvent accept 后 live.lock 文件已释放；
+    - 随后 worker 的 finished 信号（queued）触发 _on_worker_finished 时
+      不会重复破坏状态：锁不重现占用、runner 状态保持 IDLE。
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.app_data = Path(self.tmp.name)
+        self.window = MainWindow(app_data=self.app_data)
+        self.window.log = Mock()
+
+    def tearDown(self):
+        self.window.worker_thread = None
+        try:
+            self.window.close()
+        finally:
+            self.tmp.cleanup()
+
+    def _hold_lock(self) -> QLockFile:
+        lock = QLockFile(str(live_lock_path(self.app_data)))
+        self.assertTrue(lock.tryLock(100), "测试前置：live.lock 必须可占用")
+        self.window.runner._live_lock = lock
+        return lock
+
+    def test_worker_stopped_close_accept_releases_live_lock(self):
+        self.window.worker_thread = _StoppedWorker()
+        lock = self._hold_lock()
+        with patch.object(self.window, "_write_user_bundle") as write_mock:
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+            self.assertTrue(event.isAccepted(), "worker 已停止时 closeEvent 必须 accept")
+            write_mock.assert_called_once()
+        self.assertFalse(lock.isLocked(), "closeEvent accept 后 live.lock 必须已释放")
+        self.assertIsNone(self.window.runner._live_lock, "runner 不得再持有锁引用")
+        self.assertEqual(RUNNER_IDLE, self.window.runner.runner_state)
+
+    def test_queued_worker_finished_after_close_is_idempotent(self):
+        self.window.worker_thread = _StoppedWorker()
+        self.window.worker_thread.mediator = None
+        lock = self._hold_lock()
+        with patch.object(self.window, "_write_user_bundle"):
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+            self.assertTrue(event.isAccepted())
+        # worker 的 finished 信号已在关闭流程中排队，close 之后才投递
+        self.window._on_worker_finished()
+        self.assertFalse(lock.isLocked(), "queued finished 不得重新占用/破坏 live.lock")
+        self.assertIsNone(self.window.runner._live_lock)
+        self.assertEqual(RUNNER_IDLE, self.window.runner.runner_state)
+        self.assertIsNone(self.window.worker_thread, "queued finished 仍应清理 worker 引用")
+
+    def test_worker_finished_then_close_event_lock_stays_released(self):
+        # 反序：finished 先到（正常停止），随后 closeEvent —— 同样不得重现占用
+        self.window.worker_thread = _StoppedWorker()
+        self.window.worker_thread.mediator = None
+        lock = self._hold_lock()
+        with patch.object(self.window, "_write_user_bundle"):
+            self.window._on_worker_finished()
+            event = QCloseEvent()
+            self.window.closeEvent(event)
+            self.assertTrue(event.isAccepted())
+        self.assertFalse(lock.isLocked(), "两次释放路径后 live.lock 必须仍处于释放状态")
+        self.assertIsNone(self.window.runner._live_lock)
+        self.assertEqual(RUNNER_IDLE, self.window.runner.runner_state)
 
 
 if __name__ == "__main__":

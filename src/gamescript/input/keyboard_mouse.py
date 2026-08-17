@@ -16,8 +16,37 @@ class ActionResult:
     message: str = ""
 
 
-class InputFailSafeError(RuntimeError):
-    """pyautogui 紧急急停（指针进入屏幕角落）触发的语义化输入失败。"""
+def _failsafe_action_result(exc: BaseException, action: str) -> ActionResult | None:
+    """Map a pyautogui fail-safe to a CANCELLED_FAILSAFE result, else None.
+
+    pyautogui is a LIVE-path-only dependency, imported lazily here so this
+    module stays importable without it. Only pyautogui.FailSafeException is
+    converted — every other exception is left to propagate untouched.
+    """
+    try:
+        import pyautogui
+    except Exception:
+        return None
+    if isinstance(exc, pyautogui.FailSafeException):
+        return ActionResult(
+            success=False,
+            status="CANCELLED_FAILSAFE",
+            message=f"Fail-safe triggered during {action}: {exc}",
+        )
+    return None
+
+
+def _clear_clipboard() -> None:
+    """Empty the Win32 clipboard (used when the prior content is unknown)."""
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        if user32.OpenClipboard(0):
+            user32.EmptyClipboard()
+            user32.CloseClipboard()
+    except Exception:
+        pass
 
 
 def is_current_process_elevated() -> bool:
@@ -298,12 +327,11 @@ class InputExecutor:
 
         try:
             press_key(key, dry_run=dry_run)
-        except InputFailSafeError as exc:
-            return ActionResult(
-                success=False,
-                status="CANCELLED_FAILSAFE",
-                message=f"Fail-safe triggered during press_key({key!r}): {exc}",
-            )
+        except Exception as exc:
+            result = _failsafe_action_result(exc, f"press_key({key!r})")
+            if result is not None:
+                return result
+            raise
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -318,12 +346,11 @@ class InputExecutor:
 
         try:
             hotkey(*keys, dry_run=dry_run)
-        except InputFailSafeError as exc:
-            return ActionResult(
-                success=False,
-                status="CANCELLED_FAILSAFE",
-                message=f"Fail-safe triggered during hotkey({keys!r}): {exc}",
-            )
+        except Exception as exc:
+            result = _failsafe_action_result(exc, f"hotkey({keys!r})")
+            if result is not None:
+                return result
+            raise
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -338,12 +365,11 @@ class InputExecutor:
 
         try:
             paste_text(text, dry_run=dry_run)
-        except InputFailSafeError as exc:
-            return ActionResult(
-                success=False,
-                status="CANCELLED_FAILSAFE",
-                message=f"Fail-safe triggered during paste_text: {exc}",
-            )
+        except Exception as exc:
+            result = _failsafe_action_result(exc, "paste_text")
+            if result is not None:
+                return result
+            raise
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -363,12 +389,11 @@ class InputExecutor:
 
         try:
             scroll(x, y, clicks, dry_run=dry_run)
-        except InputFailSafeError as exc:
-            return ActionResult(
-                success=False,
-                status="CANCELLED_FAILSAFE",
-                message=f"Fail-safe triggered during scroll at ({x}, {y}): {exc}",
-            )
+        except Exception as exc:
+            result = _failsafe_action_result(exc, f"scroll at ({x}, {y})")
+            if result is not None:
+                return result
+            raise
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -412,29 +437,31 @@ def right_click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> bo
 
 
 def press_key(key: str, dry_run: bool = True) -> None:
-    """key: e.g. 'f4', 'esc', 'z'."""
+    """key: e.g. 'f4', 'esc', 'z'.
+
+    Backward Compatible: pyautogui.FailSafeException (and any other exception)
+    propagates untouched — no wrapping exception layer.
+    """
     print(f"[input] press_key {key!r} dry_run={dry_run}")
     if dry_run:
         return
     import pyautogui
 
-    try:
-        pyautogui.press(key)
-    except pyautogui.FailSafeException as exc:
-        raise InputFailSafeError(f"pyautogui fail-safe during press_key({key!r}): {exc}") from exc
+    pyautogui.press(key)
 
 
 def hotkey(*keys: str, dry_run: bool = True) -> None:
-    """Press a key combination, for example ``ctrl+a``."""
+    """Press a key combination, for example ``ctrl+a``.
+
+    Backward Compatible: pyautogui.FailSafeException (and any other exception)
+    propagates untouched — no wrapping exception layer.
+    """
     print(f"[input] hotkey {keys!r} dry_run={dry_run}")
     if dry_run:
         return
     import pyautogui
 
-    try:
-        pyautogui.hotkey(*keys)
-    except pyautogui.FailSafeException as exc:
-        raise InputFailSafeError(f"pyautogui fail-safe during hotkey({keys!r}): {exc}") from exc
+    pyautogui.hotkey(*keys)
 
 
 def paste_text(text: str, dry_run: bool = True) -> None:
@@ -451,28 +478,17 @@ def paste_text(text: str, dry_run: bool = True) -> None:
 
     saved_text = get_clipboard_text()
     try:
-        try:
-            if set_clipboard_text(text):
-                pyautogui.hotkey("ctrl", "v")
-                time.sleep(0.05)
-            else:
-                pyautogui.write(text, interval=0.01)
-        except pyautogui.FailSafeException as exc:
-            raise InputFailSafeError(f"pyautogui fail-safe during paste_text: {exc}") from exc
+        if set_clipboard_text(text):
+            pyautogui.hotkey("ctrl", "v")
+            time.sleep(0.05)
+        else:
+            pyautogui.write(text, interval=0.01)
     finally:
         if saved_text is not None:
             set_clipboard_text(saved_text)
         else:
             # Prior clipboard unavailable: never leave the secret behind
-            try:
-                import ctypes
-
-                user32 = ctypes.windll.user32
-                if user32.OpenClipboard(0):
-                    user32.EmptyClipboard()
-                    user32.CloseClipboard()
-            except Exception:
-                pass
+            _clear_clipboard()
 
 
 def type_text(text: str, dry_run: bool = True) -> None:
@@ -541,17 +557,18 @@ def type_text(text: str, dry_run: bool = True) -> None:
 
 
 def scroll(x: int, y: int, clicks: int, dry_run: bool = True) -> None:
-    """Scroll at a screen point; positive values scroll up."""
+    """Scroll at a screen point; positive values scroll up.
+
+    Backward Compatible: pyautogui.FailSafeException (and any other exception)
+    propagates untouched — no wrapping exception layer.
+    """
     print(f"[input] scroll ({x}, {y}) clicks={clicks} dry_run={dry_run}")
     if dry_run:
         return
     import pyautogui
 
-    try:
-        pyautogui.moveTo(x, y, duration=0.05)
-        pyautogui.scroll(clicks)
-    except pyautogui.FailSafeException as exc:
-        raise InputFailSafeError(f"pyautogui fail-safe during scroll at ({x}, {y}): {exc}") from exc
+    pyautogui.moveTo(x, y, duration=0.05)
+    pyautogui.scroll(clicks)
 
 
 def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> bool:
