@@ -1,5 +1,43 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-17 ba19fe7 机制收口（基线 e292132，集成 13 提交；未跑最终 release_gate，未真机）
+
+工作区基线 `e292132`，集成 13 提交收到 `ba19fe7`。本条只记录机制收口与已完成定向回归；**本轮最终 `release_gate` 尚未运行，未真机，不得写 PASS。**
+
+### Policy
+
+- 空 hard skill：直接 CLOSE，不刷。
+- `choice_interval` 已接线；attempt 只计真实点击。
+- trace fingerprint 值缓存。
+- `attr_routes` 唯一消费 chain+support。
+- `cards=[]` 与显式空 scheme / missing factory 语义分立。
+- legacy `attr_route` schema 已迁移。
+- mode overlay：budgets → hidden_defaults 优先；未知键忽略；统一走 `Settings._from_dict(fallback=)` 保留 base。
+
+### Infra
+
+- `InputExecutor` 收敛 pyautogui FailSafe，standalone 异常兼容。
+- clipboard 恢复失败则清空。
+- PrintWindow 尺寸不符 → invalid 空帧；mss 缺失且非前台时先 PrintWindow。
+- worker 未停时 `closeEvent` ignore，保留 `live.lock`。
+
+### 已完成集成定向回归（不是 release_gate）
+
+- Policy / L1 / C2：229 passed + 130 subtests
+- Infra：81 passed
+
+### 真机待验证
+
+- DPI / PrintWindow 拒帧频率
+- 角点 FailSafe → ActionResult
+- worker 卡死关窗 / 锁
+- choice interval / attempt accounting
+- `cards` 空方案与 attr 路线 UI roundtrip
+
+### Settings fallback 隔离
+
+`Settings._from_dict(..., fallback=)` 是浅 `replace`。唯一生产 caller `RunnerService.start` 先 `copy.deepcopy` 再 overlay。新增 caller 必须先隔离可变字段。
+
 ## 2026-08-17 CORE02/CORE03 集成批次：技能严格-全才模式 + 必拿宝物 + 挑战重观察（离线接线，未实机）
 
 工作区 HEAD `6584445` 之上，本批次完成配置、L1 策略/状态、Settings、看板与契约测试集成；未跑真机。离线验收：策略/看板定向集 `227 passed, 109 subtests passed`；`python tools/release_gate.py` 4/4 PASS（pytest 756 passed、2 xfailed、11 skipped；frozen replay PASS；templates 132/0；contract 72 passed、1 present）。
