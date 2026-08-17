@@ -2,7 +2,7 @@
 
 ## 2026-08-17 ba19fe7 机制收口（基线 e292132，集成 13 提交；release_gate 4/4 PASS，未真机）
 
-工作区基线 `e292132`，集成 13 提交收到 `ba19fe7`。当前集成树 HEAD `6dcb18d`。主 agent 刚在当前集成树实测 `python tools/release_gate.py`：退出码 0，4/4 PASS。精确记录：pytest 857 passed、2 xfailed、11 skipped；frozen_replay PASS（`disconnect_modal_missing` 仍 BLOCKED，属于既有可接受观测）；scene_templates 132 ok/0 missing；contract 72 passed/1 present。**未真机；离线 gate 不替代真机。**
+工作区基线 `e292132`，集成 13 提交收到 `ba19fe7`。`release_gate` 是主 agent 在 `6dcb18d`（ba19fe7 机制代码 + 030c092 测试清理 + 6dcb18d 交接记录）上执行；其后只追加门禁证据文档提交，不改变生产代码或测试行为。本次修正后仍需主 agent 在最终 HEAD 重跑 gate。实测退出码 0，4/4 PASS。精确记录：pytest 857 passed、2 xfailed、11 skipped；frozen_replay PASS（`disconnect_modal_missing` 仍 BLOCKED，属于既有可接受观测）；scene_templates 132 ok/0 missing；contract 72 passed/1 present。**未真机；离线 gate 不替代真机。**
 
 ### Policy
 
