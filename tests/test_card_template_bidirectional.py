@@ -94,7 +94,7 @@ class NegativeTreasureLexiconTests(unittest.TestCase):
             self.assertEqual(entries[name]["kind"], "treasure")
 
     def test_confirmed_ocr_aliases(self):
-        from gamescript.vision.choice_ocr import lookup_lexicon
+        from shuabao.vision.choice_ocr import lookup_lexicon
 
         self.assertEqual(lookup_lexicon("箭失增幅").canonical, "箭矢增幅")
         self.assertEqual(lookup_lexicon("箭失齐射").canonical, "箭矢齐射")

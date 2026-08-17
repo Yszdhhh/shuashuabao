@@ -48,7 +48,7 @@ from PIL import Image, ImageDraw, ImageFont
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from gamescript.vision.choice_ocr import (  # noqa: E402
+from shuabao.vision.choice_ocr import (  # noqa: E402
     load_lexicon,
     normalize_choice_text,
 )

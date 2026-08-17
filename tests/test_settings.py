@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.settings import Settings  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
 
 
 class SettingsFromDictTests(unittest.TestCase):

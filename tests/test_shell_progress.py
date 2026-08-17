@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.shell.runtime_status import progress_from_counts  # noqa: E402
+from shuabao.shell.runtime_status import progress_from_counts  # noqa: E402
 
 
 class ShellProgressTests(unittest.TestCase):

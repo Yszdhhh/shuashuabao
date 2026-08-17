@@ -11,11 +11,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase, RoundOutcome
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase, RoundOutcome
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 
 
 def load_frame(relative_path: str) -> Frame:
@@ -171,7 +171,7 @@ class ExternalReviewRegressionTests(unittest.TestCase):
         # postpone artifact warm-up.
         med._main_line_since = 99.0
         med._last_frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
-        with patch("gamescript.mediator.time.time", return_value=100.0), \
+        with patch("shuabao.mediator.time.time", return_value=100.0), \
                 patch.object(med, "_slot_has_artifact", return_value=True), \
                 patch.object(med, "act_click", return_value=True) as click, \
                 patch.object(med.executor, "press_key") as press:
@@ -218,7 +218,8 @@ class ExternalReviewRegressionTests(unittest.TestCase):
                 med = Mediator(Settings(), ROOT)
                 med._last_skill_panel = last_skill
                 med._last_bond_attempt = last_bond
-                with patch("gamescript.mediator.time.time", return_value=200.0), \
+                med._l1_cycle_step = kind
+                with patch("shuabao.mediator.time.time", return_value=200.0), \
                         patch.object(med, "_selection_anchor", return_value=None), \
                         patch.object(med, "act_click", return_value=True) as click, \
                         patch.object(med.executor, "press_key") as press:
@@ -237,7 +238,7 @@ class ExternalReviewRegressionTests(unittest.TestCase):
             score = 0.589 if template.stem == "auto_task_on" else 0.754
             return MatchResult(template.stem, score, 10, 10, 20, 20, 10, 10)
 
-        with patch("gamescript.mediator.match_one", side_effect=scored):
+        with patch("shuabao.mediator.match_one", side_effect=scored):
             state, toggle = med._auto_task_state(frame)
         self.assertEqual(state, "OFF")
         self.assertIsNotNone(toggle)
@@ -289,7 +290,7 @@ class ExternalReviewRegressionTests(unittest.TestCase):
             MatchResult("jq", 0.95, 20, 20, 40, 40, 1200, 650),
             MatchResult("asj", 0.80, 10, 10, 40, 40, 1100, 650),
         ]
-        with patch("gamescript.mediator.match_all", return_value=hits):
+        with patch("shuabao.mediator.match_all", return_value=hits):
             chosen = med._find_compact_skill_choice(frame)
         self.assertIsNotNone(chosen)
         self.assertEqual(chosen.name, "asj")

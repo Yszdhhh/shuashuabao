@@ -18,7 +18,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.vision.choice_ocr import normalize_choice_text  # noqa: E402
+from shuabao.vision.choice_ocr import normalize_choice_text  # noqa: E402
 
 MODEL_DIR = ROOT / "models" / "ocr" / "PP-OCRv5_mobile_rec_infer"
 STAGE_DIR = Path.home() / "AppData" / "Local" / "Temp" / "gamescript_ocr_stage" / "PP-OCRv5_mobile_rec_infer"

@@ -1,8 +1,7 @@
-"""对齐原 GameScript.Extensions.LoopAction。"""
+# -*- coding: utf-8 -*-
+"""Compatibility shim for gamescript.loop_action -> shuabao.loop_action."""
+import sys
+import importlib
 
-from enum import IntEnum
-
-
-class LoopAction(IntEnum):
-    Continue = 0
-    Break = 1
+_mod = importlib.import_module('shuabao.loop_action')
+sys.modules[__name__] = _mod

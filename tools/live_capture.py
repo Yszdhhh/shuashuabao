@@ -17,7 +17,7 @@ import cv2
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.vision.capture import capture
+from shuabao.vision.capture import capture
 
 OUT_DIR = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(r"C:\tmp\captures")
 INTERVAL = float(sys.argv[2]) if len(sys.argv) > 2 else 3.0

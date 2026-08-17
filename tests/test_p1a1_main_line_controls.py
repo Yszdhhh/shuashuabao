@@ -11,13 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-import gamescript.loop_action
-from gamescript.input.keyboard_mouse import ActionResult
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+import shuabao.loop_action
+from shuabao.input.keyboard_mouse import ActionResult
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 from run_replay import run_replay_fixture
 
 
@@ -54,7 +54,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(self.med.executor, "press_key") as mock_press_key:
 
             action = self.med._tick_main_line(f)
-            self.assertEqual(action, gamescript.loop_action.LoopAction.Break)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Break)
             self.assertEqual(self.med.phase, Phase.ERROR)
 
             mock_act_click.assert_not_called()
@@ -84,7 +84,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
                  patch.object(med.executor, "right_click") as mock_right_click:
 
                 action = med._tick_main_line(f)
-                self.assertEqual(action, gamescript.loop_action.LoopAction.Break)
+                self.assertEqual(action, shuabao.loop_action.LoopAction.Break)
                 self.assertEqual(med.phase, Phase.ERROR)
                 mock_click.assert_not_called()
                 mock_right_click.assert_not_called()
@@ -98,7 +98,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(med.executor, "click") as mock_click, \
              patch.object(med.executor, "right_click") as mock_right_click:
             action = med._tick_l1_tail(f)
-            self.assertEqual(action, gamescript.loop_action.LoopAction.Break)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Break)
             self.assertEqual(med.phase, Phase.ERROR)
             mock_click.assert_not_called()
             mock_right_click.assert_not_called()
@@ -115,7 +115,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(self.med.executor, "right_click", return_value=ActionResult(success=True, status="DRY_RUN")) as mock_right_click:
 
             action = self.med._tick_main_line(f_off)
-            self.assertEqual(action, gamescript.loop_action.LoopAction.Continue)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
 
             mock_click.assert_called_once()
             mock_right_click.assert_not_called()
@@ -171,7 +171,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.med._auto_task_attempts = 3
         with patch.object(self.med.executor, "click") as mock_click:
             res = self.med._ensure_auto_task_enabled(f_off)
-            self.assertEqual(res, gamescript.loop_action.LoopAction.Break)
+            self.assertEqual(res, shuabao.loop_action.LoopAction.Break)
             self.assertEqual(self.med.phase, Phase.ERROR)
             mock_click.assert_not_called()
 
@@ -194,17 +194,17 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(self.med.executor, "right_click") as mock_right_click:
 
             action1 = self.med._tick_main_line(f_off)
-            self.assertEqual(action1, gamescript.loop_action.LoopAction.Continue)
+            self.assertEqual(action1, shuabao.loop_action.LoopAction.Continue)
             self.assertEqual(self.med._auto_task_attempts, 1)
             mock_right_click.assert_not_called()
 
             action2 = self.med._tick_main_line(f_off)
-            self.assertEqual(action2, gamescript.loop_action.LoopAction.Continue)
+            self.assertEqual(action2, shuabao.loop_action.LoopAction.Continue)
             self.assertEqual(self.med._auto_task_attempts, 2)
             mock_right_click.assert_not_called()
 
             action3 = self.med._tick_main_line(f_off)
-            self.assertEqual(action3, gamescript.loop_action.LoopAction.Break)
+            self.assertEqual(action3, shuabao.loop_action.LoopAction.Break)
             self.assertEqual(self.med._auto_task_attempts, 3)
             self.assertEqual(self.med.phase, Phase.ERROR)
             mock_right_click.assert_not_called()
@@ -215,7 +215,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.med._last_frame = f_off
 
         self.med.stop_signal.trigger("Emergency stop test")
-        self.assertEqual(self.med.tick(), gamescript.loop_action.LoopAction.Break)
+        self.assertEqual(self.med.tick(), shuabao.loop_action.LoopAction.Break)
 
     # 4. 回放严格性与动作类型校验 (Section IV)
     def test_replay_strictness_input_kind_mismatch_fails(self):
@@ -317,7 +317,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             MatchResult(name="skills/asj", score=0.9, x=752, y=260, w=98, h=97, screen_x=752, screen_y=260),
             MatchResult(name="skills/ys", score=0.9, x=519, y=260, w=98, h=97, screen_x=519, screen_y=260),
         ]
-        with patch("gamescript.mediator.match_all", return_value=mock_candidates_2):
+        with patch("shuabao.mediator.match_all", return_value=mock_candidates_2):
             choice = self.med._find_reward_choice(f3)
             self.assertIsNotNone(choice)
             self.assertEqual(Path(choice[1].name).stem, "asj")
@@ -329,7 +329,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             MatchResult(name="skills/byj", score=0.9, x=800, y=260, w=98, h=97, screen_x=800, screen_y=260),
             MatchResult(name="skills/dcw", score=0.9, x=900, y=260, w=98, h=97, screen_x=900, screen_y=260),
         ]
-        with patch("gamescript.mediator.match_all", return_value=mock_candidates_5):
+        with patch("shuabao.mediator.match_all", return_value=mock_candidates_5):
             choice = self.med._find_reward_choice(f3)
             self.assertIsNotNone(choice)
             self.assertEqual(Path(choice[1].name).stem, "asj")  # 配置序第一，忽略配置外候选
@@ -338,7 +338,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         mock_outside = [
             MatchResult(name="skills/zzz", score=0.95, x=600, y=260, w=98, h=97, screen_x=600, screen_y=260),
         ]
-        with patch("gamescript.mediator.match_all", return_value=mock_outside):
+        with patch("shuabao.mediator.match_all", return_value=mock_outside):
             choice = self.med._find_reward_choice(f3)
             self.assertIsNotNone(choice)
             self.assertEqual(choice[1].name, "skill_refresh_btn")
@@ -381,7 +381,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(self.med.executor, "click") as mock_click, \
              patch.object(self.med.executor, "right_click") as mock_rc:
             action = self.med.tick()
-            self.assertEqual(action, gamescript.loop_action.LoopAction.Continue)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
             self.assertEqual(self.med.phase, Phase.MAIN_LINE, "giveUp+面板锚点不得进入 fail/QUIT 流程")
             self.assertNotEqual(self.med.phase, Phase.QUIT)
             self.assertIsNone(self.med._recovery_state, "giveUp+面板锚点不得触发恢复")
@@ -403,7 +403,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(self.med, "find_scene", return_value=false_longzhu) as scene, \
              patch.object(self.med, "act_click", return_value=True) as click:
             action = self.med._tick_main_line(frame)
-        self.assertEqual(action, gamescript.loop_action.LoopAction.Continue)
+        self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
         self.assertEqual(self.med.phase, Phase.MAIN_LINE)
         scene.assert_not_called()
         click.assert_called_once()

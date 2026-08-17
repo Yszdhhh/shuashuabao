@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-from gamescript.vision.choice_ocr import (
+from shuabao.vision.choice_ocr import (
     DEFAULT_MARGIN_THRESHOLD,
     LEXICON_PATH,
     lexicon_errors,

@@ -19,7 +19,7 @@ import numpy as np  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.vision.capture import (  # noqa: E402
+from shuabao.vision.capture import (  # noqa: E402
     WindowTarget,
     _capture_print_window,
     capture_target,
@@ -106,11 +106,11 @@ class CaptureTargetRoutingTests(unittest.TestCase):
 
     def test_activate_false_non_foreground_uses_print_window_not_mss(self):
         target = self._target(800, 600)
-        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
-             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
-             patch("gamescript.vision.capture.activate_window") as activate_mock, \
+        with patch("shuabao.vision.capture._foreground_window", return_value=1), \
+             patch("shuabao.vision.capture.is_window_minimized", return_value=False), \
+             patch("shuabao.vision.capture.activate_window") as activate_mock, \
              patch("PIL.ImageGrab.grab", return_value=_bitmap(800, 600)), \
-             patch("gamescript.vision.capture.mss.mss") as mss_mock:
+             patch("shuabao.vision.capture.mss.mss") as mss_mock:
             frame = capture_target(target, activate=False)
         self.assertTrue(frame.is_valid, "非前台窗口应走 PrintWindow 路径拿到有效帧")
         self.assertEqual((800, 600), (frame.width, frame.height))
@@ -119,10 +119,10 @@ class CaptureTargetRoutingTests(unittest.TestCase):
 
     def test_offscreen_size_mismatch_invalid_empty_frame_mss_not_called(self):
         target = self._target(800, 600)
-        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
-             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+        with patch("shuabao.vision.capture._foreground_window", return_value=1), \
+             patch("shuabao.vision.capture.is_window_minimized", return_value=False), \
              patch("PIL.ImageGrab.grab", return_value=_bitmap(780, 590)), \
-             patch("gamescript.vision.capture.mss.mss") as mss_mock:
+             patch("shuabao.vision.capture.mss.mss") as mss_mock:
             frame = capture_target(target, activate=False)
         self.assertFalse(frame.is_valid, "尺寸不一致必须返回无效帧")
         self.assertEqual((0, 0), (frame.width, frame.height), "无效帧必须为空位图")
@@ -143,10 +143,10 @@ class CaptureTargetRoutingTests(unittest.TestCase):
             def __exit__(self, *exc):
                 return False
 
-        with patch("gamescript.vision.capture._foreground_window", return_value=42), \
-             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
+        with patch("shuabao.vision.capture._foreground_window", return_value=42), \
+             patch("shuabao.vision.capture.is_window_minimized", return_value=False), \
              patch("PIL.ImageGrab.grab", side_effect=AssertionError("must not call")), \
-             patch("gamescript.vision.capture.mss.mss", return_value=_FakeSct()) as mss_mock:
+             patch("shuabao.vision.capture.mss.mss", return_value=_FakeSct()) as mss_mock:
             frame = capture_target(target, activate=False)
         self.assertTrue(frame.is_valid, "前台窗口应走 MSS 抓屏")
         self.assertEqual((800, 600), (frame.width, frame.height))
@@ -156,9 +156,9 @@ class CaptureTargetRoutingTests(unittest.TestCase):
         # mss 未安装但 PIL 可用：非前台窗口尺寸不一致 → 仍返回 PrintWindow 无效帧
         # （尺寸诊断），不得提前返回 'mss not installed'
         target = self._target(800, 600)
-        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
-             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
-             patch("gamescript.vision.capture.mss", None), \
+        with patch("shuabao.vision.capture._foreground_window", return_value=1), \
+             patch("shuabao.vision.capture.is_window_minimized", return_value=False), \
+             patch("shuabao.vision.capture.mss", None), \
              patch("PIL.ImageGrab.grab", return_value=_bitmap(780, 590)):
             frame = capture_target(target, activate=False)
         self.assertFalse(frame.is_valid, "尺寸不一致必须返回 PrintWindow 无效帧")
@@ -169,9 +169,9 @@ class CaptureTargetRoutingTests(unittest.TestCase):
     def test_offscreen_valid_print_window_mss_none_returns_valid_frame(self):
         # mss 未安装但 PIL 可用：非前台窗口 PrintWindow 有效 → 返回有效帧
         target = self._target(800, 600)
-        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
-             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
-             patch("gamescript.vision.capture.mss", None), \
+        with patch("shuabao.vision.capture._foreground_window", return_value=1), \
+             patch("shuabao.vision.capture.is_window_minimized", return_value=False), \
+             patch("shuabao.vision.capture.mss", None), \
              patch("PIL.ImageGrab.grab", return_value=_bitmap(800, 600)):
             frame = capture_target(target, activate=False)
         self.assertTrue(frame.is_valid, "mss=None 时非前台有效 PrintWindow 帧必须返回")
@@ -180,9 +180,9 @@ class CaptureTargetRoutingTests(unittest.TestCase):
     def test_foreground_mss_none_returns_invalid_mss_not_installed(self):
         # 前台窗口 + mss=None：不回退 PrintWindow，仍返回 invalid 'mss not installed'
         target = self._target(800, 600)
-        with patch("gamescript.vision.capture._foreground_window", return_value=42), \
-             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
-             patch("gamescript.vision.capture.mss", None), \
+        with patch("shuabao.vision.capture._foreground_window", return_value=42), \
+             patch("shuabao.vision.capture.is_window_minimized", return_value=False), \
+             patch("shuabao.vision.capture.mss", None), \
              patch("PIL.ImageGrab.grab", side_effect=AssertionError("must not call")):
             frame = capture_target(target, activate=False)
         self.assertFalse(frame.is_valid)
@@ -191,10 +191,10 @@ class CaptureTargetRoutingTests(unittest.TestCase):
     def test_activate_true_mss_none_returns_invalid_mss_not_installed(self):
         # activate=True + mss=None：同样因 mss 缺失返回 invalid 'mss not installed'
         target = self._target(800, 600)
-        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
-             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
-             patch("gamescript.vision.capture.activate_window"), \
-             patch("gamescript.vision.capture.mss", None), \
+        with patch("shuabao.vision.capture._foreground_window", return_value=1), \
+             patch("shuabao.vision.capture.is_window_minimized", return_value=False), \
+             patch("shuabao.vision.capture.activate_window"), \
+             patch("shuabao.vision.capture.mss", None), \
              patch("PIL.ImageGrab.grab", side_effect=AssertionError("must not call")):
             frame = capture_target(target, activate=True)
         self.assertFalse(frame.is_valid)
@@ -203,10 +203,10 @@ class CaptureTargetRoutingTests(unittest.TestCase):
     def test_print_window_none_mss_none_returns_invalid_mss_not_installed(self):
         # PrintWindow 返回 None → 回落 mss 检查：无 mss 时返回 invalid，不允许继续
         target = self._target(800, 600)
-        with patch("gamescript.vision.capture._foreground_window", return_value=1), \
-             patch("gamescript.vision.capture.is_window_minimized", return_value=False), \
-             patch("gamescript.vision.capture.mss", None), \
-             patch("gamescript.vision.capture._capture_print_window", return_value=None):
+        with patch("shuabao.vision.capture._foreground_window", return_value=1), \
+             patch("shuabao.vision.capture.is_window_minimized", return_value=False), \
+             patch("shuabao.vision.capture.mss", None), \
+             patch("shuabao.vision.capture._capture_print_window", return_value=None):
             frame = capture_target(target, activate=False)
         self.assertFalse(frame.is_valid)
         self.assertEqual("mss not installed", frame.error)

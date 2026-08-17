@@ -24,11 +24,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame, check_frame_health
-from gamescript.vision.matcher import match_any
-from gamescript.vision.stage_selector import visible_stage_rows
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame, check_frame_health
+from shuabao.vision.matcher import match_any
+from shuabao.vision.stage_selector import visible_stage_rows
 
 ENDGAME_DIR = ROOT / "fixtures" / "reborn_wow" / "endgame"
 # Legacy 1.3.8 images are external reference material; resolved below when reachable.

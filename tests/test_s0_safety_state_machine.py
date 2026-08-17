@@ -27,8 +27,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import (
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import (
     Mediator,
     PanelState,
     Phase,
@@ -36,11 +36,11 @@ from gamescript.mediator import (
     RecoveryStep,
     RoundOutcome,
 )
-from gamescript.scenes import load_scenes, scene_templates
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.scenes import load_scenes, scene_templates
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 from tests.test_scenario_replay import FakeClock, FakeInputExecutor
 
 
@@ -733,7 +733,7 @@ class S0SettingsTests(unittest.TestCase):
         """旧 game_timeout=15 是分钟级 idle watchdog；round_timeout_s 是秒级硬期限，
         默认 15*60=900 且二者分离（迁移决定已写入 settings.py 文档）。"""
         import inspect
-        import gamescript.settings as settings_mod
+        import shuabao.settings as settings_mod
 
         src = inspect.getsource(settings_mod)
         self.assertIn("round_timeout_s", src)
@@ -750,7 +750,7 @@ class HeroChangedPixelsRegressionTests(unittest.TestCase):
     def test_bgr_input_does_not_crash_and_matches_gray(self) -> None:
         import numpy as np
         import cv2
-        from gamescript.mediator import Mediator
+        from shuabao.mediator import Mediator
 
         before = np.random.randint(0, 255, (300, 500, 3), dtype=np.uint8)
         after = before.copy()
@@ -763,14 +763,14 @@ class HeroChangedPixelsRegressionTests(unittest.TestCase):
 
     def test_identical_bgr_frames_zero(self) -> None:
         import numpy as np
-        from gamescript.mediator import Mediator
+        from shuabao.mediator import Mediator
 
         before = np.random.randint(0, 255, (300, 500, 3), dtype=np.uint8)
         self.assertEqual(Mediator._hero_changed_pixels(before, before.copy()), 0)
 
     def test_shape_mismatch_zero(self) -> None:
         import numpy as np
-        from gamescript.mediator import Mediator
+        from shuabao.mediator import Mediator
 
         a = np.zeros((100, 100, 3), dtype=np.uint8)
         b = np.zeros((90, 90, 3), dtype=np.uint8)

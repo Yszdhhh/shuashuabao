@@ -26,7 +26,7 @@ from pydantic import BaseModel
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.settings import OFFICIAL_SETTINGS, Settings
+from shuabao.settings import OFFICIAL_SETTINGS, Settings
 
 # Mediator 在运行阶段延迟载入（以防部分开发环境缺少 opencv 时接口基础功能依然可用）
 Mediator = None
@@ -36,7 +36,7 @@ Phase = None
 def get_mediator_cls():
     global Mediator, Phase
     if Mediator is None:
-        from gamescript.mediator import Mediator as _Med, Phase as _Ph
+        from shuabao.mediator import Mediator as _Med, Phase as _Ph
         Mediator = _Med
         Phase = _Ph
     return Mediator, Phase
@@ -140,7 +140,7 @@ class StartRunRequest(BaseModel):
 def health_check():
     return {
         "status": "ok",
-        "app": "GameScript-Local",
+        "app": "ShuaBao",
         "official_settings_exists": OFFICIAL_SETTINGS.is_file(),
     }
 
@@ -186,7 +186,7 @@ def sync_official_settings():
 @app.get("/api/windows")
 def get_windows():
     try:
-        from gamescript.vision.capture import list_active_window_titles
+        from shuabao.vision.capture import list_active_window_titles
         return {"windows": list_active_window_titles()}
     except Exception:
         return {"windows": []}
@@ -317,7 +317,7 @@ def start_run(req: StartRunRequest = StartRunRequest()):
 
         try:
             # S0.5：API 生产入口也传入 incident 目录（默认 %LocalAppData%/ShuaBao/incidents）
-            from gamescript.incidents import default_incident_dir
+            from shuabao.incidents import default_incident_dir
 
             med = MedCls(s, ROOT, incident_dir=default_incident_dir())
             med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))

@@ -25,9 +25,9 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.shell.main_window import MainWindow  # noqa: E402
-from gamescript.shell.runner_service import live_lock_path  # noqa: E402
-from gamescript.shell.runtime_status import RUNNER_IDLE  # noqa: E402
+from shuabao.shell.main_window import MainWindow  # noqa: E402
+from shuabao.shell.runner_service import live_lock_path  # noqa: E402
+from shuabao.shell.runtime_status import RUNNER_IDLE  # noqa: E402
 
 
 class _StuckWorker:

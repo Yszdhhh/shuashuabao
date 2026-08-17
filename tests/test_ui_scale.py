@@ -22,11 +22,11 @@ _SRC = ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame
 from tests.test_scenario_replay import FakeClock, FakeInputExecutor
 
 

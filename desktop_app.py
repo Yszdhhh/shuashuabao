@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""刷刷宝入口。控制中心在 src/gamescript/shell/，此处再导出保住测试。"""
+"""刷刷宝入口。控制中心在 src/shuabao/shell/，此处再导出保住测试。"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.shell.main_window import (  # noqa: E402
+from shuabao.shell.main_window import (  # noqa: E402
     APP_DATA,
     APP_ID,
     APP_NAME,
@@ -33,7 +33,7 @@ from gamescript.shell.main_window import (  # noqa: E402
     SkillArchiveLevelGrid,
     SkillCardGrid,
 )
-from gamescript.shell.runner_service import (  # noqa: E402
+from shuabao.shell.runner_service import (  # noqa: E402
     LogSignal,
     MediatorWorker,
     ModeNotEnabled,

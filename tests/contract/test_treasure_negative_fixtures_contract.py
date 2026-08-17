@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.choice_policy import (  # noqa: E402
+from shuabao.choice_policy import (  # noqa: E402
     DEFAULT_NEGATIVE_NAMES,
     DEFAULT_NEGATIVE_PATTERNS,
     PANEL_TREASURE,

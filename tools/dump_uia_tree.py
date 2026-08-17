@@ -21,11 +21,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.ui.uia.adapter import AdapterOptions, LobbyUiaAdapter
-from gamescript.ui.uia.backend import CtypesUiaBackend
-from gamescript.ui.uia.mappings import KK_LOBBY_MAPPINGS
-from gamescript.ui.uia.selector import describe_node
-from gamescript.ui.uia.source import collect_nodes
+from shuabao.ui.uia.adapter import AdapterOptions, LobbyUiaAdapter
+from shuabao.ui.uia.backend import CtypesUiaBackend
+from shuabao.ui.uia.mappings import KK_LOBBY_MAPPINGS
+from shuabao.ui.uia.selector import describe_node
+from shuabao.ui.uia.source import collect_nodes
 
 
 def _mask(text: str | None) -> str | None:
@@ -38,7 +38,7 @@ def _mask(text: str | None) -> str | None:
 
 
 def _find_kk_windows() -> list[dict]:
-    from gamescript.vision.capture import find_window_targets
+    from shuabao.vision.capture import find_window_targets
 
     targets = find_window_targets("KK", role="l0")
     return [

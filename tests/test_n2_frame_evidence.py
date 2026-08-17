@@ -24,13 +24,13 @@ _SRC = ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from gamescript.input.keyboard_mouse import ActionResult
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame, WindowTarget
+from shuabao.input.keyboard_mouse import ActionResult
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame, WindowTarget
 
-import gamescript.mediator as mediator_module
+import shuabao.mediator as mediator_module
 
 
 def _load(rel: str) -> Frame:
@@ -55,7 +55,7 @@ class FrameEvidenceTests(unittest.TestCase):
 
     def test_same_frame_two_context_queries_one_matcher_call(self):
         f = _load("fixtures/replay/main_line_auto_on.png")
-        with patch("gamescript.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
+        with patch("shuabao.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
             c1 = self.med._detect_context(f, role="l1")
             first_calls = mt.call_count
             c2 = self.med._detect_context(f, role="l1")
@@ -70,7 +70,7 @@ class FrameEvidenceTests(unittest.TestCase):
         self.med._last_frame = f
         self.med.set_phase(Phase.MAIN_LINE, "evidence test")
         self.med._detect_context(f)  # 感知入口：建立本帧证据
-        with patch("gamescript.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
+        with patch("shuabao.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
             anchor = self.med._selection_anchor(f)
             self.assertIsNotNone(anchor)
             n1 = mt.call_count
@@ -107,7 +107,7 @@ class FrameEvidenceTests(unittest.TestCase):
             click2.assert_not_called()
 
         # 相同对象再次进入（模拟下一 tick 静态复用）：必须重新计算
-        with patch("gamescript.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt2:
+        with patch("shuabao.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt2:
             a3 = self.med._selection_anchor(f)
             self.assertIsNotNone(a3)
             self.assertGreater(mt2.call_count, 0, "输入失效后相同帧必须重算，不得沿用旧缓存")
@@ -142,7 +142,7 @@ class FrameEvidenceTests(unittest.TestCase):
     def test_config_difference_does_not_hit_same_key(self):
         f = _load("fixtures/replay/skill_choice_3.png")
         self.med._detect_context(f)  # 先建立本帧证据（memo 前提）
-        with patch("gamescript.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
+        with patch("shuabao.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
             a = self.med.find(f, ["skill_refresh_btn"], threshold=0.70, roi=(0.2, 0.45, 0.8, 0.8))
             self.assertIsNotNone(a)
             n1 = mt.call_count
@@ -172,8 +172,8 @@ class FrameEvidenceTests(unittest.TestCase):
                 return Frame(bgr=None, hwnd=101, is_valid=False, error="capture failed")
             return _noise_frame(hwnd=202)
 
-        with patch("gamescript.mediator.find_window_targets", return_value=targets), \
-             patch("gamescript.mediator.capture_target", side_effect=fake_capture) as ct, \
+        with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+             patch("shuabao.mediator.capture_target", side_effect=fake_capture) as ct, \
              patch.object(med, "_frame_signal", return_value=60) as fs:
             frame = med._capture_best("英雄三国KK", "l1")
             self.assertEqual(ct.call_count, 1, "连续第 1 帧失配只抓上次健康 hwnd，不枚举候选")
@@ -221,7 +221,7 @@ class CadenceTests(unittest.TestCase):
         # 非静态不健康等待 → 500ms
         self.med._last_health = None
         med2 = Mediator(Settings(), ROOT)
-        from gamescript.vision.capture import FrameHealthResult, FrameHealthIssue
+        from shuabao.vision.capture import FrameHealthResult, FrameHealthIssue
         med2._last_health = FrameHealthResult(is_healthy=False, issues=[FrameHealthIssue.BLACK_FRAME])
         med2._context_cache_value = "MAIN_LINE"
         self.assertEqual(med2._cadence_for_current_state(), 0.500)
@@ -246,9 +246,9 @@ class CadenceTests(unittest.TestCase):
             def stop(self):
                 pass
 
-        with patch("gamescript.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
-             patch("gamescript.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
-             patch("gamescript.mediator.EmergencyStopListener", _NoopListener), \
+        with patch("shuabao.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
+             patch("shuabao.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
+             patch("shuabao.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "stop") as stop:
             med.run(max_steps=2)
             stop.assert_not_called()
@@ -290,7 +290,7 @@ class TickReasonWhitelistTests(unittest.TestCase):
         med = Mediator(Settings(), ROOT)
         frame = _noise_frame()
         med._capture_best = lambda *a, **k: frame
-        with patch("gamescript.mediator.time.perf_counter", side_effect=[0.0, 0.9, 0.9, 1.0]):
+        with patch("shuabao.mediator.time.perf_counter", side_effect=[0.0, 0.9, 0.9, 1.0]):
             # see() 捕获计时 900ms → reason=capture_wait
             med._tick_reason = None
             med.see("slow-capture-test")
@@ -351,7 +351,7 @@ class ReviewFixTests(unittest.TestCase):
 
     # #3 dry-run 成功输入也走输入序列授权（LIVE/OBSERVE 语义等价）
     def test_dry_run_successful_input_advances_input_seq_and_blocks_second_action(self):
-        from gamescript.vision.matcher import MatchResult
+        from shuabao.vision.matcher import MatchResult
 
         f = _load("fixtures/replay/skill_choice_3.png")
         self.med._last_frame = f
@@ -413,9 +413,9 @@ class ReviewFixTests(unittest.TestCase):
             def stop(self):
                 pass
 
-        with patch("gamescript.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
-             patch("gamescript.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
-             patch("gamescript.mediator.EmergencyStopListener", _NoopListener), \
+        with patch("shuabao.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
+             patch("shuabao.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
+             patch("shuabao.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "set_phase", lambda phase, note="": None), \
              patch.object(med, "_detect_context", return_value="MAIN_LINE"), \
              patch.object(med, "stop") as stop:
@@ -451,8 +451,8 @@ class ReviewFixTests(unittest.TestCase):
         def fake_capture(t: WindowTarget) -> Frame:
             return frames[t.hwnd]
 
-        with patch("gamescript.mediator.find_window_targets", return_value=targets), \
-             patch("gamescript.mediator.capture_target", side_effect=fake_capture) as ct, \
+        with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+             patch("shuabao.mediator.capture_target", side_effect=fake_capture) as ct, \
              patch.object(med, "_sticky_frame_signal", return_value=False):
             f1 = med._capture_best("英雄三国KK", "l1")
             self.assertEqual(ct.call_count, 1, "第 1 帧无信号仍返回上次 hwnd（容忍 1 帧）")
@@ -474,8 +474,8 @@ class ReviewFixTests(unittest.TestCase):
         def fake_capture(t: WindowTarget) -> Frame:
             return frames[t.hwnd]
 
-        with patch("gamescript.mediator.find_window_targets", return_value=targets), \
-             patch("gamescript.mediator.capture_target", side_effect=fake_capture) as ct, \
+        with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+             patch("shuabao.mediator.capture_target", side_effect=fake_capture) as ct, \
              patch.object(med, "_sticky_frame_signal", return_value=True):
             for _ in range(3):
                 f = med._capture_best("英雄三国KK", "l1")
@@ -484,7 +484,7 @@ class ReviewFixTests(unittest.TestCase):
 
     # #6 refresh/give_up 宽尺度回退受 _scaled_up_frame 门禁
     def test_reward_choice_wide_fallback_gated_by_scaled_up_frame(self):
-        from gamescript.vision.matcher import MatchResult
+        from shuabao.vision.matcher import MatchResult
 
         f = _load("fixtures/replay/skill_choice_3.png")
         self.med._last_frame = f

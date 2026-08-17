@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from gamescript.settings import Settings
+from shuabao.settings import Settings
 from lab_run import (
     LabConfigError,
     apply_lab_preset,

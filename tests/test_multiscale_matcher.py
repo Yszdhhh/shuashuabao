@@ -5,9 +5,9 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-import gamescript.vision.matcher as matcher_mod
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import (
+import shuabao.vision.matcher as matcher_mod
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import (
     MatchSearch,
     _load_template,
     find_blue_buttons,

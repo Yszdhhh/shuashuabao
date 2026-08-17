@@ -29,9 +29,9 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import Mediator
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame, capture
+from shuabao.mediator import Mediator
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame, capture
 
 RULE_NAME = "GS_DisconnectCapture_BlockOut"
 PROCESS_NAMES = ["Platform", "PlatformWebBrowser"]

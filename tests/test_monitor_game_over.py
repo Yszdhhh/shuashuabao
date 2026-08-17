@@ -9,7 +9,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.monitor_game_over import GameActivityMonitor
+from shuabao.monitor_game_over import GameActivityMonitor
 
 
 def bgr(value: int, height: int = 30, width: int = 30) -> np.ndarray:

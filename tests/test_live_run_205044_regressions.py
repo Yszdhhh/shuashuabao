@@ -14,12 +14,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.choice_policy import SessionState
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, PanelState, Phase, RecoveryKind, RecoveryStep, RoundOutcome
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.choice_policy import SessionState
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, PanelState, Phase, RecoveryKind, RecoveryStep, RoundOutcome
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 
 
 def frame() -> Frame:
@@ -197,15 +197,12 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(find.call_args.args[1], ["hero_card_item"])
 
     def test_inventory_hero_card_requires_evolve_and_caps_per_visit(self) -> None:
-        """r11 live：未点进化不得点英雄卡；单次 equipment 访问最多 2 次。"""
+        """PR-3: 英雄卡解除必须先点进化的限制，派发 PendingAction 并限制单次访问最多 2 次。"""
         med = Mediator(Settings(ui_action_interval_s=0.0), ROOT)
         hero = MatchResult("hero_card_item", 0.99, 1303, 898, 10, 10, 1303, 898)
         med._bond_bar_nonempty = lambda _frame: False
         with patch.object(med, "find", return_value=hero), \
                 patch.object(med, "act_click", return_value=True) as click:
-            self.assertIsNone(med._maybe_use_inventory_item(frame()))
-            self.assertEqual(click.call_count, 0)
-            med._evolve_ok_this_cycle = True
             self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)
             med._inventory_next_at = 0.0
             self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)

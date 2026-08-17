@@ -28,10 +28,10 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import Mediator, Phase  # noqa: E402
-from gamescript.settings import Settings  # noqa: E402
-from gamescript.vision.capture import Frame  # noqa: E402
-from gamescript.vision.matcher import MatchResult  # noqa: E402
+from shuabao.mediator import Mediator, Phase  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
+from shuabao.vision.capture import Frame  # noqa: E402
+from shuabao.vision.matcher import MatchResult  # noqa: E402
 
 SCENES = json.loads((ROOT / "config" / "scenes.json").read_text(encoding="utf-8"))
 
@@ -143,7 +143,7 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_skill_cards_pending": ["污染"],
         "_skill_cards_owned": ["污染", "污染"],
         "_choice_session": __import__(
-            "gamescript.choice_policy", fromlist=["SessionState"]
+            "shuabao.choice_policy", fromlist=["SessionState"]
         ).SessionState(attempts=9, refreshes=3, waits=4),
         "_choice_fp_before_refresh": "0:污染|1:污染|2:污染",
         "_choice_policy_idle": True,

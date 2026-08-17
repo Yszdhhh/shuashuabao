@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GameScript-Local CLI."""
+"""刷刷宝（ShuaBao）CLI."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.incidents import default_incident_dir
-from gamescript.jobs import AutoJob, LongzhuJob
-from gamescript.mediator import Mediator
-from gamescript.models.skill import get_all_card_groups, get_all_skills, get_boss_list
-from gamescript.settings import Settings
-from gamescript.vision.capture import capture
-from gamescript.vision.matcher import match_one, resolve_template
+from shuabao.incidents import default_incident_dir
+from shuabao.jobs import AutoJob, LongzhuJob
+from shuabao.mediator import Mediator
+from shuabao.models.skill import get_all_card_groups, get_all_skills, get_boss_list
+from shuabao.settings import Settings
+from shuabao.vision.capture import capture
+from shuabao.vision.matcher import match_one, resolve_template
 
 
 def load_settings(path: Path | None) -> Settings:
@@ -118,7 +118,7 @@ def cmd_sync_settings(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="GameScript-Local")
+    p = argparse.ArgumentParser(description="刷刷宝（ShuaBao）CLI")
     p.add_argument("--config", default=None, help="settings json path")
     sub = p.add_subparsers(dest="cmd", required=True)
 

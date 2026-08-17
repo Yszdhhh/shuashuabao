@@ -27,17 +27,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import desktop_app  # noqa: E402
-from gamescript.mediator import Mediator as RealMediator  # noqa: E402
-from gamescript.mediator import Phase  # noqa: E402
-from gamescript.settings import Settings  # noqa: E402
-from gamescript.shell import main_window as shell_window  # noqa: E402
-from gamescript.shell.test_profiles import (  # noqa: E402
+from shuabao.mediator import Mediator as RealMediator  # noqa: E402
+from shuabao.mediator import Phase  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
+from shuabao.shell import main_window as shell_window  # noqa: E402
+from shuabao.shell.test_profiles import (  # noqa: E402
     TestProfileError,
     export_profile,
     load_test_profiles,
     validate_profile_document,
 )
-from gamescript.vision.capture import Frame  # noqa: E402
+from shuabao.vision.capture import Frame  # noqa: E402
 
 
 class DesktopPanelTests(unittest.TestCase):
@@ -101,7 +101,7 @@ class DesktopPanelTests(unittest.TestCase):
         grid = self.window.skill_grid
         grid.set_skills(["asj", "asjg", "assx", "jq"])
         self.assertEqual(4, len(grid.get_skills()))
-        with patch("gamescript.shell.main_window.QMessageBox.information") as info:
+        with patch("shuabao.shell.main_window.QMessageBox.information") as info:
             grid._toggle("tl", True)
         info.assert_called_once()
         self.assertEqual(4, len(grid.get_skills()))
@@ -353,7 +353,7 @@ class DesktopPanelTests(unittest.TestCase):
 
     def test_negative_treasure_list_matches_policy_config(self):
         """面板展示的负面宝物必须与策略配置同源，避免 UI 与判定脱节。"""
-        from gamescript.choice_policy import DEFAULT_NEGATIVE_NAMES
+        from shuabao.choice_policy import DEFAULT_NEGATIVE_NAMES
 
         self.assertEqual(
             sorted(DEFAULT_NEGATIVE_NAMES),
@@ -506,7 +506,7 @@ class DesktopPanelTests(unittest.TestCase):
         """S0.5：desktop worker 的 Mediator 构造路径传 temp incident_dir，触发
         Fail-Closed 后 incident 组含 3 帧（before/now/after）+ 完整 S0 metadata
         （phase/context/evidence/action/attempt/deadline/outcome），密码不泄露。"""
-        import gamescript.mediator as mediator_mod
+        import shuabao.mediator as mediator_mod
 
         class FailClosedProbeMediator(RealMediator):
             def __init__(self, *args, **kwargs):
@@ -600,10 +600,10 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertNotIn("config", path.parts[-2:])
 
     def test_unverified_mode_start_is_zero_input(self):
-        from gamescript.shell.runner_service import ModeNotEnabled, RunnerService
+        from shuabao.shell.runner_service import ModeNotEnabled, RunnerService
 
         svc = RunnerService(Path(self.tmp.name), ROOT)
-        with patch("gamescript.shell.runner_service.MediatorWorker") as worker_cls:
+        with patch("shuabao.shell.runner_service.MediatorWorker") as worker_cls:
             for mode_id in ("follow_team", "gambling_wood", "raid_wait", "lobby_hitch", "lab"):
                 with self.subTest(mode_id=mode_id):
                     with self.assertRaises(ModeNotEnabled):
@@ -1200,7 +1200,7 @@ class DesktopPanelTests(unittest.TestCase):
     def test_start_run_keeps_dashboard_visible(self):
         """CORE02：点火后看板不再自隐藏——窗口保持可见、状态栏「运行中」、
         主按钮切换为停止；用户随时可中断，不必找回窗口。"""
-        from gamescript.shell.runner_service import MediatorWorker
+        from shuabao.shell.runner_service import MediatorWorker
 
         self.window.show()
         self.app.processEvents()

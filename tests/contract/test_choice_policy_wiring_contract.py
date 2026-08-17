@@ -17,10 +17,10 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.choice_policy import PolicyAction, choose_action  # noqa: E402
-from gamescript.mediator import Mediator  # noqa: E402
-from gamescript.settings import Settings  # noqa: E402
-from gamescript.vision.capture import Frame  # noqa: E402
+from shuabao.choice_policy import PolicyAction, choose_action  # noqa: E402
+from shuabao.mediator import Mediator  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
+from shuabao.vision.capture import Frame  # noqa: E402
 import numpy as np  # noqa: E402
 
 
@@ -123,7 +123,7 @@ class A3TreasureNegativeByName(unittest.TestCase):
 
     def test_descriptions_json_names_match_policy_defaults(self):
         import json
-        from gamescript.choice_policy import DEFAULT_NEGATIVE_NAMES
+        from shuabao.choice_policy import DEFAULT_NEGATIVE_NAMES
 
         data = json.loads((ROOT / "fixtures/treasure_negative/DESCRIPTIONS.json").read_text(encoding="utf-8"))
         names = set(data["cards"])

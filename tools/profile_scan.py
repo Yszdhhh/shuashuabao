@@ -23,7 +23,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.player_profile import (  # noqa: E402
+from shuabao.player_profile import (  # noqa: E402
     TAB_WINDOW_ENTRY,
     LiveLane,
     LiveLaneBusy,
@@ -37,7 +37,7 @@ from gamescript.player_profile import (  # noqa: E402
     upsert_first_login,
     write_profile,
 )
-from gamescript.vision.capture import (  # noqa: E402
+from shuabao.vision.capture import (  # noqa: E402
     L1_WINDOW_KEYWORDS,
     Frame,
     capture_target,
@@ -78,7 +78,7 @@ def _capture_l1() -> Frame:
 
 
 def _ocr_frame(frame: Frame) -> tuple[str, float]:
-    from gamescript.vision.ocr_shadow.client import ShadowClient
+    from shuabao.vision.ocr_shadow.client import ShadowClient
 
     client = ShadowClient(repo_root=ROOT, timeout_ms=4000, startup_timeout_ms=12000)
     try:

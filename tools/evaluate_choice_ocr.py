@@ -5,7 +5,7 @@
 - 输入：fixtures/ocr_choices/manifest.json（B2-1/O1 裁剪）+ config/choice_lexicon.json（B2-3）
 - 模型：models/ocr/ 本地固定版本（MODEL_MANIFEST.json 记录 SHA256/大小/license/source_url）
 - 推理：paddleocr 3.x TextRecognition（PP-OCRv5 mobile，rec-only，无 det/cls）
-- 归一化：src/gamescript/vision/choice_ocr.py 的 normalize_choice_text + lookup_lexicon
+- 归一化：src/shuabao/vision/choice_ocr.py 的 normalize_choice_text + lookup_lexicon
 - 输出：docs/baselines/B2_OCR_EVAL_<ts>.json + .md
 
 O0 评测可信度修复（对比旧版 B2-2 evaluator）：
@@ -62,13 +62,13 @@ except ImportError:  # pragma: no cover
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from gamescript.vision.choice_ocr import (  # noqa: E402
+from shuabao.vision.choice_ocr import (  # noqa: E402
     load_lexicon,
     lookup_lexicon,
     normalize_choice_text,
 )
-from gamescript.vision.capture import Frame  # noqa: E402
-from gamescript.vision.matcher import match_any  # noqa: E402
+from shuabao.vision.capture import Frame  # noqa: E402
+from shuabao.vision.matcher import match_any  # noqa: E402
 
 DEFAULT_MANIFEST = REPO_ROOT / "fixtures" / "ocr_choices" / "manifest.json"
 DEFAULT_MODELS_DIR = REPO_ROOT / "models" / "ocr"

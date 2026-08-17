@@ -1,28 +1,7 @@
-"""Unified cancellation and emergency stop signal."""
+# -*- coding: utf-8 -*-
+"""Compatibility shim for gamescript.stop_signal -> shuabao.stop_signal."""
+import sys
+import importlib
 
-from __future__ import annotations
-
-import threading
-
-
-class StopSignal:
-    """Shared cancellation signal across Mediator, API, Hotkey, and InputExecutor."""
-
-    def __init__(self) -> None:
-        self._event = threading.Event()
-        self._reason: str = ""
-
-    def trigger(self, reason: str = "Stop requested") -> None:
-        self._reason = reason
-        self._event.set()
-
-    def is_set(self) -> bool:
-        return self._event.is_set()
-
-    @property
-    def reason(self) -> str:
-        return self._reason
-
-    def reset(self) -> None:
-        self._reason = ""
-        self._event.clear()
+_mod = importlib.import_module('shuabao.stop_signal')
+sys.modules[__name__] = _mod

@@ -10,11 +10,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 
 
 def create_dummy_frame() -> Frame:
@@ -42,7 +42,7 @@ class P0C1FixesTests(unittest.TestCase):
         self.assertFalse(data.get("find_longzhu_in_game"))
         self.assertFalse(self.settings.find_longzhu_in_game)
         # 官方映射与 bool 解析
-        from gamescript.settings import _OFFICIAL_MAP
+        from shuabao.settings import _OFFICIAL_MAP
 
         self.assertEqual(_OFFICIAL_MAP["FindLongzhuInGame"], "find_longzhu_in_game")
         # 加载/保存往返：True 可写回并重新加载

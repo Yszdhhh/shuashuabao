@@ -2,7 +2,7 @@
 
 路径注入：此前只有部分测试文件自己 `sys.path.insert(ROOT/"src")`，其余（如
 tests/test_choice_policy.py）依赖同一次 pytest 会话里字母序更靠前的文件先插入
-路径。整目录跑没问题，但单独跑某个文件会 ModuleNotFoundError: gamescript，
+路径。整目录跑没问题，但单独跑某个文件会 ModuleNotFoundError: shuabao，
 调试单个用例时很容易被误判成代码坏了。
 
 跳过策略（A/B 两组云端 agent 合并而来）：OCR 模型二进制、`official_raw` 实机

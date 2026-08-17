@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.ui.uia.adapter import AdapterOptions, LobbyUiaAdapter
-from gamescript.ui.uia.model import (
+from shuabao.ui.uia.adapter import AdapterOptions, LobbyUiaAdapter
+from shuabao.ui.uia.model import (
     AnchorCondition,
     ControlMapping,
     FailClosedError,
@@ -29,8 +29,8 @@ from gamescript.ui.uia.model import (
     ReadbackSpec,
     UiaSelector,
 )
-from gamescript.ui.uia.mappings import KK_LOBBY_MAPPINGS
-from gamescript.ui.uia.source import PROP_AUTOMATION_ID, PROP_CLASS_NAME, PROP_CONTROL_TYPE, PROP_NAME, PROP_PROCESS_ID
+from shuabao.ui.uia.mappings import KK_LOBBY_MAPPINGS
+from shuabao.ui.uia.source import PROP_AUTOMATION_ID, PROP_CLASS_NAME, PROP_CONTROL_TYPE, PROP_NAME, PROP_PROCESS_ID
 
 WINDOW_KEY = (111, "Qt5QWindowIcon", "KK官方对战平台")
 HWND = 0x1234

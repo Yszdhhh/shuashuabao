@@ -15,8 +15,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.settings import Settings  # noqa: E402
-from gamescript.shell.mode_catalog import (  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
+from shuabao.shell.mode_catalog import (  # noqa: E402
     ModeSpec,
     apply_mode_overlay,
 )
@@ -65,21 +65,21 @@ class ApplyModeOverlayTests(unittest.TestCase):
             hidden_defaults={"round_timeout_s": 60},
             budgets={"round_timeout_s": 3600},
         )
-        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+        with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
             out = apply_mode_overlay(Settings(round_timeout_s=900), "test")
         self.assertEqual(out.round_timeout_s, 60)
 
     def test_bad_string_budget_falls_back_to_base_value(self):
         # 损坏的非数字字符串预算不得进入 runtime：round_timeout_s="bad" 回落到 base 值 900。
         spec = _spec(budgets={"round_timeout_s": "bad"})
-        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+        with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
             out = apply_mode_overlay(Settings(round_timeout_s=900), "test")
         self.assertEqual(out.round_timeout_s, 900)
 
     def test_out_of_range_budget_clamped_by_settings_validation(self):
         # 越界 budget 值被 Settings._from_dict 集中清洗钳制到 safe 区间。
         spec = _spec(budgets={"round_timeout_s": 1, "recovery_action_limit": 999})
-        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+        with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
             out = apply_mode_overlay(Settings(), "test")
         self.assertEqual(out.round_timeout_s, 60)        # <60 → 60
         self.assertEqual(out.recovery_action_limit, 10)  # >10 → 10
@@ -87,7 +87,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
     def test_numeric_string_budget_coerced_to_int(self):
         # 数字字符串预算被 Settings._from_dict 清洗强制转为 int。
         spec = _spec(budgets={"round_timeout_s": "900"})
-        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+        with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
             out = apply_mode_overlay(Settings(round_timeout_s=123), "test")
         self.assertEqual(out.round_timeout_s, 900)
         self.assertIsInstance(out.round_timeout_s, int)
@@ -100,18 +100,18 @@ class ApplyModeOverlayTests(unittest.TestCase):
         for invalid in ([], {}, None, "invalid_bool"):
             with self.subTest(invalid=invalid):
                 spec = _spec(hidden_defaults={"auto_create_room": invalid})
-                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
                     out = apply_mode_overlay(Settings(auto_create_room=False), "test")
                 self.assertFalse(out.auto_create_room)
 
         # 同时保留合法 False 与 True 叠加
         spec_false = _spec(hidden_defaults={"auto_create_room": False})
-        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec_false):
+        with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec_false):
             out_false = apply_mode_overlay(Settings(auto_create_room=True), "test")
         self.assertFalse(out_false.auto_create_room)
 
         spec_true = _spec(hidden_defaults={"auto_create_room": True})
-        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec_true):
+        with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec_true):
             out_true = apply_mode_overlay(Settings(auto_create_room=False), "test")
         self.assertTrue(out_true.auto_create_room)
 
@@ -128,7 +128,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
         for bad_bool in ([], {}, None, "not_a_bool"):
             with self.subTest(bad_bool=bad_bool):
                 spec = _spec(hidden_defaults={"auto_create_room": bad_bool})
-                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
                     out = apply_mode_overlay(base, "test")
                 self.assertFalse(out.auto_create_room)
 
@@ -136,7 +136,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
         for bad_int in ([], {}, None, "bad_int"):
             with self.subTest(bad_int=bad_int):
                 spec = _spec(budgets={"round_timeout_s": bad_int})
-                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
                     out = apply_mode_overlay(base, "test")
                 self.assertEqual(out.round_timeout_s, 123)
 
@@ -144,7 +144,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
         for bad_str in ([], {}, None, 12345):
             with self.subTest(bad_str=bad_str):
                 spec = _spec(hidden_defaults={"room_name": bad_str})
-                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
                     out = apply_mode_overlay(base, "test")
                 self.assertEqual(out.room_name, "base_room")
 
@@ -152,7 +152,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
         for bad_dict in ([], None, "not_a_dict", 123):
             with self.subTest(bad_dict=bad_dict):
                 spec = _spec(hidden_defaults={"skill_archive_levels": bad_dict})
-                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
                     out = apply_mode_overlay(base, "test")
                 self.assertEqual(out.skill_archive_levels, {"asj": 10})
 
@@ -160,7 +160,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
         for bad_ocr in ([], {}, None, "invalid_ocr_mode", 123):
             with self.subTest(bad_ocr=bad_ocr):
                 spec = _spec(hidden_defaults={"ocr_mode": bad_ocr})
-                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
                     out = apply_mode_overlay(base, "test")
                 self.assertEqual(out.ocr_mode, "live")
 
@@ -170,7 +170,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
         for invalid in ([], {}, None):
             with self.subTest(invalid=invalid):
                 spec = _spec(hidden_defaults={"auto_create_room": invalid})
-                with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+                with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
                     out = apply_mode_overlay(Settings(auto_create_room=True), "test")
                 self.assertTrue(out.auto_create_room)
 
@@ -178,7 +178,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
         # overlay 只允许改变命名字段：stage1=0 是 base 用户值，overlay 没碰它，
         # 不得被全量 asdict 重清洗成 1（_from_dict 的 stage1 区间钳制下限是 1）。
         spec = _spec(budgets={"round_timeout_s": 900})
-        with patch("gamescript.shell.mode_catalog.get_spec", return_value=spec):
+        with patch("shuabao.shell.mode_catalog.get_spec", return_value=spec):
             out = apply_mode_overlay(Settings(stage1=0, round_timeout_s=123), "test")
         self.assertEqual(0, out.stage1)
         self.assertEqual(900, out.round_timeout_s)

@@ -35,9 +35,9 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from gamescript.mediator import Mediator, Phase  # noqa: E402
-from gamescript.settings import Settings  # noqa: E402
-from gamescript.stop_signal import StopSignal  # noqa: E402
+from shuabao.mediator import Mediator, Phase  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
+from shuabao.stop_signal import StopSignal  # noqa: E402
 from test_scenario_replay import (  # noqa: E402
     ActionProbe,
     ContextProbe,

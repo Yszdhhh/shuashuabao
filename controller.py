@@ -43,7 +43,7 @@ except Exception as e:
     sys.exit(1)
 
 try:
-    from gamescript.settings import OFFICIAL_SETTINGS, Settings
+    from shuabao.settings import OFFICIAL_SETTINGS, Settings
 except Exception as e:
     _fatal(f"导入 settings 失败:\n{e}")
 
@@ -372,7 +372,7 @@ class App:
             messagebox.showinfo("提示", "已在运行中")
             return
         try:
-            from gamescript.mediator import Mediator as _Med
+            from shuabao.mediator import Mediator as _Med
         except Exception as e:
             messagebox.showerror(
                 "缺少依赖",

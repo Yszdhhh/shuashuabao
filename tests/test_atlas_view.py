@@ -6,15 +6,15 @@ import json
 import unittest
 from pathlib import Path
 
-from gamescript.atlas_view import (
+from shuabao.atlas_view import (
     CATEGORY_SKILL_CARD,
     CATEGORY_SKILL_FAMILY,
     PENDING_TEXT,
     apply_to_run,
     load_atlas_view,
 )
-from gamescript.settings import Settings
-from gamescript.vision.choice_ocr import load_lexicon, lookup_lexicon
+from shuabao.settings import Settings
+from shuabao.vision.choice_ocr import load_lexicon, lookup_lexicon
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -35,7 +35,7 @@ class AtlasViewJoinTests(unittest.TestCase):
 
     def test_no_fourth_name_table(self):
         self.assertFalse((ROOT / "config" / "atlas.json").exists())
-        self.assertFalse((ROOT / "src" / "gamescript" / "atlas.json").exists())
+        self.assertFalse((ROOT / "src" / "shuabao" / "atlas.json").exists())
 
     def test_projected_skill_names_subset_of_lexicon_or_catalog(self):
         catalog_names = {
@@ -350,8 +350,8 @@ class AtlasApplyOneWayTests(unittest.TestCase):
         self.assertIn("爆炎箭", diff.rejected)
 
     def test_family_cap_reuses_settings_constant(self):
-        from gamescript import atlas_view as atlas
-        from gamescript.settings import MAX_SELECTED_SKILLS
+        from shuabao import atlas_view as atlas
+        from shuabao.settings import MAX_SELECTED_SKILLS
 
         self.assertEqual(atlas.MAX_APPLY_SKILLS, MAX_SELECTED_SKILLS)
 

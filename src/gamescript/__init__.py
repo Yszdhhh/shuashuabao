@@ -1,9 +1,21 @@
-"""刷刷宝（ShuaBao）— 重生魔兽刷刷刷单人挂机助手。
+# -*- coding: utf-8 -*-
+"""Backward-compatibility shim redirecting gamescript.* -> shuabao.*"""
+import sys
+import importlib
+import types
 
-包名 gamescript 保留不改：它出现在 176 个文件里，改名收益纯美观、风险是
-把整套测试与门禁搞红。用户可见的名字（exe / 窗口 / 数据目录）已统一为刷刷宝。
+class _CompatFinder:
+    @classmethod
+    def find_spec(cls, fullname, path, target=None):
+        if fullname == "gamescript" or fullname.startswith("gamescript."):
+            target_name = "shuabao" + fullname[len("gamescript"):]
+            target_mod = importlib.import_module(target_name)
+            sys.modules[fullname] = target_mod
+            return importlib.util.find_spec(target_name)
+        return None
 
-版本约定：用户可见用「刷刷宝 V0.3」这种形式；__version__ 存「0.3」。
-"""
+if not any(isinstance(f, type) and f.__name__ == "_CompatFinder" for f in sys.meta_path):
+    sys.meta_path.insert(0, _CompatFinder)
 
-__version__ = "0.3"
+import shuabao
+sys.modules["gamescript"] = shuabao

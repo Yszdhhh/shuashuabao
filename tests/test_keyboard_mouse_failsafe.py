@@ -26,9 +26,9 @@ sys.path.insert(0, str(ROOT / "src"))
 
 import pyautogui  # noqa: E402
 
-from gamescript.input import keyboard_mouse as kb  # noqa: E402
-from gamescript.input.keyboard_mouse import ActionResult  # noqa: E402
-from gamescript.stop_signal import StopSignal  # noqa: E402
+from shuabao.input import keyboard_mouse as kb  # noqa: E402
+from shuabao.input.keyboard_mouse import ActionResult  # noqa: E402
+from shuabao.stop_signal import StopSignal  # noqa: E402
 
 
 class StandaloneFailSafePropagationTests(unittest.TestCase):

@@ -11,11 +11,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.stage_selector import StageId, StageRow
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.stage_selector import StageId, StageRow
 
 
 def load_frame(relative_path: str, title: str = "英雄三国") -> Frame:
@@ -85,7 +85,7 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         self.med._stage_click_cooldown_until = 0
         # 2026-08-16 L0 裁决：选关确认改用正向高亮接口（verify_stage_selection 已移除）。
         _row = StageRow(label="1-12", stage_id=StageId(1, 12), center_x=0, center_y=0)
-        with patch("gamescript.mediator.selected_stage_row", return_value=_row):
+        with patch("shuabao.mediator.selected_stage_row", return_value=_row):
             self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
             self.med._stage_click_cooldown_until = 0
             self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))

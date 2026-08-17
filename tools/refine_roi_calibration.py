@@ -35,7 +35,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from gamescript.vision.choice_ocr import normalize_choice_text  # noqa: E402
+from shuabao.vision.choice_ocr import normalize_choice_text  # noqa: E402
 
 NAME_HEIGHT_NORM = 0.056   # ~50px @900
 PROG_HEIGHT_NORM = 0.036   # ~32px @900

@@ -1,21 +1,7 @@
-"""对齐原 GameScript.Jobs.LongzhuJob : AutoJob。"""
+# -*- coding: utf-8 -*-
+"""Compatibility shim for gamescript.jobs.longzhu_job -> shuabao.jobs.longzhu_job."""
+import sys
+import importlib
 
-from __future__ import annotations
-
-from gamescript.jobs.auto_job import AutoJob
-from gamescript.loop_action import LoopAction
-
-
-class LongzhuJob(AutoJob):
-    def step(self) -> LoopAction:
-        # 龙珠相关模板优先
-        names = [
-            "longzhu",
-            "longzhu2",
-            "closeLongzhu",
-            "FindLongzhu",
-        ]
-        if self.find(names):
-            self.click_match(names, "Longzhu")
-            return LoopAction.Continue
-        return super().step()
+_mod = importlib.import_module('shuabao.jobs.longzhu_job')
+sys.modules[__name__] = _mod

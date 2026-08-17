@@ -11,12 +11,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.choice_policy import PolicySettings
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import ChallengeState, Mediator, PanelState, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.choice_policy import PolicySettings
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import ChallengeState, Mediator, PanelState, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 
 
 def hit(name: str, x: int = 100, y: int = 100) -> MatchResult:
@@ -175,7 +175,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         """_policy_settings 是缓存 getter：绝不每 panel tick 读 choice_policy.json。"""
         med = self.med
         first = med._policy_settings()
-        with patch("gamescript.mediator.json.loads",
+        with patch("shuabao.mediator.json.loads",
                    side_effect=AssertionError("per-tick disk read")), \
                 patch.object(Path, "read_text",
                              side_effect=AssertionError("per-tick disk read")):
@@ -311,7 +311,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         """确认学得时，仅通过 verified skill_catalog 助手记录赠卡。"""
         med = self.med
         med._skill_cards_pending.append("奥数箭")
-        with patch("gamescript.mediator.grant_on_learn_card", return_value="寒冰箭"):
+        with patch("shuabao.mediator.grant_on_learn_card", return_value="寒冰箭"):
             med._commit_pending_skill_cards()
         self.assertIn("奥数箭", med._skill_cards_owned)
         self.assertIn("寒冰箭", med._skill_cards_owned)
@@ -382,7 +382,7 @@ class L1RuntimeAccountingTests(unittest.TestCase):
         self.med._panel_episode_count["skill"] = 1  # 跳过 snapshot 兼容迁移
         self.med._l1_cycle_step = "skill"
         self.med._last_skill_panel = 100.0
-        with patch("gamescript.mediator.time.time", return_value=200.0), \
+        with patch("shuabao.mediator.time.time", return_value=200.0), \
                 patch.object(self.med, "act_click") as click:
             result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
         self.assertIs(result, LoopAction.Continue)

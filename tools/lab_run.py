@@ -20,19 +20,19 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.bond_capacity import stack_need
-from gamescript.incidents import default_incident_dir
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
+from shuabao.bond_capacity import stack_need
+from shuabao.incidents import default_incident_dir
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
 
 try:
-    from gamescript.mediator import LAB_BOND_MAX_REFRESHES, LAB_REENTER_SAMPLE_S
+    from shuabao.mediator import LAB_BOND_MAX_REFRESHES, LAB_REENTER_SAMPLE_S
 except ImportError:
     LAB_BOND_MAX_REFRESHES = 20
     LAB_REENTER_SAMPLE_S = 720.0
 
 try:
-    from gamescript.settings import _normalize_lab_focus
+    from shuabao.settings import _normalize_lab_focus
 except ImportError:  # Local Settings 还没有实验室字段时，lab_run 自己认 token
     _LAB_FOCUS_TOKENS = frozenset({"skill", "bond", "treasure", "reenter"})
 
@@ -603,7 +603,7 @@ def _run_one(
         print("[lab] 可从已进局或暂停画面开：暂停会点继续游戏，不会一上来就退。")
     incident_dir = default_incident_dir()
     stop = StopSignal()
-    from gamescript.mediator import Mediator
+    from shuabao.mediator import Mediator
     med = Mediator(settings, ROOT, stop_signal=stop, incident_dir=incident_dir)
     now = datetime.now()
     tag = f"_{route}" if route else ""
