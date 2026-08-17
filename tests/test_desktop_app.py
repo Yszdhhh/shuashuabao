@@ -177,6 +177,69 @@ class DesktopPanelTests(unittest.TestCase):
         finally:
             restored.close()
 
+    def test_user_json_no_scheme_empty_cards_defaults_to_five(self):
+        """用户 JSON 无权威 bond_scheme 且 cards 为空 = 无方案数据 → 默认五张。"""
+        self.window.user_settings_path().write_text(
+            json.dumps({
+                "_shell_schema": 2,
+                "stage_targets": ["1-10"],
+                "skills": ["asj"],
+                "cards": [],
+                "_shell": {"selected_mode_id": "normal_farm"},
+            }),
+            encoding="utf-8",
+        )
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual(
+                {"zhufu", "chengzhang", "经济", "tanlan", "挑战"},
+                set(restored.collect_settings_from_ui().cards),
+            )
+        finally:
+            restored.close()
+
+    def test_user_json_no_scheme_nonempty_cards_preserved_as_explicit(self):
+        """缺 bond_scheme 但 cards 非空 = 旧版显式历史选择，原样保留。"""
+        self.window.user_settings_path().write_text(
+            json.dumps({
+                "_shell_schema": 2,
+                "stage_targets": ["1-10"],
+                "skills": ["asj"],
+                "cards": ["zhufu", "chengzhang"],
+                "_shell": {"selected_mode_id": "normal_farm"},
+            }),
+            encoding="utf-8",
+        )
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual(
+                ["zhufu", "chengzhang"], restored.collect_settings_from_ui().cards
+            )
+        finally:
+            restored.close()
+
+    def test_user_json_explicit_empty_scheme_stays_empty(self):
+        """显式 _shell.bond_scheme=[] → 显式空卡组，保持空。"""
+        self.window.user_settings_path().write_text(
+            json.dumps({
+                "_shell_schema": 2,
+                "stage_targets": ["1-10"],
+                "skills": ["asj"],
+                "cards": [],
+                "_shell": {
+                    "selected_mode_id": "normal_farm",
+                    "bond_scheme": [],
+                    "bond_inverted": [],
+                },
+            }),
+            encoding="utf-8",
+        )
+        restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
+        try:
+            self.assertEqual([], restored.collect_settings_from_ui().cards)
+        finally:
+            restored.close()
+
     def test_two_attr_routes_still_expand_and_persist(self):
         """智力+力量两条属性线同时勾选：各自展开进白名单，保存重载后仍生效。"""
         self.window.route_buttons["intelligence"].setChecked(True)

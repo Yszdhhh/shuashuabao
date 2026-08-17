@@ -42,7 +42,7 @@ from PySide6.QtWidgets import (
 )
 
 from gamescript import __version__
-from gamescript.settings import Settings
+from gamescript.settings import MAX_SELECTED_SKILLS, Settings
 from gamescript.shell.mode_catalog import (
     collect_persistable_settings,
     badge_text,
@@ -227,7 +227,7 @@ def _is_admin() -> bool:
 class SkillCardGrid(QWidget):
     """中文技能卡片多选网格：显示中文名，内部存拼音短码，最多 4 个。"""
 
-    MAX_SKILLS = 4
+    MAX_SKILLS = MAX_SELECTED_SKILLS
     skills_changed = Signal()
 
     CARD_QSS = (
@@ -1676,13 +1676,29 @@ class MainWindow(QMainWindow):
                         if isinstance(route, str):
                             extras["attr_route"] = []
                     self._shell_extras.update(extras)
+                # 旧版错误持久化的 5+ 技能：警告观察原始 JSON 计数（不列技能名，
+                # 避免泄露数据）；截断由 Settings._from_dict 解析边界统一执行。
+                if isinstance(raw, dict):
+                    raw_skills = raw.get("skills")
+                    if isinstance(raw_skills, (list, tuple)) and len(raw_skills) > MAX_SELECTED_SKILLS:
+                        self.log(
+                            f"[加载] 已保存技能 {len(raw_skills)} 个超过上限 {MAX_SELECTED_SKILLS}，"
+                            f"仅保留前 {MAX_SELECTED_SKILLS} 个（其余忽略）",
+                            "warn",
+                        )
                 settings = Settings._from_dict(raw if isinstance(raw, dict) else {})
                 source = "user_settings.json"
-                default_bond = False
+                # 无权威 _shell.bond_scheme 键且 cards 为空 = 无用户方案数据 →
+                # 默认五张（round1_must）；缺 scheme 但 cards 非空 = 旧版显式
+                # 历史选择，原样保留；显式 _shell.bond_scheme=[] = 显式空卡组。
+                default_bond = (
+                    "bond_scheme" not in self._shell_extras
+                    and not (settings.cards or [])
+                )
             elif FACTORY_SETTINGS.is_file():
                 settings = Settings.load(FACTORY_SETTINGS)
                 source = FACTORY_SETTINGS.name
-                # 工厂默认 profile：无用户方案数据，基础卡组保持默认全选。
+                # 工厂默认 profile：无用户方案数据，基础卡组保持默认五张（round1_must）。
                 default_bond = True
             else:
                 return
@@ -1719,16 +1735,7 @@ class MainWindow(QMainWindow):
         self.spn_dragon_ball.setValue(int(settings.dragon_ball_count or 7))
         self.chk_longzhu_multi.setChecked(bool(settings.find_longzhu_where_multi_game))
         self.chk_longzhu_in_game.setChecked(bool(settings.find_longzhu_in_game))
-        skills_in = list(settings.skills or [])
-        if len(skills_in) > SkillCardGrid.MAX_SKILLS:
-            # 旧版错误持久化的 5+ 技能：确定性截断为前 4 个，并给一条用户可见
-            # 警告（不列技能名，避免泄露多余数据）。
-            self.log(
-                f"[加载] 已保存技能 {len(skills_in)} 个超过上限 {SkillCardGrid.MAX_SKILLS}，"
-                f"仅保留前 {SkillCardGrid.MAX_SKILLS} 个（其余忽略）",
-                "warn",
-            )
-        self.skill_grid.set_skills(skills_in)
+        self.skill_grid.set_skills(settings.skills or [])
         self.archive_grid.set_levels(dict(getattr(settings, "skill_archive_levels", None) or {}))
         card_stems = []
         for item in settings.cards or []:
