@@ -41,7 +41,7 @@ class CardFact:
     is_new: bool = False
     exact_name: str | None = None
     skill_level: int | None = None
-
+    family_source: str = "badge"
     def __post_init__(self) -> None:
         if not isinstance(self.slot, int):
             object.__setattr__(self, "slot", int(self.slot))
@@ -60,6 +60,8 @@ class CardFact:
                 object.__setattr__(self, "skill_level", int(self.skill_level))
             except (ValueError, TypeError):
                 object.__setattr__(self, "skill_level", None)
+        if not isinstance(self.family_source, str) or self.family_source not in ("badge", "legacy_name", "unknown"):
+            object.__setattr__(self, "family_source", "unknown")
 
     @classmethod
     def from_slot(cls, slot: Any) -> "CardFact":
@@ -76,8 +78,8 @@ class CardFact:
             is_new=bool(data.get("is_new", False)),
             exact_name=data.get("exact_name"),
             skill_level=data.get("skill_level"),
+            family_source=str(data.get("family_source", "unknown")),
         )
-
     def to_dict(self) -> dict[str, Any]:
         return {
             "slot": self.slot,
@@ -87,26 +89,27 @@ class CardFact:
             "is_new": self.is_new,
             "exact_name": self.exact_name,
             "skill_level": self.skill_level,
+            "family_source": self.family_source,
         }
-
     def to_slot_candidate(self) -> Any:
         """Convert CardFact to choice_policy.SlotCandidate."""
         from shuabao.choice_policy import SlotCandidate
 
-        return SlotCandidate(
-            index=self.slot,
-            name=self.exact_name,
-            confidence=1.0 if self.exact_name else (0.9 if self.family else 0.0),
-            evidence="CardFact badge-first observation",
-            rarity=self.rarity,
-            family=self.family,
-            prereq_marker=self.prereq_marker,
-            is_new=self.is_new,
-            skill_level=self.skill_level,
-            card_fact=self,
-        )
-
-
+        kwargs = {
+            "index": self.slot,
+            "name": self.exact_name,
+            "confidence": 1.0 if self.exact_name else (0.9 if self.family else 0.0),
+            "evidence": "CardFact badge-first observation",
+            "rarity": self.rarity,
+            "family": self.family,
+            "prereq_marker": self.prereq_marker,
+            "is_new": self.is_new,
+            "skill_level": self.skill_level,
+            "card_fact": self,
+        }
+        if hasattr(SlotCandidate, "__dataclass_fields__") and "family_source" in SlotCandidate.__dataclass_fields__:
+            kwargs["family_source"] = self.family_source
+        return SlotCandidate(**kwargs)
 def card_fact_from_slot(slot: Any) -> CardFact:
     """Extract or construct a CardFact from a SlotCandidate or mapping."""
     if isinstance(slot, CardFact):
@@ -121,13 +124,20 @@ def card_fact_from_slot(slot: Any) -> CardFact:
     s_idx = getattr(slot, "index", getattr(slot, "slot", 0))
     s_name = getattr(slot, "name", getattr(slot, "exact_name", None))
     s_fam = getattr(slot, "family", None)
+    s_source = getattr(slot, "family_source", None)
     if not s_fam and s_name:
         try:
             from shuabao.skill_catalog import family_of
 
             s_fam = family_of(s_name)
+            if s_fam and not s_source:
+                s_source = "legacy_name"
         except Exception:
             s_fam = ""
+    elif s_fam and not s_source:
+        s_source = "badge"
+    if not s_source:
+        s_source = "unknown"
     s_rarity = getattr(slot, "rarity", "white") or "white"
     s_prereq = bool(getattr(slot, "prereq_marker", False))
     s_is_new = bool(getattr(slot, "is_new", False))
@@ -140,4 +150,5 @@ def card_fact_from_slot(slot: Any) -> CardFact:
         is_new=s_is_new,
         exact_name=s_name,
         skill_level=s_level,
+        family_source=s_source,
     )

@@ -94,6 +94,7 @@ from shuabao.habit_preference import (
     load_habit_preference,
 )
 from shuabao.skill_catalog import grant_on_learn_card
+from shuabao.card_fact import CardFact, card_fact_from_slot
 
 # 构建标识：写入 JSONL tick trace（B1-1），用于区分版本/里程碑来源。
 # 每次发布里程碑时更新；配合 git 提交哈希可精确定位产生该日志的代码。
@@ -1860,18 +1861,31 @@ class Mediator:
             if rarity is None and frame is not None:
                 rarity = self._slot_rarity_band(frame, kind, index)
             description = str(slot.get("description") or "")
+            name = slot.get("name")
+            family = slot.get("family")
+            family_source = slot.get("family_source")
+            card_fact = slot.get("card_fact")
+            if card_fact is None:
+                card_fact = card_fact_from_slot(slot)
+            if not family_source and card_fact is not None:
+                family_source = getattr(card_fact, "family_source", "unknown")
             out.append(
                 SlotCandidate(
                     index=index,
-                    name=slot.get("name"),
+                    name=name,
                     confidence=float(slot.get("confidence") or 0.0),
                     evidence=str(slot.get("raw_text") or ""),
                     rarity=rarity if isinstance(rarity, str) else None,
                     description=description,
+                    family=family or (card_fact.family if card_fact else None),
+                    prereq_marker=bool(slot.get("prereq_marker", False)),
+                    is_new=bool(slot.get("is_new", False)),
+                    skill_level=slot.get("skill_level"),
+                    card_fact=card_fact,
+                    family_source=str(family_source or "unknown"),
                 )
             )
         return tuple(out)
-
     def _policy_settings(self) -> PolicySettings:
         """Cached PolicySettings；初始化时已快照 policy_doc + 习惯偏好。
 
@@ -2544,6 +2558,7 @@ class Mediator:
             self._inventory_last_pt = None
             self._inventory_same_pt_hits = 0
             self._inventory_next_at = 0.0
+            self._devour_dan_consecutive_clicks = 0
         self._l1_cycle_step = nxt
 
     def _maybe_open_choice_panel(self, frame: Frame, anchor: MatchResult | None = None) -> LoopAction | None:
@@ -2792,12 +2807,15 @@ class Mediator:
                 scales=self._hot_scales(),
                 roi=(0.64, 0.77, 0.74, 0.98),
             )
-            if pill and now >= self._devour_dan_next_at and self._devour_dan_consecutive_clicks < 5:
-                if self.act_click(pill, "UseInventory-swallow_pill"):
-                    self._devour_dan_next_at = now + 1.0
-                    self._devour_dan_consecutive_clicks += 1
-                    self._inventory_next_at = now + 1.0
-                    return LoopAction.Continue
+            if pill:
+                if now >= self._devour_dan_next_at and self._devour_dan_consecutive_clicks < 5:
+                    if self.act_click(pill, "UseInventory-swallow_pill"):
+                        self._devour_dan_next_at = now + 1.0
+                        self._devour_dan_consecutive_clicks += 1
+                        self._inventory_next_at = now + 1.0
+                        return LoopAction.Continue
+            else:
+                self._devour_dan_consecutive_clicks = 0
         if now < self._inventory_next_at or self._inventory_clicks_this_visit >= 2:
             return None
         hero_card = self.find(
@@ -2968,7 +2986,7 @@ class Mediator:
             attr_routes=getattr(self.settings, "attr_route", None) or [],
             focus_skills=getattr(self.settings, "focus_skills", None) or [],
             focus_bonds=getattr(self.settings, "bonds", None) or [],
-            auto_refresh=bool(getattr(self.settings, "auto_gambling", False) or getattr(self.settings, "auto_gambling_time", 0) > 0),
+            auto_refresh=bool(getattr(self.settings, "auto_gambling", False)),
         )
 
         roi = (0.70, 0.67, 0.90, 0.79)
@@ -4048,6 +4066,7 @@ class Mediator:
             self._inventory_last_pt = None
             self._inventory_same_pt_hits = 0
             self._inventory_next_at = 0.0
+            self._devour_dan_consecutive_clicks = 0
         if phase == Phase.QUIT:
             self._exit_button_attempts = 0
             self._exit_since = time.time()

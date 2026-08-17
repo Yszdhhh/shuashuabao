@@ -136,6 +136,49 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
             self.assertEqual(self.med._inventory_last_pt, (1150, 750))
             self.assertEqual(self.med._inventory_same_pt_hits, 1)
 
+
+    @patch("shuabao.mediator.time.time", return_value=100.0)
+    def test_devour_pill_episode_limit_and_reset(self, mock_time):
+        """D2 invariant: Devour pill clicks cap at 5, reset when pill disappears or cycle resets."""
+        with patch.object(self.med, "_black_merchant_present", return_value=False), \
+             patch.object(self.med, "_bond_bar_nonempty", return_value=True), \
+             patch.object(self.med, "find") as mock_find, \
+             patch.object(self.med, "act_click", return_value=True) as mock_click:
+            pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
+            def find_side_effect(f, names, **kwargs):
+                if "danGif" in names:
+                    return pill_match
+                return None
+            mock_find.side_effect = find_side_effect
+
+            self.med._devour_dan_consecutive_clicks = 5
+            action = self.med._maybe_use_inventory_item(self.frame)
+            self.assertIsNone(action)
+            mock_click.assert_not_called()
+
+            # Pill disappears -> resets consecutive clicks
+            mock_find.side_effect = None
+            mock_find.return_value = None
+            self.med._maybe_use_inventory_item(self.frame)
+            self.assertEqual(self.med._devour_dan_consecutive_clicks, 0)
+            # Advance l1 cycle to equipment resets consecutive clicks
+            self.med._devour_dan_consecutive_clicks = 4
+            self.med._advance_l1_cycle("evolve")
+            self.assertEqual(self.med._devour_dan_consecutive_clicks, 0)
+
+    @patch("shuabao.mediator.time.time", return_value=100.0)
+    def test_merchant_auto_refresh_not_implicitly_enabled_by_auto_gambling_time(self, mock_time):
+        """D3 invariant: auto_refresh is False when auto_gambling is False even if auto_gambling_time > 0."""
+        self.med.settings.auto_gambling_time = 10
+        self.med.settings.auto_gambling = False
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+             patch.object(self.med, "_bond_bar_nonempty", return_value=False), \
+             patch.object(self.med, "find", return_value=None), \
+             patch.object(self.med, "_merchant_refresh_available", return_value=True), \
+             patch.object(self.med, "act_click") as mock_click:
+            action = self.med._maybe_black_merchant(self.frame)
+            self.assertIsNone(action)
+            mock_click.assert_not_called()
 class TestEquipmentPeriodicInspection(unittest.TestCase):
     def setUp(self):
         self.med = Mediator(Settings(), ROOT)

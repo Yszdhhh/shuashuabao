@@ -51,6 +51,8 @@ def verify_card_slot_changed_or_disappeared(
     """Verify that a selected card slot changed fingerprint or the panel closed."""
     if not panel_present:
         return True
+    if current_fingerprint is None:
+        return False
     if baseline_fingerprint is not None and current_fingerprint != baseline_fingerprint:
         return True
     return False
