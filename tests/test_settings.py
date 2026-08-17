@@ -59,6 +59,22 @@ class SettingsFromDictTests(unittest.TestCase):
         self.assertEqual(s_legacy_passthrough.treasure_allow_negative, [])
         self.assertEqual(s_legacy_passthrough.ocr_mode, "off")
 
+    def test_from_dict_truncates_skills_to_four(self):
+        """解析边界集中截断：5+ 技能只保留前 4 个（保序）。"""
+        s = Settings._from_dict({"skills": ["a", "b", "c", "d", "e", "f"]})
+        self.assertEqual(["a", "b", "c", "d"], s.skills)
+
+    def test_from_dict_skills_empty_none_and_fallback(self):
+        """空/None 技能回落空列表；fallback 模式 overlay 同样截断且不污染 base。"""
+        self.assertEqual([], Settings._from_dict({"skills": []}).skills)
+        self.assertEqual([], Settings._from_dict({"skills": None}).skills)
+        base = Settings(skills=["x"])
+        out = Settings._from_dict(
+            {"skills": ["a", "b", "c", "d", "e"]}, fallback=base
+        )
+        self.assertEqual(["a", "b", "c", "d"], out.skills)
+        self.assertEqual(["x"], base.skills)
+
     def test_non_dict_input_is_safe(self):
         # 无 fallback：非 dict 输入返回安全的默认 Settings()
         self.assertEqual(Settings._from_dict(None), Settings())

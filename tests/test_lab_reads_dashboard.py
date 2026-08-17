@@ -113,6 +113,21 @@ class ApplyLabPresetDashboardTests(unittest.TestCase):
             self.assertIn("解放的圣剑", settings.lab_exit_on_bond)
             self.assertEqual(settings.lab_exit_on_bond_count, 1)
 
+    def test_load_lab_settings_truncates_skills_over_four(self):
+        """lab_run 读取看板 5+ 技能：解析边界截断为前 4 个。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "user_settings.json"
+            path.write_text(
+                json.dumps({
+                    "stage_targets": ["1-12"],
+                    "skills": ["asj", "asjg", "assx", "jq", "byj", "tl"],
+                    "cards": [],
+                }),
+                encoding="utf-8",
+            )
+            settings = load_lab_settings(path)
+        self.assertEqual(["asj", "asjg", "assx", "jq"], settings.skills)
+
     def test_report_matches_loaded_dashboard(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "user_settings.json"

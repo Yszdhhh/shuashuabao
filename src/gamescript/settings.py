@@ -11,6 +11,11 @@ from typing import Any
 # 官方保存路径（授权后）
 OFFICIAL_SETTINGS = Path(os.environ.get("APPDATA", "")) / "GameScript" / "Settings" / "Settings.json"
 
+# 技能选择上限（用户 2026-08-17 确认：至多 4 个、无 all_round 全能档）。
+# 解析边界（_from_dict/load/load_official/load_lab_settings）统一截断，
+# 外壳 SkillCardGrid 与图鉴 apply 复用同一常量，避免第二事实源。
+MAX_SELECTED_SKILLS = 4
+
 # 官方 PascalCase → 本地 snake_case
 _OFFICIAL_MAP = {
     "Stage1": "stage1",
@@ -331,6 +336,23 @@ class Settings:
                     clean.pop(k)
         if "match_threshold" in clean:
             clean["match_threshold"] = max(0.5, min(0.99, float(clean["match_threshold"])))
+        # 技能最多 MAX_SELECTED_SKILLS 个（解析边界集中截断，保序、剔除空串；
+        # 覆盖 Settings.load / load_official / load_lab_settings 全部入口）。
+        if "skills" in clean:
+            raw_skills = clean["skills"]
+            if isinstance(raw_skills, (list, tuple)):
+                kept: list[str] = []
+                for s in raw_skills:
+                    text = str(s).strip() if s is not None else ""
+                    if text:
+                        kept.append(text)
+                    if len(kept) >= MAX_SELECTED_SKILLS:
+                        break
+                clean["skills"] = kept
+            elif fallback is not None:
+                clean.pop("skills")
+            else:
+                clean["skills"] = []
         # 负面宝物放行名单：只接受字符串列表；类型不对一律回落为空（不放行任何负面卡）。
         if "treasure_allow_negative" in clean:
             raw_allow = clean["treasure_allow_negative"]

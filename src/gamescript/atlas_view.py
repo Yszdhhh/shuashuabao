@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from gamescript.bond_capacity import load_bond_stack_catalog
+from gamescript.settings import MAX_SELECTED_SKILLS
 from gamescript.skill_catalog import (
     card_rarity,
     load_skill_archive_unlocks,
@@ -33,7 +34,7 @@ CATEGORY_BOND = "bond"
 CATEGORY_TREASURE = "treasure"
 CATEGORY_MERCHANT = "merchant"
 
-MAX_APPLY_SKILLS = 4
+MAX_APPLY_SKILLS = MAX_SELECTED_SKILLS
 MAX_APPLY_BONDS = 6
 
 _LIVE_MARKERS = (

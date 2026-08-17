@@ -341,6 +341,20 @@ class AtlasApplyOneWayTests(unittest.TestCase):
         self.assertEqual(diff.cards, ())
         self.assertIn("急速", diff.rejected)
 
+    def test_family_apply_caps_at_four(self):
+        """图鉴应用技能系上限=4（与 Settings 解析边界同一常量）。"""
+        diff = apply_to_run(
+            ["奥数箭", "奥数激光", "奥数射线", "剑气", "爆炎箭"], view=self.view
+        )
+        self.assertEqual(("asj", "asjg", "assx", "jq"), diff.skills)
+        self.assertIn("爆炎箭", diff.rejected)
+
+    def test_family_cap_reuses_settings_constant(self):
+        from gamescript import atlas_view as atlas
+        from gamescript.settings import MAX_SELECTED_SKILLS
+
+        self.assertEqual(atlas.MAX_APPLY_SKILLS, MAX_SELECTED_SKILLS)
+
 
 if __name__ == "__main__":
     unittest.main()
