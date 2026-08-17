@@ -1886,7 +1886,7 @@ class MainWindow(QMainWindow):
             )
         skills = self.skill_grid.get_skills()
         if not skills:
-            self.log("[设置] 未选择技能：技能面板只刷新并放弃，不会学习其他技能", "info")
+            self.log("[设置] 未选择技能：技能面板直接关闭/隐藏，不刷新、不放弃技能点，不会学习其他技能", "info")
         settings = copy.deepcopy(self.settings)
         settings.game_mode = 0
         settings.stage1 = stage_index

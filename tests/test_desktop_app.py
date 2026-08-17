@@ -306,11 +306,24 @@ class DesktopPanelTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "章节-关卡"):
             self.window.collect_settings_from_ui()
 
-        # 技能可选：空技能不拦截，但运行时只刷新并放弃，不学习配置外技能。
+        # 技能可选：空技能不拦截；运行时直接关闭/隐藏，不刷新、不放弃技能点。
         self.window.txt_stage_target.setText("1-10")
         self.window.skill_grid.set_skills([])
         settings = self.window.collect_settings_from_ui()
         self.assertEqual([], settings.skills)
+
+    def test_empty_skills_collect_logs_close_hide_not_refresh_or_giveup(self):
+        """空技能 collect 必须经真实 log surface 声明关闭/隐藏，而不是刷新并放弃。"""
+        self.window.txt_stage_target.setText("1-10")
+        self.window.skill_grid.set_skills([])
+        self.window.txt_log.clear()
+        settings = self.window.collect_settings_from_ui()
+        self.assertEqual([], settings.skills)
+        logged = self.window.txt_log.toPlainText()
+        self.assertIn("直接关闭/隐藏", logged)
+        self.assertIn("不刷新", logged)
+        self.assertIn("不放弃", logged)
+        self.assertNotIn("只刷新并放弃", logged)
 
     def test_desktop_worker_writes_fail_closed_incident(self):
         """S0.5：desktop worker 的 Mediator 构造路径传 temp incident_dir，触发
