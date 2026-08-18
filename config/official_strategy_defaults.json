@@ -5,7 +5,7 @@
   "builds": [
     {
       "id": "arcane_open",
-      "name": "奥术箭开荒（默认）",
+      "name": "奥术开荒（奥术箭、奥术射线、奥术激光、剑气）",
       "source": "KK 夙愿奥术箭帖 + REBORN_WOW S3",
       "skills": ["asj", "asjg", "assx", "jq"],
       "cards": ["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe", "fs"],
@@ -15,7 +15,7 @@
     },
     {
       "id": "thunder_classic",
-      "name": "天雷经典",
+      "name": "天雷经典（天雷、闪电链、奥术激光、奥术射线）",
       "source": "KK 天雷珍藏11过94",
       "skills": ["tl", "sdl", "asjg", "assx"],
       "cards": ["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe"],
@@ -25,7 +25,7 @@
     },
     {
       "id": "thunder_net",
-      "name": "天雷狂轰",
+      "name": "天雷狂轰（天雷、闪电链、电磁网、奥术箭）",
       "source": "梭哈流 + 抖音双雷变体",
       "skills": ["tl", "sdl", "dcw", "asj"],
       "cards": ["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe"],
@@ -35,7 +35,7 @@
     },
     {
       "id": "sword_qi",
-      "name": "剑气物理",
+      "name": "剑气物理（剑气、陨石、地震、奥术激光）",
       "source": "KK 剑气帖",
       "skills": ["jq", "ys", "dz", "asjg"],
       "cards": ["tishu", "chengzhang", "zhufu", "mingjie", "shougezhe"],
@@ -45,7 +45,7 @@
     },
     {
       "id": "aa_universal",
-      "name": "普攻万金油",
+      "name": "普攻万金油（普攻、陨石、地震、剑气）",
       "source": "KK 普攻帖",
       "skills": ["pg", "ys", "dz", "jq"],
       "cards": ["tishu", "chengzhang", "zhufu", "mingjie", "shougezhe"],
@@ -105,9 +105,10 @@
   },
   "bond_trees": {
     "_comment": "基础羁绊解锁树。张数以 bond_stack_catalog 为准。prereq 空=开局就有。status: live=实机见过合成进度；guide=只有攻略。",
-    "祝福": {"need": 3, "prereq": [], "unlocks": [], "tier": "round1", "status": "live"},
-    "成长": {"need": 4, "prereq": [], "unlocks": [], "tier": "round1", "status": "live"},
-    "经济": {"need": 3, "prereq": [], "unlocks": ["贪婪", "挑战"], "tier": "round1", "status": "live"},
+    "basic": {
+      "label": "基础卡",
+      "cards": ["祝福", "成长", "经济", "贪婪", "挑战", "提速", "体术", "固守", "陷阵", "急速", "力量", "智力", "敏捷"]
+    },
     "贪婪": {"need": 3, "prereq": ["经济"], "unlocks": [], "tier": "round1", "status": "live", "note": "随机吞 4 张可吞食卡 + 150 木 + 888 杀敌 + 6000 金；格子将满时优先于普通顺序"},
     "挑战": {"need": 3, "prereq": ["经济"], "unlocks": [], "tier": "round1", "status": "live"},
     "提速": {"need": 3, "prereq": [], "unlocks": ["体术", "固守", "生命"], "tier": "survival", "status": "guide", "note": "lab 多轮零出现，前置关系尚未被实机验证"},

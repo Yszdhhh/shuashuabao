@@ -87,7 +87,7 @@ class DesktopPanelTests(unittest.TestCase):
 
         # 选 4 个：严格模式标题与提示
         self.window.skill_grid.set_skills(["asj", "asjg", "assx", "jq"])
-        self.assertIn("奥数箭", self.window.grp_skill.title())
+        self.assertIn("奥术箭", self.window.grp_skill.title())
         self.assertIn("严格模式", self.window.grp_skill.title())
         self.assertIn("严格模式", self.window.skill_grid.hint.text())
 

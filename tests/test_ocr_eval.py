@@ -213,11 +213,11 @@ class TestAccuracyDenominator(unittest.TestCase):
         self.assertEqual(gl["canonical_top1_alias_aware"]["denominator"], 2)
 
     def test_alias_covered_truth_corrected_and_counted(self):
-        # 奥术激光 是 奥数激光 的别名 → truth_status=alias_covered，纠正后进分母
+        # 奥数激光 是 奥术激光 的别名 → truth_status=alias_covered，纠正后进分母
         samples = self._samples(rounds=1)
-        samples[0]["truth_canonical"] = "奥术激光"
-        samples[0]["truth_raw"] = "奥术激光"
-        samples[0]["rec_text"] = "奥数激光"
+        samples[0]["truth_canonical"] = "奥数激光"
+        samples[0]["truth_raw"] = "奥数激光"
+        samples[0]["rec_text"] = "奥术激光"
         m = self._manifest(slot_roi={"name": [0.2, 0.2, 0.4, 0.3]})
         metrics = evo.compute_metrics(samples, [], self._lexicon(), m)
         gl = metrics["variants"]["raw"]["gated_layer"]

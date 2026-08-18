@@ -3047,9 +3047,9 @@
    "entry_id": "d0_b_001673_ep100",
    "slot_index": 2,
    "final": "canonical",
-   "canonical": "奥数激光",
+   "canonical": "奥术激光",
    "kind": "skill",
-   "basis": "D0 已有 canonical（pending_ocr_confirm，OCR 与词典一致）",
+   "basis": "D0 已有 canonical",
    "reviewer": "machine",
    "confidence": 1.0
   },

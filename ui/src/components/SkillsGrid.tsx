@@ -14,7 +14,7 @@ export const SKILL_NAMES: Record<string, string> = {
   bsxx: '冰霜新星',
   sdl: '闪电链',
   dz: '地震',
-  ljf: '龙卷风',
+  ys: '陨石',
   dcw: '电磁网',
   ys: '陨石',
   jf: '飓风',

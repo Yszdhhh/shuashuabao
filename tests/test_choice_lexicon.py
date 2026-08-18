@@ -71,7 +71,7 @@ class LexiconDataTests(unittest.TestCase):
     def test_documented_confusions(self):
         entries = load_lexicon()["entries"]
         self.assertIn("射线", entries["射线增幅"]["confusions"])
-        self.assertIn("射线", entries["奥数射线"]["confusions"])
+        self.assertIn("射线", entries["奥术射线"]["confusions"])
         self.assertIn("次级增伤", entries["次级箭"]["confusions"])
         self.assertIn("次级箭", entries["次级增伤"]["confusions"])
 
@@ -141,7 +141,7 @@ class LookupExactTests(unittest.TestCase):
         self.assertEqual(lookup_lexicon("剑气").canonical, "剑气")
 
     def test_alias_hit(self):
-        self.assertEqual(lookup_lexicon("奥术箭").canonical, "奥数箭")
+        self.assertEqual(lookup_lexicon("奥数箭").canonical, "奥术箭")
         self.assertEqual(lookup_lexicon("光法R").canonical, "光法")
         self.assertEqual(lookup_lexicon("潮汐猎人sr").canonical, "潮汐猎人")
         self.assertEqual(lookup_lexicon("4星球").canonical, "四星球")

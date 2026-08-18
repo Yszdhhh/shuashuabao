@@ -172,9 +172,8 @@ export const FettersCard: React.FC<FettersCardProps> = ({
             disabled={disabled}
             className="rounded bg-[#0a101c] border-[#243044] text-blue-600 focus:ring-0"
           />
-          <span>奥数增伤 (DamageIncrease)</span>
+          <span>奥术增伤 (DamageIncrease)</span>
         </label>
-
         <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
           <input
             type="checkbox"

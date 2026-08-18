@@ -95,8 +95,8 @@ class TestProcessEntry(unittest.TestCase):
                 },
                 {
                     "index": 1,
-                    "canonical_name": "奥术激光",
-                    "raw_text": "奥术激光",
+                    "canonical_name": "奥数激光",
+                    "raw_text": "奥数激光",
                     "rarity": None,
                     "set_progress": None,
                     "is_valid": True,
@@ -136,10 +136,10 @@ class TestProcessEntry(unittest.TestCase):
             self.assertIsNotNone(slots[0]["roi"]["name"])
             self.assertIsNone(slots[0]["roi"]["progress"])
             self.assertEqual(slots[0]["roi_px"]["name"]["pixels"], [624, 166, 720, 212])
-            # slot1: 别名纠正 奥术激光 → 奥数激光
+            # slot1: 别名纠正 奥数激光 → 奥术激光
             self.assertEqual(slots[1]["truth_status"], "alias_covered")
-            self.assertEqual(slots[1]["canonical_name"], "奥数激光")
-            self.assertEqual(slots[1]["canonical_corrected_from"], "奥术激光")
+            self.assertEqual(slots[1]["canonical_name"], "奥术激光")
+            self.assertEqual(slots[1]["canonical_corrected_from"], "奥数激光")
             # slot2: 无 bbox → unverified_layout + unknown truth
             self.assertEqual(slots[2]["layout_status"], "unverified_layout")
             self.assertEqual(slots[2]["truth_status"], "unknown")
@@ -176,10 +176,10 @@ class TestTruthHelpers(unittest.TestCase):
     def test_truth_status_and_canonical(self):
         lex = crp.load_lexicon()
         self.assertEqual(crp.truth_status_of("光法", lex), "in_lexicon")
-        self.assertEqual(crp.truth_status_of("奥术激光", lex), "alias_covered")
+        self.assertEqual(crp.truth_status_of("奥数激光", lex), "alias_covered")
         self.assertEqual(crp.truth_status_of("随便虚构", lex), "unknown")
         self.assertEqual(crp.truth_status_of(None, lex), "unknown")
-        self.assertEqual(crp.canonical_for("奥术激光", lex), "奥数激光")
+        self.assertEqual(crp.canonical_for("奥数激光", lex), "奥术激光")
         self.assertIsNone(crp.canonical_for("随便虚构", lex))
 
 

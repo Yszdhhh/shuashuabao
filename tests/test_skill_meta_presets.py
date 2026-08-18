@@ -39,7 +39,7 @@ class SkillMetaPresetsContract(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)))
 
     def test_arcane_default_codes(self):
-        arcane = next(p for p in self.meta["presets"] if p["name"] == "奥术箭流")
+        arcane = next(p for p in self.meta["presets"] if p["name"].startswith("奥术开荒") or p["name"] == "奥术箭流")
         self.assertEqual(arcane["codes"], ["asj", "asjg", "assx", "jq"])
 
 

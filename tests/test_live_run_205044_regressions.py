@@ -65,7 +65,7 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(fill_hit.name, "重创")
         self.assertNotEqual(fill_hit.name, "assx")
 
-        slots[2] = {"index": 2, "name": "奥数射线", "confidence": 0.99, "raw_text": "奥数射线", "family_source": "badge"}
+        slots[2] = {"index": 2, "name": "奥术射线", "confidence": 0.99, "raw_text": "奥术射线", "family_source": "badge"}
         with patch.object(med, "_ocr_panel_slots", return_value=slots):
             hit = med._ocr_reward_choice(frame(), "skill")
         self.assertIsNotNone(hit)

@@ -33,25 +33,22 @@ class ShadowClient:
         repo_root: str | Path | None = None,
         python_executable: str | Path | None = None,
         model_dir: str | Path | None = None,
-        timeout_ms: int = 400,
-        startup_timeout_ms: int = 6000,
+        timeout_ms: int = 1500,
+        startup_timeout_ms: int = 30000,
         max_restarts: int = 3,
         restart_cooldown_s: float = 2.0,
         trace_path: str | Path | None = None,
         worker_command: Iterable[str] | None = None,
     ) -> None:
+        current_package_src = Path(__file__).resolve().parents[3]
         raw_repo_root = Path(
             repo_root
             or os.environ.get("SHUABAO_OCR_REPO_ROOT")
             or os.environ.get("GAMESCRIPT_OCR_REPO_ROOT", "")
-            or Path(__file__).resolve().parents[4]
+            or current_package_src.parent
         ).expanduser()
-        # The sidecar changes cwd to repo_root before importing shuabao.  Keep
-        # both cwd and PYTHONPATH absolute so a relative configured root cannot
-        # accidentally become <repo>/<repo>/src in the child process.
         self.repo_root = raw_repo_root.resolve()
         self.src_dir = (self.repo_root / "src").resolve()
-
         raw_model_dir = Path(
             model_dir
             or os.environ.get("SHUABAO_OCR_MODEL_DIR")

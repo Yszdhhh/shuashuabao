@@ -55,14 +55,11 @@ class MediatorWorker(QThread):
     def run(self):
         try:
             import shuabao.mediator as mediator_mod
-            Mediator = getattr(mediator_mod, "Mediator", None)
-            if Mediator is None:
-                from shuabao.runtime_mediator import Mediator
+            from shuabao.runtime_mediator import Mediator as RuntimeMediator
+            Mediator = mediator_mod.Mediator if mediator_mod.Mediator is not RuntimeMediator.__base__ else RuntimeMediator
         except Exception as e:
-            self.signals.log_emitted.emit(f"[错误] 无法加载 Mediator 自动化引擎: {e}", "error")
-            self.signals.status_changed.emit(False, "错误", 0)
-            return
-
+            log.error(f"Failed to import Mediator: {e}")
+            from shuabao.mediator import Mediator
         if self._stop_requested:
             self.signals.log_emitted.emit("[启动] 已请求停止，取消本次启动", "info")
             self.signals.status_changed.emit(False, "空闲", 0)
@@ -175,6 +172,9 @@ class RunnerService:
         if self.worker is not None and self.worker.isRunning():
             raise RuntimeError("already running")
         snapshot = apply_mode_overlay(copy.deepcopy(settings_snapshot), mode_id)
+        # 桌面 LIVE 运行强制开启 live OCR 以保证选卡/技能/羁绊准确率
+        snapshot.ocr_mode = "live"
+        snapshot.ocr_repo_root = str(self.root)
         lock = QLockFile(str(live_lock_path(self.app_data)))
         if not lock.tryLock(100):
             raise RuntimeError("ShuaBao.live.lock 已被占用（实验室或另一 LIVE）")

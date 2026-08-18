@@ -485,7 +485,8 @@ class MainWindow(QMainWindow):
         self.worker_thread: MediatorWorker | None = None
         self._game_count = 0
         self._syncing_bonds = False
-
+        self._build_btn_group = QButtonGroup(self)
+        self._build_btn_map: dict[str, QPushButton] = {}
         self._save_timer = QTimer(self)
         self._save_timer.setSingleShot(True)
         self._save_timer.setInterval(800)
@@ -611,15 +612,27 @@ class MainWindow(QMainWindow):
         mode_layout = QVBoxLayout(mode_box)
         primary_row = QHBoxLayout()
         self.primary_mode_group = QButtonGroup(self)
-        self.btn_solo_mode = QPushButton("单人刷图")
-        self.btn_hitch_mode = QPushButton("蹭车 / 跟车")
+        self.btn_solo_mode = QPushButton("🎮  单人刷图（快速建房）")
+        self.btn_hitch_mode = QPushButton("🚗  蹭车 / 跟车（大厅进房）")
         for button in (self.btn_solo_mode, self.btn_hitch_mode):
             button.setCheckable(True)
-            button.setMinimumHeight(42)
-            button.setMinimumWidth(300)
+            button.setMinimumHeight(56)
+            button.setMinimumWidth(320)
+            button.setStyleSheet("""
+                QPushButton {
+                    font-size: 15px;
+                    font-weight: bold;
+                    padding: 8px 16px;
+                    border-radius: 8px;
+                }
+                QPushButton:checked {
+                    background-color: #2563eb;
+                    color: white;
+                    border: 2px solid #60a5fa;
+                }
+            """)
             self.primary_mode_group.addButton(button)
             primary_row.addWidget(button, 1)
-        self.primary_mode_group.setExclusive(False)
         mode_layout.addLayout(primary_row)
         mode_layout.addStretch()
 
@@ -700,8 +713,6 @@ class MainWindow(QMainWindow):
 
     def _build_normal_farm_page(self, lay: QVBoxLayout) -> None:
         run_box, run_lay = self._section("运行", "先选主线与关卡；默认刷完票")
-        core = QGroupBox("运行")
-        core_layout = QVBoxLayout(core)
         stage_row = QHBoxLayout()
         stage_row.addWidget(QLabel("主线"))
         self.cmb_chapter = QComboBox()
@@ -734,7 +745,49 @@ class MainWindow(QMainWindow):
         self.spn_cycle_num.setToolTip("0 = 直到手动停止，不画满条")
         stage_row.addWidget(self.spn_cycle_num)
         stage_row.addStretch()
-        core_layout.addLayout(stage_row)
+        run_lay.addLayout(stage_row)
+        lay.addWidget(run_box)
+
+        # 官方推荐构筑
+        build_box = QGroupBox("✨ 官方推荐挂机构筑（点击直接一键套用）")
+        build_box.setStyleSheet("QGroupBox { font-size: 14px; font-weight: bold; }")
+        build_layout = QVBoxLayout(build_box)
+        btn_grid = QGridLayout()
+        row, col = 0, 0
+        for b in OFFICIAL_BUILDS:
+            bid = str(b.get("id") or "")
+            bname = str(b.get("name") or "")
+            btn = QPushButton(bname)
+            btn.setCheckable(True)
+            btn.setMinimumHeight(44)
+            btn.setStyleSheet("""
+                QPushButton {
+                    font-size: 13px;
+                    font-weight: 500;
+                    padding: 6px 12px;
+                    border-radius: 6px;
+                    text-align: left;
+                }
+                QPushButton:checked {
+                    background-color: #059669;
+                    color: white;
+                    font-weight: bold;
+                    border: 2px solid #34d399;
+                }
+            """)
+            self._build_btn_group.addButton(btn)
+            self._build_btn_map[bid] = btn
+            btn.clicked.connect(lambda checked, _bid=bid: self._apply_build(_bid))
+            btn_grid.addWidget(btn, row, col)
+            col += 1
+            if col >= 2:
+                col = 0
+                row += 1
+        build_layout.addLayout(btn_grid)
+        lay.addWidget(build_box)
+        core = QWidget()
+        core_layout = QVBoxLayout(core)
+        core_layout.setContentsMargins(0, 0, 0, 0)
         self.hero_options = QWidget()
         self.hero_options.setVisible(False)
         hero_row = QHBoxLayout(self.hero_options)
@@ -1889,12 +1942,16 @@ class MainWindow(QMainWindow):
         inverted = set(self._shell_extras.get("bond_inverted") or [])
         return [c for c in self._effective_scheme_codes() if c not in inverted]
 
+    def _apply_build(self, build_id: str) -> None:
+        if not build_id:
+            return
+        self.apply_official_build(build_id, confirm=False)
+
     def _on_apply_build_clicked(self) -> None:
         build_id = str(self.cmb_build.currentData() or "")
         if not build_id:
             return
         self.apply_official_build(build_id, confirm=True)
-
     def _on_save_custom_build(self) -> None:
         name, ok = QInputDialog.getText(self, "保存自定义组合", "方案名称")
         if not ok or not str(name).strip():

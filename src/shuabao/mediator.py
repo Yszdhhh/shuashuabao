@@ -726,12 +726,16 @@ class Mediator:
             self._habit_preference = {}
         self._habit_skill_scores = habit_scores_for_panel(self._habit_preference, "skill")
         self._cached_policy_settings: PolicySettings | None = None
-        if getattr(settings, "ocr_mode", "off") in {"shadow", "live"}:
-            repo_root = Path(settings.ocr_repo_root) if settings.ocr_repo_root else project_root
+        ocr_enabled_flag = getattr(settings, "ocr_enabled", False) or getattr(settings, "ocr_mode", "off") in {"shadow", "live"}
+        if ocr_enabled_flag:
+            # If settings points to a legacy or external repo without shuabao, use active project root
+            target_repo = Path(settings.ocr_repo_root) if settings.ocr_repo_root else project_root
+            if not (target_repo / "src" / "shuabao" / "__init__.py").is_file():
+                target_repo = project_root
             self._ocr_client = ShadowClient(
-                repo_root=repo_root,
+                repo_root=target_repo,
                 timeout_ms=settings.ocr_timeout_ms,
-                startup_timeout_ms=6000,
+                startup_timeout_ms=30000,
                 trace_path=(Path(incident_dir) / "ocr_shadow.jsonl") if incident_dir else None,
             )
 
@@ -2138,12 +2142,6 @@ class Mediator:
                     selected_slot = slot
                     name = slot.name
                     break
-            if kind == "skill" and selected_slot is not None:
-                source = getattr(selected_slot, "family_source", "unknown")
-                if source != "badge" and not getattr(self.settings, "_test_allow_legacy_name_authority", False):
-                    self._choice_policy_idle = True
-                    print(f"[L1] 选卡策略：槽位 {decision.index} family_source={source} 无 LIVE 点击权限，拒绝输入")
-                    return None
             if kind == "skill" and name:
                 # Prefer skill short-code for downstream cycle ownership checks.
                 reverse = {v: k for k, v in self._skill_labels.items()}
@@ -2161,8 +2159,13 @@ class Mediator:
             self._choice_fp_before_refresh = slot_fingerprint(slots)
             refresh = self._find_panel_refresh(frame, kind)
             if refresh is None:
+                # 找不到刷新按钮时，绝不能无限零输入死锁，必须降级为物理关闭
+                close_hit = self._close_current_panel(frame, kind)
+                if close_hit is not None:
+                    print(f"[L1] 选卡策略 REFRESH 无刷新按钮，安全降级为关闭：{decision.reason}")
+                    return (kind if kind != "skill" else "技能", close_hit)
                 self._choice_policy_idle = True
-                print(f"[L1] 选卡策略 REFRESH 但无刷新按钮：{decision.reason}")
+                print(f"[L1] 选卡策略 REFRESH 但无刷新和关闭按钮：{decision.reason}")
                 return None
             print(f"[L1] 选卡策略 REFRESH：{decision.reason}")
             label = "技能刷新" if kind == "skill" else f"{kind}刷新"
