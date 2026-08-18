@@ -1,2 +1,3 @@
-trigger=20260818-state-alignment-v6
+trigger=20260818-state-alignment-v7
 base=ab4242fb13ddb66355093fbd4748e23133e974ab
+reason=windows-pid-safe-and-precommit-gated
