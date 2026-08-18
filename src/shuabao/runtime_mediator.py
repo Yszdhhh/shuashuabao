@@ -202,3 +202,7 @@ class Mediator(CoreMediator):
         self._choice_policy_idle = True
         self._choice_policy_last_reason = "羁绊仅出现已确认预设，等待后续帧关闭"
         return None
+
+    def panel_episode_diagnostics(self) -> dict:
+        """Propagate panel episode diagnostics and metrics from core mediator."""
+        return super().panel_episode_diagnostics()

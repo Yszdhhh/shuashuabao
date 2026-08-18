@@ -158,6 +158,8 @@ DEFAULT_MAX_REFRESHES = 3
 DEFAULT_MAX_WAITS = 5
 
 
+from shuabao.interaction_surface import ActionLifecycle
+
 class PolicyAction(str, Enum):
     """有限动作枚举。执行层只接受该枚举 + 槽位编号。"""
 

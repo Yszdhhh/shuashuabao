@@ -9,6 +9,26 @@ from typing import Any, Callable
 import numpy as np
 
 
+class ActionLifecycle(Enum):
+    """Lifecycle state machine for panel and UI interaction execution.
+
+    States:
+    - OBSERVED: Panel or target detected in viewport
+    - ACTION_AUTHORIZED: Policy/rules authorized the target action
+    - INPUT_SENT: Hardware/OS input (click/key) dispatched
+    - VERIFYING: Waiting for mutation/post-condition confirmation
+    - CONFIRMED: Mutation verified (panel closed, slot changed, count mutated)
+    - UNCONFIRMED: Post-condition verification timed out
+    - RECOVERING: Fail-closed recovery in progress (cooldown/close fallback)
+    """
+    OBSERVED = auto()
+    ACTION_AUTHORIZED = auto()
+    INPUT_SENT = auto()
+    VERIFYING = auto()
+    CONFIRMED = auto()
+    UNCONFIRMED = auto()
+    RECOVERING = auto()
+
 class InteractionSurface(Enum):
     """Priority state machine for single-modal interaction arbitration.
 

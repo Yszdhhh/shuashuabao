@@ -543,10 +543,10 @@ class S0PanelFsmTests(unittest.TestCase):
                 self.assertIs(med.tick(), LoopAction.Continue)  # mutation → ACTIVE
             choice_clicks = [r for r in executor.action_ledger if r.method == "click"]
             self.assertEqual(len(choice_clicks), 3, "同 fingerprint 同动作最多 3 次点击")
-            # 第 4 次同 fingerprint：被拒（零点击）并进入 cooldown
+            # 第 4 次同 fingerprint：被拒（零点击）并进入 CLOSING 物理关闭
             clock.set(108.0)
             self.assertIs(med.tick(), LoopAction.Continue)
-            self.assertIs(med._panel_state, PanelState.COOLDOWN, "第四次进入 cooldown")
+            self.assertIs(med._panel_state, PanelState.CLOSING, "第四次进入 CLOSING 物理关闭")
             self.assertEqual(
                 len([r for r in executor.action_ledger if r.method == "click"]),
                 3,

@@ -25,7 +25,13 @@ import numpy as np
 from shuabao import __version__
 from shuabao.incidents import IncidentArchiver
 from shuabao.input.emergency_stop import EmergencyStopListener
-from shuabao.input.keyboard_mouse import InputExecutor
+from shuabao.input.keyboard_mouse import (
+    InputExecutor,
+    foreground_matches_target,
+    get_foreground_window,
+    is_window_valid,
+    reacquire_target_window,
+)
 from shuabao.loop_action import LoopAction
 from shuabao.scenes import load_scenes, scene_templates
 from shuabao.settings import Settings
@@ -38,6 +44,7 @@ from shuabao.vision.capture import (
     L0_WINDOW_KEYWORDS,
     L1_WINDOW_KEYWORDS,
     activate_window,
+    reacquire_target_window as capture_reacquire_target_window,
     capture,
     capture_target,
     check_frame_health,
@@ -79,6 +86,7 @@ from shuabao.choice_policy import (
     slot_fingerprint,
 )
 from shuabao.interaction_surface import (
+    ActionLifecycle,
     InteractionSurface,
     PendingAction,
     resolve_interaction_surface,
@@ -603,6 +611,14 @@ class Mediator:
         # S0 ⑤ 面板会话 FSM + F1 shadow 灰度
         self._panel_state = PanelState.CLOSED
         self._panel_kind: str | None = None
+        self._panel_episode_id: str | None = None
+        self._panel_first_seen_at: float | None = None
+        self._panel_last_progress_at: float | None = None
+        self._panel_hard_deadline_s: float = 10.0
+        self._panel_executed_actions: int = 0
+        self._panel_confirmed_actions: int = 0
+        self._panel_closing_attempts: int = 0
+        self._panel_closing_started_at: float | None = None
         self._panel_episode_started: float | None = None
         self._panel_visible_deadline: float | None = None
         self._panel_mutation_baseline: Frame | None = None
@@ -612,7 +628,6 @@ class Mediator:
         self._panel_cooldown_until: dict[str, float] = {}
         self._panel_fingerprint: tuple | None = None
         self._panel_fingerprint_attempts = 0
-        # SendInput accepted != card consumed.  Track the semantic action until
         # WAIT_MUTATION proves a panel mutation/disappearance.
         self._panel_pending_choice_action: str | None = None  # select/close/refresh
         self._panel_pending_choice_fingerprint: tuple | None = None
@@ -1356,17 +1371,31 @@ class Mediator:
 
         return self._memo(key, frame, compute)
 
-    def _focus_last_window(self) -> bool:
-        if self.settings.dry_run:
-            return True
-        if not self._last_frame or not self._last_frame.hwnd:
-            print("[med] real input skipped: no target HWND")
+    def _reacquire_target_window(self, hwnd: int | None = None, timeout_s: float = 2.0) -> bool:
+        """Bring target window to foreground and wait until confirmed foreground.
+        Invalidates evidence cache on reacquisition.
+        """
+        target_hwnd = hwnd if hwnd is not None else (self._last_frame.hwnd if self._last_frame else None)
+        if not target_hwnd:
             return False
-        if not activate_window(self._last_frame.hwnd):
-            print(f"[med] real input skipped: cannot focus hwnd={self._last_frame.hwnd}")
-            return False
-        return True
+        ok = reacquire_target_window(target_hwnd, timeout_s=timeout_s)
+        if ok:
+            self.invalidate_evidence("focus-reacquired")
+        return ok
 
+    def _focus_last_window(self) -> bool:
+        if self.settings.dry_run or not isinstance(self.executor, InputExecutor):
+            return True
+        if not self._last_frame or not self._last_frame.hwnd or not is_window_valid(self._last_frame.hwnd):
+            return True
+        target_hwnd = self._last_frame.hwnd
+        fg = get_foreground_window()
+        if fg is not None and not foreground_matches_target(target_hwnd, fg):
+            self.invalidate_evidence("focus-lost")
+            if not self._reacquire_target_window(target_hwnd):
+                print(f"[med] real input skipped: cannot focus hwnd={target_hwnd} (fg={fg})")
+                return False
+        return True
     def _finish_input(self, res, reason: str, action_ms: float = 0.0) -> bool:
         """输入返回后的统一收尾：输入标记、白名单 reason、证据失效。
 
@@ -1388,8 +1417,8 @@ class Mediator:
     def act_click(self, hit: MatchResult, reason: str = "") -> bool:
         if not self._action_gate_ok(reason):
             return False
-        print(f"[med] click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
         t0 = time.perf_counter()
         res = self.executor.click(
             hit.screen_x,
@@ -1405,8 +1434,8 @@ class Mediator:
     def act_right_click(self, hit: MatchResult, reason: str = "") -> bool:
         if not self._action_gate_ok(reason):
             return False
-        print(f"[med] right_click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] right_click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
         t0 = time.perf_counter()
         res = self.executor.right_click(
             hit.screen_x,
@@ -1422,8 +1451,8 @@ class Mediator:
     def act_key(self, key: str, reason: str = "") -> bool:
         if not self._action_gate_ok(reason):
             return False
-        print(f"[med] key {key!r} ({reason})")
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] key {key!r} ({reason})")
         t0 = time.perf_counter()
         res = self.executor.press_key(
             key,
@@ -1433,7 +1462,6 @@ class Mediator:
         action_ms = (time.perf_counter() - t0) * 1000.0
         self._trace_actions.append({"intent": f"key:{key}", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
         return self._finish_input(res, reason, action_ms)
-
     def click_scene(self, frame: Frame, scene_key: str, reason: str = "", threshold: float | None = None) -> bool:
         hit = self.find_scene(frame, scene_key, threshold=threshold)
         if not hit:
@@ -4170,11 +4198,12 @@ class Mediator:
         届时 _exit_since 初始化 —— 退出期限从恢复完成那一刻开始计算。
         """
         now = time.time()
+        timeout_s = min(float(self.settings.recovery_timeout_s), 120.0)
         self._recovery_state = RecoveryState(
             kind=kind,
             step=RecoveryStep.FAIL_CONFIRM if kind == RecoveryKind.FAIL else RecoveryStep.DISCONNECT_RETRY,
             started_at=now,
-            deadline=now + self.settings.recovery_timeout_s,
+            deadline=now + timeout_s,
             attempts={},
             next_allowed_at=now,
         )
@@ -4435,7 +4464,8 @@ class Mediator:
             rs.confirm_window = min(15.0, rs.deadline - now)
             print(f"[med] 恢复步骤 {rs.kind.name}/{rs.step.name} 已输入（等待后置确认）")
         else:
-            if rs.attempts[step] > self.settings.recovery_action_limit or now >= rs.deadline:
+            limit = min(int(self.settings.recovery_action_limit), 3)
+            if rs.attempts[step] > limit or now >= rs.deadline:
                 return self._recovery_failed(rs, "input rejected, attempts exhausted")
             print(f"[med] 恢复输入被拒（{action_hit.name}），保留本步等待重试间隔")
         return LoopAction.Continue
@@ -4446,7 +4476,8 @@ class Mediator:
         """缺锚点/无后置确认：保留本步并消耗/等待其有界重试。"""
         rs.attempts[step] = rs.attempts.get(step, 0) + 1
         rs.next_allowed_at = now + self.settings.recovery_retry_interval_s
-        if rs.attempts[step] > self.settings.recovery_action_limit or now >= rs.deadline:
+        limit = min(int(self.settings.recovery_action_limit), 3)
+        if rs.attempts[step] > limit or now >= rs.deadline:
             return self._recovery_failed(rs, reason)
         print(f"[med] 恢复 {rs.kind.name}/{step.name} 未推进（{reason}，尝试 {rs.attempts[step]}/"
               f"{self.settings.recovery_action_limit}）")
@@ -5678,6 +5709,17 @@ class Mediator:
 
         self._missing_window_since = None
 
+        # Target window foreground check: if target HWND lost foreground, pause business inputs
+        # and invalidate cached evidence / OCR / coordinates.
+        if not self.settings.dry_run and isinstance(self.executor, InputExecutor) and frame.hwnd and is_window_valid(frame.hwnd):
+            fg = get_foreground_window()
+            if not foreground_matches_target(frame.hwnd, fg):
+                print(f"[med] target hwnd={frame.hwnd} lost foreground (fg={fg}), invalidating evidence and pausing inputs")
+                self.invalidate_evidence("foreground-lost")
+                if not self._reacquire_target_window(frame.hwnd):
+                    print(f"[med] cannot reacquire foreground for hwnd={frame.hwnd}, waiting next tick")
+                    return LoopAction.Continue
+
         # N2.2：本 tick 动作授权锚点（健康放行后才建立）。
         # 任一成功输入会推进 evidence.gen / _input_seq；act_* 前置断言
         # gen 与输入序列未变，stale → 零输入。
@@ -5685,7 +5727,6 @@ class Mediator:
         self._tick_evidence = tick_ev
         self._tick_gen = tick_ev.gen if tick_ev is not None else None
         self._tick_input_seq = self._input_seq
-
         # ---- B1-2 证据归档（无 incident_dir 时全部空转；归档不产生任何输入）----
         # 注：此处仅健康帧/静态帧可达（不健康非静态分支均已 return）。
         if self._archiver is not None:
@@ -5958,9 +5999,18 @@ class Mediator:
 
     def _enter_panel_episode(self, frame: Frame, anchor: MatchResult, kind: str, opened: bool) -> None:
         """进入 ACTIVE 会话：记录 kind/指纹起点；主动打开的面板计 episode 数。"""
+        now = time.time()
         self._panel_state = PanelState.ACTIVE
         self._panel_kind = kind
-        self._panel_episode_started = time.time()
+        self._panel_episode_id = f"ep_{int(now * 1000)}"
+        self._panel_first_seen_at = now
+        self._panel_last_progress_at = now
+        self._panel_hard_deadline_s = float(getattr(self.settings, "panel_hard_deadline_s", 10.0))
+        self._panel_executed_actions = 0
+        self._panel_confirmed_actions = 0
+        self._panel_closing_attempts = 0
+        self._panel_closing_started_at = None
+        self._panel_episode_started = now
         self._panel_mutation_baseline = None
         self._panel_pending_choice_action = None
         self._panel_pending_choice_fingerprint = None
@@ -5976,6 +6026,13 @@ class Mediator:
         cycle_selected = self._l1_cycle_selected
         self._panel_state = PanelState.CLOSED
         self._panel_kind = None
+        self._panel_episode_id = None
+        self._panel_first_seen_at = None
+        self._panel_last_progress_at = None
+        self._panel_executed_actions = 0
+        self._panel_confirmed_actions = 0
+        self._panel_closing_attempts = 0
+        self._panel_closing_started_at = None
         self._panel_episode_started = None
         self._panel_mutation_baseline = None
         self._panel_fingerprint = None
@@ -6000,6 +6057,32 @@ class Mediator:
         ):
             self._advance_l1_cycle(cycle_kind)
 
+    def panel_episode_diagnostics(self) -> dict:
+        """Return snapshot of current panel episode state and metrics for telemetry/diagnostics."""
+        now = time.time()
+        stale_duration = 0.0
+        if self._panel_last_progress_at is not None:
+            stale_duration = max(0.0, now - self._panel_last_progress_at)
+        elif self._panel_episode_started is not None:
+            stale_duration = max(0.0, now - self._panel_episode_started)
+
+        return {
+            "panel_state": self._panel_state.name,
+            "episode_id": self._panel_episode_id,
+            "kind": self._panel_kind,
+            "first_seen_at": self._panel_first_seen_at,
+            "last_progress_at": self._panel_last_progress_at,
+            "episode_started_at": self._panel_episode_started,
+            "hard_deadline_s": self._panel_hard_deadline_s,
+            "stale_duration": stale_duration,
+            "current_fingerprint": self._panel_fingerprint,
+            "fingerprint_attempts": self._panel_fingerprint_attempts,
+            "executed_actions": self._panel_executed_actions,
+            "confirmed_actions": self._panel_confirmed_actions,
+            "closing_attempts": self._panel_closing_attempts,
+            "pending_action": self._panel_pending_choice_action,
+        }
+
     def _panel_roi_region(self, frame: Frame) -> np.ndarray | None:
         """面板中央三选区域（帧内坐标）——WAIT_MUTATION 的像素 mutation 对比。"""
         if frame.bgr is None or frame.bgr.size == 0 or frame.width < 100 or frame.height < 100:
@@ -6010,6 +6093,10 @@ class Mediator:
         y2 = int(frame.height * 0.66)
         roi = frame.bgr[y1:y2, x1:x2]
         return roi if roi.size > 0 else None
+
+    def _verify_action_mutation(self, frame: Frame) -> bool:
+        """Alias for _panel_mutation_confirmed verifying post-action frame mutation."""
+        return self._panel_mutation_confirmed(frame)
 
     def _panel_mutation_confirmed(self, frame: Frame) -> bool:
         """WAIT_MUTATION 后置确认：面板中央区域内容相对点击前 baseline 发生变化。"""
@@ -6071,6 +6158,25 @@ class Mediator:
         deadline 在所有非恢复状态抢占（_tick_main_line 顶部）。
         """
         st = self._panel_state
+
+        # S0.5 Episode Liveness & Hard Deadline 守护（非 CLOSED/COOLDOWN 状态生效）
+        if st not in (PanelState.CLOSED, PanelState.COOLDOWN):
+            if self._panel_episode_started is not None:
+                episode_duration = now - self._panel_episode_started
+                hard_deadline = self._panel_hard_deadline_s
+                if episode_duration >= hard_deadline:
+                    print(f"[L1] 面板 episode {self._panel_episode_id or ''} ({self._panel_kind}) 超时 "
+                          f"{episode_duration:.1f}s >= {hard_deadline:.1f}s 无有效进展，强制脱困")
+                    self._record_fail_closed_incident(
+                        f"panel_episode_timeout: kind={self._panel_kind} "
+                        f"ep_id={self._panel_episode_id} duration={episode_duration:.2f}s"
+                    )
+                    self._panel_state = PanelState.COOLDOWN
+                    kind = self._panel_kind or "unknown"
+                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                    self._panel_opened_by_us = None
+                    self._skill_refresh_attempts = 0
+                    return LoopAction.Continue
 
         if st == PanelState.CLOSED:
             if anchor is None:
@@ -6135,11 +6241,12 @@ class Mediator:
                     # 同一选择连续 2 次点击无页面变化 → 归档证据
                     self._record_repeat_click(frame, choice, self._panel_fingerprint_attempts)
                 if self._panel_fingerprint_attempts > self.settings.panel_action_limit_per_fingerprint:
-                    # 同指纹同动作超限：进入 COOLDOWN（零输入），不再盲点
+                    # 同指纹同动作超限：严格进入 CLOSING 转物理关闭并收敛冷却，不再盲点
                     print(f"[L1] 同一选择连续 {self.settings.panel_action_limit_per_fingerprint} 次无画面变化，"
-                          f"面板进入 COOLDOWN 避免活锁")
-                    self._panel_state = PanelState.COOLDOWN
-                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                          f"面板转 CLOSING 物理关闭避免活锁")
+                    self._panel_state = PanelState.CLOSING
+                    self._panel_closing_attempts = 0
+                    self._panel_closing_started_at = now
                     self._panel_opened_by_us = None
                     self._skill_refresh_attempts = 0
                     return LoopAction.Continue
@@ -6148,6 +6255,8 @@ class Mediator:
                 if clicked:
                     # 成功执行的选卡/刷新/放弃/关闭动作才计入尝试预算（WAIT/被拒不加）。
                     self._bump_choice_attempts()
+                    self._panel_executed_actions += 1
+                    self._panel_last_progress_at = now
                     action_kind = self._panel_choice_action_kind(hit.name)
                     self._stage_panel_choice_action(action_kind, fingerprint)
                     # 技能选卡点击成功只暂存；必须等 mutation/面板消失后才记为已学。
@@ -6211,6 +6320,8 @@ class Mediator:
                 print(f"[L1] 面板无法匹配卡牌，点击关闭 {close_hit.name} ({close_reason})")
                 if self.act_click(close_hit, close_reason):
                     self._bump_choice_attempts()
+                    self._panel_executed_actions += 1
+                    self._panel_last_progress_at = now
                     self._stage_panel_choice_action("close", (self._panel_kind, close_hit.name))
                     self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
                     self._panel_state = PanelState.WAIT_MUTATION
@@ -6220,7 +6331,7 @@ class Mediator:
                 self._selection_unknown_attempts = 0
                 self._selection_unknown_since = None
                 return LoopAction.Continue
-            if elapsed >= 10:
+            if elapsed >= 10.0:
                 print("[L1] 未知选择面板无法识别，Fail-Closed 停止运行（零输入，不盲点隐藏）")
                 self.set_phase(Phase.ERROR, "unknown selection panel timeout")
                 self.stop()
@@ -6231,12 +6342,16 @@ class Mediator:
         if st == PanelState.WAIT_MUTATION:
             if anchor is None:
                 # 面板消失是最强消费/关闭证据；此时才确认 semantic action。
+                self._panel_confirmed_actions += 1
+                self._panel_last_progress_at = now
                 self._confirm_panel_choice_action(now)
                 self._commit_pending_skill_cards()
                 self._finish_panel_episode()
                 return LoopAction.Continue
             if self._panel_mutation_confirmed(frame):
                 # 内容变化（新候选/选卡消费/关闭过渡）后才确认成功。
+                self._panel_confirmed_actions += 1
+                self._panel_last_progress_at = now
                 self._confirm_panel_choice_action(now)
                 self._commit_pending_skill_cards()
                 self._panel_state = PanelState.ACTIVE
@@ -6253,16 +6368,32 @@ class Mediator:
                     # gives the UI/resource state time to settle.
                     print("[L1] 选卡点击未观察到 mutation；禁止重复同槽，转物理关闭")
                     self._panel_state = PanelState.CLOSING
+                    self._panel_closing_attempts = 0
+                    self._panel_closing_started_at = now
                 else:
                     print("[L1] 面板 mutation 确认窗超时，回到 ACTIVE（零输入）")
                     self._panel_state = PanelState.ACTIVE
             return LoopAction.Continue
 
         if st == PanelState.CLOSING:
+            self._panel_closing_attempts += 1
+            if self._panel_closing_started_at is None:
+                self._panel_closing_started_at = now
+            closing_elapsed = now - self._panel_closing_started_at
             close_hit = self._close_current_panel(frame, self._panel_kind)
             if close_hit is None:
+                if self._panel_closing_attempts >= 3 or closing_elapsed >= 3.0:
+                    print(f"[L1] CLOSING 状态无法找到关闭锚点（{self._panel_closing_attempts} 次 / "
+                          f"{closing_elapsed:.1f}s 超时），强制进入 COOLDOWN 避免活锁")
+                    self._panel_state = PanelState.COOLDOWN
+                    kind = self._panel_kind or "unknown"
+                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                    self._panel_opened_by_us = None
+                    return LoopAction.Continue
                 return LoopAction.Continue  # 零动作等待明确 close 锚点
             if self.act_click(close_hit, "PanelClose"):
+                self._panel_executed_actions += 1
+                self._panel_last_progress_at = now
                 self._stage_panel_choice_action("close", (self._panel_kind, close_hit.name))
                 self._panel_state = PanelState.WAIT_MUTATION
                 self._panel_last_input_at = now
