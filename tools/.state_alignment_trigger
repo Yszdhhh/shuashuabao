@@ -1,3 +1,3 @@
-trigger=20260818-state-alignment-v16
+trigger=20260818-state-alignment-v17
 base=ab4242fb13ddb66355093fbd4748e23133e974ab
-reason=diagnose-final-handoff-pytest-mismatch
+reason=final-formal-gate-after-handoff-diagnosis
