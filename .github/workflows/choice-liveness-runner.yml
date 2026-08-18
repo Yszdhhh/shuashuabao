@@ -48,17 +48,32 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip install -r requirements.txt pytest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Apply choice liveness repair
         run: |
           python tools/_ci_apply_choice.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -c "from pathlib import Path; p=Path('tests/test_choice_liveness_20260818.py'); s=p.read_text(encoding='utf-8').replace('from shuabao.vision import Frame', 'from shuabao.vision.capture import Frame'); p.write_text(s, encoding='utf-8')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m compileall -q src tests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pytest tests/test_choice_liveness_20260818.py tests/test_choice_policy.py tests/test_settings.py tests/test_s0_safety_state_machine.py tests/test_l1_cycle_recheck_merchant.py tests/test_collectible_close_alignment.py -q --tb=short
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Gate L1 choice liveness before commit
-        run: python tools/release_gate.py
+        run: |
+          python tools/release_gate.py
+          $gate = $LASTEXITCODE
+          if ($gate -ne 0) {
+            Write-Host "release_gate failed; revealing contract mismatches"
+            python -m pytest tests/contract -vv --tb=short
+            exit $gate
+          }
 
       - name: Commit L1 choice liveness repair
         run: |
@@ -84,9 +99,17 @@ jobs:
           )
           [System.IO.File]::AppendAllText($path, [string]::Join("`n", $lines), [System.Text.UTF8Encoding]::new($false))
           git diff --check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Gate handoff before commit
-        run: python tools/release_gate.py
+        run: |
+          python tools/release_gate.py
+          $gate = $LASTEXITCODE
+          if ($gate -ne 0) {
+            python -m pytest tests -x -vv --tb=short
+            python -m pytest tests/contract -vv --tb=short
+            exit $gate
+          }
 
       - name: Commit handoff
         run: |
