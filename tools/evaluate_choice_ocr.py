@@ -33,8 +33,8 @@ O1 ROI 修复配合：manifest 每槽记录显式 bbox（slot["roi"]）与 layou
 - 初始化日志不得出现 download / snapshot_download 字样。
 
 Windows 注意：PaddlePaddle C++ 模型加载器无法读取含非 ASCII 字符的路径
-（本仓库路径含 🎮 影音游戏），因此评测前把模型目录复制到 ASCII 暂存目录
-（默认 %TEMP%/gamescript_ocr_stage，可用 --staging-dir 覆盖）；
+（本仓库路径可能含非 ASCII 字符），因此评测前把模型目录复制到 ASCII 暂存目录
+（默认 %TEMP%/shuabao_ocr_stage，可用 --staging-dir 覆盖）；
 模型二进制来源仍是 models/ocr/，SHA256 与 MODEL_MANIFEST.json 核对。
 """
 
@@ -1464,7 +1464,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--staging-dir",
         type=Path,
-        default=Path(tempfile.gettempdir()) / "gamescript_ocr_stage",
+        default=Path(tempfile.gettempdir()) / "shuabao_ocr_stage",
         help="ASCII 路径模型暂存目录（Paddle 无法读取含非 ASCII 字符的路径）",
     )
     ap.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)

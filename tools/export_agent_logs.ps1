@@ -1,6 +1,7 @@
 ﻿$ErrorActionPreference = "SilentlyContinue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 # tools/ -> project root
+# 导出对照用上游/旧版官方 GameScript 日志与配置到 docs/agent_shared_logs/official_raw
 $root = Split-Path $PSScriptRoot -Parent
 $dst = Join-Path $root "docs\agent_shared_logs"
 $raw = Join-Path $dst "official_raw"

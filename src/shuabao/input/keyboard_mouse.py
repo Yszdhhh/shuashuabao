@@ -6,8 +6,19 @@ from dataclasses import dataclass
 import time
 
 from shuabao.stop_signal import StopSignal
-from shuabao.vision.capture import activate_window, is_window_valid
+from shuabao.vision.capture import activate_window, is_window_valid, reacquire_target_window
 
+__all__ = [
+    "ActionResult",
+    "InputExecutor",
+    "activate_window",
+    "reacquire_target_window",
+    "foreground_matches_target",
+    "get_clipboard_text",
+    "get_foreground_window",
+    "is_current_process_elevated",
+    "is_window_valid",
+]
 
 @dataclass
 class ActionResult:
@@ -37,7 +48,6 @@ def _failsafe_action_result(exc: BaseException, action: str) -> ActionResult | N
 
 
 def _clear_clipboard() -> bool:
-    """Empty the Win32 clipboard. True only after open+empty+close all succeed."""
     opened = False
     user32 = None
     try:
@@ -64,7 +74,7 @@ def _clear_clipboard() -> bool:
 def is_current_process_elevated() -> bool:
     """True when this process has an elevated (admin) token.
 
-    Original GameScript.exe requires requireAdministrator. KK platform is also
+    ShuaBao requires requireAdministrator. KK platform is also
     typically elevated; Windows UIPI drops mouse/keyboard injection from a
     medium-IL process into a high-IL target (SendInput returns success, UI
     ignores the click). Real input therefore requires elevation.
@@ -208,8 +218,8 @@ class InputExecutor:
                 status="CANCELLED_NOT_ELEVATED",
                 message=(
                     "Real input rejected: process is not elevated. "
-                    "KK/GameScript run as admin; UIPI drops SendInput from a non-admin script. "
-                    "Relaunch GameScript.exe with 'Run as administrator'."
+                    "KK/ShuaBao run as admin; UIPI drops SendInput from a non-admin script. "
+                    "Relaunch ShuaBao with 'Run as administrator'."
                 ),
             )
 

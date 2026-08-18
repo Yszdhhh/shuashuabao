@@ -1,7 +1,7 @@
 # Watch runtime: process, log lines, pngs, settings
-# $local  = 原版 C# 程序的运行目录（%LocalAppData%\GameScript），用于对照官方行为
-# $roam   = 原版官方 Settings.json
-# 本项目（刷刷宝）自己的数据在 %LocalAppData%\ShuaBao
+# $local  = 原版上游/外部 C# 程序的运行目录（%LocalAppData%\GameScript），用于对照官方行为
+# $roam   = 原版官方 Settings.json（%AppData%\GameScript\Settings\Settings.json）
+# 本项目（刷刷宝/ShuaBao）主运行与数据路径在 %LocalAppData%\ShuaBao / shuabao 命名空间
 $ErrorActionPreference = "SilentlyContinue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 

@@ -494,6 +494,18 @@ def activate_window(hwnd: int | None) -> bool:
         return False
 
 
+def reacquire_target_window(hwnd: int | None, timeout_s: float = 2.0) -> bool:
+    """Bring target window to foreground (restore if minimized, SetForegroundWindow),
+    and wait until confirmed foreground or timeout."""
+    if not hwnd:
+        return False
+    deadline = time.time() + max(0.1, timeout_s)
+    while time.time() < deadline:
+        if activate_window(hwnd):
+            return True
+        time.sleep(0.05)
+    return False
+
 def _foreground_window() -> int | None:
     try:
         import ctypes

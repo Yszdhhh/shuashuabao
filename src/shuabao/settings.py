@@ -8,8 +8,10 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-# 官方保存路径（授权后）
-OFFICIAL_SETTINGS = Path(os.environ.get("APPDATA", "")) / "GameScript" / "Settings" / "Settings.json"
+# 兼容旧版/上游官方保存路径（仅用于外部导入与向下兼容读取，非本系统主路径）
+LEGACY_UPSTREAM_APPDATA_SETTINGS_PATH = Path(os.environ.get("APPDATA", "")) / "GameScript" / "Settings" / "Settings.json"
+# 向后兼容别名，保留供旧引用访问
+OFFICIAL_SETTINGS = LEGACY_UPSTREAM_APPDATA_SETTINGS_PATH
 
 # 技能选择上限（用户 2026-08-17 确认：至多 4 个、无 all_round 全能档）。
 # 解析边界（_from_dict/load/load_official/load_lab_settings）统一截断，
@@ -142,6 +144,7 @@ class Settings:
     ui_action_interval_s: float = 1.5       # UI-changing 输入最小间隔
     panel_reopen_cooldown_s: float = 12.0   # 物理隐藏确认后，同类 G/F/V 主动重开冷却（10..15s）
     challenge_recheck_interval_s: float = 30.0  # 四挑战 ON 的周期复查间隔（钳制 5..300s）
+    panel_hard_deadline_s: float = 15.0     # 单个面板 episode 无进展硬超时
     panel_action_limit_per_fingerprint: int = 3  # 同 fingerprint 同动作上限
     panel_episode_limit_per_kind: int = 5       # 每局每类面板会话上限
     incident_sample_rate: float = 0.1           # 正常 panel episode 抽样归档率
@@ -169,10 +172,10 @@ class Settings:
 
     @classmethod
     def load_official(cls, path: str | Path | None = None) -> "Settings":
-        """读取官方 %AppData%\\GameScript\\Settings\\Settings.json。"""
-        p = Path(path) if path else OFFICIAL_SETTINGS
+        """读取上游官方 %AppData%\\GameScript\\Settings\\Settings.json（兼容外部配置）。"""
+        p = Path(path) if path else LEGACY_UPSTREAM_APPDATA_SETTINGS_PATH
         if not p.is_file():
-            raise FileNotFoundError(f"official settings not found: {p}")
+            raise FileNotFoundError(f"legacy upstream official settings not found: {p}")
         raw = json.loads(p.read_text(encoding="utf-8"))
         mapped: dict[str, Any] = {}
         for ok, lk in _OFFICIAL_MAP.items():
@@ -241,7 +244,7 @@ class Settings:
             "ocr_timeout_ms",
         }
         float_fields = {
-            "recovery_retry_interval_s", "panel_visible_timeout_s",
+            "recovery_retry_interval_s", "panel_visible_timeout_s", "panel_hard_deadline_s",
             "ui_action_interval_s", "panel_reopen_cooldown_s", "incident_sample_rate",
             "challenge_recheck_interval_s",
         }
@@ -315,7 +318,7 @@ class Settings:
             "reputation_stage1": (0, 50), "reputation_stage2": (0, 50),
             # S0 安全默认范围（超出回落安全区间，绝不静默放大时限/次数）
             "round_timeout_s": (60, 7200), "round_tail_window_s": (30, 600),
-            "recovery_timeout_s": (10, 600), "recovery_action_limit": (1, 10),
+            "recovery_timeout_s": (10, 120), "recovery_action_limit": (1, 10),
             "failure_streak_limit": (1, 10),
             "panel_action_limit_per_fingerprint": (1, 10),
             "panel_episode_limit_per_kind": (1, 50),
