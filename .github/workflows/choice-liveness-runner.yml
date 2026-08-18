@@ -58,7 +58,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -c "from pathlib import Path; p=Path('tests/test_choice_liveness_20260818.py'); s=p.read_text(encoding='utf-8').replace('from shuabao.vision import Frame', 'from shuabao.vision.capture import Frame'); p.write_text(s, encoding='utf-8')"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -c "from pathlib import Path; p=Path('tests/test_choice_policy.py'); s=p.read_text(encoding='utf-8'); old='self.assertEqual(ps.bond_whitelist_mode, WHITELIST_HARD)'; assert s.count(old) == 1; p.write_text(s.replace(old, 'self.assertEqual(ps.bond_whitelist_mode, WHITELIST_SOFT)', 1), encoding='utf-8')"
+          python -c "from pathlib import Path; p=Path('tests/test_choice_policy.py'); s=p.read_text(encoding='utf-8'); old='self.assertEqual(ps.bond_whitelist_mode, WHITELIST_HARD)'; assert s.count(old) == 1; p.write_text(s.replace(old, 'self.assertEqual(ps.bond_whitelist_mode, \"soft\")', 1), encoding='utf-8')"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m compileall -q src tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
