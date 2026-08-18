@@ -5019,9 +5019,6 @@ class Mediator:
                     print("[L0] 创房已用尽两次重试，等待总预算到期（零动作）")
                     return LoopAction.Continue
 
-            if self._create_room_opened_ok:
-                print("[L0] 已点创建房间，等待弹窗（下载地图中不连点）")
-                return LoopAction.Continue
 
             create = self._find_map_create_room(frame)
             if create:
