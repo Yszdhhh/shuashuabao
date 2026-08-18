@@ -41,7 +41,7 @@ class CardFact:
     is_new: bool = False
     exact_name: str | None = None
     skill_level: int | None = None
-    family_source: str = "badge"
+    family_source: str = "unknown"
     def __post_init__(self) -> None:
         if not isinstance(self.slot, int):
             object.__setattr__(self, "slot", int(self.slot))
@@ -134,8 +134,6 @@ def card_fact_from_slot(slot: Any) -> CardFact:
                 s_source = "legacy_name"
         except Exception:
             s_fam = ""
-    elif s_fam and not s_source:
-        s_source = "badge"
     if not s_source:
         s_source = "unknown"
     s_rarity = getattr(slot, "rarity", "white") or "white"

@@ -1555,9 +1555,12 @@ class TestCardFactAndBadgeFirstSelection(unittest.TestCase):
         self.assertIn("冰霜", fp_b)
 
     def test_card_fact_family_source_property_and_defaults(self):
-        """D1 invariant: CardFact family_source ("badge" | "legacy_name" | "unknown")."""
+        """D1 invariant: CardFact family_source defaults to 'unknown' ("badge" | "legacy_name" | "unknown")."""
         cf_default = CardFact(slot=0, family="奥术箭")
-        self.assertEqual(cf_default.family_source, "badge")
+        self.assertEqual(cf_default.family_source, "unknown")
+
+        cf_badge = CardFact(slot=0, family="奥术箭", family_source="badge")
+        self.assertEqual(cf_badge.family_source, "badge")
 
         cf_legacy = CardFact(slot=1, family="冰霜", family_source="legacy_name")
         self.assertEqual(cf_legacy.family_source, "legacy_name")

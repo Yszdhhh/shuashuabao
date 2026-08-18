@@ -96,6 +96,11 @@ def test_pending_action_verification():
         baseline_fingerprint="xyz",
         panel_present=True,
     ) is False
+    assert verify_card_slot_changed_or_disappeared(
+        current_fingerprint=None,
+        baseline_fingerprint="xyz",
+        panel_present=True,
+    ) is False
 
     # Test merchant slot verification
     assert verify_merchant_slot_consumed(

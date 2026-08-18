@@ -295,6 +295,35 @@ class ExternalReviewRegressionTests(unittest.TestCase):
         self.assertIsNotNone(chosen)
         self.assertEqual(chosen.name, "asj")
 
+    def test_ocr_mode_off_focus_miss_with_refresh_visible_returns_zero_refresh(self) -> None:
+        """Template mode (ocr_mode='off') with focus miss + refresh visible returns skill_hide or None, 0 refresh."""
+        med = Mediator(Settings(ocr_mode="off", skills=["asj", "dz"]), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
+        anchor = MatchResult("skill_anchor", 0.99, 100, 100, 50, 50, 100, 100)
+        # Template match finds no preferred skills
+        with patch.object(med, "_panel_kind_of", return_value="skill"), \
+             patch.object(med, "_memo", return_value=[]), \
+             patch.object(med, "_find_panel_refresh", return_value=MatchResult("skill_refresh_btn", 0.99, 500, 300, 40, 40, 500, 300)), \
+             patch.object(med, "_find_skill_hide", return_value=MatchResult("skill_hide", 0.99, 800, 200, 30, 30, 800, 200)):
+            choice = med._find_reward_choice(frame, anchor=anchor)
+        self.assertIsNotNone(choice)
+        kind, hit = choice
+        self.assertEqual(kind, "技能")
+        self.assertEqual(hit.name, "skill_hide")
+        self.assertNotEqual(kind, "技能刷新")
+
+    def test_rank_skill_candidates_mixed_named_unnamed_no_type_error(self) -> None:
+        """Mixed named/unnamed slots sort without TypeError."""
+        from shuabao.choice_policy import PolicySettings, SlotCandidate, _rank_skill_candidates
+        slots = (
+            SlotCandidate(index=0, name="烈火剑法", confidence=0.9, rarity="red", card_fact=None),
+            SlotCandidate(index=1, name=None, confidence=0.0, rarity=None, card_fact=None),
+            SlotCandidate(index=2, name="寒冰箭", confidence=0.85, rarity="blue", card_fact=None),
+        )
+        settings = PolicySettings(skill_presets=["烈火剑法"], habit_name_scores={"烈火剑法": 10.0})
+        ranked = _rank_skill_candidates(slots, settings, ())
+        self.assertIsInstance(ranked, list)
+        self.assertEqual(ranked[0], 0)
 
 if __name__ == "__main__":
     unittest.main()

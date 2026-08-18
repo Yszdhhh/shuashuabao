@@ -208,8 +208,11 @@ class SlotCandidate:
         if self.card_fact is not None and isinstance(self.card_fact, CardFact):
             return self.card_fact
         fam = self.family
+        source = self.family_source
         if not fam and self.name:
             fam = family_of(self.name) or ""
+            if fam and source == "unknown":
+                source = "legacy_name"
         return CardFact(
             slot=self.index,
             family=str(fam or ""),
@@ -218,6 +221,7 @@ class SlotCandidate:
             is_new=self.is_new,
             exact_name=self.name,
             skill_level=self.skill_level,
+            family_source=source,
         )
 
 @dataclass(frozen=True)
@@ -483,7 +487,7 @@ def _coerce_slot(raw: Any) -> SlotCandidate:
         known = {
             "index", "name", "confidence", "evidence", "rarity",
             "description", "family", "prereq_marker", "is_new",
-            "skill_level", "card_fact",
+            "skill_level", "card_fact", "family_source",
         }
         return SlotCandidate(**{k: v for k, v in raw.items() if k in known})
     raise TypeError(
@@ -772,15 +776,13 @@ def _rank_skill_candidates(
             is_new = True
         is_new_rank = 0 if is_new else 1
 
-        # 5. User configured skill family preference order / habit
+        # 5. User configured skill family preference order
         fam_order_rank = 0
         if settings.skill_focus_families and fam and fam in focus_families:
             fam_order_rank = focus_families.index(fam)
         elif not settings.skill_focus_families and slot.name:
             fam_order_rank = _skill_config_rank(slot.name, settings)
-        if slot.name and habit:
-            habit_val = float(habit.get(slot.name, 0.0))
-            fam_order_rank = (-habit_val, fam_order_rank)
+        fam_order_rank = int(fam_order_rank)
         # 严格 6 元组：
         # (prereq_rank, rarity_rank, -skill_level, new_rank, family_preference_rank, slot.index)
         # - prereq_rank: 0=已核实前置满足, 1=前置未核实

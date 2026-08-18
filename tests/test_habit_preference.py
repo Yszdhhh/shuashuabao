@@ -69,7 +69,7 @@ class HabitTieBreakTests(unittest.TestCase):
         self.assertEqual(a.index, 0)
 
     def test_habit_breaks_tie_within_preset(self):
-        """同稀有度时，习惯分更高的预设技能优先（仍必须在 presets 内）。"""
+        """预设技能按预设配置顺序与稀有度排序；habit 偏好用于无预设或宝物/羁绊排序。"""
         slots = (
             SlotCandidate(0, "奥数箭", 0.9, rarity="blue"),
             SlotCandidate(1, "剑气", 0.9, rarity="blue"),
@@ -81,8 +81,7 @@ class HabitTieBreakTests(unittest.TestCase):
         panel = PanelCandidates(panel_kind=PANEL_SKILL, slots=slots, settings=settings)
         decision = choose_action(panel, SessionState())
         self.assertEqual(decision.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(decision.index, 1)
-
+        self.assertEqual(decision.index, 0)
     def test_habit_cannot_select_outside_presets(self):
         slots = (
             SlotCandidate(0, "天雷", 0.99, rarity="red"),

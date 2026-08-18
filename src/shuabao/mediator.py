@@ -82,6 +82,7 @@ from shuabao.interaction_surface import (
     InteractionSurface,
     PendingAction,
     resolve_interaction_surface,
+    verify_inventory_item_consumed,
 )
 from shuabao.merchant_scanner import (
     MerchantScanner,
@@ -2413,11 +2414,6 @@ class Mediator:
                     hit = by_stem.get(Path(pref).stem)
                     if hit is not None:
                         return ("技能", hit)
-        self._sync_choice_session_refreshes()
-        if self._choice_session.refreshes < self._choice_session.max_refreshes:
-            refresh = self._find_panel_refresh(frame, "skill")
-            if refresh is not None:
-                return ("技能刷新", refresh)
         hide = self._find_skill_hide(frame)
         if hide is not None:
             return ("技能", hide)
@@ -2813,6 +2809,16 @@ class Mediator:
                         self._devour_dan_next_at = now + 1.0
                         self._devour_dan_consecutive_clicks += 1
                         self._inventory_next_at = now + 1.0
+                        self._pending_action = PendingAction(
+                            kind="WAIT_DEVOUR_DAN",
+                            target_id="danGif",
+                            deadline=now + 2.0,
+                            verifier=lambda f: verify_inventory_item_consumed(
+                                current_count=None,
+                                baseline_count=None,
+                                occupied_bonds_decreased=not self._bond_bar_nonempty(f),
+                            ),
+                        )
                         return LoopAction.Continue
             else:
                 self._devour_dan_consecutive_clicks = 0
@@ -6207,6 +6213,8 @@ class Mediator:
                 # B2: timeout -> clear, apply target cooldown, record unconfirmed metric, do not advance state blindly
                 if self._pending_action.target_id == "hero_card_item" or self._pending_action.kind == "WAIT_HERO_CHOICE":
                     self._inventory_next_at = now + 1.0
+                elif self._pending_action.target_id == "danGif" or self._pending_action.kind == "WAIT_DEVOUR_DAN":
+                    self._devour_dan_next_at = now + 1.0
                 elif self._pending_action.target_id == "equipment_upgrade" or self._pending_action.kind == "EQUIPMENT_UPGRADE":
                     self._equipment_pending_until = now + 1.0
                 self._pending_action = None

@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-16 22:39:07",
-  "reason": "CORE02-L0 stage_start direct buttons: +lobby/stage_start_btn_direct +lobby/stage_action_buttons -lobby/stage_begin_btn(sweep btn, misclick root cause); templates 131->132",
+  "updated_at": "2026-08-18 09:34:05",
+  "reason": "INV-SKILL-02 enforce 0-refresh on skill panel Focus-Miss: giveup_panel_not_fail now clicks skill_hide instead of skill_refresh_btn",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 686,
+        "passed": 922,
         "xfailed": 2,
         "skipped": 11
       }
@@ -16,7 +16,7 @@
       "title": "冻结端到端回放（fixtures/baselines/replay_frozen）",
       "observed": {
         "fail_panel_preempt": "PASS",
-        "giveup_panel_not_fail": "PASS",
+        "giveup_panel_not_fail": "FAIL",
         "archive_challenge_open": "PASS",
         "main_hud_idle": "PASS",
         "stage_select_scroll": "PASS",
@@ -24,7 +24,8 @@
         "disconnect_modal_missing": "BLOCKED"
       },
       "known_failures": {
-        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。"
+        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。",
+        "giveup_panel_not_fail": "未填写原因（必须补）"
       }
     },
     "scene_templates": {
@@ -37,7 +38,7 @@
     "contract": {
       "title": "L0 大厅全链契约回放（tests/contract/）",
       "observed": {
-        "passed": 56,
+        "passed": 68,
         "present": 1
       }
     }
