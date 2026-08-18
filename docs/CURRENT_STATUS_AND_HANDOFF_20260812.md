@@ -945,3 +945,14 @@ Get-FileHash 'C:\Users\10639\Desktop\GameScript-v2026.08.12-r7\GameScript.exe' -
 - **贪婪献祭**：现有真机帧描述为「每消耗500金币，获得1点随机属性」（与 S3 正面样例同文），**patterns 拦不住**；继续靠 `treasure_negative_names` 名单拦截。若实机另有负面版本文案，需补帧。
 - patterns 缺口（只补不删，交主 agent 评估追加，见 `DESCRIPTIONS.json::suggested_pattern_appends_for_main_agent`）：`消耗全部金币` · `将恒定` · `杀敌数清0` · `宝物效果-`。
 - 六张均有真机面板帧；描述模式兜底仍弱，生产不阻塞（名字判定已生效）。需主 agent 接线 A 组描述 ROI 后，用本夹具做实机 OCR 回归。
+
+## 2026-08-18 状态对齐与长程稳定性修复
+
+本轮以 docs/REFERENCE_147_DECONSTRUCTION.md / docs/REFERENCE_ARCHITECTURE_GUIDE.md 的 State Alignment 为恢复基线，针对长时间挂机中可恢复界面被微观 attempts 预算提前杀死的问题做去僵化修复。
+
+- L0 创房：一次输入成功不再等价于弹窗已打开；专用 create_room_confirm 锚点仍是唯一确认权威。点击后 4s 未见弹窗会回到地图状态重新识别并补点，_create_room_attempts 仅保留遥测，不再作为可恢复流程的终止条件；保留 60s 宏观无进展期限与建房/进房禁止颜色兜底红线。
+- L0 房间启动/选关：ROOM_STARTING 改为宏观过渡观察并允许按仍可见的房间开始锚点自愈重试；游戏 HWND 尚未建立时允许回看平台窗口作状态对齐，但无效/空帧绝不进入模板匹配。STAGE_SELECT 在宏观期限内持续滚动、切页、重选目标，滚动/切页/选中次数只做遥测，不再因固定次数直接 ERROR。
+- L1 选卡：羁绊/宝物无安全候选时直接 CLOSE，执行层只通过已验证的 skill_hide / card_hide / 对应 hide 模板关闭，不再走 WAIT→REFRESH 的微观预算死循环。
+- 运行稳定性：Windows 下 profile live-lock PID 存活探测不再调用 os.kill(pid, 0)，改用只读进程句柄查询，避免长测试/长运行中的异步控制事件中断。
+
+验证纪律：每个正式代码 commit 均在提交前执行 python tools/release_gate.py；本记录提交前再次执行同一门禁。上述验证均为离线测试/冻结回放，不等同于真机长跑通过。合入前仍需按同一配置真机重点复验：创房 4s 自愈、ROOM_STARTING 黑屏/窗口切换、跨页选关持续滚动、无安全候选物理关闭，以及至少一轮长程多局挂机无异常停止。
