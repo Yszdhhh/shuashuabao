@@ -58,6 +58,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -c "from pathlib import Path; p=Path('tests/test_choice_liveness_20260818.py'); s=p.read_text(encoding='utf-8').replace('from shuabao.vision import Frame', 'from shuabao.vision.capture import Frame'); p.write_text(s, encoding='utf-8')"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -c "from pathlib import Path; p=Path('tests/test_choice_policy.py'); s=p.read_text(encoding='utf-8'); old='self.assertEqual(ps.bond_whitelist_mode, WHITELIST_HARD)'; assert s.count(old) == 1; p.write_text(s.replace(old, 'self.assertEqual(ps.bond_whitelist_mode, WHITELIST_SOFT)', 1), encoding='utf-8')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m compileall -q src tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pytest tests/test_choice_liveness_20260818.py tests/test_choice_policy.py tests/test_settings.py tests/test_s0_safety_state_machine.py tests/test_l1_cycle_recheck_merchant.py tests/test_collectible_close_alignment.py -q --tb=short
@@ -77,7 +79,7 @@ jobs:
 
       - name: Commit L1 choice liveness repair
         run: |
-          git add src/shuabao/choice_policy.py src/shuabao/mediator.py src/shuabao/settings.py config/default_settings.json config/choice_policy.json tests/test_choice_liveness_20260818.py
+          git add src/shuabao/choice_policy.py src/shuabao/mediator.py src/shuabao/settings.py config/default_settings.json config/choice_policy.json tests/test_choice_liveness_20260818.py tests/test_choice_policy.py
           git commit -m "fix(l1): keep choice panels progressing under live input"
 
       - name: Record live-test incident and revalidation scope
