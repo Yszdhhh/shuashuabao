@@ -20,9 +20,8 @@
 - 宝物：必拿名单（treasure_must_take，配置缺省时保留旧版「全都要/卡牌大师」
   子串特权）→ 预设 + 套装进度优先（龙珠进度必须来自可验证字段
   set_progress.members/owned）→ 品质序降级；负面效果卡先整体剔除，
-  必拿特权只在剔除后名单内生效；无安全候选 → WAIT（有上限）→ 根据
-  treasure_refresh_on_no_safe 决定是否 REFRESH；线上装配默认关闭盲刷，
-  WAIT 耗尽后直接 GIVEUP / CLOSE，避免无刷新按钮时零输入死锁；
+  必拿特权只在剔除后名单内生效；无安全候选 → 直接 CLOSE，由执行层匹配 skill_hide/card_hide 等物理
+  隐藏模板退出；不再用 WAIT/REFRESH 微观预算维持阻塞面板；
 - 技能学习优先于羁绊/宝物循环（同帧多面板时由 :func:`panel_priority` 排序）。
 
 安全不变量：
@@ -925,37 +924,20 @@ def _decide_collectible(
 def _no_safe_candidate(
     cands: PanelCandidates, state: SessionState, kind: str | None, why: str
 ) -> PolicyDecision:
-    """没有可选候选时的统一收口：WAIT（有上限）→ REFRESH → GIVEUP / CLOSE。
+    """No safe collectible candidate: close the blocking panel immediately.
 
-    treasure 在线装配默认禁止“无安全候选盲刷”：事故 20260818 证明执行层
-    找不到 refresh 时不会消耗 refresh 预算，旧逻辑会每 tick 重复 REFRESH 直到
-    900 秒 hard deadline。品质保底已在本函数之前执行；走到这里说明没有可安全
-    点击的已知槽位，因此 WAIT 耗尽后应退出面板，而不是生成不可执行动作。
+    WAIT/REFRESH counters are unsuitable for a blocking modal whose refresh
+    affordance may not exist.  The policy therefore emits CLOSE; the mediator
+    maps it to verified physical hide templates and keeps one-input-per-tick
+    plus mutation confirmation.
     """
-    settings = cands.settings
-    assert isinstance(settings, PolicySettings)
-    refresh_allowed = not (
-        kind == PANEL_TREASURE and not settings.treasure_refresh_on_no_safe
+    del state  # session counters are telemetry for this terminal decision
+    return PolicyDecision(
+        PolicyAction.CLOSE,
+        None,
+        f"{kind} {why}，直接关闭/隐藏面板",
     )
-    if state.waits < state.max_waits and state.refreshes < state.max_refreshes:
-        return PolicyDecision(
-            PolicyAction.WAIT,
-            None,
-            f"{kind} {why}，等待重观察（{state.waits + 1}/{state.max_waits}）",
-        )
-    if refresh_allowed and state.refreshes < state.max_refreshes:
-        return PolicyDecision(
-            PolicyAction.REFRESH,
-            None,
-            f"{kind} 无安全候选且 WAIT 耗尽，刷新（{state.refreshes + 1}/{state.max_refreshes}）",
-        )
-    exhausted = "刷新耗尽" if refresh_allowed else "盲刷禁用"
-    return _giveup_or_close(cands, f"{kind} 无安全候选且{exhausted}")
 
-
-# ---------------------------------------------------------------------------
-# 匹配原语（全部确定性；并列用固定 tie-break）。
-# ---------------------------------------------------------------------------
 def _match_preset(
     slots: tuple[SlotCandidate, ...],
     presets: tuple[str, ...],

@@ -3153,29 +3153,39 @@ class Mediator:
         return LoopAction.Continue
 
     def _close_current_panel(self, frame: Frame, panel_kind: str | None = None) -> MatchResult | None:
-        """Find the close button (放弃/暂时隐藏) for the currently open panel.
-
-        Used as a safe fallback when a panel we proactively opened cannot be
-        matched to any card choice.
-        """
+        """Resolve a verified physical hide/close affordance for a card panel."""
         kind = panel_kind or getattr(self, "_panel_opened_by_us", None)
         if kind in ("技能", "技能刷新", "技能放弃"):
             kind = "skill"
         if kind == "skill":
-            names = ["skill_hide"]
+            names = ["skill_hide", "card_hide", "hide"]
         elif kind == "treasure":
-            names = ["treasure_hide_btn", "hide"]
-        elif kind == "bond":
-            names = ["bond_hide_btn", "card_hide", "hide"]
+            names = ["card_hide", "treasure_hide_btn", "skill_hide", "hide"]
+        elif kind in ("bond", "card"):
+            names = ["card_hide", "bond_hide_btn", "skill_hide", "hide"]
         else:
-            names = ["skill_giveup_btn", "bond_hide_btn", "treasure_hide_btn", "card_hide", "hide"]
-        return self.find(
+            names = [
+                "skill_hide", "card_hide", "bond_hide_btn",
+                "treasure_hide_btn", "hide",
+            ]
+        hit = self.find(
             frame,
             names,
             threshold=min(0.70, self.settings.match_threshold),
             scales=self._hot_scales(),
+            roi=self._PANEL_BUTTONS_ROI,
             early_stop=True,
         )
+        if hit is None and self._scaled_up_frame(frame):
+            hit = self.find(
+                frame,
+                names,
+                threshold=min(0.70, self.settings.match_threshold),
+                scales=self._wide_scales(),
+                roi=self._PANEL_BUTTONS_ROI,
+                early_stop=True,
+            )
+        return hit
 
     # ---------- 战后页面多锚点判别（P1-B0/B1）----------
 

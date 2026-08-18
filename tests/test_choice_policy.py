@@ -348,7 +348,7 @@ class TestSkillEmptyConfig(unittest.TestCase):
 
 
 class TestBondTreasureUnknown(unittest.TestCase):
-    """羁绊/宝物：unknown 绝不冒充词典内名称；只能 WAIT/REFRESH。"""
+    """羁绊/宝物：unknown 绝不点击，阻塞面板直接关闭。"""
 
     def test_bond_unknown_only_slot_no_click(self):
         d = choose_action(
@@ -356,21 +356,21 @@ class TestBondTreasureUnknown(unittest.TestCase):
             SessionState(),
         )
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.action, PolicyAction.WAIT)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
 
-    def test_bond_unknown_wait_then_refresh_then_giveup(self):
-        # WAIT 有上限：waits 耗尽 → REFRESH；刷新耗尽 → GIVEUP/CLOSE。
+    def test_bond_unknown_closes_independent_of_micro_counters(self):
         cands = bond_cands(
             [slot(0, None), slot(1, None)],
             has_giveup=True,
             settings=settings(bond_presets=["三国"]),
         )
-        d = choose_action(cands, SessionState(waits=2, max_waits=2))
-        self.assertEqual(d.action, PolicyAction.REFRESH)
-        d = choose_action(
-            cands, SessionState(waits=2, max_waits=2, refreshes=3, max_refreshes=3)
-        )
-        self.assertEqual(d.action, PolicyAction.GIVEUP)
+        for state in (
+            SessionState(),
+            SessionState(waits=2, max_waits=2),
+            SessionState(waits=9, refreshes=9),
+        ):
+            with self.subTest(state=state):
+                self.assertEqual(choose_action(cands, state).action, PolicyAction.CLOSE)
 
     def test_bond_unknown_no_giveup_close(self):
         cands = bond_cands(
@@ -402,37 +402,20 @@ class TestBondTreasureUnknown(unittest.TestCase):
             SessionState(),
         )
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.action, PolicyAction.WAIT)
+        self.assertEqual(d.action, PolicyAction.CLOSE)
 
-    def test_wait_cap_prevents_infinite_wait(self):
-        # 任意 waits 计数下，决策序列必在有限步内离开 WAIT。
+    def test_collectible_no_safe_candidate_has_single_close_decision(self):
         cands = bond_cands(
             [slot(0, None)], has_giveup=True,
             settings=settings(bond_presets=["三国"]),
         )
-        state = SessionState(waits=0, max_waits=3, max_refreshes=3)
-        seq = []
-        for _ in range(10):  # 超过理论上限的轮数
-            d = choose_action(cands, state)
-            seq.append(d.action)
-            if d.action == PolicyAction.WAIT:
-                state = SessionState(
-                    waits=state.waits + 1, max_waits=3, max_refreshes=3
-                )
-            elif d.action == PolicyAction.REFRESH:
-                state = SessionState(
-                    refreshes=state.refreshes + 1, max_waits=3, max_refreshes=3,
-                    waits=3,
-                )
-            else:
-                break
-        self.assertIn(PolicyAction.REFRESH, seq)
-        self.assertEqual(seq[-1], PolicyAction.GIVEUP)
-        self.assertLessEqual(seq.count(PolicyAction.WAIT), 3)
-
-
-class TestBondPriority(unittest.TestCase):
-    """羁绊：预设 > 接近合成 > 品质降级。"""
+        for state in (
+            SessionState(waits=0, max_waits=3, max_refreshes=3),
+            SessionState(waits=3, refreshes=2, max_refreshes=3),
+            SessionState(waits=99, refreshes=99),
+        ):
+            with self.subTest(state=state):
+                self.assertEqual(choose_action(cands, state).action, PolicyAction.CLOSE)
 
     def _bonds(self, **kw):
         return bond_cands(
@@ -649,20 +632,14 @@ class TestTreasurePriority(unittest.TestCase):
         d = choose_action(cands)
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
 
-    def test_treasure_no_safe_candidate_refresh(self):
+    def test_treasure_no_safe_candidate_closes(self):
         cands = treasure_cands(
             [slot(0, None), slot(1, None)],
             has_giveup=True,
             settings=settings(),
         )
-        d = choose_action(
-            cands, SessionState(waits=2, max_waits=2)
-        )
-        self.assertEqual(d.action, PolicyAction.REFRESH)
-
-
-class TestTieBreakAndDeterminism(unittest.TestCase):
-    """并列优先级固定 tie-break；同输入同输出。"""
+        d = choose_action(cands, SessionState(waits=2, max_waits=2))
+        self.assertEqual(d.action, PolicyAction.CLOSE)
 
     def test_deterministic_same_input_twice(self):
         cands = skill_cands(

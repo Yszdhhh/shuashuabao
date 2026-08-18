@@ -131,9 +131,9 @@ class TestTreasureNoRefreshDeadlockRegression(unittest.TestCase):
             candidates,
             SessionState(waits=5, max_waits=5, refreshes=0, max_refreshes=3),
         )
-        self.assertEqual(decision.action, PolicyAction.GIVEUP)
+        self.assertEqual(decision.action, PolicyAction.CLOSE)
         self.assertNotEqual(decision.action, PolicyAction.REFRESH)
-        self.assertIn("盲刷禁用", decision.reason)
+        self.assertIn("直接关闭/隐藏面板", decision.reason)
 
     def test_no_giveup_button_closes_instead_of_refreshing(self):
         policy = runtime_policy_settings()
