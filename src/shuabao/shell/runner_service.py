@@ -54,7 +54,9 @@ class MediatorWorker(QThread):
         self._stop_requested = False
     def run(self):
         try:
-            from shuabao.mediator import Mediator
+            # LIVE 统一走 runtime_mediator：在 core Mediator 之上追加本局羁绊
+            # 预设完成门闩，避免拿齐后继续按 F 抢占宝物/进化等调度窗口。
+            from shuabao.runtime_mediator import Mediator
         except Exception as e:
             self.signals.log_emitted.emit(f"[错误] 无法加载 Mediator 自动化引擎: {e}", "error")
             self.signals.status_changed.emit(False, "错误", 0)
