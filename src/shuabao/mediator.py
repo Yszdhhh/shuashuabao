@@ -384,9 +384,12 @@ class RecoveryState:
 
 class Mediator:
     _CREATE_ROOM_CONFIRM_WINDOW_S = 4.0
-    _CREATE_ROOM_TOTAL_TIMEOUT_S = 15.0
-    _CREATE_ROOM_DOWNLOAD_WAIT_S = 90.0
-    _CREATE_ROOM_MAX_ATTEMPTS = 3  # 仅点击失败才重试；点成功后零输入等弹窗
+    _CREATE_ROOM_TOTAL_TIMEOUT_S = 60.0
+    # Compatibility aliases retained for older tests/diagnostics.  They no
+    # longer terminate a recoverable alignment loop by click count.
+    _CREATE_ROOM_DOWNLOAD_WAIT_S = _CREATE_ROOM_TOTAL_TIMEOUT_S
+    _CREATE_ROOM_MAX_ATTEMPTS = 3
+    _L0_TRANSITION_TIMEOUT_S = 60.0
     _OCR_SLOT_ROIS = {
         "skill": ((0.286, 0.178, 0.421, 0.255), (0.433, 0.178, 0.568, 0.255), (0.579, 0.178, 0.714, 0.255)),
         "bond": ((0.254, 0.180, 0.410, 0.265), (0.425, 0.180, 0.581, 0.265), (0.596, 0.180, 0.752, 0.265)),
@@ -454,6 +457,11 @@ class Mediator:
         self._room_dialog_filled = False
         self._room_action_deadline: float | None = None
         self._room_action_attempts = 0
+        # ROOM_STARTING is a transition alignment episode.  The deadline is
+        # fixed when RoomStart is first accepted; retries are time-spaced and
+        # never extend the macro deadline.
+        self._room_start_deadline: float | None = None
+        self._room_start_next_retry_at: float = 0.0
         # startChallenge 显式子状态机（STAGE_STARTING 分支内部状态，枚举不变）：
         # WAIT_TRANSITION → VERIFY_INGAME → DONE，带超时/失败分支/有界重试
         self._challenge_start_state: str | None = None   # WAIT_TRANSITION/VERIFY_INGAME/DONE
@@ -943,6 +951,32 @@ class Mediator:
         }
         role = "l0" if self.phase in l0_phases else "l1"
         frame = self._capture_best(title, role)
+        primary_has_pixels = bool(
+            frame is not None
+            and frame.bgr is not None
+            and frame.bgr.size > 0
+        )
+        primary_signal = (
+            self._frame_signal(frame, "l1") if primary_has_pixels else 0
+        )
+        if self.phase == Phase.ROOM_STARTING and primary_signal == 0:
+            # During process launch the game HWND may not exist yet.  Keep L1
+            # as the primary target, but inspect the platform as a fallback so
+            # an unchanged room page can be aligned/retried instead of being
+            # treated as a missing-window failure.  Invalid frames must never
+            # enter template matching: the health gate owns that observation.
+            platform_frame = self._capture_best(",".join(L0_WINDOW_KEYWORDS), "l0")
+            platform_has_pixels = bool(
+                platform_frame is not None
+                and platform_frame.bgr is not None
+                and platform_frame.bgr.size > 0
+            )
+            if (
+                platform_has_pixels
+                and self._frame_signal(platform_frame, "l0") > 0
+            ):
+                frame = platform_frame
+                role = "l0"
         capture_ms = (time.perf_counter() - t0) * 1000.0
         self._last_capture_ms = capture_ms
         # 会话级 UI 缩放校准：取宽高相对 1600x900 的较小缩放比（保守）
@@ -3908,6 +3942,9 @@ class Mediator:
     def set_phase(self, phase: Phase, note: str = "") -> None:
         if phase != self.phase:
             print(f"[med] phase {self.phase.name} → {phase.name} {note}")
+        if self.phase == Phase.ROOM_STARTING and phase != Phase.ROOM_STARTING:
+            self._room_start_deadline = None
+            self._room_start_next_retry_at = 0.0
         if phase in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP) and self.phase not in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP):
             self._stage_selected = False
             self._stage_target_name = None
@@ -3955,7 +3992,7 @@ class Mediator:
             self._stage_candidate_frames = 0
             self._stage_select_attempts = 0
             self._stage_scroll_cooldown_until = 0.0
-            self._room_action_deadline = time.time() + self.settings.query_timeout
+            self._room_action_deadline = time.time() + self._l0_transition_timeout()
             self._hero_state = "IDLE"
             self._hero_verified_level = 0
             self._hero_level_baseline = None
@@ -4654,10 +4691,13 @@ class Mediator:
         self._create_room_last_candidate = None
 
     def _request_create_room(self, candidate: MatchResult, now: float) -> LoopAction:
-        """Click a candidate, then stay on PLATFORM_MAP until dialog confirmation.
+        """Request the create-room dialog and keep aligning to observed state.
 
-        学习模式（dry_run）：只记录意图，不进入「等弹窗」状态——假点击不会弹出
-        对话框，否则会误报 create dialog confirmation timeout。
+        Input acceptance is not dialog confirmation.  A successful click opens
+        a four-second observation window; if the dedicated confirmation anchor
+        is still absent afterwards, PLATFORM_MAP re-validates the exact
+        create-room template and may retry.  Only the macro phase deadline can
+        terminate this recoverable loop.
         """
         self._create_room_last_candidate = self._create_room_candidate_payload(candidate)
 
@@ -4683,22 +4723,22 @@ class Mediator:
                     "context": self._context_cache_value,
                 }
             )
-            # 节流：避免同一按钮每 tick 刷屏；不烧 attempts / flow_deadline
             self._create_room_pending_since = None
             self._create_room_next_observe_at = now + max(
                 2.0, float(self.settings.ui_action_interval_s)
             )
             return LoopAction.Continue
 
-        if self._create_room_opened_ok:
-            return LoopAction.Continue
         if self._create_room_flow_deadline is None:
-            self._create_room_flow_deadline = now + self._CREATE_ROOM_TOTAL_TIMEOUT_S
-        if self._create_room_attempts >= self._CREATE_ROOM_MAX_ATTEMPTS:
-            self._create_room_next_observe_at = now + 0.5
-            return LoopAction.Continue
+            self._create_room_flow_deadline = now + self._l0_transition_timeout()
+        if now >= self._create_room_flow_deadline:
+            self._trace_create_room_control("TIMEOUT", post_confirm=False, now=now)
+            print("[L0] 创房状态对齐超过宏观期限，Fail-Closed")
+            self.set_phase(Phase.ERROR, "create dialog alignment timeout")
+            self.stop()
+            return LoopAction.Break
 
-        self._create_room_attempts += 1
+        self._create_room_attempts += 1  # telemetry only; not a stop condition
         clicked = self.act_click(candidate, "CreateRoom-open")
         self._trace_create_room_control(
             "OPEN_REQUESTED" if clicked else "CLICK_FAILED",
@@ -4706,15 +4746,15 @@ class Mediator:
             click_ok=clicked,
             now=now,
         )
+        self._create_room_opened_ok = False
         if clicked:
-            self._create_room_opened_ok = True
             self._create_room_pending_since = now
             self._create_room_next_observe_at = now + self._CREATE_ROOM_CONFIRM_WINDOW_S
-            self._create_room_flow_deadline = now + self._CREATE_ROOM_DOWNLOAD_WAIT_S
         else:
-            # 输入失败也必须有节流，避免在同一帧/同一窗口连续轰击。
             self._create_room_pending_since = None
-            self._create_room_next_observe_at = now + self.settings.ui_action_interval_s
+            self._create_room_next_observe_at = now + max(
+                0.5, float(self.settings.ui_action_interval_s)
+            )
         return LoopAction.Continue
 
     def _find_room_start(self, frame: Frame) -> MatchResult | None:
@@ -4857,34 +4897,34 @@ class Mediator:
         print("[L0] 建房弹窗已填写房间名/密码")
         return True
 
+    def _l0_transition_timeout(self) -> float:
+        """Macro timeout for recoverable L0 alignment episodes."""
+        try:
+            configured = float(self.settings.query_timeout)
+        except (TypeError, ValueError):
+            configured = self._L0_TRANSITION_TIMEOUT_S
+        return max(30.0, min(configured, self._L0_TRANSITION_TIMEOUT_S))
+
     def _action_timed_out(self) -> bool:
         return self._room_action_deadline is not None and time.time() >= self._room_action_deadline
 
     def _challenge_start_timeout(self, stage_page: bool) -> LoopAction:
-        """startChallenge 超时与失败分支：Fail-Closed，不猜测点击。
-
-        有界重试：source=stage 且选关页仍在时回选关页重选（attempts 预算 +1，
-        达到 2 次仍无局内锚点 → ERROR 停机）；其余情况一律 ERROR 停机。
-        """
+        """Re-align a failed stage start while the stage page is still proven."""
         if self._challenge_start_source == "hero":
-            # 英雄链严格证据：不做未验证回退
             print("[L0] 英雄挑战开始超时（无局内锚点），停止运行")
             self.set_phase(Phase.ERROR, "hero challenge start timeout")
             self.stop()
             return LoopAction.Break
         if stage_page:
-            self._challenge_start_attempts += 1
-            if self._challenge_start_attempts >= 3:
-                print("[L0] 选关开始重试耗尽（3 次均未出现局内 UI），停止运行")
-                self.set_phase(Phase.ERROR, "challenge start retries exhausted")
-                self.stop()
-                return LoopAction.Break
-            print(f"[L0] 选关后超时未进局（attempts={self._challenge_start_attempts}/3），回到选关页重选")
+            self._challenge_start_attempts += 1  # telemetry only
+            print(
+                f"[L0] 选关后未进局，仍在选关页；回到状态对齐重选 "
+                f"(telemetry={self._challenge_start_attempts})"
+            )
             self._stage_selected = False
             self._stage_target_name = None
-            self.set_phase(Phase.STAGE_SELECT, "challenge start verify timeout")
+            self.set_phase(Phase.STAGE_SELECT, "challenge start realign")
             return LoopAction.Continue
-        # 选关页/英雄入口都消失：页面异变 → 不识别=不动作，Fail-Closed
         print("[L0] 选关后超时且选关页/英雄入口均消失（页面异变），停止运行")
         self.set_phase(Phase.ERROR, "challenge start page mutation")
         self.stop()
@@ -4980,45 +5020,41 @@ class Mediator:
                 return LoopAction.Continue
 
             if self._create_room_pending_since is not None:
-                # Observe-only settle window: never click again before the
-                # dedicated dialog anchor had its full 3–5s opportunity.
-                if self._create_room_next_observe_at is not None and now < self._create_room_next_observe_at:
+                if (
+                    self._create_room_next_observe_at is not None
+                    and now < self._create_room_next_observe_at
+                ):
                     print("[L0] 创房请求等待专用弹窗确认（零动作）")
                     return LoopAction.Continue
-                if self._create_room_opened_ok:
-                    if (
-                        self._create_room_flow_deadline is not None
-                        and now >= self._create_room_flow_deadline
-                    ):
-                        self._trace_create_room_control("TIMEOUT", post_confirm=False, now=now)
-                        print("[L0] 创房后等待弹窗超时（含下载地图），Fail-Closed")
-                        self.set_phase(Phase.ERROR, "create dialog confirmation timeout")
-                        self.stop()
-                        return LoopAction.Break
-                    print("[L0] 已点创建房间，等待弹窗（下载地图中不连点）")
-                    return LoopAction.Continue
-                self._trace_create_room_control("CONFIRM_TIMEOUT", post_confirm=False, now=now)
+                # Four seconds elapsed without the dedicated dialog anchor.
+                # Re-align to the page and re-validate the semantic create
+                # template; never promote input acceptance to opened state.
+                self._trace_create_room_control(
+                    "CONFIRM_TIMEOUT", post_confirm=False, now=now
+                )
+                print("[L0] 创房弹窗 4s 未出现，回到地图状态对齐并重新识别")
                 self._create_room_pending_since = None
                 self._create_room_next_observe_at = None
-            elif self._create_room_next_observe_at is not None and now < self._create_room_next_observe_at:
+                self._create_room_opened_ok = False
+            elif (
+                self._create_room_next_observe_at is not None
+                and now < self._create_room_next_observe_at
+            ):
                 if self.settings.dry_run:
                     print("[L0] 学习模式观察节流（零动作）")
                 else:
                     print("[L0] 创房点击失败，等待输入节流窗口（零动作）")
                 return LoopAction.Continue
 
-            if self._create_room_flow_deadline is not None:
-                if now >= self._create_room_flow_deadline:
-                    self._trace_create_room_control("TIMEOUT", post_confirm=False, now=now)
-                    print("[L0] 创房弹窗确认总预算已耗尽，Fail-Closed")
-                    self.set_phase(Phase.ERROR, "create dialog confirmation timeout")
-                    self.stop()
-                    return LoopAction.Break
-                if self._create_room_attempts >= self._CREATE_ROOM_MAX_ATTEMPTS:
-                    self._create_room_next_observe_at = now + 0.5
-                    print("[L0] 创房已用尽两次重试，等待总预算到期（零动作）")
-                    return LoopAction.Continue
-
+            if (
+                self._create_room_flow_deadline is not None
+                and now >= self._create_room_flow_deadline
+            ):
+                self._trace_create_room_control("TIMEOUT", post_confirm=False, now=now)
+                print("[L0] 创房状态对齐超过宏观期限，Fail-Closed")
+                self.set_phase(Phase.ERROR, "create dialog alignment timeout")
+                self.stop()
+                return LoopAction.Break
 
             create = self._find_map_create_room(frame)
             if create:
@@ -5063,19 +5099,16 @@ class Mediator:
                 print(f"[L0] 房间内点击开始 {room_start.name} score={room_start.score:.3f}")
                 if not self.act_click(room_start, "RoomStart"):
                     return LoopAction.Continue
+                now = time.time()
                 self._room_action_attempts = 1
-                self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
+                self._room_start_deadline = now + self._l0_transition_timeout()
+                self._room_start_next_retry_at = now + self._CREATE_ROOM_CONFIRM_WINDOW_S
                 self.set_phase(Phase.ROOM_STARTING, "room start clicked")
                 return LoopAction.Continue
             if self._action_timed_out():
                 if self._auto_room_enabled():
-                    if self._l0_cycle_count >= self._l0_cycle_limit:
-                        print(f"[L0] L0 循环次数达到上限 ({self._l0_cycle_limit})，停止运行")
-                        self.set_phase(Phase.ERROR, "L0 cycle limit reached")
-                        self.stop()
-                        return LoopAction.Break
-                    print("[L0] 房间等待超时；返回地图页重试建房")
-                    self.set_phase(Phase.PLATFORM_MAP, "room wait timeout")
+                    print("[L0] 房间等待超时；返回地图页继续状态对齐")
+                    self.set_phase(Phase.PLATFORM_MAP, "room wait alignment timeout")
                 else:
                     print("[L0] 房间等待超时；保持手动房间等待，不猜测创建按钮")
                     self.set_phase(Phase.LOBBY_ROOM, "manual room wait timeout")
@@ -5087,32 +5120,23 @@ class Mediator:
             if stage_page:
                 self.set_phase(Phase.STAGE_SELECT, "stage page after room start")
                 return LoopAction.Continue
-            if room_start and self._action_timed_out():
-                if self._room_action_attempts < 2:
-                    print("[L0] 房间页面未变化，重试点击开始")
-                    if not self.act_click(room_start, "RoomStart-retry"):
-                        return LoopAction.Continue
+            now = time.time()
+            if self._room_start_deadline is None:
+                self._room_start_deadline = now + self._l0_transition_timeout()
+            if now >= self._room_start_deadline:
+                print("[L0] 房间开始状态对齐超过宏观期限，回到房间等待")
+                self.set_phase(Phase.ROOM_WAITING, "room start alignment timeout")
+                return LoopAction.Continue
+            if room_start and now >= self._room_start_next_retry_at:
+                print(
+                    f"[L0] 仍在房间页，按状态对齐重试开始 "
+                    f"(telemetry={self._room_action_attempts + 1})"
+                )
+                if self.act_click(room_start, "RoomStart-retry"):
                     self._room_action_attempts += 1
-                    self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
-                elif self._l0_cycle_count >= self._l0_cycle_limit:
-                    print(f"[L0] L0 循环次数达到上限 ({self._l0_cycle_limit})，停止运行")
-                    self.set_phase(Phase.ERROR, "L0 cycle limit reached")
-                    self.stop()
-                    return LoopAction.Break
-                else:
-                    print("[L0] 房间开始重试耗尽，回到房间等待，不假报进入游戏")
-                    self.set_phase(Phase.ROOM_WAITING, "room start retries exhausted")
-            elif self._action_timed_out():
-                # 游戏窗口已出现（如 960x540 加载中）：不应回退到已消失的平台房间页，
-                # 继续等待选关/局内 UI；只有窗口仍不存在时才回退。
-                if frame.hwnd is not None and frame.bgr is not None and frame.bgr.size > 0:
-                    print("[L0] 房间开始后游戏窗口已出现，等待选关/局内 UI（不回退）")
-                    self._room_action_deadline = time.time() + min(self.settings.query_timeout, 15)
-                else:
-                    print("[L0] 房间开始后未出现选关/局内 UI")
-                    self.set_phase(Phase.ROOM_WAITING, "room start verify timeout")
-            else:
-                print("[L0] 等待游戏窗口/选关页…")
+                self._room_start_next_retry_at = now + self._CREATE_ROOM_CONFIRM_WINDOW_S
+                return LoopAction.Continue
+            print("[L0] 等待游戏窗口/选关页…")
             return LoopAction.Continue
 
         if self.phase == Phase.STAGE_SELECT:
@@ -5126,6 +5150,11 @@ class Mediator:
             if arch_res is not None:
                 return arch_res
             now = time.time()
+            if self._action_timed_out():
+                print("[L0] 选关状态对齐超过宏观期限，停止而不点击任意关卡")
+                self.set_phase(Phase.ERROR, "configured stage alignment timeout")
+                self.stop()
+                return LoopAction.Break
             # L0-RECOVERY（实机 20260816_204613）：客户端记忆停留在团本分页时，
             # 右侧列表没有 1-x 行，直接扫描会盲目滚动并误点未开放关卡。普通主线
             # （chapter=1，1-1~1-23）都在「旧世大陆」大区页签下——先切回再扫列表。
@@ -5141,12 +5170,10 @@ class Mediator:
             ):
                 old_world_tab = find_unselected_old_world_tab(frame, self.images)
                 if old_world_tab is not None:
-                    if self._old_world_switch_attempts >= 4:
-                        print("[L0] 切换【旧世大陆】页签已达 4 次仍未切回主线，Fail-Closed 停机")
-                        self.set_phase(Phase.ERROR, "old world tab switch failed")
-                        self.stop()
-                        return LoopAction.Break
-                    print(f"[L0] 检测到当前不在旧世大陆，点击切换至【旧世大陆】大区页签 ({self._old_world_switch_attempts + 1}/4)")
+                    print(
+                        f"[L0] 检测到当前不在旧世大陆，按状态对齐切换页签 "
+                        f"(telemetry={self._old_world_switch_attempts + 1})"
+                    )
                     if not self.act_click(old_world_tab, "SwitchOldWorldTab"):
                         return LoopAction.Continue
                     self._old_world_switch_attempts += 1
@@ -5169,32 +5196,32 @@ class Mediator:
                     # 原版 SelectStage 语义：stage2>12 时在关卡列表 (1090,390) 向下滚轮
                     # （pyautogui 负值=向下；录屏确认 1-24+ 在列表下方）。
                     # 触发条件覆盖 stage_targets 与 stage1/stage2 范围两种配置。
-                    # 预算放宽至 25 次，单次下滚 2 格，确保可平滑触达 1-20+ 底部关卡
-                    if self._stage_scroll_attempts < 25:
-                        x, y = stage_list_scroll_point(frame)
-                        target_hwnd = self._last_frame.hwnd if self._last_frame else None
-                        # 向下滚动：正值=上滚（更早关卡），负值=下滚（更高关卡）
-                        res_scroll = self.executor.scroll(x, y, -2, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-                        if res_scroll.success:
-                            self._stage_scroll_attempts += 1
-                            self._stage_scroll_cooldown_until = now + 0.6
-                            self._tick_input_executed = True
-                            self._input_seq += 1  # N2-REVIEW #3：与 _finish_input 同语义
-                            if not self.settings.dry_run:
-                                self.invalidate_evidence("input")  # 滚轮成功 → 本帧证据失效
-                            self._stage_candidate_name = None
-                            self._stage_candidate_position = None
-                            self._stage_candidate_frames = 0
-                            print(f"[L0] 目标关卡不在当前列表，向下滚动寻找 ({self._stage_scroll_attempts}/25)")
-                        else:
-                            print(f"[L0] 关卡列表滚动取消/失败: {res_scroll.message}")
+                    # State alignment: while the stage page is proven and the
+                    # macro deadline is alive, keep scrolling at a controlled
+                    # cadence.  The counter is telemetry only.
+                    x, y = stage_list_scroll_point(frame)
+                    target_hwnd = self._last_frame.hwnd if self._last_frame else None
+                    res_scroll = self.executor.scroll(
+                        x, y, -2,
+                        target_hwnd=target_hwnd,
+                        dry_run=self.settings.dry_run,
+                    )
+                    if res_scroll.success:
+                        self._stage_scroll_attempts += 1
+                        self._stage_scroll_cooldown_until = now + 0.6
+                        self._tick_input_executed = True
+                        self._input_seq += 1
+                        if not self.settings.dry_run:
+                            self.invalidate_evidence("input")
+                        self._stage_candidate_name = None
+                        self._stage_candidate_position = None
+                        self._stage_candidate_frames = 0
+                        print(
+                            f"[L0] 目标关卡不在当前列表，持续向下滚动寻找 "
+                            f"(telemetry={self._stage_scroll_attempts})"
+                        )
                     else:
-                        print("[L0] 滚动 25 次仍未找到目标关卡，拒绝点击任意可见关卡")
-                    if self._action_timed_out():
-                        print("[L0] 选关页超时仍未找到配置目标，停止而不是点击任意关卡")
-                        self.set_phase(Phase.ERROR, "configured stage not found")
-                        self.stop()
-                        return LoopAction.Break
+                        print(f"[L0] 关卡列表滚动取消/失败: {res_scroll.message}")
                     return LoopAction.Continue
                 if not self._stage_target_has_consistent_neighbor(frame, target):
                     self._stage_candidate_name = None
@@ -5226,7 +5253,6 @@ class Mediator:
                 self._stage_target_position = position
                 self._stage_select_attempts += 1
                 self._stage_click_cooldown_until = now + 1.5
-                self._room_action_deadline = now + max(10, min(self.settings.query_timeout, 30))
                 return LoopAction.Continue
             if now < self._stage_click_cooldown_until:
                 print("[L0] 等待关卡选中状态稳定…")
@@ -5244,11 +5270,6 @@ class Mediator:
                     f"[L0] 高亮在 {highlighted.stage_id} 而不是目标 {wanted_id}，"
                     "重点目标行，不开始游戏"
                 )
-                if self._stage_select_attempts >= 3:
-                    print("[L0] 连续 3 次点不中目标关卡，停止而不进入错误关卡")
-                    self.set_phase(Phase.ERROR, "configured stage selection unstable")
-                    self.stop()
-                    return LoopAction.Break
                 self._stage_selected = False
                 self._stage_target_name = None
                 self._stage_target_position = None
@@ -5258,11 +5279,6 @@ class Mediator:
                 return LoopAction.Continue
             if highlighted is None or wanted_id is None:
                 print("[L0] 目标行无高亮，重点目标行，不开始游戏")
-                if self._stage_select_attempts >= 3:
-                    print("[L0] 连续 3 次看不到目标高亮，停止而不进入错误关卡")
-                    self.set_phase(Phase.ERROR, "configured stage selection unstable")
-                    self.stop()
-                    return LoopAction.Break
                 self._stage_selected = False
                 self._stage_target_name = None
                 self._stage_target_position = None
@@ -5577,10 +5593,20 @@ class Mediator:
                 print(f"[med] Unhealthy frame ({health.details}), waiting {elapsed:.1f}s phase={self.phase.name}")
                 in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
                 if self.phase == Phase.ROOM_STARTING:
-                    # 房间点开始后的黑屏/捕获失败：用正常重试 deadline 兜底，避免永久挂起
-                    if self._action_timed_out():
-                        print("[med] ROOM_STARTING 不健康帧超过动作期限，回退房间等待")
-                        self.set_phase(Phase.ROOM_WAITING, "room start unhealthy timeout")
+                    if self._room_start_deadline is None:
+                        self._room_start_deadline = now + self._l0_transition_timeout()
+                    if now >= self._room_start_deadline:
+                        print("[med] ROOM_STARTING 不健康帧超过宏观过渡期限，回退房间等待")
+                        self.set_phase(Phase.ROOM_WAITING, "room start unhealthy alignment timeout")
+                    return LoopAction.Continue
+                elif self.phase == Phase.STAGE_SELECT:
+                    if self._room_action_deadline is None:
+                        self._room_action_deadline = now + self._l0_transition_timeout()
+                    if now >= self._room_action_deadline:
+                        print("[med] STAGE_SELECT 不健康帧超过宏观期限，停止运行")
+                        self.set_phase(Phase.ERROR, "stage select unhealthy alignment timeout")
+                        self.stop()
+                        return LoopAction.Break
                     return LoopAction.Continue
                 elif self.phase in in_game_phases:
                     if elapsed >= 60:
@@ -5610,7 +5636,7 @@ class Mediator:
                         self.set_phase(Phase.ERROR, "unhealthy frame timeout")
                         self.stop()
                         return LoopAction.Break
-                elif self.phase in (Phase.CREATE_ROOM, Phase.PLATFORM_MAP):
+                elif self.phase in (Phase.CREATE_ROOM, Phase.PLATFORM_MAP, Phase.ROOM_WAITING, Phase.LOBBY_ROOM):
                     # 建房弹窗/平台窗短暂不可见（用户操作间隙、弹窗切换）不应 15s 误杀；
                     # 与 BOOT 同窗容忍，超时才 Fail-Closed。
                     l0_timeout = max(30, min(self.settings.query_timeout, 60))

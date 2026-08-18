@@ -232,7 +232,7 @@ class StageSelectorTests(unittest.TestCase):
         self.assertEqual(click.call_args.args[1], "StageStart")
         self.assertEqual(click.call_args.args[0].name, "roomStart")
 
-    def test_mediator_stops_after_three_failed_target_clicks(self):
+    def test_mediator_realigns_after_three_failed_target_clicks(self):
         med = Mediator(Settings(stage_targets=["1-8"], auto_reputation=False), ROOT)
         med.set_phase(Phase.STAGE_SELECT)
         frame = self._live_20260814_frame()
@@ -241,12 +241,11 @@ class StageSelectorTests(unittest.TestCase):
         med._stage_target_name = "stage_target_1-8"
         med._stage_click_cooldown_until = 0.0
         med._stage_select_attempts = 3
-        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
-             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
-             patch.object(med, "act_click", return_value=True) as click:
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"),              patch.object(med, "_maybe_switch_to_archaeology", return_value=None),              patch.object(med, "act_click", return_value=True) as click:
             action = med._tick_l0(frame)
-        self.assertEqual(action, LoopAction.Break)
-        self.assertIs(med.phase, Phase.ERROR)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertIs(med.phase, Phase.STAGE_SELECT)
+        self.assertFalse(med._stage_selected)
         click.assert_not_called()
 
     def test_stage_settle_window_does_not_click_again(self):
@@ -326,21 +325,19 @@ class StageSelectorTests(unittest.TestCase):
         self.assertGreaterEqual(ry, 0.05)
         self.assertLessEqual(ry, 0.30)
 
-    def test_mediator_stops_after_two_failed_old_world_tab_switches(self):
-        """返工契约 2：连续 2 次切页后仍在团本分页 → 立即 Fail-Closed 停机，
-        禁止第三次点击（防 livelock 连点）。"""
+    def test_mediator_keeps_aligning_old_world_tab_after_legacy_cap(self):
         med = Mediator(Settings(stage_targets=["1-12"], auto_reputation=False), ROOT)
         med.set_phase(Phase.STAGE_SELECT)
         frame = self._raid_region_frame()
         med._last_frame = frame
-        med._old_world_switch_attempts = 4  # 已用满预算，仍检测到团本分页
-        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
-             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
-             patch.object(med, "act_click", return_value=True) as click:
+        med._old_world_switch_attempts = 4
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"),              patch.object(med, "_maybe_switch_to_archaeology", return_value=None),              patch.object(med, "act_click", return_value=True) as click:
             action = med._tick_l0(frame)
-        self.assertEqual(action, LoopAction.Break)
-        self.assertIs(med.phase, Phase.ERROR)
-        click.assert_not_called()
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertIs(med.phase, Phase.STAGE_SELECT)
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "SwitchOldWorldTab")
+        self.assertEqual(med._old_world_switch_attempts, 5)
 
     def test_mediator_switches_old_world_tab_before_scanning_stage_list(self):
         """缺陷 20260816_204613：团本分页进入 STAGE_SELECT 时必须先切页签，
@@ -373,6 +370,33 @@ class StageSelectorTests(unittest.TestCase):
         self.assertIsNone(med._stage_target_name)
         self.assertEqual(med._stage_scroll_attempts, 0)
         self.assertGreater(med._stage_scroll_cooldown_until, 0.0)
+
+    def test_stage_scroll_continues_beyond_legacy_cap_until_macro_timeout(self):
+        med = Mediator(Settings(stage_targets=["1-31"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = self._live_20260814_frame()
+        med._last_frame = frame
+        med._stage_scroll_attempts = 25
+        med._room_action_deadline = 10**12
+        result = MagicMock(success=True, message="")
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"),              patch.object(med, "_maybe_switch_to_archaeology", return_value=None),              patch.object(med, "_find_stage_target", return_value=None),              patch.object(med.executor, "scroll", return_value=result) as scroll:
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertIs(med.phase, Phase.STAGE_SELECT)
+        self.assertEqual(med._stage_scroll_attempts, 26)
+        scroll.assert_called_once()
+
+    def test_stage_alignment_uses_macro_timeout(self):
+        med = Mediator(Settings(stage_targets=["1-31"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = self._live_20260814_frame()
+        med._last_frame = frame
+        med._room_action_deadline = 0.0
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"),              patch.object(med, "_maybe_switch_to_archaeology", return_value=None),              patch.object(med, "act_click") as click:
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Break)
+        self.assertIs(med.phase, Phase.ERROR)
+        click.assert_not_called()
 
     # ---------- 选关页底栏直取开始游戏（CORE02-L0-STAGE-START-DIRECT-BUTTON） ----------
 

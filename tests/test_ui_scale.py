@@ -5,7 +5,7 @@
 2. _adapt_scales 把 ui_scale 邻域并入任意 scales 元组
 3. see() 每帧自动校准 _ui_scale
 4. ROOM_STARTING 超时但游戏窗口已出现 → 不回退 ROOM_WAITING（平台窗可能已关闭）
-5. ROOM_STARTING 超时且窗口不存在 → 回退 ROOM_WAITING（原有行为保持）
+5. ROOM_STARTING 窗口暂缺 → 宏观观察窗内继续等待，期限耗尽才回退 ROOM_WAITING
 """
 
 from __future__ import annotations
@@ -158,7 +158,7 @@ def _noise_frame() -> Frame:
 
 
 class RoomStartingNoFallbackTest(unittest.TestCase):
-    """ROOM_STARTING 超时的回退语义（acb1755）。"""
+    """ROOM_STARTING 使用宏观状态对齐期限，不因瞬时无窗口提前回退。"""
 
     def _med(self, clock: FakeClock, frame: Frame | None):
         stop_signal = StopSignal()
@@ -181,12 +181,31 @@ class RoomStartingNoFallbackTest(unittest.TestCase):
             # deadline 被重置，避免下一 tick 立即再次超时
             self.assertIsNotNone(med._room_action_deadline)
 
-    def test_window_missing_falls_back_to_room_waiting(self) -> None:
+    def test_window_missing_waits_within_macro_alignment_deadline(self) -> None:
         clock = FakeClock(start=100.0)
         med = self._med(clock, None)
         with clock.install():
             action = med.tick()
-            self.assertEqual(med.phase, Phase.ROOM_WAITING, "窗口不存在时仍回退房间等待")
+            self.assertEqual(
+                med.phase,
+                Phase.ROOM_STARTING,
+                "游戏窗口瞬时缺失时不得沿用旧 15s 动作预算提前回退",
+            )
+            self.assertIsNot(action, LoopAction.Break)
+            self.assertIsNotNone(med._room_start_deadline)
+            self.assertGreater(med._room_start_deadline, 100.0)
+
+    def test_window_missing_falls_back_after_macro_alignment_deadline(self) -> None:
+        clock = FakeClock(start=100.0)
+        med = self._med(clock, None)
+        med._room_start_deadline = 0.0
+        with clock.install():
+            action = med.tick()
+            self.assertEqual(
+                med.phase,
+                Phase.ROOM_WAITING,
+                "只有宏观 ROOM_STARTING 状态对齐期限耗尽才允许回退",
+            )
             self.assertIsNot(action, LoopAction.Break)
 
 
