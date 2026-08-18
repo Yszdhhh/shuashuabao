@@ -24,6 +24,9 @@
   },
 
   "treasure": {
+    "refresh_on_no_safe": false,
+    "_refresh_on_no_safe_note": "2026-08-18 113934 实测事故保护：无安全候选时最多 WAIT 重观察，不再盲目返回 REFRESH。执行层若识别不到刷新按钮，REFRESH 不会消耗预算，会形成每 tick 零输入死循环；因此 WAIT 耗尽后直接 GIVEUP/CLOSE。已识别的安全卡仍先走预设/套装/品质保底。",
+
     "negative_patterns": [
       "不再获得",
       "不再增长",

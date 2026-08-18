@@ -40,18 +40,27 @@ class ShadowClient:
         trace_path: str | Path | None = None,
         worker_command: Iterable[str] | None = None,
     ) -> None:
-        self.repo_root = Path(
+        raw_repo_root = Path(
             repo_root
             or os.environ.get("SHUABAO_OCR_REPO_ROOT")
             or os.environ.get("GAMESCRIPT_OCR_REPO_ROOT", "")
             or Path(__file__).resolve().parents[4]
-        )
-        self.model_dir = Path(
+        ).expanduser()
+        # The sidecar changes cwd to repo_root before importing shuabao.  Keep
+        # both cwd and PYTHONPATH absolute so a relative configured root cannot
+        # accidentally become <repo>/<repo>/src in the child process.
+        self.repo_root = raw_repo_root.resolve()
+        self.src_dir = (self.repo_root / "src").resolve()
+
+        raw_model_dir = Path(
             model_dir
             or os.environ.get("SHUABAO_OCR_MODEL_DIR")
             or os.environ.get("GAMESCRIPT_OCR_MODEL_DIR", "")
             or self.repo_root / "models" / "ocr"
-        )
+        ).expanduser()
+        if not raw_model_dir.is_absolute():
+            raw_model_dir = self.repo_root / raw_model_dir
+        self.model_dir = raw_model_dir.resolve()
         self.python_executable = _resolve_ocr_python(
             self.repo_root, python_executable
         )
@@ -81,6 +90,7 @@ class ShadowClient:
         self._trace_lock = threading.Lock()
         print(
             f"[ocr] configured worker={' '.join(self._command())} "
+            f"repo_root={self.repo_root} src_dir={self.src_dir} "
             f"model_dir={self.model_dir} python={self.python_executable} "
             f"python_exists={Path(self.python_executable).is_file()}",
             flush=True,
@@ -105,13 +115,32 @@ class ShadowClient:
             return False
         command = self._command()
         env = os.environ.copy()
-        src = str(self.repo_root / "src")
-        env["PYTHONPATH"] = src + os.pathsep + env.get("PYTHONPATH", "")
+        src = str(self.src_dir)
+        inherited_pythonpath = env.get("PYTHONPATH", "")
+        env["PYTHONPATH"] = (
+            src
+            if not inherited_pythonpath
+            else src + os.pathsep + inherited_pythonpath
+        )
         env["SHUABAO_OCR_MODEL_DIR"] = str(self.model_dir)
         env["SHUABAO_OCR_REPO_ROOT"] = str(self.repo_root)
         env["GAMESCRIPT_OCR_MODEL_DIR"] = str(self.model_dir)
         env["GAMESCRIPT_OCR_REPO_ROOT"] = str(self.repo_root)
         exe = command[0] if command else ""
+        if self.worker_command is None:
+            package_init = self.src_dir / "shuabao" / "__init__.py"
+            if not package_init.is_file():
+                self._note_spawn_failure(
+                    "spawn",
+                    command,
+                    detail=(
+                        "shuabao source package missing before worker start: "
+                        f"repo_root={self.repo_root} src_dir={self.src_dir} "
+                        f"expected={package_init}"
+                    ),
+                )
+                self._record_crash("spawn")
+                return False
         if exe and not Path(exe).is_file() and self.worker_command is None:
             self._note_spawn_failure(
                 "spawn",
@@ -228,7 +257,8 @@ class ShadowClient:
         self._announced = True
         reason = self._ready_reason or ("ok" if ready else "unknown")
         line = (
-            f"[ocr] worker={' '.join(command)} model_dir={self.model_dir} "
+            f"[ocr] worker={' '.join(command)} repo_root={self.repo_root} "
+            f"src_dir={self.src_dir} model_dir={self.model_dir} "
             f"ready={ready} reason={reason}"
         )
         if detail:
@@ -241,6 +271,7 @@ class ShadowClient:
                 "python_executable": self.python_executable,
                 "model_dir": str(self.model_dir),
                 "repo_root": str(self.repo_root),
+                "src_dir": str(self.src_dir),
                 "ready": ready,
                 "reason": reason,
                 "detail": detail[:800],
@@ -258,6 +289,7 @@ class ShadowClient:
                 "python_executable": self.python_executable,
                 "model_dir": str(self.model_dir),
                 "repo_root": str(self.repo_root),
+                "src_dir": str(self.src_dir),
                 "ready": False,
                 "reason": reason,
                 "detail": detail[:800],
