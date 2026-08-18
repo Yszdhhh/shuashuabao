@@ -1,15 +1,17 @@
 name: choice-liveness-runner
 
 on:
-  push:
+  pull_request:
+    types: [opened, synchronize, reopened]
     branches:
       - "work/choice-liveness-gated-20260818"
 
 permissions:
   contents: write
+  pull-requests: read
 
 concurrency:
-  group: choice-liveness-runner
+  group: choice-liveness-runner-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
