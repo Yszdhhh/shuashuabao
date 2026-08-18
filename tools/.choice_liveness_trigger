@@ -1,3 +1,3 @@
-trigger=20260818-choice-liveness-v3
+trigger=20260818-choice-liveness-v4
 base=77e42011084d25384c60c14557da97fb4aa81091
-reason=align-soft-default-regression-contract
+reason=use-literal-soft-in-regression-test
