@@ -1,3 +1,3 @@
-trigger=20260818-state-alignment-v13
+trigger=20260818-state-alignment-v14
 base=ab4242fb13ddb66355093fbd4748e23133e974ab
-reason=guarded-platform-signal-regression
+reason=fully-gated-runtime-l0-l1-docs-delivery
