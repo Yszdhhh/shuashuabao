@@ -39,11 +39,13 @@ jobs:
         run: |
           Copy-Item tools/_apply_choice_liveness_refactor.py "$env:RUNNER_TEMP/apply_choice.py"
           Copy-Item tools/_apply_choice_liveness_contract_updates.py "$env:RUNNER_TEMP/apply_choice_contracts.py"
+          Copy-Item tools/_apply_choice_liveness_live_run_updates.py "$env:RUNNER_TEMP/apply_choice_live_run.py"
           git reset --hard 77e42011084d25384c60c14557da97fb4aa81091
           git clean -fdx
           New-Item -ItemType Directory -Force tools | Out-Null
           Copy-Item "$env:RUNNER_TEMP/apply_choice.py" tools/_ci_apply_choice.py
           Copy-Item "$env:RUNNER_TEMP/apply_choice_contracts.py" tools/_ci_apply_choice_contracts.py
+          Copy-Item "$env:RUNNER_TEMP/apply_choice_live_run.py" tools/_ci_apply_choice_live_run.py
           git config user.name "openai-choice-liveness-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
@@ -54,15 +56,17 @@ jobs:
           python -m pip install -r requirements.txt pytest
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Apply choice liveness repair and aligned contracts
+      - name: Apply choice liveness repair and aligned regressions
         run: |
           python tools/_ci_apply_choice.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python tools/_ci_apply_choice_contracts.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/_ci_apply_choice_live_run.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m compileall -q src tests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python -m pytest tests/test_choice_liveness_20260818.py tests/test_choice_policy.py tests/test_settings.py tests/test_s0_safety_state_machine.py tests/test_l1_cycle_recheck_merchant.py tests/test_collectible_close_alignment.py tests/contract/test_choice_policy_wiring_contract.py tests/contract/test_choice_semantics_contract.py -q --tb=short
+          python -m pytest tests/test_choice_liveness_20260818.py tests/test_choice_policy.py tests/test_settings.py tests/test_s0_safety_state_machine.py tests/test_l1_cycle_recheck_merchant.py tests/test_collectible_close_alignment.py tests/test_live_run_205044_regressions.py tests/contract/test_choice_policy_wiring_contract.py tests/contract/test_choice_semantics_contract.py -q --tb=short
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           git diff --check
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -72,14 +76,14 @@ jobs:
           python tools/release_gate.py
           $gate = $LASTEXITCODE
           if ($gate -ne 0) {
-            Write-Host "release_gate failed; revealing remaining bond/whitelist regressions"
-            python -m pytest tests -q --tb=short -k "bond or whitelist"
+            Write-Host "release_gate failed; revealing all remaining pytest failures"
+            python -m pytest tests -q --tb=short
             exit $gate
           }
 
       - name: Commit L1 choice liveness repair
         run: |
-          git add src/shuabao/choice_policy.py src/shuabao/mediator.py src/shuabao/settings.py config/default_settings.json config/choice_policy.json tests/test_choice_liveness_20260818.py tests/test_choice_policy.py tests/contract/test_choice_policy_wiring_contract.py tests/contract/test_choice_semantics_contract.py
+          git add src/shuabao/choice_policy.py src/shuabao/mediator.py src/shuabao/settings.py config/default_settings.json config/choice_policy.json tests/test_choice_liveness_20260818.py tests/test_choice_policy.py tests/test_live_run_205044_regressions.py tests/contract/test_choice_policy_wiring_contract.py tests/contract/test_choice_semantics_contract.py
           git commit -m "fix(l1): keep choice panels progressing under live input"
 
       - name: Record live-test incident and revalidation scope
@@ -122,6 +126,7 @@ jobs:
         run: |
           Remove-Item tools/_ci_apply_choice.py -ErrorAction SilentlyContinue
           Remove-Item tools/_ci_apply_choice_contracts.py -ErrorAction SilentlyContinue
+          Remove-Item tools/_ci_apply_choice_live_run.py -ErrorAction SilentlyContinue
           $dirty = git status --porcelain
           if ($dirty) { throw "Unexpected dirty tree before publish: $dirty" }
           git log --oneline --decorate -6
