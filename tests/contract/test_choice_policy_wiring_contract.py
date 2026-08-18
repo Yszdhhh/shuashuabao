@@ -40,9 +40,9 @@ class A2SkillRarityReason(unittest.TestCase):
     def test_ocr_skill_select_logs_rarity_first_reason(self):
         med = Mediator(Settings(skills=["asj", "jq"]), ROOT)
         slots = [
-            {"index": 0, "name": "剑气", "confidence": 0.99, "raw_text": "剑气", "rarity": "blue"},
-            {"index": 1, "name": "奥数箭", "confidence": 0.99, "raw_text": "奥数箭", "rarity": "orange"},
-            {"index": 2, "name": "陨石", "confidence": 0.99, "raw_text": "陨石", "rarity": "red"},
+            {"index": 0, "name": "剑气", "confidence": 0.99, "raw_text": "剑气", "rarity": "blue", "family_source": "badge"},
+            {"index": 1, "name": "奥数箭", "confidence": 0.99, "raw_text": "奥数箭", "rarity": "orange", "family_source": "badge"},
+            {"index": 2, "name": "陨石", "confidence": 0.99, "raw_text": "陨石", "rarity": "red", "family_source": "badge"},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=slots), \
                 patch.object(med, "_slot_rarity_band", side_effect=lambda *_a, **_k: None):

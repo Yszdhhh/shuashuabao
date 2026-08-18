@@ -2094,10 +2094,18 @@ class Mediator:
             if decision.index is None:
                 return None
             name = None
+            selected_slot = None
             for slot in slots:
                 if slot.index == decision.index:
+                    selected_slot = slot
                     name = slot.name
                     break
+            if kind == "skill" and selected_slot is not None:
+                source = getattr(selected_slot, "family_source", "unknown")
+                if source != "badge" and not getattr(self.settings, "_test_allow_legacy_name_authority", False):
+                    self._choice_policy_idle = True
+                    print(f"[L1] 选卡策略：槽位 {decision.index} family_source={source} 无 LIVE 点击权限，拒绝输入")
+                    return None
             if kind == "skill" and name:
                 # Prefer skill short-code for downstream cycle ownership checks.
                 reverse = {v: k for k, v in self._skill_labels.items()}
@@ -2805,6 +2813,7 @@ class Mediator:
             )
             if pill:
                 if now >= self._devour_dan_next_at and self._devour_dan_consecutive_clicks < 5:
+                    baseline_occ = getattr(self, "_bond_bar_occupancy", lambda f: None)(frame)
                     if self.act_click(pill, "UseInventory-swallow_pill"):
                         self._devour_dan_next_at = now + 1.0
                         self._devour_dan_consecutive_clicks += 1
@@ -2813,10 +2822,10 @@ class Mediator:
                             kind="WAIT_DEVOUR_DAN",
                             target_id="danGif",
                             deadline=now + 2.0,
-                            verifier=lambda f: verify_inventory_item_consumed(
-                                current_count=None,
-                                baseline_count=None,
-                                occupied_bonds_decreased=not self._bond_bar_nonempty(f),
+                            verifier=lambda f: bool(
+                                (baseline_occ is not None and getattr(self, "_bond_bar_occupancy", lambda _: None)(f) is not None and getattr(self, "_bond_bar_occupancy", lambda _: None)(f) < baseline_occ)
+                                or (not self._bond_bar_nonempty(f))
+                                or (self.find(f, ["danGif"], threshold=0.55, scales=self._hot_scales(), roi=(0.64, 0.77, 0.74, 0.98)) is None)
                             ),
                         )
                         return LoopAction.Continue

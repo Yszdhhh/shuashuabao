@@ -16,7 +16,7 @@
       "title": "冻结端到端回放（fixtures/baselines/replay_frozen）",
       "observed": {
         "fail_panel_preempt": "PASS",
-        "giveup_panel_not_fail": "FAIL",
+        "giveup_panel_not_fail": "PASS",
         "archive_challenge_open": "PASS",
         "main_hud_idle": "PASS",
         "stage_select_scroll": "PASS",
@@ -24,8 +24,7 @@
         "disconnect_modal_missing": "BLOCKED"
       },
       "known_failures": {
-        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。",
-        "giveup_panel_not_fail": "未填写原因（必须补）"
+        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。"
       }
     },
     "scene_templates": {

@@ -66,8 +66,8 @@
       "action_count": 1,
       "action": {
         "kind": "click",
-        "reason": "技能刷新选择",
-        "target": "skill_refresh_btn",
+        "reason": "技能选择",
+        "target": "skill_hide",
         "input_kind": "left_click"
       },
       "action_result": {

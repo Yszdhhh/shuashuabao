@@ -99,9 +99,9 @@ def stage_frozen_replay() -> StageResult:
     return StageResult(
         name="frozen_replay",
         title="冻结端到端回放（fixtures/baselines/replay_frozen）",
-        status="PASS" if scenes else "FAIL",
+        status="PASS" if code == 0 and scenes else "FAIL",
         observed=scenes,
-        detail="" if scenes else f"无法解析场景汇总（exit={code}）",
+        detail="" if code == 0 and scenes else f"回放存在失败或无法解析（exit={code}）",
         duration_s=time.time() - started,
     )
 

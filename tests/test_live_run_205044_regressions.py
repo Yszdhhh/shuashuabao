@@ -53,14 +53,14 @@ class LiveRun205044Tests(unittest.TestCase):
     def test_skill_ocr_never_authorizes_nonconfigured_same_icon(self) -> None:
         med = Mediator(Settings(skills=["assx"]), ROOT)
         slots = [
-            {"index": 0, "name": "电磁网", "confidence": 0.99, "raw_text": "电磁网"},
-            {"index": 1, "name": "重创", "confidence": 0.99, "raw_text": "重创"},
-            {"index": 2, "name": None, "confidence": 0.0, "raw_text": "多重射线"},
+            {"index": 0, "name": "电磁网", "confidence": 0.99, "raw_text": "电磁网", "family_source": "badge"},
+            {"index": 1, "name": "重创", "confidence": 0.99, "raw_text": "重创", "family_source": "badge"},
+            {"index": 2, "name": None, "confidence": 0.0, "raw_text": "多重射线", "family_source": "badge"},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=slots):
             self.assertIsNone(med._ocr_reward_choice(frame(), "skill"))
 
-        slots[2] = {"index": 2, "name": "奥数射线", "confidence": 0.99, "raw_text": "奥数射线"}
+        slots[2] = {"index": 2, "name": "奥数射线", "confidence": 0.99, "raw_text": "奥数射线", "family_source": "badge"}
         with patch.object(med, "_ocr_panel_slots", return_value=slots):
             hit = med._ocr_reward_choice(frame(), "skill")
         self.assertIsNotNone(hit)
