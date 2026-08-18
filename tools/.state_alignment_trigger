@@ -1,3 +1,3 @@
-trigger=20260818-state-alignment-v15
+trigger=20260818-state-alignment-v16
 base=ab4242fb13ddb66355093fbd4748e23133e974ab
-reason=rerun-after-l1-newline-normalization
+reason=diagnose-final-handoff-pytest-mismatch
