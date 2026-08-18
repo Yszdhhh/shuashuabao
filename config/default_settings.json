@@ -79,5 +79,10 @@
     900
   ],
   "images_dir": "assets/Images",
-  "dry_run": false
+  "dry_run": false,
+  "bond_whitelist_mode": "soft",
+  "bond_must_take": [
+    "祝福"
+  ],
+  "panel_reopen_cooldown_s": 12.0
 }

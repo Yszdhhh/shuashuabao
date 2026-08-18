@@ -2,7 +2,7 @@
 
 不改 test_choice_semantics_contract.py；本文件只锁 mediator 接线行为：
 - 技能预设稀有度优先理由可见
-- 羁绊硬禁用切断品质色/第一张旁路
+- 羁绊显式 hard 时切断品质色/第一张旁路；默认 soft 由语义契约覆盖
 - 宝物负面名单拦截（名字即可，描述可空）
 - RARITY_BANDS 含 green
 """
@@ -52,9 +52,9 @@ class A2SkillRarityReason(unittest.TestCase):
         self.assertIn("稀有度优先", med._choice_policy_last_reason)
 
 
-class A3BondHardDisableCutsBypass(unittest.TestCase):
+class A3ExplicitBondHardDisableCutsBypass(unittest.TestCase):
     def test_unlisted_bond_never_uses_rarity_or_fallback(self):
-        med = Mediator(Settings(ocr_mode="live", cards=[]), ROOT)
+        med = Mediator(Settings(ocr_mode="live", cards=[], bond_whitelist_mode="hard"), ROOT)
         slots = [
             {"index": 0, "name": "海盗", "confidence": 0.99, "raw_text": "海盗"},
             {"index": 1, "name": "亡灵", "confidence": 0.99, "raw_text": "亡灵"},

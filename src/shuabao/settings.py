@@ -97,6 +97,9 @@ class Settings:
     sgzx_boss: str = ""
     skills: list[str] = field(default_factory=lambda: ["jq", "pg"])
     cards: list[str] = field(default_factory=list)
+    # 羁绊长程默认 soft；祝福为系统必拿，即使旧 UI/旧配置没有单独勾选。
+    bond_whitelist_mode: str = "soft"
+    bond_must_take: list[str] = field(default_factory=lambda: ["祝福"])
     # 负面宝物放行名单（拿了会断资源/断成长的卡，默认一张都不选）。
     # 面板『宝物 · 负面卡』折叠区逐张打勾后写入；放行是逐卡的，不是全局开关。
     # 语义与判定见 config/choice_policy.json 与 shuabao.choice_policy。
@@ -137,6 +140,7 @@ class Settings:
     failure_streak_limit: int = 3       # 连续不成功局上限（FAILURE/TIMEOUT/DISCONNECT 均累计）
     panel_visible_timeout_s: float = 2.0    # 主动打开面板的可见确认窗
     ui_action_interval_s: float = 1.5       # UI-changing 输入最小间隔
+    panel_reopen_cooldown_s: float = 12.0   # 物理隐藏确认后，同类 G/F/V 主动重开冷却（10..15s）
     challenge_recheck_interval_s: float = 30.0  # 四挑战 ON 的周期复查间隔（钳制 5..300s）
     panel_action_limit_per_fingerprint: int = 3  # 同 fingerprint 同动作上限
     panel_episode_limit_per_kind: int = 5       # 每局每类面板会话上限
@@ -208,14 +212,14 @@ class Settings:
                     if k in ("room_name", "room_password", "cjb_boss", "sgzx_boss",
                              "reputation_cjb_boss", "reputation_sgzx_boss", "window_title_contains"):
                         clean[k] = ""
-                    elif k in ("skills", "cards", "stage_targets", "treasure_allow_negative"):
+                    elif k in ("skills", "cards", "stage_targets", "treasure_allow_negative", "bond_must_take"):
                         clean[k] = []
         # 2. 字符串字段防护：仅在 fallback 模式防护（仅接受 str）；无 fallback 精确保持 32633f4 原样
         str_fields = {
             "room_name", "room_password", "room_create_side",
             "reputation_cjb_boss", "reputation_sgzx_boss",
             "cjb_boss", "sgzx_boss", "window_title_contains",
-            "ocr_repo_root", "images_dir",
+            "ocr_repo_root", "images_dir", "bond_whitelist_mode",
         }
         if fallback is not None:
             for k in str_fields:
@@ -238,7 +242,7 @@ class Settings:
         }
         float_fields = {
             "recovery_retry_interval_s", "panel_visible_timeout_s",
-            "ui_action_interval_s", "incident_sample_rate",
+            "ui_action_interval_s", "panel_reopen_cooldown_s", "incident_sample_rate",
             "challenge_recheck_interval_s",
         }
         for k in float_fields:
@@ -327,6 +331,7 @@ class Settings:
             "recovery_retry_interval_s": (0.5, 30.0),
             "panel_visible_timeout_s": (0.5, 10.0),
             "ui_action_interval_s": (0.5, 10.0),
+            "panel_reopen_cooldown_s": (10.0, 15.0),
             "incident_sample_rate": (0.0, 1.0),
             "challenge_recheck_interval_s": (5.0, 300.0),
         }
@@ -355,6 +360,22 @@ class Settings:
                 clean.pop("skills")
             else:
                 clean["skills"] = []
+        # 羁绊系统必拿扩展：用户列表只能追加，不能移除系统默认“祝福”。
+        if "bond_must_take" in clean:
+            raw_bond_must = clean["bond_must_take"]
+            if isinstance(raw_bond_must, (list, tuple)):
+                items = [str(v).strip() for v in raw_bond_must if str(v).strip()]
+                clean["bond_must_take"] = list(dict.fromkeys(["祝福", *items]))
+            elif fallback is not None:
+                clean.pop("bond_must_take")
+            else:
+                clean["bond_must_take"] = ["祝福"]
+        if "bond_whitelist_mode" in clean:
+            mode = str(clean["bond_whitelist_mode"]).strip().lower()
+            if mode in {"soft", "hard"}:
+                clean["bond_whitelist_mode"] = mode
+            else:
+                clean.pop("bond_whitelist_mode")
         # 负面宝物放行名单：只接受字符串列表；类型不对一律回落为空（不放行任何负面卡）。
         if "treasure_allow_negative" in clean:
             raw_allow = clean["treasure_allow_negative"]

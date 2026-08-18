@@ -89,17 +89,20 @@ MAX_SYNTHESIS_GAP = 2
 DEFAULT_QUALITY_ORDER = ("red", "orange", "purple", "blue", "white", "green")
 
 # 羁绊/卡牌白名单语义：
-#   "hard" —— 未勾选（不在 presets 内）一律不可选；三槽全未勾选 → 刷新/放弃/隐藏，
-#             宁可不拿也不乱拿。用户 2026-08-12 明确要求（"海盗都明确 ban 了还是每次拿"）。
-#   "soft" —— 旧行为：预设未命中时仍按套装进度/品质兜底挑一张。
+#   "hard" —— 用户显式要求时仍可禁止预设外羁绊；系统必拿特权不受其影响。
+#   "soft" —— 长程默认：预设未命中时按套装进度/品质兜底，避免三张都隐藏空手而归。
 WHITELIST_HARD = "hard"
 WHITELIST_SOFT = "soft"
 VALID_WHITELIST_MODES = frozenset({WHITELIST_HARD, WHITELIST_SOFT})
 
-# 技能面板恒定严格：只允许已配置焦点系/卡（skill_focus_families 展开 ∪
-# skill_presets），未配置一律不可选；宁可不拿也不乱拿（用户 2026-08-17 确认：
-# 技能至多 4 个、无 all_round 全能档）。两字段均空 = 显式零勾选 → CLOSE；
-# 非空 → 只过滤焦点集再按 skill_catalog 排序（前置/链条/存档/稀有度）。
+# 真机 2026-08-16 长程证据：祝福即使没有在前端单独勾选也应直接拿。
+# 子串匹配覆盖「祝福」「祝福1级/2级/3级」等规范化结果；运行时装配会把
+# 这条系统特权与配置合并，因此即使旧配置缺字段也不会丢失。
+DEFAULT_BOND_MUST_TAKE = ("祝福",)
+
+# 前四个独立技能系尚未占满时允许从“已入库且 legal”的通用技能池补位；
+# 四系已满后恢复严格焦点/预设升级，避免前期因神技未刷出而长期空技能槽。
+DEFAULT_SKILL_SLOT_CAP = 4
 
 # 必拿宝物缺省名单 = 旧版硬编码的「全能宝物」子串特权（2026-08-13 前行为：
 # 名字含「全都要」或「卡牌大师」即无视预设秒选）。策略配置缺省时原样保留，
@@ -233,8 +236,10 @@ class PolicySettings:
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
     min_confidence: float = 0.0   # 可点击下限；低于该置信度的槽位不可选
-    # 羁绊/卡牌白名单语义（默认硬禁用：未勾选一律不选）。
-    bond_whitelist_mode: str = WHITELIST_HARD
+    # 羁绊/卡牌白名单语义：长程默认 soft，预设 miss 仍可安全降级。
+    bond_whitelist_mode: str = WHITELIST_SOFT
+    # 系统必拿羁绊；默认祝福，运行时会与配置做不可删除的并集。
+    bond_must_take: tuple[str, ...] = DEFAULT_BOND_MUST_TAKE
     # 宝物负面描述模式；命中即视为负面。
     treasure_negative_patterns: tuple[str, ...] = DEFAULT_NEGATIVE_PATTERNS
     # 已确认的负面宝物名单（与描述判定并存，互为冗余）。
@@ -246,6 +251,9 @@ class PolicySettings:
     allow_skill_giveup: bool = False
     # 焦点技能系（原始勾选的主技能中文名，配置顺序即用户意图）。
     skill_focus_families: tuple[str, ...] = ()
+    # 前四个独立技能系未占满时，允许目录内合法的新技能系做通用补位。
+    # 直接构造默认 False 以保持纯函数旧调用兼容；运行时配置默认开启。
+    skill_fill_empty_slots: bool = False
     # 各系存档等级（不可变 (名称, 等级) 对；由 skill_catalog 消费，用于
     # 前置豁免 / 减伤核实 / 进池门槛）。空 = 未知，走最保守排序，绝不放宽。
     skill_archive_levels: tuple[tuple[str, int], ...] = ()
@@ -282,6 +290,7 @@ class PolicySettings:
         neg = raw.get("treasure_negative_patterns")
         neg_names = raw.get("treasure_negative_names")
         must_take = raw.get("treasure_must_take")
+        bond_must_take = raw.get("bond_must_take")
         habit_raw = raw.get("habit_name_scores") or {}
         if isinstance(habit_raw, Mapping):
             habit_scores = tuple(
@@ -301,7 +310,11 @@ class PolicySettings:
                 tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER
             ),
             min_confidence=0.0 if min_conf is None else float(min_conf),
-            bond_whitelist_mode=WHITELIST_HARD if bond_mode is None else str(bond_mode),
+            bond_whitelist_mode=WHITELIST_SOFT if bond_mode is None else str(bond_mode),
+            bond_must_take=tuple(dict.fromkeys(
+                DEFAULT_BOND_MUST_TAKE
+                + tuple(str(s) for s in (bond_must_take or ()))
+            )),
             treasure_negative_patterns=(
                 tuple(str(s) for s in neg)
                 if neg is not None
@@ -320,6 +333,7 @@ class PolicySettings:
             skill_focus_families=tuple(
                 str(s) for s in (raw.get("skill_focus_families") or ())
             ),
+            skill_fill_empty_slots=bool(raw.get("skill_fill_empty_slots", False)),
             skill_archive_levels=normalize_archive_levels(
                 raw.get("skill_archive_levels")
             ),
@@ -363,6 +377,7 @@ def assemble_policy_settings(
     时两字段均空 → 面板直接 CLOSE（不刷新/不放弃）。
     """
     raw = dict(policy_doc or {})
+    skill_cfg = raw.get("skill") if isinstance(raw.get("skill"), Mapping) else {}
     bond_cfg = raw.get("bond") if isinstance(raw.get("bond"), Mapping) else {}
     treasure_cfg = raw.get("treasure") if isinstance(raw.get("treasure"), Mapping) else {}
 
@@ -392,12 +407,21 @@ def assemble_policy_settings(
         {
             "skill_presets": expand_skill_preset_names(tuple(skill_families)),
             "skill_focus_families": tuple(skill_families),
+            "skill_fill_empty_slots": bool(skill_cfg.get("fill_empty_slots", True)),
             "skill_archive_levels": getattr(settings, "skill_archive_levels", None),
             "bond_presets": tuple(bond_presets),
             "treasure_presets": (),
             "quality_order": raw.get("quality_order"),
             "min_confidence": 0.60 if min_conf is None else min_conf,
-            "bond_whitelist_mode": bond_cfg.get("whitelist_mode", WHITELIST_HARD),
+            "bond_whitelist_mode": (
+                getattr(settings, "bond_whitelist_mode", None)
+                or bond_cfg.get("whitelist_mode", WHITELIST_SOFT)
+            ),
+            "bond_must_take": tuple(dict.fromkeys(
+                DEFAULT_BOND_MUST_TAKE
+                + tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
+                + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
+            )),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
             "treasure_negative_names": treasure_cfg.get("negative_names"),
             "treasure_must_take": treasure_cfg.get("must_take_names"),
@@ -815,6 +839,50 @@ def _rank_skill_candidates(
     return [int(entry[5]) for entry in ranked]
 
 
+def _rank_skill_fill_candidates(
+    slots: tuple[SlotCandidate, ...],
+    settings: PolicySettings,
+    owned: tuple[str, ...],
+) -> list[int]:
+    """Rank safe *new-family* skills used only while fewer than four families exist.
+
+    This fallback is deliberately narrower than "click any readable text": a card must
+    exist in the verified skill catalog, pass the normal legality checks, and belong
+    to a family not already confirmed in this round.  It therefore fills empty skill
+    slots without turning OCR uncertainty into click authority.
+    """
+    owned_set = owned_families(owned)
+    if len(owned_set) >= DEFAULT_SKILL_SLOT_CAP:
+        return []
+    ranked: list[tuple[int, int, int, int, int]] = []
+    for slot in slots:
+        if not slot.name or slot.confidence < settings.min_confidence:
+            continue
+        card = lookup_card(slot.name)
+        if card is None:
+            continue
+        fam = canonical_family(str(card.get("family") or "")) or family_of(slot.name)
+        if not fam or fam in owned_set:
+            continue
+        if not is_skill_choice_legal(slot.name, owned):
+            continue
+        level = slot.skill_level
+        if level is None and slot.card_fact is not None:
+            level = getattr(slot.card_fact, "skill_level", None)
+        new_flag = bool(slot.is_new or (slot.card_fact and getattr(slot.card_fact, "is_new", False)))
+        ranked.append(
+            (
+                _skill_effective_rarity_rank(slot, settings),
+                skill_chain_rank(slot.name, owned, settings.skill_archive_levels),
+                0 if new_flag else 1,
+                -int(level or 0),
+                int(slot.index),
+            )
+        )
+    ranked.sort()
+    return [entry[4] for entry in ranked]
+
+
 def _decide_skill(
     cands: PanelCandidates, state: SessionState, settings: PolicySettings
 ) -> PolicyDecision:
@@ -827,6 +895,20 @@ def _decide_skill(
             index,
             f"技能严格命中（前置/存档/稀有度优先）：{name}/{rarity} @ slot {index}",
         )
+    owned_family_count = len(owned_families(cands.owned_skill_cards))
+    if settings.skill_fill_empty_slots and owned_family_count < DEFAULT_SKILL_SLOT_CAP:
+        fill_ranked = _rank_skill_fill_candidates(
+            cands.slots, settings, cands.owned_skill_cards
+        )
+        if fill_ranked:
+            index = fill_ranked[0]
+            name = _slot_name(cands.slots, index)
+            rarity = _slot_rarity(cands.slots, index) or "未知品质"
+            return PolicyDecision.select(
+                index,
+                f"技能槽未满（{owned_family_count}/{DEFAULT_SKILL_SLOT_CAP}），"
+                f"通用安全补位：{name}/{rarity} @ slot {index}",
+            )
     unread = _all_skill_names_missing(cands.slots)
     stale = _refresh_unchanged(state, cands.slots)
     max_skill_waits = min(state.max_waits, 2)
@@ -886,6 +968,17 @@ def _decide_collectible(
                 )
     else:
         eligible = cands.slots
+        if kind == PANEL_BOND:
+            # 系统必拿优先于 whitelist；"祝福" 子串覆盖祝福1/2/3级。
+            for slot in eligible:
+                if (
+                    slot.confidence >= settings.min_confidence
+                    and _is_must_take(slot.name, settings.bond_must_take)
+                ):
+                    return PolicyDecision.select(
+                        slot.index,
+                        f"羁绊系统必拿【{slot.name}】 @ slot {slot.index}",
+                    )
     preset_hit = _match_preset(
         eligible, presets, settings.min_confidence,
         quality_order=settings.quality_order,

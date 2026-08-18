@@ -1305,7 +1305,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
         )
         self.assertEqual(ps.min_confidence, 0.60)
         self.assertEqual(ps.quality_order, DEFAULT_QUALITY_ORDER)
-        self.assertEqual(ps.bond_whitelist_mode, WHITELIST_HARD)
+        self.assertEqual(ps.bond_whitelist_mode, "soft")
         self.assertEqual(ps.treasure_must_take, DEFAULT_TREASURE_MUST_TAKE)
         self.assertFalse(ps.allow_skill_giveup)
         self.assertEqual(ps.treasure_presets, ())

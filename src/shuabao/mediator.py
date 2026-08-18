@@ -612,6 +612,10 @@ class Mediator:
         self._panel_cooldown_until: dict[str, float] = {}
         self._panel_fingerprint: tuple | None = None
         self._panel_fingerprint_attempts = 0
+        # SendInput accepted != card consumed.  Track the semantic action until
+        # WAIT_MUTATION proves a panel mutation/disappearance.
+        self._panel_pending_choice_action: str | None = None  # select/close/refresh
+        self._panel_pending_choice_fingerprint: tuple | None = None
         self._panel_f1_used_this_episode = False
         # P0-3（215302）：自然面板进入需同类型锚点连续 2 帧（或单帧 ≥0.85）。
         # 跨 tick 保留上一帧锚点类型；类型漂移/锚点消失即重置，防单帧贴阈值
@@ -2619,6 +2623,14 @@ class Mediator:
         # Determine target step: explicit _choice_target override, or current _l1_cycle_step with fallback when earlier stages are on cooldown
         target = getattr(self, "_choice_target", None)
         target = target or self._l1_cycle_step
+        if target in ("skill", "bond", "treasure"):
+            reopen_at = self._panel_cooldown_until.get(target, 0.0)
+            if now < reopen_at:
+                remaining = reopen_at - now
+                print(f"[L1] {target} 物理隐藏后主动重开冷却中（剩余 {remaining:.1f}s）")
+                if target == self._l1_cycle_step:
+                    self._advance_l1_cycle(target)
+                return LoopAction.Continue
 
         # 技能 G：核心，持续到无可选项后才进入羁绊。
         if target == "skill":
@@ -5897,12 +5909,58 @@ class Mediator:
             return opened
         return self._classify_choice_panel(frame) or "unknown"
 
+    @staticmethod
+    def _panel_choice_action_kind(hit_name: str | None) -> str:
+        text = str(hit_name or "").lower()
+        if "refresh" in text:
+            return "refresh"
+        if any(token in text for token in ("hide", "close", "giveup")):
+            return "close"
+        return "select"
+
+    def _arm_panel_reopen_cooldown(self, kind: str | None, now: float) -> None:
+        if kind not in ("skill", "bond", "treasure"):
+            return
+        delay = max(10.0, min(15.0, float(getattr(self.settings, "panel_reopen_cooldown_s", 12.0))))
+        self._panel_cooldown_until[kind] = max(
+            self._panel_cooldown_until.get(kind, 0.0), now + delay
+        )
+
+    def _stage_panel_choice_action(self, action: str, fingerprint: tuple | None) -> None:
+        self._panel_pending_choice_action = action
+        self._panel_pending_choice_fingerprint = fingerprint
+
+    def _confirm_panel_choice_action(self, now: float) -> None:
+        action = self._panel_pending_choice_action
+        if action == "select":
+            if (
+                self._l1_cycle_owned_panel
+                and self._panel_kind == self._l1_cycle_step
+                and self._panel_kind in ("skill", "bond", "treasure")
+            ):
+                self._l1_cycle_selected = True
+            if self._panel_kind == "skill":
+                # Only a *confirmed* skill selection may bypass normal reopen cadence.
+                self._last_skill_panel = 0.0
+        elif action == "close":
+            self._arm_panel_reopen_cooldown(self._panel_kind, now)
+        self._panel_pending_choice_action = None
+        self._panel_pending_choice_fingerprint = None
+
+    def _expire_panel_choice_action(self) -> str | None:
+        action = self._panel_pending_choice_action
+        self._panel_pending_choice_action = None
+        self._panel_pending_choice_fingerprint = None
+        return action
+
     def _enter_panel_episode(self, frame: Frame, anchor: MatchResult, kind: str, opened: bool) -> None:
         """进入 ACTIVE 会话：记录 kind/指纹起点；主动打开的面板计 episode 数。"""
         self._panel_state = PanelState.ACTIVE
         self._panel_kind = kind
         self._panel_episode_started = time.time()
         self._panel_mutation_baseline = None
+        self._panel_pending_choice_action = None
+        self._panel_pending_choice_fingerprint = None
         self._panel_f1_used_this_episode = False
         self._clear_pending_skill_cards()
         self._reset_choice_session()
@@ -5919,6 +5977,8 @@ class Mediator:
         self._panel_mutation_baseline = None
         self._panel_fingerprint = None
         self._panel_fingerprint_attempts = 0
+        self._panel_pending_choice_action = None
+        self._panel_pending_choice_fingerprint = None
         self._panel_opened_by_us = None
         self._panel_anchor_candidate = None
         self._selection_repeat_key = None
@@ -6085,24 +6145,11 @@ class Mediator:
                 if clicked:
                     # 成功执行的选卡/刷新/放弃/关闭动作才计入尝试预算（WAIT/被拒不加）。
                     self._bump_choice_attempts()
-                    # 技能选卡点击成功 → 暂存卡名，等 WAIT_MUTATION 确认后才计入已学
-                    # （刷新/放弃/关闭/隐藏不算选卡；未确认点击超时只清暂存不记账）。
-                    if kind == "技能" and self._is_skill_card_click(hit.name):
+                    action_kind = self._panel_choice_action_kind(hit.name)
+                    self._stage_panel_choice_action(action_kind, fingerprint)
+                    # 技能选卡点击成功只暂存；必须等 mutation/面板消失后才记为已学。
+                    if action_kind == "select" and kind == "技能" and self._is_skill_card_click(hit.name):
                         self._stage_skill_card(hit.name)
-                    if (
-                        self._l1_cycle_owned_panel
-                        and self._panel_kind == self._l1_cycle_step
-                        and "refresh" not in hit.name.lower()
-                            and "giveup" not in hit.name.lower()
-                            and "close" not in hit.name.lower()
-                            and "hide" not in hit.name.lower()
-                        and (
-                            self._panel_kind != "skill"
-                            or Path(hit.name).stem
-                            in {Path(name).stem for name in self.settings.skills}
-                        )
-                    ):
-                        self._l1_cycle_selected = True
                     self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
                     self._panel_last_input_at = now
                     self._panel_mutation_baseline = self._panel_roi_region(frame)
@@ -6120,9 +6167,8 @@ class Mediator:
                             )
                         self._panel_opened_by_us = "skill" if kind == "skill" else None
                     else:
-                        if kind == "技能":
-                            # 配置技能成功后立即再开 G，直到没有可学点数。
-                            self._last_skill_panel = 0.0
+                        # Selection success is not known yet; WAIT_MUTATION owns
+                        # both cycle success and the fast skill reopen permission.
                         self._panel_opened_by_us = None
                 self._selection_unknown_attempts = 0
                 self._selection_unknown_since = None
@@ -6162,6 +6208,7 @@ class Mediator:
                 print(f"[L1] 面板无法匹配卡牌，点击关闭 {close_hit.name} ({close_reason})")
                 if self.act_click(close_hit, close_reason):
                     self._bump_choice_attempts()
+                    self._stage_panel_choice_action("close", (self._panel_kind, close_hit.name))
                     self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
                     self._panel_state = PanelState.WAIT_MUTATION
                     self._panel_mutation_baseline = self._panel_roi_region(frame)
@@ -6180,22 +6227,32 @@ class Mediator:
 
         if st == PanelState.WAIT_MUTATION:
             if anchor is None:
-                # 面板已关闭：episode 完成；已点技能卡视为确认学得。
+                # 面板消失是最强消费/关闭证据；此时才确认 semantic action。
+                self._confirm_panel_choice_action(now)
                 self._commit_pending_skill_cards()
                 self._finish_panel_episode()
                 return LoopAction.Continue
             if self._panel_mutation_confirmed(frame):
-                # 内容变化（刷新/新候选/选卡生效）：确认学得，回到 ACTIVE 继续
+                # 内容变化（新候选/选卡消费/关闭过渡）后才确认成功。
+                self._confirm_panel_choice_action(now)
                 self._commit_pending_skill_cards()
                 self._panel_state = PanelState.ACTIVE
                 self._panel_mutation_baseline = None
                 return LoopAction.Continue
             if now - self._panel_last_input_at >= self._panel_confirm_window:
-                # 确认窗超时：未观察到变化 → 未确认点击不记账（回 ACTIVE，
-                # 同 fingerprint 重试计数将捕获无变化点击）。
-                print("[L1] 面板 mutation 确认窗超时，回到 ACTIVE（零输入）")
+                failed_action = self._expire_panel_choice_action()
                 self._clear_pending_skill_cards()
-                self._panel_state = PanelState.ACTIVE
+                self._panel_mutation_baseline = None
+                if failed_action == "select":
+                    # Real-machine 2026-08-16: SendInput returned success while
+                    # bond card stayed visible. Never hammer the same slot again;
+                    # close this stale episode physically, then the reopen cooldown
+                    # gives the UI/resource state time to settle.
+                    print("[L1] 选卡点击未观察到 mutation；禁止重复同槽，转物理关闭")
+                    self._panel_state = PanelState.CLOSING
+                else:
+                    print("[L1] 面板 mutation 确认窗超时，回到 ACTIVE（零输入）")
+                    self._panel_state = PanelState.ACTIVE
             return LoopAction.Continue
 
         if st == PanelState.CLOSING:
@@ -6203,6 +6260,7 @@ class Mediator:
             if close_hit is None:
                 return LoopAction.Continue  # 零动作等待明确 close 锚点
             if self.act_click(close_hit, "PanelClose"):
+                self._stage_panel_choice_action("close", (self._panel_kind, close_hit.name))
                 self._panel_state = PanelState.WAIT_MUTATION
                 self._panel_last_input_at = now
                 self._panel_mutation_baseline = self._panel_roi_region(frame)

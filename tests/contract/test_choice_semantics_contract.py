@@ -132,8 +132,8 @@ class S1SkillRarityPriority(unittest.TestCase):
         self.assertEqual(decision.index, 1, "红色非预设不得胜过绿色预设")
 
 
-class S2BondWhitelistIsHard(unittest.TestCase):
-    """S2：羁绊未勾选 = 硬禁用；必须同时封住套装与品质两条旁路。"""
+class S2BondWhitelistModes(unittest.TestCase):
+    """S2：长程默认 soft；用户显式 hard 时仍封住套装与品质旁路。"""
 
     def test_unchecked_bond_is_never_selected_even_alone(self):
         """三槽全是未勾选（如海盗）→ 不选，转刷新/等待/放弃。"""
@@ -146,7 +146,9 @@ class S2BondWhitelistIsHard(unittest.TestCase):
                     _slot(2, "白赚海盗", rarity="purple"),
                 ],
                 has_giveup=True,
-                settings=PolicySettings(bond_presets=("暴击", "法术")),
+                settings=PolicySettings(
+                    bond_presets=("暴击", "法术"), bond_whitelist_mode="hard"
+                ),
             ),
             SessionState(),
         )
@@ -165,7 +167,9 @@ class S2BondWhitelistIsHard(unittest.TestCase):
                     "owned": ["海盗"],
                 }
             },
-            settings=PolicySettings(bond_presets=("暴击",)),
+            settings=PolicySettings(
+                bond_presets=("暴击",), bond_whitelist_mode="hard"
+            ),
         ))
         self.assertIn(decision.action, NO_PICK_ACTIONS)
 
@@ -174,7 +178,9 @@ class S2BondWhitelistIsHard(unittest.TestCase):
         decision = choose_action(_panel(
             PANEL_BOND,
             [_slot(0, "海盗", rarity="red")],
-            settings=PolicySettings(bond_presets=("暴击",)),
+            settings=PolicySettings(
+                bond_presets=("暴击",), bond_whitelist_mode="hard"
+            ),
         ))
         self.assertIn(decision.action, NO_PICK_ACTIONS)
 
@@ -183,21 +189,29 @@ class S2BondWhitelistIsHard(unittest.TestCase):
         decision = choose_action(_panel(
             PANEL_BOND,
             [_slot(0, "海盗", rarity="red"), _slot(1, "暴击", rarity="white")],
-            settings=PolicySettings(bond_presets=("暴击",)),
+            settings=PolicySettings(
+                bond_presets=("暴击",), bond_whitelist_mode="hard"
+            ),
         ))
         self.assertEqual((decision.action, decision.index),
                          (PolicyAction.SELECT_SLOT, 1))
 
-    def test_soft_mode_still_available_for_explicit_opt_out(self):
-        """soft 模式仍保留（宝物在用），但必须显式声明才生效。"""
-        hard = PolicySettings(bond_presets=())
-        self.assertEqual(hard.bond_whitelist_mode, "hard", "默认必须是硬禁用")
-        decision = choose_action(_panel(
+    def test_soft_is_default_and_explicit_hard_still_available(self):
+        """长程默认 soft 保进度；用户显式 hard 时仍可禁止预设外羁绊。"""
+        default = PolicySettings(bond_presets=())
+        self.assertEqual(default.bond_whitelist_mode, "soft")
+        soft_decision = choose_action(_panel(
             PANEL_BOND,
             [_slot(0, "海盗", rarity="red")],
-            settings=PolicySettings(bond_presets=(), bond_whitelist_mode="soft"),
+            settings=default,
         ))
-        self.assertEqual(decision.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(soft_decision.action, PolicyAction.SELECT_SLOT)
+        hard_decision = choose_action(_panel(
+            PANEL_BOND,
+            [_slot(0, "海盗", rarity="red")],
+            settings=PolicySettings(bond_presets=(), bond_whitelist_mode="hard"),
+        ))
+        self.assertIn(hard_decision.action, NO_PICK_ACTIONS)
 
 
 class S3NegativeTreasureOptIn(unittest.TestCase):

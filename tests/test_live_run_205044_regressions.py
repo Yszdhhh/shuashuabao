@@ -50,7 +50,7 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertIs(med.phase, Phase.RECOVER_FAILURE)
         self.assertIs(med._recovery_state.kind, RecoveryKind.FAIL)
 
-    def test_skill_ocr_never_authorizes_nonconfigured_same_icon(self) -> None:
+    def test_skill_ocr_safe_fill_never_masquerades_same_icon_as_configured(self) -> None:
         med = Mediator(Settings(skills=["assx"]), ROOT)
         slots = [
             {"index": 0, "name": "电磁网", "confidence": 0.99, "raw_text": "电磁网", "family_source": "badge"},
@@ -58,7 +58,12 @@ class LiveRun205044Tests(unittest.TestCase):
             {"index": 2, "name": None, "confidence": 0.0, "raw_text": "多重射线", "family_source": "badge"},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=slots):
-            self.assertIsNone(med._ocr_reward_choice(frame(), "skill"))
+            fill_hit = med._ocr_reward_choice(frame(), "skill")
+        # 未读成奥数射线时，同图标/原始文本不得冒充配置技能 assx；
+        # 但四技能槽未满允许从已验证目录中的合法技能安全补位。
+        self.assertIsNotNone(fill_hit)
+        self.assertEqual(fill_hit.name, "重创")
+        self.assertNotEqual(fill_hit.name, "assx")
 
         slots[2] = {"index": 2, "name": "奥数射线", "confidence": 0.99, "raw_text": "奥数射线", "family_source": "badge"}
         with patch.object(med, "_ocr_panel_slots", return_value=slots):
@@ -88,7 +93,7 @@ class LiveRun205044Tests(unittest.TestCase):
     def test_bond_full_bar_allows_only_one_away_merge(self) -> None:
         # A3：硬白名单取代占用启发式。未勾选一律不选（WAIT→None）；
         # 勾选「祝福」后才可选中，与栏位是否接近满无关。
-        med = Mediator(Settings(cards=["祝福"]), ROOT)
+        med = Mediator(Settings(cards=["祝福"], bond_whitelist_mode="hard"), ROOT)
         unsafe = [
             {"index": 0, "name": "海盗", "confidence": 0.99, "raw_text": "海盗"},
             {"index": 1, "name": "智力", "confidence": 0.99, "raw_text": "智力(0/4)"},
@@ -111,7 +116,7 @@ class LiveRun205044Tests(unittest.TestCase):
 
     def test_basic_bond_precedes_advanced_bond(self) -> None:
         # 硬白名单：只勾「法术」时选法术；未勾的「亡灵天灾」即使接近合成也不选。
-        med = Mediator(Settings(cards=["法术"]), ROOT)
+        med = Mediator(Settings(cards=["法术"], bond_whitelist_mode="hard"), ROOT)
         slots = [
             {"index": 0, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(2/3)"},
             {"index": 1, "name": "法术", "confidence": 0.99, "raw_text": "法术(0/3)"},
@@ -124,7 +129,7 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(hit.name, "ocr_bond:法术")
 
     def test_early_bond_does_not_start_pirate_or_undead_variants(self) -> None:
-        med = Mediator(Settings(), ROOT)
+        med = Mediator(Settings(bond_whitelist_mode="hard"), ROOT)
         slots = [
             {"index": 0, "name": "白赚海盗", "confidence": 0.99, "raw_text": "白赚海盗(0/3)"},
             {"index": 1, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(0/3)"},
@@ -139,7 +144,7 @@ class LiveRun205044Tests(unittest.TestCase):
 
     def test_existing_advanced_bond_progress_can_still_be_finished(self) -> None:
         # 硬白名单：用户勾选「亡灵天灾」后才可完成进度；未勾选的海盗变体仍不可选。
-        med = Mediator(Settings(cards=["亡灵天灾"]), ROOT)
+        med = Mediator(Settings(cards=["亡灵天灾"], bond_whitelist_mode="hard"), ROOT)
         slots = [
             {"index": 0, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(2/3)"},
             {"index": 1, "name": "白赚海盗", "confidence": 0.99, "raw_text": "白赚海盗(0/3)"},
