@@ -956,3 +956,14 @@ Get-FileHash 'C:\Users\10639\Desktop\GameScript-v2026.08.12-r7\GameScript.exe' -
 - 运行稳定性：Windows 下 profile live-lock PID 存活探测不再调用 os.kill(pid, 0)，改用只读进程句柄查询，避免长测试/长运行中的异步控制事件中断。
 
 验证纪律：每个正式代码 commit 均在提交前执行 python tools/release_gate.py；本记录提交前再次执行同一门禁。上述验证均为离线测试/冻结回放，不等同于真机长跑通过。合入前仍需按同一配置真机重点复验：创房 4s 自愈、ROOM_STARTING 黑屏/窗口切换、跨页选关持续滚动、无安全候选物理关闭，以及至少一轮长程多局挂机无异常停止。
+
+## 2026-08-18 真机长程选卡去僵化补修
+
+真机 2026-08-16 22:54:19~22:55:43 长程日志显示入局后卡死在羁绊/技能面板：SendInput 返回成功但 slot 未消费，hard 羁绊白名单使三槽 miss 时持续隐藏，技能槽未满时也因预设 miss 反复隐藏。
+
+- 羁绊：祝福（含祝福1/2/3级名称）成为系统默认必拿，优先于 hard/soft whitelist；运行时默认 bond whitelist 改为 soft，预设 miss 后仍按套装/品质安全降级；用户显式 hard 时仍严格禁止预设外羁绊。
+- choice slot：保留现有经日志反推一致的 bond slot0 几何；(689,498) 对应 1600x900 本地 (529,396) + HWND 偏移 (160,102)。输入成功不再等同卡片消费；SELECT 只有观察到面板 mutation/消失后才计为成功。确认窗内无 mutation 时禁止重复同槽，改走受锚定物理关闭。
+- 技能：少于 4 个已确认独立技能系时，预设/焦点 miss 可从已验证 skill catalog 中选择 legal 的新技能系补位；达到 4 系后恢复严格焦点/预设升级。
+- 面板冷却：受锚定物理 CLOSE 得到 mutation/消失确认后，同类 G/F/V 主动重开冷却默认 12s（配置钳制 10~15s），避免 1~2s 重开活锁。
+
+验证纪律：L1 行为 commit 与本 handoff commit 均在提交前执行 python tools/release_gate.py。门禁只证明离线测试/冻结回放，不等同于本补修已经重新真机长跑；合入前需复验祝福真实消费、非预设羁绊 soft fallback、显式 hard 仍严格、四技能补位、无 mutation 不重复点同槽、CLOSE 后 10~15s 不主动重开，以及后续通关/传家宝/时空之穴/秘境链路。
