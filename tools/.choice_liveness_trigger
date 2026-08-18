@@ -1,3 +1,3 @@
-trigger=20260818-choice-liveness-v7
+trigger=20260818-choice-liveness-v8
 base=77e42011084d25384c60c14557da97fb4aa81091
-reason=explicit-hard-legacy-live-run-regressions
+reason=align-pre-four-slot-safe-fill-regression
