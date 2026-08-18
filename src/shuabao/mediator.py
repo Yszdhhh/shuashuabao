@@ -4874,12 +4874,12 @@ class Mediator:
             return LoopAction.Break
         if stage_page:
             self._challenge_start_attempts += 1
-            if self._challenge_start_attempts >= 2:
-                print("[L0] 选关开始重试耗尽（2 次均未出现局内 UI），停止运行")
+            if self._challenge_start_attempts >= 3:
+                print("[L0] 选关开始重试耗尽（3 次均未出现局内 UI），停止运行")
                 self.set_phase(Phase.ERROR, "challenge start retries exhausted")
                 self.stop()
                 return LoopAction.Break
-            print(f"[L0] 选关后超时未进局（attempts={self._challenge_start_attempts}/2），回到选关页重选")
+            print(f"[L0] 选关后超时未进局（attempts={self._challenge_start_attempts}/3），回到选关页重选")
             self._stage_selected = False
             self._stage_target_name = None
             self.set_phase(Phase.STAGE_SELECT, "challenge start verify timeout")
@@ -5144,12 +5144,12 @@ class Mediator:
             ):
                 old_world_tab = find_unselected_old_world_tab(frame, self.images)
                 if old_world_tab is not None:
-                    if self._old_world_switch_attempts >= 2:
-                        print("[L0] 切换【旧世大陆】页签已达 2 次仍未切回主线，Fail-Closed 停机")
+                    if self._old_world_switch_attempts >= 4:
+                        print("[L0] 切换【旧世大陆】页签已达 4 次仍未切回主线，Fail-Closed 停机")
                         self.set_phase(Phase.ERROR, "old world tab switch failed")
                         self.stop()
                         return LoopAction.Break
-                    print(f"[L0] 检测到当前不在旧世大陆，点击切换至【旧世大陆】大区页签 ({self._old_world_switch_attempts + 1}/2)")
+                    print(f"[L0] 检测到当前不在旧世大陆，点击切换至【旧世大陆】大区页签 ({self._old_world_switch_attempts + 1}/4)")
                     if not self.act_click(old_world_tab, "SwitchOldWorldTab"):
                         return LoopAction.Continue
                     self._old_world_switch_attempts += 1
@@ -5172,14 +5172,15 @@ class Mediator:
                     # 原版 SelectStage 语义：stage2>12 时在关卡列表 (1090,390) 向下滚轮
                     # （pyautogui 负值=向下；录屏确认 1-24+ 在列表下方）。
                     # 触发条件覆盖 stage_targets 与 stage1/stage2 范围两种配置。
-                    if self._stage_scroll_attempts < 8:
+                    # 预算放宽至 25 次，单次下滚 2 格，确保可平滑触达 1-20+ 底部关卡
+                    if self._stage_scroll_attempts < 25:
                         x, y = stage_list_scroll_point(frame)
                         target_hwnd = self._last_frame.hwnd if self._last_frame else None
                         # 向下滚动：正值=上滚（更早关卡），负值=下滚（更高关卡）
-                        res_scroll = self.executor.scroll(x, y, -1, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                        res_scroll = self.executor.scroll(x, y, -2, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
                         if res_scroll.success:
                             self._stage_scroll_attempts += 1
-                            self._stage_scroll_cooldown_until = now + 0.8
+                            self._stage_scroll_cooldown_until = now + 0.6
                             self._tick_input_executed = True
                             self._input_seq += 1  # N2-REVIEW #3：与 _finish_input 同语义
                             if not self.settings.dry_run:
@@ -5187,11 +5188,11 @@ class Mediator:
                             self._stage_candidate_name = None
                             self._stage_candidate_position = None
                             self._stage_candidate_frames = 0
-                            print(f"[L0] 目标关卡不在当前列表，向下滚动寻找 ({self._stage_scroll_attempts}/8)")
+                            print(f"[L0] 目标关卡不在当前列表，向下滚动寻找 ({self._stage_scroll_attempts}/25)")
                         else:
                             print(f"[L0] 关卡列表滚动取消/失败: {res_scroll.message}")
                     else:
-                        print("[L0] 滚动 8 次仍未找到目标关卡，拒绝点击任意可见关卡")
+                        print("[L0] 滚动 25 次仍未找到目标关卡，拒绝点击任意可见关卡")
                     if self._action_timed_out():
                         print("[L0] 选关页超时仍未找到配置目标，停止而不是点击任意关卡")
                         self.set_phase(Phase.ERROR, "configured stage not found")

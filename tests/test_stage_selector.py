@@ -333,7 +333,7 @@ class StageSelectorTests(unittest.TestCase):
         med.set_phase(Phase.STAGE_SELECT)
         frame = self._raid_region_frame()
         med._last_frame = frame
-        med._old_world_switch_attempts = 2  # 已用满预算，仍检测到团本分页
+        med._old_world_switch_attempts = 4  # 已用满预算，仍检测到团本分页
         with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
              patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
              patch.object(med, "act_click", return_value=True) as click:
