@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.incidents import default_incident_dir
 from shuabao.jobs import AutoJob, LongzhuJob
-from shuabao.mediator import Mediator
+from shuabao.runtime_mediator import Mediator
 from shuabao.models.skill import get_all_card_groups, get_all_skills, get_boss_list
 from shuabao.settings import Settings
 from shuabao.vision.capture import capture
