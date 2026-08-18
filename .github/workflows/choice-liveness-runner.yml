@@ -1,0 +1,100 @@
+name: choice-liveness-runner
+
+on:
+  push:
+    branches:
+      - "work/choice-liveness-gated-20260818"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: choice-liveness-runner
+  cancel-in-progress: true
+
+jobs:
+  refactor-and-gate:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Preserve reviewed patch helper and reset to live-tested base
+        run: |
+          Copy-Item tools/_apply_choice_liveness_refactor.py "$env:RUNNER_TEMP/apply_choice.py"
+          git reset --hard 77e42011084d25384c60c14557da97fb4aa81091
+          git clean -fdx
+          New-Item -ItemType Directory -Force tools | Out-Null
+          Copy-Item "$env:RUNNER_TEMP/apply_choice.py" tools/_ci_apply_choice.py
+          git config user.name "openai-choice-liveness-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest
+
+      - name: Apply choice liveness repair
+        run: |
+          python tools/_ci_apply_choice.py
+          python -m compileall -q src tests
+          python -m pytest tests/test_choice_liveness_20260818.py tests/test_choice_policy.py tests/test_settings.py tests/test_s0_safety_state_machine.py tests/test_l1_cycle_recheck_merchant.py tests/test_collectible_close_alignment.py -q --tb=short
+          git diff --check
+
+      - name: Gate L1 choice liveness before commit
+        run: python tools/release_gate.py
+
+      - name: Commit L1 choice liveness repair
+        run: |
+          git add src/shuabao/choice_policy.py src/shuabao/mediator.py src/shuabao/settings.py config/default_settings.json config/choice_policy.json tests/test_choice_liveness_20260818.py
+          git commit -m "fix(l1): keep choice panels progressing under live input"
+
+      - name: Record live-test incident and revalidation scope
+        run: |
+          $path = "docs/CURRENT_STATUS_AND_HANDOFF_20260812.md"
+          $lines = @(
+            "",
+            "## 2026-08-18 真机长程选卡去僵化补修",
+            "",
+            "真机 2026-08-16 22:54:19~22:55:43 长程日志显示入局后卡死在羁绊/技能面板：SendInput 返回成功但 slot 未消费，hard 羁绊白名单使三槽 miss 时持续隐藏，技能槽未满时也因预设 miss 反复隐藏。",
+            "",
+            "- 羁绊：祝福（含祝福1/2/3级名称）成为系统默认必拿，优先于 hard/soft whitelist；运行时默认 bond whitelist 改为 soft，预设 miss 后仍按套装/品质安全降级。",
+            "- choice slot：保留现有经日志反推一致的 bond slot0 几何；(689,498) 对应 1600x900 本地 (529,396) + HWND 偏移 (160,102)。输入成功不再等同卡片消费；SELECT 只有观察到面板 mutation/消失后才计为成功。确认窗内无 mutation 时禁止重复同槽，改走受锚定物理关闭。",
+            "- 技能：少于 4 个已确认独立技能系时，预设/焦点 miss 可从已验证 skill catalog 中选择 legal 的新技能系补位；达到 4 系后恢复严格焦点/预设升级。",
+            "- 面板冷却：受锚定物理 CLOSE 得到 mutation/消失确认后，同类 G/F/V 主动重开冷却默认 12s（配置钳制 10~15s），避免 1~2s 重开活锁。",
+            "",
+            "验证纪律：L1 行为 commit 与本 handoff commit 均在提交前执行 python tools/release_gate.py。门禁只证明离线测试/冻结回放，不等同于本补修已经重新真机长跑；合入前需复验祝福真实消费、非预设羁绊 soft fallback、四技能补位、无 mutation 不重复点同槽、CLOSE 后 10~15s 不主动重开，以及后续通关/传家宝/时空之穴/秘境链路。",
+            ""
+          )
+          [System.IO.File]::AppendAllText($path, [string]::Join("`n", $lines), [System.Text.UTF8Encoding]::new($false))
+          git diff --check
+
+      - name: Gate handoff before commit
+        run: python tools/release_gate.py
+
+      - name: Commit handoff
+        run: |
+          git add docs/CURRENT_STATUS_AND_HANDOFF_20260812.md
+          git commit -m "docs: record live choice-panel liveness incident"
+
+      - name: Publish clean validated head
+        run: |
+          Remove-Item tools/_ci_apply_choice.py -ErrorAction SilentlyContinue
+          $dirty = git status --porcelain
+          if ($dirty) { throw "Unexpected dirty tree before publish: $dirty" }
+          git log --oneline --decorate -6
+          git push --force origin "HEAD:refs/heads/work/choice-liveness-execution-20260818"
