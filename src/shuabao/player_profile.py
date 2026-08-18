@@ -23,6 +23,7 @@ PROFILE_VERSION = 1
 MIN_CONF = 0.60
 MAX_ARCHIVE_LEVEL = 50
 LIVE_LOCK_NAME = "ShuaBao.live.lock"
+_IS_WINDOWS = os.name == "nt"
 # 存档技能格上的实机别名（2026-08-15 用户帧）。不另开卡名表。
 _EXTRA_SKILL_ALIASES = {
     "byj": ("炽炎箭",),
@@ -683,11 +684,62 @@ def _read_lock(path: Path) -> dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
+def _windows_pid_alive(pid: int, kernel32: Any | None = None) -> bool:
+    """Query one Windows process without sending a console control event.
+
+    ``os.kill(pid, 0)`` is the conventional POSIX existence probe, but Python's
+    Windows implementation may route signal 0 through console-control handling.
+    A profile-lock liveness check must therefore use a process handle instead of
+    signalling the target process.
+    """
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        api = kernel32 or ctypes.WinDLL("kernel32", use_last_error=True)
+        if kernel32 is None:
+            # Explicit pointer-width signatures are required on 64-bit Windows;
+            # ctypes' default c_int return type can truncate a HANDLE.
+            api.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+            api.OpenProcess.restype = wintypes.HANDLE
+            api.GetExitCodeProcess.argtypes = [
+                wintypes.HANDLE,
+                ctypes.POINTER(wintypes.DWORD),
+            ]
+            api.GetExitCodeProcess.restype = wintypes.BOOL
+            api.CloseHandle.argtypes = [wintypes.HANDLE]
+            api.CloseHandle.restype = wintypes.BOOL
+        handle = api.OpenProcess(0x1000, False, int(pid))  # PROCESS_QUERY_LIMITED_INFORMATION
+    except (AttributeError, OSError, TypeError, ValueError):
+        return False
+    if not handle:
+        return False
+    try:
+        exit_code = wintypes.DWORD()
+        if not api.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
+            return False
+        return int(exit_code.value) == 259  # STILL_ACTIVE
+    except (AttributeError, OSError, TypeError, ValueError):
+        return False
+    finally:
+        try:
+            api.CloseHandle(handle)
+        except (AttributeError, OSError, TypeError, ValueError):
+            pass
+
+
 def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
+    if _IS_WINDOWS:
+        return _windows_pid_alive(pid)
     try:
         os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # The process exists but the current user cannot signal it.
+        return True
     except OSError:
         return False
     return True
