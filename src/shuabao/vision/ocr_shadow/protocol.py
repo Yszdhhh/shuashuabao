@@ -29,6 +29,9 @@ class ShadowResponse:
     cache_hit: bool = False
     raw_text: str | None = None
     rec_score: float | None = None
+    model_name: str | None = None
+    model_hash: str | None = None
+    model_validated: bool = False
 
     @property
     def available(self) -> bool:
@@ -51,6 +54,12 @@ class ShadowResponse:
             out["raw_text"] = self.raw_text
         if self.rec_score is not None:
             out["rec_score"] = round(float(self.rec_score), 4)
+        if self.model_name is not None:
+            out["model_name"] = self.model_name
+        if self.model_hash is not None:
+            out["model_hash"] = self.model_hash
+        if self.model_validated:
+            out["model_validated"] = True
         return out
 
 

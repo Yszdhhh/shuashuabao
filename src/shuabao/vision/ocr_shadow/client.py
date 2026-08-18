@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import logging
 import os
 import queue
 import subprocess
@@ -14,6 +15,8 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Iterable
+
+LOGGER = logging.getLogger("ShuaBao.OCR")
 
 from .protocol import (
     ShadowCandidate,
@@ -48,16 +51,8 @@ class ShadowClient:
             or current_package_src.parent
         ).expanduser()
         self.repo_root = raw_repo_root.resolve()
-        self.src_dir = (self.repo_root / "src").resolve()
-        raw_model_dir = Path(
-            model_dir
-            or os.environ.get("SHUABAO_OCR_MODEL_DIR")
-            or os.environ.get("GAMESCRIPT_OCR_MODEL_DIR", "")
-            or self.repo_root / "models" / "ocr"
-        ).expanduser()
-        if not raw_model_dir.is_absolute():
-            raw_model_dir = self.repo_root / raw_model_dir
-        self.model_dir = raw_model_dir.resolve()
+        self.src_dir = _resolve_src_dir(self.repo_root, None)
+        self.model_dir = _resolve_model_dir(self.repo_root, model_dir)
         self.python_executable = _resolve_ocr_python(
             self.repo_root, python_executable
         )
@@ -81,6 +76,8 @@ class ShadowClient:
         self._ready_reason: str | None = None
         self._load_ms = 0.0
         self._model_validated = False
+        self._model_name: str | None = None
+        self._model_hash: str | None = None
         self._announced = False
         self._cache: dict[str, tuple[str, dict[str, ShadowResponse]]] = {}
         self._max_cache_panels = 256
@@ -94,6 +91,43 @@ class ShadowClient:
         )
 
     @property
+    def is_ready(self) -> bool:
+        """Return True if worker is spawned, ready, validated, and not disabled."""
+        return self.is_available
+
+    @property
+    def is_available(self) -> bool:
+        with self._lock:
+            self._maybe_rearm()
+            if self.disabled:
+                return False
+            return bool(self._proc and self._proc.poll() is None and self._ready and self._model_validated)
+
+    @property
+    def crashes(self) -> int:
+        return self._crashes
+
+    @property
+    def model_validated(self) -> bool:
+        return self._model_validated
+
+    @property
+    def model_name(self) -> str | None:
+        return self._model_name
+
+    @property
+    def model_hash(self) -> str | None:
+        return self._model_hash
+
+    @property
+    def load_ms(self) -> float:
+        return self._load_ms
+
+    @property
+    def ready_reason(self) -> str | None:
+        return self._ready_reason
+
+    @property
     def disabled(self) -> bool:
         return self._disabled and time.monotonic() < self._cooldown_until
 
@@ -101,10 +135,52 @@ class ShadowClient:
     def process(self) -> subprocess.Popen[str] | None:
         return self._proc
 
+    def start(self) -> bool:
+        """Explicitly ensure worker process is spawned and ready."""
+        with self._lock:
+            return self._ensure_process()
+
+    def rearm(self) -> None:
+        """Reset disabled state and crash counter."""
+        with self._lock:
+            self._disabled = False
+            self._cooldown_until = 0.0
+            self._crashes = 0
+
+    def health(self) -> dict[str, Any]:
+        """Alias for health_check reporting."""
+        res = self.health_check()
+        return {
+            "alive": res["process_alive"],
+            "ready": res["ready"],
+            "status": "ok" if res["healthy"] else (res["ready_reason"] or "error"),
+            "model_name": res["model_name"],
+            "model_hash": res["model_hash"],
+            "model_validated": res["model_validated"],
+            "crashes": res["crashes"],
+            "disabled": res["disabled"],
+            "load_ms": res["load_ms"],
+        }
     def _command(self) -> list[str]:
         if self.worker_command is not None:
             return list(self.worker_command)
         return [self.python_executable, "-m", "shuabao.vision.ocr_shadow.worker"]
+
+    def _build_startupinfo(self) -> tuple[Any, int]:
+        """Construct Windows-specific silent process creation parameters."""
+        startupinfo = None
+        creationflags = 0
+        if sys.platform == "win32":
+            try:
+                # subprocess.STARTUPINFO, STARTF_USESHOWWINDOW, SW_HIDE
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                startupinfo.wShowWindow = 0  # SW_HIDE
+            except (AttributeError, TypeError):
+                startupinfo = None
+            # CREATE_NO_WINDOW flag (0x08000000)
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        return startupinfo, creationflags
 
     def _spawn(self) -> bool:
         self._maybe_rearm()
@@ -147,19 +223,24 @@ class ShadowClient:
             self._record_crash("spawn")
             return False
         self._stderr_chunks = []
+        startupinfo, creationflags = self._build_startupinfo()
+        popen_kwargs: dict[str, Any] = {
+            "cwd": str(self.repo_root),
+            "stdin": subprocess.PIPE,
+            "stdout": subprocess.PIPE,
+            "stderr": subprocess.PIPE,
+            "text": True,
+            "encoding": "utf-8",
+            "errors": "replace",
+            "bufsize": 1,
+            "env": env,
+        }
+        if startupinfo is not None:
+            popen_kwargs["startupinfo"] = startupinfo
+        if creationflags:
+            popen_kwargs["creationflags"] = creationflags
         try:
-            proc = subprocess.Popen(
-                command,
-                cwd=str(self.repo_root),
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                bufsize=1,
-                env=env,
-            )
+            proc = subprocess.Popen(command, **popen_kwargs)
         except (OSError, ValueError) as exc:
             self._note_spawn_failure("spawn", command, detail=str(exc))
             self._record_crash("spawn")
@@ -176,8 +257,8 @@ class ShadowClient:
         self._await_ready(self.startup_timeout_ms / 1000)
         if not self._ready:
             err = self._stderr_text()
-            reason = "ready_timeout"
-            if proc.poll() not in (None, 0):
+            reason = self._ready_reason or "ready_timeout"
+            if proc.poll() not in (None, 0) and not self._ready_reason:
                 reason = "spawn"
             self._ready_reason = reason
             self._note_spawn_failure(reason, command, detail=err or "worker produced no ready line")
@@ -197,9 +278,23 @@ class ShadowClient:
                 raise ValueError("invalid worker ready response")
             self._ready_reason = ready.get("reason")
             self._load_ms = float(ready.get("load_ms", 0.0) or 0.0)
+            self._model_name = ready.get("model_name")
+            self._model_hash = ready.get("model_hash")
             self._model_validated = bool(ready.get("model_validated", False))
-            self._ready = True
-            return True
+            # True Ready: status ok (and if model_validated is present, it must be True or default True if ok)
+            if ready.get("status") == "ok":
+                # If worker explicitly provided model_validated as False, reject ready
+                if "model_validated" in ready and not self._model_validated:
+                    self._ready = False
+                    self._ready_reason = ready.get("reason") or "model_validation_failed"
+                    return False
+                self._ready = True
+                return True
+            else:
+                self._ready = False
+                if not self._ready_reason:
+                    self._ready_reason = ready.get("reason") or "model_not_ready"
+                return False
         except (queue.Empty, ValueError, json.JSONDecodeError):
             return False
 
@@ -221,6 +316,7 @@ class ShadowClient:
             for line in stream:
                 text = line.rstrip("\r\n")
                 if text:
+                    LOGGER.warning("[ocr_worker:stderr] %s", text)
                     self._stderr_chunks.append(text)
                     if len(self._stderr_chunks) > 40:
                         del self._stderr_chunks[:-40]
@@ -229,7 +325,6 @@ class ShadowClient:
 
     def _stderr_text(self) -> str:
         return "\n".join(self._stderr_chunks[-20:])
-
     def _maybe_rearm(self) -> None:
         if not self._disabled:
             return
@@ -316,9 +411,9 @@ class ShadowClient:
                     pass
         for stream in (proc.stdout, proc.stderr):
             try:
-                if stream:
+                if stream and hasattr(stream, "close"):
                     stream.close()
-            except OSError:
+            except (OSError, AttributeError):
                 pass
 
     def close(self) -> None:
@@ -334,6 +429,8 @@ class ShadowClient:
             self._ready_reason = None
             self._load_ms = 0.0
             self._model_validated = False
+            self._model_name = None
+            self._model_hash = None
             self._announced = False
             self._cache.clear()
 
@@ -365,12 +462,57 @@ class ShadowClient:
                 response = self._read_response(seq, timeout_ms)
                 if response is not None and response.status == "ok":
                     self._crashes = 0
-                return response is not None and response.status == "ok"
+                    return True
+                return False
             except (OSError, ValueError):
                 self._terminate()
                 self._record_crash("ping")
                 return False
 
+    def warmup(self, timeout_ms: int | None = None) -> bool:
+        """Send a warmup request to worker to prime model execution."""
+        with self._lock:
+            if not self._ensure_process() or self._proc is None or self._proc.stdin is None:
+                return False
+            seq = self._next_seq()
+            request = {"type": "warmup", "seq": seq, "sent_at": time.time()}
+            try:
+                self._proc.stdin.write(encode_request(request) + "\n")
+                self._proc.stdin.flush()
+                response = self._read_response(seq, timeout_ms)
+                if response is not None and response.status == "ok":
+                    self._crashes = 0
+                    return True
+                return False
+            except (OSError, ValueError):
+                self._terminate()
+                self._record_crash("warmup")
+                return False
+
+    def health_check(self) -> dict[str, Any]:
+        """True Ready multi-dimensional health check."""
+        with self._lock:
+            process_alive = self._proc is not None and self._proc.poll() is None
+            ping_ok = self.ping(timeout_ms=500) if process_alive and self._ready else False
+            is_healthy = bool(
+                process_alive
+                and self._ready
+                and self._model_validated
+                and not self.disabled
+                and ping_ok
+            )
+            return {
+                "healthy": is_healthy,
+                "process_alive": process_alive,
+                "ready": self._ready,
+                "model_validated": self._model_validated,
+                "model_name": self._model_name,
+                "model_hash": self._model_hash,
+                "disabled": self.disabled,
+                "crashes": self._crashes,
+                "ready_reason": self._ready_reason,
+                "load_ms": self._load_ms,
+            }
     def shadow_predict(
         self,
         frame: Any,
@@ -547,14 +689,29 @@ class ShadowClient:
 def _resolve_ocr_python(
     repo_root: Path, python_executable: str | Path | None
 ) -> str:
-    """Pick a real python.exe. InfraB often has no .venv-ocr; don't silently FileNotFound."""
+    """Pick a real python.exe. Supports frozen/PyInstaller bundle and standard virtualenvs."""
     candidates: list[Path] = []
     if python_executable:
         candidates.append(Path(python_executable))
     env_py = (os.environ.get("SHUABAO_OCR_PYTHON") or os.environ.get("GAMESCRIPT_OCR_PYTHON") or "").strip()
     if env_py:
         candidates.append(Path(env_py))
+
+    # 1. PyInstaller / Frozen packaged layout discovery
+    if getattr(sys, "frozen", False):
+        meipass = Path(getattr(sys, "_MEIPASS", sys.executable))
+        candidates.append(meipass / "ocr_worker.exe")
+        candidates.append(meipass / "ocr_worker" / "python.exe")
+        candidates.append(meipass / "python.exe")
+        exe_dir = Path(sys.executable).parent
+        candidates.append(Path(sys.executable))
+        candidates.append(exe_dir / "ocr_worker.exe")
+        candidates.append(exe_dir / "ocr_worker" / "python.exe")
+        candidates.append(exe_dir / "venv-ocr" / "Scripts" / "python.exe")
+        candidates.append(exe_dir / ".venv-ocr" / "Scripts" / "python.exe")
+    # 2. Local venv-ocr in repo root and common dev locations
     candidates.append(repo_root / ".venv-ocr" / "Scripts" / "python.exe")
+    candidates.append(repo_root / "venv-ocr" / "Scripts" / "python.exe")
     for parent in (repo_root.parent, repo_root.parent.parent):
         candidates.append(parent / "GameScript-Local" / ".venv-ocr" / "Scripts" / "python.exe")
         candidates.append(
@@ -562,10 +719,6 @@ def _resolve_ocr_python(
         )
     seen: set[str] = set()
     for path in candidates:
-        key = str(path)
-        if key in seen:
-            continue
-        seen.add(key)
         try:
             if path.is_file():
                 return str(path)
@@ -573,6 +726,37 @@ def _resolve_ocr_python(
             continue
     return str(candidates[0] if candidates else repo_root / ".venv-ocr" / "Scripts" / "python.exe")
 
+
+def _resolve_src_dir(repo_root: Path, src_dir: str | Path | None) -> Path:
+    if src_dir:
+        p = Path(src_dir).expanduser()
+        return p if p.is_absolute() else (repo_root / p).resolve()
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            mp = Path(meipass)
+            if (mp / "src").is_dir():
+                return (mp / "src").resolve()
+            return mp.resolve()
+    return (repo_root / "src").resolve()
+
+
+def _resolve_model_dir(repo_root: Path, model_dir: str | Path | None) -> Path:
+    raw = (
+        model_dir
+        or os.environ.get("SHUABAO_OCR_MODEL_DIR")
+        or os.environ.get("GAMESCRIPT_OCR_MODEL_DIR", "")
+    )
+    if raw:
+        p = Path(raw).expanduser()
+        return p if p.is_absolute() else (repo_root / p).resolve()
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            candidate = Path(meipass) / "models" / "ocr"
+            if candidate.exists():
+                return candidate.resolve()
+    return (repo_root / "models" / "ocr").resolve()
 
 def _slot_fields(slot: Any) -> tuple[int, tuple[int, int, int, int], str | None]:
     if isinstance(slot, dict):

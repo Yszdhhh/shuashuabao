@@ -69,7 +69,7 @@ def _stage_model(src: Path) -> tuple[Path | None, str | None, tempfile.Temporary
     if reason:
         return None, reason, None
     # Paddle's Windows loader cannot consume the repository's non-ASCII path.
-    stage = tempfile.TemporaryDirectory(prefix="gamescript_ocr_stage_")
+    stage = tempfile.TemporaryDirectory(prefix="shuabao_ocr_stage_")
     dst = Path(stage.name) / src.name
     try:
         shutil.copytree(src, dst)
@@ -177,6 +177,9 @@ def main() -> int:
     model, model_reason, stage = _stage_model(_model_dir())
     rec = None
     load_ms = 0.0
+    manifest_entry = _manifest_entry()
+    model_name = manifest_entry.get("name") if manifest_entry else MODEL_SUBDIR
+    model_hash = manifest_entry.get("manifest_sha256") if manifest_entry else None
     if model is not None:
         load_started = time.perf_counter()
         try:
@@ -192,7 +195,9 @@ def main() -> int:
         "candidates": [],
         "elapsed_ms": 0.0,
         "load_ms": round(load_ms, 1),
-        "model_validated": model_reason is None,
+        "model_validated": model_reason is None and rec is not None,
+        "model_name": model_name,
+        "model_hash": model_hash,
         **({"reason": model_reason} if model_reason else {}),
     })
     try:
@@ -206,8 +211,43 @@ def main() -> int:
                 _emit({"seq": -1, "status": "unavailable", "candidates": [], "elapsed_ms": 0.0, "reason": "bad_json"})
                 continue
             seq = int(request.get("seq", -1))
-            if request.get("type") == "ping":
-                _emit({"type": "pong", "seq": seq, "status": "ok", "candidates": [], "elapsed_ms": 0.0})
+            req_type = request.get("type")
+            if req_type == "ping":
+                _emit({
+                    "type": "pong",
+                    "seq": seq,
+                    "status": "ok" if (rec is not None and model_reason is None) else "unavailable",
+                    "candidates": [],
+                    "elapsed_ms": (time.perf_counter() - started) * 1000,
+                    "model_validated": model_reason is None and rec is not None,
+                    "model_name": model_name,
+                    "model_hash": model_hash,
+                    **({"reason": model_reason} if model_reason else {}),
+                })
+                continue
+            if req_type == "warmup":
+                warmup_ok = False
+                warmup_reason = None
+                if rec is None:
+                    warmup_reason = model_reason or "model_missing"
+                else:
+                    try:
+                        # Minimal 1x1 dummy image warmup to prime infer engine
+                        dummy_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                        _predict(rec, dummy_b64, None)
+                        warmup_ok = True
+                    except Exception:
+                        warmup_ok = False
+                        warmup_reason = "warmup_failed"
+                _emit({
+                    "type": "warmup_ack",
+                    "seq": seq,
+                    "status": "ok" if warmup_ok else "unavailable",
+                    "candidates": [],
+                    "elapsed_ms": (time.perf_counter() - started) * 1000,
+                    "model_validated": model_reason is None and rec is not None,
+                    **({"reason": warmup_reason} if warmup_reason else {}),
+                })
                 continue
             if request.get("type") != "predict":
                 _emit({"seq": seq, "status": "unavailable", "candidates": [], "elapsed_ms": 0.0, "reason": "bad_request"})
