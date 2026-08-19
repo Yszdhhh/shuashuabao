@@ -33,6 +33,18 @@ def _model_dir() -> Path:
     return configured / MODEL_SUBDIR
 
 
+def _lexicon_path() -> Path:
+    explicit = str(os.environ.get("SHUABAO_OCR_LEXICON_PATH") or "").strip()
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    if getattr(sys, "frozen", False):
+        meipass = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent)).resolve()
+        bundled = meipass / "config" / "choice_lexicon.json"
+        if bundled.is_file():
+            return bundled
+    return (_repo_root() / "config" / "choice_lexicon.json").resolve()
+
+
 def _manifest_entry() -> dict[str, Any] | None:
     path = _model_dir().parent / "MODEL_MANIFEST.json"
     try:
@@ -87,8 +99,6 @@ def _stage_model(src: Path) -> tuple[Path | None, str | None, tempfile.Temporary
     reason = _validate_model(src)
     if reason:
         return None, reason, None
-    # Paddle's Windows loader cannot consume some non-ASCII repository paths.
-    # Stage to an ASCII-safe ShuaBao-owned temporary directory.
     stage = tempfile.TemporaryDirectory(prefix="shuabao_ocr_stage_")
     dst = Path(stage.name) / src.name
     try:
@@ -123,9 +133,6 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
     with Image.open(io.BytesIO(raw)).convert("RGB") as image:
         rgb = np.asarray(image)
 
-    # Gold/red/green/blue text on dark cards is sensitive to contrast.  Run the
-    # original image first, then conservative colour-difference/threshold
-    # variants.  Every candidate still passes through the lexicon gate.
     bgr = rgb[:, :, ::-1]
     b, g, r = (bgr[:, :, i] for i in range(3))
     gray = np.asarray(Image.fromarray(rgb).convert("L"))
@@ -143,6 +150,7 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
         sys.path.insert(0, src)
     from shuabao.vision.choice_ocr import load_lexicon, lookup_lexicon, normalize_choice_text
 
+    lexicon = load_lexicon(_lexicon_path())
     best: tuple[str, float, Any] | None = None
     progress_text: tuple[str, str, float] | None = None
     best_raw: tuple[str, float] = ("", 0.0)
@@ -163,7 +171,7 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
         normalized = normalize_choice_text(text)
         if rec_score > best_raw[1]:
             best_raw = (normalized, rec_score)
-        lookup = lookup_lexicon(normalized, kind=kind, lexicon=load_lexicon())
+        lookup = lookup_lexicon(normalized, kind=kind, lexicon=lexicon)
         if lookup.canonical is not None and "/" in normalized:
             if progress_text is None or rec_score > progress_text[2]:
                 progress_text = (lookup.canonical, normalized, rec_score)
