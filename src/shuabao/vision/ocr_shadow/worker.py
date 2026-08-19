@@ -1,9 +1,10 @@
-"""JSONL OCR worker; run only in the dedicated .venv-ocr child process."""
+"""JSONL OCR worker; run only in the dedicated ShuaBao OCR child process."""
 
 from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import json
 import os
 import shutil
@@ -15,31 +16,49 @@ from typing import Any
 
 
 def _repo_root() -> Path:
-    configured = os.environ.get("SHUABAO_OCR_REPO_ROOT") or os.environ.get("GAMESCRIPT_OCR_REPO_ROOT")
+    configured = os.environ.get("SHUABAO_OCR_REPO_ROOT")
     if configured:
         return Path(configured)
     return Path(__file__).resolve().parents[4]
+
 
 MODEL_SUBDIR = "PP-OCRv5_mobile_rec_infer"
 
 
 def _model_dir() -> Path:
-    env_model = os.environ.get("SHUABAO_OCR_MODEL_DIR") or os.environ.get("GAMESCRIPT_OCR_MODEL_DIR")
+    env_model = os.environ.get("SHUABAO_OCR_MODEL_DIR")
     configured = Path(env_model) if env_model else _repo_root() / "models" / "ocr"
     if configured.name == MODEL_SUBDIR:
         return configured
     return configured / MODEL_SUBDIR
+
 
 def _manifest_entry() -> dict[str, Any] | None:
     path = _model_dir().parent / "MODEL_MANIFEST.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         for entry in data.get("models", []):
-            if entry.get("name") == "PP-OCRv5_mobile_rec_infer":
+            if entry.get("name") == MODEL_SUBDIR:
                 return entry
     except (OSError, ValueError, TypeError):
         return None
     return None
+
+
+def _manifest_fingerprint(entry: dict[str, Any] | None) -> str | None:
+    """Return a stable SHA256 fingerprint of the validated model file manifest."""
+    files = (entry or {}).get("files") or {}
+    if not files:
+        return None
+    parts: list[str] = []
+    for name in sorted(files):
+        spec = files.get(name) or {}
+        digest = str(spec.get("sha256") or "").upper()
+        size = str(spec.get("size_bytes") or "")
+        if not digest:
+            return None
+        parts.append(f"{name}:{size}:{digest}")
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest().upper()
 
 
 def _validate_model(src: Path) -> str | None:
@@ -68,7 +87,8 @@ def _stage_model(src: Path) -> tuple[Path | None, str | None, tempfile.Temporary
     reason = _validate_model(src)
     if reason:
         return None, reason, None
-    # Paddle's Windows loader cannot consume the repository's non-ASCII path.
+    # Paddle's Windows loader cannot consume some non-ASCII repository paths.
+    # Stage to an ASCII-safe ShuaBao-owned temporary directory.
     stage = tempfile.TemporaryDirectory(prefix="shuabao_ocr_stage_")
     dst = Path(stage.name) / src.name
     try:
@@ -94,7 +114,6 @@ def _load_recognizer(model: Path):
 
 
 def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str, Any]], str | None, float]:
-    import io
     from PIL import Image
 
     raw = base64.b64decode(image_b64, validate=True)
@@ -104,9 +123,9 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
     with Image.open(io.BytesIO(raw)).convert("RGB") as image:
         rgb = np.asarray(image)
 
-    # 金边/红绿蓝品质字在深色卡面上。单一“2x+增强对比度”会把红字压黑，
-    # 本次 1600x900 实机的“海盗/军团”即因此变成 unknown。先跑原图；仅当
-    # 词典不接受时，再跑三种颜色差分和灰度阈值。候选仍必须过词典门禁。
+    # Gold/red/green/blue text on dark cards is sensitive to contrast.  Run the
+    # original image first, then conservative colour-difference/threshold
+    # variants.  Every candidate still passes through the lexicon gate.
     bgr = rgb[:, :, ::-1]
     b, g, r = (bgr[:, :, i] for i in range(3))
     gray = np.asarray(Image.fromarray(rgb).convert("L"))
@@ -119,7 +138,6 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
         otsu,
         (gray >= 180).astype("uint8") * 255,
     ]
-    # Importing the normalizer here keeps the parent process Paddle-free.
     src = str(_repo_root() / "src")
     if src not in sys.path:
         sys.path.insert(0, src)
@@ -168,6 +186,15 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
     return candidates, normalized, rec_score
 
 
+def _warmup_payload() -> str:
+    """Build a realistic small image for recognizer warmup without disk assets."""
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (160, 48), "white").save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
 def _emit(value: dict[str, Any]) -> None:
     sys.stdout.write(json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n")
     sys.stdout.flush()
@@ -179,14 +206,14 @@ def main() -> int:
     load_ms = 0.0
     manifest_entry = _manifest_entry()
     model_name = manifest_entry.get("name") if manifest_entry else MODEL_SUBDIR
-    model_hash = manifest_entry.get("manifest_sha256") if manifest_entry else None
+    model_hash = _manifest_fingerprint(manifest_entry)
     if model is not None:
         load_started = time.perf_counter()
         try:
             rec = _load_recognizer(model)
             model_reason = None
             load_ms = (time.perf_counter() - load_started) * 1000
-        except Exception:  # Paddle may fail for a damaged/incompatible local model.
+        except Exception:
             model_reason = "model_corrupt"
     _emit({
         "type": "ready",
@@ -232,12 +259,9 @@ def main() -> int:
                     warmup_reason = model_reason or "model_missing"
                 else:
                     try:
-                        # Minimal 1x1 dummy image warmup to prime infer engine
-                        dummy_b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-                        _predict(rec, dummy_b64, None)
+                        _predict(rec, _warmup_payload(), None)
                         warmup_ok = True
                     except Exception:
-                        warmup_ok = False
                         warmup_reason = "warmup_failed"
                 _emit({
                     "type": "warmup_ack",
@@ -246,10 +270,12 @@ def main() -> int:
                     "candidates": [],
                     "elapsed_ms": (time.perf_counter() - started) * 1000,
                     "model_validated": model_reason is None and rec is not None,
+                    "model_name": model_name,
+                    "model_hash": model_hash,
                     **({"reason": warmup_reason} if warmup_reason else {}),
                 })
                 continue
-            if request.get("type") != "predict":
+            if req_type != "predict":
                 _emit({"seq": seq, "status": "unavailable", "candidates": [], "elapsed_ms": 0.0, "reason": "bad_request"})
                 continue
             if rec is None:
@@ -257,9 +283,14 @@ def main() -> int:
                 continue
             try:
                 candidates, normalized, score = _predict(rec, str(request.get("image_b64", "")), request.get("kind"))
-                _emit({"seq": seq, "status": "ok", "candidates": candidates,
-                       "raw_text": normalized, "rec_score": score,
-                       "elapsed_ms": (time.perf_counter() - started) * 1000})
+                _emit({
+                    "seq": seq,
+                    "status": "ok",
+                    "candidates": candidates,
+                    "raw_text": normalized,
+                    "rec_score": score,
+                    "elapsed_ms": (time.perf_counter() - started) * 1000,
+                })
             except Exception:
                 _emit({"seq": seq, "status": "unavailable", "candidates": [], "elapsed_ms": (time.perf_counter() - started) * 1000, "reason": "inference_error"})
     finally:
