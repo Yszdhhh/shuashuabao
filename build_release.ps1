@@ -24,8 +24,6 @@ if (-not (Test-Path -LiteralPath $python)) {
 
 & $uvCommand.Source pip install --python $python -r requirements-desktop.txt -r requirements-build.txt
 
-# OCR runtime is a first-class release dependency.  Build/release never falls
-# back to a historical checkout or an unrelated Python installation.
 & (Join-Path $PSScriptRoot "tools\bootstrap_shuabao_ocr.ps1")
 if (-not (Test-Path -LiteralPath $ocrPython)) {
     throw "ShuaBao OCR runtime missing after bootstrap: $ocrPython"
@@ -64,14 +62,12 @@ if (-not (Test-Path -LiteralPath $app)) {
     throw "构建结束但没有生成 $app"
 }
 
-# Assemble one deployable directory.  The OCR onedir payload is copied under
-# vision/ so its _internal DLL/package tree remains adjacent to ShuaBaoOCR.exe.
 $visionTarget = Join-Path $appDir "vision"
 if (Test-Path -LiteralPath $visionTarget) {
     Remove-Item -LiteralPath $visionTarget -Recurse -Force
 }
 New-Item -ItemType Directory -Path $visionTarget | Out-Null
-Copy-Item -LiteralPath (Join-Path $ocrDist "*") -Destination $visionTarget -Recurse -Force
+Copy-Item -Path (Join-Path $ocrDist "*") -Destination $visionTarget -Recurse -Force
 
 $modelSource = Join-Path $PSScriptRoot "models\ocr"
 $modelTarget = Join-Path $appDir "models\ocr"
