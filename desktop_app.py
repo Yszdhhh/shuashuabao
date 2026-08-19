@@ -28,11 +28,11 @@ from shuabao.shell.main_window import (  # noqa: E402
     SKILL_META,
     SKILL_PRESETS,
     SKILL_STEMS,
-    MainWindow,
     NegativeTreasureGroup,
     SkillArchiveLevelGrid,
     SkillCardGrid,
 )
+from shuabao.shell.smart_main_window import MainWindow  # noqa: E402
 from shuabao.shell.runner_service import (  # noqa: E402
     LogSignal,
     MediatorWorker,
