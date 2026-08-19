@@ -1,8 +1,7 @@
-﻿# 刷刷宝打包脚本：构建 exe → 部署到桌面 → 建/更新桌面快捷方式。
+﻿# 刷刷宝打包脚本：构建 OCR sidecar + 主 EXE → 部署到桌面 → 更新快捷方式。
 #
 # 版本命名：用户可见为「刷刷宝 V0.1」；文件夹用 ASCII「ShuaBao-V0.1」。
-# 打包前强制过发版门禁（tools/release_gate.py）。要跳过请显式加 -SkipGate，
-# 并自己清楚为什么——门禁红着发版正是 8-12 连出两个紧急修复的原因。
+# 打包前强制过发版门禁。要跳过请显式加 -SkipGate，并自行承担风险。
 param(
     [switch]$SkipGate,
     [switch]$NoDeploy
@@ -13,9 +12,11 @@ Set-Location -LiteralPath $PSScriptRoot
 
 $APP_NAME = "刷刷宝"
 $APP_ID   = "ShuaBao"
+$OCR_ID   = "ShuaBaoOCR"
 
 $uvCommand = Get-Command uv -ErrorAction Stop
 $python = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
+$ocrPython = Join-Path $PSScriptRoot ".venv-ocr\Scripts\python.exe"
 
 if (-not (Test-Path -LiteralPath $python)) {
     & $uvCommand.Source venv --python 3.11 .venv
@@ -23,46 +24,84 @@ if (-not (Test-Path -LiteralPath $python)) {
 
 & $uvCommand.Source pip install --python $python -r requirements-desktop.txt -r requirements-build.txt
 
+# OCR runtime is a first-class release dependency.  Build/release never falls
+# back to a historical checkout or an unrelated Python installation.
+& (Join-Path $PSScriptRoot "tools\bootstrap_shuabao_ocr.ps1")
+if (-not (Test-Path -LiteralPath $ocrPython)) {
+    throw "ShuaBao OCR runtime missing after bootstrap: $ocrPython"
+}
+& $ocrPython -m pip install -r requirements-build.txt
+if ($LASTEXITCODE -ne 0) { throw "failed to install OCR build requirements" }
+
 if (-not $SkipGate) {
-    Write-Host "[1/3] 发版门禁 ..." -ForegroundColor Cyan
-    # 用开发环境跑门禁：.venv 只装了打包依赖（PySide6 + PyInstaller），
-    # 没有 pytest/opencv，拿它跑会得到"0 passed"这种假失败。
+    Write-Host "[1/4] 发版门禁 ..." -ForegroundColor Cyan
     $gatePython = (Get-Command python -ErrorAction SilentlyContinue).Source
     if (-not $gatePython) {
         throw "PATH 上没有 python，无法跑门禁。装好开发环境，或明确知道后果时用 -SkipGate。"
     }
     & $gatePython tools\release_gate.py
     if ($LASTEXITCODE -ne 0) {
-        throw "门禁未通过，已中止打包。修好再来，或明确知道后果时用 -SkipGate。"
+        throw "门禁未通过，已中止打包。"
     }
 }
 
-Write-Host "[2/3] PyInstaller 打包 ..." -ForegroundColor Cyan
-& $python -m PyInstaller --noconfirm --clean "$APP_ID.spec"
+Write-Host "[2/4] 打包静默 OCR sidecar ..." -ForegroundColor Cyan
+& $ocrPython -m PyInstaller --noconfirm --clean "$OCR_ID.spec"
+if ($LASTEXITCODE -ne 0) { throw "ShuaBaoOCR 打包失败" }
+$ocrDist = Join-Path $PSScriptRoot "dist\$OCR_ID"
+$ocrExe = Join-Path $ocrDist "$OCR_ID.exe"
+if (-not (Test-Path -LiteralPath $ocrExe)) {
+    throw "OCR 构建结束但没有生成 $ocrExe"
+}
 
-$app = Join-Path $PSScriptRoot "dist\$APP_ID\$APP_ID.exe"
+Write-Host "[3/4] 打包 ShuaBao 主程序 ..." -ForegroundColor Cyan
+& $python -m PyInstaller --noconfirm --clean "$APP_ID.spec"
+if ($LASTEXITCODE -ne 0) { throw "ShuaBao 主程序打包失败" }
+
+$appDir = Join-Path $PSScriptRoot "dist\$APP_ID"
+$app = Join-Path $appDir "$APP_ID.exe"
 if (-not (Test-Path -LiteralPath $app)) {
     throw "构建结束但没有生成 $app"
 }
+
+# Assemble one deployable directory.  The OCR onedir payload is copied under
+# vision/ so its _internal DLL/package tree remains adjacent to ShuaBaoOCR.exe.
+$visionTarget = Join-Path $appDir "vision"
+if (Test-Path -LiteralPath $visionTarget) {
+    Remove-Item -LiteralPath $visionTarget -Recurse -Force
+}
+New-Item -ItemType Directory -Path $visionTarget | Out-Null
+Copy-Item -LiteralPath (Join-Path $ocrDist "*") -Destination $visionTarget -Recurse -Force
+
+$modelSource = Join-Path $PSScriptRoot "models\ocr"
+$modelTarget = Join-Path $appDir "models\ocr"
+if (-not (Test-Path -LiteralPath (Join-Path $modelSource "PP-OCRv5_mobile_rec_infer"))) {
+    throw "OCR 模型缺失，无法生成自包含发行包: $modelSource"
+}
+if (Test-Path -LiteralPath $modelTarget) {
+    Remove-Item -LiteralPath $modelTarget -Recurse -Force
+}
+New-Item -ItemType Directory -Path $modelTarget -Force | Out-Null
+Copy-Item -Path (Join-Path $modelSource "*") -Destination $modelTarget -Recurse -Force
+
 Write-Host "已生成：$app" -ForegroundColor Green
+Write-Host "OCR sidecar：$(Join-Path $visionTarget "$OCR_ID.exe")" -ForegroundColor Green
 
 if ($NoDeploy) { return }
 
-Write-Host "[3/3] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cyan
+Write-Host "[4/4] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cyan
 $version = (& $python -c "import sys; sys.path.insert(0,'src'); import shuabao; print(shuabao.__version__)").Trim()
 $versionLabel = "V$version"
 $desktop = [Environment]::GetFolderPath("Desktop")
 $target  = Join-Path $desktop "$APP_ID-$versionLabel"
 $archive = Join-Path $desktop "$APP_NAME-旧版归档"
 
-# 归档桌面上旧版目录（ShuaBao-* / 历史 GameScript-*），只留当前这一份
 if (-not (Test-Path -LiteralPath $archive)) {
     New-Item -ItemType Directory -Path $archive | Out-Null
 }
 Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
     Where-Object {
-        ($_.Name -like "$APP_ID-*" -or $_.Name -like "GameScript-*") -and
-        ($_.FullName -ne $target)
+        ($_.Name -like "$APP_ID-*") -and ($_.FullName -ne $target)
     } |
     ForEach-Object {
         $dest = Join-Path $archive $_.Name
@@ -74,16 +113,13 @@ Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
     }
 
 if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot "dist\$APP_ID") -Destination $target -Recurse
+Copy-Item -LiteralPath $appDir -Destination $target -Recurse
 
-# 桌面快捷方式带版本号：「刷刷宝 V0.1」；清掉无版本的旧快捷方式
 $lnkName = "$APP_NAME $versionLabel.lnk"
 $lnk = Join-Path $desktop $lnkName
 Get-ChildItem -LiteralPath $desktop -Filter "*.lnk" -ErrorAction SilentlyContinue |
     Where-Object {
-        $_.Name -eq "$APP_NAME.lnk" -or
-        $_.Name -like "$APP_NAME V*.lnk" -or
-        $_.Name -like "GameScript*.lnk"
+        $_.Name -eq "$APP_NAME.lnk" -or $_.Name -like "$APP_NAME V*.lnk"
     } |
     Where-Object { $_.Name -ne $lnkName } |
     ForEach-Object {
