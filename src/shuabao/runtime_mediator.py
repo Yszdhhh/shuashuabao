@@ -12,12 +12,16 @@ post-click confirmation contract:
 * Confirmed presets are removed from the remaining whitelist.  Once the list is
   empty, proactive F is skipped for the rest of the round and natural bond
   panels are closed instead of selecting/refreshing them.
+* A physical choice panel also has a cross-episode liveness guard.  Core
+  episode cooldowns may reset local counters, but a continuously visible panel
+  cannot evade the runtime watchdog by being reopened as a fresh episode.
 """
 
 from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import time
 from typing import Any
 
 from shuabao.loop_action import LoopAction
@@ -27,14 +31,140 @@ from shuabao.vision.matcher import MatchResult
 
 
 class Mediator(CoreMediator):
-    """Core Mediator plus a verified, round-local bond-completion latch."""
+    """Core Mediator plus verified runtime-only safety invariants."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # Define these before super().__init__ in case future core initialization
-        # calls an overridable lifecycle method.
+        # Define overridable-hook state before super().__init__ in case future
+        # core initialization calls a lifecycle method implemented here.
         self._bond_cards_pending: list[str] = []
         self._bond_cards_owned: list[str] = []
+        self._physical_panel_signature: tuple[str, int] | None = None
+        self._physical_panel_first_seen_at: float | None = None
+        self._physical_panel_last_progress_at: float | None = None
+        self._physical_panel_absent_since: float | None = None
+        self._physical_panel_deadline_s: float = 30.0
+        self._ocr_bootstrap_health: dict[str, Any] | None = None
         super().__init__(*args, **kwargs)
+        episode_deadline = float(getattr(self.settings, "panel_hard_deadline_s", 15.0) or 15.0)
+        # Long enough for one bounded episode + close/recovery, short enough to
+        # prevent the same visible modal from cycling until the round deadline.
+        self._physical_panel_deadline_s = max(30.0, min(60.0, episode_deadline * 2.5))
+
+    # ------------------------------------------------------------------
+    # LIVE dependency bootstrap.
+    # ------------------------------------------------------------------
+    def prepare_live_dependencies(self) -> bool:
+        """Synchronously prove OCR readiness before LIVE business input starts.
+
+        Desktop LIVE is configured for live OCR.  A spawned process is not
+        enough: bootstrap must prove protocol readiness, a validated model,
+        ping health, and a real warmup inference.  Failure is fail-closed and
+        the caller must not start the automation loop.
+        """
+        mode = str(getattr(self.settings, "ocr_mode", "off") or "off").lower()
+        if mode not in {"live", "shadow"}:
+            self._ocr_bootstrap_health = {
+                "healthy": True,
+                "skipped": True,
+                "reason": "ocr_disabled",
+            }
+            return True
+
+        client = getattr(self, "_ocr_client", None)
+        if client is None:
+            self._ocr_bootstrap_health = {
+                "healthy": False,
+                "stage": "client",
+                "reason": "ocr_client_missing",
+            }
+            print("[ocr] LIVE bootstrap failed: OCR client was not created")
+            return False
+
+        timeout_ms = max(2000, min(10000, int(getattr(self.settings, "ocr_timeout_ms", 1500) or 1500) * 5))
+        health = client.bootstrap(timeout_ms=timeout_ms)
+        self._ocr_bootstrap_health = dict(health)
+        if not bool(health.get("healthy")):
+            print(
+                "[ocr] LIVE bootstrap failed: "
+                f"stage={health.get('stage')} reason={health.get('reason')} "
+                f"python={client.python_executable} model_dir={client.model_dir}"
+            )
+            client.close()
+            return False
+
+        print(
+            "[ocr] LIVE READY "
+            f"model={health.get('model_name')} hash={health.get('model_hash')} "
+            f"load_ms={health.get('load_ms')} warmup_ms={health.get('warmup_ms')}"
+        )
+        return True
+
+    # ------------------------------------------------------------------
+    # Physical panel liveness across core episode resets.
+    # ------------------------------------------------------------------
+    def _physical_panel_key(self, frame, anchor) -> tuple[str, int]:
+        kind = getattr(self, "_panel_kind", None)
+        if not kind:
+            try:
+                kind = self._panel_kind_of(frame, anchor)
+            except Exception:
+                kind = str(getattr(anchor, "name", "unknown") or "unknown")
+        return (str(kind or "unknown"), int(getattr(frame, "hwnd", 0) or 0))
+
+    def _reset_physical_panel_guard(self) -> None:
+        self._physical_panel_signature = None
+        self._physical_panel_first_seen_at = None
+        self._physical_panel_last_progress_at = None
+        self._physical_panel_absent_since = None
+
+    def _physical_panel_watchdog(self, frame, anchor, now: float) -> LoopAction | None:
+        if anchor is None:
+            if self._physical_panel_signature is None:
+                return None
+            if self._physical_panel_absent_since is None:
+                self._physical_panel_absent_since = now
+            elif now - self._physical_panel_absent_since >= 1.0:
+                # Require sustained absence so a one-frame template miss does
+                # not erase the history of a still-blocking physical modal.
+                self._reset_physical_panel_guard()
+            return None
+
+        self._physical_panel_absent_since = None
+        signature = self._physical_panel_key(frame, anchor)
+        if signature != self._physical_panel_signature:
+            self._physical_panel_signature = signature
+            self._physical_panel_first_seen_at = now
+            self._physical_panel_last_progress_at = now
+            return None
+
+        last_progress = self._physical_panel_last_progress_at or self._physical_panel_first_seen_at or now
+        stagnant_for = max(0.0, now - last_progress)
+        if stagnant_for < self._physical_panel_deadline_s:
+            return None
+
+        note = (
+            "physical_panel_stagnation: "
+            f"kind={signature[0]} hwnd={signature[1]} "
+            f"stagnant_for={stagnant_for:.2f}s deadline={self._physical_panel_deadline_s:.2f}s"
+        )
+        print(f"[L1] 同一物理选择面板持续无确认进展 {stagnant_for:.1f}s，Fail-Closed 停止运行")
+        self._record_fail_closed_incident(note)
+        self.set_phase(Phase.ERROR, "persistent physical panel stagnation")
+        self.stop()
+        return LoopAction.Break
+
+    def _tick_panel_fsm(self, frame, anchor, now: float):
+        guard = self._physical_panel_watchdog(frame, anchor, now)
+        if guard is not None:
+            return guard
+        return super()._tick_panel_fsm(frame, anchor, now)
+
+    def _confirm_panel_choice_action(self, now: float) -> None:
+        super()._confirm_panel_choice_action(now)
+        # Only a post-condition confirmation counts as real progress for the
+        # cross-episode watchdog.  Merely sending another click does not.
+        if self._physical_panel_signature is not None:
+            self._physical_panel_last_progress_at = now
 
     # ------------------------------------------------------------------
     # Bond facts: only post-click mutation confirmation grants ownership.
@@ -135,6 +265,7 @@ class Mediator(CoreMediator):
         if phase == Phase.MAIN_LINE and previous != Phase.MAIN_LINE:
             self._bond_cards_pending.clear()
             self._bond_cards_owned.clear()
+            self._reset_physical_panel_guard()
 
     def _maybe_open_choice_panel(self, frame, anchor=None):
         target = getattr(self, "_choice_target", None) or getattr(
@@ -204,5 +335,21 @@ class Mediator(CoreMediator):
         return None
 
     def panel_episode_diagnostics(self) -> dict:
-        """Propagate panel episode diagnostics and metrics from core mediator."""
-        return super().panel_episode_diagnostics()
+        """Propagate core diagnostics plus cross-episode physical-panel state."""
+        data = super().panel_episode_diagnostics()
+        now = time.time()
+        data.update(
+            {
+                "physical_panel_signature": self._physical_panel_signature,
+                "physical_panel_first_seen_at": self._physical_panel_first_seen_at,
+                "physical_panel_last_progress_at": self._physical_panel_last_progress_at,
+                "physical_panel_stagnant_s": (
+                    max(0.0, now - self._physical_panel_last_progress_at)
+                    if self._physical_panel_last_progress_at is not None
+                    else 0.0
+                ),
+                "physical_panel_deadline_s": self._physical_panel_deadline_s,
+                "ocr_bootstrap_health": self._ocr_bootstrap_health,
+            }
+        )
+        return data
