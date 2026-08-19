@@ -1234,215 +1234,104 @@
       "wired_to_decision": false
     },
     "daodao_chain": {
-      "name": "刀刀三件套→萌新→大成→圣剑",
-      "text": "刀刀以多段攻击特效、触发概率、技能冷却缩减与图纸质变为核心。F 角标刀刀(0/3)。集齐幽灵系带+护腕+空灵挂坠后自动吞噬，置入刀刀萌新并开刀刀卡池；中后期可出 UR 刀刀大成。EX=解放的圣剑。高阶图纸以攻略补链，未上帧不得当实机。",
-      "live_verified": {
-        "source": "fixtures/cards_174547_evidence + fixtures/bond_daodao_20260814",
-        "need": 3,
-        "pieces": [
-          "幽灵系带",
-          "护腕",
-          "空灵挂坠"
-        ],
-        "piece_stats": {
-          "幽灵系带": {
-            "t": 148.0,
-            "rarity": "N",
-            "agi": 30,
-            "str": 10,
-            "int": 10
-          },
-          "护腕": {
-            "t": 154.3,
-            "rarity": "N",
-            "str": 30,
-            "agi": 10,
-            "int": 10
-          },
-          "空灵挂坠": {
-            "t": 157.7,
-            "rarity": "N",
-            "int": 30,
-            "str": 10,
-            "agi": 10
-          }
+      "name": "刀刀：基础卡(3)→刀刀萌新→3件SR(刀刀大成)→5件UR→EX解放的圣剑",
+      "text": "物理普攻流核心输出体系。全自动杀敌计数产出图纸，无需手动吞噬。",
+      "kill_count_rule": "每击杀200名敌人，自动从图纸池随机发放1张未拥有的图纸到卡槽",
+      "stage_evolution": {
+        "starter": "拾取3张刀刀基础卡 -> 自动合成【刀刀萌新】(正式解锁刀刀全体系)",
+        "sr_phase": {
+          "name": "基础SR阶段 (7选3)",
+          "progression": [
+            "合成1张SR成品 -> 进化为【刀刀入门】",
+            "合成2张SR成品 -> 进化为【刀刀小成】",
+            "合成3张SR成品 -> 进化为【刀刀大成】(移除基础图纸池，解锁高阶UR图纸池)"
+          ],
+          "sr_blueprints": [
+            {
+              "name": "深渊之刃",
+              "type": "输出",
+              "effect": "高额攻击力+暴击伤害(首选过渡)"
+            },
+            {
+              "name": "决刃",
+              "type": "输出",
+              "effect": "攻击力+攻击速度(平滑过渡)"
+            },
+            {
+              "name": "雷神之锤",
+              "type": "清怪",
+              "effect": "攻击触发连锁闪电(清怪提速)"
+            },
+            {
+              "name": "破碎锤",
+              "type": "控制",
+              "effect": "攻击力+概率重击眩晕"
+            },
+            {
+              "name": "西瓦的守护",
+              "type": "生存",
+              "effect": "护甲加成+范围减速光环"
+            },
+            {
+              "name": "恐鳌之心",
+              "type": "生存",
+              "effect": "高额生命值+脱战回血"
+            },
+            {
+              "name": "点金手",
+              "type": "经济",
+              "effect": "击杀金币额外加成(不推荐，拖慢节奏)"
+            }
+          ]
         },
-        "unlocks": "刀刀萌新",
-        "mengxin_effect_live": "开启刀刀卡池（OCR 截断「开…」）",
-        "ur": "刀刀大成",
-        "daocheng": {
-          "t": 760.0,
-          "rarity": "UR",
-          "atk": 500,
-          "atk_amp_pct": 15,
-          "skill_cdr_pct": 20,
-          "proc_chance_pct": 50,
-          "devour_other_daodao_add_ur_blueprint": true,
-          "multi_hit": "提升普攻与技能的多段触发伤害"
+        "ur_phase": {
+          "name": "高阶UR阶段 (6选5)",
+          "gate_condition": "通关1-21前仅刷新【圣剑】【三元重戟】2张；通关1-21后解锁全部6张",
+          "ur_blueprints": [
+            {
+              "name": "圣剑",
+              "priority": 1,
+              "effect": "巨额基础攻击力加成(核心输出装)"
+            },
+            {
+              "name": "三元重戟",
+              "priority": 1,
+              "effect": "攻击力+全属性+攻击吸血(攻防一体)"
+            },
+            {
+              "name": "三眼圣戟",
+              "priority": 1,
+              "effect": "暴击率+暴击伤害+命中(暴击流核心)"
+            },
+            {
+              "name": "阿哈利姆神杖",
+              "priority": 2,
+              "effect": "技能效果强化+全属性"
+            },
+            {
+              "name": "时间宝石",
+              "priority": 2,
+              "effect": "技能急速+冷却缩减"
+            },
+            {
+              "name": "暗夜猎手",
+              "priority": 2,
+              "effect": "攻击速度+移动速度+暗伤附伤"
+            }
+          ]
         },
-        "phase2_seen_after_daocheng": [
-          {
-            "name": "三元重戟图纸",
-            "rarity": "UR",
-            "t": 765.0
-          }
-        ],
-        "live_20260815": {
-          "source": "fixtures/cards_breakdown_20260815_live/verified_cards.json",
-          "kuaishou": {
-            "name": "快手",
-            "rarity": "N",
-            "effect": "攻速+15%，攻速增幅，角标 [刀刀 0/3]"
-          },
-          "mengxin_live": {
-            "name": "刀刀萌新",
-            "rarity": "R",
-            "effect": "每200杀置入SSR高级图纸，合成1张进化为强力刀刀人"
-          },
-          "xiwa_chain": "王冠(R) + 铁意头盔(R) -> SR纷争面纱 -> SSR希瓦的守护"
+        "ex_evolution": {
+          "name": "解放的圣剑",
+          "condition": "合成任意5张UR成品装备后自动合成",
+          "tier": "EX"
         }
       },
-      "guide": {
-        "source": [
-          "douyin_无胆超人",
-          "douyin_在家零四一",
-          "kk_community"
-        ],
-        "status": "guide",
-        "ingested_at": "2026-08-15",
-        "chain_text": "3启动→萌新→合成3/7张一阶段图纸→大成→选5/6张二阶段图纸→解放的圣剑",
-        "mengxin_effect_guide": "每杀敌200随机解锁1张图纸发到卡牌栏",
-        "phase1_blueprints": [
-          {
-            "name": "点金手",
-            "role": "econ",
-            "pick": "most"
-          },
-          {
-            "name": "封神杖",
-            "role": "int",
-            "pick": "ok"
-          },
-          {
-            "name": "深渊之刃",
-            "role": "phys",
-            "pick": "ok"
-          },
-          {
-            "name": "随缘之刃",
-            "role": "dps",
-            "pick": "ok",
-            "aliases": [
-              "绝刃"
-            ]
-          },
-          {
-            "name": "雷神之锤",
-            "role": "dps",
-            "pick": "ok"
-          },
-          {
-            "name": "龙心",
-            "role": "hp",
-            "pick": "ok"
-          },
-          {
-            "name": "希瓦的守护",
-            "role": "def",
-            "pick": "ok"
-          }
-        ],
-        "phase1_need": 3,
-        "phase1_pool": 7,
-        "intermediates": [
-          {
-            "have": 1,
-            "name": "刀刀入门",
-            "guide_rarity": "紫"
-          },
-          {
-            "have": 2,
-            "name": "刀刀小成",
-            "guide_rarity": "金",
-            "aliases": [
-              "刀刀小城"
-            ]
-          },
-          {
-            "have": 3,
-            "name": "刀刀大成",
-            "guide_rarity": "红",
-            "live_rarity": "UR"
-          }
-        ],
-        "phase2_blueprints": [
-          {
-            "name": "阿哈利姆神杖",
-            "rarity": "UR",
-            "pick": "caster"
-          },
-          {
-            "name": "暗夜猎手",
-            "rarity": "UR",
-            "pick": "phys"
-          },
-          {
-            "name": "疾",
-            "rarity": "UR",
-            "pick": "yes",
-            "note": "攻略名过短，可能截断"
-          },
-          {
-            "name": "圣剑",
-            "rarity": "UR",
-            "pick": "yes"
-          },
-          {
-            "name": "三元重戟",
-            "rarity": "UR",
-            "pick": "yes",
-            "aliases": [
-              "三元重疾",
-              "三元重戟图纸"
-            ]
-          },
-          {
-            "name": "时间宝石",
-            "rarity": "UR",
-            "pick": "early_haste_only"
-          }
-        ],
-        "phase2_pick": 5,
-        "phase2_pool": 6,
-        "recommended_phase2": [
-          "阿哈利姆神杖",
-          "暗夜猎手",
-          "疾",
-          "圣剑",
-          "三元重戟"
-        ],
-        "play_notes": [
-          "点金手留到第3张再刷，前两张随便合，避免刷空一阶段池凑不够3张",
-          "三国后做刀刀需宝物神圣刀锋（攻称远古神藏-诸神宝藏SSR）才能右键放弃多余图纸，防吞食天地误吞",
-          "前期永恒叠杀敌属性，进秘境/BOSS前切终焉"
-        ]
-      },
-      "conflicts": [
-        "萌新效果：实机=开刀刀卡池；攻略=每200杀发图纸。结构像焚诀每200吞异火，未证实是否另有效果，不覆盖实机",
-        "大成品级：实机UR；攻略写红。羁绊不是技能四色，不把大成改成红",
-        "刀刀小城是错字，规范名刀刀小成",
-        "三元重疾是错字，实机帧三元重戟图纸",
-        "切形态：卡面是聊天 -永恒/-岚/-终焉 或 -1/-2/-3。攻略 /蓝=/岚，/中烟=/终焉，斜杠前缀不采。脚本禁止自动键入",
-        "攻略写急速无伏羲琴约800满、有琴约600满。官方 CDR 硬顶是 80%。800/600 不入库为数字"
-      ],
-      "not_complete": "一阶段7图纸、入门/小成、二阶段除三元重戟外均无独立帧。萌新/大成/圣剑无独立(x/y)。",
-      "ex": "解放的圣剑",
-      "source": [
-        "live_174547",
-        "guide_20260815"
-      ],
-      "status": "mixed",
-      "wired_to_decision": false
+      "strategy_rules": [
+        "定向筛选：拿到SSR宝物【神圣刀锋】后，可右键双击放弃不需要的图纸，避免卡格子",
+        "过渡最优：优先选深渊之刃、决刃、雷神之锤，拒绝点金手",
+        "UR优先级：优先合成【圣剑】、【三元重戟】、【三眼圣戟】3件套",
+        "加速成型：配合三国羁绊、吞噬丹加快杀敌计数，快速产出图纸"
+      ]
     },
     "dasheng_chain": {
       "name": "大圣：天命人→残躯/套装/大成→法天象地",
