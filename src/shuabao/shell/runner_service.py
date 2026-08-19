@@ -52,14 +52,19 @@ class MediatorWorker(QThread):
         self.signals = LogSignal()
         self.mediator = None
         self._stop_requested = False
+
     def run(self):
         try:
-            import shuabao.mediator as mediator_mod
-            from shuabao.runtime_mediator import Mediator as RuntimeMediator
-            Mediator = mediator_mod.Mediator if mediator_mod.Mediator is not RuntimeMediator.__base__ else RuntimeMediator
-        except Exception as e:
-            log.error(f"Failed to import Mediator: {e}")
-            from shuabao.mediator import Mediator
+            from shuabao.runtime_mediator import Mediator
+        except Exception as exc:
+            LOGGER.exception("failed to import RuntimeMediator")
+            self.signals.log_emitted.emit(
+                f"[启动失败] RuntimeMediator 无法加载，LIVE 已拒绝启动: {exc}",
+                "error",
+            )
+            self.signals.status_changed.emit(False, "启动失败", 0)
+            return
+
         if self._stop_requested:
             self.signals.log_emitted.emit("[启动] 已请求停止，取消本次启动", "info")
             self.signals.status_changed.emit(False, "空闲", 0)
@@ -112,8 +117,8 @@ class MediatorWorker(QThread):
             )
             self._start_trace()
             self.mediator.run(max_steps=self.max_steps)
-        except Exception as e:
-            self.signals.log_emitted.emit(f"[异常] 任务异常退出: {e}", "error")
+        except Exception as exc:
+            self.signals.log_emitted.emit(f"[异常] 任务异常退出: {exc}", "error")
             LOGGER.exception("worker failed")
         finally:
             if self.mediator is not None:
@@ -131,8 +136,8 @@ class MediatorWorker(QThread):
             self.mediator.set_trace(str(trace_path))
             self.signals.log_emitted.emit(f"[Trace] 自动 trace: {trace_path}", "info")
             return str(trace_path)
-        except Exception as e:
-            self.signals.log_emitted.emit(f"[Trace] 无法开启 trace: {e}", "error")
+        except Exception as exc:
+            self.signals.log_emitted.emit(f"[Trace] 无法开启 trace: {exc}", "error")
             return None
 
     def stop(self):
@@ -172,7 +177,6 @@ class RunnerService:
         if self.worker is not None and self.worker.isRunning():
             raise RuntimeError("already running")
         snapshot = apply_mode_overlay(copy.deepcopy(settings_snapshot), mode_id)
-        # 桌面 LIVE 运行强制开启 live OCR 以保证选卡/技能/羁绊准确率
         snapshot.ocr_mode = "live"
         snapshot.ocr_repo_root = str(self.root)
         lock = QLockFile(str(live_lock_path(self.app_data)))
