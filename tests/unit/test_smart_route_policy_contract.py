@@ -54,6 +54,31 @@ def test_skill_attempt_budget_exhaustion_still_closes():
     assert decision.index is None
 
 
+def test_skill_refresh_budget_exhaustion_still_closes_when_no_safe_focus_candidate():
+    settings = PolicySettings(
+        skill_presets=("focus-card",),
+        skill_focus_families=("focus-family",),
+    )
+    decision = choose_action(
+        PanelCandidates(
+            panel_kind=PANEL_SKILL,
+            slots=(
+                SlotCandidate(
+                    index=0,
+                    name="outside-card",
+                    family="outside-family",
+                    confidence=1.0,
+                ),
+            ),
+            has_giveup=True,
+            settings=settings,
+        ),
+        SessionState(refreshes=3, max_refreshes=3),
+    )
+    assert decision.action is PolicyAction.CLOSE
+    assert decision.index is None
+
+
 def test_role_rank_only_reorders_already_legal_focused_candidates():
     settings = PolicySettings(
         skill_presets=("pure-damage", "team-amp"),
@@ -128,3 +153,10 @@ def test_runtime_assembly_carries_disabled_amplifier_tuning():
     )
     assert assembled.skill_disabled_amplifiers == ("assx",)
     assert len(assembled.skill_focus_families) == 4
+
+
+def test_settings_normalizes_smart_route_disabled_amplifiers():
+    parsed = Settings._from_dict(
+        {"smart_route_disabled_amplifiers": ["assx", "assx", "asjg", ""]}
+    )
+    assert parsed.smart_route_disabled_amplifiers == ["assx", "asjg"]
