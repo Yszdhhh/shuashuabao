@@ -33,7 +33,7 @@
         }
       },
       "offline_note": "推理全程 download_enable=False；已断网验证（出站阻断下加载+推理成功）。模型二进制不入库（.gitignore），需要时从 source_url 重新下载并按本清单校验 SHA256/size。",
-      "windows_path_note": "Paddle C++ loader 无法读取含非 ASCII 字符的 Windows 路径（仓库路径含 🎮 必失败）；推理前复制到 ASCII 暂存目录（默认 %LOCALAPPDATA%\\Temp\\gamescript_ocr_stage，evaluate_choice_ocr.py --staging-dir 可覆盖）。"
+      "windows_path_note": "Paddle C++ loader 无法读取含非 ASCII 字符的 Windows 路径；生产 worker 自动复制到 ASCII-safe 的 shuabao_ocr_stage_ 临时目录。"
     },
     {
       "name": "PP-OCRv5_server_rec_infer",
