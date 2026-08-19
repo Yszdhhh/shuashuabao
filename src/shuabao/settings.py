@@ -110,6 +110,10 @@ class Settings:
     # asdict() 静默丢弃导致"填了就丢"（C-04）；现为真实字段，
     # _from_dict 只接受 {短码: int} 映射并做值域清洗（0..50，0 剔除）。
     skill_archive_levels: dict[str, int] = field(default_factory=dict)
+    # 四技能智能路线微调：列出“关闭协同提权”的挂件技能短码。
+    # 默认空 = 3 个挂件全部启用跨系增伤/易伤/控制/覆盖率提权。
+    # 该字段必须是 Settings 真字段，确保 mode overlay / deepcopy 后仍进入 live policy。
+    smart_route_disabled_amplifiers: list[str] = field(default_factory=list)
     auto_bond: bool = True       # 主动按 F 开羁绊面板（低频，防烧木材）
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
@@ -215,7 +219,10 @@ class Settings:
                     if k in ("room_name", "room_password", "cjb_boss", "sgzx_boss",
                              "reputation_cjb_boss", "reputation_sgzx_boss", "window_title_contains"):
                         clean[k] = ""
-                    elif k in ("skills", "cards", "stage_targets", "treasure_allow_negative", "bond_must_take"):
+                    elif k in (
+                        "skills", "cards", "stage_targets", "treasure_allow_negative",
+                        "bond_must_take", "smart_route_disabled_amplifiers",
+                    ):
                         clean[k] = []
         # 2. 字符串字段防护：仅在 fallback 模式防护（仅接受 str）；无 fallback 精确保持 32633f4 原样
         str_fields = {
@@ -390,6 +397,17 @@ class Settings:
                 clean.pop("treasure_allow_negative")
             else:
                 clean["treasure_allow_negative"] = []
+        # 智能路线挂件微调：只接受字符串列表，去重保序，最多 4 个技能短码/族名。
+        if "smart_route_disabled_amplifiers" in clean:
+            raw_disabled = clean["smart_route_disabled_amplifiers"]
+            if isinstance(raw_disabled, (list, tuple)):
+                clean["smart_route_disabled_amplifiers"] = list(dict.fromkeys(
+                    str(v).strip() for v in raw_disabled if str(v).strip()
+                ))[:MAX_SELECTED_SKILLS]
+            elif fallback is not None:
+                clean.pop("smart_route_disabled_amplifiers")
+            else:
+                clean["smart_route_disabled_amplifiers"] = []
         # 技能存档等级：只接受 {短码: int} 映射；值域清洗（0..50，0=未知剔除），
         # 类型/范围损坏一律回落为空映射（保守：未知存档不放宽任何前置/减伤）。
         if "skill_archive_levels" in clean:
