@@ -606,7 +606,7 @@ class DesktopPanelTests(unittest.TestCase):
 
         svc = RunnerService(Path(self.tmp.name), ROOT)
         with patch("shuabao.shell.runner_service.MediatorWorker") as worker_cls:
-            for mode_id in ("follow_team", "gambling_wood", "raid_wait", "lobby_hitch", "lab"):
+            for mode_id in ("gambling_wood", "raid_wait", "lab"):
                 with self.subTest(mode_id=mode_id):
                     with self.assertRaises(ModeNotEnabled):
                         svc.start(mode_id, Settings(dry_run=True))
@@ -941,9 +941,8 @@ class DesktopPanelTests(unittest.TestCase):
             with self.subTest(mode_id=mode_id):
                 self.window._select_mode(mode_id)
                 self.assertEqual(mode_id, self.window.selected_mode_id())
-                self.assertFalse(self.window.btn_main.isEnabled())
-                self.assertEqual("待验证 · 不可启动", self.window.btn_main.text())
-
+                self.assertTrue(self.window.btn_main.isEnabled())
+                self.assertEqual("开始运行", self.window.btn_main.text())
     def test_test_profiles_apply_without_start_or_dry_run_change(self):
         profiles = load_test_profiles(ROOT / "config" / "dashboard_test_profiles.json")
         self.window.chk_learn.setChecked(True)
@@ -1134,8 +1133,8 @@ class DesktopPanelTests(unittest.TestCase):
         restored = desktop_app.MainWindow(app_data=Path(self.tmp.name))
         try:
             self.assertEqual("follow_team", restored.selected_mode_id())
-            self.assertFalse(restored.btn_main.isEnabled())
-            self.assertEqual("待验证 · 不可启动", restored.btn_main.text())
+            self.assertTrue(restored.btn_main.isEnabled())
+            self.assertEqual("开始运行", restored.btn_main.text())
         finally:
             restored.close()
 

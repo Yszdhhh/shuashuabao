@@ -1331,7 +1331,79 @@
         "过渡最优：优先选深渊之刃、决刃、雷神之锤，拒绝点金手",
         "UR优先级：优先合成【圣剑】、【三元重戟】、【三眼圣戟】3件套",
         "加速成型：配合三国羁绊、吞噬丹加快杀敌计数，快速产出图纸"
-      ]
+      ],
+      "ex": "解放的圣剑",
+      "live_verified": {
+        "source": "fixtures/cards_174547_evidence + fixtures/bond_daodao_20260814",
+        "need": 3,
+        "pieces": [
+          "幽灵系带",
+          "护腕",
+          "空灵挂坠"
+        ],
+        "synthesized": "刀刀萌新",
+        "ur": "刀刀大成",
+        "ex": "解放的圣剑",
+        "unlocks": "刀刀萌新"
+      },
+      "guide": {
+        "phase1_blueprints": [
+          {
+            "name": "深渊之刃",
+            "aliases": []
+          },
+          {
+            "name": "决刃",
+            "aliases": []
+          },
+          {
+            "name": "雷神之锤",
+            "aliases": []
+          },
+          {
+            "name": "破碎锤",
+            "aliases": []
+          },
+          {
+            "name": "西瓦的守护",
+            "aliases": []
+          },
+          {
+            "name": "恐鳌之心",
+            "aliases": []
+          },
+          {
+            "name": "点金手",
+            "aliases": []
+          }
+        ],
+        "phase2_blueprints": [
+          {
+            "name": "圣剑",
+            "aliases": []
+          },
+          {
+            "name": "三元重戟",
+            "aliases": []
+          },
+          {
+            "name": "阿哈利姆神杖",
+            "aliases": []
+          },
+          {
+            "name": "三眼圣戟",
+            "aliases": []
+          },
+          {
+            "name": "时间宝石",
+            "aliases": []
+          },
+          {
+            "name": "暗夜猎手",
+            "aliases": []
+          }
+        ]
+      }
     },
     "dasheng_chain": {
       "name": "大圣/神通三阶段：齐天大圣启动→六根残躯(6)→专属套装(5)→五大神通大成(15)→EX法天象地",

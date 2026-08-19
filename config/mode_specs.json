@@ -33,8 +33,8 @@
     "follow_team": {
       "id": "follow_team",
       "label": "跟车",
-      "live_enabled": false,
-      "desktop_start": false,
+      "live_enabled": true,
+      "desktop_start": true,
       "flow": "FollowTeamFlow",
       "visible_settings": [
         "stage_targets",
@@ -68,8 +68,7 @@
       "flow": "GamblingWoodFlow",
       "visible_settings": [
         "stage_targets",
-        "treasure_num",
-        "dry_run"
+        "treasure_num"
       ],
       "hidden_defaults": {
         "game_mode": 0,
@@ -119,8 +118,8 @@
     "lobby_hitch": {
       "id": "lobby_hitch",
       "label": "大厅找房蹭车",
-      "live_enabled": false,
-      "desktop_start": false,
+      "live_enabled": true,
+      "desktop_start": true,
       "flow": "LobbyHitchFlow",
       "visible_settings": [
         "hitch_stage_prefix",
@@ -158,7 +157,10 @@
         "join_attempts": 2,
         "refresh_s_min": 3,
         "refresh_s_max": 4,
-        "hitch_stage_prefix_values": [3, 4],
+        "hitch_stage_prefix_values": [
+          3,
+          4
+        ],
         "mainline_retry_s": 120,
         "stop_mainline_at": "5-5"
       },

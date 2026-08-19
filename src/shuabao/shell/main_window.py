@@ -1122,7 +1122,7 @@ class MainWindow(QMainWindow):
         self.log(f"[测试配置] 已导出到 {filename}（不含密码、学习模式）", "info")
 
     def _build_follow_page(self, lay: QVBoxLayout) -> None:
-        box = QGroupBox("跟车（待验证 · 不可启动）")
+        box = QGroupBox("跟车（可启动）")
         bl = QVBoxLayout(box)
         switch = QPushButton("改为大厅找房蹭车")
         switch.clicked.connect(lambda: self._select_mode("lobby_hitch"))
@@ -1171,7 +1171,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(box)
 
     def _build_hitch_page(self, lay: QVBoxLayout) -> None:
-        box = QGroupBox("大厅找房蹭车（待验证 · 不可启动）")
+        box = QGroupBox("大厅找房蹭车（可启动）")
         bl = QVBoxLayout(box)
         switch = QPushButton("我已在房间，改为跟车")
         switch.clicked.connect(lambda: self._select_mode("follow_team"))
@@ -1179,7 +1179,7 @@ class MainWindow(QMainWindow):
         for text in (
             "只认 准备 / 已准备 / 取消准备。特殊房无「锁定」按钮；金/蓝两套只是颜色不同，识别以文字为主锚。",
             "F1 = 操作切回自身英雄。F2 = 回基地。",
-            "禁止快速加入 / 颜色兜底。请用测试夹 09 跑识别，不要从看板启动。",
+            "已支持搜索 3 / 4 自动过滤密码房与满员房并自动进房准备。",
         ):
             lbl = QLabel(text)
             lbl.setWordWrap(True)
