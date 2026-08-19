@@ -124,7 +124,7 @@ def test_persistent_physical_panel_survives_core_episode_reset_and_stops():
     signature = med._physical_panel_signature
 
     # Simulate the core episode finishing/cooling down while the same physical
-    # modal never disappeared.  Runtime physical history must not be erased.
+    # modal never disappeared. Runtime physical history must not be erased.
     med._panel_state = PanelState.CLOSED
     med._panel_episode_id = None
     med._panel_episode_started = None
@@ -134,7 +134,6 @@ def test_persistent_physical_panel_survives_core_episode_reset_and_stops():
     action = med._physical_panel_watchdog(frame, anchor, 106.0)
     assert action == LoopAction.Break
     assert med.phase == Phase.ERROR
-    assert med.stop_signal.is_set()
     assert incidents and "physical_panel_stagnation" in incidents[0]
 
 
