@@ -1,20 +1,7 @@
 """Production Mediator extensions for round-local L1 completion guards.
 
 The core Mediator deliberately keeps panel state generic.  This runtime
-subclass adds the user-facing bond invariant without weakening the existing
-post-click confirmation contract:
-
-* Settings.cards is a name whitelist only; it has no target stack/count field.
-  Therefore a preset is complete after one confirmed acquisition this round.
-* A bond is only recorded after the core WAIT_MUTATION path confirms that the
-  panel changed or closed.  Rejected clicks and confirmation timeouts never
-  count as owned.
-* Confirmed presets are removed from the remaining whitelist.  Once the list is
-  empty, proactive F is skipped for the rest of the round and natural bond
-  panels are closed instead of selecting/refreshing them.
-* A physical choice panel also has a cross-episode liveness guard.  Core
-  episode cooldowns may reset local counters, but a continuously visible panel
-  cannot evade the runtime watchdog by being reopened as a fresh episode.
+subclass adds verified production-only invariants for LIVE execution.
 """
 
 from __future__ import annotations
@@ -28,12 +15,13 @@ from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator as CoreMediator
 from shuabao.mediator import PanelState, Phase
 from shuabao.vision.matcher import MatchResult
+from shuabao.vision.ocr_shadow.production import ProductionShadowClient
 
 
 class Mediator(CoreMediator):
     """Core Mediator plus verified runtime-only safety invariants."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, settings, project_root, *args: Any, **kwargs: Any) -> None:
         self._bond_cards_pending: list[str] = []
         self._bond_cards_owned: list[str] = []
         self._physical_panel_signature: tuple[str, int] | None = None
@@ -42,7 +30,40 @@ class Mediator(CoreMediator):
         self._physical_panel_absent_since: float | None = None
         self._physical_panel_deadline_s: float = 30.0
         self._ocr_bootstrap_health: dict[str, Any] | None = None
-        super().__init__(*args, **kwargs)
+        self._ocr_runtime_init_error: str | None = None
+
+        # Prevent the generic core constructor from creating a legacy-compatible
+        # OCR client.  LIVE replaces it with the ShuaBao-only production client
+        # immediately after core state is initialized.
+        original_mode = str(getattr(settings, "ocr_mode", "off") or "off")
+        had_enabled = hasattr(settings, "ocr_enabled")
+        original_enabled = getattr(settings, "ocr_enabled", None)
+        settings.ocr_mode = "off"
+        if had_enabled:
+            settings.ocr_enabled = False
+        try:
+            super().__init__(settings, project_root, *args, **kwargs)
+        finally:
+            settings.ocr_mode = original_mode
+            if had_enabled:
+                settings.ocr_enabled = original_enabled
+
+        if original_mode.lower() in {"live", "shadow"}:
+            trace_path = None
+            incident_dir = kwargs.get("incident_dir")
+            if incident_dir:
+                trace_path = Path(incident_dir) / "ocr_shadow.jsonl"
+            try:
+                self._ocr_client = ProductionShadowClient(
+                    repo_root=Path(project_root),
+                    timeout_ms=int(getattr(settings, "ocr_timeout_ms", 1500) or 1500),
+                    startup_timeout_ms=30000,
+                    trace_path=trace_path,
+                )
+            except Exception as exc:
+                self._ocr_client = None
+                self._ocr_runtime_init_error = str(exc)
+
         episode_deadline = float(getattr(self.settings, "panel_hard_deadline_s", 15.0) or 15.0)
         self._physical_panel_deadline_s = max(30.0, min(60.0, episode_deadline * 2.5))
 
@@ -65,9 +86,9 @@ class Mediator(CoreMediator):
             self._ocr_bootstrap_health = {
                 "healthy": False,
                 "stage": "client",
-                "reason": "ocr_client_missing",
+                "reason": self._ocr_runtime_init_error or "ocr_client_missing",
             }
-            print("[ocr] LIVE bootstrap failed: OCR client was not created")
+            print(f"[ocr] LIVE bootstrap failed: {self._ocr_bootstrap_health}")
             return False
 
         timeout_ms = max(
