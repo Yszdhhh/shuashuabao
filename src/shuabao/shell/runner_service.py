@@ -30,8 +30,8 @@ class ModeNotEnabled(RuntimeError):
 
 
 class LogSignal(QObject):
-    log_emitted = Signal(str, str)  # (text, level)
-    status_changed = Signal(bool, str, int)  # (running, phase, game_count)
+    log_emitted = Signal(str, str)
+    status_changed = Signal(bool, str, int)
 
 
 class MediatorWorker(QThread):
@@ -70,7 +70,7 @@ class MediatorWorker(QThread):
             self.signals.status_changed.emit(False, "空闲", 0)
             return
 
-        self.signals.status_changed.emit(True, "就绪", 0)
+        self.signals.status_changed.emit(True, "启动中", 0)
         target = (self.settings.stage_targets or [
             f"{self.settings.stage1}-{self.settings.stage2}"
         ])[0]
@@ -116,6 +116,16 @@ class MediatorWorker(QThread):
                 incident_dir=self.incident_dir,
             )
             self._start_trace()
+            prepare = getattr(self.mediator, "prepare_live_dependencies", None)
+            if not callable(prepare) or not prepare():
+                health = getattr(self.mediator, "_ocr_bootstrap_health", None)
+                self.signals.log_emitted.emit(
+                    f"[启动失败] OCR True READY 未通过，LIVE 已拒绝启动: {health}",
+                    "error",
+                )
+                self.signals.status_changed.emit(False, "OCR不可用", 0)
+                return
+            self.signals.status_changed.emit(True, "就绪", 0)
             self.mediator.run(max_steps=self.max_steps)
         except Exception as exc:
             self.signals.log_emitted.emit(f"[异常] 任务异常退出: {exc}", "error")
@@ -123,6 +133,12 @@ class MediatorWorker(QThread):
         finally:
             if self.mediator is not None:
                 self.mediator.set_trace(None)
+                ocr_client = getattr(self.mediator, "_ocr_client", None)
+                if ocr_client is not None:
+                    try:
+                        ocr_client.close()
+                    except Exception:
+                        LOGGER.exception("failed to close OCR sidecar")
             builtins.print = real_print
             count = getattr(self.mediator, "game_count", 0) if self.mediator else 0
             self.signals.status_changed.emit(False, "空闲", count)
@@ -185,6 +201,7 @@ class RunnerService:
         self._live_lock = lock
         self.runner_state = RUNNER_STARTING
         self.mode_id = mode_id
+        self._started_settings = copy.deepcopy(snapshot)
         stop_signal = StopSignal()
         self.worker = MediatorWorker(
             snapshot,
@@ -206,6 +223,7 @@ class RunnerService:
             self._live_lock = None
         self.runner_state = RUNNER_IDLE
         self.mode_id = None
+        self._started_settings = None
 
     def started_settings(self) -> Settings | None:
         return self._started_settings
