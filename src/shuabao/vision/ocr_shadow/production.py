@@ -36,12 +36,12 @@ class ProductionShadowClient(ShadowClient):
             timeout_ms=timeout_ms,
             startup_timeout_ms=startup_timeout_ms,
             trace_path=trace_path,
+            # Mark a packaged sidecar as an explicit worker command.  This
+            # deliberately bypasses ShadowClient's source-package preflight,
+            # which is correct for `python -m ...` development workers but not
+            # for a self-contained ShuaBaoOCR.exe.
+            worker_command=[str(executable)] if standalone else None,
         )
-
-    def _command(self) -> list[str]:
-        if getattr(self, "_standalone_worker", False):
-            return [self.python_executable]
-        return super()._command()
 
 
 def _resolve_production_worker(repo_root: Path) -> tuple[Path, bool]:
@@ -68,9 +68,6 @@ def _resolve_production_worker(repo_root: Path) -> tuple[Path, bool]:
             "packaged OCR runtime missing: expected ShuaBaoOCR.exe under the ShuaBao distribution"
         )
 
-    # Source/development layout.  Prefer the current worktree.  Sibling names
-    # are ShuaBao-owned migration targets so future worktrees can share one OCR
-    # environment without depending on a historical repository name.
     roots = [
         repo_root,
         repo_root.parent,
