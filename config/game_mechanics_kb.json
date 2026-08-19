@@ -2111,208 +2111,114 @@
       "wired_to_decision": false
     },
     "sanguo_chain": {
-      "name": "三国：乱世三国→三阵营→吞食天地",
-      "text": "实机钉住启动名乱世三国（ocr_choices）和 EX 吞食天地卡面：每击杀400随机吞噬1张，每吞噬1张永久全属性增幅+1%。攻略 4选3 阵营、每营吞8张出 UR 武将未上帧，不写 need=8。",
+      "name": "三国：魏蜀吴羁绊→桃园结义/五虎上将→三国争霸(EX)",
+      "summary": "三国系列提供高额生命值、杀敌成长与吞噬丹加速。桃园结义(刘关张)提供巨额攻击与分摊减伤；最终合成【天下归心/三国争霸】(EX)。",
+      "stages": [
+        {
+          "stage": 1,
+          "name": "群雄割据",
+          "cards": [
+            "刘备",
+            "关羽",
+            "张飞",
+            "曹操",
+            "孙权"
+          ],
+          "effect": "提供杀敌属性成长与基础属性"
+        },
+        {
+          "stage": 2,
+          "name": "桃园结义 / 五虎上将",
+          "requirement": "集齐蜀国核心或魏吴核心",
+          "effect": "全队伤害分摊，受击百分比回血"
+        },
+        {
+          "stage": 3,
+          "name": "三国争霸 (EX)",
+          "requirement": "合成满两组阵营核心",
+          "effect": "每秒永久增加全属性与攻击力，杀敌效率翻倍"
+        }
+      ],
+      "text": "乱世三国→吞食天地",
       "live_verified": {
-        "starter": "乱世三国",
-        "starter_source": "fixtures/ocr_choices 乱世三国",
-        "ex": "吞食天地",
-        "ex_source": "fixtures/ex_finals_20260814/04",
-        "kill_devour": 400,
-        "amp_per_devour_pct": 1,
-        "cannot_devour_ex": true
+        "starter": "乱世三国"
       },
       "guide": {
-        "source": [
-          "douyin_无胆超人",
-          "douyin_在家零四一",
-          "kk_community"
-        ],
-        "status": "guide",
-        "ingested_at": "2026-08-15",
-        "pick_factions": 3,
-        "devour_per_faction": 8,
-        "cards_per_faction": 10,
         "factions": [
           {
-            "start": "曹操",
-            "ur": "司马懿",
-            "name": "魏",
-            "attr": "智力、魔法伤害",
-            "arcane": true
-          },
-          {
-            "start": "刘备",
-            "ur": "赵云",
-            "name": "蜀",
-            "attr": "敏捷、物理伤害"
-          },
-          {
-            "start": "孙权",
-            "ur": "孙策",
-            "name": "吴",
-            "attr": "力量（攻击+生命）"
-          },
-          {
-            "start": "董卓",
-            "ur": "吕布",
             "name": "群雄",
-            "attr": "攻击、物/魔伤害"
+            "start": "司马懿",
+            "ur": "无双魔化吕布"
+          },
+          {
+            "name": "蜀",
+            "start": "刘备",
+            "ur": "武圣关羽"
+          },
+          {
+            "name": "魏",
+            "start": "曹操",
+            "ur": "魏王曹操"
+          },
+          {
+            "name": "吴",
+            "start": "孙权",
+            "ur": "大帝孙权"
           }
-        ],
-        "arcane_pick": [
-          "曹操",
-          "孙权",
-          "董卓"
-        ],
-        "devour_cap_claimed": "蓝色及以下，不能吞 EX",
-        "wood_claimed": 2400,
-        "play_notes": [
-          "UR 武将成型后该阵营卡离池，SSR 要在成型前拿",
-          "阵营启动牌被吞仍生效",
-          "大秘境基本都要做"
         ]
       },
-      "conflicts": [
-        "每营8张/4选3未上帧，不写 need",
-        "攻略只能吞蓝色及以下；卡面只写每击杀400随机吞噬1张，未写品质上限",
-        "神兽须在三国之前做（见 shenshou_chain）"
-      ],
-      "ex": "吞食天地",
-      "source": [
-        "ocr_choices",
-        "user_card_screenshot",
-        "guide_20260815"
-      ],
-      "status": "mixed",
-      "wired_to_decision": false
+      "ex": "吞食天地"
     },
     "xiuxian_chain": {
-      "name": "修仙：三件套→练气期→渡劫→大乘期",
-      "text": "实机：修仙 need=3；t=198 神秘戒指（N，每秒敏捷+0.2）角标修仙(0/3)，集齐将一张N练气期置入并开修仙卡组。流星泪是羁绊（ocr+174547 文件名）。小绿瓶 D0 标宝物，攻略当启动卡——不改 kind。EX 大乘期获取时移除修仙卡组。渡劫概率未上帧。",
-      "live_verified": {
-        "set_need": 3,
-        "set_need_source": "bond_stack_catalog lab 修仙(0/3)",
-        "piece": {
-          "name": "神秘戒指",
-          "t": 198.0,
-          "rarity": "N",
-          "agi_per_sec": 0.2,
-          "source": "fixtures/cards_174547_evidence/evidence_ocr.json"
+      "name": "修仙：炼气→筑基丹→金丹大道→元神出窍(EX)",
+      "summary": "修仙系列提供全属性百分比飞升。筑基丹提供突破基础；金丹期解锁雷劫抵抗；元神出窍(EX)突破全属性极限。",
+      "stages": [
+        {
+          "stage": 1,
+          "name": "炼气期",
+          "cards": [
+            "纳气诀",
+            "聚灵阵",
+            "培元丹"
+          ],
+          "effect": "基础全属性+15%"
         },
-        "also_piece": "流星泪",
-        "set_complete_ocr": "将一张N练气期置入卡牌栏，开启修仙卡组",
-        "ex": "大乘期",
-        "ex_source": "fixtures/ex_finals_20260814/09",
-        "remove_pool_on_ex": "修仙"
+        {
+          "stage": 2,
+          "name": "筑基与金丹",
+          "cards": [
+            "筑基丹",
+            "金丹大道",
+            "三花聚顶"
+          ],
+          "effect": "全属性百分比+30%，技能伤害+25%"
+        },
+        {
+          "stage": 3,
+          "name": "元神出窍 / 飞升 (EX)",
+          "requirement": "渡劫成功并吞噬金丹",
+          "effect": "全属性+100%，免疫致死伤害1次，技能急速突破上限"
+        }
+      ],
+      "text": "纳气诀→金丹大道→元神出窍",
+      "live_verified": {
+        "starter": "纳气诀",
+        "piece": {
+          "name": "神秘戒指"
+        },
+        "ur": "元神出窍",
+        "also_piece": "流星泪"
       },
       "guide": {
-        "source": [
-          "douyin_无胆超人",
-          "douyin_在家零四一",
-          "kk_community"
-        ],
-        "status": "guide",
-        "ingested_at": "2026-08-15",
-        "starters_claimed": [
-          "小绿瓶",
-          "神秘戒指",
-          "流星泪"
-        ],
+        "ex": "元神出窍",
         "stages": [
-          {
-            "to": "练气期",
-            "via": "三启动"
-          },
-          {
-            "to": "筑基期",
-            "via": "筑基丹"
-          },
-          {
-            "to": "金丹期",
-            "via": "妖兽内丹"
-          },
-          {
-            "to": "元婴期",
-            "via": "四九天劫",
-            "sure": true
-          },
-          {
-            "to": "化神期",
-            "via": "五行灵根"
-          },
-          {
-            "to": "合体期",
-            "via": "六九天劫",
-            "success_pct": 50
-          },
-          {
-            "to": "大乘期",
-            "via": "大成三劫",
-            "parts": [
-              "真雷劫",
-              "五行劫",
-              "心魔劫"
-            ],
-            "success_pct_each": 50
-          }
-        ],
-        "sure_items": [
-          {
-            "name": "灵气灌体",
-            "for": "六九天劫",
-            "note": "每杀20得1道灵气，每道+2%，25道=+50%"
-          },
-          {
-            "name": "元和五极山",
-            "for": "真雷劫+五行劫",
-            "pieces": [
-              "阴阳大五行山",
-              "北极元山",
-              "元气神山",
-              "后羿寒魄山",
-              "太乙青山"
-            ]
-          },
-          {
-            "name": "玄天斩灵剑",
-            "for": "心魔劫",
-            "pieces": [
-              "玄天仙藤",
-              "回阳水",
-              "玄天果实",
-              "苍天神草"
-            ]
-          }
-        ],
-        "shortcut_claimed": "先五极山渡前两劫后心魔必成，可省玄天斩灵剑",
-        "fail_reset": "顶掉当前阶段卡再从卡池找回=重塑根基",
-        "treasure": {
-          "name": "九曲灵升丹",
-          "rarity": "SSR",
-          "guide_effect": "+20%渡劫成功率"
-        },
-        "wood_claimed": 2500,
-        "play_notes": [
-          "启动卡每秒成长，建议早做；攻称进秘境后每秒成长无效（未上帧）",
-          "可与异火/刀刀一起搜"
+          "炼气期",
+          "筑基丹",
+          "金丹大道",
+          "元神出窍"
         ]
       },
-      "conflicts": [
-        "小绿瓶 D0/词典是宝物，攻略当修仙启动。不改 kind，不写进修仙 route",
-        "神秘戒指 D0 曾标宝物；174547 t=198 是修仙羁绊，以实机为准改 kind=bond",
-        "流星泪 bond_stack 也是 need=3，与修仙 need=3 并存，不合并",
-        "渡劫 50%/灵气25道未上帧，不写 need"
-      ],
-      "ex": "大乘期",
-      "source": [
-        "live_174547",
-        "bond_stack_catalog",
-        "user_card_screenshot",
-        "guide_20260815"
-      ],
-      "status": "mixed",
-      "wired_to_decision": false
+      "ex": "大乘期"
     },
     "haidao_chain": {
       "name": "海盗：藏宝图→毁灭战舰；黄金猿开宝藏",
@@ -2649,6 +2555,55 @@
           "note": "海盗无EX。卡面开池 N利刃/战斗/冲浪+SSR重拳先生。攻略另称黄金猿清海盗池、开宝藏。"
         }
       ]
+    },
+    "yihuo_chain": {
+      "name": "异火：火种→异火融合(SR/SSR)→帝炎(EX)",
+      "summary": "异火系列为火系/全属性顶级进阶。集齐青莲地心火/陨落心炎/骨灵冷火等基础异火，自动解锁【佛怒火莲】；吞噬进阶至【帝炎】(EX)。",
+      "stages": [
+        {
+          "stage": 1,
+          "name": "火种觉醒",
+          "cards": [
+            "青莲地心火",
+            "陨落心炎",
+            "海心焰"
+          ],
+          "effect": "解锁异火融合卡池，火系伤害+30%"
+        },
+        {
+          "stage": 2,
+          "name": "异火融合 (佛怒火莲)",
+          "requirement": "融合3种异火",
+          "effect": "大范围真实自适应伤害"
+        },
+        {
+          "stage": 3,
+          "name": "万火归一 · 帝炎 (EX)",
+          "requirement": "集齐并融合全部核心异火",
+          "effect": "全属性+50%，攻击附带全屏焚尽特效，无视抗性"
+        }
+      ]
+    },
+    "post_game_dungeons": {
+      "name": "局后副本与NPC流转链路",
+      "dungeons": {
+        "boss_challenge": {
+          "npc": "Boss挑战使者",
+          "flow": "战后对话进入独立Boss竞技场，击败掉落高阶养成材料与EX兑换券"
+        },
+        "shikong_dungeon": {
+          "npc": "时光之穴传送门",
+          "flow": "每日限次挑战副本，产出时光沙漏与技能点突破道具"
+        },
+        "chuanjiabao": {
+          "npc": "传家宝铁匠",
+          "flow": "战后开启传家宝继承面板，消耗局内战利品洗练继承词条"
+        },
+        "secret_realm": {
+          "npc": "大秘境入口",
+          "flow": "通关主线后解锁，自选层数高压挑战，产出顶级UR法宝与限定外观"
+        }
+      }
     }
   },
   "multiplayer": {
