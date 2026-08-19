@@ -34,8 +34,6 @@ class Mediator(CoreMediator):
     """Core Mediator plus verified runtime-only safety invariants."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # Define overridable-hook state before super().__init__ in case future
-        # core initialization calls a lifecycle method implemented here.
         self._bond_cards_pending: list[str] = []
         self._bond_cards_owned: list[str] = []
         self._physical_panel_signature: tuple[str, int] | None = None
@@ -46,21 +44,13 @@ class Mediator(CoreMediator):
         self._ocr_bootstrap_health: dict[str, Any] | None = None
         super().__init__(*args, **kwargs)
         episode_deadline = float(getattr(self.settings, "panel_hard_deadline_s", 15.0) or 15.0)
-        # Long enough for one bounded episode + close/recovery, short enough to
-        # prevent the same visible modal from cycling until the round deadline.
         self._physical_panel_deadline_s = max(30.0, min(60.0, episode_deadline * 2.5))
 
     # ------------------------------------------------------------------
     # LIVE dependency bootstrap.
     # ------------------------------------------------------------------
     def prepare_live_dependencies(self) -> bool:
-        """Synchronously prove OCR readiness before LIVE business input starts.
-
-        Desktop LIVE is configured for live OCR.  A spawned process is not
-        enough: bootstrap must prove protocol readiness, a validated model,
-        ping health, and a real warmup inference.  Failure is fail-closed and
-        the caller must not start the automation loop.
-        """
+        """Prove OCR readiness before any LIVE business input can start."""
         mode = str(getattr(self.settings, "ocr_mode", "off") or "off").lower()
         if mode not in {"live", "shadow"}:
             self._ocr_bootstrap_health = {
@@ -80,15 +70,65 @@ class Mediator(CoreMediator):
             print("[ocr] LIVE bootstrap failed: OCR client was not created")
             return False
 
-        timeout_ms = max(2000, min(10000, int(getattr(self.settings, "ocr_timeout_ms", 1500) or 1500) * 5))
-        health = client.bootstrap(timeout_ms=timeout_ms)
-        self._ocr_bootstrap_health = dict(health)
+        timeout_ms = max(
+            2000,
+            min(10000, int(getattr(self.settings, "ocr_timeout_ms", 1500) or 1500) * 5),
+        )
+        started = time.perf_counter()
+
+        if not client.start():
+            self._ocr_bootstrap_health = {
+                "healthy": False,
+                "stage": "start",
+                "reason": client.ready_reason or "start_failed",
+                "model_validated": client.model_validated,
+                "model_name": client.model_name,
+                "model_hash": client.model_hash,
+            }
+            print(f"[ocr] LIVE bootstrap failed at start: {self._ocr_bootstrap_health}")
+            client.close()
+            return False
+
+        if not client.ping(timeout_ms=timeout_ms):
+            self._ocr_bootstrap_health = {
+                "healthy": False,
+                "stage": "ping",
+                "reason": client.ready_reason or "ping_failed",
+                "model_validated": client.model_validated,
+                "model_name": client.model_name,
+                "model_hash": client.model_hash,
+            }
+            print(f"[ocr] LIVE bootstrap failed at ping: {self._ocr_bootstrap_health}")
+            client.close()
+            return False
+
+        warmup_started = time.perf_counter()
+        if not client.warmup(timeout_ms=timeout_ms):
+            self._ocr_bootstrap_health = {
+                "healthy": False,
+                "stage": "warmup",
+                "reason": client.ready_reason or "warmup_failed",
+                "model_validated": client.model_validated,
+                "model_name": client.model_name,
+                "model_hash": client.model_hash,
+            }
+            print(f"[ocr] LIVE bootstrap failed at warmup: {self._ocr_bootstrap_health}")
+            client.close()
+            return False
+        warmup_ms = (time.perf_counter() - warmup_started) * 1000.0
+
+        health = dict(client.health_check())
+        health.update(
+            {
+                "stage": "ready",
+                "reason": "ok" if health.get("healthy") else (health.get("ready_reason") or "health_failed"),
+                "warmup_ms": round(warmup_ms, 1),
+                "bootstrap_ms": round((time.perf_counter() - started) * 1000.0, 1),
+            }
+        )
+        self._ocr_bootstrap_health = health
         if not bool(health.get("healthy")):
-            print(
-                "[ocr] LIVE bootstrap failed: "
-                f"stage={health.get('stage')} reason={health.get('reason')} "
-                f"python={client.python_executable} model_dir={client.model_dir}"
-            )
+            print(f"[ocr] LIVE bootstrap health failed: {health}")
             client.close()
             return False
 
@@ -124,8 +164,6 @@ class Mediator(CoreMediator):
             if self._physical_panel_absent_since is None:
                 self._physical_panel_absent_since = now
             elif now - self._physical_panel_absent_since >= 1.0:
-                # Require sustained absence so a one-frame template miss does
-                # not erase the history of a still-blocking physical modal.
                 self._reset_physical_panel_guard()
             return None
 
@@ -161,8 +199,6 @@ class Mediator(CoreMediator):
 
     def _confirm_panel_choice_action(self, now: float) -> None:
         super()._confirm_panel_choice_action(now)
-        # Only a post-condition confirmation counts as real progress for the
-        # cross-episode watchdog.  Merely sending another click does not.
         if self._physical_panel_signature is not None:
             self._physical_panel_last_progress_at = now
 
@@ -189,8 +225,6 @@ class Mediator(CoreMediator):
         )
 
     def _configured_bond_presets(self) -> tuple[str, ...]:
-        # Bypass this subclass' dynamic _policy_settings() so the configured
-        # target set remains a stable source of truth for the whole round.
         return tuple(super()._policy_settings().bond_presets)
 
     def _remaining_bond_presets(self) -> tuple[str, ...]:
@@ -198,8 +232,6 @@ class Mediator(CoreMediator):
         return tuple(name for name in self._configured_bond_presets() if name not in owned)
 
     def _bond_presets_complete(self) -> bool:
-        # Empty whitelist means the user requested no bond cards, so proactive F
-        # should be skipped rather than opening an empty hard-whitelist panel.
         return not self._remaining_bond_presets()
 
     def _stage_bond_card(self, name: str | None) -> None:
@@ -226,8 +258,6 @@ class Mediator(CoreMediator):
     def _confirmed_bond_cards(self) -> tuple[str, ...]:
         return tuple(self._bond_cards_owned)
 
-    # The core already invokes these two hooks exactly at the safe boundaries:
-    # WAIT_MUTATION confirmed -> commit; timeout/episode reset -> clear.
     def _commit_pending_skill_cards(self) -> None:
         super()._commit_pending_skill_cards()
         self._commit_pending_bond_cards()
@@ -244,8 +274,6 @@ class Mediator(CoreMediator):
             and reason == "bond选择"
             and self._is_bond_card_click_name(getattr(hit, "name", None))
         ):
-            # Stage only after the input executor accepted the click.  The core
-            # mutation-confirmation path decides whether it becomes owned.
             self._stage_bond_card(getattr(hit, "name", None))
         return clicked
 
@@ -294,8 +322,6 @@ class Mediator(CoreMediator):
             if close_hit is not None:
                 print("[L1] 羁绊预设已完成：关闭当前羁绊面板，不再选卡/刷新")
                 return ("bond", close_hit)
-            # Do not fall through to generic bond refresh/selection if the panel
-            # has no close affordance in the current frame.
             self._choice_policy_idle = True
             self._choice_policy_last_reason = "羁绊预设已完成但当前帧无可执行关闭按钮"
             return None
@@ -314,8 +340,6 @@ class Mediator(CoreMediator):
         if canonical in remaining:
             return result
 
-        # Defensive guard for template/shadow fallback: never re-take an already
-        # confirmed preset even if the generic fallback returns it first.
         preferred = [v.strip() for v in self.settings.cards if v and v.strip()]
         eligible = [v for v in preferred if self._canonical_bond_name(v) in remaining]
         if eligible:
@@ -335,7 +359,6 @@ class Mediator(CoreMediator):
         return None
 
     def panel_episode_diagnostics(self) -> dict:
-        """Propagate core diagnostics plus cross-episode physical-panel state."""
         data = super().panel_episode_diagnostics()
         now = time.time()
         data.update(
