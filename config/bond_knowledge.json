@@ -589,5 +589,246 @@
       "card tooltip frame",
       "verified screenshot timestamp"
     ]
+  },
+  "standard_bond_taxonomy": {
+    "1_round1_startup": {
+      "title": "开局启动与资源五件套 (Round 1 必须拉满)",
+      "cards": {
+        "祝福": {
+          "need": 3,
+          "prereq": [],
+          "effect": "基础三维全属性提升",
+          "unlocks": []
+        },
+        "成长": {
+          "need": 4,
+          "prereq": [],
+          "effect": "每秒/每波递增属性与战力",
+          "unlocks": []
+        },
+        "经济": {
+          "need": 3,
+          "prereq": [],
+          "effect": "击杀金币+20%，提供前期启动经济",
+          "unlocks": [
+            "贪婪",
+            "挑战"
+          ]
+        },
+        "贪婪": {
+          "need": 3,
+          "prereq": [
+            "经济"
+          ],
+          "effect": "随机吞食4张可吞食卡+150木+888杀敌+6000金币",
+          "unlocks": []
+        },
+        "挑战": {
+          "need": 3,
+          "prereq": [
+            "经济"
+          ],
+          "effect": "开启首领挑战提供海量额外属性与资源",
+          "unlocks": []
+        }
+      }
+    },
+    "2_crit_cannon_branch": {
+      "title": "通用爆发输出线 (暴击/大炮支线)",
+      "cards": {
+        "暴击": {
+          "need": 2,
+          "prereq": [],
+          "effect": "暴击几率+15%",
+          "unlocks": [
+            "致命"
+          ]
+        },
+        "致命": {
+          "need": 2,
+          "prereq": [
+            "暴击"
+          ],
+          "effect": "暴击伤害+50%",
+          "unlocks": [
+            "大炮"
+          ]
+        },
+        "大炮": {
+          "need": 2,
+          "prereq": [
+            "致命"
+          ],
+          "effect": "物理/全伤巨额质变，大炮套装进阶",
+          "unlocks": []
+        }
+      }
+    },
+    "3_speed_survival_branch": {
+      "title": "通用攻防与破甲线 (提速/体术/固守)",
+      "cards": {
+        "提速": {
+          "need": 3,
+          "prereq": [],
+          "effect": "基础移动速度与攻击间隔缩短",
+          "unlocks": [
+            "体术",
+            "固守",
+            "生命"
+          ]
+        },
+        "体术": {
+          "need": 3,
+          "prereq": [
+            "提速"
+          ],
+          "effect": "全队物理破甲 10% (核心通用增伤)",
+          "unlocks": []
+        },
+        "固守": {
+          "need": 2,
+          "prereq": [
+            "提速"
+          ],
+          "effect": "护甲与减伤提升",
+          "unlocks": [
+            "陷阵"
+          ]
+        },
+        "陷阵": {
+          "need": 2,
+          "prereq": [
+            "固守"
+          ],
+          "effect": "前排格挡与反伤进阶",
+          "unlocks": []
+        },
+        "生命": {
+          "need": 4,
+          "prereq": [
+            "提速"
+          ],
+          "effect": "最大生命上限增加",
+          "unlocks": [
+            "血势",
+            "血魔"
+          ]
+        },
+        "血势": {
+          "need": 3,
+          "prereq": [
+            "生命"
+          ],
+          "effect": "每100生命上限转化全属性+3",
+          "unlocks": []
+        },
+        "血魔": {
+          "need": 3,
+          "prereq": [
+            "生命"
+          ],
+          "effect": "已损生命转化巨额增伤",
+          "unlocks": []
+        }
+      }
+    },
+    "4_magic_intel_branch": {
+      "title": "法术与智力流派 (双奥/火球/雷电支持)",
+      "cards": {
+        "法术": {
+          "need": 3,
+          "prereq": [],
+          "effect": "法术伤害+30%",
+          "unlocks": [
+            "急速",
+            "魔能",
+            "魔术"
+          ]
+        },
+        "急速": {
+          "need": 3,
+          "prereq": [
+            "法术"
+          ],
+          "effect": "技能冷却缩减 (全法系必选核心)",
+          "unlocks": []
+        },
+        "魔能": {
+          "need": 2,
+          "prereq": [
+            "法术"
+          ],
+          "effect": "法术伤害加成与穿透",
+          "unlocks": []
+        },
+        "魔术": {
+          "need": 2,
+          "prereq": [
+            "法术"
+          ],
+          "effect": "法术连击与概率重置",
+          "unlocks": []
+        },
+        "魔法师": {
+          "need": 3,
+          "prereq": [],
+          "effect": "基础智力与法术范围",
+          "unlocks": []
+        },
+        "元素师": {
+          "need": 3,
+          "prereq": [],
+          "effect": "冰/火/雷元素伤害统一增幅",
+          "unlocks": []
+        }
+      }
+    },
+    "5_advanced_themed_builds": {
+      "title": "三大高阶特色流派 (封神 / 亡灵 / 修仙)",
+      "cards": {
+        "封神": {
+          "name": "封神大道",
+          "members": [
+            "封神榜",
+            "打神鞭",
+            "杏黄旗",
+            "斩仙飞刀"
+          ],
+          "effect": "神道天罚，全屏真实伤害与金身无敌",
+          "prereq": [
+            "祝福",
+            "成长"
+          ]
+        },
+        "亡灵": {
+          "name": "亡灵天灾",
+          "members": [
+            "亡灵天灾",
+            "白骨复生",
+            "魂火收割",
+            "巫妖之躯"
+          ],
+          "effect": "击杀召唤亡灵大军，提供常驻全屏抗伤与高频骨矛",
+          "prereq": [
+            "贪婪",
+            "体术"
+          ]
+        },
+        "修仙": {
+          "name": "修仙九转",
+          "members": [
+            "修仙",
+            "筑基丹",
+            "金丹大道",
+            "元神出窍"
+          ],
+          "effect": "百分比全属性飞升，渡劫质变终极形态",
+          "prereq": [
+            "祝福",
+            "经济"
+          ]
+        }
+      }
+    }
   }
 }
