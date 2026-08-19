@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from shuabao.settings import Settings
 from shuabao.smart_route import (
     RouteEvaluator,
     SkillRole,
@@ -140,6 +141,26 @@ def test_route_evaluator_returns_official_match_then_adaptive_route():
     assert result.recommendations[0].exact_match is True
     assert "intelligence" in result.relevant_attr_routes
     assert result.recommendations[-1].name.startswith("自适应")
+
+
+def test_smart_route_disabled_amplifiers_round_trip_and_sanitize():
+    settings = Settings._from_dict(
+        {
+            "skills": ["asj", "asjg", "assx", "jq"],
+            "smart_route_disabled_amplifiers": [
+                "assx", "asjg", "assx", "", "jq", "extra",
+            ],
+        }
+    )
+    assert settings.smart_route_disabled_amplifiers == ["assx", "asjg", "jq", "extra"]
+
+    restored = Settings._from_dict(
+        {
+            "skills": settings.skills,
+            "smart_route_disabled_amplifiers": settings.smart_route_disabled_amplifiers,
+        }
+    )
+    assert restored.smart_route_disabled_amplifiers == settings.smart_route_disabled_amplifiers
 
 
 def test_verified_catalog_arcane_four_role_smoke():
