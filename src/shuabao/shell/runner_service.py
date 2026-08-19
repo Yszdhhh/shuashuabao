@@ -31,7 +31,11 @@ class ModeNotEnabled(RuntimeError):
 
 class LogSignal(QObject):
     log_emitted = Signal(str, str)
+    # Kept at three arguments for existing shell/test integrations.
     status_changed = Signal(bool, str, int)
+    # Detailed status: running, phase, game_count, terminal_reason,
+    # ocr_status, last_action.
+    status_updated = Signal(bool, str, int, str, str, str)
 
 
 class MediatorWorker(QThread):
@@ -52,25 +56,83 @@ class MediatorWorker(QThread):
         self.signals = LogSignal()
         self.mediator = None
         self._stop_requested = False
+        self.terminal_reason = ""
+        self.phase = "IDLE"
+        self.ocr_status = "未启动"
+        self.last_action = ""
+
+    def _phase_name(self, mediator=None) -> str:
+        value = getattr(mediator or self.mediator, "phase", None)
+        return str(getattr(value, "name", value or self.phase or "IDLE"))
+
+    def _last_action(self, mediator=None) -> str:
+        med = mediator or self.mediator
+        actions = getattr(med, "_trace_actions", None) if med is not None else None
+        if actions and isinstance(actions[-1], dict):
+            return str(actions[-1].get("reason") or actions[-1].get("action") or "")
+        return str(getattr(med, "_tick_reason", "") or "") if med is not None else self.last_action
+
+    def _terminal_reason_from_mediator(self) -> str:
+        if self.terminal_reason:
+            return self.terminal_reason
+        if self._stop_requested:
+            return "用户停止"
+        med = self.mediator
+        interrupt = str(getattr(med, "_interrupt_reason", "") or "") if med is not None else ""
+        if interrupt:
+            return interrupt
+        phase = self._phase_name(med)
+        if phase == "COMPLETE":
+            return "已完成指定局数"
+        stop_reason = str(getattr(self.stop_signal, "reason", "") or "")
+        if stop_reason and stop_reason != "Mediator.stop()":
+            return stop_reason
+        if phase == "ERROR":
+            return "运行错误"
+        return "任务完成"
+
+    def _emit_status(
+        self,
+        running: bool,
+        phase: str,
+        game_count: int = 0,
+        *,
+        terminal_reason: str = "",
+        ocr_status: str = "",
+        last_action: str = "",
+    ) -> None:
+        self.phase = str(phase or "IDLE")
+        self.terminal_reason = str(terminal_reason or self.terminal_reason or "")
+        if ocr_status:
+            self.ocr_status = str(ocr_status)
+        self.last_action = str(last_action or self.last_action or "")
+        count = max(0, int(game_count or 0))
+        self.signals.status_changed.emit(bool(running), self.phase, count)
+        self.signals.status_updated.emit(
+            bool(running), self.phase, count, self.terminal_reason,
+            self.ocr_status, self.last_action,
+        )
 
     def run(self):
         try:
             from shuabao.runtime_mediator import Mediator
         except Exception as exc:
             LOGGER.exception("failed to import RuntimeMediator")
+            self.terminal_reason = f"RuntimeMediator 无法加载: {exc}"
+            self._emit_status(False, "ERROR", 0, terminal_reason=self.terminal_reason)
             self.signals.log_emitted.emit(
                 f"[启动失败] RuntimeMediator 无法加载，LIVE 已拒绝启动: {exc}",
                 "error",
             )
-            self.signals.status_changed.emit(False, "启动失败", 0)
             return
 
         if self._stop_requested:
+            self.terminal_reason = "启动前已请求停止"
+            self._emit_status(False, "IDLE", 0, terminal_reason=self.terminal_reason)
             self.signals.log_emitted.emit("[启动] 已请求停止，取消本次启动", "info")
-            self.signals.status_changed.emit(False, "空闲", 0)
             return
 
-        self.signals.status_changed.emit(True, "启动中", 0)
+        self._emit_status(True, "STARTING", 0, ocr_status="启动中")
         target = (self.settings.stage_targets or [
             f"{self.settings.stage1}-{self.settings.stage2}"
         ])[0]
@@ -94,7 +156,6 @@ class MediatorWorker(QThread):
             )
 
         real_print = builtins.print
-
         def hook_print(*args, **kwargs):
             text = " ".join(str(x) for x in args)
             if sys.stdout is not None:
@@ -107,7 +168,6 @@ class MediatorWorker(QThread):
             self.signals.log_emitted.emit(text, log_type)
 
         builtins.print = hook_print
-
         try:
             self.mediator = Mediator(
                 self.settings,
@@ -119,16 +179,25 @@ class MediatorWorker(QThread):
             prepare = getattr(self.mediator, "prepare_live_dependencies", None)
             if not callable(prepare) or not prepare():
                 health = getattr(self.mediator, "_ocr_bootstrap_health", None)
+                self.terminal_reason = f"OCR不可用: {health}"
+                self._emit_status(
+                    False, self._phase_name(), 0,
+                    terminal_reason=self.terminal_reason,
+                    ocr_status="不可用",
+                    last_action=self._last_action(),
+                )
                 self.signals.log_emitted.emit(
                     f"[启动失败] OCR True READY 未通过，LIVE 已拒绝启动: {health}",
                     "error",
                 )
-                self.signals.status_changed.emit(False, "OCR不可用", 0)
                 return
-            self.signals.status_changed.emit(True, "就绪", 0)
+            health = getattr(self.mediator, "_ocr_bootstrap_health", None) or {}
+            self.ocr_status = "就绪" if health.get("healthy", True) else "不可用"
+            self._emit_status(True, self._phase_name(), 0, ocr_status=self.ocr_status)
             self.mediator.run(max_steps=self.max_steps)
         except Exception as exc:
-            self.signals.log_emitted.emit(f"[异常] 任务异常退出: {exc}", "error")
+            self.terminal_reason = f"任务异常退出: {exc}"
+            self.signals.log_emitted.emit(f"[异常] {self.terminal_reason}", "error")
             LOGGER.exception("worker failed")
         finally:
             if self.mediator is not None:
@@ -141,8 +210,15 @@ class MediatorWorker(QThread):
                         LOGGER.exception("failed to close OCR sidecar")
             builtins.print = real_print
             count = getattr(self.mediator, "game_count", 0) if self.mediator else 0
-            self.signals.status_changed.emit(False, "空闲", count)
-            self.signals.log_emitted.emit("[结束] 任务运行结束", "info")
+            reason = self._terminal_reason_from_mediator()
+            self._emit_status(
+                False, self._phase_name(), count,
+                terminal_reason=reason,
+                ocr_status=self.ocr_status,
+                last_action=self._last_action(),
+            )
+            self.signals.log_emitted.emit(f"[结束] 任务运行结束（原因: {reason}）", "info")
+
 
     def _start_trace(self) -> str | None:
         try:

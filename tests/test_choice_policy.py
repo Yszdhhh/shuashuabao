@@ -961,15 +961,14 @@ class TestOwnedBranchAndRarityPriority(unittest.TestCase):
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_same_branch_rarity_sorting(self):
-        # 同属剑气系：紫（rank=2）优先于蓝（rank=3），即使蓝 index 更小。
+        # 同属剑气系：碎冰（紫，rank=2）优先于剑气爆发（蓝，rank=3），即使蓝 index 更小。
         cands = skill_cands(
-            [slot(0, "剑气增幅", rarity="blue", confidence=0.99),
-             slot(1, "致残剑气", rarity="purple", confidence=0.99)],
+            [slot(0, "剑气爆发", confidence=0.99),
+             slot(1, "碎冰", confidence=0.99)],
             settings=settings(skill_focus_families=["剑气"]),
         )
         d = choose_action(cands, SessionState())
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
-
     def test_zero_preset_match_close(self):
         # 0 预设命中（Focus-Miss）→ 恒定 CLOSE（不消耗刷新预算，永不 REFRESH/GIVEUP）。
         cands = skill_cands(
@@ -1064,15 +1063,14 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_archive_unlock_threshold_met_prioritizes(self):
-        # 强化飞箭（奥术箭43 进池，存档达标）优先于未达标的永恒箭矢（奥术射线50）。
+        # 同属白卡时：强化飞箭（奥术箭43 进池，存档达标）优先于未达标的奥术穿透（奥术射线50）。
         cands = skill_cands(
-            [slot(0, "永恒箭矢", rarity="white"), slot(1, "强化飞箭", rarity="white")],
+            [slot(0, "奥术穿透", rarity="white"), slot(1, "强化飞箭", rarity="white")],
             settings=settings(skill_focus_families=["奥数箭", "奥术射线"],
                               skill_archive_levels=[("asj", 43)]),
         )
         d = choose_action(cands, SessionState())
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
-
     def test_archive_levels_normalized_sorted(self):
         ps = settings(skill_archive_levels=[("jq", 13), ("asj", 47)])
         self.assertEqual(ps.skill_archive_levels, (("asj", 47), ("jq", 13)))

@@ -45,13 +45,6 @@ class ProductionShadowClient(ShadowClient):
 
 
 def _resolve_production_worker(repo_root: Path) -> tuple[Path, bool]:
-    explicit = str(os.environ.get("SHUABAO_OCR_PYTHON") or "").strip()
-    if explicit:
-        path = Path(explicit).expanduser().resolve()
-        if path.is_file():
-            return path, False
-        raise FileNotFoundError(f"SHUABAO_OCR_PYTHON not found: {path}")
-
     if getattr(sys, "frozen", False):
         exe_dir = Path(sys.executable).resolve().parent
         meipass = Path(getattr(sys, "_MEIPASS", exe_dir)).resolve()
@@ -68,6 +61,12 @@ def _resolve_production_worker(repo_root: Path) -> tuple[Path, bool]:
             "packaged OCR runtime missing: expected ShuaBaoOCR.exe under the ShuaBao distribution"
         )
 
+    explicit = str(os.environ.get("SHUABAO_OCR_PYTHON") or "").strip()
+    if explicit:
+        path = Path(explicit).expanduser().resolve()
+        if path.is_file():
+            return path, False
+        raise FileNotFoundError(f"SHUABAO_OCR_PYTHON not found: {path}")
     roots = [
         repo_root,
         repo_root.parent,

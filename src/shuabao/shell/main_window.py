@@ -58,6 +58,7 @@ from shuabao.shell.runner_service import (
     live_lock_busy,
 )
 from shuabao.shell.runtime_status import progress_from_counts
+from shuabao.shell.overlay_hud import OverlayHud
 from shuabao.shell.test_profiles import (
     TestProfileError,
     apply_profile,
@@ -483,6 +484,11 @@ class MainWindow(QMainWindow):
         }
         self.runner = RunnerService(self.app_data, ROOT)
         self.worker_thread: MediatorWorker | None = None
+        self._terminal_reason = ""
+        self._runtime_phase = "IDLE"
+        self._ocr_status = "未启动"
+        self._last_action = ""
+        self.overlay_hud: OverlayHud | None = None
         self._game_count = 0
         self._syncing_bonds = False
         self._build_btn_group = QButtonGroup(self)
@@ -497,6 +503,7 @@ class MainWindow(QMainWindow):
 
         self._setup_style()
         self._build_ui()
+        self.overlay_hud = OverlayHud()
         self._setup_tray()
         self.load_local_settings(silent=True)
         self._wire_auto_save()
@@ -1582,7 +1589,26 @@ class MainWindow(QMainWindow):
         worker = self.worker_thread
         if worker is None or worker.mediator is None:
             return
-        self._game_count = int(getattr(worker.mediator, "game_count", 0) or 0)
+        mediator = worker.mediator
+        self._game_count = int(getattr(mediator, "game_count", 0) or 0)
+        phase_value = getattr(mediator, "phase", "IDLE")
+        phase = str(getattr(phase_value, "name", phase_value or "IDLE"))
+        health = getattr(mediator, "_ocr_bootstrap_health", None) or {}
+        ocr_status = "就绪" if health.get("healthy", True) else "不可用"
+        actions = getattr(mediator, "_trace_actions", None) or ()
+        last_action = ""
+        if actions and isinstance(actions[-1], dict):
+            last_action = str(actions[-1].get("reason") or actions[-1].get("action") or "")
+        self._runtime_phase = phase
+        self._ocr_status = ocr_status
+        self._last_action = last_action or self._last_action
+        if self.overlay_hud is not None:
+            cycle = int(self.spn_cycle_num.value()) if hasattr(self, "spn_cycle_num") else 0
+            self.overlay_hud.anchor_to_target(getattr(mediator, "_last_frame", None))
+            self.overlay_hud.update_status(
+                True, phase, ocr_status, self._game_count, cycle,
+                self._terminal_reason, self._last_action,
+            )
         self._refresh_progress()
 
     def _update_hero_visibility(self):
@@ -1700,17 +1726,45 @@ class MainWindow(QMainWindow):
         self.lbl_latest.setText(text)
         self.txt_log.appendPlainText(text)
 
-    def update_status(self, running: bool, phase: str, game_count: int):
+    def update_status(
+        self,
+        running: bool,
+        phase: str,
+        game_count: int,
+        terminal_reason: str = "",
+        ocr_status: str = "",
+        last_action: str = "",
+    ):
         self._game_count = int(game_count or 0)
+        self._runtime_phase = str(phase or "IDLE")
         if running:
+            self._terminal_reason = ""
+            if ocr_status:
+                self._ocr_status = str(ocr_status)
+            self._last_action = str(last_action or self._last_action)
             self.lbl_run_status.setText("运行中")
-            self.lbl_run_status.setToolTip(f"当前阶段：{phase}")
+            self.lbl_run_status.setToolTip(
+                f"当前阶段：{self._runtime_phase} | OCR：{self._ocr_status}"
+            )
             self.lbl_run_status.setProperty("state", "running")
         else:
-            self.lbl_run_status.setText("空闲")
-            self.lbl_run_status.setToolTip("未运行")
+            reason = str(terminal_reason or self._terminal_reason or "任务已停止").strip()
+            self._terminal_reason = reason
+            self._last_action = str(last_action or self._last_action)
+            self.lbl_run_status.setText(f"已停止（{reason}）")
+            self.lbl_run_status.setToolTip(
+                f"终止原因：{reason} | 最后动作：{self._last_action or '无'}"
+            )
             self.lbl_run_status.setProperty("state", "idle")
+            self.lbl_summary.setText(f"已停止：{reason}")
         self.lbl_run_status.setStyle(self.lbl_run_status.style())
+        if self.overlay_hud is not None:
+            cycle = int(self.spn_cycle_num.value()) if hasattr(self, "spn_cycle_num") else 0
+            self.overlay_hud.update_status(
+                bool(running), self._runtime_phase, self._ocr_status,
+                self._game_count, cycle, self._terminal_reason, self._last_action,
+            )
+        self._refresh_progress()
         self._refresh_chrome()
 
     def load_local_settings(self, silent: bool = False):
@@ -2033,6 +2087,7 @@ class MainWindow(QMainWindow):
         self.worker_thread = worker
         worker.signals.log_emitted.connect(self.log)
         worker.signals.status_changed.connect(self.update_status)
+        worker.signals.status_updated.connect(self.update_status)
         worker.finished.connect(self._on_worker_finished)
         worker.start()
         self._status_timer.start()
@@ -2042,12 +2097,15 @@ class MainWindow(QMainWindow):
 
     def _on_worker_finished(self) -> None:
         self._status_timer.stop()
+        worker = self.worker_thread
+        count = int(getattr(getattr(worker, "mediator", None), "game_count", 0) or 0)
+        reason = str(getattr(worker, "terminal_reason", "") or self._terminal_reason or "任务已停止")
+        phase = str(getattr(worker, "phase", "IDLE") or "IDLE")
+        ocr_status = str(getattr(worker, "ocr_status", "") or self._ocr_status)
+        last_action = str(getattr(worker, "last_action", "") or self._last_action)
         self.runner.release_after_finish()
-        count = 0
-        if self.worker_thread is not None:
-            count = int(getattr(self.worker_thread.mediator, "game_count", 0) or 0)
         self.worker_thread = None
-        self.update_status(False, "空闲", count)
+        self.update_status(False, phase, count, reason, ocr_status, last_action)
         self.showNormal()
         self.raise_()
 
@@ -2071,4 +2129,6 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         self.runner.release_after_finish()
+        if self.overlay_hud is not None:
+            self.overlay_hud.close()
         event.accept()

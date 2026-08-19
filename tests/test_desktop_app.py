@@ -506,7 +506,7 @@ class DesktopPanelTests(unittest.TestCase):
         """S0.5：desktop worker 的 Mediator 构造路径传 temp incident_dir，触发
         Fail-Closed 后 incident 组含 3 帧（before/now/after）+ 完整 S0 metadata
         （phase/context/evidence/action/attempt/deadline/outcome），密码不泄露。"""
-        import shuabao.mediator as mediator_mod
+        import shuabao.runtime_mediator as runtime_mediator_mod
 
         class FailClosedProbeMediator(RealMediator):
             def __init__(self, *args, **kwargs):
@@ -521,6 +521,8 @@ class DesktopPanelTests(unittest.TestCase):
                     window_title="英雄三国KK",
                     hwnd=10001,
                 )
+            def prepare_live_dependencies(self) -> bool:
+                return True
 
             def run(self, max_steps=None):
                 frame = self._probe_frame()
@@ -535,7 +537,7 @@ class DesktopPanelTests(unittest.TestCase):
                     self._archiver.attach_frame_after(fp, self._probe_frame())
 
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.object(mediator_mod, "Mediator", FailClosedProbeMediator):
+            with patch.object(runtime_mediator_mod, "Mediator", FailClosedProbeMediator):
                 worker = desktop_app.MediatorWorker(
                     Settings(dry_run=True), ROOT, max_steps=1, incident_dir=tmp
                 )

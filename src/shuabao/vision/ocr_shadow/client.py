@@ -693,9 +693,6 @@ def _resolve_ocr_python(
     candidates: list[Path] = []
     if python_executable:
         candidates.append(Path(python_executable))
-    env_py = (os.environ.get("SHUABAO_OCR_PYTHON") or os.environ.get("GAMESCRIPT_OCR_PYTHON") or "").strip()
-    if env_py:
-        candidates.append(Path(env_py))
 
     # 1. PyInstaller / Frozen packaged layout discovery
     if getattr(sys, "frozen", False):
@@ -709,7 +706,10 @@ def _resolve_ocr_python(
         candidates.append(exe_dir / "ocr_worker" / "python.exe")
         candidates.append(exe_dir / "venv-ocr" / "Scripts" / "python.exe")
         candidates.append(exe_dir / ".venv-ocr" / "Scripts" / "python.exe")
-    # 2. Local venv-ocr in repo root and common dev locations
+    else:
+        env_py = (os.environ.get("SHUABAO_OCR_PYTHON") or os.environ.get("GAMESCRIPT_OCR_PYTHON") or "").strip()
+        if env_py:
+            candidates.append(Path(env_py))
     candidates.append(repo_root / ".venv-ocr" / "Scripts" / "python.exe")
     candidates.append(repo_root / "venv-ocr" / "Scripts" / "python.exe")
     for parent in (repo_root.parent, repo_root.parent.parent):
@@ -742,13 +742,8 @@ def _resolve_src_dir(repo_root: Path, src_dir: str | Path | None) -> Path:
 
 
 def _resolve_model_dir(repo_root: Path, model_dir: str | Path | None) -> Path:
-    raw = (
-        model_dir
-        or os.environ.get("SHUABAO_OCR_MODEL_DIR")
-        or os.environ.get("GAMESCRIPT_OCR_MODEL_DIR", "")
-    )
-    if raw:
-        p = Path(raw).expanduser()
+    if model_dir:
+        p = Path(model_dir).expanduser()
         return p if p.is_absolute() else (repo_root / p).resolve()
     if getattr(sys, "frozen", False):
         meipass = getattr(sys, "_MEIPASS", None)
@@ -756,6 +751,13 @@ def _resolve_model_dir(repo_root: Path, model_dir: str | Path | None) -> Path:
             candidate = Path(meipass) / "models" / "ocr"
             if candidate.exists():
                 return candidate.resolve()
+    raw = (
+        os.environ.get("SHUABAO_OCR_MODEL_DIR")
+        or os.environ.get("GAMESCRIPT_OCR_MODEL_DIR", "")
+    )
+    if raw:
+        p = Path(raw).expanduser()
+        return p if p.is_absolute() else (repo_root / p).resolve()
     return (repo_root / "models" / "ocr").resolve()
 
 def _slot_fields(slot: Any) -> tuple[int, tuple[int, int, int, int], str | None]:

@@ -63,6 +63,7 @@ from shuabao.skill_catalog import (
     family_of,
     is_skill_choice_legal,
     lookup_card,
+    lookup_rarity,
     names_match,
     normalize_archive_levels,
     owned_families,
@@ -655,15 +656,21 @@ def _catalog_rarity_band(name: str) -> str | None:
 def _skill_effective_rarity_rank(
     slot: SlotCandidate, settings: PolicySettings
 ) -> int:
-    """槽位品质缺失/含混时用已核实的目录稀有度兜底；都没有 → 排最末。
+    """Catalog card rarity is authoritative; HSV is fallback for base icons.
 
-    只允许核实证据补位，绝不凭空编造档位。
+    Archive ``archive_icon`` rows describe the owned skill icon, not an
+    upgrade-card border. Card-grid rows always override HSV.
     """
+    row = lookup_rarity(slot.name or "")
+    # Archive icon rows identify the owned base skill, not the selectable
+    # upgrade-card border.  Keep them available through card_rarity() while
+    # leaving this choice ranking to HSV/slot evidence.
+    if row and str(row.get("face") or "") != "archive_icon":
+        band = _CATALOG_RARITY_TO_BAND.get(str(row.get("rarity") or "").strip())
+        if band and band in settings.quality_order:
+            return settings.quality_order.index(band)
     if slot.rarity and slot.rarity in settings.quality_order:
         return settings.quality_order.index(slot.rarity)
-    band = _catalog_rarity_band(slot.name or "")
-    if band and band in settings.quality_order:
-        return settings.quality_order.index(band)
     return len(settings.quality_order)
 
 
@@ -791,9 +798,11 @@ def _rank_skill_candidates(
                 has_prereq = True
             elif getattr(slot, "prereq_marker", False):
                 has_prereq = True
-        prereq_rank = 0 if has_prereq else 1
+        # Existing-family enhancements and cards whose verified prerequisites
+        # are met form the top tier.  Rarity only breaks ties within that tier.
+        priority_rank = 0 if has_prereq or (fam and fam in owned_branch_families) else 1
 
-        # 2. Rarity order (red > orange > purple > blue > white > green)
+        # 2. Catalog rarity (when present) or HSV border rarity fallback.
         rarity_rank = _skill_effective_rarity_rank(slot, settings)
 
         # 3. Skill level (higher level preferred when readable, or 0 if unknown)
@@ -819,17 +828,10 @@ def _rank_skill_candidates(
         elif not settings.skill_focus_families and slot.name:
             fam_order_rank = _skill_config_rank(slot.name, settings)
         fam_order_rank = int(fam_order_rank)
-        # 严格 6 元组：
-        # (prereq_rank, rarity_rank, -skill_level, new_rank, family_preference_rank, slot.index)
-        # - prereq_rank: 0=已核实前置满足, 1=前置未核实
-        # - rarity_rank: 0=red ... 5=green, unknown=6（按 quality_order 索引，缺失/未知排最末）
-        # - -skill_level: 等级高者优先（5 级优先于 1 级）
-        # - new_rank: 0=新技能, 1=非新技能（或未标记）
-        # - family_preference_rank: 0=命中焦点系/拥有系, 1=未命中 (fam_order_rank)
-        # - slot.index: 确定性兜底 (0, 1, 2)
+        # (owned/prerequisite tier, catalog/HSV rarity, -level, tie-breaks, slot)
         ranked.append(
             (
-                prereq_rank,
+                priority_rank,
                 rarity_rank,
                 level_key,
                 is_new_rank,

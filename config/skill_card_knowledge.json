@@ -1,0 +1,6231 @@
+{
+  "version": 1,
+  "status": "evidence_merged_no_strategy_wiring",
+  "source_priority": [
+    "real_frame",
+    "user_screenshot",
+    "verified_transcript",
+    "catalog"
+  ],
+  "card_count": 220,
+  "skill_family_count": 16,
+  "family_to_code": {
+    "奥数箭": "asj",
+    "奥数激光": "asjg",
+    "奥数射线": "assx",
+    "剑气": "jq",
+    "爆炎箭": "byj",
+    "寒冰箭": "hbj",
+    "天雷": "tl",
+    "普攻": "pg",
+    "冰霜新星": "bsxx",
+    "闪电链": "sdl",
+    "地震": "dz",
+    "龙卷风": "ljf",
+    "电磁网": "dcw",
+    "陨石": "ys",
+    "飓风": "jf",
+    "火球": "hq"
+  },
+  "cards": [
+    {
+      "name": "奥术箭矢",
+      "family": "奥数箭",
+      "effect": "普攻附魔能量，射程+200，伤害类型改为能量",
+      "prereq": "普攻,奥术箭",
+      "exclude": "火焰箭矢,冰霜箭矢,闪电箭矢,疾风箭矢,神箭手",
+      "aliases": [
+        "奥术箭矢"
+      ],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "箭矢增幅",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+40%",
+      "prereq": "奥术箭",
+      "exclude": "",
+      "aliases": [
+        "箭失增幅"
+      ],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "箭矢齐射",
+      "family": "奥数箭",
+      "effect": "奥术箭数量+1，伤害-20%",
+      "prereq": "奥术箭",
+      "exclude": "",
+      "aliases": [
+        "箭失齐射"
+      ],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "箭矢连发",
+      "family": "奥数箭",
+      "effect": "奥术箭额外释放1次，伤害-30%",
+      "prereq": "箭矢增幅",
+      "exclude": "",
+      "aliases": [
+        "箭失连发"
+      ],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "次级箭",
+      "family": "奥数箭",
+      "effect": "奥术箭首次命中分裂出次级箭",
+      "prereq": "箭矢增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "次级增伤",
+      "family": "奥数箭",
+      "effect": "次级箭伤害+80%",
+      "prereq": "次级箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "次级扩散",
+      "family": "奥数箭",
+      "effect": "次级箭数量+1",
+      "prereq": "次级箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆炸箭矢",
+      "family": "奥数箭",
+      "effect": "奥术箭命中爆炸，180范围造成75%攻击能量魔法伤害",
+      "prereq": "奥术箭,爆炎箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆炸增伤",
+      "family": "奥数箭",
+      "effect": "爆炸箭矢伤害+60%",
+      "prereq": "爆炸箭矢",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆炸扩散",
+      "family": "奥数箭",
+      "effect": "爆炸箭矢范围+80%",
+      "prereq": "爆炸箭矢",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆破箭矢",
+      "family": "奥数箭",
+      "effect": "爆炸箭伤害+50%，范围+25%",
+      "prereq": "爆炸增伤,爆炸扩散",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "贯通箭矢",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+20%，穿透+1",
+      "prereq": "奥术箭,寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "蓄力射击",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+100%，穿透+2，冷却-50%，爆炸箭伤害+100%",
+      "prereq": "贯通箭矢x2",
+      "exclude": "火焰射击",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强力箭矢",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+80%",
+      "prereq": "箭矢增幅x2",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "急速抽箭",
+      "family": "奥数箭",
+      "effect": "奥术箭冷却缩减+30%",
+      "prereq": "箭矢增幅,强化箭矢",
+      "exclude": "爆炸箭矢",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化飞箭",
+      "family": "奥数箭",
+      "effect": "奥术箭伤害+20%",
+      "prereq": "箭矢增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火焰射击",
+      "family": "奥数箭",
+      "effect": "爆炸箭命中附加3秒燃烧",
+      "prereq": "爆炸箭矢,火箭增幅",
+      "exclude": "次级箭",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "集束箭矢",
+      "family": "奥数箭",
+      "effect": "50级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥术增幅α",
+      "family": "奥数箭",
+      "effect": "奥术箭与奥术激光伤害+50%",
+      "prereq": "奥术箭,奥术激光",
+      "exclude": "",
+      "aliases": [
+        "奥术增幅a",
+        "奥术增幅A"
+      ],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥术增幅β",
+      "family": "奥数箭",
+      "effect": "奥术箭与奥术射线伤害+50%",
+      "prereq": "奥术箭,奥术射线",
+      "exclude": "",
+      "aliases": [
+        "奥术增幅b",
+        "奥术增幅B"
+      ],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "激光增幅",
+      "family": "奥数激光",
+      "effect": "奥术激光伤害+40%",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "稳定光线",
+      "family": "奥数激光",
+      "effect": "奥术激光持续时间+60%",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "激光超载",
+      "family": "奥数激光",
+      "effect": "奥术激光伤害频率翻倍，冷却-50%",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "衰弱光线",
+      "family": "奥数激光",
+      "effect": "被奥术激光命中的敌人移速-80%（1秒）",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "瓦解光线",
+      "family": "奥数激光",
+      "effect": "处于奥术激光中的敌人受伤+25%（5秒）",
+      "prereq": "奥术激光",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高能脉冲",
+      "family": "奥数激光",
+      "effect": "奥术激光范围+150%",
+      "prereq": "激光增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "激光闪射",
+      "family": "奥数激光",
+      "effect": "奥术激光期间每0.5秒脉冲，造成250%攻击魔法伤害",
+      "prereq": "激光增幅,激光超载",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥能洪流",
+      "family": "奥数激光",
+      "effect": "奥术激光进化为奥能洪流：范围+150%，伤害+150%",
+      "prereq": "激光超载,高能脉冲",
+      "exclude": "奥能扫射",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥能扫射",
+      "family": "奥数激光",
+      "effect": "奥术激光进化为扫射：伤害-20%，改为扫过全场",
+      "prereq": "激光超载,衰弱光线,高能脉冲",
+      "exclude": "奥能洪流",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化激光",
+      "family": "奥数激光",
+      "effect": "奥术激光伤害+20%",
+      "prereq": "激光增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥能天球",
+      "family": "奥数激光",
+      "effect": "奥能洪流期间每0.3秒发射奥能天球，对范围内敌人造成280%奥术激光伤害",
+      "prereq": "奥能洪流",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "射线增幅",
+      "family": "奥数射线",
+      "effect": "奥术射线伤害+40%",
+      "prereq": "奥术射线",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "射线延续",
+      "family": "奥数射线",
+      "effect": "奥术射线持续时间+75%",
+      "prereq": "奥术射线",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "焦点",
+      "family": "奥数射线",
+      "effect": "被奥术射线命中期间受伤+20%",
+      "prereq": "奥术射线",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "制导箭失",
+      "family": "奥数射线",
+      "effect": "奥术射线期间每0.2秒对敌人发射未升级奥术箭",
+      "prereq": "奥术箭,焦点",
+      "exclude": "",
+      "aliases": [
+        "制导箭矢"
+      ],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "焦点爆破",
+      "family": "奥数射线",
+      "effect": "奥术射线在目标处爆炸，220范围75%攻击魔法伤害",
+      "prereq": "焦点",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重射线",
+      "family": "奥数射线",
+      "effect": "奥术射线初始目标+1",
+      "prereq": "射线增幅,射线延续",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "调焦",
+      "family": "奥数射线",
+      "effect": "奥术射线每0.2秒伤害+5%，最高+120%",
+      "prereq": "焦点",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化射线",
+      "family": "奥数射线",
+      "effect": "奥术射线伤害+20%",
+      "prereq": "射线增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "永恒箭矢",
+      "family": "奥数射线",
+      "effect": "制导箭间隔降至0.1秒，触发箭继承全部强化",
+      "prereq": "制导箭失",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "剑气增幅",
+      "family": "剑气",
+      "effect": "剑气伤害+40%",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "致残剑气",
+      "family": "剑气",
+      "effect": "剑气伤害+20%，附加6秒减速",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "重创",
+      "family": "剑气",
+      "effect": "被剑气命中的敌人6秒内受伤+20%",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "疾行剑气",
+      "family": "剑气",
+      "effect": "剑气弹速+40%，冷却缩减+20%",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "剑气冲击",
+      "family": "剑气",
+      "effect": "剑气击退+30%，20%几率命中眩晕1秒",
+      "prereq": "剑气",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "巨型剑气",
+      "family": "剑气",
+      "effect": "剑气体型+60%",
+      "prereq": "剑气增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连续剑气",
+      "family": "剑气",
+      "effect": "剑气额外释放1次，伤害-20%",
+      "prereq": "剑气增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "碎冰",
+      "family": "剑气",
+      "effect": "剑气命中冻结敌人伤害+300%",
+      "prereq": "剑气,冰霜新星",
+      "exclude": "烈焰斩",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "湮灭斩",
+      "family": "剑气",
+      "effect": "剑气进化为湮灭斩：伤害/体型/弹速+60%，伤害频率翻倍且不可拦截",
+      "prereq": "巨型剑气,疾行剑气,剑气冲击",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "剑气爆发",
+      "family": "剑气",
+      "effect": "敌人进入400范围立即释放5道剑气，冷却45秒",
+      "prereq": "致残剑气,巨型剑气",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "烈焰斩",
+      "family": "剑气",
+      "effect": "剑气命中附加3秒燃烧",
+      "prereq": "爆炎箭,巨型剑气",
+      "exclude": "碎冰",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "剑气连斩",
+      "family": "剑气",
+      "effect": "20级解锁",
+      "prereq": "连续剑气x2",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化剑气",
+      "family": "剑气",
+      "effect": "43级解锁",
+      "prereq": "剑气增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "剑刃乱舞",
+      "family": "剑气",
+      "effect": "50级解锁",
+      "prereq": "强化剑气",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火箭增幅",
+      "family": "爆炎箭",
+      "effect": "爆炎箭命中伤害+60%",
+      "prereq": "爆炎箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火箭爆破",
+      "family": "爆炎箭",
+      "effect": "爆炎箭爆炸伤害+60%",
+      "prereq": "爆炎箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连珠火箭",
+      "family": "爆炎箭",
+      "effect": "爆炎箭额外释放1次，伤害-20%",
+      "prereq": "爆炎箭",
+      "exclude": "炎爆术",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆燃火箭",
+      "family": "爆炎箭",
+      "effect": "爆炎箭附加6秒燃烧",
+      "prereq": "火箭爆破",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "猛烈燃烧",
+      "family": "爆炎箭",
+      "effect": "燃烧伤害+200%",
+      "prereq": "爆燃火箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火箭精通",
+      "family": "爆炎箭",
+      "effect": "爆炎箭伤害×1.4，冷却缩减+10%",
+      "prereq": "火箭增幅,爆炸扩散",
+      "exclude": "",
+      "aliases": [
+        "火焰精通"
+      ],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "渗透火焰",
+      "family": "爆炎箭",
+      "effect": "炎爆术穿透+2",
+      "prereq": "炎爆术",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火花",
+      "family": "爆炎箭",
+      "effect": "爆炎箭首次命中后释放2个火花，各造成300%攻击火系物理伤害",
+      "prereq": "火箭增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "传火",
+      "family": "爆炎箭",
+      "effect": "燃烧状态敌人死亡时爆炸，280范围500%攻击火系物理伤害",
+      "prereq": "爆燃火箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "超连珠火箭",
+      "family": "爆炎箭",
+      "effect": "爆炎箭额外释放2次，伤害-30%",
+      "prereq": "连珠火箭x2",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "炎爆术",
+      "family": "爆炎箭",
+      "effect": "爆炎箭进化为炎爆术：爆炸伤害+120%，附加穿透+2，无视火抗",
+      "prereq": "爆炸扩散",
+      "exclude": "连珠火箭",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火花内爆",
+      "family": "爆炎箭",
+      "effect": "火花先对主目标造成1次伤害再释放，火花数量+1",
+      "prereq": "火花",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化火箭",
+      "family": "爆炎箭",
+      "effect": "爆炎箭伤害+20%",
+      "prereq": "火箭增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰箭增幅",
+      "family": "寒冰箭",
+      "effect": "寒冰箭伤害+40%",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "极寒冰箭",
+      "family": "寒冰箭",
+      "effect": "伤害+20%，命中冻结1秒",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰箭贯穿",
+      "family": "寒冰箭",
+      "effect": "伤害+20%，穿透+2",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰箭冲击",
+      "family": "寒冰箭",
+      "effect": "击退+50%，穿透+2",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰箭连发",
+      "family": "寒冰箭",
+      "effect": "额外发射+1，伤害-20%",
+      "prereq": "寒冰箭",
+      "exclude": "冰箭齐射",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "小冰箭",
+      "family": "寒冰箭",
+      "effect": "首次命中分裂小冰箭，造成300%冰系魔法伤害",
+      "prereq": "寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "重冰箭",
+      "family": "寒冰箭",
+      "effect": "弹速-40%，伤害+80%，穿透+1",
+      "prereq": "冰箭贯穿",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "蚀骨之寒",
+      "family": "寒冰箭",
+      "effect": "命中附加10秒霜寒，最多叠5层",
+      "prereq": "极寒冰箭,冰箭贯穿",
+      "exclude": "三棱冰箭",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰片增伤",
+      "family": "寒冰箭",
+      "effect": "小冰箭伤害+100%",
+      "prereq": "小冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "蚀骨冰棱",
+      "family": "寒冰箭",
+      "effect": "小冰箭数量+1",
+      "prereq": "小冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "三棱冰箭",
+      "family": "寒冰箭",
+      "effect": "寒冰箭进化为三棱：每次命中再分裂1支并继承强化",
+      "prereq": "极寒冰箭,冰箭贯穿,冰箭增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰箭齐射",
+      "family": "寒冰箭",
+      "effect": "寒冰箭数量+1，伤害-40%",
+      "prereq": "极寒冰箭",
+      "exclude": "冰箭连发",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰晶爆裂",
+      "family": "寒冰箭",
+      "effect": "小冰箭先对主目标造成1次伤害再释放，小冰箭数量+1",
+      "prereq": "蚀骨冰棱",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化冰箭",
+      "family": "寒冰箭",
+      "effect": "寒冰箭伤害+20%",
+      "prereq": "冰箭增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "永冻天球",
+      "family": "寒冰箭",
+      "effect": "50级解锁",
+      "prereq": "强化冰箭,蚀骨之寒",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "雷击增幅",
+      "family": "天雷",
+      "effect": "天雷伤害+40%",
+      "prereq": "天雷",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高压雷击",
+      "family": "天雷",
+      "effect": "天雷伤害+25%，麻痹时间+0.2秒",
+      "prereq": "天雷",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连续雷击",
+      "family": "天雷",
+      "effect": "天雷额外释放1次，伤害-20%",
+      "prereq": "天雷",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "磁暴增幅",
+      "family": "天雷",
+      "effect": "磁暴伤害+50%",
+      "prereq": "磁暴",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "磁暴扩张",
+      "family": "天雷",
+      "effect": "磁暴范围+80%",
+      "prereq": "磁暴",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电磁场",
+      "family": "天雷",
+      "effect": "磁暴范围内生成2秒电磁场，每秒100%攻击电系魔法伤害并减速1秒",
+      "prereq": "磁暴",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "稳定电场",
+      "family": "天雷",
+      "effect": "电磁场持续时间+3秒",
+      "prereq": "电磁场",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高压电场",
+      "family": "天雷",
+      "effect": "电磁场伤害+200%",
+      "prereq": "电磁场",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "闪电球",
+      "family": "天雷",
+      "effect": "天雷命中后向不同方向释放2个穿透电球，各150%攻击电系魔法伤害",
+      "prereq": "雷击增幅,高压雷击",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高压电球",
+      "family": "天雷",
+      "effect": "闪电球伤害+40%，附加0.2秒麻痹",
+      "prereq": "闪电球",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "磁暴",
+      "family": "天雷",
+      "effect": "天雷命中触发爆炸，220范围100%攻击电系魔法伤害",
+      "prereq": "天雷",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "雷电制裁",
+      "family": "天雷",
+      "effect": "天雷伤害+100%；击杀后对400范围内随机敌人再放一次天雷（只继承雷击增幅）",
+      "prereq": "雷击增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "审判之雷",
+      "family": "天雷",
+      "effect": "20级解锁",
+      "prereq": "",
+      "exclude": "磁暴",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电球爆裂",
+      "family": "天雷",
+      "effect": "36级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化天雷",
+      "family": "天雷",
+      "effect": "43级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化箭矢",
+      "family": "普攻",
+      "effect": "基础普攻伤害+50%",
+      "prereq": "普攻",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重箭",
+      "family": "普攻",
+      "effect": "多重数量+1",
+      "prereq": "普攻",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "弹射箭",
+      "family": "普攻",
+      "effect": "弹射次数+1",
+      "prereq": "普攻",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "攻速提升",
+      "family": "普攻",
+      "effect": "攻速+60%",
+      "prereq": "普攻",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "急速射击",
+      "family": "普攻",
+      "effect": "攻速+120%",
+      "prereq": "攻速提升x2",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重增伤",
+      "family": "普攻",
+      "effect": "多重伤害+30%",
+      "prereq": "多重箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "弹射增伤",
+      "family": "普攻",
+      "effect": "弹射伤害+30%",
+      "prereq": "弹射箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "超速射击",
+      "family": "普攻",
+      "effect": "攻击间隔-0.15",
+      "prereq": "攻速提升x2",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火焰箭矢",
+      "family": "普攻",
+      "effect": "火附魔，伤害+50%",
+      "prereq": "普攻,爆炎箭",
+      "exclude": "奥术箭矢等互斥箭",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰霜箭矢",
+      "family": "普攻",
+      "effect": "冰附魔，多重+1",
+      "prereq": "普攻,寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "闪电箭矢",
+      "family": "普攻",
+      "effect": "电附魔，弹射+1",
+      "prereq": "普攻,天雷",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "疾风箭矢",
+      "family": "普攻",
+      "effect": "风附魔，攻速+60%，伤害类型风",
+      "prereq": "普攻,飓风",
+      "exclude": "神箭手,奥术箭矢,火焰箭矢等",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "破甲强弩",
+      "family": "普攻",
+      "effect": "20级解锁",
+      "prereq": "强化箭矢x2",
+      "exclude": "",
+      "aliases": [
+        "破甲穿刺"
+      ],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "神箭手",
+      "family": "普攻",
+      "effect": "多重+1，弹射+1，普攻附加150%物理伤害",
+      "prereq": "多重箭,攻速提升",
+      "exclude": "奥术箭矢,火焰箭矢,冰霜箭矢,闪电箭矢,疾风箭矢",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "奥能喷发",
+      "family": "普攻",
+      "effect": "命中10%触发奥能喷发，500%能量伤害并击退",
+      "prereq": "普攻,奥术箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火焰爆炸",
+      "family": "普攻",
+      "effect": "命中10%触发火焰爆炸，250%火系伤害",
+      "prereq": "普攻,爆炎箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "贯穿冰箭",
+      "family": "普攻",
+      "effect": "命中10%发射穿透冰箭，300%冰系伤害",
+      "prereq": "普攻,寒冰箭",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连环闪电",
+      "family": "普攻",
+      "effect": "命中10%触发连环闪电，300%电系伤害",
+      "prereq": "普攻,天雷",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "狂风之力",
+      "family": "普攻",
+      "effect": "命中10%触发狂风之力，提高攻速并降低攻击间隔",
+      "prereq": "普攻,飓风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "真实分裂",
+      "family": "普攻",
+      "effect": "23级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "剑气纵横",
+      "family": "普攻",
+      "effect": "40级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化普攻",
+      "family": "普攻",
+      "effect": "43级解锁",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "新星增幅",
+      "family": "冰霜新星",
+      "effect": "冰霜新星伤害+40%",
+      "prereq": "冰霜新星",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "连环霜爆",
+      "family": "冰霜新星",
+      "effect": "冰霜新星额外释放1次",
+      "prereq": "冰霜新星",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "极寒新星",
+      "family": "冰霜新星",
+      "effect": "冰霜新星伤害+20%，并附加1秒冻结",
+      "prereq": "冰霜新星",
+      "exclude": "",
+      "aliases": [
+        "极蹇新星"
+      ],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "寒霜之心",
+      "family": "冰霜新星",
+      "effect": "冰霜新星额外造成一次500%攻击的[冰系]魔法伤害",
+      "prereq": "新星增幅,极寒新星",
+      "exclude": "",
+      "aliases": [
+        "赛霜之心"
+      ],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "绝对零度",
+      "family": "冰霜新星",
+      "effect": "冰霜新星的冻结持续时间提升50%",
+      "prereq": "极寒新星",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "新星扩张",
+      "family": "冰霜新星",
+      "effect": "冰霜新星范围+100%",
+      "prereq": "新星增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "小冰片",
+      "family": "冰霜新星",
+      "effect": "冰霜新星结束后分裂出1个穿透2、造成300%攻击[冰系]魔法伤害的小冰片",
+      "prereq": "寒冰箭,冰霜新星",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰片飞溅",
+      "family": "冰霜新星",
+      "effect": "小冰片数量+1",
+      "prereq": "小冰片",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "刺骨寒霜",
+      "family": "冰霜新星",
+      "effect": "冰霜新星、寒冰箭伤害+80%",
+      "prereq": "极寒新星",
+      "exclude": "",
+      "aliases": [
+        "刺骨寒意"
+      ],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冷冻场",
+      "family": "冰霜新星",
+      "effect": "冰霜新星生成持续3秒的冷冻场，每秒造成200%攻击[冰系]魔法伤害并附加1层冻伤",
+      "prereq": "寒霜之心",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "极寒精通",
+      "family": "冰霜新星",
+      "effect": "寒冰箭、冰霜新星冷却缩减+25%",
+      "prereq": "寒冰箭,冰霜新星",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "冰片爆裂",
+      "family": "冰霜新星",
+      "effect": "小冰片先对原本主目标造成1次伤害再释放，小冰片数量+1",
+      "prereq": "冰片飞溅",
+      "exclude": "",
+      "aliases": [
+        "冰片爆发"
+      ],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化新星",
+      "family": "冰霜新星",
+      "effect": "冰霜新星伤害+20%",
+      "prereq": "新星增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "闪电增幅",
+      "family": "闪电链",
+      "effect": "闪电链伤害+40%",
+      "prereq": "闪电链",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "交叉闪电",
+      "family": "闪电链",
+      "effect": "闪电链初始目标+1，伤害-20%",
+      "prereq": "闪电链",
+      "exclude": "",
+      "aliases": [
+        "多重闪电"
+      ],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高压闪电",
+      "family": "闪电链",
+      "effect": "闪电链伤害+20%，附加0.5秒麻痹",
+      "prereq": "闪电链",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "闪电延续",
+      "family": "闪电链",
+      "effect": "闪电链伤害+20%，弹射次数+2",
+      "prereq": "闪电链",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "离子扩散",
+      "family": "闪电链",
+      "effect": "离子爆破伤害范围+100%",
+      "prereq": "离子爆破",
+      "exclude": "",
+      "aliases": [
+        "离子扩张"
+      ],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "离子电压",
+      "family": "闪电链",
+      "effect": "离子爆破伤害+50%，附加0.5秒麻痹",
+      "prereq": "离子爆破",
+      "exclude": "",
+      "aliases": [
+        "离子增幅"
+      ],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "离子爆破",
+      "family": "闪电链",
+      "effect": "闪电链每次命中产生爆炸，170范围造成180%攻击[电系]魔法伤害",
+      "prereq": "高压闪电",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "交感电击",
+      "family": "闪电链",
+      "effect": "闪电链命中麻痹敌人时，对600范围一名敌人迸发电流，造成300%攻击[电系]魔法伤害",
+      "prereq": "高压闪电",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "雷电增幅",
+      "family": "闪电链",
+      "effect": "天雷、闪电链伤害+50%",
+      "prereq": "天雷,闪电链",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "永动电流",
+      "family": "闪电链",
+      "effect": "闪电链每次弹射有20%概率分裂出继承全部强化的闪电链（弹射次数继承剩余次数）",
+      "prereq": "高压闪电,闪电增幅,闪电延续",
+      "exclude": "",
+      "aliases": [
+        "汞动电流",
+        "永动电波"
+      ],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "雷电精通",
+      "family": "闪电链",
+      "effect": "天雷、闪电链冷却缩减+20%",
+      "prereq": "天雷,闪电链",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "霹雳闪电",
+      "family": "闪电链",
+      "effect": "交感电击先对主目标造成1次伤害，电流伤害+80%",
+      "prereq": "交感电击",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化闪电",
+      "family": "闪电链",
+      "effect": "闪电链伤害+20%",
+      "prereq": "闪电增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "地震增幅",
+      "family": "地震",
+      "effect": "地震伤害+40%",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "地震重击",
+      "family": "地震",
+      "effect": "地震伤害+20%，眩晕时间+0.3秒",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "地震连击",
+      "family": "地震",
+      "effect": "地震额外释放1次",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强震",
+      "family": "地震",
+      "effect": "地震范围+80%",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "地震速击",
+      "family": "地震",
+      "effect": "地震伤害+20%，速度+50%",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "精准打击",
+      "family": "地震",
+      "effect": "地震中心区域伤害翻倍",
+      "prereq": "地震",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "地震狂轰",
+      "family": "地震",
+      "effect": "地震额外释放2次",
+      "prereq": "地震连击x2",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "余烬延续",
+      "family": "地震",
+      "effect": "余烬持续时间+2秒",
+      "prereq": "爆燃地震",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高温余烬",
+      "family": "地震",
+      "effect": "余烬伤害+60%",
+      "prereq": "爆燃地震",
+      "exclude": "",
+      "aliases": [
+        "高温余燃"
+      ],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆燃地震",
+      "family": "地震",
+      "effect": "地震进阶为爆燃地震：额外造成400%攻击[火系]伤害，残留2秒余烬每秒造成500%攻击[火系]魔法伤害",
+      "prereq": "爆炎箭,精准打击,地震增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "末日地震",
+      "family": "地震",
+      "effect": "地震结束后在范围内触发一次回荡，造成500%攻击[物系]物理伤害",
+      "prereq": "地震增幅,地震连击",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "浩劫",
+      "family": "地震",
+      "effect": "地震、陨石伤害+100%",
+      "prereq": "地震,陨石",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化地震",
+      "family": "地震",
+      "effect": "地震伤害+20%",
+      "prereq": "地震增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "龙卷增幅",
+      "family": "龙卷风",
+      "effect": "龙卷风伤害+40%",
+      "prereq": "龙卷风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "龙卷延续",
+      "family": "龙卷风",
+      "effect": "龙卷风持续时间+80%",
+      "prereq": "龙卷风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强袭龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风移动速度+40%，持续时间+30%",
+      "prereq": "龙卷风",
+      "exclude": "",
+      "aliases": [
+        "强袭龙卷风"
+      ],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强力龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风牵引力度+50%",
+      "prereq": "龙卷风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "龙卷扩张",
+      "family": "龙卷风",
+      "effect": "龙卷风范围+60%",
+      "prereq": "龙卷增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风暴汇聚",
+      "family": "龙卷风",
+      "effect": "龙卷风结束时在原位置再生成持续5秒的龙卷风",
+      "prereq": "龙卷延续,强袭龙卷",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "闪电龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风进阶为闪电龙卷，额外造成250%攻击[电系]魔法伤害",
+      "prereq": "闪电链,龙卷延续,龙卷扩张",
+      "exclude": "双重龙卷",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "双重龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风持续时间减半，同时释放2个龙卷风",
+      "prereq": "龙卷延续,龙卷扩张",
+      "exclude": "闪电龙卷",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风力增幅",
+      "family": "龙卷风",
+      "effect": "龙卷风、飓风伤害+50%",
+      "prereq": "龙卷风,飓风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风力精通",
+      "family": "龙卷风",
+      "effect": "龙卷风、飓风冷却缩减+20%",
+      "prereq": "龙卷风,飓风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化龙卷",
+      "family": "龙卷风",
+      "effect": "龙卷风伤害+20%",
+      "prereq": "龙卷增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "龙卷风暴",
+      "family": "龙卷风",
+      "effect": "龙卷风伤害+150%，额外释放1个龙卷风",
+      "prereq": "双重龙卷",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电磁增幅",
+      "family": "电磁网",
+      "effect": "电磁网伤害+40%",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高频电网",
+      "family": "电磁网",
+      "effect": "电磁网额外释放1次，伤害-30%",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电网扩张",
+      "family": "电磁网",
+      "effect": "电磁网范围+80%",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "跃迁电流",
+      "family": "电磁网",
+      "effect": "电磁网命中的敌人产生1道跃迁电流，对500范围随机敌人造成300%攻击[电系]魔法伤害",
+      "prereq": "闪电链,电磁网",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电能激荡",
+      "family": "电磁网",
+      "effect": "跃迁电流可以弹射2次",
+      "prereq": "跃迁电流",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "抗拒电网",
+      "family": "电磁网",
+      "effect": "电磁网伤害+20%，附加轻微击退",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [
+        "抗拒电"
+      ],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电网过载",
+      "family": "电磁网",
+      "effect": "电磁网伤害+20%，额外释放1次，冷却缩减+20%",
+      "prereq": "高频电网",
+      "exclude": "",
+      "aliases": [
+        "申网过载"
+      ],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高压电网",
+      "family": "电磁网",
+      "effect": "电磁网伤害+20%，使敌人麻痹1秒",
+      "prereq": "电磁网",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "超过载",
+      "family": "电磁网",
+      "effect": "电网过载升级：电磁网伤害+100%，额外释放2次",
+      "prereq": "电网过载",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "电力增幅",
+      "family": "电磁网",
+      "effect": "天雷、电磁网伤害+50%",
+      "prereq": "天雷,电磁网",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化电网",
+      "family": "电磁网",
+      "effect": "电磁网伤害+20%",
+      "prereq": "电磁增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "感电",
+      "family": "电磁网",
+      "effect": "电磁网命中后附加5秒感电",
+      "prereq": "高压电网,电网扩张,电磁增幅",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "陨石增幅",
+      "family": "陨石",
+      "effect": "陨石伤害+40%",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "陨石坠落",
+      "family": "陨石",
+      "effect": "陨石冷却缩减+20%",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "陨石连击",
+      "family": "陨石",
+      "effect": "陨石额外释放1次",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "陨石爆破",
+      "family": "陨石",
+      "effect": "陨石伤害范围+100%",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "星落",
+      "family": "陨石",
+      "effect": "陨石伤害×2.5，冷却缩减-20%",
+      "prereq": "毁灭陨石",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重迸射",
+      "family": "陨石",
+      "effect": "陨石碎片数量+1",
+      "prereq": "陨石碎片",
+      "exclude": "",
+      "aliases": [
+        "多重进射"
+      ],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重陨石",
+      "family": "陨石",
+      "effect": "陨石数量+1，伤害-20%",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "震撼陨石",
+      "family": "陨石",
+      "effect": "陨石造成伤害时附加0.5秒眩晕",
+      "prereq": "陨石",
+      "exclude": "",
+      "aliases": [
+        "震撼晚石"
+      ],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "毁灭陨石",
+      "family": "陨石",
+      "effect": "陨石伤害+200%",
+      "prereq": "陨石增幅x2",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "陨石碎片",
+      "family": "陨石",
+      "effect": "陨石落地后迸射1个碎片，对250范围造成400%攻击[物理]物理伤害",
+      "prereq": "陨石增幅",
+      "exclude": "",
+      "aliases": [
+        "瞬石碎片"
+      ],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "爆破碎片",
+      "family": "陨石",
+      "effect": "陨石碎片迸射更集中、爆炸范围更大，碎片数量+1",
+      "prereq": "多重迸射",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化陨石",
+      "family": "陨石",
+      "effect": "陨石伤害+20%",
+      "prereq": "陨石增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "飓风增幅",
+      "family": "飓风",
+      "effect": "飓风伤害+40%",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [
+        "愿风增幅"
+      ],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重飓风",
+      "family": "飓风",
+      "effect": "飓风额外释放1次，伤害-20%",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "贯通之风",
+      "family": "飓风",
+      "effect": "飓风穿透+6",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强袭飓风",
+      "family": "飓风",
+      "effect": "飓风伤害+20%，击退效果+30%",
+      "prereq": "飓风",
+      "exclude": "真空",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风阻",
+      "family": "飓风",
+      "effect": "飓风伤害+20%，附加3秒减速",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风暴加剧",
+      "family": "飓风",
+      "effect": "小飓风数量+1",
+      "prereq": "小飓风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "真空塌陷",
+      "family": "飓风",
+      "effect": "真空伤害+80%，并附加0.5秒眩晕",
+      "prereq": "真空",
+      "exclude": "",
+      "aliases": [
+        "真空塌"
+      ],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重风暴",
+      "family": "飓风",
+      "effect": "飓风额外释放2次，伤害-30%",
+      "prereq": "多重飓风x2",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "小龙卷",
+      "family": "飓风",
+      "effect": "飓风命中首个敌人处生成持续3秒的小龙卷，每1秒对200范围造成200%攻击[风系]魔法伤害",
+      "prereq": "龙卷风,飓风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "真空",
+      "family": "飓风",
+      "effect": "飓风命中时牵引200范围敌人，并造成150%攻击[风系]魔法伤害",
+      "prereq": "飓风",
+      "exclude": "强袭飓风",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "小飓风",
+      "family": "飓风",
+      "effect": "飓风每次命中生成1个穿透2、造成250%攻击[风系]魔法伤害的小飓风",
+      "prereq": "飓风",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "乱流",
+      "family": "飓风",
+      "effect": "小飓风先对原本主目标造成1次伤害再释放，小飓风数量+1",
+      "prereq": "风暴加剧",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "风力回旋",
+      "family": "飓风",
+      "effect": "飓风消失时往回再释放1个保留全部强化的飓风",
+      "prereq": "",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化飓风",
+      "family": "飓风",
+      "effect": "飓风伤害+20%",
+      "prereq": "飓风增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火球增幅",
+      "family": "火球",
+      "effect": "火球伤害+50%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火球延续",
+      "family": "火球",
+      "effect": "火球持续时间+60%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "巨化火球",
+      "family": "火球",
+      "effect": "火球体积+60%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火球加速",
+      "family": "火球",
+      "effect": "火球移动速度+50%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "多重火球",
+      "family": "火球",
+      "effect": "火球数量+1，伤害-20%",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "烈焰火球",
+      "family": "火球",
+      "effect": "火球命中后附加3秒燃烧",
+      "prereq": "火球",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "蓝",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "火焰飞弹",
+      "family": "火球",
+      "effect": "火球持续期间每1秒发射一颗火焰飞弹，造成300%攻击[火系]物理伤害",
+      "prereq": "烈焰火球",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "疾行火球",
+      "family": "火球",
+      "effect": "火球移动速度+100%",
+      "prereq": "火球延续,火球增幅,火球加速",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "高频火球",
+      "family": "火球",
+      "effect": "火球弹道速度-80%，伤害频率翻倍",
+      "prereq": "火球延续,巨化火球,火球增幅",
+      "exclude": "火球加速,疾行火球",
+      "aliases": [],
+      "rarity": {
+        "value": "紫",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "乾蓝冰焰",
+      "family": "火球",
+      "effect": "火球进阶为乾蓝冰焰：命中燃烧敌人将燃烧转化为持续10秒的燃霜，可叠3层",
+      "prereq": "爆炎箭,寒冰箭,火球",
+      "exclude": "",
+      "aliases": [
+        "乾蓝冰"
+      ],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "幸运火球",
+      "family": "火球",
+      "effect": "释放火球时20%数量×3、30%数量×2、50%数量不变",
+      "prereq": "多重火球x2",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "橙",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    },
+    {
+      "name": "强化火球",
+      "family": "火球",
+      "effect": "火球伤害+25%",
+      "prereq": "火球增幅x3",
+      "exclude": "",
+      "aliases": [],
+      "rarity": {
+        "value": "白",
+        "confirmed": true,
+        "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      },
+      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+    }
+  ],
+  "archive_unlocks": {
+    "source_file": "skill_archive_unlocks.json",
+    "skill_count": 16,
+    "rows": 232,
+    "verified_rows": 227,
+    "gaps": [
+      "普攻（pg）缺档：[50]",
+      "寒冰箭（hbj）缺档：[23, 26, 50]",
+      "天雷（tl）缺档：[20, 23, 26, 50]",
+      "剑气（jq）缺档：[2, 5, 7]",
+      "冰霜新星（bsxx）缺档：[2, 5, 7, 10, 16]",
+      "地震（dz）缺档：[50]",
+      "龙卷风（ljf）缺档：[2, 5, 7]",
+      "电磁网（dcw）缺档：[2, 5, 7, 20]",
+      "陨石（ys）缺档：[50]",
+      "飓风（jf）缺档：[50]",
+      "火球（hq）缺档：[23, 26, 46, 50]",
+      "另有 5 行读不到徽标等级，保持 level=null/unverified"
+    ],
+    "skills": [
+      {
+        "skill_id": "pg",
+        "name": "普攻",
+        "aliases": [],
+        "note": "卡面：开局自带该技能，不占用技能栏（user 20260814 普攻Lv18 卡面）。",
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "超速射击"
+            },
+            "text": "解锁卡牌：超速射击",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "cards": [
+                "奥术箭矢",
+                "火焰箭矢",
+                "冰霜箭矢",
+                "闪电箭矢",
+                "疾风箭矢"
+              ]
+            },
+            "text": "解锁卡牌：奥术箭矢、火焰箭矢、冰霜箭矢、闪电箭矢、疾风箭矢",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "attack_speed",
+              "delta_pct": 30
+            },
+            "text": "攻速+30%",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "cards": [
+                "奥能喷发",
+                "火焰爆炸",
+                "贯穿冰箭",
+                "连环闪电",
+                "狂风之力"
+              ]
+            },
+            "text": "解锁卡牌：奥能喷发、火焰爆炸、贯穿冰箭、连环闪电、狂风之力",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "神箭手"
+            },
+            "text": "解锁卡牌：神箭手",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "attack_interval",
+              "delta": -0.1
+            },
+            "text": "攻击间隔-0.1",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "破甲强弩"
+            },
+            "text": "解锁卡牌：破甲强弩",
+            "source": {
+              "t": 0.0
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "真实分裂"
+            },
+            "text": "解锁卡牌：真实分裂",
+            "source": {
+              "t": 0.0
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "multi": 1,
+              "bounce": 1
+            },
+            "text": "多重数量+1，弹射次数+1",
+            "source": {
+              "t": 0.0
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "damage_coeff",
+              "delta_pct": 50
+            },
+            "text": "普攻伤害系数+50%",
+            "source": {
+              "t": 0.0
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "攻速提升"
+            },
+            "text": "学得普攻后，立即获得攻速提升",
+            "source": {
+              "t": 0.0
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "multi": 2,
+              "proc_pct": 10,
+              "proc_mul": true
+            },
+            "text": "多重数量+2，攻击触发特效的概率提升10%（乘算）",
+            "source": {
+              "t": 0.0
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "剑气纵横"
+            },
+            "text": "解锁卡牌：剑气纵横",
+            "source": {
+              "t": 0.0
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化普攻"
+            },
+            "text": "解锁卡牌：强化普攻",
+            "source": {
+              "t": 17.2
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "attack_interval",
+              "delta": -0.15
+            },
+            "text": "攻击间隔-0.15",
+            "source": {
+              "t": 17.2
+            }
+          },
+          {
+            "level": null,
+            "level_status": "unverified",
+            "level_candidates": [
+              50
+            ],
+            "kind": "other",
+            "payload": {},
+            "text": "攻击时有50%概率触发飞将，从天而降…",
+            "source": {
+              "t": 17.2
+            },
+            "note": "行尾被裁；50 未在徽标列出现"
+          }
+        ]
+      },
+      {
+        "skill_id": "asj",
+        "name": "奥术箭",
+        "aliases": [
+          "奥数箭"
+        ],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "次级箭"
+            },
+            "text": "解锁卡牌：次级箭",
+            "source": {
+              "t": 24.79
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "card": "次级箭",
+              "pierce": 1
+            },
+            "text": "次级箭现在可以穿透目标，且穿透+1",
+            "source": {
+              "t": 24.79
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "pierce": 1
+            },
+            "text": "奥术箭穿透+1",
+            "source": {
+              "t": 24.79
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "remove_damage_penalty",
+            "payload": {
+              "card": "箭矢齐射"
+            },
+            "text": "箭矢齐射不再降低伤害",
+            "source": {
+              "t": 32.39
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强力箭矢"
+            },
+            "text": "解锁卡牌：强力箭矢",
+            "source": {
+              "t": 32.39
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "奥术箭基础冷却-10%",
+            "source": {
+              "t": 32.39
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "remove_damage_penalty",
+            "payload": {
+              "card": "箭矢连发"
+            },
+            "text": "箭矢连发不再降低伤害",
+            "source": {
+              "t": 32.39
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "急速抽箭"
+            },
+            "text": "解锁卡牌：急速抽箭",
+            "source": {
+              "t": 32.39
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "pierce": 2
+            },
+            "text": "奥术箭穿透+2",
+            "source": {
+              "t": 32.39
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "extra_rounds": 1
+            },
+            "text": "奥术箭额外攻击1轮",
+            "source": {
+              "t": 38.39
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "箭矢增幅"
+            },
+            "text": "学得奥术箭后，立即获得箭矢增幅",
+            "source": {
+              "t": 38.39
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "waive_prereq",
+            "payload": {
+              "card": "爆炸箭矢",
+              "waived": [
+                "爆炎箭"
+              ]
+            },
+            "text": "取消爆炸箭矢前置卡牌",
+            "source": {
+              "t": 38.39
+            },
+            "note": "徽标是 36 不是 40；40 是剩余穿透增伤"
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "per_remaining_pierce_pct": 5
+            },
+            "text": "奥术箭命中目标时，会根据当前剩余穿透次数提高造成的伤害，每有1次剩余穿透次数，造成的伤害提高5%",
+            "source": {
+              "t": 38.39
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化飞箭"
+            },
+            "text": "解锁卡牌：强化飞箭",
+            "source": {
+              "t": 38.39
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "奥术箭基础冷却-15%",
+            "source": {
+              "t": 38.39
+            }
+          },
+          {
+            "level": 50,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "集束箭矢"
+            },
+            "text": "解锁卡牌：集束箭矢",
+            "source": {
+              "screenshot": "user 20260814 奥术箭Lv47 卡面"
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "byj",
+        "name": "爆炎箭",
+        "aliases": [],
+        "coverage": "full",
+        "coverage_note": "2..26 与 50 来自 user 20260814 爆炎箭Lv8 卡面截图；30..46 来自录像抽帧，两边不冲突。",
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "火花"
+            },
+            "text": "解锁卡牌：火花",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "传火"
+            },
+            "text": "解锁卡牌：传火",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "explosion_radius",
+              "delta_pct": 10
+            },
+            "text": "爆炎箭基础爆炸范围+10%",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "remove_damage_penalty",
+            "payload": {
+              "card": "连珠火箭"
+            },
+            "text": "连珠火箭不再降低伤害并解锁超连珠火箭",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "超连珠火箭"
+            },
+            "text": "连珠火箭不再降低伤害并解锁超连珠火箭",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "炎爆术"
+            },
+            "text": "解锁卡牌：炎爆术",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "爆炎箭基础冷却-10%",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "stun_s": 1,
+              "chance_pct": 20
+            },
+            "text": "爆炎箭命中有20%概率附加1秒晕眩效果",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "burn_s": 2
+            },
+            "text": "爆炎箭爆炸附加2秒燃烧效果",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "explosion_radius",
+              "delta_pct": 20
+            },
+            "text": "爆炎箭基础爆炸范围+20%",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "waive_prereq",
+            "payload": {
+              "card": "炎爆术",
+              "waived": [
+                "爆炸扩散"
+              ]
+            },
+            "text": "取消炎爆术前置与限制卡牌",
+            "source": {
+              "t": 39.59
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "火花"
+            },
+            "text": "学得爆炎箭后，立即获得火花",
+            "source": {
+              "t": 39.59
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "火花内爆"
+            },
+            "text": "解锁卡牌：火花内爆",
+            "source": {
+              "t": 39.59
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "火焰精通",
+              "effect": "double"
+            },
+            "text": "火焰精通提供的效果翻倍",
+            "source": {
+              "t": 39.59
+            },
+            "note": "目录卡名是火箭精通，是否同一张未核卡面"
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化火箭"
+            },
+            "text": "解锁卡牌：强化火箭",
+            "source": {
+              "t": 39.59
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "爆炎箭基础冷却-15%",
+            "source": {
+              "t": 39.59
+            }
+          },
+          {
+            "level": 50,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "volley": 1
+            },
+            "text": "爆炎箭齐射+1",
+            "source": {
+              "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "hbj",
+        "name": "寒冰箭",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "小冰箭",
+              "freeze_s": 0.5
+            },
+            "text": "小冰箭附带0.5秒冻结",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "remove_damage_penalty",
+            "payload": {
+              "card": "冰箭连发"
+            },
+            "text": "冰箭连发不再降低伤害",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "pierce": 2
+            },
+            "text": "寒冰箭穿透+2",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "三棱冰箭"
+            },
+            "text": "解锁卡牌：三棱冰箭",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "冰箭齐射"
+            },
+            "text": "解锁卡牌：冰箭齐射",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "寒冰箭基础冷却-10%",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "vs": "paralyzed"
+            },
+            "text": "寒冰箭对被麻痹的怪物造成伤害+100%",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "cast": "冰霜新星"
+            },
+            "text": "寒冰箭首次命中怪物时，释放1个仅保留强化的冰霜新星",
+            "source": {
+              "t": 44.79
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "极寒冰箭"
+            },
+            "text": "学得寒冰箭后，立即获得极寒冰箭",
+            "source": {
+              "t": 44.79
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "冰晶爆裂"
+            },
+            "text": "解锁卡牌：冰晶爆裂",
+            "source": {
+              "t": 44.79
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "重冰箭",
+              "remove": "projectile_slow"
+            },
+            "text": "重冰箭不再降低弹道速度，并提供伤害…",
+            "source": {
+              "t": 44.79
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化冰箭"
+            },
+            "text": "解锁卡牌：强化冰箭",
+            "source": {
+              "t": 44.79
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "寒冰箭基础冷却-15%",
+            "source": {
+              "t": 44.79
+            }
+          },
+          {
+            "level": null,
+            "level_status": "unverified",
+            "level_candidates": [
+              20,
+              23
+            ],
+            "kind": "other",
+            "payload": {},
+            "text": "寒冰箭抵达射程尽头时会原路折返",
+            "source": {
+              "t": 49.19
+            }
+          },
+          {
+            "level": null,
+            "level_status": "unverified",
+            "level_candidates": [
+              23,
+              26
+            ],
+            "kind": "stat",
+            "payload": {
+              "pierce": 3
+            },
+            "text": "寒冰箭穿透+3",
+            "source": {
+              "t": 49.19
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "tl",
+        "name": "天雷",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "磁暴"
+            },
+            "text": "解锁卡牌：磁暴",
+            "source": {
+              "t": 53.59
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "雷电制裁"
+            },
+            "text": "解锁卡牌：雷电制裁",
+            "source": {
+              "t": 53.59
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "damage_coeff",
+              "delta_pct": 20
+            },
+            "text": "天雷伤害系数+20%",
+            "source": {
+              "t": 53.59
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "remove_damage_penalty",
+            "payload": {
+              "card": "连续雷击"
+            },
+            "text": "连续雷击不再降低伤害",
+            "source": {
+              "t": 53.59
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "vs": "frozen",
+              "delta_pct": 100
+            },
+            "text": "天雷对被冻结的怪物造成伤害+100%",
+            "source": {
+              "t": 53.59
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "天雷基础冷却-10%",
+            "source": {
+              "t": 53.59
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "targets": 1
+            },
+            "text": "天雷初始目标+1",
+            "source": {
+              "t": 57.59
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "雷击增幅"
+            },
+            "text": "学得天雷后，立即获得雷击增幅",
+            "source": {
+              "t": 57.59
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "电球爆裂"
+            },
+            "text": "解锁卡牌：电球爆裂",
+            "source": {
+              "t": 57.59
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "审判之雷"
+            },
+            "text": "审判之雷会根据目标已损失血量提高伤害；目标每损失1%最大生命值…",
+            "source": {
+              "t": 57.59
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化天雷"
+            },
+            "text": "解锁卡牌：强化天雷",
+            "source": {
+              "t": 57.59
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "天雷基础冷却-15%",
+            "source": {
+              "t": 57.59
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "jq",
+        "name": "剑气",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "剑气爆发"
+            },
+            "text": "解锁卡牌：剑气爆发",
+            "source": {
+              "t": 65.19
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "烈焰斩"
+            },
+            "text": "解锁卡牌：烈焰斩",
+            "source": {
+              "t": 65.19
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "剑气基础冷却-10%",
+            "source": {
+              "t": 65.19
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "剑气连斩"
+            },
+            "text": "解锁卡牌：剑气连斩",
+            "source": {
+              "t": 65.19
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "烈焰斩"
+            },
+            "text": "局内获得烈焰斩卡牌后，燃烧伤害+",
+            "source": {
+              "t": 65.19
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 20
+            },
+            "text": "剑气基础范围+20%",
+            "source": {
+              "t": 65.19
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "hits": 2,
+              "coeff_pct": 150
+            },
+            "text": "剑气首次命中后触发血轮斩，对斩击范围内敌人造成2次剑气150%伤害",
+            "source": {
+              "t": 60.39
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "致残剑气"
+            },
+            "text": "学得剑气后，立即获得致残剑气",
+            "source": {
+              "t": 60.39
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 20
+            },
+            "text": "剑气范围+20%",
+            "source": {
+              "t": 60.39
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "vs": "boss_elite",
+              "mul": 1.5
+            },
+            "text": "剑气对BOSS和精英单位造成的伤害×1.5",
+            "source": {
+              "t": 60.39
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化剑气"
+            },
+            "text": "解锁卡牌：强化剑气",
+            "source": {
+              "t": 60.39
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "剑气基础冷却-15%",
+            "source": {
+              "t": 60.39
+            }
+          },
+          {
+            "level": 50,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "剑刃乱舞"
+            },
+            "text": "解锁卡牌：剑刃乱舞",
+            "source": {
+              "screenshot": "user 20260814 剑气Lv13 卡面"
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "asjg",
+        "name": "奥术激光",
+        "aliases": [
+          "奥数激光"
+        ],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "per_0_2s_damage_pct": 2.5
+            },
+            "text": "奥术激光每持续0.2秒，伤害提高2.5%",
+            "source": {
+              "screenshot": "user 20260814 奥术激光Lv22 卡面"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "no_split_on_kill": true
+            },
+            "text": "奥术激光杀死的敌人无法分裂",
+            "source": {
+              "screenshot": "user 20260814 奥术激光Lv22 卡面"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "duration",
+              "delta_s": 0.2
+            },
+            "text": "奥术激光基础持续时间+0.2秒",
+            "source": {
+              "screenshot": "user 20260814 奥术激光Lv22 卡面"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "奥能洪流"
+            },
+            "text": "解锁卡牌：奥能洪流",
+            "source": {
+              "t": 76.38
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "奥能洪流",
+              "knockback": true
+            },
+            "text": "奥能洪流附加击退效果",
+            "source": {
+              "t": 76.38
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "奥术激光基础冷却-10%",
+            "source": {
+              "t": 76.38
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "奥能扫射"
+            },
+            "text": "解锁卡牌：奥能扫射",
+            "source": {
+              "t": 76.38
+            },
+            "note": "与奥能洪流三选一互斥；存档两边都进池"
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "奥能扫射",
+              "return": true
+            },
+            "text": "奥能扫射会折返一次",
+            "source": {
+              "t": 76.38
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "duration",
+              "delta_s": 0.4
+            },
+            "text": "奥术激光基础持续时间+0.4秒",
+            "source": {
+              "t": 76.38
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {},
+            "text": "奥术激光杀死敌人时折射一束高能…造成500%攻击的能量魔法伤害",
+            "source": {
+              "t": 69.99
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "稳定光线"
+            },
+            "text": "学得奥术激光后，立即获得稳定光线",
+            "source": {
+              "t": 69.99
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 20
+            },
+            "text": "奥术激光范围+20%",
+            "source": {
+              "t": 69.99
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "激光闪射"
+            },
+            "text": "激光闪射伤害与触发频率翻倍",
+            "source": {
+              "t": 69.99
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化激光"
+            },
+            "text": "解锁卡牌：强化激光",
+            "source": {
+              "t": 69.99
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "奥术激光基础冷却-15%",
+            "source": {
+              "screenshot": "user 20260814 奥术激光Lv22 卡面"
+            }
+          },
+          {
+            "level": 50,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "奥能天球"
+            },
+            "text": "解锁卡牌：奥能天球",
+            "source": {
+              "screenshot": "user 20260814 奥术激光Lv22 卡面"
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "assx",
+        "name": "奥术射线",
+        "aliases": [
+          "奥数射线"
+        ],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "焦点爆破"
+            },
+            "text": "解锁卡牌：焦点爆破",
+            "source": {
+              "screenshot": "user 20260814 奥术射线Lv21 卡面"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "多重射线"
+            },
+            "text": "解锁卡牌：多重射线",
+            "source": {
+              "screenshot": "user 20260814 奥术射线Lv21 卡面"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "duration",
+              "delta_s": 0.6
+            },
+            "text": "奥术射线基础持续时间+0.6秒",
+            "source": {
+              "screenshot": "user 20260814 奥术射线Lv21 卡面"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta": 200
+            },
+            "text": "奥术射线范围+200",
+            "source": {
+              "t": 83.98
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "调焦"
+            },
+            "text": "解锁卡牌：调焦",
+            "source": {
+              "t": 83.98
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "奥术射线基础冷却-10%",
+            "source": {
+              "t": 83.98
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "burn_s": 2
+            },
+            "text": "奥术射线会附加2秒燃烧",
+            "source": {
+              "t": 83.98
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "tick_rate",
+              "delta_pct": 25
+            },
+            "text": "奥术射线伤害频率提高25%",
+            "source": {
+              "t": 83.98
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "duration",
+              "delta_s": 1.2
+            },
+            "text": "奥术射线基础持续时间+1.2秒",
+            "source": {
+              "t": 83.98
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "damage_pct": 75,
+              "knockback": true
+            },
+            "text": "奥术射线伤害+75%并附加击退效果",
+            "source": {
+              "t": 80.38
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "射线延续"
+            },
+            "text": "学得奥术射线后，立即获得射线延续",
+            "source": {
+              "t": 80.38
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "焦点",
+              "heal_reduce_pct": 30
+            },
+            "text": "焦点额外降低命中目标30%的治疗及恢复",
+            "source": {
+              "t": 80.38
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "焦点爆破",
+              "range_pct": 30,
+              "damage_pct": 50
+            },
+            "text": "焦点爆破范围+30%，伤害+50%",
+            "source": {
+              "t": 80.38
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化射线"
+            },
+            "text": "解锁卡牌：强化射线",
+            "source": {
+              "t": 80.38
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "奥术射线基础冷却-15%",
+            "source": {
+              "t": 80.38
+            }
+          },
+          {
+            "level": 50,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "永恒箭矢"
+            },
+            "text": "解锁卡牌：永恒箭矢",
+            "source": {
+              "screenshot": "user 20260814 奥术射线Lv21 卡面"
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "bsxx",
+        "name": "冰霜新星",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "刺骨寒霜"
+            },
+            "text": "解锁卡牌：刺骨寒霜",
+            "source": {
+              "t": 89.18
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "冷冻场"
+            },
+            "text": "解锁卡牌：冷冻场",
+            "source": {
+              "t": 89.18
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "极寒精通"
+            },
+            "text": "解锁卡牌：极寒精通",
+            "source": {
+              "t": 89.18
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 20
+            },
+            "text": "冰霜新星基础范围+20%",
+            "source": {
+              "t": 89.18
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "recast": 1
+            },
+            "text": "冰霜新星结束后会在原地再施放1次",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "极寒新星"
+            },
+            "text": "学得冰霜新星后，立即获得极寒新星",
+            "source": {
+              "t": 95.18
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 20
+            },
+            "text": "冰霜新星范围+20%",
+            "source": {
+              "t": 95.18
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "冰片爆裂"
+            },
+            "text": "解锁卡牌：冰片爆裂",
+            "source": {
+              "t": 95.18
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化新星"
+            },
+            "text": "解锁卡牌：强化新星",
+            "source": {
+              "t": 95.18
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "冰霜新星基础冷却-15%",
+            "source": {
+              "t": 95.18
+            }
+          },
+          {
+            "level": 50,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "count": 1
+            },
+            "text": "冰霜新星数量+1",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": null,
+            "level_status": "unverified",
+            "level_candidates": [
+              16
+            ],
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "冰霜新星基础冷却-10%",
+            "source": {
+              "t": 89.18
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "sdl",
+        "name": "闪电链",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "离子爆破"
+            },
+            "text": "解锁卡牌：离子爆破",
+            "source": {
+              "screenshot": "user 20260814 闪电链Lv18 卡面"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "交感电击"
+            },
+            "text": "解锁卡牌：交感电击",
+            "source": {
+              "screenshot": "user 20260814 闪电链Lv18 卡面"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "bounce": 1
+            },
+            "text": "闪电链弹射次数+1",
+            "source": {
+              "screenshot": "user 20260814 闪电链Lv18 卡面"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "remove_damage_penalty",
+            "payload": {
+              "card": "交叉闪电"
+            },
+            "text": "交叉闪电不再降低伤害",
+            "source": {
+              "screenshot": "user 20260814 闪电链Lv18 卡面"
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "雷电增幅"
+            },
+            "text": "解锁卡牌：雷电增幅",
+            "source": {
+              "screenshot": "user 20260814 闪电链Lv18 卡面"
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "闪电链基础冷却-10%",
+            "source": {
+              "t": 100.38
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "永动电流"
+            },
+            "text": "解锁卡牌：永动电流",
+            "source": {
+              "t": 100.38
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "雷电精通"
+            },
+            "text": "解锁卡牌：雷电精通",
+            "source": {
+              "t": 100.38
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "bounce": 2
+            },
+            "text": "闪电链弹射次数+2",
+            "source": {
+              "t": 100.38
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "离子爆破"
+            },
+            "text": "离子爆破伤害+60%，范围+30%，并且中心牵引敌人",
+            "source": {
+              "t": 96.38
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "高压闪电"
+            },
+            "text": "学得闪电链后，立即获得高压闪电",
+            "source": {
+              "t": 96.38
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "waive_prereq",
+            "payload": {
+              "card": "交感电击",
+              "condition": "必须命中麻痹怪物",
+              "waived": []
+            },
+            "text": "交感电击取消需要命中麻痹怪物的限制",
+            "source": {
+              "t": 96.38
+            },
+            "note": "局内条件限制，不是目录 prereq 代币；不放宽 skill_chain_rank"
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "霹雳闪电"
+            },
+            "text": "解锁卡牌：霹雳闪电",
+            "source": {
+              "t": 96.38
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化闪电"
+            },
+            "text": "解锁卡牌：强化闪电",
+            "source": {
+              "t": 96.38
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "闪电链基础冷却-15%",
+            "source": {
+              "t": 96.38
+            }
+          },
+          {
+            "level": 50,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "per_remaining_bounce_pct": 15
+            },
+            "text": "闪电链命中目标时，会根据当前剩余弹射次数提高造成的伤害，每有1次剩余弹射次数，造成的伤害提高15%",
+            "source": {
+              "screenshot": "user 20260814 闪电链Lv18 卡面"
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "dz",
+        "name": "地震",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "爆燃地震"
+            },
+            "text": "解锁卡牌：爆燃地震",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stun_s": 0.5
+            },
+            "text": "地震眩晕时间+0.5秒",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 10
+            },
+            "text": "地震基础范围+10%",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "state": "余烬",
+              "slow_pct": 30
+            },
+            "text": "余烬附带30%减速",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "末日地震"
+            },
+            "text": "解锁卡牌：末日地震",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "地震基础冷却-10%",
+            "source": {
+              "t": 108.78
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "burn_s": 3,
+              "chance_pct": 25
+            },
+            "text": "地震命中时有25%概率附带3秒燃烧",
+            "source": {
+              "t": 108.78
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "vs": "frozen",
+              "delta_pct": 120
+            },
+            "text": "地震对被冻结的敌人造成伤害+120%",
+            "source": {
+              "t": 108.78
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 20
+            },
+            "text": "地震基础范围+20%",
+            "source": {
+              "t": 108.78
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "chance_pct": 45,
+              "damage_mul": 2
+            },
+            "text": "地震有45%概率造成的伤害翻倍",
+            "source": {
+              "t": 104.38
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "地震重击"
+            },
+            "text": "学得地震后，立即获得地震重击",
+            "source": {
+              "t": 104.38
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "地震速击",
+              "cdr_pct": 20
+            },
+            "text": "地震速击额外增加20%的冷却缩减",
+            "source": {
+              "t": 104.38
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "浩劫"
+            },
+            "text": "解锁卡牌：浩劫",
+            "source": {
+              "t": 104.38
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化地震"
+            },
+            "text": "解锁卡牌：强化地震",
+            "source": {
+              "t": 104.38
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "地震基础冷却-15%",
+            "source": {
+              "t": 104.38
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "ljf",
+        "name": "龙卷风",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "闪电龙卷"
+            },
+            "text": "解锁卡牌：闪电龙卷",
+            "source": {
+              "t": 116.38
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "双重龙卷"
+            },
+            "text": "解锁卡牌：双重龙卷",
+            "source": {
+              "t": 116.38
+            },
+            "note": "与闪电龙卷三选一互斥"
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "龙卷风基础冷却-10%",
+            "source": {
+              "t": 116.38
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "风力增幅"
+            },
+            "text": "解锁卡牌：风力增幅",
+            "source": {
+              "t": 116.38
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "风力精通"
+            },
+            "text": "解锁卡牌：风力精通",
+            "source": {
+              "t": 116.38
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "duration",
+              "delta_s": 0.6
+            },
+            "text": "龙卷风持续时间+0.6秒，基础范围+…",
+            "source": {
+              "t": 116.38
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "center_damage_mul": 2,
+              "duration_pct": 15
+            },
+            "text": "龙卷风中心伤害翻倍，持续时间+15%",
+            "source": {
+              "t": 112.78
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "强袭龙卷"
+            },
+            "text": "学得龙卷风后，立即获得强袭龙卷",
+            "source": {
+              "t": 112.78
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "move_speed",
+              "delta_pct": 30
+            },
+            "text": "龙卷风移动速度+30%",
+            "source": {
+              "t": 112.78
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "闪电龙卷",
+              "paralyze_s": 1
+            },
+            "text": "闪电龙卷附加伤害翻倍并且附加伤害有20%概率附加1秒麻痹",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化龙卷"
+            },
+            "text": "解锁卡牌：强化龙卷",
+            "source": {
+              "t": 112.78
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "龙卷风基础冷却-15%",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 50,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "龙卷风暴"
+            },
+            "text": "解锁卡牌：龙卷风暴",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "dcw",
+        "name": "电磁网",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "高压电网"
+            },
+            "text": "解锁卡牌：高压电网",
+            "source": {
+              "t": 125.17
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "电磁网基础冷却-10%",
+            "source": {
+              "t": 125.17
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "pull": true
+            },
+            "text": "电磁网会将伤害到的敌人向中心牵引",
+            "source": {
+              "t": 125.17
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "超过载"
+            },
+            "text": "解锁卡牌：超过载",
+            "source": {
+              "t": 125.17
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 20
+            },
+            "text": "电磁网基础射程+20%",
+            "source": {
+              "t": 125.17
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "damage_pct": 60,
+              "range_pct": 30
+            },
+            "text": "电磁网伤害+60%，范围+30%",
+            "source": {
+              "t": 121.18
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "高频电网"
+            },
+            "text": "学得电磁网后，立即获得高频电网",
+            "source": {
+              "t": 121.18
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta": 200
+            },
+            "text": "电磁网射程+200",
+            "source": {
+              "t": 121.18
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "电力增幅"
+            },
+            "text": "解锁卡牌：电力增幅",
+            "source": {
+              "t": 121.18
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化电网"
+            },
+            "text": "解锁卡牌：强化电网",
+            "source": {
+              "t": 121.18
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "电磁网基础冷却-15%",
+            "source": {
+              "t": 121.18
+            }
+          },
+          {
+            "level": 50,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "感电"
+            },
+            "text": "解锁卡牌：感电",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "ys",
+        "name": "陨石",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "多重陨石"
+            },
+            "text": "解锁卡牌：多重陨石",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "震撼陨石"
+            },
+            "text": "解锁卡牌：震撼陨石",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 10
+            },
+            "text": "陨石基础范围+10%",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "毁灭陨石"
+            },
+            "text": "解锁卡牌：毁灭陨石",
+            "source": {
+              "t": 136.37
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "陨石碎片"
+            },
+            "text": "解锁卡牌：陨石碎片",
+            "source": {
+              "t": 136.37
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "陨石基础冷却-10%",
+            "source": {
+              "t": 136.37
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "extra_phys_pct": 300
+            },
+            "text": "陨石额外附加300%攻击的[火系]物理伤害",
+            "source": {
+              "t": 136.37
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "vs": "frozen",
+              "delta_pct": 120
+            },
+            "text": "陨石对被冻结的敌人造成伤害+120%",
+            "source": {
+              "t": 136.37
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "range",
+              "delta_pct": 20
+            },
+            "text": "陨石基础范围+20%",
+            "source": {
+              "t": 136.37
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "burn_s": 3
+            },
+            "text": "陨石造成伤害时附加3秒燃烧…",
+            "source": {
+              "t": 131.97
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "陨石爆破"
+            },
+            "text": "学得陨石后，立即获得陨石爆破",
+            "source": {
+              "t": 131.97
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "爆破碎片"
+            },
+            "text": "解锁卡牌：爆破碎片",
+            "source": {
+              "t": 131.97
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "extra_casts": 1
+            },
+            "text": "陨石额外释放1次",
+            "source": {
+              "t": 131.97
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化陨石"
+            },
+            "text": "解锁卡牌：强化陨石",
+            "source": {
+              "t": 131.97
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "陨石基础冷却-15%",
+            "source": {
+              "t": 131.97
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "jf",
+        "name": "飓风",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "小龙卷"
+            },
+            "text": "解锁卡牌：小龙卷",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "remove_damage_penalty",
+            "payload": {
+              "card": "多重飓风"
+            },
+            "text": "多重飓风不再降低伤害",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "pierce": 2
+            },
+            "text": "飓风穿透+2",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "真空"
+            },
+            "text": "解锁卡牌：真空",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "小飓风"
+            },
+            "text": "解锁卡牌：小飓风",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "飓风基础冷却-10%",
+            "source": {
+              "t": 145.97
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "小龙卷",
+              "pull": true
+            },
+            "text": "小龙卷具有牵引效果",
+            "source": {
+              "t": 145.97
+            }
+          },
+          {
+            "level": 23,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "真空",
+              "damage_pct": 50,
+              "range_pct": 25
+            },
+            "text": "真空伤害+50%，范围+25%",
+            "source": {
+              "t": 141.97
+            }
+          },
+          {
+            "level": 26,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "pierce": 3
+            },
+            "text": "飓风穿透+3",
+            "source": {
+              "t": 141.97
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "parallel": 1
+            },
+            "text": "飓风并列释放1个",
+            "source": {
+              "t": 141.97
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "风阻"
+            },
+            "text": "学得飓风后，立即获得风阻",
+            "source": {
+              "t": 141.97
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "乱流"
+            },
+            "text": "解锁卡牌：乱流",
+            "source": {
+              "t": 141.97
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "风力回旋"
+            },
+            "text": "解锁卡牌：风力回旋",
+            "source": {
+              "t": 141.97
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化飓风"
+            },
+            "text": "解锁卡牌：强化飓风",
+            "source": {
+              "t": 147.97
+            }
+          },
+          {
+            "level": 46,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "飓风基础冷却-15%",
+            "source": {
+              "t": 147.97
+            }
+          }
+        ]
+      },
+      {
+        "skill_id": "hq",
+        "name": "火球",
+        "aliases": [],
+        "unlocks": [
+          {
+            "level": 2,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "疾行火球"
+            },
+            "text": "解锁卡牌：疾行火球",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 5,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "chance_pct": 15,
+              "radius": 200,
+              "damage_pct": 300
+            },
+            "text": "火球命中后有15%的概率发生爆炸，对200范围内所有敌人造成300%攻击的[火系]物理伤害",
+            "source": {
+              "screenshot": "user 20260814 卡面截图"
+            }
+          },
+          {
+            "level": 7,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "duration",
+              "delta_s": 0.5
+            },
+            "text": "火球持续时间+0.5秒",
+            "source": {
+              "t": 153.97
+            }
+          },
+          {
+            "level": 10,
+            "level_status": "verified",
+            "kind": "remove_damage_penalty",
+            "payload": {
+              "card": "多重火球"
+            },
+            "text": "多重火球不再降低伤害",
+            "source": {
+              "t": 153.97
+            }
+          },
+          {
+            "level": 13,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "高频火球"
+            },
+            "text": "解锁卡牌：高频火球",
+            "source": {
+              "t": 153.97
+            }
+          },
+          {
+            "level": 16,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -10
+            },
+            "text": "火球基础冷却-10%",
+            "source": {
+              "t": 153.97
+            }
+          },
+          {
+            "level": 20,
+            "level_status": "verified",
+            "kind": "other",
+            "payload": {
+              "card": "烈焰火球",
+              "burn_pct": 120
+            },
+            "text": "烈焰火球额外使燃烧伤害+120%",
+            "source": {
+              "t": 153.97
+            }
+          },
+          {
+            "level": 30,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "count": 1
+            },
+            "text": "火球数量+1",
+            "source": {
+              "t": 150.37
+            }
+          },
+          {
+            "level": 33,
+            "level_status": "verified",
+            "kind": "grant_on_learn",
+            "payload": {
+              "card": "烈焰火球"
+            },
+            "text": "学得火球后，立即获得烈焰火球",
+            "source": {
+              "t": 150.37
+            }
+          },
+          {
+            "level": 36,
+            "level_status": "verified",
+            "kind": "stat",
+            "payload": {
+              "stat": "move_speed",
+              "delta_pct": 40
+            },
+            "text": "火球移动速度+40%",
+            "source": {
+              "t": 150.37
+            }
+          },
+          {
+            "level": 40,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "幸运火球"
+            },
+            "text": "解锁卡牌：幸运火球",
+            "source": {
+              "t": 150.37
+            }
+          },
+          {
+            "level": 43,
+            "level_status": "verified",
+            "kind": "unlock_card",
+            "payload": {
+              "card": "强化火球"
+            },
+            "text": "解锁卡牌：强化火球",
+            "source": {
+              "t": 150.37
+            }
+          },
+          {
+            "level": null,
+            "level_status": "unverified",
+            "level_candidates": [
+              46
+            ],
+            "kind": "stat",
+            "payload": {
+              "stat": "cooldown",
+              "delta_pct": -15
+            },
+            "text": "火球基础冷却-15%",
+            "source": {
+              "t": 150.37
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "rarity": {
+    "source_file": "skill_card_rarity.json",
+    "rows": 48,
+    "evidence_backed_rows": 44,
+    "unverified_rows": 4,
+    "status": "partial_evidence_only",
+    "rule": "Missing or unverified rarity remains unknown; never infer rarity from prereq depth."
+  }
+}

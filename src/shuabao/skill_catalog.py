@@ -548,7 +548,7 @@ def card_unlocked_by_archive(
 
 @lru_cache(maxsize=1)
 def load_skill_rarity() -> dict[str, Any]:
-    """卡名 → 稀有度底库。缺文件/坏 JSON → 空表。不参与拿卡决策。"""
+    """Load the authoritative card-rarity catalog used by choice policy."""
     try:
         data = json.loads(RARITY_PATH.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):

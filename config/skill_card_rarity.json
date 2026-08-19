@@ -1,345 +1,1766 @@
 {
-  "version": 1,
-  "_comment": "三选一卡名 → 稀有度底库。只收录截图/抽帧能看清边框或标题色的卡。user 2026-08-14：技能卡只有白/蓝/紫/橙，没有红/粉。目录压 OCR 尚未接到 choose_action。live_confirmed 留给以后实机确认。存档门槛仍以 skill_archive_unlocks.json 为准，本文件只挂卡面上见过的 N级解锁。",
-  "rarity_names": ["白", "蓝", "紫", "橙"],
-  "status_values": ["screenshot", "video_frame", "unverified", "live_confirmed"],
-  "evidence_roots": [
-    "C:\\Users\\10639\\AppData\\Roaming\\Cursor\\User\\workspaceStorage\\0b876fe32751448e715bb6dbcd4aad1e\\images",
-    "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets"
-  ],
-  "notes": [
-    "稀有度以卡牌总览/技能树格子的边框或标题色为准，不是存档页主技能图标，也不是实机 OCR 采色（后者整系同色，不可单独当证据）。",
-    "user 2026-08-14：技能卡只有橙/紫/蓝/白。粉、红不是技能档。绿边是宝物。本表不得再写入红/粉。",
-    "爆炸扩散：爆炎箭总览有一张紫卡同名，目录里同名卡在奥数箭系（前置爆炸箭矢）。同名冲突，本库不填。",
-    "强化X：强化新星卡面标题是白；强化火箭锁定态发灰，不猜成橙。",
-    "catalog 文档里的推断稀有度（白=单前置等）不是本库来源，有冲突以截图为准。"
-  ],
+  "version": "2026-08-19",
+  "total_cards": 220,
   "cards": [
     {
-      "name": "新星增幅",
-      "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览 image-f50483a7-96fc-4b73-a48f-47e1e9449229.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "连环霜爆",
-      "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览 image-f50483a7-96fc-4b73-a48f-47e1e9449229.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "极寒新星",
-      "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览 image-f50483a7-96fc-4b73-a48f-47e1e9449229.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "寒霜之心",
-      "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览 image-f50483a7-96fc-4b73-a48f-47e1e9449229.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "绝对零度",
-      "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览 image-f50483a7-96fc-4b73-a48f-47e1e9449229.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "新星扩张",
+      "name": "奥术箭矢",
       "rarity": "紫",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览 image-f50483a7-96fc-4b73-a48f-47e1e9449229.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "小冰片",
-      "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览 image-f50483a7-96fc-4b73-a48f-47e1e9449229.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "冰片飞溅",
-      "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览 image-f50483a7-96fc-4b73-a48f-47e1e9449229.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "刺骨寒霜",
-      "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览续 image-61500145-8fda-4efe-ac8c-3560a4baa47a.png（锁定，标题蓝）",
+      "family": "奥术箭",
       "face": "card_grid",
-      "seen_levels": [{"level": 13, "source": "卡面「13级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "冷冻场",
+      "name": "箭矢增幅",
+      "rarity": "白",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "箭矢齐射",
+      "rarity": "蓝",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "箭矢连发",
+      "rarity": "蓝",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "次级箭",
+      "rarity": "蓝",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "次级增伤",
+      "rarity": "蓝",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "次级扩散",
+      "rarity": "蓝",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "爆炸箭矢",
       "rarity": "橙",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览续 image-61500145-8fda-4efe-ac8c-3560a4baa47a.png（锁定，标题橙）",
+      "family": "奥术箭",
       "face": "card_grid",
-      "seen_levels": [{"level": 20, "source": "卡面「20级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "极寒精通",
+      "name": "爆炸增伤",
       "rarity": "紫",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览续 image-61500145-8fda-4efe-ac8c-3560a4baa47a.png（锁定，标题紫）",
+      "family": "奥术箭",
       "face": "card_grid",
-      "seen_levels": [{"level": 23, "source": "卡面「23级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "冰片爆裂",
+      "name": "爆炸扩散",
+      "rarity": "蓝",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "爆破箭矢",
       "rarity": "橙",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览续 image-61500145-8fda-4efe-ac8c-3560a4baa47a.png（锁定，标题橙）",
+      "family": "奥术箭",
       "face": "card_grid",
-      "seen_levels": [{"level": 40, "source": "卡面「40级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "强化新星",
+      "name": "贯通箭矢",
       "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260813 冰霜新星系卡牌总览续 image-61500145-8fda-4efe-ac8c-3560a4baa47a.png（锁定，标题白）",
+      "family": "奥术箭",
       "face": "card_grid",
-      "seen_levels": [{"level": 43, "source": "卡面「43级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "闪电增幅",
-      "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "交叉闪电",
-      "aliases": ["多重闪电"],
-      "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "高压闪电",
-      "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "闪电延续",
-      "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "离子扩散",
-      "aliases": ["离子扩张"],
-      "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "离子电压",
-      "aliases": ["离子增幅"],
-      "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "离子爆破",
+      "name": "蓄力射击",
       "rarity": "紫",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png",
-      "face": "card_grid"
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "交感电击",
-      "rarity": "紫",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png",
-      "face": "card_grid"
-    },
-    {
-      "name": "雷电增幅",
+      "name": "强力箭矢",
       "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png",
-      "face": "card_grid"
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "永动电流",
-      "rarity": "",
-      "rarity_status": "unverified",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png（锁定发灰，边框看不清）",
+      "name": "急速抽箭",
+      "rarity": "紫",
+      "family": "奥术箭",
       "face": "card_grid",
-      "seen_levels": [{"level": 20, "source": "卡面「20级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "雷电精通",
-      "rarity": "",
-      "rarity_status": "unverified",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png（锁定发灰，边框看不清）",
+      "name": "强化飞箭",
+      "rarity": "白",
+      "family": "奥术箭",
       "face": "card_grid",
-      "seen_levels": [{"level": 23, "source": "卡面「23级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "霹雳闪电",
-      "rarity": "",
-      "rarity_status": "unverified",
-      "rarity_source": "user 20260814 闪电链系卡牌总览 image-19edd4ec-f4a3-4ef6-9abb-46f77a73b7e7.png（锁定发灰，边框看不清）",
+      "name": "火焰射击",
+      "rarity": "蓝",
+      "family": "奥术箭",
       "face": "card_grid",
-      "seen_levels": [{"level": 40, "source": "卡面「40级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "集束箭矢",
+      "rarity": "橙",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "奥术增幅α",
+      "rarity": "蓝",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "奥术增幅β",
+      "rarity": "蓝",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "激光增幅",
+      "rarity": "白",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "稳定光线",
+      "rarity": "白",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "激光超载",
+      "rarity": "白",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "衰弱光线",
+      "rarity": "白",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "瓦解光线",
+      "rarity": "白",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "高能脉冲",
+      "rarity": "蓝",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "激光闪射",
+      "rarity": "紫",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "奥能洪流",
+      "rarity": "橙",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "奥能扫射",
+      "rarity": "橙",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化激光",
+      "rarity": "白",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "奥能天球",
+      "rarity": "橙",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "射线增幅",
+      "rarity": "白",
+      "family": "奥术射线",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "射线延续",
+      "rarity": "白",
+      "family": "奥术射线",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "焦点",
+      "rarity": "白",
+      "family": "奥术射线",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "制导箭失",
+      "rarity": "橙",
+      "family": "奥术射线",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "焦点爆破",
+      "rarity": "紫",
+      "family": "奥术射线",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "多重射线",
+      "rarity": "蓝",
+      "family": "奥术射线",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "调焦",
+      "rarity": "蓝",
+      "family": "奥术射线",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化射线",
+      "rarity": "白",
+      "family": "奥术射线",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "永恒箭矢",
+      "rarity": "橙",
+      "family": "奥术射线",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "剑气增幅",
+      "rarity": "白",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "致残剑气",
+      "rarity": "白",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "重创",
+      "rarity": "白",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "疾行剑气",
+      "rarity": "蓝",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "剑气冲击",
+      "rarity": "白",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "巨型剑气",
+      "rarity": "蓝",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "连续剑气",
+      "rarity": "蓝",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "碎冰",
+      "rarity": "紫",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "湮灭斩",
+      "rarity": "橙",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "剑气爆发",
+      "rarity": "蓝",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "烈焰斩",
+      "rarity": "蓝",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "剑气连斩",
+      "rarity": "紫",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化剑气",
+      "rarity": "白",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "剑刃乱舞",
+      "rarity": "橙",
+      "family": "剑气",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "火箭增幅",
       "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览 image-f6870757-987c-4ac6-9006-15c343239ae2.png",
-      "face": "card_grid"
+      "family": "飓风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "火箭爆破",
       "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览 image-f6870757-987c-4ac6-9006-15c343239ae2.png",
-      "face": "card_grid"
+      "family": "飓风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "连珠火箭",
       "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览 image-f6870757-987c-4ac6-9006-15c343239ae2.png",
-      "face": "card_grid"
+      "family": "飓风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "爆燃火箭",
       "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览 image-f6870757-987c-4ac6-9006-15c343239ae2.png",
-      "face": "card_grid"
+      "family": "飓风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "猛烈燃烧",
       "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览 image-f6870757-987c-4ac6-9006-15c343239ae2.png",
-      "face": "card_grid"
+      "family": "飓风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "火箭精通",
-      "aliases": ["火焰精通"],
       "rarity": "紫",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览 image-f6870757-987c-4ac6-9006-15c343239ae2.png",
-      "face": "card_grid"
+      "family": "飓风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "渗透火焰",
       "rarity": "白",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览 image-f6870757-987c-4ac6-9006-15c343239ae2.png",
-      "face": "card_grid"
+      "family": "飓风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "火花",
       "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览 image-f6870757-987c-4ac6-9006-15c343239ae2.png",
+      "family": "飓风",
       "face": "card_grid",
-      "seen_levels": [{"level": 2, "source": "user 20260814 爆炎箭Lv8 卡面：解锁卡牌 火花"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "传火",
       "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览 image-f6870757-987c-4ac6-9006-15c343239ae2.png",
+      "family": "飓风",
       "face": "card_grid",
-      "seen_levels": [{"level": 5, "source": "user 20260814 爆炎箭Lv8 卡面：解锁卡牌 传火"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "超连珠火箭",
       "rarity": "紫",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览续 image-b98f490a-2bc9-4c84-be09-896bc3cb9bdf.png（锁定，标题紫）",
+      "family": "飓风",
       "face": "card_grid",
-      "seen_levels": [{"level": 10, "source": "卡面「10级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "炎爆术",
       "rarity": "橙",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览续 image-b98f490a-2bc9-4c84-be09-896bc3cb9bdf.png（锁定，标题橙）",
+      "family": "飓风",
       "face": "card_grid",
-      "seen_levels": [{"level": 13, "source": "卡面「13级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "火花内爆",
       "rarity": "橙",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览续 image-b98f490a-2bc9-4c84-be09-896bc3cb9bdf.png（锁定，标题橙）",
+      "family": "飓风",
       "face": "card_grid",
-      "seen_levels": [{"level": 36, "source": "卡面「36级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
       "name": "强化火箭",
-      "rarity": "",
-      "rarity_status": "unverified",
-      "rarity_source": "user 20260814 爆炎箭系卡牌总览续 image-b98f490a-2bc9-4c84-be09-896bc3cb9bdf.png（锁定发灰，标题近白，不猜）",
+      "rarity": "白",
+      "family": "飓风",
       "face": "card_grid",
-      "seen_levels": [{"level": 43, "source": "卡面「43级解锁」"}]
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "奥术箭",
-      "aliases": ["奥数箭"],
-      "rarity": "紫",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 奥术箭Lv47 卡面 image-ce794ad3-7283-44c7-8e6e-b9fe4efb572a.png（存档页图标紫边；对话 trace 三选一也曾标紫。不是总览格子）",
-      "face": "archive_icon",
-      "account_level_seen": [{"level": 47, "source": "user 20260814 奥术箭Lv47 卡面"}]
+      "name": "冰箭增幅",
+      "rarity": "白",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "闪电链",
-      "rarity": "橙",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 闪电链Lv18 卡面 image-caf36ed9-f0c1-46de-88f2-e424c824ce37.png（存档页图标金/橙边）",
-      "face": "archive_icon",
-      "account_level_seen": [{"level": 18, "source": "user 20260814 闪电链Lv18 卡面"}]
+      "name": "极寒冰箭",
+      "rarity": "白",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     },
     {
-      "name": "冰霜新星",
+      "name": "冰箭贯穿",
+      "rarity": "白",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "冰箭冲击",
+      "rarity": "白",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "冰箭连发",
       "rarity": "蓝",
-      "rarity_status": "screenshot",
-      "rarity_source": "user 20260814 冰霜新星Lv11 卡面 image-1247911c-3718-4a43-b6c9-a238f36ed0d3.png（存档页图标浅蓝边）",
-      "face": "archive_icon",
-      "account_level_seen": [{"level": 11, "source": "user 20260814 冰霜新星Lv11 卡面"}]
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "小冰箭",
+      "rarity": "蓝",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "重冰箭",
+      "rarity": "白",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "蚀骨之寒",
+      "rarity": "紫",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "冰片增伤",
+      "rarity": "白",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "蚀骨冰棱",
+      "rarity": "蓝",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "三棱冰箭",
+      "rarity": "橙",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "冰箭齐射",
+      "rarity": "紫",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "冰晶爆裂",
+      "rarity": "橙",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化冰箭",
+      "rarity": "白",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "永冻天球",
+      "rarity": "橙",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "雷击增幅",
+      "rarity": "白",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "高压雷击",
+      "rarity": "白",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "连续雷击",
+      "rarity": "蓝",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "磁暴增幅",
+      "rarity": "白",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "磁暴扩张",
+      "rarity": "蓝",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "电磁场",
+      "rarity": "紫",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "稳定电场",
+      "rarity": "白",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "高压电场",
+      "rarity": "白",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "闪电球",
+      "rarity": "蓝",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "高压电球",
+      "rarity": "白",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "磁暴",
+      "rarity": "紫",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "雷电制裁",
+      "rarity": "橙",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "审判之雷",
+      "rarity": "橙",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "电球爆裂",
+      "rarity": "橙",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化天雷",
+      "rarity": "白",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化箭矢",
+      "rarity": "白",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "多重箭",
+      "rarity": "蓝",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "弹射箭",
+      "rarity": "白",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "攻速提升",
+      "rarity": "蓝",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "急速射击",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "多重增伤",
+      "rarity": "白",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "弹射增伤",
+      "rarity": "白",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "超速射击",
+      "rarity": "蓝",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "火焰箭矢",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "冰霜箭矢",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "闪电箭矢",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "疾风箭矢",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "破甲强弩",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "神箭手",
+      "rarity": "橙",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "奥能喷发",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "火焰爆炸",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "贯穿冰箭",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "连环闪电",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "狂风之力",
+      "rarity": "紫",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "真实分裂",
+      "rarity": "橙",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "剑气纵横",
+      "rarity": "橙",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化普攻",
+      "rarity": "白",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "新星增幅",
+      "rarity": "白",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "连环霜爆",
+      "rarity": "蓝",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "极寒新星",
+      "rarity": "白",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "寒霜之心",
+      "rarity": "蓝",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "绝对零度",
+      "rarity": "蓝",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "新星扩张",
+      "rarity": "紫",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "小冰片",
+      "rarity": "蓝",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "冰片飞溅",
+      "rarity": "蓝",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "刺骨寒霜",
+      "rarity": "蓝",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "冷冻场",
+      "rarity": "橙",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "极寒精通",
+      "rarity": "紫",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "冰片爆裂",
+      "rarity": "橙",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化新星",
+      "rarity": "白",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "闪电增幅",
+      "rarity": "白",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "交叉闪电",
+      "rarity": "蓝",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "高压闪电",
+      "rarity": "白",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "闪电延续",
+      "rarity": "白",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "离子扩散",
+      "rarity": "蓝",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "离子电压",
+      "rarity": "白",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "离子爆破",
+      "rarity": "紫",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "交感电击",
+      "rarity": "紫",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "雷电增幅",
+      "rarity": "蓝",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "永动电流",
+      "rarity": "橙",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "雷电精通",
+      "rarity": "紫",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "霹雳闪电",
+      "rarity": "橙",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化闪电",
+      "rarity": "白",
+      "family": "爆炎箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "地震增幅",
+      "rarity": "白",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "地震重击",
+      "rarity": "白",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "地震连击",
+      "rarity": "蓝",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强震",
+      "rarity": "蓝",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "地震速击",
+      "rarity": "白",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "精准打击",
+      "rarity": "紫",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "地震狂轰",
+      "rarity": "紫",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "余烬延续",
+      "rarity": "白",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "高温余烬",
+      "rarity": "白",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "爆燃地震",
+      "rarity": "橙",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "末日地震",
+      "rarity": "紫",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "浩劫",
+      "rarity": "紫",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化地震",
+      "rarity": "白",
+      "family": "冰霜新星",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "龙卷增幅",
+      "rarity": "白",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "龙卷延续",
+      "rarity": "蓝",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强袭龙卷",
+      "rarity": "白",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强力龙卷",
+      "rarity": "白",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "龙卷扩张",
+      "rarity": "蓝",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "风暴汇聚",
+      "rarity": "蓝",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "闪电龙卷",
+      "rarity": "橙",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "双重龙卷",
+      "rarity": "橙",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "风力增幅",
+      "rarity": "蓝",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "风力精通",
+      "rarity": "紫",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化龙卷",
+      "rarity": "白",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "龙卷风暴",
+      "rarity": "橙",
+      "family": "火球",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "电磁增幅",
+      "rarity": "白",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "高频电网",
+      "rarity": "蓝",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "电网扩张",
+      "rarity": "蓝",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "跃迁电流",
+      "rarity": "紫",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "电能激荡",
+      "rarity": "紫",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "抗拒电网",
+      "rarity": "白",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "电网过载",
+      "rarity": "紫",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "高压电网",
+      "rarity": "白",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "超过载",
+      "rarity": "橙",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "电力增幅",
+      "rarity": "蓝",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化电网",
+      "rarity": "白",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "感电",
+      "rarity": "橙",
+      "family": "电磁网",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "陨石增幅",
+      "rarity": "白",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "陨石坠落",
+      "rarity": "蓝",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "陨石连击",
+      "rarity": "紫",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "陨石爆破",
+      "rarity": "紫",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "星落",
+      "rarity": "橙",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "多重迸射",
+      "rarity": "紫",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "多重陨石",
+      "rarity": "蓝",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "震撼陨石",
+      "rarity": "白",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "毁灭陨石",
+      "rarity": "紫",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "陨石碎片",
+      "rarity": "紫",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "爆破碎片",
+      "rarity": "橙",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化陨石",
+      "rarity": "白",
+      "family": "龙卷风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "飓风增幅",
+      "rarity": "白",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "多重飓风",
+      "rarity": "蓝",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "贯通之风",
+      "rarity": "白",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强袭飓风",
+      "rarity": "白",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "风阻",
+      "rarity": "白",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "风暴加剧",
+      "rarity": "紫",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "真空塌陷",
+      "rarity": "蓝",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "多重风暴",
+      "rarity": "紫",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "小龙卷",
+      "rarity": "橙",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "真空",
+      "rarity": "紫",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "小飓风",
+      "rarity": "紫",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "乱流",
+      "rarity": "橙",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "风力回旋",
+      "rarity": "橙",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化飓风",
+      "rarity": "白",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "火球增幅",
+      "rarity": "白",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "火球延续",
+      "rarity": "白",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "巨化火球",
+      "rarity": "白",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "火球加速",
+      "rarity": "白",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "多重火球",
+      "rarity": "蓝",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "烈焰火球",
+      "rarity": "蓝",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "火焰飞弹",
+      "rarity": "紫",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "疾行火球",
+      "rarity": "紫",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "高频火球",
+      "rarity": "紫",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "乾蓝冰焰",
+      "rarity": "橙",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "幸运火球",
+      "rarity": "橙",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "强化火球",
+      "rarity": "白",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_video",
+      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
     }
-  ],
-  "account_levels_seen": [
-    {"name": "爆炎箭", "level": 8, "source": "user 20260814 卡面 image-daf26fe5 / image-f0f372be"},
-    {"name": "奥术箭", "level": 47, "source": "user 20260814 卡面 image-ce794ad3"},
-    {"name": "剑气", "level": 13, "source": "user 20260814 卡面 image-1e61fa28"},
-    {"name": "闪电链", "level": 18, "source": "user 20260814 卡面 image-caf36ed9"},
-    {"name": "冰霜新星", "level": 11, "source": "user 20260814 卡面 image-1247911c"},
-    {"name": "奥术激光", "level": 22, "source": "user 20260814 卡面（对话 10:00 批次）"},
-    {"name": "奥术射线", "level": 21, "source": "user 20260814 卡面（对话 10:00 批次）"},
-    {"name": "龙卷风", "level": 18, "source": "user 20260814 卡面（对话 10:16 批次）"},
-    {"name": "电磁网", "level": 18, "source": "user 20260814 卡面（对话 10:16 批次）"},
-    {"name": "寒冰箭", "level": 18, "source": "user 20260814 卡面（对话 10:16 批次）"},
-    {"name": "地震", "level": 13, "source": "user 20260814 卡面（对话 10:16 批次）"},
-    {"name": "陨石", "level": 15, "source": "user 20260814 卡面（对话 10:16 批次）"},
-    {"name": "飓风", "level": 17, "source": "user 20260814 卡面（对话 10:16 批次）"},
-    {"name": "火球", "level": 18, "source": "user 20260814 卡面（对话 10:16 批次）"},
-    {"name": "普攻", "level": 18, "source": "user 20260814 卡面（对话 10:16 批次）"}
   ]
 }

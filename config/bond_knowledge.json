@@ -1,0 +1,593 @@
+{
+  "version": 1,
+  "status": "effects_and_needs_merged_rarity_unverified",
+  "needs_count": 66,
+  "needs": {
+    "魔术": {
+      "need": 2,
+      "seen": "ocr 魔术(0/2) / 厕术(0/2)（抖音攻略写 3，以实测为准）。法术解锁"
+    },
+    "暴击": {
+      "need": 2,
+      "seen": "lab 暴击(1/2)"
+    },
+    "魔法权杖": {
+      "need": 2,
+      "seen": "ocr rec5 魔法权杖(0/2)"
+    },
+    "魔爆能量": {
+      "need": 2,
+      "seen": "ocr rec5 魔爆能量(0/2)"
+    },
+    "魔能": {
+      "need": 2,
+      "seen": "user 20260813 魔能是2张；lab 魔能(1/2) 0.794 确认。法术解锁"
+    },
+    "大炮": {
+      "need": 2,
+      "seen": "user 20260813 截图 2 格立绘（抖音攻略写 3，以截图为准）。致命解锁"
+    },
+    "固守": {
+      "need": 2,
+      "seen": "user 20260813 抖音攻略；提速解锁，解锁陷阵"
+    },
+    "陷阵": {
+      "need": 2,
+      "seen": "user 20260813 抖音攻略；固守解锁（早前误记为提速解锁）"
+    },
+    "战术": {
+      "need": 2,
+      "seen": "lab 战术(0/2) x20 conf 0.94-0.99"
+    },
+    "致命": {
+      "need": 2,
+      "seen": "lab 致命(0/2) 0.804"
+    },
+    "急速": {
+      "need": 3,
+      "seen": "lab 急速(1/3) 0.924；抖音攻略作「极速」3张、法术解锁，同卡（词典别名）"
+    },
+    "经济": {
+      "need": 3,
+      "seen": "user 20260813 经济是3张（抖音攻略写 2~3，取 3）"
+    },
+    "提速": {
+      "need": 3,
+      "seen": "user 20260813 抖音攻略「启动卡组」，解锁体术/固守/生命。与 急速/极速 不是同一张，未实测张数"
+    },
+    "法神": {
+      "need": 3,
+      "seen": "user 20260813 法神是3张；lab 法神(0/3) 0.858 确认"
+    },
+    "体术": {
+      "need": 3,
+      "seen": "lab 20260813_150915 体术(0/3)x2 (1/3)x3 (2/3) conf 0.83-0.95；早前那条 体术(1/4) 是误读，攻略第二版的 4 也不对"
+    },
+    "修仙": {
+      "need": 3,
+      "seen": "lab 修仙(0/3) x13"
+    },
+    "箭术": {
+      "need": 3,
+      "seen": "lab 箭术(0/3) x4 conf 0.983"
+    },
+    "血势": {
+      "need": 3,
+      "seen": "user 20260813 抖音攻略；生命解锁，每100生命上限转智力/攻击/敏捷各+3。与 血誓/血魔 同音近形，未实测"
+    },
+    "血魔": {
+      "need": 3,
+      "seen": "user 20260813 抖音攻略；生命解锁，扣血越多伤害越高。与 血势/血誓 同音近形，未实测"
+    },
+    "剑术": {
+      "need": 3,
+      "seen": "user 20260813 抖音攻略；普攻剑气流专属，攻略明确不推荐，不进白名单"
+    },
+    "魔法师": {
+      "need": 3,
+      "seen": "lab 魔法师(0/3) 0.718；user 20260813 截图 3 格立绘，智力系，与秘法师(4)不同卡"
+    },
+    "元素师": {
+      "need": 3,
+      "seen": "user 20260813 截图 3 格立绘，智力系"
+    },
+    "法术": {
+      "need": 3,
+      "seen": "lab OCR 法术(0/3) 0.73; 法术(2/3)"
+    },
+    "祝福": {
+      "need": 3,
+      "seen": "lab OCR 祝福(2/3) 0.89"
+    },
+    "贪婪": {
+      "need": 3,
+      "seen": "lab 贪婪(2/3)"
+    },
+    "挑战": {
+      "need": 3,
+      "seen": "lab 挑战(2/3)"
+    },
+    "体魄": {
+      "need": 3,
+      "seen": "ocr rec1 体魄 0/3"
+    },
+    "智力祝福": {
+      "need": 3,
+      "seen": "ocr bond_choice_3 / rec3 / rec7 智力祝福(0/3)"
+    },
+    "敏捷祝福": {
+      "need": 3,
+      "seen": "ocr 敏捷祝福(0/3)(1/3)(2/3)"
+    },
+    "力量祝福": {
+      "need": 3,
+      "seen": "ocr 力量祝福(0/3)(1/3)"
+    },
+    "法师奥义": {
+      "need": 3,
+      "seen": "ocr rec5 法师奥义(0/3)"
+    },
+    "法术威力": {
+      "need": 3,
+      "seen": "ocr rec5 法术威力(0/3)(1/3)"
+    },
+    "法术增幅": {
+      "need": 3,
+      "seen": "ocr rec5 法术增幅(1/3)"
+    },
+    "藏宝图(三)": {
+      "need": 3,
+      "seen": "ocr/lab 藏宝图(0/3)"
+    },
+    "箭矢扩散": {
+      "need": 3,
+      "seen": "ocr rec5 箭矢扩散(0/3)"
+    },
+    "经验多多": {
+      "need": 3,
+      "seen": "ocr rec5 经验多多(0/3)"
+    },
+    "流星泪": {
+      "need": 3,
+      "seen": "ocr rec5 流星泪(0/3)"
+    },
+    "杀敌多多": {
+      "need": 3,
+      "seen": "ocr rec5 杀敌多多(1/3)"
+    },
+    "气势": {
+      "need": 3,
+      "seen": "ocr rec5 气势(0/3)"
+    },
+    "金币猎人": {
+      "need": 3,
+      "seen": "ocr rec5 金币猎人(0/3)"
+    },
+    "灵智": {
+      "need": 3,
+      "seen": "ocr rec5 灵智(0/3)"
+    },
+    "射手姿态": {
+      "need": 3,
+      "seen": "ocr rec5 射手姿态(0/3)"
+    },
+    "元素之力": {
+      "need": 3,
+      "seen": "ocr rec5 元素之力(1/3)"
+    },
+    "利刃": {
+      "need": 3,
+      "seen": "ocr rec5 利刃(0/3)"
+    },
+    "亡灵天灾": {
+      "need": 3,
+      "seen": "lab 亡灵天灾(2/3)"
+    },
+    "白赚海盗": {
+      "need": 3,
+      "seen": "lab 白赚海盗(0/3)"
+    },
+    "海盗劫掠者": {
+      "need": 3,
+      "seen": "lab 海盗劫掠者(0/3)"
+    },
+    "湮灭者": {
+      "need": 3,
+      "seen": "ur_attr_routes 湮灭者(2/3)"
+    },
+    "血誓": {
+      "need": 3,
+      "seen": "user 20260813 截图 3 格立绘（真实存在）。lab 152022 整轮零出现，确认不在力量链上，归 support"
+    },
+    "战神": {
+      "need": 3,
+      "seen": "lab 152022 战神(0/3)(1/3)(2/3) conf 0.80-0.93；力量链第 3 环"
+    },
+    "弓神": {
+      "need": 3,
+      "seen": "lab 152437 弓神(0/3)(1/3)(2/3) conf 0.86-0.89；敏捷链第 3 环（攻略代称「弓箭」）"
+    },
+    "猎魔人": {
+      "need": 4,
+      "seen": "lab 152437 猎魔人(0/4)(1/4)(2/4)（名字 conf 仅 0.52，进度 ROI 清晰）；证实是 4 不是早前口述的 3"
+    },
+    "屠戮者": {
+      "need": 3,
+      "seen": "lab 152022 屠戮者(0/3)(1/3)x3；力量 UR"
+    },
+    "收割者": {
+      "need": 3,
+      "seen": "lab 152437 收割者(0/3)(1/3)；敏捷 UR"
+    },
+    "秘法师": {
+      "need": 4,
+      "seen": "user 20260813 秘法师是4张；lab 秘法师(3/4) 0.944 确认"
+    },
+    "智力": {
+      "need": 4,
+      "seen": "lab 智力(0/4)(2/4)(3/4)；属性门卡"
+    },
+    "力量": {
+      "need": 4,
+      "seen": "lab 152022 力量(0/4)x15..(3/4) 全档；属性门卡"
+    },
+    "敏捷": {
+      "need": 4,
+      "seen": "lab 152437 敏捷(0/4)(1/4)(2/4)(3/4) 全档；属性门卡。名字常只读出「捷」单字"
+    },
+    "野蛮人": {
+      "need": 4,
+      "seen": "lab 152022 野蛮人(0/4)..(3/4) 全档；名字常被读成「野人/野T人」（蛮 字难认），进度清晰。力量链第 2 环"
+    },
+    "生命": {
+      "need": 4,
+      "seen": "user 20260813 抖音攻略；提速解锁，再解锁血势/血魔"
+    },
+    "成长": {
+      "need": 4,
+      "seen": "live OCR 成长(3/4) rec=0.937；user 20260813 确认是 4（其表格里的 3 是笔误）"
+    },
+    "攻击提升": {
+      "need": 4,
+      "seen": "ocr rec1 攻击提升(1/4)"
+    },
+    "敏捷提升": {
+      "need": 4,
+      "seen": "ocr rec5 敏捷提升(2/4)"
+    },
+    "力量提升": {
+      "need": 4,
+      "seen": "ocr rec5 力量提升(3/4)"
+    },
+    "力量之源": {
+      "need": 4,
+      "seen": "ocr rec5 力量之源(0/4)"
+    },
+    "刀刀": {
+      "need": 3,
+      "seen": "F 刀刀(0/3) 幽灵系带 fixtures/bond_daodao_20260814/f_panel_daodao_ghost_belt.png；174547 三件套幽灵系带+护腕+空灵挂坠→刀刀萌新→UR刀刀大成 fixtures/cards_174547_evidence/。散件/萌新/大成无独立(x/y)，不另写 need"
+    }
+  },
+  "tree_count": 23,
+  "bond_trees": {
+    "_comment": "基础羁绊解锁树。张数以 bond_stack_catalog 为准。prereq 空=开局就有。status: live=实机见过合成进度；guide=只有攻略。",
+    "basic": {
+      "label": "基础卡",
+      "cards": [
+        "祝福",
+        "成长",
+        "经济",
+        "贪婪",
+        "挑战",
+        "提速",
+        "体术",
+        "固守",
+        "陷阵",
+        "急速",
+        "力量",
+        "智力",
+        "敏捷"
+      ]
+    },
+    "贪婪": {
+      "need": 3,
+      "prereq": [
+        "经济"
+      ],
+      "unlocks": [],
+      "tier": "round1",
+      "status": "live",
+      "note": "随机吞 4 张可吞食卡 + 150 木 + 888 杀敌 + 6000 金；格子将满时优先于普通顺序"
+    },
+    "挑战": {
+      "need": 3,
+      "prereq": [
+        "经济"
+      ],
+      "unlocks": [],
+      "tier": "round1",
+      "status": "live"
+    },
+    "提速": {
+      "need": 3,
+      "prereq": [],
+      "unlocks": [
+        "体术",
+        "固守",
+        "生命"
+      ],
+      "tier": "survival",
+      "status": "guide",
+      "note": "lab 多轮零出现，前置关系尚未被实机验证"
+    },
+    "体术": {
+      "need": 3,
+      "prereq": [
+        "提速"
+      ],
+      "unlocks": [],
+      "tier": "survival",
+      "status": "live",
+      "note": "破甲 10%。攻略写 4，实测 3"
+    },
+    "固守": {
+      "need": 2,
+      "prereq": [
+        "提速"
+      ],
+      "unlocks": [
+        "陷阵"
+      ],
+      "tier": "survival",
+      "status": "live"
+    },
+    "陷阵": {
+      "need": 2,
+      "prereq": [
+        "固守"
+      ],
+      "unlocks": [],
+      "tier": "survival",
+      "status": "live"
+    },
+    "生命": {
+      "need": 4,
+      "prereq": [
+        "提速"
+      ],
+      "unlocks": [
+        "血势",
+        "血魔"
+      ],
+      "tier": "optional",
+      "status": "guide"
+    },
+    "血势": {
+      "need": 3,
+      "prereq": [
+        "生命"
+      ],
+      "unlocks": [],
+      "tier": "optional",
+      "status": "guide"
+    },
+    "血魔": {
+      "need": 3,
+      "prereq": [
+        "生命"
+      ],
+      "unlocks": [],
+      "tier": "optional",
+      "status": "guide"
+    },
+    "暴击": {
+      "need": 2,
+      "prereq": [],
+      "unlocks": [
+        "致命"
+      ],
+      "tier": "optional",
+      "status": "live",
+      "note": "暴击率不到 50% 是负收益；实验室不拿"
+    },
+    "致命": {
+      "need": 2,
+      "prereq": [
+        "暴击"
+      ],
+      "unlocks": [
+        "大炮"
+      ],
+      "tier": "optional",
+      "status": "live"
+    },
+    "大炮": {
+      "need": 2,
+      "prereq": [
+        "致命"
+      ],
+      "unlocks": [],
+      "tier": "optional",
+      "status": "live",
+      "note": "攻略写 3，截图 2 格"
+    },
+    "法术": {
+      "need": 3,
+      "prereq": [],
+      "unlocks": [
+        "急速",
+        "魔能",
+        "魔术"
+      ],
+      "tier": "intel_support",
+      "status": "live"
+    },
+    "急速": {
+      "need": 3,
+      "prereq": [
+        "法术"
+      ],
+      "unlocks": [],
+      "tier": "must_take",
+      "status": "live",
+      "note": "出了基本必选；攻略代称极速"
+    },
+    "魔能": {
+      "need": 2,
+      "prereq": [
+        "法术"
+      ],
+      "unlocks": [],
+      "tier": "intel_support",
+      "status": "live"
+    },
+    "魔术": {
+      "need": 2,
+      "prereq": [
+        "法术"
+      ],
+      "unlocks": [],
+      "tier": "intel_support",
+      "status": "live",
+      "note": "攻略写 3，实测 2"
+    },
+    "魔法师": {
+      "need": 3,
+      "prereq": [],
+      "unlocks": [],
+      "tier": "intel_support",
+      "status": "live",
+      "note": "与秘法师(4)不同卡"
+    },
+    "元素师": {
+      "need": 3,
+      "prereq": [],
+      "unlocks": [],
+      "tier": "intel_support",
+      "status": "live"
+    },
+    "箭术": {
+      "need": 3,
+      "prereq": [],
+      "unlocks": [],
+      "tier": "agi_support",
+      "status": "live"
+    },
+    "战术": {
+      "need": 2,
+      "prereq": [],
+      "unlocks": [],
+      "tier": "agi_support",
+      "status": "live"
+    },
+    "血誓": {
+      "need": 3,
+      "prereq": [],
+      "unlocks": [],
+      "tier": "str_support",
+      "status": "live",
+      "note": "lab 152022 整轮零出现，确认不在力量链上"
+    },
+    "剑术": {
+      "need": 3,
+      "prereq": [],
+      "unlocks": [],
+      "tier": "avoid",
+      "status": "guide",
+      "note": "普攻剑气流专属，不进白名单"
+    }
+  },
+  "bond_priority": {
+    "_comment": "羁绊默认取卡顺序。实验室白名单按 round1 → 属性链(含末环UR) → round2 → must_take → round4 → 该系 support 拼出来；「差 1 张吞噬」仍然压过全部顺序。名字都是游戏内规范名。来源：抖音基础卡组攻略（无胆超人5月/在家零四一7月，user 20260813 转述）+ user 实机复盘调序。",
+    "round1_must": [
+      "祝福",
+      "成长",
+      "经济",
+      "贪婪",
+      "挑战"
+    ],
+    "round1_note": "第一轮前必须做完。贪婪是必拿不是选做：套装随机吞食 4 张可吞食卡牌，另给 150 木 + 888 杀敌 + 6000 金币，吞食丹不多时尤其关键。",
+    "round2_attr_chain": "见 attr_routes.chain（含末环 UR）。**整条链排在 round2_survival 之前**：user 20260813 实机指出「有湮灭者却先去拿体术」——UR 是整条链的产出，体术这类通用生存卡全程都能补，不该压过它。",
+    "round3_survival": [
+      "提速",
+      "体术",
+      "固守",
+      "陷阵"
+    ],
+    "round3_note": "生存 + 破甲。体术破甲 10% 优先级极高；提速是体术/固守/生命的前置。",
+    "must_take": [
+      "急速"
+    ],
+    "must_take_note": "user 20260813：技能急速出了基本就是必选项，优先级明显高于同为法术衍生的魔能/魔术（那两张才是可选）。上一版重构 bond_priority 时把急速整个漏出了白名单，这里补回并单列一层。",
+    "round4_optional": [
+      "生命",
+      "血势",
+      "血魔",
+      "暴击",
+      "致命",
+      "大炮"
+    ],
+    "round4_note": "正式长局、木头富余再做。暴击套需暴击率>50% 才是正收益；大炮配龙族。",
+    "lab_skip": [
+      "生命",
+      "血势",
+      "血魔",
+      "暴击",
+      "致命",
+      "大炮"
+    ],
+    "lab_skip_note": "实验室只采 UR 链。trace 172349 敏捷 G2 在门卡凑齐前就拿了暴击/致命/大炮，格子和木头被选做吃掉，后面整晚在刷箭术/战术。这些卡正式局仍留在 round4。",
+    "not_recommended": [
+      "剑术"
+    ],
+    "not_recommended_note": "剑术是普攻剑气流专属，其他流派没用；不进白名单。"
+  },
+  "labels_count": 36,
+  "labels": {
+    "baoji": "暴击",
+    "chengzhang": "成长",
+    "dapao": "大炮",
+    "dasheng": "大圣",
+    "dashengcanqu": "大圣残躯",
+    "dashengtaozhuang": "大圣套装",
+    "fs": "法术",
+    "genji": "根基",
+    "gongshen": "弓神",
+    "gunfa": "棍法",
+    "gushou": "鼓手",
+    "jj": "箭术",
+    "liemoren": "猎魔人",
+    "liliang": "力量",
+    "mfs": "魔法师",
+    "mingjie": "敏捷",
+    "qiji": "奇迹",
+    "shenfa": "身法",
+    "shengming": "生命",
+    "shougezhe": "收割者",
+    "shufa": "术法",
+    "tanlan": "贪婪",
+    "tishu": "体术",
+    "tuluzhe": "屠戮者",
+    "tz": "套装",
+    "xianzhen": "陷阵",
+    "xuemo": "血魔",
+    "xueshi": "血誓",
+    "yanmiezhe": "湮灭者",
+    "yemanren": "野蛮人",
+    "yihuo": "翼火",
+    "zhanshen": "战神",
+    "zhanshu": "战术",
+    "zhili": "智力",
+    "zhiming": "致命",
+    "zhufu": "祝福"
+  },
+  "rarity": {
+    "status": "unverified",
+    "reason": "Current structured bond sources contain names, effects, prerequisites, needs, and priority, but no evidence-backed per-bond-card rarity table.",
+    "required_evidence": [
+      "real card-grid frame",
+      "card tooltip frame",
+      "verified screenshot timestamp"
+    ]
+  }
+}
