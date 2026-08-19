@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from shuabao.smart_route import (
     RouteEvaluator,
     SkillRole,
@@ -137,3 +140,45 @@ def test_route_evaluator_returns_official_match_then_adaptive_route():
     assert result.recommendations[0].exact_match is True
     assert "intelligence" in result.relevant_attr_routes
     assert result.recommendations[-1].name.startswith("自适应")
+
+
+def test_verified_catalog_arcane_four_role_smoke():
+    root = Path(__file__).resolve().parents[2]
+    knowledge = json.loads(
+        (root / "config" / "skill_card_knowledge.json").read_text(encoding="utf-8")
+    )
+    labels = json.loads(
+        (root / "config" / "skill_labels.json").read_text(encoding="utf-8")
+    )
+    selected_codes = ("asj", "asjg", "assx", "jq")
+    selected_families = tuple(labels[code] for code in selected_codes)
+    levels = {"asj": 47, "asjg": 12, "assx": 30, "jq": 8}
+
+    roles = assign_skill_roles(
+        selected_codes,
+        levels,
+        skill_labels=labels,
+        knowledge_doc=knowledge,
+    )
+    assert roles[0].code == "asj"
+    assert roles[0].role is SkillRole.CARRY
+
+    # Verified real cards: amplifier utility is promoted; its own ultimate is demoted.
+    assert skill_role_rank(
+        "瓦解光线",
+        selected_families,
+        levels,
+        knowledge_doc=knowledge,
+    ) == 0
+    assert skill_role_rank(
+        "奥能洪流",
+        selected_families,
+        levels,
+        knowledge_doc=knowledge,
+    ) == 2
+    assert skill_role_rank(
+        "奥术增幅β",
+        selected_families,
+        levels,
+        knowledge_doc=knowledge,
+    ) == 0
