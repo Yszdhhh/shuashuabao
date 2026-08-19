@@ -153,7 +153,7 @@ class MainWindow(BaseMainWindow):
 
     def collect_settings_from_ui(self):
         settings = super().collect_settings_from_ui()
-        if hasattr(self, "smart_route_panel") and self.smart_route_panel.isVisible():
+        if hasattr(self, "smart_route_panel") and not self.smart_route_panel.isHidden():
             settings.smart_route_disabled_amplifiers = list(
                 self.smart_route_panel.disabled_amplifiers()
             )
