@@ -1,23 +1,101 @@
-# ShuaBao Stability Foundation V1 - Offline Fixture & Soak Test Ledger
+# ShuaBao Stability Foundation V1 - Test & Soak Ledger
 
-## 1. Central Choice Panel Offline Real-Machine Fixtures
-All central choice and upgrade panels are covered by real-machine frames and verified in test suites:
-- **Skill Choice Panel**: Verified on 1080p and 720p resolution templates (`test_choice_policy.py`, `test_central_panels_and_secondary_interactions.py`).
-- **Bond Choice Panel**: 5-card default bond selection verified with mutation confirmation and learning updates.
-- **Treasure Choice Panel**: Verified with must-take / negative-card filtering and physical close anchor detection.
-- **Hero Upgrade / Cards**: Verified in `mediator._begin_hero_setup`, separating normal upgrades from hero mode reputation routes.
-- **Equipment Right-Click Upgrade**: Verified in `test_equipment_upgrade_debounce_and_confirmation`.
+## Status
 
-## 2. Targeted Unit Test Suites Added
-- `tests/unit/test_panel_liveness.py`: Episode ID creation, hard deadline timeouts (15.0s), progress accounting, and zero-input deadlock prevention.
-- `tests/unit/test_ocr_productization.py`: Silent process spawn (CREATE_NO_WINDOW/SW_HIDE), TRUE READY protocol validation, corrupted model rejection, bounded restart (max 3), and private runtime auto-discovery.
-- `tests/unit/test_nomenclature_migration.py`: Verification that all internal paths are migrated to `ShuaBao`/`shuashuabao`, with `%APPDATA%\GameScript` isolated to `LEGACY_UPSTREAM_SETTINGS_PATH`.
-- `tests/unit/test_central_panels_and_secondary_interactions.py`: Action lifecycle (OBSERVED -> ACTION_AUTHORIZED -> INPUT_SENT -> VERIFYING -> CONFIRMED), state mutations, and secondary interaction debouncing/recovery.
-- `tests/unit/test_focus_and_network_recovery.py`: Window focus loss, input suspension, target window reactivation (`reacquire_target_window`), and network recovery FSM (120s bounded timeout).
+This ledger separates **historical local results** from evidence that must be rerun for the current PR #13 HEAD.
 
-## 3. Automated Gate & Soak Metrics
-- Release Gate Result: **4/4 PASS**
-- Pytest Suite: **1004 passed, 2 xfailed, 4 skipped**
-- Frozen E2E Replay: **7/7 PASS** (with disconnect_modal_missing BLOCKED as designed for safe unhandled modals)
-- Scene Templates: **132/132 OK**
-- Layer Contract: **68 passed, 1 present**
+The previously reported values below were produced before the cloud-review hardening commits that changed RuntimeMediator, desktop LIVE startup, OCR bootstrap, production OCR runtime resolution, and the release packaging pipeline. They remain useful regression baselines, but they are **not current-head release evidence**.
+
+## 1. Historical local baseline (pre cloud-hardening)
+
+- Pytest: `1004 passed, 2 xfailed, 4 skipped`
+- Frozen replay: `7/7 PASS`
+- Scene templates: `132/132 OK`
+- Layer contract: reported PASS
+- Release gate: reported `4/4 PASS`
+
+GitHub has no independent CI status for that run.
+
+## 2. Existing fixture/test coverage
+
+Existing test suites cover important pieces including:
+
+- skill/bond/treasure selection policy and post-click mutation confirmation;
+- hero setup / hero-card related routes;
+- equipment right-click upgrade debounce;
+- per-episode panel hard deadlines and missing-close handling;
+- Windows hidden OCR child-process flags;
+- model missing/corrupt rejection;
+- OCR protocol timeout/restart behavior;
+- focus loss and bounded disconnect recovery.
+
+These tests should all remain green after syncing the current HEAD.
+
+## 3. New cloud-hardening targeted suite
+
+`tests/unit/test_runtime_foundation_hardening.py` was added specifically for the review blockers and must be run locally. It verifies:
+
+1. LIVE OCR bootstrap order is `start -> ping -> warmup -> health`.
+2. warmup failure is fail-closed and closes the sidecar.
+3. a persistent physical choice panel cannot evade the watchdog by resetting a core panel episode.
+4. physical-panel history is cleared only after sustained absence, not a one-frame miss.
+5. frozen runtime never accepts `ShuaBao.exe` as the OCR interpreter.
+6. packaged runtime requires/resolves `ShuaBaoOCR.exe` as an explicit standalone worker command.
+
+## 4. Required current-head automated validation
+
+Run from the synced branch:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\bootstrap_shuabao_ocr.ps1
+python -m pytest tests\unit\test_runtime_foundation_hardening.py -q
+python tools\release_gate.py
+```
+
+Also rerun the project's existing frozen replay / template / contract commands used by the prior gate and record their exact outputs against the new HEAD SHA.
+
+## 5. Required packaging validation
+
+Run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build_release.ps1 -NoDeploy
+```
+
+Record evidence that the assembled distribution contains at minimum:
+
+- `dist\ShuaBao\ShuaBao.exe`
+- `dist\ShuaBao\vision\ShuaBaoOCR.exe`
+- the OCR sidecar onedir support payload adjacent under `vision\`
+- `dist\ShuaBao\models\ocr\PP-OCRv5_mobile_rec_infer\...`
+
+Then launch the built main executable and prove the packaged sidecar reaches `LIVE READY` without a visible console.
+
+## 6. Required real-machine soak ledger
+
+A real soak entry must contain actual session facts, not only the word PASS. For every validation session record:
+
+- branch + HEAD SHA;
+- start/end timestamps;
+- number of completed rounds;
+- choice panel episode count by kind;
+- confirmed/unconfirmed action counts;
+- persistent-panel watchdog trips;
+- OCR starts/restarts/unavailable events;
+- window-focus recovery events;
+- disconnect/network recovery events;
+- incidents written;
+- final process/round outcome.
+
+Minimum controlled scenarios for this hardening wave:
+
+1. **Cold startup**: repeat startup several times; zero OCR console/black-window flashes.
+2. **OCR fault**: kill OCR sidecar during a controlled run and record bounded recovery/fail-closed result.
+3. **Persistent panel**: intentionally hold a central selection panel with no executable progress; prove it cannot loop through fresh episode IDs indefinitely.
+4. **Focus loss**: switch to another application and back; prove no stale pre-focus-loss coordinate authorizes input.
+
+## 7. Release decision rule
+
+Until the current HEAD has fresh automated + packaging + real-machine evidence recorded above, the branch status is:
+
+**PENDING LOCAL RE-VALIDATION — DO NOT MERGE**.
