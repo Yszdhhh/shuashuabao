@@ -1,0 +1,185 @@
+"""Qt-free LIVE worker body shared by RunnerService and HeadlessRunner."""
+
+from __future__ import annotations
+
+import builtins
+import logging
+import os
+import sys
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+
+LOGGER = logging.getLogger("ShuaBao")
+LIVE_LOCK_NAME = "ShuaBao.live.lock"
+
+
+def live_lock_path(app_data: Path) -> Path:
+    return Path(app_data) / LIVE_LOCK_NAME
+
+
+def execute_runtime_mediator(
+    *,
+    settings: Settings,
+    root_dir: Path,
+    incident_dir: str | Path,
+    stop_signal: StopSignal,
+    max_steps: int | None = None,
+    log: Callable[[str, str], None] | None = None,
+    should_abort: Callable[[], bool] | None = None,
+    on_mediator: Callable[[Any], None] | None = None,
+) -> dict[str, Any]:
+    """Shared LIVE worker body: RuntimeMediator + OCR + StopSignal + print restore."""
+    result: dict[str, Any] = {
+        "terminal_reason": "",
+        "phase": "IDLE",
+        "game_count": 0,
+        "mediator": None,
+        "ocr_status": "未启动",
+    }
+    real_print = builtins.print
+    mediator = None
+    try:
+        try:
+            from shuabao.runtime_mediator import Mediator
+        except Exception as exc:
+            result["terminal_reason"] = f"RuntimeMediator 无法加载: {exc}"
+            result["phase"] = "ERROR"
+            if log:
+                log(f"[启动失败] RuntimeMediator 无法加载，LIVE 已拒绝启动: {exc}", "error")
+            return result
+
+        if should_abort and should_abort():
+            result["terminal_reason"] = "启动前已请求停止"
+            if log:
+                log("[启动] 已请求停止，取消本次启动", "info")
+            return result
+
+        def hook_print(*args: Any, **kwargs: Any) -> None:
+            text = " ".join(str(x) for x in args)
+            if sys.stdout is not None:
+                real_print(*args, **kwargs)
+            log_type = "info"
+            if "失败" in text or "中断" in text or "错误" in text or "timeout" in text:
+                log_type = "error"
+            elif "警告" in text or "miss" in text:
+                log_type = "warn"
+            if log:
+                log(text, log_type)
+
+        builtins.print = hook_print
+        mediator = Mediator(
+            settings,
+            root_dir,
+            stop_signal=stop_signal,
+            incident_dir=incident_dir,
+        )
+        result["mediator"] = mediator
+        if on_mediator is not None:
+            on_mediator(mediator)
+        prepare = getattr(mediator, "prepare_live_dependencies", None)
+        if not callable(prepare) or not prepare():
+            health = getattr(mediator, "_ocr_bootstrap_health", None)
+            result["terminal_reason"] = f"OCR不可用: {health}"
+            result["ocr_status"] = "不可用"
+            phase_val = getattr(mediator, "phase", None)
+            result["phase"] = str(getattr(phase_val, "name", phase_val or "ERROR"))
+            if log:
+                log(f"[启动失败] OCR True READY 未通过，LIVE 已拒绝启动: {health}", "error")
+            return result
+        health = getattr(mediator, "_ocr_bootstrap_health", None) or {}
+        result["ocr_status"] = "就绪" if health.get("healthy", True) else "不可用"
+        mediator.run(max_steps=max_steps)
+    except Exception as exc:
+        result["terminal_reason"] = f"任务异常退出: {exc}"
+        if log:
+            log(f"[异常] {result['terminal_reason']}", "error")
+        LOGGER.exception("worker failed")
+    finally:
+        if mediator is not None:
+            try:
+                mediator.set_trace(None)
+            except Exception:
+                pass
+            ocr_client = getattr(mediator, "_ocr_client", None)
+            if ocr_client is not None:
+                try:
+                    ocr_client.close()
+                except Exception:
+                    LOGGER.exception("failed to close OCR sidecar")
+        builtins.print = real_print
+        result["mediator"] = mediator
+        result["game_count"] = getattr(mediator, "game_count", 0) if mediator else 0
+        phase_val = getattr(mediator, "phase", None) if mediator else None
+        result["phase"] = str(getattr(phase_val, "name", phase_val or result["phase"] or "IDLE"))
+    return result
+
+
+class PortableLiveLock:
+    """QLockFile when Qt is up; flock/msvcrt otherwise. Same lock file name."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self._qlock: Any = None
+        self._fh: Any = None
+
+    def try_lock(self, timeout_ms: int = 100) -> bool:
+        try:
+            from PySide6.QtCore import QLockFile as _QLockFile
+
+            self._qlock = _QLockFile(str(self.path))
+            if self._qlock.tryLock(int(timeout_ms)):
+                return True
+            self._qlock = None
+            return False
+        except Exception:
+            self._qlock = None
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self._fh = open(self.path, "a+b")
+            if os.name == "nt":
+                import msvcrt
+
+                msvcrt.locking(self._fh.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            if self._fh is not None:
+                try:
+                    self._fh.close()
+                except Exception:
+                    pass
+                self._fh = None
+            return False
+
+    def unlock(self) -> None:
+        if self._qlock is not None:
+            try:
+                self._qlock.unlock()
+            except Exception:
+                pass
+            self._qlock = None
+        if self._fh is not None:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    self._fh.seek(0)
+                    msvcrt.locking(self._fh.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    import fcntl
+
+                    fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+            except Exception:
+                pass
+            try:
+                self._fh.close()
+            except Exception:
+                pass
+            self._fh = None

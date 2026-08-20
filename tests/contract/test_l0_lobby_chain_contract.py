@@ -154,6 +154,7 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_last_treasure_attempt": 1.0e9,
         "_merchant_next_at": 1.0e9,
         "_pickup_next_at": 1.0e9,
+        "_auto_task_unknown_since": 1.0e9,
     }
 
     def _pollute(self, med: Mediator) -> None:

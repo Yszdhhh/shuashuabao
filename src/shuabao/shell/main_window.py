@@ -40,10 +40,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-
 from shuabao.shell.dual_launch_widget import DualLaunchBoxWidget
 from shuabao.shell.pet_hud import FloatingPetHud
 from shuabao.shell.theme_styles import get_qss
+from shuabao.shell.wizard_dialog import GameStyleWizardDialog
 
 from shuabao import __version__
 from shuabao.settings import MAX_SELECTED_SKILLS, Settings
@@ -465,9 +465,9 @@ class MainWindow(QMainWindow):
         self.app_data = (app_data or Path.home() / "AppData" / "Local" / APP_NAME).resolve()
         self.app_data.mkdir(parents=True, exist_ok=True)
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL} · 重生魔兽刷刷刷")
-        self.resize(960, 750)
-        self.setMinimumSize(800, 640)
-        self.current_theme = "dark"
+        self.resize(980, 760)
+        self.setMinimumSize(820, 640)
+        self.current_theme = "light"
         self.setStyleSheet(get_qss(self.current_theme))
         self.pet_hud = FloatingPetHud()
         self.pet_hud.hud_restored.connect(self._restore_from_pet_hud)

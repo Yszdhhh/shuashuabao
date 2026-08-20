@@ -104,6 +104,7 @@ from shuabao.habit_preference import (
 )
 from shuabao.skill_catalog import grant_on_learn_card
 from shuabao.card_fact import CardFact, card_fact_from_slot
+from shuabao.policy.mechanics_view import MechanicsPolicyView
 
 # 构建标识：写入 JSONL tick trace（B1-1），用于区分版本/里程碑来源。
 # 每次发布里程碑时更新；配合 git 提交哈希可精确定位产生该日志的代码。
@@ -549,6 +550,7 @@ class Mediator:
         self._auto_task_pending_since: float | None = None
         self._auto_task_next_observe_at: float | None = None
         self._auto_task_recheck_at: float = 0.0
+        self._auto_task_unknown_since: float | None = None
         self._control_recheck_interval_s: float = 120.0
         self._challenge_recheck_at: dict[str, float] = {}
         # P1-B1: victory-continue flow (multi-anchor post-game classification).
@@ -740,6 +742,7 @@ class Mediator:
         except (OSError, ValueError, TypeError):
             self._habit_preference = {}
         self._habit_skill_scores = habit_scores_for_panel(self._habit_preference, "skill")
+        self._mechanics_view = MechanicsPolicyView.from_repo(project_root)
         self._cached_policy_settings: PolicySettings | None = None
         ocr_enabled_flag = getattr(settings, "ocr_enabled", False) or getattr(settings, "ocr_mode", "off") in {"shadow", "live"}
         if ocr_enabled_flag:
@@ -1688,9 +1691,49 @@ class Mediator:
         state, hit = self._auto_task_state(frame)
         return hit if state == "OFF" else None
 
+    def _auto_task_unknown_timeout_s(self) -> float:
+        """UNKNOWN fuse budget: default 45s, hard-clamped to 30–60s."""
+        raw = getattr(self.settings, "auto_task_unknown_timeout_s", 45.0)
+        try:
+            value = float(raw)
+        except (TypeError, ValueError):
+            value = 45.0
+        if value != value:
+            value = 45.0
+        return max(30.0, min(60.0, value))
+
+    def _auto_task_unknown_fuse(self, state: str) -> LoopAction | None:
+        """Independent monotonic fuse. ``_main_line_since`` cannot postpone it."""
+        normalized = str(state or "").strip().upper()
+        if normalized in {"ON", "OFF"}:
+            self._auto_task_unknown_since = None
+            return None
+        if normalized != "UNKNOWN":
+            self._auto_task_unknown_since = None
+            return None
+        now_mono = time.monotonic()
+        if self._auto_task_unknown_since is None:
+            self._auto_task_unknown_since = now_mono
+        elapsed = now_mono - self._auto_task_unknown_since
+        timeout = self._auto_task_unknown_timeout_s()
+        if elapsed < timeout:
+            return None
+        note = (
+            f"LivenessTimeout: auto_task UNKNOWN for {elapsed:.1f}s "
+            f"(limit {timeout:.1f}s)"
+        )
+        print(f"[L1] {note}，Fail-Closed 停止运行")
+        self.set_phase(Phase.ERROR, note)
+        self.stop()
+        return LoopAction.Break
+
     def _ensure_auto_task_enabled(self, frame: Frame) -> LoopAction | None:
         """Enable auto-task with a bounded post-click observation window."""
         now = time.time()
+        state, hit = self._auto_task_state(frame)
+        fuse = self._auto_task_unknown_fuse(state)
+        if fuse is not None:
+            return fuse
         if getattr(self, "_auto_task_done", False):
             if self._auto_task_recheck_at <= 0.0 or now < self._auto_task_recheck_at:
                 return None
@@ -1708,16 +1751,16 @@ class Mediator:
             self._auto_task_done = False
             self._auto_task_attempts = 0
 
-        state, hit = self._auto_task_state(frame)
-        detail = self._auto_task_state_detail(frame)
-        on_score, off_score = detail[2], detail[3]
+        detail_res = getattr(self, "_last_auto_task_detail", None)
+        if detail_res and detail_res[0] == state:
+            on_score, off_score = detail_res[2], detail_res[3]
+        else:
+            on_score, off_score = 0.0, 0.0
         pending_since = self._auto_task_pending_since
         pending_age = round(now - pending_since, 2) if pending_since is not None else None
 
         if pending_since is not None:
             if state == "ON":
-                self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
-                print("[L1] 自动任务开启模式已验证（已勾选）")
                 self._auto_task_done = True
                 self._auto_task_recheck_at = now + self._control_recheck_interval_s
                 self._auto_task_pending_since = None
@@ -1971,6 +2014,7 @@ class Mediator:
                 fetter_labels=self._fetter_labels,
                 policy_doc=self._choice_policy_doc,
                 habit_name_scores=self._habit_skill_scores,
+                mechanics_view=getattr(self, "_mechanics_view", None),
             )
         return self._cached_policy_settings
 
@@ -4115,6 +4159,7 @@ class Mediator:
             self._auto_task_pending_since = None
             self._auto_task_next_observe_at = None
             self._auto_task_recheck_at = 0.0
+            self._auto_task_unknown_since = None
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
             self._post_game_pending = False

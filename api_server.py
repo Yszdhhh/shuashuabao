@@ -12,7 +12,6 @@ import datetime
 import os
 import sys
 import threading
-import time
 import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -27,19 +26,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.settings import OFFICIAL_SETTINGS, Settings
-
-# Mediator 在运行阶段延迟载入（以防部分开发环境缺少 opencv 时接口基础功能依然可用）
-Mediator = None
-Phase = None
-
-
-def get_mediator_cls():
-    global Mediator, Phase
-    if Mediator is None:
-        from shuabao.mediator import Mediator as _Med, Phase as _Ph
-        Mediator = _Med
-        Phase = _Ph
-    return Mediator, Phase
+from shuabao.shell.headless_runner import HeadlessRunner, default_headless_app_data
 
 
 PHASE_NAME_MAP = {
@@ -76,6 +63,7 @@ class RunnerState:
         self.lock = threading.Lock()
         self.thread: Optional[threading.Thread] = None
         self.mediator: Any = None
+        self.headless: Any = None
         self.state: str = "IDLE"  # IDLE / STARTING / RUNNING / STOPPING
         self.generation: int = 0  # 递增代次：旧 worker 不得覆盖新 worker 状态
         self.phase: str = "BOOT"
@@ -114,6 +102,23 @@ class RunnerState:
 
 
 runner = RunnerState()
+
+
+def bind_headless_or_abort(state: RunnerState, gen: int, headless: HeadlessRunner) -> bool:
+    """Publish headless so /api/run/stop can trigger it. True = do not execute LIVE."""
+    stopping = False
+    with state.lock:
+        if state.generation != gen:
+            return True
+        state.headless = headless
+        stopping = state.state == "STOPPING"
+    if stopping:
+        try:
+            headless.stop()
+        except Exception:
+            pass
+        return True
+    return bool(headless.stop_signal.is_set() or headless.stop_signal.is_stopped())
 
 app = FastAPI(title="刷刷宝 API", version="1.3.3.3-local")
 
@@ -262,17 +267,6 @@ def start_run(req: StartRunRequest = StartRunRequest()):
     if req.dry_run is not None:
         s.dry_run = req.dry_run
 
-    try:
-        MedCls, PhEnum = get_mediator_cls()
-    except Exception as e:
-        with runner.lock:
-            if runner.generation == gen:
-                runner.state = "IDLE"
-        runner.add_log(f"[错误] 依赖加载失败: {e}", "error")
-        raise HTTPException(
-            status_code=500, detail=f"无法加载 Mediator 自动化模块（缺乏 OpenCV 等）：{e}"
-        )
-
     runner.last_error = None
     runner.phase = "BOOT"
     runner.phase_name = "就绪"
@@ -287,20 +281,11 @@ def start_run(req: StartRunRequest = StartRunRequest()):
 
     def worker(gen: int):
         real_print = builtins.print
+        app_data = Path(os.environ.get("SHUABAO_APP_DATA") or default_headless_app_data())
+        headless = HeadlessRunner(app_data, ROOT)
 
-        def hook_print(*args, **kwargs):
-            text = " ".join(str(arg) for arg in args)
-            real_print(*args, **kwargs)
-
-            # 解析关键日志并推送至 runner
-            log_type = "info"
-            if "失败" in text or "错误" in text or "中断" in text or "timeout" in text:
-                log_type = "error"
-            elif "警告" in text or "warn" in text.lower() or "miss" in text:
-                log_type = "warn"
+        def log_fn(text: str, log_type: str) -> None:
             runner.add_log(text, log_type)
-
-            # 抓取 Mediator 阶段状态变化
             if "phase " in text:
                 try:
                     parts = text.split("phase ")
@@ -313,23 +298,26 @@ def start_run(req: StartRunRequest = StartRunRequest()):
                 except Exception:
                     pass
 
-        builtins.print = hook_print
-
-        try:
-            # S0.5：API 生产入口也传入 incident 目录（默认 %LocalAppData%/ShuaBao/incidents）
-            from shuabao.incidents import default_incident_dir
-
-            med = MedCls(s, ROOT, incident_dir=default_incident_dir())
-            med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
+        def on_mediator(med: Any) -> None:
             with runner.lock:
-                if runner.generation != gen:
+                if runner.generation != gen or runner.state == "STOPPING":
                     return
                 runner.mediator = med
                 runner.state = "RUNNING"
-            med.run(max_steps=max_steps)
+
+        try:
+            if bind_headless_or_abort(runner, gen, headless):
+                runner.add_log("[启动] 已请求停止，取消本次启动", "info")
+                return
+            headless.run_blocking(
+                s,
+                max_steps=max_steps,
+                log_fn=log_fn,
+                on_mediator=on_mediator,
+            )
             with runner.lock:
-                if runner.generation == gen:
-                    runner.game_count = med.game_count
+                if runner.generation == gen and runner.mediator is not None:
+                    runner.game_count = runner.mediator.game_count
         except Exception as e:
             err_str = f"运行过程中抛出异常: {e}\n{traceback.format_exc()}"
             if runner.generation == gen:
@@ -341,6 +329,7 @@ def start_run(req: StartRunRequest = StartRunRequest()):
                 if runner.generation == gen:
                     runner.state = "IDLE"
                     runner.mediator = None
+                    runner.headless = None
                     if runner.thread is threading.current_thread():
                         runner.thread = None
             runner.add_log("[停止] 任务运行结束", "info")
@@ -361,7 +350,12 @@ def stop_run():
             return {"status": "idle", "message": "任务未在运行"}
         if runner.state in ("STARTING", "RUNNING"):
             runner.state = "STOPPING"
-    if runner.mediator:
+    if runner.headless:
+        try:
+            runner.headless.stop()
+        except Exception:
+            pass
+    elif runner.mediator:
         try:
             runner.mediator.stop()
         except Exception:

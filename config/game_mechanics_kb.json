@@ -23,47 +23,47 @@
       "id": "play_help",
       "title": "玩法说明",
       "filename": "image-38581c58-9dac-4323-a4da-0b6415ce5f95.png",
-      "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-38581c58-9dac-4323-a4da-0b6415ce5f95.png"
+      "path": "assets/evidence/image-38581c58-9dac-4323-a4da-0b6415ce5f95.png"
     },
     {
       "id": "basic_attr",
       "title": "基础属性说明",
       "filename": "1786677308236_d-176e9aa4-aeb4-4dfb-95d5-590b157fe58e.png",
-      "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_1786677308236_d-176e9aa4-aeb4-4dfb-95d5-590b157fe58e.png"
+      "path": "assets/evidence/1786677308236_d-176e9aa4-aeb4-4dfb-95d5-590b157fe58e.png"
     },
     {
       "id": "special_attr",
       "title": "特殊属性说明",
       "filename": "image-8647855e-7347-42b5-9b49-cd4961d8f134.png",
-      "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-8647855e-7347-42b5-9b49-cd4961d8f134.png"
+      "path": "assets/evidence/image-8647855e-7347-42b5-9b49-cd4961d8f134.png"
     },
     {
       "id": "status_p1",
       "title": "状态效果说明（页1）",
       "filename": "image-7b9a6232-84f4-4281-921d-d6825ede92a7.png",
-      "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-7b9a6232-84f4-4281-921d-d6825ede92a7.png",
+      "path": "assets/evidence/image-7b9a6232-84f4-4281-921d-d6825ede92a7.png",
       "note": "与 status_p2 重复；圣盾以 status_p2 为准，本页条目已合并进 status_effects"
     },
     {
       "id": "status_p2",
       "title": "状态效果说明（页2，含圣盾）",
       "filename": "image-ff165022-ba56-45f4-8bc3-f88bb727592f.png",
-      "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-ff165022-ba56-45f4-8bc3-f88bb727592f.png"
+      "path": "assets/evidence/image-ff165022-ba56-45f4-8bc3-f88bb727592f.png"
     },
     {
       "id": "other_1",
       "title": "其他说明",
       "filename": "image-8ae8f78a-edca-4861-9f52-1ca882e97f90.png",
-      "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-8ae8f78a-edca-4861-9f52-1ca882e97f90.png"
+      "path": "assets/evidence/image-8ae8f78a-edca-4861-9f52-1ca882e97f90.png"
     },
     {
       "id": "other_2",
       "title": "其他说明续",
       "filename": "image-b0396b8e-d5e1-4530-b062-b83a3e559571.png",
-      "path": "C:\\Users\\10639\\.cursor\\projects\\c-Users-10639-Desktop-GameScript-Local\\assets\\c__Users_10639_AppData_Roaming_Cursor_User_workspaceStorage_0b876fe32751448e715bb6dbcd4aad1e_images_image-b0396b8e-d5e1-4530-b062-b83a3e559571.png"
+      "path": "assets/evidence/image-b0396b8e-d5e1-4530-b062-b83a3e559571.png"
     }
   ],
-  "script_forbidden": [
+  "fail_closed_actions": [
     {
       "id": "suicide_chat",
       "keys": [

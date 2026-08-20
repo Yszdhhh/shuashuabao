@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
-import builtins
 import copy
 import logging
-import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QLockFile, QObject, QThread, Signal
 
 from shuabao.settings import Settings
 from shuabao.stop_signal import StopSignal
+from shuabao.shell.live_execute import (
+    LIVE_LOCK_NAME,
+    execute_runtime_mediator,
+    live_lock_path,
+)
 from shuabao.shell.mode_catalog import apply_mode_overlay, desktop_may_start
 from shuabao.shell.runtime_status import (
     RUNNER_IDLE,
@@ -22,7 +26,6 @@ from shuabao.shell.runtime_status import (
 )
 
 LOGGER = logging.getLogger("ShuaBao")
-LIVE_LOCK_NAME = "ShuaBao.live.lock"
 
 
 class ModeNotEnabled(RuntimeError):
@@ -114,18 +117,6 @@ class MediatorWorker(QThread):
         )
 
     def run(self):
-        try:
-            from shuabao.runtime_mediator import Mediator
-        except Exception as exc:
-            LOGGER.exception("failed to import RuntimeMediator")
-            self.terminal_reason = f"RuntimeMediator 无法加载: {exc}"
-            self._emit_status(False, "ERROR", 0, terminal_reason=self.terminal_reason)
-            self.signals.log_emitted.emit(
-                f"[启动失败] RuntimeMediator 无法加载，LIVE 已拒绝启动: {exc}",
-                "error",
-            )
-            return
-
         if self._stop_requested:
             self.terminal_reason = "启动前已请求停止"
             self._emit_status(False, "IDLE", 0, terminal_reason=self.terminal_reason)
@@ -155,69 +146,37 @@ class MediatorWorker(QThread):
                 "info",
             )
 
-        real_print = builtins.print
-        def hook_print(*args, **kwargs):
-            text = " ".join(str(x) for x in args)
-            if sys.stdout is not None:
-                real_print(*args, **kwargs)
-            log_type = "info"
-            if "失败" in text or "中断" in text or "错误" in text or "timeout" in text:
-                log_type = "error"
-            elif "警告" in text or "miss" in text:
-                log_type = "warn"
-            self.signals.log_emitted.emit(text, log_type)
+        def _log(text: str, kind: str) -> None:
+            self.signals.log_emitted.emit(text, kind)
 
-        builtins.print = hook_print
-        try:
-            self.mediator = Mediator(
-                self.settings,
-                self.root_dir,
-                stop_signal=self.stop_signal,
-                incident_dir=self.incident_dir,
-            )
+        def _on_mediator(med: Any) -> None:
+            self.mediator = med
             self._start_trace()
-            prepare = getattr(self.mediator, "prepare_live_dependencies", None)
-            if not callable(prepare) or not prepare():
-                health = getattr(self.mediator, "_ocr_bootstrap_health", None)
-                self.terminal_reason = f"OCR不可用: {health}"
-                self._emit_status(
-                    False, self._phase_name(), 0,
-                    terminal_reason=self.terminal_reason,
-                    ocr_status="不可用",
-                    last_action=self._last_action(),
-                )
-                self.signals.log_emitted.emit(
-                    f"[启动失败] OCR True READY 未通过，LIVE 已拒绝启动: {health}",
-                    "error",
-                )
-                return
-            health = getattr(self.mediator, "_ocr_bootstrap_health", None) or {}
-            self.ocr_status = "就绪" if health.get("healthy", True) else "不可用"
-            self._emit_status(True, self._phase_name(), 0, ocr_status=self.ocr_status)
-            self.mediator.run(max_steps=self.max_steps)
-        except Exception as exc:
-            self.terminal_reason = f"任务异常退出: {exc}"
-            self.signals.log_emitted.emit(f"[异常] {self.terminal_reason}", "error")
-            LOGGER.exception("worker failed")
-        finally:
-            if self.mediator is not None:
-                self.mediator.set_trace(None)
-                ocr_client = getattr(self.mediator, "_ocr_client", None)
-                if ocr_client is not None:
-                    try:
-                        ocr_client.close()
-                    except Exception:
-                        LOGGER.exception("failed to close OCR sidecar")
-            builtins.print = real_print
-            count = getattr(self.mediator, "game_count", 0) if self.mediator else 0
-            reason = self._terminal_reason_from_mediator()
-            self._emit_status(
-                False, self._phase_name(), count,
-                terminal_reason=reason,
-                ocr_status=self.ocr_status,
-                last_action=self._last_action(),
-            )
-            self.signals.log_emitted.emit(f"[结束] 任务运行结束（原因: {reason}）", "info")
+
+        result = execute_runtime_mediator(
+            settings=self.settings,
+            root_dir=self.root_dir,
+            incident_dir=self.incident_dir,
+            stop_signal=self.stop_signal,
+            max_steps=self.max_steps,
+            log=_log,
+            should_abort=lambda: self._stop_requested,
+            on_mediator=_on_mediator,
+        )
+        self.mediator = result.get("mediator") or self.mediator
+        if result.get("ocr_status"):
+            self.ocr_status = str(result["ocr_status"])
+        if result.get("terminal_reason"):
+            self.terminal_reason = str(result["terminal_reason"])
+        count = int(result.get("game_count") or 0)
+        reason = self._terminal_reason_from_mediator()
+        self._emit_status(
+            False, self._phase_name(), count,
+            terminal_reason=reason,
+            ocr_status=self.ocr_status,
+            last_action=self._last_action(),
+        )
+        self.signals.log_emitted.emit(f"[结束] 任务运行结束（原因: {reason}）", "info")
 
 
     def _start_trace(self) -> str | None:
@@ -237,10 +196,6 @@ class MediatorWorker(QThread):
         self.stop_signal.trigger("RunnerService stop requested")
         if self.mediator:
             self.mediator.stop()
-
-
-def live_lock_path(app_data: Path) -> Path:
-    return Path(app_data) / LIVE_LOCK_NAME
 
 
 def live_lock_busy(app_data: Path) -> bool:

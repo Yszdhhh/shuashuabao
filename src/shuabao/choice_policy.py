@@ -74,6 +74,7 @@ from shuabao.skill_catalog import (
     waived_prereq_names,
 )
 from shuabao.smart_route import skill_role_rank
+from shuabao.policy.mechanics_view import MechanicsPolicyView
 
 PANEL_SKILL = "skill"
 PANEL_BOND = "bond"
@@ -223,6 +224,8 @@ class PolicySettings:
     skill_disabled_amplifiers: tuple[str, ...] = ()
     treasure_must_take: tuple[str, ...] = DEFAULT_TREASURE_MUST_TAKE
     treasure_refresh_on_no_safe: bool = True
+    # Dual-gated KB snapshot. None / empty view never changes ranking.
+    mechanics_view: Any = None
 
     def __post_init__(self) -> None:
         if self.bond_whitelist_mode not in VALID_WHITELIST_MODES:
@@ -289,6 +292,7 @@ class PolicySettings:
                 tuple(str(s) for s in must_take) if must_take is not None else DEFAULT_TREASURE_MUST_TAKE
             ),
             treasure_refresh_on_no_safe=bool(raw.get("treasure_refresh_on_no_safe", True)),
+            mechanics_view=raw.get("mechanics_view"),
         )
 
 
@@ -299,8 +303,9 @@ def assemble_policy_settings(
     fetter_labels: Mapping[str, Any],
     policy_doc: Mapping[str, Any] | None,
     habit_name_scores: tuple[tuple[str, float], ...] = (),
+    mechanics_view: Any = None,
 ) -> PolicySettings:
-    """运行时装配 PolicySettings（纯函数，无 I/O；policy_doc 由调用方读入）。"""
+    """运行时装配 PolicySettings（纯函数，无 I/O；policy_doc / view 由调用方读入）。"""
     raw = dict(policy_doc or {})
     skill_cfg = raw.get("skill") if isinstance(raw.get("skill"), Mapping) else {}
     bond_cfg = raw.get("bond") if isinstance(raw.get("bond"), Mapping) else {}
@@ -355,6 +360,7 @@ def assemble_policy_settings(
             "treasure_refresh_on_no_safe": bool(treasure_cfg.get("refresh_on_no_safe", False)),
             "habit_name_scores": habit_name_scores,
             "allow_skill_giveup": bool(raw.get("allow_skill_giveup", False)),
+            "mechanics_view": mechanics_view,
         }
     )
 
@@ -559,6 +565,13 @@ def _skill_focus_presence_rank(name: str, settings: PolicySettings) -> int:
     return int(_focus_rank(name, settings) >= len(settings.skill_focus_families))
 
 
+def _mechanics_view_of(settings: PolicySettings) -> MechanicsPolicyView:
+    view = getattr(settings, "mechanics_view", None)
+    if isinstance(view, MechanicsPolicyView):
+        return view
+    return MechanicsPolicyView.empty()
+
+
 def _skill_config_rank(name: str, settings: PolicySettings) -> int:
     if settings.skill_focus_families:
         return _focus_rank(name, settings)
@@ -592,7 +605,7 @@ def _rank_skill_candidates(
     )
     focus_set = _skill_focus_set(settings)
     owned_branch_families = owned_families(owned)
-    ranked: list[tuple[int, int, int, int, int, int, int]] = []
+    ranked: list[tuple[int, int, int, int, int, int, float, int]] = []
 
     for slot in slots:
         if slot.confidence < settings.min_confidence:
@@ -629,6 +642,22 @@ def _rank_skill_candidates(
                 continue
 
         if slot.name and not is_skill_choice_legal(slot.name, owned):
+            continue
+
+        view = _mechanics_view_of(settings)
+        owned_names = tuple(str(x) for x in owned if str(x).strip())
+        chain_keys = tuple(k for k in (str(fam or "").strip(), str(slot.name or "").strip()) if k)
+        skip_slot = False
+        for chain_id in chain_keys:
+            extra_prereqs = view.get_prerequisites(chain_id)
+            if extra_prereqs and not all(item in owned_names for item in extra_prereqs):
+                skip_slot = True
+                break
+            mutex = view.get_mutually_exclusive(chain_id)
+            if mutex and any(item in owned_names for item in mutex):
+                skip_slot = True
+                break
+        if skip_slot:
             continue
 
         has_prereq = False
@@ -675,6 +704,9 @@ def _rank_skill_candidates(
         elif not settings.skill_focus_families and slot.name:
             fam_order_rank = _skill_config_rank(slot.name, settings)
 
+        modifier = 0.0
+        if slot.name:
+            modifier = float(view.get_priority_modifier(slot.name) or 0.0)
         ranked.append(
             (
                 int(priority_rank),
@@ -683,11 +715,12 @@ def _rank_skill_candidates(
                 int(level_key),
                 int(is_new_rank),
                 int(fam_order_rank),
+                -modifier,
                 int(slot.index),
             )
         )
     ranked.sort()
-    return [entry[6] for entry in ranked]
+    return [entry[7] for entry in ranked]
 
 
 def _rank_skill_fill_candidates(

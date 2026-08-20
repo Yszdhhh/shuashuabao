@@ -149,6 +149,7 @@ class Settings:
     panel_reopen_cooldown_s: float = 12.0   # 物理隐藏确认后，同类 G/F/V 主动重开冷却（10..15s）
     challenge_recheck_interval_s: float = 30.0  # 四挑战 ON 的周期复查间隔（钳制 5..300s）
     panel_hard_deadline_s: float = 15.0     # 单个面板 episode 无进展硬超时
+    auto_task_unknown_timeout_s: float = 45.0  # 自动任务 UNKNOWN 熔断（钳制 30–60s）
     panel_action_limit_per_fingerprint: int = 3  # 同 fingerprint 同动作上限
     panel_episode_limit_per_kind: int = 5       # 每局每类面板会话上限
     incident_sample_rate: float = 0.1           # 正常 panel episode 抽样归档率
@@ -253,7 +254,7 @@ class Settings:
         float_fields = {
             "recovery_retry_interval_s", "panel_visible_timeout_s", "panel_hard_deadline_s",
             "ui_action_interval_s", "panel_reopen_cooldown_s", "incident_sample_rate",
-            "challenge_recheck_interval_s",
+            "challenge_recheck_interval_s", "auto_task_unknown_timeout_s",
         }
         for k in float_fields:
             if k in clean:
@@ -344,6 +345,7 @@ class Settings:
             "panel_reopen_cooldown_s": (10.0, 15.0),
             "incident_sample_rate": (0.0, 1.0),
             "challenge_recheck_interval_s": (5.0, 300.0),
+            "auto_task_unknown_timeout_s": (30.0, 60.0),
         }
         for k, (lo, hi) in float_ranges.items():
             if k in clean:
