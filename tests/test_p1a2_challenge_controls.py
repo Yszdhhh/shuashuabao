@@ -357,7 +357,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
              patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.UNKNOWN), \
              patch.object(self.med.executor, "right_click") as mock_rc, \
-             patch("shuabao.mediator.time.time", side_effect=(100.0, 103.0, 103.0, 103.0)):
+             patch("shuabao.mediator.time.time", side_effect=[100.0, 103.0, 103.0, 103.0, 103.0, 103.0, 103.0, 103.0]):
             # 第一 tick：UNKNOWN → 零输入等待（Continue）
             self.assertEqual(self.med._ensure_challenge_buttons(self.frame_off), LoopAction.Continue)
             self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.UNKNOWN)
