@@ -10,7 +10,7 @@ import pytest
 from PySide6.QtWidgets import QApplication
 
 from shuabao.shell.dual_launch_widget import DualLaunchBoxWidget
-from shuabao.shell.main_window import MainWindow
+from shuabao.shell.main_window import MainWindow, SkillCardGrid
 from shuabao.shell.overlay_hud import OverlayHud
 from shuabao.shell.pet_hud import FloatingPetHud
 from shuabao.shell.theme_styles import ThemeTokens, skill_card_qss, wizard_qss
@@ -40,6 +40,17 @@ def test_wizard_qss_uses_light_tokens_not_private_island():
     assert "WIZARD_LIGHT_QSS" not in src
     assert "wizard_qss" in src
     _assert_light_qss(wizard_qss("light"))
+
+
+def test_skill_card_grid_consumes_theme_tokens_not_card_qss(qapp):
+    src = (ROOT / "src" / "shuabao" / "shell" / "main_window.py").read_text(encoding="utf-8")
+    assert "CARD_QSS" not in src
+    assert "skill_card_qss" in src
+    grid = SkillCardGrid(["asj"], {"asj": "奥术箭"}, theme="light")
+    qss = grid.cards["asj"].styleSheet()
+    _assert_light_qss(qss)
+    assert ThemeTokens.LIGHT["bg_surface"].lower() in qss.lower()
+    grid.close()
 
 
 def test_skill_card_dual_launch_hud_use_light_tokens(qapp):

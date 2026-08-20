@@ -74,6 +74,10 @@ def test_main_py_run_uses_headless_runner():
     text = (ROOT / "main.py").read_text(encoding="utf-8")
     assert "HeadlessRunner" in text
     assert "default_headless_app_data" in text
+    assert "from shuabao.mediator import Mediator" not in text
+    assert "from shuabao.runtime_mediator import Mediator" not in text
     run_block = text.split("def cmd_run", 1)[1].split("def cmd_inventory", 1)[0]
-    assert "from shuabao.mediator import Mediator" not in run_block
     assert "HeadlessRunner" in run_block
+    dry_block = text.split("def cmd_dry_run", 1)[1].split("def cmd_run", 1)[0]
+    assert "HeadlessRunner" in dry_block
+    assert "Mediator(" not in dry_block
