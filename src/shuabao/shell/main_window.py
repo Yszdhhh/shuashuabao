@@ -41,6 +41,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from shuabao.shell.dual_launch_widget import DualLaunchBoxWidget
+from shuabao.shell.pet_hud import FloatingPetHud
+from shuabao.shell.theme_styles import get_qss
+
 from shuabao import __version__
 from shuabao.settings import MAX_SELECTED_SKILLS, Settings
 from shuabao.shell.mode_catalog import (
@@ -344,14 +348,7 @@ class SkillArchiveLevelGrid(QWidget):
         self.boxes: dict[str, QSpinBox] = {}
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(8)
-        hint = QLabel(
-            "填游戏里技能卡面标题的等级（如「奥术箭 Lv47」填 47）。0=未知，按最保守的前置规则走。"
-        )
-        hint.setWordWrap(True)
-        hint.setObjectName("hintLabel")
-        lay.addWidget(hint)
-        grid = QGridLayout()
+        grid = QGridLayout() if "QGridLayout" in globals() else QVBoxLayout()
         grid.setSpacing(6)
         for idx, code in enumerate(stems):
             cn = labels.get(code, code)
@@ -465,20 +462,24 @@ class NegativeTreasureGroup(QGroupBox):
 class MainWindow(QMainWindow):
     def __init__(self, app_data: Path | None = None):
         super().__init__()
-        self.app_data = Path(app_data) if app_data is not None else _app_data_dir()
+        self.app_data = (app_data or Path.home() / "AppData" / "Local" / APP_NAME).resolve()
         self.app_data.mkdir(parents=True, exist_ok=True)
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL} · 重生魔兽刷刷刷")
-        self.resize(900, 720)
-        self.setMinimumSize(720, 600)
-
+        self.resize(960, 750)
+        self.setMinimumSize(800, 640)
+        self.current_theme = "dark"
+        self.setStyleSheet(get_qss(self.current_theme))
+        self.pet_hud = FloatingPetHud()
+        self.pet_hud.hud_restored.connect(self._restore_from_pet_hud)
         self.settings = Settings()
         self._shell_extras: dict = {
-            "selected_mode_id": "normal_farm",
-            "custom_builds": [],
-            # bond_scheme/bond_inverted 不在初始默认里：键缺失 = 无方案数据 =
-            # 默认 profile（基础卡组默认勾选 round1_must 五张）。显式空卡组
-            # （cards=[]）会写入空 list 键，表示"显式一张不选"，与默认严格区分。
+            "chapter": 1,
+            "difficulty": 0,
+            "hero": 0,
             "attr_route": [],
+            "secret_realm": False,
+            "early_challenge": False,
+            "treasure_allow_negative": [],
             "advanced_packs": [],
             "hitch_stage_prefix": "3",
         }
@@ -572,6 +573,15 @@ class MainWindow(QMainWindow):
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
             QFrame#footerBar { background-color: #090d16; border-top: 1px solid #1e293b; }
         """)
+    def _restore_from_pet_hud(self) -> None:
+        if getattr(self, "pet_hud", None):
+            self.pet_hud.hide()
+        self.showNormal()
+        self.activateWindow()
+
+    def toggle_theme(self) -> None:
+        self.current_theme = "light" if getattr(self, "current_theme", "dark") == "dark" else "dark"
+        self.setStyleSheet(get_qss(self.current_theme))
 
     def _build_ui(self):
         central = QWidget()
