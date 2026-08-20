@@ -58,6 +58,8 @@ class ApplyModeOverlayTests(unittest.TestCase):
         # lobby_hitch.hidden_defaults.hitch_reject_list（dict）不是 Settings 字段 → 忽略。
         out = apply_mode_overlay(Settings(), "lobby_hitch")
         self.assertEqual(out.game_mode, 0)
+        self.assertEqual(out.mode_id, "lobby_hitch")
+        self.assertFalse(out.auto_create_room)
 
     def test_hidden_defaults_win_on_conflict(self):
         # 同一键同时出现在 budgets 与 hidden_defaults → hidden_defaults 优先。

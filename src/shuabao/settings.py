@@ -75,6 +75,9 @@ class Settings:
     query_timeout: int = 60
     game_timeout: int = 15
     game_mode: int = 0  # 0=独狼/自己刷图
+    # 运行方式目录 id（normal_farm / lobby_hitch / …）。不是 OBSERVE/LIVE。
+    mode_id: str = "normal_farm"
+    hitch_stage_prefix: str = "3"  # 蹭车搜房前缀，仅 3/4
     dragon_ball_count: int = 7
     find_longzhu_where_multi_game: bool = False
     find_longzhu_in_game: bool = False  # 1.4 新增：游戏内找龙珠（LONGZHU 重建后启用，现仅配置门闩）
@@ -231,6 +234,7 @@ class Settings:
             "reputation_cjb_boss", "reputation_sgzx_boss",
             "cjb_boss", "sgzx_boss", "window_title_contains",
             "ocr_repo_root", "images_dir", "bond_whitelist_mode",
+            "mode_id", "hitch_stage_prefix",
         }
         if fallback is not None:
             for k in str_fields:
@@ -388,6 +392,13 @@ class Settings:
                 clean["bond_whitelist_mode"] = mode
             else:
                 clean.pop("bond_whitelist_mode")
+        if "mode_id" in clean:
+            mid = str(clean["mode_id"] or "").strip()
+            clean["mode_id"] = mid or "normal_farm"
+        if "hitch_stage_prefix" in clean:
+            prefix = str(clean["hitch_stage_prefix"] or "").strip()
+            head = prefix[:1] if prefix else "3"
+            clean["hitch_stage_prefix"] = head if head in {"3", "4"} else "3"
         # 负面宝物放行名单：只接受字符串列表；类型不对一律回落为空（不放行任何负面卡）。
         if "treasure_allow_negative" in clean:
             raw_allow = clean["treasure_allow_negative"]

@@ -154,7 +154,7 @@
       ],
       "budgets": {
         "search_timeout_s": 120,
-        "join_attempts": 2,
+        "join_attempts": 3,
         "refresh_s_min": 3,
         "refresh_s_max": 4,
         "hitch_stage_prefix_values": [

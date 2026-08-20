@@ -71,6 +71,14 @@ from shuabao.vision.stage_selector import (
     visible_stage_rows,
 )
 from shuabao.vision.ocr_shadow.client import ShadowClient
+from shuabao.log_sink import emit_print as print  # noqa: A001
+from shuabao.lobby_hitch import (
+    JOIN_ATTEMPTS,
+    HitchAction,
+    HitchSearchSM,
+    classify_hitch_ocr,
+    normalize_prefix,
+)
 from shuabao.choice_policy import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_MAX_REFRESHES,
@@ -522,6 +530,14 @@ class Mediator:
         # Safety: L0 cycle counter — prevent infinite PLATFORM_MAP ↔ ROOM_WAITING loops
         self._l0_cycle_count = 0
         self._l0_cycle_limit = 5
+        self._hitch_sm = HitchSearchSM(
+            prefix=normalize_prefix(getattr(settings, "hitch_stage_prefix", "3")),
+        )
+        self._hitch_ocr_override: str | None = None
+        self._hitch_match_override: bool | None = None
+        self._hitch_status = ""
+        self._hitch_join_refresh_count = 0
+        self._hitch_search_actions: list[str] = []
         # L0 建房请求：点击成功不等于弹窗已打开，必须等待专用锚点确认。
         self._create_room_pending_since: float | None = None
         self._create_room_next_observe_at: float | None = None
@@ -2690,6 +2706,8 @@ class Mediator:
             anchor = self._selection_anchor(frame)
         if anchor:
             return None
+        if self._hitch_enabled():
+            return None
         if self._panel_state != PanelState.CLOSED:
             # 已有面板会话进行中（WAIT_VISIBLE/ACTIVE/…）：不再发起新打开
             return LoopAction.Continue
@@ -4743,6 +4761,83 @@ class Mediator:
     def _auto_room_enabled(self) -> bool:
         return self.settings.auto_create_room or self.settings.game_mode == 1
 
+    def _hitch_enabled(self) -> bool:
+        return str(getattr(self.settings, "mode_id", "") or "") == "lobby_hitch"
+
+    def _hitch_ocr_text(self) -> str:
+        override = getattr(self, "_hitch_ocr_override", None)
+        if override is not None:
+            return str(override)
+        return ""
+
+    def _hitch_room_matched(self) -> bool:
+        override = getattr(self, "_hitch_match_override", None)
+        if override is not None:
+            return bool(override)
+        return False
+
+    def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
+        print(f"[L0] hitch {evidence}，重置大厅状态机（不记战斗超时）")
+        self._round_deadline = None
+        self._round_started_at = None
+        self._main_line_since = None
+        self._hitch_sm.reset_lobby(now, evidence)
+        self._hitch_status = "大厅主页"
+        self.set_phase(Phase.LOBBY_ROOM, f"hitch {evidence} reset")
+        return LoopAction.Continue
+
+    def _tick_lobby_hitch(
+        self,
+        frame: Frame,
+        context: str,
+        room_start=None,
+        stage_page: bool = False,
+    ) -> LoopAction:
+        now = time.time()
+        event = classify_hitch_ocr(self._hitch_ocr_text())
+        if event:
+            return self._hitch_reset_lobby(event, now)
+        if context in ("MAIN_LINE", "IN_GAME"):
+            self.set_phase(Phase.MAIN_LINE, "hitch already in game")
+            return LoopAction.Continue
+        if stage_page or context == "STAGE_SELECT":
+            self.set_phase(Phase.STAGE_SELECT, "hitch stage page wait")
+            print("[L0] hitch 选关页可见，零输入等待进局（不点关卡）")
+            return LoopAction.Continue
+        if room_start is not None or context == "ROOM_WAITING":
+            self.set_phase(Phase.ROOM_WAITING, "hitch in room waiting host")
+            print("[L0] hitch 已进房，等待房主开始（不点 RoomStart）")
+            return LoopAction.Continue
+        decision = self._hitch_sm.tick(
+            now=now,
+            matched=self._hitch_room_matched(),
+            ocr_text=self._hitch_ocr_text(),
+        )
+        if decision.action in (HitchAction.REFRESH, HitchAction.JOIN):
+            self._hitch_join_refresh_count = decision.attempts
+            self._hitch_search_actions.append(decision.action.value)
+            self._hitch_status = "search"
+            print(
+                f"[L0] hitch {decision.action.value} attempt={decision.attempts}/"
+                f"{JOIN_ATTEMPTS} prefix={self._hitch_sm.prefix}"
+            )
+            self.set_phase(Phase.LOBBY_ROOM, f"hitch {decision.action.value}")
+            return LoopAction.Continue
+        if decision.action == HitchAction.GO_HOME:
+            self._hitch_status = "大厅主页"
+            print("[L0] hitch unmatched 安全回到大厅主页")
+            self.set_phase(Phase.LOBBY_ROOM, "hitch 大厅主页")
+            return LoopAction.Continue
+        if decision.action == HitchAction.SLEEP:
+            self._hitch_status = "休眠重试"
+            print("[L0] hitch 休眠重试")
+            self.set_phase(Phase.LOBBY_ROOM, "hitch 休眠重试")
+            return LoopAction.Continue
+        if decision.action == HitchAction.RESET:
+            return self._hitch_reset_lobby(decision.reason, now)
+        self.set_phase(Phase.LOBBY_ROOM, "hitch search")
+        return LoopAction.Continue
+
     @staticmethod
     def _create_room_candidate_payload(hit: MatchResult | None) -> dict | None:
         if hit is None:
@@ -5081,6 +5176,11 @@ class Mediator:
             print("[L1] 开始主线 / phase=MAIN_LINE")
             self.set_phase(Phase.MAIN_LINE, "already in game")
             return LoopAction.Continue
+
+        if self._hitch_enabled():
+            return self._tick_lobby_hitch(
+                frame, context, room_start=room_start, stage_page=stage_page
+            )
 
         if self.phase in (Phase.BOOT, Phase.WAIT_EXIT, Phase.PREPARE, Phase.LOBBY_ROOM, Phase.WAIT_UI):
             if stage_page:
@@ -6195,6 +6295,31 @@ class Mediator:
         self._panel_anchor_candidate = (anchor.name, anchor.score)
         return False
 
+    def _hitch_fail_close_choice_panel(self, frame: Frame, now: float) -> bool:
+        """lobby_hitch 技能/羁绊面板立即关闭；零刷新、零挑选。处理了本 tick 则 True。"""
+        if not self._hitch_enabled():
+            return False
+        if self._panel_kind not in ("skill", "bond", "unknown", None):
+            return False
+        close_kind = self._panel_kind if self._panel_kind in ("skill", "bond") else None
+        close_hit = self._close_current_panel(frame, close_kind)
+        if close_hit is not None:
+            name = (close_hit.name or "").lower()
+            if "refresh" in name or "giveup" in name:
+                close_hit = None
+        if close_hit is not None:
+            print("[L1] lobby_hitch 选择面板 Fail-Closed 关闭（不刷新、不挑选）")
+            if self.act_click(close_hit, "HitchPanelFailClosed"):
+                self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
+                kind = self._panel_kind or "skill"
+                self._panel_state = PanelState.COOLDOWN
+                self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                self._panel_opened_by_us = None
+            return True
+        print("[L1] lobby_hitch 选择面板 Fail-Closed（零挑选零刷新）")
+        self._finish_panel_episode()
+        return True
+
     def _tick_panel_fsm(self, frame: Frame, anchor: MatchResult | None, now: float) -> LoopAction | None:
         """S0 ⑤ 面板会话 FSM：CLOSED→OPEN_REQUESTED→WAIT_VISIBLE→ACTIVE→
         WAIT_MUTATION→CLOSING→COOLDOWN。
@@ -6263,6 +6388,8 @@ class Mediator:
             if anchor is None:
                 # 面板已自然消失（episode 结束）
                 self._finish_panel_episode()
+                return LoopAction.Continue
+            if self._hitch_fail_close_choice_panel(frame, now):
                 return LoopAction.Continue
             if now < self._selection_click_cooldown_until:
                 print("[L1] 选择面板等待输入间隔…")
@@ -6481,6 +6608,11 @@ class Mediator:
 
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
+
+        if self._hitch_enabled():
+            event = classify_hitch_ocr(self._hitch_ocr_text())
+            if event:
+                return self._hitch_reset_lobby(event, now)
 
         # ---- 专属动作后置条件等待 (PendingAction Active Waiting) ----
         if self._pending_action is not None:

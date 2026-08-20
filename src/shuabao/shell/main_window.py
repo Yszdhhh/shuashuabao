@@ -1912,6 +1912,10 @@ class MainWindow(QMainWindow):
             self.log("[设置] 未选择技能：技能面板直接关闭/隐藏，不刷新、不放弃技能点，不会学习其他技能", "info")
         settings = copy.deepcopy(self.settings)
         settings.game_mode = 0
+        settings.mode_id = self.selected_mode_id()
+        prefix_widget = getattr(self, "cmb_hitch_prefix", None)
+        if prefix_widget is not None:
+            settings.hitch_stage_prefix = str(prefix_widget.currentData() or "3")[:1] or "3"
         settings.stage1 = stage_index
         settings.stage2 = stage_index
         settings.stage_targets = [target]

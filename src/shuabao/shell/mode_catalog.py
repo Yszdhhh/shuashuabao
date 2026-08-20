@@ -96,7 +96,9 @@ def apply_mode_overlay(settings: Settings, mode_id: str) -> Settings:
         for k, v in source.items():
             if k in _SETTINGS_FIELDS:
                 merged[k] = v
-    return Settings._from_dict(merged, fallback=settings)
+    out = Settings._from_dict(merged, fallback=settings)
+    # 目录 id 不是 overlay 键：始终盖上，供 Mediator 分支 hitch / 面板 Fail-Closed。
+    return replace(out, mode_id=str(mode_id))
 
 
 def collect_persistable_settings(settings: Settings) -> dict[str, Any]:
