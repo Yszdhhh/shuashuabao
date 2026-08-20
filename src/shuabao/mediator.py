@@ -5532,10 +5532,8 @@ class Mediator:
                 return arch_res
             now = time.time()
             if self._action_timed_out():
-                print("[L0] 选关状态对齐超过宏观期限，停止而不点击任意关卡")
-                self.set_phase(Phase.ERROR, "configured stage alignment timeout")
-                self.stop()
-                return LoopAction.Break
+                print("[L0] 选关期限到，续期继续找关（不停止）")
+                self._room_action_deadline = now + self._l0_transition_timeout()
             # L0-RECOVERY（实机 20260816_204613）：客户端记忆停留在团本分页时，
             # 右侧列表没有 1-x 行，直接扫描会盲目滚动并误点未开放关卡。普通主线
             # （chapter=1，1-1~1-23）都在「旧世大陆」大区页签下——先切回再扫列表。

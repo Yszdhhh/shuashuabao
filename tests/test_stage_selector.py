@@ -475,6 +475,29 @@ class StageSelectorTests(unittest.TestCase):
         self.assertEqual(action, LoopAction.Continue)
         click.assert_not_called()
 
+    def test_stage_alignment_timeout_renews_deadline_does_not_stop(self):
+        med = Mediator(Settings(stage_targets=["1-21"], dry_run=True, query_timeout=30), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="英雄三国KK",
+            hwnd=1,
+        )
+        med._room_action_deadline = 10.0
+        with patch("shuabao.mediator.time.time", return_value=11.0), \
+             patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "_find_stage_target", return_value=None), \
+             patch.object(
+                 med.executor,
+                 "scroll",
+                 return_value=type("R", (), {"success": False, "message": "skip"})(),
+             ):
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertIs(med.phase, Phase.STAGE_SELECT)
+        self.assertGreater(med._room_action_deadline, 11.0)
+
 
 if __name__ == "__main__":
     unittest.main()
