@@ -77,6 +77,7 @@ from shuabao.lobby_hitch import (
     HitchAction,
     HitchSearchSM,
     classify_hitch_ocr,
+    has_prefix_evidence,
     normalize_prefix,
 )
 from shuabao.choice_policy import (
@@ -530,11 +531,23 @@ class Mediator:
         # Safety: L0 cycle counter — prevent infinite PLATFORM_MAP ↔ ROOM_WAITING loops
         self._l0_cycle_count = 0
         self._l0_cycle_limit = 5
+        refresh_lo, refresh_hi = 3.0, 4.0
+        try:
+            from shuabao.shell.mode_catalog import hitch_refresh_window
+
+            refresh_lo, refresh_hi = hitch_refresh_window()
+        except Exception:
+            pass
         self._hitch_sm = HitchSearchSM(
             prefix=normalize_prefix(getattr(settings, "hitch_stage_prefix", "3")),
+            refresh_s_min=refresh_lo,
+            refresh_s_max=refresh_hi,
         )
         self._hitch_ocr_override: str | None = None
         self._hitch_match_override: bool | None = None
+        self._hitch_hit_override = None
+        self._hitch_lobby_home_override: bool | None = None
+        self._hitch_re_search = False
         self._hitch_status = ""
         self._hitch_join_refresh_count = 0
         self._hitch_search_actions: list[str] = []
@@ -1433,7 +1446,24 @@ class Mediator:
                 self.invalidate_evidence("input")
         return res.success
 
+    def _action_forbidden(self, reason: str) -> bool:
+        mode_id = str(getattr(self.settings, "mode_id", "") or "")
+        if not mode_id:
+            return False
+        try:
+            from shuabao.shell.mode_catalog import action_is_forbidden, get_spec
+
+            spec = get_spec(mode_id)
+        except Exception:
+            return False
+        if action_is_forbidden(reason, spec.forbidden_actions):
+            print(f"[med] forbidden action denied: {reason} (mode={mode_id})")
+            return True
+        return False
+
     def act_click(self, hit: MatchResult, reason: str = "") -> bool:
+        if self._action_forbidden(reason):
+            return False
         if not self._action_gate_ok(reason):
             return False
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
@@ -1451,6 +1481,8 @@ class Mediator:
         return self._finish_input(res, reason, action_ms)
 
     def act_right_click(self, hit: MatchResult, reason: str = "") -> bool:
+        if self._action_forbidden(reason):
+            return False
         if not self._action_gate_ok(reason):
             return False
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
@@ -1468,6 +1500,8 @@ class Mediator:
         return self._finish_input(res, reason, action_ms)
 
     def act_key(self, key: str, reason: str = "") -> bool:
+        if self._action_forbidden(reason):
+            return False
         if not self._action_gate_ok(reason):
             return False
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
@@ -2706,7 +2740,7 @@ class Mediator:
             anchor = self._selection_anchor(frame)
         if anchor:
             return None
-        if self._hitch_enabled():
+        if self._passive_choice_mode():
             return None
         if self._panel_state != PanelState.CLOSED:
             # 已有面板会话进行中（WAIT_VISIBLE/ACTIVE/…）：不再发起新打开
@@ -4445,6 +4479,9 @@ class Mediator:
             self._record_round_outcome(RoundOutcome.FAILURE, "verified failure exit")
         self._recovery_step = "DONE"
         self._recovery_state = None
+        if self._hitch_enabled():
+            self._hitch_after_exit(now)
+            return LoopAction.Continue
         self._awaiting_room_return = True
         self.set_phase(Phase.PREPARE, "failure exit clicked; verify same room")
         self._room_action_deadline = now + min(self.settings.query_timeout, 30)
@@ -4764,17 +4801,66 @@ class Mediator:
     def _hitch_enabled(self) -> bool:
         return str(getattr(self.settings, "mode_id", "") or "") == "lobby_hitch"
 
+    def _follow_enabled(self) -> bool:
+        return str(getattr(self.settings, "mode_id", "") or "") == "follow_team"
+
+    def _passive_choice_mode(self) -> bool:
+        return self._hitch_enabled() or self._follow_enabled()
+
     def _hitch_ocr_text(self) -> str:
         override = getattr(self, "_hitch_ocr_override", None)
         if override is not None:
             return str(override)
         return ""
 
+    def _hitch_prefix_ok(self) -> bool:
+        return has_prefix_evidence(self._hitch_ocr_text(), self._hitch_sm.prefix)
+
     def _hitch_room_matched(self) -> bool:
+        if not self._hitch_prefix_ok():
+            return False
         override = getattr(self, "_hitch_match_override", None)
         if override is not None:
             return bool(override)
+        return True
+
+    def _hitch_action_hit(self, frame: Frame, action: HitchAction):
+        override = getattr(self, "_hitch_hit_override", None)
+        if override is not None:
+            return override
+        keys = {
+            HitchAction.REFRESH: ("lobby_refresh", "refresh"),
+            HitchAction.JOIN: ("lobby_join", "room_list_row"),
+            HitchAction.GO_HOME: ("lobby_home", "lobby_back"),
+        }
+        for key in keys.get(action, ()):
+            hit = self.find_scene(frame, key)
+            if hit is not None:
+                return hit
+        return None
+
+    def _hitch_lobby_home_visible(self, frame: Frame) -> bool:
+        override = getattr(self, "_hitch_lobby_home_override", None)
+        if override is not None:
+            return bool(override)
+        for key in ("lobby_list", "lobby_room_list", "lobby_home"):
+            if self.find_scene(frame, key) is not None:
+                return True
         return False
+
+    def _new_hitch_sm(self) -> HitchSearchSM:
+        return HitchSearchSM(
+            prefix=self._hitch_sm.prefix,
+            refresh_s_min=self._hitch_sm.refresh_s_min,
+            refresh_s_max=self._hitch_sm.refresh_s_max,
+        )
+
+    def _hitch_after_exit(self, now: float) -> None:
+        self._awaiting_room_return = False
+        self._hitch_re_search = True
+        self._hitch_sm = self._new_hitch_sm()
+        self._hitch_status = "search"
+        self.set_phase(Phase.LOBBY_ROOM, "hitch exit; re-search lobby")
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
         print(f"[L0] hitch {evidence}，重置大厅状态机（不记战斗超时）")
@@ -4783,7 +4869,30 @@ class Mediator:
         self._main_line_since = None
         self._hitch_sm.reset_lobby(now, evidence)
         self._hitch_status = "大厅主页"
+        self._hitch_re_search = False
         self.set_phase(Phase.LOBBY_ROOM, f"hitch {evidence} reset")
+        return LoopAction.Continue
+
+    def _tick_follow_team(
+        self,
+        frame: Frame,
+        context: str,
+        room_start=None,
+        stage_page: bool = False,
+    ) -> LoopAction:
+        if context in ("MAIN_LINE", "IN_GAME"):
+            self.set_phase(Phase.MAIN_LINE, "follow already in game")
+            return LoopAction.Continue
+        if stage_page or context == "STAGE_SELECT":
+            self.set_phase(Phase.STAGE_SELECT, "follow stage page wait")
+            print("[L0] follow_team 选关页可见，零输入等待进局（不点关卡）")
+            return LoopAction.Continue
+        if room_start is not None or context == "ROOM_WAITING":
+            self.set_phase(Phase.ROOM_WAITING, "follow in room waiting host")
+            print("[L0] follow_team 已在房，等待房主开始（不点 RoomStart）")
+            return LoopAction.Continue
+        self.set_phase(Phase.LOBBY_ROOM, "follow waiting to be in room")
+        print("[L0] follow_team 未在房间，零输入等待（不创房、不 quick join）")
         return LoopAction.Continue
 
     def _tick_lobby_hitch(
@@ -4798,35 +4907,86 @@ class Mediator:
         if event:
             return self._hitch_reset_lobby(event, now)
         if context in ("MAIN_LINE", "IN_GAME"):
+            self._hitch_re_search = False
             self.set_phase(Phase.MAIN_LINE, "hitch already in game")
             return LoopAction.Continue
         if stage_page or context == "STAGE_SELECT":
+            self._hitch_re_search = False
             self.set_phase(Phase.STAGE_SELECT, "hitch stage page wait")
             print("[L0] hitch 选关页可见，零输入等待进局（不点关卡）")
             return LoopAction.Continue
-        if room_start is not None or context == "ROOM_WAITING":
+        in_room = room_start is not None or context == "ROOM_WAITING"
+        if in_room and not self._hitch_re_search:
+            if self._hitch_sm.pending_join:
+                self._hitch_sm.complete_join()
+                self._hitch_join_refresh_count = self._hitch_sm.attempts
             self.set_phase(Phase.ROOM_WAITING, "hitch in room waiting host")
             print("[L0] hitch 已进房，等待房主开始（不点 RoomStart）")
             return LoopAction.Continue
+        if self._hitch_re_search and in_room:
+            hit = self._hitch_action_hit(frame, HitchAction.GO_HOME)
+            if hit is not None:
+                self.act_click(hit, "HitchLeaveRoom")
+            print("[L0] hitch 战后仍在房，尝试离房回大厅列表")
+            return LoopAction.Continue
+        if self._hitch_re_search and not in_room:
+            self._hitch_re_search = False
+        prefix_ok = self._hitch_prefix_ok()
         decision = self._hitch_sm.tick(
             now=now,
             matched=self._hitch_room_matched(),
             ocr_text=self._hitch_ocr_text(),
+            prefix_ok=prefix_ok,
+            in_room=in_room,
         )
-        if decision.action in (HitchAction.REFRESH, HitchAction.JOIN):
-            self._hitch_join_refresh_count = decision.attempts
-            self._hitch_search_actions.append(decision.action.value)
-            self._hitch_status = "search"
-            print(
-                f"[L0] hitch {decision.action.value} attempt={decision.attempts}/"
-                f"{JOIN_ATTEMPTS} prefix={self._hitch_sm.prefix}"
-            )
-            self.set_phase(Phase.LOBBY_ROOM, f"hitch {decision.action.value}")
+        if decision.action == HitchAction.REFRESH:
+            hit = self._hitch_action_hit(frame, HitchAction.REFRESH)
+            if hit is None:
+                print("[L0] hitch REFRESH 无大厅刷新锚点，零输入观察")
+                self.set_phase(Phase.LOBBY_ROOM, "hitch search observe")
+                return LoopAction.Continue
+            if self.act_click(hit, "HitchRefresh"):
+                self._hitch_sm.note_refresh(now)
+                self._hitch_search_actions.append("refresh")
+                self._hitch_join_refresh_count = self._hitch_sm.attempts
+                self._hitch_status = "search"
+                print(
+                    f"[L0] hitch refresh attempt={self._hitch_sm.attempts}/"
+                    f"{JOIN_ATTEMPTS} prefix={self._hitch_sm.prefix}"
+                )
+            self.set_phase(Phase.LOBBY_ROOM, "hitch refresh")
+            return LoopAction.Continue
+        if decision.action == HitchAction.JOIN:
+            if not prefix_ok:
+                print("[L0] hitch JOIN 无 3/4 前缀证据，拒绝进房")
+                self.set_phase(Phase.LOBBY_ROOM, "hitch search")
+                return LoopAction.Continue
+            hit = self._hitch_action_hit(frame, HitchAction.JOIN)
+            if hit is None:
+                print("[L0] hitch JOIN 无房间行锚点，零输入观察")
+                self.set_phase(Phase.LOBBY_ROOM, "hitch search observe")
+                return LoopAction.Continue
+            if self.act_click(hit, "HitchJoin"):
+                self._hitch_sm.note_join_click(now)
+                self._hitch_search_actions.append("join")
+                self._hitch_status = "search"
+                print(f"[L0] hitch join prefix={self._hitch_sm.prefix}（等待进房后置确认）")
+            self.set_phase(Phase.LOBBY_ROOM, "hitch join")
             return LoopAction.Continue
         if decision.action == HitchAction.GO_HOME:
-            self._hitch_status = "大厅主页"
-            print("[L0] hitch unmatched 安全回到大厅主页")
-            self.set_phase(Phase.LOBBY_ROOM, "hitch 大厅主页")
+            hit = self._hitch_action_hit(frame, HitchAction.GO_HOME)
+            clicked = False
+            if hit is not None:
+                clicked = bool(self.act_click(hit, "HitchGoHome"))
+            if clicked:
+                self._hitch_sm.note_go_home(now)
+            if clicked and self._hitch_lobby_home_visible(frame):
+                self._hitch_sm.confirm_lobby_home()
+                self._hitch_status = "大厅主页"
+                print("[L0] hitch unmatched 已确认回到大厅主页")
+            else:
+                print("[L0] hitch GO_HOME 无大厅页证据，保持观察（不改写大厅主页）")
+            self.set_phase(Phase.LOBBY_ROOM, "hitch go_home")
             return LoopAction.Continue
         if decision.action == HitchAction.SLEEP:
             self._hitch_status = "休眠重试"
@@ -5141,6 +5301,10 @@ class Mediator:
         stage_page = context == "STAGE_SELECT"
         room_start = None if stage_page else self._find_room_start(frame)
 
+        if self._awaiting_room_return and self._hitch_enabled():
+            self._awaiting_room_return = False
+            self._hitch_re_search = True
+
         if self._awaiting_room_return:
             if room_start:
                 self._awaiting_room_return = False
@@ -5179,6 +5343,11 @@ class Mediator:
 
         if self._hitch_enabled():
             return self._tick_lobby_hitch(
+                frame, context, room_start=room_start, stage_page=stage_page
+            )
+
+        if self._follow_enabled():
+            return self._tick_follow_team(
                 frame, context, room_start=room_start, stage_page=stage_page
             )
 
@@ -6296,12 +6465,12 @@ class Mediator:
         return False
 
     def _hitch_fail_close_choice_panel(self, frame: Frame, now: float) -> bool:
-        """lobby_hitch 技能/羁绊面板立即关闭；零刷新、零挑选。处理了本 tick 则 True。"""
-        if not self._hitch_enabled():
+        """跟车/蹭车局内选择面板立即关闭；零刷新、零挑选。处理了本 tick 则 True。"""
+        if not self._passive_choice_mode():
             return False
-        if self._panel_kind not in ("skill", "bond", "unknown", None):
+        if self._panel_kind not in ("skill", "bond", "treasure", "card", "unknown", None):
             return False
-        close_kind = self._panel_kind if self._panel_kind in ("skill", "bond") else None
+        close_kind = self._panel_kind if self._panel_kind in ("skill", "bond", "treasure", "card") else None
         close_hit = self._close_current_panel(frame, close_kind)
         if close_hit is not None:
             name = (close_hit.name or "").lower()
@@ -7202,6 +7371,9 @@ class Mediator:
             self._exit_confirm_attempts += 1
             print(f"[med] 确认退出当前游戏 @ {confirm_hit.center} (尝试 {self._exit_confirm_attempts}/3)")
             if not self.act_click(confirm_hit, "QuitGame-confirm"):
+                return LoopAction.Continue
+            if self._hitch_enabled():
+                self._hitch_after_exit(time.time())
                 return LoopAction.Continue
             self._awaiting_room_return = True
             self.set_phase(Phase.PREPARE, "exit confirmed; verify same room")

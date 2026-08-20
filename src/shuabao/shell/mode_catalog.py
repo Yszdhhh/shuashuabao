@@ -122,3 +122,30 @@ def start_button_text(spec: ModeSpec, *, running: bool) -> str:
     if desktop_may_start(spec.id):
         return "开始运行"
     return "待验证 · 不可启动"
+
+
+def action_is_forbidden(reason: str, forbidden: tuple[str, ...] | list[str] | None) -> bool:
+    """Click-time guard. RoomStart-retry counts as RoomStart; unknown keys stay closed."""
+    reason = str(reason or "").strip()
+    if not reason or not forbidden:
+        return False
+    low = reason.lower()
+    for item in forbidden:
+        token = str(item or "").strip()
+        if not token:
+            continue
+        tlow = token.lower()
+        if low == tlow:
+            return True
+        if low.startswith(tlow + "-") or low.startswith(tlow + ".") or low.startswith(tlow + "_"):
+            return True
+    return False
+
+
+def hitch_refresh_window() -> tuple[float, float]:
+    spec = get_spec("lobby_hitch")
+    lo = float(spec.budgets.get("refresh_s_min", 3) or 3)
+    hi = float(spec.budgets.get("refresh_s_max", 4) or 4)
+    if lo > hi:
+        lo, hi = hi, lo
+    return max(0.0, lo), max(lo, hi)
