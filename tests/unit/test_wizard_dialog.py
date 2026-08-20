@@ -31,6 +31,7 @@ def test_wizard_dialog_instantiation_and_dto(qapp):
     assert dialog.page_mode is not None
     assert dialog.page_stage is not None
     assert dialog.page_build is not None
+    assert dialog.width() <= 520
 
     dto = dialog.get_selection()
     assert isinstance(dto, QuickStartSelection)
@@ -63,9 +64,12 @@ def test_advanced_requested_signal_connects(qapp):
 def test_chapter_change_retargets_stage_labels(qapp):
     dialog = GameStyleWizardDialog(settings=Settings())
     texts_ch1 = [dialog.cb_stage.itemText(i) for i in range(dialog.cb_stage.count())]
-    assert any("1-1" in t for t in texts_ch1)
+    assert dialog.cb_stage.count() == 23
+    assert any(t.endswith("1-1") or t == "1-1" for t in texts_ch1)
+    assert any("1-23" in t for t in texts_ch1)
     dialog.cb_chapter.setCurrentIndex(1)
     texts_ch2 = [dialog.cb_stage.itemText(i) for i in range(dialog.cb_stage.count())]
+    assert dialog.cb_stage.count() == 7
     assert any("2-1" in t for t in texts_ch2)
     assert not any("1-1" in t for t in texts_ch2)
     assert not any("1-6" in t for t in texts_ch2)
@@ -138,6 +142,16 @@ def test_direct_start_and_advanced_apply_payload(qapp, tmp_path):
     assert collected2.stage_targets == ["2-3"]
     assert collected2.skills == list(preset["codes"])
     window.close()
+
+
+def test_wizard_mode_page_then_preset_popup_size(qapp):
+    dialog = GameStyleWizardDialog(settings=Settings())
+    assert dialog.stack.currentIndex() == 0
+    assert dialog.width() <= 520
+    dialog._on_next()
+    assert dialog.stack.currentIndex() == 1
+    assert dialog.width() >= 700
+    assert dialog.preset_cards
 
 
 def test_selection_from_payload_roundtrip():

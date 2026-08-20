@@ -56,16 +56,44 @@ def get_qss(theme: str = "dark") -> str:
         background-color: transparent;
         color: {t["text_primary"]};
     }}
+    QGroupBox {{
+        background-color: {t["bg_surface"]};
+        border: 1px solid {t["border_subtle"]};
+        border-radius: 12px;
+        margin-top: 12px;
+        padding: 12px 10px 10px 10px;
+        font-weight: 700;
+        color: {t["text_primary"]};
+    }}
+    QGroupBox::title {{
+        subcontrol-origin: margin;
+        left: 12px;
+        padding: 0 6px;
+        color: {t["text_secondary"]};
+    }}
+    QLineEdit, QComboBox, QSpinBox, QAbstractSpinBox, QPlainTextEdit {{
+        background-color: {t["bg_surface"]};
+        border: 1px solid {t["border_subtle"]};
+        border-radius: 8px;
+        padding: 6px 8px;
+        color: {t["text_primary"]};
+        min-height: 24px;
+    }}
+    QComboBox::drop-down {{ border: none; width: 22px; }}
+    QScrollArea {{ border: none; background: transparent; }}
+    QCheckBox {{ spacing: 8px; color: {t["text_primary"]}; }}
+    QLabel {{ color: {t["text_primary"]}; }}
     QFrame#customTitleBar {{
         background-color: {t["bg_surface"]};
         border-bottom: 1px solid {t["border_subtle"]};
         padding: 6px 14px;
     }}
-    QLabel#appBrandTitle {{
+    QLabel#appBrandTitle, QLabel#brandTitle {{
         font-size: 16px;
         font-weight: 800;
         color: {t["text_primary"]};
     }}
+    QLabel#brandSub {{ color: {t["text_secondary"]}; font-size: 12px; }}
     QFrame#cardContainer {{
         background-color: {t["bg_surface"]};
         border: 1px solid {t["border_subtle"]};
@@ -75,7 +103,7 @@ def get_qss(theme: str = "dark") -> str:
     QPushButton {{
         background-color: {t["bg_subtle"]};
         border: 1px solid {t["border_subtle"]};
-        border-radius: 6px;
+        border-radius: 8px;
         color: {t["text_primary"]};
         padding: 8px 16px;
         font-size: 13px;
@@ -85,10 +113,14 @@ def get_qss(theme: str = "dark") -> str:
         background-color: {t["bg_hover"]};
         border-color: {t["border_focus"]};
     }}
+    QPushButton:pressed {{
+        padding-top: 9px;
+        padding-bottom: 7px;
+    }}
     QPushButton#btnSoloLaunch {{
         background-color: {t["accent_solo"]};
         border: 1px solid {t["accent_solo"]};
-        border-radius: 8px;
+        border-radius: 10px;
         color: #ffffff;
         font-size: 14px;
         font-weight: 700;
@@ -97,11 +129,22 @@ def get_qss(theme: str = "dark") -> str:
     QPushButton#btnHitchLaunch {{
         background-color: {t["accent_hitch"]};
         border: 1px solid {t["accent_hitch"]};
-        border-radius: 8px;
+        border-radius: 10px;
         color: #ffffff;
         font-size: 14px;
         font-weight: 700;
         padding: 12px 20px;
+    }}
+    QPushButton#btnStart {{
+        background-color: {t["accent_solo"]};
+        color: #ffffff;
+        border: 1px solid {t["accent_solo_hover"]};
+        border-radius: 10px;
+        font-weight: 700;
+    }}
+    QFrame#footerBar {{
+        background-color: {t["bg_surface"]};
+        border-top: 1px solid {t["border_subtle"]};
     }}
     """
 
@@ -109,16 +152,53 @@ def get_qss(theme: str = "dark") -> str:
 def wizard_qss(theme: str = "light") -> str:
     t = tokens(theme)
     return get_qss(theme) + f"""
-    QDialog {{ background-color: {t["bg_app"]}; color: {t["text_primary"]}; font-family: 'Segoe UI', 'Microsoft YaHei'; }}
-    QFrame.wizardCard {{ background-color: {t["bg_surface"]}; border: 1px solid {t["border_subtle"]}; border-radius: 8px; }}
-    QFrame.wizardCard:hover {{ border: 1px solid {t["border_focus"]}; }}
-    QLabel.wizardTitle {{ font-size: 16px; font-weight: bold; color: {t["text_primary"]}; }}
-    QLabel.wizardSub {{ font-size: 12px; color: {t["text_secondary"]}; }}
-    QPushButton.goldBtn {{ background: {t["accent_solo"]}; border: 1px solid {t["accent_solo_hover"]}; border-radius: 6px; color: #FFFFFF; font-weight: bold; padding: 6px 16px; min-height: 24px; }}
-    QPushButton.goldBtn:hover {{ background: {t["bg_hover"]}; }}
-    QPushButton.secondaryBtn {{ background-color: {t["bg_subtle"]}; border: 1px solid {t["border_subtle"]}; border-radius: 6px; color: {t["text_primary"]}; padding: 6px 14px; min-height: 24px; }}
-    QPushButton.secondaryBtn:hover {{ background-color: {t["bg_hover"]}; }}
-    QRadioButton {{ font-size: 14px; font-weight: bold; color: {t["text_primary"]}; spacing: 8px; }}
+    QDialog {{
+        background-color: {t["bg_app"]};
+        color: {t["text_primary"]};
+        font-family: 'Segoe UI', 'Microsoft YaHei UI';
+        border: 1px solid {t["border_subtle"]};
+        border-radius: 16px;
+    }}
+    QLabel#wizardTitle {{ font-size: 18px; font-weight: 800; color: {t["text_primary"]}; }}
+    QLabel#wizardSub {{ font-size: 12px; color: {t["text_secondary"]}; }}
+    QPushButton#goldBtn {{
+        background: {t["accent_solo"]};
+        border: 1px solid {t["accent_solo_hover"]};
+        border-radius: 10px;
+        color: #FFFFFF;
+        font-weight: 700;
+        padding: 8px 18px;
+        min-height: 28px;
+        min-width: 96px;
+    }}
+    QPushButton#goldBtn:hover {{ background: {t["accent_solo_hover"]}; }}
+    QPushButton#secondaryBtn {{
+        background-color: {t["bg_subtle"]};
+        border: 1px solid {t["border_subtle"]};
+        border-radius: 10px;
+        color: {t["text_primary"]};
+        padding: 8px 16px;
+        min-height: 28px;
+    }}
+    QPushButton#choiceCard {{
+        background-color: {t["bg_surface"]};
+        border: 1px solid {t["border_subtle"]};
+        border-radius: 16px;
+        color: {t["text_primary"]};
+        font-size: 14px;
+        font-weight: 700;
+        padding: 16px 14px;
+        text-align: center;
+    }}
+    QPushButton#choiceCard:hover {{
+        border: 1px solid {t["border_focus"]};
+        background-color: {t["bg_subtle"]};
+    }}
+    QPushButton#choiceCard:checked {{
+        background-color: {t["bg_hover"]};
+        border: 2px solid {t["border_focus"]};
+        color: {t["text_primary"]};
+    }}
     """
 
 
@@ -137,8 +217,14 @@ def mode_button_qss(theme: str = "light") -> str:
     t = tokens(theme)
     return f"""
         QPushButton {{
-            background-color: {t["accent_solo"]};
-            color: white;
+            background-color: {t["bg_surface"]};
+            color: {t["text_primary"]};
+            border: 1px solid {t["border_subtle"]};
+            border-radius: 12px;
+            font-weight: 700;
+        }}
+        QPushButton:checked {{
+            background-color: {t["bg_hover"]};
             border: 2px solid {t["border_focus"]};
         }}
     """

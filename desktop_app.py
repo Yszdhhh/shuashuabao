@@ -55,12 +55,15 @@ def _handle_unhandled_exception(exc_type, exc_value, exc_traceback):
 def main():
     global _INSTANCE_LOCK
     app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)
+    app.setQuitOnLastWindowClosed(True)
     sys.excepthook = _handle_unhandled_exception
 
+    APP_DATA.mkdir(parents=True, exist_ok=True)
     _INSTANCE_LOCK = QLockFile(str(APP_DATA / f"{APP_ID}.lock"))
+    _INSTANCE_LOCK.setStaleLockTime(8000)
+    _INSTANCE_LOCK.removeStaleLockFile()
     if not _INSTANCE_LOCK.tryLock(100):
-        QMessageBox.information(None, APP_NAME, "程序已经在运行。")
+        QMessageBox.information(None, APP_NAME, "程序已经在运行。若刚才已关掉窗口，请等几秒再开，或结束任务管理器里的 pythonw.exe。")
         return
     window = MainWindow(app_data=APP_DATA)
     window.current_theme = "light"
@@ -85,11 +88,9 @@ def main():
     wizard.run_requested.connect(_on_run)
     wizard.advanced_requested.connect(_on_advanced)
     
-    # 启动先弹小框向导
-    res = wizard.exec()
-    if res == 0 and not window.isVisible():
-        # 如果用户直接叉掉向导，默认显示主窗口
-        window.show()
+    wizard.exec()
+    if not window.isVisible():
+        return
 
     sys.exit(app.exec())
 
