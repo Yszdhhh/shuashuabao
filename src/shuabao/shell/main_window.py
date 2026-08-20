@@ -511,68 +511,19 @@ class MainWindow(QMainWindow):
         self._show_mode_choice()
 
     def _setup_style(self):
-        self.setStyleSheet("""
-            QMainWindow { background-color: #0b0f19; }
-            QWidget { background-color: transparent; color: #e2e8f0;
-                font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif; font-size: 12px; }
-            QGroupBox { background-color: #151d2e; border: 1px solid #243048; border-radius: 10px;
-                margin-top: 14px; padding: 16px 14px 12px 14px; font-weight: bold; font-size: 13px; color: #38bdf8; }
-            QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 14px;
-                padding: 2px 10px; background-color: #1e293b; border: 1px solid #334155; border-radius: 6px; color: #38bdf8; }
-            QLabel { background-color: transparent; }
-            QLabel#brandTitle { font-size: 20px; font-weight: 800; color: #f8fafc; }
-            QLabel#brandSub { font-size: 11px; color: #64748b; }
-            QLabel#hintLabel { color: #94a3b8; font-size: 11px; }
-            QLabel#warnHint { color: #fbbf24; font-size: 11px; }
-            QLabel#statusLine { color: #94a3b8; font-size: 11px; }
-            QLabel#gamesCount { font-size: 20px; font-weight: 800; color: #38bdf8; }
-            QLabel#gamesCap { font-size: 10px; color: #64748b; font-weight: 600; }
-            QLabel#statusPill { background-color: #1e293b; border: 1px solid #334155; border-radius: 11px;
-                color: #94a3b8; font-weight: bold; padding: 3px 12px; }
-            QLabel#statusPill[state="running"] { background-color: #064e3b; border: 1px solid #059669; color: #34d399; }
-            QLabel#precheckLamp { font-weight: bold; padding: 2px 8px; border-radius: 8px; }
-            QLabel#sectionCap { color: #7dd3fc; font-size: 11px; font-weight: normal; margin-bottom: 2px; }
-            QCheckBox, QRadioButton { color: #cbd5e1; spacing: 6px; }
-            QCheckBox::indicator, QRadioButton::indicator { width: 15px; height: 15px; border-radius: 3px;
-                border: 1px solid #3b4d6b; background-color: #0d1524; }
-            QRadioButton::indicator { border-radius: 8px; }
-            QCheckBox::indicator:checked { background-color: #0284c7; border: 1px solid #38bdf8; }
-            QRadioButton::indicator:checked { background-color: #0284c7; border: 2px solid #38bdf8; }
-            QCheckBox#chkLearn { color: #fbbf24; font-weight: bold; }
-            QLineEdit, QSpinBox, QDoubleSpinBox, QComboBox {
-                background-color: #0d1524; border: 1px solid #2a3b55; border-radius: 6px;
-                color: #f1f5f9; padding: 5px 8px; min-height: 24px; }
-            QLineEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
-                border: 1px solid #0ea5e9; background-color: #101c30; }
-            QComboBox QAbstractItemView { background-color: #151d2e; border: 1px solid #243048;
-                color: #f1f5f9; selection-background-color: #0284c7; selection-color: #ffffff; outline: none; }
-            QListWidget#modeList { background-color: #101726; border: 1px solid #1e293b; border-radius: 8px; outline: none; }
-            QListWidget#modeList::item { background-color: transparent; color: #94a3b8; padding: 10px 8px;
-                margin: 3px 4px; border-radius: 6px; border: 1px solid transparent; }
-            QListWidget#modeList::item:hover { background-color: #192338; color: #f1f5f9; border: 1px solid #2a3b55; }
-            QListWidget#modeList::item:selected { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0369a1, stop:1 #0284c7);
-                color: #ffffff; font-weight: bold; border: 1px solid #38bdf8; }
-            QPushButton { background-color: #1e293b; border: 1px solid #334155; border-radius: 6px;
-                color: #e2e8f0; padding: 6px 14px; font-weight: 500; }
-            QPushButton:hover { background-color: #27354f; border: 1px solid #38bdf8; color: #ffffff; }
-            QPushButton:pressed { background-color: #0f172a; }
-            QPushButton#btnStart { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0284c7, stop:1 #06b6d4);
-                border: 1px solid #38bdf8; color: #ffffff; font-size: 15px; font-weight: bold; padding: 10px; border-radius: 8px; }
-            QPushButton#btnStart:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #0369a1, stop:1 #0891b2);
-                border: 1px solid #7dd3fc; }
-            QPushButton#btnStop { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #e11d48, stop:1 #be123c);
-                border: 1px solid #fb7185; color: #ffffff; font-size: 15px; font-weight: bold; padding: 10px; border-radius: 8px; }
-            QPushButton#btnStop:hover { background: #9f1239; }
-            QPushButton:disabled { background-color: #131b2a; color: #475569; border: 1px solid #1e293b; }
-            QPlainTextEdit { background-color: #090d16; border: 1px solid #1e293b; border-radius: 6px;
-                color: #94a3b8; font-family: Consolas, monospace; font-size: 11px; }
-            QScrollArea { background: transparent; border: none; }
-            QScrollBar:vertical { background: #0b0f19; width: 8px; margin: 0; }
-            QScrollBar::handle:vertical { background: #243048; min-height: 20px; border-radius: 4px; }
-            QScrollBar::handle:vertical:hover { background: #38bdf8; }
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
-            QFrame#footerBar { background-color: #090d16; border-top: 1px solid #1e293b; }
-        """)
+        self.current_theme = "light"
+        self.setStyleSheet(get_qss("light"))
+    def _open_quick_wizard(self) -> None:
+        from shuabao.shell.wizard_dialog import GameStyleWizardDialog
+        wizard = GameStyleWizardDialog(self)
+        wizard.run_requested.connect(lambda p: self.toggle_run())
+        wizard.advanced_requested.connect(lambda p: self.showNormal())
+        wizard.exec()
+
+    def toggle_theme(self) -> None:
+        self.current_theme = "light" if getattr(self, "current_theme", "dark") == "dark" else "dark"
+        self.setStyleSheet(get_qss(self.current_theme))
+
     def _restore_from_pet_hud(self) -> None:
         if getattr(self, "pet_hud", None):
             self.pet_hud.hide()
@@ -607,13 +558,16 @@ class MainWindow(QMainWindow):
         self.lbl_run_status.setAlignment(Qt.AlignCenter)
         self.lbl_run_status.setMinimumWidth(72)
         header.addWidget(self.lbl_run_status)
-        games_box = QVBoxLayout()
-        games_box.setSpacing(0)
-        self.lbl_games = QLabel("0")
-        self.lbl_games.setAlignment(Qt.AlignRight)
-        self.lbl_games.setObjectName("gamesCount")
-        self.lbl_games_cap = QLabel("已完成")
-        self.lbl_games_cap.setAlignment(Qt.AlignRight)
+        btn_wizard = QPushButton("🧙‍♂️ 快速开局向导")
+        btn_wizard.setStyleSheet("background-color: #f1d48a; color: #78350f; font-weight: bold; border: 1px solid #d97706; padding: 4px 10px; border-radius: 6px;")
+        btn_wizard.clicked.connect(self._open_quick_wizard)
+        header.addWidget(btn_wizard)
+        btn_theme = QPushButton("🌓 切换主题")
+        btn_theme.clicked.connect(self.toggle_theme)
+        header.addWidget(btn_theme)
+        games_box = QHBoxLayout()
+        self.lbl_games = QLabel("今日局数: 0")
+        self.lbl_games_cap = QLabel("/ 100")
         self.lbl_games_cap.setObjectName("gamesCap")
         games_box.addWidget(self.lbl_games)
         games_box.addWidget(self.lbl_games_cap)
@@ -637,12 +591,6 @@ class MainWindow(QMainWindow):
             button.setMinimumWidth(320)
             button.setStyleSheet("""
                 QPushButton {
-                    font-size: 15px;
-                    font-weight: bold;
-                    padding: 8px 16px;
-                    border-radius: 8px;
-                }
-                QPushButton:checked {
                     background-color: #2563eb;
                     color: white;
                     border: 2px solid #60a5fa;
@@ -692,9 +640,9 @@ class MainWindow(QMainWindow):
         self.lbl_latest.setVisible(False)
 
         self._selected_mode_id = "normal_farm"
-        self.btn_solo_mode.setChecked(True)
-        self._select_mode("normal_farm")
-
+        self.btn_solo_mode.setChecked(False)
+        self.btn_hitch_mode.setChecked(False)
+        self._show_mode_choice()
     def _build_mode_page(self, mode_id: str) -> QWidget:
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

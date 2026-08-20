@@ -63,7 +63,18 @@ def main():
         return
 
     window = MainWindow()
+    # 启动时自动切换为浅色主题并弹出快速开局向导
+    window.current_theme = "light"
+    from shuabao.shell.theme_styles import get_qss
+    window.setStyleSheet(get_qss("light"))
     window.show()
+
+    from shuabao.shell.wizard_dialog import GameStyleWizardDialog
+    wizard = GameStyleWizardDialog(window)
+    wizard.run_requested.connect(lambda p: window.toggle_run())
+    wizard.advanced_requested.connect(lambda p: window.showNormal())
+    wizard.exec()
+
     sys.exit(app.exec())
 
 
