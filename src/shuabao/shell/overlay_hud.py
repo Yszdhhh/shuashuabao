@@ -12,19 +12,13 @@ from PySide6.QtCore import QPoint, QRect, Qt, QTimer
 from PySide6.QtGui import QColor, QGuiApplication
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
+from shuabao.shell.theme_styles import tokens
+
 
 class OverlayHud(QWidget):
     """Top-centred, always-on-top status pill that lets mouse input pass through."""
 
     STOPPED_HIDE_MS = 3500
-    _COLORS = {
-        "running": QColor("#34d399"),
-        "paused": QColor("#fbbf24"),
-        "recovering": QColor("#fbbf24"),
-        "error": QColor("#fb7185"),
-        "idle": QColor("#94a3b8"),
-        "stopped": QColor("#94a3b8"),
-    }
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -42,13 +36,10 @@ class OverlayHud(QWidget):
         self.setMinimumWidth(220)
         self.setWindowOpacity(0.96)
 
+        self._theme = "light"
+        self._palette = tokens("light")
         self.label = QLabel("刷刷宝: 空闲")
         self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label.setStyleSheet(
-            "QLabel { color: #94a3b8; background: rgba(11,15,25,225); "
-            "border: 1px solid rgba(148,163,184,150); border-radius: 14px; "
-            "padding: 5px 14px; font: 600 12px 'Microsoft YaHei UI'; }"
-        )
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.label)
@@ -59,6 +50,33 @@ class OverlayHud(QWidget):
         self._hide_timer.timeout.connect(self.hide)
         self._status_state = "idle"
         self._target_rect: QRect | None = None
+        self.apply_theme("light")
+
+    def apply_theme(self, theme: str = "light") -> None:
+        self._theme = theme
+        self._palette = tokens(theme)
+        self._paint_status()
+
+    def _status_colors(self) -> dict[str, QColor]:
+        t = self._palette
+        return {
+            "running": QColor(t["accent_hitch"]),
+            "paused": QColor(t["accent_warning"]),
+            "recovering": QColor(t["accent_warning"]),
+            "error": QColor(t["accent_danger"]),
+            "idle": QColor(t["text_secondary"]),
+            "stopped": QColor(t["text_secondary"]),
+        }
+
+    def _paint_status(self) -> None:
+        t = self._palette
+        color = self._status_colors()[self._status_state].name()
+        self.label.setStyleSheet(
+            "QLabel { color: %s; background: %s; "
+            "border: 1px solid %s; border-radius: 14px; padding: 5px 14px; "
+            "font: 600 12px 'Microsoft YaHei UI'; }"
+            % (color, t["bg_surface"], t["border_subtle"])
+        )
 
     @property
     def status_state(self) -> str:
@@ -118,12 +136,7 @@ class OverlayHud(QWidget):
 
         self.label.setText(text)
         self._status_state = self._state_for(running, phase_text, reason)
-        color = self._COLORS[self._status_state].name()
-        self.label.setStyleSheet(
-            "QLabel { color: %s; background: rgba(11,15,25,225); "
-            "border: 1px solid %s; border-radius: 14px; padding: 5px 14px; "
-            "font: 600 12px 'Microsoft YaHei UI'; }" % (color, color)
-        )
+        self._paint_status()
         self.adjustSize()
         self.anchor_to_target(self._target_rect)
         self.show()

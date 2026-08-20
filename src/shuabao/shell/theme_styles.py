@@ -1,6 +1,7 @@
 """ShuaBao 现代化双主题 (Dark / Light) QSS 样式引擎."""
 from __future__ import annotations
 
+
 class ThemeTokens:
     DARK = {
         "bg_app": "#0d1117",
@@ -37,8 +38,13 @@ class ThemeTokens:
         "accent_danger": "#B5554F",
     }
 
+
+def tokens(theme: str = "light") -> dict[str, str]:
+    return ThemeTokens.DARK if str(theme).lower() == "dark" else ThemeTokens.LIGHT
+
+
 def get_qss(theme: str = "dark") -> str:
-    t = ThemeTokens.DARK if theme == "dark" else ThemeTokens.LIGHT
+    t = tokens(theme)
     return f"""
     QMainWindow, QDialog {{
         background-color: {t["bg_app"]};
@@ -97,4 +103,64 @@ def get_qss(theme: str = "dark") -> str:
         font-weight: 700;
         padding: 12px 20px;
     }}
+    """
+
+
+def wizard_qss(theme: str = "light") -> str:
+    t = tokens(theme)
+    return get_qss(theme) + f"""
+    QDialog {{ background-color: {t["bg_app"]}; color: {t["text_primary"]}; font-family: 'Segoe UI', 'Microsoft YaHei'; }}
+    QFrame.wizardCard {{ background-color: {t["bg_surface"]}; border: 1px solid {t["border_subtle"]}; border-radius: 8px; }}
+    QFrame.wizardCard:hover {{ border: 1px solid {t["border_focus"]}; }}
+    QLabel.wizardTitle {{ font-size: 16px; font-weight: bold; color: {t["text_primary"]}; }}
+    QLabel.wizardSub {{ font-size: 12px; color: {t["text_secondary"]}; }}
+    QPushButton.goldBtn {{ background: {t["accent_solo"]}; border: 1px solid {t["accent_solo_hover"]}; border-radius: 6px; color: #FFFFFF; font-weight: bold; padding: 6px 16px; min-height: 24px; }}
+    QPushButton.goldBtn:hover {{ background: {t["bg_hover"]}; }}
+    QPushButton.secondaryBtn {{ background-color: {t["bg_subtle"]}; border: 1px solid {t["border_subtle"]}; border-radius: 6px; color: {t["text_primary"]}; padding: 6px 14px; min-height: 24px; }}
+    QPushButton.secondaryBtn:hover {{ background-color: {t["bg_hover"]}; }}
+    QRadioButton {{ font-size: 14px; font-weight: bold; color: {t["text_primary"]}; spacing: 8px; }}
+    """
+
+
+def skill_card_qss(theme: str = "light") -> str:
+    t = tokens(theme)
+    return (
+        f"QPushButton {{ background:{t['bg_surface']}; border:1px solid {t['border_subtle']}; border-radius:8px;"
+        f" color:{t['text_primary']}; font-size:12px; padding:6px 4px; text-align:center; }}"
+        f"QPushButton:hover {{ border:1px solid {t['border_focus']}; color:{t['text_primary']}; background:{t['bg_hover']}; }}"
+        f"QPushButton:checked {{ background:{t['accent_solo']};"
+        f" border:2px solid {t['border_focus']}; color:#FFFFFF; font-weight:bold; }}"
+    )
+
+
+def mode_button_qss(theme: str = "light") -> str:
+    t = tokens(theme)
+    return f"""
+        QPushButton {{
+            background-color: {t["accent_solo"]};
+            color: white;
+            border: 2px solid {t["border_focus"]};
+        }}
+    """
+
+
+def official_build_qss(theme: str = "light") -> str:
+    t = tokens(theme)
+    return f"""
+        QPushButton {{
+            font-size: 13px;
+            font-weight: 500;
+            padding: 6px 12px;
+            border-radius: 6px;
+            text-align: left;
+            background-color: {t["bg_subtle"]};
+            color: {t["text_primary"]};
+            border: 1px solid {t["border_subtle"]};
+        }}
+        QPushButton:checked {{
+            background-color: {t["accent_hitch"]};
+            color: white;
+            font-weight: bold;
+            border: 2px solid {t["accent_hitch_hover"]};
+        }}
     """

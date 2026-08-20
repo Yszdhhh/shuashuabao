@@ -3,16 +3,16 @@ from __future__ import annotations
 
 import random
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
-    QApplication,
-    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
+
+from shuabao.shell.theme_styles import tokens
 
 class MascotStatusVoice:
     IDLE = ["☕ 挂机助手待命中，随时准备出发~", "🧘 正在闭目养神，点击开始带你飞！", "🍵 喝口茶，今天想刷第几关？"]
@@ -44,8 +44,11 @@ class FloatingPetHud(QWidget):
         self._current_phase = "IDLE"
         self._is_click_through = False
         self._drag_pos = QPoint()
+        self._theme = "light"
+        self._palette = tokens("light")
 
         self._build_ui()
+        self.apply_theme("light")
         self._setup_voice_timer()
 
     def _build_ui(self) -> None:
@@ -61,11 +64,9 @@ class FloatingPetHud(QWidget):
         text_layout.setSpacing(2)
 
         self.lbl_title = QLabel("刷刷宝 · 挂机伴侣")
-        self.lbl_title.setStyleSheet("font-size: 11px; font-weight: 700; color: #38bdf8;")
         text_layout.addWidget(self.lbl_title)
 
         self.lbl_broadcast = QLabel("☕ 挂机助手就绪...")
-        self.lbl_broadcast.setStyleSheet("font-size: 12px; font-weight: 600; color: #f0f6fc;")
         self.lbl_broadcast.setWordWrap(True)
         text_layout.addWidget(self.lbl_broadcast)
         layout.addLayout(text_layout)
@@ -75,6 +76,18 @@ class FloatingPetHud(QWidget):
         self.btn_lock.setFixedSize(24, 24)
         self.btn_lock.clicked.connect(self._toggle_lock)
         layout.addWidget(self.btn_lock)
+
+    def apply_theme(self, theme: str = "light") -> None:
+        self._theme = theme
+        t = tokens(theme)
+        self._palette = t
+        self.lbl_title.setStyleSheet(
+            f"font-size: 11px; font-weight: 700; color: {t['accent_solo']};"
+        )
+        self.lbl_broadcast.setStyleSheet(
+            f"font-size: 12px; font-weight: 600; color: {t['text_primary']};"
+        )
+        self.update()
 
     def _setup_voice_timer(self) -> None:
         self._voice_timer = QTimer(self)
@@ -129,7 +142,11 @@ class FloatingPetHud(QWidget):
         path = QPainterPath()
         rect = self.rect().adjusted(1, 1, -1, -1)
         path.addRoundedRect(rect.x(), rect.y(), rect.width(), rect.height(), 14, 14)
-        painter.fillPath(path, QColor(13, 17, 23, 230))
-        border_pen = QPen(QColor(56, 189, 248, 140), 1.5)
+        bg = QColor(self._palette.get("bg_surface", "#FBF8F1"))
+        bg.setAlpha(230)
+        painter.fillPath(path, bg)
+        border = QColor(self._palette.get("border_focus", "#D8A94A"))
+        border.setAlpha(180)
+        border_pen = QPen(border, 1.5)
         painter.setPen(border_pen)
         painter.drawPath(path)

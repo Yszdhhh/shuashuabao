@@ -47,8 +47,7 @@ try:
 except Exception as e:
     _fatal(f"导入 settings 失败:\n{e}")
 
-# Mediator 依赖 opencv，延迟导入，保证界面先能打开
-Mediator = None  # type: ignore
+# LIVE 只走 HeadlessRunner（共享 live.lock + RuntimeMediator）。禁止裸 Core Mediator。
 
 
 def _stems(folder: Path) -> list[str]:
@@ -85,7 +84,7 @@ class App:
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         self.settings = Settings()
-        self._med = None
+        self._runner = None
         self._worker: threading.Thread | None = None
 
         self._style()
@@ -372,11 +371,11 @@ class App:
             messagebox.showinfo("提示", "已在运行中")
             return
         try:
-            from shuabao.mediator import Mediator as _Med
+            from shuabao.shell.headless_runner import HeadlessRunner, default_headless_app_data
         except Exception as e:
             messagebox.showerror(
                 "缺少依赖",
-                f"无法加载自动化引擎（需要 OpenCV 等）:\n{e}\n\n"
+                f"无法加载 HeadlessRunner（需要 OpenCV / RuntimeMediator）:\n{e}\n\n"
                 f"请在黑窗执行:\n"
                 f"python -m pip install -r requirements.txt",
             )
@@ -389,30 +388,31 @@ class App:
         self._set_run(True)
 
         def work() -> None:
-            from shuabao.log_sink import install_live_logging, uninstall_live_logging
-
-            med = _Med(s, ROOT)
-            self._med = med
-            sink, file_handler = install_live_logging(
-                log=lambda text, _kind: self._log(text),
-                log_file=None,
-            )
+            runner = HeadlessRunner(default_headless_app_data(), ROOT)
+            self._runner = runner
             try:
-                med.run(max_steps=max_steps)
+                result = runner.run_blocking(
+                    s,
+                    max_steps=max_steps,
+                    log_fn=lambda text, _kind: self._log(text),
+                )
+                count = int((result or {}).get("game_count") or 0)
+                self.root.after(0, lambda: self.var_games.set(count))
+            except RuntimeError as exc:
+                self._log(f"[阻断] {exc}")
             except Exception:
                 self._log(traceback.format_exc())
             finally:
-                uninstall_live_logging(sink, file_handler)
+                self._runner = None
                 self.root.after(0, lambda: self._set_run(False))
-                self.root.after(0, lambda: self.var_game.set(med.game_count))
                 self._log("[结束]")
 
         self._worker = threading.Thread(target=work, daemon=True)
         self._worker.start()
 
     def stop(self) -> None:
-        if self._med:
-            self._med.stop()
+        if self._runner:
+            self._runner.stop()
             self._log("[停止] 已请求")
         self._set_run(False)
 

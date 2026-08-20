@@ -49,10 +49,14 @@ def default_incident_dir() -> Path:
 
     S0.5：`%LocalAppData%/ShuaBao/incidents`；测试必须传临时目录，
     生产入口一律经本函数，避免三处入口各自硬编码路径漂移。
+    `SHUABAO_APP_DATA` 与 Desktop MainWindow / HeadlessRunner 共用同一根。
 
     2026-08-12 改名（GameScript-Local → ShuaBao）：旧目录里的历史 incident
     不会自动迁移，需要考古时去 `%LocalAppData%/GameScript-Local` 找。
     """
+    override = os.environ.get("SHUABAO_APP_DATA")
+    if override:
+        return Path(override) / "incidents"
     local = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
     return Path(local) / "ShuaBao" / "incidents"
 

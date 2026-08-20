@@ -62,20 +62,23 @@ def main():
     if not _INSTANCE_LOCK.tryLock(100):
         QMessageBox.information(None, APP_NAME, "程序已经在运行。")
         return
-    window = MainWindow()
+    window = MainWindow(app_data=APP_DATA)
     window.current_theme = "light"
     from shuabao.shell.theme_styles import get_qss
     window.setStyleSheet(get_qss("light"))
+    window._apply_component_theme()
 
     from shuabao.shell.wizard_dialog import GameStyleWizardDialog
-    wizard = GameStyleWizardDialog()
-    
+    wizard = GameStyleWizardDialog(settings=window.settings)
+
     def _on_run(payload):
+        window.apply_quick_start_selection(payload)
         wizard.accept()
         window.show()
         window.toggle_run()
 
     def _on_advanced(payload):
+        window.apply_quick_start_selection(payload)
         wizard.accept()
         window.show()
 

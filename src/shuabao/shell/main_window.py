@@ -42,8 +42,18 @@ from PySide6.QtWidgets import (
 )
 from shuabao.shell.dual_launch_widget import DualLaunchBoxWidget
 from shuabao.shell.pet_hud import FloatingPetHud
-from shuabao.shell.theme_styles import get_qss
-from shuabao.shell.wizard_dialog import GameStyleWizardDialog
+from shuabao.shell.theme_styles import (
+    get_qss,
+    mode_button_qss,
+    official_build_qss,
+    skill_card_qss,
+    tokens,
+)
+from shuabao.shell.wizard_dialog import (
+    GameStyleWizardDialog,
+    apply_quick_start_to_settings,
+    selection_from_payload,
+)
 
 from shuabao import __version__
 from shuabao.settings import MAX_SELECTED_SKILLS, Settings
@@ -235,21 +245,20 @@ class SkillCardGrid(QWidget):
     MAX_SKILLS = MAX_SELECTED_SKILLS
     skills_changed = Signal()
 
-    CARD_QSS = (
-        "QPushButton { background:#151d2e; border:1px solid #243048; border-radius:8px;"
-        " color:#cbd5e1; font-size:12px; padding:6px 4px; text-align:center; }"
-        "QPushButton:hover { border:1px solid #38bdf8; color:#ffffff; background:#1e293b; }"
-        "QPushButton:checked { background:qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0c4a6e, stop:1 #075985);"
-        " border:2px solid #38bdf8; color:#f0f9ff; font-weight:bold; }"
-    )
-
-    def __init__(self, skill_stems: list[str], skill_labels: dict[str, str], parent=None):
+    def __init__(self, skill_stems: list[str], skill_labels: dict[str, str], parent=None, theme: str = "light"):
         super().__init__(parent)
         self.skill_stems = skill_stems
         self.skill_labels = skill_labels
         self.cards: dict[str, QPushButton] = {}
         self._selected: list[str] = []
+        self._theme = theme
         self._init_ui()
+
+    def apply_theme(self, theme: str = "light") -> None:
+        self._theme = theme
+        qss = skill_card_qss(theme)
+        for btn in self.cards.values():
+            btn.setStyleSheet(qss)
 
     def _tooltip_for(self, code: str) -> str:
         meta = SKILL_META.get(code) or {}
@@ -285,7 +294,7 @@ class SkillCardGrid(QWidget):
             if icon_path.is_file():
                 btn.setIcon(QIcon(str(icon_path)))
                 btn.setIconSize(QSize(30, 30))
-            btn.setStyleSheet(self.CARD_QSS)
+            btn.setStyleSheet(skill_card_qss(self._theme))
             btn.setToolTip(self._tooltip_for(code))
             btn.clicked.connect(lambda checked, c=code: self._toggle(c, checked))
             self.cards[code] = btn
@@ -462,7 +471,7 @@ class NegativeTreasureGroup(QGroupBox):
 class MainWindow(QMainWindow):
     def __init__(self, app_data: Path | None = None):
         super().__init__()
-        self.app_data = (app_data or Path.home() / "AppData" / "Local" / APP_NAME).resolve()
+        self.app_data = Path(app_data).resolve() if app_data is not None else _app_data_dir().resolve()
         self.app_data.mkdir(parents=True, exist_ok=True)
         self.setWindowTitle(f"{APP_NAME} {APP_VERSION_LABEL} · 重生魔兽刷刷刷")
         self.resize(980, 760)
@@ -509,30 +518,71 @@ class MainWindow(QMainWindow):
         self.load_local_settings(silent=True)
         self._wire_auto_save()
         self._show_mode_choice()
+        self._apply_component_theme()
 
     def _setup_style(self):
         self.current_theme = "light"
         self.setStyleSheet(get_qss("light"))
+
+    def apply_quick_start_selection(self, payload) -> None:
+        sel = selection_from_payload(payload)
+        self.settings = apply_quick_start_to_settings(self.settings, sel)
+        self.apply_settings_to_ui(self.settings)
+        mode_id = str(self.settings.mode_id or "normal_farm")
+        self._select_mode(mode_id if mode_id in self._page_index else "normal_farm")
+        self._refresh_chrome()
+
     def _open_quick_wizard(self) -> None:
-        from shuabao.shell.wizard_dialog import GameStyleWizardDialog
-        wizard = GameStyleWizardDialog(self)
-        wizard.run_requested.connect(lambda p: self.toggle_run())
-        wizard.advanced_requested.connect(lambda p: self.showNormal())
+        wizard = GameStyleWizardDialog(self, settings=self.settings)
+        wizard.run_requested.connect(self._on_wizard_run)
+        wizard.advanced_requested.connect(self._on_wizard_advanced)
         wizard.exec()
+
+    def _on_wizard_run(self, payload) -> None:
+        self.apply_quick_start_selection(payload)
+        self.toggle_run()
+
+    def _on_wizard_advanced(self, payload) -> None:
+        self.apply_quick_start_selection(payload)
+        self.showNormal()
+
+    def _apply_component_theme(self) -> None:
+        theme = getattr(self, "current_theme", "light")
+        self.setStyleSheet(get_qss(theme))
+        if hasattr(self, "skill_grid"):
+            self.skill_grid.apply_theme(theme)
+        if getattr(self, "pet_hud", None) is not None:
+            self.pet_hud.apply_theme(theme)
+        if getattr(self, "overlay_hud", None) is not None:
+            self.overlay_hud.apply_theme(theme)
+        dual = getattr(self, "dual_launch", None)
+        if dual is not None:
+            dual.apply_theme(theme)
+        mode_qss = mode_button_qss(theme)
+        for button in (getattr(self, "btn_solo_mode", None), getattr(self, "btn_hitch_mode", None)):
+            if button is not None:
+                button.setStyleSheet(mode_qss)
+        build_qss = official_build_qss(theme)
+        for btn in getattr(self, "_build_btn_map", {}).values():
+            btn.setStyleSheet(build_qss)
+        wizard_btn = getattr(self, "btn_wizard", None)
+        if wizard_btn is not None:
+            t = tokens(theme)
+            wizard_btn.setStyleSheet(
+                f"background-color: {t['bg_hover']}; color: {t['text_primary']}; "
+                f"font-weight: bold; border: 1px solid {t['border_focus']}; "
+                f"padding: 4px 10px; border-radius: 6px;"
+            )
 
     def toggle_theme(self) -> None:
         self.current_theme = "light" if getattr(self, "current_theme", "dark") == "dark" else "dark"
-        self.setStyleSheet(get_qss(self.current_theme))
+        self._apply_component_theme()
 
     def _restore_from_pet_hud(self) -> None:
         if getattr(self, "pet_hud", None):
             self.pet_hud.hide()
         self.showNormal()
         self.activateWindow()
-
-    def toggle_theme(self) -> None:
-        self.current_theme = "light" if getattr(self, "current_theme", "dark") == "dark" else "dark"
-        self.setStyleSheet(get_qss(self.current_theme))
 
     def _build_ui(self):
         central = QWidget()
@@ -558,10 +608,9 @@ class MainWindow(QMainWindow):
         self.lbl_run_status.setAlignment(Qt.AlignCenter)
         self.lbl_run_status.setMinimumWidth(72)
         header.addWidget(self.lbl_run_status)
-        btn_wizard = QPushButton("🧙‍♂️ 快速开局向导")
-        btn_wizard.setStyleSheet("background-color: #f1d48a; color: #78350f; font-weight: bold; border: 1px solid #d97706; padding: 4px 10px; border-radius: 6px;")
-        btn_wizard.clicked.connect(self._open_quick_wizard)
-        header.addWidget(btn_wizard)
+        self.btn_wizard = QPushButton("🧙‍♂️ 快速开局向导")
+        self.btn_wizard.clicked.connect(self._open_quick_wizard)
+        header.addWidget(self.btn_wizard)
         btn_theme = QPushButton("🌓 切换主题")
         btn_theme.clicked.connect(self.toggle_theme)
         header.addWidget(btn_theme)
@@ -589,13 +638,7 @@ class MainWindow(QMainWindow):
             button.setCheckable(True)
             button.setMinimumHeight(56)
             button.setMinimumWidth(320)
-            button.setStyleSheet("""
-                QPushButton {
-                    background-color: #2563eb;
-                    color: white;
-                    border: 2px solid #60a5fa;
-                }
-            """)
+            button.setStyleSheet(mode_button_qss("light"))
             self.primary_mode_group.addButton(button)
             primary_row.addWidget(button, 1)
         mode_layout.addLayout(primary_row)
@@ -725,21 +768,7 @@ class MainWindow(QMainWindow):
             btn = QPushButton(bname)
             btn.setCheckable(True)
             btn.setMinimumHeight(44)
-            btn.setStyleSheet("""
-                QPushButton {
-                    font-size: 13px;
-                    font-weight: 500;
-                    padding: 6px 12px;
-                    border-radius: 6px;
-                    text-align: left;
-                }
-                QPushButton:checked {
-                    background-color: #059669;
-                    color: white;
-                    font-weight: bold;
-                    border: 2px solid #34d399;
-                }
-            """)
+            btn.setStyleSheet(official_build_qss("light"))
             self._build_btn_group.addButton(btn)
             self._build_btn_map[bid] = btn
             btn.clicked.connect(lambda checked, _bid=bid: self._apply_build(_bid))

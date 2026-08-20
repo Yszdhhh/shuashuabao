@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -13,6 +14,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from shuabao.incidents import default_incident_dir
 from shuabao.jobs import AutoJob, LongzhuJob
 from shuabao.runtime_mediator import Mediator
+from shuabao.shell.headless_runner import HeadlessRunner, default_headless_app_data
 from shuabao.models.skill import get_all_card_groups, get_all_skills, get_boss_list
 from shuabao.settings import Settings
 from shuabao.vision.capture import capture
@@ -74,10 +76,11 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
     print("WARNING: will move mouse / click. Ctrl+C to stop.")
     try:
-        # S0.5：CLI 生产入口也传入 incident 目录（默认 %LocalAppData%/ShuaBao/incidents）
-        med = Mediator(s, ROOT, incident_dir=default_incident_dir())
-        med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
-        med.run(max_steps=args.steps)
+        runner = HeadlessRunner(default_headless_app_data(), ROOT)
+        runner.run_blocking(s, max_steps=args.steps)
+    except RuntimeError as exc:
+        print(exc)
+        return 1
     except KeyboardInterrupt:
         print("stopped by user")
     return 0
