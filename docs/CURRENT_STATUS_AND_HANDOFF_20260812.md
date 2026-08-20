@@ -1,5 +1,18 @@
 # GameScript 当前状态与下一 Agent 交接（2026-08-12）
 
+## 2026-08-20 P0 稳定性收口（feat/ui-quickstart-wizard-and-stability-v1 @ 75b0b42；release_gate 4/4 PASS；未真机；非 V1.0）
+
+工作区 `G:\刷刷宝\Worktrees\GameScript-Core02-Core03-Integration-20260816`，在 `4a8b758` 之上两提交：`d9f5df2`（外壳）+ `75b0b42`（L0 hitch/guard）。`GameScript-Local` 的 `trial-merge` 未动。
+
+- QuickStart：`advanced_requested` 已声明；`QuickStartSelection` → Settings 单一 adapter；直接开始/高级设置都先 apply。预设写 `skill_meta` 短码；章节切换重标关卡下拉。
+- AppData：Desktop `MainWindow()` 默认 `%LOCALAPPDATA%/ShuaBao`（`SHUABAO_APP_DATA` 可覆盖），与 HeadlessRunner / incident / `ShuaBao.live.lock` 同根。`controller.py` / CLI `run` 走 HeadlessRunner，不再裸 Core Mediator LIVE。
+- `forbidden_actions` 在 `act_click` 执行。`follow_team` 等房主、禁止 RoomStart/创房/quick_join；`lobby_hitch` 战后离房重搜 3/4，不走 `_awaiting_room_return` 同房跟车。选择面板 Fail-Closed 覆盖 skill/bond/treasure/card/unknown。
+- Hitch 搜房：3–4s debounce、JOIN 要 3/4 前缀证据 + 进房后置确认、120s GO_HOME 需大厅页证据才写「大厅主页」。无模板则观察、不 Python 假回家。
+- LIGHT `ThemeTokens` 被 Wizard / SkillCardGrid / DualLaunch / MainWindow / Pet HUD / Overlay HUD 消费；`toggle_theme` 只保留一条。
+- 真机搜房/跟车尾链仍需录像验收。大厅刷新/进房/回列表模板多数仍缺，生产 fail-closed。
+
+**门禁**：`python tools/release_gate.py` 退出码 0，4/4 PASS。pytest 1095 passed / 2 xfailed / 4 skipped；frozen_replay 含既有 `disconnect_modal_missing=BLOCKED`；scene_templates 132 ok；contract 71 passed。未 `--update-baseline`。无云端 CI 声明。
+
 ## 2026-08-17 39881f4 技能选卡模型修正：至多 4 系恒严格（docs/KB-only；release_gate 4/4 PASS @ eb739de；未真机）
 
 工作区 `G:\刷刷宝\Worktrees\GameScript-SelectionModelFix-20260817`，当前 HEAD `39881f4`。本提交只改 `config/game_mechanics_kb.json` 与本文档，不改生产/测试代码。早前「0–4 严格 / 5–16 全才（all_round）」选卡模型已按用户 2026-08-17 确认**显式作废**，活动契约改为：
