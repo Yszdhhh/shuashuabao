@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
 from shuabao.shell.dual_launch_widget import DualLaunchBoxWidget
 from shuabao.shell.pet_hud import FloatingPetHud
 from shuabao.shell.theme_styles import (
+    apply_app_palette,
     get_qss,
     mode_button_qss,
     official_build_qss,
@@ -548,6 +549,7 @@ class MainWindow(QMainWindow):
 
     def _apply_component_theme(self) -> None:
         theme = getattr(self, "current_theme", "light")
+        apply_app_palette(theme)
         self.setStyleSheet(get_qss(theme))
         if hasattr(self, "skill_grid"):
             self.skill_grid.apply_theme(theme)

@@ -67,7 +67,8 @@ def main():
         return
     window = MainWindow(app_data=APP_DATA)
     window.current_theme = "light"
-    from shuabao.shell.theme_styles import get_qss
+    from shuabao.shell.theme_styles import apply_app_palette, get_qss
+    apply_app_palette("light")
     window.setStyleSheet(get_qss("light"))
     window._apply_component_theme()
 

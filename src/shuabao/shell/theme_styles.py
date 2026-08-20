@@ -43,6 +43,36 @@ def tokens(theme: str = "light") -> dict[str, str]:
     return ThemeTokens.DARK if str(theme).lower() == "dark" else ThemeTokens.LIGHT
 
 
+def apply_app_palette(theme: str = "light") -> None:
+    """Force Qt palette to match tokens so Windows dark-mode doesn't invert text."""
+    try:
+        from PySide6.QtGui import QColor, QPalette
+        from PySide6.QtWidgets import QApplication
+    except Exception:
+        return
+    app = QApplication.instance()
+    if app is None:
+        return
+    t = tokens(theme)
+    bg = QColor(t["bg_app"])
+    fg = QColor(t["text_primary"])
+    surface = QColor(t["bg_surface"])
+    pal = QPalette()
+    pal.setColor(QPalette.ColorRole.Window, bg)
+    pal.setColor(QPalette.ColorRole.WindowText, fg)
+    pal.setColor(QPalette.ColorRole.Base, surface)
+    pal.setColor(QPalette.ColorRole.AlternateBase, QColor(t["bg_subtle"]))
+    pal.setColor(QPalette.ColorRole.Text, fg)
+    pal.setColor(QPalette.ColorRole.Button, QColor(t["bg_subtle"]))
+    pal.setColor(QPalette.ColorRole.ButtonText, fg)
+    pal.setColor(QPalette.ColorRole.ToolTipBase, surface)
+    pal.setColor(QPalette.ColorRole.ToolTipText, fg)
+    pal.setColor(QPalette.ColorRole.PlaceholderText, QColor(t["text_secondary"]))
+    pal.setColor(QPalette.ColorRole.Highlight, QColor(t["border_focus"]))
+    pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#FFFFFF"))
+    app.setPalette(pal)
+
+
 def get_qss(theme: str = "dark") -> str:
     t = tokens(theme)
     return f"""

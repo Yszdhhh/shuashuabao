@@ -45,6 +45,22 @@ def test_overlay_is_click_through_and_updates_status(qapp):
     assert "已停止" in hud.status_text
     assert "已完成指定局数" in hud.status_text
     assert hud.status_state == "stopped"
+    qss = hud.label.styleSheet().lower()
+    assert "#ffffff" in qss
+    assert "rgba(32, 24, 18" in qss
+    hud.close()
+
+
+def test_overlay_stays_pinned_to_last_game_rect(qapp):
+    from PySide6.QtCore import QRect
+
+    hud = OverlayHud()
+    hud.anchor_to_target(QRect(100, 200, 1600, 900))
+    hud.update_status(True, "STAGE_SELECT", "OCR 就绪", 0, 0)
+    y1 = hud.y()
+    hud.anchor_to_target(None)
+    hud.update_status(True, "STAGE_SELECT", "OCR 就绪", 0, 0)
+    assert hud.y() == y1
     hud.close()
 
 

@@ -76,8 +76,9 @@ def test_skill_card_dual_launch_hud_use_light_tokens(qapp):
 
     hud = OverlayHud()
     hud.apply_theme("light")
-    _assert_light_qss(hud.label.styleSheet())
-    assert ThemeTokens.LIGHT["bg_surface"].lower() in hud.label.styleSheet().lower()
+    hud_qss = hud.label.styleSheet().lower()
+    assert "#ffffff" in hud_qss
+    assert ThemeTokens.LIGHT["border_focus"].lower() in hud_qss
     hud.close()
 
     wizard = GameStyleWizardDialog()
