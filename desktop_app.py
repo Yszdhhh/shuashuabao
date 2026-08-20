@@ -55,15 +55,14 @@ def _handle_unhandled_exception(exc_type, exc_value, exc_traceback):
 def main():
     global _INSTANCE_LOCK
     app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
     sys.excepthook = _handle_unhandled_exception
 
     _INSTANCE_LOCK = QLockFile(str(APP_DATA / f"{APP_ID}.lock"))
     if not _INSTANCE_LOCK.tryLock(100):
         QMessageBox.information(None, APP_NAME, "程序已经在运行。")
         return
-
     window = MainWindow()
-    # 启动时自动切换为浅色主题并弹出快速开局向导
     window.current_theme = "light"
     from shuabao.shell.theme_styles import get_qss
     window.setStyleSheet(get_qss("light"))
@@ -71,12 +70,20 @@ def main():
 
     from shuabao.shell.wizard_dialog import GameStyleWizardDialog
     wizard = GameStyleWizardDialog(window)
-    wizard.run_requested.connect(lambda p: window.toggle_run())
-    wizard.advanced_requested.connect(lambda p: window.showNormal())
-    wizard.exec()
+    
+    def _on_run(payload):
+        window.toggle_run()
+
+    def _on_advanced(payload):
+        window.showNormal()
+
+    wizard.run_requested.connect(_on_run)
+    wizard.advanced_requested.connect(_on_advanced)
+    wizard.show()
+    wizard.raise_()
+    wizard.activateWindow()
 
     sys.exit(app.exec())
-
 
 if __name__ == "__main__":
     main()
