@@ -74,6 +74,8 @@ from shuabao.vision.ocr_shadow.client import ShadowClient
 from shuabao.log_sink import emit_print as print  # noqa: A001
 from shuabao.lobby_hitch import (
     JOIN_ATTEMPTS,
+    FollowPhase,
+    FollowTeamSM,
     HitchAction,
     HitchSearchSM,
     classify_hitch_ocr,
@@ -550,6 +552,7 @@ class Mediator:
         self._hitch_re_search = False
         self._hitch_status = ""
         self._hitch_join_refresh_count = 0
+        self._follow_sm = FollowTeamSM()
         self._hitch_search_actions: list[str] = []
         # L0 建房请求：点击成功不等于弹窗已打开，必须等待专用锚点确认。
         self._create_room_pending_since: float | None = None
@@ -4880,14 +4883,19 @@ class Mediator:
         room_start=None,
         stage_page: bool = False,
     ) -> LoopAction:
-        if context in ("MAIN_LINE", "IN_GAME"):
+        phase = self._follow_sm.tick(
+            in_game=context in ("MAIN_LINE", "IN_GAME"),
+            in_room=room_start is not None or context == "ROOM_WAITING",
+            stage_page=bool(stage_page) or context == "STAGE_SELECT",
+        )
+        if phase is FollowPhase.IN_GAME:
             self.set_phase(Phase.MAIN_LINE, "follow already in game")
             return LoopAction.Continue
-        if stage_page or context == "STAGE_SELECT":
+        if phase is FollowPhase.STAGE_WAIT:
             self.set_phase(Phase.STAGE_SELECT, "follow stage page wait")
             print("[L0] follow_team 选关页可见，零输入等待进局（不点关卡）")
             return LoopAction.Continue
-        if room_start is not None or context == "ROOM_WAITING":
+        if phase is FollowPhase.WAIT_HOST:
             self.set_phase(Phase.ROOM_WAITING, "follow in room waiting host")
             print("[L0] follow_team 已在房，等待房主开始（不点 RoomStart）")
             return LoopAction.Continue
@@ -4931,6 +4939,12 @@ class Mediator:
             return LoopAction.Continue
         if self._hitch_re_search and not in_room:
             self._hitch_re_search = False
+        if self._hitch_sm.can_confirm_lobby_home(now, self._hitch_lobby_home_visible(frame)):
+            self._hitch_sm.confirm_lobby_home()
+            self._hitch_status = "大厅主页"
+            print("[L0] hitch unmatched 后置确认大厅主页")
+            self.set_phase(Phase.LOBBY_ROOM, "hitch 大厅主页")
+            return LoopAction.Continue
         prefix_ok = self._hitch_prefix_ok()
         decision = self._hitch_sm.tick(
             now=now,
@@ -4980,12 +4994,9 @@ class Mediator:
                 clicked = bool(self.act_click(hit, "HitchGoHome"))
             if clicked:
                 self._hitch_sm.note_go_home(now)
-            if clicked and self._hitch_lobby_home_visible(frame):
-                self._hitch_sm.confirm_lobby_home()
-                self._hitch_status = "大厅主页"
-                print("[L0] hitch unmatched 已确认回到大厅主页")
+                print("[L0] hitch GO_HOME 已点击，等待大厅页证据（本 tick 不改写大厅主页）")
             else:
-                print("[L0] hitch GO_HOME 无大厅页证据，保持观察（不改写大厅主页）")
+                print("[L0] hitch GO_HOME 无导航锚点，零输入观察")
             self.set_phase(Phase.LOBBY_ROOM, "hitch go_home")
             return LoopAction.Continue
         if decision.action == HitchAction.SLEEP:
@@ -6467,8 +6478,6 @@ class Mediator:
     def _hitch_fail_close_choice_panel(self, frame: Frame, now: float) -> bool:
         """跟车/蹭车局内选择面板立即关闭；零刷新、零挑选。处理了本 tick 则 True。"""
         if not self._passive_choice_mode():
-            return False
-        if self._panel_kind not in ("skill", "bond", "treasure", "card", "unknown", None):
             return False
         close_kind = self._panel_kind if self._panel_kind in ("skill", "bond", "treasure", "card") else None
         close_hit = self._close_current_panel(frame, close_kind)

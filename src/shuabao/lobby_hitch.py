@@ -110,6 +110,8 @@ class HitchSearchSM:
         self.sleep_until = 0.0
         self.next_allowed_at = 0.0
         self.pending_join = False
+        self.go_home_clicked = False
+        self.go_home_clicked_at: float | None = None
 
     def reset_lobby(self, now: float, reason: str = "reset") -> HitchDecision:
         self.phase = HitchPhase.LOBBY_HOME
@@ -118,6 +120,8 @@ class HitchSearchSM:
         self.sleep_until = 0.0
         self.next_allowed_at = 0.0
         self.pending_join = False
+        self.go_home_clicked = False
+        self.go_home_clicked_at = None
         return HitchDecision(
             action=HitchAction.RESET,
             phase=self.phase,
@@ -141,11 +145,23 @@ class HitchSearchSM:
         self.pending_join = False
 
     def note_go_home(self, now: float) -> None:
+        self.go_home_clicked = True
+        self.go_home_clicked_at = float(now)
         self.next_allowed_at = float(now) + self.refresh_s_min
 
     def confirm_lobby_home(self) -> None:
         self.phase = HitchPhase.LOBBY_HOME
         self.pending_join = False
+        self.go_home_clicked = False
+
+    def can_confirm_lobby_home(self, now: float, lobby_visible: bool) -> bool:
+        """True only on a later tick than the GO_HOME click, with lobby page evidence."""
+        if not self.go_home_clicked or not lobby_visible:
+            return False
+        clicked_at = self.go_home_clicked_at
+        if clicked_at is None:
+            return False
+        return float(now) > float(clicked_at)
 
     def _elapsed(self, now: float) -> float:
         if self.search_started_at is None:
@@ -204,6 +220,8 @@ class HitchSearchSM:
         elapsed = self._elapsed(now)
         exhausted = self.attempts >= self.join_limit or elapsed >= self.search_timeout_s
         if exhausted:
+            if self.go_home_clicked and now < self.next_allowed_at:
+                return self._decision(HitchAction.NONE, "await_lobby_home", now)
             if now < self.next_allowed_at:
                 return self._decision(HitchAction.NONE, "await_go_home", now)
             return self._decision(HitchAction.GO_HOME, "search_exhausted", now)
@@ -212,3 +230,23 @@ class HitchSearchSM:
         if matched and prefix_ok:
             return self._decision(HitchAction.JOIN, "match", now)
         return self._decision(HitchAction.REFRESH, "unmatched", now)
+
+
+class FollowPhase(str, Enum):
+    WAIT_ROOM = "wait_room"
+    WAIT_HOST = "wait_host"
+    STAGE_WAIT = "stage_wait"
+    IN_GAME = "in_game"
+
+
+class FollowTeamSM:
+    """跟车：已在房等房主 → 进局 → 回同房再等。零 RoomStart / 创房 / quick_join。"""
+
+    def tick(self, *, in_game: bool, in_room: bool, stage_page: bool) -> FollowPhase:
+        if in_game:
+            return FollowPhase.IN_GAME
+        if stage_page:
+            return FollowPhase.STAGE_WAIT
+        if in_room:
+            return FollowPhase.WAIT_HOST
+        return FollowPhase.WAIT_ROOM

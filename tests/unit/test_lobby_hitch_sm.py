@@ -93,13 +93,17 @@ def test_hitch_refresh_respects_3s_debounce_and_three_attempts_then_home():
         clock.set(109.0)
         assert med._tick_l0(frame) is LoopAction.Continue
         assert med.phase is Phase.LOBBY_ROOM
-        assert med._hitch_status == "大厅主页"
         assert "HitchGoHome" in clicks
+        assert med._hitch_status != "大厅主页"
+        assert med._hitch_sm.go_home_clicked is True
         clock.set(110.0)
+        assert med._tick_l0(frame) is LoopAction.Continue
+        assert med._hitch_status == "大厅主页"
+        clock.set(111.0)
         assert med._tick_l0(frame) is LoopAction.Continue
         assert med._hitch_status == "休眠重试"
         for i in range(8):
-            clock.set(111.0 + i)
+            clock.set(112.0 + i)
             med._tick_l0(frame)
         assert med._hitch_join_refresh_count == 3
         assert med._hitch_search_actions == ["refresh", "refresh", "refresh"]
@@ -361,3 +365,51 @@ def test_follow_after_exit_stays_same_room_wait():
         med._tick_l0(frame)
     assert med.phase is Phase.ROOM_WAITING
     assert all("RoomStart" not in r for r in clicks)
+
+
+def test_follow_team_act_click_roomstart_denied_by_guard():
+    med = Mediator(Settings(mode_id="follow_team", dry_run=True, ocr_mode="off", auto_create_room=False), ROOT)
+    clock = FakeClock(start=100.0)
+    med.executor = FakeInputExecutor(StopSignal(), clock)
+    clicks = _wrap_clicks(med)
+    hit = _hit("lobby/room_start", 800, 700)
+    with clock.install():
+        clock.set(100.0)
+        assert med.act_click(hit, "RoomStart") is False
+        assert med.act_click(hit, "RoomStart-retry") is False
+        assert med.act_click(hit, "CreateRoom-open") is False
+        assert med.act_click(hit, "quick_join") is False
+    assert clicks == ["RoomStart", "RoomStart-retry", "CreateRoom-open", "quick_join"]
+    assert med.executor.action_ledger == []
+
+
+def test_forbidden_actions_align_with_mediator_click_reasons():
+    import re
+
+    from shuabao.shell.mode_catalog import action_is_forbidden, load_specs
+
+    src = (ROOT / "src" / "shuabao" / "mediator.py").read_text(encoding="utf-8")
+    reasons = set(re.findall(r'act_click\([^)]*?["\']([^"\']+)["\']', src))
+    reasons.update(re.findall(r'reason=["\']([^"\']+)["\']', src))
+    live_l0 = {"RoomStart", "RoomStart-retry", "CreateRoom-open", "CreateRoom-confirm"}
+    missing = live_l0 - reasons
+    assert not missing, f"mediator lost L0 click reasons: {missing}"
+    specs = load_specs()
+    for mode_id in ("follow_team", "lobby_hitch"):
+        forbidden = specs[mode_id].forbidden_actions
+        for reason in live_l0:
+            assert action_is_forbidden(reason, forbidden), (mode_id, reason)
+        for token in forbidden:
+            assert action_is_forbidden(token, forbidden), token
+            matches_live = any(action_is_forbidden(r, (token,)) for r in reasons | {token})
+            assert matches_live, f"{mode_id} forbidden {token!r} matches no mediator reason"
+
+
+def test_follow_team_sm_never_requests_start():
+    from shuabao.lobby_hitch import FollowPhase, FollowTeamSM
+
+    sm = FollowTeamSM()
+    assert sm.tick(in_game=False, in_room=True, stage_page=False) is FollowPhase.WAIT_HOST
+    assert sm.tick(in_game=True, in_room=True, stage_page=False) is FollowPhase.IN_GAME
+    assert sm.tick(in_game=False, in_room=False, stage_page=True) is FollowPhase.STAGE_WAIT
+    assert sm.tick(in_game=False, in_room=False, stage_page=False) is FollowPhase.WAIT_ROOM

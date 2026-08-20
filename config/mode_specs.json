@@ -149,6 +149,7 @@
         "room_start.fallback",
         "map_create_room.fallback",
         "CreateRoom-open",
+        "CreateRoom-confirm",
         "map_create_room",
         "RoomStart"
       ],
