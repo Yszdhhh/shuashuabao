@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import builtins
 import logging
 import os
-import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from shuabao.log_sink import install_live_logging, uninstall_live_logging
 from shuabao.settings import Settings
 from shuabao.stop_signal import StopSignal
 
@@ -32,7 +31,7 @@ def execute_runtime_mediator(
     should_abort: Callable[[], bool] | None = None,
     on_mediator: Callable[[Any], None] | None = None,
 ) -> dict[str, Any]:
-    """Shared LIVE worker body: RuntimeMediator + OCR + StopSignal + print restore."""
+    """Shared LIVE worker body: RuntimeMediator + OCR + StopSignal + LogEventSink."""
     result: dict[str, Any] = {
         "terminal_reason": "",
         "phase": "IDLE",
@@ -40,7 +39,9 @@ def execute_runtime_mediator(
         "mediator": None,
         "ocr_status": "未启动",
     }
-    real_print = builtins.print
+    log_file = Path(incident_dir) / "live.log" if incident_dir else None
+    sink, file_handler = install_live_logging(log=log, log_file=log_file)
+    result["log_sink"] = sink
     mediator = None
     try:
         try:
@@ -48,29 +49,15 @@ def execute_runtime_mediator(
         except Exception as exc:
             result["terminal_reason"] = f"RuntimeMediator 无法加载: {exc}"
             result["phase"] = "ERROR"
-            if log:
-                log(f"[启动失败] RuntimeMediator 无法加载，LIVE 已拒绝启动: {exc}", "error")
+            LOGGER.error("[启动失败] RuntimeMediator 无法加载，LIVE 已拒绝启动: %s", exc)
             return result
 
         if should_abort and should_abort():
             result["terminal_reason"] = "启动前已请求停止"
-            if log:
-                log("[启动] 已请求停止，取消本次启动", "info")
+            LOGGER.info("[启动] 已请求停止，取消本次启动")
             return result
 
-        def hook_print(*args: Any, **kwargs: Any) -> None:
-            text = " ".join(str(x) for x in args)
-            if sys.stdout is not None:
-                real_print(*args, **kwargs)
-            log_type = "info"
-            if "失败" in text or "中断" in text or "错误" in text or "timeout" in text:
-                log_type = "error"
-            elif "警告" in text or "miss" in text:
-                log_type = "warn"
-            if log:
-                log(text, log_type)
-
-        builtins.print = hook_print
+        LOGGER.info("[live] execute_runtime_mediator start")
         mediator = Mediator(
             settings,
             root_dir,
@@ -80,6 +67,7 @@ def execute_runtime_mediator(
         result["mediator"] = mediator
         if on_mediator is not None:
             on_mediator(mediator)
+        LOGGER.info("[live] RuntimeMediator ready")
         prepare = getattr(mediator, "prepare_live_dependencies", None)
         if not callable(prepare) or not prepare():
             health = getattr(mediator, "_ocr_bootstrap_health", None)
@@ -87,17 +75,14 @@ def execute_runtime_mediator(
             result["ocr_status"] = "不可用"
             phase_val = getattr(mediator, "phase", None)
             result["phase"] = str(getattr(phase_val, "name", phase_val or "ERROR"))
-            if log:
-                log(f"[启动失败] OCR True READY 未通过，LIVE 已拒绝启动: {health}", "error")
+            LOGGER.error("[启动失败] OCR True READY 未通过，LIVE 已拒绝启动: %s", health)
             return result
         health = getattr(mediator, "_ocr_bootstrap_health", None) or {}
         result["ocr_status"] = "就绪" if health.get("healthy", True) else "不可用"
         mediator.run(max_steps=max_steps)
     except Exception as exc:
         result["terminal_reason"] = f"任务异常退出: {exc}"
-        if log:
-            log(f"[异常] {result['terminal_reason']}", "error")
-        LOGGER.exception("worker failed")
+        LOGGER.exception("[异常] %s", result["terminal_reason"])
     finally:
         if mediator is not None:
             try:
@@ -110,7 +95,7 @@ def execute_runtime_mediator(
                     ocr_client.close()
                 except Exception:
                     LOGGER.exception("failed to close OCR sidecar")
-        builtins.print = real_print
+        uninstall_live_logging(sink, file_handler)
         result["mediator"] = mediator
         result["game_count"] = getattr(mediator, "game_count", 0) if mediator else 0
         phase_val = getattr(mediator, "phase", None) if mediator else None

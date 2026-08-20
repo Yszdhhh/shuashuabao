@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import builtins
 import datetime
 import os
 import sys
@@ -280,7 +279,6 @@ def start_run(req: StartRunRequest = StartRunRequest()):
     )
 
     def worker(gen: int):
-        real_print = builtins.print
         app_data = Path(os.environ.get("SHUABAO_APP_DATA") or default_headless_app_data())
         headless = HeadlessRunner(app_data, ROOT)
 
@@ -324,7 +322,6 @@ def start_run(req: StartRunRequest = StartRunRequest()):
                 runner.last_error = str(e)
             runner.add_log(f"[异常] 游戏中断: {e}", "error")
         finally:
-            builtins.print = real_print
             with runner.lock:
                 if runner.generation == gen:
                     runner.state = "IDLE"

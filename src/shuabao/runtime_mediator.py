@@ -11,6 +11,7 @@ from pathlib import Path
 import time
 from typing import Any
 
+from shuabao.log_sink import emit_print as print  # noqa: A001
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator as CoreMediator
 from shuabao.mediator import PanelState, Phase

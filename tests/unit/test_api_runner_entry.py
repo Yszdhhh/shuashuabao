@@ -235,3 +235,38 @@ def test_execute_runtime_mediator_print_restore_on_import_style_path(tmp_path: P
             stop_signal=StopSignal(),
         )
     assert builtins.print is real_print
+
+
+def test_execute_runtime_mediator_never_changes_print_identity(tmp_path: Path):
+    real_print = builtins.print
+    seen: dict[str, object] = {}
+
+    class FakeMediator:
+        def __init__(self, *args, **kwargs):
+            seen["init"] = builtins.print
+            self.game_count = 0
+            self.phase = type("P", (), {"name": "BOOT"})()
+            self._ocr_bootstrap_health = {"healthy": True, "skipped": True}
+            self._ocr_client = None
+
+        def prepare_live_dependencies(self) -> bool:
+            seen["prepare"] = builtins.print
+            return True
+
+        def run(self, max_steps=None) -> None:
+            seen["run"] = builtins.print
+
+        def set_trace(self, path) -> None:
+            return None
+
+    with patch("shuabao.runtime_mediator.Mediator", FakeMediator):
+        execute_runtime_mediator(
+            settings=Settings(dry_run=True),
+            root_dir=ROOT,
+            incident_dir=tmp_path / "incidents",
+            stop_signal=StopSignal(),
+        )
+    assert builtins.print is real_print
+    assert seen["init"] is real_print
+    assert seen["prepare"] is real_print
+    assert seen["run"] is real_print

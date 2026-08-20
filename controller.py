@@ -389,23 +389,20 @@ class App:
         self._set_run(True)
 
         def work() -> None:
-            import builtins
+            from shuabao.log_sink import install_live_logging, uninstall_live_logging
 
             med = _Med(s, ROOT)
             self._med = med
-            real = builtins.print
-
-            def hook(*a, **k):
-                self._log(" ".join(str(x) for x in a))
-                real(*a, **k)
-
-            builtins.print = hook  # type: ignore
+            sink, file_handler = install_live_logging(
+                log=lambda text, _kind: self._log(text),
+                log_file=None,
+            )
             try:
                 med.run(max_steps=max_steps)
             except Exception:
                 self._log(traceback.format_exc())
             finally:
-                builtins.print = real  # type: ignore
+                uninstall_live_logging(sink, file_handler)
                 self.root.after(0, lambda: self._set_run(False))
                 self.root.after(0, lambda: self.var_game.set(med.game_count))
                 self._log("[结束]")
