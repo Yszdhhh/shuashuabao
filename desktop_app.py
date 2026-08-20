@@ -66,22 +66,27 @@ def main():
     window.current_theme = "light"
     from shuabao.shell.theme_styles import get_qss
     window.setStyleSheet(get_qss("light"))
-    window.show()
 
     from shuabao.shell.wizard_dialog import GameStyleWizardDialog
-    wizard = GameStyleWizardDialog(window)
+    wizard = GameStyleWizardDialog()
     
     def _on_run(payload):
+        wizard.accept()
+        window.show()
         window.toggle_run()
 
     def _on_advanced(payload):
-        window.showNormal()
+        wizard.accept()
+        window.show()
 
     wizard.run_requested.connect(_on_run)
     wizard.advanced_requested.connect(_on_advanced)
-    wizard.show()
-    wizard.raise_()
-    wizard.activateWindow()
+    
+    # 启动先弹小框向导
+    res = wizard.exec()
+    if res == 0 and not window.isVisible():
+        # 如果用户直接叉掉向导，默认显示主窗口
+        window.show()
 
     sys.exit(app.exec())
 
