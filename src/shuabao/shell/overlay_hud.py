@@ -5,9 +5,9 @@ Not click-through — the stop button must receive mouse events.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from pathlib import Path
 from PySide6.QtCore import QPoint, QRect, Qt, QTimer, Signal
 from PySide6.QtGui import QGuiApplication, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
@@ -65,7 +65,12 @@ class OverlayHud(QWidget):
         self.logo_lbl = QLabel()
         logo_path = Path(__file__).resolve().parents[3] / "assets" / "branding" / "app_logo.png"
         if logo_path.exists():
-            pix = QPixmap(str(logo_path)).scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            pix = QPixmap(str(logo_path)).scaled(
+                20,
+                20,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
             self.logo_lbl.setPixmap(pix)
             self.setWindowIcon(QIcon(str(logo_path)))
             layout.addWidget(self.logo_lbl, 0)
@@ -99,7 +104,9 @@ class OverlayHud(QWidget):
         self._drag_pos: QPoint | None = None
         self._user_moved = False
         self._has_game_window = False
+        self._game_hwnd: int | None = None
         self.apply_theme("light")
+
     def _emit_stop(self) -> None:
         self.stop_requested.emit()
 
@@ -121,6 +128,7 @@ class OverlayHud(QWidget):
             "QPushButton#hudStop:hover { background: #E23D3D; }"
             "QPushButton#hudStop:pressed { padding-top: 7px; padding-bottom: 5px; }"
         )
+
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
@@ -216,21 +224,27 @@ class OverlayHud(QWidget):
 
     set_status = update_status
 
-    def _accept_rect(self, rect: QRect | None, is_game: bool) -> None:
+    def reset_target_lock(self) -> None:
+        """Forget a dead game HWND while preserving a user-dragged HUD position."""
+        self._has_game_window = False
+        self._game_hwnd = None
+        self._pinned_rect = None
+
+    def _accept_rect(self, rect: QRect | None, is_game: bool, hwnd: int | None = None) -> None:
         if rect is None or not rect.isValid() or rect.width() < 200 or rect.height() < 200:
             return
         if rect.top() < -100:
             return
-        # 如果当前已经锁定了游戏窗口，不再被非游戏的临时框切走
         if self._has_game_window and not is_game:
             return
         if is_game:
             self._has_game_window = True
+            self._game_hwnd = int(hwnd) if hwnd else None
         self._pinned_rect = QRect(rect)
 
     def _move_pinned(self) -> None:
         if self._user_moved:
-            return  # 用户手动拖拽过位置后，不再自动吸附移动
+            return
         area = self._pinned_rect
         screen = QGuiApplication.primaryScreen()
         if screen is None:
@@ -248,13 +262,18 @@ class OverlayHud(QWidget):
         self.move(QPoint(x, y))
 
     def anchor_to_target(self, target: Any = None) -> None:
-        """Pin to the game client top-centre. Keep last good rect if capture flickers."""
+        """Pin to the target; release the game lock once its HWND disappears."""
         rect: QRect | None = None
         hwnd = getattr(target, "hwnd", None) if target is not None else None
         title = str(getattr(target, "window_title", "") or "")
         if "刷刷宝" in title or "ShuaBao" in title:
             return
         is_game = "英雄三国" in title or "yhzg" in title.lower()
+
+        if self._has_game_window and not is_game and self._game_hwnd:
+            if _hwnd_client_rect(self._game_hwnd) is None:
+                self.reset_target_lock()
+
         if hwnd:
             rect = _hwnd_client_rect(int(hwnd))
         if rect is None and isinstance(target, QRect):
@@ -278,8 +297,9 @@ class OverlayHud(QWidget):
                     rect = QRect(left, top, width, height)
             except (TypeError, ValueError):
                 rect = None
-        self._accept_rect(rect, is_game)
+        self._accept_rect(rect, is_game, int(hwnd) if hwnd else None)
         self._move_pinned()
+
 
 OverlayHUD = OverlayHud
 StatusOverlay = OverlayHud
