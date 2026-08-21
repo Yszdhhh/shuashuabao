@@ -12,7 +12,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QIcon, QPixmap
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -515,6 +515,11 @@ class MainWindow(QMainWindow):
         self._setup_style()
         self._build_ui()
         self.overlay_hud = OverlayHud()
+        self.overlay_hud.stop_requested.connect(self._hud_stop)
+        for seq in ("F12", "Shift+F12"):
+            shortcut = QShortcut(QKeySequence(seq), self)
+            shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            shortcut.activated.connect(self._hud_stop)
         self._setup_tray()
         self.load_local_settings(silent=True)
         self._wire_auto_save()
@@ -595,11 +600,19 @@ class MainWindow(QMainWindow):
 
         header = QHBoxLayout()
         header.setContentsMargins(16, 12, 16, 8)
+        logo_path = ROOT / "assets" / "branding" / "app_logo.png"
+        if logo_path.exists():
+            logo_lbl = QLabel()
+            logo_pix = QPixmap(str(logo_path)).scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            logo_lbl.setPixmap(logo_pix)
+            header.addWidget(logo_lbl)
+            self.setWindowIcon(QIcon(str(logo_path)))
+
         title_box = QVBoxLayout()
         title_box.setSpacing(0)
         title = QLabel(f"{APP_NAME} {APP_VERSION_LABEL}")
         title.setObjectName("brandTitle")
-        subtitle = QLabel("控制中心 · 先选运行方式，再配置任务")
+        subtitle = QLabel("控制中心 · 极简配置与智能执行")
         subtitle.setObjectName("brandSub")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
@@ -681,7 +694,7 @@ class MainWindow(QMainWindow):
         foot.addWidget(self.btn_main)
         outer.addWidget(self.footer)
 
-        self.lbl_latest = QLabel("就绪 · Shift+F12 紧急停止")
+        self.lbl_latest = QLabel("就绪 · F12 / Shift+F12 紧急停止")
         self.lbl_latest.setVisible(False)
 
         self._selected_mode_id = "normal_farm"
@@ -758,8 +771,8 @@ class MainWindow(QMainWindow):
         run_lay.addLayout(stage_row)
         lay.addWidget(run_box)
 
-        # 官方推荐构筑
-        build_box = QGroupBox("✨ 官方推荐挂机构筑（点击直接一键套用）")
+        # 预设搭配卡组
+        build_box = QGroupBox("✨ 预设卡组搭配")
         build_box.setStyleSheet("QGroupBox { font-size: 14px; font-weight: bold; }")
         build_layout = QVBoxLayout(build_box)
         btn_grid = QGridLayout()
@@ -825,7 +838,7 @@ class MainWindow(QMainWindow):
         run_lay.addLayout(save_row)
         lay.addWidget(run_box)
 
-        quick_box, quick_lay = self._section("② 常用搭配", "官方推荐流派一键套用")
+        quick_box, quick_lay = self._section("② 预设搭配", "预设流派卡组一键套用")
         combo_row = QHBoxLayout()
         combo_row.addWidget(QLabel("常用搭配"))
         self.cmb_build = QComboBox()
@@ -1489,6 +1502,11 @@ class MainWindow(QMainWindow):
         if self._is_running():
             self.runner.stop()
 
+    def _hud_stop(self) -> None:
+        if self._is_running():
+            self.log("[操作] 停止任务（HUD / F12）", "warn")
+            self.runner.stop()
+
     def selected_mode_id(self) -> str:
         return getattr(self, "_selected_mode_id", "normal_farm")
 
@@ -1708,12 +1726,17 @@ class MainWindow(QMainWindow):
         tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.replace(path)
 
+    def _on_worker_log(self, text: str, level: str = "info") -> None:
+        text = str(text)
+        self.lbl_latest.setText(text)
+        if hasattr(self, "txt_log") and self.txt_log is not None:
+            self.txt_log.appendPlainText(text)
+
     def log(self, text: str, level: str = "info"):
         text = str(text)
         log_level = {"error": logging.ERROR, "warn": logging.WARNING}.get(level, logging.INFO)
         LOGGER.log(log_level, text)
-        self.lbl_latest.setText(text)
-        self.txt_log.appendPlainText(text)
+        self._on_worker_log(text, level)
 
     def update_status(
         self,
@@ -2078,7 +2101,7 @@ class MainWindow(QMainWindow):
             self.log(f"[阻断] {exc}", "error")
             return
         self.worker_thread = worker
-        worker.signals.log_emitted.connect(self.log)
+        worker.signals.log_emitted.connect(self._on_worker_log)
         worker.signals.status_changed.connect(self.update_status)
         worker.signals.status_updated.connect(self.update_status)
         worker.finished.connect(self._on_worker_finished)
@@ -2086,7 +2109,7 @@ class MainWindow(QMainWindow):
         self._status_timer.start()
         # CORE02：看板不再隐藏——窗口保持可见，状态栏「运行中」，主按钮由
         # _refresh_chrome 切换为「停止」；F12 或停止按钮可中断。
-        self.log("[点火] 脚本运行中，看板保持显示；按 F12 或点击「停止」可中断", "warn")
+        self.log("[点火] 脚本运行中。点 HUD「停止」或按 F12 / Shift+F12 结束", "warn")
 
     def _on_worker_finished(self) -> None:
         self._status_timer.stop()

@@ -121,6 +121,7 @@ class Settings:
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
     auto_devour_dan: bool = True # 自动使用吞噬丹（需羁绊栏非空）
+    evolve_mystic_priority: bool = False  # 未知/神秘进化优先（True=排最前，False=默认排在 SSR 之后、SR 之前）
     auto_artifact: bool = True   # 神器 Q/W/E 槽定时释放
     artifact_cd: int = 120       # 神器冷却秒数
     artifact_slots: int = 3      # 神器槽位数（1-3，对应 Q/W/E；空槽自动跳过）
@@ -149,12 +150,12 @@ class Settings:
     failure_streak_limit: int = 3       # 连续不成功局上限（FAILURE/TIMEOUT/DISCONNECT 均累计）
     panel_visible_timeout_s: float = 2.0    # 主动打开面板的可见确认窗
     ui_action_interval_s: float = 1.5       # UI-changing 输入最小间隔
-    panel_reopen_cooldown_s: float = 12.0   # 物理隐藏确认后，同类 G/F/V 主动重开冷却（10..15s）
+    panel_reopen_cooldown_s: float = 3.0    # 物理隐藏后同类 G/F/V 重开冷却
     challenge_recheck_interval_s: float = 30.0  # 四挑战 ON 的周期复查间隔（钳制 5..300s）
     panel_hard_deadline_s: float = 15.0     # 单个面板 episode 无进展硬超时
     auto_task_unknown_timeout_s: float = 45.0  # 自动任务 UNKNOWN 熔断（钳制 30–60s）
     panel_action_limit_per_fingerprint: int = 3  # 同 fingerprint 同动作上限
-    panel_episode_limit_per_kind: int = 5       # 每局每类面板会话上限
+    panel_episode_limit_per_kind: int = 24      # 每局每类面板会话上限（5 会在技能还没点完时跳羁绊）
     incident_sample_rate: float = 0.1           # 正常 panel episode 抽样归档率
     # OCR 只给三选一面板提供“名字证据”；live 时技能/羁绊没有可靠名字就不点。
     # Paddle 运行在独立 sidecar，主 EXE 不加载模型依赖。
@@ -346,7 +347,7 @@ class Settings:
             "recovery_retry_interval_s": (0.5, 30.0),
             "panel_visible_timeout_s": (0.5, 10.0),
             "ui_action_interval_s": (0.5, 10.0),
-            "panel_reopen_cooldown_s": (10.0, 15.0),
+            "panel_reopen_cooldown_s": (2.0, 15.0),
             "incident_sample_rate": (0.0, 1.0),
             "challenge_recheck_interval_s": (5.0, 300.0),
             "auto_task_unknown_timeout_s": (30.0, 60.0),

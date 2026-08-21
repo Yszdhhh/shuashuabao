@@ -155,15 +155,15 @@ class StageSelectorTests(unittest.TestCase):
         rows = visible_stage_rows(frame, IMAGES)
         self.assertEqual([str(r.stage_id) for r in rows], ["5-6", "5-7", "5-8"])
 
-    def test_recovery_negative_without_below_neighbor(self):
+    def test_recovers_last_row_from_above_neighbor(self):
         frame = self._recovery_frame([(160, "5-6")], [(300, 200)])
         rows = visible_stage_rows(frame, IMAGES)
-        self.assertEqual([str(r.stage_id) for r in rows], ["5-6"])
+        self.assertEqual([str(r.stage_id) for r in rows], ["5-6", "5-7"])
 
-    def test_recovery_negative_without_above_neighbor(self):
+    def test_recovers_first_row_from_below_neighbor(self):
         frame = self._recovery_frame([(480, "5-8")], [(300, 200)])
         rows = visible_stage_rows(frame, IMAGES)
-        self.assertEqual([str(r.stage_id) for r in rows], ["5-8"])
+        self.assertEqual([str(r.stage_id) for r in rows], ["5-7", "5-8"])
 
     def test_recovery_negative_across_chapters(self):
         frame = self._recovery_frame([(160, "5-6"), (480, "1-23")], [(300, 200)])
@@ -231,6 +231,27 @@ class StageSelectorTests(unittest.TestCase):
             med._tick_l0(frame)
         self.assertEqual(click.call_args.args[1], "StageStart")
         self.assertEqual(click.call_args.args[0].name, "roomStart")
+
+    def test_mediator_starts_after_click_even_if_gold_highlight_unread(self):
+        med = Mediator(Settings(stage_targets=["1-21"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="英雄三国KK",
+            hwnd=1,
+        )
+        med._last_frame = frame
+        med._stage_selected = True
+        med._stage_target_name = "stage_target_1-21"
+        med._stage_target_position = (1237, 768)
+        med._stage_click_cooldown_until = 0.0
+        start = MatchResult("stage_start_fallback", 1.0, 1090, 817, 80, 40, 1090, 817)
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "_find_stage_start", return_value=start), \
+             patch.object(med, "act_click", return_value=True) as click:
+            med._tick_l0(frame)
+        self.assertEqual(click.call_args.args[1], "StageStart")
 
     def test_mediator_realigns_after_three_failed_target_clicks(self):
         med = Mediator(Settings(stage_targets=["1-8"], auto_reputation=False), ROOT)
@@ -387,15 +408,16 @@ class StageSelectorTests(unittest.TestCase):
         scroll.assert_called_once()
 
     def test_stage_alignment_uses_macro_timeout(self):
-        med = Mediator(Settings(stage_targets=["1-31"], auto_reputation=False), ROOT)
+        med = Mediator(Settings(stage_targets=["1-31"], auto_reputation=False, dry_run=True), ROOT)
         med.set_phase(Phase.STAGE_SELECT)
         frame = self._live_20260814_frame()
         med._last_frame = frame
         med._room_action_deadline = 0.0
-        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"),              patch.object(med, "_maybe_switch_to_archaeology", return_value=None),              patch.object(med, "act_click") as click:
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"),              patch.object(med, "_maybe_switch_to_archaeology", return_value=None),              patch.object(med, "_find_stage_target", return_value=None),              patch.object(med.executor, "scroll", return_value=type("R", (), {"success": False, "message": "skip"})()),              patch.object(med, "act_click") as click:
             action = med._tick_l0(frame)
-        self.assertEqual(action, LoopAction.Break)
-        self.assertIs(med.phase, Phase.ERROR)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertIs(med.phase, Phase.STAGE_SELECT)
+        self.assertGreater(med._room_action_deadline, 0.0)
         click.assert_not_called()
 
     # ---------- 选关页底栏直取开始游戏（CORE02-L0-STAGE-START-DIRECT-BUTTON） ----------
@@ -486,6 +508,42 @@ class StageSelectorTests(unittest.TestCase):
         med._room_action_deadline = 10.0
         with patch("shuabao.mediator.time.time", return_value=11.0), \
              patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "_find_stage_target", return_value=None), \
+             patch.object(
+                 med.executor,
+                 "scroll",
+                 return_value=type("R", (), {"success": False, "message": "skip"})(),
+             ):
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertIs(med.phase, Phase.STAGE_SELECT)
+        self.assertGreater(med._room_action_deadline, 11.0)
+
+    def test_boot_game_client_unknown_takes_over_stage_select(self):
+        med = Mediator(Settings(stage_targets=["1-21"], auto_create_room=True), ROOT)
+        med.set_phase(Phase.BOOT)
+        frame = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="英雄三国KK",
+            hwnd=1,
+        )
+        with patch.object(med, "_detect_context", return_value="UNKNOWN"):
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertIs(med.phase, Phase.STAGE_SELECT)
+
+    def test_stage_select_stays_on_game_client_when_classifier_unknown(self):
+        med = Mediator(Settings(stage_targets=["1-21"]), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = Frame(
+            np.zeros((900, 1600, 3), dtype=np.uint8),
+            window_title="英雄三国KK",
+            hwnd=1,
+        )
+        med._room_action_deadline = 10.0
+        with patch("shuabao.mediator.time.time", return_value=11.0), \
+             patch.object(med, "_detect_context", return_value="UNKNOWN"), \
              patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
              patch.object(med, "_find_stage_target", return_value=None), \
              patch.object(

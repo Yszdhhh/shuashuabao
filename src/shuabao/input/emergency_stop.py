@@ -1,4 +1,4 @@
-"""Global Shift+F12 emergency stop listener using Win32 API / ctypes."""
+"""Global F12 / Shift+F12 emergency stop listener using Win32 API / ctypes."""
 
 from __future__ import annotations
 
@@ -36,9 +36,10 @@ class EmergencyStopListener:
             if not self.stop_signal.is_set():
                 shift_down = check_key_pressed_win32(VK_SHIFT)
                 f12_down = check_key_pressed_win32(VK_F12)
-                if shift_down and f12_down:
-                    print("[emergency_stop] Global Shift+F12 detected! Triggering emergency stop.")
-                    self.stop_signal.trigger("Shift+F12 emergency stop")
+                if f12_down:
+                    why = "Shift+F12 emergency stop" if shift_down else "F12 emergency stop"
+                    print(f"[emergency_stop] Global {why} detected! Triggering emergency stop.")
+                    self.stop_signal.trigger(why)
             time.sleep(self.poll_interval)
 
     def start(self) -> None:

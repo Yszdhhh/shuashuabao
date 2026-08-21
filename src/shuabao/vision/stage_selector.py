@@ -191,10 +191,9 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
         if row is not None:
             rows.append(row)
 
-    # A selected row has a bright border that merges with its label/background.
-    # Recover it only when BOTH a same-chapter above and below row prove one
-    # unique consecutive gap (below == above + 2). A single neighbor proves
-    # nothing, and more than one recoverable block is ambiguous: recover none.
+    # Selected row's gold/cream border merges with the label, so the block is
+    # oversized. Recover from neighbors: middle = above+below two apart;
+    # last visible row (1-21 at list bottom) = above only; first row = below only.
     recovered: list[StageRow] = []
     for top, bottom in oversized:
         above = max(
@@ -207,21 +206,34 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
             key=lambda row: row.center_y,
             default=None,
         )
-        if above is None or below is None:
+        chapter = None
+        candidate_id = None
+        ref_x = None
+        if above is not None and below is not None:
+            if (
+                below.stage_id.chapter == above.stage_id.chapter
+                and below.stage_id.index == above.stage_id.index + 2
+            ):
+                chapter = above.stage_id.chapter
+                candidate_id = above.stage_id.index + 1
+                ref_x = above.center_x
+        elif above is not None and below is None:
+            chapter = above.stage_id.chapter
+            candidate_id = above.stage_id.index + 1
+            ref_x = above.center_x
+        elif below is not None and above is None:
+            chapter = below.stage_id.chapter
+            candidate_id = below.stage_id.index - 1
+            ref_x = below.center_x
+        if chapter is None or candidate_id is None or candidate_id < 1 or ref_x is None:
             continue
-        if (
-            below.stage_id.chapter != above.stage_id.chapter
-            or below.stage_id.index != above.stage_id.index + 2
-        ):
-            continue
-        candidate_id = above.stage_id.index + 1
-        candidate_label = f"{above.stage_id.chapter}-{candidate_id}"
+        candidate_label = f"{chapter}-{candidate_id}"
         best: tuple[float, int] | None = None
         for center_y in range(y1 + top, y1 + bottom + 1):
             candidate = StageRow(
                 label=candidate_label,
-                stage_id=StageId(above.stage_id.chapter, candidate_id),
-                center_x=above.center_x,
+                stage_id=StageId(chapter, candidate_id),
+                center_x=ref_x,
                 center_y=center_y,
             )
             ratio = _row_border_bright_ratio(gray, candidate, frame.height / 900.0)
@@ -231,8 +243,8 @@ def visible_stage_rows(frame: Frame, images_dir: Path) -> list[StageRow]:
             recovered.append(
                 StageRow(
                     label=candidate_label,
-                    stage_id=StageId(above.stage_id.chapter, candidate_id),
-                    center_x=above.center_x,
+                    stage_id=StageId(chapter, candidate_id),
+                    center_x=ref_x,
                     center_y=best[1],
                 )
             )

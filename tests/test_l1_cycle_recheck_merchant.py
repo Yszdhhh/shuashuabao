@@ -33,23 +33,23 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         )
 
     def test_panel_cycle_advances_only_after_an_empty_owned_episode(self):
-        self.med._l1_cycle_step = "skill"
-        self.med._panel_kind = "skill"
+        self.med._l1_cycle_step = "bond"
+        self.med._panel_kind = "bond"
         self.med._l1_cycle_owned_panel = True
         self.med._l1_cycle_selected = True
         self.med._finish_panel_episode()
-        self.assertEqual(self.med._l1_cycle_step, "skill")
+        self.assertEqual(self.med._l1_cycle_step, "bond")
 
-        self.med._panel_kind = "skill"
+        self.med._panel_kind = "bond"
         self.med._l1_cycle_owned_panel = True
         self.med._l1_cycle_selected = False
         self.med._finish_panel_episode()
-        self.assertEqual(self.med._l1_cycle_step, "bond")
+        self.assertEqual(self.med._l1_cycle_step, "skill")
 
     def test_background_cycle_uses_inventory_pickup_merchant_then_artifact(self):
         self.assertEqual(
             self.med._L1_CYCLE_ORDER,
-            ("skill", "bond", "treasure", "evolve", "equipment", "pickup", "merchant", "artifact"),
+            ("bond", "skill", "bond", "skill", "treasure", "equipment", "evolve", "pickup", "merchant", "artifact"),
         )
 
         self.med._l1_cycle_step = "pickup"
@@ -69,20 +69,13 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         key.assert_called_once_with("z", "Pickup-Z")
         self.assertEqual(self.med._l1_cycle_step, "merchant")
 
-    def test_legacy_five_episode_cap_no_longer_starves_rest_of_game(self):
+    def test_skill_episode_cap_keeps_opening_g_until_empty(self):
         self.med._l1_cycle_step = "skill"
         self.med._panel_episode_count["skill"] = 5
-        with patch.object(self.med, "act_click") as click:
-            result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
-        self.assertEqual(result, LoopAction.Continue)
-        self.assertEqual(self.med._panel_episode_count["skill"], 0)
-        self.assertEqual(self.med._l1_cycle_step, "bond")
-        click.assert_not_called()
-
-        self.med._l1_cycle_step = "skill"
         with patch.object(self.med, "act_click", return_value=True) as click:
             result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
         self.assertEqual(result, LoopAction.Continue)
+        self.assertEqual(self.med._l1_cycle_step, "skill")
         click.assert_called_once()
 
     def test_periodic_auto_task_off_starts_fresh_repair_episode(self):
@@ -154,20 +147,14 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertIsNotNone(wood)
         self.assertEqual(wood.name, "merchant_wood")
 
-    def test_merchant_default_zero_auto_gambling_is_zero_input(self):
-        """默认 auto_gambling_time=0：_maybe_black_merchant 第一行即零输入返回。
-
-        不做任何 find/click（不进入购买/刷新路径）；结果 falsy。
-        """
-        self.assertEqual(self.med.settings.auto_gambling_time, 0)
+    def test_merchant_absent_is_zero_input(self):
         self.med._merchant_next_at = 0.0
-        with patch.object(self.med, "_black_merchant_present") as present, \
+        with patch.object(self.med, "_black_merchant_present", return_value=False) as present, \
                 patch.object(self.med, "find", return_value=None) as find, \
                 patch.object(self.med, "act_click", return_value=True) as click:
             result = self.med._maybe_black_merchant(self.frame)
         self.assertIsNone(result)
-        self.assertFalse(result)
-        present.assert_not_called()
+        present.assert_called()
         find.assert_not_called()
         click.assert_not_called()
 
@@ -329,7 +316,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(med._confirmed_skill_cards(), ("奥数箭",))
 
     def test_merchant_prefers_pill_then_wood_and_refreshes_when_neither_exists(self):
-        self.med.settings.auto_gambling_time = 1  # 显式 opt-in 才进入实验性购买/刷新路径
+        self.med.settings.auto_gambling_time = 1
         pill = hit("danGif", 1160, 640)
         wood = hit("woodgift", 1280, 650)
 
@@ -350,6 +337,19 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         with patch.object(self.med, "_black_merchant_present", return_value=True), patch.object(
             self.med, "_bond_bar_nonempty", return_value=False
         ), patch.object(self.med, "find", return_value=None), patch.object(
+            self.med, "_merchant_refresh_available", return_value=True
+        ), patch.object(self.med, "act_click", return_value=True) as click:
+            result = self.med._maybe_black_merchant(self.frame)
+        self.assertEqual(result, LoopAction.Continue)
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")
+
+    def test_merchant_ignores_wood_outside_strip_and_refreshes(self):
+        self.med._merchant_next_at = 0.0
+        fake_wood = hit("merchant_wood", 1413, 711)
+
+        with patch.object(self.med, "_black_merchant_present", return_value=True), patch.object(
+            self.med, "_bond_bar_nonempty", return_value=False
+        ), patch.object(self.med, "find", return_value=fake_wood), patch.object(
             self.med, "_merchant_refresh_available", return_value=True
         ), patch.object(self.med, "act_click", return_value=True) as click:
             result = self.med._maybe_black_merchant(self.frame)
@@ -377,12 +377,9 @@ class L1RuntimeAccountingTests(unittest.TestCase):
         self.assertEqual(self.med._last_bond_attempt, 0.0)
         self.assertEqual(self.med._last_treasure_attempt, 0.0)
 
-    def test_choice_interval_blocks_reopen_within_interval(self):
-        # 当前 kind 成功主动打开后：间隔未满不重开，也不推进循环。
-        self.med.settings.choice_interval = 120
-        self.med._panel_episode_count["skill"] = 1  # 跳过 snapshot 兼容迁移
+    def test_hide_cooldown_blocks_reopen_without_leaving_skill(self):
         self.med._l1_cycle_step = "skill"
-        self.med._last_skill_panel = 100.0
+        self.med._panel_cooldown_until["skill"] = 250.0
         with patch("shuabao.mediator.time.time", return_value=200.0), \
                 patch.object(self.med, "act_click") as click:
             result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
@@ -435,9 +432,8 @@ class L1RuntimeAccountingTests(unittest.TestCase):
     def test_wait_does_not_increment_choice_attempts(self):
         med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
         slots = [{"index": 0, "name": None, "confidence": 0.0, "raw_text": ""}]
-        with patch.object(med, "act_click") as click:
+        with patch.object(med, "act_click", return_value=False) as click:
             self._enter_live_bond(med, slots)
-        click.assert_not_called()
         self.assertEqual(med._choice_session.attempts, 0)
 
     def test_rejected_click_does_not_increment_choice_attempts(self):

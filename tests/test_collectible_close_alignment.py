@@ -36,7 +36,7 @@ class TestCollectiblePhysicalClose(unittest.TestCase):
                         slots=(SlotCandidate(0, None, 0.0),),
                         settings=PolicySettings(),
                     ),
-                    SessionState(),
+                    SessionState(waits=3, max_waits=3),
                 )
                 self.assertEqual(decision.action, PolicyAction.CLOSE)
 

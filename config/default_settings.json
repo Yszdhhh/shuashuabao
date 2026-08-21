@@ -68,7 +68,7 @@
   "ui_action_interval_s": 1.5,
   "challenge_recheck_interval_s": 30,
   "panel_action_limit_per_fingerprint": 3,
-  "panel_episode_limit_per_kind": 5,
+  "panel_episode_limit_per_kind": 24,
   "incident_sample_rate": 0.1,
   "ocr_mode": "live",
   "ocr_repo_root": "",
@@ -85,5 +85,5 @@
   "bond_must_take": [
     "祝福"
   ],
-  "panel_reopen_cooldown_s": 12.0
+  "panel_reopen_cooldown_s": 3.0
 }

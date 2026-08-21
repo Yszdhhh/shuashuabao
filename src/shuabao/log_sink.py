@@ -34,23 +34,29 @@ class LogEventSink(logging.Handler):
                 return
 
     def emit(self, record: logging.LogRecord) -> None:
+        if getattr(self, "_emitting", False):
+            return
+        self._emitting = True
         try:
-            text = self.format(record)
-        except Exception:
-            text = record.getMessage()
-        if record.levelno >= logging.ERROR:
-            kind = "error"
-        elif record.levelno >= logging.WARNING:
-            kind = "warn"
-        else:
-            kind = "info"
-        with self._sub_lock:
-            subs = list(self._subs)
-        for fn in subs:
             try:
-                fn(text, kind)
+                text = self.format(record)
             except Exception:
-                continue
+                text = record.getMessage()
+            if record.levelno >= logging.ERROR:
+                kind = "error"
+            elif record.levelno >= logging.WARNING:
+                kind = "warn"
+            else:
+                kind = "info"
+            with self._sub_lock:
+                subs = list(self._subs)
+            for fn in subs:
+                try:
+                    fn(text, kind)
+                except Exception:
+                    continue
+        finally:
+            self._emitting = False
 
     def publish(self, text: str, kind: str = "info") -> None:
         level = {
@@ -86,6 +92,9 @@ def install_live_logging(
     log: KindFn | None,
     log_file: Path | None,
 ) -> tuple[LogEventSink, logging.Handler | None]:
+    for existing in list(LOGGER.handlers):
+        if isinstance(existing, LogEventSink):
+            LOGGER.removeHandler(existing)
     sink = LogEventSink()
     if log is not None:
         sink.subscribe(log)

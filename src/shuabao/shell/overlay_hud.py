@@ -1,15 +1,18 @@
-"""Lightweight, click-through runtime status HUD.
+"""Runtime HUD pinned to the game client: status + clickable stop.
 
-Pinned to the top centre of the game client. Never a light-on-light pill.
+Not click-through — the stop button must receive mouse events.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from pathlib import Path
+from PySide6.QtCore import QPoint, QRect, Qt, QTimer, Signal
+from PySide6.QtGui import QGuiApplication, QIcon, QKeySequence, QPixmap, QShortcut
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+
+from shuabao.shell.theme_styles import tokens
 
 
 def _hwnd_client_rect(hwnd: int) -> QRect | None:
@@ -35,14 +38,10 @@ def _hwnd_client_rect(hwnd: int) -> QRect | None:
 
 
 class OverlayHud(QWidget):
-    """Top-centred, always-on-top status pill that lets mouse input pass through."""
+    """Top-centred always-on-top bar with a stop button. Does not steal game focus."""
 
+    stop_requested = Signal()
     STOPPED_HIDE_MS = 3500
-    _HUD_QSS = (
-        "QLabel { color: #FFFFFF; background: rgba(32, 24, 18, 240); "
-        "border: 1px solid #D8A94A; border-radius: 14px; "
-        "padding: 6px 16px; font: 700 13px 'Microsoft YaHei UI'; }"
-    )
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -50,22 +49,46 @@ class OverlayHud(QWidget):
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool
-            | Qt.WindowType.WindowTransparentForInput
         )
         self.setWindowFlags(flags)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setObjectName("shuaBaoOverlayHud")
-        self.setMinimumHeight(30)
-        self.setMinimumWidth(220)
+        self.setMinimumHeight(36)
+        self.setMinimumWidth(320)
         self.setWindowOpacity(0.96)
 
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setSpacing(8)
+
+        self.logo_lbl = QLabel()
+        logo_path = Path(__file__).resolve().parents[3] / "assets" / "branding" / "app_logo.png"
+        if logo_path.exists():
+            pix = QPixmap(str(logo_path)).scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            self.logo_lbl.setPixmap(pix)
+            self.setWindowIcon(QIcon(str(logo_path)))
+            layout.addWidget(self.logo_lbl, 0)
+
         self.label = QLabel("刷刷宝: 空闲")
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label.setStyleSheet(self._HUD_QSS)
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.label)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft)
+        self.label.setObjectName("hudStatus")
+
+        self.btn_stop = QPushButton("停止")
+        self.btn_stop.setObjectName("hudStop")
+        self.btn_stop.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_stop.setToolTip("立即结束脚本（F12 或 Shift+F12）")
+        self.btn_stop.setFixedHeight(28)
+        self.btn_stop.setMinimumWidth(64)
+        self.btn_stop.clicked.connect(self._emit_stop)
+        self.btn_stop.hide()
+
+        layout.addWidget(self.label, 1)
+        layout.addWidget(self.btn_stop, 0)
+        for seq in ("F12", "Shift+F12"):
+            shortcut = QShortcut(QKeySequence(seq), self)
+            shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            shortcut.activated.connect(self._emit_stop)
 
         self._hide_timer = QTimer(self)
         self._hide_timer.setSingleShot(True)
@@ -73,12 +96,52 @@ class OverlayHud(QWidget):
         self._hide_timer.timeout.connect(self.hide)
         self._status_state = "idle"
         self._pinned_rect: QRect | None = None
+        self._drag_pos: QPoint | None = None
+        self._user_moved = False
+        self._has_game_window = False
+        self.apply_theme("light")
+    def _emit_stop(self) -> None:
+        self.stop_requested.emit()
 
     def apply_theme(self, theme: str = "light") -> None:
-        self.label.setStyleSheet(self._HUD_QSS)
+        t = tokens(theme)
+        self.label.setStyleSheet(
+            "QLabel#hudStatus { "
+            f"color: {t['text_primary']}; background: {t['bg_surface']}; "
+            f"border: 1px solid {t['border_focus']}; border-right: none; "
+            "border-top-left-radius: 8px; border-bottom-left-radius: 8px; "
+            "padding: 6px 14px; font: 700 13px 'Microsoft YaHei UI'; }"
+        )
+        self.btn_stop.setStyleSheet(
+            "QPushButton#hudStop { "
+            f"color: {t['text_primary']}; background: {t['accent_danger']}; "
+            f"border: 1px solid {t['border_focus']}; border-left: none; "
+            "border-top-right-radius: 8px; border-bottom-right-radius: 8px; "
+            "padding: 6px 16px; font: 700 13px 'Microsoft YaHei UI'; }"
+            "QPushButton#hudStop:hover { background: #E23D3D; }"
+            "QPushButton#hudStop:pressed { padding-top: 7px; padding-bottom: 5px; }"
+        )
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if event.buttons() == Qt.MouseButton.LeftButton and self._drag_pos is not None:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            self._user_moved = True
+            event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._drag_pos = None
+        super().mouseReleaseEvent(event)
 
     def _paint_status(self) -> None:
-        self.label.setStyleSheet(self._HUD_QSS)
+        self.apply_theme("light")
 
     @property
     def status_state(self) -> str:
@@ -126,6 +189,7 @@ class OverlayHud(QWidget):
             if phase_text:
                 details.append(phase_text)
             text = " | ".join(details)
+            self.btn_stop.show()
         else:
             text = "刷刷宝: 已停止"
             if reason:
@@ -134,6 +198,7 @@ class OverlayHud(QWidget):
                 text += f" | 局数 {count}"
             if last_action:
                 self.setToolTip(f"最后动作：{last_action}")
+            self.btn_stop.hide()
 
         self.label.setText(text)
         self._status_state = self._state_for(running, phase_text, reason)
@@ -151,22 +216,35 @@ class OverlayHud(QWidget):
 
     set_status = update_status
 
-    def _accept_rect(self, rect: QRect | None) -> None:
+    def _accept_rect(self, rect: QRect | None, is_game: bool) -> None:
         if rect is None or not rect.isValid() or rect.width() < 200 or rect.height() < 200:
             return
         if rect.top() < -100:
             return
+        # 如果当前已经锁定了游戏窗口，不再被非游戏的临时框切走
+        if self._has_game_window and not is_game:
+            return
+        if is_game:
+            self._has_game_window = True
         self._pinned_rect = QRect(rect)
 
     def _move_pinned(self) -> None:
+        if self._user_moved:
+            return  # 用户手动拖拽过位置后，不再自动吸附移动
         area = self._pinned_rect
         screen = QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        screen_geo = screen.availableGeometry()
         if area is None or not area.isValid():
-            if screen is None:
-                return
-            area = screen.availableGeometry()
+            area = screen_geo
+
         x = area.left() + max(0, (area.width() - self.width()) // 2)
-        y = area.top() + 8
+        hud_h = max(self.height(), 36)
+        if area.top() - screen_geo.top() >= hud_h + 4:
+            y = area.top() - hud_h - 4
+        else:
+            y = area.top() + 4
         self.move(QPoint(x, y))
 
     def anchor_to_target(self, target: Any = None) -> None:
@@ -174,6 +252,9 @@ class OverlayHud(QWidget):
         rect: QRect | None = None
         hwnd = getattr(target, "hwnd", None) if target is not None else None
         title = str(getattr(target, "window_title", "") or "")
+        if "刷刷宝" in title or "ShuaBao" in title:
+            return
+        is_game = "英雄三国" in title or "yhzg" in title.lower()
         if hwnd:
             rect = _hwnd_client_rect(int(hwnd))
         if rect is None and isinstance(target, QRect):
@@ -192,16 +273,13 @@ class OverlayHud(QWidget):
                 left = int(getattr(target, "left", 0) or 0)
                 top = int(getattr(target, "top", 0) or 0)
                 if width >= 200 and height >= 200 and not (
-                    left == 0 and top == 0 and "英雄三国" not in title
+                    left == 0 and top == 0 and not is_game
                 ):
                     rect = QRect(left, top, width, height)
             except (TypeError, ValueError):
                 rect = None
-        if "刷刷宝" in title or "ShuaBao" in title:
-            rect = None
-        self._accept_rect(rect)
+        self._accept_rect(rect, is_game)
         self._move_pinned()
-
 
 OverlayHUD = OverlayHud
 StatusOverlay = OverlayHud

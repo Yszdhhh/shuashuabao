@@ -250,11 +250,11 @@ class Mediator(CoreMediator):
         return tuple(super()._policy_settings().bond_presets)
 
     def _remaining_bond_presets(self) -> tuple[str, ...]:
-        owned = set(self._bond_cards_owned)
-        return tuple(name for name in self._configured_bond_presets() if name not in owned)
+        # 羁绊卡在局内可重复获取（用于升级与合成），预设白名单持续生效
+        return self._configured_bond_presets()
 
     def _bond_presets_complete(self) -> bool:
-        return not self._remaining_bond_presets()
+        return not self._configured_bond_presets()
 
     def _stage_bond_card(self, name: str | None) -> None:
         canonical = self._canonical_bond_name(name)
@@ -319,7 +319,7 @@ class Mediator(CoreMediator):
 
     def _maybe_open_choice_panel(self, frame, anchor=None):
         target = getattr(self, "_choice_target", None) or getattr(
-            self, "_l1_cycle_step", "skill"
+            self, "_l1_cycle_step", "bond"
         )
         if (
             target == "bond"
@@ -328,7 +328,7 @@ class Mediator(CoreMediator):
         ):
             self._panel_episode_count["bond"] = 0
             self._advance_l1_cycle("bond")
-            print("[L1] 羁绊预设已全部确认拿齐，本局跳过 F 面板，转入宝物")
+            print("[L1] 羁绊预设已全部确认拿齐，本局跳过 F 面板，转入技能")
             return LoopAction.Continue
         return super()._maybe_open_choice_panel(frame, anchor=anchor)
 

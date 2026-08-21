@@ -33,7 +33,7 @@ class SmartRoutePanel(QGroupBox):
         attr_labels: Mapping[str, str],
         parent=None,
     ) -> None:
-        super().__init__("🎯 推荐流派与智能微调", parent)
+        super().__init__("🎯 核心流派与卡组配置", parent)
         self._skill_labels = dict(skill_labels)
         self._attr_labels = dict(attr_labels)
         self._amplifier_boxes: dict[str, QCheckBox] = {}
@@ -147,8 +147,8 @@ class SmartRoutePanel(QGroupBox):
         text_box.addWidget(title)
         text_box.addWidget(reason)
         row.addLayout(text_box, 1)
-        button = QPushButton("一键应用")
-        button.setToolTip("只应用已验证的官方构筑/相关属性线；不会自动启动游戏。")
+        button = QPushButton("应用搭配")
+        button.setToolTip("应用当前流派卡组与属性线配置。")
         button.clicked.connect(lambda _checked=False, rec=recommendation: self.apply_requested.emit(rec))
         row.addWidget(button)
         return frame

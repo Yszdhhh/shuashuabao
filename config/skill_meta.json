@@ -89,52 +89,52 @@
 
   "presets": [
     {
-      "name": "奥术开荒（奥术箭、奥术射线、奥术激光、剑气）",
+      "name": "奥术开荒",
       "codes": ["asj", "asjg", "assx", "jq"],
-      "hint": "奥术三件套 + 剑气补普攻；0氪下限高（KK 夙愿系）",
-      "source": "community+default"
+      "hint": "奥术箭 + 奥术射线 + 奥术激光 + 剑气",
+      "source": ""
     },
     {
-      "name": "天雷经典（天雷、闪电链、奥术激光、奥术射线）",
-      "codes": ["tl", "sdl", "asjg", "assx"],
-      "hint": "天雷 + 闪电链 + 双奥术；秘境向",
-      "source": "kk_S4"
+      "name": "天雷经典",
+      "codes": ["tl", "sdl", "assx", "asjg"],
+      "hint": "天雷 + 闪电链 + 奥术射线 + 奥术激光",
+      "source": ""
     },
     {
-      "name": "天雷狂轰（天雷、闪电链、电磁网、奥术箭）",
+      "name": "天雷狂轰",
       "codes": ["tl", "sdl", "dcw", "asj"],
-      "hint": "天雷 + 闪电链 + 电磁网 + 奥数箭（双雷/电系变体）",
-      "source": "community_douyin_kk"
+      "hint": "天雷 + 闪电链 + 电磁网 + 奥术箭",
+      "source": ""
     },
     {
-      "name": "剑气物理（剑气、陨石、地震、奥术激光）",
+      "name": "剑气物理",
       "codes": ["jq", "ys", "dz", "asjg"],
-      "hint": "剑气主 C；陨石/地震过渡；需瓦王更佳",
-      "source": "kk_sword_qi"
+      "hint": "剑气 + 陨石 + 地震 + 奥术激光",
+      "source": ""
     },
     {
-      "name": "普攻万金油（普攻、陨石、地震、剑气）",
+      "name": "普攻流派",
       "codes": ["pg", "ys", "dz", "jq"],
-      "hint": "普攻 23 真实分裂向；秘境通用",
-      "source": "kk_aa"
+      "hint": "普攻 + 陨石 + 地震 + 剑气",
+      "source": ""
     },
     {
-      "name": "爆炎箭流（爆炎箭、火球、地震、剑气）",
+      "name": "爆炎箭流",
       "codes": ["byj", "hq", "dz", "jq"],
-      "hint": "爆炎箭社区帖；与奥术抢宝石，勿与奥术箭流混用",
-      "source": "kk_byj"
+      "hint": "爆炎箭 + 火球 + 地震 + 剑气",
+      "source": ""
     },
     {
-      "name": "冰法控场（寒冰箭、冰霜新星、剑气、普攻）",
+      "name": "冰法控场",
       "codes": ["hbj", "bsxx", "jq", "pg"],
-      "hint": "寒冰箭 + 冰霜新星；门槛较高",
-      "source": "kk_ice"
+      "hint": "寒冰箭 + 冰霜新星 + 剑气 + 普攻",
+      "source": ""
     },
     {
-      "name": "龙卷风备选（龙卷风、闪电链、天雷、奥术箭）",
+      "name": "龙卷风流",
       "codes": ["ljf", "sdl", "tl", "asj"],
-      "hint": "高难法系备选；新手勿默认",
-      "source": "kk_wind"
+      "hint": "龙卷风 + 闪电链 + 天雷 + 奥术箭",
+      "source": ""
     }
   ]
 }

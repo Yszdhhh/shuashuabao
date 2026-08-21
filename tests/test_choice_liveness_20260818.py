@@ -150,8 +150,8 @@ def test_default_settings_persist_soft_bond_and_panel_cooldown():
     raw = json.loads((ROOT / "config/default_settings.json").read_text(encoding="utf-8"))
     assert raw["bond_whitelist_mode"] == "soft"
     assert "祝福" in raw["bond_must_take"]
-    assert raw["panel_reopen_cooldown_s"] == 12.0
+    assert raw["panel_reopen_cooldown_s"] == 3.0
     loaded = Settings.load(ROOT / "config/default_settings.json")
     assert loaded.bond_whitelist_mode == "soft"
     assert loaded.bond_must_take[0] == "祝福"
-    assert loaded.panel_reopen_cooldown_s == 12.0
+    assert loaded.panel_reopen_cooldown_s == 3.0

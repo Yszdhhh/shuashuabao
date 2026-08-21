@@ -85,15 +85,15 @@ class DualLaunchBoxWidget(QWidget):
     def _btn_qss(self, accent_key: str) -> str:
         t = tokens(self._theme)
         return (
-            f"background-color: {t[accent_key]}; color: #fff; font-size: 13px; "
-            f"font-weight: 700; padding: 8px 16px; border-radius: 6px;"
+            f"background-color: {t[accent_key]}; color: {t['text_on_accent']}; font-size: 14px; "
+            f"font-weight: 800; padding: 10px 16px; border-radius: 6px; border: 1px solid {t['border_focus']};"
         )
 
     def _stop_qss(self) -> str:
         t = tokens(self._theme)
         return (
-            f"background-color: {t['accent_danger']}; color: #fff; font-size: 13px; "
-            f"font-weight: 700; padding: 8px 16px; border-radius: 6px;"
+            f"background-color: {t['accent_danger']}; color: {t['text_primary']}; font-size: 14px; "
+            f"font-weight: 800; padding: 10px 16px; border-radius: 6px;"
         )
 
     def update_state(self, active_mode: str | None) -> None:

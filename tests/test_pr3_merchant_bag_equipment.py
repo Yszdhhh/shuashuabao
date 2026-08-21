@@ -102,7 +102,8 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_hero_card_triggers_evolution_flow_with_pending_action(self, mock_time):
-        """Hero card click dispatches PendingAction(WAIT_HERO_CHOICE) without requiring prior evolve."""
+        """Hero card click dispatches PendingAction(WAIT_HERO_CHOICE) after evolve 三选一."""
+        self.med._evolve_ok_this_cycle = True
         with patch.object(self.med, "_black_merchant_present", return_value=False), \
              patch.object(self.med, "_bond_bar_nonempty", return_value=False), \
              patch.object(self.med, "find") as mock_find, \
@@ -122,6 +123,7 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_hero_card_writes_back_inventory_last_pt_for_sticky_protection(self, mock_time):
         """B5 invariant: _maybe_use_hero_card writes back self._inventory_last_pt = pt on first match."""
+        self.med._evolve_ok_this_cycle = True
         with patch.object(self.med, "_black_merchant_present", return_value=False), \
              patch.object(self.med, "_bond_bar_nonempty", return_value=False), \
              patch.object(self.med, "find") as mock_find, \
@@ -167,18 +169,17 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
             self.assertEqual(self.med._devour_dan_consecutive_clicks, 0)
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_merchant_auto_refresh_not_implicitly_enabled_by_auto_gambling_time(self, mock_time):
-        """D3 invariant: auto_refresh is False when auto_gambling is False even if auto_gambling_time > 0."""
+    def test_merchant_refreshes_when_kill_count_allows(self, mock_time):
         self.med.settings.auto_gambling_time = 10
         self.med.settings.auto_gambling = False
         with patch.object(self.med, "_black_merchant_present", return_value=True), \
              patch.object(self.med, "_bond_bar_nonempty", return_value=False), \
              patch.object(self.med, "find", return_value=None), \
              patch.object(self.med, "_merchant_refresh_available", return_value=True), \
-             patch.object(self.med, "act_click") as mock_click:
+             patch.object(self.med, "act_click", return_value=True) as mock_click:
             action = self.med._maybe_black_merchant(self.frame)
-            self.assertIsNone(action)
-            mock_click.assert_not_called()
+            self.assertEqual(action, LoopAction.Continue)
+            self.assertEqual(mock_click.call_args.args[1], "BlackMerchant-refresh")
 class TestEquipmentPeriodicInspection(unittest.TestCase):
     def setUp(self):
         self.med = Mediator(Settings(), ROOT)

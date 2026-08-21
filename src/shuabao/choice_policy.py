@@ -818,6 +818,8 @@ def _decide_collectible(
 ) -> PolicyDecision:
     kind = cands.panel_kind
     presets = settings.bond_presets if kind == PANEL_BOND else settings.treasure_presets
+    if not any(s.name for s in cands.slots):
+        return _no_safe_candidate(cands, state, kind, "卡名未读出/无安全候选")
     if kind == PANEL_TREASURE:
         eligible = _drop_negative_treasures(cands.slots, settings)
         for slot in eligible:

@@ -457,6 +457,7 @@ class S0PanelFsmTests(unittest.TestCase):
     def test_panel_waits_for_visibility_before_close(self) -> None:
         """打开后 2s 可见窗内不得下一 tick 反点关闭。"""
         med = self._panel_mediator(FakeClock(start=100.0), panel_visible_timeout_s=2.0)
+        med._l1_cycle_step = "skill"
         clock = FakeClock(start=100.0)
         med.executor = FakeInputExecutor(StopSignal(), clock)
         anchor_visible = False
@@ -496,6 +497,7 @@ class S0PanelFsmTests(unittest.TestCase):
 
         # 2s 到期未见 anchor → COOLDOWN、零盲点/盲关闭
         med2 = self._panel_mediator(FakeClock(start=200.0), panel_visible_timeout_s=2.0)
+        med2._l1_cycle_step = "skill"
         clock2 = FakeClock(start=200.0)
         med2.executor = FakeInputExecutor(StopSignal(), clock2)
         clicked2: list[str] = []
@@ -714,7 +716,7 @@ class S0SettingsTests(unittest.TestCase):
         self.assertEqual(s.panel_visible_timeout_s, 2.0)
         self.assertEqual(s.ui_action_interval_s, 1.5)
         self.assertEqual(s.panel_action_limit_per_fingerprint, 3)
-        self.assertEqual(s.panel_episode_limit_per_kind, 5)
+        self.assertEqual(s.panel_episode_limit_per_kind, 24)
         self.assertAlmostEqual(s.incident_sample_rate, 0.1)
 
         clamped = Settings._from_dict({

@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QLockFile
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
@@ -56,6 +57,11 @@ def main():
     global _INSTANCE_LOCK
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(True)
+    logo_ico = ROOT / "assets" / "branding" / "app_logo.ico"
+    if not logo_ico.exists():
+        logo_ico = ROOT / "assets" / "branding" / "app_logo.png"
+    if logo_ico.exists():
+        app.setWindowIcon(QIcon(str(logo_ico)))
     sys.excepthook = _handle_unhandled_exception
 
     APP_DATA.mkdir(parents=True, exist_ok=True)

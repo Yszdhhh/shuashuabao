@@ -349,8 +349,9 @@ def find_window_targets(
     title_contains: str = "",
     role: str | None = None,
     allow_fallback: bool = False,
+    allow_minimized: bool = False,
 ) -> list[WindowTarget]:
-    """List all visible targets, ranked by role and foreground status."""
+    """List all matching targets, ranked by role and foreground status."""
     try:
         import ctypes
         from ctypes import wintypes
@@ -365,7 +366,9 @@ def find_window_targets(
 
             @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
             def enum_proc(hwnd, _lparam):
-                if not user32.IsWindowVisible(hwnd) or user32.IsIconic(hwnd):
+                if not user32.IsWindowVisible(hwnd):
+                    return True
+                if not allow_minimized and user32.IsIconic(hwnd):
                     return True
                 length = user32.GetWindowTextLengthW(hwnd)
                 if length == 0:
@@ -381,7 +384,8 @@ def find_window_targets(
                 user32.GetWindowRect(hwnd, ctypes.byref(rect))
                 width = rect.right - rect.left
                 height = rect.bottom - rect.top
-                if width > 200 and height > 200:
+                is_iconic = bool(user32.IsIconic(hwnd))
+                if (width > 200 and height > 200) or (allow_minimized and is_iconic):
                     hwnd_val = int(hwnd)
                     class_name = get_window_class_name(hwnd_val)
                     pid, exe = get_window_process_info(hwnd_val)
@@ -424,19 +428,43 @@ def find_window_targets(
                 found = [target for target in found if _window_title_score(target.title, role) == 0]
 
         foreground = int(user32.GetForegroundWindow())
+        has_game_target = any(
+            "英雄三国" in (t.title or "") or "yhzg" in (t.title or "").lower()
+            for t in found
+        )
+        kk_targets = [
+            t for t in found
+            if not ("英雄三国" in (t.title or "") or "yhzg" in (t.title or "").lower())
+            and ("kk" in (t.title or "").lower() or "对战平台" in (t.title or "").lower())
+        ]
+        has_multiple_kk = len(kk_targets) >= 2
 
         def rank(target: WindowTarget) -> float:
             score = _window_title_score(target.title, role)
+            title = target.title.lower()
+            is_game = "英雄三国" in title or "yhzg" in title
+            area = target.width * target.height
+            if is_game:
+                score += 1000  # 1. 游戏进程存在时绝对优先置顶
+            elif has_game_target:
+                score -= 1000  # 已有游戏进程时，KK大厅/房间降权排后
+            elif "kk" in title or "对战平台" in title:
+                # 2. 只有 KK 时：若有一大一小两个窗口，小窗口（房间/建房弹窗）优先；若仅单窗口则大窗口大厅优先
+                if has_multiple_kk:
+                    # 面积较小者为房间/弹窗，赋予极高优先级
+                    min_area = min(t.width * t.height for t in kk_targets)
+                    if area == min_area:
+                        score += 300  # 小窗口（房间/建房）最高优先
+                    else:
+                        score += 100  # 大窗口（大厅）次之
+                else:
+                    score += 100   # 仅单个大厅窗口时正常置顶
+
             if target.hwnd == foreground:
                 score += 20
-            title = target.title.lower()
-            if "英雄三国kk" in title:
-                score += 40
-            elif "kk" in title:
-                score += 10
             if "挂机助手" in title or "懒人系列" in title:
-                score -= 60
-            return score + min(15, (target.width * target.height) / 300000)
+                score -= 200
+            return score
 
         return sorted(found, key=rank, reverse=True)
     except Exception:

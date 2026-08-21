@@ -47,44 +47,15 @@ class TestBondCompletionRuntime(unittest.TestCase):
         med._clear_pending_skill_cards()
         self.assertEqual(med._confirmed_bond_cards(), ())
 
-    def test_confirmed_cards_are_removed_from_remaining_whitelist(self):
+    def test_confirmed_cards_preserve_preset_whitelist(self):
         med = self.new_mediator()
         med._stage_bond_card("ocr_bond:三国")
         med._commit_pending_skill_cards()
         self.assertEqual(med._confirmed_bond_cards(), ("三国",))
-        self.assertEqual(med._remaining_bond_presets(), ("体术",))
-        self.assertEqual(med._policy_settings().bond_presets, ("体术",))
+        # 局内羁绊允许重复获得升级/合成，白名单持续生效
+        self.assertEqual(med._remaining_bond_presets(), ("三国", "体术"))
+        self.assertEqual(med._policy_settings().bond_presets, ("三国", "体术"))
         self.assertFalse(med._bond_presets_complete())
-
-    def test_all_confirmed_presets_complete_the_round_latch(self):
-        med = self.new_mediator()
-        for name in ("三国", "体术"):
-            med._stage_bond_card(f"ocr_bond:{name}")
-            med._commit_pending_skill_cards()
-        self.assertTrue(med._bond_presets_complete())
-        self.assertEqual(med._remaining_bond_presets(), ())
-        self.assertEqual(med._policy_settings().bond_presets, ())
-
-    def test_completed_presets_skip_proactive_f_and_advance_to_treasure(self):
-        med = self.new_mediator()
-        med._bond_cards_owned[:] = ["三国", "体术"]
-        med._l1_cycle_step = "bond"
-        med._panel_state = PanelState.CLOSED
-        frame = Frame(
-            np.zeros((900, 1600, 3), dtype=np.uint8),
-            window_title="英雄三国",
-            hwnd=1,
-        )
-        with patch.object(
-            med,
-            "act_click",
-            side_effect=AssertionError("completed bond presets must not click F"),
-        ):
-            result = med._maybe_open_choice_panel(frame, anchor=None)
-        self.assertEqual(result, LoopAction.Continue)
-        self.assertEqual(med._l1_cycle_step, "treasure")
-        self.assertEqual(med._panel_state, PanelState.CLOSED)
-
     def test_partial_presets_keep_bond_step_available(self):
         med = self.new_mediator()
         med._bond_cards_owned[:] = ["三国"]

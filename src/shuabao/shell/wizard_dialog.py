@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -63,10 +64,10 @@ def _load_stage_max() -> dict[int, int]:
 SKILL_META, SKILL_PRESETS = _load_skill_catalog()
 STAGE_MAX = _load_stage_max()
 CHAPTER_LABELS = {
-    1: "旧世界大陆",
-    2: "熔火之心",
-    3: "黑翼之潮",
-    4: "安琪拉",
+    1: "第一篇章：旧世界大陆",
+    2: "第二篇章：熔火之心",
+    3: "第三篇章：黑翼之潮",
+    4: "第四篇章：安琪拉",
 }
 
 
@@ -151,6 +152,12 @@ class GameStyleWizardDialog(QDialog):
     def __init__(self, parent=None, settings=None, initial_settings=None):
         super().__init__(parent)
         self.setWindowTitle("选择运行方式")
+        root = Path(__file__).resolve().parents[3]
+        logo_ico = root / "assets" / "branding" / "app_logo.ico"
+        if not logo_ico.exists():
+            logo_ico = root / "assets" / "branding" / "app_logo.png"
+        if logo_ico.exists():
+            self.setWindowIcon(QIcon(str(logo_ico)))
         self.setModal(True)
         self.resize(*_MODE_SIZE)
         self.setMinimumSize(420, 260)
@@ -202,7 +209,7 @@ class GameStyleWizardDialog(QDialog):
         self.btn_next.setObjectName("goldBtn")
         self.btn_next.clicked.connect(self._on_next)
         nav.addWidget(self.btn_next)
-        self.btn_run = QPushButton("确认选择")
+        self.btn_run = QPushButton("开始游戏")
         self.btn_run.setObjectName("goldBtn")
         self.btn_run.clicked.connect(self._on_run)
         self.btn_run.setVisible(False)
@@ -212,17 +219,13 @@ class GameStyleWizardDialog(QDialog):
     def _create_mode_page(self):
         w = QWidget()
         l = QVBoxLayout(w)
-        l.setContentsMargins(0, 4, 0, 0)
+        l.setContentsMargins(0, 8, 0, 0)
         l.setSpacing(12)
-        hint = QLabel("先选单人还是组队。确认后会弹出预设选择。")
-        hint.setObjectName("wizardSub")
-        hint.setWordWrap(True)
-        l.addWidget(hint)
 
         row = QHBoxLayout()
         row.setSpacing(12)
-        self.card_solo = _card_button("单人刷图", "自己建房 · 全自动")
-        self.card_ride = _card_button("组队蹭车", "大厅搜 3/4 · 跟车")
+        self.card_solo = _card_button("单人", "自己建房 · 全自动")
+        self.card_ride = _card_button("多人", "全自动蹭车 · 跟车 · 带人")
         self.card_solo.setChecked(True)
         self.mode_group = QButtonGroup(w)
         self.mode_group.setExclusive(True)
@@ -232,8 +235,8 @@ class GameStyleWizardDialog(QDialog):
         row.addWidget(self.card_ride, 1)
         l.addLayout(row, 1)
 
-        self.rb_solo = QRadioButton("单人刷图模式 (自动建房/全自动化路线)")
-        self.rb_ride = QRadioButton("大厅跟车/蹭车模式 (自动搜索车队/跟随压力转移)")
+        self.rb_solo = QRadioButton("单人模式")
+        self.rb_ride = QRadioButton("多人模式")
         self.rb_solo.setChecked(True)
         self.rb_solo.hide()
         self.rb_ride.hide()
@@ -246,7 +249,6 @@ class GameStyleWizardDialog(QDialog):
         self.rb_solo.toggled.connect(lambda on: on and self.card_solo.setChecked(True))
         self.rb_ride.toggled.connect(lambda on: on and self.card_ride.setChecked(True))
         return w
-
     def _create_preset_page(self):
         w = QWidget()
         l = QVBoxLayout(w)
@@ -257,9 +259,8 @@ class GameStyleWizardDialog(QDialog):
         form.setSpacing(10)
         self.cb_chapter = QComboBox()
         for chapter in sorted(STAGE_MAX):
-            count = STAGE_MAX[chapter]
-            name = CHAPTER_LABELS.get(chapter, f"主线{chapter}")
-            self.cb_chapter.addItem(f"第 {chapter} 篇章 · {name}（1-{count}）", chapter)
+            name = CHAPTER_LABELS.get(chapter, f"第{chapter}篇章")
+            self.cb_chapter.addItem(name, chapter)
         self.cb_stage = QComboBox()
         form.addWidget(QLabel("篇章"))
         form.addWidget(self.cb_chapter, 1)
@@ -284,9 +285,9 @@ class GameStyleWizardDialog(QDialog):
             name = str((preset or {}).get("name") or f"预设 {i + 1}")
             short = name.split("（", 1)[0].strip()
             codes = [skill_label(c) for c in (preset.get("codes") or [])[:4]]
-            hint = str((preset or {}).get("hint") or " · ".join(codes) or "目录预设")
-            btn = _card_button(short, hint)
-            btn.setMinimumHeight(110)
+            skills_text = " + ".join(codes) if codes else "无技能"
+            btn = _card_button(short, skills_text)
+            btn.setMinimumHeight(100)
             self.preset_group.addButton(btn, i)
             btn.clicked.connect(lambda _=False, idx=i: self._on_preset_changed(idx))
             self.preset_cards.append(btn)

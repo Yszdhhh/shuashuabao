@@ -175,7 +175,6 @@ class LiveRun205044Tests(unittest.TestCase):
 
     def test_current_bond_panel_uses_card_hide_as_safe_exit(self) -> None:
         med = Mediator(Settings(ocr_mode="live"), ROOT)
-        med._panel_opened_by_us = "bond"
         close = MatchResult("card_hide", 0.80, 800, 575, 10, 10, 800, 575)
 
         def find(_frame, names, **_kwargs):
@@ -190,6 +189,12 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(choice[0], "bond")
         self.assertEqual(choice[1].name, "card_hide")
 
+        med._panel_opened_by_us = "bond"
+        with patch.object(med, "find", side_effect=find), \
+                patch.object(med, "_panel_kind_of", return_value="bond"), \
+                patch.object(med, "_ocr_reward_choice", return_value=None):
+            self.assertIsNone(med._find_reward_choice(frame(), close))
+
     def test_inventory_hero_card_does_not_loop_on_static_evolution_label(self) -> None:
         med = Mediator(Settings(ui_action_interval_s=0.0), ROOT)
         hero = MatchResult("hero_card_item", 0.99, 1100, 800, 10, 10, 1100, 800)
@@ -202,12 +207,15 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(find.call_args.args[1], ["hero_card_item"])
 
     def test_inventory_hero_card_requires_evolve_and_caps_per_visit(self) -> None:
-        """PR-3: 英雄卡解除必须先点进化的限制，派发 PendingAction 并限制单次访问最多 2 次。"""
+        """英雄卡必须等本轮点击进化的三选一完成；单次装备访问最多 2 次。"""
         med = Mediator(Settings(ui_action_interval_s=0.0), ROOT)
         hero = MatchResult("hero_card_item", 0.99, 1303, 898, 10, 10, 1303, 898)
         med._bond_bar_nonempty = lambda _frame: False
         with patch.object(med, "find", return_value=hero), \
                 patch.object(med, "act_click", return_value=True) as click:
+            self.assertIsNone(med._maybe_use_inventory_item(frame()))
+            click.assert_not_called()
+            med._evolve_ok_this_cycle = True
             self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)
             med._inventory_next_at = 0.0
             self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)
@@ -494,7 +502,7 @@ class LiveRun205044Tests(unittest.TestCase):
                     self.assertNotEqual(med._l1_cycle_step, "evolve")  # 跳过本轮进化
 
     def test_evolve_feedback_advances_cycle_once(self) -> None:
-        # P0-2：点击后有面板/画面反馈 → 视为成功推进，只推进一次（不重复点击）。
+        # 点击进化有反馈后停在 evolve 等英雄三选一；未选出前不进装备、不用英雄卡。
         med = self._evolve_ready_med()
         med._evolve_feedback_pending = True
         med._evolve_fail_count = 2
@@ -504,7 +512,9 @@ class LiveRun205044Tests(unittest.TestCase):
             self.assertIs(med._tick_main_line(frame()), LoopAction.Continue)
         self.assertFalse(med._evolve_feedback_pending)
         self.assertEqual(med._evolve_fail_count, 0)
-        self.assertEqual(med._l1_cycle_step, "equipment")
+        self.assertEqual(med._l1_cycle_step, "evolve")
+        self.assertTrue(med._evolve_awaiting_hero_pick)
+        self.assertFalse(med._evolve_ok_this_cycle)
 
     def test_evolution_modal_handling_advances_evolve_step(self) -> None:
         # P0-2：进化面板真实出现并被处理 = 点击成功反馈 → L1 循环从 evolve 推进
@@ -541,6 +551,30 @@ class LiveRun205044Tests(unittest.TestCase):
         image = np.full((900, 1600, 3), 255, dtype=np.uint8)
         with patch.object(med2, "_selection_anchor", return_value=None):
             self.assertTrue(med2._evolve_feedback_seen(Frame(image)))
+
+    def test_evolve_clicks_gold_bar_not_dirt(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        # 左侧羁绊图标（成长）不得当成进化
+        cv2.rectangle(image, (560, 620), (760, 680), (20, 180, 230), -1)
+        # 「点击进化」金条在羁绊图标右侧偏下
+        cv2.rectangle(image, (800, 690), (980, 715), (20, 200, 240), -1)
+        hit = med._evolve_button_hit(Frame(image, hwnd=1, window_title="英雄三国KK"))
+        self.assertGreater(hit.x, 760)
+        self.assertGreater(hit.y, 680)
+        self.assertGreaterEqual(hit.x, int(1600 * 0.48))
+        self.assertLessEqual(hit.x, int(1600 * 0.64))
+        self.assertGreaterEqual(hit.y, int(900 * 0.75))
+        self.assertLessEqual(hit.y, int(900 * 0.81))
+
+    def test_orange_border_not_classified_as_green(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        cx, cy = 800, 300
+        cv2.rectangle(image, (cx - 80, cy - 80), (cx + 80, cy + 80), (0, 140, 230), 8)
+        scored = med._card_rarity_score(Frame(image), cx, cy, "treasure")
+        self.assertIsNotNone(scored)
+        self.assertEqual(scored[1], "orange")
 
     # ---------- P0-3：面板锚点双帧确认 + 联合分类 + 自然面板 OCR（215302） ----------
 

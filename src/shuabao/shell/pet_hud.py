@@ -1,9 +1,10 @@
 """沉浸式拟人悬浮伴侣 (Floating Mascot Pet HUD)."""
 from __future__ import annotations
 
+from pathlib import Path
 import random
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -56,10 +57,15 @@ class FloatingPetHud(QWidget):
         layout.setContentsMargins(14, 8, 14, 8)
         layout.setSpacing(10)
 
-        self.pet_avatar = QLabel("🤖")
-        self.pet_avatar.setStyleSheet("font-size: 26px; padding: 2px;")
+        self.pet_avatar = QLabel()
+        pet_path = Path(__file__).resolve().parents[3] / "assets" / "branding" / "pet_mode_1.png"
+        if pet_path.exists():
+            pix = QPixmap(str(pet_path)).scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            self.pet_avatar.setPixmap(pix)
+        else:
+            self.pet_avatar.setText("🤖")
+            self.pet_avatar.setStyleSheet("font-size: 26px; padding: 2px;")
         layout.addWidget(self.pet_avatar)
-
         text_layout = QVBoxLayout()
         text_layout.setSpacing(2)
 
@@ -142,7 +148,7 @@ class FloatingPetHud(QWidget):
         path = QPainterPath()
         rect = self.rect().adjusted(1, 1, -1, -1)
         path.addRoundedRect(rect.x(), rect.y(), rect.width(), rect.height(), 14, 14)
-        bg = QColor(self._palette.get("bg_surface", "#FBF8F1"))
+        bg = QColor(self._palette.get("bg_surface", "#141A2E"))
         bg.setAlpha(230)
         painter.fillPath(path, bg)
         border = QColor(self._palette.get("border_focus", "#D8A94A"))
