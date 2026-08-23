@@ -3741,6 +3741,16 @@ class Mediator:
         self._hero_focus_next_check_at = now + 1.5
         return LoopAction.Continue
 
+    def _find_tqtz(self, frame: Frame) -> MatchResult | None:
+        """统一查找局内 10 分钟『提前挑战』图标（tqtz.png），作为 Core 与 Watchdog 唯一的单一事实源。"""
+        hit = self.find(
+            frame,
+            ["tqtz"],
+            threshold=0.80,
+            roi=(0.20, 0.03, 0.45, 0.15),
+        )
+        return hit if isinstance(hit, MatchResult) else None
+
     def _maybe_click_tqtz(self, frame: Frame, now: float) -> LoopAction | None:
         """局内检测到 10 分钟『提前挑战』图标（tqtz.png）时主动点击触发打 Boss。"""
         if getattr(self, "_tqtz_clicked", False):
@@ -3749,13 +3759,8 @@ class Mediator:
             return None
         if now < getattr(self, "_tqtz_next_check_at", 0.0):
             return None
-        tqtz_hit = self.find(
-            frame,
-            ["tqtz"],
-            threshold=0.80,
-            roi=(0.20, 0.03, 0.45, 0.15),
-        )
-        if tqtz_hit is None or not isinstance(tqtz_hit, MatchResult):
+        tqtz_hit = self._find_tqtz(frame)
+        if tqtz_hit is None:
             return None
         takeover_elapsed = (
             round(now - self._round_started_at, 1)
@@ -3868,13 +3873,14 @@ class Mediator:
             self._main_line_closed_done = True
             return None
         if state == "ON" and hit is not None:
-            attempts = getattr(self, "_close_main_line_attempts", 0) + 1
-            self._close_main_line_attempts = attempts
-            if attempts > 5:
-                print("[med] 5-5 取消自动任务连续 5 次未确认切为 OFF，保留未解决状态并停止本轮盲试")
-                self._close_main_line_next_at = now + 5.0
+            attempts = int(getattr(self, "_close_main_line_attempts", 0) or 0)
+            if attempts >= 5:
+                print("[med] 5-5 取消自动任务已达 5 次未确认切为 OFF，进入 10s 冷却并在下轮重试 (Fail-Forward)")
+                self._close_main_line_attempts = 0
+                self._close_main_line_next_at = now + 10.0
                 return None
-            print(f"[med] 5-5 完成，按配置点击取消【自动任务】@ {hit.center} (尝试 {attempts}/5)")
+            self._close_main_line_attempts = attempts + 1
+            print(f"[med] 5-5 完成，按配置点击取消【自动任务】@ {hit.center} (尝试 {self._close_main_line_attempts}/5)")
             if self.act_click(hit, "DisableAutoTask"):
                 self._close_main_line_next_at = now + 1.0
                 self._main_line_since = now
@@ -7485,14 +7491,17 @@ class Mediator:
         for dialog in self._aux_dialog_attempts:
             if post_game != dialog:
                 self._aux_dialog_attempts[dialog] = 0
-        if post_game != "PAUSED" and int(getattr(self, "_pause_resume_attempts", 0) or 0) > 0:
-            # 后置确认：暂停锚点消失（用户手动恢复或我们的点击生效）→ 清计数回主线。
+        if post_game != "PAUSED" and (
+            int(getattr(self, "_pause_resume_attempts", 0) or 0) > 0
+            or int(getattr(self, "_pause_resume_unmatched_attempts", 0) or 0) > 0
+        ):
+            # 后置确认：暂停锚点消失（用户手动恢复或我们的点击生效）→ 清所有暂停计数回主线。
             print("[med] 暂停已恢复（暂停锚点消失确认），回到主线任务判断")
             self._pause_resume_attempts = 0
+            self._pause_resume_unmatched_attempts = 0
             self._pause_resume_next_at = 0.0
             self._main_line_since = now
         if post_game == "PAUSED":
-            self._main_line_since = now
             return self._maybe_resume_paused(frame, now)
         if post_game == "POST_VICTORY":
             if self._post_game_pending:

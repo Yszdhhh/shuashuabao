@@ -223,13 +223,11 @@ class Mediator(CoreMediator):
         pending = getattr(self, "_pending_action", None)
         if pending is not None and now < float(getattr(pending, "deadline", 0.0) or 0.0):
             return False
-
         # 仲裁保护：第一帧检测到 PAUSED 或 tqtz 或选择面板时，严禁看门狗抢先发 ESC
         if self._post_game_state(frame) == "PAUSED":
             return False
         if not getattr(self, "_tqtz_clicked", False):
-            tqtz_hit = self.find(frame, "tqtz", threshold=0.75, roi=(0.0, 0.0, 0.35, 0.35))
-            if tqtz_hit is not None:
+            if self._find_tqtz(frame) is not None:
                 return False
         if self._classify_choice_panel(frame) is not None:
             return False

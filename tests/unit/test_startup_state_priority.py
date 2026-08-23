@@ -326,9 +326,39 @@ def test_watchdog_arbitration_blocks_esc_on_first_frame_paused_or_tqtz():
     with patch.object(med, "_post_game_state", return_value="PAUSED"):
         assert med._runtime_watchdog_allowed(frame, now) is False
 
-    # 第一帧 tqtz 出现：即便 _early_challenge_pending 为 False，看门狗仍被严格阻断
+    # 第一帧 tqtz 出现：通过真实 _find_tqtz 共享检测，看门狗仍被严格阻断
     tqtz_hit = MatchResult("tqtz", .85, 438, 79, 85, 22, 665, 171)
     with patch.object(med, "_post_game_state", return_value=None), \
-         patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "_find_tqtz", return_value=tqtz_hit), \
          patch.object(med, "_classify_choice_panel", return_value=None):
         assert med._runtime_watchdog_allowed(frame, now) is False
+
+
+def test_close_main_line_fail_forward_retry_episode_after_5_attempts():
+    med = Mediator(Settings(auto_close_main_line=True), ROOT)
+    frame = _frame()
+    on_hit = MatchResult("auto_task_on", .9, 100, 100, 50, 20, 125, 110)
+
+    med._close_main_line_triggered = True
+    med._close_main_line_attempts = 5
+    with patch.object(med, "_auto_task_state", return_value=("ON", on_hit)):
+        res = med._maybe_close_main_line_after_5_5(frame, 1.0)
+        assert res is None
+        assert med._close_main_line_attempts == 0
+        assert med._close_main_line_next_at == 11.0
+        assert getattr(med, "_main_line_closed_done", False) is False
+
+
+def test_paused_unmatched_attempts_reset_when_paused_cleared():
+    med = Mediator(Settings(), ROOT)
+    frame = _frame()
+    med.phase = Phase.MAIN_LINE
+    med._pause_resume_unmatched_attempts = 3
+    med._pause_resume_attempts = 0
+
+    # 模拟暂停状态已消失（post_game != "PAUSED"）
+    with patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_round_tail_checks_active", return_value=False):
+        med._tick_main_line(frame)
+    assert med._pause_resume_unmatched_attempts == 0
+    assert med._pause_resume_attempts == 0
