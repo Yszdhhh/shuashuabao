@@ -539,6 +539,9 @@ class PanelCandidates:
     settings: PolicySettings | Mapping[str, Any] | None = None
     owned_skill_cards: tuple[str, ...] = ()
     owned_bond_cards: tuple[str, ...] = ()
+    # Remaining cells in the bond bar; populated by the capture layer when
+    # geometry is verified.  ``None`` keeps the legacy policy unchanged.
+    bond_free_slots: int | None = None
     def __post_init__(self) -> None:
         if self.panel_kind is not None and self.panel_kind not in VALID_PANEL_KINDS:
             raise ValueError(
@@ -1040,6 +1043,28 @@ def _decide_collectible(
                     print_note = "高级卡组仅放行前 2 组"
                 eligible = tuple(slot for slot in eligible if slot.name in allowed)
                 queued_advanced = True
+                if (
+                    cands.bond_free_slots is not None
+                    and cands.bond_free_slots <= 2
+                    and basic
+                ):
+                    # Capacity pressure closes the advanced-pack bypass: keep
+                    # looking for a basic/synthesis card instead of filling
+                    # the last two cells with a new pack.
+                    pressure_synth = _match_synthesis(
+                        cands, settings.min_confidence, slots=eligible
+                    )
+                    if pressure_synth is not None:
+                        name = _slot_name(cands.slots, pressure_synth)
+                        return PolicyDecision.select(
+                            pressure_synth,
+                            f"卡槽仅余 {cands.bond_free_slots} 格，优先完成套装：{name}",
+                        )
+                    else:
+                        allowed = set(basic)
+                        presets = basic
+                        eligible = tuple(slot for slot in cands.slots if slot.name in allowed)
+                        print_note = f"卡槽仅余 {cands.bond_free_slots} 格，高级卡组暂缓"
                 if not eligible:
                     if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
                         return PolicyDecision(PolicyAction.REFRESH, None, f"{print_note}，刷新寻找允许卡")
@@ -1062,6 +1087,17 @@ def _decide_collectible(
                 ):
                     return PolicyDecision.select(
                         slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
+                    )
+
+            # Capacity pressure changes the order: with at most two cells
+            # left, a verifiable near-complete set is worth more than opening
+            # another preset/advanced pack and consuming the last cells.
+            if cands.bond_free_slots is not None and cands.bond_free_slots <= 2:
+                synth_hit = _match_synthesis(cands, settings.min_confidence, slots=eligible)
+                if synth_hit is not None:
+                    name = _slot_name(cands.slots, synth_hit)
+                    return PolicyDecision.select(
+                        synth_hit, f"卡槽紧张，羁绊套装进度优先：{name} @ slot {synth_hit}"
                     )
     preset_hit = _match_preset(
         eligible,

@@ -508,6 +508,43 @@ class TestBondPackQueue(unittest.TestCase):
         d = choose_action(self._bonds(settings=settings(bond_presets=[], bond_whitelist_mode='soft')))
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
 
+    def test_tight_capacity_synthesis_beats_advanced_preset(self):
+        d = choose_action(
+            bond_cands(
+                [slot(0, "法术威力"), slot(1, "秘法师")],
+                set_progress={
+                    "法术": {
+                        "have": 2,
+                        "need": 3,
+                        "members": ["法术威力", "法师奥义"],
+                        "owned": ["法师奥义"],
+                    }
+                },
+                bond_free_slots=2,
+                owned_bond_cards=("法术", "法师奥义"),
+                settings=settings(
+                    bond_presets=["秘法师", "法术威力"],
+                    bond_basic_presets=["法术"],
+                    bond_advanced_packs=[("法术组", ["法术威力"]), ("秘法师组", ["秘法师"])],
+                ),
+            )
+        )
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
+
+    def test_tight_capacity_does_not_open_advanced_pack(self):
+        d = choose_action(
+            bond_cands(
+                [slot(0, "经济")],
+                bond_free_slots=2,
+                settings=settings(
+                    bond_presets=["经济"],
+                    bond_basic_presets=["法术"],
+                    bond_advanced_packs=[("经济组", ["经济"])],
+                ),
+            )
+        )
+        self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
+
     def test_synthesis_smaller_gap_wins(self):
         # 1 格之差的套装严格优先于 2 格之差。
         cands = bond_cands(

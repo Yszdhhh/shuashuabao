@@ -176,6 +176,16 @@ def test_bond_occupancy_unknown_fails_closed_without_crashing():
     assert med._bond_replace_candidate is None
 
 
+def test_bond_near_full_arms_replacement_before_last_cell_is_consumed():
+    med = Mediator(Settings(cards=["经济"]), ROOT)
+    slots = [{"index": 0, "name": "经济", "confidence": 0.99, "raw_text": "经济(2/3)"}]
+    with patch.object(med, "_ocr_panel_slots", return_value=slots), \
+         patch.object(med, "_bond_bar_occupancy", return_value=9):
+        hit = med._ocr_reward_choice(_frame(), "bond")
+    assert hit is not None
+    assert med._bond_replace_candidate == "经济"
+
+
 def test_see_restores_minimized_target_window():
     """用户规则：所有窗口都可能最小化；无效帧 + IsIconic → SW_RESTORE。"""
     med = Mediator(Settings(), ROOT)

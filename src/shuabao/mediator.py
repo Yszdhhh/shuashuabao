@@ -2524,6 +2524,12 @@ class Mediator:
         bar = self._ocr_bond_replace_slots(frame)
         capacity = int((load_bond_stack_catalog().get("capacity") or 10))
         if len(bar) != capacity:
+            # Shadow OCR can miss one title during the replacement transition;
+            # reuse the already-confirmed bar facts when they cover all cells.
+            owned_bar = tuple(self._confirmed_bond_cards())
+            if len(owned_bar) == capacity:
+                bar = owned_bar
+        if len(bar) != capacity:
             return LoopAction.Continue
         decision = decide_bond_capacity(
             tuple(bar), incoming, on_replace_ui=True, merchant_exhausted=True,
@@ -2560,6 +2566,9 @@ class Mediator:
         self._sync_choice_session_refreshes()
         slots = self._slots_to_candidates(frame, kind, slots_raw)
         set_progress = self._bond_choice_progress(slots_raw) if kind == "bond" else None
+        occupancy = self._bond_bar_occupancy(frame) if kind == "bond" else None
+        capacity = int((load_bond_stack_catalog().get("capacity") or 10)) if kind == "bond" else 0
+        free_slots = max(0, capacity - occupancy) if occupancy is not None else None
         decision = choose_action(
             PanelCandidates(
                 panel_kind=kind,
@@ -2571,6 +2580,7 @@ class Mediator:
                 settings=self._policy_settings(),
                 owned_skill_cards=self._confirmed_skill_cards(),
                 owned_bond_cards=self._confirmed_bond_cards(),
+                bond_free_slots=free_slots,
             ),
             self._choice_session,
         )
@@ -2578,9 +2588,10 @@ class Mediator:
             self._bond_replace_candidate = None
         if kind == "bond" and decision.action == PolicyAction.SELECT_SLOT:
             selected = next((slot.name for slot in slots if slot.index == decision.index), None)
-            capacity = int((load_bond_stack_catalog().get("capacity") or 10))
-            occupancy = self._bond_bar_occupancy(frame)
-            if selected and occupancy is not None and occupancy >= capacity:
+            # The game opens its replacement page when the selected card would
+            # consume the last free cell. Arm one cell early (9/10) so the
+            # pending incoming card survives the transition to that page.
+            if selected and occupancy is not None and occupancy >= max(0, capacity - 1):
                 self._bond_replace_candidate = self._canonical_bond_name(selected)
         if self.settings.dry_run:
             append_learning_observation(
