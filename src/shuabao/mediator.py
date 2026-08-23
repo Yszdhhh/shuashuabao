@@ -2672,7 +2672,9 @@ class Mediator:
         if not anchor:
             return None
 
-        if getattr(self, "_evolve_awaiting_hero_pick", False):
+        kind = self._panel_kind_of(frame, anchor)
+        # 进化英雄弹窗没有普通三面板锚点；已识别的面板绝不能被残留进化标志劫持。
+        if getattr(self, "_evolve_awaiting_hero_pick", False) and kind == "unknown":
             evo_hit = self._find_evolution_choice(frame, anchor)
             if evo_hit is not None:
                 print(f"[L1] 进化英雄选择：{evo_hit.name} @ {evo_hit.center}")
@@ -2681,7 +2683,6 @@ class Mediator:
             if rarity_hit is not None:
                 print(f"[L1] 进化英雄三选一按品质色：{rarity_hit.name} @ {rarity_hit.center}")
                 return ("card", rarity_hit)
-        kind = self._panel_kind_of(frame, anchor)
         if kind == "unknown":
             self._record_selection_unknown(frame, anchor, "panel classification failed")
             return None

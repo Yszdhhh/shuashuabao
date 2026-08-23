@@ -517,10 +517,10 @@ class Mediator(CoreMediator):
         return LoopAction.Continue
 
     # ------------------------------------------------------------------
-    # Merchant: swallow pill remains independent; refresh obeys user opt-in.
+    # Merchant: swallow pill remains independent; refresh obeys dashboard duration opt-in.
     # ------------------------------------------------------------------
     def _maybe_black_merchant(self, frame):
-        if bool(getattr(self.settings, "auto_gambling", False)):
+        if int(getattr(self.settings, "auto_gambling_time", 0) or 0) > 0:
             return super()._maybe_black_merchant(frame)
         now = time.time()
         if now < self._merchant_next_at or not self._black_merchant_present(frame):

@@ -87,6 +87,17 @@ def test_evolution_refresh_is_never_reported_as_completed_pick():
             assert m._find_evolution_choice(frame()) is card
 
 
+def test_known_treasure_panel_is_not_stolen_by_pending_evolution():
+    m = med()
+    m._evolve_awaiting_hero_pick = True
+    anchor = hit("treasure_hide_btn", 900, 580)
+    with patch.object(m, "_panel_kind_of", return_value="treasure"), patch.object(
+        CoreMediator, "_find_evolution_choice"
+    ) as evolution:
+        CoreMediator._find_reward_choice(m, frame(), anchor)
+    evolution.assert_not_called()
+
+
 def test_stage_start_requires_positive_highlight_and_rearms_selection():
     m = med(stage_targets=["1-21"])
     m._stage_selected = True
@@ -106,6 +117,18 @@ def test_merchant_disabled_does_not_implicitly_refresh_or_buy_other_items():
     ) as click:
         assert m._maybe_black_merchant(frame()) is None
     click.assert_not_called()
+
+
+def test_merchant_duration_opt_in_refreshes_when_no_safe_item_exists():
+    m = med(auto_gambling_time=13)
+    m._merchant_next_at = 0.0
+    with patch.object(m, "_black_merchant_present", return_value=True), patch.object(
+        m, "_bond_bar_nonempty", return_value=False
+    ), patch.object(m, "find", return_value=None), patch.object(
+        m, "_merchant_refresh_available", return_value=True
+    ), patch.object(m, "act_click", return_value=True) as click:
+        assert m._maybe_black_merchant(frame()) is LoopAction.Continue
+    assert click.call_args.args[1] == "BlackMerchant-refresh"
 
 
 def test_physical_panel_deadline_recovers_instead_of_stopping_runtime():
