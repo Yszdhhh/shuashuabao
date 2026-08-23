@@ -94,6 +94,7 @@ from shuabao.choice_policy import (
     choose_action,
     slot_fingerprint,
 )
+from shuabao.bond_capacity import CapacityAction, decide_bond_capacity, load_bond_stack_catalog
 from shuabao.interaction_surface import (
     ActionLifecycle,
     InteractionSurface,
@@ -418,6 +419,8 @@ class Mediator:
         "bond": ((0.331, 0.44), (0.503, 0.44), (0.676, 0.44)),
         "treasure": ((0.352, 0.42), (0.500, 0.42), (0.648, 0.42)),
     }
+    # 20260823_141204 实机替换卡牌窗：满格后 10 张旧卡横排在此区域。
+    _BOND_REPLACE_SLOT_CENTERS = tuple((0.288 + i * 0.0435, 0.520) for i in range(10))
     # 卡面效果描述 ROI（归一化）。宝物三槽 x 中心与品质色采样一致；
     # y/半宽按 fixtures/treasure_negative desc2_* 在整帧上的模板回投标定
     # （_panels/treasure_panel.png + 贪婪献祭 desc2；覆盖 DESCRIPTIONS.json 证据）。
@@ -625,6 +628,9 @@ class Mediator:
         self._skill_cards_owned: list[str] = []
         self._bond_cards_pending: list[str] = []
         self._bond_cards_owned: list[str] = []
+        self._bond_replace_candidate: str | None = None
+        self._bond_replace_pending: str | None = None
+        self._bond_replace_deadline = 0.0
         # ---- S0 ② 全局抢占：每类强证据独立连续帧计数（同 evidence generation 才累计）----
         self._failure_candidate_frames: int = 0
         self._failure_candidate_kind: str | None = None
@@ -2172,6 +2178,13 @@ class Mediator:
         if canonical:
             self._bond_cards_pending.append(canonical)
 
+    def _canonical_bond_name(self, name: str | None) -> str:
+        text = str(name or "").strip()
+        if text.startswith("ocr_bond:"):
+            text = text.split(":", 1)[1].strip()
+        stem = Path(text).stem
+        return str(self._fetter_labels.get(stem, stem)).strip()
+
     def _commit_pending_bond_cards(self) -> None:
         """WAIT_MUTATION 观察到内容变化/面板消失 → 确认拿卡，并入已持有序列。"""
         if not self._bond_cards_pending:
@@ -2443,6 +2456,68 @@ class Mediator:
                 occupied += 1
         return occupied
 
+    def _ocr_bond_replace_slots(self, frame: Frame) -> tuple[str, ...]:
+        """Read all ten old-card names in the verified full-bar replacement window."""
+        if self._ocr_client is None or not LayoutTransform.is_supported(frame.width, frame.height):
+            return ()
+        panel_id = f"bond-replace:{self._trace_frame_fingerprint(frame)}"
+        panel_bbox = self._normalized_bbox(frame, (0.26, 0.43, 0.70, 0.56))
+        names: list[str] = []
+        for index, (cx, _cy) in enumerate(self._BOND_REPLACE_SLOT_CENTERS):
+            bbox = self._normalized_bbox(frame, (cx - 0.022, 0.455, cx + 0.022, 0.495))
+            response = self._ocr_client.shadow_predict(
+                frame, panel_id, {"index": index, "bbox": bbox, "kind": "bond"}, panel_bbox=panel_bbox,
+            )
+            top = response.candidates[0] if response.candidates else None
+            name = self._canonical_bond_name(top.name if top else None)
+            if not name:
+                return ()
+            names.append(name)
+        return tuple(names)
+
+    def _protected_bond_names(self) -> tuple[str, ...]:
+        policy = self._policy_settings()
+        return tuple(dict.fromkeys((*policy.bond_presets, *policy.bond_must_take)))
+
+    def _resolve_bond_replacement(self, frame: Frame, now: float) -> LoopAction | None:
+        """Replace only a verified non-plan card after a full-bar selection."""
+        incoming = self._bond_replace_pending
+        if not incoming:
+            return None
+        if now >= self._bond_replace_deadline:
+            self._bond_replace_pending = None
+            self._bond_cards_pending.clear()
+            self._panel_state = PanelState.COOLDOWN
+            self._panel_cooldown_until["bond"] = now + self.settings.ui_action_interval_s
+            print("[L1] 替换卡牌窗未读全，零输入退出本轮羁绊")
+            return LoopAction.Continue
+        bar = self._ocr_bond_replace_slots(frame)
+        capacity = int((load_bond_stack_catalog().get("capacity") or 10))
+        if len(bar) != capacity:
+            return LoopAction.Continue
+        decision = decide_bond_capacity(
+            tuple(bar), incoming, on_replace_ui=True, merchant_exhausted=True,
+            protected_names=self._protected_bond_names(),
+        )
+        if decision.action == CapacityAction.REPLACE_THEN_MERGE and decision.replace_index is not None:
+            victim = bar[decision.replace_index]
+            ratio = self._BOND_REPLACE_SLOT_CENTERS[decision.replace_index]
+            hit = self._hud_button_hit(frame, "bond_replace_slot", ratio)
+            if self.act_click(hit, f"BondReplace-{victim}-for-{incoming}"):
+                if victim in self._bond_cards_owned:
+                    self._bond_cards_owned.remove(victim)
+                self._bond_replace_pending = None
+                print(f"[L1] 满槽顶替非合成卡【{victim}】→【{incoming}】")
+            return LoopAction.Continue
+        if decision.action == CapacityAction.ABANDON:
+            give_up = self._find_panel_giveup(frame, "bond")
+            if give_up is not None and self.act_click(give_up, "BondCapacity-abandon"):
+                self._bond_cards_pending.clear()
+                self._bond_replace_pending = None
+                print(f"[L1] 满槽无可安全顶替卡，放弃【{incoming}】")
+            return LoopAction.Continue
+        return LoopAction.Continue
+
     def _ocr_reward_choice(self, frame: Frame, kind: str) -> MatchResult | None:
         """OCR → SlotCandidate → choice_policy.choose_action → click target.
 
@@ -2468,6 +2543,13 @@ class Mediator:
             ),
             self._choice_session,
         )
+        if kind == "bond":
+            self._bond_replace_candidate = None
+        if kind == "bond" and decision.action == PolicyAction.SELECT_SLOT:
+            selected = next((slot.name for slot in slots if slot.index == decision.index), None)
+            capacity = int((load_bond_stack_catalog().get("capacity") or 10))
+            if selected and self._bond_bar_occupancy(frame) >= capacity:
+                self._bond_replace_candidate = self._canonical_bond_name(selected)
         if self.settings.dry_run:
             append_learning_observation(
                 {
@@ -4614,6 +4696,9 @@ class Mediator:
             self._create_room_last_candidate = None
         if phase in (Phase.PLATFORM_MAP, Phase.CREATE_ROOM):
             self._room_action_deadline = time.time() + self.settings.query_timeout
+        if phase != Phase.MAIN_LINE:
+            self._bond_replace_candidate = None
+            self._bond_replace_pending = None
         if phase == Phase.CREATE_ROOM:
             self._room_dialog_filled = False
         if phase in (Phase.ROOM_STARTING, Phase.STAGE_STARTING):
@@ -7191,6 +7276,12 @@ class Mediator:
                         self._stage_skill_card(hit.name)
                     if action_kind == "select" and kind == "羁绊":
                         self._stage_bond_card(hit.name)
+                        candidate = self._canonical_bond_name(self._bond_replace_candidate)
+                        selected = self._canonical_bond_name(hit.name)
+                        if candidate and candidate == selected:
+                            self._bond_replace_pending = candidate
+                            self._bond_replace_deadline = now + 4.0
+                        self._bond_replace_candidate = None
                     if action_kind == "select" and getattr(self, "_evolve_awaiting_hero_pick", False):
                         self._complete_evolve_hero_pick()
                     self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
@@ -7274,6 +7365,9 @@ class Mediator:
             print(f"[L1] 当前选择无配置命中（已等 {elapsed:.0f}s），保持零输入等待…")
             return LoopAction.Continue
         if st == PanelState.WAIT_MUTATION:
+            replacement = self._resolve_bond_replacement(frame, now)
+            if replacement is not None:
+                return replacement
             if anchor is None:
                 # 面板消失是最强消费/关闭证据；此时才确认 semantic action。
                 self._panel_confirmed_actions += 1

@@ -114,6 +114,18 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertEqual(hit.name, "ocr_bond:祝福")
 
+    def test_full_bar_replacement_never_clicks_a_configured_combo_card(self) -> None:
+        med = Mediator(Settings(cards=["修仙", "异火"]), ROOT)
+        med._bond_replace_pending = "修仙"
+        med._bond_replace_deadline = time.time() + 3.0
+        med._bond_cards_owned[:] = ["路人"]
+        bar = ("修仙", "异火", "路人", "路人甲", "路人乙", "路人丙", "路人丁", "路人戊", "路人己", "路人庚")
+        with patch.object(med, "_ocr_bond_replace_slots", return_value=bar), \
+                patch.object(med, "act_click", return_value=True) as click:
+            self.assertIs(med._resolve_bond_replacement(frame(), time.time()), LoopAction.Continue)
+        self.assertNotIn("路人", med._bond_cards_owned)
+        self.assertIn("BondReplace-路人-for-修仙", click.call_args.args[1])
+
     def test_basic_bond_precedes_advanced_bond(self) -> None:
         # 硬白名单：只勾「法术」时选法术；未勾的「亡灵天灾」即使接近合成也不选。
         med = Mediator(Settings(cards=["法术"], bond_whitelist_mode="hard"), ROOT)

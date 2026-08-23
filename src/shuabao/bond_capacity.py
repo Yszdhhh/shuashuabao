@@ -114,8 +114,14 @@ def stack_have(
     return sum(1 for slot in bar if slot == name)
 
 
-def _victim_indices(bar: tuple[str | None, ...], incoming: str) -> tuple[int, ...]:
-    return tuple(i for i, name in enumerate(bar) if name and name != incoming)
+def _victim_indices(
+    bar: tuple[str | None, ...], incoming: str, protected_names: tuple[str, ...]
+) -> tuple[int, ...]:
+    protected = set(protected_names)
+    return tuple(
+        i for i, name in enumerate(bar)
+        if name and name != incoming and name not in protected
+    )
 
 
 def decide_bond_capacity(
@@ -126,8 +132,9 @@ def decide_bond_capacity(
     progress: tuple[int, int] | None = None,
     on_replace_ui: bool = False,
     merchant_exhausted: bool = False,
+    protected_names: tuple[str, ...] = (),
 ) -> CapacityDecision:
-    """根据栏位/丹/能否并入，决定拿、买丹、顶替合成或放弃。"""
+    """根据栏位/丹/能否并入，决定拿、买丹、顶替或放弃。"""
     if not incoming:
         return CapacityDecision(CapacityAction.NONE, "没有候选卡")
 
@@ -137,9 +144,6 @@ def decide_bond_capacity(
     need = stack_need(incoming, progress)
     remain = (need - have) if need is not None else None
     completes = remain == 1
-    extends = have > 0 and remain is not None and remain > 1
-    freedom = empty + pills
-
     if completes:
         if empty > 0:
             return CapacityDecision(CapacityAction.TAKE, f"差一张合成：{incoming} {have}/{need}")
@@ -148,7 +152,7 @@ def decide_bond_capacity(
         if not merchant_exhausted:
             return CapacityDecision(CapacityAction.BUY_PILL, "满槽无丹，黑商买丹后再合成")
         if on_replace_ui:
-            victims = _victim_indices(bar, incoming)
+            victims = _victim_indices(bar, incoming, protected_names)
             if victims:
                 return CapacityDecision(
                     CapacityAction.REPLACE_THEN_MERGE,
@@ -164,15 +168,14 @@ def decide_bond_capacity(
             return CapacityDecision(CapacityAction.USE_PILL, "满槽，先丹腾格")
         if not merchant_exhausted:
             return CapacityDecision(CapacityAction.BUY_PILL, "满槽无丹，去黑商刷丹")
-        if extends or have > 0:
-            victims = _victim_indices(bar, incoming)
-            if on_replace_ui and victims:
-                return CapacityDecision(
-                    CapacityAction.REPLACE_THEN_MERGE,
-                    f"无丹可刷，顶替异名格并入 {incoming}",
-                    replace_index=victims[0],
-                    replace_indices=victims,
-                )
+        victims = _victim_indices(bar, incoming, protected_names)
+        if on_replace_ui and victims:
+            return CapacityDecision(
+                CapacityAction.REPLACE_THEN_MERGE,
+                f"满槽无丹，顶替非合成卡组格后收入 {incoming}",
+                replace_index=victims[0],
+                replace_indices=victims,
+            )
         if on_replace_ui:
             return CapacityDecision(CapacityAction.ABANDON, "满槽无丹且不能并入，放弃")
         return CapacityDecision(CapacityAction.SKIP_NEW, "满槽无丹且不能立刻合成，不拿新卡")
