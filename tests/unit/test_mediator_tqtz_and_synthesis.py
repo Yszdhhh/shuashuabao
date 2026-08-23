@@ -81,6 +81,7 @@ def test_tqtz_always_arms_main_line_close_after_verified_click():
     hit = MatchResult("tqtz", 0.90, 640, 192, 20, 20, 640, 192)
     with pytest.MonkeyPatch.context() as monkeypatch:
         monkeypatch.setattr(med, "_find_tqtz", lambda _frame: hit)
+        monkeypatch.setattr(med, "_auto_task_state", lambda _frame: ("OFF", None))
         monkeypatch.setattr(med, "act_click", lambda *_args, **_kwargs: True)
         assert med._maybe_click_tqtz(Frame(None), 30.0) is LoopAction.Continue
     assert med._close_main_line_triggered is True

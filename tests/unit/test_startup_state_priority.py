@@ -240,6 +240,7 @@ def test_tqtz_is_one_shot_and_blocks_regular_choice_until_confirmed():
     frame = _frame()
     tqtz_hit = MatchResult("tqtz", .85, 438, 79, 85, 22, 665, 171)
     with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "_auto_task_state", return_value=("OFF", None)), \
          patch.object(med, "act_click", return_value=True) as click:
         assert med._maybe_click_tqtz(frame, 100.0) is LoopAction.Continue
         assert med._maybe_click_tqtz(frame, 102.0) is None

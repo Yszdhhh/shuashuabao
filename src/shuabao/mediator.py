@@ -3839,6 +3839,15 @@ class Mediator:
         tqtz_hit = self._find_tqtz(frame)
         if tqtz_hit is None:
             return None
+        # 先停掉 5-5 后的自动主线，再点提前挑战。录像中先点挑战而自动任务
+        # 仍在推进会没有 Boss 入口反馈，随后只能重复等待超时。
+        self._close_main_line_triggered = True
+        if not getattr(self, "_main_line_closed_done", False):
+            close_res = self._maybe_close_main_line_after_5_5(frame, now)
+            if close_res is not None:
+                return close_res
+            if not getattr(self, "_main_line_closed_done", False):
+                return LoopAction.Continue
         takeover_elapsed = (
             round(now - self._round_started_at, 1)
             if self._round_started_at is not None
@@ -3856,7 +3865,6 @@ class Mediator:
             self._early_challenge_disappear_confirm_count = 0
             self._boss_challenge_attempts = 0
             self._main_line_since = now
-            self._close_main_line_triggered = True
             return LoopAction.Continue
         return None
 
