@@ -1,6 +1,7 @@
 import json
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -68,11 +69,12 @@ class P0C1FixesTests(unittest.TestCase):
                 mock_exec_click.assert_not_called()
 
     def test_main_line_unverified_entries_fail_closed(self):
-        """S0 ⑧ 阶段门控后：archive/boss_entry 只在局尾窗口检查（Fail-Closed 保留）；
-        longzhu 色相检查移至 LONGZHU 阶段。"""
+        """S0 ⑧ 阶段门控后：archive 只在局尾窗口检查（Fail-Closed 保留）；
+        boss_entry 20260822 起是 Boss 提前挑战入口——未配置挑战 Boss 时零输入
+        等待（不停机、零输入），配置后点击；longzhu 色相检查移至 LONGZHU 阶段。"""
         frame = create_dummy_frame()
 
-        for scene_key in ("archive", "boss_entry"):
+        for scene_key in ("archive",):
             self.med = Mediator(self.settings, ROOT)
             self.med.set_phase(Phase.MAIN_LINE)
             self.med._post_game_pending = True  # 局尾窗口（战后流程进行中）
@@ -100,6 +102,50 @@ class P0C1FixesTests(unittest.TestCase):
                 mock_act_right_click.assert_not_called()
                 mock_act_key.assert_not_called()
                 mock_exec_click.assert_not_called()
+
+        # boss_entry：未配置挑战 Boss → 零输入等待（不 ERROR、零输入）
+        self.med = Mediator(self.settings, ROOT)
+        self.med.set_phase(Phase.MAIN_LINE)
+        self.med._post_game_pending = True
+
+        def mock_find_scene_boss(f, sk, threshold=None):
+            if sk == "boss_entry":
+                return MatchResult(name="boss_entry", score=0.95, x=100, y=100, w=50, h=50, screen_x=100, screen_y=100)
+            return None
+
+        with patch.object(self.med, "find_scene", side_effect=mock_find_scene_boss), \
+             patch.object(self.med, "_selection_anchor", return_value=None), \
+             patch.object(self.med, "_ensure_challenge_buttons", return_value=False), \
+             patch.object(self.med, "act_click") as mock_act_click, \
+             patch.object(self.med.executor, "click") as mock_exec_click:
+            action = self.med._tick_main_line(frame)
+            self.assertEqual(action, LoopAction.Continue)
+            self.assertEqual(self.med.phase, Phase.MAIN_LINE)
+            mock_act_click.assert_not_called()
+            mock_exec_click.assert_not_called()
+
+        # boss_entry：已配置挑战 Boss → 点击配置 Boss 模板（BossConfigured）
+        self.med = Mediator(replace(self.settings, cjb_boss="04克雷什之父"), ROOT)
+        self.med.set_phase(Phase.MAIN_LINE)
+        self.med._post_game_pending = True
+        boss_hit = MatchResult(name="04克雷什之父", score=0.95, x=800, y=400, w=60, h=60, screen_x=800, screen_y=400)
+
+        def find_boss_only(f, names, **kw):
+            for n in names or ():
+                if "克雷什之父" in str(n):
+                    return boss_hit
+            return None
+
+        with patch.object(self.med, "find_scene", side_effect=mock_find_scene_boss), \
+             patch.object(self.med, "_selection_anchor", return_value=None), \
+             patch.object(self.med, "_ensure_challenge_buttons", return_value=False), \
+             patch.object(self.med, "find", side_effect=find_boss_only), \
+             patch.object(self.med, "act_click", return_value=True) as mock_act_click:
+            action = self.med._tick_main_line(frame)
+            self.assertEqual(action, LoopAction.Continue)
+            self.assertEqual(self.med.phase, Phase.MAIN_LINE)
+            mock_act_click.assert_called_once()
+            self.assertEqual(mock_act_click.call_args[0][1], "BossConfigured")
 
         # longzhu：仅在 LONGZHU 阶段检查并 Fail-Closed（MAIN_LINE 不再每 tick 扫）
         self.med = Mediator(self.settings, ROOT)

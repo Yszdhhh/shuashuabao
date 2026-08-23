@@ -1,0 +1,927 @@
+{
+  "version": 2,
+  "updated_at": "2026-08-22",
+  "source_videos": [
+    "G:/测试视频+抽帧/录屏素材/声望介绍.mp4",
+    "G:/测试视频+抽帧/录屏素材/英雄挑战任务.mp4"
+  ],
+  "overview": {
+    "title": "英雄模式与阵营声望系统",
+    "daily_reputation_cap": 9000,
+    "daily_glory_crystal_cap": 900,
+    "max_challenge_level": 24,
+    "reputation_ranks": [
+      {
+        "rank": "尊敬",
+        "max_level": 20
+      },
+      {
+        "rank": "崇敬",
+        "max_level": 20
+      },
+      {
+        "rank": "崇拜",
+        "max_level": 20
+      },
+      {
+        "rank": "传奇",
+        "max_level": 20
+      },
+      {
+        "rank": "永恒",
+        "max_level": 20
+      }
+    ],
+    "fail_forward_rule": "当今日可获取声望 == 0 或声望耗尽时，自动点击取消挑战，降级为常规单人/组队刷图，绝不卡死。"
+  },
+  "bosses": {
+    "2": "马格纳斯",
+    "3": "炽炎猎犬",
+    "4": "熔火大恶魔",
+    "5": "图恩 / 玛格曼达",
+    "8": "双BOSS",
+    "9": "阿克蒙德",
+    "10": "终极天灾"
+  },
+  "daily_caps": {
+    "reputation": 9000,
+    "crystal": 900,
+    "note": "当前难度最大挑战等级上限 24 级；段位 尊敬→崇敬→崇拜→传奇→永恒，各段位 Lv1 解锁阵营被动祝福与属性槽位"
+  },
+  "fail_forward": "今日可获取声望 == 0 时自动取消挑战，降级常规刷图，不中断挂机",
+  "level_rewards": {
+    "1": "声望150/水晶15",
+    "2": "声望150/水晶15",
+    "3": "声望150/水晶15",
+    "4": "声望150/水晶15",
+    "5": "声望200/水晶20",
+    "6": "声望200/水晶20",
+    "7": "声望300/水晶30",
+    "8": "声望200/水晶20",
+    "9": "声望300/水晶30",
+    "10": "声望500/水晶50"
+  },
+  "factions": {
+    "1": {
+      "id": 1,
+      "slug": "heifeng",
+      "name": "黑锋骑士团",
+      "theme": "力量 / 吸血流",
+      "focus_stat": "力量 (Strength)",
+      "attributes": [
+        "力量基础值提升",
+        "力量增幅%",
+        "每秒力量成长",
+        "杀敌力量成长",
+        "最终力量%",
+        "所有伤害加成%"
+      ],
+      "levels": {
+        "1": [
+          "怪物强度 ×1.2"
+        ],
+        "2": [
+          "怪物血量 +30%"
+        ],
+        "3": [
+          "怪物血量、防御 +20%"
+        ],
+        "4": [
+          "怪物百分比恢复 +1%/s"
+        ],
+        "5": [
+          "怪物强度 ×1.3"
+        ],
+        "6": [
+          "玩家最终力量 -50%"
+        ],
+        "7": [
+          "玩家最终伤害 -50%，恢复效果 -50%"
+        ],
+        "8": [
+          "怪物强度 ×1.3 (双BOSS)"
+        ],
+        "9": [
+          "玩家最终攻击 -25%，最终所有伤害 -25%"
+        ],
+        "10": [
+          "怪物强度 ×1.5 (全域极难)"
+        ]
+      },
+      "challenge_tasks_1_to_10": [
+        {
+          "level": 1,
+          "name": "怪物强化 I",
+          "affix": "怪物强度 ×1.2",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 2,
+          "name": "生命强化",
+          "affix": "怪物血量 +30%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "马格纳斯"
+        },
+        {
+          "level": 3,
+          "name": "体魄强化",
+          "affix": "怪物血量、防御 +20%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "炽炎猎犬"
+        },
+        {
+          "level": 4,
+          "name": "再生恢复",
+          "affix": "怪物百分比恢复 +1%/s",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "熔火大恶魔"
+        },
+        {
+          "level": 5,
+          "name": "狂暴突变",
+          "affix": "怪物强度 ×1.3",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          },
+          "boss": "吞噬者图恩 / 玛格曼达"
+        },
+        {
+          "level": 6,
+          "name": "重力压制",
+          "affix": "玩家最终力量 -50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 7,
+          "name": "生机削弱",
+          "affix": "玩家最终伤害 -50%，恢复效果 -50%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          }
+        },
+        {
+          "level": 8,
+          "name": "首领试炼 I",
+          "affix": "怪物强度 ×1.3 (双BOSS)",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          }
+        },
+        {
+          "level": 9,
+          "name": "绝望威压",
+          "affix": "玩家最终攻击 -25%，最终所有伤害 -25%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          },
+          "boss": "阿克蒙德"
+        },
+        {
+          "level": 10,
+          "name": "终极天灾",
+          "affix": "怪物强度 ×1.5 (全域极难)",
+          "reward": {
+            "reputation": 500,
+            "glory_crystal": 50
+          }
+        }
+      ]
+    },
+    "2": {
+      "id": 2,
+      "slug": "yinse",
+      "name": "银色北伐军",
+      "theme": "敏捷 / 物理流",
+      "focus_stat": "敏捷 (Agility)",
+      "attributes": [
+        "敏捷基础值提升",
+        "敏捷增幅%",
+        "每秒敏捷成长",
+        "杀敌敏捷成长",
+        "最终敏捷%",
+        "物理伤害加成%"
+      ],
+      "levels": {
+        "1": [
+          "怪物强度 ×1.2"
+        ],
+        "2": [
+          "怪物攻击 +40%"
+        ],
+        "3": [
+          "怪物血量、防御 +20%"
+        ],
+        "4": [
+          "怪物闪避 +25%"
+        ],
+        "5": [
+          "怪物强度 ×1.3"
+        ],
+        "6": [
+          "玩家最终敏捷 -50%"
+        ],
+        "7": [
+          "玩家攻速 -75%，攻击间隔 +0.25s，攻击范围 -300"
+        ],
+        "8": [
+          "怪物强度 ×1.3 (双BOSS)"
+        ],
+        "9": [
+          "玩家最终攻击 -25%，最终物理伤害 -25%"
+        ],
+        "10": [
+          "怪物强度 ×1.5 (全域极难)"
+        ]
+      },
+      "challenge_tasks_1_to_10": [
+        {
+          "level": 1,
+          "name": "怪物强化 I",
+          "affix": "怪物强度 ×1.2",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 2,
+          "name": "凶猛狂袭",
+          "affix": "怪物攻击 +40%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "马格纳斯"
+        },
+        {
+          "level": 3,
+          "name": "体魄强化",
+          "affix": "怪物血量、防御 +20%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "炽炎猎犬"
+        },
+        {
+          "level": 4,
+          "name": "灵动闪避",
+          "affix": "怪物闪避 +25%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "熔火大恶魔"
+        },
+        {
+          "level": 5,
+          "name": "狂暴突变",
+          "affix": "怪物强度 ×1.3",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          },
+          "boss": "吞噬者图恩 / 玛格曼达"
+        },
+        {
+          "level": 6,
+          "name": "迟缓束缚",
+          "affix": "玩家最终敏捷 -50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 7,
+          "name": "极速衰竭",
+          "affix": "玩家攻速 -75%，攻击间隔 +0.25s，攻击范围 -300",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          }
+        },
+        {
+          "level": 8,
+          "name": "首领试炼 I",
+          "affix": "怪物强度 ×1.3 (双BOSS)",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          }
+        },
+        {
+          "level": 9,
+          "name": "破甲衰弱",
+          "affix": "玩家最终攻击 -25%，最终物理伤害 -25%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          },
+          "boss": "阿克蒙德"
+        },
+        {
+          "level": 10,
+          "name": "终极天灾",
+          "affix": "怪物强度 ×1.5 (全域极难)",
+          "reward": {
+            "reputation": 500,
+            "glory_crystal": 50
+          }
+        }
+      ]
+    },
+    "3": {
+      "id": 3,
+      "slug": "kenrito",
+      "name": "肯瑞托",
+      "theme": "智力 / 法系首选",
+      "focus_stat": "智力 (Intelligence)",
+      "attributes": [
+        "智力基础值提升",
+        "智力增幅%",
+        "每秒智力成长",
+        "杀敌智力成长",
+        "最终智力%",
+        "魔法伤害加成%"
+      ],
+      "levels": {
+        "1": [
+          "怪物强度 ×1.2"
+        ],
+        "2": [
+          "怪物攻速、移速 +30%"
+        ],
+        "3": [
+          "怪物血量、防御 +20%"
+        ],
+        "4": [
+          "怪物护甲 +40%"
+        ],
+        "5": [
+          "怪物强度 ×1.3"
+        ],
+        "6": [
+          "玩家最终智力 -50%"
+        ],
+        "7": [
+          "玩家技能急速 -200，命中率 -15%"
+        ],
+        "8": [
+          "怪物强度 ×1.3 (双BOSS)"
+        ],
+        "9": [
+          "玩家最终攻击 -25%，最终魔法伤害 -25%"
+        ],
+        "10": [
+          "怪物强度 ×1.5 (全域极难)"
+        ]
+      },
+      "challenge_tasks_1_to_10": [
+        {
+          "level": 1,
+          "name": "怪物强化 I",
+          "affix": "怪物强度 ×1.2",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 2,
+          "name": "迅捷疾走",
+          "affix": "怪物攻速、移速 +30%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "马格纳斯"
+        },
+        {
+          "level": 3,
+          "name": "体魄强化",
+          "affix": "怪物血量、防御 +20%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "炽炎猎犬"
+        },
+        {
+          "level": 4,
+          "name": "坚韧铁甲",
+          "affix": "怪物护甲 +40%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "熔火大恶魔"
+        },
+        {
+          "level": 5,
+          "name": "狂暴突变",
+          "affix": "怪物强度 ×1.3",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          },
+          "boss": "吞噬者图恩 / 玛格曼达"
+        },
+        {
+          "level": 6,
+          "name": "法力枯竭",
+          "affix": "玩家最终智力 -50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 7,
+          "name": "咒语凝滞",
+          "affix": "玩家技能急速 -200，命中率 -15%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          }
+        },
+        {
+          "level": 8,
+          "name": "首领试炼 I",
+          "affix": "怪物强度 ×1.3 (双BOSS)",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          }
+        },
+        {
+          "level": 9,
+          "name": "奥术湮灭",
+          "affix": "玩家最终攻击 -25%，最终魔法伤害 -25%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          },
+          "boss": "阿克蒙德"
+        },
+        {
+          "level": 10,
+          "name": "终极天灾",
+          "affix": "怪物强度 ×1.5 (全域极难)",
+          "reward": {
+            "reputation": 500,
+            "glory_crystal": 50
+          }
+        }
+      ]
+    },
+    "4": {
+      "id": 4,
+      "slug": "tanxian",
+      "name": "探险者协会",
+      "theme": "经济 / 打金流",
+      "focus_stat": "经济与资源 (Economy & Resources)",
+      "attributes": [
+        "初始金币增加",
+        "初始木材增加",
+        "初始杀敌数增加",
+        "每秒金币/木材增长",
+        "杀敌木材获取率%"
+      ],
+      "levels": {
+        "1": [
+          "怪物强度 ×1.2"
+        ],
+        "2": [
+          "击杀敌人获得金币降低 50%"
+        ],
+        "3": [
+          "击杀敌人获得木材降低 50%"
+        ],
+        "4": [
+          "击杀敌人获得经验降低 50%"
+        ],
+        "5": [
+          "怪物强度 ×1.3"
+        ],
+        "6": [
+          "杀敌商店所有物品价格上涨 50%"
+        ],
+        "7": [
+          "每秒木材产出清零 / 大幅扣减"
+        ],
+        "8": [
+          "怪物强度 ×1.3 (双BOSS)"
+        ],
+        "9": [
+          "玩家最终攻击 -25%，杀敌加成 -40%"
+        ],
+        "10": [
+          "怪物强度 ×1.5 (全域极难)"
+        ]
+      },
+      "challenge_tasks_1_to_10": [
+        {
+          "level": 1,
+          "name": "怪物强化 I",
+          "affix": "怪物强度 ×1.2",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 2,
+          "name": "金币荒芜",
+          "affix": "击杀敌人获得金币降低 50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "马格纳斯"
+        },
+        {
+          "level": 3,
+          "name": "木材匮乏",
+          "affix": "击杀敌人获得木材降低 50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "炽炎猎犬"
+        },
+        {
+          "level": 4,
+          "name": "历练阻碍",
+          "affix": "击杀敌人获得经验降低 50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "熔火大恶魔"
+        },
+        {
+          "level": 5,
+          "name": "狂暴突变",
+          "affix": "怪物强度 ×1.3",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          },
+          "boss": "吞噬者图恩 / 玛格曼达"
+        },
+        {
+          "level": 6,
+          "name": "通货膨胀",
+          "affix": "杀敌商店所有物品价格上涨 50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 7,
+          "name": "资源枯竭",
+          "affix": "每秒木材产出清零 / 大幅扣减",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          }
+        },
+        {
+          "level": 8,
+          "name": "首领试炼 I",
+          "affix": "怪物强度 ×1.3 (双BOSS)",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          }
+        },
+        {
+          "level": 9,
+          "name": "掠夺惩罚",
+          "affix": "玩家最终攻击 -25%，杀敌加成 -40%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          },
+          "boss": "阿克蒙德"
+        },
+        {
+          "level": 10,
+          "name": "终极天灾",
+          "affix": "怪物强度 ×1.5 (全域极难)",
+          "reward": {
+            "reputation": 500,
+            "glory_crystal": 50
+          }
+        }
+      ]
+    },
+    "5": {
+      "id": 5,
+      "slug": "yuansu",
+      "name": "元素领主",
+      "theme": "攻击 / 元素流",
+      "focus_stat": "基础攻击力与元素增幅 (Raw Attack & Elemental Amp)",
+      "attributes": [
+        "基础攻击力增加",
+        "攻击增幅%",
+        "每秒攻击成长",
+        "杀敌攻击成长",
+        "所有伤害加成%"
+      ],
+      "levels": {
+        "1": [
+          "怪物强度 ×1.2"
+        ],
+        "2": [
+          "怪物防御 +30%"
+        ],
+        "3": [
+          "怪物血量、防御 +20%"
+        ],
+        "4": [
+          "怪物攻击 +50，怪物护甲 +20%"
+        ],
+        "5": [
+          "怪物强度 ×1.3"
+        ],
+        "6": [
+          "玩家最终攻击 -50%"
+        ],
+        "7": [
+          "玩家伤害增幅 -60%"
+        ],
+        "8": [
+          "怪物强度 ×1.3 (双BOSS)"
+        ],
+        "9": [
+          "玩家最终攻击 -25%，总攻速与技能急速 -25%"
+        ],
+        "10": [
+          "怪物强度 ×1.5 (全域极难)"
+        ]
+      },
+      "challenge_tasks_1_to_10": [
+        {
+          "level": 1,
+          "name": "怪物强化 I",
+          "affix": "怪物强度 ×1.2",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 2,
+          "name": "坚盾壁垒",
+          "affix": "怪物防御 +30%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "马格纳斯"
+        },
+        {
+          "level": 3,
+          "name": "体魄强化",
+          "affix": "怪物血量、防御 +20%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "炽炎猎犬"
+        },
+        {
+          "level": 4,
+          "name": "锋刃坚甲",
+          "affix": "怪物攻击 +50，怪物护甲 +20%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "熔火大恶魔"
+        },
+        {
+          "level": 5,
+          "name": "狂暴突变",
+          "affix": "怪物强度 ×1.3",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          },
+          "boss": "吞噬者图恩 / 玛格曼达"
+        },
+        {
+          "level": 6,
+          "name": "攻击削减",
+          "affix": "玩家最终攻击 -50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 7,
+          "name": "元素压制",
+          "affix": "玩家伤害增幅 -60%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          }
+        },
+        {
+          "level": 8,
+          "name": "首领试炼 I",
+          "affix": "怪物强度 ×1.3 (双BOSS)",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          }
+        },
+        {
+          "level": 9,
+          "name": "全面迟滞",
+          "affix": "玩家最终攻击 -25%，总攻速与技能急速 -25%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          },
+          "boss": "阿克蒙德"
+        },
+        {
+          "level": 10,
+          "name": "终极天灾",
+          "affix": "怪物强度 ×1.5 (全域极难)",
+          "reward": {
+            "reputation": 500,
+            "glory_crystal": 50
+          }
+        }
+      ]
+    },
+    "6": {
+      "id": 6,
+      "slug": "shouhu",
+      "name": "守护巨龙",
+      "theme": "全属性 / 抗性流",
+      "focus_stat": "全属性与终极防御 (All Attributes & Resilience)",
+      "attributes": [
+        "全属性增加",
+        "全属性增幅%",
+        "每秒全属性成长",
+        "杀敌全属性成长",
+        "附加伤害加成%"
+      ],
+      "levels": {
+        "1": [
+          "怪物强度 ×1.2"
+        ],
+        "2": [
+          "怪物攻击 +50%"
+        ],
+        "3": [
+          "怪物血量 +50%"
+        ],
+        "4": [
+          "怪物防御 +50%"
+        ],
+        "5": [
+          "怪物强度 ×1.3"
+        ],
+        "6": [
+          "玩家最终全属性 -30%"
+        ],
+        "7": [
+          "玩家附加伤害 -60%"
+        ],
+        "8": [
+          "怪物强度 ×1.3 (双BOSS)"
+        ],
+        "9": [
+          "玩家最终攻击 -25%，最终全属性 -30%"
+        ],
+        "10": [
+          "怪物强度 ×1.5 (全域极难)"
+        ]
+      },
+      "challenge_tasks_1_to_10": [
+        {
+          "level": 1,
+          "name": "怪物强化 I",
+          "affix": "怪物强度 ×1.2",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 2,
+          "name": "巨龙之怒",
+          "affix": "怪物攻击 +50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "马格纳斯"
+        },
+        {
+          "level": 3,
+          "name": "巨龙之躯",
+          "affix": "怪物血量 +50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "炽炎猎犬"
+        },
+        {
+          "level": 4,
+          "name": "巨龙之鳞",
+          "affix": "怪物防御 +50%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          },
+          "boss": "熔火大恶魔"
+        },
+        {
+          "level": 5,
+          "name": "狂暴突变",
+          "affix": "怪物强度 ×1.3",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          },
+          "boss": "吞噬者图恩 / 玛格曼达"
+        },
+        {
+          "level": 6,
+          "name": "属性禁锢",
+          "affix": "玩家最终全属性 -30%",
+          "reward": {
+            "reputation": 150,
+            "glory_crystal": 15
+          }
+        },
+        {
+          "level": 7,
+          "name": "源力封锁",
+          "affix": "玩家附加伤害 -60%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          }
+        },
+        {
+          "level": 8,
+          "name": "首领试炼 I",
+          "affix": "怪物强度 ×1.3 (双BOSS)",
+          "reward": {
+            "reputation": 200,
+            "glory_crystal": 20
+          }
+        },
+        {
+          "level": 9,
+          "name": "终焉降临",
+          "affix": "玩家最终攻击 -25%，最终全属性 -30%",
+          "reward": {
+            "reputation": 300,
+            "glory_crystal": 30
+          },
+          "boss": "阿克蒙德"
+        },
+        {
+          "level": 10,
+          "name": "终极天灾",
+          "affix": "怪物强度 ×1.5 (全域极难)",
+          "reward": {
+            "reputation": 500,
+            "glory_crystal": 50
+          }
+        }
+      ]
+    }
+  }
+}

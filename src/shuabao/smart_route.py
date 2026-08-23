@@ -145,11 +145,14 @@ def assign_skill_roles(
     *,
     skill_labels: Mapping[str, str] | None = None,
     knowledge_doc: Mapping[str, Any] | None = None,
+    carry_priority: str | None = None,
 ) -> tuple[SkillRoleAssignment, ...]:
     """Assign one CARRY and remaining selected skills as AMPLIFIER.
 
     Highest known archive level wins CARRY. Unknown levels rank below known
     levels; ties use user selection order, so script/UI behavior is deterministic.
+    When ``carry_priority`` matches one of the selected families it overrides
+    the archive-level rule and that family becomes CARRY.
     """
     labels = skill_labels or {}
     items: list[tuple[int, str, str, int | None]] = []
@@ -175,6 +178,18 @@ def assign_skill_roles(
             -items[pos][0],
         ),
     )
+    want_carry = _canonical_family_text(str(carry_priority or ""))
+    if want_carry:
+        forced = next(
+            (
+                pos
+                for pos, (_index, code, family, _level) in enumerate(items)
+                if _canonical_family_text(family or code) == want_carry
+            ),
+            None,
+        )
+        if forced is not None:
+            carry_index = forced
     return tuple(
         SkillRoleAssignment(
             code=code,
@@ -250,16 +265,24 @@ def skill_role_rank(
     *,
     disabled_amplifiers: Sequence[str] = (),
     knowledge_doc: Mapping[str, Any] | None = None,
+    carry_priority: str = "",
 ) -> int:
     """Return a role preference bucket for an already-legal card.
 
     0=strong role fit, 1=neutral, 2=role-downweighted. This helper never
     decides eligibility; caller retains all fail-closed legality checks.
+    ``carry_priority`` is forwarded to :func:`assign_skill_roles` and overrides
+    the highest-archive-level CARRY rule when it matches a selected family.
     """
     if len(tuple(x for x in selected_families if str(x or "").strip())) != 4:
         return 1
     doc = knowledge_doc if isinstance(knowledge_doc, Mapping) else load_skill_knowledge()
-    roles = assign_skill_roles(selected_families, archive_levels, knowledge_doc=doc)
+    roles = assign_skill_roles(
+        selected_families,
+        archive_levels,
+        knowledge_doc=doc,
+        carry_priority=carry_priority,
+    )
     if len(roles) != 4:
         return 1
     row = _knowledge_card(card_name, doc)
@@ -359,6 +382,8 @@ class RouteEvaluator:
         self,
         selected_codes: Sequence[str],
         archive_levels: Mapping[str, int] | Sequence[tuple[str, int]] | None = None,
+        *,
+        carry_priority: str | None = None,
     ) -> RouteEvaluation:
         selected = tuple(
             dict.fromkeys(str(x or "").strip() for x in selected_codes if str(x or "").strip())
@@ -370,6 +395,7 @@ class RouteEvaluator:
             archive_levels,
             skill_labels=self.skill_labels,
             knowledge_doc=self.knowledge_doc,
+            carry_priority=carry_priority,
         )
         carry = next((r for r in roles if r.role is SkillRole.CARRY), None)
         carry_code = carry.code if carry is not None else selected[0]

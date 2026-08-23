@@ -708,7 +708,7 @@ class S0SettingsTests(unittest.TestCase):
 
     def test_s0_defaults_and_range_clamping(self) -> None:
         s = Settings()
-        self.assertEqual(s.round_timeout_s, 900)
+        self.assertEqual(s.round_timeout_s, 3600)
         self.assertEqual(s.recovery_timeout_s, 60)
         self.assertEqual(s.recovery_action_limit, 3)
         self.assertEqual(s.recovery_retry_interval_s, 1.5)
@@ -732,8 +732,9 @@ class S0SettingsTests(unittest.TestCase):
         self.assertEqual(clamped.recovery_retry_interval_s, 0.5)
 
     def test_round_timeout_migration_decision_documented(self) -> None:
-        """旧 game_timeout=15 是分钟级 idle watchdog；round_timeout_s 是秒级硬期限，
-        默认 15*60=900 且二者分离（迁移决定已写入 settings.py 文档）。"""
+        """旧 game_timeout=15 是分钟级 idle watchdog；round_timeout_s 是秒级硬期限。
+        20260822：900s 是短局测试期取值，长线程刷图一局以打完 Boss 为界远超 15 分钟，
+        默认放宽到 3600s（文档见 settings.py），与 game_timeout（idle watchdog）分离。"""
         import inspect
         import shuabao.settings as settings_mod
 
@@ -741,7 +742,7 @@ class S0SettingsTests(unittest.TestCase):
         self.assertIn("round_timeout_s", src)
         self.assertIn("idle watchdog", src)
         s = Settings()
-        self.assertEqual(s.round_timeout_s, s.game_timeout * 60)
+        self.assertEqual(s.round_timeout_s, 3600)
 
 
 

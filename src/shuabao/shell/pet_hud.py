@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 import random
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -40,7 +40,7 @@ class FloatingPetHud(QWidget):
             | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.resize(320, 72)
+        self.resize(320, 68)
 
         self._current_phase = "IDLE"
         self._is_click_through = False
@@ -49,12 +49,13 @@ class FloatingPetHud(QWidget):
         self._palette = tokens("light")
 
         self._build_ui()
-        self.apply_theme("light")
+        self.apply_theme("dark")
         self._setup_voice_timer()
+        self.hide()
 
     def _build_ui(self) -> None:
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(14, 8, 14, 8)
+        layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(10)
 
         self.pet_avatar = QLabel()
@@ -78,8 +79,10 @@ class FloatingPetHud(QWidget):
         layout.addLayout(text_layout)
 
         self.btn_lock = QPushButton("🔓")
+        self.btn_lock.setObjectName("petLock")
         self.btn_lock.setToolTip("点击切换穿透/拖拽模式 (双击主屏可还原窗口)")
         self.btn_lock.setFixedSize(24, 24)
+        self.btn_lock.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_lock.clicked.connect(self._toggle_lock)
         layout.addWidget(self.btn_lock)
 
@@ -88,10 +91,14 @@ class FloatingPetHud(QWidget):
         t = tokens(theme)
         self._palette = t
         self.lbl_title.setStyleSheet(
-            f"font-size: 11px; font-weight: 700; color: {t['accent_solo']};"
+            f"font-size: 11px; font-weight: 700; color: {t['accent_gold']}; background: transparent;"
         )
         self.lbl_broadcast.setStyleSheet(
-            f"font-size: 12px; font-weight: 600; color: {t['text_primary']};"
+            f"font-size: 12px; font-weight: 600; color: {t['text_primary']}; background: transparent;"
+        )
+        self.btn_lock.setStyleSheet(
+            "QPushButton#petLock { background: transparent; border: none; font-size: 13px; padding: 0; }"
+            f"QPushButton#petLock:hover {{ color: {t['accent_gold_light']}; }}"
         )
         self.update()
 
@@ -145,14 +152,16 @@ class FloatingPetHud(QWidget):
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        path = QPainterPath()
         rect = self.rect().adjusted(1, 1, -1, -1)
-        path.addRoundedRect(rect.x(), rect.y(), rect.width(), rect.height(), 14, 14)
-        bg = QColor(self._palette.get("bg_surface", "#141A2E"))
-        bg.setAlpha(230)
-        painter.fillPath(path, bg)
-        border = QColor(self._palette.get("border_focus", "#D8A94A"))
-        border.setAlpha(180)
-        border_pen = QPen(border, 1.5)
-        painter.setPen(border_pen)
+        path = QPainterPath()
+        path.addRoundedRect(float(rect.x()), float(rect.y()), float(rect.width()), float(rect.height()), 14, 14)
+        fill = QLinearGradient(rect.topLeft(), rect.bottomLeft())
+        fill.setColorAt(0, QColor(26, 33, 44, 230))
+        fill.setColorAt(1, QColor(14, 18, 24, 240))
+        painter.fillPath(path, fill)
+        painter.setPen(QPen(QColor(255, 255, 255, 42), 1))
+        painter.drawLine(rect.left() + 14, rect.top() + 1, rect.right() - 14, rect.top() + 1)
+        gold = QColor(self._palette.get("accent_gold", "#E5A93C"))
+        gold.setAlpha(190)
+        painter.setPen(QPen(gold, 1.2))
         painter.drawPath(path)

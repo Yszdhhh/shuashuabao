@@ -321,12 +321,13 @@ def _window_title_score(title: str, role: str | None = None) -> int:
     """Score a title for the requested platform/game role."""
     title = title.lower()
     role = (role or "").lower()
-    platform = any(k.lower() in title for k in ("KK官方", "KK对战", "KK竞技", "对战平台", "竞技平台"))
-    game = any(k.lower() in title for k in ("英雄三国", "魔兽世界", "魔兽争霸", "warcraft"))
+    platform = any(k.lower() in title for k in ("kk官方", "kk对战", "kk竞技", "对战平台", "竞技平台"))
+    game = any(k.lower() in title for k in ("英雄三国", "魔兽世界", "魔兽争霸", "warcraft", "yhzg"))
     if role == "l0":
         return (80 if platform else 0) - (80 if game else 0)
     if role == "l1":
-        return (80 if game else 0) - (80 if platform else 0)
+        # L1 阶段游戏客户端绝对优先，KK 平台大幅降权，防止抢占 L1 视野
+        return (1000 if game else 0) - (1000 if platform else 0)
     return 0
 
 
@@ -378,7 +379,9 @@ def find_window_targets(
                 title = buf.value.strip()
                 if not title or not any(k in title.lower() for k in keywords):
                     return True
-                if role == "l1" and is_local_helper_title(title):
+                # 本地看板窗口在任何 role 下都不是合法捕获/激活目标（run() 启动
+                # 激活走 role=None，此前仅 l1 过滤会被绕过）。
+                if is_local_helper_title(title):
                     return True
                 rect = wintypes.RECT()
                 user32.GetWindowRect(hwnd, ctypes.byref(rect))

@@ -13,7 +13,12 @@ from shuabao.shell.dual_launch_widget import DualLaunchBoxWidget
 from shuabao.shell.main_window import MainWindow, SkillCardGrid
 from shuabao.shell.overlay_hud import OverlayHud
 from shuabao.shell.pet_hud import FloatingPetHud
-from shuabao.shell.theme_styles import ThemeTokens, skill_card_qss, wizard_qss
+from shuabao.shell.theme_styles import (
+    ThemeTokens,
+    _resolve_font_family,
+    skill_card_qss,
+    wizard_qss,
+)
 from shuabao.shell.wizard_dialog import GameStyleWizardDialog
 
 
@@ -50,7 +55,7 @@ def test_skill_card_grid_consumes_theme_tokens_not_card_qss(qapp):
     grid = SkillCardGrid(["asj"], {"asj": "奥术箭"}, theme="light")
     qss = grid.cards["asj"].styleSheet()
     _assert_hall_qss(qss)
-    assert ThemeTokens.LIGHT["bg_surface"].lower() in qss.lower()
+    assert ThemeTokens.LIGHT["bg_card"].lower() in qss.lower()  # skill_card_qss 卡面用 bg_card
     grid.close()
 
 
@@ -58,7 +63,7 @@ def test_skill_card_dual_launch_hud_use_hall_tokens(qapp):
     light = ThemeTokens.LIGHT
     grid_qss = skill_card_qss("light")
     _assert_hall_qss(grid_qss)
-    assert light["bg_surface"].lower() in grid_qss.lower()
+    assert light["bg_card"].lower() in grid_qss.lower()  # skill_card_qss 卡面用 bg_card
 
     dual = DualLaunchBoxWidget(theme="light")
     dual.apply_theme("light")
@@ -79,11 +84,10 @@ def test_skill_card_dual_launch_hud_use_hall_tokens(qapp):
     hud = OverlayHud()
     hud.apply_theme("light")
     hud_qss = hud.label.styleSheet().lower()
-    assert light["text_primary"].lower() in hud_qss
-    assert light["border_focus"].lower() in hud_qss
+    assert "#ffffff" in hud_qss
     hud.close()
 
-    wizard = GameStyleWizardDialog()
+    wizard = GameStyleWizardDialog(theme="light")  # 浅色大厅契约针对 light 主题校验
     blob = wizard.styleSheet().lower()
     for hex_color in FORBIDDEN_LIGHT_HEX:
         assert hex_color.lower() not in blob
@@ -109,3 +113,14 @@ def test_mainwindow_toggle_theme_defined_once(qapp, tmp_path):
         _assert_hall_qss(window.btn_solo_mode.styleSheet())
     finally:
         window.close()
+
+
+def test_light_tokens_warm_never_forbidden(qapp):
+    forbidden = {hex_color.lower() for hex_color in FORBIDDEN_LIGHT_HEX}
+    for key, value in ThemeTokens.LIGHT.items():
+        assert value.lower() not in forbidden, f"LIGHT[{key}]={value}"
+    # 暖色奶油底：R 通道必须为最高分量（暖而非冷灰白）
+    bg = ThemeTokens.LIGHT["bg_app"].lstrip("#")
+    r, g, b = (int(bg[i : i + 2], 16) for i in (0, 2, 4))
+    assert r > b, f"浅色底必须偏暖: bg_app={ThemeTokens.LIGHT['bg_app']}"
+    assert "sans-serif" in _resolve_font_family()

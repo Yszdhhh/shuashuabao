@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""向导选择弹窗：模式选择与关卡/预设搭配.
+
+采用 220x160px 等宽等高对称双卡片、2x2 极简预设卡片与统一 36px 高度控件，
+去除所有主观冗余废话，极简高级液态玻璃质感。
+"""
+
 from __future__ import annotations
 
 import copy
@@ -7,7 +13,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QButtonGroup,
     QComboBox,
@@ -28,8 +34,8 @@ from shuabao.settings import Settings
 from shuabao.shell.theme_styles import wizard_qss
 
 _ROOT = Path(__file__).resolve().parents[3]
-_MODE_SIZE = (460, 300)
-_PRESET_SIZE = (820, 600)
+_MODE_SIZE = (500, 320)
+_PRESET_SIZE = (840, 580)
 
 
 def _load_skill_catalog() -> tuple[dict[str, dict], list[dict]]:
@@ -135,13 +141,19 @@ def selection_from_payload(payload: dict | QuickStartSelection | None) -> QuickS
     )
 
 
-def _card_button(title: str, subtitle: str) -> QPushButton:
-    btn = QPushButton(f"{title}\n{subtitle}")
+def _card_button(title: str, subtitle: str, icon: str = "") -> QPushButton:
+    """创建结构分明的选择卡片."""
+    btn = QPushButton()
     btn.setCheckable(True)
     btn.setObjectName("choiceCard")
     btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-    btn.setMinimumHeight(92)
     btn.setCursor(Qt.PointingHandCursor)
+
+    # 使用整洁的多行富文本或文本排版
+    if icon:
+        btn.setText(f"{icon}\n\n{title}\n{subtitle}")
+    else:
+        btn.setText(f"{title}\n\n{subtitle}")
     return btn
 
 
@@ -149,9 +161,9 @@ class GameStyleWizardDialog(QDialog):
     run_requested = Signal(dict)
     advanced_requested = Signal(dict)
 
-    def __init__(self, parent=None, settings=None, initial_settings=None):
+    def __init__(self, parent=None, settings=None, initial_settings=None, theme: str = "dark"):
         super().__init__(parent)
-        self.setWindowTitle("选择运行方式")
+        self.setWindowTitle("快速开局向导")
         root = Path(__file__).resolve().parents[3]
         logo_ico = root / "assets" / "branding" / "app_logo.ico"
         if not logo_ico.exists():
@@ -160,8 +172,8 @@ class GameStyleWizardDialog(QDialog):
             self.setWindowIcon(QIcon(str(logo_ico)))
         self.setModal(True)
         self.resize(*_MODE_SIZE)
-        self.setMinimumSize(420, 260)
-        self.setStyleSheet(wizard_qss("light"))
+        self.setMinimumSize(460, 300)
+        self.setStyleSheet(wizard_qss(theme))
         self.settings = settings or initial_settings
         self.is_custom = False
         self._filling = False
@@ -172,19 +184,22 @@ class GameStyleWizardDialog(QDialog):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 18, 22, 16)
-        layout.setSpacing(14)
+        layout.setContentsMargins(20, 20, 20, 18)
+        layout.setSpacing(16)
 
+        # 顶部标题栏
         head = QHBoxLayout()
+        head.setSpacing(10)
         self.title_lbl = QLabel("选择运行方式")
         self.title_lbl.setObjectName("wizardTitle")
         head.addWidget(self.title_lbl)
         head.addStretch()
         self.step_lbl = QLabel("1 / 2")
-        self.step_lbl.setObjectName("wizardSub")
+        self.step_lbl.setObjectName("wizardStep")
         head.addWidget(self.step_lbl)
         layout.addLayout(head)
 
+        # 分页堆叠区
         self.stack = QStackedWidget()
         self.page_mode = self._create_mode_page()
         self.page_stage = self._create_preset_page()
@@ -193,46 +208,72 @@ class GameStyleWizardDialog(QDialog):
         self.stack.addWidget(self.page_stage)
         layout.addWidget(self.stack, 1)
 
+        # 底部导航按钮栏
         nav = QHBoxLayout()
-        self.btn_adv = QPushButton("进入高级设置")
+        nav.setSpacing(12)
+        self.btn_adv = QPushButton("取消")
         self.btn_adv.setObjectName("secondaryBtn")
-        self.btn_adv.clicked.connect(self._on_advanced)
-        self.btn_adv.setVisible(False)
+        self.btn_adv.setCursor(Qt.PointingHandCursor)
+        self.btn_adv.clicked.connect(self.reject)
+        self.btn_adv.setVisible(True)
         nav.addWidget(self.btn_adv)
+
         nav.addStretch()
+
         self.btn_prev = QPushButton("上一步")
         self.btn_prev.setObjectName("secondaryBtn")
+        self.btn_prev.setCursor(Qt.PointingHandCursor)
         self.btn_prev.clicked.connect(self._on_prev)
         self.btn_prev.setVisible(False)
         nav.addWidget(self.btn_prev)
+
         self.btn_next = QPushButton("下一步")
         self.btn_next.setObjectName("goldBtn")
+        self.btn_next.setCursor(Qt.PointingHandCursor)
         self.btn_next.clicked.connect(self._on_next)
         nav.addWidget(self.btn_next)
-        self.btn_run = QPushButton("开始游戏")
+
+        self.btn_run = QPushButton("应用到看板")
         self.btn_run.setObjectName("goldBtn")
-        self.btn_run.clicked.connect(self._on_run)
+        self.btn_run.setCursor(Qt.PointingHandCursor)
+        self.btn_run.clicked.connect(self._on_advanced)
         self.btn_run.setVisible(False)
         nav.addWidget(self.btn_run)
+
         layout.addLayout(nav)
 
-    def _create_mode_page(self):
+    def _create_mode_page(self) -> QWidget:
+        """Page 1: 220x160px 对称双卡片模式选择."""
         w = QWidget()
         l = QVBoxLayout(w)
-        l.setContentsMargins(0, 8, 0, 0)
-        l.setSpacing(12)
+        l.setContentsMargins(0, 8, 0, 8)
+        l.setSpacing(16)
 
         row = QHBoxLayout()
-        row.setSpacing(12)
-        self.card_solo = _card_button("单人", "自己建房 · 全自动")
-        self.card_ride = _card_button("多人", "全自动蹭车 · 跟车 · 带人")
+        row.setSpacing(16)
+
+        self.card_solo = QPushButton("自己刷图\n自动建房并作战")
+        self.card_solo.setCheckable(True)
+        self.card_solo.setObjectName("choiceCard")
+        self.card_solo.setFixedSize(220, 160)
+        self.card_solo.setCursor(Qt.PointingHandCursor)
+
+        self.card_ride = QPushButton("大厅蹭车\n待验证 · 只预览配置")
+        self.card_ride.setCheckable(True)
+        self.card_ride.setObjectName("choiceCard")
+        self.card_ride.setFixedSize(220, 160)
+        self.card_ride.setCursor(Qt.PointingHandCursor)
+
         self.card_solo.setChecked(True)
         self.mode_group = QButtonGroup(w)
         self.mode_group.setExclusive(True)
         self.mode_group.addButton(self.card_solo, 0)
         self.mode_group.addButton(self.card_ride, 1)
-        row.addWidget(self.card_solo, 1)
-        row.addWidget(self.card_ride, 1)
+
+        row.addStretch()
+        row.addWidget(self.card_solo)
+        row.addWidget(self.card_ride)
+        row.addStretch()
         l.addLayout(row, 1)
 
         self.rb_solo = QRadioButton("单人模式")
@@ -244,54 +285,73 @@ class GameStyleWizardDialog(QDialog):
         self.rb_group.setExclusive(True)
         self.rb_group.addButton(self.rb_solo, 0)
         self.rb_group.addButton(self.rb_ride, 1)
+
         self.card_solo.toggled.connect(lambda on: on and self.rb_solo.setChecked(True))
         self.card_ride.toggled.connect(lambda on: on and self.rb_ride.setChecked(True))
         self.rb_solo.toggled.connect(lambda on: on and self.card_solo.setChecked(True))
         self.rb_ride.toggled.connect(lambda on: on and self.card_ride.setChecked(True))
         return w
-    def _create_preset_page(self):
+
+    def _create_preset_page(self) -> QWidget:
+        """Page 2: 统一 36px 下拉框 + 2x2 网格预设卡片."""
         w = QWidget()
         l = QVBoxLayout(w)
         l.setContentsMargins(0, 4, 0, 0)
-        l.setSpacing(12)
+        l.setSpacing(14)
 
+        # 篇章与关卡选择栏 (统一 36px 舒适高度)
         form = QHBoxLayout()
-        form.setSpacing(10)
+        form.setSpacing(12)
+
+        lbl_ch = QLabel("篇章")
+        lbl_ch.setObjectName("sectionCap")
         self.cb_chapter = QComboBox()
+        self.cb_chapter.setFixedHeight(36)
         for chapter in sorted(STAGE_MAX):
             name = CHAPTER_LABELS.get(chapter, f"第{chapter}篇章")
             self.cb_chapter.addItem(name, chapter)
+
+        lbl_st = QLabel("关卡")
+        lbl_st.setObjectName("sectionCap")
         self.cb_stage = QComboBox()
-        form.addWidget(QLabel("篇章"))
-        form.addWidget(self.cb_chapter, 1)
-        form.addWidget(QLabel("关卡"))
-        form.addWidget(self.cb_stage, 1)
+        self.cb_stage.setFixedHeight(36)
+
+        form.addWidget(lbl_ch)
+        form.addWidget(self.cb_chapter, 3)
+        form.addWidget(lbl_st)
+        form.addWidget(self.cb_stage, 2)
         l.addLayout(form)
+
         self.cb_chapter.currentIndexChanged.connect(self._retarget_stage_combo)
         self._retarget_stage_combo(0)
 
+        # 2x2 流派预设网格
         grid_host = QFrame()
         grid_host.setObjectName("presetGrid")
         grid = QGridLayout(grid_host)
         grid.setSpacing(12)
-        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setContentsMargins(0, 4, 0, 4)
+
         self.preset_group = QButtonGroup(w)
         self.preset_group.setExclusive(True)
         self.preset_cards: list[QPushButton] = []
         shown = list(SKILL_PRESETS[:4])
         while len(shown) < 4:
             shown.append({"name": "预设", "codes": [], "hint": ""})
+
         for i, preset in enumerate(shown):
             name = str((preset or {}).get("name") or f"预设 {i + 1}")
             short = name.split("（", 1)[0].strip()
             codes = [skill_label(c) for c in (preset.get("codes") or [])[:4]]
-            skills_text = " + ".join(codes) if codes else "无技能"
+            skills_text = "  ·  ".join(codes) if codes else "无技能"
+
             btn = _card_button(short, skills_text)
             btn.setMinimumHeight(100)
             self.preset_group.addButton(btn, i)
             btn.clicked.connect(lambda _=False, idx=i: self._on_preset_changed(idx))
             self.preset_cards.append(btn)
             grid.addWidget(btn, i // 2, i % 2)
+
         l.addWidget(grid_host, 1)
 
         self.cb_preset = QComboBox()
@@ -303,12 +363,14 @@ class GameStyleWizardDialog(QDialog):
         self.cb_preset.hide()
         self.cb_preset.currentIndexChanged.connect(self._on_preset_changed)
 
+        # 自定义技能微调行
         codes = list(SKILL_META.keys()) or ["asj", "asjg", "assx", "jq"]
         self.skill_boxes = []
         skill_row = QHBoxLayout()
         skill_row.setSpacing(8)
         for i in range(4):
             cb = QComboBox()
+            cb.setFixedHeight(32)
             for code in codes:
                 cb.addItem(skill_label(code), code)
             cb.currentIndexChanged.connect(self._on_custom_changed)
@@ -319,9 +381,10 @@ class GameStyleWizardDialog(QDialog):
         self.skill_row_host.setVisible(False)
         l.addWidget(self.skill_row_host)
 
-        self.lbl_status = QLabel("点选一张预设卡片")
-        self.lbl_status.setObjectName("wizardSub")
+        self.lbl_status = QLabel("已选：推荐流派")
+        self.lbl_status.setObjectName("hintLabel")
         l.addWidget(self.lbl_status)
+
         if self.preset_cards:
             self.preset_cards[0].setChecked(True)
             self._apply_preset_index(0)
@@ -359,7 +422,7 @@ class GameStyleWizardDialog(QDialog):
                 if pos >= 0:
                     box.setCurrentIndex(pos)
             name = str(preset.get("name") or "")
-            self.lbl_status.setText(f"已选：{name}")
+            self.lbl_status.setText(f"已选流派：{name}")
             self._preset_index = idx
             if 0 <= idx < len(self.preset_cards):
                 self.preset_cards[idx].setChecked(True)
@@ -391,7 +454,7 @@ class GameStyleWizardDialog(QDialog):
             self.cb_preset.blockSignals(True)
             self.cb_preset.setCurrentIndex(custom_idx)
             self.cb_preset.blockSignals(False)
-        self.lbl_status.setText("当前：自定义搭配（已改技能）")
+        self.lbl_status.setText("当前：自定义搭配（已微调技能）")
 
     def _skill_codes(self) -> list[str]:
         out = []
@@ -461,12 +524,12 @@ class GameStyleWizardDialog(QDialog):
             self.setWindowTitle("选择运行方式")
             self.title_lbl.setText("选择运行方式")
             self.resize(*_MODE_SIZE)
-            self.setMinimumSize(420, 260)
+            self.setMinimumSize(460, 300)
         else:
-            self.setWindowTitle("选择预设")
-            self.title_lbl.setText("选择预设")
+            self.setWindowTitle("选择关卡与流派预设")
+            self.title_lbl.setText("选择关卡与流派预设")
             self.resize(*_PRESET_SIZE)
-            self.setMinimumSize(720, 520)
+            self.setMinimumSize(740, 520)
 
     def _on_next(self):
         if self.stack.currentIndex() == 0:
@@ -482,7 +545,7 @@ class GameStyleWizardDialog(QDialog):
         idx = self.stack.currentIndex()
         self.step_lbl.setText(f"{idx + 1} / 2")
         self.btn_prev.setVisible(idx > 0)
-        self.btn_adv.setVisible(idx == 1)
+        self.btn_adv.setVisible(True)
         self.btn_next.setVisible(idx == 0)
         self.btn_run.setVisible(idx == 1)
         self._apply_window_size()

@@ -93,7 +93,11 @@ class Settings:
     auto_reputation: bool = False
     continue_reputation: bool = False
     reputation_type: int = 3  # 安全首版仅开放录屏验证过的肯瑞托
-    reputation_level: int = 1  # 已验证难度 1-5
+    reputation_level: int = 1  # 已验证难度 1-10（多阵营模式下单阵营上限）
+    # 多阵营声望分配表：{阵营ID: 点数}，如 {3: 5, 5: 2} = 肯瑞托5点 + 元素领主2点。
+    # 必须是 Settings 真字段——UI 曾用动态属性写入导致 asdict() 静默丢弃（同 C-04 模式），
+    # 重启后 _hero_alloc_plan() 回退单阵营肯瑞托，元素领主等被静默跳过。
+    reputation_allocations: dict[str, int] = field(default_factory=dict)
     reputation_stage1: int = 0
     reputation_stage2: int = 0
     reputation_cjb_boss: str = ""
@@ -117,6 +121,13 @@ class Settings:
     # 默认空 = 3 个挂件全部启用跨系增伤/易伤/控制/覆盖率提权。
     # 该字段必须是 Settings 真字段，确保 mode overlay / deepcopy 后仍进入 live policy。
     smart_route_disabled_amplifiers: list[str] = field(default_factory=list)
+    # 技能优先级：有序技能短码（≤4，索引 0 最高优先）。
+    # 空 = 完全回退现有排序，行为零变化。该字段必须是 Settings 真字段，
+    # 确保保存/读取与 mode overlay 后仍进入 live policy（同 C-04 教训）。
+    skill_priority: list[str] = field(default_factory=list)
+    # 技能路线偏好：{短码: route id}。route id 不透明，策略层不做语义解析；
+    # 空 = 无路线偏好。
+    skill_custom_routes: dict[str, str] = field(default_factory=dict)
     auto_bond: bool = True       # 主动按 F 开羁绊面板（低频，防烧木材）
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
@@ -139,10 +150,13 @@ class Settings:
     #   game_timeout=15 的官方语义是"单局超时"（分钟，review_mediator.md 实测作为
     #   MAIN_LINE idle watchdog：idle_minutes >= max(game_timeout,5)），不是秒。
     #   本轮不再把 game_timeout 直接接成 hard deadline；新增 round_timeout_s 作为
-    #   独立的、从进入 MAIN_LINE 起不可续期的单局硬期限（秒），默认 = 15 分钟换算
-    #   （15*60=900s），保留官方"整局最长 15 分钟"语义为硬上限。game_timeout 继续
-    #   只承担 idle watchdog（可被受确认的正常进展刷新），与 hard deadline 分离。
-    round_timeout_s: int = 900
+    #   独立的、从进入 MAIN_LINE 起不可续期的单局硬期限（秒）。
+    #   20260822：900s（15 分钟）是短局测试期的取值；实测长线程刷图一局
+    #   （以打完 Boss / 结算为界）远超 15 分钟（kill_boss_num=800 配置下更是
+    #   以小时计），900s 会在局中强制 QUIT（trace 181735 第一局 18:33:18 即此）。
+    #   默认放宽到 3600s（1 小时硬上限，仍由 victory/settlement 正常收局），
+    #   game_timeout 继续 only 承担 idle watchdog（可被受确认的正常进展刷新）。
+    round_timeout_s: int = 3600
     round_tail_window_s: int = 120      # 局尾窗口：距 round deadline 不足该秒数才做未验证战后入口检查
     recovery_timeout_s: int = 60        # 失败/断线恢复总预算（不可续期）
     recovery_action_limit: int = 3      # 每恢复步骤动作/观测尝试上限
@@ -227,6 +241,7 @@ class Settings:
                     elif k in (
                         "skills", "cards", "stage_targets", "treasure_allow_negative",
                         "bond_must_take", "smart_route_disabled_amplifiers",
+                        "skill_priority", "skill_custom_routes",
                     ):
                         clean[k] = []
         # 2. 字符串字段防护：仅在 fallback 模式防护（仅接受 str）；无 fallback 精确保持 32633f4 原样
@@ -422,6 +437,33 @@ class Settings:
                 clean.pop("smart_route_disabled_amplifiers")
             else:
                 clean["smart_route_disabled_amplifiers"] = []
+        # 技能优先级：只接受字符串列表，去重保序，最多 4 个短码；空 = 完全回退现有排序。
+        if "skill_priority" in clean:
+            raw_priority = clean["skill_priority"]
+            if isinstance(raw_priority, (list, tuple)):
+                clean["skill_priority"] = list(dict.fromkeys(
+                    str(v).strip() for v in raw_priority if str(v).strip()
+                ))[:MAX_SELECTED_SKILLS]
+            elif fallback is not None:
+                clean.pop("skill_priority")
+            else:
+                clean["skill_priority"] = []
+        if "skill_custom_routes" in clean:
+            raw_route_cfg = clean["skill_custom_routes"]
+            if isinstance(raw_route_cfg, dict):
+                cleaned_routes: dict[str, str] = {}
+                for rk, rv in raw_route_cfg.items():
+                    if not isinstance(rv, str):
+                        continue
+                    key_s = str(rk).strip()
+                    val_s = rv.strip()
+                    if key_s and val_s:
+                        cleaned_routes[key_s] = val_s
+                clean["skill_custom_routes"] = cleaned_routes
+            elif fallback is not None:
+                clean.pop("skill_custom_routes")
+            else:
+                clean["skill_custom_routes"] = {}
         # 技能存档等级：只接受 {短码: int} 映射；值域清洗（0..50，0=未知剔除），
         # 类型/范围损坏一律回落为空映射（保守：未知存档不放宽任何前置/减伤）。
         if "skill_archive_levels" in clean:
@@ -441,6 +483,24 @@ class Settings:
                 clean.pop("skill_archive_levels")
             else:
                 clean["skill_archive_levels"] = {}
+        # 声望分配：只接受 {阵营ID字符串: int点数}；值域清洗（1..10，超出钳制），
+        # 键统一为规范短码/ID 字符串，与 dataclass 声明 dict[str, int] 对齐。
+        if "reputation_allocations" in clean:
+            raw_alloc = clean["reputation_allocations"]
+            if isinstance(raw_alloc, dict):
+                allocs: dict[str, int] = {}
+                for k, v in raw_alloc.items():
+                    try:
+                        pts = int(v)
+                    except (TypeError, ValueError):
+                        continue
+                    if 1 <= pts <= 10:
+                        allocs[str(k).strip()] = pts
+                clean["reputation_allocations"] = allocs
+            elif fallback is not None:
+                clean.pop("reputation_allocations")
+            else:
+                clean["reputation_allocations"] = {}
         if "window_size" in clean:
             ws = clean["window_size"]
             if not (isinstance(ws, list) and len(ws) == 2

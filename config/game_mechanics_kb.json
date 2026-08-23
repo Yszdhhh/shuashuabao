@@ -161,7 +161,7 @@
     "wood": {
       "name": "木材",
       "primary_use": "羁绊抽卡与羁绊刷新",
-      "text": "F 抽羁绊耗木头。羁绊三选刷新也耗木头（user 2026-08-14）。主线挑战给大量木材。",
+      "text": "F 抽羁绊耗木头。羁绊三选刷新也耗木头。主线挑战给大量木材。",
       "also_from": [
         "主线挑战",
         "资源挑战（木头）"
@@ -172,7 +172,25 @@
         "user_confirmed"
       ],
       "status": "user_confirmed",
-      "vs_old_research": "木头不是技能/宝物/英雄卡/黑商的刷新货币。旧文把「刷羁绊」和「万物刷新」混写。抽卡（开 F）和刷新（羁绊三选再刷）都花木头，单价都未知。"
+      "cost_table": {
+        "ingested_at": "2026-08-21",
+        "source": "user_confirmed_20260821",
+        "bond_draw_base": {
+          "name": "F 抽羁绊（开面板）单次消耗",
+          "base_cost": 100,
+          "unit": "木材",
+          "note": "基础价 100 木/次；存在可减少该消耗的卡牌词条，减幅与卡名待实机钉。"
+        },
+        "bond_refresh_ladder": {
+          "name": "羁绊三选刷新阶梯价",
+          "ladder": [40, 60, 80, 100],
+          "cap_after": 100,
+          "unit": "木材",
+          "rule": "第1次刷40、第2次60、第3次80、第4次起恒为100。每次开新面板后阶梯重置。",
+          "note": "user 2026-08-21 口述确认；实机帧差值待 LabVerify 复核，但阈值可直接接线。"
+        }
+      },
+      "vs_old_research": "旧文单价全标未知；2026-08-21 用户给出 F 抽=100 基础 + 减费卡，以及刷新 40/60/80/100→封顶100 阶梯。旧「<40 不刷新」阈值偏保守，需按阶梯累计预算重算。"
     },
     "exp": {
       "name": "经验",
@@ -242,11 +260,14 @@
         "panel": "羁绊三选",
         "distinct_from": "F 抽羁绊（开面板也耗木头，是另一笔）",
         "cost": "木材",
-        "cost_amount": null,
+        "cost_ladder": [40, 60, 80, 100],
+        "cost_cap": 100,
+        "cost_ladder_source": "user_confirmed_20260821",
+        "ladder_reset": "每次开新面板后阶梯重置",
         "charges_from": null,
         "free": null,
-        "script_rule": "wood_gated_not_wired",
-        "note": "B2 木头阈值（<100 不开 F、<40 不刷新）因此更站得住。单价未知，不猜。"
+        "script_rule": "wood_gated_ladder_aware",
+        "note": "2026-08-21 用户确认阶梯价：第1次40、第2次60、第3次80、第4次起恒100。旧「<40 不刷新」阈值升级为按阶梯累计预算：面板内已刷 n 次后，下次刷新成本 = ladder[min(n,3)]。"
       },
       "skill": {
         "name": "技能刷新",

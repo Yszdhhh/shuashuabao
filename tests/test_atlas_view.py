@@ -102,7 +102,7 @@ class AtlasViewJoinTests(unittest.TestCase):
             self.assertTrue((ROOT / piece.icon_path).is_file(), piece.icon_path)
 
     def test_empty_family_description_is_pending_not_invented(self):
-        asj = self.view.get("奥数箭")
+        asj = self.view.get("奥术箭")
         self.assertIsNotNone(asj)
         self.assertEqual(asj.effect, "")
         self.assertEqual(asj.display_effect(), PENDING_TEXT)
@@ -116,7 +116,7 @@ class AtlasViewJoinTests(unittest.TestCase):
         self.assertEqual(tl.evidence, "实机")
 
     def test_archive_tier_uses_json_text(self):
-        asj = self.view.get("奥数箭")
+        asj = self.view.get("奥术箭")
         texts = [row.display() for row in asj.archive_tiers]
         self.assertTrue(any("Lv36" in text and "爆炸箭矢" in text for text in texts), texts)
 
@@ -324,17 +324,17 @@ class AtlasApplyOneWayTests(unittest.TestCase):
         self.assertTrue(diff.rejected)
 
     def test_family_and_bond_and_negative_apply(self):
-        diff = apply_to_run(["奥数箭", "湮灭者", "金转木", "箭矢增幅"], view=self.view)
+        diff = apply_to_run(["奥术箭", "湮灭者", "金转木", "箭矢增幅"], view=self.view)
         self.assertEqual(diff.skills, ("asj",))
         self.assertEqual(diff.cards, ("yanmiezhe",))
         self.assertEqual(diff.treasure_allow_negative, ("金转木",))
         self.assertIn("箭矢增幅", diff.rejected)
 
     def test_running_rejects_all(self):
-        diff = apply_to_run(["奥数箭"], running=True, view=self.view)
+        diff = apply_to_run(["奥术箭"], running=True, view=self.view)
         self.assertEqual(diff.skills, ())
         self.assertEqual(diff.cards, ())
-        self.assertIn("奥数箭", diff.rejected)
+        self.assertIn("奥术箭", diff.rejected)
 
     def test_knowledge_bond_cannot_apply(self):
         diff = apply_to_run(["急速"], view=self.view)
@@ -344,7 +344,7 @@ class AtlasApplyOneWayTests(unittest.TestCase):
     def test_family_apply_caps_at_four(self):
         """图鉴应用技能系上限=4（与 Settings 解析边界同一常量）。"""
         diff = apply_to_run(
-            ["奥数箭", "奥数激光", "奥数射线", "剑气", "爆炎箭"], view=self.view
+            ["奥术箭", "奥术激光", "奥术射线", "剑气", "爆炎箭"], view=self.view
         )
         self.assertEqual(("asj", "asjg", "assx", "jq"), diff.skills)
         self.assertIn("爆炎箭", diff.rejected)

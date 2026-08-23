@@ -286,18 +286,30 @@ class TestPendingActionAndSurfaceMediatorIntegration(unittest.TestCase):
                 self.assertEqual(self.med.phase, Phase.MAIN_LINE)
                 self.assertEqual(self.med._surface_conflict_since, 100.0)
             
-            # Still in conflict at t=101.5 (< 2.5s) -> continue
+            # Still in conflict at t=101.5 (< deadline) -> continue
             with patch("shuabao.mediator.time.time", return_value=101.5):
                 act2 = self.med._tick_main_line(self.frame)
                 self.assertEqual(act2, LoopAction.Continue)
                 self.assertEqual(self.med.phase, Phase.MAIN_LINE)
 
-            # Exceeded conflict budget at t=103.0 (3.0s >= 2.5s) -> Phase.ERROR
+            # 20260822（二轮实机 trace 203910）：词缀弹窗是游戏强制模态——
+            # 冲突 ≥2.5s 且词缀弹窗在场时降级为 EQUIPMENT_AFFIX_MODAL 处理
+            # （点击词缀选择，运行继续），不再停机。
             with patch("shuabao.mediator.time.time", return_value=103.0):
                 act3 = self.med._tick_main_line(self.frame)
-                self.assertEqual(act3, LoopAction.Break)
+                self.assertEqual(act3, LoopAction.Continue)
+                self.assertEqual(self.med.phase, Phase.MAIN_LINE)
+
+            # 纯未知冲突的 ERROR 兜底：仲裁看到词缀（第一次调用命中 → CONFLICT），
+            # 但降级复查时词缀已消失（检测闪变，第二次调用 None）→ 无可降级
+            # 目标，panel_hard_deadline_s（默认 15s）后 ERROR。
+            self.med._surface_conflict_since = 100.0
+            self.med._recovery_step = None
+            with patch.object(self.med, "_find_equipment_affix_choice", side_effect=[mock_affix, None]),                  patch("shuabao.mediator.time.time", return_value=115.1):
+                act4 = self.med._tick_main_line(self.frame)
+                self.assertEqual(act4, LoopAction.Break)
                 self.assertEqual(self.med.phase, Phase.ERROR)
-                self.assertEqual(self.med._interrupt_reason, "interaction surface conflict timeout (3.00s)")
+                self.assertEqual(self.med._interrupt_reason, "interaction surface conflict timeout (15.10s)")
 
 if __name__ == "__main__":
     unittest.main()

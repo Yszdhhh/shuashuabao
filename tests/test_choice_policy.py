@@ -950,11 +950,11 @@ class TestOwnedBranchAndRarityPriority(unittest.TestCase):
     """Owned branches beat new branches; within same branch rarity sorts first."""
 
     def test_owned_branch_priority_over_new_branch(self):
-        # 玩家已拥有「剑气」系卡 → 剑气系候选 is_owned_branch=0 优先于奥数箭系 is_owned_branch=1。
+        # 玩家已拥有「剑气」系卡 → 剑气系候选 is_owned_branch=0 优先于奥术箭系 is_owned_branch=1。
         cands = skill_cands(
             [slot(0, "箭矢增幅", rarity="purple", confidence=0.99),
              slot(1, "剑气增幅", rarity="white", confidence=0.99)],
-            settings=settings(skill_focus_families=["剑气", "奥数箭"]),
+            settings=settings(skill_focus_families=["剑气", "奥术箭"]),
             owned_skill_cards=("剑气",),
         )
         d = choose_action(cands, SessionState())
@@ -998,7 +998,7 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
     def test_owned_prereq_met_beats_unconfirmed(self):
         cands = skill_cands(
             [slot(0, "剑气增幅", rarity="white"), slot(1, "箭矢增幅", rarity="white")],
-            settings=settings(skill_focus_families=["剑气", "奥数箭"]),
+            settings=settings(skill_focus_families=["剑气", "奥术箭"]),
         )
         d0 = choose_action(cands, SessionState())
         # 无已拥有：两者前置均未确认 → 同组 → 最小 index。
@@ -1007,7 +1007,7 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
             panel_kind=PANEL_SKILL,
             slots=[slot(0, "剑气增幅", rarity="white"),
                    slot(1, "箭矢增幅", rarity="white")],
-            settings=settings(skill_focus_families=["剑气", "奥数箭"]),
+            settings=settings(skill_focus_families=["剑气", "奥术箭"]),
             owned_skill_cards=("奥术箭",),
         )
         d1 = choose_action(owned, SessionState())
@@ -1018,7 +1018,7 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
         cands = PanelCandidates(
             panel_kind=PANEL_SKILL,
             slots=[slot(0, "箭矢增幅", rarity="white")],
-            settings=settings(skill_focus_families=["奥数箭"]),
+            settings=settings(skill_focus_families=["奥术箭"]),
             owned_skill_cards=("奥术箭", "奥术箭", ""),
         )
         self.assertEqual(cands.owned_skill_cards, ("奥术箭", "奥术箭"))
@@ -1030,7 +1030,7 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
                 slot(0, "激光增幅", rarity="white"),
                 slot(1, "强力箭矢", rarity="white"),
             ],
-            settings=settings(skill_focus_families=["奥数箭", "奥数激光"]),
+            settings=settings(skill_focus_families=["奥术箭", "奥术激光"]),
             owned_skill_cards=("箭矢增幅", "箭矢增幅"),
         )
         decision = choose_action(cands, SessionState())
@@ -1045,7 +1045,7 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
             panel_kind=PANEL_SKILL,
             slots=[slot(0, "激光增幅", rarity="white"),
                    slot(1, "爆炸箭矢", rarity="white")],
-            settings=settings(skill_focus_families=["奥数箭", "奥数激光"],
+            settings=settings(skill_focus_families=["奥术箭", "奥术激光"],
                               skill_archive_levels=[("asj", 36)]),
             owned_skill_cards=("奥术箭",),
         )
@@ -1056,7 +1056,7 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
         # 存档奥术箭10：箭矢齐射「不再降低伤害」已核实 → 优先于未核实卡。
         cands = skill_cands(
             [slot(0, "激光增幅", rarity="white"), slot(1, "箭矢齐射", rarity="white")],
-            settings=settings(skill_focus_families=["奥数箭", "奥数激光"],
+            settings=settings(skill_focus_families=["奥术箭", "奥术激光"],
                               skill_archive_levels=[("asj", 10)]),
         )
         d = choose_action(cands, SessionState())
@@ -1066,7 +1066,7 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
         # 同属白卡时：强化飞箭（奥术箭43 进池，存档达标）优先于未达标的奥术穿透（奥术射线50）。
         cands = skill_cands(
             [slot(0, "奥术穿透", rarity="white"), slot(1, "强化飞箭", rarity="white")],
-            settings=settings(skill_focus_families=["奥数箭", "奥术射线"],
+            settings=settings(skill_focus_families=["奥术箭", "奥术射线"],
                               skill_archive_levels=[("asj", 43)]),
         )
         d = choose_action(cands, SessionState())
@@ -1080,7 +1080,7 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
         d = choose_action(
             skill_cands(
                 [slot(0, "爆炸箭矢", rarity="white", confidence=0.99)],
-                settings=settings(skill_focus_families=["奥数箭"]),
+                settings=settings(skill_focus_families=["奥术箭"]),
             ),
             SessionState(),
         )
@@ -1179,7 +1179,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
     """assemble_policy_settings：纯函数、焦点系派生、字段解析。"""
 
     LABELS = {
-        "jq": "剑气", "pg": "普攻", "asj": "奥数箭",
+        "jq": "剑气", "pg": "普攻", "asj": "奥术箭",
         "asjg": "奥术激光", "hbj": "寒冰箭", "byj": "爆炎箭",
     }
 
@@ -1270,7 +1270,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
             settings=self.fake_settings(["jq", "asj", "jq"]),
             skill_labels=self.LABELS, fetter_labels={}, policy_doc={},
         )
-        self.assertEqual(ps.skill_focus_families, ("剑气", "奥数箭"))
+        self.assertEqual(ps.skill_focus_families, ("剑气", "奥术箭"))
 
     def test_parses_policy_doc_fields(self):
         ps = assemble_policy_settings(
@@ -1353,7 +1353,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
         b = assemble_policy_settings(**kwargs)
         self.assertEqual(a, b)
         self.assertEqual(
-            a.skill_focus_families, ("剑气", "普攻", "奥数箭", "寒冰箭", "爆炎箭")
+            a.skill_focus_families, ("剑气", "普攻", "奥术箭", "寒冰箭", "爆炎箭")
         )
 
 
@@ -1642,5 +1642,118 @@ class TestSkillInvariantsA1toA6(unittest.TestCase):
         dec = choose_action(panel, session=state)
         self.assertEqual(dec.action, PolicyAction.CLOSE)
         self.assertEqual(state.refreshes, 0)
+
+
+class TestLiveRegressions20260822(unittest.TestCase):
+    """20260822 实机回归（trace 181735）：羁绊刷新与技能主技能优先。"""
+
+    def test_bond_soft_mode_refreshes_before_quality_fallback(self):
+        """软模式（推荐方案）预设未命中且有刷新预算 → REFRESH 而非品质降级。
+
+        实机现象：整局 0 次刷新、羁绊只拿 4 张（can_refresh 从未接线 +
+        软模式无刷新分支的双重根因）。
+        """
+        cands = bond_cands(
+            [slot(0, "修仙", rarity="purple"), slot(1, "战术", rarity="blue")],
+            can_refresh=True,
+            settings=settings(bond_presets=["祝福", "成长"], bond_whitelist_mode="soft"),
+        )
+        state = SessionState(refreshes=0, max_refreshes=3)
+        d = choose_action(cands, session=state)
+        self.assertEqual(d.action, PolicyAction.REFRESH)
+
+    def test_bond_soft_mode_quality_fallback_after_refresh_budget(self):
+        """软模式刷新耗尽后仍回落品质降级（保持原 soft 语义）。"""
+        cands = bond_cands(
+            [slot(0, "修仙", rarity="purple"), slot(1, "战术", rarity="blue")],
+            can_refresh=True,
+            settings=settings(bond_presets=["祝福", "成长"], bond_whitelist_mode="soft"),
+        )
+        state = SessionState(refreshes=3, max_refreshes=3)
+        d = choose_action(cands, session=state)
+        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(d.index, 0)
+
+    def test_bond_hard_mode_refresh_then_close(self):
+        """硬模式：预算内 REFRESH，耗尽后 CLOSE（语义不变）。"""
+        ps = PolicySettings(bond_presets=("祝福",), bond_whitelist_mode=WHITELIST_HARD)
+        cands = bond_cands(
+            [slot(0, "修仙", rarity="red")],
+            can_refresh=True,
+            settings=ps,
+        )
+        d = choose_action(cands, session=SessionState(refreshes=0, max_refreshes=3))
+        self.assertEqual(d.action, PolicyAction.REFRESH)
+        d2 = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
+        self.assertEqual(d2.action, PolicyAction.CLOSE)
+
+    def test_unowned_preset_main_skill_beats_owned_family_stack(self):
+        """trace 181735 tick42 复现：面板有红色预设主技能「剑气」，
+        已拥有族（奥术箭）的紫色堆叠卡不得再压过它。"""
+        ps = PolicySettings(
+            skill_focus_families=("奥术箭", "奥术激光", "剑气", "奥术射线"),
+            skill_presets=("奥术箭", "奥术激光", "剑气", "奥术射线"),
+        )
+        stack = slot(2, "箭矢齐射", rarity="purple")
+        main = slot(0, "剑气", rarity="red")
+        ranked = _rank_skill_candidates((main, stack), ps, ("箭矢连发",))
+        self.assertEqual(ranked[0], main.index)
+
+    def test_owned_main_no_longer_starves_stacking(self):
+        """主技能集齐后（4 族全拥有），排序回到原堆叠语义。"""
+        ps = PolicySettings(
+            skill_focus_families=("奥术箭", "奥术激光", "剑气", "奥术射线"),
+        )
+        stack = slot(2, "箭矢齐射", rarity="purple")
+        main = slot(0, "剑气", rarity="red")
+        owned = ("奥术箭", "奥术激光", "剑气", "奥术射线")
+        ranked = _rank_skill_candidates((main, stack), ps, owned)
+        self.assertEqual(ranked[0], stack.index)
+
+    # ---- 20260822 第二轮实机回归（trace 203910）----
+
+    def test_skill_focus_miss_refreshes_before_close(self):
+        """可读但未命中预设/焦点 → 有刷新预算时 REFRESH（trace 203910 20:42:17）。"""
+        ps = PolicySettings(
+            skill_focus_families=("奥术箭", "奥术激光", "剑气", "奥术射线"),
+            skill_presets=("奥术箭", "奥术激光", "剑气", "奥术射线"),
+        )
+        cands = PanelCandidates(
+            panel_kind=PANEL_SKILL,
+            slots=(slot(0, "天雷", rarity="purple"), slot(1, "地震", rarity="purple")),
+            can_refresh=True,
+            settings=ps,
+        )
+        d = choose_action(cands, session=SessionState(refreshes=0, max_refreshes=3))
+        self.assertEqual(d.action, PolicyAction.REFRESH)
+        # 刷新耗尽 → 回落关闭（隐藏，不放弃技能点）
+        d2 = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
+        self.assertEqual(d2.action, PolicyAction.CLOSE)
+
+    def test_treasure_unnamed_high_rarity_beats_readable_green(self):
+        """宝物橙/紫卡 OCR 读不出名时按边框稀有度参与品质链（trace 203910
+        20:42:19/22：两张可读绿卡压过不可读橙卡）。羁绊不放宽。"""
+        ps = PolicySettings(treasure_presets=())
+        cands = treasure_cands(
+            [slot(0, "属性神符", confidence=0.84, rarity="green"),
+             slot(1, None, confidence=0.0, rarity="orange"),
+             slot(2, "暴怒神符", confidence=0.8, rarity="green")],
+            settings=ps,
+        )
+        d = choose_action(cands, session=SessionState())
+        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(d.index, 1)
+
+    def test_bond_unnamed_still_not_clickable(self):
+        """羁绊未读名槽位保持不可选（安全语义不随宝物放宽）。"""
+        cands = bond_cands(
+            [slot(0, "修仙", rarity="purple"), slot(1, None, confidence=0.0, rarity="red")],
+            settings=settings(bond_presets=["祝福"]),
+        )
+        d = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
+        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(d.index, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

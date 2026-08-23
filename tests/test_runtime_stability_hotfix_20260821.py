@@ -43,14 +43,16 @@ def test_l1_cycle_traverses_duplicate_steps_by_position_and_wraps():
     for _ in range(len(m._L1_CYCLE_ORDER)):
         m._advance_l1_cycle()
         seen.append(m._l1_cycle_step)
+    # 20260822：evolve 提前到 equipment 之前——装备右键会异步弹十级词缀
+    # 弹窗，旧顺序在弹窗渲染前点进化造成双模态冲突停机（trace 203910）。
     assert seen == [
         "bond",
         "skill",
         "bond",
         "skill",
         "treasure",
-        "equipment",
         "evolve",
+        "equipment",
         "pickup",
         "merchant",
         "artifact",
@@ -97,7 +99,7 @@ def test_stage_start_requires_positive_highlight_and_rearms_selection():
 
 
 def test_merchant_disabled_does_not_implicitly_refresh_or_buy_other_items():
-    m = med(auto_gambling=False, auto_devour_dan=False)
+    m = med(auto_gambling_time=0, auto_devour_dan=False)
     m._merchant_next_at = 0.0
     with patch.object(m, "_black_merchant_present", return_value=True), patch.object(
         m, "act_click", return_value=True
@@ -124,8 +126,10 @@ def test_physical_panel_deadline_recovers_instead_of_stopping_runtime():
 
 
 def test_runtime_watchdog_is_independent_from_core_main_line_since():
-    m = med(pre_wave_protection=False)
+    m = med()
     m.phase = Phase.MAIN_LINE
+    m.settings.pre_wave_protection = False
+    m.settings.dry_run = False
     m._panel_state = PanelState.CLOSED
     m._post_game_pending = False
     m._pending_action = None
@@ -135,7 +139,7 @@ def test_runtime_watchdog_is_independent_from_core_main_line_since():
         m, "act_key", return_value=True
     ) as key, patch.object(m, "_advance_l1_cycle") as advance, patch.object(
         CoreMediator, "_tick_main_line", return_value=LoopAction.Continue
-    ) as core:
+    ) as core, patch.object(m, "_post_game_state", return_value=None):
         result = m._tick_main_line(frame())
     assert result is LoopAction.Continue
     key.assert_called_once_with("escape", "RuntimeWatchdog-EscUnstuck")

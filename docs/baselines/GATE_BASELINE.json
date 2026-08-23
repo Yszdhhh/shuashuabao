@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-18 09:34:05",
-  "reason": "INV-SKILL-02 enforce 0-refresh on skill panel Focus-Miss: giveup_panel_not_fail now clicks skill_hide instead of skill_refresh_btn",
+  "updated_at": "2026-08-22 21:28:52",
+  "reason": "20260822 二轮实机 203816 五项修复：羁绊自选UI移主页面常显、技能Focus-Miss先刷新后隐藏、宝物稀有度三点采样+无名槽按边框参与品质链、进化前置于装备+装备持有至词缀弹窗解决、冲突时词缀强制模态优先降级",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 922,
+        "passed": 1106,
         "xfailed": 2,
-        "skipped": 11
+        "skipped": 4
       }
     },
     "frozen_replay": {
@@ -37,7 +37,7 @@
     "contract": {
       "title": "L0 大厅全链契约回放（tests/contract/）",
       "observed": {
-        "passed": 68,
+        "passed": 71,
         "present": 1
       }
     }

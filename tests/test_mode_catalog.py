@@ -42,9 +42,10 @@ def _spec(**kw) -> ModeSpec:
 
 class ApplyModeOverlayTests(unittest.TestCase):
     def test_budgets_round_timeout_applied(self):
-        # normal_farm.budgets.round_timeout_s=900 是真实 Settings 字段 → 必须生效。
+        # normal_farm.budgets.round_timeout_s=3600 是真实 Settings 字段 → 必须生效。
+        # 20260822：900→3600，长线程刷图以打完 Boss 为界，15 分钟硬上限会在局中强退。
         out = apply_mode_overlay(Settings(round_timeout_s=123), "normal_farm")
-        self.assertEqual(out.round_timeout_s, 900)
+        self.assertEqual(out.round_timeout_s, 3600)
         self.assertEqual(out.game_mode, 0)
         self.assertTrue(out.auto_create_room)
 
@@ -190,7 +191,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
         # game_mode / auto_create_room，stage1=0 必须保留。
         out = apply_mode_overlay(Settings(stage1=0), "normal_farm")
         self.assertEqual(0, out.stage1)
-        self.assertEqual(900, out.round_timeout_s)
+        self.assertEqual(3600, out.round_timeout_s)
         self.assertEqual(0, out.game_mode)
         self.assertTrue(out.auto_create_room)
 

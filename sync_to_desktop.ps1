@@ -5,7 +5,7 @@
 
 param(
     [switch]$SkipGate,
-    [string]$Branch = "cursor/learning-mode-replace-dry-run-bb96"
+    [string]$Branch = "feat/ui-quickstart-wizard-and-stability-v1"
 )
 
 $ErrorActionPreference = "Stop"

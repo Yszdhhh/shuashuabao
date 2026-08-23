@@ -45,6 +45,7 @@ exe = EXE(
     upx=True,
     console=False,
     uac_admin=True,
+    icon=str(PROJECT_ROOT / "assets" / "branding" / "app_logo.ico"),
     version=str(PROJECT_ROOT / "packaging" / "windows_version_info.txt"),
 )
 

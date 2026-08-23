@@ -201,7 +201,7 @@ class TreasureNegativePatternCoverage(unittest.TestCase):
         covered = set(cards) - set(gaps)
         self.assertEqual(
             covered,
-            {"透支力量", "金转木", "杀敌梭哈", "伐木契约"},
+            {"透支力量", "金转木", "杀敌梭哈", "伐木契约", "压制"},
         )
         anon = PolicySettings(treasure_negative_names=())
         for name in covered:

@@ -60,7 +60,7 @@ NO_PICK_ACTIONS = {PolicyAction.WAIT, PolicyAction.REFRESH,
 
 # 组装测试用的技能短码 → 中文主技能名（与 config/skill_labels.json 同构）。
 SKILL_LABELS = {
-    "jq": "剑气", "pg": "普攻", "asj": "奥数箭",
+    "jq": "剑气", "pg": "普攻", "asj": "奥术箭",
     "asjg": "奥术激光", "hbj": "寒冰箭",
 }
 
@@ -79,7 +79,7 @@ def _panel(kind, slots, **kw):
 class S1SkillRarityPriority(unittest.TestCase):
     """S1：预设技能按稀有度优先，位置只做最后 tie-break。"""
 
-    PRESETS = ["奥数箭", "奥数激光", "奥数射线", "剑气"]
+    PRESETS = ["奥术箭", "奥术激光", "奥术射线", "剑气"]
 
     def test_orange_preset_beats_leftmost_blue_preset(self):
         """实机症状：橙色奥术箭在右、蓝色预设在左，旧实现选了蓝色。"""
@@ -87,8 +87,8 @@ class S1SkillRarityPriority(unittest.TestCase):
             PANEL_SKILL,
             [
                 _slot(0, "剑气", rarity="blue"),
-                _slot(1, "奥数激光", rarity="purple"),
-                _slot(2, "奥数箭", rarity="orange"),
+                _slot(1, "奥术激光", rarity="purple"),
+                _slot(2, "奥术箭", rarity="orange"),
             ],
             settings=PolicySettings(skill_presets=tuple(self.PRESETS)),
         ))
@@ -106,10 +106,10 @@ class S1SkillRarityPriority(unittest.TestCase):
                         [
                             # 更差的品质放在更靠左、且配置顺序更靠前的位置，
                             # 确保胜出只可能来自稀有度。
-                            _slot(0, "奥数箭", rarity=ladder[worse]),
+                            _slot(0, "奥术箭", rarity=ladder[worse]),
                             _slot(1, "剑气", rarity=ladder[better]),
                         ],
-                        settings=PolicySettings(skill_presets=("奥数箭", "剑气")),
+                        settings=PolicySettings(skill_presets=("奥术箭", "剑气")),
                     ))
                     self.assertEqual(decision.index, 1)
 
@@ -117,8 +117,8 @@ class S1SkillRarityPriority(unittest.TestCase):
         """同稀有度时用户配置顺序才生效（顺序是用户意图）。"""
         decision = choose_action(_panel(
             PANEL_SKILL,
-            [_slot(0, "剑气", rarity="orange"), _slot(1, "奥数箭", rarity="orange")],
-            settings=PolicySettings(skill_presets=("奥数箭", "剑气")),
+            [_slot(0, "剑气", rarity="orange"), _slot(1, "奥术箭", rarity="orange")],
+            settings=PolicySettings(skill_presets=("奥术箭", "剑气")),
         ))
         self.assertEqual(decision.index, 1, "同品质时配置里更靠前的预设优先")
 
@@ -422,14 +422,14 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
             PANEL_SKILL,
             [_slot(0, "剑气增幅", rarity="white"),
              _slot(1, "箭矢增幅", rarity="white")],
-            settings=PolicySettings(skill_focus_families=("剑气", "奥数箭")),
+            settings=PolicySettings(skill_focus_families=("剑气", "奥术箭")),
         ), SessionState())
         self.assertEqual(decision.index, 0, "无已拥有时两者前置均未确认，取最小 index")
         decision = choose_action(PanelCandidates(
             panel_kind=PANEL_SKILL,
             slots=[_slot(0, "剑气增幅", rarity="white"),
                    _slot(1, "箭矢增幅", rarity="white")],
-            settings=PolicySettings(skill_focus_families=("剑气", "奥数箭")),
+            settings=PolicySettings(skill_focus_families=("剑气", "奥术箭")),
             owned_skill_cards=("奥术箭",),
         ), SessionState())
         self.assertEqual(decision.index, 1, "已拥有奥术箭 → 箭矢增幅前置确认优先")
@@ -440,7 +440,7 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
             panel_kind=PANEL_SKILL,
             slots=[_slot(0, "激光增幅", rarity="white"),
                    _slot(1, "爆炸箭矢", rarity="white")],
-            settings=PolicySettings(skill_focus_families=("奥数箭", "奥数激光"),
+            settings=PolicySettings(skill_focus_families=("奥术箭", "奥术激光"),
                                     skill_archive_levels=(("asj", 36),)),
             owned_skill_cards=("奥术箭",),
         ), SessionState())
@@ -450,7 +450,7 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
             PANEL_SKILL,
             [_slot(0, "激光增幅", rarity="white"),
              _slot(1, "箭矢齐射", rarity="white")],
-            settings=PolicySettings(skill_focus_families=("奥数箭", "奥数激光"),
+            settings=PolicySettings(skill_focus_families=("奥术箭", "奥术激光"),
                                     skill_archive_levels=(("asj", 10),)),
         ), SessionState())
         self.assertEqual(decision.index, 1)
@@ -460,7 +460,7 @@ class S7VerifiedEvidencePriority(unittest.TestCase):
         decision = choose_action(_panel(
             PANEL_SKILL,
             [_slot(0, "爆炸箭矢", rarity="white")],
-            settings=PolicySettings(skill_focus_families=("奥数箭",)),
+            settings=PolicySettings(skill_focus_families=("奥术箭",)),
         ), SessionState())
         self.assertEqual((decision.action, decision.index),
                          (PolicyAction.SELECT_SLOT, 0))

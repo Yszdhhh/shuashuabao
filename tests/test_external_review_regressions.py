@@ -195,16 +195,19 @@ class ExternalReviewRegressionTests(unittest.TestCase):
         with patch.object(med, "find", side_effect=matched):
             self.assertEqual(med._post_game_state(frame), "PAUSED")
 
-    def test_pause_overlay_is_zero_action_wait(self) -> None:
+    def test_pause_overlay_clicks_resume_before_game_actions(self) -> None:
         med = Mediator(Settings(), ROOT)
         med.phase = Phase.MAIN_LINE
         med._main_line_since = 1.0
         frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
+        # 20260823：恢复按钮只走已验证模板（无盲点 fallback），需提供模板命中。
+        resume_hit = MatchResult("pause_continue_game", 0.95, 900, 455, 160, 50, 980, 480)
         with patch.object(med, "_post_game_state", return_value="PAUSED"), \
-                patch.object(med, "act_click") as click:
+                patch.object(med, "find", return_value=resume_hit), \
+                patch.object(med, "act_click", return_value=True) as click:
             self.assertIs(med._tick_main_line(frame), LoopAction.Continue)
         self.assertIs(med.phase, Phase.MAIN_LINE)
-        click.assert_not_called()
+        self.assertEqual(click.call_args.args[1], "ResumePausedGame")
 
     def test_choice_panels_use_hud_mouse_buttons_not_keyboard(self) -> None:
         frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)

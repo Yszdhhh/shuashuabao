@@ -10,12 +10,14 @@ def test_unified_skill_card_knowledge_contains_catalog_unlocks_and_evidence_stat
     assert data["card_count"] == 220
     assert len(data["cards"]) == 220
     assert data["skill_family_count"] == 16
-    assert data["rarity"]["rows"] == 48
-    assert data["rarity"]["evidence_backed_rows"] == 44
-    assert data["rarity"]["unverified_rows"] == 4
+    assert data["rarity"]["rows"] == 220
+    assert data["rarity"]["evidence_backed_rows"] == 213
+    assert data["rarity"]["unverified_rows"] == 7
 
     arcane = next(card for card in data["cards"] if card["name"] == "奥术箭矢")
-    assert arcane["family"] == "奥数箭"
+    # 图标对齐：奥术箭矢卡面是普攻弓箭图标 → family=普攻；跨系协同只留在 prereq。
+    assert arcane["family"] == "普攻"
+    assert arcane["prereq"] == "普攻,奥术箭"
     assert arcane["effect"]
     assert "prereq" in arcane
     assert "rarity" in arcane

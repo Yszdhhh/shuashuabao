@@ -54,8 +54,8 @@ def test_overlay_is_clickable_stop_and_updates_status(qapp):
     assert "已完成指定局数" in hud.status_text
     assert hud.status_state == "stopped"
     qss = hud.label.styleSheet().lower()
-    assert ThemeTokens.LIGHT["text_primary"].lower() in qss
-    assert ThemeTokens.LIGHT["border_focus"].lower() in qss
+    # OverlayHud 为游戏画面可读性刻意硬编码纯白高对比文本（见 overlay_hud.apply_theme 注释）
+    assert "#ffffff" in qss
     hud.close()
 
 

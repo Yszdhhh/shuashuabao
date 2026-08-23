@@ -57,7 +57,7 @@
   "auto_gambling_time": 0,
   "match_threshold": 0.85,
   "click_delay_ms": 120,
-  "round_timeout_s": 900,
+  "round_timeout_s": 3600,
   "round_tail_window_s": 120,
   "recovery_timeout_s": 60,
   "recovery_action_limit": 3,

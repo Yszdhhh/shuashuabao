@@ -111,6 +111,8 @@ DEFAULT_NEGATIVE_PATTERNS = (
     "将恒定",
     "杀敌数清0",
     "宝物效果-",
+    "攻击间隔",
+    "基础攻击间隔",
 )
 DEFAULT_NEGATIVE_NAMES = (
     "透支力量",
@@ -119,6 +121,7 @@ DEFAULT_NEGATIVE_NAMES = (
     "杀敌梭哈",
     "伐木契约",
     "等级优势",
+    "压制",
 )
 DEFAULT_MAX_ATTEMPTS = 12
 DEFAULT_MAX_REFRESHES = 3
@@ -222,6 +225,13 @@ class PolicySettings:
     skill_archive_levels: tuple[tuple[str, int], ...] = ()
     # 挂件协同关闭名单；只改变已合法候选之间的排序，不改变焦点/前置/互斥合法性。
     skill_disabled_amplifiers: tuple[str, ...] = ()
+    # 用户技能族优先级（canonical 族名，保序，索引 0 最高）。
+    # 空 = 完全回退现有排序键，行为零变化。
+    skill_priority: tuple[str, ...] = ()
+    # {canonical 族名: route id}；route id 不透明，策略层不做语义解析。空 = 无路线偏好。
+    skill_custom_routes: tuple[tuple[str, str], ...] = ()
+    # (族名, route id, prefer 标签, avoid 标签)；仅在显式传入 v2 skill_routes 文档时非空。
+    skill_route_preferences: tuple[tuple[str, str, tuple[str, ...], tuple[str, ...]], ...] = ()
     treasure_must_take: tuple[str, ...] = DEFAULT_TREASURE_MUST_TAKE
     treasure_refresh_on_no_safe: bool = True
     # Dual-gated KB snapshot. None / empty view never changes ranking.
@@ -243,6 +253,15 @@ class PolicySettings:
             "skill_disabled_amplifiers",
             tuple(dict.fromkeys(str(s).strip() for s in self.skill_disabled_amplifiers if str(s).strip())),
         )
+        object.__setattr__(
+            self,
+            "skill_priority",
+            tuple(dict.fromkeys(
+                canonical_family(s) or family_of(s) or s
+                for s in (str(x).strip() for x in self.skill_priority)
+                if s
+            )),
+        )
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> "PolicySettings":
@@ -263,6 +282,30 @@ class PolicySettings:
             habit_scores = tuple((str(k), float(v)) for k, v in (habit_raw or ()))
         min_conf = raw.get("min_confidence")
         bond_mode = raw.get("bond_whitelist_mode")
+        custom_raw = raw.get("skill_custom_routes")
+        if isinstance(custom_raw, Mapping):
+            custom_items = tuple(
+                (str(k).strip(), str(v).strip())
+                for k, v in custom_raw.items()
+                if str(k).strip() and str(v).strip()
+            )
+        else:
+            custom_items = tuple(
+                (str(k).strip(), str(v).strip())
+                for k, v in (custom_raw or ())
+                if str(k).strip() and str(v).strip()
+            )
+        route_prefs_raw = raw.get("skill_route_preferences") or ()
+        route_prefs = tuple(
+            (
+                str(fam).strip(),
+                str(rid).strip(),
+                tuple(str(t).strip() for t in prefers if str(t).strip()),
+                tuple(str(t).strip() for t in avoids if str(t).strip()),
+            )
+            for fam, rid, prefers, avoids in route_prefs_raw
+            if str(fam).strip() and str(rid).strip()
+        )
         return cls(
             skill_presets=tuple(str(s) for s in (raw.get("skill_presets") or ())),
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
@@ -279,6 +322,11 @@ class PolicySettings:
             treasure_negative_names=(
                 tuple(str(s) for s in neg_names) if neg_names is not None else DEFAULT_NEGATIVE_NAMES
             ),
+            skill_priority=tuple(
+                str(s).strip() for s in (raw.get("skill_priority") or ()) if str(s).strip()
+            ),
+            skill_custom_routes=custom_items,
+            skill_route_preferences=route_prefs,
             treasure_allow_negative=tuple(str(s) for s in (raw.get("treasure_allow_negative") or ())),
             habit_name_scores=habit_scores,
             allow_skill_giveup=bool(raw.get("allow_skill_giveup", False)),
@@ -304,6 +352,7 @@ def assemble_policy_settings(
     policy_doc: Mapping[str, Any] | None,
     habit_name_scores: tuple[tuple[str, float], ...] = (),
     mechanics_view: Any = None,
+    skill_routes_doc: Any = None,
 ) -> PolicySettings:
     """运行时装配 PolicySettings（纯函数，无 I/O；policy_doc / view 由调用方读入）。"""
     raw = dict(policy_doc or {})
@@ -332,6 +381,56 @@ def assemble_policy_settings(
     if allow_neg is None:
         allow_neg = treasure_cfg.get("allow_negative", ())
 
+    # 技能优先级：短码 → 标签 → canonical 族名（与 skill_focus_families 同一标签通道）。
+    priority_families: list[str] = []
+    for code in getattr(settings, "skill_priority", None) or ():
+        label = skill_labels.get(code)
+        text = str(label or "").strip() if label else ""
+        text = text or str(code or "").strip()
+        canon = canonical_family(text) or family_of(text) or text
+        if canon and canon not in priority_families:
+            priority_families.append(canon)
+
+    # 路线偏好：{短码: route id} → [(canonical 族名, route id)]，保序去重。
+    custom_pairs: list[tuple[str, str]] = []
+    for code, route_id in (getattr(settings, "skill_custom_routes", None) or {}).items():
+        label = skill_labels.get(code)
+        text = str(label or "").strip() if label else ""
+        text = text or str(code or "").strip()
+        canon = canonical_family(text) or family_of(text) or text
+        rid = str(route_id or "").strip()
+        if canon and rid and all(pair[0] != canon for pair in custom_pairs):
+            custom_pairs.append((canon, rid))
+
+    # v2 routes 文档：只为「该族被用户选了路线」的族提取 prefer/avoid 标签。
+    route_prefs: list[tuple[str, str, tuple[str, ...], tuple[str, ...]]] = []
+    families_doc = (
+        skill_routes_doc.get("families") if isinstance(skill_routes_doc, Mapping) else None
+    )
+    if isinstance(families_doc, Mapping):
+        selected_routes = dict(custom_pairs)
+        for slug, fam_entry in families_doc.items():
+            if not isinstance(fam_entry, Mapping):
+                continue
+            label = skill_labels.get(str(slug))
+            text = str(label or slug or "").strip()
+            canon = canonical_family(text) or family_of(text) or text
+            want = selected_routes.get(canon)
+            if not want:
+                continue
+            for spec in fam_entry.get("routes") or ():
+                if not isinstance(spec, Mapping):
+                    continue
+                if str(spec.get("id") or "").strip() != want:
+                    continue
+                route_prefs.append((
+                    canon,
+                    want,
+                    tuple(str(t).strip() for t in (spec.get("prefer") or ()) if str(t).strip()),
+                    tuple(str(t).strip() for t in (spec.get("avoid") or ()) if str(t).strip()),
+                ))
+                break
+
     min_conf = raw.get("min_confidence")
     return PolicySettings.from_mapping(
         {
@@ -356,6 +455,9 @@ def assemble_policy_settings(
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
             "treasure_negative_names": treasure_cfg.get("negative_names"),
             "treasure_must_take": treasure_cfg.get("must_take_names"),
+            "skill_priority": tuple(priority_families),
+            "skill_custom_routes": tuple(custom_pairs),
+            "skill_route_preferences": tuple(route_prefs),
             "treasure_allow_negative": tuple(str(s) for s in allow_neg),
             "treasure_refresh_on_no_safe": bool(treasure_cfg.get("refresh_on_no_safe", False)),
             "habit_name_scores": habit_name_scores,
@@ -397,9 +499,12 @@ class PanelCandidates:
     set_progress: Mapping[str, Mapping[str, Any]] | None = None
     refresh_count: int = 0
     has_giveup: bool = False
+    # 20260822：执行层探测到的刷新按钮可用性。此前该字段从未被填充，
+    # REFRESH 分支恒为死代码（羁绊/技能"不刷新"的结构性根因）。
+    can_refresh: bool = False
     settings: PolicySettings | Mapping[str, Any] | None = None
     owned_skill_cards: tuple[str, ...] = ()
-
+    owned_bond_cards: tuple[str, ...] = ()
     def __post_init__(self) -> None:
         if self.panel_kind is not None and self.panel_kind not in VALID_PANEL_KINDS:
             raise ValueError(
@@ -417,7 +522,11 @@ class PanelCandidates:
             "owned_skill_cards",
             tuple(str(s).strip() for s in self.owned_skill_cards if str(s).strip()),
         )
-
+        object.__setattr__(
+            self,
+            "owned_bond_cards",
+            tuple(str(s).strip() for s in self.owned_bond_cards if str(s).strip()),
+        )
 
 def _coerce_slot(raw: Any) -> SlotCandidate:
     if isinstance(raw, SlotCandidate):
@@ -605,7 +714,20 @@ def _rank_skill_candidates(
     )
     focus_set = _skill_focus_set(settings)
     owned_branch_families = owned_families(owned)
-    ranked: list[tuple[int, int, int, int, int, int, float, int]] = []
+    # 20260822 实机（trace 181735 tick42）：面板出现红色预设主技能「剑气」，
+    # 却被已拥有族的紫色堆叠卡（箭矢齐射）以 priority_rank 压过，导致四个
+    # 预设主技能整局一个都没主动拿、技能槽全被族内堆叠卡占满（用户口中的"乱拿"）。
+    # 未拥有的预设主技能（卡名与焦点族名同名）必须先于一切族内堆叠卡。
+    missing_main_names = frozenset(
+        name for name in focus_families if name and name not in owned_branch_families
+    )
+    ranked: list[tuple[int, int, int, int, int, int, int, int, int, float, int]] = []
+    # 用户技能族优先级 + 路线偏好（均为 ranking-only 键；空值时恒为 0，行为零变化）。
+    user_priority_order = {fam: pos for pos, fam in enumerate(settings.skill_priority)}
+    route_pref_by_family = {
+        fam: (prefers, avoids)
+        for fam, _rid, prefers, avoids in settings.skill_route_preferences
+    }
 
     for slot in slots:
         if slot.confidence < settings.min_confidence:
@@ -685,7 +807,20 @@ def _rank_skill_candidates(
                 settings.skill_focus_families,
                 settings.skill_archive_levels,
                 disabled_amplifiers=settings.skill_disabled_amplifiers,
+                carry_priority=(
+                    settings.skill_priority[0] if settings.skill_priority else ""
+                ),
             )
+
+        user_priority_rank = (
+            user_priority_order.get(fam, len(user_priority_order)) if user_priority_order else 0
+        )
+        route_score = 0
+        route_tags = route_pref_by_family.get(fam)
+        if route_tags and (slot.name or slot.description):
+            text = f"{slot.name or ''} {slot.description}"
+            prefers, avoids = route_tags
+            route_score = sum(1 for t in prefers if t in text) - sum(1 for t in avoids if t in text)
 
         rarity_rank = _skill_effective_rarity_rank(slot, settings)
         level = 0
@@ -707,9 +842,16 @@ def _rank_skill_candidates(
         modifier = 0.0
         if slot.name:
             modifier = float(view.get_priority_modifier(slot.name) or 0.0)
+        # 预设主技能缺失优先键：卡名与焦点族名同名的卡且该主技能尚未拥有 → 0，
+        # 其余（含族内堆叠卡）→ 1。此键置于 priority_rank 之前，
+        # 保证「先集齐四个预设主技能，再堆叠」的顺序（乱拿修复核心）。
+        main_missing_rank = 0 if (missing_main_names and slot.name and slot.name in missing_main_names) else 1
         ranked.append(
             (
+                int(main_missing_rank),
                 int(priority_rank),
+                int(user_priority_rank),
+                -int(route_score),
                 int(role_rank),
                 int(rarity_rank),
                 int(level_key),
@@ -720,7 +862,7 @@ def _rank_skill_candidates(
             )
         )
     ranked.sort()
-    return [entry[7] for entry in ranked]
+    return [entry[10] for entry in ranked]
 
 
 def _rank_skill_fill_candidates(
@@ -805,10 +947,20 @@ def _decide_skill(
         )
     )
     if readable_count > 0 and not ranked:
+        # 20260822 实机（trace 203910 20:42:17）：可读但全部未命中预设/焦点
+        # 时直接隐藏面板，用户明确要求先刷新找预设卡。刷新预算内且按钮
+        # 可用 → REFRESH；预算耗尽或不可刷新才隐藏（INV-SKILL-02 的
+        # "0-refresh" 语义就此被用户裁决覆盖：Focus-Miss 先刷后藏）。
+        if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
+            return PolicyDecision(
+                PolicyAction.REFRESH,
+                None,
+                f"技能未命中预设/焦点系（第 {state.refreshes + 1}/{state.max_refreshes} 次刷新找预设）",
+            )
         return PolicyDecision(
             PolicyAction.CLOSE,
             None,
-            "技能未命中预设/焦点系且不满足选择条件，关闭面板",
+            "技能未命中预设/焦点系且刷新已耗尽，关闭面板",
         )
     return _skill_last_resort(cands, settings, "无预设/焦点技能")
 
@@ -841,6 +993,17 @@ def _decide_collectible(
                     return PolicyDecision.select(
                         slot.index, f"羁绊系统必拿【{slot.name}】 @ slot {slot.index}"
                     )
+            # 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
+            # 只要手中已持有过某羁绊卡，且当前面板再次出现该卡，优先合成升级，绝不可刷新丢弃！
+            owned_bonds_set = {b for b in getattr(cands, "owned_bond_cards", ()) if b}
+            for slot in eligible:
+                if (
+                    slot.confidence >= settings.min_confidence
+                    and slot.name in owned_bonds_set
+                ):
+                    return PolicyDecision.select(
+                        slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
+                    )
     preset_hit = _match_preset(
         eligible,
         presets,
@@ -852,18 +1015,35 @@ def _decide_collectible(
         name = _slot_name(cands.slots, preset_hit)
         return PolicyDecision.select(preset_hit, f"{kind} 预设命中：{name} @ slot {preset_hit}")
 
-    if kind == PANEL_BOND and settings.bond_whitelist_mode == WHITELIST_HARD:
-        return _no_safe_candidate(cands, state, kind, "白名单外不可选（硬禁用）")
+    if kind == PANEL_BOND:
+        # 20260822 实机（trace 181735）：软/硬模式在预设未命中时都先尝试木材刷新，
+        # 刷完预算后软模式才回落到套装/品质，硬模式直接收口。
+        # 老行为（软模式直接品质降级）导致羁绊整局只拿 4 张且从不刷新。
+        if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
+            return PolicyDecision(
+                PolicyAction.REFRESH,
+                None,
+                f"羁绊未命中预设（第 {state.refreshes + 1}/{state.max_refreshes} 次木材刷新）",
+            )
+        if settings.bond_whitelist_mode == WHITELIST_HARD:
+            return _no_safe_candidate(cands, state, kind, "白名单外不可选（硬禁用，刷新已耗尽）")
 
     synth_hit = _match_synthesis(cands, settings.min_confidence, slots=eligible)
     if synth_hit is not None:
         name = _slot_name(cands.slots, synth_hit)
         return PolicyDecision.select(synth_hit, f"{kind} 套装进度优先：{name} @ slot {synth_hit}")
 
-    quality_hit = _match_quality(cands, settings, slots=eligible)
+    # 20260822 实机（trace 203910 20:42:19/22）：宝物面板橙/紫卡 OCR 读不出
+    # 名字（conf=0）时品质降级只能在"可读的绿卡"里挑——用户裁决：宝物走红→
+    # 橙→紫优先链，未读名的槽位按边框采样稀有度参与排序（按槽位坐标点击）。
+    # 羁绊/英雄卡保持"未读名不可选"的安全语义不变。
+    quality_hit = _match_quality(
+        cands, settings, slots=eligible, allow_unnamed=(kind == PANEL_TREASURE)
+    )
     if quality_hit is not None:
         name = _slot_name(cands.slots, quality_hit)
-        return PolicyDecision.select(quality_hit, f"{kind} 品质降级：{name} @ slot {quality_hit}")
+        rarity = _slot_rarity(cands.slots, quality_hit) or "未知品质"
+        return PolicyDecision.select(quality_hit, f"{kind} 品质降级：{name}/{rarity} @ slot {quality_hit}")
 
     return _no_safe_candidate(cands, state, kind, "无安全候选")
 
@@ -986,15 +1166,29 @@ def _match_quality(
     cands: PanelCandidates,
     settings: PolicySettings,
     slots: tuple[SlotCandidate, ...] | None = None,
+    allow_unnamed: bool = False,
 ) -> int | None:
-    best: tuple[int, int] | None = None
+    """品质降级：按稀有度带排序取最优槽位。
+
+    ``allow_unnamed``（仅宝物品质链）：OCR 读不出名字但边框采样到稀有度
+    的槽位按坐标参与排序；无名槽必须有正采样稀有度，且同稀有度时有名
+    槽优先——避免把"全未知"面板变成盲选。
+    """
+    best: tuple[int, int, int] | None = None
     for slot in (cands.slots if slots is None else slots):
-        if not slot.name or slot.confidence < settings.min_confidence:
+        if slot.confidence < settings.min_confidence and not (allow_unnamed and slot.rarity):
             continue
-        key = (_rarity_rank(slot.rarity, settings.quality_order), slot.index)
+        if not slot.name:
+            if not allow_unnamed or not slot.rarity:
+                continue
+        key = (
+            _rarity_rank(slot.rarity, settings.quality_order),
+            0 if slot.name else 1,
+            slot.index,
+        )
         if best is None or key < best:
             best = key
-    return best[1] if best is not None else None
+    return best[2] if best is not None else None
 
 
 def _slot_rarity(slots: tuple[SlotCandidate, ...], index: int) -> str | None:

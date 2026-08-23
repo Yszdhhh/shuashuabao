@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.loop_action import LoopAction
-from shuabao.mediator import Mediator, Phase
+from shuabao.mediator import Mediator, PanelState, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 from shuabao.vision.stage_selector import StageId, StageRow
@@ -104,7 +104,9 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
                 "QuitGame-open-confirm",
                 "QuitGame-confirm",
                 "RoomStart",
-                "SelectStage-target",
+                # 2026-08-20 起选关为幂等正向确认：fixture 上目标行已被
+                # selected_stage_row 判定为高亮命中 →「已高亮，跳过点选」，
+                # 不再产生 SelectStage-target 输入，直接 StageStart。
                 "StageStart",
             ],
             [reason for reason, _ in self.actions],
@@ -134,12 +136,17 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
                 self.assertEqual(LoopAction.Continue, action)
                 self.assertEqual(Phase.MAIN_LINE, self.med.phase)
 
-            clock.set(120.0)  # 确认后 elapsed = 120 - 108 = 12s >= 10s
+            clock.set(124.0)  # 确认后 elapsed = 124 - 108 = 16s >= 15s（panel_hard_deadline_s）
             action = self.med._tick_main_line(frame)
 
-        self.assertEqual(LoopAction.Break, action)
-        self.assertEqual(Phase.ERROR, self.med.phase)
-        # 全程零输入：未知面板绝不盲点（旧行为是 3 次 HideUnknownSelection 点击）
+        # 20260822 语义：未知面板不再盲选、也不再 ERROR 停机——由面板
+        # episode hard deadline（panel_hard_deadline_s，默认 15s）强制 COOLDOWN
+        # 脱困，运行继续。
+        self.assertEqual(LoopAction.Continue, action)
+        self.assertEqual(Phase.MAIN_LINE, self.med.phase)
+        self.assertEqual(PanelState.COOLDOWN, self.med._panel_state)
+        # 全程零输入：未知面板绝不盲点（旧行为是 3 次 HideUnknownSelection
+        # 点击，2026-08-20 一度回归为 3s 品质盲选，均已封死）
         self.assertEqual([], self.actions)
 
 

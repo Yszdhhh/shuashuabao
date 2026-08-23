@@ -77,7 +77,11 @@ class MainWindow(BaseMainWindow):
             return
         selected = tuple(self.skill_grid.get_skills())
         levels = self.archive_grid.get_levels()
-        evaluation = self.smart_route_evaluator.evaluate(selected, levels)
+        carry_order = getattr(self.settings, "skill_priority", None) or []
+        evaluation = self.smart_route_evaluator.evaluate(
+            selected, levels,
+            carry_priority=str(carry_order[0]) if carry_order else None,
+        )
         disabled = tuple(
             str(x) for x in (
                 getattr(self.settings, "smart_route_disabled_amplifiers", None) or []
@@ -98,6 +102,10 @@ class MainWindow(BaseMainWindow):
 
     def _on_skills_changed(self):
         super()._on_skills_changed()
+        self._refresh_smart_route_panel()
+
+    def _on_priority_order_changed(self) -> None:
+        super()._on_priority_order_changed()
         self._refresh_smart_route_panel()
 
     def _on_archive_levels_changed(self):

@@ -196,7 +196,7 @@ class Mediator(CoreMediator):
         if nxt == "evolve":
             self._evolve_ok_this_cycle = False
             self._evolve_awaiting_hero_pick = False
-        if nxt == "equipment":
+        if nxt == "equipment" or completed == "evolve":
             self._inventory_clicks_this_visit = 0
             self._inventory_last_pt = None
             self._inventory_same_pt_hits = 0
@@ -308,23 +308,10 @@ class Mediator(CoreMediator):
         self._runtime_panel_unknown_since = None
 
     def _panel_fail_forward(self, frame, anchor, now: float) -> LoopAction:
+        # 20260822：删除 3s 品质盲选（FailForward-Rarity）——实机与用户反馈均
+        # 证实盲选=乱拿（宝物"选蓝不选紫"同源）。Fail-Forward 只走已验证
+        # 关闭锚点 → ESC → Fail-Closed 的安全链。
         kind = self._panel_kind_of(frame, anchor) if anchor is not None else str(getattr(self, "_panel_kind", "unknown"))
-        rarity_kind = kind if kind in {"skill", "bond", "treasure", "card"} else "card"
-        rarity_hit = self._rarity_choice(frame, rarity_kind)
-        if rarity_hit is not None and self.act_click(rarity_hit, f"{kind}-FailForward-Rarity"):
-            fp = (kind, rarity_hit.name, rarity_hit.screen_x // 8, rarity_hit.screen_y // 8)
-            self._bump_choice_attempts()
-            self._panel_executed_actions += 1
-            self._panel_last_progress_at = now
-            self._stage_panel_choice_action("select", fp)
-            self._panel_state = PanelState.WAIT_MUTATION
-            self._panel_mutation_baseline = self._panel_roi_region(frame)
-            self._panel_last_input_at = now
-            self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
-            self._clear_runtime_unknown_panel()
-            print(f"[L1] Fail-Forward：3s 无名字证据，按品质选择 {rarity_hit.name}")
-            return LoopAction.Continue
-
         close_hit = self._verified_panel_close(frame, kind)
         if close_hit is not None and self.act_click(close_hit, "PanelFailForward-VerifiedClose"):
             self._bump_choice_attempts()
@@ -348,9 +335,10 @@ class Mediator(CoreMediator):
             print("[L1] Fail-Forward：无可信卡/关闭锚点，发送 ESC 并等待画面确认")
             return LoopAction.Continue
 
-        self._runtime_panel_unknown_since = now
-        print("[L1] Fail-Forward：ESC 被输入门禁拒绝，保留面板状态并稍后重试")
-        return LoopAction.Continue
+        print("[L1] Fail-Forward：ESC 被输入门禁拒绝，同一物理面板无法恢复，Fail-Closed 停止运行")
+        self.set_phase(Phase.ERROR, "physical panel fail-forward exhausted")
+        self.stop()
+        return LoopAction.Break
 
     def _physical_panel_watchdog(self, frame, anchor, now: float) -> LoopAction | None:
         if anchor is None:
@@ -419,7 +407,15 @@ class Mediator(CoreMediator):
         hit = super()._find_evolution_choice(frame, anchor)
         if hit is not None and "refresh" not in str(getattr(hit, "name", "")).lower():
             return hit
-        if getattr(self, "_evolve_awaiting_hero_pick", False):
+        # 20260822（trace 181735 18:19:41-45 连点 9 次）：_rarity_choice 兜底
+        # 绝不能在已定性为 skill/bond/treasure/card 的选择面板上触发——
+        # 那会把普通三选一当成进化弹窗盲点（宝物"选蓝不选紫"的根因）。
+        if (
+            getattr(self, "_evolve_awaiting_hero_pick", False)
+            and getattr(self, "_panel_opened_by_us", None) is None
+            and getattr(self, "_panel_state", PanelState.CLOSED) == PanelState.CLOSED
+            and self._classify_choice_panel(frame) is None
+        ):
             fallback = self._rarity_choice(frame, "card") or self._rarity_choice(frame, "skill")
             if fallback is not None:
                 return fallback
@@ -597,17 +593,15 @@ class Mediator(CoreMediator):
         configured = self._configured_bond_presets()
         if not canonical or canonical not in configured:
             return
-        if canonical in self._bond_cards_owned or canonical in self._bond_cards_pending:
-            return
+        # 重复卡必须保留次数，供“已拿卡优先合成”决策使用。
         self._bond_cards_pending.append(canonical)
 
     def _commit_pending_bond_cards(self) -> None:
         if not self._bond_cards_pending:
             return
         for name in self._bond_cards_pending:
-            if name not in self._bond_cards_owned:
-                self._bond_cards_owned.append(name)
-                print(f"[L1] 羁绊确认获得：{name}；剩余预设={self._remaining_bond_presets()}")
+            self._bond_cards_owned.append(name)
+            print(f"[L1] 羁绊确认获得：{name}；当前持有次数={self._bond_cards_owned.count(name)}")
         self._bond_cards_pending.clear()
 
     def _clear_pending_bond_cards(self) -> None:
@@ -701,18 +695,9 @@ class Mediator(CoreMediator):
             self._choice_policy_idle = True
             self._choice_policy_last_reason = "羁绊预设已完成但当前帧无已验证关闭按钮"
             self._arm_runtime_unknown_panel(frame, kind)
-            return None
-
         result = super()._find_reward_choice(frame, anchor=anchor)
         if result is None:
             self._arm_runtime_unknown_panel(frame, kind)
-            elapsed = time.time() - float(self._runtime_panel_unknown_since or time.time())
-            if elapsed >= self._PANEL_FAIL_FORWARD_S:
-                self._choice_policy_idle = False
-                rarity_kind = kind if kind in {"skill", "bond", "treasure", "card"} else "card"
-                rarity = self._rarity_choice(frame, rarity_kind)
-                if rarity is not None:
-                    return (kind, rarity)
             return None
 
         self._clear_runtime_unknown_panel()
@@ -724,21 +709,14 @@ class Mediator(CoreMediator):
         if not self._is_bond_card_click_name(hit_name):
             return result
 
+        # 非预设羁绊否决只对硬禁用模式生效；soft 模式保留策略结果。
+        if str(getattr(self.settings, "bond_whitelist_mode", "soft") or "soft") != "hard":
+            return result
+
         canonical = self._canonical_bond_name(hit_name)
         remaining = set(self._remaining_bond_presets())
         if canonical in remaining:
             return result
-
-        preferred = [v.strip() for v in self.settings.cards if v and v.strip()]
-        eligible = [v for v in preferred if self._canonical_bond_name(v) in remaining]
-        if eligible:
-            names = [v if "/" in v else f"cards/{v}" for v in eligible]
-            hits = self._match_all_preferred(frame, names, max_results=12)
-            by_stem = {Path(candidate.name).stem: candidate for candidate in hits}
-            for pref in eligible:
-                candidate = by_stem.get(Path(pref).stem)
-                if candidate is not None:
-                    return ("bond", candidate)
 
         close_hit = self._verified_panel_close(frame, "bond")
         if close_hit is not None:
@@ -747,6 +725,7 @@ class Mediator(CoreMediator):
         self._choice_policy_last_reason = "羁绊仅出现已确认预设，等待 Fail-Forward 收口"
         self._arm_runtime_unknown_panel(frame, kind)
         return None
+
 
     def panel_episode_diagnostics(self) -> dict:
         data = super().panel_episode_diagnostics()

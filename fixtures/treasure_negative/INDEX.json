@@ -5,7 +5,8 @@
     "金转木",
     "杀敌梭哈",
     "伐木契约",
-    "等级优势"
+    "等级优势",
+    "压制"
   ],
   "entries": [
     {
@@ -88,18 +89,26 @@
     {
       "name": "等级优势",
       "panels": [
-        "fixtures\\treasure_negative\\等级优势\\panel_d0_a_000756.png",
-        "fixtures\\treasure_negative\\等级优势\\panel_d0_b_001077.png"
+        "fixtures\\treasure_negative\\等级优势\\panel_d0_a_000756.png"
       ],
       "name_crops": [
-        "fixtures\\treasure_negative\\等级优势\\name_d0_a_000756_slot2_name.png",
-        "fixtures\\treasure_negative\\等级优势\\name_d0_b_001077_slot1_name.png"
+        "fixtures\\treasure_negative\\等级优势\\name_d0_a_000756_slot2_name.png"
       ],
       "desc_crops": [
         "fixtures\\treasure_negative\\等级优势\\desc2_d0_a_000756_slot2.png",
-        "fixtures\\treasure_negative\\等级优势\\desc2_d0_b_001077_slot1.png",
-        "fixtures\\treasure_negative\\等级优势\\desc_d0_a_000756_slot2.png",
-        "fixtures\\treasure_negative\\等级优势\\desc_d0_b_001077_slot1.png"
+        "fixtures\\treasure_negative\\等级优势\\desc_d0_a_000756_slot2.png"
+      ]
+    },
+    {
+      "name": "压制",
+      "panels": [
+        "fixtures\\treasure_negative\\压制\\panel_treasure_yazhi.png"
+      ],
+      "name_crops": [
+        "fixtures\\treasure_negative\\压制\\name_yazhi.png"
+      ],
+      "desc_crops": [
+        "fixtures\\treasure_negative\\压制\\desc_yazhi.png"
       ]
     }
   ]

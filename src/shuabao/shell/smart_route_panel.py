@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Mapping
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -16,7 +16,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from shuabao.smart_route import RouteEvaluation, RouteRecommendation, SkillRole
+from shuabao.shell.theme_styles import tokens
+from shuabao.smart_route import RouteEvaluation, RouteRecommendation
 
 
 class SmartRoutePanel(QGroupBox):
@@ -42,12 +43,12 @@ class SmartRoutePanel(QGroupBox):
         self.setObjectName("smartRoutePanel")
         self.setVisible(False)
         self._root = QVBoxLayout(self)
-        self._root.setSpacing(8)
-        self._root.setContentsMargins(12, 14, 12, 10)
+        self._root.setSpacing(12)
+        self._root.setContentsMargins(16, 16, 16, 12)
         self._body = QWidget()
         self._body_lay = QVBoxLayout(self._body)
         self._body_lay.setContentsMargins(0, 0, 0, 0)
-        self._body_lay.setSpacing(8)
+        self._body_lay.setSpacing(12)
         self._root.addWidget(self._body)
 
     @staticmethod
@@ -84,18 +85,18 @@ class SmartRoutePanel(QGroupBox):
             return
         self.setVisible(True)
 
+        t = tokens()
         carry = evaluation.carry
         if carry is not None:
             level = f" Lv{carry.archive_level}" if carry.archive_level is not None else " 等级未知"
             headline = QLabel(f"主 C · {self._name(carry.code, carry.family)}{level}")
-            headline.setStyleSheet("font-size:14px;font-weight:700;color:#fbbf24;")
+            headline.setStyleSheet(
+                f"font-size:14px;font-weight:700;color:{t['text_primary']};"
+            )
             self._body_lay.addWidget(headline)
 
         amp_names = [self._name(item.code, item.family) for item in evaluation.amplifiers]
-        role_note = QLabel(
-            "挂件 · " + " / ".join(amp_names)
-            + "\n主C优先纯伤害与终极路线；挂件优先跨系增伤、易伤/控制、冷却与覆盖率。"
-        )
+        role_note = QLabel("挂件 · " + " / ".join(amp_names))
         role_note.setWordWrap(True)
         role_note.setObjectName("hintLabel")
         self._body_lay.addWidget(role_note)
@@ -103,12 +104,14 @@ class SmartRoutePanel(QGroupBox):
         for recommendation in evaluation.recommendations[:2]:
             self._body_lay.addWidget(self._recommendation_card(recommendation))
 
-        tune = QGroupBox("与当前 4 技能相关的微调")
+        tune = QGroupBox("微调")
         tune_lay = QVBoxLayout(tune)
+        tune_lay.setContentsMargins(12, 12, 12, 10)
+        tune_lay.setSpacing(8)
         disabled = set(disabled_amplifiers)
         for amp in evaluation.amplifiers:
             name = self._name(amp.code, amp.family)
-            box = QCheckBox(f"{name}：优先为主C提供联动增伤 / 易伤 / 控制")
+            box = QCheckBox(f"{name}：增伤 / 易伤 / 控制")
             box.setChecked(amp.code not in disabled)
             box.setToolTip("关闭后该挂件回到中性排序；不会扩大可选卡集合，也不会绕过前置/互斥。")
             box.toggled.connect(lambda _checked=False: self.micro_tune_changed.emit())
@@ -133,21 +136,34 @@ class SmartRoutePanel(QGroupBox):
         self._body_lay.addWidget(tune)
 
     def _recommendation_card(self, recommendation: RouteRecommendation) -> QWidget:
+        t = tokens()
         frame = QFrame()
+        frame.setObjectName("routeCard")
         frame.setStyleSheet(
-            "QFrame { background:#101827; border:1px solid #334155; border-radius:8px; padding:6px; }"
+            f"QFrame#routeCard {{"
+            f" background:{t['bg_card']};"
+            f" border:1px solid {t['border_glass']};"
+            f" border-top:1px solid {t['border_glass_top']};"
+            f" border-radius:12px;"
+            f"}}"
         )
         row = QHBoxLayout(frame)
+        row.setContentsMargins(12, 10, 12, 10)
+        row.setSpacing(12)
         text_box = QVBoxLayout()
+        text_box.setSpacing(4)
         title = QLabel(recommendation.name)
-        title.setStyleSheet("font-weight:700;color:#e2e8f0;")
+        title.setStyleSheet(f"font-weight:700;font-size:13px;color:{t['text_primary']};")
         reason = QLabel(recommendation.reason)
         reason.setWordWrap(True)
         reason.setObjectName("hintLabel")
         text_box.addWidget(title)
         text_box.addWidget(reason)
         row.addLayout(text_box, 1)
-        button = QPushButton("应用搭配")
+        button = QPushButton("应用")
+        button.setObjectName("btnPrimary")
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setFixedHeight(36)
         button.setToolTip("应用当前流派卡组与属性线配置。")
         button.clicked.connect(lambda _checked=False, rec=recommendation: self.apply_requested.emit(rec))
         row.addWidget(button)

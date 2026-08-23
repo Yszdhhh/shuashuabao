@@ -1,0 +1,157 @@
+{
+  "version": 2,
+  "_comment": "16 技能族推荐属性流向。顶层 routes 键为 v1 原样保留（main_window._load_skill_routes 兼容，来源：用户提供的技能线路全览表 2026-08-21）。families 为 v2 新增：每族 2~3 条策略路线，prefer/avoid 标签均取自 skill_card_knowledge.json 该族卡片效果原文。",
+  "routes": {
+    "pg": "敏捷/力量",
+    "asj": "智力/法系",
+    "asjg": "智力/法系",
+    "assx": "智力/法系",
+    "tl": "智力/元素",
+    "sdl": "智力/元素",
+    "dcw": "智力/控场",
+    "hq": "智力/火系",
+    "byj": "敏捷/智力",
+    "hbj": "智力/控场",
+    "bsxx": "智力/防御",
+    "jf": "敏捷/控场",
+    "ljf": "敏捷/智力",
+    "jq": "力量/物理",
+    "dz": "力量/控场",
+    "ys": "力量/智力"
+  },
+  "ur_links": {
+    "zhili": "湮灭者（法术穿透/双倍施法）",
+    "mingjie": "收割者（攻速上限突破/满暴击爆伤）",
+    "liliang": "不动尊（终极真伤/真免护甲）"
+  },
+  "families": {
+    "pg": {
+      "name": "普攻",
+      "routes": [
+        {"id": "speed", "label": "优先攻速", "prefer": ["攻速", "攻击间隔", "附魔"], "avoid": []},
+        {"id": "multi", "label": "优先多重弹射", "prefer": ["多重", "弹射", "物理伤害"], "avoid": []},
+        {"id": "enchant", "label": "优先附魔触发", "prefer": ["附魔", "触发", "击退"], "avoid": []}
+      ]
+    },
+    "asj": {
+      "name": "奥术箭",
+      "routes": [
+        {"id": "damage", "label": "优先伤害", "prefer": ["伤害+", "穿透", "爆炸"], "avoid": ["伤害-"]},
+        {"id": "split", "label": "优先分裂数量", "prefer": ["分裂", "数量+1", "次级箭"], "avoid": ["伤害-"]},
+        {"id": "cooldown", "label": "优先冷却缩减", "prefer": ["冷却缩减"], "avoid": []}
+      ]
+    },
+    "asjg": {
+      "name": "奥术激光",
+      "routes": [
+        {"id": "damage", "label": "优先伤害", "prefer": ["伤害+", "受伤+", "范围+"], "avoid": ["伤害-"]},
+        {"id": "control", "label": "优先减速", "prefer": ["移速-"], "avoid": []},
+        {"id": "uptime", "label": "优先持续覆盖", "prefer": ["持续时间", "伤害频率", "脉冲"], "avoid": []}
+      ]
+    },
+    "assx": {
+      "name": "奥术射线",
+      "routes": [
+        {"id": "damage", "label": "优先伤害易伤", "prefer": ["伤害+", "受伤+"], "avoid": []},
+        {"id": "guide", "label": "优先制导箭", "prefer": ["制导", "奥术箭"], "avoid": []},
+        {"id": "uptime", "label": "优先持续多目标", "prefer": ["持续时间", "目标+1", "爆炸"], "avoid": []}
+      ]
+    },
+    "jq": {
+      "name": "剑气",
+      "routes": [
+        {"id": "damage", "label": "优先伤害", "prefer": ["伤害+", "受伤+", "冻结"], "avoid": ["伤害-"]},
+        {"id": "control", "label": "优先控制", "prefer": ["减速", "眩晕", "击退"], "avoid": []},
+        {"id": "projectile", "label": "优先弹速体型", "prefer": ["弹速", "体型", "不可拦截"], "avoid": ["伤害-"]}
+      ]
+    },
+    "byj": {
+      "name": "爆炎箭",
+      "routes": [
+        {"id": "burn", "label": "优先燃烧爆炸", "prefer": ["燃烧", "爆炸"], "avoid": []},
+        {"id": "pierce", "label": "优先穿透伤害", "prefer": ["穿透", "无视火抗", "伤害+"], "avoid": ["伤害-"]},
+        {"id": "volume", "label": "优先释放次数", "prefer": ["额外释放", "火花", "数量+1"], "avoid": ["伤害-"]}
+      ]
+    },
+    "hbj": {
+      "name": "寒冰箭",
+      "routes": [
+        {"id": "freeze", "label": "优先冻结控制", "prefer": ["冻结", "霜寒"], "avoid": []},
+        {"id": "damage", "label": "优先穿透伤害", "prefer": ["伤害+", "穿透"], "avoid": ["伤害-"]},
+        {"id": "split", "label": "优先分裂冰箭", "prefer": ["分裂", "小冰箭", "数量+1"], "avoid": ["伤害-"]}
+      ]
+    },
+    "tl": {
+      "name": "天雷",
+      "routes": [
+        {"id": "paralysis", "label": "优先麻痹减速", "prefer": ["麻痹", "减速"], "avoid": []},
+        {"id": "storm", "label": "优先磁暴电场", "prefer": ["磁暴", "电磁场", "范围+"], "avoid": []},
+        {"id": "damage", "label": "优先伤害", "prefer": ["伤害+", "闪电球"], "avoid": ["伤害-"]}
+      ]
+    },
+    "sdl": {
+      "name": "闪电链",
+      "routes": [
+        {"id": "bounce", "label": "优先弹射多目标", "prefer": ["弹射", "目标+1"], "avoid": []},
+        {"id": "paralysis", "label": "优先麻痹", "prefer": ["麻痹"], "avoid": []},
+        {"id": "ion", "label": "优先离子爆破", "prefer": ["离子爆破", "爆炸", "电流"], "avoid": []}
+      ]
+    },
+    "dcw": {
+      "name": "电磁网",
+      "routes": [
+        {"id": "shock", "label": "优先感电麻痹", "prefer": ["感电", "麻痹"], "avoid": []},
+        {"id": "zone", "label": "优先范围跃迁", "prefer": ["范围+", "跃迁", "弹射"], "avoid": []},
+        {"id": "damage", "label": "优先伤害频次", "prefer": ["伤害+", "额外释放"], "avoid": ["伤害-"]}
+      ]
+    },
+    "bsxx": {
+      "name": "冰霜新星",
+      "routes": [
+        {"id": "freeze", "label": "优先冻结冻伤", "prefer": ["冻结", "冻伤", "冷冻场"], "avoid": []},
+        {"id": "shatter", "label": "优先冰片穿透", "prefer": ["小冰片", "穿透", "范围+"], "avoid": []},
+        {"id": "damage", "label": "优先冰系伤害", "prefer": ["伤害+", "冰系"], "avoid": []}
+      ]
+    },
+    "dz": {
+      "name": "地震",
+      "routes": [
+        {"id": "stun", "label": "优先眩晕", "prefer": ["眩晕"], "avoid": []},
+        {"id": "ember", "label": "优先余烬火系", "prefer": ["余烬", "火系"], "avoid": []},
+        {"id": "damage", "label": "优先范围伤害", "prefer": ["伤害+", "范围+", "翻倍"], "avoid": []}
+      ]
+    },
+    "ljf": {
+      "name": "龙卷风",
+      "routes": [
+        {"id": "pull", "label": "优先牵引聚怪", "prefer": ["牵引", "范围+"], "avoid": []},
+        {"id": "sustain", "label": "优先持续游走", "prefer": ["持续时间", "移动速度"], "avoid": []},
+        {"id": "damage", "label": "优先雷电伤害", "prefer": ["伤害+", "电系"], "avoid": []}
+      ]
+    },
+    "jf": {
+      "name": "飓风",
+      "routes": [
+        {"id": "pierce", "label": "优先穿透", "prefer": ["穿透"], "avoid": []},
+        {"id": "control", "label": "优先击退减速", "prefer": ["击退", "减速", "眩晕", "牵引"], "avoid": []},
+        {"id": "storm", "label": "优先风暴数量", "prefer": ["小飓风", "小龙卷", "数量+1"], "avoid": ["伤害-"]}
+      ]
+    },
+    "hq": {
+      "name": "火球",
+      "routes": [
+        {"id": "burn", "label": "优先燃烧燃霜", "prefer": ["燃烧", "燃霜"], "avoid": []},
+        {"id": "tempo", "label": "优先伤害频率", "prefer": ["伤害频率", "火焰飞弹", "持续时间"], "avoid": []},
+        {"id": "volume", "label": "优先火球数量", "prefer": ["数量+1", "数量×3"], "avoid": ["伤害-"]}
+      ]
+    },
+    "ys": {
+      "name": "陨石",
+      "routes": [
+        {"id": "stun", "label": "优先眩晕", "prefer": ["眩晕"], "avoid": []},
+        {"id": "damage", "label": "优先爆发伤害", "prefer": ["伤害×", "伤害+", "碎片"], "avoid": ["伤害-", "冷却缩减-"]},
+        {"id": "area", "label": "优先范围碎片", "prefer": ["范围+", "碎片"], "avoid": []}
+      ]
+    }
+  }
+}

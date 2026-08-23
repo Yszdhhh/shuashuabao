@@ -535,6 +535,8 @@ class LiveRun205044Tests(unittest.TestCase):
                 patch.object(med, "_selection_anchor", return_value=anchor), \
                 patch.object(med, "act_click", return_value=True):
             self.assertIs(med._tick_main_line(evolution_frame), LoopAction.Continue)
+        # 20260822 循环序（test_runtime_stability_hotfix_20260821 钉死）：evolve
+        # 前置于 equipment（装备词缀弹窗防双模态冲突），evolve 之后是 equipment。
         self.assertEqual(med._l1_cycle_step, "equipment")
         self.assertFalse(med._evolve_feedback_pending)
 

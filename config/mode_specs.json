@@ -25,7 +25,7 @@
       },
       "forbidden_actions": [],
       "budgets": {
-        "round_timeout_s": 900
+        "round_timeout_s": 3600
       },
       "evidence_status": "live_partial",
       "notes": "现有 Mediator L0+L1。本 Flow 只文档化阶段，不替代 mediator。"

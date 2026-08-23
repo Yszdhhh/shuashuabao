@@ -57,6 +57,14 @@
       ],
       "pattern_hints": [],
       "notes": "可见区未出现「之后不再升级」。契约口述样例仍保留作 pattern 回归；本卡目前主要靠名字名单。"
+    },
+    "压制": {
+      "description": "基础攻击间隔大幅度增加，造成极高倍率伤害",
+      "evidence": [
+        "card_yazhi_crop.png"
+      ],
+      "pattern_hints": ["攻击间隔", "基础攻击间隔"],
+      "notes": "大幅增加基础攻击间隔的惩罚负面宝物，默认靠名字和关键词拦截。"
     }
   },
   "contract_oral_negative_samples_keep": [

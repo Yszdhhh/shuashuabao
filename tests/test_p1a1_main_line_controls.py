@@ -66,9 +66,10 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             mock_press_key.assert_not_called()
 
     def test_all_unverified_post_game_scenes_halt_before_any_input(self):
-        # S0 ⑧：archive/boss_entry 在局尾窗口（战后流程进行中）Fail-Closed；
-        # longzhu 色相检查移至 LONGZHU 阶段（MAIN_LINE 不再扫描）。
-        for scene_key in ["archive", "boss_entry"]:
+        # S0 ⑧：archive 在局尾窗口（战后流程进行中）Fail-Closed；
+        # boss_entry 20260822 起是 Boss 提前挑战入口：未配置挑战 Boss 时零输入
+        # 等待（不 ERROR、零输入）；longzhu 色相检查移至 LONGZHU 阶段。
+        for scene_key in ["archive"]:
             med = Mediator(self.settings, ROOT)
             f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
             med._last_frame = f
@@ -88,6 +89,24 @@ class P1A1MainLineControlsTests(unittest.TestCase):
                 self.assertEqual(med.phase, Phase.ERROR)
                 mock_click.assert_not_called()
                 mock_right_click.assert_not_called()
+
+        # boss_entry 未配置挑战 Boss：零输入 Continue、不进 ERROR
+        med = Mediator(self.settings, ROOT)
+        f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
+        med._last_frame = f
+        med.phase = Phase.MAIN_LINE
+        med._post_game_pending = True
+        boss_scene_hit = MatchResult(name="boss_entry", score=0.9, x=100, y=100, w=50, h=50, screen_x=100, screen_y=100)
+        toggle_hit = MatchResult(name="auto_task_toggle", score=0.9, x=1400, y=500, w=30, h=30, screen_x=1400, screen_y=500)
+        with patch.object(med, "find_scene", side_effect=lambda frame, scene, **kw: boss_scene_hit if scene == "boss_entry" else None), \
+             patch.object(med, "_find_auto_task_toggle", return_value=toggle_hit), \
+             patch.object(med.executor, "click") as mock_click, \
+             patch.object(med.executor, "right_click") as mock_right_click:
+            action = med._tick_main_line(f)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
+            self.assertEqual(med.phase, Phase.MAIN_LINE)
+            mock_click.assert_not_called()
+            mock_right_click.assert_not_called()
 
         # longzhu：LONGZHU 阶段才检查并 Fail-Closed
         med = Mediator(self.settings, ROOT)

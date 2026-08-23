@@ -233,7 +233,16 @@ class CadenceTests(unittest.TestCase):
         med = Mediator(settings, ROOT)
         frame = _noise_frame()
         med._capture_best = lambda *a, **k: frame
-        mono_ticks = iter([100.0, 100.02, 200.0, 200.01])
+        # f401a3b 起 tick() 内部（auto_task fuse 等）也会读 time.monotonic，
+        # 固定 4 值脚本会被额外读数打穿；改为无限递增假时钟（每次 +0.01s），
+        # 只锁定不变量：两 tick 之间恰好 sleep 一次，且 sleep = cadence - elapsed。
+        mono_state = {"now": 100.0}
+
+        def fake_monotonic() -> float:
+            value = mono_state["now"]
+            mono_state["now"] += 0.01
+            return value
+
         sleeps: list[float] = []
 
         class _NoopListener:
@@ -246,16 +255,20 @@ class CadenceTests(unittest.TestCase):
             def stop(self):
                 pass
 
-        with patch("shuabao.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
+        with patch("shuabao.mediator.time.monotonic", side_effect=fake_monotonic), \
              patch("shuabao.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
              patch("shuabao.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "stop") as stop:
             med.run(max_steps=2)
             stop.assert_not_called()
 
-        self.assertEqual(len(sleeps), 1)
-        # 稳定 HUD cadence 300ms - tick 耗时 20ms = 280ms
-        self.assertAlmostEqual(sleeps[0], 0.28, places=6)
+        # run() 启动时的 find_window_targets 窗口扫描会产生 0.05s×n 的内部
+        # sleep（全局 time 模块被 patch 波及）；只对 cadence 级 sleep（>0.2s）
+        # 断言：恰好一次，且 = 稳定 HUD cadence 300ms - tick 内少量耗时。
+        cadence_sleeps = [x for x in sleeps if x > 0.2]
+        self.assertEqual(len(cadence_sleeps), 1)
+        self.assertGreater(cadence_sleeps[0], 0.25)
+        self.assertLessEqual(cadence_sleeps[0], 0.30)
         self.assertEqual(med.game_count, 0)
 
 
@@ -400,7 +413,16 @@ class ReviewFixTests(unittest.TestCase):
         med._capture_best = lambda *a, **k: frame
         med.set_phase(Phase.ROOM_STARTING, "loading")
         med._context_cache_value = "MAIN_LINE"  # loading 档判定不依赖 UNKNOWN 快捷档
-        mono_ticks = iter([100.0, 100.02, 200.0, 200.01])
+        # f401a3b 起 tick() 内部（auto_task fuse 等）也会读 time.monotonic，
+        # 固定 4 值脚本会被额外读数打穿；改为无限递增假时钟（每次 +0.01s），
+        # 只锁定不变量：两 tick 之间恰好 sleep 一次，且 sleep = cadence - elapsed。
+        mono_state = {"now": 100.0}
+
+        def fake_monotonic() -> float:
+            value = mono_state["now"]
+            mono_state["now"] += 0.01
+            return value
+
         sleeps: list[float] = []
 
         class _NoopListener:
@@ -413,7 +435,7 @@ class ReviewFixTests(unittest.TestCase):
             def stop(self):
                 pass
 
-        with patch("shuabao.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
+        with patch("shuabao.mediator.time.monotonic", side_effect=fake_monotonic), \
              patch("shuabao.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
              patch("shuabao.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "set_phase", lambda phase, note="": None), \
@@ -421,9 +443,12 @@ class ReviewFixTests(unittest.TestCase):
              patch.object(med, "stop") as stop:
             med.run(max_steps=2)
             stop.assert_not_called()
-        self.assertEqual(len(sleeps), 1)
-        # loading 档 cadence 500ms - tick 20ms = 480ms（不被 loop_sleep_ms=400 压缩成 380ms）
-        self.assertAlmostEqual(sleeps[0], 0.48, places=6)
+        # 同上：过滤掉窗口扫描的 0.05s 内部 sleep，只断言 cadence 级 sleep。
+        # 关键不变量：loading 档 500ms 不被 loop_sleep_ms=400ms 上限压缩（>0.45）。
+        cadence_sleeps = [x for x in sleeps if x > 0.2]
+        self.assertEqual(len(cadence_sleeps), 1)
+        self.assertGreater(cadence_sleeps[0], 0.45)
+        self.assertLessEqual(cadence_sleeps[0], 0.50)
 
     # #4 HERO_SETUP 也建立 evidence（hero 点击链受 generation 门禁）
     def test_hero_setup_establishes_evidence_for_generation_gating(self):

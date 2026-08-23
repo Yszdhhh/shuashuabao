@@ -49,7 +49,8 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
     def test_background_cycle_uses_inventory_pickup_merchant_then_artifact(self):
         self.assertEqual(
             self.med._L1_CYCLE_ORDER,
-            ("bond", "skill", "bond", "skill", "treasure", "equipment", "evolve", "pickup", "merchant", "artifact"),
+            # 20260822：evolve 前置于 equipment（装备词缀弹窗异步渲染防双模态冲突）。
+            ("bond", "skill", "bond", "skill", "treasure", "evolve", "equipment", "pickup", "merchant", "artifact"),
         )
 
         self.med._l1_cycle_step = "pickup"

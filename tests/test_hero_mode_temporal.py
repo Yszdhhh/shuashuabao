@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import sys
 import unittest
@@ -11,17 +11,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shuabao.loop_action import LoopAction
-from shuabao.mediator import FACTION_SPECS, Mediator, Phase
-from shuabao.settings import Settings
-from shuabao.vision.capture import Frame
-from shuabao.vision.stage_selector import StageId, StageRow
-
-
-def _confirmed_highlight(chapter: int, index: int) -> StageRow:
-    """2026-08-14 起 L0 选关只认正向高亮证据（旧 verify_stage_selection 旁路已移除）。"""
-    return StageRow(label=f"{chapter}-{index}", stage_id=StageId(chapter, index), center_x=0, center_y=0)
-from shuabao.vision.matcher import _load_template, resolve_template
+from gamescript.loop_action import LoopAction
+from gamescript.mediator import FACTION_SPECS, Mediator, Phase
+from gamescript.settings import Settings
+from gamescript.vision.capture import Frame
+from gamescript.vision.matcher import _load_template, resolve_template
 
 
 def fixture(name: str) -> Frame:
@@ -78,7 +72,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._stage_target_position = (target.x, target.y)
         self.med._stage_click_cooldown_until = 0.0
 
-        with patch("shuabao.mediator.selected_stage_row", return_value=_confirmed_highlight(1, 15)), patch.object(
+        with patch("gamescript.mediator.selected_stage_row", return_value=None), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
             before = click.call_count
@@ -130,6 +124,57 @@ class HeroModeTemporalTests(unittest.TestCase):
             self.assertEqual(0, click.call_count - before)
             self.assertEqual(Phase.MAIN_LINE, self.med.phase)
 
+    def test_multi_faction_allocation_switches_cards_before_start(self) -> None:
+        """alloc {3:2, 4:1}：肯瑞托加到 2 后必须先点选探险者卡再继续加点。"""
+        modal = fixture("live_archive_start_panel.png")
+        self.med.settings.reputation_allocations = {"3": 2, "4": 1}
+        self.med.set_phase(Phase.HERO_SETUP)
+        self.med._hero_plan = [(3, 2), (4, 1)]
+        self.med._hero_plan_index = 0
+        self.med._hero_state = "WAIT_MODAL"
+        self.med._hero_level_baseline = None
+        self.med._hero_level_candidate = None
+        self.med._hero_card_baseline = None
+        self.med._hero_modal_missing_frames = 0
+        self.med._hero_step_deadline = float("inf")
+
+        def inverted(frame: Frame, roi: tuple[int, int, int, int]) -> Frame:
+            image = frame.bgr.copy()
+            x1, y1, x2, y2 = roi
+            image[y1:y2, x1:x2] = 255 - image[y1:y2, x1:x2]
+            return Frame(image, window_title=frame.window_title, hwnd=frame.hwnd)
+
+        tx_card = FACTION_SPECS[4].card_roi
+        tx_level = FACTION_SPECS[4].level_roi
+
+        with patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(LoopAction.Continue, self.med._tick_hero_setup(modal))
+            self.assertEqual("HeroKenritoPlus-1", click.call_args.args[1])
+
+            level_one = self._selected_level_one(modal)
+            self.med._tick_hero_setup(level_one)
+            self.med._tick_hero_setup(level_one)
+            level_two = self._selected_level_two(level_one)
+            self.med._tick_hero_setup(level_two)
+            self.med._tick_hero_setup(level_two)
+
+            self.assertEqual("WAIT_FACTION_SELECTED", self.med._hero_state)
+            self.assertIn("Tanxian", click.call_args.args[1])
+
+            frame_tx = inverted(level_two, tx_card)
+            self.med._tick_hero_setup(frame_tx)
+            self.assertEqual("HeroTanxianPlus-1", click.call_args.args[1])
+
+            image = frame_tx.bgr.copy()
+            x1, y1, x2, y2 = tx_level
+            image[y1:y2, x1:x2] = (0, 255, 0)
+            frame_tx_level1 = Frame(
+                image, window_title=frame_tx.window_title, hwnd=frame_tx.hwnd
+            )
+            self.med._tick_hero_setup(frame_tx_level1)
+            self.med._tick_hero_setup(frame_tx_level1)
+            self.assertEqual("StartHeroModeChallenge", click.call_args.args[1])
+
     def test_unknown_faction_type_fails_before_any_click(self) -> None:
         """type=0 is not in FACTION_SPECS at all: must fail-closed regardless of
 
@@ -147,9 +192,9 @@ class HeroModeTemporalTests(unittest.TestCase):
         click.assert_not_called()
 
     def test_out_of_range_level_fails_before_any_click(self) -> None:
-        """level in 6..10 (or any value outside 1..5) must fail-closed."""
+        """level outside 1..10 must fail-closed (6..10 now legal)."""
         stage = fixture("live_stage_select.png")
-        for level in (0, 6, 10):
+        for level in (0, 11):
             with self.subTest(level=level):
                 med = Mediator(self.settings, ROOT)
                 med.settings.reputation_type = 3
@@ -272,25 +317,25 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._hero_step_deadline = 120.0
 
         with patch.object(self.med, "act_click", return_value=True) as click:
-            with patch("shuabao.mediator.time.time", return_value=109.0):
+            with patch("gamescript.mediator.time.time", return_value=109.0):
                 self.med._tick_hero_setup(modal)
             self.assertEqual("WAIT_LEVEL_CHANGE", self.med._hero_state)
             self.assertEqual("HeroKenritoPlus-1", click.call_args.args[1])
 
-            with patch("shuabao.mediator.time.time", return_value=118.0):
+            with patch("gamescript.mediator.time.time", return_value=118.0):
                 self.med._tick_hero_setup(level_one)
             self.assertEqual("WAIT_LEVEL_STABLE", self.med._hero_state)
 
-            with patch("shuabao.mediator.time.time", return_value=127.0):
+            with patch("gamescript.mediator.time.time", return_value=127.0):
                 self.med._tick_hero_setup(level_one)
             self.assertEqual("WAIT_LEVEL_CHANGE", self.med._hero_state)
             self.assertEqual("HeroKenritoPlus-2", click.call_args.args[1])
 
-            with patch("shuabao.mediator.time.time", return_value=136.0):
+            with patch("gamescript.mediator.time.time", return_value=136.0):
                 self.med._tick_hero_setup(level_two)
             self.assertEqual("WAIT_LEVEL_STABLE", self.med._hero_state)
 
-            with patch("shuabao.mediator.time.time", return_value=145.0):
+            with patch("gamescript.mediator.time.time", return_value=145.0):
                 self.med._tick_hero_setup(level_two)
             self.assertEqual("WAIT_MODAL_CLOSE", self.med._hero_state)
             self.assertEqual("StartHeroModeChallenge", click.call_args.args[1])
@@ -305,11 +350,11 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._hero_state = "WAIT_MODAL_CLOSE"
         self.med._hero_step_deadline = 160.0
 
-        with patch("shuabao.mediator.time.time", return_value=109.0):
+        with patch("gamescript.mediator.time.time", return_value=109.0):
             self.med._tick_hero_setup(loading)
         self.assertEqual("WAIT_MODAL_CLOSE", self.med._hero_state)
 
-        with patch("shuabao.mediator.time.time", return_value=118.0):
+        with patch("gamescript.mediator.time.time", return_value=118.0):
             self.med._tick_hero_setup(loading)
         self.assertEqual("WAIT_INGAME", self.med._hero_state)
         self.assertGreaterEqual(self.med._hero_step_deadline, 138.0)
@@ -330,7 +375,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._stage_target_position = (target.x, target.y + 80)
         self.med._stage_click_cooldown_until = 0.0
 
-        with patch("shuabao.mediator.selected_stage_row", return_value=_confirmed_highlight(1, 15)), patch.object(
+        with patch("gamescript.mediator.selected_stage_row", return_value=None), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
             self.med._tick_l0(stage)
@@ -353,9 +398,7 @@ class HeroModeTemporalTests(unittest.TestCase):
             self.assertEqual("SelectStage-target", click.call_args.args[1])
             self.assertTrue(self.med._stage_selected)
 
-    def test_ordinary_mode_uses_exact_target_and_start_when_highlight_confirms_target(self) -> None:
-        # 2026-08-16 L0 裁决：无高亮不得开局（20260814 实机教训），
-        # 旧「无高亮也开始」断言改为高亮确认后开局；精确目标+专用开始按钮断言保留。
+    def test_ordinary_mode_uses_exact_target_and_start_when_row_has_no_highlight(self) -> None:
         self.settings.auto_reputation = False
         stage = fixture("live_stage_select.png")
         self.med.set_phase(Phase.STAGE_SELECT)
@@ -366,7 +409,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._stage_target_position = (target.x, target.y)
         self.med._stage_click_cooldown_until = 0.0
 
-        with patch("shuabao.mediator.selected_stage_row", return_value=_confirmed_highlight(1, 15)), patch.object(
+        with patch("gamescript.mediator.selected_stage_row", return_value=None), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
             action = self.med._tick_l0(stage)
