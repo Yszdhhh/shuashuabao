@@ -6072,6 +6072,15 @@ class Mediator:
                 return LoopAction.Continue
             if startup == "IN_GAME":
                 self.set_phase(Phase.MAIN_LINE, "startup found existing game")
+                # 中途启动时游戏可能已停在存档/传家宝/挑战广场。它们都是
+                # 已有多锚点分类器确认的战后页面，应接管既有战后链，而非
+                # 因为本进程未点击“继续游戏”就当成异常页面停止。
+                if self._post_game_state(frame) in {
+                    "ARCHIVE_PANEL", "HEIRLOOM_DIALOG", "GREAT_RIFT_CONFIRM", "NPC_HUB",
+                }:
+                    self._post_game_pending = True
+                    self._victory_continue_since = time.time()
+                    print("[med] 启动接管已验证战后页面，继续存档/传家宝/大秘境链")
                 return LoopAction.Continue
 
         # The hero modal has its own exact guards.  Skipping the generic L0

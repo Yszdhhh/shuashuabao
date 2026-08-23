@@ -152,6 +152,23 @@ class P1B0PostGameTests(unittest.TestCase):
         extra_click.assert_not_called()
         extra_right_click.assert_not_called()
 
+    def test_startup_takeover_of_npc_hub_enters_secret_realm_chain(self):
+        """中途启动已在挑战广场时，必须接管而不是报 unexpected hub。"""
+        med = Mediator(Settings(auto_secret_realm=True), ROOT)
+        hub = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        with patch.object(med, "_startup_state", return_value="IN_GAME"), \
+             patch.object(med, "_post_game_state", return_value="NPC_HUB"):
+            action = med._tick_l0(hub)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+        self.assertTrue(med._post_game_pending)
+
+        with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "act_right_click", return_value=True) as right_click:
+            action = med._tick_main_line(hub)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(right_click.call_args.args[1], "OpenGreatRift")
+
     def test_secret_realm_dialog_timeout_retries_without_guessing_or_stopping(self):
         settings = Settings(auto_secret_realm=True)
         med = Mediator(settings, ROOT)
