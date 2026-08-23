@@ -948,14 +948,7 @@ class Mediator:
         )
         self._capture_candidates = len(targets)
         def capture_one(target):
-            frame = capture_target(target)
-            if (
-                not frame.is_valid
-                and "英雄三国" in str(getattr(target, "title", "") or "")
-            ):
-                activate_window(target.hwnd)
-                frame = capture_target(target)
-            return frame
+            return capture_target(target)
         if not targets:
             return capture(title, role=role, activate=False)
         # KK exposes the create-room form as a second same-title HWND.  The
@@ -1071,41 +1064,20 @@ class Mediator:
                 role = "l0"
         capture_ms = (time.perf_counter() - t0) * 1000.0
         self._last_capture_ms = capture_ms
-        # 目标窗口激活兜底：如果目标窗口存在但当前不在前台，且非最小化，自动切回前台（确保画面不被遮挡）。
-        # 关键约束：过场/启动阶段（ROOM_STARTING / STAGE_STARTING / WAIT_EXIT）严禁对平台窗强制置顶，
-        # 否则会把正在拉起的「英雄三国」游戏客户端压在底下，造成对战平台一直挡住游戏的死锁。
-        transition_phases = (Phase.ROOM_STARTING, Phase.STAGE_STARTING, Phase.WAIT_EXIT)
-        is_platform_frame = role == "l0" or any(k in getattr(frame, "window_title", "") for k in ("KK", "对战平台", "竞技平台"))
-        # 铁律：只要发现过或当前能检测到游戏客户端窗口，严禁再对平台窗做前台置顶
-        suppress_activate = is_platform_frame and (
-            self.phase in transition_phases
-            or getattr(self, "_game_window_seen", False)
-            or (l1_candidate is not None and l1_candidate.is_valid)
-        )
-        if frame.hwnd and frame.is_valid and not suppress_activate:
-            now = time.time()
-            last_act = getattr(self, "_last_auto_activate_ts", 0.0)
-            if now - last_act >= 1.5:
-                from shuabao.input.keyboard_mouse import foreground_matches_target, get_foreground_window
-                fg = get_foreground_window()
-                if not foreground_matches_target(frame.hwnd, fg):
-                    activate_window(frame.hwnd)
-                    self._last_auto_activate_ts = now
-        if frame.hwnd and not frame.is_valid and not suppress_activate:
-            # 20260823（用户规则）：所有目标窗口都可能被最小化。最小化窗口的
-            # capture 返回无效帧，上面的前台兜底因 is_valid=False 永远不触发，
-            # 健康门禁会一直跳过决策 → 启动卡死。这里对最小化的目标窗口执行
-            # SW_RESTORE（activate_window 内含），下一 tick 重新捕获。
+        # 仅在 BOOT 阶段中途接管最小化窗口；正常顺推时遵循 Windows 原生层级，严禁周期性置顶抢焦。
+        if frame.hwnd and not frame.is_valid and self.phase == Phase.BOOT:
+            # 仅在 BOOT（脚本中途启动）阶段：若目标窗口处于最小化状态，
+            # capture 返回无效帧，执行一次 SW_RESTORE 恢复，下一 tick 正常感知。
+            # 正常从大厅按顺序开局时，严禁每 tick 周期性置顶/抢焦点。
             try:
                 from shuabao.vision.capture import is_window_minimized
 
                 if is_window_minimized(frame.hwnd):
                     print(
-                        f"[med] 目标窗口已最小化，自动恢复 hwnd={frame.hwnd} "
-                        f"title='{frame.window_title}' phase={self.phase.name}"
+                        f"[med] 中途启动接管：目标窗口处于最小化，自动恢复 hwnd={frame.hwnd} "
+                        f"title='{frame.window_title}'"
                     )
                     activate_window(frame.hwnd)
-                    self._last_auto_activate_ts = time.time()
             except Exception:
                 pass
         # 会话级 UI 缩放校准：取宽高相对 1600x900 的较小缩放比（保守）
