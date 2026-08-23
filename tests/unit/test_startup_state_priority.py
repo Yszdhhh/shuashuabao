@@ -228,11 +228,35 @@ def test_startup_with_existing_game_window_enters_main_line_without_create_room(
     noisy = np.random.default_rng(1).integers(0, 255, (900, 1600, 3), dtype=np.uint8)
     frame = Frame(noisy, left=185, top=81, hwnd=1184474, window_title="英雄三国KK")
     with patch.object(med, "_find_stage_page", return_value=False), \
+         patch.object(med, "_is_in_game_hud", return_value=True), \
          patch.object(med, "_find_room_start", return_value=None), \
          patch.object(med, "_find_create_confirm", return_value=None), \
          patch.object(med, "_find_map_create_room", return_value=None):
         state = med._startup_state(frame)
     assert state == "IN_GAME"
+
+
+def test_startup_loading_game_waits_for_stage_or_hud_instead_of_entering_main_line():
+    med = Mediator(Settings(), ROOT)
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1184474, window_title="英雄三国KK")
+    with patch.object(med, "_find_stage_page", return_value=False), \
+         patch.object(med, "_is_in_game_hud", return_value=False), \
+         patch.object(med, "_find_room_start", return_value=None):
+        assert med._startup_state(frame) == "STAGE_SELECT"
+
+
+def test_room_start_loading_timeout_renews_wait_without_returning_to_room():
+    med = Mediator(Settings(), ROOT)
+    med.phase = Phase.ROOM_STARTING
+    med._room_start_deadline = 99.0
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1184474, window_title="英雄三国KK")
+    with patch.object(med, "_take_over_post_game_page", return_value=False), \
+         patch.object(med, "_detect_context", return_value="UNKNOWN"), \
+         patch.object(med, "_find_room_start", return_value=None), \
+         patch("shuabao.mediator.time.time", return_value=100.0):
+        assert med._tick_l0(frame) is LoopAction.Continue
+    assert med.phase is Phase.ROOM_STARTING
+    assert med._room_start_deadline > 100.0
 
 
 def test_tqtz_is_one_shot_and_blocks_regular_choice_until_confirmed():
@@ -309,6 +333,13 @@ def test_runtime_watchdog_does_not_interfere_with_early_challenge_or_paused():
     # 1. 提前挑战 pending 时看门狗禁止触发
     med._early_challenge_pending = True
     with patch.object(med, "_post_game_state", return_value=None):
+        assert med._runtime_watchdog_allowed(frame, now) is False
+
+    # 4. 选关页由 L0 接管，活性看门狗不得先发送 ESC。
+    med._pause_resume_unmatched_attempts = 0
+    with patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_find_stage_page", return_value=True), \
+         patch.object(med, "_is_in_game_hud", return_value=False):
         assert med._runtime_watchdog_allowed(frame, now) is False
 
     # 2. 暂停恢复尝试中时看门狗禁止触发

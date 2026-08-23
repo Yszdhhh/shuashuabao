@@ -232,6 +232,8 @@ class Mediator(CoreMediator):
                 return False
         if self._classify_choice_panel(frame) is not None:
             return False
+        if self._find_stage_page(frame) and not self._is_in_game_hud(frame):
+            return False
         started = getattr(self, "_main_line_started_at", None)
         if (
             started is not None

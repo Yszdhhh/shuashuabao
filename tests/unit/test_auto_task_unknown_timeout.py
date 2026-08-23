@@ -87,11 +87,9 @@ def test_on_and_off_immediately_clear_unknown_timer():
     assert med._auto_task_unknown_since is None
 
 
-def test_unknown_beyond_default_45s_is_liveness_timeout_break():
+def test_unknown_beyond_default_45s_restarts_observation_without_stopping():
     med = _mediator()
     clock = _Clock(100.0)
-    incidents: list[str] = []
-    med._record_fail_closed_incident = lambda note: incidents.append(note)  # type: ignore[method-assign]
     state_p, detail_p, toggle_p = _patch_state(med, "UNKNOWN")
     with state_p, detail_p, toggle_p, patch("shuabao.mediator.time.monotonic", clock.monotonic):
         first = med._ensure_auto_task_enabled(_frame())
@@ -101,20 +99,16 @@ def test_unknown_beyond_default_45s_is_liveness_timeout_break():
         assert still_waiting is None
         assert med.phase != Phase.ERROR
         clock.t += 0.2
-        timed_out = med._ensure_auto_task_enabled(_frame())
-    assert timed_out is LoopAction.Break
-    assert med.phase is Phase.ERROR
-    reason = str(med._interrupt_reason or "")
-    assert "LivenessTimeout" in reason
-    assert med.stop_signal.is_set()
-    assert incidents
-    assert any("LivenessTimeout" in note for note in incidents)
+        reobserved = med._ensure_auto_task_enabled(_frame())
+    assert reobserved is None
+    assert med.phase is not Phase.ERROR
+    assert not med.stop_signal.is_set()
+    assert med._auto_task_unknown_since == pytest.approx(clock.t)
 
 
-def test_timeout_clamp_30_and_60(monkeypatch):
+def test_timeout_clamp_30_and_60_controls_reobservation_cadence(monkeypatch):
     med = _mediator()
     clock = _Clock(0.0)
-    med._record_fail_closed_incident = lambda note: None  # type: ignore[method-assign]
     state_p, detail_p, toggle_p = _patch_state(med, "UNKNOWN")
     with state_p, detail_p, toggle_p, patch("shuabao.mediator.time.monotonic", clock.monotonic):
         med.settings.auto_task_unknown_timeout_s = 10.0
@@ -123,11 +117,11 @@ def test_timeout_clamp_30_and_60(monkeypatch):
         clock.t = 29.9
         assert med._ensure_auto_task_enabled(_frame()) is None
         clock.t = 30.0
-        assert med._ensure_auto_task_enabled(_frame()) is LoopAction.Break
+        assert med._ensure_auto_task_enabled(_frame()) is None
+        assert med.phase is not Phase.ERROR
 
     med2 = _mediator()
     clock2 = _Clock(0.0)
-    med2._record_fail_closed_incident = lambda note: None  # type: ignore[method-assign]
     med2.settings.auto_task_unknown_timeout_s = 90.0
     assert med2._auto_task_unknown_timeout_s() == pytest.approx(60.0)
     state_p2, detail_p2, toggle_p2 = _patch_state(med2, "UNKNOWN")
@@ -137,15 +131,13 @@ def test_timeout_clamp_30_and_60(monkeypatch):
         assert med2._ensure_auto_task_enabled(_frame()) is None
         clock2.t = 60.0
         result = med2._ensure_auto_task_enabled(_frame())
-    assert result is LoopAction.Break
-    assert med2.phase is Phase.ERROR
-    assert "LivenessTimeout" in str(med2._interrupt_reason or "")
+    assert result is None
+    assert med2.phase is not Phase.ERROR
 
 
-def test_refreshing_main_line_since_does_not_postpone_fuse():
+def test_refreshing_main_line_since_does_not_postpone_reobservation():
     med = _mediator()
     clock = _Clock(500.0)
-    med._record_fail_closed_incident = lambda note: None  # type: ignore[method-assign]
     med.set_phase(Phase.MAIN_LINE, "test")
     state_p, detail_p, toggle_p = _patch_state(med, "UNKNOWN")
     with state_p, detail_p, toggle_p, patch("shuabao.mediator.time.monotonic", clock.monotonic):
@@ -154,7 +146,7 @@ def test_refreshing_main_line_since_does_not_postpone_fuse():
         med._main_line_since = 10**12
         clock.t = 500.0 + 45.0
         result = med._ensure_auto_task_enabled(_frame())
-    assert result is LoopAction.Break
-    assert med.phase is Phase.ERROR
-    assert "LivenessTimeout" in str(med._interrupt_reason or "")
-    assert med.stop_signal.is_set()
+    assert result is None
+    assert med.phase is not Phase.ERROR
+    assert not med.stop_signal.is_set()
+    assert med._auto_task_unknown_since == pytest.approx(clock.t)

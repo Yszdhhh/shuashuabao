@@ -1785,7 +1785,7 @@ class Mediator:
         return hit if state == "OFF" else None
 
     def _auto_task_unknown_timeout_s(self) -> float:
-        """UNKNOWN fuse budget: default 45s, hard-clamped to 30–60s."""
+        """UNKNOWN reobservation cadence: default 45s, hard-clamped to 30–60s."""
         raw = getattr(self.settings, "auto_task_unknown_timeout_s", 45.0)
         try:
             value = float(raw)
@@ -1815,10 +1815,9 @@ class Mediator:
             f"LivenessTimeout: auto_task UNKNOWN for {elapsed:.1f}s "
             f"(limit {timeout:.1f}s)"
         )
-        print(f"[L1] {note}，Fail-Closed 停止运行")
-        self.set_phase(Phase.ERROR, note)
-        self.stop()
-        return LoopAction.Break
+        print(f"[L1] {note}，保留运行并重新观察当前页面")
+        self._auto_task_unknown_since = now_mono
+        return None
 
     def _ensure_auto_task_enabled(self, frame: Frame) -> LoopAction | None:
         """Enable auto-task with a bounded post-click observation window."""
@@ -6093,7 +6092,7 @@ class Mediator:
         if self._is_game_client_frame(frame):
             if self._post_game_state(frame) == "PAUSED":
                 return "PAUSED"
-            if frame.bgr is not None and float(np.std(frame.bgr)) > 8.0:
+            if self._is_in_game_hud(frame):
                 return "IN_GAME"
             return "STAGE_SELECT"
         if self._find_create_confirm(frame):
@@ -6346,8 +6345,8 @@ class Mediator:
             if self._room_start_deadline is None:
                 self._room_start_deadline = now + self._l0_transition_timeout()
             if now >= self._room_start_deadline:
-                print("[L0] 房间开始状态对齐超过宏观期限，回到房间等待")
-                self.set_phase(Phase.ROOM_WAITING, "room start alignment timeout")
+                print("[L0] 游戏仍在启动/加载，续期等待选关页或局内 HUD（不回房间、不退出）")
+                self._room_start_deadline = now + self._l0_transition_timeout()
                 return LoopAction.Continue
             print("[L0] 等待游戏窗口/选关页…")
             return LoopAction.Continue
@@ -7722,6 +7721,15 @@ class Mediator:
             self._main_line_since = now
         if post_game == "PAUSED":
             return self._maybe_resume_paused(frame, now)
+        # 选关页是 L0 专属页面。必须在黑商、F1、自动任务等所有 L1 动作前
+        # 回交选关状态；加载/选关期间的 HUD 缺失不是局内自动任务故障。
+        if (
+            post_game is None
+            and self._find_stage_page(frame)
+            and not self._is_in_game_hud(frame)
+        ):
+            self.set_phase(Phase.STAGE_SELECT, "stage page detected before L1 actions")
+            return LoopAction.Continue
         if (
             not self._post_game_pending
             and post_game in {"ARCHIVE_PANEL", "NPC_HUB"}
