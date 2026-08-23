@@ -120,14 +120,18 @@ def test_stage_start_requires_positive_highlight_and_rearms_selection():
     assert m._stage_selected is False
 
 
-def test_merchant_disabled_does_not_implicitly_refresh_or_buy_other_items():
+def test_merchant_refreshes_without_legacy_duration_opt_in():
     m = med(auto_gambling_time=0, auto_devour_dan=False)
     m._merchant_next_at = 0.0
     with patch.object(m, "_black_merchant_present", return_value=True), patch.object(
+        m, "_bond_bar_nonempty", return_value=False
+    ), patch.object(m, "find", return_value=None), patch.object(
+        m, "_merchant_refresh_available", return_value=True
+    ), patch.object(
         m, "act_click", return_value=True
     ) as click:
-        assert m._maybe_black_merchant(frame()) is None
-    click.assert_not_called()
+        assert m._maybe_black_merchant(frame()) is LoopAction.Continue
+    assert click.call_args.args[1] == "BlackMerchant-refresh"
 
 
 def test_merchant_duration_opt_in_refreshes_when_no_safe_item_exists():

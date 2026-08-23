@@ -517,36 +517,6 @@ class Mediator(CoreMediator):
         return LoopAction.Continue
 
     # ------------------------------------------------------------------
-    # Merchant: swallow pill remains independent; refresh obeys dashboard duration opt-in.
-    # ------------------------------------------------------------------
-    def _maybe_black_merchant(self, frame):
-        if int(getattr(self.settings, "auto_gambling_time", 0) or 0) > 0:
-            return super()._maybe_black_merchant(frame)
-        now = time.time()
-        if now < self._merchant_next_at or not self._black_merchant_present(frame):
-            return None
-        if not bool(getattr(self.settings, "auto_devour_dan", True)) or not self._bond_bar_nonempty(frame):
-            return None
-        pill = self.find(
-            frame,
-            ["danGif"],
-            threshold=0.50,
-            scales=(0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5),
-            roi=(0.70, 0.66, 0.90, 0.76),
-        )
-        if not self._in_merchant_strip(frame, pill):
-            return None
-        hit = self._hud_button_hit(
-            frame,
-            "black_merchant_swallow_pill",
-            (pill.x / frame.width, pill.y / frame.height),
-        )
-        if self.act_click(hit, "BlackMerchant-swallow_pill"):
-            self._merchant_next_at = now + max(1.2, float(self.settings.ui_action_interval_s))
-            return LoopAction.Continue
-        return None
-
-    # ------------------------------------------------------------------
     # Stage selection: SendInput success alone is not selection proof.
     # ------------------------------------------------------------------
     def _find_stage_start(self, frame):

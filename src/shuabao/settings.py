@@ -145,7 +145,7 @@ class Settings:
     cycle_num: int = 0
     archive_boss_time: int = 0
     treasure_num: int = 0
-    auto_gambling_time: int = 0  # 黑商功能未接入状态机（调研报告 P2）
+    auto_gambling_time: int = 0  # 保留兼容字段；黑商基础购买/刷新始终由主循环处理
     match_threshold: float = 0.85
     click_delay_ms: int = 120
     # ---- S0 长期运行安全状态机（2026-08-11，迁移决定见下）----
