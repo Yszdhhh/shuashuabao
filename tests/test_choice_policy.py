@@ -358,6 +358,63 @@ class TestBondTreasureUnknown(unittest.TestCase):
         self.assertNotEqual(d.action, PolicyAction.SELECT_SLOT)
         self.assertEqual(d.action, PolicyAction.CLOSE)
 
+
+class TestBondPackQueue(unittest.TestCase):
+    """高级卡组必须等基础卡达标，且只允许队首两组参与选择。"""
+
+    @staticmethod
+    def _settings():
+        return settings(
+            bond_presets=["基础甲", "基础乙", "基础丙", "基础丁", "基础戊", "异火", "焚诀", "筑基", "海盗"],
+            bond_basic_presets=["基础甲", "基础乙", "基础丙", "基础丁", "基础戊"],
+            bond_advanced_packs={
+                "yihuo": ["异火", "焚诀"],
+                "xiuxian": ["筑基"],
+                "haidao": ["海盗"],
+            },
+        )
+
+    def test_basic_cards_block_advanced_until_eighty_percent(self):
+        decision = choose_action(
+            bond_cands(
+                [slot(0, "异火", rarity="red"), slot(1, "基础丁")],
+                owned_bond_cards=("基础甲", "基础乙", "基础丙"),
+                settings=self._settings(),
+            )
+        )
+        self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+
+    def test_only_first_two_advanced_packs_are_active_after_base_target(self):
+        decision = choose_action(
+            bond_cands(
+                [slot(0, "海盗", rarity="red"), slot(1, "异火")],
+                owned_bond_cards=("基础甲", "基础乙", "基础丙", "基础丁"),
+                settings=self._settings(),
+            )
+        )
+        self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 1))
+
+    def test_active_advanced_pack_keeps_collecting_its_follow_up_cards(self):
+        decision = choose_action(
+            bond_cands(
+                [slot(0, "焚诀")],
+                owned_bond_cards=("基础甲", "基础乙", "基础丙", "基础丁", "异火"),
+                settings=self._settings(),
+            )
+        )
+        self.assertEqual((decision.action, decision.index), (PolicyAction.SELECT_SLOT, 0))
+
+    def test_queued_third_pack_cannot_fall_through_to_quality_pick(self):
+        decision = choose_action(
+            bond_cands(
+                [slot(0, "海盗", rarity="red")],
+                owned_bond_cards=("基础甲", "基础乙", "基础丙", "基础丁"),
+                settings=self._settings(),
+            ),
+            SessionState(refreshes=3, max_refreshes=3),
+        )
+        self.assertEqual(decision.action, PolicyAction.CLOSE)
+
     def test_bond_unknown_closes_independent_of_micro_counters(self):
         cands = bond_cands(
             [slot(0, None), slot(1, None)],

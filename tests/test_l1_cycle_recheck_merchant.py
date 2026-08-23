@@ -46,11 +46,11 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.med._finish_panel_episode()
         self.assertEqual(self.med._l1_cycle_step, "skill")
 
-    def test_background_cycle_uses_inventory_pickup_merchant_then_artifact(self):
+    def test_background_cycle_uses_inventory_pickup_artifact_then_merchant(self):
         self.assertEqual(
             self.med._L1_CYCLE_ORDER,
             # 20260822：evolve 前置于 equipment（装备词缀弹窗异步渲染防双模态冲突）。
-            ("bond", "skill", "bond", "skill", "treasure", "evolve", "equipment", "pickup", "merchant", "artifact"),
+            ("bond", "skill", "bond", "skill", "treasure", "evolve", "equipment", "pickup", "artifact", "merchant"),
         )
 
         self.med._l1_cycle_step = "pickup"
@@ -68,7 +68,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 patch.object(self.med, "act_key", return_value=True) as key:
             self.assertIs(self.med._tick_main_line(self.frame), LoopAction.Continue)
         key.assert_called_once_with("z", "Pickup-Z")
-        self.assertEqual(self.med._l1_cycle_step, "merchant")
+        self.assertEqual(self.med._l1_cycle_step, "artifact")
 
     def test_skill_episode_cap_keeps_opening_g_until_empty(self):
         self.med._l1_cycle_step = "skill"

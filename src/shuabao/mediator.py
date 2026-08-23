@@ -2804,12 +2804,12 @@ class Mediator:
             return LoopAction.Continue
         return None
 
-    # 核心发育优先：羁绊(F)与技能(G)发育优先打满，再进入宝物(V)、进化、装备升级、拾取、黑商、神器等支线
+    # 核心发育优先：羁绊(F)与技能(G)发育优先打满，再进入宝物(V)、进化、装备升级、拾取、神器、黑商等支线
     # 20260822 实机（trace 203910 tick259-260）：装备右键升级会异步弹出十级词缀
     # 弹窗，旧顺序 equipment→evolve 在弹窗渲染前就点了进化，双弹窗互斥冲突 15s
     # 后 ERROR 停机。用户确认的正确时序：进化全流程（点进化→选英雄→进化全部）
     # 完成后，才做装备升级与背包道具，故 evolve 排在 equipment 之前。
-    _L1_CYCLE_ORDER = ("bond", "skill", "bond", "skill", "treasure", "evolve", "equipment", "pickup", "merchant", "artifact")
+    _L1_CYCLE_ORDER = ("bond", "skill", "bond", "skill", "treasure", "evolve", "equipment", "pickup", "artifact", "merchant")
 
     def _advance_l1_cycle(self, completed: str | None = None) -> None:
         current = completed or self._l1_cycle_step
@@ -3000,9 +3000,8 @@ class Mediator:
             colored = (roi[:, :, 1] > 80) & (roi[:, :, 2] > 70)
             min_colored = max(100, int(6000 * scale_area))
             if int(colored.sum()) < min_colored:
-                # 未知/神秘进化（灰色/暗色底框，特殊词条）
-                # 如果开启未知进化优先(True)，设为最高分 7 (大于 UR 6)；默认设为 3.5 (UR 6 > SSR 4 > 未知 3.5 > SR 3 > R 2)
-                return 7 if getattr(self.settings, "evolve_mystic_priority", False) else 3.5
+                # 隐藏/未知进化没有 OCR 名称或可验证品质，不能压过 SR 或刷新。
+                return 0
             hue = roi[:, :, 0][colored]
             bands = (
                 (6, (hue <= 8) | (hue >= 170)),   # UR/red

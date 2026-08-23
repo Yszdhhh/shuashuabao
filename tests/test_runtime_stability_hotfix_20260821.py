@@ -54,8 +54,8 @@ def test_l1_cycle_traverses_duplicate_steps_by_position_and_wraps():
         "evolve",
         "equipment",
         "pickup",
-        "merchant",
         "artifact",
+        "merchant",
         "bond",
     ]
 

@@ -338,6 +338,17 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertIsNotNone(choice)
         self.assertTrue(choice.name.startswith("evolution_card_"))
 
+    def test_hidden_evolution_never_beats_visible_sr(self) -> None:
+        med = Mediator(Settings(evolve_mystic_priority=True), ROOT)
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        cv2.rectangle(image, (550, 150), (784, 510), (100, 100, 100), 4)
+        cv2.rectangle(image, (816, 150), (1050, 510), (180, 30, 180), 4)
+        cv2.rectangle(image, (580, 180), (760, 490), (100, 100, 100), -1)
+        cv2.rectangle(image, (840, 180), (1020, 490), (180, 30, 180), -1)
+        choice = med._find_evolution_choice(Frame(image))
+        self.assertIsNotNone(choice)
+        self.assertEqual("evolution_card_1_rank_3", choice.name)
+
     def test_failure_reward_popup_preempts_initialization(self) -> None:
         med = Mediator(Settings(), ROOT)
         med.phase = Phase.MAIN_LINE

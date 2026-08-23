@@ -210,6 +210,8 @@ class PolicySettings:
 
     skill_presets: tuple[str, ...] = ()
     bond_presets: tuple[str, ...] = ()
+    bond_basic_presets: tuple[str, ...] = ()
+    bond_advanced_packs: tuple[tuple[str, tuple[str, ...]], ...] = ()
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
     min_confidence: float = 0.0
@@ -306,9 +308,21 @@ class PolicySettings:
             for fam, rid, prefers, avoids in route_prefs_raw
             if str(fam).strip() and str(rid).strip()
         )
+        advanced_raw = raw.get("bond_advanced_packs") or {}
+        advanced_packs: list[tuple[str, tuple[str, ...]]] = []
+        entries = advanced_raw.items() if isinstance(advanced_raw, Mapping) else advanced_raw
+        for entry in entries:
+            if not isinstance(entry, (tuple, list)) or len(entry) != 2:
+                continue
+            pack, cards = entry
+            names = tuple(dict.fromkeys(str(card).strip() for card in (cards or ()) if str(card).strip()))
+            if str(pack).strip() and names:
+                advanced_packs.append((str(pack).strip(), names))
         return cls(
             skill_presets=tuple(str(s) for s in (raw.get("skill_presets") or ())),
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
+            bond_basic_presets=tuple(str(s) for s in (raw.get("bond_basic_presets") or ())),
+            bond_advanced_packs=tuple(advanced_packs),
             treasure_presets=tuple(str(s) for s in (raw.get("treasure_presets") or ())),
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
             min_confidence=0.0 if min_conf is None else float(min_conf),
@@ -369,13 +383,31 @@ def assemble_policy_settings(
             seen.add(text)
             skill_families.append(text)
 
-    bond_presets: list[str] = []
-    for item in getattr(settings, "cards", None) or ():
+    def bond_label(item: Any) -> str:
         text = str(item or "").strip()
         if not text:
-            continue
+            return ""
         stem = Path(text).stem
-        bond_presets.append(str(fetter_labels.get(stem, stem)))
+        return str(fetter_labels.get(stem, stem))
+
+    bond_presets = [bond_label(item) for item in (getattr(settings, "cards", None) or ())]
+    bond_presets = [item for item in bond_presets if item]
+    advanced_raw = getattr(settings, "bond_advanced_packs", None) or {}
+    advanced_packs: dict[str, tuple[str, ...]] = {}
+    if isinstance(advanced_raw, Mapping):
+        for pack, cards in advanced_raw.items():
+            names = tuple(dict.fromkeys(
+                label for card in (cards or ()) if (label := bond_label(card))
+            ))
+            if str(pack).strip() and names:
+                advanced_packs[str(pack).strip()] = names
+    basic_source = getattr(settings, "bond_basic_presets", None) or ()
+    if not basic_source and advanced_packs:
+        advanced_names = {name for names in advanced_packs.values() for name in names}
+        basic_source = [name for name in bond_presets if name not in advanced_names]
+    bond_basic = tuple(dict.fromkeys(
+        label for item in basic_source if (label := bond_label(item))
+    ))
 
     allow_neg = getattr(settings, "treasure_allow_negative", None)
     if allow_neg is None:
@@ -440,6 +472,8 @@ def assemble_policy_settings(
             "skill_archive_levels": getattr(settings, "skill_archive_levels", None),
             "skill_disabled_amplifiers": getattr(settings, "smart_route_disabled_amplifiers", None),
             "bond_presets": tuple(bond_presets),
+            "bond_basic_presets": bond_basic,
+            "bond_advanced_packs": advanced_packs,
             "treasure_presets": (),
             "quality_order": raw.get("quality_order"),
             "min_confidence": 0.60 if min_conf is None else min_conf,
@@ -984,7 +1018,32 @@ def _decide_collectible(
                 )
     else:
         eligible = cands.slots
+        queued_advanced = False
         if kind == PANEL_BOND:
+            # 基础卡组先完成至少 80%，再按看板勾选顺序放行前两个高级卡组。
+            # 其余高级卡组保持排队，既不会塞满格子，也不会被品质保底旁路拿走。
+            if settings.bond_advanced_packs:
+                basic = settings.bond_basic_presets
+                owned = {name for name in cands.owned_bond_cards if name}
+                needed = max(1, (len(basic) * 4 + 4) // 5) if basic else 0
+                basic_done = len(set(basic) & owned)
+                if basic and basic_done < needed:
+                    allowed = set(basic)
+                    presets = basic
+                    print_note = f"基础卡组进度 {basic_done}/{needed}，高级卡组排队"
+                else:
+                    active = settings.bond_advanced_packs[:2]
+                    allowed = set(basic)
+                    for _pack, cards in active:
+                        allowed.update(cards)
+                    presets = tuple([*basic, *(name for _pack, cards in active for name in cards)])
+                    print_note = "高级卡组仅放行前 2 组"
+                eligible = tuple(slot for slot in eligible if slot.name in allowed)
+                queued_advanced = True
+                if not eligible:
+                    if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
+                        return PolicyDecision(PolicyAction.REFRESH, None, f"{print_note}，刷新寻找允许卡")
+                    return PolicyDecision(PolicyAction.CLOSE, None, f"{print_note}，本面板无允许卡")
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
@@ -1027,6 +1086,8 @@ def _decide_collectible(
             )
         if settings.bond_whitelist_mode == WHITELIST_HARD:
             return _no_safe_candidate(cands, state, kind, "白名单外不可选（硬禁用，刷新已耗尽）")
+        if queued_advanced:
+            return _no_safe_candidate(cands, state, kind, "基础/前两组高级卡均未出现，刷新已耗尽")
 
     synth_hit = _match_synthesis(cands, settings.min_confidence, slots=eligible)
     if synth_hit is not None:

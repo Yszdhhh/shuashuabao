@@ -106,6 +106,9 @@ class Settings:
     sgzx_boss: str = ""
     skills: list[str] = field(default_factory=lambda: ["jq", "pg"])
     cards: list[str] = field(default_factory=list)
+    # 看板将基础与高级卡组的边界显式传给运行时策略；cards 仍保留完整白名单。
+    bond_basic_presets: list[str] = field(default_factory=list)
+    bond_advanced_packs: dict[str, list[str]] = field(default_factory=dict)
     # 羁绊长程默认 soft；祝福为系统必拿，即使旧 UI/旧配置没有单独勾选。
     bond_whitelist_mode: str = "soft"
     bond_must_take: list[str] = field(default_factory=lambda: ["祝福"])
@@ -132,7 +135,7 @@ class Settings:
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
     auto_devour_dan: bool = True # 自动使用吞噬丹（需羁绊栏非空）
-    evolve_mystic_priority: bool = False  # 未知/神秘进化优先（True=排最前，False=默认排在 SSR 之后、SR 之前）
+    evolve_mystic_priority: bool = False  # 兼容旧配置；未知/隐藏进化不再有自动选择优先级。
     auto_artifact: bool = True   # 神器 Q/W/E 槽定时释放
     artifact_cd: int = 120       # 神器冷却秒数
     artifact_slots: int = 3      # 神器槽位数（1-3，对应 Q/W/E；空槽自动跳过）
