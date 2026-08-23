@@ -169,6 +169,25 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(action, LoopAction.Continue)
         self.assertEqual(right_click.call_args.args[1], "OpenGreatRift")
 
+    def test_l0_state_cannot_scroll_over_verified_archive_or_pause(self):
+        """选关态中的战后页/暂停页必须抢占 L0，而不是继续滚动找关。"""
+        archive = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        med = Mediator(Settings(), ROOT)
+        med.set_phase(Phase.STAGE_SELECT, "test stale l0")
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"):
+            action = med._tick_l0(archive)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+        self.assertTrue(med._post_game_pending)
+
+        paused = Mediator(Settings(), ROOT)
+        paused.set_phase(Phase.STAGE_SELECT, "test stale l0 pause")
+        with patch.object(paused, "_post_game_state", return_value="PAUSED"):
+            action = paused._tick_l0(archive)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(paused.phase, Phase.MAIN_LINE)
+        self.assertFalse(paused._post_game_pending)
+
     def test_secret_realm_dialog_timeout_retries_without_guessing_or_stopping(self):
         settings = Settings(auto_secret_realm=True)
         med = Mediator(settings, ROOT)

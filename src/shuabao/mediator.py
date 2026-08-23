@@ -6040,6 +6040,12 @@ class Mediator:
         return LoopAction.Break
     def _startup_state(self, frame: Frame) -> str:
         """Classify the currently captured taskbar window before L0 actions."""
+        # 存档/传家宝/挑战广场会带有与选关页相似的列表元素；先用战后页的
+        # 多锚点分类排除它们，避免 L0 把战后页面误当作选关页反复滚动。
+        if self._is_game_client_frame(frame):
+            post_game = self._post_game_state(frame)
+            if post_game is not None:
+                return "PAUSED" if post_game == "PAUSED" else "IN_GAME"
         if self._find_stage_page(frame):
             return "STAGE_SELECT"
         if self._find_room_start(frame):
@@ -6056,9 +6062,27 @@ class Mediator:
             return "PLATFORM_MAP"
         return "UNKNOWN"
 
+    def _take_over_post_game_page(self, frame: Frame) -> bool:
+        """Promote verified post-game pages out of every L0 state."""
+        if not self._is_game_client_frame(frame):
+            return False
+        post_game = self._post_game_state(frame)
+        if post_game == "PAUSED":
+            self.set_phase(Phase.MAIN_LINE, "L0 takeover paused game")
+            return True
+        if post_game in {"ARCHIVE_PANEL", "HEIRLOOM_DIALOG", "GREAT_RIFT_CONFIRM", "NPC_HUB"}:
+            self.set_phase(Phase.MAIN_LINE, f"L0 takeover {post_game}")
+            self._post_game_pending = True
+            self._victory_continue_since = time.time()
+            print(f"[med] L0 接管已验证战后页面 {post_game}，继续挑战链")
+            return True
+        return False
+
 
     def _tick_l0(self, frame: Frame) -> LoopAction:
         """Handle map → create dialog → room → stage without guessing clicks."""
+        if self._take_over_post_game_page(frame):
+            return LoopAction.Continue
         if self.phase in {
             Phase.BOOT,
             Phase.PREPARE,
@@ -6072,15 +6096,6 @@ class Mediator:
                 return LoopAction.Continue
             if startup == "IN_GAME":
                 self.set_phase(Phase.MAIN_LINE, "startup found existing game")
-                # 中途启动时游戏可能已停在存档/传家宝/挑战广场。它们都是
-                # 已有多锚点分类器确认的战后页面，应接管既有战后链，而非
-                # 因为本进程未点击“继续游戏”就当成异常页面停止。
-                if self._post_game_state(frame) in {
-                    "ARCHIVE_PANEL", "HEIRLOOM_DIALOG", "GREAT_RIFT_CONFIRM", "NPC_HUB",
-                }:
-                    self._post_game_pending = True
-                    self._victory_continue_since = time.time()
-                    print("[med] 启动接管已验证战后页面，继续存档/传家宝/大秘境链")
                 return LoopAction.Continue
 
         # The hero modal has its own exact guards.  Skipping the generic L0
