@@ -142,6 +142,17 @@ class P1B0PostGameTests(unittest.TestCase):
         extra_click.assert_not_called()
         extra_right_click.assert_not_called()
 
+    def test_manual_secret_realm_confirm_is_accepted_after_ordered_route(self):
+        """用户手动打开确认框后，已到秘境阶段仍应点“是”而不是取消。"""
+        med = Mediator(Settings(auto_secret_realm=True), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "manual secret confirm")
+        med._post_game_pending = True
+        med._post_game_route = "secret"
+        confirm = load_fixture_frame("fixtures/replay/great_rift_confirm.png")
+        with patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(confirm), LoopAction.Continue)
+        self.assertEqual(click.call_args.args[1], "ConfirmGreatRift")
+
     def test_post_game_order_is_archive_then_heirloom_then_secret_realm(self):
         med = Mediator(Settings(auto_secret_realm=True), ROOT)
         med.set_phase(Phase.MAIN_LINE, "ordered post-game route")

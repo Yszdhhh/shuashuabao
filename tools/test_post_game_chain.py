@@ -10,7 +10,9 @@ the default; ``--execute`` opts into the anchored clicks.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -20,6 +22,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.mediator import Mediator, Phase
 from shuabao.settings import Settings
+from shuabao.input.keyboard_mouse import is_current_process_elevated
 
 POST_GAME_PAGES = {
     "ARCHIVE_PANEL",
@@ -37,11 +40,24 @@ def load_dashboard_settings() -> Settings:
     return Settings.load(ROOT / "config" / "default_settings.json")
 
 
+def relaunch_elevated() -> int:
+    """Real input needs the same integrity level as the elevated game client."""
+    params = subprocess.list2cmdline([str(Path(__file__).resolve()), *sys.argv[1:]])
+    result = int(ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, params, str(ROOT), 1))
+    if result <= 32:
+        print(f"[postgame-probe] 请求管理员权限失败（ShellExecute={result}）。")
+        return 2
+    print("[postgame-probe] 已请求管理员权限；请在新打开的窗口继续观察结果。")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="只测试赛后挑战链；默认只观察，不会点击。")
     parser.add_argument("--execute", action="store_true", help="确认执行受锚定的赛后点击")
     parser.add_argument("--seconds", type=float, default=90.0, help="最长观察时长（默认 90 秒）")
     args = parser.parse_args()
+    if args.execute and not is_current_process_elevated():
+        return relaunch_elevated()
 
     settings = load_dashboard_settings()
     settings.dry_run = not args.execute
@@ -77,6 +93,14 @@ def main() -> int:
             # post-game branches.  We do not call run(), so L0 and QUIT cannot
             # be reached by this probe.
             med._post_game_pending = True
+            if page == "ARCHIVE_PANEL":
+                med._post_game_route = "archive_active"
+            elif page == "HEIRLOOM_DIALOG":
+                med._post_game_route = "heirloom_active"
+            elif page == "GREAT_RIFT_CONFIRM":
+                med._post_game_route = "secret"
+                med._secret_realm_request_pending = True
+                med._secret_realm_request_since = time.time()
             med._tick_main_line(frame)
         elif med._secret_realm_active:
             print("[postgame-probe] 已确认进入大秘境局内 HUD；测试链路完成，工具退出。")

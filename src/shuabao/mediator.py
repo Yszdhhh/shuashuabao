@@ -7874,7 +7874,10 @@ class Mediator:
             if (
                 self.settings.auto_secret_realm
                 and self._post_game_pending
-                and self._secret_realm_request_pending
+                and (
+                    self._secret_realm_request_pending
+                    or getattr(self, "_post_game_route", "") == "secret"
+                )
             ):
                 started = self._secret_realm_request_since or now
                 timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
