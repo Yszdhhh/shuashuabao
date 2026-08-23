@@ -589,6 +589,11 @@ class Mediator:
         # P1-B1: victory-continue flow (multi-anchor post-game classification).
         self._victory_continue_attempts: int = 0
         self._victory_continue_since: float | None = None
+        # 暂停恢复是页面切换操作。点击后必须先观察到画面变化，不能复用旧帧
+        # 连点；简单暂停框消失后，旧坐标会落到暂停菜单“系统设置”。
+        self._pause_resume_last_button: str | None = None
+        self._pause_resume_transition_button: str | None = None
+        self._pause_resume_transition_frames: int = 0
         # While True, frames that no classifier recognizes must yield ZERO input
         # (no auto-task / challenge / stage actions) until timeout -> ERROR.
         self._post_game_pending: bool = False
@@ -3983,8 +3988,6 @@ class Mediator:
             self.set_phase(Phase.ERROR, "pause resume attempts exhausted")
             self.stop()
             return LoopAction.Break
-        if now < getattr(self, "_pause_resume_next_at", 0.0):
-            return LoopAction.Continue
         hit = self.find(
             frame,
             ["pause_continue_game", "pause_return_game"],
@@ -4004,13 +4007,38 @@ class Mediator:
             return LoopAction.Continue
 
         self._pause_resume_unmatched_attempts = 0
+        last_button = getattr(self, "_pause_resume_last_button", None)
+        # 已点击按钮仍在旧画面中时，只等待页面切换。5 秒内绝不重发同一
+        # 坐标，避免已消失的“继续游戏”误点到新菜单的“系统设置”。
+        if last_button == hit.name and now < getattr(self, "_pause_resume_next_at", 0.0):
+            print(f"[med] 暂停恢复等待 {hit.name} 点击后的页面切换确认，零输入")
+            return LoopAction.Continue
+        # 简单暂停框消失后会露出三项暂停菜单。新“返回游戏”需稳定两帧后
+        # 才点击，排除转场帧/模板残影。
+        if last_button and last_button != hit.name:
+            if self._pause_resume_transition_button == hit.name:
+                self._pause_resume_transition_frames += 1
+            else:
+                self._pause_resume_transition_button = hit.name
+                self._pause_resume_transition_frames = 1
+            if self._pause_resume_transition_frames < 2:
+                print(f"[med] 暂停恢复检测到新按钮 {hit.name}，等待稳定确认（1/2）")
+                return LoopAction.Continue
+        elif last_button == hit.name:
+            self._pause_resume_transition_button = None
+            self._pause_resume_transition_frames = 0
+        if now < getattr(self, "_pause_resume_next_at", 0.0):
+            return LoopAction.Continue
         attempts += 1
         self._pause_resume_attempts = attempts
         print(
             f"[med] 暂停页面自动点击恢复 {hit.name} @ {hit.center} (尝试 {attempts}/5)"
         )
         if self.act_click(hit, "ResumePausedGame"):
-            self._pause_resume_next_at = now + 1.0
+            self._pause_resume_last_button = hit.name
+            self._pause_resume_transition_button = None
+            self._pause_resume_transition_frames = 0
+            self._pause_resume_next_at = now + 5.0
         return LoopAction.Continue
 
     def _maybe_close_main_line_after_5_5(self, frame: Frame, now: float) -> LoopAction | None:
@@ -4917,6 +4945,9 @@ class Mediator:
             self._pause_resume_attempts = 0
             self._pause_resume_unmatched_attempts = 0
             self._pause_resume_next_at = 0.0
+            self._pause_resume_last_button = None
+            self._pause_resume_transition_button = None
+            self._pause_resume_transition_frames = 0
             self._close_main_line_triggered = False
             self._close_main_line_attempts = 0
             self._close_main_line_next_at = 0.0
@@ -7676,9 +7707,21 @@ class Mediator:
             self._pause_resume_attempts = 0
             self._pause_resume_unmatched_attempts = 0
             self._pause_resume_next_at = 0.0
+            self._pause_resume_last_button = None
+            self._pause_resume_transition_button = None
+            self._pause_resume_transition_frames = 0
             self._main_line_since = now
         if post_game == "PAUSED":
             return self._maybe_resume_paused(frame, now)
+        if (
+            not self._post_game_pending
+            and post_game in {"ARCHIVE_PANEL", "NPC_HUB"}
+        ):
+            # 中途启动/暂停恢复后可能直接落在赛后页，不能把已验证页面当作
+            # “非胜利异常”停机。接管后仅允许赛后专用链路的受锚定输入。
+            self._post_game_pending = True
+            self._victory_continue_since = now
+            print(f"[med] MAIN_LINE 接管已验证战后页面 {post_game}，继续挑战链")
         if post_game == "POST_VICTORY":
             if self._post_game_pending:
                 elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0

@@ -31,6 +31,7 @@ from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 from run_replay import run_replay_fixture
 
 ENDGAME = ROOT / "fixtures" / "reborn_wow" / "endgame"
@@ -49,29 +50,17 @@ class P1B0PostGameTests(unittest.TestCase):
         self.med = Mediator(self.settings, ROOT)
         self.med.set_phase(Phase.MAIN_LINE, "p1b0 setup")
 
-    # ---------- 1. Fail-Closed: no post-game page may produce input ----------
+    # ---------- 1. Direct post-game takeover ----------
 
-    def test_post_game_pages_fail_closed_with_zero_input(self):
-        """Archive/hub/heirloom/rift pages must cause Fail-Closed stop with zero executor calls."""
-        fail_closed_ids = {"archive_challenge_panel", "challenge_npc_hub"}
-        for shot in sorted(ENDGAME.glob("*.png")) + sorted(ENDGAME.glob("*.jpg")):
-            if shot.stem not in fail_closed_ids:
-                continue
-            frame = load_fixture_frame(f"fixtures/reborn_wow/endgame/{shot.name}")
-            with patch.object(self.med.executor, "click") as mock_click, \
-                 patch.object(self.med.executor, "right_click") as mock_right_click, \
-                 patch.object(self.med.executor, "press_key") as mock_key, \
-                 patch.object(self.med, "act_click") as mock_act, \
-                 patch.object(self.med, "act_right_click") as mock_act_rc:
-                action = self.med._tick_main_line(frame)
-                self.assertEqual(action, LoopAction.Break, f"{shot.name} must Fail-Closed")
-                self.assertEqual(self.med.phase, Phase.ERROR, f"{shot.name} must enter ERROR")
-                self.assertFalse(self.med._running)
-            mock_click.assert_not_called()
-            mock_right_click.assert_not_called()
-            mock_key.assert_not_called()
-            mock_act.assert_not_called()
-            mock_act_rc.assert_not_called()
+    def test_direct_archive_panel_is_taken_over_without_stopping(self):
+        """暂停恢复/中途启动直接看到存档页时，继续挑战链而不是 ERROR。"""
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        with patch.object(self.med, "act_click", return_value=True) as click:
+            action = self.med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(self.med.phase, Phase.MAIN_LINE)
+        self.assertTrue(self.med._post_game_pending)
+        self.assertEqual(click.call_args.args[1], "ArchiveChallenge-skill")
 
     def test_optional_dialogs_are_safely_dismissed(self):
         cases = {
@@ -187,6 +176,19 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(action, LoopAction.Continue)
         self.assertEqual(paused.phase, Phase.MAIN_LINE)
         self.assertFalse(paused._post_game_pending)
+
+    def test_pause_resume_never_replays_a_stale_continue_coordinate(self):
+        """旧继续按钮仍可见时，必须先等切页，不能再次注入同一坐标。"""
+        med = Mediator(Settings(), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "pause transition")
+        med._pause_resume_last_button = "pause_continue_game"
+        med._pause_resume_next_at = time.time() + 4.0
+        frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
+        hit = MatchResult("pause_continue_game", .95, 900, 455, 160, 50, 980, 480)
+        with patch.object(med, "find", return_value=hit), \
+                patch.object(med, "act_click") as click:
+            self.assertIs(med._maybe_resume_paused(frame, time.time()), LoopAction.Continue)
+        click.assert_not_called()
 
     def test_secret_realm_dialog_timeout_retries_without_guessing_or_stopping(self):
         settings = Settings(auto_secret_realm=True)

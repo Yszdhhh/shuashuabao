@@ -41,8 +41,8 @@ def test_pause_resume_retries_are_bounded_and_fail_closed():
     continue_hit = MatchResult("pause_continue_game", .98, 700, 400, 200, 50, 980, 480)
     with patch.object(med, "find", return_value=continue_hit), \
          patch.object(med, "act_click", return_value=True) as click:
-        for i in range(7):
-            action = med._maybe_resume_paused(frame, float(i))
+        for i in range(6):
+            action = med._maybe_resume_paused(frame, float(i * 6))
             if i < 5:
                 assert action is LoopAction.Continue
             else:
