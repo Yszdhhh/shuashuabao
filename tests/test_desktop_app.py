@@ -445,6 +445,15 @@ class DesktopPanelTests(unittest.TestCase):
         self.assertIn("齐天大圣", cards)
         self.assertNotIn("法天象地", cards)
 
+    def test_advanced_pack_selection_preserves_queue_and_basic_boundary(self):
+        self.window._advanced_pack_boxes["yihuo"].setChecked(True)
+        self.window._advanced_pack_boxes["xiuxian"].setChecked(True)
+        selected = self.window.collect_settings_from_ui()
+        self.assertEqual(["yihuo", "xiuxian"], list(selected.bond_advanced_packs))
+        advanced_cards = {card for cards in selected.bond_advanced_packs.values() for card in cards}
+        self.assertTrue(advanced_cards)
+        self.assertTrue(set(selected.bond_basic_presets).isdisjoint(advanced_cards))
+
     def test_basic_pack_invert_toggles_whitelist(self):
         before = list(self.window.assemble_whitelist_cards())
         self.assertIn("zhufu", before)

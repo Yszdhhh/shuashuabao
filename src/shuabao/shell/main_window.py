@@ -2016,12 +2016,11 @@ class MainWindow(QMainWindow):
         return tokens_list
 
     def _advanced_pack_tokens(self) -> list[str]:
-        enabled = set(self._shell_extras.get("advanced_packs") or [])
+        enabled = [str(pack) for pack in (self._shell_extras.get("advanced_packs") or []) if str(pack)]
         banned = {"解放的圣剑", "帝炎", "法天象地"}
         tokens_list: list[str] = []
-        for pack_id, spec in ADVANCED_PACKS.items():
-            if pack_id not in enabled:
-                continue
+        for pack_id in enabled:
+            spec = ADVANCED_PACKS.get(pack_id) or {}
             banned.update(str(n) for n in (spec.get("exclude_ex") or []))
             for name in spec.get("cards") or []:
                 text = str(name).strip()
@@ -2732,6 +2731,16 @@ class MainWindow(QMainWindow):
             **self.skill_priority_bar.route_selections(),
         }
         settings.cards = self.assemble_whitelist_cards()
+        advanced_packs: dict[str, list[str]] = {}
+        for pack_id in self._shell_extras.get("advanced_packs") or []:
+            spec = ADVANCED_PACKS.get(str(pack_id)) or {}
+            cards = [code_for_bond_name(str(name)) or str(name) for name in (spec.get("cards") or [])]
+            cards = [name for name in cards if name and name not in set(spec.get("exclude_ex") or ())]
+            if cards:
+                advanced_packs[str(pack_id)] = cards
+        advanced_names = {name for cards in advanced_packs.values() for name in cards}
+        settings.bond_advanced_packs = advanced_packs
+        settings.bond_basic_presets = [card for card in settings.cards if card not in advanced_names]
         settings.treasure_allow_negative = self.grp_negative.get_allowed()
         settings.auto_reputation = bool(self.cmb_mode.currentData())
         allocations = self._rep_allocations()
@@ -2850,6 +2859,7 @@ class MainWindow(QMainWindow):
         worker.finished.connect(self._on_worker_finished)
         worker.start()
         self._status_timer.start()
+        self.showMinimized()
         self.log("[点火] 任务已启动。可按 F12 或点击 HUD 停止", "warn")
 
     def _on_worker_finished(self) -> None:
