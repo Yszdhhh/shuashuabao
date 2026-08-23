@@ -219,6 +219,17 @@ def test_tqtz_transition_waits_for_boss_entry_before_regular_cycle():
         assert med._early_challenge_pending is False
 
 
+def test_tqtz_clicked_but_entry_never_closes_resets_clicked_at_after_timeout():
+    med = Mediator(Settings(cjb_boss="04大范"), ROOT)
+    frame = _frame()
+    med._early_challenge_pending = True
+    med._early_challenge_clicked_at = 10.0
+    # boss_entry 一直存在超过 8s，重置 clicked_at 允许重试
+    with patch.object(med, "find_scene", return_value=True):
+        assert med._tick_early_challenge(frame, 19.0) is LoopAction.Continue
+        assert med._early_challenge_clicked_at is None
+        assert med._early_challenge_pending is True
+
 def test_runtime_bond_duplicate_is_retained_for_merge_priority():
     from shuabao.runtime_mediator import Mediator as RuntimeMediator
     med = RuntimeMediator(Settings(cards=["力量"]), ROOT)
@@ -246,14 +257,24 @@ def test_runtime_watchdog_does_not_interfere_with_early_challenge_or_paused():
     from shuabao.runtime_mediator import Mediator as RuntimeMediator
     med = RuntimeMediator(Settings(), ROOT)
     med.phase = Phase.MAIN_LINE
+    frame = _frame()
+    now = time.time()
     # 1. 提前挑战 pending 时看门狗禁止触发
     med._early_challenge_pending = True
-    assert med._runtime_watchdog_allowed(time.time()) is False
+    with patch.object(med, "_post_game_state", return_value=None):
+        assert med._runtime_watchdog_allowed(frame, now) is False
 
     # 2. 暂停恢复尝试中时看门狗禁止触发
     med._early_challenge_pending = False
     med._pause_resume_attempts = 1
-    assert med._runtime_watchdog_allowed(time.time()) is False
+    with patch.object(med, "_post_game_state", return_value=None):
+        assert med._runtime_watchdog_allowed(frame, now) is False
+
+    # 3. 暂停恢复按钮未匹配计数 > 0 时看门狗禁止触发
+    med._pause_resume_attempts = 0
+    med._pause_resume_unmatched_attempts = 1
+    with patch.object(med, "_post_game_state", return_value=None):
+        assert med._runtime_watchdog_allowed(frame, now) is False
 
 
 def test_hero_focus_requires_two_consecutive_frames_to_dispatch_f1():
@@ -262,19 +283,17 @@ def test_hero_focus_requires_two_consecutive_frames_to_dispatch_f1():
     with patch("shuabao.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
          patch.object(med, "find", return_value=None), \
          patch.object(med, "act_key", return_value=True) as mock_act_key:
-        # 第 1 帧：仅计数，不发按键
+        # 第 1 帧：仅计数，不发按键，但返回 Continue 阻断当前 tick 业务输入
         res1 = med._maybe_ensure_hero_panel_focus(frame, 1.0)
-        assert res1 is None
+        assert res1 is LoopAction.Continue
         assert med._hero_focus_lost_count == 1
         mock_act_key.assert_not_called()
 
-        # 第 2 帧：连续缺失，发送 F1
+        # 第 2 帧：连续缺失，发送 F1 并重置计数器
         res2 = med._maybe_ensure_hero_panel_focus(frame, 2.5)
         assert res2 is LoopAction.Continue
         assert med._hero_focus_lost_count == 0
         mock_act_key.assert_called_once_with("F1", "HeroFocusFallback")
-
-
 def test_close_main_line_waits_for_off_state_confirmation():
     med = Mediator(Settings(auto_close_main_line=True), ROOT)
     frame = _frame()
@@ -294,3 +313,22 @@ def test_close_main_line_waits_for_off_state_confirmation():
         res = med._maybe_close_main_line_after_5_5(frame, 2.5)
         assert res is None
         assert getattr(med, "_main_line_closed_done", False) is True
+
+def test_watchdog_arbitration_blocks_esc_on_first_frame_paused_or_tqtz():
+    from shuabao.runtime_mediator import Mediator as RuntimeMediator
+    med = RuntimeMediator(Settings(), ROOT)
+    frame = _frame()
+    med.phase = Phase.MAIN_LINE
+    med._last_runtime_progress_at = 0.0
+    now = 100.0
+
+    # 第一帧 PAUSED：即便 _pause_resume_attempts 为 0，看门狗仍被严格阻断
+    with patch.object(med, "_post_game_state", return_value="PAUSED"):
+        assert med._runtime_watchdog_allowed(frame, now) is False
+
+    # 第一帧 tqtz 出现：即便 _early_challenge_pending 为 False，看门狗仍被严格阻断
+    tqtz_hit = MatchResult("tqtz", .85, 438, 79, 85, 22, 665, 171)
+    with patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "_classify_choice_panel", return_value=None):
+        assert med._runtime_watchdog_allowed(frame, now) is False

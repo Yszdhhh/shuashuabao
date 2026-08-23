@@ -205,7 +205,7 @@ class Mediator(CoreMediator):
         self._l1_cycle_index = next_idx
         self._l1_cycle_step = nxt
 
-    def _runtime_watchdog_allowed(self, now: float) -> bool:
+    def _runtime_watchdog_allowed(self, frame, now: float) -> bool:
         if getattr(self, "phase", None) != Phase.MAIN_LINE:
             return False
         if bool(getattr(self.settings, "dry_run", False)):
@@ -216,10 +216,22 @@ class Mediator(CoreMediator):
             return False
         if int(getattr(self, "_pause_resume_attempts", 0) or 0) > 0:
             return False
+        if int(getattr(self, "_pause_resume_unmatched_attempts", 0) or 0) > 0:
+            return False
         if getattr(self, "_panel_state", PanelState.CLOSED) != PanelState.CLOSED:
             return False
         pending = getattr(self, "_pending_action", None)
         if pending is not None and now < float(getattr(pending, "deadline", 0.0) or 0.0):
+            return False
+
+        # 仲裁保护：第一帧检测到 PAUSED 或 tqtz 或选择面板时，严禁看门狗抢先发 ESC
+        if self._post_game_state(frame) == "PAUSED":
+            return False
+        if not getattr(self, "_tqtz_clicked", False):
+            tqtz_hit = self.find(frame, "tqtz", threshold=0.75, roi=(0.0, 0.0, 0.35, 0.35))
+            if tqtz_hit is not None:
+                return False
+        if self._classify_choice_panel(frame) is not None:
             return False
         started = getattr(self, "_main_line_started_at", None)
         if (
@@ -231,9 +243,10 @@ class Mediator(CoreMediator):
             self._mark_runtime_progress(now)
             return False
         return True
+
     def _tick_main_line(self, frame):
         now = time.time()
-        if self._runtime_watchdog_allowed(now):
+        if self._runtime_watchdog_allowed(frame, now):
             stagnant_for = now - float(getattr(self, "_last_runtime_progress_at", now) or now)
             if stagnant_for >= self._RUNTIME_STALL_TIMEOUT_S:
                 print(

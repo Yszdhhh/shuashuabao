@@ -3731,8 +3731,8 @@ class Mediator:
 
         self._hero_focus_lost_count = getattr(self, "_hero_focus_lost_count", 0) + 1
         if self._hero_focus_lost_count < 2:
-            print(f"[med] 右下角英雄操作面板单帧未检出 (计数 {self._hero_focus_lost_count}/2)，等待下一帧确认")
-            return None
+            print(f"[med] 右下角英雄操作面板单帧未检出 (计数 {self._hero_focus_lost_count}/2)，门闩阻断本 tick 等待下一帧确认")
+            return LoopAction.Continue
 
         print(f"[med] 右下角连续 {self._hero_focus_lost_count} 帧未检测到英雄面板，发送 F1 切回英雄")
         if not getattr(self.settings, "dry_run", False):
@@ -3794,6 +3794,9 @@ class Mediator:
                     print("[med] 提前挑战 Boss 入口已连续 2 帧消失，确认进入挑战流程")
             else:
                 self._early_challenge_disappear_confirm_count = 0
+                if now - getattr(self, "_early_challenge_clicked_at", now) > 8.0:
+                    print("[med] 点击 Boss 后入口持续存在超过 8s，重置 clicked_at 以允许重新尝试 Boss 点击")
+                    self._early_challenge_clicked_at = None
             return LoopAction.Continue
         if now - getattr(self, "_early_challenge_started_at", now) > 20.0:
             print("[med] 提前挑战未出现/未完成 Boss 入口（超时 20s），重置单次锁以允许后续重试并恢复主循环")
@@ -3868,8 +3871,8 @@ class Mediator:
             attempts = getattr(self, "_close_main_line_attempts", 0) + 1
             self._close_main_line_attempts = attempts
             if attempts > 5:
-                print("[med] 5-5 取消自动任务重试超限 (5 次)，停止重试")
-                self._main_line_closed_done = True
+                print("[med] 5-5 取消自动任务连续 5 次未确认切为 OFF，保留未解决状态并停止本轮盲试")
+                self._close_main_line_next_at = now + 5.0
                 return None
             print(f"[med] 5-5 完成，按配置点击取消【自动任务】@ {hit.center} (尝试 {attempts}/5)")
             if self.act_click(hit, "DisableAutoTask"):
@@ -4749,8 +4752,11 @@ class Mediator:
             self._tqtz_clicked = False
             self._tqtz_next_check_at = 0.0
             self._pause_resume_attempts = 0
+            self._pause_resume_unmatched_attempts = 0
             self._pause_resume_next_at = 0.0
             self._close_main_line_triggered = False
+            self._close_main_line_attempts = 0
+            self._close_main_line_next_at = 0.0
             self._main_line_closed_done = False
             self._challenge_recheck_at.clear()
             self._challenge_states = {
