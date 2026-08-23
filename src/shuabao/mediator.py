@@ -1032,6 +1032,17 @@ class Mediator:
         }
         role = "l0" if self.phase in l0_phases else "l1"
         frame = self._capture_best(title, role)
+
+        # 铁律：如果当前抓取到了 KK 平台窗口，但「英雄三国」游戏客户端窗口实际上已经拉起，
+        # 恒以游戏客户端窗口为准，绝不让 KK 平台窗口抢占前台。
+        l1_candidate = None
+        if role == "l0" and getattr(self, "_game_window_seen", False):
+            l1_title = ",".join(L1_WINDOW_KEYWORDS)
+            candidate = self._capture_best(l1_title, "l1")
+            if candidate.is_valid and self._is_game_client_frame(candidate):
+                frame = candidate
+                role = "l1"
+                l1_candidate = candidate
         primary_has_pixels = bool(
             frame is not None
             and frame.bgr is not None
@@ -1065,7 +1076,12 @@ class Mediator:
         # 否则会把正在拉起的「英雄三国」游戏客户端压在底下，造成对战平台一直挡住游戏的死锁。
         transition_phases = (Phase.ROOM_STARTING, Phase.STAGE_STARTING, Phase.WAIT_EXIT)
         is_platform_frame = role == "l0" or any(k in getattr(frame, "window_title", "") for k in ("KK", "对战平台", "竞技平台"))
-        suppress_activate = self.phase in transition_phases and is_platform_frame
+        # 铁律：只要发现过或当前能检测到游戏客户端窗口，严禁再对平台窗做前台置顶
+        suppress_activate = is_platform_frame and (
+            self.phase in transition_phases
+            or getattr(self, "_game_window_seen", False)
+            or (l1_candidate is not None and l1_candidate.is_valid)
+        )
         if frame.hwnd and frame.is_valid and not suppress_activate:
             now = time.time()
             last_act = getattr(self, "_last_auto_activate_ts", 0.0)
