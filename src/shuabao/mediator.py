@@ -30,7 +30,6 @@ from shuabao.input.keyboard_mouse import (
     foreground_matches_target,
     get_foreground_window,
     is_window_valid,
-    reacquire_target_window,
 )
 from shuabao.loop_action import LoopAction
 from shuabao.scenes import load_scenes, scene_templates
@@ -44,7 +43,6 @@ from shuabao.vision.capture import (
     L0_WINDOW_KEYWORDS,
     L1_WINDOW_KEYWORDS,
     activate_window,
-    reacquire_target_window as capture_reacquire_target_window,
     capture,
     capture_target,
     check_frame_health,
@@ -477,10 +475,10 @@ class Mediator:
         self._room_action_deadline: float | None = None
         self._room_action_attempts = 0
         # ROOM_STARTING is a transition alignment episode.  The deadline is
-        # fixed when RoomStart is first accepted; retries are time-spaced and
-        # never extend the macro deadline.
+        # fixed when RoomStart is first accepted; the transition sends no
+        # further platform input and never extends the macro deadline.
         self._room_start_deadline: float | None = None
-        self._room_start_next_retry_at: float = 0.0
+        self._game_window_seen = False
         # startChallenge 显式子状态机（STAGE_STARTING 分支内部状态，枚举不变）：
         # WAIT_TRANSITION → VERIFY_INGAME → DONE，带超时/失败分支/有界重试
         self._challenge_start_state: str | None = None   # WAIT_TRANSITION/VERIFY_INGAME/DONE
@@ -1044,7 +1042,9 @@ class Mediator:
         primary_signal = (
             self._frame_signal(frame, "l1") if primary_has_pixels else 0
         )
-        if self.phase == Phase.ROOM_STARTING and primary_signal == 0:
+        if self.phase == Phase.ROOM_STARTING and self._is_game_client_frame(frame):
+            self._game_window_seen = True
+        if self.phase == Phase.ROOM_STARTING and primary_signal == 0 and not self._game_window_seen:
             # During process launch the game HWND may not exist yet.  Keep L1
             # as the primary target, but inspect the platform as a fallback so
             # an unchanged room page can be aligned/retried instead of being
@@ -1464,31 +1464,6 @@ class Mediator:
 
         return self._memo(key, frame, compute)
 
-    def _reacquire_target_window(self, hwnd: int | None = None, timeout_s: float = 2.0) -> bool:
-        """Bring target window to foreground and wait until confirmed foreground.
-        Invalidates evidence cache on reacquisition.
-        """
-        target_hwnd = hwnd if hwnd is not None else (self._last_frame.hwnd if self._last_frame else None)
-        if not target_hwnd:
-            return False
-        ok = reacquire_target_window(target_hwnd, timeout_s=timeout_s)
-        if ok:
-            self.invalidate_evidence("focus-reacquired")
-        return ok
-
-    def _focus_last_window(self) -> bool:
-        if self.settings.dry_run or not isinstance(self.executor, InputExecutor):
-            return True
-        if not self._last_frame or not self._last_frame.hwnd or not is_window_valid(self._last_frame.hwnd):
-            return True
-        target_hwnd = self._last_frame.hwnd
-        fg = get_foreground_window()
-        if fg is not None and not foreground_matches_target(target_hwnd, fg):
-            self.invalidate_evidence("focus-lost")
-            if not self._reacquire_target_window(target_hwnd):
-                print(f"[med] real input skipped: cannot focus hwnd={target_hwnd} (fg={fg})")
-                return False
-        return True
     def _finish_input(self, res, reason: str, action_ms: float = 0.0) -> bool:
         """输入返回后的统一收尾：输入标记、白名单 reason、证据失效。
 
@@ -4627,7 +4602,6 @@ class Mediator:
             print(f"[med] phase {self.phase.name} → {phase.name} {note}")
         if self.phase == Phase.ROOM_STARTING and phase != Phase.ROOM_STARTING:
             self._room_start_deadline = None
-            self._room_start_next_retry_at = 0.0
         if phase in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP) and self.phase not in (Phase.LOBBY_ROOM, Phase.PLATFORM_MAP):
             self._stage_selected = False
             self._stage_target_name = None
@@ -6091,7 +6065,6 @@ class Mediator:
                 now = time.time()
                 self._room_action_attempts = 1
                 self._room_start_deadline = now + self._l0_transition_timeout()
-                self._room_start_next_retry_at = now + self._CREATE_ROOM_CONFIRM_WINDOW_S
                 self.set_phase(Phase.ROOM_STARTING, "room start clicked")
                 return LoopAction.Continue
             if self._action_timed_out():
@@ -6115,15 +6088,6 @@ class Mediator:
             if now >= self._room_start_deadline:
                 print("[L0] 房间开始状态对齐超过宏观期限，回到房间等待")
                 self.set_phase(Phase.ROOM_WAITING, "room start alignment timeout")
-                return LoopAction.Continue
-            if room_start and now >= self._room_start_next_retry_at:
-                print(
-                    f"[L0] 仍在房间页，按状态对齐重试开始 "
-                    f"(telemetry={self._room_action_attempts + 1})"
-                )
-                if self.act_click(room_start, "RoomStart-retry"):
-                    self._room_action_attempts += 1
-                self._room_start_next_retry_at = now + self._CREATE_ROOM_CONFIRM_WINDOW_S
                 return LoopAction.Continue
             print("[L0] 等待游戏窗口/选关页…")
             return LoopAction.Continue
@@ -6638,16 +6602,14 @@ class Mediator:
 
         self._missing_window_since = None
 
-        # Target window foreground check: if target HWND lost foreground, pause business inputs
-        # and invalidate cached evidence / OCR / coordinates.
+        # Foreground loss invalidates cached evidence and pauses business input.
+        # Do not reactivate here: Windows owns the platform → game z-order transition.
         if not self.settings.dry_run and isinstance(self.executor, InputExecutor) and frame.hwnd and is_window_valid(frame.hwnd):
             fg = get_foreground_window()
             if not foreground_matches_target(frame.hwnd, fg):
                 print(f"[med] target hwnd={frame.hwnd} lost foreground (fg={fg}), invalidating evidence and pausing inputs")
                 self.invalidate_evidence("foreground-lost")
-                if not self._reacquire_target_window(frame.hwnd):
-                    print(f"[med] cannot reacquire foreground for hwnd={frame.hwnd}, waiting next tick")
-                    return LoopAction.Continue
+                return LoopAction.Continue
 
         # N2.2：本 tick 动作授权锚点（健康放行后才建立）。
         # 任一成功输入会推进 evidence.gen / _input_seq；act_* 前置断言
@@ -8094,10 +8056,6 @@ class Mediator:
     def run(self, max_steps: int | None = None) -> None:
         self._running = True
         self.set_phase(Phase.BOOT)
-        # 启动时主动切回目标窗口（KK平台或游戏），即使最小化也自动恢复并激活
-        targets = find_window_targets(allow_fallback=True, allow_minimized=True)
-        if targets:
-            activate_window(targets[0].hwnd)
         steps = 0
         print(
             f"[med] Run learning_mode={self.settings.dry_run} mode={self.settings.game_mode} "

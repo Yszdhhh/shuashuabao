@@ -6,12 +6,11 @@ from dataclasses import dataclass
 import time
 
 from shuabao.stop_signal import StopSignal
-from shuabao.vision.capture import activate_window, is_window_valid, reacquire_target_window
+from shuabao.vision.capture import is_window_valid, reacquire_target_window
 
 __all__ = [
     "ActionResult",
     "InputExecutor",
-    "activate_window",
     "reacquire_target_window",
     "foreground_matches_target",
     "get_clipboard_text",
@@ -238,14 +237,11 @@ class InputExecutor:
             )
         fg = get_foreground_window()
         if not foreground_matches_target(target_hwnd, fg):
-            activate_window(target_hwnd)
-            fg = get_foreground_window()
-            if not foreground_matches_target(target_hwnd, fg):
-                return ActionResult(
-                    success=False,
-                    status="CANCELLED_WINDOW_CHANGED",
-                    message=f"Target window {target_hwnd} is not foreground (current={fg})",
-                )
+            return ActionResult(
+                success=False,
+                status="CANCELLED_WINDOW_CHANGED",
+                message=f"Target window {target_hwnd} is not foreground (current={fg}); input paused without activating it",
+            )
         return ActionResult(success=True, status="OK", message="Window verified")
 
     def _post_check(self, target_hwnd: int | None, dry_run: bool) -> ActionResult | None:

@@ -243,10 +243,11 @@ class P0SecurityFoundationTests(unittest.TestCase):
         with patch("shuabao.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
              patch("shuabao.input.keyboard_mouse.is_window_valid", return_value=True), \
              patch("shuabao.input.keyboard_mouse.get_foreground_window", return_value=999), \
-             patch("shuabao.input.keyboard_mouse.activate_window", return_value=False):
+             patch("shuabao.input.keyboard_mouse.click") as click:
             res = executor.click(100, 200, target_hwnd=123, dry_run=False)
             self.assertFalse(res.success)
             self.assertEqual(res.status, "CANCELLED_WINDOW_CHANGED")
+            click.assert_not_called()
 
     # ---------- Task 6: Shift+F12 Emergency Stop & Shared Cancel ----------
 

@@ -376,10 +376,9 @@ def test_follow_team_act_click_roomstart_denied_by_guard():
     with clock.install():
         clock.set(100.0)
         assert med.act_click(hit, "RoomStart") is False
-        assert med.act_click(hit, "RoomStart-retry") is False
         assert med.act_click(hit, "CreateRoom-open") is False
         assert med.act_click(hit, "quick_join") is False
-    assert clicks == ["RoomStart", "RoomStart-retry", "CreateRoom-open", "quick_join"]
+    assert clicks == ["RoomStart", "CreateRoom-open", "quick_join"]
     assert med.executor.action_ledger == []
 
 
@@ -391,7 +390,7 @@ def test_forbidden_actions_align_with_mediator_click_reasons():
     src = (ROOT / "src" / "shuabao" / "mediator.py").read_text(encoding="utf-8")
     reasons = set(re.findall(r'act_click\([^)]*?["\']([^"\']+)["\']', src))
     reasons.update(re.findall(r'reason=["\']([^"\']+)["\']', src))
-    live_l0 = {"RoomStart", "RoomStart-retry", "CreateRoom-open", "CreateRoom-confirm"}
+    live_l0 = {"RoomStart", "CreateRoom-open", "CreateRoom-confirm"}
     missing = live_l0 - reasons
     assert not missing, f"mediator lost L0 click reasons: {missing}"
     specs = load_specs()
