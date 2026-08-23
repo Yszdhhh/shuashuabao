@@ -89,6 +89,7 @@ class P1B0PostGameTests(unittest.TestCase):
         med = Mediator(settings, ROOT)
         med.set_phase(Phase.MAIN_LINE, "secret realm setup")
         med._post_game_pending = True
+        med._post_game_route = "secret"
         med._victory_continue_since = time.time()
 
         hub = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
@@ -141,6 +142,39 @@ class P1B0PostGameTests(unittest.TestCase):
         extra_click.assert_not_called()
         extra_right_click.assert_not_called()
 
+    def test_post_game_order_is_archive_then_heirloom_then_secret_realm(self):
+        med = Mediator(Settings(auto_secret_realm=True), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "ordered post-game route")
+        med._post_game_pending = True
+        hub = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        archive = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+
+        with patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(hub), LoopAction.Continue)
+        self.assertEqual(click.call_args.args[1], "OpenArchiveChallenges")
+        self.assertEqual(med._post_game_route, "archive_active")
+
+        med._archive_challenge_index = len(med._ARCHIVE_CHALLENGE_CELLS)
+        med._boss_challenge_attempts = 5
+        with patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(archive), LoopAction.Continue)
+        self.assertEqual(click.call_args.args[1], "CloseArchivePanelAfterChallenges")
+        self.assertEqual(med._post_game_route, "heirloom")
+
+        with patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(hub), LoopAction.Continue)
+        self.assertEqual(click.call_args.args[1], "OpenHeirloomChallenges")
+        self.assertEqual(med._post_game_route, "heirloom_active")
+
+        with patch.object(med, "act_right_click") as right_click:
+            self.assertEqual(med._tick_main_line(hub), LoopAction.Continue)
+        right_click.assert_not_called()
+        self.assertEqual(med._post_game_route, "secret")
+
+        with patch.object(med, "act_right_click", return_value=True) as right_click:
+            self.assertEqual(med._tick_main_line(hub), LoopAction.Continue)
+        self.assertEqual(right_click.call_args.args[1], "OpenGreatRift")
+
     def test_startup_takeover_of_npc_hub_enters_secret_realm_chain(self):
         """中途启动已在挑战广场时，必须接管而不是报 unexpected hub。"""
         med = Mediator(Settings(auto_secret_realm=True), ROOT)
@@ -153,10 +187,10 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertTrue(med._post_game_pending)
 
         with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
-             patch.object(med, "act_right_click", return_value=True) as right_click:
+             patch.object(med, "act_click", return_value=True) as click:
             action = med._tick_main_line(hub)
         self.assertEqual(action, LoopAction.Continue)
-        self.assertEqual(right_click.call_args.args[1], "OpenGreatRift")
+        self.assertEqual(click.call_args.args[1], "OpenArchiveChallenges")
 
     def test_l0_state_cannot_scroll_over_verified_archive_or_pause(self):
         """选关态中的战后页/暂停页必须抢占 L0，而不是继续滚动找关。"""

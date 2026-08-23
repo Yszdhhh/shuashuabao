@@ -602,6 +602,8 @@ class Mediator:
         # 再按看板预设选择时光之穴 Boss。每局重置，避免上一局的卡序污染。
         self._archive_challenge_index: int = 0
         self._archive_challenge_next_at: float = 0.0
+        # 固定赛后顺序：存档 → 传家宝 → 大秘境。
+        self._post_game_route: str = "archive"
         # Optional post-victory great-rift chain.  Every input has a dedicated
         # anchor and a bounded post-click observation window.
         self._secret_realm_request_pending: bool = False
@@ -4076,15 +4078,21 @@ class Mediator:
             ["damijing"],
             threshold=0.80,
             scales=self._hot_scales(),
-            roi=(0.60, 0.15, 0.85, 0.55),
+            roi=(0.55, 0.10, 0.95, 0.65),
         )
         if not hit:
             return None
-        if not (frame.width * 0.60 <= hit.x <= frame.width * 0.85):
+        if not (frame.width * 0.55 <= hit.x <= frame.width * 0.95):
             return None
-        if not (frame.height * 0.15 <= hit.y <= frame.height * 0.55):
+        if not (frame.height * 0.10 <= hit.y <= frame.height * 0.65):
             return None
         return hit
+
+    def _post_game_hub_entry(self, frame: Frame, route: str) -> MatchResult:
+        """Header coordinates are valid only after NPC_HUB multi-anchor confirmation."""
+        x = int(frame.width * {"archive": 0.52, "heirloom": 0.625}[route])
+        y = int(frame.height * 0.275)
+        return MatchResult(f"post_game_{route}_entry", 1.0, x, y, 1, 1, frame.left + x, frame.top + y)
 
     def _find_great_rift_accept(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
@@ -4971,6 +4979,7 @@ class Mediator:
             self._post_game_close_attempts = 0
             self._archive_challenge_index = 0
             self._archive_challenge_next_at = 0.0
+            self._post_game_route = "archive"
             self._secret_realm_request_pending = False
             self._secret_realm_request_since = None
             self._secret_realm_request_attempts = 0
@@ -7746,6 +7755,7 @@ class Mediator:
             print(f"[med] 胜利结算 点击继续游戏 @ {hit.center} (尝试 {self._victory_continue_attempts}/3)")
             if self.act_click(hit, "ContinueGame"):
                 self._post_game_pending = True
+                self._post_game_route = "archive"
                 self._victory_continue_since = now
                 self._main_line_since = now
             return LoopAction.Continue
@@ -7767,7 +7777,8 @@ class Mediator:
             # 这不是首次出现即关闭，且不以此终止脚本。
             close_hit = self._find_archive_panel_close(frame)
             if close_hit is not None:
-                print(f"[med] 存档页已尝试挑战/预设 Boss 未出现，关闭转挑战广场 @ {close_hit.center}")
+                self._post_game_route = "heirloom"
+                print(f"[med] 存档页完成，关闭并转传家宝挑战 @ {close_hit.center}")
                 self.act_click(close_hit, "CloseArchivePanelAfterChallenges")
             return LoopAction.Continue
         if post_game == "NPC_HUB":
@@ -7789,6 +7800,22 @@ class Mediator:
                     self.stop()
                     return LoopAction.Break
                 print("[med] 大秘境确认后挑战广场过渡帧，零动作等待局内 HUD")
+                return LoopAction.Continue
+            route = getattr(self, "_post_game_route", "archive")
+            if route in {"archive", "heirloom"}:
+                entry = self._post_game_hub_entry(frame, route)
+                reason = "OpenArchiveChallenges" if route == "archive" else "OpenHeirloomChallenges"
+                print(f"[med] 赛后顺序：打开{'存档' if route == 'archive' else '传家宝'}挑战入口 @ {entry.center}")
+                if self.act_click(entry, reason):
+                    self._post_game_route = f"{route}_active"
+                    self._main_line_since = now
+                return LoopAction.Continue
+            if route == "heirloom_active":
+                self._post_game_route = "secret"
+                print("[med] 传家宝挑战已回到挑战广场，下一步才允许大秘境")
+                return LoopAction.Continue
+            if route != "secret":
+                print(f"[med] 赛后顺序等待 {route} 页面确认，零输入")
                 return LoopAction.Continue
             if self.settings.auto_secret_realm:
                 timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
@@ -7837,6 +7864,7 @@ class Mediator:
                 print("[med] 传家宝弹窗未找到受约束的关闭按钮，零动作等待")
                 return LoopAction.Continue
             self._aux_dialog_attempts[post_game] = attempts + 1
+            self._post_game_route = "secret"
             print(f"[med] 关闭传家宝弹窗 @ {close_hit.center} (尝试 {attempts + 1}/3)")
             self.act_click(close_hit, "DismissHeirloomDialog")
             self._main_line_since = now
