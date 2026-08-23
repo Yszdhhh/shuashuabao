@@ -50,6 +50,42 @@ def test_bond_synthesis_priority_over_refresh():
     assert "羁绊已持有合成优先" in dec.reason
 
 
+def test_dashboard_bond_whitelist_accepts_live_ocr_floor():
+    """已规范化的看板白名单卡不能因 0.55 级 OCR 被刷新掉。"""
+    settings = assemble_policy_settings(
+        settings=Settings(cards=["tanlan"]),
+        skill_labels={},
+        fetter_labels={"tanlan": "贪婪"},
+        policy_doc={},
+    )
+    dec = choose_action(
+        PanelCandidates(
+            panel_kind=PANEL_BOND,
+            slots=(SlotCandidate(index=0, name="贪婪", confidence=0.557),),
+            set_progress=None,
+            refresh_count=0,
+            has_giveup=False,
+            can_refresh=True,
+            owned_skill_cards=(),
+            settings=settings,
+        ),
+        SessionState(),
+    )
+    assert (dec.action, dec.index) == (PolicyAction.SELECT_SLOT, 0)
+
+
+def test_tqtz_always_arms_main_line_close_after_verified_click():
+    """提前挑战已点击就是 5-5 后证据，不能被旧看板开关拦住关闭主线。"""
+    med = Mediator(Settings(auto_close_main_line=False), Path("."))
+    med._round_started_at = 0.0
+    hit = MatchResult("tqtz", 0.90, 640, 192, 20, 20, 640, 192)
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(med, "_find_tqtz", lambda _frame: hit)
+        monkeypatch.setattr(med, "act_click", lambda *_args, **_kwargs: True)
+        assert med._maybe_click_tqtz(Frame(None), 30.0) is LoopAction.Continue
+    assert med._close_main_line_triggered is True
+
+
 def test_treasure_yazhi_negative_ban_by_default():
     """压制 默认作为负面宝物被 ban，选择时被过滤，除非显式放行。"""
     settings = assemble_policy_settings(

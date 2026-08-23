@@ -1102,7 +1102,7 @@ def _decide_collectible(
     preset_hit = _match_preset(
         eligible,
         presets,
-        settings.min_confidence,
+        min(settings.min_confidence, 0.55) if kind == PANEL_BOND else settings.min_confidence,
         quality_order=settings.quality_order,
         habit_name_scores=settings.habit_name_scores,
     )

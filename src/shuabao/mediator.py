@@ -3138,14 +3138,6 @@ class Mediator:
             return max(bands, key=lambda item: int(item[1].sum()))[0]
         ranks = (rarity_rank(540, 790), rarity_rank(810, 1060))
         max_rank = max(ranks)
-        # 如果两张都没有 SR (rank>=3)，且有刷新按钮，则优先点击刷新
-        if max_rank < 3:
-            # 刷新按钮在弹窗底栏右侧 (x≈946, y≈542)
-            rx, ry = transform.logical_point(946, 542)
-            return MatchResult(
-                "evolution_refresh_btn", 1.0,
-                rx, ry, 0, 0, frame.left + rx, frame.top + ry,
-            )
         index = max(range(2), key=lambda i: (ranks[i], -i))
         base_x, base_y = ((666, 300), (933, 300))[index]
         x, y = transform.logical_point(base_x, base_y)
@@ -3205,9 +3197,7 @@ class Mediator:
         self._evolve_ok_this_cycle = True
         self._evolve_feedback_pending = False
         self._evolve_click_cooldown_until = 0.0
-        # 英雄三选一完成 = 本轮进化闭环；按既有循环序推进（evolve → 下一步）。
-        if self._l1_cycle_step == "evolve":
-            self._advance_l1_cycle("evolve")
+        # 一次英雄选择不代表进化已清空；保留在 evolve，直到进化按钮消失。
     def _evolve_feedback_seen(self, frame: Frame) -> bool:
         """P0-2：点击进化后的后置确认 —— 选择面板锚点出现 ∨ 中央区域像素变化。
 
@@ -3866,8 +3856,7 @@ class Mediator:
             self._early_challenge_disappear_confirm_count = 0
             self._boss_challenge_attempts = 0
             self._main_line_since = now
-            if getattr(self.settings, "auto_close_main_line", False) or getattr(self.settings, "early_challenge", False):
-                self._close_main_line_triggered = True
+            self._close_main_line_triggered = True
             return LoopAction.Continue
         return None
 
@@ -3945,8 +3934,6 @@ class Mediator:
 
     def _maybe_close_main_line_after_5_5(self, frame: Frame, now: float) -> LoopAction | None:
         """打完 5-5 后取消右侧『自动任务』勾选，避免挑战 5-10 主线 Boss 翻车。"""
-        if not getattr(self.settings, "auto_close_main_line", False) and not getattr(self.settings, "early_challenge", False):
-            return None
         if not getattr(self, "_close_main_line_triggered", False):
             return None
         if getattr(self, "_main_line_closed_done", False):
@@ -5059,7 +5046,7 @@ class Mediator:
     def _recovery_post_confirmed(self, frame: Frame, rs: RecoveryState) -> bool:
         """WAIT_CONFIRM 后置确认：画面 mutation（模板消失）∨ 必需 post-anchor 出现。"""
         if rs.step == RecoveryStep.FAIL_CONFIRM:
-            if rs.opening_exit_confirm:
+            if rs.opening_exit_confirm or rs.direct_exit:
                 confirm = self._find_exit_confirm(frame)
                 if confirm is not None:
                     rs.post_anchor_seen = True
@@ -5092,9 +5079,10 @@ class Mediator:
     def _advance_recovery(self, frame: Frame, rs: RecoveryState, now: float) -> LoopAction:
         """后置确认成立：推进到下一步或完成。"""
         if rs.step == RecoveryStep.FAIL_CONFIRM:
-            if rs.opening_exit_confirm:
+            if rs.opening_exit_confirm or rs.direct_exit:
                 rs.step = RecoveryStep.FAIL_EXIT_CONFIRM
                 rs.opening_exit_confirm = False
+                rs.direct_exit = False
                 rs.waiting_confirm = False
                 rs.next_allowed_at = max(
                     now,
@@ -5102,8 +5090,6 @@ class Mediator:
                 )
                 print("[med] 失败页已打开标准退出确认框，等待安全点击确认")
                 return LoopAction.Continue
-            if rs.direct_exit:
-                return self._finish_direct_failure_exit(rs, now)
             # ok 点击后：close 按钮出现 → FAIL_CLOSE；失败弹窗消失 → 直接完成
             if self.find_scene(frame, "close") is not None:
                 rs.step = RecoveryStep.FAIL_CLOSE

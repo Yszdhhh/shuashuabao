@@ -3663,6 +3663,16 @@
       "set_membership": null,
       "_note": "攻略 SSR：+20%渡劫成功率。未上帧。"
     },
+    "全都要": {
+      "aliases": [
+        "我全都要"
+      ],
+      "kind": "treasure",
+      "version_seen": "live-20260823",
+      "confusions": [],
+      "set_membership": null,
+      "_note": "实机宝物三选原文『我全都要』；必拿名单按规范名『全都要』命中。"
+    },
     "宝藏": {
       "aliases": [],
       "kind": "bond",

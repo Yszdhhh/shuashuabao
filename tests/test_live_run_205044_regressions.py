@@ -442,7 +442,14 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertTrue(med._recovery_state.waiting_confirm)
         self.assertIs(med._recovery_state.step, RecoveryStep.FAIL_CONFIRM)
 
-        with patch.object(med, "find_scene", return_value=None):
+        confirm = MatchResult("exit_confirm_btn", 0.99, 720, 540, 80, 30, 720, 540)
+        with patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "_find_exit_confirm", return_value=confirm):
+            self.assertIs(med._tick_recovery(frame()), LoopAction.Continue)
+        self.assertIs(med._recovery_state.step, RecoveryStep.FAIL_EXIT_CONFIRM)
+        med._recovery_state.next_allowed_at = 0.0
+        with patch.object(med, "_find_exit_confirm", return_value=confirm), \
+                patch.object(med, "act_click", return_value=True):
             self.assertIs(med._tick_recovery(frame()), LoopAction.Continue)
         self.assertIs(med.phase, Phase.PREPARE)
         self.assertTrue(med._awaiting_room_return)
@@ -553,9 +560,8 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertTrue(med._evolve_awaiting_hero_pick)
         self.assertFalse(med._evolve_ok_this_cycle)
 
-    def test_evolution_modal_handling_advances_evolve_step(self) -> None:
-        # P0-2：进化面板真实出现并被处理 = 点击成功反馈 → L1 循环从 evolve 推进
-        # （与反馈分支一致；避免有点数时进化饿死 equipment/pickup 等后续步骤）。
+    def test_evolution_modal_keeps_evolve_step_until_button_is_gone(self) -> None:
+        # 一次英雄选择不是进化终点；应继续检查并消耗剩余进化机会。
         med = Mediator(Settings(), ROOT)
         med.phase = Phase.MAIN_LINE
         med._l1_cycle_step = "evolve"
@@ -572,9 +578,7 @@ class LiveRun205044Tests(unittest.TestCase):
                 patch.object(med, "_selection_anchor", return_value=anchor), \
                 patch.object(med, "act_click", return_value=True):
             self.assertIs(med._tick_main_line(evolution_frame), LoopAction.Continue)
-        # 20260822 循环序（test_runtime_stability_hotfix_20260821 钉死）：evolve
-        # 前置于 equipment（装备词缀弹窗防双模态冲突），evolve 之后是 equipment。
-        self.assertEqual(med._l1_cycle_step, "equipment")
+        self.assertEqual(med._l1_cycle_step, "evolve")
         self.assertFalse(med._evolve_feedback_pending)
 
     def test_evolve_feedback_seen_anchor_or_pixels(self) -> None:
@@ -746,8 +750,14 @@ class LiveRun205044Tests(unittest.TestCase):
                 self.assertIs(med._tick_recovery(fr), LoopAction.Continue)
             self.assertTrue(med._recovery_state.waiting_confirm, name)
             self.assertTrue(med._recovery_state.direct_exit, name)
-        # 失败页消失（点击退出后的画面）：恢复链推进到 PREPARE 回房验证
-        with patch.object(med, "find_scene", return_value=None):
+        # 退出游戏后必须先看见并点击标准确认框，不能把失败页消失当作已退出。
+        confirm = MatchResult("exit_confirm_btn", 0.99, 720, 540, 80, 30, 720, 540)
+        with patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "_find_exit_confirm", return_value=confirm):
+            self.assertIs(med._tick_recovery(frame()), LoopAction.Continue)
+        med._recovery_state.next_allowed_at = 0.0
+        with patch.object(med, "_find_exit_confirm", return_value=confirm), \
+                patch.object(med, "act_click", return_value=True):
             self.assertIs(med._tick_recovery(frame()), LoopAction.Continue)
         self.assertIs(med.phase, Phase.PREPARE)
         self.assertTrue(med._awaiting_room_return)

@@ -98,6 +98,7 @@ class LexiconDataTests(unittest.TestCase):
         self.assertIsNone(entries["贪婪"]["set_membership"])
         self.assertEqual(entries["黄金猿"]["kind"], "treasure")
         self.assertEqual(lookup_lexicon("黄金元").canonical, "黄金猿")
+        self.assertEqual(lookup_lexicon("我全都要").canonical, "全都要")
         self.assertEqual(lookup_lexicon("开剑码头").canonical, "开进码头")
         self.assertEqual(lookup_lexicon("重拳").canonical, "重拳先生")
 
