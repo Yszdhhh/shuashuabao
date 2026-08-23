@@ -212,6 +212,10 @@ class Mediator(CoreMediator):
             return False
         if getattr(self, "_post_game_pending", False):
             return False
+        if getattr(self, "_early_challenge_pending", False):
+            return False
+        if int(getattr(self, "_pause_resume_attempts", 0) or 0) > 0:
+            return False
         if getattr(self, "_panel_state", PanelState.CLOSED) != PanelState.CLOSED:
             return False
         pending = getattr(self, "_pending_action", None)
@@ -227,7 +231,6 @@ class Mediator(CoreMediator):
             self._mark_runtime_progress(now)
             return False
         return True
-
     def _tick_main_line(self, frame):
         now = time.time()
         if self._runtime_watchdog_allowed(now):
@@ -589,12 +592,7 @@ class Mediator(CoreMediator):
         return not self._configured_bond_presets()
 
     def _stage_bond_card(self, name: str | None) -> None:
-        canonical = self._canonical_bond_name(name)
-        configured = self._configured_bond_presets()
-        if not canonical or canonical not in configured:
-            return
-        # 重复卡必须保留次数，供“已拿卡优先合成”决策使用。
-        self._bond_cards_pending.append(canonical)
+        super()._stage_bond_card(name)
 
     def _commit_pending_bond_cards(self) -> None:
         if not self._bond_cards_pending:

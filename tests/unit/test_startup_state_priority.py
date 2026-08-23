@@ -1,8 +1,8 @@
+import time
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-
 from shuabao.mediator import LoopAction, Mediator, PanelState, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
@@ -211,6 +211,13 @@ def test_tqtz_transition_waits_for_boss_entry_before_regular_cycle():
     assert click.call_args.args[1] == "BossConfigured"
     assert med._early_challenge_clicked_at == 10.0
 
+    # 连续 2 帧确认消失后才退出 pending
+    with patch.object(med, "find_scene", return_value=False):
+        assert med._tick_early_challenge(frame, 10.5) is LoopAction.Continue
+        assert med._early_challenge_pending is True
+        assert med._tick_early_challenge(frame, 11.0) is LoopAction.Continue
+        assert med._early_challenge_pending is False
+
 
 def test_runtime_bond_duplicate_is_retained_for_merge_priority():
     from shuabao.runtime_mediator import Mediator as RuntimeMediator
@@ -221,3 +228,69 @@ def test_runtime_bond_duplicate_is_retained_for_merge_priority():
     med._stage_bond_card("力量")
     med._commit_pending_bond_cards()
     assert med._bond_cards_owned == ["力量", "力量"]
+
+
+def test_runtime_bond_duplicate_retained_even_if_not_in_preset():
+    from shuabao.runtime_mediator import Mediator as RuntimeMediator
+    med = RuntimeMediator(Settings(cards=["修仙"]), ROOT)
+    med._bond_cards_owned.clear()
+    # "力量" 不在用户 preset ("修仙") 中，但通过品质兜底被拿到时，Runtime 仍必须记录
+    med._stage_bond_card("力量")
+    med._commit_pending_bond_cards()
+    med._stage_bond_card("力量")
+    med._commit_pending_bond_cards()
+    assert med._bond_cards_owned == ["力量", "力量"]
+
+
+def test_runtime_watchdog_does_not_interfere_with_early_challenge_or_paused():
+    from shuabao.runtime_mediator import Mediator as RuntimeMediator
+    med = RuntimeMediator(Settings(), ROOT)
+    med.phase = Phase.MAIN_LINE
+    # 1. 提前挑战 pending 时看门狗禁止触发
+    med._early_challenge_pending = True
+    assert med._runtime_watchdog_allowed(time.time()) is False
+
+    # 2. 暂停恢复尝试中时看门狗禁止触发
+    med._early_challenge_pending = False
+    med._pause_resume_attempts = 1
+    assert med._runtime_watchdog_allowed(time.time()) is False
+
+
+def test_hero_focus_requires_two_consecutive_frames_to_dispatch_f1():
+    med = Mediator(Settings(), ROOT)
+    frame = _frame()
+    with patch("shuabao.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
+         patch.object(med, "find", return_value=None), \
+         patch.object(med, "act_key", return_value=True) as mock_act_key:
+        # 第 1 帧：仅计数，不发按键
+        res1 = med._maybe_ensure_hero_panel_focus(frame, 1.0)
+        assert res1 is None
+        assert med._hero_focus_lost_count == 1
+        mock_act_key.assert_not_called()
+
+        # 第 2 帧：连续缺失，发送 F1
+        res2 = med._maybe_ensure_hero_panel_focus(frame, 2.5)
+        assert res2 is LoopAction.Continue
+        assert med._hero_focus_lost_count == 0
+        mock_act_key.assert_called_once_with("F1", "HeroFocusFallback")
+
+
+def test_close_main_line_waits_for_off_state_confirmation():
+    med = Mediator(Settings(auto_close_main_line=True), ROOT)
+    frame = _frame()
+    med._close_main_line_triggered = True
+    on_hit = MatchResult("auto_task_on", .90, 800, 200, 40, 20, 820, 210)
+
+    # 状态为 ON 时点击取消，但不立即标记完成
+    with patch.object(med, "_auto_task_state", return_value=("ON", on_hit)), \
+         patch.object(med, "act_click", return_value=True) as mock_click:
+        res = med._maybe_close_main_line_after_5_5(frame, 1.0)
+        assert res is LoopAction.Continue
+        assert getattr(med, "_main_line_closed_done", False) is False
+        mock_click.assert_called_once_with(on_hit, "DisableAutoTask")
+
+    # 再次观察到 OFF 时才最终确认完成
+    with patch.object(med, "_auto_task_state", return_value=("OFF", None)):
+        res = med._maybe_close_main_line_after_5_5(frame, 2.5)
+        assert res is None
+        assert getattr(med, "_main_line_closed_done", False) is True

@@ -3677,7 +3677,7 @@ class Mediator:
         if not bosses:
             print("[med] boss_entry 出现但未配置挑战 Boss，零输入等待")
             return LoopAction.Continue
-        if self._boss_challenge_attempts >= 3:
+        if self._boss_challenge_attempts >= 5:
             return LoopAction.Continue
         if now < self._boss_challenge_next_at:
             return LoopAction.Continue
@@ -3696,19 +3696,23 @@ class Mediator:
             float(recheck_s) if recheck_s is not None else self._challenge_recheck_delay()
         )
         if boss_hit is None:
-            print(f"[med] boss_entry 出现但未匹配到配置 Boss {bosses}（尝试 {self._boss_challenge_attempts}/3），零输入等待")
+            print(f"[med] boss_entry 出现但未匹配到配置 Boss {bosses}（尝试 {self._boss_challenge_attempts}/5），零输入等待")
             return LoopAction.Continue
-        print(f"[med] Boss 提前挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
+        print(f"[med] Boss 提前挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/5)")
         if self.act_click(boss_hit, "BossConfigured"):
             self._main_line_since = now
             if getattr(self, "_early_challenge_pending", False):
                 self._early_challenge_clicked_at = now
+                self._early_challenge_disappear_confirm_count = 0
         return LoopAction.Continue
+
     def _maybe_ensure_hero_panel_focus(self, frame: Frame, now: float) -> LoopAction | None:
-        """局内常态（无中央选卡弹窗时）若右下角未检测到英雄技能/操作面板，按 F1 切回英雄。"""
+        """局内常态（无中央选卡弹窗时）若右下角连续 2 帧未检测到英雄技能/操作面板，按 F1 切回英雄。"""
         if self._panel_state != PanelState.CLOSED:
+            self._hero_focus_lost_count = 0
             return None
         if getattr(self, "_post_game_pending", False):
+            self._hero_focus_lost_count = 0
             return None
         if now < getattr(self, "_hero_focus_next_check_at", 0.0):
             return None
@@ -3726,14 +3730,22 @@ class Mediator:
             return None
 
         self._hero_focus_lost_count = getattr(self, "_hero_focus_lost_count", 0) + 1
-        print(f"[med] 右下角未检测到英雄操作面板（计数 {self._hero_focus_lost_count}/2），发送 F1 切回英雄")
+        if self._hero_focus_lost_count < 2:
+            print(f"[med] 右下角英雄操作面板单帧未检出 (计数 {self._hero_focus_lost_count}/2)，等待下一帧确认")
+            return None
+
+        print(f"[med] 右下角连续 {self._hero_focus_lost_count} 帧未检测到英雄面板，发送 F1 切回英雄")
         if not getattr(self.settings, "dry_run", False):
             self.act_key("F1", "HeroFocusFallback")
+        self._hero_focus_lost_count = 0
         self._hero_focus_next_check_at = now + 1.5
         return LoopAction.Continue
+
     def _maybe_click_tqtz(self, frame: Frame, now: float) -> LoopAction | None:
         """局内检测到 10 分钟『提前挑战』图标（tqtz.png）时主动点击触发打 Boss。"""
         if getattr(self, "_tqtz_clicked", False):
+            return None
+        if getattr(self, "_early_challenge_pending", False):
             return None
         if now < getattr(self, "_tqtz_next_check_at", 0.0):
             return None
@@ -3745,8 +3757,6 @@ class Mediator:
         )
         if tqtz_hit is None or not isinstance(tqtz_hit, MatchResult):
             return None
-        # 快照证据：tqtz 可见本身是游戏侧"过 5-5 + 满 10 分钟"的强证据；
-        # 接管局（中途启动）里我们自己的 elapsed 从接管起算，只作参考日志。
         takeover_elapsed = (
             round(now - self._round_started_at, 1)
             if self._round_started_at is not None
@@ -3761,25 +3771,35 @@ class Mediator:
             self._early_challenge_pending = True
             self._early_challenge_started_at = now
             self._early_challenge_clicked_at = None
+            self._early_challenge_disappear_confirm_count = 0
+            self._boss_challenge_attempts = 0
             self._main_line_since = now
-            # 若配置了 5-5 后取消自动主线挑战，此时已过 5-5，触发关闭自动主线
             if getattr(self.settings, "auto_close_main_line", False) or getattr(self.settings, "early_challenge", False):
                 self._close_main_line_triggered = True
             return LoopAction.Continue
         return None
+
     def _tick_early_challenge(self, frame: Frame, now: float) -> LoopAction | None:
         """After tqtz, wait for and enter the configured Boss challenge before G/F/V."""
         if not getattr(self, "_early_challenge_pending", False):
             return None
         if getattr(self, "_early_challenge_clicked_at", None) is not None:
             if not self.find_scene(frame, "boss_entry"):
-                self._early_challenge_pending = False
-                self._early_challenge_clicked_at = None
-                print("[med] 提前挑战 Boss 入口已消失，确认进入挑战流程")
+                cnt = getattr(self, "_early_challenge_disappear_confirm_count", 0) + 1
+                self._early_challenge_disappear_confirm_count = cnt
+                if cnt >= 2:
+                    self._early_challenge_pending = False
+                    self._early_challenge_clicked_at = None
+                    self._early_challenge_disappear_confirm_count = 0
+                    print("[med] 提前挑战 Boss 入口已连续 2 帧消失，确认进入挑战流程")
+            else:
+                self._early_challenge_disappear_confirm_count = 0
             return LoopAction.Continue
-        if now - getattr(self, "_early_challenge_started_at", now) > 15.0:
-            print("[med] 提前挑战未出现 Boss 入口，结束等待并恢复主循环")
+        if now - getattr(self, "_early_challenge_started_at", now) > 20.0:
+            print("[med] 提前挑战未出现/未完成 Boss 入口（超时 20s），重置单次锁以允许后续重试并恢复主循环")
             self._early_challenge_pending = False
+            self._tqtz_clicked = False
+            self._tqtz_next_check_at = now + 5.0
             return None
         if self.find_scene(frame, "boss_entry"):
             return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0) or LoopAction.Continue
@@ -3808,8 +3828,17 @@ class Mediator:
             roi=(0.35, 0.20, 0.65, 0.65),
         )
         if hit is None:
-            print("[med] 暂停页未识别到已验证恢复按钮（继续游戏/返回游戏），零输入等待")
+            self._pause_resume_unmatched_attempts = getattr(self, "_pause_resume_unmatched_attempts", 0) + 1
+            if self._pause_resume_unmatched_attempts >= 10:
+                print("[med] 暂停状态持续但未匹配到恢复按钮（超过 10 周期），Fail-Closed 停止运行")
+                self.set_phase(Phase.ERROR, "pause overlay visible but resume buttons missing")
+                self.stop()
+                return LoopAction.Break
+            self._pause_resume_next_at = now + 1.0
+            print(f"[med] 暂停页未识别到已验证恢复按钮（尝试 {self._pause_resume_unmatched_attempts}/10），零输入等待")
             return LoopAction.Continue
+
+        self._pause_resume_unmatched_attempts = 0
         attempts += 1
         self._pause_resume_attempts = attempts
         print(
@@ -3827,15 +3856,24 @@ class Mediator:
             return None
         if getattr(self, "_main_line_closed_done", False):
             return None
+        if now < getattr(self, "_close_main_line_next_at", 0.0):
+            return None
+
         state, hit = self._auto_task_state(frame)
         if state == "OFF":
-            print("[med] 5-5 后已成功取消【自动任务】主线挑战")
+            print("[med] 5-5 后已成功确认【自动任务】处于 OFF 状态")
             self._main_line_closed_done = True
             return None
         if state == "ON" and hit is not None:
-            print(f"[med] 5-5 完成，按配置点击取消【自动任务】@ {hit.center}")
-            if self.act_click(hit, "DisableAutoTask"):
+            attempts = getattr(self, "_close_main_line_attempts", 0) + 1
+            self._close_main_line_attempts = attempts
+            if attempts > 5:
+                print("[med] 5-5 取消自动任务重试超限 (5 次)，停止重试")
                 self._main_line_closed_done = True
+                return None
+            print(f"[med] 5-5 完成，按配置点击取消【自动任务】@ {hit.center} (尝试 {attempts}/5)")
+            if self.act_click(hit, "DisableAutoTask"):
+                self._close_main_line_next_at = now + 1.0
                 self._main_line_since = now
                 return LoopAction.Continue
         return None
