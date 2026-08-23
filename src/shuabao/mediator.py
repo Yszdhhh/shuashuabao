@@ -69,6 +69,7 @@ from shuabao.vision.stage_selector import (
     visible_stage_rows,
 )
 from shuabao.vision.ocr_shadow.client import ShadowClient
+from shuabao.vision.choice_ocr import load_lexicon, lookup_lexicon
 from shuabao.log_sink import emit_print as print  # noqa: A001
 from shuabao.lobby_hitch import (
     JOIN_ATTEMPTS,
@@ -1028,7 +1029,19 @@ class Mediator:
             Phase.ROOM_WAITING,
         }
         role = "l0" if self.phase in l0_phases else "l1"
-        frame = self._capture_best(title, role)
+        # BOOT is the only handoff point where an already-running game may
+        # coexist with a visible KK room. Probe the game first so a stale room
+        # capture cannot delay takeover or drive lobby actions over the game.
+        if self.phase == Phase.BOOT:
+            game_title = ",".join(L1_WINDOW_KEYWORDS)
+            game_frame = self._capture_best(game_title, "l1")
+            if game_frame is not None and self._is_game_client_frame(game_frame):
+                frame = game_frame
+                role = "l1"
+            else:
+                frame = self._capture_best(title, role)
+        else:
+            frame = self._capture_best(title, role)
 
         # 铁律：如果当前抓取到了 KK 平台窗口，但「英雄三国」游戏客户端窗口实际上已经拉起，
         # 恒以游戏客户端窗口为准，绝不让 KK 平台窗口抢占前台。
@@ -1102,30 +1115,6 @@ class Mediator:
             # 内容+位置相同：复用上一帧对象（场景缓存命中）。
             # 保持原时间戳：OLD_FRAME/FROZEN 静态检测仍会标记该帧为静态帧。
             frame = self._last_frame
-        if self.phase == Phase.BOOT:
-            # BOOT is the only phase allowed to ask both windows which one is
-            # already in the game.  Later phases stay role-bound.
-            # 20260823（用户规则）：英雄三国进程存在 = 一定处于游戏内流程，
-            # 无条件优先于 KK 大厅/房间窗口接管（含暂停页/选关页），不再要求
-            # 平台窗零信号才探测；具体子状态（暂停/选关/局内）由 _startup_state
-            # 用画面锚点分类，窗口标题只做路由不做充分条件。
-            game_title = ",".join(L1_WINDOW_KEYWORDS)
-            game_frame = self._capture_best(game_title, "l1")
-            game_frame_has_pixels = bool(
-                game_frame is not None
-                and game_frame.bgr is not None
-                and game_frame.bgr.size > 0
-            )
-            if game_frame_has_pixels and self._is_game_client_frame(game_frame):
-                print(
-                    f"[boot] 英雄三国窗口存在 hwnd={game_frame.hwnd}，直接接手游戏内流程"
-                )
-                frame = game_frame
-                role = "l1"
-            elif self._frame_signal(game_frame, "l1") > 0:
-                print("[med] BOOT 检测到游戏窗口，切换到 L1")
-                frame = game_frame
-                role = "l1"
         self._prev_frame = self._last_frame
         self._last_frame = frame
         self._last_capture_role = role
@@ -2183,7 +2172,48 @@ class Mediator:
         if text.startswith("ocr_bond:"):
             text = text.split(":", 1)[1].strip()
         stem = Path(text).stem
-        return str(self._fetter_labels.get(stem, stem)).strip()
+        canonical = lookup_lexicon(stem, kind="bond").canonical
+        return str(canonical or self._fetter_labels.get(stem, stem)).strip()
+
+    def _bond_choice_progress(self, slots_raw: list[dict]) -> dict[str, dict[str, object]]:
+        """Build synthesis facts from OCR ``name(x/y)`` evidence.
+
+        The OCR worker normally canonicalizes names, but the displayed card can
+        be a member such as ``体魄`` while its progress bar is labelled ``体术``.
+        Keep both names in the member list so the pure policy can select the
+        incoming card without guessing from slot position or rarity.
+        """
+        entries = load_lexicon().get("entries", {})
+        members_by_set: dict[str, set[str]] = {}
+        for canonical, entry in entries.items():
+            if not isinstance(entry, dict) or entry.get("kind") != "bond":
+                continue
+            set_name = str(entry.get("set_membership") or canonical).strip()
+            if set_name:
+                members_by_set.setdefault(set_name, {set_name}).add(str(canonical))
+        progress: dict[str, dict[str, object]] = {}
+        for raw in slots_raw:
+            ratio = self._progress_from_text(str(raw.get("raw_text") or ""))
+            if ratio is None:
+                continue
+            canonical = self._canonical_bond_name(raw.get("name"))
+            if not canonical:
+                continue
+            entry = entries.get(canonical)
+            set_name = str(entry.get("set_membership") or canonical).strip() if isinstance(entry, dict) else canonical
+            if not set_name:
+                continue
+            have, need = ratio
+            previous = progress.get(set_name)
+            if previous is not None and int(previous.get("have", -1)) >= have:
+                continue
+            progress[set_name] = {
+                "have": have,
+                "need": need,
+                "members": tuple(sorted(members_by_set.get(set_name, {set_name}))),
+                "owned": self._confirmed_bond_cards(),
+            }
+        return progress
 
     def _commit_pending_bond_cards(self) -> None:
         """WAIT_MUTATION 观察到内容变化/面板消失 → 确认拿卡，并入已持有序列。"""
@@ -2529,11 +2559,12 @@ class Mediator:
             return None
         self._sync_choice_session_refreshes()
         slots = self._slots_to_candidates(frame, kind, slots_raw)
+        set_progress = self._bond_choice_progress(slots_raw) if kind == "bond" else None
         decision = choose_action(
             PanelCandidates(
                 panel_kind=kind,
                 slots=slots,
-                set_progress=None,
+                set_progress=set_progress,
                 refresh_count=self._choice_session.refreshes,
                 has_giveup=self._panel_has_giveup(frame, kind),
                 can_refresh=self._panel_can_refresh(frame, kind),
@@ -2548,7 +2579,8 @@ class Mediator:
         if kind == "bond" and decision.action == PolicyAction.SELECT_SLOT:
             selected = next((slot.name for slot in slots if slot.index == decision.index), None)
             capacity = int((load_bond_stack_catalog().get("capacity") or 10))
-            if selected and self._bond_bar_occupancy(frame) >= capacity:
+            occupancy = self._bond_bar_occupancy(frame)
+            if selected and occupancy is not None and occupancy >= capacity:
                 self._bond_replace_candidate = self._canonical_bond_name(selected)
         if self.settings.dry_run:
             append_learning_observation(
@@ -7274,7 +7306,7 @@ class Mediator:
                     # 技能选卡点击成功只暂存；必须等 mutation/面板消失后才记为已学。
                     if action_kind == "select" and kind == "技能" and self._is_skill_card_click(hit.name):
                         self._stage_skill_card(hit.name)
-                    if action_kind == "select" and kind == "羁绊":
+                    if action_kind == "select" and kind in {"bond", "羁绊"}:
                         self._stage_bond_card(hit.name)
                         candidate = self._canonical_bond_name(self._bond_replace_candidate)
                         selected = self._canonical_bond_name(hit.name)

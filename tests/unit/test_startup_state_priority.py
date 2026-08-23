@@ -130,7 +130,10 @@ def test_boot_prefers_game_window_over_visible_platform_room():
         left=10, top=10, hwnd=222, window_title="英雄三国KK",
     )
 
+    calls = []
+
     def fake_capture(title, role):
+        calls.append((title, role))
         return game if role == "l1" else room
 
     with patch.object(med, "_capture_best", side_effect=fake_capture), \
@@ -138,6 +141,39 @@ def test_boot_prefers_game_window_over_visible_platform_room():
         frame = med.see("test")
     assert frame.window_title == "英雄三国KK"
     assert frame.hwnd == 222
+    assert calls[0][1] == "l1"
+
+
+def test_bond_progress_maps_member_card_to_synthesis_set():
+    med = Mediator(Settings(), ROOT)
+    med._bond_cards_owned[:] = ["体魄"]
+    progress = med._bond_choice_progress([
+        {"name": "体魄", "raw_text": "体魄(2/3)"},
+    ])
+    assert progress["体术"]["have"] == 2
+    assert progress["体术"]["need"] == 3
+    assert "体魄" in progress["体术"]["members"]
+
+
+def test_bond_replacement_arms_for_runtime_bond_label():
+    med = Mediator(Settings(), ROOT)
+    frame = _frame()
+    anchor = MatchResult("card_hide", 0.90, 758, 574, 10, 10, 758, 574)
+    selected = MatchResult("ocr_bond:体术", 0.99, 500, 400, 80, 40, 685, 481)
+    med._bond_replace_candidate = "体术"
+    with patch.object(med, "_find_reward_choice", return_value=("bond", selected)), \
+         patch.object(med, "act_click", return_value=True):
+        med._tick_panel_fsm(frame, anchor, time.time())
+    assert med._bond_replace_pending == "体术"
+
+
+def test_bond_occupancy_unknown_fails_closed_without_crashing():
+    med = Mediator(Settings(cards=["体术"]), ROOT)
+    slots = [{"index": 0, "name": "体术", "confidence": 0.99, "raw_text": "体术(2/3)"}]
+    with patch.object(med, "_ocr_panel_slots", return_value=slots), \
+         patch.object(med, "_bond_bar_occupancy", return_value=None):
+        assert med._ocr_reward_choice(_frame(), "bond") is not None
+    assert med._bond_replace_candidate is None
 
 
 def test_see_restores_minimized_target_window():

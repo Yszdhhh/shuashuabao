@@ -17,6 +17,7 @@ from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator as CoreMediator
 from shuabao.mediator import PanelState, Phase
 from shuabao.vision.matcher import MatchResult
+from shuabao.vision.choice_ocr import lookup_lexicon
 from shuabao.vision.ocr_shadow.production import ProductionShadowClient
 from shuabao.vision.stage_selector import configured_stage_id, selected_stage_row
 
@@ -579,7 +580,8 @@ class Mediator(CoreMediator):
         if text.lower().startswith("ocr_bond:"):
             text = text.split(":", 1)[1].strip()
         stem = Path(text).stem
-        return str(self._fetter_labels.get(stem, stem)).strip()
+        canonical = lookup_lexicon(stem, kind="bond").canonical
+        return str(canonical or self._fetter_labels.get(stem, stem)).strip()
 
     @staticmethod
     def _is_bond_card_click_name(name: str | None) -> bool:
