@@ -13,7 +13,7 @@ from shuabao.choice_policy import (
     PANEL_TREASURE,
 )
 from shuabao.settings import Settings
-from shuabao.mediator import Mediator, LoopAction
+from shuabao.mediator import Mediator, LoopAction, PanelState
 from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult
 
@@ -85,6 +85,19 @@ def test_tqtz_always_arms_main_line_close_after_verified_click():
         monkeypatch.setattr(med, "act_click", lambda *_args, **_kwargs: True)
         assert med._maybe_click_tqtz(Frame(None), 30.0) is LoopAction.Continue
     assert med._close_main_line_triggered is True
+
+
+def test_tqtz_waits_for_open_choice_panel_instead_of_clicking_through_modal():
+    """中央选择面板会吞掉提前挑战输入，必须等面板 FSM 收口再点。"""
+    med = Mediator(Settings(), Path("."))
+    med._panel_state = PanelState.ACTIVE
+    tqtz = MatchResult("tqtz", 0.90, 640, 192, 20, 20, 640, 192)
+    panel = MatchResult("skill_hide", 0.90, 700, 500, 20, 20, 700, 500)
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(med, "_selection_anchor", lambda _frame: panel)
+        monkeypatch.setattr(med, "_find_tqtz", lambda _frame: tqtz)
+        monkeypatch.setattr(med, "act_click", lambda *_args, **_kwargs: pytest.fail("must not click through panel"))
+        assert med._maybe_click_tqtz(Frame(None), 30.0) is None
 
 
 def test_treasure_yazhi_negative_ban_by_default():

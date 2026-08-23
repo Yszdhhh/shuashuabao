@@ -152,7 +152,7 @@ class P1B0PostGameTests(unittest.TestCase):
         extra_click.assert_not_called()
         extra_right_click.assert_not_called()
 
-    def test_secret_realm_dialog_timeout_fails_closed_without_guessing(self):
+    def test_secret_realm_dialog_timeout_retries_without_guessing_or_stopping(self):
         settings = Settings(auto_secret_realm=True)
         med = Mediator(settings, ROOT)
         med.set_phase(Phase.MAIN_LINE, "secret realm timeout")
@@ -165,10 +165,36 @@ class P1B0PostGameTests(unittest.TestCase):
              patch.object(med, "act_click") as click, \
              patch.object(med, "act_right_click") as right_click:
             action = med._tick_main_line(frame)
-        self.assertEqual(action, LoopAction.Break)
-        self.assertEqual(med.phase, Phase.ERROR)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+        self.assertFalse(med._secret_realm_request_pending)
+        self.assertGreater(med._secret_realm_next_observe_at, time.time())
         click.assert_not_called()
         right_click.assert_not_called()
+
+    def test_victory_archive_runs_challenge_cards_before_configured_time_cave_boss(self):
+        """存档挑战不是关闭页：先逐项尝试，再按看板预设选右侧 Boss。"""
+        settings = Settings(sgzx_boss="03曲奇")
+        med = Mediator(settings, ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive challenge route")
+        med._post_game_pending = True
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+
+        with patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        hit, reason = click.call_args.args
+        self.assertEqual(reason, "ArchiveChallenge-skill")
+        self.assertEqual(hit.name, "archive_challenge_skill")
+        self.assertEqual(med._archive_challenge_index, 1)
+
+        med._archive_challenge_index = len(med._ARCHIVE_CHALLENGE_CELLS)
+        med._archive_challenge_next_at = 0.0
+        with patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        _, reason = click.call_args.args
+        self.assertEqual(reason, "BossConfigured")
 
     def test_victory_page_clicks_continue_game(self):
         """The victory modal drives a ContinueGame left click (owner-authorized), not a stop."""

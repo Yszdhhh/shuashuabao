@@ -593,6 +593,10 @@ class Mediator:
         # (no auto-task / challenge / stage actions) until timeout -> ERROR.
         self._post_game_pending: bool = False
         self._post_game_close_attempts: int = 0
+        # 战后“存档挑战”不是纯提示页：先按固定卡序尝试所有可用挑战，
+        # 再按看板预设选择时光之穴 Boss。每局重置，避免上一局的卡序污染。
+        self._archive_challenge_index: int = 0
+        self._archive_challenge_next_at: float = 0.0
         # Optional post-victory great-rift chain.  Every input has a dedicated
         # anchor and a bounded post-click observation window.
         self._secret_realm_request_pending: bool = False
@@ -3752,6 +3756,61 @@ class Mediator:
                 names.append(text)
         return names
 
+    # 存档页 2x4 卡片格。该几何来自 1600x900 真机帧
+    # fixtures/replay/archive_challenge_panel.png；调用方必须先通过
+    # ARCHIVE_PANEL 的多锚点判定，故不在普通局内 HUD 使用这些坐标。
+    _ARCHIVE_CHALLENGE_CELLS = (
+        ("skill", 0.388, 0.326),
+        ("strengthen", 0.456, 0.326),
+        ("gem", 0.524, 0.326),
+        ("treasure", 0.593, 0.326),
+        ("key", 0.388, 0.429),
+        ("recast", 0.456, 0.429),
+        ("bless", 0.524, 0.429),
+        ("stage_1_16", 0.593, 0.429),
+    )
+
+    def _maybe_activate_archive_challenge(self, frame: Frame, now: float) -> LoopAction | None:
+        """Try every visible archive challenge once before choosing a time-cave Boss.
+
+        The archive overlay is a verified, fixed 2x4 card grid.  These buttons
+        are not generic screen coordinates: this method is reachable only from
+        the multi-anchor ``ARCHIVE_PANEL`` classifier.  One card is dispatched
+        per observation window so a game-side modal can preempt safely.
+        """
+        if now < self._archive_challenge_next_at:
+            return LoopAction.Continue
+        if self._archive_challenge_index >= len(self._ARCHIVE_CHALLENGE_CELLS):
+            return None
+        label, x_ratio, y_ratio = self._ARCHIVE_CHALLENGE_CELLS[self._archive_challenge_index]
+        x = int(frame.width * x_ratio)
+        y = int(frame.height * y_ratio)
+        hit = MatchResult(
+            f"archive_challenge_{label}", 1.0, x, y, 1, 1,
+            frame.left + x, frame.top + y,
+        )
+        print(f"[med] 存档挑战：尝试 {label} @ {hit.center} "
+              f"({self._archive_challenge_index + 1}/{len(self._ARCHIVE_CHALLENGE_CELLS)})")
+        if self.act_click(hit, f"ArchiveChallenge-{label}"):
+            self._archive_challenge_index += 1
+            self._archive_challenge_next_at = now + max(0.8, self.settings.ui_action_interval_s)
+            self._main_line_since = now
+        return LoopAction.Continue
+
+    def _reset_secret_realm_request(self, now: float, reason: str) -> LoopAction:
+        """Leave a failed great-rift observation window retryable, never terminal."""
+        cooldown = max(5.0, min(float(self.settings.query_timeout), 15.0))
+        print(f"[med] 大秘境{reason}；保留战后链，{cooldown:.0f}s 后重新观察，不退出脚本")
+        self._secret_realm_request_pending = False
+        self._secret_realm_request_since = None
+        self._secret_realm_request_attempts = 0
+        self._secret_realm_confirm_attempts = 0
+        self._secret_realm_entering_since = None
+        self._secret_realm_next_observe_at = now + cooldown
+        self._secret_realm_confirm_next_observe_at = 0.0
+        self._main_line_since = now
+        return LoopAction.Continue
+
     def _maybe_challenge_configured_boss(
         self, frame: Frame, now: float, *, recheck_s: float | None = None
     ) -> LoopAction | None:
@@ -3841,6 +3900,14 @@ class Mediator:
         if getattr(self, "_early_challenge_pending", False):
             return None
         if now < getattr(self, "_tqtz_next_check_at", 0.0):
+            return None
+        # 录像 214042 中 tqtz 模板虽然可见，但中央 G/F/V 面板尚未消费；
+        # 这时点击被游戏吞掉，20 秒后又重试，视觉上就像“完全没点”。
+        # 选择面板是强制模态，先由面板 FSM 收口，下一帧再发挑战输入。
+        if (
+            self._panel_state not in (PanelState.CLOSED, PanelState.COOLDOWN)
+            and self._selection_anchor(frame) is not None
+        ):
             return None
         tqtz_hit = self._find_tqtz(frame)
         if tqtz_hit is None:
@@ -4871,6 +4938,8 @@ class Mediator:
             self._victory_continue_since = None
             self._post_game_pending = False
             self._post_game_close_attempts = 0
+            self._archive_challenge_index = 0
+            self._archive_challenge_next_at = 0.0
             self._secret_realm_request_pending = False
             self._secret_realm_request_since = None
             self._secret_realm_request_attempts = 0
@@ -7560,10 +7629,7 @@ class Mediator:
             and self._secret_realm_request_since is not None
             and now - self._secret_realm_request_since >= max(3.0, min(float(self.settings.query_timeout), 15.0))
         ):
-            print("[med] 大秘境请求超时，Fail-Closed 停止运行")
-            self.set_phase(Phase.ERROR, "secret realm request timeout")
-            self.stop()
-            return LoopAction.Break
+            return self._reset_secret_realm_request(now, "请求超时")
 
         if not post_game and self._round_tail_checks_active():
             if self.find_scene(frame, "archive"):
@@ -7623,18 +7689,19 @@ class Mediator:
                 self.set_phase(Phase.ERROR, "unexpected archive panel")
                 self.stop()
                 return LoopAction.Break
-            if self._post_game_close_attempts >= 3:
-                print("[med] 存档面板关闭重试已达上限，Fail-Closed 停止运行")
-                self.set_phase(Phase.ERROR, "archive close attempts exhausted")
-                self.stop()
-                return LoopAction.Break
+            archive_res = self._maybe_activate_archive_challenge(frame, now)
+            if archive_res is not None:
+                return archive_res
+            # 时光之穴的 Boss 牌与存档挑战卡同页。先把左侧挑战项全部
+            # 尝试，再按看板 cjb_boss / sgzx_boss 选择右侧配置 Boss。
+            if self._boss_challenge_attempts < 5:
+                return self._maybe_challenge_configured_boss(frame, now)
+            # 已经有 5 个独立观察窗仍未找到看板 Boss，才关闭面板去挑战广场；
+            # 这不是首次出现即关闭，且不以此终止脚本。
             close_hit = self._find_archive_panel_close(frame)
-            if not close_hit:
-                print("[med] 存档面板未找到专用关闭按钮，零动作等待")
-                return LoopAction.Continue
-            self._post_game_close_attempts += 1
-            print(f"[med] 关闭存档面板 @ {close_hit.center} (尝试 {self._post_game_close_attempts}/3)")
-            self.act_click(close_hit, "CloseArchivePanel")
+            if close_hit is not None:
+                print(f"[med] 存档页已尝试挑战/预设 Boss 未出现，关闭转挑战广场 @ {close_hit.center}")
+                self.act_click(close_hit, "CloseArchivePanelAfterChallenges")
             return LoopAction.Continue
         if post_game == "NPC_HUB":
             if not self._post_game_pending:
@@ -7662,10 +7729,7 @@ class Mediator:
                     self._secret_realm_request_since = now
                 elapsed = now - self._secret_realm_request_since
                 if self._secret_realm_request_attempts >= 3 or elapsed >= timeout:
-                    print("[med] 大秘境 NPC 未能打开确认框，Fail-Closed 停止运行")
-                    self.set_phase(Phase.ERROR, "great rift npc request timeout")
-                    self.stop()
-                    return LoopAction.Break
+                    return self._reset_secret_realm_request(now, "NPC 未打开确认框")
                 if now < self._secret_realm_next_observe_at:
                     print("[med] 已右键大秘境 NPC，等待确认框（零动作）")
                     return LoopAction.Continue
@@ -7690,6 +7754,11 @@ class Mediator:
             return LoopAction.Continue
 
         if post_game == "HEIRLOOM_DIALOG":
+            if self._post_game_pending:
+                # 传家宝弹窗本身就是 Boss 卡页，不再把它当作必须关闭的噪声。
+                # 只有配置 Boss 连续 5 个观察窗都未出现，才允许走原有关闭路径。
+                if self._boss_challenge_attempts < 5:
+                    return self._maybe_challenge_configured_boss(frame, now)
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
                 print("[med] 传家宝弹窗关闭重试已达上限，Fail-Closed 停止运行")
@@ -7715,9 +7784,7 @@ class Mediator:
                 started = self._secret_realm_request_since or now
                 timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
                 if self._secret_realm_confirm_attempts >= 3 or now - started >= timeout:
-                    self.set_phase(Phase.ERROR, "great rift confirm timeout")
-                    self.stop()
-                    return LoopAction.Break
+                    return self._reset_secret_realm_request(now, "确认框未完成")
                 if now < self._secret_realm_confirm_next_observe_at:
                     print("[med] 已确认大秘境，等待确认框消失（零动作）")
                     return LoopAction.Continue
@@ -7783,10 +7850,7 @@ class Mediator:
                 print("[med] 大秘境局内 HUD 已确认，恢复局内循环；失败后沿原退出重开链处理")
                 return LoopAction.Continue
             if elapsed >= timeout:
-                print("[med] 大秘境确认后未出现局内 HUD，Fail-Closed 停止运行")
-                self.set_phase(Phase.ERROR, "great rift entry verification timeout")
-                self.stop()
-                return LoopAction.Break
+                return self._reset_secret_realm_request(now, "确认后未进入局内 HUD")
             print("[med] 大秘境载入中，等待局内 HUD（零动作）")
             return LoopAction.Continue
 
