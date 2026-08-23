@@ -2673,8 +2673,13 @@ class Mediator:
             return None
 
         kind = self._panel_kind_of(frame, anchor)
+        panel_anchor = anchor.name in {
+            "bond_hide_btn", "bond_refresh_btn", "card_hide", "skill_giveup_btn",
+            "skill_refresh_btn", "skill_hide", "treasure_hide_btn", "treasure_lock_btn",
+            "treasure_refresh_btn", "giveUp",
+        }
         # 进化英雄弹窗没有普通三面板锚点；已识别的面板绝不能被残留进化标志劫持。
-        if getattr(self, "_evolve_awaiting_hero_pick", False) and kind == "unknown":
+        if getattr(self, "_evolve_awaiting_hero_pick", False) and kind == "unknown" and not panel_anchor:
             evo_hit = self._find_evolution_choice(frame, anchor)
             if evo_hit is not None:
                 print(f"[L1] 进化英雄选择：{evo_hit.name} @ {evo_hit.center}")
@@ -7802,15 +7807,29 @@ class Mediator:
         # 刷新/放弃/隐藏按钮行。此前宝物面板被边缘计数误判成进化弹窗，
         # 与 has_card 互斥 → CONFLICT → 2.5s 后整个运行被 ERROR 停掉。
         _panel_class = self._classify_choice_panel(frame) if anchor else None
+        panel_anchor = bool(anchor and getattr(anchor, "name", "") in {
+            "bond_hide_btn", "bond_refresh_btn", "card_hide", "skill_giveup_btn",
+            "skill_refresh_btn", "skill_hide", "treasure_hide_btn", "treasure_lock_btn",
+            "treasure_refresh_btn", "giveUp",
+        })
         has_hero = bool(
             anchor
+            and not panel_anchor
             and _panel_class is None
             and self._find_evolution_choice(frame, anchor)
         )
         has_card = (not has_hero) and (bool(anchor) or self._panel_state != PanelState.CLOSED)
         # 商店检测在存在中央选卡/进化/词条弹窗或主线处于前置主动步骤(F/G/V/进化/装备/拾取)时严格抑制，绝不插队抢点击
         mainline_proactive_active = self._l1_cycle_step in ("bond", "skill", "treasure", "evolve", "equipment", "pickup")
-        has_merchant = False if (has_card or has_hero or has_affix or mainline_proactive_active) else self._black_merchant_present(frame)
+        merchant_pill = None if (has_card or has_hero or has_affix) else self.find(
+            frame, ["danGif"], threshold=0.50, roi=(0.70, 0.66, 0.90, 0.76),
+            scales=(0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5),
+        )
+        merchant_pill = merchant_pill if isinstance(merchant_pill, MatchResult) else None
+        has_merchant = bool(
+            self._in_merchant_strip(frame, merchant_pill)
+            or (not mainline_proactive_active and not (has_card or has_hero or has_affix) and self._black_merchant_present(frame))
+        )
 
         surface = resolve_interaction_surface(
             recovery_modal=has_recovery,

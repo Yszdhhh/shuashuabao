@@ -330,8 +330,7 @@ class TreasureNegativeE2EChooseAction(unittest.TestCase):
                 settings=PolicySettings(),
             )
         )
-        self.assertEqual(decision.action, PolicyAction.SELECT_SLOT)
-        self.assertNotEqual(decision.index, 1)
+        self.assertEqual(decision.action, PolicyAction.CLOSE)
 
     def test_all_in_kills_not_selected(self):
         cards = _load_descriptions()["cards"]
@@ -360,8 +359,7 @@ class TreasureNegativeE2EChooseAction(unittest.TestCase):
                 settings=PolicySettings(),
             )
         )
-        self.assertEqual(decision.action, PolicyAction.SELECT_SLOT)
-        self.assertNotEqual(decision.index, 0)
+        self.assertEqual(decision.action, PolicyAction.CLOSE)
 
     def test_all_six_negative_panel_takes_no_card(self):
         cards = _load_descriptions()["cards"]

@@ -60,6 +60,14 @@ def treasure_cands(slots=(), **kw):
     return PanelCandidates(panel_kind=PANEL_TREASURE, slots=tuple(slots), **kw)
 
 
+def test_treasure_policy_skips_unusable_runes():
+    decision = choose_action(treasure_cands(
+        [slot(0, "属性神符", rarity="green"), slot(1, "恢复神符", rarity="green")],
+        settings=settings(),
+    ))
+    assert decision.action is not PolicyAction.SELECT_SLOT
+
+
 def settings(**kw):
     return PolicySettings.from_mapping(kw)
 

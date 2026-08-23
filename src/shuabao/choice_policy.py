@@ -1010,7 +1010,10 @@ def _decide_collectible(
     if not any(s.name for s in cands.slots):
         return _no_safe_candidate(cands, state, kind, "卡名未读出/无安全候选")
     if kind == PANEL_TREASURE:
-        eligible = _drop_negative_treasures(cands.slots, settings)
+        eligible = tuple(
+            slot for slot in _drop_negative_treasures(cands.slots, settings)
+            if not (str(slot.name or "").endswith("神符") and slot.rarity == "green")
+        )
         for slot in eligible:
             if (
                 slot.confidence >= settings.min_confidence

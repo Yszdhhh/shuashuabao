@@ -98,6 +98,17 @@ def test_known_treasure_panel_is_not_stolen_by_pending_evolution():
     evolution.assert_not_called()
 
 
+def test_single_bond_anchor_is_not_stolen_by_pending_evolution():
+    m = med()
+    m._evolve_awaiting_hero_pick = True
+    anchor = hit("bond_refresh_btn", 900, 580)
+    with patch.object(m, "_panel_kind_of", return_value="unknown"), patch.object(
+        CoreMediator, "_find_evolution_choice"
+    ) as evolution:
+        CoreMediator._find_reward_choice(m, frame(), anchor)
+    evolution.assert_not_called()
+
+
 def test_stage_start_requires_positive_highlight_and_rearms_selection():
     m = med(stage_targets=["1-21"])
     m._stage_selected = True

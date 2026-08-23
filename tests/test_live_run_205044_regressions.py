@@ -395,7 +395,7 @@ class LiveRun205044Tests(unittest.TestCase):
         cv2.rectangle(image, (580, 180), (760, 490), (160, 20, 160), -1)
         cv2.rectangle(image, (840, 180), (1020, 490), (160, 160, 20), -1)
         evolution_frame = Frame(image, hwnd=1, window_title="英雄三国KK")
-        anchor = MatchResult("skill_refresh_btn", 0.736, 1020, 580, 10, 10, 1020, 580)
+        anchor = MatchResult("evolution_modal_anchor", 0.736, 1020, 580, 10, 10, 1020, 580)
         with patch.object(med, "_post_game_state", return_value=None), \
                 patch.object(med, "find", return_value=None), \
                 patch.object(med, "_find_equipment_affix_choice", return_value=None), \
