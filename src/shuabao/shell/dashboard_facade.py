@@ -222,7 +222,7 @@ class DashboardFacade(QObject):
         self._settings = cleaned
         self._persist()
         dto = collect_persistable_settings(self._settings)
-        self.snapshot_changed.emit(json.dumps(dto, ensure_ascii=False))
+        self.snapshot_changed.emit(self.get_snapshot())
         return json.dumps({"ok": True, "errors": [], "settings": dto}, ensure_ascii=False)
 
     @Slot(str, result=str)

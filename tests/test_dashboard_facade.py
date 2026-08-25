@@ -121,11 +121,16 @@ def test_snapshot_shape_strips_denylist(qapp, tmp_path: Path):
 
 def test_update_config_valid_fields_persist(qapp, tmp_path: Path):
     f = DashboardFacade(tmp_path)
+    emitted = []
+    f.snapshot_changed.connect(emitted.append)
     res = json.loads(f.update_config(json.dumps({"click_delay_ms": 250, "dry_run": True})))
     assert res["ok"] is True
     assert res["errors"] == []
     assert res["settings"]["click_delay_ms"] == 250
     assert res["settings"]["dry_run"] is True
+    assert len(emitted) == 1
+    snap = json.loads(emitted[0])
+    assert snap["settings"]["click_delay_ms"] == 250
     on_disk = json.loads(user_settings_path(tmp_path).read_text(encoding="utf-8"))
     assert on_disk["click_delay_ms"] == 250
     # 重启往返：新实例从磁盘读回。
