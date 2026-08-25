@@ -88,9 +88,10 @@ class FakeRunner:
         return self.worker
 
     def stop(self) -> None:
+        if self.worker is None:
+            return
         self.stop_calls += 1
         self.runner_state = "STOPPING"
-
     def release_after_finish(self) -> None:
         self.released += 1
         self.runner_state = "IDLE"
@@ -194,6 +195,16 @@ def test_default_construction_without_root_fails_closed(qapp, tmp_path: Path):
     assert res2["ok"] is False
 
 
+def test_stop_run_while_idle_keeps_state_idle(qapp, tmp_path: Path):
+    runner = FakeRunner()
+    f = DashboardFacade(tmp_path, runner)
+    assert json.loads(f.get_snapshot())["run"]["state"] == "IDLE"
+    res = json.loads(f.stop_run())
+    assert res["ok"] is True
+    assert runner.stop_calls == 0
+    assert runner.runner_state == "IDLE"
+    assert json.loads(f.get_snapshot())["run"]["state"] == "IDLE"
+
 # ---------------------------------------------------------------- 信号桥
 
 
@@ -254,16 +265,16 @@ def test_worker_finished_releases_and_reports_idle(qapp, tmp_path: Path):
 # ---------------------------------------------------------------- stop_run
 
 
-def test_stop_run_calls_runner_stop(facade):
+def test_stop_run_calls_runner_stop_when_running(facade):
+    facade.start_run(json.dumps({"mode_id": "normal_farm"}))
     assert json.loads(facade.stop_run()) == {"ok": True}
     assert facade.runner.stop_calls == 1
 
 
 def test_stop_run_idempotent_while_idle(facade):
-    facade.stop_run()
-    facade.stop_run()
-    assert facade.runner.stop_calls == 2
-
+    assert json.loads(facade.stop_run()) == {"ok": True}
+    assert json.loads(facade.stop_run()) == {"ok": True}
+    assert facade.runner.stop_calls == 0
 
 # ---------------------------------------------------------------- 真实 RunnerService
 

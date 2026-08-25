@@ -248,9 +248,10 @@ class RunnerService:
         return self.worker
 
     def stop(self) -> None:
+        if self.worker is None or not self.worker.isRunning():
+            return
         self.runner_state = RUNNER_STOPPING
-        if self.worker is not None:
-            self.worker.stop()
+        self.worker.stop()
 
     def release_after_finish(self) -> None:
         if self._live_lock is not None:
