@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -80,8 +81,14 @@ def main():
             LOGGER.info("[迁移] 目标=%s 合并 %d 项: %s", APP_DATA, len(migrated), ", ".join(migrated[:10]))
     except Exception:
         LOGGER.exception("[迁移] 旧目录合并失败（忽略，继续启动）")
+    # §9 ShellRouter：仅显式 SHUABAO_SHELL=web 走 Web 壳；默认 native 链不动。
+    if os.environ.get("SHUABAO_SHELL", "").strip().lower() == "web":
+        # 延迟导入：原生启动不付 QtWebEngine 的加载成本。
+        from shuabao.shell.web_config_shell import WebConfigShell
 
-    window = MainWindow(app_data=APP_DATA)
+        window = WebConfigShell(app_data=APP_DATA, root=ROOT)
+    else:
+        window = MainWindow(app_data=APP_DATA)
     window.show()
     sys.exit(app.exec())
 
