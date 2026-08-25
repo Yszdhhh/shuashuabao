@@ -106,10 +106,12 @@ async function withTimeout<T>(p: Promise<T>, timeoutMs: number, message: string)
   }
 }
 
-async function callMethod<T>(name: string, pending: Promise<string>): Promise<T> {
+const DEFAULT_CALL_TIMEOUT_MS = 10_000;
+
+async function callMethod<T>(name: string, pending: Promise<string>, timeoutMs = DEFAULT_CALL_TIMEOUT_MS): Promise<T> {
   let raw: string;
   try {
-    raw = await pending;
+    raw = await withTimeout(pending, timeoutMs, `facade.${name} 调用超时（>${timeoutMs}ms）`);
   } catch (err) {
     throw new Error(`facade.${name} 调用失败: ${err instanceof Error ? err.message : String(err)}`);
   }

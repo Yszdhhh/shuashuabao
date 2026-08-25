@@ -468,7 +468,7 @@ function wireIntents(): void {
 
   // 启动 / 停止（同一按钮，运行态切换为 stop_run）。
   $("btnStart").addEventListener("click", () => {
-    if (!bridge || startBusy || state.scene === "hitch") return;
+    if (!bridge || startBusy) return;
     if (runActive) {
       bridge.stop_run()
         .then((res) => toast(res.ok ? "已请求停止" : `停止失败：${res.error ?? ""}`))
@@ -479,8 +479,8 @@ function wireIntents(): void {
   });
 
   // 窗口控制。
-  $("btnMin").addEventListener("click", () => void bridge?.window_control("minimize").catch(() => {}));
-  $("btnClose").addEventListener("click", () => void bridge?.window_control("close").catch(() => {}));
+  $("btnMin").addEventListener("click", () => void bridge?.window_control("minimize").catch(console.error));
+  $("btnClose").addEventListener("click", () => void bridge?.window_control("close").catch(console.error));
 }
 
 // ---------------------------------------------------------------- 启动
