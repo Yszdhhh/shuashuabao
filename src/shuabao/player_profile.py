@@ -1,4 +1,4 @@
-"""玩家画像采集：只读解析 + 落盘 %LocalAppData%/ShuaBao/profile/。
+"""玩家画像采集：只读解析 + 落盘 %LocalAppData%/ShuaBao/profiles/。
 
 不点击、不按键、不写 Settings、不写仓库 config。OCR 由调用方传入文本。
 conf 低或读数超 KB 硬顶 → unverified / 丢弃，不编数。

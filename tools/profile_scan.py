@@ -138,7 +138,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--from-file", default="", help="离线扫一张静帧，不占真机车道")
     parser.add_argument("--kind", choices=("auto", "skills", "attrs", "equipment"), default="auto")
-    parser.add_argument("--out-dir", default="", help="默认 %%LocalAppData%%/ShuaBao/profile/")
+    parser.add_argument("--out-dir", default="", help="默认 %%LocalAppData%%/ShuaBao/profiles/")
     parser.add_argument("--no-save-frame", action="store_true")
     parser.add_argument(
         "--bind",
