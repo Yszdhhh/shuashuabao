@@ -70,16 +70,31 @@ const RUN: RunStatusDTO = {
 };
 
 function snapshot(): SnapshotDTO {
+  // 字段与 Python DashboardFacade.get_snapshot 一致（SettingsDTO 真实键名），
+  // 让 dev/浏览器预览同样走 main.ts 的快照初始化路径。
   const settings: SettingsDTO = {
-    chapter: 1,
-    stage: 10,
-    cycle: 100,
-    skills: [],
-    priority: [],
-    hero: true,
-    dragon_prefer: true,
+    mode_id: "normal_farm",
+    cycle_num: 100,
+    follow_cycle_num: 100,
+    hitch_cycle_num: 100,
+    follow_after_room: "solo",
+    hitch_after_goal: "solo",
+    follow_pair_code: "",
+    stage_targets: ["1-10"],
+    skills: ["asj", "asjg", "assx", "jq"],
+    skill_priority: ["asj", "asjg", "assx", "jq"],
+    skill_custom_routes: {},
+    auto_secret_realm: false,
+    auto_close_main_line: false,
+    auto_archaeology: false,
+    new_room_every_times: false,
+    find_longzhu_where_multi_game: true,
+    auto_reputation: true,
+    reputation_allocations: {},
+    cjb_boss: "",
+    sgzx_boss: "",
   };
-  const shell: ShellDTO = { theme: "light", selected_mode_id: "solo" };
+  const shell: ShellDTO = { theme: "light", selected_mode_id: "normal_farm" };
   return { settings, shell, modes: MODES.map((m) => ({ ...m })), run: { ...RUN } };
 }
 
