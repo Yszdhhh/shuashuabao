@@ -51,6 +51,14 @@ class AppDataPathsTests(unittest.TestCase):
         self.assertEqual(habit_preference_path(app_data), app_data / "habit_preference.json")
         self.assertEqual(player_profile_dir(app_data), app_data / "profiles")
         self.assertEqual(live_log_path(app_data), app_data / "live.log")
+    def test_player_profile_functions_route_through_provider(self):
+        from shuabao.paths import live_lock_path, player_profile_dir
+        from shuabao.player_profile import default_live_lock_path, default_profile_dir
+
+        with patch.dict(os.environ, {"SHUABAO_APP_DATA": str(self.tmp_path / "custom_data")}):
+            self.assertEqual(default_profile_dir(), player_profile_dir())
+            self.assertEqual(default_live_lock_path(), live_lock_path())
+            self.assertEqual(default_profile_dir().parent, (self.tmp_path / "custom_data").resolve())
 
     def test_migration_from_legacy_paths_is_idempotent_and_non_destructive(self):
         from shuabao.paths import migrate_legacy_data

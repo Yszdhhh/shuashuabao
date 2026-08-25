@@ -74,12 +74,15 @@ def shuabao_root() -> Path:
     from shuabao.paths import get_canonical_app_data_dir
     return get_canonical_app_data_dir()
 
+
 def default_profile_dir() -> Path:
-    return shuabao_root() / "profile"
+    from shuabao.paths import player_profile_dir
+    return player_profile_dir()
 
 
 def default_live_lock_path() -> Path:
-    return shuabao_root() / LIVE_LOCK_NAME
+    from shuabao.paths import live_lock_path
+    return live_lock_path()
 
 
 def _config_dir() -> Path:
