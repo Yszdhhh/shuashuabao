@@ -1,8 +1,8 @@
 """DashboardFacade —— QWebChannel 唯一注册对象（设计规格 §6.1）。
 
-只读 + 配置往返面：Web 页面经此读写 Settings / _shell 外壳状态、查看运行方式
-目录与预检结果。启动/停止入口（start_run/stop_run）按 task-3-brief 不在本阶段
-白名单内，本类不提供。
+只读 + 配置往返面 + 运行控制：Web 页面经此读写 Settings / _shell 外壳状态、
+查看运行方式目录与预检结果，并通过 start_run / stop_run 驱动唯一 LIVE 入口
+RunnerService（§6.3）。禁止直接触碰 api_server / runtime_mediator。
 
 行为规则（§6.3）：
 - update_config 经 Settings._from_dict(patch, fallback=current) 清洗；任何
@@ -19,7 +19,7 @@ from dataclasses import fields as dc_fields
 from pathlib import Path
 from typing import Any, Callable
 
-from PySide6.QtCore import QObject, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
 
 from shuabao.paths import user_settings_path
 from shuabao.settings import MAX_SELECTED_SKILLS, Settings
@@ -31,8 +31,8 @@ from shuabao.shell.mode_catalog import (
     get_spec,
     load_specs,
 )
+from shuabao.shell.runner_service import RUNNER_IDLE, RUNNER_RUNNING, RunnerService
 from shuabao.shell.runner_service import live_lock_busy
-from shuabao.shell.runtime_status import RUNNER_IDLE
 from shuabao.shell.runtime_status import runtime_status_from_mediator
 
 THEMES = ("light", "dark")
@@ -64,6 +64,7 @@ class DashboardFacade(QObject):
         app_data: Path,
         runner: Any = None,
         *,
+        root: Path | None = None,
         on_minimize: Callable[[], None] | None = None,
         on_close: Callable[[], None] | None = None,
         parent: QObject | None = None,
@@ -73,12 +74,26 @@ class DashboardFacade(QObject):
         self._runner = runner
         self._on_minimize = on_minimize
         self._on_close = on_close
+        self._root = Path(root) if root is not None else None
+        # §6.3 运行态轮询：与原生 _poll_runtime 同模式，400ms 读 mediator 快照。
+        self._poll = QTimer(self)
+        self._poll.setInterval(400)
+        self._poll.timeout.connect(self._poll_runtime)
+        self._last_run_json = ""
         self._path = user_settings_path(self.app_data)
         raw = self._read_bundle()
         self._shell: dict[str, Any] = dict(raw.get("_shell") or {})
         self._settings = Settings._from_dict(
             {k: v for k, v in raw.items() if k not in SHELL_BUNDLE_KEYS}
         )
+
+    def _ensure_runner(self) -> Any:
+        """注入的 runner 优先；否则按缺省构造 RunnerService(app_data, root)。"""
+        if self._runner is None:
+            if self._root is None:
+                return None
+            self._runner = RunnerService(self.app_data, self._root)
+        return self._runner
 
     # ------------------------------------------------------------- 内部工具
 
@@ -130,8 +145,10 @@ class DashboardFacade(QObject):
         return out
 
     def _run_dto(self) -> dict[str, Any]:
-        state = str(getattr(self._runner, "runner_state", "") or RUNNER_IDLE)
-        mediator = getattr(getattr(self._runner, "worker", None), "mediator", None)
+        runner = self._runner
+        worker = getattr(runner, "worker", None)
+        state = str(getattr(runner, "runner_state", "") or RUNNER_IDLE)
+        mediator = getattr(worker, "mediator", None)
         phase = ""
         game_count = 0
         if mediator is not None and runtime_status_from_mediator is not None:
@@ -141,15 +158,16 @@ class DashboardFacade(QObject):
                 game_count = int(getattr(mediator, "_game_count", 0) or 0)
             except Exception:
                 pass
+        # mediator 未挂载时退回 worker 记录值（与原生 update_status 同语义）。
         return {
             "state": state,
-            "mode_id": getattr(self._runner, "mode_id", None),
-            "phase": phase,
+            "mode_id": getattr(runner, "mode_id", None),
+            "phase": phase or str(getattr(worker, "phase", "") or ""),
             "game_count": game_count,
             "cycle_num": max(0, int(self._settings.cycle_num)),
-            "terminal_reason": "",
-            "ocr_status": "",
-            "last_action": "",
+            "terminal_reason": str(getattr(worker, "terminal_reason", "") or ""),
+            "ocr_status": str(getattr(worker, "ocr_status", "") or ""),
+            "last_action": str(getattr(worker, "last_action", "") or ""),
         }
 
     @staticmethod
@@ -307,3 +325,84 @@ class DashboardFacade(QObject):
                               ensure_ascii=False)
         handler()
         return json.dumps({"ok": True})
+
+    # ------------------------------------------------------------- 运行控制（§6.3）
+
+    @Slot(str, result=str)
+    def start_run(self, mode_id_json: str) -> str:
+        """先内部 preflight，失败 {ok:false} 不建 worker；成功经 RunnerService 启动。"""
+        pre = json.loads(self.validate_preflight(mode_id_json))
+        if not pre["ok"]:
+            return json.dumps({"ok": False, "error": pre["blocked_reason"]},
+                              ensure_ascii=False)
+        mode_id = self._parse_keyed(mode_id_json, "mode_id")
+        runner = self._ensure_runner()
+        if runner is None:
+            return json.dumps({"ok": False,
+                               "error": "未注入 RunnerService 且缺少 root，无法启动"},
+                              ensure_ascii=False)
+        try:
+            worker = runner.start(mode_id, self._settings)
+        except Exception as exc:  # ModeNotEnabled / already running / live.lock 占用
+            return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+        # Worker 在自身线程发信号；QueuedConnection 保证 Facade 侧在主线程收。
+        worker.signals.log_emitted.connect(self.log_appended, Qt.QueuedConnection)
+        worker.signals.status_updated.connect(self._on_status_updated,
+                                              Qt.QueuedConnection)
+        worker.finished.connect(self._on_worker_finished, Qt.QueuedConnection)
+        worker.start()
+        self._last_run_json = ""  # 强制下一次状态回传
+        self._poll.start()
+        return json.dumps({"ok": True}, ensure_ascii=False)
+
+    @Slot(result=str)
+    def stop_run(self) -> str:
+        """一律进入 runner.stop()（§6.3），不提前宣布已停止。"""
+        runner = self._ensure_runner()
+        if runner is None:
+            return json.dumps({"ok": False, "error": "没有可停止的运行"},
+                              ensure_ascii=False)
+        try:
+            runner.stop()
+        except Exception as exc:
+            return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+        return json.dumps({"ok": True}, ensure_ascii=False)
+
+    def _on_status_updated(self, running: bool, phase: str, game_count: int,
+                           terminal_reason: str, ocr_status: str,
+                           last_action: str) -> None:
+        state = RUNNER_RUNNING if running else RUNNER_IDLE
+        dto = {
+            "state": str(getattr(self._runner, "runner_state", "") or state),
+            "mode_id": getattr(self._runner, "mode_id", None),
+            "phase": str(phase or ""),
+            "game_count": max(0, int(game_count or 0)),
+            "cycle_num": max(0, int(self._settings.cycle_num)),
+            "terminal_reason": str(terminal_reason or ""),
+            "ocr_status": str(ocr_status or ""),
+            "last_action": str(last_action or ""),
+        }
+        payload = json.dumps(dto, ensure_ascii=False)
+        if payload != self._last_run_json:
+            self._last_run_json = payload
+            self.run_status_changed.emit(payload)
+
+    def _poll_runtime(self) -> None:
+        payload = json.dumps(self._run_dto(), ensure_ascii=False)
+        if payload != self._last_run_json:
+            self._last_run_json = payload
+            self.run_status_changed.emit(payload)
+        worker = getattr(self._runner, "worker", None)
+        if worker is None or not worker.isRunning():
+            self._poll.stop()
+
+    def _on_worker_finished(self) -> None:
+        runner = getattr(self._runner, "release_after_finish", None)
+        if callable(runner):
+            try:
+                self._runner.release_after_finish()
+            except Exception:
+                pass
+        self._poll.stop()
+        self._last_run_json = ""
+        self.run_status_changed.emit(json.dumps(self._run_dto(), ensure_ascii=False))

@@ -1,7 +1,7 @@
 """Task 3：DashboardFacade 只读与配置往返面（设计规格 §6/§7，task-3-brief）。
 
 覆盖：
-- 白名单 Slot 方法面（未列方法不存在，含 start_run/stop_run 不在本阶段）；
+- 白名单 Slot 方法面（未列方法不存在；Task 4 起 start_run/stop_run 入列）；
 - get_snapshot / get_modes DTO 形状与 PERSIST_DENYLIST 剔除；
 - update_config 合法字段更新落盘、非法字段过滤且不落盘、_shell 不被擦除；
 - update_shell 白名单字段校验与持久化；
@@ -32,8 +32,9 @@ EXPECTED_SLOTS = {
     "get_modes",
     "validate_preflight",
     "window_control",
+    "start_run",
+    "stop_run",
 }
-FORBIDDEN_SLOTS = {"start_run", "stop_run"}
 EXPECTED_SIGNALS = {"snapshot_changed", "run_status_changed", "log_appended"}
 
 
@@ -83,9 +84,9 @@ def _signal_names(obj) -> set[str]:
 def test_whitelist_surface(facade):
     slots = _slot_names(facade)
     assert EXPECTED_SLOTS <= slots
-    assert FORBIDDEN_SLOTS.isdisjoint(slots)
     # Qt 自带槽之外不允许出现其他自定义槽。
-    qt_builtin = {"deleteLater"}
+    # QTimer.timeout.connect 会把 _poll_runtime 注册为动态槽，属实现细节而非桥面。
+    qt_builtin = {"deleteLater", "_poll_runtime"}
     assert slots - EXPECTED_SLOTS <= qt_builtin
     signals = _signal_names(facade)
     assert EXPECTED_SIGNALS <= signals
