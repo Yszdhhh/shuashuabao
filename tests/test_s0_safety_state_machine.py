@@ -27,8 +27,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import (
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import (
     Mediator,
     PanelState,
     Phase,
@@ -36,11 +36,11 @@ from gamescript.mediator import (
     RecoveryStep,
     RoundOutcome,
 )
-from gamescript.scenes import load_scenes, scene_templates
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.scenes import load_scenes, scene_templates
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 from tests.test_scenario_replay import FakeClock, FakeInputExecutor
 
 
@@ -442,7 +442,11 @@ class S0PanelFsmTests(unittest.TestCase):
     """⑤ Panel FSM：可见窗 / 间隔 / 指纹上限 / F1 shadow。"""
 
     def _panel_mediator(self, clock: FakeClock, **kw) -> Mediator:
-        med = Mediator(Settings(**kw), ROOT)
+        # FSM 时序测试与输入模式无关（act_click 整体 mock）；钉住 dry_run，
+        # 否则 1d8f101 翻默认后 tick1 落进真实输入专属的 20s 预部署静默窗。
+        settings = Settings(**kw)
+        settings.dry_run = True
+        med = Mediator(settings, ROOT)
         med.executor = FakeInputExecutor(StopSignal(), clock)
         med.set_phase(Phase.MAIN_LINE, "panel fsm test")
         med._auto_task_done = True
@@ -453,6 +457,7 @@ class S0PanelFsmTests(unittest.TestCase):
     def test_panel_waits_for_visibility_before_close(self) -> None:
         """打开后 2s 可见窗内不得下一 tick 反点关闭。"""
         med = self._panel_mediator(FakeClock(start=100.0), panel_visible_timeout_s=2.0)
+        med._l1_cycle_step = "skill"
         clock = FakeClock(start=100.0)
         med.executor = FakeInputExecutor(StopSignal(), clock)
         anchor_visible = False
@@ -492,6 +497,7 @@ class S0PanelFsmTests(unittest.TestCase):
 
         # 2s 到期未见 anchor → COOLDOWN、零盲点/盲关闭
         med2 = self._panel_mediator(FakeClock(start=200.0), panel_visible_timeout_s=2.0)
+        med2._l1_cycle_step = "skill"
         clock2 = FakeClock(start=200.0)
         med2.executor = FakeInputExecutor(StopSignal(), clock2)
         clicked2: list[str] = []
@@ -539,10 +545,10 @@ class S0PanelFsmTests(unittest.TestCase):
                 self.assertIs(med.tick(), LoopAction.Continue)  # mutation → ACTIVE
             choice_clicks = [r for r in executor.action_ledger if r.method == "click"]
             self.assertEqual(len(choice_clicks), 3, "同 fingerprint 同动作最多 3 次点击")
-            # 第 4 次同 fingerprint：被拒（零点击）并进入 cooldown
+            # 第 4 次同 fingerprint：被拒（零点击）并进入 CLOSING 物理关闭
             clock.set(108.0)
             self.assertIs(med.tick(), LoopAction.Continue)
-            self.assertIs(med._panel_state, PanelState.COOLDOWN, "第四次进入 cooldown")
+            self.assertIs(med._panel_state, PanelState.CLOSING, "第四次进入 CLOSING 物理关闭")
             self.assertEqual(
                 len([r for r in executor.action_ledger if r.method == "click"]),
                 3,
@@ -702,7 +708,7 @@ class S0SettingsTests(unittest.TestCase):
 
     def test_s0_defaults_and_range_clamping(self) -> None:
         s = Settings()
-        self.assertEqual(s.round_timeout_s, 900)
+        self.assertEqual(s.round_timeout_s, 3600)
         self.assertEqual(s.recovery_timeout_s, 60)
         self.assertEqual(s.recovery_action_limit, 3)
         self.assertEqual(s.recovery_retry_interval_s, 1.5)
@@ -710,7 +716,7 @@ class S0SettingsTests(unittest.TestCase):
         self.assertEqual(s.panel_visible_timeout_s, 2.0)
         self.assertEqual(s.ui_action_interval_s, 1.5)
         self.assertEqual(s.panel_action_limit_per_fingerprint, 3)
-        self.assertEqual(s.panel_episode_limit_per_kind, 5)
+        self.assertEqual(s.panel_episode_limit_per_kind, 24)
         self.assertAlmostEqual(s.incident_sample_rate, 0.1)
 
         clamped = Settings._from_dict({
@@ -726,16 +732,17 @@ class S0SettingsTests(unittest.TestCase):
         self.assertEqual(clamped.recovery_retry_interval_s, 0.5)
 
     def test_round_timeout_migration_decision_documented(self) -> None:
-        """旧 game_timeout=15 是分钟级 idle watchdog；round_timeout_s 是秒级硬期限，
-        默认 15*60=900 且二者分离（迁移决定已写入 settings.py 文档）。"""
+        """旧 game_timeout=15 是分钟级 idle watchdog；round_timeout_s 是秒级硬期限。
+        20260822：900s 是短局测试期取值，长线程刷图一局以打完 Boss 为界远超 15 分钟，
+        默认放宽到 3600s（文档见 settings.py），与 game_timeout（idle watchdog）分离。"""
         import inspect
-        import gamescript.settings as settings_mod
+        import shuabao.settings as settings_mod
 
         src = inspect.getsource(settings_mod)
         self.assertIn("round_timeout_s", src)
         self.assertIn("idle watchdog", src)
         s = Settings()
-        self.assertEqual(s.round_timeout_s, s.game_timeout * 60)
+        self.assertEqual(s.round_timeout_s, 3600)
 
 
 
@@ -746,7 +753,7 @@ class HeroChangedPixelsRegressionTests(unittest.TestCase):
     def test_bgr_input_does_not_crash_and_matches_gray(self) -> None:
         import numpy as np
         import cv2
-        from gamescript.mediator import Mediator
+        from shuabao.mediator import Mediator
 
         before = np.random.randint(0, 255, (300, 500, 3), dtype=np.uint8)
         after = before.copy()
@@ -759,14 +766,14 @@ class HeroChangedPixelsRegressionTests(unittest.TestCase):
 
     def test_identical_bgr_frames_zero(self) -> None:
         import numpy as np
-        from gamescript.mediator import Mediator
+        from shuabao.mediator import Mediator
 
         before = np.random.randint(0, 255, (300, 500, 3), dtype=np.uint8)
         self.assertEqual(Mediator._hero_changed_pixels(before, before.copy()), 0)
 
     def test_shape_mismatch_zero(self) -> None:
         import numpy as np
-        from gamescript.mediator import Mediator
+        from shuabao.mediator import Mediator
 
         a = np.zeros((100, 100, 3), dtype=np.uint8)
         b = np.zeros((90, 90, 3), dtype=np.uint8)

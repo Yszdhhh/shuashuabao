@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import sys
 import unittest
@@ -72,7 +72,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._stage_target_position = (target.x, target.y)
         self.med._stage_click_cooldown_until = 0.0
 
-        with patch("gamescript.mediator.verify_stage_selection", return_value=False), patch.object(
+        with patch("gamescript.mediator.selected_stage_row", return_value=None), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
             before = click.call_count
@@ -124,6 +124,57 @@ class HeroModeTemporalTests(unittest.TestCase):
             self.assertEqual(0, click.call_count - before)
             self.assertEqual(Phase.MAIN_LINE, self.med.phase)
 
+    def test_multi_faction_allocation_switches_cards_before_start(self) -> None:
+        """alloc {3:2, 4:1}：肯瑞托加到 2 后必须先点选探险者卡再继续加点。"""
+        modal = fixture("live_archive_start_panel.png")
+        self.med.settings.reputation_allocations = {"3": 2, "4": 1}
+        self.med.set_phase(Phase.HERO_SETUP)
+        self.med._hero_plan = [(3, 2), (4, 1)]
+        self.med._hero_plan_index = 0
+        self.med._hero_state = "WAIT_MODAL"
+        self.med._hero_level_baseline = None
+        self.med._hero_level_candidate = None
+        self.med._hero_card_baseline = None
+        self.med._hero_modal_missing_frames = 0
+        self.med._hero_step_deadline = float("inf")
+
+        def inverted(frame: Frame, roi: tuple[int, int, int, int]) -> Frame:
+            image = frame.bgr.copy()
+            x1, y1, x2, y2 = roi
+            image[y1:y2, x1:x2] = 255 - image[y1:y2, x1:x2]
+            return Frame(image, window_title=frame.window_title, hwnd=frame.hwnd)
+
+        tx_card = FACTION_SPECS[4].card_roi
+        tx_level = FACTION_SPECS[4].level_roi
+
+        with patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(LoopAction.Continue, self.med._tick_hero_setup(modal))
+            self.assertEqual("HeroKenritoPlus-1", click.call_args.args[1])
+
+            level_one = self._selected_level_one(modal)
+            self.med._tick_hero_setup(level_one)
+            self.med._tick_hero_setup(level_one)
+            level_two = self._selected_level_two(level_one)
+            self.med._tick_hero_setup(level_two)
+            self.med._tick_hero_setup(level_two)
+
+            self.assertEqual("WAIT_FACTION_SELECTED", self.med._hero_state)
+            self.assertIn("Tanxian", click.call_args.args[1])
+
+            frame_tx = inverted(level_two, tx_card)
+            self.med._tick_hero_setup(frame_tx)
+            self.assertEqual("HeroTanxianPlus-1", click.call_args.args[1])
+
+            image = frame_tx.bgr.copy()
+            x1, y1, x2, y2 = tx_level
+            image[y1:y2, x1:x2] = (0, 255, 0)
+            frame_tx_level1 = Frame(
+                image, window_title=frame_tx.window_title, hwnd=frame_tx.hwnd
+            )
+            self.med._tick_hero_setup(frame_tx_level1)
+            self.med._tick_hero_setup(frame_tx_level1)
+            self.assertEqual("StartHeroModeChallenge", click.call_args.args[1])
+
     def test_unknown_faction_type_fails_before_any_click(self) -> None:
         """type=0 is not in FACTION_SPECS at all: must fail-closed regardless of
 
@@ -141,9 +192,9 @@ class HeroModeTemporalTests(unittest.TestCase):
         click.assert_not_called()
 
     def test_out_of_range_level_fails_before_any_click(self) -> None:
-        """level in 6..10 (or any value outside 1..5) must fail-closed."""
+        """level outside 1..10 must fail-closed (6..10 now legal)."""
         stage = fixture("live_stage_select.png")
-        for level in (0, 6, 10):
+        for level in (0, 11):
             with self.subTest(level=level):
                 med = Mediator(self.settings, ROOT)
                 med.settings.reputation_type = 3
@@ -324,7 +375,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._stage_target_position = (target.x, target.y + 80)
         self.med._stage_click_cooldown_until = 0.0
 
-        with patch("gamescript.mediator.verify_stage_selection", return_value=False), patch.object(
+        with patch("gamescript.mediator.selected_stage_row", return_value=None), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
             self.med._tick_l0(stage)
@@ -358,7 +409,7 @@ class HeroModeTemporalTests(unittest.TestCase):
         self.med._stage_target_position = (target.x, target.y)
         self.med._stage_click_cooldown_until = 0.0
 
-        with patch("gamescript.mediator.verify_stage_selection", return_value=False), patch.object(
+        with patch("gamescript.mediator.selected_stage_row", return_value=None), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
             action = self.med._tick_l0(stage)

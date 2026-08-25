@@ -11,11 +11,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase, RoundOutcome
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase, RoundOutcome
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 
 
 def load_frame(relative_path: str) -> Frame:
@@ -171,7 +171,7 @@ class ExternalReviewRegressionTests(unittest.TestCase):
         # postpone artifact warm-up.
         med._main_line_since = 99.0
         med._last_frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
-        with patch("gamescript.mediator.time.time", return_value=100.0), \
+        with patch("shuabao.mediator.time.time", return_value=100.0), \
                 patch.object(med, "_slot_has_artifact", return_value=True), \
                 patch.object(med, "act_click", return_value=True) as click, \
                 patch.object(med.executor, "press_key") as press:
@@ -195,16 +195,16 @@ class ExternalReviewRegressionTests(unittest.TestCase):
         with patch.object(med, "find", side_effect=matched):
             self.assertEqual(med._post_game_state(frame), "PAUSED")
 
-    def test_pause_overlay_is_zero_action_wait(self) -> None:
+    def test_pause_overlay_clicks_resume_before_game_actions(self) -> None:
         med = Mediator(Settings(), ROOT)
         med.phase = Phase.MAIN_LINE
         med._main_line_since = 1.0
         frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
         with patch.object(med, "_post_game_state", return_value="PAUSED"), \
-                patch.object(med, "act_click") as click:
+                patch.object(med, "act_click", return_value=True) as click:
             self.assertIs(med._tick_main_line(frame), LoopAction.Continue)
         self.assertIs(med.phase, Phase.MAIN_LINE)
-        click.assert_not_called()
+        self.assertEqual(click.call_args.args[1], "ResumePausedGame")
 
     def test_choice_panels_use_hud_mouse_buttons_not_keyboard(self) -> None:
         frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
@@ -218,7 +218,8 @@ class ExternalReviewRegressionTests(unittest.TestCase):
                 med = Mediator(Settings(), ROOT)
                 med._last_skill_panel = last_skill
                 med._last_bond_attempt = last_bond
-                with patch("gamescript.mediator.time.time", return_value=200.0), \
+                med._l1_cycle_step = kind
+                with patch("shuabao.mediator.time.time", return_value=200.0), \
                         patch.object(med, "_selection_anchor", return_value=None), \
                         patch.object(med, "act_click", return_value=True) as click, \
                         patch.object(med.executor, "press_key") as press:
@@ -237,7 +238,7 @@ class ExternalReviewRegressionTests(unittest.TestCase):
             score = 0.589 if template.stem == "auto_task_on" else 0.754
             return MatchResult(template.stem, score, 10, 10, 20, 20, 10, 10)
 
-        with patch("gamescript.mediator.match_one", side_effect=scored):
+        with patch("shuabao.mediator.match_one", side_effect=scored):
             state, toggle = med._auto_task_state(frame)
         self.assertEqual(state, "OFF")
         self.assertIsNotNone(toggle)
@@ -289,11 +290,40 @@ class ExternalReviewRegressionTests(unittest.TestCase):
             MatchResult("jq", 0.95, 20, 20, 40, 40, 1200, 650),
             MatchResult("asj", 0.80, 10, 10, 40, 40, 1100, 650),
         ]
-        with patch("gamescript.mediator.match_all", return_value=hits):
+        with patch("shuabao.mediator.match_all", return_value=hits):
             chosen = med._find_compact_skill_choice(frame)
         self.assertIsNotNone(chosen)
         self.assertEqual(chosen.name, "asj")
 
+    def test_ocr_mode_off_focus_miss_with_refresh_visible_returns_zero_refresh(self) -> None:
+        """Template mode (ocr_mode='off') with focus miss + refresh visible returns skill_hide or None, 0 refresh."""
+        med = Mediator(Settings(ocr_mode="off", skills=["asj", "dz"]), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
+        anchor = MatchResult("skill_anchor", 0.99, 100, 100, 50, 50, 100, 100)
+        # Template match finds no preferred skills
+        with patch.object(med, "_panel_kind_of", return_value="skill"), \
+             patch.object(med, "_memo", return_value=[]), \
+             patch.object(med, "_find_panel_refresh", return_value=MatchResult("skill_refresh_btn", 0.99, 500, 300, 40, 40, 500, 300)), \
+             patch.object(med, "_find_skill_hide", return_value=MatchResult("skill_hide", 0.99, 800, 200, 30, 30, 800, 200)):
+            choice = med._find_reward_choice(frame, anchor=anchor)
+        self.assertIsNotNone(choice)
+        kind, hit = choice
+        self.assertEqual(kind, "技能")
+        self.assertEqual(hit.name, "skill_hide")
+        self.assertNotEqual(kind, "技能刷新")
+
+    def test_rank_skill_candidates_mixed_named_unnamed_no_type_error(self) -> None:
+        """Mixed named/unnamed slots sort without TypeError."""
+        from shuabao.choice_policy import PolicySettings, SlotCandidate, _rank_skill_candidates
+        slots = (
+            SlotCandidate(index=0, name="烈火剑法", confidence=0.9, rarity="red", card_fact=None),
+            SlotCandidate(index=1, name=None, confidence=0.0, rarity=None, card_fact=None),
+            SlotCandidate(index=2, name="寒冰箭", confidence=0.85, rarity="blue", card_fact=None),
+        )
+        settings = PolicySettings(skill_presets=["烈火剑法"], habit_name_scores={"烈火剑法": 10.0})
+        ranked = _rank_skill_candidates(slots, settings, ())
+        self.assertIsInstance(ranked, list)
+        self.assertEqual(ranked[0], 0)
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,22 +1,22 @@
 {
   "version": 1,
-  "_comment": "技能中文名 + 悬停说明。名字与 config/skill_labels.json 一致（那份是识别用的权威映射，这份只加说明文本）。图标取 assets/Images/skills/<短码>.png。",
+  "_comment": "技能中文名 + 悬停说明 + 流派预设。权威外部调研见 docs/research/；默认挂机构筑见 config/official_strategy_defaults.json（active_build_id=arcane_open）。",
   "_evidence_policy": "description 只填有实机证据的：来源写在 source 字段。没有证据的留空字符串，面板会显示『说明待补』——不要凭想象编游戏数值，选错技能的代价由用户承担。",
-  "_todo": "待补说明的短码见下方 description 为空者。补法：局内开技能面板截图，把卡面描述原文抄进来并把 source 写成帧文件名。",
+  "_todo": "主技能说明仍可补卡面原文。升级卡效果见 config/skill_card_catalog.json（2026-08-12 截图 + 20260813_003003 录屏入库，220 张）。",
 
   "skills": {
     "asj": {
-      "label": "奥数箭",
+      "label": "奥术箭",
       "description": "",
       "source": ""
     },
     "asjg": {
-      "label": "奥数激光",
+      "label": "奥术激光",
       "description": "",
       "source": ""
     },
     "assx": {
-      "label": "奥数射线",
+      "label": "奥术射线",
       "description": "",
       "source": ""
     },
@@ -89,52 +89,52 @@
 
   "presets": [
     {
-      "name": "奥术箭流",
+      "name": "奥术开荒",
       "codes": ["asj", "asjg", "assx", "jq"],
-      "hint": "奥术三件套 + 剑气补普攻；0氪下限高（KK 夙愿系）",
-      "source": "community+default"
+      "hint": "奥术箭 + 奥术射线 + 奥术激光 + 剑气",
+      "source": ""
     },
     {
       "name": "天雷经典",
-      "codes": ["tl", "sdl", "asjg", "assx"],
-      "hint": "天雷 + 闪电链 + 双奥术；秘境向",
-      "source": "kk_S4"
+      "codes": ["tl", "sdl", "assx", "asjg"],
+      "hint": "天雷 + 闪电链 + 奥术射线 + 奥术激光",
+      "source": ""
     },
     {
       "name": "天雷狂轰",
       "codes": ["tl", "sdl", "dcw", "asj"],
-      "hint": "天雷 + 闪电链 + 电磁网 + 奥数箭（双雷/电系变体）",
-      "source": "community_douyin_kk"
+      "hint": "天雷 + 闪电链 + 电磁网 + 奥术箭",
+      "source": ""
     },
     {
       "name": "剑气物理",
       "codes": ["jq", "ys", "dz", "asjg"],
-      "hint": "剑气主 C；陨石/地震过渡；需瓦王更佳",
-      "source": "kk_sword_qi"
+      "hint": "剑气 + 陨石 + 地震 + 奥术激光",
+      "source": ""
     },
     {
-      "name": "普攻万金油",
+      "name": "普攻流派",
       "codes": ["pg", "ys", "dz", "jq"],
-      "hint": "普攻 23 真实分裂向；秘境通用",
-      "source": "kk_aa"
+      "hint": "普攻 + 陨石 + 地震 + 剑气",
+      "source": ""
     },
     {
       "name": "爆炎箭流",
       "codes": ["byj", "hq", "dz", "jq"],
-      "hint": "爆炎箭社区帖；与奥术抢宝石，勿与奥术箭流混用",
-      "source": "kk_byj"
+      "hint": "爆炎箭 + 火球 + 地震 + 剑气",
+      "source": ""
     },
     {
       "name": "冰法控场",
       "codes": ["hbj", "bsxx", "jq", "pg"],
-      "hint": "寒冰箭 + 冰霜新星；门槛较高",
-      "source": "kk_ice"
+      "hint": "寒冰箭 + 冰霜新星 + 剑气 + 普攻",
+      "source": ""
     },
     {
-      "name": "龙卷风备选",
+      "name": "龙卷风流",
       "codes": ["ljf", "sdl", "tl", "asj"],
-      "hint": "高难法系备选；新手勿默认",
-      "source": "kk_wind"
+      "hint": "龙卷风 + 闪电链 + 天雷 + 奥术箭",
+      "source": ""
     }
   ]
 }

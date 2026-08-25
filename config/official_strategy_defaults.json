@@ -5,7 +5,7 @@
   "builds": [
     {
       "id": "arcane_open",
-      "name": "奥术箭开荒（默认）",
+      "name": "奥术开荒（奥术箭、奥术射线、奥术激光、剑气）",
       "source": "KK 夙愿奥术箭帖 + REBORN_WOW S3",
       "skills": ["asj", "asjg", "assx", "jq"],
       "cards": ["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe", "fs"],
@@ -15,7 +15,7 @@
     },
     {
       "id": "thunder_classic",
-      "name": "天雷经典",
+      "name": "天雷经典（天雷、闪电链、奥术激光、奥术射线）",
       "source": "KK 天雷珍藏11过94",
       "skills": ["tl", "sdl", "asjg", "assx"],
       "cards": ["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe"],
@@ -25,7 +25,7 @@
     },
     {
       "id": "thunder_net",
-      "name": "天雷狂轰",
+      "name": "天雷狂轰（天雷、闪电链、电磁网、奥术箭）",
       "source": "梭哈流 + 抖音双雷变体",
       "skills": ["tl", "sdl", "dcw", "asj"],
       "cards": ["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe"],
@@ -35,7 +35,7 @@
     },
     {
       "id": "sword_qi",
-      "name": "剑气物理",
+      "name": "剑气物理（剑气、陨石、地震、奥术激光）",
       "source": "KK 剑气帖",
       "skills": ["jq", "ys", "dz", "asjg"],
       "cards": ["tishu", "chengzhang", "zhufu", "mingjie", "shougezhe"],
@@ -45,7 +45,7 @@
     },
     {
       "id": "aa_universal",
-      "name": "普攻万金油",
+      "name": "普攻万金油（普攻、陨石、地震、剑气）",
       "source": "KK 普攻帖",
       "skills": ["pg", "ys", "dz", "jq"],
       "cards": ["tishu", "chengzhang", "zhufu", "mingjie", "shougezhe"],
@@ -81,7 +81,7 @@
       "set_name": "屠戮者",
       "chain": ["力量", "野蛮人", "战神", "屠戮者"],
       "chain_status": "confirmed",
-      "chain_evidence": "lab 152022 整条跑通并拿到 UR：力量(0..3/4) → 野蛮人(0..3/4) → 战神(0/3)(1/3)(2/3) → 屠戮者(0/3)(1/3)。血誓整轮零出现，确认不在链上（归 support）。",
+      "chain_evidence": "lab 152022 实测推进：力量(0..3/4) → 野蛮人(0..3/4) → 战神(0/3)(1/3)(2/3) → 屠戮者(0/3)(1/3)，链结构与各环张数获实测支持；UR 本体未在 trace 出现（20260824 审计更正：原「整条跑通拿到 UR」超出记录）。终名依据官方攻略映射 + ur_attr_routes 用户录像散件静帧。血誓整轮零出现，确认不在链上（归 support）。",
       "guide_alias": {"野蛮人": "野蛮"},
       "pieces": ["战斗咆哮", "屠戮之刃", "杀戮之血"],
       "support": ["血誓"],
@@ -95,7 +95,7 @@
       "set_name": "收割者",
       "chain": ["敏捷", "猎魔人", "弓神", "收割者"],
       "chain_status": "confirmed",
-      "chain_evidence": "lab 152437 整条跑通并拿到 UR：敏捷(0..3/4) → 猎魔人(0/4)(1/4)(2/4) → 弓神(0/3)(1/3)(2/3) → 收割者(0/3)(1/3)。没有漏卡，中环 4 / 次环 3 的同构成立（早前口述的 猎魔人3/弓神4 是反的）。",
+      "chain_evidence": "lab 152437 实测推进：敏捷(0..3/4) → 猎魔人(0/4)(1/4)(2/4) → 弓神(0/3)(1/3)(2/3) → 收割者(0/3)(1/3)，链结构与各环张数获实测支持；UR 本体未在 trace 出现（20260824 审计更正：原「整条跑通拿到 UR」超出记录）。终名依据官方攻略映射 + ur_attr_routes 用户录像散件静帧。没有漏卡，中环 4 / 次环 3 的同构成立（早前口述的 猎魔人3/弓神4 是反的）。",
       "guide_alias": {"猎魔人": "猎魔", "弓神": "弓箭"},
       "pieces": ["亡者之轮", "多重打击", "支配死灵"],
       "support": ["箭术", "战术"],
@@ -105,9 +105,10 @@
   },
   "bond_trees": {
     "_comment": "基础羁绊解锁树。张数以 bond_stack_catalog 为准。prereq 空=开局就有。status: live=实机见过合成进度；guide=只有攻略。",
-    "祝福": {"need": 3, "prereq": [], "unlocks": [], "tier": "round1", "status": "live"},
-    "成长": {"need": 4, "prereq": [], "unlocks": [], "tier": "round1", "status": "live"},
-    "经济": {"need": 3, "prereq": [], "unlocks": ["贪婪", "挑战"], "tier": "round1", "status": "live"},
+    "basic": {
+      "label": "基础卡",
+      "cards": ["祝福", "成长", "经济", "贪婪", "挑战", "提速", "体术", "固守", "陷阵", "急速", "力量", "智力", "敏捷"]
+    },
     "贪婪": {"need": 3, "prereq": ["经济"], "unlocks": [], "tier": "round1", "status": "live", "note": "随机吞 4 张可吞食卡 + 150 木 + 888 杀敌 + 6000 金；格子将满时优先于普通顺序"},
     "挑战": {"need": 3, "prereq": ["经济"], "unlocks": [], "tier": "round1", "status": "live"},
     "提速": {"need": 3, "prereq": [], "unlocks": ["体术", "固守", "生命"], "tier": "survival", "status": "guide", "note": "lab 多轮零出现，前置关系尚未被实机验证"},
@@ -149,10 +150,10 @@
   },
   "skill_synergy": {
     "_comment": "实验室 skill / skillbond 预设读这里。skill 只开技能三选；skillbond 再叠 desired_bonds。catalogs 不自动收窄。",
-    "next_test_families": ["奥数箭", "天雷"],
+    "next_test_families": ["奥术箭", "天雷"],
     "never_pick_skills": ["蓄力射击"],
     "desired_bonds_by_family": {
-      "奥数箭": ["祝福", "成长", "经济", "贪婪", "挑战", "智力", "秘法师", "法神", "湮灭者", "提速", "体术", "法术", "急速", "箭术"],
+      "奥术箭": ["祝福", "成长", "经济", "贪婪", "挑战", "智力", "秘法师", "法神", "湮灭者", "提速", "体术", "法术", "急速", "箭术"],
       "天雷": ["祝福", "成长", "经济", "贪婪", "挑战", "智力", "秘法师", "法神", "湮灭者", "提速", "体术", "法术", "急速"]
     }
   },
@@ -168,6 +169,65 @@
       "满级大佬"
     ],
     "bond_whitelist_mode": "hard"
+  },
+  "mainline_stages": [
+    {"chapter": 1, "count": 23, "label": "主线1"},
+    {"chapter": 2, "count": 7, "label": "主线2"},
+    {"chapter": 3, "count": 9, "label": "主线3"},
+    {"chapter": 4, "count": 3, "label": "主线4"}
+  ],
+  "card_packs": {
+    "_comment": "看板用。基础卡组=已实机抓齐的四轮必做/生存/急速。属性线只选智力/力量/敏捷一行，不展开链。高级卡组可选，EX 最终形态不进白名单。",
+    "basic": {
+      "label": "基础卡组",
+      "cards": ["祝福", "成长", "经济", "贪婪", "挑战", "提速", "体术", "固守", "陷阵", "急速"]
+    },
+    "attr_line": {
+      "label": "属性线",
+      "summary_only": true,
+      "options": [
+        {"id": "intelligence", "label": "智力", "gate": "智力", "ur": "湮灭者"},
+        {"id": "strength", "label": "力量", "gate": "力量", "ur": "屠戮者"},
+        {"id": "agility", "label": "敏捷", "gate": "敏捷", "ur": "收割者"}
+      ]
+    },
+    "advanced": {
+      "daodao": {
+        "label": "刀刀",
+        "cards": ["刀刀", "幽灵系带", "护腕", "空灵挂坠", "刀刀萌新", "刀刀大成"],
+        "exclude_ex": ["解放的圣剑"]
+      },
+      "yihuo": {
+        "label": "异火",
+        "cards": ["异火", "焚诀·黄阶", "阴阳双炎", "风怒龙炎", "幽冥毒火", "玄黄炎"],
+        "exclude_ex": ["帝炎"]
+      },
+      "dasheng": {
+        "label": "大圣",
+        "cards": ["齐天大圣", "大圣", "天命人", "大圣残躯", "大圣套装"],
+        "exclude_ex": ["法天象地"]
+      },
+      "xiuxian": {
+        "label": "修仙",
+        "cards": ["修仙", "筑基丹", "金丹大道", "元神出窍", "修仙萌新", "修仙大成"],
+        "exclude_ex": ["飞升"]
+      },
+      "fengshen": {
+        "label": "封神",
+        "cards": ["封神", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀"],
+        "exclude_ex": ["混元金斗"]
+      },
+      "haidao": {
+        "label": "海盗",
+        "cards": ["海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"],
+        "exclude_ex": []
+      },
+      "wangling": {
+        "label": "亡灵",
+        "cards": ["亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"],
+        "exclude_ex": ["冰封王座"]
+      }
+    }
   },
   "do_not_auto_enable": [
     "黑市自动购买序",

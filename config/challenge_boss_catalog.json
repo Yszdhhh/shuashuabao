@@ -1,0 +1,363 @@
+{
+ "version": 1,
+ "_comment": "传家宝/时光之穴-Boss 全量清单：来自 assets 模板目录（与竞品 1.4.9 Images 同步，含 53拉贾克斯将军/54莫阿姆）。no 为全局解锁序号；stage 映射待补（见 stage_unlocks.json 现覆盖 1-1..2-3）。",
+ "chuanjiaobao": [
+  {
+   "no": 1,
+   "label": "暴掠龙",
+   "template_stem": "01暴掠龙"
+  },
+  {
+   "no": 2,
+   "label": "血腥猛犸",
+   "template_stem": "02血腥猛犸"
+  },
+  {
+   "no": 3,
+   "label": "洛卡纳哈",
+   "template_stem": "03洛卡纳哈"
+  },
+  {
+   "no": 4,
+   "label": "克雷什之父",
+   "template_stem": "04克雷什之父"
+  },
+  {
+   "no": 5,
+   "label": "撼地兽",
+   "template_stem": "05撼地兽"
+  },
+  {
+   "no": 6,
+   "label": "鳄王",
+   "template_stem": "06鳄王"
+  },
+  {
+   "no": 7,
+   "label": "古龙龟",
+   "template_stem": "07古龙龟"
+  },
+  {
+   "no": 8,
+   "label": "战争雷霆蜥蜴",
+   "template_stem": "08战争雷霆蜥蜴"
+  },
+  {
+   "no": 9,
+   "label": "钦原",
+   "template_stem": "09钦原"
+  },
+  {
+   "no": 10,
+   "label": "马格纳斯",
+   "template_stem": "10马格纳斯"
+  },
+  {
+   "no": 11,
+   "label": "嗜血的索克",
+   "template_stem": "11嗜血的索克"
+  },
+  {
+   "no": 12,
+   "label": "战争之王",
+   "template_stem": "12战争之王"
+  },
+  {
+   "no": 13,
+   "label": "蛇王纳什",
+   "template_stem": "13蛇王纳什"
+  },
+  {
+   "no": 14,
+   "label": "青蛙之神",
+   "template_stem": "14青蛙之神"
+  },
+  {
+   "no": 15,
+   "label": "猛虎之神",
+   "template_stem": "15猛虎之神"
+  },
+  {
+   "no": 16,
+   "label": "阿迦玛甘",
+   "template_stem": "16阿迦玛甘"
+  },
+  {
+   "no": 17,
+   "label": "年兽",
+   "template_stem": "17年兽"
+  },
+  {
+   "no": 54,
+   "label": "莫阿姆",
+   "template_stem": "54莫阿姆"
+  }
+ ],
+ "boss": [
+  {
+   "no": 1,
+   "label": "霍格",
+   "template_stem": "01霍格"
+  },
+  {
+   "no": 2,
+   "label": "祈求着耶戈什",
+   "template_stem": "02祈求着耶戈什"
+  },
+  {
+   "no": 3,
+   "label": "曲奇",
+   "template_stem": "03曲奇"
+  },
+  {
+   "no": 4,
+   "label": "大范",
+   "template_stem": "04大范"
+  },
+  {
+   "no": 5,
+   "label": "克雷什",
+   "template_stem": "05克雷什"
+  },
+  {
+   "no": 6,
+   "label": "吞噬者穆坦努斯",
+   "template_stem": "06吞噬者穆坦努斯"
+  },
+  {
+   "no": 7,
+   "label": "大法师阿鲁高",
+   "template_stem": "07大法师阿鲁高"
+  },
+  {
+   "no": 8,
+   "label": "巨形缝合怪",
+   "template_stem": "08巨形缝合怪"
+  },
+  {
+   "no": 9,
+   "label": "摩拉迪姆",
+   "template_stem": "09摩拉迪姆"
+  },
+  {
+   "no": 10,
+   "label": "吞噬者芬鲁斯",
+   "template_stem": "10吞噬者芬鲁斯"
+  },
+  {
+   "no": 11,
+   "label": "瑟玛普拉格",
+   "template_stem": "11瑟玛普拉格"
+  },
+  {
+   "no": 12,
+   "label": "卡尔加",
+   "template_stem": "12卡尔加"
+  },
+  {
+   "no": 13,
+   "label": "寒冰巫妖",
+   "template_stem": "13寒冰巫妖"
+  },
+  {
+   "no": 14,
+   "label": "虎王邦加拉什",
+   "template_stem": "14虎王邦加拉什"
+  },
+  {
+   "no": 15,
+   "label": "莫格莱尼",
+   "template_stem": "15莫格莱尼"
+  },
+  {
+   "no": 16,
+   "label": "怀特迈恩",
+   "template_stem": "16怀特迈恩"
+  },
+  {
+   "no": 17,
+   "label": "阿扎达斯",
+   "template_stem": "17阿扎达斯"
+  },
+  {
+   "no": 18,
+   "label": "瑟莱德丝公主",
+   "template_stem": "18瑟莱德丝公主"
+  },
+  {
+   "no": 19,
+   "label": "加兹瑞拉",
+   "template_stem": "19加兹瑞拉"
+  },
+  {
+   "no": 20,
+   "label": "伊兰尼库斯之影",
+   "template_stem": "20伊兰尼库斯之影"
+  },
+  {
+   "no": 21,
+   "label": "索瑞森大帝",
+   "template_stem": "21索瑞森大帝"
+  },
+  {
+   "no": 22,
+   "label": "维姆萨拉克",
+   "template_stem": "22维姆萨拉克"
+  },
+  {
+   "no": 23,
+   "label": "巴纳扎尔",
+   "template_stem": "23巴纳扎尔"
+  },
+  {
+   "no": 24,
+   "label": "戴文戴尔男爵",
+   "template_stem": "24戴文戴尔男爵"
+  },
+  {
+   "no": 25,
+   "label": "黑暗院长加林",
+   "template_stem": "25黑暗院长加林"
+  },
+  {
+   "no": 26,
+   "label": "达基萨斯将军",
+   "template_stem": "26达基萨斯将军"
+  },
+  {
+   "no": 27,
+   "label": "戈多克大王",
+   "template_stem": "27戈多克大王"
+  },
+  {
+   "no": 28,
+   "label": "加兹兰卡",
+   "template_stem": "28加兹兰卡"
+  },
+  {
+   "no": 29,
+   "label": "血神哈卡",
+   "template_stem": "29血神哈卡"
+  },
+  {
+   "no": 30,
+   "label": "火焰行者",
+   "template_stem": "30火焰行者"
+  },
+  {
+   "no": 31,
+   "label": "巨石火人",
+   "template_stem": "31巨石火人"
+  },
+  {
+   "no": 32,
+   "label": "吞噬者图恩",
+   "template_stem": "32吞噬者图恩"
+  },
+  {
+   "no": 33,
+   "label": "玛格曼达",
+   "template_stem": "33玛格曼达"
+  },
+  {
+   "no": 34,
+   "label": "加尔",
+   "template_stem": "34加尔"
+  },
+  {
+   "no": 35,
+   "label": "火牛贝利尔",
+   "template_stem": "35火牛贝利尔"
+  },
+  {
+   "no": 36,
+   "label": "迦顿男爵",
+   "template_stem": "36迦顿男爵"
+  },
+  {
+   "no": 37,
+   "label": "超大熔岩巨人",
+   "template_stem": "37超大熔岩巨人"
+  },
+  {
+   "no": 38,
+   "label": "管理者",
+   "template_stem": "38管理者"
+  },
+  {
+   "no": 39,
+   "label": "拉格纳罗斯",
+   "template_stem": "39拉格纳罗斯"
+  },
+  {
+   "no": 40,
+   "label": "费尔默",
+   "template_stem": "40费尔默"
+  },
+  {
+   "no": 41,
+   "label": "埃博诺克",
+   "template_stem": "41埃博诺克"
+  },
+  {
+   "no": 42,
+   "label": "弗莱格尔",
+   "template_stem": "42弗莱格尔"
+  },
+  {
+   "no": 43,
+   "label": "堕落的红龙",
+   "template_stem": "43堕落的红龙"
+  },
+  {
+   "no": 44,
+   "label": "狂野的拉格佐尔",
+   "template_stem": "44狂野的拉格佐尔"
+  },
+  {
+   "no": 45,
+   "label": "寒冰将军格尔",
+   "template_stem": "45寒冰将军格尔"
+  },
+  {
+   "no": 46,
+   "label": "暮光将军佐拉",
+   "template_stem": "46暮光将军佐拉"
+  },
+  {
+   "no": 47,
+   "label": "狂龙萨兹拉克",
+   "template_stem": "47狂龙萨兹拉克"
+  },
+  {
+   "no": 48,
+   "label": "龙巢守护者",
+   "template_stem": "48龙巢守护者"
+  },
+  {
+   "no": 49,
+   "label": "克洛玛古斯",
+   "template_stem": "49克洛玛古斯"
+  },
+  {
+   "no": 50,
+   "label": "奥妮克希亚",
+   "template_stem": "50奥妮克希亚"
+  },
+  {
+   "no": 51,
+   "label": "奈法利安",
+   "template_stem": "51奈法利安"
+  },
+  {
+   "no": 52,
+   "label": "库林纳克斯",
+   "template_stem": "52库林纳克斯"
+  },
+  {
+   "no": 53,
+   "label": "拉贾克斯将军",
+   "template_stem": "53拉贾克斯将军"
+  }
+ ]
+}

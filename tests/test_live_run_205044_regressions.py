@@ -14,11 +14,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, PanelState, Phase, RecoveryKind, RecoveryStep, RoundOutcome
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.choice_policy import SessionState
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, PanelState, Phase, RecoveryKind, RecoveryStep, RoundOutcome
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 
 
 def frame() -> Frame:
@@ -49,27 +50,50 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertIs(med.phase, Phase.RECOVER_FAILURE)
         self.assertIs(med._recovery_state.kind, RecoveryKind.FAIL)
 
-    def test_skill_ocr_never_authorizes_nonconfigured_same_icon(self) -> None:
+    def test_skill_ocr_safe_fill_never_masquerades_same_icon_as_configured(self) -> None:
         med = Mediator(Settings(skills=["assx"]), ROOT)
         slots = [
-            {"index": 0, "name": "电磁网", "confidence": 0.99, "raw_text": "电磁网"},
-            {"index": 1, "name": "重创", "confidence": 0.99, "raw_text": "重创"},
-            {"index": 2, "name": None, "confidence": 0.0, "raw_text": "多重射线"},
+            {"index": 0, "name": "电磁网", "confidence": 0.99, "raw_text": "电磁网", "family_source": "badge"},
+            {"index": 1, "name": "重创", "confidence": 0.99, "raw_text": "重创", "family_source": "badge"},
+            {"index": 2, "name": None, "confidence": 0.0, "raw_text": "多重射线", "family_source": "badge"},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=slots):
-            self.assertIsNone(med._ocr_reward_choice(frame(), "skill"))
+            fill_hit = med._ocr_reward_choice(frame(), "skill")
+        # 未读成奥数射线时，同图标/原始文本不得冒充配置技能 assx；
+        # 但四技能槽未满允许从已验证目录中的合法技能安全补位。
+        self.assertIsNotNone(fill_hit)
+        self.assertEqual(fill_hit.name, "重创")
+        self.assertNotEqual(fill_hit.name, "assx")
 
-        slots[2] = {"index": 2, "name": "奥数射线", "confidence": 0.99, "raw_text": "奥数射线"}
+        slots[2] = {"index": 2, "name": "奥术射线", "confidence": 0.99, "raw_text": "奥术射线", "family_source": "badge"}
         with patch.object(med, "_ocr_panel_slots", return_value=slots):
             hit = med._ocr_reward_choice(frame(), "skill")
         self.assertIsNotNone(hit)
         self.assertEqual(hit.name, "assx")
         self.assertEqual(hit.x, int(1600 * 0.646))
 
+    def test_empty_skill_ocr_does_not_click_giveup(self) -> None:
+        med = Mediator(Settings(skills=["asj", "asjg", "assx", "jq"], ocr_mode="live"), ROOT)
+        slots = [
+            {"index": 0, "name": None, "confidence": 0.0},
+            {"index": 1, "name": None, "confidence": 0.0},
+            {"index": 2, "name": None, "confidence": 0.0},
+        ]
+        giveup = MatchResult("skill_giveup_btn", 0.99, 580, 552, 40, 20, 580, 552)
+        med._choice_session = SessionState(waits=5, max_waits=5, refreshes=3, max_refreshes=3)
+        with patch.object(med, "_ocr_panel_slots", return_value=slots), \
+                patch.object(med, "_panel_has_giveup", return_value=True), \
+                patch.object(med, "_find_panel_giveup", return_value=giveup), \
+                patch.object(med, "_find_panel_refresh", return_value=None), \
+                patch.object(med, "_find_skill_hide", return_value=None):
+            hit = med._ocr_reward_choice(frame(), "skill")
+        if hit is not None:
+            self.assertNotIn((hit.name or "").lower(), {"skill_giveup_btn", "giveup"})
+
     def test_bond_full_bar_allows_only_one_away_merge(self) -> None:
         # A3：硬白名单取代占用启发式。未勾选一律不选（WAIT→None）；
         # 勾选「祝福」后才可选中，与栏位是否接近满无关。
-        med = Mediator(Settings(cards=["祝福"]), ROOT)
+        med = Mediator(Settings(cards=["祝福"], bond_whitelist_mode="hard"), ROOT)
         unsafe = [
             {"index": 0, "name": "海盗", "confidence": 0.99, "raw_text": "海盗"},
             {"index": 1, "name": "智力", "confidence": 0.99, "raw_text": "智力(0/4)"},
@@ -92,7 +116,7 @@ class LiveRun205044Tests(unittest.TestCase):
 
     def test_basic_bond_precedes_advanced_bond(self) -> None:
         # 硬白名单：只勾「法术」时选法术；未勾的「亡灵天灾」即使接近合成也不选。
-        med = Mediator(Settings(cards=["法术"]), ROOT)
+        med = Mediator(Settings(cards=["法术"], bond_whitelist_mode="hard"), ROOT)
         slots = [
             {"index": 0, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(2/3)"},
             {"index": 1, "name": "法术", "confidence": 0.99, "raw_text": "法术(0/3)"},
@@ -105,7 +129,7 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(hit.name, "ocr_bond:法术")
 
     def test_early_bond_does_not_start_pirate_or_undead_variants(self) -> None:
-        med = Mediator(Settings(), ROOT)
+        med = Mediator(Settings(bond_whitelist_mode="hard"), ROOT)
         slots = [
             {"index": 0, "name": "白赚海盗", "confidence": 0.99, "raw_text": "白赚海盗(0/3)"},
             {"index": 1, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(0/3)"},
@@ -120,7 +144,7 @@ class LiveRun205044Tests(unittest.TestCase):
 
     def test_existing_advanced_bond_progress_can_still_be_finished(self) -> None:
         # 硬白名单：用户勾选「亡灵天灾」后才可完成进度；未勾选的海盗变体仍不可选。
-        med = Mediator(Settings(cards=["亡灵天灾"]), ROOT)
+        med = Mediator(Settings(cards=["亡灵天灾"], bond_whitelist_mode="hard"), ROOT)
         slots = [
             {"index": 0, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(2/3)"},
             {"index": 1, "name": "白赚海盗", "confidence": 0.99, "raw_text": "白赚海盗(0/3)"},
@@ -151,7 +175,6 @@ class LiveRun205044Tests(unittest.TestCase):
 
     def test_current_bond_panel_uses_card_hide_as_safe_exit(self) -> None:
         med = Mediator(Settings(ocr_mode="live"), ROOT)
-        med._panel_opened_by_us = "bond"
         close = MatchResult("card_hide", 0.80, 800, 575, 10, 10, 800, 575)
 
         def find(_frame, names, **_kwargs):
@@ -166,6 +189,12 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(choice[0], "bond")
         self.assertEqual(choice[1].name, "card_hide")
 
+        med._panel_opened_by_us = "bond"
+        with patch.object(med, "find", side_effect=find), \
+                patch.object(med, "_panel_kind_of", return_value="bond"), \
+                patch.object(med, "_ocr_reward_choice", return_value=None):
+            self.assertIsNone(med._find_reward_choice(frame(), close))
+
     def test_inventory_hero_card_does_not_loop_on_static_evolution_label(self) -> None:
         med = Mediator(Settings(ui_action_interval_s=0.0), ROOT)
         hero = MatchResult("hero_card_item", 0.99, 1100, 800, 10, 10, 1100, 800)
@@ -178,14 +207,14 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(find.call_args.args[1], ["hero_card_item"])
 
     def test_inventory_hero_card_requires_evolve_and_caps_per_visit(self) -> None:
-        """r11 live：未点进化不得点英雄卡；单次 equipment 访问最多 2 次。"""
+        """英雄卡必须等本轮点击进化的三选一完成；单次装备访问最多 2 次。"""
         med = Mediator(Settings(ui_action_interval_s=0.0), ROOT)
         hero = MatchResult("hero_card_item", 0.99, 1303, 898, 10, 10, 1303, 898)
         med._bond_bar_nonempty = lambda _frame: False
         with patch.object(med, "find", return_value=hero), \
                 patch.object(med, "act_click", return_value=True) as click:
             self.assertIsNone(med._maybe_use_inventory_item(frame()))
-            self.assertEqual(click.call_count, 0)
+            click.assert_not_called()
             med._evolve_ok_this_cycle = True
             self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)
             med._inventory_next_at = 0.0
@@ -266,6 +295,36 @@ class LiveRun205044Tests(unittest.TestCase):
 
         card_hide = MatchResult("card_hide", 0.819, 805, 575, 10, 10, 805, 575)
         self.assertEqual(med._panel_kind_of(frame(), card_hide), "bond")
+
+    def test_opened_skill_beats_hsv_and_lone_treasure_lock(self) -> None:
+        # 13号 200601：按了 G 之后金卡三选被 HSV / treasure_lock 判成宝物。
+        med = Mediator(Settings(), ROOT)
+        med._panel_opened_by_us = "skill"
+        refresh = MatchResult("skill_refresh_btn", 0.763, 860, 552, 10, 10, 860, 552)
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        image[180:515, 450:1145] = (20, 140, 20)
+        self.assertEqual(med._panel_kind_of(Frame(image), refresh), "skill")
+
+        lock = MatchResult("treasure_lock_btn", 0.81, 580, 572, 10, 10, 580, 572)
+        self.assertEqual(med._panel_kind_of(frame(), lock), "skill")
+
+    def test_treasure_lock_alone_is_not_treasure(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        lock = MatchResult("treasure_lock_btn", 0.81, 580, 572, 10, 10, 580, 572)
+        fr = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1, window_title="英雄三国KK")
+
+        def make_find(hits: dict[str, MatchResult]):
+            def fake_find(_frame, names, **_kwargs):
+                for n in names:
+                    if n in hits:
+                        return hits[n]
+                return None
+
+            return fake_find
+
+        with patch.object(med, "find", side_effect=make_find({"treasure_lock_btn": lock})):
+            self.assertNotEqual(med._classify_choice_panel_at(fr, 0.70, (1.0,)), "treasure")
+            self.assertEqual(med._panel_kind_of(fr, lock), "unknown")
 
     def test_two_card_evolution_modal_is_not_a_skill_panel(self) -> None:
         med = Mediator(Settings(), ROOT)
@@ -443,7 +502,7 @@ class LiveRun205044Tests(unittest.TestCase):
                     self.assertNotEqual(med._l1_cycle_step, "evolve")  # 跳过本轮进化
 
     def test_evolve_feedback_advances_cycle_once(self) -> None:
-        # P0-2：点击后有面板/画面反馈 → 视为成功推进，只推进一次（不重复点击）。
+        # 点击进化有反馈后停在 evolve 等英雄三选一；未选出前不进装备、不用英雄卡。
         med = self._evolve_ready_med()
         med._evolve_feedback_pending = True
         med._evolve_fail_count = 2
@@ -453,7 +512,9 @@ class LiveRun205044Tests(unittest.TestCase):
             self.assertIs(med._tick_main_line(frame()), LoopAction.Continue)
         self.assertFalse(med._evolve_feedback_pending)
         self.assertEqual(med._evolve_fail_count, 0)
-        self.assertEqual(med._l1_cycle_step, "equipment")
+        self.assertEqual(med._l1_cycle_step, "evolve")
+        self.assertTrue(med._evolve_awaiting_hero_pick)
+        self.assertFalse(med._evolve_ok_this_cycle)
 
     def test_evolution_modal_handling_advances_evolve_step(self) -> None:
         # P0-2：进化面板真实出现并被处理 = 点击成功反馈 → L1 循环从 evolve 推进
@@ -474,6 +535,8 @@ class LiveRun205044Tests(unittest.TestCase):
                 patch.object(med, "_selection_anchor", return_value=anchor), \
                 patch.object(med, "act_click", return_value=True):
             self.assertIs(med._tick_main_line(evolution_frame), LoopAction.Continue)
+        # 20260822 循环序（test_runtime_stability_hotfix_20260821 钉死）：evolve
+        # 前置于 equipment（装备词缀弹窗防双模态冲突），evolve 之后是 equipment。
         self.assertEqual(med._l1_cycle_step, "equipment")
         self.assertFalse(med._evolve_feedback_pending)
 
@@ -490,6 +553,30 @@ class LiveRun205044Tests(unittest.TestCase):
         image = np.full((900, 1600, 3), 255, dtype=np.uint8)
         with patch.object(med2, "_selection_anchor", return_value=None):
             self.assertTrue(med2._evolve_feedback_seen(Frame(image)))
+
+    def test_evolve_clicks_gold_bar_not_dirt(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        # 左侧羁绊图标（成长）不得当成进化
+        cv2.rectangle(image, (560, 620), (760, 680), (20, 180, 230), -1)
+        # 「点击进化」金条在羁绊图标右侧偏下
+        cv2.rectangle(image, (800, 690), (980, 715), (20, 200, 240), -1)
+        hit = med._evolve_button_hit(Frame(image, hwnd=1, window_title="英雄三国KK"))
+        self.assertGreater(hit.x, 760)
+        self.assertGreater(hit.y, 680)
+        self.assertGreaterEqual(hit.x, int(1600 * 0.48))
+        self.assertLessEqual(hit.x, int(1600 * 0.64))
+        self.assertGreaterEqual(hit.y, int(900 * 0.75))
+        self.assertLessEqual(hit.y, int(900 * 0.81))
+
+    def test_orange_border_not_classified_as_green(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        cx, cy = 800, 300
+        cv2.rectangle(image, (cx - 80, cy - 80), (cx + 80, cy + 80), (0, 140, 230), 8)
+        scored = med._card_rarity_score(Frame(image), cx, cy, "treasure")
+        self.assertIsNotNone(scored)
+        self.assertEqual(scored[1], "orange")
 
     # ---------- P0-3：面板锚点双帧确认 + 联合分类 + 自然面板 OCR（215302） ----------
 

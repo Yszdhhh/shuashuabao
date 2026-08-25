@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "notes": "只读 ModeSpec。live_enabled=false 的模式不得产生点击。桌面只启动 normal_farm。lab 走 tools/lab_run.py。",
+  "notes": "只读 ModeSpec。live_enabled=false 的模式不得产生点击。桌面可启动 normal_farm、follow_team、lobby_hitch；lab 走 tools/lab_run.py。",
   "modes": {
     "normal_farm": {
       "id": "normal_farm",
@@ -25,7 +25,7 @@
       },
       "forbidden_actions": [],
       "budgets": {
-        "round_timeout_s": 900
+        "round_timeout_s": 3600
       },
       "evidence_status": "live_partial",
       "notes": "现有 Mediator L0+L1。本 Flow 只文档化阶段，不替代 mediator。"
@@ -33,11 +33,13 @@
     "follow_team": {
       "id": "follow_team",
       "label": "跟车",
-      "live_enabled": false,
-      "desktop_start": false,
+      "live_enabled": true,
+      "desktop_start": true,
       "flow": "FollowTeamFlow",
       "visible_settings": [
-        "stage_targets",
+        "follow_cycle_num",
+        "follow_after_room",
+        "follow_pair_code",
         "dry_run"
       ],
       "hidden_defaults": {
@@ -68,8 +70,7 @@
       "flow": "GamblingWoodFlow",
       "visible_settings": [
         "stage_targets",
-        "treasure_num",
-        "dry_run"
+        "treasure_num"
       ],
       "hidden_defaults": {
         "game_mode": 0,
@@ -119,12 +120,13 @@
     "lobby_hitch": {
       "id": "lobby_hitch",
       "label": "大厅找房蹭车",
-      "live_enabled": false,
-      "desktop_start": false,
+      "live_enabled": true,
+      "desktop_start": true,
       "flow": "LobbyHitchFlow",
       "visible_settings": [
         "hitch_stage_prefix",
-        "stage_targets",
+        "hitch_cycle_num",
+        "hitch_after_goal",
         "skip_password_rooms",
         "refresh_s",
         "never_quick_join",
@@ -150,20 +152,24 @@
         "room_start.fallback",
         "map_create_room.fallback",
         "CreateRoom-open",
+        "CreateRoom-confirm",
         "map_create_room",
         "RoomStart"
       ],
       "budgets": {
         "search_timeout_s": 120,
-        "join_attempts": 2,
+        "join_attempts": 3,
         "refresh_s_min": 3,
         "refresh_s_max": 4,
-        "hitch_stage_prefix_values": [3, 4],
+        "hitch_stage_prefix_values": [
+          3,
+          4
+        ],
         "mainline_retry_s": 120,
         "stop_mainline_at": "5-5"
       },
       "evidence_status": "video_detail_no_click",
-      "notes": "详细录像 20260814：搜3/4、满房只取消、准备≠开始、进局压力转移、主线+四挑战、5-5后停开主线、局末传家宝、打完回列表看房主。hitch_reject_list 预留反选（房间名/房主/地图）默认空，不接 UI。live_enabled 仍 false。C4：禁止颜色兜底与快速加入。"
+      "notes": "详细录像 20260814：搜3/4、满房只取消、准备≠开始、进局压力转移、主线+四挑战、5-5后停开主线、局末传家宝、打完回列表看房主。hitch_reject_list 预留反选（房间名/房主/地图）默认空，不接 UI。当前 live_enabled=true 且 desktop_start=true；C4 仍禁止颜色兜底与快速加入。"
     },
     "lab": {
       "id": "lab",

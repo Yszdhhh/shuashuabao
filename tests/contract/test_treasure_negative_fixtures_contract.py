@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.choice_policy import (  # noqa: E402
+from shuabao.choice_policy import (  # noqa: E402
     DEFAULT_NEGATIVE_NAMES,
     DEFAULT_NEGATIVE_PATTERNS,
     PANEL_TREASURE,
@@ -201,7 +201,7 @@ class TreasureNegativePatternCoverage(unittest.TestCase):
         covered = set(cards) - set(gaps)
         self.assertEqual(
             covered,
-            {"透支力量", "金转木", "杀敌梭哈", "伐木契约"},
+            {"透支力量", "金转木", "杀敌梭哈", "伐木契约", "压制"},
         )
         anon = PolicySettings(treasure_negative_names=())
         for name in covered:

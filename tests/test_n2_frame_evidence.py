@@ -24,13 +24,13 @@ _SRC = ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from gamescript.input.keyboard_mouse import ActionResult
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame, WindowTarget
+from shuabao.input.keyboard_mouse import ActionResult
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame, WindowTarget
 
-import gamescript.mediator as mediator_module
+import shuabao.mediator as mediator_module
 
 
 def _load(rel: str) -> Frame:
@@ -55,7 +55,7 @@ class FrameEvidenceTests(unittest.TestCase):
 
     def test_same_frame_two_context_queries_one_matcher_call(self):
         f = _load("fixtures/replay/main_line_auto_on.png")
-        with patch("gamescript.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
+        with patch("shuabao.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
             c1 = self.med._detect_context(f, role="l1")
             first_calls = mt.call_count
             c2 = self.med._detect_context(f, role="l1")
@@ -70,7 +70,7 @@ class FrameEvidenceTests(unittest.TestCase):
         self.med._last_frame = f
         self.med.set_phase(Phase.MAIN_LINE, "evidence test")
         self.med._detect_context(f)  # 感知入口：建立本帧证据
-        with patch("gamescript.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
+        with patch("shuabao.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
             anchor = self.med._selection_anchor(f)
             self.assertIsNotNone(anchor)
             n1 = mt.call_count
@@ -107,7 +107,7 @@ class FrameEvidenceTests(unittest.TestCase):
             click2.assert_not_called()
 
         # 相同对象再次进入（模拟下一 tick 静态复用）：必须重新计算
-        with patch("gamescript.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt2:
+        with patch("shuabao.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt2:
             a3 = self.med._selection_anchor(f)
             self.assertIsNotNone(a3)
             self.assertGreater(mt2.call_count, 0, "输入失效后相同帧必须重算，不得沿用旧缓存")
@@ -142,7 +142,7 @@ class FrameEvidenceTests(unittest.TestCase):
     def test_config_difference_does_not_hit_same_key(self):
         f = _load("fixtures/replay/skill_choice_3.png")
         self.med._detect_context(f)  # 先建立本帧证据（memo 前提）
-        with patch("gamescript.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
+        with patch("shuabao.vision.matcher.cv2.matchTemplate", wraps=cv2.matchTemplate) as mt:
             a = self.med.find(f, ["skill_refresh_btn"], threshold=0.70, roi=(0.2, 0.45, 0.8, 0.8))
             self.assertIsNotNone(a)
             n1 = mt.call_count
@@ -172,8 +172,8 @@ class FrameEvidenceTests(unittest.TestCase):
                 return Frame(bgr=None, hwnd=101, is_valid=False, error="capture failed")
             return _noise_frame(hwnd=202)
 
-        with patch("gamescript.mediator.find_window_targets", return_value=targets), \
-             patch("gamescript.mediator.capture_target", side_effect=fake_capture) as ct, \
+        with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+             patch("shuabao.mediator.capture_target", side_effect=fake_capture) as ct, \
              patch.object(med, "_frame_signal", return_value=60) as fs:
             frame = med._capture_best("英雄三国KK", "l1")
             self.assertEqual(ct.call_count, 1, "连续第 1 帧失配只抓上次健康 hwnd，不枚举候选")
@@ -221,16 +221,28 @@ class CadenceTests(unittest.TestCase):
         # 非静态不健康等待 → 500ms
         self.med._last_health = None
         med2 = Mediator(Settings(), ROOT)
-        from gamescript.vision.capture import FrameHealthResult, FrameHealthIssue
+        from shuabao.vision.capture import FrameHealthResult, FrameHealthIssue
         med2._last_health = FrameHealthResult(is_healthy=False, issues=[FrameHealthIssue.BLACK_FRAME])
         med2._context_cache_value = "MAIN_LINE"
         self.assertEqual(med2._cadence_for_current_state(), 0.500)
 
     def test_run_loop_sleeps_cadence_minus_elapsed(self):
-        med = Mediator(Settings(), ROOT)
+        settings = Settings()
+        # cadence 数学与输入模式无关；钉住 dry_run 避免落入提权守卫（1d8f101 翻默认后）。
+        settings.dry_run = True
+        med = Mediator(settings, ROOT)
         frame = _noise_frame()
         med._capture_best = lambda *a, **k: frame
-        mono_ticks = iter([100.0, 100.02, 200.0, 200.01])
+        # f401a3b 起 tick() 内部（auto_task fuse 等）也会读 time.monotonic，
+        # 固定 4 值脚本会被额外读数打穿；改为无限递增假时钟（每次 +0.01s），
+        # 只锁定不变量：两 tick 之间恰好 sleep 一次，且 sleep = cadence - elapsed。
+        mono_state = {"now": 100.0}
+
+        def fake_monotonic() -> float:
+            value = mono_state["now"]
+            mono_state["now"] += 0.01
+            return value
+
         sleeps: list[float] = []
 
         class _NoopListener:
@@ -243,16 +255,20 @@ class CadenceTests(unittest.TestCase):
             def stop(self):
                 pass
 
-        with patch("gamescript.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
-             patch("gamescript.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
-             patch("gamescript.mediator.EmergencyStopListener", _NoopListener), \
+        with patch("shuabao.mediator.time.monotonic", side_effect=fake_monotonic), \
+             patch("shuabao.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
+             patch("shuabao.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "stop") as stop:
             med.run(max_steps=2)
             stop.assert_not_called()
 
-        self.assertEqual(len(sleeps), 1)
-        # 稳定 HUD cadence 300ms - tick 耗时 20ms = 280ms
-        self.assertAlmostEqual(sleeps[0], 0.28, places=6)
+        # run() 启动时的 find_window_targets 窗口扫描会产生 0.05s×n 的内部
+        # sleep（全局 time 模块被 patch 波及）；只对 cadence 级 sleep（>0.2s）
+        # 断言：恰好一次，且 = 稳定 HUD cadence 300ms - tick 内少量耗时。
+        cadence_sleeps = [x for x in sleeps if x > 0.2]
+        self.assertEqual(len(cadence_sleeps), 1)
+        self.assertGreater(cadence_sleeps[0], 0.25)
+        self.assertLessEqual(cadence_sleeps[0], 0.30)
         self.assertEqual(med.game_count, 0)
 
 
@@ -287,7 +303,7 @@ class TickReasonWhitelistTests(unittest.TestCase):
         med = Mediator(Settings(), ROOT)
         frame = _noise_frame()
         med._capture_best = lambda *a, **k: frame
-        with patch("gamescript.mediator.time.perf_counter", side_effect=[0.0, 0.9, 0.9, 1.0]):
+        with patch("shuabao.mediator.time.perf_counter", side_effect=[0.0, 0.9, 0.9, 1.0]):
             # see() 捕获计时 900ms → reason=capture_wait
             med._tick_reason = None
             med.see("slow-capture-test")
@@ -348,7 +364,7 @@ class ReviewFixTests(unittest.TestCase):
 
     # #3 dry-run 成功输入也走输入序列授权（LIVE/OBSERVE 语义等价）
     def test_dry_run_successful_input_advances_input_seq_and_blocks_second_action(self):
-        from gamescript.vision.matcher import MatchResult
+        from shuabao.vision.matcher import MatchResult
 
         f = _load("fixtures/replay/skill_choice_3.png")
         self.med._last_frame = f
@@ -389,12 +405,24 @@ class ReviewFixTests(unittest.TestCase):
 
     # #5 loading cadence 不被 loop_sleep_ms 上限压缩
     def test_loading_cadence_not_compressed_by_loop_sleep_ms(self):
-        med = Mediator(Settings(), ROOT)
+        settings = Settings()
+        # 同上：cadence 数学与输入模式无关，钉住 dry_run。
+        settings.dry_run = True
+        med = Mediator(settings, ROOT)
         frame = _noise_frame()
         med._capture_best = lambda *a, **k: frame
         med.set_phase(Phase.ROOM_STARTING, "loading")
         med._context_cache_value = "MAIN_LINE"  # loading 档判定不依赖 UNKNOWN 快捷档
-        mono_ticks = iter([100.0, 100.02, 200.0, 200.01])
+        # f401a3b 起 tick() 内部（auto_task fuse 等）也会读 time.monotonic，
+        # 固定 4 值脚本会被额外读数打穿；改为无限递增假时钟（每次 +0.01s），
+        # 只锁定不变量：两 tick 之间恰好 sleep 一次，且 sleep = cadence - elapsed。
+        mono_state = {"now": 100.0}
+
+        def fake_monotonic() -> float:
+            value = mono_state["now"]
+            mono_state["now"] += 0.01
+            return value
+
         sleeps: list[float] = []
 
         class _NoopListener:
@@ -407,17 +435,20 @@ class ReviewFixTests(unittest.TestCase):
             def stop(self):
                 pass
 
-        with patch("gamescript.mediator.time.monotonic", side_effect=lambda: next(mono_ticks)), \
-             patch("gamescript.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
-             patch("gamescript.mediator.EmergencyStopListener", _NoopListener), \
+        with patch("shuabao.mediator.time.monotonic", side_effect=fake_monotonic), \
+             patch("shuabao.mediator.time.sleep", side_effect=lambda s: sleeps.append(s)), \
+             patch("shuabao.mediator.EmergencyStopListener", _NoopListener), \
              patch.object(med, "set_phase", lambda phase, note="": None), \
              patch.object(med, "_detect_context", return_value="MAIN_LINE"), \
              patch.object(med, "stop") as stop:
             med.run(max_steps=2)
             stop.assert_not_called()
-        self.assertEqual(len(sleeps), 1)
-        # loading 档 cadence 500ms - tick 20ms = 480ms（不被 loop_sleep_ms=400 压缩成 380ms）
-        self.assertAlmostEqual(sleeps[0], 0.48, places=6)
+        # 同上：过滤掉窗口扫描的 0.05s 内部 sleep，只断言 cadence 级 sleep。
+        # 关键不变量：loading 档 500ms 不被 loop_sleep_ms=400ms 上限压缩（>0.45）。
+        cadence_sleeps = [x for x in sleeps if x > 0.2]
+        self.assertEqual(len(cadence_sleeps), 1)
+        self.assertGreater(cadence_sleeps[0], 0.45)
+        self.assertLessEqual(cadence_sleeps[0], 0.50)
 
     # #4 HERO_SETUP 也建立 evidence（hero 点击链受 generation 门禁）
     def test_hero_setup_establishes_evidence_for_generation_gating(self):
@@ -445,8 +476,8 @@ class ReviewFixTests(unittest.TestCase):
         def fake_capture(t: WindowTarget) -> Frame:
             return frames[t.hwnd]
 
-        with patch("gamescript.mediator.find_window_targets", return_value=targets), \
-             patch("gamescript.mediator.capture_target", side_effect=fake_capture) as ct, \
+        with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+             patch("shuabao.mediator.capture_target", side_effect=fake_capture) as ct, \
              patch.object(med, "_sticky_frame_signal", return_value=False):
             f1 = med._capture_best("英雄三国KK", "l1")
             self.assertEqual(ct.call_count, 1, "第 1 帧无信号仍返回上次 hwnd（容忍 1 帧）")
@@ -468,8 +499,8 @@ class ReviewFixTests(unittest.TestCase):
         def fake_capture(t: WindowTarget) -> Frame:
             return frames[t.hwnd]
 
-        with patch("gamescript.mediator.find_window_targets", return_value=targets), \
-             patch("gamescript.mediator.capture_target", side_effect=fake_capture) as ct, \
+        with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+             patch("shuabao.mediator.capture_target", side_effect=fake_capture) as ct, \
              patch.object(med, "_sticky_frame_signal", return_value=True):
             for _ in range(3):
                 f = med._capture_best("英雄三国KK", "l1")
@@ -478,7 +509,7 @@ class ReviewFixTests(unittest.TestCase):
 
     # #6 refresh/give_up 宽尺度回退受 _scaled_up_frame 门禁
     def test_reward_choice_wide_fallback_gated_by_scaled_up_frame(self):
-        from gamescript.vision.matcher import MatchResult
+        from shuabao.vision.matcher import MatchResult
 
         f = _load("fixtures/replay/skill_choice_3.png")
         self.med._last_frame = f

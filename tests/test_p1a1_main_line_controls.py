@@ -11,13 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-import gamescript.loop_action
-from gamescript.input.keyboard_mouse import ActionResult
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+import shuabao.loop_action
+from shuabao.input.keyboard_mouse import ActionResult
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 from run_replay import run_replay_fixture
 
 
@@ -54,7 +54,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(self.med.executor, "press_key") as mock_press_key:
 
             action = self.med._tick_main_line(f)
-            self.assertEqual(action, gamescript.loop_action.LoopAction.Break)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Break)
             self.assertEqual(self.med.phase, Phase.ERROR)
 
             mock_act_click.assert_not_called()
@@ -66,9 +66,10 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             mock_press_key.assert_not_called()
 
     def test_all_unverified_post_game_scenes_halt_before_any_input(self):
-        # S0 ⑧：archive/boss_entry 在局尾窗口（战后流程进行中）Fail-Closed；
-        # longzhu 色相检查移至 LONGZHU 阶段（MAIN_LINE 不再扫描）。
-        for scene_key in ["archive", "boss_entry"]:
+        # S0 ⑧：archive 在局尾窗口（战后流程进行中）Fail-Closed；
+        # boss_entry 20260822 起是 Boss 提前挑战入口：未配置挑战 Boss 时零输入
+        # 等待（不 ERROR、零输入）；longzhu 色相检查移至 LONGZHU 阶段。
+        for scene_key in ["archive"]:
             med = Mediator(self.settings, ROOT)
             f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
             med._last_frame = f
@@ -84,10 +85,28 @@ class P1A1MainLineControlsTests(unittest.TestCase):
                  patch.object(med.executor, "right_click") as mock_right_click:
 
                 action = med._tick_main_line(f)
-                self.assertEqual(action, gamescript.loop_action.LoopAction.Break)
+                self.assertEqual(action, shuabao.loop_action.LoopAction.Break)
                 self.assertEqual(med.phase, Phase.ERROR)
                 mock_click.assert_not_called()
                 mock_right_click.assert_not_called()
+
+        # boss_entry 未配置挑战 Boss：零输入 Continue、不进 ERROR
+        med = Mediator(self.settings, ROOT)
+        f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
+        med._last_frame = f
+        med.phase = Phase.MAIN_LINE
+        med._post_game_pending = True
+        boss_scene_hit = MatchResult(name="boss_entry", score=0.9, x=100, y=100, w=50, h=50, screen_x=100, screen_y=100)
+        toggle_hit = MatchResult(name="auto_task_toggle", score=0.9, x=1400, y=500, w=30, h=30, screen_x=1400, screen_y=500)
+        with patch.object(med, "find_scene", side_effect=lambda frame, scene, **kw: boss_scene_hit if scene == "boss_entry" else None), \
+             patch.object(med, "_find_auto_task_toggle", return_value=toggle_hit), \
+             patch.object(med.executor, "click") as mock_click, \
+             patch.object(med.executor, "right_click") as mock_right_click:
+            action = med._tick_main_line(f)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
+            self.assertEqual(med.phase, Phase.MAIN_LINE)
+            mock_click.assert_not_called()
+            mock_right_click.assert_not_called()
 
         # longzhu：LONGZHU 阶段才检查并 Fail-Closed
         med = Mediator(self.settings, ROOT)
@@ -98,7 +117,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(med.executor, "click") as mock_click, \
              patch.object(med.executor, "right_click") as mock_right_click:
             action = med._tick_l1_tail(f)
-            self.assertEqual(action, gamescript.loop_action.LoopAction.Break)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Break)
             self.assertEqual(med.phase, Phase.ERROR)
             mock_click.assert_not_called()
             mock_right_click.assert_not_called()
@@ -115,7 +134,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(self.med.executor, "right_click", return_value=ActionResult(success=True, status="DRY_RUN")) as mock_right_click:
 
             action = self.med._tick_main_line(f_off)
-            self.assertEqual(action, gamescript.loop_action.LoopAction.Continue)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
 
             mock_click.assert_called_once()
             mock_right_click.assert_not_called()
@@ -171,7 +190,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.med._auto_task_attempts = 3
         with patch.object(self.med.executor, "click") as mock_click:
             res = self.med._ensure_auto_task_enabled(f_off)
-            self.assertEqual(res, gamescript.loop_action.LoopAction.Break)
+            self.assertEqual(res, shuabao.loop_action.LoopAction.Break)
             self.assertEqual(self.med.phase, Phase.ERROR)
             mock_click.assert_not_called()
 
@@ -194,17 +213,17 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(self.med.executor, "right_click") as mock_right_click:
 
             action1 = self.med._tick_main_line(f_off)
-            self.assertEqual(action1, gamescript.loop_action.LoopAction.Continue)
+            self.assertEqual(action1, shuabao.loop_action.LoopAction.Continue)
             self.assertEqual(self.med._auto_task_attempts, 1)
             mock_right_click.assert_not_called()
 
             action2 = self.med._tick_main_line(f_off)
-            self.assertEqual(action2, gamescript.loop_action.LoopAction.Continue)
+            self.assertEqual(action2, shuabao.loop_action.LoopAction.Continue)
             self.assertEqual(self.med._auto_task_attempts, 2)
             mock_right_click.assert_not_called()
 
             action3 = self.med._tick_main_line(f_off)
-            self.assertEqual(action3, gamescript.loop_action.LoopAction.Break)
+            self.assertEqual(action3, shuabao.loop_action.LoopAction.Break)
             self.assertEqual(self.med._auto_task_attempts, 3)
             self.assertEqual(self.med.phase, Phase.ERROR)
             mock_right_click.assert_not_called()
@@ -215,7 +234,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.med._last_frame = f_off
 
         self.med.stop_signal.trigger("Emergency stop test")
-        self.assertEqual(self.med.tick(), gamescript.loop_action.LoopAction.Break)
+        self.assertEqual(self.med.tick(), shuabao.loop_action.LoopAction.Break)
 
     # 4. 回放严格性与动作类型校验 (Section IV)
     def test_replay_strictness_input_kind_mismatch_fails(self):
@@ -291,22 +310,12 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.assertIsNotNone(choice2)
         self.assertEqual(choice2[1].name, "dcw")
 
-    def test_skill_choice_no_preferred_hit_refreshes_then_gives_up(self):
-        # 技能只允许用户配置项：无命中先刷新，用完后放弃。
+    def test_skill_choice_no_preferred_hit_refreshes_then_blocks_giveup(self):
+        # 技能只允许用户配置项：无命中绝不刷新也不放弃，直接返回 skill_hide 或零输入
         f4 = load_fixture_frame("fixtures/replay/skill_choice_4.jpg")
         self.settings.skills = ["asj", "jq"]  # 不在该面板上的技能
         choice = self.med._find_reward_choice(f4)
-        self.assertIsNotNone(choice)
-        kind, hit = choice
-        self.assertEqual(kind, "技能刷新")
-        self.assertEqual(hit.name, "skill_refresh_btn")
-
-        self.med._skill_refresh_attempts = 3
-        choice = self.med._find_reward_choice(f4)
-        self.assertIsNotNone(choice)
-        self.assertEqual(choice[0], "技能放弃")
-        self.assertIn(choice[1].name, ("skill_giveup_btn", "giveUp"))
-
+        self.assertIsNone(choice, "技能选择无匹配项且无隐藏钮时零输入，绝不刷新或放弃")
     def test_skill_choice_candidate_count_is_not_a_hard_gate(self):
         # 57d40ce 移除 3/4 数量门：少识别/多误识别不阻塞，只选配置内的候选
         # （按 settings.skills 配置顺序，不按视觉分数）。
@@ -317,7 +326,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             MatchResult(name="skills/asj", score=0.9, x=752, y=260, w=98, h=97, screen_x=752, screen_y=260),
             MatchResult(name="skills/ys", score=0.9, x=519, y=260, w=98, h=97, screen_x=519, screen_y=260),
         ]
-        with patch("gamescript.mediator.match_all", return_value=mock_candidates_2):
+        with patch("shuabao.mediator.match_all", return_value=mock_candidates_2):
             choice = self.med._find_reward_choice(f3)
             self.assertIsNotNone(choice)
             self.assertEqual(Path(choice[1].name).stem, "asj")
@@ -329,25 +338,28 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             MatchResult(name="skills/byj", score=0.9, x=800, y=260, w=98, h=97, screen_x=800, screen_y=260),
             MatchResult(name="skills/dcw", score=0.9, x=900, y=260, w=98, h=97, screen_x=900, screen_y=260),
         ]
-        with patch("gamescript.mediator.match_all", return_value=mock_candidates_5):
+        with patch("shuabao.mediator.match_all", return_value=mock_candidates_5):
             choice = self.med._find_reward_choice(f3)
             self.assertIsNotNone(choice)
             self.assertEqual(Path(choice[1].name).stem, "asj")  # 配置序第一，忽略配置外候选
 
-        # 候选全在配置外 → 绝不返回配置外的卡；品质色回退或零动作
+        # 候选全在配置外 → 绝不返回配置外的卡；返回 skill_hide 或零动作
         mock_outside = [
             MatchResult(name="skills/zzz", score=0.95, x=600, y=260, w=98, h=97, screen_x=600, screen_y=260),
         ]
-        with patch("gamescript.mediator.match_all", return_value=mock_outside):
+        with patch("shuabao.mediator.match_all", return_value=mock_outside):
             choice = self.med._find_reward_choice(f3)
             self.assertIsNotNone(choice)
-            self.assertEqual(choice[1].name, "skill_refresh_btn")
-
+            self.assertEqual(choice[1].name, "skill_hide")
     def test_treasure_fixture_uses_real_card_centers_and_not_skill_layout(self):
         # A3：禁止无脑第一张；无 cards 偏好时宝物可走品质色（负面剔除后），
         # 坐标仍必须是宝物布局而非技能布局。
+        # 2026-08-16 L1 裁决：新判别纪律下自然宝物面板（lock 0.785 弱命中 +
+        # 共用刷新图 0.916）不再单凭模板定类为 treasure；按 V 键打开的
+        # 面板走「主动打开键位优先」路径，kind=treasure 由键位保证。
         frame = load_fixture_frame("fixtures/replay/treasure_choice_3.png")
         self.settings.cards = []
+        self.med._panel_opened_by_us = "treasure"
         choice = self.med._find_reward_choice(frame)
         self.assertIsNotNone(choice)
         kind, hit = choice
@@ -377,7 +389,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
              patch.object(self.med.executor, "click") as mock_click, \
              patch.object(self.med.executor, "right_click") as mock_rc:
             action = self.med.tick()
-            self.assertEqual(action, gamescript.loop_action.LoopAction.Continue)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
             self.assertEqual(self.med.phase, Phase.MAIN_LINE, "giveUp+面板锚点不得进入 fail/QUIT 流程")
             self.assertNotEqual(self.med.phase, Phase.QUIT)
             self.assertIsNone(self.med._recovery_state, "giveUp+面板锚点不得触发恢复")
@@ -391,12 +403,15 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         frame = load_fixture_frame("fixtures/replay/treasure_choice_3.png")
         frame.hwnd = 10001
         self.med.set_phase(Phase.MAIN_LINE, "treasure longzhu guard")
+        # 2026-08-16 L1 裁决：同上——按 V 打开的宝物面板，kind 由键位优先保证；
+        # 本测试核心是「面板处理优先于龙珠停手」，不是模板定类本身。
+        self.med._panel_opened_by_us = "treasure"
         false_longzhu = MatchResult("longzhu", 0.95, 700, 250, 80, 80, 700, 250)
         with patch.object(self.med, "_post_game_state", return_value=None), \
              patch.object(self.med, "find_scene", return_value=false_longzhu) as scene, \
              patch.object(self.med, "act_click", return_value=True) as click:
             action = self.med._tick_main_line(frame)
-        self.assertEqual(action, gamescript.loop_action.LoopAction.Continue)
+        self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
         self.assertEqual(self.med.phase, Phase.MAIN_LINE)
         scene.assert_not_called()
         click.assert_called_once()
