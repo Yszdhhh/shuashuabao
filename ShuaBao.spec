@@ -21,8 +21,13 @@ a = Analysis(
     datas=[
         (str(PROJECT_ROOT / "assets"), "assets"),
         (str(PROJECT_ROOT / "config"), "config"),
+        (str(PROJECT_ROOT / "ui-v2" / "dist"), "web" / "dist"),
     ],
-    hiddenimports=[],
+    hiddenimports=[
+        "PySide6.QtWebEngineWidgets",
+        "PySide6.QtWebEngineCore",
+        "PySide6.QtWebChannel",
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
