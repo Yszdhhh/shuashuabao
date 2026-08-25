@@ -43,12 +43,12 @@
 
 ### Task 2: ui-v2 脚手架 + OD12 原样迁移（Agent A）
 
-**Files（全部新建）:** `ui-v2/{package.json,vite.config.ts,tsconfig.json,index.html,src/main.ts,src/od12/*,src/bridge/types.ts,src/bridge/mockBridge.ts,public/assets/**}`
+**Files（全部新建）:** `ui-v2/{package.json,vite.config.ts,tsconfig.json,index.html,src/main.ts,src/bridge/types.ts,src/bridge/mockBridge.ts,public/assets/**}`
 
 - [ ] 复制 OD12 HTML → `ui-v2/index.html`；仅执行规格 §5 删改清单（studio-bar/notes/stage/canvas/views、`?scene=`、localStorage scene/team-rules、420ms setTimeout、rsms link、`state._log`、`.game-view` 缺失背景图）
-- [ ] OD12 内嵌 JS 迁入 `src/od12/`（原逻辑，仅按 §7 替换点改为 bridge 调用；本任务先接 mockBridge）
+- [ ] 保留 OD12 内嵌产品 CSS/JS 原样；本任务只用 mockBridge 预留 TypeScript 契约，Task 5 再最小替换 fake actions，禁止重写/抽取为新组件。
 - [ ] `types.ts` 按规格 §6.2 逐字定义；`mockBridge.ts` 诚实数据（形状=types.ts）
-- [ ] assets 映射：`assets/Images/{skills,factions,boss,chuanjiaobao}` + branding logo → `public/assets/…` 对应 OD12 相对路径
+- [ ] 构建期复制 `C:\Users\10639\Desktop\刷刷宝源文件\assets\` → `public/assets/`，使 OD12 现有相对资源路径不变；运行时不得访问参考目录
 - [ ] `npm ci && npm run build && tsc --noEmit` 离线通过；`vite preview` 手动核对 farm/follow/hitch/声望弹层渲染
 - [ ] vitest：mockBridge 数据形状 = types.ts（一个文件即可）
 - [ ] commit `feat(ui-v2): OD12 production shell scaffold (sandbox chrome stripped)`

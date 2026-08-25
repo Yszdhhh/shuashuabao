@@ -68,12 +68,11 @@ ui-v2/
       types.ts          ← 唯一 DTO/接口事实源（TS）
       qtBridge.ts       ← QWebChannel 实现（qrc:///qtwebchannel/qwebchannel.js）
       mockBridge.ts     ← 诚实本地假数据（浏览器开发/测试用）
-    od12/               ← OD12 原始 JS 逻辑最小迁移（状态渲染函数）
-  assets/               ← app_logo、skills、factions、boss、chuanjiaobao（复制自仓库 assets/Images 对应项）
+  public/assets/        ← 导入时从参考 assets/ 复制；运行时唯一 UI 资产来源
   package.json / vite.config.ts / tsconfig.json
-```
 
-- `assets` 从仓库现有 `assets/Images/` 复制映射为 OD12 期望的相对路径（`assets/skills/*.png` 等）；不引用桌面参考目录。
+- 首阶段保留 OD12 的内嵌产品脚本，先证明原样渲染；bridge 接线阶段只替换假状态/假动作，不做组件化抽取。
+- 参考 `C:\Users\10639\Desktop\刷刷宝源文件\assets\` 仅在导入时复制到 Git 内 `ui-v2/public/assets/`；生产程序只读取构建产物，不访问参考目录。 
 - 业务组件不得感知 mock/Qt 环境——统一经 `bridge` 接口。
 
 ## 5. OD12 生产化边界（唯一允许的删改清单）
