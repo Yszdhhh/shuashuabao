@@ -11,15 +11,20 @@ FileDescription）和桌面快捷方式「刷刷宝」提供。
 
 from pathlib import Path
 import shiboken6
+import sys
 
 
 PROJECT_ROOT = Path(SPECPATH)
 SHIBOKEN_DLL = Path(shiboken6.__file__).resolve().parent / "shiboken6.abi3.dll"
+PYSIDE_ABI_DLL = Path(sys.base_prefix) / "python3.dll"
 
 a = Analysis(
     [str(PROJECT_ROOT / "desktop_app.py")],
     pathex=[str(PROJECT_ROOT / "src")],
-    binaries=[(str(SHIBOKEN_DLL), ".")],
+    binaries=[
+        (str(SHIBOKEN_DLL), "PySide6"),
+        (str(PYSIDE_ABI_DLL), "PySide6"),
+    ],
     datas=[
         (str(PROJECT_ROOT / "assets"), "assets"),
         (str(PROJECT_ROOT / "config"), "config"),
@@ -32,11 +37,14 @@ a = Analysis(
     ],
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=[],
+    runtime_hooks=[str(PROJECT_ROOT / "packaging" / "pyi_rth_pyside6_path.py")],
     excludes=["fastapi", "uvicorn", "webview"],
     noarchive=False,
     optimize=1,
 )
+# The host's Poppler runtime leaks an incompatible ICU DLL through PATH; Qt resolves
+# the system ICU correctly when this foreign binary is not bundled.
+a.binaries[:] = [entry for entry in a.binaries if entry[0].lower() != "icuuc.dll"]
 
 pyz = PYZ(a.pure)
 

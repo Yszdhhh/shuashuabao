@@ -138,13 +138,22 @@ def main_e2e(app_data: Path) -> int:
     check("settings_read", "settings" in snap0 and isinstance(snap0.get("modes"), list),
           f"cycle_num={snap0['settings'].get('cycle_num')}")
 
-    patch = {"cycle_num": 7, "dry_run": True}
+    patch = {
+        "cycle_num": 7,
+        "dry_run": True,
+        "stage_targets": ["3-8"],
+        "auto_reputation": True,
+        "reputation_allocations": {"3": 5, "5": 2},
+    }
     upd = json.loads(facade.update_config(json.dumps(patch)))
     check("settings_update_ok", upd.get("ok") is True,
           str(upd.get("errors") or ""))
     check("settings_update_applied",
           upd.get("settings", {}).get("cycle_num") == 7
-          and upd.get("settings", {}).get("dry_run") is True)
+          and upd.get("settings", {}).get("dry_run") is True
+          and upd.get("settings", {}).get("stage_targets") == ["3-8"]
+          and upd.get("settings", {}).get("auto_reputation") is True
+          and upd.get("settings", {}).get("reputation_allocations") == {"3": 5, "5": 2})
 
     settings_file = user_settings_path(app_data)
     check("settings_file_written", settings_file.exists(), str(settings_file))
@@ -154,9 +163,15 @@ def main_e2e(app_data: Path) -> int:
     snap1 = json.loads(facade.get_snapshot())
     check("settings_persist_after_restart",
           snap1["settings"].get("cycle_num") == 7
-          and snap1["settings"].get("dry_run") is True,
+          and snap1["settings"].get("dry_run") is True
+          and snap1["settings"].get("stage_targets") == ["3-8"]
+          and snap1["settings"].get("reputation_allocations") == {"3": 5, "5": 2},
           f"cycle_num={snap1['settings'].get('cycle_num')}, "
           f"dry_run={snap1['settings'].get('dry_run')}")
+
+    shell = json.loads(facade.update_shell(json.dumps({"selected_mode_id": "follow_team"})))
+    check("mode_selection_persisted", shell.get("ok") is True
+          and shell.get("shell", {}).get("selected_mode_id") == "follow_team")
 
     # ---- 2. preflight 判定 -------------------------------------------------
     pre = json.loads(facade.validate_preflight(json.dumps({"mode_id": "normal_farm"})))

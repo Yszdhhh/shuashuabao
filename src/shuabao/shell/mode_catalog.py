@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 from typing import Any
 
 from shuabao.settings import Settings
 
-ROOT = Path(__file__).resolve().parents[3]
+# PyInstaller keeps config under _MEIPASS; source runs still use the repository root.
+ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[3]))
 SPECS_PATH = ROOT / "config" / "mode_specs.json"
 PERSIST_DENYLIST = frozenset({"lab_focus"})
 

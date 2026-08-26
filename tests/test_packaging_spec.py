@@ -41,7 +41,25 @@ def test_spec_uses_windowed_non_elevated_exe_with_app_icon() -> None:
 def test_spec_places_shiboken_loader_dll_on_windows_search_path() -> None:
     text = _spec_text()
     assert "SHIBOKEN_DLL" in text
-    assert 'binaries=[(str(SHIBOKEN_DLL), ".")]' in text
+    assert '(str(SHIBOKEN_DLL), "PySide6")' in text
+    assert '(str(PYSIDE_ABI_DLL), "PySide6")' in text
+
+
+def test_spec_registers_pyside_dll_directory_before_imports() -> None:
+    text = _spec_text()
+    assert 'runtime_hooks=[str(PROJECT_ROOT / "packaging" / "pyi_rth_pyside6_path.py")]' in text
+    hook = (PROJECT_ROOT / "packaging" / "pyi_rth_pyside6_path.py").read_text(encoding="utf-8")
+    assert 'os.add_dll_directory(str(_pyside_dir))' in hook
+
+
+def test_spec_excludes_host_icu_dll_that_breaks_qtcore() -> None:
+    text = _spec_text()
+    assert 'entry[0].lower() != "icuuc.dll"' in text
+
+
+def test_mode_catalog_uses_frozen_resource_root() -> None:
+    text = (PROJECT_ROOT / "src" / "shuabao" / "shell" / "mode_catalog.py").read_text(encoding="utf-8")
+    assert 'getattr(sys, "_MEIPASS"' in text
 
 
 def test_spec_excludes_legacy_http_and_webview_backends() -> None:

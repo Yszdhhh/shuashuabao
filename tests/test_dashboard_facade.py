@@ -136,6 +136,23 @@ def test_update_config_valid_fields_persist(qapp, tmp_path: Path):
     assert json.loads(f2.get_snapshot())["settings"]["click_delay_ms"] == 250
 
 
+def test_stage_target_and_hero_plan_round_trip_to_runtime_settings(qapp, tmp_path: Path):
+    f = DashboardFacade(tmp_path)
+    patch = {
+        "stage_targets": ["3-8"],
+        "auto_reputation": True,
+        "reputation_allocations": {"3": 5, "5": 2},
+    }
+    res = json.loads(f.update_config(json.dumps(patch)))
+    assert res["ok"] is True
+    assert res["settings"]["stage_targets"] == ["3-8"]
+    assert res["settings"]["auto_reputation"] is True
+    assert res["settings"]["reputation_allocations"] == {"3": 5, "5": 2}
+    f2 = DashboardFacade(tmp_path)
+    persisted = json.loads(f2.get_snapshot())["settings"]
+    assert {key: persisted[key] for key in patch} == patch
+
+
 def test_update_config_filters_invalid_and_never_writes(qapp, tmp_path: Path):
     path = user_settings_path(tmp_path)
     path.parent.mkdir(parents=True, exist_ok=True)
