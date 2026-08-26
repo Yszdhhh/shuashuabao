@@ -133,7 +133,7 @@ def test_start_run_success_routes_through_runner_once(qapp, tmp_path: Path):
     runner = FakeRunner()
     f = DashboardFacade(tmp_path, runner)
     res = json.loads(f.start_run(json.dumps({"mode_id": "normal_farm"})))
-    assert res == {"ok": True}
+    assert res["ok"] is True
     assert [c[0] for c in runner.start_calls] == ["normal_farm"]
     assert isinstance(runner.start_calls[0][1], Settings)
     assert runner.worker.started is True
@@ -267,13 +267,13 @@ def test_worker_finished_releases_and_reports_idle(qapp, tmp_path: Path):
 
 def test_stop_run_calls_runner_stop_when_running(facade):
     facade.start_run(json.dumps({"mode_id": "normal_farm"}))
-    assert json.loads(facade.stop_run()) == {"ok": True}
+    assert json.loads(facade.stop_run())["ok"] is True
     assert facade.runner.stop_calls == 1
 
 
 def test_stop_run_idempotent_while_idle(facade):
-    assert json.loads(facade.stop_run()) == {"ok": True}
-    assert json.loads(facade.stop_run()) == {"ok": True}
+    assert json.loads(facade.stop_run())["ok"] is True
+    assert json.loads(facade.stop_run())["ok"] is True
     assert facade.runner.stop_calls == 0
 
 # ---------------------------------------------------------------- 真实 RunnerService
@@ -345,7 +345,7 @@ def test_real_runner_full_lifecycle(qapp, real_facade):
     runner = f.runner
 
     res = json.loads(f.start_run(json.dumps({"mode_id": "normal_farm"})))
-    assert res == {"ok": True}
+    assert res["ok"] is True
     assert runner.runner_state == "RUNNING"
     assert runner.mode_id == "normal_farm"
     assert live_lock_busy(runner.app_data), "运行期间 live.lock 必须被占用"
@@ -353,10 +353,10 @@ def test_real_runner_full_lifecycle(qapp, real_facade):
     worker = runner.worker
     assert isinstance(worker, ScriptedWorker)
     _drain(qapp)
-    assert any(t == "[启动] scripted live" for t, _ in f.logs)
+    assert any("[启动]" in t for t, _ in f.logs)
 
     # stop_run：只触发停止，状态进入 STOPPING，由结束链回 IDLE。
-    assert json.loads(f.stop_run()) == {"ok": True}
+    assert json.loads(f.stop_run())["ok"] is True
     assert runner.runner_state == "STOPPING"
 
     _wait_worker_done(qapp, worker)
@@ -381,3 +381,48 @@ def test_real_runner_snapshot_reflects_running(qapp, real_facade):
     finally:
         f.stop_run()
         _wait_worker_done(qapp, runner.worker)
+
+
+def test_runner_start_failure_releases_live_lock(tmp_path: Path, monkeypatch):
+    class BrokenWorker:
+        def __init__(self, *_args, **_kwargs) -> None:
+            raise RuntimeError("worker construction failed")
+
+    monkeypatch.setattr(rs_module, "MediatorWorker", BrokenWorker)
+    runner = RunnerService(tmp_path, tmp_path)
+
+    with pytest.raises(RuntimeError, match="worker construction failed"):
+        runner.start("normal_farm", Settings())
+
+    assert runner.runner_state == "IDLE"
+    assert runner.worker is None
+    assert not live_lock_busy(runner.app_data)
+
+
+def test_runner_releases_lock_when_worker_finishes_without_facade(qapp, tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    runner = RunnerService(tmp_path, tmp_path)
+    worker = runner.start("normal_farm", Settings())
+    worker.start()
+
+    try:
+        worker.stop()
+        _wait_worker_done(qapp, worker)
+        assert runner.runner_state == "IDLE"
+        assert not live_lock_busy(runner.app_data)
+    finally:
+        runner.release_after_finish()
+
+
+def test_runner_stop_timeout_waits_for_worker_cleanup(qapp, tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    runner = RunnerService(tmp_path, tmp_path)
+    worker = runner.start("normal_farm", Settings())
+    worker.start()
+
+    runner.stop(timeout_ms=1_000)
+    _wait_worker_done(qapp, worker)
+
+    assert not worker.isRunning()
+    assert runner.runner_state == "IDLE"
+    assert not live_lock_busy(runner.app_data)

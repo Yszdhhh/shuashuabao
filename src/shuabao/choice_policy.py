@@ -12,12 +12,11 @@
   → 4 技能角色协同（最高存档等级 CARRY；其余 AMPLIFIER）
   → 存档解锁/减伤核实（skill_penalty_rank / archive unlock）
   → 稀有度（槽位品质缺失/含混时用已核实的目录稀有度兜底）
-  → 焦点配置顺序 → 习惯分 → 槽位 index。卡名未读出或刷新指纹不变 → 只
-  WAIT/隐藏，禁止放弃技能点；无可选候选且刷新耗尽 → 默认隐藏；
-  仅 allow_skill_giveup 才 GIVEUP；
-- 羁绊：预设优先 → 接近合成者（set_progress 可验证字段，含 owned 成员清单）
-  → 品质降级（quality_order 确定性规则）；unknown 名称绝不冒充词典内羁绊
-  （只能 WAIT/REFRESH）；
+  → 焦点配置顺序 → 习惯分 → 槽位 index。卡名未读出仅短暂 WAIT；可读的
+  焦点未命中恒 CLOSE（不刷新、不放弃、不盲选），默认不补空槽；
+- 羁绊：默认硬白名单；预设/必拿优先，再按可验证 set_progress 的 2/4/6
+  跨档、剩余缺口、合成奖励排序。free_slots=2 拒绝散卡，=1 只收核心/跨档，
+  =0 只收合成或零成本；
 - 宝物：必拿名单（treasure_must_take，配置缺省时保留旧版「全都要/卡牌大师」
   子串特权）→ 预设 + 套装进度优先（龙珠进度必须来自可验证字段
   set_progress.members/owned）→ 品质序降级；负面效果卡先整体剔除，
@@ -121,7 +120,6 @@ DEFAULT_NEGATIVE_NAMES = (
     "杀敌梭哈",
     "伐木契约",
     "等级优势",
-    "压制",
 )
 DEFAULT_MAX_ATTEMPTS = 12
 DEFAULT_MAX_REFRESHES = 3
@@ -179,6 +177,7 @@ class SlotCandidate:
     skill_level: int | None = None
     card_fact: Any = None
     family_source: str = "unknown"
+    zero_cost: bool = False
 
     def to_card_fact(self) -> Any:
         """转换为 Badge-first 的 CardFact 事实对象。"""
@@ -213,7 +212,7 @@ class PolicySettings:
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
     min_confidence: float = 0.0
-    bond_whitelist_mode: str = WHITELIST_SOFT
+    bond_whitelist_mode: str = WHITELIST_HARD
     bond_must_take: tuple[str, ...] = DEFAULT_BOND_MUST_TAKE
     treasure_negative_patterns: tuple[str, ...] = DEFAULT_NEGATIVE_PATTERNS
     treasure_negative_names: tuple[str, ...] = DEFAULT_NEGATIVE_NAMES
@@ -312,7 +311,7 @@ class PolicySettings:
             treasure_presets=tuple(str(s) for s in (raw.get("treasure_presets") or ())),
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
             min_confidence=0.0 if min_conf is None else float(min_conf),
-            bond_whitelist_mode=WHITELIST_SOFT if bond_mode is None else str(bond_mode),
+            bond_whitelist_mode=WHITELIST_HARD if bond_mode is None else str(bond_mode),
             bond_must_take=tuple(dict.fromkeys(
                 DEFAULT_BOND_MUST_TAKE + tuple(str(s) for s in (bond_must_take or ()))
             )),
@@ -436,7 +435,7 @@ def assemble_policy_settings(
         {
             "skill_presets": expand_skill_preset_names(tuple(skill_families)),
             "skill_focus_families": tuple(skill_families),
-            "skill_fill_empty_slots": bool(skill_cfg.get("fill_empty_slots", True)),
+            "skill_fill_empty_slots": bool(skill_cfg.get("fill_empty_slots", False)),
             "skill_archive_levels": getattr(settings, "skill_archive_levels", None),
             "skill_disabled_amplifiers": getattr(settings, "smart_route_disabled_amplifiers", None),
             "bond_presets": tuple(bond_presets),
@@ -445,7 +444,7 @@ def assemble_policy_settings(
             "min_confidence": 0.60 if min_conf is None else min_conf,
             "bond_whitelist_mode": (
                 getattr(settings, "bond_whitelist_mode", None)
-                or bond_cfg.get("whitelist_mode", WHITELIST_SOFT)
+                or bond_cfg.get("whitelist_mode", WHITELIST_HARD)
             ),
             "bond_must_take": tuple(dict.fromkeys(
                 DEFAULT_BOND_MUST_TAKE
@@ -505,6 +504,7 @@ class PanelCandidates:
     settings: PolicySettings | Mapping[str, Any] | None = None
     owned_skill_cards: tuple[str, ...] = ()
     owned_bond_cards: tuple[str, ...] = ()
+    free_slots: int | None = None
     def __post_init__(self) -> None:
         if self.panel_kind is not None and self.panel_kind not in VALID_PANEL_KINDS:
             raise ValueError(
@@ -537,7 +537,7 @@ def _coerce_slot(raw: Any) -> SlotCandidate:
         known = {
             "index", "name", "confidence", "evidence", "rarity",
             "description", "family", "prereq_marker", "is_new",
-            "skill_level", "card_fact", "family_source",
+            "skill_level", "card_fact", "family_source", "zero_cost",
         }
         return SlotCandidate(**{k: v for k, v in raw.items() if k in known})
     raise TypeError(f"slot must be SlotCandidate, CardFact or mapping, got {type(raw).__name__}")
@@ -615,9 +615,6 @@ def _all_skill_names_missing(slots: tuple[SlotCandidate, ...]) -> bool:
     return all(s.name is None and not (s.card_fact and s.card_fact.family) and not s.family for s in slots)
 
 
-def _refresh_unchanged(state: SessionState, slots: tuple[SlotCandidate, ...]) -> bool:
-    prev = state.last_slot_fingerprint
-    return bool(prev) and slot_fingerprint(slots) == prev
 
 
 def _skill_hold_or_hide(why: str) -> PolicyDecision:
@@ -927,7 +924,6 @@ def _decide_skill(
                 f"通用安全补位：{name}/{rarity} @ slot {index}",
             )
     unread = _all_skill_names_missing(cands.slots)
-    stale = _refresh_unchanged(state, cands.slots)
     max_skill_waits = min(state.max_waits, 2)
     if unread:
         if state.waits < max_skill_waits:
@@ -947,22 +943,69 @@ def _decide_skill(
         )
     )
     if readable_count > 0 and not ranked:
-        # 20260822 实机（trace 203910 20:42:17）：可读但全部未命中预设/焦点
-        # 时直接隐藏面板，用户明确要求先刷新找预设卡。刷新预算内且按钮
-        # 可用 → REFRESH；预算耗尽或不可刷新才隐藏（INV-SKILL-02 的
-        # "0-refresh" 语义就此被用户裁决覆盖：Focus-Miss 先刷后藏）。
-        if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
-            return PolicyDecision(
-                PolicyAction.REFRESH,
-                None,
-                f"技能未命中预设/焦点系（第 {state.refreshes + 1}/{state.max_refreshes} 次刷新找预设）",
-            )
         return PolicyDecision(
             PolicyAction.CLOSE,
             None,
-            "技能未命中预设/焦点系且刷新已耗尽，关闭面板",
+            "技能未命中预设/焦点系，严格关闭面板（不刷新/不放弃）",
         )
     return _skill_last_resort(cands, settings, "无预设/焦点技能")
+
+
+def _bond_progress_hits(
+    cands: PanelCandidates, slots: tuple[SlotCandidate, ...]
+) -> tuple[tuple[SlotCandidate, int, int, str], ...]:
+    """Verified (slot, tier-cross rank, remaining gap, set name) facts only."""
+    hits: list[tuple[SlotCandidate, int, int, str]] = []
+    for set_name, info in (cands.set_progress or {}).items():
+        if not isinstance(info, Mapping):
+            continue
+        try:
+            have, need = int(info.get("have", 0)), int(info.get("need", 0))
+        except (TypeError, ValueError):
+            continue
+        members, owned = info.get("members"), info.get("owned")
+        if (
+            not isinstance(members, (list, tuple, set, frozenset))
+            or not members
+            or not isinstance(owned, (list, tuple, set, frozenset))
+            or isinstance(owned, (str, bytes))
+        ):
+            continue
+        gap = need - have
+        if gap <= 0 or gap > MAX_SYNTHESIS_GAP:
+            continue
+        owned_names = {str(name) for name in owned}
+        tier_rank = 0 if have + 1 in (2, 4, 6) else 1
+        for slot in slots:
+            if slot.name and slot.name in members and slot.name not in owned_names:
+                hits.append((slot, tier_rank, gap - 1, str(set_name)))
+    return tuple(hits)
+
+
+def _bond_capacity_candidates(
+    cands: PanelCandidates, slots: tuple[SlotCandidate, ...], settings: PolicySettings
+) -> tuple[SlotCandidate, ...]:
+    """Apply explicit capacity pressure without guessing a replacement."""
+    free = cands.free_slots
+    if free is None or free >= 3:
+        return slots
+    progress = _bond_progress_hits(cands, slots)
+    progress_names = {slot.name for slot, _tier, _gap, _set in progress}
+    tier_names = {slot.name for slot, tier, _gap, _set in progress if tier == 0}
+    owned = {name for name in cands.owned_bond_cards if name}
+    kept: list[SlotCandidate] = []
+    for slot in slots:
+        merge = bool(slot.name and slot.name in owned)
+        core = _is_must_take(slot.name, settings.bond_must_take) or slot.name in settings.bond_presets
+        if free <= 0:
+            allowed = merge or slot.zero_cost
+        elif free == 1:
+            allowed = merge or core or slot.name in tier_names
+        else:
+            allowed = merge or slot.name in progress_names
+        if allowed:
+            kept.append(slot)
+    return tuple(kept)
 
 
 def _decide_collectible(
@@ -984,6 +1027,16 @@ def _decide_collectible(
                 )
     else:
         eligible = cands.slots
+        if kind == PANEL_BOND:
+            eligible = _bond_capacity_candidates(cands, eligible, settings)
+            if not eligible:
+                return _no_safe_candidate(cands, state, kind, "槽位压力下无可合成/核心候选")
+            if settings.bond_whitelist_mode == WHITELIST_HARD:
+                eligible = tuple(
+                    slot for slot in eligible
+                    if _is_must_take(slot.name, settings.bond_must_take)
+                    or slot.name in settings.bond_presets
+                )
         if kind == PANEL_BOND:
             for slot in eligible:
                 if (
@@ -1126,40 +1179,18 @@ def _match_synthesis(
     prog = cands.set_progress
     if not prog:
         return None
-    hits: list[tuple[int, str, int]] = []
-    for set_name, info in prog.items():
-        if not isinstance(info, Mapping):
-            continue
-        try:
-            have = int(info.get("have", 0))
-            need = int(info.get("need", 0))
-        except (TypeError, ValueError):
-            continue
-        gap = need - have
-        members_raw = info.get("members")
-        owned_raw = info.get("owned")
-        if not isinstance(members_raw, (list, tuple, set, frozenset)) or not members_raw:
-            continue
-        if owned_raw is None or isinstance(owned_raw, (str, bytes)):
-            continue
-        if not isinstance(owned_raw, (list, tuple, set, frozenset)):
-            continue
-        if gap <= 0 or gap > MAX_SYNTHESIS_GAP:
-            continue
-        members = tuple(members_raw)
-        owned_set = {str(o) for o in owned_raw}
-        for slot in (cands.slots if slots is None else slots):
-            if (
-                slot.name is not None
-                and slot.name in members
-                and slot.name not in owned_set
-                and slot.confidence >= min_confidence
-            ):
-                hits.append((gap, str(set_name), slot.index))
+    hits: list[tuple[int, int, int, str, int]] = []
+    owned = {name for name in cands.owned_bond_cards if name}
+    for slot, tier_rank, remaining_gap, set_name in _bond_progress_hits(
+        cands, cands.slots if slots is None else slots
+    ):
+        if slot.confidence >= min_confidence:
+            merge_rank = 0 if slot.name in owned else 1
+            hits.append((tier_rank, remaining_gap, merge_rank, set_name, slot.index))
     if not hits:
         return None
     hits.sort()
-    return hits[0][2]
+    return hits[0][4]
 
 
 def _match_quality(

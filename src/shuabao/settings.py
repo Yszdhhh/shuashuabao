@@ -60,6 +60,43 @@ _OFFICIAL_MAP = {
 }
 
 
+# Dashboard Contract v2 strategy vocabulary. These are stable wire values, not
+# display labels; keeping them here lets the facade validate before persistence.
+DASHBOARD_BOND_OPTIONS = ("祝福", "成长", "经济", "贪婪", "挑战")
+DASHBOARD_ATTRIBUTE_OPTIONS = ("int", "str", "agi")
+_INT_RANGES: dict[str, tuple[int, int]] = {
+    "stage1": (1, 50), "stage2": (1, 50),
+    "reputation_type": (1, 6), "reputation_level": (1, 10),
+    "artifact_slots": (1, 3),
+    "query_timeout": (10, 600), "game_timeout": (1, 120),
+    "click_delay_ms": (0, 2000), "loop_sleep_ms": (0, 5000),
+    "choice_interval": (30, 3600), "artifact_cd": (30, 3600),
+    "dragon_ball_count": (1, 10), "treasure_num": (0, 20),
+    "cycle_num": (0, 999), "kill_boss_num": (0, 9999),
+    "follow_cycle_num": (0, 999), "hitch_cycle_num": (0, 999),
+    "boss_live_time": (0, 3600), "archive_boss_time": (0, 3600),
+    "auto_clean_interval": (0, 99), "develop_time": (0, 3000),
+    "close_main_line_time": (0, 3600), "auto_gambling_time": (0, 3600),
+    "reputation_stage1": (0, 50), "reputation_stage2": (0, 50),
+    "round_timeout_s": (60, 7200), "round_tail_window_s": (30, 600),
+    "recovery_timeout_s": (10, 120), "recovery_action_limit": (1, 10),
+    "failure_streak_limit": (1, 10),
+    "panel_action_limit_per_fingerprint": (1, 10),
+    "panel_episode_limit_per_kind": (1, 50), "ocr_timeout_ms": (200, 5000),
+    "merchant_max_rerolls": (0, 20), "merchant_gold_reserve": (0, 1_000_000),
+}
+_FLOAT_RANGES: dict[str, tuple[float, float]] = {
+    "recovery_retry_interval_s": (0.5, 30.0),
+    "panel_visible_timeout_s": (0.5, 10.0),
+    "ui_action_interval_s": (0.5, 10.0),
+    "panel_reopen_cooldown_s": (2.0, 15.0),
+    "incident_sample_rate": (0.0, 1.0),
+    "challenge_recheck_interval_s": (5.0, 300.0),
+    "auto_task_unknown_timeout_s": (30.0, 60.0),
+    "match_threshold": (0.5, 0.99),
+}
+
+
 @dataclass
 class Settings:
     stage1: int = 3
@@ -110,9 +147,15 @@ class Settings:
     cjb_boss: str = ""
     sgzx_boss: str = ""
     skills: list[str] = field(default_factory=lambda: ["jq", "pg"])
+    # Dashboard Contract v2 strategy fields. Empty selections are deliberate.
+    bonds: list[str] = field(default_factory=lambda: list(DASHBOARD_BOND_OPTIONS))
+    attributes: list[str] = field(default_factory=list)
+    merchant_enabled: bool = False
+    merchant_max_rerolls: int = 0
+    merchant_gold_reserve: int = 0
     cards: list[str] = field(default_factory=list)
-    # 羁绊长程默认 soft；祝福为系统必拿，即使旧 UI/旧配置没有单独勾选。
-    bond_whitelist_mode: str = "soft"
+    # Unknown bond cards must not bypass the declared strategy.
+    bond_whitelist_mode: str = "hard"
     bond_must_take: list[str] = field(default_factory=lambda: ["祝福"])
     # 负面宝物放行名单（拿了会断资源/断成长的卡，默认一张都不选）。
     # 面板『宝物 · 负面卡』折叠区逐张打勾后写入；放行是逐卡的，不是全局开关。
@@ -238,17 +281,15 @@ class Settings:
                 if fallback is not None:
                     # fallback 模式：所有 None 视为 overlay 缺损并 pop，保留 base
                     clean.pop(k)
-                else:
-                    # 无 fallback 模式：精确保持 32633f4 旧语义
-                    if k in ("room_name", "room_password", "cjb_boss", "sgzx_boss",
-                             "reputation_cjb_boss", "reputation_sgzx_boss", "window_title_contains"):
-                        clean[k] = ""
-                    elif k in (
-                        "skills", "cards", "stage_targets", "treasure_allow_negative",
-                        "bond_must_take", "smart_route_disabled_amplifiers",
-                        "skill_priority", "skill_custom_routes",
-                    ):
-                        clean[k] = []
+                elif k in ("room_name", "room_password", "cjb_boss", "sgzx_boss",
+                           "reputation_cjb_boss", "reputation_sgzx_boss", "window_title_contains"):
+                    clean[k] = ""
+                elif k in (
+                    "skills", "cards", "stage_targets", "treasure_allow_negative",
+                    "bond_must_take", "bonds", "attributes", "smart_route_disabled_amplifiers",
+                    "skill_priority", "skill_custom_routes",
+                ):
+                    clean[k] = []
         # 2. 字符串字段防护：仅在 fallback 模式防护（仅接受 str）；无 fallback 精确保持 32633f4 原样
         str_fields = {
             "room_name", "room_password", "room_create_side",
@@ -260,9 +301,8 @@ class Settings:
         }
         if fallback is not None:
             for k in str_fields:
-                if k in clean:
-                    if not isinstance(clean[k], str):
-                        clean.pop(k)
+                if k in clean and not isinstance(clean[k], str):
+                    clean.pop(k)
         # 3. int / float 字段清洗
         int_fields = {
             "stage1", "stage2", "query_timeout", "game_timeout", "game_mode",
@@ -276,7 +316,7 @@ class Settings:
             "round_timeout_s", "round_tail_window_s", "recovery_timeout_s",
             "recovery_action_limit", "failure_streak_limit",
             "panel_action_limit_per_fingerprint", "panel_episode_limit_per_kind",
-            "ocr_timeout_ms",
+            "ocr_timeout_ms", "merchant_max_rerolls", "merchant_gold_reserve",
         }
         float_fields = {
             "recovery_retry_interval_s", "panel_visible_timeout_s", "panel_hard_deadline_s",
@@ -308,7 +348,7 @@ class Settings:
             "auto_secret_realm", "auto_close_main_line", "auto_archaeology", "auto_card", "auto_weapon",
             "damage_increase_card", "develop_priority", "auto_reputation",
             "continue_reputation", "auto_bond", "auto_treasure", "auto_artifact",
-            "dry_run",
+            "merchant_enabled", "dry_run",
         }
         for k in bool_fields:
             if k in clean and not isinstance(clean[k], bool):
@@ -337,52 +377,19 @@ class Settings:
                     clean["match_threshold"] = float(clean["match_threshold"])
                 except (TypeError, ValueError):
                     clean.pop("match_threshold")
-        # 范围钳制（集中表）：负数/极端值回落到安全区间
-        _RANGES: dict[str, tuple[int, int]] = {
-            "stage1": (1, 50), "stage2": (1, 50),
-            "reputation_type": (1, 6), "reputation_level": (1, 10),
-            "artifact_slots": (1, 3),
-            "query_timeout": (10, 600), "game_timeout": (1, 120),
-            "click_delay_ms": (0, 2000), "loop_sleep_ms": (0, 5000),
-            "choice_interval": (30, 3600), "artifact_cd": (30, 3600),
-            "dragon_ball_count": (1, 10), "treasure_num": (0, 20),
-            "cycle_num": (0, 999), "kill_boss_num": (0, 9999),
-            "follow_cycle_num": (0, 999), "hitch_cycle_num": (0, 999),
-            "boss_live_time": (0, 3600), "archive_boss_time": (0, 3600),
-            "auto_clean_interval": (0, 99), "develop_time": (0, 3000),
-            "close_main_line_time": (0, 3600), "auto_gambling_time": (0, 3600),
-            "reputation_stage1": (0, 50), "reputation_stage2": (0, 50),
-            # S0 安全默认范围（超出回落安全区间，绝不静默放大时限/次数）
-            "round_timeout_s": (60, 7200), "round_tail_window_s": (30, 600),
-            "recovery_timeout_s": (10, 120), "recovery_action_limit": (1, 10),
-            "failure_streak_limit": (1, 10),
-            "panel_action_limit_per_fingerprint": (1, 10),
-            "panel_episode_limit_per_kind": (1, 50),
-            "ocr_timeout_ms": (200, 5000),
-        }
-        for k, (lo, hi) in _RANGES.items():
-            if k in clean:
+        # 兼容读取仍会钳制；DashboardFacade.validate_patch 在写入前严格拒绝。
+        for key, (lo, hi) in _INT_RANGES.items():
+            if key in clean:
                 try:
-                    clean[k] = max(lo, min(hi, int(clean[k])))
+                    clean[key] = max(lo, min(hi, int(clean[key])))
                 except (TypeError, ValueError):
-                    clean.pop(k)
-        float_ranges: dict[str, tuple[float, float]] = {
-            "recovery_retry_interval_s": (0.5, 30.0),
-            "panel_visible_timeout_s": (0.5, 10.0),
-            "ui_action_interval_s": (0.5, 10.0),
-            "panel_reopen_cooldown_s": (2.0, 15.0),
-            "incident_sample_rate": (0.0, 1.0),
-            "challenge_recheck_interval_s": (5.0, 300.0),
-            "auto_task_unknown_timeout_s": (30.0, 60.0),
-        }
-        for k, (lo, hi) in float_ranges.items():
-            if k in clean:
+                    clean.pop(key)
+        for key, (lo, hi) in _FLOAT_RANGES.items():
+            if key in clean:
                 try:
-                    clean[k] = max(lo, min(hi, float(clean[k])))
+                    clean[key] = max(lo, min(hi, float(clean[key])))
                 except (TypeError, ValueError):
-                    clean.pop(k)
-        if "match_threshold" in clean:
-            clean["match_threshold"] = max(0.5, min(0.99, float(clean["match_threshold"])))
+                    clean.pop(key)
         # 技能最多 MAX_SELECTED_SKILLS 个（解析边界集中截断，保序、剔除空串；
         # 覆盖 Settings.load / load_official / load_lab_settings 全部入口）。
         if "skills" in clean:
@@ -400,6 +407,19 @@ class Settings:
                 clean.pop("skills")
             else:
                 clean["skills"] = []
+        for key, allowed in (
+            ("bonds", set(DASHBOARD_BOND_OPTIONS)),
+            ("attributes", set(DASHBOARD_ATTRIBUTE_OPTIONS)),
+        ):
+            if key not in clean:
+                continue
+            raw_items = clean[key]
+            if isinstance(raw_items, (list, tuple)):
+                clean[key] = [str(v).strip() for v in raw_items if str(v).strip() in allowed]
+            elif fallback is not None:
+                clean.pop(key)
+            else:
+                clean[key] = []
         # 羁绊系统必拿扩展：用户列表只能追加，不能移除系统默认“祝福”。
         if "bond_must_take" in clean:
             raw_bond_must = clean["bond_must_take"]
@@ -550,13 +570,100 @@ class Settings:
                     clean.pop("ocr_mode")
             else:
                 clean.pop("ocr_mode")
-
         if fallback is not None:
             return replace(fallback, **clean)
         return cls(**clean)
 
+    @classmethod
+    def validate_patch(cls, data: dict[str, Any], fallback: "Settings") -> list[str]:
+        """Reject dashboard patches before _from_dict can coerce or clamp them."""
+        errors: list[str] = []
+        known = cls.__dataclass_fields__
+        string_lists = {
+            "stage_targets", "skills", "cards", "bond_must_take", "treasure_allow_negative",
+            "smart_route_disabled_amplifiers", "skill_priority", "bonds", "attributes",
+        }
+        for key, value in data.items():
+            if key not in known:
+                errors.append(f"未知字段: {key}")
+                continue
+            current = getattr(fallback, key)
+            if isinstance(current, bool):
+                if type(value) is not bool:
+                    errors.append(f"字段类型非法: {key} 必须为 bool")
+                continue
+            if isinstance(current, int):
+                if type(value) is not int:
+                    errors.append(f"字段类型非法: {key} 必须为 int")
+                    continue
+                bounds = _INT_RANGES.get(key)
+                if bounds and not bounds[0] <= value <= bounds[1]:
+                    errors.append(f"字段范围非法: {key}")
+                continue
+            if isinstance(current, float):
+                if type(value) not in (int, float):
+                    errors.append(f"字段类型非法: {key} 必须为 number")
+                    continue
+                bounds = _FLOAT_RANGES.get(key)
+                if bounds and not bounds[0] <= float(value) <= bounds[1]:
+                    errors.append(f"字段范围非法: {key}")
+                continue
+            if isinstance(current, str):
+                if type(value) is not str:
+                    errors.append(f"字段类型非法: {key} 必须为 string")
+                    continue
+                if key == "follow_pair_code" and len(value) > 24:
+                    errors.append("follow_pair_code 最多 24 字符")
+                elif key == "bond_whitelist_mode" and value not in {"soft", "hard"}:
+                    errors.append("bond_whitelist_mode 取值非法")
+                elif key == "hitch_stage_prefix" and value not in {"3", "4"}:
+                    errors.append("hitch_stage_prefix 取值非法")
+                elif key == "follow_after_room" and value not in {"solo", "arch", "hitch"}:
+                    errors.append("follow_after_room 取值非法")
+                elif key == "hitch_after_goal" and value not in {"solo", "arch"}:
+                    errors.append("hitch_after_goal 取值非法")
+                elif key == "ocr_mode" and value not in {"off", "shadow", "live"}:
+                    errors.append("ocr_mode 取值非法")
+                continue
+            if isinstance(current, list):
+                if type(value) is not list:
+                    errors.append(f"字段类型非法: {key} 必须为 list")
+                elif key == "window_size":
+                    if len(value) != 2 or any(type(item) is not int or item <= 0 for item in value):
+                        errors.append("字段值非法: window_size")
+                elif key in string_lists:
+                    if any(type(item) is not str or not item for item in value):
+                        errors.append(f"字段值非法: {key}")
+                    elif key == "skills" and len(value) > MAX_SELECTED_SKILLS:
+                        errors.append(f"skills 最多 {MAX_SELECTED_SKILLS} 个")
+                    elif key == "bonds" and (len(set(value)) != len(value) or not set(value) <= set(DASHBOARD_BOND_OPTIONS)):
+                        errors.append("字段值非法: bonds")
+                    elif key == "attributes" and (len(set(value)) != len(value) or not set(value) <= set(DASHBOARD_ATTRIBUTE_OPTIONS)):
+                        errors.append("字段值非法: attributes")
+                else:
+                    errors.append(f"字段类型未声明: {key}")
+                continue
+            if isinstance(current, dict):
+                if type(value) is not dict:
+                    errors.append(f"字段类型非法: {key} 必须为 object")
+                elif key == "reputation_allocations" and any(
+                    type(item_key) is not str or type(item_value) is not int or not 1 <= item_value <= 10
+                    for item_key, item_value in value.items()
+                ):
+                    errors.append("字段值非法: reputation_allocations")
+                elif key == "skill_archive_levels" and any(
+                    type(item_key) is not str or type(item_value) is not int or not 1 <= item_value <= 50
+                    for item_key, item_value in value.items()
+                ):
+                    errors.append("字段值非法: skill_archive_levels")
+                elif key == "skill_custom_routes" and any(
+                    type(item_key) is not str or type(item_value) is not str or not item_key or not item_value
+                    for item_key, item_value in value.items()
+                ):
+                    errors.append("字段值非法: skill_custom_routes")
+        return errors
+
     def save(self, path: str | Path) -> None:
-        """原子写：先写同目录临时文件再 os.replace，避免中断截断配置。"""
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         tmp = p.with_suffix(p.suffix + ".tmp")

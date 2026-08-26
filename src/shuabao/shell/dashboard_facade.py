@@ -15,7 +15,6 @@ RunnerService（§6.3）。禁止直接触碰 api_server / runtime_mediator。
 from __future__ import annotations
 
 import json
-from dataclasses import fields as dc_fields
 from pathlib import Path
 from typing import Any, Callable
 
@@ -40,7 +39,7 @@ DEFAULT_SHELL_THEME = "light"
 DEFAULT_SHELL_MODE_ID = "normal_farm"
 SHELL_BUNDLE_KEYS = frozenset({"_shell", "_shell_schema"})
 PREFLIGHT_CHECK_IDS = ("mode_enabled", "live_lock", "skills_non_empty", "cycle_valid", "follow_pair_code")
-SETTINGS_FIELD_NAMES = frozenset(f.name for f in dc_fields(Settings))
+SETTINGS_REVISION_KEY = "_dashboard_settings_revision"
 
 
 def _blocked_reason(mode_id: str) -> str:
@@ -86,6 +85,9 @@ class DashboardFacade(QObject):
         self._settings = Settings._from_dict(
             {k: v for k, v in raw.items() if k not in SHELL_BUNDLE_KEYS}
         )
+        revision = raw.get(SETTINGS_REVISION_KEY, 0)
+        self._settings_revision = revision if type(revision) is int and revision >= 0 else 0
+        self._snapshot_seq = 0
 
     def _ensure_runner(self) -> Any:
         """注入的 runner 优先；否则按缺省构造 RunnerService(app_data, root)。"""
@@ -112,6 +114,7 @@ class DashboardFacade(QObject):
             from shuabao.shell.main_window import SHELL_SCHEMA_VERSION
         except Exception:
             SHELL_SCHEMA_VERSION = 2
+        data[SETTINGS_REVISION_KEY] = self._settings_revision
         data["_shell_schema"] = int(SHELL_SCHEMA_VERSION)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self._path.with_suffix(self._path.suffix + ".tmp")
@@ -141,6 +144,41 @@ class DashboardFacade(QObject):
                 "visible_settings": list(spec.visible_settings),
             })
         return out
+
+    def _strategy_dto(self) -> dict[str, Any]:
+        return {
+            "skills": list(self._settings.skills),
+            "bonds": list(self._settings.bonds),
+            "attributes": list(self._settings.attributes),
+            "merchant": {
+                "enabled": self._settings.merchant_enabled,
+                "max_rerolls": self._settings.merchant_max_rerolls,
+                "gold_reserve": self._settings.merchant_gold_reserve,
+            },
+            "treasure": {"negative_allowlist": list(self._settings.treasure_allow_negative)},
+        }
+
+    def _snapshot_dto(self, request_id: str | None = None) -> dict[str, Any]:
+        self._snapshot_seq += 1
+        return {
+            "request_id": request_id,
+            "settings_revision": self._settings_revision,
+            "snapshot_seq": self._snapshot_seq,
+            "settings": collect_persistable_settings(self._settings),
+            "strategy": self._strategy_dto(),
+            "shell": self._shell_dto(),
+            "modes": self._modes_dto(),
+            "run": self._run_dto(),
+        }
+
+    def _rpc_response(self, ok: bool, request_id: str | None = None, **body: Any) -> dict[str, Any]:
+        return {
+            "ok": ok,
+            "request_id": request_id,
+            "settings_revision": self._settings_revision,
+            "snapshot_seq": self._snapshot_seq,
+            **body,
+        }
 
     def _run_dto(self) -> dict[str, Any]:
         runner = self._runner
@@ -194,62 +232,90 @@ class DashboardFacade(QObject):
 
     @Slot(result=str)
     def get_snapshot(self) -> str:
-        return json.dumps({
-            "settings": collect_persistable_settings(self._settings),
-            "shell": self._shell_dto(),
-            "modes": self._modes_dto(),
-            "run": self._run_dto(),
-        }, ensure_ascii=False)
+        return json.dumps(self._snapshot_dto(), ensure_ascii=False)
 
     @Slot(str, result=str)
     def update_config(self, patch_json: str) -> str:
         patch, err = self._parse_object(patch_json)
         if patch is None:
-            return json.dumps({"ok": False, "errors": [err], "settings": {}}, ensure_ascii=False)
+            return json.dumps(self._rpc_response(False, errors=[err], settings={}, strategy={}), ensure_ascii=False)
 
+        request_id = patch.pop("request_id", None)
+        expected_revision = patch.pop("settings_revision", None)
         errors: list[str] = []
-        clean_patch: dict[str, Any] = {}
-        for key, value in patch.items():
+        if request_id is not None and (type(request_id) is not str or not request_id):
+            errors.append("request_id 必须为非空 string")
+        if expected_revision is not None:
+            if type(expected_revision) is not int:
+                errors.append("settings_revision 必须为 int")
+            elif expected_revision != self._settings_revision:
+                errors.append("settings_revision 已过期")
+
+        strategy = patch.pop("strategy", None)
+        if strategy is not None:
+            if type(strategy) is not dict:
+                errors.append("strategy 必须为 object")
+            else:
+                mappings = {
+                    "skills": "skills",
+                    "bonds": "bonds",
+                    "attributes": "attributes",
+                    "merchant": {
+                        "enabled": "merchant_enabled",
+                        "max_rerolls": "merchant_max_rerolls",
+                        "gold_reserve": "merchant_gold_reserve",
+                    },
+                    "treasure": {"negative_allowlist": "treasure_allow_negative"},
+                }
+                for key, value in strategy.items():
+                    target = mappings.get(key)
+                    if target is None:
+                        errors.append(f"strategy 未知字段: {key}")
+                    elif isinstance(target, str):
+                        if target in patch:
+                            errors.append(f"strategy 与顶层字段重复: {target}")
+                        else:
+                            patch[target] = value
+                    elif type(value) is not dict:
+                        errors.append(f"strategy.{key} 必须为 object")
+                    else:
+                        unknown = set(value) - set(target)
+                        errors.extend(f"strategy.{key} 未知字段: {name}" for name in sorted(unknown))
+                        for nested_key, nested_value in value.items():
+                            mapped = target.get(nested_key)
+                            if mapped is not None:
+                                if mapped in patch:
+                                    errors.append(f"strategy 与顶层字段重复: {mapped}")
+                                else:
+                                    patch[mapped] = nested_value
+
+        for key in patch:
             if key in PERSIST_DENYLIST:
                 errors.append(f"禁止修改字段: {key}")
-            elif key in SHELL_BUNDLE_KEYS:
-                errors.append(f"非法字段: {key}（外壳保留键不经 config 面改写）")
-            elif key == "skills" and isinstance(value, (list, tuple)) and len(value) > MAX_SELECTED_SKILLS:
-                errors.append(f"skills 最多 {MAX_SELECTED_SKILLS} 个")
-            elif key == "follow_pair_code" and isinstance(value, str) and len(value) > 24:
-                errors.append("follow_pair_code 最多 24 字符")
-            else:
-                clean_patch[key] = value
-
-        cleaned = Settings._from_dict(clean_patch, fallback=self._settings)
-        current = self._settings
-        for key, value in clean_patch.items():
-            if key not in SETTINGS_FIELD_NAMES:
-                errors.append(f"未知字段: {key}")
-                continue
-            old, new = getattr(current, key), getattr(cleaned, key)
-            if value != old and new == old:
-                errors.append(f"字段值被清洗拒绝: {key}")
-
+            elif key in SHELL_BUNDLE_KEYS or key == SETTINGS_REVISION_KEY:
+                errors.append(f"非法字段: {key}")
+        errors.extend(Settings.validate_patch(patch, self._settings))
         if errors:
-            # Fail-closed：任一非法字段 → 整体拒绝，不落盘。
-            return json.dumps({
-                "ok": False,
-                "errors": errors,
-                "settings": collect_persistable_settings(current),
-            }, ensure_ascii=False)
+            return json.dumps(self._rpc_response(
+                False, request_id if type(request_id) is str else None, errors=errors,
+                settings=collect_persistable_settings(self._settings), strategy=self._strategy_dto(),
+            ), ensure_ascii=False)
 
-        self._settings = cleaned
+        self._settings = Settings._from_dict(patch, fallback=self._settings)
+        self._settings_revision += 1
         self._persist()
-        dto = collect_persistable_settings(self._settings)
-        self.snapshot_changed.emit(self.get_snapshot())
-        return json.dumps({"ok": True, "errors": [], "settings": dto}, ensure_ascii=False)
+        snapshot = self._snapshot_dto(request_id if type(request_id) is str else None)
+        self.snapshot_changed.emit(json.dumps(snapshot, ensure_ascii=False))
+        return json.dumps(self._rpc_response(
+            True, request_id if type(request_id) is str else None, errors=[],
+            settings=collect_persistable_settings(self._settings), strategy=self._strategy_dto(),
+        ), ensure_ascii=False)
 
     @Slot(str, result=str)
     def update_shell(self, patch_json: str) -> str:
         patch, err = self._parse_object(patch_json)
         if patch is None:
-            return json.dumps({"ok": False, "errors": [err], "shell": self._shell_dto()},
+            return json.dumps(self._rpc_response(False, errors=[err], shell=self._shell_dto()),
                               ensure_ascii=False)
 
         errors: list[str] = []
@@ -271,14 +337,14 @@ class DashboardFacade(QObject):
             errors.append(f"update_shell 仅接受 theme/selected_mode_id，收到: {key}")
 
         if errors:
-            return json.dumps({"ok": False, "errors": errors, "shell": self._shell_dto()},
+            return json.dumps(self._rpc_response(False, errors=errors, shell=self._shell_dto()),
                               ensure_ascii=False)
 
         self._shell.update(applied)
         self._persist()
         dto = self._shell_dto()
-        self.snapshot_changed.emit(self.get_snapshot())
-        return json.dumps({"ok": True, "errors": [], "shell": dto}, ensure_ascii=False)
+        self.snapshot_changed.emit(json.dumps(self._snapshot_dto(), ensure_ascii=False))
+        return json.dumps(self._rpc_response(True, errors=[], shell=dto), ensure_ascii=False)
 
     @Slot(str, result=str)
     def validate_preflight(self, mode_id_json: str) -> str:
@@ -290,8 +356,9 @@ class DashboardFacade(QObject):
         specs = load_specs()
         if mode_id not in specs:
             checks = [check("mode_enabled", False, f"未知运行方式: {mode_id or '(空)'}")]
-            return json.dumps({"ok": False, "blocked_reason": checks[0]["detail"],
-                               "checks": checks}, ensure_ascii=False)
+            return json.dumps(self._rpc_response(
+                False, blocked_reason=checks[0]["detail"], checks=checks,
+            ), ensure_ascii=False)
 
         settings = self._settings
         enabled = desktop_may_start(mode_id)
@@ -310,19 +377,20 @@ class DashboardFacade(QObject):
                   f"配对码 {len(pair_code)} 字符" if len(pair_code) <= 24 else "配对码超过 24 字符"),
         ]
         first_fail = next((c["detail"] for c in checks if not c["ok"]), "")
-        return json.dumps({"ok": all(c["ok"] for c in checks),
-                           "blocked_reason": first_fail, "checks": checks},
-                          ensure_ascii=False)
+        return json.dumps(self._rpc_response(
+            all(c["ok"] for c in checks), blocked_reason=first_fail, checks=checks,
+        ), ensure_ascii=False)
 
     @Slot(str, result=str)
     def window_control(self, action_json: str) -> str:
         action = self._parse_keyed(action_json, "action")
         handler = {"minimize": self._on_minimize, "close": self._on_close}.get(action)
         if handler is None:
-            return json.dumps({"ok": False, "error": f"不支持的动作或无处理者: {action!r}"},
-                              ensure_ascii=False)
+            return json.dumps(self._rpc_response(
+                False, error=f"不支持的动作或无处理者: {action!r}",
+            ), ensure_ascii=False)
         handler()
-        return json.dumps({"ok": True})
+        return json.dumps(self._rpc_response(True))
 
     # ------------------------------------------------------------- 运行控制（§6.3）
 
@@ -331,18 +399,18 @@ class DashboardFacade(QObject):
         """先内部 preflight，失败 {ok:false} 不建 worker；成功经 RunnerService 启动。"""
         pre = json.loads(self.validate_preflight(mode_id_json))
         if not pre["ok"]:
-            return json.dumps({"ok": False, "error": pre["blocked_reason"]},
+            return json.dumps(self._rpc_response(False, error=pre["blocked_reason"]),
                               ensure_ascii=False)
         mode_id = self._parse_keyed(mode_id_json, "mode_id")
         runner = self._ensure_runner()
         if runner is None:
-            return json.dumps({"ok": False,
-                               "error": "未注入 RunnerService 且缺少 root，无法启动"},
-                              ensure_ascii=False)
+            return json.dumps(self._rpc_response(
+                False, error="未注入 RunnerService 且缺少 root，无法启动",
+            ), ensure_ascii=False)
         try:
             worker = runner.start(mode_id, self._settings)
         except Exception as exc:  # ModeNotEnabled / already running / live.lock 占用
-            return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
+            return json.dumps(self._rpc_response(False, error=str(exc)), ensure_ascii=False)
         # Worker 在自身线程发信号；QueuedConnection 保证 Facade 侧在主线程收。
         worker.signals.log_emitted.connect(self.log_appended, Qt.QueuedConnection)
         worker.signals.status_updated.connect(self._on_status_updated,
@@ -351,20 +419,20 @@ class DashboardFacade(QObject):
         worker.start()
         self._last_run_json = ""  # 强制下一次状态回传
         self._poll.start()
-        return json.dumps({"ok": True}, ensure_ascii=False)
+        return json.dumps(self._rpc_response(True), ensure_ascii=False)
 
     @Slot(result=str)
     def stop_run(self) -> str:
         """一律进入 runner.stop()（§6.3），不提前宣布已停止。"""
         runner = self._ensure_runner()
         if runner is None:
-            return json.dumps({"ok": False, "error": "没有可停止的运行"},
+            return json.dumps(self._rpc_response(False, error="没有可停止的运行"),
                               ensure_ascii=False)
         try:
             runner.stop()
         except Exception as exc:
-            return json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False)
-        return json.dumps({"ok": True}, ensure_ascii=False)
+            return json.dumps(self._rpc_response(False, error=str(exc)), ensure_ascii=False)
+        return json.dumps(self._rpc_response(True), ensure_ascii=False)
 
     def _on_status_updated(self, running: bool, phase: str, game_count: int,
                            terminal_reason: str, ocr_status: str,

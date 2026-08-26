@@ -102,7 +102,9 @@ def test_snapshot_shape_strips_denylist(qapp, tmp_path: Path):
     )
     f = DashboardFacade(tmp_path)
     snap = json.loads(f.get_snapshot())
-    assert set(snap) == {"settings", "shell", "modes", "run"}
+    assert set(snap) == {
+        "request_id", "settings_revision", "snapshot_seq", "settings", "strategy", "shell", "modes", "run",
+    }
     assert "lab_focus" not in snap["settings"]
     assert snap["settings"]["click_delay_ms"] == 200
     assert snap["shell"]["theme"] == "dark"
@@ -288,8 +290,8 @@ def test_preflight_follow_pair_code_too_long(qapp, tmp_path: Path):
 
 
 def test_window_control_dispatches_minimize_and_close(facade):
-    assert json.loads(facade.window_control(json.dumps("minimize"))) == {"ok": True}
-    assert json.loads(facade.window_control(json.dumps({"action": "close"}))) == {"ok": True}
+    assert json.loads(facade.window_control(json.dumps("minimize")))["ok"] is True
+    assert json.loads(facade.window_control(json.dumps({"action": "close"})))["ok"] is True
     assert facade.recorded_actions == ["minimize", "close"]
 
 
@@ -301,3 +303,56 @@ def test_window_control_rejects_unknown_action(facade):
 def test_window_control_without_handler_fails_closed(qapp, tmp_path: Path):
     f = DashboardFacade(tmp_path)
     assert json.loads(f.window_control(json.dumps("close")))["ok"] is False
+
+
+def test_dashboard_contract_v2_strategy_and_revision_metadata(qapp, tmp_path: Path):
+    f = DashboardFacade(tmp_path)
+    initial = json.loads(f.get_snapshot())
+    assert initial["request_id"] is None
+    assert initial["settings_revision"] == 0
+    assert initial["snapshot_seq"] == 1
+    assert initial["strategy"] == {
+        "skills": ["jq", "pg"],
+        "bonds": ["祝福", "成长", "经济", "贪婪", "挑战"],
+        "attributes": [],
+        "merchant": {"enabled": False, "max_rerolls": 0, "gold_reserve": 0},
+        "treasure": {"negative_allowlist": []},
+    }
+
+    result = json.loads(f.update_config(json.dumps({
+        "request_id": "config-7",
+        "settings_revision": 0,
+        "strategy": {
+            "skills": ["jq"],
+            "bonds": ["祝福", "成长"],
+            "attributes": ["int", "agi"],
+            "merchant": {"enabled": True, "max_rerolls": 2, "gold_reserve": 100},
+            "treasure": {"negative_allowlist": ["扣除金币"]},
+        },
+    })))
+    assert result["ok"] is True
+    assert result["request_id"] == "config-7"
+    assert result["settings_revision"] == 1
+    assert result["snapshot_seq"] == 2
+    assert result["strategy"]["merchant"]["gold_reserve"] == 100
+
+
+@pytest.mark.parametrize("patch", [
+    {"click_delay_ms": "250"},
+    {"dry_run": 1},
+    {"strategy": {"skills": ["jq", 2]}},
+    {"strategy": {"bonds": ["未知羁绊"]}},
+    {"strategy": {"attributes": ["intelligence"]}},
+    {"strategy": {"merchant": {"enabled": "true"}}},
+    {"strategy": {"merchant": {"max_rerolls": True}}},
+    {"strategy": {"treasure": {"negative_allowlist": [1]}}},
+])
+def test_dashboard_contract_v2_rejects_type_coercion_atomically(qapp, tmp_path: Path, patch):
+    f = DashboardFacade(tmp_path)
+    before = f.get_snapshot()
+    result = json.loads(f.update_config(json.dumps(patch)))
+    assert result["ok"] is False
+    assert result["settings_revision"] == 0
+    assert json.loads(f.get_snapshot())["settings_revision"] == 0
+    assert not user_settings_path(tmp_path).exists()
+    assert json.loads(before)["settings"] == json.loads(f.get_snapshot())["settings"]

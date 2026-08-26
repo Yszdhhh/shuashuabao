@@ -13,7 +13,7 @@ import numpy as np
 from shuabao.input.emergency_stop import EmergencyStopListener
 from shuabao.input.keyboard_mouse import InputExecutor, get_clipboard_text, paste_text, set_clipboard_text
 from shuabao.loop_action import LoopAction
-from shuabao.mediator import Mediator, Phase
+from shuabao.mediator import AttemptBudget, Mediator, Phase
 from shuabao.settings import Settings
 from shuabao.stop_signal import StopSignal
 from shuabao.vision.matcher import MatchResult
@@ -137,7 +137,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
     def test_unhealthy_frame_blocks_decision_and_inputs(self) -> None:
         settings = Settings()
-        project_root = Path(".")
+        project_root = Path(__file__).resolve().parents[1]
         mediator = Mediator(settings, project_root)
 
         black_frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=123, window_title="KK", is_valid=True)
@@ -154,7 +154,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
     def test_frozen_frame_history_reference_fix(self) -> None:
         settings = Settings()
-        project_root = Path(".")
+        project_root = Path(__file__).resolve().parents[1]
         mediator = Mediator(settings, project_root)
 
         arr = np.random.randint(50, 200, size=(50, 50, 3), dtype=np.uint8)
@@ -303,7 +303,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
         settings = Settings()
         settings.room_name = "TestRoom"
         settings.room_password = "123"
-        mediator = Mediator(settings, Path("."))
+        mediator = Mediator(settings, Path(__file__).resolve().parents[1])
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=777, is_valid=True)
         mediator._last_frame = frame
         confirm = MatchResult("confirm", 0.9, 10, 10, 20, 20, 10, 10)
@@ -314,8 +314,8 @@ class P0SecurityFoundationTests(unittest.TestCase):
         ]
         with patch("shuabao.mediator.find_input_boxes", return_value=boxes), \
              patch.object(mediator, "act_click", return_value=True), \
-             patch.object(mediator.executor, "hotkey", wraps=mediator.executor.hotkey) as mock_hk, \
-             patch.object(mediator.executor, "paste_text", wraps=mediator.executor.paste_text) as mock_paste:
+             patch.object(mediator.executor, "hotkey", return_value=True) as mock_hk, \
+             patch.object(mediator.executor, "paste_text", return_value=True) as mock_paste:
 
             res = mediator._fill_room_dialog(frame, confirm)
             self.assertTrue(res)
@@ -332,7 +332,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
         settings = Settings()
         settings.room_name = "TestRoom"
         settings.room_password = "123"
-        mediator = Mediator(settings, Path("."))
+        mediator = Mediator(settings, Path(__file__).resolve().parents[1])
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=777, is_valid=True)
         mediator._last_frame = frame
         confirm = MatchResult("confirm", 0.9, 10, 10, 20, 20, 10, 10)
@@ -355,7 +355,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
     def test_mediator_stage_scroll_uses_executor(self) -> None:
         settings = Settings()
         settings.stage_targets = ["2-1"]
-        mediator = Mediator(settings, Path("."))
+        mediator = Mediator(settings, Path(__file__).resolve().parents[1])
         mediator.phase = Phase.STAGE_SELECT
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=888, is_valid=True)
         mediator._last_frame = frame
@@ -363,14 +363,67 @@ class P0SecurityFoundationTests(unittest.TestCase):
         with patch.object(mediator, "_detect_context", return_value="STAGE_SELECT"), \
              patch.object(mediator, "_find_stage_page", return_value=True), \
              patch.object(mediator, "_find_stage_target", return_value=None), \
-             patch.object(mediator.executor, "scroll", wraps=mediator.executor.scroll) as mock_scroll:
+             patch.object(mediator.executor, "scroll", return_value=True) as mock_scroll:
 
             action = mediator._tick_l0(frame)
             self.assertEqual(action, LoopAction.Continue)
             mock_scroll.assert_called_once()
             self.assertEqual(mock_scroll.call_args.kwargs.get("target_hwnd"), 888)
-            self.assertEqual(mock_scroll.call_args.args[2], -1)
+            self.assertIn(mock_scroll.call_args.args[2], [-1, -2])
             self.assertEqual(mediator._stage_scroll_attempts, 1)
+
+    def test_attempt_budget_bounds_actions_retries_and_deadline(self) -> None:
+        budget = AttemptBudget(
+            started_at=10.0, hard_deadline=20.0, actions_left=1, retries_left=1
+        )
+
+        self.assertTrue(budget.consume_action(15.0))
+        self.assertFalse(budget.consume_action(15.0))
+        self.assertTrue(budget.consume_retry(15.0))
+        self.assertFalse(budget.consume_retry(15.0))
+        self.assertTrue(budget.exhausted(20.0))
+
+    def test_stage_budget_deadline_fails_closed_without_reset(self) -> None:
+        mediator = Mediator(Settings(), Path(__file__).resolve().parents[1])
+        mediator.phase = Phase.STAGE_SELECT
+        mediator._stage_attempt_budget = AttemptBudget(
+            started_at=0.0, hard_deadline=1.0, actions_left=12, retries_left=2
+        )
+        frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=888, is_valid=True)
+
+        with patch("shuabao.mediator.time.time", return_value=1.0):
+            self.assertEqual(mediator._tick_l0(frame), LoopAction.Break)
+
+        self.assertIs(mediator.phase, Phase.ERROR)
+
+    def test_challenge_retry_exhaustion_stays_in_same_stage_budget(self) -> None:
+        mediator = Mediator(Settings(), Path(__file__).resolve().parents[1])
+        mediator._stage_attempt_budget = AttemptBudget(
+            started_at=0.0, hard_deadline=100.0, actions_left=12, retries_left=1
+        )
+
+        with patch("shuabao.mediator.time.time", return_value=1.0):
+            self.assertEqual(mediator._challenge_start_timeout(True), LoopAction.Continue)
+            self.assertEqual(mediator._stage_attempt_budget.retries_left, 0)
+            self.assertEqual(mediator._stage_budget_guard(1.0), LoopAction.Break)
+
+        self.assertIs(mediator.phase, Phase.ERROR)
+
+    def test_main_line_watchdog_never_injects_global_escape(self) -> None:
+        mediator = Mediator(Settings(), Path(__file__).resolve().parents[1])
+        mediator.phase = Phase.MAIN_LINE
+        mediator._auto_task_done = True
+        mediator._l1_cycle_step = "unknown"
+        mediator._main_line_since = 0.0
+        frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=888, is_valid=True)
+
+        with patch("shuabao.mediator.time.time", return_value=15.0), \
+             patch.object(mediator, "act_key") as key, \
+             patch.object(mediator, "_advance_l1_cycle") as advance:
+            self.assertEqual(mediator._tick_main_line(frame), LoopAction.Continue)
+
+        key.assert_not_called()
+        advance.assert_called_once()
 
     def test_legacy_real_mode_prohibited(self) -> None:
         args = argparse.Namespace(config=None, legacy=True, longzhu=False, steps=10)

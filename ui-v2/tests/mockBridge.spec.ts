@@ -17,6 +17,9 @@ describe("mockBridge 形状契约", () => {
     const snap: SnapshotDTO = await bridge.get_snapshot();
 
     expect(snap.settings).toBeTypeOf("object");
+    expect(snap).toMatchObject({ request_id: null, settings_revision: 0, snapshot_seq: 1 });
+    expect(snap.strategy.merchant).toEqual({ enabled: false, max_rerolls: 0, gold_reserve: 0 });
+    expect(snap.strategy.attributes).toEqual([]);
     expect(["light", "dark"]).toContain(snap.shell.theme);
     expect(typeof snap.shell.selected_mode_id).toBe("string");
     expect(Array.isArray(snap.modes)).toBe(true);

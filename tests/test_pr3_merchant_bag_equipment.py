@@ -177,6 +177,7 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
              patch.object(self.med, "find", return_value=None), \
              patch.object(self.med, "_merchant_refresh_available", return_value=True), \
              patch.object(self.med, "act_click", return_value=True) as mock_click:
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
             action = self.med._maybe_black_merchant(self.frame)
             self.assertEqual(action, LoopAction.Continue)
             self.assertEqual(mock_click.call_args.args[1], "BlackMerchant-refresh")

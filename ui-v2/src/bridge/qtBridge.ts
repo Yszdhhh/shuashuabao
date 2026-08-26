@@ -4,16 +4,16 @@
 // 超时、缺 transport、facade 缺方法或缺信号一律显式抛错（main.ts 渲染报错页），
 // 不静默降级 mock（§7）。
 import type {
+  ConfigPatch,
   ConfigPatchResult,
   DashboardBridge,
   DashboardBridgeSignals,
   PreflightDTO,
+  RpcResponse,
   RunResult,
   ShellPatchResult,
-  SettingsDTO,
   SnapshotDTO,
 } from "./types";
-
 export const QWEBCHANNEL_SRC = "qrc:///qtwebchannel/qwebchannel.js";
 export const FACADE_OBJECT_NAME = "facade";
 
@@ -126,7 +126,7 @@ async function callMethod<T>(name: string, pending: Promise<string>, timeoutMs =
 function wrapFacade(facade: RawFacade): DashboardBridge {
   return {
     get_snapshot: () => callMethod<SnapshotDTO>("get_snapshot", facade.get_snapshot()),
-    update_config: (patch: Partial<SettingsDTO>) =>
+    update_config: (patch: ConfigPatch) =>
       callMethod<ConfigPatchResult>("update_config", facade.update_config(JSON.stringify(patch))),
     update_shell: (patch: Partial<{ theme: "light" | "dark"; selected_mode_id: string }>) =>
       callMethod<ShellPatchResult>("update_shell", facade.update_shell(JSON.stringify(patch))),
@@ -136,7 +136,7 @@ function wrapFacade(facade: RawFacade): DashboardBridge {
       callMethod<RunResult>("start_run", facade.start_run(JSON.stringify({ mode_id }))),
     stop_run: () => callMethod<RunResult>("stop_run", facade.stop_run()),
     window_control: (action: "minimize" | "close") =>
-      callMethod<{ ok: boolean }>("window_control", facade.window_control(JSON.stringify({ action }))),
+      callMethod<RpcResponse>("window_control", facade.window_control(JSON.stringify({ action }))),
   };
 }
 

@@ -218,11 +218,39 @@ class RunnerService:
         self._live_lock: QLockFile | None = None
         self._started_settings: Settings | None = None
 
+    def _release_worker(self, worker: MediatorWorker) -> None:
+        if self.worker is worker:
+            self.release_after_finish(worker)
+
+    def _wait_for_worker(self, worker: MediatorWorker, timeout_ms: int) -> None:
+        try:
+            if worker.wait(timeout_ms):
+                return
+            worker.terminate()
+            if not worker.wait(timeout_ms):
+                raise TimeoutError("RunnerService worker did not terminate")
+        finally:
+            if not worker.isRunning():
+                self._release_worker(worker)
+
+    def _reset_start_failure(self, lock: QLockFile) -> None:
+        try:
+            lock.unlock()
+        finally:
+            self._live_lock = None
+            self.worker = None
+            self.mode_id = None
+            self.runner_state = RUNNER_IDLE
+            self._started_settings = None
+
+
     def start(self, mode_id: str, settings_snapshot: Settings) -> MediatorWorker:
         if not desktop_may_start(mode_id):
             raise ModeNotEnabled(f"{mode_id} 未验证，不可从看板启动")
-        if self.worker is not None and self.worker.isRunning():
-            raise RuntimeError("already running")
+        if self.worker is not None:
+            if self.worker.isRunning():
+                raise RuntimeError("already running")
+            self.release_after_finish(self.worker)
         snapshot = apply_mode_overlay(copy.deepcopy(settings_snapshot), mode_id)
         if mode_id == "follow_team":
             snapshot.cycle_num = int(snapshot.follow_cycle_num)
@@ -233,33 +261,57 @@ class RunnerService:
         lock = QLockFile(str(live_lock_path(self.app_data)))
         if not lock.tryLock(100):
             raise RuntimeError("ShuaBao.live.lock 已被占用（实验室或另一 LIVE）")
-        self._live_lock = lock
-        self.runner_state = RUNNER_STARTING
-        self.mode_id = mode_id
-        self._started_settings = copy.deepcopy(snapshot)
-        stop_signal = StopSignal()
-        self.worker = MediatorWorker(
-            snapshot,
-            self.root,
-            incident_dir=self.app_data / "incidents",
-            stop_signal=stop_signal,
-        )
-        self.runner_state = RUNNER_RUNNING
-        return self.worker
+        try:
+            self._live_lock = lock
+            self.runner_state = RUNNER_STARTING
+            self.mode_id = mode_id
+            self._started_settings = copy.deepcopy(snapshot)
+            worker = MediatorWorker(
+                snapshot,
+                self.root,
+                incident_dir=self.app_data / "incidents",
+                stop_signal=StopSignal(),
+            )
+            worker.finished.connect(lambda: self._release_worker(worker))
+            self.worker = worker
+            self.runner_state = RUNNER_RUNNING
+            return worker
+        except Exception:
+            self._reset_start_failure(lock)
+            raise
 
-    def stop(self) -> None:
-        if self.worker is None or not self.worker.isRunning():
+    def stop(self, timeout_ms: int | None = None) -> None:
+        worker = self.worker
+        if worker is None:
+            return
+        if not worker.isRunning():
+            self._release_worker(worker)
             return
         self.runner_state = RUNNER_STOPPING
-        self.worker.stop()
+        try:
+            worker.stop()
+            if timeout_ms is not None:
+                self._wait_for_worker(worker, max(0, int(timeout_ms)))
+        finally:
+            if not worker.isRunning():
+                self._release_worker(worker)
 
-    def release_after_finish(self) -> None:
-        if self._live_lock is not None:
-            self._live_lock.unlock()
-            self._live_lock = None
-        self.runner_state = RUNNER_IDLE
-        self.mode_id = None
-        self._started_settings = None
+    def release_after_finish(self, worker: MediatorWorker | None = None) -> None:
+        if worker is not None and self.worker is not worker:
+            return
+        worker = worker or self.worker
+        if worker is not None and worker.isRunning():
+            return
+        lock = self._live_lock
+        try:
+            if lock is not None:
+                lock.unlock()
+        finally:
+            if self._live_lock is lock:
+                self._live_lock = None
+            self.runner_state = RUNNER_IDLE
+            self.mode_id = None
+            self._started_settings = None
 
     def started_settings(self) -> Settings | None:
         return self._started_settings

@@ -127,7 +127,7 @@ class A3TreasureNegativeByName(unittest.TestCase):
 
         data = json.loads((ROOT / "fixtures/treasure_negative/DESCRIPTIONS.json").read_text(encoding="utf-8"))
         names = set(data["cards"])
-        self.assertTrue(set(DEFAULT_NEGATIVE_NAMES) <= names)
+        self.assertTrue(names <= set(DEFAULT_NEGATIVE_NAMES))
 
 
 class A3FallbackDisabled(unittest.TestCase):

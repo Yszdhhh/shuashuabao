@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from shuabao.choice_policy import PolicySettings
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import ChallengeState, Mediator, PanelState, Phase
+from shuabao.policy.merchant_fsm import MerchantFSM
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult
@@ -329,17 +330,20 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         ), patch.object(self.med, "find", side_effect=find_known), patch.object(
             self.med, "act_click", return_value=True
         ) as click:
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
             result = self.med._maybe_black_merchant(self.frame)
         self.assertEqual(result, LoopAction.Continue)
         self.assertEqual(click.call_args.args[1], "BlackMerchant-swallow_pill")
 
         self.med._merchant_next_at = 0.0
+        self.med._merchant_fsm = MerchantFSM()
         self.med.settings.auto_gambling = True  # 显式开启自动刷新
         with patch.object(self.med, "_black_merchant_present", return_value=True), patch.object(
             self.med, "_bond_bar_nonempty", return_value=False
         ), patch.object(self.med, "find", return_value=None), patch.object(
             self.med, "_merchant_refresh_available", return_value=True
         ), patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
             result = self.med._maybe_black_merchant(self.frame)
         self.assertEqual(result, LoopAction.Continue)
         self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")
@@ -353,6 +357,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         ), patch.object(self.med, "find", return_value=fake_wood), patch.object(
             self.med, "_merchant_refresh_available", return_value=True
         ), patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
             result = self.med._maybe_black_merchant(self.frame)
         self.assertEqual(result, LoopAction.Continue)
         self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")

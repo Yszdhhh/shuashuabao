@@ -206,8 +206,8 @@ class LiveRun205044Tests(unittest.TestCase):
         click.assert_called_once_with(hero, "UseInventory-hero-card")
         self.assertEqual(find.call_args.args[1], ["hero_card_item"])
 
-    def test_inventory_hero_card_requires_evolve_and_caps_per_visit(self) -> None:
-        """英雄卡必须等本轮点击进化的三选一完成；单次装备访问最多 2 次。"""
+    def test_inventory_hero_card_requires_evolve_and_blocks_pending_repeat(self) -> None:
+        """英雄卡必须等进化完成，未确认的点击不得穿透到下一次输入。"""
         med = Mediator(Settings(ui_action_interval_s=0.0), ROOT)
         hero = MatchResult("hero_card_item", 0.99, 1303, 898, 10, 10, 1303, 898)
         med._bond_bar_nonempty = lambda _frame: False
@@ -218,10 +218,8 @@ class LiveRun205044Tests(unittest.TestCase):
             med._evolve_ok_this_cycle = True
             self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)
             med._inventory_next_at = 0.0
-            self.assertIs(med._maybe_use_inventory_item(frame()), LoopAction.Continue)
-            med._inventory_next_at = 0.0
             self.assertIsNone(med._maybe_use_inventory_item(frame()))
-        self.assertEqual(click.call_count, 2)
+        click.assert_called_once_with(hero, "UseInventory-hero-card")
 
     def test_affix_prefers_green_positive_row(self) -> None:
         """装备十级词缀优先绿字「积极属性」，而非永远点第一行。"""

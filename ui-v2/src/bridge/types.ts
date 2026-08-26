@@ -5,6 +5,27 @@ export interface SettingsDTO {
   [field: string]: unknown;
 }
 
+export interface RpcResponse {
+  ok: boolean;
+  request_id: string | null;
+  settings_revision: number;
+  snapshot_seq: number;
+}
+
+export interface StrategyDTO {
+  skills: string[];
+  bonds: ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
+  attributes: ("int" | "str" | "agi")[];
+  merchant: { enabled: boolean; max_rerolls: number; gold_reserve: number };
+  treasure: { negative_allowlist: string[] };
+}
+
+export type ConfigPatch = Partial<SettingsDTO> & {
+  request_id?: string;
+  settings_revision?: number;
+  strategy?: Partial<StrategyDTO>;
+};
+
 export interface ShellDTO {
   theme: "light" | "dark";
   selected_mode_id: string;
@@ -50,33 +71,34 @@ export interface PreflightCheck {
   detail: string;
 }
 
-export interface PreflightDTO {
-  ok: boolean;
+export interface PreflightDTO extends RpcResponse {
   blocked_reason: string;
   checks: PreflightCheck[];
 }
 
 export interface SnapshotDTO {
+  request_id: string | null;
+  settings_revision: number;
+  snapshot_seq: number;
   settings: SettingsDTO;
+  strategy: StrategyDTO;
   shell: ShellDTO;
   modes: ModeDTO[];
   run: RunStatusDTO;
 }
 
-export interface ConfigPatchResult {
-  ok: boolean;
+export interface ConfigPatchResult extends RpcResponse {
   errors: string[];
   settings: SettingsDTO;
+  strategy: StrategyDTO;
 }
 
-export interface ShellPatchResult {
-  ok: boolean;
+export interface ShellPatchResult extends RpcResponse {
   errors: string[];
   shell: ShellDTO;
 }
 
-export interface RunResult {
-  ok: boolean;
+export interface RunResult extends RpcResponse {
   error?: string;
 }
 
@@ -86,12 +108,12 @@ export interface RunResult {
  */
 export interface DashboardBridge {
   get_snapshot(): Promise<SnapshotDTO>;
-  update_config(patch: Partial<SettingsDTO>): Promise<ConfigPatchResult>;
+  update_config(patch: ConfigPatch): Promise<ConfigPatchResult>;
   update_shell(patch: Partial<ShellDTO>): Promise<ShellPatchResult>;
   validate_preflight(mode_id: string): Promise<PreflightDTO>;
   start_run(mode_id: string): Promise<RunResult>;
   stop_run(): Promise<RunResult>;
-  window_control(action: "minimize" | "close"): Promise<{ ok: boolean }>;
+  window_control(action: "minimize" | "close"): Promise<RpcResponse>;
 }
 
 /** QWebChannel 自动暴露的 Qt Signals（JS signal.connect(...)）。 */

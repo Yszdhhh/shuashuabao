@@ -1303,7 +1303,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
         )
         self.assertEqual(ps.min_confidence, 0.60)
         self.assertEqual(ps.quality_order, DEFAULT_QUALITY_ORDER)
-        self.assertEqual(ps.bond_whitelist_mode, "soft")
+        self.assertEqual(ps.bond_whitelist_mode, "hard")
         self.assertEqual(ps.treasure_must_take, DEFAULT_TREASURE_MUST_TAKE)
         self.assertFalse(ps.allow_skill_giveup)
         self.assertEqual(ps.treasure_presets, ())
@@ -1712,8 +1712,8 @@ class TestLiveRegressions20260822(unittest.TestCase):
 
     # ---- 20260822 第二轮实机回归（trace 203910）----
 
-    def test_skill_focus_miss_refreshes_before_close(self):
-        """可读但未命中预设/焦点 → 有刷新预算时 REFRESH（trace 203910 20:42:17）。"""
+    def test_skill_focus_miss_closes_without_refresh(self):
+        """可读但未命中预设/焦点 → CLOSE，不刷新、不放弃、不补位。"""
         ps = PolicySettings(
             skill_focus_families=("奥术箭", "奥术激光", "剑气", "奥术射线"),
             skill_presets=("奥术箭", "奥术激光", "剑气", "奥术射线"),
@@ -1724,11 +1724,10 @@ class TestLiveRegressions20260822(unittest.TestCase):
             can_refresh=True,
             settings=ps,
         )
-        d = choose_action(cands, session=SessionState(refreshes=0, max_refreshes=3))
-        self.assertEqual(d.action, PolicyAction.REFRESH)
-        # 刷新耗尽 → 回落关闭（隐藏，不放弃技能点）
-        d2 = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
-        self.assertEqual(d2.action, PolicyAction.CLOSE)
+        self.assertEqual(
+            choose_action(cands, session=SessionState(refreshes=0, max_refreshes=3)).action,
+            PolicyAction.CLOSE,
+        )
 
     def test_treasure_unnamed_high_rarity_beats_readable_green(self):
         """宝物橙/紫卡 OCR 读不出名时按边框稀有度参与品质链（trace 203910
@@ -1748,7 +1747,7 @@ class TestLiveRegressions20260822(unittest.TestCase):
         """羁绊未读名槽位保持不可选（安全语义不随宝物放宽）。"""
         cands = bond_cands(
             [slot(0, "修仙", rarity="purple"), slot(1, None, confidence=0.0, rarity="red")],
-            settings=settings(bond_presets=["祝福"]),
+            settings=settings(bond_presets=["祝福"], bond_whitelist_mode="soft"),
         )
         d = choose_action(cands, session=SessionState(refreshes=3, max_refreshes=3))
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)

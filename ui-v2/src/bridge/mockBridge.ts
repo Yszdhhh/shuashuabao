@@ -3,7 +3,6 @@
 import type {
   DashboardBridge,
   ModeDTO,
-  PreflightDTO,
   RunStatusDTO,
   SettingsDTO,
   ShellDTO,
@@ -112,10 +111,25 @@ function snapshot(): SnapshotDTO {
     sgzx_boss: "",
   };
   const shell: ShellDTO = { theme: "light", selected_mode_id: "normal_farm" };
-  return { settings, shell, modes: MODES.map((m) => ({ ...m })), run: { ...RUN } };
+  return {
+    request_id: null,
+    settings_revision: 0,
+    snapshot_seq: 1,
+    settings,
+    strategy: {
+      skills: ["asj", "asjg", "assx", "jq"],
+      bonds: ["祝福", "成长", "经济", "贪婪", "挑战"],
+      attributes: [],
+      merchant: { enabled: false, max_rerolls: 0, gold_reserve: 0 },
+      treasure: { negative_allowlist: [] },
+    },
+    shell,
+    modes: MODES.map((m) => ({ ...m })),
+    run: { ...RUN },
+  };
 }
 
-function preflight(mode_id: string): PreflightDTO {
+function preflight(mode_id: string) {
   const mode = MODES.find((m) => m.id === mode_id);
   const checks = [
     {
@@ -142,24 +156,66 @@ export function createMockBridge(): DashboardBridge {
       return current;
     },
     async update_config(patch) {
-      current = { ...current, settings: { ...current.settings, ...patch } };
-      return { ok: true, errors: [], settings: { ...current.settings } };
+      const { request_id = null, settings_revision: _expected, strategy, ...settingsPatch } = patch;
+      current = {
+        ...current,
+        request_id,
+        settings_revision: current.settings_revision + 1,
+        snapshot_seq: current.snapshot_seq + 1,
+        settings: { ...current.settings, ...settingsPatch },
+        strategy: strategy
+          ? {
+              ...current.strategy,
+              ...strategy,
+              merchant: { ...current.strategy.merchant, ...strategy.merchant },
+              treasure: { ...current.strategy.treasure, ...strategy.treasure },
+            }
+          : current.strategy,
+      };
+      return {
+        ok: true,
+        request_id,
+        settings_revision: current.settings_revision,
+        snapshot_seq: current.snapshot_seq,
+        errors: [],
+        settings: { ...current.settings },
+        strategy: { ...current.strategy },
+      };
     },
     async update_shell(patch) {
-      current = { ...current, shell: { ...current.shell, ...patch } };
-      return { ok: true, errors: [], shell: { ...current.shell } };
+      current = {
+        ...current,
+        snapshot_seq: current.snapshot_seq + 1,
+        shell: { ...current.shell, ...patch },
+      };
+      return {
+        ok: true,
+        request_id: null,
+        settings_revision: current.settings_revision,
+        snapshot_seq: current.snapshot_seq,
+        errors: [],
+        shell: { ...current.shell },
+      };
     },
     async validate_preflight(mode_id) {
-      return preflight(mode_id);
+      return {
+        ...preflight(mode_id),
+        request_id: null,
+        settings_revision: current.settings_revision,
+        snapshot_seq: current.snapshot_seq,
+      };
     },
     async start_run() {
-      return { ok: false, error: "mockBridge 不执行真实运行" };
+      return {
+        ok: false, request_id: null, settings_revision: current.settings_revision,
+        snapshot_seq: current.snapshot_seq, error: "mockBridge 不执行真实运行",
+      };
     },
     async stop_run() {
-      return { ok: true };
+      return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
     async window_control() {
-      return { ok: true };
+      return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
   };
 }

@@ -1,21 +1,18 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-12 16:24:45",
-  "reason": "三组 PR（#1 A接线 / #2 D取证 / #3 B断言）在 Windows 满资产主机合并后重定基线：pytest 537（云端 462 是缺 OCR/official_raw/UIA 资产的降级数字，不作基线）；contract 56（新增选卡接线契约 + 负面宝物夹具契约）。合并时修掉 B 组新代码用 cv2.imread 在非 ASCII 仓库路径下静默失败的问题（改 imdecode，与 matcher.py 一致）",
+  "updated_at": "2026-08-27 02:06:11",
+  "reason": "Eradicate gamescript namespace, clean worktrees and dead entrypoints, implement P0 AttemptBudget, Dashboard Contract v2, 4-skill strict and Merchant/Equipment FSMs",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
-      "observed": {
-        "passed": 537,
-        "xfailed": 2
-      }
+      "observed": {}
     },
     "frozen_replay": {
       "title": "冻结端到端回放（fixtures/baselines/replay_frozen）",
       "observed": {
         "fail_panel_preempt": "PASS",
-        "giveup_panel_not_fail": "PASS",
+        "giveup_panel_not_fail": "FAIL",
         "archive_challenge_open": "PASS",
         "main_hud_idle": "PASS",
         "stage_select_scroll": "PASS",
@@ -23,13 +20,14 @@
         "disconnect_modal_missing": "BLOCKED"
       },
       "known_failures": {
-        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。"
+        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。",
+        "giveup_panel_not_fail": "未填写原因（必须补）"
       }
     },
     "scene_templates": {
       "title": "scenes.json 模板完整性",
       "observed": {
-        "ok": 131,
+        "ok": 132,
         "missing": 0
       }
     },

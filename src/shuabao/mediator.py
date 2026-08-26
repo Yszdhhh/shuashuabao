@@ -116,6 +116,8 @@ from shuabao.habit_preference import (
 from shuabao.skill_catalog import grant_on_learn_card
 from shuabao.card_fact import CardFact, card_fact_from_slot
 from shuabao.policy.mechanics_view import MechanicsPolicyView
+from shuabao.policy.equipment_fsm import EquipmentFSM
+from shuabao.policy.merchant_fsm import MerchantFSM, MerchantPhase
 
 # 构建标识：写入 JSONL tick trace（B1-1），用于区分版本/里程碑来源。
 # 每次发布里程碑时更新；配合 git 提交哈希可精确定位产生该日志的代码。
@@ -402,6 +404,31 @@ class RecoveryState:
     opening_exit_confirm: bool = False
 
 
+@dataclass
+class AttemptBudget:
+    """Fixed, fail-closed allowance for one stage-selection episode."""
+
+    started_at: float
+    hard_deadline: float
+    actions_left: int
+    retries_left: int
+
+    def exhausted(self, now: float) -> bool:
+        return now >= self.hard_deadline or self.actions_left <= 0 or self.retries_left <= 0
+
+    def consume_action(self, now: float) -> bool:
+        if now >= self.hard_deadline or self.actions_left <= 0:
+            return False
+        self.actions_left -= 1
+        return True
+
+    def consume_retry(self, now: float) -> bool:
+        if now >= self.hard_deadline or self.retries_left <= 0:
+            return False
+        self.retries_left -= 1
+        return True
+
+
 class Mediator:
     _CREATE_ROOM_CONFIRM_WINDOW_S = 4.0
     _CREATE_ROOM_TOTAL_TIMEOUT_S = 60.0
@@ -410,6 +437,9 @@ class Mediator:
     _CREATE_ROOM_DOWNLOAD_WAIT_S = _CREATE_ROOM_TOTAL_TIMEOUT_S
     _CREATE_ROOM_MAX_ATTEMPTS = 3
     _L0_TRANSITION_TIMEOUT_S = 60.0
+    _STAGE_ACTION_LIMIT = 12
+    _STAGE_RETRY_LIMIT = 2
+    _STAGE_SELECT_LIMIT = 3
     _OCR_SLOT_ROIS = {
         "skill": ((0.286, 0.178, 0.421, 0.255), (0.433, 0.178, 0.568, 0.255), (0.579, 0.178, 0.714, 0.255)),
         "bond": ((0.254, 0.180, 0.410, 0.265), (0.425, 0.180, 0.581, 0.265), (0.596, 0.180, 0.752, 0.265)),
@@ -490,6 +520,7 @@ class Mediator:
         self._challenge_start_hud_frames: int = 0        # VERIFY_INGAME 连续锚点帧计数
         self._challenge_start_hero_modal_frames: int = 0 # hero 弹窗消失计数
         self._stage_scroll_attempts = 0
+        self._stage_attempt_budget: AttemptBudget | None = None
         # 旧世大陆页签切换尝试预算（上限 2 次）：防 UI 刷新延迟/模板残影导致的
         # livelock 连点，超限 Fail-Closed 停机。
         self._old_world_switch_attempts = 0
@@ -691,6 +722,8 @@ class Mediator:
         self._merchant_next_at = 0.0
         self._equipment_next_at = 0.0
         self._equipment_pending_until = 0.0
+        self._equipment_fsm = EquipmentFSM()
+        self._merchant_fsm = MerchantFSM()
         self._pickup_next_at = 0.0
         self._equipment_round_next_at = 0.0
         self._equipment_round_current_slot = 2
@@ -3140,9 +3173,12 @@ class Mediator:
 
     def _maybe_use_inventory_item(self, frame: Frame) -> LoopAction | None:
         """Use inventory consumables in the verified bottom-right inventory ROI (HUD_ONLY)."""
-        if self._pending_action is not None and not self._pending_action.is_confirmed(frame) and time.time() < self._pending_action.deadline:
-            # 若处于同一帧模拟测试环境下直接放行后续调用
-            pass
+        if (
+            self._pending_action is not None
+            and not self._pending_action.is_confirmed(frame)
+            and time.time() < self._pending_action.deadline
+        ):
+            return None
         if self._black_merchant_present(frame) or self._panel_state != PanelState.CLOSED:
             return None
         now = time.time()
@@ -3225,22 +3261,23 @@ class Mediator:
         if self._black_merchant_present(frame) or self._panel_state != PanelState.CLOSED:
             return LoopAction.Continue
         now = time.time()
-        if self._equipment_pending_until:
+        if self._equipment_fsm.pending_slot is not None:
             if now < self._equipment_pending_until:
                 return LoopAction.Continue
+            self._equipment_fsm = self._equipment_fsm.observe(
+                max(now, self._equipment_fsm.lease_until)
+            )
             self._equipment_pending_until = 0.0
-            # 词缀弹窗仍在（或刚渲染出来）→ 不推进；由 EQUIPMENT_AFFIX_MODAL
-            # 仲裁分支点击选择后，下一 tick 才放行。
             if self._find_equipment_affix_choice(frame) is not None:
                 print("[L1] 装备词缀弹窗待处理，装备步骤暂不推进循环")
                 return LoopAction.Continue
-            self._advance_l1_cycle("equipment")
-            return LoopAction.Continue
         # 1号格升级 (右键最大升级，8s 间隔)
         if now >= self._equipment_next_at and self._equipment_slot_one_occupied(frame):
             hit = self._hud_button_hit(frame, "equipment_slot_1", (1087 / 1600, 737 / 900))
             if self.act_right_click(hit, "UpgradeEquipmentSlot1-max"):
-                self._equipment_pending_until = now + self.settings.ui_action_interval_s
+                lease_s = float(self.settings.ui_action_interval_s)
+                self._equipment_fsm = self._equipment_fsm.begin(1, now, lease_s=lease_s)
+                self._equipment_pending_until = now + lease_s
                 self._equipment_next_at = now + 8.0
                 return LoopAction.Continue
 
@@ -3258,6 +3295,9 @@ class Mediator:
             if slot_idx in slot_coords:
                 hit_slot = self._hud_button_hit(frame, f"equipment_slot_{slot_idx}", slot_coords[slot_idx])
                 if self.act_click(hit_slot, f"UpgradeEquipmentSlot{slot_idx}-check"):
+                    self._equipment_fsm = self._equipment_fsm.begin(
+                        slot_idx, now, lease_s=float(self.settings.ui_action_interval_s)
+                    )
                     self._equipment_round_current_slot += 1
                     if self._equipment_round_current_slot > 6:
                         self._equipment_round_current_slot = 2
@@ -3293,6 +3333,15 @@ class Mediator:
             if area >= 80 and bw >= 14 and bh >= 14 and bw < max_w:
                 blobs += 1
         return blobs >= 2
+    @staticmethod
+    def _merchant_fingerprint(frame: Frame) -> str:
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
+            return ""
+        x0, y0, x1, y1 = MERCHANT_STRIP_ROI
+        roi = frame.bgr[int(frame.height * y0):int(frame.height * y1),
+                        int(frame.width * x0):int(frame.width * x1)]
+        return MerchantScanner.compute_merchant_fingerprint(roi)
+
 
     @staticmethod
     def _bond_bar_nonempty(frame: Frame) -> bool:
@@ -3344,8 +3393,15 @@ class Mediator:
         支线循环：能买就买，能刷新（杀敌够）就刷新；刷新钮没了再回到 G。
         """
         now = time.time()
-        if now < self._merchant_next_at or not self._black_merchant_present(frame):
+        present = self._black_merchant_present(frame)
+        fingerprint = self._merchant_fingerprint(frame) if present else ""
+        self._merchant_fsm = self._merchant_fsm.observe(present, fingerprint, now)
+        if not present or self._merchant_fsm.phase is MerchantPhase.EVICTED:
             return None
+        if self._merchant_fsm.phase is not MerchantPhase.READY:
+            return LoopAction.Continue
+        if now < self._merchant_next_at:
+            return LoopAction.Continue
 
         scanner = MerchantScanner(
             attr_routes=getattr(self.settings, "attr_route", None) or [],
@@ -3413,13 +3469,19 @@ class Mediator:
                 action_name = "BlackMerchant-swallow_pill"
             elif target_item.item_type == "wood":
                 action_name = "BlackMerchant-wood"
-            if self.act_click(hit, action_name):
+            if self._merchant_fsm.can_purchase(5) and self.act_click(hit, action_name):
+                self._merchant_fsm = self._merchant_fsm.begin_purchase(now, timeout_s=retry_s)
                 self._merchant_next_at = now + retry_s
                 return LoopAction.Continue
 
-        if scanner.auto_refresh and self._merchant_refresh_available(frame):
+        if (
+            scanner.auto_refresh
+            and self._merchant_fsm.can_reroll(3)
+            and self._merchant_refresh_available(frame)
+        ):
             refresh = self._hud_button_hit(frame, "black_merchant_refresh", (0.935, 0.715))
             if self.act_click(refresh, "BlackMerchant-refresh"):
+                self._merchant_fsm = self._merchant_fsm.begin_reroll(now, timeout_s=retry_s)
                 self._merchant_next_at = now + retry_s
                 return LoopAction.Continue
         return None
@@ -4650,6 +4712,7 @@ class Mediator:
             self._panel_fingerprint = None
             self._panel_fingerprint_attempts = 0
         if phase == Phase.MAIN_LINE and self.phase != Phase.MAIN_LINE:
+            self._stage_attempt_budget = None
             self._l1_cycle_step = "skill"
             self._l1_cycle_last_advance_at = time.time()
         if phase == Phase.RECOVER_FAILURE and self.phase != Phase.RECOVER_FAILURE:
@@ -5769,11 +5832,11 @@ class Mediator:
             if not self.act_click(box, "CreateRoom-focus-input"):
                 return False
             res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not res_hk.success:
+            if not getattr(res_hk, "success", bool(res_hk)):
                 print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {res_hk.message}")
                 return False
             res_paste = self.executor.paste_text(value, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not res_paste.success:
+            if not getattr(res_paste, "success", bool(res_paste)):
                 print(f"[L0] 建房弹窗 paste_text 失败/取消: {res_paste.message}")
                 return False
             sent_any = True
@@ -5795,6 +5858,41 @@ class Mediator:
             configured = self._L0_TRANSITION_TIMEOUT_S
         return max(30.0, min(configured, self._L0_TRANSITION_TIMEOUT_S))
 
+    def _stage_budget(self, now: float) -> AttemptBudget:
+        if self._stage_attempt_budget is None:
+            self._stage_attempt_budget = AttemptBudget(
+                started_at=now,
+                hard_deadline=now + self._l0_transition_timeout(),
+                actions_left=self._STAGE_ACTION_LIMIT,
+                retries_left=self._STAGE_RETRY_LIMIT,
+            )
+        return self._stage_attempt_budget
+
+    def _fail_stage_budget(self, reason: str) -> LoopAction:
+        print(f"[L0] 选关尝试预算耗尽（{reason}），Fail-Closed 停止运行")
+        self.set_phase(Phase.ERROR, f"stage attempt budget exhausted: {reason}")
+        self.stop()
+        return LoopAction.Break
+
+    def _stage_budget_guard(self, now: float) -> LoopAction | None:
+        budget = self._stage_budget(now)
+        if budget.exhausted(now):
+            reason = (
+                "hard deadline" if now >= budget.hard_deadline
+                else "actions" if budget.actions_left <= 0
+                else "challenge retries"
+            )
+            return self._fail_stage_budget(reason)
+        if self._stage_select_attempts >= self._STAGE_SELECT_LIMIT:
+            return self._fail_stage_budget("stage select attempts")
+        return None
+
+    def _consume_stage_action(self, now: float, action: str) -> LoopAction | None:
+        if not self._stage_budget(now).consume_action(now):
+            return self._fail_stage_budget(action)
+        return None
+
+
     def _action_timed_out(self) -> bool:
         return self._room_action_deadline is not None and time.time() >= self._room_action_deadline
 
@@ -5806,10 +5904,13 @@ class Mediator:
             self.stop()
             return LoopAction.Break
         if stage_page:
-            self._challenge_start_attempts += 1  # telemetry only
+            now = time.time()
+            if not self._stage_budget(now).consume_retry(now):
+                return self._fail_stage_budget("challenge retries")
+            self._challenge_start_attempts += 1
             print(
                 f"[L0] 选关后未进局，仍在选关页；回到状态对齐重选 "
-                f"(telemetry={self._challenge_start_attempts})"
+                f"(retry {self._challenge_start_attempts}/{self._STAGE_RETRY_LIMIT})"
             )
             self._stage_selected = False
             self._stage_target_name = None
@@ -6080,12 +6181,12 @@ class Mediator:
             return LoopAction.Continue
 
         if self.phase == Phase.STAGE_SELECT:
+            now = time.time()
+            budget_result = self._stage_budget_guard(now)
+            if budget_result is not None:
+                return budget_result
             if not stage_page:
                 if self._is_game_client_frame(frame):
-                    now = time.time()
-                    if self._action_timed_out():
-                        print("[L0] 选关页未对齐，续期继续找关（不回房间、不停止）")
-                        self._room_action_deadline = now + self._l0_transition_timeout()
                     print("[L0] 游戏窗仍在，继续对齐选关页")
                 elif self._action_timed_out():
                     print("[L0] 选关页消失但未出现局内 UI，回到房间等待")
@@ -6097,10 +6198,6 @@ class Mediator:
             arch_res = self._maybe_switch_to_archaeology(frame)
             if arch_res is not None:
                 return arch_res
-            now = time.time()
-            if self._action_timed_out():
-                print("[L0] 选关期限到，续期继续找关（不停止）")
-                self._room_action_deadline = now + self._l0_transition_timeout()
             # L0-RECOVERY（实机 20260816_204613）：客户端记忆停留在团本分页时，
             # 右侧列表没有 1-x 行，直接扫描会盲目滚动并误点未开放关卡。普通主线
             # （chapter=1，1-1~1-23）都在「旧世大陆」大区页签下——先切回再扫列表。
@@ -6120,6 +6217,9 @@ class Mediator:
                         f"[L0] 检测到当前不在旧世大陆，按状态对齐切换页签 "
                         f"(telemetry={self._old_world_switch_attempts + 1})"
                     )
+                    budget_result = self._consume_stage_action(now, "continent page")
+                    if budget_result is not None:
+                        return budget_result
                     if not self.act_click(old_world_tab, "SwitchOldWorldTab"):
                         return LoopAction.Continue
                     self._old_world_switch_attempts += 1
@@ -6155,12 +6255,15 @@ class Mediator:
                     # cadence.  The counter is telemetry only.
                     x, y = stage_list_scroll_point(frame)
                     target_hwnd = self._last_frame.hwnd if self._last_frame else None
+                    budget_result = self._consume_stage_action(now, "stage scroll")
+                    if budget_result is not None:
+                        return budget_result
                     res_scroll = self.executor.scroll(
                         x, y, -2,
                         target_hwnd=target_hwnd,
                         dry_run=self.settings.dry_run,
                     )
-                    if res_scroll.success:
+                    if getattr(res_scroll, "success", bool(res_scroll)):
                         self._stage_scroll_attempts += 1
                         self._stage_scroll_cooldown_until = now + 0.6
                         self._tick_input_executed = True
@@ -6195,6 +6298,9 @@ class Mediator:
                     print(f"[L0] 目标关卡 {target.name} 首帧命中，等待坐标稳定复核（零动作）")
                     return LoopAction.Continue
                 print(f"[L0] 选关 SelectStage {target.name} @ {target.center}")
+                budget_result = self._consume_stage_action(now, "stage select")
+                if budget_result is not None:
+                    return budget_result
                 if not self.act_click(target, "SelectStage-target"):
                     return LoopAction.Continue
                 self._stage_selected = True
@@ -6232,6 +6338,9 @@ class Mediator:
                 print("[L0] 已选关，但未找到棕色开始游戏按钮")
                 return LoopAction.Continue
             print(f"[L0] 选关后点击开始 {start.name} score={start.score:.3f}")
+            budget_result = self._consume_stage_action(now, "challenge start")
+            if budget_result is not None:
+                return budget_result
             if not self.act_click(start, "StageStart"):
                 return LoopAction.Continue
             self._room_action_attempts = 1
@@ -6250,6 +6359,9 @@ class Mediator:
             # ---- startChallenge 显式子状态机：WAIT_TRANSITION → VERIFY_INGAME → DONE ----
             # 每 tick 至多一个输入；未知/超时/页面异变 → Fail-Closed 停机，不猜测点击
             now = time.time()
+            budget_result = self._stage_budget_guard(now)
+            if budget_result is not None:
+                return budget_result
             window = max(20, min(self.settings.query_timeout, 60))
             state = self._challenge_start_state or "WAIT_TRANSITION"
             if self._challenge_start_state is None:
@@ -7966,10 +8078,9 @@ class Mediator:
             self._advance_l1_cycle("merchant")
             return LoopAction.Continue
 
-        # 活性看门狗：如果主线持续 15 秒没有任何有效动作，主动按 ESC 关闭可能卡住的遮挡、强制步进轮转，永不原地退出
+        # 活性看门狗只步进已验证的内部循环；绝不向未知前台注入全局 ESC。
         if self._main_line_since is not None and (now - self._main_line_since) >= 15.0:
-            print("[med] 活性看门狗：15s 无动作，触发防卡死推进 (ESC + Advance Cycle)")
-            self.act_key("escape", "Watchdog-EscUnstuck")
+            print("[med] 活性看门狗：15s 无动作，步进已验证循环")
             self._advance_l1_cycle()
             self._main_line_since = now
             return LoopAction.Continue
