@@ -47,7 +47,7 @@ class ShadowClient:
         raw_repo_root = Path(
             repo_root
             or os.environ.get("SHUABAO_OCR_REPO_ROOT")
-            or os.environ.get("GAMESCRIPT_OCR_REPO_ROOT", "")
+            or os.environ.get("SHUABAO_OCR_REPO_ROOT", "")
             or current_package_src.parent
         ).expanduser()
         self.repo_root = raw_repo_root.resolve()
@@ -197,8 +197,8 @@ class ShadowClient:
         )
         env["SHUABAO_OCR_MODEL_DIR"] = str(self.model_dir)
         env["SHUABAO_OCR_REPO_ROOT"] = str(self.repo_root)
-        env["GAMESCRIPT_OCR_MODEL_DIR"] = str(self.model_dir)
-        env["GAMESCRIPT_OCR_REPO_ROOT"] = str(self.repo_root)
+        env["SHUABAO_OCR_MODEL_DIR"] = str(self.model_dir)
+        env["SHUABAO_OCR_REPO_ROOT"] = str(self.repo_root)
         exe = command[0] if command else ""
         if self.worker_command is None:
             package_init = self.src_dir / "shuabao" / "__init__.py"
@@ -707,7 +707,7 @@ def _resolve_ocr_python(
         candidates.append(exe_dir / "venv-ocr" / "Scripts" / "python.exe")
         candidates.append(exe_dir / ".venv-ocr" / "Scripts" / "python.exe")
     else:
-        env_py = (os.environ.get("SHUABAO_OCR_PYTHON") or os.environ.get("GAMESCRIPT_OCR_PYTHON") or "").strip()
+        env_py = (os.environ.get("SHUABAO_OCR_PYTHON") or os.environ.get("SHUABAO_OCR_PYTHON") or "").strip()
         if env_py:
             candidates.append(Path(env_py))
     candidates.append(repo_root / ".venv-ocr" / "Scripts" / "python.exe")
@@ -753,7 +753,7 @@ def _resolve_model_dir(repo_root: Path, model_dir: str | Path | None) -> Path:
                 return candidate.resolve()
     raw = (
         os.environ.get("SHUABAO_OCR_MODEL_DIR")
-        or os.environ.get("GAMESCRIPT_OCR_MODEL_DIR", "")
+        or os.environ.get("SHUABAO_OCR_MODEL_DIR", "")
     )
     if raw:
         p = Path(raw).expanduser()

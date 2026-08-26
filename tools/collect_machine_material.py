@@ -39,7 +39,7 @@ docs/SCOPE_OVERRIDE_1600X900_20260811.md：
                （也可用 tools/net_block.py 自动阻断+抓屏：默认输出 C:\\tmp\\disconnect_captures）
   panel episodes（自动收集）  %LocalAppData%\\ShuaBao\\YYYYMMDD\\panels\\
                panel_<HHMMSS_mmm>_<fp8>.jpg + <同名>.json（kind=panel_sample，
-               300s 内容指纹去重；Mediator 旁路归档，无输入动作权 —— src/gamescript/incidents.py）
+               300s 内容指纹去重；Mediator 旁路归档，无输入动作权 —— src/shuabao/incidents.py）
   incidents（异常归档）       %LocalAppData%\\ShuaBao\\incidents\\YYYYMMDD\\incidents\\
   录屏/索引  C:\\tmp\\recordings\\（rec1-rec8 既有；idx_a/idx_b 为 1fps 索引帧目录，
                video_index_meta.json 记录 probe/sha256/frames）
@@ -576,7 +576,7 @@ GUIDE = """\
 步骤 C：panel episodes 自动收集（panel_sample）
 ────────────────────────────────────────────
   C1 使用带 panel_sample 的构建实机跑局；Mediator 在面板正常出现时旁路归档
-     （无任何输入动作权，见 src/gamescript/incidents.py sample_panel）：
+     （无任何输入动作权，见 src/shuabao/incidents.py sample_panel）：
        %LocalAppData%\\ShuaBao\\YYYYMMDD\\panels\\
        panel_<HHMMSS_mmm>_<fp8>.jpg  +  <同名>.json（kind=panel_sample，300s 指纹去重）
   C2 若以 1600×900 窗口跑局，panels 帧即为真实 1600×900 正样本；

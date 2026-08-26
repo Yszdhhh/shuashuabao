@@ -6,11 +6,11 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
-from gamescript.vision.capture import Frame, _window_title_score, is_local_helper_title
-from gamescript.vision.matcher import MatchResult, _load_template, find_blue_button, find_input_boxes, match_all, match_any
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
+from shuabao.vision.capture import Frame, _window_title_score, is_local_helper_title
+from shuabao.vision.matcher import MatchResult, _load_template, find_blue_button, find_input_boxes, match_all, match_any
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
 
 
 class LobbyDetectorTests(unittest.TestCase):

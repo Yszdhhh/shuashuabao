@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.ui.uia.source import (
+from shuabao.ui.uia.source import (
     PROP_AUTOMATION_ID,
     PROP_CLASS_NAME,
     PROP_CONTROL_TYPE,

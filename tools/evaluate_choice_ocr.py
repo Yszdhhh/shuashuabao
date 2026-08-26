@@ -5,7 +5,7 @@
 - 输入：fixtures/ocr_choices/manifest.json（B2-1/O1 裁剪）+ config/choice_lexicon.json（B2-3）
 - 模型：models/ocr/ 本地固定版本（MODEL_MANIFEST.json 记录 SHA256/大小/license/source_url）
 - 推理：paddleocr 3.x TextRecognition（PP-OCRv5 mobile，rec-only，无 det/cls）
-- 归一化：src/gamescript/vision/choice_ocr.py 的 normalize_choice_text + lookup_lexicon
+- 归一化：src/shuabao/vision/choice_ocr.py 的 normalize_choice_text + lookup_lexicon
 - 输出：docs/baselines/B2_OCR_EVAL_<ts>.json + .md
 
 O0 评测可信度修复（对比旧版 B2-2 evaluator）：
@@ -34,7 +34,7 @@ O1 ROI 修复配合：manifest 每槽记录显式 bbox（slot["roi"]）与 layou
 
 Windows 注意：PaddlePaddle C++ 模型加载器无法读取含非 ASCII 字符的路径
 （本仓库路径含 🎮 影音游戏），因此评测前把模型目录复制到 ASCII 暂存目录
-（默认 %TEMP%/gamescript_ocr_stage，可用 --staging-dir 覆盖）；
+（默认 %TEMP%/shuabao_ocr_stage，可用 --staging-dir 覆盖）；
 模型二进制来源仍是 models/ocr/，SHA256 与 MODEL_MANIFEST.json 核对。
 """
 
@@ -62,13 +62,13 @@ except ImportError:  # pragma: no cover
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from gamescript.vision.choice_ocr import (  # noqa: E402
+from shuabao.vision.choice_ocr import (  # noqa: E402
     load_lexicon,
     lookup_lexicon,
     normalize_choice_text,
 )
-from gamescript.vision.capture import Frame  # noqa: E402
-from gamescript.vision.matcher import match_any  # noqa: E402
+from shuabao.vision.capture import Frame  # noqa: E402
+from shuabao.vision.matcher import match_any  # noqa: E402
 
 DEFAULT_MANIFEST = REPO_ROOT / "fixtures" / "ocr_choices" / "manifest.json"
 DEFAULT_MODELS_DIR = REPO_ROOT / "models" / "ocr"
@@ -1464,7 +1464,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--staging-dir",
         type=Path,
-        default=Path(tempfile.gettempdir()) / "gamescript_ocr_stage",
+        default=Path(tempfile.gettempdir()) / "shuabao_ocr_stage",
         help="ASCII 路径模型暂存目录（Paddle 无法读取含非 ASCII 字符的路径）",
     )
     ap.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)

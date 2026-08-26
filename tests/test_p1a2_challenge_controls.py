@@ -26,12 +26,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from gamescript.input.keyboard_mouse import ActionResult
-from gamescript.mediator import ChallengeState, LoopAction, Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.input.keyboard_mouse import ActionResult
+from shuabao.mediator import ChallengeState, LoopAction, Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 from run_replay import load_image
 from tests.test_scenario_replay import FakeClock, FakeInputExecutor
 
@@ -339,7 +339,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
              patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.UNKNOWN), \
              patch.object(self.med.executor, "right_click") as mock_rc, \
-             patch("gamescript.mediator.find_stage_labels") as mock_stage_find:
+             patch("shuabao.mediator.find_stage_labels") as mock_stage_find:
 
             res = self.med._tick_main_line(self.frame_off)
             self.assertEqual(res, LoopAction.Continue)
@@ -357,7 +357,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
              patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.UNKNOWN), \
              patch.object(self.med.executor, "right_click") as mock_rc, \
-             patch("gamescript.mediator.time.time", side_effect=(100.0, 103.0, 103.0, 103.0)):
+             patch("shuabao.mediator.time.time", side_effect=(100.0, 103.0, 103.0, 103.0)):
             # 第一 tick：UNKNOWN → 零输入等待（Continue）
             self.assertEqual(self.med._ensure_challenge_buttons(self.frame_off), LoopAction.Continue)
             self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.UNKNOWN)
@@ -374,7 +374,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.med._auto_task_done = True
 
         with patch.object(self.med.executor, "right_click", return_value=ActionResult(success=False, status="FAILED")) as mock_rc, \
-             patch("gamescript.mediator.find_stage_labels") as mock_stage_find:
+             patch("shuabao.mediator.find_stage_labels") as mock_stage_find:
 
             res = self.med._tick_main_line(self.frame_off)
             self.assertEqual(res, LoopAction.Continue)
@@ -388,7 +388,7 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.med._challenge_attempts["coin_challenge"] = 2
 
         with patch.object(self.med.executor, "right_click", return_value=ActionResult(success=False, status="FAILED")) as mock_rc, \
-             patch("gamescript.mediator.find_stage_labels") as mock_stage_find:
+             patch("shuabao.mediator.find_stage_labels") as mock_stage_find:
 
             res = self.med._tick_main_line(self.frame_off)
             self.assertEqual(res, LoopAction.Break)

@@ -27,10 +27,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
 from run_replay import run_replay_fixture
 
 ENDGAME = ROOT / "fixtures" / "reborn_wow" / "endgame"
@@ -127,7 +127,7 @@ class P1B0PostGameTests(unittest.TestCase):
         # Real 1.4.1 footage briefly shows the NPC hub again after “yes”.  It is
         # a loading transition, not authority to right-click the rift NPC twice.
         transition_at = med._secret_realm_entering_since + settings.ui_action_interval_s + 0.05
-        with patch("gamescript.mediator.time.time", return_value=transition_at), \
+        with patch("shuabao.mediator.time.time", return_value=transition_at), \
              patch.object(med, "act_click") as transition_click, \
              patch.object(med, "act_right_click") as transition_right_click:
             action = med._tick_main_line(hub)
@@ -138,7 +138,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
         active = load_fixture_frame("fixtures/replay/main_line_auto_on.png")
         verified_at = transition_at + 0.1
-        with patch("gamescript.mediator.time.time", return_value=verified_at), \
+        with patch("shuabao.mediator.time.time", return_value=verified_at), \
              patch.object(med, "_post_game_state", return_value=None), \
              patch.object(med, "_is_in_game_hud", return_value=True), \
              patch.object(med, "act_click") as extra_click, \
@@ -342,7 +342,7 @@ class P1B0PostGameTests(unittest.TestCase):
         med.phase = Phase.BOOT
         with patch.object(med, "see", return_value=black), \
              patch.object(med, "_tick_l0") as mock_tick, \
-             patch("gamescript.mediator.time") as mock_time:
+             patch("shuabao.mediator.time") as mock_time:
             mock_time.time.return_value = 1000.0
             mock_time.sleep.return_value = None
             action = med.tick()

@@ -38,7 +38,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from gamescript.vision.choice_ocr import load_lexicon, lookup_lexicon, normalize_choice_text  # noqa: E402
+from shuabao.vision.choice_ocr import load_lexicon, lookup_lexicon, normalize_choice_text  # noqa: E402
 
 D0_MANIFEST = REPO_ROOT / "fixtures" / "ocr_choices" / "D0_extended_manifest.json"
 VERDICTS_DIR = REPO_ROOT / "fixtures" / "ocr_choices" / "review" / "verdicts"

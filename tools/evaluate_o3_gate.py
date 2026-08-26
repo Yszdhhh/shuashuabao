@@ -27,7 +27,7 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import evaluate_choice_ocr as evo  # noqa: E402
-from gamescript.vision.choice_ocr import (  # noqa: E402
+from shuabao.vision.choice_ocr import (  # noqa: E402
     load_lexicon,
     lookup_lexicon,
     normalize_choice_text,

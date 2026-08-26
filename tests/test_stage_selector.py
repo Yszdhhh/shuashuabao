@@ -5,12 +5,12 @@ from unittest.mock import MagicMock, patch
 import cv2
 import numpy as np
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult, _load_template
-from gamescript.vision.stage_selector import (
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult, _load_template
+from shuabao.vision.stage_selector import (
     StageId,
     find_stage_in_range,
     find_stage_labels,

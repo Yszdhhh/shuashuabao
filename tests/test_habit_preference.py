@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.choice_policy import (  # noqa: E402
+from shuabao.choice_policy import (  # noqa: E402
     PANEL_SKILL,
     PanelCandidates,
     PolicyAction,
@@ -20,7 +20,7 @@ from gamescript.choice_policy import (  # noqa: E402
     SlotCandidate,
     choose_action,
 )
-from gamescript.habit_preference import (  # noqa: E402
+from shuabao.habit_preference import (  # noqa: E402
     append_learning_observation,
     default_habit_path,
     habit_scores_for_panel,
@@ -32,7 +32,7 @@ from gamescript.habit_preference import (  # noqa: E402
 
 class HabitLoadTests(unittest.TestCase):
     def test_missing_file_returns_empty(self):
-        missing = Path(tempfile.gettempdir()) / "gamescript_habit_missing.json"
+        missing = Path(tempfile.gettempdir()) / "shuabao_habit_missing.json"
         if missing.exists():
             missing.unlink()
         data = load_habit_preference(missing)

@@ -22,7 +22,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from gamescript.vision.ocr_shadow import ShadowClient, decode_response, encode_request, panel_fingerprint
+from shuabao.vision.ocr_shadow import ShadowClient, decode_response, encode_request, panel_fingerprint
 
 
 FAKE_WORKER = textwrap.dedent(

@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.vision.ocr_shadow import ShadowClient
+from shuabao.vision.ocr_shadow import ShadowClient
 
 
 # O4 stress hard gates.  The plateau gate deliberately does not use the

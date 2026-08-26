@@ -11,11 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from gamescript.input.keyboard_mouse import ActionResult, InputExecutor
-from gamescript.mediator import LoopAction, Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame
+from shuabao.input.keyboard_mouse import ActionResult, InputExecutor
+from shuabao.mediator import LoopAction, Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame
 from run_replay import main as replay_main, run_replay_fixture
 
 
@@ -241,7 +241,7 @@ class P0B1FixesTests(unittest.TestCase):
         self.assertEqual(self.med._skill_refresh_attempts, 0)
 
     def test_stage_id_generic_parsing_unbounded(self):
-        from gamescript.vision.stage_selector import StageId
+        from shuabao.vision.stage_selector import StageId
         self.assertEqual(StageId.parse("6-1"), StageId(6, 1))
         self.assertEqual(StageId.parse("1-31"), StageId(1, 31))
 

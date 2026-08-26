@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.licensing import (  # noqa: E402
+from shuabao.licensing import (  # noqa: E402
     Lease,
     evaluate_lease,
     issue_lease,

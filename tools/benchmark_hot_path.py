@@ -33,10 +33,10 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import Mediator, PanelState, Phase  # noqa: E402
-from gamescript.settings import Settings  # noqa: E402
-from gamescript.vision.capture import Frame, check_frame_health  # noqa: E402
-from gamescript.vision.matcher import clear_template_cache  # noqa: E402
+from shuabao.mediator import Mediator, PanelState, Phase  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
+from shuabao.vision.capture import Frame, check_frame_health  # noqa: E402
+from shuabao.vision.matcher import clear_template_cache  # noqa: E402
 
 IMAGES_DIR = ROOT / "assets" / "Images"
 FIXTURES_DIR = ROOT / "tests" / "performance" / "fixtures"
@@ -194,7 +194,7 @@ def run_decision(med: Mediator, frame: Frame, health_ok: bool) -> dict:
 # ---- tick 状态重置：exact-static 模式复用同一 Mediator 时需要（保持各次迭代同一代码路径）----
 # 仅覆盖 tick 会变更的字段，显式给回初始值；context/scene 缓存类不在此列。
 def reset_tick_state(med: Mediator, manifest_entry: dict) -> None:
-    from gamescript.mediator import ChallengeState
+    from shuabao.mediator import ChallengeState
 
     med._selection_click_cooldown_until = 0.0
     med._post_game_pending = False
@@ -389,7 +389,7 @@ def bench_mode(
 
 # ---- 实时捕获基准（可选，尽力而为）----
 def live_capture_bench(iterations: int = 5) -> dict:
-    from gamescript.vision import capture as cap_mod
+    from shuabao.vision import capture as cap_mod
 
     out: dict = {"enabled": True}
     try:

@@ -4224,7 +4224,7 @@ class Mediator:
                 if score >= 0.85:
                     return True
         # 2. 备用兜底：如果卡片未选中态精准命中（score >= 0.90），则初始零等级成立
-        return bool(card and card.score >= 0.90)
+        return card_score >= 0.90
     def _hero_fail(self, reason: str) -> LoopAction:
         print(f"[英雄模式] {reason}，Fail-Closed 停止运行")
         self.set_phase(Phase.ERROR, reason)

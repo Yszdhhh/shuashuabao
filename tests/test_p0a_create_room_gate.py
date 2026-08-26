@@ -9,10 +9,10 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import LoopAction, Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult
+from shuabao.mediator import LoopAction, Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 
 
 def _frame() -> Frame:
@@ -71,7 +71,7 @@ class P0ACreateRoomGateTests(unittest.TestCase):
             p[2],
             p[3],
             patch.object(self.med, "act_click", click),
-            patch("gamescript.mediator.append_learning_observation") as obs,
+            patch("shuabao.mediator.append_learning_observation") as obs,
         ):
             self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Continue)
         self.assertEqual(self.med.phase, Phase.PLATFORM_MAP)
@@ -94,7 +94,7 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         self.med._create_room_last_candidate = self.med._create_room_candidate_payload(_hit("create_room"))
         confirm = _hit("create_room_confirm", 800, 700)
         p = self._patch_map(confirm=confirm)
-        with p[0], p[1], p[2], p[3], patch("gamescript.mediator.time.time", return_value=105.0):
+        with p[0], p[1], p[2], p[3], patch("shuabao.mediator.time.time", return_value=105.0):
             self.med._tick_l0(_frame())
 
         self.assertEqual(self.med.phase, Phase.CREATE_ROOM)
@@ -123,7 +123,7 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         self.med._create_room_flow_deadline = 115.0
         self.med._create_room_attempts = 3
         p = self._patch_map()
-        with p[0], p[1], p[2], p[3], patch("gamescript.mediator.time.time", return_value=116.0):
+        with p[0], p[1], p[2], p[3], patch("shuabao.mediator.time.time", return_value=116.0):
             self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Break)
 
         self.assertEqual(self.med.phase, Phase.ERROR)
@@ -136,7 +136,7 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         t0 = 1000.0
         p = self._patch_map(candidate=candidate)
         with p[0], p[1], p[2], p[3], patch.object(self.med, "act_click", click), patch(
-            "gamescript.mediator.time.time", return_value=t0
+            "shuabao.mediator.time.time", return_value=t0
         ):
             self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Continue)
         self.assertEqual(click.call_count, 1)
@@ -149,7 +149,7 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         later = t0 + 8.0
         p = self._patch_map(candidate=candidate)
         with p[0], p[1], p[2], p[3], patch.object(self.med, "act_click", click), patch(
-            "gamescript.mediator.time.time", return_value=later
+            "shuabao.mediator.time.time", return_value=later
         ):
             self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Continue)
         self.assertEqual(click.call_count, 1)
@@ -233,7 +233,7 @@ class P0ACreateRoomGateTests(unittest.TestCase):
 
     def test_pending_create_request_prefers_separate_dialog_hwnd(self):
         """A healthy sticky parent must not starve KK's separate dialog HWND."""
-        from gamescript.vision.capture import WindowTarget
+        from shuabao.vision.capture import WindowTarget
 
         parent = WindowTarget(
             hwnd=123,
@@ -273,8 +273,8 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         def find_confirm(frame):
             return _hit("create_room_confirm") if frame.hwnd == 456 else None
 
-        with patch("gamescript.mediator.find_window_targets", return_value=[parent, dialog]), \
-                patch("gamescript.mediator.capture_target", side_effect=capture_one) as capture_call, \
+        with patch("shuabao.mediator.find_window_targets", return_value=[parent, dialog]), \
+                patch("shuabao.mediator.capture_target", side_effect=capture_one) as capture_call, \
                 patch.object(self.med, "_find_create_confirm", side_effect=find_confirm):
             self.assertIs(self.med._capture_best("KK", "l0"), form)
         self.assertEqual([call.args[0].hwnd for call in capture_call.call_args_list], [123, 456])
@@ -287,7 +287,7 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         (1328x945 map) and never saw room_start on 1224x904, hanging until
         create dialog confirmation timeout.
         """
-        from gamescript.vision.capture import WindowTarget
+        from shuabao.vision.capture import WindowTarget
 
         parent = WindowTarget(
             hwnd=123,
@@ -340,8 +340,8 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         def find_room_start(frame):
             return _hit("kk_start") if frame.hwnd == 789 else None
 
-        with patch("gamescript.mediator.find_window_targets", return_value=[parent, room]), \
-                patch("gamescript.mediator.capture_target", side_effect=capture_one), \
+        with patch("shuabao.mediator.find_window_targets", return_value=[parent, room]), \
+                patch("shuabao.mediator.capture_target", side_effect=capture_one), \
                 patch.object(self.med, "_find_create_confirm", return_value=None), \
                 patch.object(self.med, "_find_room_start", side_effect=find_room_start):
             chosen = self.med._capture_best("KK", "l0")

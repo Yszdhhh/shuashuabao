@@ -14,11 +14,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame, check_frame_health
-from gamescript.vision.matcher import match_any_with_margin
-from gamescript.vision.stage_selector import find_stage_in_range, find_stage_labels, verify_stage_selection, visible_stage_rows
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame, check_frame_health
+from shuabao.vision.matcher import match_any_with_margin
+from shuabao.vision.stage_selector import find_stage_in_range, find_stage_labels, verify_stage_selection, visible_stage_rows
 
 
 @dataclass

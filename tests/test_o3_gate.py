@@ -22,7 +22,7 @@ sys.path.insert(0, str(REPO_ROOT / "tools"))
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 import evaluate_o3_gate as o3  # noqa: E402
-from gamescript.vision.choice_ocr import load_lexicon  # noqa: E402
+from shuabao.vision.choice_ocr import load_lexicon  # noqa: E402
 
 
 class TestSessionSplit(unittest.TestCase):

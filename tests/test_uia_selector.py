@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.ui.uia.model import UiaNode, UiaSelector
-from gamescript.ui.uia.selector import describe_node, find_matching_nodes, resolve_node
+from shuabao.ui.uia.model import UiaNode, UiaSelector
+from shuabao.ui.uia.selector import describe_node, find_matching_nodes, resolve_node
 
 
 def _node(
@@ -54,7 +54,7 @@ class SelectorMatchTests(unittest.TestCase):
         self.assertIsNone(resolve_node(nodes, UiaSelector(name="不存在")))
 
     def test_control_type_accepts_enum(self):
-        from gamescript.ui.uia.model import ControlType
+        from shuabao.ui.uia.model import ControlType
 
         nodes = [_node(name="x", ctype=50000)]
         self.assertEqual(len(find_matching_nodes(nodes, UiaSelector(control_type=ControlType.BUTTON))), 1)

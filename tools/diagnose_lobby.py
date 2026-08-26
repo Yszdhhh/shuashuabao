@@ -12,9 +12,9 @@ import cv2
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import Mediator, Phase  # noqa: E402
-from gamescript.settings import Settings  # noqa: E402
-from gamescript.vision.capture import (  # noqa: E402
+from shuabao.mediator import Mediator, Phase  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
+from shuabao.vision.capture import (  # noqa: E402
     L0_WINDOW_KEYWORDS,
     L1_WINDOW_KEYWORDS,
     capture_target,

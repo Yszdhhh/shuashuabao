@@ -22,8 +22,8 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from compare_ledger import COMPARED_FIELDS, load_rows  # noqa: E402
-from gamescript.mediator import Mediator  # noqa: E402
-from gamescript.settings import Settings  # noqa: E402
+from shuabao.mediator import Mediator  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
 from run_replay import run_replay_fixture  # noqa: E402
 
 MANIFEST = ROOT / "fixtures" / "manifest.json"
