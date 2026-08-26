@@ -8,7 +8,7 @@
 //      btnStart → validate_preflight → start_run（运行中同按钮变 stop_run）；
 //      btnMin/btnClose → window_control；run_status_changed → 徽标/进度；
 //      log_appended → 运行日志；snapshot_changed → 快照重渲染。
-import type { DashboardBridge, RunStatusDTO, SettingsDTO, SnapshotDTO } from "./bridge/types";
+import type { DashboardBridge, ModeDTO, RunStatusDTO, SettingsDTO, SnapshotDTO } from "./bridge/types";
 
 // —— index.html 内联脚本暴露的全局（经典脚本 globalThis 绑定）——
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -31,10 +31,10 @@ declare function recommendChallenges(): void;
 declare function currentSkills(): string[];
 declare function applyOfficial(id: string): void;
 
-/** OD12 场景 ↔ 目录 mode_id（config/mode_specs.json）。lead 与 follow 同属 follow_team。 */
+/** OD12 场景 ↔ 目录 mode_id（config/mode_specs.json）；带车复用 normal_farm 建房链。 */
 const SCENE_TO_MODE_ID: Record<string, string> = {
   farm: "normal_farm",
-  lead: "follow_team",
+  lead: "normal_farm",
   follow: "follow_team",
   hitch: "lobby_hitch",
 };
@@ -75,6 +75,7 @@ let bridge: DashboardBridge | null = null;
 let applying = false;
 let runActive = false;
 let startBusy = false;
+let modeCatalog = new Map<string, ModeDTO>();
 let lastConfigJson = "";
 let lastShellJson = "";
 
@@ -165,10 +166,29 @@ function pushReputation(): void {
   pushConfig({ reputation_allocations: allocations, auto_reputation: Boolean(state.hero) || maxPoints > 0 });
 }
 
+function currentModeId(): string {
+  return SCENE_TO_MODE_ID[String(state.scene)] ?? "normal_farm";
+}
+
+/** OD12 只负责展示；是否能点火始终以后端 mode catalog 为准。 */
+function applyLaunchability(): void {
+  if (runActive) return;
+  const mode = modeCatalog.get(currentModeId());
+  const skillsReady = currentSkills().filter(Boolean).length > 0;
+  const launchable = Boolean(mode?.startable) && skillsReady;
+  const button = $("btnStart") as HTMLButtonElement;
+  button.disabled = !launchable;
+  button.textContent = launchable ? "开始运行" : "不可启动";
+  button.classList.remove("stop");
+  $("lamp").className = "lamp" + (launchable ? "" : " bad");
+  $("lampText").textContent = launchable ? "预检通过" : (mode?.startable ? "待选技能" : "不可启动");
+  showStartErr(launchable ? "" : (mode?.blocked_reason || (skillsReady ? "后端未开放此运行方式" : "请先选择至少一个技能")));
+}
+
 async function startRun(): Promise<void> {
   const b = bridge;
   if (!b || startBusy) return;
-  const modeId = SCENE_TO_MODE_ID[state.mode] ?? "normal_farm";
+  const modeId = currentModeId();
   startBusy = true;
   try {
     // §6.3：UI 先本地预检给反馈；start_run 内部还会再验一次（fail-closed）。
@@ -203,7 +223,9 @@ function applyTheme(theme: unknown): void {
 }
 
 function applyMode(shellModeId: unknown): void {
-  const scene = MODE_ID_TO_SCENE[asString(shellModeId) ?? ""] ?? null;
+  const modeId = asString(shellModeId) ?? "";
+  if (SCENE_TO_MODE_ID[String(state.scene)] === modeId) return;
+  const scene = MODE_ID_TO_SCENE[modeId] ?? null;
   if (scene && scene !== state.scene) setScene(scene);
 }
 
@@ -295,6 +317,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
   applying = true;
   try {
     const settings: SettingsDTO = snap.settings ?? {};
+    modeCatalog = new Map((snap.modes ?? []).map((mode) => [mode.id, mode]));
     applyTheme(snap.shell?.theme);
     applyMode(snap.shell?.selected_mode_id);
     applyCycle(settings.cycle_num);
@@ -303,7 +326,12 @@ export function applySnapshot(snap: SnapshotDTO): void {
     applyPrestige(settings);
     applyStageTargets(settings);
     applyBuildAndSkills(settings);
+    const roomName = asString(settings.room_name);
+    const roomPassword = asString(settings.room_password);
+    if (roomName !== null) ($("roomName") as HTMLInputElement).value = roomName;
+    if (roomPassword !== null) ($("roomPass") as HTMLInputElement).value = roomPassword;
     rerenderAll(settings);
+    applyLaunchability();
   } finally {
     applying = false;
   }
@@ -328,6 +356,7 @@ function applyRunStatus(run: RunStatusDTO): void {
   } else {
     btnStart.classList.remove("stop");
     refreshSummary(); // 恢复“开始运行”文案与可用性判定
+    applyLaunchability();
   }
   if (run.state === "FAILED") {
     const msg = `${label}${run.terminal_reason ? "：" + run.terminal_reason : ""}`;
@@ -396,7 +425,9 @@ function defer(fn: () => void): void {
 function wireIntents(): void {
   // 全局函数后钩子：这些 OD12 函数被多处调用，包一处即可覆盖全部出口。
   afterGlobalCall("setCycle", () => pushConfig({ cycle_num: clampCycle(Number(state.cycle)) }));
+  afterGlobalCall("renderChapterStage", () => pushConfig({ stage_targets: [`${state.chapter}-${state.stage}`] }));
   afterGlobalCall("renderSkillRank", pushSkills);
+  afterGlobalCall("refreshSummary", applyLaunchability);
   afterGlobalCall("setScene", () => {
     const modeId = SCENE_TO_MODE_ID[state.scene];
     if (modeId) pushShell({ selected_mode_id: modeId });
@@ -425,6 +456,11 @@ function wireIntents(): void {
   $("followPairForm").addEventListener("submit", () =>
     defer(() => pushConfig({ follow_pair_code: String(state.teamRules.follow.pairCode ?? "") })),
   );
+  for (const [id, field] of [["roomName", "room_name"], ["roomPass", "room_password"]] as const) {
+    $(id).addEventListener("change", (e) =>
+      pushConfig({ [field]: (e.target as HTMLInputElement).value.trim() }),
+    );
+  }
   document.querySelectorAll("[data-team-rules]").forEach((root) => {
     const mode = (root as HTMLElement).dataset.teamRules;
     const push = () => {

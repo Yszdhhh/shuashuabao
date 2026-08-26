@@ -2,7 +2,7 @@
 
 覆盖：
 - 白名单 Slot 方法面（未列方法不存在；Task 4 起 start_run/stop_run 入列）；
-- get_snapshot / get_modes DTO 形状与 PERSIST_DENYLIST 剔除；
+- get_snapshot DTO 形状与 PERSIST_DENYLIST 剔除；
 - update_config 合法字段更新落盘、非法字段过滤且不落盘、_shell 不被擦除；
 - update_shell 白名单字段校验与持久化；
 - validate_preflight 真实调用 desktop_may_start / live_lock_busy 的 fail-closed 行为；
@@ -23,13 +23,11 @@ from shuabao.shell.dashboard_facade import (
     PREFLIGHT_CHECK_IDS,
     DashboardFacade,
 )
-from shuabao.shell.mode_catalog import desktop_may_start
 
 EXPECTED_SLOTS = {
     "get_snapshot",
     "update_config",
     "update_shell",
-    "get_modes",
     "validate_preflight",
     "window_control",
     "start_run",
@@ -111,9 +109,8 @@ def test_snapshot_shape_strips_denylist(qapp, tmp_path: Path):
     assert snap["shell"]["selected_mode_id"]
     assert snap["modes"], "modes 数组不得为空"
     for m in snap["modes"]:
-        assert {"id", "label", "startable", "enabled", "desktop_start",
-                "evidence_status", "badge", "blocked_reason",
-                "visible_settings"} <= set(m)
+        assert set(m) == {"id", "label", "startable", "evidence_status", "badge",
+                          "blocked_reason", "visible_settings"}
     assert snap["run"]["state"] == "IDLE"
 
 
@@ -178,11 +175,21 @@ def test_update_config_preserves_shell_bundle(qapp, tmp_path: Path):
     assert on_disk["click_delay_ms"] == 300
 
 
-def test_update_config_skills_truncated_to_max(qapp, tmp_path: Path):
+def test_update_config_rejects_skills_over_max_without_writing(qapp, tmp_path: Path):
     f = DashboardFacade(tmp_path)
     patch = {"skills": [f"s{i}" for i in range(10)]}
     res = json.loads(f.update_config(json.dumps(patch)))
-    assert len(res["settings"]["skills"]) == 4  # MAX_SELECTED_SKILLS
+    assert res["ok"] is False
+    assert "skills" in "\n".join(res["errors"])
+    assert not user_settings_path(tmp_path).exists()
+
+
+def test_update_config_rejects_overlong_pair_code_without_writing(qapp, tmp_path: Path):
+    f = DashboardFacade(tmp_path)
+    res = json.loads(f.update_config(json.dumps({"follow_pair_code": "x" * 25})))
+    assert res["ok"] is False
+    assert "follow_pair_code" in "\n".join(res["errors"])
+    assert not user_settings_path(tmp_path).exists()
 
 
 # ---------------------------------------------------------------- update_shell
@@ -206,20 +213,6 @@ def test_update_shell_rejects_out_of_whitelist(qapp, tmp_path: Path):
     joined = "\n".join(res["errors"])
     assert "theme" in joined and "selected_mode_id" in joined
     assert not user_settings_path(tmp_path).exists(), "非法 shell patch 不得落盘"
-
-
-# ---------------------------------------------------------------- get_modes
-
-
-def test_get_modes_matches_catalog(facade):
-    modes = json.loads(facade.get_modes())
-    ids = [m["id"] for m in modes]
-    assert ids
-    for m in modes:
-        assert m["startable"] == desktop_may_start(m["id"])
-        assert bool(m["blocked_reason"]) != m["startable"]
-        assert m["badge"]
-        assert isinstance(m["visible_settings"], list)
 
 
 # ---------------------------------------------------------------- preflight

@@ -135,8 +135,6 @@ class DashboardFacade(QObject):
                 "id": spec.id,
                 "label": spec.label,
                 "startable": startable,
-                "enabled": bool(spec.live_enabled),
-                "desktop_start": bool(spec.desktop_start),
                 "evidence_status": spec.evidence_status,
                 "badge": badge_text(spec),
                 "blocked_reason": "" if startable else _blocked_reason(spec.id),
@@ -216,6 +214,10 @@ class DashboardFacade(QObject):
                 errors.append(f"禁止修改字段: {key}")
             elif key in SHELL_BUNDLE_KEYS:
                 errors.append(f"非法字段: {key}（外壳保留键不经 config 面改写）")
+            elif key == "skills" and isinstance(value, (list, tuple)) and len(value) > MAX_SELECTED_SKILLS:
+                errors.append(f"skills 最多 {MAX_SELECTED_SKILLS} 个")
+            elif key == "follow_pair_code" and isinstance(value, str) and len(value) > 24:
+                errors.append("follow_pair_code 最多 24 字符")
             else:
                 clean_patch[key] = value
 
@@ -277,10 +279,6 @@ class DashboardFacade(QObject):
         dto = self._shell_dto()
         self.snapshot_changed.emit(self.get_snapshot())
         return json.dumps({"ok": True, "errors": [], "shell": dto}, ensure_ascii=False)
-
-    @Slot(result=str)
-    def get_modes(self) -> str:
-        return json.dumps(self._modes_dto(), ensure_ascii=False)
 
     @Slot(str, result=str)
     def validate_preflight(self, mode_id_json: str) -> str:

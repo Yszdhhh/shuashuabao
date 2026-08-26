@@ -20,6 +20,9 @@ describe("mockBridge 形状契约", () => {
     expect(["light", "dark"]).toContain(snap.shell.theme);
     expect(typeof snap.shell.selected_mode_id).toBe("string");
     expect(Array.isArray(snap.modes)).toBe(true);
+    expect(snap.modes.map((mode) => mode.id)).toEqual([
+      "normal_farm", "follow_team", "gambling_wood", "raid_wait", "lobby_hitch", "lab",
+    ]);
     for (const mode of snap.modes) {
       expect(Object.keys(mode).sort()).toEqual([...MODE_KEYS].sort());
       expect(typeof mode.startable).toBe("boolean");
@@ -30,14 +33,14 @@ describe("mockBridge 形状契约", () => {
 
   it("validate_preflight 返回五项 check 行且聚合 ok", async () => {
     const bridge = createMockBridge();
-    const pf = await bridge.validate_preflight("hitch");
+    const pf = await bridge.validate_preflight("lobby_hitch");
     expect(pf.checks.map((c) => c.id)).toEqual(CHECK_IDS);
     for (const c of pf.checks) {
       expect(typeof c.detail).toBe("string");
       expect(typeof c.ok).toBe("boolean");
     }
     expect(pf.ok).toBe(pf.checks.every((c) => c.ok));
-    expect(pf.ok).toBe(false); // hitch startable=false
+    expect(pf.ok).toBe(false); // mode 可启动，但默认 mock 技能预检仍故意失败
   });
 
   it("update_config 往返保留补丁字段", async () => {
