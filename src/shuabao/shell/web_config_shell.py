@@ -14,10 +14,11 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QEvent, QObject, Qt, QUrl
+from PySide6.QtCore import QObject, Qt, QUrl
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QLabel,
@@ -55,8 +56,7 @@ APP_TITLE = "刷刷宝"
 ALLOWED_SCHEMES = frozenset({"file", "qrc"})
 
 _WINDOW_W, _WINDOW_H = 920, 720
-_TITLEBAR_DRAG_HEIGHT = 40
-_TITLEBAR_BUTTONS_LEFT = 690
+_TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT = 690, 40
 
 #: QWebChannel 注册名，与 ui-v2/src/bridge/qtBridge.ts FACADE_OBJECT_NAME 对齐。
 FACADE_OBJECT_NAME = "facade"
@@ -103,6 +103,24 @@ class _LocalOnlyRequestInterceptor(QWebEngineUrlRequestInterceptor):
             info.block(True)
 
 
+class _TitlebarDragRegion(QWidget):
+    """覆盖 WebEngine 标题栏的非交互区，保证鼠标按下由原生 Qt 接收。"""
+
+    def __init__(self, shell: "WebConfigShell"):
+        super().__init__(shell)
+        self._shell = shell
+        self.setGeometry(0, 0, _TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT)
+        self.setCursor(Qt.CursorShape.SizeAllCursor)
+        self.setStyleSheet("background: transparent;")
+
+    def mousePressEvent(self, event: Any) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._shell._begin_window_drag()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+
 class WebConfigShell(QMainWindow):
     """QWebEngineView 宿主。除 DashboardFacade 外禁止注册任何 QWebChannel 对象。"""
 
@@ -139,8 +157,9 @@ class WebConfigShell(QMainWindow):
         self.page = LocalOnlyPage(self.profile, self)
         self.view = QWebEngineView(self)
         self.view.setPage(self.page)
-        self.view.installEventFilter(self)
         self.setCentralWidget(self.view)
+        self._titlebar_drag_region = _TitlebarDragRegion(self)
+        self._titlebar_drag_region.raise_()
 
         # 唯一 LIVE 入口 RunnerService + QWebChannel 唯一注册对象（§6.1/§9）。
         self.runner = runner if runner is not None else RunnerService(self.app_data, self.root)
@@ -175,22 +194,17 @@ class WebConfigShell(QMainWindow):
 
         self.view.load(QUrl.fromLocalFile(str(index)))
 
-    def _start_system_move(self) -> bool:
-        handle = self.windowHandle()
-        return bool(handle is not None and handle.startSystemMove())
+    def _begin_window_drag(self) -> None:
+        """在 WebEngine 收到鼠标按下的同一时刻切换到 Windows 标题栏拖动。"""
+        if sys.platform == "win32":
+            import ctypes
 
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
-        """让无边框壳的标题栏空白区仍保持原生窗口拖动。"""
-        if (
-            watched is self.view
-            and event.type() == QEvent.Type.MouseButtonPress
-            and event.button() == Qt.MouseButton.LeftButton
-            and event.position().y() < _TITLEBAR_DRAG_HEIGHT
-            and event.position().x() < _TITLEBAR_BUTTONS_LEFT
-            and self._start_system_move()
-        ):
-            return True
-        return super().eventFilter(watched, event)
+            ctypes.windll.user32.ReleaseCapture()
+            ctypes.windll.user32.SendMessageW(int(self.winId()), 0xA1, 2, 0)
+            return
+        handle = self.windowHandle()
+        if handle is not None:
+            handle.startSystemMove()
 
     # ------------------------------------------------------------- 原生运行职责（§9）
 
