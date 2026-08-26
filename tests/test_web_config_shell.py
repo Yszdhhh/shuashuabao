@@ -22,8 +22,8 @@ from unittest.mock import MagicMock, patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest  # noqa: E402
-from PySide6.QtCore import QUrl  # noqa: E402
-from PySide6.QtGui import QCloseEvent, QShortcut  # noqa: E402
+from PySide6.QtCore import QEvent, QPointF, QUrl, Qt  # noqa: E402
+from PySide6.QtGui import QCloseEvent, QMouseEvent, QShortcut  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -122,6 +122,29 @@ def _new_shell(tmp_path: Path, runner=None) -> WebConfigShell:
 def test_host_window_matches_od12_product_size(shell):
     """宿主=产品窗 920×720：独立看板，无画布黑边。"""
     assert (shell.width(), shell.height()) == (920, 720)
+
+
+def test_frameless_titlebar_drag_uses_native_system_move(shell, monkeypatch):
+    calls: list[bool] = []
+    monkeypatch.setattr(shell, "_start_system_move", lambda: calls.append(True) or True)
+    event = QMouseEvent(
+        QEvent.Type.MouseButtonPress,
+        QPointF(200, 20),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    assert shell.eventFilter(shell.view, event) is True
+    assert calls == [True]
+
+    button_event = QMouseEvent(
+        QEvent.Type.MouseButtonPress,
+        QPointF(800, 20),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    assert shell.eventFilter(shell.view, button_event) is False
 
 
 def test_production_canvas_semantics_host_exact_product_window():

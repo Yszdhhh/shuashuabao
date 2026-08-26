@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, Qt, QUrl
+from PySide6.QtCore import QEvent, QObject, Qt, QUrl
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QLabel,
@@ -55,6 +55,8 @@ APP_TITLE = "刷刷宝"
 ALLOWED_SCHEMES = frozenset({"file", "qrc"})
 
 _WINDOW_W, _WINDOW_H = 920, 720
+_TITLEBAR_DRAG_HEIGHT = 40
+_TITLEBAR_BUTTONS_LEFT = 690
 
 #: QWebChannel 注册名，与 ui-v2/src/bridge/qtBridge.ts FACADE_OBJECT_NAME 对齐。
 FACADE_OBJECT_NAME = "facade"
@@ -137,6 +139,7 @@ class WebConfigShell(QMainWindow):
         self.page = LocalOnlyPage(self.profile, self)
         self.view = QWebEngineView(self)
         self.view.setPage(self.page)
+        self.view.installEventFilter(self)
         self.setCentralWidget(self.view)
 
         # 唯一 LIVE 入口 RunnerService + QWebChannel 唯一注册对象（§6.1/§9）。
@@ -171,6 +174,23 @@ class WebConfigShell(QMainWindow):
         self._crash_label: QLabel | None = None
 
         self.view.load(QUrl.fromLocalFile(str(index)))
+
+    def _start_system_move(self) -> bool:
+        handle = self.windowHandle()
+        return bool(handle is not None and handle.startSystemMove())
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802
+        """让无边框壳的标题栏空白区仍保持原生窗口拖动。"""
+        if (
+            watched is self.view
+            and event.type() == QEvent.Type.MouseButtonPress
+            and event.button() == Qt.MouseButton.LeftButton
+            and event.position().y() < _TITLEBAR_DRAG_HEIGHT
+            and event.position().x() < _TITLEBAR_BUTTONS_LEFT
+            and self._start_system_move()
+        ):
+            return True
+        return super().eventFilter(watched, event)
 
     # ------------------------------------------------------------- 原生运行职责（§9）
 
