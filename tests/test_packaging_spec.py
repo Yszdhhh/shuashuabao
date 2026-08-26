@@ -49,3 +49,10 @@ def test_build_script_rebuilds_ui_before_pyinstaller() -> None:
     assert "& $npm.Source ci" in text
     assert "& $npm.Source run build" in text
     assert text.index("& $npm.Source run build") < text.index("PyInstaller 打包")
+
+
+def test_packaged_web_launcher_selects_web_shell_and_isolated_data() -> None:
+    text = (PROJECT_ROOT / "tools" / "launch_packaged_web_shell.vbs").read_text(encoding="utf-8")
+    assert '"SHUABAO_SHELL") = "web"' in text
+    assert "ShuaBaoWeb" in text
+    assert 'ShellExecute root & "\\ShuaBao.exe"' in text
