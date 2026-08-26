@@ -1,7 +1,7 @@
 """WebConfigShell —— QWebEngine 宿主（设计规格 §8）。
 
 薄壳职责：
-- frameless 固定 920×720 窗口，加载 ui-v2/dist/index.html（file://，零网络）
+- frameless 固定 1000×780 宿主窗口，加载 ui-v2/dist/index.html（零网络）
 - QWebChannel 仅注册 DashboardFacade 一个对象（§6.1 唯一注册对象）
 - 严格本地限制：非 file/qrc 导航与子资源请求一律拦截；弹新窗口、下载一律拒绝；
   生产禁开发者工具
@@ -42,7 +42,7 @@ APP_TITLE = "刷刷宝"
 #: 严格本地 scheme 白名单（§8）：本地构建产物与 Qt 资源，别的一律不放行。
 ALLOWED_SCHEMES = frozenset({"file", "qrc"})
 
-_WINDOW_W, _WINDOW_H = 920, 720
+_WINDOW_W, _WINDOW_H = 1000, 780
 
 #: QWebChannel 注册名，与 ui-v2/src/bridge/qtBridge.ts FACADE_OBJECT_NAME 对齐。
 FACADE_OBJECT_NAME = "facade"

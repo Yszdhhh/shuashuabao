@@ -67,6 +67,10 @@
     * { box-sizing: border-box; }
     html, body { margin: 0; min-height: 100%; }
     body {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 24px 16px;
       font-family: var(--font-body);
       font-feature-settings: "cv01", "ss03";
       background: var(--bg);
@@ -861,6 +865,7 @@
       .wiz { width: min(440px, 100%); }
       .rank-card { grid-template-columns: 22px 28px minmax(0, 1fr) 44px; }
       .rank-card .grip { display: none; }
+      body { padding: 12px 8px; align-items: stretch; }
     }
     @media (max-width: 600px) {
       .win { width: 100%; min-height: calc(100dvh - 96px); border-radius: 0; }
@@ -873,6 +878,7 @@
       .stepper { height: 44px; }
       .stepper button { width: 44px; }
       .stepper output, .stepper input { height: 44px; }
+      body { padding: 0; }
       .switch-row { min-height: 44px; }
       .switch {
         width: 44px; height: 44px; flex-basis: 44px;

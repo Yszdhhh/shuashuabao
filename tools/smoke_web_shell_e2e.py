@@ -54,6 +54,7 @@ def run_screenshot(scale_pct: int, app_data: Path) -> None:
 
     app = QApplication.instance() or QApplication(sys.argv)
     shell = WebConfigShell(app_data, root=ROOT)
+    shell.show()
     out_dir = ROOT / "docs" / "screenshots"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / f"web_shell_{scale_pct}pct.png"

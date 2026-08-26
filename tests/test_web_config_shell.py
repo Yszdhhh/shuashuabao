@@ -116,6 +116,18 @@ def _new_shell(tmp_path: Path, runner=None) -> WebConfigShell:
         tmp_path, ROOT, dist_dir=_make_dist(tmp_path), runner=runner or _FakeRunner()
     )
 
+def test_host_viewport_stays_above_od12_three_column_breakpoint(shell):
+    """920px 是 OD12 折叠三栏的 max-width 断点，宿主必须给产品窗留余量。"""
+    assert shell.width() > 920
+    assert shell.height() > 720
+
+def test_production_body_rehomes_removed_canvas_layout_semantics():
+    """移除沙盒 canvas 后，body 仍必须承接其居中与留白语义。"""
+    html = (ROOT / "ui-v2" / "index.html").read_text(encoding="utf-8")
+    assert "min-height: 100dvh;" in html
+    assert "place-items: center;" in html
+    assert "padding: 24px 16px;" in html
+
 
 # ---------------------------------------------------- QWebChannel 唯一注册（§6.1）
 
