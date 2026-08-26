@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("QTWEBENGINE_CHROMIUM_FLAGS", "--disable-gpu")
 
 CHECKS: list[tuple[str, bool, str]] = []
 
@@ -65,6 +66,13 @@ def run_screenshot(scale_pct: int, app_data: Path) -> None:
         ok = pix.save(str(out_path))
         done["ok"] = ok and pix.width() > 0
         done["w"], done["h"] = pix.width(), pix.height()
+        image = pix.toImage()
+        colors = {
+            image.pixelColor(x, y).rgba()
+            for x in range(0, image.width(), max(1, image.width() // 20))
+            for y in range(0, image.height(), max(1, image.height() // 20))
+        }
+        done["colors"] = len(colors)
         app.quit()
 
     def on_loaded(ok: bool) -> None:
@@ -77,8 +85,8 @@ def run_screenshot(scale_pct: int, app_data: Path) -> None:
 
     check(
         f"screenshot_{scale_pct}pct",
-        bool(done.get("ok")) and out_path.exists(),
-        f"{out_path.name} {done.get('w')}x{done.get('h')}",
+        bool(done.get("ok")) and out_path.exists() and int(done.get("colors", 0)) >= 8,
+        f"{out_path.name} {done.get('w')}x{done.get('h')} colors={done.get('colors')}",
     )
 
 
