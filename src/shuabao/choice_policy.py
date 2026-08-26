@@ -1157,7 +1157,7 @@ def _is_must_take(name: str | None, must_take: tuple[str, ...]) -> bool:
 def is_negative_treasure(slot: SlotCandidate, settings: PolicySettings) -> bool:
     if slot.name and slot.name in settings.treasure_allow_negative:
         return False
-    if slot.name and slot.name in settings.treasure_negative_names:
+    if slot.name and (slot.name in settings.treasure_negative_names or slot.name in DEFAULT_NEGATIVE_NAMES or slot.name == "压制"):
         return True
     text = slot.description or ""
     if not text:

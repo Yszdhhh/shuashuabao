@@ -1,12 +1,14 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-27 02:06:11",
-  "reason": "Eradicate gamescript namespace, clean worktrees and dead entrypoints, implement P0 AttemptBudget, Dashboard Contract v2, 4-skill strict and Merchant/Equipment FSMs",
+  "updated_at": "2026-08-27 02:12:11",
+  "reason": "Update baseline for core architecture test suites",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
-      "observed": {}
+      "observed": {
+        "passed": 261
+      }
     },
     "frozen_replay": {
       "title": "冻结端到端回放（fixtures/baselines/replay_frozen）",

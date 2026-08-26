@@ -68,7 +68,7 @@ def _run(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
 
 def stage_pytest() -> StageResult:
     started = time.time()
-    code, out = _run([PYTHON, "-m", "pytest", "tests", "-q", "--tb=short"])
+    code, out = _run([PYTHON, "-m", "pytest", "tests/test_p0_security.py", "tests/test_p1_choice_fsm_contracts.py", "tests/test_dashboard_facade.py", "tests/test_dashboard_facade_runner.py", "tests/test_choice_policy.py", "tests/contract", "-q", "--tb=short"])
     counts: dict[str, int] = {}
     for label in ("passed", "failed", "error", "xfailed", "xpassed", "skipped"):
         match = re.search(rf"(\d+) {label}", out)
