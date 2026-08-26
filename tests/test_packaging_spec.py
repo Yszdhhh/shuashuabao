@@ -18,6 +18,7 @@ def test_spec_bundles_web_dist() -> None:
     text = _spec_text()
     assert 'PROJECT_ROOT / "ui-v2" / "dist"' in text
     assert '"web"' in text and '"dist"' in text
+    assert '"web" / "dist"' not in text, "打包目标必须是路径字符串，不能对 str 做 / 运算"
 
 
 def test_spec_hiddenimports_include_qtwebengine_modules() -> None:
@@ -41,3 +42,10 @@ def test_requirements_desktop_use_full_pyside6() -> None:
         line.strip().startswith("PySide6-Essentials") for line in req.splitlines()
     )
     assert any(line.startswith("PySide6>=") for line in req.splitlines())
+
+
+def test_build_script_rebuilds_ui_before_pyinstaller() -> None:
+    text = (PROJECT_ROOT / "build_release.ps1").read_text(encoding="utf-8")
+    assert "& $npm.Source ci" in text
+    assert "& $npm.Source run build" in text
+    assert text.index("& $npm.Source run build") < text.index("PyInstaller 打包")

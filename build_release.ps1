@@ -23,6 +23,19 @@ if (-not (Test-Path -LiteralPath $python)) {
 
 & $uvCommand.Source pip install --python $python -r requirements-desktop.txt -r requirements-build.txt
 
+# Node 只用于构建期；先锁定依赖并重新生成 Web 静态产物，避免把陈旧 dist 打进包。
+$npm = Get-Command npm -ErrorAction Stop
+Push-Location -LiteralPath (Join-Path $PSScriptRoot "ui-v2")
+try {
+    & $npm.Source ci
+    if ($LASTEXITCODE -ne 0) { throw "ui-v2 npm ci 失败。" }
+    & $npm.Source run build
+    if ($LASTEXITCODE -ne 0) { throw "ui-v2 npm run build 失败。" }
+}
+finally {
+    Pop-Location
+}
+
 if (-not $SkipGate) {
     Write-Host "[1/3] 发版门禁 ..." -ForegroundColor Cyan
     # 用开发环境跑门禁：.venv 只装了打包依赖（PySide6 + PyInstaller），

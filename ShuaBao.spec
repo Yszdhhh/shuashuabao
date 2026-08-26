@@ -21,7 +21,7 @@ a = Analysis(
     datas=[
         (str(PROJECT_ROOT / "assets"), "assets"),
         (str(PROJECT_ROOT / "config"), "config"),
-        (str(PROJECT_ROOT / "ui-v2" / "dist"), "web" / "dist"),
+        (str(PROJECT_ROOT / "ui-v2" / "dist"), str(Path("web") / "dist")),
     ],
     hiddenimports=[
         "PySide6.QtWebEngineWidgets",
