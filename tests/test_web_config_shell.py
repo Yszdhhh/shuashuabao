@@ -116,17 +116,25 @@ def _new_shell(tmp_path: Path, runner=None) -> WebConfigShell:
         tmp_path, ROOT, dist_dir=_make_dist(tmp_path), runner=runner or _FakeRunner()
     )
 
-def test_host_viewport_stays_above_od12_three_column_breakpoint(shell):
-    """920px 是 OD12 折叠三栏的 max-width 断点，宿主必须给产品窗留余量。"""
-    assert shell.width() > 920
-    assert shell.height() > 720
+def test_host_window_matches_od12_product_size(shell):
+    """宿主=产品窗 920×720：独立看板，无画布黑边。"""
+    assert (shell.width(), shell.height()) == (920, 720)
 
-def test_production_body_rehomes_removed_canvas_layout_semantics():
-    """移除沙盒 canvas 后，body 仍必须承接其居中与留白语义。"""
+
+def test_production_canvas_semantics_host_exact_product_window():
+    """生产态：body 只保留居中语义；折叠断点必须低于固定视口 920。"""
     html = (ROOT / "ui-v2" / "index.html").read_text(encoding="utf-8")
-    assert "min-height: 100dvh;" in html
     assert "place-items: center;" in html
-    assert "padding: 24px 16px;" in html
+    assert "padding: 24px 16px;" not in html, "生产态不得残留沙盒画布留白"
+    assert "@media (max-width: 920px)" not in html, "920 断点会在固定视口误触发单列"
+    assert "@media (max-width: 860px)" in html
+
+
+def test_desktop_web_launcher_uses_canonical_app_data():
+    """正式 Web 入口与原生看板共享 Settings/单实例锁，不再用 ShuaBaoWeb 沙盒。"""
+    text = (ROOT / "tools" / "launch_web_shell.vbs").read_text(encoding="utf-8")
+    assert "SHUABAO_SHELL" in text
+    assert "SHUABAO_APP_DATA" not in text
 
 
 # ---------------------------------------------------- QWebChannel 唯一注册（§6.1）
@@ -242,6 +250,11 @@ def test_render_crash_shows_native_error_and_spares_runner(shell):
     shell.page.renderProcessTerminated.emit(status, 1)
     runner: _FakeRunner = shell.runner
     assert shell._crash_overlay is not None and not shell._crash_overlay.isHidden()
+
+
+def test_native_runtime_chrome_stops_through_shared_runner(shell):
+    shell.overlay_hud.stop_requested.emit()
+    assert shell.runner.stop_calls == 1
 
 
 # ------------------------------------------------------ closeEvent 安全链（§9）
