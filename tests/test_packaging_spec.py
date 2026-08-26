@@ -31,6 +31,19 @@ def test_spec_hiddenimports_include_qtwebengine_modules() -> None:
         assert module in text, f"hiddenimports missing {module}"
 
 
+def test_spec_uses_windowed_non_elevated_exe_with_app_icon() -> None:
+    text = _spec_text()
+    assert "console=False" in text
+    assert 'icon=str(PROJECT_ROOT / "assets" / "branding" / "app_logo.ico")' in text
+    assert "uac_admin=False" in text
+
+
+def test_spec_places_shiboken_loader_dll_on_windows_search_path() -> None:
+    text = _spec_text()
+    assert "SHIBOKEN_DLL" in text
+    assert 'binaries=[(str(SHIBOKEN_DLL), ".")]' in text
+
+
 def test_spec_excludes_legacy_http_and_webview_backends() -> None:
     text = _spec_text()
     assert 'excludes=["fastapi", "uvicorn", "webview"]' in text
@@ -56,3 +69,5 @@ def test_packaged_web_launcher_selects_web_shell_and_isolated_data() -> None:
     assert '"SHUABAO_SHELL") = "web"' in text
     assert "ShuaBaoWeb" in text
     assert 'ShellExecute root & "\\ShuaBao.exe"' in text
+    assert '"open", 1' in text
+    assert '"runas"' not in text

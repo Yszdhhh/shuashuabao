@@ -10,14 +10,16 @@ FileDescription）和桌面快捷方式「刷刷宝」提供。
 """
 
 from pathlib import Path
+import shiboken6
 
 
 PROJECT_ROOT = Path(SPECPATH)
+SHIBOKEN_DLL = Path(shiboken6.__file__).resolve().parent / "shiboken6.abi3.dll"
 
 a = Analysis(
     [str(PROJECT_ROOT / "desktop_app.py")],
     pathex=[str(PROJECT_ROOT / "src")],
-    binaries=[],
+    binaries=[(str(SHIBOKEN_DLL), ".")],
     datas=[
         (str(PROJECT_ROOT / "assets"), "assets"),
         (str(PROJECT_ROOT / "config"), "config"),
@@ -49,7 +51,8 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
-    uac_admin=True,
+    icon=str(PROJECT_ROOT / "assets" / "branding" / "app_logo.ico"),
+    uac_admin=False,
     version=str(PROJECT_ROOT / "packaging" / "windows_version_info.txt"),
 )
 

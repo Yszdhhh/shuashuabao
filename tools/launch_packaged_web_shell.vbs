@@ -19,4 +19,4 @@ If appData = "" Then
 End If
 sh.Environment("PROCESS")("SHUABAO_APP_DATA") = appData
 
-shellApp.ShellExecute root & "\ShuaBao.exe", "", root, "runas", 1
+shellApp.ShellExecute root & "\ShuaBao.exe", "", root, "open", 1
