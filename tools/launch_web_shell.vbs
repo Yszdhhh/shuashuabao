@@ -1,16 +1,22 @@
-' ShuaBao Web Shell Preview Launcher (Experimental Branch).
-' Isolated AppData: %LOCALAPPDATA%\ShuaBaoWeb
+' ShuaBao OD12 Web Shell launcher.
+' Defaults to isolated %LOCALAPPDATA%\ShuaBaoWeb.  Set SHUABAO_APP_DATA explicitly
+' before launch only when deliberately sharing the native shell's data and locks.
 ' Runtime: Python 3.13 with full PySide6 (QtWebEngine)
 Option Explicit
 
-Dim sh, fso, root, pyw
+Dim sh, shellApp, fso, root, pyw, appData
 Set sh = CreateObject("WScript.Shell")
+Set shellApp = CreateObject("Shell.Application")
 Set fso = CreateObject("Scripting.FileSystemObject")
 
 root = fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName))
 
 sh.Environment("PROCESS")("SHUABAO_SHELL") = "web"
-sh.Environment("PROCESS")("SHUABAO_APP_DATA") = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\ShuaBaoWeb"
+appData = Trim(sh.Environment("PROCESS")("SHUABAO_APP_DATA"))
+If appData = "" Then
+    appData = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%\ShuaBaoWeb")
+End If
+sh.Environment("PROCESS")("SHUABAO_APP_DATA") = appData
 sh.Environment("PROCESS")("PYTHONPATH") = root & "\src"
 sh.CurrentDirectory = root
 
@@ -20,4 +26,4 @@ If Not fso.FileExists(pyw) Then
     WScript.Quit 1
 End If
 
-sh.Run """" & pyw & """ """ & root & "\desktop_app.py""", 1, False
+shellApp.ShellExecute pyw, """" & root & "\desktop_app.py""", root, "runas", 1

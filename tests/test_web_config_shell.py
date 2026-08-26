@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import sys
 from pathlib import Path
@@ -22,7 +23,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest  # noqa: E402
 from PySide6.QtCore import QUrl  # noqa: E402
-from PySide6.QtGui import QCloseEvent  # noqa: E402
+from PySide6.QtGui import QCloseEvent, QShortcut  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,7 +109,9 @@ def shell(qapp, tmp_path):
         tmp_path, ROOT, dist_dir=_make_dist(tmp_path), runner=_FakeRunner()
     )
     yield s
+    s.close()
     s.deleteLater()
+    qapp.processEvents()
 
 
 def _new_shell(tmp_path: Path, runner=None) -> WebConfigShell:
@@ -130,11 +133,13 @@ def test_production_canvas_semantics_host_exact_product_window():
     assert "@media (max-width: 860px)" in html
 
 
-def test_desktop_web_launcher_uses_canonical_app_data():
-    """正式 Web 入口与原生看板共享 Settings/单实例锁，不再用 ShuaBaoWeb 沙盒。"""
+def test_desktop_web_launcher_defaults_to_isolated_app_data():
+    """Web 预览默认隔离，只有显式环境覆盖时才可能共用正式数据。"""
     text = (ROOT / "tools" / "launch_web_shell.vbs").read_text(encoding="utf-8")
     assert "SHUABAO_SHELL" in text
-    assert "SHUABAO_APP_DATA" not in text
+    assert "SHUABAO_APP_DATA" in text
+    assert "ShuaBaoWeb" in text
+    assert 'If appData = "" Then' in text
 
 
 # ---------------------------------------------------- QWebChannel 唯一注册（§6.1）
@@ -155,7 +160,9 @@ def test_qwebchannel_registers_only_facade(qapp, tmp_path, monkeypatch):
         assert isinstance(s.facade, DashboardFacade)
         assert s.page.webChannel() is s.channel
     finally:
+        s.close()
         s.deleteLater()
+        qapp.processEvents()
 
 
 # ------------------------------------------------------------ 导航拦截（§8）
@@ -231,6 +238,7 @@ def test_allowed_schemes_are_exactly_file_and_qrc():
 
 def test_profile_hardening(qapp, shell):
     settings = shell.profile.settings()
+    assert shell.profile.parent() is None, "profile 必须晚于 page/view 析构，防 Python 3.13 退出访问冲突"
     # Qt6 起开发者工具默认关闭（DeveloperExtrasEnabled 已移除）；收紧其余面。
     assert not settings.testAttribute(
         QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls
@@ -257,6 +265,43 @@ def test_native_runtime_chrome_stops_through_shared_runner(shell):
     assert shell.runner.stop_calls == 1
 
 
+def test_tray_stop_and_f12_shortcuts_use_shared_runner(shell):
+    menu = shell.tray.contextMenu()
+    stop_action = next(action for action in menu.actions() if action.text() == "停止运行")
+    stop_action.trigger()
+    shortcuts = {shortcut.key().toString(): shortcut for shortcut in shell.findChildren(QShortcut)}
+    assert {"F12", "Shift+F12"} <= set(shortcuts)
+    shortcuts["F12"].activated.emit()
+    shortcuts["Shift+F12"].activated.emit()
+    assert shell.runner.stop_calls == 3
+
+
+def test_tray_quit_uses_close_safety_chain(qapp, tmp_path):
+    s = _new_shell(tmp_path)
+    try:
+        menu = s.tray.contextMenu()
+        quit_action = next(action for action in menu.actions() if action.text() == "退出")
+        quit_action.trigger()
+        qapp.processEvents()
+        assert s.runner.stop_calls == 1
+        assert s.runner.release_calls == 1
+    finally:
+        s.close()
+        s.deleteLater()
+        qapp.processEvents()
+
+
+def test_runtime_status_anchors_hud_to_shared_worker_mediator(shell, monkeypatch):
+    frame = object()
+    shell.runner.worker.mediator = type("_Mediator", (), {"_last_frame": frame})()
+    anchored: list[object] = []
+    monkeypatch.setattr(shell.overlay_hud, "anchor_to_target", anchored.append)
+    shell._on_runtime_status(
+        json.dumps({"state": "RUNNING", "mode_id": "normal_farm", "phase": "FARM"})
+    )
+    assert anchored == [frame]
+
+
 # ------------------------------------------------------ closeEvent 安全链（§9）
 
 
@@ -278,7 +323,11 @@ def test_close_refused_while_worker_cannot_finish(qapp, tmp_path):
         assert not ev.isAccepted(), "worker 收不了尾时窗口不得关闭"
         assert s.runner.stop_calls == 1
     finally:
+        s.runner.worker._stuck = False
+        s.runner.worker.running = False
+        s.close()
         s.deleteLater()
+        qapp.processEvents()
 
 
 def test_close_with_idle_worker_accepts_immediately(shell):

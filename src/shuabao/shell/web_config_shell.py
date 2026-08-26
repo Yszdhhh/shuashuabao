@@ -13,11 +13,21 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, Qt, QUrl
-from PySide6.QtWidgets import QLabel, QMainWindow, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
+from PySide6.QtWidgets import (
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QPushButton,
+    QSystemTrayIcon,
+    QVBoxLayout,
+    QWidget,
+)
 
 try:  # 显式依赖门禁：缺 WebEngine 直接报错退出，不静默回退。
     from PySide6.QtWebChannel import QWebChannel
@@ -35,6 +45,8 @@ except ImportError as exc:
     ) from exc
 
 from shuabao.shell.dashboard_facade import DashboardFacade
+from shuabao.shell.mode_catalog import get_spec
+from shuabao.shell.overlay_hud import OverlayHud
 from shuabao.shell.runner_service import RunnerService
 
 APP_TITLE = "刷刷宝"
@@ -110,7 +122,9 @@ class WebConfigShell(QMainWindow):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setFixedSize(_WINDOW_W, _WINDOW_H)
 
-        self.profile = QWebEngineProfile(self)
+        # profile 必须晚于 page/view 销毁；若同挂在窗口下，Qt 子对象析构顺序会让
+        # profile 先释放，Python 3.13 + QtWebEngine 退出时可触发访问冲突。
+        self.profile = QWebEngineProfile()
         settings = self.profile.settings()
         # Qt6 起开发者工具默认关闭（DeveloperExtrasEnabled 已移除）；此处收紧其余面。
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows, False)
@@ -139,12 +153,95 @@ class WebConfigShell(QMainWindow):
         self.channel.registerObject(FACADE_OBJECT_NAME, self.facade)
         self.page.setWebChannel(self.channel)
 
+        # 原生运行职责与 Web 配置页共用同一 RunnerService：HUD / 托盘 / F12
+        # 都回到 facade.stop_run()，不产生第二条停止旁路。
+        self.overlay_hud = OverlayHud()
+        self.overlay_hud.stop_requested.connect(self._request_stop)
+        self._runtime_active = False
+        self.facade.run_status_changed.connect(self._on_runtime_status)
+        for seq in ("F12", "Shift+F12"):
+            shortcut = QShortcut(QKeySequence(seq), self)
+            shortcut.setContext(Qt.ShortcutContext.ApplicationShortcut)
+            shortcut.activated.connect(self._request_stop)
+        self._setup_tray()
+
         # 渲染进程崩溃：原生错误页 + 重载按钮（§8）；停止链在别的对象上，不受影响。
         self.page.renderProcessTerminated.connect(self._on_render_process_terminated)
         self._crash_overlay: QWidget | None = None
         self._crash_label: QLabel | None = None
 
         self.view.load(QUrl.fromLocalFile(str(index)))
+
+    # ------------------------------------------------------------- 原生运行职责（§9）
+
+    def _setup_tray(self) -> None:
+        menu = QMenu(self)
+        show_action = QAction("打开控制中心", self)
+        show_action.triggered.connect(self.showNormal)
+        stop_action = QAction("停止运行", self)
+        stop_action.triggered.connect(self._request_stop)
+        quit_action = QAction("退出", self)
+        quit_action.triggered.connect(self.close)
+        menu.addAction(show_action)
+        menu.addAction(stop_action)
+        menu.addSeparator()
+        menu.addAction(quit_action)
+        self.tray = QSystemTrayIcon(self)
+        self.tray.setContextMenu(menu)
+        self.tray.setToolTip(APP_TITLE)
+        icon = self.windowIcon()
+        if icon.isNull():
+            for path in (self.root / "assets" / "branding" / "app_logo.ico",
+                         self.root / "assets" / "branding" / "app_logo.png"):
+                if path.is_file():
+                    icon = QIcon(str(path))
+                    break
+        if not icon.isNull():
+            self.tray.setIcon(icon)
+        if QSystemTrayIcon.isSystemTrayAvailable() and not self.tray.icon().isNull():
+            self.tray.show()
+
+    def _request_stop(self) -> None:
+        self.facade.stop_run()
+
+    def _on_runtime_status(self, payload: str) -> None:
+        try:
+            run = json.loads(payload)
+        except (TypeError, ValueError):
+            return
+        active = str(run.get("state") or "") in {"STARTING", "RUNNING", "STOPPING"}
+        settings = self.facade._settings
+        target = (settings.stage_targets or [f"{settings.stage1}-{settings.stage2}"])[0]
+        mode_id = str(run.get("mode_id") or settings.mode_id or "normal_farm")
+        try:
+            mode = get_spec(mode_id).label
+        except Exception:
+            mode = mode_id
+        strategy = "自动秘境" if settings.auto_secret_realm else (
+            "声望挑战" if settings.auto_reputation else "自动推进"
+        )
+        worker = getattr(self.runner, "worker", None)
+        mediator = getattr(worker, "mediator", None)
+        if mediator is not None:
+            self.overlay_hud.anchor_to_target(getattr(mediator, "_last_frame", None))
+        self.overlay_hud.update_status(
+            active,
+            str(run.get("phase") or ""),
+            str(run.get("ocr_status") or ""),
+            int(run.get("game_count") or 0),
+            int(run.get("cycle_num") or 0),
+            str(run.get("terminal_reason") or ""),
+            str(run.get("last_action") or ""),
+            target=target,
+            mode=mode,
+            strategy=strategy,
+        )
+        if active and not self._runtime_active:
+            self.showMinimized()
+        elif not active and self._runtime_active:
+            self.showNormal()
+            self.raise_()
+        self._runtime_active = active
 
     # ------------------------------------------------------------- 渲染崩溃（§8）
 
@@ -195,4 +292,6 @@ class WebConfigShell(QMainWindow):
             self.runner.release_after_finish()
         except Exception:
             pass
+        self.overlay_hud.close()
+        self.tray.hide()
         event.accept()
