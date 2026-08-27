@@ -864,6 +864,8 @@ class Mediator:
         """根据当前阶段返回截屏目标窗口关键字。
         L0（大厅/建房/房间等待）→ KK 对战平台窗口
         L1（进入游戏后的过渡/选关/局内）→ 英雄三国游戏窗口
+        BOOT 默认走 L0，但 see() 会先探测英雄三国游戏窗：存在即改绑 L1
+        （20260827 用户规则），只有游戏窗不存在才用本函数的 L0 标题。
         """
         user_title = self.settings.window_title_contains
         if self.phase in (
@@ -1085,7 +1087,27 @@ class Mediator:
             Phase.ROOM_WAITING,
         }
         role = "l0" if self.phase in l0_phases else "l1"
-        frame = self._capture_best(title, role)
+        frame = None
+        if self.phase == Phase.BOOT:
+            # 20260827（用户规则）：启动阶段先探游戏窗——英雄三国窗口存在
+            # （含最小化/被遮挡，窗口标题即路由依据）就无条件绑定 L1，进入
+            # 选关/局内判定，绝不捕获并置前 KK 平台窗；只有游戏窗不存在才
+            # 允许回大厅建房。旧实现先按 L0 抓平台窗并置前，帧尾才探测游戏窗，
+            # 游戏帧无效（最小化/PrintWindow 黑帧）时静默落到平台流 → 误建房。
+            game_frame = self._capture_best(",".join(L1_WINDOW_KEYWORDS), "l1")
+            if (
+                game_frame is not None
+                and game_frame.hwnd is not None
+                and self._is_game_client_frame(game_frame)
+            ):
+                print(
+                    f"[boot] 英雄三国窗口存在 hwnd={game_frame.hwnd}，直接接手游戏内流程"
+                )
+                frame = game_frame
+                role = "l1"
+                title = ",".join(L1_WINDOW_KEYWORDS)
+        if frame is None:
+            frame = self._capture_best(title, role)
         primary_has_pixels = bool(
             frame is not None
             and frame.bgr is not None
@@ -1162,30 +1184,6 @@ class Mediator:
             # 内容+位置相同：复用上一帧对象（场景缓存命中）。
             # 保持原时间戳：OLD_FRAME/FROZEN 静态检测仍会标记该帧为静态帧。
             frame = self._last_frame
-        if self.phase == Phase.BOOT:
-            # BOOT is the only phase allowed to ask both windows which one is
-            # already in the game.  Later phases stay role-bound.
-            # 20260823（用户规则）：英雄三国进程存在 = 一定处于游戏内流程，
-            # 无条件优先于 KK 大厅/房间窗口接管（含暂停页/选关页），不再要求
-            # 平台窗零信号才探测；具体子状态（暂停/选关/局内）由 _startup_state
-            # 用画面锚点分类，窗口标题只做路由不做充分条件。
-            game_title = ",".join(L1_WINDOW_KEYWORDS)
-            game_frame = self._capture_best(game_title, "l1")
-            game_frame_has_pixels = bool(
-                game_frame is not None
-                and game_frame.bgr is not None
-                and game_frame.bgr.size > 0
-            )
-            if game_frame_has_pixels and self._is_game_client_frame(game_frame):
-                print(
-                    f"[boot] 英雄三国窗口存在 hwnd={game_frame.hwnd}，直接接手游戏内流程"
-                )
-                frame = game_frame
-                role = "l1"
-            elif self._frame_signal(game_frame, "l1") > 0:
-                print("[med] BOOT 检测到游戏窗口，切换到 L1")
-                frame = game_frame
-                role = "l1"
         self._prev_frame = self._last_frame
         self._last_frame = frame
         self._last_capture_role = role
@@ -8096,6 +8094,16 @@ class Mediator:
             self._panel_fingerprint = None
             self._panel_fingerprint_attempts = 0
 
+        # Stage rows never grant click authority inside MAIN_LINE.  A genuine
+        # stage page is handed back to the guarded L0 state; in-game HUD anchors
+        # suppress glyph false positives from task text / Boss countdowns.
+        # 20260828（实机 20260828_001049）：本守卫必须先于自动任务门禁——
+        # 选关页上永远等不到【自动任务】复选框，旧顺序被门禁 return 阻断，
+        # MAIN_LINE 卡死按 F1 直到 LivenessTimeout。
+        if self._find_stage_page(frame) and not self._is_in_game_hud(frame):
+            self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
+            return LoopAction.Continue
+
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)
         if auto_res is not None:
@@ -8128,13 +8136,6 @@ class Mediator:
         close_ml_res = self._maybe_close_main_line_after_5_5(frame, now)
         if close_ml_res is not None:
             return close_ml_res
-
-        # Stage rows never grant click authority inside MAIN_LINE.  A genuine
-        # stage page is handed back to the guarded L0 state; in-game HUD anchors
-        # suppress glyph false positives from task text / Boss countdowns.
-        if self._find_stage_page(frame) and not self._is_in_game_hud(frame):
-            self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
-            return LoopAction.Continue
 
         # During the pre-wave setup the game can show its banned-card picker.
         # Pressing F/V there overlays our panel on top of that UI and caused the

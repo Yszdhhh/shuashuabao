@@ -107,6 +107,34 @@ def test_boot_prefers_game_window_over_visible_platform_room():
     assert frame.hwnd == 222
 
 
+def test_boot_binds_minimized_game_window_and_never_activates_platform():
+    """20260827 实机复盘：游戏窗最小化时 l1 探测返回无效帧，旧实现静默落到
+    平台流并误建房。标题路由必须仍然绑定游戏窗（fail-closed 零输入），
+    且绝不激活/置前 KK 平台窗。"""
+    med = Mediator(Settings(), ROOT)
+    med.set_phase(Phase.BOOT)
+    platform = Frame(
+        np.zeros((900, 1600, 3), dtype=np.uint8),
+        left=0, top=0, hwnd=111, window_title="KK官方对战平台",
+    )
+    minimized_game = Frame(
+        np.zeros((0, 0, 3), dtype=np.uint8),
+        left=0, top=0, hwnd=222, window_title="英雄三国KK", is_valid=False,
+        error="Window is minimized",
+    )
+
+    def fake_capture(title, role):
+        return minimized_game if role == "l1" else platform
+
+    with patch.object(med, "_capture_best", side_effect=fake_capture), \
+         patch("shuabao.mediator.activate_window", return_value=False) as act:
+        frame = med.see("test")
+    assert frame is minimized_game
+    assert med._last_capture_role == "l1"
+    # 平台窗（hwnd=111）绝不能被激活/置前
+    assert all(call.args and call.args[0] != 111 for call in act.call_args_list)
+
+
 def test_see_restores_minimized_target_window():
     """用户规则：所有窗口都可能最小化；无效帧 + IsIconic → SW_RESTORE。"""
     med = Mediator(Settings(), ROOT)
@@ -154,6 +182,22 @@ def test_startup_with_existing_game_window_enters_main_line_without_create_room(
          patch.object(med, "_find_map_create_room", return_value=None):
         state = med._startup_state(frame)
     assert state == "IN_GAME"
+
+
+def test_stage_page_handoff_precedes_auto_task_gate():
+    """实机 20260828：选关页不能被局内自动任务门禁困在 MAIN_LINE。"""
+    med = Mediator(Settings(), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    frame = _frame()
+    with patch.object(med, "_find_failure_gift", return_value=None), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_round_tail_checks_active", return_value=False), \
+         patch.object(med, "_find_stage_page", return_value=True), \
+         patch.object(med, "_is_in_game_hud", return_value=False), \
+         patch.object(med, "_ensure_auto_task_enabled", return_value=None) as auto_task:
+        assert med._tick_main_line(frame) is LoopAction.Continue
+    assert med.phase is Phase.STAGE_SELECT
+    auto_task.assert_not_called()
 
 
 def test_tqtz_is_one_shot_and_blocks_regular_choice_until_confirmed():
