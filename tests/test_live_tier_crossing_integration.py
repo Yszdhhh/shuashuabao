@@ -20,14 +20,16 @@ class TestLiveMediatorIntegration(unittest.TestCase):
         self.mediator = Mediator(project_root=ROOT, settings=self.settings)
 
     def test_mediator_extracts_and_feeds_live_progress_to_policy(self):
-        # Use real confirmed bond cards instead of injecting _active_bond_counts
+        # Distinct 3 owned cards in "祝福" bond family (count=3, tier crossing threshold is 4)
         self.mediator._bond_cards_owned = ["祝福之灵", "祝福之触", "祝福之光"]
 
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=999, is_valid=True)
 
+        # Candidate 0 is a NEW distinct 4th card "祝福之誓" (NOT in owned, so no merge shortcut)
+        # Candidate 1 is a high-rarity scatter card "散卡之王" (rarity purple)
         fake_slots_raw = [
-            {"index": 0, "name": "祝福之灵", "rarity": "white", "confidence": 0.95, "rect": (10, 10, 50, 50), "description": ""},
-            {"index": 1, "name": "陌生散卡", "rarity": "purple", "confidence": 0.95, "rect": (60, 10, 100, 50), "description": ""},
+            {"index": 0, "name": "祝福之誓", "rarity": "white", "confidence": 0.95, "rect": (10, 10, 50, 50), "description": ""},
+            {"index": 1, "name": "散卡之王", "rarity": "purple", "confidence": 0.95, "rect": (60, 10, 100, 50), "description": ""},
         ]
 
         with patch.object(self.mediator, "_ocr_panel_slots", return_value=fake_slots_raw), \
@@ -35,8 +37,8 @@ class TestLiveMediatorIntegration(unittest.TestCase):
             hit = self.mediator._ocr_reward_choice(frame, PANEL_BOND)
 
         self.assertIsNotNone(hit)
-        self.assertIn("祝福之灵", hit.name)
-
+        # Must choose 4th distinct bond member "祝福之誓" over purple scatter card due to 3->4 tier acceleration
+        self.assertIn("祝福之誓", hit.name)
     def test_mediator_zero_free_slots_refuses_scatter_cards(self):
         # Use real confirmed bond cards instead of injecting _active_bond_counts
         self.mediator._bond_cards_owned = ["祝福之灵", "祝福之触"]

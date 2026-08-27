@@ -1,4 +1,4 @@
-import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, currentSettingsRevision } from "./config_queue";
+import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, resetStickyFailure, currentSettingsRevision } from "./config_queue";
 // Task 5：qtBridge 真实接线（设计规格 §7）。OD12 的 DOM/CSS 与内联脚本保持原样；
 // 本模块只做三件事：
 //   1) bridge 探测：production → qtBridge(QWebChannel)，dev/浏览器 → 诚实 mock；
@@ -340,6 +340,20 @@ function applySwitches(settings: SettingsDTO): void {
       setSwitch($(sw.el), value);
     }
   }
+  if (typeof settings.merchant_enabled === "boolean") {
+    state.merchant_enabled = settings.merchant_enabled;
+    setSwitch($("sw_merchant"), settings.merchant_enabled);
+  }
+  if (typeof settings.merchant_max_rerolls === "number") {
+    state.merchant_max_rerolls = settings.merchant_max_rerolls;
+    const el = $("merchant_max_rerolls") as HTMLInputElement;
+    if (el) el.value = String(settings.merchant_max_rerolls);
+  }
+  if (typeof settings.merchant_gold_reserve === "number") {
+    state.merchant_gold_reserve = settings.merchant_gold_reserve;
+    const el = $("merchant_gold_reserve") as HTMLInputElement;
+    if (el) el.value = String(settings.merchant_gold_reserve);
+  }
 }
 
 function rerenderAll(settings: SettingsDTO): void {
@@ -366,6 +380,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
   if (snap.settings_revision !== undefined) {
     state.settings_revision = snap.settings_revision;
     setSettingsRevision(snap.settings_revision);
+    resetStickyFailure();
   }
   applying = true;
   try {

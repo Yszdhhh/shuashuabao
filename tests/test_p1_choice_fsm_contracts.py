@@ -27,6 +27,35 @@ def test_skill_focus_miss_closes_without_refresh_or_fill() -> None:
     ))
     assert decision.action is PolicyAction.CLOSE
 
+def test_skill_runtime_assembled_strict_never_fills_unselected_family() -> None:
+    import json
+    from pathlib import Path
+    from shuabao.choice_policy import assemble_policy_settings
+    from shuabao.settings import Settings
+
+    policy_path = Path("config/choice_policy.json")
+    policy_doc = json.loads(policy_path.read_text(encoding="utf-8")) if policy_path.exists() else {}
+
+    # User configured only "剑气", currently owns 1 skill card "剑气"
+    runtime_settings = assemble_policy_settings(
+        settings=Settings(skills=["jq"]),
+        skill_labels={"jq": "剑气"},
+        fetter_labels={},
+        policy_doc=policy_doc,
+    )
+    assert runtime_settings.skill_fill_empty_slots is False
+    assert runtime_settings.skill_focus_families == ("剑气",)
+
+    # Panel contains an unselected legal skill "地震" and no "剑气"
+    decision = choose_action(PanelCandidates(
+        panel_kind=PANEL_SKILL,
+        slots=(slot(0, "地震", rarity="orange"),),
+        can_refresh=True,
+        settings=runtime_settings,
+        owned_skill_cards=("剑气",),
+    ))
+    # Must strictly close panel without refreshing, giving up, or picking unselected "地震"
+    assert decision.action is PolicyAction.CLOSE
 
 def test_treasure_negative_needs_explicit_allowlist_match() -> None:
     decision = choose_action(PanelCandidates(
