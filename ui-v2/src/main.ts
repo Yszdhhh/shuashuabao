@@ -192,14 +192,10 @@ function pushNegatives(): void {
 
 function pushMerchant(): void {
   const enabled = Boolean(state.merchant_enabled ?? true);
-  const rerolls = Number(state.merchant_max_rerolls ?? 3);
-  const reserve = Number(state.merchant_gold_reserve ?? 0);
   pushConfig({
     strategy: {
       merchant: {
-        enabled: enabled,
-        max_rerolls: rerolls,
-        gold_reserve: reserve,
+        enabled,
       },
     },
   });
@@ -344,16 +340,6 @@ function applySwitches(settings: SettingsDTO): void {
     state.merchant_enabled = settings.merchant_enabled;
     setSwitch($("sw_merchant"), settings.merchant_enabled);
   }
-  if (typeof settings.merchant_max_rerolls === "number") {
-    state.merchant_max_rerolls = settings.merchant_max_rerolls;
-    const el = $("merchant_max_rerolls") as HTMLInputElement;
-    if (el) el.value = String(settings.merchant_max_rerolls);
-  }
-  if (typeof settings.merchant_gold_reserve === "number") {
-    state.merchant_gold_reserve = settings.merchant_gold_reserve;
-    const el = $("merchant_gold_reserve") as HTMLInputElement;
-    if (el) el.value = String(settings.merchant_gold_reserve);
-  }
 }
 
 function rerenderAll(settings: SettingsDTO): void {
@@ -400,8 +386,6 @@ export function applySnapshot(snap: SnapshotDTO): void {
       }
       if (snap.strategy.merchant) {
         settings.merchant_enabled = snap.strategy.merchant.enabled;
-        settings.merchant_max_rerolls = snap.strategy.merchant.max_rerolls;
-        settings.merchant_gold_reserve = snap.strategy.merchant.gold_reserve;
       }
       if (snap.strategy.treasure?.negative_allowlist) {
         settings.treasure_allow_negative = snap.strategy.treasure.negative_allowlist;
@@ -557,20 +541,6 @@ function wireIntents(): void {
       const next = !cur;
       state.merchant_enabled = next;
       setSwitch(swMerchant, next);
-      defer(pushMerchant);
-    });
-  }
-  const elRerolls = $("merchant_max_rerolls") as HTMLInputElement | null;
-  if (elRerolls) {
-    elRerolls.addEventListener("change", () => {
-      state.merchant_max_rerolls = Number(elRerolls.value);
-      defer(pushMerchant);
-    });
-  }
-  const elReserve = $("merchant_gold_reserve") as HTMLInputElement | null;
-  if (elReserve) {
-    elReserve.addEventListener("change", () => {
-      state.merchant_gold_reserve = Number(elReserve.value);
       defer(pushMerchant);
     });
   }

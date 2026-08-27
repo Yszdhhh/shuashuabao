@@ -150,7 +150,7 @@ class Settings:
     # Dashboard Contract v2 strategy fields. Empty selections are deliberate.
     bonds: list[str] = field(default_factory=lambda: list(DASHBOARD_BOND_OPTIONS))
     attributes: list[str] = field(default_factory=list)
-    merchant_enabled: bool = False
+    merchant_enabled: bool = True
     merchant_max_rerolls: int = 0
     merchant_gold_reserve: int = 0
     cards: list[str] = field(default_factory=list)

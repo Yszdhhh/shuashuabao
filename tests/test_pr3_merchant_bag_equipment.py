@@ -45,16 +45,14 @@ class TestMerchantScanner(unittest.TestCase):
         )
 
         items = [
-            MerchantSlotItem(slot_index=4, center_ratio=(0.88, 0.72), item_type="wood", label="wood"),
-            MerchantSlotItem(slot_index=2, center_ratio=(0.78, 0.72), item_type="discount", label="3折"),
+            MerchantSlotItem(slot_index=3, center_ratio=(0.88, 0.72), item_type="wood", label="wood"),
+            MerchantSlotItem(slot_index=2, center_ratio=(0.78, 0.72), item_type="discount", label="2折"),
             MerchantSlotItem(slot_index=1, center_ratio=(0.74, 0.72), item_type="devour_pill", label="吞噬丹"),
-            MerchantSlotItem(slot_index=0, center_ratio=(0.71, 0.72), item_type="focus_card", label="奥术箭"),
         ]
         ranked = scanner.rank_purchases(items, bond_bar_nonempty=True)
         self.assertEqual(ranked[0].item_type, "discount")
         self.assertEqual(ranked[1].item_type, "devour_pill")
         self.assertEqual(ranked[2].item_type, "wood")
-        self.assertEqual(ranked[3].item_type, "focus_card")
 
     def test_scanner_filters_negative_items(self):
         """Negative treasures must be strictly filtered out."""

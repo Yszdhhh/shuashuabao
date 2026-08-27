@@ -26,7 +26,7 @@ import numpy as np
 MERCHANT_STRIP_ROI = (0.70, 0.67, 0.90, 0.79)
 MERCHANT_SLOT_COUNT = 5
 
-DISCOUNT_KEYWORDS = ("1折", "2折", "3折", "4折", "5折", "一折", "二折", "三折", "四折", "五折", "discount")
+DISCOUNT_KEYWORDS = ("2折", "5折", "二折", "五折")
 NEGATIVE_ITEM_NAMES = ("贪欲之刃", "贪婪献祭", "杀敌流失", "扣除金币", "生命削减")
 
 
@@ -103,7 +103,7 @@ class MerchantScanner:
             if item.label in NEGATIVE_ITEM_NAMES:
                 continue
 
-            # Priority 1: 折扣商品
+            # Priority 1: 5折 / 2折 折扣商品
             if item.item_type == "discount" or any(kw in item.label for kw in DISCOUNT_KEYWORDS):
                 candidates.append((1, item))
                 continue
@@ -118,27 +118,6 @@ class MerchantScanner:
             if item.item_type == "wood" or "wood" in item.label or "木材" in item.label:
                 candidates.append((3, item))
                 continue
-
-            # Priority 4: 属性线关联物品 (智力/力量/敏捷)
-            if self.attr_routes:
-                matched_attr = False
-                for attr in self.attr_routes:
-                    attr_cn = {"intelligence": "智", "strength": "力", "agility": "敏"}.get(attr, attr)
-                    if attr_cn in item.label or attr in item.label:
-                        matched_attr = True
-                        break
-                if matched_attr:
-                    candidates.append((4, item))
-                    continue
-
-            # Priority 5: 技能 / 羁绊偏好卡
-            if self.focus_skills and any(sk in item.label for sk in self.focus_skills):
-                candidates.append((5, item))
-                continue
-            if self.focus_bonds and any(bd in item.label for bd in self.focus_bonds):
-                candidates.append((5, item))
-                continue
-
         # 按 priority 从小到大，再按 slot_index 确定性排序
         candidates.sort(key=lambda pair: (pair[0], pair[1].slot_index))
         return [item for _, item in candidates]

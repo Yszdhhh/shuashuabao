@@ -167,7 +167,7 @@ export function createMockBridge(): DashboardBridge {
           ? {
               ...current.strategy,
               ...strategy,
-              merchant: { ...current.strategy.merchant, ...strategy.merchant },
+              merchant: { ...current.strategy.merchant, ...(strategy.merchant || {}) },
               treasure: { ...current.strategy.treasure, ...strategy.treasure },
             }
           : current.strategy,

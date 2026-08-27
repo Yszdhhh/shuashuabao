@@ -3578,7 +3578,7 @@ class Mediator:
         if self._merchant_next_at > 0 and now < self._merchant_next_at:
             return LoopAction.Continue
 
-        auto_refresh_enabled = bool(int(getattr(self.settings, "merchant_max_rerolls", 3)) > 0)
+        auto_refresh_enabled = bool(int(getattr(self.settings, "merchant_max_rerolls", 0)) > 0 or getattr(self.settings, "auto_gambling_time", 0) > 0)
         scanner = MerchantScanner(
             attr_routes=list(getattr(self.settings, "attributes", []) or []),
             focus_skills=list(getattr(self.settings, "skills", []) or []),
@@ -3654,11 +3654,11 @@ class Mediator:
 
         if (
             scanner.auto_refresh
-            and self._merchant_fsm.can_reroll(int(getattr(self.settings, "merchant_max_rerolls", 3)))
+            and self._merchant_fsm.can_reroll(max(3, int(getattr(self.settings, "merchant_max_rerolls", 0))))
             and self._merchant_refresh_available(frame)
         ):
             refresh = self._hud_button_hit(frame, "black_merchant_refresh", (0.935, 0.715))
-            if self._merchant_fsm.can_reroll(int(getattr(self.settings, "merchant_max_rerolls", 3))):
+            if self._merchant_fsm.can_reroll(max(3, int(getattr(self.settings, "merchant_max_rerolls", 0)))):
                 click_res = self.act_click(refresh, "BlackMerchant-refresh")
                 if getattr(click_res, "success", bool(click_res)):
                     self._merchant_fsm = self._merchant_fsm.begin_reroll(now, timeout_s=retry_s)

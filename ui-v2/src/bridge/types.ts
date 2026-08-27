@@ -30,7 +30,7 @@ export interface StrategyDTO {
   skills: string[];
   bonds: ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
   attributes: ("int" | "str" | "agi")[];
-  merchant: { enabled: boolean; max_rerolls: number; gold_reserve: number };
+  merchant?: { enabled?: boolean; max_rerolls?: number; gold_reserve?: number };
   treasure: { negative_allowlist: string[] };
 }
 
