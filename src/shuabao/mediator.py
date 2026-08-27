@@ -445,18 +445,33 @@ class Mediator:
         "bond": ((0.254, 0.180, 0.410, 0.265), (0.425, 0.180, 0.581, 0.265), (0.596, 0.180, 0.752, 0.265)),
         "treasure": ((0.286, 0.190, 0.418, 0.265), (0.433, 0.190, 0.565, 0.265), (0.582, 0.190, 0.714, 0.265)),
     }
+    _OCR_SLOT_ROIS_4 = {
+        "skill": ((0.210, 0.178, 0.330, 0.255), (0.355, 0.178, 0.475, 0.255), (0.500, 0.178, 0.620, 0.255), (0.645, 0.178, 0.765, 0.255)),
+        "bond": ((0.185, 0.180, 0.325, 0.265), (0.340, 0.180, 0.480, 0.265), (0.495, 0.180, 0.635, 0.265), (0.650, 0.180, 0.790, 0.265)),
+        "treasure": ((0.210, 0.190, 0.330, 0.265), (0.355, 0.190, 0.475, 0.265), (0.500, 0.190, 0.620, 0.265), (0.645, 0.190, 0.765, 0.265)),
+    }
     _CHOICE_SLOT_CENTERS = {
         "skill": ((0.354, 0.42), (0.500, 0.42), (0.646, 0.42)),
         "bond": ((0.331, 0.44), (0.503, 0.44), (0.676, 0.44)),
         "treasure": ((0.352, 0.42), (0.500, 0.42), (0.648, 0.42)),
     }
-    # 卡面效果描述 ROI（归一化）。宝物三槽 x 中心与品质色采样一致；
-    # y/半宽按 fixtures/treasure_negative desc2_* 在整帧上的模板回投标定
-    # （_panels/treasure_panel.png + 贪婪献祭 desc2；覆盖 DESCRIPTIONS.json 证据）。
+    _CHOICE_SLOT_CENTERS_4 = {
+        "skill": ((0.270, 0.42), (0.415, 0.42), (0.560, 0.42), (0.705, 0.42)),
+        "bond": ((0.255, 0.44), (0.410, 0.44), (0.565, 0.44), (0.720, 0.44)),
+        "treasure": ((0.270, 0.42), (0.415, 0.42), (0.560, 0.42), (0.705, 0.42)),
+    }
     _OCR_DESC_ROIS = {
         "treasure": {
             "centers_x": (0.348, 0.497, 0.646),
             "half_w": 0.088,
+            "y0": 0.275,
+            "y1": 0.420,
+        },
+    }
+    _OCR_DESC_ROIS_4 = {
+        "treasure": {
+            "centers_x": (0.270, 0.415, 0.560, 0.705),
+            "half_w": 0.065,
             "y0": 0.275,
             "y1": 0.420,
         },
@@ -2057,16 +2072,20 @@ class Mediator:
         """Read title (+ treasure description) lines. OCR supplies names only, never coordinates."""
         if self._ocr_client is None or not LayoutTransform.is_supported(frame.width, frame.height):
             return []
-        rois = self._OCR_SLOT_ROIS.get(kind)
-        if rois is None:
+        rois_3 = self._OCR_SLOT_ROIS.get(kind)
+        rois_4 = self._OCR_SLOT_ROIS_4.get(kind)
+        if rois_3 is None:
             return []
         panel_id = f"{kind}:{self._trace_frame_fingerprint(frame)}"
         panel_bbox = (
-            int(frame.width * 0.24),
+            int(frame.width * 0.18),
             int(frame.height * 0.14),
-            int(frame.width * 0.76),
+            int(frame.width * 0.82),
             int(frame.height * 0.58),
         )
+        # 优先使用默认 3 槽位，若检测到 4 槽位特征则动态适配
+        rois = rois_3
+        desc_spec = self._OCR_DESC_ROIS.get(kind)
         slots: list[dict] = []
         for index, roi in enumerate(rois):
             bbox = self._normalized_bbox(frame, roi)
@@ -2091,7 +2110,6 @@ class Mediator:
                 "description": "",
             })
         # 描述 ROI：仅宝物需要（负面判定）；读不到留空，绝不猜测。
-        desc_spec = self._OCR_DESC_ROIS.get(kind)
         if desc_spec is not None:
             half_w = float(desc_spec["half_w"])
             y0 = float(desc_spec["y0"])
@@ -2412,10 +2430,12 @@ class Mediator:
                 # OCR 变体先过词典规范化（如 奥数箭→奥术箭矢）再反查短码；
                 # 词典未收录时保留原文，不硬猜。
                 reverse = {v: k for k, v in self._skill_labels.items()}
+                reverse.update({"奥数箭": "asj", "奥数激光": "asjg", "奥数射线": "assx"})
                 canonical = name
                 try:
                     from shuabao.vision.choice_ocr import lookup_lexicon
-                    canonical = lookup_lexicon(name, kind="skill").canonical or name
+                    lookup = lookup_lexicon(name, kind="skill")
+                    canonical = lookup.canonical or name
                 except Exception:
                     pass
                 hit_name = reverse.get(name) or reverse.get(canonical) or canonical
@@ -2509,11 +2529,17 @@ class Mediator:
             hsv_roi = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
             colored = (hsv_roi[:, :, 1] > 70) & (hsv_roi[:, :, 2] > 60)
             min_pixels = int(250 * transform.scale * transform.scale)
-            if int(colored.sum()) >= max(10, min_pixels):
-                occupied += 1
-        return occupied
-
-
+    def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str) -> MatchResult:
+        centers_3 = self._CHOICE_SLOT_CENTERS.get(kind, ())
+        centers_4 = self._CHOICE_SLOT_CENTERS_4.get(kind, ())
+        if index < len(centers_3):
+            x_ratio, y_ratio = centers_3[index]
+        elif index < len(centers_4):
+            x_ratio, y_ratio = centers_4[index]
+        else:
+            x_ratio, y_ratio = (0.5, 0.5)
+        x, y = int(frame.width * x_ratio), int(frame.height * y_ratio)
+        return MatchResult(name, 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
     def _canonical_bond_name(self, card_name: str) -> str:
         """Map a card name or bond string to canonical 5 bond categories if applicable."""
         for b in ("祝福", "成长", "经济", "贪婪", "挑战"):

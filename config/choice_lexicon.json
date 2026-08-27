@@ -2,34 +2,34 @@
   "version": "1.0",
   "_comment": "B2-3 OCR 词典归一化事实数据。来源：config/skill_labels.json 技能白名单(16 短码)、rec1/ops 实机帧画面文字、REBORN_WOW_GAME_STRATEGY_RESEARCH 奥术/奥数同义词对齐、CLOUD_REVIEW 龙珠面板。aliases=常见 OCR 混淆/简称(R 后缀、空格、数字变体)；confusions=明确观察到的易混对(前缀共享)；set_membership=套装归属(仅龙珠/三国已证实)。未观察到的不写入。",
   "entries": {
-    "奥术箭": {
+    "奥数箭": {
       "aliases": [
-        "奥数箭"
+        "奥术箭"
       ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": "奥术箭"
+      "set_membership": "奥数箭"
     },
-    "奥术激光": {
+    "奥数激光": {
       "aliases": [
-        "奥数激光"
+        "奥术激光"
       ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": "奥术激光"
+      "set_membership": "奥数激光"
     },
-    "奥术射线": {
+    "奥数射线": {
       "aliases": [
-        "奥数射线"
+        "奥术射线"
       ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [
         "射线"
       ],
-      "set_membership": "奥术射线"
+      "set_membership": "奥数射线"
     },
     "冰霜新星": {
       "aliases": [],
@@ -3567,45 +3567,45 @@
       "set_membership": "修仙",
       "_note": "攻略：每杀20得1道灵气，每道渡劫+2%。未上帧。"
     },
-    "元和五极山": {
-      "aliases": [],
+    "元禾五极山": {
+      "aliases": ["元和五极山", "元磁五极山"],
       "kind": "bond",
-      "version_seen": "guide-20260815",
-      "confusions": [],
+      "version_seen": "live-20260827",
+      "confusions": ["元和五极山"],
       "set_membership": "修仙",
-      "_note": "攻略：5座山合成，真雷劫+五行劫必成。未上帧。"
+      "_note": "实机确认：太乙青山+元磁神山+阴阳大五行山+北极元山+昊阴寒魄山 5座山合成UR，真雷劫+五行劫必成。"
     },
     "阴阳大五行山": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "guide-20260815",
+      "version_seen": "live-20260827",
       "confusions": [],
       "set_membership": "修仙",
-      "_note": "攻略五极山散件。未上帧。"
+      "_note": "五极山散件之一。"
     },
     "北极元山": {
       "aliases": [],
       "kind": "bond",
-      "version_seen": "guide-20260815",
+      "version_seen": "live-20260827",
       "confusions": [],
       "set_membership": "修仙",
-      "_note": "攻略五极山散件。未上帧。"
+      "_note": "五极山散件之二。"
     },
-    "元气神山": {
-      "aliases": [],
+    "元磁神山": {
+      "aliases": ["元气神山"],
       "kind": "bond",
-      "version_seen": "guide-20260815",
-      "confusions": [],
+      "version_seen": "live-20260827",
+      "confusions": ["元气神山"],
       "set_membership": "修仙",
-      "_note": "攻略五极山散件。未上帧。"
+      "_note": "五极山散件之三（实机卡名『元磁神山』，旧词表曾误记为元气神山）。"
     },
-    "后羿寒魄山": {
-      "aliases": [],
+    "昊阴寒魄山": {
+      "aliases": ["后羿寒魄山"],
       "kind": "bond",
-      "version_seen": "guide-20260815",
-      "confusions": [],
+      "version_seen": "live-20260827",
+      "confusions": ["后羿寒魄山"],
       "set_membership": "修仙",
-      "_note": "攻略五极山散件。未上帧。"
+      "_note": "五极山散件之四（实机卡名『昊阴寒魄山』，旧词表曾误记为后羿寒魄山）。"
     },
     "太乙青山": {
       "aliases": [],

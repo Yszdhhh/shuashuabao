@@ -1753,6 +1753,36 @@ class TestLiveRegressions20260822(unittest.TestCase):
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
         self.assertEqual(d.index, 0)
 
+    def test_dynamic_four_slot_bond_and_treasure_selection(self):
+        """验证 4 选 1（4-Slot）布局下策略正确评分并选取最佳槽位。"""
+        ps = settings(bond_presets=["成长之芽"], bond_whitelist_mode="soft")
+        cands_4 = bond_cands(
+            [
+                slot(0, "散卡A", rarity="green"),
+                slot(1, "散卡B", rarity="blue"),
+                slot(2, "成长之芽", rarity="green"),
+                slot(3, "散卡C", rarity="green"),
+            ],
+            settings=ps,
+        )
+        d = choose_action(cands_4, session=SessionState())
+        self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(d.index, 2)
+    def test_dynamic_four_slot_skill_strict_rejection(self):
+        """验证 4 选 1（4-Slot）技能在无 focus 技能时严格返回 CLOSE。"""
+        ps = PolicySettings(skill_presets=("剑气",), skill_fill_empty_slots=False)
+        cands_4 = skill_cands(
+            [
+                slot(0, "地震", rarity="purple"),
+                slot(1, "火球", rarity="blue"),
+                slot(2, "冰锥", rarity="green"),
+                slot(3, "旋风", rarity="blue"),
+            ],
+            settings=ps,
+        )
+        d = choose_action(cands_4, session=SessionState())
+        self.assertEqual(d.action, PolicyAction.CLOSE)
+
 
 if __name__ == "__main__":
     unittest.main()

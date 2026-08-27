@@ -7,7 +7,7 @@
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 314
+        "passed": 316
       }
     },
     "frozen_replay": {

@@ -2766,5 +2766,44 @@
     "修仙渡劫概率/五极山/斩灵剑未上帧；小绿瓶攻略当启动 vs D0 宝物",
     "海盗主卡进化 6/9/12 与悬赏令出战舰两说未上帧；黄金猿装备栏左键锚点未钉",
     "宝藏每3张自动吞、安卡合成 UR 未上帧"
-  ]
+  ],
+  "ex_ur_mechanics_20260827": {
+    "four_slot_choice_expansion": {
+      "description": "2026-08-27 视频实机更新：羁绊卡/技能卡/宝物卡四选一（4-Slot）交互弹窗",
+      "layout": "4 列水平等距排列，中心坐标分别位于 X=480, 785, 1095, 1400",
+      "support": "mediator 与 choice_policy 动态自适应 3 槽与 4 槽"
+    },
+    "xiuxian_yuanci_ur_synthesis": {
+      "canonical_name": "元禾五极山",
+      "aliases": ["元和五极山", "元磁五极山", "元磁神山"],
+      "system": "修仙九转 / 渡劫终极流派",
+      "synthesis_requirement": "由 5 座独立神山（1.太乙青山、2.元磁神山、3.阴阳大五行山、4.北极元山、5.昊阴寒魄山）集齐后自动合成 1 张 UR 终极神山『元禾五极山』",
+      "core_effect": "真雷劫与五行劫渡劫成功率大幅提升（直接必成），极大提高后续大乘期/元神出窍 (EX) 突破与关键修仙卡的获取概率",
+      "sub_components": [
+        "太乙青山",
+        "元磁神山",
+        "阴阳大五行山",
+        "北极元山",
+        "昊阴寒魄山"
+      ],
+      "ground_truth_alignment": "实机图片与代码比对修正：卡面全称为『元禾五极山』，散件为『太乙青山、元磁神山、阴阳大五行山、北极元山、昊阴寒魄山』",
+      "priority_weight": "UR_SUPER_PRIORITY"
+    },
+    "xiuxian_xuantian_zhanling_sword": {
+      "canonical_name": "玄天斩灵剑",
+      "system": "修仙九转 / 渡劫终极流派",
+      "synthesis_chain": "由『玄天仙藤』等前置材料/卡牌进化合成",
+      "core_effect": "两大渡劫保底法宝之一：心魔劫必成，与『元禾五极山』（真雷劫+五行劫必成）互补，构成大乘期圆满渡劫双法宝",
+      "priority_weight": "UR_SUPER_PRIORITY"
+    },
+    "sanguo_fengshen_ex_pull_chain": {
+      "sanguo": "三国体系阵营卡吞噬满额后解锁 EX 级主公与神将",
+      "fengshen": "封神体系法宝三连跳与法宝吞噬满额后解锁 EX 级鸿钧/通天",
+      "priority": "EX 级羁绊卡具备专属优先级加权，只要符合流派策略即最高优先级锁定"
+    },
+    "raid_and_rift_routes": {
+      "team_raid": "活动/副本 -> 团队集结 -> 开房间/匹配 -> 战斗就绪",
+      "greater_rift": "主界面 -> 秘境 -> 选择大秘境层数/难度 -> 确认挑战"
+    }
+  }
 }
