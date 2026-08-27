@@ -171,8 +171,23 @@ function pushReputation(): void {
 }
 
 function pushBondsAndAttributes(): void {
-  const activeBonds = (Array.isArray(state.bonds) ? state.bonds : Array.from(state.bonds || [])) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
-  const activeAttrs = (Array.isArray(state.attr) ? state.attr : Array.from(state.attr || [])) as ("int" | "str" | "agi")[];
+  const rawAttrs = Array.isArray(state.attr) ? state.attr : Array.from(state.attr || []);
+  const attrMap: Record<string, "int" | "str" | "agi"> = {
+    intelligence: "int",
+    strength: "str",
+    agility: "agi",
+    int: "int",
+    str: "str",
+    agi: "agi",
+  };
+  const activeAttrs = rawAttrs.map((a: string) => attrMap[a]).filter(Boolean) as ("int" | "str" | "agi")[];
+
+  const validBonds = ["祝福", "成长", "经济", "贪婪", "挑战"];
+  const growthList = Array.isArray(state.growth) ? state.growth : Array.from(state.growth || []);
+  const bondsList = Array.isArray(state.bonds) ? state.bonds : Array.from(state.bonds || []);
+  const combined = Array.from(new Set([...growthList, ...bondsList])).filter((b: string) => validBonds.includes(b)) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
+  const activeBonds = combined.length > 0 ? combined : (["祝福", "成长", "经济", "贪婪", "挑战"] as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[]);
+
   pushConfig({
     strategy: {
       bonds: activeBonds,
