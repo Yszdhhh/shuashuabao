@@ -1,0 +1,33 @@
+name: CI & Quality Gate
+
+on:
+  push:
+    branches: [ trial-merge, feat/web-shell-align-20260826, main ]
+  pull_request:
+    branches: [ trial-merge, main ]
+
+jobs:
+  test-and-gate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-subtests opencv-python-headless numpy PySide6
+
+      - name: Run Core Test Suites
+        run: |
+          python -m pytest tests/test_p0_security.py tests/test_p1_choice_fsm_contracts.py tests/test_dashboard_facade.py tests/test_dashboard_facade_runner.py tests/test_choice_policy.py tests/test_hero_mode_temporal.py tests/test_l1_cycle_recheck_merchant.py tests/contract -v
+
+      - name: Run Release Gate Check
+        run: |
+          python tools/release_gate.py
