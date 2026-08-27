@@ -1,3 +1,9 @@
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 #!/usr/bin/env python3
 """R0.1 冻结端到端回放集运行器（fixtures/baselines/replay_frozen/）。
 

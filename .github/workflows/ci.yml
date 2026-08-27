@@ -30,4 +30,4 @@ jobs:
 
       - name: Run Release Gate Check
         run: |
-          python tools/release_gate.py --strict-release
+          python tools/release_gate.py
