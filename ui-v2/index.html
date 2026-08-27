@@ -662,6 +662,18 @@
     .task b { color: var(--p-gold); font-variant-numeric: tabular-nums; }
     .task.is-now { background: var(--p-gold-soft); border-radius: 4px; border-top-color: transparent; }
     .pick-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; max-height: 440px; overflow: auto; }
+    .text-pick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-height: 440px; overflow: auto; }
+    .text-card-btn {
+      display: flex; align-items: center; justify-content: center; padding: 10px 8px; min-height: 40px;
+      font-family: var(--p-font); font-size: 13px; font-weight: 700; text-align: center; line-height: 1.25;
+      border: 1px solid var(--p-line); background: var(--p-fill); border-radius: var(--p-radius);
+      color: var(--p-ink); cursor: pointer; transition: all .15s ease;
+    }
+    .text-card-btn:hover { background: color-mix(in oklab, var(--p-fill) 80%, var(--p-gold)); border-color: var(--p-gold); color: var(--p-gold); }
+    .text-card-btn[aria-pressed="true"] {
+      border-color: var(--p-gold); background: var(--p-gold-soft); color: var(--p-gold);
+      box-shadow: inset 0 0 0 1px var(--p-gold);
+    }
     .thumb {
       display: flex; flex-direction: column; align-items: center; padding: 3px; min-width: 0;
       font-family: var(--p-font); border: 1px solid var(--p-line); background: var(--p-paper);
@@ -1339,11 +1351,14 @@
       if (kind === "rep") { state.draft = {...state.alloc}; sheet.className = "sheet"; renderRepModal(); return; }
       sheet.className = "sheet pick";
       const isBoss = kind === "boss";
-      const stems = isBoss ? BOSS_STEMS : CJB_STEMS;
-      const dir = isBoss ? "boss" : "chuanjiaobao";
       const cur = isBoss ? state.boss : state.cjb;
-      sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">${isBoss?"选择时光之穴 Boss":"选择传家宝挑战"}</h2></div><div class="sheet-body"><div class="pick-grid">${stems.map((s)=>`<button type="button" class="thumb" data-stem="${s}" aria-pressed="${s===cur}" aria-label="${stemLabel(s)}">${artThumb(s,dir)}</button>`).join("")}</div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span></div>`;
-      focusSheet();
+      if (isBoss) {
+        sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">选择时光之穴 Boss</h2></div><div class="sheet-body"><div class="text-pick-grid">${BOSS_STEMS.map((s)=>`<button type="button" class="text-card-btn" data-stem="${s}" aria-pressed="${s===cur}" aria-label="${stemLabel(s)}">${stemLabel(s)}</button>`).join("")}</div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span></div>`;
+      } else {
+        const stems = CJB_STEMS;
+        const dir = "chuanjiaobao";
+        sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">选择传家宝挑战</h2></div><div class="sheet-body"><div class="pick-grid">${stems.map((s)=>`<button type="button" class="thumb" data-stem="${s}" aria-pressed="${s===cur}" aria-label="${stemLabel(s)}">${artThumb(s,dir)}</button>`).join("")}</div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span></div>`;
+      }
     }
     function renderRepModal() {
       const draft = state.draft;
