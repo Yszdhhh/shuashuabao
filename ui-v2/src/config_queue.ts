@@ -1,8 +1,16 @@
-import type { SettingsDTO, StrategyDTO, ConfigPatch, ConfigResult, BridgeAPI } from "./bridge/types";
+import type { SettingsDTO, StrategyDTO, ConfigPatch, ConfigPatchResult, DashboardBridge } from "./bridge/types";
 
 export let currentSettingsRevision: number = 0;
 export function setSettingsRevision(rev: number): void {
   currentSettingsRevision = rev;
+}
+
+let stickyFailure: Error | null = null;
+export function getStickyFailure(): Error | null {
+  return stickyFailure;
+}
+export function resetStickyFailure(): void {
+  stickyFailure = null;
 }
 
 function generateUUID(): string {
@@ -14,7 +22,7 @@ function generateUUID(): string {
 
 type QueueItem = {
   patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> };
-  resolve: (res: ConfigResult) => void;
+  resolve: (res: ConfigPatchResult) => void;
   reject: (err: unknown) => void;
 };
 
@@ -23,15 +31,15 @@ let processing = false;
 
 export function enqueueConfigPatch(
   patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> },
-  bridge: BridgeAPI
-): Promise<ConfigResult> {
+  bridge: DashboardBridge
+): Promise<ConfigPatchResult> {
   return new Promise((resolve, reject) => {
     queue.push({ patch, resolve, reject });
     processQueue(bridge);
   });
 }
 
-async function processQueue(bridge: BridgeAPI): Promise<void> {
+async function processQueue(bridge: DashboardBridge): Promise<void> {
   if (processing || queue.length === 0) return;
   processing = true;
 
@@ -45,12 +53,20 @@ async function processQueue(bridge: BridgeAPI): Promise<void> {
 
     try {
       const res = await bridge.update_config(fullPatch);
-      if (res.ok && res.settings_revision !== undefined) {
-        currentSettingsRevision = res.settings_revision;
+      if (!res.ok) {
+        const err = new Error(res.errors && res.errors.length > 0 ? res.errors.join("; ") : "配置更新失败");
+        stickyFailure = err;
+        item.reject(err);
+      } else {
+        if (res.settings_revision !== undefined) {
+          currentSettingsRevision = res.settings_revision;
+        }
+        item.resolve(res);
       }
-      item.resolve(res);
     } catch (err) {
-      item.reject(err);
+      const errorObj = err instanceof Error ? err : new Error(String(err));
+      stickyFailure = errorObj;
+      item.reject(errorObj);
     }
   }
 
@@ -60,5 +76,8 @@ async function processQueue(bridge: BridgeAPI): Promise<void> {
 export async function flushConfigQueue(): Promise<void> {
   while (processing || queue.length > 0) {
     await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  if (stickyFailure !== null) {
+    throw stickyFailure;
   }
 }

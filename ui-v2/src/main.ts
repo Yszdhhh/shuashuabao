@@ -9,7 +9,7 @@ import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, currentSetti
 //      btnStart → validate_preflight → start_run（运行中同按钮变 stop_run）；
 //      btnMin/btnClose → window_control；run_status_changed → 徽标/进度；
 //      log_appended → 运行日志；snapshot_changed → 快照重渲染。
-import type { DashboardBridge, ModeDTO, RunStatusDTO, SettingsDTO, SnapshotDTO } from "./bridge/types";
+import type { DashboardBridge, ModeDTO, RunStatusDTO, SettingsDTO, SnapshotDTO, StrategyDTO } from "./bridge/types";
 
 // —— index.html 内联脚本暴露的全局（经典脚本 globalThis 绑定）——
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -26,12 +26,12 @@ declare function refreshSummary(): void;
 declare function renderChapterStage(): void;
 declare function renderBuilds(): void;
 declare function renderBonds(): void;
+declare function renderNegatives(): void;
 declare function renderPrestige(): void;
 declare function renderTeamRules(): void;
 declare function recommendChallenges(): void;
 declare function currentSkills(): string[];
 declare function applyOfficial(id: string): void;
-
 /** OD12 场景 ↔ 目录 mode_id（config/mode_specs.json）；带车复用 normal_farm 建房链。 */
 const SCENE_TO_MODE_ID: Record<string, string> = {
   farm: "normal_farm",
@@ -151,7 +151,12 @@ function showStartErr(msg: string): void {
 }
 
 function pushSkills(): void {
-  pushConfig({ skills: currentSkills().filter(Boolean), skill_priority: state.priority.slice() });
+  pushConfig({
+    strategy: {
+      skills: currentSkills().filter(Boolean),
+    },
+    skill_priority: state.priority.slice(),
+  });
 }
 
 function pushReputation(): void {
@@ -164,13 +169,11 @@ function pushReputation(): void {
   }
   pushConfig({ reputation_allocations: allocations, auto_reputation: Boolean(state.hero) || maxPoints > 0 });
 }
+
 function pushBondsAndAttributes(): void {
   const activeBonds = (Array.isArray(state.bonds) ? state.bonds : []) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
   const activeAttrs = (Array.isArray(state.attr) ? state.attr : []) as ("int" | "str" | "agi")[];
   pushConfig({
-    cards: activeBonds,
-    bonds: activeBonds,
-    attributes: activeAttrs,
     strategy: {
       bonds: activeBonds,
       attributes: activeAttrs,
@@ -181,7 +184,6 @@ function pushBondsAndAttributes(): void {
 function pushNegatives(): void {
   const negatives = Array.isArray(state.negative) ? state.negative : [];
   pushConfig({
-    treasure_allow_negative: negatives,
     strategy: {
       treasure: { negative_allowlist: negatives },
     },
@@ -193,9 +195,6 @@ function pushMerchant(): void {
   const rerolls = Number(state.merchant_max_rerolls ?? 3);
   const reserve = Number(state.merchant_gold_reserve ?? 0);
   pushConfig({
-    merchant_enabled: enabled,
-    merchant_max_rerolls: rerolls,
-    merchant_gold_reserve: reserve,
     strategy: {
       merchant: {
         enabled: enabled,
@@ -497,47 +496,7 @@ function defer(fn: () => void): void {
 }
 
 function wireIntents(): void {
-  // Strategy: bonds
-  const bondContainer = document.getElementById("bond-list");
-  if (bondContainer) {
-    bondContainer.addEventListener("change", () => {
-      pushConfig({ bonds: state.bonds, cards: state.bonds });
-    });
-  }
-
-  // Strategy: attributes
-  const attrContainer = document.getElementById("attr-list");
-  if (attrContainer) {
-    attrContainer.addEventListener("change", () => {
-      pushConfig({ attributes: state.attr });
-    });
-  }
-
-  // Strategy: negative treasures
-  const negContainer = document.getElementById("neg-list");
-  if (negContainer) {
-    negContainer.addEventListener("change", () => {
-      pushConfig({ treasure_allow_negative: state.negative });
-    });
-  }
-
-  // 全局函数后钩子：这些 OD12 函数被多处调用，包一处即可覆盖全部出口。
-  afterGlobalCall("setCycle", () => pushConfig({ cycle_num: clampCycle(Number(state.cycle)) }));
-  afterGlobalCall("renderChapterStage", () => pushConfig({ stage_targets: [`${state.chapter}-${state.stage}`] }));
-  afterGlobalCall("renderSkillRank", pushSkills);
-  afterGlobalCall("refreshSummary", applyLaunchability);
-  afterGlobalCall("setScene", () => {
-    const modeId = SCENE_TO_MODE_ID[state.scene];
-    if (modeId) pushShell({ selected_mode_id: modeId });
-  });
-
-  // 技能路线下拉（技能增删/排序经 renderSkillRank 钩子覆盖）。
-  $("skillRank").addEventListener("change", (e) => {
-    if ((e.target as HTMLElement).closest("[data-route]")) {
-      pushConfig({ skill_custom_routes: { ...state.routes } });
-    }
-  });
-  // 全局函数后钩子：这些 OD12 函数被多处调用，包一处即可覆盖全部出口。
+  // 全局函数后钩子：每个全局操作挂一次钩子
   afterGlobalCall("setCycle", () => pushConfig({ cycle_num: clampCycle(Number(state.cycle)) }));
   afterGlobalCall("renderChapterStage", () => pushConfig({ stage_targets: [`${state.chapter}-${state.stage}`] }));
   afterGlobalCall("renderSkillRank", pushSkills);
@@ -548,6 +507,20 @@ function wireIntents(): void {
     const modeId = SCENE_TO_MODE_ID[state.scene];
     if (modeId) pushShell({ selected_mode_id: modeId });
   });
+
+  // 负面效果勾选变化事件
+  const negEl = $("negatives");
+  if (negEl) {
+    negEl.addEventListener("change", () => defer(pushNegatives));
+  }
+
+  // 技能路线下拉
+  $("skillRank").addEventListener("change", (e) => {
+    if ((e.target as HTMLElement).closest("[data-route]")) {
+      pushConfig({ skill_custom_routes: { ...state.routes } });
+    }
+  });
+
   // 黑商控制事件监听
   const swMerchant = $("sw_merchant");
   if (swMerchant) {
@@ -559,9 +532,6 @@ function wireIntents(): void {
       el.addEventListener("change", () => defer(pushMerchant));
     }
   }
-
-
-  // 抽屉开关。
   for (const sw of SWITCHES) {
     $(sw.el).addEventListener("click", () =>
       pushConfig({ [sw.field]: Boolean(state[sw.stateKey]) }),

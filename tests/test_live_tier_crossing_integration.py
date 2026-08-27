@@ -20,8 +20,8 @@ class TestLiveMediatorIntegration(unittest.TestCase):
         self.mediator = Mediator(project_root=ROOT, settings=self.settings)
 
     def test_mediator_extracts_and_feeds_live_progress_to_policy(self):
-        self.mediator._active_bond_counts = {"祝福": 3}
-        self.mediator._active_free_slots = 1
+        # Use real confirmed bond cards instead of injecting _active_bond_counts
+        self.mediator._bond_cards_owned = ["祝福之灵", "祝福之触", "祝福之光"]
 
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=999, is_valid=True)
 
@@ -38,8 +38,8 @@ class TestLiveMediatorIntegration(unittest.TestCase):
         self.assertIn("祝福之灵", hit.name)
 
     def test_mediator_zero_free_slots_refuses_scatter_cards(self):
-        self.mediator._active_bond_counts = {"祝福": 2}
-        self.mediator._active_free_slots = 0
+        # Use real confirmed bond cards instead of injecting _active_bond_counts
+        self.mediator._bond_cards_owned = ["祝福之灵", "祝福之触"]
 
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=999, is_valid=True)
 
@@ -55,6 +55,5 @@ class TestLiveMediatorIntegration(unittest.TestCase):
         # In slot-capped zero free slots with only scatter cards, policy issues CLOSE (hide_fallback hit) rather than selecting a slot
         self.assertIsNotNone(hit)
         self.assertEqual(hit.name, "hide_fallback")
-
 if __name__ == "__main__":
     unittest.main()

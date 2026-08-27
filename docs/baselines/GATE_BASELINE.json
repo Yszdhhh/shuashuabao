@@ -7,7 +7,7 @@
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 309
+        "passed": 313
       }
     },
     "frozen_replay": {
@@ -23,7 +23,7 @@
       },
       "known_failures": {
         "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。",
-        "giveup_panel_not_fail": "未填写原因（必须补）"
+        "giveup_panel_not_fail": "FAIL·动作决策漂移：giveup_panel 帧中当前识别到技能卡候选（skill_hide score=0.757 @ 736,678）触发直接点卡（技能选择），未命中原夹具期望的『技能刷新选择 skill_refresh_btn @ 1020,654』。由于当前选卡策略优先判定可见技能候选，导致与旧夹具期望动作产生 ledger 偏离。真实行为需在真机连贯视频流录制重新校准后方可更新夹具。"
       }
     },
     "scene_templates": {

@@ -356,3 +356,43 @@ def test_dashboard_contract_v2_rejects_type_coercion_atomically(qapp, tmp_path: 
     assert json.loads(f.get_snapshot())["settings_revision"] == 0
     assert not user_settings_path(tmp_path).exists()
     assert json.loads(before)["settings"] == json.loads(f.get_snapshot())["settings"]
+
+def test_dashboard_contract_v2_rejects_duplicate_top_level_and_strategy(qapp, tmp_path: Path):
+    f = DashboardFacade(tmp_path)
+    # Sending both top-level and strategy fields must be rejected by Facade
+    patch = {
+        "skills": ["jq"],
+        "strategy": {"skills": ["pg"]},
+    }
+    result = json.loads(f.update_config(json.dumps(patch)))
+    assert result["ok"] is False
+    assert any("strategy 与顶层字段重复" in err for err in result["errors"])
+
+def test_dashboard_contract_v2_pure_strategy_roundtrip(qapp, tmp_path: Path):
+    f = DashboardFacade(tmp_path)
+    patch = {
+        "request_id": "req-roundtrip-1",
+        "settings_revision": 0,
+        "strategy": {
+            "skills": ["jq", "pg"],
+            "bonds": ["祝福", "经济"],
+            "attributes": ["str"],
+            "merchant": {"enabled": True, "max_rerolls": 3, "gold_reserve": 500},
+            "treasure": {"negative_allowlist": ["降低攻速"]},
+        },
+    }
+    result = json.loads(f.update_config(json.dumps(patch)))
+    assert result["ok"] is True
+    assert result["errors"] == []
+    assert result["strategy"]["bonds"] == ["祝福", "经济"]
+    assert result["strategy"]["attributes"] == ["str"]
+    assert result["strategy"]["merchant"]["gold_reserve"] == 500
+    assert result["strategy"]["treasure"]["negative_allowlist"] == ["降低攻速"]
+
+    # Verify fresh facade readback
+    f2 = DashboardFacade(tmp_path)
+    snap = json.loads(f2.get_snapshot())
+    assert snap["strategy"]["bonds"] == ["祝福", "经济"]
+    assert snap["strategy"]["attributes"] == ["str"]
+    assert snap["strategy"]["merchant"]["gold_reserve"] == 500
+    assert snap["strategy"]["treasure"]["negative_allowlist"] == ["降低攻速"]

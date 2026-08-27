@@ -1,21 +1,21 @@
 // 桥接契约唯一事实源（设计规格 §6.2）。Python 侧 DashboardFacade 结构一一对应。
 
 export interface SettingsDTO {
-  skills: string[];
-  cards: string[];
-  bond_scheme: string;
-  bond_must_take: string[];
-  bonds: ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
-  attributes: ("int" | "str" | "agi")[];
-  merchant_enabled: boolean;
-  merchant_max_rerolls: number;
-  merchant_gold_reserve: number;
-  treasure_allow_negative: string[];
-  auto_secret_realm: boolean;
-  auto_close_main_line: boolean;
-  auto_archaeology: boolean;
-  new_room_every_times: boolean;
-  find_longzhu_where_multi_game: boolean;
+  skills?: string[];
+  cards?: string[];
+  bond_scheme?: string;
+  bond_must_take?: string[];
+  bonds?: ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
+  attributes?: ("int" | "str" | "agi")[];
+  merchant_enabled?: boolean;
+  merchant_max_rerolls?: number;
+  merchant_gold_reserve?: number;
+  treasure_allow_negative?: string[];
+  auto_secret_realm?: boolean;
+  auto_close_main_line?: boolean;
+  auto_archaeology?: boolean;
+  new_room_every_times?: boolean;
+  find_longzhu_where_multi_game?: boolean;
   [field: string]: unknown;
 }
 

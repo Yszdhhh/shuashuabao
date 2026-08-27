@@ -2514,20 +2514,45 @@ class Mediator:
         return occupied
 
 
+    def _canonical_bond_name(self, card_name: str) -> str:
+        """Map a card name or bond string to canonical 5 bond categories if applicable."""
+        for b in ("祝福", "成长", "经济", "贪婪", "挑战"):
+            if b in card_name:
+                return b
+        return card_name
+
     def _extract_live_set_progress(self, frame: Frame | None) -> dict[str, int] | None:
-        """Extract current active bond tier progress counts from live state or OCR."""
-        if hasattr(self, "_active_bond_counts") and self._active_bond_counts:
-            return dict(self._active_bond_counts)
-        if hasattr(self, "_owned_bonds") and isinstance(self._owned_bonds, dict):
-            return {k: len(v) if isinstance(v, (list, tuple, set)) else int(v) for k, v in self._owned_bonds.items()}
-        return None
+        """Extract current active bond tier progress counts from confirmed card state.
+
+        Counts are computed from confirmed cards or _owned_bonds; _bond_bar_occupancy
+        is only used to check consistency or empty state.
+        """
+        counts: dict[str, int] = {}
+        confirmed = self._confirmed_bond_cards()
+        if confirmed:
+            for card in confirmed:
+                c_str = str(card or "").strip()
+                if not c_str:
+                    continue
+                canon = self._canonical_bond_name(c_str)
+                counts[canon] = counts.get(canon, 0) + 1
+        elif hasattr(self, "_owned_bonds") and isinstance(self._owned_bonds, dict):
+            counts = {k: len(v) if isinstance(v, (list, tuple, set)) else int(v) for k, v in self._owned_bonds.items()}
+
+        if frame is not None:
+            occ = self._bond_bar_occupancy(frame)
+            if occ is not None and occ == 0:
+                return {}
+
+        return counts if counts else None
 
     def _extract_live_free_slots(self, frame: Frame | None) -> int | None:
         """Extract remaining open card slots from HUD or confirmed game state."""
-        if hasattr(self, "_active_free_slots") and isinstance(self._active_free_slots, int):
-            return self._active_free_slots
+        if frame is not None:
+            occ = self._bond_bar_occupancy(frame)
+            if occ is not None:
+                return max(0, 10 - int(occ))
         return None
-
     def _ocr_reward_choice(self, frame: Frame, kind: str) -> MatchResult | None:
         """OCR → SlotCandidate → choice_policy.choose_action → click target.
 
@@ -3268,7 +3293,7 @@ class Mediator:
                 return LoopAction.Continue
         return LoopAction.Continue
     def _equipment_slot_fingerprint(self, frame: Frame, slot_idx: int) -> str:
-        """Extract stable perceptual/color hash of the equipment slot ROI."""
+        """Extract stable grayscale perceptual/difference hash of the equipment slot ROI (24x24)."""
         if frame is None or frame.bgr is None or frame.bgr.size == 0:
             return ""
         slot_coords = {
@@ -3285,10 +3310,18 @@ class Mediator:
         rx1, rx2 = max(0, cx - 12), min(w, cx + 12)
         ry1, ry2 = max(0, cy - 12), min(h, cy + 12)
         patch = frame.bgr[ry1:ry2, rx1:rx2]
-        if patch.size == 0:
+        if patch.size == 0 or patch.shape[0] < 8 or patch.shape[1] < 8:
             return ""
-        mean_bgr = tuple(int(v) for v in patch.mean(axis=(0, 1)))
-        return f"slot_{slot_idx}_{mean_bgr[0]}_{mean_bgr[1]}_{mean_bgr[2]}"
+        # Convert patch to normalized grayscale 8x8 block
+        gray = cv2.cvtColor(patch, cv2.COLOR_BGR2GRAY) if len(patch.shape) == 3 else patch
+        resized = cv2.resize(gray, (8, 8), interpolation=cv2.INTER_AREA)
+        avg = float(resized.mean())
+        # 64-bit dHash / perceptual bitstring
+        bits = [(1 if resized[r, c] > avg else 0) for r in range(8) for c in range(8)]
+        hash_hex = hex(int("".join(map(str, bits)), 2))[2:].zfill(16)
+        # Also append mean grayscale intensity with 4-level quantization (resilient to minor 1-3px sensor noise)
+        quant_intensity = int(avg // 10)
+        return f"slot_{slot_idx}_{hash_hex}_{quant_intensity}"
 
     def _maybe_upgrade_equipment(self, frame: Frame) -> LoopAction:
         """Upgrade weapon/equipment in verified HUD_ONLY inventory ROI.
