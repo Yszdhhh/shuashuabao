@@ -5,6 +5,7 @@ Not click-through — the stop button must receive mouse events.
 
 from __future__ import annotations
 
+import sys
 from typing import Any
 
 from pathlib import Path
@@ -80,7 +81,13 @@ class OverlayHud(QWidget):
         brand_layout.setSpacing(6)
         self.logo_lbl = QLabel()
         self.logo_lbl.setFixedSize(20, 20)
-        logo_path = Path(__file__).resolve().parents[3] / "assets" / "branding" / "app_logo.png"
+        # 打包后 assets 在 _MEIPASS（_internal）下；源码模式才按源树回溯仓库根。
+        # 旧写法只用 parents[3]，冻结包内 __file__ 少 src/ 一层 → 指到应用根，
+        # logo 静默丢失（20260828 用户反馈：局内 title HUD 不再显示 logo）。
+        logo_path = (
+            Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[3]))
+            / "assets" / "branding" / "app_logo.png"
+        )
         if logo_path.exists():
             pix = QPixmap(str(logo_path)).scaled(
                 20, 20,

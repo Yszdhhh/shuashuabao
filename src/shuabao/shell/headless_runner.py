@@ -70,8 +70,6 @@ class HeadlessRunner:
         if not desktop_may_start(self.mode_id):
             raise ModeNotEnabled(f"{self.mode_id} 未验证，不可从服务入口启动")
         snapshot = apply_mode_overlay(copy.deepcopy(settings), self.mode_id)
-        snapshot.ocr_mode = "live"
-        snapshot.ocr_repo_root = str(self.root)
         return snapshot
 
     def _cancelled_start_result(self, log_fn: Callable[[str, str], None] | None) -> dict[str, Any]:

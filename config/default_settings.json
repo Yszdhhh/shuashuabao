@@ -70,7 +70,7 @@
   "panel_action_limit_per_fingerprint": 3,
   "panel_episode_limit_per_kind": 24,
   "incident_sample_rate": 0.1,
-  "ocr_mode": "live",
+  "ocr_mode": "off",
   "ocr_repo_root": "",
   "ocr_timeout_ms": 1200,
   "loop_sleep_ms": 400,

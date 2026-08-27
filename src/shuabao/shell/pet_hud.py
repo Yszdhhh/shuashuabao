@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import random
+import sys
 from PySide6.QtCore import QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
@@ -59,7 +60,11 @@ class FloatingPetHud(QWidget):
         layout.setSpacing(10)
 
         self.pet_avatar = QLabel()
-        pet_path = Path(__file__).resolve().parents[3] / "assets" / "branding" / "pet_mode_1.png"
+        # 打包后 assets 在 _MEIPASS（_internal）下；源码模式按源树回溯仓库根。
+        pet_path = (
+            Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[3]))
+            / "assets" / "branding" / "pet_mode_1.png"
+        )
         if pet_path.exists():
             pix = QPixmap(str(pet_path)).scaled(36, 36, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.pet_avatar.setPixmap(pix)

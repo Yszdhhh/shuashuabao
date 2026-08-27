@@ -399,6 +399,17 @@ def test_runner_start_failure_releases_live_lock(tmp_path: Path, monkeypatch):
     assert not live_lock_busy(runner.app_data)
 
 
+def test_runner_preserves_disabled_ocr_for_template_mode(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    runner = RunnerService(tmp_path, tmp_path)
+    worker = runner.start("normal_farm", Settings(ocr_mode="off"))
+
+    try:
+        assert worker.settings.ocr_mode == "off"
+    finally:
+        runner.release_after_finish()
+
+
 def test_runner_releases_lock_when_worker_finishes_without_facade(qapp, tmp_path: Path, monkeypatch):
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
     runner = RunnerService(tmp_path, tmp_path)

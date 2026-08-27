@@ -78,7 +78,10 @@ def execute_runtime_mediator(
             LOGGER.error("[启动失败] OCR True READY 未通过，LIVE 已拒绝启动: %s", health)
             return result
         health = getattr(mediator, "_ocr_bootstrap_health", None) or {}
-        result["ocr_status"] = "就绪" if health.get("healthy", True) else "不可用"
+        if health.get("skipped"):
+            result["ocr_status"] = "模板模式（OCR未随包）" if health.get("reason") == "packaged_ocr_unavailable_template_mode" else "OCR已关闭"
+        else:
+            result["ocr_status"] = "就绪" if health.get("healthy", True) else "不可用"
         mediator.run(max_steps=max_steps)
     except Exception as exc:
         result["terminal_reason"] = f"任务异常退出: {exc}"

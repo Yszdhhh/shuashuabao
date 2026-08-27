@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import sys
 import time
 from typing import Any
 
@@ -74,6 +75,24 @@ class Mediator(CoreMediator):
             except Exception as exc:
                 self._ocr_client = None
                 self._ocr_runtime_init_error = str(exc)
+                # The desktop package currently ships the template matcher but
+                # not the heavyweight Paddle sidecar.  Do not make an existing
+                # user's old "live" preference turn the whole application into
+                # an unstartable program.  In a frozen build only, downgrade to
+                # the already-supported template-only policy.  That policy is
+                # still fail-closed: cards without an exact template are never
+                # clicked.  Source runs and any future package that includes the
+                # sidecar retain their requested OCR mode.
+                if (
+                    getattr(sys, "frozen", False)
+                    and "packaged OCR runtime missing" in self._ocr_runtime_init_error
+                ):
+                    settings.ocr_mode = "off"
+                    self._ocr_bootstrap_health = {
+                        "healthy": True,
+                        "skipped": True,
+                        "reason": "packaged_ocr_unavailable_template_mode",
+                    }
 
         episode_deadline = float(getattr(self.settings, "panel_hard_deadline_s", 15.0) or 15.0)
         self._physical_panel_deadline_s = max(30.0, min(60.0, episode_deadline * 2.5))
@@ -87,11 +106,12 @@ class Mediator(CoreMediator):
         """Prove OCR readiness before any LIVE business input can start."""
         mode = str(getattr(self.settings, "ocr_mode", "off") or "off").lower()
         if mode not in {"live", "shadow"}:
-            self._ocr_bootstrap_health = {
-                "healthy": True,
-                "skipped": True,
-                "reason": "ocr_disabled",
-            }
+            if self._ocr_bootstrap_health is None:
+                self._ocr_bootstrap_health = {
+                    "healthy": True,
+                    "skipped": True,
+                    "reason": "ocr_disabled",
+                }
             return True
 
         client = getattr(self, "_ocr_client", None)

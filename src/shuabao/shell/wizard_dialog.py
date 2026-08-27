@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -33,7 +34,8 @@ from PySide6.QtWidgets import (
 from shuabao.shell.mode_catalog import badge_text, get_spec
 from shuabao.shell.theme_styles import wizard_qss
 
-_ROOT = Path(__file__).resolve().parents[3]
+# 打包后 config/assets 在 _MEIPASS（_internal）下；源码模式按源树回溯仓库根。
+_ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[3]))
 _MODE_SIZE = (480, 360)
 _PRESET_SIZE = (840, 580)
 
@@ -169,7 +171,7 @@ class GameStyleWizardDialog(QDialog):
     def __init__(self, parent=None, settings=None, initial_settings=None, theme: str = "dark"):
         super().__init__(parent)
         self.setWindowTitle("快速开局向导")
-        root = Path(__file__).resolve().parents[3]
+        root = _ROOT
         logo_ico = root / "assets" / "branding" / "app_logo.ico"
         if not logo_ico.exists():
             logo_ico = root / "assets" / "branding" / "app_logo.png"

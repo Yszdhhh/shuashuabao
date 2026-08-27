@@ -263,8 +263,6 @@ class RunnerService:
             snapshot.cycle_num = int(snapshot.follow_cycle_num)
         elif mode_id == "lobby_hitch":
             snapshot.cycle_num = int(snapshot.hitch_cycle_num)
-        snapshot.ocr_mode = "live"
-        snapshot.ocr_repo_root = str(self.root)
         lock = QLockFile(str(live_lock_path(self.app_data)))
         if not lock.tryLock(100):
             raise RuntimeError("ShuaBao.live.lock 已被占用（实验室或另一 LIVE）")
