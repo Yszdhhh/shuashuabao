@@ -1,3 +1,10 @@
+from __future__ import annotations
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 import sys
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -28,7 +35,6 @@ manifest.json 的 ledger 预期逐行比对；断线场景（素材缺失）如�
   .venv\\Scripts\\python.exe tools/run_frozen_replay.py --check          # 门禁退出码
 """
 
-from __future__ import annotations
 
 import argparse
 import json
