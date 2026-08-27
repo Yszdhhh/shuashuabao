@@ -401,7 +401,11 @@ class DashboardFacade(QObject):
         if not pre["ok"]:
             return json.dumps(self._rpc_response(False, error=pre["blocked_reason"]),
                               ensure_ascii=False)
-        mode_id = self._parse_keyed(mode_id_json, "mode_id")
+        payload = json.loads(mode_id_json) if isinstance(mode_id_json, str) and mode_id_json.strip().startswith("{") else {"mode_id": mode_id_json}
+        expected_rev = payload.get("expected_settings_revision")
+        if expected_rev is not None and int(expected_rev) != self._settings_revision:
+            return json.dumps(self._rpc_response(False, error=f"Settings revision mismatch: expected {expected_rev}, current {self._settings_revision}"), ensure_ascii=False)
+        mode_id = payload.get("mode_id") or self._parse_keyed(mode_id_json, "mode_id")
         runner = self._ensure_runner()
         if runner is None:
             return json.dumps(self._rpc_response(

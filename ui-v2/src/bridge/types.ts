@@ -14,7 +14,7 @@ export interface SettingsDTO {
   auto_secret_realm: boolean;
   auto_close_main_line: boolean;
   auto_archaeology: boolean;
-  new_room_every_times: number;
+  new_room_every_times: boolean;
   find_longzhu_where_multi_game: boolean;
   [field: string]: unknown;
 }

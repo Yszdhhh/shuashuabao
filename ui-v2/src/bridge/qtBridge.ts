@@ -132,8 +132,8 @@ function wrapFacade(facade: RawFacade): DashboardBridge {
       callMethod<ShellPatchResult>("update_shell", facade.update_shell(JSON.stringify(patch))),
     validate_preflight: (mode_id: string) =>
       callMethod<PreflightDTO>("validate_preflight", facade.validate_preflight(JSON.stringify({ mode_id }))),
-    start_run: (mode_id: string) =>
-      callMethod<RunResult>("start_run", facade.start_run(JSON.stringify({ mode_id }))),
+    start_run: (mode_id: string, expectedRevision?: number) =>
+      callMethod<RunResult>("start_run", facade.start_run(JSON.stringify({ mode_id, expected_settings_revision: expectedRevision }))),
     stop_run: () => callMethod<RunResult>("stop_run", facade.stop_run()),
     window_control: (action: "minimize" | "close") =>
       callMethod<RpcResponse>("window_control", facade.window_control(JSON.stringify({ action }))),

@@ -121,16 +121,27 @@ function afterGlobalCall(name: string, hook: () => void): void {
 
 // ---------------------------------------------------------------- intent 出口
 
+let ackedConfigJson = "";
+let pendingConfigJson: string | null = null;
+
 function pushConfig(patch: Partial<SettingsDTO>): void {
   if (!bridge || applying) return;
   const json = JSON.stringify(patch);
-  if (json === lastConfigJson) return; // 同值去重：钩子可能被相邻渲染重复触发
-  lastConfigJson = json;
+  if (json === ackedConfigJson || json === pendingConfigJson) return;
+  pendingConfigJson = json;
   bridge.update_config(patch)
     .then((res) => {
-      if (!res.ok) toast(`保存被拒绝：${res.errors[0] ?? "未知原因"}`);
+      pendingConfigJson = null;
+      if (res.ok) {
+        ackedConfigJson = json;
+      } else {
+        toast("保存被拒绝: " + (res.errors[0] || "未知原因"));
+      }
     })
-    .catch((err) => toast(bridgeErrorText(err)));
+    .catch((err) => {
+      pendingConfigJson = null;
+      toast(bridgeErrorText(err));
+    });
 }
 
 function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string }): void {
@@ -192,12 +203,19 @@ async function startRun(): Promise<void> {
   startBusy = true;
   try {
     // §6.3：UI 先本地预检给反馈；start_run 内部还会再验一次（fail-closed）。
+    if (pendingConfigJson) {
+      toast("正在同步最新配置...");
+      for (let i = 0; i < 10 && pendingConfigJson; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+    }
     const pf = await b.validate_preflight(modeId);
     if (!pf.ok) {
       showStartErr(pf.blocked_reason || "预检未通过");
       return;
     }
-    const res = await b.start_run(modeId);
+    const currentRev = state.settings_revision;
+    const res = await b.start_run(modeId, currentRev);
     if (!res.ok) {
       showStartErr(res.error || "启动失败");
       toast(res.error || "启动失败");
@@ -313,10 +331,27 @@ function rerenderAll(settings: SettingsDTO): void {
   refreshSummary(); // 内含 renderLaunchSummary
 }
 
+let lastAppliedSnapshotSeq = 0;
+
 export function applySnapshot(snap: SnapshotDTO): void {
+  if (snap.snapshot_seq && snap.snapshot_seq <= lastAppliedSnapshotSeq) return;
+  if (snap.snapshot_seq) lastAppliedSnapshotSeq = snap.snapshot_seq;
   applying = true;
   try {
     const settings: SettingsDTO = snap.settings ?? {};
+    if (snap.strategy) {
+      if (Array.isArray(snap.strategy.skills)) settings.skills = snap.strategy.skills;
+      if (Array.isArray(snap.strategy.bonds)) settings.cards = snap.strategy.bonds;
+      if (Array.isArray(snap.strategy.attributes)) settings.attributes = snap.strategy.attributes;
+      if (snap.strategy.merchant) {
+        settings.merchant_enabled = snap.strategy.merchant.enabled;
+        settings.merchant_max_rerolls = snap.strategy.merchant.max_rerolls;
+        settings.merchant_gold_reserve = snap.strategy.merchant.gold_reserve;
+      }
+      if (snap.strategy.treasure?.negative_allowlist) {
+        settings.treasure_allow_negative = snap.strategy.treasure.negative_allowlist;
+      }
+    }
     modeCatalog = new Map((snap.modes ?? []).map((mode) => [mode.id, mode]));
     applyTheme(snap.shell?.theme);
     applyMode(snap.shell?.selected_mode_id);
