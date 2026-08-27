@@ -60,13 +60,13 @@ declare global {
 
 function injectScript(src: string): Promise<void> {
   if (document.querySelector(`script[src="${src}"]`)) return Promise.resolve();
-  const { promise, resolve, reject } = Promise.withResolvers<void>();
-  const el = document.createElement("script");
-  el.src = src;
-  el.onload = () => resolve();
-  el.onerror = () => reject(new Error(`无法加载 ${src}（Qt WebChannel 注入脚本缺失）`));
-  document.head.appendChild(el);
-  return promise;
+  return new Promise<void>((resolve, reject) => {
+    const el = document.createElement("script");
+    el.src = src;
+    el.onload = () => resolve();
+    el.onerror = () => reject(new Error(`无法加载 ${src}（Qt WebChannel 注入脚本缺失）`));
+    document.head.appendChild(el);
+  });
 }
 
 async function waitForTransport(timeoutMs: number): Promise<unknown> {
