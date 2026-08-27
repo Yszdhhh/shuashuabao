@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-27 10:14:51",
-  "reason": "Update verified release gate suite with 305 tests passing",
+  "updated_at": "2026-08-27 11:37:55",
+  "reason": "Add live tier crossing and mediator equipment fsm integration suites with 309 passing tests",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 305
+        "passed": 309
       }
     },
     "frozen_replay": {

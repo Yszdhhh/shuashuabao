@@ -1,3 +1,4 @@
+import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, currentSettingsRevision } from "./config_queue";
 // Task 5：qtBridge 真实接线（设计规格 §7）。OD12 的 DOM/CSS 与内联脚本保持原样；
 // 本模块只做三件事：
 //   1) bridge 探测：production → qtBridge(QWebChannel)，dev/浏览器 → 诚实 mock；
@@ -120,27 +121,15 @@ function afterGlobalCall(name: string, hook: () => void): void {
 
 // ---------------------------------------------------------------- intent 出口
 
-let ackedConfigJson = "";
-let pendingConfigJson: string | null = null;
-
-function pushConfig(patch: Partial<SettingsDTO>): void {
+function pushConfig(patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> }): void {
   if (!bridge || applying) return;
-  const json = JSON.stringify(patch);
-  if (json === ackedConfigJson || json === pendingConfigJson) return;
-  pendingConfigJson = json;
-  bridge.update_config(patch)
+  enqueueConfigPatch(patch, bridge)
     .then((res) => {
-      pendingConfigJson = null;
-      if (res.ok) {
-        ackedConfigJson = json;
-      } else {
+      if (!res.ok) {
         toast("保存被拒绝: " + (res.errors[0] || "未知原因"));
       }
     })
-    .catch((err) => {
-      pendingConfigJson = null;
-      toast(bridgeErrorText(err));
-    });
+    .catch((err) => toast(bridgeErrorText(err)));
 }
 
 function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string }): void {
@@ -175,6 +164,48 @@ function pushReputation(): void {
   }
   pushConfig({ reputation_allocations: allocations, auto_reputation: Boolean(state.hero) || maxPoints > 0 });
 }
+function pushBondsAndAttributes(): void {
+  const activeBonds = (Array.isArray(state.bonds) ? state.bonds : []) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
+  const activeAttrs = (Array.isArray(state.attr) ? state.attr : []) as ("int" | "str" | "agi")[];
+  pushConfig({
+    cards: activeBonds,
+    bonds: activeBonds,
+    attributes: activeAttrs,
+    strategy: {
+      bonds: activeBonds,
+      attributes: activeAttrs,
+    },
+  });
+}
+
+function pushNegatives(): void {
+  const negatives = Array.isArray(state.negative) ? state.negative : [];
+  pushConfig({
+    treasure_allow_negative: negatives,
+    strategy: {
+      treasure: { negative_allowlist: negatives },
+    },
+  });
+}
+
+function pushMerchant(): void {
+  const enabled = Boolean(state.merchant_enabled ?? true);
+  const rerolls = Number(state.merchant_max_rerolls ?? 3);
+  const reserve = Number(state.merchant_gold_reserve ?? 0);
+  pushConfig({
+    merchant_enabled: enabled,
+    merchant_max_rerolls: rerolls,
+    merchant_gold_reserve: reserve,
+    strategy: {
+      merchant: {
+        enabled: enabled,
+        max_rerolls: rerolls,
+        gold_reserve: reserve,
+      },
+    },
+  });
+}
+
 
 function currentModeId(): string {
   return SCENE_TO_MODE_ID[String(state.scene)] ?? "normal_farm";
@@ -201,20 +232,16 @@ async function startRun(): Promise<void> {
   const modeId = currentModeId();
   startBusy = true;
   try {
+    // 必须前置 await flushConfigQueue，确保所有 pending 配置已落盘并获得最新 revision
+    await flushConfigQueue();
+
     // §6.3：UI 先本地预检给反馈；start_run 内部还会再验一次（fail-closed）。
-    if (pendingConfigJson) {
-      toast("正在同步最新配置...");
-      for (let i = 0; i < 10 && pendingConfigJson; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-    }
     const pf = await b.validate_preflight(modeId);
     if (!pf.ok) {
       showStartErr(pf.blocked_reason || "预检未通过");
       return;
     }
-    const currentRev = state.settings_revision;
-    const res = await b.start_run(modeId, currentRev);
+    const res = await b.start_run(modeId, currentSettingsRevision);
     if (!res.ok) {
       showStartErr(res.error || "启动失败");
       toast(res.error || "启动失败");
@@ -334,11 +361,13 @@ function rerenderAll(settings: SettingsDTO): void {
 let lastAppliedSnapshotSeq = 0;
 
 export function applySnapshot(snap: SnapshotDTO): void {
-  if (snap.settings_revision !== undefined) {
-    state.settings_revision = snap.settings_revision;
-  }
+  // 必须先检查 snapshot_seq stale gate，抛弃过时快照，再更新 settings_revision
   if (snap.snapshot_seq && snap.snapshot_seq <= lastAppliedSnapshotSeq) return;
   if (snap.snapshot_seq) lastAppliedSnapshotSeq = snap.snapshot_seq;
+  if (snap.settings_revision !== undefined) {
+    state.settings_revision = snap.settings_revision;
+    setSettingsRevision(snap.settings_revision);
+  }
   applying = true;
   try {
     const settings: SettingsDTO = snap.settings ?? {};
@@ -508,6 +537,29 @@ function wireIntents(): void {
       pushConfig({ skill_custom_routes: { ...state.routes } });
     }
   });
+  // 全局函数后钩子：这些 OD12 函数被多处调用，包一处即可覆盖全部出口。
+  afterGlobalCall("setCycle", () => pushConfig({ cycle_num: clampCycle(Number(state.cycle)) }));
+  afterGlobalCall("renderChapterStage", () => pushConfig({ stage_targets: [`${state.chapter}-${state.stage}`] }));
+  afterGlobalCall("renderSkillRank", pushSkills);
+  afterGlobalCall("renderBonds", pushBondsAndAttributes);
+  afterGlobalCall("renderNegatives", pushNegatives);
+  afterGlobalCall("refreshSummary", applyLaunchability);
+  afterGlobalCall("setScene", () => {
+    const modeId = SCENE_TO_MODE_ID[state.scene];
+    if (modeId) pushShell({ selected_mode_id: modeId });
+  });
+  // 黑商控制事件监听
+  const swMerchant = $("sw_merchant");
+  if (swMerchant) {
+    swMerchant.addEventListener("click", () => defer(pushMerchant));
+  }
+  for (const id of ["merchant_max_rerolls", "merchant_gold_reserve"]) {
+    const el = $(id);
+    if (el) {
+      el.addEventListener("change", () => defer(pushMerchant));
+    }
+  }
+
 
   // 抽屉开关。
   for (const sw of SWITCHES) {
@@ -548,7 +600,6 @@ function wireIntents(): void {
     root.addEventListener("click", () => defer(push));
     root.addEventListener("change", () => defer(push));
   });
-
   // 模态层：传家宝/Boss 选定与声望分配落盘（capture 先于 OD12 冒泡处理器读取 kind）。
   $("modalLayer").addEventListener(
     "click",

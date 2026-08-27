@@ -3267,6 +3267,29 @@ class Mediator:
                 )
                 return LoopAction.Continue
         return LoopAction.Continue
+    def _equipment_slot_fingerprint(self, frame: Frame, slot_idx: int) -> str:
+        """Extract stable perceptual/color hash of the equipment slot ROI."""
+        if frame is None or frame.bgr is None or frame.bgr.size == 0:
+            return ""
+        slot_coords = {
+            1: (1087 / 1600, 737 / 900),
+            2: (1145 / 1600, 737 / 900),
+            3: (1087 / 1600, 785 / 900),
+            4: (1145 / 1600, 785 / 900),
+            5: (1087 / 1600, 833 / 900),
+            6: (1145 / 1600, 833 / 900),
+        }
+        fx, fy = slot_coords.get(slot_idx, (1087 / 1600, 737 / 900))
+        h, w = frame.bgr.shape[:2]
+        cx, cy = int(fx * w), int(fy * h)
+        rx1, rx2 = max(0, cx - 12), min(w, cx + 12)
+        ry1, ry2 = max(0, cy - 12), min(h, cy + 12)
+        patch = frame.bgr[ry1:ry2, rx1:rx2]
+        if patch.size == 0:
+            return ""
+        mean_bgr = tuple(int(v) for v in patch.mean(axis=(0, 1)))
+        return f"slot_{slot_idx}_{mean_bgr[0]}_{mean_bgr[1]}_{mean_bgr[2]}"
+
     def _maybe_upgrade_equipment(self, frame: Frame) -> LoopAction:
         """Upgrade weapon/equipment in verified HUD_ONLY inventory ROI.
 
@@ -3285,7 +3308,7 @@ class Mediator:
         if self._equipment_fsm.pending_slot is not None:
             if now < self._equipment_pending_until:
                 return LoopAction.Continue
-            eq_fp = f"{int(frame.bgr[0,0,0]) if frame.bgr is not None and frame.bgr.size > 0 else 0}"
+            eq_fp = self._equipment_slot_fingerprint(frame, self._equipment_fsm.pending_slot)
             self._equipment_fsm = self._equipment_fsm.observe(
                 now,
                 current_fingerprint=eq_fp
@@ -3297,10 +3320,10 @@ class Mediator:
         # 1号格升级 (右键最大升级，8s 间隔)
         if now >= self._equipment_next_at and self._equipment_slot_one_occupied(frame):
             hit = self._hud_button_hit(frame, "equipment_slot_1", (1087 / 1600, 737 / 900))
+            eq_fp_base = self._equipment_slot_fingerprint(frame, 1)
             if self.act_right_click(hit, "UpgradeEquipmentSlot1-max"):
                 lease_s = float(self.settings.ui_action_interval_s)
-                eq_fp_base = f"{int(frame.bgr[0,0,0]) if frame.bgr is not None and frame.bgr.size > 0 else 0}"
-                self._equipment_fsm = self._equipment_fsm.begin(1, now, lease_s=lease_s, last_fingerprint=eq_fp_base)
+                self._equipment_fsm = self._equipment_fsm.begin(1, now, lease_s=lease_s, fingerprint=eq_fp_base)
                 self._equipment_pending_until = now + lease_s
                 self._equipment_next_at = now + 8.0
                 return LoopAction.Continue
@@ -3318,10 +3341,10 @@ class Mediator:
             }
             if slot_idx in slot_coords:
                 hit_slot = self._hud_button_hit(frame, f"equipment_slot_{slot_idx}", slot_coords[slot_idx])
+                eq_fp_base = self._equipment_slot_fingerprint(frame, slot_idx)
                 if self.act_click(hit_slot, f"UpgradeEquipmentSlot{slot_idx}-check"):
-                    eq_fp_base = f"{int(frame.bgr[0,0,0]) if frame.bgr is not None and frame.bgr.size > 0 else 0}"
                     self._equipment_fsm = self._equipment_fsm.begin(
-                        slot_idx, now, lease_s=float(self.settings.ui_action_interval_s), last_fingerprint=eq_fp_base
+                        slot_idx, now, lease_s=float(self.settings.ui_action_interval_s), fingerprint=eq_fp_base
                     )
                     self._equipment_round_current_slot += 1
                     if self._equipment_round_current_slot > 6:
