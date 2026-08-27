@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import sys
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -27,7 +29,6 @@ if hasattr(sys.stdout, "reconfigure"):
   python tools/release_gate.py --update-baseline --reason "..."   # 刷新快照
 """
 
-from __future__ import annotations
 
 import argparse
 import json
