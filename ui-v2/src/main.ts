@@ -190,16 +190,6 @@ function pushNegatives(): void {
   });
 }
 
-function pushMerchant(): void {
-  const enabled = Boolean(state.merchant_enabled ?? true);
-  pushConfig({
-    strategy: {
-      merchant: {
-        enabled,
-      },
-    },
-  });
-}
 
 
 function currentModeId(): string {
@@ -335,10 +325,6 @@ function applySwitches(settings: SettingsDTO): void {
       state[sw.stateKey] = value;
       setSwitch($(sw.el), value);
     }
-  }
-  if (typeof settings.merchant_enabled === "boolean") {
-    state.merchant_enabled = settings.merchant_enabled;
-    setSwitch($("sw_merchant"), settings.merchant_enabled);
   }
 }
 
@@ -533,22 +519,6 @@ function wireIntents(): void {
     }
   });
 
-  // 黑商控制事件监听
-  const swMerchant = $("sw_merchant");
-  if (swMerchant) {
-    swMerchant.addEventListener("click", () => {
-      const cur = state.merchant_enabled ?? true;
-      const next = !cur;
-      state.merchant_enabled = next;
-      setSwitch(swMerchant, next);
-      defer(pushMerchant);
-    });
-  }
-  for (const sw of SWITCHES) {
-    $(sw.el).addEventListener("click", () =>
-      pushConfig({ [sw.field]: Boolean(state[sw.stateKey]) }),
-    );
-  }
 
   // 主题。
   $("btnTheme").addEventListener("click", () =>
