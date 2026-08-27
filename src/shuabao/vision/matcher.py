@@ -27,6 +27,53 @@ class MatchResult:
         return self.screen_x, self.screen_y
 
 
+
+_VAULT_MAP: dict[str, np.ndarray] | None = None
+
+def _load_vault() -> dict[str, np.ndarray]:
+    global _VAULT_MAP
+    if _VAULT_MAP is not None:
+        return _VAULT_MAP
+    _VAULT_MAP = {}
+    import sys, zlib
+    from pathlib import Path
+    
+    candidates = [
+        Path(getattr(sys, '_MEIPASS', '')) / 'models' / 'templates.vault',
+        Path(__file__).resolve().parents[3] / 'models' / 'templates.vault',
+        Path.cwd() / 'models' / 'templates.vault',
+    ]
+    vault_file = next((p for p in candidates if p.is_file()), None)
+    if not vault_file:
+        return _VAULT_MAP
+    try:
+        data = vault_file.read_bytes()
+        if len(data) > 16 and data[:4] == b'SBTF':
+            raw = zlib.decompress(data[16:])
+            offset = 0
+            while offset < len(raw):
+                name_len = int.from_bytes(raw[offset:offset+2], 'little')
+                offset += 2
+                name = raw[offset:offset+name_len].decode('utf-8')
+                offset += name_len
+                h = int.from_bytes(raw[offset:offset+2], 'little')
+                offset += 2
+                w = int.from_bytes(raw[offset:offset+2], 'little')
+                offset += 2
+                c = raw[offset]
+                offset += 1
+                buf_len = int.from_bytes(raw[offset:offset+4], 'little')
+                offset += 4
+                buf = raw[offset:offset+buf_len]
+                offset += buf_len
+                img = np.frombuffer(buf, dtype=np.uint8).reshape((h, w, c))
+                _VAULT_MAP[name] = img
+                _VAULT_MAP[Path(name).stem] = img
+                _VAULT_MAP[name.replace('/', '\\')] = img
+    except Exception as e:
+        pass
+    return _VAULT_MAP
+
 _TEMPLATE_CACHE: dict[Path, np.ndarray | None] = {}
 _RESOLVE_CACHE: dict[tuple[Path, str], Path | None] = {}
 _SCALE_CACHE: dict[tuple[Path, float], np.ndarray | None] = {}
@@ -123,6 +170,15 @@ def _load_template(path: Path) -> np.ndarray | None:
     cached = _TEMPLATE_CACHE.get(path)
     if cached is not None or path in _TEMPLATE_CACHE:
         return cached
+
+    # 1. 优先尝试从加密内存特征库 (Pixel Feature Vault) 加载
+    vault = _load_vault()
+    stem = path.stem
+    if stem in vault:
+        img = vault[stem]
+        _TEMPLATE_CACHE[path] = img
+        return img
+
     # Windows + 非 ASCII 路径下 cv2.imread 常失败，改 imdecode
     try:
         data = np.fromfile(str(path), dtype=np.uint8)
@@ -244,6 +300,15 @@ def resolve_template(images_dir: Path, name: str) -> Path | None:
     key = (images_dir, name)
     if key in _RESOLVE_CACHE:
         return _RESOLVE_CACHE[key]
+    
+    # 优先检查 Vault 中是否存在该特征
+    vault = _load_vault()
+    stem = Path(name).stem
+    if stem in vault:
+        # 返回虚拟路径用于作为 Cache Key
+        vpath = images_dir / f"{stem}.png"
+        _RESOLVE_CACHE[key] = vpath
+        return vpath
     n = name if name.lower().endswith(".png") else f"{name}.png"
     candidates = [
         images_dir / n,
