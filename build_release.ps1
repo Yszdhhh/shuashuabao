@@ -65,9 +65,8 @@ Write-Host "[3/3] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cya
 $version = (& $python -c "import sys; sys.path.insert(0,'src'); import shuabao; print(shuabao.__version__)").Trim()
 $versionLabel = "V$version"
 $desktop = [Environment]::GetFolderPath("Desktop")
-$target  = Join-Path $desktop "$APP_ID-$versionLabel"
+$target  = Join-Path $desktop "$APP_ID"
 $archive = Join-Path $desktop "$APP_NAME-旧版归档"
-
 # 归档桌面上旧版目录（ShuaBao-* / 历史 GameScript-*），只留当前这一份
 if (-not (Test-Path -LiteralPath $archive)) {
     New-Item -ItemType Directory -Path $archive | Out-Null
@@ -89,22 +88,20 @@ Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
 if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "dist\$APP_ID") -Destination $target -Recurse
 
-# 桌面快捷方式带版本号：「刷刷宝 V0.1」；清掉无版本的旧快捷方式
-$lnkName = "$APP_NAME $versionLabel.lnk"
+# 统一桌面单一入口快捷方式：「刷刷宝.lnk」；归档旧版本快捷方式与看板快捷方式
+$lnkName = "$APP_NAME.lnk"
 $lnk = Join-Path $desktop $lnkName
 Get-ChildItem -LiteralPath $desktop -Filter "*.lnk" -ErrorAction SilentlyContinue |
     Where-Object {
-        $_.Name -eq "$APP_NAME.lnk" -or
+        $_.Name -eq "刷刷宝看板.lnk" -or
         $_.Name -like "$APP_NAME V*.lnk" -or
         $_.Name -like "GameScript*.lnk"
     } |
-    Where-Object { $_.Name -ne $lnkName } |
     ForEach-Object {
         $dest = Join-Path $archive $_.Name
         Move-Item -LiteralPath $_.FullName -Destination $dest -Force
-        Write-Host "已归档快捷方式：$($_.Name)" -ForegroundColor DarkYellow
+        Write-Host "已归档旧快捷方式：$($_.Name)" -ForegroundColor DarkYellow
     }
-
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($lnk)
 $shortcut.TargetPath = Join-Path $target "$APP_ID.exe"

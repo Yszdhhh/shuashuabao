@@ -81,12 +81,15 @@ def main():
             LOGGER.info("[迁移] 目标=%s 合并 %d 项: %s", APP_DATA, len(migrated), ", ".join(migrated[:10]))
     except Exception:
         LOGGER.exception("[迁移] 旧目录合并失败（忽略，继续启动）")
-    # §9 ShellRouter：仅显式 SHUABAO_SHELL=web 走 Web 壳；默认 native 链不动。
-    if os.environ.get("SHUABAO_SHELL", "").strip().lower() == "web":
-        # 延迟导入：原生启动不付 QtWebEngine 的加载成本。
-        from shuabao.shell.web_config_shell import WebConfigShell
-
-        window = WebConfigShell(app_data=APP_DATA, root=ROOT)
+    # §9 ShellRouter：默认走 Web 壳；若显式设置 SHUABAO_SHELL=native 则回退 Native 窗口。
+    shell_choice = os.environ.get("SHUABAO_SHELL", "web").strip().lower()
+    if shell_choice != "native":
+        try:
+            from shuabao.shell.web_config_shell import WebConfigShell
+            window = WebConfigShell(app_data=APP_DATA, root=ROOT)
+        except Exception:
+            LOGGER.exception("[启动] Web 壳启动异常，自动降级至 Native 窗口")
+            window = MainWindow(app_data=APP_DATA)
     else:
         window = MainWindow(app_data=APP_DATA)
     window.show()
