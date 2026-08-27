@@ -149,6 +149,7 @@ class DashboardFacade(QObject):
         return {
             "skills": list(self._settings.skills),
             "bonds": list(self._settings.bonds),
+            "cards": list(self._settings.cards),
             "attributes": list(self._settings.attributes),
             "merchant": {
                 "enabled": self._settings.merchant_enabled,
@@ -157,7 +158,6 @@ class DashboardFacade(QObject):
             },
             "treasure": {"negative_allowlist": list(self._settings.treasure_allow_negative)},
         }
-
     def _snapshot_dto(self, request_id: str | None = None) -> dict[str, Any]:
         self._snapshot_seq += 1
         return {
@@ -259,6 +259,7 @@ class DashboardFacade(QObject):
                 mappings = {
                     "skills": "skills",
                     "bonds": "bonds",
+                    "cards": "cards",
                     "attributes": "attributes",
                     "merchant": {
                         "enabled": "merchant_enabled",

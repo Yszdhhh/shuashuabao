@@ -29,6 +29,7 @@ export interface RpcResponse {
 export interface StrategyDTO {
   skills: string[];
   bonds: ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
+  cards?: string[];
   attributes: ("int" | "str" | "agi")[];
   merchant?: { enabled?: boolean; max_rerolls?: number; gold_reserve?: number };
   treasure: { negative_allowlist: string[] };

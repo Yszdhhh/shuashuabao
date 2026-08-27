@@ -314,6 +314,7 @@ def test_dashboard_contract_v2_strategy_and_revision_metadata(qapp, tmp_path: Pa
     assert initial["strategy"] == {
         "skills": ["jq", "pg"],
         "bonds": ["祝福", "成长", "经济", "贪婪", "挑战"],
+        "cards": [],
         "attributes": [],
         "merchant": {"enabled": True, "max_rerolls": 0, "gold_reserve": 0},
         "treasure": {"negative_allowlist": []},

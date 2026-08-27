@@ -170,6 +170,16 @@ function pushReputation(): void {
   pushConfig({ reputation_allocations: allocations, auto_reputation: Boolean(state.hero) || maxPoints > 0 });
 }
 
+const ADV_PACK_CARDS: Record<string, string[]> = {
+  daodao: ["刺客", "盗贼", "潜行", "双持", "刀刃", "暴风", "致命", "连击"],
+  yihuo: ["火球", "烈焰", "燃烧", "陨石", "火雨", "炎爆", "火种", "爆裂"],
+  dasheng: ["猴王", "棍法", "定海", "分身", "金箍", "神猴", "筋斗", "闹海"],
+  xiuxian: ["凝气", "筑基", "金丹", "元婴", "化神", "飞升", "渡劫", "灵根"],
+  fengshen: ["太公", "哪吒", "杨戬", "雷震", "封神", "打神", "杏黄", "乾坤"],
+  haidao: ["船长", "水手", "藏宝", "炮击", "掠夺", "黑帆", "火枪", "弯刀"],
+  wangling: ["骷髅", "死灵", "幽魂", "白骨", "复生", "墓地", "尸巫", "暗影"],
+};
+
 function pushBondsAndAttributes(): void {
   const rawAttrs = Array.isArray(state.attr) ? state.attr : Array.from(state.attr || []);
   const attrMap: Record<string, "int" | "str" | "agi"> = {
@@ -185,12 +195,27 @@ function pushBondsAndAttributes(): void {
   const validBonds = ["祝福", "成长", "经济", "贪婪", "挑战"];
   const growthList = Array.isArray(state.growth) ? state.growth : Array.from(state.growth || []);
   const bondsList = Array.isArray(state.bonds) ? state.bonds : Array.from(state.bonds || []);
-  const combined = Array.from(new Set([...growthList, ...bondsList])).filter((b: string) => validBonds.includes(b)) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
-  const activeBonds = combined.length > 0 ? combined : (["祝福", "成长", "经济", "贪婪", "挑战"] as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[]);
+  const combinedBonds = Array.from(new Set([...growthList, ...bondsList])).filter((b: string) => validBonds.includes(b)) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
+  const activeBonds = combinedBonds.length > 0 ? combinedBonds : (["祝福", "成长", "经济", "贪婪", "挑战"] as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[]);
+
+  const selectedAdv = Array.isArray(state.adv) ? state.adv : Array.from(state.adv || []);
+  const selectedBasic = Array.isArray(state.basic) ? state.basic : Array.from(state.basic || []);
+  const expandedCards: string[] = [];
+  for (const packId of selectedAdv) {
+    if (ADV_PACK_CARDS[packId]) {
+      expandedCards.push(...ADV_PACK_CARDS[packId]);
+    } else {
+      expandedCards.push(packId);
+    }
+  }
+  expandedCards.push(...selectedBasic);
+  const activeCards = Array.from(new Set(expandedCards));
 
   pushConfig({
+    cards: activeCards,
     strategy: {
       bonds: activeBonds,
+      cards: activeCards,
       attributes: activeAttrs,
     },
   });
@@ -379,7 +404,32 @@ export function applySnapshot(snap: SnapshotDTO): void {
       if (Array.isArray(snap.strategy.skills)) settings.skills = snap.strategy.skills;
       if (Array.isArray(snap.strategy.bonds)) {
         settings.bonds = snap.strategy.bonds;
-        settings.cards = snap.strategy.bonds;
+      }
+      const savedCards = Array.isArray(snap.strategy.cards)
+        ? snap.strategy.cards
+        : Array.isArray(settings.cards)
+        ? settings.cards
+        : [];
+      if (savedCards.length > 0) {
+        settings.cards = savedCards;
+        const restoredAdv: string[] = [];
+        const restoredBasic: string[] = [];
+        const basicNames = ["法术", "急速", "魔能", "魔术", "箭术", "战术", "暴击", "固守", "陷阵"];
+        for (const [packId, cardNames] of Object.entries(ADV_PACK_CARDS)) {
+          if (cardNames.some((c) => savedCards.includes(c)) || savedCards.includes(packId)) {
+            restoredAdv.push(packId);
+          }
+        }
+        for (const b of basicNames) {
+          if (savedCards.includes(b)) restoredBasic.push(b);
+        }
+        if (restoredAdv.length > 0) {
+          state.adv = restoredAdv;
+          state.advDraft = restoredAdv.slice();
+        }
+        if (restoredBasic.length > 0) {
+          state.basic = new Set(restoredBasic);
+        }
       }
       if (Array.isArray(snap.strategy.attributes)) {
         settings.attributes = snap.strategy.attributes;
