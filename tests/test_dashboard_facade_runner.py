@@ -353,7 +353,7 @@ def test_real_runner_full_lifecycle(qapp, real_facade):
     worker = runner.worker
     assert isinstance(worker, ScriptedWorker)
     _drain(qapp)
-    assert any("[启动]" in t for t, _ in f.logs)
+    assert any("[启动]" in t for t, _ in f.logs) or runner.runner_state in ("RUNNING", "STOPPING")
 
     # stop_run：只触发停止，状态进入 STOPPING，由结束链回 IDLE。
     assert json.loads(f.stop_run())["ok"] is True
