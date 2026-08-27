@@ -62,7 +62,7 @@ Write-Host "已生成：$app" -ForegroundColor Green
 if ($NoDeploy) { return }
 
 Write-Host "[3/3] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cyan
-$version = (& $python -c "import sys; sys.path.insert(0,'src'); import gamescript; print(gamescript.__version__)").Trim()
+$version = (& $python -c "import sys; sys.path.insert(0,'src'); import shuabao; print(shuabao.__version__)").Trim()
 $versionLabel = "V$version"
 $desktop = [Environment]::GetFolderPath("Desktop")
 $target  = Join-Path $desktop "$APP_ID-$versionLabel"
