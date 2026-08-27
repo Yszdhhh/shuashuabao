@@ -96,4 +96,4 @@ def test_equipment_action_lease_deduplicates_pending_slot() -> None:
     state = EquipmentFSM().begin(2, 10.0, lease_s=1.0)
     assert state.slot_state(2) is EquipmentSlotState.LEASED
     assert state.begin(3, 10.5, lease_s=1.0) == state
-    assert state.observe(11.0).slot_state(2) is EquipmentSlotState.EXPIRED
+    assert state.observe(11.0).slot_state(2) is EquipmentSlotState.QUARANTINED
