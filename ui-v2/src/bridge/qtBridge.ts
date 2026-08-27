@@ -81,26 +81,28 @@ async function waitForTransport(timeoutMs: number): Promise<unknown> {
 }
 
 function openFacade(transport: unknown): Promise<RawFacade> {
-  const { promise, resolve, reject } = Promise.withResolvers<RawFacade>();
-  if (typeof window.QWebChannel !== "function") {
-    reject(new Error("QWebChannel 全局缺失：qwebchannel.js 未正确注入"));
-    return promise;
-  }
-  try {
-    window.QWebChannel(transport, (channel) => {
-      resolve(channel.objects[FACADE_OBJECT_NAME] as RawFacade);
-    });
-  } catch (err) {
-    reject(new Error(`QWebChannel 建立失败: ${String(err)}`));
-  }
-  return promise;
+  return new Promise<RawFacade>((resolve, reject) => {
+    if (typeof window.QWebChannel !== "function") {
+      reject(new Error("QWebChannel 全局缺失：qwebchannel.js 未正确注入"));
+      return;
+    }
+    try {
+      window.QWebChannel(transport, (channel) => {
+        resolve(channel.objects[FACADE_OBJECT_NAME] as RawFacade);
+      });
+    } catch (err) {
+      reject(new Error(`QWebChannel 建立失败: ${String(err)}`));
+    }
+  });
 }
 
 async function withTimeout<T>(p: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  const { promise, reject } = Promise.withResolvers<never>();
-  const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
   try {
-    return await Promise.race([p, promise]);
+    return await Promise.race([p, timeoutPromise]);
   } finally {
     clearTimeout(timer);
   }
