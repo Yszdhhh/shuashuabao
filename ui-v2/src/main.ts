@@ -539,13 +539,27 @@ function wireIntents(): void {
   // 黑商控制事件监听
   const swMerchant = $("sw_merchant");
   if (swMerchant) {
-    swMerchant.addEventListener("click", () => defer(pushMerchant));
+    swMerchant.addEventListener("click", () => {
+      const cur = state.merchant_enabled ?? true;
+      const next = !cur;
+      state.merchant_enabled = next;
+      setSwitch(swMerchant, next);
+      defer(pushMerchant);
+    });
   }
-  for (const id of ["merchant_max_rerolls", "merchant_gold_reserve"]) {
-    const el = $(id);
-    if (el) {
-      el.addEventListener("change", () => defer(pushMerchant));
-    }
+  const elRerolls = $("merchant_max_rerolls") as HTMLInputElement | null;
+  if (elRerolls) {
+    elRerolls.addEventListener("change", () => {
+      state.merchant_max_rerolls = Number(elRerolls.value);
+      defer(pushMerchant);
+    });
+  }
+  const elReserve = $("merchant_gold_reserve") as HTMLInputElement | null;
+  if (elReserve) {
+    elReserve.addEventListener("change", () => {
+      state.merchant_gold_reserve = Number(elReserve.value);
+      defer(pushMerchant);
+    });
   }
   for (const sw of SWITCHES) {
     $(sw.el).addEventListener("click", () =>
