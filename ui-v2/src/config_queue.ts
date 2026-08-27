@@ -1,15 +1,31 @@
 import type { SettingsDTO, StrategyDTO, ConfigPatch, ConfigPatchResult, DashboardBridge, SnapshotDTO } from "./bridge/types";
 
 export let currentSettingsRevision: number = 0;
-export function setSettingsRevision(rev: number): void {
-  currentSettingsRevision = rev;
-}
 
 export type QueueState = "HEALTHY" | "BROKEN";
 let queueState: QueueState = "HEALTHY";
 let stickyFailure: Error | null = null;
 let failedPatch: (Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> }) | null = null;
 let recoveryInFlight: Promise<ConfigPatchResult | null> | null = null;
+let lastBridge: DashboardBridge | null = null;
+
+/**
+ * Apply an authoritative backend revision. This is the production snapshot hook used by
+ * main.ts. If a prior user intent failed, revision resync immediately starts exactly one
+ * replay before the queue may become HEALTHY again.
+ */
+export function setSettingsRevision(rev: number): void {
+  currentSettingsRevision = rev;
+  if (queueState === "BROKEN" && failedPatch && lastBridge && recoveryInFlight === null) {
+    const snap = { settings_revision: rev } as SnapshotDTO;
+    recoveryInFlight = reconcileAndRetry(snap, lastBridge).finally(() => {
+      recoveryInFlight = null;
+    });
+    // Snapshot application is synchronous; surface failure via stickyFailure/flush rather than
+    // creating an unhandled rejected promise here.
+    void recoveryInFlight.catch(() => undefined);
+  }
+}
 
 export function getQueueState(): QueueState {
   return queueState;
@@ -20,15 +36,15 @@ export function getStickyFailure(): Error | null {
 }
 
 /**
- * Explicit hard reset. Production snapshot handling must not use this to recover a BROKEN queue,
- * because doing so would discard the failed user intent. Recovery must go through
- * reconcileAndRetry()/recoverFromAuthoritativeSnapshot().
+ * Explicit hard reset used for initialization/tests. A production snapshot calls this directly
+ * after setSettingsRevision(); while recovery is in flight it MUST be a no-op so the failed user
+ * intent cannot be discarded before replay ACK.
  */
 export function resetStickyFailure(): void {
+  if (recoveryInFlight !== null) return;
   stickyFailure = null;
   failedPatch = null;
   queueState = "HEALTHY";
-  recoveryInFlight = null;
 }
 
 function generateUUID(): string {
@@ -46,7 +62,6 @@ type QueueItem = {
 
 const queue: QueueItem[] = [];
 let processing = false;
-let lastBridge: DashboardBridge | null = null;
 
 export function enqueueConfigPatch(
   patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> },
@@ -141,8 +156,8 @@ export async function reconcileAndRetry(
     stickyFailure = null;
     failedPatch = null;
 
-    // The first failed intent is now durably ACKed. Resume any later intents that were already
-    // queued before the failure; they were intentionally preserved instead of shift/reject loss.
+    // Resume intents that were already queued before the first failure. They are preserved in
+    // FIFO order and are submitted only after the failed intent has received its replay ACK.
     await processQueue(bridge);
     return res;
   } catch (err) {
@@ -154,8 +169,8 @@ export async function reconcileAndRetry(
 }
 
 /**
- * Production recovery entry point for an authoritative snapshot. It serializes concurrent
- * snapshot signals so the same failed patch cannot be replayed twice.
+ * Explicit recovery API for callers that already have a complete authoritative SnapshotDTO.
+ * Concurrent snapshot signals share one replay promise, preventing duplicate failed-intent replay.
  */
 export async function recoverFromAuthoritativeSnapshot(
   snap: SnapshotDTO,
