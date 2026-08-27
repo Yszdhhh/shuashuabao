@@ -2158,7 +2158,7 @@ class Mediator:
             slot_count = 4
             slots = candidates_4
             desc_spec = self._OCR_DESC_ROIS_4.get(kind) if hasattr(self, '_OCR_DESC_ROIS_4') else None
-        elif score_3 >= 2.5 and (score_3 - score_4 >= 0.0 or score_4 < 2.5):
+        elif score_3 >= 2.5 and (score_3 - score_4 >= 0.5):
             slot_count = 3
             slots = candidates_3
             desc_spec = self._OCR_DESC_ROIS.get(kind)
@@ -2479,7 +2479,7 @@ class Mediator:
         if decision.action == PolicyAction.NONE:
             return None
         if decision.action == PolicyAction.SELECT_SLOT:
-            if decision.index is None:
+            if decision.index is None or not slots:
                 return None
             name = None
             selected_slot = None

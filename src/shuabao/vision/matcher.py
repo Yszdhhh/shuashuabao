@@ -28,7 +28,6 @@ class MatchResult:
 
 
 _TEMPLATE_CACHE: dict[Path, np.ndarray | None] = {}
-_TEMPLATE_GRAY_CACHE: dict[Path, np.ndarray | None] = {}
 
 _RESOLVE_CACHE: dict[tuple[Path, str], Path | None] = {}
 _SCALE_CACHE: dict[tuple[Path, float], np.ndarray | None] = {}
