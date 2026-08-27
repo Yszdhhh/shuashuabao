@@ -13,7 +13,6 @@ from shuabao.vision.capture import Frame
 from shuabao.choice_policy import PolicyAction, PolicyDecision
 from shuabao.layout_transform import LayoutTransform
 
-
 class DummyCandidate:
     def __init__(self, name, confidence=0.95, text=""):
         self.name = name
@@ -38,65 +37,146 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         self.med = Mediator(self.settings, ROOT)
         self.frame_1600 = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="game", hwnd=1)
 
-    def test_a_three_slot_ocr_and_click_legacy_centers(self):
-        med = self.med
-        frame = self.frame_1600
-        hit0 = med._choice_slot_hit(frame, "bond", 0, "卡1", slot_count=3)
-        hit1 = med._choice_slot_hit(frame, "bond", 1, "卡2", slot_count=3)
-        hit2 = med._choice_slot_hit(frame, "bond", 2, "卡3", slot_count=3)
-        self.assertEqual(hit0.x, int(1600 * 0.331))
-        self.assertEqual(hit1.x, int(1600 * 0.503))
-        self.assertEqual(hit2.x, int(1600 * 0.676))
-
-    def test_b_four_slot_ocr_recognizes_fourth_card(self):
+    def test_1_true_three_slot_fixture_confirms_layout_3_and_legacy_centers(self):
         med = self.med
         frame = self.frame_1600
         mock_ocr = MagicMock()
         def shadow_predict(f, pid, slot_spec, panel_bbox=None):
-            idx = slot_spec["index"]
-            names = ["成长之苗", "成长之根", "成长之叶", "成长之芽"]
-            return DummyResponse(candidates=[DummyCandidate(names[idx])], raw_text=names[idx])
+            bbox = slot_spec.get("bbox", (0,0,0,0))
+            x0 = bbox[0]
+            # 3-slot bboxes in 1600x900: 406, 680, 953
+            if 390 <= x0 <= 420:
+                return DummyResponse(candidates=[DummyCandidate("成长之苗")], raw_text="成长之苗")
+            elif 660 <= x0 <= 700:
+                return DummyResponse(candidates=[DummyCandidate("成长之根")], raw_text="成长之根")
+            elif 930 <= x0 <= 970:
+                return DummyResponse(candidates=[DummyCandidate("成长之叶")], raw_text="成长之叶")
+            return DummyResponse(candidates=[], raw_text="")
         mock_ocr.shadow_predict.side_effect = shadow_predict
         med._ocr_client = mock_ocr
+
         slots = med._ocr_panel_slots(frame, "bond")
-        self.assertEqual(len(slots), 4)
-        self.assertEqual(slots[3]["name"], "成长之芽")
-        self.assertEqual(slots[3]["index"], 3)
+        self.assertEqual(len(slots), 3)
+        self.assertEqual([s["name"] for s in slots], ["成长之苗", "成长之根", "成长之叶"])
 
-    def test_c_four_slot_clicks_all_hit_four_slot_centers(self):
-        med = self.med
-        frame = self.frame_1600
-        hit0 = med._choice_slot_hit(frame, "bond", 0, "卡0", slot_count=4)
-        hit1 = med._choice_slot_hit(frame, "bond", 1, "卡1", slot_count=4)
-        hit2 = med._choice_slot_hit(frame, "bond", 2, "卡2", slot_count=4)
-        hit3 = med._choice_slot_hit(frame, "bond", 3, "卡3", slot_count=4)
-        self.assertEqual(hit0.x, int(1600 * 0.255))
-        self.assertEqual(hit1.x, int(1600 * 0.410))
-        self.assertEqual(hit2.x, int(1600 * 0.565))
-        self.assertEqual(hit3.x, int(1600 * 0.720))
+        # E2E dispatch through policy decision to hit
+        decision = PolicyDecision(PolicyAction.SELECT_SLOT, index=1, reason="test")
+        label, hit = med._policy_decision_to_hit(frame, "bond", decision, slots)
+        self.assertEqual(label, "bond")
+        self.assertEqual(hit.x, int(1600 * 0.503))
 
-    def test_d_four_slot_treasure_slot3_rarity_and_description_reading(self):
+    def test_2_true_four_slot_fixture_confirms_layout_4_and_four_slot_centers(self):
         med = self.med
         frame = self.frame_1600
         mock_ocr = MagicMock()
         def shadow_predict(f, pid, slot_spec, panel_bbox=None):
+            bbox = slot_spec.get("bbox", (0,0,0,0))
+            x0 = bbox[0]
+            # 4-slot bboxes in 1600x900: 296, 544, 792, 1040
+            if 280 <= x0 <= 315:
+                return DummyResponse(candidates=[DummyCandidate("成长之苗")], raw_text="成长之苗")
+            elif 530 <= x0 <= 560:
+                return DummyResponse(candidates=[DummyCandidate("成长之根")], raw_text="成长之根")
+            elif 775 <= x0 <= 810:
+                return DummyResponse(candidates=[DummyCandidate("成长之叶")], raw_text="成长之叶")
+            elif 1025 <= x0 <= 1060:
+                return DummyResponse(candidates=[DummyCandidate("成长之芽")], raw_text="成长之芽")
+            return DummyResponse(candidates=[], raw_text="")
+        mock_ocr.shadow_predict.side_effect = shadow_predict
+        med._ocr_client = mock_ocr
+
+        slots = med._ocr_panel_slots(frame, "bond")
+        self.assertEqual(len(slots), 4)
+        self.assertEqual([s["name"] for s in slots], ["成长之苗", "成长之根", "成长之叶", "成长之芽"])
+
+        # E2E dispatch through policy decision to hit index=3
+        decision = PolicyDecision(PolicyAction.SELECT_SLOT, index=3, reason="test")
+        label, hit = med._policy_decision_to_hit(frame, "bond", decision, slots)
+        self.assertEqual(hit.x, int(1600 * 0.720))
+
+    def test_3_three_slot_frame_with_overlapping_fragments_never_misdetected_as_4(self):
+        med = self.med
+        frame = self.frame_1600
+        mock_ocr = MagicMock()
+        def shadow_predict(f, pid, slot_spec, panel_bbox=None):
+            bbox = slot_spec.get("bbox", (0,0,0,0))
+            x0 = bbox[0]
+            # 3-slot layout bboxes (406, 680, 953)
+            # but 4-slot slot3 (1040) falls on right edge of 3-slot card3 (953-1203)
+            if 390 <= x0 <= 420:
+                return DummyResponse(candidates=[DummyCandidate("成长之苗")], raw_text="成长之苗")
+            elif 660 <= x0 <= 700:
+                return DummyResponse(candidates=[DummyCandidate("成长之根")], raw_text="成长之根")
+            elif 930 <= x0 <= 970:
+                return DummyResponse(candidates=[DummyCandidate("成长之叶")], raw_text="成长之叶")
+            elif 1025 <= x0 <= 1060:
+                # overlap fragment on slot3
+                return DummyResponse(candidates=[], raw_text="之叶")
+            return DummyResponse(candidates=[], raw_text="")
+        mock_ocr.shadow_predict.side_effect = shadow_predict
+        med._ocr_client = mock_ocr
+
+        slots = med._ocr_panel_slots(frame, "bond")
+        # Must strictly stay layout=3 and not be misclassified as 4
+        self.assertEqual(len(slots), 3)
+        self.assertEqual([s["name"] for s in slots], ["成长之苗", "成长之根", "成长之叶"])
+
+    def test_4_four_slot_frame_with_fourth_card_occluded_fails_closed_without_click(self):
+        med = self.med
+        frame = self.frame_1600
+        mock_ocr = MagicMock()
+        def shadow_predict(f, pid, slot_spec, panel_bbox=None):
+            bbox = slot_spec.get("bbox", (0,0,0,0))
+            x0 = bbox[0]
+            # 4-slot frame where slot3 OCR failed
+            if 280 <= x0 <= 315:
+                return DummyResponse(candidates=[DummyCandidate("成长之苗")], raw_text="成长之苗")
+            elif 530 <= x0 <= 560:
+                return DummyResponse(candidates=[DummyCandidate("成长之根")], raw_text="成长之根")
+            elif 775 <= x0 <= 810:
+                return DummyResponse(candidates=[DummyCandidate("成长之叶")], raw_text="成长之叶")
+            return DummyResponse(candidates=[], raw_text="")
+        mock_ocr.shadow_predict.side_effect = shadow_predict
+        med._ocr_client = mock_ocr
+
+        slots = med._ocr_panel_slots(frame, "bond")
+        # Ambiguous / UNKNOWN -> fail-closed returns []
+        self.assertEqual(slots, [])
+
+    def test_5_four_slot_treasure_slot3_rarity_and_description_reading(self):
+        med = self.med
+        # 4-slot treasure x center for slot3 = 1600 * 0.705 = 1128, cy for treasure sample in 900 = 0.300*900 = 270
+        # Card bbox width in 1600x900 is ~204x162
+        bgr = np.zeros((900, 1600, 3), dtype=np.uint8)
+        w, h = int(1600 * 0.128), int(900 * 0.180) # 204 x 162
+        cx3, cy3 = int(1600 * 0.705), int(900 * 0.300)
+        x0, y0 = cx3 - w // 2, cy3 - h // 2
+        # Fill border ring with bright red/orange pixels to trigger 'red' rarity band
+        bgr[y0:y0+5, x0:x0+w] = [0, 0, 255] # Red BGR
+        bgr[y0+h-5:y0+h, x0:x0+w] = [0, 0, 255]
+        bgr[y0:y0+h, x0:x0+5] = [0, 0, 255]
+        bgr[y0:y0+h, x0+w-5:x0+w] = [0, 0, 255]
+        frame = Frame(bgr, window_title="game", hwnd=1)
+
+        mock_ocr = MagicMock()
+        def shadow_predict(f, pid, slot_spec, panel_bbox=None):
             idx = slot_spec["index"]
-            if slot_spec.get("kind") == "treasure_desc":
+            if ":desc:" in pid or slot_spec.get("kind") == "treasure_desc":
                 desc = ["增伤", "增加暴击", "增加攻速", "降低攻速"][idx]
                 return DummyResponse(candidates=[DummyCandidate(desc)], raw_text=desc)
             names = ["宝物A", "宝物B", "宝物C", "魔王之瞳"]
             return DummyResponse(candidates=[DummyCandidate(names[idx])], raw_text=names[idx])
-        def read_description(f, bbox):
-            return DummyResponse(text="降低攻速", raw_text="降低攻速")
         mock_ocr.shadow_predict.side_effect = shadow_predict
-        mock_ocr.read_description.side_effect = read_description
         med._ocr_client = mock_ocr
+
         slots = med._ocr_panel_slots(frame, "treasure")
         self.assertEqual(len(slots), 4)
         self.assertIn("降低攻速", slots[3]["description"])
         self.assertEqual(slots[3]["index"], 3)
+        # Assert rarity is extracted and matches red
+        self.assertEqual(slots[3]["rarity"], "red")
 
-    def test_e_bond_bar_occupancy_returns_real_count_and_drives_free_slots(self):
+    def test_6_bond_bar_occupancy_returns_real_count_and_drives_free_slots(self):
         med = self.med
         bgr = np.zeros((900, 1600, 3), dtype=np.uint8)
         frame_empty = Frame(bgr, window_title="game", hwnd=1)

@@ -26,8 +26,7 @@ a = Analysis(
         (str(PYSIDE_ABI_DLL), "PySide6"),
     ],
     datas=[
-        (str(PROJECT_ROOT / "assets" / "branding"), "assets/branding"),
-        (str(PROJECT_ROOT / "models" / "templates.vault"), "models"),
+        (str(PROJECT_ROOT / "assets"), "assets"),
         (str(PROJECT_ROOT / "config"), "config"),
         (str(PROJECT_ROOT / "ui-v2" / "dist"), str(Path("web") / "dist")),
     ],

@@ -2092,11 +2092,38 @@ class Mediator:
             int(frame.height * 0.58),
         )
 
-        # 1. 尝试 4 槽位预测
-        use_layout_4 = False
+        # 严谨三态判定：必须分别计算 3-slot 与 4-slot 假设的正证据得分
+        candidates_3: list[dict] = []
+        score_3 = 0.0
+        for index, roi in enumerate(rois_3):
+            bbox = self._normalized_bbox(frame, roi)
+            response = self._ocr_client.shadow_predict(
+                frame,
+                panel_id,
+                {"index": index, "bbox": bbox, "kind": kind},
+                panel_bbox=panel_bbox,
+            )
+            top = response.candidates[0] if response.candidates else None
+            has_name = bool(top and top.name and float(top.confidence) >= 0.5)
+            if has_name:
+                score_3 += 1.0
+            elif response.raw_text and len(response.raw_text.strip()) >= 2:
+                score_3 += 0.3
+            candidates_3.append({
+                "index": index,
+                "name": top.name if top else None,
+                "confidence": float(top.confidence) if top else 0.0,
+                "raw_text": response.raw_text or "",
+                "rec_score": response.rec_score,
+                "status": response.status,
+                "reason": response.reason,
+                "rarity": None,
+                "description": "",
+            })
+
         candidates_4: list[dict] = []
+        score_4 = 0.0
         if rois_4 is not None and len(rois_4) == 4:
-            valid_hits_4 = 0
             for index, roi in enumerate(rois_4):
                 bbox = self._normalized_bbox(frame, roi)
                 response = self._ocr_client.shadow_predict(
@@ -2107,8 +2134,10 @@ class Mediator:
                 )
                 top = response.candidates[0] if response.candidates else None
                 has_name = bool(top and top.name and float(top.confidence) >= 0.5)
-                if has_name or (response.raw_text and len(response.raw_text.strip()) >= 2):
-                    valid_hits_4 += 1
+                if has_name:
+                    score_4 += 1.0
+                elif response.raw_text and len(response.raw_text.strip()) >= 2:
+                    score_4 += 0.3
                 candidates_4.append({
                     "index": index,
                     "name": top.name if top else None,
@@ -2120,42 +2149,22 @@ class Mediator:
                     "rarity": None,
                     "description": "",
                 })
-            # 若 4 个槽位中有 >= 3 个有效命中，且第4槽（index=3）有文字识别，则锁定为 4 槽布局
-            if valid_hits_4 >= 3 and (candidates_4[3]["name"] or len(candidates_4[3]["raw_text"].strip()) >= 2):
-                use_layout_4 = True
 
-        if use_layout_4:
-            rois = rois_4
+        # 三态决策门闩（Fail-Closed）：
+        # 1. 判定为 LAYOUT_4：必须 4 张全部具备高置信识别（score_4 >= 3.5 且第4张有名字）且明显超越 3 槽得分
+        # 2. 判定为 LAYOUT_3：3 张全部具备完整识别（score_3 >= 2.5 且全部有效）且 4 槽无法成型
+        # 3. 否则判定为 UNKNOWN，直接返回空列表，禁止任何盲目点击！
+        if rois_4 is not None and score_4 >= 3.5 and bool(candidates_4[3]["name"]) and (score_4 - score_3 >= 0.5):
+            slot_count = 4
             slots = candidates_4
             desc_spec = self._OCR_DESC_ROIS_4.get(kind) if hasattr(self, '_OCR_DESC_ROIS_4') else None
-            slot_count = 4
-        else:
-            rois = rois_3
-            slots = []
-            desc_spec = self._OCR_DESC_ROIS.get(kind)
+        elif score_3 >= 2.5 and (score_3 - score_4 >= 0.0 or score_4 < 2.5):
             slot_count = 3
-            for index, roi in enumerate(rois):
-                bbox = self._normalized_bbox(frame, roi)
-                response = self._ocr_client.shadow_predict(
-                    frame,
-                    panel_id,
-                    {"index": index, "bbox": bbox, "kind": kind},
-                    panel_bbox=panel_bbox,
-                )
-                if response.elapsed_ms >= 1000 and self._tick_reason is None:
-                    self._tick_reason = "ocr_cold_start"
-                top = response.candidates[0] if response.candidates else None
-                slots.append({
-                    "index": index,
-                    "name": top.name if top else None,
-                    "confidence": float(top.confidence) if top else 0.0,
-                    "raw_text": response.raw_text or "",
-                    "rec_score": response.rec_score,
-                    "status": response.status,
-                    "reason": response.reason,
-                    "rarity": None,
-                    "description": "",
-                })
+            slots = candidates_3
+            desc_spec = self._OCR_DESC_ROIS.get(kind)
+        else:
+            # Ambiguous / UNKNOWN -> fail-closed
+            return []
 
         # 统一采样该 layout 下所有槽位的 rarity
         for slot in slots:
@@ -2475,9 +2484,10 @@ class Mediator:
             name = None
             selected_slot = None
             for slot in slots:
-                if slot.index == decision.index:
+                slot_idx = slot.index if hasattr(slot, "index") else slot.get("index")
+                if slot_idx == decision.index:
                     selected_slot = slot
-                    name = slot.name
+                    name = slot.name if hasattr(slot, "name") else slot.get("name")
                     break
             if kind == "skill" and name:
                 # Prefer skill short-code for downstream cycle ownership checks.
