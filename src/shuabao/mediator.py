@@ -482,11 +482,17 @@ class Mediator:
         "card": (0.331, 0.420, 0.500, 0.580, 0.669),
         "skill": (0.354, 0.420, 0.500, 0.580, 0.646),
     }
+    _RARITY_SAMPLE_XS_4 = {
+        "treasure": (0.270, 0.415, 0.560, 0.705),
+        "bond": (0.255, 0.410, 0.565, 0.720),
+        "card": (0.255, 0.410, 0.565, 0.720),
+        "skill": (0.270, 0.415, 0.560, 0.705),
+    }
     _RARITY_SAMPLE_CY = {
         "treasure": 0.300,
+        "skill": 0.280,
         "bond": 0.333,
         "card": 0.333,
-        "skill": 0.333,
     }
 
     def __init__(
@@ -2069,7 +2075,9 @@ class Mediator:
         )
 
     def _ocr_panel_slots(self, frame: Frame, kind: str) -> list[dict]:
-        """Read title (+ treasure description) lines. OCR supplies names only, never coordinates."""
+        """Read title (+ treasure description) lines with deterministic layout=3 or 4 detection.
+        When layout is determined, name ROI, desc ROI, rarity ROI and click centers MUST use the same layout.
+        """
         if self._ocr_client is None or not LayoutTransform.is_supported(frame.width, frame.height):
             return []
         rois_3 = self._OCR_SLOT_ROIS.get(kind)
@@ -2083,62 +2091,108 @@ class Mediator:
             int(frame.width * 0.82),
             int(frame.height * 0.58),
         )
-        # 优先使用默认 3 槽位，若检测到 4 槽位特征则动态适配
-        rois = rois_3
-        desc_spec = self._OCR_DESC_ROIS.get(kind)
-        slots: list[dict] = []
-        for index, roi in enumerate(rois):
-            bbox = self._normalized_bbox(frame, roi)
-            response = self._ocr_client.shadow_predict(
-                frame,
-                panel_id,
-                {"index": index, "bbox": bbox, "kind": kind},
-                panel_bbox=panel_bbox,
-            )
-            if response.elapsed_ms >= 1000 and self._tick_reason is None:
-                self._tick_reason = "ocr_cold_start"
-            top = response.candidates[0] if response.candidates else None
-            slots.append({
-                "index": index,
-                "name": top.name if top else None,
-                "confidence": float(top.confidence) if top else 0.0,
-                "raw_text": response.raw_text or "",
-                "rec_score": response.rec_score,
-                "status": response.status,
-                "reason": response.reason,
-                "rarity": self._slot_rarity_band(frame, kind, index),
-                "description": "",
-            })
-        # 描述 ROI：仅宝物需要（负面判定）；读不到留空，绝不猜测。
+
+        # 1. 尝试 4 槽位预测
+        use_layout_4 = False
+        candidates_4: list[dict] = []
+        if rois_4 is not None and len(rois_4) == 4:
+            valid_hits_4 = 0
+            for index, roi in enumerate(rois_4):
+                bbox = self._normalized_bbox(frame, roi)
+                response = self._ocr_client.shadow_predict(
+                    frame,
+                    f"{panel_id}:4s",
+                    {"index": index, "bbox": bbox, "kind": kind},
+                    panel_bbox=panel_bbox,
+                )
+                top = response.candidates[0] if response.candidates else None
+                has_name = bool(top and top.name and float(top.confidence) >= 0.5)
+                if has_name or (response.raw_text and len(response.raw_text.strip()) >= 2):
+                    valid_hits_4 += 1
+                candidates_4.append({
+                    "index": index,
+                    "name": top.name if top else None,
+                    "confidence": float(top.confidence) if top else 0.0,
+                    "raw_text": response.raw_text or "",
+                    "rec_score": response.rec_score,
+                    "status": response.status,
+                    "reason": response.reason,
+                    "rarity": None,
+                    "description": "",
+                })
+            # 若 4 个槽位中有 >= 3 个有效命中，且第4槽（index=3）有文字识别，则锁定为 4 槽布局
+            if valid_hits_4 >= 3 and (candidates_4[3]["name"] or len(candidates_4[3]["raw_text"].strip()) >= 2):
+                use_layout_4 = True
+
+        if use_layout_4:
+            rois = rois_4
+            slots = candidates_4
+            desc_spec = self._OCR_DESC_ROIS_4.get(kind) if hasattr(self, '_OCR_DESC_ROIS_4') else None
+            slot_count = 4
+        else:
+            rois = rois_3
+            slots = []
+            desc_spec = self._OCR_DESC_ROIS.get(kind)
+            slot_count = 3
+            for index, roi in enumerate(rois):
+                bbox = self._normalized_bbox(frame, roi)
+                response = self._ocr_client.shadow_predict(
+                    frame,
+                    panel_id,
+                    {"index": index, "bbox": bbox, "kind": kind},
+                    panel_bbox=panel_bbox,
+                )
+                if response.elapsed_ms >= 1000 and self._tick_reason is None:
+                    self._tick_reason = "ocr_cold_start"
+                top = response.candidates[0] if response.candidates else None
+                slots.append({
+                    "index": index,
+                    "name": top.name if top else None,
+                    "confidence": float(top.confidence) if top else 0.0,
+                    "raw_text": response.raw_text or "",
+                    "rec_score": response.rec_score,
+                    "status": response.status,
+                    "reason": response.reason,
+                    "rarity": None,
+                    "description": "",
+                })
+
+        # 统一采样该 layout 下所有槽位的 rarity
+        for slot in slots:
+            slot["rarity"] = self._slot_rarity_band(frame, kind, slot["index"], slot_count=slot_count)
+
+        # 描述 ROI：宝物负面判定必须匹配对应 layout
         if desc_spec is not None:
             half_w = float(desc_spec["half_w"])
             y0 = float(desc_spec["y0"])
             y1 = float(desc_spec["y1"])
-            for slot, cx in zip(slots, desc_spec["centers_x"]):
-                desc_roi = (float(cx) - half_w, y0, float(cx) + half_w, y1)
-                bbox = self._normalized_bbox(frame, desc_roi)
-                response = self._ocr_client.shadow_predict(
-                    frame,
-                    f"{panel_id}:desc",
-                    {"index": slot["index"], "bbox": bbox, "kind": f"{kind}_desc"},
-                    panel_bbox=panel_bbox,
-                )
-                text = (response.raw_text or "").strip()
-                if not text and response.candidates:
-                    text = (response.candidates[0].name or "").strip()
-                slot["description"] = text
-        self._trace_ocr_suggestion = {"kind": kind, "slots": slots}
+            centers_x = desc_spec["centers_x"]
+            for slot in slots:
+                idx = slot["index"]
+                if idx < len(centers_x):
+                    cx = centers_x[idx]
+                    desc_roi = (float(cx) - half_w, y0, float(cx) + half_w, y1)
+                    bbox = self._normalized_bbox(frame, desc_roi)
+                    response = self._ocr_client.shadow_predict(
+                        frame,
+                        f"{panel_id}:desc:{slot_count}",
+                        {"index": idx, "bbox": bbox, "kind": f"{kind}_desc"},
+                        panel_bbox=panel_bbox,
+                    )
+                    text = (response.raw_text or "").strip()
+                    if not text and response.candidates:
+                        text = (response.candidates[0].name or "").strip()
+                    slot["description"] = text
+
+        self._trace_ocr_suggestion = {"kind": kind, "slots": slots, "layout": slot_count}
         return slots
 
-    def _slot_rarity_band(self, frame: Frame, kind: str, index: int) -> str | None:
-        """Map slot index → rarity band via border color (includes green).
-
-        20260822（实机 203816 t=246）：单一采样中心对窗口裁剪/面板几何的
-        ±20px 垂直漂移敏感——橙色卡边实测被裁剪偏移误判成 blue，导致宝物
-        "绿选赢橙"。改为三个候选中心（0.30/0.36/0.42）各采一次环带，
-        取分值最高的带；无任何命中才返回 None。
-        """
-        xs = self._RARITY_SAMPLE_XS.get(kind) or self._RARITY_SAMPLE_XS.get("card")
+    def _slot_rarity_band(self, frame: Frame, kind: str, index: int, slot_count: int = 3) -> str | None:
+        """Map slot index → rarity band via border color for layout 3 or 4."""
+        if slot_count == 4:
+            xs = self._RARITY_SAMPLE_XS_4.get(kind) or self._RARITY_SAMPLE_XS_4.get("card")
+        else:
+            xs = self._RARITY_SAMPLE_XS.get(kind) or self._RARITY_SAMPLE_XS.get("card")
         if xs is None or index < 0 or index >= len(xs):
             return None
         cx = int(frame.width * xs[index])
@@ -2157,7 +2211,7 @@ class Mediator:
             index = int(slot.get("index", 0))
             rarity = slot.get("rarity")
             if rarity is None and frame is not None:
-                rarity = self._slot_rarity_band(frame, kind, index)
+                rarity = self._slot_rarity_band(frame, kind, index, slot_count=len(slots))
             description = str(slot.get("description") or "")
             name = slot.get("name")
             family = slot.get("family")
@@ -2445,7 +2499,7 @@ class Mediator:
                 hit_name = f"ocr_{kind}:slot{decision.index}"
             if decision.reason:
                 print(f"[L1] 选卡策略：{decision.reason}")
-            hit = self._choice_slot_hit(frame, kind, int(decision.index), hit_name)
+            hit = self._choice_slot_hit(frame, kind, int(decision.index), hit_name, slot_count=len(slots))
             label = "技能" if kind == "skill" else kind
             return (label, hit)
         if decision.action == PolicyAction.REFRESH:
@@ -2500,9 +2554,15 @@ class Mediator:
             return (kind if kind != "skill" else "技能", hit)
         return ("技能" if kind == "skill" else kind, hit)
 
-    def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str) -> MatchResult:
-
-        x_ratio, y_ratio = self._CHOICE_SLOT_CENTERS[kind][index]
+    def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str, slot_count: int = 3) -> MatchResult:
+        if slot_count == 4:
+            centers = self._CHOICE_SLOT_CENTERS_4.get(kind) or self._CHOICE_SLOT_CENTERS.get(kind, ())
+        else:
+            centers = self._CHOICE_SLOT_CENTERS.get(kind, ())
+        if index < 0 or index >= len(centers):
+            x_ratio, y_ratio = (0.5, 0.5)
+        else:
+            x_ratio, y_ratio = centers[index]
         x, y = int(frame.width * x_ratio), int(frame.height * y_ratio)
         return MatchResult(name, 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
 
@@ -2521,6 +2581,7 @@ class Mediator:
             return None
         transform = LayoutTransform.from_frame(frame.width, frame.height)
         occupied = 0
+        min_pixels = int(250 * transform.scale * transform.scale)
         for cx in (603, 655, 707, 759, 811, 863, 915, 967, 1019, 1071):
             rx1, ry1, rx2, ry2 = transform.logical_roi(cx - 20, 635, cx + 20, 680)
             roi_bgr = frame.bgr[ry1:ry2, rx1:rx2]
@@ -2528,18 +2589,9 @@ class Mediator:
                 continue
             hsv_roi = cv2.cvtColor(roi_bgr, cv2.COLOR_BGR2HSV)
             colored = (hsv_roi[:, :, 1] > 70) & (hsv_roi[:, :, 2] > 60)
-            min_pixels = int(250 * transform.scale * transform.scale)
-    def _choice_slot_hit(self, frame: Frame, kind: str, index: int, name: str) -> MatchResult:
-        centers_3 = self._CHOICE_SLOT_CENTERS.get(kind, ())
-        centers_4 = self._CHOICE_SLOT_CENTERS_4.get(kind, ())
-        if index < len(centers_3):
-            x_ratio, y_ratio = centers_3[index]
-        elif index < len(centers_4):
-            x_ratio, y_ratio = centers_4[index]
-        else:
-            x_ratio, y_ratio = (0.5, 0.5)
-        x, y = int(frame.width * x_ratio), int(frame.height * y_ratio)
-        return MatchResult(name, 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
+            if int(colored.sum()) >= min_pixels:
+                occupied += 1
+        return occupied
     def _canonical_bond_name(self, card_name: str) -> str:
         """Map a card name or bond string to canonical 5 bond categories if applicable."""
         for b in ("祝福", "成长", "经济", "贪婪", "挑战"):
