@@ -385,6 +385,9 @@ export function applySnapshot(snap: SnapshotDTO): void {
   applying = true;
   try {
     const settings: SettingsDTO = snap.settings ?? {};
+    if (Array.isArray(snap.modes)) {
+      modeCatalog = new Map(snap.modes.map((mode) => [mode.id, mode]));
+    }
     if (snap.strategy) {
       if (Array.isArray(snap.strategy.skills)) settings.skills = snap.strategy.skills;
       if (Array.isArray(snap.strategy.bonds)) {
