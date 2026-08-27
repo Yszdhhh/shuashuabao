@@ -85,8 +85,8 @@ Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
         Write-Host "已归档：$($_.Name)" -ForegroundColor DarkYellow
     }
 
-if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
-Copy-Item -LiteralPath (Join-Path $PSScriptRoot "dist\$APP_ID") -Destination $target -Recurse
+$srcDist = Join-Path $PSScriptRoot "dist\$APP_ID"
+cmd.exe /c "robocopy `"$srcDist`" `"$target`" /MIR /NJH /NJS /NFL /NDL & if %ERRORLEVEL% LEQ 7 (exit /b 0) else (exit /b %ERRORLEVEL%)" | Out-Null
 
 # 统一桌面单一入口快捷方式：「刷刷宝.lnk」；归档旧版本快捷方式与看板快捷方式
 $lnkName = "$APP_NAME.lnk"

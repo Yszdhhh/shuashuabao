@@ -1353,9 +1353,9 @@
       const isBoss = kind === "boss";
       const cur = isBoss ? state.boss : state.cjb;
       if (isBoss) {
-        sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">选择时光之穴 Boss</h2></div><div class="sheet-body"><div class="text-pick-grid">${BOSS_STEMS.map((s)=>`<button type="button" class="text-card-btn" data-stem="${s}" aria-pressed="${s===cur}" aria-label="${stemLabel(s)}">${stemLabel(s)}</button>`).join("")}</div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span></div>`;
+        sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">选择时光之穴 Boss</h2></div><div class="sheet-body"><div class="text-pick-grid">${BOSS_STEMS.map((s)=>`<button type="button" class="text-card-btn" data-stem="${s}" aria-pressed="${s===cur}" aria-label="${stemLabel(s)}"><span class="name">${stemLabel(s)}</span></button>`).join("")}</div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span></div>`;
       } else {
-        sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">选择传家宝挑战</h2></div><div class="sheet-body"><div class="text-pick-grid">${CJB_STEMS.map((s)=>`<button type="button" class="text-card-btn" data-stem="${s}" aria-pressed="${s===cur}" aria-label="${stemLabel(s)}"><span class="name">${stemLabel(s)}</span><span class="code">${s.slice(0,2)}</span></button>`).join("")}</div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span></div>`;
+        sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">选择传家宝挑战</h2></div><div class="sheet-body"><div class="text-pick-grid">${CJB_STEMS.map((s)=>`<button type="button" class="text-card-btn" data-stem="${s}" aria-pressed="${s===cur}" aria-label="${stemLabel(s)}"><span class="name">${stemLabel(s)}</span></button>`).join("")}</div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span></div>`;
       }
       focusSheet();
     }
@@ -1382,11 +1382,8 @@
     function renderBonds() {
       const packById = Object.fromEntries(ADV.map((pack)=>[pack.id, pack]));
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const showAdvancedPool = state.advEditing || !advancedOrder.length;
-      const advanced = showAdvancedPool
-        ? `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>高级卡组候选</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.advDraft.includes(pack.id)}">${pack.label}</button>`).join("")}</div><div class="adv-actions">${advancedOrder.length ? `<button type="button" class="secondary" id="btnReturnAdv">返回已选搭配</button>` : `<span class="hint">可选多套，确认后排序</span>`}<span class="adv-spacer"></span><button type="button" class="gold" id="btnConfirmAdv" ${state.advDraft.length ? "" : "disabled"}>确认选择</button></div></div>`
-        : `<div class="selection-closed"><p class="hint">已确认当前卡组。</p><button type="button" class="secondary" id="btnEditAdv">调整搭配</button></div>`;
-      const coreCards = showAdvancedPool ? `<div class="bond-block"><h4>属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>` : "";
+      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>高级卡组（点击勾选/取消）</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.advDraft.includes(pack.id) || state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div></div>`;
+      const coreCards = `<div class="bond-block"><h4>属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
       $("bonds").innerHTML = `${coreCards}${advanced}`;
       renderLaunchSummary();
     }
@@ -1707,7 +1704,7 @@
       if (e.target.closest("#btnEditAdv")) { state.advDraft=state.adv.slice(); state.advEditing=true; renderBonds(); $("bonds").closest(".main").scrollTop=0; return; }
       if (e.target.closest("#btnReturnAdv")) { state.advDraft=state.adv.slice(); state.advEditing=false; renderBonds(); $("bonds").closest(".main").scrollTop=0; return; }
       if (e.target.closest("#btnConfirmAdv")) { state.adv=state.advDraft.slice(); state.advEditing=false; renderBonds(); $("bonds").closest(".main").scrollTop=0; toast("已确认高级卡组优先级"); return; }
-      const pack=e.target.closest("[data-pack]"); if (pack) { const id=pack.dataset.pack; if (state.advDraft.includes(id)) state.advDraft=state.advDraft.filter((item)=>item!==id); else state.advDraft=[...state.advDraft,id]; renderBonds(); return; }
+      const pack=e.target.closest("[data-pack]"); if (pack) { const id=pack.dataset.pack; if (state.adv.includes(id)) { state.adv=state.adv.filter((item)=>item!==id); } else { state.adv=[...state.adv,id]; } state.advDraft=state.adv.slice(); renderBonds(); return; }
       const chip=e.target.closest("[data-bond]"); if (!chip) return;
       const setName=chip.dataset.bondSet, name=chip.dataset.bond;
       if (state[setName].has(name)) state[setName].delete(name); else state[setName].add(name); renderBonds();
