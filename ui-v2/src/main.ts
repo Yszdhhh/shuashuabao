@@ -144,6 +144,12 @@ function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string 
     .catch((err) => toast(bridgeErrorText(err)));
 }
 
+function syncWindowLayout(scene: string): void {
+  if (!bridge) return;
+  const layout = scene === "chooser" || scene === "wizard" ? "chooser" : "dashboard";
+  bridge.set_window_layout(layout).catch((err) => console.error("[ui-v2] 窗口尺寸同步失败:", err));
+}
+
 function showStartErr(msg: string): void {
   const el = $("startErr");
   el.textContent = msg;
@@ -171,13 +177,13 @@ function pushReputation(): void {
 }
 
 const ADV_PACK_CARDS: Record<string, string[]> = {
-  daodao: ["刺客", "盗贼", "潜行", "双持", "刀刃", "暴风", "致命", "连击"],
-  yihuo: ["火球", "烈焰", "燃烧", "陨石", "火雨", "炎爆", "火种", "爆裂"],
-  dasheng: ["猴王", "棍法", "定海", "分身", "金箍", "神猴", "筋斗", "闹海"],
-  xiuxian: ["凝气", "筑基", "金丹", "元婴", "化神", "飞升", "渡劫", "灵根"],
-  fengshen: ["太公", "哪吒", "杨戬", "雷震", "封神", "打神", "杏黄", "乾坤"],
-  haidao: ["船长", "水手", "藏宝", "炮击", "掠夺", "黑帆", "火枪", "弯刀"],
-  wangling: ["骷髅", "死灵", "幽魂", "白骨", "复生", "墓地", "尸巫", "暗影"],
+  daodao: ["刀刀", "幽灵系带", "护腕", "空灵挂坠", "刀刀萌新", "刀刀大成"],
+  yihuo: ["异火", "焚诀·黄阶", "阴阳双炎", "风怒龙炎", "幽冥毒火", "玄黄炎"],
+  dasheng: ["齐天大圣", "大圣", "天命人", "大圣残躯", "大圣套装"],
+  xiuxian: ["修仙", "筑基丹", "金丹大道", "元神出窍", "修仙萌新", "修仙大成"],
+  fengshen: ["封神", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀"],
+  haidao: ["海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"],
+  wangling: ["亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"],
 };
 
 function pushBondsAndAttributes(): void {
@@ -215,7 +221,6 @@ function pushBondsAndAttributes(): void {
     cards: activeCards,
     strategy: {
       bonds: activeBonds,
-      cards: activeCards,
       attributes: activeAttrs,
     },
   });
@@ -318,7 +323,8 @@ function applyBuildAndSkills(settings: SettingsDTO): void {
   const official = BUILDS.find((b) => b.skills.length === skills.length && b.skills.every((c) => skills.includes(c)));
   if (official) {
     state.selected = official.id;
-    applyOfficial(official.id); // 官方流派：同步属性/发育/基础卡组默认集
+    // 快照中的卡组、属性和发育选择已在 applySnapshot 中回填。这里仅识别
+    // 流派，不能再套用流派默认值，否则会清掉刚保存的高级卡组顺序。
   } else {
     const row = state.custom[0] ?? (state.custom[0] = { id: "custom:1", name: "自定义", skills: [] });
     row.skills = skills.slice();
@@ -410,30 +416,28 @@ export function applySnapshot(snap: SnapshotDTO): void {
         : Array.isArray(settings.cards)
         ? settings.cards
         : [];
-      if (savedCards.length > 0) {
-        settings.cards = savedCards;
-        const restoredAdv: string[] = [];
-        const restoredBasic: string[] = [];
-        const basicNames = ["法术", "急速", "魔能", "魔术", "箭术", "战术", "暴击", "固守", "陷阵"];
-        for (const [packId, cardNames] of Object.entries(ADV_PACK_CARDS)) {
-          if (cardNames.some((c) => savedCards.includes(c)) || savedCards.includes(packId)) {
-            restoredAdv.push(packId);
-          }
-        }
-        for (const b of basicNames) {
-          if (savedCards.includes(b)) restoredBasic.push(b);
-        }
-        if (restoredAdv.length > 0) {
-          state.adv = restoredAdv;
-          state.advDraft = restoredAdv.slice();
-        }
-        if (restoredBasic.length > 0) {
-          state.basic = new Set(restoredBasic);
-        }
+      settings.cards = savedCards;
+      // cards 的首个命中顺序就是高级卡组优先级；空数组同样要清空旧界面状态。
+      const cardToPack = new Map<string, string>();
+      for (const [packId, cardNames] of Object.entries(ADV_PACK_CARDS)) {
+        for (const c of cardNames) cardToPack.set(c, packId);
       }
+      const restoredAdv: string[] = [];
+      for (const card of savedCards) {
+        const packId = cardToPack.get(card) ?? (ADV_PACK_CARDS[card] ? card : "");
+        if (packId && !restoredAdv.includes(packId)) restoredAdv.push(packId);
+      }
+      const basicNames = ["法术", "急速", "魔能", "魔术", "箭术", "战术", "暴击", "固守", "陷阵"];
+      state.adv = restoredAdv;
+      state.advDraft = restoredAdv.slice();
+      state.basic = new Set(basicNames.filter((name) => savedCards.includes(name)));
+      if (Array.isArray(snap.strategy.bonds)) {
+        state.growth = new Set(snap.strategy.bonds);
+      }
+      state.bondSaved = true;
       if (Array.isArray(snap.strategy.attributes)) {
         settings.attributes = snap.strategy.attributes;
-        state.attr = snap.strategy.attributes;
+        state.attr = new Set(snap.strategy.attributes);
       }
       if (snap.strategy.merchant) {
         settings.merchant_enabled = snap.strategy.merchant.enabled;
@@ -444,13 +448,6 @@ export function applySnapshot(snap: SnapshotDTO): void {
         const win = window as unknown as Record<string, unknown>;
         if (typeof win.renderNegatives === "function") {
           (win.renderNegatives as () => void)();
-        }
-      }
-      if (snap.strategy.attributes) {
-        state.attr = new Set(snap.strategy.attributes);
-        const win = window as unknown as Record<string, unknown>;
-        if (typeof win.renderBonds === "function") {
-          (win.renderBonds as () => void)();
         }
       }
     }
@@ -563,10 +560,11 @@ function wireIntents(): void {
   afterGlobalCall("setCycle", () => pushConfig({ cycle_num: clampCycle(Number(state.cycle)) }));
   afterGlobalCall("renderChapterStage", () => pushConfig({ stage_targets: [`${state.chapter}-${state.stage}`] }));
   afterGlobalCall("renderSkillRank", pushSkills);
-  afterGlobalCall("renderBonds", pushBondsAndAttributes);
+  // 羁绊配置按用户显式点击“保存羁绊”落盘，避免每次重绘都产生一次配置请求。
   afterGlobalCall("renderNegatives", pushNegatives);
   afterGlobalCall("refreshSummary", applyLaunchability);
   afterGlobalCall("setScene", () => {
+    syncWindowLayout(String(state.scene));
     const modeId = SCENE_TO_MODE_ID[state.scene];
     if (modeId) pushShell({ selected_mode_id: modeId });
   });
@@ -576,6 +574,20 @@ function wireIntents(): void {
   if (negEl) {
     negEl.addEventListener("change", () => defer(pushNegatives));
   }
+
+  $("bonds").addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest("#btnSaveBonds")) {
+      defer(() => pushBondsAndAttributes());
+    }
+  });
+
+  // 摘要视图下 ▲▼ 调整高级卡组顺序：内联处理器已改 state.adv，这里补落盘，
+  // 让"保存后仍可调序"无需再点一次保存。
+  $("bonds").addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest("[data-adv-move]") && state.bondSaved) {
+      defer(() => pushBondsAndAttributes());
+    }
+  });
 
   // 技能路线下拉
   $("skillRank").addEventListener("change", (e) => {

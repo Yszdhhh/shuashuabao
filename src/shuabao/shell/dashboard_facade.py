@@ -66,6 +66,7 @@ class DashboardFacade(QObject):
         root: Path | None = None,
         on_minimize: Callable[[], None] | None = None,
         on_close: Callable[[], None] | None = None,
+        on_layout: Callable[[str], None] | None = None,
         parent: QObject | None = None,
     ):
         super().__init__(parent)
@@ -73,6 +74,7 @@ class DashboardFacade(QObject):
         self._runner = runner
         self._on_minimize = on_minimize
         self._on_close = on_close
+        self._on_layout = on_layout
         self._root = Path(root) if root is not None else None
         # §6.3 运行态轮询：与原生 _poll_runtime 同模式，400ms 读 mediator 快照。
         self._poll = QTimer(self)
@@ -259,7 +261,6 @@ class DashboardFacade(QObject):
                 mappings = {
                     "skills": "skills",
                     "bonds": "bonds",
-                    "cards": "cards",
                     "attributes": "attributes",
                     "merchant": {
                         "enabled": "merchant_enabled",
@@ -392,6 +393,15 @@ class DashboardFacade(QObject):
             ), ensure_ascii=False)
         handler()
         return json.dumps(self._rpc_response(True))
+
+    @Slot(str, result=str)
+    def set_window_layout(self, layout_json: str) -> str:
+        """页面切换时只调整宿主尺寸；不写入用户配置。"""
+        layout = self._parse_keyed(layout_json, "layout")
+        if layout not in {"dashboard", "chooser"} or self._on_layout is None:
+            return json.dumps(self._rpc_response(False, error=f"不支持的布局: {layout!r}"), ensure_ascii=False)
+        self._on_layout(layout)
+        return json.dumps(self._rpc_response(True), ensure_ascii=False)
 
     # ------------------------------------------------------------- 运行控制（§6.3）
 

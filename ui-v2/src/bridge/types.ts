@@ -122,6 +122,7 @@ export interface DashboardBridge {
   start_run(mode_id: string, expectedRevision?: number): Promise<RunResult>;
   stop_run(): Promise<RunResult>;
   window_control(action: "minimize" | "close"): Promise<RpcResponse>;
+  set_window_layout(layout: "dashboard" | "chooser"): Promise<RpcResponse>;
 }
 
 export interface DashboardBridgeSignals {

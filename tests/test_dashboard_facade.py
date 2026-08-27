@@ -30,6 +30,7 @@ EXPECTED_SLOTS = {
     "update_shell",
     "validate_preflight",
     "window_control",
+    "set_window_layout",
     "start_run",
     "stop_run",
 }
@@ -47,12 +48,15 @@ def qapp():
 @pytest.fixture()
 def facade(qapp, tmp_path: Path):
     actions: list[str] = []
+    layouts: list[str] = []
     f = DashboardFacade(
         tmp_path,
         on_minimize=lambda: actions.append("minimize"),
         on_close=lambda: actions.append("close"),
+        on_layout=layouts.append,
     )
     f.recorded_actions = actions
+    f.recorded_layouts = layouts
     return f
 
 
@@ -136,6 +140,16 @@ def test_update_config_valid_fields_persist(qapp, tmp_path: Path):
     # 重启往返：新实例从磁盘读回。
     f2 = DashboardFacade(tmp_path)
     assert json.loads(f2.get_snapshot())["settings"]["click_delay_ms"] == 250
+
+
+def test_update_config_accepts_card_whitelist_once(qapp, tmp_path: Path):
+    """高级卡组展开后只经顶层 cards 写入，不能与 strategy 字段冲突。"""
+    f = DashboardFacade(tmp_path)
+    res = json.loads(f.update_config(json.dumps({"cards": ["海盗", "海盗宝藏"]})))
+    assert res["ok"] is True
+    assert res["errors"] == []
+    assert res["settings"]["cards"] == ["海盗", "海盗宝藏"]
+    assert res["strategy"]["cards"] == ["海盗", "海盗宝藏"]
 
 
 def test_stage_target_and_hero_plan_round_trip_to_runtime_settings(qapp, tmp_path: Path):
@@ -303,6 +317,12 @@ def test_window_control_rejects_unknown_action(facade):
 def test_window_control_without_handler_fails_closed(qapp, tmp_path: Path):
     f = DashboardFacade(tmp_path)
     assert json.loads(f.window_control(json.dumps("close")))["ok"] is False
+
+
+def test_set_window_layout_only_allows_ephemeral_known_layouts(facade):
+    assert json.loads(facade.set_window_layout(json.dumps({"layout": "chooser"})))["ok"] is True
+    assert facade.recorded_layouts == ["chooser"]
+    assert json.loads(facade.set_window_layout(json.dumps({"layout": "unknown"})))["ok"] is False
 
 
 def test_dashboard_contract_v2_strategy_and_revision_metadata(qapp, tmp_path: Path):

@@ -1,6 +1,6 @@
 // Task 5：qtBridge 单元测试。node 环境下以最小假宿主（window.qt / QWebChannel /
 // document）驱动真实 qtBridge 代码路径，验证：
-//   - 序列化：七方法的 JSON 入参/出参契约（§6.1 全部 @Slot(str)->str）
+//   - 序列化：八方法的 JSON 入参/出参契约（§6.1 全部 @Slot(str)->str）
 //   - 信号派发：三信号 connect 后可从 facade 侧回推
 //   - 错误处理：transport 超时、facade 缺失、方法拒绝、非 JSON 返回、信号缺失
 import { beforeEach, describe, expect, it } from "vitest";
@@ -81,6 +81,7 @@ function makeFacade(
     start_run: async () => JSON.stringify({ ok: true }),
     stop_run: async () => JSON.stringify({ ok: true }),
     window_control: async () => JSON.stringify({ ok: true }),
+    set_window_layout: async () => JSON.stringify({ ok: true }),
   };
   const facade: AnyRecord = {};
   for (const [name, handler] of Object.entries(defaultHandlers)) {
@@ -114,7 +115,7 @@ beforeEach(() => {
 });
 
 describe("qtBridge 序列化契约", () => {
-  it("七方法按 §6.1 序列化入参并解析出参", async () => {
+  it("八方法按 §6.1 序列化入参并解析出参", async () => {
     const harness = makeFacade();
     installHost(harness);
     const { bridge } = await createQtBridge();
@@ -128,6 +129,7 @@ describe("qtBridge 序列化契约", () => {
     await expect(bridge.start_run("normal_farm")).resolves.toEqual({ ok: true });
     await expect(bridge.stop_run()).resolves.toEqual({ ok: true });
     await expect(bridge.window_control("minimize")).resolves.toEqual({ ok: true });
+    await expect(bridge.set_window_layout("chooser")).resolves.toEqual({ ok: true });
 
     expect(harness.calls).toEqual([
       ["get_snapshot"],
@@ -137,6 +139,7 @@ describe("qtBridge 序列化契约", () => {
       ["start_run", JSON.stringify({ mode_id: "normal_farm" })],
       ["stop_run"],
       ["window_control", JSON.stringify({ action: "minimize" })],
+      ["set_window_layout", JSON.stringify({ layout: "chooser" })],
     ]);
   });
 

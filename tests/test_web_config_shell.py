@@ -124,6 +124,15 @@ def test_host_window_matches_od12_product_size(shell):
     assert (shell.width(), shell.height()) == (920, 720)
 
 
+def test_chooser_layout_shrinks_host_and_keeps_window_controls_clickable(shell):
+    shell._set_window_layout("chooser")
+    assert (shell.width(), shell.height()) == (480, 360)
+    region = shell._titlebar_drag_region
+    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 250, 40)
+    shell._set_window_layout("dashboard")
+    assert (shell.width(), shell.height()) == (920, 720)
+
+
 def test_frameless_titlebar_drag_region_receives_native_mouse_press(shell, monkeypatch):
     calls: list[bool] = []
     monkeypatch.setattr(shell, "_begin_window_drag", lambda: calls.append(True))

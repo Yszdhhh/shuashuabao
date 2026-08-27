@@ -520,17 +520,19 @@
     .bond-block { margin-top: 8px; }
     .bond-block:first-child { margin-top: 0; }
     .bond-block h4 { margin: 0 0 6px; font-size: 12px; font-weight: 650; color: var(--p-ink); }
-    .adv-actions { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-    .adv-actions .hint { margin: 0; }
-    .adv-spacer { flex: 1; }
+    .bond-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--p-line); }
+    .bond-actions .hint { margin: 0; }
+    .bond-actions .gold { margin-left: auto; min-height: 30px; white-space: nowrap; }
     .adv-order { display: flex; flex-direction: column; margin-top: 8px; border-top: 1px solid var(--p-line); }
     .adv-rank {
-      display: grid; grid-template-columns: 22px minmax(0, 1fr) 72px 44px; gap: 6px; align-items: center;
+      display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center;
       min-height: 34px; border-bottom: 1px solid var(--p-line);
     }
-    .adv-rank b { font-size: 12px; }
+    .adv-rank b { min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .adv-rank span { font-size: 11px; color: var(--p-muted); }
     .adv-rank .rank-no { width: 20px; height: 20px; }
+    .rank-move { display: flex; gap: 4px; }
+    .rank-move button { width: 28px; height: 26px; padding: 0; }
     .hitch-page h2 { margin: 0; font-size: 22px; font-weight: 650; line-height: 1.3; letter-spacing: -0.02em; }
     .hitch-page p { margin: 0; color: var(--p-muted); font-size: 13px; line-height: 1.6; max-width: 52ch; }
     .team-rules {
@@ -809,18 +811,18 @@
     .chip, .text-btn, .dd-menu button, .skill-cell { min-height: 28px; }
     .mini-step button { width: 24px; height: 24px; }
     .rank-card {
-      grid-template-columns: 22px 28px minmax(0, 1fr) 44px;
-      min-height: 60px;
+      grid-template-columns: 22px 28px minmax(0, 1fr) minmax(112px, 132px) 44px;
+      min-height: 48px;
     }
-    .rank-card select { grid-column: 3 / 5; grid-row: 2; width: 100%; min-width: 0; }
-    .rank-move { display: grid; grid-column: 4; grid-row: 1 / span 2; gap: 2px; width: 44px; }
+    .rank-card select { grid-column: 4; grid-row: 1; width: 100%; min-width: 0; }
+    .rank-card .rank-move { display: flex; grid-column: 5; grid-row: 1; gap: 2px; width: 44px; }
     .rank-card .grip { display: none; }
-    .rank-move button {
-      min-height: 20px; border: 1px solid var(--p-line); background: var(--p-fill);
+    .rank-card .rank-move button {
+      width: 21px; min-height: 26px; border: 1px solid var(--p-line); background: var(--p-fill);
       color: var(--p-ink); border-radius: 3px; padding: 0; font-size: 9px; line-height: 1;
     }
-    .rank-move button:hover { background: var(--p-gold-soft); color: var(--p-ink); }
-    .rank-move button:disabled, .rank-move button:disabled:hover {
+    .rank-card .rank-move button:hover { background: var(--p-gold-soft); color: var(--p-ink); }
+    .rank-card .rank-move button:disabled, .rank-card .rank-move button:disabled:hover {
       opacity: 0.4; cursor: not-allowed; background: var(--p-fill); color: var(--p-faint);
     }
     button:disabled { cursor: not-allowed; }
@@ -875,7 +877,10 @@
       .fac-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .pick-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
       .wiz { width: min(440px, 100%); }
-      .rank-card { grid-template-columns: 22px 28px minmax(0, 1fr) 44px; }
+      .rank-card { grid-template-columns: 22px 28px minmax(0, 1fr) 44px; min-height: 60px; }
+      .rank-card select { grid-column: 3 / 5; grid-row: 2; }
+      .rank-card .rank-move { display: grid; grid-column: 4; grid-row: 1 / span 2; }
+      .rank-card .rank-move button { width: auto; min-height: 20px; }
       .rank-card .grip { display: none; }
       body { padding: 12px 8px; align-items: stretch; }
     }
@@ -1222,7 +1227,7 @@
       teamRules:{follow:{cycle:100,afterRoom:"solo",recoveryHours:1,pairCode:""},hitch:{cycle:100,afterGoal:"solo",recoveryHours:1}},
       selected:"arcane_open", custom:[{id:"custom:1", name:"自定义", skills:[]}], collapsed:false, drawer:false,
       modal:"", focusFac:"kenrito", attr:new Set(["intelligence"]), growth:new Set(["成长","经济","贪婪","挑战"]),
-      basic:new Set(["法术","急速","箭术"]), adv:[], advDraft:[], advEditing:false,
+      basic:new Set(["法术","急速","箭术"]), adv:[], advDraft:[], advEditing:false, bondSaved:false,
       alloc:{heifeng:0,yinse:0,kenrito:5,tanxian:3,yuansu:0,shouhu:0}, draft:null,
       negative:new Set(),
       routes:Object.fromEntries(Object.keys(FAMILIES).map((c)=>[c,FAMILIES[c].routes[0][0]])),
@@ -1377,15 +1382,36 @@
     }
     function applyOfficial(id) {
       const b = BUILDS.find((x)=>x.id===id); if (!b) return;
-      state.attr=new Set(b.attr); state.growth=new Set(b.growth); state.basic=new Set(b.basic); state.adv=[]; state.advDraft=[]; state.advEditing=false;
+      state.attr=new Set(b.attr); state.growth=new Set(b.growth); state.basic=new Set(b.basic); state.adv=[]; state.advDraft=[]; state.advEditing=false; state.bondSaved=false;
     }
     function renderBonds() {
       const packById = Object.fromEntries(ADV.map((pack)=>[pack.id, pack]));
+      if (state.bondSaved) { renderBondSummary(packById); renderLaunchSummary(); return; }
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>高级卡组（点击勾选/取消）</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.advDraft.includes(pack.id) || state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div></div>`;
+      const advancedOrderEditor = advancedOrder.length
+        ? `<div class="adv-order" data-od-id="advanced-pack-priority">${advancedOrder.map((pack,index)=>`<div class="adv-rank"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><span class="rank-move"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===advancedOrder.length-1 ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`).join("")}</div>`
+        : "";
+      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>高级卡组（点击勾选/取消）</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrderEditor}</div>`;
       const coreCards = `<div class="bond-block"><h4>属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
-      $("bonds").innerHTML = `${coreCards}${advanced}`;
+      const save = `<div class="bond-actions"><p class="hint">调整后点击保存，运行时才会使用这份羁绊和卡组配置。</p><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
+      $("bonds").innerHTML = `${coreCards}${advanced}${save}`;
       renderLaunchSummary();
+    }
+    function renderBondSummary(packById) {
+      const basics = [
+        ...ATTR.filter((a)=>state.attr.has(a.id)).map((a)=>a.label),
+        ...GROWTH.filter((n)=>state.growth.has(n)),
+        ...BASIC.filter((n)=>state.basic.has(n))
+      ];
+      const basicRow = basics.length
+        ? `<div class="chips">${basics.map((n)=>`<span class="deck-tag">${n}</span>`).join("")}</div>`
+        : `<p class="deck-note">暂未选择基础羁绊。</p>`;
+      const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
+      const advRow = advancedOrder.length
+        ? `<div class="adv-order" data-od-id="advanced-pack-priority">${advancedOrder.map((pack,index)=>`<div class="adv-rank"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><span class="rank-move"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===advancedOrder.length-1 ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`).join("")}</div>`
+        : `<p class="deck-note">暂未选择高级卡组。</p>`;
+      const actions = `<div class="bond-actions"><p class="hint">已保存这份羁绊配置；拖动 ▲▼ 调整高级卡组顺序即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>`;
+      $("bonds").innerHTML = `<div class="bond-block" data-od-id="bond-saved-summary"><h4>基础卡组</h4>${basicRow}</div><div class="bond-block" data-od-id="advanced-pack-priority"><h4>高级卡组（按顺序生效）</h4>${advRow}</div>${actions}`;
     }
     function renderLaunchSummary() {
       const selectedBasics = [
@@ -1412,7 +1438,7 @@
         ? `<div class="deck-tags">${selectedBasics.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div>`
         : `<span class="deck-tag empty">暂未选择</span>`;
       const advancedSummary = advancedOrder.length
-        ? `<div class="adv-order" data-od-id="advanced-pack-priority">${advancedOrder.map((pack,index)=>`<div class="adv-rank"><span class="rank-no">${index+1}</span><b>${pack.label}</b><span>第${index+1}优先级</span><span class="rank-move"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===advancedOrder.length-1 ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`).join("")}</div>`
+        ? `<div class="deck-tags">${advancedOrder.map((pack,index)=>`<span class="deck-tag">${index+1}·${pack.label}</span>`).join("")}</div>`
         : `<p class="deck-note">暂未选择高级卡组。</p>`;
       const skillSummary = rankedSkills.length ? `<div class="launch-skills">${rankedSkills.map((code,index)=>`<span class="launch-skill"><i>${index+1}</i><img src="assets/skills/${code}.png" alt="" width="22" height="22" /><b>${SKILLS[code]}</b></span>`).join("")}</div>` : `<p class="deck-note">暂未选择技能。</p>`;
       $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><div class="launch-check"><h4>目标关卡</h4><p class="launch-value">${state.chapter}-${state.stage} · ${state.cycle ? `${state.cycle} 局` : "手动停"}</p></div><div class="launch-check"><h4>运行方式</h4><p class="launch-value">${MODE_LABEL[state.mode]||"单人刷图"}</p></div><div class="launch-check"><h4>已选技能</h4>${skillSummary}</div><div class="launch-check"><h4>声望挑战</h4><p class="launch-value">${state.hero ? (factions.join("、") || "已启用，待选择") : "未启用"}</p></div><div class="launch-check"><h4>传家宝 / Boss</h4><p class="launch-value">${stemLabel(state.cjb)} / ${stemLabel(state.boss)}</p></div><div class="launch-check"><h4>细节设置</h4><div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div></div><div class="launch-check"><h4>基础卡组</h4>${basicSummary}</div><div class="launch-check"><h4>高级卡组</h4>${advancedSummary}</div>`;
@@ -1700,16 +1726,15 @@
       toggleCustomSkill(btn.dataset.skill);
     });
     $("bonds").addEventListener("click",(e)=>{
+      if (e.target.closest("#btnSaveBonds")) { state.bondSaved=true; renderBonds(); return; }
+      if (e.target.closest("#btnEditBonds")) { state.bondSaved=false; renderBonds(); return; }
       const attr=e.target.closest("[data-attr]"); if (attr) { const id=attr.dataset.attr; if (state.attr.has(id)) state.attr.delete(id); else state.attr.add(id); renderBonds(); return; }
-      if (e.target.closest("#btnEditAdv")) { state.advDraft=state.adv.slice(); state.advEditing=true; renderBonds(); $("bonds").closest(".main").scrollTop=0; return; }
-      if (e.target.closest("#btnReturnAdv")) { state.advDraft=state.adv.slice(); state.advEditing=false; renderBonds(); $("bonds").closest(".main").scrollTop=0; return; }
-      if (e.target.closest("#btnConfirmAdv")) { state.adv=state.advDraft.slice(); state.advEditing=false; renderBonds(); $("bonds").closest(".main").scrollTop=0; toast("已确认高级卡组优先级"); return; }
       const pack=e.target.closest("[data-pack]"); if (pack) { const id=pack.dataset.pack; if (state.adv.includes(id)) { state.adv=state.adv.filter((item)=>item!==id); } else { state.adv=[...state.adv,id]; } state.advDraft=state.adv.slice(); renderBonds(); return; }
       const chip=e.target.closest("[data-bond]"); if (!chip) return;
       const setName=chip.dataset.bondSet, name=chip.dataset.bond;
       if (state[setName].has(name)) state[setName].delete(name); else state[setName].add(name); renderBonds();
     });
-    $("selectedDeck").addEventListener("click",(e)=>{
+    $("bonds").addEventListener("click",(e)=>{
       const advMove=e.target.closest("[data-adv-move]"); if (!advMove) return;
       const i=state.adv.indexOf(advMove.dataset.advId), j=i+Number(advMove.dataset.advMove);
       if (i<0 || j<0 || j>=state.adv.length) return;

@@ -1,6 +1,6 @@
 // 生产 QWebChannel 桥（设计规格 §6/§7）。注入 qrc:///qtwebchannel/qwebchannel.js，
 // 连接 window.qt.webChannelTransport → channel.objects.facade（宿主唯一注册对象）。
-// 七个白名单方法入参出参均为 JSON 字符串：这里统一 stringify / parse。
+// 八个白名单方法入参出参均为 JSON 字符串：这里统一 stringify / parse。
 // 超时、缺 transport、facade 缺方法或缺信号一律显式抛错（main.ts 渲染报错页），
 // 不静默降级 mock（§7）。
 import type {
@@ -22,7 +22,7 @@ export const DEFAULT_TIMEOUT_MS = 5000;
 
 type SignalLike<T extends unknown[]> = { connect(cb: (...args: T) => void): void };
 
-/** §6.1 白名单方法面：七个 Slot 一个都不能少。 */
+/** §6.1 白名单方法面：八个 Slot 一个都不能少。 */
 const WHITELIST_METHODS = [
   "get_snapshot",
   "update_config",
@@ -31,6 +31,7 @@ const WHITELIST_METHODS = [
   "start_run",
   "stop_run",
   "window_control",
+  "set_window_layout",
 ] as const;
 
 /** QWebChannel 注入脚本后暴露在 window 上的原始 facade 形状。 */
@@ -42,6 +43,7 @@ export type RawFacade = {
   start_run(mode_id_json: string): Promise<string>;
   stop_run(): Promise<string>;
   window_control(action_json: string): Promise<string>;
+  set_window_layout(layout_json: string): Promise<string>;
 } & {
   snapshot_changed?: SignalLike<[string]>;
   run_status_changed?: SignalLike<[string]>;
@@ -124,7 +126,7 @@ async function callMethod<T>(name: string, pending: Promise<string>, timeoutMs =
   }
 }
 
-// 七方法统一 JSON 序列化出口；mode_id/action 按 facade _parse_keyed 契约包成单键对象。
+// 八方法统一 JSON 序列化出口；mode_id/action/layout 按 facade _parse_keyed 契约包成单键对象。
 function wrapFacade(facade: RawFacade): DashboardBridge {
   return {
     get_snapshot: () => callMethod<SnapshotDTO>("get_snapshot", facade.get_snapshot()),
@@ -139,6 +141,8 @@ function wrapFacade(facade: RawFacade): DashboardBridge {
     stop_run: () => callMethod<RunResult>("stop_run", facade.stop_run()),
     window_control: (action: "minimize" | "close") =>
       callMethod<RpcResponse>("window_control", facade.window_control(JSON.stringify({ action }))),
+    set_window_layout: (layout: "dashboard" | "chooser") =>
+      callMethod<RpcResponse>("set_window_layout", facade.set_window_layout(JSON.stringify({ layout }))),
   };
 }
 

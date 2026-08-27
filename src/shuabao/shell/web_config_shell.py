@@ -55,7 +55,8 @@ APP_TITLE = "刷刷宝"
 #: 严格本地 scheme 白名单（§8）：本地构建产物与 Qt 资源，别的一律不放行。
 ALLOWED_SCHEMES = frozenset({"file", "qrc"})
 
-_WINDOW_W, _WINDOW_H = 920, 720
+_DASHBOARD_SIZE = (920, 720)
+_CHOOSER_SIZE = (480, 360)
 _TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT = 690, 40
 
 #: QWebChannel 注册名，与 ui-v2/src/bridge/qtBridge.ts FACADE_OBJECT_NAME 对齐。
@@ -140,7 +141,7 @@ class WebConfigShell(QMainWindow):
 
         self.setWindowTitle(APP_TITLE)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setFixedSize(_WINDOW_W, _WINDOW_H)
+        self.setFixedSize(*_DASHBOARD_SIZE)
 
         # profile 必须晚于 page/view 销毁；若同挂在窗口下，Qt 子对象析构顺序会让
         # profile 先释放，Python 3.13 + QtWebEngine 退出时可触发访问冲突。
@@ -169,6 +170,7 @@ class WebConfigShell(QMainWindow):
             root=self.root,
             on_minimize=self.showMinimized,
             on_close=self.close,
+            on_layout=self._set_window_layout,
             parent=self,
         )
         self.channel = QWebChannel(self)
@@ -193,6 +195,16 @@ class WebConfigShell(QMainWindow):
         self._crash_label: QLabel | None = None
 
         self.view.load(QUrl.fromLocalFile(str(index)))
+
+    def _set_window_layout(self, layout: str) -> None:
+        """让选择运行方式使用与内容相称的独立窗口，杜绝 920×720 黑画布。"""
+        width, height = _CHOOSER_SIZE if layout == "chooser" else _DASHBOARD_SIZE
+        if (self.width(), self.height()) != (width, height):
+            self.setFixedSize(width, height)
+        # 只覆盖标题文字区；紧凑页必须保留右侧最小化/关闭按钮的点击权。
+        self._titlebar_drag_region.setGeometry(
+            0, 0, max(0, width - 230), _TITLEBAR_DRAG_HEIGHT
+        )
 
     def _begin_window_drag(self) -> None:
         """在 WebEngine 收到鼠标按下的同一时刻切换到 Windows 标题栏拖动。"""
