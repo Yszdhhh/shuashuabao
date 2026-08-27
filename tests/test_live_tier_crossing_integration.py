@@ -1,71 +1,60 @@
+from pathlib import Path
 import unittest
-from shuabao.choice_policy import (
-    choose_action,
-    PolicySettings,
-    SessionState,
-    SlotCandidate,
-    PanelCandidates,
-    PolicyAction,
-    PANEL_BOND,
-)
+from unittest.mock import MagicMock, patch
+import numpy as np
 
-def slot(index, name=None, confidence=0.95, rarity=None, description=""):
-    return SlotCandidate(
-        index=index,
-        name=name,
-        confidence=confidence,
-        rarity=rarity,
-        description=description,
-    )
+from shuabao.mediator import Mediator, Frame
+from shuabao.settings import Settings
+from shuabao.choice_policy import PANEL_BOND
 
-class TestLiveTierCrossingIntegration(unittest.TestCase):
-    """Verify live Mediator passes set_progress and free_slots to ChoicePolicy."""
+ROOT = Path(__file__).resolve().parents[1]
 
-    def test_mediator_live_tier_crossing_and_slot_pressure_integration(self):
-        st = PolicySettings.from_mapping({
-            "cards": ["祝福", "成长"],
-            "bonds": ["祝福", "成长"],
-            "bond_must_take": ["祝福"],
-        })
-        sess = SessionState()
+class TestLiveMediatorIntegration(unittest.TestCase):
+    """Verify real Mediator instance extracts set_progress & free_slots and feeds ChoicePolicy."""
 
-        # 祝福 is at 3 (tier-crossing to 4)
-        cands = PanelCandidates(
-            panel_kind=PANEL_BOND,
-            slots=(
-                slot(0, name="祝福之灵", rarity="white", confidence=0.95),
-                slot(1, name="普通智力卡", rarity="purple", confidence=0.95),
-            ),
-            set_progress={"祝福": 3, "成长": 1},
-            free_slots=1,
-            settings=st,
-        )
+    def setUp(self):
+        self.settings = Settings()
+        self.settings.cards = ["祝福"]
+        self.settings.bonds = ["祝福"]
+        self.settings.bond_must_take = []
+        self.mediator = Mediator(project_root=ROOT, settings=self.settings)
 
-        decision = choose_action(cands, sess)
-        self.assertEqual(decision.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(decision.index, 0)
+    def test_mediator_extracts_and_feeds_live_progress_to_policy(self):
+        self.mediator._active_bond_counts = {"祝福": 3}
+        self.mediator._active_free_slots = 1
 
-    def test_mediator_slot_capped_zero_free_slots_refusal(self):
-        st = PolicySettings.from_mapping({
-            "cards": ["祝福"],
-            "bonds": ["祝福"],
-        })
-        sess = SessionState(refreshes=3, max_refreshes=3)
+        frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=999, is_valid=True)
 
-        cands = PanelCandidates(
-            panel_kind=PANEL_BOND,
-            slots=(
-                slot(0, name="陌生散卡A", rarity="purple", confidence=0.95),
-                slot(1, name="陌生散卡B", rarity="blue", confidence=0.95),
-            ),
-            set_progress={"祝福": 2},
-            free_slots=0,
-            settings=st,
-        )
+        fake_slots_raw = [
+            {"index": 0, "name": "祝福之灵", "rarity": "white", "confidence": 0.95, "rect": (10, 10, 50, 50), "description": ""},
+            {"index": 1, "name": "陌生散卡", "rarity": "purple", "confidence": 0.95, "rect": (60, 10, 100, 50), "description": ""},
+        ]
 
-        decision = choose_action(cands, sess)
-        self.assertIn(decision.action, (PolicyAction.GIVEUP, PolicyAction.CLOSE, PolicyAction.WAIT))
-        self.assertNotEqual(decision.action, PolicyAction.SELECT_SLOT)
+        with patch.object(self.mediator, "_ocr_panel_slots", return_value=fake_slots_raw), \
+             patch.object(self.mediator, "_bond_bar_occupancy", return_value=9):
+            hit = self.mediator._ocr_reward_choice(frame, PANEL_BOND)
+
+        self.assertIsNotNone(hit)
+        self.assertIn("祝福之灵", hit.name)
+
+    def test_mediator_zero_free_slots_refuses_scatter_cards(self):
+        self.mediator._active_bond_counts = {"祝福": 2}
+        self.mediator._active_free_slots = 0
+
+        frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=999, is_valid=True)
+
+        fake_slots_raw = [
+            {"index": 0, "name": "陌生散卡A", "rarity": "purple", "confidence": 0.95, "rect": (10, 10, 50, 50), "description": ""},
+            {"index": 1, "name": "陌生散卡B", "rarity": "blue", "confidence": 0.95, "rect": (60, 10, 100, 50), "description": ""},
+        ]
+
+        with patch.object(self.mediator, "_ocr_panel_slots", return_value=fake_slots_raw), \
+             patch.object(self.mediator, "_bond_bar_occupancy", return_value=10):
+            hit = self.mediator._ocr_reward_choice(frame, PANEL_BOND)
+
+        # In slot-capped zero free slots with only scatter cards, policy issues CLOSE (hide_fallback hit) rather than selecting a slot
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.name, "hide_fallback")
 
 if __name__ == "__main__":
     unittest.main()

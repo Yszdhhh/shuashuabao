@@ -956,8 +956,14 @@ def _bond_progress_hits(
 ) -> tuple[tuple[SlotCandidate, int, int, str], ...]:
     """Verified (slot, tier-cross rank, remaining gap, set name) facts only."""
     hits: list[tuple[SlotCandidate, int, int, str]] = []
-    for set_name, info in (cands.set_progress or {}).items():
-        if not isinstance(info, Mapping):
+    for set_name, raw_info in (cands.set_progress or {}).items():
+        if isinstance(raw_info, int):
+            have = raw_info
+            need = 2 if have < 2 else (4 if have < 4 else 6)
+            info = {"have": have, "need": need, "members": [s.name for s in slots if s.name and (set_name in s.name or set_name in getattr(s.card_fact, "bonds", ()))], "owned": []}
+        elif isinstance(raw_info, Mapping):
+            info = raw_info
+        else:
             continue
         try:
             have, need = int(info.get("have", 0)), int(info.get("need", 0))

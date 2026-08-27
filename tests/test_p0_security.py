@@ -419,7 +419,8 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
         with patch("shuabao.mediator.time.time", return_value=15.0), \
              patch.object(mediator, "act_key") as key, \
-             patch.object(mediator, "_advance_l1_cycle") as advance:
+             patch.object(mediator, "_advance_l1_cycle") as advance, \
+             patch.object(mediator, "_maybe_ensure_hero_panel_focus", return_value=None):
             self.assertEqual(mediator._tick_main_line(frame), LoopAction.Continue)
 
         key.assert_not_called()

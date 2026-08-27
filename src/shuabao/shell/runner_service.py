@@ -1,4 +1,11 @@
-"""唯一 LIVE 入口。托盘/热键/按钮都必须走这里。"""
+"""唯一 LIVE 入口。托盘/热键/按钮都必须走这里。
+
+[Architecture & Boundary Statement]
+RunnerService 当前运行于 Qt Host 进程内的托管 QThread (MediatorWorker)。
+生命周期通过 RAII 锁持有、启动回滚、超时 terminate 兜底保证线程级可控，
+但在遭遇底层 C/C++ 扩展或 Win32 原生死锁时无法实现 100% OS 进程隔离。
+完全无损 OS 级隔离需后续迁移至独立 QProcess/Subprocess 模式。
+"""
 
 from __future__ import annotations
 

@@ -66,6 +66,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 patch.object(self.med, "_find_stage_page", return_value=False), \
                 patch.object(self.med, "_handle_self_opened_compact_panel", return_value=None), \
                 patch.object(self.med, "_maybe_open_choice_panel", return_value=None), \
+                patch.object(self.med, "_maybe_ensure_hero_panel_focus", return_value=None), \
                 patch.object(self.med, "act_key", return_value=True) as key:
             self.assertIs(self.med._tick_main_line(self.frame), LoopAction.Continue)
         key.assert_called_once_with("z", "Pickup-Z")
@@ -349,6 +350,8 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")
 
     def test_merchant_ignores_wood_outside_strip_and_refreshes(self):
+        self.med.settings.merchant_enabled = True
+        self.med.settings.merchant_max_rerolls = 3
         self.med._merchant_next_at = 0.0
         fake_wood = hit("merchant_wood", 1413, 711)
 

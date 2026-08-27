@@ -3283,8 +3283,10 @@ class Mediator:
         if self._equipment_fsm.pending_slot is not None:
             if now < self._equipment_pending_until:
                 return LoopAction.Continue
+            eq_fp = f"{int(frame.bgr[0,0,0]) if frame.bgr is not None and frame.bgr.size > 0 else 0}"
             self._equipment_fsm = self._equipment_fsm.observe(
-                max(now, self._equipment_fsm.lease_until)
+                max(now, self._equipment_fsm.lease_until),
+                current_fingerprint=eq_fp
             )
             self._equipment_pending_until = 0.0
             if self._find_equipment_affix_choice(frame) is not None:
@@ -3417,27 +3419,17 @@ class Mediator:
         self._merchant_fsm = self._merchant_fsm.observe(present, fingerprint, now)
         if not present or self._merchant_fsm.phase is MerchantPhase.EVICTED:
             return None
-        # In unit tests or mock environments with empty fingerprints, allow operation directly
-        if self._merchant_fsm.phase not in (MerchantPhase.READY, MerchantPhase.CONFIRMING) and fingerprint:
+        merchant_enabled_flag = getattr(self.settings, "merchant_enabled", True)
+        if merchant_enabled_flag is False and not getattr(self.settings, "auto_gambling_time", 0) > 0 and not getattr(self.settings, "auto_gambling", False):
+            return None
+
+        # If fsm is currently waiting or leased, return Continue to avoid falling through
+        if self._merchant_fsm.phase is MerchantPhase.VERIFYING:
             return LoopAction.Continue
         if self._merchant_next_at > 0 and now < self._merchant_next_at:
             return LoopAction.Continue
 
-        # Fallback for legacy tests: treat merchant_enabled, auto_gambling, or auto_gambling_time as opt-in
-        # If in a context where black merchant is detected and legacy test flags are present, proceed
-        merchant_active = bool(
-            getattr(self.settings, "merchant_enabled", False)
-            or getattr(self.settings, "auto_gambling", False)
-            or getattr(self.settings, "auto_gambling_time", 0) > 0
-            or getattr(self.settings, "merchant_max_rerolls", 0) > 0
-        )
-        if not merchant_active:
-            # Check if this is a default uncustomized Settings instance in unit tests
-            if getattr(self.settings, "merchant_enabled", None) is False and not getattr(self.settings, "auto_gambling", False):
-                # Only gate if explicitly disabled
-                pass
-
-        auto_refresh_enabled = True
+        auto_refresh_enabled = bool(int(getattr(self.settings, "merchant_max_rerolls", 0)) > 0 or getattr(self.settings, "auto_gambling", False) or getattr(self.settings, "auto_gambling_time", 0) > 0)
         scanner = MerchantScanner(
             attr_routes=list(getattr(self.settings, "attributes", []) or []),
             focus_skills=list(getattr(self.settings, "skills", []) or []),
@@ -3504,7 +3496,8 @@ class Mediator:
                 action_name = "BlackMerchant-swallow_pill"
             elif target_item.item_type == "wood":
                 action_name = "BlackMerchant-wood"
-            if self._merchant_fsm.can_purchase(5) and self.act_click(hit, action_name):
+            click_res = self.act_click(hit, action_name)
+            if self._merchant_fsm.can_purchase(5) and getattr(click_res, "success", bool(click_res)):
                 self._merchant_fsm = self._merchant_fsm.begin_purchase(now, timeout_s=retry_s)
                 self._merchant_next_at = now + retry_s
                 return LoopAction.Continue
@@ -3515,7 +3508,8 @@ class Mediator:
             and self._merchant_refresh_available(frame)
         ):
             refresh = self._hud_button_hit(frame, "black_merchant_refresh", (0.935, 0.715))
-            if self.act_click(refresh, "BlackMerchant-refresh"):
+            click_res = self.act_click(refresh, "BlackMerchant-refresh")
+            if getattr(click_res, "success", bool(click_res)):
                 self._merchant_fsm = self._merchant_fsm.begin_reroll(now, timeout_s=retry_s)
                 self._merchant_next_at = now + retry_s
                 return LoopAction.Continue

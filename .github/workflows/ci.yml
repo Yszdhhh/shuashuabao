@@ -22,12 +22,12 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest pytest-subtests opencv-python-headless numpy PySide6
+          pip install pytest pytest-subtests opencv-python-headless numpy PySide6 mss pyautogui Pillow
 
       - name: Run Core Test Suites
         run: |
-          python -m pytest tests/test_p0_security.py tests/test_p1_choice_fsm_contracts.py tests/test_dashboard_facade.py tests/test_dashboard_facade_runner.py tests/test_choice_policy.py tests/test_hero_mode_temporal.py tests/test_l1_cycle_recheck_merchant.py tests/contract -v
+          python -m pytest tests/test_p0_security.py tests/test_p1_choice_fsm_contracts.py tests/test_dashboard_facade.py tests/test_dashboard_facade_runner.py tests/test_choice_policy.py tests/test_hero_mode_temporal.py tests/test_l1_cycle_recheck_merchant.py tests/test_live_tier_crossing_integration.py tests/contract -v
 
       - name: Run Release Gate Check
         run: |
-          python tools/release_gate.py
+          python tools/release_gate.py --strict-release

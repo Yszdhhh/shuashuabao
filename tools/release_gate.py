@@ -172,7 +172,14 @@ def load_baseline() -> dict:
     return json.loads(BASELINE_PATH.read_text(encoding="utf-8"))
 
 
-def compare(result: StageResult, baseline: dict) -> None:
+def compare(result: StageResult, baseline: dict, strict_release: bool = False) -> None:
+    if strict_release:
+        if result.status == "FAIL":
+            result.deviations.append(f"strict-release 零缺陷模式拒绝非 PASS 状态: {result.name}")
+        for key, val in result.observed.items():
+            if val in ("FAIL", "BLOCKED"):
+                result.status = "FAIL"
+                result.deviations.append(f"strict-release 拒绝场景 {key}={val}")
     """把观测值与快照比对，偏离写进 result.deviations 并可翻转状态。"""
     expected = (baseline.get("stages") or {}).get(result.name)
     if expected is None:
@@ -246,6 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true", help="机器可读汇总")
     parser.add_argument("--skip", action="append", default=[], choices=sorted(STAGES), help="跳过阶段（调试用）")
     parser.add_argument("--only", action="append", default=[], choices=sorted(STAGES), help="只跑指定阶段")
+    parser.add_argument("--strict-release", action="store_true", help="严苛零缺陷发版模式：不允许任何 FAIL 或 BLOCKED 场景")
     parser.add_argument("--update-baseline", action="store_true", help="用本次结果刷新快照")
     parser.add_argument("--reason", default="", help="刷新快照的原因（--update-baseline 必填）")
     args = parser.parse_args(argv)
@@ -267,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[gate] {name} ...", flush=True)
         result = STAGES[name]()
         if not args.update_baseline:
-            compare(result, baseline)
+            compare(result, baseline, strict_release=args.strict_release)
         results.append(result)
 
     if args.update_baseline:
