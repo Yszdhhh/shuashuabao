@@ -2518,6 +2518,8 @@ class Mediator:
         """Extract current active bond tier progress counts from live state or OCR."""
         if hasattr(self, "_active_bond_counts") and self._active_bond_counts:
             return dict(self._active_bond_counts)
+        if hasattr(self, "_owned_bonds") and isinstance(self._owned_bonds, dict):
+            return {k: len(v) if isinstance(v, (list, tuple, set)) else int(v) for k, v in self._owned_bonds.items()}
         return None
 
     def _extract_live_free_slots(self, frame: Frame | None) -> int | None:
@@ -3285,7 +3287,7 @@ class Mediator:
                 return LoopAction.Continue
             eq_fp = f"{int(frame.bgr[0,0,0]) if frame.bgr is not None and frame.bgr.size > 0 else 0}"
             self._equipment_fsm = self._equipment_fsm.observe(
-                max(now, self._equipment_fsm.lease_until),
+                now,
                 current_fingerprint=eq_fp
             )
             self._equipment_pending_until = 0.0
@@ -3297,7 +3299,8 @@ class Mediator:
             hit = self._hud_button_hit(frame, "equipment_slot_1", (1087 / 1600, 737 / 900))
             if self.act_right_click(hit, "UpgradeEquipmentSlot1-max"):
                 lease_s = float(self.settings.ui_action_interval_s)
-                self._equipment_fsm = self._equipment_fsm.begin(1, now, lease_s=lease_s)
+                eq_fp_base = f"{int(frame.bgr[0,0,0]) if frame.bgr is not None and frame.bgr.size > 0 else 0}"
+                self._equipment_fsm = self._equipment_fsm.begin(1, now, lease_s=lease_s, last_fingerprint=eq_fp_base)
                 self._equipment_pending_until = now + lease_s
                 self._equipment_next_at = now + 8.0
                 return LoopAction.Continue
@@ -3316,8 +3319,9 @@ class Mediator:
             if slot_idx in slot_coords:
                 hit_slot = self._hud_button_hit(frame, f"equipment_slot_{slot_idx}", slot_coords[slot_idx])
                 if self.act_click(hit_slot, f"UpgradeEquipmentSlot{slot_idx}-check"):
+                    eq_fp_base = f"{int(frame.bgr[0,0,0]) if frame.bgr is not None and frame.bgr.size > 0 else 0}"
                     self._equipment_fsm = self._equipment_fsm.begin(
-                        slot_idx, now, lease_s=float(self.settings.ui_action_interval_s)
+                        slot_idx, now, lease_s=float(self.settings.ui_action_interval_s), last_fingerprint=eq_fp_base
                     )
                     self._equipment_round_current_slot += 1
                     if self._equipment_round_current_slot > 6:
@@ -3420,7 +3424,7 @@ class Mediator:
         if not present or self._merchant_fsm.phase is MerchantPhase.EVICTED:
             return None
         merchant_enabled_flag = getattr(self.settings, "merchant_enabled", True)
-        if merchant_enabled_flag is False and not getattr(self.settings, "auto_gambling_time", 0) > 0 and not getattr(self.settings, "auto_gambling", False):
+        if merchant_enabled_flag is False:
             return None
 
         # If fsm is currently waiting or leased, return Continue to avoid falling through
@@ -3429,7 +3433,7 @@ class Mediator:
         if self._merchant_next_at > 0 and now < self._merchant_next_at:
             return LoopAction.Continue
 
-        auto_refresh_enabled = bool(int(getattr(self.settings, "merchant_max_rerolls", 0)) > 0 or getattr(self.settings, "auto_gambling", False) or getattr(self.settings, "auto_gambling_time", 0) > 0)
+        auto_refresh_enabled = bool(int(getattr(self.settings, "merchant_max_rerolls", 3)) > 0)
         scanner = MerchantScanner(
             attr_routes=list(getattr(self.settings, "attributes", []) or []),
             focus_skills=list(getattr(self.settings, "skills", []) or []),
@@ -3496,24 +3500,26 @@ class Mediator:
                 action_name = "BlackMerchant-swallow_pill"
             elif target_item.item_type == "wood":
                 action_name = "BlackMerchant-wood"
-            click_res = self.act_click(hit, action_name)
-            if self._merchant_fsm.can_purchase(5) and getattr(click_res, "success", bool(click_res)):
-                self._merchant_fsm = self._merchant_fsm.begin_purchase(now, timeout_s=retry_s)
-                self._merchant_next_at = now + retry_s
+            if self._merchant_fsm.can_purchase(5):
+                click_res = self.act_click(hit, action_name)
+                if getattr(click_res, "success", bool(click_res)):
+                    self._merchant_fsm = self._merchant_fsm.begin_purchase(now, timeout_s=retry_s)
+                    self._merchant_next_at = now + retry_s
                 return LoopAction.Continue
 
         if (
             scanner.auto_refresh
-            and self._merchant_fsm.can_reroll(int(getattr(self.settings, "merchant_max_rerolls", 3) or 3))
+            and self._merchant_fsm.can_reroll(int(getattr(self.settings, "merchant_max_rerolls", 3)))
             and self._merchant_refresh_available(frame)
         ):
             refresh = self._hud_button_hit(frame, "black_merchant_refresh", (0.935, 0.715))
-            click_res = self.act_click(refresh, "BlackMerchant-refresh")
-            if getattr(click_res, "success", bool(click_res)):
-                self._merchant_fsm = self._merchant_fsm.begin_reroll(now, timeout_s=retry_s)
-                self._merchant_next_at = now + retry_s
-                return LoopAction.Continue
-        return LoopAction.Continue if present else None
+            if self._merchant_fsm.can_reroll(int(getattr(self.settings, "merchant_max_rerolls", 3))):
+                click_res = self.act_click(refresh, "BlackMerchant-refresh")
+                if getattr(click_res, "success", bool(click_res)):
+                    self._merchant_fsm = self._merchant_fsm.begin_reroll(now, timeout_s=retry_s)
+                    self._merchant_next_at = now + retry_s
+                    return LoopAction.Continue
+        return LoopAction.Continue if (present and (detected_slots or auto_refresh_enabled or getattr(self.settings, "auto_gambling_time", 0) > 0)) else None
 
     def _find_compact_skill_choice(self, frame: Frame) -> MatchResult | None:
         """Find a configured skill in the live bottom-right G quick panel."""

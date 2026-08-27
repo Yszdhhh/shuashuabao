@@ -495,7 +495,7 @@ class PanelCandidates:
 
     panel_kind: str | None = None
     slots: tuple[SlotCandidate, ...] = ()
-    set_progress: Mapping[str, Mapping[str, Any]] | None = None
+    set_progress: Mapping[str, Any] | None = None
     refresh_count: int = 0
     has_giveup: bool = False
     # 20260822：执行层探测到的刷新按钮可用性。此前该字段从未被填充，

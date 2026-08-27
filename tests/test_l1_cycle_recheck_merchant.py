@@ -26,7 +26,9 @@ def hit(name: str, x: int = 100, y: int = 100) -> MatchResult:
 
 class L1CycleRecheckMerchantTests(unittest.TestCase):
     def setUp(self):
-        self.med = Mediator(Settings(), ROOT)
+        s = Settings()
+        s.merchant_enabled = True
+        self.med = Mediator(s, ROOT)
         self.frame = Frame(
             np.zeros((900, 1600, 3), dtype=np.uint8),
             window_title="game",
@@ -338,6 +340,8 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
 
         self.med._merchant_next_at = 0.0
         self.med._merchant_fsm = MerchantFSM()
+        self.med.settings.merchant_enabled = True
+        self.med.settings.merchant_max_rerolls = 3
         self.med.settings.auto_gambling = True  # 显式开启自动刷新
         with patch.object(self.med, "_black_merchant_present", return_value=True), patch.object(
             self.med, "_bond_bar_nonempty", return_value=False
@@ -372,7 +376,9 @@ class L1RuntimeAccountingTests(unittest.TestCase):
     """
 
     def setUp(self):
-        self.med = Mediator(Settings(), ROOT)
+        s = Settings()
+        s.merchant_enabled = True
+        self.med = Mediator(s, ROOT)
         self.frame = Frame(
             np.zeros((900, 1600, 3), dtype=np.uint8),
             window_title="game",

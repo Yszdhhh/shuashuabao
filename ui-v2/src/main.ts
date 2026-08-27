@@ -76,7 +76,6 @@ let applying = false;
 let runActive = false;
 let startBusy = false;
 let modeCatalog = new Map<string, ModeDTO>();
-let lastConfigJson = "";
 let lastShellJson = "";
 
 export function getBridge(): DashboardBridge | null {
@@ -328,12 +327,16 @@ function rerenderAll(settings: SettingsDTO): void {
   renderBonds();
   renderPrestige();
   renderTeamRules();
+  renderNegatives();
   refreshSummary(); // 内含 renderLaunchSummary
 }
 
 let lastAppliedSnapshotSeq = 0;
 
 export function applySnapshot(snap: SnapshotDTO): void {
+  if (snap.settings_revision !== undefined) {
+    state.settings_revision = snap.settings_revision;
+  }
   if (snap.snapshot_seq && snap.snapshot_seq <= lastAppliedSnapshotSeq) return;
   if (snap.snapshot_seq) lastAppliedSnapshotSeq = snap.snapshot_seq;
   applying = true;
@@ -341,8 +344,14 @@ export function applySnapshot(snap: SnapshotDTO): void {
     const settings: SettingsDTO = snap.settings ?? {};
     if (snap.strategy) {
       if (Array.isArray(snap.strategy.skills)) settings.skills = snap.strategy.skills;
-      if (Array.isArray(snap.strategy.bonds)) settings.cards = snap.strategy.bonds;
-      if (Array.isArray(snap.strategy.attributes)) settings.attributes = snap.strategy.attributes;
+      if (Array.isArray(snap.strategy.bonds)) {
+        settings.bonds = snap.strategy.bonds;
+        settings.cards = snap.strategy.bonds;
+      }
+      if (Array.isArray(snap.strategy.attributes)) {
+        settings.attributes = snap.strategy.attributes;
+        state.attr = snap.strategy.attributes;
+      }
       if (snap.strategy.merchant) {
         settings.merchant_enabled = snap.strategy.merchant.enabled;
         settings.merchant_max_rerolls = snap.strategy.merchant.max_rerolls;
@@ -350,6 +359,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
       }
       if (snap.strategy.treasure?.negative_allowlist) {
         settings.treasure_allow_negative = snap.strategy.treasure.negative_allowlist;
+        state.negative = snap.strategy.treasure.negative_allowlist;
       }
     }
     modeCatalog = new Map((snap.modes ?? []).map((mode) => [mode.id, mode]));
@@ -458,6 +468,30 @@ function defer(fn: () => void): void {
 }
 
 function wireIntents(): void {
+  // Strategy: bonds
+  const bondContainer = document.getElementById("bond-list");
+  if (bondContainer) {
+    bondContainer.addEventListener("change", () => {
+      pushConfig({ bonds: state.bonds, cards: state.bonds });
+    });
+  }
+
+  // Strategy: attributes
+  const attrContainer = document.getElementById("attr-list");
+  if (attrContainer) {
+    attrContainer.addEventListener("change", () => {
+      pushConfig({ attributes: state.attr });
+    });
+  }
+
+  // Strategy: negative treasures
+  const negContainer = document.getElementById("neg-list");
+  if (negContainer) {
+    negContainer.addEventListener("change", () => {
+      pushConfig({ treasure_allow_negative: state.negative });
+    });
+  }
+
   // 全局函数后钩子：这些 OD12 函数被多处调用，包一处即可覆盖全部出口。
   afterGlobalCall("setCycle", () => pushConfig({ cycle_num: clampCycle(Number(state.cycle)) }));
   afterGlobalCall("renderChapterStage", () => pushConfig({ stage_targets: [`${state.chapter}-${state.stage}`] }));
