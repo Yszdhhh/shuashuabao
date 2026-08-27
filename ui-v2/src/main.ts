@@ -171,8 +171,8 @@ function pushReputation(): void {
 }
 
 function pushBondsAndAttributes(): void {
-  const activeBonds = (Array.isArray(state.bonds) ? state.bonds : []) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
-  const activeAttrs = (Array.isArray(state.attr) ? state.attr : []) as ("int" | "str" | "agi")[];
+  const activeBonds = (Array.isArray(state.bonds) ? state.bonds : Array.from(state.bonds || [])) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
+  const activeAttrs = (Array.isArray(state.attr) ? state.attr : Array.from(state.attr || [])) as ("int" | "str" | "agi")[];
   pushConfig({
     strategy: {
       bonds: activeBonds,
@@ -182,7 +182,7 @@ function pushBondsAndAttributes(): void {
 }
 
 function pushNegatives(): void {
-  const negatives = Array.isArray(state.negative) ? state.negative : [];
+  const negatives = Array.isArray(state.negative) ? state.negative : Array.from(state.negative || []);
   pushConfig({
     strategy: {
       treasure: { negative_allowlist: negatives },
@@ -402,10 +402,20 @@ export function applySnapshot(snap: SnapshotDTO): void {
       }
       if (snap.strategy.treasure?.negative_allowlist) {
         settings.treasure_allow_negative = snap.strategy.treasure.negative_allowlist;
-        state.negative = snap.strategy.treasure.negative_allowlist;
+        state.negative = new Set(snap.strategy.treasure.negative_allowlist);
+        const win = window as unknown as Record<string, unknown>;
+        if (typeof win.renderNegatives === "function") {
+          (win.renderNegatives as () => void)();
+        }
+      }
+      if (snap.strategy.attributes) {
+        state.attr = new Set(snap.strategy.attributes);
+        const win = window as unknown as Record<string, unknown>;
+        if (typeof win.renderBonds === "function") {
+          (win.renderBonds as () => void)();
+        }
       }
     }
-    modeCatalog = new Map((snap.modes ?? []).map((mode) => [mode.id, mode]));
     applyTheme(snap.shell?.theme);
     applyMode(snap.shell?.selected_mode_id);
     applyCycle(settings.cycle_num);

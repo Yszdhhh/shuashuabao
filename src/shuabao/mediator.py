@@ -2855,10 +2855,11 @@ class Mediator:
             if kind in ("bond", "card"):
                 close_hit = self._close_current_panel(frame, kind)
                 return (kind, close_hit) if close_hit is not None else None
-            # treasure：无 OCR 时品质色可作末位；禁止无脑第一张。
-            rarity_hit = self._rarity_choice(frame, kind)
-            if rarity_hit is not None:
-                return (kind, rarity_hit)
+            # treasure：仅在非 OCR live 模式下允许品质色兜底；OCR live 下严格由 policy fail-closed。
+            if ocr_mode != "live":
+                rarity_hit = self._rarity_choice(frame, kind)
+                if rarity_hit is not None:
+                    return (kind, rarity_hit)
             close_hit = self._close_current_panel(frame, kind)
             return (kind, close_hit) if close_hit is not None else None
 
