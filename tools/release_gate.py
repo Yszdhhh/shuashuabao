@@ -1,3 +1,9 @@
+import sys
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 #!/usr/bin/env python3
 """发版门禁：把仓库既有的离线验证资产串成一条必过流水线。
 
