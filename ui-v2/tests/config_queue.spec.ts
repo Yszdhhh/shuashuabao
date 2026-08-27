@@ -15,10 +15,10 @@ describe("ConfigQueue 串行化与 Recovery 测试", () => {
     resetStickyFailure();
     setSettingsRevision(10);
 
-    const callOrder: string[] = [];
+    const callOrder: ConfigPatch[] = [];
     const mockBridge: Partial<DashboardBridge> = {
       update_config: vi.fn(async (patch: ConfigPatch): Promise<ConfigPatchResult> => {
-        callOrder.push(JSON.stringify(patch));
+        callOrder.push(patch);
         return {
           ok: true,
           request_id: patch.request_id,
@@ -37,25 +37,28 @@ describe("ConfigQueue 串行化与 Recovery 测试", () => {
     const [res1, res2] = await Promise.all([p1, p2]);
     expect(res1.settings_revision).toBe(11);
     expect(res2.settings_revision).toBe(12);
-    expect(callOrder.length).toBe(2);
+    expect(callOrder.map((p) => p.cycle_num)).toEqual([5, 10]);
+    expect(callOrder[1].settings_revision).toBe(11);
   });
 
-  it("ConfigQueue failure -> BROKEN -> resync -> replay -> ACK recovery test", async () => {
+  it("production snapshot hook replays failed intent then preserves remaining FIFO intents", async () => {
     resetStickyFailure();
     setSettingsRevision(5);
 
+    const calls: ConfigPatch[] = [];
     let attempts = 0;
     const mockBridge: Partial<DashboardBridge> = {
       update_config: vi.fn(async (patch: ConfigPatch): Promise<ConfigPatchResult> => {
-        attempts++;
+        calls.push(patch);
+        attempts += 1;
         if (attempts === 1) {
           throw new Error("RPC timeout");
         }
         return {
           ok: true,
           request_id: patch.request_id,
-          settings_revision: 6,
-          snapshot_seq: 10,
+          settings_revision: patch.settings_revision + 1,
+          snapshot_seq: 10 + attempts,
           errors: [],
           settings: {},
           strategy: {},
@@ -63,36 +66,31 @@ describe("ConfigQueue 串行化与 Recovery 测试", () => {
       }),
     };
 
-    // 第一次提交：触发 RPC timeout
-    const p1 = enqueueConfigPatch({ strategy: { merchant: { enabled: true, max_rerolls: 3, gold_reserve: 100 } } }, mockBridge as DashboardBridge);
-    await expect(p1).rejects.toThrow("RPC timeout");
+    // A starts first; B is already queued before A's rejected promise resumes.
+    const pA = enqueueConfigPatch({ cycle_num: 1 }, mockBridge as DashboardBridge);
+    const pB = enqueueConfigPatch({ cycle_num: 2 }, mockBridge as DashboardBridge);
+
+    await expect(pA).rejects.toThrow("RPC timeout");
     expect(getQueueState()).toBe("BROKEN");
     await expect(flushConfigQueue()).rejects.toThrow("RPC timeout");
 
-    // 此时队列处于 BROKEN，新 patch 应被直接拒收
-    const pNew = enqueueConfigPatch({ cycle_num: 1 }, mockBridge as DashboardBridge);
-    await expect(pNew).rejects.toThrow("BROKEN");
+    // This is the exact production order in main.ts applySnapshot(): set revision, then reset.
+    // setSettingsRevision must trigger replay synchronously; resetStickyFailure must therefore
+    // refuse to discard failedPatch while recovery is in flight.
+    setSettingsRevision(20);
+    resetStickyFailure();
 
-    // 权威 Snapshot 介入重对齐并重放 failed patch
-    const snap: SnapshotDTO = {
-      request_id: null,
-      settings_revision: 5,
-      snapshot_seq: 10,
-      settings: {},
-      strategy: {},
-      shell: {} as any,
-      modes: [],
-      run: {} as any,
-    };
+    await expect(flushConfigQueue()).resolves.toBeUndefined();
+    const resB = await pB;
 
-    const recoveryRes = await reconcileAndRetry(snap, mockBridge as DashboardBridge);
-    expect(recoveryRes?.ok).toBe(true);
-    expect(recoveryRes?.settings_revision).toBe(6);
     expect(getQueueState()).toBe("HEALTHY");
     expect(getStickyFailure()).toBeNull();
+    expect(resB.settings_revision).toBe(22);
 
-    // 恢复健康后 flushConfigQueue 应该顺利 pass
-    await expect(flushConfigQueue()).resolves.toBeUndefined();
+    // A failed at rev5; authoritative snapshot resynced to rev20; A replayed at rev20 and ACKed
+    // rev21; only then did preserved B run at rev21 and ACK rev22.
+    expect(calls.map((p) => p.cycle_num)).toEqual([1, 1, 2]);
+    expect(calls.map((p) => p.settings_revision)).toEqual([5, 20, 21]);
   });
 
   it("明确 backend reject 时禁止假装成功并保持 BROKEN", async () => {
@@ -100,24 +98,23 @@ describe("ConfigQueue 串行化与 Recovery 测试", () => {
     setSettingsRevision(1);
 
     const mockBridge: Partial<DashboardBridge> = {
-      update_config: vi.fn(async (_patch: ConfigPatch): Promise<ConfigPatchResult> => {
-        return {
-          ok: false,
-          request_id: "req-err",
-          settings_revision: 1,
-          snapshot_seq: 1,
-          errors: ["strategy 与顶层字段重复"],
-          settings: {},
-          strategy: {},
-        };
-      }),
+      update_config: vi.fn(async (_patch: ConfigPatch): Promise<ConfigPatchResult> => ({
+        ok: false,
+        request_id: "req-err",
+        settings_revision: 1,
+        snapshot_seq: 1,
+        errors: ["strategy 与顶层字段重复"],
+        settings: {},
+        strategy: {},
+      })),
     };
 
     const p = enqueueConfigPatch({ skills: ["a"] }, mockBridge as DashboardBridge);
     await expect(p).rejects.toThrow("strategy 与顶层字段重复");
     expect(getQueueState()).toBe("BROKEN");
 
-    // Snapshot 对齐但重试仍被拒绝
+    // Explicit recovery API remains available for callers with a full authoritative snapshot;
+    // an authoritative backend rejection must keep the queue BROKEN.
     const snap: SnapshotDTO = {
       request_id: null,
       settings_revision: 1,
