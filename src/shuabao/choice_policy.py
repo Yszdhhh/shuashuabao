@@ -50,6 +50,7 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, fields
 from enum import Enum
 from pathlib import Path
@@ -125,6 +126,8 @@ DEFAULT_NEGATIVE_NAMES = (
 DEFAULT_MAX_ATTEMPTS = 12
 DEFAULT_MAX_REFRESHES = 3
 DEFAULT_MAX_WAITS = 5
+_BOND_PROGRESS_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
+_BOND_NEAR_COMPLETE_CONF = 0.40
 
 
 from shuabao.interaction_surface import ActionLifecycle
@@ -1030,6 +1033,45 @@ def _skill_refresh_or_close(
     return PolicyDecision(PolicyAction.CLOSE, None, f"{why}，严格关闭面板")
 
 
+def _slot_stack_progress(slot: SlotCandidate) -> tuple[int, int] | None:
+    blob = f"{slot.name or ''} {slot.evidence or ''}"
+    hit = _BOND_PROGRESS_RE.search(blob)
+    if not hit:
+        return None
+    have, need = int(hit.group(1)), int(hit.group(2))
+    if need > 1:
+        return have, need
+    return None
+
+
+def _near_complete_bond_slots(
+    cands: PanelCandidates, settings: PolicySettings
+) -> tuple[SlotCandidate, ...]:
+    """差一张就能合成的预设/已持有卡，无脑拿。"""
+    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+    from shuabao.bond_capacity import stack_need
+
+    found: list[SlotCandidate] = []
+    for slot in cands.slots:
+        name = str(slot.name or "").strip()
+        if not name or float(slot.confidence or 0.0) < _BOND_NEAR_COMPLETE_CONF:
+            continue
+        allowed = matches_bond_preset(name, settings.bond_presets) or any(
+            matches_bond_preset(have, (name,)) for have in owned
+        )
+        if not allowed:
+            continue
+        progress = _slot_stack_progress(slot)
+        if progress is None:
+            need = stack_need(name)
+            have = sum(1 for item in owned if matches_bond_preset(item, (name,)))
+        else:
+            have, need = progress
+        if need and have is not None and int(need) - int(have) == 1:
+            found.append(slot)
+    return tuple(found)
+
+
 def _bond_progress_hits(
     cands: PanelCandidates, slots: tuple[SlotCandidate, ...]
 ) -> tuple[tuple[SlotCandidate, int, int, str], ...]:
@@ -1115,6 +1157,13 @@ def _decide_collectible(
     else:
         eligible = cands.slots
         if kind == PANEL_BOND:
+            near = _near_complete_bond_slots(cands, settings)
+            if near:
+                slot = max(near, key=lambda item: (float(item.confidence or 0.0), -int(item.index)))
+                return PolicyDecision.select(
+                    slot.index,
+                    f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
+                )
             eligible = _bond_capacity_candidates(cands, eligible, settings)
             owned_bonds = {str(name).strip() for name in cands.owned_bond_cards if str(name).strip()}
             if not _bond_base_ready(cands, settings):

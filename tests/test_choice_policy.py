@@ -350,6 +350,27 @@ class TestSkillEmptyConfig(unittest.TestCase):
 class TestBondTreasureUnknown(unittest.TestCase):
     """羁绊/宝物：unknown 绝不点击，阻塞面板直接关闭。"""
 
+    def test_near_complete_bond_takes_immediately(self):
+        policy = settings(
+            bond_presets=["成长", "经济", "贪婪", "挑战", "暴击"],
+            bond_base_presets=["成长", "经济", "贪婪", "挑战", "暴击"],
+            bond_advanced_presets=["封神"],
+        )
+        d = choose_action(
+            bond_cands(
+                [
+                    SlotCandidate(index=0, name="三国", confidence=0.90),
+                    SlotCandidate(index=1, name="刀刀", confidence=0.90),
+                    SlotCandidate(index=2, name="挑战", confidence=0.52, evidence="挑战(2/3)"),
+                    SlotCandidate(index=3, name="暴击", confidence=0.70, evidence="暴击(0/2)"),
+                ],
+                settings=policy,
+            ),
+            SessionState(),
+        )
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 2))
+        self.assertIn("差一张合成", d.reason)
+
     def test_advanced_bond_waits_for_eighty_percent_base_progress(self):
         policy = settings(
             bond_presets=["成长", "经济", "贪婪", "挑战", "封神"],

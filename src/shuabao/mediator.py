@@ -443,12 +443,12 @@ class Mediator:
     _STAGE_SELECT_LIMIT = 3
     _OCR_SLOT_ROIS = {
         "skill": ((0.286, 0.178, 0.421, 0.255), (0.433, 0.178, 0.568, 0.255), (0.579, 0.178, 0.714, 0.255)),
-        "bond": ((0.254, 0.180, 0.410, 0.265), (0.425, 0.180, 0.581, 0.265), (0.596, 0.180, 0.752, 0.265)),
+        "bond": ((0.254, 0.168, 0.410, 0.228), (0.425, 0.168, 0.581, 0.228), (0.596, 0.168, 0.752, 0.228)),
         "treasure": ((0.286, 0.190, 0.418, 0.265), (0.433, 0.190, 0.565, 0.265), (0.582, 0.190, 0.714, 0.265)),
     }
     _OCR_SLOT_ROIS_4 = {
         "skill": ((0.210, 0.178, 0.330, 0.255), (0.355, 0.178, 0.475, 0.255), (0.500, 0.178, 0.620, 0.255), (0.645, 0.178, 0.765, 0.255)),
-        "bond": ((0.185, 0.180, 0.325, 0.265), (0.340, 0.180, 0.480, 0.265), (0.495, 0.180, 0.635, 0.265), (0.650, 0.180, 0.790, 0.265)),
+        "bond": ((0.185, 0.168, 0.325, 0.228), (0.340, 0.168, 0.480, 0.228), (0.495, 0.168, 0.635, 0.228), (0.650, 0.168, 0.790, 0.228)),
         "treasure": ((0.210, 0.190, 0.330, 0.265), (0.355, 0.190, 0.475, 0.265), (0.500, 0.190, 0.620, 0.265), (0.645, 0.190, 0.765, 0.265)),
     }
     _CHOICE_SLOT_CENTERS = {
@@ -2106,11 +2106,20 @@ class Mediator:
                 )
                 top = response.candidates[0] if response.candidates else None
                 conf = float(top.confidence) if top else 0.0
+                raw = str(response.raw_text or "")
+                name = top.name if top and top.name and conf >= 0.45 else None
+                if not name and raw:
+                    stripped = re.sub(r"[\[（(]\s*\d+\s*/\s*\d+\s*[\])）)]", "", raw).strip()
+                    if stripped and re.search(r"\d+\s*/\s*\d+", raw):
+                        name = stripped
+                        conf = max(conf, float(response.rec_score or 0.0))
+                    elif top and top.name:
+                        name = top.name
                 out.append({
                     "index": index,
-                    "name": top.name if top and top.name and conf >= 0.5 else None,
+                    "name": name,
                     "confidence": conf,
-                    "raw_text": response.raw_text or "",
+                    "raw_text": raw,
                     "rec_score": response.rec_score,
                     "status": response.status,
                     "reason": response.reason,
@@ -2128,7 +2137,7 @@ class Mediator:
         if named_4 < 2:
             candidates_3 = scan(rois_3, panel_id)
         named_3 = sum(1 for s in candidates_3 if s.get("name"))
-        if rois_4 is not None and named_4 >= 2 and named_4 >= named_3:
+        if rois_4 is not None and named_4 >= 1 and named_4 >= named_3:
             slot_count = 4
             slots = candidates_4
             desc_spec = self._OCR_DESC_ROIS_4.get(kind) if hasattr(self, "_OCR_DESC_ROIS_4") else None
@@ -2679,7 +2688,9 @@ class Mediator:
             getattr(self, "_panel_opened_by_us", None) == kind
             or (self._l1_cycle_owned_panel and self._panel_kind == kind)
         )
-        if owned and decision.action in {PolicyAction.SELECT_SLOT, PolicyAction.REFRESH}:
+        reason = str(decision.reason or "")
+        skip_confirm = "差一张合成" in reason or "已持有合成" in reason
+        if owned and not skip_confirm and decision.action in {PolicyAction.SELECT_SLOT, PolicyAction.REFRESH}:
             key = (
                 kind,
                 decision.action.value,
