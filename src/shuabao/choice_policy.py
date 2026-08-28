@@ -991,7 +991,7 @@ def _decide_skill(
                 f"通用安全补位：{name}/{rarity} @ slot {index}",
             )
     unread = _all_skill_names_missing(cands.slots)
-    max_skill_waits = min(state.max_waits, 2)
+    max_skill_waits = min(state.max_waits, 8)
     if unread:
         if state.waits < max_skill_waits:
             return PolicyDecision(PolicyAction.WAIT, None, "技能卡名未读出，等待（不刷新/放弃）")

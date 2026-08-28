@@ -224,7 +224,7 @@ class Settings:
     # Paddle 运行在独立 sidecar，主 EXE 不加载模型依赖。
     ocr_mode: str = "live"                      # off / shadow / live
     ocr_repo_root: str = ""                     # sidecar 的本地源码/模型根目录
-    ocr_timeout_ms: int = 1200                   # 单槽热推理超时
+    ocr_timeout_ms: int = 2500                   # 单槽热推理超时（稳准优先，live 另有 2500ms 下限）
     ocr_warmup_timeout_ms: int = 20000           # 首次模型加载/预热超时
     # N2.3 替代语义：主循环已改为状态分级 cadence（动作后 100ms / 稳定 HUD 300ms /
     # loading 500ms，见 Mediator._cadence_for_current_state）。本字段仅保留为兼容

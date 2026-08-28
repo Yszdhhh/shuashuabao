@@ -672,6 +672,7 @@ class Mediator:
         self._choice_fp_before_refresh: str | None = None
         self._choice_policy_idle = False
         self._choice_policy_last_reason = ""
+        self._ocr_confirm_key: tuple | None = None
         # L1 运行时技能卡归属：pending = 点击后等待 WAIT_MUTATION 确认（episode 级）；
         # owned = 已确认学得（round 级，set_phase(MAIN_LINE) 重置）。未确认点击
         # 超时只清 pending，绝不写入 owned（未知/未验证不记账）。
@@ -854,7 +855,7 @@ class Mediator:
                 target_repo = project_root
             self._ocr_client = ShadowClient(
                 repo_root=target_repo,
-                timeout_ms=settings.ocr_timeout_ms,
+                timeout_ms=max(2500, int(settings.ocr_timeout_ms or 0)),
                 startup_timeout_ms=30000,
                 trace_path=(Path(incident_dir) / "ocr_shadow.jsonl") if incident_dir else None,
             )
@@ -2093,56 +2094,22 @@ class Mediator:
             int(frame.height * 0.58),
         )
 
-        # 严谨三态判定：必须分别计算 3-slot 与 4-slot 假设的正证据得分
-        candidates_3: list[dict] = []
-        score_3 = 0.0
-        for index, roi in enumerate(rois_3):
-            bbox = self._normalized_bbox(frame, roi)
-            response = self._ocr_client.shadow_predict(
-                frame,
-                panel_id,
-                {"index": index, "bbox": bbox, "kind": kind},
-                panel_bbox=panel_bbox,
-            )
-            top = response.candidates[0] if response.candidates else None
-            has_name = bool(top and top.name and float(top.confidence) >= 0.5)
-            if has_name:
-                score_3 += 1.0
-            elif response.raw_text and len(response.raw_text.strip()) >= 2:
-                score_3 += 0.3
-            candidates_3.append({
-                "index": index,
-                "name": top.name if top else None,
-                "confidence": float(top.confidence) if top else 0.0,
-                "raw_text": response.raw_text or "",
-                "rec_score": response.rec_score,
-                "status": response.status,
-                "reason": response.reason,
-                "rarity": None,
-                "description": "",
-            })
-
-        candidates_4: list[dict] = []
-        score_4 = 0.0
-        if rois_4 is not None and len(rois_4) == 4:
-            for index, roi in enumerate(rois_4):
+        def scan(rois: tuple, pid: str) -> list[dict]:
+            out: list[dict] = []
+            for index, roi in enumerate(rois):
                 bbox = self._normalized_bbox(frame, roi)
                 response = self._ocr_client.shadow_predict(
                     frame,
-                    f"{panel_id}:4s",
+                    pid,
                     {"index": index, "bbox": bbox, "kind": kind},
                     panel_bbox=panel_bbox,
                 )
                 top = response.candidates[0] if response.candidates else None
-                has_name = bool(top and top.name and float(top.confidence) >= 0.5)
-                if has_name:
-                    score_4 += 1.0
-                elif response.raw_text and len(response.raw_text.strip()) >= 2:
-                    score_4 += 0.3
-                candidates_4.append({
+                conf = float(top.confidence) if top else 0.0
+                out.append({
                     "index": index,
-                    "name": top.name if top else None,
-                    "confidence": float(top.confidence) if top else 0.0,
+                    "name": top.name if top and top.name and conf >= 0.5 else None,
+                    "confidence": conf,
                     "raw_text": response.raw_text or "",
                     "rec_score": response.rec_score,
                     "status": response.status,
@@ -2150,12 +2117,17 @@ class Mediator:
                     "rarity": None,
                     "description": "",
                 })
+            return out
 
+        # 当前局内羁绊是 4 张。先读 4 槽，够用就不再扫 3 槽（少超时、少空帧）。
+        candidates_4: list[dict] = []
+        if rois_4 is not None and len(rois_4) == 4:
+            candidates_4 = scan(rois_4, f"{panel_id}:4s")
         named_4 = sum(1 for s in candidates_4 if s.get("name"))
+        candidates_3: list[dict] = []
+        if named_4 < 2:
+            candidates_3 = scan(rois_3, panel_id)
         named_3 = sum(1 for s in candidates_3 if s.get("name"))
-        # 4 张面板只要读到 ≥2 个名字就按 4 槽走：未读名的槽位策略层不会点。
-        # 旧门槛（4 张全高置信且压过 3 槽 0.5）会把「三祝福 + 一张弱识别」判成空，
-        # 再被 OCR-miss 刷新烧掉木材。
         if rois_4 is not None and named_4 >= 2 and named_4 >= named_3:
             slot_count = 4
             slots = candidates_4
@@ -2374,6 +2346,7 @@ class Mediator:
         self._choice_fp_before_refresh = None
         self._choice_policy_idle = False
         self._choice_policy_last_reason = ""
+        self._ocr_confirm_key = None
 
     def _record_choice_session(self, decision: PolicyDecision) -> None:
         """Update SessionState after a policy decision.
@@ -2702,6 +2675,24 @@ class Mediator:
             ),
             self._choice_session,
         )
+        owned = (
+            getattr(self, "_panel_opened_by_us", None) == kind
+            or (self._l1_cycle_owned_panel and self._panel_kind == kind)
+        )
+        if owned and decision.action in {PolicyAction.SELECT_SLOT, PolicyAction.REFRESH}:
+            key = (
+                kind,
+                decision.action.value,
+                decision.index,
+                tuple((s.index, s.name) for s in slots),
+            )
+            if key != getattr(self, "_ocr_confirm_key", None):
+                self._ocr_confirm_key = key
+                self._choice_policy_idle = True
+                self._choice_policy_last_reason = f"{kind} 决策待第二帧确认：{decision.reason}"
+                print(f"[L1] {self._choice_policy_last_reason}")
+                return None
+            self._ocr_confirm_key = None
         if self.settings.dry_run:
             append_learning_observation(
                 {

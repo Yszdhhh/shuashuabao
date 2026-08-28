@@ -26,7 +26,7 @@ class Mediator(CoreMediator):
     """Core Mediator plus production liveness/safety invariants."""
 
     _RUNTIME_STALL_TIMEOUT_S = 15.0
-    _PANEL_FAIL_FORWARD_S = 3.0
+    _PANEL_FAIL_FORWARD_S = 8.0
 
     def __init__(self, settings, project_root, *args: Any, **kwargs: Any) -> None:
         self._bond_cards_pending: list[str] = []
@@ -68,7 +68,7 @@ class Mediator(CoreMediator):
             try:
                 self._ocr_client = ProductionShadowClient(
                     repo_root=Path(project_root),
-                    timeout_ms=int(getattr(settings, "ocr_timeout_ms", 1500) or 1500),
+                    timeout_ms=max(2500, int(getattr(settings, "ocr_timeout_ms", 0) or 0)),
                     startup_timeout_ms=30000,
                     trace_path=trace_path,
                 )
@@ -722,6 +722,9 @@ class Mediator(CoreMediator):
             self._arm_runtime_unknown_panel(frame, kind)
         result = super()._find_reward_choice(frame, anchor=anchor)
         if result is None:
+            if getattr(self, "_choice_policy_idle", False):
+                self._clear_runtime_unknown_panel()
+                return None
             self._arm_runtime_unknown_panel(frame, kind)
             return None
 
