@@ -37,7 +37,7 @@ finally {
 }
 
 if (-not $SkipGate) {
-    Write-Host "[1/3] 发版门禁 ..." -ForegroundColor Cyan
+    Write-Host "[1/4] 发版门禁 ..." -ForegroundColor Cyan
     # 用开发环境跑门禁：.venv 只装了打包依赖（PySide6 + PyInstaller），
     # 没有 pytest/opencv，拿它跑会得到"0 passed"这种假失败。
     $gatePython = (Get-Command python -ErrorAction SilentlyContinue).Source
