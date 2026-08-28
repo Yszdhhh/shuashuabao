@@ -173,6 +173,9 @@ def test_production_canvas_semantics_host_exact_product_window():
     assert "@media (max-width: 860px)" in html
     assert 'body[data-scene="wizard"] {\n      display: flex;' in html
     assert 'body[data-scene="wizard"] .wiz {\n      width: 100%; height: 100%;' in html
+    assert 'background: oklch(0.955 0.008 250); padding: 0; overflow: hidden;' in html
+    assert 'border: 1px solid var(--p-line); border-radius: 12px;' in html
+    assert 'box-shadow: var(--p-shadow)' in html
     assert 'id="summary"' not in html, "生产底栏不得再渲染重复摘要"
     assert 'cjb:"03洛卡纳哈"' in html
     assert 'const MODE_LABEL = { solo:"单人模式", lead:"组队带车模式", follow:"组队跟车模式", hitch:"组队蹭车模式" };' in html
