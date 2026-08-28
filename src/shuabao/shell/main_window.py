@@ -3282,6 +3282,15 @@ class MainWindow(QMainWindow):
             return "组队 · 带车"
         return get_spec(self.selected_mode_id()).label
 
+    def selected_hud_mode_label(self) -> str:
+        """Return the full runtime mode name used by the external HUD."""
+        return {
+            "solo": "单人模式",
+            "lead": "组队带车模式",
+            "follow": "组队跟车模式",
+            "hitch": "组队蹭车模式",
+        }[self.selected_mode_variant()]
+
     def _select_mode(self, mode_id: str) -> None:
         requested = str(mode_id or "normal_farm")
         if requested in {"lead", "lead_team"}:
@@ -3476,7 +3485,7 @@ class MainWindow(QMainWindow):
         if self.overlay_hud is not None:
             cycle = self._current_cycle_num()
             target = self.txt_stage_target.text().strip() if hasattr(self, "txt_stage_target") else ""
-            mode = self.selected_mode_label()
+            mode = self.selected_hud_mode_label()
             strategy = "声望挑战" if bool(self.cmb_mode.currentData()) else "自动推进"
             if hasattr(self, "chk_secret_realm") and self.chk_secret_realm.isChecked():
                 strategy = "自动秘境"
@@ -3842,7 +3851,7 @@ class MainWindow(QMainWindow):
         if self.overlay_hud is not None:
             cycle = self._current_cycle_num()
             target = self.txt_stage_target.text().strip() if hasattr(self, "txt_stage_target") else ""
-            mode = self.selected_mode_label()
+            mode = self.selected_hud_mode_label()
             strategy = "声望挑战" if bool(self.cmb_mode.currentData()) else "自动推进"
             if hasattr(self, "chk_secret_realm") and self.chk_secret_realm.isChecked():
                 strategy = "自动秘境"

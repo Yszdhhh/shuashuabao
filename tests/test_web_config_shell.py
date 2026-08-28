@@ -120,17 +120,17 @@ def _new_shell(tmp_path: Path, runner=None) -> WebConfigShell:
     )
 
 def test_host_window_matches_od12_product_size(shell):
-    """宿主=产品窗 920×720：独立看板，无画布黑边。"""
-    assert (shell.width(), shell.height()) == (920, 720)
+    """宿主=产品窗 1080×820：独立看板，无画布黑边。"""
+    assert (shell.width(), shell.height()) == (1080, 820)
 
 
 def test_wizard_layout_fits_the_single_runtime_mode_picker(shell):
     shell._set_window_layout("chooser")
-    assert (shell.width(), shell.height()) == (520, 500)
+    assert (shell.width(), shell.height()) == (560, 560)
     region = shell._titlebar_drag_region
-    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 290, 40)
+    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 330, 40)
     shell._set_window_layout("dashboard")
-    assert (shell.width(), shell.height()) == (920, 720)
+    assert (shell.width(), shell.height()) == (1080, 820)
 
 
 def test_runtime_uses_only_the_full_mode_wizard():
@@ -160,12 +160,17 @@ def test_frameless_titlebar_drag_region_receives_native_mouse_press(shell, monke
 
 
 def test_production_canvas_semantics_host_exact_product_window():
-    """生产态：body 只保留居中语义；折叠断点必须低于固定视口 920。"""
+    """生产态：body 只保留居中语义；折叠断点必须低于固定视口 1080。"""
     html = (ROOT / "ui-v2" / "index.html").read_text(encoding="utf-8")
     assert "place-items: center;" in html
     assert "padding: 24px 16px;" not in html, "生产态不得残留沙盒画布留白"
     assert "@media (max-width: 920px)" not in html, "920 断点会在固定视口误触发单列"
     assert "@media (max-width: 860px)" in html
+    assert 'body[data-scene="wizard"] {\n      display: flex;' in html
+    assert 'body[data-scene="wizard"] .wiz {\n      width: 100%; height: 100%;' in html
+    assert 'id="summary"' not in html, "生产底栏不得再渲染重复摘要"
+    assert 'cjb:"03洛卡纳哈"' in html
+    assert 'const MODE_LABEL = { solo:"单人模式", lead:"组队带车模式", follow:"组队跟车模式", hitch:"组队蹭车模式" };' in html
 
 
 def test_desktop_web_launcher_defaults_to_isolated_app_data():

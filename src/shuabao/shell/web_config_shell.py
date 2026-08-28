@@ -1,7 +1,7 @@
 """WebConfigShell —— QWebEngine 宿主（设计规格 §8）。
 
 薄壳职责：
-- frameless 宿主窗口与 OD12 产品窗同尺寸（920×720），加载 ui-v2/dist/index.html（零网络）
+- frameless 宿主窗口与 OD12 产品窗同尺寸（1080×820），加载 ui-v2/dist/index.html（零网络）
 - QWebChannel 仅注册 DashboardFacade 一个对象（§6.1 唯一注册对象）
 - 严格本地限制：非 file/qrc 导航与子资源请求一律拦截；弹新窗口、下载一律拒绝；
   生产禁开发者工具
@@ -21,6 +21,7 @@ from typing import Any
 from PySide6.QtCore import QObject, Qt, QUrl
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QFrame,
     QLabel,
     QMainWindow,
     QMenu,
@@ -55,8 +56,8 @@ APP_TITLE = "刷刷宝"
 #: 严格本地 scheme 白名单（§8）：本地构建产物与 Qt 资源，别的一律不放行。
 ALLOWED_SCHEMES = frozenset({"file", "qrc"})
 
-_DASHBOARD_SIZE = (920, 720)
-_CHOOSER_SIZE = (520, 500)
+_DASHBOARD_SIZE = (1080, 820)
+_CHOOSER_SIZE = (560, 560)
 _TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT = 690, 40
 
 #: QWebChannel 注册名，与 ui-v2/src/bridge/qtBridge.ts FACADE_OBJECT_NAME 对齐。
@@ -157,6 +158,9 @@ class WebConfigShell(QMainWindow):
 
         self.page = LocalOnlyPage(self.profile, self)
         self.view = QWebEngineView(self)
+        self.view.setFrameShape(QFrame.Shape.NoFrame)
+        self.view.setContentsMargins(0, 0, 0, 0)
+        self.view.setStyleSheet("QWebEngineView { border: 0; }")
         self.view.setPage(self.page)
         self.setCentralWidget(self.view)
         self._titlebar_drag_region = _TitlebarDragRegion(self)
@@ -259,10 +263,17 @@ class WebConfigShell(QMainWindow):
         settings = self.facade._settings
         target = (settings.stage_targets or [f"{settings.stage1}-{settings.stage2}"])[0]
         mode_id = str(run.get("mode_id") or settings.mode_id or "normal_farm")
-        try:
-            mode = get_spec(mode_id).label
-        except Exception:
-            mode = mode_id
+        hud_modes = {
+            "normal_farm": "单人模式",
+            "follow_team": "组队跟车模式",
+            "lobby_hitch": "组队蹭车模式",
+        }
+        mode = hud_modes.get(mode_id)
+        if mode is None:
+            try:
+                mode = get_spec(mode_id).label
+            except Exception:
+                mode = mode_id
         strategy = "自动秘境" if settings.auto_secret_realm else (
             "声望挑战" if settings.auto_reputation else "自动推进"
         )

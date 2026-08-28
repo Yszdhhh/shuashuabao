@@ -26,6 +26,51 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWi
 from shuabao.shell.theme_styles import tokens
 
 
+_HUD_MODE_LABELS = {
+    "solo": "单人模式",
+    "lead": "组队带车模式",
+    "follow": "组队跟车模式",
+    "hitch": "组队蹭车模式",
+}
+_HUD_MODE_HEADLINES = {
+    "solo": "自动推进",
+    "lead": "房间自动开局",
+    "follow": "房间内自动准备",
+    "hitch": "大厅搜房",
+}
+_HUD_MODE_ALIASES = {
+    "normal_farm": "solo",
+    "单人": "solo",
+    "单人刷图": "solo",
+    "单人模式": "solo",
+    "自己刷图": "solo",
+    "lead_team": "lead",
+    "带车": "lead",
+    "组队带车": "lead",
+    "组队 · 带车": "lead",
+    "组队  带车": "lead",
+    "组队带车模式": "lead",
+    "follow_team": "follow",
+    "跟车": "follow",
+    "组队跟车": "follow",
+    "组队 · 跟车": "follow",
+    "组队  跟车": "follow",
+    "组队跟车模式": "follow",
+    "lobby_hitch": "hitch",
+    "蹭车": "hitch",
+    "组队蹭车": "hitch",
+    "组队 · 蹭车": "hitch",
+    "组队  蹭车": "hitch",
+    "组队蹭车模式": "hitch",
+}
+
+
+def _normalize_hud_mode(value: str) -> tuple[str, str, str]:
+    raw = str(value or "").strip()
+    key = _HUD_MODE_ALIASES.get(raw, raw if raw in _HUD_MODE_LABELS else "solo")
+    return key, _HUD_MODE_LABELS[key], _HUD_MODE_HEADLINES[key]
+
+
 def _hwnd_client_rect(hwnd: int) -> QRect | None:
     if not hwnd:
         return None
@@ -169,6 +214,8 @@ class OverlayHud(QWidget):
             return QColor(t["neon_success"])
         if state == "error":
             return QColor(t["neon_danger"])
+        if state == "preview":
+            return QColor(t["accent_gold"])
         if state in ("paused", "recovering"):
             return QColor(t["neon_warning"])
         return QColor(t["accent_gold"])
@@ -178,8 +225,9 @@ class OverlayHud(QWidget):
         self._theme = theme
         self._palette = t
         accent = self._status_accent().name()
+        headline_color = t["neon_danger"] if self._status_state == "preview" else t["text_primary"]
         self.label.setStyleSheet(
-            f"QLabel#hudHeadline {{ color: {t['text_primary']}; background: transparent; border: none; "
+            f"QLabel#hudHeadline {{ color: {headline_color}; background: transparent; border: none; "
             "font: 700 13px 'Microsoft YaHei UI', sans-serif; }"
         )
         self.detail_label.setStyleSheet(
@@ -307,19 +355,15 @@ class OverlayHud(QWidget):
         count = max(0, int(game_count or 0))
         cycle = max(0, int(cycle_num or 0))
         reason = str(terminal_reason or "").strip()
-        target_text = str(target or "目标待确认").strip()
-        mode_text = str(mode or "自动推进").strip()
+        target_text = str(target or "待确认").strip()
+        mode_key, mode_label, headline = _normalize_hud_mode(mode)
         strategy_text = str(strategy or "自动推进").strip()
-        round_text = f"第 {count}/{cycle} 局" if cycle else f"第 {count} 局 · 手动停"
+        round_text = f"第 {count} / {cycle} 局" if cycle else f"第 {count} 局"
+        preview = running and mode_key == "hitch"
         if running:
-            text = f"正在{mode_text}，目标 {target_text}"
-            context = strategy_text
-            if phase_text:
-                context = f"{context} · {phase_text}"
-            if ocr_text:
-                context = f"{context} · OCR {ocr_text}"
-            self.detail_label.setText(f"{round_text} · {context}")
-            self.live_label.setText("● 运行中")
+            text = headline
+            self.detail_label.setText(f"{mode_label} · {round_text} · 目标 {target_text}")
+            self.live_label.setText("● 预览中" if preview else "● 运行中")
             self.btn_stop.show()
         else:
             text = "已停止，等待下一次指令"
@@ -333,10 +377,12 @@ class OverlayHud(QWidget):
             self.btn_stop.hide()
 
         self.label.setText(text)
-        self.target_chip.setText(f"目标 {target_text}")
+        self.target_chip.setText(f"关卡 {target_text}")
         self.round_chip.setText(round_text)
         self.strategy_chip.setText(strategy_text)
         self._status_state = self._state_for(running, phase_text, reason)
+        if preview:
+            self._status_state = "preview"
         self._paint_status()
         self.adjustSize()
         self._move_pinned()

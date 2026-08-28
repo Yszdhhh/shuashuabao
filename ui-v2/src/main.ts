@@ -584,10 +584,10 @@ function wireIntents(): void {
     }
   });
 
-  // 摘要视图下 ▲▼ 调整高级卡组顺序：内联处理器已改 state.adv，这里补落盘，
-  // 让"保存后仍可调序"无需再点一次保存。
+  // 摘要视图下调整高级卡组顺序：内联处理器已改 state.adv，这里补落盘，
+  // 让“保存后仍可调序”无需再点一次保存。
   $("bonds").addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest("[data-adv-move]") && state.bondSaved) {
+    if ((e.target as HTMLElement).closest("[data-adv-move], [data-adv-pick]") && state.bondSaved) {
       defer(() => pushBondsAndAttributes());
     }
   });

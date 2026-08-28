@@ -91,9 +91,9 @@ class DesktopPanelTests(unittest.TestCase):
                 mode="单人刷图",
                 strategy="声望挑战",
             )
-            self.assertEqual("正在单人刷图，目标 1-10", hud.status_text)
-            self.assertEqual("目标 1-10", hud.target_chip.text())
-            self.assertEqual("第 3/100 局", hud.round_chip.text())
+            self.assertEqual("自动推进", hud.status_text)
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
+            self.assertEqual("第 3 / 100 局", hud.round_chip.text())
             self.assertEqual("声望挑战", hud.strategy_chip.text())
             self.assertFalse(hud.btn_stop.isHidden())
             self.assertGreaterEqual(hud.height(), 58)
@@ -109,6 +109,33 @@ class DesktopPanelTests(unittest.TestCase):
             hud.update_status(False, game_count=3, cycle_num=100, target="1-10")
             self.assertIn("已停止", hud.status_text)
             self.assertTrue(hud.btn_stop.isHidden())
+        finally:
+            hud.close()
+
+    def test_hud_uses_mode_specific_gold_copy_and_hitch_preview(self):
+        hud = OverlayHud()
+        try:
+            for mode, headline, label in (
+                ("单人模式", "自动推进", "单人模式"),
+                ("组队带车模式", "房间自动开局", "组队带车模式"),
+                ("组队跟车模式", "房间内自动准备", "组队跟车模式"),
+                ("组队蹭车模式", "大厅搜房", "组队蹭车模式"),
+            ):
+                hud.update_status(
+                    True, "MAIN_LINE", "就绪", 3, 100,
+                    target="1-10", mode=mode, strategy="声望挑战",
+                )
+                self.assertEqual(headline, hud.status_text)
+                self.assertEqual(
+                    f"{label} · 第 3 / 100 局 · 目标 1-10",
+                    hud.detail_label.text(),
+                )
+                self.assertEqual(
+                    "● 预览中" if mode == "组队蹭车模式" else "● 运行中",
+                    hud.live_label.text(),
+                )
+                if mode == "组队蹭车模式":
+                    self.assertEqual("preview", hud.status_state)
         finally:
             hud.close()
 
@@ -145,7 +172,7 @@ class DesktopPanelTests(unittest.TestCase):
                 mode="单人",
             )
             self.assertFalse(hud.btn_stop.isHidden())
-            self.assertEqual("目标 1-10", hud.target_chip.text())
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
         finally:
             hud.close()
 
@@ -164,7 +191,7 @@ class DesktopPanelTests(unittest.TestCase):
                 strategy="声望挑战",
             )
             hud._set_compact_layout(True)
-            self.assertEqual("正在自己刷图，目标 1-10", hud.status_text)
+            self.assertEqual("自动推进", hud.status_text)
             self.assertTrue(hud.btn_stop.isVisible())
             self.assertTrue(hud.target_chip.isHidden())
             self.assertTrue(hud.round_chip.isHidden())
@@ -175,8 +202,8 @@ class DesktopPanelTests(unittest.TestCase):
             self.assertFalse(hud.label.isHidden())
             self.assertFalse(hud.detail_label.isHidden())
             # 状态数据只改可见性，绝不重写
-            self.assertEqual("目标 1-10", hud.target_chip.text())
-            self.assertEqual("第 3/100 局", hud.round_chip.text())
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
+            self.assertEqual("第 3 / 100 局", hud.round_chip.text())
             self.assertEqual("声望挑战", hud.strategy_chip.text())
             hud._set_compact_layout(False)
             self.assertFalse(hud.target_chip.isHidden())
@@ -229,9 +256,9 @@ class DesktopPanelTests(unittest.TestCase):
             self.assertFalse(hud.label.isHidden())
             self.assertFalse(hud.detail_label.isHidden())
             self.assertTrue(hud.btn_stop.isVisible())
-            self.assertEqual("正在自己刷图，目标 1-10", hud.status_text)
-            self.assertEqual("目标 1-10", hud.target_chip.text())
-            self.assertEqual("第 3/100 局", hud.round_chip.text())
+            self.assertEqual("自动推进", hud.status_text)
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
+            self.assertEqual("第 3 / 100 局", hud.round_chip.text())
             self.assertEqual("声望挑战", hud.strategy_chip.text())
         finally:
             hud.close()
@@ -256,7 +283,7 @@ class DesktopPanelTests(unittest.TestCase):
             self.assertTrue(hud.target_chip.isHidden())
             self.assertTrue(hud.brand_label.isHidden())
             self.assertTrue(hud.btn_stop.isVisible())
-            self.assertEqual("正在自己刷图，目标 1-10", hud.status_text)
+            self.assertEqual("自动推进", hud.status_text)
             # 宽游戏区 → 恢复
             hud.anchor_to_target(QRect(0, 0, OverlayHud._COMPACT_WIDTH + 200, 400))
             hud.update_status(
@@ -282,7 +309,7 @@ class DesktopPanelTests(unittest.TestCase):
         self.window.update_status(True, "MAIN_LINE", 2, ocr_status="就绪")
         hud = self.window.overlay_hud
         self.assertIsNotNone(hud)
-        self.assertEqual("目标 1-10", hud.target_chip.text())
+        self.assertEqual("关卡 1-10", hud.target_chip.text())
         self.assertEqual("自动秘境", hud.strategy_chip.text())
         self.assertNotIn("技能", hud.status_text)
 
@@ -302,7 +329,7 @@ class DesktopPanelTests(unittest.TestCase):
         try:
             self.window._poll_runtime()
             hud = self.window.overlay_hud
-            self.assertEqual("目标 1-10", hud.target_chip.text())
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
             self.assertEqual("自动秘境", hud.strategy_chip.text())
         finally:
             self.window.worker_thread = None

@@ -65,7 +65,7 @@
       --container-gutter-phone: 12px;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; }
+    html, body { width: 100%; height: 100%; margin: 0; min-height: 100%; }
     body {
       min-height: 100dvh;
       display: grid;
@@ -146,10 +146,10 @@
     .logo-box, .hud-logo {
       display: block; overflow: hidden; flex: 0 0 auto; background: oklch(0.22 0.05 255);
     }
-    .logo-box { width: 22px; height: 22px; border-radius: 5px; }
+    .logo-box { width: 26px; height: 26px; border-radius: 6px; }
     .logo-box img {
-      width: 22px !important; height: 22px !important;
-      max-width: 22px !important; max-height: 22px !important;
+      width: 26px !important; height: 26px !important;
+      max-width: 26px !important; max-height: 26px !important;
       object-fit: cover !important;
     }
     .hud-logo { width: 18px; height: 18px; border-radius: 4px; }
@@ -162,24 +162,24 @@
     .ico img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
 
     .wiz {
-      width: 480px; padding: 0; overflow: hidden; background: var(--p-paper);
-      border: 1px solid var(--p-line); border-radius: 10px; display: flex; flex-direction: column;
+      width: 560px; padding: 0; overflow: hidden; background: var(--p-paper);
+      border: 1px solid var(--p-line); border-radius: 12px; display: flex; flex-direction: column;
       box-shadow: var(--p-shadow), 0 0 0 1px color-mix(in oklab, var(--p-paper) 70%, transparent) inset;
     }
-    .wiz-head { display: flex; align-items: flex-start; gap: 10px; padding: 18px 18px 15px; border-bottom: 1px solid var(--p-line); }
-    .wiz-mark { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex: 0 0 auto; background: oklch(0.22 0.05 255); }
+    .wiz-head { display: flex; align-items: flex-start; gap: 14px; padding: 24px 24px 20px; border-bottom: 1px solid var(--p-line); }
+    .wiz-mark { width: 40px; height: 40px; border-radius: 8px; overflow: hidden; flex: 0 0 auto; background: oklch(0.22 0.05 255); }
     .wiz-mark img { width: 100%; height: 100%; object-fit: cover; }
     .wiz-copy { min-width: 0; }
-    .wiz-eyebrow { margin: 0 0 2px; color: var(--p-faint); font-size: 10px; line-height: 1.3; font-weight: 700; letter-spacing: .08em; }
-    .wiz-copy p:last-child { margin: 4px 0 0; color: var(--p-muted); font-size: 12px; line-height: 1.45; }
-    .wiz-body { display: flex; flex-direction: column; gap: 12px; padding: 15px 18px 18px; background: color-mix(in oklab, var(--p-bg) 86%, var(--p-paper)); }
+    .wiz-eyebrow { margin: 0 0 4px; color: var(--p-faint); font-size: 12px; line-height: 1.3; font-weight: 700; letter-spacing: .08em; }
+    .wiz-body { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; background: color-mix(in oklab, var(--p-bg) 86%, var(--p-paper)); }
     .wiz .choice-list { padding-top: 0; border-top: 0; }
-    .wiz .wcard { min-height: 64px; background: var(--p-paper); }
-    .wiz h2 { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.35; }
+    .wiz .wcard { min-height: 76px; background: var(--p-paper); }
+    .wiz .wcard.solo { min-height: 58px; }
+    .wiz h2 { margin: 0; font-size: 22px; font-weight: 650; line-height: 1.3; }
     .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; }
     .seg button {
-      height: 32px; border: 0; border-right: 1px solid var(--p-line);
-      background: var(--p-paper); color: var(--p-muted); font-size: 13px; font-weight: 600;
+      height: 40px; border: 0; border-right: 1px solid var(--p-line);
+      background: var(--p-paper); color: var(--p-muted); font-size: 15px; font-weight: 600;
     }
     .seg button:last-child { border-right: 0; }
     .seg button[aria-pressed="true"] { background: var(--p-gold); color: var(--p-gold-ink); }
@@ -190,21 +190,21 @@
     }
     .choice-list { display: flex; flex-direction: column; gap: 6px; }
     .wcard, .mode-card {
-      width: 100%; text-align: left; padding: 10px 12px;
+      width: 100%; text-align: left; padding: 16px 18px;
       border: 1px solid var(--p-line); background: var(--p-paper);
       border-radius: var(--p-radius); display: grid;
-      grid-template-columns: 52px minmax(0, 1fr); column-gap: 10px; row-gap: 2px;
+      grid-template-columns: 64px minmax(0, 1fr); column-gap: 12px; row-gap: 4px;
       font-family: var(--p-font); color: var(--p-ink);
     }
     .wcard.solo, .mode-row.solo .mode-card { grid-template-columns: minmax(0, 1fr); }
     .wcard em, .mode-card em {
       grid-row: 1 / span 2; align-self: center; font-style: normal;
-      font-size: 11px; font-weight: 700; color: var(--p-faint);
+      font-size: 13px; font-weight: 700; color: var(--p-faint);
     }
     .wcard.solo em, .mode-row.solo .mode-card em { display: none; }
-    .wcard strong, .mode-card h2, .mode-card strong { grid-column: 2; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.35; }
+    .wcard strong, .mode-card h2, .mode-card strong { grid-column: 2; margin: 0; font-size: 17px; font-weight: 650; line-height: 1.35; }
     .wcard.solo strong, .mode-row.solo .mode-card strong { grid-column: 1; }
-    .wcard span, .mode-card p { grid-column: 2; margin: 0; font-size: 12px; line-height: 1.5; color: var(--p-muted); font-weight: 400; }
+    .wcard span, .mode-card p { grid-column: 2; margin: 0; font-size: 14px; line-height: 1.5; color: var(--p-muted); font-weight: 400; }
     .wcard.solo span, .mode-row.solo .mode-card p { grid-column: 1; }
     .wcard:hover, .mode-card:hover { background: var(--p-fill); color: var(--p-ink); }
     .wcard[aria-pressed="true"], .mode-card[aria-pressed="true"] {
@@ -216,13 +216,13 @@
       background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper));
       color: var(--p-ink);
     }
-    .hint { margin: 0; color: var(--p-muted); font-size: 12px; line-height: 1.5; font-weight: 400; }
-    .wiz-nav { display: flex; gap: 10px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--p-line); background: var(--p-paper); }
+    .hint { margin: 0; color: var(--p-muted); font-size: 14px; line-height: 1.55; font-weight: 400; }
+    .wiz-nav { display: flex; gap: 12px; align-items: center; padding: 16px 24px; border-top: 1px solid var(--p-line); background: var(--p-paper); }
     .sheet-nav { display: flex; gap: 10px; align-items: center; }
     .gold, .primary {
-      height: 36px; min-width: 96px; padding: 0 16px; border-radius: var(--p-radius);
+      height: 42px; min-width: 112px; padding: 0 18px; border-radius: var(--p-radius);
       border: 1px solid var(--p-gold); background: var(--p-gold); color: var(--p-gold-ink);
-      font-size: 13px; font-weight: 700; font-family: var(--p-font);
+      font-size: 15px; font-weight: 700; font-family: var(--p-font);
     }
     .gold:hover, .primary:hover {
       background: color-mix(in oklab, var(--p-gold) 86%, var(--p-paper));
@@ -231,36 +231,36 @@
     }
     .gold:active, .primary:active { transform: translateY(1px); }
     .secondary, .ghost-btn.solid {
-      height: 36px; padding: 0 12px; border-radius: var(--p-radius);
+      height: 42px; padding: 0 16px; border-radius: var(--p-radius);
       border: 1px solid var(--p-line); background: var(--p-paper); color: var(--p-ink);
-      font-weight: 600; font-family: var(--p-font);
+      font-size: 14px; font-weight: 600; font-family: var(--p-font);
     }
     .secondary:hover, .ghost-btn.solid:hover { background: var(--p-fill); color: var(--p-ink); }
 
     .win {
-      width: min(920px, 100%); height: 720px; background: var(--p-bg);
+      width: min(1080px, 100%); height: 820px; background: var(--p-bg);
       border: 1px solid var(--p-line); border-radius: 8px;
       overflow: hidden; display: flex; flex-direction: column;
       box-shadow: var(--p-shadow); position: relative;
     }
     .titlebar {
-      height: 40px; flex: 0 0 40px; display: flex; align-items: center; gap: 8px;
-      padding: 0 8px 0 12px; overflow: hidden;
+      height: 48px; flex: 0 0 48px; display: flex; align-items: center; gap: 10px;
+      padding: 0 10px 0 14px; overflow: hidden;
       border-bottom: 1px solid var(--p-line); background: var(--p-paper);
     }
-    .brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .brand h1 { margin: 0; font-size: 14px; font-weight: 700; text-wrap: balance; }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand h1 { margin: 0; font-size: 16px; font-weight: 700; text-wrap: balance; }
     .win h2, .win h3, .wiz h2 { text-wrap: balance; }
-    .ver { font-size: 11px; color: var(--p-faint); font-weight: 600; }
+    .ver { font-size: 12px; color: var(--p-faint); font-weight: 600; }
     .status-pill, .games {
-      font-size: 11px; font-weight: 600; color: var(--p-muted);
+      font-size: 12px; font-weight: 600; color: var(--p-muted);
       display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
     }
-    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--p-faint); }
+    .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--p-faint); }
     .games b { color: var(--p-ink); font-variant-numeric: tabular-nums; font-weight: 700; }
     .titlebar .grow { flex: 1; min-width: 8px; }
     .icon-btn, .win-btn {
-      height: 28px; min-width: 32px; padding: 0 8px; font-size: 12px; font-weight: 600;
+      height: 32px; min-width: 36px; padding: 0 10px; font-size: 13px; font-weight: 600;
       border: 0; background: transparent; color: var(--p-muted); border-radius: 4px;
     }
     .icon-btn:hover, .win-btn:hover { background: var(--p-fill); color: var(--p-ink); }
@@ -268,33 +268,47 @@
 
     .body, .hitch-page { display: none !important; flex: 1; min-height: 0; }
     body[data-scene="farm"] .body,
-    body[data-scene="lead"] .body { display: grid !important; grid-template-columns: 204px minmax(0, 1fr); }
+    body[data-scene="lead"] .body { display: grid !important; grid-template-columns: 248px minmax(0, 1fr); }
     body[data-scene="follow"] .hitch-page.follow,
     body[data-scene="hitch"] .hitch-page.hitch {
-      display: flex !important; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 12px;
-      padding: 28px 32px 20px;
+      display: flex !important; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 16px;
+      padding: 32px 36px 24px;
     }
     .hitch-page .ghost-btn.solid { width: auto; }
-    body[data-scene="wizard"] { background: oklch(0.955 0.008 250); padding: 10px; }
+    body[data-scene="wizard"] {
+      display: flex; width: 100%; height: 100%; min-height: 0;
+      background: transparent; padding: 0; overflow: hidden; place-items: stretch;
+    }
+    body[data-scene="wizard"] .wiz {
+      width: 100%; height: 100%; min-height: 0; flex: 1 1 auto;
+      border: 0; border-radius: 0; box-shadow: none;
+    }
 
     .rail, .main { min-height: 0; overflow: auto; }
-    .rail { padding: 12px 12px 16px; border-right: 1px solid var(--p-line); background: var(--p-paper); }
-    .main { padding: 12px 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) 196px; gap: 16px; align-content: start; }
+    .rail { padding: 16px 16px 20px; border-right: 1px solid var(--p-line); background: var(--p-paper); }
+    .main { padding: 16px 18px 20px; display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 20px; align-content: start; }
     .main-workspace { min-width: 0; }
     .selected-deck { min-width: 0; padding-left: 14px; border-left: 1px solid var(--p-line); }
-    .selected-deck .panel { position: sticky; top: 0; padding: 12px; border: 1px solid color-mix(in oklab, var(--p-gold) 42%, var(--p-line)); border-radius: var(--p-radius); background: var(--p-gold-soft); box-shadow: 0 0 0 1px color-mix(in oklab, var(--p-paper) 72%, transparent) inset; }
+    .selected-deck .panel { position: sticky; top: 0; max-height: 100%; overflow: auto; padding: 14px 14px 16px; border: 1px solid color-mix(in oklab, var(--p-gold) 42%, var(--p-line)); border-radius: var(--p-radius); background: var(--p-gold-soft); box-shadow: 0 0 0 1px color-mix(in oklab, var(--p-paper) 72%, transparent) inset; }
     .selected-deck h3 { margin-bottom: 8px; }
-    .launch-ready { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; color: var(--p-ok); font-size: 11px; font-weight: 700; }
+    .launch-ready { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; color: var(--p-ok); font-size: 13px; font-weight: 700; }
     .launch-ready.is-blocked { color: var(--p-danger); }
     .launch-ready i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-    .launch-check + .launch-check { margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--p-line); }
-    .launch-check h4 { margin: 0 0 6px; color: var(--p-muted); font-size: 11px; font-weight: 650; }
-    .launch-value { margin: 0; color: var(--p-ink); font-size: 12px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
-    .launch-skills { display: grid; gap: 5px; }
-    .launch-skill { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr); gap: 6px; align-items: center; min-height: 26px; }
+    .launch-facts { display: grid; margin: 0; }
+    .launch-facts > div { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 0; border-top: 1px solid color-mix(in oklab, var(--p-line) 80%, transparent); }
+    .launch-facts dt { margin: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--p-muted); font-size: 12px; font-weight: 650; }
+    .launch-facts dd { margin: 0; color: var(--p-ink); font-size: 13px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+    .launch-block { padding: 8px 0 0; margin-top: 2px; border-top: 1px solid color-mix(in oklab, var(--p-line) 80%, transparent); }
+    .launch-block h4, .bond-block h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 6px; color: var(--p-muted); font-size: 12px; font-weight: 650; }
+    .bond-block h4 { color: var(--p-ink); font-size: 13px; }
+    .launch-sub { margin: 6px 0 4px; color: var(--p-muted); font-size: 11px; font-weight: 650; letter-spacing: .02em; }
+    .launch-block h4 + .launch-sub { margin-top: 0; }
+    .launch-value { margin: 0; color: var(--p-ink); font-size: 13px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+    .launch-skills { display: grid; gap: 4px; }
+    .launch-skill { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr); gap: 6px; align-items: center; min-height: 24px; }
     .launch-skill i { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--p-gold); color: var(--p-gold-ink); font-size: 10px; font-style: normal; font-weight: 800; }
     .launch-skill img { width: 22px; height: 22px; border-radius: 4px; object-fit: cover; }
-    .launch-skill b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--p-ink); font-size: 11px; font-weight: 650; }
+    .launch-skill b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--p-ink); font-size: 12px; font-weight: 650; }
     .deck-group + .deck-group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--p-line); }
     .deck-group h4 { margin: 0 0 7px; color: var(--p-muted); font-size: 11px; font-weight: 650; }
     .deck-tags { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -317,9 +331,9 @@
     .row > * { min-width: 0; }
     .grow { flex: 1; }
     select, input[type="text"], input[type="number"], .dd-btn, .pick-row {
-      width: 100%; height: 32px; border-radius: var(--p-radius);
+      width: 100%; height: 36px; border-radius: var(--p-radius);
       border: 1px solid var(--p-line); background: var(--p-bg);
-      padding: 0 10px; font-size: 13px; font-family: var(--p-font); color: var(--p-ink);
+      padding: 0 12px; font-size: 14px; font-family: var(--p-font); color: var(--p-ink);
     }
     input::placeholder { color: var(--p-faint); }
     .dd { position: relative; }
@@ -332,22 +346,23 @@
       background: var(--p-paper); border: 1px solid var(--p-line); border-radius: var(--p-radius);
       box-shadow: 0 10px 28px color-mix(in oklab, var(--p-ink) 16%, transparent);
     }
+    .dd.open { z-index: 8; }
     .dd.open .dd-menu { display: block; }
     .dd-menu button {
-      width: 100%; height: 30px; border: 0; background: transparent; color: var(--p-ink);
-      text-align: left; padding: 0 10px; font-size: 12px; font-weight: 600;
+      width: 100%; height: 36px; border: 0; background: transparent; color: var(--p-ink);
+      text-align: left; padding: 0 12px; font-size: 13px; font-weight: 600;
     }
     .dd-menu button:hover, .dd-menu button[aria-selected="true"] { background: var(--p-gold-soft); color: var(--p-ink); }
-    .stepper { display: flex; height: 32px; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; background: var(--p-bg); }
-    .stepper button { width: 28px; border: 0; background: var(--p-fill); color: var(--p-ink); }
+    .stepper { display: flex; height: 36px; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; background: var(--p-bg); }
+    .stepper button { width: 32px; border: 0; background: var(--p-fill); color: var(--p-ink); }
     .stepper button:hover { background: var(--p-gold-soft); }
     .stepper output, .stepper input {
-      flex: 1; min-width: 0; width: 0; height: 32px; border: 0; background: transparent;
-      padding: 0; text-align: center; font-size: 12px; font-weight: 700;
+      flex: 1; min-width: 0; width: 0; height: 36px; border: 0; background: transparent;
+      padding: 0; text-align: center; font-size: 13px; font-weight: 700;
       font-variant-numeric: tabular-nums; color: inherit; border-radius: 0;
     }
     .stepper input:focus { outline: none; background: var(--p-gold-soft); }
-    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; font-size: 13px; }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; font-size: 14px; }
     .switch {
       width: 36px; height: 20px; border-radius: 99px; border: 1px solid var(--p-line);
       background: var(--p-bg); position: relative; flex: 0 0 36px; padding: 0;
@@ -370,15 +385,15 @@
       border: 2px solid var(--p-gold); background: oklch(0.22 0.04 255);
     }
     .rep-art img { width: 100% !important; height: 100% !important; object-fit: cover; object-position: center; }
-    .rep-item b { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; }
-    .rep-fx { display: block; font-size: 10px; color: var(--p-muted); line-height: 1.35; }
+    .rep-item b { display: block; font-size: 12px; font-weight: 700; line-height: 1.3; }
+    .rep-fx { display: block; font-size: 11px; color: var(--p-muted); line-height: 1.35; }
     .rep-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .rep-foot .stats { flex: 1; min-width: 0; margin: 0; font-size: 11px; color: var(--p-muted); line-height: 1.4; }
     .rep-foot .stats b { color: var(--p-ink); font-variant-numeric: tabular-nums; }
     .text-btn {
-      height: 24px; padding: 0 8px; border-radius: 4px; flex: 0 0 auto;
+      height: 28px; padding: 0 10px; border-radius: 4px; flex: 0 0 auto;
       border: 1px solid var(--p-line); background: var(--p-paper); color: var(--p-ink);
-      font-size: 11px; font-weight: 650; font-family: var(--p-font);
+      font-size: 12px; font-weight: 650; font-family: var(--p-font);
     }
     .text-btn:hover { background: var(--p-fill); color: var(--p-ink); }
     .pick-row {
@@ -386,9 +401,9 @@
       font-family: var(--p-font); font-weight: 600; background: var(--p-bg);
     }
     .pick-row:hover { background: var(--p-fill); color: var(--p-ink); }
-    .pick-row .k { color: var(--p-muted); font-size: 12px; flex: 0 0 52px; font-weight: 600; }
-    .pick-row strong { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pick-row i { font-style: normal; font-size: 11px; color: var(--p-faint); }
+    .pick-row .k { color: var(--p-muted); font-size: 13px; flex: 0 0 56px; font-weight: 600; }
+    .pick-row strong { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pick-row i { font-style: normal; font-size: 12px; color: var(--p-faint); }
     .lead-box { display: none; }
     body[data-scene="lead"] .lead-box { display: block; }
     .skill-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
@@ -396,15 +411,15 @@
     .skill-head .hint { margin-left: auto; }
     .builds { display: flex; flex-direction: column; }
     .build {
-      width: 100%; text-align: left; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--p-line);
+      width: 100%; text-align: left; padding: 10px 8px; border: 0; border-bottom: 1px solid var(--p-line);
       background: transparent; border-radius: 0; font-family: var(--p-font); color: var(--p-ink);
-      display: grid; grid-template-columns: 88px auto; align-items: center; gap: 8px;
+      display: grid; grid-template-columns: 96px auto; align-items: center; gap: 10px;
     }
     .build:last-child { border-bottom: 0; }
     .build:hover { background: var(--p-fill); color: var(--p-ink); }
     .build[aria-pressed="true"] { background: var(--p-gold-soft); }
     .build[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); color: var(--p-ink); }
-    .build strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .build strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
     .build.custom-card {
       grid-template-columns: 64px minmax(0, 1fr);
       align-items: center; padding: 6px 8px; gap: 10px;
@@ -424,7 +439,7 @@
       gap: 8px; min-width: 0; justify-content: start;
     }
     .sk { display: flex; align-items: center; position: relative; }
-    .sk .ico, .slot { width: 22px; height: 22px; flex: 0 0 22px; }
+    .sk .ico, .slot { width: 26px; height: 26px; flex: 0 0 26px; }
     .custom-card .sk,
     .custom-card button.sk.unpick,
     .custom-card .slot {
@@ -435,7 +450,7 @@
     }
     .slot { border: 1px dashed var(--p-line); border-radius: 4px; background: var(--p-bg); }
     button.sk.unpick {
-      width: 22px; height: 22px; padding: 0; border: 0; background: transparent;
+      width: 26px; height: 26px; padding: 0; border: 0; background: transparent;
       border-radius: 4px; cursor: pointer;
     }
     button.sk.unpick:hover { outline: 2px solid var(--p-danger); outline-offset: 1px; }
@@ -445,15 +460,15 @@
       color: var(--p-on); font-size: 13px; font-weight: 800; border-radius: 4px;
     }
     .add-custom, .ghost-btn {
-      height: 32px; border-radius: var(--p-radius); border: 1px dashed var(--p-line);
-      background: transparent; color: var(--p-muted); font-size: 13px; font-weight: 600;
+      height: 40px; border-radius: var(--p-radius); border: 1px dashed var(--p-line);
+      background: transparent; color: var(--p-muted); font-size: 14px; font-weight: 600;
     }
-    .add-custom { width: 100%; margin-top: 6px; }
+    .add-custom { width: 100%; margin-top: 8px; }
     .add-custom:hover { background: var(--p-fill); color: var(--p-ink); }
-    .ghost-btn.solid { border-style: solid; height: 32px; padding: 0 12px; color: var(--p-ink); background: var(--p-paper); }
+    .ghost-btn.solid { border-style: solid; height: 42px; padding: 0 16px; color: var(--p-ink); background: var(--p-paper); }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip {
-      height: 24px; padding: 0 8px; font-size: 11px; border-radius: 4px;
+      height: 28px; padding: 0 10px; font-size: 12px; border-radius: 4px;
       border: 1px solid var(--p-line); background: var(--p-paper); color: var(--p-ink);
       font-family: var(--p-font); font-weight: 600;
     }
@@ -463,12 +478,12 @@
     .skill-grid { display: none; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
     .skill-grid.show { display: grid; }
     .skill-cell {
-      display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 8px;
-      font-size: 12px; font-family: var(--p-font); font-weight: 600; min-width: 0;
+      display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px;
+      font-size: 13px; font-family: var(--p-font); font-weight: 600; min-width: 0;
       border: 1px solid var(--p-line); background: var(--p-paper); border-radius: var(--p-radius); color: var(--p-ink);
     }
     .skill-cell:hover { background: var(--p-fill); color: var(--p-ink); }
-    .skill-cell .ico { width: 18px; height: 18px; }
+    .skill-cell .ico { width: 22px; height: 22px; }
     .skill-cell[aria-pressed="true"] { border-color: var(--p-gold); background: var(--p-gold-soft); }
     .skill-cell[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); color: var(--p-ink); }
     .skill-cell[aria-pressed="true"]::after {
@@ -479,13 +494,13 @@
     .skill-rank { display: none; flex-direction: column; gap: 6px; margin-top: 10px; }
     .skill-rank.show { display: flex; }
     .priority-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 3px 8px; }
-    .priority-head b { font-size: 12px; font-weight: 650; }
+    .priority-head b { font-size: 13px; font-weight: 650; }
     .priority-head .hint { margin: 0; }
     .rank-list { display: flex; flex-direction: column; }
     .rank-card {
       display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) 132px 14px;
-      gap: 6px; align-items: center; min-height: 40px; touch-action: none;
-      padding: 4px 2px; border: 0; border-bottom: 1px solid var(--p-line);
+      gap: 6px; align-items: center; min-height: 48px; touch-action: none;
+      padding: 6px 2px; border: 0; border-bottom: 1px solid var(--p-line);
       background: transparent; border-radius: 0; font-family: var(--p-font); color: var(--p-ink);
     }
     .rank-card:last-child { border-bottom: 0; }
@@ -502,54 +517,82 @@
     .rank-card.is-carry .rank-no { background: var(--p-gold); color: var(--p-gold-ink); }
     .rank-card .ico { width: 28px; height: 28px; border-radius: 5px; }
     .rank-card .name { min-width: 0; }
-    .rank-card .name b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .rank-card .name span { display: block; font-size: 10px; color: var(--p-muted); }
+    .rank-card .name b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank-card .name span { display: block; font-size: 11px; color: var(--p-muted); }
     .rank-card select {
-      height: 28px; width: 132px; font-size: 11px; padding: 0 4px;
+      height: 32px; width: 132px; font-size: 12px; padding: 0 6px;
       border: 1px solid var(--p-line); background: var(--p-bg); border-radius: 4px; color: var(--p-ink);
     }
     .grip { color: var(--p-faint); font-size: 11px; letter-spacing: 0.12em; }
-    .bond-block { margin-top: 8px; }
+    .bond-block { margin-top: 10px; }
     .bond-block:first-child { margin-top: 0; }
-    .bond-block h4 { margin: 0 0 6px; font-size: 12px; font-weight: 650; color: var(--p-ink); }
+    .bond-block h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; color: var(--p-ink); }
+    .bond-locked {
+      display: flex; flex-wrap: wrap; gap: 5px;
+      padding: 8px; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg);
+    }
     .bond-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--p-line); }
     .bond-actions .hint { margin: 0; }
-    .bond-actions .gold { margin-left: auto; min-height: 30px; white-space: nowrap; }
-    .adv-order { display: flex; flex-direction: column; margin-top: 8px; border-top: 1px solid var(--p-line); }
-    .adv-rank {
-      display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center;
-      min-height: 34px; border-bottom: 1px solid var(--p-line);
+    .bond-actions .gold, .bond-actions .secondary { margin-left: auto; min-height: 42px; white-space: nowrap; }
+    .adv-priority {
+      display: grid; grid-template-columns: 36px minmax(0, 1fr);
+      gap: 6px 10px; align-items: start; margin-top: 8px;
     }
-    .adv-rank b { min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .adv-rank span { font-size: 11px; color: var(--p-muted); }
-    .adv-rank .rank-no { width: 20px; height: 20px; }
+    .adv-priority-label { padding-top: 9px; color: var(--p-muted); font-size: 12px; font-weight: 650; line-height: 1; }
+    .adv-priority-list { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .adv-priority-row { display: grid; grid-template-columns: minmax(0, 1fr) 22px; gap: 6px; align-items: stretch; }
+    .adv-combo-wrap { position: relative; min-width: 0; }
+    .adv-combo.dd-btn {
+      display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 10px;
+      align-items: center; gap: 6px; height: 36px; min-width: 0; padding: 0 8px 0 6px;
+      border: 1px solid var(--p-line); border-radius: 4px; background: var(--p-bg); color: var(--p-ink);
+      transition: border-color 160ms var(--ease-standard), background 160ms var(--ease-standard);
+    }
+    .adv-combo.dd-btn:hover { background: var(--p-fill); color: var(--p-ink); }
+    .adv-combo-wrap.open .adv-combo { border-color: color-mix(in oklab, var(--p-gold) 55%, var(--p-line)); background: var(--p-paper); }
+    .adv-combo .rank-no { width: 18px; height: 18px; font-size: 10px; }
+    .adv-combo b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 650; }
+    .adv-combo em { font-style: normal; color: var(--p-muted); font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .adv-combo i { font-style: normal; color: var(--p-faint); font-size: 10px; }
+    .adv-combo-wrap .dd-menu { top: calc(100% + 3px); }
+    .adv-step {
+      display: grid; grid-template-rows: 1fr 1fr; width: 22px;
+      border: 1px solid var(--p-line); border-radius: 4px; overflow: hidden; background: var(--p-paper);
+    }
+    .adv-step button {
+      width: 22px; height: 15px; padding: 0; border: 0; border-radius: 0;
+      background: var(--p-paper); color: var(--p-muted); font-size: 8px; line-height: 1;
+    }
+    .adv-step button + button { border-top: 1px solid var(--p-line); }
+    .adv-step button:hover { background: var(--p-fill); color: var(--p-ink); }
+    .adv-step button:disabled, .adv-step button:disabled:hover { opacity: 0.35; background: var(--p-paper); color: var(--p-faint); cursor: not-allowed; }
     .rank-move { display: flex; gap: 4px; }
     .rank-move button { width: 28px; height: 26px; padding: 0; }
-    .hitch-page h2 { margin: 0; font-size: 22px; font-weight: 650; line-height: 1.3; letter-spacing: -0.02em; }
-    .hitch-page p { margin: 0; color: var(--p-muted); font-size: 13px; line-height: 1.6; max-width: 52ch; }
+    .hitch-page h2 { margin: 0; font-size: 24px; font-weight: 650; line-height: 1.3; letter-spacing: -0.02em; }
+    .hitch-page p { margin: 0; color: var(--p-muted); font-size: 15px; line-height: 1.6; max-width: 52ch; }
     .team-rules {
       width: 100%; margin-top: 2px; padding: 18px 0 16px;
       border-top: 1px solid var(--p-line); border-bottom: 1px solid var(--p-line);
     }
     .team-rules-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-    .team-rules-head h3 { margin: 0; font-size: 13px; line-height: 1.4; font-weight: 650; }
-    .team-rules-state { font-size: 11px; color: var(--p-muted); white-space: nowrap; }
+    .team-rules-head h3 { margin: 0; font-size: 15px; line-height: 1.4; font-weight: 650; }
+    .team-rules-state { font-size: 12px; color: var(--p-muted); white-space: nowrap; }
     .team-rules-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(240px, 1.2fr); gap: 16px; align-items: end; }
     .team-rules .field { margin: 0; }
     .team-rules .stepper, .team-rules select { height: 40px; }
     .team-route { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 18px; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; }
     .team-route span { min-width: 0; padding: 12px 14px; background: var(--p-paper); border-right: 1px solid var(--p-line); }
     .team-route span:last-child { border-right: 0; }
-    .team-route small { display: block; margin-bottom: 3px; font: 600 10px/1.3 var(--p-mono); color: var(--p-faint); letter-spacing: .06em; }
-    .team-route b { display: block; font-size: 12px; line-height: 1.45; font-weight: 650; color: var(--p-ink); }
+    .team-route small { display: block; margin-bottom: 3px; font: 600 11px/1.3 var(--p-mono); color: var(--p-faint); letter-spacing: .06em; }
+    .team-route b { display: block; font-size: 14px; line-height: 1.45; font-weight: 650; color: var(--p-ink); }
     .team-pair { display: grid; grid-template-columns: minmax(0, 1fr) 190px auto; gap: 10px; align-items: end; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--p-line); }
-    .team-pair-copy strong { display: block; font-size: 12px; line-height: 1.4; }
-    .team-pair-copy span { display: block; margin-top: 3px; color: var(--p-muted); font-size: 11px; line-height: 1.5; }
+    .team-pair-copy strong { display: block; font-size: 13px; line-height: 1.4; }
+    .team-pair-copy span { display: block; margin-top: 3px; color: var(--p-muted); font-size: 12px; line-height: 1.5; }
     .team-pair .field { margin: 0; }
     .team-pair .secondary { min-height: 40px; white-space: nowrap; }
     .team-boundary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--p-line); }
-    .team-boundary strong { flex: 0 0 auto; font-size: 12px; }
-    .team-boundary span { color: var(--p-muted); font-size: 11px; line-height: 1.5; text-align: right; }
+    .team-boundary strong { flex: 0 0 auto; font-size: 13px; }
+    .team-boundary span { color: var(--p-muted); font-size: 12px; line-height: 1.5; text-align: right; }
     .hitch-spec {
       display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px 16px;
       margin: 4px 0 8px; max-width: 56ch; padding: 10px 0;
@@ -558,18 +601,18 @@
     .hitch-spec dt { margin: 0; font-size: 12px; font-weight: 650; color: var(--p-muted); }
     .hitch-spec dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--p-ink); }
     .footer {
-      display: none !important; flex: 0 0 48px; height: 48px; align-items: center; gap: 8px;
-      padding: 0 10px; border-top: 1px solid var(--p-line); background: var(--p-paper);
+      display: none !important; flex: 0 0 56px; height: 56px; align-items: center; gap: 10px;
+      padding: 0 14px; border-top: 1px solid var(--p-line); background: var(--p-paper);
+      position: relative; z-index: 5;
     }
     body[data-scene="farm"] .footer,
     body[data-scene="lead"] .footer,
     body[data-scene="follow"] .footer,
     body[data-scene="hitch"] .footer { display: flex !important; }
-    .summary { flex: 1; min-width: 0; font-size: 12px; color: var(--p-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .lamp { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--p-ok); white-space: nowrap; }
+    .lamp { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--p-ok); white-space: nowrap; }
     .lamp .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
     .lamp.bad { color: var(--p-danger); }
-    .primary { min-width: 120px; height: 36px; }
+    .primary { min-width: 128px; height: 42px; }
     .primary.stop { background: var(--p-danger); border-color: var(--p-danger); color: var(--p-on); }
     .primary.stop:hover {
       background: color-mix(in oklab, var(--p-danger) 88%, var(--p-paper));
@@ -580,9 +623,9 @@
       background: var(--p-fill); color: var(--p-faint); border-color: var(--p-line); cursor: not-allowed; filter: none;
     }
     .drawer {
-      position: absolute; inset: 40px 0 48px auto; width: 320px; background: var(--p-bg);
+      position: absolute; inset: 48px 0 56px auto; width: 320px; background: var(--p-bg);
       border-left: 1px solid var(--p-line); transform: translateX(104%);
-      transition: transform 200ms var(--ease-standard); padding: 14px; overflow: auto; z-index: 8;
+      transition: transform 200ms var(--ease-standard); padding: 16px; overflow: auto; z-index: 8;
     }
     .drawer.open { transform: translateX(0); }
     .drawer h3 { margin: 0 0 10px; font-size: 15px; }
@@ -599,13 +642,13 @@
     .neg-item .fx { display: block; margin-top: 2px; font-size: 11px; color: var(--p-muted); line-height: 1.45; font-weight: 500; }
     .neg-item .why { display: block; margin-top: 3px; font-size: 11px; color: var(--p-danger); line-height: 1.4; font-weight: 650; }
     .toast {
-      position: absolute; right: 16px; bottom: 60px; background: var(--p-paper);
+      position: absolute; right: 16px; bottom: 68px; background: var(--p-paper);
       border: 1px solid var(--p-line); color: var(--p-ink); padding: 8px 12px; border-radius: var(--p-radius);
       font-size: 12px; font-weight: 600; opacity: 0; pointer-events: none; z-index: 9;
     }
     .toast.show { opacity: 1; }
     .modal-layer {
-      display: none; position: absolute; inset: 40px 0 48px 0; z-index: 18;
+      display: none; position: absolute; inset: 48px 0 56px 0; z-index: 18;
       align-items: center; justify-content: center;
       background: color-mix(in oklab, var(--p-ink) 36%, transparent); padding: 10px;
     }
@@ -749,7 +792,7 @@
       to { opacity: 1; }
     }
     .empty {
-      margin: 0; padding: 8px 0 2px; font-size: 12px; line-height: 1.5;
+      margin: 0; padding: 10px 0 2px; font-size: 13px; line-height: 1.5;
       color: var(--p-muted); font-weight: 400;
     }
     .empty b, .empty strong { color: var(--p-ink); font-weight: 650; }
@@ -759,7 +802,7 @@
       background: var(--p-fill); color: var(--p-muted);
     }
     .err-inline {
-      display: none; margin: 0 8px 0 0; font-size: 12px; font-weight: 650;
+      display: none; margin: 0 8px 0 0; font-size: 13px; font-weight: 650;
       color: var(--p-danger); white-space: nowrap;
     }
     .err-inline.show {
@@ -768,7 +811,7 @@
       border-radius: 4px; background: color-mix(in oklab, var(--p-danger) 8%, var(--p-paper));
     }
     .load-bar {
-      display: none; position: absolute; left: 0; right: 0; bottom: 48px; height: 2px;
+      display: none; position: absolute; left: 0; right: 0; bottom: 56px; height: 2px;
       background: var(--p-line); overflow: hidden; z-index: 6;
     }
     .load-bar.show { display: block; }
@@ -781,7 +824,7 @@
       to { transform: translateX(320%); }
     }
     .drawer-backdrop {
-      display: none; position: absolute; inset: 40px 0 48px 0;
+      display: none; position: absolute; inset: 48px 0 56px 0;
       background: color-mix(in oklab, var(--p-ink) 28%, transparent); z-index: 7;
     }
     .drawer-backdrop.open { display: block; }
@@ -823,15 +866,15 @@
       opacity: .62; transform: none;
     }
     .hitch-page { max-width: none; }
-    .hitch-page h2 { font-size: 18px; font-weight: 700; letter-spacing: 0; }
+    .hitch-page h2 { font-size: 24px; font-weight: 700; letter-spacing: 0; }
     .hitch-page p { max-width: none; }
     .hitch-spec { max-width: none; }
     .panel h3 { letter-spacing: 0; }
     .skill-hint {
-      margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: var(--p-muted);
+      margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--p-muted);
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
-    .footer .primary { min-height: 36px; }
+    .footer .primary { min-height: 42px; }
     .dd-menu { overscroll-behavior: contain; }
     .secondary:active, .ghost-btn.solid:active { transform: translateY(1px); }
     .gold:disabled, .gold:disabled:hover {
@@ -857,22 +900,23 @@
       .dd-menu button:active { transform: none; }
     }
     @media (max-width: 860px) {
-      .win { width: min(740px, 100%); height: auto; min-height: 640px; }
+      .win { width: min(860px, 100%); height: auto; min-height: 680px; }
       body[data-scene="farm"] .body, body[data-scene="lead"] .body { grid-template-columns: 1fr; }
       .rail { border-right: 0; border-bottom: 1px solid var(--p-line); }
       .main { display: block; }
       .selected-deck { margin-top: 14px; padding: 14px 0 0; border-top: 1px solid var(--p-line); border-left: 0; }
-      .selected-deck .panel { position: static; }
+      .selected-deck .panel { position: static; max-height: none; }
       .rep-layout { grid-template-columns: 1fr; }
       .fac-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .pick-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      .wiz { width: min(440px, 100%); }
+      .wiz { width: min(520px, 100%); }
       .rank-card { grid-template-columns: 22px 28px minmax(0, 1fr) 44px; min-height: 60px; }
       .rank-card select { grid-column: 3 / 5; grid-row: 2; }
       .rank-card .rank-move { display: grid; grid-column: 4; grid-row: 1 / span 2; }
       .rank-card .rank-move button { width: auto; min-height: 20px; }
       .rank-card .grip { display: none; }
       body { padding: 12px 8px; align-items: stretch; }
+      body[data-scene="wizard"] { padding: 0; }
     }
     @media (max-width: 600px) {
       .win { width: 100%; min-height: calc(100dvh - 96px); border-radius: 0; }
@@ -880,7 +924,14 @@
       .chrome-wide { display: none !important; }
       .icon-btn, .win-btn { height: 44px; min-width: 44px; }
       .gold, .primary, .secondary, .ghost-btn.solid,
-      .seg button, .dd-btn, .pick-row, .add-custom, .skill-cell, .chip { min-height: 44px; }
+      .seg button, .dd-btn, .pick-row, .add-custom, .skill-cell, .chip,
+      .adv-combo.dd-btn { min-height: 44px; height: 44px; }
+      .adv-priority { grid-template-columns: 1fr; }
+      .adv-priority-label { padding-top: 0; }
+      .adv-priority-row { grid-template-columns: minmax(0, 1fr) 44px; }
+      .adv-step { width: 44px; }
+      .adv-step button { width: 44px; height: 22px; font-size: 10px; }
+      .adv-combo em { display: none; }
       .stepper { height: 44px; }
       .stepper button { width: 44px; }
       .stepper output, .stepper input { height: 44px; }
@@ -918,7 +969,7 @@
         flex: 0 0 auto; height: auto; min-height: 48px; padding: 10px; gap: 8px;
       }
       .footer .ghost-btn.solid, .footer .primary { width: 100%; }
-      .summary, .err-inline { grid-column: 1 / -1; margin: 0; white-space: normal; }
+      .err-inline { grid-column: 1 / -1; margin: 0; white-space: normal; }
       .lamp { min-height: 44px; }
       .drawer { width: min(320px, 100%); inset: 48px 0 0 auto; }
       .drawer-backdrop, .modal-layer { inset: 48px 0 0 0; }
@@ -935,7 +986,6 @@
             <div class="wiz-copy">
               <p class="wiz-eyebrow">刷刷宝 · 运行设置</p>
               <h2 id="wizTitle">选择运行方式</h2>
-              <p>先确定队伍关系，再进入看板配置关卡与技能。</p>
             </div>
           </header>
           <div class="wiz-body">
@@ -947,18 +997,17 @@
               <div class="choice-list">
                 <button type="button" class="wcard solo" id="wizSolo" aria-pressed="true">
                   <strong>单人刷图</strong>
-                  <span>自己建房，自己点开始。</span>
                 </button>
               </div>
             </div>
             <div id="wizTeamPane" class="hidden">
               <div class="choice-list">
-                <button type="button" class="wcard" data-team="lead"><em>车头</em><strong>带车</strong><span>你开房当车头。到人后房间自动开始。</span></button>
+                <button type="button" class="wcard" data-team="lead"><em>车头</em><strong>带车</strong><span>你当车头，房间自动开始。</span></button>
                 <button type="button" class="wcard" data-team="follow"><em>已在房</em><strong>跟车</strong><span>已在房间，自动每局准备。</span></button>
                 <button type="button" class="wcard" data-team="hitch"><em>待验证</em><strong>蹭车</strong><span>自动在大厅找房蹭车。</span></button>
               </div>
             </div>
-            <p class="hint" id="wizHint">关卡和技能在看板上选，这里只定运行方式。</p>
+            <p class="hint hidden" id="wizHint"></p>
           </div>
           <div class="wiz-nav">
             <button type="button" class="secondary" id="wizCancel">取消</button>
@@ -970,7 +1019,7 @@
         <section class="win" id="scene-app" data-od-id="dashboard" data-theme="light">
           <div class="titlebar">
             <div class="brand">
-              <span class="logo-box"><img src="assets/app_logo.png" alt="刷刷宝" width="22" height="22" /></span>
+              <span class="logo-box"><img src="assets/app_logo.png" alt="刷刷宝" width="26" height="26" /></span>
               <h1>刷刷宝</h1>
               <span class="ver chrome-wide">v0.3</span>
             </div>
@@ -999,7 +1048,7 @@
                     <button type="button" class="text-btn" id="btnRep">调整</button>
                   </div>
                 </div>
-                <button type="button" class="pick-row" id="cjbCard"><span class="k">传家宝</span><strong id="cjbName">莫阿姆</strong><i>选择</i></button>
+                <button type="button" class="pick-row" id="cjbCard"><span class="k">传家宝</span><strong id="cjbName">洛卡纳哈</strong><i>选择</i></button>
                 <button type="button" class="pick-row" id="bossCard"><span class="k">Boss</span><strong id="bossName">怀特迈恩</strong><i>选择</i></button>
                 <div class="switch-row"><span id="lblSecret">自动秘境</span><button type="button" class="switch" id="swSecret" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblSecret"></button></div>
                 <div class="switch-row"><span id="lblCloseML">5-5 后取消自动主线</span><button type="button" class="switch" id="swCloseML" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblCloseML"></button></div>
@@ -1017,7 +1066,7 @@
               <div class="main-workspace">
               <div class="panel" data-od-id="skill-panel">
                 <div class="skill-head"><h3 data-od-id="skill-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 9.4 6.6 14.5 8l-5.1 1.4L8 14.5 6.6 9.4 1.5 8l5.1-1.4L8 1.5Z"></path></svg></span>技能搭配</h3><span class="hint" id="skillCount">已选 4 / 4</span></div>
-                <button type="button" class="ghost-btn solid hidden" id="btnBackBuilds" style="align-self:flex-start;height:28px;padding:0 10px;font-size:12px;margin-bottom:8px;">选择其他策略</button>
+                <button type="button" class="ghost-btn solid hidden" id="btnBackBuilds">选择其他策略</button>
                 <div class="builds" id="builds"></div>
                 <button type="button" class="add-custom" id="btnAddCustom" data-od-id="btn-custom">自定义</button>
                 <p class="skill-hint" id="skillHint"></p>
@@ -1116,7 +1165,7 @@
           <footer class="footer" id="footer">
             <button type="button" class="ghost-btn solid" id="btnSwitchMode">切换运行方式</button>
             <button type="button" class="ghost-btn solid" id="btnMore" aria-expanded="false" aria-controls="drawer">更多设置</button>
-            <div class="summary" id="summary">单人刷图  1-10  常规</div>
+            <span class="grow"></span>
             <span class="err-inline" id="startErr" role="alert"></span>
             <div class="lamp" id="lamp"><span class="dot"></span><span id="lampText">预检通过</span></div>
             <button type="button" class="primary" id="btnStart" data-od-id="btn-start" aria-describedby="startErr">开始运行</button>
@@ -1175,7 +1224,7 @@
       { id:"shouhu", name:"守护巨龙", short:"守护", affix:["怪物强度 ×1.2","怪物攻击 +50%","怪物血量 +50%","怪物防御 +50%","怪物强度 ×1.3","玩家最终全属性 -30%","玩家附加伤害 -60%","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，全属性 -15%","怪物强度 ×1.5（极难）"] }
     ];
     const CHAPTERS = [{id:1,label:"旧世界大陆  一阶段"},{id:2,label:"熔火之心  二阶段"},{id:3,label:"黑翼之潮  三阶段"},{id:4,label:"安琪拉  四阶段"}];
-    const CJB_STEMS = ["01暴掠龙","02血腥猛犸","03洛卡纳哈","04克雷什之父","05撼地兽","06鳄王","07古龙龟","08战争雷霆蜥蜴","09钦原","10马格纳斯","11嗜血的索克","12战争之王","13蛇王纳什","14青蛙之神","15猛虎之神","16阿迦玛甘","17年兽","18乌索克","19玛洛恩","20鲁克玛","54莫阿姆"];
+    const CJB_STEMS = ["01暴掠龙","02血腥猛犸","03洛卡纳哈","04克雷什之父","05撼地兽","06鳄王","07古龙龟","08战争雷霆蜥蜴","09钦原","10马格纳斯","11嗜血的索克","12战争之王","13蛇王纳什","14青蛙之神","15猛虎之神","16阿迦玛甘","17年兽","18乌索克","19玛洛恩","20鲁克玛"];
     const BOSS_STEMS = ["01霍格","02祈求着耶戈什","03曲奇","04大范","05克雷什","06吞噬者穆坦努斯","07大法师阿鲁高","08巨形缝合怪","09摩拉迪姆","10吞噬者芬鲁斯","11瑟玛普拉格","12卡尔加","13寒冰巫妖","14虎王邦加拉什","15莫格莱尼","16怀特迈恩","17阿扎达斯","18瑟莱德丝公主","19加兹瑞拉","20伊兰尼库斯之影","21索瑞森大帝","22维姆萨拉克","23巴纳扎尔","24瑞文戴尔男爵","25黑暗院长加林","26达基萨斯将军","27戈多克大王","28加兹兰卡","29血神哈卡","30火焰行者","31巨石火人","32吞噬者图恩","33玛格曼达","34加尔","35火牛贝利尔","36迦顿男爵","37超大熔岩巨人","38管理者","39拉格纳罗斯","40费尔默","41埃博诺克","42弗莱格尔","43堕落的红龙","44狂野的拉格佐尔","45寒冰将军格尔","46暮光将军佐拉","47狂龙萨兹拉克","48龙巢守护者","49克洛玛古斯","50奥妮克希亚","51奈法利安","52库林纳克斯","53拉贾克斯将军","54莫阿姆","55吞咽者布鲁"];
     const TEXT_STEMS = new Set(["38管理者","44狂野的拉格佐尔","45寒冰将军格尔","46暮光将军佐拉","47狂龙萨兹拉克"]);
     const STAGE_BOSS = {"1-1":"大范","1-2":"吞噬者穆坦努斯","1-3":"大法师阿鲁高","1-4":"巨形缝合怪","1-5":"摩拉迪姆","1-6":"瑟玛普拉格","1-7":"卡尔加","1-8":"寒冰巫妖","1-9":"虎王邦加拉什","1-10":"怀特迈恩","1-11":"阿扎达斯","1-12":"瑟莱德丝公主","1-13":"加兹瑞拉","1-14":"伊兰尼库斯之影","1-15":"索瑞森大帝","1-16":"维姆萨拉克","1-17":"巴纳扎尔","1-18":"瑞文戴尔男爵","1-19":"黑暗院长加林","1-20":"达基萨斯将军","1-21":"戈多克大王","1-22":"加兹兰卡","1-23":"血神哈卡","2-1":"玛格曼达","2-2":"加尔","2-3":"火牛贝利尔"};
@@ -1191,8 +1240,7 @@
       { name:"木材梭哈", effect:"55% 概率木材翻倍；45% 概率木材清 0。", why:"可能清空木材，默认不拿。" }
     ];
     const MUST_TAKE = ["EX","ONEPIECE","至高进化","一身神装","满级大佬","全都要","卡牌大师"];
-    const MODE_LABEL = { solo:"单人刷图", lead:"组队  带车", follow:"组队  跟车", hitch:"组队  蹭车" };
-    const TEAM_ACTION_LABEL = { solo:"去单人刷票", arch:"去考古", hitch:"转为大厅蹭车" };
+    const MODE_LABEL = { solo:"单人模式", lead:"组队带车模式", follow:"组队跟车模式", hitch:"组队蹭车模式" };
     const stemLabel = (stem) => stem.replace(/^\d+/, "");
     const findStem = (stems, label) => stems.find((s) => stemLabel(s) === label) || "";
     const state = {
@@ -1205,7 +1253,7 @@
       alloc:{heifeng:0,yinse:0,kenrito:5,tanxian:3,yuansu:0,shouhu:0}, draft:null,
       negative:new Set(),
       routes:Object.fromEntries(Object.keys(FAMILIES).map((c)=>[c,FAMILIES[c].routes[0][0]])),
-      priority:["asj","asjg","assx","jq"], cjb:"54莫阿姆", boss:"16怀特迈恩"
+      priority:["asj","asjg","assx","jq"], cjb:"03洛卡纳哈", boss:"16怀特迈恩"
     };
     const $ = (id) => document.getElementById(id);
     const icon = (code, size) => {
@@ -1358,16 +1406,47 @@
       const b = BUILDS.find((x)=>x.id===id); if (!b) return;
       state.attr=new Set(b.attr); state.growth=new Set(b.growth); state.basic=new Set(b.basic); state.adv=[]; state.advDraft=[]; state.advEditing=false; state.bondSaved=false;
     }
+    function blockIcon(kind) {
+      const paths = {
+        attr: '<path d="M8 1.6 9.7 6.1 14.4 6.5 10.9 9.7 11.9 14.3 8 11.9 4.1 14.3 5.1 9.7 1.6 6.5 6.3 6.1Z"></path>',
+        growth: '<path d="M8 14V7.2"></path><path d="M8 7.2c.2-3 2.4-5.4 5.2-5.4-1 2.6-.8 4.6-5.2 5.4Z"></path><path d="M8 8.4c-.2-2.5-2.3-4.6-5-4.6 1 2.1.8 3.8 5 4.6Z"></path>',
+        cards: '<rect x="3" y="3.5" width="8" height="10" rx="1.2"></rect><path d="M6 2.5h6.5v10"></path>',
+        star: '<path d="M8 1.8 9.6 6.1 14.2 6.5 10.8 9.6 11.8 14.2 8 11.9 4.2 14.2 5.2 9.6 1.8 6.5 6.4 6.1Z"></path>',
+        lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"></rect><path d="M5.6 7V5.3a2.4 2.4 0 0 1 4.8 0V7"></path>',
+        flag: '<path d="M3.5 14V2.6"></path><path d="M3.5 2.6h8.8L10.2 5.7 12.3 8.8H3.5Z"></path>',
+        users: '<circle cx="6.1" cy="6" r="2"></circle><path d="M2.6 13c.3-2.1 1.7-3.3 3.5-3.3S9.3 10.9 9.6 13"></path><circle cx="11" cy="6.3" r="1.5"></circle><path d="M10.3 9.8c1.3.3 2.4 1.3 2.7 3.2"></path>',
+        spark: '<path d="M8 1.5 9.2 6.4 14.2 7.6 9.2 8.8 8 13.7 6.8 8.8 1.8 7.6 6.8 6.4Z"></path>',
+        shield: '<path d="M8 1.6 13 3.5v3.8c0 3.1-2.1 5.5-5 7-2.9-1.5-5-3.9-5-7V3.5L8 1.6Z"></path>',
+        sliders: '<path d="M3 4.5h10"></path><path d="M3 8h10"></path><path d="M3 11.5h10"></path><circle cx="6" cy="4.5" r="1.3"></circle><circle cx="10" cy="8" r="1.3"></circle><circle cx="7.5" cy="11.5" r="1.3"></circle>'
+      };
+      return `<span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16">${paths[kind] || paths.cards}</svg></span>`;
+    }
+    function assignAdvSlot(slot, packId) {
+      const cur = state.adv.indexOf(packId);
+      if (cur < 0 || cur === slot || slot < 0 || slot >= state.adv.length) return;
+      const next = state.adv.slice();
+      const [item] = next.splice(cur, 1);
+      next.splice(slot, 0, item);
+      state.adv = next;
+      state.advDraft = next.slice();
+      renderBonds();
+    }
+    function advPriorityMarkup(advancedOrder) {
+      if (!advancedOrder.length) return `<p class="deck-note">暂未选择高级卡组。</p>`;
+      const last = advancedOrder.length - 1;
+      const rows = advancedOrder.map((pack, index) => {
+        const options = advancedOrder.map((item) => `<button type="button" role="option" data-adv-pick="${item.id}" data-adv-slot="${index}" aria-selected="${item.id===pack.id}">${item.label}</button>`).join("");
+        return `<div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第${index+1}优先级 ${pack.label}"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><em>第${index+1}优先级</em><i>▾</i></button><div class="dd-menu" role="listbox">${options}</div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===last ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`;
+      }).join("");
+      return `<div class="adv-priority" data-od-id="advanced-pack-priority"><span class="adv-priority-label">高级</span><div class="adv-priority-list">${rows}</div></div>`;
+    }
     function renderBonds() {
       const packById = Object.fromEntries(ADV.map((pack)=>[pack.id, pack]));
       if (state.bondSaved) { renderBondSummary(packById); renderLaunchSummary(); return; }
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const advancedOrderEditor = advancedOrder.length
-        ? `<div class="adv-order" data-od-id="advanced-pack-priority">${advancedOrder.map((pack,index)=>`<div class="adv-rank"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><span class="rank-move"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===advancedOrder.length-1 ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`).join("")}</div>`
-        : "";
-      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>高级卡组（点击勾选/取消）</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrderEditor}</div>`;
-      const coreCards = `<div class="bond-block"><h4>属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
-      const save = `<div class="bond-actions"><p class="hint">调整后点击保存，运行时才会使用这份羁绊和卡组配置。</p><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
+      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>${blockIcon("star")}高级卡组</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrder.length ? advPriorityMarkup(advancedOrder) : `<p class="deck-note">勾选后在此调整优先级，不必先锁定卡组。</p>`}</div>`;
+      const coreCards = `<div class="bond-block"><h4>${blockIcon("attr")}属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("growth")}发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("cards")}基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
+      const save = `<div class="bond-actions"><p class="hint">保存后锁定卡组勾选；高级顺序仍可随时改。</p><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
       $("bonds").innerHTML = `${coreCards}${advanced}${save}`;
       renderLaunchSummary();
     }
@@ -1378,14 +1457,11 @@
         ...BASIC.filter((n)=>state.basic.has(n))
       ];
       const basicRow = basics.length
-        ? `<div class="chips">${basics.map((n)=>`<span class="deck-tag">${n}</span>`).join("")}</div>`
+        ? `<div class="bond-locked">${basics.map((n)=>`<span class="deck-tag">${n}</span>`).join("")}</div>`
         : `<p class="deck-note">暂未选择基础羁绊。</p>`;
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const advRow = advancedOrder.length
-        ? `<div class="adv-order" data-od-id="advanced-pack-priority">${advancedOrder.map((pack,index)=>`<div class="adv-rank"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><span class="rank-move"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===advancedOrder.length-1 ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`).join("")}</div>`
-        : `<p class="deck-note">暂未选择高级卡组。</p>`;
-      const actions = `<div class="bond-actions"><p class="hint">已保存这份羁绊配置；拖动 ▲▼ 调整高级卡组顺序即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>`;
-      $("bonds").innerHTML = `<div class="bond-block" data-od-id="bond-saved-summary"><h4>基础卡组</h4>${basicRow}</div><div class="bond-block" data-od-id="advanced-pack-priority"><h4>高级卡组（按顺序生效）</h4>${advRow}</div>${actions}`;
+      const actions = `<div class="bond-actions"><p class="hint">卡组已锁定。高级优先级用下拉或 ▲▼ 即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>`;
+      $("bonds").innerHTML = `<div class="bond-block" data-od-id="bond-saved-summary"><h4>${blockIcon("lock")}基础卡组</h4>${basicRow}</div><div class="bond-block" data-od-id="advanced-pack-priority"><h4>${blockIcon("star")}高级卡组顺序</h4>${advPriorityMarkup(advancedOrder)}</div>${actions}`;
     }
     function renderLaunchSummary() {
       const selectedBasics = [
@@ -1402,20 +1478,21 @@
         : current.length === 0 ? "请先选择技能" : "启动配置已就绪";
       const rankedSkills = [...state.priority.filter((code)=>current.includes(code)), ...current.filter((code)=>!state.priority.includes(code))].slice(0,4);
       const detailTags = [
-        `自动秘境：${state.autoSecret ? "开" : "关"}`,
-        `自动考古：${state.autoArch ? "开" : "关"}`,
-        `龙珠优先：${state.dragonPrefer ? "开" : "关"}`,
-        `取消主线：${state.closeMainline ? "开" : "关"}`,
-        `每局新建：${state.newRoom ? "开" : "关"}`
+        `秘境 ${state.autoSecret ? "开" : "关"}`,
+        `考古 ${state.autoArch ? "开" : "关"}`,
+        `龙珠 ${state.dragonPrefer ? "开" : "关"}`,
+        `取消主线 ${state.closeMainline ? "开" : "关"}`,
+        `每局新建 ${state.newRoom ? "开" : "关"}`
       ];
       const basicSummary = selectedBasics.length
         ? `<div class="deck-tags">${selectedBasics.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div>`
         : `<span class="deck-tag empty">暂未选择</span>`;
       const advancedSummary = advancedOrder.length
         ? `<div class="deck-tags">${advancedOrder.map((pack,index)=>`<span class="deck-tag">${index+1}·${pack.label}</span>`).join("")}</div>`
-        : `<p class="deck-note">暂未选择高级卡组。</p>`;
+        : `<span class="deck-tag empty">未启用</span>`;
       const skillSummary = rankedSkills.length ? `<div class="launch-skills">${rankedSkills.map((code,index)=>`<span class="launch-skill"><i>${index+1}</i><img src="assets/skills/${code}.png" alt="" width="22" height="22" /><b>${SKILLS[code]}</b></span>`).join("")}</div>` : `<p class="deck-note">暂未选择技能。</p>`;
-      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><div class="launch-check"><h4>目标关卡</h4><p class="launch-value">${state.chapter}-${state.stage} · ${state.cycle ? `${state.cycle} 局` : "手动停"}</p></div><div class="launch-check"><h4>运行方式</h4><p class="launch-value">${MODE_LABEL[state.mode]||"单人刷图"}</p></div><div class="launch-check"><h4>已选技能</h4>${skillSummary}</div><div class="launch-check"><h4>声望挑战</h4><p class="launch-value">${state.hero ? (factions.join("、") || "已启用，待选择") : "未启用"}</p></div><div class="launch-check"><h4>传家宝 / Boss</h4><p class="launch-value">${stemLabel(state.cjb)} / ${stemLabel(state.boss)}</p></div><div class="launch-check"><h4>细节设置</h4><div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div></div><div class="launch-check"><h4>基础卡组</h4>${basicSummary}</div><div class="launch-check"><h4>高级卡组</h4>${advancedSummary}</div>`;
+      const prestigeValue = state.hero ? (factions.join("、") || "已启用，待选择") : "未启用";
+      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><dl class="launch-facts"><div><dt>${blockIcon("flag")}关卡</dt><dd>${state.chapter}-${state.stage} · ${state.cycle ? `${state.cycle} 局` : "手动停"}</dd></div><div><dt>${blockIcon("users")}方式</dt><dd>${MODE_LABEL[state.mode]||"单人模式"}</dd></div><div><dt>${blockIcon("shield")}声望</dt><dd>${prestigeValue}</dd></div><div><dt>${blockIcon("cards")}传家宝</dt><dd>${stemLabel(state.cjb)||"未选"}</dd></div><div><dt>${blockIcon("spark")}Boss</dt><dd>${stemLabel(state.boss)||"未选"}</dd></div></dl><div class="launch-block"><h4>${blockIcon("star")}技能</h4>${skillSummary}</div><div class="launch-block"><h4>${blockIcon("sliders")}细节</h4><div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div></div><div class="launch-block"><h4>${blockIcon("cards")}卡组</h4><p class="launch-sub">基础${state.bondSaved ? " · 已锁定" : ""}</p>${basicSummary}<p class="launch-sub">高级 · 按顺序</p>${advancedSummary}</div>`;
     }
     function renderBuilds() {
       const isCustom = state.selected.startsWith("custom:");
@@ -1527,21 +1604,14 @@
       $("wizSoloPane").classList.toggle("hidden", state.wizKind!=="solo");
       $("wizTeamPane").classList.toggle("hidden", state.wizKind!=="team");
       $("wizTeamPane").querySelectorAll("[data-team]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.team===state.wizTeam?"true":"false"));
-      $("wizHint").textContent = state.wizKind==="solo"
-        ? "进入看板后再选关卡和技能。单人：自己建房，自己点开始。"
-        : (state.wizTeam==="lead"?"带车：你当车头，房间自动开始。"
-          : state.wizTeam==="follow"?"跟车：已在房间里等队长，不建房、不点开始。"
-          : "蹭车：大厅搜房。待验证，看板不点火。");
+      const hint = state.wizKind==="team" && state.wizTeam==="lead"
+        ? "带车：你当车头，房间自动开始。"
+        : "";
+      $("wizHint").textContent = hint;
+      $("wizHint").classList.toggle("hidden", !hint);
     }
     function refreshSummary() {
       const names=currentSkills().filter(Boolean).map((c)=>SKILLS[c]);
-      const diff=state.hero?"声望挑战":"常规";
-      const mode=MODE_LABEL[state.mode]||"单人刷图";
-      const rep=state.hero?FACTIONS.filter((f)=>state.alloc[f.id]).map((f)=>`${f.short}×${state.alloc[f.id]}`).join(" "):"";
-      const teamRule=state.teamRules[state.mode];
-      $("summary").textContent=teamRule
-        ? `${mode}  ${teamRule.cycle?teamRule.cycle+" 局":"手动停"}  ${state.mode==="hitch"?"目标后":"解散后"}：${TEAM_ACTION_LABEL[state.mode==="hitch"?teamRule.afterGoal:teamRule.afterRoom]}`
-        : `${mode}  ${state.cycle?state.cycle+" 局":"手动停"}  ${state.chapter}-${state.stage}  ${diff}${rep?"  "+rep:""}  ${names.join(" ")||"未选技能"}`;
       const hitch = state.scene==="hitch";
       const skillsReady = names.length > 0;
       const launchable = !hitch && skillsReady;
@@ -1693,18 +1763,21 @@
     $("bonds").addEventListener("click",(e)=>{
       if (e.target.closest("#btnSaveBonds")) { state.bondSaved=true; renderBonds(); return; }
       if (e.target.closest("#btnEditBonds")) { state.bondSaved=false; renderBonds(); return; }
+      const advPick=e.target.closest("[data-adv-pick]");
+      if (advPick) { assignAdvSlot(Number(advPick.dataset.advSlot), advPick.dataset.advPick); return; }
+      const advMove=e.target.closest("[data-adv-move]");
+      if (advMove) {
+        const i=state.adv.indexOf(advMove.dataset.advId), j=i+Number(advMove.dataset.advMove);
+        if (i<0 || j<0 || j>=state.adv.length) return;
+        [state.adv[i],state.adv[j]]=[state.adv[j],state.adv[i]];
+        state.advDraft=state.adv.slice(); renderBonds(); return;
+      }
+      if (state.bondSaved) return;
       const attr=e.target.closest("[data-attr]"); if (attr) { const id=attr.dataset.attr; if (state.attr.has(id)) state.attr.delete(id); else state.attr.add(id); renderBonds(); return; }
       const pack=e.target.closest("[data-pack]"); if (pack) { const id=pack.dataset.pack; if (state.adv.includes(id)) { state.adv=state.adv.filter((item)=>item!==id); } else { state.adv=[...state.adv,id]; } state.advDraft=state.adv.slice(); renderBonds(); return; }
       const chip=e.target.closest("[data-bond]"); if (!chip) return;
       const setName=chip.dataset.bondSet, name=chip.dataset.bond;
       if (state[setName].has(name)) state[setName].delete(name); else state[setName].add(name); renderBonds();
-    });
-    $("bonds").addEventListener("click",(e)=>{
-      const advMove=e.target.closest("[data-adv-move]"); if (!advMove) return;
-      const i=state.adv.indexOf(advMove.dataset.advId), j=i+Number(advMove.dataset.advMove);
-      if (i<0 || j<0 || j>=state.adv.length) return;
-      [state.adv[i],state.adv[j]]=[state.adv[j],state.adv[i]];
-      state.advDraft=state.adv.slice(); renderBonds();
     });
     $("negatives").addEventListener("change",(e)=>{ const box=e.target.closest("input[data-neg]"); if (!box) return; if (box.checked) state.negative.add(box.dataset.neg); else state.negative.delete(box.dataset.neg); });
     $("wizKind").addEventListener("click",(e)=>{
