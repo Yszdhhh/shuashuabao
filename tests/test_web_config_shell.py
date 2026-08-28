@@ -5,7 +5,7 @@
 - 导航拦截：非 file/qrc 一律拒绝；createWindow 弹新窗口拒绝；子资源兜底拦截
 - closeEvent 安全触发：运行中先 runner.stop() 收尾；收不下来拒绝关闭
 - renderProcessTerminated：崩溃只出原生错误页，不碰 RunnerService
-- desktop_app 环境变量切换：SHUABAO_SHELL=web → WebConfigShell，默认/其它 → MainWindow
+- desktop_app 环境变量切换：默认/SHUABAO_SHELL=web → WebConfigShell，显式 native → MainWindow
 - 入口纯净：desktop_app / web_config_shell 不引入 fastapi/uvicorn/webview/api_server
 """
 
@@ -438,13 +438,19 @@ def test_entry_web_env_uses_web_shell(tmp_path):
     mw.assert_not_called()
 
 
-def test_entry_default_and_unknown_env_keep_native(tmp_path):
-    for env_value in (None, "native", "NATIVE", "weird"):
-        mw, wc = _run_main(tmp_path, env_value)
+@pytest.mark.parametrize(
+    ("env_value", "uses_web"),
+    ((None, True), ("web", True), ("native", False), ("NATIVE", False), ("weird", True)),
+)
+def test_entry_shell_router_keeps_web_default_and_native_escape_hatch(tmp_path, env_value, uses_web):
+    """Web 壳是正式默认入口；只有显式 native 才允许旧窗口接管。"""
+    mw, wc = _run_main(tmp_path, env_value)
+    if uses_web:
+        wc.assert_called_once()
+        mw.assert_not_called()
+    else:
         mw.assert_called_once()
-        wc.assert_not_called(), f"SHUABAO_SHELL={env_value!r} 不得误入 Web 壳"
-        mw.reset_mock()
-        wc.reset_mock()
+        wc.assert_not_called()
 
 
 # ------------------------------------------------------ 入口纯净（§9/§12）
