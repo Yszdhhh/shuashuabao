@@ -350,6 +350,36 @@ class TestSkillEmptyConfig(unittest.TestCase):
 class TestBondTreasureUnknown(unittest.TestCase):
     """羁绊/宝物：unknown 绝不点击，阻塞面板直接关闭。"""
 
+    def test_advanced_bond_waits_for_eighty_percent_base_progress(self):
+        policy = settings(
+            bond_presets=["成长", "经济", "贪婪", "挑战", "封神"],
+            bond_base_presets=["成长", "经济", "贪婪", "挑战"],
+            bond_advanced_presets=["封神"],
+        )
+        d = choose_action(
+            bond_cands(
+                [slot(0, "封神")], can_refresh=True, settings=policy,
+                owned_bond_cards=("成长", "经济"),
+            ),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.REFRESH)
+
+    def test_advanced_bond_unlocks_after_eighty_percent_base_progress(self):
+        policy = settings(
+            bond_presets=["成长", "经济", "贪婪", "挑战", "封神"],
+            bond_base_presets=["成长", "经济", "贪婪", "挑战"],
+            bond_advanced_presets=["封神"],
+        )
+        d = choose_action(
+            bond_cands(
+                [slot(0, "封神")], settings=policy,
+                owned_bond_cards=("成长", "经济", "贪婪", "挑战"),
+            ),
+            SessionState(),
+        )
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
+
     def test_bond_unknown_only_slot_no_click(self):
         d = choose_action(
             bond_cands([slot(0, None)], settings=settings(bond_presets=["三国"])),

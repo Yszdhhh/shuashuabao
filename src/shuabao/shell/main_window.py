@@ -3801,6 +3801,11 @@ class MainWindow(QMainWindow):
     def _write_user_bundle(self, settings: Settings) -> None:
         path = self.user_settings_path()
         path.parent.mkdir(parents=True, exist_ok=True)
+        # `cards` is the worker's canonical whitelist. Keep dashboard-only
+        # state as its exact mirror so a stale bond_scheme cannot resurrect a
+        # card the user has removed.
+        self._shell_extras["bond_scheme"] = list(settings.cards)
+        self._shell_extras["bond_inverted"] = []
         data = collect_persistable_settings(settings)
         data["_shell"] = dict(self._shell_extras)
         data["_shell_schema"] = SHELL_SCHEMA_VERSION
@@ -3876,6 +3881,11 @@ class MainWindow(QMainWindow):
                             extras["attr_route"] = []
                     self._shell_extras.update(extras)
                 settings = Settings._from_dict(raw if isinstance(raw, dict) else {})
+                if settings.cards:
+                    # Migrate old double-written bundles in memory. The runner
+                    # reads `cards`; it wins over an older shell-only scheme.
+                    self._shell_extras["bond_scheme"] = list(settings.cards)
+                    self._shell_extras["bond_inverted"] = []
                 source = "user_settings.json"
                 default_bond = (
                     "bond_scheme" not in self._shell_extras

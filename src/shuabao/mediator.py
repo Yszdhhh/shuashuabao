@@ -94,6 +94,7 @@ from shuabao.choice_policy import (
     SlotCandidate,
     assemble_policy_settings,
     choose_action,
+    matches_bond_preset,
     slot_fingerprint,
 )
 from shuabao.interaction_surface import (
@@ -2338,6 +2339,20 @@ class Mediator:
     def _confirmed_bond_cards(self) -> tuple[str, ...]:
         """已确认持有的羁绊卡名（含重复次数；传给 PanelCandidates）。"""
         return tuple(self._bond_cards_owned)
+
+    def _bond_base_progress_pending(self) -> bool:
+        """基础卡未达到 80% 时，F 面板独占主动选卡循环。"""
+        policy = self._policy_settings()
+        bases = policy.bond_base_presets
+        if not bases or not policy.bond_advanced_presets:
+            return False
+        required = math.ceil(len(bases) * policy.bond_base_completion_ratio)
+        owned = self._confirmed_bond_cards()
+        completed = sum(
+            any(matches_bond_preset(name, (base,)) for name in owned)
+            for base in bases
+        )
+        return completed < required
     def _reset_choice_session(self) -> None:
         self._choice_session = SessionState(
             max_attempts=DEFAULT_MAX_ATTEMPTS,
@@ -2410,21 +2425,21 @@ class Mediator:
             "bond": ["bond_refresh_btn", "refresh", "cardRefresh", "heroRefresh", "bwRefresh"],
             "treasure": ["treasure_refresh_btn", "refresh", "cardRefresh", "bwRefresh"],
         }.get(kind, ["skill_refresh_btn", "refresh", "cardRefresh"])
-        hit = self.find(
-            frame,
-            names,
-            threshold=min(0.70, self.settings.match_threshold),
-            scales=self._hot_scales(),
-            roi=self._PANEL_BUTTONS_ROI,
-        )
+        def preferred(scales: tuple[float, ...]) -> MatchResult | None:
+            # Do not let a high-scoring generic `bwRefresh` template replace
+            # the panel-specific refresh button at a different coordinate.
+            for name in names:
+                hit = self.find(
+                    frame, [name], threshold=min(0.70, self.settings.match_threshold),
+                    scales=scales, roi=self._PANEL_BUTTONS_ROI,
+                )
+                if hit is not None:
+                    return hit
+            return None
+
+        hit = preferred(self._hot_scales())
         if hit is None and self._scaled_up_frame(frame):
-            hit = self.find(
-                frame,
-                names,
-                threshold=min(0.70, self.settings.match_threshold),
-                scales=self._wide_scales(),
-                roi=self._PANEL_BUTTONS_ROI,
-            )
+            hit = preferred(self._wide_scales())
         return hit
 
     def _find_skill_hide(self, frame: Frame) -> MatchResult | None:
@@ -2917,6 +2932,17 @@ class Mediator:
                     hit = by_stem.get(Path(pref).stem)
                     if hit is not None:
                         return ("技能", hit)
+        # 模板模式同样遵守“焦点未命中先刷新”；否则会在已验证的刷新钮旁
+        # 直接隐藏技能面板，和 live OCR 策略相反。
+        policy = self._policy_settings()
+        if (
+            policy.skill_refresh_on_focus_miss
+            and policy.skill_focus_families
+            and self._choice_session.refreshes < self._choice_session.max_refreshes
+        ):
+            refresh = self._find_panel_refresh(frame, "skill")
+            if refresh is not None:
+                return ("技能刷新", refresh)
         hide = self._find_skill_hide(frame)
         if hide is not None:
             return ("技能", hide)
@@ -3086,6 +3112,10 @@ class Mediator:
             return LoopAction.Continue
         now = time.time()
         target = getattr(self, "_choice_target", None) or self._l1_cycle_step
+        # 木材数值尚无经验证的 HUD 读取链；在基础卡未满 80% 时直接锁定 F，
+        # 比猜测木材数更保守，也保证高木材阶段不会被 G/V/进化抢占。
+        if self._bond_base_progress_pending():
+            target = "bond"
         if target in ("skill", "bond", "treasure"):
             reopen_at = self._panel_cooldown_until.get(target, 0.0)
             if now < reopen_at:

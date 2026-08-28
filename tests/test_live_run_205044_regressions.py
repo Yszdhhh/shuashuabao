@@ -39,11 +39,19 @@ class LiveRun205044Tests(unittest.TestCase):
             choice = med._find_reward_choice(frame(), anchor)
         self.assertEqual((choice[0], choice[1].name), ("bond刷新", "bond_refresh_btn"))
 
-    def test_runtime_does_not_run_evolution_detector_on_known_reward_panel(self) -> None:
+    def test_runtime_allows_awaited_hero_over_false_treasure_lock(self) -> None:
         med = RuntimeMediator(Settings(), ROOT)
         med._evolve_awaiting_hero_pick = True
+        expected = MatchResult("evolution_card_1_rank_5", 0.99, 900, 320, 1, 1, 900, 320)
         with patch.object(med, "_classify_choice_panel", return_value="treasure"), \
-                patch("shuabao.mediator.Mediator._find_evolution_choice") as core_choice:
+                patch("shuabao.mediator.Mediator._find_evolution_choice", return_value=expected) as core_choice:
+            self.assertIs(med._find_evolution_choice(frame()), expected)
+        core_choice.assert_called_once()
+
+    def test_runtime_rejects_evolution_detector_on_active_bond_panel(self) -> None:
+        med = RuntimeMediator(Settings(), ROOT)
+        med._panel_opened_by_us = "bond"
+        with patch("shuabao.mediator.Mediator._find_evolution_choice") as core_choice:
             self.assertIsNone(med._find_evolution_choice(frame()))
         core_choice.assert_not_called()
 

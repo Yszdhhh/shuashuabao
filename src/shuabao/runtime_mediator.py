@@ -413,7 +413,17 @@ class Mediator(CoreMediator):
         # A normal reward panel can share the central-card geometry with the
         # evolution modal.  Its classification is stronger evidence than the
         # generic edge detector, so never run that detector on a known panel.
-        if self._classify_choice_panel(frame) is not None:
+        # The explicit post-evolve state is stronger still: hero choices share
+        # the treasure lock artwork, so it must reach the hero ranker first.
+        awaiting_hero = bool(getattr(self, "_evolve_awaiting_hero_pick", False))
+        active_reward = (
+            getattr(self, "_panel_opened_by_us", None) in ("skill", "bond", "treasure")
+            or (
+                getattr(self, "_panel_state", PanelState.CLOSED) != PanelState.CLOSED
+                and getattr(self, "_panel_kind", None) in ("skill", "bond", "treasure")
+            )
+        )
+        if not awaiting_hero and (active_reward or self._classify_choice_panel(frame) is not None):
             return None
         hit = super()._find_evolution_choice(frame, anchor)
         if hit is not None and "refresh" not in str(getattr(hit, "name", "")).lower():
@@ -422,7 +432,7 @@ class Mediator(CoreMediator):
         # 绝不能在已定性为 skill/bond/treasure/card 的选择面板上触发——
         # 那会把普通三选一当成进化弹窗盲点（宝物"选蓝不选紫"的根因）。
         if (
-            getattr(self, "_evolve_awaiting_hero_pick", False)
+            awaiting_hero
             and getattr(self, "_panel_opened_by_us", None) is None
             and getattr(self, "_panel_state", PanelState.CLOSED) == PanelState.CLOSED
             and self._classify_choice_panel(frame) is None

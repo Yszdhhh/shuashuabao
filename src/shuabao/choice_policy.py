@@ -49,6 +49,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, fields
 from enum import Enum
 from pathlib import Path
@@ -209,6 +210,10 @@ class PolicySettings:
 
     skill_presets: tuple[str, ...] = ()
     bond_presets: tuple[str, ...] = ()
+    # 高级卡只在基础卡已达到目标比例后才进入候选；两者仍共用同一白名单。
+    bond_base_presets: tuple[str, ...] = ()
+    bond_advanced_presets: tuple[str, ...] = ()
+    bond_base_completion_ratio: float = 0.80
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
     min_confidence: float = 0.0
@@ -263,6 +268,15 @@ class PolicySettings:
                 if s
             )),
         )
+        object.__setattr__(self, "bond_base_presets", tuple(dict.fromkeys(
+            str(s).strip() for s in self.bond_base_presets if str(s).strip()
+        )))
+        object.__setattr__(self, "bond_advanced_presets", tuple(dict.fromkeys(
+            str(s).strip() for s in self.bond_advanced_presets if str(s).strip()
+        )))
+        object.__setattr__(self, "bond_base_completion_ratio", max(
+            0.0, min(1.0, float(self.bond_base_completion_ratio))
+        ))
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> "PolicySettings":
@@ -310,6 +324,9 @@ class PolicySettings:
         return cls(
             skill_presets=tuple(str(s) for s in (raw.get("skill_presets") or ())),
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
+            bond_base_presets=tuple(str(s) for s in (raw.get("bond_base_presets") or ())),
+            bond_advanced_presets=tuple(str(s) for s in (raw.get("bond_advanced_presets") or ())),
+            bond_base_completion_ratio=float(raw.get("bond_base_completion_ratio", 0.80)),
             treasure_presets=tuple(str(s) for s in (raw.get("treasure_presets") or ())),
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
             min_confidence=0.0 if min_conf is None else float(min_conf),
@@ -374,14 +391,29 @@ def assemble_policy_settings(
         text = str(item or "").strip()
         if text and text not in bond_presets:
             bond_presets.append(text)
+    card_presets: list[str] = []
     for item in getattr(settings, "cards", None) or ():
         text = str(item or "").strip()
         if not text:
             continue
         stem = Path(text).stem
         text = str(fetter_labels.get(stem, stem))
+        if text and text not in card_presets:
+            card_presets.append(text)
         if text and text not in bond_presets:
             bond_presets.append(text)
+
+    advanced_names = tuple(
+        str(item).strip() for item in (bond_cfg.get("advanced_names") or ()) if str(item).strip()
+    )
+    advanced_presets = tuple(
+        item for item in bond_presets if matches_bond_preset(item, advanced_names)
+    )
+    # A legacy/API caller that only supplies one advanced card has not opted
+    # into the dashboard's staged pack. Do not silently block that old flow.
+    base_presets = tuple(item for item in bond_presets if item not in advanced_presets)
+    if not any(item not in advanced_presets for item in card_presets):
+        base_presets = ()
 
     allow_neg = getattr(settings, "treasure_allow_negative", None)
     if allow_neg is None:
@@ -447,6 +479,9 @@ def assemble_policy_settings(
             "skill_archive_levels": getattr(settings, "skill_archive_levels", None),
             "skill_disabled_amplifiers": getattr(settings, "smart_route_disabled_amplifiers", None),
             "bond_presets": tuple(bond_presets),
+            "bond_base_presets": base_presets,
+            "bond_advanced_presets": advanced_presets,
+            "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
             "treasure_presets": (),
             "quality_order": raw.get("quality_order"),
             "min_confidence": 0.60 if min_conf is None else min_conf,
@@ -1056,8 +1091,25 @@ def _decide_collectible(
         eligible = cands.slots
         if kind == PANEL_BOND:
             eligible = _bond_capacity_candidates(cands, eligible, settings)
+            if not _bond_base_ready(cands, settings):
+                owned_bonds = {str(name).strip() for name in cands.owned_bond_cards if str(name).strip()}
+                eligible = tuple(
+                    slot for slot in eligible
+                    if (
+                        matches_bond_preset(slot.name, settings.bond_base_presets)
+                        # A past run may already contain an advanced card. Let
+                        # its duplicate finish/merge, but never start another.
+                        or str(slot.name or "").strip() in owned_bonds
+                    )
+                )
             if not eligible:
-                return _no_safe_candidate(cands, state, kind, "槽位压力下无可合成/核心候选")
+                if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
+                    return PolicyDecision(
+                        PolicyAction.REFRESH,
+                        None,
+                        f"基础羁绊未达 80%，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+                    )
+                return _no_safe_candidate(cands, state, kind, "基础羁绊未达 80%，本页无基础卡")
             if settings.bond_whitelist_mode == WHITELIST_HARD:
                 eligible = tuple(
                     slot for slot in eligible
@@ -1130,6 +1182,20 @@ def _decide_collectible(
         return PolicyDecision.select(quality_hit, f"{kind} 品质降级：{name}/{rarity} @ slot {quality_hit}")
 
     return _no_safe_candidate(cands, state, kind, "无安全候选")
+
+
+def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
+    """高级卡只在已确认取得 80% 配置基础卡后才有选择权。"""
+    bases = settings.bond_base_presets
+    if not bases or not settings.bond_advanced_presets:
+        return True
+    required = math.ceil(len(bases) * settings.bond_base_completion_ratio)
+    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+    completed = sum(
+        any(matches_bond_preset(name, (base,)) for name in owned)
+        for base in bases
+    )
+    return completed >= required
 
 
 def _no_safe_candidate(
