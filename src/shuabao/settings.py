@@ -148,7 +148,7 @@ class Settings:
     sgzx_boss: str = ""
     skills: list[str] = field(default_factory=lambda: ["jq", "pg"])
     # Dashboard Contract v2 strategy fields. Empty selections are deliberate.
-    bonds: list[str] = field(default_factory=lambda: list(DASHBOARD_BOND_OPTIONS))
+    bonds: list[str] = field(default_factory=lambda: ["成长", "经济", "贪婪", "挑战"])
     attributes: list[str] = field(default_factory=list)
     merchant_enabled: bool = True
     merchant_max_rerolls: int = 0
@@ -156,7 +156,7 @@ class Settings:
     cards: list[str] = field(default_factory=list)
     # Unknown bond cards must not bypass the declared strategy.
     bond_whitelist_mode: str = "hard"
-    bond_must_take: list[str] = field(default_factory=lambda: ["祝福"])
+    bond_must_take: list[str] = field(default_factory=list)
     # 负面宝物放行名单（拿了会断资源/断成长的卡，默认一张都不选）。
     # 面板『宝物 · 负面卡』折叠区逐张打勾后写入；放行是逐卡的，不是全局开关。
     # 语义与判定见 config/choice_policy.json 与 shuabao.choice_policy。
@@ -420,16 +420,19 @@ class Settings:
                 clean.pop(key)
             else:
                 clean[key] = []
-        # 羁绊系统必拿扩展：用户列表只能追加，不能移除系统默认“祝福”。
+        # 看板羁绊是严格白名单；空列表也有意义，不能补回未选的“祝福”。
         if "bond_must_take" in clean:
             raw_bond_must = clean["bond_must_take"]
             if isinstance(raw_bond_must, (list, tuple)):
                 items = [str(v).strip() for v in raw_bond_must if str(v).strip()]
-                clean["bond_must_take"] = list(dict.fromkeys(["祝福", *items]))
+                # 旧版把“祝福”无条件塞进此字段；它不是用户在当前看板做出的选择。
+                if items == ["祝福"]:
+                    items = []
+                clean["bond_must_take"] = list(dict.fromkeys(items))
             elif fallback is not None:
                 clean.pop("bond_must_take")
             else:
-                clean["bond_must_take"] = ["祝福"]
+                clean["bond_must_take"] = []
         if "bond_whitelist_mode" in clean:
             mode = str(clean["bond_whitelist_mode"]).strip().lower()
             if mode in {"soft", "hard"}:

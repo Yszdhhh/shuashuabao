@@ -22,12 +22,10 @@
     "fill_slot_cap": 4
   },
   "bond": {
-    "whitelist_mode": "soft",
-    "_whitelist_source": "Settings.cards（UI: ui/src/components/FettersCard.tsx 勾选框）",
-    "_note": "长程默认 soft：预设优先；预设 miss 按套装/品质安全降级。祝福为系统必拿，不依赖前端勾选；显式 hard 仍不得拦截系统必拿。",
-    "must_take_names": [
-      "祝福"
-    ]
+    "whitelist_mode": "hard",
+    "_whitelist_source": "Settings.bonds + Settings.cards（看板羁绊配置）",
+    "_note": "看板保存后使用严格白名单：只拿用户选中的羁绊家族与卡组，不再保留未勾选的系统必拿项。",
+    "must_take_names": []
   },
   "treasure": {
     "refresh_on_no_safe": false,

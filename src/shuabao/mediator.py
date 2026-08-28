@@ -2263,6 +2263,21 @@ class Mediator:
             )
         return self._cached_policy_settings
 
+    def _bond_template_preferences(self) -> list[str]:
+        """模板模式将看板中文羁绊还原为已有 cards/<短码> 锚点。"""
+        by_label = {label: code for code, label in self._fetter_labels.items()}
+        aliases = {"异火": "yihuo"}
+        preferred: list[str] = []
+        for item in [*(getattr(self.settings, "bonds", None) or ()), *(self.settings.cards or ())]:
+            text = str(item or "").strip()
+            if not text:
+                continue
+            stem = Path(text).stem
+            resolved = aliases.get(text) or (stem if stem in self._fetter_labels else by_label.get(text, stem))
+            if resolved not in preferred:
+                preferred.append(resolved)
+        return preferred
+
     # ---- L1 运行时技能卡归属（pending/owned）----
 
     @staticmethod
@@ -2832,7 +2847,11 @@ class Mediator:
                 return None
             if kind == "card" and ocr_mode == "live":
                 return None
-            preferred = [v.strip() for v in self.settings.cards if v and v.strip()]
+            preferred = (
+                self._bond_template_preferences()
+                if kind == "bond"
+                else [v.strip() for v in self.settings.cards if v and v.strip()]
+            )
             if preferred:
                 names = [v if "/" in v else f"cards/{v}" for v in preferred]
                 hits = self._match_all_preferred(

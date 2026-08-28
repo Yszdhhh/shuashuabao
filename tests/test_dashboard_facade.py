@@ -19,6 +19,15 @@ import pytest
 from PySide6.QtCore import QCoreApplication, QLockFile, QMetaMethod
 
 from shuabao.paths import live_lock_path, user_settings_path
+from shuabao.choice_policy import (
+    PANEL_BOND,
+    PanelCandidates,
+    PolicyAction,
+    SlotCandidate,
+    assemble_policy_settings,
+    choose_action,
+)
+from shuabao.mediator import Mediator
 from shuabao.shell.dashboard_facade import (
     PREFLIGHT_CHECK_IDS,
     DashboardFacade,
@@ -35,6 +44,7 @@ EXPECTED_SLOTS = {
     "stop_run",
 }
 EXPECTED_SIGNALS = {"snapshot_changed", "run_status_changed", "log_appended"}
+ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.fixture(scope="module")
@@ -150,6 +160,48 @@ def test_update_config_accepts_card_whitelist_once(qapp, tmp_path: Path):
     assert res["errors"] == []
     assert res["settings"]["cards"] == ["海盗", "海盗宝藏"]
     assert res["strategy"]["cards"] == ["海盗", "海盗宝藏"]
+
+
+def test_dashboard_bonds_drive_the_live_hard_whitelist(qapp, tmp_path: Path):
+    """看板保存的羁绊必须成为每局决策白名单，不能被旧版“祝福必拿”越过。"""
+    f = DashboardFacade(tmp_path)
+    res = json.loads(f.update_config(json.dumps({
+        "bond_must_take": [],
+        "bond_whitelist_mode": "hard",
+        "cards": ["海盗"],
+        "strategy": {"bonds": ["成长"]},
+    })))
+    assert res["ok"] is True
+
+    policy = assemble_policy_settings(
+        settings=f._settings,
+        skill_labels={},
+        fetter_labels={},
+        policy_doc={"bond": {"whitelist_mode": "soft", "must_take_names": []}},
+    )
+    assert policy.bond_presets == ("成长", "海盗")
+    assert policy.bond_must_take == ()
+    decision = choose_action(PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="祝福", confidence=.99, rarity="red"),
+            SlotCandidate(index=1, name="成长之根", confidence=.99, rarity="white"),
+            SlotCandidate(index=2, name="海盗", confidence=.99, rarity="purple"),
+        ),
+        settings=policy,
+    ))
+    assert (decision.action, decision.index) == (PolicyAction.SELECT_SLOT, 1)
+
+
+def test_template_mode_uses_saved_bond_labels_as_card_anchors(qapp, tmp_path: Path):
+    """未启用 OCR 的打包运行仍要把看板中文选择还原为 cards 模板短码。"""
+    f = DashboardFacade(tmp_path)
+    assert json.loads(f.update_config(json.dumps({
+        "cards": ["法术", "异火"],
+        "strategy": {"bonds": ["成长"]},
+    })))["ok"] is True
+    mediator = Mediator(f._settings, ROOT)
+    assert mediator._bond_template_preferences() == ["chengzhang", "fs", "yihuo"]
 
 
 def test_stage_target_and_hero_plan_round_trip_to_runtime_settings(qapp, tmp_path: Path):
@@ -333,7 +385,7 @@ def test_dashboard_contract_v2_strategy_and_revision_metadata(qapp, tmp_path: Pa
     assert initial["snapshot_seq"] == 1
     assert initial["strategy"] == {
         "skills": ["jq", "pg"],
-        "bonds": ["祝福", "成长", "经济", "贪婪", "挑战"],
+        "bonds": ["成长", "经济", "贪婪", "挑战"],
         "cards": [],
         "attributes": [],
         "merchant": {"enabled": True, "max_rerolls": 0, "gold_reserve": 0},

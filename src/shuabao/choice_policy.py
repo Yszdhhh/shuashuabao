@@ -85,7 +85,7 @@ DEFAULT_QUALITY_ORDER = ("red", "orange", "purple", "blue", "white", "green")
 WHITELIST_HARD = "hard"
 WHITELIST_SOFT = "soft"
 VALID_WHITELIST_MODES = frozenset({WHITELIST_HARD, WHITELIST_SOFT})
-DEFAULT_BOND_MUST_TAKE = ("祝福",)
+DEFAULT_BOND_MUST_TAKE: tuple[str, ...] = ()
 DEFAULT_SKILL_SLOT_CAP = 4
 DEFAULT_TREASURE_MUST_TAKE = ("全都要", "卡牌大师")
 _CATALOG_RARITY_TO_BAND = {
@@ -312,9 +312,7 @@ class PolicySettings:
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
             min_confidence=0.0 if min_conf is None else float(min_conf),
             bond_whitelist_mode=WHITELIST_HARD if bond_mode is None else str(bond_mode),
-            bond_must_take=tuple(dict.fromkeys(
-                DEFAULT_BOND_MUST_TAKE + tuple(str(s) for s in (bond_must_take or ()))
-            )),
+            bond_must_take=tuple(dict.fromkeys(str(s) for s in (bond_must_take or ()))),
             treasure_negative_patterns=(
                 tuple(str(s) for s in neg) if neg is not None else DEFAULT_NEGATIVE_PATTERNS
             ),
@@ -369,12 +367,18 @@ def assemble_policy_settings(
             skill_families.append(text)
 
     bond_presets: list[str] = []
+    for item in getattr(settings, "bonds", None) or ():
+        text = str(item or "").strip()
+        if text and text not in bond_presets:
+            bond_presets.append(text)
     for item in getattr(settings, "cards", None) or ():
         text = str(item or "").strip()
         if not text:
             continue
         stem = Path(text).stem
-        bond_presets.append(str(fetter_labels.get(stem, stem)))
+        text = str(fetter_labels.get(stem, stem))
+        if text and text not in bond_presets:
+            bond_presets.append(text)
 
     allow_neg = getattr(settings, "treasure_allow_negative", None)
     if allow_neg is None:
@@ -447,8 +451,7 @@ def assemble_policy_settings(
                 or bond_cfg.get("whitelist_mode", WHITELIST_HARD)
             ),
             "bond_must_take": tuple(dict.fromkeys(
-                DEFAULT_BOND_MUST_TAKE
-                + tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
+                tuple(str(s) for s in (getattr(settings, "bond_must_take", None) or ()))
                 + tuple(str(s) for s in (bond_cfg.get("must_take_names") or ()))
             )),
             "treasure_negative_patterns": treasure_cfg.get("negative_patterns"),
@@ -1002,7 +1005,9 @@ def _bond_capacity_candidates(
     kept: list[SlotCandidate] = []
     for slot in slots:
         merge = bool(slot.name and slot.name in owned)
-        core = _is_must_take(slot.name, settings.bond_must_take) or slot.name in settings.bond_presets
+        core = _is_must_take(slot.name, settings.bond_must_take) or matches_bond_preset(
+            slot.name, settings.bond_presets
+        )
         if free <= 0:
             allowed = merge or slot.zero_cost
         elif free == 1:
@@ -1041,7 +1046,7 @@ def _decide_collectible(
                 eligible = tuple(
                     slot for slot in eligible
                     if _is_must_take(slot.name, settings.bond_must_take)
-                    or slot.name in settings.bond_presets
+                    or matches_bond_preset(slot.name, settings.bond_presets)
                 )
         if kind == PANEL_BOND:
             for slot in eligible:
@@ -1063,12 +1068,16 @@ def _decide_collectible(
                     return PolicyDecision.select(
                         slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
                     )
-    preset_hit = _match_preset(
-        eligible,
-        presets,
-        settings.min_confidence,
-        quality_order=settings.quality_order,
-        habit_name_scores=settings.habit_name_scores,
+    preset_hit = (
+        _match_bond_preset(eligible, presets, settings.min_confidence, settings.quality_order)
+        if kind == PANEL_BOND
+        else _match_preset(
+            eligible,
+            presets,
+            settings.min_confidence,
+            quality_order=settings.quality_order,
+            habit_name_scores=settings.habit_name_scores,
+        )
     )
     if preset_hit is not None:
         name = _slot_name(cands.slots, preset_hit)
@@ -1145,6 +1154,31 @@ def _match_preset(
         return None
     hits.sort()
     return hits[0][3]
+
+
+def matches_bond_preset(name: str | None, presets: tuple[str, ...]) -> bool:
+    """羁绊家族允许“成长”匹配“成长之根”，但空白名单永不放行。"""
+    text = str(name or "").strip()
+    return bool(text and any(preset and (text == preset or preset in text) for preset in presets))
+
+
+def _match_bond_preset(
+    slots: tuple[SlotCandidate, ...],
+    presets: tuple[str, ...],
+    min_confidence: float,
+    quality_order: tuple[str, ...],
+) -> int | None:
+    hits: list[tuple[int, int, int]] = []
+    for slot in slots:
+        if not slot.name or slot.confidence < min_confidence:
+            continue
+        rank = next(
+            (i for i, preset in enumerate(presets) if preset and (slot.name == preset or preset in slot.name)),
+            None,
+        )
+        if rank is not None:
+            hits.append((rank, _rarity_rank(slot.rarity, quality_order), slot.index))
+    return min(hits)[2] if hits else None
 
 
 def _rarity_rank(rarity: str | None, quality_order: tuple[str, ...]) -> int:
