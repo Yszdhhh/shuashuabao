@@ -13,6 +13,7 @@ import type {
   RunResult,
   ShellPatchResult,
   SnapshotDTO,
+  WindowLayout,
 } from "./types";
 export const QWEBCHANNEL_SRC = "qrc:///qtwebchannel/qwebchannel.js";
 export const FACADE_OBJECT_NAME = "facade";
@@ -141,7 +142,7 @@ function wrapFacade(facade: RawFacade): DashboardBridge {
     stop_run: () => callMethod<RunResult>("stop_run", facade.stop_run()),
     window_control: (action: "minimize" | "close") =>
       callMethod<RpcResponse>("window_control", facade.window_control(JSON.stringify({ action }))),
-    set_window_layout: (layout: "dashboard" | "chooser") =>
+    set_window_layout: (layout: WindowLayout) =>
       callMethod<RpcResponse>("set_window_layout", facade.set_window_layout(JSON.stringify({ layout }))),
   };
 }

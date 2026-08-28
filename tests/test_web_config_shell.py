@@ -124,7 +124,12 @@ def test_host_window_matches_od12_product_size(shell):
     assert (shell.width(), shell.height()) == (1080, 820)
 
 
-def test_wizard_layout_fits_the_single_runtime_mode_picker(shell):
+def test_wizard_layout_uses_content_sized_solo_and_team_windows(shell):
+    shell._set_window_layout("chooser-solo")
+    assert (shell.width(), shell.height()) == (560, 360)
+    shell._set_window_layout("chooser-team")
+    assert (shell.width(), shell.height()) == (560, 560)
+    # Legacy callers that only know chooser retain the team-sized contract.
     shell._set_window_layout("chooser")
     assert (shell.width(), shell.height()) == (560, 560)
     region = shell._titlebar_drag_region

@@ -56,7 +56,11 @@ APP_TITLE = "刷刷宝"
 ALLOWED_SCHEMES = frozenset({"file", "qrc"})
 
 _DASHBOARD_SIZE = (1080, 820)
-_CHOOSER_SIZE = (560, 560)
+# 向导按内容分配宿主高度：单人只有一个选项，组队包含三种关系。
+# 宽度保持与 Web 沙盒一致；chooser 作为旧调用方的组队兼容别名。
+_CHOOSER_SOLO_SIZE = (560, 360)
+_CHOOSER_TEAM_SIZE = (560, 560)
+_CHOOSER_SIZE = _CHOOSER_TEAM_SIZE
 _TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT = 690, 40
 
 #: QWebChannel 注册名，与 ui-v2/src/bridge/qtBridge.ts FACADE_OBJECT_NAME 对齐。
@@ -199,8 +203,13 @@ class WebConfigShell(QMainWindow):
         self.view.load(QUrl.fromLocalFile(str(index)))
 
     def _set_window_layout(self, layout: str) -> None:
-        """让完整运行方式向导使用与内容相称的独立窗口。"""
-        width, height = _CHOOSER_SIZE if layout == "chooser" else _DASHBOARD_SIZE
+        """让看板与运行方式向导按内容使用相称的独立窗口。"""
+        if layout == "chooser-solo":
+            width, height = _CHOOSER_SOLO_SIZE
+        elif layout in {"chooser", "chooser-team"}:
+            width, height = _CHOOSER_TEAM_SIZE
+        else:
+            width, height = _DASHBOARD_SIZE
         if (self.width(), self.height()) != (width, height):
             self.setFixedSize(width, height)
         # 只覆盖标题文字区；紧凑页必须保留右侧最小化/关闭按钮的点击权。

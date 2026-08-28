@@ -114,6 +114,8 @@ export interface RunResult extends RpcResponse {
 
 export type UnsubscribeFn = () => void;
 
+export type WindowLayout = "dashboard" | "chooser" | "chooser-solo" | "chooser-team";
+
 export interface DashboardBridge {
   get_snapshot(): Promise<SnapshotDTO>;
   update_config(patch: ConfigPatch): Promise<ConfigPatchResult>;
@@ -122,7 +124,7 @@ export interface DashboardBridge {
   start_run(mode_id: string, expectedRevision?: number): Promise<RunResult>;
   stop_run(): Promise<RunResult>;
   window_control(action: "minimize" | "close"): Promise<RpcResponse>;
-  set_window_layout(layout: "dashboard" | "chooser"): Promise<RpcResponse>;
+  set_window_layout(layout: WindowLayout): Promise<RpcResponse>;
 }
 
 export interface DashboardBridgeSignals {

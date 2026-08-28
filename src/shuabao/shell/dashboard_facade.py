@@ -398,7 +398,7 @@ class DashboardFacade(QObject):
     def set_window_layout(self, layout_json: str) -> str:
         """页面切换时只调整宿主尺寸；不写入用户配置。"""
         layout = self._parse_keyed(layout_json, "layout")
-        if layout not in {"dashboard", "chooser"} or self._on_layout is None:
+        if layout not in {"dashboard", "chooser", "chooser-solo", "chooser-team"} or self._on_layout is None:
             return json.dumps(self._rpc_response(False, error=f"不支持的布局: {layout!r}"), ensure_ascii=False)
         self._on_layout(layout)
         return json.dumps(self._rpc_response(True), ensure_ascii=False)

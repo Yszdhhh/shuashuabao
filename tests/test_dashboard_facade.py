@@ -373,7 +373,9 @@ def test_window_control_without_handler_fails_closed(qapp, tmp_path: Path):
 
 def test_set_window_layout_only_allows_ephemeral_known_layouts(facade):
     assert json.loads(facade.set_window_layout(json.dumps({"layout": "chooser"})))["ok"] is True
-    assert facade.recorded_layouts == ["chooser"]
+    for layout in ("chooser-solo", "chooser-team"):
+        assert json.loads(facade.set_window_layout(json.dumps({"layout": layout}))).get("ok") is True
+    assert facade.recorded_layouts == ["chooser", "chooser-solo", "chooser-team"]
     assert json.loads(facade.set_window_layout(json.dumps({"layout": "unknown"})))["ok"] is False
 
 

@@ -9,7 +9,7 @@ import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, resetStickyF
 //      btnStart → validate_preflight → start_run（运行中同按钮变 stop_run）；
 //      btnMin/btnClose → window_control；run_status_changed → 徽标/进度；
 //      log_appended → 运行日志；snapshot_changed → 快照重渲染。
-import type { DashboardBridge, ModeDTO, RunStatusDTO, SettingsDTO, SnapshotDTO, StrategyDTO } from "./bridge/types";
+import type { DashboardBridge, ModeDTO, RunStatusDTO, SettingsDTO, SnapshotDTO, StrategyDTO, WindowLayout } from "./bridge/types";
 
 // —— index.html 内联脚本暴露的全局（经典脚本 globalThis 绑定）——
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -78,6 +78,7 @@ let runActive = false;
 let startBusy = false;
 let modeCatalog = new Map<string, ModeDTO>();
 let lastShellJson = "";
+let lastWindowLayout: WindowLayout | "" = "";
 
 export function getBridge(): DashboardBridge | null {
   return bridge;
@@ -146,8 +147,15 @@ function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string 
 
 function syncWindowLayout(scene: string): void {
   if (!bridge) return;
-  const layout = scene === "wizard" ? "chooser" : "dashboard";
-  bridge.set_window_layout(layout).catch((err) => console.error("[ui-v2] 窗口尺寸同步失败:", err));
+  const layout: WindowLayout = scene === "wizard"
+    ? (String(state.wizKind) === "team" ? "chooser-team" : "chooser-solo")
+    : "dashboard";
+  if (layout === lastWindowLayout) return;
+  lastWindowLayout = layout;
+  bridge.set_window_layout(layout).catch((err) => {
+    if (lastWindowLayout === layout) lastWindowLayout = "";
+    console.error("[ui-v2] 窗口尺寸同步失败:", err);
+  });
 }
 
 function showStartErr(msg: string): void {
@@ -565,6 +573,9 @@ function wireIntents(): void {
   afterGlobalCall("renderSkillRank", pushSkills);
   // 羁绊配置按用户显式点击“保存羁绊”落盘，避免每次重绘都产生一次配置请求。
   afterGlobalCall("renderNegatives", pushNegatives);
+  afterGlobalCall("renderWizard", () => {
+    if (String(state.scene) === "wizard") syncWindowLayout("wizard");
+  });
   afterGlobalCall("refreshSummary", applyLaunchability);
   afterGlobalCall("setScene", () => {
     syncWindowLayout(String(state.scene));
