@@ -2,6 +2,7 @@ import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -238,6 +239,78 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         self.assertEqual(occ_3, 3)
         free_slots = med._extract_live_free_slots(frame_3)
         self.assertEqual(free_slots, 7)
+
+    def _load_panel(self, rel: str) -> Frame:
+        path = ROOT / rel
+        data = np.fromfile(str(path), dtype=np.uint8)
+        bgr = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        self.assertIsNotNone(bgr, msg=f"unreadable {rel}")
+        return Frame(bgr, window_title="game", hwnd=1)
+
+    def _empty_ocr(self, med: Mediator) -> None:
+        mock_ocr = MagicMock()
+        mock_ocr.shadow_predict.return_value = DummyResponse(
+            candidates=[], raw_text="", rec_score=0.0
+        )
+        med._ocr_client = mock_ocr
+        med.settings.bonds = ["成长", "经济", "贪婪", "挑战", "祝福"]
+        med.settings.cards = ["异火", "法术", "急速", "魔能", "暴击"]
+
+    def test_7_official_title_templates_name_tiaozhan_and_baoji_when_ocr_blank(self):
+        med = self.med
+        frame = self._load_panel(
+            "fixtures/card_template_assertions/positives/bond_choice_4_20260829.jpg"
+        )
+        self._empty_ocr(med)
+        slots = med._ocr_panel_slots(frame, "bond")
+        self.assertEqual(len(slots), 4)
+        names = [s["name"] for s in slots]
+        self.assertIsNone(names[0])
+        self.assertIsNone(names[1])
+        self.assertEqual(names[2], "挑战")
+        self.assertEqual(names[3], "暴击")
+        self.assertGreaterEqual(slots[2]["confidence"], 0.80)
+        self.assertGreaterEqual(slots[3]["confidence"], 0.80)
+
+    def test_8_official_jj_title_template_names_jingji_when_ocr_blank(self):
+        med = self.med
+        frame = self._load_panel(
+            "fixtures/card_template_assertions/positives/bond_choice_4_jingji_20260829.jpg"
+        )
+        self._empty_ocr(med)
+        slots = med._ocr_panel_slots(frame, "bond")
+        self.assertEqual(len(slots), 4)
+        self.assertEqual(slots[0]["name"], "经济")
+        self.assertGreaterEqual(slots[0]["confidence"], 0.80)
+        self.assertIsNone(slots[1]["name"])
+        self.assertIsNone(slots[2]["name"])
+        self.assertIsNone(slots[3]["name"])
+
+    def test_9_stuck_four_slot_takes_near_complete_tiaozhan_from_title_template(self):
+        settings = Settings(
+            ocr_mode="live",
+            bonds=["成长", "经济", "贪婪", "挑战", "祝福"],
+            cards=["异火", "法术", "急速", "魔能", "暴击"],
+            bond_whitelist_mode="hard",
+        )
+        med = Mediator(settings, ROOT)
+        frame = self._load_panel(
+            "fixtures/card_template_assertions/positives/bond_choice_4_20260829.jpg"
+        )
+        mock_ocr = MagicMock()
+
+        def shadow_predict(_f, pid, slot_spec, panel_bbox=None):
+            x0 = slot_spec.get("bbox", (0, 0, 0, 0))[0]
+            if 775 <= x0 <= 810:
+                return DummyResponse(candidates=[], raw_text="挑战(2/3)", rec_score=0.40)
+            return DummyResponse(candidates=[], raw_text="", rec_score=0.0)
+
+        mock_ocr.shadow_predict.side_effect = shadow_predict
+        med._ocr_client = mock_ocr
+        med._panel_opened_by_us = "bond"
+        hit = med._ocr_reward_choice(frame, "bond")
+        self.assertIsNotNone(hit)
+        self.assertIn("挑战", hit.name)
 
 if __name__ == "__main__":
     unittest.main()

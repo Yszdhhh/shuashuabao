@@ -201,7 +201,7 @@ def test_template_mode_uses_saved_bond_labels_as_card_anchors(qapp, tmp_path: Pa
         "strategy": {"bonds": ["成长"]},
     })))["ok"] is True
     mediator = Mediator(f._settings, ROOT)
-    assert mediator._bond_template_preferences() == ["chengzhang", "fs", "yihuo"]
+    assert mediator._bond_template_preferences() == ["chengzhang", "fashu", "yihuo"]
 
 
 def test_stage_target_and_hero_plan_round_trip_to_runtime_settings(qapp, tmp_path: Path):

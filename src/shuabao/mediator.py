@@ -495,6 +495,8 @@ class Mediator:
         "bond": 0.333,
         "card": 0.333,
     }
+    # cards/*.png title glyphs: 0.80 < live baoji/tz/jj, > next-best false ~0.54
+    _BOND_TITLE_TEMPLATE_MIN = 0.80
 
     def __init__(
         self,
@@ -2126,6 +2128,8 @@ class Mediator:
                     "rarity": None,
                     "description": "",
                 })
+            if kind == "bond":
+                self._fill_bond_slots_by_title_template(frame, out, rois)
             return out
 
         # 当前局内羁绊是 4 张。先读 4 槽，够用就不再扫 3 槽（少超时、少空帧）。
@@ -2177,6 +2181,60 @@ class Mediator:
 
         self._trace_ocr_suggestion = {"kind": kind, "slots": slots, "layout": slot_count}
         return slots
+
+    def _fill_bond_slots_by_title_template(
+        self,
+        frame: Frame,
+        slots: list[dict],
+        rois: tuple,
+    ) -> None:
+        """Fill empty/low-conf bond titles from official cards/*.png glyphs."""
+        preferred = self._bond_template_preferences()
+        if not preferred or frame is None or getattr(frame, "bgr", None) is None:
+            return
+        templates: list[tuple[str, str, np.ndarray]] = []
+        for code in preferred:
+            path = resolve_template(self.images, f"cards/{code}") or resolve_template(
+                self.images, code
+            )
+            tpl = _load_template(path) if path is not None else None
+            if tpl is None:
+                continue
+            label = str(self._fetter_labels.get(code, code)).strip() or code
+            templates.append((code, label, tpl))
+        if not templates:
+            return
+        min_score = float(self._BOND_TITLE_TEMPLATE_MIN)
+        for slot, roi in zip(slots, rois):
+            conf = float(slot.get("confidence") or 0.0)
+            name = str(slot.get("name") or "").strip()
+            bbox = self._normalized_bbox(frame, roi)
+            x0, y0, x1, y1 = bbox
+            crop = frame.bgr[y0:y1, x0:x1]
+            if crop is None or crop.size == 0:
+                continue
+            best_s = -1.0
+            best_label = ""
+            best_code = ""
+            for code, label, tpl in templates:
+                th, tw = tpl.shape[:2]
+                if crop.shape[0] < th or crop.shape[1] < tw:
+                    continue
+                raw_score = cv2.minMaxLoc(cv2.matchTemplate(crop, tpl, cv2.TM_CCOEFF_NORMED))[1]
+                score = float(raw_score)
+                if not np.isfinite(score) or score <= best_s:
+                    continue
+                best_s, best_label, best_code = score, label, code
+            if best_s < min_score:
+                continue
+            if name and conf >= min_score and best_s < conf:
+                continue
+            slot["name"] = best_label
+            slot["confidence"] = max(conf, best_s)
+            if not str(slot.get("raw_text") or "").strip():
+                slot["raw_text"] = best_label
+            slot["reason"] = f"title_template:{best_code}:{best_s:.3f}"
+            print(f"[L1] 羁绊标题模板 slot{slot.get('index')} {best_label} {best_s:.3f}")
 
     def _slot_rarity_band(self, frame: Frame, kind: str, index: int, slot_count: int = 3) -> str | None:
         """Map slot index → rarity band via border color for layout 3 or 4."""
@@ -2250,7 +2308,7 @@ class Mediator:
     def _bond_template_preferences(self) -> list[str]:
         """模板模式将看板中文羁绊还原为已有 cards/<短码> 锚点。"""
         by_label = {label: code for code, label in self._fetter_labels.items()}
-        aliases = {"异火": "yihuo"}
+        aliases = {"异火": "yihuo", "翼火": "yihuo"}
         preferred: list[str] = []
         for item in [*(getattr(self.settings, "bonds", None) or ()), *(self.settings.cards or ())]:
             text = str(item or "").strip()
