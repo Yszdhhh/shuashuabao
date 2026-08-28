@@ -56,7 +56,7 @@ APP_TITLE = "刷刷宝"
 ALLOWED_SCHEMES = frozenset({"file", "qrc"})
 
 _DASHBOARD_SIZE = (920, 720)
-_CHOOSER_SIZE = (480, 360)
+_CHOOSER_SIZE = (520, 500)
 _TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT = 690, 40
 
 #: QWebChannel 注册名，与 ui-v2/src/bridge/qtBridge.ts FACADE_OBJECT_NAME 对齐。
@@ -197,7 +197,7 @@ class WebConfigShell(QMainWindow):
         self.view.load(QUrl.fromLocalFile(str(index)))
 
     def _set_window_layout(self, layout: str) -> None:
-        """让选择运行方式使用与内容相称的独立窗口，杜绝 920×720 黑画布。"""
+        """让完整运行方式向导使用与内容相称的独立窗口。"""
         width, height = _CHOOSER_SIZE if layout == "chooser" else _DASHBOARD_SIZE
         if (self.width(), self.height()) != (width, height):
             self.setFixedSize(width, height)

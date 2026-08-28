@@ -92,7 +92,6 @@
     }
     #scene-wizard, #scene-app { display: none !important; }
     body[data-scene="wizard"] #scene-wizard { display: flex !important; }
-    body[data-scene="chooser"] #scene-app,
     body[data-scene="farm"] #scene-app,
     body[data-scene="lead"] #scene-app,
     body[data-scene="follow"] #scene-app,
@@ -244,7 +243,6 @@
       overflow: hidden; display: flex; flex-direction: column;
       box-shadow: var(--p-shadow); position: relative;
     }
-    body[data-scene="chooser"] .win { width: 460px; height: 360px; }
     .titlebar {
       height: 40px; flex: 0 0 40px; display: flex; align-items: center; gap: 8px;
       padding: 0 8px 0 12px; overflow: hidden;
@@ -268,11 +266,7 @@
     .icon-btn:hover, .win-btn:hover { background: var(--p-fill); color: var(--p-ink); }
     .win-btn.close:hover { background: var(--p-danger); color: var(--p-on); }
 
-    .chooser-body, .body, .hitch-page { display: none !important; flex: 1; min-height: 0; }
-    body[data-scene="chooser"] .chooser-body {
-      display: flex !important; flex-direction: column; justify-content: center;
-      gap: 10px; padding: 16px 20px;
-    }
+    .body, .hitch-page { display: none !important; flex: 1; min-height: 0; }
     body[data-scene="farm"] .body,
     body[data-scene="lead"] .body { display: grid !important; grid-template-columns: 204px minmax(0, 1fr); }
     body[data-scene="follow"] .hitch-page.follow,
@@ -281,9 +275,7 @@
       padding: 28px 32px 20px;
     }
     .hitch-page .ghost-btn.solid { width: auto; }
-    body[data-scene="chooser"] .chrome-wide { display: none !important; }
-    .chooser-cap { margin: 0; font-size: 13px; font-weight: 650; color: var(--p-ink); }
-    .mode-row { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+    body[data-scene="wizard"] { background: oklch(0.955 0.008 250); padding: 10px; }
 
     .rail, .main { min-height: 0; overflow: auto; }
     .rail { padding: 12px 12px 16px; border-right: 1px solid var(--p-line); background: var(--p-paper); }
@@ -724,7 +716,6 @@
     .add-custom:active, .chip:active, .skill-cell:active, .thumb:active,
     .dd-menu button:active { transform: translateY(1px); }
     body[data-scene="wizard"] #scene-wizard,
-    body[data-scene="chooser"] #scene-app,
     body[data-scene="farm"] #scene-app,
     body[data-scene="lead"] #scene-app,
     body[data-scene="follow"] #scene-app,
@@ -854,7 +845,6 @@
       .add-custom, .ghost-btn, .chip, .skill-cell, .thumb,
       .mini-step button, .rank-move button { transition: none; animation: none; }
       body[data-scene="wizard"] #scene-wizard,
-      body[data-scene="chooser"] #scene-app,
       body[data-scene="farm"] #scene-app,
       body[data-scene="lead"] #scene-app,
       body[data-scene="follow"] #scene-app,
@@ -886,7 +876,6 @@
     }
     @media (max-width: 600px) {
       .win { width: 100%; min-height: calc(100dvh - 96px); border-radius: 0; }
-      body[data-scene="chooser"] .win { width: 100%; height: auto; min-height: calc(100dvh - 96px); }
       .titlebar { height: 48px; flex-basis: 48px; }
       .chrome-wide { display: none !important; }
       .icon-btn, .win-btn { height: 44px; min-width: 44px; }
@@ -992,21 +981,6 @@
             <button type="button" class="icon-btn" id="btnWizard">快速开局</button>
             <button type="button" class="win-btn" id="btnMin" aria-label="最小化">─</button>
             <button type="button" class="win-btn close" id="btnClose" aria-label="关闭">✕</button>
-          </div>
-          <div class="chooser-body" id="chooser">
-            <p class="chooser-cap">运行方式</p>
-            <div class="seg" id="choKind" style="width:220px">
-              <button type="button" data-kind="solo" aria-pressed="true">单人</button>
-              <button type="button" data-kind="team" aria-pressed="false">组队</button>
-            </div>
-            <div class="mode-row solo" id="choSoloRow">
-              <button type="button" class="mode-card" data-mode="solo"><strong>单人刷图</strong><p>自己建房，自己点开始。</p></button>
-            </div>
-            <div class="mode-row hidden" id="choTeamRow">
-              <button type="button" class="mode-card" data-mode="lead"><em>车头</em><h2>带车</h2><p>开房当车头，房间自动开始。</p></button>
-              <button type="button" class="mode-card" data-mode="follow"><em>已在房</em><h2>跟车</h2><p>已在房间，自动每局准备。</p></button>
-              <button type="button" class="mode-card" data-mode="hitch"><em>待验证</em><h2>蹭车</h2><p>自动在大厅找房蹭车。</p></button>
-            </div>
           </div>
           <div class="body" id="farmBody">
             <aside class="rail">
@@ -1189,7 +1163,7 @@
       { id:"aa_universal", name:"普攻万金油", skills:["pg","ys","dz","jq"], attr:["agility"], growth:["成长","经济","贪婪","挑战"], basic:["急速","箭术","战术"] }
     ];
     const ATTR = [{id:"intelligence",label:"智力"},{id:"strength",label:"力量"},{id:"agility",label:"敏捷"}];
-    const GROWTH = ["成长","经济","贪婪","挑战"];
+    const GROWTH = ["祝福","成长","经济","贪婪","挑战"];
     const BASIC = ["法术","急速","魔能","魔术","箭术","战术","暴击","固守","陷阵"];
     const ADV = [{id:"daodao",label:"刀刀"},{id:"yihuo",label:"异火"},{id:"dasheng",label:"大圣"},{id:"xiuxian",label:"修仙"},{id:"fengshen",label:"封神"},{id:"haidao",label:"海盗"},{id:"wangling",label:"亡灵"}];
     const FACTIONS = [
@@ -1222,7 +1196,7 @@
     const stemLabel = (stem) => stem.replace(/^\d+/, "");
     const findStem = (stems, label) => stems.find((s) => stemLabel(s) === label) || "";
     const state = {
-      scene:"farm", mode:"solo", wizKind:"solo", wizTeam:"lead",
+      scene:"farm", mode:"solo", wizKind:"solo", wizTeam:"lead", wizardReturnScene:"farm",
       theme:"light", hero:true, cycle:100, played:0, autoSecret:false, autoArch:false, closeMainline:false, newRoom:false, chapter:1, stage:10, dragonPrefer:true,
       teamRules:{follow:{cycle:100,afterRoom:"solo",recoveryHours:1,pairCode:""},hitch:{cycle:100,afterGoal:"solo",recoveryHours:1}},
       selected:"arcane_open", custom:[{id:"custom:1", name:"自定义", skills:[]}], collapsed:false, drawer:false,
@@ -1559,14 +1533,6 @@
           : state.wizTeam==="follow"?"跟车：已在房间里等队长，不建房、不点开始。"
           : "蹭车：大厅搜房。待验证，看板不点火。");
     }
-    function renderChooserKind() {
-      const kind = state.mode==="solo"?"solo":"team";
-      setKind(kind, $("choKind"));
-      $("choSoloRow").classList.toggle("hidden", kind!=="solo");
-      $("choSoloRow").classList.toggle("solo", kind==="solo");
-      $("choTeamRow").classList.toggle("hidden", kind!=="team");
-      document.querySelectorAll("#chooser [data-mode]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.mode===state.mode?"true":"false"));
-    }
     function refreshSummary() {
       const names=currentSkills().filter(Boolean).map((c)=>SKILLS[c]);
       const diff=state.hero?"声望挑战":"常规";
@@ -1612,9 +1578,8 @@
       state.scene=scene;
       document.body.dataset.scene=scene;
       $("scene-wizard").setAttribute("aria-hidden", scene==="wizard" ? "false" : "true");
-      $("scene-app").setAttribute("aria-hidden", ["chooser","farm","lead","follow","hitch"].includes(scene) ? "false" : "true");
+      $("scene-app").setAttribute("aria-hidden", ["farm","lead","follow","hitch"].includes(scene) ? "false" : "true");
       if (scene==="wizard") renderWizard();
-      if (scene==="chooser") renderChooserKind();
       $("lblCycle").textContent=scene==="lead"?"带车目标局数":"目标局数";
       $("statusPill").innerHTML='<span class="dot"></span>待命';
       renderGames(); renderPrestige(); renderTeamRules(); refreshSummary();
@@ -1753,21 +1718,11 @@
       const btn=e.target.closest("[data-team]"); if (!btn) return;
       state.wizTeam=btn.dataset.team; state.mode=state.wizTeam; renderWizard();
     });
-    $("wizCancel").addEventListener("click",()=>setScene("chooser"));
+    $("wizCancel").addEventListener("click",()=>setScene(state.wizardReturnScene||"farm"));
     $("wizApply").addEventListener("click",()=>{
       state.mode = state.wizKind==="solo" ? "solo" : state.wizTeam;
       setScene(state.mode==="solo"?"farm":state.mode); toast("已进入看板（不点火）");
     });
-    $("choKind").addEventListener("click",(e)=>{
-      const btn=e.target.closest("[data-kind]"); if (!btn) return;
-      if (btn.dataset.kind==="solo") state.mode="solo";
-      else if (state.mode==="solo") state.mode="lead";
-      renderChooserKind();
-    });
-    document.querySelectorAll("#chooser [data-mode]").forEach((btn)=>btn.addEventListener("click",()=>{
-      state.mode=btn.dataset.mode;
-      setScene(state.mode==="solo"?"farm":state.mode);
-    }));
     $("btnFollow").addEventListener("click",()=>setScene("follow"));
     $("btnBackHitch").addEventListener("click",()=>setScene("hitch"));
     $("followPairForm").addEventListener("submit",(e)=>{
@@ -1795,7 +1750,8 @@
       });
       root.querySelector("[data-team-cycle-input]").addEventListener("focus",(e)=>{ if (state.teamRules[mode].cycle===0) e.target.value=""; else e.target.select(); });
     });
-    $("btnSwitchMode").addEventListener("click",()=>setScene("chooser"));
+    function openWizard() { state.wizardReturnScene=state.scene; state.wizKind=state.mode==="solo"?"solo":"team"; if (state.mode!=="solo") state.wizTeam=state.mode; setScene("wizard"); }
+    $("btnSwitchMode").addEventListener("click",openWizard);
     $("btnMore").addEventListener("click",()=>setDrawer(!state.drawer));
     $("drawerBackdrop").addEventListener("click",()=>setDrawer(false));
     $("btnStart").addEventListener("click",()=>{
@@ -1810,7 +1766,7 @@
       }
       $("startErr").classList.remove("show");
     });
-    $("btnWizard").addEventListener("click",()=>{ state.wizKind=state.mode==="solo"?"solo":"team"; if (state.mode!=="solo") state.wizTeam=state.mode; setScene("wizard"); });
+    $("btnWizard").addEventListener("click",openWizard);
     $("btnTheme").addEventListener("click",()=>{
       state.theme=state.theme==="dark"?"light":"dark";
       $("scene-app").dataset.theme=state.theme;

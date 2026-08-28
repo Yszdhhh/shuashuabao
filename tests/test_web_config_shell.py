@@ -124,13 +124,22 @@ def test_host_window_matches_od12_product_size(shell):
     assert (shell.width(), shell.height()) == (920, 720)
 
 
-def test_chooser_layout_shrinks_host_and_keeps_window_controls_clickable(shell):
+def test_wizard_layout_fits_the_single_runtime_mode_picker(shell):
     shell._set_window_layout("chooser")
-    assert (shell.width(), shell.height()) == (480, 360)
+    assert (shell.width(), shell.height()) == (520, 500)
     region = shell._titlebar_drag_region
-    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 250, 40)
+    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 290, 40)
     shell._set_window_layout("dashboard")
     assert (shell.width(), shell.height()) == (920, 720)
+
+
+def test_runtime_uses_only_the_full_mode_wizard():
+    """快速开局和底部切换入口必须共用完整向导，不能再走另一套简版 chooser。"""
+    html = (ROOT / "ui-v2" / "index.html").read_text(encoding="utf-8")
+    assert "chooser-body" not in html
+    assert "renderChooserKind" not in html
+    assert '$("btnSwitchMode").addEventListener("click",openWizard)' in html
+    assert '$("btnWizard").addEventListener("click",openWizard)' in html
 
 
 def test_frameless_titlebar_drag_region_receives_native_mouse_press(shell, monkeypatch):

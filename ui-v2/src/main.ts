@@ -146,7 +146,7 @@ function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string 
 
 function syncWindowLayout(scene: string): void {
   if (!bridge) return;
-  const layout = scene === "chooser" || scene === "wizard" ? "chooser" : "dashboard";
+  const layout = scene === "wizard" ? "chooser" : "dashboard";
   bridge.set_window_layout(layout).catch((err) => console.error("[ui-v2] 窗口尺寸同步失败:", err));
 }
 
@@ -202,7 +202,8 @@ function pushBondsAndAttributes(): void {
   const growthList = Array.isArray(state.growth) ? state.growth : Array.from(state.growth || []);
   const bondsList = Array.isArray(state.bonds) ? state.bonds : Array.from(state.bonds || []);
   const combinedBonds = Array.from(new Set([...growthList, ...bondsList])).filter((b: string) => validBonds.includes(b)) as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[];
-  const activeBonds = combinedBonds.length > 0 ? combinedBonds : (["祝福", "成长", "经济", "贪婪", "挑战"] as ("祝福" | "成长" | "经济" | "贪婪" | "挑战")[]);
+  // 空选择同样要落盘，不能偷偷回退成“全拿”。局内 hard 白名单只读此列表和 cards。
+  const activeBonds = combinedBonds;
 
   const selectedAdv = Array.isArray(state.adv) ? state.adv : Array.from(state.adv || []);
   const selectedBasic = Array.isArray(state.basic) ? state.basic : Array.from(state.basic || []);
@@ -219,6 +220,8 @@ function pushBondsAndAttributes(): void {
 
   pushConfig({
     cards: activeCards,
+    bond_whitelist_mode: "hard",
+    bond_must_take: [],
     strategy: {
       bonds: activeBonds,
       attributes: activeAttrs,
