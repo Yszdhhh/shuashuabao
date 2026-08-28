@@ -28,16 +28,18 @@ def frame() -> Frame:
 
 
 class LiveRun205044Tests(unittest.TestCase):
-    def test_live_ocr_miss_refreshes_owned_bond_panel(self) -> None:
+    def test_live_ocr_miss_waits_instead_of_refreshing_bond_panel(self) -> None:
         med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
         med._panel_opened_by_us = "bond"
         med._panel_kind = "bond"
         refresh = MatchResult("bond_refresh_btn", 0.99, 1038, 575, 56, 26, 1038, 575)
         anchor = MatchResult("bond_hide_btn", 0.85, 805, 575, 94, 26, 805, 575)
         with patch.object(med, "_ocr_reward_choice", return_value=None), \
-                patch.object(med, "_find_panel_refresh", return_value=refresh):
+                patch.object(med, "_find_panel_refresh", return_value=refresh) as find_refresh:
             choice = med._find_reward_choice(frame(), anchor)
-        self.assertEqual((choice[0], choice[1].name), ("bond刷新", "bond_refresh_btn"))
+        self.assertIsNone(choice)
+        self.assertTrue(med._choice_policy_idle)
+        find_refresh.assert_not_called()
 
     def test_runtime_allows_awaited_hero_over_false_treasure_lock(self) -> None:
         med = RuntimeMediator(Settings(), ROOT)

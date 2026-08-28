@@ -2151,20 +2151,20 @@ class Mediator:
                     "description": "",
                 })
 
-        # 三态决策门闩（Fail-Closed）：
-        # 1. 判定为 LAYOUT_4：必须 4 张全部具备高置信识别（score_4 >= 3.5 且第4张有名字）且明显超越 3 槽得分
-        # 2. 判定为 LAYOUT_3：3 张全部具备完整识别（score_3 >= 2.5 且全部有效）且 4 槽无法成型
-        # 3. 否则判定为 UNKNOWN，直接返回空列表，禁止任何盲目点击！
-        if rois_4 is not None and score_4 >= 3.5 and bool(candidates_4[3]["name"]) and (score_4 - score_3 >= 0.5):
+        named_4 = sum(1 for s in candidates_4 if s.get("name"))
+        named_3 = sum(1 for s in candidates_3 if s.get("name"))
+        # 4 张面板只要读到 ≥2 个名字就按 4 槽走：未读名的槽位策略层不会点。
+        # 旧门槛（4 张全高置信且压过 3 槽 0.5）会把「三祝福 + 一张弱识别」判成空，
+        # 再被 OCR-miss 刷新烧掉木材。
+        if rois_4 is not None and named_4 >= 2 and named_4 >= named_3:
             slot_count = 4
             slots = candidates_4
-            desc_spec = self._OCR_DESC_ROIS_4.get(kind) if hasattr(self, '_OCR_DESC_ROIS_4') else None
-        elif score_3 >= 2.5 and (score_3 - score_4 >= 0.5):
+            desc_spec = self._OCR_DESC_ROIS_4.get(kind) if hasattr(self, "_OCR_DESC_ROIS_4") else None
+        elif named_3 >= 1:
             slot_count = 3
             slots = candidates_3
             desc_spec = self._OCR_DESC_ROIS.get(kind)
         else:
-            # Ambiguous / UNKNOWN -> fail-closed
             return []
 
         # 统一采样该 layout 下所有槽位的 rarity
@@ -2731,25 +2731,8 @@ class Mediator:
         return mapped[1]
 
     def _live_ocr_miss_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
-        """Refresh an owned panel only when its verified button makes OCR loss recoverable."""
-        policy = self._policy_settings()
-        enabled = (
-            (kind == "skill" and policy.skill_refresh_on_focus_miss and bool(policy.skill_focus_families))
-            or (kind == "bond" and bool(policy.bond_presets))
-            or (kind == "treasure" and policy.treasure_refresh_on_no_safe)
-        )
-        owned = (
-            getattr(self, "_panel_opened_by_us", None) == kind
-            or (self._l1_cycle_owned_panel and self._panel_kind == kind)
-        )
-        if not enabled or not owned or self._choice_session.refreshes >= self._choice_session.max_refreshes:
-            return None
-        refresh = self._find_panel_refresh(frame, kind)
-        if refresh is not None:
-            self._choice_fp_before_refresh = None
-            self._choice_policy_last_reason = f"{kind} OCR 本帧无候选，使用已验证刷新按钮"
-            print(f"[L1] {self._choice_policy_last_reason}")
-        return refresh
+        """OCR 没读到名字时禁止刷新。预选卡可能已经在画面上。"""
+        return None
 
     def _rarity_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
         """按边框颜色选最高品质：红UR>橙SSR>紫SR>蓝R>其他N。"""
@@ -2836,22 +2819,18 @@ class Mediator:
                     return None
                 if ocr_hit is not None:
                     return self._label_choice_hit(kind, ocr_hit)
-                refresh = self._live_ocr_miss_refresh(frame, kind)
-                if refresh is not None:
-                    return self._label_choice_hit(kind, refresh)
-                if kind == "bond":
-                    opened = (
-                        getattr(self, "_panel_opened_by_us", None) == "bond"
-                        or (self._l1_cycle_owned_panel and self._panel_kind == "bond")
-                    )
-                    if opened:
-                        # 点完一张后下一帧常读不出名字；关面板会让羁绊只拿一张。
-                        self._choice_policy_idle = True
-                        self._choice_policy_last_reason = "羁绊本帧无命中，留在面板等下一帧"
-                        return None
+                owned = (
+                    getattr(self, "_panel_opened_by_us", None) == kind
+                    or (self._l1_cycle_owned_panel and self._panel_kind == kind)
+                )
+                if owned:
+                    # 自己打开的面板：没读到名字就等，绝不刷新烧木头。
+                    self._choice_policy_idle = True
+                    self._choice_policy_last_reason = f"{kind} OCR 本帧无候选，等下一帧"
+                    return None
                 if kind == "card":
                     return None
-                # skill / treasure：无命中时落到下方刷新/放弃/品质收口
+                # 自然弹出的面板：落到下方关闭/模板收口，不走 OCR-miss 刷新。
             else:
                 # Shadow：只观察 OCR + 策略，不记账、不授权点击。
                 slots_raw = self._ocr_panel_slots(frame, kind)

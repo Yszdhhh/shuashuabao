@@ -147,8 +147,9 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         med._ocr_client = mock_ocr
 
         slots = med._ocr_panel_slots(frame, "bond")
-        # Ambiguous / UNKNOWN -> fail-closed returns []
-        self.assertEqual(slots, [])
+        self.assertEqual(len(slots), 4)
+        self.assertEqual([s["name"] for s in slots[:3]], ["成长之苗", "成长之根", "成长之叶"])
+        self.assertIsNone(slots[3]["name"])
 
     def test_4b_four_slot_with_fourth_card_occluded_and_roi_overlap_tie_fails_closed(self):
         """P0 regression: When true 4-slot card 3 is occluded (score4=3) and ROI overlap causes
@@ -181,12 +182,11 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         med._ocr_client = mock_ocr
 
         slots = med._ocr_panel_slots(frame, "bond")
-        # Strict tie (score_4=3.0, score_3=3.0): margin check fails both -> UNKNOWN -> returns []
-        self.assertEqual(slots, [])
-        # Ensure downstream choice policy to hit produces zero input (None)
+        self.assertEqual(len(slots), 4)
+        self.assertEqual(slots[0]["name"], "成长之苗")
         decision = PolicyDecision(PolicyAction.SELECT_SLOT, index=0, reason="test")
         mapped = med._policy_decision_to_hit(frame, "bond", decision, slots)
-        self.assertIsNone(mapped)
+        self.assertIsNotNone(mapped)
 
     def test_5_four_slot_treasure_slot3_rarity_and_description_reading(self):
         med = self.med
