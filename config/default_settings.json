@@ -70,7 +70,7 @@
   "panel_action_limit_per_fingerprint": 3,
   "panel_episode_limit_per_kind": 24,
   "incident_sample_rate": 0.1,
-  "ocr_mode": "off",
+  "ocr_mode": "live",
   "ocr_repo_root": "",
   "ocr_timeout_ms": 1200,
   "loop_sleep_ms": 400,
@@ -81,9 +81,7 @@
   ],
   "images_dir": "assets/Images",
   "dry_run": false,
-  "bond_whitelist_mode": "soft",
-  "bond_must_take": [
-    "祝福"
-  ],
+  "bond_whitelist_mode": "hard",
+  "bond_must_take": [],
   "panel_reopen_cooldown_s": 3.0
 }

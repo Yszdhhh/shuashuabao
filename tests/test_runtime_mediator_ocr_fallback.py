@@ -1,4 +1,4 @@
-"""Packaged OCR absence must degrade to the safe template-only policy."""
+"""A packaged LIVE run must refuse to start if its OCR worker is absent."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from shuabao.settings import Settings
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_frozen_package_without_sidecar_starts_in_template_mode(monkeypatch):
+def test_frozen_package_without_sidecar_blocks_live_start(monkeypatch):
     class MissingSidecar:
         def __init__(self, **_kwargs) -> None:
             raise FileNotFoundError(
@@ -25,10 +25,10 @@ def test_frozen_package_without_sidecar_starts_in_template_mode(monkeypatch):
 
     mediator = runtime_mediator.Mediator(settings, ROOT)
 
-    assert settings.ocr_mode == "off"
-    assert mediator.prepare_live_dependencies() is True
+    assert settings.ocr_mode == "live"
+    assert mediator.prepare_live_dependencies() is False
     assert mediator._ocr_bootstrap_health == {
-        "healthy": True,
-        "skipped": True,
-        "reason": "packaged_ocr_unavailable_template_mode",
+        "healthy": False,
+        "stage": "client",
+        "reason": "packaged OCR runtime missing: expected ShuaBaoOCR.exe under the ShuaBao distribution",
     }

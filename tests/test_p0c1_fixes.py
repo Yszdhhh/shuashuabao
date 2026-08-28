@@ -35,12 +35,12 @@ class P0C1FixesTests(unittest.TestCase):
         self.assertFalse(data.get("auto_secret_realm"))
         self.assertFalse(self.settings.auto_secret_realm)
 
-    def test_default_settings_keep_ocr_off_until_a_sidecar_is_packaged(self):
+    def test_default_settings_enable_the_packaged_ocr_worker(self):
         default_json_path = ROOT / "config" / "default_settings.json"
         with open(default_json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        self.assertEqual("off", data.get("ocr_mode"))
-        self.assertEqual("off", self.settings.ocr_mode)
+        self.assertEqual("live", data.get("ocr_mode"))
+        self.assertEqual("live", self.settings.ocr_mode)
 
     def test_find_longzhu_in_game_config_key_is_wired(self):
         # 1.4 借鉴项 ②：配置门闩落地（默认 False，零行为改动；LONGZHU 重建后启用）

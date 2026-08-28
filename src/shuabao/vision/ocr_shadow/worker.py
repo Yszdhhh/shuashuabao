@@ -11,6 +11,7 @@ import shutil
 import sys
 import tempfile
 import time
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -221,8 +222,10 @@ def main() -> int:
             rec = _load_recognizer(model)
             model_reason = None
             load_ms = (time.perf_counter() - load_started) * 1000
-        except Exception:
-            model_reason = "model_corrupt"
+        except Exception as exc:
+            print(f"[ocr] model load failed: {exc}", file=sys.stderr, flush=True)
+            traceback.print_exc(file=sys.stderr)
+            model_reason = "model_load_failed"
     _emit({
         "type": "ready",
         "seq": 0,

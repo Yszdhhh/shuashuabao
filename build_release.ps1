@@ -50,7 +50,7 @@ if (-not $SkipGate) {
     }
 }
 
-Write-Host "[2/3] PyInstaller 打包 ..." -ForegroundColor Cyan
+Write-Host "[2/4] PyInstaller 打包主程序 ..." -ForegroundColor Cyan
 & $python -m PyInstaller --noconfirm --clean "$APP_ID.spec"
 
 $app = Join-Path $PSScriptRoot "dist\$APP_ID\$APP_ID.exe"
@@ -59,9 +59,29 @@ if (-not (Test-Path -LiteralPath $app)) {
 }
 Write-Host "已生成：$app" -ForegroundColor Green
 
+# OCR 在独立进程运行，避免主界面加载 Paddle 的大体积二进制；但正式发行包必须
+# 连同 worker、依赖和已校验模型一并交付，不能在冻结版静默降级为模板模式。
+$ocrPython = Join-Path $PSScriptRoot ".venv-ocr\Scripts\python.exe"
+if (-not (Test-Path -LiteralPath $ocrPython)) {
+    & $uvCommand.Source venv --python 3.11 .venv-ocr
+}
+& $uvCommand.Source pip install --python $ocrPython -r requirements-ocr.lock
+if ($LASTEXITCODE -ne 0) { throw "OCR 依赖安装失败。" }
+
+Write-Host "[3/4] PyInstaller 打包 OCR worker 和模型 ..." -ForegroundColor Cyan
+& $ocrPython -m PyInstaller --noconfirm --clean "ShuaBaoOCR.spec"
+if ($LASTEXITCODE -ne 0) { throw "OCR worker 打包失败。" }
+$ocrWorker = Join-Path $PSScriptRoot "dist\ShuaBaoOCR\ShuaBaoOCR.exe"
+if (-not (Test-Path -LiteralPath $ocrWorker)) {
+    throw "OCR worker 构建结束但没有生成 $ocrWorker"
+}
+$workerTarget = Join-Path $PSScriptRoot "dist\$APP_ID\vision"
+cmd.exe /c "robocopy `"$(Split-Path -Parent $ocrWorker)`" `"$workerTarget`" /E /NJH /NJS /NFL /NDL & if %ERRORLEVEL% LEQ 7 (exit /b 0) else (exit /b %ERRORLEVEL%)" | Out-Null
+Write-Host "已生成：$ocrWorker" -ForegroundColor Green
+
 if ($NoDeploy) { return }
 
-Write-Host "[3/3] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cyan
+Write-Host "[4/4] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cyan
 $version = (& $python -c "import sys; sys.path.insert(0,'src'); import shuabao; print(shuabao.__version__)").Trim()
 $versionLabel = "V$version"
 $desktop = [Environment]::GetFolderPath("Desktop")

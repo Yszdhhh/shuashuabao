@@ -102,7 +102,9 @@ def _resolve_production_model_dir(repo_root: Path) -> Path:
         exe_dir = Path(sys.executable).resolve().parent
         meipass = Path(getattr(sys, "_MEIPASS", exe_dir)).resolve()
         for candidate in (
+            exe_dir / "vision" / "_internal" / "models" / "ocr",
             exe_dir / "models" / "ocr",
+            meipass / "vision" / "_internal" / "models" / "ocr",
             meipass / "models" / "ocr",
         ):
             if candidate.is_dir():

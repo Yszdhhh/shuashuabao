@@ -221,7 +221,7 @@ class Settings:
     incident_sample_rate: float = 0.1           # 正常 panel episode 抽样归档率
     # OCR 只给三选一面板提供“名字证据”；live 时技能/羁绊没有可靠名字就不点。
     # Paddle 运行在独立 sidecar，主 EXE 不加载模型依赖。
-    ocr_mode: str = "off"                       # off / shadow / live
+    ocr_mode: str = "live"                      # off / shadow / live
     ocr_repo_root: str = ""                     # sidecar 的本地源码/模型根目录
     ocr_timeout_ms: int = 1200                   # 单槽热推理超时（模型启动另有 6s 窗）
     # N2.3 替代语义：主循环已改为状态分级 cadence（动作后 100ms / 稳定 HUD 300ms /

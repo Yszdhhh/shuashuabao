@@ -223,7 +223,7 @@ class TestClientLifecycle(unittest.TestCase):
                 time.sleep(0.2)
                 response = client.shadow_predict(frame(), "corrupt", slot(), fingerprint="c")
                 self.assertEqual(response.status, "unavailable")
-                self.assertIn(response.reason, {"model_corrupt", "model_missing"})
+                self.assertIn(response.reason, {"model_corrupt", "model_missing", "model_load_failed"})
             finally:
                 client.close()
 
