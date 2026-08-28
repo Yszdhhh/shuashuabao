@@ -20,7 +20,7 @@ binaries = []
 for package in ("paddle", "paddleocr", "paddlex", "cv2", "PIL", "bidi", "pypdfium2"):
     datas += collect_data_files(package)
     binaries += collect_dynamic_libs(package)
-for distribution in ("paddlepaddle", "paddleocr", "paddlex", "numpy", "opencv-python", "opencv-contrib-python", "Pillow", "python-bidi", "pypdfium2"):
+for distribution in ("paddlepaddle", "paddleocr", "paddlex", "numpy", "opencv-contrib-python", "Pillow", "python-bidi", "pypdfium2"):
     datas += copy_metadata(distribution)
 hiddenimports = [
     "paddle.base.libpaddle",
@@ -30,6 +30,13 @@ hiddenimports = [
     "paddlex.inference.models.text_recognition",
     "paddlex.inference.models.text_recognition.predictor",
     "paddlex.inference.models.runners.paddle_static",
+    # cv2 still imports NumPy's legacy compatibility namespace at runtime.
+    "numpy.core",
+    "numpy.core.multiarray",
+    "numpy.core._multiarray_umath",
+    "numpy._core",
+    "numpy._core.multiarray",
+    "numpy._core._multiarray_umath",
 ]
 
 a = Analysis(

@@ -12,7 +12,7 @@
       "license_source": "PaddleOCR 官方发布模型（https://github.com/PaddlePaddle/PaddleOCR）",
       "source_url": "https://paddleocr.bj.bcebos.com/PP-OCRv5/chinese/PP-OCRv5_mobile_rec_infer.tar",
       "model_dir": "models/ocr/PP-OCRv5_mobile_rec_infer",
-      "present_in_repo": true,
+      "present_in_repo": false,
       "archive": {
         "file": "models/ocr/PP-OCRv5_mobile_rec_infer.tar",
         "sha256": "566B9512B34E34A9F0DB54D87B51FA5A0B9ED2CF1AB7E49728CC0B8B5A64F414",

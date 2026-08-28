@@ -33,7 +33,6 @@ networkx==3.6.1
 numpy==2.3.5
 onnxruntime==1.28.0
 opencv-contrib-python==4.10.0.84
-opencv-python==5.0.0.93
 opt-einsum==3.3.0
 packaging==26.3
 paddleocr==3.7.0

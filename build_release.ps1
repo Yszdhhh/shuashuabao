@@ -19,9 +19,11 @@ $python = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 
 if (-not (Test-Path -LiteralPath $python)) {
     & $uvCommand.Source venv --python 3.11 .venv
+    if ($LASTEXITCODE -ne 0) { throw "创建主程序虚拟环境失败。" }
 }
 
 & $uvCommand.Source pip install --python $python -r requirements-desktop.txt -r requirements-build.txt
+if ($LASTEXITCODE -ne 0) { throw "主程序依赖安装失败。" }
 
 # Node 只用于构建期；先锁定依赖并重新生成 Web 静态产物，避免把陈旧 dist 打进包。
 $npm = Get-Command npm -ErrorAction Stop
@@ -35,6 +37,10 @@ try {
 finally {
     Pop-Location
 }
+
+Write-Host "[0/4] 准备并校验 OCR 模型 ..." -ForegroundColor Cyan
+& $python tools\prepare_ocr_model.py
+if ($LASTEXITCODE -ne 0) { throw "OCR 模型准备/校验失败，已中止打包。" }
 
 if (-not $SkipGate) {
     Write-Host "[1/4] 发版门禁 ..." -ForegroundColor Cyan
@@ -52,6 +58,7 @@ if (-not $SkipGate) {
 
 Write-Host "[2/4] PyInstaller 打包主程序 ..." -ForegroundColor Cyan
 & $python -m PyInstaller --noconfirm --clean "$APP_ID.spec"
+if ($LASTEXITCODE -ne 0) { throw "主程序打包失败。" }
 
 $app = Join-Path $PSScriptRoot "dist\$APP_ID\$APP_ID.exe"
 if (-not (Test-Path -LiteralPath $app)) {
@@ -64,8 +71,9 @@ Write-Host "已生成：$app" -ForegroundColor Green
 $ocrPython = Join-Path $PSScriptRoot ".venv-ocr\Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $ocrPython)) {
     & $uvCommand.Source venv --python 3.11 .venv-ocr
+    if ($LASTEXITCODE -ne 0) { throw "创建 OCR 虚拟环境失败。" }
 }
-& $uvCommand.Source pip install --python $ocrPython -r requirements-ocr.lock
+& $uvCommand.Source pip sync --python $ocrPython requirements-ocr.lock
 if ($LASTEXITCODE -ne 0) { throw "OCR 依赖安装失败。" }
 
 Write-Host "[3/4] PyInstaller 打包 OCR worker 和模型 ..." -ForegroundColor Cyan
@@ -77,6 +85,7 @@ if (-not (Test-Path -LiteralPath $ocrWorker)) {
 }
 $workerTarget = Join-Path $PSScriptRoot "dist\$APP_ID\vision"
 cmd.exe /c "robocopy `"$(Split-Path -Parent $ocrWorker)`" `"$workerTarget`" /E /NJH /NJS /NFL /NDL & if %ERRORLEVEL% LEQ 7 (exit /b 0) else (exit /b %ERRORLEVEL%)" | Out-Null
+if ($LASTEXITCODE -gt 7) { throw "复制 OCR worker 到发行目录失败。" }
 Write-Host "已生成：$ocrWorker" -ForegroundColor Green
 
 if ($NoDeploy) { return }
@@ -107,6 +116,7 @@ Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
 
 $srcDist = Join-Path $PSScriptRoot "dist\$APP_ID"
 cmd.exe /c "robocopy `"$srcDist`" `"$target`" /MIR /NJH /NJS /NFL /NDL & if %ERRORLEVEL% LEQ 7 (exit /b 0) else (exit /b %ERRORLEVEL%)" | Out-Null
+if ($LASTEXITCODE -gt 7) { throw "部署发行目录失败。" }
 
 # 统一桌面单一入口快捷方式：「刷刷宝.lnk」；归档旧版本快捷方式与看板快捷方式
 $lnkName = "$APP_NAME.lnk"

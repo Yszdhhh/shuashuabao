@@ -110,6 +110,10 @@ class Mediator(CoreMediator):
             2000,
             min(10000, int(getattr(self.settings, "ocr_timeout_ms", 1500) or 1500) * 5),
         )
+        warmup_timeout_ms = max(
+            10000,
+            min(30000, int(getattr(self.settings, "ocr_warmup_timeout_ms", 20000) or 20000)),
+        )
         started = time.perf_counter()
 
         if not client.start():
@@ -139,7 +143,7 @@ class Mediator(CoreMediator):
             return False
 
         warmup_started = time.perf_counter()
-        if not client.warmup(timeout_ms=timeout_ms):
+        if not client.warmup(timeout_ms=warmup_timeout_ms):
             self._ocr_bootstrap_health = {
                 "healthy": False,
                 "stage": "warmup",

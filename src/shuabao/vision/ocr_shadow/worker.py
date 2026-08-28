@@ -205,8 +205,9 @@ def _warmup_payload() -> str:
 
 
 def _emit(value: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n")
-    sys.stdout.flush()
+    payload = (json.dumps(value, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+    sys.stdout.buffer.write(payload)
+    sys.stdout.buffer.flush()
 
 
 def main() -> int:

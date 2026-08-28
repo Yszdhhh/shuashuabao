@@ -30,3 +30,19 @@ def test_release_script_builds_and_embeds_the_ocr_worker() -> None:
 
     assert "ShuaBaoOCR.spec" in release_script
     assert '"dist\\$APP_ID\\vision"' in release_script
+    assert "prepare_ocr_model.py" in release_script
+    assert "主程序打包失败" in release_script
+
+
+def test_ocr_packaging_uses_one_open_cv_distribution() -> None:
+    root = Path(__file__).resolve().parents[1]
+    lock = (root / "requirements-ocr.lock").read_text(encoding="utf-8")
+    requirements = (root / "requirements-ocr.txt").read_text(encoding="utf-8")
+    spec = (root / "ShuaBaoOCR.spec").read_text(encoding="utf-8")
+
+    assert "opencv-contrib-python==4.10.0.84" in lock
+    assert "opencv-contrib-python==4.10.0.84" in requirements
+    assert "opencv-python==" not in requirements
+    assert "opencv-python==" not in lock
+    assert '"opencv-contrib-python"' in spec
+    assert '"opencv-python"' not in spec

@@ -197,8 +197,6 @@ class ShadowClient:
         )
         env["SHUABAO_OCR_MODEL_DIR"] = str(self.model_dir)
         env["SHUABAO_OCR_REPO_ROOT"] = str(self.repo_root)
-        env["SHUABAO_OCR_MODEL_DIR"] = str(self.model_dir)
-        env["SHUABAO_OCR_REPO_ROOT"] = str(self.repo_root)
         exe = command[0] if command else ""
         if self.worker_command is None:
             package_init = self.src_dir / "shuabao" / "__init__.py"

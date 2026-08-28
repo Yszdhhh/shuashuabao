@@ -83,6 +83,7 @@ _INT_RANGES: dict[str, tuple[int, int]] = {
     "failure_streak_limit": (1, 10),
     "panel_action_limit_per_fingerprint": (1, 10),
     "panel_episode_limit_per_kind": (1, 50), "ocr_timeout_ms": (200, 5000),
+    "ocr_warmup_timeout_ms": (10000, 30000),
     "merchant_max_rerolls": (0, 20), "merchant_gold_reserve": (0, 1_000_000),
 }
 _FLOAT_RANGES: dict[str, tuple[float, float]] = {
@@ -223,7 +224,8 @@ class Settings:
     # Paddle 运行在独立 sidecar，主 EXE 不加载模型依赖。
     ocr_mode: str = "live"                      # off / shadow / live
     ocr_repo_root: str = ""                     # sidecar 的本地源码/模型根目录
-    ocr_timeout_ms: int = 1200                   # 单槽热推理超时（模型启动另有 6s 窗）
+    ocr_timeout_ms: int = 1200                   # 单槽热推理超时
+    ocr_warmup_timeout_ms: int = 20000           # 首次模型加载/预热超时
     # N2.3 替代语义：主循环已改为状态分级 cadence（动作后 100ms / 稳定 HUD 300ms /
     # loading 500ms，见 Mediator._cadence_for_current_state）。本字段仅保留为兼容
     # 默认/上限：run() 中 sleep = max(0, min(cadence, loop_sleep_ms/1000) - elapsed)。
@@ -316,7 +318,7 @@ class Settings:
             "round_timeout_s", "round_tail_window_s", "recovery_timeout_s",
             "recovery_action_limit", "failure_streak_limit",
             "panel_action_limit_per_fingerprint", "panel_episode_limit_per_kind",
-            "ocr_timeout_ms", "merchant_max_rerolls", "merchant_gold_reserve",
+            "ocr_timeout_ms", "ocr_warmup_timeout_ms", "merchant_max_rerolls", "merchant_gold_reserve",
         }
         float_fields = {
             "recovery_retry_interval_s", "panel_visible_timeout_s", "panel_hard_deadline_s",
