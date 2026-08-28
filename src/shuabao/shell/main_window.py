@@ -2963,12 +2963,11 @@ class MainWindow(QMainWindow):
         return tokens_list
 
     def _advanced_pack_tokens(self) -> list[str]:
-        enabled = set(self._shell_extras.get("advanced_packs") or [])
+        enabled = [str(x) for x in (self._shell_extras.get("advanced_packs") or []) if str(x)]
         banned = {"解放的圣剑", "帝炎", "法天象地"}
         tokens_list: list[str] = []
-        for pack_id, spec in ADVANCED_PACKS.items():
-            if pack_id not in enabled:
-                continue
+        for pack_id in enabled:
+            spec = ADVANCED_PACKS.get(pack_id) or {}
             banned.update(str(n) for n in (spec.get("exclude_ex") or []))
             for name in spec.get("cards") or []:
                 text = str(name).strip()
@@ -2978,6 +2977,17 @@ class MainWindow(QMainWindow):
                 if token not in tokens_list:
                     tokens_list.append(token)
         return tokens_list
+
+    def _bond_codes_from_names(self, items) -> list[str]:
+        out: list[str] = []
+        for item in items or ():
+            text = Path(str(item or "").strip()).stem
+            if not text:
+                continue
+            code = code_for_bond_name(text) or text
+            if code not in out:
+                out.append(code)
+        return out
 
     def assemble_whitelist_cards(self) -> list[str]:
         inverted = set(self._shell_extras.get("bond_inverted") or [])
@@ -2994,9 +3004,15 @@ class MainWindow(QMainWindow):
         for token in self._advanced_pack_tokens():
             if token not in out:
                 out.append(token)
-        for code in self._effective_scheme_codes():
-            if code not in inverted and code not in out:
-                out.append(code)
+        # Keep extras that live only in settings.cards (法术/暴击/魔能).
+        # Do not re-inject a stale _shell.bond_scheme (that is how 箭术 leaked).
+        for code in self._bond_codes_from_names(getattr(self.settings, "cards", None) or ()):
+            if code in out or code in inverted:
+                continue
+            box = self._bond_plan_boxes.get(code)
+            if box is not None and not box.isChecked():
+                continue
+            out.append(code)
         return out
 
     def _refill_stage_combo(self, keep_stage: int | None = None) -> None:
@@ -3801,11 +3817,14 @@ class MainWindow(QMainWindow):
     def _write_user_bundle(self, settings: Settings) -> None:
         path = self.user_settings_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        # `cards` is the worker's canonical whitelist. Keep dashboard-only
-        # state as its exact mirror so a stale bond_scheme cannot resurrect a
-        # card the user has removed.
+        # `cards` is the worker whitelist. Mirror it for the dashboard, and
+        # persist inverted from actual unchecked boxes so a stale scheme
+        # cannot resurrect 箭术 etc. on the next launch.
         self._shell_extras["bond_scheme"] = list(settings.cards)
-        self._shell_extras["bond_inverted"] = []
+        self._shell_extras["bond_inverted"] = [
+            code for code, box in getattr(self, "_bond_plan_boxes", {}).items()
+            if not box.isChecked()
+        ]
         data = collect_persistable_settings(settings)
         data["_shell"] = dict(self._shell_extras)
         data["_shell_schema"] = SHELL_SCHEMA_VERSION
@@ -3881,11 +3900,6 @@ class MainWindow(QMainWindow):
                             extras["attr_route"] = []
                     self._shell_extras.update(extras)
                 settings = Settings._from_dict(raw if isinstance(raw, dict) else {})
-                if settings.cards:
-                    # Migrate old double-written bundles in memory. The runner
-                    # reads `cards`; it wins over an older shell-only scheme.
-                    self._shell_extras["bond_scheme"] = list(settings.cards)
-                    self._shell_extras["bond_inverted"] = []
                 source = "user_settings.json"
                 default_bond = (
                     "bond_scheme" not in self._shell_extras
@@ -3951,16 +3965,12 @@ class MainWindow(QMainWindow):
         self.skill_grid.set_skills(settings.skills or [])
         self.archive_grid.set_levels(dict(getattr(settings, "skill_archive_levels", None) or {}))
 
-        card_stems = []
-        for item in settings.cards or []:
-            text = str(item or "").strip()
-            if text:
-                card_stems.append(Path(text).stem)
-        if card_stems:
-            self._shell_extras["bond_scheme"] = list(card_stems)
-            self._shell_extras["bond_inverted"] = [
-                code for code in self._bond_plan_boxes if code not in set(card_stems)
-            ]
+        whitelist = self._bond_codes_from_names(
+            list(settings.cards or []) + list(getattr(settings, "bonds", None) or [])
+        )
+        if whitelist:
+            self._shell_extras["bond_scheme"] = whitelist
+            self._shell_extras["bond_inverted"] = []
         elif bond_default:
             self._shell_extras.pop("bond_scheme", None)
             self._shell_extras.pop("bond_inverted", None)
@@ -4047,6 +4057,11 @@ class MainWindow(QMainWindow):
             **self.skill_priority_bar.route_selections(),
         }
         settings.cards = self.assemble_whitelist_cards()
+        settings.bonds = [
+            bond_display_name(code)
+            for code, box in self._bond_plan_boxes.items()
+            if box.isChecked()
+        ]
         settings.treasure_allow_negative = self.grp_negative.get_allowed()
         settings.auto_reputation = bool(self.cmb_mode.currentData())
         allocations = self._rep_allocations()
