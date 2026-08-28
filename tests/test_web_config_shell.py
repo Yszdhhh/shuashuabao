@@ -173,6 +173,13 @@ def test_production_canvas_semantics_host_exact_product_window():
     assert 'const MODE_LABEL = { solo:"单人模式", lead:"组队带车模式", follow:"组队跟车模式", hitch:"组队蹭车模式" };' in html
 
 
+def test_webengine_view_uses_widget_safe_border_reset():
+    """QWebEngineView is a QWidget; use its margins/style instead of QFrame APIs."""
+    source = (ROOT / "src" / "shuabao" / "shell" / "web_config_shell.py").read_text(encoding="utf-8")
+    assert "setFrameShape" not in source
+    assert 'setContentsMargins(0, 0, 0, 0)' in source
+
+
 def test_desktop_web_launcher_defaults_to_isolated_app_data():
     """Web 预览默认隔离，只有显式环境覆盖时才可能共用正式数据。"""
     text = (ROOT / "tools" / "launch_web_shell.vbs").read_text(encoding="utf-8")

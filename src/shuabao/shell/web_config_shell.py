@@ -21,7 +21,6 @@ from typing import Any
 from PySide6.QtCore import QObject, Qt, QUrl
 from PySide6.QtGui import QAction, QIcon, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
-    QFrame,
     QLabel,
     QMainWindow,
     QMenu,
@@ -158,7 +157,6 @@ class WebConfigShell(QMainWindow):
 
         self.page = LocalOnlyPage(self.profile, self)
         self.view = QWebEngineView(self)
-        self.view.setFrameShape(QFrame.Shape.NoFrame)
         self.view.setContentsMargins(0, 0, 0, 0)
         self.view.setStyleSheet("QWebEngineView { border: 0; }")
         self.view.setPage(self.page)
