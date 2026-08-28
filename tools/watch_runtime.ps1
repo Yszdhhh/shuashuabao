@@ -1,10 +1,14 @@
-# Watch GameScript runtime: process, log lines, pngs, settings
+# Watch runtime: process, log lines, pngs, settings
+# $local  = 原版 C# 程序的运行目录（%LocalAppData%\GameScript），用于对照官方行为
+# $roam   = 原版官方 Settings.json
+# 本项目（刷刷宝）自己的数据在 %LocalAppData%\ShuaBao
 $ErrorActionPreference = "SilentlyContinue"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
 $local = Join-Path $env:LOCALAPPDATA "GameScript"
 $roam = Join-Path $env:APPDATA "GameScript\Settings\Settings.json"
-$sampleRoot = "C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\docs\runtime_sample"
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$sampleRoot = Join-Path $repoRoot "docs\runtime_sample"
 $metaDir = Get-ChildItem $sampleRoot -Directory -ErrorAction SilentlyContinue |
   Where-Object { $_.Name -like "session_*" } |
   Sort-Object LastWriteTime -Descending |

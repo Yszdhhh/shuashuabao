@@ -1,5 +1,7 @@
 # GameScript-Local 项目交接文档
 
+> **历史文档警告：** 本文停留在 2026-08-07 / `e5809b1`，已不是当前实现。请先阅读 [`CURRENT_STATUS_AND_HANDOFF_20260812.md`](CURRENT_STATUS_AND_HANDOFF_20260812.md)，并以最新 trace 和 dirty worktree 为准。
+
 > 交接用途：供下一位外部 Coding Agent 接手 `GameScript-Local` 后继续推进。
 >
 > 当前交接基线：`e5809b1748dd042f33c53c09732d724d3eeb0838`

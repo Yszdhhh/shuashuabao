@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-import json, re
+import json, re, sys
 from pathlib import Path
 import dnfile
 
-exe = Path(r"C:\Users\10639\Desktop\🎮 影音游戏\1.3.3.3\GameScript.exe")
-out = Path(r"C:\Users\10639\Desktop\🎮 影音游戏\GameScript-Local\docs")
+# 原版 C# 程序（参考用，非本项目产物）；路径可用 --exe 覆盖，默认按仓库同级 参考/ 找。
+ROOT = Path(__file__).resolve().parents[1]
+exe = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT.parent / "参考" / "1.3.3.3" / "GameScript.exe"
+out = ROOT / "docs"
 pe = dnfile.dnPE(str(exe))
 md = pe.net.mdtables
 

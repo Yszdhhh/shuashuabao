@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "_comment": "16 技能族推荐属性流向（实机拆解，来源：用户提供的技能线路全览表 2026-08-21）。route 用于看板流派行与自定义编辑器的路线提示。",
+  "routes": {
+    "pg": "敏捷/力量",
+    "asj": "智力/法系",
+    "asjg": "智力/法系",
+    "assx": "智力/法系",
+    "tl": "智力/元素",
+    "sdl": "智力/元素",
+    "dcw": "智力/控场",
+    "hq": "智力/火系",
+    "byj": "敏捷/智力",
+    "hbj": "智力/控场",
+    "bsxx": "智力/防御",
+    "jf": "敏捷/控场",
+    "ljf": "敏捷/智力",
+    "jq": "力量/物理",
+    "dz": "力量/控场",
+    "ys": "力量/智力"
+  },
+  "ur_links": {
+    "zhili": "湮灭者（法术穿透/双倍施法）",
+    "mingjie": "收割者（攻速上限突破/满暴击爆伤）",
+    "liliang": "不动尊（终极真伤/真免护甲）"
+  },
+  "families": {
+    "pg": {"name": "普攻", "aff": "敏捷/力量", "routes": [{"id": "speed", "label": "优先攻速"}, {"id": "multi", "label": "优先神箭手"}, {"id": "enchant", "label": "优先附魔箭矢"}]},
+    "asj": {"name": "奥术箭", "aff": "智力/能量", "routes": [{"id": "damage", "label": "优先伤害"}, {"id": "split", "label": "优先次级箭"}, {"id": "cooldown", "label": "优先急速抽箭"}]},
+    "asjg": {"name": "奥术激光", "aff": "智力/能量", "routes": [{"id": "flood", "label": "优先奥能洪流"}, {"id": "sweep", "label": "优先奥能扫射"}, {"id": "uptime", "label": "优先持续覆盖"}]},
+    "assx": {"name": "奥术射线", "aff": "智力/能量", "routes": [{"id": "damage", "label": "优先伤害易伤"}, {"id": "guide", "label": "优先制导箭"}, {"id": "uptime", "label": "优先持续多目标"}]},
+    "jq": {"name": "剑气", "aff": "力量/物理", "routes": [{"id": "ice", "label": "优先碎冰"}, {"id": "flame", "label": "优先烈焰斩"}, {"id": "projectile", "label": "优先弹速体型"}]},
+    "byj": {"name": "爆炎箭", "aff": "敏捷/智力", "routes": [{"id": "meteor", "label": "优先炎爆术"}, {"id": "volley", "label": "优先连珠火箭"}, {"id": "burn", "label": "优先燃烧"}]},
+    "hbj": {"name": "寒冰箭", "aff": "智力/控场", "routes": [{"id": "freeze", "label": "优先蚀骨之寒"}, {"id": "volley", "label": "优先冰箭连发"}, {"id": "split", "label": "优先三棱冰箭"}]},
+    "tl": {"name": "天雷", "aff": "智力/元素", "routes": [{"id": "judgment", "label": "优先审判之雷"}, {"id": "storm", "label": "优先磁暴"}, {"id": "damage", "label": "优先伤害"}]},
+    "sdl": {"name": "闪电链", "aff": "智力/元素", "routes": [{"id": "bounce", "label": "优先弹射多目标"}, {"id": "paralysis", "label": "优先麻痹"}, {"id": "ion", "label": "优先离子爆破"}]},
+    "dcw": {"name": "电磁网", "aff": "智力/控场", "routes": [{"id": "shock", "label": "优先感电麻痹"}, {"id": "zone", "label": "优先范围跃迁"}, {"id": "damage", "label": "优先伤害频次"}]},
+    "bsxx": {"name": "冰霜新星", "aff": "智力/防御", "routes": [{"id": "freeze", "label": "优先冻结冻伤"}, {"id": "shatter", "label": "优先冰片穿透"}, {"id": "damage", "label": "优先冰系伤害"}]},
+    "dz": {"name": "地震", "aff": "力量/控场", "routes": [{"id": "stun", "label": "优先眩晕"}, {"id": "ember", "label": "优先余烬火系"}, {"id": "damage", "label": "优先范围伤害"}]},
+    "ljf": {"name": "龙卷风", "aff": "敏捷/智力", "routes": [{"id": "lightning", "label": "优先闪电龙卷"}, {"id": "double", "label": "优先双重龙卷"}, {"id": "pull", "label": "优先牵引聚怪"}]},
+    "jf": {"name": "飓风", "aff": "敏捷/控场", "routes": [{"id": "strike", "label": "优先强袭飓风"}, {"id": "vacuum", "label": "优先真空牵引"}, {"id": "pierce", "label": "优先穿透"}]},
+    "hq": {"name": "火球", "aff": "智力/火系", "routes": [{"id": "burn", "label": "优先燃烧"}, {"id": "tempo", "label": "优先高频火球"}, {"id": "volume", "label": "优先火球数量"}]},
+    "ys": {"name": "陨石", "aff": "力量/智力", "routes": [{"id": "stun", "label": "优先眩晕"}, {"id": "damage", "label": "优先爆发伤害"}, {"id": "area", "label": "优先范围碎片"}]}
+  }
+}

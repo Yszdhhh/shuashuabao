@@ -12,9 +12,9 @@ import cv2
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import Mediator, Phase  # noqa: E402
-from gamescript.settings import Settings  # noqa: E402
-from gamescript.vision.capture import (  # noqa: E402
+from shuabao.mediator import Mediator, Phase  # noqa: E402
+from shuabao.settings import Settings  # noqa: E402
+from shuabao.vision.capture import (  # noqa: E402
     L0_WINDOW_KEYWORDS,
     L1_WINDOW_KEYWORDS,
     capture_target,
@@ -62,11 +62,14 @@ def main() -> int:
         print(f"role={role} candidates={len(targets)} title_query={title!r}")
         for index, target in enumerate(targets):
             frame = capture_target(target)
+            if frame.width >= 200 and frame.height >= 200:
+                mediator._ui_scale = round(min(frame.width / 1600.0, frame.height / 900.0, 1.0), 3)
             context = mediator._detect_context(frame, role)
             values = {
                 "hwnd": target.hwnd,
                 "title": target.title,
                 "frame": f"{frame.width}x{frame.height}@({frame.left},{frame.top})",
+                "ui_scale": mediator._ui_scale,
                 "context": context,
             }
             if role == "l0":

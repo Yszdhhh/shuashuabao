@@ -1,0 +1,182 @@
+[
+ {
+  "t": 75.0,
+  "tag": "skill_white_vs_orange",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00075.0_skill_white_vs_orange.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 86.0,
+  "tag": "skill_pick_mid",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00086.0_skill_pick_mid.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 89.0,
+  "tag": "skill_refresh_loop",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00089.0_skill_refresh_loop.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 111.0,
+  "tag": "skill_meteor_quake_refresh",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00111.0_skill_meteor_quake_refresh.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 116.0,
+  "tag": "giveup_panel",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00116.0_giveup_panel.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 336.0,
+  "tag": "draw_insufficient",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00336.0_draw_insufficient.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 484.0,
+  "tag": "window_lost",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00484.0_window_lost.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 512.0,
+  "tag": "loading_after_window_loss",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00512.0_loading_after_window_loss.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 540.0,
+  "tag": "skill_refresh_game2",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00540.0_skill_refresh_game2.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 552.0,
+  "tag": "giveup_spam",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00552.0_giveup_spam.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 870.0,
+  "tag": "giveup_late",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00870.0_giveup_late.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 970.0,
+  "tag": "room_starting_g3",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t00970.0_room_starting_g3.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 1030.0,
+  "tag": "ingame_g3",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t01030.0_ingame_g3.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 1526.0,
+  "tag": "strength_boot_room",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t01526.0_strength_boot_room.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 1595.0,
+  "tag": "ys_panel",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t01595.0_ys_panel.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 1949.0,
+  "tag": "giveup_strength",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t01949.0_giveup_strength.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 2034.0,
+  "tag": "ys_panel2",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t02034.0_ys_panel2.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 2410.0,
+  "tag": "room_g6",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t02410.0_room_g6.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 2512.0,
+  "tag": "giveup_late2",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t02512.0_giveup_late2.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ },
+ {
+  "t": 2799.0,
+  "tag": "giveup_end",
+  "frame": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\fixtures\\longtest_20260814\\focus\\f_t02799.0_giveup_end.jpg",
+  "shape": [
+   1920,
+   1080
+  ]
+ }
+]

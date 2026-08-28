@@ -1,0 +1,284 @@
+{
+ "verdicts": [
+  {
+   "text": "致残剑气",
+   "note": "clean card name",
+   "is_card_name": true,
+   "confidence": 1,
+   "id": "d0_a_001073_ep019_s0"
+  },
+  {
+   "note": "clean card name",
+   "confidence": 1,
+   "id": "d0_a_001073_ep019_s1",
+   "is_card_name": true,
+   "text": "爆炸箭矢"
+  },
+  {
+   "text": "疾行剑气",
+   "note": "clean card name",
+   "id": "d0_a_001166_ep020_s0",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "note": "clean card name",
+   "confidence": 1,
+   "text": "致残剑气",
+   "is_card_name": true,
+   "id": "d0_a_001166_ep020_s1"
+  },
+  {
+   "id": "d0_a_001363_ep021_s0",
+   "is_card_name": true,
+   "text": "爆炸箭矢",
+   "note": "clean card name",
+   "confidence": 1
+  },
+  {
+   "note": "clean card name",
+   "text": "箭失连发",
+   "confidence": 1,
+   "id": "d0_a_001363_ep021_s1",
+   "is_card_name": true
+  },
+  {
+   "is_card_name": true,
+   "text": "致残剑气",
+   "id": "d0_a_001363_ep021_s2",
+   "confidence": 1,
+   "note": "clean card name"
+  },
+  {
+   "note": "clean card name",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_001670_ep022_s2",
+   "text": "爆炸箭矢"
+  },
+  {
+   "text": "NEW",
+   "note": "contains NEW badge",
+   "is_card_name": false,
+   "id": "d0_a_001699_ep023_s2",
+   "confidence": 1
+  },
+  {
+   "note": "stat text with numbers and plus sign",
+   "confidence": 1,
+   "text": "生命值+100(+10)",
+   "is_card_name": false,
+   "id": "d0_a_001731_ep024_s0"
+  },
+  {
+   "note": "clean item name",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_001731_ep024_s2",
+   "text": "小绿瓶"
+  },
+  {
+   "note": "clean card name",
+   "text": "龙族",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_001777_ep025_s0"
+  },
+  {
+   "id": "d0_a_001777_ep025_s1",
+   "note": "UI recommendation badge",
+   "confidence": 1,
+   "text": "荐",
+   "is_card_name": false
+  },
+  {
+   "id": "d0_a_001777_ep025_s2",
+   "text": "荐",
+   "note": "UI recommendation badge",
+   "is_card_name": false,
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "id": "d0_a_001805_ep026_s0",
+   "is_card_name": false,
+   "text": "木材(小)",
+   "note": "contains parentheses"
+  },
+  {
+   "note": "clean card name",
+   "text": "杀敌金币",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_001805_ep026_s1"
+  },
+  {
+   "confidence": 1,
+   "text": "末日使者",
+   "note": "clean hero name",
+   "id": "d0_a_001822_ep027_s0",
+   "is_card_name": true
+  },
+  {
+   "is_card_name": true,
+   "id": "d0_a_001822_ep027_s1",
+   "confidence": 1,
+   "note": "clean card name, OCR missed first char",
+   "text": "斧王"
+  },
+  {
+   "text": "主线4-8[34秒]",
+   "confidence": 1,
+   "note": "stage progress counter text with brackets and numbers",
+   "id": "d0_a_001822_ep027_s2",
+   "is_card_name": false
+  },
+  {
+   "text": "<永恒者",
+   "is_card_name": false,
+   "id": "d0_a_001837_ep028_s1",
+   "confidence": 1,
+   "note": "card name with leading bracket symbol"
+  },
+  {
+   "note": "stage progress counter text with brackets and numbers",
+   "text": "主线4-9[29秒]",
+   "confidence": 1,
+   "is_card_name": false,
+   "id": "d0_a_001837_ep028_s2"
+  },
+  {
+   "is_card_name": true,
+   "confidence": 1,
+   "note": "clean card name",
+   "id": "d0_a_001897_ep029_s0",
+   "text": "杀敌经验"
+  },
+  {
+   "is_card_name": true,
+   "id": "d0_a_001897_ep029_s1",
+   "note": "clean card name",
+   "confidence": 1,
+   "text": "普攻伤害"
+  },
+  {
+   "id": "d0_a_001930_ep030_s0",
+   "note": "no readable text visible",
+   "is_card_name": false,
+   "text": "UNREADABLE",
+   "confidence": 0.8
+  },
+  {
+   "confidence": 1,
+   "id": "d0_a_001930_ep030_s2",
+   "is_card_name": true,
+   "note": "clean card name",
+   "text": "如意空空手"
+  },
+  {
+   "note": "clean card name",
+   "is_card_name": true,
+   "text": "敏捷之源",
+   "id": "d0_a_001974_ep033_s0",
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "is_card_name": false,
+   "id": "d0_a_001974_ep033_s1",
+   "text": "R",
+   "note": "single letter hotkey badge"
+  },
+  {
+   "note": "stat text with numbers and plus sign",
+   "id": "d0_a_001974_ep033_s2",
+   "text": "经验+300",
+   "is_card_name": false,
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "text": "杀敌加成",
+   "note": "clean card name",
+   "id": "d0_a_002034_ep034_s1"
+  },
+  {
+   "is_card_name": false,
+   "text": "杀敌(小)",
+   "id": "d0_a_002034_ep034_s2",
+   "note": "contains parentheses",
+   "confidence": 1
+  },
+  {
+   "note": "clean card name",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_002060_ep036_s1",
+   "text": "杀敌加成"
+  },
+  {
+   "note": "contains parentheses",
+   "confidence": 1,
+   "is_card_name": false,
+   "text": "杀敌(小)",
+   "id": "d0_a_002060_ep036_s2"
+  },
+  {
+   "note": "clean card name",
+   "is_card_name": true,
+   "text": "杀敌加成",
+   "confidence": 1,
+   "id": "d0_a_002082_ep038_s1"
+  },
+  {
+   "text": "杀敌(小)",
+   "note": "contains parentheses",
+   "is_card_name": false,
+   "id": "d0_a_002082_ep038_s2",
+   "confidence": 1
+  },
+  {
+   "is_card_name": true,
+   "confidence": 1,
+   "text": "亡灵天灾",
+   "note": "clean card name",
+   "id": "d0_a_002098_ep039_s0"
+  },
+  {
+   "text": "攻击力+50(+5)",
+   "id": "d0_a_002098_ep039_s2",
+   "is_card_name": false,
+   "note": "stat text with numbers and plus sign",
+   "confidence": 1
+  },
+  {
+   "note": "clean card name",
+   "text": "杀敌加成",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_002112_ep040_s1"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": false,
+   "note": "contains parentheses",
+   "text": "杀敌(小)",
+   "id": "d0_a_002112_ep040_s2"
+  },
+  {
+   "note": "clean card name",
+   "text": "杀敌加成",
+   "id": "d0_a_002135_ep041_s1",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "is_card_name": false,
+   "confidence": 1,
+   "note": "contains parentheses",
+   "text": "杀敌(小)",
+   "id": "d0_a_002135_ep041_s2"
+  }
+ ]
+}

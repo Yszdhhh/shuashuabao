@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "_comment": "用户本地习惯权重 schema（免订阅）。文件建议落在 %LocalAppData%/ShuaBao/habit_preference.json。学习模式观测 JSONL 在 %LocalAppData%/ShuaBao/learning/。只影响 choice_policy 允许集合内的排序，不得突破技能预设/羁绊硬白名单/负面宝物默认拦截。看板「学习模式」= settings.dry_run，纯观察写入 learning/*.jsonl，后续可聚合进本 schema。",
+  "type": "object",
+  "required": ["version", "updated_at", "panels"],
+  "properties": {
+    "version": { "type": "integer", "const": 1 },
+    "updated_at": { "type": "string", "description": "ISO-8601" },
+    "sample_counts": {
+      "type": "object",
+      "description": "各面板观测到的用户确认次数，用于降低冷启动噪声",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "panels": {
+      "type": "object",
+      "properties": {
+        "skill": { "$ref": "#/$defs/panelHabit" },
+        "bond": { "$ref": "#/$defs/panelHabit" },
+        "treasure": { "$ref": "#/$defs/panelHabit" }
+      },
+      "additionalProperties": false
+    },
+    "actions": {
+      "type": "object",
+      "description": "用户相对官方默认的动作偏好（仍受刷新次数与安全策略限制）",
+      "properties": {
+        "prefer_refresh_when_low_match": { "type": "boolean", "default": true },
+        "max_wait_ticks": { "type": "integer", "minimum": 0, "default": 3 }
+      }
+    }
+  },
+  "$defs": {
+    "panelHabit": {
+      "type": "object",
+      "properties": {
+        "name_scores": {
+          "type": "object",
+          "description": "规范名 → 非负分数；仅对当时允许集合内的名字生效",
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        },
+        "slot_bias": {
+          "type": "array",
+          "description": "可选：用户是否更常点左/中/右（证据不足时保持均匀）",
+          "items": { "type": "number", "minimum": 0 },
+          "minItems": 3,
+          "maxItems": 5
+        },
+        "manual_overrides": {
+          "type": "integer",
+          "description": "用户打断脚本自选的次数（用于降低自动权重置信）",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

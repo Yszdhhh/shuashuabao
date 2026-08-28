@@ -1,0 +1,22 @@
+# OCR 评测依赖（O0 固定可重建锁）
+# 用途：tools/evaluate_choice_ocr.py / tools/crop_ocr_choices.py（可选）离线评测环境。
+# 独立 venv：.venv-ocr（Python 3.11.15），与生产 .venv 完全隔离（B2-2 蓝图要求）。
+#
+# 下载源：默认 PyPI（https://pypi.org/simple）
+#   paddlepaddle==3.3.1  paddleocr==3.7.0  paddlex==3.7.2
+#   （paddleocr/paddlex 的模型由 models/ocr/MODEL_MANIFEST.json 固定，推理 download_enable=False，
+#    运行时绝不联网下载模型；本文件只锁定 Python 依赖包。）
+#
+# 重建命令：
+#   python -m venv .venv-ocr
+#   .venv-ocr\Scripts\python.exe -m pip install -r requirements-ocr.txt
+#   （完整传递依赖固定版本见 requirements-ocr.lock：pip freeze 生成，74 个包）
+
+paddlepaddle==3.3.1
+paddleocr==3.7.0
+paddlex==3.7.2
+opencv-contrib-python==4.10.0.84
+# 评测脚本直接依赖（crop 工具用 Pillow；evaluator 用 psutil 统计 RSS）
+Pillow>=10.0
+numpy>=1.24
+psutil>=5.9

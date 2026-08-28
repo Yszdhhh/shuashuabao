@@ -1,0 +1,74 @@
+{
+  "_comment": "真机面板读图整理（2026-08-12）。description 以整帧可见原文为准；name 判定已由 choice_policy 锁定。pattern_hints 供 D 组核对 negative_patterns（只补不删）。",
+  "cards": {
+    "透支力量": {
+      "description": "全属性增幅+120%，本局每获得一个宝物效果-10%（之前获得的也计算在内）",
+      "evidence": [
+        "fixtures/treasure_negative/透支力量/panel_d0_b_001541.png",
+        "fixtures/treasure_negative/透支力量/desc2_d0_b_001541_slot0.png",
+        "fixtures/treasure_negative/透支力量/desc2_f_130_slot2.png"
+      ],
+      "pattern_hints": [],
+      "notes": "负面体现为宝物效果衰减，不一定命中「不再获得」类 pattern；靠 treasure_negative_names 兜底。"
+    },
+    "贪婪献祭": {
+      "description": "每消耗500金币，获得1点随机属性",
+      "evidence": [
+        "fixtures/treasure_negative/贪婪献祭/panel_treasure_choice_3.png",
+        "fixtures/treasure_negative/贪婪献祭/desc2_treasure_choice_3_slot0.png"
+      ],
+      "pattern_hints": [],
+      "notes": "当前唯一真机帧上的描述与契约 S3 正面样例措辞相同，未见「不再获得」类句子。用户仍将其列入负面名单→继续靠名字拦截；若实机另有负面版本文案，需补帧。"
+    },
+    "金转木": {
+      "description": "消耗全部金币，以0.5%的比例转化为木材；最低获得100木材，最高消耗200000金币获得1000木材",
+      "evidence": [
+        "fixtures/treasure_negative/金转木/panel_d0_b_001266.png",
+        "fixtures/treasure_negative/金转木/desc2_d0_b_001266_slot1.png",
+        "fixtures/treasure_negative/金转木/desc_d0_b_001266_slot1.png"
+      ],
+      "pattern_hints": ["消耗全部金币"],
+      "notes": "清空金币类；现有 DEFAULT_NEGATIVE_PATTERNS 未必覆盖，建议主 agent 评估是否追加 pattern。"
+    },
+    "杀敌梭哈": {
+      "description": "55%的概率杀敌数翻倍；45%的概率杀敌数清0",
+      "evidence": [
+        "fixtures/treasure_negative/杀敌梭哈/panel_d0_b_001818.png",
+        "fixtures/treasure_negative/杀敌梭哈/desc_d0_b_001818_slot0.png",
+        "fixtures/treasure_negative/杀敌梭哈/desc2_d0_b_001818_slot0.png"
+      ],
+      "pattern_hints": ["杀敌数清0"],
+      "notes": "赌博清零杀敌数；靠名字名单为主。"
+    },
+    "伐木契约": {
+      "description": "立即获得3000木材，3分钟后，本局木材将恒定",
+      "evidence": [
+        "fixtures/treasure_negative/伐木契约/panel_d0_a_000756.png",
+        "fixtures/treasure_negative/伐木契约/desc2_d0_a_000756_slot1.png"
+      ],
+      "pattern_hints": ["将恒定", "木材将恒定"],
+      "notes": "裁剪末尾可能还有「为0/为某值」；整帧可见「恒定」。与口述样例「不再获得木材」同类但措辞不同。"
+    },
+    "等级优势": {
+      "description": "立即获得当前等级*10的全属性",
+      "evidence": [
+        "fixtures/treasure_negative/等级优势/panel_d0_a_000756.png",
+        "fixtures/treasure_negative/等级优势/desc2_d0_a_000756_slot2.png"
+      ],
+      "pattern_hints": [],
+      "notes": "可见区未出现「之后不再升级」。契约口述样例仍保留作 pattern 回归；本卡目前主要靠名字名单。"
+    }
+  },
+  "contract_oral_negative_samples_keep": [
+    "立即获得50万金币，5分钟后不再获得金币",
+    "立即获得666木材，5分钟后不再获得木材",
+    "立即升级到25级，之后不再升级"
+  ],
+  "suggested_pattern_appends_for_main_agent": [
+    "消耗全部金币",
+    "将恒定",
+    "杀敌数清0",
+    "宝物效果-"
+  ],
+  "_suggested_status_20260812": "已写入 config/choice_policy.json 与 choice_policy.DEFAULT_NEGATIVE_PATTERNS；契约 test_document_real_description_pattern_gaps 已收紧为仅贪婪献祭/等级优势仍靠名字。"
+}

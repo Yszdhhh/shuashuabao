@@ -1,9 +1,8 @@
 """P1-B0 read-only post-game evidence tests.
 
-Defends the P1-B0 invariant: every post-game page (victory modal, archive
-panel, NPC hub, heirloom boss dialog, great-rift confirm) must produce ZERO
-input with the current mediator, and the observe-only root Replay entries
-must keep passing as no-action fixtures.
+Defends the P1-B0 invariant: verified post-game pages use only their dedicated
+safe action. Optional heirloom/rift dialogs are dismissed with X/“否”; pages
+without an authorized transition still fail closed.
 
 Anchor evidence levels (from tools/analyze_post_game.py, legacy 1.3.8
 templates matched against current-version full screenshots):
@@ -28,10 +27,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
 from run_replay import run_replay_fixture
 
 ENDGAME = ROOT / "fixtures" / "reborn_wow" / "endgame"
@@ -54,12 +53,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_post_game_pages_fail_closed_with_zero_input(self):
         """Archive/hub/heirloom/rift pages must cause Fail-Closed stop with zero executor calls."""
-        fail_closed_ids = {
-            "archive_challenge_panel",
-            "challenge_npc_hub",
-            "heirloom_challenge_bosses",
-            "great_rift_confirm",
-        }
+        fail_closed_ids = {"archive_challenge_panel", "challenge_npc_hub"}
         for shot in sorted(ENDGAME.glob("*.png")) + sorted(ENDGAME.glob("*.jpg")):
             if shot.stem not in fail_closed_ids:
                 continue
@@ -78,6 +72,103 @@ class P1B0PostGameTests(unittest.TestCase):
             mock_key.assert_not_called()
             mock_act.assert_not_called()
             mock_act_rc.assert_not_called()
+
+    def test_optional_dialogs_are_safely_dismissed(self):
+        cases = {
+            "heirloom_challenge_bosses": "DismissHeirloomDialog",
+            "great_rift_confirm": "CancelGreatRift",
+        }
+        for name, expected_reason in cases.items():
+            with self.subTest(name=name):
+                med = Mediator(Settings(), ROOT)
+                med.set_phase(Phase.MAIN_LINE, "optional dialog")
+                frame = load_fixture_frame(f"fixtures/replay/{name}.png")
+                with patch.object(med, "act_click", return_value=True) as click:
+                    action = med._tick_main_line(frame)
+                self.assertEqual(action, LoopAction.Continue)
+                self.assertEqual(med.phase, Phase.MAIN_LINE)
+                click.assert_called_once()
+                hit, reason = click.call_args.args
+                self.assertEqual(reason, expected_reason)
+                if name == "great_rift_confirm":
+                    self.assertEqual(hit.name, "great_rift_cancel")
+                    self.assertGreaterEqual(hit.x, frame.width * 0.50)
+                    self.assertLessEqual(hit.x, frame.width * 0.65)
+
+    def test_enabled_secret_realm_uses_npc_then_yes_and_verifies_hud(self):
+        settings = Settings(auto_secret_realm=True)
+        med = Mediator(settings, ROOT)
+        med.set_phase(Phase.MAIN_LINE, "secret realm setup")
+        med._post_game_pending = True
+        med._victory_continue_since = time.time()
+
+        hub = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        with patch.object(med, "act_right_click", return_value=True) as right_click:
+            action = med._tick_main_line(hub)
+        self.assertEqual(action, LoopAction.Continue)
+        right_click.assert_called_once()
+        npc_hit, reason = right_click.call_args.args
+        self.assertEqual(reason, "OpenGreatRift")
+        self.assertEqual(npc_hit.name, "damijing")
+        self.assertTrue(med._secret_realm_request_pending)
+        self.assertTrue(med._post_game_pending)
+
+        confirm = load_fixture_frame("fixtures/replay/great_rift_confirm.png")
+        with patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(confirm)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once()
+        yes_hit, reason = click.call_args.args
+        self.assertEqual(reason, "ConfirmGreatRift")
+        self.assertIn(yes_hit.name, {"mijingOk", "ok"})
+        self.assertIsNotNone(med._secret_realm_entering_since)
+        self.assertTrue(med._post_game_pending)
+
+        # Real 1.4.1 footage briefly shows the NPC hub again after “yes”.  It is
+        # a loading transition, not authority to right-click the rift NPC twice.
+        transition_at = med._secret_realm_entering_since + settings.ui_action_interval_s + 0.05
+        with patch("shuabao.mediator.time.time", return_value=transition_at), \
+             patch.object(med, "act_click") as transition_click, \
+             patch.object(med, "act_right_click") as transition_right_click:
+            action = med._tick_main_line(hub)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertIsNotNone(med._secret_realm_entering_since)
+        transition_click.assert_not_called()
+        transition_right_click.assert_not_called()
+
+        active = load_fixture_frame("fixtures/replay/main_line_auto_on.png")
+        verified_at = transition_at + 0.1
+        with patch("shuabao.mediator.time.time", return_value=verified_at), \
+             patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "_is_in_game_hud", return_value=True), \
+             patch.object(med, "act_click") as extra_click, \
+             patch.object(med, "act_right_click") as extra_right_click:
+            action = med._tick_main_line(active)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertTrue(med._secret_realm_active)
+        self.assertFalse(med._secret_realm_request_pending)
+        self.assertFalse(med._post_game_pending)
+        self.assertIsNone(med._secret_realm_entering_since)
+        extra_click.assert_not_called()
+        extra_right_click.assert_not_called()
+
+    def test_secret_realm_dialog_timeout_fails_closed_without_guessing(self):
+        settings = Settings(auto_secret_realm=True)
+        med = Mediator(settings, ROOT)
+        med.set_phase(Phase.MAIN_LINE, "secret realm timeout")
+        med._post_game_pending = True
+        med._secret_realm_request_pending = True
+        med._secret_realm_request_since = time.time() - 16.0
+        frame = load_fixture_frame("fixtures/replay/main_line_auto_on.png")
+
+        with patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "act_click") as click, \
+             patch.object(med, "act_right_click") as right_click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Break)
+        self.assertEqual(med.phase, Phase.ERROR)
+        click.assert_not_called()
+        right_click.assert_not_called()
 
     def test_victory_page_clicks_continue_game(self):
         """The victory modal drives a ContinueGame left click (owner-authorized), not a stop."""
@@ -150,7 +241,7 @@ class P1B0PostGameTests(unittest.TestCase):
     # ---------- 3. Observe-only root Replay entries ----------
 
     def test_post_game_manifest_entries(self):
-        """Victory entry drives ContinueGame; the other 4 stay no-action and click-free."""
+        """Root replay entries preserve their explicitly authorized actions."""
         manifest = json.loads((ROOT / "fixtures" / "manifest.json").read_text(encoding="utf-8"))
         ids = {
             "post_game_victory_continue",
@@ -170,9 +261,13 @@ class P1B0PostGameTests(unittest.TestCase):
                 self.assertEqual(res.action_name, "ContinueGame")
                 self.assertEqual(res.action_kind, "left_click")
                 self.assertIsNotNone(res.click_point)
-            else:
+            elif fixture["fixture_id"] in {"post_game_archive_panel", "post_game_npc_hub"}:
                 self.assertEqual(res.action_name, "none")
                 self.assertIsNone(res.click_point, f"{fixture['fixture_id']} must not produce a click")
+            else:
+                self.assertIn(res.action_name, {"DismissHeirloomDialog", "CancelGreatRift"})
+                self.assertEqual(res.action_kind, "left_click")
+                self.assertIsNotNone(res.click_point)
 
     # ---------- 3. Page-discriminating anchor evidence ----------
 
@@ -247,7 +342,7 @@ class P1B0PostGameTests(unittest.TestCase):
         med.phase = Phase.BOOT
         with patch.object(med, "see", return_value=black), \
              patch.object(med, "_tick_l0") as mock_tick, \
-             patch("gamescript.mediator.time") as mock_time:
+             patch("shuabao.mediator.time") as mock_time:
             mock_time.time.return_value = 1000.0
             mock_time.sleep.return_value = None
             action = med.tick()

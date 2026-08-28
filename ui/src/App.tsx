@@ -198,7 +198,7 @@ export const App: React.FC = () => {
       <div className="min-h-screen bg-[#0b1220] flex items-center justify-center text-slate-300">
         <div className="flex items-center gap-3 bg-[#151c2c] border border-[#243044] px-6 py-4 rounded-xl shadow-lg">
           <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-medium">正在加载 GameScript 控制面板与配置...</span>
+          <span className="text-sm font-medium">正在加载刷刷宝控制面板与配置...</span>
         </div>
       </div>
     );
@@ -237,7 +237,7 @@ export const App: React.FC = () => {
               【大厅 → 房间 → 选关】：脚本会按页面状态识别创建房间、填写配置、点击房间开始，再识别目标关卡并点击棕色开始按钮。
             </p>
             <p className="text-slate-400">
-              提示：自动建房需打开下方 L0 开关；同名大厅/房间会按页面锚点选择；Dry-run 只打印坐标不真实点击。地图颜色兜底若只有一个蓝色候选、弹窗输入框识别不安全或窗口被完全遮挡时会停住，不要降低阈值盲点。
+              提示：自动建房需打开下方 L0 开关；同名大厅/房间会按页面锚点选择；学习模式只观察记录不实操。地图颜色兜底若只有一个蓝色候选、弹窗输入框识别不安全或窗口被完全遮挡时会停住，不要降低阈值盲点。
             </p>
           </div>
         </div>

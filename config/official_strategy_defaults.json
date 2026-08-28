@@ -1,0 +1,238 @@
+{
+  "version": 1,
+  "_comment": "由 docs/research 攻略映射出的官方默认策略包。改这里后同步 default_settings.json / skill_meta.json；接线桌面「应用流派」另开任务。社区数值以游戏内为准。",
+  "active_build_id": "arcane_open",
+  "builds": [
+    {
+      "id": "arcane_open",
+      "name": "奥术开荒（奥术箭、奥术射线、奥术激光、剑气）",
+      "source": "KK 夙愿奥术箭帖 + REBORN_WOW S3",
+      "skills": ["asj", "asjg", "assx", "jq"],
+      "cards": ["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe", "fs"],
+      "damage_increase_card": true,
+      "reputation_type": 3,
+      "notes": "蓄力射击勿点；声望先肯瑞托。智力 UR 套=湮灭者。cards 仅含 fetter_labels 已有短码。"
+    },
+    {
+      "id": "thunder_classic",
+      "name": "天雷经典（天雷、闪电链、奥术激光、奥术射线）",
+      "source": "KK 天雷珍藏11过94",
+      "skills": ["tl", "sdl", "asjg", "assx"],
+      "cards": ["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe"],
+      "damage_increase_card": true,
+      "reputation_type": 3,
+      "notes": "卡池单向排斥：先点磁暴则审判之雷不再进池；先点审判之雷仍可出磁暴。智力 UR 套=湮灭者。"
+    },
+    {
+      "id": "thunder_net",
+      "name": "天雷狂轰（天雷、闪电链、电磁网、奥术箭）",
+      "source": "梭哈流 + 抖音双雷变体",
+      "skills": ["tl", "sdl", "dcw", "asj"],
+      "cards": ["tishu", "chengzhang", "zhufu", "zhili", "yanmiezhe"],
+      "damage_increase_card": true,
+      "reputation_type": 3,
+      "notes": "智力 UR 套=湮灭者。"
+    },
+    {
+      "id": "sword_qi",
+      "name": "剑气物理（剑气、陨石、地震、奥术激光）",
+      "source": "KK 剑气帖",
+      "skills": ["jq", "ys", "dz", "asjg"],
+      "cards": ["tishu", "chengzhang", "zhufu", "mingjie", "shougezhe"],
+      "damage_increase_card": true,
+      "reputation_type": 3,
+      "notes": "物理向可改探险者声望；需用户确认后改 reputation_type。敏捷 UR 套=收割者。"
+    },
+    {
+      "id": "aa_universal",
+      "name": "普攻万金油（普攻、陨石、地震、剑气）",
+      "source": "KK 普攻帖",
+      "skills": ["pg", "ys", "dz", "jq"],
+      "cards": ["tishu", "chengzhang", "zhufu", "mingjie", "shougezhe"],
+      "damage_increase_card": true,
+      "reputation_type": 3,
+      "notes": "敏捷 UR 套=收割者。"
+    }
+  ],
+  "attr_routes": {
+    "_comment": "三属性 UR 三件套。勾 fetter 短码即可拿散件（词典 set_membership）。力量路线暂无独立技能预设，面板勾 liliang+tuluzhe。",
+    "_structure": "user 20260813：每条线有一张同名属性门卡 gate_card，凑满 gate_need=4 张即激活专属卡组；沿 chain 逐环推进，最终产出 set_name 这张 UR。chain 是有序必经链路（首环=门卡，末环=UR），三条同构：门卡4 → 中环4 → 次环3 → UR3。support 是该系辅助/选做卡，不是必经。各环合成张数见 bond_stack_catalog。chain_status: confirmed=有实测或截图；needs_live_check=只有外部攻略依据，待实机抓画面确认。",
+    "_naming": "chain/support 一律写游戏内规范名，抖音攻略代称只在 guide_alias 里备查：法师→秘法师、野蛮→野蛮人、猎魔→猎魔人、弓箭→弓神。",
+    "_cost": "一条派系链路约 1400 木，两条 2800，三条 4200（比一个 EX 卡组还贵）。正常局优先主属性 + 力量（力量全流派通用），第三条看木头富余。",
+    "intelligence": {
+      "attr": "智力",
+      "gate_card": "智力",
+      "gate_need": 4,
+      "fetter_code": "yanmiezhe",
+      "set_name": "湮灭者",
+      "chain": ["智力", "秘法师", "法神", "湮灭者"],
+      "chain_status": "confirmed",
+      "chain_evidence": "秘法师/法神/湮灭者 均有实机 OCR 或夹具证据",
+      "guide_alias": {"秘法师": "法师"},
+      "pieces": ["聚能之虹", "洞察之眼", "奥法之辉"],
+      "support": ["法术", "魔能", "魔术", "魔法师", "元素师"],
+      "set_effect": "杀敌智力+0.2；造成的魔法伤害，结算时x1.08"
+    },
+    "strength": {
+      "attr": "力量",
+      "gate_card": "力量",
+      "gate_need": 4,
+      "fetter_code": "tuluzhe",
+      "set_name": "屠戮者",
+      "chain": ["力量", "野蛮人", "战神", "屠戮者"],
+      "chain_status": "confirmed",
+      "chain_evidence": "lab 152022 实测推进：力量(0..3/4) → 野蛮人(0..3/4) → 战神(0/3)(1/3)(2/3) → 屠戮者(0/3)(1/3)，链结构与各环张数获实测支持；UR 本体未在 trace 出现（20260824 审计更正：原「整条跑通拿到 UR」超出记录）。终名依据官方攻略映射 + ur_attr_routes 用户录像散件静帧。血誓整轮零出现，确认不在链上（归 support）。",
+      "guide_alias": {"野蛮人": "野蛮"},
+      "pieces": ["战斗咆哮", "屠戮之刃", "杀戮之血"],
+      "support": ["血誓"],
+      "set_effect": "杀敌力量+0.2；造成的所有伤害，结算时x1.05"
+    },
+    "agility": {
+      "attr": "敏捷",
+      "gate_card": "敏捷",
+      "gate_need": 4,
+      "fetter_code": "shougezhe",
+      "set_name": "收割者",
+      "chain": ["敏捷", "猎魔人", "弓神", "收割者"],
+      "chain_status": "confirmed",
+      "chain_evidence": "lab 152437 实测推进：敏捷(0..3/4) → 猎魔人(0/4)(1/4)(2/4) → 弓神(0/3)(1/3)(2/3) → 收割者(0/3)(1/3)，链结构与各环张数获实测支持；UR 本体未在 trace 出现（20260824 审计更正：原「整条跑通拿到 UR」超出记录）。终名依据官方攻略映射 + ur_attr_routes 用户录像散件静帧。没有漏卡，中环 4 / 次环 3 的同构成立（早前口述的 猎魔人3/弓神4 是反的）。",
+      "guide_alias": {"猎魔人": "猎魔", "弓神": "弓箭"},
+      "pieces": ["亡者之轮", "多重打击", "支配死灵"],
+      "support": ["箭术", "战术"],
+      "support_note": "lab 172349 敏捷 G2：箭术/战术几乎每帧都在，support 为空就被整晚刷掉。箭术 3 张、战术 2 张，是敏捷系最高频辅助，先收入白名单，图标才能学、刷新才停。",
+      "set_effect": "杀敌敏捷+0.2；造成的物理伤害，结算时x1.08"
+    }
+  },
+  "bond_trees": {
+    "_comment": "基础羁绊解锁树。张数以 bond_stack_catalog 为准。prereq 空=开局就有。status: live=实机见过合成进度；guide=只有攻略。",
+    "basic": {
+      "label": "基础卡",
+      "cards": ["祝福", "成长", "经济", "贪婪", "挑战", "提速", "体术", "固守", "陷阵", "急速", "力量", "智力", "敏捷"]
+    },
+    "贪婪": {"need": 3, "prereq": ["经济"], "unlocks": [], "tier": "round1", "status": "live", "note": "随机吞 4 张可吞食卡 + 150 木 + 888 杀敌 + 6000 金；格子将满时优先于普通顺序"},
+    "挑战": {"need": 3, "prereq": ["经济"], "unlocks": [], "tier": "round1", "status": "live"},
+    "提速": {"need": 3, "prereq": [], "unlocks": ["体术", "固守", "生命"], "tier": "survival", "status": "guide", "note": "lab 多轮零出现，前置关系尚未被实机验证"},
+    "体术": {"need": 3, "prereq": ["提速"], "unlocks": [], "tier": "survival", "status": "live", "note": "破甲 10%。攻略写 4，实测 3"},
+    "固守": {"need": 2, "prereq": ["提速"], "unlocks": ["陷阵"], "tier": "survival", "status": "live"},
+    "陷阵": {"need": 2, "prereq": ["固守"], "unlocks": [], "tier": "survival", "status": "live"},
+    "生命": {"need": 4, "prereq": ["提速"], "unlocks": ["血势", "血魔"], "tier": "optional", "status": "guide"},
+    "血势": {"need": 3, "prereq": ["生命"], "unlocks": [], "tier": "optional", "status": "guide"},
+    "血魔": {"need": 3, "prereq": ["生命"], "unlocks": [], "tier": "optional", "status": "guide"},
+    "暴击": {"need": 2, "prereq": [], "unlocks": ["致命"], "tier": "optional", "status": "live", "note": "暴击率不到 50% 是负收益；实验室不拿"},
+    "致命": {"need": 2, "prereq": ["暴击"], "unlocks": ["大炮"], "tier": "optional", "status": "live"},
+    "大炮": {"need": 2, "prereq": ["致命"], "unlocks": [], "tier": "optional", "status": "live", "note": "攻略写 3，截图 2 格"},
+    "法术": {"need": 3, "prereq": [], "unlocks": ["急速", "魔能", "魔术"], "tier": "intel_support", "status": "live"},
+    "急速": {"need": 3, "prereq": ["法术"], "unlocks": [], "tier": "must_take", "status": "live", "note": "出了基本必选；攻略代称极速"},
+    "魔能": {"need": 2, "prereq": ["法术"], "unlocks": [], "tier": "intel_support", "status": "live"},
+    "魔术": {"need": 2, "prereq": ["法术"], "unlocks": [], "tier": "intel_support", "status": "live", "note": "攻略写 3，实测 2"},
+    "魔法师": {"need": 3, "prereq": [], "unlocks": [], "tier": "intel_support", "status": "live", "note": "与秘法师(4)不同卡"},
+    "元素师": {"need": 3, "prereq": [], "unlocks": [], "tier": "intel_support", "status": "live"},
+    "箭术": {"need": 3, "prereq": [], "unlocks": [], "tier": "agi_support", "status": "live"},
+    "战术": {"need": 2, "prereq": [], "unlocks": [], "tier": "agi_support", "status": "live"},
+    "血誓": {"need": 3, "prereq": [], "unlocks": [], "tier": "str_support", "status": "live", "note": "lab 152022 整轮零出现，确认不在力量链上"},
+    "剑术": {"need": 3, "prereq": [], "unlocks": [], "tier": "avoid", "status": "guide", "note": "普攻剑气流专属，不进白名单"}
+  },
+  "bond_priority": {
+    "_comment": "羁绊默认取卡顺序。实验室白名单按 round1 → 属性链(含末环UR) → round2 → must_take → round4 → 该系 support 拼出来；「差 1 张吞噬」仍然压过全部顺序。名字都是游戏内规范名。来源：抖音基础卡组攻略（无胆超人5月/在家零四一7月，user 20260813 转述）+ user 实机复盘调序。",
+    "round1_must": ["祝福", "成长", "经济", "贪婪", "挑战"],
+    "round1_note": "第一轮前必须做完。贪婪是必拿不是选做：套装随机吞食 4 张可吞食卡牌，另给 150 木 + 888 杀敌 + 6000 金币，吞食丹不多时尤其关键。",
+    "round2_attr_chain": "见 attr_routes.chain（含末环 UR）。**整条链排在 round2_survival 之前**：user 20260813 实机指出「有湮灭者却先去拿体术」——UR 是整条链的产出，体术这类通用生存卡全程都能补，不该压过它。",
+    "round3_survival": ["提速", "体术", "固守", "陷阵"],
+    "round3_note": "生存 + 破甲。体术破甲 10% 优先级极高；提速是体术/固守/生命的前置。",
+    "must_take": ["急速"],
+    "must_take_note": "user 20260813：技能急速出了基本就是必选项，优先级明显高于同为法术衍生的魔能/魔术（那两张才是可选）。上一版重构 bond_priority 时把急速整个漏出了白名单，这里补回并单列一层。",
+    "round4_optional": ["生命", "血势", "血魔", "暴击", "致命", "大炮"],
+    "round4_note": "正式长局、木头富余再做。暴击套需暴击率>50% 才是正收益；大炮配龙族。",
+    "lab_skip": ["生命", "血势", "血魔", "暴击", "致命", "大炮"],
+    "lab_skip_note": "实验室只采 UR 链。trace 172349 敏捷 G2 在门卡凑齐前就拿了暴击/致命/大炮，格子和木头被选做吃掉，后面整晚在刷箭术/战术。这些卡正式局仍留在 round4。",
+    "not_recommended": ["剑术"],
+    "not_recommended_note": "剑术是普攻剑气流专属，其他流派没用；不进白名单。"
+  },
+  "skill_synergy": {
+    "_comment": "实验室 skill / skillbond 预设读这里。skill 只开技能三选；skillbond 再叠 desired_bonds。catalogs 不自动收窄。",
+    "next_test_families": ["奥术箭", "天雷"],
+    "never_pick_skills": ["蓄力射击"],
+    "desired_bonds_by_family": {
+      "奥术箭": ["祝福", "成长", "经济", "贪婪", "挑战", "智力", "秘法师", "法神", "湮灭者", "提速", "体术", "法术", "急速", "箭术"],
+      "天雷": ["祝福", "成长", "经济", "贪婪", "挑战", "智力", "秘法师", "法神", "湮灭者", "提速", "体术", "法术", "急速"]
+    }
+  },
+  "global_safe_defaults": {
+    "auto_secret_realm": false,
+    "auto_gambling_time": 0,
+    "dragon_ball_count": 7,
+    "negative_treasures_default_block": true,
+    "must_take_treasures": [
+      "ONEPIECE",
+      "至高进化",
+      "一身神装",
+      "满级大佬"
+    ],
+    "bond_whitelist_mode": "hard"
+  },
+  "mainline_stages": [
+    {"chapter": 1, "count": 23, "label": "主线1"},
+    {"chapter": 2, "count": 7, "label": "主线2"},
+    {"chapter": 3, "count": 9, "label": "主线3"},
+    {"chapter": 4, "count": 3, "label": "主线4"}
+  ],
+  "card_packs": {
+    "_comment": "看板用。基础卡组=已实机抓齐的四轮必做/生存/急速。属性线只选智力/力量/敏捷一行，不展开链。高级卡组可选，EX 最终形态不进白名单。",
+    "basic": {
+      "label": "基础卡组",
+      "cards": ["祝福", "成长", "经济", "贪婪", "挑战", "提速", "体术", "固守", "陷阵", "急速"]
+    },
+    "attr_line": {
+      "label": "属性线",
+      "summary_only": true,
+      "options": [
+        {"id": "intelligence", "label": "智力", "gate": "智力", "ur": "湮灭者"},
+        {"id": "strength", "label": "力量", "gate": "力量", "ur": "屠戮者"},
+        {"id": "agility", "label": "敏捷", "gate": "敏捷", "ur": "收割者"}
+      ]
+    },
+    "advanced": {
+      "daodao": {
+        "label": "刀刀",
+        "cards": ["刀刀", "幽灵系带", "护腕", "空灵挂坠", "刀刀萌新", "刀刀大成"],
+        "exclude_ex": ["解放的圣剑"]
+      },
+      "yihuo": {
+        "label": "异火",
+        "cards": ["异火", "焚诀·黄阶", "阴阳双炎", "风怒龙炎", "幽冥毒火", "玄黄炎"],
+        "exclude_ex": ["帝炎"]
+      },
+      "dasheng": {
+        "label": "大圣",
+        "cards": ["齐天大圣", "大圣", "天命人", "大圣残躯", "大圣套装"],
+        "exclude_ex": ["法天象地"]
+      },
+      "xiuxian": {
+        "label": "修仙",
+        "cards": ["修仙", "筑基丹", "金丹大道", "元神出窍", "修仙萌新", "修仙大成"],
+        "exclude_ex": ["飞升"]
+      },
+      "fengshen": {
+        "label": "封神",
+        "cards": ["封神", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀"],
+        "exclude_ex": ["混元金斗"]
+      },
+      "haidao": {
+        "label": "海盗",
+        "cards": ["海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"],
+        "exclude_ex": []
+      },
+      "wangling": {
+        "label": "亡灵",
+        "cards": ["亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"],
+        "exclude_ex": ["冰封王座"]
+      }
+    }
+  },
+  "do_not_auto_enable": [
+    "黑市自动购买序",
+    "木头梭哈/ZS重开",
+    "杀敌投资58秒窗口",
+    "云端选卡"
+  ]
+}

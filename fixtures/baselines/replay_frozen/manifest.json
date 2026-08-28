@@ -1,0 +1,112 @@
+{
+  "schema_version": 1,
+  "baseline": "db73fd95dd35d76e73f4291dfec217586998474d",
+  "scope": "1600x900 first-release only (docs/SCOPE_OVERRIDE_1600X900_20260811.md); 960x540 = NOT_APPLICABLE",
+  "material_policy": "全部帧为仓库既有素材引用（不新增采集、不缩放伪造）；帧来源见各 scene 的 case.json description。断线场景素材缺失如实 BLOCKED。",
+  "scenes": [
+    {
+      "scene_id": "fail_panel_preempt",
+      "title": "fail+panel 独立场景",
+      "blueprint_ref": "R0.1-#1 / F1 语义",
+      "resolution_class": "1600x900-window",
+      "frame_resolution": "1920x1080 full-desktop capture (1600x900 game window inside)",
+      "material_source": "rec9_mijing_20260810 (idx_a) frames 002238/002694 = fixtures/ocr_choices/frames/rec9_mijing_20260810/d0_a_002238.png, d0_a_002694.png",
+      "case_dir": "scenes/fail_panel_preempt",
+      "required": true,
+      "missing_resource": false,
+      "ledger_expectation": [
+        {"frame_index": 0, "frame_id": "fail_238_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null},
+        {"frame_index": 1, "frame_id": "fail_238_f2", "phase": "RECOVER_FAILURE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null},
+        {"frame_index": 2, "frame_id": "fail_694_f3", "phase": "RECOVER_FAILURE", "context": "MAIN_LINE", "action_name": "Recovery-FAIL-FAIL_CONFIRM", "action_kind": "left_click", "click_point": [800, 689]}
+      ]
+    },
+    {
+      "scene_id": "giveup_panel_not_fail",
+      "title": "giveUp+panel 独立场景",
+      "blueprint_ref": "R0.1-#2 / F2 语义",
+      "resolution_class": "1600x900-window",
+      "frame_resolution": "1920x1080 full-desktop capture (giveup_panel.jpg, idx_b 000105) + 1600x900 window capture (idle_hud.png)",
+      "material_source": "tests/performance/fixtures/giveup_panel.jpg (rec10_3normal idx_b 000105) + tests/performance/fixtures/idle_hud.png (= fixtures/replay/main_line_auto_on.png)",
+      "case_dir": "scenes/giveup_panel_not_fail",
+      "required": true,
+      "missing_resource": false,
+      "ledger_expectation": [
+        {"frame_index": 0, "frame_id": "giveup_panel_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null},
+        {"frame_index": 1, "frame_id": "giveup_panel_f2", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "技能刷新选择", "action_kind": "left_click", "click_point": [1020, 654]},
+        {"frame_index": 2, "frame_id": "hud_panel_closed_f3", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
+      ]
+    },
+    {
+      "scene_id": "archive_challenge_open",
+      "title": "存档挑战独立场景",
+      "blueprint_ref": "R0.1-#3 / F6",
+      "resolution_class": "1600x900-window",
+      "frame_resolution": "1600x900 window capture (1596x921)",
+      "material_source": "fixtures/replay/archive_challenge_panel.png (同 fixtures/manifest.json post_game_archive_panel)",
+      "case_dir": "scenes/archive_challenge_open",
+      "required": true,
+      "missing_resource": false,
+      "ledger_expectation": [
+        {"frame_index": 0, "frame_id": "archive_panel_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
+      ]
+    },
+    {
+      "scene_id": "main_hud_idle",
+      "title": "主线 HUD 独立场景",
+      "blueprint_ref": "R0.1-#4",
+      "resolution_class": "1600x900-window",
+      "frame_resolution": "1600x900 window capture (1609x932)",
+      "material_source": "fixtures/replay/main_line_auto_on.png (同 fixtures/manifest.json main_line_auto_on)",
+      "case_dir": "scenes/main_hud_idle",
+      "required": true,
+      "missing_resource": false,
+      "ledger_expectation": [
+        {"frame_index": 0, "frame_id": "hud_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "OpenSkillPanel", "action_kind": "left_click", "click_point": [1452, 808]},
+        {"frame_index": 1, "frame_id": "hud_f2", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
+      ]
+    },
+    {
+      "scene_id": "stage_select_scroll",
+      "title": "stage 独立场景",
+      "blueprint_ref": "R0.1-#5",
+      "resolution_class": "1600x900-window",
+      "frame_resolution": "1600x900 window capture (exact 1600x900)",
+      "material_source": "tests/performance/fixtures/stage_select.png",
+      "case_dir": "scenes/stage_select_scroll",
+      "required": true,
+      "missing_resource": false,
+      "ledger_expectation": [
+        {"frame_index": 0, "frame_id": "stage_f1", "phase": "STAGE_SELECT", "context": "STAGE_SELECT", "action_name": "scroll", "action_kind": "scroll", "click_point": [1080, 468]},
+        {"frame_index": 1, "frame_id": "stage_f2", "phase": "STAGE_SELECT", "context": "STAGE_SELECT", "action_name": "scroll", "action_kind": "scroll", "click_point": [1080, 468]}
+      ]
+    },
+    {
+      "scene_id": "exit_confirm_quit",
+      "title": "退出确认独立场景",
+      "blueprint_ref": "R0.1-#6 / F5",
+      "resolution_class": "1600x900-window",
+      "frame_resolution": "1600x900 window capture (exact 1600x900)",
+      "material_source": "fixtures/live_postgame_20260808/live_exit_confirm.png",
+      "case_dir": "scenes/exit_confirm_quit",
+      "required": true,
+      "missing_resource": false,
+      "ledger_expectation": [
+        {"frame_index": 0, "frame_id": "exit_confirm_f1", "phase": "NEXT", "context": "UNKNOWN", "action_name": "none", "action_kind": "none", "click_point": null},
+        {"frame_index": 1, "frame_id": "exit_confirm_f2", "phase": "PREPARE", "context": "UNKNOWN", "action_name": "QuitGame-confirm", "action_kind": "left_click", "click_point": [740, 520]}
+      ]
+    },
+    {
+      "scene_id": "disconnect_modal_missing",
+      "title": "断线弹窗独立场景",
+      "blueprint_ref": "R0.1-#7 / G2",
+      "resolution_class": "1600x900-window",
+      "frame_resolution": null,
+      "material_source": null,
+      "case_dir": null,
+      "required": true,
+      "missing_resource": true,
+      "material_gap": "真实断线弹窗素材缺失（G2：idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中 gameDisconnect/retryConnect；与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源）。需 tools/net_block.py 实机触发后命名保存（<root>\\disconnect\\gameDisconnect_*.png）。",
+      "status_expected": "BLOCKED"
+    }
+  ]
+}

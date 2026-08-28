@@ -1,8 +1,8 @@
 {
-  "stage1": 10,
-  "stage2": 10,
+  "stage1": 15,
+  "stage2": 15,
   "stage_targets": [
-    "1-10"
+    "1-15"
   ],
   "room_name": "",
   "room_password": "",
@@ -14,6 +14,7 @@
   "game_mode": 0,
   "dragon_ball_count": 7,
   "find_longzhu_where_multi_game": false,
+  "find_longzhu_in_game": false,
   "auto_secret_realm": false,
   "auto_close_main_line": false,
   "close_main_line_time": 0,
@@ -40,11 +41,12 @@
     "jq"
   ],
   "cards": [],
+  "skill_archive_levels": {},
   "auto_bond": true,
   "auto_treasure": true,
   "choice_interval": 120,
   "auto_artifact": true,
-  "artifact_cd": 180,
+  "artifact_cd": 120,
   "artifact_slots": 3,
   "auto_archaeology": true,
   "boss_live_time": 200,
@@ -55,6 +57,23 @@
   "auto_gambling_time": 0,
   "match_threshold": 0.85,
   "click_delay_ms": 120,
+  "round_timeout_s": 3600,
+  "round_tail_window_s": 120,
+  "recovery_timeout_s": 60,
+  "recovery_action_limit": 3,
+  "recovery_retry_interval_s": 1.5,
+  "failure_streak_limit": 3,
+  "panel_visible_timeout_s": 2.0,
+  "panel_hard_deadline_s": 15.0,
+  "ui_action_interval_s": 1.5,
+  "challenge_recheck_interval_s": 30,
+  "panel_action_limit_per_fingerprint": 3,
+  "panel_episode_limit_per_kind": 24,
+  "incident_sample_rate": 0.1,
+  "ocr_mode": "live",
+  "ocr_repo_root": "",
+  "ocr_timeout_ms": 1200,
+  "ocr_warmup_timeout_ms": 20000,
   "loop_sleep_ms": 400,
   "window_title_contains": "英雄三国",
   "window_size": [
@@ -62,6 +81,8 @@
     900
   ],
   "images_dir": "assets/Images",
-  "dry_run": true,
-  "find_longzhu_in_game": false
+  "dry_run": false,
+  "bond_whitelist_mode": "hard",
+  "bond_must_take": [],
+  "panel_reopen_cooldown_s": 3.0
 }

@@ -1,4 +1,5 @@
 .venv/
+.venv-ocr/
 build/
 dist/
 __pycache__/
@@ -12,6 +13,10 @@ logs/trace_*.jsonl
 ui/node_modules/
 ui/dist/
 node_modules/
+
+# OCR model binaries (MODEL_MANIFEST.json 除外)
+models/ocr/*
+!models/ocr/MODEL_MANIFEST.json
 
 # Local machine/license/runtime captures; do not publish
 assets/Images/shortKey.png
@@ -31,3 +36,16 @@ dist-candidate/
 dist-candidate2/
 dist-candidate3/
 packaging/
+
+# per-stage packaging outputs (dist_release2 = rollback baseline, kept local)
+build_*/
+dist_*/
+
+# pytest / agent scratch (keep on disk, not in repo)
+.pytest_cache/
+tmp_review_*/
+tmp_stage_*/
+tools/_tmp_*.py
+agent_out/
+docs/baselines/O1_contact_sheet/debug_crops/
+docs/baselines/O1_contact_sheet/ocr_cache.json

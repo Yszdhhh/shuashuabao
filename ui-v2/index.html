@@ -1,0 +1,1800 @@
+
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>刷刷宝看板</title>
+  <style>
+    :root {
+      --bg: #08090a;
+      --surface: #191a1b;
+      --surface-warm: var(--surface);
+      --fg: #f7f8f8;
+      --fg-2: #d0d6e0;
+      --muted: #8a8f98;
+      --meta: #62666d;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-soft: rgba(255, 255, 255, 0.05);
+      --accent: #5e6ad2;
+      --accent-on: #ffffff;
+      --accent-hover: #828fff;
+      --accent-active: #4752c4;
+      --success: #27a644;
+      --warn: #eab308;
+      --danger: #dc2626;
+      --font-display: "Inter Variable", "Inter", "SF Pro Display", -apple-system, system-ui, "Segoe UI", sans-serif;
+      --font-body: "Inter Variable", "Inter", "SF Pro Display", -apple-system, system-ui, "Segoe UI", sans-serif;
+      --font-mono: "Berkeley Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+      --text-xs: 12px;
+      --text-sm: 14px;
+      --text-base: 16px;
+      --text-lg: 18px;
+      --text-xl: 24px;
+      --text-2xl: 32px;
+      --text-3xl: 48px;
+      --text-4xl: 72px;
+      --leading-body: 1.5;
+      --leading-tight: 1.00;
+      --tracking-display: -0.022em;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --space-12: 48px;
+      --section-y-desktop: 80px;
+      --section-y-tablet: 48px;
+      --section-y-phone: 32px;
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-pill: 9999px;
+      --elev-flat: none;
+      --elev-ring: 0 0 0 1px var(--border);
+      --elev-raised: rgba(0, 0, 0, 0.4) 0px 2px 4px, 0 0 0 1px rgba(255, 255, 255, 0.05);
+      --focus-ring: 0 0 0 2px color-mix(in oklab, var(--accent), transparent 30%), 0 4px 12px rgba(0, 0, 0, 0.1);
+      --motion-fast: 150ms;
+      --motion-base: 200ms;
+      --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+      --container-max: 1200px;
+      --container-gutter-desktop: 24px;
+      --container-gutter-tablet: 16px;
+      --container-gutter-phone: 12px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      font-family: var(--font-body);
+      font-feature-settings: "cv01", "ss03";
+      background: var(--bg);
+      color: var(--fg);
+      overflow-x: hidden;
+    }
+    button, select, input { font-family: inherit; color: inherit; }
+    button { cursor: pointer; }
+    img { display: block; }
+    .hidden { display: none !important; }
+    .pill {
+      display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+      border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted); font-size: 11px; font-weight: 510;
+    }
+    .pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 35%, var(--border)); }
+    button:focus-visible, select:focus-visible, input:focus-visible {
+      outline: none; box-shadow: var(--focus-ring);
+    }
+    #scene-wizard, #scene-app { display: none !important; }
+    body[data-scene="wizard"] #scene-wizard { display: flex !important; }
+    body[data-scene="farm"] #scene-app,
+    body[data-scene="lead"] #scene-app,
+    body[data-scene="follow"] #scene-app,
+    body[data-scene="hitch"] #scene-app { display: flex !important; }
+
+    /* Product window: tokens sampled from assets/app_logo.png (navy steel + armor gold + iris blue). */
+    .win, .wiz {
+      --p-font: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      --p-bg: oklch(0.955 0.008 250);
+      --p-paper: oklch(0.995 0.004 250);
+      --p-ink: oklch(0.28 0.042 250);
+      --p-muted: oklch(0.46 0.032 250);
+      --p-faint: oklch(0.42 0.022 250);
+      --p-line: oklch(0.88 0.014 250);
+      --p-fill: oklch(0.935 0.012 250);
+      --p-gold: oklch(0.72 0.132 85);
+      --p-gold-ink: oklch(0.22 0.04 85);
+      --p-gold-soft: color-mix(in oklab, var(--p-gold) 12%, var(--p-paper));
+      --p-blue: oklch(0.52 0.16 255);
+      --p-ok: oklch(0.46 0.12 145);
+      --p-danger: oklch(0.48 0.18 25);
+      --p-on: oklch(0.99 0.004 250);
+      --p-radius: 6px;
+      --p-focus: 0 0 0 2px color-mix(in oklab, var(--p-blue) 55%, transparent);
+      --p-shadow: 0 10px 28px color-mix(in oklab, var(--p-ink) 18%, transparent);
+      font-family: var(--p-font);
+      color: var(--p-ink);
+    }
+    .win[data-theme="dark"] {
+      --p-bg: oklch(0.22 0.028 250);
+      --p-paper: oklch(0.26 0.032 250);
+      --p-ink: oklch(0.94 0.012 250);
+      --p-muted: oklch(0.78 0.028 250);
+      --p-faint: oklch(0.72 0.02 250);
+      --p-line: oklch(0.36 0.028 250);
+      --p-fill: oklch(0.30 0.03 250);
+      --p-gold: oklch(0.78 0.12 85);
+      --p-gold-ink: oklch(0.22 0.04 85);
+      --p-gold-soft: color-mix(in oklab, var(--p-gold) 14%, var(--p-paper));
+      --p-shadow: 0 10px 28px oklch(0.1 0.02 250 / 0.55);
+    }
+    .win .pill {
+      border-color: var(--p-line); color: var(--p-muted); background: var(--p-paper);
+    }
+    .win .pill.warn {
+      color: var(--p-danger);
+      border-color: color-mix(in srgb, var(--p-danger) 40%, var(--p-line));
+    }
+    .win button:focus-visible, .win select:focus-visible, .win input:focus-visible,
+    .wiz button:focus-visible, .game-run button:focus-visible { box-shadow: var(--p-focus); outline: none; }
+
+    .logo-box, .hud-logo {
+      display: block; overflow: hidden; flex: 0 0 auto; background: oklch(0.22 0.05 255);
+    }
+    .logo-box { width: 22px; height: 22px; border-radius: 5px; }
+    .logo-box img {
+      width: 22px !important; height: 22px !important;
+      max-width: 22px !important; max-height: 22px !important;
+      object-fit: cover !important;
+    }
+    .hud-logo { width: 18px; height: 18px; border-radius: 4px; }
+    .hud-logo img {
+      width: 18px !important; height: 18px !important;
+      max-width: 18px !important; max-height: 18px !important;
+      object-fit: cover !important;
+    }
+    .ico { display: inline-flex; overflow: hidden; border-radius: 4px; flex: 0 0 auto; background: oklch(0.22 0.04 280); }
+    .ico img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+
+    .wiz {
+      width: 480px; padding: 0; overflow: hidden; background: var(--p-paper);
+      border: 1px solid var(--p-line); border-radius: 10px; display: flex; flex-direction: column;
+      box-shadow: var(--p-shadow), 0 0 0 1px color-mix(in oklab, var(--p-paper) 70%, transparent) inset;
+    }
+    .wiz-head { display: flex; align-items: flex-start; gap: 10px; padding: 18px 18px 15px; border-bottom: 1px solid var(--p-line); }
+    .wiz-mark { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex: 0 0 auto; background: oklch(0.22 0.05 255); }
+    .wiz-mark img { width: 100%; height: 100%; object-fit: cover; }
+    .wiz-copy { min-width: 0; }
+    .wiz-eyebrow { margin: 0 0 2px; color: var(--p-faint); font-size: 10px; line-height: 1.3; font-weight: 700; letter-spacing: .08em; }
+    .wiz-copy p:last-child { margin: 4px 0 0; color: var(--p-muted); font-size: 12px; line-height: 1.45; }
+    .wiz-body { display: flex; flex-direction: column; gap: 12px; padding: 15px 18px 18px; background: color-mix(in oklab, var(--p-bg) 86%, var(--p-paper)); }
+    .wiz .choice-list { padding-top: 0; border-top: 0; }
+    .wiz .wcard { min-height: 64px; background: var(--p-paper); }
+    .wiz h2 { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.35; }
+    .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; }
+    .seg button {
+      height: 32px; border: 0; border-right: 1px solid var(--p-line);
+      background: var(--p-paper); color: var(--p-muted); font-size: 13px; font-weight: 600;
+    }
+    .seg button:last-child { border-right: 0; }
+    .seg button[aria-pressed="true"] { background: var(--p-gold); color: var(--p-gold-ink); }
+    .seg button:hover { color: var(--p-ink); background: var(--p-fill); }
+    .seg button[aria-pressed="true"]:hover {
+      background: color-mix(in oklab, var(--p-gold) 86%, var(--p-paper));
+      color: var(--p-gold-ink);
+    }
+    .choice-list { display: flex; flex-direction: column; gap: 6px; }
+    .wcard, .mode-card {
+      width: 100%; text-align: left; padding: 10px 12px;
+      border: 1px solid var(--p-line); background: var(--p-paper);
+      border-radius: var(--p-radius); display: grid;
+      grid-template-columns: 52px minmax(0, 1fr); column-gap: 10px; row-gap: 2px;
+      font-family: var(--p-font); color: var(--p-ink);
+    }
+    .wcard.solo, .mode-row.solo .mode-card { grid-template-columns: minmax(0, 1fr); }
+    .wcard em, .mode-card em {
+      grid-row: 1 / span 2; align-self: center; font-style: normal;
+      font-size: 11px; font-weight: 700; color: var(--p-faint);
+    }
+    .wcard.solo em, .mode-row.solo .mode-card em { display: none; }
+    .wcard strong, .mode-card h2, .mode-card strong { grid-column: 2; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.35; }
+    .wcard.solo strong, .mode-row.solo .mode-card strong { grid-column: 1; }
+    .wcard span, .mode-card p { grid-column: 2; margin: 0; font-size: 12px; line-height: 1.5; color: var(--p-muted); font-weight: 400; }
+    .wcard.solo span, .mode-row.solo .mode-card p { grid-column: 1; }
+    .wcard:hover, .mode-card:hover { background: var(--p-fill); color: var(--p-ink); }
+    .wcard[aria-pressed="true"], .mode-card[aria-pressed="true"] {
+      border-color: var(--p-gold);
+      background: var(--p-gold-soft);
+      box-shadow: 0 0 0 1px color-mix(in oklab, var(--p-gold) 24%, transparent) inset;
+    }
+    .wcard[aria-pressed="true"]:hover, .mode-card[aria-pressed="true"]:hover {
+      background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper));
+      color: var(--p-ink);
+    }
+    .hint { margin: 0; color: var(--p-muted); font-size: 12px; line-height: 1.5; font-weight: 400; }
+    .wiz-nav { display: flex; gap: 10px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--p-line); background: var(--p-paper); }
+    .sheet-nav { display: flex; gap: 10px; align-items: center; }
+    .gold, .primary {
+      height: 36px; min-width: 96px; padding: 0 16px; border-radius: var(--p-radius);
+      border: 1px solid var(--p-gold); background: var(--p-gold); color: var(--p-gold-ink);
+      font-size: 13px; font-weight: 700; font-family: var(--p-font);
+    }
+    .gold:hover, .primary:hover {
+      background: color-mix(in oklab, var(--p-gold) 86%, var(--p-paper));
+      border-color: color-mix(in oklab, var(--p-gold) 86%, var(--p-paper));
+      color: var(--p-gold-ink);
+    }
+    .gold:active, .primary:active { transform: translateY(1px); }
+    .secondary, .ghost-btn.solid {
+      height: 36px; padding: 0 12px; border-radius: var(--p-radius);
+      border: 1px solid var(--p-line); background: var(--p-paper); color: var(--p-ink);
+      font-weight: 600; font-family: var(--p-font);
+    }
+    .secondary:hover, .ghost-btn.solid:hover { background: var(--p-fill); color: var(--p-ink); }
+
+    .win {
+      width: min(920px, 100%); height: 720px; background: var(--p-bg);
+      border: 1px solid var(--p-line); border-radius: 8px;
+      overflow: hidden; display: flex; flex-direction: column;
+      box-shadow: var(--p-shadow); position: relative;
+    }
+    .titlebar {
+      height: 40px; flex: 0 0 40px; display: flex; align-items: center; gap: 8px;
+      padding: 0 8px 0 12px; overflow: hidden;
+      border-bottom: 1px solid var(--p-line); background: var(--p-paper);
+    }
+    .brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .brand h1 { margin: 0; font-size: 14px; font-weight: 700; text-wrap: balance; }
+    .win h2, .win h3, .wiz h2 { text-wrap: balance; }
+    .ver { font-size: 11px; color: var(--p-faint); font-weight: 600; }
+    .status-pill, .games {
+      font-size: 11px; font-weight: 600; color: var(--p-muted);
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--p-faint); }
+    .games b { color: var(--p-ink); font-variant-numeric: tabular-nums; font-weight: 700; }
+    .titlebar .grow { flex: 1; min-width: 8px; }
+    .icon-btn, .win-btn {
+      height: 28px; min-width: 32px; padding: 0 8px; font-size: 12px; font-weight: 600;
+      border: 0; background: transparent; color: var(--p-muted); border-radius: 4px;
+    }
+    .icon-btn:hover, .win-btn:hover { background: var(--p-fill); color: var(--p-ink); }
+    .win-btn.close:hover { background: var(--p-danger); color: var(--p-on); }
+
+    .body, .hitch-page { display: none !important; flex: 1; min-height: 0; }
+    body[data-scene="farm"] .body,
+    body[data-scene="lead"] .body { display: grid !important; grid-template-columns: 204px minmax(0, 1fr); }
+    body[data-scene="follow"] .hitch-page.follow,
+    body[data-scene="hitch"] .hitch-page.hitch {
+      display: flex !important; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 12px;
+      padding: 28px 32px 20px;
+    }
+    .hitch-page .ghost-btn.solid { width: auto; }
+    body[data-scene="wizard"] { background: oklch(0.955 0.008 250); padding: 10px; }
+
+    .rail, .main { min-height: 0; overflow: auto; }
+    .rail { padding: 12px 12px 16px; border-right: 1px solid var(--p-line); background: var(--p-paper); }
+    .main { padding: 12px 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) 196px; gap: 16px; align-content: start; }
+    .main-workspace { min-width: 0; }
+    .selected-deck { min-width: 0; padding-left: 14px; border-left: 1px solid var(--p-line); }
+    .selected-deck .panel { position: sticky; top: 0; padding: 12px; border: 1px solid color-mix(in oklab, var(--p-gold) 42%, var(--p-line)); border-radius: var(--p-radius); background: var(--p-gold-soft); box-shadow: 0 0 0 1px color-mix(in oklab, var(--p-paper) 72%, transparent) inset; }
+    .selected-deck h3 { margin-bottom: 8px; }
+    .launch-ready { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; color: var(--p-ok); font-size: 11px; font-weight: 700; }
+    .launch-ready.is-blocked { color: var(--p-danger); }
+    .launch-ready i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .launch-check + .launch-check { margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--p-line); }
+    .launch-check h4 { margin: 0 0 6px; color: var(--p-muted); font-size: 11px; font-weight: 650; }
+    .launch-value { margin: 0; color: var(--p-ink); font-size: 12px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+    .launch-skills { display: grid; gap: 5px; }
+    .launch-skill { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr); gap: 6px; align-items: center; min-height: 26px; }
+    .launch-skill i { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--p-gold); color: var(--p-gold-ink); font-size: 10px; font-style: normal; font-weight: 800; }
+    .launch-skill img { width: 22px; height: 22px; border-radius: 4px; object-fit: cover; }
+    .launch-skill b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--p-ink); font-size: 11px; font-weight: 650; }
+    .deck-group + .deck-group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--p-line); }
+    .deck-group h4 { margin: 0 0 7px; color: var(--p-muted); font-size: 11px; font-weight: 650; }
+    .deck-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .deck-tag { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 7px; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-paper); color: var(--p-ink); font-size: 11px; font-weight: 600; line-height: 1.3; }
+    .deck-tag.empty { color: var(--p-faint); font-weight: 500; }
+    .deck-note { margin: 0; color: var(--p-muted); font-size: 11px; line-height: 1.45; }
+    .selection-closed { display: flex; align-items: center; gap: 8px; padding: 9px 0 0; }
+    .selection-closed .hint { flex: 1; }
+    .main .bond-config { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--p-line); }
+    .main .bond-config h3 { margin-bottom: 8px; }
+    .panel { background: transparent; border: 0; border-radius: 0; padding: 0; }
+    .panel + .panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--p-line); }
+    .panel h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 650; color: var(--p-ink); letter-spacing: 0; }
+    .module-icon { width: 18px; height: 18px; display: inline-grid; place-items: center; flex: 0 0 auto; border: 1px solid var(--p-line); border-radius: 5px; background: var(--p-fill); color: var(--p-faint); }
+    .module-icon svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .selected-deck .module-icon { color: var(--p-gold-ink); background: color-mix(in oklab, var(--p-gold) 20%, var(--p-paper)); border-color: color-mix(in oklab, var(--p-gold) 42%, var(--p-line)); }
+    .field { display: grid; gap: 4px; margin-bottom: 8px; }
+    .field label { font-size: 12px; color: var(--p-muted); font-weight: 600; letter-spacing: .01em; }
+    .row { display: flex; gap: 8px; }
+    .row > * { min-width: 0; }
+    .grow { flex: 1; }
+    select, input[type="text"], input[type="number"], .dd-btn, .pick-row {
+      width: 100%; height: 32px; border-radius: var(--p-radius);
+      border: 1px solid var(--p-line); background: var(--p-bg);
+      padding: 0 10px; font-size: 13px; font-family: var(--p-font); color: var(--p-ink);
+    }
+    input::placeholder { color: var(--p-faint); }
+    .dd { position: relative; }
+    .dd-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; font-weight: 600; }
+    .dd-btn b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dd-btn i { font-style: normal; color: var(--p-faint); }
+    .dd-menu {
+      display: none; position: absolute; left: 0; right: 0; top: calc(100% + 4px);
+      max-height: 220px; overflow: auto; z-index: 22;
+      background: var(--p-paper); border: 1px solid var(--p-line); border-radius: var(--p-radius);
+      box-shadow: 0 10px 28px color-mix(in oklab, var(--p-ink) 16%, transparent);
+    }
+    .dd.open .dd-menu { display: block; }
+    .dd-menu button {
+      width: 100%; height: 30px; border: 0; background: transparent; color: var(--p-ink);
+      text-align: left; padding: 0 10px; font-size: 12px; font-weight: 600;
+    }
+    .dd-menu button:hover, .dd-menu button[aria-selected="true"] { background: var(--p-gold-soft); color: var(--p-ink); }
+    .stepper { display: flex; height: 32px; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; background: var(--p-bg); }
+    .stepper button { width: 28px; border: 0; background: var(--p-fill); color: var(--p-ink); }
+    .stepper button:hover { background: var(--p-gold-soft); }
+    .stepper output, .stepper input {
+      flex: 1; min-width: 0; width: 0; height: 32px; border: 0; background: transparent;
+      padding: 0; text-align: center; font-size: 12px; font-weight: 700;
+      font-variant-numeric: tabular-nums; color: inherit; border-radius: 0;
+    }
+    .stepper input:focus { outline: none; background: var(--p-gold-soft); }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; font-size: 13px; }
+    .switch {
+      width: 36px; height: 20px; border-radius: 99px; border: 1px solid var(--p-line);
+      background: var(--p-bg); position: relative; flex: 0 0 36px; padding: 0;
+    }
+    .switch::after {
+      content: ""; position: absolute; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--p-faint); top: 2px; left: 2px; transition: transform 160ms var(--ease-standard);
+    }
+    .switch[aria-pressed="true"] { background: var(--p-ink); border-color: var(--p-ink); }
+    .switch[aria-pressed="true"]::after { transform: translateX(16px); background: var(--p-paper); }
+    .prestige {
+      display: none; margin: 8px 0 10px; padding: 8px;
+      border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg);
+    }
+    .prestige.show { display: flex; flex-direction: column; gap: 8px; }
+    .rep-picked { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+    .rep-item { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .rep-art {
+      width: 100%; aspect-ratio: 1; border-radius: 4px; overflow: hidden;
+      border: 2px solid var(--p-gold); background: oklch(0.22 0.04 255);
+    }
+    .rep-art img { width: 100% !important; height: 100% !important; object-fit: cover; object-position: center; }
+    .rep-item b { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; }
+    .rep-fx { display: block; font-size: 10px; color: var(--p-muted); line-height: 1.35; }
+    .rep-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .rep-foot .stats { flex: 1; min-width: 0; margin: 0; font-size: 11px; color: var(--p-muted); line-height: 1.4; }
+    .rep-foot .stats b { color: var(--p-ink); font-variant-numeric: tabular-nums; }
+    .text-btn {
+      height: 24px; padding: 0 8px; border-radius: 4px; flex: 0 0 auto;
+      border: 1px solid var(--p-line); background: var(--p-paper); color: var(--p-ink);
+      font-size: 11px; font-weight: 650; font-family: var(--p-font);
+    }
+    .text-btn:hover { background: var(--p-fill); color: var(--p-ink); }
+    .pick-row {
+      display: flex; align-items: center; gap: 8px; text-align: left; margin-bottom: 8px;
+      font-family: var(--p-font); font-weight: 600; background: var(--p-bg);
+    }
+    .pick-row:hover { background: var(--p-fill); color: var(--p-ink); }
+    .pick-row .k { color: var(--p-muted); font-size: 12px; flex: 0 0 52px; font-weight: 600; }
+    .pick-row strong { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pick-row i { font-style: normal; font-size: 11px; color: var(--p-faint); }
+    .lead-box { display: none; }
+    body[data-scene="lead"] .lead-box { display: block; }
+    .skill-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+    .skill-head h3 { margin: 0; }
+    .skill-head .hint { margin-left: auto; }
+    .builds { display: flex; flex-direction: column; }
+    .build {
+      width: 100%; text-align: left; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--p-line);
+      background: transparent; border-radius: 0; font-family: var(--p-font); color: var(--p-ink);
+      display: grid; grid-template-columns: 88px auto; align-items: center; gap: 8px;
+    }
+    .build:last-child { border-bottom: 0; }
+    .build:hover { background: var(--p-fill); color: var(--p-ink); }
+    .build[aria-pressed="true"] { background: var(--p-gold-soft); }
+    .build[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); color: var(--p-ink); }
+    .build strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .build.custom-card {
+      grid-template-columns: 64px minmax(0, 1fr);
+      align-items: center; padding: 6px 8px; gap: 10px;
+      pointer-events: auto;
+    }
+    .build.custom-card:hover { background: var(--p-gold-soft); color: var(--p-ink); }
+    .build.custom-card[aria-pressed="true"] { box-shadow: none; }
+    .name-edit { display: block; min-width: 0; }
+    .build.custom-card .name-edit input {
+      height: 28px; width: 100%; padding: 0 6px; font-size: 12px; font-weight: 600;
+      border: 1px solid var(--p-line); border-radius: 4px; background: var(--p-paper); color: var(--p-ink);
+    }
+    .build.custom-card .name-edit input:focus { border-color: var(--p-gold); }
+    .skills-inline { display: flex; gap: 4px; align-items: center; }
+    .custom-card .skills-inline {
+      display: grid; grid-template-columns: repeat(4, minmax(40px, 56px));
+      gap: 8px; min-width: 0; justify-content: start;
+    }
+    .sk { display: flex; align-items: center; position: relative; }
+    .sk .ico, .slot { width: 22px; height: 22px; flex: 0 0 22px; }
+    .custom-card .sk,
+    .custom-card button.sk.unpick,
+    .custom-card .slot {
+      width: 100%; height: auto; aspect-ratio: 1; flex: none;
+    }
+    .custom-card .sk .ico {
+      width: 100% !important; height: 100% !important; flex: none;
+    }
+    .slot { border: 1px dashed var(--p-line); border-radius: 4px; background: var(--p-bg); }
+    button.sk.unpick {
+      width: 22px; height: 22px; padding: 0; border: 0; background: transparent;
+      border-radius: 4px; cursor: pointer;
+    }
+    button.sk.unpick:hover { outline: 2px solid var(--p-danger); outline-offset: 1px; }
+    button.sk.unpick:hover::after {
+      content: "×"; position: absolute; inset: 0; display: grid; place-items: center;
+      background: color-mix(in oklab, var(--p-danger) 72%, transparent);
+      color: var(--p-on); font-size: 13px; font-weight: 800; border-radius: 4px;
+    }
+    .add-custom, .ghost-btn {
+      height: 32px; border-radius: var(--p-radius); border: 1px dashed var(--p-line);
+      background: transparent; color: var(--p-muted); font-size: 13px; font-weight: 600;
+    }
+    .add-custom { width: 100%; margin-top: 6px; }
+    .add-custom:hover { background: var(--p-fill); color: var(--p-ink); }
+    .ghost-btn.solid { border-style: solid; height: 32px; padding: 0 12px; color: var(--p-ink); background: var(--p-paper); }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      height: 24px; padding: 0 8px; font-size: 11px; border-radius: 4px;
+      border: 1px solid var(--p-line); background: var(--p-paper); color: var(--p-ink);
+      font-family: var(--p-font); font-weight: 600;
+    }
+    .chip:hover { background: var(--p-fill); color: var(--p-ink); }
+    .chip[aria-pressed="true"] { border-color: var(--p-gold); background: var(--p-gold-soft); color: var(--p-ink); }
+    .chip[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); color: var(--p-ink); }
+    .skill-grid { display: none; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+    .skill-grid.show { display: grid; }
+    .skill-cell {
+      display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 8px;
+      font-size: 12px; font-family: var(--p-font); font-weight: 600; min-width: 0;
+      border: 1px solid var(--p-line); background: var(--p-paper); border-radius: var(--p-radius); color: var(--p-ink);
+    }
+    .skill-cell:hover { background: var(--p-fill); color: var(--p-ink); }
+    .skill-cell .ico { width: 18px; height: 18px; }
+    .skill-cell[aria-pressed="true"] { border-color: var(--p-gold); background: var(--p-gold-soft); }
+    .skill-cell[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); color: var(--p-ink); }
+    .skill-cell[aria-pressed="true"]::after {
+      content: "×"; margin-left: auto; font-size: 12px; font-weight: 800; color: var(--p-muted);
+    }
+    .skill-cell[aria-pressed="true"]:hover::after { color: var(--p-danger); }
+    .skill-cell.is-dim { opacity: 0.38; }
+    .skill-rank { display: none; flex-direction: column; gap: 6px; margin-top: 10px; }
+    .skill-rank.show { display: flex; }
+    .priority-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 3px 8px; }
+    .priority-head b { font-size: 12px; font-weight: 650; }
+    .priority-head .hint { margin: 0; }
+    .rank-list { display: flex; flex-direction: column; }
+    .rank-card {
+      display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) 132px 14px;
+      gap: 6px; align-items: center; min-height: 40px; touch-action: none;
+      padding: 4px 2px; border: 0; border-bottom: 1px solid var(--p-line);
+      background: transparent; border-radius: 0; font-family: var(--p-font); color: var(--p-ink);
+    }
+    .rank-card:last-child { border-bottom: 0; }
+    .rank-card:hover { background: var(--p-fill); }
+    .rank-card.is-carry {
+      background: var(--p-gold-soft);
+      margin: 0 -4px; padding-left: 6px; padding-right: 6px;
+    }
+    .rank-card.is-carry:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); }
+    .rank-no {
+      width: 20px; height: 20px; border-radius: 4px; display: grid; place-items: center;
+      background: var(--p-fill); font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums;
+    }
+    .rank-card.is-carry .rank-no { background: var(--p-gold); color: var(--p-gold-ink); }
+    .rank-card .ico { width: 28px; height: 28px; border-radius: 5px; }
+    .rank-card .name { min-width: 0; }
+    .rank-card .name b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank-card .name span { display: block; font-size: 10px; color: var(--p-muted); }
+    .rank-card select {
+      height: 28px; width: 132px; font-size: 11px; padding: 0 4px;
+      border: 1px solid var(--p-line); background: var(--p-bg); border-radius: 4px; color: var(--p-ink);
+    }
+    .grip { color: var(--p-faint); font-size: 11px; letter-spacing: 0.12em; }
+    .bond-block { margin-top: 8px; }
+    .bond-block:first-child { margin-top: 0; }
+    .bond-block h4 { margin: 0 0 6px; font-size: 12px; font-weight: 650; color: var(--p-ink); }
+    .bond-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--p-line); }
+    .bond-actions .hint { margin: 0; }
+    .bond-actions .gold { margin-left: auto; min-height: 30px; white-space: nowrap; }
+    .adv-order { display: flex; flex-direction: column; margin-top: 8px; border-top: 1px solid var(--p-line); }
+    .adv-rank {
+      display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+      min-height: 34px; border-bottom: 1px solid var(--p-line);
+    }
+    .adv-rank b { min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .adv-rank span { font-size: 11px; color: var(--p-muted); }
+    .adv-rank .rank-no { width: 20px; height: 20px; }
+    .rank-move { display: flex; gap: 4px; }
+    .rank-move button { width: 28px; height: 26px; padding: 0; }
+    .hitch-page h2 { margin: 0; font-size: 22px; font-weight: 650; line-height: 1.3; letter-spacing: -0.02em; }
+    .hitch-page p { margin: 0; color: var(--p-muted); font-size: 13px; line-height: 1.6; max-width: 52ch; }
+    .team-rules {
+      width: 100%; margin-top: 2px; padding: 18px 0 16px;
+      border-top: 1px solid var(--p-line); border-bottom: 1px solid var(--p-line);
+    }
+    .team-rules-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .team-rules-head h3 { margin: 0; font-size: 13px; line-height: 1.4; font-weight: 650; }
+    .team-rules-state { font-size: 11px; color: var(--p-muted); white-space: nowrap; }
+    .team-rules-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(240px, 1.2fr); gap: 16px; align-items: end; }
+    .team-rules .field { margin: 0; }
+    .team-rules .stepper, .team-rules select { height: 40px; }
+    .team-route { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 18px; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; }
+    .team-route span { min-width: 0; padding: 12px 14px; background: var(--p-paper); border-right: 1px solid var(--p-line); }
+    .team-route span:last-child { border-right: 0; }
+    .team-route small { display: block; margin-bottom: 3px; font: 600 10px/1.3 var(--p-mono); color: var(--p-faint); letter-spacing: .06em; }
+    .team-route b { display: block; font-size: 12px; line-height: 1.45; font-weight: 650; color: var(--p-ink); }
+    .team-pair { display: grid; grid-template-columns: minmax(0, 1fr) 190px auto; gap: 10px; align-items: end; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--p-line); }
+    .team-pair-copy strong { display: block; font-size: 12px; line-height: 1.4; }
+    .team-pair-copy span { display: block; margin-top: 3px; color: var(--p-muted); font-size: 11px; line-height: 1.5; }
+    .team-pair .field { margin: 0; }
+    .team-pair .secondary { min-height: 40px; white-space: nowrap; }
+    .team-boundary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--p-line); }
+    .team-boundary strong { flex: 0 0 auto; font-size: 12px; }
+    .team-boundary span { color: var(--p-muted); font-size: 11px; line-height: 1.5; text-align: right; }
+    .hitch-spec {
+      display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px 16px;
+      margin: 4px 0 8px; max-width: 56ch; padding: 10px 0;
+      border-top: 1px solid var(--p-line); border-bottom: 1px solid var(--p-line);
+    }
+    .hitch-spec dt { margin: 0; font-size: 12px; font-weight: 650; color: var(--p-muted); }
+    .hitch-spec dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--p-ink); }
+    .footer {
+      display: none !important; flex: 0 0 48px; height: 48px; align-items: center; gap: 8px;
+      padding: 0 10px; border-top: 1px solid var(--p-line); background: var(--p-paper);
+    }
+    body[data-scene="farm"] .footer,
+    body[data-scene="lead"] .footer,
+    body[data-scene="follow"] .footer,
+    body[data-scene="hitch"] .footer { display: flex !important; }
+    .summary { flex: 1; min-width: 0; font-size: 12px; color: var(--p-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lamp { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--p-ok); white-space: nowrap; }
+    .lamp .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .lamp.bad { color: var(--p-danger); }
+    .primary { min-width: 120px; height: 36px; }
+    .primary.stop { background: var(--p-danger); border-color: var(--p-danger); color: var(--p-on); }
+    .primary.stop:hover {
+      background: color-mix(in oklab, var(--p-danger) 88%, var(--p-paper));
+      border-color: color-mix(in oklab, var(--p-danger) 88%, var(--p-paper));
+      color: var(--p-on);
+    }
+    .primary:disabled, .primary:disabled:hover {
+      background: var(--p-fill); color: var(--p-faint); border-color: var(--p-line); cursor: not-allowed; filter: none;
+    }
+    .drawer {
+      position: absolute; inset: 40px 0 48px auto; width: 320px; background: var(--p-bg);
+      border-left: 1px solid var(--p-line); transform: translateX(104%);
+      transition: transform 200ms var(--ease-standard); padding: 14px; overflow: auto; z-index: 8;
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer h3 { margin: 0 0 10px; font-size: 15px; }
+    .drawer h4 { margin: 14px 0 8px; font-size: 12px; color: var(--p-ink); font-weight: 650; }
+    .neg { display: flex; flex-direction: column; }
+    .neg-item {
+      display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 2px 8px;
+      padding: 8px 0; border-bottom: 1px solid var(--p-line); align-items: start;
+      font-size: 12px; cursor: pointer;
+    }
+    .neg-item:last-child { border-bottom: 0; }
+    .neg-item input { margin-top: 3px; accent-color: var(--p-gold); }
+    .neg-item b { display: block; font-size: 12px; font-weight: 700; color: var(--p-ink); line-height: 1.3; }
+    .neg-item .fx { display: block; margin-top: 2px; font-size: 11px; color: var(--p-muted); line-height: 1.45; font-weight: 500; }
+    .neg-item .why { display: block; margin-top: 3px; font-size: 11px; color: var(--p-danger); line-height: 1.4; font-weight: 650; }
+    .toast {
+      position: absolute; right: 16px; bottom: 60px; background: var(--p-paper);
+      border: 1px solid var(--p-line); color: var(--p-ink); padding: 8px 12px; border-radius: var(--p-radius);
+      font-size: 12px; font-weight: 600; opacity: 0; pointer-events: none; z-index: 9;
+    }
+    .toast.show { opacity: 1; }
+    .modal-layer {
+      display: none; position: absolute; inset: 40px 0 48px 0; z-index: 18;
+      align-items: center; justify-content: center;
+      background: color-mix(in oklab, var(--p-ink) 36%, transparent); padding: 10px;
+    }
+    .modal-layer.show { display: flex; }
+    .sheet {
+      width: min(680px, 100%); max-height: 100%; overflow: hidden;
+      background: var(--p-bg); border: 1px solid var(--p-line); border-radius: 10px;
+      padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 10px; color: var(--p-ink);
+    }
+    .sheet.pick { width: min(560px, 100%); }
+    .sheet-head { display: flex; align-items: center; gap: 10px; }
+    .sheet-head h2 { margin: 0; font-size: 15px; line-height: 1.35; }
+    .sheet-cap { margin-left: auto; font-size: 11px; color: var(--p-muted); }
+    .sheet-body { flex: 1; min-height: 0; overflow: auto; }
+    .rep-layout { display: grid; grid-template-columns: minmax(0, 1fr) 188px; gap: 10px; min-height: 0; }
+    .fac-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; align-content: start; }
+    .fac-card {
+      padding: 4px; text-align: center; font-family: var(--p-font);
+      border: 1px solid var(--p-line); background: var(--p-paper); border-radius: var(--p-radius); color: var(--p-ink);
+    }
+    .fac-card:hover { background: var(--p-fill); color: var(--p-ink); }
+    .fac-card.is-on { border-color: var(--p-gold); background: var(--p-gold-soft); }
+    .fac-card.is-on:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); color: var(--p-ink); }
+    .fac-card.is-focus { box-shadow: 0 0 0 2px color-mix(in oklab, var(--p-blue) 70%, transparent); }
+    .fac-art {
+      width: 100%; aspect-ratio: 1; border-radius: 3px; overflow: hidden;
+      border: 2px solid var(--p-line); background: oklch(0.22 0.04 255);
+    }
+    .fac-card.is-on .fac-art { border-color: var(--p-gold); }
+    .fac-art img { width: 100% !important; height: 100% !important; object-fit: cover; object-position: center; }
+    .fac-card strong {
+      display: block; margin: 4px 0 2px; font-size: 10px; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .mini-step { display: flex; align-items: center; justify-content: center; gap: 2px; }
+    .mini-step button {
+      width: 20px; height: 20px; border-radius: 4px; border: 1px solid var(--p-line);
+      background: var(--p-fill); padding: 0; color: var(--p-ink); font-size: 12px;
+    }
+    .mini-step output { min-width: 14px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .task-pane {
+      border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-paper);
+      padding: 8px; overflow: auto; max-height: 280px;
+    }
+    .task-pane h3 { margin: 0 0 6px; font-size: 12px; font-weight: 700; }
+    .task { display: grid; grid-template-columns: 16px 1fr; gap: 6px; font-size: 11px; padding: 5px 4px; line-height: 1.35; }
+    .task + .task { border-top: 1px solid var(--p-line); }
+    .task b { color: var(--p-gold); font-variant-numeric: tabular-nums; }
+    .task.is-now { background: var(--p-gold-soft); border-radius: 4px; border-top-color: transparent; }
+    .pick-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; max-height: 440px; overflow: auto; }
+    .text-pick-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; max-height: 440px; overflow: auto; }
+    .text-card-btn {
+      display: flex; align-items: center; justify-content: center; padding: 10px 8px; min-height: 40px;
+      font-family: var(--p-font); font-size: 13px; font-weight: 700; text-align: center; line-height: 1.25;
+      border: 1px solid var(--p-line); background: var(--p-fill); border-radius: var(--p-radius);
+      color: var(--p-ink); cursor: pointer; transition: all .15s ease;
+    }
+    .text-card-btn:hover { background: color-mix(in oklab, var(--p-fill) 80%, var(--p-gold)); border-color: var(--p-gold); color: var(--p-gold); }
+    .text-card-btn[aria-pressed="true"] {
+      border-color: var(--p-gold); background: var(--p-gold-soft); color: var(--p-gold);
+      box-shadow: inset 0 0 0 1px var(--p-gold);
+    }
+    .thumb {
+      display: flex; flex-direction: column; align-items: center; padding: 3px; min-width: 0;
+      font-family: var(--p-font); border: 1px solid var(--p-line); background: var(--p-paper);
+      border-radius: var(--p-radius); color: var(--p-ink);
+    }
+    .thumb:hover { background: var(--p-fill); color: var(--p-ink); }
+    .thumb[aria-pressed="true"] { border-color: var(--p-gold); background: var(--p-gold-soft); }
+    .thumb[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); color: var(--p-ink); }
+    .art-card, .name-tile {
+      width: 72px; height: 78px; border-radius: 4px; overflow: hidden; position: relative;
+      background: oklch(0.22 0.04 255); flex: 0 0 auto;
+    }
+    .art-card img {
+      width: 100% !important; height: 100% !important; max-width: none !important;
+      object-fit: contain; object-position: center top;
+    }
+    .name-tile {
+      display: grid; place-items: center; padding: 6px; background: oklch(0.26 0.04 250);
+      color: var(--p-gold); font-size: 11px; font-weight: 700; text-align: center; line-height: 1.25;
+    }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+    }
+    .sr-only:focus, .sr-only:focus-visible {
+      position: fixed; left: 8px; top: 8px; width: auto; height: auto; margin: 0;
+      clip: auto; overflow: visible; padding: 8px 12px;
+      background: var(--surface); color: var(--fg);
+      border: 1px solid var(--border); border-radius: 6px; z-index: 80;
+      box-shadow: var(--focus-ring);
+    }
+    /* Motion: short state-confirmation feedback, never decorative choreography. */
+    .wcard, .mode-card, .seg button,
+    .dd-btn, .dd-menu button, .pick-row, .text-btn, .build,
+    .add-custom, .ghost-btn, .chip, .skill-cell, .thumb,
+    .mini-step button, .rank-move button {
+      transition:
+        background-color var(--motion-fast) var(--ease-standard),
+        border-color var(--motion-fast) var(--ease-standard),
+        color var(--motion-fast) var(--ease-standard),
+        box-shadow var(--motion-fast) var(--ease-standard),
+        opacity var(--motion-fast) var(--ease-standard);
+    }
+    .wcard:active, .mode-card:active, .build:active, .pick-row:active,
+    .add-custom:active, .chip:active, .skill-cell:active, .thumb:active,
+    .dd-menu button:active { transform: translateY(1px); }
+    body[data-scene="wizard"] #scene-wizard,
+    body[data-scene="farm"] #scene-app,
+    body[data-scene="lead"] #scene-app,
+    body[data-scene="follow"] #scene-app,
+    body[data-scene="hitch"] #scene-app {
+      animation: state-enter var(--motion-base) var(--ease-standard) both;
+    }
+    .dd.open .dd-menu,
+    .prestige.show,
+    .skill-grid.show,
+    .skill-rank.show,
+    .modal-layer.show .sheet {
+      animation: state-enter var(--motion-base) var(--ease-standard) both;
+    }
+    .modal-layer.show, .drawer-backdrop.open {
+      animation: backdrop-enter var(--motion-fast) var(--ease-standard) both;
+    }
+    .toast {
+      transform: translateY(4px);
+      transition:
+        opacity var(--motion-fast) var(--ease-standard),
+        transform var(--motion-fast) var(--ease-standard);
+    }
+    .toast.show { transform: translateY(0); }
+    @keyframes state-enter {
+      0% { opacity: 0; transform: translateY(6px); }
+      72% { opacity: 1; transform: translateY(-1px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes backdrop-enter {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .empty {
+      margin: 0; padding: 8px 0 2px; font-size: 12px; line-height: 1.5;
+      color: var(--p-muted); font-weight: 400;
+    }
+    .empty b, .empty strong { color: var(--p-ink); font-weight: 650; }
+    #skillEmpty:not(.hidden) {
+      display: block; margin-top: 8px; padding: 10px;
+      border: 1px dashed var(--p-line); border-radius: var(--p-radius);
+      background: var(--p-fill); color: var(--p-muted);
+    }
+    .err-inline {
+      display: none; margin: 0 8px 0 0; font-size: 12px; font-weight: 650;
+      color: var(--p-danger); white-space: nowrap;
+    }
+    .err-inline.show {
+      display: inline-flex; align-items: center; min-height: 28px; padding: 3px 8px;
+      border: 1px solid color-mix(in oklab, var(--p-danger) 36%, var(--p-line));
+      border-radius: 4px; background: color-mix(in oklab, var(--p-danger) 8%, var(--p-paper));
+    }
+    .load-bar {
+      display: none; position: absolute; left: 0; right: 0; bottom: 48px; height: 2px;
+      background: var(--p-line); overflow: hidden; z-index: 6;
+    }
+    .load-bar.show { display: block; }
+    .load-bar i {
+      display: block; height: 100%; width: 36%; background: var(--p-gold);
+      animation: load-slide 900ms var(--ease-standard) infinite;
+    }
+    @keyframes load-slide {
+      from { transform: translateX(-110%); }
+      to { transform: translateX(320%); }
+    }
+    .drawer-backdrop {
+      display: none; position: absolute; inset: 40px 0 48px 0;
+      background: color-mix(in oklab, var(--p-ink) 28%, transparent); z-index: 7;
+    }
+    .drawer-backdrop.open { display: block; }
+    .switch { cursor: pointer; }
+    .switch:focus-visible, .chip:focus-visible, .build:focus-visible, .thumb:focus-visible,
+    .skill-cell:focus-visible, .fac-card:focus-visible, .dd-btn:focus-visible,
+    .pick-row:focus-visible, .text-btn:focus-visible, .add-custom:focus-visible,
+    .ghost-btn:focus-visible, .icon-btn:focus-visible, .win-btn:focus-visible,
+    .mini-step button:focus-visible, .rank-move button:focus-visible, .wcard:focus-visible,
+    .mode-card:focus-visible, .seg button:focus-visible, .stepper button:focus-visible,
+    .stepper input:focus-visible, .sk.unpick:focus-visible {
+      outline: none; box-shadow: var(--p-focus);
+    }
+    .gold:focus-visible, .primary:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--p-paper), 0 0 0 4px color-mix(in oklab, var(--p-blue) 70%, transparent);
+    }
+    .chip, .text-btn, .dd-menu button, .skill-cell { min-height: 28px; }
+    .mini-step button { width: 24px; height: 24px; }
+    .rank-card {
+      grid-template-columns: 22px 28px minmax(0, 1fr) minmax(112px, 132px) 44px;
+      min-height: 48px;
+    }
+    .rank-card select { grid-column: 4; grid-row: 1; width: 100%; min-width: 0; }
+    .rank-card .rank-move { display: flex; grid-column: 5; grid-row: 1; gap: 2px; width: 44px; }
+    .rank-card .grip { display: none; }
+    .rank-card .rank-move button {
+      width: 21px; min-height: 26px; border: 1px solid var(--p-line); background: var(--p-fill);
+      color: var(--p-ink); border-radius: 3px; padding: 0; font-size: 9px; line-height: 1;
+    }
+    .rank-card .rank-move button:hover { background: var(--p-gold-soft); color: var(--p-ink); }
+    .rank-card .rank-move button:disabled, .rank-card .rank-move button:disabled:hover {
+      opacity: 0.4; cursor: not-allowed; background: var(--p-fill); color: var(--p-faint);
+    }
+    button:disabled { cursor: not-allowed; }
+    .secondary:disabled, .ghost-btn:disabled, .chip:disabled,
+    .skill-cell:disabled, .dd-btn:disabled, .text-btn:disabled {
+      background: var(--p-fill); color: var(--p-faint); border-color: var(--p-line);
+      opacity: .62; transform: none;
+    }
+    .hitch-page { max-width: none; }
+    .hitch-page h2 { font-size: 18px; font-weight: 700; letter-spacing: 0; }
+    .hitch-page p { max-width: none; }
+    .hitch-spec { max-width: none; }
+    .panel h3 { letter-spacing: 0; }
+    .skill-hint {
+      margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: var(--p-muted);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .footer .primary { min-height: 36px; }
+    .dd-menu { overscroll-behavior: contain; }
+    .secondary:active, .ghost-btn.solid:active { transform: translateY(1px); }
+    .gold:disabled, .gold:disabled:hover {
+      background: var(--p-fill); color: var(--p-faint); border-color: var(--p-line); cursor: not-allowed; transform: none;
+    }
+    .win[aria-busy="true"] .body, .win[aria-busy="true"] .hitch-page { pointer-events: none; opacity: 0.72; }
+    @media (prefers-reduced-motion: reduce) {
+      .drawer, .switch::after, .toast, .load-bar i,
+      .wcard, .mode-card, .seg button,
+      .dd-btn, .dd-menu button, .pick-row, .text-btn, .build,
+      .add-custom, .ghost-btn, .chip, .skill-cell, .thumb,
+      .mini-step button, .rank-move button { transition: none; animation: none; }
+      body[data-scene="wizard"] #scene-wizard,
+      body[data-scene="farm"] #scene-app,
+      body[data-scene="lead"] #scene-app,
+      body[data-scene="follow"] #scene-app,
+      body[data-scene="hitch"] #scene-app,
+      .dd.open .dd-menu, .prestige.show, .skill-grid.show, .skill-rank.show,
+      .modal-layer.show, .modal-layer.show .sheet, .drawer-backdrop.open { animation: none; }
+      .gold:active, .primary:active, .secondary:active, .ghost-btn.solid:active,
+      .wcard:active, .mode-card:active, .build:active, .pick-row:active,
+      .add-custom:active, .chip:active, .skill-cell:active, .thumb:active,
+      .dd-menu button:active { transform: none; }
+    }
+    @media (max-width: 860px) {
+      .win { width: min(740px, 100%); height: auto; min-height: 640px; }
+      body[data-scene="farm"] .body, body[data-scene="lead"] .body { grid-template-columns: 1fr; }
+      .rail { border-right: 0; border-bottom: 1px solid var(--p-line); }
+      .main { display: block; }
+      .selected-deck { margin-top: 14px; padding: 14px 0 0; border-top: 1px solid var(--p-line); border-left: 0; }
+      .selected-deck .panel { position: static; }
+      .rep-layout { grid-template-columns: 1fr; }
+      .fac-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .pick-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .wiz { width: min(440px, 100%); }
+      .rank-card { grid-template-columns: 22px 28px minmax(0, 1fr) 44px; min-height: 60px; }
+      .rank-card select { grid-column: 3 / 5; grid-row: 2; }
+      .rank-card .rank-move { display: grid; grid-column: 4; grid-row: 1 / span 2; }
+      .rank-card .rank-move button { width: auto; min-height: 20px; }
+      .rank-card .grip { display: none; }
+      body { padding: 12px 8px; align-items: stretch; }
+    }
+    @media (max-width: 600px) {
+      .win { width: 100%; min-height: calc(100dvh - 96px); border-radius: 0; }
+      .titlebar { height: 48px; flex-basis: 48px; }
+      .chrome-wide { display: none !important; }
+      .icon-btn, .win-btn { height: 44px; min-width: 44px; }
+      .gold, .primary, .secondary, .ghost-btn.solid,
+      .seg button, .dd-btn, .pick-row, .add-custom, .skill-cell, .chip { min-height: 44px; }
+      .stepper { height: 44px; }
+      .stepper button { width: 44px; }
+      .stepper output, .stepper input { height: 44px; }
+      body { padding: 0; }
+      .switch-row { min-height: 44px; }
+      .switch {
+        width: 44px; height: 44px; flex-basis: 44px;
+        border: 0; background: transparent;
+      }
+      .switch::before {
+        content: ""; position: absolute; left: 4px; top: 12px; width: 36px; height: 20px;
+        border: 1px solid var(--p-line); border-radius: 99px; background: var(--p-bg);
+      }
+      .switch::after { left: 7px; top: 15px; }
+      .switch[aria-pressed="true"] { border-color: transparent; background: transparent; }
+      .switch[aria-pressed="true"]::before { border-color: var(--p-ink); background: var(--p-ink); }
+      .pick-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .fac-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      body[data-scene="follow"] .hitch-page,
+      body[data-scene="hitch"] .hitch-page { padding: 20px 16px 16px; }
+      .team-rules-grid { grid-template-columns: 1fr; }
+      .team-rules select { min-height: 44px; }
+      .team-route { grid-template-columns: 1fr; }
+      .team-route span { border-right: 0; border-bottom: 1px solid var(--p-line); }
+      .team-route span:last-child { border-bottom: 0; }
+      .team-pair { grid-template-columns: 1fr; }
+      .team-pair .secondary { width: 100%; min-height: 44px; }
+      .team-boundary { display: block; }
+      .team-boundary span { margin-top: 4px; text-align: left; }
+      body[data-scene="farm"] .footer,
+      body[data-scene="lead"] .footer,
+      body[data-scene="follow"] .footer,
+      body[data-scene="hitch"] .footer {
+        display: grid !important; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        flex: 0 0 auto; height: auto; min-height: 48px; padding: 10px; gap: 8px;
+      }
+      .footer .ghost-btn.solid, .footer .primary { width: 100%; }
+      .summary, .err-inline { grid-column: 1 / -1; margin: 0; white-space: normal; }
+      .lamp { min-height: 44px; }
+      .drawer { width: min(320px, 100%); inset: 48px 0 0 auto; }
+      .drawer-backdrop, .modal-layer { inset: 48px 0 0 0; }
+      .load-bar { top: 48px; bottom: auto; }
+      .toast { left: 12px; right: 12px; bottom: 12px; text-align: center; }
+    }
+  </style>
+</head>
+<body data-scene="farm">
+  <a class="sr-only" href="#scene-app">跳到看板</a>
+        <section class="wiz" id="scene-wizard" data-od-id="wizard" role="dialog" aria-modal="true" aria-labelledby="wizTitle" aria-hidden="true">
+          <header class="wiz-head">
+            <span class="wiz-mark"><img src="assets/app_logo.png" alt="" /></span>
+            <div class="wiz-copy">
+              <p class="wiz-eyebrow">刷刷宝 · 运行设置</p>
+              <h2 id="wizTitle">选择运行方式</h2>
+              <p>先确定队伍关系，再进入看板配置关卡与技能。</p>
+            </div>
+          </header>
+          <div class="wiz-body">
+            <div class="seg" id="wizKind">
+              <button type="button" data-kind="solo" aria-pressed="true">单人</button>
+              <button type="button" data-kind="team" aria-pressed="false">组队</button>
+            </div>
+            <div id="wizSoloPane">
+              <div class="choice-list">
+                <button type="button" class="wcard solo" id="wizSolo" aria-pressed="true">
+                  <strong>单人刷图</strong>
+                  <span>自己建房，自己点开始。</span>
+                </button>
+              </div>
+            </div>
+            <div id="wizTeamPane" class="hidden">
+              <div class="choice-list">
+                <button type="button" class="wcard" data-team="lead"><em>车头</em><strong>带车</strong><span>你开房当车头。到人后房间自动开始。</span></button>
+                <button type="button" class="wcard" data-team="follow"><em>已在房</em><strong>跟车</strong><span>已在房间，自动每局准备。</span></button>
+                <button type="button" class="wcard" data-team="hitch"><em>待验证</em><strong>蹭车</strong><span>自动在大厅找房蹭车。</span></button>
+              </div>
+            </div>
+            <p class="hint" id="wizHint">关卡和技能在看板上选，这里只定运行方式。</p>
+          </div>
+          <div class="wiz-nav">
+            <button type="button" class="secondary" id="wizCancel">取消</button>
+            <span class="grow"></span>
+            <button type="button" class="gold" id="wizApply" data-od-id="wiz-apply">进入看板</button>
+          </div>
+        </section>
+
+        <section class="win" id="scene-app" data-od-id="dashboard" data-theme="light">
+          <div class="titlebar">
+            <div class="brand">
+              <span class="logo-box"><img src="assets/app_logo.png" alt="刷刷宝" width="22" height="22" /></span>
+              <h1>刷刷宝</h1>
+              <span class="ver chrome-wide">v0.3</span>
+            </div>
+            <span class="status-pill chrome-wide" id="statusPill"><span class="dot"></span>待命</span>
+            <span class="games chrome-wide" id="gamesMeter" aria-live="polite">今日 <b id="gamesToday">0</b> / <b id="gamesCap">100</b></span>
+            <div class="grow"></div>
+            <button type="button" class="icon-btn chrome-wide" id="btnTheme" aria-pressed="false" aria-label="切换深色浅色">深色</button>
+            <button type="button" class="icon-btn" id="btnWizard">快速开局</button>
+            <button type="button" class="win-btn" id="btnMin" aria-label="最小化">─</button>
+            <button type="button" class="win-btn close" id="btnClose" aria-label="关闭">✕</button>
+          </div>
+          <div class="body" id="farmBody">
+            <aside class="rail">
+              <section class="panel" data-od-id="run-target">
+                <h3 data-od-id="run-target-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path></svg></span>运行目标</h3>
+                <div class="field"><label id="lblChapter">篇章</label><div class="dd" data-dd="chapter"><button type="button" class="dd-btn" id="chapterBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblChapter"><b></b><i>▾</i></button><div class="dd-menu" id="chapterMenu" role="listbox" aria-labelledby="lblChapter"></div></div></div>
+                <div class="row">
+                  <div class="field grow"><label id="lblStage">关卡</label><div class="dd" data-dd="stage"><button type="button" class="dd-btn" id="stageBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblStage"><b></b><i>▾</i></button><div class="dd-menu" id="stageMenu" role="listbox" aria-labelledby="lblStage"></div></div></div>
+                  <div class="field" style="width:100px"><label id="lblCycle">目标局数</label><div class="stepper" role="group" aria-labelledby="lblCycle"><button type="button" id="cycleMinus" aria-label="减少目标局数">−</button><input id="cycleOut" type="text" inputmode="numeric" value="100" aria-label="目标局数" autocomplete="off" /><button type="button" id="cyclePlus" aria-label="增加目标局数">+</button></div></div>
+                </div>
+                <div class="switch-row"><span id="lblHero">声望挑战</span><button type="button" class="switch" id="swHero" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblHero"></button></div>
+                <div class="prestige" id="heroBox">
+                  <div class="rep-picked" id="repTags"></div>
+                  <div class="rep-foot">
+                    <div class="stats" id="repStats"></div>
+                    <button type="button" class="text-btn" id="btnRep">调整</button>
+                  </div>
+                </div>
+                <button type="button" class="pick-row" id="cjbCard"><span class="k">传家宝</span><strong id="cjbName">莫阿姆</strong><i>选择</i></button>
+                <button type="button" class="pick-row" id="bossCard"><span class="k">Boss</span><strong id="bossName">怀特迈恩</strong><i>选择</i></button>
+                <div class="switch-row"><span id="lblSecret">自动秘境</span><button type="button" class="switch" id="swSecret" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblSecret"></button></div>
+                <div class="switch-row"><span id="lblCloseML">5-5 后取消自动主线</span><button type="button" class="switch" id="swCloseML" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblCloseML"></button></div>
+                <div class="switch-row"><span id="lblAutoArch">票刷完自动考古</span><button type="button" class="switch" id="swAutoArch" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblAutoArch"></button></div>
+              </section>
+              <section class="panel lead-box" id="leadBox">
+                <h3 data-od-id="lead-room-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 13.5V3.5A1.5 1.5 0 0 1 4.5 2H11.5A1.5 1.5 0 0 1 13 3.5v10"></path><path d="M6 8h.01M3 13.5h10"></path></svg></span>带车房间</h3>
+                <div class="field"><label for="roomName">房间名称</label><input id="roomName" type="text" value="刷刷宝车队" autocomplete="off" /></div>
+                <div class="field"><label for="roomPass">房间密码</label><input id="roomPass" type="text" placeholder="可空" autocomplete="off" /></div>
+                <div class="switch-row"><span id="lblNewRoom">每局新建房间</span><button type="button" class="switch" id="swNewRoom" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblNewRoom"></button></div>
+                <p class="hint">带车不点房间开始，交给房间自动开始。</p>
+              </section>
+            </aside>
+            <section class="main">
+              <div class="main-workspace">
+              <div class="panel" data-od-id="skill-panel">
+                <div class="skill-head"><h3 data-od-id="skill-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 9.4 6.6 14.5 8l-5.1 1.4L8 14.5 6.6 9.4 1.5 8l5.1-1.4L8 1.5Z"></path></svg></span>技能搭配</h3><span class="hint" id="skillCount">已选 4 / 4</span></div>
+                <button type="button" class="ghost-btn solid hidden" id="btnBackBuilds" style="align-self:flex-start;height:28px;padding:0 10px;font-size:12px;margin-bottom:8px;">选择其他策略</button>
+                <div class="builds" id="builds"></div>
+                <button type="button" class="add-custom" id="btnAddCustom" data-od-id="btn-custom">自定义</button>
+                <p class="skill-hint" id="skillHint"></p>
+                <p class="empty hidden" id="skillEmpty"></p>
+                <div class="skill-grid" id="skillGrid" role="group" aria-label="十六技能"></div>
+                <div class="skill-rank" id="skillRank"></div>
+              </div>
+              <section class="panel bond-config" data-od-id="bond-panel">
+                <h3 data-od-id="bond-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6.3 9.7 4.8 11.2a2.3 2.3 0 0 1-3.2-3.2L4 5.6a2.3 2.3 0 0 1 3.2 0"></path><path d="m9.7 6.3 1.5-1.5a2.3 2.3 0 0 1 3.2 3.2L12 10.4a2.3 2.3 0 0 1-3.2 0"></path><path d="m5.8 10.2 4.4-4.4"></path></svg></span>羁绊配置</h3>
+                <div id="bonds"></div>
+              </section>
+              </div>
+              <aside class="selected-deck" data-od-id="launch-check-panel" aria-label="启动前核对">
+                <div class="panel">
+                  <h3 data-od-id="launch-check-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 13 3.4v3.9c0 3.2-2.1 5.7-5 7.2-2.9-1.5-5-4-5-7.2V3.4L8 1.5Z"></path><path d="m5.6 8 1.5 1.5 3.3-3.3"></path></svg></span>启动前核对</h3>
+                  <div id="selectedDeck" aria-live="polite"></div>
+                </div>
+              </aside>
+            </section>
+          </div>
+          <div class="hitch-page hitch" id="hitchBody" data-od-id="hitch-page">
+            <span class="pill warn">待验证 · 不可启动</span>
+            <h2>组队 · 蹭车</h2>
+            <p>自动在大厅找房；达到蹭车目标后按预案切换任务。</p>
+            <section class="team-rules" data-team-rules="hitch" data-od-id="hitch-rules" aria-labelledby="hitchRulesTitle">
+              <div class="team-rules-head">
+                <h3 id="hitchRulesTitle">蹭车结束规则</h3>
+                <span class="team-rules-state">仅保存配置</span>
+              </div>
+              <div class="team-rules-grid">
+                <div class="field">
+                  <label for="hitchCycle">目标游戏局数</label>
+                  <div class="stepper">
+                    <button type="button" data-team-cycle-step="-1" aria-label="减少蹭车目标局数">−</button>
+                    <input id="hitchCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="蹭车目标游戏局数">
+                    <button type="button" data-team-cycle-step="1" aria-label="增加蹭车目标局数">＋</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="hitchAfterGoal">目标结束后</label>
+                  <select id="hitchAfterGoal" data-team-rule="afterGoal" data-od-id="hitch-after-goal">
+                    <option value="solo">去单人刷票</option>
+                    <option value="arch">去考古</option>
+                  </select>
+                </div>
+              </div>
+              <div class="team-route" data-od-id="hitch-route" aria-label="蹭车运行路径">
+                <span><small>01</small><b>大厅自动找房</b></span>
+                <span><small>02</small><b>入房后自动准备</b></span>
+                <span><small>03</small><b>完成目标后切换</b></span>
+              </div>
+              <div class="team-boundary"><strong>当前执行边界</strong><span>只保存蹭车预案；找房能力待验证，点火保持禁用。</span></div>
+            </section>
+            <button type="button" class="ghost-btn solid" id="btnFollow" style="align-self:flex-start">已经在房间里，改为跟车</button>
+          </div>
+          <div class="hitch-page follow" id="followBody" data-od-id="follow-page">
+            <span class="pill">可启动</span>
+            <h2>组队 · 跟车</h2>
+            <p>已在房间自动准备；房间解散或被踢出后按预案切换。</p>
+            <section class="team-rules" data-team-rules="follow" data-od-id="follow-rules" aria-labelledby="followRulesTitle">
+              <div class="team-rules-head">
+                <h3 id="followRulesTitle">跟车结束规则</h3>
+                <span class="team-rules-state">仅保存配置</span>
+              </div>
+              <div class="team-rules-grid">
+                <div class="field">
+                  <label for="followCycle">目标游戏局数</label>
+                  <div class="stepper">
+                    <button type="button" data-team-cycle-step="-1" aria-label="减少跟车目标局数">−</button>
+                    <input id="followCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="跟车目标游戏局数">
+                    <button type="button" data-team-cycle-step="1" aria-label="增加跟车目标局数">＋</button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label for="followAfterRoom">房间解散 / 被踢出后</label>
+                  <select id="followAfterRoom" data-team-rule="afterRoom" data-od-id="follow-after-room">
+                    <option value="solo">去单人刷票</option>
+                    <option value="arch">去考古</option>
+                    <option value="hitch">转为大厅蹭车</option>
+                  </select>
+                </div>
+              </div>
+              <div class="team-route" data-od-id="follow-route" aria-label="跟车运行路径">
+                <span><small>01</small><b>对齐带车端</b></span>
+                <span><small>02</small><b>同步准备与目标局数</b></span>
+                <span><small>03</small><b>房间结束后切换</b></span>
+              </div>
+              <form class="team-pair" id="followPairForm" data-od-id="follow-pairing">
+                <div class="team-pair-copy"><strong>带车端配对</strong><span>两台脚本填写同一配对码，后续接入后同步房间、准备状态和目标局数。</span></div>
+                <div class="field"><label for="followPairCode">配对码或角色名</label><input id="followPairCode" data-team-pair data-od-id="follow-pair-code" type="text" maxlength="24" autocomplete="off" placeholder="输入配对信息"></div>
+                <button type="submit" class="secondary" data-od-id="follow-pair-save">保存配对</button>
+              </form>
+            </section>
+            <button type="button" class="ghost-btn solid" id="btnBackHitch" style="align-self:flex-start">改为大厅蹭车</button>
+          </div>
+          <footer class="footer" id="footer">
+            <button type="button" class="ghost-btn solid" id="btnSwitchMode">切换运行方式</button>
+            <button type="button" class="ghost-btn solid" id="btnMore" aria-expanded="false" aria-controls="drawer">更多设置</button>
+            <div class="summary" id="summary">单人刷图  1-10  常规</div>
+            <span class="err-inline" id="startErr" role="alert"></span>
+            <div class="lamp" id="lamp"><span class="dot"></span><span id="lampText">预检通过</span></div>
+            <button type="button" class="primary" id="btnStart" data-od-id="btn-start" aria-describedby="startErr">开始运行</button>
+          </footer>
+          <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+          <aside class="drawer" id="drawer" role="dialog" aria-labelledby="drawerTitle" aria-modal="false" aria-hidden="true">
+            <h3 id="drawerTitle">更多设置</h3>
+            <h4>特殊宝物（默认不拿）</h4>
+            <div class="neg" id="negatives"></div>
+            <h4>龙珠</h4>
+            <div class="switch-row"><span id="lblDragon">优先拿龙珠</span><button type="button" class="switch" id="swDragon" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblDragon"></button></div>
+          </aside>
+          <div class="load-bar" id="loadBar" role="progressbar" aria-label="正在连接" aria-hidden="true"><i></i></div>
+          <div class="modal-layer" id="modalLayer"><div class="sheet" id="modalSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
+          <div class="toast" id="toast" role="status" aria-live="polite"></div>
+        </section>
+
+  <script>
+    const SKILLS = { asj:"奥术箭", asjg:"奥术激光", assx:"奥术射线", bsxx:"冰霜新星", byj:"爆炎箭", dcw:"电磁网", dz:"地震", hbj:"寒冰箭", hq:"火球", jf:"飓风", jq:"剑气", ljf:"龙卷风", pg:"普攻", sdl:"闪电链", tl:"天雷", ys:"陨石" };
+    const SKILL_ORDER = Object.keys(SKILLS);
+    const FAMILIES = {
+      pg:{name:"普攻",aff:"敏捷/力量",routes:[["speed","优先攻速"],["multi","优先神箭手"],["enchant","优先附魔箭矢"]]},
+      asj:{name:"奥术箭",aff:"智力/能量",routes:[["damage","优先伤害"],["split","优先次级箭"],["cooldown","优先急速抽箭"]]},
+      asjg:{name:"奥术激光",aff:"智力/能量",routes:[["flood","优先奥能洪流"],["sweep","优先奥能扫射"],["uptime","优先持续覆盖"]]},
+      assx:{name:"奥术射线",aff:"智力/能量",routes:[["damage","优先伤害易伤"],["guide","优先制导箭"],["uptime","优先持续多目标"]]},
+      jq:{name:"剑气",aff:"力量/物理",routes:[["ice","优先碎冰"],["flame","优先烈焰斩"],["projectile","优先弹速体型"]]},
+      byj:{name:"爆炎箭",aff:"敏捷/智力",routes:[["meteor","优先炎爆术"],["volley","优先连珠火箭"],["burn","优先燃烧"]]},
+      hbj:{name:"寒冰箭",aff:"智力/控场",routes:[["freeze","优先蚀骨之寒"],["volley","优先冰箭连发"],["split","优先三棱冰箭"]]},
+      tl:{name:"天雷",aff:"智力/元素",routes:[["judgment","优先审判之雷"],["storm","优先磁暴"],["damage","优先伤害"]]},
+      sdl:{name:"闪电链",aff:"智力/元素",routes:[["bounce","优先弹射多目标"],["paralysis","优先麻痹"],["ion","优先离子爆破"]]},
+      dcw:{name:"电磁网",aff:"智力/控场",routes:[["shock","优先感电麻痹"],["zone","优先范围跃迁"],["damage","优先伤害频次"]]},
+      bsxx:{name:"冰霜新星",aff:"智力/防御",routes:[["freeze","优先冻结冻伤"],["shatter","优先冰片穿透"],["damage","优先冰系伤害"]]},
+      dz:{name:"地震",aff:"力量/控场",routes:[["stun","优先眩晕"],["ember","优先余烬火系"],["damage","优先范围伤害"]]},
+      ljf:{name:"龙卷风",aff:"敏捷/智力",routes:[["lightning","优先闪电龙卷"],["double","优先双重龙卷"],["pull","优先牵引聚怪"]]},
+      jf:{name:"飓风",aff:"敏捷/控场",routes:[["strike","优先强袭飓风"],["vacuum","优先真空牵引"],["pierce","优先穿透"]]},
+      hq:{name:"火球",aff:"智力/火系",routes:[["burn","优先燃烧"],["tempo","优先高频火球"],["volume","优先火球数量"]]},
+      ys:{name:"陨石",aff:"力量/智力",routes:[["stun","优先眩晕"],["damage","优先爆发伤害"],["area","优先范围碎片"]]}
+    };
+    const BUILDS = [
+      { id:"arcane_open", name:"奥术开荒", skills:["asj","asjg","assx","jq"], attr:["intelligence"], growth:["成长","经济","贪婪","挑战"], basic:["法术","急速","箭术"] },
+      { id:"thunder_classic", name:"天雷经典", skills:["tl","sdl","asjg","assx"], attr:["intelligence"], growth:["成长","经济","贪婪","挑战"], basic:["法术","急速"] },
+      { id:"thunder_net", name:"天雷狂轰", skills:["tl","sdl","dcw","asj"], attr:["intelligence"], growth:["成长","经济","贪婪","挑战"], basic:["法术","急速"] },
+      { id:"sword_qi", name:"剑气物理", skills:["jq","ys","dz","asjg"], attr:["agility"], growth:["成长","经济","贪婪","挑战"], basic:["急速","箭术","战术"] },
+      { id:"aa_universal", name:"普攻万金油", skills:["pg","ys","dz","jq"], attr:["agility"], growth:["成长","经济","贪婪","挑战"], basic:["急速","箭术","战术"] }
+    ];
+    const ATTR = [{id:"intelligence",label:"智力"},{id:"strength",label:"力量"},{id:"agility",label:"敏捷"}];
+    const GROWTH = ["祝福","成长","经济","贪婪","挑战"];
+    const BASIC = ["法术","急速","魔能","魔术","箭术","战术","暴击","固守","陷阵"];
+    const ADV = [{id:"daodao",label:"刀刀"},{id:"yihuo",label:"异火"},{id:"dasheng",label:"大圣"},{id:"xiuxian",label:"修仙"},{id:"fengshen",label:"封神"},{id:"haidao",label:"海盗"},{id:"wangling",label:"亡灵"}];
+    const FACTIONS = [
+      { id:"heifeng", name:"黑锋骑士团", short:"黑锋", affix:["怪物强度 ×1.2","怪物血量 +30%","怪物血量、防御 +20%","怪物百分比恢复 +1%/s","怪物强度 ×1.3","玩家最终力量 -50%","玩家最终伤害 -50%，恢复 -50%","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，全伤害 -25%","怪物强度 ×1.5（极难）"] },
+      { id:"yinse", name:"银色北伐军", short:"银色", affix:["怪物强度 ×1.2","怪物攻击 +40%","怪物血量、防御 +20%","怪物闪避 +25%","怪物强度 ×1.3","玩家最终敏捷 -50%","攻速 -75%，间隔 +0.25s，射程 -300","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，物理伤害 -25%","怪物强度 ×1.5（极难）"] },
+      { id:"kenrito", name:"肯瑞托", short:"肯瑞托", affix:["怪物强度 ×1.2","怪物攻速/移速 +30%","怪物血量、防御 +20%","怪物护甲 +40%","怪物强度 ×1.3","玩家最终智力 -50%","玩家急速 -200，命中 -15%","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，魔法伤害 -25%","怪物强度 ×1.5（极难）"] },
+      { id:"tanxian", name:"探险者协会", short:"探险者", affix:["怪物强度 ×1.2","杀敌金币 -50%","杀敌木材 -50%","杀敌经验 -50%","怪物强度 ×1.3","商店物品价格 +50%","每秒木材产出扣减","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，杀敌加成 -40%","怪物强度 ×1.5（极难）"] },
+      { id:"yuansu", name:"元素领主", short:"元素", affix:["怪物强度 ×1.2","怪物防御 +30%","怪物血量、防御 +20%","怪物攻击 +50，护甲 +20%","怪物强度 ×1.3","玩家最终攻击 -50%","玩家伤害增幅 -60%","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，攻速/急速 -25%","怪物强度 ×1.5（极难）"] },
+      { id:"shouhu", name:"守护巨龙", short:"守护", affix:["怪物强度 ×1.2","怪物攻击 +50%","怪物血量 +50%","怪物防御 +50%","怪物强度 ×1.3","玩家最终全属性 -30%","玩家附加伤害 -60%","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，全属性 -15%","怪物强度 ×1.5（极难）"] }
+    ];
+    const CHAPTERS = [{id:1,label:"旧世界大陆  一阶段"},{id:2,label:"熔火之心  二阶段"},{id:3,label:"黑翼之潮  三阶段"},{id:4,label:"安琪拉  四阶段"}];
+    const CJB_STEMS = ["01暴掠龙","02血腥猛犸","03洛卡纳哈","04克雷什之父","05撼地兽","06鳄王","07古龙龟","08战争雷霆蜥蜴","09钦原","10马格纳斯","11嗜血的索克","12战争之王","13蛇王纳什","14青蛙之神","15猛虎之神","16阿迦玛甘","17年兽","18乌索克","19玛洛恩","20鲁克玛","54莫阿姆"];
+    const BOSS_STEMS = ["01霍格","02祈求着耶戈什","03曲奇","04大范","05克雷什","06吞噬者穆坦努斯","07大法师阿鲁高","08巨形缝合怪","09摩拉迪姆","10吞噬者芬鲁斯","11瑟玛普拉格","12卡尔加","13寒冰巫妖","14虎王邦加拉什","15莫格莱尼","16怀特迈恩","17阿扎达斯","18瑟莱德丝公主","19加兹瑞拉","20伊兰尼库斯之影","21索瑞森大帝","22维姆萨拉克","23巴纳扎尔","24瑞文戴尔男爵","25黑暗院长加林","26达基萨斯将军","27戈多克大王","28加兹兰卡","29血神哈卡","30火焰行者","31巨石火人","32吞噬者图恩","33玛格曼达","34加尔","35火牛贝利尔","36迦顿男爵","37超大熔岩巨人","38管理者","39拉格纳罗斯","40费尔默","41埃博诺克","42弗莱格尔","43堕落的红龙","44狂野的拉格佐尔","45寒冰将军格尔","46暮光将军佐拉","47狂龙萨兹拉克","48龙巢守护者","49克洛玛古斯","50奥妮克希亚","51奈法利安","52库林纳克斯","53拉贾克斯将军","54莫阿姆","55吞咽者布鲁"];
+    const TEXT_STEMS = new Set(["38管理者","44狂野的拉格佐尔","45寒冰将军格尔","46暮光将军佐拉","47狂龙萨兹拉克"]);
+    const STAGE_BOSS = {"1-1":"大范","1-2":"吞噬者穆坦努斯","1-3":"大法师阿鲁高","1-4":"巨形缝合怪","1-5":"摩拉迪姆","1-6":"瑟玛普拉格","1-7":"卡尔加","1-8":"寒冰巫妖","1-9":"虎王邦加拉什","1-10":"怀特迈恩","1-11":"阿扎达斯","1-12":"瑟莱德丝公主","1-13":"加兹瑞拉","1-14":"伊兰尼库斯之影","1-15":"索瑞森大帝","1-16":"维姆萨拉克","1-17":"巴纳扎尔","1-18":"瑞文戴尔男爵","1-19":"黑暗院长加林","1-20":"达基萨斯将军","1-21":"戈多克大王","1-22":"加兹兰卡","1-23":"血神哈卡","2-1":"玛格曼达","2-2":"加尔","2-3":"火牛贝利尔"};
+    const STAGE_CJB = {"1-8":"暴掠龙","1-9":"血腥猛犸","1-10":"洛卡纳哈","1-12":"克雷什之父","1-16":"撼地兽","1-17":"鳄王","1-18":"古龙龟","1-20":"战争雷霆蜥蜴","1-23":"钦原","2-1":"马格纳斯","2-2":"嗜血的索克","2-3":"战争之王"};
+    const STAGE_MAX = {1:23,2:7,3:9,4:3};
+    const NEG = [
+      { name:"透支力量", effect:"全属性增幅+120%。本局每获得一个宝物，宝物效果-10%（之前获得的也计算在内）。", why:"越拿越亏：后续宝物收益被持续抽走。" },
+      { name:"贪婪献祭", effect:"每消耗 500 金币，获得 1 点随机属性。", why:"烧金币换随机属性，收益待验证。" },
+      { name:"金转木", effect:"消耗全部金币，按 0.5% 转为木材。最低 100 木，最高消耗 20 万金币得 1000 木。", why:"清空金币，换木有硬顶。" },
+      { name:"杀敌梭哈", effect:"55% 概率杀敌数翻倍；45% 概率杀敌数清 0。", why:"近一半概率把杀敌进度清零。" },
+      { name:"伐木契约", effect:"立即获得 3000 木材。3 分钟后，本局木材将恒定。", why:"短期木头，之后木材锁死。" },
+      { name:"等级优势", effect:"立即获得当前等级×10 的全属性。", why:"一次性属性，完整描述待补。" },
+      { name:"木材梭哈", effect:"55% 概率木材翻倍；45% 概率木材清 0。", why:"可能清空木材，默认不拿。" }
+    ];
+    const MUST_TAKE = ["EX","ONEPIECE","至高进化","一身神装","满级大佬","全都要","卡牌大师"];
+    const MODE_LABEL = { solo:"单人刷图", lead:"组队  带车", follow:"组队  跟车", hitch:"组队  蹭车" };
+    const TEAM_ACTION_LABEL = { solo:"去单人刷票", arch:"去考古", hitch:"转为大厅蹭车" };
+    const stemLabel = (stem) => stem.replace(/^\d+/, "");
+    const findStem = (stems, label) => stems.find((s) => stemLabel(s) === label) || "";
+    const state = {
+      scene:"farm", mode:"solo", wizKind:"solo", wizTeam:"lead", wizardReturnScene:"farm",
+      theme:"light", hero:true, cycle:100, played:0, autoSecret:false, autoArch:false, closeMainline:false, newRoom:false, chapter:1, stage:10, dragonPrefer:true,
+      teamRules:{follow:{cycle:100,afterRoom:"solo",recoveryHours:1,pairCode:""},hitch:{cycle:100,afterGoal:"solo",recoveryHours:1}},
+      selected:"arcane_open", custom:[{id:"custom:1", name:"自定义", skills:[]}], collapsed:false, drawer:false,
+      modal:"", focusFac:"kenrito", attr:new Set(["intelligence"]), growth:new Set(["成长","经济","贪婪","挑战"]),
+      basic:new Set(["法术","急速","箭术"]), adv:[], advDraft:[], advEditing:false, bondSaved:false,
+      alloc:{heifeng:0,yinse:0,kenrito:5,tanxian:3,yuansu:0,shouhu:0}, draft:null,
+      negative:new Set(),
+      routes:Object.fromEntries(Object.keys(FAMILIES).map((c)=>[c,FAMILIES[c].routes[0][0]])),
+      priority:["asj","asjg","assx","jq"], cjb:"54莫阿姆", boss:"16怀特迈恩"
+    };
+    const $ = (id) => document.getElementById(id);
+    const icon = (code, size) => {
+      const s = size || 20;
+      return `<span class="ico" style="width:${s}px;height:${s}px"><img src="assets/skills/${code}.png" alt="" width="${s}" height="${s}" /></span>`;
+    };
+    function currentCustom() {
+      return state.custom.find((x) => x.id === state.selected) || null;
+    }
+    function currentSkills() {
+      if (state.selected.startsWith("custom:")) {
+        const row = currentCustom();
+        return row ? row.skills.slice() : [];
+      }
+      return (BUILDS.find((b) => b.id === state.selected) || BUILDS[0]).skills.slice();
+    }
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+    }
+    function toggleCustomSkill(code) {
+      const row = currentCustom();
+      if (!row) return;
+      if (row.skills.includes(code)) row.skills = row.skills.filter((x) => x !== code);
+      else if (row.skills.length < 4) row.skills.push(code);
+      else { toast("已满 4 个，先点已选技能取消"); return; }
+      state.priority = row.skills.slice();
+      renderBuilds();
+      refreshSummary();
+    }
+    function usedPoints(map) { return Object.values(map || state.alloc).reduce((a,b)=>a+b,0); }
+    function budgetAvail() { const n = state.chapter===1 ? state.stage : (state.chapter===2 ? 23+state.stage : 42); return Math.min(n,23); }
+    function toast(msg) { const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._id); toast._id=setTimeout(()=>t.classList.remove("show"),1400); }
+    function setSwitch(el, on) {
+      el.setAttribute("aria-pressed", on ? "true" : "false");
+      el.setAttribute("aria-checked", on ? "true" : "false");
+    }
+    function renderGames() {
+      $("gamesToday").textContent = String(state.played);
+      $("gamesCap").textContent = state.cycle ? String(state.cycle) : "手动";
+    }
+    function cycleText() { return state.cycle === 0 ? "手动停" : String(state.cycle); }
+    function setCycle(n) {
+      state.cycle = Math.max(0, Math.min(999, n));
+      $("cycleOut").value = cycleText();
+      renderGames();
+      renderLaunchSummary();
+    }
+    function parseCycleInput() {
+      const raw = $("cycleOut").value.trim();
+      if (!raw || raw === "手动停" || raw === "手动") { setCycle(0); return; }
+      const n = parseInt(raw.replace(/[^\d]/g, ""), 10);
+      setCycle(Number.isFinite(n) ? n : state.cycle);
+    }
+    function setDrawer(on) {
+      state.drawer = on;
+      $("drawer").classList.toggle("open", on);
+      $("drawer").setAttribute("aria-hidden", on ? "false" : "true");
+      $("drawer").setAttribute("aria-modal", on ? "true" : "false");
+      $("drawerBackdrop").classList.toggle("open", on);
+      $("drawerBackdrop").hidden = !on;
+      $("btnMore").setAttribute("aria-expanded", on ? "true" : "false");
+      if (on) {
+        const first = $("drawer").querySelector("button, input");
+        if (first) first.focus();
+      } else {
+        $("btnMore").focus();
+      }
+    }
+    function movePriority(code, dir) {
+      const i = state.priority.indexOf(code);
+      const j = i + dir;
+      if (i < 0 || j < 0 || j >= state.priority.length) return;
+      const next = state.priority.slice();
+      const [item] = next.splice(i, 1);
+      next.splice(j, 0, item);
+      state.priority = next;
+      renderSkillRank();
+      const card = document.querySelector(`.rank-card[data-code="${code}"]`);
+      if (card) card.focus();
+    }
+    function closeMenus() {
+      document.querySelectorAll(".dd.open").forEach((el)=>{
+        el.classList.remove("open");
+        const btn = el.querySelector(".dd-btn");
+        if (btn) btn.setAttribute("aria-expanded", "false");
+      });
+    }
+    function renderDD(kind, items, value, labelOf) {
+      const btn = $(kind+"Btn"), menu = $(kind+"Menu");
+      const cur = items.find((it)=>String(it.id)===String(value)) || items[0];
+      btn.querySelector("b").textContent = labelOf(cur);
+      menu.innerHTML = items.map((it)=>`<button type="button" role="option" data-dd-val="${it.id}" aria-selected="${String(it.id)===String(value)}">${labelOf(it)}</button>`).join("");
+    }
+    function stageItems(ch) { return Array.from({length:STAGE_MAX[ch]},(_,i)=>({id:i+1,label:`${ch}-${i+1}`})); }
+    function renderChapterStage() {
+      renderDD("chapter", CHAPTERS, state.chapter, (c)=>c.label);
+      renderDD("stage", stageItems(state.chapter), state.stage, (s)=>s.label);
+    }
+    function renderPrestige() {
+      setSwitch($("swHero"), state.hero);
+      $("heroBox").classList.toggle("show", state.hero);
+      if (!state.hero) return;
+      const chosen = FACTIONS.filter((f)=>state.alloc[f.id]>0);
+      $("repTags").innerHTML = chosen.length ? chosen.map((f)=>{
+        const lv = state.alloc[f.id];
+        const fx = f.affix[lv-1] || "";
+        return `<div class="rep-item"><span class="rep-art"><img src="assets/factions/${f.id}.jpg" alt="${f.name}" width="36" height="36" /></span><div><b>${f.short} ×${lv}</b><span class="rep-fx">${fx}</span></div></div>`;
+      }).join("") : `<p class="empty" style="margin:0">还没选阵营。点右侧<strong>调整</strong>打开官方声望窗。</p>`;
+      const used = usedPoints();
+      $("repStats").innerHTML = `总 <b>${used}</b> / ${budgetAvail()} · 爆率 <b>+${used}%</b>`;
+    }
+    function artThumb(stem, dir) {
+      const label = stemLabel(stem);
+      if (TEXT_STEMS.has(stem)) return `<span class="name-tile">${label}</span>`;
+      return `<span class="art-card"><img src="assets/${dir}/${stem}.png" alt="${label}" width="72" height="78" /></span>`;
+    }
+    function openModal(kind) {
+      state.modal = kind;
+      state._focusBack = document.activeElement;
+      const sheet = $("modalSheet");
+      $("modalLayer").classList.add("show");
+      if (kind === "rep") { state.draft = {...state.alloc}; sheet.className = "sheet"; renderRepModal(); return; }
+      sheet.className = "sheet pick";
+      const isBoss = kind === "boss";
+      const cur = isBoss ? state.boss : state.cjb;
+      if (isBoss) {
+        sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">选择时光之穴 Boss</h2></div><div class="sheet-body"><div class="text-pick-grid">${BOSS_STEMS.map((s)=>`<button type="button" class="text-card-btn" data-stem="${s}" aria-pressed="${s===cur}" aria-label="${stemLabel(s)}"><span class="name">${stemLabel(s)}</span></button>`).join("")}</div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span></div>`;
+      } else {
+        sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">选择传家宝挑战</h2></div><div class="sheet-body"><div class="text-pick-grid">${CJB_STEMS.map((s)=>`<button type="button" class="text-card-btn" data-stem="${s}" aria-pressed="${s===cur}" aria-label="${stemLabel(s)}"><span class="name">${stemLabel(s)}</span></button>`).join("")}</div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span></div>`;
+      }
+      focusSheet();
+    }
+    function renderRepModal() {
+      const draft = state.draft;
+      const focus = FACTIONS.find((f)=>f.id===state.focusFac) || FACTIONS[0];
+      $("modalSheet").innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">声望挑战</h2><span class="sheet-cap">已用 ${usedPoints(draft)} / ${budgetAvail()}</span></div><div class="sheet-body"><div class="rep-layout"><div class="fac-grid">${FACTIONS.map((f)=>`<div class="fac-card${draft[f.id]?" is-on":""}${f.id===focus.id?" is-focus":""}" data-fac="${f.id}" tabindex="0" role="button" aria-pressed="${draft[f.id]>0}"><div class="fac-art"><img src="assets/factions/${f.id}.jpg" alt="${f.name}" width="72" height="72" /></div><strong>${f.name}</strong><div class="mini-step"><button type="button" data-fid="${f.id}" data-d="-1" aria-label="${f.short} 减一级">−</button><output aria-live="polite">${draft[f.id]}</output><button type="button" data-fid="${f.id}" data-d="1" aria-label="${f.short} 加一级">+</button></div></div>`).join("")}</div><div class="task-pane"><h3>${focus.short}挑战任务</h3>${focus.affix.map((line,i)=>`<div class="task${draft[focus.id]===i+1?" is-now":""}"><b>${i+1}</b><span>${line}</span></div>`).join("")}</div></div></div><div class="sheet-nav"><button type="button" class="secondary" data-close="off">取消挑战</button><span class="grow"></span><button type="button" class="gold" data-apply-rep="1">开启挑战</button></div>`;
+      focusSheet();
+    }
+    function focusSheet() {
+      const sheet = $("modalSheet");
+      const first = sheet.querySelector("button, [tabindex='0']");
+      if (first) first.focus();
+    }
+    function closeModal() {
+      state.modal=""; state.draft=null; $("modalLayer").classList.remove("show");
+      if (state._focusBack && document.contains(state._focusBack)) state._focusBack.focus();
+      state._focusBack = null;
+    }
+    function applyOfficial(id) {
+      const b = BUILDS.find((x)=>x.id===id); if (!b) return;
+      state.attr=new Set(b.attr); state.growth=new Set(b.growth); state.basic=new Set(b.basic); state.adv=[]; state.advDraft=[]; state.advEditing=false; state.bondSaved=false;
+    }
+    function renderBonds() {
+      const packById = Object.fromEntries(ADV.map((pack)=>[pack.id, pack]));
+      if (state.bondSaved) { renderBondSummary(packById); renderLaunchSummary(); return; }
+      const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
+      const advancedOrderEditor = advancedOrder.length
+        ? `<div class="adv-order" data-od-id="advanced-pack-priority">${advancedOrder.map((pack,index)=>`<div class="adv-rank"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><span class="rank-move"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===advancedOrder.length-1 ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`).join("")}</div>`
+        : "";
+      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>高级卡组（点击勾选/取消）</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrderEditor}</div>`;
+      const coreCards = `<div class="bond-block"><h4>属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
+      const save = `<div class="bond-actions"><p class="hint">调整后点击保存，运行时才会使用这份羁绊和卡组配置。</p><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
+      $("bonds").innerHTML = `${coreCards}${advanced}${save}`;
+      renderLaunchSummary();
+    }
+    function renderBondSummary(packById) {
+      const basics = [
+        ...ATTR.filter((a)=>state.attr.has(a.id)).map((a)=>a.label),
+        ...GROWTH.filter((n)=>state.growth.has(n)),
+        ...BASIC.filter((n)=>state.basic.has(n))
+      ];
+      const basicRow = basics.length
+        ? `<div class="chips">${basics.map((n)=>`<span class="deck-tag">${n}</span>`).join("")}</div>`
+        : `<p class="deck-note">暂未选择基础羁绊。</p>`;
+      const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
+      const advRow = advancedOrder.length
+        ? `<div class="adv-order" data-od-id="advanced-pack-priority">${advancedOrder.map((pack,index)=>`<div class="adv-rank"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><span class="rank-move"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===advancedOrder.length-1 ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`).join("")}</div>`
+        : `<p class="deck-note">暂未选择高级卡组。</p>`;
+      const actions = `<div class="bond-actions"><p class="hint">已保存这份羁绊配置；拖动 ▲▼ 调整高级卡组顺序即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>`;
+      $("bonds").innerHTML = `<div class="bond-block" data-od-id="bond-saved-summary"><h4>基础卡组</h4>${basicRow}</div><div class="bond-block" data-od-id="advanced-pack-priority"><h4>高级卡组（按顺序生效）</h4>${advRow}</div>${actions}`;
+    }
+    function renderLaunchSummary() {
+      const selectedBasics = [
+        ...ATTR.filter((item)=>state.attr.has(item.id)).map((item)=>item.label),
+        ...GROWTH.filter((item)=>state.growth.has(item)),
+        ...BASIC.filter((item)=>state.basic.has(item))
+      ];
+      const advancedOrder = state.adv.map((id)=>ADV.find((item)=>item.id===id)).filter(Boolean);
+      const factions = FACTIONS.filter((item)=>state.alloc[item.id]).map((item)=>`${item.short}×${state.alloc[item.id]}`);
+      const current = currentSkills().filter(Boolean);
+      const launchBlocked = state.scene === "hitch" || current.length === 0;
+      const launchStatus = state.scene === "hitch"
+        ? "蹭车模式不可启动"
+        : current.length === 0 ? "请先选择技能" : "启动配置已就绪";
+      const rankedSkills = [...state.priority.filter((code)=>current.includes(code)), ...current.filter((code)=>!state.priority.includes(code))].slice(0,4);
+      const detailTags = [
+        `自动秘境：${state.autoSecret ? "开" : "关"}`,
+        `自动考古：${state.autoArch ? "开" : "关"}`,
+        `龙珠优先：${state.dragonPrefer ? "开" : "关"}`,
+        `取消主线：${state.closeMainline ? "开" : "关"}`,
+        `每局新建：${state.newRoom ? "开" : "关"}`
+      ];
+      const basicSummary = selectedBasics.length
+        ? `<div class="deck-tags">${selectedBasics.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div>`
+        : `<span class="deck-tag empty">暂未选择</span>`;
+      const advancedSummary = advancedOrder.length
+        ? `<div class="deck-tags">${advancedOrder.map((pack,index)=>`<span class="deck-tag">${index+1}·${pack.label}</span>`).join("")}</div>`
+        : `<p class="deck-note">暂未选择高级卡组。</p>`;
+      const skillSummary = rankedSkills.length ? `<div class="launch-skills">${rankedSkills.map((code,index)=>`<span class="launch-skill"><i>${index+1}</i><img src="assets/skills/${code}.png" alt="" width="22" height="22" /><b>${SKILLS[code]}</b></span>`).join("")}</div>` : `<p class="deck-note">暂未选择技能。</p>`;
+      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><div class="launch-check"><h4>目标关卡</h4><p class="launch-value">${state.chapter}-${state.stage} · ${state.cycle ? `${state.cycle} 局` : "手动停"}</p></div><div class="launch-check"><h4>运行方式</h4><p class="launch-value">${MODE_LABEL[state.mode]||"单人刷图"}</p></div><div class="launch-check"><h4>已选技能</h4>${skillSummary}</div><div class="launch-check"><h4>声望挑战</h4><p class="launch-value">${state.hero ? (factions.join("、") || "已启用，待选择") : "未启用"}</p></div><div class="launch-check"><h4>传家宝 / Boss</h4><p class="launch-value">${stemLabel(state.cjb)} / ${stemLabel(state.boss)}</p></div><div class="launch-check"><h4>细节设置</h4><div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div></div><div class="launch-check"><h4>基础卡组</h4>${basicSummary}</div><div class="launch-check"><h4>高级卡组</h4>${advancedSummary}</div>`;
+    }
+    function renderBuilds() {
+      const isCustom = state.selected.startsWith("custom:");
+      const keepName = document.activeElement && document.activeElement.id === "customName";
+      const caret = keepName ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+      if (state.collapsed && isCustom) {
+        const row = currentCustom() || { name:"自定义", skills:[] };
+        const slots = (row.skills.concat(["","","",""]).slice(0,4)).map((code)=>code
+          ? `<button type="button" class="sk unpick" data-unpick="${code}" title="再点取消 ${SKILLS[code]}" aria-label="再点取消 ${SKILLS[code]}">${icon(code,40)}</button>`
+          : `<span class="slot"></span>`).join("");
+        $("builds").innerHTML = `<div class="build custom-card" aria-pressed="true"><label class="name-edit"><input type="text" id="customName" maxlength="16" value="${esc(row.name||"自定义")}" placeholder="改名" title="改策略名" aria-label="策略名" /></label><div class="skills-inline">${slots}</div></div>`;
+        if (keepName && $("customName")) {
+          $("customName").focus();
+          $("customName").setSelectionRange(caret[0], caret[1]);
+        }
+      } else {
+        const show = state.collapsed ? BUILDS.filter((b)=>b.id===state.selected) : BUILDS;
+        $("builds").innerHTML = show.map((b)=>{
+          const skills=(b.skills||[]).slice(0,4);
+          const preview=`<div class="skills-inline">${skills.map((code)=>`<span class="sk" title="${SKILLS[code]}">${icon(code,22)}</span>`).join("")}</div>`;
+          return `<button type="button" class="build" data-id="${b.id}" aria-pressed="${b.id===state.selected}"><strong>${b.name}</strong>${preview}</button>`;
+        }).join("");
+      }
+      $("btnBackBuilds").classList.toggle("hidden", !state.collapsed);
+      $("btnAddCustom").classList.toggle("hidden", state.collapsed);
+      const saved = state.custom[0];
+      $("btnAddCustom").textContent = (saved && saved.name) ? saved.name : "自定义";
+      const skills=currentSkills(), n=skills.filter(Boolean).length;
+      $("skillCount").textContent=`已选 ${n} / 4`;
+      $("skillHint").textContent = state.collapsed ? "" : "选择策略或自定义技能。";
+      $("skillHint").classList.toggle("hidden", !$("skillHint").textContent);
+      $("skillEmpty").classList.toggle("hidden", !(isCustom && state.collapsed && n===0));
+      $("skillEmpty").innerHTML = (isCustom && state.collapsed && n===0)
+        ? "选择 1–4 个技能。"
+        : "";
+      $("skillGrid").classList.toggle("show", isCustom && state.collapsed);
+      renderSkillGrid(); renderSkillRank();
+    }
+    function renderSkillGrid() {
+      const selected=currentSkills();
+      const full=selected.length>=4;
+      $("skillGrid").innerHTML=SKILL_ORDER.map((code)=>{
+        const on=selected.includes(code);
+        const title=on?"再点取消":(full?"已满 4 个，先取消一个":"选择");
+        return `<button type="button" class="skill-cell${full&&!on?" is-dim":""}" data-skill="${code}" aria-pressed="${on}" title="${title}">${icon(code,18)}${SKILLS[code]}</button>`;
+      }).join("");
+    }
+    function syncPriority() {
+      const skills=currentSkills().filter(Boolean);
+      const rest=skills.filter((c)=>!state.priority.includes(c));
+      state.priority=[...state.priority.filter((c)=>skills.includes(c)),...rest].slice(0,4);
+    }
+    function renderSkillRank() {
+      const skills=currentSkills().filter(Boolean);
+      const bar=$("skillRank");
+      if (!(state.collapsed && skills.length>0)) { bar.classList.remove("show"); bar.innerHTML=""; return; }
+      syncPriority();
+      bar.classList.add("show");
+      const last = state.priority.length - 1;
+      bar.innerHTML=`<div class="priority-head"><b>技能优先级</b><span class="hint">拖动或按 ↑ ↓ 排序</span></div><div class="rank-list" id="rankList">${state.priority.map((code,i)=>{ const fam=FAMILIES[code]; const opts=fam.routes.map(([id,label])=>`<option value="${id}"${state.routes[code]===id?" selected":""}>${label}</option>`).join(""); const priorityLabel=i===0?"主 C · 第1优先级":`第${i+1}优先级`; return `<div class="rank-card${i===0?" is-carry":""}" data-code="${code}" tabindex="0"><span class="rank-no">${i+1}</span>${icon(code,28)}<div class="name"><b>${SKILLS[code]}</b><span>${priorityLabel}${fam.aff?" · "+fam.aff:""}</span></div><select data-route="${code}" aria-label="${SKILLS[code]} 路线">${opts}</select><span class="rank-move"><button type="button" data-move="-1" ${i===0?"disabled":""} aria-label="${SKILLS[code]} 上移">▲</button><button type="button" data-move="1" ${i===last?"disabled":""} aria-label="${SKILLS[code]} 下移">▼</button></span><span class="grip" aria-hidden="true">⋮⋮</span></div>`; }).join("")}</div>`;
+      bindRankDrag();
+    }
+    function bindRankDrag() {
+      const list=$("rankList"); if (!list) return;
+      list.querySelectorAll(".rank-card").forEach((card)=>{
+        let timer=0, dragging=false;
+        const clear=()=>{ clearTimeout(timer); timer=0; };
+        card.addEventListener("pointerdown",(e)=>{
+          if (e.button!==0 || e.target.closest("select") || e.target.closest(".rank-move")) return;
+          const startX=e.clientX, startY=e.clientY;
+          timer=setTimeout(()=>{ dragging=true; card.style.cursor="grabbing"; card.setPointerCapture(e.pointerId); },280);
+          const move=(ev)=>{
+            if (!dragging) { if (Math.hypot(ev.clientX-startX, ev.clientY-startY)>7) clear(); return; }
+            let placed=false;
+            for (const other of [...list.querySelectorAll(".rank-card")]) {
+              if (other===card) continue;
+              const r=other.getBoundingClientRect();
+              if (ev.clientY<r.top+r.height/2) { list.insertBefore(card, other); placed=true; break; }
+            }
+            if (!placed) list.appendChild(card);
+            [...list.querySelectorAll(".rank-card")].forEach((c,i)=>{ const aff=(FAMILIES[c.dataset.code]||{}).aff||""; c.querySelector(".rank-no").textContent=String(i+1); c.classList.toggle("is-carry", i===0); c.querySelector(".name span").textContent=(i===0?"主 C · 第1优先级":`第${i+1}优先级`)+(aff?" · "+aff:""); });
+          };
+          const up=()=>{
+            clear(); window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+            if (!dragging) return;
+            dragging=false; card.style.cursor="";
+            state.priority=[...list.querySelectorAll(".rank-card")].map((c)=>c.dataset.code);
+            renderSkillRank();
+          };
+          window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+        });
+      });
+    }
+    function renderNegatives() {
+      $("negatives").innerHTML=NEG.map((card)=>`<label class="neg-item"><input type="checkbox" data-neg="${card.name}" ${state.negative.has(card.name)?"checked":""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span><span class="why">${card.why}</span></span></label>`).join("");
+    }
+    function renderNames() { $("cjbName").textContent=stemLabel(state.cjb); $("bossName").textContent=stemLabel(state.boss); renderLaunchSummary(); }
+    function recommendChallenges() {
+      const key=`${state.chapter}-${state.stage}`;
+      const boss=findStem(BOSS_STEMS, STAGE_BOSS[key]||""); if (boss) state.boss=boss;
+      const cjb=findStem(CJB_STEMS, STAGE_CJB[key]||""); if (cjb) state.cjb=cjb;
+      renderNames();
+    }
+    function setKind(kind, root) {
+      root.querySelectorAll("[data-kind]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.kind===kind?"true":"false"));
+    }
+    function renderWizard() {
+      setKind(state.wizKind, $("wizKind"));
+      $("wizSoloPane").classList.toggle("hidden", state.wizKind!=="solo");
+      $("wizTeamPane").classList.toggle("hidden", state.wizKind!=="team");
+      $("wizTeamPane").querySelectorAll("[data-team]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.team===state.wizTeam?"true":"false"));
+      $("wizHint").textContent = state.wizKind==="solo"
+        ? "进入看板后再选关卡和技能。单人：自己建房，自己点开始。"
+        : (state.wizTeam==="lead"?"带车：你当车头，房间自动开始。"
+          : state.wizTeam==="follow"?"跟车：已在房间里等队长，不建房、不点开始。"
+          : "蹭车：大厅搜房。待验证，看板不点火。");
+    }
+    function refreshSummary() {
+      const names=currentSkills().filter(Boolean).map((c)=>SKILLS[c]);
+      const diff=state.hero?"声望挑战":"常规";
+      const mode=MODE_LABEL[state.mode]||"单人刷图";
+      const rep=state.hero?FACTIONS.filter((f)=>state.alloc[f.id]).map((f)=>`${f.short}×${state.alloc[f.id]}`).join(" "):"";
+      const teamRule=state.teamRules[state.mode];
+      $("summary").textContent=teamRule
+        ? `${mode}  ${teamRule.cycle?teamRule.cycle+" 局":"手动停"}  ${state.mode==="hitch"?"目标后":"解散后"}：${TEAM_ACTION_LABEL[state.mode==="hitch"?teamRule.afterGoal:teamRule.afterRoom]}`
+        : `${mode}  ${state.cycle?state.cycle+" 局":"手动停"}  ${state.chapter}-${state.stage}  ${diff}${rep?"  "+rep:""}  ${names.join(" ")||"未选技能"}`;
+      const hitch = state.scene==="hitch";
+      const skillsReady = names.length > 0;
+      const launchable = !hitch && skillsReady;
+      $("btnStart").disabled=!launchable;
+      $("lamp").className="lamp"+(launchable?"":" bad");
+      $("lampText").textContent=hitch?"不可启动":skillsReady?"预检通过":"待选技能";
+      $("btnStart").textContent=launchable?"开始运行":"不可启动";
+      $("btnStart").classList.remove("stop");
+      if (hitch || !skillsReady) {
+        $("startErr").textContent = hitch ? "蹭车只搜房，不能点火" : "请先选择至少一个技能";
+        $("startErr").classList.add("show");
+      } else {
+        $("startErr").classList.remove("show");
+      }
+      renderLaunchSummary();
+    }
+    function normalizeTeamCycle(value) {
+      const parsed=Number.parseInt(String(value).replace(/\D/g,""),10);
+      return Number.isFinite(parsed)?Math.max(0,Math.min(999,parsed)):0;
+    }
+    function renderTeamRules() {
+      document.querySelectorAll("[data-team-rules]").forEach((root)=>{
+        const rule=state.teamRules[root.dataset.teamRules];
+        if (!rule) return;
+        root.querySelector("[data-team-cycle-input]").value=rule.cycle?String(rule.cycle):"手动停";
+        root.querySelectorAll("[data-team-rule]").forEach((control)=>{ control.value=rule[control.dataset.teamRule]; });
+        const pair=root.querySelector("[data-team-pair]");
+        if (pair) pair.value=rule.pairCode||"";
+      });
+    }
+    function setScene(scene) {
+      if (scene==="farm") state.mode="solo";
+      else if (scene==="lead"||scene==="follow"||scene==="hitch") state.mode=scene;
+      state.scene=scene;
+      document.body.dataset.scene=scene;
+      $("scene-wizard").setAttribute("aria-hidden", scene==="wizard" ? "false" : "true");
+      $("scene-app").setAttribute("aria-hidden", ["farm","lead","follow","hitch"].includes(scene) ? "false" : "true");
+      if (scene==="wizard") renderWizard();
+      $("lblCycle").textContent=scene==="lead"?"带车目标局数":"目标局数";
+      $("statusPill").innerHTML='<span class="dot"></span>待命';
+      renderGames(); renderPrestige(); renderTeamRules(); refreshSummary();
+    }
+    document.addEventListener("click",(e)=>{
+      const dd=e.target.closest(".dd");
+      if (!dd) closeMenus();
+      else {
+        if (e.target.closest(".dd-btn")) {
+          const open=!dd.classList.contains("open");
+          closeMenus();
+          dd.classList.toggle("open", open);
+          const btn = dd.querySelector(".dd-btn");
+          if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+        }
+        const opt=e.target.closest("[data-dd-val]");
+        if (opt) {
+          const kind=dd.dataset.dd, val=Number(opt.dataset.ddVal); dd.classList.remove("open");
+          if (kind==="chapter") { state.chapter=val; state.stage=Math.min(state.stage, STAGE_MAX[val]); recommendChallenges(); renderPrestige(); }
+          if (kind==="stage") { state.stage=val; recommendChallenges(); renderPrestige(); }
+          renderChapterStage(); refreshSummary();
+        }
+      }
+    });
+    $("cycleMinus").addEventListener("click",()=>{ parseCycleInput(); setCycle(state.cycle-1); });
+    $("cyclePlus").addEventListener("click",()=>{ parseCycleInput(); setCycle(state.cycle+1); });
+    $("cycleOut").addEventListener("change", parseCycleInput);
+    $("cycleOut").addEventListener("blur", parseCycleInput);
+    $("cycleOut").addEventListener("keydown",(e)=>{
+      if (e.key==="Enter") { e.preventDefault(); parseCycleInput(); $("cycleOut").blur(); }
+    });
+    $("cycleOut").addEventListener("focus",()=>{
+      if (state.cycle===0) $("cycleOut").value="";
+      else $("cycleOut").select();
+    });
+    $("swHero").addEventListener("click",()=>{ state.hero=!state.hero; setSwitch($("swHero"), state.hero); renderPrestige(); refreshSummary(); if (state.hero) openModal("rep"); else closeModal(); });
+    $("btnRep").addEventListener("click",()=>openModal("rep"));
+    $("cjbCard").addEventListener("click",()=>openModal("cjb"));
+    $("bossCard").addEventListener("click",()=>openModal("boss"));
+    $("modalLayer").addEventListener("click",(e)=>{
+      if (e.target===$("modalLayer") || e.target.closest("[data-close]")) {
+        if (e.target.closest("[data-close='off']")) state.hero=false;
+        closeModal(); renderPrestige(); refreshSummary(); return;
+      }
+      if (e.target.closest("[data-apply-rep]")) { state.alloc={...state.draft}; state.hero=usedPoints()>0; closeModal(); renderPrestige(); refreshSummary(); toast("已保存声望挑战（沙盒）"); return; }
+      const stemBtn=e.target.closest("[data-stem]");
+      if (stemBtn) { if (state.modal==="boss") state.boss=stemBtn.dataset.stem; else state.cjb=stemBtn.dataset.stem; closeModal(); renderNames(); toast("已自动保存（仅沙盒记忆）"); return; }
+      const fac=e.target.closest("[data-fac]"); const step=e.target.closest("[data-fid]");
+      if (step) { e.stopPropagation(); const id=step.dataset.fid; state.focusFac=id; const next=state.draft[id]+Number(step.dataset.d); if (next<0||next>10) return; if (usedPoints(state.draft)-state.draft[id]+next>budgetAvail()) return toast("超出可分配点数"); state.draft[id]=next; renderRepModal(); return; }
+      if (fac) { state.focusFac=fac.dataset.fac; renderRepModal(); }
+    });
+    ["swSecret","swCloseML","swAutoArch","swNewRoom","swDragon"].forEach((id)=>$(id).addEventListener("click",(e)=>{
+      const on = e.currentTarget.getAttribute("aria-pressed")!=="true";
+      setSwitch(e.currentTarget, on);
+      if (id==="swSecret") state.autoSecret = on;
+      if (id==="swDragon") state.dragonPrefer = on;
+      if (id==="swAutoArch") state.autoArch = on;
+      if (id==="swCloseML") state.closeMainline = on;
+      if (id==="swNewRoom") state.newRoom = on;
+      renderLaunchSummary();
+    }));
+    $("builds").addEventListener("click",(e)=>{
+      const unpick=e.target.closest("[data-unpick]");
+      if (unpick) { toggleCustomSkill(unpick.dataset.unpick); return; }
+      const btn=e.target.closest(".build[data-id]"); if (!btn) return;
+      state.selected=btn.dataset.id; state.collapsed=true; state.priority=currentSkills().filter(Boolean);
+      if (!state.selected.startsWith("custom:")) applyOfficial(state.selected);
+      renderBuilds(); renderBonds(); refreshSummary();
+    });
+    $("builds").addEventListener("input",(e)=>{
+      if (e.target.id!=="customName") return;
+      const row=currentCustom(); if (!row) return;
+      row.name = e.target.value;
+    });
+    $("builds").addEventListener("keydown",(e)=>{
+      if (e.target.id==="customName" && e.key==="Enter") { e.preventDefault(); e.target.blur(); }
+    });
+    $("builds").addEventListener("focusout",(e)=>{
+      if (e.target.id!=="customName") return;
+      const row=currentCustom(); if (!row) return;
+      row.name = e.target.value.trim() || "自定义";
+      if (e.target.value.trim()!==e.target.value) e.target.value=row.name;
+      toast("已保存策略名（沙盒）");
+    });
+    $("btnBackBuilds").addEventListener("click",()=>{ state.collapsed=false; renderBuilds(); });
+    $("btnAddCustom").addEventListener("click",()=>{
+      const row=state.custom[0] || {id:"custom:1", name:"自定义", skills:[]};
+      if (!state.custom.includes(row)) state.custom=[row];
+      state.selected=row.id; state.collapsed=true; state.priority=row.skills.slice();
+      renderBuilds(); refreshSummary();
+    });
+    $("skillRank").addEventListener("change",(e)=>{
+      const sel=e.target.closest("[data-route]"); if (!sel) return;
+      state.routes[sel.dataset.route]=sel.value;
+    });
+    $("skillRank").addEventListener("click",(e)=>{
+      const btn=e.target.closest("[data-move]"); if (!btn || btn.disabled) return;
+      const card=btn.closest(".rank-card"); if (!card) return;
+      movePriority(card.dataset.code, Number(btn.dataset.move));
+    });
+    $("skillRank").addEventListener("keydown",(e)=>{
+      if (e.target.closest("select")) return;
+      const card=e.target.closest(".rank-card"); if (!card) return;
+      if (e.key==="ArrowUp") { e.preventDefault(); movePriority(card.dataset.code, -1); }
+      if (e.key==="ArrowDown") { e.preventDefault(); movePriority(card.dataset.code, 1); }
+    });
+    $("skillGrid").addEventListener("click",(e)=>{
+      const btn=e.target.closest("[data-skill]"); if (!btn) return;
+      toggleCustomSkill(btn.dataset.skill);
+    });
+    $("bonds").addEventListener("click",(e)=>{
+      if (e.target.closest("#btnSaveBonds")) { state.bondSaved=true; renderBonds(); return; }
+      if (e.target.closest("#btnEditBonds")) { state.bondSaved=false; renderBonds(); return; }
+      const attr=e.target.closest("[data-attr]"); if (attr) { const id=attr.dataset.attr; if (state.attr.has(id)) state.attr.delete(id); else state.attr.add(id); renderBonds(); return; }
+      const pack=e.target.closest("[data-pack]"); if (pack) { const id=pack.dataset.pack; if (state.adv.includes(id)) { state.adv=state.adv.filter((item)=>item!==id); } else { state.adv=[...state.adv,id]; } state.advDraft=state.adv.slice(); renderBonds(); return; }
+      const chip=e.target.closest("[data-bond]"); if (!chip) return;
+      const setName=chip.dataset.bondSet, name=chip.dataset.bond;
+      if (state[setName].has(name)) state[setName].delete(name); else state[setName].add(name); renderBonds();
+    });
+    $("bonds").addEventListener("click",(e)=>{
+      const advMove=e.target.closest("[data-adv-move]"); if (!advMove) return;
+      const i=state.adv.indexOf(advMove.dataset.advId), j=i+Number(advMove.dataset.advMove);
+      if (i<0 || j<0 || j>=state.adv.length) return;
+      [state.adv[i],state.adv[j]]=[state.adv[j],state.adv[i]];
+      state.advDraft=state.adv.slice(); renderBonds();
+    });
+    $("negatives").addEventListener("change",(e)=>{ const box=e.target.closest("input[data-neg]"); if (!box) return; if (box.checked) state.negative.add(box.dataset.neg); else state.negative.delete(box.dataset.neg); });
+    $("wizKind").addEventListener("click",(e)=>{
+      const btn=e.target.closest("[data-kind]"); if (!btn) return;
+      state.wizKind=btn.dataset.kind;
+      if (state.wizKind==="solo") state.mode="solo";
+      else if (!["lead","follow","hitch"].includes(state.mode)) state.mode=state.wizTeam;
+      renderWizard();
+    });
+    $("wizTeamPane").addEventListener("click",(e)=>{
+      const btn=e.target.closest("[data-team]"); if (!btn) return;
+      state.wizTeam=btn.dataset.team; state.mode=state.wizTeam; renderWizard();
+    });
+    $("wizCancel").addEventListener("click",()=>setScene(state.wizardReturnScene||"farm"));
+    $("wizApply").addEventListener("click",()=>{
+      state.mode = state.wizKind==="solo" ? "solo" : state.wizTeam;
+      setScene(state.mode==="solo"?"farm":state.mode); toast("已进入看板（不点火）");
+    });
+    $("btnFollow").addEventListener("click",()=>setScene("follow"));
+    $("btnBackHitch").addEventListener("click",()=>setScene("hitch"));
+    $("followPairForm").addEventListener("submit",(e)=>{
+      e.preventDefault();
+      state.teamRules.follow.pairCode=$("followPairCode").value.trim().slice(0,24);
+      renderTeamRules(); toast(state.teamRules.follow.pairCode?"配对信息已保存到本机":"配对信息已清空");
+    });
+    document.querySelectorAll("[data-team-rules]").forEach((root)=>{
+      const mode=root.dataset.teamRules;
+      root.addEventListener("click",(e)=>{
+        const step=e.target.closest("[data-team-cycle-step]");
+        if (!step) return;
+        state.teamRules[mode].cycle=Math.max(0,Math.min(999,state.teamRules[mode].cycle+Number(step.dataset.teamCycleStep)));
+        renderTeamRules(); refreshSummary(); toast("接管预案已保存到本机");
+      });
+      root.addEventListener("change",(e)=>{
+        const input=e.target.closest("[data-team-cycle-input]");
+        const control=e.target.closest("[data-team-rule]");
+        if (input) state.teamRules[mode].cycle=normalizeTeamCycle(input.value);
+        if (control) state.teamRules[mode][control.dataset.teamRule]=control.dataset.teamRule==="recoveryHours"?Number(control.value):control.value;
+        renderTeamRules(); refreshSummary(); toast("接管预案已保存到本机");
+      });
+      root.addEventListener("keydown",(e)=>{
+        if (e.key==="Enter" && e.target.matches("[data-team-cycle-input]")) { e.preventDefault(); e.target.blur(); }
+      });
+      root.querySelector("[data-team-cycle-input]").addEventListener("focus",(e)=>{ if (state.teamRules[mode].cycle===0) e.target.value=""; else e.target.select(); });
+    });
+    function openWizard() { state.wizardReturnScene=state.scene; state.wizKind=state.mode==="solo"?"solo":"team"; if (state.mode!=="solo") state.wizTeam=state.mode; setScene("wizard"); }
+    $("btnSwitchMode").addEventListener("click",openWizard);
+    $("btnMore").addEventListener("click",()=>setDrawer(!state.drawer));
+    $("drawerBackdrop").addEventListener("click",()=>setDrawer(false));
+    $("btnStart").addEventListener("click",()=>{
+      if (state.scene==="hitch") return;
+      const n = currentSkills().filter(Boolean).length;
+      if (!n) {
+        $("startErr").textContent = "还没选技能，先点自定义或一个流派";
+        $("startErr").classList.add("show");
+        const cell = $("skillGrid").querySelector(".skill-cell") || $("btnAddCustom");
+        if (cell && !cell.classList.contains("hidden")) cell.focus();
+        return;
+      }
+      $("startErr").classList.remove("show");
+    });
+    $("btnWizard").addEventListener("click",openWizard);
+    $("btnTheme").addEventListener("click",()=>{
+      state.theme=state.theme==="dark"?"light":"dark";
+      $("scene-app").dataset.theme=state.theme;
+      $("btnTheme").textContent=state.theme==="dark"?"浅色":"深色";
+      $("btnTheme").setAttribute("aria-pressed", state.theme==="dark" ? "true" : "false");
+    });
+    document.addEventListener("keydown",(e)=>{
+      if (e.key==="Escape") {
+        if (state.modal) { closeModal(); renderPrestige(); return; }
+        if (state.drawer) { setDrawer(false); return; }
+      }
+      if (state.modal && (e.key==="Enter" || e.key===" ") && e.target.closest("[data-fac]") && !e.target.closest("button")) {
+        e.preventDefault();
+        e.target.closest("[data-fac]").click();
+        return;
+      }
+      const trapRoot = state.modal ? $("modalSheet") : (state.drawer ? $("drawer") : null);
+      if (trapRoot && e.key==="Tab") {
+        const nodes = [...trapRoot.querySelectorAll("button, input, select, [tabindex]:not([tabindex='-1'])")].filter((el)=>!el.disabled && el.offsetParent!==null);
+        if (!nodes.length) return;
+        const first = nodes[0], last = nodes[nodes.length-1];
+        if (e.shiftKey && document.activeElement===first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement===last) { e.preventDefault(); first.focus(); }
+      }
+    });
+    renderChapterStage(); recommendChallenges(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
+    setScene("farm");
+  </script>
+    <script type="module" src="./src/main.ts"></script>
+</body>
+</html>

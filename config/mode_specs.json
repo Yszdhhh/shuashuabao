@@ -1,0 +1,190 @@
+{
+  "schema_version": 1,
+  "notes": "只读 ModeSpec。live_enabled=false 的模式不得产生点击。桌面可启动 normal_farm、follow_team、lobby_hitch；lab 走 tools/lab_run.py。",
+  "modes": {
+    "normal_farm": {
+      "id": "normal_farm",
+      "label": "自己刷图",
+      "live_enabled": true,
+      "desktop_start": true,
+      "flow": "NormalFarmFlow",
+      "visible_settings": [
+        "stage_targets",
+        "auto_reputation",
+        "reputation_type",
+        "reputation_level",
+        "skills",
+        "cards",
+        "treasure_allow_negative",
+        "auto_secret_realm",
+        "dry_run"
+      ],
+      "hidden_defaults": {
+        "game_mode": 0,
+        "auto_create_room": true
+      },
+      "forbidden_actions": [],
+      "budgets": {
+        "round_timeout_s": 3600
+      },
+      "evidence_status": "live_partial",
+      "notes": "现有 Mediator L0+L1。本 Flow 只文档化阶段，不替代 mediator。"
+    },
+    "follow_team": {
+      "id": "follow_team",
+      "label": "跟车",
+      "live_enabled": true,
+      "desktop_start": true,
+      "flow": "FollowTeamFlow",
+      "visible_settings": [
+        "follow_cycle_num",
+        "follow_after_room",
+        "follow_pair_code",
+        "dry_run"
+      ],
+      "hidden_defaults": {
+        "game_mode": 0,
+        "auto_create_room": false,
+        "new_room_every_times": false
+      },
+      "forbidden_actions": [
+        "CreateRoom-open",
+        "CreateRoom-confirm",
+        "map_create_room",
+        "RoomStart",
+        "color_fallback",
+        "quick_join",
+        "quick_match"
+      ],
+      "budgets": {
+        "wait_room_start_s": 3600
+      },
+      "evidence_status": "skeleton",
+      "notes": "已在房等队长开局。不创房、不点房间开始。缺：队长已开/掉线/回房真机链。"
+    },
+    "gambling_wood": {
+      "id": "gambling_wood",
+      "label": "赌木",
+      "live_enabled": false,
+      "desktop_start": false,
+      "flow": "GamblingWoodFlow",
+      "visible_settings": [
+        "stage_targets",
+        "treasure_num"
+      ],
+      "hidden_defaults": {
+        "game_mode": 0,
+        "auto_create_room": true,
+        "treasure_num": 1,
+        "auto_gambling_time": 0
+      },
+      "forbidden_actions": [
+        "color_fallback"
+      ],
+      "budgets": {
+        "first_treasure_refreshes": 3,
+        "round_timeout_s": 180
+      },
+      "evidence_status": "skeleton",
+      "notes": "首个宝物判定后重开。词典无「赌木」卡名；auto_gambling_time 未接线。EX 必拿已有 must_take，不是赌木闭环。"
+    },
+    "raid_wait": {
+      "id": "raid_wait",
+      "label": "站团本",
+      "live_enabled": false,
+      "desktop_start": false,
+      "flow": "RaidWaitFlow",
+      "visible_settings": [
+        "dry_run"
+      ],
+      "hidden_defaults": {
+        "game_mode": 0,
+        "auto_create_room": false,
+        "auto_secret_realm": false,
+        "find_longzhu_in_game": false
+      },
+      "forbidden_actions": [
+        "longzhu_entry",
+        "color_fallback",
+        "quick_join",
+        "quick_match"
+      ],
+      "budgets": {
+        "wait_s_min": 14400,
+        "wait_s_max": 28800,
+        "click_budget": 20
+      },
+      "evidence_status": "skeleton",
+      "notes": "4–8h 等待。缺「兑换魔团本」入口锚点。LONGZHU 保持 Fail-Closed。"
+    },
+    "lobby_hitch": {
+      "id": "lobby_hitch",
+      "label": "大厅找房蹭车",
+      "live_enabled": true,
+      "desktop_start": true,
+      "flow": "LobbyHitchFlow",
+      "visible_settings": [
+        "hitch_stage_prefix",
+        "hitch_cycle_num",
+        "hitch_after_goal",
+        "skip_password_rooms",
+        "refresh_s",
+        "never_quick_join",
+        "hitch_reject_list",
+        "dry_run"
+      ],
+      "hidden_defaults": {
+        "game_mode": 0,
+        "auto_create_room": false,
+        "skip_password_rooms": true,
+        "never_quick_join": true,
+        "hitch_reject_list": {
+          "room_names": [],
+          "hosts": [],
+          "maps": []
+        }
+      },
+      "forbidden_actions": [
+        "color_fallback",
+        "quick_join",
+        "quick_match",
+        "quick_join_room",
+        "room_start.fallback",
+        "map_create_room.fallback",
+        "CreateRoom-open",
+        "CreateRoom-confirm",
+        "map_create_room",
+        "RoomStart"
+      ],
+      "budgets": {
+        "search_timeout_s": 120,
+        "join_attempts": 3,
+        "refresh_s_min": 3,
+        "refresh_s_max": 4,
+        "hitch_stage_prefix_values": [
+          3,
+          4
+        ],
+        "mainline_retry_s": 120,
+        "stop_mainline_at": "5-5"
+      },
+      "evidence_status": "video_detail_no_click",
+      "notes": "详细录像 20260814：搜3/4、满房只取消、准备≠开始、进局压力转移、主线+四挑战、5-5后停开主线、局末传家宝、打完回列表看房主。hitch_reject_list 预留反选（房间名/房主/地图）默认空，不接 UI。当前 live_enabled=true 且 desktop_start=true；C4 仍禁止颜色兜底与快速加入。"
+    },
+    "lab": {
+      "id": "lab",
+      "label": "实验室",
+      "live_enabled": true,
+      "desktop_start": false,
+      "flow": "LabFlow",
+      "visible_settings": [],
+      "hidden_defaults": {
+        "lab_focus": "skill,reenter"
+      },
+      "forbidden_actions": [],
+      "budgets": {},
+      "evidence_status": "live_cli",
+      "notes": "入口只有 tools/lab_run.py。桌面不得启动。lab_focus 只存在内存 overlay，不得写入 default_settings。"
+    }
+  }
+}

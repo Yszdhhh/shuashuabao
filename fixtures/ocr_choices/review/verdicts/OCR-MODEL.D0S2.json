@@ -1,0 +1,284 @@
+{
+ "verdicts": [
+  {
+   "confidence": 1,
+   "text": "杀敌加成",
+   "note": "full card name",
+   "is_card_name": true,
+   "id": "d0_a_002161_ep043_s1"
+  },
+  {
+   "id": "d0_a_002161_ep043_s2",
+   "is_card_name": false,
+   "confidence": 1,
+   "note": "contains parens (小)",
+   "text": "杀敌(小)"
+  },
+  {
+   "is_card_name": true,
+   "confidence": 1,
+   "note": "full card name",
+   "text": "亡灵天灾",
+   "id": "d0_a_002173_ep044_s1"
+  },
+  {
+   "note": "stat text with numbers and plus sign",
+   "text": "攻击力+50(+5)",
+   "confidence": 1,
+   "id": "d0_a_002173_ep044_s2",
+   "is_card_name": false
+  },
+  {
+   "id": "d0_a_002186_ep045_s1",
+   "is_card_name": true,
+   "note": "full card name",
+   "text": "杀敌加成",
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "is_card_name": false,
+   "note": "contains parens (小)",
+   "text": "杀敌(小)",
+   "id": "d0_a_002186_ep045_s2"
+  },
+  {
+   "confidence": 0.95,
+   "is_card_name": false,
+   "text": "亡灵",
+   "note": "text clipped at right",
+   "id": "d0_a_002199_ep046_s1"
+  },
+  {
+   "id": "d0_a_002199_ep046_s2",
+   "note": "stat text with numbers and plus sign",
+   "is_card_name": false,
+   "text": "攻击力+50(+5)",
+   "confidence": 1
+  },
+  {
+   "confidence": 1,
+   "id": "d0_a_002212_ep047_s1",
+   "is_card_name": true,
+   "note": "full card name",
+   "text": "杀敌加成"
+  },
+  {
+   "text": "杀敌(小)",
+   "confidence": 1,
+   "is_card_name": false,
+   "id": "d0_a_002212_ep047_s2",
+   "note": "contains parens (小)"
+  },
+  {
+   "text": "神秘戒指",
+   "id": "d0_a_002225_ep048_s0",
+   "note": "full card name",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "note": "full card name",
+   "is_card_name": true,
+   "confidence": 1,
+   "id": "d0_a_002225_ep048_s2",
+   "text": "力量之源"
+  },
+  {
+   "text": "杀敌(小)",
+   "confidence": 1,
+   "id": "d0_a_002238_ep049_s2",
+   "is_card_name": false,
+   "note": "contains parens (小)"
+  },
+  {
+   "note": "full card name",
+   "confidence": 1,
+   "id": "d0_a_002250_ep050_s0",
+   "text": "神秘戒指",
+   "is_card_name": true
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_002250_ep050_s2",
+   "note": "full card name",
+   "text": "力量之源"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_002263_ep051_s1",
+   "text": "杀敌加成",
+   "note": "full card name"
+  },
+  {
+   "id": "d0_a_002263_ep051_s2",
+   "text": "杀敌(小)",
+   "confidence": 1,
+   "note": "contains parens (小)",
+   "is_card_name": false
+  },
+  {
+   "confidence": 1,
+   "id": "d0_a_002573_ep052_s1",
+   "text": "杀敌加成",
+   "note": "full card name",
+   "is_card_name": true
+  },
+  {
+   "text": "杀敌(小)",
+   "id": "d0_a_002573_ep052_s2",
+   "confidence": 1,
+   "is_card_name": false,
+   "note": "contains parens (小)"
+  },
+  {
+   "is_card_name": false,
+   "note": "contains NEW badge",
+   "text": "NEW",
+   "confidence": 1,
+   "id": "d0_a_002610_ep053_s1"
+  },
+  {
+   "note": "full card name",
+   "text": "爆炸箭矢",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_002610_ep053_s2"
+  },
+  {
+   "id": "d0_a_002657_ep056_s0",
+   "text": "R",
+   "note": "rarity badge fragment",
+   "is_card_name": false,
+   "confidence": 1
+  },
+  {
+   "text": "龙族",
+   "note": "full card name",
+   "id": "d0_a_002657_ep056_s2",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "text": "生命值+100(+10)",
+   "note": "stat text with numbers and plus sign",
+   "confidence": 1,
+   "id": "d0_a_002669_ep057_s0",
+   "is_card_name": false
+  },
+  {
+   "id": "d0_a_002669_ep057_s2",
+   "is_card_name": true,
+   "note": "full card name",
+   "text": "龙族",
+   "confidence": 1
+  },
+  {
+   "is_card_name": false,
+   "id": "d0_a_002706_ep059_s1",
+   "confidence": 1,
+   "text": "金币+5000",
+   "note": "stat text with numbers and plus sign"
+  },
+  {
+   "text": "亡灵天灾",
+   "confidence": 1,
+   "is_card_name": true,
+   "id": "d0_a_002706_ep059_s2",
+   "note": "full card name"
+  },
+  {
+   "note": "full card name",
+   "confidence": 1,
+   "id": "d0_a_002719_ep060_s0",
+   "is_card_name": true,
+   "text": "龙族"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "full card name",
+   "text": "利刃",
+   "id": "d0_a_002719_ep060_s2"
+  },
+  {
+   "confidence": 1,
+   "is_card_name": true,
+   "note": "full card name",
+   "id": "d0_a_002746_ep061_s0",
+   "text": "射手姿态"
+  },
+  {
+   "confidence": 1,
+   "id": "d0_a_002746_ep061_s1",
+   "is_card_name": true,
+   "text": "利刃",
+   "note": "full card name"
+  },
+  {
+   "note": "button or status label",
+   "id": "d0_b_000103_ep062_s0",
+   "confidence": 1,
+   "text": "禁用",
+   "is_card_name": false
+  },
+  {
+   "text": "NEW",
+   "note": "contains NEW badge",
+   "id": "d0_b_000103_ep062_s1",
+   "confidence": 1,
+   "is_card_name": false
+  },
+  {
+   "id": "d0_b_000138_ep064_s1",
+   "confidence": 1,
+   "is_card_name": false,
+   "text": "NEW",
+   "note": "contains NEW badge"
+  },
+  {
+   "id": "d0_b_000182_ep065_s2",
+   "note": "full card name",
+   "text": "刷新券",
+   "confidence": 1,
+   "is_card_name": true
+  },
+  {
+   "id": "d0_b_000452_ep071_s0",
+   "text": "痛苦女王",
+   "note": "full card name",
+   "is_card_name": true,
+   "confidence": 1
+  },
+  {
+   "note": "rarity badge fragment",
+   "id": "d0_b_000452_ep071_s1",
+   "is_card_name": false,
+   "confidence": 1,
+   "text": "S"
+  },
+  {
+   "is_card_name": true,
+   "text": "沙王",
+   "note": "full card name",
+   "confidence": 1,
+   "id": "d0_b_000452_ep071_s2"
+  },
+  {
+   "confidence": 1,
+   "note": "full card name",
+   "text": "杀敌敏捷",
+   "is_card_name": true,
+   "id": "d0_b_000474_ep072_s0"
+  },
+  {
+   "confidence": 1,
+   "text": "爆炸箭矢",
+   "id": "d0_b_000520_ep073_s0",
+   "is_card_name": true,
+   "note": "full card name"
+  }
+ ]
+}

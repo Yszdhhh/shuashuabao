@@ -1,0 +1,3108 @@
+[
+  {
+    "id": "rec1_ingame_boss_20260809_t_015s_技能面板_giveUp证据",
+    "kind": "skill",
+    "session": "rec1_ingame_boss_20260809",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec1_ingame_boss_20260809_t_015s_技能面板_giveUp证据.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "次级箭",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2788,
+            0.172,
+            0.3763,
+            0.228
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "焦点",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4269,
+            0.176,
+            0.5662,
+            0.232
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "箭矢齐射",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5738,
+            0.172,
+            0.7138,
+            0.228
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_063s_技能面板",
+    "kind": "skill",
+    "session": "rec1_ingame_boss_20260809",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec1_ingame_boss_20260809_t_063s_技能面板.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "光法",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.3444,
+            0.16,
+            0.5369,
+            0.216
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "潮汐猎人",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.55,
+            0.164,
+            0.705,
+            0.22
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_234s_技能面板",
+    "kind": "skill",
+    "session": "rec1_ingame_boss_20260809",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec1_ingame_boss_20260809_t_234s_技能面板.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "次级增伤",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2118,
+            0.2,
+            0.3837,
+            0.256
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "地震",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4225,
+            0.184,
+            0.5625,
+            0.24
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "射线增幅",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5731,
+            0.176,
+            0.7931,
+            0.232
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "live_postgame_20260808_live_skill_choice",
+    "kind": "skill",
+    "session": "live_postgame_20260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/live_postgame_20260808_live_skill_choice.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "射线增幅",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.28,
+            0.18,
+            0.4207,
+            0.236
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "奥数激光",
+        "truth_status": "alias_covered",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4332,
+            0.172,
+            0.5657,
+            0.228
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "剑气",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5813,
+            0.184,
+            0.6857,
+            0.24
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "reborn_wow_screens_20260806_skill_choice_3",
+    "kind": "skill",
+    "session": "reborn_wow_screens_20260806",
+    "resolution": [
+      1610,
+      935
+    ],
+    "sheet": "baselines/O1_contact_sheet/reborn_wow_screens_20260806_skill_choice_3.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "陨石",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2849,
+            0.208,
+            0.3948,
+            0.264
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "次级箭",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4352,
+            0.196,
+            0.5624,
+            0.252
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "地震",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6264,
+            0.196,
+            0.7041,
+            0.252
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_036s_羁绊面板",
+    "kind": "bond",
+    "session": "rec1_ingame_boss_20260809",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec1_ingame_boss_20260809_t_036s_羁绊面板.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "乱世三国",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2725,
+            0.268,
+            0.39,
+            0.324
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "体魄",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.445,
+            0.272,
+            0.5512,
+            0.328
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "攻击提升",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6162,
+            0.268,
+            0.7306,
+            0.324
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_417s_转折点",
+    "kind": "bond",
+    "session": "rec1_ingame_boss_20260809",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec1_ingame_boss_20260809_t_417s_转折点.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "修仙",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.3063,
+            0.1778,
+            0.3513,
+            0.2278
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "魔术",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4775,
+            0.1667,
+            0.5288,
+            0.2278
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "封神",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6562,
+            0.1778,
+            0.695,
+            0.2278
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "reborn_wow_screens_20260806_bond_choice_3",
+    "kind": "bond",
+    "session": "reborn_wow_screens_20260806",
+    "resolution": [
+      1595,
+      927
+    ],
+    "sheet": "baselines/O1_contact_sheet/reborn_wow_screens_20260806_bond_choice_3.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "智力祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.1838,
+            0.286,
+            0.3512,
+            0.342
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "敏捷祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4867,
+            0.286,
+            0.6014,
+            0.342
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "力量祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6089,
+            0.286,
+            0.8068,
+            0.342
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_393s_技能面板_龙珠首现",
+    "kind": "treasure",
+    "session": "rec1_ingame_boss_20260809",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec1_ingame_boss_20260809_t_393s_技能面板_龙珠首现.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "奥术神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2118,
+            0.2,
+            0.4175,
+            0.256
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "六星球",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4075,
+            0.184,
+            0.6188,
+            0.24
+          ],
+          "progress": [
+            0.4219,
+            0.338,
+            0.5294,
+            0.374
+          ]
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "物理伤害",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5831,
+            0.192,
+            0.7918,
+            0.248
+          ],
+          "progress": [
+            0.6199,
+            0.342,
+            0.7662,
+            0.378
+          ]
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_423s_持久面板起点",
+    "kind": "treasure",
+    "session": "rec1_ingame_boss_20260809",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec1_ingame_boss_20260809_t_423s_持久面板起点.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "攻坚",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.28,
+            0.196,
+            0.4163,
+            0.252
+          ],
+          "progress": [
+            0.2544,
+            0.334,
+            0.3806,
+            0.37
+          ]
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "四星球",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4288,
+            0.184,
+            0.5675,
+            0.24
+          ],
+          "progress": [
+            0.4225,
+            0.342,
+            0.53,
+            0.378
+          ]
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "奥术神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5825,
+            0.188,
+            0.7163,
+            0.244
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_507s_持久面板中段",
+    "kind": "treasure",
+    "session": "rec1_ingame_boss_20260809",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec1_ingame_boss_20260809_t_507s_持久面板中段.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "攻坚",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.28,
+            0.2,
+            0.38,
+            0.256
+          ],
+          "progress": [
+            0.3219,
+            0.338,
+            0.3806,
+            0.374
+          ]
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "四星球",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4331,
+            0.184,
+            0.5244,
+            0.24
+          ],
+          "progress": [
+            0.47,
+            0.338,
+            0.5294,
+            0.374
+          ]
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "奥术神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5806,
+            0.196,
+            0.715,
+            0.252
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec1_ingame_boss_20260809_t_630s_结尾",
+    "kind": "treasure",
+    "session": "rec1_ingame_boss_20260809",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec1_ingame_boss_20260809_t_630s_结尾.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "攻坚",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2963,
+            0.188,
+            0.4169,
+            0.244
+          ],
+          "progress": [
+            0.3218,
+            0.334,
+            0.3806,
+            0.37
+          ]
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "四星球",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.48,
+            0.192,
+            0.5663,
+            0.248
+          ],
+          "progress": [
+            0.47,
+            0.338,
+            0.5294,
+            0.374
+          ]
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "奥术神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5806,
+            0.196,
+            0.715,
+            0.252
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "reborn_wow_screens_20260806_treasure_choice_3",
+    "kind": "treasure",
+    "session": "reborn_wow_screens_20260806",
+    "resolution": [
+      1609,
+      931
+    ],
+    "sheet": "baselines/O1_contact_sheet/reborn_wow_screens_20260806_treasure_choice_3.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "贪婪献祭",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2814,
+            0.22,
+            0.4131,
+            0.276
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "卡牌大师",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4032,
+            0.212,
+            0.602,
+            0.268
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "双倍神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5747,
+            0.216,
+            0.7095,
+            0.272
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "dragonball_webp_20260807_image-c875a13d94b45218",
+    "kind": "treasure",
+    "session": "dragonball_webp_20260807",
+    "resolution": [
+      1568,
+      911
+    ],
+    "sheet": "baselines/O1_contact_sheet/dragonball_webp_20260807_image-c875a13d94b45218.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "奥术神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.284,
+            0.212,
+            0.4166,
+            0.268
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "六星球",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4071,
+            0.208,
+            0.5907,
+            0.264
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "物理伤害",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5735,
+            0.212,
+            0.7431,
+            0.268
+          ],
+          "progress": [
+            0.5748,
+            0.358,
+            0.7661,
+            0.394
+          ]
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "dragonball_webp_20260807_image-ef3f2be8fc5d1103",
+    "kind": "treasure",
+    "session": "dragonball_webp_20260807",
+    "resolution": [
+      1568,
+      906
+    ],
+    "sheet": "baselines/O1_contact_sheet/dragonball_webp_20260807_image-ef3f2be8fc5d1103.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "攻坚",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2329,
+            0.224,
+            0.4134,
+            0.28
+          ],
+          "progress": [
+            0.2445,
+            0.35,
+            0.3765,
+            0.386
+          ]
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "四星球",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4046,
+            0.204,
+            0.5895,
+            0.26
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "奥术神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5793,
+            0.204,
+            0.7126,
+            0.26
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec3_260810_f_008_skill_corrected",
+    "kind": "skill",
+    "session": "rec3_260810",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec3_260810_f_008_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "箭矢连发",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2851,
+            0.179,
+            0.41,
+            0.235
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "电磁网",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.435,
+            0.167,
+            0.5744,
+            0.223
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "冰霜新星",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5693,
+            0.175,
+            0.7143,
+            0.231
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec3_260810_f_015_bond_corrected",
+    "kind": "bond",
+    "session": "rec3_260810",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec3_260810_f_015_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "敏捷祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2287,
+            0.28,
+            0.3556,
+            0.336
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "智力祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4412,
+            0.268,
+            0.565,
+            0.324
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "力量祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6138,
+            0.272,
+            0.7369,
+            0.328
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec3_260810_f_021_treasure_corrected",
+    "kind": "treasure",
+    "session": "rec3_260810",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec3_260810_f_021_treasure_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "奥术神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.28,
+            0.192,
+            0.4174,
+            0.248
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "极速神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4331,
+            0.184,
+            0.5662,
+            0.24
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "赏金神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5825,
+            0.192,
+            0.715,
+            0.248
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec3_260810_f_046_treasure_corrected",
+    "kind": "treasure",
+    "session": "rec3_260810",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec3_260810_f_046_treasure_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "奥术神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2825,
+            0.192,
+            0.4174,
+            0.248
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "极速神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4319,
+            0.184,
+            0.6181,
+            0.24
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "赏金神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5812,
+            0.196,
+            0.7156,
+            0.252
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_010_skill_corrected",
+    "kind": "skill",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_010_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "奥术增幅β",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.1743,
+            0.176,
+            0.3875,
+            0.232
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "箭矢增幅",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.3744,
+            0.176,
+            0.5656,
+            0.232
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "箭矢齐射",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6175,
+            0.176,
+            0.6931,
+            0.232
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_024_skill_corrected",
+    "kind": "skill",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_024_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "天雷",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.1937,
+            0.196,
+            0.4244,
+            0.252
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "焦点",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.3919,
+            0.176,
+            0.6081,
+            0.232
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "强力箭矢",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5775,
+            0.204,
+            0.7138,
+            0.26
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_027_skill_corrected",
+    "kind": "skill",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_027_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "飓风",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2782,
+            0.176,
+            0.4244,
+            0.232
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "陨石",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4356,
+            0.176,
+            0.5731,
+            0.232
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "电磁网",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5793,
+            0.168,
+            0.7087,
+            0.224
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_042_skill_corrected",
+    "kind": "skill",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_042_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "射线增幅",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2074,
+            0.196,
+            0.4206,
+            0.252
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "奥数激光",
+        "truth_status": "alias_covered",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4131,
+            0.172,
+            0.6081,
+            0.228
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "剑气",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.63,
+            0.172,
+            0.7125,
+            0.228
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_043_skill_corrected",
+    "kind": "skill",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_043_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "爆炸增伤",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2919,
+            0.172,
+            0.4225,
+            0.228
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "天雷",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4362,
+            0.18,
+            0.5669,
+            0.236
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "焦点爆破",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5775,
+            0.188,
+            0.7132,
+            0.244
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_044_skill_corrected",
+    "kind": "skill",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_044_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "飓风",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2526,
+            0.192,
+            0.4207,
+            0.248
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "次级箭",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.3888,
+            0.18,
+            0.5681,
+            0.236
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "调焦",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5725,
+            0.18,
+            0.7194,
+            0.236
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_045_skill_corrected",
+    "kind": "skill",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_045_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "爆炎箭",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.1906,
+            0.2,
+            0.4262,
+            0.256
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "奥术增幅α",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.3544,
+            0.184,
+            0.5869,
+            0.24
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "射线延续",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5769,
+            0.168,
+            0.8056,
+            0.224
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_083_skill_corrected",
+    "kind": "skill",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_083_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "闪电链",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.1937,
+            0.196,
+            0.4169,
+            0.252
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "飓风",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.3981,
+            0.174,
+            0.5663,
+            0.23
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "地震",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5775,
+            0.176,
+            0.7138,
+            0.232
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_174_skill_corrected",
+    "kind": "skill",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_174_skill_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "瓦解光线",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2819,
+            0.172,
+            0.4212,
+            0.228
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "射线增幅",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4313,
+            0.172,
+            0.575,
+            0.228
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "激光增幅",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6163,
+            0.168,
+            0.7119,
+            0.224
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_030_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_030_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "力量祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2494,
+            0.267,
+            0.3556,
+            0.323
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "敏捷祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4412,
+            0.271,
+            0.565,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "乱世三国",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6512,
+            0.275,
+            0.7875,
+            0.331
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_031_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_031_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "敏捷祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2775,
+            0.279,
+            0.3875,
+            0.335
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "法师奥义",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4444,
+            0.275,
+            0.5344,
+            0.331
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "法术威力",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6206,
+            0.271,
+            0.7325,
+            0.327
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_033_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_033_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "敏捷祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2287,
+            0.279,
+            0.3556,
+            0.335
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "藏宝图(三)",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4019,
+            0.271,
+            0.5831,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "箭矢扩散",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5731,
+            0.287,
+            0.6981,
+            0.343
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_034_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_034_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "敏捷祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2294,
+            0.271,
+            0.3556,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "经验多多",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4475,
+            0.275,
+            0.6319,
+            0.331
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "流星泪",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6131,
+            0.271,
+            0.7369,
+            0.327
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_035_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_035_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "敏捷祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2312,
+            0.267,
+            0.3556,
+            0.323
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "杀敌多多",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4162,
+            0.271,
+            0.5262,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "法术增幅",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6332,
+            0.283,
+            0.77,
+            0.339
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_039_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_039_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "法术威力",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.27,
+            0.275,
+            0.3919,
+            0.331
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "巨龙军团",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4419,
+            0.279,
+            0.5638,
+            0.335
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "法术增幅",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6138,
+            0.271,
+            0.7362,
+            0.327
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_041_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_041_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "敏捷提升",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2287,
+            0.287,
+            0.3687,
+            0.343
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "燃烧的远征",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4019,
+            0.271,
+            0.5325,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "气势",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6138,
+            0.279,
+            0.7362,
+            0.335
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_050_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_050_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "力量提升",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2756,
+            0.271,
+            0.39,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "金币猎人",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4463,
+            0.287,
+            0.5612,
+            0.343
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "魔法权杖",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6162,
+            0.275,
+            0.7338,
+            0.331
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_051_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_051_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "魔爆能量",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2488,
+            0.271,
+            0.3538,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "伯邑考",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4162,
+            0.279,
+            0.5825,
+            0.335
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "灵智",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5731,
+            0.283,
+            0.6875,
+            0.339
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_017_treasure_corrected",
+    "kind": "treasure",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_017_treasure_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "极速神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.1906,
+            0.196,
+            0.4175,
+            0.252
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "挑战杀手",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4075,
+            0.188,
+            0.5668,
+            0.244
+          ],
+          "progress": [
+            0.415,
+            0.342,
+            0.6131,
+            0.378
+          ]
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "属性神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5825,
+            0.188,
+            0.715,
+            0.244
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_018_treasure_corrected",
+    "kind": "treasure",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_018_treasure_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "百宝箱",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.1937,
+            0.2,
+            0.4162,
+            0.256
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "蛮舞者",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4332,
+            0.196,
+            0.5663,
+            0.252
+          ],
+          "progress": [
+            0.4138,
+            0.342,
+            0.5294,
+            0.378
+          ]
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "属性神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5831,
+            0.188,
+            0.7168,
+            0.244
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_020_treasure_corrected",
+    "kind": "treasure",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_020_treasure_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "经验(中)",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.28,
+            0.188,
+            0.42,
+            0.244
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "全能神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4338,
+            0.188,
+            0.5669,
+            0.244
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "属性神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.62,
+            0.184,
+            0.7162,
+            0.24
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_053_treasure_corrected",
+    "kind": "treasure",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_053_treasure_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "力之极",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2863,
+            0.188,
+            0.4038,
+            0.244
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "精英杀手",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.3956,
+            0.188,
+            0.5681,
+            0.244
+          ],
+          "progress": [
+            0.47,
+            0.338,
+            0.5294,
+            0.374
+          ]
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "控符大师",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6244,
+            0.188,
+            0.7875,
+            0.244
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_112_treasure_corrected",
+    "kind": "treasure",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_112_treasure_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "六星球",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2888,
+            0.184,
+            0.3713,
+            0.24
+          ],
+          "progress": [
+            0.3218,
+            0.342,
+            0.3806,
+            0.378
+          ]
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "智力提升",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4337,
+            0.18,
+            0.5669,
+            0.236
+          ],
+          "progress": [
+            0.47,
+            0.342,
+            0.5281,
+            0.378
+          ]
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "压制",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5831,
+            0.184,
+            0.7156,
+            0.24
+          ],
+          "progress": [
+            0.5806,
+            0.342,
+            0.7188,
+            0.378
+          ]
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_130_treasure_corrected",
+    "kind": "treasure",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_130_treasure_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "物理伤害",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.28,
+            0.196,
+            0.4174,
+            0.252
+          ],
+          "progress": [
+            0.2831,
+            0.338,
+            0.38,
+            0.374
+          ]
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "七星球",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.48,
+            0.188,
+            0.5676,
+            0.244
+          ],
+          "progress": [
+            0.47,
+            0.342,
+            0.5294,
+            0.378
+          ]
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "透支力量",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5812,
+            0.196,
+            0.7169,
+            0.252
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_162_treasure_corrected",
+    "kind": "treasure",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_162_treasure_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "属性神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.1843,
+            0.196,
+            0.4175,
+            0.252
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "暴怒神符",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.3875,
+            0.188,
+            0.5268,
+            0.244
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "五星球",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5831,
+            0.184,
+            0.7174,
+            0.24
+          ],
+          "progress": [
+            0.6194,
+            0.338,
+            0.6781,
+            0.374
+          ]
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_086_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_086_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2237,
+            0.271,
+            0.3544,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4144,
+            0.295,
+            0.51,
+            0.351
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6162,
+            0.2667,
+            0.6919,
+            0.3167
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_104_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_104_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.27,
+            0.271,
+            0.3919,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4401,
+            0.283,
+            0.5288,
+            0.339
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6138,
+            0.263,
+            0.7356,
+            0.319
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_159_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_159_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2106,
+            0.267,
+            0.3931,
+            0.323
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4412,
+            0.271,
+            0.5644,
+            0.327
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6513,
+            0.275,
+            0.7544,
+            0.331
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec5_260808_f_232_bond_corrected",
+    "kind": "bond",
+    "session": "rec5_260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec5_260808_f_232_bond_corrected.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2694,
+            0.287,
+            0.3512,
+            0.343
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4469,
+            0.275,
+            0.5619,
+            0.331
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "燃烧的远征",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.6162,
+            0.267,
+            0.7338,
+            0.323
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec7_short2_20260808_f_022_skill",
+    "kind": "skill",
+    "session": "rec7_short2_20260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec7_short2_20260808_f_022_skill.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "天雷",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.2594,
+            0.196,
+            0.4262,
+            0.252
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "焦点",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4606,
+            0.176,
+            0.5687,
+            0.232
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "次级增伤",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5725,
+            0.172,
+            0.7181,
+            0.228
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec7_short2_20260808_f_027_bond",
+    "kind": "bond",
+    "session": "rec7_short2_20260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec7_short2_20260808_f_027_bond.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": "力量祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.19,
+            0.268,
+            0.355,
+            0.324
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": "智力祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4069,
+            0.272,
+            0.5269,
+            0.328
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": "敏捷祝福",
+        "truth_status": "in_lexicon",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5838,
+            0.276,
+            0.7538,
+            0.332
+          ],
+          "progress": null
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec7_short2_20260808_f_033_treasure_3star",
+    "kind": "treasure",
+    "session": "rec7_short2_20260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec7_short2_20260808_f_033_treasure_3star.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.1937,
+            0.2,
+            0.4131,
+            0.256
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4044,
+            0.184,
+            0.5706,
+            0.24
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5781,
+            0.2,
+            0.7424,
+            0.256
+          ],
+          "progress": [
+            0.6199,
+            0.338,
+            0.7718,
+            0.374
+          ]
+        }
+      }
+    ],
+    "unverified_layout": false
+  },
+  {
+    "id": "rec7_short2_20260808_f_034_treasure_2star",
+    "kind": "treasure",
+    "session": "rec7_short2_20260808",
+    "resolution": [
+      1600,
+      900
+    ],
+    "sheet": "baselines/O1_contact_sheet/rec7_short2_20260808_f_034_treasure_2star.png",
+    "slots": [
+      {
+        "index": 0,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.28,
+            0.192,
+            0.4182,
+            0.248
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 1,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.4319,
+            0.188,
+            0.5662,
+            0.244
+          ],
+          "progress": null
+        }
+      },
+      {
+        "index": 2,
+        "canonical": null,
+        "truth_status": "unknown",
+        "layout_status": "verified",
+        "roi": {
+          "name": [
+            0.5831,
+            0.184,
+            0.715,
+            0.24
+          ],
+          "progress": [
+            0.62,
+            0.338,
+            0.6787,
+            0.374
+          ]
+        }
+      }
+    ],
+    "unverified_layout": false
+  }
+]

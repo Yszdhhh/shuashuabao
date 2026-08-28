@@ -1,0 +1,58 @@
+{
+  "templates_dir": "assets/Images/cards",
+  "count": 36,
+  "shortcodes": [
+    "baoji",
+    "chengzhang",
+    "dapao",
+    "dasheng",
+    "dashengcanqu",
+    "dashengtaozhuang",
+    "fs",
+    "genji",
+    "gongshen",
+    "gunfa",
+    "gushou",
+    "jj",
+    "liemoren",
+    "liliang",
+    "mfs",
+    "mingjie",
+    "qiji",
+    "shenfa",
+    "shengming",
+    "shougezhe",
+    "shufa",
+    "tanlan",
+    "tishu",
+    "tuluzhe",
+    "tz",
+    "xianzhen",
+    "xuemo",
+    "xueshi",
+    "yanmiezhe",
+    "yemanren",
+    "yihuo",
+    "zhanshen",
+    "zhanshu",
+    "zhili",
+    "zhiming",
+    "zhufu"
+  ],
+  "label_missing_for_template": [],
+  "template_missing_for_label": [],
+  "positive_frames": [
+    "fixtures/card_template_assertions/positives/bond_choice_3.png",
+    "fixtures/card_template_assertions/positives/bond_panel.png",
+    "fixtures/card_template_assertions/positives/treasure_panel.png"
+  ],
+  "negative_frames": [
+    "fixtures/card_template_assertions/negatives/black_frame.png",
+    "fixtures/card_template_assertions/negatives/idle_hud.png"
+  ],
+  "thresholds": {
+    "positive_min": 0.9,
+    "negative_max": 0.4
+  },
+  "notes": "Templates already tracked in git. Use these frames for bidirectional assert in validate_scenes.py. Do not include card border color in any NEW templates."
+}

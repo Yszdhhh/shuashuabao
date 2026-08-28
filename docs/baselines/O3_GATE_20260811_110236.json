@@ -1,0 +1,1530 @@
+{
+  "schema_version": 3,
+  "purpose": "O3 OCR 离线门禁重评（O1+D0 统一数据集，session 隔离）",
+  "generated_at": "2026-08-11T11:02:36",
+  "repo_head": {
+    "repo_head": "a0d75d8a2836519ee74da6901c24e639934e5a57",
+    "repo_branch": "codex/ocr-hybrid",
+    "repo_dirty": true
+  },
+  "models": {
+    "name": "PP-OCRv5_mobile_rec",
+    "subdir": "PP-OCRv5_mobile_rec_infer"
+  },
+  "model_manifest": {
+    "file": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\models\\ocr\\MODEL_MANIFEST.json",
+    "hash_gate": {
+      "passed": true,
+      "checks": [
+        {
+          "file": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\models\\ocr\\PP-OCRv5_mobile_rec_infer\\inference.json",
+          "expected_sha256": "24587345250C7332D0FC6F9A44E794D078CDAEB64C302FEF906F325619DE2569",
+          "expected_size_bytes": 217724,
+          "exists": true,
+          "actual_size_bytes": 217724,
+          "actual_sha256": "24587345250C7332D0FC6F9A44E794D078CDAEB64C302FEF906F325619DE2569",
+          "size_ok": true,
+          "hash_ok": true,
+          "passed": true
+        },
+        {
+          "file": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\models\\ocr\\PP-OCRv5_mobile_rec_infer\\inference.pdiparams",
+          "expected_sha256": "2460DA90875937C94DB97EBA74AE3D9E5D4C4C57C42F1F41531C09A26BCC771A",
+          "expected_size_bytes": 16458665,
+          "exists": true,
+          "actual_size_bytes": 16458665,
+          "actual_sha256": "2460DA90875937C94DB97EBA74AE3D9E5D4C4C57C42F1F41531C09A26BCC771A",
+          "size_ok": true,
+          "hash_ok": true,
+          "passed": true
+        },
+        {
+          "file": "C:\\Users\\10639\\Desktop\\🎮 影音游戏\\GameScript-Local\\models\\ocr\\PP-OCRv5_mobile_rec_infer\\inference.yml",
+          "expected_sha256": "5DFEB2777F6D0DB8177D8128A8ACFCF6E6276DC4AC73EA3BF0DC06D6A5E85D8E",
+          "expected_size_bytes": 148345,
+          "exists": true,
+          "actual_size_bytes": 148345,
+          "actual_sha256": "5DFEB2777F6D0DB8177D8128A8ACFCF6E6276DC4AC73EA3BF0DC06D6A5E85D8E",
+          "size_ok": true,
+          "hash_ok": true,
+          "passed": true
+        }
+      ],
+      "error": null
+    }
+  },
+  "split": {
+    "train": [
+      "rec1_ingame_boss_20260809",
+      "dragonball_webp_20260807",
+      "live_postgame_20260808",
+      "reborn_wow_screens_20260806",
+      "rec9_mijing_20260810",
+      "rec10_3normal_20260810"
+    ],
+    "val": [
+      "rec3_260810"
+    ],
+    "test": [
+      "rec5_260808",
+      "rec7_short2_20260808"
+    ]
+  },
+  "stats": {
+    "total_slots": 388,
+    "in_lexicon_slots": 387,
+    "unknown_slots": 1,
+    "source": {
+      "o1": 155,
+      "d0": 233
+    },
+    "sessions": [
+      "dragonball_webp_20260807",
+      "live_postgame_20260808",
+      "reborn_wow_screens_20260806",
+      "rec10_3normal_20260810",
+      "rec1_ingame_boss_20260809",
+      "rec3_260810",
+      "rec5_260808",
+      "rec7_short2_20260808",
+      "rec9_mijing_20260810"
+    ],
+    "negatives_total": 55,
+    "negatives_passed": 55
+  },
+  "metrics": {
+    "in_lexicon_slots": 387,
+    "unknown_slots": 1,
+    "top1_hits": 385,
+    "top1_accuracy": 0.9948,
+    "skill_recall": 1.0,
+    "skill_slots": 130,
+    "mis_normalization_count": 0,
+    "mis_normalization_samples": [],
+    "session_metrics": {
+      "dragonball_webp_20260807": {
+        "slots": 6,
+        "hits": 6,
+        "top1": 1.0,
+        "panels": 2,
+        "split": "train"
+      },
+      "live_postgame_20260808": {
+        "slots": 3,
+        "hits": 3,
+        "top1": 1.0,
+        "panels": 1,
+        "split": "train"
+      },
+      "reborn_wow_screens_20260806": {
+        "slots": 9,
+        "hits": 9,
+        "top1": 1.0,
+        "panels": 3,
+        "split": "train"
+      },
+      "rec10_3normal_20260810": {
+        "slots": 96,
+        "hits": 96,
+        "top1": 1.0,
+        "panels": 38,
+        "split": "train"
+      },
+      "rec1_ingame_boss_20260809": {
+        "slots": 26,
+        "hits": 26,
+        "top1": 1.0,
+        "panels": 9,
+        "split": "train"
+      },
+      "rec3_260810": {
+        "slots": 12,
+        "hits": 12,
+        "top1": 1.0,
+        "panels": 4,
+        "split": "val"
+      },
+      "rec5_260808": {
+        "slots": 86,
+        "hits": 84,
+        "top1": 0.9767,
+        "panels": 29,
+        "split": "test"
+      },
+      "rec7_short2_20260808": {
+        "slots": 12,
+        "hits": 12,
+        "top1": 1.0,
+        "panels": 4,
+        "split": "test"
+      },
+      "rec9_mijing_20260810": {
+        "slots": 137,
+        "hits": 137,
+        "top1": 1.0,
+        "panels": 54,
+        "split": "train"
+      }
+    },
+    "split_metrics": {
+      "test": {
+        "slots": 98,
+        "hits": 96,
+        "top1": 0.9796
+      },
+      "train": {
+        "slots": 277,
+        "hits": 277,
+        "top1": 1.0
+      },
+      "val": {
+        "slots": 12,
+        "hits": 12,
+        "top1": 1.0
+      }
+    },
+    "progress": {
+      "slots": 21,
+      "exact_correct": 0,
+      "extracted_correct": 20,
+      "accuracy": 0.0,
+      "extracted_accuracy": 0.9524,
+      "samples": [
+        {
+          "entry_id": "rec1_ingame_boss_20260809_t_393s_技能面板_龙珠首现",
+          "slot_index": 1,
+          "session": "rec1_ingame_boss_20260809",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec1_ingame_boss_20260809\\t_393s_技能面板_龙珠首现_slot1_progress.png",
+          "rec_text": "套装[0/7]",
+          "normalized": "套装[0/7]",
+          "extracted": "0/7",
+          "truth": "0/7",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec1_ingame_boss_20260809_t_393s_技能面板_龙珠首现",
+          "slot_index": 2,
+          "session": "rec1_ingame_boss_20260809",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec1_ingame_boss_20260809\\t_393s_技能面板_龙珠首现_slot2_progress.png",
+          "rec_text": "套装[0/2]",
+          "normalized": "套装[0/2]",
+          "extracted": "0/2",
+          "truth": "0/2",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec1_ingame_boss_20260809_t_423s_持久面板起点",
+          "slot_index": 0,
+          "session": "rec1_ingame_boss_20260809",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec1_ingame_boss_20260809\\t_423s_持久面板起点_slot0_progress.png",
+          "rec_text": "装[0/2]",
+          "normalized": "装[0/2]",
+          "extracted": "0/2",
+          "truth": "0/2",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec1_ingame_boss_20260809_t_423s_持久面板起点",
+          "slot_index": 1,
+          "session": "rec1_ingame_boss_20260809",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec1_ingame_boss_20260809\\t_423s_持久面板起点_slot1_progress.png",
+          "rec_text": "套装[1/7]",
+          "normalized": "套装[1/7]",
+          "extracted": "1/7",
+          "truth": "1/7",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec1_ingame_boss_20260809_t_507s_持久面板中段",
+          "slot_index": 0,
+          "session": "rec1_ingame_boss_20260809",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec1_ingame_boss_20260809\\t_507s_持久面板中段_slot0_progress.png",
+          "rec_text": "套装[0/2]",
+          "normalized": "套装[0/2]",
+          "extracted": "0/2",
+          "truth": "0/2",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec1_ingame_boss_20260809_t_507s_持久面板中段",
+          "slot_index": 1,
+          "session": "rec1_ingame_boss_20260809",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec1_ingame_boss_20260809\\t_507s_持久面板中段_slot1_progress.png",
+          "rec_text": "套装[17]",
+          "normalized": "套装[17]",
+          "extracted": null,
+          "truth": "1/7",
+          "exact": false,
+          "extracted_exact": false
+        },
+        {
+          "entry_id": "rec1_ingame_boss_20260809_t_630s_结尾",
+          "slot_index": 0,
+          "session": "rec1_ingame_boss_20260809",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec1_ingame_boss_20260809\\t_630s_结尾_slot0_progress.png",
+          "rec_text": "套装[0/2]",
+          "normalized": "套装[0/2]",
+          "extracted": "0/2",
+          "truth": "0/2",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec1_ingame_boss_20260809_t_630s_结尾",
+          "slot_index": 1,
+          "session": "rec1_ingame_boss_20260809",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec1_ingame_boss_20260809\\t_630s_结尾_slot1_progress.png",
+          "rec_text": "套装[1/7]",
+          "normalized": "套装[1/7]",
+          "extracted": "1/7",
+          "truth": "1/7",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "dragonball_webp_20260807_image-c875a13d94b45218",
+          "slot_index": 2,
+          "session": "dragonball_webp_20260807",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\dragonball_webp_20260807\\image-c875a13d94b45218_slot2_progress.png",
+          "rec_text": "套装[0/2]",
+          "normalized": "套装[0/2]",
+          "extracted": "0/2",
+          "truth": "0/2",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "dragonball_webp_20260807_image-ef3f2be8fc5d1103",
+          "slot_index": 0,
+          "session": "dragonball_webp_20260807",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\dragonball_webp_20260807\\image-ef3f2be8fc5d1103_slot0_progress.png",
+          "rec_text": " 套装[0/2]",
+          "normalized": "套装[0/2]",
+          "extracted": "0/2",
+          "truth": "0/2",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec5_260808_f_017_treasure_corrected",
+          "slot_index": 1,
+          "session": "rec5_260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec5_260808\\f_017_slot1_progress.png",
+          "rec_text": " 套装[0/3] 在接",
+          "normalized": "套装[0/3]在接",
+          "extracted": "0/3",
+          "truth": "0/3",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec5_260808_f_018_treasure_corrected",
+          "slot_index": 1,
+          "session": "rec5_260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec5_260808\\f_018_slot1_progress.png",
+          "rec_text": "套装[0/3]",
+          "normalized": "套装[0/3]",
+          "extracted": "0/3",
+          "truth": "0/3",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec5_260808_f_053_treasure_corrected",
+          "slot_index": 1,
+          "session": "rec5_260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec5_260808\\f_053_slot1_progress.png",
+          "rec_text": "套装[0/3]",
+          "normalized": "套装[0/3]",
+          "extracted": "0/3",
+          "truth": "0/3",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec5_260808_f_112_treasure_corrected",
+          "slot_index": 0,
+          "session": "rec5_260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec5_260808\\f_112_slot0_progress.png",
+          "rec_text": "套装[0/7]",
+          "normalized": "套装[0/7]",
+          "extracted": "0/7",
+          "truth": "0/7",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec5_260808_f_112_treasure_corrected",
+          "slot_index": 1,
+          "session": "rec5_260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec5_260808\\f_112_slot1_progress.png",
+          "rec_text": "套装[0/3]",
+          "normalized": "套装[0/3]",
+          "extracted": "0/3",
+          "truth": "0/3",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec5_260808_f_112_treasure_corrected",
+          "slot_index": 2,
+          "session": "rec5_260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec5_260808\\f_112_slot2_progress.png",
+          "rec_text": " 套装[1/2]",
+          "normalized": "套装[1/2]",
+          "extracted": "1/2",
+          "truth": "1/2",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec5_260808_f_130_treasure_corrected",
+          "slot_index": 0,
+          "session": "rec5_260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec5_260808\\f_130_slot0_progress.png",
+          "rec_text": "[0/2]",
+          "normalized": "[0/2]",
+          "extracted": "0/2",
+          "truth": "0/2",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec5_260808_f_130_treasure_corrected",
+          "slot_index": 1,
+          "session": "rec5_260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec5_260808\\f_130_slot1_progress.png",
+          "rec_text": "套装[0/7]",
+          "normalized": "套装[0/7]",
+          "extracted": "0/7",
+          "truth": "0/7",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec5_260808_f_162_treasure_corrected",
+          "slot_index": 2,
+          "session": "rec5_260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec5_260808\\f_162_slot2_progress.png",
+          "rec_text": "套装[1/7]",
+          "normalized": "套装[1/7]",
+          "extracted": "1/7",
+          "truth": "1/7",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec7_short2_20260808_f_033_treasure_3star",
+          "slot_index": 2,
+          "session": "rec7_short2_20260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec7_short2_20260808\\f_033_slot2_progress.png",
+          "rec_text": "赛装[0/7]",
+          "normalized": "赛装[0/7]",
+          "extracted": "0/7",
+          "truth": "0/7",
+          "exact": false,
+          "extracted_exact": true
+        },
+        {
+          "entry_id": "rec7_short2_20260808_f_034_treasure_2star",
+          "slot_index": 2,
+          "session": "rec7_short2_20260808",
+          "kind": "treasure",
+          "crop": "fixtures\\ocr_choices\\treasure\\rec7_short2_20260808\\f_034_slot2_progress.png",
+          "rec_text": "套装[0/7]",
+          "normalized": "套装[0/7]",
+          "extracted": "0/7",
+          "truth": "0/7",
+          "exact": false,
+          "extracted_exact": true
+        }
+      ]
+    },
+    "stability": {
+      "slots_compared": 388,
+      "identical": 256,
+      "rate": 0.6598
+    },
+    "misses": [
+      {
+        "entry_id": "rec5_260808_f_086_bond_corrected",
+        "slot_index": 2,
+        "session": "rec5_260808",
+        "kind": "bond",
+        "source": "o1",
+        "truth": "吕岳",
+        "rec_text": "国",
+        "lookup": "三国"
+      },
+      {
+        "entry_id": "rec5_260808_f_104_bond_corrected",
+        "slot_index": 1,
+        "session": "rec5_260808",
+        "kind": "bond",
+        "source": "o1",
+        "truth": "海盗劫掠者",
+        "rec_text": "香院",
+        "lookup": null
+      }
+    ]
+  },
+  "performance": {
+    "model_load_seconds": 2.028,
+    "single_slot_p50_ms": 23.1,
+    "single_slot_p95_ms": 53.2,
+    "panel3_p50_ms": 135.8,
+    "panel3_p95_ms": 200.8,
+    "single_slot_samples": 776,
+    "panel3_samples": 144,
+    "rss_after_import_mb": 42.9,
+    "rss_after_model_load_mb": 456.4,
+    "rss_steady_mb": 879.0,
+    "rss_delta_mb": 422.6,
+    "cpu_threads": 10,
+    "device": "cpu"
+  },
+  "offline_probe": {
+    "passed": true,
+    "load_seconds": 0.896,
+    "infer_seconds": 0.096,
+    "rec_text": "次级箭",
+    "note": "socket 出站连接全阻断下完成模型加载+推理"
+  },
+  "negatives": {
+    "total": 55,
+    "passed": 55,
+    "panels": [
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_000s_loading",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "加载画面",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec1_ingame_boss_20260809_t_000s_开局",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "rec1_ingame_boss_20260809",
+        "negative_reason": "局内 HUD（开局准备）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_001s_victory",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "胜利结算页",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec1_ingame_boss_20260809_t_003s_局内HUD",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "rec1_ingame_boss_20260809",
+        "negative_reason": "局内 HUD（主线任务栏）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_003s_stage_select_archive_panel",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "选关页+存档挑战入口",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec1_ingame_boss_20260809_t_006s_面板底部按钮",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "rec1_ingame_boss_20260809",
+        "negative_reason": "局内 HUD（准备阶段）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_010s_stage_select_hover",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "选关页",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_020s_ingame_boss_mengmo",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "Boss 战（梦魔之王，倒计时悬浮条）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_022s_chuanjiabao_panel",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "传家宝挑战弹窗（4 Boss 图标）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_023s_ingame_npc_arrow",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "局内 HUD（NPC 箭头）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_024s_chuanjiabao_panel_2",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "传家宝挑战弹窗 2",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_027s_ingame_boss_click",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "Boss 战点击",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_027s_STAGESELECT疑似面板",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_039s_exit_confirm",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "退出确认弹窗",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_041s_ingame_after_cancel",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "局内 HUD（取消退出后）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec1_ingame_boss_20260809_t_120s_STAGESELECT疑似面板",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "rec1_ingame_boss_20260809",
+        "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec1_ingame_boss_20260809_t_303s_STAGESELECT疑似面板",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "rec1_ingame_boss_20260809",
+        "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec1_ingame_boss_20260809_t_414s_最后STAGESELECT",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "rec1_ingame_boss_20260809",
+        "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_008",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "存档挑战弹窗（时光之穴选择）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_014",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "存档挑战弹窗+战利品/聊天文本",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_026",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "传家宝挑战弹窗（掉落详情）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_032",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "Boss 战（克雷什之父）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec2_postgame_exit_20260809_t_038",
+        "resolution": [
+          1586,
+          892
+        ],
+        "session_id": "rec2_postgame_exit_20260809",
+        "negative_reason": "局内 HUD（安全区地图）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_live_e2e_20260807_20_t9_1968096",
+        "resolution": [
+          960,
+          540
+        ],
+        "session_id": "live_e2e_20260807",
+        "negative_reason": "加载画面（960x540）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_live_e2e_20260807_watch_78_1968096_1600x900",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "live_e2e_20260807",
+        "negative_reason": "选关页（大厅）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_live_e2e_20260807_03_dialog",
+        "resolution": [
+          584,
+          488
+        ],
+        "session_id": "live_e2e_20260807",
+        "negative_reason": "创建房间对话框（584x488）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_live_e2e_20260807_10_room",
+        "resolution": [
+          1224,
+          904
+        ],
+        "session_id": "live_e2e_20260807",
+        "negative_reason": "房间等待页（1224x904）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_live_postgame_20260808_live_exit_confirm",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "live_postgame_20260808",
+        "negative_reason": "退出确认弹窗",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_live_postgame_20260808_live_archive_panel",
+        "resolution": [
+          1616,
+          939
+        ],
+        "session_id": "live_postgame_20260808",
+        "negative_reason": "局内安全区 HUD",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_live_postgame_20260808_live_stage_select",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "live_postgame_20260808",
+        "negative_reason": "选关页",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_live_postgame_20260808_live_fullscreen",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "live_postgame_20260808",
+        "negative_reason": "局内全屏（1920x1080）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_reborn_wow_screens_20260806_great_rift_confirm",
+        "resolution": [
+          1602,
+          933
+        ],
+        "session_id": "reborn_wow_screens_20260806",
+        "negative_reason": "大裂隙确认弹窗",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_reborn_wow_screens_20260806_heirloom_challenge_bosses",
+        "resolution": [
+          1597,
+          929
+        ],
+        "session_id": "reborn_wow_screens_20260806",
+        "negative_reason": "传家宝挑战 Boss 选择",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_legacy_fixtures_black_frame",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "legacy_fixtures",
+        "negative_reason": "黑帧",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_legacy_fixtures_frozen_frame",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "legacy_fixtures",
+        "negative_reason": "冻结帧",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_legacy_fixtures_unknown_page",
+        "resolution": [
+          1600,
+          900
+        ],
+        "session_id": "legacy_fixtures",
+        "negative_reason": "未知页面",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_legacy_fixtures_assistant_window_neg",
+        "resolution": [
+          800,
+          600
+        ],
+        "session_id": "legacy_fixtures",
+        "negative_reason": "助手窗口（非游戏页）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_a_000120",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec9_mijing_20260810",
+        "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_a_0450",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec9_mijing_20260810",
+        "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_a_0480",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec9_mijing_20260810",
+        "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_a_0570",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec9_mijing_20260810",
+        "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_a_0930",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec9_mijing_20260810",
+        "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_a_1020",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec9_mijing_20260810",
+        "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_a_1140",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec9_mijing_20260810",
+        "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_a_2400",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec9_mijing_20260810",
+        "negative_reason": "新录屏非面板帧（video=a，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_0060",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_0090",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_0570",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_0600",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_1050",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_1170",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_1350",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_1530",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_1800",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      },
+      {
+        "id": "neg_rec9rec10_b_2550",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "session_id": "rec10_3normal_20260810",
+        "negative_reason": "新录屏非面板帧（video=b，anchor=null，episode 区间外采样）",
+        "anchor_triggered": false,
+        "anchor_template": null,
+        "anchor_score": null,
+        "classified_kind": null,
+        "suggestion_count": 0,
+        "suggestions": [],
+        "expected_suggestions": 0,
+        "passed": true
+      }
+    ]
+  },
+  "gates": {
+    "gates": [
+      {
+        "gate": "held_out_top1",
+        "threshold": 0.95,
+        "actual": 0.9948,
+        "passed": true
+      },
+      {
+        "gate": "skill_recall",
+        "threshold": 0.99,
+        "actual": 1.0,
+        "passed": true
+      },
+      {
+        "gate": "progress_exact",
+        "threshold": 0.95,
+        "actual": 0.9524,
+        "passed": true
+      },
+      {
+        "gate": "mis_normalization",
+        "threshold": 0,
+        "actual": 0,
+        "passed": true
+      },
+      {
+        "gate": "negative_zero_suggestions",
+        "threshold": 1.0,
+        "actual": 1.0,
+        "passed": true
+      },
+      {
+        "gate": "single_cpu_p95",
+        "threshold": 120.0,
+        "actual": 53.2,
+        "passed": true
+      },
+      {
+        "gate": "panel3_cpu_p95",
+        "threshold": 300.0,
+        "actual": 200.8,
+        "passed": true
+      },
+      {
+        "gate": "first_load",
+        "threshold": 4.0,
+        "actual": 2.028,
+        "passed": true
+      },
+      {
+        "gate": "rss_delta",
+        "threshold": 800.0,
+        "actual": 422.6,
+        "passed": true
+      },
+      {
+        "gate": "offline_inference",
+        "threshold": 1.0,
+        "actual": 1.0,
+        "passed": true
+      },
+      {
+        "gate": "model_hash_verified",
+        "threshold": "manifest sha256+size per file",
+        "actual": true,
+        "passed": true
+      }
+    ],
+    "all_passed": true
+  }
+}

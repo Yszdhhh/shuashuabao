@@ -11,11 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from gamescript.input.keyboard_mouse import ActionResult, InputExecutor
-from gamescript.mediator import LoopAction, Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame
+from shuabao.input.keyboard_mouse import ActionResult, InputExecutor
+from shuabao.mediator import LoopAction, Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame
 from run_replay import main as replay_main, run_replay_fixture
 
 
@@ -55,6 +55,22 @@ class P0B1FixesTests(unittest.TestCase):
         self.assertEqual(res.actual_state, "ROOM_WAITING")
         self.assertIsNotNone(res.click_point)
         self.assertEqual(res.forbidden_click_count, 0)
+
+    def test_right_side_activity_button_cannot_claim_room_start(self):
+        template = cv2.imdecode(
+            np.fromfile(ROOT / "assets/Images/kk_start.png", dtype=np.uint8),
+            cv2.IMREAD_COLOR,
+        )
+        canvas = np.zeros((945, 1328, 3), dtype=np.uint8)
+        # Reproduce trace 203937: the false candidate center was x=0.883 of
+        # the KK client, on the activity/pet side rather than the host button.
+        x, y = 1100, 550
+        h, w = template.shape[:2]
+        canvas[y : y + h, x : x + w] = template
+        frame = Frame(canvas, window_title="KK", hwnd=10001)
+
+        self.assertIsNone(self.med._find_room_start(frame))
+        self.assertNotEqual("ROOM_WAITING", self.med._detect_context(frame, role="l0"))
 
     def test_main_line_images_not_stage_select(self):
         f_off = load_fixture_frame("fixtures/replay/main_line_auto_off.png")
@@ -138,19 +154,13 @@ class P0B1FixesTests(unittest.TestCase):
             # scene_key should NOT be marked done
             self.assertEqual(len(self.med._challenge_done), 0)
 
-    def test_existing_stage_select_positive_fixtures_pass(self):
-        fix1 = {
-            "fixture_id": "stage_select_1616x939",
-            "file_path": "docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803154629.png",
-            "resolution": [1616, 939],
-            "page": "STAGE_SELECT",
-            "expected_state": "STAGE_SELECT",
-            "expected_action": "SelectStage-target",
-            "expected_stage": "4-4",
-            "required": True,
-        }
-        res1 = run_replay_fixture(fix1, self.med, ROOT)
-        self.assertEqual(res1.status, "PASS")
+    def test_in_game_stage_glyph_is_negative_and_real_stage_fixture_passes(self):
+        # External review + rec1: this frame is visibly in-game (backpack/HUD)
+        # and its task text "4-4" used to be mislabeled as a positive stage page.
+        false_stage = load_fixture_frame(
+            "docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803154629.png"
+        )
+        self.assertEqual(self.med._detect_context(false_stage, role="l1"), "MAIN_LINE")
 
         fix2 = {
             "fixture_id": "stage_select_1936x1066",
@@ -214,8 +224,24 @@ class P0B1FixesTests(unittest.TestCase):
             self.assertEqual(kwargs.get("target_hwnd"), 12345)
             self.assertEqual(kwargs.get("dry_run"), self.settings.dry_run)
 
+    def test_next_round_after_unknown_panel_resets_selection_state(self):
+        """上一局未知面板不能阻塞下一局技能面板的首帧处理。"""
+        self.med._selection_unknown_attempts = 3
+        self.med._selection_unknown_since = 123.0
+        self.med._selection_repeat_key = ("unknown", "skill", 1, 2)
+        self.med._selection_repeat_attempts = 2
+        self.med._skill_refresh_attempts = 3
+
+        self.med.set_phase(Phase.MAIN_LINE, "next round skill panel")
+
+        self.assertEqual(self.med._selection_unknown_attempts, 0)
+        self.assertIsNone(self.med._selection_unknown_since)
+        self.assertIsNone(self.med._selection_repeat_key)
+        self.assertEqual(self.med._selection_repeat_attempts, 0)
+        self.assertEqual(self.med._skill_refresh_attempts, 0)
+
     def test_stage_id_generic_parsing_unbounded(self):
-        from gamescript.vision.stage_selector import StageId
+        from shuabao.vision.stage_selector import StageId
         self.assertEqual(StageId.parse("6-1"), StageId(6, 1))
         self.assertEqual(StageId.parse("1-31"), StageId(1, 31))
 

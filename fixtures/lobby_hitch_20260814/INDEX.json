@@ -1,0 +1,102 @@
+{
+  "_comment": "大厅找房蹭车真机帧。源录像 蹭车.mp4，桌面 1920x1080，KK 客户区按 (203,84) 1600x900 裁出。不是合成帧。不证明找房已可真机加入。",
+  "source_video": "C:\\Users\\10639\\Desktop\\录屏素材\\蹭车.mp4",
+  "duration_s": 47.07,
+  "fps": 30.02,
+  "desktop_shape": [1920, 1080],
+  "client_crop": {"xy": [203, 84], "wh": [1600, 900], "same_as": "fixtures/stage_select_20260814"},
+  "write_to_program_files": false,
+  "live_join_claimed": false,
+  "items": [
+    {
+      "file": "user_annotated_tab_and_search.png",
+      "kind": "user_annotation",
+      "seen": "用户标红：房间列表 99+ Tab；刷新 + 搜索框（内有 3）"
+    },
+    {
+      "file": "user_annotated_list_rows.png",
+      "kind": "user_annotation",
+      "seen": "用户标红列表区：房间名/人数/游戏中；底栏创建房间/快速加入/快速匹配在画外或裁切外"
+    },
+    {
+      "file": "desktop_1920x1080_t000.png",
+      "kind": "full_desktop",
+      "t": 0.0,
+      "seen": "录像开头：已在房间列表，搜索框占位「输入房间名称或房间号」，人数 3/4 2/4 1/4，属性多为 -"
+    },
+    {
+      "file": "list_empty_search_t000.png",
+      "kind": "client_crop",
+      "t": 0.0,
+      "seen": "列表页。底栏三键可见（负样本）。create_room 模板 0.98 可当页锚，禁止点击"
+    },
+    {
+      "file": "list_search4_all_ingame_t036.png",
+      "kind": "client_crop",
+      "t": 36.0,
+      "seen": "搜索框=4，刷新显示「刷新 4s」。可见行全 4/4 + 游戏中。4 是子串（43/24/42）不是关卡 4-"
+    },
+    {
+      "file": "list_search3_joinable_t038.png",
+      "kind": "client_crop",
+      "t": 38.5,
+      "seen": "搜索框=3。首行 824236 速30 3/4 属性空。其下有 2/4、1/4 等待，也有 游戏中。光标在首行。随后单击进房"
+    },
+    {
+      "file": "kk_room_ready_btn_t040.png",
+      "kind": "client_crop",
+      "t": 40.0,
+      "seen": "KK 房间 824236 房间名速30 密码无。客人蓝钮「准备」。房主/已准备混排。不是局内 room_start"
+    },
+    {
+      "file": "kk_room_cancel_ready_t041.png",
+      "kind": "client_crop",
+      "t": 41.0,
+      "seen": "已点准备，蓝钮变成「取消准备」。录像在此结束：无开局、无选关、无战后退出"
+    },
+    {
+      "file": "popup_level_unmet.png",
+      "kind": "user_still",
+      "seen": "平台提示：等级不满足房间要求。左蓝「创建房间」禁点，右灰「离开」"
+    },
+    {
+      "file": "popup_level_unmet_leave_btn.png",
+      "kind": "button_roi",
+      "seen": "从 popup_level_unmet.png 裁的「离开」按钮，不要整屏当模板"
+    },
+    {
+      "file": "popup_password.png",
+      "kind": "user_still",
+      "seen": "输入房间密码。只点取消，禁止确定。背景列表有锁标"
+    },
+    {
+      "file": "popup_password_cancel_btn.png",
+      "kind": "button_roi",
+      "seen": "从 popup_password.png 裁的「取消」按钮"
+    },
+    {
+      "file": "kk_special_room_ready_gold.png",
+      "kind": "user_still",
+      "seen": "特殊房 44440。底右金「准备」/绿「邀请」/灰「退出」。聊天倒计时请点准备。无锁定按钮。状态列房主红、已准备绿"
+    },
+    {
+      "file": "kk_special_room_ready_waiting.png",
+      "kind": "user_still",
+      "seen": "同一特殊房另一帧。准备键仍在，有人未准备。聊天 12s/11s 倒计时。无锁定按钮"
+    }
+  ],
+  "template_probe_default_threshold_0.85": {
+    "list_page_create_room": 0.981,
+    "list_page_room_start": 0.49,
+    "guest_ready_room_start": 0.843,
+    "guest_cancel_ready_room_start": 0.84,
+    "notes": "create_room 可识别列表页。room_start 对客人准备/取消准备 0.84，贴默认 0.85，禁止当进房/准备锚点。"
+  },
+  "not_in_video": [
+    "密码房弹窗（已另存用户静帧 popup_password.png）",
+    "队长点开始 / 加载 / 局内 HUD",
+    "选关页",
+    "战后退出回列表",
+    "点击创建房间/快速加入/快速匹配（本录像未点，作负样本）"
+  ]
+}

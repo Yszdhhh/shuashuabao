@@ -24,7 +24,7 @@ export const Header: React.FC<HeaderProps> = ({ status }) => {
               </span>
             </div>
             <p className="text-xs text-[#8b9bb4]">
-              GameScript-Local 1.3.3.3 · 免证书 / 无网络依赖 / 独狼自动挂机
+              刷刷宝 · 免证书 / 无网络依赖 / 独狼自动挂机
             </p>
           </div>
         </div>

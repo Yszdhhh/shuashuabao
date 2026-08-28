@@ -1,0 +1,5175 @@
+{
+ "summary": {
+  "n_decisions": 110,
+  "picked_rarity_counts": {
+   "red": 65,
+   "purple": 45
+  },
+  "slot_i_counts": {
+   "2": 36,
+   "1": 35,
+   "0": 39
+  },
+  "white_vs_color_conflicts": 7,
+  "white_picks": 0,
+  "n_refreshes": 57,
+  "refresh_stuck_same_cards": 43,
+  "n_bond_slot1": 2,
+  "n_window_loss_ticks": 0,
+  "window_loss_times": []
+ },
+ "conflicts_white_vs_color": [
+  {
+   "video_t": 75.29,
+   "run": "intelligence",
+   "tick": 162,
+   "intent": "click:jq",
+   "picked": "jq",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "闪电链",
+    "飓风",
+    "剑气"
+   ],
+   "rarities": [
+    "orange",
+    "white",
+    "red"
+   ],
+   "white_present": true,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 86.43,
+   "run": "intelligence",
+   "tick": 193,
+   "intent": "click:剑气冲击",
+   "picked": "剑气冲击",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "弹射箭",
+    "剑气冲击",
+    "飓风"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "white"
+   ],
+   "white_present": true,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 106.39,
+   "run": "intelligence",
+   "tick": 227,
+   "intent": "click:焦点爆破",
+   "picked": "焦点爆破",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "焦点爆破",
+    "龙卷风",
+    "闪电链"
+   ],
+   "rarities": [
+    "purple",
+    "white",
+    "orange"
+   ],
+   "white_present": true,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 622.06,
+   "run": "intelligence",
+   "tick": 1383,
+   "intent": "click:asj",
+   "picked": "asj",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "奥数箭",
+    "龙卷风",
+    "激光闪射"
+   ],
+   "rarities": [
+    "purple",
+    "white",
+    "purple"
+   ],
+   "white_present": true,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1607.75,
+   "run": "strength",
+   "tick": 181,
+   "intent": "click:激光增幅",
+   "picked": "激光增幅",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "火球",
+    "飓风",
+    "激光增幅"
+   ],
+   "rarities": [
+    "red",
+    "white",
+    "purple"
+   ],
+   "white_present": true,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 2352.53,
+   "run": "strength",
+   "tick": 1800,
+   "intent": "click:剑气增幅",
+   "picked": "剑气增幅",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "飓风",
+    "剑气增幅",
+    "多重箭"
+   ],
+   "rarities": [
+    "white",
+    "red",
+    "blue"
+   ],
+   "white_present": true,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2473.2,
+   "run": "strength",
+   "tick": 2077,
+   "intent": "click:jq",
+   "picked": "jq",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "飓风",
+    "剑气",
+    "攻速提升"
+   ],
+   "rarities": [
+    "white",
+    "red",
+    "blue"
+   ],
+   "white_present": true,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  }
+ ],
+ "white_picks": [],
+ "decisions": [
+  {
+   "video_t": 75.29,
+   "run": "intelligence",
+   "tick": 162,
+   "intent": "click:jq",
+   "picked": "jq",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "闪电链",
+    "飓风",
+    "剑气"
+   ],
+   "rarities": [
+    "orange",
+    "white",
+    "red"
+   ],
+   "white_present": true,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 86.43,
+   "run": "intelligence",
+   "tick": 193,
+   "intent": "click:剑气冲击",
+   "picked": "剑气冲击",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "弹射箭",
+    "剑气冲击",
+    "飓风"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "white"
+   ],
+   "white_present": true,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 96.56,
+   "run": "intelligence",
+   "tick": 210,
+   "intent": "click:重创",
+   "picked": "重创",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "攻速提升",
+    "天雷",
+    "重创"
+   ],
+   "rarities": [
+    "blue",
+    "orange",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 98.88,
+   "run": "intelligence",
+   "tick": 214,
+   "intent": "click:剑气增幅",
+   "picked": "剑气增幅",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "强化箭矢",
+    "弹射箭",
+    "剑气增幅"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 101.31,
+   "run": "intelligence",
+   "tick": 218,
+   "intent": "click:assx",
+   "picked": "assx",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "寒冰箭",
+    "奥数射线",
+    "陨石"
+   ],
+   "rarities": [
+    "blue",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 104.08,
+   "run": "intelligence",
+   "tick": 223,
+   "intent": "click:焦点",
+   "picked": "焦点",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "多重箭",
+    "焦点",
+    "寒冰箭"
+   ],
+   "rarities": [
+    "blue",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 106.39,
+   "run": "intelligence",
+   "tick": 227,
+   "intent": "click:焦点爆破",
+   "picked": "焦点爆破",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "焦点爆破",
+    "龙卷风",
+    "闪电链"
+   ],
+   "rarities": [
+    "purple",
+    "white",
+    "orange"
+   ],
+   "white_present": true,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 108.81,
+   "run": "intelligence",
+   "tick": 231,
+   "intent": "click:asj",
+   "picked": "asj",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "寒冰箭",
+    "巨型剑气",
+    "奥数箭"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 118.69,
+   "run": "intelligence",
+   "tick": 248,
+   "intent": "click:制导箭矢",
+   "picked": "制导箭矢",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "制导箭矢",
+    "奥能喷发",
+    "弹射箭"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 121.56,
+   "run": "intelligence",
+   "tick": 254,
+   "intent": "click:剑气增幅",
+   "picked": "剑气增幅",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "箭矢增幅",
+    "剑气增幅",
+    "爆炸箭矢"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 124.03,
+   "run": "intelligence",
+   "tick": 258,
+   "intent": "click:疾行剑气",
+   "picked": "疾行剑气",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "强化箭矢",
+    "疾行剑气",
+    "弹射箭"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 134.53,
+   "run": "intelligence",
+   "tick": 281,
+   "intent": "click:奥术箭矢",
+   "picked": "奥术箭矢",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "多重箭",
+    "奥术箭矢",
+    "攻速提升"
+   ],
+   "rarities": [
+    "blue",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 146.78,
+   "run": "intelligence",
+   "tick": 308,
+   "intent": "click:连续剑气",
+   "picked": "连续剑气",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "寒冰箭",
+    "奥能喷发",
+    "连续剑气"
+   ],
+   "rarities": [
+    "blue",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 179.76,
+   "run": "intelligence",
+   "tick": 379,
+   "intent": "click:连续剑气",
+   "picked": "连续剑气",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "连续剑气",
+    "强化箭矢",
+    "多重箭"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 265.78,
+   "run": "intelligence",
+   "tick": 582,
+   "intent": "click:次级箭",
+   "picked": "次级箭",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "陨石",
+    "天雷",
+    "次级箭"
+   ],
+   "rarities": [
+    "red",
+    "orange",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 282.83,
+   "run": "intelligence",
+   "tick": 622,
+   "intent": "click:asjg",
+   "picked": "asjg",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "奥能喷发",
+    "弹射箭",
+    "奥数激光"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 368.28,
+   "run": "intelligence",
+   "tick": 820,
+   "intent": "click:奥术增幅α",
+   "picked": "奥术增幅α",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "衰弱光线",
+    "奥术增幅α",
+    "激光增幅"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 392.36,
+   "run": "intelligence",
+   "tick": 878,
+   "intent": "click:瓦解光线",
+   "picked": "瓦解光线",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "瓦解光线",
+    "弹射箭",
+    "射线延续"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 600.58,
+   "run": "intelligence",
+   "tick": 1346,
+   "intent": "click:asjg",
+   "picked": "asjg",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "火球",
+    "奥数激光",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 602.83,
+   "run": "intelligence",
+   "tick": 1350,
+   "intent": "click:激光增幅",
+   "picked": "激光增幅",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "激光增幅",
+    "衰弱光线",
+    "弹射箭"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 605.1,
+   "run": "intelligence",
+   "tick": 1354,
+   "intent": "click:激光超载",
+   "picked": "激光超载",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "瓦解光线",
+    "火球",
+    "激光超载"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 607.5,
+   "run": "intelligence",
+   "tick": 1358,
+   "intent": "click:瓦解光线",
+   "picked": "瓦解光线",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "高能脉冲",
+    "强化箭矢",
+    "瓦解光线"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 609.9,
+   "run": "intelligence",
+   "tick": 1362,
+   "intent": "click:高能脉冲",
+   "picked": "高能脉冲",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "闪电链",
+    "高能脉冲",
+    "弹射箭"
+   ],
+   "rarities": [
+    "orange",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 612.25,
+   "run": "intelligence",
+   "tick": 1366,
+   "intent": "click:衰弱光线",
+   "picked": "衰弱光线",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "奥能洪流",
+    "弹射箭",
+    "衰弱光线"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 614.89,
+   "run": "intelligence",
+   "tick": 1371,
+   "intent": "click:激光增幅",
+   "picked": "激光增幅",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "爆炎箭",
+    "激光增幅",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 617.3,
+   "run": "intelligence",
+   "tick": 1375,
+   "intent": "click:奥能洪流",
+   "picked": "奥能洪流",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "攻速提升",
+    "多重箭",
+    "奥能洪流"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 619.61,
+   "run": "intelligence",
+   "tick": 1379,
+   "intent": "click:激光增幅",
+   "picked": "激光增幅",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "弹射箭",
+    "激光增幅",
+    "多重箭"
+   ],
+   "rarities": [
+    "blue",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 622.06,
+   "run": "intelligence",
+   "tick": 1383,
+   "intent": "click:asj",
+   "picked": "asj",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "奥数箭",
+    "龙卷风",
+    "激光闪射"
+   ],
+   "rarities": [
+    "purple",
+    "white",
+    "purple"
+   ],
+   "white_present": true,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 640.48,
+   "run": "intelligence",
+   "tick": 1424,
+   "intent": "click:爆炸箭矢",
+   "picked": "爆炸箭矢",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "地震",
+    "爆炸箭矢",
+    "激光闪射"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 642.9,
+   "run": "intelligence",
+   "tick": 1428,
+   "intent": "click:箭矢连发",
+   "picked": "箭矢连发",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "爆炸增伤",
+    "箭矢连发",
+    "弹射箭"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 698.68,
+   "run": "intelligence",
+   "tick": 1549,
+   "intent": "click:爆炸增伤",
+   "picked": "爆炸增伤",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "稳定光线",
+    "奥能喷发",
+    "爆炸增伤"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 810.93,
+   "run": "intelligence",
+   "tick": 1800,
+   "intent": "click:奥术箭矢",
+   "picked": "奥术箭矢",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "奥术箭矢",
+    "奥术增幅α",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 887.45,
+   "run": "intelligence",
+   "tick": 1966,
+   "intent": "click:爆炸扩散",
+   "picked": "爆炸扩散",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "爆炸扩散",
+    "激光闪射",
+    "电磁网"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "orange"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1036.8,
+   "run": "intelligence",
+   "tick": 2318,
+   "intent": "click:asjg",
+   "picked": "asjg",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "碎冰",
+    "攻速提升",
+    "奥数激光"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1039.43,
+   "run": "intelligence",
+   "tick": 2323,
+   "intent": "click:激光增幅",
+   "picked": "激光增幅",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "激光增幅",
+    "瓦解光线",
+    "火球"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1042.13,
+   "run": "intelligence",
+   "tick": 2328,
+   "intent": "click:衰弱光线",
+   "picked": "衰弱光线",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "衰弱光线",
+    "寒冰箭",
+    "瓦解光线"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1044.57,
+   "run": "intelligence",
+   "tick": 2332,
+   "intent": "click:asj",
+   "picked": "asj",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "激光超载",
+    "奥数箭",
+    "弹射箭"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1046.96,
+   "run": "intelligence",
+   "tick": 2336,
+   "intent": "click:奥术箭矢",
+   "picked": "奥术箭矢",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "高能脉冲",
+    "奥术箭矢",
+    "激光超载"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1058.1,
+   "run": "intelligence",
+   "tick": 2359,
+   "intent": "click:箭矢增幅",
+   "picked": "箭矢增幅",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "箭矢增幅",
+    "次级箭",
+    "箭矢齐射"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1067.85,
+   "run": "intelligence",
+   "tick": 2381,
+   "intent": "click:assx",
+   "picked": "assx",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "奥能喷发",
+    "奥数射线",
+    "电磁网"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "orange"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1070.27,
+   "run": "intelligence",
+   "tick": 2385,
+   "intent": "click:箭矢连发",
+   "picked": "箭矢连发",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "箭矢连发",
+    "射线增幅",
+    "爆炸箭矢"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1072.95,
+   "run": "intelligence",
+   "tick": 2390,
+   "intent": "click:次级箭",
+   "picked": "次级箭",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "强化箭矢",
+    "强力箭矢",
+    "次级箭"
+   ],
+   "rarities": [
+    "blue",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1075.37,
+   "run": "intelligence",
+   "tick": 2394,
+   "intent": "click:瓦解光线",
+   "picked": "瓦解光线",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "天雷",
+    "陨石",
+    "瓦解光线"
+   ],
+   "rarities": [
+    "orange",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1078.1,
+   "run": "intelligence",
+   "tick": 2399,
+   "intent": "click:jq",
+   "picked": "jq",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "剑气",
+    "爆炸箭矢",
+    "火球"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1080.53,
+   "run": "intelligence",
+   "tick": 2403,
+   "intent": "click:重创",
+   "picked": "重创",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "重创",
+    "箭矢齐射",
+    "射线增幅"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1086.55,
+   "run": "intelligence",
+   "tick": 2412,
+   "intent": "click:疾行剑气",
+   "picked": "疾行剑气",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "奥术增幅β",
+    "强力箭矢",
+    "疾行剑气"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1088.93,
+   "run": "intelligence",
+   "tick": 2416,
+   "intent": "click:箭矢增幅",
+   "picked": "箭矢增幅",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "箭矢增幅",
+    "次级增伤",
+    "爆炸箭矢"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1101.0,
+   "run": "intelligence",
+   "tick": 2439,
+   "intent": "click:致残剑气",
+   "picked": "致残剑气",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "攻速提升",
+    "致残剑气",
+    "激光增幅"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1139.33,
+   "run": "intelligence",
+   "tick": 2531,
+   "intent": "click:强力箭矢",
+   "picked": "强力箭矢",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "激光增幅",
+    "多重箭",
+    "强力箭矢"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1238.91,
+   "run": "intelligence",
+   "tick": 2765,
+   "intent": "click:剑气增幅",
+   "picked": "剑气增幅",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "奥术增幅α",
+    "剑气增幅",
+    "奥能喷发"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1304.77,
+   "run": "intelligence",
+   "tick": 2913,
+   "intent": "click:次级扩散",
+   "picked": "次级扩散",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "次级扩散",
+    "射线延续",
+    "攻速提升"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1360.3,
+   "run": "intelligence",
+   "tick": 3041,
+   "intent": "click:剑气增幅",
+   "picked": "剑气增幅",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "巨型剑气",
+    "射线延续",
+    "剑气增幅"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1396.97,
+   "run": "intelligence",
+   "tick": 3121,
+   "intent": "click:剑气增幅",
+   "picked": "剑气增幅",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "剑气增幅",
+    "奥能喷发",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1466.67,
+   "run": "intelligence",
+   "tick": 3256,
+   "intent": "click:箭矢齐射",
+   "picked": "箭矢齐射",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "多重箭",
+    "箭矢齐射",
+    "激光超载"
+   ],
+   "rarities": [
+    "blue",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1508.45,
+   "run": "intelligence",
+   "tick": 3351,
+   "intent": "click:稳定光线",
+   "picked": "稳定光线",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "奥能喷发",
+    "射线延续",
+    "稳定光线"
+   ],
+   "rarities": [
+    "purple",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1592.8,
+   "run": "strength",
+   "tick": 156,
+   "intent": "click:asjg",
+   "picked": "asjg",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "奥数激光",
+    "攻速提升",
+    "奥数箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1595.26,
+   "run": "strength",
+   "tick": 160,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "地震",
+    "陨石",
+    "闪电链"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "orange"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1597.66,
+   "run": "strength",
+   "tick": 164,
+   "intent": "click:稳定光线",
+   "picked": "稳定光线",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "火球",
+    "瓦解光线",
+    "稳定光线"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1600.11,
+   "run": "strength",
+   "tick": 168,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "火球",
+    "陨石",
+    "攻速提升"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1602.5,
+   "run": "strength",
+   "tick": 172,
+   "intent": "click:稳定光线",
+   "picked": "稳定光线",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "稳定光线",
+    "电磁网",
+    "弹射箭"
+   ],
+   "rarities": [
+    "purple",
+    "orange",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1607.75,
+   "run": "strength",
+   "tick": 181,
+   "intent": "click:激光增幅",
+   "picked": "激光增幅",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "火球",
+    "飓风",
+    "激光增幅"
+   ],
+   "rarities": [
+    "red",
+    "white",
+    "purple"
+   ],
+   "white_present": true,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1617.33,
+   "run": "strength",
+   "tick": 203,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "瓦解光线",
+    "陨石",
+    "激光增幅"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1626.86,
+   "run": "strength",
+   "tick": 225,
+   "intent": "click:jq",
+   "picked": "jq",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "剑气",
+    "陨石",
+    "激光增幅"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1634.45,
+   "run": "strength",
+   "tick": 236,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "陨石",
+    "多重箭"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1636.85,
+   "run": "strength",
+   "tick": 240,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "高能脉冲",
+    "陨石",
+    "闪电链"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "orange"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1639.26,
+   "run": "strength",
+   "tick": 244,
+   "intent": "click:致残剑气",
+   "picked": "致残剑气",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "重创",
+    "剑气冲击",
+    "致残剑气"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1641.6,
+   "run": "strength",
+   "tick": 248,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "火球",
+    "剑气增幅"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1652.81,
+   "run": "strength",
+   "tick": 271,
+   "intent": "click:重创",
+   "picked": "重创",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "天雷",
+    "寒冰箭",
+    "重创"
+   ],
+   "rarities": [
+    "orange",
+    "blue",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1655.2,
+   "run": "strength",
+   "tick": 275,
+   "intent": "click:剑气冲击",
+   "picked": "剑气冲击",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "剑气冲击",
+    "冰霜新星",
+    "弹射箭"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1694.0,
+   "run": "strength",
+   "tick": 357,
+   "intent": "click:激光超载",
+   "picked": "激光超载",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "衰弱光线",
+    "寒冰箭",
+    "激光超载"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": false,
+   "picked_rarity": "purple"
+  },
+  {
+   "video_t": 1720.01,
+   "run": "strength",
+   "tick": 415,
+   "intent": "click:dz",
+   "picked": "dz",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "弹射箭",
+    "地震",
+    "冰霜新星"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1787.0,
+   "run": "strength",
+   "tick": 569,
+   "intent": "click:剑气增幅",
+   "picked": "剑气增幅",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "激光闪射",
+    "多重箭",
+    "剑气增幅"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1833.07,
+   "run": "strength",
+   "tick": 659,
+   "intent": "click:dz",
+   "picked": "dz",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "激光增幅",
+    "多重箭",
+    "地震"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 1899.18,
+   "run": "strength",
+   "tick": 811,
+   "intent": "click:强震",
+   "picked": "强震",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "攻速提升",
+    "弹射箭",
+    "强震"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2034.23,
+   "run": "strength",
+   "tick": 1118,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "奥数激光",
+    "陨石",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2036.63,
+   "run": "strength",
+   "tick": 1122,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "陨石",
+    "弹射箭"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2039.37,
+   "run": "strength",
+   "tick": 1127,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "火球",
+    "电磁网",
+    "陨石"
+   ],
+   "rarities": [
+    "red",
+    "orange",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2041.78,
+   "run": "strength",
+   "tick": 1131,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "强化箭矢",
+    "多重箭",
+    "陨石"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2051.48,
+   "run": "strength",
+   "tick": 1152,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "陨石",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2058.33,
+   "run": "strength",
+   "tick": 1166,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "电磁网",
+    "陨石",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "orange",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2067.93,
+   "run": "strength",
+   "tick": 1187,
+   "intent": "click:jq",
+   "picked": "jq",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "剑气",
+    "陨石",
+    "地震"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2077.52,
+   "run": "strength",
+   "tick": 1208,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "攻速提升",
+    "弹射箭"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2094.4,
+   "run": "strength",
+   "tick": 1235,
+   "intent": "click:致残剑气",
+   "picked": "致残剑气",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "剑气冲击",
+    "攻速提升",
+    "致残剑气"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2096.8,
+   "run": "strength",
+   "tick": 1239,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "强化箭矢",
+    "弹射箭",
+    "陨石"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2099.22,
+   "run": "strength",
+   "tick": 1243,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "奥数箭",
+    "陨石"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2110.37,
+   "run": "strength",
+   "tick": 1267,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "攻速提升",
+    "弹射箭"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2112.83,
+   "run": "strength",
+   "tick": 1271,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "重创",
+    "陨石",
+    "奥数箭"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2183.57,
+   "run": "strength",
+   "tick": 1429,
+   "intent": "click:dz",
+   "picked": "dz",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "天雷",
+    "奥数箭",
+    "地震"
+   ],
+   "rarities": [
+    "orange",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2235.17,
+   "run": "strength",
+   "tick": 1546,
+   "intent": "click:dz",
+   "picked": "dz",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "冰霜新星",
+    "剑气冲击",
+    "地震"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2334.37,
+   "run": "strength",
+   "tick": 1760,
+   "intent": "click:dz",
+   "picked": "dz",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "寒冰箭",
+    "地震",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2352.53,
+   "run": "strength",
+   "tick": 1800,
+   "intent": "click:剑气增幅",
+   "picked": "剑气增幅",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "飓风",
+    "剑气增幅",
+    "多重箭"
+   ],
+   "rarities": [
+    "white",
+    "red",
+    "blue"
+   ],
+   "white_present": true,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2473.2,
+   "run": "strength",
+   "tick": 2077,
+   "intent": "click:jq",
+   "picked": "jq",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "飓风",
+    "剑气",
+    "攻速提升"
+   ],
+   "rarities": [
+    "white",
+    "red",
+    "blue"
+   ],
+   "white_present": true,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2475.62,
+   "run": "strength",
+   "tick": 2081,
+   "intent": "click:疾行剑气",
+   "picked": "疾行剑气",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "疾行剑气",
+    "攻速提升",
+    "天雷"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "orange"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2478.04,
+   "run": "strength",
+   "tick": 2085,
+   "intent": "click:重创",
+   "picked": "重创",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "重创",
+    "剑气冲击",
+    "火球"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2480.47,
+   "run": "strength",
+   "tick": 2089,
+   "intent": "click:剑气增幅",
+   "picked": "剑气增幅",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "剑气增幅",
+    "致残剑气",
+    "剑气冲击"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2490.05,
+   "run": "strength",
+   "tick": 2111,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "攻速提升",
+    "爆炎箭",
+    "陨石"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2495.3,
+   "run": "strength",
+   "tick": 2120,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "电磁网",
+    "剑气增幅",
+    "陨石"
+   ],
+   "rarities": [
+    "orange",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2505.07,
+   "run": "strength",
+   "tick": 2142,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "强化箭矢",
+    "奥数箭"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2533.67,
+   "run": "strength",
+   "tick": 2189,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "攻速提升",
+    "陨石",
+    "致残剑气"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2536.09,
+   "run": "strength",
+   "tick": 2193,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "连续剑气",
+    "陨石",
+    "奥数射线"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2538.49,
+   "run": "strength",
+   "tick": 2197,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "弹射箭",
+    "攻速提升"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2543.77,
+   "run": "strength",
+   "tick": 2206,
+   "intent": "click:dz",
+   "picked": "dz",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "地震",
+    "强化箭矢",
+    "电磁网"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "orange"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2546.23,
+   "run": "strength",
+   "tick": 2210,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "奥数箭",
+    "精准打击"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2584.47,
+   "run": "strength",
+   "tick": 2301,
+   "intent": "click:dz",
+   "picked": "dz",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "地震",
+    "奥数箭",
+    "闪电链"
+   ],
+   "rarities": [
+    "red",
+    "purple",
+    "orange"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2623.95,
+   "run": "strength",
+   "tick": 2401,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "闪电链",
+    "陨石",
+    "剑气冲击"
+   ],
+   "rarities": [
+    "orange",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": true,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2691.29,
+   "run": "strength",
+   "tick": 2532,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "多重射线",
+    "陨石",
+    "冰霜新星"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2753.74,
+   "run": "strength",
+   "tick": 2666,
+   "intent": "click:dz",
+   "picked": "dz",
+   "at": [
+    960,
+    480
+   ],
+   "slot_i": 1,
+   "names": [
+    "强化箭矢",
+    "地震",
+    "精准打击"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2852.04,
+   "run": "strength",
+   "tick": 2883,
+   "intent": "click:ys",
+   "picked": "ys",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "陨石",
+    "火球",
+    "奥数激光"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "purple"
+   ],
+   "white_present": false,
+   "purple_present": true,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2909.75,
+   "run": "strength",
+   "tick": 2979,
+   "intent": "click:剑气冲击",
+   "picked": "剑气冲击",
+   "at": [
+    726,
+    480
+   ],
+   "slot_i": 0,
+   "names": [
+    "剑气冲击",
+    "强震",
+    "攻速提升"
+   ],
+   "rarities": [
+    "red",
+    "red",
+    "blue"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  },
+  {
+   "video_t": 2982.2,
+   "run": "strength",
+   "tick": 3114,
+   "intent": "click:dz",
+   "picked": "dz",
+   "at": [
+    1193,
+    480
+   ],
+   "slot_i": 2,
+   "names": [
+    "火球",
+    "多重箭",
+    "地震"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "red"
+   ],
+   "white_present": false,
+   "purple_present": false,
+   "orange_present": false,
+   "red_present": true,
+   "picked_rarity": "red"
+  }
+ ],
+ "refreshes": [
+  {
+   "video_t": 88.86,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "弹射箭",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 90.34,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "弹射箭",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 92.14,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "弹射箭",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 111.24,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "陨石",
+    "多重箭",
+    "地震"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 112.69,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "陨石",
+    "多重箭",
+    "地震"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 114.49,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "陨石",
+    "多重箭",
+    "地震"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 547.53,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "火球"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 549.03,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "火球"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 550.78,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "火球"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 555.18,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "强化箭矢",
+    "火球",
+    "攻速提升"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 556.68,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "强化箭矢",
+    "火球",
+    "攻速提升"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 558.2,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "强化箭矢",
+    "火球",
+    "攻速提升"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 562.33,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 564.13,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 565.6,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 569.89,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 571.65,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 573.41,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 577.7,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ]
+  },
+  {
+   "video_t": 579.43,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ]
+  },
+  {
+   "video_t": 581.2,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ]
+  },
+  {
+   "video_t": 585.39,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ]
+  },
+  {
+   "video_t": 587.15,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ]
+  },
+  {
+   "video_t": 588.86,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ]
+  },
+  {
+   "video_t": 593.1,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ]
+  },
+  {
+   "video_t": 594.55,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ]
+  },
+  {
+   "video_t": 596.28,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ]
+  },
+  {
+   "video_t": 744.5,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "地震",
+    "龙卷风"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "white"
+   ]
+  },
+  {
+   "video_t": 746.03,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "地震",
+    "龙卷风"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "white"
+   ]
+  },
+  {
+   "video_t": 747.88,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "地震",
+    "龙卷风"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "white"
+   ]
+  },
+  {
+   "video_t": 865.11,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "电磁网",
+    "奥能喷发",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "purple",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 866.8,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "电磁网",
+    "奥能喷发",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "purple",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 868.48,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "电磁网",
+    "奥能喷发",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "purple",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 1944.25,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "多重箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 1945.75,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "多重箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 1947.53,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "多重箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2079.98,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2081.5,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2083.08,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2087.28,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2088.8,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2090.35,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2150.9,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "寒冰箭",
+    "奥数箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "purple"
+   ]
+  },
+  {
+   "video_t": 2152.4,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "寒冰箭",
+    "奥数箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "purple"
+   ]
+  },
+  {
+   "video_t": 2154.25,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "寒冰箭",
+    "奥数箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "purple"
+   ]
+  },
+  {
+   "video_t": 2507.45,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "强化箭矢",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 2509.23,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "强化箭矢",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 2511.09,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "强化箭矢",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "red"
+   ]
+  },
+  {
+   "video_t": 2519.35,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2520.88,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2522.42,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2526.49,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2528.05,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2529.59,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "强化箭矢"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2794.2,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "强化箭矢",
+    "多重射线",
+    "寒冰箭"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2795.97,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "强化箭矢",
+    "多重射线",
+    "寒冰箭"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ]
+  },
+  {
+   "video_t": 2797.77,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "强化箭矢",
+    "多重射线",
+    "寒冰箭"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ]
+  }
+ ],
+ "refresh_stuck_samples": [
+  {
+   "video_t": 90.34,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "弹射箭",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 92.14,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "弹射箭",
+    "爆炎箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 112.69,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "陨石",
+    "多重箭",
+    "地震"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "red"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 114.49,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "陨石",
+    "多重箭",
+    "地震"
+   ],
+   "rarities": [
+    "red",
+    "blue",
+    "red"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 549.03,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "火球"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 550.78,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "火球"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "red"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 556.68,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "强化箭矢",
+    "火球",
+    "攻速提升"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 558.2,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "强化箭矢",
+    "火球",
+    "攻速提升"
+   ],
+   "rarities": [
+    "blue",
+    "red",
+    "blue"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 564.13,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 565.6,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 569.89,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ],
+   "streak": 4
+  },
+  {
+   "video_t": 571.65,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ],
+   "streak": 5
+  },
+  {
+   "video_t": 573.41,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "弹射箭",
+    "多重箭"
+   ],
+   "rarities": [
+    "purple",
+    "blue",
+    "blue"
+   ],
+   "streak": 6
+  },
+  {
+   "video_t": 579.43,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 581.2,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 585.39,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ],
+   "streak": 4
+  },
+  {
+   "video_t": 587.15,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ],
+   "streak": 5
+  },
+  {
+   "video_t": 588.86,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ],
+   "streak": 6
+  },
+  {
+   "video_t": 593.1,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ],
+   "streak": 7
+  },
+  {
+   "video_t": 594.55,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ],
+   "streak": 8
+  },
+  {
+   "video_t": 596.28,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "弹射箭",
+    "攻速提升",
+    "电磁网"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "orange"
+   ],
+   "streak": 9
+  },
+  {
+   "video_t": 746.03,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "地震",
+    "龙卷风"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "white"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 747.88,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "冰霜新星",
+    "地震",
+    "龙卷风"
+   ],
+   "rarities": [
+    "purple",
+    "red",
+    "white"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 866.8,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "电磁网",
+    "奥能喷发",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "purple",
+    "blue"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 868.48,
+   "run": "intelligence",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "电磁网",
+    "奥能喷发",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "purple",
+    "blue"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 1945.75,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "多重箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "blue"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 1947.53,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "攻速提升",
+    "强化箭矢",
+    "多重箭"
+   ],
+   "rarities": [
+    "blue",
+    "blue",
+    "blue"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 2081.5,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ],
+   "streak": 2
+  },
+  {
+   "video_t": 2083.08,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ],
+   "streak": 3
+  },
+  {
+   "video_t": 2087.28,
+   "run": "strength",
+   "at": [
+    1020,
+    654
+   ],
+   "names": [
+    "闪电链",
+    "电磁网",
+    "攻速提升"
+   ],
+   "rarities": [
+    "orange",
+    "orange",
+    "blue"
+   ],
+   "streak": 4
+  }
+ ],
+ "bond_slot1": [
+  {
+   "video_t": 2642.27,
+   "run": "strength",
+   "intent": "click:ocr_bond:slot1",
+   "at": [
+    964,
+    498
+   ]
+  },
+  {
+   "video_t": 2869.95,
+   "run": "strength",
+   "intent": "click:ocr_bond:slot1",
+   "at": [
+    964,
+    498
+   ]
+  }
+ ],
+ "window_loss": [],
+ "ys": [
+  {
+   "video_t": 108.81,
+   "run": "intelligence",
+   "intent": "click:asj",
+   "at": [
+    1193,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 282.83,
+   "run": "intelligence",
+   "intent": "click:asjg",
+   "at": [
+    1193,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 600.58,
+   "run": "intelligence",
+   "intent": "click:asjg",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 622.06,
+   "run": "intelligence",
+   "intent": "click:asj",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 1036.8,
+   "run": "intelligence",
+   "intent": "click:asjg",
+   "at": [
+    1193,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 1044.57,
+   "run": "intelligence",
+   "intent": "click:asj",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 1592.8,
+   "run": "strength",
+   "intent": "click:asjg",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 1595.26,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 1600.11,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 1617.33,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 1634.45,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 1636.85,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 1641.6,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2034.23,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2036.63,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2039.37,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    1193,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2041.78,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    1193,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2051.48,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2058.33,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2077.52,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2096.8,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    1193,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2099.22,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2110.37,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2112.83,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2490.05,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    1193,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2495.3,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    1193,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2505.07,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2533.67,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2536.09,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2538.49,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2546.23,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2623.95,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2691.29,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    960,
+    480
+   ],
+   "reason": "技能选择"
+  },
+  {
+   "video_t": 2852.04,
+   "run": "strength",
+   "intent": "click:ys",
+   "at": [
+    726,
+    480
+   ],
+   "reason": "技能选择"
+  }
+ ],
+ "giveups_skill": [
+  {
+   "video_t": 567.53,
+   "run": "intelligence",
+   "intent": "click:skill_giveup_btn"
+  },
+  {
+   "video_t": 583.06,
+   "run": "intelligence",
+   "intent": "click:skill_giveup_btn"
+  },
+  {
+   "video_t": 590.69,
+   "run": "intelligence",
+   "intent": "click:skill_giveup_btn"
+  },
+  {
+   "video_t": 2084.83,
+   "run": "strength",
+   "intent": "click:skill_giveup_btn"
+  },
+  {
+   "video_t": 2524.05,
+   "run": "strength",
+   "intent": "click:skill_giveup_btn"
+  }
+ ]
+}

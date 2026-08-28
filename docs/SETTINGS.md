@@ -6,7 +6,8 @@
 | room_name / room_password | RoomName / RoomPassword | 带队建房 |
 | new_room_every_times | NewRoomEveryTimes | 每局新房间 |
 | query_timeout | QueryTimeOut | 等待/查询超时（秒级语义，实机标定） |
-| game_timeout | GameTimeOut | 单局超时 |
+| game_timeout | GameTimeOut | 单局超时（分钟级；MAIN_LINE idle watchdog：`idle_minutes >= max(game_timeout,5)` 触发 ERROR，可被受确认的正常进展刷新） |
+| round_timeout_s | （S0 新增） | 单局 hard deadline（秒，默认 900 = game_timeout×60）。进入 MAIN_LINE 时固定、不可续期；技能/面板/神器/挑战/进化动作不得延期；到期先 QUIT 再 ERROR。迁移决定：旧 game_timeout=15 官方语义是分钟（不接成秒级 hard deadline），round_timeout_s 独立承担硬期限。 |
 | game_mode | GameMode | 0 独狼 …（枚举待实机确认） |
 | dragon_ball_count | DragonBallCount | 6 或 7 |
 | find_longzhu_where_multi_game | FindLongzhuWhereMultiGame | 组队找龙珠 |

@@ -14,11 +14,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame, check_frame_health
-from gamescript.vision.matcher import match_any_with_margin
-from gamescript.vision.stage_selector import find_stage_in_range, find_stage_labels, verify_stage_selection, visible_stage_rows
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame, check_frame_health
+from shuabao.vision.matcher import match_any_with_margin
+from shuabao.vision.stage_selector import find_stage_in_range, find_stage_labels, verify_stage_selection, visible_stage_rows
 
 
 @dataclass
@@ -253,7 +253,11 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
             postcondition_met = verify_stage_selection(frame, target=None, images_dir=med.images)
 
     # 5) MAIN_LINE
-    elif context in ("MAIN_LINE", "IN_GAME") or expected_state in ("MAIN_LINE", "IN_GAME"):
+    elif (
+        context in ("MAIN_LINE", "IN_GAME")
+        or expected_state in ("MAIN_LINE", "IN_GAME")
+        or fixture_id.startswith("post_game_")
+    ):
         detected_scene = "MAIN_LINE"
         post_game = med._post_game_state(frame)
         target_challenge = fixture.get("target_challenge")
@@ -268,8 +272,27 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
                 action_kind = "left_click"
                 if not is_negative:
                     click_point = hit.center
-        elif post_game in ("HEIRLOOM_DIALOG", "GREAT_RIFT_CONFIRM", "ARCHIVE_PANEL", "NPC_HUB"):
-            # Observe-only post-game pages must never produce a click candidate.
+        elif post_game == "HEIRLOOM_DIALOG":
+            hit = med._find_heirloom_close(frame)
+            if hit:
+                candidate_box = [hit.x, hit.y, hit.w, hit.h]
+                best_score = hit.score
+                score_margin = hit.score
+                action_name = "DismissHeirloomDialog"
+                action_kind = "left_click"
+                if not is_negative:
+                    click_point = hit.center
+        elif post_game == "GREAT_RIFT_CONFIRM":
+            hit = med._find_great_rift_cancel(frame)
+            if hit:
+                candidate_box = [hit.x, hit.y, hit.w, hit.h]
+                best_score = hit.score
+                score_margin = hit.score
+                action_name = "CancelGreatRift"
+                action_kind = "left_click"
+                if not is_negative:
+                    click_point = hit.center
+        elif post_game in ("ARCHIVE_PANEL", "NPC_HUB"):
             action_name = "none"
             action_kind = "none"
         elif target_challenge:
@@ -331,7 +354,14 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
 
     # 6) QUIT
     elif (fixture_id == "quit_game_1616x939" or expected_state == "QUIT"):
-        hit = med.find_scene(frame, "close") or med.find_scene(frame, "fail") or med.find_scene(frame, "disconnect")
+        # S0 ①：close 场景 ROI 已排除左上角 quit（恢复脚本不得误点局内退出）；
+        # 回放检测先走生产专用退出锚点 _find_game_exit，保持 B0 ledger 点击点等价。
+        hit = (
+            med._find_game_exit(frame)
+            or med.find_scene(frame, "close")
+            or med.find_scene(frame, "fail")
+            or med.find_scene(frame, "disconnect")
+        )
         if hit:
             detected_scene = "QUIT"
             candidate_box = [hit.x, hit.y, hit.w, hit.h]
@@ -437,7 +467,14 @@ def run_replay_fixture(fixture: dict, med: Mediator, root: Path) -> ReplayResult
     )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="P0-B screenshot replay runner")
+    parser.add_argument("--ledger", metavar="PATH", default=None,
+                        help="Append one tick-level action ledger line per fixture to PATH (JSONL).")
+    args = parser.parse_args(argv if argv is not None else [])
+
     manifest_path = ROOT / "fixtures" / "manifest.json"
     if not manifest_path.is_file():
         print(f"Manifest file not found: {manifest_path}")
@@ -448,6 +485,13 @@ def main() -> int:
 
     settings = Settings()
     med = Mediator(settings, ROOT)
+
+    ledger_fh = None
+    if args.ledger:
+        ledger_path = Path(args.ledger)
+        ledger_path.parent.mkdir(parents=True, exist_ok=True)
+        ledger_fh = open(ledger_path, "a", encoding="utf-8")
+        print(f"[ledger] appending to {ledger_path}")
 
     print("=" * 135)
     print("P0-B REAL SCREENSHOT REPLAY REPORT")
@@ -479,6 +523,24 @@ def main() -> int:
         else:
             failed += 1
 
+        if ledger_fh is not None:
+            row = {
+                "fixture_id": res.fixture_id,
+                "phase": res.detected_scene,
+                "context": res.actual_state,
+                "action_name": res.action_name,
+                "action_kind": res.action_kind,
+                "click_point": res.click_point,
+                "hwnd": res.target_hwnd,
+                "score": round(res.best_score, 3),
+                "margin": round(res.score_margin, 3),
+                "status": res.status,
+                "required": res.required,
+                "dry_run": True,
+            }
+            ledger_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            ledger_fh.flush()
+
         cp_str = f"({res.click_point[0]},{res.click_point[1]})" if res.click_point else "None"
         scores_str = f"{res.best_score:.2f}/{res.second_score:.2f}"
         req_str = "YES" if res.required else "NO"
@@ -488,6 +550,9 @@ def main() -> int:
             f"{res.score_margin:<6.2f} | {cp_str:<12} | "
             f"{req_str:<4} | {res.status:<16}"
         )
+
+    if ledger_fh is not None:
+        ledger_fh.close()
 
     print("-" * 135)
     print(
@@ -504,4 +569,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(sys.argv[1:]))

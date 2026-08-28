@@ -11,10 +11,11 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, PanelState, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.stage_selector import StageId, StageRow
 
 
 def load_frame(relative_path: str, title: str = "英雄三国") -> Frame:
@@ -32,6 +33,9 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
             auto_create_room=True,
             new_room_every_times=False,
             query_timeout=30,
+            # 本文件验证观察模式契约（OBSERVE incident 只记录不终止）；
+            # 1d8f101 把 dry_run 默认翻成 False，显式钉回测试出生时的模式。
+            dry_run=True,
         )
         self.med = Mediator(settings, ROOT)
         self.actions: list[tuple[str, tuple[int, int]]] = []
@@ -79,7 +83,11 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         self.assertEqual(Phase.STAGE_SELECT, self.med.phase)
         self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
         self.med._stage_click_cooldown_until = 0
-        with patch("gamescript.mediator.verify_stage_selection", return_value=True):
+        # 2026-08-16 L0 裁决：选关确认改用正向高亮接口（verify_stage_selection 已移除）。
+        _row = StageRow(label="1-12", stage_id=StageId(1, 12), center_x=0, center_y=0)
+        with patch("shuabao.mediator.selected_stage_row", return_value=_row):
+            self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
+            self.med._stage_click_cooldown_until = 0
             self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
         self.assertEqual(Phase.STAGE_STARTING, self.med.phase)
         # startChallenge 子状态机：局内锚点需连续 2 帧确认，
@@ -96,7 +104,9 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
                 "QuitGame-open-confirm",
                 "QuitGame-confirm",
                 "RoomStart",
-                "SelectStage-target",
+                # 2026-08-20 起选关为幂等正向确认：fixture 上目标行已被
+                # selected_stage_row 判定为高亮命中 →「已高亮，跳过点选」，
+                # 不再产生 SelectStage-target 输入，直接 StageStart。
                 "StageStart",
             ],
             [reason for reason, _ in self.actions],
@@ -106,28 +116,37 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
     def test_unknown_choice_panel_is_bounded_instead_of_waiting_forever(self):
         # 57d40ce 后语义：未知选择面板保持零输入等待，超过 10s 才 Fail-Closed
         # ERROR（不再盲点隐藏按钮）。用假时钟推进验证 10s 上界与零输入。
+        # P0-3：自然面板需同类型锚点连续 2 帧才进入面板处理——首帧只建立候选
+        # （零输入），第二帧才进入 ACTIVE 起算 unknown 计时。
+        # R8-REVIEW：本场景用 skill 面板 fixture（card_hide 不命中、无自然关闭
+        # 权）——bond 面板（card_hide 0.85 命中）现走安全关闭而非超时（另测）。
         from tests.test_scenario_replay import FakeClock
 
         clock = FakeClock(start=100.0)
         self.med.set_phase(Phase.MAIN_LINE, "unknown choice replay")
-        frame = load_frame("fixtures/replay/bond_choice_3.png")
+        frame = load_frame("fixtures/replay/skill_choice_3.png")
 
         with clock.install(), \
                 patch.object(self.med, "_post_game_state", return_value=None), \
                 patch.object(self.med, "find_scene", return_value=None), \
                 patch.object(self.med, "_find_reward_choice", return_value=None):
-            for i in range(3):
-                clock.set(100.0 + float(i + 1) * 4.0)  # 104 / 108（<10s）
+            for i in range(4):
+                clock.set(100.0 + float(i + 1) * 4.0)  # 104（候选）/ 108（确认→ACTIVE）/ 112 / 116（<10s）
                 action = self.med._tick_main_line(frame)
                 self.assertEqual(LoopAction.Continue, action)
                 self.assertEqual(Phase.MAIN_LINE, self.med.phase)
 
-            clock.set(116.0)  # elapsed = 116 - 104 = 12s >= 10s
+            clock.set(124.0)  # 确认后 elapsed = 124 - 108 = 16s >= 15s（panel_hard_deadline_s）
             action = self.med._tick_main_line(frame)
 
-        self.assertEqual(LoopAction.Break, action)
-        self.assertEqual(Phase.ERROR, self.med.phase)
-        # 全程零输入：未知面板绝不盲点（旧行为是 3 次 HideUnknownSelection 点击）
+        # 20260822 语义：未知面板不再盲选、也不再 ERROR 停机——由面板
+        # episode hard deadline（panel_hard_deadline_s，默认 15s）强制 COOLDOWN
+        # 脱困，运行继续。
+        self.assertEqual(LoopAction.Continue, action)
+        self.assertEqual(Phase.MAIN_LINE, self.med.phase)
+        self.assertEqual(PanelState.COOLDOWN, self.med._panel_state)
+        # 全程零输入：未知面板绝不盲点（旧行为是 3 次 HideUnknownSelection
+        # 点击，2026-08-20 一度回归为 3s 品质盲选，均已封死）
         self.assertEqual([], self.actions)
 
 
@@ -148,10 +167,13 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
                 action = self.med.tick()
                 self.assertEqual(LoopAction.Continue, action)
                 self.assertNotEqual(self.med.phase, Phase.ERROR, f"tick {i+1} 不应提前 ERROR")
-            # 36s：since=1004，elapsed=32s 超过容忍窗 30s → Fail-Closed ERROR
+            # 36s：since=1004，elapsed=32s 超过容忍窗 30s。dry-run 是观察
+            # 模式：记录 incident，但不得自行终止或丢失当前 phase。
             clock.set(1036.0)
             action = self.med.tick()
-            self.assertEqual(self.med.phase, Phase.ERROR)
+            self.assertEqual(action, LoopAction.Continue)
+            self.assertEqual(self.med.phase, Phase.CREATE_ROOM)
+            self.assertEqual(self.med._interrupt_reason, "unhealthy frame timeout")
 
 
 class _EmptyFrameSource:

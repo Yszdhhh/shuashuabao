@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "case": "stage_select_scroll",
+  "description": "R0.1-#5 stage 独立场景：真实帧 tests/performance/fixtures/stage_select.png（1600×900 窗口捕获，选关页）。生产语义：context=STAGE_SELECT；配置目标关卡不在当前可见列表 → 有界滚动寻找（每 tick 一次 scroll @(1080,468,-1)，0.8s 冷却；帧 t=0/t=2.0 各滚动 1 次，共 2/8）。绝不点击列表外的任意可见关卡。",
+  "phase": "STAGE_SELECT",
+  "settings_overrides": {
+    "dry_run": true
+  },
+  "frames": [
+    {
+      "id": "stage_f1",
+      "at_s": 0.0,
+      "file": "tests/performance/fixtures/stage_select.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l0",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    },
+    {
+      "id": "stage_f2",
+      "at_s": 2.0,
+      "file": "tests/performance/fixtures/stage_select.png",
+      "window_title": "英雄三国KK",
+      "hwnd": 10001,
+      "left": 0,
+      "top": 0,
+      "capture_role": "l0",
+      "control": {
+        "stop_signal": "unchanged",
+        "before_action": null
+      }
+    }
+  ],
+  "expect_actions": [
+    {
+      "phase_before": "STAGE_SELECT",
+      "context": "STAGE_SELECT",
+      "action_count": 1,
+      "action": {
+        "kind": "scroll",
+        "input_kind": "scroll"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
+      "phase_after": "STAGE_SELECT",
+      "loop_action": "Continue"
+    },
+    {
+      "phase_before": "STAGE_SELECT",
+      "context": "STAGE_SELECT",
+      "action_count": 1,
+      "action": {
+        "kind": "scroll",
+        "input_kind": "scroll"
+      },
+      "action_result": {
+        "success": true,
+        "status": "SUCCESS"
+      },
+      "phase_after": "STAGE_SELECT",
+      "loop_action": "Continue"
+    }
+  ],
+  "final_phase": "STAGE_SELECT"
+}

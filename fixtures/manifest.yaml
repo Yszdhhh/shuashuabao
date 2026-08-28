@@ -37,19 +37,19 @@ fixtures:
   expected_state: CREATE_ROOM
   expected_action: CreateRoom-confirm
   is_negative: false
-- fixture_id: stage_select_1616x939
+- fixture_id: main_line_stage_glyph_1616x939
   file_path: docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803154629.png
   resolution:
   - 1616
   - 939
   dpi_scale: 1.0
-  page: STAGE_SELECT
-  target_scene: stage_target_4-4
+  page: MAIN_LINE
+  target_scene: stage_glyph_negative
   forbidden_click_regions: []
-  expected_state: STAGE_SELECT
-  expected_action: SelectStage-target
-  expected_stage: 4-4
-  is_negative: false
+  expected_state: MAIN_LINE
+  expected_action: none
+  expected_input_kind: none
+  is_negative: true
 - fixture_id: stage_select_1936x1066
   file_path: docs/agent_shared_logs/official_raw/20260803_CaptureWindow_20260803141607.png
   resolution:

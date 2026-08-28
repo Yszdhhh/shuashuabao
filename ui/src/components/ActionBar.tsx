@@ -114,7 +114,7 @@ export const ActionBar: React.FC<ActionBarProps> = ({
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed">
-              您当前关闭了 <b className="text-amber-300">Dry-run</b> 演示模式！
+              您当前关闭了 <b className="text-amber-300">学习模式</b>！
               启动后脚本将开始向标题包含 <b className="text-blue-300">“英雄三国”</b> 的窗口发送真实的鼠标点击与键盘输入。
             </p>
 

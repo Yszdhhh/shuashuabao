@@ -1,0 +1,140 @@
+{
+  "version": 1,
+  "_comment": "技能中文名 + 悬停说明 + 流派预设。权威外部调研见 docs/research/；默认挂机构筑见 config/official_strategy_defaults.json（active_build_id=arcane_open）。",
+  "_evidence_policy": "description 只填有实机证据的：来源写在 source 字段。没有证据的留空字符串，面板会显示『说明待补』——不要凭想象编游戏数值，选错技能的代价由用户承担。",
+  "_todo": "主技能说明仍可补卡面原文。升级卡效果见 config/skill_card_catalog.json（2026-08-12 截图 + 20260813_003003 录屏入库，220 张）。",
+
+  "skills": {
+    "asj": {
+      "label": "奥术箭",
+      "description": "",
+      "source": ""
+    },
+    "asjg": {
+      "label": "奥术激光",
+      "description": "",
+      "source": ""
+    },
+    "assx": {
+      "label": "奥术射线",
+      "description": "",
+      "source": ""
+    },
+    "bsxx": {
+      "label": "冰霜新星",
+      "description": "",
+      "source": ""
+    },
+    "byj": {
+      "label": "爆炎箭",
+      "description": "射出爆炎箭，对命中目标造成280%攻击的伤害",
+      "source": "tests/performance/fixtures/giveup_panel.jpg（技能面板实机帧）"
+    },
+    "dcw": {
+      "label": "电磁网",
+      "description": "",
+      "source": ""
+    },
+    "dz": {
+      "label": "地震",
+      "description": "",
+      "source": ""
+    },
+    "hbj": {
+      "label": "寒冰箭",
+      "description": "",
+      "source": ""
+    },
+    "hq": {
+      "label": "火球",
+      "description": "",
+      "source": ""
+    },
+    "jf": {
+      "label": "飓风",
+      "description": "",
+      "source": ""
+    },
+    "jq": {
+      "label": "剑气",
+      "description": "",
+      "source": ""
+    },
+    "ljf": {
+      "label": "龙卷风",
+      "description": "",
+      "source": ""
+    },
+    "pg": {
+      "label": "普攻",
+      "description": "",
+      "source": ""
+    },
+    "sdl": {
+      "label": "闪电链",
+      "description": "",
+      "source": ""
+    },
+    "tl": {
+      "label": "天雷",
+      "description": "召唤天雷，对命中目标造成180%攻击的[电系]魔法伤害，并附加1秒麻痹",
+      "source": "tests/performance/fixtures/giveup_panel.jpg（技能面板实机帧）"
+    },
+    "ys": {
+      "label": "陨石",
+      "description": "",
+      "source": ""
+    }
+  },
+
+  "presets": [
+    {
+      "name": "奥术开荒",
+      "codes": ["asj", "asjg", "assx", "jq"],
+      "hint": "奥术箭 + 奥术射线 + 奥术激光 + 剑气",
+      "source": ""
+    },
+    {
+      "name": "天雷经典",
+      "codes": ["tl", "sdl", "assx", "asjg"],
+      "hint": "天雷 + 闪电链 + 奥术射线 + 奥术激光",
+      "source": ""
+    },
+    {
+      "name": "天雷狂轰",
+      "codes": ["tl", "sdl", "dcw", "asj"],
+      "hint": "天雷 + 闪电链 + 电磁网 + 奥术箭",
+      "source": ""
+    },
+    {
+      "name": "剑气物理",
+      "codes": ["jq", "ys", "dz", "asjg"],
+      "hint": "剑气 + 陨石 + 地震 + 奥术激光",
+      "source": ""
+    },
+    {
+      "name": "普攻流派",
+      "codes": ["pg", "ys", "dz", "jq"],
+      "hint": "普攻 + 陨石 + 地震 + 剑气",
+      "source": ""
+    },
+    {
+      "name": "爆炎箭流",
+      "codes": ["byj", "hq", "dz", "jq"],
+      "hint": "爆炎箭 + 火球 + 地震 + 剑气",
+      "source": ""
+    },
+    {
+      "name": "冰法控场",
+      "codes": ["hbj", "bsxx", "jq", "pg"],
+      "hint": "寒冰箭 + 冰霜新星 + 剑气 + 普攻",
+      "source": ""
+    },
+    {
+      "name": "龙卷风流",
+      "codes": ["ljf", "sdl", "tl", "asj"],
+      "hint": "龙卷风 + 闪电链 + 天雷 + 奥术箭",
+      "source": ""
+    }
+  ]
+}

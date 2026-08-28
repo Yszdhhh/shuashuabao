@@ -29,13 +29,13 @@ _SRC = ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-import gamescript.mediator as mediator_module
-from gamescript.input.keyboard_mouse import ActionResult
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.capture import Frame
+import shuabao.mediator as mediator_module
+from shuabao.input.keyboard_mouse import ActionResult
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.capture import Frame
 
 SCENARIOS_DIR = ROOT / "fixtures" / "scenarios"
 

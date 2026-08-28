@@ -1,5 +1,10 @@
 # INDEX · 外部 Agent 快速入口
 
+> **先读规矩：** [`AGENTS.md`](../../AGENTS.md)（仓库根）——硬规矩、两条红线、发版门禁命令。
+> **再读当前状态：** [`docs/CURRENT_STATUS_AND_HANDOFF_20260812.md`](../CURRENT_STATUS_AND_HANDOFF_20260812.md)。本索引下方内容以早期 L0 日志研究为主，若与当前状态冲突，以新交接文档和最新 trace 为准。
+>
+> **提交前必过：** `python tools/release_gate.py`（退出码 0）。细则见 [`docs/CONTRIBUTING_GATE.md`](../CONTRIBUTING_GATE.md)。
+
 ## 一句话问题
 
 原始投诉是用户开着脚本站在**游戏房间/大厅**，脚本**不点「开始游戏」**，一直空转；
@@ -9,6 +14,7 @@
 
 | 优先级 | 路径 |
 |--------|------|
+| P0 | `docs/CURRENT_STATUS_AND_HANDOFF_20260812.md` |
 | P0 | `docs/agent_shared_logs/README.md` |
 | P0 | `docs/agent_shared_logs/exports/LOG_LOBBY_AND_ENTRY_EXTRACT.md` |
 | P0 | `docs/LOBBY_ROOM_GAP.md` |

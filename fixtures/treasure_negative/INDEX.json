@@ -1,0 +1,106 @@
+{
+  "names": [
+    "透支力量",
+    "贪婪献祭",
+    "金转木",
+    "杀敌梭哈",
+    "伐木契约",
+    "等级优势"
+  ],
+  "entries": [
+    {
+      "name": "透支力量",
+      "panels": [
+        "fixtures\\treasure_negative\\透支力量\\panel_d0_b_001077.png",
+        "fixtures\\treasure_negative\\透支力量\\panel_d0_b_001541.png",
+        "fixtures\\treasure_negative\\透支力量\\panel_f_130.png"
+      ],
+      "name_crops": [
+        "fixtures\\treasure_negative\\透支力量\\name_d0_b_001077_slot2_name.png",
+        "fixtures\\treasure_negative\\透支力量\\name_d0_b_001541_slot0_name.png",
+        "fixtures\\treasure_negative\\透支力量\\name_f_130_slot2_name.png"
+      ],
+      "desc_crops": [
+        "fixtures\\treasure_negative\\透支力量\\desc2_d0_b_001077_slot2.png",
+        "fixtures\\treasure_negative\\透支力量\\desc2_d0_b_001541_slot0.png",
+        "fixtures\\treasure_negative\\透支力量\\desc2_f_130_slot2.png",
+        "fixtures\\treasure_negative\\透支力量\\desc_d0_b_001077_slot2.png",
+        "fixtures\\treasure_negative\\透支力量\\desc_d0_b_001541_slot0.png",
+        "fixtures\\treasure_negative\\透支力量\\desc_f_130_slot2.png"
+      ]
+    },
+    {
+      "name": "贪婪献祭",
+      "panels": [
+        "fixtures\\treasure_negative\\贪婪献祭\\panel_treasure_choice_3.png"
+      ],
+      "name_crops": [
+        "fixtures\\treasure_negative\\贪婪献祭\\name_treasure_choice_3_slot0_name.png"
+      ],
+      "desc_crops": [
+        "fixtures\\treasure_negative\\贪婪献祭\\desc2_treasure_choice_3_slot0.png",
+        "fixtures\\treasure_negative\\贪婪献祭\\desc_treasure_choice_3_slot0.png"
+      ]
+    },
+    {
+      "name": "金转木",
+      "panels": [
+        "fixtures\\treasure_negative\\金转木\\panel_d0_b_001266.png",
+        "fixtures\\treasure_negative\\金转木\\panel_d0_b_002329.png"
+      ],
+      "name_crops": [
+        "fixtures\\treasure_negative\\金转木\\name_d0_b_001266_slot1_name.png",
+        "fixtures\\treasure_negative\\金转木\\name_d0_b_002329_slot1_name.png"
+      ],
+      "desc_crops": [
+        "fixtures\\treasure_negative\\金转木\\desc2_d0_b_001266_slot1.png",
+        "fixtures\\treasure_negative\\金转木\\desc2_d0_b_002329_slot1.png",
+        "fixtures\\treasure_negative\\金转木\\desc_d0_b_001266_slot1.png",
+        "fixtures\\treasure_negative\\金转木\\desc_d0_b_002329_slot1.png"
+      ]
+    },
+    {
+      "name": "杀敌梭哈",
+      "panels": [
+        "fixtures\\treasure_negative\\杀敌梭哈\\panel_d0_b_001818.png"
+      ],
+      "name_crops": [
+        "fixtures\\treasure_negative\\杀敌梭哈\\name_d0_b_001818_slot0_name.png"
+      ],
+      "desc_crops": [
+        "fixtures\\treasure_negative\\杀敌梭哈\\desc2_d0_b_001818_slot0.png",
+        "fixtures\\treasure_negative\\杀敌梭哈\\desc_d0_b_001818_slot0.png"
+      ]
+    },
+    {
+      "name": "伐木契约",
+      "panels": [
+        "fixtures\\treasure_negative\\伐木契约\\panel_d0_a_000756.png"
+      ],
+      "name_crops": [
+        "fixtures\\treasure_negative\\伐木契约\\name_d0_a_000756_slot1_name.png"
+      ],
+      "desc_crops": [
+        "fixtures\\treasure_negative\\伐木契约\\desc2_d0_a_000756_slot1.png",
+        "fixtures\\treasure_negative\\伐木契约\\desc_d0_a_000756_slot1.png"
+      ]
+    },
+    {
+      "name": "等级优势",
+      "panels": [
+        "fixtures\\treasure_negative\\等级优势\\panel_d0_a_000756.png",
+        "fixtures\\treasure_negative\\等级优势\\panel_d0_b_001077.png"
+      ],
+      "name_crops": [
+        "fixtures\\treasure_negative\\等级优势\\name_d0_a_000756_slot2_name.png",
+        "fixtures\\treasure_negative\\等级优势\\name_d0_b_001077_slot1_name.png"
+      ],
+      "desc_crops": [
+        "fixtures\\treasure_negative\\等级优势\\desc2_d0_a_000756_slot2.png",
+        "fixtures\\treasure_negative\\等级优势\\desc2_d0_b_001077_slot1.png",
+        "fixtures\\treasure_negative\\等级优势\\desc_d0_a_000756_slot2.png",
+        "fixtures\\treasure_negative\\等级优势\\desc_d0_b_001077_slot1.png"
+      ]
+    }
+  ]
+}

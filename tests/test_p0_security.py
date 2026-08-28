@@ -10,14 +10,14 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from gamescript.input.emergency_stop import EmergencyStopListener
-from gamescript.input.keyboard_mouse import InputExecutor, get_clipboard_text, paste_text, set_clipboard_text
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.stop_signal import StopSignal
-from gamescript.vision.matcher import MatchResult
-from gamescript.vision.capture import (
+from shuabao.input.emergency_stop import EmergencyStopListener
+from shuabao.input.keyboard_mouse import InputExecutor, get_clipboard_text, paste_text, set_clipboard_text
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import AttemptBudget, Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.stop_signal import StopSignal
+from shuabao.vision.matcher import MatchResult
+from shuabao.vision.capture import (
     Frame,
     FrameHealthIssue,
     WindowTarget,
@@ -76,7 +76,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertEqual(exe, "")
 
     def test_fail_closed_window_keyword_search(self) -> None:
-        with patch("gamescript.vision.capture.find_window_targets") as mock_find:
+        with patch("shuabao.vision.capture.find_window_targets") as mock_find:
             mock_find.return_value = []
             targets = find_window_targets("NON_EXISTENT_TITLE_99999", allow_fallback=False)
             self.assertEqual(targets, [])
@@ -137,7 +137,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
     def test_unhealthy_frame_blocks_decision_and_inputs(self) -> None:
         settings = Settings()
-        project_root = Path(".")
+        project_root = Path(__file__).resolve().parents[1]
         mediator = Mediator(settings, project_root)
 
         black_frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=123, window_title="KK", is_valid=True)
@@ -154,7 +154,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
     def test_frozen_frame_history_reference_fix(self) -> None:
         settings = Settings()
-        project_root = Path(".")
+        project_root = Path(__file__).resolve().parents[1]
         mediator = Mediator(settings, project_root)
 
         arr = np.random.randint(50, 200, size=(50, 50, 3), dtype=np.uint8)
@@ -183,7 +183,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
     # ---------- Task 4: Explicit Capture Failure & Real Input HWND Binding ----------
 
     def test_capture_target_not_found_explicit_failure(self) -> None:
-        with patch("gamescript.vision.capture.find_window_targets", return_value=[]):
+        with patch("shuabao.vision.capture.find_window_targets", return_value=[]):
             frame = capture(title_contains="NON_EXISTENT_WINDOW_TITLE_12345", allow_fallback=False)
             self.assertFalse(frame.is_valid)
             self.assertIsNotNone(frame.error)
@@ -191,16 +191,16 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
     def test_capture_minimized_window_explicit_failure(self) -> None:
         target = WindowTarget(hwnd=9999, title="Minimized", left=0, top=0, width=800, height=600)
-        with patch("gamescript.vision.capture.is_window_minimized", return_value=True):
+        with patch("shuabao.vision.capture.is_window_minimized", return_value=True):
             frame = capture_target(target)
             self.assertFalse(frame.is_valid)
             self.assertEqual(frame.error, "Window is minimized")
 
     def test_real_input_without_hwnd_is_rejected(self) -> None:
         executor = InputExecutor()
-        with patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
-             patch("gamescript.input.keyboard_mouse.click") as mock_click, \
-             patch("gamescript.input.keyboard_mouse.press_key") as mock_press:
+        with patch("shuabao.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
+             patch("shuabao.input.keyboard_mouse.click") as mock_click, \
+             patch("shuabao.input.keyboard_mouse.press_key") as mock_press:
             res_click = executor.click(100, 200, target_hwnd=None, dry_run=False)
             self.assertFalse(res_click.success)
             self.assertEqual(res_click.status, "CANCELLED_NO_TARGET_HWND")
@@ -223,8 +223,8 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
     def test_input_executor_not_elevated_cancels_real_input(self) -> None:
         executor = InputExecutor()
-        with patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=False), \
-             patch("gamescript.input.keyboard_mouse.click") as mock_click:
+        with patch("shuabao.input.keyboard_mouse.is_current_process_elevated", return_value=False), \
+             patch("shuabao.input.keyboard_mouse.click") as mock_click:
             res = executor.click(100, 200, target_hwnd=123, dry_run=False)
             self.assertFalse(res.success)
             self.assertEqual(res.status, "CANCELLED_NOT_ELEVATED")
@@ -232,18 +232,18 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
     def test_input_executor_window_invalid_cancels(self) -> None:
         executor = InputExecutor()
-        with patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
-             patch("gamescript.input.keyboard_mouse.is_window_valid", return_value=False):
+        with patch("shuabao.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
+             patch("shuabao.input.keyboard_mouse.is_window_valid", return_value=False):
             res = executor.click(100, 200, target_hwnd=123, dry_run=False)
             self.assertFalse(res.success)
             self.assertEqual(res.status, "CANCELLED_WINDOW_INVALID")
 
     def test_input_executor_window_changed_cancels(self) -> None:
         executor = InputExecutor()
-        with patch("gamescript.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
-             patch("gamescript.input.keyboard_mouse.is_window_valid", return_value=True), \
-             patch("gamescript.input.keyboard_mouse.get_foreground_window", return_value=999), \
-             patch("gamescript.input.keyboard_mouse.activate_window", return_value=False):
+        with patch("shuabao.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
+             patch("shuabao.input.keyboard_mouse.is_window_valid", return_value=True), \
+             patch("shuabao.input.keyboard_mouse.get_foreground_window", return_value=999), \
+             patch("shuabao.input.keyboard_mouse.activate_window", return_value=False):
             res = executor.click(100, 200, target_hwnd=123, dry_run=False)
             self.assertFalse(res.success)
             self.assertEqual(res.status, "CANCELLED_WINDOW_CHANGED")
@@ -266,7 +266,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
         signal = StopSignal()
         listener = EmergencyStopListener(stop_signal=signal, poll_interval=0.01)
 
-        with patch("gamescript.input.emergency_stop.check_key_pressed_win32", side_effect=lambda vk: vk in (0x10, 0x7B)):
+        with patch("shuabao.input.emergency_stop.check_key_pressed_win32", side_effect=lambda vk: vk in (0x10, 0x7B)):
             listener.start()
             time.sleep(0.05)
             listener.stop()
@@ -288,8 +288,8 @@ class P0SecurityFoundationTests(unittest.TestCase):
             set_calls.append(val)
             return True
 
-        with patch("gamescript.input.keyboard_mouse.get_clipboard_text", side_effect=mock_get), \
-             patch("gamescript.input.keyboard_mouse.set_clipboard_text", side_effect=mock_set), \
+        with patch("shuabao.input.keyboard_mouse.get_clipboard_text", side_effect=mock_get), \
+             patch("shuabao.input.keyboard_mouse.set_clipboard_text", side_effect=mock_set), \
              patch("pyautogui.hotkey") as mock_hotkey:
             paste_text("NEW_PASTE_TEXT", dry_run=False)
 
@@ -303,7 +303,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
         settings = Settings()
         settings.room_name = "TestRoom"
         settings.room_password = "123"
-        mediator = Mediator(settings, Path("."))
+        mediator = Mediator(settings, Path(__file__).resolve().parents[1])
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=777, is_valid=True)
         mediator._last_frame = frame
         confirm = MatchResult("confirm", 0.9, 10, 10, 20, 20, 10, 10)
@@ -312,10 +312,10 @@ class P0SecurityFoundationTests(unittest.TestCase):
             MatchResult("box1", 0.9, 5, 5, 10, 10, 5, 5),
             MatchResult("box2", 0.9, 5, 15, 10, 10, 5, 15),
         ]
-        with patch("gamescript.mediator.find_input_boxes", return_value=boxes), \
+        with patch("shuabao.mediator.find_input_boxes", return_value=boxes), \
              patch.object(mediator, "act_click", return_value=True), \
-             patch.object(mediator.executor, "hotkey", wraps=mediator.executor.hotkey) as mock_hk, \
-             patch.object(mediator.executor, "paste_text", wraps=mediator.executor.paste_text) as mock_paste:
+             patch.object(mediator.executor, "hotkey", return_value=True) as mock_hk, \
+             patch.object(mediator.executor, "paste_text", return_value=True) as mock_paste:
 
             res = mediator._fill_room_dialog(frame, confirm)
             self.assertTrue(res)
@@ -332,7 +332,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
         settings = Settings()
         settings.room_name = "TestRoom"
         settings.room_password = "123"
-        mediator = Mediator(settings, Path("."))
+        mediator = Mediator(settings, Path(__file__).resolve().parents[1])
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=777, is_valid=True)
         mediator._last_frame = frame
         confirm = MatchResult("confirm", 0.9, 10, 10, 20, 20, 10, 10)
@@ -344,7 +344,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
         # Trigger emergency stop before room dialog fill
         mediator.stop_signal.trigger("Emergency stop inside dialog")
 
-        with patch("gamescript.mediator.find_input_boxes", return_value=boxes), \
+        with patch("shuabao.mediator.find_input_boxes", return_value=boxes), \
              patch.object(mediator, "act_click", return_value=True), \
              patch.object(mediator.executor, "paste_text") as mock_paste:
 
@@ -355,7 +355,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
     def test_mediator_stage_scroll_uses_executor(self) -> None:
         settings = Settings()
         settings.stage_targets = ["2-1"]
-        mediator = Mediator(settings, Path("."))
+        mediator = Mediator(settings, Path(__file__).resolve().parents[1])
         mediator.phase = Phase.STAGE_SELECT
         frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=888, is_valid=True)
         mediator._last_frame = frame
@@ -363,13 +363,68 @@ class P0SecurityFoundationTests(unittest.TestCase):
         with patch.object(mediator, "_detect_context", return_value="STAGE_SELECT"), \
              patch.object(mediator, "_find_stage_page", return_value=True), \
              patch.object(mediator, "_find_stage_target", return_value=None), \
-             patch.object(mediator.executor, "scroll", wraps=mediator.executor.scroll) as mock_scroll:
+             patch.object(mediator.executor, "scroll", return_value=True) as mock_scroll:
 
             action = mediator._tick_l0(frame)
             self.assertEqual(action, LoopAction.Continue)
             mock_scroll.assert_called_once()
             self.assertEqual(mock_scroll.call_args.kwargs.get("target_hwnd"), 888)
+            self.assertIn(mock_scroll.call_args.args[2], [-1, -2])
             self.assertEqual(mediator._stage_scroll_attempts, 1)
+
+    def test_attempt_budget_bounds_actions_retries_and_deadline(self) -> None:
+        budget = AttemptBudget(
+            started_at=10.0, hard_deadline=20.0, actions_left=1, retries_left=1
+        )
+
+        self.assertTrue(budget.consume_action(15.0))
+        self.assertFalse(budget.consume_action(15.0))
+        self.assertTrue(budget.consume_retry(15.0))
+        self.assertFalse(budget.consume_retry(15.0))
+        self.assertTrue(budget.exhausted(20.0))
+
+    def test_stage_budget_deadline_fails_closed_without_reset(self) -> None:
+        mediator = Mediator(Settings(), Path(__file__).resolve().parents[1])
+        mediator.phase = Phase.STAGE_SELECT
+        mediator._stage_attempt_budget = AttemptBudget(
+            started_at=0.0, hard_deadline=1.0, actions_left=12, retries_left=2
+        )
+        frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=888, is_valid=True)
+
+        with patch("shuabao.mediator.time.time", return_value=1.0):
+            self.assertEqual(mediator._tick_l0(frame), LoopAction.Break)
+
+        self.assertIs(mediator.phase, Phase.ERROR)
+
+    def test_challenge_retry_exhaustion_stays_in_same_stage_budget(self) -> None:
+        mediator = Mediator(Settings(), Path(__file__).resolve().parents[1])
+        mediator._stage_attempt_budget = AttemptBudget(
+            started_at=0.0, hard_deadline=100.0, actions_left=12, retries_left=1
+        )
+
+        with patch("shuabao.mediator.time.time", return_value=1.0):
+            self.assertEqual(mediator._challenge_start_timeout(True), LoopAction.Continue)
+            self.assertEqual(mediator._stage_attempt_budget.retries_left, 0)
+            self.assertEqual(mediator._stage_budget_guard(1.0), LoopAction.Break)
+
+        self.assertIs(mediator.phase, Phase.ERROR)
+
+    def test_main_line_watchdog_never_injects_global_escape(self) -> None:
+        mediator = Mediator(Settings(), Path(__file__).resolve().parents[1])
+        mediator.phase = Phase.MAIN_LINE
+        mediator._auto_task_done = True
+        mediator._l1_cycle_step = "unknown"
+        mediator._main_line_since = 0.0
+        frame = Frame(bgr=np.zeros((100, 100, 3), dtype=np.uint8), hwnd=888, is_valid=True)
+
+        with patch("shuabao.mediator.time.time", return_value=15.0), \
+             patch.object(mediator, "act_key") as key, \
+             patch.object(mediator, "_advance_l1_cycle") as advance, \
+             patch.object(mediator, "_maybe_ensure_hero_panel_focus", return_value=None):
+            self.assertEqual(mediator._tick_main_line(frame), LoopAction.Continue)
+
+        key.assert_not_called()
+        advance.assert_called_once()
 
     def test_legacy_real_mode_prohibited(self) -> None:
         args = argparse.Namespace(config=None, legacy=True, longzhu=False, steps=10)

@@ -5,15 +5,16 @@ from unittest.mock import MagicMock, patch
 import cv2
 import numpy as np
 
-from gamescript.loop_action import LoopAction
-from gamescript.mediator import Mediator, Phase
-from gamescript.settings import Settings
-from gamescript.vision.capture import Frame
-from gamescript.vision.matcher import MatchResult, _load_template
-from gamescript.vision.stage_selector import (
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult, _load_template
+from shuabao.vision.stage_selector import (
     StageId,
     find_stage_in_range,
     find_stage_labels,
+    selected_stage_row,
     verify_stage_selection,
     visible_stage_rows,
 )
@@ -99,20 +100,97 @@ class StageSelectorTests(unittest.TestCase):
         settings = Settings()
         med = Mediator(settings, ROOT)
         med.set_phase(Phase.STAGE_SELECT)
-
-        # Mock frame and stage target
         img = np.zeros((939, 1616, 3), dtype=np.uint8)
         frame = Frame(img, window_title="KK", hwnd=1000)
-
-        hit = MatchResult("stage_target_5-6", 1.0, 1080, 200, 40, 20, 1080, 200)
         med._stage_selected = True
         med._stage_click_cooldown_until = 0.0
 
-        with patch("gamescript.mediator.verify_stage_selection", return_value=False):
-            with patch.object(med, "act_click") as mock_click:
-                action = med._tick_l0(frame)
-                self.assertEqual(action, LoopAction.Continue)
-                mock_click.assert_not_called()
+        with patch.object(med, "act_click") as mock_click:
+            action = med._tick_l0(frame)
+            self.assertEqual(action, LoopAction.Continue)
+            mock_click.assert_not_called()
+
+    def _live_20260814_frame(self) -> Frame:
+        path = ROOT / "fixtures/stage_select_20260814/highlight_on_1_1_client_1600x900.png"
+        img = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
+        return Frame(img, window_title="英雄三国KK", hwnd=1000, left=203, top=84)
+
+    def test_selected_stage_row_reads_the_highlighted_row(self):
+        frame = self._live_20260814_frame()
+        row = selected_stage_row(frame, IMAGES)
+        self.assertIsNotNone(row)
+        self.assertEqual(str(row.stage_id), "1-1")
+
+    def test_selected_stage_row_none_when_nothing_highlighted(self):
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=1000)
+        self.assertIsNone(selected_stage_row(frame, IMAGES))
+
+    def test_mediator_reclicks_target_when_highlight_sits_on_another_stage(self):
+        """20260814：高亮在 1-1、目标是 1-8，不得点开始游戏。"""
+        med = Mediator(Settings(stage_targets=["1-8"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = self._live_20260814_frame()
+        med._last_frame = frame
+        med._stage_selected = True
+        med._stage_target_name = "stage_target_1-8"
+        med._stage_click_cooldown_until = 0.0
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_not_called()
+        self.assertFalse(med._stage_selected)
+
+    def test_mediator_starts_when_highlight_is_on_the_target(self):
+        med = Mediator(Settings(stage_targets=["1-1"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = self._live_20260814_frame()
+        med._last_frame = frame
+        med._stage_selected = True
+        med._stage_target_name = "stage_target_1-1"
+        med._stage_click_cooldown_until = 0.0
+        start = MatchResult("roomStart", 0.99, 1080, 812, 120, 40, 1283, 896)
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "_find_stage_start", return_value=start), \
+             patch.object(med, "act_click", return_value=True) as click:
+            med._tick_l0(frame)
+        self.assertEqual(click.call_args.args[1], "StageStart")
+        self.assertEqual(click.call_args.args[0].name, "roomStart")
+
+    def test_mediator_stops_after_three_failed_target_clicks(self):
+        med = Mediator(Settings(stage_targets=["1-8"], auto_reputation=False), ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = self._live_20260814_frame()
+        med._last_frame = frame
+        med._stage_selected = True
+        med._stage_target_name = "stage_target_1-8"
+        med._stage_click_cooldown_until = 0.0
+        med._stage_select_attempts = 3
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_l0(frame)
+        self.assertEqual(action, LoopAction.Break)
+        self.assertIs(med.phase, Phase.ERROR)
+        click.assert_not_called()
+
+    def test_stage_settle_window_does_not_click_again(self):
+        settings = Settings()
+        med = Mediator(settings, ROOT)
+        med.set_phase(Phase.STAGE_SELECT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="KK", hwnd=1000)
+        med._stage_selected = True
+        med._stage_click_cooldown_until = 9999999999.0
+
+        with patch.object(med, "_detect_context", return_value="STAGE_SELECT"), \
+             patch.object(med, "_maybe_switch_to_archaeology", return_value=None), \
+             patch.object(med, "act_click") as click:
+            action = med._tick_l0(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_not_called()
 
     def test_stage_id_cross_chapter_comparison(self):
         s1_10 = StageId(1, 10)
@@ -121,7 +199,6 @@ class StageSelectorTests(unittest.TestCase):
         self.assertTrue(s1_10 <= s2_1)
         self.assertFalse(s1_10 > s2_1)
         self.assertFalse(s1_10 >= s2_1)
-
     def test_stage_id_invalid_input(self):
         self.assertIsNone(StageId.parse(""))
         self.assertIsNone(StageId.parse("invalid"))
