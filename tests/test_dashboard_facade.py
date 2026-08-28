@@ -118,6 +118,7 @@ def test_snapshot_shape_strips_denylist(qapp, tmp_path: Path):
     snap = json.loads(f.get_snapshot())
     assert set(snap) == {
         "request_id", "settings_revision", "snapshot_seq", "settings", "strategy", "shell", "modes", "run",
+        "entitlement",
     }
     assert "lab_focus" not in snap["settings"]
     assert snap["settings"]["click_delay_ms"] == 200

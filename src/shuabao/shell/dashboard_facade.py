@@ -171,7 +171,22 @@ class DashboardFacade(QObject):
             "shell": self._shell_dto(),
             "modes": self._modes_dto(),
             "run": self._run_dto(),
+            "entitlement": self._entitlement_dto(),
         }
+
+    def _entitlement_dto(self) -> dict[str, Any]:
+        """Read-only subscription snapshot for UI display only.
+        NOT a security gate — the only real gate is RunnerService.start()."""
+        runner = self._runner
+        svc = getattr(runner, "_entitlement_service", None)
+        if svc is None:
+            return {"status": "disabled", "source": "disabled"}
+        try:
+            snap = svc.get_snapshot()
+            return snap.to_dict()
+        except Exception:
+            return {"status": "unknown", "source": "error"}
+
 
     def _rpc_response(self, ok: bool, request_id: str | None = None, **body: Any) -> dict[str, Any]:
         return {

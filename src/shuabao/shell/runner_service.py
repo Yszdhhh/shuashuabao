@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -224,6 +225,13 @@ class RunnerService:
         self.runner_state = RUNNER_IDLE
         self._live_lock: QLockFile | None = None
         self._started_settings: Settings | None = None
+        # Entitlement gate — injected lazily from env; absent in disabled mode
+        self._entitlement_service = None
+        try:
+            from shuabao.entitlement import EntitlementService
+            self._entitlement_service = EntitlementService.from_env(data_dir=self.app_data / "entitlement")
+        except Exception as _e:
+            LOGGER.warning("EntitlementService init skipped: %s", _e)
 
     def _release_worker(self, worker: MediatorWorker) -> None:
         if self.worker is worker:
@@ -258,6 +266,17 @@ class RunnerService:
             if self.worker.isRunning():
                 raise RuntimeError("already running")
             self.release_after_finish(self.worker)
+        # ── Entitlement gate ─────────────────────────────────────────────
+        # Must run BEFORE lock acquisition and BEFORE MediatorWorker creation.
+        # A running worker is never killed mid-run (mid-run expiry principle).
+        if self._entitlement_service is not None:
+            try:
+                snap = self._entitlement_service.assert_start_allowed()
+                LOGGER.info("entitlement gate: ALLOW status=%s source=%s", snap.status.value, snap.source)
+            except Exception as _deny:
+                LOGGER.warning("entitlement gate: DENY — %s", _deny)
+                raise
+        # ─────────────────────────────────────────────────────────────────
         snapshot = apply_mode_overlay(copy.deepcopy(settings_snapshot), mode_id)
         if mode_id == "follow_team":
             snapshot.cycle_num = int(snapshot.follow_cycle_num)
