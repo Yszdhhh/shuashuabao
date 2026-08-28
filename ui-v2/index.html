@@ -196,7 +196,9 @@
       grid-template-columns: 64px minmax(0, 1fr); column-gap: 12px; row-gap: 4px;
       font-family: var(--p-font); color: var(--p-ink);
     }
-    .wcard.solo, .mode-row.solo .mode-card { grid-template-columns: minmax(0, 1fr); }
+    .wcard.solo, .mode-row.solo .mode-card {
+      grid-template-columns: minmax(0, 1fr); place-items: center; text-align: center;
+    }
     .wcard em, .mode-card em {
       grid-row: 1 / span 2; align-self: center; font-style: normal;
       font-size: 13px; font-weight: 700; color: var(--p-faint);

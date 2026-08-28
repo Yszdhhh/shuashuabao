@@ -1,4 +1,5 @@
 import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, resetStickyFailure, currentSettingsRevision } from "./config_queue";
+import { normalizeAttributeValues, restoreAttributeIds } from "./strategy_codec";
 // Task 5：qtBridge 真实接线（设计规格 §7）。OD12 的 DOM/CSS 与内联脚本保持原样；
 // 本模块只做三件事：
 //   1) bridge 探测：production → qtBridge(QWebChannel)，dev/浏览器 → 诚实 mock；
@@ -196,15 +197,7 @@ const ADV_PACK_CARDS: Record<string, string[]> = {
 
 function pushBondsAndAttributes(): void {
   const rawAttrs = Array.isArray(state.attr) ? state.attr : Array.from(state.attr || []);
-  const attrMap: Record<string, "int" | "str" | "agi"> = {
-    intelligence: "int",
-    strength: "str",
-    agility: "agi",
-    int: "int",
-    str: "str",
-    agi: "agi",
-  };
-  const activeAttrs = rawAttrs.map((a: string) => attrMap[a]).filter(Boolean) as ("int" | "str" | "agi")[];
+  const activeAttrs = normalizeAttributeValues(rawAttrs);
 
   const validBonds = ["祝福", "成长", "经济", "贪婪", "挑战"];
   const growthList = Array.isArray(state.growth) ? state.growth : Array.from(state.growth || []);
@@ -448,7 +441,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
       state.bondSaved = true;
       if (Array.isArray(snap.strategy.attributes)) {
         settings.attributes = snap.strategy.attributes;
-        state.attr = new Set(snap.strategy.attributes);
+        state.attr = restoreAttributeIds(snap.strategy.attributes);
       }
       if (snap.strategy.merchant) {
         settings.merchant_enabled = snap.strategy.merchant.enabled;
