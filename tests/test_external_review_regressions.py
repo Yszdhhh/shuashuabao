@@ -296,11 +296,10 @@ class ExternalReviewRegressionTests(unittest.TestCase):
         self.assertEqual(chosen.name, "asj")
 
     def test_ocr_mode_off_focus_miss_with_refresh_visible_returns_zero_refresh(self) -> None:
-        """Template mode (ocr_mode='off') with focus miss + refresh visible returns skill_hide or None, 0 refresh."""
+        """Template mode: focus miss + verified refresh button refreshes; hide only after budget."""
         med = Mediator(Settings(ocr_mode="off", skills=["asj", "dz"]), ROOT)
         frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
         anchor = MatchResult("skill_anchor", 0.99, 100, 100, 50, 50, 100, 100)
-        # Template match finds no preferred skills
         with patch.object(med, "_panel_kind_of", return_value="skill"), \
              patch.object(med, "_memo", return_value=[]), \
              patch.object(med, "_find_panel_refresh", return_value=MatchResult("skill_refresh_btn", 0.99, 500, 300, 40, 40, 500, 300)), \
@@ -308,9 +307,8 @@ class ExternalReviewRegressionTests(unittest.TestCase):
             choice = med._find_reward_choice(frame, anchor=anchor)
         self.assertIsNotNone(choice)
         kind, hit = choice
-        self.assertEqual(kind, "技能")
-        self.assertEqual(hit.name, "skill_hide")
-        self.assertNotEqual(kind, "技能刷新")
+        self.assertEqual(kind, "技能刷新")
+        self.assertEqual(hit.name, "skill_refresh_btn")
 
     def test_rank_skill_candidates_mixed_named_unnamed_no_type_error(self) -> None:
         """Mixed named/unnamed slots sort without TypeError."""

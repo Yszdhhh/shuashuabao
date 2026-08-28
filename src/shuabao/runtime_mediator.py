@@ -415,7 +415,10 @@ class Mediator(CoreMediator):
         # generic edge detector, so never run that detector on a known panel.
         # The explicit post-evolve state is stronger still: hero choices share
         # the treasure lock artwork, so it must reach the hero ranker first.
-        awaiting_hero = bool(getattr(self, "_evolve_awaiting_hero_pick", False))
+        awaiting_hero = bool(
+            getattr(self, "_evolve_awaiting_hero_pick", False)
+            or getattr(self, "_evolve_feedback_pending", False)
+        )
         active_reward = (
             getattr(self, "_panel_opened_by_us", None) in ("skill", "bond", "treasure")
             or (
@@ -682,6 +685,7 @@ class Mediator(CoreMediator):
             self._bond_cards_owned.clear()
             self._reset_physical_panel_guard()
             self._l1_cycle_index = 0
+            self._l1_cycle_step = "bond"
             self._mark_runtime_progress()
 
     def _maybe_open_choice_panel(self, frame, anchor=None):

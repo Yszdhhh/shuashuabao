@@ -732,7 +732,7 @@ class Mediator:
         # fingerprint guards remain the anti-loop safety boundary; a lifetime
         # "five panels per game" cap must not permanently starve later skill
         # points in a long round.
-        self._l1_cycle_step = "skill"
+        self._l1_cycle_step = "bond"
         self._l1_cycle_owned_panel = False
         self._l1_cycle_selected = False
         # 三面板主动打开时间戳（G/F/V）：0.0 = 本局从未成功打开 → 首次立即允许；
@@ -1739,8 +1739,19 @@ class Mediator:
 
         return self._memo(key, frame, compute)
 
+    def _evolve_hero_choice_pending(self) -> bool:
+        return bool(
+            getattr(self, "_evolve_awaiting_hero_pick", False)
+            or getattr(self, "_evolve_feedback_pending", False)
+        )
+
     def _classify_choice_panel(self, frame: Frame) -> str | None:
         """Distinguish skill / bond / treasure choice panels by their unique buttons."""
+        if self._evolve_hero_choice_pending() and getattr(self, "_panel_opened_by_us", None) not in (
+            "skill", "bond", "treasure",
+        ):
+            # 进化后的英雄二选一会误中 treasure_lock，先交给英雄排序。
+            return None
         opened = getattr(self, "_panel_opened_by_us", None)
         if opened in ("skill", "bond", "treasure"):
             return opened
@@ -2791,7 +2802,7 @@ class Mediator:
         if not anchor:
             return None
 
-        if getattr(self, "_evolve_awaiting_hero_pick", False):
+        if self._evolve_hero_choice_pending():
             evo_hit = self._find_evolution_choice(frame, anchor)
             if evo_hit is not None:
                 print(f"[L1] 进化英雄选择：{evo_hit.name} @ {evo_hit.center}")
@@ -4955,7 +4966,7 @@ class Mediator:
             self._panel_fingerprint_attempts = 0
         if phase == Phase.MAIN_LINE and self.phase != Phase.MAIN_LINE:
             self._stage_attempt_budget = None
-            self._l1_cycle_step = "skill"
+            self._l1_cycle_step = "bond"
             self._l1_cycle_last_advance_at = time.time()
         if phase == Phase.RECOVER_FAILURE and self.phase != Phase.RECOVER_FAILURE:
             # 进入恢复：清面板许可与待输入 token（抢占后 panel FSM 全部状态让位）
@@ -5063,7 +5074,7 @@ class Mediator:
             self._evolve_click_at = 0.0
             self._evolve_fail_count = 0
             self._evolve_baseline = None
-            self._l1_cycle_step = "skill"
+            self._l1_cycle_step = "bond"
             self._l1_cycle_owned_panel = False
             self._l1_cycle_selected = False
             self._merchant_next_at = 0.0

@@ -48,6 +48,32 @@ class LiveRun205044Tests(unittest.TestCase):
             self.assertIs(med._find_evolution_choice(frame()), expected)
         core_choice.assert_called_once()
 
+    def test_evolve_feedback_pending_does_not_classify_treasure(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        med._evolve_feedback_pending = True
+        lock = MatchResult("treasure_lock_btn", 0.99, 1, 1, 1, 1, 1, 1)
+        hide = MatchResult("hide", 0.96, 1, 1, 1, 1, 1, 1)
+
+        def fake_find(_frame, names, **_kwargs):
+            if "treasure_lock_btn" in names:
+                return lock
+            if "hide" in names:
+                return hide
+            return None
+
+        with patch.object(med, "find", side_effect=fake_find):
+            self.assertIsNone(med._classify_choice_panel(frame()))
+
+    def test_main_line_starts_on_bond(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        self.assertEqual(med._l1_cycle_step, "bond")
+        med.set_phase(Phase.MAIN_LINE, "live start")
+        self.assertEqual(med._l1_cycle_step, "bond")
+        runtime = RuntimeMediator(Settings(), ROOT)
+        runtime.set_phase(Phase.MAIN_LINE, "live start")
+        self.assertEqual(runtime._l1_cycle_step, "bond")
+        self.assertEqual(runtime._l1_cycle_index, 0)
+
     def test_runtime_rejects_evolution_detector_on_active_bond_panel(self) -> None:
         med = RuntimeMediator(Settings(), ROOT)
         med._panel_opened_by_us = "bond"
@@ -174,7 +200,7 @@ class LiveRun205044Tests(unittest.TestCase):
 
     def test_existing_advanced_bond_progress_can_still_be_finished(self) -> None:
         # 硬白名单：用户勾选「亡灵天灾」后才可完成进度；未勾选的海盗变体仍不可选。
-        med = Mediator(Settings(cards=["亡灵天灾"], bond_whitelist_mode="hard"), ROOT)
+        med = Mediator(Settings(cards=["亡灵天灾"], bonds=[], bond_whitelist_mode="hard"), ROOT)
         slots = [
             {"index": 0, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(2/3)"},
             {"index": 1, "name": "白赚海盗", "confidence": 0.99, "raw_text": "白赚海盗(0/3)"},

@@ -213,6 +213,7 @@ class PolicySettings:
     # 高级卡只在基础卡已达到目标比例后才进入候选；两者仍共用同一白名单。
     bond_base_presets: tuple[str, ...] = ()
     bond_advanced_presets: tuple[str, ...] = ()
+    bond_advanced_groups: tuple[tuple[str, ...], ...] = ()
     bond_base_completion_ratio: float = 0.80
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
@@ -274,6 +275,11 @@ class PolicySettings:
         object.__setattr__(self, "bond_advanced_presets", tuple(dict.fromkeys(
             str(s).strip() for s in self.bond_advanced_presets if str(s).strip()
         )))
+        object.__setattr__(self, "bond_advanced_groups", tuple(
+            tuple(dict.fromkeys(str(s).strip() for s in group if str(s).strip()))
+            for group in self.bond_advanced_groups
+            if group
+        ))
         object.__setattr__(self, "bond_base_completion_ratio", max(
             0.0, min(1.0, float(self.bond_base_completion_ratio))
         ))
@@ -326,6 +332,11 @@ class PolicySettings:
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
             bond_base_presets=tuple(str(s) for s in (raw.get("bond_base_presets") or ())),
             bond_advanced_presets=tuple(str(s) for s in (raw.get("bond_advanced_presets") or ())),
+            bond_advanced_groups=tuple(
+                tuple(str(x).strip() for x in group if str(x).strip())
+                for group in (raw.get("bond_advanced_groups") or ())
+                if group
+            ),
             bond_base_completion_ratio=float(raw.get("bond_base_completion_ratio", 0.80)),
             treasure_presets=tuple(str(s) for s in (raw.get("treasure_presets") or ())),
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
@@ -409,11 +420,24 @@ def assemble_policy_settings(
     advanced_presets = tuple(
         item for item in bond_presets if matches_bond_preset(item, advanced_names)
     )
-    # A legacy/API caller that only supplies one advanced card has not opted
-    # into the dashboard's staged pack. Do not silently block that old flow.
     base_presets = tuple(item for item in bond_presets if item not in advanced_presets)
-    if not any(item not in advanced_presets for item in card_presets):
-        base_presets = ()
+    catalog_groups: list[tuple[str, ...]] = []
+    for group in (bond_cfg.get("advanced_groups") or ()):
+        names = tuple(str(x).strip() for x in (group or ()) if str(x).strip())
+        if names:
+            catalog_groups.append(names)
+    selected_groups: list[tuple[str, ...]] = []
+    used_groups: set[tuple[str, ...]] = set()
+    for item in bond_presets:
+        for group in catalog_groups:
+            if group in used_groups:
+                continue
+            if item in group or matches_bond_preset(item, group):
+                used_groups.add(group)
+                selected = tuple(name for name in group if name in advanced_presets)
+                if selected:
+                    selected_groups.append(selected)
+                break
 
     allow_neg = getattr(settings, "treasure_allow_negative", None)
     if allow_neg is None:
@@ -481,6 +505,7 @@ def assemble_policy_settings(
             "bond_presets": tuple(bond_presets),
             "bond_base_presets": base_presets,
             "bond_advanced_presets": advanced_presets,
+            "bond_advanced_groups": tuple(selected_groups),
             "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
             "treasure_presets": (),
             "quality_order": raw.get("quality_order"),
@@ -1091,8 +1116,8 @@ def _decide_collectible(
         eligible = cands.slots
         if kind == PANEL_BOND:
             eligible = _bond_capacity_candidates(cands, eligible, settings)
+            owned_bonds = {str(name).strip() for name in cands.owned_bond_cards if str(name).strip()}
             if not _bond_base_ready(cands, settings):
-                owned_bonds = {str(name).strip() for name in cands.owned_bond_cards if str(name).strip()}
                 eligible = tuple(
                     slot for slot in eligible
                     if (
@@ -1102,14 +1127,33 @@ def _decide_collectible(
                         or str(slot.name or "").strip() in owned_bonds
                     )
                 )
-            if not eligible:
-                if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
-                    return PolicyDecision(
-                        PolicyAction.REFRESH,
-                        None,
-                        f"基础羁绊未达 80%，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+                if not eligible:
+                    if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
+                        return PolicyDecision(
+                            PolicyAction.REFRESH,
+                            None,
+                            f"基础羁绊未达 80%，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+                        )
+                    return _no_safe_candidate(cands, state, kind, "基础羁绊未达 80%，本页无基础卡")
+            else:
+                active_adv = _active_advanced_presets(cands, settings)
+                if settings.bond_advanced_presets and active_adv:
+                    eligible = tuple(
+                        slot for slot in eligible
+                        if (
+                            matches_bond_preset(slot.name, settings.bond_base_presets)
+                            or matches_bond_preset(slot.name, active_adv)
+                            or str(slot.name or "").strip() in owned_bonds
+                        )
                     )
-                return _no_safe_candidate(cands, state, kind, "基础羁绊未达 80%，本页无基础卡")
+                    if not eligible:
+                        if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
+                            return PolicyDecision(
+                                PolicyAction.REFRESH,
+                                None,
+                                f"当前高级卡组未完成，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+                            )
+                        return _no_safe_candidate(cands, state, kind, "当前高级卡组未完成，本页无合法卡")
             if settings.bond_whitelist_mode == WHITELIST_HARD:
                 eligible = tuple(
                     slot for slot in eligible
@@ -1196,6 +1240,23 @@ def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
         for base in bases
     )
     return completed >= required
+
+
+def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -> tuple[str, ...]:
+    """同一时刻只推进一套高级卡组，顺序取自用户白名单里这套卡第一次出现的位置。"""
+    groups = settings.bond_advanced_groups
+    if not groups:
+        return settings.bond_advanced_presets
+    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+    for group in groups:
+        required = max(1, math.ceil(len(group) * settings.bond_base_completion_ratio))
+        have = sum(
+            any(matches_bond_preset(name, (card,)) for name in owned)
+            for card in group
+        )
+        if have < required:
+            return group
+    return groups[-1]
 
 
 def _no_safe_candidate(
