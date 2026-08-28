@@ -139,6 +139,21 @@ def test_boot_binds_minimized_game_window_and_never_activates_platform():
     assert all(call.args and call.args[0] != 111 for call in act.call_args_list)
 
 
+def test_see_never_activates_a_valid_platform_frame():
+    """感知可后台抓帧；不能因每轮 see() 把 KK 平台抢到游戏前面。"""
+    med = Mediator(Settings(), ROOT)
+    med.set_phase(Phase.ROOM_WAITING)
+    platform = Frame(
+        np.zeros((900, 1600, 3), dtype=np.uint8),
+        left=0, top=0, hwnd=111, window_title="KK官方对战平台",
+    )
+    with patch.object(med, "_capture_best", return_value=platform), \
+         patch.object(med, "_frame_signal", return_value=100), \
+         patch("shuabao.mediator.activate_window", return_value=True) as activate:
+        assert med.see("test") is platform
+    activate.assert_not_called()
+
+
 def test_see_restores_minimized_target_window():
     """用户规则：所有窗口都可能最小化；无效帧 + IsIconic → SW_RESTORE。"""
     med = Mediator(Settings(), ROOT)

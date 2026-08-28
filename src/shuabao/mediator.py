@@ -1136,21 +1136,12 @@ class Mediator:
                 role = "l0"
         capture_ms = (time.perf_counter() - t0) * 1000.0
         self._last_capture_ms = capture_ms
-        # 目标窗口激活兜底：如果目标窗口存在但当前不在前台，且非最小化，自动切回前台（确保画面不被遮挡）。
-        # 关键约束：过场/启动阶段（ROOM_STARTING / STAGE_STARTING / WAIT_EXIT）严禁对平台窗强制置顶，
-        # 否则会把正在拉起的「英雄三国」游戏客户端压在底下，造成对战平台一直挡住游戏的死锁。
+        # Capture uses PrintWindow and must not change foreground state.  Focus is
+        # acquired only by the input guard immediately before a verified action;
+        # otherwise a valid L0 frame can repeatedly pull KK above a launching game.
         transition_phases = (Phase.ROOM_STARTING, Phase.STAGE_STARTING, Phase.WAIT_EXIT)
         is_platform_frame = role == "l0" or any(k in getattr(frame, "window_title", "") for k in ("KK", "对战平台", "竞技平台"))
         suppress_activate = self.phase in transition_phases and is_platform_frame
-        if frame.hwnd and frame.is_valid and not suppress_activate:
-            now = time.time()
-            last_act = getattr(self, "_last_auto_activate_ts", 0.0)
-            if now - last_act >= 1.5:
-                from shuabao.input.keyboard_mouse import foreground_matches_target, get_foreground_window
-                fg = get_foreground_window()
-                if not foreground_matches_target(frame.hwnd, fg):
-                    activate_window(frame.hwnd)
-                    self._last_auto_activate_ts = now
         if frame.hwnd and not frame.is_valid and not suppress_activate:
             # 20260823（用户规则）：所有目标窗口都可能被最小化。最小化窗口的
             # capture 返回无效帧，上面的前台兜底因 is_valid=False 永远不触发，
@@ -8353,8 +8344,10 @@ class Mediator:
     def run(self, max_steps: int | None = None) -> None:
         self._running = True
         self.set_phase(Phase.BOOT)
-        # 启动时主动切回目标窗口（KK平台或游戏），即使最小化也自动恢复并激活
-        targets = find_window_targets(allow_fallback=True, allow_minimized=True)
+        # 英雄三国已存在时必须先接管游戏窗；没有游戏窗才允许激活 KK 平台。
+        targets = find_window_targets(
+            ",".join(L1_WINDOW_KEYWORDS), role="l1", allow_minimized=True
+        ) or find_window_targets(allow_fallback=True, allow_minimized=True)
         if targets:
             activate_window(targets[0].hwnd)
         steps = 0
