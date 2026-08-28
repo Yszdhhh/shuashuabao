@@ -126,7 +126,7 @@ def test_host_window_matches_od12_product_size(shell):
 
 def test_wizard_layout_uses_content_sized_solo_and_team_windows(shell):
     shell._set_window_layout("chooser-solo")
-    assert (shell.width(), shell.height()) == (560, 360)
+    assert (shell.width(), shell.height()) == (560, 300)
     shell._set_window_layout("chooser-team")
     assert (shell.width(), shell.height()) == (560, 560)
     # Legacy callers that only know chooser retain the team-sized contract.
@@ -174,6 +174,7 @@ def test_production_canvas_semantics_host_exact_product_window():
     assert 'body[data-scene="wizard"] {\n      display: flex;' in html
     assert 'body[data-scene="wizard"] .wiz {\n      width: 100%; height: 100%;' in html
     assert 'background: oklch(0.955 0.008 250); padding: 0; overflow: hidden;' in html
+    assert '--p-radius: 8px;' in html
     assert 'border: 1px solid var(--p-line); border-radius: 12px;' in html
     assert 'box-shadow: var(--p-shadow)' in html
     assert 'id="summary"' not in html, "生产底栏不得再渲染重复摘要"

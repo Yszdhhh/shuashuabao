@@ -58,7 +58,7 @@ ALLOWED_SCHEMES = frozenset({"file", "qrc"})
 _DASHBOARD_SIZE = (1080, 820)
 # 向导按内容分配宿主高度：单人只有一个选项，组队包含三种关系。
 # 宽度保持与 Web 沙盒一致；chooser 作为旧调用方的组队兼容别名。
-_CHOOSER_SOLO_SIZE = (560, 360)
+_CHOOSER_SOLO_SIZE = (560, 300)
 _CHOOSER_TEAM_SIZE = (560, 560)
 _CHOOSER_SIZE = _CHOOSER_TEAM_SIZE
 _TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT = 690, 40
