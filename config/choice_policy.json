@@ -16,9 +16,10 @@
   "_quality_order_note": "越靠前越优先。这是三面板共用序。技能卡只有橙>紫>蓝>白（user 2026-08-14，无红）；green 是宝物绿边（双倍神符）。B1 再拆技能序，现在不要直接删 red，否则橙边被 HSV 采成 red 会掉到未知档最末。2026-08-17 user 报告技能卡可出现蓝/紫/橙/粉/红且红有多档，与『无红粉』冲突未解决：运行期容忍未来红/粉档，不得新造 HSV 阈值。",
   "skill": {
     "rarity_first": true,
-    "_note": "先匹配预设（预设内稀有度优先）；未命中则刷新；刷新耗尽则放弃。技能卡只有橙/紫/蓝/白（user 2026-08-14），没有红。quality_order 里的 red/green 是宝物/HSV 遗留，B1 再拆技能序。未命中预设不会按稀有度兜底拿非预设卡。",
-    "_mode_note": "2026-08-17 批次：选卡恒为严格档（无模式字段，也不在本文件写死）——只选勾选系经 skill_catalog.expand_skill_preset_names 展开出的合法技能卡，配置外一律不选，宁可 WAIT/隐藏也不乱拿；技能上限 4 个（外壳 SkillCardGrid.MAX_SKILLS），旧版 5+ 全才档已删除。排序：目录合法性（never_pick/互斥/前置）→ 前置/链路 → 存档解锁/降伤惩罚（未知存档 fail-closed）→ 稀有度 → 配置顺序 → 槽位下标；目录无法识别的名字没有任何点击权。色阶冲突见 _quality_order_note（容忍未来红/粉档，不新造 HSV 阈值）。",
+    "_note": "先匹配预设（预设内稀有度优先）；未命中则在已验证刷新按钮上刷新，刷新预算耗尽才隐藏。技能卡只有橙/紫/蓝/白（user 2026-08-14），没有红。quality_order 里的 red/green 是宝物/HSV 遗留，B1 再拆技能序。未命中预设不会按稀有度兜底拿非预设卡。",
+    "_mode_note": "选卡恒为严格档：只选勾选系经 skill_catalog.expand_skill_preset_names 展开出的合法技能卡，配置外一律不选；但有刷新预算且按钮已验证时先刷新。技能上限 4 个（外壳 SkillCardGrid.MAX_SKILLS）。排序：目录合法性（never_pick/互斥/前置）→ 前置/链路 → 存档解锁/降伤惩罚（未知存档 fail-closed）→ 稀有度 → 配置顺序 → 槽位下标；目录无法识别的名字没有任何点击权。色阶冲突见 _quality_order_note（容忍未来红/粉档，不新造 HSV 阈值）。",
     "fill_empty_slots": false,
+    "refresh_on_focus_miss": true,
     "fill_slot_cap": 4
   },
   "bond": {
@@ -28,8 +29,8 @@
     "must_take_names": []
   },
   "treasure": {
-    "refresh_on_no_safe": false,
-    "_refresh_on_no_safe_note": "2026-08-18 113934 实测事故保护：无安全候选时最多 WAIT 重观察，不再盲目返回 REFRESH。执行层若识别不到刷新按钮，REFRESH 不会消耗预算，会形成每 tick 零输入死循环；因此 WAIT 耗尽后直接 GIVEUP/CLOSE。已识别的安全卡仍先走预设/套装/品质保底。",
+    "refresh_on_no_safe": true,
+    "_refresh_on_no_safe_note": "无安全候选时仅在刷新按钮已经模板验证且预算未耗尽时刷新；按钮缺失时仍隐藏，不会盲点或循环。已识别的安全卡仍先走预设/套装/品质保底。",
     "negative_patterns": [
       "不再获得",
       "不再增长",

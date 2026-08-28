@@ -18,14 +18,18 @@ def slot(index: int, name: str | None, **kwargs: object) -> SlotCandidate:
     return SlotCandidate(index=index, name=name, confidence=0.95, **kwargs)
 
 
-def test_skill_focus_miss_closes_without_refresh_or_fill() -> None:
+def test_skill_focus_miss_refreshes_without_filling_unselected_family() -> None:
     decision = choose_action(PanelCandidates(
         panel_kind=PANEL_SKILL,
         slots=(slot(0, "地震"),),
         can_refresh=True,
-        settings=PolicySettings(skill_presets=("剑气",), skill_fill_empty_slots=False),
+        settings=PolicySettings(
+            skill_presets=("剑气",),
+            skill_fill_empty_slots=False,
+            skill_refresh_on_focus_miss=True,
+        ),
     ))
-    assert decision.action is PolicyAction.CLOSE
+    assert decision.action is PolicyAction.REFRESH
 
 def test_skill_runtime_assembled_strict_never_fills_unselected_family() -> None:
     import json
@@ -54,8 +58,8 @@ def test_skill_runtime_assembled_strict_never_fills_unselected_family() -> None:
         settings=runtime_settings,
         owned_skill_cards=("剑气",),
     ))
-    # Must strictly close panel without refreshing, giving up, or picking unselected "地震"
-    assert decision.action is PolicyAction.CLOSE
+    # Must refresh, never give up or pick unselected "地震".
+    assert decision.action is PolicyAction.REFRESH
 
 def test_treasure_negative_needs_explicit_allowlist_match() -> None:
     decision = choose_action(PanelCandidates(
@@ -64,6 +68,16 @@ def test_treasure_negative_needs_explicit_allowlist_match() -> None:
         settings=PolicySettings(treasure_allow_negative=("未知卡",)),
     ))
     assert decision.action is PolicyAction.CLOSE
+
+
+def test_treasure_negative_refreshes_when_button_is_verified() -> None:
+    decision = choose_action(PanelCandidates(
+        panel_kind=PANEL_TREASURE,
+        slots=(slot(0, "压制", rarity="red"),),
+        can_refresh=True,
+        settings=PolicySettings(),
+    ))
+    assert decision.action is PolicyAction.REFRESH
 
 
 def test_bond_slot_pressure_rejects_scatter_with_two_empty_slots() -> None:

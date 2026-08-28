@@ -221,6 +221,8 @@ class PolicySettings:
     allow_skill_giveup: bool = False
     skill_focus_families: tuple[str, ...] = ()
     skill_fill_empty_slots: bool = False
+    # 严格白名单未命中时是否在已验证刷新按钮上重抽；仍绝不选配置外技能。
+    skill_refresh_on_focus_miss: bool = False
     skill_archive_levels: tuple[tuple[str, int], ...] = ()
     # 挂件协同关闭名单；只改变已合法候选之间的排序，不改变焦点/前置/互斥合法性。
     skill_disabled_amplifiers: tuple[str, ...] = ()
@@ -329,6 +331,7 @@ class PolicySettings:
             allow_skill_giveup=bool(raw.get("allow_skill_giveup", False)),
             skill_focus_families=tuple(str(s) for s in (raw.get("skill_focus_families") or ())),
             skill_fill_empty_slots=bool(raw.get("skill_fill_empty_slots", False)),
+            skill_refresh_on_focus_miss=bool(raw.get("skill_refresh_on_focus_miss", False)),
             skill_archive_levels=normalize_archive_levels(raw.get("skill_archive_levels")),
             skill_disabled_amplifiers=tuple(
                 str(s) for s in (raw.get("skill_disabled_amplifiers") or ()) if str(s).strip()
@@ -440,6 +443,7 @@ def assemble_policy_settings(
             "skill_presets": expand_skill_preset_names(tuple(skill_families)),
             "skill_focus_families": tuple(skill_families),
             "skill_fill_empty_slots": bool(skill_cfg.get("fill_empty_slots", False)),
+            "skill_refresh_on_focus_miss": bool(skill_cfg.get("refresh_on_focus_miss", False)),
             "skill_archive_levels": getattr(settings, "skill_archive_levels", None),
             "skill_disabled_amplifiers": getattr(settings, "smart_route_disabled_amplifiers", None),
             "bond_presets": tuple(bond_presets),
@@ -931,10 +935,9 @@ def _decide_skill(
     if unread:
         if state.waits < max_skill_waits:
             return PolicyDecision(PolicyAction.WAIT, None, "技能卡名未读出，等待（不刷新/放弃）")
-        return PolicyDecision(
-            PolicyAction.CLOSE,
-            None,
-            f"技能卡名未读出，已观察 {state.waits} 次，严格关闭面板",
+        return _skill_refresh_or_close(
+            cands, state, settings,
+            f"技能卡名未读出，已观察 {state.waits} 次",
         )
     readable_count = sum(
         1 for s in cands.slots if (
@@ -946,12 +949,25 @@ def _decide_skill(
         )
     )
     if readable_count > 0 and not ranked:
-        return PolicyDecision(
-            PolicyAction.CLOSE,
-            None,
-            "技能未命中预设/焦点系，严格关闭面板（不刷新/不放弃）",
-        )
+        return _skill_refresh_or_close(cands, state, settings, "技能未命中预设/焦点系")
     return _skill_last_resort(cands, settings, "无预设/焦点技能")
+
+
+def _skill_refresh_or_close(
+    cands: PanelCandidates, state: SessionState, settings: PolicySettings, why: str
+) -> PolicyDecision:
+    if (
+        settings.skill_refresh_on_focus_miss
+        and (settings.skill_presets or settings.skill_focus_families)
+        and cands.can_refresh
+        and state.refreshes < state.max_refreshes
+    ):
+        return PolicyDecision(
+            PolicyAction.REFRESH,
+            None,
+            f"{why}，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+        )
+    return PolicyDecision(PolicyAction.CLOSE, None, f"{why}，严格关闭面板")
 
 
 def _bond_progress_hits(
@@ -1119,7 +1135,18 @@ def _decide_collectible(
 def _no_safe_candidate(
     cands: PanelCandidates, state: SessionState, kind: str | None, why: str
 ) -> PolicyDecision:
-    del state
+    settings = cands.settings
+    if (
+        kind == PANEL_TREASURE
+        and settings.treasure_refresh_on_no_safe
+        and cands.can_refresh
+        and state.refreshes < state.max_refreshes
+    ):
+        return PolicyDecision(
+            PolicyAction.REFRESH,
+            None,
+            f"宝物 {why}，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+        )
     return PolicyDecision(
         PolicyAction.CLOSE,
         None,

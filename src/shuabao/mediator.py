@@ -2704,6 +2704,27 @@ class Mediator:
             return None
         return mapped[1]
 
+    def _live_ocr_miss_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
+        """Refresh an owned panel only when its verified button makes OCR loss recoverable."""
+        policy = self._policy_settings()
+        enabled = (
+            (kind == "skill" and policy.skill_refresh_on_focus_miss and bool(policy.skill_focus_families))
+            or (kind == "bond" and bool(policy.bond_presets))
+            or (kind == "treasure" and policy.treasure_refresh_on_no_safe)
+        )
+        owned = (
+            getattr(self, "_panel_opened_by_us", None) == kind
+            or (self._l1_cycle_owned_panel and self._panel_kind == kind)
+        )
+        if not enabled or not owned or self._choice_session.refreshes >= self._choice_session.max_refreshes:
+            return None
+        refresh = self._find_panel_refresh(frame, kind)
+        if refresh is not None:
+            self._choice_fp_before_refresh = None
+            self._choice_policy_last_reason = f"{kind} OCR 本帧无候选，使用已验证刷新按钮"
+            print(f"[L1] {self._choice_policy_last_reason}")
+        return refresh
+
     def _rarity_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
         """按边框颜色选最高品质：红UR>橙SSR>紫SR>蓝R>其他N。"""
         if panel_kind not in ("treasure", "skill", "bond", "card"):
@@ -2789,6 +2810,9 @@ class Mediator:
                     return None
                 if ocr_hit is not None:
                     return self._label_choice_hit(kind, ocr_hit)
+                refresh = self._live_ocr_miss_refresh(frame, kind)
+                if refresh is not None:
+                    return self._label_choice_hit(kind, refresh)
                 if kind == "bond":
                     opened = (
                         getattr(self, "_panel_opened_by_us", None) == "bond"

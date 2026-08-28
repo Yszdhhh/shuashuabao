@@ -410,6 +410,11 @@ class Mediator(CoreMediator):
     # Evolution: never treat refresh as a completed hero pick; 3-card fallback.
     # ------------------------------------------------------------------
     def _find_evolution_choice(self, frame, anchor=None):
+        # A normal reward panel can share the central-card geometry with the
+        # evolution modal.  Its classification is stronger evidence than the
+        # generic edge detector, so never run that detector on a known panel.
+        if self._classify_choice_panel(frame) is not None:
+            return None
         hit = super()._find_evolution_choice(frame, anchor)
         if hit is not None and "refresh" not in str(getattr(hit, "name", "")).lower():
             return hit
