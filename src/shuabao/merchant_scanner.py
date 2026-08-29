@@ -10,7 +10,8 @@
    - Priority 5: 技能 / 羁绊偏好卡片 (技能 focus / 偏好羁绊)
    - Priority 6: 免费刷新 (仅在开启刷新且满足条件时)
    - 负面宝物 / 负收益物品严格过滤与跳过。
-3. 商店指纹排除倒计时秒数，避免缓存频繁击穿。
+3. 商店指纹用槽位占用 + 已识别目标，不用整条商品 ROI 逐像素哈希。
+   倒计时、图标动画和局部 HUD 变化不得打断 CONFIRMING→READY。
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import hashlib
 from typing import Sequence
+
+import cv2
 import numpy as np
 
 # 1600x900 基准下黑商 5 槽 ROI 定义
@@ -74,17 +77,49 @@ class MerchantScanner:
         return (cx, cy)
 
     @staticmethod
-    def compute_merchant_fingerprint(roi_bgr: np.ndarray | None) -> str:
-        """排除易变的倒计时文本区域，计算商品图标区域的稳定哈希。"""
+    def slot_occupancy_bits(roi_bgr: np.ndarray | None) -> tuple[int, ...]:
+        """Per-slot filled/empty bits from the icon region, ignoring price text."""
+        if roi_bgr is None or roi_bgr.size == 0:
+            return (0,) * MERCHANT_SLOT_COUNT
+        width = int(roi_bgr.shape[1])
+        slot_w = width / float(MERCHANT_SLOT_COUNT)
+        bits: list[int] = []
+        for index in range(MERCHANT_SLOT_COUNT):
+            x0 = int(index * slot_w)
+            x1 = int((index + 1) * slot_w)
+            slot = roi_bgr[:, x0:x1]
+            if slot.size == 0:
+                bits.append(0)
+                continue
+            slot_h, slot_w_px = slot.shape[:2]
+            icon = slot[
+                : max(1, int(slot_h * 0.70)),
+                max(0, int(slot_w_px * 0.10)) : max(1, int(slot_w_px * 0.90)),
+            ]
+            if icon.size == 0:
+                bits.append(0)
+                continue
+            hsv = cv2.cvtColor(icon, cv2.COLOR_BGR2HSV)
+            occupied = (hsv[:, :, 1] > 80) & (hsv[:, :, 2] > 70)
+            bits.append(1 if float(occupied.mean()) >= 0.12 else 0)
+        return tuple(bits)
+
+    @staticmethod
+    def compute_merchant_fingerprint(
+        roi_bgr: np.ndarray | None,
+        slot_items: Sequence[MerchantSlotItem] | None = None,
+    ) -> str:
+        """Hash slot occupancy plus recognized targets, not whole-strip pixels."""
         if roi_bgr is None or roi_bgr.size == 0:
             return ""
-        # 裁剪掉底部可能包含秒数/金币文本的 20% 高度区域，只保留图标特征
-        h, w = roi_bgr.shape[:2]
-        crop_h = max(1, int(h * 0.80))
-        stable_region = roi_bgr[:crop_h, :]
-        # 缩放至小图做轻量 dhash / sha256
-        small = stable_region[::4, ::4]
-        return hashlib.md5(small.tobytes()).hexdigest()
+        occupancy = MerchantScanner.slot_occupancy_bits(roi_bgr)
+        targets = tuple(
+            sorted(
+                (int(item.slot_index), str(item.item_type))
+                for item in (slot_items or ())
+            )
+        )
+        return hashlib.md5(f"{occupancy}|{targets}".encode("utf-8")).hexdigest()
 
     def rank_purchases(
         self,

@@ -1,3 +1,4 @@
+import hashlib
 import sys
 import tempfile
 import time
@@ -15,6 +16,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from shuabao.choice_policy import PolicySettings
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import ChallengeState, Mediator, PanelState, Phase
+from shuabao.merchant_scanner import MERCHANT_STRIP_ROI, MerchantScanner, MerchantSlotItem
 from shuabao.policy.merchant_fsm import MerchantFSM, MerchantPhase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
@@ -152,6 +154,40 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         )
         self.assertIsNotNone(wood)
         self.assertEqual(wood.name, "merchant_wood")
+
+    def test_merchant_fingerprint_uses_slot_identity_not_whole_strip_pixels(self):
+        x0, y0, x1, y1 = (
+            int(1600 * MERCHANT_STRIP_ROI[0]),
+            int(900 * MERCHANT_STRIP_ROI[1]),
+            int(1600 * MERCHANT_STRIP_ROI[2]),
+            int(900 * MERCHANT_STRIP_ROI[3]),
+        )
+        canvas = np.zeros((900, 1600, 3), dtype=np.uint8)
+        slot_w = (x1 - x0) // 5
+        for index in range(5):
+            sx0 = x0 + index * slot_w + 6
+            sx1 = x0 + (index + 1) * slot_w - 6
+            canvas[y0 + 4 : y1 - 24, sx0:sx1] = (30 + index * 12, 90, 170 - index * 8)
+        pill = MerchantSlotItem(2, (0.78, 0.72), "devour_pill", "danGif")
+        roi = canvas[y0:y1, x0:x1]
+        baseline = MerchantScanner.compute_merchant_fingerprint(roi, [pill])
+        jitter = canvas.copy()
+        rng = np.random.RandomState(7)
+        noise = rng.randint(-5, 6, jitter[y0:y1, x0:x1].shape, dtype=np.int16)
+        jitter[y0:y1, x0:x1] = np.clip(
+            jitter[y0:y1, x0:x1].astype(np.int16) + noise, 0, 255
+        ).astype(np.uint8)
+        jittered_roi = jitter[y0:y1, x0:x1]
+        self.assertNotEqual(hashlib.md5(roi.tobytes()).digest(), hashlib.md5(jittered_roi.tobytes()).digest())
+        self.assertEqual(
+            baseline,
+            MerchantScanner.compute_merchant_fingerprint(jittered_roi, [pill]),
+        )
+        empty = np.zeros_like(roi)
+        self.assertNotEqual(
+            baseline,
+            MerchantScanner.compute_merchant_fingerprint(empty, [pill]),
+        )
 
     def test_merchant_absent_is_zero_input(self):
         self.med._merchant_next_at = 0.0

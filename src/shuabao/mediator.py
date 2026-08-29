@@ -3759,13 +3759,13 @@ class Mediator:
         return Mediator._black_merchant_cards_present(frame) or Mediator._merchant_refresh_available(frame)
 
     @staticmethod
-    def _merchant_fingerprint(frame: Frame) -> str:
+    def _merchant_fingerprint(frame: Frame, slot_items=None) -> str:
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return ""
         x0, y0, x1, y1 = MERCHANT_STRIP_ROI
         roi = frame.bgr[int(frame.height * y0):int(frame.height * y1),
                         int(frame.width * x0):int(frame.width * x1)]
-        return MerchantScanner.compute_merchant_fingerprint(roi)
+        return MerchantScanner.compute_merchant_fingerprint(roi, slot_items)
 
 
     @staticmethod
@@ -3884,7 +3884,53 @@ class Mediator:
         present = self._black_merchant_present(frame)
         cards_present = self._black_merchant_cards_present(frame)
         refresh_available = self._merchant_refresh_available(frame)
-        fingerprint = self._merchant_fingerprint(frame) if present else ""
+        detected_slots: list[MerchantSlotItem] = []
+        roi = (0.70, 0.66, 0.90, 0.76)
+        if present:
+            pill = self.find(
+                frame,
+                ["danGif"],
+                threshold=0.50,
+                scales=(0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5),
+                roi=roi,
+            )
+            if self._in_merchant_strip(frame, pill):
+                rx = (pill.x - frame.width * 0.70) / max(1.0, frame.width * 0.20)
+                slot_idx = max(0, min(4, int(rx * 5.0)))
+                detected_slots.append(
+                    MerchantSlotItem(
+                        slot_index=slot_idx,
+                        center_ratio=(
+                            (pill.x + pill.w // 2) / frame.width,
+                            (pill.y + pill.h // 2) / frame.height,
+                        ),
+                        item_type="devour_pill",
+                        label="danGif",
+                    )
+                )
+
+            wood = self.find(
+                frame,
+                ["merchant_wood", "woodgift"],
+                threshold=0.88,
+                scales=(0.9, 1.0, 1.1),
+                roi=roi,
+            )
+            if self._in_merchant_strip(frame, wood):
+                rx = (wood.x - frame.width * 0.70) / max(1.0, frame.width * 0.20)
+                slot_idx = max(0, min(4, int(rx * 5.0)))
+                detected_slots.append(
+                    MerchantSlotItem(
+                        slot_index=slot_idx,
+                        center_ratio=(
+                            (wood.x + wood.w // 2) / frame.width,
+                            (wood.y + wood.h // 2) / frame.height,
+                        ),
+                        item_type="wood",
+                        label="merchant_wood",
+                    )
+                )
+        fingerprint = self._merchant_fingerprint(frame, detected_slots) if present else ""
         self._merchant_fsm = self._merchant_fsm.observe(present, fingerprint, now)
         if not present or self._merchant_fsm.phase is MerchantPhase.EVICTED:
             return None
@@ -3914,54 +3960,7 @@ class Mediator:
             focus_bonds=list(getattr(self.settings, "bonds", []) or []),
             auto_refresh=auto_refresh_enabled,
         )
-
-        roi = (0.70, 0.66, 0.90, 0.76)
-        detected_slots: list[MerchantSlotItem] = []
         retry_s = max(1.2, float(self.settings.ui_action_interval_s))
-
-        pill = self.find(
-            frame,
-            ["danGif"],
-            threshold=0.50,
-            scales=(0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5),
-            roi=roi,
-        )
-        if self._in_merchant_strip(frame, pill):
-            rx = (pill.x - frame.width * 0.70) / max(1.0, frame.width * 0.20)
-            slot_idx = max(0, min(4, int(rx * 5.0)))
-            detected_slots.append(
-                MerchantSlotItem(
-                    slot_index=slot_idx,
-                    center_ratio=(
-                        (pill.x + pill.w // 2) / frame.width,
-                        (pill.y + pill.h // 2) / frame.height,
-                    ),
-                    item_type="devour_pill",
-                    label="danGif",
-                )
-            )
-
-        wood = self.find(
-            frame,
-            ["merchant_wood", "woodgift"],
-            threshold=0.88,
-            scales=(0.9, 1.0, 1.1),
-            roi=roi,
-        )
-        if self._in_merchant_strip(frame, wood):
-            rx = (wood.x - frame.width * 0.70) / max(1.0, frame.width * 0.20)
-            slot_idx = max(0, min(4, int(rx * 5.0)))
-            detected_slots.append(
-                MerchantSlotItem(
-                    slot_index=slot_idx,
-                    center_ratio=(
-                        (wood.x + wood.w // 2) / frame.width,
-                        (wood.y + wood.h // 2) / frame.height,
-                    ),
-                    item_type="wood",
-                    label="merchant_wood",
-                )
-            )
 
         if cards_present:
             detected_slots.extend(self._merchant_discount_slots(frame, fingerprint))
