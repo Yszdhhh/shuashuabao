@@ -113,13 +113,16 @@ class A3TreasureNegativeByName(unittest.TestCase):
             f"应选非负面候选，实际 {hit.name}",
         )
 
-    def test_desc_roi_constants_cover_desc2_calibration(self):
+    def test_desc_roi_constants_cover_first_text_line_calibration(self):
         spec = Mediator._OCR_DESC_ROIS["treasure"]
-        # desc2 回投：y0≈0.275 / y1≈0.416 / half_w≈0.086（1609x931 面板）
-        self.assertLessEqual(spec["y0"], 0.280)
-        self.assertGreaterEqual(spec["y1"], 0.415)
-        self.assertGreaterEqual(spec["half_w"], 0.085)
-        self.assertEqual(spec["centers_x"], (0.348, 0.497, 0.646))
+        # 1600x900 实机面板：描述首行约从 y=315 开始，避开卡图区域。
+        self.assertGreaterEqual(spec["y0"], 0.345)
+        self.assertLessEqual(spec["y0"], 0.355)
+        self.assertGreaterEqual(spec["y1"], 0.400)
+        self.assertLessEqual(spec["y1"], 0.410)
+        self.assertGreaterEqual(spec["half_w"], 0.060)
+        self.assertLessEqual(spec["half_w"], 0.070)
+        self.assertEqual(spec["centers_x"], (0.352, 0.500, 0.648))
 
     def test_descriptions_json_names_match_policy_defaults(self):
         import json

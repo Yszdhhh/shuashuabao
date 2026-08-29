@@ -172,7 +172,14 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
         normalized = normalize_choice_text(text)
         if rec_score > best_raw[1]:
             best_raw = (normalized, rec_score)
-        lookup = lookup_lexicon(normalized, kind=kind, lexicon=lexicon)
+        # Descriptions use the same transport as title OCR but are not a
+        # separate lexicon category.  Map ``treasure_desc``/``bond_desc`` to
+        # their base category so a description cannot abort the whole request
+        # with ``ValueError`` before raw text is returned.
+        lookup_kind = kind
+        if isinstance(lookup_kind, str) and lookup_kind.endswith("_desc"):
+            lookup_kind = lookup_kind.removesuffix("_desc")
+        lookup = lookup_lexicon(normalized, kind=lookup_kind, lexicon=lexicon)
         if lookup.canonical is not None and "/" in normalized:
             if progress_text is None or rec_score > progress_text[2]:
                 progress_text = (lookup.canonical, normalized, rec_score)

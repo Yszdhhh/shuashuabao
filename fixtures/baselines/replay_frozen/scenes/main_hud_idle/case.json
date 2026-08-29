@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "case": "main_hud_idle",
-  "description": "R0.1-#4 主线 HUD 独立场景：真实帧 fixtures/replay/main_line_auto_on.png（1600×900 窗口捕获，idle HUD，无选择面板）。生产语义：context=MAIN_LINE；首帧按 L1 循环第一步打开技能面板（OpenSkillPanel @ (1452,808)），随后本轮面板已请求、零输入 idle 等待（第二帧 t=2.0 actions=0）。HUD 锚点识别与零盲点由本场景冻结。\n\n【2026-08-12 期望修订】原期望为首帧 ClickEvolve @ (525,810)，写于 L1 循环重排之前。现循环顺序为 skill→bond→treasure→evolve→equipment→pickup→merchant→artifact，idle HUD 首步必为 skill；进化仍排在装备/物品栏之前，满足『先进化再用英雄卡』的产品要求。此次修订属期望同步，不是放宽断言：动作数仍为 1，第二帧仍恒为零输入。",
+  "description": "R0.1-#4 主线 HUD 独立场景：真实帧 fixtures/replay/main_line_auto_on.png（1600×900 窗口捕获，idle HUD，无选择面板）。生产语义：context=MAIN_LINE；首帧按 L1 循环第一步打开羁绊面板（OpenBondPanel @ (1390,808)），随后本轮面板已请求、零输入 idle 等待（第二帧 t=2.0 actions=0）。HUD 锚点识别与零盲点由本场景冻结。\n\n【2026-08-29 期望修订】17c52d9 已将 L1 首步改为先完成基础羁绊，再进入技能/宝物；当前 Mediator 与 RuntimeMediator 的生产入口均在 MAIN_LINE 初始化为 bond，且已有 test_main_line_starts_on_bond 覆盖。此次修订是将冻结期望同步到已确认的产品语义，不是放宽断言：动作数仍为 1，第二帧仍恒为零输入。",
   "phase": "MAIN_LINE",
   "settings_overrides": {
     "dry_run": true
@@ -43,8 +43,8 @@
       "action_count": 1,
       "action": {
         "kind": "click",
-        "reason": "OpenSkillPanel",
-        "target": "skill_button",
+        "reason": "OpenBondPanel",
+        "target": "bond_button",
         "input_kind": "left_click"
       },
       "action_result": {

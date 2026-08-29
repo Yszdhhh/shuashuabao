@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "status": "COMPLETED",
+  "scope": {
+    "ocr_trace": "C:\\Users\\10639\\AppData\\Local\\ShuaBao\\incidents\\ocr_shadow.jsonl",
+    "tick_trace_root": "C:\\Users\\10639\\AppData\\Local\\ShuaBao",
+    "description_call_selector": "panel_id starts treasure: and ends :desc (legacy format)",
+    "replay_type": "historical tick decision snapshots; not a pixel/full-Mediator replay"
+  },
+  "legacy_description_calls": {
+    "calls": 12276,
+    "status": {
+      "unavailable": 12276
+    },
+    "unavailable": 12276,
+    "all_unavailable": true,
+    "expected_calls": 12276,
+    "count_matches_expected": true
+  },
+  "historical_treasure_decisions": {
+    "trace_files": 93,
+    "suggestion_rows": 4095,
+    "action_bearing_rows": 195,
+    "recorded_action_kinds": {
+      "SELECT_SLOT": 69,
+      "CLOSE": 126
+    },
+    "nonempty_description_values": 0,
+    "replayed_enabled_action_kinds": {
+      "CLOSE": 172,
+      "SELECT_SLOT": 70,
+      "REFRESH": 3853
+    },
+    "replayed_disabled_action_kinds": {
+      "CLOSE": 172,
+      "SELECT_SLOT": 70,
+      "REFRESH": 3853
+    }
+  },
+  "decision_equivalence": {
+    "enabled_field": "historical SlotCandidate.description",
+    "disabled_field": "description=''",
+    "compared_rows": 4095,
+    "mismatch_count": 0,
+    "mismatch_sample": [],
+    "status": "PASS"
+  },
+  "business_semantics": {
+    "description_field": "retained",
+    "negative_patterns": "retained",
+    "negative_names": "retained",
+    "negative_patterns_count": 14,
+    "negative_names_count": 7,
+    "runtime_call_change_applied": false
+  },
+  "removal_recommendation": "ALLOW_PROPOSAL_ONLY: legacy unavailable description call can be removed after review; retain description field and negative policy semantics",
+  "errors": []
+}

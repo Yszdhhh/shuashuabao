@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "status": "COMPLETED",
+  "trace": "C:\\Users\\10639\\AppData\\Local\\ShuaBao\\incidents\\ocr_shadow.jsonl",
+  "total_trace_rows": 45078,
+  "treasure_trace_rows": 24645,
+  "treasure_panels": {
+    "distinct_name_description_panel_ids": 4118,
+    "max_ocr_calls_per_panel": 12
+  },
+  "by_kind": {
+    "name": {
+      "calls": 12369,
+      "status": {
+        "ok": 750,
+        "unavailable": 11619
+      },
+      "reasons": {
+        "disabled": 11610,
+        "inference_error": 9
+      },
+      "raw_nonempty": 425,
+      "candidate_nonempty": 175,
+      "elapsed_ms": {
+        "count": 12369,
+        "p50": 1.022,
+        "p95": 131.09
+      }
+    },
+    "description": {
+      "calls": 12276,
+      "status": {
+        "unavailable": 12276
+      },
+      "reasons": {
+        "inference_error": 666,
+        "disabled": 11610
+      },
+      "raw_nonempty": 0,
+      "candidate_nonempty": 0,
+      "elapsed_ms": {
+        "count": 12276,
+        "p50": 0.971,
+        "p95": 28.865
+      }
+    }
+  },
+  "policy": {
+    "negative_names": 7,
+    "negative_patterns": 14,
+    "must_take_names": 6,
+    "allow_negative_names": 0,
+    "refresh_on_no_safe": true
+  },
+  "interpretation": {
+    "full_treasure_ocr_removal": "REJECT",
+    "semantic_policy": "retain name and description OCR; continue fail-closed when unavailable",
+    "causal_business_value": "not_proven by this shadow trace because it has no selected-action/outcome label",
+    "description_signal": "availability and inference behavior only; do not infer zero business value from low lexicon hits",
+    "next_evidence": "label safe/negative/must-take outcomes on a held-out trace before changing OCR scope"
+  }
+}

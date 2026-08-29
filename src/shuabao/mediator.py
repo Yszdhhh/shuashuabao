@@ -441,15 +441,20 @@ class Mediator:
     _STAGE_ACTION_LIMIT = 12
     _STAGE_RETRY_LIMIT = 2
     _STAGE_SELECT_LIMIT = 3
+    # Title-only bands calibrated against the recorded 1600x900 game frames.
+    # The previous bands included a large amount of card background above the
+    # title; on red bond glyphs that pushed the recognizer toward progress
+    # digits and single-character false matches.  Keep the lower edge wide
+    # enough for the inline (x/y) suffix, which is useful for stack decisions.
     _OCR_SLOT_ROIS = {
-        "skill": ((0.286, 0.178, 0.421, 0.255), (0.433, 0.178, 0.568, 0.255), (0.579, 0.178, 0.714, 0.255)),
-        "bond": ((0.254, 0.168, 0.410, 0.228), (0.425, 0.168, 0.581, 0.228), (0.596, 0.168, 0.752, 0.228)),
-        "treasure": ((0.286, 0.190, 0.418, 0.265), (0.433, 0.190, 0.565, 0.265), (0.582, 0.190, 0.714, 0.265)),
+        "skill": ((0.286, 0.190, 0.421, 0.255), (0.433, 0.190, 0.568, 0.255), (0.579, 0.190, 0.714, 0.255)),
+        "bond": ((0.254, 0.190, 0.410, 0.228), (0.425, 0.190, 0.581, 0.228), (0.596, 0.190, 0.752, 0.228)),
+        "treasure": ((0.286, 0.205, 0.418, 0.265), (0.433, 0.205, 0.565, 0.265), (0.582, 0.205, 0.714, 0.265)),
     }
     _OCR_SLOT_ROIS_4 = {
-        "skill": ((0.210, 0.178, 0.330, 0.255), (0.355, 0.178, 0.475, 0.255), (0.500, 0.178, 0.620, 0.255), (0.645, 0.178, 0.765, 0.255)),
-        "bond": ((0.185, 0.168, 0.325, 0.228), (0.340, 0.168, 0.480, 0.228), (0.495, 0.168, 0.635, 0.228), (0.650, 0.168, 0.790, 0.228)),
-        "treasure": ((0.210, 0.190, 0.330, 0.265), (0.355, 0.190, 0.475, 0.265), (0.500, 0.190, 0.620, 0.265), (0.645, 0.190, 0.765, 0.265)),
+        "skill": ((0.210, 0.190, 0.330, 0.255), (0.355, 0.190, 0.475, 0.255), (0.500, 0.190, 0.620, 0.255), (0.645, 0.190, 0.765, 0.255)),
+        "bond": ((0.185, 0.190, 0.325, 0.228), (0.340, 0.190, 0.480, 0.228), (0.495, 0.190, 0.635, 0.228), (0.650, 0.190, 0.790, 0.228)),
+        "treasure": ((0.210, 0.205, 0.330, 0.265), (0.355, 0.205, 0.475, 0.265), (0.500, 0.205, 0.620, 0.265), (0.645, 0.205, 0.765, 0.265)),
     }
     _CHOICE_SLOT_CENTERS = {
         "skill": ((0.354, 0.42), (0.500, 0.42), (0.646, 0.42)),
@@ -463,18 +468,28 @@ class Mediator:
     }
     _OCR_DESC_ROIS = {
         "treasure": {
-            "centers_x": (0.348, 0.497, 0.646),
-            "half_w": 0.088,
-            "y0": 0.275,
-            "y1": 0.420,
+            # Reuse the live 3-card centers.  The previous centers came from
+            # an older capture and shifted the middle/right description band
+            # several pixels left on the current 1600x900 client frame.
+            "centers_x": (0.352, 0.500, 0.648),
+            # Match one card's content width.  The old 0.088 band crossed
+            # neighboring card edges on the 1600x900 live panel.
+            "half_w": 0.066,
+            # Description text begins below the icon.  The previous band
+            # included most of the icon and made the recognizer return
+            # punctuation/digits instead of the first description lines.
+            "y0": 0.350,
+            "y1": 0.405,
+            "scan_y1": 0.550,
         },
     }
     _OCR_DESC_ROIS_4 = {
         "treasure": {
             "centers_x": (0.270, 0.415, 0.560, 0.705),
             "half_w": 0.065,
-            "y0": 0.275,
-            "y1": 0.420,
+            "y0": 0.350,
+            "y1": 0.405,
+            "scan_y1": 0.550,
         },
     }
     _RARITY_SAMPLE_XS = {
@@ -732,9 +747,9 @@ class Mediator:
         # （0.742/0.799）误入面板处理。
         self._panel_anchor_candidate: tuple[str, float] | None = None
         # One explicit L1 cycle owns the proactive G/F/V panels.  Per-panel
-        # fingerprint guards remain the anti-loop safety boundary; a lifetime
-        # "five panels per game" cap must not permanently starve later skill
-        # points in a long round.
+        # fingerprint guards remain the anti-loop safety boundary; the
+        # per-kind episode count is the terminal guard for repeated unresolved
+        # panel episodes in one round.
         self._l1_cycle_step = "bond"
         self._l1_cycle_owned_panel = False
         self._l1_cycle_selected = False
@@ -2078,6 +2093,49 @@ class Mediator:
             int(frame.width * x1), int(frame.height * y1),
         )
 
+    @staticmethod
+    def _description_line_bands(
+        frame: Frame,
+        roi: tuple[float, float, float, float],
+        scan_y1: float,
+    ) -> list[tuple[int, int]]:
+        """Find bright text rows inside one card without sending the icon to OCR."""
+        if frame.bgr is None or frame.bgr.size == 0:
+            return []
+        x0, y0, x1, _ = roi
+        px0 = int(frame.width * x0)
+        px1 = int(frame.width * x1)
+        py0 = int(frame.height * y0)
+        py1 = min(frame.height, int(frame.height * scan_y1))
+        pad = max(4, int((px1 - px0) * 0.05))
+        ix0, ix1 = px0 + pad, px1 - pad
+        if ix1 <= ix0 or py1 <= py0:
+            return []
+        crop = frame.bgr[py0:py1, ix0:ix1]
+        if crop.size == 0:
+            return []
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        row_counts = ((hsv[:, :, 2] > 145).sum(axis=1))
+        minimum = max(4, int(crop.shape[1] * 0.02))
+        rows = [int(row) for row in np.flatnonzero(row_counts >= minimum)]
+        groups: list[list[int]] = []
+        for row in rows:
+            if not groups or row > groups[-1][-1] + 1:
+                groups.append([row])
+            else:
+                groups[-1].append(row)
+        bands: list[tuple[int, int]] = []
+        for group in groups:
+            if len(group) < 2 or len(group) > 20:
+                continue
+            bands.append((
+                max(py0, py0 + group[0] - 6),
+                min(py1, py0 + group[-1] + 7),
+            ))
+            if len(bands) >= 5:
+                break
+        return bands
+
     def _ocr_panel_slots(self, frame: Frame, kind: str) -> list[dict]:
         """Read title (+ treasure description) lines with deterministic layout=3 or 4 detection.
         When layout is determined, name ROI, desc ROI, rarity ROI and click centers MUST use the same layout.
@@ -2111,12 +2169,17 @@ class Mediator:
                 raw = str(response.raw_text or "")
                 name = top.name if top and top.name and conf >= 0.45 else None
                 if not name and raw:
-                    stripped = re.sub(r"[\[（(]\s*\d+\s*/\s*\d+\s*[\])）)]", "", raw).strip()
-                    if stripped and re.search(r"\d+\s*/\s*\d+", raw):
+                    # 只有完整的“名称(已持有/上限)”形态才从 raw_text 回填。
+                    # 4 槽 ROI 误扫 3 槽牌面时，常见碎片是 ``0/3)挑占``；
+                    # 仅搜索数字比值会把这种碎片当成可用牌名，进而选错布局。
+                    ratio_match = re.fullmatch(
+                        r"\s*(?P<name>[^()[\]（）]+?)\s*[\[（(]\s*\d+\s*/\s*\d+\s*[\])）)]\s*",
+                        raw,
+                    )
+                    stripped = ratio_match.group("name").strip() if ratio_match else ""
+                    if stripped and not re.search(r"\d", stripped):
                         name = stripped
                         conf = max(conf, float(response.rec_score or 0.0))
-                    elif top and top.name:
-                        name = top.name
                 out.append({
                     "index": index,
                     "name": name,
@@ -2132,13 +2195,15 @@ class Mediator:
                 self._fill_bond_slots_by_title_template(frame, out, rois)
             return out
 
-        # 当前局内羁绊是 4 张。先读 4 槽，够用就不再扫 3 槽（少超时、少空帧）。
+        # 4 槽是当前局内羁绊的常见布局，但低置信碎片不足以证明布局。
+        # 只有 3 个以上清晰名称时跳过 3 槽扫描；否则补扫一次 3 槽，避免
+        # 三张宝物被四槽 ROI 错位后只剩中间两张“看起来像识别成功”。
         candidates_4: list[dict] = []
         if rois_4 is not None and len(rois_4) == 4:
             candidates_4 = scan(rois_4, f"{panel_id}:4s")
         named_4 = sum(1 for s in candidates_4 if s.get("name"))
         candidates_3: list[dict] = []
-        if named_4 < 2:
+        if named_4 <= 2:
             candidates_3 = scan(rois_3, panel_id)
         named_3 = sum(1 for s in candidates_3 if s.get("name"))
         if rois_4 is not None and named_4 >= 1 and named_4 >= named_3:
@@ -2161,6 +2226,7 @@ class Mediator:
             half_w = float(desc_spec["half_w"])
             y0 = float(desc_spec["y0"])
             y1 = float(desc_spec["y1"])
+            scan_y1 = float(desc_spec.get("scan_y1", y1))
             centers_x = desc_spec["centers_x"]
             for slot in slots:
                 idx = slot["index"]
@@ -2168,16 +2234,72 @@ class Mediator:
                     cx = centers_x[idx]
                     desc_roi = (float(cx) - half_w, y0, float(cx) + half_w, y1)
                     bbox = self._normalized_bbox(frame, desc_roi)
-                    response = self._ocr_client.shadow_predict(
-                        frame,
-                        f"{panel_id}:desc:{slot_count}",
-                        {"index": idx, "bbox": bbox, "kind": f"{kind}_desc"},
-                        panel_bbox=panel_bbox,
-                    )
-                    text = (response.raw_text or "").strip()
-                    if not text and response.candidates:
-                        text = (response.candidates[0].name or "").strip()
-                    slot["description"] = text
+                    bands = self._description_line_bands(frame, desc_roi, scan_y1)
+                    if not bands:
+                        bands = [(bbox[1], bbox[3])]
+                    texts: list[str] = []
+                    for line_index, (line_y0, line_y1) in enumerate(bands):
+                        line_bbox = (bbox[0], line_y0, bbox[2], line_y1)
+                        response = self._ocr_client.shadow_predict(
+                            frame,
+                            f"{panel_id}:desc:{slot_count}:{line_index}",
+                            {"index": idx, "bbox": line_bbox, "kind": f"{kind}_desc"},
+                            panel_bbox=panel_bbox,
+                        )
+                        text = (response.raw_text or "").strip()
+                        if not text and response.candidates:
+                            text = (response.candidates[0].name or "").strip()
+                        response_score = float(getattr(response, "rec_score", 0.0) or 0.0)
+                        # A real 1600x900 capture showed a few right-edge lines
+                        # clipped by only 2-3 pixels (e.g. ``复4%的最大生命值``).
+                        # Keep the calibrated crop as the fast path; retry once
+                        # only for an empty/very short result, and accept the
+                        # wider result only when it is materially more complete.
+                        if (
+                            str(getattr(response, "status", "ok")) == "ok"
+                            and (not text or len(text) <= 3 or response_score < 0.65)
+                        ):
+                            extra_x = max(2, int(round(frame.width * 0.002)))
+                            wide_bbox = (
+                                bbox[0],
+                                line_y0,
+                                min(frame.width, bbox[2] + extra_x),
+                                line_y1,
+                            )
+                            wide_response = self._ocr_client.shadow_predict(
+                                frame,
+                                f"{panel_id}:desc:{slot_count}:{line_index}:wide",
+                                {"index": idx, "bbox": wide_bbox, "kind": f"{kind}_desc"},
+                                panel_bbox=panel_bbox,
+                            )
+                            wide_text = (wide_response.raw_text or "").strip()
+                            if not wide_text and wide_response.candidates:
+                                wide_text = (wide_response.candidates[0].name or "").strip()
+                            wide_score = float(getattr(wide_response, "rec_score", 0.0) or 0.0)
+                            wide_usable = (
+                                wide_text
+                                and str(getattr(wide_response, "status", "ok")) == "ok"
+                                and wide_score >= 0.45
+                                and re.search(r"[\u4e00-\u9fffA-Za-z]", wide_text)
+                            )
+                            if wide_usable and (
+                                not text
+                                or (
+                                    len(wide_text) >= max(4, len(text) + 2)
+                                    and wide_score >= max(0.45, response_score - 0.15)
+                                )
+                            ):
+                                text = wide_text
+                                response_score = wide_score
+                        if (
+                            text
+                            and str(getattr(response, "status", "ok")) == "ok"
+                            and response_score >= 0.45
+                            and re.search(r"[\u4e00-\u9fffA-Za-z]", text)
+                            and text not in texts
+                        ):
+                            texts.append(text)
+                    slot["description"] = "\n".join(texts)
 
         self._trace_ocr_suggestion = {"kind": kind, "slots": slots, "layout": slot_count}
         return slots
@@ -3148,8 +3270,8 @@ class Mediator:
 
         The owned cycle drains bonds first, then skills and treasure.
         A panel kind advances only after an owned episode yields no selectable
-        result (or reaches its per-cycle safety budget).  The next full cycle
-        reopens skill instead of permanently starving it for the rest of a game.
+        result.  The per-kind budget is reserved for abnormal episode reopen
+        failures; normal successful episodes must not consume it.
         """
         if anchor is None:
             anchor = self._selection_anchor(frame)
@@ -3167,13 +3289,31 @@ class Mediator:
         if self._bond_base_progress_pending():
             target = "bond"
         if target in ("skill", "bond", "treasure"):
+            panel_enabled = (
+                target == "skill"
+                or (target == "bond" and getattr(self.settings, "auto_bond", True))
+                or (target == "treasure" and getattr(self.settings, "auto_treasure", True))
+            )
+            if (
+                panel_enabled
+                and self._panel_episode_count.get(target, 0)
+                >= self.settings.panel_episode_limit_per_kind
+            ):
+                # The limit is a fail-closed terminal quarantine for this kind
+                # in the current round.  Keep the visible/unknown panel in the
+                # panel FSM; never reset the counter or advance the L1 cycle.
+                self._panel_kind = target
+                self._panel_state = PanelState.COOLDOWN
+                self._panel_cooldown_until[target] = float("inf")
+                self._panel_opened_by_us = None
+                self._skill_refresh_attempts = 0
+                print(f"[L1] {target} episode 上限已达，保持面板会话 Fail-Closed（本局不再重开）")
+                return LoopAction.Continue
             reopen_at = self._panel_cooldown_until.get(target, 0.0)
             if now < reopen_at:
                 print(f"[L1] {target} 隐藏后冷却 {reopen_at - now:.1f}s，仍留在本步（不跳到下一步）")
                 return LoopAction.Continue
         if target == "skill":
-            if self._panel_episode_count.get("skill", 0) >= self.settings.panel_episode_limit_per_kind:
-                self._panel_episode_count["skill"] = 0
             if self.act_click(self._hud_button_hit(frame, "skill_button", self.CHOICE_BUTTON_RATIOS["skill"]), "OpenSkillPanel"):
                 self._last_skill_panel = now
                 self._panel_opened_by_us = "skill"
@@ -3187,8 +3327,6 @@ class Mediator:
                 print("[L1] G 技能按钮点击被拒绝（不推进冷却）")
             return LoopAction.Continue
         if target == "bond" and getattr(self.settings, "auto_bond", True):
-            if self._panel_episode_count.get("bond", 0) >= self.settings.panel_episode_limit_per_kind:
-                self._panel_episode_count["bond"] = 0
             if self.act_click(self._hud_button_hit(frame, "bond_button", self.CHOICE_BUTTON_RATIOS["bond"]), "OpenBondPanel"):
                 self._last_bond_attempt = now
                 self._panel_opened_by_us = "bond"
@@ -3201,8 +3339,6 @@ class Mediator:
                 print("[L1] F 羁绊按钮点击被拒绝（不推进循环）")
             return LoopAction.Continue
         if target == "treasure" and getattr(self.settings, "auto_treasure", True):
-            if self._panel_episode_count.get("treasure", 0) >= self.settings.panel_episode_limit_per_kind:
-                self._panel_episode_count["treasure"] = 0
             if self.act_click(self._hud_button_hit(frame, "treasure_button", self.CHOICE_BUTTON_RATIOS["treasure"]), "OpenTreasurePanel"):
                 self._last_treasure_attempt = now
                 self._panel_opened_by_us = "treasure"
@@ -4997,12 +5133,23 @@ class Mediator:
             self._round_deadline = None
             self._outcome_recorded = False
             self._round_outcome = None
-            # S0 ⑤：跨局每类面板会话计数清零（上限按"每局每类"计）
+            # S0 ⑤：跨局每类面板会话计数/冷却清零（上限按"每局每类"计）
             self._panel_episode_count = {}
+            self._panel_cooldown_until = {}
             self._panel_state = PanelState.CLOSED
+            self._panel_kind = None
+            self._panel_episode_id = None
+            self._panel_first_seen_at = None
+            self._panel_last_progress_at = None
+            self._panel_episode_started = None
+            self._panel_visible_deadline = None
+            self._panel_mutation_baseline = None
+            self._panel_pending_choice_action = None
+            self._panel_pending_choice_fingerprint = None
             self._panel_opened_by_us = None
             self._panel_fingerprint = None
             self._panel_fingerprint_attempts = 0
+            self._panel_anchor_candidate = None
         if phase == Phase.MAIN_LINE and self.phase != Phase.MAIN_LINE:
             self._stage_attempt_budget = None
             self._l1_cycle_step = "bond"
@@ -7289,7 +7436,7 @@ class Mediator:
         return action
 
     def _enter_panel_episode(self, frame: Frame, anchor: MatchResult, kind: str, opened: bool) -> None:
-        """进入 ACTIVE 会话：记录 kind/指纹起点；主动打开的面板计 episode 数。"""
+        """进入 ACTIVE 会话：记录 kind/指纹起点；不消耗异常重开预算。"""
         now = time.time()
         self._panel_state = PanelState.ACTIVE
         self._panel_kind = kind
@@ -7308,8 +7455,6 @@ class Mediator:
         self._panel_f1_used_this_episode = False
         self._clear_pending_skill_cards()
         self._reset_choice_session()
-        if opened:
-            self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
 
     def _finish_panel_episode(self) -> None:
         cycle_kind = self._panel_kind
@@ -7493,6 +7638,8 @@ class Mediator:
                     )
                     self._panel_state = PanelState.COOLDOWN
                     kind = self._panel_kind or "unknown"
+                    if kind in ("skill", "bond", "treasure"):
+                        self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
                     self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                     self._panel_opened_by_us = None
                     self._skill_refresh_attempts = 0
@@ -7506,6 +7653,20 @@ class Mediator:
                 print(f"[L1] 面板锚点 {anchor.name} {anchor.score:.3f} 待双帧确认")
                 return LoopAction.Continue
             kind = self._panel_kind_of(frame, anchor)
+            if (
+                kind in ("skill", "bond", "treasure")
+                and self._panel_episode_count.get(kind, 0)
+                >= self.settings.panel_episode_limit_per_kind
+            ):
+                # The anchor is still present, so remain inside the panel FSM
+                # instead of pretending that the UI was cleared/progressed.
+                self._panel_kind = kind
+                self._panel_state = PanelState.COOLDOWN
+                self._panel_cooldown_until[kind] = float("inf")
+                self._panel_opened_by_us = None
+                self._skill_refresh_attempts = 0
+                print(f"[L1] {kind} natural episode 上限已达，遮挡面板保持 Fail-Closed（本局不再重入）")
+                return LoopAction.Continue
             self._enter_panel_episode(frame, anchor, kind, opened=False)
             # 自然面板：本 tick 直接进入 ACTIVE 处理
             st = self._panel_state
@@ -7525,7 +7686,10 @@ class Mediator:
                 print(f"[L1] 主动面板 {self._panel_kind} 可见窗超时，没有中央面板，转入下一步")
                 self._l1_cycle_selected = False
                 self._panel_state = PanelState.COOLDOWN
-                self._panel_cooldown_until[self._panel_kind] = now + self.settings.ui_action_interval_s
+                kind = self._panel_kind
+                if kind in ("skill", "bond", "treasure"):
+                    self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
+                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                 self._panel_opened_by_us = None
                 return LoopAction.Continue
             else:
@@ -7717,6 +7881,8 @@ class Mediator:
                           f"{closing_elapsed:.1f}s 超时），强制进入 COOLDOWN 避免活锁")
                     self._panel_state = PanelState.COOLDOWN
                     kind = self._panel_kind or "unknown"
+                    if kind in ("skill", "bond", "treasure"):
+                        self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
                     self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                     self._panel_opened_by_us = None
                     return LoopAction.Continue

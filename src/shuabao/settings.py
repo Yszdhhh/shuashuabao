@@ -218,7 +218,7 @@ class Settings:
     panel_hard_deadline_s: float = 15.0     # 单个面板 episode 无进展硬超时
     auto_task_unknown_timeout_s: float = 45.0  # 自动任务 UNKNOWN 熔断（钳制 30–60s）
     panel_action_limit_per_fingerprint: int = 3  # 同 fingerprint 同动作上限
-    panel_episode_limit_per_kind: int = 24      # 每局每类面板会话上限（5 会在技能还没点完时跳羁绊）
+    panel_episode_limit_per_kind: int = 24      # 每局每类异常重开上限；正常成功面板不消耗
     incident_sample_rate: float = 0.1           # 正常 panel episode 抽样归档率
     # OCR 只给三选一面板提供“名字证据”；live 时技能/羁绊没有可靠名字就不点。
     # Paddle 运行在独立 sidecar，主 EXE 不加载模型依赖。

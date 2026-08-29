@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-27 11:37:55",
-  "reason": "Add live tier crossing and mediator equipment fsm integration suites with 309 passing tests",
+  "updated_at": "2026-08-29 14:08:58",
+  "reason": "Stage 2B0: confirmed giveup_panel_not_fail real three-frame replay now PASS; main_hud_idle expectation synchronized to intentional bond-first behavior from 17c52d9; disconnect_modal_missing remains BLOCKED because no real disconnect fixture is available.",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 316
+        "passed": 328
       }
     },
     "frozen_replay": {
       "title": "冻结端到端回放（fixtures/baselines/replay_frozen）",
       "observed": {
         "fail_panel_preempt": "PASS",
-        "giveup_panel_not_fail": "FAIL",
+        "giveup_panel_not_fail": "PASS",
         "archive_challenge_open": "PASS",
         "main_hud_idle": "PASS",
         "stage_select_scroll": "PASS",
@@ -22,15 +22,24 @@
         "disconnect_modal_missing": "BLOCKED"
       },
       "known_failures": {
-        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。",
-        "giveup_panel_not_fail": "FAIL·动作决策漂移：giveup_panel 帧中当前识别到技能卡候选（skill_hide score=0.757 @ 736,678）触发直接点卡（技能选择），未命中原夹具期望的『技能刷新选择 skill_refresh_btn @ 1020,654』。由于当前选卡策略优先判定可见技能候选，导致与旧夹具期望动作产生 ledger 偏离。真实行为需在真机连贯视频流录制重新校准后方可更新夹具。"
+        "disconnect_modal_missing": "BLOCKED·素材缺失：真实断线弹窗（gameDisconnect/retryConnect）无素材，idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中。需 tools/net_block.py 实机触发后保存。与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源。不得用合成帧冒充。"
       }
     },
     "scene_templates": {
       "title": "scenes.json 模板完整性",
       "observed": {
         "ok": 132,
-        "missing": 0
+        "missing": 0,
+        "asset_spec_assets_root": 1,
+        "asset_manifest_schema": 1,
+        "asset_package_root_whole_tree": 1,
+        "asset_files": 351,
+        "asset_allowlisted": 351,
+        "asset_missing_allowlist": 0,
+        "asset_stale_manifest": 0,
+        "asset_forbidden_paths": 0,
+        "asset_metadata_missing": 0,
+        "asset_hash_mismatch": 0
       }
     },
     "contract": {

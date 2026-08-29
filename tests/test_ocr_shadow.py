@@ -7,7 +7,10 @@ runs the real worker in degraded mode and likewise never loads Paddle.
 
 from __future__ import annotations
 
+import base64
+import io
 import json
+import queue
 import sys
 import tempfile
 import textwrap
@@ -23,6 +26,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from shuabao.vision.ocr_shadow import ShadowClient, decode_response, encode_request, panel_fingerprint
+from shuabao.vision.ocr_shadow import worker as worker_module
 
 
 FAKE_WORKER = textwrap.dedent(
@@ -73,6 +77,28 @@ class TestProtocol(unittest.TestCase):
         second[20, 20, 0] = 1
         self.assertNotEqual(panel_fingerprint(first), panel_fingerprint(second))
         self.assertEqual(panel_fingerprint(first), panel_fingerprint(first))
+
+
+class TestWorkerPrediction(unittest.TestCase):
+    def test_description_kind_returns_raw_text_instead_of_inference_error(self):
+        from PIL import Image
+
+        payload = io.BytesIO()
+        Image.new("RGB", (32, 16), "white").save(payload, format="PNG")
+        image_b64 = base64.b64encode(payload.getvalue()).decode("ascii")
+
+        class Recognizer:
+            @staticmethod
+            def predict(_path):
+                return [{"rec_text": "测试描述", "rec_score": 0.91}]
+
+        candidates, raw_text, score = worker_module._predict(
+            Recognizer(), image_b64, "treasure_desc"
+        )
+
+        self.assertEqual(candidates, [])
+        self.assertEqual(raw_text, "测试描述")
+        self.assertEqual(score, 0.91)
 
 
 class TestClientLifecycle(unittest.TestCase):
@@ -189,6 +215,24 @@ class TestClientLifecycle(unittest.TestCase):
                 self.assertEqual(records[2]["panel_fingerprint"], "fp2")
             finally:
                 client.close()
+
+    def test_reader_eof_stays_with_the_process_queue(self):
+        """A retired sidecar reader must not poison a replacement READY queue."""
+        client = self.new_client()
+        old_queue = queue.Queue()
+        replacement_queue = queue.Queue()
+
+        class Proc:
+            stdout = io.StringIO("")
+
+        try:
+            client._lines = replacement_queue
+            client._read_lines(Proc(), old_queue)
+            self.assertEqual(old_queue.get_nowait(), "")
+            with self.assertRaises(queue.Empty):
+                replacement_queue.get_nowait()
+        finally:
+            client.close()
 
     def test_model_missing_is_unavailable(self):
         with tempfile.TemporaryDirectory() as tmp:
