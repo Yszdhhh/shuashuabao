@@ -4,7 +4,7 @@
 1. 固定 5 槽 ROI 扫描。
 2. 购买优先级:
    - Priority 1: OCR 明确识别的 2折/5折
-   - Priority 2: 吞噬丹 icon 小模板 (danGif) -> 仅当羁绊栏非空且未超上限
+   - Priority 2: 吞噬丹 icon 小模板 (danGif) -> 商店获取；背包使用另有前置
    - Priority 3: 木材礼包 icon 小模板 (merchant_wood / woodgift)
    - Priority 4: 属性线/主属性关键词匹配 (智力 / 力量 / 敏捷)
    - Priority 5: 技能 / 羁绊偏好卡片 (技能 focus / 偏好羁绊)
@@ -108,7 +108,7 @@ class MerchantScanner:
                 candidates.append((1, item))
                 continue
 
-            # Priority 2: 吞噬丹 (需羁绊栏非空)
+            # Priority 2: 吞噬丹。merchant purchase itself does not consume it.
             if item.item_type == "devour_pill" or "danGif" in item.label or "吞噬" in item.label:
                 if bond_bar_nonempty:
                     candidates.append((2, item))

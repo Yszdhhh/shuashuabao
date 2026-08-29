@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from shuabao.choice_policy import PolicySettings
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import ChallengeState, Mediator, PanelState, Phase
-from shuabao.policy.merchant_fsm import MerchantFSM
+from shuabao.policy.merchant_fsm import MerchantFSM, MerchantPhase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult
@@ -412,6 +412,28 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
 
         click.assert_called_once()
         self.assertEqual(click.call_args.args[1], "BlackMerchant-wood")
+
+    def test_merchant_pill_purchase_does_not_use_inventory_bond_gate(self):
+        self.med.settings.merchant_enabled = True
+        self.med._merchant_next_at = 0.0
+        self.med._merchant_fsm = MerchantFSM(phase=MerchantPhase.READY, fingerprint="filled")
+        pill = hit("danGif", 1280, 643)
+
+        def find_pill(_frame, names, **_kwargs):
+            return pill if names == ["danGif"] else None
+
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=True), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=False), \
+                patch.object(self.med, "_merchant_fingerprint", return_value="filled"), \
+                patch.object(self.med, "_bond_bar_nonempty", return_value=False), \
+                patch.object(self.med, "find", side_effect=find_pill), \
+                patch.object(self.med, "act_click", return_value=True) as click:
+            result = self.med._maybe_black_merchant(self.frame)
+
+        self.assertEqual(result, LoopAction.Continue)
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-swallow_pill")
 
     def test_merchant_explicit_two_or_five_fold_ocr_is_first_priority(self):
         self.med.settings.merchant_enabled = True

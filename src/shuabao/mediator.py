@@ -3871,7 +3871,7 @@ class Mediator:
         """Buy known safe merchant items according to 5-slot priority, otherwise perform guarded refresh.
         Priority:
         1. OCR 明确读到 2折/5折 -> 直接购买
-        2. 命中 吞噬丹 icon 小模板 (danGif) -> 仅当羁绊栏非空时直接购买
+        2. 命中 吞噬丹 icon 小模板 (danGif) -> 直接购买；后续背包使用仍有羁绊栏门禁
         3. 命中 木材礼包 icon 小模板 (merchant_wood / woodgift) -> 直接购买
         4. 属性路线匹配 (智力 / 力量 / 敏捷)
         5. 偏好技能 / 羁绊卡片匹配
@@ -3932,7 +3932,10 @@ class Mediator:
             detected_slots.append(
                 MerchantSlotItem(
                     slot_index=slot_idx,
-                    center_ratio=(pill.x / frame.width, pill.y / frame.height),
+                    center_ratio=(
+                        (pill.x + pill.w // 2) / frame.width,
+                        (pill.y + pill.h // 2) / frame.height,
+                    ),
                     item_type="devour_pill",
                     label="danGif",
                 )
@@ -3951,7 +3954,10 @@ class Mediator:
             detected_slots.append(
                 MerchantSlotItem(
                     slot_index=slot_idx,
-                    center_ratio=(wood.x / frame.width, wood.y / frame.height),
+                    center_ratio=(
+                        (wood.x + wood.w // 2) / frame.width,
+                        (wood.y + wood.h // 2) / frame.height,
+                    ),
                     item_type="wood",
                     label="merchant_wood",
                 )
@@ -3960,10 +3966,10 @@ class Mediator:
         if cards_present:
             detected_slots.extend(self._merchant_discount_slots(frame, fingerprint))
 
-        ranked = scanner.rank_purchases(
-            detected_slots,
-            bond_bar_nonempty=self._bond_bar_nonempty(frame),
-        )
+        # Buying a merchant pill is independent from consuming it in the
+        # inventory. The latter keeps its own bond-bar guard in
+        # _maybe_use_inventory_item; do not hide merchant recognition behind it.
+        ranked = scanner.rank_purchases(detected_slots)
 
         if ranked:
             target_item = ranked[0]

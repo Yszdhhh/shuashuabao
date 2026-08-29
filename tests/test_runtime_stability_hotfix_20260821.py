@@ -108,6 +108,14 @@ def test_merchant_disabled_does_not_implicitly_refresh_or_buy_other_items():
     click.assert_not_called()
 
 
+def test_runtime_merchant_uses_integrated_core_handler():
+    m = med()
+    merchant_frame = frame()
+    with patch.object(CoreMediator, "_maybe_black_merchant", return_value=LoopAction.Continue) as core_merchant:
+        assert m._maybe_black_merchant(merchant_frame) is LoopAction.Continue
+    core_merchant.assert_called_once_with(merchant_frame)
+
+
 def test_physical_panel_deadline_recovers_instead_of_stopping_runtime():
     m = med()
     anchor = hit("skill_refresh_btn", 850, 550)
