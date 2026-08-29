@@ -88,6 +88,26 @@ cmd.exe /c "robocopy `"$(Split-Path -Parent $ocrWorker)`" `"$workerTarget`" /E /
 if ($LASTEXITCODE -gt 7) { throw "复制 OCR worker 到发行目录失败。" }
 Write-Host "已生成：$ocrWorker" -ForegroundColor Green
 
+# A live-input capture refuses to run unless the checked-out source commit,
+# the packaged EXE and this sidecar agree. A version label alone is not a
+# build identity. Keep the sidecar beside ShuaBao.exe so robocopy deployment
+# carries the exact proof with the release.
+$sourceSha = (& git rev-parse HEAD).Trim()
+$sourceDirtyEntries = @(& git status --porcelain --untracked-files=all)
+$buildId = (& $python -c "import sys; sys.path.insert(0, 'src'); from shuabao.mediator import BUILD_ID; print(BUILD_ID)").Trim()
+$identity = [ordered]@{
+    schema_version     = 1
+    source_sha         = $sourceSha
+    source_tree_clean  = ($sourceDirtyEntries.Count -eq 0)
+    build_id           = $buildId
+    exe_name           = (Split-Path -Leaf $app)
+    exe_sha256         = (Get-FileHash -LiteralPath $app -Algorithm SHA256).Hash.ToLowerInvariant()
+    created_at_utc     = [DateTime]::UtcNow.ToString("o")
+}
+$identityPath = Join-Path (Split-Path -Parent $app) "build_identity.json"
+$identity | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $identityPath -Encoding utf8
+Write-Host "已写入构建身份：$identityPath" -ForegroundColor Green
+
 if ($NoDeploy) { return }
 
 Write-Host "[4/4] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cyan

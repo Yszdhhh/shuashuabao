@@ -1,0 +1,293 @@
+# =============================================================================
+# SHUASHUABAO — PROPOSED VISION & OCR PROFILES (STAGE 1 DISTILLATION)
+# Base Resolution: 1600x900 (Client Coordinates)
+# Coordinate Space: client_capture (GetClientRect / ClientToScreen)
+# =============================================================================
+
+version: 1.0.0
+generated_at: '2026-08-29'
+status: proposed_for_codex_validation
+
+global_defaults:
+  capture_space: client_capture
+  base_resolution: [1600, 900]
+  supported_resolutions:
+    - [1600, 900]
+    - [1920, 1080]
+  scale_policy: proportional_client_rect
+  dpi_awareness: PerMonitorV2
+
+scenes:
+  # ---------------------------------------------------------------------------
+  # 1. SKILL CHOICE (G Panel) — TYPE A: OCR_REQUIRED
+  # ---------------------------------------------------------------------------
+  skill_choice:
+    scene_id: skill_choice
+    description: 'In-game skill selection panel (3 slots triggered by key G)'
+    risk_class: HIGH
+    detector_type: constrained_ocr
+    capture_space: client_capture
+    base_resolution: [1600, 900]
+
+    cheap_gate:
+      type: panel_anchor_presence
+      templates:
+        - 'lobby/choice_hide_btn'
+        - 'skill_giveup_btn'
+        - 'skill_refresh_btn'
+      threshold: 0.70
+      roi: [0.20, 0.45, 0.80, 0.80]
+
+    slots_3:
+      slot_0:
+        name_roi_px: [446, 155, 156, 50]
+        name_roi_norm: [0.2788, 0.172, 0.0975, 0.056]
+      slot_1:
+        name_roi_px: [683, 158, 156, 50]
+        name_roi_norm: [0.4269, 0.176, 0.0975, 0.056]
+      slot_2:
+        name_roi_px: [918, 155, 156, 50]
+        name_roi_norm: [0.5738, 0.172, 0.0975, 0.056]
+
+    preprocess:
+      - type: grayscale
+      - type: resize_2x
+        interpolation: INTER_CUBIC
+
+    ocr:
+      enabled: true
+      engine: PP-OCRv5_mobile_rec
+      model_dir: 'models/ocr/PP-OCRv5_mobile_rec_infer'
+      device: cpu
+      cpu_threads: 4
+      vocabulary_file: 'config/skill_labels.json'
+      lexicon_file: 'config/choice_lexicon.json'
+      min_confidence: 0.60
+      margin_threshold: 0.15
+      fuzzy_floor: 0.60
+
+    decision:
+      temporal_policy: 2_of_2_frames_or_high_conf
+      high_conf_single_frame_threshold: 0.92
+      timeout_ms: 2500
+      fallback: NO_ACTION_WAIT
+
+    metrics:
+      holdout_accuracy: 0.9787
+      latency_p50_ms: 20.8
+      latency_p95_ms: 34.4
+
+  # ---------------------------------------------------------------------------
+  # 2. BOND / FETTER CHOICE (F Panel) — HYBRID: GLYPH MATCH + CONSTRAINED OCR
+  # ---------------------------------------------------------------------------
+  bond_choice:
+    scene_id: bond_choice
+    description: 'In-game bond/fetter selection panel (3 or 4 slots triggered by key F)'
+    risk_class: HIGH
+    detector_type: visual_signature_with_ocr_fallback
+    capture_space: client_capture
+    base_resolution: [1600, 900]
+
+    cheap_gate:
+      type: panel_anchor_presence
+      templates:
+        - 'bond_hide_btn'
+        - 'bond_refresh_btn'
+        - 'card_hide'
+      threshold: 0.70
+      roi: [0.20, 0.45, 0.80, 0.80]
+
+    slots_3:
+      slot_0:
+        name_roi_px: [446, 155, 156, 50]
+      slot_1:
+        name_roi_px: [683, 158, 156, 50]
+      slot_2:
+        name_roi_px: [918, 155, 156, 50]
+
+    slots_4:
+      slot_0:
+        name_roi_px: [380, 155, 140, 50]
+      slot_1:
+        name_roi_px: [570, 155, 140, 50]
+      slot_2:
+        name_roi_px: [760, 155, 140, 50]
+      slot_3:
+        name_roi_px: [950, 155, 140, 50]
+
+    level1_glyph_detector:
+      enabled: true
+      template_dir: 'assets/Images/cards'
+      match_threshold: 0.82
+      method: TM_CCOEFF_NORMED
+
+    level2_ocr:
+      enabled: true
+      engine: PP-OCRv5_mobile_rec
+      preprocess:
+        - type: grayscale
+        - type: resize_2x
+          interpolation: INTER_CUBIC
+      vocabulary_file: 'config/fetter_labels.json'
+      lexicon_file: 'config/choice_lexicon.json'
+      min_confidence: 0.65
+      strip_progress_regex: '[\(\[（【]\s*\d+\s*/\s*\d+\s*[\)\]）】]'
+
+    decision:
+      temporal_policy: 2_of_2_frames_or_high_conf
+      timeout_ms: 2500
+      fallback: NO_REFRESH_WHEN_UNCONFIRMED
+
+  # ---------------------------------------------------------------------------
+  # 3. TREASURE CHOICE — TYPE C: VISUAL_SIGNATURE (REMOVE OCR)
+  # ---------------------------------------------------------------------------
+  treasure_choice:
+    scene_id: treasure_choice
+    description: 'In-game treasure reward popup upon boss defeat / drop'
+    risk_class: MEDIUM
+    detector_type: visual_signature
+    capture_space: client_capture
+    base_resolution: [1600, 900]
+
+    cheap_gate:
+      type: panel_anchor_presence
+      templates:
+        - 'treasure_hide_btn'
+        - 'treasure_lock_btn'
+        - 'treasure_refresh_btn'
+      threshold: 0.70
+
+    ocr:
+      enabled: false  # ELIMINATED: Treasure OCR has 98.6% failure and 0% business utility
+
+    level1_action:
+      policy: select_first_available_or_rarity_color
+      rarity_hsv_bands:
+        ur: { h: [140, 175], s: [100, 255], v: [100, 255] }
+        ssr: { h: [15, 35], s: [150, 255], v: [150, 255] }
+        sr: { h: [100, 130], s: [100, 255], v: [100, 255] }
+        r: { h: [40, 80], s: [80, 255], v: [80, 255] }
+
+    decision:
+      action: click_slot_0_if_unlocked
+      fallback: treasure_hide_btn
+
+  # ---------------------------------------------------------------------------
+  # 4. DRAGON BALL (龙珠) — TYPE B: CATEGORY_ONLY
+  # ---------------------------------------------------------------------------
+  dragon_ball:
+    scene_id: dragon_ball
+    description: 'World item Dragon Ball 1-7 stars pickup'
+    risk_class: LOW
+    detector_type: visual_signature
+    capture_space: client_capture
+    base_resolution: [1600, 900]
+
+    hsv_filter:
+      h_range: [15, 30]
+      s_range: [160, 255]
+      v_range: [180, 255]
+
+    contour_signature:
+      circularity_min: 0.75
+      area_range_px: [120, 900]
+
+    ocr:
+      enabled: false
+
+    decision:
+      action: click_contour_center
+      cooldown_ms: 1200
+
+  # ---------------------------------------------------------------------------
+  # 5. AUTO TASK SWITCH — TYPE C: VISUAL_SIGNATURE
+  # ---------------------------------------------------------------------------
+  auto_task_toggle:
+    scene_id: auto_task_toggle
+    description: 'In-game main task auto-run toggle button (Green=ON, Gray=OFF)'
+    risk_class: LOW
+    detector_type: visual_signature
+    capture_space: client_capture
+    base_resolution: [1600, 900]
+    roi_px: [750, 840, 100, 50]
+
+    hsv_gate:
+      green_active:
+        h_range: [40, 85]
+        s_range: [100, 255]
+        v_range: [100, 255]
+        min_pixel_count: 80
+
+    decision:
+      action_if_inactive: click_center
+      debounce_ms: 2000
+
+  # ---------------------------------------------------------------------------
+  # 6. CHALLENGE GREEN BUTTONS — TYPE C: VISUAL_SIGNATURE
+  # ---------------------------------------------------------------------------
+  challenge_buttons:
+    scene_id: challenge_buttons
+    description: 'Coin, Wood, Exp, Treasure challenge buttons with green auto indicators'
+    risk_class: LOW
+    detector_type: visual_signature
+    capture_space: client_capture
+    base_resolution: [1600, 900]
+    button_rois:
+      coin: [38, 480, 80, 30]
+      wood: [38, 520, 80, 30]
+      exp: [38, 560, 80, 30]
+      treasure: [38, 600, 80, 30]
+
+    hsv_green_badge:
+      h_range: [40, 85]
+      s_range: [80, 255]
+      v_range: [80, 255]
+      min_pixels: 40
+
+    decision:
+      action_if_not_green: click_button
+      recheck_delay_sec: 1.5
+
+  # ---------------------------------------------------------------------------
+  # 7. GAME OVER / FAILURE DIALOG — TYPE D: UI_STATE
+  # ---------------------------------------------------------------------------
+  game_over_failure:
+    scene_id: game_over_failure
+    description: 'Defeat modal requiring recovery action'
+    risk_class: CRITICAL
+    detector_type: visual_signature_plus_template
+    capture_space: client_capture
+    base_resolution: [1600, 900]
+    roi_px: [600, 300, 400, 300]
+
+    templates:
+      - 'fail'
+      - 'gameFail'
+    threshold: 0.88
+
+    disambiguation:
+      forbid_choice_panel_anchor: true
+
+    decision:
+      temporal_policy: 2_consecutive_frames_confirm
+      action: click_exit_confirm
+      post_action: set_phase_RECOVER_FAILURE
+
+  # ---------------------------------------------------------------------------
+  # 8. PAUSE OVERLAY — TYPE D: UI_STATE
+  # ---------------------------------------------------------------------------
+  pause_overlay:
+    scene_id: pause_overlay
+    description: 'Game paused state (ESC menu)'
+    risk_class: LOW
+    detector_type: visual_signature
+    capture_space: client_capture
+    base_resolution: [1600, 900]
+    roi_px: [680, 420, 240, 100]
+
+    template: 'pauseGame'
+    threshold: 0.80
+
+    decision:
+      action: click_resume_or_press_esc
+      cooldown_ms: 1000
