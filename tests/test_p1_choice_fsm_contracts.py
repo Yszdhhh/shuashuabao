@@ -123,6 +123,18 @@ def test_merchant_requires_two_matching_frames_and_evicts_timeout() -> None:
     state = state.observe(True, "same", 3.0)
     assert state.phase is MerchantPhase.EVICTED
 
+
+def test_merchant_reroll_timeout_stays_ready_to_keep_refreshing() -> None:
+    state = MerchantFSM().observe(True, "stock", 1.0).observe(True, "stock", 2.0)
+    state = state.begin_reroll(2.0, timeout_s=1.0)
+    assert state.phase is MerchantPhase.VERIFYING
+    assert state.purchases == 0
+    state = state.observe(True, "stock", 3.0)
+    assert state.phase is MerchantPhase.READY
+    assert state.rerolls == 1
+    state = state.begin_reroll(3.0, timeout_s=1.0)
+    assert state.phase is MerchantPhase.VERIFYING
+
 def test_merchant_purchase_cap_requires_mutating_frames_between_actions() -> None:
     state = MerchantFSM()
     for count in range(5):

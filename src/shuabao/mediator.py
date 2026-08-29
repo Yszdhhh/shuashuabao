@@ -3878,13 +3878,10 @@ class Mediator:
     def _maybe_black_merchant(self, frame: Frame) -> MatchResult | None:
         """Buy known safe merchant items according to 5-slot priority, otherwise perform guarded refresh.
         Priority:
-        1. OCR 明确读到 2折/5折 -> 直接购买
-        2. 命中 吞噬丹 icon 小模板 (danGif) -> 直接购买；后续背包使用仍有羁绊栏门禁
-        3. 命中 木材礼包 icon 小模板 (merchant_wood / woodgift) -> 直接购买
-        4. 属性路线匹配 (智力 / 力量 / 敏捷)
-        5. 偏好技能 / 羁绊卡片匹配
-        6. 免费刷新 (仅在开启刷新时)
-        7. 严格过滤负面宝物与负收益物品
+        1. OCR 明确读到 2折/5折 -> 购买（8折不买）
+        2. 命中 吞噬丹 icon 小模板 (danGif) -> 购买
+        3. 命中 木材礼包 icon 小模板 (merchant_wood / woodgift) -> 购买
+        没有其它拿取。买完这三类或当前没有这三类，就点刷新。
 
         支线循环：能买就买（折扣/吞噬丹/木材），买完当前可识别目标后刷新再找；
         刷新钮没了再回到 G。

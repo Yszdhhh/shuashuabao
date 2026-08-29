@@ -2,14 +2,11 @@
 
 规则体系:
 1. 固定 5 槽 ROI 扫描。
-2. 购买优先级:
-   - Priority 1: OCR 明确识别的 2折/5折
-   - Priority 2: 吞噬丹 icon 小模板 (danGif) -> 商店获取；背包使用另有前置
+2. 实际会买的只有三种，没有其它拿取:
+   - Priority 1: OCR 明确识别的 2折/5折（不含 8折）
+   - Priority 2: 吞噬丹 icon 小模板 (danGif)
    - Priority 3: 木材礼包 icon 小模板 (merchant_wood / woodgift)
-   - Priority 4: 属性线/主属性关键词匹配 (智力 / 力量 / 敏捷)
-   - Priority 5: 技能 / 羁绊偏好卡片 (技能 focus / 偏好羁绊)
-   - Priority 6: 免费刷新 (仅在开启刷新且满足条件时)
-   - 负面宝物 / 负收益物品严格过滤与跳过。
+   - 8折/普通宝石/属性卡/技能卡一律不买；买完这三类就刷新。
 3. 商店指纹用槽位占用 + 已识别目标，不用整条商品 ROI 逐像素哈希。
    倒计时、图标动画和局部 HUD 变化不得打断 CONFIRMING→READY。
 """
