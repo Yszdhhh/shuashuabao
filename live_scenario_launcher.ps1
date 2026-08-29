@@ -122,7 +122,7 @@ function Invoke-TargetProbe {
             "--confirm-live-input"
         )
         if ($Target -eq "black_merchant") {
-            $cliArgs += @("--duration", "90")
+            $cliArgs += @("--duration", "600")
         }
         if (-not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
             Write-Host "[launcher] 未找到 EXE；仍交给现有 preflight 处理：$script:AutomationExe" -ForegroundColor Yellow

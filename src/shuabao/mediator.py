@@ -3563,7 +3563,7 @@ class Mediator:
             and time.time() < self._pending_action.deadline
         ):
             return None
-        if self._black_merchant_present(frame) or self._panel_state != PanelState.CLOSED:
+        if self._panel_state != PanelState.CLOSED:
             return None
         now = time.time()
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
@@ -3785,20 +3785,28 @@ class Mediator:
         return int(colored.sum()) >= min_colored
 
     @staticmethod
+    def _merchant_refresh_hit(frame: Frame) -> MatchResult:
+        """Click the recycle control to the right of the 5-slot strip, not the level badge."""
+        # 1600x900 live: recycle icon with remaining refreshes sits at ~0.911, 0.702.
+        # 0.935,0.715 was grass to the right of that icon and never mutated stock.
+        x, y = int(frame.width * 0.911), int(frame.height * 0.702)
+        return MatchResult("black_merchant_refresh", 1.0, x, y, 0, 0, frame.left + x, frame.top + y)
+
+    @staticmethod
     def _merchant_refresh_available(frame: Frame) -> bool:
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return False
-        x0, y0 = int(frame.width * 0.90), int(frame.height * 0.66)
-        x1, y1 = int(frame.width * 0.97), int(frame.height * 0.78)
+        x0, y0 = int(frame.width * 0.88), int(frame.height * 0.66)
+        x1, y1 = int(frame.width * 0.94), int(frame.height * 0.73)
         roi = frame.bgr[y0:y1, x0:x1]
         if roi.size == 0:
             return False
         hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
         gold = (
             (hsv[:, :, 0] >= 10)
-            & (hsv[:, :, 0] <= 35)
-            & (hsv[:, :, 1] > 80)
-            & (hsv[:, :, 2] > 90)
+            & (hsv[:, :, 0] <= 45)
+            & (hsv[:, :, 1] > 60)
+            & (hsv[:, :, 2] > 80)
         )
         scale = min(frame.width / 1600.0, frame.height / 900.0)
         min_gold = max(10, int(80 * scale * scale))
@@ -3985,7 +3993,7 @@ class Mediator:
         # Nothing left to buy, or purchase budget exhausted: refresh this
         # encounter's remaining stock. Empty strip uses the same path.
         if refresh_available and self._merchant_fsm.can_reroll(reroll_cap):
-            refresh = self._hud_button_hit(frame, "black_merchant_refresh", (0.935, 0.715))
+            refresh = self._merchant_refresh_hit(frame)
             click_res = self.act_click(refresh, "BlackMerchant-refresh")
             if getattr(click_res, "success", bool(click_res)):
                 self._merchant_fsm = self._merchant_fsm.begin_reroll(now, timeout_s=retry_s)

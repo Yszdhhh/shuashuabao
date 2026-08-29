@@ -48,7 +48,7 @@ class MerchantScanResult:
     is_present: bool
     slots: list[MerchantSlotItem] = field(default_factory=list)
     refresh_available: bool = False
-    refresh_ratio: tuple[float, float] = (0.91, 0.72)
+    refresh_ratio: tuple[float, float] = (0.911, 0.702)
     fingerprint: str = ""
 
 

@@ -145,6 +145,11 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         frame = Frame(canvas, window_title="game", hwnd=1)
         self.assertTrue(self.med._black_merchant_present(frame))
         self.assertTrue(self.med._merchant_refresh_available(frame))
+        refresh = self.med._merchant_refresh_hit(frame)
+        self.assertGreaterEqual(refresh.x, 1120)
+        self.assertLessEqual(refresh.x, 1470)
+        self.assertGreaterEqual(refresh.y, 603)
+        self.assertLessEqual(refresh.y, 691)
         wood = self.med.find(
             frame,
             ["merchant_wood", "woodgift"],

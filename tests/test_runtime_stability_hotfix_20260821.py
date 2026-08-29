@@ -98,6 +98,18 @@ def test_stage_start_requires_positive_highlight_and_rearms_selection():
     assert m._stage_selected is False
 
 
+def test_inventory_uses_swallow_pill_while_merchant_strip_is_visible():
+    m = med(auto_devour_dan=True)
+    pill = hit("danGif", 1100, 780)
+    with patch.object(m, "_black_merchant_present", return_value=True), patch.object(
+        m, "_bond_bar_nonempty", return_value=True
+    ), patch.object(m, "find", return_value=pill), patch.object(
+        m, "act_click", return_value=True
+    ) as click:
+        assert m._maybe_use_inventory_item(frame()) is LoopAction.Continue
+    click.assert_called_once_with(pill, "UseInventory-swallow_pill")
+
+
 def test_merchant_disabled_does_not_implicitly_refresh_or_buy_other_items():
     m = med(auto_gambling_time=0, auto_devour_dan=False)
     m._merchant_next_at = 0.0

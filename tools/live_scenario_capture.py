@@ -91,16 +91,16 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "black_merchant": {
         "handler": "_maybe_black_merchant",
         "call": "frame",
-        "start_condition": "已在局内 HUD 停在黑商商品条附近；同一遭遇内先买当前可识别的吞噬丹/木材/2折5折，买完或空条则刷新，再继续拿，直到刷新控件消失。",
+        "start_condition": "已在局内 HUD 停在黑商商品条附近；同一遭遇内买吞噬丹/木材/2折5折，买完就刷新，刷新次数/杀敌用完再停；买到的吞噬丹用现有背包 handler 消耗。",
         "production_entry": "Mediator._maybe_black_merchant(frame)",
         "expected_steps": (
             "DETECT", "SCAN", "REFRESH", "VERIFY_REFRESH", "TARGET_FOUND",
             "TAKE", "VERIFY_TAKE", "EXIT",
         ),
-        "success_postcondition": "只有 BlackMerchant-swallow_pill、BlackMerchant-wood 或已识别折扣商品的现有业务后置验证完成才是 LIVE_PROBE_PASS；REFRESH_PASS 仅证明 VERIFY_REFRESH，绝不只以 click success 判定。",
+        "success_postcondition": "吞噬丹/木材/已识别折扣的购买后置，或背包吞噬丹 WAIT_DEVOUR_DAN 确认，才是 LIVE_PROBE_PASS；刷新成功只记 REFRESH_PASS，绝不只以 click success 判定。",
         "fail_condition": "刷新/目标商品已识别但输入被拒绝、既有验证超时、画面/商品后置未变化，或生产 handler 进入 ERROR；刷新成功不能覆盖后续 TARGET_FOUND/TAKE 失败。",
         "blocked_condition": "capture 无效、黑商条/刷新控件未出现、吞噬丹前置不满足，或当前画面没有可安全识别的目标商品。",
-        "max_probe_time_s": 90.0,
+        "max_probe_time_s": 600.0,
         "natural_e2e_eligible": "仅连续 mediator_tick 实机链、观察到上述业务后置状态、且无 FAIL/MANUAL_INTERVENTION bookmark 时仍有资格；probe 本身不算 Natural E2E。",
         "bundle_replay": "bundle 的事件帧经 ReplayCaseLoader 转为 schema-v1 case；由真实 Mediator.tick() + FakeInputExecutor 重放 baseline 和四个故障变体。",
         "runbook_manual": "把游戏停在黑商商品条附近；商品为空时保留刷新控件可见，并确保可购买木材/吞噬丹时资金与前置满足。",
@@ -212,7 +212,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
 TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     "black_merchant": {
         "production_readiness": "CONDITIONAL",
-        "scope": "同一黑商遭遇内：先买当前可识别的吞噬丹/木材/折扣，买完或空条则刷新再拿，直到刷新控件消失。",
+        "scope": "同一黑商遭遇内：买吞噬丹/木材/折扣，买完刷新直到杀敌/刷新次数用完；背包吞噬丹走现有 UseInventory verifier。",
         "routes": (
             {"route": "black_merchant_swallow_pill", "readiness": "CONDITIONAL"},
             {"route": "black_merchant_wood", "readiness": "CONDITIONAL"},
@@ -282,6 +282,7 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             "BlackMerchant-wood",
             "BlackMerchant-discount",
             "BlackMerchant-refresh",
+            "UseInventory-swallow_pill",
         },
         "inventory_item": {"UseInventory-swallow_pill"},
         "boss_challenge": {"BossConfigured"},
@@ -594,6 +595,8 @@ def _target_postcondition_snapshot(
             return {"observed": True, "state": "confirmed", "kind": "merchant_wood"}
         if "BlackMerchant-discount" in reason and base.get("observed") is True:
             return {"observed": True, "state": "confirmed", "kind": "merchant_discount"}
+        if "UseInventory-swallow_pill" in reason and base.get("observed") is True:
+            return {"observed": True, "state": "confirmed", "kind": "inventory_swallow_pill"}
         return {"observed": False, "state": "not_observed", "kind": reason or "merchant_target"}
 
     # Inventory is intentionally narrowed to the historically supported
@@ -2017,6 +2020,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         duration_s = min(duration_s, float(contract["max_probe_time_s"]))
     deadline = time.monotonic() + duration_s
     ticks = 0
+    merchant_idle_ticks = 0
     original_see = med.see
     current_frame: dict[str, Frame | None] = {"value": None}
     live_preflight_blocked = bool(
@@ -2103,18 +2107,38 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     result=loop_action,
                 )
             elif probe:
-                # Only the selected production handler is invoked here.
+                # Existing production handlers only. Black merchant also consumes
+                # bought devour pills through the existing inventory entry.
                 med._tick_no += 1
                 med._trace_actions = []
                 med._trace_scenes = []
                 med._trace_controls = []
                 med._trace_ocr_suggestion = None
                 frame = med.see("target live probe")
+                merchant_idle = False
                 if not _frame_is_valid(frame):
                     loop_action = LoopAction.Continue
                 else:
                     result = _invoke_target_handler(med, target, frame)
+                    if (
+                        target == "black_merchant"
+                        and result is not LoopAction.Break
+                        and not recorder.inputs_this_tick
+                    ):
+                        inv = med._maybe_use_inventory_item(frame)
+                        if inv is not None:
+                            result = inv
                     loop_action = result if isinstance(result, LoopAction) else LoopAction.Continue
+                    if target == "black_merchant":
+                        try:
+                            refresh_left = bool(med._merchant_refresh_available(frame))
+                        except (AttributeError, TypeError, ValueError):
+                            refresh_left = False
+                        merchant_idle = (
+                            not recorder.inputs_this_tick
+                            and not refresh_left
+                            and result is None
+                        )
                 recorder.record_direct(
                     med,
                     phase_before=phase_before,
@@ -2122,6 +2146,11 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     frame=current_frame["value"],
                     result=loop_action,
                 )
+                if target == "black_merchant":
+                    merchant_idle_ticks = merchant_idle_ticks + 1 if merchant_idle else 0
+                    if merchant_idle_ticks >= 4:
+                        print("[capture] merchant refresh exhausted; stopping")
+                        break
             else:
                 loop_action = med.tick()
                 recorder.record_tick(

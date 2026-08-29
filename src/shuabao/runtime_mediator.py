@@ -453,7 +453,7 @@ class Mediator(CoreMediator):
         now = time.time()
         if pending is not None and not pending.is_confirmed(frame) and now < pending.deadline:
             return LoopAction.Continue
-        if self._black_merchant_present(frame) or self._panel_state != PanelState.CLOSED:
+        if self._panel_state != PanelState.CLOSED:
             return None
 
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
