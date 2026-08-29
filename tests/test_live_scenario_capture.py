@@ -403,7 +403,7 @@ def test_all_six_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["time_cave"]["ground_truth_only"] is True
     assert by_target["heirloom"]["ground_truth_only"] is True
     assert any(
-        route["route"] == "black_merchant_wood" and route["readiness"] == "BLOCKED"
+        route["route"] == "black_merchant_wood" and route["readiness"] == "CONDITIONAL"
         for route in by_target["black_merchant"]["production_routes"]
     )
     assert any(
@@ -619,7 +619,7 @@ def test_blocked_precheck_is_evidence_only_and_never_gets_business_taxonomy(tmp_
     }]
 
 
-def test_blocked_routes_and_secret_probe_are_zero_input_guarded() -> None:
+def test_black_merchant_integrated_routes_and_secret_probe_are_guarded() -> None:
     calls: list[tuple[object, ...]] = []
     results: list[ActionResult] = []
     guards: list[tuple[str, str, str]] = []
@@ -631,20 +631,21 @@ def test_blocked_routes_and_secret_probe_are_zero_input_guarded() -> None:
             calls.append(args)
             return ActionResult(True, "SUCCESS", "delegate should not run")
 
-    guarded = RecordingInputExecutor(
+    integrated = RecordingInputExecutor(
         Delegate(),
         lambda _method, _args, _kwargs, result: results.append(result),
         reason_provider=lambda: "BlackMerchant-wood",
         input_guard=_capture_input_guard("black_merchant", "target_handler"),
         on_guard=lambda method, reason, denial: guards.append((method, reason, denial)),
     )
-    result = guarded.click(10, 20, dry_run=False)
+    result = integrated.click(10, 20, dry_run=False)
 
-    assert result.success is False
-    assert result.status == "CANCELLED_PROBE_GUARD"
-    assert calls == []
-    assert results[0].status == "CANCELLED_PROBE_GUARD"
-    assert guards[0][1] == "BlackMerchant-wood"
+    assert result.success is True
+    assert result.status == "SUCCESS"
+    assert calls == [(10, 20)]
+    assert results[0].status == "SUCCESS"
+    assert guards == []
+    assert _capture_input_guard("black_merchant", "target_handler")("click", "BlackMerchant-discount") is None
     assert _capture_input_guard("secret_realm", "target_handler")("click", "CloseArchivePanel")
     assert _capture_input_guard("secret_realm", "target_handler")("right_click", "OpenGreatRift") is None
     assert _capture_input_guard("time_cave", "ground_truth_only")("click", "BossConfigured")

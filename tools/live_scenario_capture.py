@@ -91,21 +91,21 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "black_merchant": {
         "handler": "_maybe_black_merchant",
         "call": "frame",
-        "start_condition": "已在局内 HUD 停在黑商五格商品条可见的画面；本轮只允许吞噬丹或现有刷新路径，木材只采 Ground Truth。",
+        "start_condition": "已在局内 HUD 停在黑商商品条附近；若五格为空但刷新控件可见，脚本先刷新，再在同一次遭遇中扫描并获取吞噬丹、木材或已识别的 2/5 折扣商品。",
         "production_entry": "Mediator._maybe_black_merchant(frame)",
         "expected_steps": (
             "DETECT", "SCAN", "REFRESH", "VERIFY_REFRESH", "TARGET_FOUND",
             "TAKE", "VERIFY_TAKE", "EXIT",
         ),
-        "success_postcondition": "只有 BlackMerchant-swallow_pill 之后现有业务验证完成才是 LIVE_PROBE_PASS；REFRESH_PASS 仅证明 VERIFY_REFRESH，木材命中一律零输入 Ground Truth。绝不只以 click success 判定。",
-        "fail_condition": "吞噬丹已识别但输入被拒绝、既有验证超时，或生产 handler 进入 ERROR；刷新成功不能覆盖后续 TARGET_FOUND/TAKE 失败。",
-        "blocked_condition": "capture 无效、黑商条未出现、吞噬丹前置不满足；木材商品出现时由测试侧 zero-input guard 阻止购买并留证。",
+        "success_postcondition": "只有 BlackMerchant-swallow_pill、BlackMerchant-wood 或已识别折扣商品的现有业务后置验证完成才是 LIVE_PROBE_PASS；REFRESH_PASS 仅证明 VERIFY_REFRESH，绝不只以 click success 判定。",
+        "fail_condition": "刷新/目标商品已识别但输入被拒绝、既有验证超时、画面/商品后置未变化，或生产 handler 进入 ERROR；刷新成功不能覆盖后续 TARGET_FOUND/TAKE 失败。",
+        "blocked_condition": "capture 无效、黑商条/刷新控件未出现、吞噬丹前置不满足，或当前画面没有可安全识别的目标商品。",
         "max_probe_time_s": 25.0,
         "natural_e2e_eligible": "仅连续 mediator_tick 实机链、观察到上述业务后置状态、且无 FAIL/MANUAL_INTERVENTION bookmark 时仍有资格；probe 本身不算 Natural E2E。",
         "bundle_replay": "bundle 的事件帧经 ReplayCaseLoader 转为 schema-v1 case；由真实 Mediator.tick() + FakeInputExecutor 重放 baseline 和四个故障变体。",
-        "runbook_manual": "把游戏停在黑商商品条；优先让吞噬丹或刷新按钮可见。木材出现时只采商品 Ground Truth。",
+        "runbook_manual": "把游戏停在黑商商品条附近；商品为空时保留刷新控件可见，并确保可购买木材/吞噬丹时资金与前置满足。",
         "runbook_hands_off": "命令启动后不要再点击商品条、刷新或背包区域。",
-        "runbook_pass": "仅自动观察到吞噬丹的业务后置验证才是 Live Probe PASS；p 只保存人工证据，刷新变化不是整链 PASS。",
+        "runbook_pass": "自动确认刷新后目标商品获取的业务后置状态才是 Live Probe PASS；p 只保存人工证据，刷新变化不是整链 PASS。",
         "runbook_manual_intervention": "生产链 FAIL 留证后，可人工处理弹窗并标记 MANUAL_INTERVENTION，继续采集后续场景。",
     },
     "inventory_item": {
@@ -212,10 +212,11 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
 TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     "black_merchant": {
         "production_readiness": "CONDITIONAL",
-        "scope": "吞噬丹/现有刷新路径可实测；木材购买 BLOCKED，仅商品 Ground Truth + zero-input guard。",
+        "scope": "同一黑商遭遇内：空条先刷新，再按现有 handler 获取吞噬丹/木材；折扣候选仅在有可靠识别证据时获取。",
         "routes": (
             {"route": "black_merchant_swallow_pill", "readiness": "CONDITIONAL"},
-            {"route": "black_merchant_wood", "readiness": "BLOCKED"},
+            {"route": "black_merchant_wood", "readiness": "CONDITIONAL"},
+            {"route": "black_merchant_discount_2_5", "readiness": "CONDITIONAL"},
         ),
         "ground_truth_only": False,
     },
@@ -276,7 +277,12 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
     if _ground_truth_only(target):
         return set()
     return {
-        "black_merchant": {"BlackMerchant-swallow_pill", "BlackMerchant-refresh"},
+        "black_merchant": {
+            "BlackMerchant-swallow_pill",
+            "BlackMerchant-wood",
+            "BlackMerchant-discount",
+            "BlackMerchant-refresh",
+        },
         "inventory_item": {"UseInventory-swallow_pill"},
         "boss_challenge": {"BossConfigured"},
         "secret_realm": {"OpenGreatRift", "ConfirmGreatRift"},
@@ -584,8 +590,10 @@ def _target_postcondition_snapshot(
             return {"observed": True, "state": "confirmed", "kind": "merchant_swallow_pill"}
         if "BlackMerchant-refresh" in reason:
             return {"observed": False, "state": "partial_refresh_only", "kind": "merchant_refresh"}
-        if "BlackMerchant-wood" in reason:
-            return {"observed": False, "state": "blocked_zero_input", "kind": "merchant_wood"}
+        if "BlackMerchant-wood" in reason and base.get("observed") is True:
+            return {"observed": True, "state": "confirmed", "kind": "merchant_wood"}
+        if "BlackMerchant-discount" in reason and base.get("observed") is True:
+            return {"observed": True, "state": "confirmed", "kind": "merchant_discount"}
         return {"observed": False, "state": "not_observed", "kind": reason or "merchant_target"}
 
     # Inventory is intentionally narrowed to the historically supported
@@ -1839,8 +1847,6 @@ def _capture_input_guard(target: str, execution_mode: str) -> Callable[[str, str
     def guard(method: str, reason: str) -> str | None:
         if _ground_truth_only(target):
             return f"{target} production is BLOCKED; Ground Truth capture is zero-input"
-        if target == "black_merchant" and reason == "BlackMerchant-wood":
-            return "black_merchant wood is BLOCKED; zero-input Ground Truth only"
         if execution_mode != "target_handler" or allowed is None:
             return None
         if reason not in allowed:

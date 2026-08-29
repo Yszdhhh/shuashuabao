@@ -105,6 +105,7 @@ from shuabao.interaction_surface import (
     verify_inventory_item_consumed,
 )
 from shuabao.merchant_scanner import (
+    DISCOUNT_KEYWORDS,
     MerchantScanner,
     MerchantSlotItem,
     MERCHANT_STRIP_ROI,
@@ -3732,8 +3733,8 @@ class Mediator:
         return 0.70 <= fx <= 0.90 and 0.66 <= fy <= 0.76
 
     @staticmethod
-    def _black_merchant_present(frame: Frame) -> bool:
-        """Detect filled merchant cards above inventory. Empty HUD gold frames don't count."""
+    def _black_merchant_cards_present(frame: Frame) -> bool:
+        """Detect filled merchant cards above inventory."""
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return False
         x0, y0 = int(frame.width * 0.70), int(frame.height * 0.66)
@@ -3751,6 +3752,12 @@ class Mediator:
             if area >= 80 and bw >= 14 and bh >= 14 and bw < max_w:
                 blobs += 1
         return blobs >= 2
+
+    @staticmethod
+    def _black_merchant_present(frame: Frame) -> bool:
+        """Detect a merchant card strip, including an empty strip with refresh control."""
+        return Mediator._black_merchant_cards_present(frame) or Mediator._merchant_refresh_available(frame)
+
     @staticmethod
     def _merchant_fingerprint(frame: Frame) -> str:
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
@@ -3797,10 +3804,73 @@ class Mediator:
         min_gold = max(10, int(80 * scale * scale))
         return int(gold.sum()) >= min_gold
 
+    def _merchant_discount_slots(
+        self,
+        frame: Frame,
+        fingerprint: str,
+    ) -> list[MerchantSlotItem]:
+        """Read only explicit 2/5-fold labels through the existing OCR sidecar."""
+        client = getattr(self, "_ocr_client", None)
+        if client is None or not bool(getattr(client, "is_available", False)):
+            return []
+        x0, y0, x1, y1 = MERCHANT_STRIP_ROI
+        slot_width = (x1 - x0) / 5.0
+        panel_bbox = self._normalized_bbox(frame, (x0, y0, x1, y1))
+        panel_id = f"merchant:{fingerprint}"
+        items: list[MerchantSlotItem] = []
+        for slot_index in range(5):
+            slot_roi = (
+                x0 + slot_width * slot_index,
+                y0,
+                x0 + slot_width * (slot_index + 1),
+                y1,
+            )
+            bbox = self._normalized_bbox(frame, slot_roi)
+            try:
+                response = client.shadow_predict(
+                    frame,
+                    panel_id,
+                    # Keep the existing worker kind contract.  Discount
+                    # detection uses only its raw OCR text and never asks the
+                    # lexicon to guess an item name.
+                    {"index": slot_index, "bbox": bbox},
+                    fingerprint=fingerprint,
+                    panel_bbox=panel_bbox,
+                )
+            except (AttributeError, OSError, TypeError, ValueError):
+                continue
+            if str(getattr(response, "status", "ok")) != "ok":
+                continue
+            candidate = response.candidates[0].name if response.candidates else ""
+            text = re.sub(r"\s+", "", f"{response.raw_text or ''}{candidate}")
+            label = next(
+                (
+                    keyword
+                    for keyword in DISCOUNT_KEYWORDS
+                    if re.search(
+                        rf"(?<![0-9一二三四五六七八九十]){re.escape(keyword)}"
+                        rf"(?![0-9一二三四五六七八九十])",
+                        text,
+                    )
+                ),
+                None,
+            )
+            if label is not None:
+                items.append(
+                    MerchantSlotItem(
+                        slot_index=slot_index,
+                        center_ratio=MerchantScanner.get_slot_center_ratio(slot_index),
+                        item_type="discount",
+                        label=label,
+                        score=float(getattr(response, "rec_score", 0.0) or 0.0),
+                    )
+                )
+        return items
+
     def _maybe_black_merchant(self, frame: Frame) -> MatchResult | None:
         """Buy known safe merchant items according to 5-slot priority, otherwise perform guarded refresh.
         Priority:
-        1. 命中 1折/2折/3折/4折/5折 等折扣小模板 -> 直接购买
+        1. OCR 明确读到 2折/5折 -> 直接购买
         2. 命中 吞噬丹 icon 小模板 (danGif) -> 仅当羁绊栏非空时直接购买
         3. 命中 木材礼包 icon 小模板 (merchant_wood / woodgift) -> 直接购买
         4. 属性路线匹配 (智力 / 力量 / 敏捷)
@@ -3812,6 +3882,8 @@ class Mediator:
         """
         now = time.time()
         present = self._black_merchant_present(frame)
+        cards_present = self._black_merchant_cards_present(frame)
+        refresh_available = self._merchant_refresh_available(frame)
         fingerprint = self._merchant_fingerprint(frame) if present else ""
         self._merchant_fsm = self._merchant_fsm.observe(present, fingerprint, now)
         if not present or self._merchant_fsm.phase is MerchantPhase.EVICTED:
@@ -3826,7 +3898,16 @@ class Mediator:
         if self._merchant_next_at > 0 and now < self._merchant_next_at:
             return LoopAction.Continue
 
-        auto_refresh_enabled = bool(int(getattr(self.settings, "merchant_max_rerolls", 0)) > 0 or getattr(self.settings, "auto_gambling_time", 0) > 0)
+        # An empty merchant strip must be refreshed as part of the same
+        # encounter, even when optional recurring rerolls are disabled.  Once
+        # cards are present, the existing settings gate still controls any
+        # further rerolling.
+        empty_merchant = bool(refresh_available and not cards_present)
+        auto_refresh_enabled = bool(
+            empty_merchant
+            or int(getattr(self.settings, "merchant_max_rerolls", 0)) > 0
+            or getattr(self.settings, "auto_gambling_time", 0) > 0
+        )
         scanner = MerchantScanner(
             attr_routes=list(getattr(self.settings, "attributes", []) or []),
             focus_skills=list(getattr(self.settings, "skills", []) or []),
@@ -3876,6 +3957,9 @@ class Mediator:
                 )
             )
 
+        if cards_present:
+            detected_slots.extend(self._merchant_discount_slots(frame, fingerprint))
+
         ranked = scanner.rank_purchases(
             detected_slots,
             bond_bar_nonempty=self._bond_bar_nonempty(frame),
@@ -3893,6 +3977,8 @@ class Mediator:
                 action_name = "BlackMerchant-swallow_pill"
             elif target_item.item_type == "wood":
                 action_name = "BlackMerchant-wood"
+            elif target_item.item_type == "discount":
+                action_name = "BlackMerchant-discount"
             if self._merchant_fsm.can_purchase(5):
                 click_res = self.act_click(hit, action_name)
                 if getattr(click_res, "success", bool(click_res)):
@@ -3903,7 +3989,7 @@ class Mediator:
         if (
             scanner.auto_refresh
             and self._merchant_fsm.can_reroll(max(3, int(getattr(self.settings, "merchant_max_rerolls", 0))))
-            and self._merchant_refresh_available(frame)
+            and refresh_available
         ):
             refresh = self._hud_button_hit(frame, "black_merchant_refresh", (0.935, 0.715))
             if self._merchant_fsm.can_reroll(max(3, int(getattr(self.settings, "merchant_max_rerolls", 0)))):

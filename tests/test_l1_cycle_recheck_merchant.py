@@ -3,6 +3,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import cv2
@@ -352,6 +353,96 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
             result = self.med._maybe_black_merchant(self.frame)
         self.assertEqual(result, LoopAction.Continue)
         self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")
+
+    def test_empty_merchant_strip_refreshes_before_scanning_the_same_encounter(self):
+        """A refresh-only merchant surface is still one merchant flow."""
+        self.med.settings.merchant_enabled = True
+        self.med._merchant_next_at = 0.0
+        with patch.object(Mediator, "_black_merchant_cards_present", return_value=False), \
+                patch.object(Mediator, "_merchant_refresh_available", return_value=True), \
+                patch.object(self.med, "find", return_value=None), \
+                patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")
+
+    def test_empty_merchant_then_refreshed_target_stays_in_one_fsm_flow(self):
+        self.med.settings.merchant_enabled = True
+        self.med._merchant_next_at = 0.0
+        wood = hit("merchant_wood", 1280, 650)
+        tick = {"value": 0}
+
+        def find_after_refresh(_frame, names, **_kwargs):
+            if tick["value"] >= 2 and names == ["merchant_wood", "woodgift"]:
+                return wood
+            return None
+
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", side_effect=[False, False, True, True]), \
+                patch.object(self.med, "_merchant_refresh_available", side_effect=[True, True, False, False]), \
+                patch.object(self.med, "_merchant_fingerprint", side_effect=["empty", "empty", "filled", "filled"]), \
+                patch.object(self.med, "find", side_effect=find_after_refresh), \
+                patch.object(self.med, "act_click", return_value=True) as click, \
+                patch("shuabao.mediator.time.time", side_effect=[100.0, 100.0, 102.0, 102.0]):
+            for _ in range(4):
+                self.med._maybe_black_merchant(self.frame)
+                tick["value"] += 1
+
+        self.assertEqual(
+            [call.args[1] for call in click.call_args_list],
+            ["BlackMerchant-refresh", "BlackMerchant-wood"],
+        )
+
+    def test_merchant_wood_is_purchased_by_the_integrated_flow(self):
+        self.med.settings.merchant_enabled = True
+        self.med._merchant_next_at = 0.0
+        wood = hit("merchant_wood", 1280, 650)
+
+        def find_wood(_frame, names, **_kwargs):
+            return wood if names == ["merchant_wood", "woodgift"] else None
+
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(self.med, "_bond_bar_nonempty", return_value=False), \
+                patch.object(self.med, "find", side_effect=find_wood), \
+                patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-wood")
+
+    def test_merchant_explicit_two_or_five_fold_ocr_is_first_priority(self):
+        self.med.settings.merchant_enabled = True
+        self.med._merchant_next_at = 0.0
+        calls = []
+
+        class FakeOcr:
+            is_available = True
+
+            def shadow_predict(self, _frame, _panel_id, slot, **_kwargs):
+                calls.append(slot["index"])
+                text = "2折" if slot["index"] == 2 else ""
+                return SimpleNamespace(
+                    status="ok",
+                    raw_text=text,
+                    candidates=(),
+                    rec_score=0.96,
+                )
+
+        self.med._ocr_client = FakeOcr()
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=True), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=False), \
+                patch.object(self.med, "find", return_value=None), \
+                patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+
+        self.assertEqual(calls[:5], [0, 1, 2, 3, 4])
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-discount")
 
     def test_merchant_ignores_wood_outside_strip_and_refreshes(self):
         self.med.settings.merchant_enabled = True

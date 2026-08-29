@@ -526,7 +526,8 @@ class Mediator(CoreMediator):
         return LoopAction.Continue
 
     # ------------------------------------------------------------------
-    # Merchant: swallow pill remains independent; refresh obeys user opt-in.
+    # Merchant: the core handler owns the integrated strip flow; this runtime
+    # override only preserves the existing auto-gambling compatibility path.
     # ------------------------------------------------------------------
     def _maybe_black_merchant(self, frame):
         if bool(getattr(self.settings, "auto_gambling", False)):

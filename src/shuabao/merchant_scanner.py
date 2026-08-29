@@ -3,7 +3,7 @@
 规则体系:
 1. 固定 5 槽 ROI 扫描。
 2. 购买优先级:
-   - Priority 1: 折扣小模板 (1折/2折/3折/4折/5折 等)
+   - Priority 1: OCR 明确识别的 2折/5折
    - Priority 2: 吞噬丹 icon 小模板 (danGif) -> 仅当羁绊栏非空且未超上限
    - Priority 3: 木材礼包 icon 小模板 (merchant_wood / woodgift)
    - Priority 4: 属性线/主属性关键词匹配 (智力 / 力量 / 敏捷)

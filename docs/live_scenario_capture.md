@@ -21,7 +21,7 @@ offline replay path. It never means production behavior is wired or allowed.
 
 | Target | Harness readiness | Production readiness | Current live scope |
 | --- | --- | --- | --- |
-| `black_merchant` | READY | CONDITIONAL | Swallow pill / existing refresh only. Wood is Ground Truth only and protected by a zero-input guard. |
+| `black_merchant` | READY | CONDITIONAL | One integrated encounter: an empty strip refreshes first, then the existing handler can take swallow pill / wood; refresh alone is not PASS. |
 | `inventory_item` | READY | CONDITIONAL | Swallow pill only, using the existing `WAIT_DEVOUR_DAN` verifier. |
 | `boss_challenge` | READY | CONDITIONAL | Configured Boss and `tqtz → SGZX` existing-handler routes. |
 | `time_cave` | READY | BLOCKED | Postgame time-cave NPC is not wired; complete human-chain Ground Truth only. |
@@ -73,9 +73,10 @@ The machine-readable contract is `TARGET_CONTRACTS` plus
 contract with `contracts --target <target>`.
 
 - `black_merchant`: `DETECT → SCAN → REFRESH → VERIFY_REFRESH → TARGET_FOUND
-  → TAKE → VERIFY_TAKE → EXIT`. `REFRESH_PASS` proves only refresh mutation.
-  `LIVE_PROBE_PASS` requires `BlackMerchant-swallow_pill` and its existing
-  business postcondition. `BlackMerchant-wood` is intercepted before input.
+  → TAKE → VERIFY_TAKE → EXIT`. An empty strip is detected through the
+  refresh control and refreshed before the same encounter is scanned.
+  `REFRESH_PASS` proves only refresh mutation; `LIVE_PROBE_PASS` requires a
+  recognized target purchase and its existing business postcondition.
 - `inventory_item`: `DETECT_SLOT → IDENTIFY → USE → VERIFY_CONSUMED →
   VERIFY_NO_REPEAT`. Only the swallow-pill route can pass.
 - `boss_challenge`: `ENTRY_VISIBLE → CLICK → TRANSITION →
