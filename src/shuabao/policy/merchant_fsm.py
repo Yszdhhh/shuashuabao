@@ -57,8 +57,8 @@ class MerchantFSM:
         return replace(self, phase=MerchantPhase.VERIFYING, purchases=self.purchases + 1,
                        pending_fingerprint=self.fingerprint, deadline=now + max(0.0, timeout_s))
 
-    def begin_reroll(self, now: float, *, timeout_s: float) -> "MerchantFSM":
-        if not self.can_reroll(3):
+    def begin_reroll(self, now: float, *, timeout_s: float, cap: int = 20) -> "MerchantFSM":
+        if not self.can_reroll(cap):
             return self
         return replace(
             self,

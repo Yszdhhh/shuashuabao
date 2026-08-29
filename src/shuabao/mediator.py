@@ -3968,7 +3968,8 @@ class Mediator:
         # inventory. The latter keeps its own bond-bar guard in
         # _maybe_use_inventory_item; do not hide merchant recognition behind it.
         ranked = scanner.rank_purchases(detected_slots)
-        reroll_cap = max(3, int(getattr(self.settings, "merchant_max_rerolls", 0)))
+        # 0 means no script cap: keep refreshing while the recycle control is up.
+        reroll_cap = int(getattr(self.settings, "merchant_max_rerolls", 0)) or 20
 
         if ranked and self._merchant_fsm.can_purchase(5):
             target_item = ranked[0]
@@ -3996,7 +3997,9 @@ class Mediator:
             refresh = self._merchant_refresh_hit(frame)
             click_res = self.act_click(refresh, "BlackMerchant-refresh")
             if getattr(click_res, "success", bool(click_res)):
-                self._merchant_fsm = self._merchant_fsm.begin_reroll(now, timeout_s=retry_s)
+                self._merchant_fsm = self._merchant_fsm.begin_reroll(
+                    now, timeout_s=retry_s, cap=reroll_cap
+                )
                 self._merchant_next_at = now + retry_s
             return LoopAction.Continue
         return LoopAction.Continue if (present and (detected_slots or ranked or refresh_available)) else None
