@@ -91,7 +91,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "black_merchant": {
         "handler": "_maybe_black_merchant",
         "call": "frame",
-        "start_condition": "已在局内 HUD 停在黑商商品条附近；若五格为空但刷新控件可见，脚本先刷新，再在同一次遭遇中扫描并获取吞噬丹、木材或已识别的 2/5 折扣商品。",
+        "start_condition": "已在局内 HUD 停在黑商商品条附近；同一遭遇内先买当前可识别的吞噬丹/木材/2折5折，买完或空条则刷新，再继续拿，直到刷新控件消失。",
         "production_entry": "Mediator._maybe_black_merchant(frame)",
         "expected_steps": (
             "DETECT", "SCAN", "REFRESH", "VERIFY_REFRESH", "TARGET_FOUND",
@@ -100,7 +100,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "success_postcondition": "只有 BlackMerchant-swallow_pill、BlackMerchant-wood 或已识别折扣商品的现有业务后置验证完成才是 LIVE_PROBE_PASS；REFRESH_PASS 仅证明 VERIFY_REFRESH，绝不只以 click success 判定。",
         "fail_condition": "刷新/目标商品已识别但输入被拒绝、既有验证超时、画面/商品后置未变化，或生产 handler 进入 ERROR；刷新成功不能覆盖后续 TARGET_FOUND/TAKE 失败。",
         "blocked_condition": "capture 无效、黑商条/刷新控件未出现、吞噬丹前置不满足，或当前画面没有可安全识别的目标商品。",
-        "max_probe_time_s": 25.0,
+        "max_probe_time_s": 90.0,
         "natural_e2e_eligible": "仅连续 mediator_tick 实机链、观察到上述业务后置状态、且无 FAIL/MANUAL_INTERVENTION bookmark 时仍有资格；probe 本身不算 Natural E2E。",
         "bundle_replay": "bundle 的事件帧经 ReplayCaseLoader 转为 schema-v1 case；由真实 Mediator.tick() + FakeInputExecutor 重放 baseline 和四个故障变体。",
         "runbook_manual": "把游戏停在黑商商品条附近；商品为空时保留刷新控件可见，并确保可购买木材/吞噬丹时资金与前置满足。",
@@ -212,7 +212,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
 TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     "black_merchant": {
         "production_readiness": "CONDITIONAL",
-        "scope": "同一黑商遭遇内：空条先刷新，再按现有 handler 获取吞噬丹/木材；折扣候选仅在有可靠识别证据时获取。",
+        "scope": "同一黑商遭遇内：先买当前可识别的吞噬丹/木材/折扣，买完或空条则刷新再拿，直到刷新控件消失。",
         "routes": (
             {"route": "black_merchant_swallow_pill", "readiness": "CONDITIONAL"},
             {"route": "black_merchant_wood", "readiness": "CONDITIONAL"},

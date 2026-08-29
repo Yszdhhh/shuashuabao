@@ -3878,7 +3878,8 @@ class Mediator:
         6. 免费刷新 (仅在开启刷新时)
         7. 严格过滤负面宝物与负收益物品
 
-        支线循环：能买就买，能刷新（杀敌够）就刷新；刷新钮没了再回到 G。
+        支线循环：能买就买（折扣/吞噬丹/木材），买完当前可识别目标后刷新再找；
+        刷新钮没了再回到 G。
         """
         now = time.time()
         present = self._black_merchant_present(frame)
@@ -3944,21 +3945,11 @@ class Mediator:
         if self._merchant_next_at > 0 and now < self._merchant_next_at:
             return LoopAction.Continue
 
-        # An empty merchant strip must be refreshed as part of the same
-        # encounter, even when optional recurring rerolls are disabled.  Once
-        # cards are present, the existing settings gate still controls any
-        # further rerolling.
-        empty_merchant = bool(refresh_available and not cards_present)
-        auto_refresh_enabled = bool(
-            empty_merchant
-            or int(getattr(self.settings, "merchant_max_rerolls", 0)) > 0
-            or getattr(self.settings, "auto_gambling_time", 0) > 0
-        )
         scanner = MerchantScanner(
             attr_routes=list(getattr(self.settings, "attributes", []) or []),
             focus_skills=list(getattr(self.settings, "skills", []) or []),
             focus_bonds=list(getattr(self.settings, "bonds", []) or []),
-            auto_refresh=auto_refresh_enabled,
+            auto_refresh=True,
         )
         retry_s = max(1.2, float(self.settings.ui_action_interval_s))
 
@@ -3969,8 +3960,9 @@ class Mediator:
         # inventory. The latter keeps its own bond-bar guard in
         # _maybe_use_inventory_item; do not hide merchant recognition behind it.
         ranked = scanner.rank_purchases(detected_slots)
+        reroll_cap = max(3, int(getattr(self.settings, "merchant_max_rerolls", 0)))
 
-        if ranked:
+        if ranked and self._merchant_fsm.can_purchase(5):
             target_item = ranked[0]
             hit = self._hud_button_hit(
                 frame,
@@ -3984,26 +3976,22 @@ class Mediator:
                 action_name = "BlackMerchant-wood"
             elif target_item.item_type == "discount":
                 action_name = "BlackMerchant-discount"
-            if self._merchant_fsm.can_purchase(5):
-                click_res = self.act_click(hit, action_name)
-                if getattr(click_res, "success", bool(click_res)):
-                    self._merchant_fsm = self._merchant_fsm.begin_purchase(now, timeout_s=retry_s)
-                    self._merchant_next_at = now + retry_s
-                return LoopAction.Continue
+            click_res = self.act_click(hit, action_name)
+            if getattr(click_res, "success", bool(click_res)):
+                self._merchant_fsm = self._merchant_fsm.begin_purchase(now, timeout_s=retry_s)
+                self._merchant_next_at = now + retry_s
+            return LoopAction.Continue
 
-        if (
-            scanner.auto_refresh
-            and self._merchant_fsm.can_reroll(max(3, int(getattr(self.settings, "merchant_max_rerolls", 0))))
-            and refresh_available
-        ):
+        # Nothing left to buy, or purchase budget exhausted: refresh this
+        # encounter's remaining stock. Empty strip uses the same path.
+        if refresh_available and self._merchant_fsm.can_reroll(reroll_cap):
             refresh = self._hud_button_hit(frame, "black_merchant_refresh", (0.935, 0.715))
-            if self._merchant_fsm.can_reroll(max(3, int(getattr(self.settings, "merchant_max_rerolls", 0)))):
-                click_res = self.act_click(refresh, "BlackMerchant-refresh")
-                if getattr(click_res, "success", bool(click_res)):
-                    self._merchant_fsm = self._merchant_fsm.begin_reroll(now, timeout_s=retry_s)
-                    self._merchant_next_at = now + retry_s
-                    return LoopAction.Continue
-        return LoopAction.Continue if (present and (detected_slots or auto_refresh_enabled or getattr(self.settings, "auto_gambling_time", 0) > 0)) else None
+            click_res = self.act_click(refresh, "BlackMerchant-refresh")
+            if getattr(click_res, "success", bool(click_res)):
+                self._merchant_fsm = self._merchant_fsm.begin_reroll(now, timeout_s=retry_s)
+                self._merchant_next_at = now + retry_s
+            return LoopAction.Continue
+        return LoopAction.Continue if (present and (detected_slots or ranked or refresh_available)) else None
 
     def _find_compact_skill_choice(self, frame: Frame) -> MatchResult | None:
         """Find a configured skill in the live bottom-right G quick panel."""

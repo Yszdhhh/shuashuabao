@@ -390,6 +390,23 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(result, LoopAction.Continue)
         self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")
 
+    def test_unknown_stock_refreshes_even_when_rerolls_setting_is_zero(self):
+        """After taking known targets, remaining unknown cards still refresh."""
+        self.med.settings.merchant_enabled = True
+        self.med.settings.merchant_max_rerolls = 0
+        self.med.settings.auto_gambling_time = 0
+        self.med._merchant_next_at = 0.0
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=True), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=True), \
+                patch.object(self.med, "find", return_value=None), \
+                patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")
+
     def test_empty_merchant_strip_refreshes_before_scanning_the_same_encounter(self):
         """A refresh-only merchant surface is still one merchant flow."""
         self.med.settings.merchant_enabled = True

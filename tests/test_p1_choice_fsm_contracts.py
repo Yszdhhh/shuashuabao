@@ -133,6 +133,9 @@ def test_merchant_purchase_cap_requires_mutating_frames_between_actions() -> Non
     state = state.observe(True, "frame-final", 11.0).observe(True, "frame-final", 12.0)
     assert state.purchases == 5
     assert state.begin_purchase(12.0, timeout_s=5.0) == state
+    state = state.begin_reroll(12.0, timeout_s=5.0)
+    assert state.rerolls == 1
+    assert state.purchases == 0
 
 
 def test_equipment_action_lease_deduplicates_pending_slot() -> None:
