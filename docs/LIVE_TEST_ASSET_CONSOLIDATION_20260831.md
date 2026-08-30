@@ -71,6 +71,23 @@ The persisted prior P0 lifecycle evidence is incomplete: the capture root contai
 individual failures and no recorded five-run, start/probe/stop/menu-return matrix.
 Accordingly, **P0 five-run acceptance is `MISSING_REAL_SAMPLE`**, not PASS.
 
+### This run — 2026-08-31 02:41 CST
+
+The worktree was packaged locally without deployment after the inventory commit.  Its
+source SHA `0e1e66eaa98e599c7bc34043308209da143e4591`, the packaged EXE hash, and
+`dist/ShuaBao/build_identity.json` were all verified by the unchanged exact-identity
+preflight.  `readiness` also passed its existing replay self-check for all six targets.
+
+One isolated live-input `heirloom` probe then produced
+`C:\Users\10639\AppData\Local\Temp\shuabao-captures\heirloom_20260831_024122_274276`.
+It is **FAIL REGRESSION / L8_TEST_EVIDENCE**, not a production-chain result: OCR
+bootstrap was healthy and EXE identity was READY, but no window matching `英雄三国`
+existed.  Preflight stopped before lock acquisition, target-handler dispatch, or any
+game input.  The bundle has no frame/events, so the existing `reproduce` command
+correctly reports that no replay case can be generated.  Keep the manifest and failure
+summary as environment evidence; a blank capture must not be converted into synthetic
+game evidence.
+
 ## Deletion candidates
 
 | Classification | Candidate | Decision |
