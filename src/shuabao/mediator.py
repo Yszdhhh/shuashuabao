@@ -4669,7 +4669,17 @@ class Mediator:
             & (hsv[:, :, 1] >= 100)
             & (hsv[:, :, 2] >= 100)
         )
-        return int(np.count_nonzero(red)) >= 40
+        # Combat VFX can leak through the translucent dialog as scattered
+        # red pixels.  A result toast has a compact connected text/background
+        # region; require both enough red pixels and one meaningful component
+        # so a live attack cannot authorize closing the page.
+        red_mask = (red.astype(np.uint8) * 255)
+        _count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(red_mask, 8)
+        largest_component = max(
+            (int(stat[cv2.CC_STAT_AREA]) for stat in stats[1:]),
+            default=0,
+        )
+        return int(np.count_nonzero(red)) >= 100 and largest_component >= 50
     def _maybe_ensure_hero_panel_focus(self, frame: Frame, now: float) -> LoopAction | None:
         """局内常态（无中央选卡弹窗时）若右下角未检测到英雄技能/操作面板，按 F1 切回英雄。"""
         if self._panel_state != PanelState.CLOSED:

@@ -399,6 +399,19 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(med._post_game_route, "boss_active")
         self.assertFalse(med._post_game_pending)
 
+    def test_heirloom_result_ignores_scattered_combat_red_vfx(self):
+        """Red attack effects behind the dialog cannot close an unplayed page."""
+        med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
+        frame_bgr = np.zeros((900, 1600, 3), dtype=np.uint8)
+        # Two small red VFX-like components in the exact result-toast ROI.
+        frame_bgr[580:584, 790:802] = (0, 0, 255)
+        frame_bgr[582:585, 818:829] = (0, 0, 255)
+        self.assertFalse(med._heirloom_boss_result_visible(Frame(frame_bgr)))
+
+        # A compact toast-shaped component is accepted as the stronger signal.
+        frame_bgr[550:558, 790:860] = (0, 0, 255)
+        self.assertTrue(med._heirloom_boss_result_visible(Frame(frame_bgr)))
+
     def test_active_boss_route_never_looks_like_npc_hub(self):
         """Live-map NPC labels cannot authorize exit during an active Boss."""
         med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
