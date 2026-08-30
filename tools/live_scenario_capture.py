@@ -1974,7 +1974,7 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
 def _bootstrap_direct_boss_postgame_start(
     med: Mediator, target: str, frame: Frame
 ) -> dict[str, Any]:
-    """Accept an already-open archive panel as a boss capture start state.
+    """Accept an already-open post-game challenge page as a capture start state.
 
     This is capture setup only: the page is classified by the existing
     Mediator post-game classifier, then the normal ``Mediator.tick()`` path is
@@ -1984,7 +1984,8 @@ def _bootstrap_direct_boss_postgame_start(
         return {}
     if not _frame_is_valid(frame):
         return {}
-    if med._post_game_state(frame) != "ARCHIVE_PANEL":
+    post_game = med._post_game_state(frame)
+    if post_game not in {"ARCHIVE_PANEL", "NPC_HUB"}:
         return {}
     med._post_game_pending = True
     med._post_game_route = "archive"
@@ -1994,7 +1995,10 @@ def _bootstrap_direct_boss_postgame_start(
     return {
         "post_game_pending": True,
         "post_game_route": "archive",
-        "reason": "operator started with an already classified archive challenge panel; existing Mediator.tick() handles the configured Boss",
+        "reason": (
+            "operator started with an already classified post-game page "
+            f"({post_game}); existing Mediator.tick() handles the archive-first route"
+        ),
     }
 
 
