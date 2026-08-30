@@ -4180,6 +4180,11 @@ class Mediator:
         "HEIRLOOM_DIALOG": (0.30, 0.22, 0.76, 0.72),
     }
     _POST_GAME_BOSS_SCALES = (0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.80)
+    # Compact post-game cards are rendered with a small overlay/border
+    # difference from the source templates. Keep the normal entry threshold
+    # unchanged; this lower bound applies only inside a classified post-game
+    # list and is still above the observed near-match noise floor.
+    _POST_GAME_BOSS_MATCH_THRESHOLD = 0.65
     _POST_GAME_BOSS_SCROLL_LIMIT = 3
     _POST_GAME_BOSS_SCROLL_CLICKS = -5
 
@@ -4434,7 +4439,7 @@ class Mediator:
                     boss_hit = self.find(
                         frame,
                         [name, f"boss/{name}", f"chuanjiaobao/{name}"],
-                        threshold=0.80,
+                        threshold=self._POST_GAME_BOSS_MATCH_THRESHOLD,
                         scales=compact_scales,
                         roi=roi,
                         mode="post-game-boss-grid",

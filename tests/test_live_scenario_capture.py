@@ -496,6 +496,20 @@ def test_inventory_hero_card_requires_existing_postcondition_for_probe_pass() ->
     assert missing["observed"] is False
 
 
+def test_boss_scroll_is_not_authoritative_destination_pass() -> None:
+    base = {"observed": False, "state": "not_observed", "kind": "BossConfigured-scroll"}
+    result = live_capture._target_postcondition_snapshot(
+        "boss_challenge",
+        None,
+        _fixture_frame(),
+        {},
+        {"reason": "BossConfigured-scroll"},
+        base,
+    )
+
+    assert result == base
+
+
 def test_failure_summary_uses_recorded_rejection_and_missing_postcondition_evidence(tmp_path: Path) -> None:
     frame = _fixture_frame()
     for label, result, required_layer in (

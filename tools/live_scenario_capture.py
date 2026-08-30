@@ -634,7 +634,10 @@ def _target_postcondition_snapshot(
                 pass
         return {"observed": False, "state": "waiting", "kind": "secret_realm_hud"}
 
-    if target == "boss_challenge" and "BossConfigured" in reason and _frame_is_valid(frame):
+    # Scrolling is navigation evidence only.  Do not let the reason prefix
+    # ``BossConfigured-scroll`` become a false business PASS merely because
+    # the ordinary HUD remains visible behind the challenge panel.
+    if target == "boss_challenge" and reason == "BossConfigured" and _frame_is_valid(frame):
         try:
             if med._is_in_game_hud(frame):
                 return {"observed": True, "state": "confirmed", "kind": "destination_hud"}
