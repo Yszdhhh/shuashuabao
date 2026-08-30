@@ -1092,7 +1092,15 @@ class BundleRecorder:
             "created_at_utc": _utc_now(),
             "completed_at_utc": None,
             "target": target,
-            "production_handler": None if production_fact.get("ground_truth_only") else TARGET_HANDLERS.get(target),
+            "production_handler": (
+                None
+                if production_fact.get("ground_truth_only")
+                else (
+                    "Mediator.tick"
+                    if execution_mode == "mediator_tick"
+                    else TARGET_HANDLERS.get(target)
+                )
+            ),
             "production_readiness": production_fact["production_readiness"],
             "production_scope": production_fact["scope"],
             "ground_truth_only": bool(production_fact.get("ground_truth_only")),
