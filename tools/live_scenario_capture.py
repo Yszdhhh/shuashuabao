@@ -294,7 +294,7 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             "Artifact-E",
         },
         "inventory_item": {"UseInventory-swallow_pill", "UseInventory-hero-card"},
-        "boss_challenge": {"BossConfigured"},
+        "boss_challenge": {"BossConfigured", "BossConfigured-scroll"},
         "secret_realm": {"OpenGreatRift", "ConfirmGreatRift"},
     }.get(target)
 
@@ -501,6 +501,7 @@ def _state_snapshot(med: Mediator, context: str | None = None) -> dict[str, Any]
         "secret_realm_entering_since": getattr(med, "_secret_realm_entering_since", None),
         "secret_realm_active": getattr(med, "_secret_realm_active", None),
         "boss_challenge_attempts": getattr(med, "_boss_challenge_attempts", None),
+        "boss_challenge_scroll_attempts": getattr(med, "_boss_challenge_scroll_attempts", None),
         "round_outcome": getattr(getattr(med, "_round_outcome", None), "name", None),
     })
 
@@ -806,6 +807,8 @@ def _stage_from_observation(
 
     if observed:
         return "DESTINATION_CONFIRMED"
+    if "bossconfigured-scroll" in reason:
+        return "ENTRY_VISIBLE"
     if "bossconfigured" in reason:
         return "TRANSITION"
     if "boss_entry" in template_names or "boss" in template_names:
@@ -1873,7 +1876,7 @@ def _close_live_ocr(med: Mediator) -> None:
 def _install_action_reason_bridge(med: Mediator) -> Callable[[], str]:
     """Make the production action reason visible to the test-side executor guard."""
     setattr(med, "_live_capture_action_reason", "")
-    for method_name in ("act_click", "act_right_click", "act_key"):
+    for method_name in ("act_click", "act_right_click", "act_key", "act_scroll"):
         original = getattr(med, method_name)
 
         def guarded(*args: Any, _original: Callable[..., Any] = original, **kwargs: Any) -> Any:

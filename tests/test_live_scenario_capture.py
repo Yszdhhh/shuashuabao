@@ -699,6 +699,7 @@ def test_black_merchant_integrated_routes_and_secret_probe_are_guarded() -> None
     assert guards == []
     assert _capture_input_guard("black_merchant", "target_handler")("click", "BlackMerchant-discount") is None
     assert _capture_input_guard("black_merchant", "target_handler")("click", "Artifact-Q") is None
+    assert _capture_input_guard("boss_challenge", "target_handler")("scroll", "BossConfigured-scroll") is None
     assert _capture_input_guard("secret_realm", "target_handler")("click", "CloseArchivePanel")
     assert _capture_input_guard("secret_realm", "target_handler")("right_click", "OpenGreatRift") is None
     assert _capture_input_guard("time_cave", "ground_truth_only")("click", "BossConfigured")

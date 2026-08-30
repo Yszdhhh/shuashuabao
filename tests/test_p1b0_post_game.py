@@ -31,6 +31,7 @@ from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 from run_replay import run_replay_fixture
 
 ENDGAME = ROOT / "fixtures" / "reborn_wow" / "endgame"
@@ -184,6 +185,105 @@ class P1B0PostGameTests(unittest.TestCase):
             self.assertTrue(self.med._post_game_pending)
             self.assertEqual(self.med._victory_continue_attempts, 1)
             mock_right_click.assert_not_called()
+
+    def test_new_hub_layout_without_hero_indicator_is_classified(self):
+        """Real 1600x900 hub frames use the two challenge labels instead of HeroChallenge."""
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+
+        def fake_find(_frame, names, **_kwargs):
+            name = names[0]
+            if name == "quit":
+                return MatchResult(name, 0.90, 20, 10, 70, 24, 55, 22)
+            if name == "damijing":
+                return MatchResult(name, 0.97, 1140, 195, 72, 25, 1176, 207)
+            if name == "HeroChallenge":
+                return None
+            if name == "close":
+                return None
+            return None
+
+        def fake_hub_entry(_frame, route):
+            x = 900 if route == "archive" else 1010
+            return MatchResult(route, 0.64, x, 200, 90, 24, x + 45, 212)
+
+        with patch.object(self.med, "find", side_effect=fake_find), \
+             patch.object(self.med, "_find_post_game_hub_entry", side_effect=fake_hub_entry):
+            self.assertEqual(self.med._post_game_state(frame), "NPC_HUB")
+
+    def test_archive_panel_observes_configured_boss_before_closing(self):
+        """A pending archive page must not be closed on its first observation."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive order")
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_maybe_challenge_configured_boss", return_value=LoopAction.Continue) as boss, \
+             patch.object(med, "_find_archive_panel_close") as close:
+            action = med._tick_main_line(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        boss.assert_called_once()
+        close.assert_not_called()
+
+    def test_post_game_boss_search_scrolls_before_observing_lower_rows(self):
+        """A lower archive-list Boss is searched only after a bounded list scroll."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive list scroll")
+        med._post_game_pending = True
+        med._post_game_route = "archive_active"
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        target = MatchResult("54莫阿姆", 0.91, 1110, 470, 62, 62, 1110, 470)
+        visible_after_scroll = {"value": False}
+
+        def fake_find(_frame, _names, **kwargs):
+            if visible_after_scroll["value"] and kwargs.get("mode") == "post-game-boss-grid":
+                return target
+            return None
+
+        def fake_scroll(_x, _y, _clicks, _reason):
+            visible_after_scroll["value"] = True
+            return True
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "find", side_effect=fake_find), \
+             patch.object(med, "act_scroll", side_effect=fake_scroll) as scroll, \
+             patch.object(med, "act_click", return_value=True) as click:
+            first = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+            second = med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=1.0)
+
+        self.assertEqual(first, LoopAction.Continue)
+        self.assertEqual(second, LoopAction.Continue)
+        scroll.assert_called_once()
+        sx, sy, clicks, reason = scroll.call_args.args
+        self.assertEqual(reason, "BossConfigured-scroll")
+        self.assertLess(clicks, 0)
+        self.assertGreaterEqual(sx, frame.left + int(frame.width * 0.64))
+        self.assertLessEqual(sx, frame.left + int(frame.width * 0.86))
+        self.assertGreaterEqual(sy, frame.top + int(frame.height * 0.24))
+        self.assertLessEqual(sy, frame.top + int(frame.height * 0.60))
+        click.assert_called_once_with(target, "BossConfigured")
+        self.assertEqual(med._boss_challenge_scroll_attempts, 1)
+        self.assertEqual(med._boss_challenge_attempts, 1)
+
+    def test_hub_route_opens_heirloom_after_archive_close(self):
+        """After archive handling, the next hub action is the heirloom NPC, not rift."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "heirloom route")
+        med._post_game_pending = True
+        med._post_game_route = "heirloom"
+        frame = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        entry = MatchResult("post_game_heirloom_npc", 0.64, 1000, 340, 100, 30, 1050, 350)
+
+        with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "_post_game_hub_entry_click", return_value=entry), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once_with(entry, "OpenHeirloomChallenges")
+        self.assertEqual(med._post_game_route, "heirloom_active")
 
     def test_victory_continue_retry_limit_fails_closed(self):
         """3 failed continue attempts must Fail-Closed into ERROR."""
