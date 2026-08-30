@@ -122,7 +122,7 @@ function Invoke-TargetProbe {
             "--confirm-live-input"
         )
         if ($Target -eq "black_merchant") {
-            $cliArgs += @("--duration", "600")
+            $cliArgs += @("--duration", "600", "--max-ticks", "5000")
         }
         if (-not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
             Write-Host "[launcher] 未找到 EXE；仍交给现有 preflight 处理：$script:AutomationExe" -ForegroundColor Yellow
@@ -194,7 +194,7 @@ while ($true) {
     Write-Host ""
     Write-Host "1  启动前检查：看工具和运行环境是否准备好（不操作游戏）"
     Write-Host "2  背包吞噬丹：使用后确认真的消耗，且没有重复点击"
-    Write-Host "3  黑商整链：空的先刷新，再拿吞噬丹/木材/2折5折并确认"
+    Write-Host "3  黑商长测：刷新/拿丹木材2折5折，同时测背包吞噬丹与神器 Q/W/E（最长10分钟）"
     Write-Host "4  Boss 挑战：从 Boss 列表选目标，确认真的进入目的地"
     Write-Host "5  秘境进入：确认后必须看到真正的局内 HUD"
     Write-Host "6  时光之穴取证：记录人工走过的完整链路，不自动点击"

@@ -38,6 +38,7 @@ from tools.live_scenario_capture import (
     _bootstrap_target_probe,
     _build_identity_check,
     _capture_input_guard,
+    _invoke_black_merchant_probe_handlers,
     generate_cases,
     main,
     readiness_report,
@@ -444,6 +445,14 @@ def test_blocked_summary_and_secret_realm_probe_bootstrap_are_evidence_only(tmp_
     assert summary["failure_class_hints"][0]["layer"] == "L0_CAPTURE_ENV"
 
 
+def test_black_merchant_probe_bootstrap_records_established_game_time() -> None:
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT, stop_signal=StopSignal())
+    bootstrap = _bootstrap_target_probe(med, "black_merchant")
+
+    assert bootstrap["main_line_started_at"] == "probe_start_minus_30s"
+    assert med._main_line_started_at is not None
+
+
 def test_failure_summary_uses_recorded_rejection_and_missing_postcondition_evidence(tmp_path: Path) -> None:
     frame = _fixture_frame()
     for label, result, required_layer in (
@@ -646,9 +655,52 @@ def test_black_merchant_integrated_routes_and_secret_probe_are_guarded() -> None
     assert results[0].status == "SUCCESS"
     assert guards == []
     assert _capture_input_guard("black_merchant", "target_handler")("click", "BlackMerchant-discount") is None
+    assert _capture_input_guard("black_merchant", "target_handler")("click", "Artifact-Q") is None
     assert _capture_input_guard("secret_realm", "target_handler")("click", "CloseArchivePanel")
     assert _capture_input_guard("secret_realm", "target_handler")("right_click", "OpenGreatRift") is None
     assert _capture_input_guard("time_cave", "ground_truth_only")("click", "BossConfigured")
+
+
+def test_black_merchant_probe_composes_existing_handlers_one_input_per_tick() -> None:
+    calls: list[str] = []
+
+    class ProbeMediator:
+        def _maybe_black_merchant(self, _frame):
+            calls.append("merchant")
+            return LoopAction.Continue
+
+        def _maybe_use_inventory_item(self, _frame):
+            calls.append("inventory")
+            return None
+
+        def _maybe_fire_artifacts(self, _frame):
+            calls.append("artifact")
+            return LoopAction.Continue
+
+    sent = {"value": False}
+    result = _invoke_black_merchant_probe_handlers(
+        ProbeMediator(),
+        _fixture_frame(),
+        input_sent=lambda: sent["value"],
+    )
+    assert result is LoopAction.Continue
+    assert calls == ["merchant", "inventory", "artifact"]
+
+    calls.clear()
+
+    class MerchantInputMediator(ProbeMediator):
+        def _maybe_black_merchant(self, _frame):
+            calls.append("merchant")
+            sent["value"] = True
+            return LoopAction.Continue
+
+    sent["value"] = False
+    _invoke_black_merchant_probe_handlers(
+        MerchantInputMediator(),
+        _fixture_frame(),
+        input_sent=lambda: sent["value"],
+    )
+    assert calls == ["merchant"]
 
 
 def test_blocked_preflight_does_not_dispatch_any_business_handler(tmp_path: Path, monkeypatch) -> None:
