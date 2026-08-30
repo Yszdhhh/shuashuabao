@@ -61,6 +61,7 @@ rapidocr-onnxruntime==1.4.4
 requests==2.34.2
 ruamel.yaml==0.19.1
 safetensors==0.8.0
+setuptools==84.0.0
 shapely==2.1.2
 six==1.17.0
 tqdm==4.70.0
