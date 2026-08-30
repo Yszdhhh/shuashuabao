@@ -3948,6 +3948,15 @@ class Mediator:
                     )
                 )
         fingerprint = self._merchant_fingerprint(frame, detected_slots) if present else ""
+        # OCR discount slots are part of the stock identity.  Resolve them
+        # before the FSM observes the frame; otherwise a successful 2/5-fold
+        # purchase leaves the fingerprint unchanged and the FSM evicts the
+        # encounter on its verification deadline.
+        if cards_present:
+            discounts = self._merchant_discount_slots(frame, fingerprint)
+            detected_slots.extend(discounts)
+            if discounts:
+                fingerprint = self._merchant_fingerprint(frame, detected_slots)
         self._merchant_fsm = self._merchant_fsm.observe(present, fingerprint, now)
         if not present or self._merchant_fsm.phase is MerchantPhase.EVICTED:
             return None
@@ -3968,9 +3977,6 @@ class Mediator:
             auto_refresh=True,
         )
         retry_s = max(1.2, float(self.settings.ui_action_interval_s))
-
-        if cards_present:
-            detected_slots.extend(self._merchant_discount_slots(frame, fingerprint))
 
         # Buying a merchant pill is independent from consuming it in the
         # inventory. The latter keeps its own bond-bar guard in

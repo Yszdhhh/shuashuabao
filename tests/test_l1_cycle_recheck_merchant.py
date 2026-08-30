@@ -527,6 +527,40 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         click.assert_called_once()
         self.assertEqual(click.call_args.args[1], "BlackMerchant-discount")
 
+    def test_discount_purchase_verification_fingerprint_includes_ocr_target(self):
+        class FakeOcr:
+            is_available = True
+
+            def shadow_predict(self, _frame, _panel_id, slot, **_kwargs):
+                text = "5折" if slot["index"] == 4 else ""
+                return SimpleNamespace(status="ok", raw_text=text, candidates=(), rec_score=0.96)
+
+        fingerprints = []
+
+        def merchant_fingerprint(_frame, slots=None):
+            kinds = tuple((item.slot_index, item.item_type) for item in (slots or ()))
+            fingerprints.append(kinds)
+            return "with_discount" if any(kind == "discount" for _, kind in kinds) else "base"
+
+        self.med._merchant_next_at = 0.0
+        self.med._merchant_fsm = MerchantFSM(
+            phase=MerchantPhase.READY,
+            fingerprint="with_discount",
+        )
+        self.med._ocr_client = FakeOcr()
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=True), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=False), \
+                patch.object(self.med, "_merchant_fingerprint", side_effect=merchant_fingerprint), \
+                patch.object(self.med, "find", return_value=None), \
+                patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-discount")
+        self.assertTrue(any(kind == "discount" for _, kind in fingerprints[-1]))
+        self.assertEqual(self.med._merchant_fsm.pending_fingerprint, "with_discount")
+
     def test_merchant_uses_only_high_confidence_full_item_templates(self):
         observed = {}
 
