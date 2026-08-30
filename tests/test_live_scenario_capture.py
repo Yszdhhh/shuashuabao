@@ -229,16 +229,16 @@ def test_capture_manifest_declares_supported_target_scope(tmp_path: Path) -> Non
         target="heirloom",
         settings={},
         initial_phase="MAIN_LINE",
-        execution_mode="ground_truth_only",
+        execution_mode="target_handler",
     )
     recorder.finalize()
     payload = json.loads((tmp_path / "bundle" / "manifest.json").read_text(encoding="utf-8"))
     assert payload["target"] == "heirloom"
-    assert payload["production_handler"] is None
-    assert payload["execution_mode"] == "ground_truth_only"
-    assert payload["production_readiness"] == "BLOCKED"
-    assert payload["ground_truth_only"] is True
-    assert payload["verification"]["natural_e2e"] == "GROUND_TRUTH_ONLY"
+    assert payload["production_handler"] == "_maybe_challenge_configured_boss"
+    assert payload["execution_mode"] == "target_handler"
+    assert payload["production_readiness"] == "CONDITIONAL"
+    assert payload["ground_truth_only"] is False
+    assert payload["verification"]["natural_e2e"] == "TARGET_PROBE_ONLY"
     assert set(payload["target_contract"]) == set(TARGET_CONTRACT_FIELDS)
     assert _settings_snapshot({"room_password": "secret", "x": 1}) == {"x": 1}
 
@@ -411,9 +411,9 @@ def test_all_six_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["boss_challenge"]["production_readiness"] == "CONDITIONAL"
     assert by_target["secret_realm"]["production_readiness"] == "CONDITIONAL"
     assert by_target["time_cave"]["production_readiness"] == "BLOCKED"
-    assert by_target["heirloom"]["production_readiness"] == "BLOCKED"
+    assert by_target["heirloom"]["production_readiness"] == "CONDITIONAL"
     assert by_target["time_cave"]["ground_truth_only"] is True
-    assert by_target["heirloom"]["ground_truth_only"] is True
+    assert by_target["heirloom"]["ground_truth_only"] is False
     assert any(
         route["route"] == "black_merchant_wood" and route["readiness"] == "CONDITIONAL"
         for route in by_target["black_merchant"]["production_routes"]

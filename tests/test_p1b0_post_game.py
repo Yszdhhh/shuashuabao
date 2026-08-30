@@ -210,8 +210,8 @@ class P1B0PostGameTests(unittest.TestCase):
              patch.object(self.med, "_find_post_game_hub_entry", side_effect=fake_hub_entry):
             self.assertEqual(self.med._post_game_state(frame), "NPC_HUB")
 
-    def test_archive_panel_observes_configured_boss_before_closing(self):
-        """A pending archive page must not be closed on its first observation."""
+    def test_archive_panel_visits_archive_cards_before_closing(self):
+        """A pending archive page starts the eight-card sequence before close."""
         med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "archive order")
         med._post_game_pending = True
@@ -219,13 +219,25 @@ class P1B0PostGameTests(unittest.TestCase):
         frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
 
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
-             patch.object(med, "_maybe_challenge_configured_boss", return_value=LoopAction.Continue) as boss, \
+             patch.object(med, "_maybe_click_archive_challenge", return_value=LoopAction.Continue) as archive, \
              patch.object(med, "_find_archive_panel_close") as close:
             action = med._tick_main_line(frame)
 
         self.assertEqual(action, LoopAction.Continue)
-        boss.assert_called_once()
+        archive.assert_called_once()
         close.assert_not_called()
+
+    def test_archive_card_sequence_uses_all_eight_fixture_slots(self):
+        """The classified panel exposes eight stable card hitboxes in order."""
+        med = Mediator(Settings(), ROOT)
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+        points = []
+        for index in range(8):
+            hit = med._find_archive_challenge_card(frame, index)
+            self.assertIsNotNone(hit)
+            points.append(hit.center)
+        self.assertEqual([p[0] for p in points[:4]], sorted(p[0] for p in points[:4]))
+        self.assertLess(points[0][1], points[4][1])
 
     def test_post_game_boss_search_scrolls_before_observing_lower_rows(self):
         """A lower archive-list Boss is searched only after a bounded list scroll."""
@@ -266,6 +278,20 @@ class P1B0PostGameTests(unittest.TestCase):
         click.assert_called_once_with(target, "BossConfigured")
         self.assertEqual(med._boss_challenge_scroll_attempts, 1)
         self.assertEqual(med._boss_challenge_attempts, 1)
+
+    def test_heirloom_dialog_uses_cjb_boss_handler(self):
+        """A classified heirloom page selects cjb_boss through the existing handler."""
+        med = Mediator(Settings(cjb_boss="01暴掠龙", sgzx_boss="24瑞文戴尔男爵"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "heirloom_active"
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "BossConfigured")
+        self.assertEqual(med._post_game_route, "heirloom_active")
 
     def test_hub_route_opens_heirloom_after_archive_close(self):
         """After archive handling, the next hub action is the heirloom NPC, not rift."""

@@ -667,6 +667,11 @@ class Mediator:
         # 最后回到既有秘境/退出分支。默认 secret 保持旧的“直接秘境”行为，
         # 只有本轮 Continue 明确打开战后链时才切到 archive。
         self._post_game_route: str = "secret"
+        # 战后存档挑战面板的 4x2 卡位只属于已分类的 ARCHIVE_PANEL。
+        # 这是一次性访问游标，不是第二套业务 FSM；每个卡位最多发出一次输入，
+        # 面板消失后由既有 MAIN_LINE/胜利链继续收敛。
+        self._archive_challenge_index: int = 0
+        self._archive_challenge_next_at: float = 0.0
         # Optional post-victory great-rift chain.  Every input has a dedicated
         # anchor and a bounded post-click observation window.
         self._secret_realm_request_pending: bool = False
@@ -4187,6 +4192,67 @@ class Mediator:
     _POST_GAME_BOSS_MATCH_THRESHOLD = 0.65
     _POST_GAME_BOSS_SCROLL_LIMIT = 3
     _POST_GAME_BOSS_SCROLL_CLICKS = -5
+    _ARCHIVE_CHALLENGE_NAMES = (
+        "skill", "strengthen", "gem", "loot",
+        "key", "recast", "blessing", "skill2",
+    )
+    # 依据真实 1596x921/1597x929 战后 fixture；仅在 ARCHIVE_PANEL 已分类后使用。
+    _ARCHIVE_CHALLENGE_X = (0.396, 0.465, 0.535, 0.604)
+    _ARCHIVE_CHALLENGE_Y = (0.350, 0.466)
+
+    def _find_archive_challenge_card(self, frame: Frame, index: int) -> MatchResult | None:
+        """Return the classified archive card hitbox for one of the eight slots.
+
+        The page classifier is the authority; this helper only maps the stable
+        4x2 page layout to a guarded click box and rejects an empty/invalid crop.
+        It intentionally does not infer challenge semantics or create a FSM.
+        """
+        if frame.bgr is None or not (0 <= index < len(self._ARCHIVE_CHALLENGE_NAMES)):
+            return None
+        col, row = index % 4, index // 4
+        cx = int(frame.width * self._ARCHIVE_CHALLENGE_X[col])
+        cy = int(frame.height * self._ARCHIVE_CHALLENGE_Y[row])
+        half_w = max(24, int(frame.width * 0.030))
+        half_h = max(24, int(frame.height * 0.052))
+        x0, x1 = max(0, cx - half_w), min(frame.width, cx + half_w)
+        y0, y1 = max(0, cy - half_h), min(frame.height, cy + half_h)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        texture = float(np.std(gray))
+        if texture < 8.0:
+            return None
+        score = min(0.99, max(0.60, texture / 100.0))
+        return MatchResult(
+            f"archive_challenge_{self._ARCHIVE_CHALLENGE_NAMES[index]}",
+            score,
+            x0,
+            y0,
+            x1 - x0,
+            y1 - y0,
+            frame.left + cx,
+            frame.top + cy,
+        )
+
+    def _maybe_click_archive_challenge(self, frame: Frame, now: float) -> LoopAction | None:
+        """Try each visible archive challenge card once on the classified page."""
+        index = int(getattr(self, "_archive_challenge_index", 0) or 0)
+        if index >= len(self._ARCHIVE_CHALLENGE_NAMES):
+            return None
+        if now < getattr(self, "_archive_challenge_next_at", 0.0):
+            return LoopAction.Continue
+        hit = self._find_archive_challenge_card(frame, index)
+        if hit is None:
+            print(f"[med] 存档挑战卡位 {index + 1}/8 无有效卡面证据，零输入等待")
+            return LoopAction.Continue
+        label = self._ARCHIVE_CHALLENGE_NAMES[index]
+        print(f"[med] 存档挑战 {index + 1}/8：点击 {label} @ {hit.center}")
+        if self.act_click(hit, f"ArchiveChallenge-{label}"):
+            self._archive_challenge_index = index + 1
+            self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
+            self._post_game_route = "archive_active"
+        return LoopAction.Continue
 
     def _post_game_boss_scroll_point(self, frame: Frame, post_game: str | None) -> tuple[int, int] | None:
         """Return a point inside a classified Boss list, if one is known."""
@@ -4395,20 +4461,18 @@ class Mediator:
         self, frame: Frame, now: float, *, recheck_s: float | None = None
     ) -> LoopAction | None:
         """Click configured Boss card when the Boss challenge entry is visible."""
+        post_game = self._post_game_state(frame)
         bosses = self._configured_boss_challenge_names()
+        if post_game == "HEIRLOOM_DIALOG":
+            # 传家宝页只能选择 cjb_boss；sgzx_boss 属于时光之穴列表。
+            configured = str(getattr(self.settings, "cjb_boss", "") or "").strip()
+            bosses = [configured] if configured else []
         if not bosses:
             print("[med] boss_entry 出现但未配置挑战 Boss，零输入等待")
             return LoopAction.Continue
         if self._boss_challenge_attempts >= 3:
             return LoopAction.Continue
         if now < self._boss_challenge_next_at:
-            return LoopAction.Continue
-        post_game = self._post_game_state(frame)
-        if post_game == "HEIRLOOM_DIALOG":
-            # Heirloom Boss selection is still production-blocked. Keep the
-            # existing safe-close/Ground-Truth boundary; do not let the
-            # configured-Boss probe turn it into a hidden production route.
-            print("[med] 传家宝 Boss 列表当前仅 Ground Truth，零输入等待")
             return LoopAction.Continue
         boss_hit = None
         for name in bosses:
@@ -4482,6 +4546,8 @@ class Mediator:
         print(f"[med] Boss 提前挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
         if self.act_click(boss_hit, "BossConfigured"):
             self._main_line_since = now
+            if post_game == "HEIRLOOM_DIALOG" and getattr(self, "_post_game_pending", False):
+                self._post_game_route = "heirloom_active"
             if getattr(self, "_early_challenge_pending", False):
                 self._early_challenge_clicked_at = now
         return LoopAction.Continue
@@ -8280,6 +8346,21 @@ class Mediator:
         # 继续游戏 → 关闭存档面板（如出现）→ NPC 广场 → 局内退出。
         post_game = self._post_game_state(frame)
         if (
+            self._post_game_pending
+            and post_game is None
+            and getattr(self, "_post_game_route", "") in {"archive_active", "heirloom_active"}
+            and self._is_in_game_hud(frame)
+        ):
+            route = getattr(self, "_post_game_route", "")
+            print(f"[med] 战后挑战目的地 HUD 已确认（{route}），恢复既有局内循环")
+            self._post_game_pending = False
+            self._post_game_close_attempts = 0
+            self._post_game_route = "archive"
+            if route == "heirloom_active":
+                # 下一次胜利重新从存档挑战 1/8 开始；本轮游标仍保留在 trace。
+                self._archive_challenge_index = 0
+                self._archive_challenge_next_at = 0.0
+        if (
             self.settings.auto_secret_realm
             and self._post_game_pending
             and self._secret_realm_request_pending
@@ -8353,17 +8434,12 @@ class Mediator:
                 self.set_phase(Phase.ERROR, "unexpected archive panel")
                 self.stop()
                 return LoopAction.Break
-            # Continue can land directly on the archive panel. Give the
-            # existing configured-Boss handler a chance first; the old code
-            # closed the panel on the first frame and therefore never saw the
-            # Boss cards. A missing/locked target still follows the existing
-            # close path after the handler's bounded observations.
-            if (
-                self._configured_boss_challenge_names()
-                and self._boss_challenge_attempts < 3
-            ):
-                self._post_game_route = "archive_active"
-                return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
+            # 存档面板的八个挑战先逐项尝试；这不会复制生产策略，只消费已分类
+            # 页面上的稳定卡位。最后才关闭面板并进入既有传家宝入口。
+            archive_action = self._maybe_click_archive_challenge(frame, now)
+            if archive_action is not None:
+                if self._archive_challenge_index < len(self._ARCHIVE_CHALLENGE_NAMES):
+                    return archive_action
             if self._post_game_close_attempts >= 3:
                 print("[med] 存档面板关闭重试已达上限，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "archive close attempts exhausted")
@@ -8379,7 +8455,7 @@ class Mediator:
             # no fixed card or guessed coordinate is used here.
             self._post_game_route = (
                 "heirloom"
-                if self._configured_boss_challenge_names()
+                if str(getattr(self.settings, "cjb_boss", "") or "").strip()
                 else "secret"
             )
             print(f"[med] 关闭存档面板 @ {close_hit.center} (尝试 {self._post_game_close_attempts}/3)")
@@ -8454,6 +8530,13 @@ class Mediator:
             return LoopAction.Continue
 
         if post_game == "HEIRLOOM_DIALOG":
+            if (
+                self._post_game_pending
+                and getattr(self, "_post_game_route", "") == "heirloom_active"
+                and str(getattr(self.settings, "cjb_boss", "") or "").strip()
+                and self._boss_challenge_attempts < 3
+            ):
+                return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
                 print("[med] 传家宝弹窗关闭重试已达上限，Fail-Closed 停止运行")

@@ -134,17 +134,17 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "production_entry": "整链 capture 使用现有 Mediator.tick()（包含既有 tqtz/early-challenge/post-game 分支）；局部 probe 只调用 Mediator._maybe_challenge_configured_boss(frame, time.time())。",
         "expected_steps": (
             "ENTRY_VISIBLE", "CLICK", "TRANSITION", "DESTINATION_CONFIRMED",
-            "POSTGAME_DETECT", "HEIRLOOM_SAFE_CLOSE", "TIME_CAVE_GROUND_TRUTH",
+            "POSTGAME_DETECT", "ARCHIVE_1_TO_8", "HEIRLOOM_SELECT",
         ),
-        "success_postcondition": "配置 Boss 卡确实消失并由真实目标挑战/局内 HUD 确认；整链中传家宝安全关闭和时光之穴人工节点只作为证据边界，单次 BossConfigured click success 不是成功。",
-        "fail_condition": "boss_entry 可见但配置 Boss 未命中、输入被拒绝、入口/目标页不变，整链生产 handler 进入 ERROR，或战后转场在已知后置窗口内未确认。",
-        "blocked_condition": "capture 无效、完整整链未从局内 HUD 开始、局部 probe 时 Boss 列表未打开，或没有唯一的已配置 Boss；时光之穴/传家宝选择动作仍为生产 BLOCKED，只能 Ground Truth。",
-        "max_probe_time_s": 20.0,
+        "success_postcondition": "现有生产链确认挑战目的地 HUD；战后已分类存档面板逐项尝试 8 个卡位、再由现有配置 Boss handler 确认传家宝进入。单次 click success 不是成功。",
+        "fail_condition": "入口/卡位/配置 Boss 未命中、输入被拒绝、目标页/局内 HUD 不变，或生产 handler 进入 ERROR。",
+        "blocked_condition": "capture 无效、没有唯一 cjb_boss、战后页面未被现有分类器确认，或卡面 crop 无有效证据；不得用盲点替代。",
+        "max_probe_time_s": 60.0,
         "natural_e2e_eligible": "只有从局内 HUD 开始的连续 mediator_tick 整链、Boss 目的地由真实状态确认、且无 FAIL/MANUAL_INTERVENTION bookmark 时仍有资格；局部 probe 不算 Natural E2E。",
-        "bundle_replay": "整链 capture 与局部 probe 都复用现有 schema-v1 ReplayCaseLoader；入口、点击、结算边界和转场按事件帧转换，并用 FakeInputExecutor/FakeClock 注入四种故障。",
-        "runbook_manual": "整链测试：把游戏留在局内 HUD，确认只配置一个 cjb_boss 或 sgzx_boss，等待脚本从 tqtz/既有 Boss 入口接管；局部复验才人工打开 Boss 列表。",
-        "runbook_hands_off": "启动后不要点 tqtz、Boss 卡、结算页、传家宝或时光之穴页面；当前阻断页面只留证，不人工替生产点选。",
-        "runbook_pass": "整链只有自动确认 Boss 目的地/局内 HUD 才是 Live Probe PASS；传家宝安全关闭、时光之穴人工链只产生 Ground Truth；p 只保存人工证据。",
+        "bundle_replay": "整链 capture 与局部 probe 都复用现有 schema-v1 ReplayCaseLoader；存档八卡、传家宝点击和转场按事件帧转换，并用 FakeInputExecutor/FakeClock 注入四种故障。",
+        "runbook_manual": "整链测试：把游戏留在局内 HUD；局部复验可停在存档挑战面板或传家宝 Boss 列表，并确认 cjb_boss 已配置。",
+        "runbook_hands_off": "启动后不要点存档卡、传家宝 Boss、结算页或时光之穴；让脚本完成存档 8 项和传家宝选择。",
+        "runbook_pass": "只有真实挑战 HUD/转场后置确认才是 Live Probe PASS；存档卡点击和页面打开仅是步骤证据；p 只保存人工证据。",
         "runbook_manual_intervention": "若需要手动越过列表/弹窗，先留 FAIL，再操作并标 MANUAL_INTERVENTION。",
     },
     "time_cave": {
@@ -169,20 +169,20 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "heirloom": {
         "handler": "_maybe_challenge_configured_boss",
         "call": "frame_now",
-        "start_condition": "人工完整走到传家宝 Boss 选择附近；当前只做关键帧、trace 与状态 Ground Truth capture。",
-        "production_entry": "BLOCKED：当前生产只验证 DismissHeirloomDialog 安全关闭；capture 不调用 Boss 选择 handler。",
+        "start_condition": "人工走到传家宝 Boss 选择页，且 settings 已配置 cjb_boss；脚本接管选择与转场。",
+        "production_entry": "Mediator._maybe_challenge_configured_boss(frame, time.time())，复用既有 Boss 模板/滚动/输入门禁。",
         "expected_steps": (
             "POSTGAME_DETECT", "ENTRY_VISIBLE", "CLICK", "REQUEST", "CONFIRM", "TRANSITION", "DESTINATION_CONFIRMED",
         ),
-        "success_postcondition": "本轮没有 Live Probe PASS；只保存完整人工链的 Ground Truth，供后续单独设计生产实现。",
-        "fail_condition": "仅记录 capture/preflight 异常，不把人工链路缺口归因为现有生产 handler。",
-        "blocked_condition": "production BLOCKED：传家宝 Boss 选择未接线，当前仅有安全关闭；测试侧强制 zero-input。",
-        "max_probe_time_s": 25.0,
-        "natural_e2e_eligible": "Ground Truth capture 永不构成 Live Probe PASS 或 Natural E2E；未来完成独立生产设计后重新评估。",
+        "success_postcondition": "配置的 cjb_boss 卡被现有 handler 命中，随后真实局内 HUD/挑战目的地出现；click success 单独不算成功。",
+        "fail_condition": "Boss 卡未命中、滚动后仍无证据、输入被拒绝、页面/局内 HUD 不变或生产 handler 进入 ERROR。",
+        "blocked_condition": "capture 无效、cjb_boss 未配置、页面未被 HEIRLOOM_DIALOG 分类，或没有有效卡面证据。",
+        "max_probe_time_s": 30.0,
+        "natural_e2e_eligible": "只有从真实传家宝页开始且真实 HUD 后置确认、无 FAIL/MANUAL_INTERVENTION bookmark 时才有资格；局部 probe 不算 Natural E2E。",
         "bundle_replay": "捕获的 postgame/entry/transition 关键帧按原 ReplayCaseLoader 格式重放，故障变体不改原始截图。",
-        "runbook_manual": "手动完成可到达的传家宝链路；保留 Boss 选择页和前后转场的 Ground Truth。",
-        "runbook_hands_off": "启动后脚本只取证，绝不会点击 Boss、确认或关闭传家宝页面；可继续人工推进。",
-        "runbook_pass": "本 target 无 Live Probe PASS；capture bundle 成功保存即为 Ground Truth 完成。",
+        "runbook_manual": "人工打开传家宝 Boss 列表，并确认 cjb_boss 已配置。",
+        "runbook_hands_off": "启动后不要再点 Boss 卡或滚动，让既有 handler 选择并等待真实 HUD。",
+        "runbook_pass": "配置 Boss 进入后的真实 HUD/挑战后置确认才算 Live Probe PASS；p 只保存人工证据。",
         "runbook_manual_intervention": "需要继续人工推进时按 m；它保留后续 Ground Truth，但不产生 Natural E2E。",
     },
     "secret_realm": {
@@ -207,9 +207,8 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
 }
 
 # HARNESS readiness and production readiness are intentionally independent.
-# The facts below are the read-only historical triage boundary for this
-# checkpoint; changing a BLOCKED fact requires a separate production design,
-# not a test-harness change.
+# The facts below describe what this checkpoint actually wires; time cave stays
+# Ground Truth-only until its production entry is separately designed.
 TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     "black_merchant": {
         "production_readiness": "CONDITIONAL",
@@ -233,9 +232,11 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     },
     "boss_challenge": {
         "production_readiness": "CONDITIONAL",
-        "scope": "整链 capture 复用现有 Mediator.tick()，覆盖 tqtz→配置 Boss→转场→战后边界；已配置 Boss 列表 probe 与 tqtz→SGZX 仍只按条件性既有 handler 验证。时光之穴/传家宝选择保持 Ground Truth-only。",
+        "scope": "整链 capture 复用现有 Mediator.tick()，覆盖 tqtz→配置 Boss→转场→战后存档 8 卡→传家宝配置 Boss；时光之穴仍只做 Ground Truth。",
         "routes": (
             {"route": "configured_boss", "readiness": "CONDITIONAL"},
+            {"route": "postgame_archive_8", "readiness": "CONDITIONAL"},
+            {"route": "postgame_heirloom", "readiness": "CONDITIONAL"},
             {"route": "tqtz_to_sgzx", "readiness": "CONDITIONAL"},
         ),
         "ground_truth_only": False,
@@ -247,10 +248,10 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
         "ground_truth_only": True,
     },
     "heirloom": {
-        "production_readiness": "BLOCKED",
-        "scope": "Boss 选择未接线；当前生产只验证安全关闭，故只采完整人工链 Ground Truth，零输入。",
-        "routes": ({"route": "heirloom_boss_selection", "readiness": "BLOCKED"},),
-        "ground_truth_only": True,
+        "production_readiness": "CONDITIONAL",
+        "scope": "已接入现有配置 cjb_boss 的 Boss 模板/滚动/输入门禁；Live PASS 仍必须由真实挑战 HUD 后置确认。",
+        "routes": ({"route": "heirloom_boss_selection", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
     },
     "secret_realm": {
         "production_readiness": "CONDITIONAL",
@@ -294,7 +295,14 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             "Artifact-E",
         },
         "inventory_item": {"UseInventory-swallow_pill", "UseInventory-hero-card"},
-        "boss_challenge": {"BossConfigured", "BossConfigured-scroll"},
+        "boss_challenge": {
+            "ArchiveChallenge-skill", "ArchiveChallenge-strengthen",
+            "ArchiveChallenge-gem", "ArchiveChallenge-loot",
+            "ArchiveChallenge-key", "ArchiveChallenge-recast",
+            "ArchiveChallenge-blessing", "ArchiveChallenge-skill2",
+            "BossConfigured", "BossConfigured-scroll",
+        },
+        "heirloom": {"BossConfigured", "BossConfigured-scroll"},
         "secret_realm": {"OpenGreatRift", "ConfirmGreatRift"},
     }.get(target)
 
@@ -620,9 +628,10 @@ def _target_postcondition_snapshot(
             return {"observed": True, "state": "confirmed", "kind": "inventory_hero_card"}
         return {"observed": False, "state": "not_observed", "kind": reason or "inventory_swallow_pill"}
 
-    # These targets are capture-only until a separate production design is
-    # approved. Their historical screenshots can never become a probe pass.
-    if target in {"time_cave", "heirloom"}:
+    # Time cave remains capture-only until its production entry is separately
+    # designed. Heirloom selection uses the existing configured-Boss handler
+    # when the live page is already classified as HEIRLOOM_DIALOG.
+    if target == "time_cave":
         return {"observed": False, "state": "ground_truth_only", "kind": "production_blocked"}
 
     if target == "secret_realm":
@@ -637,9 +646,9 @@ def _target_postcondition_snapshot(
     # Scrolling is navigation evidence only.  Do not let the reason prefix
     # ``BossConfigured-scroll`` become a false business PASS merely because
     # the ordinary HUD remains visible behind the challenge panel.
-    if target == "boss_challenge" and reason == "BossConfigured" and _frame_is_valid(frame):
+    if target in {"boss_challenge", "heirloom"} and reason == "BossConfigured" and _frame_is_valid(frame):
         try:
-            if med._is_in_game_hud(frame):
+            if med._post_game_state(frame) is None and med._is_in_game_hud(frame):
                 return {"observed": True, "state": "confirmed", "kind": "destination_hud"}
         except (AttributeError, TypeError):
             pass
@@ -1983,21 +1992,21 @@ def _bootstrap_direct_boss_postgame_start(
     Mediator post-game classifier, then the normal ``Mediator.tick()`` path is
     allowed to run. No Boss recognition, scrolling, or click policy lives here.
     """
-    if target != "boss_challenge" or getattr(med, "_post_game_pending", False):
+    if target not in {"boss_challenge", "heirloom"} or getattr(med, "_post_game_pending", False):
         return {}
     if not _frame_is_valid(frame):
         return {}
     post_game = med._post_game_state(frame)
-    if post_game not in {"ARCHIVE_PANEL", "NPC_HUB"}:
+    if post_game not in {"ARCHIVE_PANEL", "NPC_HUB", "HEIRLOOM_DIALOG"}:
         return {}
     med._post_game_pending = True
-    med._post_game_route = "archive"
+    med._post_game_route = "heirloom" if post_game == "HEIRLOOM_DIALOG" else "archive"
     med._boss_challenge_attempts = 0
     med._boss_challenge_scroll_attempts = 0
     med._boss_challenge_next_at = 0.0
     return {
         "post_game_pending": True,
-        "post_game_route": "archive",
+        "post_game_route": med._post_game_route,
         "reason": (
             "operator started with an already classified post-game page "
             f"({post_game}); existing Mediator.tick() handles the archive-first route"
@@ -2763,6 +2772,8 @@ def _target_readiness_settings_gaps(target: str, settings: Settings | None) -> l
         return ["auto_devour_dan=false (swallow-pill route disabled)"]
     if target == "boss_challenge" and not (str(settings.cjb_boss).strip() or str(settings.sgzx_boss).strip()):
         return ["configure exactly one cjb_boss or sgzx_boss"]
+    if target == "heirloom" and not str(getattr(settings, "cjb_boss", "") or "").strip():
+        return ["configure cjb_boss for heirloom selection"]
     if target == "secret_realm" and not settings.auto_secret_realm:
         return ["auto_secret_realm=false"]
     return []
