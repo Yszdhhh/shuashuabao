@@ -221,7 +221,7 @@ $title.Location = New-Object System.Drawing.Point(22, 18)
 $script:MenuForm.Controls.Add($title)
 
 $status = New-Object System.Windows.Forms.Label
-$status.Text = "点击按钮即可开始，不需要输入数字。2-5 会先通过 preflight；4 会跑 Boss→存档8项→传家宝，6 只取时光之穴证据。`r`n测试开始后放开鼠标；p=留成功证据，f=留失败证据，m=人工介入后继续。"
+$status.Text = "点击按钮即可开始，不需要输入数字。2-5 会先通过 preflight；4 只跑 Boss→存档8项→传家宝，不会点秘境；5 单独测秘境，6 只取时光之穴证据。`r`n测试开始后放开鼠标；p=留成功证据，f=留失败证据，m=人工介入后继续。"
 $status.AutoSize = $false
 $status.Size = New-Object System.Drawing.Size(700, 58)
 $status.Location = New-Object System.Drawing.Point(24, 60)

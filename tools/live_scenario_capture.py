@@ -131,7 +131,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "handler": "_maybe_challenge_configured_boss",
         "call": "frame_now",
         "start_condition": "完整整链：从仍在运行的局内 HUD 交给现有 Mediator.tick()，让 tqtz→Boss→结算自然发生；若只做局部复验，也可人工打开 boss_entry 列表并使用本 target 的窄探针。现有 cjb_boss/sgzx_boss 中只保留本次要测的一个 Boss。",
-        "production_entry": "整链 capture 使用现有 Mediator.tick()（包含既有 tqtz/early-challenge/post-game 分支）；局部 probe 只调用 Mediator._maybe_challenge_configured_boss(frame, time.time())。",
+        "production_entry": "整链 capture 使用现有 Mediator.tick()（包含既有 tqtz/early-challenge/post-game 分支）；Boss 测试会隔离自动秘境，局部 probe 只调用 Mediator._maybe_challenge_configured_boss(frame, time.time())。",
         "expected_steps": (
             "ENTRY_VISIBLE", "CLICK", "TRANSITION", "DESTINATION_CONFIRMED",
             "POSTGAME_DETECT", "ARCHIVE_1_TO_8", "HEIRLOOM_SELECT",
@@ -143,7 +143,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "natural_e2e_eligible": "只有从局内 HUD 开始的连续 mediator_tick 整链、Boss 目的地由真实状态确认、且无 FAIL/MANUAL_INTERVENTION bookmark 时仍有资格；局部 probe 不算 Natural E2E。",
         "bundle_replay": "整链 capture 与局部 probe 都复用现有 schema-v1 ReplayCaseLoader；存档八卡、传家宝点击和转场按事件帧转换，并用 FakeInputExecutor/FakeClock 注入四种故障。",
         "runbook_manual": "整链测试：把游戏留在局内 HUD；局部复验可停在存档挑战面板或传家宝 Boss 列表，并确认 cjb_boss 已配置。",
-        "runbook_hands_off": "启动后不要点存档卡、传家宝 Boss、结算页或时光之穴；让脚本完成存档 8 项和传家宝选择。",
+        "runbook_hands_off": "启动后不要点存档卡、传家宝 Boss、结算页或时光之穴；让脚本完成存档 8 项和传家宝选择。秘境请另用 secret_realm 测试。",
         "runbook_pass": "只有真实挑战 HUD/转场后置确认才是 Live Probe PASS；存档卡点击和页面打开仅是步骤证据；p 只保存人工证据。",
         "runbook_manual_intervention": "若需要手动越过列表/弹窗，先留 FAIL，再操作并标 MANUAL_INTERVENTION。",
     },
@@ -232,7 +232,7 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     },
     "boss_challenge": {
         "production_readiness": "CONDITIONAL",
-        "scope": "整链 capture 复用现有 Mediator.tick()，覆盖 tqtz→配置 Boss→转场→战后存档 8 卡→传家宝配置 Boss；时光之穴仍只做 Ground Truth。",
+        "scope": "整链 capture 复用现有 Mediator.tick()，覆盖 tqtz→配置 Boss→转场→战后存档 8 卡→传家宝配置 Boss；本 target 隔离自动秘境，时光之穴仍只做 Ground Truth。",
         "routes": (
             {"route": "configured_boss", "readiness": "CONDITIONAL"},
             {"route": "postgame_archive_8", "readiness": "CONDITIONAL"},
@@ -1936,8 +1936,13 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     settings = _load_operator_settings(path)
     # A Ground Truth-only target remains zero-input even when an operator
     # accidentally supplied --live-input. Never turn a production flag on in
-    # the adapter; the recorded settings must be the operator's real settings.
+    # the adapter; any capture-local isolation below is recorded in the bundle.
     settings.dry_run = not live_input or _ground_truth_only(target)
+    # Boss and secret-realm evidence are deliberately separate live targets.
+    # This is a capture-local switch only; the manifest records it and the
+    # operator's persisted production setting is never edited.
+    if target == "boss_challenge":
+        settings.auto_secret_realm = False
     return settings
 
 

@@ -4235,6 +4235,22 @@ class Mediator:
             frame.top + cy,
         )
 
+    def _archive_challenge_completed(self, frame: Frame, index: int) -> bool:
+        """Whether the classified card carries the green ``已挑战`` overlay."""
+        if frame.bgr is None or not (0 <= index < len(self._ARCHIVE_CHALLENGE_NAMES)):
+            return False
+        col, row = index % 4, index // 4
+        cx = int(frame.width * self._ARCHIVE_CHALLENGE_X[col])
+        cy = int(frame.height * self._ARCHIVE_CHALLENGE_Y[row])
+        x0, x1 = max(0, int(cx - frame.width * 0.040)), min(frame.width, int(cx + frame.width * 0.040))
+        y0, y1 = max(0, int(cy - frame.height * 0.035)), min(frame.height, int(cy + frame.height * 0.060))
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return False
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        green = cv2.inRange(hsv, (42, 120, 100), (88, 255, 255))
+        return int(np.count_nonzero(green)) >= 100
+
     def _maybe_click_archive_challenge(self, frame: Frame, now: float) -> LoopAction | None:
         """Try each visible archive challenge card once on the classified page."""
         index = int(getattr(self, "_archive_challenge_index", 0) or 0)
@@ -4242,6 +4258,12 @@ class Mediator:
             return None
         if now < getattr(self, "_archive_challenge_next_at", 0.0):
             return LoopAction.Continue
+        while index < len(self._ARCHIVE_CHALLENGE_NAMES) and self._archive_challenge_completed(frame, index):
+            index += 1
+        self._archive_challenge_index = index
+        if index >= len(self._ARCHIVE_CHALLENGE_NAMES):
+            print("[med] 存档挑战八项均显示已挑战，关闭面板并转传家宝")
+            return None
         hit = self._find_archive_challenge_card(frame, index)
         if hit is None:
             print(f"[med] 存档挑战卡位 {index + 1}/8 无有效卡面证据，零输入等待")
@@ -4383,13 +4405,24 @@ class Mediator:
                 if m and w * 0.30 <= m.x <= w * 0.60 and h * 0.40 <= m.y <= h * 0.65:
                     return "GREAT_RIFT_CONFIRM"
 
-            # 4) Archive panel: archive tab + a modal close button (right of center,
-            #    upper half) and NO rift NPC icon on the right side.
-            arch = find("archiveChallenge", 0.85)
-            close_hit = find("close", 0.85)
+            # 4) Archive panel. Keep the original high-confidence path for
+            # unfinished legacy pages. A current completed page is rendered
+            # orange and overlays the NPC hub, so it additionally requires a
+            # green 已挑战 card overlay before using the lower title threshold.
             rift_npc = find("damijing", 0.80)
             rift_npc_right = rift_npc and rift_npc.x >= w * 0.60 and h * 0.15 <= rift_npc.y <= h * 0.55
-            if arch and close_hit and close_hit.x >= w * 0.55 and close_hit.y <= h * 0.40 and not rift_npc_right:
+            legacy_arch = find("archiveChallenge", 0.85)
+            legacy_close = find("close", 0.85)
+            if legacy_arch and legacy_close and legacy_close.x >= w * 0.55 and legacy_close.y <= h * 0.40 and not rift_npc_right:
+                return "ARCHIVE_PANEL"
+            arch = self.find(
+                frame, ["archiveChallenge"], threshold=0.60,
+                scales=(0.50, 0.60, 0.70, 0.80, 0.90, 1.00, 1.10, 1.20, 1.30, 1.40, 1.50),
+                roi=(0.48, 0.15, 0.68, 0.45),
+            )
+            close_hit = self._find_archive_panel_close(frame)
+            completed_cards = sum(self._archive_challenge_completed(frame, index) for index in range(8))
+            if arch and close_hit and completed_cards == len(self._ARCHIVE_CHALLENGE_NAMES) and close_hit.x >= w * 0.55 and close_hit.y <= h * 0.40:
                 return "ARCHIVE_PANEL"
 
             # 5) NPC hub: quit button at the very top-left + rift NPC on the right +
@@ -4421,13 +4454,21 @@ class Mediator:
             scales=self._hot_scales(),
             roi=(0.55, 0.15, 0.70, 0.35),
         )
-        if not hit:
-            return None
-        if not (frame.width * 0.55 <= hit.x <= frame.width * 0.70):
-            return None
-        if not (frame.height * 0.15 <= hit.y <= frame.height * 0.35):
-            return None
-        return hit
+        if hit and frame.width * 0.55 <= hit.x <= frame.width * 0.70 and frame.height * 0.15 <= hit.y <= frame.height * 0.35:
+            return hit
+        # Live panel's gray X is still confined to the archive modal's
+        # top-right ROI. It is only consumed after the title anchor above
+        # classified ARCHIVE_PANEL.
+        hit = self.find(
+            frame,
+            ["close"],
+            threshold=0.45,
+            scales=self._hot_scales(),
+            roi=(0.55, 0.15, 0.70, 0.35),
+        )
+        if hit and frame.width * 0.55 <= hit.x <= frame.width * 0.70 and frame.height * 0.15 <= hit.y <= frame.height * 0.35:
+            return hit
+        return None
 
     def _find_heirloom_close(self, frame: Frame) -> MatchResult | None:
         hit = self.find(frame, ["close"], threshold=0.85, scales=self._hot_scales(), roi=(0.55, 0.15, 0.70, 0.35))

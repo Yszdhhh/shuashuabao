@@ -70,6 +70,7 @@ def test_live_probe_defaults_to_existing_official_operator_settings() -> None:
     load.assert_called_once_with()
     assert settings.cjb_boss == "54莫阿姆"
     assert settings.sgzx_boss == "10吞噬者芬鲁斯"
+    assert settings.auto_secret_realm is False
     assert settings.dry_run is False
 
 

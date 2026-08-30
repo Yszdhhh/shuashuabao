@@ -248,6 +248,53 @@ class P1B0PostGameTests(unittest.TestCase):
         with patch.object(med, "_selection_anchor", return_value=object()):
             self.assertEqual(med._post_game_state(frame), "ARCHIVE_PANEL")
 
+    def test_live_archive_title_and_close_anchor_classify_panel(self):
+        """The orange live title is valid only together with the modal X."""
+        med = Mediator(Settings(), ROOT)
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        title = MatchResult("archiveChallenge", 0.62, 900, 195, 92, 24, 946, 207)
+        close = MatchResult("close", 0.47, 991, 250, 20, 20, 1001, 260)
+
+        def fake_find(_frame, names, **_kwargs):
+            if names == ["archiveChallenge"]:
+                return title
+            if names == ["close"]:
+                return close
+            if names == ["damijing"]:
+                return MatchResult("damijing", 0.97, 1147, 201, 72, 25, 1183, 213)
+            return None
+
+        with patch.object(med, "_selection_anchor", return_value=None), \
+             patch.object(med, "_archive_challenge_completed", return_value=True), \
+             patch.object(med, "find", side_effect=fake_find):
+            self.assertEqual(med._post_game_state(frame), "ARCHIVE_PANEL")
+
+    def test_completed_archive_cards_close_without_reclicking(self):
+        """All eight green 已挑战 overlays advance directly to heirloom."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive completed")
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        for index in range(8):
+            col, row = index % 4, index // 4
+            cx = int(frame.width * med._ARCHIVE_CHALLENGE_X[col])
+            cy = int(frame.height * med._ARCHIVE_CHALLENGE_Y[row])
+            frame.bgr[
+                int(cy - frame.height * 0.035):int(cy + frame.height * 0.060),
+                int(cx - frame.width * 0.040):int(cx + frame.width * 0.040),
+            ] = (0, 255, 0)
+            self.assertTrue(med._archive_challenge_completed(frame, index))
+        close = MatchResult("close", 0.9, 990, 230, 20, 20, 1000, 240)
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_find_archive_panel_close", return_value=close), \
+             patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+
+        click.assert_called_once_with(close, "CloseArchivePanel")
+        self.assertEqual(med._post_game_route, "heirloom")
+
     def test_post_game_boss_search_scrolls_before_observing_lower_rows(self):
         """A lower archive-list Boss is searched only after a bounded list scroll."""
         med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
