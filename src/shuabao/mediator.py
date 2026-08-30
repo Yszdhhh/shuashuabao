@@ -4422,7 +4422,18 @@ class Mediator:
             )
             close_hit = self._find_archive_panel_close(frame)
             completed_cards = sum(self._archive_challenge_completed(frame, index) for index in range(8))
-            if arch and close_hit and completed_cards == len(self._ARCHIVE_CHALLENGE_NAMES) and close_hit.x >= w * 0.55 and close_hit.y <= h * 0.40:
+            if (
+                close_hit
+                and completed_cards == len(self._ARCHIVE_CHALLENGE_NAMES)
+                and close_hit.x >= w * 0.55
+                and close_hit.y <= h * 0.40
+            ):
+                # Current live rendering can replace the orange modal title
+                # with the top HUD ``cundangInfo`` anchor.  The modal X plus
+                # all eight green ``已挑战`` overlays is stronger page evidence
+                # than that title and is sufficient to enter the existing
+                # archive handler.  Do not broaden this to a partial/unknown
+                # card page: those remain fail-closed.
                 return "ARCHIVE_PANEL"
 
             # 5) NPC hub: quit button at the very top-left + rift NPC on the right +

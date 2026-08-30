@@ -269,6 +269,24 @@ class P1B0PostGameTests(unittest.TestCase):
              patch.object(med, "find", side_effect=fake_find):
             self.assertEqual(med._post_game_state(frame), "ARCHIVE_PANEL")
 
+    def test_completed_archive_panel_does_not_require_archive_title_anchor(self):
+        """The current completed page may expose only cundangInfo plus modal evidence."""
+        med = Mediator(Settings(), ROOT)
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        close = MatchResult("close", 0.47, 991, 250, 20, 20, 1001, 260)
+
+        def fake_find(_frame, names, **_kwargs):
+            if names == ["archiveChallenge"]:
+                return None
+            if names == ["close"]:
+                return close
+            return None
+
+        with patch.object(med, "_selection_anchor", return_value=None), \
+             patch.object(med, "_archive_challenge_completed", return_value=True), \
+             patch.object(med, "find", side_effect=fake_find):
+            self.assertEqual(med._post_game_state(frame), "ARCHIVE_PANEL")
+
     def test_completed_archive_cards_close_without_reclicking(self):
         """All eight green 已挑战 overlays advance directly to heirloom."""
         med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
