@@ -527,6 +527,31 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         click.assert_called_once()
         self.assertEqual(click.call_args.args[1], "BlackMerchant-discount")
 
+    def test_merchant_normalizes_only_observed_discount_ocr_aliases(self):
+        self.assertEqual(self.med._normalize_merchant_discount("15折"), "5折")
+        self.assertEqual(self.med._normalize_merchant_discount("A2"), "2折")
+        self.assertEqual(self.med._normalize_merchant_discount("12折"), "2折")
+        self.assertEqual(self.med._normalize_merchant_discount("2S"), "2S")
+
+    def test_merchant_product_match_clicks_nearest_fixed_slot_center(self):
+        self.med.settings.merchant_enabled = True
+        self.med._merchant_next_at = 0.0
+        # The old equal-width ROI mapping would classify this fifth-slot match
+        # as slot 3; use the stable in-game slot center instead.
+        wood = MatchResult("merchant_wood", 0.99, 1363, 609, 57, 61, 1520, 711)
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=False), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=False), \
+                patch.object(self.med, "find", side_effect=lambda _f, names, **_k: wood if names == ["merchant_wood"] else None), \
+                patch.object(self.med, "act_click", return_value=True) as click:
+            self.med._maybe_black_merchant(self.frame)
+            self.med._maybe_black_merchant(self.frame)
+
+        click.assert_called_once()
+        hit_arg = click.call_args.args[0]
+        self.assertEqual(hit_arg.name, "black_merchant_slot_4")
+        self.assertEqual((hit_arg.x, hit_arg.y), (1392, 640))
+
     def test_discount_purchase_verification_fingerprint_includes_ocr_target(self):
         class FakeOcr:
             is_available = True

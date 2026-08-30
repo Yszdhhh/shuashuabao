@@ -3864,6 +3864,35 @@ class Mediator:
         min_gold = max(10, int(80 * scale * scale))
         return int(gold.sum()) >= min_gold
 
+    @staticmethod
+    def _merchant_slot_index(frame: Frame, hit: MatchResult) -> int:
+        """Map a product match to the nearest fixed merchant slot center."""
+        match_cx = hit.x + hit.w / 2.0
+        return min(
+            range(5),
+            key=lambda index: abs(
+                match_cx
+                - frame.width * MerchantScanner.get_slot_center_ratio(index)[0]
+            ),
+        )
+
+    @staticmethod
+    def _normalize_merchant_discount(text: str) -> str:
+        """Normalize only observed OCR confusions; keep unknown text fail-closed."""
+        compact = re.sub(r"\s+", "", text or "")
+        # These aliases are from real merchant captures.  Do not turn generic
+        # substrings such as ``2S`` into a discount: that caused full-price
+        # items to become purchase candidates in earlier runs.
+        for raw, normalized in (
+            ("12折", "2折"),
+            ("15折", "5折"),
+            ("A2", "2折"),
+            ("A２", "2折"),
+        ):
+            if raw in compact:
+                compact = compact.replace(raw, normalized)
+        return compact
+
     def _merchant_discount_slots(
         self,
         frame: Frame,
@@ -3908,7 +3937,9 @@ class Mediator:
             if str(getattr(response, "status", "ok")) != "ok":
                 continue
             candidate = response.candidates[0].name if response.candidates else ""
-            text = re.sub(r"\s+", "", f"{response.raw_text or ''}{candidate}")
+            text = self._normalize_merchant_discount(
+                f"{response.raw_text or ''}{candidate}"
+            )
             label = next(
                 (
                     keyword
@@ -3959,15 +3990,11 @@ class Mediator:
                 roi=roi,
             )
             if self._in_merchant_strip(frame, pill):
-                rx = (pill.x - frame.width * 0.70) / max(1.0, frame.width * 0.20)
-                slot_idx = max(0, min(4, int(rx * 5.0)))
+                slot_idx = self._merchant_slot_index(frame, pill)
                 detected_slots.append(
                     MerchantSlotItem(
                         slot_index=slot_idx,
-                        center_ratio=(
-                            (pill.x + pill.w // 2) / frame.width,
-                            (pill.y + pill.h // 2) / frame.height,
-                        ),
+                        center_ratio=MerchantScanner.get_slot_center_ratio(slot_idx),
                         item_type="devour_pill",
                         label="danGif",
                     )
@@ -3981,15 +4008,11 @@ class Mediator:
                 roi=roi,
             )
             if self._in_merchant_strip(frame, wood):
-                rx = (wood.x - frame.width * 0.70) / max(1.0, frame.width * 0.20)
-                slot_idx = max(0, min(4, int(rx * 5.0)))
+                slot_idx = self._merchant_slot_index(frame, wood)
                 detected_slots.append(
                     MerchantSlotItem(
                         slot_index=slot_idx,
-                        center_ratio=(
-                            (wood.x + wood.w // 2) / frame.width,
-                            (wood.y + wood.h // 2) / frame.height,
-                        ),
+                        center_ratio=MerchantScanner.get_slot_center_ratio(slot_idx),
                         item_type="wood",
                         label="merchant_wood",
                     )
