@@ -152,7 +152,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertLessEqual(refresh.y, 691)
         wood = self.med.find(
             frame,
-            ["merchant_wood", "woodgift"],
+            ["merchant_wood"],
             threshold=0.72,
             scales=(0.75, 0.9, 1.0, 1.1, 1.25),
             roi=(0.70, 0.67, 0.90, 0.79),
@@ -433,7 +433,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         tick = {"value": 0}
 
         def find_after_refresh(_frame, names, **_kwargs):
-            if tick["value"] >= 2 and names == ["merchant_wood", "woodgift"]:
+            if tick["value"] >= 2 and names == ["merchant_wood"]:
                 return wood
             return None
 
@@ -459,7 +459,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         wood = hit("merchant_wood", 1280, 650)
 
         def find_wood(_frame, names, **_kwargs):
-            return wood if names == ["merchant_wood", "woodgift"] else None
+            return wood if names == ["merchant_wood"] else None
 
         with patch.object(self.med, "_black_merchant_present", return_value=True), \
                 patch.object(self.med, "_bond_bar_nonempty", return_value=False), \
@@ -501,8 +501,8 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         class FakeOcr:
             is_available = True
 
-            def shadow_predict(self, _frame, _panel_id, slot, **_kwargs):
-                calls.append(slot["index"])
+            def shadow_predict(self, _frame, _panel_id, slot, **kwargs):
+                calls.append((slot["index"], slot["bbox"], kwargs["fingerprint"]))
                 text = "2折" if slot["index"] == 2 else ""
                 return SimpleNamespace(
                     status="ok",
@@ -520,9 +520,29 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
             self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
             self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
 
-        self.assertEqual(calls[:5], [0, 1, 2, 3, 4])
+        self.assertEqual([call[0] for call in calls[:5]], [0, 1, 2, 3, 4])
+        self.assertEqual(calls[0][1], (1150, 617, 1190, 640))
+        self.assertEqual(calls[4][1], (1370, 617, 1410, 640))
+        self.assertEqual(len(calls[0][2].rsplit(":", 1)[1]), 32)
         click.assert_called_once()
         self.assertEqual(click.call_args.args[1], "BlackMerchant-discount")
+
+    def test_merchant_uses_only_high_confidence_full_item_templates(self):
+        observed = {}
+
+        def record_find(_frame, names, **kwargs):
+            observed[tuple(names)] = kwargs["threshold"]
+            return None
+
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=False), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=False), \
+                patch.object(self.med, "find", side_effect=record_find):
+            self.med._maybe_black_merchant(self.frame)
+
+        self.assertEqual(observed[("danGif",)], 0.90)
+        self.assertEqual(observed[("merchant_wood",)], 0.95)
+        self.assertNotIn(("merchant_wood", "woodgift"), observed)
 
     def test_merchant_ignores_wood_outside_strip_and_refreshes(self):
         self.med.settings.merchant_enabled = True

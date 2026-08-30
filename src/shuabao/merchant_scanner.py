@@ -5,7 +5,7 @@
 2. 实际会买的只有三种，没有其它拿取:
    - Priority 1: OCR 明确识别的 2折/5折（不含 8折）
    - Priority 2: 吞噬丹 icon 小模板 (danGif)
-   - Priority 3: 木材礼包 icon 小模板 (merchant_wood / woodgift)
+   - Priority 3: 木材礼包完整商品模板 (merchant_wood)
    - 8折/普通宝石/属性卡/技能卡一律不买；买完这三类就刷新。
 3. 商店指纹用槽位占用 + 已识别目标，不用整条商品 ROI 逐像素哈希。
    倒计时、图标动画和局部 HUD 变化不得打断 CONFIRMING→READY。
@@ -25,6 +25,9 @@ import numpy as np
 # 5 个槽位水平等分
 MERCHANT_STRIP_ROI = (0.70, 0.67, 0.90, 0.79)
 MERCHANT_SLOT_COUNT = 5
+MERCHANT_SLOT_CENTER_X0 = 1172 / 1600
+MERCHANT_SLOT_STEP_X = 55 / 1600
+MERCHANT_SLOT_CENTER_Y = 640 / 900
 
 DISCOUNT_KEYWORDS = ("2折", "5折", "二折", "五折")
 NEGATIVE_ITEM_NAMES = ("贪欲之刃", "贪婪献祭", "杀敌流失", "扣除金币", "生命削减")
@@ -67,11 +70,10 @@ class MerchantScanner:
     @staticmethod
     def get_slot_center_ratio(slot_idx: int) -> tuple[float, float]:
         """获取 5 槽中第 slot_idx 槽 (0..4) 的归一化中心坐标。"""
-        x_min, y_min, x_max, y_max = MERCHANT_STRIP_ROI
-        slot_w = (x_max - x_min) / MERCHANT_SLOT_COUNT
-        cx = x_min + (slot_idx + 0.5) * slot_w
-        cy = (y_min + y_max) / 2.0
-        return (cx, cy)
+        return (
+            MERCHANT_SLOT_CENTER_X0 + slot_idx * MERCHANT_SLOT_STEP_X,
+            MERCHANT_SLOT_CENTER_Y,
+        )
 
     @staticmethod
     def slot_occupancy_bits(roi_bgr: np.ndarray | None) -> tuple[int, ...]:

@@ -3567,7 +3567,7 @@ class Mediator:
             return None
         now = time.time()
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
-        if self.settings.auto_devour_dan and self._bond_bar_nonempty(frame):
+        if self.settings.auto_devour_dan and self._can_consume_inventory_swallow_pill(frame):
             pill = self.find(
                 frame,
                 ["danGif", "swallow_pill"],
@@ -3784,6 +3784,11 @@ class Mediator:
         min_colored = max(20, int(250 * scale * scale))
         return int(colored.sum()) >= min_colored
 
+    def _can_consume_inventory_swallow_pill(self, frame: Frame) -> bool:
+        """Do not spend a pill until the live bond bar contains more than three cards."""
+        occupancy = self._bond_bar_occupancy(frame)
+        return occupancy is not None and occupancy > 3
+
     @staticmethod
     def _merchant_refresh_hit(frame: Frame) -> MatchResult:
         """Click the recycle control to the right of the 5-slot strip, not the level badge."""
@@ -3821,17 +3826,23 @@ class Mediator:
         client = getattr(self, "_ocr_client", None)
         if client is None or not bool(getattr(client, "is_available", False)):
             return []
-        x0, y0, x1, y1 = MERCHANT_STRIP_ROI
-        slot_width = (x1 - x0) / 5.0
-        panel_bbox = self._normalized_bbox(frame, (x0, y0, x1, y1))
-        panel_id = f"merchant:{fingerprint}"
+        # Live 1600x900 evidence: the discount badge occupies only the small
+        # upper-left price ribbon.  Sending the whole icon to OCR produced
+        # i/bi instead of 2折/5折 and the old 64px split was shifted left.
+        badge_panel = (1150 / 1600, 617 / 900, 1410 / 1600, 640 / 900)
+        panel_bbox = self._normalized_bbox(frame, badge_panel)
+        px0, py0, px1, py1 = panel_bbox
+        badge_pixels = frame.bgr[py0:py1, px0:px1]
+        badge_fingerprint = hashlib.md5(badge_pixels.tobytes()).hexdigest()
+        ocr_fingerprint = f"{fingerprint}:{badge_fingerprint}"
+        panel_id = f"merchant:{ocr_fingerprint}"
         items: list[MerchantSlotItem] = []
         for slot_index in range(5):
             slot_roi = (
-                x0 + slot_width * slot_index,
-                y0,
-                x0 + slot_width * (slot_index + 1),
-                y1,
+                (1150 + 55 * slot_index) / 1600,
+                617 / 900,
+                (1190 + 55 * slot_index) / 1600,
+                640 / 900,
             )
             bbox = self._normalized_bbox(frame, slot_roi)
             try:
@@ -3842,7 +3853,7 @@ class Mediator:
                     # detection uses only its raw OCR text and never asks the
                     # lexicon to guess an item name.
                     {"index": slot_index, "bbox": bbox},
-                    fingerprint=fingerprint,
+                    fingerprint=ocr_fingerprint,
                     panel_bbox=panel_bbox,
                 )
             except (AttributeError, OSError, TypeError, ValueError):
@@ -3880,7 +3891,7 @@ class Mediator:
         Priority:
         1. OCR 明确读到 2折/5折 -> 购买（8折不买）
         2. 命中 吞噬丹 icon 小模板 (danGif) -> 购买
-        3. 命中 木材礼包 icon 小模板 (merchant_wood / woodgift) -> 购买
+        3. 命中 木材礼包完整商品模板 (merchant_wood) -> 购买
         没有其它拿取。买完这三类或当前没有这三类，就点刷新。
 
         支线循环：能买就买（折扣/吞噬丹/木材），买完当前可识别目标后刷新再找；
@@ -3896,7 +3907,7 @@ class Mediator:
             pill = self.find(
                 frame,
                 ["danGif"],
-                threshold=0.50,
+                threshold=0.90,
                 scales=(0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5),
                 roi=roi,
             )
@@ -3917,8 +3928,8 @@ class Mediator:
 
             wood = self.find(
                 frame,
-                ["merchant_wood", "woodgift"],
-                threshold=0.88,
+                ["merchant_wood"],
+                threshold=0.95,
                 scales=(0.9, 1.0, 1.1),
                 roi=roi,
             )

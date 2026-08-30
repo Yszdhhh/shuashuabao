@@ -180,7 +180,7 @@ class Settings:
     auto_bond: bool = True       # 主动按 F 开羁绊面板（低频，防烧木材）
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
-    auto_devour_dan: bool = True # 自动使用吞噬丹（需羁绊栏非空）
+    auto_devour_dan: bool = True # 自动使用吞噬丹（实机羁绊数 > 3）
     evolve_mystic_priority: bool = False  # 未知/神秘进化优先（True=排最前，False=默认排在 SSR 之后、SR 之前）
     auto_artifact: bool = True   # 神器 Q/W/E 槽定时释放
     artifact_cd: int = 120       # 神器冷却秒数

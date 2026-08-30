@@ -84,10 +84,10 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
         self.frame = make_test_frame()
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_devour_pill_consumed_when_bond_bar_nonempty(self, mock_time):
-        """Swallow pill is clicked in inventory and updates inventory next cooldown."""
+    def test_devour_pill_consumed_when_more_than_three_bonds(self, mock_time):
+        """Swallow pill is clicked only after the live bond bar exceeds three cards."""
         with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_bond_bar_nonempty", return_value=True), \
+             patch.object(self.med, "_can_consume_inventory_swallow_pill", return_value=True), \
              patch.object(self.med, "find") as mock_find, \
              patch.object(self.med, "act_click", return_value=True) as mock_click:
             pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
@@ -97,6 +97,18 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
             self.assertEqual(action, LoopAction.Continue)
             mock_click.assert_called_once_with(pill_match, "UseInventory-swallow_pill")
             self.assertGreater(self.med._inventory_next_at, 100.0)
+
+    def test_devour_pill_waits_at_three_bonds(self):
+        with patch.object(self.med, "_bond_bar_occupancy", return_value=3), \
+             patch.object(self.med, "find") as mock_find, \
+             patch.object(self.med, "act_click") as mock_click:
+            self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
+        mock_find.assert_not_called()
+        mock_click.assert_not_called()
+
+    def test_devour_pill_gate_opens_at_four_bonds(self):
+        with patch.object(self.med, "_bond_bar_occupancy", return_value=4):
+            self.assertTrue(self.med._can_consume_inventory_swallow_pill(self.frame))
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_hero_card_triggers_evolution_flow_with_pending_action(self, mock_time):
@@ -141,7 +153,7 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
     def test_devour_pill_episode_limit_and_reset(self, mock_time):
         """D2 invariant: Devour pill clicks cap at 5, reset when pill disappears or cycle resets."""
         with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_bond_bar_nonempty", return_value=True), \
+             patch.object(self.med, "_can_consume_inventory_swallow_pill", return_value=True), \
              patch.object(self.med, "find") as mock_find, \
              patch.object(self.med, "act_click", return_value=True) as mock_click:
             pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
