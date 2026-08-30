@@ -367,6 +367,36 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(click.call_args.args[1], "BossConfigured")
         self.assertEqual(med._post_game_route, "heirloom_active")
 
+    def test_heirloom_boss_waits_for_result_instead_of_reclicking(self):
+        """After one heirloom click, the same card is not clicked again while settling."""
+        med = Mediator(Settings(cjb_boss="01暴掠龙"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "heirloom_active"
+        med._boss_challenge_attempts = 1
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_heirloom_boss_result_visible", return_value=False), \
+             patch.object(med, "act_click") as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_not_called()
+
+    def test_heirloom_result_closes_only_after_postcondition(self):
+        """A confirmed live result toast is the only path to dismiss the panel."""
+        med = Mediator(Settings(cjb_boss="01暴掠龙"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "heirloom_active"
+        med._boss_challenge_attempts = 1
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+        close = MatchResult("close", 0.90, 990, 230, 20, 20, 1000, 240)
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_heirloom_boss_result_visible", return_value=True), \
+             patch.object(med, "_find_heirloom_close", return_value=close), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once_with(close, "DismissHeirloomDialog")
+
     def test_hub_route_opens_heirloom_after_archive_close(self):
         """After archive handling, the next hub action is the heirloom NPC, not rift."""
         med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)

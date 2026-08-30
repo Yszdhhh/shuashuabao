@@ -4525,6 +4525,16 @@ class Mediator:
         if not bosses:
             print("[med] boss_entry 出现但未配置挑战 Boss，零输入等待")
             return LoopAction.Continue
+        # A configured Boss click is a one-shot request until the page proves
+        # the business result. The live heirloom page keeps the same card
+        # visible while its result toast is settling; clicking the same card
+        # again is not a retry and can reopen/duplicate the challenge.
+        if post_game == "HEIRLOOM_DIALOG" and self._boss_challenge_attempts > 0:
+            if self._heirloom_boss_result_visible(frame):
+                print("[med] 传家宝 Boss 后置已确认，停止重复点击")
+            else:
+                print("[med] 传家宝 Boss 已发起，等待‘已挑战’后置（零动作）")
+            return LoopAction.Continue
         if self._boss_challenge_attempts >= 3:
             return LoopAction.Continue
         if now < self._boss_challenge_next_at:
@@ -4606,6 +4616,29 @@ class Mediator:
             if getattr(self, "_early_challenge_pending", False):
                 self._early_challenge_clicked_at = now
         return LoopAction.Continue
+
+    def _heirloom_boss_result_visible(self, frame: Frame) -> bool:
+        """Detect the live page's post-click ``已挑战`` result toast.
+
+        The current game build renders this short red status toast below the
+        heirloom dialog rather than changing the Boss card itself. This is a
+        bounded postcondition check for the already-classified heirloom page;
+        it grants no click authority and does not add another production FSM.
+        """
+        if frame.bgr is None or frame.width < 480 or frame.height < 270:
+            return False
+        x0, x1 = int(frame.width * 0.456), int(frame.width * 0.544)
+        y0, y1 = int(frame.height * 0.594), int(frame.height * 0.656)
+        crop = frame.bgr[max(0, y0):min(frame.height, y1), max(0, x0):min(frame.width, x1)]
+        if crop.size == 0:
+            return False
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        red = (
+            (((hsv[:, :, 0] <= 12) | (hsv[:, :, 0] >= 160)))
+            & (hsv[:, :, 1] >= 100)
+            & (hsv[:, :, 2] >= 100)
+        )
+        return int(np.count_nonzero(red)) >= 40
     def _maybe_ensure_hero_panel_focus(self, frame: Frame, now: float) -> LoopAction | None:
         """局内常态（无中央选卡弹窗时）若右下角未检测到英雄技能/操作面板，按 F1 切回英雄。"""
         if self._panel_state != PanelState.CLOSED:
@@ -8591,7 +8624,13 @@ class Mediator:
                 and str(getattr(self.settings, "cjb_boss", "") or "").strip()
                 and self._boss_challenge_attempts < 3
             ):
-                return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
+                # The page remains open after a successful click and displays
+                # a short “已挑战” toast. Once visible, close the dialog once
+                # and continue the already-selected post-game route; before
+                # then the configured-Boss handler is observation-only.
+                if not self._heirloom_boss_result_visible(frame):
+                    return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
+                print("[med] 传家宝 Boss 业务后置确认成功，关闭传家宝面板")
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
                 print("[med] 传家宝弹窗关闭重试已达上限，Fail-Closed 停止运行")
