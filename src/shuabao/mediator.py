@@ -4360,6 +4360,12 @@ class Mediator:
           ARCHIVE_PANEL       archive challenge panel (modal close, no rift NPC)
           NPC_HUB             post-victory world lobby (quit top-left + rift NPC right)
         or None when no post-game page is recognized.
+
+        A configured Boss challenge that has been accepted is deliberately not
+        classified as NPC_HUB while its active route is ``boss_active``.  The
+        game can still render the archive/heirloom NPC labels over the live map
+        during the challenge; those labels are not evidence that the battle is
+        over.
         """
         w, h = frame.width, frame.height
         if w < 480 or h < 270:
@@ -4445,6 +4451,8 @@ class Mediator:
             hub_archive = self._find_post_game_hub_entry(frame, "archive")
             hub_heirloom = self._find_post_game_hub_entry(frame, "heirloom")
             if (
+                getattr(self, "_post_game_route", "") != "boss_active"
+                and
                 quit_hit
                 and quit_hit.x <= w * 0.10
                 and quit_hit.y <= h * 0.15
@@ -8461,12 +8469,15 @@ class Mediator:
             return LoopAction.Break
 
         if not post_game and self._round_tail_checks_active():
-            if self.find_scene(frame, "archive"):
+            # A live Boss challenge may still show the archive label in the
+            # map HUD. It is not an unverified post-game entry until Victory
+            # has actually been observed.
+            if getattr(self, "_post_game_route", "") != "boss_active" and self.find_scene(frame, "archive"):
                 print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "unverified archive entry")
                 self.stop()
                 return LoopAction.Break
-            if self.find_scene(frame, "boss_entry"):
+            if getattr(self, "_post_game_route", "") != "boss_active" and self.find_scene(frame, "boss_entry"):
                 # 20260822：同 S0⑧ 门控——boss_entry 是 Boss 挑战入口，不 ERROR。
                 return self._maybe_challenge_configured_boss(frame, now)
         for dialog in self._aux_dialog_attempts:
@@ -8504,8 +8515,17 @@ class Mediator:
             self._victory_continue_attempts += 1
             print(f"[med] 胜利结算 点击继续游戏 @ {hit.center} (尝试 {self._victory_continue_attempts}/3)")
             if self.act_click(hit, "ContinueGame"):
+                route_before_continue = getattr(self, "_post_game_route", "archive")
                 self._post_game_pending = True
-                self._post_game_route = "archive"
+                # A real Boss challenge owns the post-victory transition. Do
+                # not reopen archive/heirloom just because those labels happen
+                # to be visible after Continue. Secret-realm entry, when
+                # enabled, is handled by the existing NPC_HUB branch below.
+                self._post_game_route = (
+                    "boss_postgame"
+                    if route_before_continue == "boss_active"
+                    else "archive"
+                )
                 # A previous mid-round Boss probe must not consume the
                 # post-game page's independent configured-Boss observation
                 # budget.
@@ -8584,6 +8604,14 @@ class Mediator:
             if route in {"archive_active", "heirloom_active"}:
                 print(f"[med] 已请求{('存档' if route == 'archive_active' else '传家宝')}挑战，等待页面切换（零动作）")
                 return LoopAction.Continue
+            if route == "boss_postgame" and not self.settings.auto_secret_realm:
+                # This is the first point at which a configured Boss route may
+                # exit: POST_VICTORY was already observed, Continue was
+                # accepted, and the existing hub classifier is visible.
+                self._post_game_pending = False
+                self._record_round_outcome(RoundOutcome.VICTORY, "configured Boss victory verified")
+                self.set_phase(Phase.QUIT, "configured Boss victory verified")
+                return LoopAction.Continue
             if self.settings.auto_secret_realm:
                 timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
                 if self._secret_realm_request_since is None:
@@ -8618,6 +8646,12 @@ class Mediator:
             return LoopAction.Continue
 
         if post_game == "HEIRLOOM_DIALOG":
+            if getattr(self, "_post_game_route", "") == "boss_active":
+                # The close click may take one or more frames to remove the
+                # modal. Never click the X again and never treat the lingering
+                # panel as a new challenge while the battle route is active.
+                print("[med] 传家宝面板关闭过渡中，Boss 挑战进行中（零动作）")
+                return LoopAction.Continue
             if (
                 self._post_game_pending
                 and getattr(self, "_post_game_route", "") == "heirloom_active"
@@ -8642,10 +8676,16 @@ class Mediator:
                 print("[med] 传家宝弹窗未找到受约束的关闭按钮，零动作等待")
                 return LoopAction.Continue
             self._aux_dialog_attempts[post_game] = attempts + 1
-            if self._post_game_pending and getattr(self, "_post_game_route", "") == "heirloom_active":
-                self._post_game_route = "secret"
             print(f"[med] 关闭传家宝弹窗 @ {close_hit.center} (尝试 {attempts + 1}/3)")
-            self.act_click(close_hit, "DismissHeirloomDialog")
+            if self.act_click(close_hit, "DismissHeirloomDialog"):
+                if self._post_game_pending and getattr(self, "_post_game_route", "") == "heirloom_active":
+                    # The selection result proves that the challenge was
+                    # accepted; the next authoritative completion evidence is
+                    # the normal Victory page, not a timer or Boss sprite.
+                    self._post_game_route = "boss_active"
+                    self._post_game_pending = False
+                    self._post_game_close_attempts = 0
+                    print("[med] 传家宝 Boss 已进入挑战进行中，等待真实 Victory（零动作）")
             self._main_line_since = now
             return LoopAction.Continue
 
@@ -8851,6 +8891,7 @@ class Mediator:
             surface == InteractionSurface.HUD_ONLY
             and not anchor
             and not self._post_game_pending
+            and getattr(self, "_post_game_route", "") != "boss_active"
             and self._configured_boss_challenge_names()
             and self._boss_challenge_attempts < 3
             and now >= self._boss_challenge_next_at
@@ -8868,12 +8909,22 @@ class Mediator:
         # Boss 挑战入口，配置了挑战 Boss 时必须点（用户核心诉求"提前挑战没点"）。
         # archive 入口保持 ERROR（未验证语义不变）。
         if not anchor and self._round_tail_checks_active():
-            if getattr(self, "scenes", None) and "archive" in self.scenes and self.find_scene(frame, "archive"):
+            if (
+                getattr(self, "_post_game_route", "") != "boss_active"
+                and getattr(self, "scenes", None)
+                and "archive" in self.scenes
+                and self.find_scene(frame, "archive")
+            ):
                 print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "unverified archive entry")
                 self.stop()
                 return LoopAction.Break
-            if getattr(self, "scenes", None) and "boss_entry" in self.scenes and self.find_scene(frame, "boss_entry"):
+            if (
+                getattr(self, "_post_game_route", "") != "boss_active"
+                and getattr(self, "scenes", None)
+                and "boss_entry" in self.scenes
+                and self.find_scene(frame, "boss_entry")
+            ):
                 return self._maybe_challenge_configured_boss(frame, now)
 
         # 点击继续游戏后、页面确认前：不认识的页面一律零动作等待，绝不落到

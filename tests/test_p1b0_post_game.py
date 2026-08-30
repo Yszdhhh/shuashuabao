@@ -396,6 +396,44 @@ class P1B0PostGameTests(unittest.TestCase):
             action = med._tick_main_line(frame)
         self.assertEqual(action, LoopAction.Continue)
         click.assert_called_once_with(close, "DismissHeirloomDialog")
+        self.assertEqual(med._post_game_route, "boss_active")
+        self.assertFalse(med._post_game_pending)
+
+    def test_active_boss_route_never_looks_like_npc_hub(self):
+        """Live-map NPC labels cannot authorize exit during an active Boss."""
+        med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
+        med._post_game_route = "boss_active"
+        med._post_game_pending = False
+        frame = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        self.assertIsNone(med._post_game_state(frame))
+
+    def test_active_boss_route_does_not_reenter_configured_boss_probe(self):
+        """The active challenge route suppresses both proactive Boss entry probes."""
+        med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
+        med._post_game_route = "boss_active"
+        med._post_game_pending = False
+        med._boss_challenge_attempts = 1
+        frame = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        with patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "find_scene", return_value=True), \
+             patch.object(med, "_maybe_challenge_configured_boss") as probe:
+            med._round_tail_checks_active = lambda: True
+            med._tick_main_line(frame)
+        probe.assert_not_called()
+
+    def test_boss_victory_continue_keeps_boss_postgame_route(self):
+        """Only after Victory is observed may the Boss route proceed to exit/rift."""
+        med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "boss victory route")
+        med._post_game_route = "boss_active"
+        frame = load_fixture_frame("fixtures/replay/victory_continue.png")
+        with patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(click.call_count, 1)
+        self.assertEqual(click.call_args.args[1], "ContinueGame")
+        self.assertTrue(med._post_game_pending)
+        self.assertEqual(med._post_game_route, "boss_postgame")
 
     def test_hub_route_opens_heirloom_after_archive_close(self):
         """After archive handling, the next hub action is the heirloom NPC, not rift."""
