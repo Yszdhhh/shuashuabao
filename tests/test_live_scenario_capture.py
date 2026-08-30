@@ -36,6 +36,7 @@ from tools.live_scenario_capture import (
     TARGET_CONTRACTS,
     TARGET_PRODUCTION_FACTS,
     _append_bookmark_command,
+    _bootstrap_direct_boss_postgame_start,
     _bootstrap_target_probe,
     _build_identity_check,
     _capture_input_guard,
@@ -70,6 +71,15 @@ def test_live_probe_defaults_to_existing_official_operator_settings() -> None:
     assert settings.cjb_boss == "54莫阿姆"
     assert settings.sgzx_boss == "10吞噬者芬鲁斯"
     assert settings.dry_run is False
+
+
+def test_direct_heirloom_start_enters_existing_selection_handler() -> None:
+    med = Mediator(Settings(cjb_boss="01暴掠龙"), ROOT)
+    frame = _fixture_frame()
+    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"):
+        bootstrap = _bootstrap_direct_boss_postgame_start(med, "heirloom", frame)
+    assert bootstrap["post_game_route"] == "heirloom_active"
+    assert med._post_game_pending is True
 
 
 def test_bundle_saves_static_pixels_once_and_scrubs_password(tmp_path: Path) -> None:

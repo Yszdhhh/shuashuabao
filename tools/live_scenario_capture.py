@@ -2000,7 +2000,7 @@ def _bootstrap_direct_boss_postgame_start(
     if post_game not in {"ARCHIVE_PANEL", "NPC_HUB", "HEIRLOOM_DIALOG"}:
         return {}
     med._post_game_pending = True
-    med._post_game_route = "heirloom" if post_game == "HEIRLOOM_DIALOG" else "archive"
+    med._post_game_route = "heirloom_active" if post_game == "HEIRLOOM_DIALOG" else "archive"
     med._boss_challenge_attempts = 0
     med._boss_challenge_scroll_attempts = 0
     med._boss_challenge_next_at = 0.0
