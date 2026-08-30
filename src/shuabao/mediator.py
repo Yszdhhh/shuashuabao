@@ -3608,7 +3608,7 @@ class Mediator:
         hero_card = self.find(
             frame,
             ["hero_card_item"],
-            threshold=0.70,
+            threshold=0.65,
             roi=inventory_roi,
             scales=(0.8, 0.9, 1.0, 1.1, 1.2),
         )

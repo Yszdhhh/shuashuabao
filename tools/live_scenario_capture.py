@@ -91,13 +91,13 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "black_merchant": {
         "handler": "_maybe_black_merchant",
         "call": "frame",
-        "start_condition": "已在局内 HUD 停在黑商商品条附近；同一遭遇内买吞噬丹/木材/2折5折，买完就刷新；同时调用现有背包消耗品与神器 Q/W/E handler，持续观察到 600 秒安全上限。",
+        "start_condition": "已在局内 HUD 停在黑商商品条附近，且本局至少完成过一次进化；同一遭遇内买吞噬丹/木材/2折5折，买完就刷新；同时调用现有背包吞噬丹、英雄卡与神器 Q/W/E handler，持续观察到 600 秒安全上限。",
         "production_entry": "依次调用现有 Mediator._maybe_black_merchant(frame)、_maybe_use_inventory_item(frame)、_maybe_fire_artifacts(frame)；每 tick 最多一个真实输入。",
         "expected_steps": (
             "DETECT", "SCAN", "REFRESH", "VERIFY_REFRESH", "TARGET_FOUND",
             "TAKE", "VERIFY_TAKE", "EXIT",
         ),
-        "success_postcondition": "吞噬丹/木材/已识别折扣的购买后置，或背包吞噬丹 WAIT_DEVOUR_DAN 确认，才是 LIVE_PROBE_PASS；刷新成功只记 REFRESH_PASS，绝不只以 click success 判定。",
+        "success_postcondition": "吞噬丹/木材/已识别折扣的购买后置、背包吞噬丹 WAIT_DEVOUR_DAN 确认，或英雄卡打开真实英雄选择页，才是 LIVE_PROBE_PASS；刷新成功只记 REFRESH_PASS，绝不只以 click success 判定。",
         "fail_condition": "刷新/目标商品已识别但输入被拒绝、既有验证超时、画面/商品后置未变化，或生产 handler 进入 ERROR；刷新成功不能覆盖后续 TARGET_FOUND/TAKE 失败。",
         "blocked_condition": "capture 无效、吞噬丹/神器既有生产前置不满足，或当前画面没有可安全识别的目标商品；刷新控件瞬时未检出只记观察证据，不再提前结束长探针。",
         "max_probe_time_s": 600.0,
@@ -111,20 +111,20 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "inventory_item": {
         "handler": "_maybe_use_inventory_item",
         "call": "frame",
-        "start_condition": "已在无中央面板、无黑商的局内 HUD；目标为右下背包吞噬丹，羁绊栏非空且 auto_devour_dan 已开启。",
+        "start_condition": "已在无中央面板、无黑商的局内 HUD，且本局至少完成过一次进化；目标为右下背包吞噬丹或英雄卡。吞噬丹还要求羁绊数量至少 4 且 auto_devour_dan 已开启。",
         "production_entry": "Mediator._maybe_use_inventory_item(frame)",
         "expected_steps": (
             "DETECT_SLOT", "IDENTIFY", "USE", "VERIFY_CONSUMED", "VERIFY_NO_REPEAT",
         ),
-        "success_postcondition": "仅现有 WAIT_DEVOUR_DAN verifier 确认吞噬丹消耗，且没有对同一物品重复发送输入；绝不以 click success 判定。",
+        "success_postcondition": "现有 WAIT_DEVOUR_DAN verifier 确认吞噬丹消耗，或 WAIT_HERO_CHOICE verifier 确认英雄卡打开真实英雄选择页；且没有对同一物品重复发送输入。绝不以 click success 判定。",
         "fail_condition": "输入被拒绝、PendingAction 到期未确认、同一槽位无后置变化仍被重复使用，或生产 handler 进入 ERROR。",
         "blocked_condition": "capture 无效、黑商/中央面板抢占、目标物品或既有启用前置不满足。",
         "max_probe_time_s": 15.0,
         "natural_e2e_eligible": "仅连续 mediator_tick 实机链、消耗后置事实已观察到、且无 FAIL/MANUAL_INTERVENTION bookmark 时仍有资格；probe 本身不算 Natural E2E。",
         "bundle_replay": "bundle 记录动作前后帧与 PendingAction 收敛，再由现有 ReplayCaseLoader/FakeInputExecutor 生成并重放 case。",
-        "runbook_manual": "把游戏停在无弹窗的局内 HUD，确保吞噬丹、非空羁绊栏和现有开关都已满足。",
+        "runbook_manual": "本局完成一次进化后，把游戏停在无弹窗的局内 HUD；背包准备吞噬丹或英雄卡。吞噬丹另需羁绊至少 4 个并开启现有开关。",
         "runbook_hands_off": "命令启动后不要点击背包槽位、黑商或中央选卡面板。",
-        "runbook_pass": "只有吞噬丹被既有 PendingAction verifier 自动确认消耗且没有重复点击，才是 Live Probe PASS；p 只留证。",
+        "runbook_pass": "吞噬丹被既有 verifier 确认消耗，或英雄卡确实打开英雄选择页，且没有重复点击，才是 Live Probe PASS；p 只留证。",
         "runbook_manual_intervention": "若目标被其他弹窗遮住或生产 FAIL，先标 FAIL；人工清理后标 MANUAL_INTERVENTION，再继续采集。",
     },
     "boss_challenge": {
@@ -212,7 +212,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
 TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     "black_merchant": {
         "production_readiness": "CONDITIONAL",
-        "scope": "同一黑商遭遇内：买吞噬丹/木材/折扣并持续刷新；背包吞噬丹走现有 verifier，神器 Q/W/E 仅按现有开关、槽位与冷却条件释放。",
+        "scope": "同一黑商遭遇内：买吞噬丹/木材/折扣并持续刷新；背包吞噬丹与英雄卡走各自现有 verifier，神器 Q/W/E 仅按现有开关、槽位与冷却条件释放。悬赏令仅留 Ground Truth。",
         "routes": (
             {"route": "black_merchant_swallow_pill", "readiness": "CONDITIONAL"},
             {"route": "black_merchant_wood", "readiness": "CONDITIONAL"},
@@ -222,8 +222,12 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     },
     "inventory_item": {
         "production_readiness": "CONDITIONAL",
-        "scope": "仅吞噬丹（WAIT_DEVOUR_DAN verifier）可优先实测。",
-        "routes": ({"route": "inventory_swallow_pill", "readiness": "CONDITIONAL"},),
+        "scope": "吞噬丹（羁绊至少 4 个 + WAIT_DEVOUR_DAN）与英雄卡（完成进化 + WAIT_HERO_CHOICE）可实测；海盗悬赏令尚无生产模板和后置验证，仅采 Ground Truth。",
+        "routes": (
+            {"route": "inventory_swallow_pill", "readiness": "CONDITIONAL"},
+            {"route": "inventory_hero_card", "readiness": "CONDITIONAL"},
+            {"route": "inventory_pirate_bounty", "readiness": "BLOCKED_GROUND_TRUTH_ONLY"},
+        ),
         "ground_truth_only": False,
     },
     "boss_challenge": {
@@ -288,7 +292,7 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             "Artifact-W",
             "Artifact-E",
         },
-        "inventory_item": {"UseInventory-swallow_pill"},
+        "inventory_item": {"UseInventory-swallow_pill", "UseInventory-hero-card"},
         "boss_challenge": {"BossConfigured"},
         "secret_realm": {"OpenGreatRift", "ConfirmGreatRift"},
     }.get(target)
@@ -601,14 +605,17 @@ def _target_postcondition_snapshot(
             return {"observed": True, "state": "confirmed", "kind": "merchant_discount"}
         if "UseInventory-swallow_pill" in reason and base.get("observed") is True:
             return {"observed": True, "state": "confirmed", "kind": "inventory_swallow_pill"}
+        if "UseInventory-hero-card" in reason and base.get("observed") is True:
+            return {"observed": True, "state": "confirmed", "kind": "inventory_hero_card"}
         return {"observed": False, "state": "not_observed", "kind": reason or "merchant_target"}
 
-    # Inventory is intentionally narrowed to the historically supported
-    # swallow-pill route. A generic inventory state transition cannot claim
-    # this target's pass.
+    # Inventory pass remains limited to production routes with a real verifier.
+    # Pirate bounty orders stay Ground Truth only until their postcondition is known.
     if target == "inventory_item":
         if "UseInventory-swallow_pill" in reason and base.get("observed") is True:
             return {"observed": True, "state": "confirmed", "kind": "inventory_swallow_pill"}
+        if "UseInventory-hero-card" in reason and base.get("observed") is True:
+            return {"observed": True, "state": "confirmed", "kind": "inventory_hero_card"}
         return {"observed": False, "state": "not_observed", "kind": reason or "inventory_swallow_pill"}
 
     # These targets are capture-only until a separate production design is
@@ -1918,6 +1925,10 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
     retaining the exact production handler for all subsequent decisions.
     """
     now = time.time()
+    if target in {"black_merchant", "inventory_item"}:
+        # Target probes start after the operator has fulfilled the existing
+        # evolution prerequisite; production still decides whether an item matches.
+        med._evolve_ok_this_cycle = True
     if target == "black_merchant":
         # A black-merchant encounter necessarily occurs well after entering
         # MAIN_LINE.  A fresh probe process has no historic start timestamp,
@@ -1925,7 +1936,13 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
         med._main_line_started_at = now - 30.0
         return {
             "main_line_started_at": "probe_start_minus_30s",
-            "reason": "target starts in an established in-game HUD; existing artifact handler retains all slot/cooldown gates",
+            "evolve_ok_this_cycle": True,
+            "reason": "target starts in an established in-game HUD after one evolution; existing inventory/artifact handlers retain their recognition and cooldown gates",
+        }
+    if target == "inventory_item":
+        return {
+            "evolve_ok_this_cycle": True,
+            "reason": "operator start condition confirms one completed evolution; existing inventory handler retains all recognition and postcondition gates",
         }
     if target != "secret_realm":
         return {}

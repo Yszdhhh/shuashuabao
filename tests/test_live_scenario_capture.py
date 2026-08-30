@@ -462,6 +462,38 @@ def test_black_merchant_probe_bootstrap_records_established_game_time() -> None:
 
     assert bootstrap["main_line_started_at"] == "probe_start_minus_30s"
     assert med._main_line_started_at is not None
+    assert med._evolve_ok_this_cycle is True
+
+
+def test_inventory_probe_bootstrap_allows_existing_hero_card_route() -> None:
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT, stop_signal=StopSignal())
+    bootstrap = _bootstrap_target_probe(med, "inventory_item")
+
+    assert bootstrap["evolve_ok_this_cycle"] is True
+    assert med._evolve_ok_this_cycle is True
+    assert _capture_input_guard("inventory_item", "target_handler")("click", "UseInventory-hero-card") is None
+
+
+def test_inventory_hero_card_requires_existing_postcondition_for_probe_pass() -> None:
+    confirmed = live_capture._target_postcondition_snapshot(
+        "inventory_item",
+        None,
+        None,
+        {},
+        {"reason": "UseInventory-hero-card"},
+        {"observed": True},
+    )
+    missing = live_capture._target_postcondition_snapshot(
+        "inventory_item",
+        None,
+        None,
+        {},
+        {"reason": "UseInventory-hero-card"},
+        {"observed": False},
+    )
+
+    assert confirmed == {"observed": True, "state": "confirmed", "kind": "inventory_hero_card"}
+    assert missing["observed"] is False
 
 
 def test_failure_summary_uses_recorded_rejection_and_missing_postcondition_evidence(tmp_path: Path) -> None:

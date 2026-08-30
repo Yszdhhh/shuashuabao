@@ -249,8 +249,8 @@ $blue = [System.Drawing.Color]::FromArgb(225, 238, 250)
 $yellow = [System.Drawing.Color]::FromArgb(255, 246, 210)
 
 Add-MenuButton "1  启动前检查`r`n    只检查环境，不操作游戏" 24 170 { Invoke-Readiness } $blue
-Add-MenuButton "2  背包吞噬丹`r`n    使用并确认真的消耗" 390 170 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
-Add-MenuButton "3  黑商长测（推荐先测）`r`n    刷新/拿取/吞丹/神器 Q-W-E，最长10分钟" 24 256 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
+Add-MenuButton "2  背包道具`r`n    吞噬丹（羁绊≥4）/英雄卡" 390 170 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
+Add-MenuButton "3  黑商 + 背包长测（推荐）`r`n    刷新/拿取/吞噬丹/英雄卡/神器，最长10分钟" 24 256 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
 Add-MenuButton "4  Boss 挑战`r`n    从已打开列表选择已配置 Boss" 390 256 { Invoke-TargetProbe -Target "boss_challenge" -GroundTruthOnly $false } $green
 Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 342 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
 Add-MenuButton "6  时光之穴 Ground Truth`r`n    只记录人工链，不自动点击" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $true } $yellow

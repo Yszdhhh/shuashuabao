@@ -125,6 +125,7 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
             action = self.med._maybe_use_inventory_item(self.frame)
             self.assertEqual(action, LoopAction.Continue)
             mock_click.assert_called_once_with(hero_card_match, "UseInventory-hero-card")
+            self.assertEqual(mock_find.call_args.kwargs["threshold"], 0.65)
             self.assertIsNotNone(self.med._pending_action)
             self.assertEqual(self.med._pending_action.kind, "WAIT_HERO_CHOICE")
             self.assertEqual(self.med._pending_action.target_id, "hero_card_item")
