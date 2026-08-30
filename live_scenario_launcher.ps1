@@ -91,13 +91,8 @@ function Invoke-CaptureTool {
     Write-Host "[launcher] tool exit code: $exitCode" -ForegroundColor DarkGray
 }
 
-function Wait-ForMenu {
-    [void](Read-Host "按 Enter 返回菜单")
-}
-
 function Invoke-Readiness {
     Invoke-CaptureTool @("readiness", "--repo-root", $RepoRoot)
-    Wait-ForMenu
 }
 
 function Invoke-TargetProbe {
@@ -133,7 +128,6 @@ function Invoke-TargetProbe {
     Write-Host "[launcher] capture_root=$script:CaptureRoot" -ForegroundColor DarkGray
     Write-Host "[launcher] automation_exe=$script:AutomationExe" -ForegroundColor DarkGray
     Invoke-CaptureTool $cliArgs
-    Wait-ForMenu
 }
 
 function Get-LatestFailBundle {
@@ -164,7 +158,6 @@ function Open-LatestFailBundle {
         Write-Host "[launcher] 打开最新 FAIL bundle：$bundle" -ForegroundColor Green
         Invoke-Item -LiteralPath $bundle
     }
-    Wait-ForMenu
 }
 
 function Reproduce-LatestFail {
@@ -175,46 +168,109 @@ function Reproduce-LatestFail {
         Write-Host "[launcher] reproduce：$bundle" -ForegroundColor Cyan
         Invoke-CaptureTool @("reproduce", "--bundle", $bundle, "--repo-root", $RepoRoot)
     }
-    Wait-ForMenu
 }
 
 $script:PythonPath = Resolve-PythonPath
 $script:AutomationExe = Resolve-AutomationExe
 $script:CaptureRoot = Resolve-CaptureRoot
 
-while ($true) {
-    Write-Host ""
-    Write-Host "刷刷宝 · 实机测试菜单" -ForegroundColor White
-    Write-Host "repo: $RepoRoot" -ForegroundColor DarkGray
-    Write-Host "exe : $script:AutomationExe" -ForegroundColor DarkGray
-    Write-Host "out : $script:CaptureRoot" -ForegroundColor DarkGray
-    Write-Host ""
-    Write-Host "说明：2-5 只有 preflight 通过才会尝试操作游戏；6-7 只记录画面，不会自动点击。" -ForegroundColor Yellow
-    Write-Host "测试开始后请放开鼠标；异常时按 f 留证，需要人工绕过时先 f、再人工处理、最后按 m。" -ForegroundColor Yellow
-    Write-Host ""
-    Write-Host "1  启动前检查：看工具和运行环境是否准备好（不操作游戏）"
-    Write-Host "2  背包吞噬丹：使用后确认真的消耗，且没有重复点击"
-    Write-Host "3  黑商长测：刷新/拿丹木材2折5折，同时测背包吞噬丹与神器 Q/W/E（最长10分钟）"
-    Write-Host "4  Boss 挑战：从 Boss 列表选目标，确认真的进入目的地"
-    Write-Host "5  秘境进入：确认后必须看到真正的局内 HUD"
-    Write-Host "6  时光之穴取证：记录人工走过的完整链路，不自动点击"
-    Write-Host "7  传家宝取证：记录人工走过的完整链路，不自动选 Boss"
-    Write-Host "8  打开最近一次失败：查看最新 FAIL/BLOCKED 证据目录"
-    Write-Host "9  重放最近一次失败：离线生成并运行 Frozen Replay"
-    Write-Host "0  退出"
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+[System.Windows.Forms.Application]::EnableVisualStyles()
 
-    $choice = (Read-Host "请输入数字").Trim()
-    switch ($choice) {
-        "1" { Invoke-Readiness }
-        "2" { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false }
-        "3" { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false }
-        "4" { Invoke-TargetProbe -Target "boss_challenge" -GroundTruthOnly $false }
-        "5" { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false }
-        "6" { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $true }
-        "7" { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $true }
-        "8" { Open-LatestFailBundle }
-        "9" { Reproduce-LatestFail }
-        "0" { return }
-        default { Write-Host "请输入 0-9。" -ForegroundColor Yellow }
-    }
+$script:MenuForm = New-Object System.Windows.Forms.Form
+$script:MenuForm.Text = "刷刷宝 · Live 实机测试"
+$script:MenuForm.StartPosition = "CenterScreen"
+$script:MenuForm.Size = New-Object System.Drawing.Size(760, 720)
+$script:MenuForm.MinimumSize = New-Object System.Drawing.Size(760, 720)
+$script:MenuForm.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
+$script:MenuForm.TopMost = $true
+
+$title = New-Object System.Windows.Forms.Label
+$title.Text = "刷刷宝 Live 实机测试"
+$title.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 18, [System.Drawing.FontStyle]::Bold)
+$title.AutoSize = $true
+$title.Location = New-Object System.Drawing.Point(22, 18)
+$script:MenuForm.Controls.Add($title)
+
+$status = New-Object System.Windows.Forms.Label
+$status.Text = "点击按钮即可开始，不需要输入数字。2-5 会先通过 preflight；6-7 只取证、绝不自动点击。`r`n测试开始后放开鼠标；p=留成功证据，f=留失败证据，m=人工介入后继续。"
+$status.AutoSize = $false
+$status.Size = New-Object System.Drawing.Size(700, 58)
+$status.Location = New-Object System.Drawing.Point(24, 60)
+$status.ForeColor = [System.Drawing.Color]::FromArgb(90, 60, 0)
+$script:MenuForm.Controls.Add($status)
+
+$paths = New-Object System.Windows.Forms.Label
+$paths.Text = "EXE: $script:AutomationExe`r`n证据目录: $script:CaptureRoot"
+$paths.AutoSize = $false
+$paths.Size = New-Object System.Drawing.Size(700, 42)
+$paths.Location = New-Object System.Drawing.Point(24, 118)
+$paths.ForeColor = [System.Drawing.Color]::DimGray
+$script:MenuForm.Controls.Add($paths)
+
+function Add-MenuButton {
+    param(
+        [string]$Text,
+        [int]$Left,
+        [int]$Top,
+        [scriptblock]$Action,
+        [System.Drawing.Color]$Color = [System.Drawing.Color]::WhiteSmoke
+    )
+    $button = New-Object System.Windows.Forms.Button
+    $button.Text = $Text
+    $button.Size = New-Object System.Drawing.Size(340, 76)
+    $button.Location = New-Object System.Drawing.Point($Left, $Top)
+    $button.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $button.Padding = New-Object System.Windows.Forms.Padding(12, 0, 6, 0)
+    $button.BackColor = $Color
+    $button.Tag = $Action
+    $button.Add_Click({
+        $script:MenuForm.Hide()
+        try {
+            & $this.Tag
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show(
+                $_.Exception.Message,
+                "启动失败",
+                [System.Windows.Forms.MessageBoxButtons]::OK,
+                [System.Windows.Forms.MessageBoxIcon]::Error
+            ) | Out-Null
+        } finally {
+            $script:MenuForm.Show()
+            $script:MenuForm.Activate()
+        }
+    })
+    $script:MenuForm.Controls.Add($button)
 }
+
+$green = [System.Drawing.Color]::FromArgb(224, 244, 226)
+$blue = [System.Drawing.Color]::FromArgb(225, 238, 250)
+$yellow = [System.Drawing.Color]::FromArgb(255, 246, 210)
+
+Add-MenuButton "1  启动前检查`r`n    只检查环境，不操作游戏" 24 170 { Invoke-Readiness } $blue
+Add-MenuButton "2  背包吞噬丹`r`n    使用并确认真的消耗" 390 170 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
+Add-MenuButton "3  黑商长测（推荐先测）`r`n    刷新/拿取/吞丹/神器 Q-W-E，最长10分钟" 24 256 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
+Add-MenuButton "4  Boss 挑战`r`n    从已打开列表选择已配置 Boss" 390 256 { Invoke-TargetProbe -Target "boss_challenge" -GroundTruthOnly $false } $green
+Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 342 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
+Add-MenuButton "6  时光之穴 Ground Truth`r`n    只记录人工链，不自动点击" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $true } $yellow
+Add-MenuButton "7  传家宝 Ground Truth`r`n    只记录人工链，不自动选 Boss" 24 428 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $true } $yellow
+Add-MenuButton "8  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 390 428 { Open-LatestFailBundle } $blue
+Add-MenuButton "9  Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 24 514 { Reproduce-LatestFail } $blue
+
+$exitButton = New-Object System.Windows.Forms.Button
+$exitButton.Text = "关闭菜单"
+$exitButton.Size = New-Object System.Drawing.Size(340, 76)
+$exitButton.Location = New-Object System.Drawing.Point(390, 514)
+$exitButton.Add_Click({ $script:MenuForm.Close() })
+$script:MenuForm.Controls.Add($exitButton)
+
+$footer = New-Object System.Windows.Forms.Label
+$footer.Text = "注意：不要同时启动普通刷刷宝。点击测试按钮后，本窗口暂时隐藏，黑色日志窗口显示运行状态；测试结束后按钮菜单自动回来。"
+$footer.AutoSize = $false
+$footer.Size = New-Object System.Drawing.Size(700, 48)
+$footer.Location = New-Object System.Drawing.Point(24, 610)
+$footer.ForeColor = [System.Drawing.Color]::Firebrick
+$script:MenuForm.Controls.Add($footer)
+
+[void]$script:MenuForm.ShowDialog()
