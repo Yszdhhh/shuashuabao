@@ -4362,7 +4362,10 @@ class Mediator:
             # 选择面板存在时，战后独占页（胜利/传家宝/大秘境/存档/广场）不可能与
             # 局内选择面板同时出现：跳过剩余战后扫描（N2.4：提前到 victory 锚点
             # 之前，选择 tick 不再每 tick 扫战后库；PAUSED 已先行检查不受影响）。
-            if self._selection_anchor(frame):
+            # 战后链已接管时，存档卡上的“技能挑战”图案会命中局内
+            # skill_panel 模板。此时必须继续扫描战后专属锚点，否则
+            # ARCHIVE_PANEL 永远不会分类，八卡点击分支也无法到达。
+            if self._selection_anchor(frame) and not self._post_game_pending:
                 return None
 
             # 1) Victory: continue button is unique to the victory modal.

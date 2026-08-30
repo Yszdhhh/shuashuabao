@@ -239,6 +239,15 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual([p[0] for p in points[:4]], sorted(p[0] for p in points[:4]))
         self.assertLess(points[0][1], points[4][1])
 
+    def test_pending_archive_panel_beats_skill_panel_false_positive(self):
+        """Archive's skill card must not hide the post-game panel classifier."""
+        med = Mediator(Settings(), ROOT)
+        med._post_game_pending = True
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+
+        with patch.object(med, "_selection_anchor", return_value=object()):
+            self.assertEqual(med._post_game_state(frame), "ARCHIVE_PANEL")
+
     def test_post_game_boss_search_scrolls_before_observing_lower_rows(self):
         """A lower archive-list Boss is searched only after a bounded list scroll."""
         med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
