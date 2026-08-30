@@ -11,6 +11,7 @@ import hashlib
 from pathlib import Path
 import shutil
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -59,6 +60,16 @@ def _fixture_frame() -> Frame:
     image = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
     assert image is not None
     return Frame(image, window_title="英雄三国KK", hwnd=10001, role="l1")
+
+
+def test_live_probe_defaults_to_existing_official_operator_settings() -> None:
+    configured = Settings(cjb_boss="54莫阿姆", sgzx_boss="10吞噬者芬鲁斯")
+    with patch.object(Settings, "load_official", return_value=configured) as load:
+        settings = live_capture._prepare_settings(None, "boss_challenge", live_input=True)
+    load.assert_called_once_with()
+    assert settings.cjb_boss == "54莫阿姆"
+    assert settings.sgzx_boss == "10吞噬者芬鲁斯"
+    assert settings.dry_run is False
 
 
 def test_bundle_saves_static_pixels_once_and_scrubs_password(tmp_path: Path) -> None:

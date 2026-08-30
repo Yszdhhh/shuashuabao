@@ -1892,8 +1892,17 @@ def _capture_input_guard(target: str, execution_mode: str) -> Callable[[str, str
     return guard
 
 
+def _load_operator_settings(path: Path | None) -> Settings:
+    if path is not None:
+        return Settings.load(path)
+    try:
+        return Settings.load_official()
+    except (FileNotFoundError, OSError, TypeError, ValueError):
+        return Settings()
+
+
 def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Settings:
-    settings = Settings.load(path) if path else Settings()
+    settings = _load_operator_settings(path)
     # A Ground Truth-only target remains zero-input even when an operator
     # accidentally supplied --live-input. Never turn a production flag on in
     # the adapter; the recorded settings must be the operator's real settings.
@@ -2981,7 +2990,7 @@ def main(argv: list[str] | None = None) -> int:
                 variants=raw_variants,
             ) == 0 else 1
         if args.command == "readiness":
-            settings = Settings.load(args.settings) if args.settings else None
+            settings = _load_operator_settings(args.settings)
             report = readiness_report(
                 repo_root=args.repo_root,
                 settings=settings,
