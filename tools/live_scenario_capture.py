@@ -130,20 +130,21 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "boss_challenge": {
         "handler": "_maybe_challenge_configured_boss",
         "call": "frame_now",
-        "start_condition": "已打开 boss_entry 对应的 Boss 列表；现有 cjb_boss/sgzx_boss 中只保留本次要测的一个已配置 Boss。tqtz→SGZX 可作为同一既有 handler 的条件性路线采样。",
-        "production_entry": "Mediator._maybe_challenge_configured_boss(frame, time.time())",
+        "start_condition": "完整整链：从仍在运行的局内 HUD 交给现有 Mediator.tick()，让 tqtz→Boss→结算自然发生；若只做局部复验，也可人工打开 boss_entry 列表并使用本 target 的窄探针。现有 cjb_boss/sgzx_boss 中只保留本次要测的一个 Boss。",
+        "production_entry": "整链 capture 使用现有 Mediator.tick()（包含既有 tqtz/early-challenge/post-game 分支）；局部 probe 只调用 Mediator._maybe_challenge_configured_boss(frame, time.time())。",
         "expected_steps": (
             "ENTRY_VISIBLE", "CLICK", "TRANSITION", "DESTINATION_CONFIRMED",
+            "POSTGAME_DETECT", "HEIRLOOM_SAFE_CLOSE", "TIME_CAVE_GROUND_TRUTH",
         ),
-        "success_postcondition": "配置 Boss 卡确实消失或进入目标挑战/局内 HUD；单次 BossConfigured click success 不是成功。",
-        "fail_condition": "boss_entry 可见但配置 Boss 未命中、输入被拒绝、入口/目标页不变，或生产 handler 进入 ERROR。",
-        "blocked_condition": "capture 无效、Boss 列表未打开，或没有唯一的已配置 Boss。",
+        "success_postcondition": "配置 Boss 卡确实消失并由真实目标挑战/局内 HUD 确认；整链中传家宝安全关闭和时光之穴人工节点只作为证据边界，单次 BossConfigured click success 不是成功。",
+        "fail_condition": "boss_entry 可见但配置 Boss 未命中、输入被拒绝、入口/目标页不变，整链生产 handler 进入 ERROR，或战后转场在已知后置窗口内未确认。",
+        "blocked_condition": "capture 无效、完整整链未从局内 HUD 开始、局部 probe 时 Boss 列表未打开，或没有唯一的已配置 Boss；时光之穴/传家宝选择动作仍为生产 BLOCKED，只能 Ground Truth。",
         "max_probe_time_s": 20.0,
-        "natural_e2e_eligible": "仅连续 mediator_tick 实机链、挑战目的地已由现有生产状态确认、且无 FAIL/MANUAL_INTERVENTION bookmark 时仍有资格；probe 本身不算 Natural E2E。",
-        "bundle_replay": "入口、点击和转场的事件帧直接转换为现有 schema-v1 replay case，并注入拒绝/不变/缺后置/超时分支。",
-        "runbook_manual": "先打开目标 Boss 列表，并在设置里仅保留本次要测的一个 Boss。",
-        "runbook_hands_off": "启动后不要点 Boss 卡、返回按钮或开始挑战。",
-        "runbook_pass": "只有代码自动确认 Boss 目的地/局内 HUD 才是 Live Probe PASS；p 只保存人工证据。",
+        "natural_e2e_eligible": "只有从局内 HUD 开始的连续 mediator_tick 整链、Boss 目的地由真实状态确认、且无 FAIL/MANUAL_INTERVENTION bookmark 时仍有资格；局部 probe 不算 Natural E2E。",
+        "bundle_replay": "整链 capture 与局部 probe 都复用现有 schema-v1 ReplayCaseLoader；入口、点击、结算边界和转场按事件帧转换，并用 FakeInputExecutor/FakeClock 注入四种故障。",
+        "runbook_manual": "整链测试：把游戏留在局内 HUD，确认只配置一个 cjb_boss 或 sgzx_boss，等待脚本从 tqtz/既有 Boss 入口接管；局部复验才人工打开 Boss 列表。",
+        "runbook_hands_off": "启动后不要点 tqtz、Boss 卡、结算页、传家宝或时光之穴页面；当前阻断页面只留证，不人工替生产点选。",
+        "runbook_pass": "整链只有自动确认 Boss 目的地/局内 HUD 才是 Live Probe PASS；传家宝安全关闭、时光之穴人工链只产生 Ground Truth；p 只保存人工证据。",
         "runbook_manual_intervention": "若需要手动越过列表/弹窗，先留 FAIL，再操作并标 MANUAL_INTERVENTION。",
     },
     "time_cave": {
@@ -232,7 +233,7 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     },
     "boss_challenge": {
         "production_readiness": "CONDITIONAL",
-        "scope": "已配置 Boss 列表与 tqtz→SGZX 只作为条件性既有 handler 路线。",
+        "scope": "整链 capture 复用现有 Mediator.tick()，覆盖 tqtz→配置 Boss→转场→战后边界；已配置 Boss 列表 probe 与 tqtz→SGZX 仍只按条件性既有 handler 验证。时光之穴/传家宝选择保持 Ground Truth-only。",
         "routes": (
             {"route": "configured_boss", "readiness": "CONDITIONAL"},
             {"route": "tqtz_to_sgzx", "readiness": "CONDITIONAL"},
@@ -2861,7 +2862,15 @@ def _print_runbook(target: str | None = None) -> None:
         fact = _production_fact(name)
         print(f"[{name}]")
         print(f"1. 手动做到：{contract['runbook_manual']}")
-        if fact["production_readiness"] == "BLOCKED":
+        if name == "boss_challenge":
+            print(
+                "2. 执行：python tools/live_scenario_capture.py capture "
+                f"--target {name} --out C:/tmp/shuabao-captures "
+                "--duration 600 --max-ticks 5000 "
+                "--automation-exe C:/path/to/ShuaBao.exe --live-input "
+                "--confirm-live-input --continue-after-failure --generate"
+            )
+        elif fact["production_readiness"] == "BLOCKED":
             print(
                 "2. 执行：python tools/live_scenario_capture.py probe "
                 f"--target {name} --out C:/tmp/shuabao-captures "

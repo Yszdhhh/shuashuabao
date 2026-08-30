@@ -23,7 +23,7 @@ offline replay path. It never means production behavior is wired or allowed.
 | --- | --- | --- | --- |
 | `black_merchant` | READY | CONDITIONAL | One integrated encounter: an empty strip refreshes first, then the existing handler can take swallow pill / wood; refresh alone is not PASS. |
 | `inventory_item` | READY | CONDITIONAL | Swallow pill only, using the existing `WAIT_DEVOUR_DAN` verifier. |
-| `boss_challenge` | READY | CONDITIONAL | Configured Boss and `tqtz → SGZX` existing-handler routes. |
+| `boss_challenge` | READY | CONDITIONAL | One existing `Mediator.tick()` bundle for `tqtz → configured Boss → post-game` evidence; time-cave/heirloom boundaries remain Ground Truth-only. A narrow configured-Boss probe is still available from an already-open list. |
 | `time_cave` | READY | BLOCKED | Postgame time-cave NPC is not wired; complete human-chain Ground Truth only. |
 | `heirloom` | READY | BLOCKED | Boss selection is not wired; current production only verifies safe close; Ground Truth only. |
 | `secret_realm` | READY | CONDITIONAL | Existing `OpenGreatRift` / `ConfirmGreatRift` only; success requires real HUD plus `_secret_realm_active=True`. |
@@ -79,8 +79,13 @@ contract with `contracts --target <target>`.
   recognized target purchase and its existing business postcondition.
 - `inventory_item`: `DETECT_SLOT → IDENTIFY → USE → VERIFY_CONSUMED →
   VERIFY_NO_REPEAT`. Only the swallow-pill route can pass.
-- `boss_challenge`: `ENTRY_VISIBLE → CLICK → TRANSITION →
-  DESTINATION_CONFIRMED`. A click result alone never passes.
+- `boss_challenge`: the integrated capture uses the existing
+  `Mediator.tick()` route (`tqtz → configured Boss → transition → post-game`);
+  its local diagnostic stages remain `ENTRY_VISIBLE → CLICK → TRANSITION →
+  DESTINATION_CONFIRMED`, and the same bundle records the existing safe-close
+  `heirloom` boundary plus the zero-input `time_cave` Ground Truth boundary.
+  A click result alone never passes. The already-open-list `probe` remains a
+  narrow `_maybe_challenge_configured_boss()` check.
 - `time_cave` / `heirloom`: `POSTGAME_DETECT → ENTRY_VISIBLE →
   CLICK/REQUEST → CONFIRM → TRANSITION → DESTINATION_CONFIRMED` are retained
   as diagnostic labels for human Ground Truth. No production input is sent and
