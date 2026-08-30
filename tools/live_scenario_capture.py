@@ -1971,6 +1971,33 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
     }
 
 
+def _bootstrap_direct_boss_postgame_start(
+    med: Mediator, target: str, frame: Frame
+) -> dict[str, Any]:
+    """Accept an already-open archive panel as a boss capture start state.
+
+    This is capture setup only: the page is classified by the existing
+    Mediator post-game classifier, then the normal ``Mediator.tick()`` path is
+    allowed to run. No Boss recognition, scrolling, or click policy lives here.
+    """
+    if target != "boss_challenge" or getattr(med, "_post_game_pending", False):
+        return {}
+    if not _frame_is_valid(frame):
+        return {}
+    if med._post_game_state(frame) != "ARCHIVE_PANEL":
+        return {}
+    med._post_game_pending = True
+    med._post_game_route = "archive"
+    med._boss_challenge_attempts = 0
+    med._boss_challenge_scroll_attempts = 0
+    med._boss_challenge_next_at = 0.0
+    return {
+        "post_game_pending": True,
+        "post_game_route": "archive",
+        "reason": "operator started with an already classified archive challenge panel; existing Mediator.tick() handles the configured Boss",
+    }
+
+
 def _require_live_confirmation(live_input: bool, confirmed: bool) -> None:
     if live_input and not confirmed:
         raise ValueError("启用 --live-input 必须同时传 --confirm-live-input；默认 probe/capture 为 dry-run")
@@ -2107,6 +2134,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     def capture_for_tick(reason: str = "") -> Frame:
         frame = original_see(reason)
         current_frame["value"] = _copy_frame(frame)
+        direct_start = _bootstrap_direct_boss_postgame_start(med, target, frame)
+        if direct_start:
+            recorder.manifest["capture_bootstrap"] = direct_start
+            recorder._write_manifest()
         return frame
 
     def process_bookmarks() -> None:
