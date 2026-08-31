@@ -677,6 +677,15 @@
       padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 10px; color: var(--p-ink);
     }
     .sheet.pick { width: min(560px, 100%); }
+    .sheet.subscription { width: min(480px, 100%); padding: 0; overflow: hidden; }
+    .subscription-head { padding: 18px 20px 14px; background: linear-gradient(135deg, var(--p-blue), color-mix(in oklab, var(--p-blue) 68%, var(--p-gold))); color: #fff; }
+    .subscription-head p { margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; opacity: .84; }
+    .subscription-head h2 { margin: 0; font-size: 18px; }
+    .subscription-body { padding: 18px 20px 8px; }
+    .subscription-body label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; color: var(--p-ink); }
+    .subscription-body input { width: 100%; box-sizing: border-box; min-height: 42px; padding: 9px 11px; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-paper); color: var(--p-ink); font: 600 14px ui-monospace, Consolas, monospace; }
+    .subscription-body small { display: block; margin-top: 9px; color: var(--p-muted); line-height: 1.5; }
+    .subscription-nav { display: flex; align-items: center; gap: 8px; padding: 12px 20px 18px; }
     .sheet-head { display: flex; align-items: center; gap: 10px; }
     .sheet-head h2 { margin: 0; font-size: 15px; line-height: 1.35; }
     .sheet-cap { margin-left: auto; font-size: 11px; color: var(--p-muted); }
@@ -1044,6 +1053,7 @@
             <span class="status-pill chrome-wide" id="statusPill"><span class="dot"></span>待命</span>
             <span class="games chrome-wide" id="gamesMeter" aria-live="polite">今日 <b id="gamesToday">0</b> / <b id="gamesCap">100</b></span>
             <div class="grow"></div>
+            <span class="subscription-pill chrome-wide" id="subscriptionPill" style="display:inline-flex; align-items:center; height:24px; padding:0 12px; border-radius:12px; font-size:12px; font-weight:600; color:var(--accent); background:color-mix(in oklab, var(--accent) 12%, transparent); border:1px solid color-mix(in oklab, var(--accent) 28%, transparent); margin-right:8px;">订阅：未激活</span>
             <button type="button" class="icon-btn chrome-wide" id="btnTheme" aria-pressed="false" aria-label="切换深色浅色">深色</button>
             <button type="button" class="icon-btn" id="btnWizard">快速开局</button>
             <button type="button" class="win-btn" id="btnMin" aria-label="最小化">─</button>
@@ -1182,6 +1192,7 @@
           </div>
           <footer class="footer" id="footer">
             <button type="button" class="ghost-btn solid" id="btnSwitchMode">切换运行方式</button>
+            <button type="button" class="ghost-btn solid" id="btnActivateKey">输入卡密</button>
             <button type="button" class="ghost-btn solid" id="btnMore" aria-expanded="false" aria-controls="drawer">更多设置</button>
             <span class="grow"></span>
             <span class="err-inline" id="startErr" role="alert"></span>
@@ -1245,8 +1256,6 @@
     const CJB_STEMS = ["01暴掠龙","02血腥猛犸","03洛卡纳哈","04克雷什之父","05撼地兽","06鳄王","07古龙龟","08战争雷霆蜥蜴","09钦原","10马格纳斯","11嗜血的索克","12战争之王","13蛇王纳什","14青蛙之神","15猛虎之神","16阿迦玛甘","17年兽","18乌索克","19玛洛恩","20鲁克玛"];
     const BOSS_STEMS = ["01霍格","02祈求着耶戈什","03曲奇","04大范","05克雷什","06吞噬者穆坦努斯","07大法师阿鲁高","08巨形缝合怪","09摩拉迪姆","10吞噬者芬鲁斯","11瑟玛普拉格","12卡尔加","13寒冰巫妖","14虎王邦加拉什","15莫格莱尼","16怀特迈恩","17阿扎达斯","18瑟莱德丝公主","19加兹瑞拉","20伊兰尼库斯之影","21索瑞森大帝","22维姆萨拉克","23巴纳扎尔","24瑞文戴尔男爵","25黑暗院长加林","26达基萨斯将军","27戈多克大王","28加兹兰卡","29血神哈卡","30火焰行者","31巨石火人","32吞噬者图恩","33玛格曼达","34加尔","35火牛贝利尔","36迦顿男爵","37超大熔岩巨人","38管理者","39拉格纳罗斯","40费尔默","41埃博诺克","42弗莱格尔","43堕落的红龙","44狂野的拉格佐尔","45寒冰将军格尔","46暮光将军佐拉","47狂龙萨兹拉克","48龙巢守护者","49克洛玛古斯","50奥妮克希亚","51奈法利安","52库林纳克斯","53拉贾克斯将军","54莫阿姆","55吞咽者布鲁"];
     const TEXT_STEMS = new Set(["38管理者","44狂野的拉格佐尔","45寒冰将军格尔","46暮光将军佐拉","47狂龙萨兹拉克"]);
-    const STAGE_BOSS = {"1-1":"大范","1-2":"吞噬者穆坦努斯","1-3":"大法师阿鲁高","1-4":"巨形缝合怪","1-5":"摩拉迪姆","1-6":"瑟玛普拉格","1-7":"卡尔加","1-8":"寒冰巫妖","1-9":"虎王邦加拉什","1-10":"怀特迈恩","1-11":"阿扎达斯","1-12":"瑟莱德丝公主","1-13":"加兹瑞拉","1-14":"伊兰尼库斯之影","1-15":"索瑞森大帝","1-16":"维姆萨拉克","1-17":"巴纳扎尔","1-18":"瑞文戴尔男爵","1-19":"黑暗院长加林","1-20":"达基萨斯将军","1-21":"戈多克大王","1-22":"加兹兰卡","1-23":"血神哈卡","2-1":"玛格曼达","2-2":"加尔","2-3":"火牛贝利尔"};
-    const STAGE_CJB = {"1-8":"暴掠龙","1-9":"血腥猛犸","1-10":"洛卡纳哈","1-12":"克雷什之父","1-16":"撼地兽","1-17":"鳄王","1-18":"古龙龟","1-20":"战争雷霆蜥蜴","1-23":"钦原","2-1":"马格纳斯","2-2":"嗜血的索克","2-3":"战争之王"};
     const STAGE_MAX = {1:23,2:7,3:9,4:3};
     const NEG = [
       { name:"透支力量", effect:"全属性增幅+120%。本局每获得一个宝物，宝物效果-10%（之前获得的也计算在内）。", why:"越拿越亏：后续宝物收益被持续抽走。" },
@@ -1456,7 +1465,7 @@
         const options = advancedOrder.map((item) => `<button type="button" role="option" data-adv-pick="${item.id}" data-adv-slot="${index}" aria-selected="${item.id===pack.id}">${item.label}</button>`).join("");
         return `<div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第${index+1}优先级 ${pack.label}"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><em>第${index+1}优先级</em><i>▾</i></button><div class="dd-menu" role="listbox">${options}</div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===last ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`;
       }).join("");
-      return `<div class="adv-priority" data-od-id="advanced-pack-priority"><span class="adv-priority-label">高级</span><div class="adv-priority-list">${rows}</div></div>`;
+      return `<div class="adv-priority" data-od-id="advanced-pack-priority"><div class="adv-priority-list">${rows}</div></div>`;
     }
     function renderBonds() {
       const packById = Object.fromEntries(ADV.map((pack)=>[pack.id, pack]));
@@ -1608,11 +1617,11 @@
       $("negatives").innerHTML=NEG.map((card)=>`<label class="neg-item"><input type="checkbox" data-neg="${card.name}" ${state.negative.has(card.name)?"checked":""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span><span class="why">${card.why}</span></span></label>`).join("");
     }
     function renderNames() { $("cjbName").textContent=stemLabel(state.cjb); $("bossName").textContent=stemLabel(state.boss); renderLaunchSummary(); }
-    function recommendChallenges() {
-      const key=`${state.chapter}-${state.stage}`;
-      const boss=findStem(BOSS_STEMS, STAGE_BOSS[key]||""); if (boss) state.boss=boss;
-      const cjb=findStem(CJB_STEMS, STAGE_CJB[key]||""); if (cjb) state.cjb=cjb;
-      renderNames();
+    function openSubscriptionModal() {
+      state.modal="subscription"; state._focusBack=document.activeElement;
+      $("modalSheet").className="sheet subscription";
+      $("modalSheet").innerHTML=`<div class="subscription-head"><p>刷刷宝 · 订阅授权</p><h2>输入卡密以激活本机</h2></div><div class="subscription-body"><label for="subscriptionKey">订阅卡密<input id="subscriptionKey" type="password" autocomplete="off" placeholder="请输入本地生成的卡密" /></label><small>卡密会绑定到当前 Windows 用户；未通过授权时无法开始自动运行。</small></div><div class="subscription-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-activate-subscription="1">激活并继续</button></div>`;
+      $("modalLayer").classList.add("show"); focusSheet();
     }
     function setKind(kind, root) {
       root.querySelectorAll("[data-kind]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.kind===kind?"true":"false"));
@@ -1686,8 +1695,8 @@
         const opt=e.target.closest("[data-dd-val]");
         if (opt) {
           const kind=dd.dataset.dd, val=Number(opt.dataset.ddVal); dd.classList.remove("open");
-          if (kind==="chapter") { state.chapter=val; state.stage=Math.min(state.stage, STAGE_MAX[val]); recommendChallenges(); renderPrestige(); }
-          if (kind==="stage") { state.stage=val; recommendChallenges(); renderPrestige(); }
+          if (kind==="chapter") { state.chapter=val; state.stage=Math.min(state.stage, STAGE_MAX[val]); renderPrestige(); }
+          if (kind==="stage") { state.stage=val; renderPrestige(); }
           renderChapterStage(); refreshSummary();
         }
       }
@@ -1883,7 +1892,7 @@
         else if (!e.shiftKey && document.activeElement===last) { e.preventDefault(); first.focus(); }
       }
     });
-    renderChapterStage(); recommendChallenges(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
+    renderChapterStage(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
     setScene("farm");
   </script>
     <script type="module" src="./src/main.ts"></script>

@@ -14,9 +14,18 @@ RunnerService（§6.3）。禁止直接触碰 api_server / runtime_mediator。
 
 from __future__ import annotations
 
+import os
 import json
 from pathlib import Path
 from typing import Any, Callable
+from shuabao.subscription_client import (
+    SUBSCRIPTION_LICENSE_KEY_ENV,
+    activate_device,
+    check_start_permission,
+    load_saved_license_key,
+    save_license_key,
+    validate_entitlement,
+)
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
 
@@ -82,6 +91,9 @@ class DashboardFacade(QObject):
         self._poll.timeout.connect(self._poll_runtime)
         self._last_run_json = ""
         self._path = user_settings_path(self.app_data)
+        saved_key = load_saved_license_key(self.app_data)
+        if saved_key:
+            os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = saved_key
         raw = self._read_bundle()
         self._shell: dict[str, Any] = dict(raw.get("_shell") or {})
         self._settings = Settings._from_dict(
@@ -160,6 +172,19 @@ class DashboardFacade(QObject):
             },
             "treasure": {"negative_allowlist": list(self._settings.treasure_allow_negative)},
         }
+    def _subscription_dto(self) -> dict[str, Any]:
+        key = str(os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or "").strip()
+        if not key:
+            return {"active": False, "status": "未激活", "expires_at": ""}
+        try:
+            val = validate_entitlement(key)
+            valid = bool(val.get("valid")) and val.get("can_start_runner") is True
+            status = str(val.get("status") or ("正常" if valid else "未激活"))
+            expires_at = str(val.get("expires_at") or "")
+            return {"active": valid, "status": status, "expires_at": expires_at}
+        except Exception:
+            return {"active": False, "status": "待校验", "expires_at": ""}
+
     def _snapshot_dto(self, request_id: str | None = None) -> dict[str, Any]:
         self._snapshot_seq += 1
         return {
@@ -171,6 +196,7 @@ class DashboardFacade(QObject):
             "shell": self._shell_dto(),
             "modes": self._modes_dto(),
             "run": self._run_dto(),
+            "subscription": self._subscription_dto(),
         }
 
     def _rpc_response(self, ok: bool, request_id: str | None = None, **body: Any) -> dict[str, Any]:
@@ -412,6 +438,11 @@ class DashboardFacade(QObject):
         if not pre["ok"]:
             return json.dumps(self._rpc_response(False, error=pre["blocked_reason"]),
                               ensure_ascii=False)
+        permission = check_start_permission()
+        if not permission.allowed:
+            return json.dumps(self._rpc_response(
+                False, error=permission.message or "订阅未授权，无法启动",
+            ), ensure_ascii=False)
         payload = json.loads(mode_id_json) if isinstance(mode_id_json, str) and mode_id_json.strip().startswith("{") else {"mode_id": mode_id_json}
         expected_rev = payload.get("expected_settings_revision")
         if expected_rev is not None and int(expected_rev) != self._settings_revision:
@@ -448,6 +479,37 @@ class DashboardFacade(QObject):
         except Exception as exc:
             return json.dumps(self._rpc_response(False, error=str(exc)), ensure_ascii=False)
         return json.dumps(self._rpc_response(True), ensure_ascii=False)
+    @Slot(str, result=str)
+    def activate_subscription(self, key_json: str) -> str:
+        key = self._parse_keyed(key_json, "key") or ""
+        key = key.strip()
+        if not key:
+            return json.dumps(self._rpc_response(False, message="卡密不能为空"), ensure_ascii=False)
+        try:
+            act = activate_device(key)
+            if not act.get("ok"):
+                err = str(act.get("message") or act.get("error") or "设备激活失败")
+                return json.dumps(self._rpc_response(False, message=err), ensure_ascii=False)
+            val = validate_entitlement(key)
+            valid = bool(val.get("valid")) and val.get("can_start_runner") is True
+            status = str(val.get("status") or ("正常" if valid else "未激活"))
+            expires_at = str(val.get("expires_at") or "")
+            if valid:
+                os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = key
+                if not save_license_key(self.app_data, key):
+                    return json.dumps(self._rpc_response(False, message="卡密验证成功，但本机保存失败"), ensure_ascii=False)
+            sub = {"active": valid, "status": status, "expires_at": expires_at}
+            self.snapshot_changed.emit(json.dumps(self._snapshot_dto(), ensure_ascii=False))
+            return json.dumps(self._rpc_response(
+                valid,
+                subscription=sub,
+                status=status,
+                expires_at=expires_at,
+                message=f"激活成功！到期时间: {expires_at[:10] if len(expires_at)>=10 else expires_at}" if valid else f"状态: {status}",
+            ), ensure_ascii=False)
+        except Exception as exc:
+            return json.dumps(self._rpc_response(False, message=f"激活异常: {exc}"), ensure_ascii=False)
+
 
     def _on_status_updated(self, running: bool, phase: str, game_count: int,
                            terminal_reason: str, ocr_status: str,

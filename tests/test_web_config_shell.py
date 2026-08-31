@@ -426,7 +426,7 @@ def test_missing_webengine_raises_loudly(monkeypatch):
             spec.loader.exec_module(module)
 
 
-# ------------------------------------------------------ desktop_app 环境切换（§9）
+# ------------------------------------------------------ desktop_app 正式入口（§9）
 
 
 def _run_main(tmp_path: Path, env_value: str | None):
@@ -460,7 +460,7 @@ def _run_main(tmp_path: Path, env_value: str | None):
     return native_mock, web_shell_mock
 
 
-def test_entry_web_env_uses_web_shell(tmp_path):
+def test_entry_uses_the_web_dashboard_by_default(tmp_path):
     mw, wc = _run_main(tmp_path, "web")
     wc.assert_called_once()
     kwargs = wc.call_args.kwargs
@@ -473,14 +473,14 @@ def test_entry_web_env_uses_web_shell(tmp_path):
     ("env_value", "uses_web"),
     ((None, True), ("web", True), ("native", False), ("NATIVE", False), ("weird", True)),
 )
-def test_entry_shell_router_keeps_web_default_and_native_escape_hatch(tmp_path, env_value, uses_web):
-    """Web 壳是正式默认入口；只有显式 native 才允许旧窗口接管。"""
+def test_entry_uses_web_dashboard_except_explicit_native_compatibility(tmp_path, env_value, uses_web):
+    """正式版固定 Web；只有显式 native 才能进入历史兼容看板。"""
     mw, wc = _run_main(tmp_path, env_value)
     if uses_web:
         wc.assert_called_once()
         mw.assert_not_called()
     else:
-        mw.assert_called_once()
+        mw.assert_called_once_with(app_data=tmp_path)
         wc.assert_not_called()
 
 

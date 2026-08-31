@@ -78,6 +78,17 @@ class DesktopPanelTests(unittest.TestCase):
         ):
             self.assertNotIn(removed_text, panel_text)
 
+    def test_native_dashboard_keeps_subscription_status_and_key_entry_visible(self):
+        self.assertEqual(self.window.btn_activate_subscription.text(), "输入卡密")
+        self.assertEqual(self.window.lbl_subscription.text(), "订阅：未激活")
+        self.window._apply_subscription_result({
+            "valid": True,
+            "can_start_runner": True,
+            "status": "ACTIVE",
+            "expires_at": "2027-08-31T14:56:58Z",
+        })
+        self.assertEqual(self.window.lbl_subscription.text(), "订阅至 2027-08-31")
+
     def test_external_hud_uses_status_context_and_stays_outside_game_frame(self):
         hud = OverlayHud()
         try:
@@ -1119,7 +1130,7 @@ class DesktopPanelTests(unittest.TestCase):
         from shuabao.shell.main_window import TREASURE_UI_HIDDEN
 
         self.assertEqual(
-            sorted(name for name in DEFAULT_NEGATIVE_NAMES if name not in TREASURE_UI_HIDDEN),
+            sorted((set(DEFAULT_NEGATIVE_NAMES) | {"压制"}) - TREASURE_UI_HIDDEN),
             sorted(self.window.grp_negative._boxes),
         )
 

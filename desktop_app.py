@@ -57,6 +57,9 @@ def _handle_unhandled_exception(exc_type, exc_value, exc_traceback):
 
 def main():
     global _INSTANCE_LOCK
+    # 正式桌面入口必须校验订阅；测试/诊断可显式设置 off 或 shadow。
+    had_subscription_mode = "SHUABAO_SUBSCRIPTION_MODE" in os.environ
+    os.environ.setdefault("SHUABAO_SUBSCRIPTION_MODE", "enforce")
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(True)
     logo_ico = ROOT / "assets" / "branding" / "app_logo.ico"
@@ -72,6 +75,8 @@ def main():
     _INSTANCE_LOCK.removeStaleLockFile()
     if not _INSTANCE_LOCK.tryLock(100):
         QMessageBox.information(None, APP_NAME, "程序已经在运行。若刚才已关掉窗口，请等几秒再开，或结束任务管理器里的 pythonw.exe。")
+        if not had_subscription_mode:
+            os.environ.pop("SHUABAO_SUBSCRIPTION_MODE", None)
         return
 
     # 旧数据目录一次性合并（幂等、只复制、不覆盖、不删源）；失败不阻塞启动。
@@ -81,19 +86,21 @@ def main():
             LOGGER.info("[迁移] 目标=%s 合并 %d 项: %s", APP_DATA, len(migrated), ", ".join(migrated[:10]))
     except Exception:
         LOGGER.exception("[迁移] 旧目录合并失败（忽略，继续启动）")
-    # §9 ShellRouter：默认走 Web 壳；若显式设置 SHUABAO_SHELL=native 则回退 Native 窗口。
-    shell_choice = os.environ.get("SHUABAO_SHELL", "web").strip().lower()
-    if shell_choice != "native":
-        try:
-            from shuabao.shell.web_config_shell import WebConfigShell
-            window = WebConfigShell(app_data=APP_DATA, root=ROOT)
-        except Exception:
-            LOGGER.exception("[启动] Web 壳启动异常，自动降级至 Native 窗口")
+    try:
+        # 正式入口是 OD12 Web 看板；原生窗只保留给显式兼容诊断。Web 壳失败必须
+        # 直接暴露错误，不能静默改成历史界面。
+        shell_choice = os.environ.get("SHUABAO_SHELL", "web").strip().lower()
+        if shell_choice == "native":
             window = MainWindow(app_data=APP_DATA)
-    else:
-        window = MainWindow(app_data=APP_DATA)
-    window.show()
-    sys.exit(app.exec())
+        else:
+            from shuabao.shell.web_config_shell import WebConfigShell
+
+            window = WebConfigShell(app_data=APP_DATA, root=ROOT)
+        window.show()
+        sys.exit(app.exec())
+    finally:
+        if not had_subscription_mode:
+            os.environ.pop("SHUABAO_SUBSCRIPTION_MODE", None)
 
 if __name__ == "__main__":
     main()

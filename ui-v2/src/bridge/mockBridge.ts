@@ -220,5 +220,8 @@ export function createMockBridge(): DashboardBridge {
     async set_window_layout() {
       return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
+    async activate_subscription() {
+      return { ok: true, message: "测试卡密激活成功", status: "正常", expires_at: "2026-09-30" };
+    },
   };
 }

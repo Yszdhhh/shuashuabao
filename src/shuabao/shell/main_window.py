@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QGraphicsOpacityEffect,
@@ -42,7 +43,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QListWidget,
-    QListWidgetItem,
     QListView,
     QPushButton,
     QRadioButton,
@@ -54,6 +54,15 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shuabao.subscription_client import (
+    SUBSCRIPTION_LICENSE_KEY_ENV,
+    activate_device,
+    check_start_permission,
+    load_saved_license_key,
+    save_license_key,
+    subscription_mode,
+    validate_entitlement,
+)
 from shuabao.shell.pet_hud import FloatingPetHud
 from shuabao.shell.theme_styles import (
     apply_app_palette,
@@ -62,6 +71,7 @@ from shuabao.shell.theme_styles import (
     official_build_qss,
     skill_card_qss,
     tokens,
+    wizard_qss,
 )
 from shuabao.shell.wizard_dialog import (
     GameStyleWizardDialog,
@@ -1069,6 +1079,47 @@ class InlineOverlay(QFrame):
         super().hideEvent(event)
 
 
+class SubscriptionDialog(QDialog):
+    """Native subscription dialog using the same visual language as the quick-start wizard."""
+
+    def __init__(self, parent: QWidget, *, theme: str, status_text: str) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("订阅激活")
+        self.setModal(True)
+        self.setFixedSize(500, 260)
+        self.setStyleSheet(wizard_qss(theme))
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 20, 22, 18)
+        layout.setSpacing(12)
+        eyebrow = QLabel("刷刷宝 · 订阅中心")
+        eyebrow.setObjectName("wizardStep")
+        layout.addWidget(eyebrow)
+        title = QLabel("输入卡密以激活本机")
+        title.setObjectName("wizardTitle")
+        layout.addWidget(title)
+        hint = QLabel("卡密会绑定当前 Windows 用户并加密保存。当前状态：" + status_text)
+        hint.setObjectName("hintLabel")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        self.key_input = QLineEdit()
+        self.key_input.setPlaceholderText("请输入卡密")
+        self.key_input.setClearButtonEnabled(True)
+        self.key_input.setMinimumHeight(38)
+        layout.addWidget(self.key_input)
+        actions = QHBoxLayout()
+        actions.addStretch()
+        cancel = QPushButton("取消")
+        cancel.setObjectName("secondaryBtn")
+        cancel.clicked.connect(self.reject)
+        actions.addWidget(cancel)
+        confirm = QPushButton("激活并保存")
+        confirm.setObjectName("goldBtn")
+        confirm.clicked.connect(self.accept)
+        actions.addWidget(confirm)
+        layout.addLayout(actions)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, app_data: Path | None = None):
         super().__init__()
@@ -1109,6 +1160,13 @@ class MainWindow(QMainWindow):
         self._ocr_status = "未启动"
         self._last_action = ""
         self.overlay_hud: OverlayHud | None = None
+        self._subscription_key = str(
+            os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or load_saved_license_key(self.app_data)
+        ).strip()
+        if self._subscription_key:
+            os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = self._subscription_key
+        self._subscription_status = "未激活"
+        self._subscription_expires_at = ""
         self._game_count = 0
         self._syncing_bonds = False
         self._build_btn_group = QButtonGroup(self)
@@ -1134,6 +1192,7 @@ class MainWindow(QMainWindow):
         self._setup_tray()
         restored_dashboard = self.user_settings_path().is_file()
         self.load_local_settings(silent=True)
+        self._refresh_subscription_status()
         self._wire_auto_save()
         if not restored_dashboard:
             self._show_mode_choice()
@@ -1269,6 +1328,16 @@ class MainWindow(QMainWindow):
         games_box.addWidget(self.lbl_games)
         games_box.addWidget(self.lbl_games_cap)
         header.addLayout(games_box)
+
+        header.addStretch()
+
+        # 顶部中间空白处：订阅状态与到期时间显示
+        self.lbl_subscription = QLabel("订阅：未激活")
+        self.lbl_subscription.setObjectName("lblSubscription")
+        self.lbl_subscription.setStyleSheet(
+            "font-weight:700; color:#0284c7; background:rgba(2,132,199,0.1); border-radius:12px; padding:3px 10px;"
+        )
+        header.addWidget(self.lbl_subscription)
 
         header.addStretch()
 
@@ -1423,6 +1492,12 @@ class MainWindow(QMainWindow):
         self.btn_more_settings.setObjectName("btnMoreSettings")
         self.btn_more_settings.setCursor(Qt.PointingHandCursor)
         self.btn_more_settings.setToolTip("展开特殊宝物、存档等级、属性线与低频诊断配置")
+        self.btn_activate_subscription = QPushButton("输入卡密")
+        self.btn_activate_subscription.setObjectName("btnActivateSubscription")
+        self.btn_activate_subscription.setCursor(Qt.PointingHandCursor)
+        self.btn_activate_subscription.setToolTip("输入订阅卡密进行设备激活与授权刷新")
+        self.btn_activate_subscription.clicked.connect(self._on_activate_subscription_clicked)
+        foot.addWidget(self.btn_activate_subscription)
         self.btn_more_settings.clicked.connect(self._toggle_more_settings)
         foot.addWidget(self.btn_more_settings)
 
@@ -1585,9 +1660,6 @@ class MainWindow(QMainWindow):
         self.cmb_chapter.currentIndexChanged.connect(self._on_chapter_changed)
         self.cmb_stage.currentIndexChanged.connect(self._on_stage_combo_changed)
         self.txt_stage_target.textChanged.connect(self._on_stage_target_edited)
-        self.cmb_chapter.currentIndexChanged.connect(self._recommend_challenges_for_stage)
-        self.cmb_stage.currentIndexChanged.connect(self._recommend_challenges_for_stage)
-        self.txt_stage_target.textEdited.connect(self._recommend_challenges_for_stage)
         self.cmb_chapter.currentIndexChanged.connect(self._refresh_stage_picker_rows)
         self.cmb_stage.currentIndexChanged.connect(self._refresh_stage_picker_rows)
 
@@ -2193,6 +2265,69 @@ class MainWindow(QMainWindow):
 
     def _toggle_more_settings(self) -> None:
         self.grp_advanced.setChecked(not self.grp_advanced.isChecked())
+
+    def _on_activate_subscription_clicked(self) -> None:
+        dialog = SubscriptionDialog(
+            self,
+            theme=self.current_theme,
+            status_text=self._subscription_status,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        key = str(dialog.key_input.text() or "").strip()
+        if not key:
+            QMessageBox.warning(self, "提示", "卡密不能为空")
+            return
+        try:
+            act = activate_device(key)
+            if not act.get("ok"):
+                err = act.get("message") or act.get("error") or "设备激活失败"
+                QMessageBox.critical(self, "激活失败", f"激活未成功: {err}")
+                return
+            val = validate_entitlement(key)
+            if not (bool(val.get("valid")) and val.get("can_start_runner") is True):
+                self._apply_subscription_result(val)
+                QMessageBox.warning(self, "激活未完成", str(val.get("message") or "该卡密当前不允许启动"))
+                return
+            if not save_license_key(self.app_data, key):
+                QMessageBox.critical(self, "保存失败", "卡密已验证，但无法加密保存到本机。")
+                return
+            self._subscription_key = key
+            os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = key
+            self._apply_subscription_result(val)
+            exp = self._subscription_expires_at or "未返回"
+            QMessageBox.information(self, "激活成功", f"订阅已激活并保存。\n\n到期时间：{exp}")
+        except Exception as e:
+            QMessageBox.critical(self, "激活错误", f"请求订阅服务异常:\n{e}")
+
+    def _apply_subscription_result(self, payload: dict) -> None:
+        valid = bool(payload.get("valid")) and payload.get("can_start_runner") is True
+        self._subscription_status = "正常" if valid else str(payload.get("status") or "未激活")
+        self._subscription_expires_at = str(payload.get("expires_at") or "")
+        expires = self._subscription_expires_at[:10]
+        if valid:
+            self.lbl_subscription.setText(f"订阅至 {expires}" if expires else "订阅：正常")
+            color = "#16a34a"
+        else:
+            self.lbl_subscription.setText(f"订阅：{self._subscription_status}")
+            color = "#b45309"
+        self.lbl_subscription.setStyleSheet(
+            f"font-weight:700; color:{color}; background:rgba(2,132,199,0.1); border-radius:12px; padding:3px 10px;"
+        )
+        self._refresh_chrome()
+
+    def _refresh_subscription_status(self) -> None:
+        if not self._subscription_key:
+            self._apply_subscription_result({"valid": False, "status": "未激活"})
+            return
+        try:
+            self._apply_subscription_result(validate_entitlement(self._subscription_key))
+        except Exception:
+            self._apply_subscription_result({"valid": False, "status": "校验失败"})
+
+    def _subscription_allows_start(self) -> bool:
+        return subscription_mode() in {"off", "shadow"} or self._subscription_status == "正常"
+
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
@@ -3417,7 +3552,7 @@ class MainWindow(QMainWindow):
         for control in (self.btn_solo_mode, self.btn_lead_mode, self.btn_follow_mode, self.btn_hitch_mode):
             control.setEnabled(not running)
         self.btn_main.setText(start_button_text(spec, running=running))
-        can = desktop_may_start(spec.id) or running
+        can = (desktop_may_start(spec.id) and self._subscription_allows_start()) or running
         self.btn_main.setEnabled(can)
         self.btn_main.setObjectName("btnStop" if running else "btnStart")
         self.btn_main.setStyle(self.btn_main.style())
@@ -3451,6 +3586,11 @@ class MainWindow(QMainWindow):
         if not desktop_may_start(mode_id):
             self.lbl_precheck.setText("预检 ● 红")
             self.lbl_precheck.setToolTip("运行方式未验证")
+            self.lbl_precheck.setStyleSheet(f"color:{t['neon_danger']}; font-weight:700;")
+            return
+        if not self._subscription_allows_start():
+            self.lbl_precheck.setText("订阅 ● 未激活")
+            self.lbl_precheck.setToolTip("请输入有效卡密后才能开始运行")
             self.lbl_precheck.setStyleSheet(f"color:{t['neon_danger']}; font-weight:700;")
             return
         if live_lock_busy(self.app_data) and not self._is_running():
@@ -4115,11 +4255,13 @@ class MainWindow(QMainWindow):
                 return False
 
         self.skill_grid.set_skills(new_skills)
+        self.settings.cards = list(new_cards)
         self._shell_extras["selected_build_id"] = build_id
         self._shell_extras["bond_scheme"] = list(new_cards)
         self._shell_extras["bond_inverted"] = [
             code for code in self._bond_plan_boxes if code not in set(new_cards)
         ]
+        self._rebuild_bond_plan()
         self._sync_bonds_from_scheme()
         rep_spin = self.rep_alloc_spins.get(int(new_rep or 0))
         if rep_spin is not None and rep_spin.value() == 0:
@@ -4140,6 +4282,12 @@ class MainWindow(QMainWindow):
         mode_id = self.selected_mode_id()
         if not desktop_may_start(mode_id):
             self.log(f"[阻断] {mode_id} 未验证", "error")
+            return
+        permission = check_start_permission()
+        if not permission.allowed:
+            self._refresh_subscription_status()
+            QMessageBox.warning(self, "订阅未授权", permission.message or "请输入有效卡密后再启动")
+            self.log(f"[阻断] 订阅未授权：{permission.code}", "error")
             return
         try:
             settings = self.collect_settings_from_ui()

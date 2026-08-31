@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-29T00:00:00+00:00",
+  "generated_at": "2026-08-31T12:55:42.100700+00:00",
   "spec": "ShuaBao.spec",
   "package_roots": [
     {
@@ -1488,6 +1488,134 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 1811,
       "sha256": "6c79f712036579e46ad9ca0a96bd4e85ae3742e7327719d5a6057046a585e93d"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_bounty_n_green.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 13733,
+      "sha256": "5cdd1b159c9096b54107c11a8d0e907840aa1d40d882da73af874f6c01c82f34"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_bounty_r_blue.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 14079,
+      "sha256": "d9923051146d14e3d85e84c35201c99f40eb70399d300ef32a5847c5cfe7feda"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_bounty_sr_purple.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 12951,
+      "sha256": "7ae8a3330b0e596a4ca96da5c8712e0678b808c80a37ccadaed45e855760f37e"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_bounty_ssr_orange.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 13367,
+      "sha256": "af0a5ecd90092913ec7cdc4ed6156ff53e65c19c0e1e6df58498a1e2daa037e8"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_bounty_ur_red.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 13549,
+      "sha256": "08d7f1fa83d9fd81a7da2460e4e7f4b98f2e21cae35715be0f457abdac6b7b2a"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_horn_lv1.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 14905,
+      "sha256": "7ad95982ee0f34991a7ab5188ac60d7f06b574f0ae8a51002bc356d860cb633f"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_n_green_body.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 22569,
+      "sha256": "e9b8b4e7634cca50ea7fa341e17246fb555c4e523de079a17ba287ea614805d9"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_n_green_slot.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 39945,
+      "sha256": "99968053f97b2f6458dbe9bce299c55c0b4370c530925db9caee5041edbbd95c"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_r_blue_body.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 25260,
+      "sha256": "568b76e6c0614b4121d23e36e9edd306ba4522f597d79ed457cb7ba5615b4e25"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_r_blue_slot.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 47192,
+      "sha256": "43c4ec195800c9d0c158db5dacd8b74e62244c4861786b81b81b5df3ce741fa8"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_sr_purple_body.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 24978,
+      "sha256": "6fd3458438818e7c027027bd82e04f23efbcc11fda565e44ee22b9fb5eebec95"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_sr_purple_slot.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 43785,
+      "sha256": "968ce58b3638751b5143477ae46e036dbf02754cffd4653b80f1775e3526f6a5"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_ssr_orange_body.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 26168,
+      "sha256": "9f719da749d75b2149b276326fb9e65ce82a5e8e14366509039cff8202c97616"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_ssr_orange_slot.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 43683,
+      "sha256": "4b739f1333d903904da367548b4953195e5e7dcb51b61c8ad0e5417c9983a014"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_ur_red_body.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 26072,
+      "sha256": "a16d93d9c3fda5521332350cf11c9b6bc35750fafea84afb72035b362dbdc2b8"
+    },
+    {
+      "path": "assets/Images/haidao/haidao_inventory_ur_red_slot.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 42637,
+      "sha256": "011c53add768a4df25f0c3f6f062ff1e884422ff250ede57cadeb3dcd17641de"
     },
     {
       "path": "assets/Images/hc.png",

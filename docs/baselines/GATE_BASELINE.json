@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-29 14:08:58",
-  "reason": "Stage 2B0: confirmed giveup_panel_not_fail real three-frame replay now PASS; main_hud_idle expectation synchronized to intentional bond-first behavior from 17c52d9; disconnect_modal_missing remains BLOCKED because no real disconnect fixture is available.",
+  "updated_at": "2026-08-31 20:58:24",
+  "reason": "Add reviewed haidao runtime visual assets outside cards template index",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 328
+        "passed": 340
       }
     },
     "frozen_replay": {
@@ -33,8 +33,8 @@
         "asset_spec_assets_root": 1,
         "asset_manifest_schema": 1,
         "asset_package_root_whole_tree": 1,
-        "asset_files": 351,
-        "asset_allowlisted": 351,
+        "asset_files": 367,
+        "asset_allowlisted": 367,
         "asset_missing_allowlist": 0,
         "asset_stale_manifest": 0,
         "asset_forbidden_paths": 0,

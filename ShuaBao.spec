@@ -60,7 +60,8 @@ exe = EXE(
     upx=True,
     console=False,
     icon=str(PROJECT_ROOT / "assets" / "branding" / "app_logo.ico"),
-    uac_admin=False,
+    # KK 平台与游戏以管理员运行；正式包必须同级，否则 UIPI 会丢弃 SendInput。
+    uac_admin=True,
     version=str(PROJECT_ROOT / "packaging" / "windows_version_info.txt"),
 )
 

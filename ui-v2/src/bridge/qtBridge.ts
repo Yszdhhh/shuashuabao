@@ -144,6 +144,16 @@ function wrapFacade(facade: RawFacade): DashboardBridge {
       callMethod<RpcResponse>("window_control", facade.window_control(JSON.stringify({ action }))),
     set_window_layout: (layout: WindowLayout) =>
       callMethod<RpcResponse>("set_window_layout", facade.set_window_layout(JSON.stringify({ layout }))),
+    activate_subscription: (key: string) => {
+      const raw = facade as unknown as Record<string, (arg: string) => Promise<string>>;
+      if (typeof raw.activate_subscription === "function") {
+        return callMethod<{ ok: boolean; message: string; status?: string; expires_at?: string }>(
+          "activate_subscription",
+          raw.activate_subscription(JSON.stringify({ key })),
+        );
+      }
+      return Promise.resolve({ ok: false, message: "后端未支持 activate_subscription" });
+    },
   };
 }
 

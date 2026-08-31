@@ -31,11 +31,11 @@ def test_spec_hiddenimports_include_qtwebengine_modules() -> None:
         assert module in text, f"hiddenimports missing {module}"
 
 
-def test_spec_uses_windowed_non_elevated_exe_with_app_icon() -> None:
+def test_spec_uses_windowed_elevated_exe_with_app_icon() -> None:
     text = _spec_text()
     assert "console=False" in text
     assert 'icon=str(PROJECT_ROOT / "assets" / "branding" / "app_logo.ico")' in text
-    assert "uac_admin=False" in text
+    assert "uac_admin=True" in text
 
 
 def test_spec_places_shiboken_loader_dll_on_windows_search_path() -> None:

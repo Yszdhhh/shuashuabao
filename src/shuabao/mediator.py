@@ -4252,6 +4252,23 @@ class Mediator:
                 names.append(text)
         return names
 
+    def _last_visible_boss_hit(self, frame: Frame) -> MatchResult | None:
+        """Find the final visible challenge card through its verified template."""
+        names = [
+            f"{folder}/{image.stem}"
+            for folder in ("chuanjiaobao", "boss")
+            for image in (self.images / folder).glob("*.png")
+        ]
+        hits = match_all(
+            frame,
+            self.images,
+            names,
+            threshold=self.settings.match_threshold,
+            scales=self._adapt_scales((1.0,)),
+            max_results=96,
+        )
+        return max(hits, key=lambda hit: (hit.y + hit.h, hit.x + hit.w), default=None)
+
     def _maybe_challenge_configured_boss(
         self, frame: Frame, now: float, *, recheck_s: float | None = None
     ) -> LoopAction | None:
@@ -4279,7 +4296,18 @@ class Mediator:
             float(recheck_s) if recheck_s is not None else self._challenge_recheck_delay()
         )
         if boss_hit is None:
-            print(f"[med] boss_entry 出现但未匹配到配置 Boss {bosses}（尝试 {self._boss_challenge_attempts}/3），零输入等待")
+            if self._boss_challenge_attempts < 3:
+                print(f"[med] boss_entry 出现但未匹配到配置 Boss {bosses}（尝试 {self._boss_challenge_attempts}/3），零输入等待")
+                return LoopAction.Continue
+            fallback = self._last_visible_boss_hit(frame)
+            if fallback is None:
+                print("[med] 配置 Boss 不可见，且未找到可验证的最后一个 Boss，零输入等待")
+                return LoopAction.Continue
+            print(f"[med] 配置 Boss 不可见，兜底点击当前可见列表最后一个 {fallback.name} @ {fallback.center}")
+            if self.act_click(fallback, "BossLastVisibleFallback"):
+                self._main_line_since = now
+                if getattr(self, "_early_challenge_pending", False):
+                    self._early_challenge_clicked_at = now
             return LoopAction.Continue
         print(f"[med] Boss 提前挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
         if self.act_click(boss_hit, "BossConfigured"):

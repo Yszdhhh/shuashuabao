@@ -30,7 +30,6 @@ declare function renderBonds(): void;
 declare function renderNegatives(): void;
 declare function renderPrestige(): void;
 declare function renderTeamRules(): void;
-declare function recommendChallenges(): void;
 declare function currentSkills(): string[];
 declare function applyOfficial(id: string): void;
 /** OD12 场景 ↔ 目录 mode_id（config/mode_specs.json）；带车复用 normal_farm 建房链。 */
@@ -380,7 +379,6 @@ function applySwitches(settings: SettingsDTO): void {
 
 function rerenderAll(settings: SettingsDTO): void {
   renderChapterStage();
-  recommendChallenges(); // 按关卡推荐 Boss/传家宝（展示默认）
   const cjb = asString(settings.cjb_boss); // 持久化选择压过推荐展示
   const boss = asString(settings.sgzx_boss);
   if (cjb) state.cjb = cjb;
@@ -467,10 +465,29 @@ export function applySnapshot(snap: SnapshotDTO): void {
     const roomPassword = asString(settings.room_password);
     if (roomName !== null) ($("roomName") as HTMLInputElement).value = roomName;
     if (roomPassword !== null) ($("roomPass") as HTMLInputElement).value = roomPassword;
+    applySubscription(snap.subscription);
     rerenderAll(settings);
     applyLaunchability();
   } finally {
     applying = false;
+  }
+}
+
+function applySubscription(sub?: { active?: boolean; status?: string; expires_at?: string }): void {
+  const pill = $("subscriptionPill");
+  if (!pill) return;
+  const isOk = Boolean(sub?.active);
+  const status = sub?.status || "未激活";
+  const exp = sub?.expires_at ? (sub.expires_at.length >= 10 ? sub.expires_at.substring(0, 10) : sub.expires_at) : "";
+  pill.textContent = isOk ? `订阅：正常${exp ? ` (${exp} 到期)` : ""}` : `订阅：${status}`;
+  if (isOk) {
+    pill.style.color = "var(--success, #27a644)";
+    pill.style.background = "color-mix(in oklab, var(--success, #27a644) 14%, transparent)";
+    pill.style.borderColor = "color-mix(in oklab, var(--success, #27a644) 30%, transparent)";
+  } else {
+    pill.style.color = "var(--warn, #eab308)";
+    pill.style.background = "color-mix(in oklab, var(--warn, #eab308) 14%, transparent)";
+    pill.style.borderColor = "color-mix(in oklab, var(--warn, #eab308) 30%, transparent)";
   }
 }
 
@@ -673,6 +690,40 @@ function wireIntents(): void {
   // 窗口控制。
   $("btnMin").addEventListener("click", () => void bridge?.window_control("minimize").catch(console.error));
   $("btnClose").addEventListener("click", () => void bridge?.window_control("close").catch(console.error));
+  // 激活订阅卡密：使用看板内嵌引导层，不调用浏览器脚本框。
+  $("btnActivateKey")?.addEventListener("click", async () => {
+    const opener = (window as unknown as Record<string, unknown>).openSubscriptionModal;
+    if (typeof opener === "function") (opener as () => void)();
+  });
+  $("modalLayer").addEventListener("click", async (event) => {
+    const submit = (event.target as HTMLElement).closest("[data-activate-subscription]") as HTMLButtonElement | null;
+    if (!submit) return;
+    const key = (document.getElementById("subscriptionKey") as HTMLInputElement | null)?.value.trim() ?? "";
+    if (!key) {
+      toast("请输入卡密");
+      return;
+    }
+    submit.disabled = true;
+    try {
+      const res = await (bridge?.activate_subscription
+        ? bridge.activate_subscription(key)
+        : Promise.resolve({ ok: false, message: "未接入激活接口" }));
+      if (res && res.ok) {
+        toast(res.message || "订阅激活成功！");
+        applySubscription({ active: true, status: res.status || "正常", expires_at: res.expires_at || "" });
+        ((document.querySelector("#modalSheet [data-close]") as HTMLButtonElement | null))?.click();
+      } else {
+        toast("激活失败：" + (res?.message || "卡密无效"));
+        if (res?.status) {
+          applySubscription({ active: false, status: res.status, expires_at: res.expires_at || "" });
+        }
+      }
+    } catch (err) {
+      toast("激活请求异常：" + String(err));
+    } finally {
+      submit.disabled = false;
+    }
+  });
 }
 
 // ---------------------------------------------------------------- 启动

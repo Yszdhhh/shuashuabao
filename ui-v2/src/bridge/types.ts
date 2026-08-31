@@ -86,6 +86,12 @@ export interface PreflightDTO extends RpcResponse {
   checks: PreflightCheck[];
 }
 
+export interface SubscriptionDTO {
+  active: boolean;
+  status: string;
+  expires_at: string;
+}
+
 export interface SnapshotDTO {
   request_id: string | null;
   settings_revision: number;
@@ -95,8 +101,8 @@ export interface SnapshotDTO {
   shell: ShellDTO;
   modes: ModeDTO[];
   run: RunStatusDTO;
+  subscription?: SubscriptionDTO;
 }
-
 export interface ConfigPatchResult extends RpcResponse {
   errors: string[];
   settings: SettingsDTO;
@@ -125,6 +131,7 @@ export interface DashboardBridge {
   stop_run(): Promise<RunResult>;
   window_control(action: "minimize" | "close"): Promise<RpcResponse>;
   set_window_layout(layout: WindowLayout): Promise<RpcResponse>;
+  activate_subscription?(key: string): Promise<{ ok: boolean; message: string; status?: string; expires_at?: string }>;
 }
 
 export interface DashboardBridgeSignals {

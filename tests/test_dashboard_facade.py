@@ -42,6 +42,7 @@ EXPECTED_SLOTS = {
     "set_window_layout",
     "start_run",
     "stop_run",
+    "activate_subscription",
 }
 EXPECTED_SIGNALS = {"snapshot_changed", "run_status_changed", "log_appended"}
 ROOT = Path(__file__).resolve().parents[1]
@@ -117,7 +118,7 @@ def test_snapshot_shape_strips_denylist(qapp, tmp_path: Path):
     f = DashboardFacade(tmp_path)
     snap = json.loads(f.get_snapshot())
     assert set(snap) == {
-        "request_id", "settings_revision", "snapshot_seq", "settings", "strategy", "shell", "modes", "run",
+        "request_id", "settings_revision", "snapshot_seq", "settings", "strategy", "shell", "modes", "run", "subscription",
     }
     assert "lab_focus" not in snap["settings"]
     assert snap["settings"]["click_delay_ms"] == 200

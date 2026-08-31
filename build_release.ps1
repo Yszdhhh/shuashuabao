@@ -14,6 +14,21 @@ Set-Location -LiteralPath $PSScriptRoot
 $APP_NAME = "刷刷宝"
 $APP_ID   = "ShuaBao"
 
+function Get-ReleaseFileSha256([string]$Path) {
+    # Get-FileHash was added after the oldest Windows PowerShell supported by
+    # the release launcher.  Use the .NET primitive so packaging can deploy
+    # from either Windows PowerShell or PowerShell 7.
+    $stream = [System.IO.File]::OpenRead($Path)
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        return ([System.BitConverter]::ToString($sha256.ComputeHash($stream))).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+        $sha256.Dispose()
+        $stream.Dispose()
+    }
+}
+
 $uvCommand = Get-Command uv -ErrorAction Stop
 $python = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 
@@ -101,7 +116,7 @@ $identity = [ordered]@{
     source_tree_clean  = ($sourceDirtyEntries.Count -eq 0)
     build_id           = $buildId
     exe_name           = (Split-Path -Leaf $app)
-    exe_sha256         = (Get-FileHash -LiteralPath $app -Algorithm SHA256).Hash.ToLowerInvariant()
+    exe_sha256         = Get-ReleaseFileSha256 $app
     created_at_utc     = [DateTime]::UtcNow.ToString("o")
 }
 $identityPath = Join-Path (Split-Path -Parent $app) "build_identity.json"
@@ -155,6 +170,7 @@ Get-ChildItem -LiteralPath $desktop -Filter "*.lnk" -ErrorAction SilentlyContinu
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($lnk)
 $shortcut.TargetPath = Join-Path $target "$APP_ID.exe"
+$shortcut.Arguments = ""
 $shortcut.WorkingDirectory = $target
 $shortcut.Description = "$APP_NAME $versionLabel · 重生魔兽刷刷刷单人挂机助手"
 $shortcut.Save()

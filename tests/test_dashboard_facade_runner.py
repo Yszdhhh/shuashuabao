@@ -139,6 +139,34 @@ def test_start_run_success_routes_through_runner_once(qapp, tmp_path: Path):
     assert runner.worker.started is True
 
 
+def test_start_run_refuses_an_unlicensed_dashboard(monkeypatch, qapp, tmp_path: Path):
+    from shuabao.subscription_client import StartPermission
+
+    runner = FakeRunner()
+    f = DashboardFacade(tmp_path, runner)
+    monkeypatch.setattr(
+        "shuabao.shell.dashboard_facade.check_start_permission",
+        lambda: StartPermission(False, "enforce", message="请输入卡密"),
+    )
+    res = json.loads(f.start_run(json.dumps({"mode_id": "normal_farm"})))
+    assert res["ok"] is False
+    assert res["error"] == "请输入卡密"
+    assert runner.start_calls == []
+
+
+def test_activate_subscription_accepts_the_bridge_activation_shape(monkeypatch, qapp, tmp_path: Path):
+    f = DashboardFacade(tmp_path, FakeRunner())
+    monkeypatch.setattr("shuabao.shell.dashboard_facade.activate_device", lambda _key: {"ok": True, "device": {}})
+    monkeypatch.setattr(
+        "shuabao.shell.dashboard_facade.validate_entitlement",
+        lambda _key: {"valid": True, "can_start_runner": True, "status": "ACTIVE", "expires_at": "2026-09-30"},
+    )
+    monkeypatch.setattr("shuabao.shell.dashboard_facade.save_license_key", lambda _path, _key: True)
+    res = json.loads(f.activate_subscription(json.dumps({"key": "local-test-key"})))
+    assert res["ok"] is True
+    assert res["subscription"]["active"] is True
+
+
 def test_preflight_failure_blocks_before_runner(qapp, tmp_path: Path):
     runner = FakeRunner()
     f = DashboardFacade(tmp_path, runner)
