@@ -22,7 +22,7 @@ class ChallengeTicketTests(unittest.TestCase):
 
     def test_nonzero_challenge_ticket_does_not_switch(self) -> None:
         frame = self._stage_frame()
-        med = Mediator(Settings(), ROOT)
+        med = Mediator(Settings(auto_archaeology=True), ROOT)
         wrapped = Frame(frame, left=0, top=0, window_title="英雄三国KK", hwnd=1)
         self.assertFalse(med._ticket_exhausted(wrapped))
 
@@ -37,7 +37,7 @@ class ChallengeTicketTests(unittest.TestCase):
         h, w = zero.shape[:2]
         frame[868:883, 1032 + 40 : 1032 + 59] = 0
         frame[850 + 18 : 850 + 18 + h, 1032 + 61 : 1032 + 61 + w] = zero
-        med = Mediator(Settings(), ROOT)
+        med = Mediator(Settings(auto_archaeology=True), ROOT)
         wrapped = Frame(frame, left=0, top=0, window_title="英雄三国KK", hwnd=1)
         self.assertTrue(med._ticket_exhausted(wrapped))
 
