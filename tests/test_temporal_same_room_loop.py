@@ -61,6 +61,9 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         main_line = load_frame("fixtures/replay/main_line_auto_on.png")
 
         self._assert_one_input_at_most(lambda: self.med._tick_main_line(victory))
+        # 本用例验证“退出后回同房并开第二局”，不重复覆盖已经由专项测试
+        # 验证的 8 张存档挑战卡。将游标置尾，保留正式关闭面板→NPC hub 链。
+        self.med._archive_challenge_index = len(self.med._ARCHIVE_CHALLENGE_NAMES)
         self._assert_one_input_at_most(lambda: self.med._tick_main_line(archive))
         self._assert_one_input_at_most(lambda: self.med._tick_main_line(hub))
         self.assertEqual(Phase.QUIT, self.med.phase)
