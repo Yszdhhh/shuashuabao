@@ -157,6 +157,33 @@ def test_start_run_refuses_an_unlicensed_dashboard(monkeypatch, qapp, tmp_path: 
     assert res["error"] == "请输入卡密"
     assert runner.start_calls == []
 
+def test_facade_init_never_overrides_explicit_env_key(monkeypatch, qapp, tmp_path: Path):
+    """20260831 审查 P2：显式注入的 env key 优先于磁盘 saved key。"""
+    monkeypatch.setattr(
+        "shuabao.shell.dashboard_facade.load_saved_license_key",
+        lambda _app_data: "SAVED-KEY",
+    )
+    monkeypatch.setenv(SUBSCRIPTION_LICENSE_KEY_ENV, "EXPLICIT-KEY")
+    DashboardFacade(tmp_path, FakeRunner())
+    assert os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] == "EXPLICIT-KEY"
+
+
+def test_activate_subscription_does_not_set_env_when_save_fails(monkeypatch, qapp, tmp_path: Path):
+    """20260831 审查 P2：先落盘后写 env——DPAPI 保存失败不得残留会话授权。"""
+    f = DashboardFacade(tmp_path, FakeRunner())
+    monkeypatch.setenv(SUBSCRIPTION_LICENSE_KEY_ENV, "")
+    monkeypatch.setattr(
+        "shuabao.shell.dashboard_facade.activate_device", lambda _key: {"ok": True, "device": {}},
+    )
+    monkeypatch.setattr(
+        "shuabao.shell.dashboard_facade.validate_entitlement",
+        lambda _key: {"valid": True, "can_start_runner": True, "status": "ACTIVE", "expires_at": "2026-09-30"},
+    )
+    monkeypatch.setattr("shuabao.shell.dashboard_facade.save_license_key", lambda _path, _key: False)
+    res = json.loads(f.activate_subscription(json.dumps({"key": "local-test-key"})))
+    assert res["ok"] is False
+    assert os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] == ""
+
 
 def test_activate_subscription_accepts_the_bridge_activation_shape(monkeypatch, qapp, tmp_path: Path):
     # Facade 激活成功会写进程级 env（WebShell → 同进程原生窗的会话交接）。

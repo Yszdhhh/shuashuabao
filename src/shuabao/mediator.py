@@ -5812,6 +5812,12 @@ class Mediator:
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
             self._post_game_pending = False
+            # 20260831 审查（P1-c）：route 必须随新局重置。残留的
+            # archive/heirloom route 会让"无战后上下文"的未验证入口守卫
+            # 永久豁免，直至其他逻辑改写。
+            self._post_game_route = "secret"
+            self._time_cave_boss_done = False
+            self._archive_challenge_index = 0
             self._post_game_close_attempts = 0
             self._secret_realm_request_pending = False
             self._secret_realm_request_since = None
@@ -6001,9 +6007,13 @@ class Mediator:
                     frame.left + x, frame.top + y,
                 )
         roi_w = x1 - x0
+        # 20260831 审查：红兜底要求组件位于 gameFail 图标下方的按钮带
+        # （真实模态：图标中心 y≈0.49，按钮行 y≈0.64），排除图标上方/同排的
+        # 红色警告组件被误点。
+        button_band_top = fail.y + fail.h
         for rx, ry, rw, rh, area in sorted(red, key=lambda item: -item[4]):
             rcx, rcy = rx + rw // 2, ry + rh // 2
-            if rcx < roi_w * 0.52:
+            if rcx < roi_w * 0.52 and y0 + rcy >= button_band_top:
                 x, y = x0 + rcx, y0 + rcy
                 return MatchResult(
                     "failure_exit", min(1.0, area / 2500.0), x, y, rw, rh,

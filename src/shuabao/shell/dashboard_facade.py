@@ -91,8 +91,10 @@ class DashboardFacade(QObject):
         self._poll.timeout.connect(self._poll_runtime)
         self._last_run_json = ""
         self._path = user_settings_path(self.app_data)
+        # 20260831 审查（P2）：显式注入的 env key 优先级高于磁盘 saved key，
+        # 只在 env 为空时才回填，避免覆盖启动器/上层会话已设定的授权。
         saved_key = load_saved_license_key(self.app_data)
-        if saved_key:
+        if saved_key and not os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV, "").strip():
             os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = saved_key
         raw = self._read_bundle()
         self._shell: dict[str, Any] = dict(raw.get("_shell") or {})
@@ -495,9 +497,11 @@ class DashboardFacade(QObject):
             status = str(val.get("status") or ("正常" if valid else "未激活"))
             expires_at = str(val.get("expires_at") or "")
             if valid:
-                os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = key
+                # 20260831 审查（P2）：先落盘后写 env。DPAPI 保存失败时不得
+                # 留下"UI 报保存失败但本会话仍可运行"的不一致授权状态。
                 if not save_license_key(self.app_data, key):
                     return json.dumps(self._rpc_response(False, message="卡密验证成功，但本机保存失败"), ensure_ascii=False)
+                os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = key
             sub = {"active": valid, "status": status, "expires_at": expires_at}
             self.snapshot_changed.emit(json.dumps(self._snapshot_dto(), ensure_ascii=False))
             return json.dumps(self._rpc_response(

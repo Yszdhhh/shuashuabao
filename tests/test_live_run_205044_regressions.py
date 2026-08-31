@@ -468,6 +468,14 @@ class LiveRun205044Tests(unittest.TestCase):
         with patch.object(med, "find_scene", return_value=fail):
             self.assertIsNone(med._find_failure_exit_button(Frame(image2)))
 
+        # 20260831 审查：gameFail 图标下沿以上的红色警告组件不是退出按钮
+        # （红兜底只接受图标下沿以下的按钮带；锚点放低使组件仍在 ROI 内）。
+        image3 = np.zeros((900, 1600, 3), dtype=np.uint8)
+        cv2.rectangle(image3, (635, 580), (756, 618), (0, 0, 220), -1)
+        low_fail = MatchResult("gameFail", 0.99, 752, 560, 96, 96, 752, 608)
+        with patch.object(med, "find_scene", return_value=low_fail):
+            self.assertIsNone(med._find_failure_exit_button(Frame(image3)))
+
     def test_direct_failure_exit_returns_to_same_room_flow(self) -> None:
         med = Mediator(Settings(), ROOT)
         med.set_phase(Phase.MAIN_LINE, "direct failure")
