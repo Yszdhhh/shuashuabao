@@ -131,9 +131,8 @@ function Invoke-TargetProbe {
 }
 
 function Invoke-BossSeriesCapture {
-    # This is still the existing capture command. It exercises production
     # Mediator.tick() so tqtz -> configured Boss -> post-game archive cards ->
-    # heirloom selection stay in one bundle. time_cave remains Ground Truth.
+    # time-cave/heirloom Boss fallback stay in one production route.
     $cliArgs = @(
         "capture",
         "--target", "boss_challenge",
@@ -148,7 +147,7 @@ function Invoke-BossSeriesCapture {
         "--confirm-live-input"
     )
 
-    Write-Host "[launcher] Boss 系列整链：现有 Mediator.tick()；tqtz/Boss/结算→存档8项→传家宝选择" -ForegroundColor Cyan
+    Write-Host "[launcher] Boss 系列整链：现有 Mediator.tick()；tqtz/Boss/结算→存档8项→时光之穴/传家宝兜底" -ForegroundColor Cyan
     Write-Host "[launcher] capture_root=$script:CaptureRoot" -ForegroundColor DarkGray
     Write-Host "[launcher] automation_exe=$script:AutomationExe" -ForegroundColor DarkGray
     if (-not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
@@ -278,7 +277,7 @@ $yellow = [System.Drawing.Color]::FromArgb(255, 246, 210)
 Add-MenuButton "1  启动前检查`r`n    只检查环境，不操作游戏" 24 170 { Invoke-Readiness } $blue
 Add-MenuButton "2  背包道具`r`n    吞噬丹（羁绊≥4）/英雄卡" 390 170 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
 Add-MenuButton "3  黑商 + 背包长测（推荐）`r`n    刷新/拿取/吞噬丹/英雄卡/神器，最长10分钟" 24 256 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
-Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→存档8项→传家宝" 390 256 { Invoke-BossSeriesCapture } $green
+Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→存档8项→时光之穴/传家宝兜底" 390 256 { Invoke-BossSeriesCapture } $green
 Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 342 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
 Add-MenuButton "6  时光之穴 Ground Truth`r`n    只记录人工链，不自动点击" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $true } $yellow
 Add-MenuButton "7  传家宝 Boss 选择`r`n    复用 cjb_boss 选择并验证真实 HUD" 24 428 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $false } $green

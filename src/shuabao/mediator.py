@@ -4182,6 +4182,8 @@ class Mediator:
     # 战后模板的已知位置 ROI（1600x900 基准比例，经 replay/postgame fixtures 验证）。
     _POST_GAME_ROIS = {
         "pauseGame": (0.30, 0.30, 0.70, 0.60),
+        "pause_continue_game": (0.35, 0.20, 0.65, 0.65),
+        "pause_return_game": (0.35, 0.20, 0.65, 0.65),
         "continueGame": (0.40, 0.50, 0.65, 0.75),
         "cjbtiaozhan": (0.35, 0.15, 0.65, 0.40),
         "mijingOk": (0.30, 0.40, 0.60, 0.65),
@@ -4438,8 +4440,19 @@ class Mediator:
 
             # Pause overlay must precede generic center-button classifiers.
             paused = find("pauseGame", 0.80)
-            if paused and w * 0.35 <= paused.x <= w * 0.60 and h * 0.35 <= paused.y <= h * 0.55:
-                return "PAUSED"
+            if paused:
+                px = paused.screen_x - frame.left
+                py = paused.screen_y - frame.top
+                if w * 0.35 <= px <= w * 0.60 and h * 0.35 <= py <= h * 0.55:
+                    return "PAUSED"
+
+            for name in ("pause_continue_game", "pause_return_game"):
+                pause_button = find(name, 0.70)
+                if pause_button:
+                    px = pause_button.screen_x - frame.left
+                    py = pause_button.screen_y - frame.top
+                    if w * 0.35 <= px <= w * 0.65 and h * 0.20 <= py <= h * 0.55:
+                        return "PAUSED"
 
             # 选择面板存在时，战后独占页（胜利/传家宝/大秘境/存档/广场）不可能与
             # 局内选择面板同时出现：跳过剩余战后扫描（N2.4：提前到 victory 锚点
@@ -4697,6 +4710,8 @@ class Mediator:
             self._main_line_since = now
             if post_game == "HEIRLOOM_DIALOG" and getattr(self, "_post_game_pending", False):
                 self._post_game_route = "heirloom_active"
+            if post_game == "ARCHIVE_PANEL" and getattr(self, "_post_game_pending", False):
+                self._post_game_route = "archive_active"
             if getattr(self, "_early_challenge_pending", False):
                 self._early_challenge_clicked_at = now
         return LoopAction.Continue
@@ -8636,11 +8651,38 @@ class Mediator:
                 self.stop()
                 return LoopAction.Break
             # 存档面板的八个挑战先逐项尝试；这不会复制生产策略，只消费已分类
-            # 页面上的稳定卡位。最后才关闭面板并进入既有传家宝入口。
+            # 页面上的稳定卡位。完成八卡后先尝试时光之穴 Boss，未配置时才关闭面板
+            # 并进入既有传家宝入口。
             archive_action = self._maybe_click_archive_challenge(frame, now)
             if archive_action is not None:
                 if self._archive_challenge_index < len(self._ARCHIVE_CHALLENGE_NAMES):
                     return archive_action
+                # Archive card clicks use archive_active during their own
+                # transition. Once all eight are consumed, reopen the
+                # classified archive route for the time-cave Boss handler.
+                if getattr(self, "_post_game_route", "") == "archive_active":
+                    self._post_game_route = "archive"
+                # Do not close or select another Boss in the same tick as
+                # the eighth archive-card click.
+                return archive_action
+            # 八个存档卡位已全部消费。若配置了时光之穴 Boss（sgzx_boss），先经由
+            # 既有配置 Boss handler（含列表滚动与末位可识别卡 fallback）发起挑战；
+            # 请求被接手（route 切到 archive_active）前绝不点击关闭面板。
+            configured_time_cave = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
+            if configured_time_cave:
+                if getattr(self, "_post_game_route", "") == "archive":
+                    self._maybe_challenge_configured_boss(frame, now)
+                if getattr(self, "_post_game_route", "") == "archive_active":
+                    # 存档卡或时光之穴 Boss 已被接手，面板自行转场；交由既有 HUD 确认
+                    # 恢复局内循环，本帧不再强制关闭。
+                    return LoopAction.Continue
+                if self._boss_challenge_attempts >= 3:
+                    print("[med] 时光之穴 Boss 兜底选择未确认，Fail-Closed 停止运行")
+                    self.set_phase(Phase.ERROR, "time-cave Boss selection unconfirmed")
+                    self.stop()
+                    return LoopAction.Break
+                # 尚未接手且仍在有界尝试内：保留面板，等待 handler 继续。
+                return LoopAction.Continue
             if self._post_game_close_attempts >= 3:
                 print("[med] 存档面板关闭重试已达上限，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "archive close attempts exhausted")

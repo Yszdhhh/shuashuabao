@@ -313,6 +313,56 @@ class P1B0PostGameTests(unittest.TestCase):
         click.assert_called_once_with(close, "CloseArchivePanel")
         self.assertEqual(med._post_game_route, "heirloom")
 
+    def test_completed_archive_cards_try_time_cave_before_close(self):
+        """Eight archive cards must not close before the time-cave handler runs."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive completed")
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        for index in range(8):
+            col, row = index % 4, index // 4
+            cx = int(frame.width * med._ARCHIVE_CHALLENGE_X[col])
+            cy = int(frame.height * med._ARCHIVE_CHALLENGE_Y[row])
+            frame.bgr[
+                int(cy - frame.height * 0.035):int(cy + frame.height * 0.060),
+                int(cx - frame.width * 0.040):int(cx + frame.width * 0.040),
+            ] = (0, 255, 0)
+        def handoff(_frame, _now):
+            med._post_game_route = "archive_active"
+            return LoopAction.Continue
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_maybe_challenge_configured_boss", side_effect=handoff) as boss, \
+             patch.object(med, "_find_archive_panel_close") as close:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+
+        boss.assert_called_once()
+        close.assert_not_called()
+        self.assertEqual(med._post_game_route, "archive_active")
+    def test_eighth_archive_click_does_not_close_same_tick(self):
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        med._archive_challenge_index = 7
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+
+        def eighth_click(_frame, _now):
+            med._archive_challenge_index = 8
+            med._post_game_route = "archive_active"
+            return LoopAction.Continue
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_maybe_click_archive_challenge", side_effect=eighth_click), \
+             patch.object(med, "_maybe_challenge_configured_boss") as boss, \
+             patch.object(med, "_find_archive_panel_close") as close:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+
+        boss.assert_not_called()
+        close.assert_not_called()
+        self.assertEqual(med._post_game_route, "archive")
+
+
     def test_post_game_boss_search_scrolls_before_observing_lower_rows(self):
         """A lower archive-list Boss is searched only after a bounded list scroll."""
         med = Mediator(Settings(sgzx_boss="54莫阿姆"), ROOT)

@@ -63,15 +63,23 @@ def _fixture_frame() -> Frame:
     return Frame(image, window_title="英雄三国KK", hwnd=10001, role="l1")
 
 
-def test_live_probe_defaults_to_existing_official_operator_settings() -> None:
+def test_live_probe_uses_unavailable_bosses_to_exercise_fallback() -> None:
     configured = Settings(cjb_boss="54莫阿姆", sgzx_boss="10吞噬者芬鲁斯")
     with patch.object(Settings, "load_official", return_value=configured) as load:
         settings = live_capture._prepare_settings(None, "boss_challenge", live_input=True)
     load.assert_called_once_with()
-    assert settings.cjb_boss == "54莫阿姆"
-    assert settings.sgzx_boss == "10吞噬者芬鲁斯"
+    assert settings.cjb_boss == "55吞咽者布鲁"
+    assert settings.sgzx_boss == "55吞咽者布鲁"
     assert settings.auto_secret_realm is False
     assert settings.dry_run is False
+
+
+def test_non_boss_target_keeps_operator_boss_choices() -> None:
+    configured = Settings(cjb_boss="54莫阿姆", sgzx_boss="10吞噬者芬鲁斯")
+    with patch.object(Settings, "load_official", return_value=configured):
+        settings = live_capture._prepare_settings(None, "heirloom", live_input=True)
+    assert settings.cjb_boss == "54莫阿姆"
+    assert settings.sgzx_boss == "10吞噬者芬鲁斯"
 
 
 def test_direct_heirloom_start_enters_existing_selection_handler() -> None:

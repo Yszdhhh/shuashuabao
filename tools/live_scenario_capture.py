@@ -232,7 +232,7 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     },
     "boss_challenge": {
         "production_readiness": "CONDITIONAL",
-        "scope": "整链 capture 复用现有 Mediator.tick()，覆盖 tqtz→配置 Boss→转场→战后存档 8 卡→传家宝配置 Boss；本 target 隔离自动秘境，时光之穴仍只做 Ground Truth。",
+        "scope": "整链 capture 复用现有 Mediator.tick()，覆盖 tqtz→配置 Boss→转场→战后存档 8 卡；战后时光之穴与传家宝配置 Boss 路径均使用末位可识别 Boss fallback；本 target 隔离自动秘境。",
         "routes": (
             {"route": "configured_boss", "readiness": "CONDITIONAL"},
             {"route": "postgame_archive_8", "readiness": "CONDITIONAL"},
@@ -1942,6 +1942,11 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     # This is a capture-local switch only; the manifest records it and the
     # operator's persisted production setting is never edited.
     if target == "boss_challenge":
+        # Test 4 must exercise production fallback rather than yesterday's
+        # persisted Boss choices. This only changes the in-memory capture
+        # settings; Settings.load_official() data is never written back.
+        settings.cjb_boss = "55吞咽者布鲁"
+        settings.sgzx_boss = "55吞咽者布鲁"
         settings.auto_secret_realm = False
     return settings
 
