@@ -672,6 +672,7 @@ class Mediator:
         # 面板消失后由既有 MAIN_LINE/胜利链继续收敛。
         self._archive_challenge_index: int = 0
         self._archive_challenge_next_at: float = 0.0
+        self._time_cave_boss_done: bool = False
         # Optional post-victory great-rift chain.  Every input has a dedicated
         # anchor and a bounded post-click observation window.
         self._secret_realm_request_pending: bool = False
@@ -4675,9 +4676,8 @@ class Mediator:
                 and self._boss_challenge_scroll_attempts < self._POST_GAME_BOSS_SCROLL_LIMIT
             ):
                 self._boss_challenge_scroll_attempts += 1
-                self._boss_challenge_next_at = now + (
-                    float(recheck_s) if recheck_s is not None else self._challenge_recheck_delay()
-                )
+                delay = float(recheck_s) if recheck_s is not None else self.settings.ui_action_interval_s
+                self._boss_challenge_next_at = now + delay
                 x, y = scroll_point
                 print(
                     f"[med] 配置 Boss 未在当前可见行，向下滚动挑战列表 "
@@ -4692,9 +4692,10 @@ class Mediator:
             used_fallback = boss_hit is not None
 
         self._boss_challenge_attempts += 1
-        self._boss_challenge_next_at = now + (
-            float(recheck_s) if recheck_s is not None else self._challenge_recheck_delay()
+        delay = float(recheck_s) if recheck_s is not None else (
+            self.settings.ui_action_interval_s if compact_roi is not None else self._challenge_recheck_delay()
         )
+        self._boss_challenge_next_at = now + delay
         if boss_hit is None:
             print(f"[med] boss_entry 出现但未匹配到配置 Boss {bosses}（尝试 {self._boss_challenge_attempts}/3），零输入等待")
             return LoopAction.Continue
@@ -4708,10 +4709,12 @@ class Mediator:
             print(f"[med] Boss 提前挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
         if self.act_click(boss_hit, "BossConfigured"):
             self._main_line_since = now
-            if post_game == "HEIRLOOM_DIALOG" and getattr(self, "_post_game_pending", False):
+            if post_game == "ARCHIVE_PANEL":
+                self._time_cave_boss_done = True
+                self._boss_challenge_next_at = now + self.settings.ui_action_interval_s
+                self._post_game_route = "archive"
+            elif post_game == "HEIRLOOM_DIALOG" and getattr(self, "_post_game_pending", False):
                 self._post_game_route = "heirloom_active"
-            if post_game == "ARCHIVE_PANEL" and getattr(self, "_post_game_pending", False):
-                self._post_game_route = "archive_active"
             if getattr(self, "_early_challenge_pending", False):
                 self._early_challenge_clicked_at = now
         return LoopAction.Continue
@@ -8640,6 +8643,7 @@ class Mediator:
                 self._boss_challenge_attempts = 0
                 self._boss_challenge_scroll_attempts = 0
                 self._boss_challenge_next_at = 0.0
+                self._time_cave_boss_done = False
                 self._victory_continue_since = now
                 self._main_line_since = now
             return LoopAction.Continue
@@ -8651,41 +8655,31 @@ class Mediator:
                 self.stop()
                 return LoopAction.Break
             # 存档面板的八个挑战先逐项尝试；这不会复制生产策略，只消费已分类
-            # 页面上的稳定卡位。完成八卡后先尝试时光之穴 Boss，未配置时才关闭面板
-            # 并进入既有传家宝入口。
+            # 页面上的稳定卡位。完成八卡后先尝试时光之穴 Boss，全部完成后关闭面板并转传家宝。
             archive_action = self._maybe_click_archive_challenge(frame, now)
             if archive_action is not None:
                 if self._archive_challenge_index < len(self._ARCHIVE_CHALLENGE_NAMES):
                     return archive_action
-                # Archive card clicks use archive_active during their own
-                # transition. Once all eight are consumed, reopen the
-                # classified archive route for the time-cave Boss handler.
                 if getattr(self, "_post_game_route", "") == "archive_active":
                     self._post_game_route = "archive"
-                # Do not close or select another Boss in the same tick as
-                # the eighth archive-card click.
                 return archive_action
-            # 八个存档卡位已全部消费。若配置了时光之穴 Boss（sgzx_boss），先经由
-            # 既有配置 Boss handler（含列表滚动与末位可识别卡 fallback）发起挑战；
-            # 请求被接手（route 切到 archive_active）前绝不点击关闭面板。
+            # 八个存档卡位已全部消费。若配置了时光之穴 Boss（sgzx_boss），先发起挑战选择
             configured_time_cave = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
-            if configured_time_cave:
-                if (
-                    getattr(self, "_post_game_route", "") == "archive"
-                    or (getattr(self, "_post_game_route", "") == "archive_active" and self._boss_challenge_attempts == 0)
-                ):
-                    self._maybe_challenge_configured_boss(frame, now)
-                if getattr(self, "_post_game_route", "") == "archive_active" and self._boss_challenge_attempts > 0:
-                    # 存档卡或时光之穴 Boss 已被接手，面板自行转场；交由既有 HUD 确认
-                    # 恢复局内循环，本帧不再强制关闭。
+            if configured_time_cave and not getattr(self, "_time_cave_boss_done", False):
+                if now < self._boss_challenge_next_at:
                     return LoopAction.Continue
+                boss_action = self._maybe_challenge_configured_boss(frame, now)
+                if getattr(self, "_time_cave_boss_done", False):
+                    return LoopAction.Continue
+                if boss_action is not None:
+                    return boss_action
                 if self._boss_challenge_attempts >= 3:
                     print("[med] 时光之穴 Boss 兜底选择未确认，Fail-Closed 停止运行")
                     self.set_phase(Phase.ERROR, "time-cave Boss selection unconfirmed")
                     self.stop()
                     return LoopAction.Break
-                # 尚未接手且仍在有界尝试内：保留面板，等待 handler 继续。
                 return LoopAction.Continue
+
             if self._post_game_close_attempts >= 3:
                 print("[med] 存档面板关闭重试已达上限，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "archive close attempts exhausted")
@@ -8696,15 +8690,12 @@ class Mediator:
                 print("[med] 存档面板未找到专用关闭按钮，零动作等待")
                 return LoopAction.Continue
             self._post_game_close_attempts += 1
-            # The archive panel has been observed/handled. If the configured
-            # Boss was absent, the next verified hub page may open heirloom;
-            # no fixed card or guessed coordinate is used here.
             self._post_game_route = (
                 "heirloom"
                 if str(getattr(self.settings, "cjb_boss", "") or "").strip()
                 else "secret"
             )
-            print(f"[med] 关闭存档面板 @ {close_hit.center} (尝试 {self._post_game_close_attempts}/3)")
+            print(f"[med] 存档与时光之穴完成，关闭存档面板 @ {close_hit.center} (尝试 {self._post_game_close_attempts}/3) 并转 {self._post_game_route}")
             self.act_click(close_hit, "CloseArchivePanel")
             return LoopAction.Continue
         if post_game == "NPC_HUB":

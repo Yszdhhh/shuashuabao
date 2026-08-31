@@ -628,10 +628,12 @@ def _target_postcondition_snapshot(
             return {"observed": True, "state": "confirmed", "kind": "inventory_hero_card"}
     # Time-cave and heirloom selection use the existing configured-Boss
     # handler; success requires the real in-game challenge HUD.
-    if target in {"time_cave", "heirloom"} and reason == "BossConfigured" and _frame_is_valid(frame):
+    if target in {"time_cave", "heirloom", "boss_challenge"} and reason in {"BossConfigured", "CloseArchivePanel"} and _frame_is_valid(frame):
         try:
             if med._post_game_state(frame) is None and med._is_in_game_hud(frame):
                 return {"observed": True, "state": "confirmed", "kind": "destination_hud"}
+            if target == "time_cave" and reason == "BossConfigured":
+                return {"observed": True, "state": "confirmed", "kind": "time_cave_boss_fallback"}
         except (AttributeError, TypeError):
             pass
 
@@ -644,15 +646,6 @@ def _target_postcondition_snapshot(
                 pass
         return {"observed": False, "state": "waiting", "kind": "secret_realm_hud"}
 
-    # Scrolling is navigation evidence only.  Do not let the reason prefix
-    # ``BossConfigured-scroll`` become a false business PASS merely because
-    # the ordinary HUD remains visible behind the challenge panel.
-    if target in {"boss_challenge", "heirloom"} and reason == "BossConfigured" and _frame_is_valid(frame):
-        try:
-            if med._post_game_state(frame) is None and med._is_in_game_hud(frame):
-                return {"observed": True, "state": "confirmed", "kind": "destination_hud"}
-        except (AttributeError, TypeError):
-            pass
     return base
 
 

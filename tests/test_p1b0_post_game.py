@@ -329,7 +329,7 @@ class P1B0PostGameTests(unittest.TestCase):
                 int(cx - frame.width * 0.040):int(cx + frame.width * 0.040),
             ] = (0, 255, 0)
         def handoff(_frame, _now):
-            med._post_game_route = "archive_active"
+            med._time_cave_boss_done = True
             return LoopAction.Continue
 
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
@@ -339,7 +339,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
         boss.assert_called_once()
         close.assert_not_called()
-        self.assertEqual(med._post_game_route, "archive_active")
+        self.assertTrue(med._time_cave_boss_done)
 
     def test_archive_panel_from_hub_active_triggers_time_cave_when_cards_completed(self):
         """When entering archive panel from hub (route=archive_active), if cards are completed, time cave runs."""
@@ -359,7 +359,7 @@ class P1B0PostGameTests(unittest.TestCase):
             ] = (0, 255, 0)
         def handoff(_frame, _now):
             med._boss_challenge_attempts = 1
-            med._post_game_route = "archive_active"
+            med._time_cave_boss_done = True
             return LoopAction.Continue
 
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
@@ -792,6 +792,45 @@ class P1B0PostGameTests(unittest.TestCase):
             self.assertEqual(action, LoopAction.Continue)
             mock_tick.assert_not_called()
             self.assertIsNotNone(med._missing_window_since)
+
+
+    def test_archive_chain_end_to_end_fallback_flow(self):
+        """Verify the complete post-game fallback chain: archive cards -> time-cave boss -> close -> heirloom boss -> close."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁", cjb_boss="55吞咽者布鲁"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "e2e chain")
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+
+        frame_archive = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        for index in range(8):
+            col, row = index % 4, index // 4
+            cx = int(frame_archive.width * med._ARCHIVE_CHALLENGE_X[col])
+            cy = int(frame_archive.height * med._ARCHIVE_CHALLENGE_Y[row])
+            frame_archive.bgr[
+                int(cy - frame_archive.height * 0.035):int(cy + frame_archive.height * 0.060),
+                int(cx - frame_archive.width * 0.040):int(cx + frame_archive.width * 0.040),
+            ] = (0, 255, 0)
+
+        boss_target = MatchResult("33玛格曼达", 0.85, 1075, 453, 51, 51, 1075, 453)
+        close_target = MatchResult("archive_panel_close", 0.99, 976, 197, 43, 31, 997, 212)
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "act_scroll", return_value=True) as scroll, \
+             patch.object(med, "_find_last_recognized_post_game_boss", return_value=boss_target), \
+             patch.object(med, "_find_archive_panel_close", return_value=close_target), \
+             patch.object(med, "act_click", return_value=True) as click:
+            med._tick_main_line(frame_archive)
+            med._boss_challenge_next_at = 0.0
+            med._tick_main_line(frame_archive)
+            med._boss_challenge_next_at = 0.0
+            med._tick_main_line(frame_archive)
+            med._boss_challenge_next_at = 0.0
+            med._tick_main_line(frame_archive)
+            self.assertTrue(med._time_cave_boss_done)
+            med._tick_main_line(frame_archive)
+            self.assertEqual(med._post_game_route, "heirloom")
+
+        self.assertEqual(scroll.call_count, 3)
 
 
 if __name__ == "__main__":
