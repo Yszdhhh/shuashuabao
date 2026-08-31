@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -71,6 +72,10 @@ from shuabao.shell.wizard_dialog import (
 
 from shuabao import __version__
 from shuabao.settings import MAX_SELECTED_SKILLS, Settings
+from shuabao.subscription_client import (
+    SUBSCRIPTION_LICENSE_KEY_ENV,
+    validate_entitlement,
+)
 from shuabao.shell.mode_catalog import (
     collect_persistable_settings,
     badge_text,
@@ -1108,6 +1113,9 @@ class MainWindow(QMainWindow):
         self._runtime_phase = "IDLE"
         self._ocr_status = "未启动"
         self._last_action = ""
+        self._subscription_key = os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV, "").strip()
+        self._subscription_expires_at = ""
+        self._subscription_status = "已配置 · 待校验" if self._subscription_key else "未激活"
         self.overlay_hud: OverlayHud | None = None
         self._game_count = 0
         self._syncing_bonds = False
@@ -1258,6 +1266,12 @@ class MainWindow(QMainWindow):
         self.lbl_run_status.setObjectName("statusPill")
         self.lbl_run_status.setAlignment(Qt.AlignCenter)
         header.addWidget(self.lbl_run_status)
+
+        self.lbl_subscription = QLabel("订阅：未激活")
+        self.lbl_subscription.setObjectName("subscriptionPill")
+        self.lbl_subscription.setAlignment(Qt.AlignCenter)
+        self.lbl_subscription.setToolTip("订阅状态仅在激活密钥或启动校验时更新")
+        header.addWidget(self.lbl_subscription)
 
         # 今日局数胶囊
         games_box = QHBoxLayout()
@@ -1425,6 +1439,13 @@ class MainWindow(QMainWindow):
         self.btn_more_settings.setToolTip("展开特殊宝物、存档等级、属性线与低频诊断配置")
         self.btn_more_settings.clicked.connect(self._toggle_more_settings)
         foot.addWidget(self.btn_more_settings)
+
+        self.btn_activate_subscription = QPushButton("激活密钥")
+        self.btn_activate_subscription.setObjectName("btnActivateSubscription")
+        self.btn_activate_subscription.setCursor(Qt.PointingHandCursor)
+        self.btn_activate_subscription.setToolTip("输入订阅 License Key 并校验有效期")
+        self.btn_activate_subscription.clicked.connect(self._on_activate_subscription_clicked)
+        foot.addWidget(self.btn_activate_subscription)
 
         self.lbl_summary = QLabel("就绪")
         self.lbl_summary.setObjectName("statusLine")
@@ -2193,6 +2214,47 @@ class MainWindow(QMainWindow):
 
     def _toggle_more_settings(self) -> None:
         self.grp_advanced.setChecked(not self.grp_advanced.isChecked())
+
+    @staticmethod
+    def _subscription_expiry_text(value: object) -> str:
+        raw = str(value or "").strip()
+        return raw.replace("T", " ").replace("Z", " UTC") if raw else ""
+
+    def _refresh_subscription_display(self) -> None:
+        if not hasattr(self, "lbl_subscription"):
+            return
+        status = str(getattr(self, "_subscription_status", "未激活") or "未激活")
+        expiry = self._subscription_expiry_text(getattr(self, "_subscription_expires_at", ""))
+        self.lbl_subscription.setText(f"订阅：{status}" + (f" · 到期 {expiry}" if expiry else ""))
+
+    def _on_activate_subscription_clicked(self) -> None:
+        key, accepted = QInputDialog.getText(
+            self, "激活订阅密钥", "请输入 License Key：", QLineEdit.EchoMode.Password, self._subscription_key
+        )
+        if not accepted:
+            return
+        key = key.strip()
+        self._subscription_status = "校验中"
+        self._subscription_expires_at = ""
+        self._refresh_subscription_display()
+        env = dict(os.environ)
+        env["SHUABAO_SUBSCRIPTION_MODE"] = "enforce"
+        payload = validate_entitlement(key, env=env)
+        allowed = bool(payload.get("valid")) and payload.get("can_start_runner") is True
+        status = str(payload.get("status") or "UNKNOWN")
+        if allowed:
+            self._subscription_key = key
+            os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = key
+            self._subscription_status = status
+            license_payload = payload.get("license") if isinstance(payload.get("license"), dict) else {}
+            self._subscription_expires_at = str(payload.get("expires_at") or license_payload.get("expires_at") or "")
+            self._refresh_subscription_display()
+            self.log(f"[订阅] 已激活，状态 {status}，到期 {self._subscription_expiry_text(self._subscription_expires_at) or '未返回'}")
+            QMessageBox.information(self, "订阅已激活", self.lbl_subscription.text())
+            return
+        self._subscription_status = status if status != "UNKNOWN" else "校验失败"
+        self._refresh_subscription_display()
+        QMessageBox.warning(self, "订阅激活失败", str(payload.get("message") or f"订阅状态不允许启动：{status}"))
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
@@ -3382,6 +3444,7 @@ class MainWindow(QMainWindow):
             getattr(self, "lbl_games", None),
             getattr(self, "lbl_games_cap", None),
             getattr(self, "lbl_version", None),
+            getattr(self, "lbl_subscription", None),
             getattr(self, "btn_theme", None),
         ):
             if widget is not None:

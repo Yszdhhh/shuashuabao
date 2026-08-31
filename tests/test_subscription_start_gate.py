@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.settings import Settings
 from shuabao.stop_signal import StopSignal
-from shuabao.subscription_client import check_start_permission
+from shuabao.subscription_client import check_start_permission, validate_entitlement
 from shuabao.shell.live_execute import execute_runtime_mediator
 
 
@@ -78,6 +78,20 @@ def test_enforce_active_allows_start():
     assert result.allowed is True
     assert result.would_allow is True
     assert result.status == "ACTIVE"
+
+
+def test_validate_entitlement_returns_bridge_expiry_without_logging_key():
+    env = {**BASE_ENV, "SHUABAO_SUBSCRIPTION_MODE": "enforce"}
+    payload = {
+        "valid": True,
+        "status": "ACTIVE",
+        "can_start_runner": True,
+        "license": {"expires_at": "2026-09-01T00:00:00Z"},
+    }
+    result = validate_entitlement("pilot-license", env=env, opener=_opener(payload))
+    assert result["status"] == "ACTIVE"
+    assert result["license"]["expires_at"].startswith("2026-09-01")
+    assert "pilot-license" not in result.get("message", "")
 
 
 def test_enforce_expired_denies_start():

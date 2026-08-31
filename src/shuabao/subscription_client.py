@@ -34,6 +34,68 @@ class StartPermission:
     would_allow: bool | None = None
 
 
+def validate_entitlement(
+    license_key: str,
+    *,
+    env: Mapping[str, str] | None = None,
+    opener: Callable[..., Any] | None = None,
+) -> dict[str, Any]:
+    """Validate one user-entered key against the Bridge contract.
+
+    The key is accepted only as an in-memory argument; callers decide whether
+    to retain it for the current process.  Error payloads intentionally omit
+    request data so a key cannot leak through UI/log messages.
+    """
+    source = os.environ if env is None else env
+    base_url = _env_text(source, SUBSCRIPTION_BASE_URL_ENV).rstrip("/")
+    fingerprint = _env_text(source, SUBSCRIPTION_DEVICE_FP_ENV)
+    key = str(license_key or "").strip()
+    if not base_url:
+        return {
+            "valid": False, "status": "UNKNOWN", "code": "CONFIG_BASE_URL_MISSING",
+            "message": "订阅服务地址未配置",
+        }
+    if not key:
+        return {
+            "valid": False, "status": "UNKNOWN", "code": "CONFIG_LICENSE_MISSING",
+            "message": "请输入 License Key",
+        }
+    if not fingerprint:
+        return {
+            "valid": False, "status": "UNKNOWN", "code": "CONFIG_DEVICE_MISSING",
+            "message": "Pilot 设备指纹未配置",
+        }
+    body = {
+        "license_key": key,
+        "hardware": {
+            "fingerprint": fingerprint,
+            "components": {},
+            "platform": "windows",
+            "hostname": socket.gethostname() or None,
+        },
+    }
+    req = urllib_request.Request(
+        f"{base_url}/v1/entitlements/validate",
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with (opener or urllib_request.urlopen)(req, timeout=_timeout_seconds(source)) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except Exception as exc:
+        return {
+            "valid": False, "status": "UNKNOWN", "code": "ENTITLEMENT_UNREACHABLE",
+            "message": f"订阅校验失败: {type(exc).__name__}",
+        }
+    if not isinstance(payload, dict):
+        return {
+            "valid": False, "status": "UNKNOWN", "code": "ENTITLEMENT_MALFORMED",
+            "message": "订阅服务返回非对象",
+        }
+    return payload
+
+
 def _env_text(env: Mapping[str, str], key: str) -> str:
     return str(env.get(key, "") or "").strip()
 
@@ -102,31 +164,12 @@ def check_start_permission(
     if not fingerprint:
         return _deny(mode, "CONFIG_DEVICE_MISSING", "Pilot 设备指纹未配置")
 
-    body = {
-        "license_key": license_key,
-        "hardware": {
-            "fingerprint": fingerprint,
-            "components": {},
-            "platform": "windows",
-            "hostname": socket.gethostname() or None,
-        },
-    }
-    req = urllib_request.Request(
-        f"{base_url}/v1/entitlements/validate",
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
-        method="POST",
-    )
-    open_fn = opener or urllib_request.urlopen
-    try:
-        with open_fn(req, timeout=_timeout_seconds(source)) as response:
-            raw = response.read().decode("utf-8")
-        payload = json.loads(raw)
-    except Exception as exc:
-        return _deny(mode, "ENTITLEMENT_UNREACHABLE", f"订阅校验失败: {type(exc).__name__}")
-
-    if not isinstance(payload, dict):
-        return _deny(mode, "ENTITLEMENT_MALFORMED", "订阅服务返回非对象")
+    payload = validate_entitlement(license_key, env=source, opener=opener)
+    if payload.get("code") in {
+        "CONFIG_BASE_URL_MISSING", "CONFIG_LICENSE_MISSING", "CONFIG_DEVICE_MISSING",
+        "ENTITLEMENT_UNREACHABLE", "ENTITLEMENT_MALFORMED",
+    }:
+        return _deny(mode, str(payload.get("code")), str(payload.get("message") or "订阅校验失败"))
     status = str(payload.get("status") or "UNKNOWN")
     code = str(payload.get("code") or "UNKNOWN")
     message = str(payload.get("message") or "")
