@@ -195,12 +195,29 @@ class ExternalReviewRegressionTests(unittest.TestCase):
         with patch.object(med, "find", side_effect=matched):
             self.assertEqual(med._post_game_state(frame), "PAUSED")
 
+    def test_pause_button_anchor_precedes_victory_continue_at_borderline_score(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
+
+        def matched(_frame, names, **_kwargs):
+            name = names[0]
+            if name == "pause_continue_game":
+                return MatchResult(name, 0.71, 712, 368, 100, 30, 812, 398)
+            if name == "continueGame":
+                return MatchResult(name, 0.99, 751, 645, 47, 12, 798, 657)
+            return None
+
+        with patch.object(med, "find", side_effect=matched):
+            self.assertEqual(med._post_game_state(frame), "PAUSED")
+
     def test_pause_overlay_clicks_resume_before_game_actions(self) -> None:
         med = Mediator(Settings(), ROOT)
         med.phase = Phase.MAIN_LINE
         med._main_line_since = 1.0
         frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
+        resume = MatchResult("pause_continue_game", 0.98, 700, 400, 200, 50, 800, 425)
         with patch.object(med, "_post_game_state", return_value="PAUSED"), \
+                patch.object(med, "find", return_value=resume), \
                 patch.object(med, "act_click", return_value=True) as click:
             self.assertIs(med._tick_main_line(frame), LoopAction.Continue)
         self.assertIs(med.phase, Phase.MAIN_LINE)

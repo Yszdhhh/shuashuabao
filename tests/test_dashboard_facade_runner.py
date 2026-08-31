@@ -12,20 +12,23 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from dataclasses import replace
 from pathlib import Path
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
 from PySide6.QtCore import (
-    QCoreApplication,
     QLockFile,
     QMetaMethod,
     QObject,
     QThread,
     Signal,
 )
+from PySide6.QtWidgets import QApplication
 
 from shuabao.paths import live_lock_path
 from shuabao.settings import Settings
@@ -36,9 +39,9 @@ from shuabao.shell.runner_service import LogSignal, ModeNotEnabled, RunnerServic
 
 @pytest.fixture(scope="module")
 def qapp():
-    app = QCoreApplication.instance()
+    app = QApplication.instance()
     if app is None:
-        app = QCoreApplication([])
+        app = QApplication([])
     return app
 
 

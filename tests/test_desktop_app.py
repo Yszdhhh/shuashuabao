@@ -380,6 +380,7 @@ class DesktopPanelTests(unittest.TestCase):
         fake_window = MagicMock()
         fake_window.current_theme = "light"
         with (
+            patch.dict(os.environ, {"SHUABAO_SHELL": "native"}),
             patch.object(desktop_app, "QApplication", return_value=fake_app),
             patch.object(desktop_app, "QLockFile", return_value=fake_lock),
             patch.object(desktop_app, "MainWindow", return_value=fake_window),
@@ -1126,11 +1127,12 @@ class DesktopPanelTests(unittest.TestCase):
 
     def test_negative_treasure_list_matches_policy_config(self):
         """面板展示的负面宝物必须与策略配置同源，避免 UI 与判定脱节。"""
-        from shuabao.choice_policy import DEFAULT_NEGATIVE_NAMES
         from shuabao.shell.main_window import TREASURE_UI_HIDDEN
 
+        policy = json.loads((ROOT / "config" / "choice_policy.json").read_text(encoding="utf-8"))
+        configured = (policy.get("treasure") or {}).get("negative_names") or []
         self.assertEqual(
-            sorted((set(DEFAULT_NEGATIVE_NAMES) | {"压制"}) - TREASURE_UI_HIDDEN),
+            sorted(name for name in configured if name not in TREASURE_UI_HIDDEN),
             sorted(self.window.grp_negative._boxes),
         )
 

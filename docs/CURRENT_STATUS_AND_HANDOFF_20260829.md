@@ -41,3 +41,66 @@
 
 - 亡灵 100 残骸 / 亡者大厅 / 邪爆、异火吞噬完再拿帝焱：没有对应计数器，不能假装已接线。
 - `test_pause_overlay_clicks_resume_before_game_actions` 仍是全量 pytest 的既有回归；这不等同于 giveup baseline，后者已通过真实三帧 replay。不要为了绿灯修改无关 baseline。
+
+## Live 看板与 Boss 选择收敛（2026-08-31）
+
+### Root Cause Summary
+
+- 默认 Web 看板在章节/关卡变化时调用硬编码 `STAGE_BOSS` / `STAGE_CJB`
+  推荐表，直接改写 `state.boss` 与 `state.cjb`；设置恢复又在重绘名称之后覆盖
+  state，造成“看板自动跳到前面关卡”和显示值可能不等于持久化值。
+- 生产 `Mediator._maybe_challenge_configured_boss` 只搜索显式目标并有界滚动；
+  目标未开放或未识别后保持零输入，没有用户要求的“最后可挑战项”兜底。
+- 时光之穴分类页此前仍从 `cjb_boss + sgzx_boss` 混合候选中搜索；传家宝页
+  已经只读 `cjb_boss`，两类选择的生产隔离不对称。
+
+### Changes
+
+- Web 看板章节/关卡只更新 `stage_targets`；Boss 与传家宝“选啥显示啥”，不再
+  自动改写。恢复设置后先应用持久化 `cjb_boss` / `sgzx_boss`，再刷新名称。
+- 时光之穴分类页只消费 `sgzx_boss`，传家宝分类页只消费 `cjb_boss`。
+- 配置目标仍有最高优先级；仅在页面已分类、目标未命中且既有三次滚动预算耗尽
+  后，生产 handler 才按正式模板编号从高到低寻找当前可见的最后一项。命中仍走
+  同一个 `BossConfigured` 输入和既有业务后置条件；无模板命中、页面 `UNKNOWN`
+  或未分类时继续零输入。没有新增 FSM、detector、固定坐标或 click-success PASS。
+
+### Real-material offline evidence
+
+同一个生产 helper 对既有真实素材只读复现：
+
+| Material | Classified page | Last recognized template | Score | Meaning |
+|---|---|---|---:|---|
+| `fixtures/reborn_wow/endgame/archive_challenge_panel.png` | `ARCHIVE_PANEL` | `12卡尔加` | 0.844816 | 时光之穴列表兜底可离线复现 |
+| `fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png` | `HEIRLOOM_DIALOG` | `03洛卡纳哈` | 0.806868 | 早期传家宝列表可离线复现 |
+| `boss_challenge_20260831_005535_200618/frames/f0006_action_before.png` | `HEIRLOOM_DIALOG` | `12战争之王` | 0.762833 | 较新实机滚动列表可离线复现 |
+
+这些命中证明现有真机素材可继续用于触发、识别、滚动和结束判断回归；它们不是
+当前 SHA 的完整业务 PASS，也不能替代真实 HUD / postcondition。
+
+### Feature status
+
+| Chain | Formal dashboard / production wiring | Current acceptance |
+|---|---|---|
+| 黑商 | 正式设置已进入生产 `Mediator`，历史真机有购买/吞噬丹触发 | `VALID BUT OLD / MISSING_REAL_SAMPLE`；当前 SHA 的 2/5/8、木材、吞噬丹 canonical 验收未齐 |
+| 传家宝 | `cjb_boss` 正式接线；历史有 `BossConfigured` 成功输入和真实列表素材 | 可做定向实机，但三次完整 HUD→active→completion（含一次滚动）仍未满足，不能宣称全链 PASS |
+| 时光之穴 | `sgzx_boss` 正式接线，列表/Boss 交互有历史实机素材，本轮离线兜底已验证 | 完整 NPC 进入链 Ground Truth 仍 `BLOCKED`；不能宣称正式全链可跑通 |
+| 秘境 | `auto_secret_realm` 已进入同一生产 `Mediator` | 仍无合格真实 HUD + `_secret_realm_active=True`，`MISSING_REAL_SAMPLE` |
+| Boss 长链 / 八卡 | 八卡与 Boss 路由均在生产 handler，历史 bundle 有八卡动作 | 当前 SHA 的最终业务后置未闭环；长链继续放在定向链路之后执行 |
+| P0 生命周期 | Live 菜单只是生产 handler 的证据壳，不复制业务 FSM | 五次 start→probe→stop/F12→bundle→menu-return 仍 `MISSING_REAL_SAMPLE` |
+
+正式看板“已接线”不等于“当前版本全链真机 PASS”。除秘境外确实存在不同程度的
+历史触发成功，可直接用于离线优化和定向复测；但传家宝、时光之穴完整入口、Boss
+长链和黑商 canonical 仍缺当前 SHA 的完整业务证据。
+
+### Tests
+
+- Web：`npm run check` PASS；`npm test` 21 passed；
+  `tests/test_web_config_shell.py` 31 passed。
+- Boss/挑战定向：56 passed、2 subtests passed；生产兜底的两张仓库真实 fixture、
+  设置隔离、滚动优先和无模板零输入均有回归。
+- `tools/release_gate.py`：4/4 PASS（340 pytest、Frozen Replay、scene templates、
+  56 contracts）；`disconnect_modal_missing` 保持 `BLOCKED`。
+- 全仓 `python -X faulthandler -m pytest tests -q --tb=short`：稳定运行至 100%，
+  **31 failed, 1068 passed, 5 skipped, 2 xfailed, 207 subtests passed in 206.89s**。
+  未再发生 `0xC0000409`；native-process / 退出阻塞已疏通，但 31 个既有普通断言
+  仍为 `FAIL / OPEN`，没有改 baseline 或把精选 gate 当成全仓全绿。

@@ -1,0 +1,13 @@
+[
+  {"name": "圣人", "set": "封神", "rarity": "EX", "filename": "01_封神_圣人.png", "cannot_devour": true},
+  {"name": "祖龙", "set": "神兽", "rarity": "EX", "filename": "02_神兽_祖龙.png", "cannot_devour": true},
+  {"name": "世界末日迦拉克隆", "set": "龙族", "rarity": "EX", "filename": "03_龙族_世界末日迦拉克隆.png", "cannot_devour": true},
+  {"name": "吞食天地", "set": "三国", "rarity": "EX", "filename": "04_三国_吞食天地.png", "cannot_devour": true},
+  {"name": "帝炎", "set": "异火", "rarity": "EX", "filename": "05_异火_帝炎.png", "cannot_devour": true},
+  {"name": "解放的圣剑", "set": "刀刀", "rarity": "EX", "filename": "06_刀刀_解放的圣剑.png", "cannot_devour": true},
+  {"name": "萨格拉斯", "set": "军团", "rarity": "EX", "filename": "07_军团_萨格拉斯.png", "cannot_devour": true},
+  {"name": "兵主", "set": "亡灵", "rarity": "EX", "filename": "08_亡灵_兵主.png", "cannot_devour": true},
+  {"name": "大乘期", "set": "修仙", "rarity": "EX", "filename": "09_修仙_大乘期.png", "cannot_devour": true},
+  {"name": "法天象地", "set": "神通", "rarity": "EX", "filename": "10_神通_法天象地.png", "cannot_devour": true},
+  {"name": "毁灭战舰", "set": "海盗", "rarity": "UR", "filename": "11_海盗_毁灭战舰.png", "cannot_devour": true}
+]

@@ -788,9 +788,10 @@ def _rank_skill_candidates(
     missing_main_names = frozenset(
         name for name in focus_families if name and name not in owned_branch_families
     )
-    ranked: list[tuple[int, int, int, int, int, int, int, int, int, float, int]] = []
+    ranked: list[tuple[int, int, int, int, int, int, int, int, float, int, float, int]] = []
     # 用户技能族优先级 + 路线偏好（均为 ranking-only 键；空值时恒为 0，行为零变化）。
     user_priority_order = {fam: pos for pos, fam in enumerate(settings.skill_priority)}
+    habit_scores = dict(settings.habit_name_scores)
     route_pref_by_family = {
         fam: (prefers, avoids)
         for fam, _rid, prefers, avoids in settings.skill_route_preferences
@@ -900,6 +901,9 @@ def _rank_skill_candidates(
             (slot.card_fact and slot.card_fact.is_new) or getattr(slot, "is_new", False)
         )
         is_new_rank = 0 if is_new else 1
+        # 习惯分只在合法性、前置、角色、品质、等级和 NEW 状态完全相同时
+        # 打破平局；它不能让配置外或低置信候选获得点击权限。
+        habit_rank = -float(habit_scores.get(slot.name, 0.0)) if slot.name else 0.0
         fam_order_rank = 0
         if settings.skill_focus_families and fam and fam in focus_families:
             fam_order_rank = focus_families.index(fam)
@@ -923,13 +927,14 @@ def _rank_skill_candidates(
                 int(rarity_rank),
                 int(level_key),
                 int(is_new_rank),
+                habit_rank,
                 int(fam_order_rank),
                 -modifier,
                 int(slot.index),
             )
         )
     ranked.sort()
-    return [entry[10] for entry in ranked]
+    return [entry[11] for entry in ranked]
 
 
 def _rank_skill_fill_candidates(

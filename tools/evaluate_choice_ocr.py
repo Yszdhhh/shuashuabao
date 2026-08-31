@@ -66,6 +66,8 @@ from shuabao.vision.choice_ocr import (  # noqa: E402
     load_lexicon,
     lookup_lexicon,
     normalize_choice_text,
+    truth_canonical_for as _truth_canonical_for,
+    truth_status_of as _truth_status_of,
 )
 from shuabao.vision.capture import Frame  # noqa: E402
 from shuabao.vision.matcher import match_any  # noqa: E402
@@ -266,28 +268,12 @@ def valid_slots(manifest: dict) -> list[dict]:
 def truth_status(canonical: str | None, lexicon: dict) -> str:
     """truth 归类：in_lexicon（规范名在词典）/ alias_covered（别名覆盖，需纠正）/
     unknown（词典外，独立计 unknown，不进准确率分母）。"""
-    if not canonical:
-        return "unknown"
-    entries = lexicon["entries"]
-    if canonical in entries:
-        return "in_lexicon"
-    for canon, entry in entries.items():
-        if canonical in entry.get("aliases", []):
-            return "alias_covered"
-    return "unknown"
+    return _truth_status_of(canonical, lexicon)
 
 
 def truth_canonical_for(canonical: str | None, lexicon: dict) -> str | None:
     """把 alias_covered 的 truth 纠正为词典规范名；unknown/in_lexicon 原样返回。"""
-    if not canonical:
-        return None
-    entries = lexicon["entries"]
-    if canonical in entries:
-        return canonical
-    for canon, entry in entries.items():
-        if canonical in entry.get("aliases", []):
-            return canon
-    return None
+    return _truth_canonical_for(canonical, lexicon)
 
 
 # ---------------------------------------------------------------------------

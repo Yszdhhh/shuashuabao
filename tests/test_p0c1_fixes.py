@@ -1,5 +1,6 @@
 import json
 import sys
+import time
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -76,11 +77,44 @@ class P0C1FixesTests(unittest.TestCase):
                 mock_exec_click.assert_not_called()
 
     def test_main_line_unverified_entries_fail_closed(self):
-        """S0 ⑧ 阶段门控后：archive 只在局尾窗口检查（Fail-Closed 保留）；
+        """S0 ⑧ 阶段门控后：archive 只在局尾窗口检查；20260831 实机复盘后
+        未验证 archive 守卫只对"无战后上下文"的帧 Fail-Closed——
+        `_post_game_pending=True`（胜利后过渡窗）或 archive/heirloom/boss_active
+        路由属于战后链自身状态，必须豁免，否则过渡帧被误杀紧急停机。
         boss_entry 20260822 起是 Boss 提前挑战入口——未配置挑战 Boss 时零输入
         等待（不停机、零输入），配置后点击；longzhu 色相检查移至 LONGZHU 阶段。"""
         frame = create_dummy_frame()
 
+        # 1) 无战后上下文（pending=False + 局尾窗口）→ 未验证 archive 仍 Fail-Closed
+        self.med = Mediator(self.settings, ROOT)
+        self.med.set_phase(Phase.MAIN_LINE)
+        self.med._post_game_pending = False
+        self.med._round_deadline = time.time() + 5  # 已在局尾窗口（<120s）
+
+        def mock_find_scene_no_context(f, sk, threshold=None):
+            if sk == "archive":
+                return MatchResult(name="archive", score=0.95, x=100, y=100, w=50, h=50, screen_x=100, screen_y=100)
+            return None
+
+        with patch.object(self.med, "find_scene", side_effect=mock_find_scene_no_context), \
+             patch.object(self.med, "_selection_anchor", return_value=None), \
+             patch.object(self.med, "_ensure_challenge_buttons", return_value=False), \
+             patch.object(self.med, "act_click") as mock_act_click, \
+             patch.object(self.med, "click_scene") as mock_click_scene, \
+             patch.object(self.med, "act_right_click") as mock_act_right_click, \
+             patch.object(self.med, "act_key") as mock_act_key, \
+             patch.object(self.med.executor, "click") as mock_exec_click:
+            action = self.med._tick_main_line(frame)
+            self.assertEqual(action, LoopAction.Break)
+            self.assertEqual(self.med.phase, Phase.ERROR)
+            self.assertTrue(self.med.stop_signal.is_set())
+            mock_act_click.assert_not_called()
+            mock_click_scene.assert_not_called()
+            mock_act_right_click.assert_not_called()
+            mock_act_key.assert_not_called()
+            mock_exec_click.assert_not_called()
+
+        # 2) 战后过渡窗（pending=True）出现 archive 顶栏 → 豁免守卫，零输入继续
         for scene_key in ("archive",):
             self.med = Mediator(self.settings, ROOT)
             self.med.set_phase(Phase.MAIN_LINE)
@@ -99,11 +133,9 @@ class P0C1FixesTests(unittest.TestCase):
                  patch.object(self.med, "act_right_click") as mock_act_right_click, \
                  patch.object(self.med, "act_key") as mock_act_key, \
                  patch.object(self.med.executor, "click") as mock_exec_click:
-
                 action = self.med._tick_main_line(frame)
-
-                self.assertEqual(self.med.phase, Phase.ERROR)
-                self.assertTrue(self.med.stop_signal.is_set())
+                self.assertEqual(action, LoopAction.Continue)
+                self.assertEqual(self.med.phase, Phase.MAIN_LINE)
                 mock_act_click.assert_not_called()
                 mock_click_scene.assert_not_called()
                 mock_act_right_click.assert_not_called()
@@ -131,7 +163,7 @@ class P0C1FixesTests(unittest.TestCase):
             mock_act_click.assert_not_called()
             mock_exec_click.assert_not_called()
 
-        # boss_entry：已配置挑战 Boss → 点击配置 Boss 模板（BossConfigured）
+        # boss_entry：战后过渡页未分类 → 即使配置了 Boss 也必须零输入
         self.med = Mediator(replace(self.settings, cjb_boss="04克雷什之父"), ROOT)
         self.med.set_phase(Phase.MAIN_LINE)
         self.med._post_game_pending = True
@@ -151,8 +183,7 @@ class P0C1FixesTests(unittest.TestCase):
             action = self.med._tick_main_line(frame)
             self.assertEqual(action, LoopAction.Continue)
             self.assertEqual(self.med.phase, Phase.MAIN_LINE)
-            mock_act_click.assert_called_once()
-            self.assertEqual(mock_act_click.call_args[0][1], "BossConfigured")
+            mock_act_click.assert_not_called()
 
     def test_missing_configured_boss_uses_last_visible_template_fallback(self):
         self.med = Mediator(replace(self.settings, cjb_boss="不存在的 Boss"), ROOT)

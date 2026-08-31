@@ -12,11 +12,15 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import replace
 from pathlib import Path
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
-from PySide6.QtCore import QCoreApplication, QLockFile, QMetaMethod
+from PySide6.QtCore import QLockFile, QMetaMethod
+from PySide6.QtWidgets import QApplication
 
 from shuabao.paths import live_lock_path, user_settings_path
 from shuabao.choice_policy import (
@@ -50,9 +54,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(scope="module")
 def qapp():
-    app = QCoreApplication.instance()
+    app = QApplication.instance()
     if app is None:
-        app = QCoreApplication([])
+        app = QApplication([])
     return app
 
 

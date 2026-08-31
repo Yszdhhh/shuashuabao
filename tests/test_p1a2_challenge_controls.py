@@ -353,15 +353,17 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.med._auto_task_done = True
         self.med.settings.query_timeout = 3
         dummy_label = MatchResult("coin_challenge", 0.8, 100, 500, 50, 20, 100, 500)
+        now = [100.0]
 
         with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
              patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.UNKNOWN), \
              patch.object(self.med.executor, "right_click") as mock_rc, \
-             patch("shuabao.mediator.time.time", side_effect=(100.0, 103.0, 103.0, 103.0)):
+             patch("shuabao.mediator.time.time", side_effect=lambda: now[0]):
             # 第一 tick：UNKNOWN → 零输入等待（Continue）
             self.assertEqual(self.med._ensure_challenge_buttons(self.frame_off), LoopAction.Continue)
             self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.UNKNOWN)
             # 超时后：跳过该挑战继续（Continue），不再整机停机
+            now[0] = 103.0
             self.assertEqual(self.med._ensure_challenge_buttons(self.frame_off), LoopAction.Continue)
             self.assertIn("coin_challenge", self.med._challenge_done)
 

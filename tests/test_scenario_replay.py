@@ -248,8 +248,7 @@ class SemanticAction:
 
 
 class ActionProbe:
-    """包裹 act_click / act_right_click / act_key，按 ledger 调用顺序记录
-    (kind, reason, target) 语义标签。"""
+    """包裹 Mediator 输入入口，按 ledger 调用顺序记录语义标签。"""
 
     def __init__(self, med: Mediator) -> None:
         self._med = med
@@ -258,9 +257,11 @@ class ActionProbe:
         self._orig_click = med.act_click
         self._orig_right = med.act_right_click
         self._orig_key = med.act_key
+        self._orig_scroll = med.act_scroll
         med.act_click = self._wrap_click
         med.act_right_click = self._wrap_right
         med.act_key = self._wrap_key
+        med.act_scroll = self._wrap_scroll
 
     def begin_tick(self, index: int) -> None:
         self._tick_start = len(self._records)
@@ -279,6 +280,10 @@ class ActionProbe:
     def _wrap_key(self, key: str, reason: str = "") -> bool:
         self._records.append(SemanticAction("press_key", reason, key))
         return self._orig_key(key, reason)
+
+    def _wrap_scroll(self, x: int, y: int, clicks: int, reason: str = "") -> bool:
+        self._records.append(SemanticAction("scroll", reason, None))
+        return self._orig_scroll(x, y, clicks, reason)
 
 
 class ContextProbe:

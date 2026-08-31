@@ -30,6 +30,7 @@ declare function renderBonds(): void;
 declare function renderNegatives(): void;
 declare function renderPrestige(): void;
 declare function renderTeamRules(): void;
+declare function renderNames(): void;
 declare function currentSkills(): string[];
 declare function applyOfficial(id: string): void;
 /** OD12 场景 ↔ 目录 mode_id（config/mode_specs.json）；带车复用 normal_farm 建房链。 */
@@ -383,6 +384,7 @@ function rerenderAll(settings: SettingsDTO): void {
   const boss = asString(settings.sgzx_boss);
   if (cjb) state.cjb = cjb;
   if (boss) state.boss = boss;
+  renderNames();
   renderBuilds();
   renderBonds();
   renderPrestige();

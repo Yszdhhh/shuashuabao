@@ -31,6 +31,7 @@ from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 from run_replay import run_replay_fixture
 
 ENDGAME = ROOT / "fixtures" / "reborn_wow" / "endgame"
@@ -184,6 +185,448 @@ class P1B0PostGameTests(unittest.TestCase):
             self.assertTrue(self.med._post_game_pending)
             self.assertEqual(self.med._victory_continue_attempts, 1)
             mock_right_click.assert_not_called()
+
+    def test_new_hub_layout_without_hero_indicator_is_classified(self):
+        """Real 1600x900 hub frames use the two challenge labels instead of HeroChallenge."""
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+
+        def fake_find(_frame, names, **_kwargs):
+            name = names[0]
+            if name == "quit":
+                return MatchResult(name, 0.90, 20, 10, 70, 24, 55, 22)
+            if name == "damijing":
+                return MatchResult(name, 0.97, 1140, 195, 72, 25, 1176, 207)
+            if name == "HeroChallenge":
+                return None
+            if name == "close":
+                return None
+            return None
+
+        def fake_hub_entry(_frame, route):
+            x = 900 if route == "archive" else 1010
+            return MatchResult(route, 0.64, x, 200, 90, 24, x + 45, 212)
+
+        with patch.object(self.med, "find", side_effect=fake_find), \
+             patch.object(self.med, "_find_post_game_hub_entry", side_effect=fake_hub_entry):
+            self.assertEqual(self.med._post_game_state(frame), "NPC_HUB")
+
+    def test_archive_panel_visits_archive_cards_before_closing(self):
+        """A pending archive page starts the eight-card sequence before close."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive order")
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_maybe_click_archive_challenge", return_value=LoopAction.Continue) as archive, \
+             patch.object(med, "_find_archive_panel_close") as close:
+            action = med._tick_main_line(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        archive.assert_called_once()
+        close.assert_not_called()
+
+    def test_archive_card_sequence_uses_all_eight_fixture_slots(self):
+        """The classified panel exposes eight stable card hitboxes in order."""
+        med = Mediator(Settings(), ROOT)
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+        points = []
+        for index in range(8):
+            hit = med._find_archive_challenge_card(frame, index)
+            self.assertIsNotNone(hit)
+            points.append(hit.center)
+        self.assertEqual([p[0] for p in points[:4]], sorted(p[0] for p in points[:4]))
+        self.assertLess(points[0][1], points[4][1])
+
+    def test_pending_archive_panel_beats_skill_panel_false_positive(self):
+        """Archive's skill card must not hide the post-game panel classifier."""
+        med = Mediator(Settings(), ROOT)
+        med._post_game_pending = True
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+
+        with patch.object(med, "_selection_anchor", return_value=object()):
+            self.assertEqual(med._post_game_state(frame), "ARCHIVE_PANEL")
+
+    def test_live_archive_title_and_close_anchor_classify_panel(self):
+        """The orange live title is valid only together with the modal X."""
+        med = Mediator(Settings(), ROOT)
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        title = MatchResult("archiveChallenge", 0.62, 900, 195, 92, 24, 946, 207)
+        close = MatchResult("lobby/archive_panel_close", 0.95, 991, 250, 20, 20, 1001, 260)
+
+        def fake_find(_frame, names, **_kwargs):
+            if names == ["archiveChallenge"]:
+                return title
+            if names in (["close"], ["lobby/archive_panel_close"]):
+                return close
+            if names == ["damijing"]:
+                return MatchResult("damijing", 0.97, 1147, 201, 72, 25, 1183, 213)
+            return None
+
+        with patch.object(med, "_selection_anchor", return_value=None), \
+             patch.object(med, "_archive_challenge_completed", return_value=True), \
+             patch.object(med, "find", side_effect=fake_find):
+            self.assertEqual(med._post_game_state(frame), "ARCHIVE_PANEL")
+
+    def test_completed_archive_panel_does_not_require_archive_title_anchor(self):
+        """The current completed page may expose only cundangInfo plus modal evidence."""
+        med = Mediator(Settings(), ROOT)
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        close = MatchResult("lobby/archive_panel_close", 0.95, 991, 250, 20, 20, 1001, 260)
+
+        def fake_find(_frame, names, **_kwargs):
+            if names == ["archiveChallenge"]:
+                return None
+            if names in (["close"], ["lobby/archive_panel_close"]):
+                return close
+            return None
+
+        with patch.object(med, "_selection_anchor", return_value=None), \
+             patch.object(med, "_archive_challenge_completed", return_value=True), \
+             patch.object(med, "find", side_effect=fake_find):
+            self.assertEqual(med._post_game_state(frame), "ARCHIVE_PANEL")
+
+    def test_completed_archive_cards_close_without_reclicking(self):
+        """All eight green 已挑战 overlays advance directly to heirloom."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive completed")
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        for index in range(8):
+            col, row = index % 4, index // 4
+            cx = int(frame.width * med._ARCHIVE_CHALLENGE_X[col])
+            cy = int(frame.height * med._ARCHIVE_CHALLENGE_Y[row])
+            frame.bgr[
+                int(cy - frame.height * 0.035):int(cy + frame.height * 0.060),
+                int(cx - frame.width * 0.040):int(cx + frame.width * 0.040),
+            ] = (0, 255, 0)
+            self.assertTrue(med._archive_challenge_completed(frame, index))
+        close = MatchResult("close", 0.9, 990, 230, 20, 20, 1000, 240)
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_find_archive_panel_close", return_value=close), \
+             patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+
+        click.assert_called_once_with(close, "CloseArchivePanel")
+        self.assertEqual(med._post_game_route, "heirloom")
+
+    def test_completed_archive_cards_try_time_cave_before_close(self):
+        """Eight archive cards must not close before the time-cave handler runs."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive completed")
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        for index in range(8):
+            col, row = index % 4, index // 4
+            cx = int(frame.width * med._ARCHIVE_CHALLENGE_X[col])
+            cy = int(frame.height * med._ARCHIVE_CHALLENGE_Y[row])
+            frame.bgr[
+                int(cy - frame.height * 0.035):int(cy + frame.height * 0.060),
+                int(cx - frame.width * 0.040):int(cx + frame.width * 0.040),
+            ] = (0, 255, 0)
+        def handoff(_frame, _now):
+            med._time_cave_boss_done = True
+            return LoopAction.Continue
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_maybe_challenge_configured_boss", side_effect=handoff) as boss, \
+             patch.object(med, "_find_archive_panel_close") as close:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+
+        boss.assert_called_once()
+        close.assert_not_called()
+        self.assertTrue(med._time_cave_boss_done)
+
+    def test_archive_panel_from_hub_active_triggers_time_cave_when_cards_completed(self):
+        """When entering archive panel from hub (route=archive_active), if cards are completed, time cave runs."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive from hub")
+        med._post_game_pending = True
+        med._post_game_route = "archive_active"
+        med._boss_challenge_attempts = 0
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        for index in range(8):
+            col, row = index % 4, index // 4
+            cx = int(frame.width * med._ARCHIVE_CHALLENGE_X[col])
+            cy = int(frame.height * med._ARCHIVE_CHALLENGE_Y[row])
+            frame.bgr[
+                int(cy - frame.height * 0.035):int(cy + frame.height * 0.060),
+                int(cx - frame.width * 0.040):int(cx + frame.width * 0.040),
+            ] = (0, 255, 0)
+        def handoff(_frame, _now):
+            med._boss_challenge_attempts = 1
+            med._time_cave_boss_done = True
+            return LoopAction.Continue
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_maybe_challenge_configured_boss", side_effect=handoff) as boss, \
+             patch.object(med, "_find_archive_panel_close") as close:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+
+        boss.assert_called_once()
+        close.assert_not_called()
+        self.assertEqual(med._boss_challenge_attempts, 1)
+
+    def test_eighth_archive_click_does_not_close_same_tick(self):
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        med._archive_challenge_index = 7
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+
+        def eighth_click(_frame, _now):
+            med._archive_challenge_index = 8
+            med._post_game_route = "archive_active"
+            return LoopAction.Continue
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_maybe_click_archive_challenge", side_effect=eighth_click), \
+             patch.object(med, "_maybe_challenge_configured_boss") as boss, \
+             patch.object(med, "_find_archive_panel_close") as close:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+
+        boss.assert_not_called()
+        close.assert_not_called()
+        self.assertEqual(med._post_game_route, "archive")
+
+
+    def test_post_game_boss_search_scrolls_before_observing_lower_rows(self):
+        """A lower archive-list Boss is searched only after a bounded list scroll."""
+        med = Mediator(Settings(sgzx_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive list scroll")
+        med._post_game_pending = True
+        med._post_game_route = "archive_active"
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        target = MatchResult("54莫阿姆", 0.91, 1110, 470, 62, 62, 1110, 470)
+        visible_after_scroll = {"value": False}
+
+        def fake_find(_frame, _names, **kwargs):
+            if visible_after_scroll["value"] and kwargs.get("mode") == "post-game-boss-grid":
+                return target
+            return None
+
+        def fake_scroll(_x, _y, _clicks, _reason):
+            visible_after_scroll["value"] = True
+            return True
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "find", side_effect=fake_find), \
+             patch.object(med, "act_scroll", side_effect=fake_scroll) as scroll, \
+             patch.object(med, "act_click", return_value=True) as click:
+            first = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+            second = med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=1.0)
+
+        self.assertEqual(first, LoopAction.Continue)
+        self.assertEqual(second, LoopAction.Continue)
+        scroll.assert_called_once()
+        sx, sy, clicks, reason = scroll.call_args.args
+        self.assertEqual(reason, "BossConfigured-scroll")
+        self.assertLess(clicks, 0)
+        self.assertGreaterEqual(sx, frame.left + int(frame.width * 0.64))
+        self.assertLessEqual(sx, frame.left + int(frame.width * 0.86))
+        self.assertGreaterEqual(sy, frame.top + int(frame.height * 0.24))
+        self.assertLessEqual(sy, frame.top + int(frame.height * 0.60))
+        click.assert_called_once_with(target, "BossConfigured")
+        self.assertEqual(med._boss_challenge_scroll_attempts, 1)
+        self.assertEqual(med._boss_challenge_attempts, 1)
+
+    def test_archive_dialog_uses_only_sgzx_boss_handler(self):
+        """The classified archive page must not borrow the heirloom selection."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆", sgzx_boss="12卡尔加"), ROOT)
+        med._post_game_pending = True
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        clicked, reason = click.call_args.args
+        self.assertEqual(clicked.name, "12卡尔加")
+        self.assertEqual(reason, "BossConfigured")
+
+    def test_archive_unavailable_boss_falls_back_to_last_visible_card(self):
+        """After bounded scrolling, a real archive fixture selects its last recognized Boss."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med._post_game_pending = True
+        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        clicked, reason = click.call_args.args
+        self.assertEqual(clicked.name, "12卡尔加")
+        self.assertEqual(reason, "BossConfigured")
+
+    def test_heirloom_unavailable_boss_falls_back_to_last_visible_card(self):
+        """The same production handler reuses real heirloom templates for fallback."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med._post_game_pending = True
+        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        clicked, reason = click.call_args.args
+        self.assertEqual(clicked.name, "03洛卡纳哈")
+        self.assertEqual(reason, "BossConfigured")
+
+    def test_unavailable_boss_stays_fail_closed_without_fallback_template(self):
+        """An exhausted classified list still emits zero click when no card is recognized."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med._post_game_pending = True
+        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_find_last_recognized_post_game_boss", return_value=None), \
+             patch.object(med, "act_scroll") as scroll, \
+             patch.object(med, "act_click") as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        scroll.assert_not_called()
+        click.assert_not_called()
+
+    def test_unclassified_post_game_transition_is_zero_input(self):
+        """A pending post-game transition must not search or click an unknown frame."""
+        med = Mediator(Settings(sgzx_boss="12卡尔加"), ROOT)
+        med._post_game_pending = True
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "find") as find, \
+             patch.object(med, "act_scroll") as scroll, \
+             patch.object(med, "act_click") as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        find.assert_not_called()
+        scroll.assert_not_called()
+        click.assert_not_called()
+
+    def test_heirloom_dialog_uses_cjb_boss_handler(self):
+        """A classified heirloom page selects cjb_boss through the existing handler."""
+        med = Mediator(Settings(cjb_boss="01暴掠龙", sgzx_boss="24瑞文戴尔男爵"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "heirloom_active"
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "BossConfigured")
+        self.assertEqual(med._post_game_route, "heirloom_active")
+
+    def test_heirloom_boss_waits_for_result_instead_of_reclicking(self):
+        """After one heirloom click, the same card is not clicked again while settling."""
+        med = Mediator(Settings(cjb_boss="01暴掠龙"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "heirloom_active"
+        med._boss_challenge_attempts = 1
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_heirloom_boss_result_visible", return_value=False), \
+             patch.object(med, "act_click") as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_not_called()
+
+    def test_heirloom_result_closes_only_after_postcondition(self):
+        """A confirmed live result toast is the only path to dismiss the panel."""
+        med = Mediator(Settings(cjb_boss="01暴掠龙"), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "heirloom_active"
+        med._boss_challenge_attempts = 1
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+        close = MatchResult("close", 0.90, 990, 230, 20, 20, 1000, 240)
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_heirloom_boss_result_visible", return_value=True), \
+             patch.object(med, "_find_heirloom_close", return_value=close), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once_with(close, "DismissHeirloomDialog")
+        self.assertEqual(med._post_game_route, "boss_active")
+        self.assertFalse(med._post_game_pending)
+
+    def test_heirloom_result_ignores_scattered_combat_red_vfx(self):
+        """Red attack effects behind the dialog cannot close an unplayed page."""
+        med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
+        frame_bgr = np.zeros((900, 1600, 3), dtype=np.uint8)
+        # Two small red VFX-like components in the exact result-toast ROI.
+        frame_bgr[580:584, 790:802] = (0, 0, 255)
+        frame_bgr[582:585, 818:829] = (0, 0, 255)
+        self.assertFalse(med._heirloom_boss_result_visible(Frame(frame_bgr)))
+
+        # A compact toast-shaped component is accepted as the stronger signal.
+        frame_bgr[550:558, 790:860] = (0, 0, 255)
+        self.assertTrue(med._heirloom_boss_result_visible(Frame(frame_bgr)))
+
+    def test_active_boss_route_never_looks_like_npc_hub(self):
+        """Live-map NPC labels cannot authorize exit during an active Boss."""
+        med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
+        med._post_game_route = "boss_active"
+        med._post_game_pending = False
+        frame = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        self.assertIsNone(med._post_game_state(frame))
+
+    def test_active_boss_route_does_not_reenter_configured_boss_probe(self):
+        """The active challenge route suppresses both proactive Boss entry probes."""
+        med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
+        med._post_game_route = "boss_active"
+        med._post_game_pending = False
+        med._boss_challenge_attempts = 1
+        frame = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        with patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "find_scene", return_value=True), \
+             patch.object(med, "_maybe_challenge_configured_boss") as probe:
+            med._round_tail_checks_active = lambda: True
+            med._tick_main_line(frame)
+        probe.assert_not_called()
+
+    def test_boss_victory_continue_keeps_boss_postgame_route(self):
+        """Only after Victory is observed may the Boss route proceed to exit/rift."""
+        med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "boss victory route")
+        med._post_game_route = "boss_active"
+        frame = load_fixture_frame("fixtures/replay/victory_continue.png")
+        with patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(click.call_count, 1)
+        self.assertEqual(click.call_args.args[1], "ContinueGame")
+        self.assertTrue(med._post_game_pending)
+        self.assertEqual(med._post_game_route, "boss_postgame")
+
+    def test_hub_route_opens_heirloom_after_archive_close(self):
+        """After archive handling, the next hub action is the heirloom NPC, not rift."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "heirloom route")
+        med._post_game_pending = True
+        med._post_game_route = "heirloom"
+        frame = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        entry = MatchResult("post_game_heirloom_npc", 0.64, 1000, 340, 100, 30, 1050, 350)
+
+        with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "_post_game_hub_entry_click", return_value=entry), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once_with(entry, "OpenHeirloomChallenges")
+        self.assertEqual(med._post_game_route, "heirloom_active")
 
     def test_victory_continue_retry_limit_fails_closed(self):
         """3 failed continue attempts must Fail-Closed into ERROR."""
@@ -349,6 +792,45 @@ class P1B0PostGameTests(unittest.TestCase):
             self.assertEqual(action, LoopAction.Continue)
             mock_tick.assert_not_called()
             self.assertIsNotNone(med._missing_window_since)
+
+
+    def test_archive_chain_end_to_end_fallback_flow(self):
+        """Verify the complete post-game fallback chain: archive cards -> time-cave boss -> close -> heirloom boss -> close."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁", cjb_boss="55吞咽者布鲁"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "e2e chain")
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+
+        frame_archive = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        for index in range(8):
+            col, row = index % 4, index // 4
+            cx = int(frame_archive.width * med._ARCHIVE_CHALLENGE_X[col])
+            cy = int(frame_archive.height * med._ARCHIVE_CHALLENGE_Y[row])
+            frame_archive.bgr[
+                int(cy - frame_archive.height * 0.035):int(cy + frame_archive.height * 0.060),
+                int(cx - frame_archive.width * 0.040):int(cx + frame_archive.width * 0.040),
+            ] = (0, 255, 0)
+
+        boss_target = MatchResult("33玛格曼达", 0.85, 1075, 453, 51, 51, 1075, 453)
+        close_target = MatchResult("archive_panel_close", 0.99, 976, 197, 43, 31, 997, 212)
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "act_scroll", return_value=True) as scroll, \
+             patch.object(med, "_find_last_recognized_post_game_boss", return_value=boss_target), \
+             patch.object(med, "_find_archive_panel_close", return_value=close_target), \
+             patch.object(med, "act_click", return_value=True) as click:
+            med._tick_main_line(frame_archive)
+            med._boss_challenge_next_at = 0.0
+            med._tick_main_line(frame_archive)
+            med._boss_challenge_next_at = 0.0
+            med._tick_main_line(frame_archive)
+            med._boss_challenge_next_at = 0.0
+            med._tick_main_line(frame_archive)
+            self.assertTrue(med._time_cave_boss_done)
+            med._tick_main_line(frame_archive)
+            self.assertEqual(med._post_game_route, "heirloom")
+
+        self.assertEqual(scroll.call_count, 3)
 
 
 if __name__ == "__main__":

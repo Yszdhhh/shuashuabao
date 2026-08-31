@@ -36,6 +36,7 @@ from tools.live_scenario_capture import (
     TARGET_CONTRACTS,
     TARGET_PRODUCTION_FACTS,
     _append_bookmark_command,
+    _bootstrap_direct_boss_postgame_start,
     _bootstrap_target_probe,
     _build_identity_check,
     _capture_input_guard,
@@ -62,14 +63,32 @@ def _fixture_frame() -> Frame:
     return Frame(image, window_title="英雄三国KK", hwnd=10001, role="l1")
 
 
-def test_live_probe_defaults_to_existing_official_operator_settings() -> None:
+def test_live_probe_uses_unavailable_bosses_to_exercise_fallback() -> None:
     configured = Settings(cjb_boss="54莫阿姆", sgzx_boss="10吞噬者芬鲁斯")
     with patch.object(Settings, "load_official", return_value=configured) as load:
         settings = live_capture._prepare_settings(None, "boss_challenge", live_input=True)
     load.assert_called_once_with()
+    assert settings.cjb_boss == "55吞咽者布鲁"
+    assert settings.sgzx_boss == "55吞咽者布鲁"
+    assert settings.auto_secret_realm is False
+    assert settings.dry_run is False
+
+
+def test_non_boss_target_keeps_operator_boss_choices() -> None:
+    configured = Settings(cjb_boss="54莫阿姆", sgzx_boss="10吞噬者芬鲁斯")
+    with patch.object(Settings, "load_official", return_value=configured):
+        settings = live_capture._prepare_settings(None, "heirloom", live_input=True)
     assert settings.cjb_boss == "54莫阿姆"
     assert settings.sgzx_boss == "10吞噬者芬鲁斯"
-    assert settings.dry_run is False
+
+
+def test_direct_heirloom_start_enters_existing_selection_handler() -> None:
+    med = Mediator(Settings(cjb_boss="01暴掠龙"), ROOT)
+    frame = _fixture_frame()
+    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"):
+        bootstrap = _bootstrap_direct_boss_postgame_start(med, "heirloom", frame)
+    assert bootstrap["post_game_route"] == "heirloom_active"
+    assert med._post_game_pending is True
 
 
 def test_bundle_saves_static_pixels_once_and_scrubs_password(tmp_path: Path) -> None:
@@ -229,16 +248,16 @@ def test_capture_manifest_declares_supported_target_scope(tmp_path: Path) -> Non
         target="heirloom",
         settings={},
         initial_phase="MAIN_LINE",
-        execution_mode="ground_truth_only",
+        execution_mode="target_handler",
     )
     recorder.finalize()
     payload = json.loads((tmp_path / "bundle" / "manifest.json").read_text(encoding="utf-8"))
     assert payload["target"] == "heirloom"
-    assert payload["production_handler"] is None
-    assert payload["execution_mode"] == "ground_truth_only"
-    assert payload["production_readiness"] == "BLOCKED"
-    assert payload["ground_truth_only"] is True
-    assert payload["verification"]["natural_e2e"] == "GROUND_TRUTH_ONLY"
+    assert payload["production_handler"] == "_maybe_challenge_configured_boss"
+    assert payload["execution_mode"] == "target_handler"
+    assert payload["production_readiness"] == "CONDITIONAL"
+    assert payload["ground_truth_only"] is False
+    assert payload["verification"]["natural_e2e"] == "TARGET_PROBE_ONLY"
     assert set(payload["target_contract"]) == set(TARGET_CONTRACT_FIELDS)
     assert _settings_snapshot({"room_password": "secret", "x": 1}) == {"x": 1}
 
@@ -399,7 +418,7 @@ def test_all_six_target_contracts_have_a_structural_readiness_result() -> None:
     )
     for contract in TARGET_CONTRACTS.values():
         assert all(contract.get(field) for field in TARGET_CONTRACT_FIELDS)
-        assert contract["max_probe_time_s"] > 0
+    assert contract["max_probe_time_s"] > 0
 
     report = readiness_report(repo_root=ROOT, run_replay_self_check=True)
     assert [item["target"] for item in report["targets"]] == list(SUPPORTED_TARGETS)
@@ -409,11 +428,11 @@ def test_all_six_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["inventory_item"]["production_readiness"] == "CONDITIONAL"
     assert by_target["black_merchant"]["production_readiness"] == "CONDITIONAL"
     assert by_target["boss_challenge"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["time_cave"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["heirloom"]["production_readiness"] == "CONDITIONAL"
     assert by_target["secret_realm"]["production_readiness"] == "CONDITIONAL"
-    assert by_target["time_cave"]["production_readiness"] == "BLOCKED"
-    assert by_target["heirloom"]["production_readiness"] == "BLOCKED"
-    assert by_target["time_cave"]["ground_truth_only"] is True
-    assert by_target["heirloom"]["ground_truth_only"] is True
+    assert by_target["time_cave"]["ground_truth_only"] is False
+    assert by_target["heirloom"]["ground_truth_only"] is False
     assert any(
         route["route"] == "black_merchant_wood" and route["readiness"] == "CONDITIONAL"
         for route in by_target["black_merchant"]["production_routes"]
@@ -443,8 +462,8 @@ def test_blocked_summary_and_secret_realm_probe_bootstrap_are_evidence_only(tmp_
     med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT, stop_signal=StopSignal())
     bootstrap = _bootstrap_target_probe(med, "secret_realm")
     assert bootstrap["post_game_pending"] is True
-    assert med._post_game_pending is True
-    assert med._secret_realm_request_pending is True
+    assert med._secret_realm_request_pending is False
+    assert med._post_game_route == "secret"
 
     blocked = recorder.record_blocked(med, None, note="synthetic capture unavailable")
     assert blocked is not None
@@ -494,6 +513,20 @@ def test_inventory_hero_card_requires_existing_postcondition_for_probe_pass() ->
 
     assert confirmed == {"observed": True, "state": "confirmed", "kind": "inventory_hero_card"}
     assert missing["observed"] is False
+
+
+def test_boss_scroll_is_not_authoritative_destination_pass() -> None:
+    base = {"observed": False, "state": "not_observed", "kind": "BossConfigured-scroll"}
+    result = live_capture._target_postcondition_snapshot(
+        "boss_challenge",
+        None,
+        _fixture_frame(),
+        {},
+        {"reason": "BossConfigured-scroll"},
+        base,
+    )
+
+    assert result == base
 
 
 def test_failure_summary_uses_recorded_rejection_and_missing_postcondition_evidence(tmp_path: Path) -> None:
@@ -699,9 +732,9 @@ def test_black_merchant_integrated_routes_and_secret_probe_are_guarded() -> None
     assert guards == []
     assert _capture_input_guard("black_merchant", "target_handler")("click", "BlackMerchant-discount") is None
     assert _capture_input_guard("black_merchant", "target_handler")("click", "Artifact-Q") is None
+    assert _capture_input_guard("boss_challenge", "target_handler")("scroll", "BossConfigured-scroll") is None
     assert _capture_input_guard("secret_realm", "target_handler")("click", "CloseArchivePanel")
-    assert _capture_input_guard("secret_realm", "target_handler")("right_click", "OpenGreatRift") is None
-    assert _capture_input_guard("time_cave", "ground_truth_only")("click", "BossConfigured")
+    assert _capture_input_guard("time_cave", "target_handler")("click", "BossConfigured") is None
 
 
 def test_black_merchant_probe_composes_existing_handlers_one_input_per_tick() -> None:

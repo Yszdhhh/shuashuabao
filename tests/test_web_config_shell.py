@@ -183,6 +183,20 @@ def test_production_canvas_semantics_host_exact_product_window():
     assert 'const MODE_LABEL = { solo:"单人模式", lead:"组队带车模式", follow:"组队跟车模式", hitch:"组队蹭车模式" };' in html
 
 
+def test_stage_choice_preserves_explicit_boss_choices():
+    """关卡选择只改 stage_targets；Boss/传家宝保持用户的显式选择。"""
+    html = (ROOT / "ui-v2" / "index.html").read_text(encoding="utf-8")
+    bridge = (ROOT / "ui-v2" / "src" / "main.ts").read_text(encoding="utf-8")
+
+    assert "recommendChallenges" not in html
+    assert "STAGE_BOSS" not in html
+    assert "STAGE_CJB" not in html
+    assert "recommendChallenges" not in bridge
+    assert "if (cjb) state.cjb = cjb;" in bridge
+    assert "if (boss) state.boss = boss;" in bridge
+    assert "renderNames();" in bridge
+
+
 def test_webengine_view_uses_widget_safe_border_reset():
     """QWebEngineView is a QWidget; use its margins/style instead of QFrame APIs."""
     source = (ROOT / "src" / "shuabao" / "shell" / "web_config_shell.py").read_text(encoding="utf-8")

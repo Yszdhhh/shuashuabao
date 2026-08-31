@@ -51,6 +51,8 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 from shuabao.vision.choice_ocr import (  # noqa: E402
     load_lexicon,
     normalize_choice_text,
+    truth_canonical_for,
+    truth_status_of,
 )
 
 # 归一化 ROI 规范（x0,y0,x1,y1；相对分辨率，与 1600x900 同比例）——B2 遗留默认值，
@@ -95,30 +97,9 @@ def frozen_roi_for_slot(kind: str, slot_index: int, field: str = "name") -> tupl
 
 
 
-def truth_status_of(canonical: str | None, lexicon: dict) -> str:
-    """truth 归类（与 evaluator 一致）：in_lexicon / alias_covered / unknown。"""
-    if not canonical:
-        return "unknown"
-    entries = lexicon["entries"]
-    if canonical in entries:
-        return "in_lexicon"
-    for canon, entry in entries.items():
-        if canonical in entry.get("aliases", []):
-            return "alias_covered"
-    return "unknown"
-
-
 def canonical_for(canonical: str | None, lexicon: dict) -> str | None:
-    """纠正别名 → 词典规范名；词典外返回 None（标 unknown）。"""
-    if not canonical:
-        return None
-    entries = lexicon["entries"]
-    if canonical in entries:
-        return canonical
-    for canon, entry in entries.items():
-        if canonical in entry.get("aliases", []):
-            return canon
-    return None
+    """纠正 truth alias，保留 D0 审计使用的历史规范写法。"""
+    return truth_canonical_for(canonical, lexicon)
 
 
 def roi_boxes_for_slot(entry: dict, slot: dict, w: int, h: int) -> dict:

@@ -131,11 +131,8 @@ function Invoke-TargetProbe {
 }
 
 function Invoke-BossSeriesCapture {
-    # This is still the existing capture command.  It deliberately exercises
-    # production Mediator.tick() so tqtz -> configured Boss -> post-game
-    # evidence stays in one bundle.  time_cave/heirloom selection remains
-    # production-blocked; the existing verified heirloom safe-close action is
-    # left to Mediator.tick(), while the time-cave boundary is only observed.
+    # Mediator.tick() so tqtz -> configured Boss -> post-game archive cards ->
+    # time-cave/heirloom Boss fallback stay in one production route.
     $cliArgs = @(
         "capture",
         "--target", "boss_challenge",
@@ -150,7 +147,7 @@ function Invoke-BossSeriesCapture {
         "--confirm-live-input"
     )
 
-    Write-Host "[launcher] Boss 系列整链：现有 Mediator.tick()；tqtz/Boss/结算取证，时光之穴与传家宝选择不自动接线" -ForegroundColor Cyan
+    Write-Host "[launcher] Boss 系列整链：现有 Mediator.tick()；tqtz/Boss/结算→存档8项→时光之穴/传家宝兜底" -ForegroundColor Cyan
     Write-Host "[launcher] capture_root=$script:CaptureRoot" -ForegroundColor DarkGray
     Write-Host "[launcher] automation_exe=$script:AutomationExe" -ForegroundColor DarkGray
     if (-not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
@@ -223,7 +220,7 @@ $title.Location = New-Object System.Drawing.Point(22, 18)
 $script:MenuForm.Controls.Add($title)
 
 $status = New-Object System.Windows.Forms.Label
-$status.Text = "点击按钮即可开始，不需要输入数字。2-5 会先通过 preflight；4 会跑 Boss 系列整链，6-7 只取证、绝不自动点击。`r`n测试开始后放开鼠标；p=留成功证据，f=留失败证据，m=人工介入后继续。"
+$status.Text = "点击按钮即可开始，不需要输入数字。2-5 会先通过 preflight；4 只跑 Boss→存档8项→传家宝，不会点秘境；5 单独测秘境，6 只取时光之穴证据。`r`n测试开始后放开鼠标；p=留成功证据，f=留失败证据，m=人工介入后继续。"
 $status.AutoSize = $false
 $status.Size = New-Object System.Drawing.Size(700, 58)
 $status.Location = New-Object System.Drawing.Point(24, 60)
@@ -280,10 +277,10 @@ $yellow = [System.Drawing.Color]::FromArgb(255, 246, 210)
 Add-MenuButton "1  启动前检查`r`n    只检查环境，不操作游戏" 24 170 { Invoke-Readiness } $blue
 Add-MenuButton "2  背包道具`r`n    吞噬丹（羁绊≥4）/英雄卡" 390 170 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
 Add-MenuButton "3  黑商 + 背包长测（推荐）`r`n    刷新/拿取/吞噬丹/英雄卡/神器，最长10分钟" 24 256 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
-Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算；时光/传家宝不选" 390 256 { Invoke-BossSeriesCapture } $green
+Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→存档8项→时光之穴/传家宝兜底" 390 256 { Invoke-BossSeriesCapture } $green
 Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 342 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
-Add-MenuButton "6  时光之穴 Ground Truth`r`n    只记录人工链，不自动点击" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $true } $yellow
-Add-MenuButton "7  传家宝 Ground Truth`r`n    只记录人工链，不自动选 Boss" 24 428 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $true } $yellow
+Add-MenuButton "6  时光之穴 Boss fallback（实机）`r`n    已打开列表后自动选择最后可识别 Boss" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $false } $green
+Add-MenuButton "7  传家宝 Boss 选择`r`n    复用 cjb_boss 选择并验证真实 HUD" 24 428 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $false } $green
 Add-MenuButton "8  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 390 428 { Open-LatestFailBundle } $blue
 Add-MenuButton "9  Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 24 514 { Reproduce-LatestFail } $blue
 

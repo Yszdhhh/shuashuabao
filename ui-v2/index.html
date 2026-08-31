@@ -1269,7 +1269,6 @@
     const MUST_TAKE = ["EX","ONEPIECE","至高进化","一身神装","满级大佬","全都要","卡牌大师"];
     const MODE_LABEL = { solo:"单人模式", lead:"组队带车模式", follow:"组队跟车模式", hitch:"组队蹭车模式" };
     const stemLabel = (stem) => stem.replace(/^\d+/, "");
-    const findStem = (stems, label) => stems.find((s) => stemLabel(s) === label) || "";
     const state = {
       scene:"farm", mode:"solo", wizKind:"solo", wizTeam:"lead", wizardReturnScene:"farm",
       theme:"light", hero:true, cycle:100, played:0, autoSecret:false, autoArch:false, closeMainline:false, newRoom:false, chapter:1, stage:10, dragonPrefer:true,
@@ -1617,12 +1616,6 @@
       $("negatives").innerHTML=NEG.map((card)=>`<label class="neg-item"><input type="checkbox" data-neg="${card.name}" ${state.negative.has(card.name)?"checked":""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span><span class="why">${card.why}</span></span></label>`).join("");
     }
     function renderNames() { $("cjbName").textContent=stemLabel(state.cjb); $("bossName").textContent=stemLabel(state.boss); renderLaunchSummary(); }
-    function openSubscriptionModal() {
-      state.modal="subscription"; state._focusBack=document.activeElement;
-      $("modalSheet").className="sheet subscription";
-      $("modalSheet").innerHTML=`<div class="subscription-head"><p>刷刷宝 · 订阅授权</p><h2>输入卡密以激活本机</h2></div><div class="subscription-body"><label for="subscriptionKey">订阅卡密<input id="subscriptionKey" type="password" autocomplete="off" placeholder="请输入本地生成的卡密" /></label><small>卡密会绑定到当前 Windows 用户；未通过授权时无法开始自动运行。</small></div><div class="subscription-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-activate-subscription="1">激活并继续</button></div>`;
-      $("modalLayer").classList.add("show"); focusSheet();
-    }
     function setKind(kind, root) {
       root.querySelectorAll("[data-kind]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.kind===kind?"true":"false"));
     }
@@ -1892,7 +1885,6 @@
         else if (!e.shiftKey && document.activeElement===last) { e.preventDefault(); first.focus(); }
       }
     });
-    renderChapterStage(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
     setScene("farm");
   </script>
     <script type="module" src="./src/main.ts"></script>

@@ -79,20 +79,19 @@ class LobbyDetectorTests(unittest.TestCase):
         boxes = find_input_boxes(Frame(frame), anchor=anchor)
         self.assertEqual(len(boxes), 2)
 
-    def test_create_dialog_button_is_found_in_bottom_roi(self):
+    def test_create_dialog_color_and_shape_do_not_authorize_confirm(self):
         frame = np.zeros((488, 584, 3), dtype=np.uint8)
         for y in (98, 194):
             cv2.rectangle(frame, (203, y), (485, y + 32), (60, 60, 60), -1)
             cv2.rectangle(frame, (203, y), (485, y + 32), (180, 180, 180), 2)
-        # Current KK create dialog: Create is left of Cancel at the bottom.
+        # Even a plausible two-field/two-button layout is not semantic authority.
         cv2.rectangle(frame, (262, 418), (373, 458), (230, 150, 20), -1)
         cv2.rectangle(frame, (390, 420), (506, 456), (230, 150, 20), -1)
         root = Path(__file__).resolve().parents[1]
         med = Mediator(Settings(auto_create_room=True), root)
         hit = med._find_create_confirm(Frame(frame))
-        self.assertIsNotNone(hit)
-        self.assertLess(hit.x, 350)
-        self.assertEqual(med._detect_context(Frame(frame)), "CREATE_ROOM")
+        self.assertIsNone(hit)
+        self.assertNotEqual(med._detect_context(Frame(frame)), "CREATE_ROOM")
 
     def test_match_all_keeps_two_reward_choices(self):
         template = _load_template(self.images_dir() / "skills" / "asj.png")
@@ -127,7 +126,7 @@ class LobbyDetectorTests(unittest.TestCase):
         frame[261:261 + first.shape[0], 526:526 + first.shape[1]] = first
         frame[261:261 + preferred.shape[0], 759:759 + preferred.shape[1]] = preferred
         frame[261:261 + third.shape[0], 992:992 + third.shape[1]] = third
-        med = Mediator(Settings(skills=["assx"], match_threshold=0.85), root)
+        med = Mediator(Settings(skills=["assx"], match_threshold=0.85, ocr_mode="off"), root)
         kind, hit = med._find_reward_choice(Frame(frame))
         self.assertEqual(kind, "技能")
         self.assertEqual(hit.name, "assx")

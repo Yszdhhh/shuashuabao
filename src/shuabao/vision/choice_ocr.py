@@ -123,6 +123,11 @@ def lexicon_errors(data: Any) -> list[str]:
         set_membership = entry.get("set_membership")
         if set_membership is not None and not isinstance(set_membership, str):
             errors.append(f"{canonical}: set_membership must be string or null")
+        # D0 人工复核曾把「奥数」写法作为 truth canonical。对应的兼容条目
+        # 只用于审计/数据集一致性，不能与运行时「奥术」条目的 alias surface
+        # 形成冲突，也不能成为 OCR lookup 候选。
+        if entry.get("_legacy_truth_only"):
+            continue
         for surface in (canonical, *entry.get("aliases", [])):
             key = normalize_choice_text(surface)
             if not key:
@@ -148,6 +153,58 @@ def load_lexicon(path: str | Path | None = None) -> dict[str, Any]:
     if errors:
         raise ValueError("choice_lexicon.json invalid: " + "; ".join(errors))
     return data
+
+
+def _legacy_truth_for_runtime(name: str, entries: dict[str, Any]) -> str | None:
+    """Return the historical D0 truth spelling for a runtime canonical name."""
+    for legacy, entry in entries.items():
+        if entry.get("_legacy_truth_only") and entry.get("_runtime_canonical") == name:
+            return legacy
+    return None
+
+
+def truth_status_of(name: str | None, lexicon: dict[str, Any] | None = None) -> str:
+    """Classify an evidence truth label without changing runtime OCR canonical names.
+
+    The live/runtime lexicon uses the current ``奥术`` spellings, while D0 reviewed
+    manifests retain the historical ``奥数`` spellings.  A current spelling is
+    therefore reported as ``alias_covered`` when a legacy truth entry records that
+    migration; legacy entries themselves remain valid audit labels.
+    """
+    if not name:
+        return "unknown"
+    data = lexicon if lexicon is not None else load_lexicon()
+    entries = data.get("entries") or {}
+    entry = entries.get(name)
+    if entry is not None:
+        if entry.get("_legacy_truth_only"):
+            return "in_lexicon"
+        return "alias_covered" if _legacy_truth_for_runtime(name, entries) else "in_lexicon"
+    for canonical, candidate in entries.items():
+        if candidate.get("_legacy_truth_only"):
+            continue
+        if name in candidate.get("aliases", []):
+            return "alias_covered"
+    return "unknown"
+
+
+def truth_canonical_for(name: str | None, lexicon: dict[str, Any] | None = None) -> str | None:
+    """Map evidence truth labels to their audited canonical spelling."""
+    if not name:
+        return None
+    data = lexicon if lexicon is not None else load_lexicon()
+    entries = data.get("entries") or {}
+    entry = entries.get(name)
+    if entry is not None:
+        if entry.get("_legacy_truth_only"):
+            return name
+        return _legacy_truth_for_runtime(name, entries) or name
+    for canonical, candidate in entries.items():
+        if candidate.get("_legacy_truth_only"):
+            continue
+        if name in candidate.get("aliases", []):
+            return _legacy_truth_for_runtime(canonical, entries) or canonical
+    return None
 
 
 def _apply_replacements(text: str) -> str:
@@ -218,6 +275,8 @@ def lookup_lexicon(
     entries = data.get("entries", {})
     scored: list[tuple[float, str]] = []
     for canonical, entry in entries.items():
+        if entry.get("_legacy_truth_only"):
+            continue
         if kind is not None and entry.get("kind") != kind:
             continue
         score = _score_entry(normalized, canonical, entry)
