@@ -279,7 +279,7 @@ Add-MenuButton "2  背包道具`r`n    吞噬丹（羁绊≥4）/英雄卡" 390 
 Add-MenuButton "3  黑商 + 背包长测（推荐）`r`n    刷新/拿取/吞噬丹/英雄卡/神器，最长10分钟" 24 256 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
 Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→存档8项→时光之穴/传家宝兜底" 390 256 { Invoke-BossSeriesCapture } $green
 Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 342 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
-Add-MenuButton "6  时光之穴 Ground Truth`r`n    只记录人工链，不自动点击" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $true } $yellow
+Add-MenuButton "6  时光之穴 Boss fallback（实机）`r`n    已打开列表后自动选择最后可识别 Boss" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $false } $green
 Add-MenuButton "7  传家宝 Boss 选择`r`n    复用 cjb_boss 选择并验证真实 HUD" 24 428 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $false } $green
 Add-MenuButton "8  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 390 428 { Open-LatestFailBundle } $blue
 Add-MenuButton "9  Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 24 514 { Reproduce-LatestFail } $blue

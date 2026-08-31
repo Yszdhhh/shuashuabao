@@ -150,21 +150,21 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "time_cave": {
         "handler": "_maybe_challenge_configured_boss",
         "call": "frame_now",
-        "start_condition": "人工完整走到时光之穴相关页面；当前只做关键帧、trace 与状态 Ground Truth capture。",
-        "production_entry": "BLOCKED：当前没有已验证的战后时光之穴 NPC 生产入口；capture 不调用 Boss 选择 handler。",
+        "start_condition": "人工打开时光之穴 Boss 选择页；脚本只接管末位可识别 Boss fallback。",
+        "production_entry": "Mediator._maybe_challenge_configured_boss(frame, time.time())，复用现有 Boss 模板/滚动/末位 fallback。",
         "expected_steps": (
-            "POSTGAME_DETECT", "ENTRY_VISIBLE", "CLICK", "REQUEST", "CONFIRM", "TRANSITION", "DESTINATION_CONFIRMED",
+            "ENTRY_VISIBLE", "CLICK", "REQUEST", "CONFIRM", "TRANSITION", "DESTINATION_CONFIRMED",
         ),
-        "success_postcondition": "本轮没有 Live Probe PASS；只保存完整人工链的 Ground Truth，供后续单独设计生产实现。",
-        "fail_condition": "仅记录 capture/preflight 异常，不把人工链路缺口归因为现有生产 handler。",
-        "blocked_condition": "production BLOCKED：战后时光之穴 NPC 未接线；测试侧强制 zero-input。",
-        "max_probe_time_s": 25.0,
-        "natural_e2e_eligible": "Ground Truth capture 永不构成 Live Probe PASS 或 Natural E2E；未来完成独立生产设计后重新评估。",
-        "bundle_replay": "捕获的 postgame/entry/transition 关键帧按原 ReplayCaseLoader 格式重放，故障变体不改原始截图。",
-        "runbook_manual": "手动完成可到达的时光之穴链路；不用配置生产 Boss 选择作为验收前置。",
-        "runbook_hands_off": "启动后脚本只取证，绝不会点击 Boss、确认或返回；可继续人工推进稀有页面。",
-        "runbook_pass": "本 target 无 Live Probe PASS；capture bundle 成功保存即为 Ground Truth 完成。",
-        "runbook_manual_intervention": "需要继续人工推进时按 m；它保留后续 Ground Truth，但不产生 Natural E2E。",
+        "success_postcondition": "真实 Boss 挑战 HUD 出现；单次 click success 不算成功。",
+        "fail_condition": "入口/可选 Boss 未识别、输入被拒绝、目标页/局内 HUD 不变，或生产 handler 进入 ERROR。",
+        "blocked_condition": "没有稳定的时光之穴 Boss 列表或真实挑战 HUD 时，Fail-Closed 零输入。",
+        "max_probe_time_s": 60.0,
+        "natural_e2e_eligible": "只有真实列表、末位 Boss 点击及挑战 HUD 后置确认全部成立才算 Natural E2E。",
+        "bundle_replay": "整链 capture 与局部 probe 复用 ReplayCaseLoader；fallback 点击和转场按事件帧重放。",
+        "runbook_manual": "先把游戏停在已打开的时光之穴 Boss 列表，传家宝本轮不参与。",
+        "runbook_hands_off": "启动后不要手动点击 Boss，让脚本自动选择最后一个可识别 Boss。",
+        "runbook_pass": "必须出现真实挑战 HUD 才算 Live Probe PASS。",
+        "runbook_manual_intervention": "入口不稳定时按 m 停止自动输入，保留 bundle 证据。",
     },
     "heirloom": {
         "handler": "_maybe_challenge_configured_boss",
@@ -242,10 +242,10 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
         "ground_truth_only": False,
     },
     "time_cave": {
-        "production_readiness": "BLOCKED",
-        "scope": "战后时光之穴 NPC 未接线；只采完整人工链 Ground Truth，零输入。",
-        "routes": ({"route": "postgame_time_cave_npc", "readiness": "BLOCKED"},),
-        "ground_truth_only": True,
+        "production_readiness": "CONDITIONAL",
+        "scope": "已打开时光之穴 Boss 列表后，复用现有 handler 选择最后一个可识别 Boss 并确认真实挑战 HUD。",
+        "routes": ({"route": "open_time_cave_boss_list", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
     },
     "heirloom": {
         "production_readiness": "CONDITIONAL",
@@ -626,13 +626,14 @@ def _target_postcondition_snapshot(
             return {"observed": True, "state": "confirmed", "kind": "inventory_swallow_pill"}
         if "UseInventory-hero-card" in reason and base.get("observed") is True:
             return {"observed": True, "state": "confirmed", "kind": "inventory_hero_card"}
-        return {"observed": False, "state": "not_observed", "kind": reason or "inventory_swallow_pill"}
-
-    # Time cave remains capture-only until its production entry is separately
-    # designed. Heirloom selection uses the existing configured-Boss handler
-    # when the live page is already classified as HEIRLOOM_DIALOG.
-    if target == "time_cave":
-        return {"observed": False, "state": "ground_truth_only", "kind": "production_blocked"}
+    # Time-cave and heirloom selection use the existing configured-Boss
+    # handler; success requires the real in-game challenge HUD.
+    if target in {"time_cave", "heirloom"} and reason == "BossConfigured" and _frame_is_valid(frame):
+        try:
+            if med._post_game_state(frame) is None and med._is_in_game_hud(frame):
+                return {"observed": True, "state": "confirmed", "kind": "destination_hud"}
+        except (AttributeError, TypeError):
+            pass
 
     if target == "secret_realm":
         if after_state.get("secret_realm_active") and _frame_is_valid(frame):
@@ -1936,15 +1937,9 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     settings = _load_operator_settings(path)
     # A Ground Truth-only target remains zero-input even when an operator
     # accidentally supplied --live-input. Never turn a production flag on in
-    # the adapter; any capture-local isolation below is recorded in the bundle.
-    settings.dry_run = not live_input or _ground_truth_only(target)
-    # Boss and secret-realm evidence are deliberately separate live targets.
-    # This is a capture-local switch only; the manifest records it and the
-    # operator's persisted production setting is never edited.
-    if target == "boss_challenge":
-        # Test 4 must exercise production fallback rather than yesterday's
-        # persisted Boss choices. This only changes the in-memory capture
-        # settings; Settings.load_official() data is never written back.
+    # Boss/时间之穴测试只在内存中使用不可用哨兵，强制验证最后可识别 Boss fallback。
+    # 不修改 Settings.json。
+    if target in {"boss_challenge", "time_cave"}:
         settings.cjb_boss = "55吞咽者布鲁"
         settings.sgzx_boss = "55吞咽者布鲁"
         settings.auto_secret_realm = False
@@ -2002,7 +1997,7 @@ def _bootstrap_direct_boss_postgame_start(
     Mediator post-game classifier, then the normal ``Mediator.tick()`` path is
     allowed to run. No Boss recognition, scrolling, or click policy lives here.
     """
-    if target not in {"boss_challenge", "heirloom"} or getattr(med, "_post_game_pending", False):
+    if target not in {"boss_challenge", "time_cave", "heirloom"} or getattr(med, "_post_game_pending", False):
         return {}
     if not _frame_is_valid(frame):
         return {}

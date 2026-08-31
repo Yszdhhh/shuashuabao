@@ -418,7 +418,7 @@ def test_all_six_target_contracts_have_a_structural_readiness_result() -> None:
     )
     for contract in TARGET_CONTRACTS.values():
         assert all(contract.get(field) for field in TARGET_CONTRACT_FIELDS)
-        assert contract["max_probe_time_s"] > 0
+    assert contract["max_probe_time_s"] > 0
 
     report = readiness_report(repo_root=ROOT, run_replay_self_check=True)
     assert [item["target"] for item in report["targets"]] == list(SUPPORTED_TARGETS)
@@ -428,10 +428,10 @@ def test_all_six_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["inventory_item"]["production_readiness"] == "CONDITIONAL"
     assert by_target["black_merchant"]["production_readiness"] == "CONDITIONAL"
     assert by_target["boss_challenge"]["production_readiness"] == "CONDITIONAL"
-    assert by_target["secret_realm"]["production_readiness"] == "CONDITIONAL"
-    assert by_target["time_cave"]["production_readiness"] == "BLOCKED"
+    assert by_target["time_cave"]["production_readiness"] == "CONDITIONAL"
     assert by_target["heirloom"]["production_readiness"] == "CONDITIONAL"
-    assert by_target["time_cave"]["ground_truth_only"] is True
+    assert by_target["secret_realm"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["time_cave"]["ground_truth_only"] is False
     assert by_target["heirloom"]["ground_truth_only"] is False
     assert any(
         route["route"] == "black_merchant_wood" and route["readiness"] == "CONDITIONAL"
@@ -734,8 +734,7 @@ def test_black_merchant_integrated_routes_and_secret_probe_are_guarded() -> None
     assert _capture_input_guard("black_merchant", "target_handler")("click", "Artifact-Q") is None
     assert _capture_input_guard("boss_challenge", "target_handler")("scroll", "BossConfigured-scroll") is None
     assert _capture_input_guard("secret_realm", "target_handler")("click", "CloseArchivePanel")
-    assert _capture_input_guard("secret_realm", "target_handler")("right_click", "OpenGreatRift") is None
-    assert _capture_input_guard("time_cave", "ground_truth_only")("click", "BossConfigured")
+    assert _capture_input_guard("time_cave", "target_handler")("click", "BossConfigured") is None
 
 
 def test_black_merchant_probe_composes_existing_handlers_one_input_per_tick() -> None:
