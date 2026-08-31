@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.settings import Settings
 from shuabao.stop_signal import StopSignal
-from shuabao.subscription_client import check_start_permission, validate_entitlement
+from shuabao.subscription_client import activate_device, check_start_permission, validate_entitlement
 from shuabao.shell.live_execute import execute_runtime_mediator
 
 
@@ -39,6 +39,17 @@ def _opener(payload):
     def open_fn(req, timeout):
         assert req.full_url.endswith("/v1/entitlements/validate")
         assert timeout == 3.0
+        body = json.loads(req.data.decode("utf-8"))
+        assert body["license_key"] == "pilot-license"
+        assert body["hardware"]["fingerprint"] == "pilot-device-01"
+        return _Response(payload)
+
+    return open_fn
+
+
+def _activation_opener(payload):
+    def open_fn(req, timeout):
+        assert req.full_url.endswith("/v1/devices/activate")
         body = json.loads(req.data.decode("utf-8"))
         assert body["license_key"] == "pilot-license"
         assert body["hardware"]["fingerprint"] == "pilot-device-01"
@@ -92,6 +103,14 @@ def test_validate_entitlement_returns_bridge_expiry_without_logging_key():
     assert result["status"] == "ACTIVE"
     assert result["license"]["expires_at"].startswith("2026-09-01")
     assert "pilot-license" not in result.get("message", "")
+
+
+def test_activate_device_uses_same_pilot_hardware_contract():
+    response = {"activation_id": "act_01", "fingerprint": "pilot-device-01"}
+
+    result = activate_device("pilot-license", env=BASE_ENV, opener=_activation_opener(response))
+
+    assert result["ok"] is True
 
 
 def test_enforce_expired_denies_start():

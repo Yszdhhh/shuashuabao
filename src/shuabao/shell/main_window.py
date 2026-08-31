@@ -74,6 +74,7 @@ from shuabao import __version__
 from shuabao.settings import MAX_SELECTED_SKILLS, Settings
 from shuabao.subscription_client import (
     SUBSCRIPTION_LICENSE_KEY_ENV,
+    activate_device,
     validate_entitlement,
 )
 from shuabao.shell.mode_catalog import (
@@ -2239,6 +2240,12 @@ class MainWindow(QMainWindow):
         self._refresh_subscription_display()
         env = dict(os.environ)
         env["SHUABAO_SUBSCRIPTION_MODE"] = "enforce"
+        activation = activate_device(key, env=env)
+        if not activation.get("ok"):
+            self._subscription_status = "激活失败"
+            self._refresh_subscription_display()
+            QMessageBox.warning(self, "订阅激活失败", str(activation.get("message") or "设备激活失败"))
+            return
         payload = validate_entitlement(key, env=env)
         allowed = bool(payload.get("valid")) and payload.get("can_start_runner") is True
         status = str(payload.get("status") or "UNKNOWN")

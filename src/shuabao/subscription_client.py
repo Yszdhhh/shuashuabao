@@ -96,6 +96,38 @@ def validate_entitlement(
     return payload
 
 
+def activate_device(
+    license_key: str,
+    *,
+    env: Mapping[str, str] | None = None,
+    opener: Callable[..., Any] | None = None,
+) -> dict[str, Any]:
+    """Bind a user-entered key to the configured Pilot device once."""
+    source = os.environ if env is None else env
+    base_url = _env_text(source, SUBSCRIPTION_BASE_URL_ENV).rstrip("/")
+    fingerprint = _env_text(source, SUBSCRIPTION_DEVICE_FP_ENV)
+    key = str(license_key or "").strip()
+    if not base_url or not key or not fingerprint:
+        return {"ok": False, "code": "CONFIG_MISSING", "message": "订阅服务、密钥或设备指纹未配置"}
+    hardware = {
+        "fingerprint": fingerprint,
+        "components": {},
+        "platform": "windows",
+        "hostname": socket.gethostname() or None,
+    }
+    req = urllib_request.Request(
+        f"{base_url}/v1/devices/activate",
+        data=json.dumps({"license_key": key, "hardware": hardware}).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+    try:
+        with (opener or urllib_request.urlopen)(req, timeout=_timeout_seconds(source)) as response:
+            return {"ok": True, "device": json.loads(response.read().decode("utf-8"))}
+    except Exception as exc:
+        return {"ok": False, "code": "DEVICE_ACTIVATION_FAILED", "message": f"设备激活失败: {type(exc).__name__}"}
+
+
 def _env_text(env: Mapping[str, str], key: str) -> str:
     return str(env.get(key, "") or "").strip()
 
