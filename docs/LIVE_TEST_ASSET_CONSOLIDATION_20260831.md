@@ -178,6 +178,91 @@ fast-fail and reported **31 failed, 1068 passed, 5 skipped, 2 xfailed, 207 subte
 passed in 206.89s**.  Thus the previous native-process crash/exit blocker is cleared,
 while the unchanged set of ordinary assertion failures remains `FAIL / OPEN`.
 
+### Final offline closure addendum — 2026-08-31 11:52 CST
+
+This addendum supersedes the earlier provisional counts above.  It records the
+follow-up after the dashboard/Boss changes and the OCR asset migration; it does not
+grant any live target a business PASS.
+
+#### Root Cause Summary
+
+- The prior Windows `0xC0000409` was isolated to Qt test lifecycle/state setup.  The
+  corrected fixtures now reach 100% and the process exits normally.
+- A false release-gate `0 passed` observation came from invoking the runtime `.venv`,
+  which intentionally has no pytest module.  The repository test interpreter is the
+  Python 3.11 environment used for all final results; no baseline was changed.
+- The remaining four assertions were a real data-contract mismatch: runtime OCR
+  names use current `奥术*`, while D0 human-reviewed truth still contains historical
+  `奥数*`.  Three `_legacy_truth_only` audit entries preserve that evidence, and the
+  production lookup explicitly skips them.
+
+#### Asset Consolidation
+
+The exact `fixtures/ex_finals_20260814` real screenshots were restored from the
+matching committed/archive copies and indexed.  Existing merchant, Boss, heirloom,
+and stage fixtures remain regression inputs.  No synthetic frame was added and no
+historical bundle was relabeled as a current production PASS.
+
+#### Feature Matrix / current acceptance
+
+| Chain | Formal dashboard and production state | Current acceptance |
+|---|---|---|
+| Black Merchant | Settings, fixed slot mapping, discount aliases, purchase/use handlers are wired into the formal `Mediator`. | `VALID BUT OLD / MISSING_REAL_SAMPLE`: current-SHA 2/5/8, wood, and 吞噬丹 postconditions still need real bundles. |
+| Heirloom | `cjb_boss` is persisted and page-scoped; explicit target is tried first, then bounded scroll and highest-numbered recognized fallback on a classified page. | `CONDITIONAL`: historical partial evidence only; three current-build HUD→active→completion successes, including one scroll, are missing. |
+| Time Cave | `sgzx_boss` is persisted and page-scoped; unavailable target fallback is bounded and fail-closed. | Complete NPC-entry Ground Truth remains `BLOCKED`; no production interaction is authorized. |
+| Secret Realm | `auto_secret_realm` is on the same production mediator path and requires real HUD plus `_secret_realm_active=True`. | `MISSING_REAL_SAMPLE`: no qualifying entry bundle. |
+| Boss long chain / eight cards | Existing production handler and archive sequence remain intact; no second FSM was introduced. | Historical clicks exist, but current-SHA final postcondition is not closed. |
+| Dashboard stage/Boss selection | Chapter/stage changes no longer rewrite `cjb_boss`/`sgzx_boss`; selected values render as selected. | Offline wiring PASS; live confirmation still pending. |
+
+Thus existing real material can be used directly for offline optimization of trigger,
+condition, ending, stability, and accuracy logic.  It does **not** justify saying that
+all chains except Secret Realm are already current-build, formally runnable live.
+
+#### Real live evidence
+
+No live-input action was executed in this follow-up.  The retained real bundles are
+historical/partial: black-merchant purchase and pill-use runs, the eight archive-card
+run, and the heirloom regression/one-frame captures.  The latest Secret Realm bundle
+is a fail-closed preflight artifact without game frames; it is not a Secret Realm
+entry.  `disconnect_modal_missing` likewise remains a real-material gap.
+
+#### Failure Matrix
+
+| Failure / gap | Status | Evidence-safe disposition |
+|---|---|---|
+| Full-suite native crash / hard exit | RESOLVED OFFLINE | `python -m pytest tests -q` reached 100%; keep Qt lifecycle regression tests. |
+| D0/runtime `奥数` ↔ `奥术` truth mismatch | RESOLVED OFFLINE | Audit-only compatibility entries; runtime lookup remains current-name only. |
+| `disconnect_modal_missing` | BLOCKED | Missing real disconnect-modal frames; do not synthesize or update baseline. |
+| P0 five-run lifecycle | MISSING_REAL_SAMPLE | Need 5 natural start→probe→stop/F12→bundle→menu-return runs. |
+| Black Merchant current canonical 2/5/8/wood/pill | MISSING_REAL_SAMPLE | Re-run on identity-matched build with item-state postconditions. |
+| Heirloom three successes / scroll | MISSING_REAL_SAMPLE | Require real HUD, active state, and completion postconditions. |
+| Secret Realm entry | MISSING_REAL_SAMPLE | Require real HUD and `_secret_realm_active=True`. |
+| Time Cave NPC entry | BLOCKED | Ground Truth only; production remains zero-input. |
+
+#### Tests and Git
+
+- Full: `1097 passed, 5 skipped, 2 xfailed, 207 subtests passed`.
+- Frozen Replay: `6 PASS / 1 BLOCKED / 0 FAIL`.
+- Contracts: `56 passed, 111 subtests passed`.
+- Release gate: `4/4 PASS` (`pytest=340`, frozen replay, scene templates `132/132`,
+  contracts `56`).
+- Worktree: `G:\\刷刷宝\\Worktrees\\live-test-boss-05ed271`; branch:
+  `codex/live-test-handoff-20260831`; code HEAD before this documentation commit:
+  `9c654eafcdd824b2ce05d01f0a8fa7218535a5cb`.
+- The checked-in `dist/ShuaBao/build_identity.json` predates this final code commit;
+  it must not be used for live input.  A no-deploy package will be rebuilt at the
+  post-documentation HEAD and its source SHA and EXE hash will be checked before any
+  game launch.
+
+#### Remaining risks
+
+The only completely untested live feature is Secret Realm entry, but the other
+chains are not automatically promoted to PASS: they still lack current-SHA DoD
+bundles and may need trigger/condition/postcondition tuning.  The fallback recognizes
+the highest-numbered production template on a classified page; if the game exposes a
+separate locked/unavailable visual state, that state still needs real Ground Truth.
+No merge, PR, synthetic evidence, or baseline waiver is allowed.
+
 ## Deletion candidates
 
 | Classification | Candidate | Decision |

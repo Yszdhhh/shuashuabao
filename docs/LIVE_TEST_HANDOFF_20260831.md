@@ -144,6 +144,63 @@
 - Frozen replay：既有 6 个场景 PASS，`disconnect_modal_missing` 仍是既有 BLOCKED 项。
 - 本次完整 `release_gate.py` 未在 worktree 的 `.venv` 中执行成功，因为该环境没有安装 `pytest`，不是本次代码断言失败。用主仓库 `.venv` 直接跑全量时存在其它环境/历史测试失败，不能把它伪报为绿色；接手者应先恢复正确 dev interpreter，再按仓库 gate 重跑。
 
+## 8.1 最终离线收口（2026-08-31 11:52 CST）
+
+上一节保留的是早期交接时的环境说明；以下是本次继续执行后的最终离线结果，
+以它覆盖“当前”测试状态。运行目录和分支仍严格是
+`G:\\刷刷宝\\Worktrees\\live-test-boss-05ed271` /
+`codex/live-test-handoff-20260831`，本次没有向游戏窗口发输入。
+
+### Root Cause Summary
+
+Windows `0xC0000409` 已通过 Qt 测试生命周期隔离修正，完整套件正常跑到 100%。
+此前 gate 的 `0 passed` 是误用未安装 pytest 的运行 `.venv`，不是测试被删除；改用
+Python 3.11 测试环境后 gate 正常。最后 4 个断言是 D0 的历史“奥数” truth 与运行时
+正式“奥术”词典迁移不一致，已增加只供审计的 `_legacy_truth_only` 条目；这些条目
+被 lookup 跳过，不会扩大生产点击候选。
+
+### 看板与 Boss 选择结论
+
+正式看板现在只把章节/关卡写入 `stage_targets`，不会再用硬编码推荐表覆盖用户
+选择；恢复设置时先加载 `cjb_boss` / `sgzx_boss`，再渲染名称，所以“选啥就显示啥”。
+生产页已隔离：`ARCHIVE_PANEL` 只用 `sgzx_boss`（时光之穴），`HEIRLOOM_DIALOG`
+只用 `cjb_boss`（传家宝）。配置目标优先；在已分类页面内，目标经过原有有界滚动仍
+未识别时，按生产模板编号倒序点击当前可识别的最后一项。页面 `UNKNOWN`、未分类或
+没有模板命中时保持零输入。点击仍走原有 `BossConfigured` 和业务后置确认，不能把
+click success 当 PASS。
+
+这意味着现有真机素材可以直接继续做离线优化升级（触发、条件、结束判断、稳定性、
+准确性），但不能把离线命中当成当前版本真机 PASS。
+
+### Feature / evidence status
+
+| 链路 | 正式看板/生产接线 | 当前真实验收 |
+|---|---|---|
+| 黑商 | 已接入正式 `Mediator`，历史有吞噬丹购买/使用、木材观察 | `VALID BUT OLD / MISSING_REAL_SAMPLE`；当前 SHA 的 2/5/8、木材、吞噬丹未齐 |
+| 传家宝 | `cjb_boss` 接线、列表滚动/兜底、真实结果后置保护已在生产 | `CONDITIONAL`；缺修复后 3 次完整成功（含一次滚动） |
+| 时光之穴 | `sgzx_boss` 接线、页内隔离和兜底在生产 | 完整 NPC 进入 Ground Truth `BLOCKED` |
+| 秘境 | `auto_secret_realm` 走同一生产 handler | `MISSING_REAL_SAMPLE`；没有真实 HUD + `_secret_realm_active=True` |
+| Boss 八卡/长链 | 仍是既有生产 handler；无第二套 FSM | 历史动作有，当前 SHA 最终后置未闭环 |
+| P0 生命周期 | Live 菜单只是生产 handler 证据壳 | 5 次自然 start/probe/stop/menu-return 仍 `MISSING_REAL_SAMPLE` |
+
+### Tests / failure matrix
+
+- `python -m pytest tests -q`：`1097 passed, 5 skipped, 2 xfailed, 207 subtests passed`，
+  无 native crash。
+- Frozen Replay：`6 PASS / 1 BLOCKED / 0 FAIL`；唯一 BLOCKED 是缺真实断线弹窗素材。
+- `python -m pytest tests/contract -q`：`56 passed, 111 subtests passed`。
+- `python tools/release_gate.py`：`4/4 PASS`，精选 pytest `340`、scene templates
+  `132/132`、contracts `56`。
+- `disconnect_modal_missing`、P0 五轮、当前黑商 canonical、传家宝三次、秘境入口、
+  时光之穴入口分别保持 `BLOCKED` 或 `MISSING_REAL_SAMPLE`；没有修改 baseline。
+
+### Git / package note
+
+新增修正已按层提交；本 addendum 提交后会推进 HEAD。现有 dist identity 的
+`source_sha=710fdc1...` 早于当前代码，不能启动真机；文档提交完成后会重新 no-deploy
+build，并确认 `git rev-parse HEAD == build_identity.source_sha`、EXE SHA-256 和
+`source_tree_clean` 后，才允许下一次 live preflight。
+
 ## 9. 给下一位 Agent 的背景交接词
 
 ```text
