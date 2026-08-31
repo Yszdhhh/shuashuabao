@@ -149,6 +149,9 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_panel_f1_used_this_episode": True,
         "_merchant_next_at": 1.0e9,
         "_pickup_next_at": 1.0e9,
+        "_post_game_hud_confirmations": 7,
+        "_pending_archive_panel_frames": 7,
+        "_post_game_archive_pending_only": True,
     }
 
     def _pollute(self, med: Mediator) -> None:

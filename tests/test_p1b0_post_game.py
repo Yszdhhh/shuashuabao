@@ -248,6 +248,49 @@ class P1B0PostGameTests(unittest.TestCase):
         with patch.object(med, "_selection_anchor", return_value=object()):
             self.assertEqual(med._post_game_state(frame), "ARCHIVE_PANEL")
 
+    def test_pending_only_archive_panel_requires_two_consecutive_ticks(self):
+        """An otherwise generic modal X cannot authorize 4x2 clicks on one frame."""
+        med = Mediator(Settings(), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "pending-only archive candidate")
+        med._post_game_pending = True
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        close = MatchResult("lobby/archive_panel_close", 0.95, 991, 250, 20, 20, 1001, 260)
+
+        def fake_find(_frame, names, **_kwargs):
+            if names in (["close"], ["lobby/archive_panel_close"]):
+                return close
+            return None
+
+        with patch.object(med, "_selection_anchor", return_value=None), \
+             patch.object(med, "find", side_effect=fake_find), \
+             patch.object(med, "find_scene", return_value=None), \
+             patch.object(med, "_archive_challenge_completed", return_value=False), \
+             patch.object(med, "_maybe_click_archive_challenge", return_value=LoopAction.Continue) as archive:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+            archive.assert_not_called()
+            self.assertEqual(med._pending_archive_panel_frames, 1)
+
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+            self.assertEqual(archive.call_count, 1)
+
+    def test_active_archive_route_requires_two_consecutive_hud_frames(self):
+        """A one-frame loading/HUD blend keeps the post-game gate closed."""
+        med = Mediator(Settings(), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive destination confirmation")
+        med._post_game_pending = True
+        med._post_game_route = "archive_active"
+        frame = load_fixture_frame("fixtures/replay/main_line_auto_on.png")
+
+        with patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "_is_in_game_hud", return_value=True):
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+            self.assertTrue(med._post_game_pending)
+            self.assertEqual(med._post_game_hud_confirmations, 1)
+
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+            self.assertFalse(med._post_game_pending)
+            self.assertEqual(med._post_game_hud_confirmations, 0)
+
     def test_live_archive_title_and_close_anchor_classify_panel(self):
         """The orange live title is valid only together with the modal X."""
         med = Mediator(Settings(), ROOT)

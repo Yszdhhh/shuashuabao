@@ -662,6 +662,9 @@ class Mediator:
         # (no auto-task / challenge / stage actions) until timeout -> ERROR.
         self._post_game_pending: bool = False
         self._post_game_close_attempts: int = 0
+        self._post_game_hud_confirmations: int = 0
+        self._pending_archive_panel_frames: int = 0
+        self._post_game_archive_pending_only: bool = False
         # 战后顺序只复用已有页面分类与 handler，不承载新的业务 FSM：
         # Continue 后优先处理存档页；页面被关闭后才从挑战广场进入传家宝，
         # 最后回到既有秘境/退出分支。默认 secret 保持旧的“直接秘境”行为，
@@ -4430,6 +4433,8 @@ class Mediator:
         key = ("post_game", round(self._ui_scale, 3))
 
         def compute() -> str | None:
+            self._post_game_archive_pending_only = False
+
             def find(name: str, threshold: float) -> MatchResult | None:
                 return self.find(
                     frame,
@@ -4494,18 +4499,26 @@ class Mediator:
             )
             close_hit = self._find_archive_panel_close(frame)
             completed_cards = sum(self._archive_challenge_completed(frame, index) for index in range(8))
+            archive_scene = self.find_scene(frame, "archive")
+            strong_archive_evidence = (
+                completed_cards == len(self._ARCHIVE_CHALLENGE_NAMES)
+                or arch is not None
+                or archive_scene is not None
+            )
             if (
                 close_hit
                 and (
-                    completed_cards == len(self._ARCHIVE_CHALLENGE_NAMES)
-                    or arch is not None
+                    strong_archive_evidence
                     or getattr(self, "_post_game_pending", False)
-                    or self.find_scene(frame, "archive") is not None
                 )
                 and close_hit.x >= w * 0.55
                 and close_hit.y <= h * 0.40
                 and not (not arch and not getattr(self, "_post_game_pending", False) and rift_npc_right)
             ):
+                self._post_game_archive_pending_only = (
+                    not strong_archive_evidence
+                    and getattr(self, "_post_game_pending", False)
+                )
                 return "ARCHIVE_PANEL"
 
             # 5) NPC hub: quit button at the very top-left + rift NPC on the right +
@@ -5812,6 +5825,9 @@ class Mediator:
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
             self._post_game_pending = False
+            self._post_game_hud_confirmations = 0
+            self._pending_archive_panel_frames = 0
+            self._post_game_archive_pending_only = False
             # 20260831 审查（P1-c）：route 必须随新局重置。残留的
             # archive/heirloom route 会让"无战后上下文"的未验证入口守卫
             # 永久豁免，直至其他逻辑改写。
@@ -8597,21 +8613,38 @@ class Mediator:
         # 战后页面优先于一切局内动作。胜利后只允许以下专用链：
         # 继续游戏 → 关闭存档面板（如出现）→ NPC 广场 → 局内退出。
         post_game = self._post_game_state(frame)
-        if (
+        if post_game == "ARCHIVE_PANEL" and self._post_game_archive_pending_only:
+            self._pending_archive_panel_frames += 1
+            if self._pending_archive_panel_frames < 2:
+                print("[med] 存档面板仅有 pending+X 候选第 1 帧，等待连续证据（零动作）")
+                return LoopAction.Continue
+        else:
+            self._pending_archive_panel_frames = 0
+
+        awaiting_challenge_hud = (
             self._post_game_pending
             and post_game is None
             and getattr(self, "_post_game_route", "") in {"archive_active", "heirloom_active"}
-            and self._is_in_game_hud(frame)
-        ):
+        )
+        challenge_hud = awaiting_challenge_hud and self._is_in_game_hud(frame)
+        if challenge_hud:
+            self._post_game_hud_confirmations += 1
+            if self._post_game_hud_confirmations < 2:
+                print("[med] 战后挑战目的地 HUD 候选第 1 帧，等待连续证据（零动作）")
+                return LoopAction.Continue
             route = getattr(self, "_post_game_route", "")
-            print(f"[med] 战后挑战目的地 HUD 已确认（{route}），恢复既有局内循环")
+            print(f"[med] 战后挑战目的地 HUD 连续两帧确认（{route}），恢复既有局内循环")
             self._post_game_pending = False
             self._post_game_close_attempts = 0
+            self._post_game_hud_confirmations = 0
             self._post_game_route = "archive"
             if route == "heirloom_active":
                 # 下一次胜利重新从存档挑战 1/8 开始；本轮游标仍保留在 trace。
                 self._archive_challenge_index = 0
                 self._archive_challenge_next_at = 0.0
+            return LoopAction.Continue
+        if not challenge_hud:
+            self._post_game_hud_confirmations = 0
         if (
             self.settings.auto_secret_realm
             and self._post_game_pending

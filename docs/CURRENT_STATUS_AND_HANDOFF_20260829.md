@@ -1,5 +1,17 @@
 # 刷刷宝交接 2026-08-29
 
+## 2026-09-01 Codex Sol-high 战后复审补充
+
+- `archive_active` / `heirloom_active` 的目的地 HUD 改为连续 2 tick 才清
+  `_post_game_pending`；确认 tick 仍零输入，下一 tick 才恢复局内 handler。
+- 只有 `_post_game_pending + 右上 X` 的 `ARCHIVE_PANEL` 候选改为连续 2 tick；
+  标题、8 卡完成态或 archive scene 等强证据仍即时分类。
+- 新增局内状态已同步 C2 `INGAME_POLLUTION`。真实素材扫描为 1,963 张、X 命中 22 张、
+  解码错误 0；发现 1 张 KK“房间已满”通用 X 碰撞，由窗口/阶段隔离并再加 pending-only 两帧门禁。
+- 架构、证据和遗留真机项见 `docs/ARCHIVE_POSTGAME_REVIEW_20260901.md`。
+- 因两处时序发生改变，存档入口与传家宝入口需在当前构建各重跑一次完整后置确认；
+  断线缺素材仍为 BLOCKED，不得宣称实机通过。
+
 权威以本文件为准。上一份看板交接 `CURRENT_STATUS_AND_HANDOFF_20260821.md` 仍描述 UI 交互，不覆盖局内选卡。
 
 ## 23:38 实机（未修版本）
