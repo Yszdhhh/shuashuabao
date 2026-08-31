@@ -1979,15 +1979,18 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
     if target != "secret_realm":
         return {}
     med._post_game_pending = True
-    med._secret_realm_request_pending = True
-    med._secret_realm_request_since = now
+    med._post_game_route = "secret"
+    med._secret_realm_request_pending = False
+    med._secret_realm_request_since = None
+    med._secret_realm_request_attempts = 0
+    med._secret_realm_confirm_attempts = 0
     med._secret_realm_next_observe_at = 0.0
     med._secret_realm_confirm_next_observe_at = 0.0
     return {
         "post_game_pending": True,
-        "secret_realm_request_pending": True,
-        "secret_realm_request_since": "probe_start",
-        "reason": "existing _tick_main_line requires post-game state before NPC_HUB/confirmation handling",
+        "post_game_route": "secret",
+        "secret_realm_request_pending": False,
+        "reason": "target probe starts from NPC_HUB plaza to initiate great rift entry",
     }
 
 

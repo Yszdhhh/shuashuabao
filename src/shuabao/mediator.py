@@ -4480,11 +4480,9 @@ class Mediator:
                     return "GREAT_RIFT_CONFIRM"
 
             # 4) Archive panel. Keep the original high-confidence path for
-            # unfinished legacy pages. A current completed page is rendered
-            # orange and overlays the NPC hub, so it additionally requires a
-            # green 已挑战 card overlay before using the lower title threshold.
+            # legacy pages, and accept the modal close button when archive evidence is present.
             rift_npc = find("damijing", 0.80)
-            rift_npc_right = rift_npc and rift_npc.x >= w * 0.60 and h * 0.15 <= rift_npc.y <= h * 0.55
+            rift_npc_right = bool(rift_npc and rift_npc.x >= w * 0.60 and h * 0.15 <= rift_npc.y <= h * 0.55)
             legacy_arch = find("archiveChallenge", 0.85)
             legacy_close = find("close", 0.85)
             if legacy_arch and legacy_close and legacy_close.x >= w * 0.55 and legacy_close.y <= h * 0.40 and not rift_npc_right:
@@ -4498,16 +4496,16 @@ class Mediator:
             completed_cards = sum(self._archive_challenge_completed(frame, index) for index in range(8))
             if (
                 close_hit
-                and completed_cards == len(self._ARCHIVE_CHALLENGE_NAMES)
+                and (
+                    completed_cards == len(self._ARCHIVE_CHALLENGE_NAMES)
+                    or arch is not None
+                    or getattr(self, "_post_game_pending", False)
+                    or self.find_scene(frame, "archive") is not None
+                )
                 and close_hit.x >= w * 0.55
                 and close_hit.y <= h * 0.40
+                and not (not arch and not getattr(self, "_post_game_pending", False) and rift_npc_right)
             ):
-                # Current live rendering can replace the orange modal title
-                # with the top HUD ``cundangInfo`` anchor.  The modal X plus
-                # all eight green ``已挑战`` overlays is stronger page evidence
-                # than that title and is sufficient to enter the existing
-                # archive handler.  Do not broaden this to a partial/unknown
-                # card page: those remain fail-closed.
                 return "ARCHIVE_PANEL"
 
             # 5) NPC hub: quit button at the very top-left + rift NPC on the right +
@@ -4537,19 +4535,16 @@ class Mediator:
         hit = self.find(
             frame,
             ["lobby/archive_panel_close"],
-            threshold=0.85,
+            threshold=0.80,
             scales=self._hot_scales(),
             roi=(0.55, 0.15, 0.70, 0.35),
         )
         if hit and frame.width * 0.55 <= hit.x <= frame.width * 0.70 and frame.height * 0.15 <= hit.y <= frame.height * 0.35:
             return hit
-        # Live panel's gray X is still confined to the archive modal's
-        # top-right ROI. It is only consumed after the title anchor above
-        # classified ARCHIVE_PANEL.
         hit = self.find(
             frame,
             ["close"],
-            threshold=0.45,
+            threshold=0.80,
             scales=self._hot_scales(),
             roi=(0.55, 0.15, 0.70, 0.35),
         )
@@ -8583,7 +8578,11 @@ class Mediator:
             # A live Boss challenge may still show the archive label in the
             # map HUD. It is not an unverified post-game entry until Victory
             # has actually been observed.
-            if getattr(self, "_post_game_route", "") != "boss_active" and self.find_scene(frame, "archive"):
+            if (
+                not getattr(self, "_post_game_pending", False)
+                and getattr(self, "_post_game_route", "") not in {"boss_active", "archive", "archive_active", "heirloom", "heirloom_active"}
+                and self.find_scene(frame, "archive")
+            ):
                 print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "unverified archive entry")
                 self.stop()

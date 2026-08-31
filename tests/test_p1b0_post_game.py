@@ -253,12 +253,12 @@ class P1B0PostGameTests(unittest.TestCase):
         med = Mediator(Settings(), ROOT)
         frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
         title = MatchResult("archiveChallenge", 0.62, 900, 195, 92, 24, 946, 207)
-        close = MatchResult("close", 0.47, 991, 250, 20, 20, 1001, 260)
+        close = MatchResult("lobby/archive_panel_close", 0.95, 991, 250, 20, 20, 1001, 260)
 
         def fake_find(_frame, names, **_kwargs):
             if names == ["archiveChallenge"]:
                 return title
-            if names == ["close"]:
+            if names in (["close"], ["lobby/archive_panel_close"]):
                 return close
             if names == ["damijing"]:
                 return MatchResult("damijing", 0.97, 1147, 201, 72, 25, 1183, 213)
@@ -273,12 +273,12 @@ class P1B0PostGameTests(unittest.TestCase):
         """The current completed page may expose only cundangInfo plus modal evidence."""
         med = Mediator(Settings(), ROOT)
         frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
-        close = MatchResult("close", 0.47, 991, 250, 20, 20, 1001, 260)
+        close = MatchResult("lobby/archive_panel_close", 0.95, 991, 250, 20, 20, 1001, 260)
 
         def fake_find(_frame, names, **_kwargs):
             if names == ["archiveChallenge"]:
                 return None
-            if names == ["close"]:
+            if names in (["close"], ["lobby/archive_panel_close"]):
                 return close
             return None
 

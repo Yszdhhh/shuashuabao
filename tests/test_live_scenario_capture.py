@@ -462,8 +462,8 @@ def test_blocked_summary_and_secret_realm_probe_bootstrap_are_evidence_only(tmp_
     med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT, stop_signal=StopSignal())
     bootstrap = _bootstrap_target_probe(med, "secret_realm")
     assert bootstrap["post_game_pending"] is True
-    assert med._post_game_pending is True
-    assert med._secret_realm_request_pending is True
+    assert med._secret_realm_request_pending is False
+    assert med._post_game_route == "secret"
 
     blocked = recorder.record_blocked(med, None, note="synthetic capture unavailable")
     assert blocked is not None
