@@ -4115,6 +4115,11 @@ class MainWindow(QMainWindow):
                 return False
 
         self.skill_grid.set_skills(new_skills)
+        # The compact bond chips only represent the basic pack.  Attribute/UR
+        # codes from an official build live in settings.cards and are merged by
+        # assemble_whitelist_cards(); without this assignment the dashboard
+        # silently dropped zhili/yanmiezhe/fs before starting a real run.
+        self.settings.cards = list(new_cards)
         self._shell_extras["selected_build_id"] = build_id
         self._shell_extras["bond_scheme"] = list(new_cards)
         self._shell_extras["bond_inverted"] = [
