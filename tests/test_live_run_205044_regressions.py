@@ -454,9 +454,19 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(hit.name, "failure_exit")
         self.assertTrue(690 <= hit.x <= 701)
 
+        # Green button obscured (e.g. mouse hover): the authoritative red exit
+        # component in the modal's LEFT bottom half is still 退出游戏.
         image[570:609, 843:965] = 0
         with patch.object(med, "find_scene", return_value=fail):
-            self.assertIsNone(med._find_failure_exit_button(Frame(image)))
+            hit = med._find_failure_exit_button(Frame(image))
+        self.assertIsNotNone(hit)
+        self.assertTrue(690 <= hit.x <= 701)
+
+        # Red component in the modal's RIGHT half is NOT the exit button.
+        image2 = np.zeros((900, 1600, 3), dtype=np.uint8)
+        cv2.rectangle(image2, (860, 570), (981, 608), (0, 0, 220), -1)
+        with patch.object(med, "find_scene", return_value=fail):
+            self.assertIsNone(med._find_failure_exit_button(Frame(image2)))
 
     def test_direct_failure_exit_returns_to_same_room_flow(self) -> None:
         med = Mediator(Settings(), ROOT)

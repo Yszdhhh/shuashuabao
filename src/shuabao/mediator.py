@@ -5933,13 +5933,15 @@ class Mediator:
         """Find the red 退出游戏 button on the real 1.4.11 failure modal.
 
         The modal has no OK button. Authority requires the strong gameFail
-        anchor plus a red/green sibling pair in its constrained bottom row.
+        anchor plus a red/green sibling pair in its constrained bottom row,
+        or an authoritative red exit component in the modal's left bottom row
+        when the green button is hovered or obscured.
         """
         fail = self.find_scene(frame, "fail")
         if fail is None or frame.bgr is None or frame.width < 1000 or frame.height < 600:
             return None
         x0, x1 = int(frame.width * 0.30), int(frame.width * 0.70)
-        y0, y1 = int(frame.height * 0.55), int(frame.height * 0.74)
+        y0, y1 = int(frame.height * 0.55), int(frame.height * 0.75)
         roi = frame.bgr[y0:y1, x0:x1]
         hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
@@ -5949,7 +5951,7 @@ class Mediator:
             )
             out = []
             for x, y, w, h, area in stats[1:count]:
-                if 70 <= w <= 180 and 22 <= h <= 65 and area >= 1200:
+                if 70 <= w <= 180 and 20 <= h <= 65 and area >= 1000:
                     out.append((int(x), int(y), int(w), int(h), int(area)))
             return out
 
@@ -5963,8 +5965,17 @@ class Mediator:
         )
         for rx, ry, rw, rh, area in sorted(red, key=lambda item: -item[4]):
             rcx, rcy = rx + rw // 2, ry + rh // 2
-            if any(gx > rx and abs((gy + gh // 2) - rcy) <= 15
+            if any(gx > rx and abs((gy + gh // 2) - rcy) <= 20
                    for gx, gy, gw, gh, _area in green):
+                x, y = x0 + rcx, y0 + rcy
+                return MatchResult(
+                    "failure_exit", min(1.0, area / 2500.0), x, y, rw, rh,
+                    frame.left + x, frame.top + y,
+                )
+        roi_w = x1 - x0
+        for rx, ry, rw, rh, area in sorted(red, key=lambda item: -item[4]):
+            rcx, rcy = rx + rw // 2, ry + rh // 2
+            if rcx < roi_w * 0.52:
                 x, y = x0 + rcx, y0 + rcy
                 return MatchResult(
                     "failure_exit", min(1.0, area / 2500.0), x, y, rw, rh,
@@ -5975,11 +5986,12 @@ class Mediator:
     def _recovery_post_confirmed(self, frame: Frame, rs: RecoveryState) -> bool:
         """WAIT_CONFIRM 后置确认：画面 mutation（模板消失）∨ 必需 post-anchor 出现。"""
         if rs.step == RecoveryStep.FAIL_CONFIRM:
+            confirm = self._find_exit_confirm(frame)
+            if confirm is not None:
+                rs.opening_exit_confirm = True
+                rs.post_anchor_seen = True
+                return True
             if rs.opening_exit_confirm:
-                confirm = self._find_exit_confirm(frame)
-                if confirm is not None:
-                    rs.post_anchor_seen = True
-                    return True
                 return False
             if self.find_scene(frame, "fail") is None:
                 rs.mutation_seen = True
