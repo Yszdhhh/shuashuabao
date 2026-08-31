@@ -32,6 +32,7 @@ from PySide6.QtWidgets import QApplication
 
 from shuabao.paths import live_lock_path
 from shuabao.settings import Settings
+from shuabao.subscription_client import SUBSCRIPTION_LICENSE_KEY_ENV
 from shuabao.shell import runner_service as rs_module
 from shuabao.shell.dashboard_facade import DashboardFacade
 from shuabao.shell.runner_service import LogSignal, ModeNotEnabled, RunnerService, live_lock_busy
@@ -158,6 +159,10 @@ def test_start_run_refuses_an_unlicensed_dashboard(monkeypatch, qapp, tmp_path: 
 
 
 def test_activate_subscription_accepts_the_bridge_activation_shape(monkeypatch, qapp, tmp_path: Path):
+    # Facade 激活成功会写进程级 env（WebShell → 同进程原生窗的会话交接）。
+    # setenv("") 强制登记 undo——空值语义等同未配置，且保证测试后环境还原，
+    # 不隔离会污染同进程后续用例（EXPIRED 标签污染已实锤）。
+    monkeypatch.setenv(SUBSCRIPTION_LICENSE_KEY_ENV, "")
     f = DashboardFacade(tmp_path, FakeRunner())
     monkeypatch.setattr("shuabao.shell.dashboard_facade.activate_device", lambda _key: {"ok": True, "device": {}})
     monkeypatch.setattr(
