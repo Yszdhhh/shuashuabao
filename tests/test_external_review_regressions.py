@@ -200,7 +200,9 @@ class ExternalReviewRegressionTests(unittest.TestCase):
         med.phase = Phase.MAIN_LINE
         med._main_line_since = 1.0
         frame = Frame(np.zeros((900, 1600, 3), np.uint8), hwnd=10001)
+        resume = MatchResult("pause_continue_game", 0.98, 700, 400, 200, 50, 800, 425)
         with patch.object(med, "_post_game_state", return_value="PAUSED"), \
+                patch.object(med, "find", return_value=resume), \
                 patch.object(med, "act_click", return_value=True) as click:
             self.assertIs(med._tick_main_line(frame), LoopAction.Continue)
         self.assertIs(med.phase, Phase.MAIN_LINE)
