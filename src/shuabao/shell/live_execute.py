@@ -11,6 +11,7 @@ from typing import Any
 from shuabao.log_sink import install_live_logging, uninstall_live_logging
 from shuabao.settings import Settings
 from shuabao.stop_signal import StopSignal
+from shuabao.subscription_client import check_start_permission
 
 LOGGER = logging.getLogger("ShuaBao")
 LIVE_LOCK_NAME = "ShuaBao.live.lock"
@@ -31,19 +32,54 @@ def execute_runtime_mediator(
     should_abort: Callable[[], bool] | None = None,
     on_mediator: Callable[[Any], None] | None = None,
 ) -> dict[str, Any]:
-    """Shared LIVE worker body: RuntimeMediator + OCR + StopSignal + LogEventSink."""
+    """Shared LIVE worker body: entitlement gate + RuntimeMediator + OCR + StopSignal.
+
+    Entitlement is checked once, before RuntimeMediator is constructed.  The
+    running worker is never polled or force-stopped because a subscription later
+    changes state; the next LIVE start performs the next authoritative check.
+    """
     result: dict[str, Any] = {
         "terminal_reason": "",
         "phase": "IDLE",
         "game_count": 0,
         "mediator": None,
         "ocr_status": "未启动",
+        "subscription_status": "",
     }
     log_file = Path(incident_dir) / "live.log" if incident_dir else None
     sink, file_handler = install_live_logging(log=log, log_file=log_file)
     result["log_sink"] = sink
     mediator = None
     try:
+        if should_abort and should_abort():
+            result["terminal_reason"] = "启动前已请求停止"
+            LOGGER.info("[启动] 已请求停止，取消本次启动")
+            return result
+
+        permission = check_start_permission()
+        result["subscription_status"] = permission.status
+        if permission.mode == "shadow":
+            LOGGER.info(
+                "[订阅][shadow] status=%s code=%s would_allow=%s",
+                permission.status,
+                permission.code,
+                permission.would_allow,
+            )
+        elif permission.mode == "enforce":
+            LOGGER.info(
+                "[订阅][enforce] status=%s code=%s allowed=%s",
+                permission.status,
+                permission.code,
+                permission.allowed,
+            )
+        if not permission.allowed:
+            result["terminal_reason"] = (
+                f"订阅未授权启动: {permission.status}/{permission.code}"
+            )
+            result["phase"] = "ERROR"
+            LOGGER.error("[启动失败] %s", result["terminal_reason"])
+            return result
+
         try:
             from shuabao.runtime_mediator import Mediator
         except Exception as exc:
