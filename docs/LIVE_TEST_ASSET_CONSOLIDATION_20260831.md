@@ -134,6 +134,50 @@ The focused regression across both dashboard modules and the two relevant deskto
 tests reports **55 passed in 3.11s**.  P0 five-run lifecycle acceptance remains
 `MISSING_REAL_SAMPLE`; no long-chain live run is authorized by this test-only result.
 
+### Dashboard wiring and Boss fallback follow-up — 2026-08-31
+
+The formal dashboard wiring is present: merchant controls, `cjb_boss`, `sgzx_boss`
+and `auto_secret_realm` persist into the same settings consumed by the production
+`Mediator`.  The Live menu remains a thin evidence harness around those production
+handlers and does not own a second feature FSM.  This establishes integration, not a
+current-build end-to-end PASS.
+
+The default Web dashboard previously coupled stage selection to hard-coded Boss and
+heirloom recommendations.  Chapter/stage changes could therefore overwrite explicit
+choices, and settings restoration could render a stale recommended label.  The Web
+shell now changes only `stage_targets`; persisted Boss/heirloom values are applied
+before their labels are rendered.  Production selection is also page-scoped:
+`ARCHIVE_PANEL` consumes only `sgzx_boss`, while `HEIRLOOM_DIALOG` consumes only
+`cjb_boss`.
+
+The existing production Boss handler now implements the requested bounded default:
+the explicit target remains first priority; after that target is absent through the
+existing three classified-list scrolls, it scans the production templates in
+descending numeric order and clicks the highest-numbered recognized card still
+visible in the classified ROI.  An unclassified page, `UNKNOWN`, or zero template
+hits still produces zero input.  The click continues to use `BossConfigured` and the
+existing business postcondition—input success alone is not PASS.
+
+Existing real material is sufficient for safe offline optimization of this mechanism:
+
+| Material | Result from production helper |
+|---|---|
+| `fixtures/reborn_wow/endgame/archive_challenge_panel.png` | `12卡尔加`, score 0.844816 |
+| `fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png` | `03洛卡纳哈`, score 0.806868 |
+| `boss_challenge_20260831_005535_200618/frames/f0006_action_before.png` | `12战争之王`, score 0.762833 |
+
+These are offline recognition results over real frames, not new live-chain PASS
+claims.  The current status remains: merchant/heirloom/Boss have historical partial
+real success suitable for regression; Secret Realm lacks qualifying HUD state; the
+Time Cave Boss list has real interaction material but its complete NPC-entry Ground
+Truth remains `BLOCKED`; and the current-SHA long-chain postconditions are not closed.
+
+Focused Boss/challenge regression is **56 passed, 2 subtests passed**.  The curated
+release gate remains **4/4 PASS**.  A new full-suite run reached 100% without native
+fast-fail and reported **31 failed, 1068 passed, 5 skipped, 2 xfailed, 207 subtests
+passed in 206.89s**.  Thus the previous native-process crash/exit blocker is cleared,
+while the unchanged set of ordinary assertion failures remains `FAIL / OPEN`.
+
 ## Deletion candidates
 
 | Classification | Candidate | Decision |
