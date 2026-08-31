@@ -687,6 +687,8 @@ def _target_contract(target: str) -> dict[str, Any]:
 
 def _invoke_target_handler(med: Mediator, target: str, frame: Frame) -> Any:
     """Invoke exactly one existing production entry point for a target probe."""
+    if target in {"time_cave", "heirloom"}:
+        return med._tick_main_line(frame)
     contract = _target_contract(target)
     handler = getattr(med, str(contract["handler"]))
     if contract.get("call") == "frame_now":
@@ -2260,8 +2262,6 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                             frame,
                             input_sent=lambda: bool(recorder.inputs_this_tick),
                         )
-                    elif target in {"time_cave", "heirloom"}:
-                        result = med._tick_main_line()
                     else:
                         result = _invoke_target_handler(med, target, frame)
                     loop_action = result if isinstance(result, LoopAction) else LoopAction.Continue

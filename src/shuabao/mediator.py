@@ -8670,9 +8670,12 @@ class Mediator:
             # 请求被接手（route 切到 archive_active）前绝不点击关闭面板。
             configured_time_cave = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
             if configured_time_cave:
-                if getattr(self, "_post_game_route", "") == "archive":
+                if (
+                    getattr(self, "_post_game_route", "") == "archive"
+                    or (getattr(self, "_post_game_route", "") == "archive_active" and self._boss_challenge_attempts == 0)
+                ):
                     self._maybe_challenge_configured_boss(frame, now)
-                if getattr(self, "_post_game_route", "") == "archive_active":
+                if getattr(self, "_post_game_route", "") == "archive_active" and self._boss_challenge_attempts > 0:
                     # 存档卡或时光之穴 Boss 已被接手，面板自行转场；交由既有 HUD 确认
                     # 恢复局内循环，本帧不再强制关闭。
                     return LoopAction.Continue

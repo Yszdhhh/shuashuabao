@@ -340,6 +340,37 @@ class P1B0PostGameTests(unittest.TestCase):
         boss.assert_called_once()
         close.assert_not_called()
         self.assertEqual(med._post_game_route, "archive_active")
+
+    def test_archive_panel_from_hub_active_triggers_time_cave_when_cards_completed(self):
+        """When entering archive panel from hub (route=archive_active), if cards are completed, time cave runs."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "archive from hub")
+        med._post_game_pending = True
+        med._post_game_route = "archive_active"
+        med._boss_challenge_attempts = 0
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        for index in range(8):
+            col, row = index % 4, index // 4
+            cx = int(frame.width * med._ARCHIVE_CHALLENGE_X[col])
+            cy = int(frame.height * med._ARCHIVE_CHALLENGE_Y[row])
+            frame.bgr[
+                int(cy - frame.height * 0.035):int(cy + frame.height * 0.060),
+                int(cx - frame.width * 0.040):int(cx + frame.width * 0.040),
+            ] = (0, 255, 0)
+        def handoff(_frame, _now):
+            med._boss_challenge_attempts = 1
+            med._post_game_route = "archive_active"
+            return LoopAction.Continue
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_maybe_challenge_configured_boss", side_effect=handoff) as boss, \
+             patch.object(med, "_find_archive_panel_close") as close:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+
+        boss.assert_called_once()
+        close.assert_not_called()
+        self.assertEqual(med._boss_challenge_attempts, 1)
+
     def test_eighth_archive_click_does_not_close_same_tick(self):
         med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
         med._post_game_pending = True
