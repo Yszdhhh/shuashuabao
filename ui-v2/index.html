@@ -1616,6 +1616,12 @@
       $("negatives").innerHTML=NEG.map((card)=>`<label class="neg-item"><input type="checkbox" data-neg="${card.name}" ${state.negative.has(card.name)?"checked":""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span><span class="why">${card.why}</span></span></label>`).join("");
     }
     function renderNames() { $("cjbName").textContent=stemLabel(state.cjb); $("bossName").textContent=stemLabel(state.boss); renderLaunchSummary(); }
+    function openSubscriptionModal() {
+      state.modal="subscription"; state._focusBack=document.activeElement;
+      $("modalSheet").className="sheet subscription";
+      $("modalSheet").innerHTML=`<div class="subscription-head"><p>刷刷宝 · 订阅授权</p><h2>输入卡密以激活本机</h2></div><div class="subscription-body"><label for="subscriptionKey">订阅卡密<input id="subscriptionKey" type="password" autocomplete="off" placeholder="请输入本地生成的卡密" /></label><small>卡密会绑定到当前 Windows 用户；未通过授权时无法开始自动运行。</small></div><div class="subscription-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-activate-subscription="1">激活并继续</button></div>`;
+      $("modalLayer").classList.add("show"); focusSheet();
+    }
     function setKind(kind, root) {
       root.querySelectorAll("[data-kind]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.kind===kind?"true":"false"));
     }
@@ -1885,6 +1891,7 @@
         else if (!e.shiftKey && document.activeElement===last) { e.preventDefault(); first.focus(); }
       }
     });
+    renderChapterStage(); renderNames(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
     setScene("farm");
   </script>
     <script type="module" src="./src/main.ts"></script>

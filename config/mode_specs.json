@@ -16,6 +16,8 @@
         "skills",
         "cards",
         "treasure_allow_negative",
+        "cjb_boss",
+        "sgzx_boss",
         "auto_secret_realm",
         "dry_run"
       ],
@@ -28,7 +30,7 @@
         "round_timeout_s": 3600
       },
       "evidence_status": "live_partial",
-      "notes": "现有 Mediator L0+L1。本 Flow 只文档化阶段，不替代 mediator。"
+      "notes": "现有 Mediator L0+L1。本 Flow 只文档化阶段，不替代 mediator。20260831 实机闭环：存档 8 卡 → 时光之穴末位 Boss → 传家宝链 → 大秘境右键确认（OpenGreatRift/ConfirmGreatRift + HUD 验证）；失败页红退出按钮可直接点击（左侧权威红色组件），或左上角退出走标准确认框。"
     },
     "follow_team": {
       "id": "follow_team",
