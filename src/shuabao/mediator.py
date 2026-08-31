@@ -4310,6 +4310,37 @@ class Mediator:
             frame.top + int(frame.height * (ry1 + ry2) / 2.0),
         )
 
+    def _find_last_recognized_post_game_boss(
+        self, frame: Frame, post_game: str | None
+    ) -> MatchResult | None:
+        """Find the highest-numbered visible card on a classified Boss page."""
+        subdir = {
+            "ARCHIVE_PANEL": "boss",
+            "HEIRLOOM_DIALOG": "chuanjiaobao",
+        }.get(post_game or "")
+        roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
+        if subdir is None or roi is None:
+            return None
+
+        candidates: list[tuple[int, str]] = []
+        for path in (self.images / subdir).glob("*.png"):
+            match = re.match(r"^(\d+)", path.stem)
+            if match:
+                candidates.append((int(match.group(1)), path.stem))
+        names = [
+            f"{subdir}/{stem}"
+            for _number, stem in sorted(candidates, reverse=True)
+        ]
+        return self.find(
+            frame,
+            names,
+            threshold=self._POST_GAME_BOSS_MATCH_THRESHOLD,
+            scales=self._POST_GAME_BOSS_SCALES,
+            roi=roi,
+            early_stop=True,
+            mode="post-game-boss-fallback",
+        )
+
     def _find_post_game_hub_entry(self, frame: Frame, route: str) -> MatchResult | None:
         """Find a real challenge-hub label after the hub itself is classified.
 
@@ -4549,7 +4580,11 @@ class Mediator:
         """Click configured Boss card when the Boss challenge entry is visible."""
         post_game = self._post_game_state(frame)
         bosses = self._configured_boss_challenge_names()
-        if post_game == "HEIRLOOM_DIALOG":
+        if post_game == "ARCHIVE_PANEL":
+            # 时光之穴页只能选择 sgzx_boss；cjb_boss 属于传家宝列表。
+            configured = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
+            bosses = [configured] if configured else []
+        elif post_game == "HEIRLOOM_DIALOG":
             # 传家宝页只能选择 cjb_boss；sgzx_boss 属于时光之穴列表。
             configured = str(getattr(self.settings, "cjb_boss", "") or "").strip()
             bosses = [configured] if configured else []
@@ -4632,6 +4667,11 @@ class Mediator:
                 self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, "BossConfigured-scroll")
                 return LoopAction.Continue
 
+        used_fallback = False
+        if boss_hit is None and compact_roi is not None:
+            boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
+            used_fallback = boss_hit is not None
+
         self._boss_challenge_attempts += 1
         self._boss_challenge_next_at = now + (
             float(recheck_s) if recheck_s is not None else self._challenge_recheck_delay()
@@ -4639,7 +4679,14 @@ class Mediator:
         if boss_hit is None:
             print(f"[med] boss_entry 出现但未匹配到配置 Boss {bosses}（尝试 {self._boss_challenge_attempts}/3），零输入等待")
             return LoopAction.Continue
-        print(f"[med] Boss 提前挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
+        if used_fallback:
+            print(
+                f"[med] 配置 Boss {bosses} 未开放或未识别，"
+                f"点击当前列表最后可识别 Boss {boss_hit.name} @ {boss_hit.center} "
+                f"(尝试 {self._boss_challenge_attempts}/3)"
+            )
+        else:
+            print(f"[med] Boss 提前挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
         if self.act_click(boss_hit, "BossConfigured"):
             self._main_line_since = now
             if post_game == "HEIRLOOM_DIALOG" and getattr(self, "_post_game_pending", False):

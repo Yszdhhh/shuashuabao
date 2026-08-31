@@ -315,7 +315,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_post_game_boss_search_scrolls_before_observing_lower_rows(self):
         """A lower archive-list Boss is searched only after a bounded list scroll."""
-        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med = Mediator(Settings(sgzx_boss="54莫阿姆"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "archive list scroll")
         med._post_game_pending = True
         med._post_game_route = "archive_active"
@@ -352,6 +352,70 @@ class P1B0PostGameTests(unittest.TestCase):
         click.assert_called_once_with(target, "BossConfigured")
         self.assertEqual(med._boss_challenge_scroll_attempts, 1)
         self.assertEqual(med._boss_challenge_attempts, 1)
+
+    def test_archive_dialog_uses_only_sgzx_boss_handler(self):
+        """The classified archive page must not borrow the heirloom selection."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆", sgzx_boss="12卡尔加"), ROOT)
+        med._post_game_pending = True
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        clicked, reason = click.call_args.args
+        self.assertEqual(clicked.name, "12卡尔加")
+        self.assertEqual(reason, "BossConfigured")
+
+    def test_archive_unavailable_boss_falls_back_to_last_visible_card(self):
+        """After bounded scrolling, a real archive fixture selects its last recognized Boss."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med._post_game_pending = True
+        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        clicked, reason = click.call_args.args
+        self.assertEqual(clicked.name, "12卡尔加")
+        self.assertEqual(reason, "BossConfigured")
+
+    def test_heirloom_unavailable_boss_falls_back_to_last_visible_card(self):
+        """The same production handler reuses real heirloom templates for fallback."""
+        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med._post_game_pending = True
+        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        clicked, reason = click.call_args.args
+        self.assertEqual(clicked.name, "03洛卡纳哈")
+        self.assertEqual(reason, "BossConfigured")
+
+    def test_unavailable_boss_stays_fail_closed_without_fallback_template(self):
+        """An exhausted classified list still emits zero click when no card is recognized."""
+        med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
+        med._post_game_pending = True
+        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_find_last_recognized_post_game_boss", return_value=None), \
+             patch.object(med, "act_scroll") as scroll, \
+             patch.object(med, "act_click") as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        scroll.assert_not_called()
+        click.assert_not_called()
 
     def test_heirloom_dialog_uses_cjb_boss_handler(self):
         """A classified heirloom page selects cjb_boss through the existing handler."""
