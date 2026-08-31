@@ -30,7 +30,7 @@ declare function renderBonds(): void;
 declare function renderNegatives(): void;
 declare function renderPrestige(): void;
 declare function renderTeamRules(): void;
-declare function recommendChallenges(): void;
+declare function renderNames(): void;
 declare function currentSkills(): string[];
 declare function applyOfficial(id: string): void;
 /** OD12 场景 ↔ 目录 mode_id（config/mode_specs.json）；带车复用 normal_farm 建房链。 */
@@ -380,11 +380,11 @@ function applySwitches(settings: SettingsDTO): void {
 
 function rerenderAll(settings: SettingsDTO): void {
   renderChapterStage();
-  recommendChallenges(); // 按关卡推荐 Boss/传家宝（展示默认）
-  const cjb = asString(settings.cjb_boss); // 持久化选择压过推荐展示
+  const cjb = asString(settings.cjb_boss);
   const boss = asString(settings.sgzx_boss);
   if (cjb) state.cjb = cjb;
   if (boss) state.boss = boss;
+  renderNames();
   renderBuilds();
   renderBonds();
   renderPrestige();
