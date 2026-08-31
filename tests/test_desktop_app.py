@@ -369,6 +369,7 @@ class DesktopPanelTests(unittest.TestCase):
         fake_window = MagicMock()
         fake_window.current_theme = "light"
         with (
+            patch.dict(os.environ, {"SHUABAO_SHELL": "native"}),
             patch.object(desktop_app, "QApplication", return_value=fake_app),
             patch.object(desktop_app, "QLockFile", return_value=fake_lock),
             patch.object(desktop_app, "MainWindow", return_value=fake_window),
