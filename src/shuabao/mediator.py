@@ -8127,6 +8127,13 @@ class Mediator:
         面板处理，检测空洞期间脚本盲点进化、恢复后又因单一弱锚点误入面板。
         本门闩跨 tick 保留锚点类型；类型漂移或锚点消失（调用方清零）即重置。
         """
+        # 旧版通用隐藏按钮容易在低分辨率文字页面上稳定误命中：
+        # skill_panel_video_zero_input.png（852x480，非游戏 HUD）连续两帧均把
+        # skill_hide 误报为 0.719。连续出现只能证明画面稳定，不能把弱模板升级
+        # 成动作权限；legacy hide 必须先达到独立的 0.75 置信下限。
+        if anchor.name in {"skill_hide", "card_hide", "hide"} and anchor.score < 0.75:
+            self._panel_anchor_candidate = None
+            return False
         if anchor.score >= 0.85:
             self._panel_anchor_candidate = (anchor.name, anchor.score)
             return True
