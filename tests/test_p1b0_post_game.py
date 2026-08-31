@@ -417,6 +417,23 @@ class P1B0PostGameTests(unittest.TestCase):
         scroll.assert_not_called()
         click.assert_not_called()
 
+    def test_unclassified_post_game_transition_is_zero_input(self):
+        """A pending post-game transition must not search or click an unknown frame."""
+        med = Mediator(Settings(sgzx_boss="12卡尔加"), ROOT)
+        med._post_game_pending = True
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+
+        with patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "find") as find, \
+             patch.object(med, "act_scroll") as scroll, \
+             patch.object(med, "act_click") as click:
+            action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+        self.assertEqual(action, LoopAction.Continue)
+        find.assert_not_called()
+        scroll.assert_not_called()
+        click.assert_not_called()
+
     def test_heirloom_dialog_uses_cjb_boss_handler(self):
         """A classified heirloom page selects cjb_boss through the existing handler."""
         med = Mediator(Settings(cjb_boss="01暴掠龙", sgzx_boss="24瑞文戴尔男爵"), ROOT)

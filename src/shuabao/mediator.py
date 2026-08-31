@@ -4579,6 +4579,12 @@ class Mediator:
     ) -> LoopAction | None:
         """Click configured Boss card when the Boss challenge entry is visible."""
         post_game = self._post_game_state(frame)
+        if post_game is None and getattr(self, "_post_game_pending", False):
+            # After Continue, an unclassified transition frame is observation-only.
+            # Keep the existing HUD early-challenge path available when no
+            # post-game route is pending, but never search or click through it.
+            print("[med] 战后页面未分类，Boss 挑战零输入等待")
+            return LoopAction.Continue
         bosses = self._configured_boss_challenge_names()
         if post_game == "ARCHIVE_PANEL":
             # 时光之穴页只能选择 sgzx_boss；cjb_boss 属于传家宝列表。

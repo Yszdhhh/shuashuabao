@@ -241,4 +241,13 @@ policy、实际 input、前后 frame fingerprint、phase/FSM 和 postcondition�
 分类，之后离线 replay。p/f/m 只做证据标记；m 会取消 Natural E2E 资格。若要换模块，
 按 F12/Shift+F12 结束当前采集后再启动下一个菜单。最终回传 bundle 路径、失败摘要、
 失败分类、复现命令和当前 SHA；没有真实 HUD 后置就不要宣布 PASS。
+
 ```
+
+### Follow-up audit hardening
+
+云端审查发现战后过渡帧的 UNKNOWN 零输入边界需要显式硬闸门。当前
+`_maybe_challenge_configured_boss()` 在 `_post_game_pending` 且
+`_post_game_state(frame)` 为 `None` 时立即返回，不再执行 Boss 搜索、滚动或点击；
+正常未进入战后链的提前挑战路径保持不变。该边界已有回归测试。未开放关卡若仍能被
+视觉模板识别，仍需真实 locked-state Ground Truth 后再决定是否需要独立锁定态识别。

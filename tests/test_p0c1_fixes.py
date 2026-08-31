@@ -131,7 +131,7 @@ class P0C1FixesTests(unittest.TestCase):
             mock_act_click.assert_not_called()
             mock_exec_click.assert_not_called()
 
-        # boss_entry：已配置挑战 Boss → 点击配置 Boss 模板（BossConfigured）
+        # boss_entry：战后过渡页未分类 → 即使配置了 Boss 也必须零输入
         self.med = Mediator(replace(self.settings, cjb_boss="04克雷什之父"), ROOT)
         self.med.set_phase(Phase.MAIN_LINE)
         self.med._post_game_pending = True
@@ -151,8 +151,7 @@ class P0C1FixesTests(unittest.TestCase):
             action = self.med._tick_main_line(frame)
             self.assertEqual(action, LoopAction.Continue)
             self.assertEqual(self.med.phase, Phase.MAIN_LINE)
-            mock_act_click.assert_called_once()
-            self.assertEqual(mock_act_click.call_args[0][1], "BossConfigured")
+            mock_act_click.assert_not_called()
 
         # longzhu：仅在 LONGZHU 阶段检查并 Fail-Closed（MAIN_LINE 不再每 tick 扫）
         self.med = Mediator(self.settings, ROOT)

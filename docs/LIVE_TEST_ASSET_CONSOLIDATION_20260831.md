@@ -271,3 +271,10 @@ No merge, PR, synthetic evidence, or baseline waiver is allowed.
 | KEEP_AS_GROUND_TRUTH | Time Cave material once captured | Do not delete; it gates any future production wiring. |
 | UNKNOWN_OWNER | Duplicate `24瑞文戴尔男爵.png` / `24戴文戴尔男爵.png` template names and unused historical fixtures | Do not delete during this task. Confirm catalogue/replay references and owner first. |
 | SAFE_TO_DELETE | None established | No deletion is justified by the present evidence. |
+
+### Follow-up audit hardening
+
+战后 pending 且页面分类为 `None` 的帧现在由生产 Boss handler 直接零输入返回，避免
+显式目标搜索或 compact ROI/fallback 在 UNKNOWN 过渡页产生动作；正常 HUD 提前挑战不受
+影响。新增回归覆盖搜索、滚动和点击均不发生。独立 locked/unopened 视觉状态仍缺真实
+Ground Truth，不能把“模板未命中”扩大解释为“已识别未开放”。
