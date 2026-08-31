@@ -15,6 +15,7 @@ import json
 import math
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -280,15 +281,26 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.med.executor.dry_run = True
 
     def test_regressions_post_game_archive_boss_longzhu_priority(self):
-        """7. Check regression: archive/boss_entry/longzhu Fail-Closed 保留（S0 ⑧ 阶段门控）。"""
+        """7. Check regression: 20260831 实机复盘后未验证 archive 守卫只对
+        "无战后上下文"的帧 Fail-Closed（pending=False + 局尾窗口）；
+        `_post_game_pending=True` 战后过渡窗豁免为零输入 Continue。
+        boss_entry/longzhu 门控不变（见 p1a1/p0c1 契约）。"""
         self.med._auto_task_done = True
-        self.med._post_game_pending = True  # 局尾窗口（战后流程进行中）才检查
-
-        # Create dummy frame with 'archive' template matched
+        self.med._post_game_pending = False
+        self.med._round_deadline = time.time() + 5  # 局尾窗口内
         with patch.object(self.med, "find_scene", side_effect=lambda f, name, **kw: MatchResult("archive", 0.9, 100, 100, 50, 50, 100, 100) if name == "archive" else None):
             res = self.med._tick_main_line(self.frame_off)
             self.assertEqual(res, LoopAction.Break)
             self.assertEqual(self.med.phase, Phase.ERROR)
+
+        # 战后过渡窗（pending=True）：豁免守卫，零输入 Continue
+        self.med2 = Mediator(self.settings, ROOT)
+        self.med2._auto_task_done = True
+        self.med2.set_phase(Phase.MAIN_LINE, "test setup")
+        with patch.object(self.med2, "find_scene", side_effect=lambda f, name, **kw: MatchResult("archive", 0.9, 100, 100, 50, 50, 100, 100) if name == "archive" else None):
+            res = self.med2._tick_main_line(self.frame_off)
+            self.assertEqual(res, LoopAction.Continue)
+            self.assertEqual(self.med2.phase, Phase.MAIN_LINE)
 
     def test_reset_challenge_state_on_entering_new_main_line(self):
         """8. Check that set_phase(Phase.MAIN_LINE) resets challenge done/attempts and initializes states to PENDING."""

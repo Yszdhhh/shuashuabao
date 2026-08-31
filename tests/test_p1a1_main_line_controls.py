@@ -1,5 +1,6 @@
 import json
 import sys
+import time
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -36,12 +37,15 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.settings = Settings(ocr_mode="off")
         self.med = Mediator(self.settings, ROOT)
 
-    # 1. 独立回归测试：未验证战后入口最高优先 (Section I)
     def test_simultaneous_archive_and_auto_task_hits_error_first(self):
+        """20260831 实机复盘：未验证 archive 守卫只对"无战后上下文"的帧
+        Fail-Closed；`_post_game_pending=True` 属于战后链过渡窗，必须豁免
+        （Continue 零输入），否则过渡帧误杀停机。见 mediator 未验证入口分支。"""
         f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
         self.med._last_frame = f
         self.med.phase = Phase.MAIN_LINE
-        self.med._post_game_pending = True  # S0 ⑧：局尾窗口才检查未验证战后入口
+        self.med._post_game_pending = False
+        self.med._round_deadline = time.time() + 5  # 局尾窗口内
 
         archive_hit = MatchResult(name="archive", score=0.9, x=100, y=100, w=50, h=50, screen_x=100, screen_y=100)
         toggle_hit = MatchResult(name="auto_task_toggle", score=0.9, x=1400, y=500, w=30, h=30, screen_x=1400, screen_y=500)
@@ -68,30 +72,59 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             mock_right_click.assert_not_called()
             mock_press_key.assert_not_called()
 
+        # 战后过渡窗（pending=True）同帧出现 archive 顶栏 → 豁免、零输入 Continue
+        self.med._post_game_pending = True
+        with patch.object(self.med, "find_scene", side_effect=lambda frame, scene, **kw: archive_hit if scene == "archive" else None), \
+             patch.object(self.med, "_find_auto_task_toggle", return_value=toggle_hit), \
+             patch.object(self.med, "act_click") as mock_act_click, \
+             patch.object(self.med, "click_scene") as mock_click_scene:
+            action = self.med._tick_main_line(f)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
+            mock_act_click.assert_not_called()
+            mock_click_scene.assert_not_called()
+
+
     def test_all_unverified_post_game_scenes_halt_before_any_input(self):
-        # S0 ⑧：archive 在局尾窗口（战后流程进行中）Fail-Closed；
+        # 20260831 实机复盘：未验证 archive 守卫只对"无战后上下文"的帧
+        # Fail-Closed（pending=False + 局尾窗口）；`_post_game_pending=True`
+        # 属于战后链过渡窗 → 豁免、零输入 Continue。
         # boss_entry 20260822 起是 Boss 提前挑战入口：未配置挑战 Boss 时零输入
         # 等待（不 ERROR、零输入）；longzhu 色相检查移至 LONGZHU 阶段。
-        for scene_key in ["archive"]:
-            med = Mediator(self.settings, ROOT)
-            f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
-            med._last_frame = f
-            med.phase = Phase.MAIN_LINE
-            med._post_game_pending = True
+        med = Mediator(self.settings, ROOT)
+        f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
+        med._last_frame = f
+        med.phase = Phase.MAIN_LINE
+        med._post_game_pending = False
+        med._round_deadline = time.time() + 5  # 局尾窗口内
 
-            scene_hit = MatchResult(name=scene_key, score=0.9, x=100, y=100, w=50, h=50, screen_x=100, screen_y=100)
-            toggle_hit = MatchResult(name="auto_task_toggle", score=0.9, x=1400, y=500, w=30, h=30, screen_x=1400, screen_y=500)
+        scene_hit = MatchResult(name="archive", score=0.9, x=100, y=100, w=50, h=50, screen_x=100, screen_y=100)
+        toggle_hit = MatchResult(name="auto_task_toggle", score=0.9, x=1400, y=500, w=30, h=30, screen_x=1400, screen_y=500)
 
-            with patch.object(med, "find_scene", side_effect=lambda frame, scene, **kw: scene_hit if scene == scene_key else None), \
-                 patch.object(med, "_find_auto_task_toggle", return_value=toggle_hit), \
-                 patch.object(med.executor, "click") as mock_click, \
-                 patch.object(med.executor, "right_click") as mock_right_click:
+        with patch.object(med, "find_scene", side_effect=lambda frame, scene, **kw: scene_hit if scene == "archive" else None), \
+             patch.object(med, "_find_auto_task_toggle", return_value=toggle_hit), \
+             patch.object(med.executor, "click") as mock_click, \
+             patch.object(med.executor, "right_click") as mock_right_click:
 
-                action = med._tick_main_line(f)
-                self.assertEqual(action, shuabao.loop_action.LoopAction.Break)
-                self.assertEqual(med.phase, Phase.ERROR)
-                mock_click.assert_not_called()
-                mock_right_click.assert_not_called()
+            action = med._tick_main_line(f)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Break)
+            self.assertEqual(med.phase, Phase.ERROR)
+            mock_click.assert_not_called()
+            mock_right_click.assert_not_called()
+
+        # 战后过渡窗（pending=True）：archive 顶栏豁免 → 零输入 Continue、不进 ERROR
+        med = Mediator(self.settings, ROOT)
+        med._last_frame = f
+        med.phase = Phase.MAIN_LINE
+        med._post_game_pending = True
+        with patch.object(med, "find_scene", side_effect=lambda frame, scene, **kw: scene_hit if scene == "archive" else None), \
+             patch.object(med, "_find_auto_task_toggle", return_value=toggle_hit), \
+             patch.object(med.executor, "click") as mock_click, \
+             patch.object(med.executor, "right_click") as mock_right_click:
+            action = med._tick_main_line(f)
+            self.assertEqual(action, shuabao.loop_action.LoopAction.Continue)
+            self.assertEqual(med.phase, Phase.MAIN_LINE)
+            mock_click.assert_not_called()
+            mock_right_click.assert_not_called()
 
         # boss_entry 未配置挑战 Boss：零输入 Continue、不进 ERROR
         med = Mediator(self.settings, ROOT)
