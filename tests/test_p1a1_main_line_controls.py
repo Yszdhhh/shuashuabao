@@ -1,6 +1,7 @@
 import json
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -30,7 +31,9 @@ def load_fixture_frame(rel_path: str, title: str = "英雄三国KK") -> Frame:
 
 class P1A1MainLineControlsTests(unittest.TestCase):
     def setUp(self):
-        self.settings = Settings()
+        # These fixtures exercise the deterministic template path.  Live OCR has
+        # separate contract/integration coverage and must be opted into explicitly.
+        self.settings = Settings(ocr_mode="off")
         self.med = Mediator(self.settings, ROOT)
 
     # 1. 独立回归测试：未验证战后入口最高优先 (Section I)
@@ -311,11 +314,21 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.assertEqual(choice2[1].name, "dcw")
 
     def test_skill_choice_no_preferred_hit_refreshes_then_blocks_giveup(self):
-        # 技能只允许用户配置项：无命中绝不刷新也不放弃，直接返回 skill_hide 或零输入
+        # 技能只允许用户配置项：焦点技能未命中时先走已验证刷新钮；
+        # 刷新预算耗尽后仅在有隐藏模板时收口，否则零输入；绝不点配置外技能或放弃。
         f4 = load_fixture_frame("fixtures/replay/skill_choice_4.jpg")
         self.settings.skills = ["asj", "jq"]  # 不在该面板上的技能
         choice = self.med._find_reward_choice(f4)
-        self.assertIsNone(choice, "技能选择无匹配项且无隐藏钮时零输入，绝不刷新或放弃")
+        self.assertIsNotNone(choice)
+        self.assertEqual(choice[0], "技能刷新")
+        self.assertEqual(choice[1].name, "refresh")
+
+        self.med._choice_session = replace(
+            self.med._choice_session,
+            refreshes=self.med._choice_session.max_refreshes,
+        )
+        exhausted = self.med._find_reward_choice(f4)
+        self.assertIsNone(exhausted, "刷新预算耗尽且无隐藏模板时必须零输入，不得点放弃")
     def test_skill_choice_candidate_count_is_not_a_hard_gate(self):
         # 57d40ce 移除 3/4 数量门：少识别/多误识别不阻塞，只选配置内的候选
         # （按 settings.skills 配置顺序，不按视觉分数）。
@@ -343,14 +356,15 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             self.assertIsNotNone(choice)
             self.assertEqual(Path(choice[1].name).stem, "asj")  # 配置序第一，忽略配置外候选
 
-        # 候选全在配置外 → 绝不返回配置外的卡；返回 skill_hide 或零动作
+        # 候选全在配置外 → 绝不返回配置外的卡；有刷新预算时只点刷新。
         mock_outside = [
             MatchResult(name="skills/zzz", score=0.95, x=600, y=260, w=98, h=97, screen_x=600, screen_y=260),
         ]
         with patch("shuabao.mediator.match_all", return_value=mock_outside):
             choice = self.med._find_reward_choice(f3)
             self.assertIsNotNone(choice)
-            self.assertEqual(choice[1].name, "skill_hide")
+            self.assertEqual(choice[0], "技能刷新")
+            self.assertEqual(choice[1].name, "skill_refresh_btn")
     def test_treasure_fixture_uses_real_card_centers_and_not_skill_layout(self):
         # A3：禁止无脑第一张；无 cards 偏好时宝物可走品质色（负面剔除后），
         # 坐标仍必须是宝物布局而非技能布局。
