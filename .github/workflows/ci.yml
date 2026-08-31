@@ -51,7 +51,7 @@ jobs:
 
       - name: Run Core Python Test Suites
         run: |
-          python -m pytest tests/test_mediator_choice_four_slot_integration.py tests/test_choice_lexicon.py tests/test_live_tier_crossing_integration.py tests/test_mediator_equipment_fsm_integration.py tests/test_hero_mode_temporal.py tests/test_p0_security.py tests/test_p1_choice_fsm_contracts.py tests/test_dashboard_facade.py tests/test_dashboard_facade_runner.py tests/test_choice_policy.py tests/test_l1_cycle_recheck_merchant.py tests/contract -v
+          python -m pytest tests/test_mediator_choice_four_slot_integration.py tests/test_choice_lexicon.py tests/test_live_tier_crossing_integration.py tests/test_mediator_equipment_fsm_integration.py tests/test_hero_mode_temporal.py tests/test_p0_security.py tests/test_p1_choice_fsm_contracts.py tests/test_dashboard_facade.py tests/test_dashboard_facade_runner.py tests/test_choice_policy.py tests/test_l1_cycle_recheck_merchant.py tests/test_subscription_start_gate.py tests/contract -v
       - name: Run Standard Release Gate
         run: |
           python tools/release_gate.py
