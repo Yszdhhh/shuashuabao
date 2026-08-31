@@ -126,7 +126,7 @@ class LobbyDetectorTests(unittest.TestCase):
         frame[261:261 + first.shape[0], 526:526 + first.shape[1]] = first
         frame[261:261 + preferred.shape[0], 759:759 + preferred.shape[1]] = preferred
         frame[261:261 + third.shape[0], 992:992 + third.shape[1]] = third
-        med = Mediator(Settings(skills=["assx"], match_threshold=0.85), root)
+        med = Mediator(Settings(skills=["assx"], match_threshold=0.85, ocr_mode="off"), root)
         kind, hit = med._find_reward_choice(Frame(frame))
         self.assertEqual(kind, "技能")
         self.assertEqual(hit.name, "assx")
