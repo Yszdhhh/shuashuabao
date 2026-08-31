@@ -1973,6 +1973,14 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
             "evolve_ok_this_cycle": True,
             "reason": "operator start condition confirms one completed evolution; existing inventory handler retains all recognition and postcondition gates",
         }
+    if target in {"time_cave", "heirloom"}:
+        med._post_game_pending = True
+        med._post_game_route = "archive" if target == "time_cave" else "heirloom"
+        return {
+            "post_game_pending": True,
+            "post_game_route": med._post_game_route,
+            "reason": "target probe starts from the existing challenge plaza or already-open challenge panel",
+        }
     if target != "secret_realm":
         return {}
     med._post_game_pending = True
@@ -2252,6 +2260,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                             frame,
                             input_sent=lambda: bool(recorder.inputs_this_tick),
                         )
+                    elif target in {"time_cave", "heirloom"}:
+                        result = med._tick_main_line()
                     else:
                         result = _invoke_target_handler(med, target, frame)
                     loop_action = result if isinstance(result, LoopAction) else LoopAction.Continue
