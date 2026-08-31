@@ -88,6 +88,52 @@ correctly reports that no replay case can be generated.  Keep the manifest and f
 summary as environment evidence; a blank capture must not be converted into synthetic
 game evidence.
 
+### Full pytest stability follow-up — 2026-08-31
+
+Before any new repository change, the local package was reconfirmed against
+`4b07e37b8c83fc4d658cf33181c50838cccd4282`: Git HEAD and the
+`build_identity.json` source SHA were identical, and the EXE SHA-256 matched its
+sidecar.  This closes the earlier identity evidence gap for that commit.
+
+The full-suite Windows fast-fail was then reduced to two independent Qt test-lifecycle
+faults.  First, `test_desktop_main_preserves_theme_loaded_by_real_window` relied on the
+default shell selection while patching only the native-window objects.  The default
+WebConfigShell could therefore create real Qt objects outside the fake application,
+and later garbage collection could access-violate.  The test now explicitly selects
+`SHUABAO_SHELL=native`.  Second, two dashboard modules created a process-global
+`QCoreApplication`; a later desktop test could not upgrade that singleton into the
+`QApplication` required by widgets.  Those shared fixtures now create an offscreen
+`QApplication` from the outset.  These are test-only corrections; no production FSM,
+detector, fallback, or baseline changed.
+
+After the correction, the previously crashing module boundary completed, and the full
+command `python -X faulthandler -m pytest tests -q --tb=short` reached 100% without a
+native-process crash: **31 failed, 1063 passed, 5 skipped, 2 xfailed, 207 subtests
+passed in 193.35s**.  Native-process stability is therefore **PASS**, but the full
+pytest acceptance state remains **FAIL / OPEN**.  The remaining reproducible assertion
+failures are tracked separately; no common root cause is inferred:
+
+| Failure area | Count | Status |
+|---|---:|---|
+| Atlas/catalog projection | 7 | OPEN; includes canonical-name and knowledge/bond expectations. |
+| Desktop settings/policy projection | 2 | OPEN. |
+| Pause overlay | 1 | OPEN. |
+| Habit preference | 1 | OPEN. |
+| Lobby detectors | 2 | OPEN. |
+| P0A create-room gate | 4 | OPEN. |
+| P1A1 main-line controls | 7 | OPEN. |
+| P1A2 challenge controls | 1 | OPEN. |
+| Scenario replay | 1 | OPEN. |
+| Skill metadata presets | 1 | OPEN. |
+| Temporal same-room loop | 1 | OPEN. |
+| Ticket archaeology | 1 | OPEN. |
+| Trace JSONL redaction | 1 | OPEN. |
+| UI scale fallback | 1 | OPEN. |
+
+The focused regression across both dashboard modules and the two relevant desktop
+tests reports **55 passed in 3.11s**.  P0 five-run lifecycle acceptance remains
+`MISSING_REAL_SAMPLE`; no long-chain live run is authorized by this test-only result.
+
 ## Deletion candidates
 
 | Classification | Candidate | Decision |
