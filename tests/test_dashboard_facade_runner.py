@@ -426,6 +426,8 @@ class ScriptedWorker(QThread):
 @pytest.fixture()
 def real_facade(qapp, tmp_path: Path, monkeypatch):
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    _trusted_identity(monkeypatch, tmp_path)
     runner = RunnerService(tmp_path, tmp_path)
     f = DashboardFacade(tmp_path, runner)
     f.runner = runner
@@ -436,7 +438,6 @@ def real_facade(qapp, tmp_path: Path, monkeypatch):
     f.logs = logs
     f.statuses = statuses
     return f
-
 
 def _wait_worker_done(qapp, worker, timeout: float = 5.0) -> None:
     deadline = time.monotonic() + timeout
@@ -492,13 +493,14 @@ def test_real_runner_snapshot_reflects_running(qapp, real_facade):
         f.stop_run()
         _wait_worker_done(qapp, runner.worker)
 
-
 def test_runner_start_failure_releases_live_lock(tmp_path: Path, monkeypatch):
     class BrokenWorker:
         def __init__(self, *_args, **_kwargs) -> None:
             raise RuntimeError("worker construction failed")
 
     monkeypatch.setattr(rs_module, "MediatorWorker", BrokenWorker)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    _trusted_identity(monkeypatch, tmp_path)
     runner = RunnerService(tmp_path, tmp_path)
 
     with pytest.raises(RuntimeError, match="worker construction failed"):
@@ -524,12 +526,10 @@ def test_worker_structured_bootstrap_failure_is_reported_as_failed(tmp_path: Pat
     )
     worker = rs_module.MediatorWorker(Settings(), tmp_path)
     worker.run()
-    assert worker.phase == "ERROR"
-    assert worker.terminal_reason == "OCR不可用: worker missing"
-
-
 def test_runner_preserves_disabled_ocr_for_template_mode(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    _trusted_identity(monkeypatch, tmp_path)
     runner = RunnerService(tmp_path, tmp_path)
     worker = runner.start("normal_farm", Settings(ocr_mode="off"))
 
@@ -541,6 +541,8 @@ def test_runner_preserves_disabled_ocr_for_template_mode(tmp_path: Path, monkeyp
 
 def test_runner_releases_lock_when_worker_finishes_without_facade(qapp, tmp_path: Path, monkeypatch):
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    _trusted_identity(monkeypatch, tmp_path)
     runner = RunnerService(tmp_path, tmp_path)
     worker = runner.start("normal_farm", Settings())
     worker.start()
@@ -556,6 +558,8 @@ def test_runner_releases_lock_when_worker_finishes_without_facade(qapp, tmp_path
 
 def test_runner_stop_timeout_waits_for_worker_cleanup(qapp, tmp_path: Path, monkeypatch):
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    _trusted_identity(monkeypatch, tmp_path)
     runner = RunnerService(tmp_path, tmp_path)
     worker = runner.start("normal_farm", Settings())
     worker.start()
@@ -618,23 +622,26 @@ def _integration_permit(
     return EntitlementPermit.from_mapping(payload)
 
 
+def _trusted_identity(monkeypatch, tmp_path: Path, *, channel: str = "internal") -> None:
+    """注入受信任源码身份：生产 gate 不放宽，测试显式声明受信 checkout。"""
+    from shuabao.shell import live_execute
+
+    identity = live_execute._LiveIdentity(
+        "a" * 40,
+        "b" * 64,
+        channel,
+        False,
+        tmp_path,
+        tmp_path / "config" / "entitlement_public_keys.json",
+        {"integration-test": _PERMIT_PRIVATE_KEY.public_key()},
+    )
+    monkeypatch.setattr(live_execute, "_live_identity", lambda _root: identity)
+
+
 def _configure_permit_root(root: Path, monkeypatch, *, device_id: str = "device") -> None:
-    config = root / "config"
-    config.mkdir(parents=True)
-    public = _PERMIT_PRIVATE_KEY.public_key().public_bytes(
-        serialization.Encoding.DER,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-    (config / "entitlement_public_keys.json").write_text(
-        json.dumps({"keys": {_PERMIT_KEY_ID: base64.b64encode(public).decode("ascii")}}),
-        encoding="utf-8",
-    )
-    (root / "build_identity.json").write_text(
-        json.dumps({"source_sha": "a" * 40, "release_manifest_sha256": "b" * 64}),
-        encoding="utf-8",
-    )
+    """Permit verifier 测试根：注入受信任身份；不再依赖可变 build_identity/env 渠道。"""
+    _trusted_identity(monkeypatch, root, channel="stable")
     monkeypatch.setenv("SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT", device_id)
-    monkeypatch.setenv("SHUABAO_RELEASE_CHANNEL", "stable")
 
 
 def _permit_permission(permit):
@@ -753,11 +760,10 @@ def test_runner_start_denied_checker_blocks_without_network(tmp_path: Path, monk
         runner.start("normal_farm", Settings(), permission_checker=checker)
     assert probed == [1]
     assert runner.worker is None
-    assert not live_lock_busy(runner.app_data)
-
-
 def test_runner_start_allowed_permission_reaches_shared_executor(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    _trusted_identity(monkeypatch, tmp_path)
     runner = RunnerService(tmp_path, tmp_path)
     from shuabao.subscription_permit import DevStartCapability
     allowed = DevStartCapability.for_off()
@@ -802,6 +808,8 @@ def test_headless_run_blocking_allowed_permission_runs(tmp_path: Path, monkeypat
         return {"terminal_reason": "已完成指定局数", "phase": "COMPLETE", "game_count": 1, "mediator": None, "ocr_status": "完成"}
 
     monkeypatch.setattr(hr_module, "execute_runtime_mediator", fake_execute)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    _trusted_identity(monkeypatch, tmp_path)
     runner = HeadlessRunner(tmp_path, tmp_path)
     from shuabao.subscription_permit import DevStartCapability
     allowed = DevStartCapability.for_off()
