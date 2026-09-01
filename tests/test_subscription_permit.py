@@ -389,6 +389,35 @@ def test_load_public_keys_rejects_corrupt_der(tmp_path):
     with pytest.raises(PermitVerificationError) as excinfo:
         load_public_keys(registry)
     assert excinfo.value.code == "PERMIT_KEY_REGISTRY_INVALID"
+def test_load_public_keys_rejects_invalid_base64_alphabet(tmp_path):
+    der = PUBLIC_KEY.public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    registry = tmp_path / "keys.json"
+    registry.write_text(
+        json.dumps({"keys": {"ed25519-1": base64.b64encode(der).decode("ascii") + "!"}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PermitVerificationError) as excinfo:
+        load_public_keys(registry)
+    assert excinfo.value.code == "PERMIT_KEY_REGISTRY_INVALID"
+
+
+def test_load_public_keys_rejects_base64_trailing_data(tmp_path):
+    der = PUBLIC_KEY.public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    encoded = base64.b64encode(der).decode("ascii")
+    registry = tmp_path / "keys.json"
+    registry.write_text(
+        json.dumps({"keys": {"ed25519-1": encoded + "AAAA"}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PermitVerificationError) as excinfo:
+        load_public_keys(registry)
+    assert excinfo.value.code == "PERMIT_KEY_REGISTRY_INVALID"
 
 
 def test_load_public_keys_normalizes_unsupported_algorithm(monkeypatch, tmp_path):

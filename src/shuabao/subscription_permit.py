@@ -303,7 +303,7 @@ def load_public_keys(path: Path) -> dict[str, Ed25519PublicKey]:
             raise ValueError('"keys" 必须是 object')
         keys: dict[str, Ed25519PublicKey] = {}
         for key_id, text in entries.items():
-            key = load_der_public_key(base64.b64decode(text))
+            key = load_der_public_key(base64.b64decode(text, validate=True))
             if not isinstance(key, Ed25519PublicKey):
                 raise ValueError(f"key {key_id!r} 不是 Ed25519 公钥")
             keys[str(key_id)] = key
