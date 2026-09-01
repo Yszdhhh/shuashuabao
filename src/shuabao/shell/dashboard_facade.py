@@ -358,10 +358,14 @@ def _target_window_preflight(
     try:
         from shuabao.vision.capture import find_window_targets
 
-        title = str(getattr(settings, "window_title_contains", "") or "英雄三国")
+        l1_title = str(getattr(settings, "window_title_contains", "") or "英雄三国")
         roles = ("l0",) if mode_id in {"follow_team", "lobby_hitch"} else ("l1", "l0")
         targets = []
         for role in roles:
+            # Empty L0 query intentionally selects capture.py's verified KK
+            # fallback vocabulary and role scoring.  Reusing the L1 title here
+            # made a clean “KK lobby only” start fail preflight.
+            title = l1_title if role == "l1" else ""
             targets.extend(find_window_targets(title, role=role, allow_fallback=False))
         if targets:
             names = ", ".join(str(getattr(item, "title", "") or "KK") for item in targets[:2])

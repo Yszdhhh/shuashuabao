@@ -4798,7 +4798,7 @@ class Mediator:
         )
         return int(np.count_nonzero(red)) >= 100 and largest_component >= 50
     def _maybe_ensure_hero_panel_focus(self, frame: Frame, now: float) -> LoopAction | None:
-        """局内常态（无中央选卡弹窗时）若右下角未检测到英雄技能/操作面板，按 F1 切回英雄。"""
+        """Only recover hero focus from two distinct, positively identified HUD frames."""
         if self._panel_state != PanelState.CLOSED:
             return None
         if getattr(self, "_post_game_pending", False):
@@ -4806,7 +4806,16 @@ class Mediator:
         if now < getattr(self, "_hero_focus_next_check_at", 0.0):
             return None
 
-        # 测试/离线回放不可抢占正常状态机；真机以管理员 SendInput 路径为准。
+        # UNKNOWN/transition/black frames have zero input authority.  This is
+        # deliberately checked before elevation and before the hero ROI: a
+        # missing hero indicator is not evidence that the current page is HUD.
+        if not self._is_in_game_hud(frame):
+            self._hero_focus_lost_count = 0
+            self._hero_focus_last_frame_id = None
+            return None
+
+        # Tests/offline replay cannot pre-empt the state machine; real input
+        # still goes through the administrator/UIPI SendInput guard.
         from shuabao.input.keyboard_mouse import is_current_process_elevated
         if not is_current_process_elevated():
             return None
@@ -4816,12 +4825,26 @@ class Mediator:
         hit = self.find(frame, hero_indicators, threshold=0.75, roi=(0.60, 0.60, 0.98, 0.98))
         if hit is not None:
             self._hero_focus_lost_count = 0
+            self._hero_focus_last_frame_id = None
             return None
 
+        frame_id = id(frame)
+        if frame_id == getattr(self, "_hero_focus_last_frame_id", None):
+            # capture() deliberately reuses the same Frame object for identical
+            # frozen content.  Never convert repeated ticks of that object into
+            # a two-frame authorization.
+            return None
+        self._hero_focus_last_frame_id = frame_id
         self._hero_focus_lost_count = getattr(self, "_hero_focus_lost_count", 0) + 1
-        print(f"[med] 右下角未检测到英雄操作面板（计数 {self._hero_focus_lost_count}/2），发送 F1 切回英雄")
+        if self._hero_focus_lost_count < 2:
+            print("[med] 英雄面板缺失候选第 1 帧，等待不同 HUD 帧确认（零动作）")
+            return None
+
+        print("[med] 连续两个不同 HUD 帧均缺英雄面板，发送 F1 切回英雄")
         if not getattr(self.settings, "dry_run", False):
             self.act_key("F1", "HeroFocusFallback")
+        self._hero_focus_lost_count = 0
+        self._hero_focus_last_frame_id = None
         self._hero_focus_next_check_at = now + 1.5
         return LoopAction.Continue
     def _maybe_click_tqtz(self, frame: Frame, now: float) -> LoopAction | None:
@@ -8420,14 +8443,12 @@ class Mediator:
                 self._main_line_since = now
                 return LoopAction.Continue
 
-            # 无候选：F1 兜底与 shadow 记录
+            # 无候选：只记录 shadow。未分类面板属于 UNKNOWN，必须零输入；
+            # 不能用物理 F1 把“识别失败”变成点击/按键权限。
             if not self._panel_f1_used_this_episode:
                 self._panel_f1_used_this_episode = True
                 self._panel_f1_shadow_record(True, None)
-                # 当面板未被识别为合法选卡面板（例如无主类型/锚点异常），发送物理 F1 键切回英雄
-                if not getattr(self.settings, "dry_run", False) and self._panel_kind is None:
-                    self.act_key("F1", "PanelF1Fallback")
-                    print("[L1] F1 兜底：发送 F1 键切回英雄面板")
+                print("[L1] 未分类面板：记录 F1 shadow，保持零输入")
             self._selection_unknown_since = self._selection_unknown_since or now
             elapsed = now - self._selection_unknown_since
             # 不再零输入等到 10s unknown timeout（R8-REVIEW）。
@@ -8691,9 +8712,12 @@ class Mediator:
         if self._secret_realm_entering_since is not None:
             return self._observe_secret_realm_entry(frame, now, post_game)
         if post_game == "ARCHIVE_PANEL" and self._post_game_archive_pending_only:
+            if frame is getattr(self, "_prev_frame", None):
+                print("[med] 存档 pending+X 捕获未变化，不计入第二帧（零动作）")
+                return LoopAction.Continue
             self._pending_archive_panel_frames += 1
             if self._pending_archive_panel_frames < 2:
-                print("[med] 存档面板仅有 pending+X 候选第 1 帧，等待连续证据（零动作）")
+                print("[med] 存档面板仅有 pending+X 候选第 1 帧，等待不同捕获证据（零动作）")
                 return LoopAction.Continue
         else:
             self._pending_archive_panel_frames = 0
@@ -8705,9 +8729,12 @@ class Mediator:
         )
         challenge_hud = awaiting_challenge_hud and self._is_in_game_hud(frame)
         if challenge_hud:
+            if frame is getattr(self, "_prev_frame", None):
+                print("[med] 战后挑战 HUD 捕获未变化，不计入第二帧（零动作）")
+                return LoopAction.Continue
             self._post_game_hud_confirmations += 1
             if self._post_game_hud_confirmations < 2:
-                print("[med] 战后挑战目的地 HUD 候选第 1 帧，等待连续证据（零动作）")
+                print("[med] 战后挑战目的地 HUD 候选第 1 帧，等待不同捕获证据（零动作）")
                 return LoopAction.Continue
             route = getattr(self, "_post_game_route", "")
             print(f"[med] 战后挑战目的地 HUD 连续两帧确认（{route}），恢复既有局内循环")

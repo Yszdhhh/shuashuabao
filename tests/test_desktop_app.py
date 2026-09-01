@@ -1366,7 +1366,7 @@ class DesktopPanelTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(mediator_mod, "Mediator", FailClosedProbeMediator),                     patch.object(runtime_mediator_mod, "Mediator", RuntimeFailClosedProbeMediator):
                 worker = desktop_app.MediatorWorker(
-                    Settings(dry_run=True), ROOT, max_steps=1, incident_dir=tmp
+                    Settings(dry_run=True, ocr_mode="off"), ROOT, max_steps=1, incident_dir=tmp
                 )
                 worker._start_trace = lambda: None  # 测试不写 APP_DATA trace
                 worker.run()
@@ -1408,7 +1408,7 @@ class DesktopPanelTests(unittest.TestCase):
 
     def test_user_settings_path_is_under_app_data(self):
         path = self.window.user_settings_path()
-        self.assertEqual(path.parent, Path(self.tmp.name))
+        self.assertEqual(path.parent.resolve(), Path(self.tmp.name).resolve())
         self.assertEqual(path.name, "user_settings.json")
         self.assertNotIn("config", path.parts[-2:])
 
