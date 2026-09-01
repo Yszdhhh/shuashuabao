@@ -12,7 +12,7 @@ from __future__ import annotations
 import base64
 import json
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Mapping
@@ -38,6 +38,9 @@ _STRING_FIELDS = (
 _B64URL_ALPHABET = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 )
+
+_VERIFIED_MARKER = object()
+
 
 
 class PermitVerificationError(Exception):
@@ -94,6 +97,10 @@ class EntitlementPermit:
             value = mapping[name]
             if not isinstance(value, str) or not value:
                 raise PermitVerificationError("PERMIT_MALFORMED", f"{name} 必须是非空字符串")
+            try:
+                value.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise PermitVerificationError("PERMIT_MALFORMED", f"{name} 含非法 Unicode surrogate") from exc
             values[name] = value
         if values["permit_id"] != values["jti"]:
             raise PermitVerificationError("PERMIT_MALFORMED", "permit_id 与 jti 不一致")
@@ -103,6 +110,11 @@ class EntitlementPermit:
             value = mapping[name]
             if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
                 raise PermitVerificationError("PERMIT_MALFORMED", f"{name} 必须是非空字符串列表")
+            try:
+                for item in value:
+                    item.encode("utf-8")
+            except UnicodeEncodeError as exc:
+                raise PermitVerificationError("PERMIT_MALFORMED", f"{name} 含非法 Unicode surrogate") from exc
             values[name] = tuple(value)
         if not values["allowed_modes"]:
             raise PermitVerificationError("PERMIT_MALFORMED", "allowed_modes 不能为空")
@@ -193,6 +205,16 @@ class VerifiedPermit:
     features: tuple[str, ...]
     expires_at: datetime
     key_id: str
+    _marker: object | None = field(default=None, init=False, repr=False, compare=False)
+    _issuer: object | None = field(default=None, init=False, repr=False, compare=False)
+
+
+def is_verified_permit(value: object, *, issuer_token: object | None = None) -> bool:
+    return (
+        isinstance(value, VerifiedPermit)
+        and value._marker is _VERIFIED_MARKER
+        and (issuer_token is None or value._issuer is issuer_token)
+    )
 
 
 @dataclass(frozen=True)
@@ -238,9 +260,12 @@ class PermitVerifier:
         self,
         public_keys: Mapping[str, Ed25519PublicKey],
         replay_store: InMemoryReplayStore | None = None,
+        *,
+        issuer_token: object | None = None,
     ) -> None:
         self._public_keys = dict(public_keys)
         self._replay_store = replay_store
+        self._issuer_token = issuer_token
 
     def verify(self, permit: EntitlementPermit, context: PermitVerificationContext) -> VerifiedPermit:
         if not isinstance(permit, EntitlementPermit):
@@ -276,7 +301,7 @@ class PermitVerifier:
             raise PermitVerificationError("PERMIT_SIGNATURE_INVALID", "Ed25519 签名验证失败") from exc
         if self._replay_store is not None and not self._replay_store.claim(permit.permit_id, permit.nonce):
             raise PermitVerificationError("PERMIT_REPLAY", "permit_id/nonce 已被使用")
-        return VerifiedPermit(
+        verified = VerifiedPermit(
             permit_id=permit.permit_id,
             license_id=permit.license_id,
             device_id=permit.device_id,
@@ -286,16 +311,14 @@ class PermitVerifier:
             expires_at=expires_at,
             key_id=permit.key_id,
         )
+        object.__setattr__(verified, "_marker", _VERIFIED_MARKER)
+        object.__setattr__(verified, "_issuer", self._issuer_token)
+        return verified
 
 
-def load_public_keys(path: Path) -> dict[str, Ed25519PublicKey]:
-    """读取 config/entitlement_public_keys.json 形如 {"keys": {"<key_id>": "<base64 SPKI DER>"}}。
-
-    注册表为空返回 {}（PermitVerifier 对空注册表 fail-closed）；
-    文件缺失/损坏抛 PERMIT_KEY_REGISTRY_INVALID。
-    """
+def _load_public_keys_bytes(data: bytes) -> dict[str, Ed25519PublicKey]:
     try:
-        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        raw = json.loads(data.decode("utf-8"))
         if not isinstance(raw, dict):
             raise ValueError("注册表根必须是 JSON object")
         entries = raw.get("keys")
@@ -308,7 +331,23 @@ def load_public_keys(path: Path) -> dict[str, Ed25519PublicKey]:
                 raise ValueError(f"key {key_id!r} 不是 Ed25519 公钥")
             keys[str(key_id)] = key
         return keys
-    except (OSError, ValueError, TypeError, UnsupportedAlgorithm) as exc:
+    except (UnicodeError, ValueError, TypeError, UnsupportedAlgorithm) as exc:
+        raise PermitVerificationError(
+            "PERMIT_KEY_REGISTRY_INVALID", f"公钥注册表不可用: {exc}"
+        ) from exc
+
+
+def load_public_keys(path: Path) -> dict[str, Ed25519PublicKey]:
+    """读取 config/entitlement_public_keys.json 形如 {"keys": {"<key_id>": "<base64 SPKI DER>"}}。
+
+    注册表为空返回 {}（PermitVerifier 对空注册表 fail-closed）；
+    文件缺失/损坏抛 PERMIT_KEY_REGISTRY_INVALID。
+    """
+    try:
+        return _load_public_keys_bytes(Path(path).read_bytes())
+    except (OSError, PermitVerificationError) as exc:
+        if isinstance(exc, PermitVerificationError):
+            raise
         raise PermitVerificationError(
             "PERMIT_KEY_REGISTRY_INVALID", f"公钥注册表不可用: {exc}"
         ) from exc

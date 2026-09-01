@@ -199,6 +199,7 @@ RUNTIME_CONFIG_ALLOWLIST = {
     "bond_stack_catalog.json",
     "dashboard_test_profiles.json",
     "mode_evidence.json",
+    "entitlement_public_keys.json",
 }
 
 # 无生产消费者的研究/证据/测试资料：保留源码，不随包分发。

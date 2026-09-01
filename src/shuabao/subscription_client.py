@@ -287,9 +287,10 @@ def check_start_permission(
 ) -> StartPermission:
     """Validate the local Pilot entitlement exactly once before LIVE begins.
 
-    ``off`` performs zero network I/O. ``shadow`` records the authoritative
-    decision but never blocks LIVE. ``enforce`` fails closed on missing config,
-    transport failure, malformed JSON, or ``can_start_runner != true``.
+    ``off`` performs zero network I/O and only yields an explicit dev capability.
+    ``shadow`` records the authoritative decision but never grants LIVE
+    authorization. ``enforce`` fails closed on missing config, transport failure,
+    malformed JSON, or ``can_start_runner != true``.
 
     The Pilot fingerprint is caller-provided test identity.  It is deliberately
     not advertised as a production HWID collector.

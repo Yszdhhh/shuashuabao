@@ -2,17 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
 import subprocess
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from shuabao.log_sink import install_live_logging, uninstall_live_logging
+from shuabao.release_signing import ReleaseManifestError, verify_packaged_release_snapshot
 from shuabao.subscription_client import (
     StartPermission,
     _device_fingerprint,
@@ -26,85 +30,167 @@ from shuabao.subscription_permit import (
     PermitVerificationError,
     PermitVerifier,
     VerifiedPermit,
-    load_public_keys,
+    _load_public_keys_bytes,
+    is_verified_permit,
 )
 LOGGER = logging.getLogger("ShuaBao")
 LIVE_LOCK_NAME = "ShuaBao.live.lock"
 _LIVE_REPLAY_STORE = InMemoryReplayStore()
+_TRUSTED_ISSUER_TOKEN = object()
 
 
-def start_permission_allows(permission: Any) -> bool:
-    """Only explicit dev capability or a verifier-produced permit can pass."""
-    return isinstance(permission, (DevStartCapability, VerifiedPermit))
+@dataclass(frozen=True)
+class _LiveIdentity:
+    source_sha: str
+    manifest_sha: str
+    release_channel: str
+    packaged: bool
+    package_root: Path | None = None
+    registry_path: Path | None = None
+    registry_keys: Mapping[str, Ed25519PublicKey] | None = None
+
+def start_permission_allows(permission: Any, *, root: Path | None = None) -> bool:
+    """Only explicit off-mode dev capability or a verifier-produced permit can pass."""
+    if isinstance(permission, DevStartCapability):
+        if subscription_mode(os.environ) != "off" or root is None:
+            return False
+        identity = _live_identity(Path(root))
+        return not identity.packaged and identity.release_channel in {"internal", "dev"}
+    if not is_verified_permit(permission, issuer_token=_TRUSTED_ISSUER_TOKEN):
+        return False
+    try:
+        return datetime.now(timezone.utc) <= permission.expires_at
+    except (AttributeError, TypeError):
+        return False
 
 
 class PermissionDenied(RuntimeError):
     """订阅未授权：LIVE 入口 fail-closed，零 worker、零锁、零输入。"""
 
 
-def _live_identity(root: Path) -> tuple[str, str, str]:
-    source_sha = ""
-    manifest_sha = ""
-    release_channel = ""
-    candidates = [Path(root)]
-    executable_dir = Path(sys.executable).resolve().parent
-    if executable_dir not in candidates:
-        candidates.append(executable_dir)
-    for candidate in candidates:
-        try:
-            payload = json.loads((candidate / "build_identity.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if isinstance(payload, dict):
-            source_sha = str(payload.get("source_sha") or "").strip()
-            manifest_sha = str(payload.get("release_manifest_sha256") or "").strip().lower()
-            release_channel = str(payload.get("release_channel") or "").strip()
-            if source_sha or manifest_sha or release_channel:
-                break
-    if not source_sha and (Path(root) / ".git").exists():
-        try:
-            proc = subprocess.run(
-                ["git", "-C", str(root), "rev-parse", "HEAD"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=3,
-                check=False,
-            )
-            if proc.returncode == 0:
-                source_sha = proc.stdout.strip()
-        except (OSError, subprocess.SubprocessError):
-            pass
-    return source_sha, manifest_sha, release_channel
+def _git_source_sha(root: Path) -> str:
+    if not (root / ".git").exists():
+        return ""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=3,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def _attested_registry_path(package_root: Path, manifest: dict[str, object]) -> Path:
+    entries = manifest.get("files")
+    if not isinstance(entries, list):
+        raise ValueError("manifest files 缺失")
+    logical = "config/entitlement_public_keys.json"
+    for entry in entries:
+        if isinstance(entry, dict) and isinstance(entry.get("path"), str):
+            relative = entry["path"].replace("\\", "/")
+            if relative == logical or relative.endswith("/" + logical):
+                return package_root / Path(entry["path"])
+    raise ValueError("manifest 未绑定 entitlement registry")
+
+
+def _live_identity(root: Path) -> _LiveIdentity:
+    """Derive source identity from git or an authenticated frozen manifest."""
+    if not getattr(sys, "frozen", False):
+        source_sha = _git_source_sha(Path(root))
+        return _LiveIdentity(
+            source_sha,
+            "",
+            "internal" if source_sha else "",
+            False,
+            Path(root),
+            Path(root) / "config" / "entitlement_public_keys.json",
+        )
+
+    package_root = Path(sys.executable).resolve().parent
+    try:
+        manifest, verified_files = verify_packaged_release_snapshot(
+            package_root,
+            required_files=("config/entitlement_public_keys.json",),
+        )
+        identity = json.loads((package_root / "build_identity.json").read_text(encoding="utf-8"))
+        if not isinstance(identity, dict):
+            raise ValueError("build_identity 必须是 object")
+        manifest_bytes = (package_root / "release_manifest.json").read_bytes()
+        source_sha = str(manifest.get("source_sha") or "").strip()
+        channel = str(manifest.get("release_channel") or "").strip()
+        identity_sha = str(identity.get("source_sha") or "").strip()
+        identity_channel = str(identity.get("release_channel") or "").strip()
+        identity_manifest_sha = str(identity.get("release_manifest_sha256") or "").strip().lower()
+        actual_manifest_sha = hashlib.sha256(manifest_bytes).hexdigest().lower()
+        if (
+            not source_sha
+            or not channel
+            or source_sha != identity_sha
+            or channel != identity_channel
+            or identity_manifest_sha != actual_manifest_sha
+        ):
+            raise ValueError("build_identity 与签名 manifest 不一致")
+        registry_path = _attested_registry_path(package_root, manifest)
+        registry_key = str(registry_path.relative_to(package_root)).replace("\\", "/")
+        registry_keys = _load_public_keys_bytes(verified_files[registry_key])
+        return _LiveIdentity(
+            source_sha,
+            actual_manifest_sha,
+            channel,
+            True,
+            package_root,
+            registry_path,
+            registry_keys,
+        )
+    except (OSError, ValueError, PermitVerificationError, ReleaseManifestError):
+        return _LiveIdentity("", "", "", True)
 
 
 def resolve_live_permission(permission: Any, *, mode_id: str, root: Path) -> DevStartCapability | VerifiedPermit:
     """Resolve status DTOs into an explicit LIVE authorization artifact."""
-    if isinstance(permission, DevStartCapability):
-        if subscription_mode(os.environ) == "off":
-            return permission
-        raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_REQUIRED")
+    identity = _live_identity(Path(root))
+    dev_capability = permission if isinstance(permission, DevStartCapability) else None
     if isinstance(permission, StartPermission):
-        if permission.dev_capability is not None and subscription_mode(os.environ) == "off":
-            return permission.dev_capability
-        if permission.mode == "off":
+        dev_capability = permission.dev_capability
+    if dev_capability is not None:
+        if subscription_mode(os.environ) != "off":
             raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_REQUIRED")
+        if identity.packaged or identity.release_channel not in {"internal", "dev"}:
+            raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_DEV_PACKAGED")
+        return dev_capability
+    if isinstance(permission, StartPermission) and permission.mode == "off":
+        raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_REQUIRED")
     permit = getattr(permission, "permit", None)
     if not isinstance(permit, EntitlementPermit):
         raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_MISSING")
-    source_sha, manifest_sha, identity_channel = _live_identity(Path(root))
+    if (
+        not identity.source_sha
+        or not identity.manifest_sha
+        or not identity.release_channel
+        or identity.registry_path is None
+        or identity.registry_keys is None
+    ):
+        raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_IDENTITY_UNTRUSTED")
     try:
-        keys = load_public_keys(Path(root) / "config" / "entitlement_public_keys.json")
         context = PermitVerificationContext(
             device_id=_device_fingerprint(os.environ),
-            source_sha=source_sha,
-            release_manifest_sha256=manifest_sha,
-            release_channel=str(os.environ.get("SHUABAO_RELEASE_CHANNEL") or identity_channel).strip(),
+            source_sha=identity.source_sha,
+            release_manifest_sha256=identity.manifest_sha,
+            release_channel=identity.release_channel,
             mode_id=str(mode_id),
             now=datetime.now(timezone.utc),
         )
-        return PermitVerifier(keys, replay_store=_LIVE_REPLAY_STORE).verify(permit, context)
+        return PermitVerifier(
+            identity.registry_keys,
+            replay_store=_LIVE_REPLAY_STORE,
+            issuer_token=_TRUSTED_ISSUER_TOKEN,
+        ).verify(permit, context)
     except PermitVerificationError as exc:
         raise PermissionDenied(f"订阅未授权，LIVE 已拒绝启动: {exc.code}") from exc
 
@@ -137,7 +223,7 @@ def execute_runtime_mediator(
         result["terminal_reason"] = "启动前已请求停止"
         LOGGER.info("[启动] 已请求停止，取消本次启动")
         return result
-    if not start_permission_allows(permission):
+    if not start_permission_allows(permission, root=root_dir):
         # fail-closed：直接调用且无有效权限时，不装日志、不建 Mediator、不初始化输入。
         result["terminal_reason"] = "订阅未授权，LIVE 已拒绝启动"
         result["phase"] = "ERROR"

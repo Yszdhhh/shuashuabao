@@ -92,8 +92,8 @@ release_channel、请求 modes/features）。成功响应体即 permit JSON（�
 
 - **撤销**：服务器在有效期内的 permit 可通过短有效期（≤24h）+ 启动时重新签发
   实现事实撤销；后续可增加服务器端撤销列表查询（nonce/permit_id 维度），客户端
-  在查询不可达时必须 fail-closed。
-- **网络失败**：无法取得新 permit 时 LIVE 不启动（enforce 模式）。shadow 模式仅
-  记录决策不阻断，与 `check_start_permission` 现有语义一致。
+- **网络失败**：无法取得新 permit 时 LIVE 不启动（enforce 模式）。
+- **shadow 模式**：只记录权威决策，不产生 LIVE 授权；LIVE 仍必须经过
+  `resolve_live_permission` 的 signed permit 或显式、受信任的 dev/off capability。
 - **重放存储丢失**（进程重启）：进程内 store 清空即允许同一 permit 在新进程再次
   使用一次；这是已知边界，服务器侧 nonce 唯一性约束是最终防线。

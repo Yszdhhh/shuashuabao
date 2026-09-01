@@ -42,6 +42,7 @@ RUNTIME_CONFIG_FILES = [
     "bond_stack_catalog.json",
     "dashboard_test_profiles.json",  # native UI 测试档案（保留防功能回归）
     "mode_evidence.json",  # dashboard facade 当前构建一致性证据
+    "entitlement_public_keys.json",  # signed manifest 验证后读取的 permit key registry
 ]
 # 保留在源码、不随包分发（无生产消费者）：
 # vision_profiles.proposed.yaml / dashboard_mechanics.json / bond_knowledge.json /
