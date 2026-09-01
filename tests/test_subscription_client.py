@@ -222,6 +222,13 @@ def test_execute_runtime_mediator_allowed_permission_reaches_mediator(tmp_path, 
     fake = types.ModuleType("shuabao.runtime_mediator")
     fake.Mediator = FakeMediator
     monkeypatch.setitem(sys.modules, "shuabao.runtime_mediator", fake)
+    from shuabao.shell import live_execute
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    monkeypatch.setattr(
+        live_execute,
+        "_live_identity",
+        lambda root: live_execute._LiveIdentity("", "", "internal", False, root, root / "config" / "entitlement_public_keys.json"),
+    )
 
     allowed = DevStartCapability.for_off()
     result = _run_executor(tmp_path, permission=allowed)
