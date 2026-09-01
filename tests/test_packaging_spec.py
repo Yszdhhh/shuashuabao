@@ -257,3 +257,59 @@ def test_spec_excludes_non_production_config_files() -> None:
 def test_runtime_config_allowlist_files_exist_in_source() -> None:
     for name in RUNTIME_CONFIG_ALLOWLIST:
         assert (PROJECT_ROOT / "config" / name).is_file(), f"config/{name} 缺失"
+
+# --- 外发硬阻断：strict-release 门禁 + mode_evidence + Authenticode + manifest 签名 ---
+# 静态契约测试：不执行构建，只验证 build_release.ps1 的 fail-closed 结构。
+# 当前事实：无签名证书/signtool 流程，mode_evidence 全 MISSING，frozen replay
+# 仍有 disconnect_modal_missing=BLOCKED —— external-beta/release 必须在生成/
+# 可交付前被阻断；dev/internal-pilot 行为不变。
+
+
+def test_external_channels_run_gate_with_strict_release() -> None:
+    text = _build_script_text()
+    m = re.search(r"if \(\$isExternalChannel\) \{ \$gateArgs \+= .--strict-release. \}", text)
+    assert m, "external-beta/release 渠道必须以 --strict-release 跑发版门禁，阻断 BLOCKED 场景"
+    assert "& $gatePython @gateArgs" in text
+
+
+def test_external_channels_verify_mode_evidence_before_packaging() -> None:
+    text = _build_script_text()
+    call_site = re.search(
+        r"if \(\$isExternalChannel\) \{\s*Assert-ExternalModeEvidence \$sourceSha\s*\}", text
+    )
+    assert call_site, "external 渠道必须在打包前调用模式证据核验"
+    assert call_site.start() < text.index("PyInstaller 打包主程序"), "核验必须发生在任何 PyInstaller 打包之前"
+    assert "mode_specs.json" in text and "mode_evidence.json" in text
+    assert "$_.Value.live_enabled -eq $true -and $_.Value.desktop_start -eq $true" in text
+    assert re.search(r"status\s+-ne .PASS.", text), "非 PASS 的真机证据必须拒绝"
+    assert re.search(r"\$entry\.source_sha\s+-ne \$SourceSha", text), "证据必须绑定本次构建 SHA"
+    assert text.count("无法解析（畸形 JSON）") >= 2, "缺文件/畸形 JSON 必须显式拒绝"
+
+
+def test_external_channels_require_valid_authenticode_on_both_exes() -> None:
+    text = _build_script_text()
+    assert "Get-AuthenticodeSignature" in text
+    assert re.search(r"\$sig\.Status\s+-ne .Valid.", text), "非 Valid（含 NotSigned/UNSIGNED 事实）必须阻断"
+    m = re.search(
+        r"if \(\$isExternalChannel\) \{\s*"
+        r"Assert-AuthenticodeValid \$app .+?\s*"
+        r"Assert-AuthenticodeValid \$ocrWorker .+?\s*\}",
+        text,
+        re.S,
+    )
+    assert m, "主 EXE 与 OCR EXE 都必须做 Authenticode 核验"
+
+
+def test_release_manifest_unsigned_blocks_external_delivery() -> None:
+    text = _build_script_text()
+    assert "manifest_signature_status = $manifestSignatureStatus" in text
+    m = re.search(r"throw .external-beta/release 渠道阻断：release_manifest 尚无独立非对称签名", text)
+    assert m, "无独立签名实现时 external 渠道必须明确阻断，不得声称完整签名"
+    assert m.start() < text.index("Write-Utf8NoBom $releaseManifestPath"), "阻断必须发生在 release_manifest 写盘之前"
+
+
+def test_dev_channel_keeps_unsigned_identity_and_normal_gate() -> None:
+    # dev/internal-pilot 行为保持：identity 仍如实记录 UNSIGNED 事实。
+    text = _build_script_text()
+    assert re.search(r'signature_status\s*=\s*"UNSIGNED"', text)
+    assert '$manifestSignatureStatus = "UNSIGNED"' in text

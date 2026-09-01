@@ -117,6 +117,66 @@ function Read-Utf8NoBom([string]$Path) {
     return [System.IO.File]::ReadAllText($Path, $utf8NoBom)
 }
 
+function Assert-ExternalModeEvidence([string]$SourceSha) {
+    # 外发渠道硬阻断：mode_specs.json 中 live_enabled=true 且 desktop_start=true 的
+    # 每个模式，必须在 mode_evidence.json 里有 status=PASS 且 source_sha==本次构建
+    # 的真机证据。缺文件、畸形 JSON、MISSING 或 SHA 不一致一律拒绝；绝不把
+    # MISSING/BLOCKED 当作通过。
+    $specsPath = Join-Path $PSScriptRoot "config\mode_specs.json"
+    $evidencePath = Join-Path $PSScriptRoot "config\mode_evidence.json"
+    foreach ($path in @($specsPath, $evidencePath)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+            throw "外发渠道阻断：缺少 $(Split-Path -Leaf $path)，无法核验模式真机证据。"
+        }
+    }
+    try { $specs = Read-Utf8NoBom $specsPath | ConvertFrom-Json }
+    catch { throw "外发渠道阻断：mode_specs.json 无法解析（畸形 JSON）：$($_.Exception.Message)" }
+    try { $evidence = Read-Utf8NoBom $evidencePath | ConvertFrom-Json }
+    catch { throw "外发渠道阻断：mode_evidence.json 无法解析（畸形 JSON）：$($_.Exception.Message)" }
+    $required = @($specs.modes.PSObject.Properties | Where-Object {
+        $_.Value.live_enabled -eq $true -and $_.Value.desktop_start -eq $true
+    })
+    if ($required.Count -eq 0) {
+        throw "外发渠道阻断：mode_specs.json 没有任何 live_enabled+desktop_start 模式，证据清单异常。"
+    }
+    foreach ($mode in $required) {
+        $entry = $null
+        if ($evidence.modes -and $evidence.modes.PSObject.Properties[$mode.Name]) {
+            $entry = $evidence.modes.PSObject.Properties[$mode.Name].Value
+        }
+        if (-not $entry) {
+            throw "外发渠道阻断：模式 $($mode.Name) 缺少 mode_evidence.json 记录，拒绝外发。"
+        }
+        if ($entry.status -ne "PASS") {
+            throw "外发渠道阻断：模式 $($mode.Name) 真机证据 status=$($entry.status)（必须 PASS），拒绝外发。"
+        }
+        if (-not $entry.source_sha -or $entry.source_sha -ne $SourceSha) {
+            throw "外发渠道阻断：模式 $($mode.Name) 证据 source_sha 与本次构建 $SourceSha 不一致，拒绝外发。"
+        }
+    }
+    Write-Host "外发模式证据核验通过：$($required.Count) 个 live 桌面模式绑定当前构建。" -ForegroundColor Green
+}
+
+function Assert-AuthenticodeValid([string]$ExePath, [string]$Role) {
+    # 外发渠道硬阻断：主 EXE 与 OCR EXE 的 Authenticode 必须为 Valid。没有签名
+    # 证书/signtool 设施时此检查自然失败；build_identity 里的 UNSIGNED 事实标记
+    # 绝不能替代本检查。
+    if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
+        throw "外发渠道阻断：$Role 不存在，无法核验 Authenticode 签名。"
+    }
+    $sig = Get-AuthenticodeSignature -LiteralPath $ExePath
+    if (-not $sig -or $sig.Status -ne "Valid") {
+        $sigStatus = if ($sig) { $sig.Status } else { "NotSigned" }
+        throw "外发渠道阻断：$Role Authenticode Status=$sigStatus（必须 Valid），拒绝外发。"
+    }
+    Write-Host "Authenticode 校验通过：$Role" -ForegroundColor Green
+}
+
+# 外发渠道在依赖安装/打包之前 fail-closed：真机证据不齐就直接拒绝，不浪费构建。
+if ($isExternalChannel) {
+    Assert-ExternalModeEvidence $sourceSha
+}
+
 $uvCommand = Get-Command uv -ErrorAction Stop
 $python = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 
@@ -174,7 +234,9 @@ if (-not $SkipGate) {
     if (-not $gatePython) {
         throw "PATH 上没有 python，无法跑门禁。装好开发环境，或明确知道后果时用 -SkipGate。"
     }
-    & $gatePython tools\release_gate.py
+    $gateArgs = @("tools\release_gate.py")
+    if ($isExternalChannel) { $gateArgs += "--strict-release" }
+    & $gatePython @gateArgs
     if ($LASTEXITCODE -ne 0) {
         throw "门禁未通过，已中止打包。修好再来，或明确知道后果时用 -SkipGate。"
     }
@@ -212,6 +274,12 @@ cmd.exe /c "robocopy `"$(Split-Path -Parent $ocrWorker)`" `"$workerTarget`" /E /
 if ($LASTEXITCODE -gt 7) { throw "复制 OCR worker 到发行目录失败。" }
 Write-Host "已生成：$ocrWorker" -ForegroundColor Green
 
+# 外发渠道硬阻断：两个 EXE 都必须 Authenticode Valid；无签名设施时在此自然失败。
+if ($isExternalChannel) {
+    Assert-AuthenticodeValid $app "主程序 EXE"
+    Assert-AuthenticodeValid $ocrWorker "OCR worker EXE"
+}
+
 $releaseRoot = Join-Path $PSScriptRoot "dist\$APP_ID"
 
 # Pin the non-secret subscription deployment settings beside the executable.
@@ -237,6 +305,13 @@ Write-Host "已写入订阅部署配置（不含卡密）：$subscriptionRuntime
 $sourceDirtyEntries = @(& git status --porcelain --untracked-files=all)
 $buildId = (& $python -c "import sys; sys.path.insert(0, 'src'); from shuabao.mediator import BUILD_ID; print(BUILD_ID)").Trim()
 $releaseManifestPath = Join-Path $releaseRoot "release_manifest.json"
+
+# release_manifest 目前没有任何独立非对称签名实现（无密钥/无签名服务）。这是
+# 如实事实标记：external-beta/release 渠道在此明确阻断，绝不能声称完整签名。
+$manifestSignatureStatus = "UNSIGNED"
+if ($isExternalChannel) {
+    throw "external-beta/release 渠道阻断：release_manifest 尚无独立非对称签名实现（manifest_signature_status=$manifestSignatureStatus），不得对外交付。"
+}
 $releasePrefix = "$releaseRoot\"
 $releaseEntries = @(
     Get-ChildItem -LiteralPath $releaseRoot -File -Recurse |
@@ -253,6 +328,7 @@ $releaseEntries = @(
         }
 )
 $releaseManifest = [ordered]@{
+    manifest_signature_status = $manifestSignatureStatus
     schema_version = 1
     source_sha = $sourceSha
     bridge_schema_version = 2
