@@ -100,7 +100,7 @@ def _executor_denied():
     )
 
 
-def _run_executor(tmp_path, *, permission):
+def _run_executor(tmp_path, *, permission, should_abort=None):
     from shuabao.settings import Settings
     from shuabao.shell.live_execute import execute_runtime_mediator
     from shuabao.stop_signal import StopSignal
@@ -111,6 +111,7 @@ def _run_executor(tmp_path, *, permission):
         incident_dir=tmp_path / "incidents",
         stop_signal=StopSignal(),
         permission=permission,
+        should_abort=should_abort,
     )
 
 
@@ -167,3 +168,20 @@ def test_execute_runtime_mediator_allowed_permission_reaches_mediator(tmp_path, 
     result = _run_executor(tmp_path, permission=allowed)
     assert created.get("ok") is True, "有效权限必须放行到 Mediator 构造"
     assert result["mediator"] is not None
+
+
+def test_execute_runtime_mediator_rejects_duck_typed_permission(tmp_path):
+    class ForgedPermission:
+        allowed = True
+
+    result = _run_executor(tmp_path, permission=ForgedPermission())
+    assert result["phase"] == "ERROR"
+    assert result["mediator"] is None
+
+
+def test_execute_runtime_mediator_stop_before_permission_gate(tmp_path):
+    result = _run_executor(tmp_path, permission=None, should_abort=lambda: True)
+    assert result["phase"] == "IDLE"
+    assert result["terminal_reason"] == "启动前已请求停止"
+    assert result["mediator"] is None
+    assert not (tmp_path / "incidents" / "live.log").exists()

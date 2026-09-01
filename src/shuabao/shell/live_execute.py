@@ -6,17 +6,19 @@ import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from shuabao.log_sink import install_live_logging, uninstall_live_logging
 from shuabao.settings import Settings
 from shuabao.stop_signal import StopSignal
+from shuabao.subscription_client import StartPermission
 
 LOGGER = logging.getLogger("ShuaBao")
 LIVE_LOCK_NAME = "ShuaBao.live.lock"
 
-if TYPE_CHECKING:
-    from shuabao.subscription_client import StartPermission
+
+def start_permission_allows(permission: Any) -> bool:
+    return isinstance(permission, StartPermission) and bool(permission.allowed)
 
 
 class PermissionDenied(RuntimeError):
@@ -47,7 +49,11 @@ def execute_runtime_mediator(
         "mediator": None,
         "ocr_status": "未启动",
     }
-    if permission is None or not getattr(permission, "allowed", False):
+    if should_abort and should_abort():
+        result["terminal_reason"] = "启动前已请求停止"
+        LOGGER.info("[启动] 已请求停止，取消本次启动")
+        return result
+    if not start_permission_allows(permission):
         # fail-closed：直接调用且无有效权限时，不装日志、不建 Mediator、不初始化输入。
         result["terminal_reason"] = "订阅未授权，LIVE 已拒绝启动"
         result["phase"] = "ERROR"
@@ -66,10 +72,6 @@ def execute_runtime_mediator(
             LOGGER.error("[启动失败] RuntimeMediator 无法加载，LIVE 已拒绝启动: %s", exc)
             return result
 
-        if should_abort and should_abort():
-            result["terminal_reason"] = "启动前已请求停止"
-            LOGGER.info("[启动] 已请求停止，取消本次启动")
-            return result
 
         LOGGER.info("[live] execute_runtime_mediator start")
         mediator = Mediator(

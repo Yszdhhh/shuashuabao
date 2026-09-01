@@ -21,6 +21,7 @@ from shuabao.shell.live_execute import (
     PortableLiveLock,
     execute_runtime_mediator,
     live_lock_path,
+    start_permission_allows,
 )
 from shuabao.subscription_client import check_start_permission
 from shuabao.shell.mode_catalog import apply_mode_overlay, desktop_may_start
@@ -106,7 +107,7 @@ class HeadlessRunner:
             permission = permission_checker()
         if permission is None:
             permission = check_start_permission()
-        if not getattr(permission, "allowed", False):
+        if not start_permission_allows(permission):
             raise PermissionDenied("订阅未授权，LIVE 已拒绝启动")
 
         snapshot = self._prepare_settings(settings)

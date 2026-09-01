@@ -4370,7 +4370,7 @@ class MainWindow(QMainWindow):
             self.log("[阻断] 真机运行需要管理员权限", "error")
             return
         try:
-            worker = self.runner.start(mode_id, settings)
+            worker = self.runner.start(mode_id, settings, permission=permission)
         except ModeNotEnabled as exc:
             self.log(f"[阻断] {exc}", "error")
             return

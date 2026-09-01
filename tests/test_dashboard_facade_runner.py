@@ -33,6 +33,7 @@ from PySide6.QtWidgets import QApplication
 from shuabao.paths import live_lock_path
 from shuabao.settings import Settings
 from shuabao.subscription_client import SUBSCRIPTION_LICENSE_KEY_ENV
+from shuabao.shell import dashboard_facade as df_module
 from shuabao.shell import runner_service as rs_module
 from shuabao.shell.dashboard_facade import DashboardFacade
 from shuabao.shell.runner_service import LogSignal, ModeNotEnabled, RunnerService, live_lock_busy
@@ -81,14 +82,16 @@ class FakeRunner:
         self.mode_id: str | None = None
         self.worker = None
         self.start_calls: list[tuple[str, Settings]] = []
+        self.permission_calls: list[object] = []
         self.stop_calls = 0
         self.released = 0
         self.error = error
 
-    def start(self, mode_id: str, settings_snapshot: Settings):
+    def start(self, mode_id: str, settings_snapshot: Settings, *, permission=None):
         if self.error is not None:
             raise self.error
         self.start_calls.append((mode_id, settings_snapshot))
+        self.permission_calls.append(permission)
         self.worker = FakeWorker()
         self.mode_id = mode_id
         self.runner_state = "RUNNING"
@@ -144,6 +147,33 @@ def test_start_run_success_routes_through_runner_once(qapp, tmp_path: Path):
     assert [c[0] for c in runner.start_calls] == ["normal_farm"]
     assert isinstance(runner.start_calls[0][1], Settings)
     assert runner.worker.started is True
+
+
+def test_start_run_passes_fresh_preflight_permission_to_runner(monkeypatch, qapp, tmp_path: Path):
+    runner = FakeRunner()
+    f = DashboardFacade(tmp_path, runner)
+    stale = StartPermission(allowed=True, mode="enforce", status="STALE", code="STALE", would_allow=True)
+    permission = StartPermission(allowed=True, mode="enforce", status="ACTIVE", code="ACTIVE", would_allow=True)
+    f._subscription_cache = stale
+    f._subscription_cache_key = f._subscription_key()
+    f._subscription_cache_at = time.monotonic()
+    calls = []
+
+    def checker():
+        calls.append(1)
+        return permission
+
+    monkeypatch.setattr(df_module, "check_start_permission", checker)
+
+    def preflight(_payload):
+        assert f._subscription_permission() is permission
+        return json.dumps({"ok": True})
+
+    monkeypatch.setattr(f, "validate_preflight", preflight)
+    result = json.loads(f.start_run(json.dumps({"mode_id": "normal_farm"})))
+    assert result["ok"] is True
+    assert calls == [1], "fresh gate should perform exactly one permission probe"
+    assert runner.permission_calls == [permission]
 
 
 def test_start_run_accepts_bare_json_mode_string(qapp, tmp_path: Path):

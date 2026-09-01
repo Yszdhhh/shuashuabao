@@ -946,12 +946,12 @@ class DashboardFacade(QObject):
 
     @Slot(str, result=str)
     def start_run(self, mode_id_json: str) -> str:
-        """先内部 preflight，失败 {ok:false} 不建 worker；成功经 RunnerService 启动。"""
+        """先刷新一次授权，随后 preflight 复用该结果并将同一对象传入 RunnerService。"""
+        permission = self._subscription_permission(force=True)
         pre = json.loads(self.validate_preflight(mode_id_json))
         if not pre["ok"]:
             return json.dumps(self._rpc_response(False, error=pre["blocked_reason"]),
                               ensure_ascii=False)
-        permission = self._subscription_permission()
         if not permission.allowed:
             return json.dumps(self._rpc_response(
                 False, error=permission.message or "订阅未授权，无法启动",
@@ -982,7 +982,7 @@ class DashboardFacade(QObject):
                 False, error="未注入 RunnerService 且缺少 root，无法启动",
             ), ensure_ascii=False)
         try:
-            worker = runner.start(mode_id, self._settings)
+            worker = runner.start(mode_id, self._settings, permission=permission)
         except Exception as exc:  # ModeNotEnabled / already running / live.lock 占用
             return json.dumps(self._rpc_response(False, error=str(exc)), ensure_ascii=False)
         # Worker 在自身线程发信号；QueuedConnection 保证 Facade 侧在主线程收。

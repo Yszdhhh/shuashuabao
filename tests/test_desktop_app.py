@@ -31,12 +31,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import desktop_app  # noqa: E402
+from shuabao.shell import main_window as main_window_module  # noqa: E402
 from shuabao.shell.overlay_hud import OverlayHud  # noqa: E402
 from shuabao.mediator import Mediator as RealMediator  # noqa: E402
 from shuabao.mediator import Phase  # noqa: E402
 from shuabao.settings import Settings  # noqa: E402
+from shuabao.subscription_client import StartPermission  # noqa: E402
 from shuabao.vision.capture import Frame  # noqa: E402
-
 
 class DesktopPanelTests(unittest.TestCase):
     @classmethod
@@ -1366,7 +1367,8 @@ class DesktopPanelTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with patch.object(mediator_mod, "Mediator", FailClosedProbeMediator),                     patch.object(runtime_mediator_mod, "Mediator", RuntimeFailClosedProbeMediator):
                 worker = desktop_app.MediatorWorker(
-                    Settings(dry_run=True, ocr_mode="off"), ROOT, max_steps=1, incident_dir=tmp
+                    Settings(dry_run=True, ocr_mode="off"), ROOT, max_steps=1, incident_dir=tmp,
+                    permission=StartPermission(True, "off", status="OFF", code="OFF", would_allow=True),
                 )
                 worker._start_trace = lambda: None  # 测试不写 APP_DATA trace
                 worker.run()
@@ -1380,6 +1382,19 @@ class DesktopPanelTests(unittest.TestCase):
                 self.assertIn(field, meta, f"metadata 必须含 {field}")
             raw = (group / "metadata.json").read_text(encoding="utf-8")
             self.assertNotIn("top-secret-pw", raw, "密码不得归档")
+    def test_toggle_run_passes_preflight_permission_to_runner(self):
+        permission = StartPermission(True, "enforce", status="ACTIVE", code="ACTIVE", would_allow=True)
+        worker = MagicMock()
+        self.window.worker_thread = None
+        self.window.runner.start = MagicMock(return_value=worker)
+        with patch.object(main_window_module, "check_start_permission", return_value=permission), \
+             patch.object(main_window_module, "_is_admin", return_value=True), \
+             patch.object(self.window, "collect_settings_from_ui", return_value=Settings()), \
+             patch.object(self.window, "_write_user_bundle"):
+            self.window.toggle_run()
+        self.window.runner.start.assert_called_once()
+        assert self.window.runner.start.call_args.kwargs["permission"] is permission
+
 
     def test_run_mode_and_stage_difficulty_are_not_mixed(self):
         text = self._panel_text()
