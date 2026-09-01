@@ -85,6 +85,12 @@ $initialDirtyEntries = @(& git status --porcelain --untracked-files=all)
 if ($initialDirtyEntries.Count -gt 0 -and -not $AllowDirty) {
     throw "工作区存在未提交修改，拒绝生成正式包；如需仅用于本地诊断，请显式使用 -AllowDirty。"
 }
+# release_manifest 目前没有任何独立非对称签名实现（无密钥/无签名服务）。这是
+# 如实事实标记：external-beta/release 渠道在此明确阻断，绝不能声称完整签名。
+$manifestSignatureStatus = "UNSIGNED"
+if ($isExternalChannel) {
+    throw "external-beta/release 渠道阻断：release_manifest 尚无独立非对称签名实现（manifest_signature_status=$manifestSignatureStatus），不得对外交付。"
+}
 
 function Get-ReleaseFileSha256([string]$Path) {
     # Get-FileHash was added after the oldest Windows PowerShell supported by
@@ -306,12 +312,6 @@ $sourceDirtyEntries = @(& git status --porcelain --untracked-files=all)
 $buildId = (& $python -c "import sys; sys.path.insert(0, 'src'); from shuabao.mediator import BUILD_ID; print(BUILD_ID)").Trim()
 $releaseManifestPath = Join-Path $releaseRoot "release_manifest.json"
 
-# release_manifest 目前没有任何独立非对称签名实现（无密钥/无签名服务）。这是
-# 如实事实标记：external-beta/release 渠道在此明确阻断，绝不能声称完整签名。
-$manifestSignatureStatus = "UNSIGNED"
-if ($isExternalChannel) {
-    throw "external-beta/release 渠道阻断：release_manifest 尚无独立非对称签名实现（manifest_signature_status=$manifestSignatureStatus），不得对外交付。"
-}
 $releasePrefix = "$releaseRoot\"
 $releaseEntries = @(
     Get-ChildItem -LiteralPath $releaseRoot -File -Recurse |

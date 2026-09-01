@@ -308,6 +308,36 @@ def test_release_manifest_unsigned_blocks_external_delivery() -> None:
     assert m.start() < text.index("Write-Utf8NoBom $releaseManifestPath"), "阻断必须发生在 release_manifest 写盘之前"
 
 
+def test_release_manifest_unsigned_throw_precedes_all_build_side_effects() -> None:
+    # 外发渠道在生成/写盘任何可交付物之前 fail-closed：manifest UNSIGNED 阻断
+    # 必须位于 uv 获取、npm/UI 构建、PyInstaller、subscription_runtime 写盘之前。
+    text = _build_script_text()
+    m = re.search(r"release_manifest 尚无独立非对称签名实现", text)
+    assert m, "external UNSIGNED 阻断必须存在"
+    assert m.start() > text.index("无法解析当前 Git 提交"), "阻断在 sourceSha 检查之后"
+    for marker, label in (
+        ("Get-Command uv", "uv 获取"),
+        ("npm ci", "npm/UI 构建"),
+        ("PyInstaller 打包主程序", "PyInstaller"),
+        ("Write-Utf8NoBom $subscriptionRuntimePath", "subscription_runtime 写盘"),
+    ):
+        assert m.start() < text.index(marker), f"UNSIGNED 阻断必须先于{label}"
+
+
+def test_authenticode_and_mode_evidence_are_defensive_gates() -> None:
+    # 当前 external 总是被 UNSIGNED 前置阻断，mode_evidence 与 Authenticode
+    # 检查在 external 路径上不可达；它们是未来签名实现落地后的纵深防线，
+    # 必须保留且不被删除。
+    text = _build_script_text()
+    m = re.search(r"release_manifest 尚无独立非对称签名实现", text)
+    assert m.start() < text.index("Assert-ExternalModeEvidence $sourceSha"), \
+        "UNSIGNED 阻断先于 mode evidence 防线"
+    assert "function Assert-ExternalModeEvidence" in text
+    assert "function Assert-AuthenticodeValid" in text
+    assert text.count("Assert-AuthenticodeValid $app") == 1
+    assert text.count("Assert-AuthenticodeValid $ocrWorker") == 1
+
+
 def test_dev_channel_keeps_unsigned_identity_and_normal_gate() -> None:
     # dev/internal-pilot 行为保持：identity 仍如实记录 UNSIGNED 事实。
     text = _build_script_text()
