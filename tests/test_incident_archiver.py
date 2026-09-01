@@ -397,6 +397,23 @@ class IncidentArchiverTest(unittest.TestCase):
         self.assertTrue(panels[0].with_suffix(".json").is_file(),
                         "keep 的配对 JSON 不得被容量清理删除")
 
+    def test_panel_unicode_digit_filename_not_whitelisted(self) -> None:
+        """Unicode 数字文件名（\d 会放行）不算 panel 样本：不删除、不计容量。"""
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        arch = IncidentArchiver(root=tmp, max_bytes=20_000)
+        for seed in range(4):  # ~16.5KB < 20KB
+            arch.sample_panel(_gradient_frame(seed), {"panel_kind": "skill"})
+        panels_dir = next(tmp.rglob("panels"))
+        # Arabic-Indic 数字（U+0661 等，Nd 类）：Python \d 匹配，ASCII 白名单必须拒绝
+        unicode_name = "panel_١٢٣٤٥٦_٠٠٠_deadbeef.jpg"
+        (panels_dir / unicode_name).write_bytes(b"x" * 25_000)
+        arch.cleanup()
+        self.assertTrue((panels_dir / unicode_name).is_file(),
+                        "Unicode 数字文件名不得被当作 panel 样本删除")
+        self.assertEqual(len(sorted(tmp.rglob("panel_*.jpg"))), 5,
+                        "Unicode 文件不得计入容量导致正常样本被删")
+
     # ---- 7. S0.5 生产 incident：metadata 完整性 / 触发点 / 不泄露密码 ----
 
     def test_mediator_fail_closed_metadata_s0_fields_no_password(self) -> None:

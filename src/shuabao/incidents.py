@@ -44,7 +44,7 @@ _DEFAULT_RETENTION_DAYS = 7
 _DEFAULT_DEDUP_SECONDS = 60.0
 _INCIDENT_PREFIX = "incident_"
 _PANEL_PREFIX = "panel_"
-_PANEL_SAMPLE_RE = re.compile(r"^panel_\d{6}_\d{3}_[0-9a-f]{8}\.(?:jpg|json)$")
+_PANEL_SAMPLE_RE = re.compile(r"^panel_[0-9]{6}_[0-9]{3}_[0-9a-f]{8}\.(?:jpg|json)$")
 
 
 def default_incident_dir() -> Path:
