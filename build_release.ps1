@@ -9,11 +9,57 @@ param(
     [switch]$AllowDirty,
     [string]$SubscriptionBaseUrl = "",
     [ValidateSet("off", "shadow", "enforce")]
-    [string]$SubscriptionMode = "enforce"
+    [string]$SubscriptionMode = "enforce",
+    [ValidateSet("dev", "internal-pilot", "external-beta", "release")]
+    [string]$ReleaseChannel = "dev"
 )
-
 $ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $PSScriptRoot
+
+# 渠道门禁：external-beta/release 是对外发包，所有宽松逃生口一律封死。
+$isExternalChannel = $ReleaseChannel -in @("external-beta", "release")
+if ($isExternalChannel) {
+    if ($SkipGate) { throw "external-beta/release 渠道禁止 -SkipGate：外发包必须通过完整发版门禁。" }
+    if ($AllowDirty) { throw "external-beta/release 渠道禁止 -AllowDirty：外发包必须来自干净源码树。" }
+    if ($SubscriptionMode -ne "enforce") { throw "external-beta/release 渠道要求 -SubscriptionMode enforce。" }
+}
+
+# 订阅地址在构建前统一解析并校验：外发渠道必须显式传 HTTPS 生产地址，
+# 绝不静默回落 loopback；dev/internal-pilot 保留 loopback 默认值方便联调。
+$subscriptionUrlInput = $SubscriptionBaseUrl.Trim()
+$loopbackHosts = @("127.0.0.1", "localhost", "::1", "[::1]")
+if ($isExternalChannel) {
+    if (-not $subscriptionUrlInput) {
+        throw "external-beta/release 渠道必须显式传入 -SubscriptionBaseUrl，禁止静默回落 loopback 默认值。"
+    }
+    $parsedSubscriptionUrl = $null
+    try { $parsedSubscriptionUrl = [Uri]$subscriptionUrlInput } catch { $parsedSubscriptionUrl = $null }
+    if (-not $parsedSubscriptionUrl -or
+        -not $parsedSubscriptionUrl.IsAbsoluteUri -or
+        $parsedSubscriptionUrl.Scheme -ne "https" -or
+        [string]::IsNullOrWhiteSpace($parsedSubscriptionUrl.Host) -or
+        $parsedSubscriptionUrl.UserInfo -or
+        ($loopbackHosts -contains $parsedSubscriptionUrl.Host.ToLowerInvariant())) {
+        throw "external-beta/release 订阅地址必须为显式 HTTPS，禁止 loopback、空地址与凭据。"
+    }
+    $subscriptionUrl = $subscriptionUrlInput
+}
+else {
+    $subscriptionUrl = if ($subscriptionUrlInput) { $subscriptionUrlInput } else { "http://127.0.0.1:8000" }
+    try {
+        $parsedSubscriptionUrl = [Uri]$subscriptionUrl
+        if (-not $parsedSubscriptionUrl.IsAbsoluteUri -or
+            [string]::IsNullOrWhiteSpace($parsedSubscriptionUrl.Host) -or
+            $parsedSubscriptionUrl.UserInfo -or
+            ($parsedSubscriptionUrl.Scheme -eq "http" -and $loopbackHosts -notcontains $parsedSubscriptionUrl.Host.ToLowerInvariant()) -or
+            ($parsedSubscriptionUrl.Scheme -notin @("http", "https"))) {
+            throw "订阅服务地址必须使用 HTTPS 或 loopback HTTP，且不得包含凭据。"
+        }
+    }
+    catch {
+        throw "SubscriptionBaseUrl 无效：$($_.Exception.Message)"
+    }
+}
 
 $APP_NAME = "刷刷宝"
 $APP_ID   = "ShuaBao"
@@ -93,7 +139,8 @@ if (-not (Test-Path -LiteralPath $uiIndex -PathType Leaf)) {
 $uiManifest = [ordered]@{
     schema_version       = 1
     source_sha           = $sourceSha
-    source_tree_clean    = $true
+    source_tree_clean    = ($initialDirtyEntries.Count -eq 0)
+    release_channel      = $ReleaseChannel
     index_sha256         = Get-ReleaseFileSha256 $uiIndex
     bridge_schema_version = 2
     generated_at_utc     = [DateTime]::UtcNow.ToString("o")
@@ -158,26 +205,12 @@ $releaseRoot = Join-Path $PSScriptRoot "dist\$APP_ID"
 # A clean shortcut launch must not depend on the shell that happened to build
 # the package.  License material is deliberately absent; it remains DPAPI/env
 # only.  Remote endpoints must use HTTPS, while HTTP is limited to loopback.
-$subscriptionUrl = if ($SubscriptionBaseUrl.Trim()) { $SubscriptionBaseUrl.Trim() } else { "http://127.0.0.1:8000" }
-try {
-    $parsedSubscriptionUrl = [Uri]$subscriptionUrl
-    $loopbackHosts = @("127.0.0.1", "localhost", "::1")
-    if (-not $parsedSubscriptionUrl.IsAbsoluteUri -or
-        [string]::IsNullOrWhiteSpace($parsedSubscriptionUrl.Host) -or
-        $parsedSubscriptionUrl.UserInfo -or
-        ($parsedSubscriptionUrl.Scheme -eq "http" -and $loopbackHosts -notcontains $parsedSubscriptionUrl.Host.ToLowerInvariant()) -or
-        ($parsedSubscriptionUrl.Scheme -notin @("http", "https"))) {
-        throw "订阅服务地址必须使用 HTTPS 或 loopback HTTP，且不得包含凭据。"
-    }
-}
-catch {
-    throw "SubscriptionBaseUrl 无效：$($_.Exception.Message)"
-}
 $subscriptionRuntimePath = Join-Path $releaseRoot "subscription_runtime.json"
 $subscriptionRuntime = [ordered]@{
     schema_version = 1
     base_url = $subscriptionUrl.TrimEnd("/")
     mode = $SubscriptionMode
+    release_channel = $ReleaseChannel
     timeout_s = 3
 }
 $subscriptionRuntimeJson = $subscriptionRuntime | ConvertTo-Json -Depth 3
@@ -210,6 +243,7 @@ $releaseManifest = [ordered]@{
     schema_version = 1
     source_sha = $sourceSha
     bridge_schema_version = 2
+    release_channel = $ReleaseChannel
     generated_at_utc = [DateTime]::UtcNow.ToString("o")
     files = @($releaseEntries)
 }
@@ -228,6 +262,8 @@ $identity = [ordered]@{
     exe_name           = (Split-Path -Leaf $app)
     exe_sha256         = Get-ReleaseFileSha256 $app
     bridge_schema_version = 2
+    release_channel    = $ReleaseChannel
+    signature_status   = "UNSIGNED"
     ocr_model_manifest_sha256 = $ocrModelManifestSha
     release_manifest_sha256 = Get-ReleaseFileSha256 $releaseManifestPath
     created_at_utc     = [DateTime]::UtcNow.ToString("o")

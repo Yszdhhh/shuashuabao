@@ -6,6 +6,7 @@ web 前端产物被打进包、WebEngine 模块被 hiddenimports 兜底、
 """
 
 from pathlib import Path
+import re
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -89,3 +90,69 @@ def test_packaged_web_launcher_selects_web_shell_and_isolated_data() -> None:
     assert 'ShellExecute root & "\\ShuaBao.exe"' in text
     assert '"open", 1' in text
     assert '"runas"' not in text
+
+
+# --- 外发构建渠道与生产地址门禁（build_release.ps1 ReleaseChannel 契约） ---
+# 静态契约测试：不跑构建，只验证打包脚本源码中的门禁与事实字段。
+# build_release.ps1 是顶层顺序脚本，导入执行会真的开始打包，因此字符串/
+# 结构断言是本仓库对打包脚本的一贯测法（见上方 test_build_script_* 系列）。
+
+
+def _build_script_text() -> str:
+    return (PROJECT_ROOT / "build_release.ps1").read_text(encoding="utf-8")
+
+
+def test_build_script_declares_release_channel_with_dev_default() -> None:
+    text = _build_script_text()
+    assert 'ValidateSet("dev", "internal-pilot", "external-beta", "release")' in text
+    assert '[string]$ReleaseChannel = "dev"' in text
+
+
+def test_external_channels_reject_skip_gate_and_allow_dirty() -> None:
+    text = _build_script_text()
+    assert "external-beta/release 渠道禁止 -SkipGate" in text
+    assert "external-beta/release 渠道禁止 -AllowDirty" in text
+
+
+def test_external_channels_require_enforce_subscription_mode() -> None:
+    text = _build_script_text()
+    assert "external-beta/release 渠道要求 -SubscriptionMode enforce" in text
+
+
+def test_external_channels_require_explicit_https_subscription() -> None:
+    text = _build_script_text()
+    assert "external-beta/release 渠道必须显式传入 -SubscriptionBaseUrl" in text
+    assert "external-beta/release 订阅地址必须为显式 HTTPS" in text
+    assert "$loopbackHosts -contains" in text, "外发分支必须显式拒绝 loopback 主机"
+
+
+def test_dev_channel_keeps_loopback_default_and_switches() -> None:
+    text = _build_script_text()
+    assert text.count('"http://127.0.0.1:8000"') == 1, "loopback 默认值只能留在 dev/internal-pilot 分支"
+    assert "[switch]$SkipGate" in text
+    assert "[switch]$AllowDirty" in text
+
+
+def test_ui_manifest_source_tree_clean_uses_initial_dirty_state() -> None:
+    text = _build_script_text()
+    assert "($initialDirtyEntries.Count -eq 0)" in text
+    assert not re.search(r"source_tree_clean\s*=\s*\$true", text), "UI manifest 不得恒写 true"
+
+
+def test_dev_channel_keeps_loopback_default_and_switches() -> None:
+    text = _build_script_text()
+    assert "$isExternalChannel" in text, "dev/internal-pilot 与外发渠道必须显式分流"
+    assert text.count('"http://127.0.0.1:8000"') == 1, "loopback 默认值只能留在 dev/internal-pilot 分支"
+    assert "[switch]$SkipGate" in text
+    assert "[switch]$AllowDirty" in text
+
+
+def test_release_channel_recorded_in_all_four_sidecars() -> None:
+    text = _build_script_text()
+    # UI build_manifest、subscription_runtime、release_manifest、build_identity 各一处
+    assert len(re.findall(r"release_channel\s*=\s*\$ReleaseChannel", text)) == 4
+
+
+def test_build_identity_records_unsigned_signature_fact() -> None:
+    text = _build_script_text()
+    assert re.search(r'signature_status\s*=\s*"UNSIGNED"', text), "无签名设施时必须显式记录 UNSIGNED 事实"
