@@ -114,28 +114,15 @@ def _live_identity(root: Path) -> _LiveIdentity:
 
     package_root = Path(sys.executable).resolve().parent
     try:
-        manifest, verified_files = verify_packaged_release_snapshot(
+        manifest, verified_files, manifest_bytes = verify_packaged_release_snapshot(
             package_root,
             required_files=("config/entitlement_public_keys.json",),
         )
-        identity = json.loads((package_root / "build_identity.json").read_text(encoding="utf-8"))
-        if not isinstance(identity, dict):
-            raise ValueError("build_identity 必须是 object")
-        manifest_bytes = (package_root / "release_manifest.json").read_bytes()
         source_sha = str(manifest.get("source_sha") or "").strip()
         channel = str(manifest.get("release_channel") or "").strip()
-        identity_sha = str(identity.get("source_sha") or "").strip()
-        identity_channel = str(identity.get("release_channel") or "").strip()
-        identity_manifest_sha = str(identity.get("release_manifest_sha256") or "").strip().lower()
         actual_manifest_sha = hashlib.sha256(manifest_bytes).hexdigest().lower()
-        if (
-            not source_sha
-            or not channel
-            or source_sha != identity_sha
-            or channel != identity_channel
-            or identity_manifest_sha != actual_manifest_sha
-        ):
-            raise ValueError("build_identity 与签名 manifest 不一致")
+        if not source_sha or not channel:
+            raise ValueError("签名 manifest 缺少 source_sha/release_channel")
         registry_path = _attested_registry_path(package_root, manifest)
         registry_key = str(registry_path.relative_to(package_root)).replace("\\", "/")
         registry_keys = _load_public_keys_bytes(verified_files[registry_key])

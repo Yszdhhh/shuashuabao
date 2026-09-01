@@ -127,7 +127,7 @@ def test_frozen_registry_path_uses_authenticated_executable_root(tmp_path: Path,
     monkeypatch.setattr(
         live_execute,
         "verify_packaged_release_snapshot",
-        lambda *_a, **_kw: (manifest, {relative: (tmp_path / relative).read_bytes()}),
+        lambda *_a, **_kw: (manifest, {relative: (tmp_path / relative).read_bytes()}, (tmp_path / "release_manifest.json").read_bytes()),
     )
     identity = live_execute._live_identity(caller_root)
     assert identity.registry_path == tmp_path / "_internal" / "config" / "entitlement_public_keys.json"
@@ -209,7 +209,7 @@ def test_packaged_identity_mismatch_is_untrusted(tmp_path: Path, monkeypatch):
         "release_channel": "stable",
         "release_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
     }), encoding="utf-8")
-    monkeypatch.setattr(live_execute, "verify_packaged_release_snapshot", lambda *_a, **_kw: (manifest, {}))
+    monkeypatch.setattr(live_execute, "verify_packaged_release_snapshot", lambda *_a, **_kw: (manifest, {}, manifest_bytes))
     identity = live_execute._live_identity(tmp_path)
     assert identity.source_sha == identity.manifest_sha == identity.release_channel == ""
     assert identity.packaged
@@ -240,7 +240,7 @@ def test_frozen_malformed_attested_registry_fails_closed(tmp_path: Path, monkeyp
     monkeypatch.setattr(
         live_execute,
         "verify_packaged_release_snapshot",
-        lambda *_a, **_kw: (manifest, {relative: registry_bytes}),
+        lambda *_a, **_kw: (manifest, {relative: registry_bytes}, manifest_bytes),
     )
     identity = live_execute._live_identity(tmp_path)
     assert identity.packaged and not identity.registry_keys

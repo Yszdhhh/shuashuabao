@@ -43,14 +43,22 @@ def canonical_manifest_bytes(manifest: Mapping[str, object]) -> bytes:
         raise ReleaseManifestError("MANIFEST_MALFORMED", f"发行清单不可规范化: {exc}") from exc
 
 
-def _read_manifest(path: Path) -> dict[str, object]:
+def _parse_manifest(data: bytes) -> dict[str, object]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError, UnicodeError) as exc:
+        value = json.loads(data.decode("utf-8"))
+    except (ValueError, UnicodeError) as exc:
         raise ReleaseManifestError("MANIFEST_MALFORMED", f"发行清单不可读取: {exc}") from exc
     if not isinstance(value, dict) or value.get("schema_version") != MANIFEST_SCHEMA_VERSION:
         raise ReleaseManifestError("MANIFEST_MALFORMED", "发行清单 schema_version 不支持")
     return value
+
+
+def _read_manifest(path: Path) -> tuple[dict[str, object], bytes]:
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        raise ReleaseManifestError("MANIFEST_MALFORMED", f"发行清单不可读取: {exc}") from exc
+    return _parse_manifest(data), data
 def _signature_envelope(raw: bytes | Mapping[str, object]) -> tuple[str, str, bytes]:
     try:
         envelope = json.loads(raw.decode("utf-8")) if isinstance(raw, bytes) else dict(raw)
@@ -140,13 +148,12 @@ def verify_manifest_files(
     if missing:
         raise ReleaseManifestError("MANIFEST_FILE_UNATTESTED", f"发行清单未绑定必需文件: {missing}")
     return verified_files
-
 def _verify_packaged_release(
     package_root: Path,
     *,
     pinned_keys: Mapping[str, Ed25519PublicKey] | None = None,
     required_files: tuple[str, ...] = (),
-) -> tuple[dict[str, object], dict[str, bytes]]:
+) -> tuple[dict[str, object], dict[str, bytes], bytes]:
     """Verify manifest signature and all attested files before trusting package data."""
     root = Path(package_root)
     keys = PINNED_MANIFEST_PUBLIC_KEYS if pinned_keys is None else pinned_keys
@@ -158,14 +165,16 @@ def _verify_packaged_release(
         raise ReleaseManifestError("MANIFEST_MISSING", "缺少 release_manifest.json")
     if not signature_path.is_file():
         raise ReleaseManifestError("MANIFEST_SIGNATURE_MISSING", "缺少 release_manifest.json.sig")
-    manifest = _read_manifest(manifest_path)
+    manifest, manifest_bytes = _read_manifest(manifest_path)
     try:
         signature = signature_path.read_bytes()
     except OSError as exc:
         raise ReleaseManifestError("MANIFEST_SIGNATURE_MISSING", f"签名不可读取: {exc}") from exc
     verify_manifest_signature(manifest, signature, keys)
     verified_files = verify_manifest_files(manifest, root, required_files=required_files)
-    return manifest, verified_files
+    return manifest, verified_files, manifest_bytes
+
+
 def verify_packaged_release(
     package_root: Path,
     *,
@@ -180,5 +189,6 @@ def verify_packaged_release_snapshot(
     *,
     pinned_keys: Mapping[str, Ed25519PublicKey] | None = None,
     required_files: tuple[str, ...] = (),
-) -> tuple[dict[str, object], dict[str, bytes]]:
+) -> tuple[dict[str, object], dict[str, bytes], bytes]:
     return _verify_packaged_release(package_root, pinned_keys=pinned_keys, required_files=required_files)
+
