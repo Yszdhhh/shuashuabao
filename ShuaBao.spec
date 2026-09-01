@@ -18,6 +18,36 @@ PROJECT_ROOT = Path(SPECPATH)
 SHIBOKEN_DLL = Path(shiboken6.__file__).resolve().parent / "shiboken6.abi3.dll"
 PYSIDE_ABI_DLL = Path(sys.base_prefix) / "python3.dll"
 
+
+# 发行包运行时配置显式白名单：只打包生产运行时确实读取的配置，替代整目录
+# (config, config) 打包。文件缺失时 PyInstaller 分析阶段直接报错，不静默跳过。
+RUNTIME_CONFIG_FILES = [
+    "mode_specs.json",
+    "choice_lexicon.json",
+    "game_mechanics_kb.json",
+    "fetter_labels.json",
+    "default_settings.json",
+    "choice_policy.json",
+    "stage_unlocks.json",
+    "skill_meta.json",
+    "skill_routes.json",
+    "skill_card_rarity.json",
+    "skill_labels.json",
+    "skill_card_knowledge.json",
+    "skill_card_catalog.json",
+    "scenes.json",
+    "skill_archive_unlocks.json",
+    "official_strategy_defaults.json",
+    "reputation_factions_kb.json",
+    "bond_stack_catalog.json",
+    "dashboard_test_profiles.json",  # native UI 测试档案（保留防功能回归）
+    "mode_evidence.json",  # dashboard facade 当前构建一致性证据
+]
+# 保留在源码、不随包分发（无生产消费者）：
+# vision_profiles.proposed.yaml / dashboard_mechanics.json / bond_knowledge.json /
+# habit_preference.schema.json / challenge_boss_catalog.json；
+# runtime_asset_manifest.json 仅被 tools/release_gate.py 从源码根读取。
+
 a = Analysis(
     [str(PROJECT_ROOT / "desktop_app.py")],
     pathex=[str(PROJECT_ROOT / "src")],
@@ -27,7 +57,7 @@ a = Analysis(
     ],
     datas=[
         (str(PROJECT_ROOT / "assets"), "assets"),
-        (str(PROJECT_ROOT / "config"), "config"),
+        *[(str(PROJECT_ROOT / "config" / name), "config") for name in RUNTIME_CONFIG_FILES],
         (str(PROJECT_ROOT / "ui-v2" / "dist"), str(Path("web") / "dist")),
     ],
     hiddenimports=[

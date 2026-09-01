@@ -173,3 +173,87 @@ def test_release_channel_recorded_in_all_four_sidecars() -> None:
 def test_build_identity_records_unsigned_signature_fact() -> None:
     text = _build_script_text()
     assert re.search(r'signature_status\s*=\s*"UNSIGNED"', text), "无签名设施时必须显式记录 UNSIGNED 事实"
+
+
+# --- 发行包运行时配置白名单（ShuaBao.spec 只打生产消费者） ---
+# 已确认生产运行时读取的配置；dashboard_test_profiles 由 native UI 读取（保留防回归），
+# mode_evidence 由 dashboard facade 读取（当前构建一致性，不能误删）。
+RUNTIME_CONFIG_ALLOWLIST = {
+    "mode_specs.json",
+    "choice_lexicon.json",
+    "game_mechanics_kb.json",
+    "fetter_labels.json",
+    "default_settings.json",
+    "choice_policy.json",
+    "stage_unlocks.json",
+    "skill_meta.json",
+    "skill_routes.json",
+    "skill_card_rarity.json",
+    "skill_labels.json",
+    "skill_card_knowledge.json",
+    "skill_card_catalog.json",
+    "scenes.json",
+    "skill_archive_unlocks.json",
+    "official_strategy_defaults.json",
+    "reputation_factions_kb.json",
+    "bond_stack_catalog.json",
+    "dashboard_test_profiles.json",
+    "mode_evidence.json",
+}
+
+# 无生产消费者的研究/证据/测试资料：保留源码，不随包分发。
+# runtime_asset_manifest.json 仅被 tools/release_gate.py 从源码根读取。
+NON_PRODUCTION_CONFIG_EXCLUDES = {
+    "vision_profiles.proposed.yaml",
+    "dashboard_mechanics.json",
+    "bond_knowledge.json",
+    "habit_preference.schema.json",
+    "challenge_boss_catalog.json",
+    "runtime_asset_manifest.json",
+}
+
+
+def _spec_whitelist() -> set[str]:
+    import ast
+
+    tree = ast.parse(_spec_text())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "RUNTIME_CONFIG_FILES"
+            for t in node.targets
+        ):
+            assert isinstance(node.value, (ast.List, ast.Tuple)), "RUNTIME_CONFIG_FILES 必须是显式字面量列表"
+            return {
+                elt.value
+                for elt in node.value.elts
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str)
+            }
+    raise AssertionError("ShuaBao.spec 缺少 RUNTIME_CONFIG_FILES 显式白名单")
+
+
+def test_spec_whitelists_runtime_config_files_instead_of_whole_dir() -> None:
+    text = _spec_text()
+    assert '(str(PROJECT_ROOT / "config"), "config")' not in text, "整目录打包会泄漏研究/证据配置"
+    assert _spec_whitelist() == RUNTIME_CONFIG_ALLOWLIST, (
+        "白名单与已确认生产消费者不一致: "
+        f"缺失={sorted(RUNTIME_CONFIG_ALLOWLIST - _spec_whitelist())} "
+        f"多余={sorted(_spec_whitelist() - RUNTIME_CONFIG_ALLOWLIST)}"
+    )
+
+
+def test_spec_generates_config_tuple_for_every_whitelisted_file() -> None:
+    text = _spec_text()
+    # 每个白名单文件生成 (path, "config")；文件缺失时 PyInstaller 分析阶段直接报错。
+    assert '(str(PROJECT_ROOT / "config" / name), "config")' in text
+    assert "for name in RUNTIME_CONFIG_FILES" in text
+
+
+def test_spec_excludes_non_production_config_files() -> None:
+    whitelist = _spec_whitelist()
+    for name in NON_PRODUCTION_CONFIG_EXCLUDES:
+        assert name not in whitelist, f"{name} 无生产消费者，不得随包分发"
+
+
+def test_runtime_config_allowlist_files_exist_in_source() -> None:
+    for name in RUNTIME_CONFIG_ALLOWLIST:
+        assert (PROJECT_ROOT / "config" / name).is_file(), f"config/{name} 缺失"
