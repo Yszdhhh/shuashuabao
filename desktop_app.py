@@ -48,12 +48,13 @@ _INSTANCE_LOCK: QLockFile | None = None
 
 
 def _load_packaged_subscription_config(root: Path) -> None:
-    """Load non-secret subscription deployment settings from a release sidecar.
+    """Load sidecar deployment settings with frozen-channel fail-closed rules.
 
-    The license key remains DPAPI/env-only.  A release may pin the service
-    URL and mode beside the executable so a clean shortcut launch does not
-    depend on whichever shell happened to build it; explicit environment
-    variables still take precedence for diagnostics and controlled pilots.
+    External channels pin the sidecar endpoint and enforce subscription checks;
+    dev/internal-pilot retain environment-first diagnostic behavior.  Missing
+    or unknown channels also enforce in frozen packages.  The sidecar remains
+    editable and unsigned, so external distribution still needs a signed
+    manifest/Permit to prevent tampering.
     """
     if not getattr(sys, "frozen", False):
         return
@@ -71,14 +72,25 @@ def _load_packaged_subscription_config(root: Path) -> None:
             payload = data
             break
     if payload is None:
+        os.environ["SHUABAO_SUBSCRIPTION_MODE"] = "enforce"
         return
     endpoint = str(payload.get("base_url") or "").strip()
     mode = str(payload.get("mode") or "").strip().lower()
     timeout = str(payload.get("timeout_s") or "").strip()
-    if endpoint and "SHUABAO_SUBSCRIPTION_BASE_URL" not in os.environ:
-        os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = endpoint
-    if mode and "SHUABAO_SUBSCRIPTION_MODE" not in os.environ:
-        os.environ["SHUABAO_SUBSCRIPTION_MODE"] = mode
+    channel = str(payload.get("release_channel") or "").strip().lower()
+    if channel in {"external-beta", "release"}:
+        # Empty sidecar endpoints must not fall through to env/default loopback.
+        os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = endpoint or "invalid-external-subscription-url"
+        os.environ["SHUABAO_SUBSCRIPTION_MODE"] = "enforce"
+    elif channel not in {"dev", "internal-pilot"}:
+        if endpoint and "SHUABAO_SUBSCRIPTION_BASE_URL" not in os.environ:
+            os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = endpoint
+        os.environ["SHUABAO_SUBSCRIPTION_MODE"] = "enforce"
+    else:
+        if endpoint and "SHUABAO_SUBSCRIPTION_BASE_URL" not in os.environ:
+            os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = endpoint
+        if mode and "SHUABAO_SUBSCRIPTION_MODE" not in os.environ:
+            os.environ["SHUABAO_SUBSCRIPTION_MODE"] = mode
     if timeout and "SHUABAO_SUBSCRIPTION_TIMEOUT_S" not in os.environ:
         os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] = timeout
 

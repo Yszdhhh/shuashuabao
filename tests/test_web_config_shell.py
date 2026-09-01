@@ -242,6 +242,178 @@ def test_frozen_entry_loads_non_secret_subscription_sidecar(monkeypatch, tmp_pat
         "SHUABAO_SUBSCRIPTION_TIMEOUT_S",
     ):
         os.environ.pop(name, None)
+def test_external_channel_ignores_environment_mode_and_pins_sidecar_url(monkeypatch, tmp_path):
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "https://license.example",
+                "mode": "enforce",
+                "release_channel": "external-beta",
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_BASE_URL", "http://127.0.0.1:9999")
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+    assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "https://license.example"
+
+
+def test_external_channel_ignores_tampered_sidecar_mode_without_card_key_leak(monkeypatch, tmp_path):
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "https://license.example",
+                "mode": "off",
+                "release_channel": "release",
+                "license_key": "card-secret-must-not-load",
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_MODE", raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_LICENSE_KEY", raising=False)
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+    assert "SHUABAO_SUBSCRIPTION_LICENSE_KEY" not in os.environ
+
+def test_external_empty_sidecar_url_rejects_environment_url(monkeypatch, tmp_path):
+    from shuabao.subscription_client import check_start_permission
+
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "",
+                "mode": "enforce",
+                "release_channel": "external-beta",
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "enforce")
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_BASE_URL", "https://attacker.example")
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+    permission = check_start_permission(
+        env=dict(os.environ),
+        opener=lambda *_args, **_kwargs: pytest.fail("invalid external URL must not reach network"),
+    )
+
+    assert permission.allowed is False
+    assert permission.code == "CONFIG_BASE_URL_INVALID"
+
+
+def test_external_empty_sidecar_url_rejects_default_loopback(monkeypatch, tmp_path):
+    from shuabao.subscription_client import check_start_permission
+
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "",
+                "mode": "enforce",
+                "release_channel": "release",
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_BASE_URL", raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_MODE", raising=False)
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+    permission = check_start_permission(
+        env=dict(os.environ),
+        opener=lambda *_args, **_kwargs: pytest.fail("invalid external URL must not reach network"),
+    )
+
+    assert permission.allowed is False
+    assert permission.code == "CONFIG_BASE_URL_INVALID"
+
+
+@pytest.mark.parametrize("release_channel", [None, "unrecognized"])
+def test_frozen_missing_or_unknown_channel_defaults_to_enforce(monkeypatch, tmp_path, release_channel):
+    payload = {
+        "schema_version": 1,
+        "base_url": "https://license.example",
+        "mode": "off",
+    }
+    if release_channel is not None:
+        payload["release_channel"] = release_channel
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(json.dumps(payload), encoding="utf-8")
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "shadow")
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+
+def test_frozen_missing_sidecar_defaults_to_enforce(monkeypatch, tmp_path):
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "shadow")
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+
+
+@pytest.mark.parametrize("release_channel", ["dev", "internal-pilot"])
+def test_diagnostic_channels_keep_environment_mode_priority(monkeypatch, tmp_path, release_channel):
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "https://license.example",
+                "mode": "enforce",
+                "release_channel": release_channel,
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "off"
 
 
 # ---------------------------------------------------- QWebChannel 唯一注册（§6.1）
