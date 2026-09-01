@@ -71,5 +71,20 @@ python tools/diagnose_lobby.py                # 实机只读快照（需要游�
 python tools/video_breakdown.py               # 录屏抽帧，把事故固化成夹具
 ```
 
-真机跑完若出现 TIMEOUT / CANCELLED / 循环点击，请抽帧固化成夹具再修——
-让事故变成永久回归资产，而不是下次从录屏重新考古。
+真机跑完若出现 TIMEOUT / CANCELLED / 循环点击，请抽帧固化成夹具再修——让事故变成永久回归资产，而不是下次从录屏重新考古。
+
+## 6. 工作树、构建与桌面落地
+
+- 默认唯一工作根是 `G:\刷刷宝\GameScript-Local`；先用 `git rev-parse --show-toplevel` 验证当前目录，不要在 sibling worktree 或桌面副本直接交付。
+- 子 agent 隔离目录的改动必须回写父工作树；仅有 agent 返回结果、临时 patch 或 `git push` 都不算落地。
+- 父会话在继续前必须于本根检查 `git status --short`、`git diff`、`git rev-parse HEAD`，确认改动路径确实属于本仓库。
+- 工作树已有未提交改动时先记录基线，禁止覆盖/回滚用户改动；自动回写冲突必须停止并逐文件处理。
+- 修改 `ui-v2/`、`desktop_app.py`、`build_release.ps1`、`ShuaBao.spec` 或发布配置时，必须在本根运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build_release.ps1
+```
+
+- 构建后必须核对 `C:\Users\10639\Desktop\ShuaBao\build_identity.json` 的 `source_sha` 等于本根 `git rev-parse HEAD`，并确认 `刷刷宝.lnk` 指向该目录。源码、`ui-v2/dist`、EXE、快捷方式四者不一致时停止交付。
+- 桌面 EXE 需要 UAC 或真实游戏交互而无法启动时，状态只能写 `BLOCKED`，不能用 pytest、源码日志或旧截图替代 Level 3 证据。
+- 交接文档必须记录本次源码 commit、产物 hash、正式入口和仍需真机验证的项目，避免下个 agent 回到旧版本。
