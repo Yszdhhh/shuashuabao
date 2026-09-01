@@ -42,6 +42,7 @@ _DEFAULT_MAX_BYTES = 2 * 1024 ** 3
 _DEFAULT_RETENTION_DAYS = 7
 _DEFAULT_DEDUP_SECONDS = 60.0
 _INCIDENT_PREFIX = "incident_"
+_PANEL_PREFIX = "panel_"
 
 
 def default_incident_dir() -> Path:
@@ -246,7 +247,7 @@ class IncidentArchiver:
                 json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
             self._last_saved[fp] = now
             self._prune_dedup(now)
-            self._enforce_limits(now, keep=None)
+            self._enforce_limits(now, keep=out_dir / img_name)
         return fp
 
     def cleanup(self) -> None:
@@ -376,49 +377,61 @@ class IncidentArchiver:
     def _enforce_limits(self, now: float, keep: Path | None = None) -> None:
         """保留期 + 容量上限。
 
-        只扫描 <root>/YYYYMMDD/incidents/ 下的 incident_* 目录（本模块唯一
-        创建路径）并删除过期/最旧目录；绝不触碰官方日志、用户录像等其它文件。
-        keep 为刚写入的 incident 目录（容量超标时也不删当次证据）。
+        扫描本模块创建的两类产物并删除过期/最旧者；绝不触碰官方日志、
+        用户录像等其它文件：
+        - <root>/YYYYMMDD/incidents/incident_* 目录；
+        - <root>/YYYYMMDD/panels/panel_*.{jpg,json} 样本文件。
+        keep 为刚写入的 incident 目录/panel 文件（容量超标时也不删当次产物）。
         """
         retention_sec = self.retention_days * 86400
-        dirs: list[tuple[float, Path]] = []
-        total = 0
+        dirs: list[tuple[float, Path, int]] = []
+        # keep（刚写入的当次产物）计入总量但不参与删除
+        total = self._entry_size(keep) if keep is not None and keep.exists() else 0
         if self.root.is_dir():
             for day in sorted(self.root.iterdir()):
                 if not day.is_dir() or len(day.name) != 8 or not day.name.isdigit():
                     continue
-                incidents_dir = day / "incidents"
-                if not incidents_dir.is_dir():
-                    continue
-                for entry in incidents_dir.iterdir():
-                    if not entry.is_dir() or not entry.name.startswith(_INCIDENT_PREFIX):
+                for sub, prefix in (("incidents", _INCIDENT_PREFIX), ("panels", _PANEL_PREFIX)):
+                    subdir = day / sub
+                    if not subdir.is_dir():
                         continue
-                    if keep is not None and entry == keep:
-                        continue
-                    try:
-                        mtime = entry.stat().st_mtime
-                    except OSError:
-                        continue
-                    if mtime < now - retention_sec:
-                        self._rmtree(entry)
-                        continue
-                    size = self._dir_size(entry)
-                    total += size
-                    dirs.append((mtime, entry))
+                    for entry in subdir.iterdir():
+                        if not entry.name.startswith(prefix):
+                            continue
+                        if keep is not None and entry == keep:
+                            continue
+                        try:
+                            mtime = entry.stat().st_mtime
+                        except OSError:
+                            continue
+                        if mtime < now - retention_sec:
+                            self._remove(entry)
+                            continue
+                        size = self._entry_size(entry)
+                        total += size
+                        dirs.append((mtime, entry, size))
         if total > self.max_bytes:
-            for _, entry in sorted(dirs):  # 最旧先删
+            for _, entry, size in sorted(dirs):  # 最旧先删
                 if total <= self.max_bytes:
                     break
-                size = self._dir_size(entry)
-                self._rmtree(entry)
+                if entry.exists():
+                    self._remove(entry)
+                # 已被配对删除顺带清掉的条目同样按记录 size 扣减
                 total -= size
 
     @staticmethod
-    def _dir_size(entry: Path) -> int:
-        return sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
+    def _entry_size(entry: Path) -> int:
+        if entry.is_dir():
+            return sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
+        return entry.stat().st_size
 
     @staticmethod
-    def _rmtree(entry: Path) -> None:
-        """删除 incident_* 目录；名称不符（非本模块创建）则不删。"""
+    def _remove(entry: Path) -> None:
+        """只删除本模块创建的 incident_* 目录 / panel_* 文件（jpg/json 成对）。"""
         if entry.is_dir() and entry.name.startswith(_INCIDENT_PREFIX):
             shutil.rmtree(entry, ignore_errors=True)
+        elif entry.is_file() and entry.name.startswith(_PANEL_PREFIX):
+            entry.unlink(missing_ok=True)
+            sibling = entry.with_suffix(".json" if entry.suffix == ".jpg" else ".jpg")
+            if sibling.name.startswith(_PANEL_PREFIX) and sibling.is_file():
+                sibling.unlink(missing_ok=True)
