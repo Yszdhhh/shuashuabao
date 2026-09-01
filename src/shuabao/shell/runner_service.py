@@ -18,9 +18,11 @@ from typing import Any
 from PySide6.QtCore import QLockFile, QObject, QThread, Signal
 
 from shuabao.settings import Settings
+from shuabao.subscription_client import check_start_permission
 from shuabao.stop_signal import StopSignal
 from shuabao.shell.live_execute import (
     LIVE_LOCK_NAME,
+    PermissionDenied,
     execute_runtime_mediator,
     live_lock_path,
 )
@@ -51,6 +53,8 @@ class LogSignal(QObject):
 
 
 class MediatorWorker(QThread):
+    """QThread wrapper around the shared runtime executor."""
+
     def __init__(
         self,
         settings: Settings,
@@ -58,6 +62,7 @@ class MediatorWorker(QThread):
         max_steps: int | None = None,
         incident_dir: str | Path | None = None,
         stop_signal: StopSignal | None = None,
+        permission=None,
     ):
         super().__init__()
         self.settings = settings
@@ -65,6 +70,7 @@ class MediatorWorker(QThread):
         self.max_steps = max_steps
         self.incident_dir = Path(incident_dir) if incident_dir else Path(root_dir) / "incidents"
         self.stop_signal = stop_signal or StopSignal()
+        self.permission = permission
         self.signals = LogSignal()
         self.mediator = None
         self._stop_requested = False
@@ -171,6 +177,7 @@ class MediatorWorker(QThread):
             log=_log,
             should_abort=lambda: self._stop_requested,
             on_mediator=_on_mediator,
+            permission=self.permission,
         )
         self.mediator = result.get("mediator") or self.mediator
         if result.get("ocr_status"):
@@ -264,10 +271,19 @@ class RunnerService:
             self.runner_state = RUNNER_IDLE
             self._started_settings = None
 
+    def start(self, mode_id: str, settings_snapshot: Settings, *, permission=None, permission_checker=None) -> MediatorWorker:
+        """LIVE 启动：订阅门禁在 lock/worker 之前 fail-closed（深层防线，UI 检查之外的兜底）。
 
-    def start(self, mode_id: str, settings_snapshot: Settings) -> MediatorWorker:
+        permission: 已授权的 StartPermission（调用方可复用已校验结果，避免重复网络请求）。
+        permission_checker: 延迟校验回调（返回 StartPermission）。两者都缺省时
+        使用 check_start_permission()，保持 mode=off 开发路径兼容。
+        """
         if not desktop_may_start(mode_id):
             raise ModeNotEnabled(f"{mode_id} 未验证，不可从看板启动")
+        if permission is None:
+            permission = permission_checker() if permission_checker is not None else check_start_permission()
+        if not getattr(permission, "allowed", False):
+            raise PermissionDenied("订阅未授权，LIVE 已拒绝启动")
         if self.worker is not None:
             if self.worker.isRunning():
                 raise RuntimeError("already running")
@@ -297,6 +313,7 @@ class RunnerService:
                 self.root,
                 incident_dir=self.app_data / "incidents",
                 stop_signal=StopSignal(),
+                permission=permission,
             )
             worker.finished.connect(lambda: self._release_worker(worker))
             self.worker = worker

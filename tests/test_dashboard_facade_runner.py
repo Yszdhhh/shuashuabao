@@ -36,6 +36,9 @@ from shuabao.subscription_client import SUBSCRIPTION_LICENSE_KEY_ENV
 from shuabao.shell import runner_service as rs_module
 from shuabao.shell.dashboard_facade import DashboardFacade
 from shuabao.shell.runner_service import LogSignal, ModeNotEnabled, RunnerService, live_lock_busy
+from shuabao.shell.headless_runner import HeadlessRunner
+from shuabao.shell.live_execute import PermissionDenied
+from shuabao.subscription_client import StartPermission
 
 
 @pytest.fixture(scope="module")
@@ -354,12 +357,13 @@ class ScriptedWorker(QThread):
     """真实 RunnerService.start() 创建的受控 worker：阻塞直到被 stop。"""
 
     def __init__(self, settings, root_dir, max_steps=None,
-                 incident_dir=None, stop_signal=None):
+                 incident_dir=None, stop_signal=None, permission=None):
         super().__init__()
         self.signals = LogSignal()
         self.settings = settings
         self.root_dir = root_dir
         self.stop_signal = stop_signal
+        self.permission = permission
         self.mediator = None
         self.phase = "IDLE"
         self.terminal_reason = ""
@@ -527,3 +531,107 @@ def test_runner_stop_timeout_waits_for_worker_cleanup(qapp, tmp_path: Path, monk
     assert not worker.isRunning()
     assert runner.runner_state == "COMPLETE"
     assert not live_lock_busy(runner.app_data)
+
+
+# ---------------------------------------------------------------- 深层订阅门禁（Runner / Headless）
+
+
+def _denied_permission() -> StartPermission:
+    return StartPermission(
+        allowed=False, mode="enforce", status="EXPIRED",
+        code="ENTITLEMENT_EXPIRED", message="订阅状态不允许启动: EXPIRED",
+    )
+
+
+def test_runner_start_denied_permission_blocks_before_worker_and_lock(tmp_path: Path, monkeypatch):
+    class NoWorker:
+        def __init__(self, *_a, **_k):
+            raise AssertionError("拒绝时不得创建 worker")
+
+    def spy_trylock(self, *a, **kw):
+        raise AssertionError("拒绝时不得触碰 live.lock")
+
+    monkeypatch.setattr(rs_module, "MediatorWorker", NoWorker)
+    monkeypatch.setattr(QLockFile, "tryLock", spy_trylock)
+    runner = RunnerService(tmp_path, tmp_path)
+    with pytest.raises(PermissionDenied) as excinfo:
+        runner.start("normal_farm", Settings(), permission=_denied_permission())
+    assert str(excinfo.value) == "订阅未授权，LIVE 已拒绝启动"
+    assert runner.worker is None
+    assert runner.runner_state == "IDLE"
+
+
+def test_runner_start_denied_checker_blocks_without_network(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    probed = []
+
+    def checker() -> StartPermission:
+        probed.append(1)
+        return _denied_permission()
+
+    runner = RunnerService(tmp_path, tmp_path)
+    with pytest.raises(PermissionDenied):
+        runner.start("normal_farm", Settings(), permission_checker=checker)
+    assert probed == [1]
+    assert runner.worker is None
+    assert not live_lock_busy(runner.app_data)
+
+
+def test_runner_start_allowed_permission_reaches_shared_executor(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
+    runner = RunnerService(tmp_path, tmp_path)
+    allowed = StartPermission(allowed=True, mode="off", status="OFF", code="OFF", would_allow=True)
+    worker = runner.start("normal_farm", Settings(), permission=allowed)
+    try:
+        assert runner.runner_state == "RUNNING"
+        assert live_lock_busy(runner.app_data)
+        assert worker.permission is allowed
+    finally:
+        runner.release_after_finish()
+
+
+
+
+def test_headless_run_blocking_denied_permission_blocks_before_mkdir_and_lock(tmp_path: Path, monkeypatch):
+    import shuabao.shell.headless_runner as hr_module
+
+    probed = []
+
+    def checker() -> StartPermission:
+        probed.append(1)
+        return _denied_permission()
+
+    monkeypatch.setattr(hr_module, "execute_runtime_mediator", None)  # 若被调用立即崩溃
+    runner = HeadlessRunner(tmp_path, tmp_path)
+    with pytest.raises(PermissionDenied):
+        runner.run_blocking(Settings(), permission_checker=checker)
+    assert probed == [1]
+    assert not (tmp_path / "incidents").exists(), "拒绝时不得创建 incidents 目录"
+    assert not (tmp_path / "ShuaBao.live.lock").exists()
+    assert runner.mediator is None
+    assert runner.runner_state == "IDLE"
+
+
+def test_headless_run_blocking_allowed_permission_runs(tmp_path: Path, monkeypatch):
+    import shuabao.shell.headless_runner as hr_module
+
+    seen = {}
+
+    def fake_execute(**kwargs):
+        seen["permission"] = kwargs.get("permission")
+        return {"terminal_reason": "已完成指定局数", "phase": "COMPLETE", "game_count": 1, "mediator": None, "ocr_status": "完成"}
+
+    monkeypatch.setattr(hr_module, "execute_runtime_mediator", fake_execute)
+    runner = HeadlessRunner(tmp_path, tmp_path)
+    allowed = StartPermission(allowed=True, mode="off", status="OFF", code="OFF", would_allow=True)
+    result = runner.run_blocking(Settings(), permission=allowed)
+    assert result["phase"] == "COMPLETE"
+    assert seen["permission"] is allowed, "成功权限必须透传到共享执行器且不重复网络请求"
+
+
+def test_headless_run_blocking_denied_still_respects_stop_before_start(tmp_path: Path):
+    runner = HeadlessRunner(tmp_path, tmp_path)
+    runner.stop_signal.trigger("early stop")
+    result = runner.run_blocking(Settings(), permission=_denied_permission())
+    assert result["phase"] == "IDLE"
+    assert "early stop" in result["terminal_reason"]

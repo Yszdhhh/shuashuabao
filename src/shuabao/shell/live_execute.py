@@ -6,7 +6,7 @@ import logging
 import os
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from shuabao.log_sink import install_live_logging, uninstall_live_logging
 from shuabao.settings import Settings
@@ -14,6 +14,13 @@ from shuabao.stop_signal import StopSignal
 
 LOGGER = logging.getLogger("ShuaBao")
 LIVE_LOCK_NAME = "ShuaBao.live.lock"
+
+if TYPE_CHECKING:
+    from shuabao.subscription_client import StartPermission
+
+
+class PermissionDenied(RuntimeError):
+    """订阅未授权：LIVE 入口 fail-closed，零 worker、零锁、零输入。"""
 
 
 def live_lock_path(app_data: Path) -> Path:
@@ -30,6 +37,7 @@ def execute_runtime_mediator(
     log: Callable[[str, str], None] | None = None,
     should_abort: Callable[[], bool] | None = None,
     on_mediator: Callable[[Any], None] | None = None,
+    permission: "StartPermission | None" = None,
 ) -> dict[str, Any]:
     """Shared LIVE worker body: RuntimeMediator + OCR + StopSignal + LogEventSink."""
     result: dict[str, Any] = {
@@ -39,6 +47,12 @@ def execute_runtime_mediator(
         "mediator": None,
         "ocr_status": "未启动",
     }
+    if permission is None or not getattr(permission, "allowed", False):
+        # fail-closed：直接调用且无有效权限时，不装日志、不建 Mediator、不初始化输入。
+        result["terminal_reason"] = "订阅未授权，LIVE 已拒绝启动"
+        result["phase"] = "ERROR"
+        LOGGER.error("[启动失败] 订阅授权未通过，LIVE 已拒绝启动")
+        return result
     log_file = Path(incident_dir) / "live.log" if incident_dir else None
     sink, file_handler = install_live_logging(log=log, log_file=log_file)
     result["log_sink"] = sink

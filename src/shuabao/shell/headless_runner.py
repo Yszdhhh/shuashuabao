@@ -17,10 +17,12 @@ from shuabao.settings import Settings
 from shuabao.stop_signal import StopSignal
 from shuabao.shell.live_execute import (
     LIVE_LOCK_NAME,
+    PermissionDenied,
     PortableLiveLock,
     execute_runtime_mediator,
     live_lock_path,
 )
+from shuabao.subscription_client import check_start_permission
 from shuabao.shell.mode_catalog import apply_mode_overlay, desktop_may_start
 from shuabao.shell.runtime_status import RUNNER_IDLE, RUNNER_RUNNING, RUNNER_STARTING, RUNNER_STOPPING
 
@@ -93,11 +95,19 @@ class HeadlessRunner:
         max_steps: int | None = None,
         log_fn: Callable[[str, str], None] | None = None,
         on_mediator: Callable[[Any], None] | None = None,
+        permission=None,
+        permission_checker=None,
     ) -> dict[str, Any]:
         # Reuse the existing StopSignal. Minting a new one here would drop
         # HeadlessRunner.stop() / API STOPPING that fired during STARTING.
         if self.stop_signal.is_set() or self.stop_signal.is_stopped():
             return self._cancelled_start_result(log_fn)
+        if permission is None and permission_checker is not None:
+            permission = permission_checker()
+        if permission is None:
+            permission = check_start_permission()
+        if not getattr(permission, "allowed", False):
+            raise PermissionDenied("订阅未授权，LIVE 已拒绝启动")
 
         snapshot = self._prepare_settings(settings)
         incident_dir = self.app_data / "incidents"
@@ -124,6 +134,7 @@ class HeadlessRunner:
             log_fn=_log,
             on_mediator=_capture,
             incident_dir=incident_dir,
+            permission=permission,
         )
 
     def _run_with_lock(
@@ -134,6 +145,7 @@ class HeadlessRunner:
         log_fn: Callable[[str, str], None],
         on_mediator: Callable[[Any], None],
         incident_dir: Path,
+        permission,
     ) -> dict[str, Any]:
         if self.stop_signal.is_set() or self.stop_signal.is_stopped():
             return self._cancelled_start_result(log_fn)
@@ -152,6 +164,7 @@ class HeadlessRunner:
                 log=log_fn,
                 should_abort=lambda: self.stop_signal.is_set(),
                 on_mediator=on_mediator,
+                permission=permission,
             )
             self.mediator = result.get("mediator")
             self.terminal_reason = str(result.get("terminal_reason") or "")
