@@ -42,6 +42,14 @@ function Get-ReleaseFileSha256([string]$Path) {
     }
 }
 
+function Write-Utf8NoBom([string]$Path, [string]$Content) {
+    # Windows PowerShell 5.1's `Set-Content -Encoding utf8` writes a BOM.
+    # Python's json.loads(..., encoding="utf-8") rejects that marker, so all
+    # JSON sidecars consumed by the frozen runtime must be explicitly BOM-free.
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
 $uvCommand = Get-Command uv -ErrorAction Stop
 $python = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 
@@ -82,7 +90,8 @@ $uiManifest = [ordered]@{
     bridge_schema_version = 2
     generated_at_utc     = [DateTime]::UtcNow.ToString("o")
 }
-$uiManifest | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $uiDist "build_manifest.json") -Encoding utf8
+$uiManifestJson = $uiManifest | ConvertTo-Json -Depth 3
+Write-Utf8NoBom (Join-Path $uiDist "build_manifest.json") $uiManifestJson
 Write-Host "已写入 UI 构建清单：$uiDist\build_manifest.json" -ForegroundColor DarkGray
 
 Write-Host "[0/4] 准备并校验 OCR 模型 ..." -ForegroundColor Cyan
@@ -163,7 +172,8 @@ $subscriptionRuntime = [ordered]@{
     mode = $SubscriptionMode
     timeout_s = 3
 }
-$subscriptionRuntime | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $subscriptionRuntimePath -Encoding utf8
+$subscriptionRuntimeJson = $subscriptionRuntime | ConvertTo-Json -Depth 3
+Write-Utf8NoBom $subscriptionRuntimePath $subscriptionRuntimeJson
 Write-Host "已写入订阅部署配置（不含卡密）：$subscriptionRuntimePath" -ForegroundColor DarkGray
 
 # A live-input capture refuses to run unless the checked-out source commit,
@@ -195,7 +205,13 @@ $releaseManifest = [ordered]@{
     generated_at_utc = [DateTime]::UtcNow.ToString("o")
     files = @($releaseEntries)
 }
-$releaseManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $releaseManifestPath -Encoding utf8
+$releaseManifestJson = $releaseManifest | ConvertTo-Json -Depth 6
+Write-Utf8NoBom $releaseManifestPath $releaseManifestJson
+$ocrModelManifestPath = Join-Path $releaseRoot "vision\_internal\models\ocr\MODEL_MANIFEST.json"
+if (-not (Test-Path -LiteralPath $ocrModelManifestPath -PathType Leaf)) {
+    throw "发行目录缺少 OCR 模型清单，无法写入完整构建身份。"
+}
+$ocrModelManifestSha = Get-ReleaseFileSha256 $ocrModelManifestPath
 $identity = [ordered]@{
     schema_version     = 1
     source_sha         = $sourceSha
@@ -204,11 +220,13 @@ $identity = [ordered]@{
     exe_name           = (Split-Path -Leaf $app)
     exe_sha256         = Get-ReleaseFileSha256 $app
     bridge_schema_version = 2
+    ocr_model_manifest_sha256 = $ocrModelManifestSha
     release_manifest_sha256 = Get-ReleaseFileSha256 $releaseManifestPath
     created_at_utc     = [DateTime]::UtcNow.ToString("o")
 }
 $identityPath = Join-Path (Split-Path -Parent $app) "build_identity.json"
-$identity | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $identityPath -Encoding utf8
+$identityJson = $identity | ConvertTo-Json -Depth 3
+Write-Utf8NoBom $identityPath $identityJson
 Write-Host "已写入构建身份：$identityPath" -ForegroundColor Green
 
 if ($NoDeploy) { return }

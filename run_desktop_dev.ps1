@@ -19,6 +19,13 @@ function Get-FileSha256([string]$Path) {
     }
 }
 
+function Write-Utf8NoBom([string]$Path, [string]$Content) {
+    # Keep the development manifest readable by Python's strict UTF-8 JSON
+    # loader when this script runs under Windows PowerShell 5.1.
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
+}
+
 $sourceSha = (& git rev-parse HEAD).Trim()
 if (-not $sourceSha) { throw "无法解析当前 Git 提交，拒绝启动开发壳。" }
 
@@ -69,7 +76,8 @@ if ($needsBuild) {
         bridge_schema_version = 2
         generated_at_utc = [DateTime]::UtcNow.ToString("o")
     }
-    $manifest | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+    $manifestJson = $manifest | ConvertTo-Json -Depth 3
+    Write-Utf8NoBom $manifestPath $manifestJson
     Write-Host "[dev] UI dist 已按 source_sha=$sourceSha 重建。" -ForegroundColor Green
 }
 
