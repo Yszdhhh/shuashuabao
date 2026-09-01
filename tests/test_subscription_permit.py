@@ -14,6 +14,9 @@ from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.exceptions import UnsupportedAlgorithm
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from shuabao.subscription_permit import (
     DevStartCapability,
@@ -318,3 +321,90 @@ def test_dev_start_capability_exists_only_for_off_mode():
         DevStartCapability(mode="enforce")
     with pytest.raises(ValueError):
         DevStartCapability(mode="shadow")
+
+
+def test_invalid_signature_does_not_consume_replay_slot():
+    store = InMemoryReplayStore()
+    verifier = PermitVerifier({KEY_ID: PUBLIC_KEY}, replay_store=store)
+
+    with pytest.raises(PermitVerificationError) as excinfo:
+        verifier.verify(_permit_from_signature(b"\x00" * 64), _context())
+    assert excinfo.value.code == "PERMIT_SIGNATURE_INVALID"
+
+    assert verifier.verify(_signed_permit(), _context()).permit_id == "pmt-0001"
+
+
+def test_context_mismatch_does_not_consume_replay_slot():
+    store = InMemoryReplayStore()
+    verifier = PermitVerifier({KEY_ID: PUBLIC_KEY}, replay_store=store)
+
+    with pytest.raises(PermitVerificationError) as excinfo:
+        verifier.verify(_signed_permit(), _context(device_id="device-b"))
+    assert excinfo.value.code == "PERMIT_DEVICE_MISMATCH"
+
+    assert verifier.verify(_signed_permit(), _context()).permit_id == "pmt-0001"
+
+
+def test_inverted_time_window_rejected_as_malformed():
+    permit = _signed_permit(
+        issued_at=_iso(NOW + timedelta(hours=2)),
+        expires_at=_iso(NOW + timedelta(hours=1)),
+    )
+
+    assert _verify_code(permit, _context()) == "PERMIT_MALFORMED"
+
+
+def test_load_public_keys_rejects_non_object_root(tmp_path):
+    registry = tmp_path / "keys.json"
+    registry.write_text('["not", "an", "object"]', encoding="utf-8")
+
+    with pytest.raises(PermitVerificationError) as excinfo:
+        load_public_keys(registry)
+    assert excinfo.value.code == "PERMIT_KEY_REGISTRY_INVALID"
+
+
+def test_load_public_keys_rejects_non_ed25519_key(tmp_path):
+    rsa_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    der = rsa_key.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    registry = tmp_path / "keys.json"
+    registry.write_text(
+        json.dumps({"keys": {"rsa-1": base64.b64encode(der).decode("ascii")}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PermitVerificationError) as excinfo:
+        load_public_keys(registry)
+    assert excinfo.value.code == "PERMIT_KEY_REGISTRY_INVALID"
+
+
+def test_load_public_keys_rejects_corrupt_der(tmp_path):
+    registry = tmp_path / "keys.json"
+    registry.write_text(
+        json.dumps({"keys": {"k1": _b64url(b"\x00\x01\x02\x03")}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(PermitVerificationError) as excinfo:
+        load_public_keys(registry)
+    assert excinfo.value.code == "PERMIT_KEY_REGISTRY_INVALID"
+
+
+def test_load_public_keys_normalizes_unsupported_algorithm(monkeypatch, tmp_path):
+    registry = tmp_path / "keys.json"
+    registry.write_text(
+        json.dumps({"keys": {"k1": _b64url(b"\x30\x00")}}),
+        encoding="utf-8",
+    )
+
+    def raise_unsupported(data):
+        raise UnsupportedAlgorithm("unsupported key type")
+
+    monkeypatch.setattr(
+        "shuabao.subscription_permit.load_der_public_key", raise_unsupported
+    )
+
+    with pytest.raises(PermitVerificationError) as excinfo:
+        load_public_keys(registry)
+    assert excinfo.value.code == "PERMIT_KEY_REGISTRY_INVALID"

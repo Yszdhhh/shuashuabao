@@ -47,16 +47,18 @@ JSON object，字段全集（严格模式：缺失、多余、形状错误一律
    （permit_id==jti、device_id==device_fingerprint）、时间形状、算法名、
    base64url 无 padding → `PERMIT_MALFORMED` / `PERMIT_SCHEMA_UNKNOWN`。
 2. key_id 解析 → 公钥注册表无此 key → `PERMIT_KEY_UNKNOWN`（空注册表同样）。
-3. 时间窗：`now > expires_at` → `PERMIT_EXPIRED`；
-   `issued_at - 300s > now` → `PERMIT_NOT_YET_VALID`（容许 5 分钟时钟偏差）。
+3. 时间窗：`issued_at > expires_at` → `PERMIT_MALFORMED`；`now > expires_at` →
+   `PERMIT_EXPIRED`；`issued_at - 300s > now` → `PERMIT_NOT_YET_VALID`
+   （容许 5 分钟时钟偏差）。
 4. 绑定核对：device_id / source_sha / release_manifest_sha256 / release_channel
    / mode_id ∈ allowed_modes → 各自 `PERMIT_DEVICE_MISMATCH`、
    `PERMIT_SOURCE_MISMATCH`、`PERMIT_MANIFEST_MISMATCH`、
    `PERMIT_CHANNEL_MISMATCH`、`PERMIT_MODE_NOT_ALLOWED`。
-5. 重放（如提供 replay store）：`claim(permit_id, nonce)` 原子性返回 False →
+5. Ed25519 验签失败 → `PERMIT_SIGNATURE_INVALID`。
+6. 重放（如提供 replay store）：`claim(permit_id, nonce)` 原子性返回 False →
    `PERMIT_REPLAY`。`InMemoryReplayStore` 为进程内参考实现；服务器化时按同一
-   接口替换。
-6. Ed25519 验签失败 → `PERMIT_SIGNATURE_INVALID`。
+   接口替换。claim 仅在签名与上述全部检查通过后执行：任何验证失败的 permit
+   都不占用 permit_id/nonce 重放额度。
 
 任何错误码都不得降级为放行；`StartPermission(allowed=True)`（shadow/off 或
 服务端 can_start_runner）本身不构成 LIVE 授权。显式 dev/off 路径使用独立的
@@ -81,7 +83,8 @@ release_channel、请求 modes/features）。成功响应体即 permit JSON（�
 - `config/entitlement_public_keys.json`：`{"keys": {"<key_id>": "<base64 SPKI DER>"}}`。
 - 轮换 = 注册表加入新 key_id（双活窗口）→ 服务器切换签发 → 窗口结束后移除旧
   key_id。客户端永不缓存跨版本注册表之外的 key。
-- 文件缺失/损坏/结构错误 → `PERMIT_KEY_REGISTRY_INVALID`，验证 fail-closed。
+- 文件缺失/损坏/结构错误（含根非 JSON object、密钥解码失败或非 Ed25519 公钥）
+  → `PERMIT_KEY_REGISTRY_INVALID`，验证 fail-closed。
 - **当前生产注册表为空**：无服务器、无生产公钥，任何 permit 都会被拒绝，这是
   预期行为，不得伪造或预置密钥。
 

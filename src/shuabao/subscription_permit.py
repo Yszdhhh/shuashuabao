@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Mapping
 
-from cryptography.exceptions import InvalidSignature
+from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.serialization import load_der_public_key
 
@@ -251,6 +251,11 @@ class PermitVerifier:
         now = _aware_utc(context.now)
         issued_at = _parse_timestamp(permit.issued_at, "issued_at")
         expires_at = _parse_timestamp(permit.expires_at, "expires_at")
+        if issued_at > expires_at:
+            raise PermitVerificationError(
+                "PERMIT_MALFORMED",
+                f"issued_at 晚于 expires_at: {permit.issued_at} > {permit.expires_at}",
+            )
         if now > expires_at:
             raise PermitVerificationError("PERMIT_EXPIRED", f"permit 已于 {permit.expires_at} 过期")
         if issued_at - CLOCK_SKEW > now:
@@ -265,12 +270,12 @@ class PermitVerifier:
             raise PermitVerificationError("PERMIT_CHANNEL_MISMATCH", "permit 绑定渠道与当前渠道不符")
         if context.mode_id not in permit.allowed_modes:
             raise PermitVerificationError("PERMIT_MODE_NOT_ALLOWED", f"mode {context.mode_id!r} 不在 permit 允许列表")
-        if self._replay_store is not None and not self._replay_store.claim(permit.permit_id, permit.nonce):
-            raise PermitVerificationError("PERMIT_REPLAY", "permit_id/nonce 已被使用")
         try:
             key.verify(permit.signature, permit.canonical_payload())
         except InvalidSignature as exc:
             raise PermitVerificationError("PERMIT_SIGNATURE_INVALID", "Ed25519 签名验证失败") from exc
+        if self._replay_store is not None and not self._replay_store.claim(permit.permit_id, permit.nonce):
+            raise PermitVerificationError("PERMIT_REPLAY", "permit_id/nonce 已被使用")
         return VerifiedPermit(
             permit_id=permit.permit_id,
             license_id=permit.license_id,
@@ -291,14 +296,19 @@ def load_public_keys(path: Path) -> dict[str, Ed25519PublicKey]:
     """
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raise ValueError("注册表根必须是 JSON object")
         entries = raw.get("keys")
         if not isinstance(entries, dict):
             raise ValueError('"keys" 必须是 object')
-        return {
-            str(key_id): load_der_public_key(base64.b64decode(text))
-            for key_id, text in entries.items()
-        }
-    except (OSError, ValueError, TypeError) as exc:
+        keys: dict[str, Ed25519PublicKey] = {}
+        for key_id, text in entries.items():
+            key = load_der_public_key(base64.b64decode(text))
+            if not isinstance(key, Ed25519PublicKey):
+                raise ValueError(f"key {key_id!r} 不是 Ed25519 公钥")
+            keys[str(key_id)] = key
+        return keys
+    except (OSError, ValueError, TypeError, UnsupportedAlgorithm) as exc:
         raise PermitVerificationError(
             "PERMIT_KEY_REGISTRY_INVALID", f"公钥注册表不可用: {exc}"
         ) from exc
