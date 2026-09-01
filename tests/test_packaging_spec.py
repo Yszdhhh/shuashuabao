@@ -170,10 +170,10 @@ def test_release_channel_recorded_in_all_four_sidecars() -> None:
     assert len(re.findall(r"release_channel\s*=\s*\$ReleaseChannel", text)) == 4
 
 
-def test_build_identity_records_unsigned_signature_fact() -> None:
+def test_build_identity_records_channel_signature_fact() -> None:
     text = _build_script_text()
-    assert re.search(r'signature_status\s*=\s*"UNSIGNED"', text), "无签名设施时必须显式记录 UNSIGNED 事实"
-
+    assert '$manifestSignatureStatus = if ($isExternalChannel) { "SIGNED" } else { "UNSIGNED" }' in text
+    assert "signature_status   = $manifestSignatureStatus" in text
 
 # --- 发行包运行时配置白名单（ShuaBao.spec 只打生产消费者） ---
 # 已确认生产运行时读取的配置；dashboard_test_profiles 由 native UI 读取（保留防回归），
@@ -259,88 +259,112 @@ def test_runtime_config_allowlist_files_exist_in_source() -> None:
     for name in RUNTIME_CONFIG_ALLOWLIST:
         assert (PROJECT_ROOT / "config" / name).is_file(), f"config/{name} 缺失"
 
-# --- 外发硬阻断：strict-release 门禁 + mode_evidence + Authenticode + manifest 签名 ---
+# --- 外发签名设施与运行时最小白名单 ---
 # 静态契约测试：不执行构建，只验证 build_release.ps1 的 fail-closed 结构。
-# 当前事实：无签名证书/signtool 流程，mode_evidence 全 MISSING，frozen replay
-# 仍有 disconnect_modal_missing=BLOCKED —— external-beta/release 必须在生成/
-# 可交付前被阻断；dev/internal-pilot 行为不变。
+
+
+def test_external_channels_declare_explicit_signing_inputs_and_env_fallbacks() -> None:
+    text = _build_script_text()
+    for marker in (
+        '[string]$ManifestSigningKeyPath = ""',
+        '[string]$ManifestSigningKeyId = ""',
+        '[string]$AuthenticodeCertificateThumbprint = ""',
+        '[string]$AuthenticodeTimestampUrl = ""',
+        '[string]$SignToolPath = ""',
+        '$env:SHUABAO_MANIFEST_SIGNING_KEY',
+        '$env:SHUABAO_MANIFEST_SIGNING_KEY_ID',
+        '$env:SHUABAO_AUTHENTICODE_CERT_THUMBPRINT',
+        '$env:SHUABAO_AUTHENTICODE_TIMESTAMP_URL',
+        '$env:SHUABAO_TIMESTAMP_URL',
+        '$env:SHUABAO_SIGNTOOL_PATH',
+    ):
+        assert marker in text, f"缺少签名输入：{marker}"
+
+
+def test_external_channels_fail_closed_before_expensive_build_without_real_signing_material() -> None:
+    text = _build_script_text()
+    preflight = text.index("缺少真实 Ed25519 manifest 私钥路径")
+    for marker in ("Get-Command uv", "npm ci", "PyInstaller 打包主程序"):
+        assert preflight < text.index(marker), f"签名门禁必须先于{marker}"
+    assert "ManifestSigningKeyPath" in text and "ManifestSigningKeyId" in text
+    assert "AuthenticodeCertificateThumbprint" in text and "AuthenticodeTimestampUrl" in text
+    assert "PINNED_MANIFEST_PUBLIC_KEYS" in text
+    assert "operator" in text.lower() or "操作员" in text
+
+
+def test_external_channels_sign_and_verify_manifest_after_generation() -> None:
+    text = _build_script_text()
+    assert "tools\\sign_release_manifest.py" in text
+    assert "--private-key" in text
+    assert "--key-id" in text
+    assert "release_manifest.json.sig" in text
+    assert "verify_manifest_signature" in text
+    assert "$manifestSignatureStatus = if ($isExternalChannel) { \"SIGNED\" } else { \"UNSIGNED\" }" in text
+
+
+def test_external_channels_sign_both_exes_with_rfc3161_before_authenticode_validation() -> None:
+    text = _build_script_text()
+    assert "signtool.exe" in text
+    assert "function Invoke-AuthenticodeSigning([string]$ExePath, [string]$Role)" in text
+    assert "/fd SHA256" in text
+    assert "/tr $timestampUrl" in text
+    assert "/td SHA256" in text
+    assert "/sha1 $certThumbprint" in text
+    sign_hook = text.index("function Invoke-AuthenticodeSigning")
+    verify_hook = text.index("Assert-AuthenticodeValid $ExePath $Role")
+    invoke_main = text.index('Invoke-AuthenticodeSigning $app "主程序 EXE"')
+    invoke_ocr = text.index('Invoke-AuthenticodeSigning $ocrWorker "OCR worker EXE"')
+    assert sign_hook < verify_hook < invoke_main
+    assert invoke_main < invoke_ocr
+
+def test_release_manifest_entries_exclude_signature_sidecar_and_clear_stale_sig() -> None:
+    text = _build_script_text()
+    entries_block = text[text.index("$releaseEntries = @(") : text.index("$releaseManifest = [ordered]@{")]
+    assert '$_.FullName -ne (Join-Path $releaseRoot "release_manifest.json.sig")' in entries_block
+    assert entries_block.count("$_.FullName -ne ") == 3, "manifest、.sig 与 build_identity 都必须显式排除"
+    manifest_block = text[text.index('$releaseManifestPath = Join-Path $releaseRoot "release_manifest.json"') : text.index("$releaseEntries = @(")]
+    assert "Remove-Item -LiteralPath (Join-Path $releaseRoot \"release_manifest.json.sig\")" in manifest_block, "复用 dist 重建必须先移除陈旧 .sig"
+
+def test_external_channels_fail_closed_when_signtool_unresolved_before_build() -> None:
+    text = _build_script_text()
+    resolve_call = text.index("$signtoolPath = Resolve-SignTool")
+    guard = text.index("渠道找不到真实 signtool.exe")
+    uv = text.index("Get-Command uv")
+    assert guard > resolve_call, "解析失败后必须立即检查 signtool 是否解析成功"
+    assert guard < uv, "signtool 缺失必须在依赖安装/打包之前显式阻断"
+
+def test_external_channels_verify_signing_cert_exists_with_private_key() -> None:
+    text = _build_script_text()
+    assert '"Cert:\\CurrentUser\\My"' in text and '"Cert:\\LocalMachine\\My"' in text
+    assert "$_.Thumbprint -eq $certThumbprint" in text
+    assert "$_.HasPrivateKey" in text
+    guard = text.index("找不到 thumbprint=$certThumbprint 的 Authenticode 证书")
+    assert guard < text.index("Get-Command uv"), "证书缺失必须在构建副作用之前显式阻断"
 
 
 def test_external_channels_run_gate_with_strict_release() -> None:
     text = _build_script_text()
     m = re.search(r"if \(\$isExternalChannel\) \{ \$gateArgs \+= .--strict-release. \}", text)
-    assert m, "external-beta/release 渠道必须以 --strict-release 跑发版门禁，阻断 BLOCKED 场景"
+    assert m, "external-beta/release 渠道必须以 --strict-release 跑发版门禁"
     assert "& $gatePython @gateArgs" in text
 
 
 def test_external_channels_verify_mode_evidence_before_packaging() -> None:
     text = _build_script_text()
     call_site = re.search(
-        r"if \(\$isExternalChannel\) \{\s*Assert-ExternalModeEvidence \$sourceSha\s*\}", text
+        r"if \(\$isExternalChannel\) \{\s*Assert-ExternalModeEvidence \$sourceSha\s*\}",
+        text,
     )
     assert call_site, "external 渠道必须在打包前调用模式证据核验"
-    assert call_site.start() < text.index("PyInstaller 打包主程序"), "核验必须发生在任何 PyInstaller 打包之前"
+    assert call_site.start() < text.index("PyInstaller 打包主程序")
     assert "mode_specs.json" in text and "mode_evidence.json" in text
     assert "$_.Value.live_enabled -eq $true -and $_.Value.desktop_start -eq $true" in text
-    assert re.search(r"status\s+-ne .PASS.", text), "非 PASS 的真机证据必须拒绝"
-    assert re.search(r"\$entry\.source_sha\s+-ne \$SourceSha", text), "证据必须绑定本次构建 SHA"
-    assert text.count("无法解析（畸形 JSON）") >= 2, "缺文件/畸形 JSON 必须显式拒绝"
-
-
-def test_external_channels_require_valid_authenticode_on_both_exes() -> None:
-    text = _build_script_text()
-    assert "Get-AuthenticodeSignature" in text
-    assert re.search(r"\$sig\.Status\s+-ne .Valid.", text), "非 Valid（含 NotSigned/UNSIGNED 事实）必须阻断"
-    m = re.search(
-        r"if \(\$isExternalChannel\) \{\s*"
-        r"Assert-AuthenticodeValid \$app .+?\s*"
-        r"Assert-AuthenticodeValid \$ocrWorker .+?\s*\}",
-        text,
-        re.S,
-    )
-    assert m, "主 EXE 与 OCR EXE 都必须做 Authenticode 核验"
-
-
-def test_release_manifest_unsigned_blocks_external_delivery() -> None:
-    text = _build_script_text()
-    assert "manifest_signature_status = $manifestSignatureStatus" in text
-    m = re.search(r"throw .external-beta/release 渠道阻断：release_manifest 尚无独立非对称签名", text)
-    assert m, "无独立签名实现时 external 渠道必须明确阻断，不得声称完整签名"
-    assert m.start() < text.index("Write-Utf8NoBom $releaseManifestPath"), "阻断必须发生在 release_manifest 写盘之前"
-
-
-def test_release_manifest_unsigned_throw_precedes_all_build_side_effects() -> None:
-    # 外发渠道在生成/写盘任何可交付物之前 fail-closed：manifest UNSIGNED 阻断
-    # 必须位于 uv 获取、npm/UI 构建、PyInstaller、subscription_runtime 写盘之前。
-    text = _build_script_text()
-    m = re.search(r"release_manifest 尚无独立非对称签名实现", text)
-    assert m, "external UNSIGNED 阻断必须存在"
-    assert m.start() > text.index("无法解析当前 Git 提交"), "阻断在 sourceSha 检查之后"
-    for marker, label in (
-        ("Get-Command uv", "uv 获取"),
-        ("npm ci", "npm/UI 构建"),
-        ("PyInstaller 打包主程序", "PyInstaller"),
-        ("Write-Utf8NoBom $subscriptionRuntimePath", "subscription_runtime 写盘"),
-    ):
-        assert m.start() < text.index(marker), f"UNSIGNED 阻断必须先于{label}"
-
-
-def test_authenticode_and_mode_evidence_are_defensive_gates() -> None:
-    # 当前 external 总是被 UNSIGNED 前置阻断，mode_evidence 与 Authenticode
-    # 检查在 external 路径上不可达；它们是未来签名实现落地后的纵深防线，
-    # 必须保留且不被删除。
-    text = _build_script_text()
-    m = re.search(r"release_manifest 尚无独立非对称签名实现", text)
-    assert m.start() < text.index("Assert-ExternalModeEvidence $sourceSha"), \
-        "UNSIGNED 阻断先于 mode evidence 防线"
-    assert "function Assert-ExternalModeEvidence" in text
-    assert "function Assert-AuthenticodeValid" in text
-    assert text.count("Assert-AuthenticodeValid $app") == 1
-    assert text.count("Assert-AuthenticodeValid $ocrWorker") == 1
+    assert re.search(r"status\s+-ne .PASS.", text)
+    assert re.search(r"\$entry\.source_sha\s+-ne \$SourceSha", text)
+    assert text.count("无法解析（畸形 JSON）") >= 2
 
 
 def test_dev_channel_keeps_unsigned_identity_and_normal_gate() -> None:
-    # dev/internal-pilot 行为保持：identity 仍如实记录 UNSIGNED 事实。
     text = _build_script_text()
-    assert re.search(r'signature_status\s*=\s*"UNSIGNED"', text)
-    assert '$manifestSignatureStatus = "UNSIGNED"' in text
+    assert '$manifestSignatureStatus = if ($isExternalChannel) { "SIGNED" } else { "UNSIGNED" }' in text
+    assert "signature_status   = $manifestSignatureStatus" in text

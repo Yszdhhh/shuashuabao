@@ -11,7 +11,12 @@ param(
     [ValidateSet("off", "shadow", "enforce")]
     [string]$SubscriptionMode = "enforce",
     [ValidateSet("dev", "internal-pilot", "external-beta", "release")]
-    [string]$ReleaseChannel = "dev"
+    [string]$ReleaseChannel = "dev",
+    [string]$ManifestSigningKeyPath = "",
+    [string]$ManifestSigningKeyId = "",
+    [string]$AuthenticodeCertificateThumbprint = "",
+    [string]$AuthenticodeTimestampUrl = "",
+    [string]$SignToolPath = ""
 )
 $ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $PSScriptRoot
@@ -85,12 +90,86 @@ $initialDirtyEntries = @(& git status --porcelain --untracked-files=all)
 if ($initialDirtyEntries.Count -gt 0 -and -not $AllowDirty) {
     throw "工作区存在未提交修改，拒绝生成正式包；如需仅用于本地诊断，请显式使用 -AllowDirty。"
 }
-# release_manifest 目前没有任何独立非对称签名实现（无密钥/无签名服务）。这是
-# 如实事实标记：external-beta/release 渠道在此明确阻断，绝不能声称完整签名。
-$manifestSignatureStatus = "UNSIGNED"
-if ($isExternalChannel) {
-    throw "external-beta/release 渠道阻断：release_manifest 尚无独立非对称签名实现（manifest_signature_status=$manifestSignatureStatus），不得对外交付。"
+function Resolve-SignTool {
+    $command = Get-Command signtool.exe -ErrorAction SilentlyContinue
+    if ($command) { return $command.Source }
+    $roots = @(
+        (Join-Path ${env:ProgramFiles(x86)} "Windows Kits\10\bin"),
+        (Join-Path $env:ProgramFiles "Windows Kits\10\bin")
+    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Container) }
+    $candidate = Get-ChildItem -Path $roots -Filter "signtool.exe" -File -Recurse -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1
+    if ($candidate) { return $candidate.FullName }
+    return $null
 }
+
+if ($isExternalChannel) {
+    $manifestKeyPath = $ManifestSigningKeyPath.Trim()
+    if (-not $manifestKeyPath) { $manifestKeyPath = $env:SHUABAO_MANIFEST_SIGNING_KEY_PATH }
+    if (-not $manifestKeyPath) { $manifestKeyPath = $env:SHUABAO_MANIFEST_SIGNING_KEY }
+    $manifestKeyId = if ($ManifestSigningKeyId.Trim()) { $ManifestSigningKeyId.Trim() } else { $env:SHUABAO_MANIFEST_SIGNING_KEY_ID }
+    $certThumbprint = if ($AuthenticodeCertificateThumbprint.Trim()) {
+        $AuthenticodeCertificateThumbprint.Trim().Replace(" ", "")
+    } else {
+        [string]$env:SHUABAO_AUTHENTICODE_CERT_THUMBPRINT
+    }
+    $timestampUrl = if ($AuthenticodeTimestampUrl.Trim()) {
+        $AuthenticodeTimestampUrl.Trim()
+    } elseif ($env:SHUABAO_AUTHENTICODE_TIMESTAMP_URL) {
+        $env:SHUABAO_AUTHENTICODE_TIMESTAMP_URL
+    } else {
+        $env:SHUABAO_TIMESTAMP_URL
+    }
+    if (-not $manifestKeyPath -or -not (Test-Path -LiteralPath $manifestKeyPath -PathType Leaf)) {
+        throw "external-beta/release 渠道缺少真实 Ed25519 manifest 私钥路径（-ManifestSigningKeyPath 或 SHUABAO_MANIFEST_SIGNING_KEY_PATH），请由操作员提供。"
+    }
+    if (-not $manifestKeyId) {
+        throw "external-beta/release 渠道缺少 manifest key id（-ManifestSigningKeyId 或 SHUABAO_MANIFEST_SIGNING_KEY_ID），请由操作员提供。"
+    }
+    if ($certThumbprint -notmatch "^[0-9A-Fa-f]{40}$") {
+        throw "external-beta/release 渠道缺少真实 Authenticode 证书 thumbprint，请由操作员提供。"
+    }
+    # Regex 只能证明格式，不能证明证书真实存在且可用：必须在构建前确认
+    # CurrentUser/LocalMachine 个人存储中有该 thumbprint 且证书带私钥。
+    $signingCert = $null
+    foreach ($store in @("Cert:\CurrentUser\My", "Cert:\LocalMachine\My")) {
+        if (Test-Path -LiteralPath $store) {
+            $signingCert = Get-ChildItem -LiteralPath $store -ErrorAction SilentlyContinue |
+                Where-Object { $_.Thumbprint -eq $certThumbprint -and $_.HasPrivateKey } |
+                Select-Object -First 1
+            if ($signingCert) { break }
+        }
+    }
+    if (-not $signingCert) {
+        throw "external-beta/release 渠道找不到 thumbprint=$certThumbprint 的 Authenticode 证书（或其无私钥），请由操作员导入真实证书。"
+    }
+    $parsedTimestamp = $null
+    try { $parsedTimestamp = [Uri]$timestampUrl } catch { $parsedTimestamp = $null }
+    if (-not $parsedTimestamp -or -not $parsedTimestamp.IsAbsoluteUri -or $parsedTimestamp.Scheme -ne "https") {
+        throw "external-beta/release 渠道缺少有效 RFC3161 HTTPS timestamp URL，请由操作员提供。"
+    }
+    $signToolInput = $SignToolPath.Trim()
+    if (-not $signToolInput) { $signToolInput = $env:SHUABAO_SIGNTOOL_PATH }
+    if ($signToolInput) {
+        if (-not (Test-Path -LiteralPath $signToolInput -PathType Leaf)) {
+            throw "external-beta/release 渠道指定的 signtool.exe 不存在，请由操作员提供真实 Windows SDK 路径。"
+        }
+        $signtoolPath = (Resolve-Path -LiteralPath $signToolInput).Path
+    } else {
+        $signtoolPath = Resolve-SignTool
+    }
+    if (-not $signtoolPath) {
+        throw "external-beta/release 渠道找不到真实 signtool.exe，请由操作员安装 Windows SDK 或显式传入 -SignToolPath。"
+    }
+    $releaseSigningSource = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "src\shuabao\release_signing.py"))
+    if ($releaseSigningSource -match 'PINNED_MANIFEST_PUBLIC_KEYS\s*:[^=]+=\s*\{\s*\}') {
+        throw "external-beta/release 渠道阻断：运行时 PINNED_MANIFEST_PUBLIC_KEYS 仍为空；请由操作员编译真实 Ed25519 SPKI pin 后重试。"
+    }
+}
+
+# Dev/internal packages remain explicitly unsigned; external packages claim SIGNED
+# only because the signer and verifier below are mandatory before delivery.
+$manifestSignatureStatus = if ($isExternalChannel) { "SIGNED" } else { "UNSIGNED" }
 
 function Get-ReleaseFileSha256([string]$Path) {
     # Get-FileHash was added after the oldest Windows PowerShell supported by
@@ -176,6 +255,13 @@ function Assert-AuthenticodeValid([string]$ExePath, [string]$Role) {
         throw "外发渠道阻断：$Role Authenticode Status=$sigStatus（必须 Valid），拒绝外发。"
     }
     Write-Host "Authenticode 校验通过：$Role" -ForegroundColor Green
+}
+function Invoke-AuthenticodeSigning([string]$ExePath, [string]$Role) {
+    & $signtoolPath sign /sha1 $certThumbprint /fd SHA256 /tr $timestampUrl /td SHA256 $ExePath
+    if ($LASTEXITCODE -ne 0) {
+        throw "外发渠道阻断：$Role Authenticode 签名失败。"
+    }
+    Assert-AuthenticodeValid $ExePath $Role
 }
 
 # 外发渠道在依赖安装/打包之前 fail-closed：真机证据不齐就直接拒绝，不浪费构建。
@@ -280,10 +366,11 @@ cmd.exe /c "robocopy `"$(Split-Path -Parent $ocrWorker)`" `"$workerTarget`" /E /
 if ($LASTEXITCODE -gt 7) { throw "复制 OCR worker 到发行目录失败。" }
 Write-Host "已生成：$ocrWorker" -ForegroundColor Green
 
-# 外发渠道硬阻断：两个 EXE 都必须 Authenticode Valid；无签名设施时在此自然失败。
+# 外发渠道先使用真实 Windows SDK signtool 对两个 EXE 做 SHA-256
+# Authenticode + RFC3161 时间戳，再执行独立 Valid 校验；任何一步失败都拒绝。
 if ($isExternalChannel) {
-    Assert-AuthenticodeValid $app "主程序 EXE"
-    Assert-AuthenticodeValid $ocrWorker "OCR worker EXE"
+    Invoke-AuthenticodeSigning $app "主程序 EXE"
+    Invoke-AuthenticodeSigning $ocrWorker "OCR worker EXE"
 }
 
 $releaseRoot = Join-Path $PSScriptRoot "dist\$APP_ID"
@@ -311,12 +398,16 @@ Write-Host "已写入订阅部署配置（不含卡密）：$subscriptionRuntime
 $sourceDirtyEntries = @(& git status --porcelain --untracked-files=all)
 $buildId = (& $python -c "import sys; sys.path.insert(0, 'src'); from shuabao.mediator import BUILD_ID; print(BUILD_ID)").Trim()
 $releaseManifestPath = Join-Path $releaseRoot "release_manifest.json"
+# 复用 dist 重建时，旧的 release_manifest.json.sig 不能进入清单，也不能与新生成
+# 的签名混用：先生成清单元数据，再移除陈旧签名并重新签名。
+Remove-Item -LiteralPath (Join-Path $releaseRoot "release_manifest.json.sig") -Force -ErrorAction SilentlyContinue
 
 $releasePrefix = "$releaseRoot\"
 $releaseEntries = @(
     Get-ChildItem -LiteralPath $releaseRoot -File -Recurse |
         Where-Object {
             $_.FullName -ne $releaseManifestPath -and
+            $_.FullName -ne (Join-Path $releaseRoot "release_manifest.json.sig") -and
             $_.FullName -ne (Join-Path $releaseRoot "build_identity.json")
         } |
         ForEach-Object {
@@ -338,6 +429,21 @@ $releaseManifest = [ordered]@{
 }
 $releaseManifestJson = $releaseManifest | ConvertTo-Json -Depth 6
 Write-Utf8NoBom $releaseManifestPath $releaseManifestJson
+if ($isExternalChannel) {
+    $manifestSignaturePath = "$releaseManifestPath.sig"
+    try {
+        & $python tools\sign_release_manifest.py --manifest $releaseManifestPath --private-key $manifestKeyPath --key-id $manifestKeyId
+        if ($LASTEXITCODE -ne 0) { throw "manifest signer exited with code $LASTEXITCODE" }
+        $verifyCode = "import json,sys; from pathlib import Path; source=Path(sys.argv[1]); root=Path(sys.argv[2]); sys.path.insert(0,str(source/'src')); from shuabao.release_signing import PINNED_MANIFEST_PUBLIC_KEYS,verify_manifest_signature; verify_manifest_signature(json.loads((root/'release_manifest.json').read_text(encoding='utf-8')),json.loads((root/'release_manifest.json.sig').read_text(encoding='utf-8')),PINNED_MANIFEST_PUBLIC_KEYS)"
+        & $python -c $verifyCode $PSScriptRoot $releaseRoot
+        if ($LASTEXITCODE -ne 0) { throw "runtime manifest signature verification failed" }
+        Write-Host "release_manifest Ed25519 签名与固定 pin 校验通过。" -ForegroundColor Green
+    }
+    catch {
+        Remove-Item -LiteralPath $manifestSignaturePath, $releaseManifestPath -Force -ErrorAction SilentlyContinue
+        throw "外发渠道 manifest 签名/校验失败，拒绝交付：$($_.Exception.Message)"
+    }
+}
 $ocrModelManifestPath = Join-Path $releaseRoot "vision\_internal\models\ocr\MODEL_MANIFEST.json"
 if (-not (Test-Path -LiteralPath $ocrModelManifestPath -PathType Leaf)) {
     throw "发行目录缺少 OCR 模型清单，无法写入完整构建身份。"
@@ -352,7 +458,7 @@ $identity = [ordered]@{
     exe_sha256         = Get-ReleaseFileSha256 $app
     bridge_schema_version = 2
     release_channel    = $ReleaseChannel
-    signature_status   = "UNSIGNED"
+    signature_status   = $manifestSignatureStatus
     ocr_model_manifest_sha256 = $ocrModelManifestSha
     release_manifest_sha256 = Get-ReleaseFileSha256 $releaseManifestPath
     created_at_utc     = [DateTime]::UtcNow.ToString("o")
