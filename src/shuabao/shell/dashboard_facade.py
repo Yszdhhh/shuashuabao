@@ -16,6 +16,10 @@ from __future__ import annotations
 
 import os
 import json
+import hashlib
+import sys
+import subprocess
+import time
 from pathlib import Path
 from typing import Any, Callable
 from shuabao.subscription_client import (
@@ -39,15 +43,40 @@ from shuabao.shell.mode_catalog import (
     get_spec,
     load_specs,
 )
-from shuabao.shell.runner_service import RUNNER_IDLE, RUNNER_RUNNING, RunnerService
+from shuabao.shell.runner_service import (
+    RUNNER_COMPLETE,
+    RUNNER_FAILED,
+    RUNNER_IDLE,
+    RUNNER_RUNNING,
+    RUNNER_STARTING,
+    RUNNER_STOPPING,
+    RunnerService,
+)
 from shuabao.shell.runner_service import live_lock_busy
 from shuabao.shell.runtime_status import runtime_status_from_mediator
+from shuabao.shell.bridge_contract import (
+    BRIDGE_REQUIRED_METHODS,
+    BRIDGE_REQUIRED_SIGNALS,
+    BRIDGE_SCHEMA_VERSION,
+)
 
 THEMES = ("light", "dark")
 DEFAULT_SHELL_THEME = "light"
 DEFAULT_SHELL_MODE_ID = "normal_farm"
 SHELL_BUNDLE_KEYS = frozenset({"_shell", "_shell_schema"})
-PREFLIGHT_CHECK_IDS = ("mode_enabled", "live_lock", "skills_non_empty", "cycle_valid", "follow_pair_code")
+PREFLIGHT_CHECK_IDS = (
+    "mode_enabled",
+    "live_lock",
+    "skills_non_empty",
+    "cycle_valid",
+    "follow_pair_code",
+    "subscription",
+    "runtime_root",
+    "ocr_runtime",
+    "uipi",
+    "target_window",
+    "build_identity",
+)
 SETTINGS_REVISION_KEY = "_dashboard_settings_revision"
 
 
@@ -58,6 +87,323 @@ def _blocked_reason(mode_id: str) -> str:
     if not spec.desktop_start:
         return f"{spec.label} 未开放桌面入口"
     return ""
+
+
+def _current_source_sha(root: Path | None) -> str:
+    base = Path(root) if root is not None else Path.cwd()
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(base), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=3,
+            check=False,
+        )
+        if proc.returncode == 0:
+            return proc.stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return ""
+
+
+def _evidence_path(base: Path, configured: Any, candidates: tuple[Path, ...]) -> Path | None:
+    """Resolve an evidence artifact without trusting a stale display string."""
+    raw = str(configured or "").strip()
+    paths: list[Path] = []
+    if raw:
+        value = Path(raw)
+        paths.append(value if value.is_absolute() else base / value)
+    paths.extend(candidates)
+    for path in paths:
+        try:
+            if path.is_file():
+                return path.resolve()
+        except (OSError, RuntimeError):
+            continue
+    return None
+
+
+def _mode_evidence(mode_id: str, root: Path | None) -> dict[str, Any]:
+    """Return current-build evidence without promoting historical evidence.
+
+    A PASS record is accepted only when it carries the source/build bindings
+    for the current checkout or frozen package.  Missing records are explicit
+    and safe: they never disable a technical startable flag, but they do keep
+    the dashboard's acceptance state honest.
+    """
+    base = Path(root) if root is not None else Path(__file__).resolve().parents[3]
+    path = base / "config" / "mode_evidence.json"
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"status": "MISSING", "reason": "未找到当前构建证据清单"}
+    modes = document.get("modes") if isinstance(document, dict) else None
+    entry = modes.get(mode_id) if isinstance(modes, dict) else None
+    if not isinstance(entry, dict):
+        return {"status": "MISSING", "reason": "该运行方式未登记当前构建证据"}
+    status = str(entry.get("status") or "MISSING").upper()
+    if status not in {"PASS", "BLOCKED", "MISSING", "STALE"}:
+        status = "MISSING"
+    result = {
+        "status": status,
+        "reason": str(entry.get("reason") or ""),
+        "source_sha": str(entry.get("source_sha") or ""),
+        "release_manifest_sha256": str(entry.get("release_manifest_sha256") or ""),
+        "exe_sha256": str(entry.get("exe_sha256") or ""),
+        "scenario": str(entry.get("scenario") or ""),
+        "captured_at": str(entry.get("captured_at") or ""),
+        "evidence_bundle": str(entry.get("evidence_bundle") or ""),
+        "postcondition": str(entry.get("postcondition") or ""),
+    }
+    current_source = _current_source_sha(base)
+    if result["status"] == "PASS":
+        if not result["source_sha"] or (current_source and result["source_sha"] != current_source):
+            result["status"] = "STALE"
+            result["reason"] = "PASS 证据未绑定当前源码 SHA"
+        elif not result["release_manifest_sha256"] or not result["exe_sha256"]:
+            result["status"] = "STALE"
+            result["reason"] = "PASS 证据缺少发行清单或 EXE 哈希"
+        else:
+            package_candidates = (
+                base / "dist" / "ShuaBao" / "release_manifest.json",
+                base / "web" / "release_manifest.json",
+                base / "release_manifest.json",
+            )
+            manifest_path = _evidence_path(base, entry.get("release_manifest_path"), package_candidates)
+            if manifest_path is None:
+                result["status"] = "STALE"
+                result["reason"] = "PASS 证据未提供可读取的发行清单"
+            else:
+                result["release_manifest_path"] = str(manifest_path)
+                try:
+                    manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest().lower()
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    manifest_hash = ""
+                    manifest = None
+                manifest_valid = False
+                if manifest_hash != result["release_manifest_sha256"].lower():
+                    result["status"] = "STALE"
+                    result["reason"] = "PASS 证据的发行清单哈希不匹配"
+                else:
+                    try:
+                        manifest_bridge_schema = int(manifest.get("bridge_schema_version", -1)) if isinstance(manifest, dict) else -1
+                    except (TypeError, ValueError):
+                        manifest_bridge_schema = -1
+                    manifest_valid = (
+                        isinstance(manifest, dict)
+                        and manifest.get("schema_version") == 1
+                        and manifest.get("source_sha") == result["source_sha"]
+                        and manifest_bridge_schema == BRIDGE_SCHEMA_VERSION
+                        and isinstance(manifest.get("files"), list)
+                        and bool(manifest.get("files"))
+                    )
+                if manifest_hash == result["release_manifest_sha256"].lower() and not manifest_valid:
+                    result["status"] = "STALE"
+                    result["reason"] = "PASS 证据的发行清单内容不完整或未绑定相同源码 SHA"
+                elif manifest_hash == result["release_manifest_sha256"].lower() and manifest_valid:
+                    exe_name = str(entry.get("exe_name") or "ShuaBao.exe").strip() or "ShuaBao.exe"
+                    exe_candidates = (
+                        manifest_path.parent / exe_name,
+                        manifest_path.parent / "ShuaBao.exe",
+                    )
+                    exe_path = _evidence_path(base, entry.get("exe_path"), exe_candidates)
+                    if exe_path is None:
+                        result["status"] = "STALE"
+                        result["reason"] = "PASS 证据未提供可读取的 EXE"
+                    else:
+                        result["exe_path"] = str(exe_path)
+                        try:
+                            exe_hash = hashlib.sha256(exe_path.read_bytes()).hexdigest().lower()
+                        except OSError:
+                            exe_hash = ""
+                        if exe_hash != result["exe_sha256"].lower():
+                            result["status"] = "STALE"
+                            result["reason"] = "PASS 证据的 EXE 哈希不匹配"
+    return result
+
+
+def _production_runtime_context(root: Path | None, runner: Any) -> bool:
+    """Whether optional host checks can be evaluated locally.
+
+    Unit tests and browser mocks intentionally inject a fake runner or omit a
+    repository root.  The real desktop/WebShell path always supplies a
+    RunnerService plus either the source entry point or a frozen bundle.
+    """
+    if not isinstance(runner, RunnerService):
+        return False
+    if getattr(sys, "frozen", False):
+        return True
+    return bool(root is not None and (Path(root) / "desktop_app.py").is_file())
+
+
+def _ocr_preflight(settings: Settings, root: Path | None, runner: Any) -> tuple[bool, str]:
+    mode = str(getattr(settings, "ocr_mode", "off") or "off").lower()
+    if mode not in {"off", "shadow", "live"}:
+        return False, f"ocr_mode 非法: {mode}"
+    if mode == "off":
+        return True, "OCR 已关闭（模板模式）"
+    if not _production_runtime_context(root, runner):
+        return True, "OCR 由启动 worker 负责校验"
+    base = Path(root) if root is not None else Path.cwd()
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).resolve().parent
+        worker = exe_dir / "vision" / "ShuaBaoOCR.exe"
+        model_candidates = (
+            exe_dir / "vision" / "models" / "ocr" / "MODEL_MANIFEST.json",
+            exe_dir / "vision" / "_internal" / "models" / "ocr" / "MODEL_MANIFEST.json",
+            exe_dir / "models" / "ocr" / "MODEL_MANIFEST.json",
+        )
+        model_manifest = next((path for path in model_candidates if path.is_file()), model_candidates[0])
+    else:
+        explicit = str(os.environ.get("SHUABAO_OCR_PYTHON") or "").strip()
+        worker = Path(explicit) if explicit else base / ".venv-ocr" / "Scripts" / "python.exe"
+        model_manifest = base / "models" / "ocr" / "MODEL_MANIFEST.json"
+    if not worker.is_file():
+        return False, f"OCR worker 不存在: {worker}"
+    if not model_manifest.is_file():
+        return False, f"OCR 模型清单不存在: {model_manifest}"
+    return True, "OCR worker 与模型清单可用"
+
+
+def _uipi_preflight(settings: Settings, root: Path | None, runner: Any) -> tuple[bool, str]:
+    if bool(getattr(settings, "dry_run", False)):
+        return True, "学习模式不需要 UIPI 提权"
+    if not _production_runtime_context(root, runner) or os.name != "nt":
+        return True, "由启动器/运行环境负责 UIPI 校验"
+    try:
+        from shuabao.input.keyboard_mouse import is_current_process_elevated
+
+        elevated = bool(is_current_process_elevated())
+    except Exception:
+        elevated = False
+    return (elevated, "当前进程已提权" if elevated else "当前进程未提权，真实输入会被 UIPI 丢弃")
+
+
+def _target_window_preflight(
+    settings: Settings,
+    mode_id: str,
+    root: Path | None,
+    runner: Any,
+) -> tuple[bool, str]:
+    """Confirm that a usable KK/game window exists before LIVE input.
+
+    A fresh solo run may legitimately begin in the KK lobby, so normal_farm
+    accepts either the game window or the platform window.  Team/follow modes
+    start from the lobby and therefore require the L0 target.  Tests and dry
+    runs intentionally defer this host-only probe.
+    """
+    if bool(getattr(settings, "dry_run", False)):
+        return True, "学习模式不需要目标窗口"
+    if not _production_runtime_context(root, runner) or os.name != "nt":
+        return True, "由启动 worker 负责目标窗口校验"
+    try:
+        from shuabao.vision.capture import find_window_targets
+
+        title = str(getattr(settings, "window_title_contains", "") or "英雄三国")
+        roles = ("l0",) if mode_id in {"follow_team", "lobby_hitch"} else ("l1", "l0")
+        targets = []
+        for role in roles:
+            targets.extend(find_window_targets(title, role=role, allow_fallback=False))
+        if targets:
+            names = ", ".join(str(getattr(item, "title", "") or "KK") for item in targets[:2])
+            return True, f"目标窗口可用: {names}"
+        return False, "未找到可用的 KK/英雄三国目标窗口"
+    except Exception as exc:
+        return False, f"目标窗口探测失败: {type(exc).__name__}"
+
+
+def _build_identity_preflight(root: Path | None, runner: Any) -> tuple[bool, str]:
+    if not _production_runtime_context(root, runner):
+        return True, "源码/测试模式由构建入口负责身份校验"
+    base = Path(root) if root is not None else Path.cwd()
+    if not getattr(sys, "frozen", False):
+        # Source mode is intentionally runnable before a packaging pass.  The
+        # WebShell still rejects a present-but-stale build_manifest.json; a
+        # frozen EXE, on the other hand, must carry the immutable sidecar.
+        return True, "源码模式使用当前 checkout；冻结包需提供 build_identity.json"
+    candidates = [base]
+    if getattr(sys, "executable", None):
+        candidates.append(Path(sys.executable).resolve().parent)
+    if base.parent not in candidates:
+        candidates.append(base.parent)
+    identity = next((candidate / "build_identity.json" for candidate in candidates if (candidate / "build_identity.json").is_file()), None)
+    if identity is None:
+        identity = base / "build_identity.json"
+    if not identity.is_file():
+        return False, "缺少 build_identity.json，无法证明 EXE 与源码一致"
+    try:
+        payload = json.loads(identity.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False, "build_identity.json 无法读取"
+    if not isinstance(payload, dict):
+        return False, "build_identity.json 格式非法"
+    source_sha = str(payload.get("source_sha") or "").strip()
+    exe_sha = str(payload.get("exe_sha256") or "").strip()
+    manifest_sha = str(payload.get("release_manifest_sha256") or "").strip().lower()
+    if not source_sha or not exe_sha or payload.get("source_tree_clean") is not True:
+        return False, "构建身份缺少 source_sha/exe_sha256 或源码不干净"
+    manifest_path = identity.parent / "release_manifest.json"
+    if not manifest_sha or not manifest_path.is_file():
+        return False, "构建身份缺少 release_manifest_sha256 或发行清单"
+    try:
+        digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest().lower()
+    except OSError:
+        return False, "发行清单无法读取"
+    if digest != manifest_sha:
+        return False, "发行清单哈希与 build_identity.json 不一致"
+    exe_name = str(payload.get("exe_name") or "").strip()
+    exe_path = identity.parent / exe_name if exe_name else None
+    if exe_path is None or not exe_path.is_file():
+        return False, "构建身份指向的 EXE 不存在"
+    try:
+        exe_digest = hashlib.sha256(exe_path.read_bytes()).hexdigest().lower()
+    except OSError:
+        return False, "构建身份指向的 EXE 无法读取"
+    if exe_digest != exe_sha.lower():
+        return False, "EXE 哈希与 build_identity.json 不一致"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False, "发行清单无法读取"
+    try:
+        bridge_schema = int(manifest.get("bridge_schema_version", -1)) if isinstance(manifest, dict) else -1
+    except (TypeError, ValueError):
+        bridge_schema = -1
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema_version") != 1
+        or manifest.get("source_sha") != source_sha
+        or bridge_schema != BRIDGE_SCHEMA_VERSION
+        or not isinstance(manifest.get("files"), list)
+        or not manifest.get("files")
+    ):
+        return False, "发行清单内容不完整或版本不一致"
+    package_root = manifest_path.parent.resolve()
+    seen: set[str] = set()
+    for entry in manifest["files"]:
+        if not isinstance(entry, dict):
+            return False, "发行清单包含非法文件项"
+        relative = str(entry.get("path") or "").replace("\\", "/").strip()
+        expected_hash = str(entry.get("sha256") or "").strip().lower()
+        if not relative or not expected_hash or relative in seen:
+            return False, "发行清单包含重复或无哈希文件项"
+        seen.add(relative)
+        candidate = (package_root / Path(relative)).resolve()
+        try:
+            candidate.relative_to(package_root)
+        except ValueError:
+            return False, "发行清单包含越界路径"
+        if not candidate.is_file():
+            return False, f"发行清单文件缺失: {relative}"
+        try:
+            if hashlib.sha256(candidate.read_bytes()).hexdigest().lower() != expected_hash:
+                return False, f"发行清单文件哈希不一致: {relative}"
+        except OSError:
+            return False, f"发行清单文件无法读取: {relative}"
+    return True, f"构建身份已记录 {source_sha[:12]} / manifest {manifest_sha[:12]}"
 
 
 class DashboardFacade(QObject):
@@ -104,6 +450,13 @@ class DashboardFacade(QObject):
         revision = raw.get(SETTINGS_REVISION_KEY, 0)
         self._settings_revision = revision if type(revision) is int and revision >= 0 else 0
         self._snapshot_seq = 0
+        # Subscription probes are bounded and cached.  Snapshot reads happen
+        # on the QWebChannel GUI thread; never perform a network request merely
+        # because the header/status DTO is being painted.
+        self._subscription_cache_key: tuple[str, str, str, str] | None = None
+        self._subscription_cache_at = 0.0
+        self._subscription_cache: Any = None
+        self._subscription_cache_ttl_s = 15.0
 
     def _ensure_runner(self) -> Any:
         """注入的 runner 优先；否则按缺省构造 RunnerService(app_data, root)。"""
@@ -155,6 +508,7 @@ class DashboardFacade(QObject):
                 "label": spec.label,
                 "startable": startable,
                 "evidence_status": spec.evidence_status,
+                "current_evidence": _mode_evidence(spec.id, self._root),
                 "badge": badge_text(spec),
                 "blocked_reason": "" if startable else _blocked_reason(spec.id),
                 "visible_settings": list(spec.visible_settings),
@@ -174,18 +528,48 @@ class DashboardFacade(QObject):
             },
             "treasure": {"negative_allowlist": list(self._settings.treasure_allow_negative)},
         }
+
+    def _subscription_key(self) -> tuple[str, str, str, str]:
+        key = str(os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or "").strip()
+        endpoint = str(os.environ.get("SHUABAO_SUBSCRIPTION_BASE_URL") or "").strip()
+        mode = str(os.environ.get("SHUABAO_SUBSCRIPTION_MODE") or "").strip().lower()
+        # Keep the raw key out of the in-memory cache key and diagnostic data.
+        key_digest = hashlib.sha256(key.encode("utf-8")).hexdigest() if key else ""
+        return mode, endpoint, key_digest, str(os.environ.get("SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT") or "").strip()
+
+    def _subscription_permission(self, *, force: bool = False):
+        key = self._subscription_key()
+        now = time.monotonic()
+        if (
+            not force
+            and self._subscription_cache is not None
+            and key == self._subscription_cache_key
+            and now - self._subscription_cache_at < self._subscription_cache_ttl_s
+        ):
+            return self._subscription_cache
+        permission = check_start_permission()
+        self._subscription_cache_key = key
+        self._subscription_cache_at = now
+        self._subscription_cache = permission
+        return permission
+
+    def _invalidate_subscription_cache(self) -> None:
+        self._subscription_cache_key = None
+        self._subscription_cache_at = 0.0
+        self._subscription_cache = None
+
     def _subscription_dto(self) -> dict[str, Any]:
         key = str(os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or "").strip()
         if not key:
             return {"active": False, "status": "未激活", "expires_at": ""}
-        try:
-            val = validate_entitlement(key)
-            valid = bool(val.get("valid")) and val.get("can_start_runner") is True
-            status = str(val.get("status") or ("正常" if valid else "未激活"))
-            expires_at = str(val.get("expires_at") or "")
-            return {"active": valid, "status": status, "expires_at": expires_at}
-        except Exception:
+        permission = self._subscription_cache
+        if permission is None or self._subscription_cache_key != self._subscription_key():
             return {"active": False, "status": "待校验", "expires_at": ""}
+        return {
+            "active": bool(permission.allowed and permission.would_allow is not False),
+            "status": str(permission.status or ("正常" if permission.allowed else "未激活")),
+            "expires_at": str(getattr(permission, "expires_at", "") or ""),
+        }
 
     def _snapshot_dto(self, request_id: str | None = None) -> dict[str, Any]:
         self._snapshot_seq += 1
@@ -224,13 +608,23 @@ class DashboardFacade(QObject):
                 game_count = int(getattr(mediator, "_game_count", 0) or 0)
             except Exception:
                 pass
+        started_settings = None
+        getter = getattr(runner, "started_settings", None)
+        if callable(getter):
+            try:
+                started_settings = getter()
+            except Exception:
+                started_settings = None
+        if started_settings is None:
+            started_settings = getattr(runner, "_started_settings", None)
+        run_settings = started_settings or self._settings
         # mediator 未挂载时退回 worker 记录值（与原生 update_status 同语义）。
         return {
             "state": state,
             "mode_id": getattr(runner, "mode_id", None),
             "phase": phase or str(getattr(worker, "phase", "") or ""),
             "game_count": game_count,
-            "cycle_num": max(0, int(self._settings.cycle_num)),
+            "cycle_num": max(0, int(getattr(run_settings, "cycle_num", 0) or 0)),
             "terminal_reason": str(getattr(worker, "terminal_reason", "") or ""),
             "ocr_status": str(getattr(worker, "ocr_status", "") or ""),
             "last_action": str(getattr(worker, "last_action", "") or ""),
@@ -263,6 +657,19 @@ class DashboardFacade(QObject):
     @Slot(result=str)
     def get_snapshot(self) -> str:
         return json.dumps(self._snapshot_dto(), ensure_ascii=False)
+
+    @Slot(result=str)
+    def get_bridge_info(self) -> str:
+        """Return the version handshake required before a Web bundle starts."""
+        return json.dumps(
+            {
+                "ok": True,
+                "schema_version": BRIDGE_SCHEMA_VERSION,
+                "required_methods": list(BRIDGE_REQUIRED_METHODS),
+                "required_signals": list(BRIDGE_REQUIRED_SIGNALS),
+            },
+            ensure_ascii=False,
+        )
 
     @Slot(str, result=str)
     def update_config(self, patch_json: str) -> str:
@@ -394,9 +801,30 @@ class DashboardFacade(QObject):
         enabled = desktop_may_start(mode_id)
         lock_free = not live_lock_busy(self.app_data)
         skills = list(settings.skills or [])
-        cycle_raw = settings.cycle_num
+        cycle_raw = (
+            settings.follow_cycle_num
+            if mode_id == "follow_team"
+            else settings.hitch_cycle_num
+            if mode_id == "lobby_hitch"
+            else settings.cycle_num
+        )
         cycle_ok = isinstance(cycle_raw, int) and not isinstance(cycle_raw, bool) and cycle_raw >= 0
         pair_code = settings.follow_pair_code or ""
+        permission = self._subscription_permission()
+        runtime_root_ok = self._root is None or Path(self._root).is_dir() or self._runner is not None
+        runtime_root_detail = (
+            "运行目录可用"
+            if runtime_root_ok and self._root is not None
+            else "由注入的 RunnerService 提供运行目录"
+            if self._runner is not None
+            else "启动时解析运行目录"
+        )
+        ocr_ok, ocr_detail = _ocr_preflight(settings, self._root, self._runner)
+        uipi_ok, uipi_detail = _uipi_preflight(settings, self._root, self._runner)
+        window_ok, window_detail = _target_window_preflight(
+            settings, mode_id, self._root, self._runner
+        )
+        identity_ok, identity_detail = _build_identity_preflight(self._root, self._runner)
         checks = [
             check("mode_enabled", enabled, "已验证可启动" if enabled else _blocked_reason(mode_id)),
             check("live_lock", lock_free, "live.lock 空闲" if lock_free else "live.lock 已被占用"),
@@ -405,6 +833,20 @@ class DashboardFacade(QObject):
             check("cycle_valid", cycle_ok, f"循环次数 {cycle_raw}" if cycle_ok else f"循环次数非法: {cycle_raw!r}"),
             check("follow_pair_code", len(pair_code) <= 24,
                   f"配对码 {len(pair_code)} 字符" if len(pair_code) <= 24 else "配对码超过 24 字符"),
+            check(
+                "subscription",
+                bool(permission.allowed),
+                permission.message or f"订阅状态 {permission.status}",
+            ),
+            check(
+                "runtime_root",
+                runtime_root_ok,
+                runtime_root_detail if runtime_root_ok else "运行目录不可用，无法创建 LIVE worker",
+            ),
+            check("ocr_runtime", ocr_ok, ocr_detail),
+            check("uipi", uipi_ok, uipi_detail),
+            check("target_window", window_ok, window_detail),
+            check("build_identity", identity_ok, identity_detail),
         ]
         first_fail = next((c["detail"] for c in checks if not c["ok"]), "")
         return json.dumps(self._rpc_response(
@@ -440,15 +882,30 @@ class DashboardFacade(QObject):
         if not pre["ok"]:
             return json.dumps(self._rpc_response(False, error=pre["blocked_reason"]),
                               ensure_ascii=False)
-        permission = check_start_permission()
+        permission = self._subscription_permission()
         if not permission.allowed:
             return json.dumps(self._rpc_response(
                 False, error=permission.message or "订阅未授权，无法启动",
             ), ensure_ascii=False)
-        payload = json.loads(mode_id_json) if isinstance(mode_id_json, str) and mode_id_json.strip().startswith("{") else {"mode_id": mode_id_json}
+        payload: dict[str, Any]
+        if isinstance(mode_id_json, str) and mode_id_json.strip().startswith("{"):
+            try:
+                decoded = json.loads(mode_id_json)
+            except (TypeError, ValueError):
+                decoded = {}
+            payload = decoded if isinstance(decoded, dict) else {}
+        else:
+            # The bridge normally sends {mode_id, expected_settings_revision},
+            # but accepting a bare JSON string remains part of the Slot's
+            # compatibility contract.  Do not pass the quoted wire payload
+            # through to RunnerService as a mode identifier.
+            payload = {"mode_id": self._parse_keyed(mode_id_json, "mode_id")}
         expected_rev = payload.get("expected_settings_revision")
-        if expected_rev is not None and int(expected_rev) != self._settings_revision:
-            return json.dumps(self._rpc_response(False, error=f"Settings revision mismatch: expected {expected_rev}, current {self._settings_revision}"), ensure_ascii=False)
+        if expected_rev is not None:
+            if type(expected_rev) is not int:
+                return json.dumps(self._rpc_response(False, error="expected_settings_revision 必须为 int"), ensure_ascii=False)
+            if expected_rev != self._settings_revision:
+                return json.dumps(self._rpc_response(False, error=f"Settings revision mismatch: expected {expected_rev}, current {self._settings_revision}"), ensure_ascii=False)
         mode_id = payload.get("mode_id") or self._parse_keyed(mode_id_json, "mode_id")
         runner = self._ensure_runner()
         if runner is None:
@@ -502,6 +959,24 @@ class DashboardFacade(QObject):
                 if not save_license_key(self.app_data, key):
                     return json.dumps(self._rpc_response(False, message="卡密验证成功，但本机保存失败"), ensure_ascii=False)
                 os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = key
+            self._invalidate_subscription_cache()
+            # Keep the just-validated result visible without making the next
+            # snapshot perform another network request.  ``check_start_permission``
+            # will re-probe when the user starts a run or the TTL expires.
+            if valid:
+                from shuabao.subscription_client import StartPermission
+
+                self._subscription_cache_key = self._subscription_key()
+                self._subscription_cache_at = time.monotonic()
+                self._subscription_cache = StartPermission(
+                    True,
+                    str(os.environ.get("SHUABAO_SUBSCRIPTION_MODE") or "enforce"),
+                    status=status,
+                    code=str(val.get("code") or ""),
+                    message=str(val.get("message") or ""),
+                    would_allow=True,
+                    expires_at=expires_at,
+                )
             sub = {"active": valid, "status": status, "expires_at": expires_at}
             self.snapshot_changed.emit(json.dumps(self._snapshot_dto(), ensure_ascii=False))
             return json.dumps(self._rpc_response(
@@ -518,13 +993,32 @@ class DashboardFacade(QObject):
     def _on_status_updated(self, running: bool, phase: str, game_count: int,
                            terminal_reason: str, ocr_status: str,
                            last_action: str) -> None:
-        state = RUNNER_RUNNING if running else RUNNER_IDLE
+        if running:
+            state = RUNNER_RUNNING
+        else:
+            state = RUNNER_FAILED if str(phase or "").upper() == "ERROR" else RUNNER_COMPLETE
+        runner_state = str(getattr(self._runner, "runner_state", "") or state)
+        # A queued terminal signal can arrive just before RunnerService handles
+        # QThread.finished.  Do not let the stale RUNNING/STOPPING value hide
+        # the terminal outcome in that small ordering window.
+        if not running and runner_state in {RUNNER_RUNNING, RUNNER_STARTING, RUNNER_STOPPING, RUNNER_IDLE}:
+            runner_state = state
+        started_settings = None
+        getter = getattr(self._runner, "started_settings", None)
+        if callable(getter):
+            try:
+                started_settings = getter()
+            except Exception:
+                started_settings = None
+        if started_settings is None:
+            started_settings = getattr(self._runner, "_started_settings", None)
+        run_settings = started_settings or self._settings
         dto = {
-            "state": str(getattr(self._runner, "runner_state", "") or state),
+            "state": runner_state,
             "mode_id": getattr(self._runner, "mode_id", None),
             "phase": str(phase or ""),
             "game_count": max(0, int(game_count or 0)),
-            "cycle_num": max(0, int(self._settings.cycle_num)),
+            "cycle_num": max(0, int(getattr(run_settings, "cycle_num", 0) or 0)),
             "terminal_reason": str(terminal_reason or ""),
             "ocr_status": str(ocr_status or ""),
             "last_action": str(last_action or ""),

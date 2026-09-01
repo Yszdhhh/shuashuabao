@@ -138,6 +138,7 @@ class P1B0PostGameTests(unittest.TestCase):
         transition_right_click.assert_not_called()
 
         active = load_fixture_frame("fixtures/replay/main_line_auto_on.png")
+        active_second = load_fixture_frame("fixtures/replay/main_line_auto_on.png")
         verified_at = transition_at + 0.1
         with patch("shuabao.mediator.time.time", return_value=verified_at), \
              patch.object(med, "_post_game_state", return_value=None), \
@@ -145,6 +146,20 @@ class P1B0PostGameTests(unittest.TestCase):
              patch.object(med, "act_click") as extra_click, \
              patch.object(med, "act_right_click") as extra_right_click:
             action = med._tick_main_line(active)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertFalse(med._secret_realm_active)
+        self.assertTrue(med._secret_realm_request_pending)
+        self.assertTrue(med._post_game_pending)
+        self.assertIsNotNone(med._secret_realm_entering_since)
+        extra_click.assert_not_called()
+        extra_right_click.assert_not_called()
+
+        with patch("shuabao.mediator.time.time", return_value=verified_at + 0.1), \
+             patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "_is_in_game_hud", return_value=True), \
+             patch.object(med, "act_click") as extra_click, \
+             patch.object(med, "act_right_click") as extra_right_click:
+            action = med._tick_main_line(active_second)
         self.assertEqual(action, LoopAction.Continue)
         self.assertTrue(med._secret_realm_active)
         self.assertFalse(med._secret_realm_request_pending)

@@ -1159,6 +1159,10 @@ class MainWindow(QMainWindow):
         self._runtime_phase = "IDLE"
         self._ocr_status = "未启动"
         self._last_action = ""
+        # The mode variant and settings snapshot used by the last run remain
+        # available for the terminal HUD.  Editing the form while a worker is
+        # alive must never rewrite the run that is already in flight.
+        self._started_mode_variant: str | None = None
         self.overlay_hud: OverlayHud | None = None
         self._subscription_key = str(
             os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or load_saved_license_key(self.app_data)
@@ -3617,8 +3621,71 @@ class MainWindow(QMainWindow):
             return int(self.spn_hitch_cycle_num.value())
         return int(self.spn_cycle_num.value()) if hasattr(self, "spn_cycle_num") else 0
 
+    def _runtime_settings_snapshot(self) -> Settings:
+        """Return the immutable settings snapshot owned by the last run.
+
+        ``RunnerService`` keeps this snapshot through terminal reporting.  The
+        fallback to the editable form is only for the ordinary idle state (or
+        compatibility test doubles that do not expose the helper).
+        """
+        getter = getattr(self.runner, "started_settings", None)
+        if callable(getter):
+            try:
+                snapshot = getter()
+            except Exception:
+                snapshot = None
+            if snapshot is not None:
+                return snapshot
+        snapshot = getattr(self.runner, "_started_settings", None)
+        return snapshot if snapshot is not None else self.settings
+
+    def _has_runtime_settings_snapshot(self) -> bool:
+        getter = getattr(self.runner, "started_settings", None)
+        if callable(getter):
+            try:
+                return getter() is not None
+            except Exception:
+                pass
+        return getattr(self.runner, "_started_settings", None) is not None
+
+    def _runtime_cycle_num(self) -> int:
+        settings = self._runtime_settings_snapshot()
+        mode_id = str(getattr(self.runner, "mode_id", "") or getattr(settings, "mode_id", "") or self.selected_mode_id())
+        if mode_id == "follow_team":
+            return max(0, int(getattr(settings, "follow_cycle_num", 0) or 0))
+        if mode_id == "lobby_hitch":
+            return max(0, int(getattr(settings, "hitch_cycle_num", 0) or 0))
+        return max(0, int(getattr(settings, "cycle_num", 0) or 0))
+
+    def _runtime_hud_mode_label(self) -> str:
+        variant = self._started_mode_variant if self._has_runtime_settings_snapshot() else None
+        if not variant:
+            variant = self.selected_mode_variant()
+        return {
+            "solo": "单人模式",
+            "lead": "组队带车模式",
+            "follow": "组队跟车模式",
+            "hitch": "组队蹭车模式",
+        }.get(str(variant), self.selected_hud_mode_label())
+
+    def _runtime_display_context(self) -> tuple[str, str, str, int]:
+        """Resolve target/strategy/cycle from the running snapshot, not the form."""
+        if not self._has_runtime_settings_snapshot():
+            target = self.txt_stage_target.text().strip() if hasattr(self, "txt_stage_target") else ""
+            strategy = "声望挑战" if bool(getattr(self, "cmb_mode", None) and self.cmb_mode.currentData()) else "自动推进"
+            if hasattr(self, "chk_secret_realm") and self.chk_secret_realm.isChecked():
+                strategy = "自动秘境"
+            return target, self.selected_hud_mode_label(), strategy, self._current_cycle_num()
+        settings = self._runtime_settings_snapshot()
+        targets = [str(item).strip() for item in (getattr(settings, "stage_targets", None) or []) if str(item).strip()]
+        target = targets[0] if targets else ""
+        strategy = "声望挑战" if bool(getattr(settings, "auto_reputation", False)) else "自动推进"
+        if bool(getattr(settings, "auto_secret_realm", False)):
+            strategy = "自动秘境"
+        return target, self._runtime_hud_mode_label(), strategy, self._runtime_cycle_num()
+
     def _refresh_progress(self) -> None:
-        cycle = self._current_cycle_num()
+        cycle = self._runtime_cycle_num() if self._has_runtime_settings_snapshot() else self._current_cycle_num()
         prog = progress_from_counts(self._game_count, cycle, running=self._is_running())
         self.lbl_games.setText(f"今日局数: {prog.game_count}" if prog.cycle_num <= 0 else f"今日局数: {prog.game_count}/{prog.cycle_num}")
         self.lbl_games_cap.setText(prog.label)
@@ -3641,12 +3708,7 @@ class MainWindow(QMainWindow):
         self._ocr_status = ocr_status
         self._last_action = last_action or self._last_action
         if self.overlay_hud is not None:
-            cycle = self._current_cycle_num()
-            target = self.txt_stage_target.text().strip() if hasattr(self, "txt_stage_target") else ""
-            mode = self.selected_hud_mode_label()
-            strategy = "声望挑战" if bool(self.cmb_mode.currentData()) else "自动推进"
-            if hasattr(self, "chk_secret_realm") and self.chk_secret_realm.isChecked():
-                strategy = "自动秘境"
+            target, mode, strategy, cycle = self._runtime_display_context()
             self.overlay_hud.anchor_to_target(getattr(mediator, "_last_frame", None))
             self.overlay_hud.update_status(
                 True, phase, ocr_status, self._game_count, cycle,
@@ -4015,12 +4077,7 @@ class MainWindow(QMainWindow):
             self.lbl_summary.setText(f"已停止：{reason}")
         self.lbl_run_status.setStyle(self.lbl_run_status.style())
         if self.overlay_hud is not None:
-            cycle = self._current_cycle_num()
-            target = self.txt_stage_target.text().strip() if hasattr(self, "txt_stage_target") else ""
-            mode = self.selected_hud_mode_label()
-            strategy = "声望挑战" if bool(self.cmb_mode.currentData()) else "自动推进"
-            if hasattr(self, "chk_secret_realm") and self.chk_secret_realm.isChecked():
-                strategy = "自动秘境"
+            target, mode, strategy, cycle = self._runtime_display_context()
             self.overlay_hud.update_status(
                 bool(running), self._runtime_phase, self._ocr_status,
                 self._game_count, cycle, self._terminal_reason, self._last_action,
@@ -4320,6 +4377,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.log(f"[阻断] {exc}", "error")
             return
+        self._started_mode_variant = self.selected_mode_variant()
         self.worker_thread = worker
         worker.signals.log_emitted.connect(self._on_worker_log)
         worker.signals.status_changed.connect(self.update_status)

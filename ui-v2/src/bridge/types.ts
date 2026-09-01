@@ -51,6 +51,19 @@ export interface ModeDTO {
   label: string;
   startable: boolean;
   evidence_status: string;
+  current_evidence: {
+    status: string;
+    reason: string;
+    source_sha?: string;
+    release_manifest_sha256?: string;
+    exe_sha256?: string;
+    release_manifest_path?: string;
+    exe_path?: string;
+    scenario?: string;
+    captured_at?: string;
+    evidence_bundle?: string;
+    postcondition?: string;
+  };
   badge: string;
   blocked_reason: string;
   visible_settings: string[];
@@ -103,6 +116,13 @@ export interface SnapshotDTO {
   run: RunStatusDTO;
   subscription?: SubscriptionDTO;
 }
+
+export interface BridgeInfoDTO {
+  ok: boolean;
+  schema_version: number;
+  required_methods: string[];
+  required_signals: string[];
+}
 export interface ConfigPatchResult extends RpcResponse {
   errors: string[];
   settings: SettingsDTO;
@@ -123,6 +143,7 @@ export type UnsubscribeFn = () => void;
 export type WindowLayout = "dashboard" | "chooser" | "chooser-solo" | "chooser-team";
 
 export interface DashboardBridge {
+  get_bridge_info(): Promise<BridgeInfoDTO>;
   get_snapshot(): Promise<SnapshotDTO>;
   update_config(patch: ConfigPatch): Promise<ConfigPatchResult>;
   update_shell(patch: Partial<ShellDTO>): Promise<ShellPatchResult>;
@@ -131,7 +152,7 @@ export interface DashboardBridge {
   stop_run(): Promise<RunResult>;
   window_control(action: "minimize" | "close"): Promise<RpcResponse>;
   set_window_layout(layout: WindowLayout): Promise<RpcResponse>;
-  activate_subscription?(key: string): Promise<{ ok: boolean; message: string; status?: string; expires_at?: string }>;
+  activate_subscription(key: string): Promise<{ ok: boolean; message: string; status?: string; expires_at?: string }>;
 }
 
 export interface DashboardBridgeSignals {

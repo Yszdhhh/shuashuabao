@@ -5,7 +5,11 @@
 # 并自己清楚为什么——门禁红着发版正是 8-12 连出两个紧急修复的原因。
 param(
     [switch]$SkipGate,
-    [switch]$NoDeploy
+    [switch]$NoDeploy,
+    [switch]$AllowDirty,
+    [string]$SubscriptionBaseUrl = "",
+    [ValidateSet("off", "shadow", "enforce")]
+    [string]$SubscriptionMode = "enforce"
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,6 +17,15 @@ Set-Location -LiteralPath $PSScriptRoot
 
 $APP_NAME = "刷刷宝"
 $APP_ID   = "ShuaBao"
+
+$sourceSha = (& git rev-parse HEAD).Trim()
+if (-not $sourceSha) {
+    throw "无法解析当前 Git 提交，拒绝构建。"
+}
+$initialDirtyEntries = @(& git status --porcelain --untracked-files=all)
+if ($initialDirtyEntries.Count -gt 0 -and -not $AllowDirty) {
+    throw "工作区存在未提交修改，拒绝生成正式包；如需仅用于本地诊断，请显式使用 -AllowDirty。"
+}
 
 function Get-ReleaseFileSha256([string]$Path) {
     # Get-FileHash was added after the oldest Windows PowerShell supported by
@@ -52,6 +65,25 @@ try {
 finally {
     Pop-Location
 }
+
+# Record the exact source revision that produced the Web bundle.  The bundle
+# itself is intentionally ignored by git, so this sidecar is the runtime
+# handshake that prevents a stale ui-v2/dist from being silently packaged.
+$uiDist = Join-Path $PSScriptRoot "ui-v2\dist"
+$uiIndex = Join-Path $uiDist "index.html"
+if (-not (Test-Path -LiteralPath $uiIndex -PathType Leaf)) {
+    throw "UI 构建完成但缺少 ui-v2/dist/index.html"
+}
+$uiManifest = [ordered]@{
+    schema_version       = 1
+    source_sha           = $sourceSha
+    source_tree_clean    = $true
+    index_sha256         = Get-ReleaseFileSha256 $uiIndex
+    bridge_schema_version = 2
+    generated_at_utc     = [DateTime]::UtcNow.ToString("o")
+}
+$uiManifest | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath (Join-Path $uiDist "build_manifest.json") -Encoding utf8
+Write-Host "已写入 UI 构建清单：$uiDist\build_manifest.json" -ForegroundColor DarkGray
 
 Write-Host "[0/4] 准备并校验 OCR 模型 ..." -ForegroundColor Cyan
 & $python tools\prepare_ocr_model.py
@@ -103,13 +135,67 @@ cmd.exe /c "robocopy `"$(Split-Path -Parent $ocrWorker)`" `"$workerTarget`" /E /
 if ($LASTEXITCODE -gt 7) { throw "复制 OCR worker 到发行目录失败。" }
 Write-Host "已生成：$ocrWorker" -ForegroundColor Green
 
+$releaseRoot = Join-Path $PSScriptRoot "dist\$APP_ID"
+
+# Pin the non-secret subscription deployment settings beside the executable.
+# A clean shortcut launch must not depend on the shell that happened to build
+# the package.  License material is deliberately absent; it remains DPAPI/env
+# only.  Remote endpoints must use HTTPS, while HTTP is limited to loopback.
+$subscriptionUrl = if ($SubscriptionBaseUrl.Trim()) { $SubscriptionBaseUrl.Trim() } else { "http://127.0.0.1:8000" }
+try {
+    $parsedSubscriptionUrl = [Uri]$subscriptionUrl
+    $loopbackHosts = @("127.0.0.1", "localhost", "::1")
+    if (-not $parsedSubscriptionUrl.IsAbsoluteUri -or
+        [string]::IsNullOrWhiteSpace($parsedSubscriptionUrl.Host) -or
+        $parsedSubscriptionUrl.UserInfo -or
+        ($parsedSubscriptionUrl.Scheme -eq "http" -and $loopbackHosts -notcontains $parsedSubscriptionUrl.Host.ToLowerInvariant()) -or
+        ($parsedSubscriptionUrl.Scheme -notin @("http", "https"))) {
+        throw "订阅服务地址必须使用 HTTPS 或 loopback HTTP，且不得包含凭据。"
+    }
+}
+catch {
+    throw "SubscriptionBaseUrl 无效：$($_.Exception.Message)"
+}
+$subscriptionRuntimePath = Join-Path $releaseRoot "subscription_runtime.json"
+$subscriptionRuntime = [ordered]@{
+    schema_version = 1
+    base_url = $subscriptionUrl.TrimEnd("/")
+    mode = $SubscriptionMode
+    timeout_s = 3
+}
+$subscriptionRuntime | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $subscriptionRuntimePath -Encoding utf8
+Write-Host "已写入订阅部署配置（不含卡密）：$subscriptionRuntimePath" -ForegroundColor DarkGray
+
 # A live-input capture refuses to run unless the checked-out source commit,
 # the packaged EXE and this sidecar agree. A version label alone is not a
 # build identity. Keep the sidecar beside ShuaBao.exe so robocopy deployment
 # carries the exact proof with the release.
-$sourceSha = (& git rev-parse HEAD).Trim()
 $sourceDirtyEntries = @(& git status --porcelain --untracked-files=all)
 $buildId = (& $python -c "import sys; sys.path.insert(0, 'src'); from shuabao.mediator import BUILD_ID; print(BUILD_ID)").Trim()
+$releaseManifestPath = Join-Path $releaseRoot "release_manifest.json"
+$releasePrefix = "$releaseRoot\"
+$releaseEntries = @(
+    Get-ChildItem -LiteralPath $releaseRoot -File -Recurse |
+        Where-Object {
+            $_.FullName -ne $releaseManifestPath -and
+            $_.FullName -ne (Join-Path $releaseRoot "build_identity.json")
+        } |
+        ForEach-Object {
+            [ordered]@{
+                path = $_.FullName.Substring($releasePrefix.Length).Replace("\", "/")
+                size_bytes = [int64]$_.Length
+                sha256 = Get-ReleaseFileSha256 $_.FullName
+            }
+        }
+)
+$releaseManifest = [ordered]@{
+    schema_version = 1
+    source_sha = $sourceSha
+    bridge_schema_version = 2
+    generated_at_utc = [DateTime]::UtcNow.ToString("o")
+    files = @($releaseEntries)
+}
+$releaseManifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $releaseManifestPath -Encoding utf8
 $identity = [ordered]@{
     schema_version     = 1
     source_sha         = $sourceSha
@@ -117,6 +203,8 @@ $identity = [ordered]@{
     build_id           = $buildId
     exe_name           = (Split-Path -Leaf $app)
     exe_sha256         = Get-ReleaseFileSha256 $app
+    bridge_schema_version = 2
+    release_manifest_sha256 = Get-ReleaseFileSha256 $releaseManifestPath
     created_at_utc     = [DateTime]::UtcNow.ToString("o")
 }
 $identityPath = Join-Path (Split-Path -Parent $app) "build_identity.json"
@@ -152,6 +240,29 @@ Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
 $srcDist = Join-Path $PSScriptRoot "dist\$APP_ID"
 cmd.exe /c "robocopy `"$srcDist`" `"$target`" /MIR /NJH /NJS /NFL /NDL & if %ERRORLEVEL% LEQ 7 (exit /b 0) else (exit /b %ERRORLEVEL%)" | Out-Null
 if ($LASTEXITCODE -gt 7) { throw "部署发行目录失败。" }
+
+# Post-copy proof: the shortcut target must contain the exact sidecars emitted
+# above. A partial or stale robocopy result is never accepted as a release.
+$deployedIdentityPath = Join-Path $target "build_identity.json"
+$deployedManifestPath = Join-Path $target "release_manifest.json"
+if (-not (Test-Path -LiteralPath $deployedIdentityPath) -or
+    -not (Test-Path -LiteralPath $deployedManifestPath)) {
+    throw "部署目录缺少 build_identity.json 或 release_manifest.json。"
+}
+$deployedIdentity = Get-Content -LiteralPath $deployedIdentityPath -Raw | ConvertFrom-Json
+if ($deployedIdentity.source_sha -ne $sourceSha -or
+    $deployedIdentity.release_manifest_sha256 -ne (Get-ReleaseFileSha256 $deployedManifestPath) -or
+    $deployedIdentity.source_tree_clean -ne $true) {
+    throw "部署后的构建身份校验失败，拒绝更新快捷方式。"
+}
+$deployedManifest = Get-Content -LiteralPath $deployedManifestPath -Raw | ConvertFrom-Json
+foreach ($entry in @($deployedManifest.files)) {
+    $deployedFile = Join-Path $target (([string]$entry.path).Replace("/", "\"))
+    if (-not (Test-Path -LiteralPath $deployedFile -PathType Leaf) -or
+        (Get-ReleaseFileSha256 $deployedFile) -ne ([string]$entry.sha256).ToLowerInvariant()) {
+        throw "部署文件哈希校验失败：$($entry.path)"
+    }
+}
 
 # 统一桌面单一入口快捷方式：「刷刷宝.lnk」；归档旧版本快捷方式与看板快捷方式
 $lnkName = "$APP_NAME.lnk"

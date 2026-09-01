@@ -152,6 +152,8 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_post_game_hud_confirmations": 7,
         "_pending_archive_panel_frames": 7,
         "_post_game_archive_pending_only": True,
+        "_secret_realm_hud_confirmations": 2,
+        "_secret_realm_last_hud_frame_id": 12345,
     }
 
     def _pollute(self, med: Mediator) -> None:

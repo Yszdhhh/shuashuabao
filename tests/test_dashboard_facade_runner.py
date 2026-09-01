@@ -143,6 +143,14 @@ def test_start_run_success_routes_through_runner_once(qapp, tmp_path: Path):
     assert runner.worker.started is True
 
 
+def test_start_run_accepts_bare_json_mode_string(qapp, tmp_path: Path):
+    runner = FakeRunner()
+    f = DashboardFacade(tmp_path, runner)
+    res = json.loads(f.start_run(json.dumps("normal_farm")))
+    assert res["ok"] is True
+    assert [call[0] for call in runner.start_calls] == ["normal_farm"]
+
+
 def test_start_run_refuses_an_unlicensed_dashboard(monkeypatch, qapp, tmp_path: Path):
     from shuabao.subscription_client import StartPermission
 
@@ -418,17 +426,17 @@ def test_real_runner_full_lifecycle(qapp, real_facade):
     _drain(qapp)
     assert any("[启动]" in t for t, _ in f.logs) or runner.runner_state in ("RUNNING", "STOPPING")
 
-    # stop_run：只触发停止，状态进入 STOPPING，由结束链回 IDLE。
+    # stop_run：只触发停止，状态进入 STOPPING，由结束链保留终态。
     assert json.loads(f.stop_run())["ok"] is True
     assert runner.runner_state == "STOPPING"
 
     _wait_worker_done(qapp, worker)
     assert not worker.isRunning()
-    assert runner.runner_state == "IDLE", "worker 结束必须经 release_after_finish 回 IDLE"
+    assert runner.runner_state == "COMPLETE", "worker 结束必须保留可观测终态"
     assert not live_lock_busy(runner.app_data), "结束后 live.lock 必须释放"
 
     last = f.statuses[-1]
-    assert last["state"] == "IDLE"
+    assert last["state"] == "COMPLETE"
     assert last["terminal_reason"] == "已完成指定局数"
     assert any(k == "info" and t.startswith("[结束]") for t, k in f.logs)
 
@@ -462,6 +470,25 @@ def test_runner_start_failure_releases_live_lock(tmp_path: Path, monkeypatch):
     assert not live_lock_busy(runner.app_data)
 
 
+def test_worker_structured_bootstrap_failure_is_reported_as_failed(tmp_path: Path, monkeypatch):
+    """A structured execute result must not be downgraded to COMPLETE."""
+    monkeypatch.setattr(
+        rs_module,
+        "execute_runtime_mediator",
+        lambda **_kwargs: {
+            "mediator": None,
+            "phase": "IDLE",
+            "game_count": 0,
+            "terminal_reason": "OCR不可用: worker missing",
+            "ocr_status": "不可用",
+        },
+    )
+    worker = rs_module.MediatorWorker(Settings(), tmp_path)
+    worker.run()
+    assert worker.phase == "ERROR"
+    assert worker.terminal_reason == "OCR不可用: worker missing"
+
+
 def test_runner_preserves_disabled_ocr_for_template_mode(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
     runner = RunnerService(tmp_path, tmp_path)
@@ -482,7 +509,7 @@ def test_runner_releases_lock_when_worker_finishes_without_facade(qapp, tmp_path
     try:
         worker.stop()
         _wait_worker_done(qapp, worker)
-        assert runner.runner_state == "IDLE"
+        assert runner.runner_state == "COMPLETE"
         assert not live_lock_busy(runner.app_data)
     finally:
         runner.release_after_finish()
@@ -498,5 +525,5 @@ def test_runner_stop_timeout_waits_for_worker_cleanup(qapp, tmp_path: Path, monk
     _wait_worker_done(qapp, worker)
 
     assert not worker.isRunning()
-    assert runner.runner_state == "IDLE"
+    assert runner.runner_state == "COMPLETE"
     assert not live_lock_busy(runner.app_data)

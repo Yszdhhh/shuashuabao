@@ -345,6 +345,41 @@ class DesktopPanelTests(unittest.TestCase):
         finally:
             self.window.worker_thread = None
 
+    def test_native_runtime_poll_uses_started_settings_snapshot(self):
+        """Editing the form during a run must not rewrite the HUD run facts."""
+        self.window.txt_stage_target.setText("1-10")
+        self.window.spn_follow_cycle_num.setValue(99)
+        self.window.chk_secret_realm.setChecked(False)
+        self.window.runner.mode_id = "follow_team"
+        self.window.runner._started_settings = Settings(
+            mode_id="follow_team",
+            stage_targets=["2-4"],
+            cycle_num=12,
+            follow_cycle_num=12,
+            auto_reputation=False,
+            auto_secret_realm=True,
+        )
+        self.window._started_mode_variant = "follow"
+        self.window.worker_thread = SimpleNamespace(
+            mediator=SimpleNamespace(
+                game_count=4,
+                phase="MAIN_LINE",
+                _ocr_bootstrap_health={"healthy": True},
+                _trace_actions=(),
+                _last_frame=None,
+            ),
+            isRunning=lambda: True,
+        )
+        try:
+            self.window._poll_runtime()
+            hud = self.window.overlay_hud
+            self.assertEqual("关卡 2-4", hud.target_chip.text())
+            self.assertIn("组队跟车模式", hud.detail_label.text())
+            self.assertEqual("自动秘境", hud.strategy_chip.text())
+            self.assertEqual("第 4 / 12 局", hud.round_chip.text())
+        finally:
+            self.window.worker_thread = None
+
     def test_real_entry_window_exposes_live_launch_check_and_more_settings(self):
         """启动前核对只投影真实控件与现有预检结论；更多设置真实存在且可见。"""
         self.assertIsInstance(self.window, desktop_app.MainWindow)

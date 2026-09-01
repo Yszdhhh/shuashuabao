@@ -629,6 +629,7 @@
     body[data-scene="hitch"] .footer { display: flex !important; }
     .lamp { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--p-ok); white-space: nowrap; }
     .lamp .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .lamp.pending { color: var(--warn); }
     .lamp.bad { color: var(--p-danger); }
     .primary { min-width: 128px; height: 42px; }
     .primary.stop { background: var(--p-danger); border-color: var(--p-danger); color: var(--p-on); }
@@ -1197,7 +1198,7 @@
             <button type="button" class="ghost-btn solid" id="btnMore" aria-expanded="false" aria-controls="drawer">更多设置</button>
             <span class="grow"></span>
             <span class="err-inline" id="startErr" role="alert"></span>
-            <div class="lamp" id="lamp"><span class="dot"></span><span id="lampText">预检通过</span></div>
+            <div class="lamp pending" id="lamp"><span class="dot"></span><span id="lampText">等待后端预检</span></div>
             <button type="button" class="primary" id="btnStart" data-od-id="btn-start" aria-describedby="startErr">开始运行</button>
           </footer>
           <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
@@ -1499,10 +1500,11 @@
       const advancedOrder = state.adv.map((id)=>ADV.find((item)=>item.id===id)).filter(Boolean);
       const factions = FACTIONS.filter((item)=>state.alloc[item.id]).map((item)=>`${item.short}×${state.alloc[item.id]}`);
       const current = currentSkills().filter(Boolean);
-      const launchBlocked = state.scene === "hitch" || current.length === 0;
-      const launchStatus = state.scene === "hitch"
-        ? "蹭车模式不可启动"
-        : current.length === 0 ? "请先选择技能" : "启动配置已就绪";
+      // The mode catalog and backend preflight own startability.  The inline
+      // shell must not claim that lobby-hitch is impossible or that a local
+      // skill selection is already a green preflight result.
+      const launchBlocked = current.length === 0;
+      const launchStatus = current.length === 0 ? "请先选择技能" : "等待后端预检";
       const rankedSkills = [...state.priority.filter((code)=>current.includes(code)), ...current.filter((code)=>!state.priority.includes(code))].slice(0,4);
       const detailTags = [
         `秘境 ${state.autoSecret ? "开" : "关"}`,
@@ -1639,16 +1641,15 @@
     }
     function refreshSummary() {
       const names=currentSkills().filter(Boolean).map((c)=>SKILLS[c]);
-      const hitch = state.scene==="hitch";
       const skillsReady = names.length > 0;
-      const launchable = !hitch && skillsReady;
+      const launchable = skillsReady;
       $("btnStart").disabled=!launchable;
-      $("lamp").className="lamp"+(launchable?"":" bad");
-      $("lampText").textContent=hitch?"不可启动":skillsReady?"预检通过":"待选技能";
+      $("lamp").className="lamp"+(skillsReady?" pending":" bad");
+      $("lampText").textContent=skillsReady?"等待后端预检":"待选技能";
       $("btnStart").textContent=launchable?"开始运行":"不可启动";
       $("btnStart").classList.remove("stop");
-      if (hitch || !skillsReady) {
-        $("startErr").textContent = hitch ? "蹭车只搜房，不能点火" : "请先选择至少一个技能";
+      if (!skillsReady) {
+        $("startErr").textContent = "请先选择至少一个技能";
         $("startErr").classList.add("show");
       } else {
         $("startErr").classList.remove("show");

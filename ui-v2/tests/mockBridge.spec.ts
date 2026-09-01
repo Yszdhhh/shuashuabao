@@ -4,12 +4,15 @@ import type { ModeDTO, RunStatusDTO, SnapshotDTO } from "../src/bridge/types";
 
 const RUN_STATES = ["IDLE", "STARTING", "RUNNING", "STOPPING", "COMPLETE", "FAILED"];
 const MODE_KEYS: (keyof ModeDTO)[] = [
-  "id", "label", "startable", "evidence_status", "badge", "blocked_reason", "visible_settings",
+  "id", "label", "startable", "evidence_status", "current_evidence", "badge", "blocked_reason", "visible_settings",
 ];
 const RUN_KEYS: (keyof RunStatusDTO)[] = [
   "state", "mode_id", "phase", "game_count", "cycle_num", "terminal_reason", "ocr_status", "last_action",
 ];
-const CHECK_IDS = ["mode_enabled", "live_lock", "skills_non_empty", "cycle_valid", "follow_pair_code"];
+const CHECK_IDS = [
+  "mode_enabled", "live_lock", "skills_non_empty", "cycle_valid", "follow_pair_code",
+  "subscription", "runtime_root", "ocr_runtime", "uipi", "target_window", "build_identity",
+];
 
 describe("mockBridge 形状契约", () => {
   it("get_snapshot 返回与 types.ts 一致的 SnapshotDTO", async () => {
@@ -34,7 +37,7 @@ describe("mockBridge 形状契约", () => {
     expect(RUN_STATES).toContain(snap.run.state);
   });
 
-  it("validate_preflight 返回五项 check 行且聚合 ok", async () => {
+  it("validate_preflight 返回完整 check 行且聚合 ok", async () => {
     const bridge = createMockBridge();
     const pf = await bridge.validate_preflight("lobby_hitch");
     expect(pf.checks.map((c) => c.id)).toEqual(CHECK_IDS);
@@ -43,7 +46,23 @@ describe("mockBridge 形状契约", () => {
       expect(typeof c.ok).toBe("boolean");
     }
     expect(pf.ok).toBe(pf.checks.every((c) => c.ok));
-    expect(pf.ok).toBe(false); // mode 可启动，但默认 mock 技能预检仍故意失败
+    expect(pf.ok).toBe(true); // 开发桥默认快照包含合法技能和模拟依赖
+  });
+
+  it("failure switches cover subscription/runtime readiness without changing the bridge shape", async () => {
+    const bridge = createMockBridge({ subscriptionAllowed: false, ocrReady: false });
+    const pf = await bridge.validate_preflight("normal_farm");
+    expect(pf.ok).toBe(false);
+    expect(pf.checks.find((c) => c.id === "subscription")?.ok).toBe(false);
+    expect(pf.checks.find((c) => c.id === "ocr_runtime")?.ok).toBe(false);
+    await expect(bridge.activate_subscription("test-key")).resolves.toMatchObject({ ok: false });
+  });
+
+  it("start failure remains observable as FAILED instead of silently returning idle", async () => {
+    const bridge = createMockBridge({ startFailure: "模拟 OCR 启动失败" });
+    const result = await bridge.start_run("normal_farm", 0);
+    expect(result.ok).toBe(false);
+    expect((await bridge.get_snapshot()).run).toMatchObject({ state: "FAILED", phase: "ERROR", terminal_reason: "模拟 OCR 启动失败" });
   });
 
   it("update_config 往返保留补丁字段", async () => {

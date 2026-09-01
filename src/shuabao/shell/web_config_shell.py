@@ -14,6 +14,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -46,6 +48,7 @@ except ImportError as exc:
     ) from exc
 
 from shuabao.shell.dashboard_facade import DashboardFacade
+from shuabao.shell.bridge_contract import BRIDGE_SCHEMA_VERSION
 from shuabao.shell.mode_catalog import get_spec
 from shuabao.shell.overlay_hud import OverlayHud
 from shuabao.shell.runner_service import RunnerService
@@ -75,10 +78,111 @@ def resolve_dist_index(root: Path) -> Path:
         root / "web" / "dist" / "index.html",
     ):
         if candidate.is_file():
+            _validate_dist_manifest(candidate, root)
             return candidate.resolve()
     raise FileNotFoundError(
         f"找不到 ui-v2/dist/index.html（root={root}）；请先在 ui-v2 下执行 npm run build"
     )
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _source_sha(root: Path) -> str | None:
+    candidates = [Path(root)]
+    if getattr(sys, "executable", None):
+        candidates.append(Path(sys.executable).resolve().parent)
+    if Path(root).parent not in candidates:
+        candidates.append(Path(root).parent)
+    for candidate in candidates:
+        identity = candidate / "build_identity.json"
+        try:
+            payload = json.loads(identity.read_text(encoding="utf-8"))
+            value = str(payload.get("source_sha") or "").strip()
+            if value:
+                return value
+        except (OSError, ValueError, AttributeError):
+            pass
+    if (root / ".git").exists():
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=3,
+                check=False,
+            )
+            if proc.returncode == 0:
+                value = proc.stdout.strip()
+                return value or None
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return None
+
+
+def _worktree_dirty(root: Path) -> bool:
+    """Return whether a source checkout has uncommitted files."""
+    if not (Path(root) / ".git").exists():
+        return False
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=3,
+            check=False,
+        )
+        return bool(proc.returncode == 0 and proc.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        return True
+
+
+def _validate_dist_manifest(index: Path, root: Path) -> None:
+    """Reject a stale/partial UI bundle when a build manifest is present.
+
+    Hand-built test fixtures and source checkouts without a manifest remain
+    usable; release builds always emit one.  This makes source/dist drift an
+    explicit startup failure instead of silently running yesterday's UI.
+    """
+    manifest_path = index.parent / "build_manifest.json"
+    if not manifest_path.is_file():
+        return
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"UI 构建清单无法读取: {manifest_path}") from exc
+    if not isinstance(manifest, dict) or manifest.get("schema_version") != 1:
+        raise RuntimeError(f"UI 构建清单 schema 不受支持: {manifest_path}")
+    expected_index_hash = str(manifest.get("index_sha256") or "").lower()
+    if expected_index_hash and expected_index_hash != _sha256(index).lower():
+        raise RuntimeError("UI 构建清单与 index.html 不一致，请重新 npm run build")
+    try:
+        bridge_schema = int(manifest.get("bridge_schema_version", -1))
+    except (TypeError, ValueError):
+        bridge_schema = -1
+    if bridge_schema != BRIDGE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "UI 构建产物与 Python bridge schema 不一致："
+            f"manifest={manifest.get('bridge_schema_version')} current={BRIDGE_SCHEMA_VERSION}"
+        )
+    if manifest.get("source_tree_clean") is True and _worktree_dirty(root):
+        raise RuntimeError("UI 构建清单来自干净源码，但当前 checkout 有未提交修改；请重新构建")
+    expected_source = _source_sha(root)
+    manifest_source = str(manifest.get("source_sha") or "").strip()
+    if expected_source and manifest_source and expected_source != manifest_source:
+        raise RuntimeError(
+            "UI 构建产物与当前源码提交不一致："
+            f"manifest={manifest_source[:12]} current={expected_source[:12]}"
+        )
 
 
 class LocalOnlyPage(QWebEnginePage):
@@ -141,7 +245,13 @@ class WebConfigShell(QMainWindow):
         super().__init__(parent)
         self.app_data = Path(app_data)
         self.root = Path(root) if root is not None else Path.cwd()
-        index = Path(dist_dir) / "index.html" if dist_dir else resolve_dist_index(self.root)
+        if dist_dir:
+            index = Path(dist_dir) / "index.html"
+            if not index.is_file():
+                raise FileNotFoundError(f"找不到指定 Web 构建产物：{index}")
+            _validate_dist_manifest(index, self.root)
+        else:
+            index = resolve_dist_index(self.root)
 
         self.setWindowTitle(APP_TITLE)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
@@ -267,7 +377,16 @@ class WebConfigShell(QMainWindow):
         except (TypeError, ValueError):
             return
         active = str(run.get("state") or "") in {"STARTING", "RUNNING", "STOPPING"}
-        settings = self.facade._settings
+        # The overlay describes the run that is actually executing.  User
+        # edits made while the worker is alive must not rewrite its target,
+        # mode strategy, or other launch facts; those come from the immutable
+        # RunnerService startup snapshot until the next run.
+        started_getter = getattr(self.runner, "started_settings", None)
+        try:
+            started_settings = started_getter() if callable(started_getter) else None
+        except Exception:
+            started_settings = None
+        settings = started_settings or getattr(self.runner, "_started_settings", None) or self.facade._settings
         target = (settings.stage_targets or [f"{settings.stage1}-{settings.stage2}"])[0]
         mode_id = str(run.get("mode_id") or settings.mode_id or "normal_farm")
         hud_modes = {

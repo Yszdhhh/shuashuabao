@@ -77,7 +77,11 @@ def _run(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
 
 def stage_pytest() -> StageResult:
     started = time.time()
-    code, out = _run([PYTHON, "-m", "pytest", "tests/test_live_tier_crossing_integration.py", "tests/test_mediator_equipment_fsm_integration.py", "tests/test_hero_mode_temporal.py", "tests/test_p0_security.py", "tests/test_p1_choice_fsm_contracts.py", "tests/test_dashboard_facade.py", "tests/test_dashboard_facade_runner.py", "tests/test_choice_policy.py", "tests/test_l1_cycle_recheck_merchant.py", "tests/contract", "-q", "--tb=short"])
+    # The release gate is the repository's authoritative offline check.  A
+    # hand-picked list can stay green while a newly added regression suite is
+    # red, so run the complete tests/ tree here and let pytest's exit code be
+    # the stage truth.
+    code, out = _run([PYTHON, "-m", "pytest", "tests", "-q", "--tb=short"])
     counts: dict[str, int] = {}
     for label in ("passed", "failed", "error", "xfailed", "xpassed", "skipped"):
         match = re.search(rf"(\d+) {label}", out)
@@ -108,7 +112,7 @@ def stage_frozen_replay() -> StageResult:
     return StageResult(
         name="frozen_replay",
         title="冻结端到端回放（fixtures/baselines/replay_frozen）",
-        status="PASS" if scenes else "FAIL",
+        status="PASS" if code == 0 and scenes else "FAIL",
         observed=scenes,
         detail="" if scenes else f"无法解析场景汇总（exit={code}）",
         duration_s=time.time() - started,

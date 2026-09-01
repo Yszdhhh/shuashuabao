@@ -10,7 +10,7 @@ import { normalizeAttributeValues, restoreAttributeIds } from "./strategy_codec"
 //      btnStart → validate_preflight → start_run（运行中同按钮变 stop_run）；
 //      btnMin/btnClose → window_control；run_status_changed → 徽标/进度；
 //      log_appended → 运行日志；snapshot_changed → 快照重渲染。
-import type { DashboardBridge, ModeDTO, RunStatusDTO, SettingsDTO, SnapshotDTO, StrategyDTO, WindowLayout } from "./bridge/types";
+import type { DashboardBridge, ModeDTO, PreflightDTO, RunStatusDTO, SettingsDTO, SnapshotDTO, StrategyDTO, WindowLayout } from "./bridge/types";
 
 // —— index.html 内联脚本暴露的全局（经典脚本 globalThis 绑定）——
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -80,6 +80,7 @@ let startBusy = false;
 let modeCatalog = new Map<string, ModeDTO>();
 let lastShellJson = "";
 let lastWindowLayout: WindowLayout | "" = "";
+let lastPreflight: { modeId: string; settingsRevision: number; result: PreflightDTO } | null = null;
 
 export function getBridge(): DashboardBridge | null {
   return bridge;
@@ -125,6 +126,10 @@ function afterGlobalCall(name: string, hook: () => void): void {
 
 function pushConfig(patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> }): void {
   if (!bridge || applying) return;
+  // Any settings mutation invalidates the previous backend preflight.  The
+  // launch indicator must not keep advertising a result for stale settings.
+  lastPreflight = null;
+  applyLaunchability();
   enqueueConfigPatch(patch, bridge)
     .then((res) => {
       if (!res.ok) {
@@ -250,21 +255,52 @@ function applyLaunchability(): void {
   const evidence = $("evidencePill");
   const mode = modeCatalog.get(currentModeId());
   if (evidence) {
-    const status = mode?.evidence_status?.trim() || "unknown";
-    evidence.textContent = `证据：${status}`;
-    evidence.title = mode ? `${mode.label} 证据状态：${status}` : "当前运行方式证据状态未知";
-    evidence.dataset.status = status;
+    const historical = mode?.evidence_status?.trim() || "unknown";
+    const current = mode?.current_evidence?.status?.trim() || "MISSING";
+    const reason = mode?.current_evidence?.reason?.trim() || "未提供原因";
+    const buildCheck = lastPreflight?.modeId === currentModeId()
+      ? lastPreflight.result.checks.find((check) => check.id === "build_identity")
+      : null;
+    const ocrCheck = lastPreflight?.modeId === currentModeId()
+      ? lastPreflight.result.checks.find((check) => check.id === "ocr_runtime")
+      : null;
+    evidence.textContent = `当前证据：${current}`;
+    evidence.title = mode
+      ? `${mode.label} 当前构建证据：${current}（${reason}）；历史覆盖：${historical}`
+        + (buildCheck ? `；构建身份：${buildCheck.detail}` : "")
+        + (ocrCheck ? `；OCR：${ocrCheck.detail}` : "")
+      : "当前运行方式证据状态未知";
+    evidence.dataset.status = current;
+    evidence.dataset.historicalStatus = historical;
   }
   if (runActive) return;
   const skillsReady = currentSkills().filter(Boolean).length > 0;
-  const launchable = Boolean(mode?.startable) && skillsReady;
+  const locallyLaunchable = Boolean(mode?.startable) && skillsReady;
+  const preflightCurrent = lastPreflight
+    && lastPreflight.modeId === currentModeId()
+    && lastPreflight.settingsRevision === Number(state.settings_revision ?? 0)
+    ? lastPreflight.result
+    : null;
   const button = $("btnStart") as HTMLButtonElement;
-  button.disabled = !launchable;
-  button.textContent = launchable ? "开始运行" : "不可启动";
+  // Local checks decide whether the user can request a backend preflight;
+  // only the backend result may claim that the run is actually ready.
+  button.disabled = !locallyLaunchable;
+  button.textContent = locallyLaunchable ? "开始运行" : "不可启动";
   button.classList.remove("stop");
-  $("lamp").className = "lamp" + (launchable ? "" : " bad");
-  $("lampText").textContent = launchable ? "预检通过" : (mode?.startable ? "待选技能" : "不可启动");
-  showStartErr(launchable ? "" : (mode?.blocked_reason || (skillsReady ? "后端未开放此运行方式" : "请先选择至少一个技能")));
+  const backendReady = locallyLaunchable && Boolean(preflightCurrent?.ok);
+  $("lamp").className = "lamp" + (backendReady ? "" : (locallyLaunchable ? " pending" : " bad"));
+  $("lampText").textContent = backendReady
+    ? "预检通过"
+    : (mode?.startable ? (skillsReady ? "等待后端预检" : "待选技能") : "不可启动");
+  if (!mode?.startable) {
+    showStartErr(mode?.blocked_reason || "后端未开放此运行方式");
+  } else if (!skillsReady) {
+    showStartErr("请先选择至少一个技能");
+  } else if (preflightCurrent && !preflightCurrent.ok) {
+    showStartErr(preflightCurrent.blocked_reason || "预检未通过");
+  } else {
+    showStartErr("");
+  }
 }
 
 async function startRun(): Promise<void> {
@@ -278,6 +314,12 @@ async function startRun(): Promise<void> {
 
     // §6.3：UI 先本地预检给反馈；start_run 内部还会再验一次（fail-closed）。
     const pf = await b.validate_preflight(modeId);
+    lastPreflight = {
+      modeId,
+      settingsRevision: Number(pf.settings_revision ?? state.settings_revision ?? 0),
+      result: pf,
+    };
+    applyLaunchability();
     if (!pf.ok) {
       showStartErr(pf.blocked_reason || "预检未通过");
       return;
@@ -407,6 +449,9 @@ export function applySnapshot(snap: SnapshotDTO): void {
   if (snap.snapshot_seq && snap.snapshot_seq <= lastAppliedSnapshotSeq) return;
   if (snap.snapshot_seq) lastAppliedSnapshotSeq = snap.snapshot_seq;
   if (snap.settings_revision !== undefined) {
+    if (Number(snap.settings_revision) !== Number(state.settings_revision ?? 0)) {
+      lastPreflight = null;
+    }
     state.settings_revision = snap.settings_revision;
     setSettingsRevision(snap.settings_revision);
     resetStickyFailure();
@@ -476,6 +521,11 @@ export function applySnapshot(snap: SnapshotDTO): void {
     if (roomPassword !== null) ($("roomPass") as HTMLInputElement).value = roomPassword;
     applySubscription(snap.subscription);
     rerenderAll(settings);
+    // The first snapshot is authoritative for a run that may already be
+    // STARTING/COMPLETE/FAILED.  Do not wait for a later Qt signal or the
+    // dashboard can briefly (or permanently, after a fast bootstrap failure)
+    // show the wrong lifecycle state.
+    if (snap.run) applyRunStatus(snap.run);
     applyLaunchability();
   } finally {
     applying = false;
@@ -599,7 +649,10 @@ function wireIntents(): void {
   afterGlobalCall("setScene", () => {
     syncWindowLayout(String(state.scene));
     const modeId = SCENE_TO_MODE_ID[state.scene];
-    if (modeId) pushShell({ selected_mode_id: modeId });
+    if (modeId) {
+      lastPreflight = null;
+      pushShell({ selected_mode_id: modeId });
+    }
   });
 
   // 负面效果勾选变化事件
@@ -714,9 +767,9 @@ function wireIntents(): void {
     }
     submit.disabled = true;
     try {
-      const res = await (bridge?.activate_subscription
+      const res = await (bridge
         ? bridge.activate_subscription(key)
-        : Promise.resolve({ ok: false, message: "未接入激活接口", status: "", expires_at: "" }));
+        : Promise.resolve({ ok: false, message: "后端桥接未就绪", status: "", expires_at: "" }));
       if (res && res.ok) {
         toast(res.message || "订阅激活成功！");
         applySubscription({ active: true, status: res.status || "正常", expires_at: res.expires_at || "" });

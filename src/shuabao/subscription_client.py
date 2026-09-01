@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Any
 from urllib import request as urllib_request
+from urllib.parse import urlsplit
 
 SUBSCRIPTION_MODE_ENV = "SHUABAO_SUBSCRIPTION_MODE"
 SUBSCRIPTION_BASE_URL_ENV = "SHUABAO_SUBSCRIPTION_BASE_URL"
@@ -29,6 +30,7 @@ SUBSCRIPTION_TIMEOUT_ENV = "SHUABAO_SUBSCRIPTION_TIMEOUT_S"
 VALID_MODES = {"off", "shadow", "enforce"}
 DEFAULT_LOCAL_BRIDGE_URL = "http://127.0.0.1:8000"
 _KEY_FILE_NAME = "subscription.key"
+_LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,7 @@ class StartPermission:
     code: str = ""
     message: str = ""
     would_allow: bool | None = None
+    expires_at: str = ""
 
 
 def validate_entitlement(
@@ -58,9 +61,10 @@ def validate_entitlement(
     fingerprint = _device_fingerprint(source)
     key = str(license_key or "").strip()
     if not base_url:
+        code = _base_url_error(source)
         return {
-            "valid": False, "status": "UNKNOWN", "code": "CONFIG_BASE_URL_MISSING",
-            "message": "订阅服务地址未配置",
+            "valid": False, "status": "UNKNOWN", "code": code,
+            "message": "订阅服务地址未配置" if code.endswith("MISSING") else "订阅服务地址必须使用 HTTPS 或 loopback HTTP",
         }
     if not key:
         return {
@@ -117,7 +121,14 @@ def activate_device(
     base_url = _base_url(source)
     fingerprint = _device_fingerprint(source)
     key = str(license_key or "").strip()
-    if not base_url or not key or not fingerprint:
+    if not base_url:
+        code = _base_url_error(source)
+        return {
+            "ok": False,
+            "code": code,
+            "message": "订阅服务地址未配置" if code.endswith("MISSING") else "订阅服务地址必须使用 HTTPS 或 loopback HTTP",
+        }
+    if not key or not fingerprint:
         return {"ok": False, "code": "CONFIG_MISSING", "message": "订阅服务、密钥或设备指纹未配置"}
     hardware = {
         "fingerprint": fingerprint,
@@ -143,7 +154,27 @@ def _env_text(env: Mapping[str, str], key: str) -> str:
 
 
 def _base_url(env: Mapping[str, str]) -> str:
-    return (_env_text(env, SUBSCRIPTION_BASE_URL_ENV) or DEFAULT_LOCAL_BRIDGE_URL).rstrip("/")
+    raw = _env_text(env, SUBSCRIPTION_BASE_URL_ENV) or DEFAULT_LOCAL_BRIDGE_URL
+    try:
+        parsed = urlsplit(raw)
+        host = (parsed.hostname or "").lower().rstrip(".")
+        # Credentials in a subscription URL are never needed and can leak via
+        # logs/proxies.  Plain HTTP is restricted to the local bridge; remote
+        # endpoints must use TLS.
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return ""
+        if parsed.username or parsed.password:
+            return ""
+        if parsed.scheme == "http" and host not in _LOOPBACK_HOSTS:
+            return ""
+        return raw.rstrip("/")
+    except (TypeError, ValueError):
+        return ""
+
+
+def _base_url_error(env: Mapping[str, str]) -> str:
+    configured = _env_text(env, SUBSCRIPTION_BASE_URL_ENV)
+    return "CONFIG_BASE_URL_INVALID" if configured else "CONFIG_BASE_URL_MISSING"
 
 
 def _device_fingerprint(env: Mapping[str, str]) -> str:
@@ -264,7 +295,12 @@ def check_start_permission(
     license_key = _env_text(source, SUBSCRIPTION_LICENSE_KEY_ENV)
     fingerprint = _device_fingerprint(source)
     if not base_url:
-        return _deny(mode, "CONFIG_BASE_URL_MISSING", "订阅服务地址未配置")
+        code = _base_url_error(source)
+        return _deny(
+            mode,
+            code,
+            "订阅服务地址未配置" if code.endswith("MISSING") else "订阅服务地址必须使用 HTTPS 或 loopback HTTP",
+        )
     if not license_key:
         return _deny(mode, "CONFIG_LICENSE_MISSING", "本机订阅 License Key 未配置")
     if not fingerprint:
@@ -273,7 +309,7 @@ def check_start_permission(
     payload = validate_entitlement(license_key, env=source, opener=opener)
     if payload.get("code") in {
         "CONFIG_BASE_URL_MISSING", "CONFIG_LICENSE_MISSING", "CONFIG_DEVICE_MISSING",
-        "ENTITLEMENT_UNREACHABLE", "ENTITLEMENT_MALFORMED",
+        "CONFIG_BASE_URL_INVALID", "ENTITLEMENT_UNREACHABLE", "ENTITLEMENT_MALFORMED",
     }:
         return _deny(mode, str(payload.get("code")), str(payload.get("message") or "订阅校验失败"))
     status = str(payload.get("status") or "UNKNOWN")
@@ -289,4 +325,5 @@ def check_start_permission(
         code=code,
         message=message,
         would_allow=True,
+        expires_at=str(payload.get("expires_at") or ""),
     )

@@ -685,6 +685,8 @@ class Mediator:
         self._secret_realm_entering_since: float | None = None
         self._secret_realm_confirm_attempts: int = 0
         self._secret_realm_confirm_next_observe_at: float = 0.0
+        self._secret_realm_hud_confirmations: int = 0
+        self._secret_realm_last_hud_frame_id: int | None = None
         self._secret_realm_active: bool = False
         # 传家宝/时光之穴 Boss 提前挑战（legacy GetBoss 语义移植）：
         # 有界尝试 + 冷却，防止入口残影连点；每局进入 MAIN_LINE 时重置。
@@ -4725,7 +4727,15 @@ class Mediator:
             if self._boss_challenge_attempts < 3:
                 print(f"[med] boss_entry 出现但未匹配到配置 Boss {bosses}（尝试 {self._boss_challenge_attempts}/3），零输入等待")
                 return LoopAction.Continue
-            fallback = self._last_visible_boss_hit(frame)
+            # The old broad fallback scanned the entire frame after three
+            # misses.  That can mistake a live HUD sprite for a post-game card
+            # and click outside the classified challenge list.  Final fallback
+            # is authorized only on an already classified archive/heirloom
+            # page; normal in-game misses remain observation-only.
+            if compact_roi is None:
+                print("[med] 非战后页面配置 Boss 连续未识别，禁止全帧兜底，零输入等待")
+                return LoopAction.Continue
+            fallback = self._find_last_recognized_post_game_boss(frame, post_game)
             if fallback is None:
                 print("[med] 配置 Boss 不可见，且未找到可验证的最后一个 Boss，零输入等待")
                 return LoopAction.Continue
@@ -5842,6 +5852,8 @@ class Mediator:
             self._secret_realm_entering_since = None
             self._secret_realm_confirm_attempts = 0
             self._secret_realm_confirm_next_observe_at = 0.0
+            self._secret_realm_hud_confirmations = 0
+            self._secret_realm_last_hud_frame_id = None
             self._secret_realm_active = False
             self._boss_challenge_attempts = 0
             self._boss_challenge_scroll_attempts = 0
@@ -8567,10 +8579,69 @@ class Mediator:
             if self._tick_reason is None:
                 self._tick_reason = "incident_write"
 
+    def _observe_secret_realm_entry(self, frame: Frame, now: float, post_game: str | None) -> LoopAction:
+        """Observe the post-confirmation transition without granting input.
+
+        A single HUD-looking frame is not enough to prove that the great-rift
+        confirmation actually entered a new round.  The pending post-game
+        route stays latched until two distinct ``no post-game + HUD`` frames
+        arrive.  Any modal/UNKNOWN/interruption frame resets that latch.
+        """
+        started = self._secret_realm_entering_since
+        if started is None:
+            return LoopAction.Continue
+        elapsed = now - started
+        timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
+        if now < self._secret_realm_confirm_next_observe_at:
+            print("[med] 等待大秘境局内 HUD（零动作）")
+            return LoopAction.Continue
+
+        frame_id = id(frame)
+        if (
+            post_game is not None
+            or not self._post_game_pending
+            or not self._is_in_game_hud(frame)
+        ):
+            self._secret_realm_hud_confirmations = 0
+            self._secret_realm_last_hud_frame_id = frame_id
+        elif frame_id != self._secret_realm_last_hud_frame_id:
+            self._secret_realm_last_hud_frame_id = frame_id
+            self._secret_realm_hud_confirmations += 1
+
+        if self._secret_realm_hud_confirmations >= 2:
+            self._secret_realm_active = True
+            self._secret_realm_request_pending = False
+            self._secret_realm_request_since = None
+            self._secret_realm_request_attempts = 0
+            self._secret_realm_next_observe_at = 0.0
+            self._secret_realm_entering_since = None
+            self._secret_realm_confirm_attempts = 0
+            self._secret_realm_hud_confirmations = 0
+            self._secret_realm_last_hud_frame_id = None
+            self._post_game_pending = False
+            self._post_game_close_attempts = 0
+            self._post_game_route = "secret"
+            self._victory_continue_attempts = 0
+            self._victory_continue_since = None
+            self._round_started_at = now
+            self._round_deadline = now + self.settings.round_timeout_s
+            self._main_line_since = now
+            print("[med] 大秘境局内 HUD 连续两帧确认，恢复局内循环；失败后沿原退出重开链处理")
+            return LoopAction.Continue
+
+        if elapsed >= timeout:
+            print("[med] 大秘境确认后未出现连续局内 HUD，Fail-Closed 停止运行")
+            self.set_phase(Phase.ERROR, "great rift entry verification timeout")
+            self.stop()
+            return LoopAction.Break
+        print("[med] 大秘境载入中，等待连续局内 HUD（零动作）")
+        return LoopAction.Continue
+
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
+        secret_entry_observation = self._secret_realm_entering_since is not None
 
-        if self._hitch_enabled():
+        if not secret_entry_observation and self._hitch_enabled():
             event = classify_hitch_ocr(self._hitch_ocr_text())
             if event:
                 return self._hitch_reset_lobby(event, now)
@@ -8594,14 +8665,14 @@ class Mediator:
                 elif self._pending_action.target_id == "equipment_upgrade" or self._pending_action.kind == "EQUIPMENT_UPGRADE":
                     self._equipment_pending_until = now + 1.0
                 self._pending_action = None
-        if self._round_deadline is not None and now >= self._round_deadline:
+        if not secret_entry_observation and self._round_deadline is not None and now >= self._round_deadline:
             print(f"[med] round hard deadline 到期（{self.settings.round_timeout_s}s），记录 TIMEOUT 并转 QUIT")
             self._record_round_outcome(RoundOutcome.TIMEOUT, "round deadline")
             self._record_round_timeout_incident()
             self.invalidate_evidence("round-deadline")
             self.set_phase(Phase.QUIT, "round deadline expired")
             return LoopAction.Continue
-        fail_gift = self._find_failure_gift(frame)
+        fail_gift = None if secret_entry_observation else self._find_failure_gift(frame)
         if fail_gift is not None:
             print(f"[med] 拦截到失败结算奖励弹窗 @ {fail_gift.center}，点击关闭")
             self.act_click(fail_gift, "DismissFailureReward")
@@ -8613,6 +8684,12 @@ class Mediator:
         # 战后页面优先于一切局内动作。胜利后只允许以下专用链：
         # 继续游戏 → 关闭存档面板（如出现）→ NPC 广场 → 局内退出。
         post_game = self._post_game_state(frame)
+        # Once the great-rift “是” click is accepted, every subsequent frame
+        # is observation-only until the dedicated two-frame HUD postcondition
+        # below is proven.  This guard must precede all post-game handlers so
+        # an unexpected modal cannot trigger a second click.
+        if self._secret_realm_entering_since is not None:
+            return self._observe_secret_realm_entry(frame, now, post_game)
         if post_game == "ARCHIVE_PANEL" and self._post_game_archive_pending_only:
             self._pending_archive_panel_frames += 1
             if self._pending_archive_panel_frames < 2:
@@ -8927,6 +9004,8 @@ class Mediator:
                 self._secret_realm_confirm_next_observe_at = now + self.settings.ui_action_interval_s
                 if self.act_click(accept_hit, "ConfirmGreatRift"):
                     self._secret_realm_entering_since = now
+                    self._secret_realm_hud_confirmations = 0
+                    self._secret_realm_last_hud_frame_id = None
                     self._main_line_since = now
                 return LoopAction.Continue
 
@@ -8950,40 +9029,6 @@ class Mediator:
             self.set_phase(Phase.ERROR, f"unverified post-game page {post_game}")
             self.stop()
             return LoopAction.Break
-
-        # 点击“是”后只观察页面变化；确认框消失且重新检测到局内 HUD，才允许
-        # 恢复 G/F/V 等局内循环。失败时仍由全局强失败抢占进入原有退出重开链。
-        if self._secret_realm_entering_since is not None:
-            elapsed = now - self._secret_realm_entering_since
-            timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
-            if now < self._secret_realm_confirm_next_observe_at:
-                print("[med] 等待大秘境局内 HUD（零动作）")
-                return LoopAction.Continue
-            if self._is_in_game_hud(frame):
-                self._secret_realm_active = True
-                self._secret_realm_request_pending = False
-                self._secret_realm_request_since = None
-                self._secret_realm_request_attempts = 0
-                self._secret_realm_next_observe_at = 0.0
-                self._secret_realm_entering_since = None
-                self._secret_realm_confirm_attempts = 0
-                self._post_game_pending = False
-                self._post_game_close_attempts = 0
-                self._post_game_route = "secret"
-                self._victory_continue_attempts = 0
-                self._victory_continue_since = None
-                self._round_started_at = now
-                self._round_deadline = now + self.settings.round_timeout_s
-                self._main_line_since = now
-                print("[med] 大秘境局内 HUD 已确认，恢复局内循环；失败后沿原退出重开链处理")
-                return LoopAction.Continue
-            if elapsed >= timeout:
-                print("[med] 大秘境确认后未出现局内 HUD，Fail-Closed 停止运行")
-                self.set_phase(Phase.ERROR, "great rift entry verification timeout")
-                self.stop()
-                return LoopAction.Break
-            print("[med] 大秘境载入中，等待局内 HUD（零动作）")
-            return LoopAction.Continue
 
         # 已过 5-5 且 tqtz 出现时，提前挑战是游戏内最高优先级。
         early_res = self._maybe_click_tqtz(frame, now)

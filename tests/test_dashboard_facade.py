@@ -35,6 +35,7 @@ from shuabao.mediator import Mediator
 from shuabao.shell.dashboard_facade import (
     PREFLIGHT_CHECK_IDS,
     DashboardFacade,
+    _mode_evidence,
 )
 
 EXPECTED_SLOTS = {
@@ -47,6 +48,7 @@ EXPECTED_SLOTS = {
     "start_run",
     "stop_run",
     "activate_subscription",
+    "get_bridge_info",
 }
 EXPECTED_SIGNALS = {"snapshot_changed", "run_status_changed", "log_appended"}
 ROOT = Path(__file__).resolve().parents[1]
@@ -130,9 +132,71 @@ def test_snapshot_shape_strips_denylist(qapp, tmp_path: Path):
     assert snap["shell"]["selected_mode_id"]
     assert snap["modes"], "modes 数组不得为空"
     for m in snap["modes"]:
-        assert set(m) == {"id", "label", "startable", "evidence_status", "badge",
+        assert set(m) == {"id", "label", "startable", "evidence_status", "current_evidence", "badge",
                           "blocked_reason", "visible_settings"}
+        assert m["current_evidence"]["status"] in {"PASS", "BLOCKED", "MISSING", "STALE"}
     assert snap["run"]["state"] == "IDLE"
+
+
+def test_bridge_info_exposes_versioned_required_surface(qapp, tmp_path: Path):
+    f = DashboardFacade(tmp_path)
+    info = json.loads(f.get_bridge_info())
+    assert info["ok"] is True
+    assert info["schema_version"] == 2
+    assert "activate_subscription" in info["required_methods"]
+    assert "get_bridge_info" in info["required_methods"]
+    assert set(info["required_signals"]) == EXPECTED_SIGNALS
+
+
+def test_snapshot_does_not_probe_subscription_network_before_preflight(monkeypatch, qapp, tmp_path: Path):
+    calls = 0
+
+    def fail_probe():
+        nonlocal calls
+        calls += 1
+        raise AssertionError("snapshot painting must not perform entitlement I/O")
+
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_LICENSE_KEY", "cached-key")
+    monkeypatch.setattr("shuabao.shell.dashboard_facade.check_start_permission", fail_probe)
+    f = DashboardFacade(tmp_path)
+    assert json.loads(f.get_snapshot())["subscription"]["status"] == "待校验"
+    assert calls == 0
+
+
+def test_current_pass_evidence_requires_matching_release_artifacts(tmp_path: Path):
+    """A green evidence label cannot outlive its manifest or EXE bytes."""
+    import hashlib
+
+    package = tmp_path / "dist" / "ShuaBao"
+    package.mkdir(parents=True)
+    exe = package / "ShuaBao.exe"
+    exe.write_bytes(b"current-exe")
+    manifest = package / "release_manifest.json"
+    manifest.write_text(
+        json.dumps({"schema_version": 1, "source_sha": "source-a", "files": []}),
+        encoding="utf-8",
+    )
+    config = tmp_path / "config"
+    config.mkdir()
+    config.joinpath("mode_evidence.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "modes": {
+                    "normal_farm": {
+                        "status": "PASS",
+                        "source_sha": "source-a",
+                        "release_manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                        "exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    evidence = _mode_evidence("normal_farm", tmp_path)
+    assert evidence["status"] == "STALE"
+    assert "发行清单" in evidence["reason"]
 
 
 # ---------------------------------------------------------------- update_config

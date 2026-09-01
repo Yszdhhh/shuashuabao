@@ -185,16 +185,17 @@ class P0C1FixesTests(unittest.TestCase):
             self.assertEqual(self.med.phase, Phase.MAIN_LINE)
             mock_act_click.assert_not_called()
 
-    def test_missing_configured_boss_uses_last_visible_template_fallback(self):
+    def test_missing_configured_boss_stays_zero_input_outside_classified_post_game(self):
         self.med = Mediator(replace(self.settings, cjb_boss="不存在的 Boss"), ROOT)
         frame = create_dummy_frame()
         fallback = MatchResult(name="20鲁克玛", score=0.95, x=800, y=400, w=60, h=60, screen_x=800, screen_y=400)
         self.med._boss_challenge_attempts = 2
-        with patch.object(self.med, "find", return_value=None), \
+        with patch.object(self.med, "_post_game_state", return_value=None), \
+             patch.object(self.med, "find", return_value=None), \
              patch.object(self.med, "_last_visible_boss_hit", return_value=fallback), \
              patch.object(self.med, "act_click", return_value=True) as click:
             self.assertEqual(self.med._maybe_challenge_configured_boss(frame, 100.0), LoopAction.Continue)
-        self.assertEqual(click.call_args.args[1], "BossLastVisibleFallback")
+        click.assert_not_called()
 
         # longzhu：仅在 LONGZHU 阶段检查并 Fail-Closed（MAIN_LINE 不再每 tick 扫）
         self.med = Mediator(self.settings, ROOT)

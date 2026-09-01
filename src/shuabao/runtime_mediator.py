@@ -43,6 +43,12 @@ class Mediator(CoreMediator):
         self._runtime_panel_unknown_signature: tuple[str, int] | None = None
         self._runtime_panel_unknown_since: float | None = None
         self._last_runtime_progress_at: float = time.time()
+        # The watchdog may observe a stable in-game HUD, but it must never
+        # treat an UNKNOWN/transition frame as permission to send a key.  Keep
+        # a small consecutive-frame latch separate from the core FSM evidence
+        # cache so an interrupted episode is always re-armed from zero.
+        self._runtime_watchdog_hud_confirmations: int = 0
+        self._runtime_watchdog_last_frame_id: int | None = None
 
         # Prevent the generic core constructor from creating a legacy-compatible
         # OCR client. LIVE replaces it with the ShuaBao-only production client
@@ -80,6 +86,8 @@ class Mediator(CoreMediator):
         self._physical_panel_deadline_s = max(30.0, min(60.0, episode_deadline * 2.5))
         self._l1_cycle_index = 0
         self._last_runtime_progress_at = time.time()
+        self._runtime_watchdog_hud_confirmations = 0
+        self._runtime_watchdog_last_frame_id = None
 
     # ------------------------------------------------------------------
     # LIVE dependency bootstrap.
@@ -234,21 +242,64 @@ class Mediator(CoreMediator):
             return False
         return True
 
+    def _runtime_watchdog_hud_confirmed(self, frame) -> bool:
+        """Require two distinct, uninterrupted frames of a known HUD.
+
+        This guard is deliberately observation-only.  A post-game page, an
+        unresolved transition, or a frame that is not independently recognized
+        as the in-game HUD clears the latch and grants no watchdog input.
+        """
+        frame_id = id(frame)
+        if frame_id == self._runtime_watchdog_last_frame_id:
+            return self._runtime_watchdog_hud_confirmations >= 2
+        self._runtime_watchdog_last_frame_id = frame_id
+
+        if getattr(self, "_post_game_pending", False):
+            self._runtime_watchdog_hud_confirmations = 0
+            return False
+        try:
+            if self._post_game_state(frame) is not None or not self._is_in_game_hud(frame):
+                self._runtime_watchdog_hud_confirmations = 0
+                return False
+        except Exception:
+            # A classifier failure is equivalent to UNKNOWN for a safety
+            # watchdog: never convert an exception into an input authority.
+            self._runtime_watchdog_hud_confirmations = 0
+            return False
+
+        self._runtime_watchdog_hud_confirmations += 1
+        return self._runtime_watchdog_hud_confirmations >= 2
+
     def _tick_main_line(self, frame):
         now = time.time()
-        if self._runtime_watchdog_allowed(now):
-            stagnant_for = now - float(getattr(self, "_last_runtime_progress_at", now) or now)
-            if stagnant_for >= self._RUNTIME_STALL_TIMEOUT_S:
-                print(
-                    f"[med] LIVE 活性看门狗：{stagnant_for:.1f}s 无真实输入/确认进展，"
-                    "ESC 脱困并推进主循环"
-                )
-                self.act_key("escape", "RuntimeWatchdog-EscUnstuck")
-                self._advance_l1_cycle()
-                self._main_line_since = now
-                self._mark_runtime_progress(now)
-                return LoopAction.Continue
-        return super()._tick_main_line(frame)
+        hud_confirmed = self._runtime_watchdog_hud_confirmed(frame)
+
+        # Core arbitration always runs first.  In particular, black/UNKNOWN
+        # frames must still reach the normal zero-input path instead of being
+        # swallowed by a liveness shortcut.
+        result = super()._tick_main_line(frame)
+        if getattr(self, "_tick_input_executed", False):
+            self._runtime_watchdog_hud_confirmations = 0
+            self._mark_runtime_progress(now)
+            return result
+        if not hud_confirmed or not self._runtime_watchdog_allowed(now):
+            return result
+
+        stagnant_for = now - float(getattr(self, "_last_runtime_progress_at", now) or now)
+        if stagnant_for < self._RUNTIME_STALL_TIMEOUT_S:
+            return result
+
+        print(
+            f"[med] LIVE 活性看门狗：{stagnant_for:.1f}s 无真实输入/确认进展，"
+            "在连续 HUD 证据上发送一次 ESC，等待下一帧后置确认"
+        )
+        # ESC is a bounded observation recovery only.  Do not advance the L1
+        # cycle in the same tick: the next fresh frame must let the core FSM
+        # prove the page mutation/ownership before any cycle transition.
+        if self.act_key("escape", "RuntimeWatchdog-EscUnstuck"):
+            self._main_line_since = now
+            self._mark_runtime_progress(now)
+        return LoopAction.Continue
 
     # ------------------------------------------------------------------
     # Physical panel liveness across core episode resets.

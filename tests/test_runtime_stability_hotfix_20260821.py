@@ -162,6 +162,58 @@ def test_runtime_watchdog_is_independent_from_core_main_line_since():
     ) as core, patch.object(m, "_post_game_state", return_value=None):
         result = m._tick_main_line(frame())
     assert result is LoopAction.Continue
+    # A black/UNKNOWN frame is not HUD evidence: core arbitration still runs,
+    # and the watchdog must not send a key or advance the L1 cycle.
+    key.assert_not_called()
+    advance.assert_not_called()
+    core.assert_called_once()
+
+
+def test_runtime_watchdog_requires_two_stable_hud_frames_and_never_advances_cycle():
+    m = med()
+    m.phase = Phase.MAIN_LINE
+    m.settings.pre_wave_protection = False
+    m.settings.dry_run = False
+    m._panel_state = PanelState.CLOSED
+    m._post_game_pending = False
+    m._pending_action = None
+    m._last_runtime_progress_at = 10.0
+    with patch("shuabao.runtime_mediator.time.time", return_value=30.5), patch.object(
+        m, "act_key", return_value=True
+    ) as key, patch.object(m, "_advance_l1_cycle") as advance, patch.object(
+        CoreMediator, "_tick_main_line", return_value=LoopAction.Continue
+    ) as core, patch.object(m, "_post_game_state", return_value=None), patch.object(
+        m, "_is_in_game_hud", return_value=True
+    ):
+        first = m._tick_main_line(frame())
+        second = m._tick_main_line(frame())
+
+    assert first is LoopAction.Continue
+    assert second is LoopAction.Continue
     key.assert_called_once_with("escape", "RuntimeWatchdog-EscUnstuck")
-    advance.assert_called_once()
-    core.assert_not_called()
+    advance.assert_not_called()
+    assert core.call_count == 2
+
+
+def test_runtime_watchdog_hud_latch_resets_after_interruption():
+    m = med()
+    m.phase = Phase.MAIN_LINE
+    m.settings.pre_wave_protection = False
+    m.settings.dry_run = False
+    m._panel_state = PanelState.CLOSED
+    m._post_game_pending = False
+    m._pending_action = None
+    m._last_runtime_progress_at = 10.0
+    with patch("shuabao.runtime_mediator.time.time", return_value=30.5), patch.object(
+        m, "act_key", return_value=True
+    ) as key, patch.object(
+        CoreMediator, "_tick_main_line", return_value=LoopAction.Continue
+    ), patch.object(m, "_post_game_state", return_value=None), patch.object(
+        m, "_is_in_game_hud", side_effect=[True, False, True]
+    ):
+        m._tick_main_line(frame())
+        m._tick_main_line(frame())
+        m._tick_main_line(frame())
+
+    # Only one HUD frame follows the interruption, so no watchdog input.
+    key.assert_not_called()

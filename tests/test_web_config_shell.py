@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
 import sys
@@ -211,6 +212,27 @@ def test_desktop_web_launcher_defaults_to_isolated_app_data():
     assert "SHUABAO_APP_DATA" in text
     assert "ShuaBaoWeb" in text
     assert 'If appData = "" Then' in text
+
+
+def test_frozen_entry_loads_non_secret_subscription_sidecar(monkeypatch, tmp_path):
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps({"schema_version": 1, "base_url": "https://license.example", "mode": "enforce", "timeout_s": 2}),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_BASE_URL", raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_MODE", raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_TIMEOUT_S", raising=False)
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "https://license.example"
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+    assert os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] == "2"
 
 
 # ---------------------------------------------------- QWebChannel 唯一注册（§6.1）
@@ -426,6 +448,37 @@ def test_resolve_dist_index_dev_then_packaged(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         resolve_dist_index(tmp_path / "nowhere")
+
+
+def test_resolve_dist_index_rejects_stale_manifest(tmp_path):
+    dist = tmp_path / "ui-v2" / "dist"
+    dist.mkdir(parents=True)
+    index = dist / "index.html"
+    index.write_text("<html>current</html>", encoding="utf-8")
+    (dist / "build_manifest.json").write_text(json.dumps({
+        "schema_version": 1,
+        "source_sha": "source-a",
+        "index_sha256": "0" * 64,
+    }), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="index.html"):
+        resolve_dist_index(tmp_path)
+
+
+def test_resolve_dist_index_rejects_source_sha_mismatch(tmp_path):
+    dist = tmp_path / "ui-v2" / "dist"
+    dist.mkdir(parents=True)
+    index = dist / "index.html"
+    index.write_text("<html>current</html>", encoding="utf-8")
+    digest = hashlib.sha256(index.read_bytes()).hexdigest()
+    (tmp_path / "build_identity.json").write_text(json.dumps({"source_sha": "current-sha"}), encoding="utf-8")
+    (dist / "build_manifest.json").write_text(json.dumps({
+        "schema_version": 1,
+        "source_sha": "stale-sha",
+        "index_sha256": digest,
+        "bridge_schema_version": 2,
+    }), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="源码提交不一致"):
+        resolve_dist_index(tmp_path)
 
 
 def test_missing_webengine_raises_loudly(monkeypatch):

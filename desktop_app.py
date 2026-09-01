@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 from pathlib import Path
 
 from PySide6.QtCore import QLockFile
@@ -46,6 +47,42 @@ from shuabao.shell.runner_service import (  # noqa: E402
 _INSTANCE_LOCK: QLockFile | None = None
 
 
+def _load_packaged_subscription_config(root: Path) -> None:
+    """Load non-secret subscription deployment settings from a release sidecar.
+
+    The license key remains DPAPI/env-only.  A release may pin the service
+    URL and mode beside the executable so a clean shortcut launch does not
+    depend on whichever shell happened to build it; explicit environment
+    variables still take precedence for diagnostics and controlled pilots.
+    """
+    if not getattr(sys, "frozen", False):
+        return
+    candidates = (
+        Path(sys.executable).resolve().parent / "subscription_runtime.json",
+        Path(root) / "subscription_runtime.json",
+    )
+    payload = None
+    for path in candidates:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(data, dict) and data.get("schema_version") == 1:
+            payload = data
+            break
+    if payload is None:
+        return
+    endpoint = str(payload.get("base_url") or "").strip()
+    mode = str(payload.get("mode") or "").strip().lower()
+    timeout = str(payload.get("timeout_s") or "").strip()
+    if endpoint and "SHUABAO_SUBSCRIPTION_BASE_URL" not in os.environ:
+        os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = endpoint
+    if mode and "SHUABAO_SUBSCRIPTION_MODE" not in os.environ:
+        os.environ["SHUABAO_SUBSCRIPTION_MODE"] = mode
+    if timeout and "SHUABAO_SUBSCRIPTION_TIMEOUT_S" not in os.environ:
+        os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] = timeout
+
+
 def _handle_unhandled_exception(exc_type, exc_value, exc_traceback):
     LOGGER.error("未处理异常", exc_info=(exc_type, exc_value, exc_traceback))
     QMessageBox.critical(
@@ -58,6 +95,7 @@ def _handle_unhandled_exception(exc_type, exc_value, exc_traceback):
 def main():
     global _INSTANCE_LOCK
     # 正式桌面入口必须校验订阅；测试/诊断可显式设置 off 或 shadow。
+    _load_packaged_subscription_config(ROOT)
     had_subscription_mode = "SHUABAO_SUBSCRIPTION_MODE" in os.environ
     os.environ.setdefault("SHUABAO_SUBSCRIPTION_MODE", "enforce")
     app = QApplication(sys.argv)
