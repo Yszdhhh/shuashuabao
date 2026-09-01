@@ -29,10 +29,12 @@ if ($isExternalChannel) {
 $subscriptionUrlInput = $SubscriptionBaseUrl.Trim()
 function Test-HostIsLoopback([string]$UrlHost) {
     # 按地址语义判定整个回环段：127.0.0.0/8、::1 —— 精确主机名列表会漏掉
-    # 127.0.0.2 这类同段地址。非 IP 主机名（如 localhost）按名称处理。
-    if ($UrlHost -eq "localhost") { return $true }
+    # 127.0.0.2 这类同段地址。非 IP 主机名（如 localhost 的 FQDN 尾点形式
+    # "localhost."、大小写变体）先归一化：TrimEnd('.') + ToLowerInvariant。
+    $normalizedHost = $UrlHost.TrimEnd('.').ToLowerInvariant()
+    if ($normalizedHost -eq "localhost") { return $true }
     $ip = $null
-    if ([System.Net.IPAddress]::TryParse($UrlHost.Trim("[]"), [ref]$ip)) {
+    if ([System.Net.IPAddress]::TryParse($normalizedHost.Trim("[]"), [ref]$ip)) {
         return [System.Net.IPAddress]::IsLoopback($ip)
     }
     return $false

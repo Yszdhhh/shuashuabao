@@ -134,6 +134,15 @@ def test_external_loopback_rejection_covers_full_loopback_range() -> None:
     assert '"localhost"' in text, "非 IP 主机名 localhost 必须按名称语义显式处理"
 
 
+
+def test_external_loopback_rejection_covers_trailing_dot_names() -> None:
+    # 复审 P1：精确比较 "localhost" 时，https://localhost. （FQDN 尾点形式）
+    # 会在 TryParse 失败后 return $false，错误放行 external。名称判断必须
+    # 先 TrimEnd('.') + ToLowerInvariant 再比较。
+    text = _build_script_text()
+    assert "TrimEnd('.')" in text
+    assert "ToLowerInvariant()" in text
+
 def test_dev_channel_keeps_loopback_default_and_switches() -> None:
     text = _build_script_text()
     assert text.count('"http://127.0.0.1:8000"') == 1, "loopback 默认值只能留在 dev/internal-pilot 分支"
