@@ -264,14 +264,34 @@ function applyLaunchability(): void {
     const ocrCheck = lastPreflight?.modeId === currentModeId()
       ? lastPreflight.result.checks.find((check) => check.id === "ocr_runtime")
       : null;
+    const identity = mode?.current_evidence;
+    const identityDetail = [
+      identity?.source_sha ? `source_sha=${identity.source_sha}` : "",
+      identity?.release_manifest_sha256 ? `manifest_sha256=${identity.release_manifest_sha256}` : "",
+      identity?.exe_sha256 ? `exe_sha256=${identity.exe_sha256}` : "",
+      identity?.bridge_schema_version ? `bridge_schema=${identity.bridge_schema_version}` : "",
+      identity?.ocr_model_sha256 ? `ocr_model_sha256=${identity.ocr_model_sha256}` : "",
+    ].filter(Boolean).join("；");
     evidence.textContent = `当前证据：${current}`;
     evidence.title = mode
       ? `${mode.label} 当前构建证据：${current}（${reason}）；历史覆盖：${historical}`
+        + (identityDetail ? `；当前构建身份：${identityDetail}` : "")
         + (buildCheck ? `；构建身份：${buildCheck.detail}` : "")
         + (ocrCheck ? `；OCR：${ocrCheck.detail}` : "")
       : "当前运行方式证据状态未知";
     evidence.dataset.status = current;
     evidence.dataset.historicalStatus = historical;
+    const identityPill = $("identityPill");
+    if (identityPill) {
+      const sourceShort = identity?.source_sha?.slice(0, 12) || "";
+      const manifestShort = identity?.release_manifest_sha256?.slice(0, 12) || "";
+      const modelShort = identity?.ocr_model_sha256?.slice(0, 12) || "";
+      identityPill.textContent = sourceShort
+        ? `构建 ${sourceShort} · 清单 ${manifestShort || "待补"} · 桥${identity?.bridge_schema_version || "?"} · OCR ${modelShort || "待补"}`
+        : "构建身份：待预检";
+      identityPill.title = identityDetail || buildCheck?.detail || "后端预检后显示 source_sha、整包 manifest、EXE、桥接和 OCR 模型哈希";
+      identityPill.dataset.status = buildCheck?.ok === false ? "FAIL" : (identityDetail ? "READY" : "PENDING");
+    }
   }
   if (runActive) return;
   const skillsReady = currentSkills().filter(Boolean).length > 0;

@@ -233,6 +233,15 @@ def test_frozen_entry_loads_non_secret_subscription_sidecar(monkeypatch, tmp_pat
     assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "https://license.example"
     assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
     assert os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] == "2"
+    # The function intentionally writes process-level deployment settings;
+    # explicitly undo them so this test remains isolated when desktop tests
+    # are selected together in a different order.
+    for name in (
+        "SHUABAO_SUBSCRIPTION_BASE_URL",
+        "SHUABAO_SUBSCRIPTION_MODE",
+        "SHUABAO_SUBSCRIPTION_TIMEOUT_S",
+    ):
+        os.environ.pop(name, None)
 
 
 # ---------------------------------------------------- QWebChannel 唯一注册（§6.1）

@@ -108,6 +108,56 @@ def _current_source_sha(root: Path | None) -> str:
     return ""
 
 
+def _build_identity_metadata(root: Path | None) -> dict[str, str]:
+    """Read non-secret build identity fields for the dashboard evidence header."""
+    base = Path(root) if root is not None else Path.cwd()
+    candidates = [base]
+    if getattr(sys, "executable", None):
+        candidates.append(Path(sys.executable).resolve().parent)
+    if base.parent not in candidates:
+        candidates.append(base.parent)
+    for candidate in candidates:
+        identity_path = candidate / "build_identity.json"
+        try:
+            payload = json.loads(identity_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        metadata = {
+            "source_sha": str(payload.get("source_sha") or "").strip(),
+            "release_manifest_sha256": str(payload.get("release_manifest_sha256") or "").strip().lower(),
+            "exe_sha256": str(payload.get("exe_sha256") or "").strip().lower(),
+            "bridge_schema_version": str(payload.get("bridge_schema_version") or "").strip(),
+            "ocr_model_sha256": str(payload.get("ocr_model_manifest_sha256") or "").strip().lower(),
+        }
+        manifest_path = identity_path.parent / "release_manifest.json"
+        if manifest_path.is_file():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                manifest = None
+            if isinstance(manifest, dict):
+                if not metadata["release_manifest_sha256"]:
+                    try:
+                        metadata["release_manifest_sha256"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest().lower()
+                    except OSError:
+                        pass
+                if not metadata["bridge_schema_version"]:
+                    metadata["bridge_schema_version"] = str(manifest.get("bridge_schema_version") or "")
+                if not metadata["ocr_model_sha256"]:
+                    for entry in manifest.get("files") or []:
+                        if not isinstance(entry, dict):
+                            continue
+                        rel = str(entry.get("path") or "").replace("\\", "/")
+                        if Path(rel).name.lower() == "model_manifest.json":
+                            metadata["ocr_model_sha256"] = str(entry.get("sha256") or "").strip().lower()
+                            break
+        return metadata
+    source_sha = _current_source_sha(base)
+    return {"source_sha": source_sha} if source_sha else {}
+
+
 def _evidence_path(base: Path, configured: Any, candidates: tuple[Path, ...]) -> Path | None:
     """Resolve an evidence artifact without trusting a stale display string."""
     raw = str(configured or "").strip()
@@ -152,11 +202,17 @@ def _mode_evidence(mode_id: str, root: Path | None) -> dict[str, Any]:
         "source_sha": str(entry.get("source_sha") or ""),
         "release_manifest_sha256": str(entry.get("release_manifest_sha256") or ""),
         "exe_sha256": str(entry.get("exe_sha256") or ""),
+        "bridge_schema_version": str(entry.get("bridge_schema_version") or ""),
+        "ocr_model_sha256": str(entry.get("ocr_model_sha256") or ""),
         "scenario": str(entry.get("scenario") or ""),
         "captured_at": str(entry.get("captured_at") or ""),
         "evidence_bundle": str(entry.get("evidence_bundle") or ""),
         "postcondition": str(entry.get("postcondition") or ""),
     }
+    build_identity = _build_identity_metadata(root)
+    for key in ("source_sha", "release_manifest_sha256", "exe_sha256", "bridge_schema_version", "ocr_model_sha256"):
+        if not result[key] and build_identity.get(key):
+            result[key] = build_identity[key]
     current_source = _current_source_sha(base)
     if result["status"] == "PASS":
         if not result["source_sha"] or (current_source and result["source_sha"] != current_source):
@@ -383,6 +439,7 @@ def _build_identity_preflight(root: Path | None, runner: Any) -> tuple[bool, str
         return False, "发行清单内容不完整或版本不一致"
     package_root = manifest_path.parent.resolve()
     seen: set[str] = set()
+    ocr_model_sha = str(payload.get("ocr_model_manifest_sha256") or "").strip().lower()
     for entry in manifest["files"]:
         if not isinstance(entry, dict):
             return False, "发行清单包含非法文件项"
@@ -403,7 +460,15 @@ def _build_identity_preflight(root: Path | None, runner: Any) -> tuple[bool, str
                 return False, f"发行清单文件哈希不一致: {relative}"
         except OSError:
             return False, f"发行清单文件无法读取: {relative}"
-    return True, f"构建身份已记录 {source_sha[:12]} / manifest {manifest_sha[:12]}"
+        if Path(relative).name.lower() == "model_manifest.json":
+            ocr_model_sha = expected_hash
+    if not ocr_model_sha:
+        return False, "发行清单缺少 OCR 模型清单哈希"
+    return True, (
+        f"source_sha={source_sha}; manifest_sha256={manifest_sha}; "
+        f"exe_sha256={exe_sha}; bridge_schema={bridge_schema}; "
+        f"ocr_model_sha256={ocr_model_sha}"
+    )
 
 
 class DashboardFacade(QObject):
