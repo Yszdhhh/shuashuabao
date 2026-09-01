@@ -364,8 +364,10 @@ function applyTheme(theme: unknown): void {
   if ((theme === "light" || theme === "dark") && theme !== state.theme) {
     state.theme = theme;
     $("scene-app").dataset.theme = theme;
+    document.body.dataset.theme = theme;
     $("btnTheme").textContent = theme === "dark" ? "浅色" : "深色";
     $("btnTheme").setAttribute("aria-pressed", String(theme === "dark"));
+    $("btnTheme").setAttribute("aria-label", theme === "dark" ? "当前深色，切换到浅色" : "当前浅色，切换到深色");
   }
 }
 
@@ -553,21 +555,18 @@ export function applySnapshot(snap: SnapshotDTO): void {
 }
 
 function applySubscription(sub?: { active?: boolean; status?: string; expires_at?: string }): void {
+  const globalFn = (window as unknown as Record<string, unknown>).applySubscription;
+  if (typeof globalFn === "function") {
+    (globalFn as (s?: unknown) => void)(sub);
+    return;
+  }
   const pill = $("subscriptionPill");
   if (!pill) return;
   const isOk = Boolean(sub?.active);
   const status = sub?.status || "未激活";
   const exp = sub?.expires_at ? (sub.expires_at.length >= 10 ? sub.expires_at.substring(0, 10) : sub.expires_at) : "";
   pill.textContent = isOk ? `订阅：正常${exp ? ` (${exp} 到期)` : ""}` : `订阅：${status}`;
-  if (isOk) {
-    pill.style.color = "var(--success, #27a644)";
-    pill.style.background = "color-mix(in oklab, var(--success, #27a644) 14%, transparent)";
-    pill.style.borderColor = "color-mix(in oklab, var(--success, #27a644) 30%, transparent)";
-  } else {
-    pill.style.color = "var(--warn, #eab308)";
-    pill.style.background = "color-mix(in oklab, var(--warn, #eab308) 14%, transparent)";
-    pill.style.borderColor = "color-mix(in oklab, var(--warn, #eab308) 30%, transparent)";
-  }
+  pill.dataset.state = isOk ? "ok" : "warn";
 }
 
 // ---------------------------------------------------------------- 运行态信号

@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="zh-CN">
 <head>
@@ -7,25 +6,25 @@
   <title>刷刷宝看板</title>
   <style>
     :root {
-      --bg: #08090a;
-      --surface: #191a1b;
-      --surface-warm: var(--surface);
-      --fg: #f7f8f8;
-      --fg-2: #d0d6e0;
-      --muted: #8a8f98;
-      --meta: #62666d;
-      --border: rgba(255, 255, 255, 0.08);
+      --bg: #1f2228;
+      --surface: #252830;
+      --surface-warm: rgba(255, 255, 255, 0.05);
+      --fg: #ffffff;
+      --fg-2: rgba(255, 255, 255, 0.7);
+      --muted: rgba(255, 255, 255, 0.5);
+      --meta: rgba(255, 255, 255, 0.3);
+      --border: rgba(255, 255, 255, 0.1);
       --border-soft: rgba(255, 255, 255, 0.05);
-      --accent: #5e6ad2;
-      --accent-on: #ffffff;
-      --accent-hover: #828fff;
-      --accent-active: #4752c4;
-      --success: #27a644;
+      --accent: #ffffff;
+      --accent-on: #1f2228;
+      --accent-hover: rgba(255, 255, 255, 0.9);
+      --accent-active: rgba(255, 255, 255, 0.8);
+      --success: #16a34a;
       --warn: #eab308;
       --danger: #dc2626;
-      --font-display: "Inter Variable", "Inter", "SF Pro Display", -apple-system, system-ui, "Segoe UI", sans-serif;
-      --font-body: "Inter Variable", "Inter", "SF Pro Display", -apple-system, system-ui, "Segoe UI", sans-serif;
-      --font-mono: "Berkeley Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+      --font-display: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      --font-body: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      --font-mono: "Cascadia Mono", "Sarasa Mono SC", ui-monospace, Consolas, monospace;
       --text-xs: 12px;
       --text-sm: 14px;
       --text-base: 16px;
@@ -45,9 +44,6 @@
       --space-6: 24px;
       --space-8: 32px;
       --space-12: 48px;
-      --section-y-desktop: 80px;
-      --section-y-tablet: 48px;
-      --section-y-phone: 32px;
       --radius-sm: 6px;
       --radius-md: 8px;
       --radius-lg: 12px;
@@ -59,10 +55,6 @@
       --motion-fast: 150ms;
       --motion-base: 200ms;
       --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-      --container-max: 1200px;
-      --container-gutter-desktop: 24px;
-      --container-gutter-tablet: 16px;
-      --container-gutter-phone: 12px;
     }
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; min-height: 100%; }
@@ -112,26 +104,144 @@
       --p-gold-soft: color-mix(in oklab, var(--p-gold) 12%, var(--p-paper));
       --p-blue: oklch(0.52 0.16 255);
       --p-ok: oklch(0.46 0.12 145);
+      --p-warn: #9e6a03;
       --p-danger: oklch(0.48 0.18 25);
       --p-on: oklch(0.99 0.004 250);
+      --p-chrome: var(--p-paper);
       --p-radius: 6px;
       --p-focus: 0 0 0 2px color-mix(in oklab, var(--p-blue) 55%, transparent);
       --p-shadow: 0 10px 28px color-mix(in oklab, var(--p-ink) 18%, transparent);
       font-family: var(--p-font);
+      font-size: 13px;
+      font-weight: 400;
       color: var(--p-ink);
     }
+    body[data-theme="dark"] { color-scheme: dark; }
+    body[data-theme="dark"] .win,
+    body[data-theme="dark"] .wiz,
     .win[data-theme="dark"] {
-      --p-bg: oklch(0.22 0.028 250);
-      --p-paper: oklch(0.26 0.032 250);
-      --p-ink: oklch(0.94 0.012 250);
-      --p-muted: oklch(0.78 0.028 250);
-      --p-faint: oklch(0.72 0.02 250);
-      --p-line: oklch(0.36 0.028 250);
-      --p-fill: oklch(0.30 0.03 250);
-      --p-gold: oklch(0.78 0.12 85);
-      --p-gold-ink: oklch(0.22 0.04 85);
-      --p-gold-soft: color-mix(in oklab, var(--p-gold) 14%, var(--p-paper));
-      --p-shadow: 0 10px 28px oklch(0.1 0.02 250 / 0.55);
+      --p-bg: #1f2228;
+      --p-paper: #262930;
+      --p-chrome: #1b1e24;
+      --p-ink: #ffffff;
+      --p-muted: rgba(255, 255, 255, 0.7);
+      --p-faint: rgba(255, 255, 255, 0.5);
+      --p-line: rgba(255, 255, 255, 0.1);
+      --p-fill: rgba(255, 255, 255, 0.05);
+      --p-gold: #ffffff;
+      --p-gold-ink: #1f2228;
+      --p-gold-soft: rgba(255, 255, 255, 0.06);
+      --p-blue: rgb(59, 130, 246);
+      --p-ok: #16a34a;
+      --p-warn: #eab308;
+      --p-danger: #dc2626;
+      --p-on: #ffffff;
+      --p-focus: 0 0 0 3px rgb(59 130 246 / 0.5);
+      --p-shadow: none;
+    }
+    body[data-theme="dark"] .win,
+    .win[data-theme="dark"] {
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+    }
+    body[data-theme="dark"] .wiz {
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+    }
+    body[data-theme="dark"] .win .titlebar,
+    body[data-theme="dark"] .win .footer,
+    .win[data-theme="dark"] .titlebar,
+    .win[data-theme="dark"] .footer {
+      background: var(--p-chrome);
+    }
+    body[data-theme="dark"] .win .rail,
+    .win[data-theme="dark"] .rail {
+      background: var(--p-paper);
+    }
+    body[data-theme="dark"] .win .main,
+    .win[data-theme="dark"] .main {
+      background: var(--p-bg);
+    }
+    body[data-theme="dark"] .selected-deck .panel,
+    .win[data-theme="dark"] .selected-deck .panel {
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.03);
+      box-shadow: none;
+    }
+    body[data-theme="dark"] .selected-deck .module-icon,
+    .win[data-theme="dark"] .selected-deck .module-icon {
+      color: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    body[data-theme="dark"] .switch[aria-pressed="true"],
+    .win[data-theme="dark"] .switch[aria-pressed="true"] {
+      background: #ffffff;
+      border-color: #ffffff;
+    }
+    body[data-theme="dark"] .switch[aria-pressed="true"]::after,
+    .win[data-theme="dark"] .switch[aria-pressed="true"]::after {
+      background: #1f2228;
+    }
+    body[data-theme="dark"] .deck-tag,
+    .win[data-theme="dark"] .deck-tag {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    body[data-theme="dark"] .selected-deck .deck-tag,
+    .win[data-theme="dark"] .selected-deck .deck-tag {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    body[data-theme="dark"] select,
+    body[data-theme="dark"] input[type="text"],
+    body[data-theme="dark"] input[type="number"],
+    body[data-theme="dark"] input[type="password"],
+    body[data-theme="dark"] .dd-btn,
+    body[data-theme="dark"] .pick-row,
+    body[data-theme="dark"] .stepper,
+    .win[data-theme="dark"] select,
+    .win[data-theme="dark"] input[type="text"],
+    .win[data-theme="dark"] input[type="number"],
+    .win[data-theme="dark"] input[type="password"],
+    .win[data-theme="dark"] .dd-btn,
+    .win[data-theme="dark"] .pick-row,
+    .win[data-theme="dark"] .stepper {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    body[data-theme="dark"] .modal-layer,
+    .win[data-theme="dark"] .modal-layer {
+      background: rgba(0, 0, 0, 0.62);
+    }
+    body[data-theme="dark"] .drawer-backdrop,
+    .win[data-theme="dark"] .drawer-backdrop {
+      background: rgba(0, 0, 0, 0.5);
+    }
+    body[data-theme="dark"] .key-row,
+    .win[data-theme="dark"] .key-row { background: rgba(255, 255, 255, 0.05); }
+    body[data-theme="dark"] .key-row:focus-within,
+    .win[data-theme="dark"] .key-row:focus-within { background: rgba(255, 255, 255, 0.08); }
+    body[data-theme="dark"] .key-row input,
+    body[data-theme="dark"] .key-row input:focus,
+    .win[data-theme="dark"] .key-row input,
+    .win[data-theme="dark"] .key-row input:focus { background: transparent; }
+    body[data-theme="dark"] .dd-menu,
+    .win[data-theme="dark"] .dd-menu {
+      box-shadow: none;
+    }
+    body[data-theme="dark"] .ghost-btn.solid,
+    body[data-theme="dark"] .secondary,
+    .win[data-theme="dark"] .ghost-btn.solid,
+    .win[data-theme="dark"] .secondary {
+      background: #262930;
+    }
+    body[data-theme="dark"] .gold:hover,
+    body[data-theme="dark"] .primary:hover:not(.stop):not(:disabled),
+    .win[data-theme="dark"] .gold:hover,
+    .win[data-theme="dark"] .primary:hover:not(.stop):not(:disabled) {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(255, 255, 255, 0.9);
+      color: #1f2228;
     }
     .win .pill {
       border-color: var(--p-line); color: var(--p-muted); background: var(--p-paper);
@@ -141,28 +251,22 @@
       border-color: color-mix(in srgb, var(--p-danger) 40%, var(--p-line));
     }
     .win button:focus-visible, .win select:focus-visible, .win input:focus-visible,
-    .wiz button:focus-visible, .game-run button:focus-visible { box-shadow: var(--p-focus); outline: none; }
+    .wiz button:focus-visible { box-shadow: var(--p-focus); outline: none; }
 
-    .logo-box, .hud-logo {
+    .logo-box {
       display: block; overflow: hidden; flex: 0 0 auto; background: oklch(0.22 0.05 255);
+      width: 26px; height: 26px; border-radius: 6px;
     }
-    .logo-box { width: 26px; height: 26px; border-radius: 6px; }
     .logo-box img {
       width: 26px !important; height: 26px !important;
       max-width: 26px !important; max-height: 26px !important;
-      object-fit: cover !important;
-    }
-    .hud-logo { width: 18px; height: 18px; border-radius: 4px; }
-    .hud-logo img {
-      width: 18px !important; height: 18px !important;
-      max-width: 18px !important; max-height: 18px !important;
       object-fit: cover !important;
     }
     .ico { display: inline-flex; overflow: hidden; border-radius: 4px; flex: 0 0 auto; background: oklch(0.22 0.04 280); }
     .ico img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
 
     .wiz {
-      width: 560px; padding: 0; overflow: hidden; background: var(--p-paper);
+      width: min(560px, calc(100% - 32px)); padding: 0; overflow: hidden; background: var(--p-paper);
       border: 1px solid var(--p-line); border-radius: 12px; display: flex; flex-direction: column;
       box-shadow: var(--p-shadow), 0 0 0 1px color-mix(in oklab, var(--p-paper) 70%, transparent) inset;
     }
@@ -240,15 +344,15 @@
     .secondary:hover, .ghost-btn.solid:hover { background: var(--p-fill); color: var(--p-ink); }
 
     .win {
-      width: min(1080px, 100%); height: 820px; background: var(--p-bg);
-      border: 1px solid var(--p-line); border-radius: 8px;
+      width: 100%; height: 100%; background: var(--p-bg);
+      border: none; border-radius: 0;
       overflow: hidden; display: flex; flex-direction: column;
-      box-shadow: var(--p-shadow); position: relative;
+      box-shadow: none; position: relative;
     }
     .titlebar {
       height: 48px; flex: 0 0 48px; display: flex; align-items: center; gap: 10px;
       padding: 0 10px 0 14px; overflow: hidden;
-      border-bottom: 1px solid var(--p-line); background: var(--p-paper);
+      border-bottom: 1px solid var(--p-line); background: var(--p-chrome);
     }
     .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
     .brand h1 { margin: 0; font-size: 16px; font-weight: 700; text-wrap: balance; }
@@ -314,11 +418,16 @@
     .launch-ready i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
     .launch-facts { display: grid; margin: 0; }
     .launch-facts > div { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 0; border-top: 1px solid color-mix(in oklab, var(--p-line) 80%, transparent); }
-    .launch-facts dt { margin: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--p-muted); font-size: 12px; font-weight: 650; }
+    .block-icon {
+      width: 14px; height: 14px; display: inline-grid; place-items: center; flex: 0 0 auto; margin: 0;
+    }
+    .block-icon svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .launch-facts .block-icon, .launch-block .block-icon { color: var(--p-muted); }
+    .launch-facts dt { margin: 0; display: inline-flex; align-items: center; gap: 8px; color: var(--p-muted); font-size: 12px; font-weight: 650; }
     .launch-facts dd { margin: 0; color: var(--p-ink); font-size: 13px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
     .launch-block { padding: 8px 0 0; margin-top: 2px; border-top: 1px solid color-mix(in oklab, var(--p-line) 80%, transparent); }
-    .launch-block h4, .bond-block h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 6px; color: var(--p-muted); font-size: 12px; font-weight: 650; }
-    .bond-block h4 { color: var(--p-ink); font-size: 13px; }
+    .launch-block h4, .bond-block h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 8px; color: var(--p-muted); font-size: 12px; font-weight: 650; }
+    .bond-block h4 { color: var(--p-ink); font-size: 13px; font-weight: 650; }
     .launch-sub { margin: 6px 0 4px; color: var(--p-muted); font-size: 11px; font-weight: 650; letter-spacing: .02em; }
     .launch-block h4 + .launch-sub { margin-top: 0; }
     .launch-value { margin: 0; color: var(--p-ink); font-size: 13px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
@@ -339,8 +448,8 @@
     .main .bond-config h3 { margin-bottom: 8px; }
     .panel { background: transparent; border: 0; border-radius: 0; padding: 0; }
     .panel + .panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--p-line); }
-    .panel h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 650; color: var(--p-ink); letter-spacing: 0; }
-    .module-icon { width: 18px; height: 18px; display: inline-grid; place-items: center; flex: 0 0 auto; border: 1px solid var(--p-line); border-radius: 5px; background: var(--p-fill); color: var(--p-faint); }
+    .panel h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 650; color: var(--p-ink); letter-spacing: 0; line-height: 1.3; }
+    .module-icon { width: 18px; height: 18px; display: inline-grid; place-items: center; flex: 0 0 auto; margin: 0; border: 1px solid var(--p-line); border-radius: 5px; background: var(--p-fill); color: var(--p-faint); }
     .module-icon svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .selected-deck .module-icon { color: var(--p-gold-ink); background: color-mix(in oklab, var(--p-gold) 20%, var(--p-paper)); border-color: color-mix(in oklab, var(--p-gold) 42%, var(--p-line)); }
     .field { display: grid; gap: 4px; margin-bottom: 8px; }
@@ -424,7 +533,7 @@
     .pick-row i { font-style: normal; font-size: 12px; color: var(--p-faint); }
     .lead-box { display: none; }
     body[data-scene="lead"] .lead-box { display: block; }
-    .skill-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+    .skill-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .skill-head h3 { margin: 0; }
     .skill-head .hint { margin-left: auto; }
     .builds { display: flex; flex-direction: column; }
@@ -510,13 +619,14 @@
     .skill-cell[aria-pressed="true"]:hover::after { color: var(--p-danger); }
     .skill-cell.is-dim { opacity: 0.38; }
     .skill-rank { display: none; flex-direction: column; gap: 6px; margin-top: 10px; }
-    .skill-rank.show { display: flex; }
+    .skill-rank.show, .skill-rank:not(:empty) { display: flex; }
+    .builds:empty, #bonds:empty, #selectedDeck:empty { min-height: 48px; }
     .priority-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 3px 8px; }
     .priority-head b { font-size: 13px; font-weight: 650; }
     .priority-head .hint { margin: 0; }
     .rank-list { display: flex; flex-direction: column; }
     .rank-card {
-      display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) 132px 14px;
+      display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) minmax(112px, 132px) 44px;
       gap: 6px; align-items: center; min-height: 48px; touch-action: none;
       padding: 6px 2px; border: 0; border-bottom: 1px solid var(--p-line);
       background: transparent; border-radius: 0; font-family: var(--p-font); color: var(--p-ink);
@@ -538,13 +648,23 @@
     .rank-card .name b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .rank-card .name span { display: block; font-size: 11px; color: var(--p-muted); }
     .rank-card select {
-      height: 32px; width: 132px; font-size: 12px; padding: 0 6px;
+      grid-column: 4; grid-row: 1; width: 100%; min-width: 0;
+      height: 32px; font-size: 12px; padding: 0 6px;
       border: 1px solid var(--p-line); background: var(--p-bg); border-radius: 4px; color: var(--p-ink);
     }
-    .grip { color: var(--p-faint); font-size: 11px; letter-spacing: 0.12em; }
+    .rank-card .rank-move { display: flex; grid-column: 5; grid-row: 1; gap: 2px; width: 44px; }
+    .rank-card .grip { display: none; }
+    .rank-card .rank-move button {
+      width: 21px; min-height: 26px; border: 1px solid var(--p-line); background: var(--p-fill);
+      color: var(--p-ink); border-radius: 3px; padding: 0; font-size: 9px; line-height: 1;
+    }
+    .rank-card .rank-move button:hover { background: var(--p-gold-soft); color: var(--p-ink); }
+    .rank-card .rank-move button:disabled, .rank-card .rank-move button:disabled:hover {
+      opacity: 0.4; cursor: not-allowed; background: var(--p-fill); color: var(--p-faint);
+    }
     .bond-block { margin-top: 10px; }
     .bond-block:first-child { margin-top: 0; }
-    .bond-block h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 650; color: var(--p-ink); }
+    .bond-block h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 650; color: var(--p-ink); }
     .bond-locked {
       display: flex; flex-wrap: wrap; gap: 5px;
       padding: 8px; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg);
@@ -553,8 +673,7 @@
     .bond-actions .hint { margin: 0; }
     .bond-actions .gold, .bond-actions .secondary { margin-left: auto; min-height: 42px; white-space: nowrap; }
     .adv-priority {
-      display: grid; grid-template-columns: 36px minmax(0, 1fr);
-      gap: 6px 10px; align-items: start; margin-top: 8px;
+      display: block; margin-top: 8px;
     }
     .adv-priority-label { padding-top: 9px; color: var(--p-muted); font-size: 12px; font-weight: 650; line-height: 1; }
     .adv-priority-list { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -586,8 +705,8 @@
     .adv-step button:disabled, .adv-step button:disabled:hover { opacity: 0.35; background: var(--p-paper); color: var(--p-faint); cursor: not-allowed; }
     .rank-move { display: flex; gap: 4px; }
     .rank-move button { width: 28px; height: 26px; padding: 0; }
-    .hitch-page h2 { margin: 0; font-size: 24px; font-weight: 650; line-height: 1.3; letter-spacing: -0.02em; }
-    .hitch-page p { margin: 0; color: var(--p-muted); font-size: 15px; line-height: 1.6; max-width: 52ch; }
+    .hitch-page h2 { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.3; letter-spacing: 0; }
+    .hitch-page p { margin: 0; color: var(--p-muted); font-size: 15px; line-height: 1.6; max-width: none; }
     .team-rules {
       width: 100%; margin-top: 2px; padding: 18px 0 16px;
       border-top: 1px solid var(--p-line); border-bottom: 1px solid var(--p-line);
@@ -613,14 +732,14 @@
     .team-boundary span { color: var(--p-muted); font-size: 12px; line-height: 1.5; text-align: right; }
     .hitch-spec {
       display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px 16px;
-      margin: 4px 0 8px; max-width: 56ch; padding: 10px 0;
+      margin: 4px 0 8px; max-width: none; padding: 10px 0;
       border-top: 1px solid var(--p-line); border-bottom: 1px solid var(--p-line);
     }
     .hitch-spec dt { margin: 0; font-size: 12px; font-weight: 650; color: var(--p-muted); }
     .hitch-spec dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--p-ink); }
     .footer {
       display: none !important; flex: 0 0 56px; height: 56px; align-items: center; gap: 10px;
-      padding: 0 14px; border-top: 1px solid var(--p-line); background: var(--p-paper);
+      padding: 0 14px; border-top: 1px solid var(--p-line); background: var(--p-chrome);
       position: relative; z-index: 5;
     }
     body[data-scene="farm"] .footer,
@@ -629,9 +748,8 @@
     body[data-scene="hitch"] .footer { display: flex !important; }
     .lamp { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--p-ok); white-space: nowrap; }
     .lamp .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-    .lamp.pending { color: var(--warn); }
+    .lamp.pending { color: var(--p-warn); }
     .lamp.bad { color: var(--p-danger); }
-    #identityPill { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .primary { min-width: 128px; height: 42px; }
     .primary.stop { background: var(--p-danger); border-color: var(--p-danger); color: var(--p-on); }
     .primary.stop:hover {
@@ -679,15 +797,75 @@
       padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 10px; color: var(--p-ink);
     }
     .sheet.pick { width: min(560px, 100%); }
-    .sheet.subscription { width: min(480px, 100%); padding: 0; overflow: hidden; }
-    .subscription-head { padding: 18px 20px 14px; background: linear-gradient(135deg, var(--p-blue), color-mix(in oklab, var(--p-blue) 68%, var(--p-gold))); color: #fff; }
-    .subscription-head p { margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .06em; opacity: .84; }
-    .subscription-head h2 { margin: 0; font-size: 18px; }
-    .subscription-body { padding: 18px 20px 8px; }
-    .subscription-body label { display: grid; gap: 7px; font-size: 12px; font-weight: 700; color: var(--p-ink); }
-    .subscription-body input { width: 100%; box-sizing: border-box; min-height: 42px; padding: 9px 11px; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-paper); color: var(--p-ink); font: 600 14px ui-monospace, Consolas, monospace; }
-    .subscription-body small { display: block; margin-top: 9px; color: var(--p-muted); line-height: 1.5; }
-    .subscription-nav { display: flex; align-items: center; gap: 8px; padding: 12px 20px 18px; }
+    .sheet.subscription { width: min(420px, 100%); padding: 0; overflow: hidden; background: var(--p-paper); }
+    .subscription-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--p-line); background: var(--p-paper); }
+    .subscription-kicker { margin: 0 0 6px; font-size: 12px; font-weight: 650; letter-spacing: 0; color: var(--p-muted); }
+    .subscription-head h2 { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; color: var(--p-ink); }
+    .subscription-now {
+      margin: 10px 0 0; display: inline-flex; align-items: center; gap: 6px;
+      height: 24px; padding: 0 9px; width: fit-content; max-width: 100%;
+      border-radius: 999px; border: 1px solid var(--p-line);
+      color: var(--p-muted); font-size: 12px; font-weight: 650; line-height: 1;
+    }
+    .subscription-now i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+    .subscription-now.is-ok {
+      color: var(--p-ok);
+      border-color: color-mix(in srgb, var(--p-ok) 38%, var(--p-line));
+      background: color-mix(in srgb, var(--p-ok) 12%, var(--p-paper));
+    }
+    .subscription-now.is-warn {
+      color: var(--p-warn);
+      border-color: color-mix(in srgb, var(--p-warn) 40%, var(--p-line));
+      background: color-mix(in srgb, var(--p-warn) 12%, var(--p-paper));
+    }
+    .subscription-now.is-bad {
+      color: var(--p-danger);
+      border-color: color-mix(in srgb, var(--p-danger) 40%, var(--p-line));
+      background: color-mix(in srgb, var(--p-danger) 12%, var(--p-paper));
+    }
+    .subscription-body { padding: 16px 20px 10px; display: grid; gap: 8px; }
+    .subscription-body label { display: grid; gap: 8px; font-size: 12px; font-weight: 650; color: var(--p-muted); }
+    .key-row {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch;
+      border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg); overflow: hidden;
+    }
+    .key-row:focus-within { border-color: color-mix(in oklab, var(--p-gold) 55%, var(--p-line)); background: var(--p-paper); }
+    .key-row.is-invalid { border-color: var(--p-danger); }
+    .subscription-body input {
+      width: 100%; box-sizing: border-box; min-height: 40px; padding: 0 12px;
+      border: 0; border-radius: 0; background: transparent; color: var(--p-ink);
+      font: 500 14px/1.4 var(--p-font); letter-spacing: 0;
+    }
+    .subscription-body input:focus { outline: none; box-shadow: none; background: transparent; }
+    .subscription-body input.is-invalid { border-color: transparent; }
+    .key-toggle {
+      height: auto; min-width: 64px; padding: 0 12px;
+      border: 0; border-left: 1px solid var(--p-line); border-radius: 0;
+      background: transparent; color: var(--p-muted); font-size: 13px; font-weight: 650;
+    }
+    .key-toggle:hover { background: var(--p-fill); color: var(--p-ink); }
+    .key-toggle[aria-pressed="true"] { color: var(--p-ink); }
+    .subscription-err {
+      display: none; margin: 0; color: var(--p-danger); font-size: 12px; font-weight: 650; line-height: 1.45;
+    }
+    .subscription-err.show { display: block; }
+    .subscription-body small { display: block; margin: 0; color: var(--p-muted); font-size: 12px; line-height: 1.5; font-weight: 400; }
+    .subscription-nav { display: flex; align-items: center; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--p-line); }
+    .subscription-nav .secondary, .subscription-nav .gold { height: 36px; min-width: 96px; font-size: 13px; }
+    .subscription-pill {
+      display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px;
+      flex: 0 0 auto; border-radius: 999px; border: 1px solid var(--p-line); background: var(--p-paper);
+      color: var(--p-muted); font-size: 12px; font-weight: 650; font-family: var(--p-font);
+    }
+    .subscription-pill:hover { background: var(--p-fill); color: var(--p-ink); }
+    .subscription-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .subscription-pill[data-state="ok"] { color: var(--p-ok); border-color: color-mix(in oklab, var(--p-ok) 38%, var(--p-line)); background: color-mix(in oklab, var(--p-ok) 10%, var(--p-paper)); }
+    .subscription-pill[data-state="ok"]:hover { background: color-mix(in oklab, var(--p-ok) 16%, var(--p-paper)); color: var(--p-ok); }
+    .subscription-pill[data-state="warn"] { color: var(--p-warn); border-color: color-mix(in srgb, var(--p-warn) 42%, var(--p-line)); background: color-mix(in srgb, var(--p-warn) 12%, var(--p-paper)); }
+    .subscription-pill[data-state="warn"]:hover { background: color-mix(in srgb, var(--p-warn) 18%, var(--p-paper)); }
+    .subscription-pill[data-state="bad"] { color: var(--p-danger); border-color: color-mix(in oklab, var(--p-danger) 42%, var(--p-line)); background: color-mix(in oklab, var(--p-danger) 10%, var(--p-paper)); }
+    .subscription-pill[data-state="bad"]:hover { background: color-mix(in oklab, var(--p-danger) 16%, var(--p-paper)); color: var(--p-danger); }
+
     .sheet-head { display: flex; align-items: center; gap: 10px; }
     .sheet-head h2 { margin: 0; font-size: 15px; line-height: 1.35; }
     .sheet-cap { margin-left: auto; font-size: 11px; color: var(--p-muted); }
@@ -873,31 +1051,12 @@
     }
     .chip, .text-btn, .dd-menu button, .skill-cell { min-height: 28px; }
     .mini-step button { width: 24px; height: 24px; }
-    .rank-card {
-      grid-template-columns: 22px 28px minmax(0, 1fr) minmax(112px, 132px) 44px;
-      min-height: 48px;
-    }
-    .rank-card select { grid-column: 4; grid-row: 1; width: 100%; min-width: 0; }
-    .rank-card .rank-move { display: flex; grid-column: 5; grid-row: 1; gap: 2px; width: 44px; }
-    .rank-card .grip { display: none; }
-    .rank-card .rank-move button {
-      width: 21px; min-height: 26px; border: 1px solid var(--p-line); background: var(--p-fill);
-      color: var(--p-ink); border-radius: 3px; padding: 0; font-size: 9px; line-height: 1;
-    }
-    .rank-card .rank-move button:hover { background: var(--p-gold-soft); color: var(--p-ink); }
-    .rank-card .rank-move button:disabled, .rank-card .rank-move button:disabled:hover {
-      opacity: 0.4; cursor: not-allowed; background: var(--p-fill); color: var(--p-faint);
-    }
     button:disabled { cursor: not-allowed; }
     .secondary:disabled, .ghost-btn:disabled, .chip:disabled,
     .skill-cell:disabled, .dd-btn:disabled, .text-btn:disabled {
       background: var(--p-fill); color: var(--p-faint); border-color: var(--p-line);
       opacity: .62; transform: none;
     }
-    .hitch-page { max-width: none; }
-    .hitch-page h2 { font-size: 24px; font-weight: 700; letter-spacing: 0; }
-    .hitch-page p { max-width: none; }
-    .hitch-spec { max-width: none; }
     .panel h3 { letter-spacing: 0; }
     .skill-hint {
       margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--p-muted);
@@ -906,7 +1065,8 @@
     .footer .primary { min-height: 42px; }
     .dd-menu { overscroll-behavior: contain; }
     .secondary:active, .ghost-btn.solid:active { transform: translateY(1px); }
-    .gold:disabled, .gold:disabled:hover {
+    .gold:disabled, .gold:disabled:hover,
+    .primary:disabled, .primary:disabled:hover {
       background: var(--p-fill); color: var(--p-faint); border-color: var(--p-line); cursor: not-allowed; transform: none;
     }
     .win[aria-busy="true"] .body, .win[aria-busy="true"] .hitch-page { pointer-events: none; opacity: 0.72; }
@@ -929,7 +1089,6 @@
       .dd-menu button:active { transform: none; }
     }
     @media (max-width: 860px) {
-      .win { width: min(860px, 100%); height: auto; min-height: 680px; }
       body[data-scene="farm"] .body, body[data-scene="lead"] .body { grid-template-columns: 1fr; }
       .rail { border-right: 0; border-bottom: 1px solid var(--p-line); }
       .main { display: block; }
@@ -944,11 +1103,10 @@
       .rank-card .rank-move { display: grid; grid-column: 4; grid-row: 1 / span 2; }
       .rank-card .rank-move button { width: auto; min-height: 20px; }
       .rank-card .grip { display: none; }
-      body { padding: 12px 8px; align-items: stretch; }
-      body[data-scene="wizard"] { padding: 0; }
+      body { padding: 0; align-items: stretch; }
     }
     @media (max-width: 600px) {
-      .win { width: 100%; min-height: calc(100dvh - 96px); border-radius: 0; }
+      .win { width: 100%; min-height: 100dvh; border-radius: 0; }
       .titlebar { height: 48px; flex-basis: 48px; }
       .chrome-wide { display: none !important; }
       .icon-btn, .win-btn { height: 44px; min-width: 44px; }
@@ -1004,217 +1162,247 @@
       .drawer-backdrop, .modal-layer { inset: 48px 0 0 0; }
       .load-bar { top: 48px; bottom: auto; }
       .toast { left: 12px; right: 12px; bottom: 12px; text-align: center; }
+      .key-row { grid-template-columns: minmax(0, 1fr) 44px; }
+      .key-toggle { min-width: 44px; }
     }
   </style>
 </head>
-<body data-scene="farm">
+<body data-scene="farm" data-theme="dark">
   <a class="sr-only" href="#scene-app">跳到看板</a>
-        <section class="wiz" id="scene-wizard" data-od-id="wizard" role="dialog" aria-modal="true" aria-labelledby="wizTitle" aria-hidden="true">
-          <header class="wiz-head">
-            <span class="wiz-mark"><img src="assets/app_logo.png" alt="" /></span>
-            <div class="wiz-copy">
-              <p class="wiz-eyebrow">刷刷宝 · 运行设置</p>
-              <h2 id="wizTitle">选择运行方式</h2>
-            </div>
-          </header>
-          <div class="wiz-body">
-            <div class="seg" id="wizKind">
-              <button type="button" data-kind="solo" aria-pressed="true">单人</button>
-              <button type="button" data-kind="team" aria-pressed="false">组队</button>
-            </div>
-            <div id="wizSoloPane">
-              <div class="choice-list">
-                <button type="button" class="wcard solo" id="wizSolo" aria-pressed="true">
-                  <strong>单人刷图</strong>
-                </button>
-              </div>
-            </div>
-            <div id="wizTeamPane" class="hidden">
-              <div class="choice-list">
-                <button type="button" class="wcard" data-team="lead"><em>车头</em><strong>带车</strong><span>你当车头，房间自动开始。</span></button>
-                <button type="button" class="wcard" data-team="follow"><em>已在房</em><strong>跟车</strong><span>已在房间，自动每局准备。</span></button>
-                <button type="button" class="wcard" data-team="hitch"><em>待验证</em><strong>蹭车</strong><span>自动在大厅找房蹭车。</span></button>
-              </div>
-            </div>
-            <p class="hint hidden" id="wizHint"></p>
-          </div>
-          <div class="wiz-nav">
-            <button type="button" class="secondary" id="wizCancel">取消</button>
-            <span class="grow"></span>
-            <button type="button" class="gold" id="wizApply" data-od-id="wiz-apply">进入看板</button>
-          </div>
-        </section>
 
-        <section class="win" id="scene-app" data-od-id="dashboard" data-theme="light">
-          <div class="titlebar">
-            <div class="brand">
-              <span class="logo-box"><img src="assets/app_logo.png" alt="刷刷宝" width="26" height="26" /></span>
-              <h1>刷刷宝</h1>
-              <span class="ver chrome-wide">v0.3</span>
+  <section class="wiz" id="scene-wizard" data-od-id="wizard" role="region" aria-labelledby="wizTitle" aria-hidden="true">
+    <header class="wiz-head">
+      <span class="wiz-mark"><img src="assets/app_logo.png" alt="" /></span>
+      <div class="wiz-copy">
+        <p class="wiz-eyebrow">刷刷宝 · 运行设置</p>
+        <h2 id="wizTitle">选择运行方式</h2>
+      </div>
+    </header>
+    <div class="wiz-body">
+      <div class="seg" id="wizKind">
+        <button type="button" data-kind="solo" aria-pressed="true">单人</button>
+        <button type="button" data-kind="team" aria-pressed="false">组队</button>
+      </div>
+      <div id="wizSoloPane">
+        <div class="choice-list">
+          <button type="button" class="wcard solo" id="wizSolo" aria-pressed="true">
+            <strong>单人刷图</strong>
+          </button>
+        </div>
+      </div>
+      <div id="wizTeamPane" class="hidden">
+        <div class="choice-list">
+          <button type="button" class="wcard" data-team="lead"><em>车头</em><strong>带车</strong><span>你当车头，房间自动开始。</span></button>
+          <button type="button" class="wcard" data-team="follow"><em>已在房</em><strong>跟车</strong><span>已在房间，自动每局准备。</span></button>
+          <button type="button" class="wcard" data-team="hitch"><em>待验证</em><strong>蹭车</strong><span>自动在大厅找房蹭车。</span></button>
+        </div>
+      </div>
+      <p class="hint hidden" id="wizHint"></p>
+    </div>
+    <div class="wiz-nav">
+      <button type="button" class="secondary" id="wizCancel">取消</button>
+      <span class="grow"></span>
+      <button type="button" class="gold" id="wizApply" data-od-id="wiz-apply">进入看板</button>
+    </div>
+  </section>
+
+  <section class="win" id="scene-app" data-od-id="dashboard" data-theme="dark">
+    <div class="titlebar">
+      <div class="brand">
+        <span class="logo-box"><img src="assets/app_logo.png" alt="刷刷宝" width="26" height="26" /></span>
+        <h1>刷刷宝</h1>
+        <span class="ver chrome-wide">v0.3</span>
+      </div>
+      <span class="status-pill chrome-wide" id="statusPill"><span class="dot"></span>待命</span>
+      <span class="games chrome-wide" id="gamesMeter" aria-live="polite">今日 <b id="gamesToday">0</b> / <b id="gamesCap">2</b></span>
+      <div class="grow"></div>
+      <span class="sr-only" id="evidencePill" data-status="unknown" data-historical-status="unknown" aria-hidden="true"></span>
+      <span class="sr-only" id="identityPill" data-status="PENDING" aria-hidden="true"></span>
+      <button type="button" class="subscription-pill chrome-wide" id="subscriptionPill" data-od-id="subscription-pill" data-state="warn" aria-haspopup="dialog" title="打开订阅授权">未激活</button>
+      <button type="button" class="icon-btn chrome-wide" id="btnTheme" aria-pressed="true" aria-label="当前深色，切换到浅色">浅色</button>
+      <button type="button" class="icon-btn" id="btnWizard">快速开局</button>
+      <button type="button" class="win-btn" id="btnMin" aria-label="最小化">─</button>
+      <button type="button" class="win-btn close" id="btnClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="body" id="farmBody">
+      <aside class="rail">
+        <section class="panel" data-od-id="run-target">
+          <h3 data-od-id="run-target-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path></svg></span>运行目标</h3>
+          <div class="field"><label id="lblChapter">篇章</label><div class="dd" data-dd="chapter"><button type="button" class="dd-btn" id="chapterBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblChapter"><b>熔火之心  二阶段</b><i>▾</i></button><div class="dd-menu" id="chapterMenu" role="listbox" aria-labelledby="lblChapter"></div></div></div>
+          <div class="row">
+            <div class="field grow"><label id="lblStage">关卡</label><div class="dd" data-dd="stage"><button type="button" class="dd-btn" id="stageBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblStage"><b>2-1</b><i>▾</i></button><div class="dd-menu" id="stageMenu" role="listbox" aria-labelledby="lblStage"></div></div></div>
+            <div class="field" style="width:100px"><label id="lblCycle">目标局数</label><div class="stepper" role="group" aria-labelledby="lblCycle"><button type="button" id="cycleMinus" aria-label="减少目标局数">−</button><input id="cycleOut" type="text" inputmode="numeric" value="2" aria-label="目标局数" autocomplete="off" /><button type="button" id="cyclePlus" aria-label="增加目标局数">+</button></div></div>
+          </div>
+          <div class="switch-row"><span id="lblHero">声望挑战</span><button type="button" class="switch" id="swHero" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblHero"></button></div>
+          <div class="prestige" id="heroBox">
+            <div class="rep-picked" id="repTags"></div>
+            <div class="rep-foot">
+              <div class="stats" id="repStats"></div>
+              <button type="button" class="text-btn" id="btnRep">调整</button>
             </div>
-            <span class="status-pill chrome-wide" id="statusPill"><span class="dot"></span>待命</span>
-            <span class="games chrome-wide" id="gamesMeter" aria-live="polite">今日 <b id="gamesToday">0</b> / <b id="gamesCap">100</b></span>
-            <div class="grow"></div>
-            <span class="pill chrome-wide" id="evidencePill" aria-live="polite" title="当前运行方式证据状态">证据：待同步</span>
-            <span class="pill chrome-wide" id="identityPill" aria-live="polite" title="当前构建身份将在后端预检后显示">构建身份：待预检</span>
-            <span class="subscription-pill chrome-wide" id="subscriptionPill" style="display:inline-flex; align-items:center; height:24px; padding:0 12px; border-radius:12px; font-size:12px; font-weight:600; color:var(--accent); background:color-mix(in oklab, var(--accent) 12%, transparent); border:1px solid color-mix(in oklab, var(--accent) 28%, transparent); margin-right:8px;">订阅：未激活</span>
-            <button type="button" class="icon-btn chrome-wide" id="btnTheme" aria-pressed="false" aria-label="切换深色浅色">深色</button>
-            <button type="button" class="icon-btn" id="btnWizard">快速开局</button>
-            <button type="button" class="win-btn" id="btnMin" aria-label="最小化">─</button>
-            <button type="button" class="win-btn close" id="btnClose" aria-label="关闭">✕</button>
           </div>
-          <div class="body" id="farmBody">
-            <aside class="rail">
-              <section class="panel" data-od-id="run-target">
-                <h3 data-od-id="run-target-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path></svg></span>运行目标</h3>
-                <div class="field"><label id="lblChapter">篇章</label><div class="dd" data-dd="chapter"><button type="button" class="dd-btn" id="chapterBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblChapter"><b></b><i>▾</i></button><div class="dd-menu" id="chapterMenu" role="listbox" aria-labelledby="lblChapter"></div></div></div>
-                <div class="row">
-                  <div class="field grow"><label id="lblStage">关卡</label><div class="dd" data-dd="stage"><button type="button" class="dd-btn" id="stageBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblStage"><b></b><i>▾</i></button><div class="dd-menu" id="stageMenu" role="listbox" aria-labelledby="lblStage"></div></div></div>
-                  <div class="field" style="width:100px"><label id="lblCycle">目标局数</label><div class="stepper" role="group" aria-labelledby="lblCycle"><button type="button" id="cycleMinus" aria-label="减少目标局数">−</button><input id="cycleOut" type="text" inputmode="numeric" value="100" aria-label="目标局数" autocomplete="off" /><button type="button" id="cyclePlus" aria-label="增加目标局数">+</button></div></div>
-                </div>
-                <div class="switch-row"><span id="lblHero">声望挑战</span><button type="button" class="switch" id="swHero" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblHero"></button></div>
-                <div class="prestige" id="heroBox">
-                  <div class="rep-picked" id="repTags"></div>
-                  <div class="rep-foot">
-                    <div class="stats" id="repStats"></div>
-                    <button type="button" class="text-btn" id="btnRep">调整</button>
-                  </div>
-                </div>
-                <button type="button" class="pick-row" id="cjbCard"><span class="k">传家宝</span><strong id="cjbName">洛卡纳哈</strong><i>选择</i></button>
-                <button type="button" class="pick-row" id="bossCard"><span class="k">Boss</span><strong id="bossName">怀特迈恩</strong><i>选择</i></button>
-                <div class="switch-row"><span id="lblSecret">自动秘境</span><button type="button" class="switch" id="swSecret" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblSecret"></button></div>
-                <div class="switch-row"><span id="lblCloseML">5-5 后取消自动主线</span><button type="button" class="switch" id="swCloseML" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblCloseML"></button></div>
-                <div class="switch-row"><span id="lblAutoArch">票刷完自动考古</span><button type="button" class="switch" id="swAutoArch" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblAutoArch"></button></div>
-              </section>
-              <section class="panel lead-box" id="leadBox">
-                <h3 data-od-id="lead-room-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 13.5V3.5A1.5 1.5 0 0 1 4.5 2H11.5A1.5 1.5 0 0 1 13 3.5v10"></path><path d="M6 8h.01M3 13.5h10"></path></svg></span>带车房间</h3>
-                <div class="field"><label for="roomName">房间名称</label><input id="roomName" type="text" value="刷刷宝车队" autocomplete="off" /></div>
-                <div class="field"><label for="roomPass">房间密码</label><input id="roomPass" type="text" placeholder="可空" autocomplete="off" /></div>
-                <div class="switch-row"><span id="lblNewRoom">每局新建房间</span><button type="button" class="switch" id="swNewRoom" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblNewRoom"></button></div>
-                <p class="hint">带车不点房间开始，交给房间自动开始。</p>
-              </section>
-            </aside>
-            <section class="main">
-              <div class="main-workspace">
-              <div class="panel" data-od-id="skill-panel">
-                <div class="skill-head"><h3 data-od-id="skill-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 9.4 6.6 14.5 8l-5.1 1.4L8 14.5 6.6 9.4 1.5 8l5.1-1.4L8 1.5Z"></path></svg></span>技能搭配</h3><span class="hint" id="skillCount">已选 4 / 4</span></div>
-                <button type="button" class="ghost-btn solid hidden" id="btnBackBuilds">选择其他策略</button>
-                <div class="builds" id="builds"></div>
-                <button type="button" class="add-custom" id="btnAddCustom" data-od-id="btn-custom">自定义</button>
-                <p class="skill-hint" id="skillHint"></p>
-                <p class="empty hidden" id="skillEmpty"></p>
-                <div class="skill-grid" id="skillGrid" role="group" aria-label="十六技能"></div>
-                <div class="skill-rank" id="skillRank"></div>
-              </div>
-              <section class="panel bond-config" data-od-id="bond-panel">
-                <h3 data-od-id="bond-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6.3 9.7 4.8 11.2a2.3 2.3 0 0 1-3.2-3.2L4 5.6a2.3 2.3 0 0 1 3.2 0"></path><path d="m9.7 6.3 1.5-1.5a2.3 2.3 0 0 1 3.2 3.2L12 10.4a2.3 2.3 0 0 1-3.2 0"></path><path d="m5.8 10.2 4.4-4.4"></path></svg></span>羁绊配置</h3>
-                <div id="bonds"></div>
-              </section>
-              </div>
-              <aside class="selected-deck" data-od-id="launch-check-panel" aria-label="启动前核对">
-                <div class="panel">
-                  <h3 data-od-id="launch-check-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 13 3.4v3.9c0 3.2-2.1 5.7-5 7.2-2.9-1.5-5-4-5-7.2V3.4L8 1.5Z"></path><path d="m5.6 8 1.5 1.5 3.3-3.3"></path></svg></span>启动前核对</h3>
-                  <div id="selectedDeck" aria-live="polite"></div>
-                </div>
-              </aside>
-            </section>
-          </div>
-          <div class="hitch-page hitch" id="hitchBody" data-od-id="hitch-page">
-            <span class="pill warn">待验证 · 不可启动</span>
-            <h2>组队 · 蹭车</h2>
-            <p>自动在大厅找房；达到蹭车目标后按预案切换任务。</p>
-            <section class="team-rules" data-team-rules="hitch" data-od-id="hitch-rules" aria-labelledby="hitchRulesTitle">
-              <div class="team-rules-head">
-                <h3 id="hitchRulesTitle">蹭车结束规则</h3>
-                <span class="team-rules-state">仅保存配置</span>
-              </div>
-              <div class="team-rules-grid">
-                <div class="field">
-                  <label for="hitchCycle">目标游戏局数</label>
-                  <div class="stepper">
-                    <button type="button" data-team-cycle-step="-1" aria-label="减少蹭车目标局数">−</button>
-                    <input id="hitchCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="蹭车目标游戏局数">
-                    <button type="button" data-team-cycle-step="1" aria-label="增加蹭车目标局数">＋</button>
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="hitchAfterGoal">目标结束后</label>
-                  <select id="hitchAfterGoal" data-team-rule="afterGoal" data-od-id="hitch-after-goal">
-                    <option value="solo">去单人刷票</option>
-                    <option value="arch">去考古</option>
-                  </select>
-                </div>
-              </div>
-              <div class="team-route" data-od-id="hitch-route" aria-label="蹭车运行路径">
-                <span><small>01</small><b>大厅自动找房</b></span>
-                <span><small>02</small><b>入房后自动准备</b></span>
-                <span><small>03</small><b>完成目标后切换</b></span>
-              </div>
-              <div class="team-boundary"><strong>当前执行边界</strong><span>只保存蹭车预案；找房能力待验证，点火保持禁用。</span></div>
-            </section>
-            <button type="button" class="ghost-btn solid" id="btnFollow" style="align-self:flex-start">已经在房间里，改为跟车</button>
-          </div>
-          <div class="hitch-page follow" id="followBody" data-od-id="follow-page">
-            <span class="pill">可启动</span>
-            <h2>组队 · 跟车</h2>
-            <p>已在房间自动准备；房间解散或被踢出后按预案切换。</p>
-            <section class="team-rules" data-team-rules="follow" data-od-id="follow-rules" aria-labelledby="followRulesTitle">
-              <div class="team-rules-head">
-                <h3 id="followRulesTitle">跟车结束规则</h3>
-                <span class="team-rules-state">仅保存配置</span>
-              </div>
-              <div class="team-rules-grid">
-                <div class="field">
-                  <label for="followCycle">目标游戏局数</label>
-                  <div class="stepper">
-                    <button type="button" data-team-cycle-step="-1" aria-label="减少跟车目标局数">−</button>
-                    <input id="followCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="跟车目标游戏局数">
-                    <button type="button" data-team-cycle-step="1" aria-label="增加跟车目标局数">＋</button>
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="followAfterRoom">房间解散 / 被踢出后</label>
-                  <select id="followAfterRoom" data-team-rule="afterRoom" data-od-id="follow-after-room">
-                    <option value="solo">去单人刷票</option>
-                    <option value="arch">去考古</option>
-                    <option value="hitch">转为大厅蹭车</option>
-                  </select>
-                </div>
-              </div>
-              <div class="team-route" data-od-id="follow-route" aria-label="跟车运行路径">
-                <span><small>01</small><b>对齐带车端</b></span>
-                <span><small>02</small><b>同步准备与目标局数</b></span>
-                <span><small>03</small><b>房间结束后切换</b></span>
-              </div>
-              <form class="team-pair" id="followPairForm" data-od-id="follow-pairing">
-                <div class="team-pair-copy"><strong>带车端配对</strong><span>两台脚本填写同一配对码，后续接入后同步房间、准备状态和目标局数。</span></div>
-                <div class="field"><label for="followPairCode">配对码或角色名</label><input id="followPairCode" data-team-pair data-od-id="follow-pair-code" type="text" maxlength="24" autocomplete="off" placeholder="输入配对信息"></div>
-                <button type="submit" class="secondary" data-od-id="follow-pair-save">保存配对</button>
-              </form>
-            </section>
-            <button type="button" class="ghost-btn solid" id="btnBackHitch" style="align-self:flex-start">改为大厅蹭车</button>
-          </div>
-          <footer class="footer" id="footer">
-            <button type="button" class="ghost-btn solid" id="btnSwitchMode">切换运行方式</button>
-            <button type="button" class="ghost-btn solid" id="btnActivateKey">输入卡密</button>
-            <button type="button" class="ghost-btn solid" id="btnMore" aria-expanded="false" aria-controls="drawer">更多设置</button>
-            <span class="grow"></span>
-            <span class="err-inline" id="startErr" role="alert"></span>
-            <div class="lamp pending" id="lamp"><span class="dot"></span><span id="lampText">等待后端预检</span></div>
-            <button type="button" class="primary" id="btnStart" data-od-id="btn-start" aria-describedby="startErr">开始运行</button>
-          </footer>
-          <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
-          <aside class="drawer" id="drawer" role="dialog" aria-labelledby="drawerTitle" aria-modal="false" aria-hidden="true">
-            <h3 id="drawerTitle">更多设置</h3>
-            <h4>特殊宝物（默认不拿）</h4>
-            <div class="neg" id="negatives"></div>
-            <h4>龙珠</h4>
-            <div class="switch-row"><span id="lblDragon">优先拿龙珠</span><button type="button" class="switch" id="swDragon" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblDragon"></button></div>
-          </aside>
-          <div class="load-bar" id="loadBar" role="progressbar" aria-label="正在连接" aria-hidden="true"><i></i></div>
-          <div class="modal-layer" id="modalLayer"><div class="sheet" id="modalSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
-          <div class="toast" id="toast" role="status" aria-live="polite"></div>
+          <button type="button" class="pick-row" id="cjbCard"><span class="k">传家宝</span><strong id="cjbName">马格纳斯</strong><i>选择</i></button>
+          <button type="button" class="pick-row" id="bossCard"><span class="k">Boss</span><strong id="bossName">巨石火人</strong><i>选择</i></button>
+          <div class="switch-row"><span id="lblSecret">自动秘境</span><button type="button" class="switch" id="swSecret" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblSecret"></button></div>
+          <div class="switch-row"><span id="lblCloseML">5-5 后取消自动主线</span><button type="button" class="switch" id="swCloseML" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblCloseML"></button></div>
+          <div class="switch-row"><span id="lblAutoArch">票刷完自动考古</span><button type="button" class="switch" id="swAutoArch" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblAutoArch"></button></div>
         </section>
+        <section class="panel lead-box" id="leadBox">
+          <h3 data-od-id="lead-room-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 13.5V3.5A1.5 1.5 0 0 1 4.5 2H11.5A1.5 1.5 0 0 1 13 3.5v10"></path><path d="M6 8h.01M3 13.5h10"></path></svg></span>带车房间</h3>
+          <div class="field"><label for="roomName">房间名称</label><input id="roomName" type="text" value="刷刷宝车队" autocomplete="off" /></div>
+          <div class="field"><label for="roomPass">房间密码</label><input id="roomPass" type="text" placeholder="可空" autocomplete="off" /></div>
+          <div class="switch-row"><span id="lblNewRoom">每局新建房间</span><button type="button" class="switch" id="swNewRoom" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblNewRoom"></button></div>
+          <p class="hint">带车不点房间开始，交给房间自动开始。</p>
+        </section>
+      </aside>
+      <section class="main">
+        <div class="main-workspace">
+        <div class="panel" data-od-id="skill-panel">
+          <div class="skill-head"><h3 data-od-id="skill-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 9.4 6.6 14.5 8l-5.1 1.4L8 14.5 6.6 9.4 1.5 8l5.1-1.4L8 1.5Z"></path></svg></span>技能搭配</h3><span class="hint" id="skillCount">已选 4 / 4</span></div>
+          <button type="button" class="ghost-btn solid" id="btnBackBuilds">选择其他策略</button>
+          <div class="builds" id="builds">
+            <button type="button" class="build" data-id="arcane_open" aria-pressed="true"><strong>奥术开荒</strong><div class="skills-inline"><span class="sk" title="奥术箭"><span class="ico" style="width:22px;height:22px"><img src="assets/skills/asj.png" alt="" width="22" height="22" /></span></span><span class="sk" title="奥术激光"><span class="ico" style="width:22px;height:22px"><img src="assets/skills/asjg.png" alt="" width="22" height="22" /></span></span><span class="sk" title="奥术射线"><span class="ico" style="width:22px;height:22px"><img src="assets/skills/assx.png" alt="" width="22" height="22" /></span></span><span class="sk" title="剑气"><span class="ico" style="width:22px;height:22px"><img src="assets/skills/jq.png" alt="" width="22" height="22" /></span></span></div></button>
+          </div>
+          <button type="button" class="add-custom hidden" id="btnAddCustom" data-od-id="btn-custom">自定义</button>
+          <p class="skill-hint hidden" id="skillHint"></p>
+          <p class="empty hidden" id="skillEmpty"></p>
+          <div class="skill-grid" id="skillGrid" role="group" aria-label="十六技能"></div>
+          <div class="skill-rank show" id="skillRank">
+            <div class="priority-head"><b>技能优先级</b><span class="hint">拖动或按 ↑ ↓ 排序</span></div>
+            <div class="rank-list" id="rankList">
+              <div class="rank-card is-carry" data-code="asj" tabindex="0"><span class="rank-no">1</span><span class="ico" style="width:28px;height:28px"><img src="assets/skills/asj.png" alt="" width="28" height="28" /></span><div class="name"><b>奥术箭</b><span>主 C · 第1优先级 · 智力/能量</span></div><select data-route="asj" aria-label="奥术箭 路线"><option value="damage" selected>优先伤害</option><option value="split">优先次级箭</option><option value="cooldown">优先急速抽箭</option></select><span class="rank-move"><button type="button" data-move="-1" disabled aria-label="奥术箭 上移">▲</button><button type="button" data-move="1" aria-label="奥术箭 下移">▼</button></span><span class="grip" aria-hidden="true">⋮⋮</span></div>
+              <div class="rank-card" data-code="asjg" tabindex="0"><span class="rank-no">2</span><span class="ico" style="width:28px;height:28px"><img src="assets/skills/asjg.png" alt="" width="28" height="28" /></span><div class="name"><b>奥术激光</b><span>第2优先级 · 智力/能量</span></div><select data-route="asjg" aria-label="奥术激光 路线"><option value="flood" selected>优先奥能洪流</option><option value="sweep">优先奥能扫射</option><option value="uptime">优先持续覆盖</option></select><span class="rank-move"><button type="button" data-move="-1" aria-label="奥术激光 上移">▲</button><button type="button" data-move="1" aria-label="奥术激光 下移">▼</button></span><span class="grip" aria-hidden="true">⋮⋮</span></div>
+              <div class="rank-card" data-code="assx" tabindex="0"><span class="rank-no">3</span><span class="ico" style="width:28px;height:28px"><img src="assets/skills/assx.png" alt="" width="28" height="28" /></span><div class="name"><b>奥术射线</b><span>第3优先级 · 智力/能量</span></div><select data-route="assx" aria-label="奥术射线 路线"><option value="damage" selected>优先伤害易伤</option><option value="guide">优先制导箭</option><option value="uptime">优先持续多目标</option></select><span class="rank-move"><button type="button" data-move="-1" aria-label="奥术射线 上移">▲</button><button type="button" data-move="1" aria-label="奥术射线 下移">▼</button></span><span class="grip" aria-hidden="true">⋮⋮</span></div>
+              <div class="rank-card" data-code="jq" tabindex="0"><span class="rank-no">4</span><span class="ico" style="width:28px;height:28px"><img src="assets/skills/jq.png" alt="" width="28" height="28" /></span><div class="name"><b>剑气</b><span>第4优先级 · 力量/物理</span></div><select data-route="jq" aria-label="剑气 路线"><option value="ice" selected>优先碎冰</option><option value="flame">优先烈焰斩</option><option value="projectile">优先弹速体型</option></select><span class="rank-move"><button type="button" data-move="-1" aria-label="剑气 上移">▲</button><button type="button" data-move="1" disabled aria-label="剑气 下移">▼</button></span><span class="grip" aria-hidden="true">⋮⋮</span></div>
+            </div>
+          </div>
+        </div>
+        <section class="panel bond-config" data-od-id="bond-panel">
+          <h3 data-od-id="bond-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6.3 9.7 4.8 11.2a2.3 2.3 0 0 1-3.2-3.2L4 5.6a2.3 2.3 0 0 1 3.2 0"></path><path d="m9.7 6.3 1.5-1.5a2.3 2.3 0 0 1 3.2 3.2L12 10.4a2.3 2.3 0 0 1-3.2 0"></path><path d="m5.8 10.2 4.4-4.4"></path></svg></span>羁绊配置</h3>
+          <div id="bonds">
+            <div class="bond-block" data-od-id="bond-saved-summary"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"></rect><path d="M5.6 7V5.3a2.4 2.4 0 0 1 4.8 0V7"></path></svg></span>基础卡组</h4><div class="bond-locked"><span class="deck-tag">智力</span><span class="deck-tag">祝福</span><span class="deck-tag">成长</span><span class="deck-tag">经济</span><span class="deck-tag">贪婪</span><span class="deck-tag">挑战</span><span class="deck-tag">法术</span><span class="deck-tag">急速</span><span class="deck-tag">魔能</span><span class="deck-tag">暴击</span></div></div>
+            <div class="bond-block" data-od-id="advanced-pack-priority"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.8 9.6 6.1 14.2 6.5 10.8 9.6 11.8 14.2 8 11.9 4.2 14.2 5.2 9.6 1.8 6.5 6.4 6.1Z"></path></svg></span>高级卡组顺序</h4><div class="adv-priority" data-od-id="advanced-pack-priority"><div class="adv-priority-list"><div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第1优先级 海盗"><span class="rank-no">1</span><b title="海盗">海盗</b><em>第1优先级</em><i>▾</i></button><div class="dd-menu" role="listbox"><button type="button" role="option" data-adv-pick="haidao" data-adv-slot="0" aria-selected="true">海盗</button><button type="button" role="option" data-adv-pick="fengshen" data-adv-slot="0" aria-selected="false">封神</button></div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="haidao" disabled aria-label="海盗 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="haidao" aria-label="海盗 下移">▼</button></span></div><div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第2优先级 封神"><span class="rank-no">2</span><b title="封神">封神</b><em>第2优先级</em><i>▾</i></button><div class="dd-menu" role="listbox"><button type="button" role="option" data-adv-pick="haidao" data-adv-slot="1" aria-selected="false">海盗</button><button type="button" role="option" data-adv-pick="fengshen" data-adv-slot="1" aria-selected="true">封神</button></div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="fengshen" aria-label="封神 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="fengshen" disabled aria-label="封神 下移">▼</button></span></div></div></div></div>
+            <div class="bond-actions"><p class="hint">卡组已锁定。高级优先级用下拉或 ▲▼ 即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>
+          </div>
+        </section>
+        </div>
+        <aside class="selected-deck" data-od-id="launch-check-panel" aria-label="启动前核对">
+          <div class="panel">
+            <h3 data-od-id="launch-check-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 13 3.4v3.9c0 3.2-2.1 5.7-5 7.2-2.9-1.5-5-4-5-7.2V3.4L8 1.5Z"></path><path d="m5.6 8 1.5 1.5 3.3-3.3"></path></svg></span>启动前核对</h3>
+            <div id="selectedDeck" aria-live="polite">
+              <p class="launch-ready is-blocked"><i></i>订阅未激活</p>
+              <dl class="launch-facts">
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 14V2.6"></path><path d="M3.5 2.6h8.8L10.2 5.7 12.3 8.8H3.5Z"></path></svg></span>关卡</dt><dd>2-1 · 2 局</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="6.1" cy="6" r="2"></circle><path d="M2.6 13c.3-2.1 1.7-3.3 3.5-3.3S9.3 10.9 9.6 13"></path><circle cx="11" cy="6.3" r="1.5"></circle><path d="M10.3 9.8c1.3.3 2.4 1.3 2.7 3.2"></path></svg></span>方式</dt><dd>单人模式</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.6 13 3.5v3.8c0 3.1-2.1 5.5-5 7-2.9-1.5-5-3.9-5-7V3.5L8 1.6Z"></path></svg></span>声望</dt><dd>未启用</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3" y="3.5" width="8" height="10" rx="1.2"></rect><path d="M6 2.5h6.5v10"></path></svg></span>传家宝</dt><dd>马格纳斯</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 9.2 6.4 14.2 7.6 9.2 8.8 8 13.7 6.8 8.8 1.8 7.6 6.8 6.4Z"></path></svg></span>Boss</dt><dd>巨石火人</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"></rect><path d="M5.6 7V5.3a2.4 2.4 0 0 1 4.8 0V7"></path></svg></span>订阅</dt><dd>未激活</dd></div>
+              </dl>
+              <div class="launch-block"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.8 9.6 6.1 14.2 6.5 10.8 9.6 11.8 14.2 8 11.9 4.2 14.2 5.2 9.6 1.8 6.5 6.4 6.1Z"></path></svg></span>技能</h4><div class="launch-skills"><span class="launch-skill"><i>1</i><img src="assets/skills/asj.png" alt="" width="22" height="22" /><b>奥术箭</b></span><span class="launch-skill"><i>2</i><img src="assets/skills/asjg.png" alt="" width="22" height="22" /><b>奥术激光</b></span><span class="launch-skill"><i>3</i><img src="assets/skills/assx.png" alt="" width="22" height="22" /><b>奥术射线</b></span><span class="launch-skill"><i>4</i><img src="assets/skills/jq.png" alt="" width="22" height="22" /><b>剑气</b></span></div></div>
+              <div class="launch-block"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.15"></circle><path d="M6.45 2h3.1l.48 1.72 1.48.62 1.68-.58 1.18 2.05-1.22 1.08.04 1.62 1.18 1.08-1.18 2.05-1.68-.58-1.48.62L9.55 14H6.45l-.48-1.72-1.48-.62-1.68.58-1.18-2.05 1.22-1.08-.04-1.62-1.18-1.08 1.18-2.05 1.68.58 1.48-.62L6.45 2Z"></path></svg></span>常规设置</h4><div class="deck-tags"><span class="deck-tag">秘境 开</span><span class="deck-tag">考古 开</span><span class="deck-tag">龙珠 关</span><span class="deck-tag">取消主线 开</span><span class="deck-tag">每周新建 关</span></div></div>
+              <div class="launch-block"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3" y="3.5" width="8" height="10" rx="1.2"></rect><path d="M6 2.5h6.5v10"></path></svg></span>卡组</h4><p class="launch-sub">基础 · 已锁定</p><div class="deck-tags"><span class="deck-tag">智力</span><span class="deck-tag">祝福</span><span class="deck-tag">成长</span><span class="deck-tag">经济</span><span class="deck-tag">贪婪</span><span class="deck-tag">挑战</span><span class="deck-tag">法术</span><span class="deck-tag">急速</span><span class="deck-tag">魔能</span><span class="deck-tag">暴击</span></div><p class="launch-sub">高级 · 按顺序</p><div class="deck-tags"><span class="deck-tag">1·海盗</span><span class="deck-tag">2·封神</span></div></div>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </div>
+    <div class="hitch-page hitch" id="hitchBody" data-od-id="hitch-page">
+      <span class="pill warn">待验证 · 不可启动</span>
+      <h2>组队 · 蹭车</h2>
+      <p>自动在大厅找房；达到蹭车目标后按预案切换任务。</p>
+      <section class="team-rules" data-team-rules="hitch" data-od-id="hitch-rules" aria-labelledby="hitchRulesTitle">
+        <div class="team-rules-head">
+          <h3 id="hitchRulesTitle">蹭车结束规则</h3>
+          <span class="team-rules-state">仅保存配置</span>
+        </div>
+        <div class="team-rules-grid">
+          <div class="field">
+            <label for="hitchCycle">目标游戏局数</label>
+            <div class="stepper">
+              <button type="button" data-team-cycle-step="-1" aria-label="减少蹭车目标局数">−</button>
+              <input id="hitchCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="蹭车目标游戏局数">
+              <button type="button" data-team-cycle-step="1" aria-label="增加蹭车目标局数">＋</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="hitchAfterGoal">目标结束后</label>
+            <select id="hitchAfterGoal" data-team-rule="afterGoal" data-od-id="hitch-after-goal">
+              <option value="solo">去单人刷票</option>
+              <option value="arch">去考古</option>
+            </select>
+          </div>
+        </div>
+        <div class="team-route" data-od-id="hitch-route" aria-label="蹭车运行路径">
+          <span><small>01</small><b>大厅自动找房</b></span>
+          <span><small>02</small><b>入房后自动准备</b></span>
+          <span><small>03</small><b>完成目标后切换</b></span>
+        </div>
+        <div class="team-boundary"><strong>当前执行边界</strong><span>只保存蹭车预案；找房能力待验证，点火保持禁用。</span></div>
+      </section>
+      <button type="button" class="ghost-btn solid" id="btnFollow" style="align-self:flex-start">已经在房间里，改为跟车</button>
+    </div>
+    <div class="hitch-page follow" id="followBody" data-od-id="follow-page">
+      <span class="pill">可启动</span>
+      <h2>组队 · 跟车</h2>
+      <p>已在房间自动准备；房间解散或被踢出后按预案切换。</p>
+      <section class="team-rules" data-team-rules="follow" data-od-id="follow-rules" aria-labelledby="followRulesTitle">
+        <div class="team-rules-head">
+          <h3 id="followRulesTitle">跟车结束规则</h3>
+          <span class="team-rules-state">仅保存配置</span>
+        </div>
+        <div class="team-rules-grid">
+          <div class="field">
+            <label for="followCycle">目标游戏局数</label>
+            <div class="stepper">
+              <button type="button" data-team-cycle-step="-1" aria-label="减少跟车目标局数">−</button>
+              <input id="followCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="跟车目标游戏局数">
+              <button type="button" data-team-cycle-step="1" aria-label="增加跟车目标局数">＋</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="followAfterRoom">房间解散 / 被踢出后</label>
+            <select id="followAfterRoom" data-team-rule="afterRoom" data-od-id="follow-after-room">
+              <option value="solo">去单人刷票</option>
+              <option value="arch">去考古</option>
+              <option value="hitch">转为大厅蹭车</option>
+            </select>
+          </div>
+        </div>
+        <div class="team-route" data-od-id="follow-route" aria-label="跟车运行路径">
+          <span><small>01</small><b>对齐带车端</b></span>
+          <span><small>02</small><b>同步准备与目标局数</b></span>
+          <span><small>03</small><b>房间结束后切换</b></span>
+        </div>
+        <form class="team-pair" id="followPairForm" data-od-id="follow-pairing">
+          <div class="team-pair-copy"><strong>带车端配对</strong><span>两台脚本填写同一配对码，后续接入后同步房间、准备状态和目标局数。</span></div>
+          <div class="field"><label for="followPairCode">配对码或角色名</label><input id="followPairCode" data-team-pair data-od-id="follow-pair-code" type="text" maxlength="24" autocomplete="off" placeholder="输入配对信息"></div>
+          <button type="submit" class="secondary" data-od-id="follow-pair-save">保存配对</button>
+        </form>
+      </section>
+      <button type="button" class="ghost-btn solid" id="btnBackHitch" style="align-self:flex-start">改为大厅蹭车</button>
+    </div>
+    <footer class="footer" id="footer">
+      <button type="button" class="ghost-btn solid" id="btnSwitchMode">切换运行方式</button>
+      <button type="button" class="ghost-btn solid" id="btnMore" aria-expanded="false" aria-controls="drawer">更多设置</button>
+      <button type="button" class="ghost-btn solid" id="btnActivateKey" data-od-id="btn-activate-key">激活卡密</button>
+      <span class="grow"></span>
+      <span class="err-inline" id="startErr" role="alert"></span>
+      <div class="lamp pending" id="lamp"><span class="dot"></span><span id="lampText">等待后端预检</span></div>
+      <button type="button" class="primary" id="btnStart" data-od-id="btn-start" aria-describedby="startErr">开始运行</button>
+    </footer>
+    <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+    <aside class="drawer" id="drawer" role="dialog" aria-labelledby="drawerTitle" aria-modal="false" aria-hidden="true">
+      <h3 id="drawerTitle">更多设置</h3>
+      <h4>特殊宝物（默认不拿）</h4>
+      <div class="neg" id="negatives"></div>
+      <h4>龙珠</h4>
+      <div class="switch-row"><span id="lblDragon">优先拿龙珠</span><button type="button" class="switch" id="swDragon" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblDragon"></button></div>
+    </aside>
+    <div class="load-bar" id="loadBar" role="progressbar" aria-label="正在连接" aria-hidden="true"><i></i></div>
+    <div class="modal-layer" id="modalLayer"><div class="sheet" id="modalSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </section>
 
   <script>
     const SKILLS = { asj:"奥术箭", asjg:"奥术激光", assx:"奥术射线", bsxx:"冰霜新星", byj:"爆炎箭", dcw:"电磁网", dz:"地震", hbj:"寒冰箭", hq:"火球", jf:"飓风", jq:"剑气", ljf:"龙卷风", pg:"普攻", sdl:"闪电链", tl:"天雷", ys:"陨石" };
@@ -1270,20 +1458,20 @@
       { name:"等级优势", effect:"立即获得当前等级×10 的全属性。", why:"一次性属性，完整描述待补。" },
       { name:"木材梭哈", effect:"55% 概率木材翻倍；45% 概率木材清 0。", why:"可能清空木材，默认不拿。" }
     ];
-    const MUST_TAKE = ["EX","ONEPIECE","至高进化","一身神装","满级大佬","全都要","卡牌大师"];
     const MODE_LABEL = { solo:"单人模式", lead:"组队带车模式", follow:"组队跟车模式", hitch:"组队蹭车模式" };
     const stemLabel = (stem) => stem.replace(/^\d+/, "");
     const state = {
       scene:"farm", mode:"solo", wizKind:"solo", wizTeam:"lead", wizardReturnScene:"farm",
-      theme:"light", hero:true, cycle:100, played:0, autoSecret:false, autoArch:false, closeMainline:false, newRoom:false, chapter:1, stage:10, dragonPrefer:true,
+      theme:"dark", hero:false, cycle:2, played:0, autoSecret:true, autoArch:true, closeMainline:true, newRoom:false, chapter:2, stage:1, dragonPrefer:false,
       teamRules:{follow:{cycle:100,afterRoom:"solo",recoveryHours:1,pairCode:""},hitch:{cycle:100,afterGoal:"solo",recoveryHours:1}},
-      selected:"arcane_open", custom:[{id:"custom:1", name:"自定义", skills:[]}], collapsed:false, drawer:false,
-      modal:"", focusFac:"kenrito", attr:new Set(["intelligence"]), growth:new Set(["成长","经济","贪婪","挑战"]),
-      basic:new Set(["法术","急速","箭术"]), adv:[], advDraft:[], advEditing:false, bondSaved:false,
+      selected:"arcane_open", custom:[{id:"custom:1", name:"自定义", skills:[]}], collapsed:true, drawer:false,
+      modal:"", focusFac:"kenrito", attr:new Set(["intelligence"]), growth:new Set(["祝福","成长","经济","贪婪","挑战"]),
+      basic:new Set(["法术","急速","魔能","暴击"]), adv:["haidao","fengshen"], advDraft:[], advEditing:false, bondSaved:true,
       alloc:{heifeng:0,yinse:0,kenrito:5,tanxian:3,yuansu:0,shouhu:0}, draft:null,
       negative:new Set(),
       routes:Object.fromEntries(Object.keys(FAMILIES).map((c)=>[c,FAMILIES[c].routes[0][0]])),
-      priority:["asj","asjg","assx","jq"], cjb:"03洛卡纳哈", boss:"16怀特迈恩"
+      priority:["asj","asjg","assx","jq"], cjb:"03洛卡纳哈", boss:"31巨石火人",
+      subscription:{ active:false, status:"未激活", expires_at:"" }
     };
     const $ = (id) => document.getElementById(id);
     const icon = (code, size) => {
@@ -1315,8 +1503,9 @@
     }
     function usedPoints(map) { return Object.values(map || state.alloc).reduce((a,b)=>a+b,0); }
     function budgetAvail() { const n = state.chapter===1 ? state.stage : (state.chapter===2 ? 23+state.stage : 42); return Math.min(n,23); }
-    function toast(msg) { const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._id); toast._id=setTimeout(()=>t.classList.remove("show"),1400); }
+    function toast(msg) { const t=$("toast"); if (!t) return; t.textContent=msg; t.classList.add("show"); clearTimeout(toast._id); toast._id=setTimeout(()=>t.classList.remove("show"),1400); }
     function setSwitch(el, on) {
+      if (!el) return;
       el.setAttribute("aria-pressed", on ? "true" : "false");
       el.setAttribute("aria-checked", on ? "true" : "false");
     }
@@ -1373,6 +1562,7 @@
     }
     function renderDD(kind, items, value, labelOf) {
       const btn = $(kind+"Btn"), menu = $(kind+"Menu");
+      if (!btn || !menu) return;
       const cur = items.find((it)=>String(it.id)===String(value)) || items[0];
       btn.querySelector("b").textContent = labelOf(cur);
       menu.innerHTML = items.map((it)=>`<button type="button" role="option" data-dd-val="${it.id}" aria-selected="${String(it.id)===String(value)}">${labelOf(it)}</button>`).join("");
@@ -1447,7 +1637,8 @@
         users: '<circle cx="6.1" cy="6" r="2"></circle><path d="M2.6 13c.3-2.1 1.7-3.3 3.5-3.3S9.3 10.9 9.6 13"></path><circle cx="11" cy="6.3" r="1.5"></circle><path d="M10.3 9.8c1.3.3 2.4 1.3 2.7 3.2"></path>',
         spark: '<path d="M8 1.5 9.2 6.4 14.2 7.6 9.2 8.8 8 13.7 6.8 8.8 1.8 7.6 6.8 6.4Z"></path>',
         shield: '<path d="M8 1.6 13 3.5v3.8c0 3.1-2.1 5.5-5 7-2.9-1.5-5-3.9-5-7V3.5L8 1.6Z"></path>',
-        sliders: '<path d="M3 4.5h10"></path><path d="M3 8h10"></path><path d="M3 11.5h10"></path><circle cx="6" cy="4.5" r="1.3"></circle><circle cx="10" cy="8" r="1.3"></circle><circle cx="7.5" cy="11.5" r="1.3"></circle>'
+        sliders: '<path d="M3 4.5h10"></path><path d="M3 8h10"></path><path d="M3 11.5h10"></path><circle cx="6" cy="4.5" r="1.3"></circle><circle cx="10" cy="8" r="1.3"></circle><circle cx="7.5" cy="11.5" r="1.3"></circle>',
+        gear: '<circle cx="8" cy="8" r="2.15"></circle><path d="M6.45 2h3.1l.48 1.72 1.48.62 1.68-.58 1.18 2.05-1.22 1.08.04 1.62 1.18 1.08-1.18 2.05-1.68-.58-1.48.62L9.55 14H6.45l-.48-1.72-1.48-.62-1.68.58-1.18-2.05 1.22-1.08-.04-1.62-1.18-1.08 1.18-2.05 1.68.58 1.48-.62L6.45 2Z"></path>'
       };
       return `<span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16">${paths[kind] || paths.cards}</svg></span>`;
     }
@@ -1502,18 +1693,16 @@
       const advancedOrder = state.adv.map((id)=>ADV.find((item)=>item.id===id)).filter(Boolean);
       const factions = FACTIONS.filter((item)=>state.alloc[item.id]).map((item)=>`${item.short}×${state.alloc[item.id]}`);
       const current = currentSkills().filter(Boolean);
-      // The mode catalog and backend preflight own startability.  The inline
-      // shell must not claim that lobby-hitch is impossible or that a local
-      // skill selection is already a green preflight result.
-      const launchBlocked = current.length === 0;
-      const launchStatus = current.length === 0 ? "请先选择技能" : "等待后端预检";
+      const subOk = isSubscriptionOk();
+      const launchBlocked = current.length === 0 || !subOk;
+      const launchStatus = current.length === 0 ? "请先选择技能" : (subOk ? "等待后端预检" : `订阅${state.subscription.status || "未激活"}`);
       const rankedSkills = [...state.priority.filter((code)=>current.includes(code)), ...current.filter((code)=>!state.priority.includes(code))].slice(0,4);
       const detailTags = [
         `秘境 ${state.autoSecret ? "开" : "关"}`,
         `考古 ${state.autoArch ? "开" : "关"}`,
         `龙珠 ${state.dragonPrefer ? "开" : "关"}`,
         `取消主线 ${state.closeMainline ? "开" : "关"}`,
-        `每局新建 ${state.newRoom ? "开" : "关"}`
+        `每周新建 ${state.newRoom ? "开" : "关"}`
       ];
       const basicSummary = selectedBasics.length
         ? `<div class="deck-tags">${selectedBasics.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div>`
@@ -1523,7 +1712,10 @@
         : `<span class="deck-tag empty">未启用</span>`;
       const skillSummary = rankedSkills.length ? `<div class="launch-skills">${rankedSkills.map((code,index)=>`<span class="launch-skill"><i>${index+1}</i><img src="assets/skills/${code}.png" alt="" width="22" height="22" /><b>${SKILLS[code]}</b></span>`).join("")}</div>` : `<p class="deck-note">暂未选择技能。</p>`;
       const prestigeValue = state.hero ? (factions.join("、") || "已启用，待选择") : "未启用";
-      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><dl class="launch-facts"><div><dt>${blockIcon("flag")}关卡</dt><dd>${state.chapter}-${state.stage} · ${state.cycle ? `${state.cycle} 局` : "手动停"}</dd></div><div><dt>${blockIcon("users")}方式</dt><dd>${MODE_LABEL[state.mode]||"单人模式"}</dd></div><div><dt>${blockIcon("shield")}声望</dt><dd>${prestigeValue}</dd></div><div><dt>${blockIcon("cards")}传家宝</dt><dd>${stemLabel(state.cjb)||"未选"}</dd></div><div><dt>${blockIcon("spark")}Boss</dt><dd>${stemLabel(state.boss)||"未选"}</dd></div></dl><div class="launch-block"><h4>${blockIcon("star")}技能</h4>${skillSummary}</div><div class="launch-block"><h4>${blockIcon("sliders")}细节</h4><div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div></div><div class="launch-block"><h4>${blockIcon("cards")}卡组</h4><p class="launch-sub">基础${state.bondSaved ? " · 已锁定" : ""}</p>${basicSummary}<p class="launch-sub">高级 · 按顺序</p>${advancedSummary}</div>`;
+      const subValue = subOk
+        ? (formatExpire(state.subscription.expires_at) ? `正常 · ${formatExpire(state.subscription.expires_at)} 到期` : "正常")
+        : (state.subscription.status || "未激活");
+      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><dl class="launch-facts"><div><dt>${blockIcon("flag")}关卡</dt><dd>${state.chapter}-${state.stage} · ${state.cycle ? `${state.cycle} 局` : "手动停"}</dd></div><div><dt>${blockIcon("users")}方式</dt><dd>${MODE_LABEL[state.mode]||"单人模式"}</dd></div><div><dt>${blockIcon("shield")}声望</dt><dd>${prestigeValue}</dd></div><div><dt>${blockIcon("cards")}传家宝</dt><dd>${stemLabel(state.cjb)||"未选"}</dd></div><div><dt>${blockIcon("spark")}Boss</dt><dd>${stemLabel(state.boss)||"未选"}</dd></div><div><dt>${blockIcon("lock")}订阅</dt><dd>${subValue}</dd></div></dl><div class="launch-block"><h4>${blockIcon("star")}技能</h4>${skillSummary}</div><div class="launch-block"><h4>${blockIcon("gear")}常规设置</h4><div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div></div><div class="launch-block"><h4>${blockIcon("cards")}卡组</h4><p class="launch-sub">基础${state.bondSaved ? " · 已锁定" : ""}</p>${basicSummary}<p class="launch-sub">高级 · 按顺序</p>${advancedSummary}</div>`;
     }
     function renderBuilds() {
       const isCustom = state.selected.startsWith("custom:");
@@ -1621,11 +1813,70 @@
       $("negatives").innerHTML=NEG.map((card)=>`<label class="neg-item"><input type="checkbox" data-neg="${card.name}" ${state.negative.has(card.name)?"checked":""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span><span class="why">${card.why}</span></span></label>`).join("");
     }
     function renderNames() { $("cjbName").textContent=stemLabel(state.cjb); $("bossName").textContent=stemLabel(state.boss); renderLaunchSummary(); }
+    function formatExpire(value) {
+      if (!value) return "";
+      const text = String(value);
+      return text.length >= 10 ? text.slice(0, 10) : text;
+    }
+    function isSubscriptionOk() {
+      return Boolean(state.subscription && state.subscription.active);
+    }
+    function subscriptionTone() {
+      if (isSubscriptionOk()) return "ok";
+      const status = state.subscription.status || "未激活";
+      if (/过期|到期|失效|无效|拒绝|失败/.test(status)) return "bad";
+      return "warn";
+    }
+    function subscriptionPillLabel() {
+      if (isSubscriptionOk()) {
+        const exp = formatExpire(state.subscription.expires_at);
+        return exp ? `至 ${exp}` : "已激活";
+      }
+      return state.subscription.status || "未激活";
+    }
+    function applySubscription(sub) {
+      if (sub) state.subscription = {
+        active: Boolean(sub.active),
+        status: sub.status || (sub.active ? "正常" : "未激活"),
+        expires_at: sub.expires_at || ""
+      };
+      const pill = $("subscriptionPill");
+      if (pill) {
+        const tone = subscriptionTone();
+        pill.dataset.state = tone;
+        pill.innerHTML = `<span class="dot" aria-hidden="true"></span>${subscriptionPillLabel()}`;
+        pill.title = isSubscriptionOk() ? "查看或激活卡密" : "激活卡密";
+        pill.setAttribute("aria-label", isSubscriptionOk() ? `订阅${subscriptionPillLabel()}` : `订阅${subscriptionPillLabel()}，打开卡密`);
+      }
+      const btn = $("btnActivateKey");
+      if (btn) btn.textContent = "激活卡密";
+    }
     function openSubscriptionModal() {
-      state.modal="subscription"; state._focusBack=document.activeElement;
-      $("modalSheet").className="sheet subscription";
-      $("modalSheet").innerHTML=`<div class="subscription-head"><p>刷刷宝 · 订阅授权</p><h2>输入卡密以激活本机</h2></div><div class="subscription-body"><label for="subscriptionKey">订阅卡密<input id="subscriptionKey" type="password" autocomplete="off" placeholder="请输入本地生成的卡密" /></label><small>卡密会绑定到当前 Windows 用户；未通过授权时无法开始自动运行。</small></div><div class="subscription-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-activate-subscription="1">激活并继续</button></div>`;
-      $("modalLayer").classList.add("show"); focusSheet();
+      state.modal = "subscription";
+      state._focusBack = document.activeElement;
+      const sub = state.subscription;
+      const tone = subscriptionTone();
+      let nowText = "订阅未激活";
+      if (isSubscriptionOk()) {
+        const exp = formatExpire(sub.expires_at);
+        nowText = exp ? `当前授权正常 · ${exp} 到期` : "当前授权正常";
+      } else if (/过期/.test(sub.status || "")) {
+        nowText = "订阅已过期";
+      }
+      const cta = isSubscriptionOk() ? "更换并保存" : "激活并保存";
+      $("modalSheet").className = "sheet subscription";
+      $("modalSheet").innerHTML = `<div class="subscription-head"><p class="subscription-kicker">刷刷宝 · 订阅授权</p><h2 id="sheetTitle">激活卡密</h2><p class="subscription-now is-${tone}"><i></i>${nowText}</p></div><div class="subscription-body"><label for="subscriptionKey">订阅卡密<div class="key-row" id="subscriptionKeyRow"><input id="subscriptionKey" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴卡密" /><button type="button" class="key-toggle" data-toggle-key="1" aria-pressed="false">显示</button></div></label><p class="subscription-err" id="subscriptionErr" role="alert"></p><small>绑定本机用户，激活后才能开始运行。</small></div><div class="subscription-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-activate-subscription="1">${cta}</button></div>`;
+      $("modalLayer").classList.add("show");
+      const input = $("subscriptionKey");
+      if (input) input.focus();
+    }
+    function showSubscriptionErr(msg) {
+      const err = $("subscriptionErr");
+      const input = $("subscriptionKey");
+      const row = $("subscriptionKeyRow");
+      if (err) { err.textContent = msg; err.classList.toggle("show", Boolean(msg)); }
+      if (input) input.classList.toggle("is-invalid", Boolean(msg));
+      if (row) row.classList.toggle("is-invalid", Boolean(msg));
     }
     function setKind(kind, root) {
       root.querySelectorAll("[data-kind]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.kind===kind?"true":"false"));
@@ -1656,6 +1907,7 @@
       } else {
         $("startErr").classList.remove("show");
       }
+      applySubscription();
       renderLaunchSummary();
     }
     function normalizeTeamCycle(value) {
@@ -1673,12 +1925,17 @@
       });
     }
     function setScene(scene) {
+      if (scene==="wizard" && state.scene!=="wizard") {
+        state.wizardReturnScene = ["farm","lead","follow","hitch"].includes(state.scene) ? state.scene : "farm";
+      }
       if (scene==="farm") state.mode="solo";
       else if (scene==="lead"||scene==="follow"||scene==="hitch") state.mode=scene;
       state.scene=scene;
       document.body.dataset.scene=scene;
-      $("scene-wizard").setAttribute("aria-hidden", scene==="wizard" ? "false" : "true");
-      $("scene-app").setAttribute("aria-hidden", ["farm","lead","follow","hitch"].includes(scene) ? "false" : "true");
+      const wiz = $("scene-wizard");
+      if (wiz) wiz.setAttribute("aria-hidden", scene==="wizard" ? "false" : "true");
+      const app = $("scene-app");
+      if (app) app.setAttribute("aria-hidden", ["farm","lead","follow","hitch"].includes(scene) ? "false" : "true");
       if (scene==="wizard") renderWizard();
       $("lblCycle").textContent=scene==="lead"?"带车目标局数":"目标局数";
       $("statusPill").innerHTML='<span class="dot"></span>待命';
@@ -1720,6 +1977,16 @@
     $("cjbCard").addEventListener("click",()=>openModal("cjb"));
     $("bossCard").addEventListener("click",()=>openModal("boss"));
     $("modalLayer").addEventListener("click",(e)=>{
+      if (e.target.closest("[data-toggle-key]")) {
+        const input=$("subscriptionKey"); const btn=e.target.closest("[data-toggle-key]");
+        if (!input || !btn) return;
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        btn.textContent = show ? "隐藏" : "显示";
+        btn.setAttribute("aria-pressed", show ? "true" : "false");
+        input.focus();
+        return;
+      }
       if (e.target===$("modalLayer") || e.target.closest("[data-close]")) {
         if (e.target.closest("[data-close='off']")) state.hero=false;
         closeModal(); renderPrestige(); refreshSummary(); return;
@@ -1869,12 +2136,16 @@
       }
       $("startErr").classList.remove("show");
     });
+    $("btnActivateKey").addEventListener("click", openSubscriptionModal);
+    $("subscriptionPill").addEventListener("click", openSubscriptionModal);
     $("btnWizard").addEventListener("click",openWizard);
     $("btnTheme").addEventListener("click",()=>{
       state.theme=state.theme==="dark"?"light":"dark";
       $("scene-app").dataset.theme=state.theme;
+      document.body.dataset.theme=state.theme;
       $("btnTheme").textContent=state.theme==="dark"?"浅色":"深色";
       $("btnTheme").setAttribute("aria-pressed", state.theme==="dark" ? "true" : "false");
+      $("btnTheme").setAttribute("aria-label", state.theme==="dark" ? "当前深色，切换到浅色" : "当前浅色，切换到深色");
     });
     document.addEventListener("keydown",(e)=>{
       if (e.key==="Escape") {
@@ -1895,9 +2166,16 @@
         else if (!e.shiftKey && document.activeElement===last) { e.preventDefault(); first.focus(); }
       }
     });
+    applySubscription();
+    setSwitch($("swSecret"), state.autoSecret);
+    setSwitch($("swCloseML"), state.closeMainline);
+    setSwitch($("swAutoArch"), state.autoArch);
+    setSwitch($("swDragon"), state.dragonPrefer);
     renderChapterStage(); renderNames(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
     setScene("farm");
+    window.openSubscriptionModal = openSubscriptionModal;
+    window.applySubscription = applySubscription;
   </script>
-    <script type="module" src="./src/main.ts"></script>
+  <script type="module" src="./src/main.ts"></script>
 </body>
 </html>
