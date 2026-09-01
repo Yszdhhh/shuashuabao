@@ -1879,7 +1879,7 @@ class MainWindow(QMainWindow):
             "不归秘境：第四章起开放，20/25/30 层同战力更高；入口、层数选择和 NPC 锚点尚未验证。"
             "当前开关只控制既有通用秘境入口，默认关闭。"
         )
-        self.secret_options = QLabel("已启用已验证入口")
+        self.secret_options = QLabel("入口证据待补齐（默认关闭）")
         self.secret_options.setObjectName("hintLabel")
         self.secret_options.setVisible(False)
         self.chk_secret_realm.toggled.connect(self.secret_options.setVisible)
@@ -2123,6 +2123,8 @@ class MainWindow(QMainWindow):
             f"{self.lbl_precheck.text()}（{self.lbl_precheck.toolTip()}）",
             "运行方式",
             f"{self.selected_mode_label()} · {strategy}",
+            "证据状态",
+            spec.evidence_status or "unknown",
         ]
         if hasattr(self, "txt_stage_target"):
             stage = self.txt_stage_target.text().strip() or "-"

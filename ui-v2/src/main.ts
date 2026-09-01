@@ -247,8 +247,15 @@ function currentModeId(): string {
 
 /** OD12 只负责展示；是否能点火始终以后端 mode catalog 为准。 */
 function applyLaunchability(): void {
-  if (runActive) return;
+  const evidence = $("evidencePill");
   const mode = modeCatalog.get(currentModeId());
+  if (evidence) {
+    const status = mode?.evidence_status?.trim() || "unknown";
+    evidence.textContent = `证据：${status}`;
+    evidence.title = mode ? `${mode.label} 证据状态：${status}` : "当前运行方式证据状态未知";
+    evidence.dataset.status = status;
+  }
+  if (runActive) return;
   const skillsReady = currentSkills().filter(Boolean).length > 0;
   const launchable = Boolean(mode?.startable) && skillsReady;
   const button = $("btnStart") as HTMLButtonElement;
@@ -709,7 +716,7 @@ function wireIntents(): void {
     try {
       const res = await (bridge?.activate_subscription
         ? bridge.activate_subscription(key)
-        : Promise.resolve({ ok: false, message: "未接入激活接口" }));
+        : Promise.resolve({ ok: false, message: "未接入激活接口", status: "", expires_at: "" }));
       if (res && res.ok) {
         toast(res.message || "订阅激活成功！");
         applySubscription({ active: true, status: res.status || "正常", expires_at: res.expires_at || "" });

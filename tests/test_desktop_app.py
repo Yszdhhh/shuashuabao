@@ -763,6 +763,7 @@ class DesktopPanelTests(unittest.TestCase):
             text = self.window.launch_check.text()
             for heading in (
                 "启动前核对",
+                "证据状态",
                 "目标关卡",
                 "运行方式",
                 "已选技能",
