@@ -21,6 +21,11 @@ from pathlib import Path
 from typing import Callable, Mapping, Any
 from urllib import request as urllib_request
 from urllib.parse import urlsplit
+from shuabao.subscription_permit import (
+    DevStartCapability,
+    EntitlementPermit,
+    PermitVerificationError,
+)
 
 SUBSCRIPTION_MODE_ENV = "SHUABAO_SUBSCRIPTION_MODE"
 SUBSCRIPTION_BASE_URL_ENV = "SHUABAO_SUBSCRIPTION_BASE_URL"
@@ -29,6 +34,7 @@ SUBSCRIPTION_DEVICE_FP_ENV = "SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT"
 SUBSCRIPTION_TIMEOUT_ENV = "SHUABAO_SUBSCRIPTION_TIMEOUT_S"
 VALID_MODES = {"off", "shadow", "enforce"}
 DEFAULT_LOCAL_BRIDGE_URL = "http://127.0.0.1:8000"
+
 _KEY_FILE_NAME = "subscription.key"
 _LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 
@@ -42,6 +48,8 @@ class StartPermission:
     message: str = ""
     would_allow: bool | None = None
     expires_at: str = ""
+    permit: EntitlementPermit | None = None
+    dev_capability: DevStartCapability | None = None
 
 
 def validate_entitlement(
@@ -289,7 +297,14 @@ def check_start_permission(
     source = os.environ if env is None else env
     mode = subscription_mode(source)
     if mode == "off":
-        return StartPermission(allowed=True, mode=mode, status="OFF", code="OFF", would_allow=True)
+        return StartPermission(
+            allowed=True,
+            mode=mode,
+            status="OFF",
+            code="OFF",
+            would_allow=True,
+            dev_capability=DevStartCapability.for_off(),
+        )
 
     base_url = _base_url(source)
     license_key = _env_text(source, SUBSCRIPTION_LICENSE_KEY_ENV)
@@ -318,6 +333,18 @@ def check_start_permission(
     would_allow = bool(payload.get("valid")) and payload.get("can_start_runner") is True
     if not would_allow:
         return _deny(mode, code, message or f"订阅状态不允许启动: {status}", status=status)
+    raw_permit = payload.get("permit")
+    if raw_permit is None:
+        return _deny(
+            mode,
+            "PERMIT_MISSING",
+            "订阅服务未返回 permit；enforce 模式必须返回有效签名 permit",
+            status=status,
+        )
+    try:
+        permit = EntitlementPermit.from_mapping(raw_permit)
+    except PermitVerificationError as exc:
+        return _deny(mode, exc.code, exc.message, status=status)
     return StartPermission(
         allowed=True,
         mode=mode,
@@ -326,4 +353,5 @@ def check_start_permission(
         message=message,
         would_allow=True,
         expires_at=str(payload.get("expires_at") or ""),
+        permit=permit,
     )

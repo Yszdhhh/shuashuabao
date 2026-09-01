@@ -2,27 +2,111 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import subprocess
+import sys
 from collections.abc import Callable
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from shuabao.log_sink import install_live_logging, uninstall_live_logging
-from shuabao.settings import Settings
-from shuabao.stop_signal import StopSignal
-from shuabao.subscription_client import StartPermission
-
+from shuabao.subscription_client import (
+    StartPermission,
+    _device_fingerprint,
+    subscription_mode,
+)
+from shuabao.subscription_permit import (
+    DevStartCapability,
+    EntitlementPermit,
+    InMemoryReplayStore,
+    PermitVerificationContext,
+    PermitVerificationError,
+    PermitVerifier,
+    VerifiedPermit,
+    load_public_keys,
+)
 LOGGER = logging.getLogger("ShuaBao")
 LIVE_LOCK_NAME = "ShuaBao.live.lock"
+_LIVE_REPLAY_STORE = InMemoryReplayStore()
 
 
 def start_permission_allows(permission: Any) -> bool:
-    return isinstance(permission, StartPermission) and bool(permission.allowed)
+    """Only explicit dev capability or a verifier-produced permit can pass."""
+    return isinstance(permission, (DevStartCapability, VerifiedPermit))
 
 
 class PermissionDenied(RuntimeError):
     """订阅未授权：LIVE 入口 fail-closed，零 worker、零锁、零输入。"""
+
+
+def _live_identity(root: Path) -> tuple[str, str, str]:
+    source_sha = ""
+    manifest_sha = ""
+    release_channel = ""
+    candidates = [Path(root)]
+    executable_dir = Path(sys.executable).resolve().parent
+    if executable_dir not in candidates:
+        candidates.append(executable_dir)
+    for candidate in candidates:
+        try:
+            payload = json.loads((candidate / "build_identity.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(payload, dict):
+            source_sha = str(payload.get("source_sha") or "").strip()
+            manifest_sha = str(payload.get("release_manifest_sha256") or "").strip().lower()
+            release_channel = str(payload.get("release_channel") or "").strip()
+            if source_sha or manifest_sha or release_channel:
+                break
+    if not source_sha and (Path(root) / ".git").exists():
+        try:
+            proc = subprocess.run(
+                ["git", "-C", str(root), "rev-parse", "HEAD"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=3,
+                check=False,
+            )
+            if proc.returncode == 0:
+                source_sha = proc.stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            pass
+    return source_sha, manifest_sha, release_channel
+
+
+def resolve_live_permission(permission: Any, *, mode_id: str, root: Path) -> DevStartCapability | VerifiedPermit:
+    """Resolve status DTOs into an explicit LIVE authorization artifact."""
+    if isinstance(permission, DevStartCapability):
+        if subscription_mode(os.environ) == "off":
+            return permission
+        raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_REQUIRED")
+    if isinstance(permission, StartPermission):
+        if permission.dev_capability is not None and subscription_mode(os.environ) == "off":
+            return permission.dev_capability
+        if permission.mode == "off":
+            raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_REQUIRED")
+    permit = getattr(permission, "permit", None)
+    if not isinstance(permit, EntitlementPermit):
+        raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_MISSING")
+    source_sha, manifest_sha, identity_channel = _live_identity(Path(root))
+    try:
+        keys = load_public_keys(Path(root) / "config" / "entitlement_public_keys.json")
+        context = PermitVerificationContext(
+            device_id=_device_fingerprint(os.environ),
+            source_sha=source_sha,
+            release_manifest_sha256=manifest_sha,
+            release_channel=str(os.environ.get("SHUABAO_RELEASE_CHANNEL") or identity_channel).strip(),
+            mode_id=str(mode_id),
+            now=datetime.now(timezone.utc),
+        )
+        return PermitVerifier(keys, replay_store=_LIVE_REPLAY_STORE).verify(permit, context)
+    except PermitVerificationError as exc:
+        raise PermissionDenied(f"订阅未授权，LIVE 已拒绝启动: {exc.code}") from exc
 
 
 def live_lock_path(app_data: Path) -> Path:
@@ -39,7 +123,7 @@ def execute_runtime_mediator(
     log: Callable[[str, str], None] | None = None,
     should_abort: Callable[[], bool] | None = None,
     on_mediator: Callable[[Any], None] | None = None,
-    permission: "StartPermission | None" = None,
+    permission: "DevStartCapability | VerifiedPermit | None" = None,
 ) -> dict[str, Any]:
     """Shared LIVE worker body: RuntimeMediator + OCR + StopSignal + LogEventSink."""
     result: dict[str, Any] = {

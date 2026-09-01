@@ -21,7 +21,7 @@ from shuabao.shell.live_execute import (
     PortableLiveLock,
     execute_runtime_mediator,
     live_lock_path,
-    start_permission_allows,
+    resolve_live_permission,
 )
 from shuabao.subscription_client import check_start_permission
 from shuabao.shell.mode_catalog import apply_mode_overlay, desktop_may_start
@@ -103,14 +103,12 @@ class HeadlessRunner:
         # HeadlessRunner.stop() / API STOPPING that fired during STARTING.
         if self.stop_signal.is_set() or self.stop_signal.is_stopped():
             return self._cancelled_start_result(log_fn)
+        snapshot = self._prepare_settings(settings)
         if permission is None and permission_checker is not None:
             permission = permission_checker()
         if permission is None:
             permission = check_start_permission()
-        if not start_permission_allows(permission):
-            raise PermissionDenied("订阅未授权，LIVE 已拒绝启动")
-
-        snapshot = self._prepare_settings(settings)
+        permission = resolve_live_permission(permission, mode_id=self.mode_id, root=self.root)
         incident_dir = self.app_data / "incidents"
         incident_dir.mkdir(parents=True, exist_ok=True)
 

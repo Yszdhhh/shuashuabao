@@ -25,7 +25,7 @@ from shuabao.shell.live_execute import (
     PermissionDenied,
     execute_runtime_mediator,
     live_lock_path,
-    start_permission_allows,
+    resolve_live_permission,
 )
 from shuabao.shell.mode_catalog import apply_mode_overlay, desktop_may_start
 from shuabao.shell.runtime_status import (
@@ -273,18 +273,12 @@ class RunnerService:
             self._started_settings = None
 
     def start(self, mode_id: str, settings_snapshot: Settings, *, permission=None, permission_checker=None) -> MediatorWorker:
-        """LIVE 启动：订阅门禁在 lock/worker 之前 fail-closed（深层防线，UI 检查之外的兜底）。
-
-        permission: 已授权的 StartPermission（调用方可复用已校验结果，避免重复网络请求）。
-        permission_checker: 延迟校验回调（返回 StartPermission）。两者都缺省时
-        使用 check_start_permission()，保持 mode=off 开发路径兼容。
-        """
+        """LIVE 启动：订阅门禁在 lock/worker 之前 fail-closed。"""
         if not desktop_may_start(mode_id):
             raise ModeNotEnabled(f"{mode_id} 未验证，不可从看板启动")
         if permission is None:
             permission = permission_checker() if permission_checker is not None else check_start_permission()
-        if not start_permission_allows(permission):
-            raise PermissionDenied("订阅未授权，LIVE 已拒绝启动")
+        permission = resolve_live_permission(permission, mode_id=mode_id, root=self.root)
         if self.worker is not None:
             if self.worker.isRunning():
                 raise RuntimeError("already running")

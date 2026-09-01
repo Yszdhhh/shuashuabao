@@ -77,9 +77,9 @@ _ENFORCE_ENV = {
 def test_check_start_permission_enforce_allow_then_deny_sanitized():
     from shuabao.subscription_client import check_start_permission
 
-    allow = check_start_permission(env=_ENFORCE_ENV, opener=_DenyAllOpener(_ALLOW))
-    assert allow.allowed is True
-    assert "test-key" not in str(allow)
+    allow_payload = dict(_ALLOW)
+    allow_payload["permit"] = _permit_payload()
+    allow = check_start_permission(env=_ENFORCE_ENV, opener=_DenyAllOpener(allow_payload))
 
     deny = check_start_permission(env=_ENFORCE_ENV, opener=_DenyAllOpener({"valid": False}))
     assert deny.allowed is False
@@ -87,7 +87,67 @@ def test_check_start_permission_enforce_allow_then_deny_sanitized():
     assert "test-key" not in deny.message
     assert "test-key" not in str(deny)
 
+def _permit_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "permit_id": "pmt-1",
+        "jti": "pmt-1",
+        "license_id": "lic-1",
+        "device_id": "device",
+        "device_fingerprint": "device",
+        "release_channel": "stable",
+        "source_sha": "a" * 40,
+        "release_manifest_sha256": "b" * 64,
+        "allowed_modes": ["normal_farm"],
+        "features": ["run"],
+        "issued_at": "2026-09-01T11:00:00Z",
+        "expires_at": "2026-09-01T13:00:00Z",
+        "nonce": "nonce-1",
+        "signature_algorithm": "Ed25519",
+        "key_id": "test-key",
+        "signature": "c2ln",
+    }
 
+
+def test_check_start_permission_enforce_requires_server_permit():
+    from shuabao.subscription_client import check_start_permission
+
+    permission = check_start_permission(env=_ENFORCE_ENV, opener=_DenyAllOpener(_ALLOW))
+    assert permission.allowed is False
+    assert permission.code == "PERMIT_MISSING"
+
+
+def test_check_start_permission_attaches_structurally_valid_permit():
+    from shuabao.subscription_client import check_start_permission
+
+    payload = dict(_ALLOW)
+    payload["permit"] = _permit_payload()
+    permission = check_start_permission(env=_ENFORCE_ENV, opener=_DenyAllOpener(payload))
+    assert permission.allowed is True
+    assert permission.permit is not None
+    assert permission.permit.permit_id == "pmt-1"
+
+
+def test_check_start_permission_rejects_malformed_permit():
+    from shuabao.subscription_client import check_start_permission
+
+    payload = dict(_ALLOW)
+    payload["permit"] = {"schema_version": 1}
+    permission = check_start_permission(env=_ENFORCE_ENV, opener=_DenyAllOpener(payload))
+    assert permission.allowed is False
+    assert permission.code == "PERMIT_MALFORMED"
+
+
+
+def test_execute_runtime_mediator_rejects_ordinary_allowed_permission(tmp_path):
+    from shuabao.subscription_client import StartPermission
+
+    result = _run_executor(
+        tmp_path,
+        permission=StartPermission(True, "off", status="OFF", code="OFF", would_allow=True),
+    )
+    assert result["phase"] == "ERROR"
+    assert result["mediator"] is None
 # ---------------------------------------------------------------- 共享执行器深层门禁
 
 
@@ -146,8 +206,7 @@ def test_execute_runtime_mediator_denial_never_echoes_license_key(tmp_path):
 def test_execute_runtime_mediator_allowed_permission_reaches_mediator(tmp_path, monkeypatch):
     import sys
     import types
-    from shuabao.subscription_client import StartPermission
-
+    from shuabao.subscription_permit import DevStartCapability
     created = {}
 
     class FakeMediator:
@@ -164,7 +223,7 @@ def test_execute_runtime_mediator_allowed_permission_reaches_mediator(tmp_path, 
     fake.Mediator = FakeMediator
     monkeypatch.setitem(sys.modules, "shuabao.runtime_mediator", fake)
 
-    allowed = StartPermission(allowed=True, mode="off", status="OFF", code="OFF", would_allow=True)
+    allowed = DevStartCapability.for_off()
     result = _run_executor(tmp_path, permission=allowed)
     assert created.get("ok") is True, "有效权限必须放行到 Mediator 构造"
     assert result["mediator"] is not None

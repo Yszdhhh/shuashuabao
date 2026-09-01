@@ -11,12 +11,17 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from dataclasses import replace
 from pathlib import Path
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives import serialization
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -572,6 +577,123 @@ def _denied_permission() -> StartPermission:
         code="ENTITLEMENT_EXPIRED", message="订阅状态不允许启动: EXPIRED",
     )
 
+_PERMIT_PRIVATE_KEY = Ed25519PrivateKey.generate()
+_PERMIT_KEY_ID = "integration-test"
+
+
+def _integration_permit(
+    *,
+    device_id: str = "device",
+    mode_id: str = "normal_farm",
+    expired: bool = False,
+    bad_signature: bool = False,
+    permit_id: str = "integration-permit",
+):
+    from shuabao.subscription_permit import EntitlementPermit
+
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    issued_at = now - timedelta(hours=2) if expired else now - timedelta(minutes=1)
+    expires_at = now - timedelta(minutes=1) if expired else now + timedelta(hours=1)
+    payload = {
+        "schema_version": 1,
+        "permit_id": permit_id,
+        "jti": permit_id,
+        "license_id": "license",
+        "device_id": device_id,
+        "device_fingerprint": device_id,
+        "release_channel": "stable",
+        "source_sha": "a" * 40,
+        "release_manifest_sha256": "b" * 64,
+        "allowed_modes": [mode_id],
+        "features": ["run"],
+        "issued_at": issued_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "expires_at": expires_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "nonce": f"nonce-{permit_id}",
+        "signature_algorithm": "Ed25519",
+        "key_id": _PERMIT_KEY_ID,
+    }
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    signature = b"invalid" if bad_signature else _PERMIT_PRIVATE_KEY.sign(canonical)
+    payload["signature"] = base64.urlsafe_b64encode(signature).rstrip(b"=").decode("ascii")
+    return EntitlementPermit.from_mapping(payload)
+
+
+def _configure_permit_root(root: Path, monkeypatch, *, device_id: str = "device") -> None:
+    config = root / "config"
+    config.mkdir(parents=True)
+    public = _PERMIT_PRIVATE_KEY.public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    (config / "entitlement_public_keys.json").write_text(
+        json.dumps({"keys": {_PERMIT_KEY_ID: base64.b64encode(public).decode("ascii")}}),
+        encoding="utf-8",
+    )
+    (root / "build_identity.json").write_text(
+        json.dumps({"source_sha": "a" * 40, "release_manifest_sha256": "b" * 64}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT", device_id)
+    monkeypatch.setenv("SHUABAO_RELEASE_CHANNEL", "stable")
+
+
+def _permit_permission(permit):
+    return StartPermission(True, "enforce", status="ACTIVE", code="ACTIVE", would_allow=True, permit=permit)
+
+
+def test_runner_start_accepts_verified_signed_permit_before_worker(tmp_path: Path, qapp, monkeypatch):
+    from shuabao.subscription_permit import VerifiedPermit
+
+    _configure_permit_root(tmp_path, monkeypatch)
+    runner = RunnerService(tmp_path, tmp_path)
+    worker = runner.start("normal_farm", Settings(), permission=_permit_permission(_integration_permit()))
+    try:
+        assert isinstance(worker.permission, VerifiedPermit)
+        assert runner.runner_state == "RUNNING"
+    finally:
+        runner.release_after_finish()
+
+
+def test_runner_start_rejects_bad_signature_before_lock(tmp_path: Path, monkeypatch):
+    _configure_permit_root(tmp_path, monkeypatch)
+    runner = RunnerService(tmp_path, tmp_path)
+    with pytest.raises(PermissionDenied, match="PERMIT_SIGNATURE_INVALID"):
+        runner.start("normal_farm", Settings(), permission=_permit_permission(_integration_permit(bad_signature=True)))
+    assert runner.worker is None
+    assert not (tmp_path / "ShuaBao.live.lock").exists()
+
+
+def test_runner_start_rejects_expired_permit_before_lock(tmp_path: Path, monkeypatch):
+    _configure_permit_root(tmp_path, monkeypatch)
+    runner = RunnerService(tmp_path, tmp_path)
+    with pytest.raises(PermissionDenied, match="PERMIT_EXPIRED"):
+        runner.start("normal_farm", Settings(), permission=_permit_permission(_integration_permit(expired=True)))
+    assert runner.worker is None
+
+
+def test_headless_rejects_device_mismatch_and_replay(tmp_path: Path, monkeypatch):
+    import shuabao.shell.headless_runner as hr_module
+
+    _configure_permit_root(tmp_path, monkeypatch, device_id="device")
+    mismatch = _permit_permission(_integration_permit(device_id="other", permit_id="mismatch"))
+    with pytest.raises(PermissionDenied, match="PERMIT_DEVICE_MISMATCH"):
+        HeadlessRunner(tmp_path, tmp_path).run_blocking(Settings(), permission=mismatch)
+    assert not (tmp_path / "incidents").exists()
+
+    seen = {}
+
+    def fake_execute(**kwargs):
+        seen["permission"] = kwargs["permission"]
+        return {"terminal_reason": "done", "phase": "COMPLETE", "game_count": 1, "mediator": None, "ocr_status": "完成"}
+
+    monkeypatch.setattr(hr_module, "execute_runtime_mediator", fake_execute)
+    permission = _permit_permission(_integration_permit(permit_id="replay"))
+    first = HeadlessRunner(tmp_path, tmp_path).run_blocking(Settings(), permission=permission)
+    assert first["phase"] == "COMPLETE"
+    with pytest.raises(PermissionDenied, match="PERMIT_REPLAY"):
+        HeadlessRunner(tmp_path, tmp_path).run_blocking(Settings(), permission=permission)
+    assert seen["permission"].permit_id == "replay"
+
 
 def test_runner_start_denied_permission_blocks_before_worker_and_lock(tmp_path: Path, monkeypatch):
     class NoWorker:
@@ -586,9 +708,36 @@ def test_runner_start_denied_permission_blocks_before_worker_and_lock(tmp_path: 
     runner = RunnerService(tmp_path, tmp_path)
     with pytest.raises(PermissionDenied) as excinfo:
         runner.start("normal_farm", Settings(), permission=_denied_permission())
-    assert str(excinfo.value) == "订阅未授权，LIVE 已拒绝启动"
+    assert str(excinfo.value).startswith("订阅未授权，LIVE 已拒绝启动")
     assert runner.worker is None
     assert runner.runner_state == "IDLE"
+
+def test_runner_start_rejects_ordinary_allowed_permission_before_lock(tmp_path: Path):
+    runner = RunnerService(tmp_path, tmp_path)
+    permission = StartPermission(True, "off", status="OFF", code="OFF", would_allow=True)
+    with pytest.raises(PermissionDenied):
+        runner.start("normal_farm", Settings(), permission=permission)
+    assert runner.worker is None
+    assert runner.runner_state == "IDLE"
+
+def test_runner_start_rejects_dev_capability_outside_off(tmp_path: Path, monkeypatch):
+    from shuabao.subscription_permit import DevStartCapability
+
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "enforce")
+    runner = RunnerService(tmp_path, tmp_path)
+    with pytest.raises(PermissionDenied, match="PERMIT_REQUIRED"):
+        runner.start("normal_farm", Settings(), permission=DevStartCapability.for_off())
+    assert runner.worker is None
+    assert not (tmp_path / "ShuaBao.live.lock").exists()
+
+
+def test_headless_run_blocking_rejects_ordinary_allowed_permission_before_lock(tmp_path: Path):
+    runner = HeadlessRunner(tmp_path, tmp_path)
+    permission = StartPermission(True, "enforce", status="ACTIVE", code="ACTIVE", would_allow=True)
+    with pytest.raises(PermissionDenied):
+        runner.run_blocking(Settings(), permission=permission)
+    assert runner.mediator is None
+    assert not (tmp_path / "incidents").exists()
 
 
 def test_runner_start_denied_checker_blocks_without_network(tmp_path: Path, monkeypatch):
@@ -610,7 +759,8 @@ def test_runner_start_denied_checker_blocks_without_network(tmp_path: Path, monk
 def test_runner_start_allowed_permission_reaches_shared_executor(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
     runner = RunnerService(tmp_path, tmp_path)
-    allowed = StartPermission(allowed=True, mode="off", status="OFF", code="OFF", would_allow=True)
+    from shuabao.subscription_permit import DevStartCapability
+    allowed = DevStartCapability.for_off()
     worker = runner.start("normal_farm", Settings(), permission=allowed)
     try:
         assert runner.runner_state == "RUNNING"
@@ -653,7 +803,8 @@ def test_headless_run_blocking_allowed_permission_runs(tmp_path: Path, monkeypat
 
     monkeypatch.setattr(hr_module, "execute_runtime_mediator", fake_execute)
     runner = HeadlessRunner(tmp_path, tmp_path)
-    allowed = StartPermission(allowed=True, mode="off", status="OFF", code="OFF", would_allow=True)
+    from shuabao.subscription_permit import DevStartCapability
+    allowed = DevStartCapability.for_off()
     result = runner.run_blocking(Settings(), permission=allowed)
     assert result["phase"] == "COMPLETE"
     assert seen["permission"] is allowed, "成功权限必须透传到共享执行器且不重复网络请求"
