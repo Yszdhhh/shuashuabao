@@ -121,9 +121,17 @@ def test_external_channels_require_enforce_subscription_mode() -> None:
 
 def test_external_channels_require_explicit_https_subscription() -> None:
     text = _build_script_text()
-    assert "external-beta/release 渠道必须显式传入 -SubscriptionBaseUrl" in text
     assert "external-beta/release 订阅地址必须为显式 HTTPS" in text
-    assert "$loopbackHosts -contains" in text, "外发分支必须显式拒绝 loopback 主机"
+
+
+def test_external_loopback_rejection_covers_full_loopback_range() -> None:
+    # 旧的精确主机名列表（127.0.0.1/localhost/::1/[::1]）会错误放行
+    # https://127.0.0.2 等 127.0.0.0/8 段地址；外发渠道必须改用
+    # [System.Net.IPAddress].IsLoopback 按地址语义判定整个回环段。
+    text = _build_script_text()
+    assert "[System.Net.IPAddress]::TryParse" in text
+    assert "[System.Net.IPAddress]::IsLoopback" in text
+    assert '"localhost"' in text, "非 IP 主机名 localhost 必须按名称语义显式处理"
 
 
 def test_dev_channel_keeps_loopback_default_and_switches() -> None:

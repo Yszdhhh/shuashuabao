@@ -27,7 +27,16 @@ if ($isExternalChannel) {
 # 订阅地址在构建前统一解析并校验：外发渠道必须显式传 HTTPS 生产地址，
 # 绝不静默回落 loopback；dev/internal-pilot 保留 loopback 默认值方便联调。
 $subscriptionUrlInput = $SubscriptionBaseUrl.Trim()
-$loopbackHosts = @("127.0.0.1", "localhost", "::1", "[::1]")
+function Test-HostIsLoopback([string]$UrlHost) {
+    # 按地址语义判定整个回环段：127.0.0.0/8、::1 —— 精确主机名列表会漏掉
+    # 127.0.0.2 这类同段地址。非 IP 主机名（如 localhost）按名称处理。
+    if ($UrlHost -eq "localhost") { return $true }
+    $ip = $null
+    if ([System.Net.IPAddress]::TryParse($UrlHost.Trim("[]"), [ref]$ip)) {
+        return [System.Net.IPAddress]::IsLoopback($ip)
+    }
+    return $false
+}
 if ($isExternalChannel) {
     if (-not $subscriptionUrlInput) {
         throw "external-beta/release 渠道必须显式传入 -SubscriptionBaseUrl，禁止静默回落 loopback 默认值。"
@@ -39,12 +48,14 @@ if ($isExternalChannel) {
         $parsedSubscriptionUrl.Scheme -ne "https" -or
         [string]::IsNullOrWhiteSpace($parsedSubscriptionUrl.Host) -or
         $parsedSubscriptionUrl.UserInfo -or
-        ($loopbackHosts -contains $parsedSubscriptionUrl.Host.ToLowerInvariant())) {
+        (Test-HostIsLoopback $parsedSubscriptionUrl.Host)) {
         throw "external-beta/release 订阅地址必须为显式 HTTPS，禁止 loopback、空地址与凭据。"
     }
     $subscriptionUrl = $subscriptionUrlInput
 }
+
 else {
+    $loopbackHosts = @("127.0.0.1", "localhost", "::1", "[::1]")
     $subscriptionUrl = if ($subscriptionUrlInput) { $subscriptionUrlInput } else { "http://127.0.0.1:8000" }
     try {
         $parsedSubscriptionUrl = [Uri]$subscriptionUrl
