@@ -50,6 +50,14 @@ function Write-Utf8NoBom([string]$Path, [string]$Content) {
     [System.IO.File]::WriteAllText($Path, $Content, $utf8NoBom)
 }
 
+function Read-Utf8NoBom([string]$Path) {
+    # Windows PowerShell 5.1 treats a BOM-free file as the active ANSI code
+    # page when using bare Get-Content.  Release manifests contain Chinese
+    # asset paths, so decode them explicitly before ConvertFrom-Json.
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    return [System.IO.File]::ReadAllText($Path, $utf8NoBom)
+}
+
 $uvCommand = Get-Command uv -ErrorAction Stop
 $python = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 
@@ -267,13 +275,13 @@ if (-not (Test-Path -LiteralPath $deployedIdentityPath) -or
     -not (Test-Path -LiteralPath $deployedManifestPath)) {
     throw "部署目录缺少 build_identity.json 或 release_manifest.json。"
 }
-$deployedIdentity = Get-Content -LiteralPath $deployedIdentityPath -Raw | ConvertFrom-Json
+$deployedIdentity = Read-Utf8NoBom $deployedIdentityPath | ConvertFrom-Json
 if ($deployedIdentity.source_sha -ne $sourceSha -or
     $deployedIdentity.release_manifest_sha256 -ne (Get-ReleaseFileSha256 $deployedManifestPath) -or
     $deployedIdentity.source_tree_clean -ne $true) {
     throw "部署后的构建身份校验失败，拒绝更新快捷方式。"
 }
-$deployedManifest = Get-Content -LiteralPath $deployedManifestPath -Raw | ConvertFrom-Json
+$deployedManifest = Read-Utf8NoBom $deployedManifestPath | ConvertFrom-Json
 foreach ($entry in @($deployedManifest.files)) {
     $deployedFile = Join-Path $target (([string]$entry.path).Replace("/", "\"))
     if (-not (Test-Path -LiteralPath $deployedFile -PathType Leaf) -or
