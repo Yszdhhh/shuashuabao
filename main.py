@@ -77,7 +77,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         "Start ShuaBao through desktop_app.py / the packaged desktop shortcut "
         "so subscription, preflight, build identity and RunnerService gates run."
     )
-    return 2
+    return 1
 
 
 def cmd_inventory(_: argparse.Namespace) -> int:
