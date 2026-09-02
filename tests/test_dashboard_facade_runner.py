@@ -596,13 +596,16 @@ def _integration_permit(
     from shuabao.subscription_permit import EntitlementPermit
 
     now = datetime.now(timezone.utc).replace(microsecond=0)
-    issued_at = now - timedelta(hours=2) if expired else now - timedelta(minutes=1)
-    expires_at = now - timedelta(minutes=1) if expired else now + timedelta(hours=1)
+    issued_at = now - timedelta(minutes=10) if expired else now - timedelta(minutes=1)
+    expires_at = now - timedelta(minutes=1) if expired else now + timedelta(minutes=14)
     payload = {
         "schema_version": 1,
         "permit_id": permit_id,
         "jti": permit_id,
         "license_id": "license",
+        "product_id": "shuabao",
+        "audience": "live-runner",
+        "issuer": "shuabao-subscription",
         "device_id": device_id,
         "device_fingerprint": device_id,
         "release_channel": "stable",
@@ -639,10 +642,13 @@ def _trusted_identity(monkeypatch, tmp_path: Path, *, channel: str = "internal")
 
 
 def _configure_permit_root(root: Path, monkeypatch, *, device_id: str = "device") -> None:
-    """Permit verifier 测试根：注入受信任身份；不再依赖可变 build_identity/env 渠道。"""
-    _trusted_identity(monkeypatch, root, channel="stable")
-    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT", device_id)
+    """Permit verifier 测试根：注入受信任身份与内存重放存储；不再触碰真实 AppData。"""
+    from shuabao.shell import live_execute
+    from shuabao.subscription_permit import InMemoryReplayStore
 
+    _trusted_identity(monkeypatch, root, channel="stable")
+    monkeypatch.setattr(live_execute, "_LIVE_REPLAY_STORE", InMemoryReplayStore())
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT", device_id)
 
 def _permit_permission(permit):
     return StartPermission(True, "enforce", status="ACTIVE", code="ACTIVE", would_allow=True, permit=permit)

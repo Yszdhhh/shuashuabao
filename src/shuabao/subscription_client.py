@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import socket
+import sys
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -66,7 +67,7 @@ def validate_entitlement(
     """
     source = os.environ if env is None else env
     base_url = _base_url(source)
-    fingerprint = _device_fingerprint(source)
+    fingerprint = _device_fingerprint(source, allow_override=not getattr(sys, "frozen", False))
     key = str(license_key or "").strip()
     if not base_url:
         code = _base_url_error(source)
@@ -127,7 +128,7 @@ def activate_device(
     """Bind a user-entered key to the configured Pilot device once."""
     source = os.environ if env is None else env
     base_url = _base_url(source)
-    fingerprint = _device_fingerprint(source)
+    fingerprint = _device_fingerprint(source, allow_override=not getattr(sys, "frozen", False))
     key = str(license_key or "").strip()
     if not base_url:
         code = _base_url_error(source)
@@ -185,8 +186,10 @@ def _base_url_error(env: Mapping[str, str]) -> str:
     return "CONFIG_BASE_URL_INVALID" if configured else "CONFIG_BASE_URL_MISSING"
 
 
-def _device_fingerprint(env: Mapping[str, str]) -> str:
-    configured = _env_text(env, SUBSCRIPTION_DEVICE_FP_ENV)
+def _device_fingerprint(env: Mapping[str, str], *, allow_override: bool = True) -> str:
+    """生产调用方可显式 allow_override=False 禁用环境变量指纹覆盖（fail-closed）；
+    源码/dev 测试保持默认 True 可注入。"""
+    configured = _env_text(env, SUBSCRIPTION_DEVICE_FP_ENV) if allow_override else ""
     if configured:
         return configured
     machine_guid = ""
@@ -307,9 +310,9 @@ def check_start_permission(
             dev_capability=DevStartCapability.for_off(),
         )
 
-    base_url = _base_url(source)
     license_key = _env_text(source, SUBSCRIPTION_LICENSE_KEY_ENV)
-    fingerprint = _device_fingerprint(source)
+    base_url = _base_url(source)
+    fingerprint = _device_fingerprint(source, allow_override=not getattr(sys, "frozen", False))
     if not base_url:
         code = _base_url_error(source)
         return _deny(

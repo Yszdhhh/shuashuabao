@@ -59,6 +59,12 @@ from shuabao.shell.bridge_contract import (
     BRIDGE_REQUIRED_SIGNALS,
     BRIDGE_SCHEMA_VERSION,
 )
+from shuabao.release_signing import (
+    PINNED_MANIFEST_PUBLIC_KEYS,
+    ReleaseManifestError,
+    canonical_manifest_sha256,
+    verify_packaged_release_snapshot,
+)
 
 THEMES = ("light", "dark")
 DEFAULT_SHELL_THEME = "light"
@@ -378,98 +384,64 @@ def _target_window_preflight(
 def _build_identity_preflight(root: Path | None, runner: Any) -> tuple[bool, str]:
     if not _production_runtime_context(root, runner):
         return True, "源码/测试模式由构建入口负责身份校验"
-    base = Path(root) if root is not None else Path.cwd()
     if not getattr(sys, "frozen", False):
-        # Source mode is intentionally runnable before a packaging pass.  The
-        # WebShell still rejects a present-but-stale build_manifest.json; a
-        # frozen EXE, on the other hand, must carry the immutable sidecar.
-        return True, "源码模式使用当前 checkout；冻结包需提供 build_identity.json"
-    candidates = [base]
-    if getattr(sys, "executable", None):
-        candidates.append(Path(sys.executable).resolve().parent)
+        # Source mode is intentionally runnable before a packaging pass.
+        return True, "源码模式使用当前 checkout；冻结包需提供签名发行快照"
+    base = Path(root) if root is not None else Path.cwd()
+    exe_dir = (
+        Path(sys.executable).resolve().parent
+        if getattr(sys, "executable", None)
+        else base
+    )
+    candidates = [base, exe_dir]
     if base.parent not in candidates:
         candidates.append(base.parent)
-    identity = next((candidate / "build_identity.json" for candidate in candidates if (candidate / "build_identity.json").is_file()), None)
-    if identity is None:
-        identity = base / "build_identity.json"
-    if not identity.is_file():
-        return False, "缺少 build_identity.json，无法证明 EXE 与源码一致"
+    package_root = next(
+        (candidate for candidate in candidates if (candidate / "release_manifest.json").is_file()),
+        exe_dir,
+    )
     try:
-        payload = json.loads(identity.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return False, "build_identity.json 无法读取"
-    if not isinstance(payload, dict):
-        return False, "build_identity.json 格式非法"
-    source_sha = str(payload.get("source_sha") or "").strip()
-    exe_sha = str(payload.get("exe_sha256") or "").strip()
-    manifest_sha = str(payload.get("release_manifest_sha256") or "").strip().lower()
-    if not source_sha or not exe_sha or payload.get("source_tree_clean") is not True:
-        return False, "构建身份缺少 source_sha/exe_sha256 或源码不干净"
-    manifest_path = identity.parent / "release_manifest.json"
-    if not manifest_sha or not manifest_path.is_file():
-        return False, "构建身份缺少 release_manifest_sha256 或发行清单"
+        manifest, verified_files, _manifest_bytes = verify_packaged_release_snapshot(
+            package_root,
+            pinned_keys=PINNED_MANIFEST_PUBLIC_KEYS,
+            required_files=("config/entitlement_public_keys.json",),
+        )
+    except (OSError, ValueError, ReleaseManifestError) as exc:
+        if isinstance(exc, ReleaseManifestError):
+            return False, f"发行快照校验失败: {exc.code}: {exc.message}"
+        return False, f"发行快照校验失败: {type(exc).__name__}: {exc}"
+    source_value = manifest.get("source_sha")
+    channel_value = manifest.get("release_channel")
+    source_sha = source_value.strip() if isinstance(source_value, str) else ""
+    release_channel = channel_value.strip() if isinstance(channel_value, str) else ""
     try:
-        digest = hashlib.sha256(manifest_path.read_bytes()).hexdigest().lower()
-    except OSError:
-        return False, "发行清单无法读取"
-    if digest != manifest_sha:
-        return False, "发行清单哈希与 build_identity.json 不一致"
-    exe_name = str(payload.get("exe_name") or "").strip()
-    exe_path = identity.parent / exe_name if exe_name else None
-    if exe_path is None or not exe_path.is_file():
-        return False, "构建身份指向的 EXE 不存在"
-    try:
-        exe_digest = hashlib.sha256(exe_path.read_bytes()).hexdigest().lower()
-    except OSError:
-        return False, "构建身份指向的 EXE 无法读取"
-    if exe_digest != exe_sha.lower():
-        return False, "EXE 哈希与 build_identity.json 不一致"
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return False, "发行清单无法读取"
-    try:
-        bridge_schema = int(manifest.get("bridge_schema_version", -1)) if isinstance(manifest, dict) else -1
+        bridge_schema = int(manifest.get("bridge_schema_version", -1))
     except (TypeError, ValueError):
         bridge_schema = -1
-    if (
-        not isinstance(manifest, dict)
-        or manifest.get("schema_version") != 1
-        or manifest.get("source_sha") != source_sha
-        or bridge_schema != BRIDGE_SCHEMA_VERSION
-        or not isinstance(manifest.get("files"), list)
-        or not manifest.get("files")
-    ):
-        return False, "发行清单内容不完整或版本不一致"
-    package_root = manifest_path.parent.resolve()
-    seen: set[str] = set()
-    ocr_model_sha = str(payload.get("ocr_model_manifest_sha256") or "").strip().lower()
-    for entry in manifest["files"]:
-        if not isinstance(entry, dict):
-            return False, "发行清单包含非法文件项"
-        relative = str(entry.get("path") or "").replace("\\", "/").strip()
-        expected_hash = str(entry.get("sha256") or "").strip().lower()
-        if not relative or not expected_hash or relative in seen:
-            return False, "发行清单包含重复或无哈希文件项"
-        seen.add(relative)
-        candidate = (package_root / Path(relative)).resolve()
-        try:
-            candidate.relative_to(package_root)
-        except ValueError:
-            return False, "发行清单包含越界路径"
-        if not candidate.is_file():
-            return False, f"发行清单文件缺失: {relative}"
-        try:
-            if hashlib.sha256(candidate.read_bytes()).hexdigest().lower() != expected_hash:
-                return False, f"发行清单文件哈希不一致: {relative}"
-        except OSError:
-            return False, f"发行清单文件无法读取: {relative}"
+    if not source_sha or not release_channel:
+        return False, "签名发行清单缺少 source_sha/release_channel"
+    if bridge_schema != BRIDGE_SCHEMA_VERSION:
+        return False, f"签名发行清单 bridge_schema 不一致: {bridge_schema}"
+    exe_path = Path(sys.executable).resolve() if getattr(sys, "executable", None) else None
+    try:
+        exe_relative = exe_path.relative_to(package_root.resolve()).as_posix() if exe_path else ""
+    except ValueError:
+        exe_relative = ""
+    exe_name = Path(exe_relative).name if exe_relative else "ShuaBao.exe"
+    exe_sha = ""
+    ocr_model_sha = ""
+    for relative, data in verified_files.items():
+        if relative.lower() == exe_relative.lower():
+            exe_sha = hashlib.sha256(data).hexdigest().lower()
         if Path(relative).name.lower() == "model_manifest.json":
-            ocr_model_sha = expected_hash
+            ocr_model_sha = hashlib.sha256(data).hexdigest().lower()
+    if not exe_sha:
+        return False, f"签名发行清单未绑定 EXE: {exe_name}"
     if not ocr_model_sha:
-        return False, "发行清单缺少 OCR 模型清单哈希"
+        return False, "签名发行清单缺少 OCR 模型清单哈希"
     return True, (
-        f"source_sha={source_sha}; manifest_sha256={manifest_sha}; "
+        f"source_sha={source_sha}; release_channel={release_channel}; "
+        f"manifest_sha256={canonical_manifest_sha256(manifest)}; "
         f"exe_sha256={exe_sha}; bridge_schema={bridge_schema}; "
         f"ocr_model_sha256={ocr_model_sha}"
     )

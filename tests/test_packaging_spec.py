@@ -368,3 +368,21 @@ def test_dev_channel_keeps_unsigned_identity_and_normal_gate() -> None:
     text = _build_script_text()
     assert '$manifestSignatureStatus = if ($isExternalChannel) { "SIGNED" } else { "UNSIGNED" }' in text
     assert "signature_status   = $manifestSignatureStatus" in text
+
+
+def test_external_channels_reject_in_tree_manifest_signing_key_before_build() -> None:
+    text = _build_script_text()
+    guard = text.index("manifest 私钥不得位于仓库根或其 build/dist/assets/src/config/ui-v2 子路径")
+    uv = text.index("Get-Command uv")
+    assert guard < uv, "私钥在树内检查必须发生在构建副作用之前"
+    for marker in ('(Join-Path $repoRoot "build")', '(Join-Path $repoRoot "dist")', '(Join-Path $repoRoot "assets")', '(Join-Path $repoRoot "src")', '(Join-Path $repoRoot "config")', '(Join-Path $repoRoot "ui-v2")'):
+        assert marker in text, f"私钥黑名单必须覆盖：{marker}"
+    assert "Resolve-Path -LiteralPath $manifestKeyPath" in text
+
+
+def test_build_identity_binds_canonical_manifest_hash_not_raw_bytes() -> None:
+    text = _build_script_text()
+    assert "release_manifest_sha256 = Get-CanonicalManifestSha256 $releaseManifestPath" in text
+    assert "Get-CanonicalManifestSha256 $deployedManifestPath" in text
+    assert "from shuabao.release_signing import canonical_manifest_sha256" in text
+    assert "release_manifest_sha256 = Get-ReleaseFileSha256" not in text, "manifest 身份不得再使用原始文件字节哈希"

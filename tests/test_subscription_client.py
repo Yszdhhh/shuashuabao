@@ -93,8 +93,11 @@ def _permit_payload() -> dict:
         "permit_id": "pmt-1",
         "jti": "pmt-1",
         "license_id": "lic-1",
-        "device_id": "device",
-        "device_fingerprint": "device",
+        "device_id": "device-1",
+        "device_fingerprint": "device-1",
+        "product_id": "shuabao",
+        "audience": "live-runner",
+        "issuer": "shuabao-subscription",
         "release_channel": "stable",
         "source_sha": "a" * 40,
         "release_manifest_sha256": "b" * 64,
@@ -251,3 +254,40 @@ def test_execute_runtime_mediator_stop_before_permission_gate(tmp_path):
     assert result["terminal_reason"] == "启动前已请求停止"
     assert result["mediator"] is None
     assert not (tmp_path / "incidents" / "live.log").exists()
+
+
+def test_device_fingerprint_override_allowed_by_default():
+    from shuabao.subscription_client import _device_fingerprint
+
+    env = {"SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT": "pilot-fp"}
+    assert _device_fingerprint(env) == "pilot-fp"
+
+
+def test_device_fingerprint_disallowed_override_falls_back_to_host_identity():
+    from shuabao.subscription_client import _device_fingerprint
+
+    env = {"SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT": "pilot-fp"}
+    fingerprint = _device_fingerprint(env, allow_override=False)
+    assert fingerprint != "pilot-fp"
+    assert len(fingerprint) == 64  # sha256 hex of MachineGuid / node+hostname seed
+
+
+def test_packaged_subscription_calls_ignore_fingerprint_override(monkeypatch):
+    import shuabao.subscription_client as client
+
+    monkeypatch.setattr(client.sys, "frozen", True, raising=False)
+    env = {
+        "SHUABAO_SUBSCRIPTION_BASE_URL": "http://127.0.0.1:8000",
+        "SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT": "spoofed-device",
+    }
+    seen: list[dict] = []
+
+    def opener(request, **_kwargs):
+        seen.append(json.loads(request.data.decode("utf-8")))
+        return _Response({"valid": False, "status": "UNKNOWN"})
+
+    client.validate_entitlement("key", env=env, opener=opener)
+    client.activate_device("key", env=env, opener=opener)
+
+    assert len(seen) == 2
+    assert all(item["hardware"]["fingerprint"] != "spoofed-device" for item in seen)

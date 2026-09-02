@@ -3,12 +3,15 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOL = ROOT / "tools" / "sign_release_manifest.py"
@@ -42,10 +45,12 @@ def _key(path: Path) -> Ed25519PrivateKey:
 
 
 def _run(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    child_env = {**os.environ, **(env or {})}
+    child_env.setdefault("PYTHONIOENCODING", "utf-8")
     return subprocess.run(
         [sys.executable, str(TOOL), *args],
         cwd=ROOT,
-        env=env,
+        env=child_env,
         capture_output=True,
         text=True,
     )
@@ -129,3 +134,44 @@ def test_signer_rejects_non_utf8_canonical_manifest_without_output(tmp_path: Pat
     assert proc.returncode != 0
     assert "不可规范化" in proc.stderr
     assert not (tmp_path / "release_manifest.json.sig").exists()
+
+
+def test_canonical_manifest_sha256_matches_canonical_bytes() -> None:
+    from shuabao.release_signing import canonical_manifest_bytes, canonical_manifest_sha256
+
+    manifest = {"files": [], "release_channel": "release", "schema_version": 1, "source_sha": "a" * 40}
+    assert canonical_manifest_sha256(manifest) == hashlib.sha256(canonical_manifest_bytes(manifest)).hexdigest()
+    # 键序与空白差异必须得到同一摘要
+    assert canonical_manifest_sha256({"schema_version": 1, "source_sha": "a" * 40, "release_channel": "release", "files": []}) == canonical_manifest_sha256(manifest)
+
+
+def test_verify_manifest_files_rejects_extra_file_outside_metadata_exceptions(tmp_path: Path) -> None:
+    from shuabao.release_signing import ReleaseManifestError, verify_manifest_files
+
+    payload = b"attested"
+    (tmp_path / "data.bin").write_bytes(payload)
+    manifest = {"files": [{"path": "data.bin", "size_bytes": len(payload), "sha256": hashlib.sha256(payload).hexdigest()}]}
+    assert verify_manifest_files(manifest, tmp_path) == {"data.bin": payload}
+
+    for name in ("release_manifest.json", "release_manifest.json.sig", "build_identity.json"):
+        (tmp_path / name).write_bytes(b"meta")
+        assert verify_manifest_files(manifest, tmp_path) == {"data.bin": payload}
+
+    (tmp_path / "evil_plugin.dll").write_bytes(b"x")
+    with pytest.raises(ReleaseManifestError, match="MANIFEST_EXTRA_FILE"):
+        verify_manifest_files(manifest, tmp_path)
+
+
+def test_verify_manifest_files_allows_directories_and_attests_nested_files(tmp_path: Path) -> None:
+    from shuabao.release_signing import verify_manifest_files
+
+    registry = tmp_path / "config" / "_internal" / "entitlement_public_keys.json"
+    registry.parent.mkdir(parents=True)
+    registry.write_bytes(b"keys")
+    manifest = {"files": [{
+        "path": "config/_internal/entitlement_public_keys.json",
+        "size_bytes": registry.stat().st_size,
+        "sha256": hashlib.sha256(registry.read_bytes()).hexdigest(),
+    }]}
+    # 目录本身不参与 manifest 条目比较；只有 regular files 需要被 attest 或属于元数据例外。
+    assert verify_manifest_files(manifest, tmp_path) == {"config/_internal/entitlement_public_keys.json": b"keys"}

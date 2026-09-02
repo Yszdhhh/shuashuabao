@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import os
 from dataclasses import replace
 from pathlib import Path
@@ -419,6 +420,106 @@ def test_preflight_follow_pair_code_too_long(qapp, tmp_path: Path):
     pre = json.loads(f.validate_preflight(json.dumps("follow_team")))
     assert pre["ok"] is False
     assert any(c["id"] == "follow_pair_code" and not c["ok"] for c in pre["checks"])
+
+
+def _signed_frozen_package(tmp_path: Path, monkeypatch) -> Path:
+    import base64
+    import hashlib
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from shuabao.shell import dashboard_facade as facade_module
+
+    package = tmp_path / "ShuaBao"
+    package.mkdir()
+    files = []
+    for relative, payload in (
+        ("config/entitlement_public_keys.json", b'{"keys": {}}'),
+        ("vision/_internal/models/ocr/MODEL_MANIFEST.json", b"{}"),
+        ("ShuaBao.exe", b"frozen-shuabao-exe"),
+    ):
+        path = package / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        files.append({
+            "path": relative,
+            "size_bytes": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        })
+    manifest = {
+        "manifest_signature_status": "SIGNED",
+        "schema_version": 1,
+        "source_sha": "b" * 40,
+        "bridge_schema_version": 2,
+        "release_channel": "external-beta",
+        "files": files,
+    }
+    canonical = json.dumps(
+        manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    (package / "release_manifest.json").write_bytes(canonical)
+    private = Ed25519PrivateKey.generate()
+    envelope = {
+        "schema_version": 1,
+        "algorithm": "Ed25519",
+        "key_id": "manifest",
+        "manifest_sha256": hashlib.sha256(canonical).hexdigest(),
+        "signature": base64.urlsafe_b64encode(private.sign(canonical)).rstrip(b"=").decode("ascii"),
+    }
+    (package / "release_manifest.json.sig").write_text(json.dumps(envelope), encoding="utf-8")
+    (package / "build_identity.json").write_text(
+        json.dumps({"exe_name": "ShuaBao.exe", "source_sha": "display-only"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        facade_module, "PINNED_MANIFEST_PUBLIC_KEYS", {"manifest": private.public_key()}
+    )
+    return package
+
+
+def test_frozen_preflight_passes_on_signed_snapshot(qapp, tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell.runner_service import RunnerService
+
+    package = _signed_frozen_package(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(package / "ShuaBao.exe"))
+    ok, detail = facade_module._build_identity_preflight(
+        package, RunnerService(tmp_path, package)
+    )
+    assert ok, detail
+    assert "source_sha=" + "b" * 40 in detail
+    assert "release_channel=external-beta" in detail
+    assert "bridge_schema=2" in detail
+
+
+def test_frozen_preflight_fails_closed_without_trust_anchor(qapp, tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell.runner_service import RunnerService
+
+    package = _signed_frozen_package(tmp_path, monkeypatch)
+    monkeypatch.setattr(facade_module, "PINNED_MANIFEST_PUBLIC_KEYS", {})
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(package / "ShuaBao.exe"))
+    ok, detail = facade_module._build_identity_preflight(
+        package, RunnerService(tmp_path, package)
+    )
+    assert not ok
+    assert "MANIFEST_TRUST_ANCHOR_MISSING" in detail
+
+
+def test_frozen_preflight_ignores_sidecar_when_signature_missing(qapp, tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell.runner_service import RunnerService
+
+    package = _signed_frozen_package(tmp_path, monkeypatch)
+    (package / "release_manifest.json.sig").unlink()
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(package / "ShuaBao.exe"))
+    ok, detail = facade_module._build_identity_preflight(
+        package, RunnerService(tmp_path, package)
+    )
+    assert not ok
+    assert "MANIFEST_SIGNATURE_MISSING" in detail
 
 
 # ---------------------------------------------------------------- window_control

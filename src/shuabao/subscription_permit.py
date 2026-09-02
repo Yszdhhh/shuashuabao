@@ -1,16 +1,14 @@
 """Signed Ed25519 entitlement permit 集中验证（协议见 docs/SIGNED_ENTITLEMENT_PROTOCOL.md）。
 
-安全不变量：
-- 签名验证为 fail-closed：公钥注册表为空 / key_id 未知 / 任何结构或绑定不匹配一律拒绝。
-- canonical payload: UTF-8 JSON, sort_keys=True, separators=(',',':'), ensure_ascii=False,
-  排除 signature 字段；签名算法恒为 Ed25519（RFC 8032），base64url 无 padding。
-- 本模块不包含任何私钥材料，也绝不产生 permit；签发只属于未来的 Subscription Server。
-- DevStartCapability 仅用于显式 dev/off 路径，单独存在，不能替代 permit 验证。
+本模块只依赖 stdlib + cryptography，不 import 任何业务模块。
+Permit 的域绑定字段（product_id/audience/issuer）与固定期望值强校验，
+任何缺失/未知/形状错误/域不匹配/超长有效期均 fail-closed。
 """
 from __future__ import annotations
 
 import base64
 import json
+import sqlite3
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -24,23 +22,28 @@ from cryptography.hazmat.primitives.serialization import load_der_public_key
 PERMIT_SCHEMA_VERSION = 1
 SIGNATURE_ALGORITHM = "Ed25519"
 CLOCK_SKEW = timedelta(seconds=300)
+MAX_PERMIT_LIFETIME = timedelta(minutes=15)
+PERMIT_PRODUCT_ID = "shuabao"
+PERMIT_AUDIENCE = "live-runner"
+PERMIT_ISSUER = "shuabao-subscription"
 
 _REQUIRED_FIELDS = frozenset({
     "schema_version", "permit_id", "jti", "license_id", "device_id",
     "device_fingerprint", "release_channel", "source_sha",
     "release_manifest_sha256", "allowed_modes", "features", "issued_at",
     "expires_at", "nonce", "signature_algorithm", "key_id", "signature",
+    "product_id", "audience", "issuer",
 })
 _STRING_FIELDS = (
     "permit_id", "jti", "license_id", "device_id", "device_fingerprint",
     "release_channel", "source_sha", "release_manifest_sha256", "nonce", "key_id",
+    "product_id", "audience", "issuer",
 )
 _B64URL_ALPHABET = frozenset(
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 )
 
 _VERIFIED_MARKER = object()
-
 
 
 class PermitVerificationError(Exception):
@@ -57,6 +60,9 @@ class EntitlementPermit:
     """已通过结构校验的 permit；timestamp 保留原始字符串保证 canonical 稳定。"""
 
     schema_version: int
+    product_id: str
+    audience: str
+    issuer: str
     permit_id: str
     jti: str
     license_id: str
@@ -106,6 +112,16 @@ class EntitlementPermit:
             raise PermitVerificationError("PERMIT_MALFORMED", "permit_id 与 jti 不一致")
         if values["device_id"] != values["device_fingerprint"]:
             raise PermitVerificationError("PERMIT_MALFORMED", "device_id 与 device_fingerprint 不一致")
+        for domain_field, expected in (
+            ("product_id", PERMIT_PRODUCT_ID),
+            ("audience", PERMIT_AUDIENCE),
+            ("issuer", PERMIT_ISSUER),
+        ):
+            if values[domain_field] != expected:
+                raise PermitVerificationError(
+                    "PERMIT_DOMAIN_MISMATCH",
+                    f"{domain_field} 必须是 {expected!r}: {values[domain_field]!r}",
+                )
         for name in ("allowed_modes", "features"):
             value = mapping[name]
             if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
@@ -139,6 +155,9 @@ class EntitlementPermit:
             raise PermitVerificationError("PERMIT_MALFORMED", f"signature 解码失败: {exc}") from exc
         return cls(
             schema_version=PERMIT_SCHEMA_VERSION,
+            product_id=str(values["product_id"]),
+            audience=str(values["audience"]),
+            issuer=str(values["issuer"]),
             permit_id=str(values["permit_id"]),
             jti=str(values["jti"]),
             license_id=str(values["license_id"]),
@@ -157,11 +176,13 @@ class EntitlementPermit:
             signature=signature,
         )
 
-
     def canonical_payload(self) -> bytes:
         """被签名的字节串：UTF-8 JSON, sort_keys, 紧凑分隔符, 无 signature 字段。"""
         payload = {
             "schema_version": self.schema_version,
+            "product_id": self.product_id,
+            "audience": self.audience,
+            "issuer": self.issuer,
             "permit_id": self.permit_id,
             "jti": self.jti,
             "license_id": self.license_id,
@@ -236,7 +257,7 @@ class InMemoryReplayStore:
     """进程内原子重放存储：permit_id 或 nonce 任一重复即拒绝。
 
     接口契约 claim(permit_id, nonce) -> bool（True = 首次记录），
-    未来 Redis/服务端存储按同一契约替换。
+    跨进程场景使用 PersistentReplayStore，未来 Redis/服务端存储按同一契约替换。
     """
 
     def __init__(self) -> None:
@@ -253,13 +274,46 @@ class InMemoryReplayStore:
             return True
 
 
+class PersistentReplayStore:
+    """SQLite 跨进程原子重放存储：同一契约 claim(permit_id, nonce) -> bool。
+
+    单条 INSERT 依赖 UNIQUE(permit_id) 与 UNIQUE(nonce) 约束；
+    SQLite 的 UNIQUE 检查在同一事务内原子完成，天然跨进程/多实例安全。
+    """
+
+    def __init__(self, path: str | Path) -> None:
+        path = Path(path)
+        if path.parent != Path(""):
+            path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(str(path), timeout=30.0)
+        with self._conn:
+            self._conn.execute(
+                "CREATE TABLE IF NOT EXISTS replay_claims ("
+                "permit_id TEXT NOT NULL UNIQUE, nonce TEXT NOT NULL UNIQUE)"
+            )
+
+    def claim(self, permit_id: str, nonce: str) -> bool:
+        try:
+            with self._conn:
+                self._conn.execute(
+                    "INSERT INTO replay_claims (permit_id, nonce) VALUES (?, ?)",
+                    (permit_id, nonce),
+                )
+        except sqlite3.IntegrityError:
+            return False
+        return True
+
+    def close(self) -> None:
+        self._conn.close()
+
+
 class PermitVerifier:
     """Ed25519 permit 验证器。public_keys: key_id -> Ed25519PublicKey（空注册表=全拒绝）。"""
 
     def __init__(
         self,
         public_keys: Mapping[str, Ed25519PublicKey],
-        replay_store: InMemoryReplayStore | None = None,
+        replay_store: InMemoryReplayStore | PersistentReplayStore | None = None,
         *,
         issuer_token: object | None = None,
     ) -> None:
@@ -273,6 +327,17 @@ class PermitVerifier:
         key = self._public_keys.get(permit.key_id)
         if key is None:
             raise PermitVerificationError("PERMIT_KEY_UNKNOWN", f"未知 key_id: {permit.key_id}")
+        if (
+            permit.product_id != PERMIT_PRODUCT_ID
+            or permit.audience != PERMIT_AUDIENCE
+            or permit.issuer != PERMIT_ISSUER
+        ):
+            # EntitlementPermit 可被直接构造绕过 from_mapping，验证层必须独立复核。
+            raise PermitVerificationError(
+                "PERMIT_DOMAIN_MISMATCH",
+                f"permit 域绑定与本产品不符: product_id={permit.product_id!r}, "
+                f"audience={permit.audience!r}, issuer={permit.issuer!r}",
+            )
         now = _aware_utc(context.now)
         issued_at = _parse_timestamp(permit.issued_at, "issued_at")
         expires_at = _parse_timestamp(permit.expires_at, "expires_at")
@@ -280,6 +345,12 @@ class PermitVerifier:
             raise PermitVerificationError(
                 "PERMIT_MALFORMED",
                 f"issued_at 晚于 expires_at: {permit.issued_at} > {permit.expires_at}",
+            )
+        if expires_at - issued_at > MAX_PERMIT_LIFETIME:
+            raise PermitVerificationError(
+                "PERMIT_LIFETIME_EXCEEDED",
+                f"permit 有效期超过上限 {MAX_PERMIT_LIFETIME}: "
+                f"{permit.issued_at} -> {permit.expires_at}",
             )
         if now > expires_at:
             raise PermitVerificationError("PERMIT_EXPIRED", f"permit 已于 {permit.expires_at} 过期")

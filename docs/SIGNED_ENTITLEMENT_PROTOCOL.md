@@ -21,6 +21,9 @@ JSON object，字段全集（严格模式：缺失、多余、形状错误一律
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | schema_version | int | 恒为 1；其他值 `PERMIT_SCHEMA_UNKNOWN` |
+| product_id | str | 恒为 `"shuabao"`；其他值 `PERMIT_DOMAIN_MISMATCH` |
+| audience | str | 恒为 `"live-runner"`；其他值 `PERMIT_DOMAIN_MISMATCH` |
+| issuer | str | 恒为 `"shuabao-subscription"`；其他值 `PERMIT_DOMAIN_MISMATCH` |
 | permit_id / jti | str | 服务器生成的唯一 ID，两者必须一致 |
 | license_id | str | 订阅 license 标识 |
 | device_id / device_fingerprint | str | 绑定设备指纹，两者必须一致 |
@@ -49,16 +52,19 @@ JSON object，字段全集（严格模式：缺失、多余、形状错误一律
 2. key_id 解析 → 公钥注册表无此 key → `PERMIT_KEY_UNKNOWN`（空注册表同样）。
 3. 时间窗：`issued_at > expires_at` → `PERMIT_MALFORMED`；`now > expires_at` →
    `PERMIT_EXPIRED`；`issued_at - 300s > now` → `PERMIT_NOT_YET_VALID`
-   （容许 5 分钟时钟偏差）。
+   （容许 5 分钟时钟偏差）；`expires_at - issued_at > 15 分钟`
+   → `PERMIT_LIFETIME_EXCEEDED`。
 4. 绑定核对：device_id / source_sha / release_manifest_sha256 / release_channel
    / mode_id ∈ allowed_modes → 各自 `PERMIT_DEVICE_MISMATCH`、
    `PERMIT_SOURCE_MISMATCH`、`PERMIT_MANIFEST_MISMATCH`、
    `PERMIT_CHANNEL_MISMATCH`、`PERMIT_MODE_NOT_ALLOWED`。
 5. Ed25519 验签失败 → `PERMIT_SIGNATURE_INVALID`。
 6. 重放（如提供 replay store）：`claim(permit_id, nonce)` 原子性返回 False →
-   `PERMIT_REPLAY`。`InMemoryReplayStore` 为进程内参考实现；服务器化时按同一
-   接口替换。claim 仅在签名与上述全部检查通过后执行：任何验证失败的 permit
-   都不占用 permit_id/nonce 重放额度。
+   `PERMIT_REPLAY`。`InMemoryReplayStore` 为进程内参考实现；
+   `PersistentReplayStore`（stdlib sqlite3）通过 UNIQUE(permit_id)/UNIQUE(nonce)
+   约束提供跨进程/多实例原子重放防护，两者按同一契约替换。claim 仅在签名与
+   上述全部检查通过后执行：任何验证失败的 permit 都不占用 permit_id/nonce
+   重放额度。
 
 任何错误码都不得降级为放行；`StartPermission(allowed=True)`（shadow/off 或
 服务端 can_start_runner）本身不构成 LIVE 授权。显式 dev/off 路径使用独立的
@@ -75,8 +81,9 @@ release_channel、请求 modes/features）。成功响应体即 permit JSON（�
 {"ok": false, "code": "<STABLE_ERROR_CODE>", "message": "<人类可读>"}
 ```
 
-错误码约定沿用现有 Subscription 客户端风格（`ENTITLEMENT_*`、`CONFIG_*`）。
-时钟偏差容忍 ±300 秒；permit 有效期建议 ≤ license 剩余有效期，且不超过 24 小时。
+时钟偏差容忍 ±300 秒；permit 有效期必须不超过 15 分钟，并不得超过 license 剩余有效期。
+这只是客户端短期缓存窗口；Subscription Server 建成后仍需在服务端执行 license 状态与
+permit_id/nonce 唯一性约束。
 
 ## 公钥轮换
 
@@ -88,12 +95,11 @@ release_channel、请求 modes/features）。成功响应体即 permit JSON（�
 - **当前生产注册表为空**：无服务器、无生产公钥，任何 permit 都会被拒绝，这是
   预期行为，不得伪造或预置密钥。
 
-## 撤销与网络失败语义
-
-- **撤销**：服务器在有效期内的 permit 可通过短有效期（≤24h）+ 启动时重新签发
-  实现事实撤销；后续可增加服务器端撤销列表查询（nonce/permit_id 维度），客户端
+- **撤销**：服务器在有效期内的 permit 仅允许短有效期（≤15 分钟）+ 启动时重新签发
+  实现事实撤销；后续可增加服务器端撤销列表查询（nonce/permit_id）维度。
 - **网络失败**：无法取得新 permit 时 LIVE 不启动（enforce 模式）。
 - **shadow 模式**：只记录权威决策，不产生 LIVE 授权；LIVE 仍必须经过
   `resolve_live_permission` 的 signed permit 或显式、受信任的 dev/off capability。
-- **重放存储丢失**（进程重启）：进程内 store 清空即允许同一 permit 在新进程再次
-  使用一次；这是已知边界，服务器侧 nonce 唯一性约束是最终防线。
+- **重放存储丢失**：LIVE 使用 `PersistentReplayStore`（SQLite 文件）跨进程持久化；
+  存储初始化或写入失败即 fail-closed，不回退到 `InMemoryReplayStore`。服务器侧
+  permit_id/nonce 唯一性约束是最终防线。

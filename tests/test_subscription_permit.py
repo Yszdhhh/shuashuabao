@@ -10,6 +10,7 @@ import base64
 import json
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,11 @@ from shuabao.subscription_permit import (
     DevStartCapability,
     EntitlementPermit,
     InMemoryReplayStore,
+    MAX_PERMIT_LIFETIME,
+    PERMIT_AUDIENCE,
+    PERMIT_ISSUER,
+    PERMIT_PRODUCT_ID,
+    PersistentReplayStore,
     PermitVerificationContext,
     PermitVerificationError,
     PermitVerifier,
@@ -57,8 +63,11 @@ def _permit_payload(**overrides: object) -> dict:
         "allowed_modes": ["live"],
         "features": ["run"],
         "issued_at": _iso(NOW - timedelta(minutes=1)),
-        "expires_at": _iso(NOW + timedelta(hours=1)),
+        "expires_at": _iso(NOW + timedelta(minutes=14)),
         "nonce": "nonce-0001",
+        "product_id": PERMIT_PRODUCT_ID,
+        "audience": PERMIT_AUDIENCE,
+        "issuer": PERMIT_ISSUER,
         "signature_algorithm": "Ed25519",
         "key_id": KEY_ID,
     }
@@ -114,7 +123,7 @@ def test_valid_permit_verifies_and_exposes_fields():
     assert verified.allowed_modes == ("live",)
     assert verified.features == ("run",)
     assert verified.key_id == KEY_ID
-    assert verified.expires_at == NOW + timedelta(hours=1)
+    assert verified.expires_at == NOW + timedelta(minutes=14)
 
 
 def test_canonical_payload_is_deterministic_and_excludes_signature():
@@ -239,13 +248,19 @@ def test_tampered_payload_rejected():
 
 
 def test_future_issued_beyond_skew_rejected():
-    permit = _signed_permit(issued_at=_iso(NOW + timedelta(minutes=10)))
+    permit = _signed_permit(
+        issued_at=_iso(NOW + timedelta(minutes=10)),
+        expires_at=_iso(NOW + timedelta(minutes=20)),
+    )
 
     assert _verify_code(permit, _context()) == "PERMIT_NOT_YET_VALID"
 
 
 def test_future_issued_within_skew_accepted():
-    permit = _signed_permit(issued_at=_iso(NOW + timedelta(seconds=60)))
+    permit = _signed_permit(
+        issued_at=_iso(NOW + timedelta(seconds=60)),
+        expires_at=_iso(NOW + timedelta(minutes=10)),
+    )
 
     assert _verifier().verify(permit, _context()).permit_id == "pmt-0001"
 
@@ -437,3 +452,68 @@ def test_load_public_keys_normalizes_unsupported_algorithm(monkeypatch, tmp_path
     with pytest.raises(PermitVerificationError) as excinfo:
         load_public_keys(registry)
     assert excinfo.value.code == "PERMIT_KEY_REGISTRY_INVALID"
+
+
+def test_wrong_domain_fields_rejected_at_parsing():
+    assert _mapping_code({**_permit_payload(product_id="other-app"), "signature": "AA"}) == "PERMIT_DOMAIN_MISMATCH"
+    assert _mapping_code({**_permit_payload(audience="desktop-runner"), "signature": "AA"}) == "PERMIT_DOMAIN_MISMATCH"
+    assert _mapping_code({**_permit_payload(issuer="rogue-issuer"), "signature": "AA"}) == "PERMIT_DOMAIN_MISMATCH"
+
+
+def test_wrong_domain_field_rejected_as_malformed_missing_like_shape():
+    assert _mapping_code(_permit_payload(product_id="")) == "PERMIT_MALFORMED"
+    assert _mapping_code(_permit_payload(audience=123)) == "PERMIT_MALFORMED"
+    assert _mapping_code(_permit_payload(issuer=None)) == "PERMIT_MALFORMED"
+
+
+def test_verifier_rejects_wrong_domain_on_directly_constructed_permit():
+    permit = _signed_permit()
+    forged = replace(permit, product_id="other-app")
+
+    assert _verify_code(forged, _context()) == "PERMIT_DOMAIN_MISMATCH"
+
+
+def test_overlong_lifetime_rejected():
+    permit = _signed_permit(
+        issued_at=_iso(NOW - timedelta(minutes=1)),
+        expires_at=_iso(NOW + timedelta(minutes=15)),
+    )
+
+    assert _verify_code(permit, _context()) == "PERMIT_LIFETIME_EXCEEDED"
+
+
+def test_max_lifetime_boundary_accepted():
+    assert MAX_PERMIT_LIFETIME == timedelta(minutes=15)
+    permit = _signed_permit(
+        issued_at=_iso(NOW - timedelta(minutes=1)),
+        expires_at=_iso(NOW + timedelta(minutes=14)),
+    )
+
+    assert _verifier().verify(permit, _context()).permit_id == "pmt-0001"
+
+
+def test_persistent_replay_store_rejects_duplicates(tmp_path):
+    store = PersistentReplayStore(tmp_path / "replay.sqlite3")
+    try:
+        assert store.claim("pmt-1", "nonce-1") is True
+        assert store.claim("pmt-1", "nonce-1") is False
+        assert store.claim("pmt-1", "nonce-2") is False
+        assert store.claim("pmt-2", "nonce-1") is False
+        assert store.claim("pmt-2", "nonce-2") is True
+    finally:
+        store.close()
+
+
+def test_two_persistent_replay_stores_share_replay_state(tmp_path):
+    db = tmp_path / "replay.sqlite3"
+    first = PersistentReplayStore(db)
+    second = PersistentReplayStore(db)
+    try:
+        assert first.claim("pmt-1", "nonce-1") is True
+        assert second.claim("pmt-1", "nonce-1") is False
+        assert second.claim("pmt-1", "nonce-2") is False
+        assert second.claim("pmt-2", "nonce-1") is False
+        assert second.claim("pmt-2", "nonce-2") is True
+    finally:
+        first.close()
+        second.close()

@@ -9,6 +9,8 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
+import stat
 from pathlib import Path
 from typing import Mapping
 
@@ -41,6 +43,11 @@ def canonical_manifest_bytes(manifest: Mapping[str, object]) -> bytes:
         return json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     except (TypeError, UnicodeEncodeError) as exc:
         raise ReleaseManifestError("MANIFEST_MALFORMED", f"发行清单不可规范化: {exc}") from exc
+
+
+def canonical_manifest_sha256(manifest: Mapping[str, object]) -> str:
+    """Canonical JSON UTF-8 SHA256；签名 envelope 与调用方统一使用该摘要。"""
+    return hashlib.sha256(canonical_manifest_bytes(manifest)).hexdigest()
 
 
 def _parse_manifest(data: bytes) -> dict[str, object]:
@@ -94,7 +101,7 @@ def verify_manifest_signature(
 ) -> str:
     key_id, manifest_sha256, signature = _signature_envelope(signature_envelope)
     canonical = canonical_manifest_bytes(manifest)
-    if manifest_sha256 != hashlib.sha256(canonical).hexdigest():
+    if manifest_sha256 != canonical_manifest_sha256(manifest):
         raise ReleaseManifestError("MANIFEST_HASH_MISMATCH", "签名 envelope 的 manifest_sha256 不匹配")
     key = public_keys.get(key_id)
     if key is None:
@@ -104,6 +111,46 @@ def verify_manifest_signature(
     except InvalidSignature as exc:
         raise ReleaseManifestError("MANIFEST_SIGNATURE_INVALID", "release_manifest Ed25519 签名验证失败") from exc
     return key_id
+
+METADATA_FILE_EXCEPTIONS = frozenset({
+    "release_manifest.json",
+    "release_manifest.json.sig",
+    "build_identity.json",
+})
+
+
+def _reject_reparse_point(path: Path, relative: str) -> None:
+    # 拒绝 symlink/junction/reparse point：Windows 上 os.lstat 对 junction 与
+    # 其他 reparse point 都带 FILE_ATTRIBUTE_REPARSE_POINT，POSIX 上 symlink
+    # 由 S_ISLNK 判定；两个平台都 fail-closed。
+    try:
+        st = os.lstat(path)
+    except OSError as exc:
+        raise ReleaseManifestError("MANIFEST_FILE_MISMATCH", f"发行文件不可读取: {relative}: {exc}") from exc
+    if stat.S_ISLNK(st.st_mode) or getattr(st, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        raise ReleaseManifestError("MANIFEST_FILE_MISMATCH", f"发行文件不得是符号链接/junction/reparse point: {relative}")
+
+
+def _verify_no_extra_files(package_root: Path, attested: set[str]) -> None:
+    # 除逐项 hash/size 校验外，扫描 package_root 实际文件集。目录本身不是 manifest
+    # 条目：只做 reparse point 检查；与 manifest 条目比较的是 regular files——
+    # manifest 条目与三个元数据例外之外的任何文件（额外 DLL/plugin）一律拒绝。
+    def _walk_error(err: os.error) -> None:
+        raise ReleaseManifestError("MANIFEST_FILE_MISMATCH", f"发行目录不可扫描: {err}")
+
+    try:
+        for dirpath, dirnames, filenames in os.walk(package_root, onerror=_walk_error):
+            for name in list(dirnames) + filenames:
+                relative = Path(dirpath, name).relative_to(package_root).as_posix()
+                _reject_reparse_point(Path(dirpath, name), relative)
+            for name in filenames:
+                relative = Path(dirpath, name).relative_to(package_root).as_posix()
+                if relative not in attested and relative not in METADATA_FILE_EXCEPTIONS:
+                    raise ReleaseManifestError("MANIFEST_EXTRA_FILE", f"发行包含有未签名文件: {relative}")
+    except OSError as exc:
+        raise ReleaseManifestError("MANIFEST_FILE_MISMATCH", f"发行目录不可扫描: {exc}") from exc
+
+
 
 
 
@@ -128,6 +175,7 @@ def verify_manifest_files(
             raise ReleaseManifestError("MANIFEST_MALFORMED", f"非法文件大小: {relative}")
         normalized = relative.replace("\\", "/")
         target = package_root / Path(relative)
+        _reject_reparse_point(target, normalized)
         try:
             data = target.read_bytes()
             actual_size = len(data)
@@ -147,7 +195,10 @@ def verify_manifest_files(
     ]
     if missing:
         raise ReleaseManifestError("MANIFEST_FILE_UNATTESTED", f"发行清单未绑定必需文件: {missing}")
+    _verify_no_extra_files(package_root, set(verified_files))
     return verified_files
+
+
 def _verify_packaged_release(
     package_root: Path,
     *,

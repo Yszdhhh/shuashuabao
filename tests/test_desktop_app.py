@@ -1364,11 +1364,14 @@ class DesktopPanelTests(unittest.TestCase):
         class RuntimeFailClosedProbeMediator(runtime_mediator_mod.Mediator, FailClosedProbeMediator):
             pass
 
+        from shuabao.subscription_permit import DevStartCapability
+
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.object(mediator_mod, "Mediator", FailClosedProbeMediator),                     patch.object(runtime_mediator_mod, "Mediator", RuntimeFailClosedProbeMediator):
+            with patch.object(mediator_mod, "Mediator", FailClosedProbeMediator), \
+                    patch.object(runtime_mediator_mod, "Mediator", RuntimeFailClosedProbeMediator):
                 worker = desktop_app.MediatorWorker(
                     Settings(dry_run=True, ocr_mode="off"), ROOT, max_steps=1, incident_dir=tmp,
-                    permission=StartPermission(True, "off", status="OFF", code="OFF", would_allow=True),
+                    permission=DevStartCapability(mode="off"),
                 )
                 worker._start_trace = lambda: None  # 测试不写 APP_DATA trace
                 worker.run()
