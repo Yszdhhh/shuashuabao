@@ -53,6 +53,8 @@ def _run(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedP
         env=child_env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
 
 
