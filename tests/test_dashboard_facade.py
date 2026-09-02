@@ -167,7 +167,7 @@ def test_snapshot_does_not_probe_subscription_network_before_preflight(monkeypat
 def test_current_pass_evidence_requires_matching_release_artifacts(tmp_path: Path):
     """A green evidence label cannot outlive its manifest or EXE bytes."""
     import hashlib
-
+    from shuabao.release_signing import canonical_manifest_sha256
     package = tmp_path / "dist" / "ShuaBao"
     package.mkdir(parents=True)
     exe = package / "ShuaBao.exe"
@@ -187,7 +187,7 @@ def test_current_pass_evidence_requires_matching_release_artifacts(tmp_path: Pat
                     "normal_farm": {
                         "status": "PASS",
                         "source_sha": "source-a",
-                        "release_manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+                        "release_manifest_sha256": canonical_manifest_sha256(json.loads(manifest.read_text(encoding="utf-8"))),
                         "exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
                     }
                 },

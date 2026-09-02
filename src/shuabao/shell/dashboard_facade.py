@@ -146,8 +146,8 @@ def _build_identity_metadata(root: Path | None) -> dict[str, str]:
             if isinstance(manifest, dict):
                 if not metadata["release_manifest_sha256"]:
                     try:
-                        metadata["release_manifest_sha256"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest().lower()
-                    except OSError:
+                        metadata["release_manifest_sha256"] = canonical_manifest_sha256(manifest)
+                    except (OSError, ReleaseManifestError):
                         pass
                 if not metadata["bridge_schema_version"]:
                     metadata["bridge_schema_version"] = str(manifest.get("bridge_schema_version") or "")
@@ -240,9 +240,9 @@ def _mode_evidence(mode_id: str, root: Path | None) -> dict[str, Any]:
             else:
                 result["release_manifest_path"] = str(manifest_path)
                 try:
-                    manifest_hash = hashlib.sha256(manifest_path.read_bytes()).hexdigest().lower()
                     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
+                    manifest_hash = canonical_manifest_sha256(manifest)
+                except (OSError, ValueError, ReleaseManifestError):
                     manifest_hash = ""
                     manifest = None
                 manifest_valid = False
