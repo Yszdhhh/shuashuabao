@@ -317,6 +317,21 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         for key in ("coin_challenge", "wood_challenge", "experience_challenge", "treasure_challenge"):
             self.assertEqual(self.med._challenge_states.get(key), ChallengeState.PENDING)
 
+    def test_hitch_mode_never_maps_pressure_transfer_to_f4(self):
+        self.med.settings.mode_id = "lobby_hitch"
+        self.med._pressure_next_at = time.time() + 999.0
+        self.med.set_phase(Phase.MAIN_LINE, "hitch new game")
+        self.assertEqual(self.med._pressure_next_at, 0.0)
+
+        with patch.object(self.med, "_hitch_ocr_text", return_value=""), \
+             patch.object(self.med, "_find_failure_gift", return_value=None), \
+             patch.object(self.med, "_post_game_state", return_value=None), \
+             patch.object(self.med, "_maybe_clear_pressure_monsters", return_value=LoopAction.Continue) as pressure, \
+             patch.object(self.med, "_maybe_click_tqtz", return_value=None):
+            self.assertIs(self.med._tick_main_line(self.frame_off), LoopAction.Continue)
+
+        pressure.assert_not_called()
+
     def test_pending_lifecycle_and_transitions(self):
         """Check PENDING lifecycle: initialized at PENDING, transitions to PENDING on right-click, ON when confirmed."""
         self.med._auto_task_done = True

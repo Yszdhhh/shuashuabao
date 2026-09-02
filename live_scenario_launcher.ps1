@@ -2,12 +2,21 @@
 # It discovers paths and forwards arguments; production logic stays in the tool.
 
 $ErrorActionPreference = "Stop"
+
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $scriptPath = if ($PSCommandPath) { $PSCommandPath } else { Join-Path $PSScriptRoot "live_scenario_launcher.ps1" }
+    Start-Process powershell.exe -ArgumentList "-NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -File `"$scriptPath`"" -WorkingDirectory $PSScriptRoot -Verb RunAs
+    exit
+}
+
 $RepoRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
+Set-Location -LiteralPath $RepoRoot
 $ToolPath = Join-Path $RepoRoot "tools\live_scenario_capture.py"
 
 if (-not (Test-Path -LiteralPath $ToolPath -PathType Leaf)) {
     throw "找不到现有工具：$ToolPath"
 }
+$script:LastToolExitCode = 0
 
 function Resolve-PythonPath {
     $venvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
@@ -79,6 +88,16 @@ function Resolve-CaptureRoot {
     return (Resolve-Path -LiteralPath $fallback).Path
 }
 
+function Resolve-OperatorSettingsPath {
+    $override = [string]$env:SHUABAO_APP_DATA
+    $base = if ($override.Trim()) { $override.Trim() } else { Join-Path $env:LOCALAPPDATA "ShuaBao" }
+    $path = Join-Path $base "user_settings.json"
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        return (Resolve-Path -LiteralPath $path).Path
+    }
+    return $null
+}
+
 function Invoke-CaptureTool {
     param([Parameter(Mandatory = $true)][string[]]$CliArgs)
 
@@ -87,8 +106,12 @@ function Invoke-CaptureTool {
     }
 
     & $script:PythonPath $ToolPath @CliArgs
-    $exitCode = $LASTEXITCODE
+    $exitCode = [int]$LASTEXITCODE
+    $script:LastToolExitCode = $exitCode
     Write-Host "[launcher] tool exit code: $exitCode" -ForegroundColor DarkGray
+    if ($exitCode -ne 0) {
+        Write-Host "[launcher] 工具失败；请查看上方 preflight/manifest 证据。" -ForegroundColor Red
+    }
 }
 
 function Invoke-Readiness {
@@ -114,10 +137,18 @@ function Invoke-TargetProbe {
         $cliArgs += @(
             "--automation-exe", $script:AutomationExe,
             "--live-input",
-            "--confirm-live-input"
+            "--confirm-live-input",
+            "--allow-dev-source"
         )
+        if ($script:OperatorSettingsPath) {
+            $cliArgs += @("--settings", $script:OperatorSettingsPath)
+        }
         if ($Target -eq "black_merchant") {
             $cliArgs += @("--duration", "600", "--max-ticks", "5000")
+        } elseif ($Target -eq "lobby_search") {
+            # End-to-end chain: no time/tick cap. It exits only after a verified
+            # guest Ready (or the operator presses Shift+F12).
+            $cliArgs += @("--until-success", "--interval", "0.15")
         }
         if (-not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
             Write-Host "[launcher] 未找到 EXE；仍交给现有 preflight 处理：$script:AutomationExe" -ForegroundColor Yellow
@@ -153,6 +184,28 @@ function Invoke-BossSeriesCapture {
     if (-not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
         Write-Host "[launcher] 未找到 EXE；仍交给现有 preflight 处理：$script:AutomationExe" -ForegroundColor Yellow
     }
+    Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-HitchRuntimeCapture {
+    $cliArgs = @(
+        "capture",
+        "--target", "hitch_runtime",
+        "--out", $script:CaptureRoot,
+        "--repo-root", $RepoRoot,
+        "--duration", "3600",
+        "--max-ticks", "30000",
+        "--continue-after-failure",
+        "--generate",
+        "--automation-exe", $script:AutomationExe,
+        "--live-input",
+        "--confirm-live-input",
+        "--allow-dev-source"
+    )
+    if ($script:OperatorSettingsPath) {
+        $cliArgs += @("--settings", $script:OperatorSettingsPath)
+    }
+    Write-Host "[launcher] 蹭车局内续跑：压力转移→自动任务/四挑战→结算存档→时光之穴/传家宝 Boss" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -199,6 +252,7 @@ function Reproduce-LatestFail {
 $script:PythonPath = Resolve-PythonPath
 $script:AutomationExe = Resolve-AutomationExe
 $script:CaptureRoot = Resolve-CaptureRoot
+$script:OperatorSettingsPath = Resolve-OperatorSettingsPath
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -207,8 +261,8 @@ Add-Type -AssemblyName System.Drawing
 $script:MenuForm = New-Object System.Windows.Forms.Form
 $script:MenuForm.Text = "刷刷宝 · Live 实机测试"
 $script:MenuForm.StartPosition = "CenterScreen"
-$script:MenuForm.Size = New-Object System.Drawing.Size(760, 720)
-$script:MenuForm.MinimumSize = New-Object System.Drawing.Size(760, 720)
+$script:MenuForm.Size = New-Object System.Drawing.Size(760, 836)
+$script:MenuForm.MinimumSize = New-Object System.Drawing.Size(760, 836)
 $script:MenuForm.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
 $script:MenuForm.TopMost = $true
 
@@ -220,7 +274,7 @@ $title.Location = New-Object System.Drawing.Point(22, 18)
 $script:MenuForm.Controls.Add($title)
 
 $status = New-Object System.Windows.Forms.Label
-$status.Text = "点击按钮即可开始，不需要输入数字。2-5 会先通过 preflight；4 只跑 Boss→存档8项→传家宝，不会点秘境；5 单独测秘境，6 只取时光之穴证据。`r`n测试开始后放开鼠标；p=留成功证据，f=留失败证据，m=人工介入后继续。"
+$status.Text = "点击按钮即可开始，不需要输入数字。2-8 会先通过 preflight；4 跑 Boss 系列；8 持续搜房直到真实准备成功。`r`n测试开始后放开鼠标；紧急停止用 Shift+F12；p/f/m 只用于留证据。"
 $status.AutoSize = $false
 $status.Size = New-Object System.Drawing.Size(700, 58)
 $status.Location = New-Object System.Drawing.Point(24, 60)
@@ -281,13 +335,15 @@ Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→�
 Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 342 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
 Add-MenuButton "6  时光之穴 Boss fallback（实机）`r`n    已打开列表后自动选择最后可识别 Boss" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $false } $green
 Add-MenuButton "7  传家宝 Boss 选择`r`n    复用 cjb_boss 选择并验证真实 HUD" 24 428 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $false } $green
-Add-MenuButton "8  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 390 428 { Open-LatestFailBundle } $blue
-Add-MenuButton "9  Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 24 514 { Reproduce-LatestFail } $blue
+Add-MenuButton "8  大厅搜房准备整链（持续到成功）`r`n    拒绝异常房→刷新→合规房→准备后才结束" 390 428 { Invoke-TargetProbe -Target "lobby_search" -GroundTruthOnly $false } $green
+Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 24 514 { Open-LatestFailBundle } $blue
+Add-MenuButton "10 Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 390 514 { Reproduce-LatestFail } $blue
+Add-MenuButton "11 蹭车局内续跑（随时开始）`r`n    压力转移→自动任务/四挑战→结算 Boss 兜底" 24 600 { Invoke-HitchRuntimeCapture } $green
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
-$exitButton.Size = New-Object System.Drawing.Size(340, 76)
-$exitButton.Location = New-Object System.Drawing.Point(390, 514)
+$exitButton.Size = New-Object System.Drawing.Size(706, 44)
+$exitButton.Location = New-Object System.Drawing.Point(24, 686)
 $exitButton.Add_Click({ $script:MenuForm.Close() })
 $script:MenuForm.Controls.Add($exitButton)
 
@@ -295,8 +351,9 @@ $footer = New-Object System.Windows.Forms.Label
 $footer.Text = "注意：不要同时启动普通刷刷宝。点击测试按钮后，本窗口暂时隐藏，黑色日志窗口显示运行状态；测试结束后按钮菜单自动回来。"
 $footer.AutoSize = $false
 $footer.Size = New-Object System.Drawing.Size(700, 48)
-$footer.Location = New-Object System.Drawing.Point(24, 610)
+$footer.Location = New-Object System.Drawing.Point(24, 742)
 $footer.ForeColor = [System.Drawing.Color]::Firebrick
 $script:MenuForm.Controls.Add($footer)
 
 [void]$script:MenuForm.ShowDialog()
+exit $script:LastToolExitCode

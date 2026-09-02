@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-31T12:55:42.100700+00:00",
+  "generated_at": "2026-09-01T16:52:28.494375+00:00",
   "spec": "ShuaBao.spec",
   "package_roots": [
     {
@@ -2050,6 +2050,150 @@
       "sha256": "ba2a494b8c265a1b795e8f23ab57b1faab648e3805bfa51e3f18fc4ca0e9155b"
     },
     {
+      "path": "assets/Images/lobby/lobby_1_4.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 144,
+      "sha256": "76e1d0370e7a9e0110f95d02eeb4bf8ad64fb1f4e0a65cdd8e1729a91a331abb"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_2_4.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 145,
+      "sha256": "a5fa97db171c55da09bf8d53d6cc7e68d7b35373c704b3b7172867935997fecc"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_3_4.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 193,
+      "sha256": "cbde37861d7ff0a2fd22b04c27f04f1d7006c8ee19d6a306bcf2bee21e1d74cf"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_4_4.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 199,
+      "sha256": "124aada70203e7f4d5920e56a3cc0dcd5740d78725b0df349096a740c34ed75b"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_in_game.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 606,
+      "sha256": "60a405be14aa2c03b8feb9b3d51a1ed05c1140946fa332c41efd48fb20a7d952"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_popup_dialog.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 9904,
+      "sha256": "00226af1ec2d0c0c88c12583817421c8b8813d075566eedb5da0005b4d40b86a"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_popup_leave.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 352,
+      "sha256": "315169482b85bd90882c60fdbfaa6b042765a93af0fe574e14e7b0a59d378b8d"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_popup_title.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 1052,
+      "sha256": "affdbe0b360db22ccb09cf287050848ac4d8aaf1864cd493603057f06e919418"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_quick_join.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 792,
+      "sha256": "b232034bb3efecae00ed0a7bfcb6461dcfbc1dd972ce602dc0a1e9de7a247419"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_refresh.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 437,
+      "sha256": "6adb4836033b77c9fc9c48341aa8f01dd5c49a656da7d4d7414f71f7c764b114"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_refresh_chars.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 148,
+      "sha256": "2c12b055f730c51d4e3811d138a12816abc5e9a0483cfb100ddd309e4a360413"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_room_list.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 1053,
+      "sha256": "4f89ed06a145dae7b083ad346c582a7de5c8fc13233f3fdc4b380a141d7a17a1"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_room_list_selected.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 628,
+      "sha256": "2afe992e7d42dca30350dc9fc7276bfb015192960e8660f713b0d9923dc4a65a"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_room_list_tab.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 640,
+      "sha256": "7dd143700996d77e183b31eccdbd03ca3081dcf77b3cb652fe39dc7cfaf4093f"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_room_lock.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 178,
+      "sha256": "f83e65dc864372c0283e420c1e0f0f1ec728b2a02fa7413ce3a1f274dc32497d"
+    },
+    {
+      "path": "assets/Images/lobby/lobby_search_box.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 1000,
+      "sha256": "8a83f9dcbb1153387f8ce02e29231c2778b56f5568dbacf01ab70a53acf4b70e"
+    },
+    {
+      "path": "assets/Images/lobby/room_cancel_ready.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 950,
+      "sha256": "64f3dc8ca0cd2e04f34746d2a1a2353e5ffca304e8d30e4b84b5eb1740c2c721"
+    },
+    {
+      "path": "assets/Images/lobby/room_exit_btn.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 648,
+      "sha256": "cb09a1f792bd54ad356a0c296c38707aa14a6f6e2c360ddaf93113cae3da73ca"
+    },
+    {
       "path": "assets/Images/lobby/room_start.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
@@ -2144,6 +2288,14 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 5246,
       "sha256": "c0b152633a759a4e83cd0a81ec6ddb42eba7204b4ea3f4c53397fdd00f58fbca"
+    },
+    {
+      "path": "assets/Images/lobby/test_patch.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 826,
+      "sha256": "029c733a4b137057b0ceeeed6761a2707f26ca42cce083c1ff174bb76f6d4727"
     },
     {
       "path": "assets/Images/lobby/ticket_zero.png",

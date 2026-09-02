@@ -1146,7 +1146,7 @@ class MainWindow(QMainWindow):
             "early_challenge": False,
             "treasure_allow_negative": [],
             "advanced_packs": [],
-            "hitch_stage_prefix": "3",
+            "hitch_stage_prefix": "4",
             "selected_build_id": "",
             "selected_mode_variant": "solo",
             "custom_builds": [],
@@ -2197,7 +2197,7 @@ class MainWindow(QMainWindow):
             else:
                 cycle = int(self.spn_hitch_cycle_num.value())
                 action = action_labels.get(str(self.cmb_hitch_after_goal.currentData()), "去单人刷票")
-                extra = f"搜索 {self.cmb_hitch_prefix.currentData() or '3'}"
+                extra = f"搜索 {self.cmb_hitch_prefix.text().strip() or '4'}"
                 trigger = "达到蹭车目标后"
                 extra_label = "找房条件"
             cycle_text = "手动停" if cycle <= 0 else f"{cycle} 局"
@@ -2800,14 +2800,44 @@ class MainWindow(QMainWindow):
         search_label = QLabel("找房条件")
         search_label.setObjectName("teamPairTitle")
         search_row.addWidget(search_label)
-        self.cmb_hitch_prefix = QComboBox()
+        self.cmb_hitch_prefix = QLineEdit()
         self.cmb_hitch_prefix.setFixedHeight(36)
-        self.cmb_hitch_prefix.addItem("搜索 3", "3")
-        self.cmb_hitch_prefix.addItem("搜索 4", "4")
-        self.cmb_hitch_prefix.setMaximumWidth(180)
+        self.cmb_hitch_prefix.setPlaceholderText("如 4,3 或自定义房间号/名称")
+        self.cmb_hitch_prefix.setText("4")
+        self.cmb_hitch_prefix.setMinimumWidth(180)
         search_row.addWidget(self.cmb_hitch_prefix)
+
+        btn_quick_3 = QPushButton("搜 3")
+        btn_quick_3.setFixedHeight(34)
+        btn_quick_3.clicked.connect(lambda: self.cmb_hitch_prefix.setText("3"))
+        search_row.addWidget(btn_quick_3)
+
+        btn_quick_4 = QPushButton("搜 4")
+        btn_quick_4.setFixedHeight(34)
+        btn_quick_4.clicked.connect(lambda: self.cmb_hitch_prefix.setText("4"))
+        search_row.addWidget(btn_quick_4)
+
+        btn_quick_43 = QPushButton("4轮换3")
+        btn_quick_43.setFixedHeight(34)
+        btn_quick_43.setToolTip("10轮未命中4时自动换搜3")
+        btn_quick_43.clicked.connect(lambda: self.cmb_hitch_prefix.setText("4,3"))
+        search_row.addWidget(btn_quick_43)
+
         search_row.addStretch()
         bl.addLayout(search_row)
+
+        # 组队 Boss 挑战选择（时光之穴 & 传家宝）
+        boss_row = QHBoxLayout()
+        boss_label = QLabel("Boss 挑战")
+        boss_label.setObjectName("teamPairTitle")
+        boss_row.addWidget(boss_label)
+        btn_pick_hitch_boss = QPushButton("配置组队 Boss / 传家宝")
+        btn_pick_hitch_boss.setFixedHeight(34)
+        btn_pick_hitch_boss.setCursor(Qt.PointingHandCursor)
+        btn_pick_hitch_boss.clicked.connect(lambda: self._select_mode("normal_farm"))
+        boss_row.addWidget(btn_pick_hitch_boss)
+        boss_row.addStretch()
+        bl.addLayout(boss_row)
         self.txt_hitch_exact = QLineEdit()
         self.txt_hitch_exact.setPlaceholderText("后续拓展")
         self.txt_hitch_exact.setEnabled(False)
@@ -3956,7 +3986,7 @@ class MainWindow(QMainWindow):
         self.cmb_follow_after_room.currentIndexChanged.connect(self._schedule_auto_save)
         self.cmb_hitch_after_goal.currentIndexChanged.connect(self._schedule_auto_save)
         self.txt_follow_pair_code.textChanged.connect(self._schedule_auto_save)
-        self.cmb_hitch_prefix.currentIndexChanged.connect(self._schedule_auto_save)
+        self.cmb_hitch_prefix.textChanged.connect(self._schedule_auto_save)
         self.chk_secret_realm.toggled.connect(self._schedule_auto_save)
         self.chk_auto_archaeology.toggled.connect(self._schedule_auto_save)
         self.chk_auto_close_main_line.toggled.connect(self._schedule_auto_save)
@@ -3979,7 +4009,7 @@ class MainWindow(QMainWindow):
         self.cmb_follow_after_room.currentIndexChanged.connect(self._refresh_chrome)
         self.cmb_hitch_after_goal.currentIndexChanged.connect(self._refresh_chrome)
         self.txt_follow_pair_code.textChanged.connect(self._refresh_launch_check)
-        self.cmb_hitch_prefix.currentIndexChanged.connect(self._refresh_launch_check)
+        self.cmb_hitch_prefix.textChanged.connect(self._refresh_launch_check)
         self.chk_secret_realm.toggled.connect(self._refresh_launch_check)
         self.chk_auto_close_main_line.toggled.connect(self._refresh_launch_check)
         self.chk_auto_archaeology.toggled.connect(self._refresh_launch_check)
@@ -4157,8 +4187,7 @@ class MainWindow(QMainWindow):
         hitch_action = self.cmb_hitch_after_goal.findData(str(getattr(settings, "hitch_after_goal", "solo") or "solo"))
         self.cmb_hitch_after_goal.setCurrentIndex(hitch_action if hitch_action >= 0 else 0)
         self.txt_follow_pair_code.setText(str(getattr(settings, "follow_pair_code", "") or "")[:24])
-        hitch_prefix = self.cmb_hitch_prefix.findData(str(getattr(settings, "hitch_stage_prefix", "3") or "3")[:1])
-        self.cmb_hitch_prefix.setCurrentIndex(hitch_prefix if hitch_prefix >= 0 else 0)
+        self.cmb_hitch_prefix.setText(str(getattr(settings, "hitch_stage_prefix", "4") or "4").strip()[:64] or "4")
         self.settings.skill_priority = [str(c) for c in (getattr(settings, "skill_priority", None) or [])]
         self.settings.skill_custom_routes = dict(getattr(settings, "skill_custom_routes", None) or {})
         self.skill_grid.set_skills(settings.skills or [])
@@ -4227,7 +4256,7 @@ class MainWindow(QMainWindow):
         settings.mode_id = self.selected_mode_id()
         prefix_widget = getattr(self, "cmb_hitch_prefix", None)
         if prefix_widget is not None:
-            settings.hitch_stage_prefix = str(prefix_widget.currentData() or "3")[:1] or "3"
+            settings.hitch_stage_prefix = str(prefix_widget.text() or "4").strip()[:64] or "4"
         settings.stage1 = stage_index
         settings.stage2 = stage_index
         settings.stage_targets = [target]

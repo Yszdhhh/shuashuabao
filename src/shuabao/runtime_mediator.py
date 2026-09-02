@@ -124,11 +124,26 @@ class Mediator(CoreMediator):
         )
         started = time.perf_counter()
 
-        if not client.start():
+        # Paddle's worker occasionally loses its first startup race while the
+        # game is also initializing.  A failed first spawn is not evidence
+        # that the OCR runtime is unavailable: reset that child and try once
+        # more before refusing LIVE input.  We remain fail-closed throughout;
+        # no business action is reached until a worker has sent a valid ready
+        # response, completed ping, and completed warmup.
+        start_attempts = 0
+        while start_attempts < 2:
+            start_attempts += 1
+            if client.start():
+                break
+            if start_attempts < 2:
+                client.rearm()
+
+        if start_attempts >= 2 and not client.health_check().get("ready"):
             self._ocr_bootstrap_health = {
                 "healthy": False,
                 "stage": "start",
                 "reason": client.ready_reason or "start_failed",
+                "start_attempts": start_attempts,
                 "model_validated": client.model_validated,
                 "model_name": client.model_name,
                 "model_hash": client.model_hash,
@@ -170,6 +185,7 @@ class Mediator(CoreMediator):
             {
                 "stage": "ready",
                 "reason": "ok" if health.get("healthy") else (health.get("ready_reason") or "health_failed"),
+                "start_attempts": start_attempts,
                 "warmup_ms": round(warmup_ms, 1),
                 "bootstrap_ms": round((time.perf_counter() - started) * 1000.0, 1),
             }

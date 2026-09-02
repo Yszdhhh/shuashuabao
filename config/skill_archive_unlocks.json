@@ -30,45 +30,463 @@
       "aliases": [],
       "note": "卡面：开局自带该技能，不占用技能栏（user 20260814 普攻Lv18 卡面）。",
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "超速射击"}, "text": "解锁卡牌：超速射击", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 5, "level_status": "verified", "kind": "unlock_card", "payload": {"cards": ["奥术箭矢", "火焰箭矢", "冰霜箭矢", "闪电箭矢", "疾风箭矢"]}, "text": "解锁卡牌：奥术箭矢、火焰箭矢、冰霜箭矢、闪电箭矢、疾风箭矢", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"stat": "attack_speed", "delta_pct": 30}, "text": "攻速+30%", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 10, "level_status": "verified", "kind": "unlock_card", "payload": {"cards": ["奥能喷发", "火焰爆炸", "贯穿冰箭", "连环闪电", "狂风之力"]}, "text": "解锁卡牌：奥能喷发、火焰爆炸、贯穿冰箭、连环闪电、狂风之力", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "神箭手"}, "text": "解锁卡牌：神箭手", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "attack_interval", "delta": -0.1}, "text": "攻击间隔-0.1", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 20, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "破甲强弩"}, "text": "解锁卡牌：破甲强弩", "source": {"t": 0.0}},
-        {"level": 23, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "真实分裂"}, "text": "解锁卡牌：真实分裂", "source": {"t": 0.0}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"multi": 1, "bounce": 1}, "text": "多重数量+1，弹射次数+1", "source": {"t": 0.0}},
-        {"level": 30, "level_status": "verified", "kind": "stat", "payload": {"stat": "damage_coeff", "delta_pct": 50}, "text": "普攻伤害系数+50%", "source": {"t": 0.0}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "攻速提升"}, "text": "学得普攻后，立即获得攻速提升", "source": {"t": 0.0}},
-        {"level": 36, "level_status": "verified", "kind": "stat", "payload": {"multi": 2, "proc_pct": 10, "proc_mul": true}, "text": "多重数量+2，攻击触发特效的概率提升10%（乘算）", "source": {"t": 0.0}},
-        {"level": 40, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "剑气纵横"}, "text": "解锁卡牌：剑气纵横", "source": {"t": 0.0}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化普攻"}, "text": "解锁卡牌：强化普攻", "source": {"t": 17.2}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "attack_interval", "delta": -0.15}, "text": "攻击间隔-0.15", "source": {"t": 17.2}},
-        {"level": null, "level_status": "unverified", "level_candidates": [50], "kind": "other", "payload": {}, "text": "攻击时有50%概率触发飞将，从天而降…", "source": {"t": 17.2}, "note": "行尾被裁；50 未在徽标列出现"}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "超速射击"
+          },
+          "text": "解锁卡牌：超速射击",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "cards": [
+              "奥术箭矢",
+              "火焰箭矢",
+              "冰霜箭矢",
+              "闪电箭矢",
+              "疾风箭矢"
+            ]
+          },
+          "text": "解锁卡牌：奥术箭矢、火焰箭矢、冰霜箭矢、闪电箭矢、疾风箭矢",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "attack_speed",
+            "delta_pct": 30
+          },
+          "text": "攻速+30%",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "cards": [
+              "奥能喷发",
+              "火焰爆炸",
+              "贯穿冰箭",
+              "连环闪电",
+              "狂风之力"
+            ]
+          },
+          "text": "解锁卡牌：奥能喷发、火焰爆炸、贯穿冰箭、连环闪电、狂风之力",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "神箭手"
+          },
+          "text": "解锁卡牌：神箭手",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "attack_interval",
+            "delta": -0.1
+          },
+          "text": "攻击间隔-0.1",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "破甲强弩"
+          },
+          "text": "解锁卡牌：破甲强弩",
+          "source": {
+            "t": 0.0
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "真实分裂"
+          },
+          "text": "解锁卡牌：真实分裂",
+          "source": {
+            "t": 0.0
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "multi": 1,
+            "bounce": 1
+          },
+          "text": "多重数量+1，弹射次数+1",
+          "source": {
+            "t": 0.0
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "damage_coeff",
+            "delta_pct": 50
+          },
+          "text": "普攻伤害系数+50%",
+          "source": {
+            "t": 0.0
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "攻速提升"
+          },
+          "text": "学得普攻后，立即获得攻速提升",
+          "source": {
+            "t": 0.0
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "multi": 2,
+            "proc_pct": 10,
+            "proc_mul": true
+          },
+          "text": "多重数量+2，攻击触发特效的概率提升10%（乘算）",
+          "source": {
+            "t": 0.0
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "剑气纵横"
+          },
+          "text": "解锁卡牌：剑气纵横",
+          "source": {
+            "t": 0.0
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化普攻"
+          },
+          "text": "解锁卡牌：强化普攻",
+          "source": {
+            "t": 17.2
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "attack_interval",
+            "delta": -0.15
+          },
+          "text": "攻击间隔-0.15",
+          "source": {
+            "t": 17.2
+          }
+        },
+        {
+          "level": 56,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "箭神"
+          },
+          "text": "解锁卡牌：箭神",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        },
+        {
+          "level": null,
+          "level_status": "unverified",
+          "level_candidates": [
+            50
+          ],
+          "kind": "other",
+          "payload": {},
+          "text": "攻击时有50%概率触发飞将，从天而降…",
+          "source": {
+            "t": 17.2
+          },
+          "note": "行尾被裁；50 未在徽标列出现"
+        }
       ]
     },
     {
       "skill_id": "asj",
       "name": "奥术箭",
-      "aliases": ["奥数箭"],
+      "aliases": [
+        "奥数箭"
+      ],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "次级箭"}, "text": "解锁卡牌：次级箭", "source": {"t": 24.79}},
-        {"level": 5, "level_status": "verified", "kind": "stat", "payload": {"card": "次级箭", "pierce": 1}, "text": "次级箭现在可以穿透目标，且穿透+1", "source": {"t": 24.79}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"pierce": 1}, "text": "奥术箭穿透+1", "source": {"t": 24.79}},
-        {"level": 10, "level_status": "verified", "kind": "remove_damage_penalty", "payload": {"card": "箭矢齐射"}, "text": "箭矢齐射不再降低伤害", "source": {"t": 32.39}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强力箭矢"}, "text": "解锁卡牌：强力箭矢", "source": {"t": 32.39}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "奥术箭基础冷却-10%", "source": {"t": 32.39}},
-        {"level": 20, "level_status": "verified", "kind": "remove_damage_penalty", "payload": {"card": "箭矢连发"}, "text": "箭矢连发不再降低伤害", "source": {"t": 32.39}},
-        {"level": 23, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "急速抽箭"}, "text": "解锁卡牌：急速抽箭", "source": {"t": 32.39}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"pierce": 2}, "text": "奥术箭穿透+2", "source": {"t": 32.39}},
-        {"level": 30, "level_status": "verified", "kind": "stat", "payload": {"extra_rounds": 1}, "text": "奥术箭额外攻击1轮", "source": {"t": 38.39}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "箭矢增幅"}, "text": "学得奥术箭后，立即获得箭矢增幅", "source": {"t": 38.39}},
-        {"level": 36, "level_status": "verified", "kind": "waive_prereq", "payload": {"card": "爆炸箭矢", "waived": ["爆炎箭"]}, "text": "取消爆炸箭矢前置卡牌", "source": {"t": 38.39}, "note": "徽标是 36 不是 40；40 是剩余穿透增伤"},
-        {"level": 40, "level_status": "verified", "kind": "stat", "payload": {"per_remaining_pierce_pct": 5}, "text": "奥术箭命中目标时，会根据当前剩余穿透次数提高造成的伤害，每有1次剩余穿透次数，造成的伤害提高5%", "source": {"t": 38.39}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化飞箭"}, "text": "解锁卡牌：强化飞箭", "source": {"t": 38.39}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "奥术箭基础冷却-15%", "source": {"t": 38.39}},
-        {"level": 50, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "集束箭矢"}, "text": "解锁卡牌：集束箭矢", "source": {"screenshot": "user 20260814 奥术箭Lv47 卡面"}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "次级箭"
+          },
+          "text": "解锁卡牌：次级箭",
+          "source": {
+            "t": 24.79
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "card": "次级箭",
+            "pierce": 1
+          },
+          "text": "次级箭现在可以穿透目标，且穿透+1",
+          "source": {
+            "t": 24.79
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "pierce": 1
+          },
+          "text": "奥术箭穿透+1",
+          "source": {
+            "t": 24.79
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "remove_damage_penalty",
+          "payload": {
+            "card": "箭矢齐射"
+          },
+          "text": "箭矢齐射不再降低伤害",
+          "source": {
+            "t": 32.39
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强力箭矢"
+          },
+          "text": "解锁卡牌：强力箭矢",
+          "source": {
+            "t": 32.39
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "奥术箭基础冷却-10%",
+          "source": {
+            "t": 32.39
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "remove_damage_penalty",
+          "payload": {
+            "card": "箭矢连发"
+          },
+          "text": "箭矢连发不再降低伤害",
+          "source": {
+            "t": 32.39
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "急速抽箭"
+          },
+          "text": "解锁卡牌：急速抽箭",
+          "source": {
+            "t": 32.39
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "pierce": 2
+          },
+          "text": "奥术箭穿透+2",
+          "source": {
+            "t": 32.39
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "extra_rounds": 1
+          },
+          "text": "奥术箭额外攻击1轮",
+          "source": {
+            "t": 38.39
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "箭矢增幅"
+          },
+          "text": "学得奥术箭后，立即获得箭矢增幅",
+          "source": {
+            "t": 38.39
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "waive_prereq",
+          "payload": {
+            "card": "爆炸箭矢",
+            "waived": [
+              "爆炎箭"
+            ]
+          },
+          "text": "取消爆炸箭矢前置卡牌",
+          "source": {
+            "t": 38.39
+          },
+          "note": "徽标是 36 不是 40；40 是剩余穿透增伤"
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "per_remaining_pierce_pct": 5
+          },
+          "text": "奥术箭命中目标时，会根据当前剩余穿透次数提高造成的伤害，每有1次剩余穿透次数，造成的伤害提高5%",
+          "source": {
+            "t": 38.39
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化飞箭"
+          },
+          "text": "解锁卡牌：强化飞箭",
+          "source": {
+            "t": 38.39
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "奥术箭基础冷却-15%",
+          "source": {
+            "t": 38.39
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "集束箭矢"
+          },
+          "text": "解锁卡牌：集束箭矢",
+          "source": {
+            "screenshot": "user 20260814 奥术箭Lv47 卡面"
+          }
+        },
+        {
+          "level": 56,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "散射箭矢"
+          },
+          "text": "解锁卡牌：散射箭矢",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        },
+        {
+          "level": 60,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "奥术狂潮"
+          },
+          "text": "解锁卡牌：奥术狂潮",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        }
       ]
     },
     {
@@ -78,23 +496,220 @@
       "coverage": "full",
       "coverage_note": "2..26 与 50 来自 user 20260814 爆炎箭Lv8 卡面截图；30..46 来自录像抽帧，两边不冲突。",
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "火花"}, "text": "解锁卡牌：火花", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 5, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "传火"}, "text": "解锁卡牌：传火", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"stat": "explosion_radius", "delta_pct": 10}, "text": "爆炎箭基础爆炸范围+10%", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 10, "level_status": "verified", "kind": "remove_damage_penalty", "payload": {"card": "连珠火箭"}, "text": "连珠火箭不再降低伤害并解锁超连珠火箭", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 10, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "超连珠火箭"}, "text": "连珠火箭不再降低伤害并解锁超连珠火箭", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "炎爆术"}, "text": "解锁卡牌：炎爆术", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "爆炎箭基础冷却-10%", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 20, "level_status": "verified", "kind": "other", "payload": {"stun_s": 1, "chance_pct": 20}, "text": "爆炎箭命中有20%概率附加1秒晕眩效果", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 23, "level_status": "verified", "kind": "other", "payload": {"burn_s": 2}, "text": "爆炎箭爆炸附加2秒燃烧效果", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"stat": "explosion_radius", "delta_pct": 20}, "text": "爆炎箭基础爆炸范围+20%", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}},
-        {"level": 30, "level_status": "verified", "kind": "waive_prereq", "payload": {"card": "炎爆术", "waived": ["爆炸扩散"]}, "text": "取消炎爆术前置与限制卡牌", "source": {"t": 39.59}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "火花"}, "text": "学得爆炎箭后，立即获得火花", "source": {"t": 39.59}},
-        {"level": 36, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "火花内爆"}, "text": "解锁卡牌：火花内爆", "source": {"t": 39.59}},
-        {"level": 40, "level_status": "verified", "kind": "other", "payload": {"card": "火焰精通", "effect": "double"}, "text": "火焰精通提供的效果翻倍", "source": {"t": 39.59}, "note": "目录卡名是火箭精通，是否同一张未核卡面"},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化火箭"}, "text": "解锁卡牌：强化火箭", "source": {"t": 39.59}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "爆炎箭基础冷却-15%", "source": {"t": 39.59}},
-        {"level": 50, "level_status": "verified", "kind": "stat", "payload": {"volley": 1}, "text": "爆炎箭齐射+1", "source": {"screenshot": "user 20260814 爆炎箭Lv8 卡面"}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "火花"
+          },
+          "text": "解锁卡牌：火花",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "传火"
+          },
+          "text": "解锁卡牌：传火",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "explosion_radius",
+            "delta_pct": 10
+          },
+          "text": "爆炎箭基础爆炸范围+10%",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "remove_damage_penalty",
+          "payload": {
+            "card": "连珠火箭"
+          },
+          "text": "连珠火箭不再降低伤害并解锁超连珠火箭",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "超连珠火箭"
+          },
+          "text": "连珠火箭不再降低伤害并解锁超连珠火箭",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "炎爆术"
+          },
+          "text": "解锁卡牌：炎爆术",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "爆炎箭基础冷却-10%",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "stun_s": 1,
+            "chance_pct": 20
+          },
+          "text": "爆炎箭命中有20%概率附加1秒晕眩效果",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "burn_s": 2
+          },
+          "text": "爆炎箭爆炸附加2秒燃烧效果",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "explosion_radius",
+            "delta_pct": 20
+          },
+          "text": "爆炎箭基础爆炸范围+20%",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "waive_prereq",
+          "payload": {
+            "card": "炎爆术",
+            "waived": [
+              "爆炸扩散"
+            ]
+          },
+          "text": "取消炎爆术前置与限制卡牌",
+          "source": {
+            "t": 39.59
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "火花"
+          },
+          "text": "学得爆炎箭后，立即获得火花",
+          "source": {
+            "t": 39.59
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "火花内爆"
+          },
+          "text": "解锁卡牌：火花内爆",
+          "source": {
+            "t": 39.59
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "火焰精通",
+            "effect": "double"
+          },
+          "text": "火焰精通提供的效果翻倍",
+          "source": {
+            "t": 39.59
+          },
+          "note": "目录卡名是火箭精通，是否同一张未核卡面"
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化火箭"
+          },
+          "text": "解锁卡牌：强化火箭",
+          "source": {
+            "t": 39.59
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "爆炎箭基础冷却-15%",
+          "source": {
+            "t": 39.59
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "volley": 1
+          },
+          "text": "爆炎箭齐射+1",
+          "source": {
+            "screenshot": "user 20260814 爆炎箭Lv8 卡面"
+          }
+        }
       ]
     },
     {
@@ -102,21 +717,220 @@
       "name": "寒冰箭",
       "aliases": [],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "other", "payload": {"card": "小冰箭", "freeze_s": 0.5}, "text": "小冰箭附带0.5秒冻结", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 5, "level_status": "verified", "kind": "remove_damage_penalty", "payload": {"card": "冰箭连发"}, "text": "冰箭连发不再降低伤害", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"pierce": 2}, "text": "寒冰箭穿透+2", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 10, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "三棱冰箭"}, "text": "解锁卡牌：三棱冰箭", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "冰箭齐射"}, "text": "解锁卡牌：冰箭齐射", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "寒冰箭基础冷却-10%", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 20, "level_status": "verified", "kind": "stat", "payload": {"vs": "paralyzed"}, "text": "寒冰箭对被麻痹的怪物造成伤害+100%", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 30, "level_status": "verified", "kind": "other", "payload": {"cast": "冰霜新星"}, "text": "寒冰箭首次命中怪物时，释放1个仅保留强化的冰霜新星", "source": {"t": 44.79}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "极寒冰箭"}, "text": "学得寒冰箭后，立即获得极寒冰箭", "source": {"t": 44.79}},
-        {"level": 36, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "冰晶爆裂"}, "text": "解锁卡牌：冰晶爆裂", "source": {"t": 44.79}},
-        {"level": 40, "level_status": "verified", "kind": "other", "payload": {"card": "重冰箭", "remove": "projectile_slow"}, "text": "重冰箭不再降低弹道速度，并提供伤害…", "source": {"t": 44.79}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化冰箭"}, "text": "解锁卡牌：强化冰箭", "source": {"t": 44.79}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "寒冰箭基础冷却-15%", "source": {"t": 44.79}},
-        {"level": null, "level_status": "unverified", "level_candidates": [20, 23], "kind": "other", "payload": {}, "text": "寒冰箭抵达射程尽头时会原路折返", "source": {"t": 49.19}},
-        {"level": null, "level_status": "unverified", "level_candidates": [23, 26], "kind": "stat", "payload": {"pierce": 3}, "text": "寒冰箭穿透+3", "source": {"t": 49.19}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "小冰箭",
+            "freeze_s": 0.5
+          },
+          "text": "小冰箭附带0.5秒冻结",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "remove_damage_penalty",
+          "payload": {
+            "card": "冰箭连发"
+          },
+          "text": "冰箭连发不再降低伤害",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "pierce": 2
+          },
+          "text": "寒冰箭穿透+2",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "三棱冰箭"
+          },
+          "text": "解锁卡牌：三棱冰箭",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "冰箭齐射"
+          },
+          "text": "解锁卡牌：冰箭齐射",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "寒冰箭基础冷却-10%",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "vs": "paralyzed"
+          },
+          "text": "寒冰箭对被麻痹的怪物造成伤害+100%",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "cast": "冰霜新星"
+          },
+          "text": "寒冰箭首次命中怪物时，释放1个仅保留强化的冰霜新星",
+          "source": {
+            "t": 44.79
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "极寒冰箭"
+          },
+          "text": "学得寒冰箭后，立即获得极寒冰箭",
+          "source": {
+            "t": 44.79
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "冰晶爆裂"
+          },
+          "text": "解锁卡牌：冰晶爆裂",
+          "source": {
+            "t": 44.79
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "重冰箭",
+            "remove": "projectile_slow"
+          },
+          "text": "重冰箭不再降低弹道速度，并提供伤害…",
+          "source": {
+            "t": 44.79
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化冰箭"
+          },
+          "text": "解锁卡牌：强化冰箭",
+          "source": {
+            "t": 44.79
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "寒冰箭基础冷却-15%",
+          "source": {
+            "t": 44.79
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "永冻天球"
+          },
+          "text": "解锁卡牌：永冻天球",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        },
+        {
+          "level": 60,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "究极冰箭"
+          },
+          "text": "解锁卡牌：究极冰箭",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        },
+        {
+          "level": null,
+          "level_status": "unverified",
+          "level_candidates": [
+            20,
+            23
+          ],
+          "kind": "other",
+          "payload": {},
+          "text": "寒冰箭抵达射程尽头时会原路折返",
+          "source": {
+            "t": 49.19
+          }
+        },
+        {
+          "level": null,
+          "level_status": "unverified",
+          "level_candidates": [
+            23,
+            26
+          ],
+          "kind": "stat",
+          "payload": {
+            "pierce": 3
+          },
+          "text": "寒冰箭穿透+3",
+          "source": {
+            "t": 49.19
+          }
+        }
       ]
     },
     {
@@ -124,18 +938,166 @@
       "name": "天雷",
       "aliases": [],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "磁暴"}, "text": "解锁卡牌：磁暴", "source": {"t": 53.59}},
-        {"level": 5, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "雷电制裁"}, "text": "解锁卡牌：雷电制裁", "source": {"t": 53.59}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"stat": "damage_coeff", "delta_pct": 20}, "text": "天雷伤害系数+20%", "source": {"t": 53.59}},
-        {"level": 10, "level_status": "verified", "kind": "remove_damage_penalty", "payload": {"card": "连续雷击"}, "text": "连续雷击不再降低伤害", "source": {"t": 53.59}},
-        {"level": 13, "level_status": "verified", "kind": "stat", "payload": {"vs": "frozen", "delta_pct": 100}, "text": "天雷对被冻结的怪物造成伤害+100%", "source": {"t": 53.59}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "天雷基础冷却-10%", "source": {"t": 53.59}},
-        {"level": 30, "level_status": "verified", "kind": "stat", "payload": {"targets": 1}, "text": "天雷初始目标+1", "source": {"t": 57.59}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "雷击增幅"}, "text": "学得天雷后，立即获得雷击增幅", "source": {"t": 57.59}},
-        {"level": 36, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "电球爆裂"}, "text": "解锁卡牌：电球爆裂", "source": {"t": 57.59}},
-        {"level": 40, "level_status": "verified", "kind": "other", "payload": {"card": "审判之雷"}, "text": "审判之雷会根据目标已损失血量提高伤害；目标每损失1%最大生命值…", "source": {"t": 57.59}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化天雷"}, "text": "解锁卡牌：强化天雷", "source": {"t": 57.59}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "天雷基础冷却-15%", "source": {"t": 57.59}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "磁暴"
+          },
+          "text": "解锁卡牌：磁暴",
+          "source": {
+            "t": 53.59
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "雷电制裁"
+          },
+          "text": "解锁卡牌：雷电制裁",
+          "source": {
+            "t": 53.59
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "damage_coeff",
+            "delta_pct": 20
+          },
+          "text": "天雷伤害系数+20%",
+          "source": {
+            "t": 53.59
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "remove_damage_penalty",
+          "payload": {
+            "card": "连续雷击"
+          },
+          "text": "连续雷击不再降低伤害",
+          "source": {
+            "t": 53.59
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "vs": "frozen",
+            "delta_pct": 100
+          },
+          "text": "天雷对被冻结的怪物造成伤害+100%",
+          "source": {
+            "t": 53.59
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "天雷基础冷却-10%",
+          "source": {
+            "t": 53.59
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "targets": 1
+          },
+          "text": "天雷初始目标+1",
+          "source": {
+            "t": 57.59
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "雷击增幅"
+          },
+          "text": "学得天雷后，立即获得雷击增幅",
+          "source": {
+            "t": 57.59
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "电球爆裂"
+          },
+          "text": "解锁卡牌：电球爆裂",
+          "source": {
+            "t": 57.59
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "审判之雷"
+          },
+          "text": "审判之雷会根据目标已损失血量提高伤害；目标每损失1%最大生命值…",
+          "source": {
+            "t": 57.59
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化天雷"
+          },
+          "text": "解锁卡牌：强化天雷",
+          "source": {
+            "t": 57.59
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "天雷基础冷却-15%",
+          "source": {
+            "t": 57.59
+          }
+        },
+        {
+          "level": 60,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "紫极天雷"
+          },
+          "text": "解锁卡牌：紫极天雷",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        }
       ]
     },
     {
@@ -143,65 +1105,598 @@
       "name": "剑气",
       "aliases": [],
       "unlocks": [
-        {"level": 10, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "剑气爆发"}, "text": "解锁卡牌：剑气爆发", "source": {"t": 65.19}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "烈焰斩"}, "text": "解锁卡牌：烈焰斩", "source": {"t": 65.19}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "剑气基础冷却-10%", "source": {"t": 65.19}},
-        {"level": 20, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "剑气连斩"}, "text": "解锁卡牌：剑气连斩", "source": {"t": 65.19}},
-        {"level": 23, "level_status": "verified", "kind": "other", "payload": {"card": "烈焰斩"}, "text": "局内获得烈焰斩卡牌后，燃烧伤害+", "source": {"t": 65.19}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 20}, "text": "剑气基础范围+20%", "source": {"t": 65.19}},
-        {"level": 30, "level_status": "verified", "kind": "other", "payload": {"hits": 2, "coeff_pct": 150}, "text": "剑气首次命中后触发血轮斩，对斩击范围内敌人造成2次剑气150%伤害", "source": {"t": 60.39}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "致残剑气"}, "text": "学得剑气后，立即获得致残剑气", "source": {"t": 60.39}},
-        {"level": 36, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 20}, "text": "剑气范围+20%", "source": {"t": 60.39}},
-        {"level": 40, "level_status": "verified", "kind": "stat", "payload": {"vs": "boss_elite", "mul": 1.5}, "text": "剑气对BOSS和精英单位造成的伤害×1.5", "source": {"t": 60.39}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化剑气"}, "text": "解锁卡牌：强化剑气", "source": {"t": 60.39}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "剑气基础冷却-15%", "source": {"t": 60.39}},
-        {"level": 50, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "剑刃乱舞"}, "text": "解锁卡牌：剑刃乱舞", "source": {"screenshot": "user 20260814 剑气Lv13 卡面"}}
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "剑气爆发"
+          },
+          "text": "解锁卡牌：剑气爆发",
+          "source": {
+            "t": 65.19
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "烈焰斩"
+          },
+          "text": "解锁卡牌：烈焰斩",
+          "source": {
+            "t": 65.19
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "剑气基础冷却-10%",
+          "source": {
+            "t": 65.19
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "剑气连斩"
+          },
+          "text": "解锁卡牌：剑气连斩",
+          "source": {
+            "t": 65.19
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "烈焰斩"
+          },
+          "text": "局内获得烈焰斩卡牌后，燃烧伤害+",
+          "source": {
+            "t": 65.19
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 20
+          },
+          "text": "剑气基础范围+20%",
+          "source": {
+            "t": 65.19
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "hits": 2,
+            "coeff_pct": 150
+          },
+          "text": "剑气首次命中后触发血轮斩，对斩击范围内敌人造成2次剑气150%伤害",
+          "source": {
+            "t": 60.39
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "致残剑气"
+          },
+          "text": "学得剑气后，立即获得致残剑气",
+          "source": {
+            "t": 60.39
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 20
+          },
+          "text": "剑气范围+20%",
+          "source": {
+            "t": 60.39
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "vs": "boss_elite",
+            "mul": 1.5
+          },
+          "text": "剑气对BOSS和精英单位造成的伤害×1.5",
+          "source": {
+            "t": 60.39
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化剑气"
+          },
+          "text": "解锁卡牌：强化剑气",
+          "source": {
+            "t": 60.39
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "剑气基础冷却-15%",
+          "source": {
+            "t": 60.39
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "剑刃乱舞"
+          },
+          "text": "解锁卡牌：剑刃乱舞",
+          "source": {
+            "screenshot": "user 20260814 剑气Lv13 卡面"
+          }
+        }
       ]
     },
     {
       "skill_id": "asjg",
       "name": "奥术激光",
-      "aliases": ["奥数激光"],
+      "aliases": [
+        "奥数激光"
+      ],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "stat", "payload": {"per_0_2s_damage_pct": 2.5}, "text": "奥术激光每持续0.2秒，伤害提高2.5%", "source": {"screenshot": "user 20260814 奥术激光Lv22 卡面"}},
-        {"level": 5, "level_status": "verified", "kind": "other", "payload": {"no_split_on_kill": true}, "text": "奥术激光杀死的敌人无法分裂", "source": {"screenshot": "user 20260814 奥术激光Lv22 卡面"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"stat": "duration", "delta_s": 0.2}, "text": "奥术激光基础持续时间+0.2秒", "source": {"screenshot": "user 20260814 奥术激光Lv22 卡面"}},
-        {"level": 10, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "奥能洪流"}, "text": "解锁卡牌：奥能洪流", "source": {"t": 76.38}},
-        {"level": 13, "level_status": "verified", "kind": "other", "payload": {"card": "奥能洪流", "knockback": true}, "text": "奥能洪流附加击退效果", "source": {"t": 76.38}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "奥术激光基础冷却-10%", "source": {"t": 76.38}},
-        {"level": 20, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "奥能扫射"}, "text": "解锁卡牌：奥能扫射", "source": {"t": 76.38}, "note": "与奥能洪流三选一互斥；存档两边都进池"},
-        {"level": 23, "level_status": "verified", "kind": "other", "payload": {"card": "奥能扫射", "return": true}, "text": "奥能扫射会折返一次", "source": {"t": 76.38}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"stat": "duration", "delta_s": 0.4}, "text": "奥术激光基础持续时间+0.4秒", "source": {"t": 76.38}},
-        {"level": 30, "level_status": "verified", "kind": "other", "payload": {}, "text": "奥术激光杀死敌人时折射一束高能…造成500%攻击的能量魔法伤害", "source": {"t": 69.99}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "稳定光线"}, "text": "学得奥术激光后，立即获得稳定光线", "source": {"t": 69.99}},
-        {"level": 36, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 20}, "text": "奥术激光范围+20%", "source": {"t": 69.99}},
-        {"level": 40, "level_status": "verified", "kind": "other", "payload": {"card": "激光闪射"}, "text": "激光闪射伤害与触发频率翻倍", "source": {"t": 69.99}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化激光"}, "text": "解锁卡牌：强化激光", "source": {"t": 69.99}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "奥术激光基础冷却-15%", "source": {"screenshot": "user 20260814 奥术激光Lv22 卡面"}},
-        {"level": 50, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "奥能天球"}, "text": "解锁卡牌：奥能天球", "source": {"screenshot": "user 20260814 奥术激光Lv22 卡面"}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "per_0_2s_damage_pct": 2.5
+          },
+          "text": "奥术激光每持续0.2秒，伤害提高2.5%",
+          "source": {
+            "screenshot": "user 20260814 奥术激光Lv22 卡面"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "no_split_on_kill": true
+          },
+          "text": "奥术激光杀死的敌人无法分裂",
+          "source": {
+            "screenshot": "user 20260814 奥术激光Lv22 卡面"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "duration",
+            "delta_s": 0.2
+          },
+          "text": "奥术激光基础持续时间+0.2秒",
+          "source": {
+            "screenshot": "user 20260814 奥术激光Lv22 卡面"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "奥能洪流"
+          },
+          "text": "解锁卡牌：奥能洪流",
+          "source": {
+            "t": 76.38
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "奥能洪流",
+            "knockback": true
+          },
+          "text": "奥能洪流附加击退效果",
+          "source": {
+            "t": 76.38
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "奥术激光基础冷却-10%",
+          "source": {
+            "t": 76.38
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "奥能扫射"
+          },
+          "text": "解锁卡牌：奥能扫射",
+          "source": {
+            "t": 76.38
+          },
+          "note": "与奥能洪流三选一互斥；存档两边都进池"
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "奥能扫射",
+            "return": true
+          },
+          "text": "奥能扫射会折返一次",
+          "source": {
+            "t": 76.38
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "duration",
+            "delta_s": 0.4
+          },
+          "text": "奥术激光基础持续时间+0.4秒",
+          "source": {
+            "t": 76.38
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {},
+          "text": "奥术激光杀死敌人时折射一束高能…造成500%攻击的能量魔法伤害",
+          "source": {
+            "t": 69.99
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "稳定光线"
+          },
+          "text": "学得奥术激光后，立即获得稳定光线",
+          "source": {
+            "t": 69.99
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 20
+          },
+          "text": "奥术激光范围+20%",
+          "source": {
+            "t": 69.99
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "激光闪射"
+          },
+          "text": "激光闪射伤害与触发频率翻倍",
+          "source": {
+            "t": 69.99
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化激光"
+          },
+          "text": "解锁卡牌：强化激光",
+          "source": {
+            "t": 69.99
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "奥术激光基础冷却-15%",
+          "source": {
+            "screenshot": "user 20260814 奥术激光Lv22 卡面"
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "奥能天球"
+          },
+          "text": "解锁卡牌：奥能天球",
+          "source": {
+            "screenshot": "user 20260814 奥术激光Lv22 卡面"
+          }
+        },
+        {
+          "level": 56,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "高频脉冲"
+          },
+          "text": "解锁卡牌：高频脉冲",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        }
       ]
     },
     {
       "skill_id": "assx",
       "name": "奥术射线",
-      "aliases": ["奥数射线"],
+      "aliases": [
+        "奥数射线"
+      ],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "焦点爆破"}, "text": "解锁卡牌：焦点爆破", "source": {"screenshot": "user 20260814 奥术射线Lv21 卡面"}},
-        {"level": 5, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "多重射线"}, "text": "解锁卡牌：多重射线", "source": {"screenshot": "user 20260814 奥术射线Lv21 卡面"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"stat": "duration", "delta_s": 0.6}, "text": "奥术射线基础持续时间+0.6秒", "source": {"screenshot": "user 20260814 奥术射线Lv21 卡面"}},
-        {"level": 10, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta": 200}, "text": "奥术射线范围+200", "source": {"t": 83.98}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "调焦"}, "text": "解锁卡牌：调焦", "source": {"t": 83.98}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "奥术射线基础冷却-10%", "source": {"t": 83.98}},
-        {"level": 20, "level_status": "verified", "kind": "other", "payload": {"burn_s": 2}, "text": "奥术射线会附加2秒燃烧", "source": {"t": 83.98}},
-        {"level": 23, "level_status": "verified", "kind": "stat", "payload": {"stat": "tick_rate", "delta_pct": 25}, "text": "奥术射线伤害频率提高25%", "source": {"t": 83.98}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"stat": "duration", "delta_s": 1.2}, "text": "奥术射线基础持续时间+1.2秒", "source": {"t": 83.98}},
-        {"level": 30, "level_status": "verified", "kind": "stat", "payload": {"damage_pct": 75, "knockback": true}, "text": "奥术射线伤害+75%并附加击退效果", "source": {"t": 80.38}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "射线延续"}, "text": "学得奥术射线后，立即获得射线延续", "source": {"t": 80.38}},
-        {"level": 36, "level_status": "verified", "kind": "other", "payload": {"card": "焦点", "heal_reduce_pct": 30}, "text": "焦点额外降低命中目标30%的治疗及恢复", "source": {"t": 80.38}},
-        {"level": 40, "level_status": "verified", "kind": "other", "payload": {"card": "焦点爆破", "range_pct": 30, "damage_pct": 50}, "text": "焦点爆破范围+30%，伤害+50%", "source": {"t": 80.38}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化射线"}, "text": "解锁卡牌：强化射线", "source": {"t": 80.38}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "奥术射线基础冷却-15%", "source": {"t": 80.38}},
-        {"level": 50, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "永恒箭矢"}, "text": "解锁卡牌：永恒箭矢", "source": {"screenshot": "user 20260814 奥术射线Lv21 卡面"}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "焦点爆破"
+          },
+          "text": "解锁卡牌：焦点爆破",
+          "source": {
+            "screenshot": "user 20260814 奥术射线Lv21 卡面"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "多重射线"
+          },
+          "text": "解锁卡牌：多重射线",
+          "source": {
+            "screenshot": "user 20260814 奥术射线Lv21 卡面"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "duration",
+            "delta_s": 0.6
+          },
+          "text": "奥术射线基础持续时间+0.6秒",
+          "source": {
+            "screenshot": "user 20260814 奥术射线Lv21 卡面"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta": 200
+          },
+          "text": "奥术射线范围+200",
+          "source": {
+            "t": 83.98
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "调焦"
+          },
+          "text": "解锁卡牌：调焦",
+          "source": {
+            "t": 83.98
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "奥术射线基础冷却-10%",
+          "source": {
+            "t": 83.98
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "burn_s": 2
+          },
+          "text": "奥术射线会附加2秒燃烧",
+          "source": {
+            "t": 83.98
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "tick_rate",
+            "delta_pct": 25
+          },
+          "text": "奥术射线伤害频率提高25%",
+          "source": {
+            "t": 83.98
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "duration",
+            "delta_s": 1.2
+          },
+          "text": "奥术射线基础持续时间+1.2秒",
+          "source": {
+            "t": 83.98
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "damage_pct": 75,
+            "knockback": true
+          },
+          "text": "奥术射线伤害+75%并附加击退效果",
+          "source": {
+            "t": 80.38
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "射线延续"
+          },
+          "text": "学得奥术射线后，立即获得射线延续",
+          "source": {
+            "t": 80.38
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "焦点",
+            "heal_reduce_pct": 30
+          },
+          "text": "焦点额外降低命中目标30%的治疗及恢复",
+          "source": {
+            "t": 80.38
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "焦点爆破",
+            "range_pct": 30,
+            "damage_pct": 50
+          },
+          "text": "焦点爆破范围+30%，伤害+50%",
+          "source": {
+            "t": 80.38
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化射线"
+          },
+          "text": "解锁卡牌：强化射线",
+          "source": {
+            "t": 80.38
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "奥术射线基础冷却-15%",
+          "source": {
+            "t": 80.38
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "永恒箭矢"
+          },
+          "text": "解锁卡牌：永恒箭矢",
+          "source": {
+            "screenshot": "user 20260814 奥术射线Lv21 卡面"
+          }
+        }
       ]
     },
     {
@@ -209,18 +1704,157 @@
       "name": "冰霜新星",
       "aliases": [],
       "unlocks": [
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "刺骨寒霜"}, "text": "解锁卡牌：刺骨寒霜", "source": {"t": 89.18}},
-        {"level": 20, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "冷冻场"}, "text": "解锁卡牌：冷冻场", "source": {"t": 89.18}},
-        {"level": 23, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "极寒精通"}, "text": "解锁卡牌：极寒精通", "source": {"t": 89.18}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 20}, "text": "冰霜新星基础范围+20%", "source": {"t": 89.18}},
-        {"level": 30, "level_status": "verified", "kind": "other", "payload": {"recast": 1}, "text": "冰霜新星结束后会在原地再施放1次", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "极寒新星"}, "text": "学得冰霜新星后，立即获得极寒新星", "source": {"t": 95.18}},
-        {"level": 36, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 20}, "text": "冰霜新星范围+20%", "source": {"t": 95.18}},
-        {"level": 40, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "冰片爆裂"}, "text": "解锁卡牌：冰片爆裂", "source": {"t": 95.18}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化新星"}, "text": "解锁卡牌：强化新星", "source": {"t": 95.18}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "冰霜新星基础冷却-15%", "source": {"t": 95.18}},
-        {"level": 50, "level_status": "verified", "kind": "stat", "payload": {"count": 1}, "text": "冰霜新星数量+1", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": null, "level_status": "unverified", "level_candidates": [16], "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "冰霜新星基础冷却-10%", "source": {"t": 89.18}}
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "刺骨寒霜"
+          },
+          "text": "解锁卡牌：刺骨寒霜",
+          "source": {
+            "t": 89.18
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "冷冻场"
+          },
+          "text": "解锁卡牌：冷冻场",
+          "source": {
+            "t": 89.18
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "极寒精通"
+          },
+          "text": "解锁卡牌：极寒精通",
+          "source": {
+            "t": 89.18
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 20
+          },
+          "text": "冰霜新星基础范围+20%",
+          "source": {
+            "t": 89.18
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "recast": 1
+          },
+          "text": "冰霜新星结束后会在原地再施放1次",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "极寒新星"
+          },
+          "text": "学得冰霜新星后，立即获得极寒新星",
+          "source": {
+            "t": 95.18
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 20
+          },
+          "text": "冰霜新星范围+20%",
+          "source": {
+            "t": 95.18
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "冰片爆裂"
+          },
+          "text": "解锁卡牌：冰片爆裂",
+          "source": {
+            "t": 95.18
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化新星"
+          },
+          "text": "解锁卡牌：强化新星",
+          "source": {
+            "t": 95.18
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "冰霜新星基础冷却-15%",
+          "source": {
+            "t": 95.18
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "count": 1
+          },
+          "text": "冰霜新星数量+1",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": null,
+          "level_status": "unverified",
+          "level_candidates": [
+            16
+          ],
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "冰霜新星基础冷却-10%",
+          "source": {
+            "t": 89.18
+          }
+        }
       ]
     },
     {
@@ -228,22 +1862,215 @@
       "name": "闪电链",
       "aliases": [],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "离子爆破"}, "text": "解锁卡牌：离子爆破", "source": {"screenshot": "user 20260814 闪电链Lv18 卡面"}},
-        {"level": 5, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "交感电击"}, "text": "解锁卡牌：交感电击", "source": {"screenshot": "user 20260814 闪电链Lv18 卡面"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"bounce": 1}, "text": "闪电链弹射次数+1", "source": {"screenshot": "user 20260814 闪电链Lv18 卡面"}},
-        {"level": 10, "level_status": "verified", "kind": "remove_damage_penalty", "payload": {"card": "交叉闪电"}, "text": "交叉闪电不再降低伤害", "source": {"screenshot": "user 20260814 闪电链Lv18 卡面"}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "雷电增幅"}, "text": "解锁卡牌：雷电增幅", "source": {"screenshot": "user 20260814 闪电链Lv18 卡面"}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "闪电链基础冷却-10%", "source": {"t": 100.38}},
-        {"level": 20, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "永动电流"}, "text": "解锁卡牌：永动电流", "source": {"t": 100.38}},
-        {"level": 23, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "雷电精通"}, "text": "解锁卡牌：雷电精通", "source": {"t": 100.38}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"bounce": 2}, "text": "闪电链弹射次数+2", "source": {"t": 100.38}},
-        {"level": 30, "level_status": "verified", "kind": "other", "payload": {"card": "离子爆破"}, "text": "离子爆破伤害+60%，范围+30%，并且中心牵引敌人", "source": {"t": 96.38}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "高压闪电"}, "text": "学得闪电链后，立即获得高压闪电", "source": {"t": 96.38}},
-        {"level": 36, "level_status": "verified", "kind": "waive_prereq", "payload": {"card": "交感电击", "condition": "必须命中麻痹怪物", "waived": []}, "text": "交感电击取消需要命中麻痹怪物的限制", "source": {"t": 96.38}, "note": "局内条件限制，不是目录 prereq 代币；不放宽 skill_chain_rank"},
-        {"level": 40, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "霹雳闪电"}, "text": "解锁卡牌：霹雳闪电", "source": {"t": 96.38}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化闪电"}, "text": "解锁卡牌：强化闪电", "source": {"t": 96.38}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "闪电链基础冷却-15%", "source": {"t": 96.38}},
-        {"level": 50, "level_status": "verified", "kind": "stat", "payload": {"per_remaining_bounce_pct": 15}, "text": "闪电链命中目标时，会根据当前剩余弹射次数提高造成的伤害，每有1次剩余弹射次数，造成的伤害提高15%", "source": {"screenshot": "user 20260814 闪电链Lv18 卡面"}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "离子爆破"
+          },
+          "text": "解锁卡牌：离子爆破",
+          "source": {
+            "screenshot": "user 20260814 闪电链Lv18 卡面"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "交感电击"
+          },
+          "text": "解锁卡牌：交感电击",
+          "source": {
+            "screenshot": "user 20260814 闪电链Lv18 卡面"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "bounce": 1
+          },
+          "text": "闪电链弹射次数+1",
+          "source": {
+            "screenshot": "user 20260814 闪电链Lv18 卡面"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "remove_damage_penalty",
+          "payload": {
+            "card": "交叉闪电"
+          },
+          "text": "交叉闪电不再降低伤害",
+          "source": {
+            "screenshot": "user 20260814 闪电链Lv18 卡面"
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "雷电增幅"
+          },
+          "text": "解锁卡牌：雷电增幅",
+          "source": {
+            "screenshot": "user 20260814 闪电链Lv18 卡面"
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "闪电链基础冷却-10%",
+          "source": {
+            "t": 100.38
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "永动电流"
+          },
+          "text": "解锁卡牌：永动电流",
+          "source": {
+            "t": 100.38
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "雷电精通"
+          },
+          "text": "解锁卡牌：雷电精通",
+          "source": {
+            "t": 100.38
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "bounce": 2
+          },
+          "text": "闪电链弹射次数+2",
+          "source": {
+            "t": 100.38
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "离子爆破"
+          },
+          "text": "离子爆破伤害+60%，范围+30%，并且中心牵引敌人",
+          "source": {
+            "t": 96.38
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "高压闪电"
+          },
+          "text": "学得闪电链后，立即获得高压闪电",
+          "source": {
+            "t": 96.38
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "waive_prereq",
+          "payload": {
+            "card": "交感电击",
+            "condition": "必须命中麻痹怪物",
+            "waived": []
+          },
+          "text": "交感电击取消需要命中麻痹怪物的限制",
+          "source": {
+            "t": 96.38
+          },
+          "note": "局内条件限制，不是目录 prereq 代币；不放宽 skill_chain_rank"
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "霹雳闪电"
+          },
+          "text": "解锁卡牌：霹雳闪电",
+          "source": {
+            "t": 96.38
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化闪电"
+          },
+          "text": "解锁卡牌：强化闪电",
+          "source": {
+            "t": 96.38
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "闪电链基础冷却-15%",
+          "source": {
+            "t": 96.38
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "per_remaining_bounce_pct": 15
+          },
+          "text": "闪电链命中目标时，会根据当前剩余弹射次数提高造成的伤害，每有1次剩余弹射次数，造成的伤害提高15%",
+          "source": {
+            "screenshot": "user 20260814 闪电链Lv18 卡面"
+          }
+        },
+        {
+          "level": 60,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "无限电流"
+          },
+          "text": "解锁卡牌：无限电流",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        }
       ]
     },
     {
@@ -251,21 +2078,207 @@
       "name": "地震",
       "aliases": [],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "爆燃地震"}, "text": "解锁卡牌：爆燃地震", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 5, "level_status": "verified", "kind": "stat", "payload": {"stun_s": 0.5}, "text": "地震眩晕时间+0.5秒", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 10}, "text": "地震基础范围+10%", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 10, "level_status": "verified", "kind": "other", "payload": {"state": "余烬", "slow_pct": 30}, "text": "余烬附带30%减速", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "末日地震"}, "text": "解锁卡牌：末日地震", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "地震基础冷却-10%", "source": {"t": 108.78}},
-        {"level": 20, "level_status": "verified", "kind": "other", "payload": {"burn_s": 3, "chance_pct": 25}, "text": "地震命中时有25%概率附带3秒燃烧", "source": {"t": 108.78}},
-        {"level": 23, "level_status": "verified", "kind": "stat", "payload": {"vs": "frozen", "delta_pct": 120}, "text": "地震对被冻结的敌人造成伤害+120%", "source": {"t": 108.78}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 20}, "text": "地震基础范围+20%", "source": {"t": 108.78}},
-        {"level": 30, "level_status": "verified", "kind": "other", "payload": {"chance_pct": 45, "damage_mul": 2}, "text": "地震有45%概率造成的伤害翻倍", "source": {"t": 104.38}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "地震重击"}, "text": "学得地震后，立即获得地震重击", "source": {"t": 104.38}},
-        {"level": 36, "level_status": "verified", "kind": "other", "payload": {"card": "地震速击", "cdr_pct": 20}, "text": "地震速击额外增加20%的冷却缩减", "source": {"t": 104.38}},
-        {"level": 40, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "浩劫"}, "text": "解锁卡牌：浩劫", "source": {"t": 104.38}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化地震"}, "text": "解锁卡牌：强化地震", "source": {"t": 104.38}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "地震基础冷却-15%", "source": {"t": 104.38}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "爆燃地震"
+          },
+          "text": "解锁卡牌：爆燃地震",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stun_s": 0.5
+          },
+          "text": "地震眩晕时间+0.5秒",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 10
+          },
+          "text": "地震基础范围+10%",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "state": "余烬",
+            "slow_pct": 30
+          },
+          "text": "余烬附带30%减速",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "末日地震"
+          },
+          "text": "解锁卡牌：末日地震",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "地震基础冷却-10%",
+          "source": {
+            "t": 108.78
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "burn_s": 3,
+            "chance_pct": 25
+          },
+          "text": "地震命中时有25%概率附带3秒燃烧",
+          "source": {
+            "t": 108.78
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "vs": "frozen",
+            "delta_pct": 120
+          },
+          "text": "地震对被冻结的敌人造成伤害+120%",
+          "source": {
+            "t": 108.78
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 20
+          },
+          "text": "地震基础范围+20%",
+          "source": {
+            "t": 108.78
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "chance_pct": 45,
+            "damage_mul": 2
+          },
+          "text": "地震有45%概率造成的伤害翻倍",
+          "source": {
+            "t": 104.38
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "地震重击"
+          },
+          "text": "学得地震后，立即获得地震重击",
+          "source": {
+            "t": 104.38
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "地震速击",
+            "cdr_pct": 20
+          },
+          "text": "地震速击额外增加20%的冷却缩减",
+          "source": {
+            "t": 104.38
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "浩劫"
+          },
+          "text": "解锁卡牌：浩劫",
+          "source": {
+            "t": 104.38
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化地震"
+          },
+          "text": "解锁卡牌：强化地震",
+          "source": {
+            "t": 104.38
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "地震基础冷却-15%",
+          "source": {
+            "t": 104.38
+          }
+        },
+        {
+          "level": 56,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "余震"
+          },
+          "text": "解锁卡牌：余震",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        }
       ]
     },
     {
@@ -273,19 +2286,169 @@
       "name": "龙卷风",
       "aliases": [],
       "unlocks": [
-        {"level": 10, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "闪电龙卷"}, "text": "解锁卡牌：闪电龙卷", "source": {"t": 116.38}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "双重龙卷"}, "text": "解锁卡牌：双重龙卷", "source": {"t": 116.38}, "note": "与闪电龙卷三选一互斥"},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "龙卷风基础冷却-10%", "source": {"t": 116.38}},
-        {"level": 20, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "风力增幅"}, "text": "解锁卡牌：风力增幅", "source": {"t": 116.38}},
-        {"level": 23, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "风力精通"}, "text": "解锁卡牌：风力精通", "source": {"t": 116.38}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"stat": "duration", "delta_s": 0.6}, "text": "龙卷风持续时间+0.6秒，基础范围+…", "source": {"t": 116.38}},
-        {"level": 30, "level_status": "verified", "kind": "other", "payload": {"center_damage_mul": 2, "duration_pct": 15}, "text": "龙卷风中心伤害翻倍，持续时间+15%", "source": {"t": 112.78}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "强袭龙卷"}, "text": "学得龙卷风后，立即获得强袭龙卷", "source": {"t": 112.78}},
-        {"level": 36, "level_status": "verified", "kind": "stat", "payload": {"stat": "move_speed", "delta_pct": 30}, "text": "龙卷风移动速度+30%", "source": {"t": 112.78}},
-        {"level": 40, "level_status": "verified", "kind": "other", "payload": {"card": "闪电龙卷", "paralyze_s": 1}, "text": "闪电龙卷附加伤害翻倍并且附加伤害有20%概率附加1秒麻痹", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化龙卷"}, "text": "解锁卡牌：强化龙卷", "source": {"t": 112.78}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "龙卷风基础冷却-15%", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 50, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "龙卷风暴"}, "text": "解锁卡牌：龙卷风暴", "source": {"screenshot": "user 20260814 卡面截图"}}
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "闪电龙卷"
+          },
+          "text": "解锁卡牌：闪电龙卷",
+          "source": {
+            "t": 116.38
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "双重龙卷"
+          },
+          "text": "解锁卡牌：双重龙卷",
+          "source": {
+            "t": 116.38
+          },
+          "note": "与闪电龙卷三选一互斥"
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "龙卷风基础冷却-10%",
+          "source": {
+            "t": 116.38
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "风力增幅"
+          },
+          "text": "解锁卡牌：风力增幅",
+          "source": {
+            "t": 116.38
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "风力精通"
+          },
+          "text": "解锁卡牌：风力精通",
+          "source": {
+            "t": 116.38
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "duration",
+            "delta_s": 0.6
+          },
+          "text": "龙卷风持续时间+0.6秒，基础范围+…",
+          "source": {
+            "t": 116.38
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "center_damage_mul": 2,
+            "duration_pct": 15
+          },
+          "text": "龙卷风中心伤害翻倍，持续时间+15%",
+          "source": {
+            "t": 112.78
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "强袭龙卷"
+          },
+          "text": "学得龙卷风后，立即获得强袭龙卷",
+          "source": {
+            "t": 112.78
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "move_speed",
+            "delta_pct": 30
+          },
+          "text": "龙卷风移动速度+30%",
+          "source": {
+            "t": 112.78
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "闪电龙卷",
+            "paralyze_s": 1
+          },
+          "text": "闪电龙卷附加伤害翻倍并且附加伤害有20%概率附加1秒麻痹",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化龙卷"
+          },
+          "text": "解锁卡牌：强化龙卷",
+          "source": {
+            "t": 112.78
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "龙卷风基础冷却-15%",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "龙卷风暴"
+          },
+          "text": "解锁卡牌：龙卷风暴",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        }
       ]
     },
     {
@@ -293,18 +2456,155 @@
       "name": "电磁网",
       "aliases": [],
       "unlocks": [
-        {"level": 10, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "高压电网"}, "text": "解锁卡牌：高压电网", "source": {"t": 125.17}},
-        {"level": 13, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "电磁网基础冷却-10%", "source": {"t": 125.17}},
-        {"level": 16, "level_status": "verified", "kind": "other", "payload": {"pull": true}, "text": "电磁网会将伤害到的敌人向中心牵引", "source": {"t": 125.17}},
-        {"level": 23, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "超过载"}, "text": "解锁卡牌：超过载", "source": {"t": 125.17}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 20}, "text": "电磁网基础射程+20%", "source": {"t": 125.17}},
-        {"level": 30, "level_status": "verified", "kind": "stat", "payload": {"damage_pct": 60, "range_pct": 30}, "text": "电磁网伤害+60%，范围+30%", "source": {"t": 121.18}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "高频电网"}, "text": "学得电磁网后，立即获得高频电网", "source": {"t": 121.18}},
-        {"level": 36, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta": 200}, "text": "电磁网射程+200", "source": {"t": 121.18}},
-        {"level": 40, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "电力增幅"}, "text": "解锁卡牌：电力增幅", "source": {"t": 121.18}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化电网"}, "text": "解锁卡牌：强化电网", "source": {"t": 121.18}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "电磁网基础冷却-15%", "source": {"t": 121.18}},
-        {"level": 50, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "感电"}, "text": "解锁卡牌：感电", "source": {"screenshot": "user 20260814 卡面截图"}}
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "高压电网"
+          },
+          "text": "解锁卡牌：高压电网",
+          "source": {
+            "t": 125.17
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "电磁网基础冷却-10%",
+          "source": {
+            "t": 125.17
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "pull": true
+          },
+          "text": "电磁网会将伤害到的敌人向中心牵引",
+          "source": {
+            "t": 125.17
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "超过载"
+          },
+          "text": "解锁卡牌：超过载",
+          "source": {
+            "t": 125.17
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 20
+          },
+          "text": "电磁网基础射程+20%",
+          "source": {
+            "t": 125.17
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "damage_pct": 60,
+            "range_pct": 30
+          },
+          "text": "电磁网伤害+60%，范围+30%",
+          "source": {
+            "t": 121.18
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "高频电网"
+          },
+          "text": "学得电磁网后，立即获得高频电网",
+          "source": {
+            "t": 121.18
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta": 200
+          },
+          "text": "电磁网射程+200",
+          "source": {
+            "t": 121.18
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "电力增幅"
+          },
+          "text": "解锁卡牌：电力增幅",
+          "source": {
+            "t": 121.18
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化电网"
+          },
+          "text": "解锁卡牌：强化电网",
+          "source": {
+            "t": 121.18
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "电磁网基础冷却-15%",
+          "source": {
+            "t": 121.18
+          }
+        },
+        {
+          "level": 50,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "感电"
+          },
+          "text": "解锁卡牌：感电",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        }
       ]
     },
     {
@@ -312,21 +2612,203 @@
       "name": "陨石",
       "aliases": [],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "多重陨石"}, "text": "解锁卡牌：多重陨石", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 5, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "震撼陨石"}, "text": "解锁卡牌：震撼陨石", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 10}, "text": "陨石基础范围+10%", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 10, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "毁灭陨石"}, "text": "解锁卡牌：毁灭陨石", "source": {"t": 136.37}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "陨石碎片"}, "text": "解锁卡牌：陨石碎片", "source": {"t": 136.37}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "陨石基础冷却-10%", "source": {"t": 136.37}},
-        {"level": 20, "level_status": "verified", "kind": "other", "payload": {"extra_phys_pct": 300}, "text": "陨石额外附加300%攻击的[火系]物理伤害", "source": {"t": 136.37}},
-        {"level": 23, "level_status": "verified", "kind": "stat", "payload": {"vs": "frozen", "delta_pct": 120}, "text": "陨石对被冻结的敌人造成伤害+120%", "source": {"t": 136.37}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"stat": "range", "delta_pct": 20}, "text": "陨石基础范围+20%", "source": {"t": 136.37}},
-        {"level": 30, "level_status": "verified", "kind": "other", "payload": {"burn_s": 3}, "text": "陨石造成伤害时附加3秒燃烧…", "source": {"t": 131.97}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "陨石爆破"}, "text": "学得陨石后，立即获得陨石爆破", "source": {"t": 131.97}},
-        {"level": 36, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "爆破碎片"}, "text": "解锁卡牌：爆破碎片", "source": {"t": 131.97}},
-        {"level": 40, "level_status": "verified", "kind": "stat", "payload": {"extra_casts": 1}, "text": "陨石额外释放1次", "source": {"t": 131.97}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化陨石"}, "text": "解锁卡牌：强化陨石", "source": {"t": 131.97}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "陨石基础冷却-15%", "source": {"t": 131.97}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "多重陨石"
+          },
+          "text": "解锁卡牌：多重陨石",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "震撼陨石"
+          },
+          "text": "解锁卡牌：震撼陨石",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 10
+          },
+          "text": "陨石基础范围+10%",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "毁灭陨石"
+          },
+          "text": "解锁卡牌：毁灭陨石",
+          "source": {
+            "t": 136.37
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "陨石碎片"
+          },
+          "text": "解锁卡牌：陨石碎片",
+          "source": {
+            "t": 136.37
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "陨石基础冷却-10%",
+          "source": {
+            "t": 136.37
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "extra_phys_pct": 300
+          },
+          "text": "陨石额外附加300%攻击的[火系]物理伤害",
+          "source": {
+            "t": 136.37
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "vs": "frozen",
+            "delta_pct": 120
+          },
+          "text": "陨石对被冻结的敌人造成伤害+120%",
+          "source": {
+            "t": 136.37
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "range",
+            "delta_pct": 20
+          },
+          "text": "陨石基础范围+20%",
+          "source": {
+            "t": 136.37
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "burn_s": 3
+          },
+          "text": "陨石造成伤害时附加3秒燃烧…",
+          "source": {
+            "t": 131.97
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "陨石爆破"
+          },
+          "text": "学得陨石后，立即获得陨石爆破",
+          "source": {
+            "t": 131.97
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "爆破碎片"
+          },
+          "text": "解锁卡牌：爆破碎片",
+          "source": {
+            "t": 131.97
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "extra_casts": 1
+          },
+          "text": "陨石额外释放1次",
+          "source": {
+            "t": 131.97
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化陨石"
+          },
+          "text": "解锁卡牌：强化陨石",
+          "source": {
+            "t": 131.97
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "陨石基础冷却-15%",
+          "source": {
+            "t": 131.97
+          }
+        },
+        {
+          "level": 56,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "地爆天星"
+          },
+          "text": "解锁卡牌：地爆天星",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        }
       ]
     },
     {
@@ -334,21 +2816,203 @@
       "name": "飓风",
       "aliases": [],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "小龙卷"}, "text": "解锁卡牌：小龙卷", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 5, "level_status": "verified", "kind": "remove_damage_penalty", "payload": {"card": "多重飓风"}, "text": "多重飓风不再降低伤害", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"pierce": 2}, "text": "飓风穿透+2", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 10, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "真空"}, "text": "解锁卡牌：真空", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "小飓风"}, "text": "解锁卡牌：小飓风", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "飓风基础冷却-10%", "source": {"t": 145.97}},
-        {"level": 20, "level_status": "verified", "kind": "other", "payload": {"card": "小龙卷", "pull": true}, "text": "小龙卷具有牵引效果", "source": {"t": 145.97}},
-        {"level": 23, "level_status": "verified", "kind": "other", "payload": {"card": "真空", "damage_pct": 50, "range_pct": 25}, "text": "真空伤害+50%，范围+25%", "source": {"t": 141.97}},
-        {"level": 26, "level_status": "verified", "kind": "stat", "payload": {"pierce": 3}, "text": "飓风穿透+3", "source": {"t": 141.97}},
-        {"level": 30, "level_status": "verified", "kind": "stat", "payload": {"parallel": 1}, "text": "飓风并列释放1个", "source": {"t": 141.97}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "风阻"}, "text": "学得飓风后，立即获得风阻", "source": {"t": 141.97}},
-        {"level": 36, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "乱流"}, "text": "解锁卡牌：乱流", "source": {"t": 141.97}},
-        {"level": 40, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "风力回旋"}, "text": "解锁卡牌：风力回旋", "source": {"t": 141.97}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化飓风"}, "text": "解锁卡牌：强化飓风", "source": {"t": 147.97}},
-        {"level": 46, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "飓风基础冷却-15%", "source": {"t": 147.97}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "小龙卷"
+          },
+          "text": "解锁卡牌：小龙卷",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "remove_damage_penalty",
+          "payload": {
+            "card": "多重飓风"
+          },
+          "text": "多重飓风不再降低伤害",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "pierce": 2
+          },
+          "text": "飓风穿透+2",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "真空"
+          },
+          "text": "解锁卡牌：真空",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "小飓风"
+          },
+          "text": "解锁卡牌：小飓风",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "飓风基础冷却-10%",
+          "source": {
+            "t": 145.97
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "小龙卷",
+            "pull": true
+          },
+          "text": "小龙卷具有牵引效果",
+          "source": {
+            "t": 145.97
+          }
+        },
+        {
+          "level": 23,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "真空",
+            "damage_pct": 50,
+            "range_pct": 25
+          },
+          "text": "真空伤害+50%，范围+25%",
+          "source": {
+            "t": 141.97
+          }
+        },
+        {
+          "level": 26,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "pierce": 3
+          },
+          "text": "飓风穿透+3",
+          "source": {
+            "t": 141.97
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "parallel": 1
+          },
+          "text": "飓风并列释放1个",
+          "source": {
+            "t": 141.97
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "风阻"
+          },
+          "text": "学得飓风后，立即获得风阻",
+          "source": {
+            "t": 141.97
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "乱流"
+          },
+          "text": "解锁卡牌：乱流",
+          "source": {
+            "t": 141.97
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "风力回旋"
+          },
+          "text": "解锁卡牌：风力回旋",
+          "source": {
+            "t": 141.97
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化飓风"
+          },
+          "text": "解锁卡牌：强化飓风",
+          "source": {
+            "t": 147.97
+          }
+        },
+        {
+          "level": 46,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "飓风基础冷却-15%",
+          "source": {
+            "t": 147.97
+          }
+        },
+        {
+          "level": 60,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "风暴狂潮"
+          },
+          "text": "解锁卡牌：风暴狂潮",
+          "source": {
+            "screenshot": "user_20260902_skill_update"
+          }
+        }
       ]
     },
     {
@@ -356,19 +3020,172 @@
       "name": "火球",
       "aliases": [],
       "unlocks": [
-        {"level": 2, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "疾行火球"}, "text": "解锁卡牌：疾行火球", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 5, "level_status": "verified", "kind": "other", "payload": {"chance_pct": 15, "radius": 200, "damage_pct": 300}, "text": "火球命中后有15%的概率发生爆炸，对200范围内所有敌人造成300%攻击的[火系]物理伤害", "source": {"screenshot": "user 20260814 卡面截图"}},
-        {"level": 7, "level_status": "verified", "kind": "stat", "payload": {"stat": "duration", "delta_s": 0.5}, "text": "火球持续时间+0.5秒", "source": {"t": 153.97}},
-        {"level": 10, "level_status": "verified", "kind": "remove_damage_penalty", "payload": {"card": "多重火球"}, "text": "多重火球不再降低伤害", "source": {"t": 153.97}},
-        {"level": 13, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "高频火球"}, "text": "解锁卡牌：高频火球", "source": {"t": 153.97}},
-        {"level": 16, "level_status": "verified", "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -10}, "text": "火球基础冷却-10%", "source": {"t": 153.97}},
-        {"level": 20, "level_status": "verified", "kind": "other", "payload": {"card": "烈焰火球", "burn_pct": 120}, "text": "烈焰火球额外使燃烧伤害+120%", "source": {"t": 153.97}},
-        {"level": 30, "level_status": "verified", "kind": "stat", "payload": {"count": 1}, "text": "火球数量+1", "source": {"t": 150.37}},
-        {"level": 33, "level_status": "verified", "kind": "grant_on_learn", "payload": {"card": "烈焰火球"}, "text": "学得火球后，立即获得烈焰火球", "source": {"t": 150.37}},
-        {"level": 36, "level_status": "verified", "kind": "stat", "payload": {"stat": "move_speed", "delta_pct": 40}, "text": "火球移动速度+40%", "source": {"t": 150.37}},
-        {"level": 40, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "幸运火球"}, "text": "解锁卡牌：幸运火球", "source": {"t": 150.37}},
-        {"level": 43, "level_status": "verified", "kind": "unlock_card", "payload": {"card": "强化火球"}, "text": "解锁卡牌：强化火球", "source": {"t": 150.37}},
-        {"level": null, "level_status": "unverified", "level_candidates": [46], "kind": "stat", "payload": {"stat": "cooldown", "delta_pct": -15}, "text": "火球基础冷却-15%", "source": {"t": 150.37}}
+        {
+          "level": 2,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "疾行火球"
+          },
+          "text": "解锁卡牌：疾行火球",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 5,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "chance_pct": 15,
+            "radius": 200,
+            "damage_pct": 300
+          },
+          "text": "火球命中后有15%的概率发生爆炸，对200范围内所有敌人造成300%攻击的[火系]物理伤害",
+          "source": {
+            "screenshot": "user 20260814 卡面截图"
+          }
+        },
+        {
+          "level": 7,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "duration",
+            "delta_s": 0.5
+          },
+          "text": "火球持续时间+0.5秒",
+          "source": {
+            "t": 153.97
+          }
+        },
+        {
+          "level": 10,
+          "level_status": "verified",
+          "kind": "remove_damage_penalty",
+          "payload": {
+            "card": "多重火球"
+          },
+          "text": "多重火球不再降低伤害",
+          "source": {
+            "t": 153.97
+          }
+        },
+        {
+          "level": 13,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "高频火球"
+          },
+          "text": "解锁卡牌：高频火球",
+          "source": {
+            "t": 153.97
+          }
+        },
+        {
+          "level": 16,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -10
+          },
+          "text": "火球基础冷却-10%",
+          "source": {
+            "t": 153.97
+          }
+        },
+        {
+          "level": 20,
+          "level_status": "verified",
+          "kind": "other",
+          "payload": {
+            "card": "烈焰火球",
+            "burn_pct": 120
+          },
+          "text": "烈焰火球额外使燃烧伤害+120%",
+          "source": {
+            "t": 153.97
+          }
+        },
+        {
+          "level": 30,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "count": 1
+          },
+          "text": "火球数量+1",
+          "source": {
+            "t": 150.37
+          }
+        },
+        {
+          "level": 33,
+          "level_status": "verified",
+          "kind": "grant_on_learn",
+          "payload": {
+            "card": "烈焰火球"
+          },
+          "text": "学得火球后，立即获得烈焰火球",
+          "source": {
+            "t": 150.37
+          }
+        },
+        {
+          "level": 36,
+          "level_status": "verified",
+          "kind": "stat",
+          "payload": {
+            "stat": "move_speed",
+            "delta_pct": 40
+          },
+          "text": "火球移动速度+40%",
+          "source": {
+            "t": 150.37
+          }
+        },
+        {
+          "level": 40,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "幸运火球"
+          },
+          "text": "解锁卡牌：幸运火球",
+          "source": {
+            "t": 150.37
+          }
+        },
+        {
+          "level": 43,
+          "level_status": "verified",
+          "kind": "unlock_card",
+          "payload": {
+            "card": "强化火球"
+          },
+          "text": "解锁卡牌：强化火球",
+          "source": {
+            "t": 150.37
+          }
+        },
+        {
+          "level": null,
+          "level_status": "unverified",
+          "level_candidates": [
+            46
+          ],
+          "kind": "stat",
+          "payload": {
+            "stat": "cooldown",
+            "delta_pct": -15
+          },
+          "text": "火球基础冷却-15%",
+          "source": {
+            "t": 150.37
+          }
+        }
       ]
     }
   ]

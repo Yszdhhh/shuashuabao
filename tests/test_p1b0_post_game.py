@@ -225,6 +225,23 @@ class P1B0PostGameTests(unittest.TestCase):
              patch.object(self.med, "_find_post_game_hub_entry", side_effect=fake_hub_entry):
             self.assertEqual(self.med._post_game_state(frame), "NPC_HUB")
 
+    def test_centered_live_hub_beats_false_item_panel_anchor(self):
+        """The live plaza's central NPC layout must not be hidden by heroRefresh noise."""
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+
+        def fake_find(_frame, names, **_kwargs):
+            name = names[0]
+            hits = {
+                "quit": MatchResult(name, 0.89, 39, 12, 75, 24, 76, 24),
+                "damijing": MatchResult(name, 0.91, 925, 231, 72, 25, 961, 243),
+                "HeroChallenge": MatchResult(name, 0.95, 310, 77, 84, 23, 352, 88),
+            }
+            return hits.get(name)
+
+        with patch.object(self.med, "find", side_effect=fake_find), \
+             patch.object(self.med, "_selection_anchor", return_value=object()):
+            self.assertEqual(self.med._post_game_state(frame), "NPC_HUB")
+
     def test_archive_panel_visits_archive_cards_before_closing(self):
         """A pending archive page starts the eight-card sequence before close."""
         med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
@@ -253,6 +270,50 @@ class P1B0PostGameTests(unittest.TestCase):
             points.append(hit.center)
         self.assertEqual([p[0] for p in points[:4]], sorted(p[0] for p in points[:4]))
         self.assertLess(points[0][1], points[4][1])
+
+    def test_hitch_archive_skips_zero_gem_and_still_clicks_key(self):
+        """A red 0/8 resource card cannot make the later key card disappear."""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = Frame(np.random.default_rng(7).integers(0, 255, (900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        gem_x = int(frame.width * med._ARCHIVE_CHALLENGE_X[2])
+        gem_y = int(frame.height * med._ARCHIVE_CHALLENGE_Y[0])
+        frame.bgr[gem_y - 70:gem_y - 35, gem_x + 2:gem_x + 43] = (0, 0, 220)
+        loot_x = int(frame.width * med._ARCHIVE_CHALLENGE_X[3])
+        frame.bgr[gem_y - 70:gem_y - 35, loot_x + 2:loot_x + 43] = (255, 255, 255)
+
+        with patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._maybe_click_archive_challenge(frame, 1.0), LoopAction.Continue)
+            self.assertEqual(med._archive_challenge_index, 1)
+            self.assertEqual(med._maybe_click_archive_challenge(frame, 2.0), LoopAction.Continue)
+            self.assertEqual(med._maybe_click_archive_challenge(frame, med._archive_challenge_next_at + 1.0), LoopAction.Continue)
+            self.assertEqual(med._maybe_click_archive_challenge(frame, med._archive_challenge_next_at + 1.0), LoopAction.Continue)
+
+        self.assertEqual(
+            [call.args[1] for call in click.call_args_list],
+            ["ArchiveChallenge-loot", "ArchiveChallenge-key", "ArchiveChallenge-blessing"],
+        )
+
+    def test_hitch_postgame_uses_f1_before_archive_and_f2_after_time_cave_boss(self):
+        """Follow mode owns its hero view before archive and returns to base before heirloom."""
+        med = Mediator(Settings(mode_id="lobby_hitch", cjb_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "hitch post-game focus")
+        med._post_game_pending = True
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "act_key", return_value=True) as key, \
+             patch.object(med, "_maybe_click_archive_challenge") as archive:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        key.assert_called_once_with("F1", "HitchPostGameSelectOwnHero")
+        archive.assert_not_called()
+
+        med._post_game_route = "boss_postgame"
+        med._time_cave_boss_done = True
+        with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "act_key", return_value=True) as key:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        key.assert_called_once_with("F2", "HitchPostBossReturnOwnBase")
+        self.assertEqual(med._post_game_route, "heirloom")
 
     def test_pending_archive_panel_beats_skill_panel_false_positive(self):
         """Archive's skill card must not hide the post-game panel classifier."""

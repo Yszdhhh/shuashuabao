@@ -115,7 +115,8 @@ class Settings:
     game_mode: int = 0  # 0=独狼/自己刷图
     # 运行方式目录 id（normal_farm / lobby_hitch / …）。不是 OBSERVE/LIVE。
     mode_id: str = "normal_farm"
-    hitch_stage_prefix: str = "3"  # 蹭车搜房前缀，仅 3/4
+    hitch_stage_prefix: str = "3"  # 大厅找房搜索词，默认 3，可逗号分隔多词轮换（如 4,3）
+    hitch_rotate_interval: int = 10  # 搜索无结果时每隔多少轮自动轮换下一个搜索词
     follow_cycle_num: int = 100  # 跟车目标局数；启动时投影到 cycle_num
     hitch_cycle_num: int = 100  # 蹭车目标局数；启动时投影到 cycle_num
     follow_after_room: str = "solo"  # 房间解散/被踢后预案：solo / arch / hitch
@@ -298,7 +299,7 @@ class Settings:
             "reputation_cjb_boss", "reputation_sgzx_boss",
             "cjb_boss", "sgzx_boss", "window_title_contains",
             "ocr_repo_root", "images_dir", "bond_whitelist_mode",
-            "mode_id", "hitch_stage_prefix", "follow_after_room",
+            "mode_id", "hitch_stage_prefix", "hitch_rotate_interval", "follow_after_room",
             "hitch_after_goal", "follow_pair_code",
         }
         if fallback is not None:
@@ -445,9 +446,8 @@ class Settings:
             mid = str(clean["mode_id"] or "").strip()
             clean["mode_id"] = mid or "normal_farm"
         if "hitch_stage_prefix" in clean:
-            prefix = str(clean["hitch_stage_prefix"] or "").strip()
-            head = prefix[:1] if prefix else "3"
-            clean["hitch_stage_prefix"] = head if head in {"3", "4"} else "3"
+            search_text = str(clean["hitch_stage_prefix"] or "").strip()[:64]
+            clean["hitch_stage_prefix"] = search_text or "3"
         for key, allowed, default in (
             ("follow_after_room", {"solo", "arch", "hitch"}, "solo"),
             ("hitch_after_goal", {"solo", "arch"}, "solo"),
@@ -621,8 +621,8 @@ class Settings:
                     errors.append("follow_pair_code 最多 24 字符")
                 elif key == "bond_whitelist_mode" and value not in {"soft", "hard"}:
                     errors.append("bond_whitelist_mode 取值非法")
-                elif key == "hitch_stage_prefix" and value not in {"3", "4"}:
-                    errors.append("hitch_stage_prefix 取值非法")
+                elif key == "hitch_stage_prefix" and (not value.strip() or len(value.strip()) > 64):
+                    errors.append("hitch_stage_prefix 必须为 1-64 个非空字符")
                 elif key == "follow_after_room" and value not in {"solo", "arch", "hitch"}:
                     errors.append("follow_after_room 取值非法")
                 elif key == "hitch_after_goal" and value not in {"solo", "arch"}:

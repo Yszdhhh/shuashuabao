@@ -31,6 +31,7 @@ from enum import Enum
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -49,7 +50,11 @@ if str(ROOT / "src") not in sys.path:
 if str(ROOT / "tests") not in sys.path:
     sys.path.insert(0, str(ROOT / "tests"))
 
-from shuabao.input.keyboard_mouse import ActionResult, InputExecutor  # noqa: E402
+from shuabao.input.keyboard_mouse import (
+    ActionResult,
+    InputExecutor,
+    is_current_process_elevated,
+)  # noqa: E402
 from shuabao.input.emergency_stop import EmergencyStopListener  # noqa: E402
 from shuabao.loop_action import LoopAction  # noqa: E402
 from shuabao.mediator import BUILD_ID, Mediator, Phase  # noqa: E402
@@ -57,6 +62,7 @@ from shuabao.player_profile import LiveLane, LiveLaneBusy  # noqa: E402
 from shuabao.settings import Settings  # noqa: E402
 from shuabao.stop_signal import StopSignal  # noqa: E402
 from shuabao.vision.capture import Frame, capture  # noqa: E402
+from shuabao.vision.matcher import _load_template  # noqa: E402
 from test_scenario_replay import (  # noqa: E402
     ActionProbe,
     Case,
@@ -204,6 +210,57 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "runbook_pass": "只有代码自动确认局内 HUD 且 _secret_realm_active=True 才是 Live Probe PASS；p 只保存人工证据。",
         "runbook_manual_intervention": "若要人工确认或绕过阻塞，先标 FAIL；操作后标 MANUAL_INTERVENTION，继续收集后续 Ground Truth。",
     },
+    "lobby_hitch": {
+        "handler": "_tick_lobby_hitch",
+        "start_condition": "把游戏停在大厅对战/房间列表界面；搜索词默认 3，也可自定义；脚本一次输入并回车搜索，之后按刷新 CD 搜房，遇到特殊房间弹窗自动关闭。",
+        "production_entry": "Mediator._tick_lobby_hitch(frame, context, room_start, stage_page)",
+        "expected_steps": (
+            "LOBBY_DETECT", "SCAN", "REFRESH", "ROOM_FOUND", "JOIN", "ROOM_WAITING_CONFIRMED",
+        ),
+        "success_postcondition": "成功匹配前缀并点击加入后，画面进入房间等待界面（ROOM_WAITING 或 room_start 锚点出现），且 _hitch_sm 确认进房成功；单次 click success 不算成功。",
+        "fail_condition": "刷新/进房输入被拒绝、超过 join_attempts/search_timeout 仍未进房且无大厅退回、或进入错误状态。",
+        "blocked_condition": "capture 无效、未在大厅对战列表界面、或当前无可识别房间。",
+        "max_probe_time_s": 600.0,
+        "natural_e2e_eligible": "只有从真实大厅列表开始、识别到目标前缀、点击进房并由真实 ROOM_WAITING HUD 确认、且无 FAIL/MANUAL_INTERVENTION bookmark 时才算 Natural E2E。",
+        "bundle_replay": "重放大厅搜房、刷新与进房转场帧；四种故障变体按标准 Loader 注入。",
+        "runbook_manual": "把游戏停在大厅房间列表页；确保未在房间内且窗口 1600×900。",
+        "runbook_hands_off": "启动后不要手动刷新或点击房间列表，让脚本自动搜房并加入。",
+        "runbook_pass": "成功进入房间并停在 ROOM_WAITING 状态才算 Live Probe PASS。",
+        "runbook_manual_intervention": "若卡在密码房或弹窗，可手动处理后标 MANUAL_INTERVENTION。",
+    },
+    "lobby_search": {
+        "handler": "_tick_lobby_hitch",
+        "start_condition": "把 KK 官方对战平台停在英雄三国房间列表；脚本输入当前 hitch_stage_prefix，并只点击人数未满、非游戏中、非锁定的房间；无候选时按 5 秒 CD 刷新。",
+        "production_entry": "Mediator._tick_lobby_hitch(frame, context, room_start, stage_page)；默认探针最长 90 秒，桌面整链使用 --until-success 持续到准备成功。",
+        "expected_steps": ("LOBBY_DETECT", "SEARCH_INPUT", "SEARCH_CONFIRMED", "ROW_SCAN", "JOIN_OR_REFRESH", "REJECT_OR_READY", "READY_CONFIRMED"),
+        "success_postcondition": "搜索输入得到确认，并在拒绝满员/密码/首槽不合规房与 5 秒 CD 刷新后，进入合规房间、真实点击客人“准备”，且准备按钮状态发生变化。刷新只算过程证据。",
+        "fail_condition": "搜索、刷新或安全房间行输入被拒绝，或动作成功但 5 秒内没有对应视觉后置证据。",
+        "blocked_condition": "未提权、KK 窗口不可用、未在房间列表、搜索框/刷新模板不可用，或房间行安全证据不足。",
+        "max_probe_time_s": 90.0,
+        "natural_e2e_eligible": "只有从真实列表持续执行到合规房客人准备后置确认，且无人工介入，才有资格作为大厅搜房 Natural E2E。",
+        "bundle_replay": "记录真实搜索动作前后帧和五步输入结果；冻结重放只验证证据结构，不替代实机输入。",
+        "runbook_manual": "把 KK 停在英雄三国房间列表，不要预先聚焦或修改搜索框。",
+        "runbook_hands_off": "启动后不要触碰鼠标键盘；桌面整链会持续搜房、拒绝异常房并按 5 秒 CD 刷新，直到准备成功；紧急停止仍用 Shift+F12。绝不点 Quick Join、创建房间或开始游戏。",
+        "runbook_pass": "只有真实进入合规房间并点击准备、且按钮状态变化得到确认，才是 Live Probe PASS；Refresh 不是终态。",
+        "runbook_manual_intervention": "若 UAC 未确认或窗口被遮挡，结束本次并重新从桌面快捷方式启动。",
+    },
+    "hitch_runtime": {
+        "handler": "_tick_main_line",
+        "call": "frame",
+        "start_condition": "已在蹭车进入的局内 HUD，或已打开胜利后的存档/时光之穴/传家宝页面；不需要回到大厅重搜。",
+        "production_entry": "Mediator._tick_main_line(frame)，复用现有自动任务、四挑战、结算存档和 Boss handler；压力转移需独立视觉锚点后才可接入。",
+        "expected_steps": ("HUD", "AUTO_TASK", "FOUR_CHALLENGES", "POSTGAME_ARCHIVE", "BOSS_FALLBACK"),
+        "success_postcondition": "自动任务、挑战和战后 Boss 均须各自通过既有视觉后置条件；单次输入不算成功。",
+        "fail_condition": "输入被拒绝、既有生产 handler 进入 ERROR，或页面缺少既有分类/模板证据。",
+        "blocked_condition": "捕获无效、不是已确认局内 HUD或已分类战后页面时，零输入等待或由既有 Fail-Closed 收口。",
+        "max_probe_time_s": 3600.0,
+        "natural_e2e_eligible": "仅连续真机 Mediator.tick() 链、无人工干预、并由各生产后置条件确认时有资格。",
+        "bundle_replay": "沿用现有事件帧、ReplayCaseLoader 和 FakeInputExecutor；不创建另一套蹭车局内状态机。",
+        "runbook_manual": "可从当前任意已确认局内 HUD 或已打开的存档/传家宝页面开始；紧急停止用 Shift+F12。",
+        "runbook_hands_off": "启动后不要手动点压力转移、自动任务、挑战、存档卡或 Boss。",
+        "runbook_pass": "记录实际动作和各自的真实后置证据；不得用 click success 代替。",
+        "runbook_manual_intervention": "需要手动推进页面时先标记 FAIL，再标 MANUAL_INTERVENTION。",
+    },
 }
 
 # HARNESS readiness and production readiness are intentionally independent.
@@ -259,6 +316,31 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
         "routes": ({"route": "secret_realm_entry", "readiness": "CONDITIONAL"},),
         "ground_truth_only": False,
     },
+    "lobby_hitch": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "在大厅房间列表按自定义搜索词搜房；支持刷新 CD、点击房间行与失败弹窗兜底；不点 Quick Join、创建房间或开始游戏。",
+        "routes": (
+            {"route": "lobby_hitch_search", "readiness": "CONDITIONAL"},
+            {"route": "lobby_hitch_join", "readiness": "CONDITIONAL"},
+        ),
+        "ground_truth_only": False,
+    },
+    "lobby_search": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "调用大厅生产 handler 持续搜索、跳过失败房、按 5 秒 CD 刷新并在合规房点击客人准备；禁止 Quick Join、创建房间或开始游戏。",
+        "routes": ({"route": "lobby_hitch_search_ready", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "hitch_runtime": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "从当前蹭车局随时接管：首个已确认 HUD 优先压力转移，再复用自动任务、四挑战与既有战后存档/时光之穴/传家宝末位 Boss fallback。",
+        "routes": (
+            {"route": "hitch_pressure_transfer", "readiness": "CONDITIONAL"},
+            {"route": "hitch_auto_task_and_challenges", "readiness": "CONDITIONAL"},
+            {"route": "hitch_postgame_boss_fallback", "readiness": "CONDITIONAL"},
+        ),
+        "ground_truth_only": False,
+    },
 }
 
 
@@ -304,6 +386,16 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
         },
         "heirloom": {"BossConfigured", "BossConfigured-scroll"},
         "secret_realm": {"OpenGreatRift", "ConfirmGreatRift"},
+        "lobby_hitch": {
+            "HitchRefresh", "HitchJoin", "HitchGoHome", "HitchLeaveRoom",
+            "HitchDismissPopup", "HitchSearchBox", "HitchSearchType",
+            "HitchSearchEnter", "HitchSelectTab",
+        },
+        "lobby_search": {
+            "HitchSearchBox", "HitchRefresh", "HitchJoin", "HitchReady",
+            "HitchDismissPopup", "HitchLeaveFloorOne", "HitchConfirmLeave",
+            "HitchSelectTab",
+        },
     }.get(target)
 
 SUPPORTED_TARGETS = tuple(TARGET_CONTRACTS)
@@ -510,6 +602,11 @@ def _state_snapshot(med: Mediator, context: str | None = None) -> dict[str, Any]
         "secret_realm_active": getattr(med, "_secret_realm_active", None),
         "boss_challenge_attempts": getattr(med, "_boss_challenge_attempts", None),
         "boss_challenge_scroll_attempts": getattr(med, "_boss_challenge_scroll_attempts", None),
+        "hitch_refresh_count": getattr(med, "_hitch_join_refresh_count", 0),
+        "hitch_search_actions": getattr(med, "_hitch_search_actions", []),
+        "hitch_rejected_rows": sorted(getattr(med, "_hitch_rejected_row_ys", set())),
+        "hitch_blacklisted_room_count": len(getattr(med, "_hitch_blacklisted_room_keys", set())),
+        "hitch_refresh_required": getattr(med, "_hitch_refresh_required", False),
         "round_outcome": getattr(getattr(med, "_round_outcome", None), "name", None),
     })
 
@@ -529,8 +626,10 @@ def _action_from_tick(med: Mediator, input_records: list[dict[str, Any]]) -> dic
         "input_kind": _INPUT_KIND.get(record.get("method"), record.get("method")),
     }
     args = record.get("args") or []
-    if record.get("method") in {"click", "right_click", "scroll"} and len(args) >= 2:
+    if record.get("method") in {"click", "right_click", "scroll", "search_text"} and len(args) >= 2:
         action["point"] = [int(args[0]), int(args[1])]
+    if record.get("method") == "search_text" and len(args) >= 3:
+        action["text"] = str(args[2])
     return action
 
 
@@ -597,9 +696,237 @@ def _target_postcondition_snapshot(
     after_state: dict[str, Any],
     action: dict[str, Any] | None,
     base: dict[str, Any],
+    *,
+    before_frame: Frame | None = None,
+    input_record: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Add only target-specific, production-observable business evidence."""
     reason = str((action or {}).get("reason") or "")
+
+    if target == "lobby_search":
+        if reason not in {
+            "", "HitchSearchBox", "HitchRefresh", "HitchJoin", "HitchReady",
+            "HitchDismissPopup", "HitchLeaveFloorOne", "HitchConfirmLeave",
+            "HitchSelectTab",
+        }:
+            return {"observed": False, "state": "unexpected_action", "kind": reason or "lobby_search"}
+        if reason == "HitchDismissPopup":
+            if not bool((input_record or {}).get("success")):
+                return {"observed": False, "state": "input_rejected", "kind": "lobby_popup_dismiss"}
+            if not (_frame_is_valid(before_frame) and _frame_is_valid(frame)):
+                return {"observed": False, "state": "missing_frame_evidence", "kind": "lobby_popup_dismiss"}
+            if before_frame.bgr.shape != frame.bgr.shape:
+                return {"observed": False, "state": "incomparable_frame_evidence", "kind": "lobby_popup_dismiss"}
+            delta = cv2.absdiff(before_frame.bgr, frame.bgr)
+            changed = int(np.count_nonzero(np.any(delta > 8, axis=2)))
+            rejected_rows = list(after_state.get("hitch_rejected_rows") or [])
+            observed = changed >= 8 or bool(rejected_rows)
+            return {
+                "observed": observed,
+                "state": "confirmed" if observed else "popup_close_not_observed",
+                "kind": "lobby_popup_dismiss",
+                "authoritative": False,
+                "visual_change": {"changed_pixels": changed, "rejected_rows": rejected_rows},
+            }
+        if reason == "HitchLeaveFloorOne":
+            if not bool((input_record or {}).get("success")):
+                return {"observed": False, "state": "input_rejected", "kind": "lobby_floor_one_rejected"}
+            if not (_frame_is_valid(before_frame) and _frame_is_valid(frame)):
+                return {"observed": False, "state": "missing_frame_evidence", "kind": "lobby_floor_one_rejected"}
+            if before_frame.bgr.shape != frame.bgr.shape:
+                return {"observed": False, "state": "incomparable_frame_evidence", "kind": "lobby_floor_one_rejected"}
+            try:
+                room_gone = not med._hitch_room_controls_visible(frame)
+            except (AttributeError, TypeError):
+                room_gone = False
+            delta = cv2.absdiff(before_frame.bgr, frame.bgr)
+            changed = int(np.count_nonzero(np.any(delta > 8, axis=2)))
+            observed = room_gone and changed >= 8
+            return {
+                "observed": observed,
+                "state": "confirmed" if observed else "waiting_lobby_return",
+                "kind": "lobby_floor_one_rejected",
+                "authoritative": False,
+                "visual_change": {"changed_pixels": changed},
+            }
+        if reason == "HitchConfirmLeave":
+            if not bool((input_record or {}).get("success")):
+                return {"observed": False, "state": "input_rejected", "kind": "lobby_exit_confirm"}
+            if not (_frame_is_valid(before_frame) and _frame_is_valid(frame)):
+                return {"observed": False, "state": "missing_frame_evidence", "kind": "lobby_exit_confirm"}
+            if before_frame.bgr.shape != frame.bgr.shape:
+                return {"observed": False, "state": "incomparable_frame_evidence", "kind": "lobby_exit_confirm"}
+            delta = cv2.absdiff(before_frame.bgr, frame.bgr)
+            changed = int(np.count_nonzero(np.any(delta > 8, axis=2)))
+            return {
+                "observed": changed >= 8,
+                "state": "confirmed" if changed >= 8 else "waiting_lobby_return",
+                "kind": "lobby_exit_confirm",
+                "authoritative": False,
+                "visual_change": {"changed_pixels": changed},
+            }
+        if reason == "HitchReady":
+            if not bool((input_record or {}).get("success")):
+                return {"observed": False, "state": "input_rejected", "kind": "lobby_hitch_ready"}
+            if not (_frame_is_valid(before_frame) and _frame_is_valid(frame)):
+                return {"observed": False, "state": "missing_frame_evidence", "kind": "lobby_hitch_ready"}
+            if before_frame.bgr.shape != frame.bgr.shape:
+                return {"observed": False, "state": "incomparable_frame_evidence", "kind": "lobby_hitch_ready"}
+            ready_gone = False
+            controls_visible = False
+            try:
+                ready_gone = med._find_hitch_ready_button(frame) is None
+                controls_visible = med._hitch_room_controls_visible(frame)
+            except (AttributeError, TypeError):
+                pass
+            delta = cv2.absdiff(before_frame.bgr, frame.bgr)
+            changed = int(np.count_nonzero(np.any(delta > 8, axis=2)))
+            observed = ready_gone and controls_visible and changed >= 8
+            return {
+                "observed": observed,
+                "state": "confirmed" if observed else "ready_not_observed",
+                "kind": "lobby_hitch_ready",
+                "authoritative": True,
+                "visual_change": {"changed_pixels": changed},
+            }
+        if reason in {"", "HitchJoin"}:
+            if reason == "HitchJoin" and not bool((input_record or {}).get("success")):
+                return {"observed": False, "state": "input_rejected", "kind": "lobby_hitch_join"}
+            room_controls = False
+            room_start = None
+            if _frame_is_valid(frame):
+                try:
+                    room_controls = med._hitch_room_controls_visible(frame)
+                    room_start = med._find_room_start(frame)
+                except (AttributeError, TypeError):
+                    pass
+            if room_controls or (
+                after_state.get("phase") == "ROOM_WAITING" and room_start is not None
+            ):
+                return {
+                    "observed": True,
+                    "state": "confirmed",
+                    "kind": "lobby_hitch_in_room",
+                    # Entering the room is intermediate evidence.  The short
+                    # live probe succeeds only after the guest Ready action.
+                    "authoritative": False,
+                }
+            return {
+                "observed": False,
+                "state": "waiting_room_confirm" if reason == "HitchJoin" else "not_observed",
+                "kind": "lobby_hitch_join",
+            }
+        result_ok = bool((input_record or {}).get("success"))
+        point = (action or {}).get("point")
+        if not result_ok or not isinstance(point, list) or len(point) != 2:
+            return {"observed": False, "state": "input_rejected", "kind": "lobby_search_input"}
+        if not (_frame_is_valid(before_frame) and _frame_is_valid(frame)):
+            return {"observed": False, "state": "missing_frame_evidence", "kind": "lobby_search_input"}
+        x, y = int(point[0]), int(point[1])
+        if reason == "HitchRefresh":
+            before_list = before_frame.bgr[
+                int(before_frame.height * 0.34):int(before_frame.height * 0.90),
+                int(before_frame.width * 0.16):int(before_frame.width * 0.97),
+            ]
+            after_list = frame.bgr[
+                int(frame.height * 0.34):int(frame.height * 0.90),
+                int(frame.width * 0.16):int(frame.width * 0.97),
+            ]
+            if before_list.shape != after_list.shape or before_list.size == 0:
+                return {"observed": False, "state": "incomparable_result_evidence", "kind": "lobby_search_refresh"}
+            delta = cv2.absdiff(before_list, after_list)
+            metrics = {
+                "changed_pixels": int(np.count_nonzero(np.any(delta > 8, axis=2))),
+                "crop_pixels": int(delta.shape[0] * delta.shape[1]),
+                "mean_absdiff": round(float(delta.mean()), 4),
+            }
+            before_x, before_y = x - int(before_frame.left), y - int(before_frame.top)
+            after_x, after_y = x - int(frame.left), y - int(frame.top)
+            half_w, half_h = 48, 20
+            before_button = before_frame.bgr[
+                max(0, before_y - half_h):min(before_frame.height, before_y + half_h),
+                max(0, before_x - half_w):min(before_frame.width, before_x + half_w),
+            ]
+            after_button = frame.bgr[
+                max(0, after_y - half_h):min(frame.height, after_y + half_h),
+                max(0, after_x - half_w):min(frame.width, after_x + half_w),
+            ]
+            button_changed = 0
+            if before_button.shape == after_button.shape and before_button.size:
+                button_delta = cv2.absdiff(before_button, after_button)
+                button_changed = int(np.count_nonzero(np.any(button_delta > 8, axis=2)))
+            observed = metrics["changed_pixels"] >= 8 or button_changed >= 8
+            refresh_count = int(after_state.get("hitch_refresh_count", 0) or 0)
+            return {
+                "observed": observed,
+                "state": "confirmed" if observed else "refresh_not_observed",
+                "kind": "lobby_search_refresh",
+                "authoritative": False,
+                "visual_change": {
+                    "room_list": metrics,
+                    "refresh_button": {"changed_pixels": button_changed},
+                    "refresh_count": refresh_count,
+                },
+            }
+        before_x, before_y = x - int(before_frame.left), y - int(before_frame.top)
+        after_x, after_y = x - int(frame.left), y - int(frame.top)
+        half_w, half_h = 96, 18
+        before_crop = before_frame.bgr[
+            max(0, before_y - half_h):min(before_frame.height, before_y + half_h),
+            max(0, before_x - half_w):min(before_frame.width, before_x + half_w),
+        ]
+        after_crop = frame.bgr[
+            max(0, after_y - half_h):min(frame.height, after_y + half_h),
+            max(0, after_x - half_w):min(frame.width, after_x + half_w),
+        ]
+        if before_crop.shape != after_crop.shape or before_crop.size == 0:
+            return {"observed": False, "state": "incomparable_frame_evidence", "kind": "lobby_search_input"}
+        delta = cv2.absdiff(before_crop, after_crop)
+        changed_pixels = int(np.count_nonzero(np.any(delta > 8, axis=2)))
+        search_box_metrics = {
+            "changed_pixels": changed_pixels,
+            "crop_pixels": int(delta.shape[0] * delta.shape[1]),
+            "mean_absdiff": round(float(delta.mean()), 4),
+        }
+        before_list = before_frame.bgr[
+            int(before_frame.height * 0.34):int(before_frame.height * 0.90),
+            int(before_frame.width * 0.16):int(before_frame.width * 0.97),
+        ]
+        after_list = frame.bgr[
+            int(frame.height * 0.34):int(frame.height * 0.90),
+            int(frame.width * 0.16):int(frame.width * 0.97),
+        ]
+        if before_list.shape != after_list.shape or before_list.size == 0:
+            return {"observed": False, "state": "incomparable_result_evidence", "kind": "lobby_search_input"}
+        list_delta = cv2.absdiff(before_list, after_list)
+        list_changed_pixels = int(np.count_nonzero(np.any(list_delta > 8, axis=2)))
+        room_list_metrics = {
+            "changed_pixels": list_changed_pixels,
+            "crop_pixels": int(list_delta.shape[0] * list_delta.shape[1]),
+            "mean_absdiff": round(float(list_delta.mean()), 4),
+        }
+        metrics = {"search_box": search_box_metrics, "room_list": room_list_metrics}
+        existing_results = False
+        if changed_pixels >= 8 and med is not None:
+            try:
+                existing_results = bool(med._lobby_room_list_evidence(frame))
+            except (AttributeError, TypeError):
+                existing_results = False
+        if changed_pixels >= 8 and (list_changed_pixels >= 8 or existing_results):
+            return {
+                "observed": True,
+                "state": "confirmed" if list_changed_pixels >= 8 else "confirmed_existing_results",
+                "kind": "lobby_search_input",
+                "authoritative": False,
+                "visual_change": metrics,
+            }
+        state = "input_not_observed" if changed_pixels < 8 else "search_results_not_observed"
+        return {
+            "observed": False,
+            "state": state,
+            "kind": "lobby_search_input",
+            "visual_change": metrics,
+        }
 
     # A black-merchant refresh is useful evidence, but must never turn the
     # whole target green. Only the production swallow-pill verifier is an
@@ -646,6 +973,25 @@ def _target_postcondition_snapshot(
                 pass
         return {"observed": False, "state": "waiting", "kind": "secret_realm_hud"}
 
+    if target == "lobby_hitch":
+        room_anchor = None
+        if _frame_is_valid(frame):
+            try:
+                room_anchor = med.find_scene(frame, "room_start")
+            except (AttributeError, TypeError):
+                room_anchor = None
+        if (
+            "HitchJoin" in reason
+            and after_state.get("phase") == "ROOM_WAITING"
+            and room_anchor is not None
+        ):
+            return {"observed": True, "state": "confirmed", "kind": "lobby_hitch_in_room"}
+        if "HitchJoin" in reason:
+            return {"observed": False, "state": "waiting_room_confirm", "kind": "lobby_hitch_join"}
+        if "HitchRefresh" in reason:
+            return {"observed": False, "state": "partial_refresh_only", "kind": "lobby_hitch_refresh"}
+        return {"observed": False, "state": "not_observed", "kind": reason or "lobby_hitch_search"}
+
     return base
 
 
@@ -682,6 +1028,20 @@ def _invoke_target_handler(med: Mediator, target: str, frame: Frame) -> Any:
     """Invoke exactly one existing production entry point for a target probe."""
     if target in {"time_cave", "heirloom"}:
         return med._tick_main_line(frame)
+    if target in {"lobby_hitch", "lobby_search"}:
+        if med._lobby_room_list_evidence(frame):
+            context = "LOBBY_ROOM"
+            stage_page = False
+            room_start = None
+        elif med._hitch_room_controls_visible(frame):
+            context = "ROOM_WAITING"
+            stage_page = False
+            room_start = None
+        else:
+            context = med._detect_context(frame, "l0")
+            stage_page = context == "STAGE_SELECT"
+            room_start = None if stage_page else med._find_room_start(frame)
+        return med._tick_lobby_hitch(frame, context, room_start=room_start, stage_page=stage_page)
     contract = _target_contract(target)
     handler = getattr(med, str(contract["handler"]))
     if contract.get("call") == "frame_now":
@@ -812,6 +1172,34 @@ def _stage_from_observation(
         if state.get("post_game_pending"):
             return "ENTRY_VISIBLE"
         return "POSTGAME_DETECT"
+
+    if target == "lobby_search":
+        if "hitchready" in reason:
+            return "READY_CONFIRMED" if observed else "READY"
+        if "hitchleavefloorone" in reason:
+            return "FLOOR_ONE_REJECTED" if observed else "LEAVE_FLOOR_ONE"
+        if "hitchdismisspopup" in reason:
+            return "POPUP_DISMISSED" if observed else "POPUP"
+        if "hitchjoin" in reason:
+            return "ROOM_WAITING_CONFIRMED" if observed else "JOIN"
+        if "hitchrefresh" in reason:
+            return "REFRESH_CONFIRMED" if observed else "REFRESH"
+        if observed:
+            return "SEARCH_CONFIRMED"
+        if "hitchsearchbox" in reason:
+            return "SEARCH_INPUT"
+        return "LOBBY_DETECT"
+
+    if target == "lobby_hitch":
+        if state.get("phase") == "ROOM_WAITING" or observed:
+            return "ROOM_WAITING_CONFIRMED"
+        if "hitchjoin" in reason:
+            return "JOIN"
+        if "hitchrefresh" in reason:
+            return "REFRESH"
+        if "lobby" in template_names or "room" in template_names:
+            return "SCAN"
+        return "LOBBY_DETECT"
 
     if observed:
         return "DESTINATION_CONFIRMED"
@@ -1035,7 +1423,10 @@ class RecordingInputExecutor(InputExecutor):
             result = getattr(self._delegate, method)(*args, **kwargs)
         if not isinstance(result, ActionResult):
             result = ActionResult(bool(result), "SUCCESS" if result else "CANCELLED_UNKNOWN", "")
-        self._on_result(method, args, kwargs, result)
+        record_kwargs = dict(kwargs)
+        if method == "search_text":
+            record_kwargs["steps"] = getattr(self._delegate, "_last_search_steps", [])
+        self._on_result(method, args, record_kwargs, result)
         return result
 
     def click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 120) -> ActionResult:
@@ -1055,6 +1446,12 @@ class RecordingInputExecutor(InputExecutor):
 
     def scroll(self, x: int, y: int, clicks: int, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
         return self._call("scroll", x, y, clicks, target_hwnd=target_hwnd, dry_run=dry_run)
+
+    def double_click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 50) -> ActionResult:
+        return self._call("double_click", x, y, target_hwnd=target_hwnd, dry_run=dry_run, delay_ms=delay_ms)
+
+    def search_text(self, x: int, y: int, text: str, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
+        return self._call("search_text", x, y, text, target_hwnd=target_hwnd, dry_run=dry_run)
 
     def type_text(self, text: str, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
         return self._call("type_text", text, target_hwnd=target_hwnd, dry_run=dry_run)
@@ -1100,6 +1497,8 @@ class BundleRecorder:
         self.manifest: dict[str, Any] = {
             "capture_schema_version": 1,
             "bundle_id": self.bundle_dir.name,
+            "process_pid": os.getpid(),
+            "parent_process_pid": os.getppid(),
             "created_at_utc": _utc_now(),
             "completed_at_utc": None,
             "target": target,
@@ -1525,7 +1924,7 @@ class BundleRecorder:
                     "confirmed_at_s": round(at_s, 3),
                     "confirmed_by_event": f"e{self._event_number:04d}",
                 }
-                if target_observed:
+                if target_observed and pending_postcondition.get("authoritative", True):
                     self._record_authoritative_target_result(
                         event_id=pending_event.get("event_id"),
                         postcondition=pending_event["postcondition"],
@@ -1558,6 +1957,8 @@ class BundleRecorder:
             after_state,
             action,
             _postcondition_snapshot(med, before_state, after_state, action, trace_row),
+            before_frame=before_frame,
+            input_record=input_record,
         )
         event = {
             "event_id": f"e{self._event_number:04d}",
@@ -1589,7 +1990,10 @@ class BundleRecorder:
         }
         self._event_number += 1
         self.manifest["events"].append(_jsonable(event))
-        if event["postcondition"].get("observed") is True:
+        if (
+            event["postcondition"].get("observed") is True
+            and event["postcondition"].get("authoritative", True)
+        ):
             self._record_authoritative_target_result(
                 event_id=event["event_id"],
                 postcondition=event["postcondition"],
@@ -1611,12 +2015,35 @@ class BundleRecorder:
         at_s: float | None = None,
     ) -> dict[str, Any] | None:
         """Record a target probe without introducing a second decision path."""
+        after_frame = _capture_after(med) if self.inputs_this_tick else None
+        if (
+            self.manifest["target"] == "lobby_search"
+            and self.inputs_this_tick
+            and self.inputs_this_tick[0].get("success")
+            and _frame_is_valid(frame)
+        ):
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                probe = _target_postcondition_snapshot(
+                    "lobby_search",
+                    med,
+                    after_frame,
+                    {},
+                    _action_from_tick(med, self.inputs_this_tick),
+                    {},
+                    before_frame=frame,
+                    input_record=self.inputs_this_tick[0],
+                )
+                if probe.get("observed") is True:
+                    break
+                time.sleep(0.2)
+                after_frame = _capture_after(med)
         return self.record_tick(
             med,
             phase_before=phase_before,
             before_state=before_state,
             before_frame=frame,
-            after_frame=_capture_after(med) if self.inputs_this_tick else None,
+            after_frame=after_frame,
             loop_action=result if isinstance(result, LoopAction) else LoopAction.Continue,
             at_s=at_s,
         )
@@ -1677,6 +2104,7 @@ def _build_identity_check(
     build_identity_path: Path | None = None,
     source_sha: str | None = None,
     source_clean: bool | None = None,
+    allow_dev_source: bool = False,
 ) -> dict[str, Any]:
     """Compare the actual packaged EXE with its build-time source identity.
 
@@ -1695,6 +2123,11 @@ def _build_identity_check(
         "build_identity_path": None,
         "blocked_reasons": [],
     }
+    if allow_dev_source:
+        record["status"] = "READY"
+        record["dev_source_override"] = True
+        return record
+
     reasons: list[str] = record["blocked_reasons"]
     if tested_sha == "unknown":
         reasons.append("tested source SHA unavailable")
@@ -1756,24 +2189,34 @@ def _build_identity_check(
     return record
 
 
-def _window_preflight(settings: Settings) -> tuple[Frame | None, dict[str, Any]]:
-    title = str(getattr(settings, "window_title_contains", "") or "")
+def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Frame | None, dict[str, Any]]:
+    is_lobby = target in {"lobby_hitch", "lobby_search"}
+    role = "l0" if is_lobby else "l1"
+    title = "" if is_lobby else str(getattr(settings, "window_title_contains", "") or "")
     try:
-        frame = capture(title, role="l1", activate=False)
+        frame = capture(title, role=role, activate=False, allow_fallback=True)
     except Exception as exc:
         return None, {
             "status": "BLOCKED",
             "requested_title": title,
             "reason": f"window capture exception: {exc}",
         }
+    window_title = str(getattr(frame, "window_title", "") or "")
+    status = "READY" if _frame_is_valid(frame) else "BLOCKED"
+    reason = getattr(frame, "error", None)
+    if is_lobby and not any(
+        token in window_title.lower() for token in ("kk", "英雄三国")
+    ):
+        status = "BLOCKED"
+        reason = f"unexpected lobby window title: {window_title or '<empty>'}"
     record = {
-        "status": "READY" if _frame_is_valid(frame) else "BLOCKED",
+        "status": status,
         "requested_title": title,
         "hwnd": getattr(frame, "hwnd", None),
-        "title": getattr(frame, "window_title", ""),
+        "title": window_title,
         "size": [getattr(frame, "width", 0), getattr(frame, "height", 0)],
         "frame_fingerprint": _frame_fingerprint(frame),
-        "reason": getattr(frame, "error", None),
+        "reason": reason,
     }
     return frame, record
 
@@ -1796,6 +2239,27 @@ def _ocr_bootstrap_preflight(med: Mediator) -> dict[str, Any]:
     if not record.get("healthy") and not record.get("reason"):
         record["reason"] = "OCR bootstrap health unavailable"
     return _jsonable(record)
+
+
+def _lobby_resource_preflight(med: Mediator, target: str | None) -> list[str]:
+    if target not in {"lobby_hitch", "lobby_search"}:
+        return []
+    images = Path(getattr(med, "images", "") or "")
+    # Search is the requested first action. Row-safety assets are checked at
+    # join time so a bad lock template cannot suppress the initial search.
+    required = ("lobby_search_box.png", "lobby_refresh.png") if target == "lobby_search" else (
+        "lobby_search_box.png", "lobby_refresh.png", "lobby_room_list_selected.png",
+    )
+    missing: list[str] = []
+    for name in required:
+        path = images / "lobby" / name
+        if not path.is_file():
+            missing.append(str(path))
+            continue
+        template = _load_template(path)
+        if template is None or float(np.std(template)) < 8.0:
+            missing.append(f"{path} (blank or low-contrast)")
+    return missing
 
 
 def _new_live_mediator(
@@ -1828,14 +2292,38 @@ def _live_input_preflight(
         repo_root=repo_root,
         automation_exe=getattr(args, "automation_exe", None),
         build_identity_path=getattr(args, "build_identity", None),
+        allow_dev_source=bool(getattr(args, "allow_dev_source", False)),
     )
-    frame, window = _window_preflight(settings)
-    ocr_health = _ocr_bootstrap_preflight(med) if runtime_mediator_error is None else {
-        "healthy": False,
-        "stage": "runtime_mediator",
-        "reason": runtime_mediator_error,
-    }
+    elevation_blocked = bool(getattr(args, "live_input", False)) and not bool(
+        getattr(settings, "dry_run", True)
+    ) and not is_current_process_elevated()
+    frame, window = _window_preflight(settings, target=getattr(args, "target", None))
+    target = str(getattr(args, "target", "") or "")
+    if elevation_blocked:
+        ocr_health = {
+            "healthy": False,
+            "stage": "input_preflight",
+            "reason": "Real input requires an elevated process; accept the UAC prompt from the desktop launcher",
+        }
+    elif target == "lobby_search":
+        ocr_health = {
+            "healthy": True,
+            "skipped": True,
+            "stage": "not_required",
+            "reason": "visual-only lobby search does not require OCR",
+        }
+    else:
+        ocr_health = _ocr_bootstrap_preflight(med) if runtime_mediator_error is None else {
+            "healthy": False,
+            "stage": "runtime_mediator",
+            "reason": runtime_mediator_error,
+        }
     reasons = list(identity.get("blocked_reasons") or [])
+    if elevation_blocked:
+        reasons.append(str(ocr_health["reason"]))
+    resource_missing = _lobby_resource_preflight(med, getattr(args, "target", None))
+    if resource_missing:
+        reasons.append("lobby templates unavailable: " + ", ".join(resource_missing))
     if not bool(ocr_health.get("healthy")):
         reasons.append(f"ocr_bootstrap_unhealthy: {ocr_health.get('reason') or ocr_health.get('stage')}")
     if window.get("status") != "READY":
@@ -1867,6 +2355,7 @@ def _live_input_preflight(
         "settings_snapshot": _settings_snapshot(settings),
         "ocr_bootstrap_health": ocr_health,
         "window": window,
+        "resource_preflight": {"missing": resource_missing},
         "single_instance": single_instance,
         "blocked_reasons": reasons,
     }, lane, frame)
@@ -1884,13 +2373,22 @@ def _close_live_ocr(med: Mediator) -> None:
 def _install_action_reason_bridge(med: Mediator) -> Callable[[], str]:
     """Make the production action reason visible to the test-side executor guard."""
     setattr(med, "_live_capture_action_reason", "")
-    for method_name in ("act_click", "act_right_click", "act_key", "act_scroll"):
+    for method_name in ("act_click", "act_right_click", "act_key", "act_scroll", "act_type_text", "act_double_click", "act_search_box"):
+        if not hasattr(med, method_name):
+            continue
         original = getattr(med, method_name)
 
-        def guarded(*args: Any, _original: Callable[..., Any] = original, **kwargs: Any) -> Any:
+        def guarded(
+            *args: Any,
+            _original: Callable[..., Any] = original,
+            _method_name: str = method_name,
+            **kwargs: Any,
+        ) -> Any:
             reason = kwargs.get("reason")
-            if reason is None and len(args) >= 2:
-                reason = args[1]
+            if reason is None:
+                reason_index = 2 if _method_name == "act_search_box" else 1
+                if len(args) > reason_index:
+                    reason = args[reason_index]
             setattr(med, "_live_capture_action_reason", str(reason or ""))
             try:
                 return _original(*args, **kwargs)
@@ -1938,6 +2436,14 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
         settings.cjb_boss = "55吞咽者布鲁"
         settings.sgzx_boss = "55吞咽者布鲁"
         settings.auto_secret_realm = False
+    if target in {"lobby_hitch", "lobby_search", "hitch_runtime"}:
+        settings.mode_id = "lobby_hitch"
+        settings.auto_create_room = False
+        settings.skip_password_rooms = True
+        settings.never_quick_join = True
+    if target == "hitch_runtime":
+        # 蹭车续跑在传家宝挑战确认后按既有退出链收敛；秘境另行显式配置。
+        settings.auto_secret_realm = False
     return settings
 
 
@@ -1976,6 +2482,21 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
             "post_game_route": med._post_game_route,
             "reason": "target probe starts from the existing challenge plaza or already-open challenge panel",
         }
+    if target in {"lobby_hitch", "lobby_search"}:
+        med.set_phase(Phase.LOBBY_ROOM, "lobby hitch target probe")
+        med._hitch_re_search = False
+        if target == "lobby_search":
+            med._hitch_sm.continuous = True
+        return {
+            "phase": "LOBBY_ROOM",
+            "mode_id": "lobby_hitch",
+            "continuous_until_ready": target == "lobby_search",
+            "reason": (
+                "target probe starts from the KK room list and repeats safe search cycles until verified guest Ready"
+                if target == "lobby_search"
+                else "target probe starts from game lobby room list to search and join room"
+            ),
+        }
     if target != "secret_realm":
         return {}
     med._post_game_pending = True
@@ -2003,7 +2524,7 @@ def _bootstrap_direct_boss_postgame_start(
     Mediator post-game classifier, then the normal ``Mediator.tick()`` path is
     allowed to run. No Boss recognition, scrolling, or click policy lives here.
     """
-    if target not in {"boss_challenge", "time_cave", "heirloom"} or getattr(med, "_post_game_pending", False):
+    if target not in {"boss_challenge", "time_cave", "heirloom", "hitch_runtime"} or getattr(med, "_post_game_pending", False):
         return {}
     if not _frame_is_valid(frame):
         return {}
@@ -2064,6 +2585,9 @@ def _append_bookmark_command(
 
 def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     target = args.target
+    until_success = bool(getattr(args, "until_success", False))
+    if until_success and (not probe or target != "lobby_search" or not args.live_input):
+        raise ValueError("--until-success 仅允许 lobby_search 的真实输入 probe")
     contract = _target_contract(target)
     _require_live_confirmation(args.live_input, args.confirm_live_input)
     repo_root = Path(args.repo_root).resolve()
@@ -2078,7 +2602,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         else ("target_handler" if probe else "mediator_tick")
     )
     runtime_mediator_error: str | None = None
-    if args.live_input:
+    elevation_blocked = bool(args.live_input) and not bool(getattr(settings, "dry_run", True)) and not is_current_process_elevated()
+    if args.live_input and not elevation_blocked:
         med, runtime_mediator_error = _new_live_mediator(
             settings,
             repo_root,
@@ -2087,6 +2612,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         )
     else:
         med = Mediator(settings, repo_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
+        if elevation_blocked:
+            runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
     med.set_phase(Phase.MAIN_LINE, f"{target} {'target probe' if probe else 'live capture'}")
     probe_bootstrap = _bootstrap_target_probe(med, target) if probe and execution_mode == "target_handler" else {}
     recorder = BundleRecorder(
@@ -2149,7 +2676,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     duration_s = max(0.0, requested_duration)
     if probe:
         duration_s = min(duration_s, float(contract["max_probe_time_s"]))
-    deadline = time.monotonic() + duration_s
+    deadline = None if until_success else time.monotonic() + duration_s
     ticks = 0
     original_see = med.see
     current_frame: dict[str, Frame | None] = {"value": None}
@@ -2212,7 +2739,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
 
         med.emergency_listener = EmergencyStopListener(stop_signal)
         med.emergency_listener.start()
-        while ticks < args.max_ticks and time.monotonic() <= deadline:
+        while (
+            (until_success or ticks < args.max_ticks)
+            and (deadline is None or time.monotonic() <= deadline)
+        ):
             process_bookmarks()
             if awaiting_manual_resume:
                 if _is_emergency_reason(stop_signal.reason):
@@ -2322,6 +2852,12 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 else:
                     break
             process_bookmarks()
+            if (
+                target == "lobby_search"
+                and recorder.manifest["target_result"].get("authoritative")
+            ):
+                ticks += 1
+                break
             ticks += 1
             if stop_signal.is_set() and not awaiting_manual_resume:
                 break
@@ -2330,6 +2866,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         if (
             probe
             and execution_mode == "target_handler"
+            and deadline is not None
             and time.monotonic() >= deadline
             and not recorder.manifest["target_result"].get("authoritative")
             and not recorder.manifest["automatic_failures"]
@@ -2344,6 +2881,22 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     "no operator PASS bookmark was recorded"
                 ),
             )
+        if (
+            probe
+            and target == "lobby_search"
+            and ticks >= 1
+            and not recorder.manifest["target_result"].get("authoritative")
+            and not recorder.manifest["automatic_failures"]
+            and not _is_emergency_reason(stop_signal.reason)
+        ):
+            last_event = (recorder.manifest.get("events") or [{}])[-1]
+            post_state = (last_event.get("postcondition") or {}).get("state") or "not_observed"
+            recorder.bookmark(
+                "FAIL",
+                med,
+                current_frame["value"],
+            note=f"lobby search/room-select visual postcondition failed: {post_state}",
+            )
     finally:
         if med.emergency_listener:
             med.emergency_listener.stop()
@@ -2351,8 +2904,11 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         recorder.stop_trace(med)
         recorder.manifest["capture_ticks"] = ticks
         recorder.manifest["capture_options"] = {
-            "duration_s": duration_s,
+            "duration_s": None if until_success else duration_s,
             "max_probe_time_s": float(contract["max_probe_time_s"]),
+            "max_ticks": None if until_success else int(args.max_ticks),
+            "until_success": until_success,
+            "terminal_condition": "verified_guest_ready" if until_success else "bounded_probe",
             "interval_s": float(args.interval),
             "requested_live_input": bool(args.live_input),
             "effective_live_input": bool(args.live_input and not _ground_truth_only(target)),
@@ -2970,6 +3526,11 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--interval", type=float, default=0.3)
     parser.add_argument("--max-ticks", type=int, default=1000)
     parser.add_argument(
+        "--until-success",
+        action="store_true",
+        help="仅用于 lobby_search 实机 probe：忽略 duration/max-ticks，直到客人准备得到真实后置确认",
+    )
+    parser.add_argument(
         "--bookmark-file",
         type=Path,
         default=None,
@@ -2993,6 +3554,12 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
         type=Path,
         default=None,
         help="可选 build identity sidecar；默认读取 automation EXE 同目录 build_identity.json",
+    )
+    parser.add_argument(
+        "--allow-dev-source",
+        action="store_true",
+        default=False,
+        help="允许在本地源码/开发测试环境直接运行实机探针",
     )
 
 
@@ -3044,15 +3611,42 @@ def _bundle_preflight_blocked(bundle_dir: Path) -> bool:
     return bool((manifest.get("live_preflight") or {}).get("status") == "BLOCKED_PRECHECK")
 
 
+def _bundle_exit_code(bundle_dir: Path) -> int:
+    """Return and persist the process result for launcher diagnostics."""
+    path = Path(bundle_dir) / "manifest.json"
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return 2
+    if (manifest.get("live_preflight") or {}).get("status") == "BLOCKED_PRECHECK":
+        code = 3
+    elif manifest.get("target") == "lobby_search":
+        events = manifest.get("events") or []
+        search_observed = any(
+            str((event.get("action") or {}).get("reason")) == "HitchSearchBox"
+            and (event.get("postcondition") or {}).get("observed") is True
+            for event in events
+        )
+        result = manifest.get("target_result") or {}
+        terminal_kind = str((result.get("evidence") or {}).get("kind") or "")
+        terminal_observed = bool(result.get("authoritative")) and terminal_kind == "lobby_hitch_ready"
+        code = 0 if search_observed and terminal_observed else 4
+    else:
+        code = 0
+    manifest["process_exit_code"] = code
+    path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    return code
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.command == "capture":
             bundle = _run_live_capture(args)
-            return 3 if _bundle_preflight_blocked(bundle) else 0
+            return _bundle_exit_code(bundle)
         if args.command == "probe":
             bundle = _run_live_capture(args, probe=True)
-            return 3 if _bundle_preflight_blocked(bundle) else 0
+            return _bundle_exit_code(bundle)
         if args.command == "bookmark":
             path = _append_bookmark_command(
                 args.bundle,

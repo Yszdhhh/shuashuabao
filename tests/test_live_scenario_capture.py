@@ -10,6 +10,7 @@ import json
 import hashlib
 from pathlib import Path
 import shutil
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -40,6 +41,7 @@ from tools.live_scenario_capture import (
     _bootstrap_target_probe,
     _build_identity_check,
     _capture_input_guard,
+    _install_action_reason_bridge,
     _invoke_black_merchant_probe_handlers,
     generate_cases,
     main,
@@ -407,7 +409,7 @@ def test_generated_click_rejected_branch_reuses_real_mediator_action_path(tmp_pa
     assert replay_cases([path.parent for path in paths], ROOT) == 0
 
 
-def test_all_six_target_contracts_have_a_structural_readiness_result() -> None:
+def test_all_target_contracts_have_a_structural_readiness_result() -> None:
     assert SUPPORTED_TARGETS == (
         "black_merchant",
         "inventory_item",
@@ -415,6 +417,9 @@ def test_all_six_target_contracts_have_a_structural_readiness_result() -> None:
         "time_cave",
         "heirloom",
         "secret_realm",
+        "lobby_hitch",
+        "lobby_search",
+        "hitch_runtime",
     )
     for contract in TARGET_CONTRACTS.values():
         assert all(contract.get(field) for field in TARGET_CONTRACT_FIELDS)
@@ -431,8 +436,15 @@ def test_all_six_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["time_cave"]["production_readiness"] == "CONDITIONAL"
     assert by_target["heirloom"]["production_readiness"] == "CONDITIONAL"
     assert by_target["secret_realm"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["lobby_hitch"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["lobby_search"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["hitch_runtime"]["production_readiness"] == "CONDITIONAL"
+    assert TARGET_CONTRACTS["lobby_search"]["max_probe_time_s"] == 90.0
     assert by_target["time_cave"]["ground_truth_only"] is False
     assert by_target["heirloom"]["ground_truth_only"] is False
+    assert by_target["lobby_hitch"]["ground_truth_only"] is False
+    assert by_target["lobby_search"]["ground_truth_only"] is False
+    assert by_target["hitch_runtime"]["ground_truth_only"] is False
     assert any(
         route["route"] == "black_merchant_wood" and route["readiness"] == "CONDITIONAL"
         for route in by_target["black_merchant"]["production_routes"]
@@ -704,6 +716,22 @@ def test_blocked_precheck_is_evidence_only_and_never_gets_business_taxonomy(tmp_
     }]
 
 
+def test_search_action_reason_bridge_keeps_reason_separate_from_text() -> None:
+    seen: list[str] = []
+    holder: dict[str, object] = {}
+    med = SimpleNamespace()
+
+    def act_search_box(*args: object, **kwargs: object) -> bool:
+        seen.append(str(holder["provider"]()))
+        return True
+
+    med.act_search_box = act_search_box
+    holder["provider"] = _install_action_reason_bridge(med)
+    med.act_search_box(object(), "4", "HitchSearchBox")
+
+    assert seen == ["HitchSearchBox"]
+
+
 def test_black_merchant_integrated_routes_and_secret_probe_are_guarded() -> None:
     calls: list[tuple[object, ...]] = []
     results: list[ActionResult] = []
@@ -824,3 +852,843 @@ def test_blocked_preflight_does_not_dispatch_any_business_handler(tmp_path: Path
     assert manifest["live_preflight"]["status"] == "BLOCKED_PRECHECK"
     assert manifest["automatic_failures"][0]["status"] == "BLOCKED_PRECHECK"
     assert manifest["events"]
+
+
+def test_lobby_hitch_settings_and_bootstrap() -> None:
+    settings = live_capture._prepare_settings(None, "lobby_hitch", live_input=False)
+    assert settings.mode_id == "lobby_hitch"
+    assert settings.auto_create_room is False
+    assert settings.skip_password_rooms is True
+    assert settings.never_quick_join is True
+
+    med = Mediator(settings, ROOT)
+    bootstrap = _bootstrap_target_probe(med, "lobby_hitch")
+    assert med.phase is Phase.LOBBY_ROOM
+    assert med._hitch_re_search is False
+    assert bootstrap["mode_id"] == "lobby_hitch"
+    assert bootstrap["phase"] == "LOBBY_ROOM"
+
+    search_settings = live_capture._prepare_settings(None, "lobby_search", live_input=False)
+    search_med = Mediator(search_settings, ROOT)
+    search_bootstrap = _bootstrap_target_probe(search_med, "lobby_search")
+    assert search_settings.mode_id == "lobby_hitch"
+    assert search_bootstrap["phase"] == "LOBBY_ROOM"
+    assert search_bootstrap["continuous_until_ready"] is True
+    assert search_med._hitch_sm.continuous is True
+
+    with patch.object(Settings, "load_official", return_value=Settings(auto_secret_realm=True)):
+        runtime_settings = live_capture._prepare_settings(None, "hitch_runtime", live_input=False)
+    assert runtime_settings.mode_id == "lobby_hitch"
+    assert runtime_settings.auto_create_room is False
+    assert runtime_settings.auto_secret_realm is False
+
+
+def test_lobby_hitch_allowed_reasons() -> None:
+    allowed = live_capture._probe_allowed_reasons("lobby_hitch")
+    assert allowed == {
+        "HitchRefresh", "HitchJoin", "HitchGoHome", "HitchLeaveRoom",
+        "HitchDismissPopup", "HitchSearchBox", "HitchSearchType",
+        "HitchSearchEnter", "HitchSelectTab",
+    }
+    assert live_capture._probe_allowed_reasons("lobby_search") == {
+        "HitchSearchBox", "HitchRefresh", "HitchJoin", "HitchReady",
+        "HitchDismissPopup", "HitchLeaveFloorOne", "HitchConfirmLeave",
+        "HitchSelectTab",
+    }
+
+
+def test_lobby_search_requires_input_and_room_list_pixel_change() -> None:
+    before_pixels = np.zeros((300, 400, 3), dtype=np.uint8)
+    after_pixels = before_pixels.copy()
+    after_pixels[42:58, 144:176] = 255
+    after_pixels[150:170, 80:320] = 255
+    before = Frame(before_pixels, left=100, top=200, window_title="KK官方对战平台", hwnd=99, role="l0")
+    changed = Frame(after_pixels, left=100, top=200, window_title="KK官方对战平台", hwnd=99, role="l0")
+    action = {"reason": "HitchSearchBox", "point": [260, 250], "text": "3"}
+    input_record = {"success": True, "status": "SUCCESS"}
+
+    confirmed = live_capture._target_postcondition_snapshot(
+        "lobby_search",
+        None,
+        changed,
+        {"phase": "LOBBY_ROOM"},
+        action,
+        {"observed": False},
+        before_frame=before,
+        input_record=input_record,
+    )
+    unchanged = live_capture._target_postcondition_snapshot(
+        "lobby_search",
+        None,
+        before,
+        {"phase": "LOBBY_ROOM"},
+        action,
+        {"observed": False},
+        before_frame=before,
+        input_record=input_record,
+    )
+
+    assert confirmed["observed"] is True
+    assert confirmed["authoritative"] is False
+    assert confirmed["visual_change"]["search_box"]["changed_pixels"] > 0
+    assert confirmed["visual_change"]["room_list"]["changed_pixels"] > 0
+    assert unchanged["observed"] is False
+    assert unchanged["state"] == "input_not_observed"
+    assert unchanged["visual_change"]["search_box"]["changed_pixels"] == 0
+    assert unchanged["visual_change"]["room_list"]["changed_pixels"] == 0
+    assert live_capture._stage_from_observation(
+        "lobby_search", {}, {}, action, confirmed,
+    ) == "SEARCH_CONFIRMED"
+
+    field_only_pixels = before_pixels.copy()
+    field_only_pixels[42:58, 144:176] = 255
+    field_only = Frame(field_only_pixels, left=100, top=200, window_title="KK官方对战平台", hwnd=99, role="l0")
+    not_submitted = live_capture._target_postcondition_snapshot(
+        "lobby_search",
+        None,
+        field_only,
+        {"phase": "LOBBY_ROOM"},
+        action,
+        {"observed": False},
+        before_frame=before,
+        input_record=input_record,
+    )
+    assert not_submitted["observed"] is False
+    assert not_submitted["state"] == "search_results_not_observed"
+
+    existing = live_capture._target_postcondition_snapshot(
+        "lobby_search",
+        SimpleNamespace(_lobby_room_list_evidence=lambda _frame: True),
+        field_only,
+        {"phase": "LOBBY_ROOM"},
+        action,
+        {"observed": False},
+        before_frame=before,
+        input_record=input_record,
+    )
+    assert existing["observed"] is True
+    assert existing["state"] == "confirmed_existing_results"
+
+
+def test_lobby_search_refresh_requires_room_list_change() -> None:
+    before_pixels = np.zeros((300, 400, 3), dtype=np.uint8)
+    after_pixels = before_pixels.copy()
+    after_pixels[150:170, 80:320] = 255
+    before = Frame(before_pixels, window_title="KK官方对战平台", hwnd=99, role="l0")
+    after = Frame(after_pixels, window_title="KK官方对战平台", hwnd=99, role="l0")
+    action = {"reason": "HitchRefresh", "point": [320, 90]}
+    input_record = {"success": True, "status": "SUCCESS"}
+
+    confirmed = live_capture._target_postcondition_snapshot(
+        "lobby_search", None, after, {"hitch_refresh_count": 1}, action, {},
+        before_frame=before, input_record=input_record,
+    )
+    second = live_capture._target_postcondition_snapshot(
+        "lobby_search", None, after, {"hitch_refresh_count": 2}, action, {},
+        before_frame=before, input_record=input_record,
+    )
+    unchanged = live_capture._target_postcondition_snapshot(
+        "lobby_search", None, before, {}, action, {}, before_frame=before, input_record=input_record,
+    )
+
+    assert confirmed["observed"] is True
+    assert confirmed["kind"] == "lobby_search_refresh"
+    assert confirmed["authoritative"] is False
+    assert second["observed"] is True
+    assert second["kind"] == "lobby_search_refresh"
+    assert second["authoritative"] is False
+    assert unchanged["observed"] is False
+    assert unchanged["state"] == "refresh_not_observed"
+    assert live_capture._stage_from_observation(
+        "lobby_search", {}, {}, action, confirmed,
+    ) == "REFRESH_CONFIRMED"
+
+
+def test_lobby_search_join_requires_real_room_waiting_evidence() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = _fixture_frame()
+    action = {"reason": "HitchJoin", "point": [500, 400]}
+    input_record = {"success": True, "status": "SUCCESS"}
+
+    with patch.object(med, "find_scene", return_value=object()):
+        confirmed = live_capture._target_postcondition_snapshot(
+            "lobby_search", med, frame, {"phase": "ROOM_WAITING"}, action, {},
+            before_frame=frame, input_record=input_record,
+        )
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_find_room_start", return_value=None):
+        waiting = live_capture._target_postcondition_snapshot(
+            "lobby_search", med, frame, {"phase": "LOBBY_ROOM"}, action, {},
+            before_frame=frame, input_record=input_record,
+        )
+    with patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+         patch.object(med, "_find_room_start", return_value=None):
+        immediate = live_capture._target_postcondition_snapshot(
+            "lobby_search", med, frame, {"phase": "LOBBY_ROOM"}, action, {},
+            before_frame=frame, input_record=input_record,
+        )
+
+    assert confirmed["observed"] is True
+    assert confirmed["kind"] == "lobby_hitch_in_room"
+    assert waiting["observed"] is False
+    assert waiting["state"] == "waiting_room_confirm"
+    assert immediate["observed"] is True
+    assert immediate["authoritative"] is False
+
+
+def test_lobby_hitch_pending_join_prefers_separate_room_hwnd() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    lobby = Frame(
+        np.full((945, 1332, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=10, role="l0",
+    )
+    room = _synthetic_hitch_room(0)
+    room.hwnd = 20
+    med._last_frame = lobby
+    med._last_capture_role = "l0"
+    med._hitch_sm.note_join_click(1.0)
+    targets = [
+        SimpleNamespace(hwnd=10, title="KK官方对战平台"),
+        SimpleNamespace(hwnd=20, title="KK官方对战平台"),
+    ]
+
+    with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+         patch("shuabao.mediator.capture_target", side_effect=lambda target: (
+             room if target.hwnd == 20 else lobby
+         )):
+        selected = med._capture_best("KK官方对战平台", "l0")
+
+    assert selected.hwnd == 20
+
+
+def test_lobby_hitch_pending_exit_prefers_confirm_child_without_dialog_template() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    lobby = Frame(
+        np.full((945, 1332, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=10, role="l0",
+    )
+    confirm_image = np.full((260, 440, 3), (24, 22, 20), dtype=np.uint8)
+    cv2.rectangle(confirm_image, (44, 172), (211, 195), (200, 130, 20), -1)
+    confirm = Frame(
+        confirm_image, window_title="KK官方对战平台", hwnd=20, role="l0",
+    )
+    med._hitch_floor_exit_pending = True
+    targets = [
+        SimpleNamespace(hwnd=10, title="KK官方对战平台"),
+        SimpleNamespace(hwnd=20, title="KK官方对战平台"),
+    ]
+
+    with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+         patch("shuabao.mediator.capture_target", side_effect=lambda target: (
+             confirm if target.hwnd == 20 else lobby
+         )), \
+         patch.object(med, "find_scene", return_value=None):
+        selected = med._capture_best("KK官方对战平台", "l0")
+
+    assert selected.hwnd == 20
+
+
+def test_lobby_search_ready_requires_button_state_change() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+
+    def room_frame(text_width: int) -> Frame:
+        image = np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8)
+        cv2.rectangle(image, (792, 596), (931, 631), (200, 130, 20), -1)
+        left = 862 - text_width // 2
+        cv2.rectangle(image, (left, 607), (left + text_width - 1, 619), (245, 245, 245), -1)
+        return Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
+
+    before = room_frame(28)
+    after = room_frame(64)
+    action = {"reason": "HitchReady", "point": [862, 614]}
+    input_record = {"success": True, "status": "SUCCESS"}
+
+    assert med._find_hitch_ready_button(before) is not None
+    assert med._find_hitch_ready_button(after) is None
+    assert med._hitch_room_controls_visible(after) is True
+    confirmed = live_capture._target_postcondition_snapshot(
+        "lobby_search", med, after, {"phase": "ROOM_WAITING"}, action, {},
+        before_frame=before, input_record=input_record,
+    )
+
+    assert confirmed["observed"] is True
+    assert confirmed["kind"] == "lobby_hitch_ready"
+    assert live_capture._stage_from_observation(
+        "lobby_search", {}, {}, action, confirmed,
+    ) == "READY_CONFIRMED"
+
+
+def _synthetic_hitch_room(
+    self_row: int, *, first_floor_empty: bool = False, first_row_host: bool = True,
+) -> Frame:
+    image = np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8)
+    row_centers = (221, 261, 302, 342)
+    cv2.rectangle(image, (299, row_centers[self_row] - 19), (1130, row_centers[self_row] + 19), (139, 71, 1), -1)
+    if first_floor_empty:
+        cv2.rectangle(image, (308, 207), (341, 234), (40, 32, 24), -1)
+        cv2.rectangle(image, (316, 211), (326, 221), (224, 112, 0), -1)
+    else:
+        cv2.rectangle(image, (308, 207), (341, 234), (68, 68, 68), -1)
+    if first_row_host:
+        cv2.rectangle(image, (1005, 212), (1045, 230), (30, 50, 230), -1)
+    cv2.rectangle(image, (792, 596), (931, 631), (200, 130, 20), -1)
+    cv2.rectangle(image, (848, 607), (875, 619), (245, 245, 245), -1)
+    cv2.rectangle(image, (1036, 596), (1124, 631), (200, 130, 20), -1)
+    cv2.rectangle(image, (1066, 607), (1093, 619), (245, 245, 245), -1)
+    return Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
+
+
+def test_lobby_hitch_prepares_only_when_host_is_on_first_row() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+
+    assert med._hitch_room_seat_decision(_synthetic_hitch_room(0)) == "ready"
+    assert med._hitch_room_seat_decision(_synthetic_hitch_room(3)) == "ready"
+    assert med._hitch_room_seat_decision(
+        _synthetic_hitch_room(3, first_row_host=False),
+    ) == "leave_host_not_floor_one"
+    avatar_only = _synthetic_hitch_room(3, first_row_host=False)
+    avatar_only.bgr[209:233, 1080:1110] = (30, 50, 230)
+    assert med._hitch_room_seat_decision(avatar_only) == "leave_host_not_floor_one"
+    assert med._find_hitch_exit_button(_synthetic_hitch_room(0)) is not None
+
+
+def test_lobby_search_floor_one_exit_requires_visual_room_close() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    before = _synthetic_hitch_room(0)
+    after = Frame(
+        np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    action = {"reason": "HitchLeaveFloorOne", "point": [1080, 614]}
+    post = live_capture._target_postcondition_snapshot(
+        "lobby_search", med, after, {"phase": "LOBBY_ROOM"}, action, {},
+        before_frame=before, input_record={"success": True, "status": "SUCCESS"},
+    )
+
+    assert post["observed"] is True
+    assert post["authoritative"] is False
+    assert post["kind"] == "lobby_floor_one_rejected"
+    assert live_capture._stage_from_observation(
+        "lobby_search", {}, {}, action, post,
+    ) == "FLOOR_ONE_REJECTED"
+
+
+def test_lobby_hitch_clicks_two_character_ready_but_not_four_character_action() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = _synthetic_hitch_room(3)
+
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_called_once()
+    assert click.call_args.args[1] == "HitchReady"
+    assert med.phase is Phase.ROOM_WAITING
+
+
+def test_lobby_hitch_leaves_when_host_is_not_on_floor_one() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = _synthetic_hitch_room(0, first_row_host=False)
+    med._hitch_pending_room_key = "room-763405"
+
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_called_once()
+    assert click.call_args.args[1] == "HitchLeaveFloorOne"
+    assert med._hitch_floor_exit_pending is True
+    assert "room-763405" in med._hitch_blacklisted_room_keys
+
+
+def test_lobby_hitch_confirms_exit_dialog_instead_of_escaping() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    image = np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8)
+    cv2.rectangle(image, (120, 350), (330, 410), (200, 130, 20), -1)
+    frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
+    med._hitch_floor_exit_pending = True
+    med._hitch_pending_room_key = "room-763405"
+
+    with patch.object(med, "find_scene", return_value=None), \
+        patch.object(med, "act_click", return_value=True) as click, \
+        patch.object(med, "act_key") as key:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_called_once()
+    assert click.call_args.args[1] == "HitchConfirmLeave"
+    key.assert_not_called()
+    assert med._hitch_floor_exit_confirmed is True
+    assert "room-763405" in med._hitch_blacklisted_room_keys
+
+
+def test_lobby_hitch_selects_room_list_with_safe_scaled_fallback() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = _fixture_frame()
+
+    with patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+        patch.object(med, "find_scene", return_value=None), \
+        patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    hit, reason = click.call_args.args
+    assert reason == "HitchSelectTab"
+    assert hit.name == "lobby_room_list_tab"
+    assert hit.screen_x == int(frame.left + frame.width * (355.0 / 1332.0))
+
+
+def test_lobby_room_list_evidence_rejects_wrong_tab_template_hit() -> None:
+    from shuabao.vision.matcher import MatchResult
+
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = Frame(np.zeros((945, 1332, 3), dtype=np.uint8), role="l0")
+    wrong_tab = MatchResult("lobby_room_list_selected", 1.0, 230, 247, 75, 25, 230, 247)
+    right_tab = MatchResult("lobby_room_list_selected", 1.0, 311, 247, 75, 25, 311, 247)
+
+    with patch.object(
+        med, "find_scene", side_effect=lambda _frame, key: wrong_tab
+        if key == "lobby_room_list_selected" else None,
+    ):
+        assert med._lobby_room_list_evidence(frame) is False
+    with patch.object(
+        med, "find_scene", side_effect=lambda _frame, key: right_tab
+        if key == "lobby_room_list_selected" else None,
+    ):
+        assert med._lobby_room_list_evidence(frame) is True
+
+
+def test_lobby_room_list_evidence_accepts_selected_tab_highlight() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    image = np.zeros((945, 1332, 3), dtype=np.uint8)
+    cv2.rectangle(image, (311, 254), (400, 260), (200, 130, 20), -1)
+    frame = Frame(image, role="l0")
+
+    with patch.object(med, "find_scene", return_value=None):
+        assert med._lobby_room_list_evidence(frame) is True
+
+
+def test_lobby_hitch_postcondition_and_stage() -> None:
+    med = Mediator(Settings(), ROOT)
+    frame = _fixture_frame()
+
+    # Confirmed in room
+    with patch.object(med, "find_scene", return_value=object()):
+        post = live_capture._target_postcondition_snapshot(
+            "lobby_hitch",
+            med,
+            frame,
+            {"phase": "ROOM_WAITING"},
+            {"reason": "HitchJoin"},
+            {"observed": False},
+        )
+    assert post["observed"] is True
+    assert post["kind"] == "lobby_hitch_in_room"
+
+    stage = live_capture._stage_from_observation(
+        "lobby_hitch",
+        {"phase": "ROOM_WAITING"},
+        {},
+        {"reason": "HitchJoin"},
+        post,
+    )
+    assert stage == "ROOM_WAITING_CONFIRMED"
+
+    # Waiting confirm after join click
+    with patch.object(med, "find_scene", return_value=None):
+        post_join = live_capture._target_postcondition_snapshot(
+            "lobby_hitch",
+            med,
+            frame,
+            {"phase": "LOBBY_ROOM"},
+            {"reason": "HitchJoin"},
+            {"observed": False},
+        )
+    assert post_join["observed"] is False
+    assert post_join["state"] == "waiting_room_confirm"
+    stage_join = live_capture._stage_from_observation(
+        "lobby_hitch",
+        {"phase": "LOBBY_ROOM"},
+        {},
+        {"reason": "HitchJoin"},
+        post_join,
+    )
+    assert stage_join == "JOIN"
+
+
+def test_lobby_hitch_invoke_target_handler() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    calls = []
+
+    def mock_tick_lobby_hitch(frame, context, room_start=None, stage_page=False):
+        calls.append((context, room_start, stage_page))
+        return LoopAction.Continue
+
+    med._tick_lobby_hitch = mock_tick_lobby_hitch
+    frame = _fixture_frame()
+    result = live_capture._invoke_target_handler(med, "lobby_hitch", frame)
+    assert result is LoopAction.Continue
+    assert len(calls) == 1
+
+    result = live_capture._invoke_target_handler(med, "lobby_search", frame)
+    assert result is LoopAction.Continue
+    assert len(calls) == 2
+
+def test_lobby_hitch_overrides_generic_room_context_when_list_is_visible() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    calls: list[tuple[str, object, bool]] = []
+    med._startup_state = lambda _frame: "UNKNOWN"
+    med._detect_context = lambda _frame, _role: "ROOM_WAITING"
+    med._lobby_room_list_evidence = lambda _frame: True
+    med._tick_lobby_hitch = lambda frame, context, room_start=None, stage_page=False: (
+        calls.append((context, room_start, stage_page)) or LoopAction.Continue
+    )
+
+    result = med._tick_l0(_fixture_frame())
+
+    assert result is LoopAction.Continue
+    assert calls == [("LOBBY_ROOM", None, False)]
+
+
+def test_probe_entry_also_overrides_generic_room_context() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    calls: list[tuple[str, object, bool]] = []
+    med._detect_context = lambda _frame, _role: "ROOM_WAITING"
+    med._find_room_start = lambda _frame: object()
+    med._lobby_room_list_evidence = lambda _frame: True
+    med._tick_lobby_hitch = lambda frame, context, room_start=None, stage_page=False: (
+        calls.append((context, room_start, stage_page)) or LoopAction.Continue
+    )
+
+    result = live_capture._invoke_target_handler(med, "lobby_hitch", _fixture_frame())
+
+    assert result is LoopAction.Continue
+    assert calls == [("LOBBY_ROOM", None, False)]
+def test_lobby_hitch_uses_default_and_custom_search_text() -> None:
+    assert Settings().hitch_stage_prefix == "3"
+    assert Settings._from_dict({"hitch_stage_prefix": "4-8"}).hitch_stage_prefix == "4-8"
+    assert Settings._from_dict({"hitch_stage_prefix": "   "}).hitch_stage_prefix == "3"
+
+
+def test_lobby_hitch_clicks_inside_search_box_above_anchor_center() -> None:
+    from shuabao.vision.matcher import MatchResult
+
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    anchor = MatchResult(
+        name="lobby_search_box",
+        score=1.0,
+        x=1095,
+        y=295,
+        w=185,
+        h=30,
+        screen_x=1346,
+        screen_y=347,
+    )
+    with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(
+             med,
+             "find_scene",
+             side_effect=lambda _frame, key: anchor if key == "lobby_search_box" else None,
+         ), \
+         patch.object(med, "act_search_box", return_value=True) as search:
+        med._tick_lobby_hitch(_fixture_frame(), "LOBBY_ROOM")
+
+    click_hit, text, reason = search.call_args.args
+    assert click_hit.screen_x == 1346
+    assert click_hit.screen_y == 332
+    assert (text, reason) == ("3", "HitchSearchBox")
+
+
+def test_lobby_hitch_refresh_clicks_above_anchor_center() -> None:
+    from shuabao.lobby_hitch import HitchAction
+    from shuabao.vision.matcher import MatchResult
+
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    anchor = MatchResult(
+        name="lobby_refresh",
+        score=1.0,
+        x=1045,
+        y=295,
+        w=40,
+        h=30,
+        screen_x=1255,
+        screen_y=339,
+    )
+    with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(med, "find_scene", return_value=anchor):
+        hit = med._hitch_action_hit(_fixture_frame(), HitchAction.REFRESH)
+
+    assert hit.screen_x == 1255
+    assert hit.screen_y == 324
+
+
+def test_lobby_hitch_row_templates_are_rooted_at_repo() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch("shuabao.mediator._load_template", return_value=None) as load:
+        med._find_hitch_joinable_row(_fixture_frame())
+    assert [call.args[0] for call in load.call_args_list] == [
+        med.images / "lobby" / "lobby_room_lock.png",
+        med.images / "lobby" / "lobby_4_4.png",
+        med.images / "lobby" / "lobby_in_game.png",
+    ]
+
+
+def test_lobby_hitch_skips_full_and_active_rows_before_available_row() -> None:
+    width, height = 1332, 945
+    image = np.full((height, width, 3), (24, 22, 20), dtype=np.uint8)
+    first_y, row_step, count_x, status_x = 385, 48, 920, 1150
+
+    def draw_row(index: int, count: str, status: str) -> None:
+        y = first_y + index * row_step
+        cv2.putText(image, count, (count_x, y + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.36,
+                    (190, 190, 190), 1, cv2.LINE_AA)
+        cv2.putText(image, status, (status_x, y + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.36,
+                    (190, 190, 190), 1, cv2.LINE_AA)
+
+    draw_row(0, "4/4", "-")
+    draw_row(1, "3/4", "GAME")
+    draw_row(2, "2/4", "-")
+    draw_row(3, "2/4", "-")
+    full_template = image[first_y - 12:first_y + 12, count_x - 2:count_x + 35].copy()
+    lock_template = np.zeros((8, 8, 3), dtype=np.uint8)
+    lock_template[::2, ::2] = 255
+    lock_template[1::2, 1::2] = 255
+
+    def load_template(path: Path):
+        if path.name == "lobby_room_lock.png":
+            return lock_template
+        if path.name == "lobby_4_4.png":
+            return full_template
+        return None
+
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_rejected_row_ys.add(first_y + 2 * row_step)
+    with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch("shuabao.mediator._load_template", side_effect=load_template):
+        hit = med._find_hitch_joinable_row(Frame(image))
+
+    assert hit is not None
+    assert hit.y == first_y + 3 * row_step
+
+
+def test_lobby_hitch_skips_gray_lock_without_badge_dependency() -> None:
+    width, height = 1332, 945
+    image = np.full((height, width, 3), (24, 22, 20), dtype=np.uint8)
+    first_y, row_step, count_x = 385, 48, 920
+
+    for index in range(2):
+        y = first_y + index * row_step
+        cv2.putText(image, "1/4", (count_x, y + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.36,
+                    (190, 190, 190), 1, cv2.LINE_AA)
+    # First row has a gray lock and deliberately has no yellow V badge.
+    lock_x, lock_y = 440, first_y - 6
+    cv2.rectangle(image, (lock_x + 2, lock_y), (lock_x + 7, lock_y + 5), (180, 180, 180), 2)
+    cv2.rectangle(image, (lock_x, lock_y + 5), (lock_x + 9, lock_y + 11), (180, 180, 180), -1)
+
+    full_template = np.zeros((12, 24, 3), dtype=np.uint8)
+    full_template[::2, ::2] = 255
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch("shuabao.mediator._load_template", side_effect=lambda path: (
+             full_template if path.name == "lobby_4_4.png" else None
+         )):
+        hit = med._find_hitch_joinable_row(Frame(image))
+
+    assert hit is not None
+    assert hit.y == first_y + row_step
+
+
+def test_lobby_hitch_refresh_cd_is_five_seconds() -> None:
+    from shuabao.lobby_hitch import HitchAction, HitchSearchSM
+
+    sm = HitchSearchSM()
+    sm.note_refresh(100.0)
+
+    assert sm.refresh_s_min == 5.0
+    assert sm.refresh_s_max == 5.0
+    assert sm.tick(now=104.9, matched=False, prefix_ok=True).action is HitchAction.NONE
+    assert sm.tick(now=105.0, matched=False, prefix_ok=True).action is HitchAction.REFRESH
+
+
+def test_lobby_search_continuous_cycle_never_exhausts_to_go_home() -> None:
+    from shuabao.lobby_hitch import HitchAction, HitchSearchSM
+
+    sm = HitchSearchSM(continuous=True)
+    sm.search_started_at = 0.0
+    sm.attempts = sm.join_limit
+    sm.next_allowed_at = 20.0
+
+    decision = sm.tick(now=20.0, matched=False, prefix_ok=True)
+
+    assert decision.action is HitchAction.REFRESH
+    assert decision.attempts == 0
+    assert sm.search_started_at == 20.0
+
+
+def test_lobby_search_recreated_state_machine_stays_continuous() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_sm.continuous = True
+
+    replacement = med._new_hitch_sm()
+
+    assert replacement.continuous is True
+
+
+def test_until_success_cli_is_explicit_lobby_search_mode() -> None:
+    args = live_capture.build_parser().parse_args([
+        "probe", "--target", "lobby_search", "--out", "capture-out",
+        "--live-input", "--confirm-live-input", "--until-success",
+    ])
+
+    assert args.until_success is True
+
+def test_lobby_hitch_does_not_treat_lobby_as_room_waiting() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    room_cancel = object()
+    with patch.object(med, "_hitch_ocr_text", return_value=""), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(
+             med,
+             "find_scene",
+             side_effect=lambda _frame, key: room_cancel if key == "room_cancel_ready" else None,
+         ), \
+         patch.object(med, "act_search_box", return_value=True) as search:
+        med._tick_lobby_hitch(_fixture_frame(), "UNKNOWN")
+    assert med.phase is not Phase.ROOM_WAITING
+    search.assert_called_once()
+
+
+def test_lobby_hitch_failed_join_does_not_arm_pending_join() -> None:
+    from shuabao.lobby_hitch import HitchAction, HitchDecision, HitchPhase
+    from shuabao.vision.matcher import MatchResult
+
+    med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4"), ROOT)
+    med._hitch_prefix_searched = True
+    frame = _fixture_frame()
+    hit = MatchResult("room_list_row", 1.0, 100, 100, 100, 40, 100, 100)
+    decision = HitchDecision(HitchAction.JOIN, HitchPhase.SEARCH, "match", 0, 0.0)
+    with patch.object(med, "_hitch_ocr_text", return_value=""), \
+         patch.object(med, "_hitch_room_matched", return_value=True), \
+         patch.object(med, "_hitch_prefix_ok", return_value=True), \
+         patch.object(med._hitch_sm, "tick", return_value=decision), \
+         patch.object(med, "_hitch_action_hit", return_value=hit), \
+         patch.object(med, "act_double_click", return_value=False):
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+    assert med._hitch_sm.pending_join is False
+
+
+def test_lobby_hitch_join_timeout_closes_popup_and_skips_failed_row() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4"), ROOT)
+    med._hitch_prefix_searched = True
+    med._hitch_pending_row_y = 385
+    med._hitch_sm.note_join_click(97.0)
+    frame = _fixture_frame()
+
+    with patch("shuabao.mediator.time.time", return_value=100.0), \
+         patch.object(med, "_hitch_ocr_text", return_value=""), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_hitch_room_controls_visible", return_value=False), \
+         patch.object(med, "act_key", return_value=True) as key:
+        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
+
+    key.assert_called_once_with("esc", "HitchDismissPopup")
+    assert med._hitch_sm.pending_join is False
+    assert med._hitch_pending_row_y is None
+    assert med._hitch_rejected_row_ys == {385}
+    assert med._hitch_refresh_required is True
+    assert med._hitch_search_actions == ["reject"]
+    assert med._hitch_sm.next_allowed_at == 100.0
+
+
+def test_lobby_hitch_failed_join_forces_refresh_before_next_room() -> None:
+    from shuabao.lobby_hitch import HitchAction
+
+    med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4"), ROOT)
+    med._hitch_prefix_searched = True
+    med._hitch_refresh_required = True
+    frame = _fixture_frame()
+    refresh_hit = type("Hit", (), {
+        "name": "lobby_refresh", "screen_x": 1546, "screen_y": 330,
+    })()
+
+    with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(med, "_hitch_action_hit", side_effect=lambda _frame, action: (
+             refresh_hit if action is HitchAction.REFRESH else None
+         )), \
+         patch.object(med, "_hitch_room_matched") as scan, \
+         patch.object(med, "act_click", return_value=True) as click, \
+         patch.object(med, "act_double_click") as join:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    scan.assert_not_called()
+    join.assert_not_called()
+    click.assert_called_once_with(refresh_hit, "HitchRefresh")
+    assert med._hitch_refresh_required is False
+
+
+def test_lobby_hitch_never_falls_back_to_quick_join() -> None:
+    from shuabao.lobby_hitch import HitchAction
+
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = _fixture_frame()
+    with patch.object(med, "_find_hitch_joinable_row", return_value=None), \
+         patch.object(med, "find_scene") as find_scene:
+        find_scene.return_value = None
+        assert med._hitch_action_hit(frame, HitchAction.JOIN) is None
+
+
+def test_lobby_hitch_popup_is_dismissed_before_search_action() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_pending_row_y = 385
+    med._hitch_sm.note_join_click(10.0)
+    frame = _fixture_frame()
+    dialog = type("Hit", (), {"x": 10, "y": 10, "screen_x": 10, "screen_y": 10})()
+    with patch.object(med, "find_scene", side_effect=lambda _frame, key: dialog if key == "lobby_popup_dialog" else None), \
+         patch.object(med, "act_key", return_value=True) as key:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+    key.assert_called_once_with("esc", "HitchDismissPopup")
+    assert med._hitch_rejected_row_ys == {385}
+    assert med._hitch_sm.pending_join is False
+
+
+def test_lobby_search_popup_dismiss_accepts_rejected_row_state_evidence() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = _fixture_frame()
+    post = live_capture._target_postcondition_snapshot(
+        "lobby_search",
+        med,
+        frame,
+        {"hitch_rejected_rows": [385]},
+        {"reason": "HitchDismissPopup"},
+        {},
+        before_frame=frame,
+        input_record={"success": True, "status": "SUCCESS"},
+    )
+
+    assert post["observed"] is True
+    assert post["authoritative"] is False
+    assert post["visual_change"]["rejected_rows"] == [385]
+
+
+def test_lobby_resource_preflight_reports_missing_templates(tmp_path: Path) -> None:
+    med = SimpleNamespace(images=tmp_path)
+    missing = live_capture._lobby_resource_preflight(med, "lobby_hitch")
+
+    assert len(missing) == 3
+    assert len(live_capture._lobby_resource_preflight(med, "lobby_search")) == 2
+    assert live_capture._lobby_resource_preflight(med, "black_merchant") == []
+
+
+def test_lobby_resource_preflight_rejects_blank_templates(tmp_path: Path) -> None:
+    lobby = tmp_path / "lobby"
+    lobby.mkdir()
+    for name in (
+        "lobby_search_box.png",
+        "lobby_refresh.png",
+        "lobby_room_list_selected.png",
+    ):
+        cv2.imwrite(str(lobby / name), np.zeros((24, 32, 3), dtype=np.uint8))
+
+    missing = live_capture._lobby_resource_preflight(SimpleNamespace(images=tmp_path), "lobby_hitch")
+
+    assert len(missing) == 3
+    assert all("blank or low-contrast" in item for item in missing)

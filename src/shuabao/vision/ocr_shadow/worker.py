@@ -179,17 +179,30 @@ def _predict(rec: Any, image_b64: str, kind: str | None) -> tuple[list[dict[str,
         lookup_kind = kind
         if isinstance(lookup_kind, str) and lookup_kind.endswith("_desc"):
             lookup_kind = lookup_kind.removesuffix("_desc")
-        lookup = lookup_lexicon(normalized, kind=lookup_kind, lexicon=lexicon)
-        if lookup.canonical is not None and "/" in normalized:
-            if progress_text is None or rec_score > progress_text[2]:
-                progress_text = (lookup.canonical, normalized, rec_score)
-        if lookup.canonical is not None and (best is None or rec_score > best[1]):
-            best = (normalized, rec_score, lookup)
-            if rec_score >= 0.98:
-                break
+        lookup = None
+        if lookup_kind in ("skill", "bond", "treasure", "card", "hero", "reputation"):
+            try:
+                lookup = lookup_lexicon(normalized, kind=lookup_kind, lexicon=lexicon)
+            except ValueError:
+                lookup = None
+        if lookup is not None:
+            if lookup.canonical is not None and "/" in normalized:
+                if progress_text is None or rec_score > progress_text[2]:
+                    progress_text = (lookup.canonical, normalized, rec_score)
+            if lookup.canonical is not None and (best is None or rec_score > best[1]):
+                best = (normalized, rec_score, lookup)
+                if rec_score >= 0.98:
+                    break
+        else:
+            if best is None or rec_score > best[1]:
+                best = (normalized, rec_score, None)
+                if rec_score >= 0.95:
+                    break
     if best is None:
         return [], best_raw[0], best_raw[1]
     normalized, rec_score, lookup = best
+    if lookup is None:
+        return [{"name": normalized, "confidence": max(0.0, min(1.0, rec_score))}], normalized, rec_score
     if progress_text is not None and progress_text[0] == lookup.canonical:
         normalized = progress_text[1]
     names = list(lookup.top2_names) or [lookup.canonical]

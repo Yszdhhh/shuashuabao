@@ -603,15 +603,20 @@ class Mediator:
         # Safety: L0 cycle counter — prevent infinite PLATFORM_MAP ↔ ROOM_WAITING loops
         self._l0_cycle_count = 0
         self._l0_cycle_limit = 5
-        refresh_lo, refresh_hi = 3.0, 4.0
+        refresh_lo, refresh_hi = 5.0, 5.0
         try:
             from shuabao.shell.mode_catalog import hitch_refresh_window
 
             refresh_lo, refresh_hi = hitch_refresh_window()
         except Exception:
             pass
+        prefixes_raw = getattr(settings, "hitch_stage_prefix", "3")
+        prefix_list = [p.strip() for p in str(prefixes_raw).replace("，", ",").split(",") if p.strip()]
+        rotate_int = int(getattr(settings, "hitch_rotate_interval", 10) or 10)
         self._hitch_sm = HitchSearchSM(
-            prefix=normalize_prefix(getattr(settings, "hitch_stage_prefix", "3")),
+            prefix=prefix_list[0] if prefix_list else "3",
+            prefixes=prefix_list or ["3"],
+            rotate_interval=rotate_int,
             refresh_s_min=refresh_lo,
             refresh_s_max=refresh_hi,
         )
@@ -622,6 +627,14 @@ class Mediator:
         self._hitch_re_search = False
         self._hitch_status = ""
         self._hitch_join_refresh_count = 0
+        self._hitch_prefix_searched = False
+        self._hitch_rejected_row_ys: set[int] = set()
+        self._hitch_pending_row_y: int | None = None
+        # Session-local blacklist keyed by the visible lobby room-number cell.
+        self._hitch_blacklisted_room_keys: set[str] = set()
+        self._hitch_pending_room_key: str | None = None
+        self._hitch_floor_exit_attempted_at: float | None = None
+        self._hitch_refresh_required = False
         self._follow_sm = FollowTeamSM()
         self._hitch_search_actions: list[str] = []
         # L0 建房请求：点击成功不等于弹窗已打开，必须等待专用锚点确认。
@@ -634,6 +647,7 @@ class Mediator:
         # Safety: MAIN_LINE idle deadline — prevent infinite idle on unexpected screens
         self._main_line_since: float | None = None
         self._main_line_started_at: float | None = None
+        self._pressure_next_at: float = 0.0
         # L1 reward/challenge actions are one-shot until the next game.
         self._selection_click_cooldown_until = 0.0
         self._challenge_done: set[str] = set()
@@ -676,6 +690,9 @@ class Mediator:
         self._archive_challenge_index: int = 0
         self._archive_challenge_next_at: float = 0.0
         self._time_cave_boss_done: bool = False
+        self._hitch_postgame_hero_selected: bool = False
+        self._hitch_postgame_returned_to_base: bool = False
+        self._hitch_heirloom_exit_at: float | None = None
         # Optional post-victory great-rift chain.  Every input has a dedicated
         # anchor and a bounded post-click observation window.
         self._secret_realm_request_pending: bool = False
@@ -1042,6 +1059,8 @@ class Mediator:
             self._create_room_pending_since is not None
             or self.phase == Phase.CREATE_ROOM
         )
+        hitch_join_probe = role == "l0" and self._hitch_sm.pending_join
+        hitch_exit_probe = role == "l0" and getattr(self, "_hitch_floor_exit_pending", False)
         self._capture_candidates = len(targets)
         def capture_one(target):
             frame = capture_target(target)
@@ -1059,8 +1078,26 @@ class Mediator:
         # would otherwise starve the dialog forever.  Probe every candidate
         # only during this bounded episode and prefer the structurally
         # confirmed form.  No focus change or input is performed here.
-        if create_dialog_probe:
+        if create_dialog_probe or hitch_join_probe or hitch_exit_probe:
             frames = [capture_one(target) for target in targets]
+            if hitch_exit_probe:
+                # The confirmation prompt may be hosted by its own KK child
+                # HWND.  KK's dialog frame template is version-sensitive;
+                # while exit is pending, the left-side blue Confirm control is
+                # the direct, action-specific proof and cannot be a Ready
+                # button (Ready is outside this ROI).
+                for candidate in frames:
+                    if self._find_hitch_exit_confirm_button(candidate) is not None:
+                        self._capture_miss_streak = 0
+                        return candidate
+            if hitch_join_probe:
+                # KK opens the joined room as a separate same-title HWND.
+                # While a join is pending, the healthy lobby parent must not
+                # starve the child window that owns Ready/Exit controls.
+                for candidate in frames:
+                    if self._hitch_room_controls_visible(candidate):
+                        self._capture_miss_streak = 0
+                        return candidate
             for candidate in frames:
                 if self._find_create_confirm(candidate):
                     self._capture_miss_streak = 0
@@ -1670,6 +1707,49 @@ class Mediator:
         )
         action_ms = (time.perf_counter() - t0) * 1000.0
         self._trace_actions.append({"intent": f"key:{key}", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
+
+    def act_type_text(self, text: str, reason: str = "") -> bool:
+        if self._action_forbidden(reason):
+            return False
+        if not self._action_gate_ok(reason):
+            return False
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] type {text!r} ({reason})")
+        t0 = time.perf_counter()
+        res = self.executor.type_text(
+            text,
+            target_hwnd=target_hwnd,
+            dry_run=self.settings.dry_run,
+        )
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": f"type:{text}", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
+
+    def act_double_click(self, hit: MatchResult, reason: str = "") -> bool:
+        if self._action_forbidden(reason):
+            return False
+        if not self._action_gate_ok(reason):
+            return False
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] double_click {hit.name} score={hit.score:.3f} @ {hit.center} ({reason})")
+        t0 = time.perf_counter()
+        res = self.executor.double_click(hit.screen_x, hit.screen_y, target_hwnd=target_hwnd, dry_run=self.settings.dry_run, delay_ms=50)
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": f"double_click:{hit.name}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
+
+    def act_search_box(self, hit: MatchResult, text: str, reason: str = "") -> bool:
+        if self._action_forbidden(reason):
+            return False
+        if not self._action_gate_ok(reason):
+            return False
+        target_hwnd = self._last_frame.hwnd if self._last_frame else None
+        print(f"[med] search_box text={text!r} @ {hit.center} ({reason})")
+        t0 = time.perf_counter()
+        res = self.executor.search_text(hit.screen_x, hit.screen_y, text, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": f"search:{text}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
         return self._finish_input(res, reason, action_ms)
 
     def act_scroll(self, x: int, y: int, clicks: int, reason: str = "") -> bool:
@@ -4196,7 +4276,7 @@ class Mediator:
         "ok": (0.30, 0.40, 0.60, 0.65),
         "archiveChallenge": (0.40, 0.00, 0.60, 0.08),
         "close": (0.55, 0.15, 0.70, 0.35),
-        "damijing": (0.60, 0.15, 1.00, 0.55),
+        "damijing": (0.45, 0.15, 1.00, 0.55),
         "quit": (0.00, 0.00, 0.12, 0.15),
         "HeroChallenge": (0.00, 0.00, 0.30, 0.20),
     }
@@ -4204,8 +4284,8 @@ class Mediator:
     # 挑战广场标签位于游戏画面中上部；与顶部常驻“存档挑战”计时条
     # 分开取 ROI。标签尺寸会随客户端渲染缩放，不能只扫 _hot_scales()。
     _POST_GAME_HUB_ENTRY_ROIS = {
-        "archive": (0.48, 0.15, 0.68, 0.38),
-        "heirloom": (0.58, 0.15, 0.80, 0.38),
+        "archive": (0.35, 0.15, 0.55, 0.40),
+        "heirloom": (0.35, 0.15, 0.65, 0.40),
     }
 
     # 存档页右侧时光之穴 Boss 卡是缩小后的 58~70px 图标；传家宝页的
@@ -4226,6 +4306,11 @@ class Mediator:
     _ARCHIVE_CHALLENGE_NAMES = (
         "skill", "strengthen", "gem", "loot",
         "key", "recast", "blessing", "skill2",
+    )
+    # 蹭车结算只消费玩家实际需要的四类存档挑战。宝石、战利品的
+    # ``0/8`` 是不可挑战，不是“已挑战”；密钥和祝福必须逐项发出输入。
+    _HITCH_ARCHIVE_CHALLENGE_SLOTS = (
+        ("gem", 2), ("loot", 3), ("key", 4), ("blessing", 6),
     )
     # 依据真实 1596x921/1597x929 战后 fixture；仅在 ARCHIVE_PANEL 已分类后使用。
     _ARCHIVE_CHALLENGE_X = (0.396, 0.465, 0.535, 0.604)
@@ -4282,25 +4367,54 @@ class Mediator:
         green = cv2.inRange(hsv, (42, 120, 100), (88, 255, 255))
         return int(np.count_nonzero(green)) >= 100
 
+    def _archive_hitch_card_unavailable(self, frame: Frame, card_index: int) -> bool:
+        """Detect the red ``0/8`` counter on the two resource-gated cards."""
+        if frame.bgr is None or card_index not in {2, 3}:
+            return False
+        col, row = card_index % 4, card_index // 4
+        cx = int(frame.width * self._ARCHIVE_CHALLENGE_X[col])
+        cy = int(frame.height * self._ARCHIVE_CHALLENGE_Y[row])
+        counter = frame.bgr[
+            max(0, cy - int(frame.height * 0.078)):max(0, cy - int(frame.height * 0.039)),
+            min(frame.width, cx + int(frame.width * 0.002)):min(frame.width, cx + int(frame.width * 0.027)),
+        ]
+        if counter.size == 0:
+            return False
+        hsv = cv2.cvtColor(counter, cv2.COLOR_BGR2HSV)
+        red = (((hsv[:, :, 0] <= 15) | (hsv[:, :, 0] >= 160))
+               & (hsv[:, :, 1] >= 100) & (hsv[:, :, 2] >= 80))
+        return int(np.count_nonzero(red)) >= 40
+
+    def _archive_challenge_plan(self) -> tuple[tuple[str, int], ...]:
+        if self._team_mode_enabled():
+            return self._HITCH_ARCHIVE_CHALLENGE_SLOTS
+        return tuple((label, index) for index, label in enumerate(self._ARCHIVE_CHALLENGE_NAMES))
+
     def _maybe_click_archive_challenge(self, frame: Frame, now: float) -> LoopAction | None:
         """Try each visible archive challenge card once on the classified page."""
         index = int(getattr(self, "_archive_challenge_index", 0) or 0)
-        if index >= len(self._ARCHIVE_CHALLENGE_NAMES):
+        plan = self._archive_challenge_plan()
+        if index >= len(plan):
             return None
         if now < getattr(self, "_archive_challenge_next_at", 0.0):
             return LoopAction.Continue
-        while index < len(self._ARCHIVE_CHALLENGE_NAMES) and self._archive_challenge_completed(frame, index):
-            index += 1
+        if not self._hitch_enabled():
+            while index < len(plan) and self._archive_challenge_completed(frame, plan[index][1]):
+                index += 1
         self._archive_challenge_index = index
-        if index >= len(self._ARCHIVE_CHALLENGE_NAMES):
-            print("[med] 存档挑战八项均显示已挑战，关闭面板并转传家宝")
+        if index >= len(plan):
+            print("[med] 存档挑战计划已完成，关闭面板并转传家宝")
             return None
-        hit = self._find_archive_challenge_card(frame, index)
-        if hit is None:
-            print(f"[med] 存档挑战卡位 {index + 1}/8 无有效卡面证据，零输入等待")
+        label, card_index = plan[index]
+        if self._archive_hitch_card_unavailable(frame, card_index):
+            print(f"[med] 蹭车存档挑战 {label} 显示 0/8，跳过不可挑战卡")
+            self._archive_challenge_index = index + 1
             return LoopAction.Continue
-        label = self._ARCHIVE_CHALLENGE_NAMES[index]
-        print(f"[med] 存档挑战 {index + 1}/8：点击 {label} @ {hit.center}")
+        hit = self._find_archive_challenge_card(frame, card_index)
+        if hit is None:
+            print(f"[med] 存档挑战卡位 {card_index + 1}/8 无有效卡面证据，零输入等待")
+            return LoopAction.Continue
+        print(f"[med] 存档挑战 {index + 1}/{len(plan)}：点击 {label} @ {hit.center}")
         if self.act_click(hit, f"ArchiveChallenge-{label}"):
             self._archive_challenge_index = index + 1
             self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
@@ -4359,7 +4473,7 @@ class Mediator:
         """
         names = {
             "archive": ["archiveChallenge"],
-            "heirloom": ["cjbtiaozhan"],
+            "heirloom": ["chuanjiabao", "cjbtiaozhan"],
         }.get(route)
         roi = self._POST_GAME_HUB_ENTRY_ROIS.get(route)
         if not names or roi is None:
@@ -4462,15 +4576,6 @@ class Mediator:
                     if w * 0.35 <= px <= w * 0.65 and h * 0.20 <= py <= h * 0.55:
                         return "PAUSED"
 
-            # 选择面板存在时，战后独占页（胜利/传家宝/大秘境/存档/广场）不可能与
-            # 局内选择面板同时出现：跳过剩余战后扫描（N2.4：提前到 victory 锚点
-            # 之前，选择 tick 不再每 tick 扫战后库；PAUSED 已先行检查不受影响）。
-            # 战后链已接管时，存档卡上的“技能挑战”图案会命中局内
-            # skill_panel 模板。此时必须继续扫描战后专属锚点，否则
-            # ARCHIVE_PANEL 永远不会分类，八卡点击分支也无法到达。
-            if self._selection_anchor(frame) and not self._post_game_pending:
-                return None
-
             # 1) Victory: continue button is unique to the victory modal.
             if find("continueGame", 0.80):
                 return "POST_VICTORY"
@@ -4486,10 +4591,28 @@ class Mediator:
                 if m and w * 0.30 <= m.x <= w * 0.60 and h * 0.40 <= m.y <= h * 0.65:
                     return "GREAT_RIFT_CONFIRM"
 
+            # 新版挑战广场底部的普通物品会误命中 heroRefresh；在前景弹窗
+            # 均被排除后，三个页面专属锚点足以确认 NPC_HUB。
+            hub_quit = find("quit", 0.75)
+            hub_rift = find("damijing", 0.80)
+            hub_hero = find("HeroChallenge", 0.85)
+            if (
+                hub_quit and hub_quit.x <= w * 0.10 and hub_quit.y <= h * 0.15
+                and hub_rift and w * 0.45 <= hub_rift.x <= w * 0.70 and h * 0.15 <= hub_rift.y <= h * 0.55
+                and hub_hero and w * 0.15 <= hub_hero.x <= w * 0.35 and hub_hero.y <= h * 0.15
+                and getattr(self, "_post_game_route", "") != "boss_active"
+            ):
+                return "NPC_HUB"
+
+            # 选择面板不再扫描存档/广场等底层页面；前景胜利、传家宝、
+            # 秘境确认和三锚点广场已在此之前排除。
+            if self._selection_anchor(frame) and not self._post_game_pending:
+                return None
+
             # 4) Archive panel. Keep the original high-confidence path for
             # legacy pages, and accept the modal close button when archive evidence is present.
-            rift_npc = find("damijing", 0.80)
-            rift_npc_right = bool(rift_npc and rift_npc.x >= w * 0.60 and h * 0.15 <= rift_npc.y <= h * 0.55)
+            rift_npc = hub_rift
+            rift_npc_right = bool(rift_npc and rift_npc.x >= w * 0.55 and h * 0.15 <= rift_npc.y <= h * 0.55)
             legacy_arch = find("archiveChallenge", 0.85)
             legacy_close = find("close", 0.85)
             if legacy_arch and legacy_close and legacy_close.x >= w * 0.55 and legacy_close.y <= h * 0.40 and not rift_npc_right:
@@ -4758,7 +4881,7 @@ class Mediator:
             if post_game == "ARCHIVE_PANEL":
                 self._time_cave_boss_done = True
                 self._boss_challenge_next_at = now + self.settings.ui_action_interval_s
-                self._post_game_route = "archive"
+                self._post_game_route = "boss_active" if self._team_mode_enabled() else "archive"
             elif post_game == "HEIRLOOM_DIALOG" and getattr(self, "_post_game_pending", False):
                 self._post_game_route = "heirloom_active"
             if getattr(self, "_early_challenge_pending", False):
@@ -4954,6 +5077,22 @@ class Mediator:
                 self._main_line_closed_done = True
                 self._main_line_since = now
                 return LoopAction.Continue
+        return None
+
+    def _maybe_clear_pressure_monsters(self, frame: Frame, now: float) -> LoopAction | None:
+        """周期性触发 F4 清除挑怪（压力转移）。"""
+        if not getattr(self.settings, "auto_pressure", True):
+            return None
+        if now < getattr(self, "_pressure_next_at", 0.0):
+            return None
+        if not self._is_in_game_hud(frame):
+            return None
+        interval = float(getattr(self.settings, "pressure_interval_s", 20.0) or 20.0)
+        self._pressure_next_at = now + interval
+        if self.act_key("f4", "ClearPressureMonsters"):
+            print(f"[L1] 压力转移: 按下 F4 清除挑怪 (下次间隔 {interval}s)")
+            self._main_line_since = now
+            return LoopAction.Continue
         return None
 
     def _find_secret_realm_npc(self, frame: Frame) -> MatchResult | None:
@@ -5843,6 +5982,7 @@ class Mediator:
             self._close_main_line_triggered = False
             self._main_line_closed_done = False
             self._challenge_recheck_at.clear()
+            self._pressure_next_at = 0.0
             self._challenge_states = {
                 "coin_challenge": ChallengeState.PENDING,
                 "wood_challenge": ChallengeState.PENDING,
@@ -5867,6 +6007,10 @@ class Mediator:
             self._post_game_route = "secret"
             self._time_cave_boss_done = False
             self._archive_challenge_index = 0
+            self._hitch_postgame_hero_selected = False
+            self._hitch_postgame_returned_to_base = False
+            self._hitch_heirloom_exit_at = None
+            self._post_game_hub_entered_at = None
             self._post_game_close_attempts = 0
             self._secret_realm_request_pending = False
             self._secret_realm_request_since = None
@@ -6477,39 +6621,381 @@ class Mediator:
     def _follow_enabled(self) -> bool:
         return str(getattr(self.settings, "mode_id", "") or "") == "follow_team"
 
+    def _team_mode_enabled(self) -> bool:
+        mode = str(getattr(self.settings, "mode_id", "") or "")
+        return mode in {"lobby_hitch", "follow_team", "lead_team", "lead"}
+
     def _passive_choice_mode(self) -> bool:
         return self._hitch_enabled() or self._follow_enabled()
+    def _lobby_room_list_evidence(self, frame: Frame) -> bool:
+        """Return true only for controls in the room-list tab, never row text."""
+        if frame.bgr is not None:
+            tab = frame.bgr[
+                int(frame.height * 0.24):int(frame.height * 0.29),
+                int(frame.width * 0.22):int(frame.width * 0.34),
+            ]
+            if tab.size:
+                blue, green, red = cv2.split(tab)
+                selected_pixels = (blue > 100) & (green > 80) & (red < 100) \
+                    & ((blue.astype(np.int16) - red.astype(np.int16)) > 70)
+                if int(np.count_nonzero(selected_pixels)) >= 20:
+                    return True
+        selected = self.find_scene(frame, "lobby_room_list_selected")
+        if selected is not None and (
+            int(frame.width * 0.22) <= selected.x <= int(frame.width * 0.34)
+            and int(frame.height * 0.22) <= selected.y <= int(frame.height * 0.30)
+        ):
+            return True
+        for key in ("lobby_refresh", "lobby_search_box"):
+            hit = self.find_scene(frame, key)
+            if hit is not None and hit.y >= int(frame.height * 0.20):
+                return True
+        return False
 
-    def _hitch_ocr_text(self) -> str:
+    @staticmethod
+    def _hitch_room_number_key(frame: Frame, row_y: int) -> str | None:
+        """Return a scale-stable visual key for one lobby row's room number."""
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
+            return None
+        y0, y1 = max(0, row_y - 18), min(frame.height, row_y + 18)
+        x0, x1 = int(frame.width * 0.17), int(frame.width * 0.29)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        mask = (cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY) >= 135).astype(np.uint8) * 255
+        if int(np.count_nonzero(mask)) < 20:
+            return None
+        normalized = cv2.resize(mask, (72, 24), interpolation=cv2.INTER_NEAREST)
+        return hashlib.sha256(normalized.tobytes()).hexdigest()
+
+    def _find_hitch_joinable_row(self, frame: Frame) -> MatchResult | None:
+        """Return the first visible ``n/4`` row that is safe to join."""
+        w, h = frame.width, frame.height
+        if w <= 0 or h <= 0 or frame.bgr is None or not self._lobby_room_list_evidence(frame):
+            return None
+
+        img_dir = self.images
+        tpl_lock = _load_template(img_dir / "lobby" / "lobby_room_lock.png")
+        tpl_4_4 = _load_template(img_dir / "lobby" / "lobby_4_4.png")
+        tpl_ingame = _load_template(img_dir / "lobby" / "lobby_in_game.png")
+        if tpl_4_4 is None or float(np.std(tpl_4_4)) < 8.0:
+            print("[L0] hitch row-safety templates invalid; search is allowed, joining is blocked")
+            return None
+
+        def has_gray_lock(row_crop: np.ndarray) -> bool:
+            """Detect the gray lock by its own shackle/body shape in the name cell."""
+            name_left, name_right = int(w * 0.25), int(w * 0.55)
+            name = row_crop[:, name_left:name_right]
+            if name.size == 0:
+                return False
+            gray = cv2.cvtColor(name, cv2.COLOR_BGR2GRAY)
+            spread = name.max(axis=2).astype(np.int16) - name.min(axis=2).astype(np.int16)
+            neutral = ((gray > 80) & (spread < 28)).astype(np.uint8)
+            labels_count, labels, stats, _ = cv2.connectedComponentsWithStats(neutral, 8)
+            for label in range(1, labels_count):
+                lx, ly, lw, lh, area = stats[label]
+                if not (8 <= lw <= 12 and 11 <= lh <= 14 and 65 <= area <= 120):
+                    continue
+                component = labels[ly:ly + lh, lx:lx + lw] == label
+                split = max(1, lh // 2)
+                top_fill = float(np.mean(component[:split]))
+                bottom_fill = float(np.mean(component[split:]))
+                first_fill = float(np.mean(component[0]))
+                # Live lock: sparse curved shackle over a nearly solid body.
+                # Ordinary room-name glyphs in the same rows do not have a
+                # solid lower half, and yellow badges are excluded as non-gray.
+                if (
+                    0.30 <= top_fill <= 0.75
+                    and bottom_fill >= 0.90
+                    and 0.20 <= first_fill <= 0.70
+                ):
+                    return True
+            return False
+
+        def text_metrics(crop: np.ndarray) -> tuple[int, int, int]:
+            """Return bright glyph pixels, width and height for one table cell."""
+            if crop.size == 0:
+                return 0, 0, 0
+            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+            threshold = max(80.0, float(np.median(gray)) + 45.0)
+            ys, xs = np.where(gray > threshold)
+            if xs.size == 0:
+                return 0, 0, 0
+            return (
+                int(xs.size),
+                int(xs.max() - xs.min() + 1),
+                int(ys.max() - ys.min() + 1),
+            )
+
+        row_step = max(1, int(h * (48.0 / 945.0)))
+        first_row_y = int(h * (385.0 / 945.0))
+        count_left = int(w * 0.60)
+        count_right = int(w * 0.82)
+        count_text_left = int(w * 0.66)
+        count_text_right = int(w * 0.75)
+        for i in range(10):
+            row_y = first_row_y + i * row_step
+            if row_y + 20 >= h:
+                break
+            if row_y in self._hitch_rejected_row_ys:
+                continue
+            row_crop = frame.bgr[row_y - 20:row_y + 20, :]
+            room_key = self._hitch_room_number_key(frame, row_y)
+            if room_key is not None and room_key in self._hitch_blacklisted_room_keys:
+                continue
+
+            # Fast rejection order from live evidence: 游戏中 → 4/4 → 灰锁.
+            status_crop = row_crop[:, count_right:]
+            status_pixels, status_width, _ = text_metrics(status_crop)
+            if status_pixels >= 80 or status_width >= 24:
+                continue
+            if tpl_ingame is not None and float(np.std(tpl_ingame)) >= 8.0:
+                result = cv2.matchTemplate(status_crop, tpl_ingame, cv2.TM_CCOEFF_NORMED)
+                if float(cv2.minMaxLoc(result)[1]) >= 0.85:
+                    continue
+
+            count_pixels, count_width, count_height = text_metrics(
+                row_crop[:, count_text_left:count_text_right]
+            )
+            # A room is a candidate only when the occupancy cell positively
+            # looks like one compact ``n/4`` token. Blank/unknown rows fail closed.
+            if not (
+                40 <= count_pixels <= 140
+                and 16 <= count_width <= 24
+                and 7 <= count_height <= 14
+            ):
+                continue
+
+            result = cv2.matchTemplate(
+                row_crop[:, count_left:count_right],
+                tpl_4_4,
+                cv2.TM_CCOEFF_NORMED,
+            )
+            if float(cv2.minMaxLoc(result)[1]) >= 0.90:
+                continue
+
+            if has_gray_lock(row_crop):
+                continue
+            if tpl_lock is not None and float(np.std(tpl_lock)) >= 8.0:
+                lock_left = int(w * 0.25)
+                lock_right = int(w * 0.55)
+                result = cv2.matchTemplate(
+                    row_crop[:, lock_left:lock_right],
+                    tpl_lock,
+                    cv2.TM_CCOEFF_NORMED,
+                )
+                if float(cv2.minMaxLoc(result)[1]) >= 0.85:
+                    continue
+            click_x = int(w * 0.35)
+            click_y = row_y
+            return MatchResult(
+                name="room_list_row",
+                score=1.0,
+                x=click_x,
+                y=click_y,
+                w=int(w * 0.4),
+                h=int(h * 0.04),
+                screen_x=int(frame.left + click_x),
+                screen_y=int(frame.top + click_y),
+            )
+        return None
+
+    def _hitch_room_blue_controls(self, frame: Frame) -> list[tuple[MatchResult, int]]:
+        """Return visually confirmed blue controls in the room action bar."""
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
+            return []
+        w, h = frame.width, frame.height
+        x0, x1 = int(w * 0.45), int(w * 0.95)
+        y0, y1 = int(h * 0.55), int(h * 0.75)
+        roi = frame.bgr[y0:y1, x0:x1]
+        if roi.size == 0:
+            return []
+        blue, green, red = cv2.split(roi)
+        blue_gap = blue.astype(np.int16) - red.astype(np.int16)
+        mask = (
+            (blue > 90)
+            & (green > 40)
+            & (green < 220)
+            & (red < 50)
+            & (blue_gap > 75)
+        ).astype(np.uint8)
+        _, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+        controls: list[tuple[MatchResult, int]] = []
+        for x, y, cw, ch, area in stats[1:]:
+            if not (
+                w * 0.06 <= cw <= w * 0.16
+                and h * 0.025 <= ch <= h * 0.06
+                and area >= cw * ch * 0.55
+            ):
+                continue
+            crop = frame.bgr[y0 + y:y0 + y + ch, x0 + x:x0 + x + cw]
+            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+            saturation = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)[:, :, 1]
+            ys, xs = np.where((gray > 150) & (saturation < 100))
+            if xs.size < 60:
+                continue
+            text_width = int(xs.max() - xs.min() + 1)
+            text_height = int(ys.max() - ys.min() + 1)
+            if not (18 <= text_width <= 90 and 8 <= text_height <= 22):
+                continue
+            hit_x, hit_y = int(x0 + x), int(y0 + y)
+            controls.append((
+                MatchResult(
+                    name="room_blue_action",
+                    score=1.0,
+                    x=hit_x,
+                    y=hit_y,
+                    w=int(cw),
+                    h=int(ch),
+                    screen_x=int(frame.left + hit_x + cw // 2),
+                    screen_y=int(frame.top + hit_y + ch // 2),
+                ),
+                text_width,
+            ))
+        return sorted(controls, key=lambda item: item[0].x)
+
+    def _hitch_room_action_control(self, frame: Frame) -> tuple[MatchResult, int] | None:
+        """Return the room's blue primary control and its white-label width."""
+        for hit, text_width in self._hitch_room_blue_controls(frame):
+            if hit.x < frame.width * 0.78:
+                return replace(hit, name="room_primary_action"), text_width
+        return None
+
+    def _find_hitch_ready_button(self, frame: Frame) -> MatchResult | None:
+        control = self._hitch_room_action_control(frame)
+        if control is None:
+            return None
+        hit, text_width = control
+        # Live KK evidence: “准备” is 28 px wide; “开始游戏/取消准备”
+        # is a four-character label and must never be clicked by hitch mode.
+        return replace(hit, name="room_ready") if text_width <= 45 else None
+
+    def _hitch_room_controls_visible(self, frame: Frame) -> bool:
+        return self._hitch_room_action_control(frame) is not None
+
+    def _find_hitch_exit_confirm_button(self, frame: Frame) -> MatchResult | None:
+        """Find the blue Confirm control in KK's modern exit-room dialog."""
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
+            return None
+        w, h = frame.width, frame.height
+        x0, x1 = int(w * 0.05), int(w * 0.62)
+        y0, y1 = int(h * 0.25), int(h * 0.75)
+        roi = frame.bgr[y0:y1, x0:x1]
+        if roi.size == 0:
+            return None
+        blue, green, red = cv2.split(roi)
+        mask = (
+            (blue > 90) & (green > 40) & (green < 220)
+            & (red < 50) & ((blue.astype(np.int16) - red.astype(np.int16)) > 75)
+        ).astype(np.uint8)
+        _, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+        for x, y, bw, bh, area in stats[1:]:
+            if not (
+                w * 0.10 <= bw <= w * 0.40
+                and h * 0.03 <= bh <= h * 0.12
+                and area >= bw * bh * 0.55
+            ):
+                continue
+            return MatchResult(
+                name="hitch_exit_confirm",
+                score=1.0,
+                x=x0 + int(x),
+                y=y0 + int(y),
+                w=int(bw),
+                h=int(bh),
+                screen_x=int(frame.left + x0 + x + bw // 2),
+                screen_y=int(frame.top + y0 + y + bh // 2),
+            )
+        return None
+
+    def _find_hitch_exit_button(self, frame: Frame) -> MatchResult | None:
+        for hit, text_width in reversed(self._hitch_room_blue_controls(frame)):
+            if hit.x > frame.width * 0.80 and text_width <= 45:
+                return replace(hit, name="room_exit")
+        return None
+
+    def _hitch_room_seat_decision(self, frame: Frame) -> str:
+        """Ready only when KK visibly marks the first room row as the host."""
+        if frame.bgr is None or not self._hitch_room_controls_visible(frame):
+            return "leave_uncertain"
+
+        h, w = frame.bgr.shape[:2]
+        first_y = int(h * 0.245)
+        host_state = frame.bgr[
+            max(0, first_y - 12):min(h, first_y + 12),
+            # “房主” is on the left of the status cell; the right side is a
+            # character portrait and can contain unrelated red pixels.
+            int(w * 0.81):int(w * 0.845),
+        ]
+        if host_state.size == 0:
+            return "leave_host_not_floor_one"
+        blue, green, red = cv2.split(host_state)
+        host_pixels = (red > 130) & ((red.astype(np.int16) - green.astype(np.int16)) > 45) \
+            & ((red.astype(np.int16) - blue.astype(np.int16)) > 80)
+        # The first row must visibly carry KK's red “房主” state label.
+        return "ready" if int(np.count_nonzero(host_pixels)) >= 18 else "leave_host_not_floor_one"
+
+    def _hitch_ocr_text(self, frame: Frame | None = None) -> str:
         override = getattr(self, "_hitch_ocr_override", None)
         if override is not None:
             return str(override)
+        target_frame = frame if frame is not None else getattr(self, "_last_frame", None)
+        if target_frame is not None:
+            if self._find_hitch_joinable_row(target_frame) is not None:
+                return "3/4"
+            if self.find_scene(target_frame, "lobby_3_4") is not None:
+                return "3/4"
         return ""
 
-    def _hitch_prefix_ok(self) -> bool:
-        return has_prefix_evidence(self._hitch_ocr_text(), self._hitch_sm.prefix)
+    def _hitch_prefix_ok(self, frame: Frame | None = None) -> bool:
+        if getattr(self, "_hitch_prefix_searched", False):
+            return True
+        return has_prefix_evidence(self._hitch_ocr_text(frame), self._hitch_sm.prefix)
 
-    def _hitch_room_matched(self) -> bool:
-        if not self._hitch_prefix_ok():
-            return False
+    def _hitch_room_matched(self, frame: Frame | None = None) -> bool:
         override = getattr(self, "_hitch_match_override", None)
         if override is not None:
             return bool(override)
-        return True
+        if frame is not None:
+            return self._find_hitch_joinable_row(frame) is not None
+        return False
 
     def _hitch_action_hit(self, frame: Frame, action: HitchAction):
         override = getattr(self, "_hitch_hit_override", None)
         if override is not None:
             return override
-        keys = {
-            HitchAction.REFRESH: ("lobby_refresh", "refresh"),
-            HitchAction.JOIN: ("lobby_join", "room_list_row"),
-            HitchAction.GO_HOME: ("lobby_home", "lobby_back"),
-        }
-        for key in keys.get(action, ()):
-            hit = self.find_scene(frame, key)
-            if hit is not None:
-                return hit
+        if action == HitchAction.JOIN:
+            # lobby_hitch never uses Quick Join; only a verified room row is safe.
+            return self._find_hitch_joinable_row(frame)
+        if action == HitchAction.REFRESH:
+            if not self._lobby_room_list_evidence(frame):
+                return None
+            detected = self.find_scene(frame, "lobby_refresh")
+            if detected is not None:
+                return replace(
+                    detected,
+                    screen_y=detected.screen_y - detected.h // 2,
+                )
+            w, h = frame.width, frame.height
+            left = getattr(frame, "left", 0) or 0
+            top = getattr(frame, "top", 0) or 0
+            rx = int(w * (1055.0 / 1332.0))
+            ry = int(h * (292.0 / 945.0))
+            return MatchResult(
+                name="lobby_refresh",
+                score=1.0,
+                x=rx,
+                y=ry,
+                w=40,
+                h=30,
+                screen_x=left + rx,
+                screen_y=top + ry,
+            )
+        if action == HitchAction.GO_HOME:
+            for key in ("lobby_home", "lobby_back", "room_exit_btn"):
+                hit = self.find_scene(frame, key)
+                if hit is not None:
+                    return hit
         return None
 
     def _hitch_lobby_home_visible(self, frame: Frame) -> bool:
@@ -6521,26 +7007,32 @@ class Mediator:
                 return True
         return False
 
+    def _hitch_reject_pending_join(self, now: float, reason: str) -> None:
+        if self._hitch_pending_row_y is not None:
+            self._hitch_rejected_row_ys.add(self._hitch_pending_row_y)
+        self._hitch_pending_row_y = None
+        self._hitch_sm.reject_join(now)
+        self._hitch_refresh_required = True
+        self._hitch_status = reason
+
     def _new_hitch_sm(self) -> HitchSearchSM:
         return HitchSearchSM(
             prefix=self._hitch_sm.prefix,
+            prefixes=self._hitch_sm.prefixes,
+            rotate_interval=self._hitch_sm.rotate_interval,
             refresh_s_min=self._hitch_sm.refresh_s_min,
             refresh_s_max=self._hitch_sm.refresh_s_max,
+            continuous=self._hitch_sm.continuous,
         )
 
     def _hitch_after_exit(self, now: float) -> None:
         self._awaiting_room_return = False
         self._hitch_re_search = True
         self._hitch_sm = self._new_hitch_sm()
-        self._hitch_status = "search"
-        self.set_phase(Phase.LOBBY_ROOM, "hitch exit; re-search lobby")
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
-        print(f"[L0] hitch {evidence}，重置大厅状态机（不记战斗超时）")
-        self._round_deadline = None
-        self._round_started_at = None
-        self._main_line_since = None
-        self._hitch_sm.reset_lobby(now, evidence)
+        print(f"[L0] hitch {evidence} 触发，重置状态回大厅")
+        self._hitch_after_exit(now)
         self._hitch_status = "大厅主页"
         self._hitch_re_search = False
         self.set_phase(Phase.LOBBY_ROOM, f"hitch {evidence} reset")
@@ -6581,7 +7073,9 @@ class Mediator:
         stage_page: bool = False,
     ) -> LoopAction:
         now = time.time()
-        event = classify_hitch_ocr(self._hitch_ocr_text())
+        # Live lobby scanning is visual; only an explicit OCR test override can
+        # carry kick/dissolve text.  Avoid scanning the whole room table here.
+        event = classify_hitch_ocr(str(getattr(self, "_hitch_ocr_override", "") or ""))
         if event:
             return self._hitch_reset_lobby(event, now)
         if context in ("MAIN_LINE", "IN_GAME"):
@@ -6593,11 +7087,144 @@ class Mediator:
             self.set_phase(Phase.STAGE_SELECT, "hitch stage page wait")
             print("[L0] hitch 选关页可见，零输入等待进局（不点关卡）")
             return LoopAction.Continue
-        in_room = room_start is not None or context == "ROOM_WAITING"
+        # 0. 已请求退出时，蓝色“确定”本身就是动作专属证据。此分支
+        # 必须先于通用弹窗模板，避免 KK 更新弹窗样式后无法退出。
+        exit_confirm = (
+            self._find_hitch_exit_confirm_button(frame)
+            if getattr(self, "_hitch_floor_exit_pending", False)
+            else None
+        )
+        if exit_confirm is not None:
+            if getattr(self, "_hitch_floor_exit_confirmed", False):
+                print("[L0] hitch 退出确认已点击，等待回到大厅列表（零输入）")
+                return LoopAction.Continue
+            if self.act_click(exit_confirm, "HitchConfirmLeave"):
+                if self._hitch_pending_room_key is not None:
+                    self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+                self._hitch_floor_exit_confirmed = True
+                self._hitch_status = "exit_confirmed"
+                print(
+                    "[L0] hitch 已确认退出房间: "
+                    f"({exit_confirm.screen_x}, {exit_confirm.screen_y})"
+                )
+            else:
+                print("[L0] hitch 退出确认按钮点击被拒绝（零输入等待）")
+            return LoopAction.Continue
+
+        # 检查其他弹窗（如满员/密码/等级不满足）。Esc 只关闭
+        # 当前 KK 同进程模态框，绝不点击弹窗里的 Quick Join。
+        dialog_hit = (
+            self.find_scene(frame, "lobby_popup_dialog")
+            or self.find_scene(frame, "lobby_popup_title")
+        )
+        if dialog_hit is not None:
+            exit_attempted = (
+                getattr(self, "_hitch_floor_exit_pending", False)
+                or (
+                    getattr(self, "_hitch_floor_exit_attempted_at", None) is not None
+                    and now - float(self._hitch_floor_exit_attempted_at) <= 3.0
+                )
+            )
+            if exit_attempted:
+                # SendInput can report failure while KK already opened this
+                # modal.  The modal itself is the visual postcondition for
+                # Exit, so only now arm the Confirm branch.
+                if not getattr(self, "_hitch_floor_exit_pending", False):
+                    self._hitch_floor_exit_pending = True
+                    if self._hitch_pending_room_key is not None:
+                        self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+                confirm = self._find_hitch_exit_confirm_button(frame)
+                if confirm is not None and self.act_click(confirm, "HitchConfirmLeave"):
+                    self._hitch_floor_exit_confirmed = True
+                    self._hitch_status = "exit_confirmed"
+                    print(
+                        "[L0] hitch 已确认退出房间: "
+                        f"({confirm.screen_x}, {confirm.screen_y})"
+                    )
+                else:
+                    print("[L0] hitch 退出确认弹窗可见，但蓝色确定按钮未确认（零输入等待）")
+                return LoopAction.Continue
+            dismissed = self.act_key("esc", "HitchDismissPopup")
+            if dismissed and self._hitch_sm.pending_join:
+                self._hitch_reject_pending_join(now, "popup_rejected")
+            print("[L0] hitch 检测到平台提示弹窗，按 Esc 关闭并跳过失败房间")
+            return LoopAction.Continue
+
+        ready_hit = self._find_hitch_ready_button(frame)
+        room_controls_visible = ready_hit is not None or self._hitch_room_controls_visible(frame)
+        in_room = (
+            room_start is not None
+            or context == "ROOM_WAITING"
+            or room_controls_visible
+        )
+        if (
+            self._hitch_sm.pending_join
+            and not in_room
+            and self._hitch_sm.join_clicked_at is not None
+            and now - self._hitch_sm.join_clicked_at >= self._hitch_sm.join_confirm_timeout_s
+        ):
+            dismissed = self.act_key("esc", "HitchDismissPopup")
+            if dismissed:
+                self._hitch_reject_pending_join(now, "join_rejected")
+                self._hitch_search_actions.append("reject")
+                print("[L0] hitch 进房超时：关闭满员/密码等提示，继续本页下一房间")
+            else:
+                self._hitch_sm.defer_retry(now)
+                print("[L0] hitch 进房超时，但提示关闭输入被拒绝")
+            self.set_phase(Phase.LOBBY_ROOM, "hitch join rejected")
+            return LoopAction.Continue
+        if getattr(self, "_hitch_floor_exit_pending", False):
+            if in_room:
+                print("[L0] hitch 已点击退出，等待大厅列表（零输入）")
+                return LoopAction.Continue
+            if frame.bgr is None or float(np.mean(frame.bgr)) < 3.0:
+                print("[L0] hitch 退出后捕获到黑帧，保持退出状态等待确认窗口/大厅")
+                return LoopAction.Continue
+            self._hitch_floor_exit_pending = False
+            self._hitch_floor_exit_confirmed = False
+            self._hitch_floor_exit_attempted_at = None
+            self._hitch_re_search = False
+            self._hitch_sm = self._new_hitch_sm()
+            self._hitch_refresh_required = True
+            self.set_phase(Phase.LOBBY_ROOM, "hitch floor-one rejection returned to lobby")
+            print("[L0] hitch 一楼条件不符，已回大厅；下个动作先刷新")
+
         if in_room and not self._hitch_re_search:
             if self._hitch_sm.pending_join:
                 self._hitch_sm.complete_join()
                 self._hitch_join_refresh_count = self._hitch_sm.attempts
+            seat_decision = self._hitch_room_seat_decision(frame)
+            if seat_decision != "ready":
+                exit_hit = self._find_hitch_exit_button(frame)
+                self._hitch_floor_exit_attempted_at = now if exit_hit is not None else None
+                if exit_hit is not None and self.act_click(exit_hit, "HitchLeaveFloorOne"):
+                    if self._hitch_pending_room_key is not None:
+                        self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+                    if self._hitch_pending_row_y is not None:
+                        self._hitch_rejected_row_ys.add(self._hitch_pending_row_y)
+                    self._hitch_pending_row_y = None
+                    self._hitch_floor_exit_pending = True
+                    self._hitch_floor_exit_confirmed = False
+                    self._hitch_status = seat_decision
+                    print(
+                        f"[L0] hitch 一楼条件不符({seat_decision})，点击退出: "
+                        f"({exit_hit.screen_x}, {exit_hit.screen_y})"
+                    )
+                else:
+                    self._hitch_sm.defer_retry(now)
+                    print(f"[L0] hitch 一楼条件不符({seat_decision})，但退出按钮未确认")
+                self.set_phase(Phase.ROOM_WAITING, "hitch reject floor one")
+                return LoopAction.Continue
+            if ready_hit is not None:
+                if self.act_click(ready_hit, "HitchReady"):
+                    self._hitch_pending_row_y = None
+                    self._hitch_status = "已点击准备"
+                    print(f"[L0] hitch 点击客人准备: ({ready_hit.screen_x}, {ready_hit.screen_y})")
+                else:
+                    self._hitch_sm.defer_retry(now)
+                    print("[L0] hitch 准备点击被拒绝，保持房间等待")
+                self.set_phase(Phase.ROOM_WAITING, "hitch guest ready")
+                return LoopAction.Continue
             self.set_phase(Phase.ROOM_WAITING, "hitch in room waiting host")
             print("[L0] hitch 已进房，等待房主开始（不点 RoomStart）")
             return LoopAction.Continue
@@ -6615,47 +7242,129 @@ class Mediator:
             print("[L0] hitch unmatched 后置确认大厅主页")
             self.set_phase(Phase.LOBBY_ROOM, "hitch 大厅主页")
             return LoopAction.Continue
-        prefix_ok = self._hitch_prefix_ok()
-        decision = self._hitch_sm.tick(
-            now=now,
-            matched=self._hitch_room_matched(),
-            ocr_text=self._hitch_ocr_text(),
-            prefix_ok=prefix_ok,
-            in_room=in_room,
-        )
+
+        # 1. 检查是否在房间列表中，若在地图详情等其他 Tab，点击「房间列表 99+」Tab 切换
+        is_in_room_list = self._lobby_room_list_evidence(frame)
+        if not is_in_room_list:
+            tab_unselected = self.find_scene(frame, "lobby_room_list_tab")
+            if tab_unselected is None:
+                w, h = frame.width, frame.height
+                tab_unselected = MatchResult(
+                    name="lobby_room_list_tab",
+                    score=1.0,
+                    x=int(w * (355.0 / 1332.0)),
+                    y=int(h * (245.0 / 945.0)),
+                    w=120,
+                    h=34,
+                    screen_x=int(frame.left + w * (355.0 / 1332.0)),
+                    screen_y=int(frame.top + h * (245.0 / 945.0)),
+                )
+            self.act_click(tab_unselected, "HitchSelectTab")
+            print(f"[L0] hitch 点击切换至房间列表 Tab: ({tab_unselected.screen_x}, {tab_unselected.screen_y})")
+            return LoopAction.Continue
+
+        # 搜索一次，后续只走刷新；坐标按当前 L0 客户区比例换算。
+        prefix = str(getattr(self.settings, "hitch_stage_prefix", "3") or "3").strip()[:64] or "3"
+        if not getattr(self, "_hitch_prefix_searched", False) and is_in_room_list:
+            prefix = self._hitch_sm.prefix
+            if search_hit is None:
+                w, h = frame.width, frame.height
+                left = getattr(frame, "left", 0) or 0
+                top = getattr(frame, "top", 0) or 0
+                sx = int(w * (1187.0 / 1332.0))
+                sy = int(h * (292.0 / 945.0))
+                search_hit = MatchResult(
+                    name="lobby_search_box",
+                    score=1.0,
+                    x=sx,
+                    y=sy,
+                    w=185,
+                    h=30,
+                    screen_x=left + sx,
+                    screen_y=top + sy,
+                )
+            else:
+                # The shipped anchor starts halfway down the input control and
+                # includes the gap/table header below it.  Its geometric centre
+                # is therefore outside the edit box on the live 1332x945 KK UI.
+                search_hit = replace(
+                    search_hit,
+                    screen_y=search_hit.screen_y - search_hit.h // 2,
+                )
+            if self.act_search_box(search_hit, prefix, "HitchSearchBox"):
+                self._hitch_prefix_searched = True
+                self._hitch_rejected_row_ys.clear()
+                print(f"[L0] hitch 搜索词 '{prefix}' 已输入并回车: ({search_hit.screen_x}, {search_hit.screen_y})")
+            else:
+                self._hitch_sm.defer_retry(now)
+            return LoopAction.Continue
+
+        # 3. 扫描房间列表寻找可加入的房间（非 4/4 且 非 游戏中）
+        joinable_hit = None
+        if self._hitch_refresh_required:
+            # Failed joins and rejected in-room seats make the visible list
+            # stale.  Do not inspect or join another row before one real refresh.
+            decision = self._hitch_sm.tick(
+                now=now,
+                matched=False,
+                ocr_text="",
+                prefix_ok=True,
+                in_room=False,
+            )
+        else:
+            prefix_ok = self._hitch_prefix_ok(frame)
+            joinable_hit = self._find_hitch_joinable_row(frame) if prefix_ok else None
+            decision = self._hitch_sm.tick(
+                now=now,
+                matched=joinable_hit is not None,
+                ocr_text="",
+                prefix_ok=prefix_ok,
+                in_room=in_room,
+            )
+        if decision.action == HitchAction.JOIN:
+            hit = joinable_hit
+            if hit is not None:
+                clicked = bool(self.act_double_click(hit, "HitchJoin"))
+                if clicked:
+                    self._hitch_sm.note_join_click(now)
+                    self._hitch_pending_row_y = hit.y
+                    self._hitch_pending_room_key = self._hitch_room_number_key(frame, hit.y)
+                    self._hitch_search_actions.append("join")
+                    self._hitch_status = "search"
+                    print(f"[L0] hitch 发现可加入房间，点击进入: ({hit.screen_x}, {hit.screen_y})")
+                else:
+                    self._hitch_sm.defer_retry(now)
+                    print("[L0] hitch 进房点击被拒绝，等待 CD 后重试")
+                self.set_phase(Phase.LOBBY_ROOM, "hitch join")
+                return LoopAction.Continue
+
         if decision.action == HitchAction.REFRESH:
             hit = self._hitch_action_hit(frame, HitchAction.REFRESH)
             if hit is None:
-                print("[L0] hitch REFRESH 无大厅刷新锚点，零输入观察")
+                self._hitch_sm.defer_retry(now)
+                print("[L0] hitch REFRESH 无可信刷新位置，等待 CD 后重试")
                 self.set_phase(Phase.LOBBY_ROOM, "hitch search observe")
                 return LoopAction.Continue
-            if self.act_click(hit, "HitchRefresh"):
-                self._hitch_sm.note_refresh(now)
+            clicked = bool(self.act_click(hit, "HitchRefresh"))
+            if clicked:
+                rotated = self._hitch_sm.note_refresh(now)
+                if rotated:
+                    self._hitch_prefix_searched = False
+                    print(f"[L0] hitch 连续刷新未命中，自动轮换搜索词 -> {self._hitch_sm.prefix}")
+                self._hitch_refresh_required = False
+                self._hitch_rejected_row_ys.clear()
+                self._hitch_pending_row_y = None
                 self._hitch_search_actions.append("refresh")
                 self._hitch_join_refresh_count = self._hitch_sm.attempts
                 self._hitch_status = "search"
                 print(
                     f"[L0] hitch refresh attempt={self._hitch_sm.attempts}/"
-                    f"{JOIN_ATTEMPTS} prefix={self._hitch_sm.prefix}"
+                    f"{JOIN_ATTEMPTS} search={self._hitch_sm.prefix}"
                 )
+            else:
+                self._hitch_sm.defer_retry(now)
+                print("[L0] hitch 刷新点击被拒绝，等待 CD 后重试")
             self.set_phase(Phase.LOBBY_ROOM, "hitch refresh")
-            return LoopAction.Continue
-        if decision.action == HitchAction.JOIN:
-            if not prefix_ok:
-                print("[L0] hitch JOIN 无 3/4 前缀证据，拒绝进房")
-                self.set_phase(Phase.LOBBY_ROOM, "hitch search")
-                return LoopAction.Continue
-            hit = self._hitch_action_hit(frame, HitchAction.JOIN)
-            if hit is None:
-                print("[L0] hitch JOIN 无房间行锚点，零输入观察")
-                self.set_phase(Phase.LOBBY_ROOM, "hitch search observe")
-                return LoopAction.Continue
-            if self.act_click(hit, "HitchJoin"):
-                self._hitch_sm.note_join_click(now)
-                self._hitch_search_actions.append("join")
-                self._hitch_status = "search"
-                print(f"[L0] hitch join prefix={self._hitch_sm.prefix}（等待进房后置确认）")
-            self.set_phase(Phase.LOBBY_ROOM, "hitch join")
             return LoopAction.Continue
         if decision.action == HitchAction.GO_HOME:
             hit = self._hitch_action_hit(frame, HitchAction.GO_HOME)
@@ -7067,10 +7776,21 @@ class Mediator:
             return self._tick_hero_setup(frame)
         context = self._detect_context(frame, "l0")
         print(f"[med] decision context={context} phase={self.phase.name}")
-        # 选关页底部也会误匹配通用 room_start；沿用分类器的优先级，
-        # 先确认编号关卡页，再查房间开始按钮。
-        stage_page = context == "STAGE_SELECT"
-        room_start = None if stage_page else self._find_room_start(frame)
+        # Lobby rows can contain generic room-looking fragments. In hitch mode,
+        # a positive room-list anchor outranks the generic room_start matcher.
+        if (
+            self._hitch_enabled()
+            and context == "ROOM_WAITING"
+            and self._lobby_room_list_evidence(frame)
+        ):
+            context = "LOBBY_ROOM"
+            stage_page = False
+            room_start = None
+        else:
+            # 选关页底部也会误匹配通用 room_start；沿用分类器的优先级，
+            # 先确认编号关卡页，再查房间开始按钮。
+            stage_page = context == "STAGE_SELECT"
+            room_start = None if stage_page else self._find_room_start(frame)
 
         if self._awaiting_room_return and self._hitch_enabled():
             self._awaiting_room_return = False
@@ -8725,7 +9445,7 @@ class Mediator:
         awaiting_challenge_hud = (
             self._post_game_pending
             and post_game is None
-            and getattr(self, "_post_game_route", "") in {"archive_active", "heirloom_active"}
+            and getattr(self, "_post_game_route", "") in {"archive_active", "heirloom_active", "boss_active"}
         )
         challenge_hud = awaiting_challenge_hud and self._is_in_game_hud(frame)
         if challenge_hud:
@@ -8741,7 +9461,8 @@ class Mediator:
             self._post_game_pending = False
             self._post_game_close_attempts = 0
             self._post_game_hud_confirmations = 0
-            self._post_game_route = "archive"
+            if route != "boss_active":
+                self._post_game_route = "archive"
             if route == "heirloom_active":
                 # 下一次胜利重新从存档挑战 1/8 开始；本轮游标仍保留在 trace。
                 self._archive_challenge_index = 0
@@ -8829,7 +9550,8 @@ class Mediator:
                 self._boss_challenge_attempts = 0
                 self._boss_challenge_scroll_attempts = 0
                 self._boss_challenge_next_at = 0.0
-                self._time_cave_boss_done = False
+                if route_before_continue != "boss_active":
+                    self._time_cave_boss_done = False
                 self._victory_continue_since = now
                 self._main_line_since = now
             return LoopAction.Continue
@@ -8840,6 +9562,14 @@ class Mediator:
                 self.set_phase(Phase.ERROR, "unexpected archive panel")
                 self.stop()
                 return LoopAction.Break
+            if self._team_mode_enabled() and not self._hitch_postgame_hero_selected:
+                if self.act_key("F1", "HitchPostGameSelectOwnHero"):
+                    self._hitch_postgame_hero_selected = True
+                    self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
+                return LoopAction.Continue
+            if getattr(self, "_post_game_route", "") == "boss_active":
+                print("[med] 时光之穴 Boss 已发起，等待存档面板消失和局内 HUD（零动作）")
+                return LoopAction.Continue
             # 存档面板的八个挑战先逐项尝试；这不会复制生产策略，只消费已分类
             # 页面上的稳定卡位。完成八卡后先尝试时光之穴 Boss，全部完成后关闭面板并转传家宝。
             archive_action = self._maybe_click_archive_challenge(frame, now)
@@ -8905,6 +9635,13 @@ class Mediator:
                 print("[med] 大秘境确认后挑战广场过渡帧，零动作等待局内 HUD")
                 return LoopAction.Continue
             route = getattr(self, "_post_game_route", "secret")
+            if route == "boss_postgame" and self._team_mode_enabled() and self._hitch_heirloom_exit_at is None:
+                if not self._hitch_postgame_returned_to_base:
+                    if self.act_key("F2", "HitchPostBossReturnOwnBase"):
+                        self._hitch_postgame_returned_to_base = True
+                        cjb_boss_cfg = str(getattr(self.settings, "cjb_boss", "") or "").strip()
+                        self._post_game_route = "heirloom" if cjb_boss_cfg else "secret"
+                    return LoopAction.Continue
             if route in {"archive", "heirloom"}:
                 entry = self._post_game_hub_entry_click(frame, route)
                 if entry is None:
@@ -8917,12 +9654,59 @@ class Mediator:
                     self._main_line_since = now
                 return LoopAction.Continue
             if route in {"archive_active", "heirloom_active"}:
-                print(f"[med] 已请求{('存档' if route == 'archive_active' else '传家宝')}挑战，等待页面切换（零动作）")
+                if getattr(self, "_post_game_active_wait_since", None) is None:
+                    self._post_game_active_wait_since = now
+                if now - self._post_game_active_wait_since > 3.0:
+                    print(f"[med] 等待{('存档' if route == 'archive_active' else '传家宝')}面板超时，重置路由避免死锁")
+                    self._post_game_route = "archive" if route == "archive_active" else "heirloom"
+                    self._post_game_active_wait_since = None
+                else:
+                    print(f"[med] 已请求{('存档' if route == 'archive_active' else '传家宝')}挑战，等待页面切换（零动作）")
                 return LoopAction.Continue
+            else:
+                self._post_game_active_wait_since = None
             if route == "boss_postgame" and not self.settings.auto_secret_realm:
-                # This is the first point at which a configured Boss route may
-                # exit: POST_VICTORY was already observed, Continue was
-                # accepted, and the existing hub classifier is visible.
+                if getattr(self, "_post_game_hub_entered_at", None) is None:
+                    self._post_game_hub_entered_at = now
+                
+                # 1. 识别屏幕上是否有队友退出的提示（OCR/文本识别 "离开游戏"、"退出了游戏"）
+                ocr_client = getattr(self, "_ocr_client", None)
+                player_left = False
+                if ocr_client is not None and frame is not None and frame.bgr is not None:
+                    try:
+                        # 检查屏幕中下部系统公告/聊天区域 ROI: (0.20, 0.50, 0.80, 0.85)
+                        h, w = frame.bgr.shape[:2]
+                        chat_crop = frame.bgr[int(h * 0.50):int(h * 0.85), int(w * 0.20):int(w * 0.80)]
+                        ocr_res = ocr_client.ocr(chat_crop)
+                        for item in (ocr_res or []):
+                            txt = item.get("text", "") if isinstance(item, dict) else str(item)
+                            if any(kw in txt for kw in ["退出游戏", "离开游戏", "退出了游戏", "离开房间"]):
+                                player_left = True
+                                print(f"[med] 战后检测到队友退出提示 ({txt})，跟随触发局内退出")
+                                break
+                    except Exception:
+                        pass
+                if player_left:
+                    self._post_game_pending = False
+                    self._record_round_outcome(RoundOutcome.VICTORY, "player left observed, team follow exit")
+                    self.set_phase(Phase.QUIT, "player left observed, team follow exit")
+                    return LoopAction.Continue
+
+                # 2. 超时兜底机制：3分钟（180s）硬超时，或蹭车传家宝150秒退出
+                hub_duration = now - self._post_game_hub_entered_at
+                if hub_duration >= 180.0:
+                    print(f"[med] 战后广场停留已满 {hub_duration:.1f}s (>= 180s 兜底)，强制退出")
+                    self._post_game_pending = False
+                    self._record_round_outcome(RoundOutcome.VICTORY, "post game hub 180s timeout exit")
+                    self.set_phase(Phase.QUIT, "post game hub 180s timeout exit")
+                    return LoopAction.Continue
+
+                if self._team_mode_enabled() and self._hitch_heirloom_exit_at is not None:
+                    if now < self._hitch_heirloom_exit_at:
+                        print("[med] 传家宝挑战已完成，等待蹭车退出窗口（零动作）")
+                        return LoopAction.Continue
+
+                # 正常退出
                 self._post_game_pending = False
                 self._record_round_outcome(RoundOutcome.VICTORY, "configured Boss victory verified")
                 self.set_phase(Phase.QUIT, "configured Boss victory verified")
@@ -8980,6 +9764,8 @@ class Mediator:
                 if not self._heirloom_boss_result_visible(frame):
                     return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
                 print("[med] 传家宝 Boss 业务后置确认成功，关闭传家宝面板")
+                if self._hitch_enabled() and self._hitch_heirloom_exit_at is None:
+                    self._hitch_heirloom_exit_at = now + 150.0
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
                 print("[med] 传家宝弹窗关闭重试已达上限，Fail-Closed 停止运行")
@@ -9274,6 +10060,13 @@ class Mediator:
         close_ml_res = self._maybe_close_main_line_after_5_5(frame, now)
         if close_ml_res is not None:
             return close_ml_res
+
+        # F4 是“清除挑战”，不是“压力转移”；蹭车模式在未验证压力转移
+        # 按钮锚点前禁止自动按 F4，避免清掉仍可完成的挑战。
+        if not self._hitch_enabled():
+            pressure_res = self._maybe_clear_pressure_monsters(frame, now)
+            if pressure_res is not None:
+                return pressure_res
 
         # During the pre-wave setup the game can show its banned-card picker.
         # Pressing F/V there overlays our panel on top of that UI and caused the

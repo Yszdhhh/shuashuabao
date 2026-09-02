@@ -235,6 +235,14 @@ class FakeInputExecutor:
     def type_text(self, text: str, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
         return self._resolve("type_text", (text,), {"target_hwnd": target_hwnd, "dry_run": dry_run})
 
+    def search_text(self, x: int, y: int, text: str, target_hwnd: int | None = None,
+                    dry_run: bool = True) -> ActionResult:
+        return self._resolve(
+            "search_text",
+            (x, y, text),
+            {"target_hwnd": target_hwnd, "dry_run": dry_run},
+        )
+
 
 # ---------------------------------------------------------------------------
 # Probes / ReplayFrameSource
@@ -258,10 +266,12 @@ class ActionProbe:
         self._orig_right = med.act_right_click
         self._orig_key = med.act_key
         self._orig_scroll = med.act_scroll
+        self._orig_search = med.act_search_box
         med.act_click = self._wrap_click
         med.act_right_click = self._wrap_right
         med.act_key = self._wrap_key
         med.act_scroll = self._wrap_scroll
+        med.act_search_box = self._wrap_search
 
     def begin_tick(self, index: int) -> None:
         self._tick_start = len(self._records)
@@ -284,6 +294,10 @@ class ActionProbe:
     def _wrap_scroll(self, x: int, y: int, clicks: int, reason: str = "") -> bool:
         self._records.append(SemanticAction("scroll", reason, None))
         return self._orig_scroll(x, y, clicks, reason)
+
+    def _wrap_search(self, hit: Any, text: str, reason: str = "") -> bool:
+        self._records.append(SemanticAction("search_text", reason, text))
+        return self._orig_search(hit, text, reason)
 
 
 class ContextProbe:
