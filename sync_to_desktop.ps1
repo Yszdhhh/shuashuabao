@@ -1,4 +1,4 @@
-# 打包当前工作分支并部署到桌面（ShuaBao-Vx.y + 快捷方式）。
+﻿# 打包当前工作分支并部署到桌面（ShuaBao-Vx.y + 快捷方式）。
 # 用法（在仓库根目录，Windows PowerShell）：
 #   powershell -ExecutionPolicy Bypass -File .\sync_to_desktop.ps1 -SkipGate
 # 需要本机已装 uv / Python。为避免部署时悄悄切走正在验收的版本，
