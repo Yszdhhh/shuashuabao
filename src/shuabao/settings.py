@@ -118,7 +118,8 @@ class Settings:
     mode_id: str = "normal_farm"
     hitch_stage_prefix: str = "4,3"  # 大厅找房搜索词，默认 4→3，可逗号分隔多词轮换
     hitch_rotate_interval: int = 10  # 搜索无结果时每隔多少轮自动轮换下一个搜索词
-    follow_cycle_num: int = 100  # 跟车目标局数；启动时投影到 cycle_num
+    subscription_base_url: str = "https://quebec-luis-flooring-kenneth.trycloudflare.com"  # 默认云端鉴权中台地址
+    subscription_mode: str = "enforce"  # 订阅模式：off / shadow / enforce
     hitch_cycle_num: int = 100  # 蹭车目标局数；启动时投影到 cycle_num
     follow_after_room: str = "solo"  # 房间解散/被踢后预案：solo / arch / hitch
     hitch_after_goal: str = "solo"  # 达到蹭车目标后预案：solo / arch
@@ -300,7 +301,8 @@ class Settings:
             "reputation_cjb_boss", "reputation_sgzx_boss",
             "cjb_boss", "sgzx_boss", "window_title_contains",
             "ocr_repo_root", "images_dir", "bond_whitelist_mode",
-            "mode_id", "hitch_stage_prefix", "follow_after_room",
+            "mode_id", "hitch_stage_prefix", "hitch_rotate_interval", "follow_after_room",
+            "subscription_base_url", "subscription_mode",
             "hitch_after_goal", "follow_pair_code",
         }
         if fallback is not None:
