@@ -1276,6 +1276,26 @@ def test_lobby_room_list_evidence_accepts_selected_tab_highlight() -> None:
         assert med._lobby_room_list_evidence(frame) is True
 
 
+def test_hitch_room_list_tab_rejects_activity_match_and_uses_room_slot() -> None:
+    from shuabao.vision.matcher import MatchResult
+
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    image = np.zeros((945, 1332, 3), dtype=np.uint8)
+    image[220:275, 293:453] = 220
+    frame = Frame(image, left=348, top=11, role="l0")
+    activity_tab = MatchResult(
+        "lobby_room_list_tab", 0.95, 775, 247, 75, 25, 1123, 258,
+    )
+
+    with patch.object(med, "find_scene", return_value=activity_tab):
+        hit = med._find_hitch_room_list_tab(frame)
+
+    assert hit is not None
+    assert hit.name == "lobby_room_list_tab_slot"
+    assert hit.screen_x == 348 + int(1332 * 0.265)
+    assert hit.screen_y == 11 + int(945 * 0.26)
+
+
 def test_lobby_hitch_postcondition_and_stage() -> None:
     med = Mediator(Settings(), ROOT)
     frame = _fixture_frame()

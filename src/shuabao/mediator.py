@@ -7247,7 +7247,7 @@ class Mediator:
             self._hitch_re_search = False
             self.set_phase(Phase.MAIN_LINE, "hitch already in game")
             return LoopAction.Continue
-        if stage_page or context == "STAGE_SELECT":
+        if (stage_page or context == "STAGE_SELECT") and self._is_game_client_frame(frame):
             self._hitch_re_search = False
             self.set_phase(Phase.STAGE_SELECT, "hitch stage page wait")
             print("[L0] hitch 选关页可见，零输入等待进局（不点关卡）")
@@ -7318,12 +7318,16 @@ class Mediator:
             print("[L0] hitch 检测到平台提示弹窗，按 Esc 关闭并跳过失败房间")
             return LoopAction.Continue
 
-        ready_hit = self._find_hitch_ready_button(frame)
-        room_controls_visible = ready_hit is not None or self._hitch_room_controls_visible(frame)
+        is_in_room_list = self._lobby_room_list_evidence(frame)
+        ready_hit = None if is_in_room_list else self._find_hitch_ready_button(frame)
+        room_controls_visible = False if is_in_room_list else (ready_hit is not None or self._hitch_room_controls_visible(frame))
         in_room = (
-            room_start is not None
-            or context == "ROOM_WAITING"
-            or room_controls_visible
+            not is_in_room_list
+            and (
+                room_start is not None
+                or (context == "ROOM_WAITING" and not is_in_room_list)
+                or room_controls_visible
+            )
         )
         if (
             self._hitch_sm.pending_join
@@ -7718,14 +7722,16 @@ class Mediator:
         key = ("stage_page",)
 
         def compute() -> bool:
+            title = (frame.window_title or "").lower()
+            game_keywords = [keyword for keyword in L1_WINDOW_KEYWORDS if keyword.lower() != "kk"]
+            is_game_win = bool(title and any(keyword.lower() in title for keyword in game_keywords))
+            # KK 平台大厅窗口绝不是选关页面，避免大厅列表/排行榜数字误命中关卡行
+            if not is_game_win and "kk" in title:
+                return False
+
             if self._visible_stage_rows(frame):
                 return True
-            # The numbered-row parser above is the preferred detector.  The
-            # legacy image fallback is only meaningful on the actual game window;
-            # scanning it on a KK map page is both slow and prone to false hits.
-            title = frame.window_title.lower()
-            game_keywords = [keyword for keyword in L1_WINDOW_KEYWORDS if keyword.lower() != "kk"]
-            if not title or not any(keyword.lower() in title for keyword in game_keywords):
+            if not is_game_win:
                 return False
             start = self.find_scene(frame, "stage_start", threshold=self._STAGE_START_THRESHOLD)
             if start is not None:
