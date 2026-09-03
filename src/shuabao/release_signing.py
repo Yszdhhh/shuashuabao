@@ -1,8 +1,8 @@
 """Runtime verification for signed release manifests.
 
-The client contains no signing key.  ``PINNED_MANIFEST_PUBLIC_KEYS`` is
-intentionally empty until the operator supplies the real Ed25519 SPKI pin;
-packaged releases therefore fail closed rather than trusting mutable files.
+The client contains no signing key. The build compiles an operator public-key
+runtime hook into the EXE before shell imports. Source defaults remain empty;
+packaged releases fail closed if that hook is absent, never trusting key files.
 """
 from __future__ import annotations
 
@@ -242,4 +242,3 @@ def verify_packaged_release_snapshot(
     required_files: tuple[str, ...] = (),
 ) -> tuple[dict[str, object], dict[str, bytes], bytes]:
     return _verify_packaged_release(package_root, pinned_keys=pinned_keys, required_files=required_files)
-

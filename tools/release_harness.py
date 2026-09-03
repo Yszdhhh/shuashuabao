@@ -9,7 +9,8 @@ input, contacts the subscription service, or reads a license key.
 Typical use (the build script invokes the same check automatically)::
 
     python tools/release_harness.py --source-root . \
-        --bundle C:/Users/10639/Desktop/ShuaBao --require-clean
+        --bundle C:/Users/10639/Desktop/ShuaBao --require-clean \
+        --manifest-public-keys D:/operator/manifest_public_keys.json
 
 The check catches the incidents that previously survived source-only tests:
 stale desktop copies, stale Web UI, mismatched ``_ssl.pyd``/OpenSSL DLLs, and
@@ -21,18 +22,34 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import marshal
 import os
 from pathlib import Path
+import struct
 import subprocess
 import sys
+import tempfile
+from types import CodeType
+from typing import Mapping
 from urllib.parse import urlsplit
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+from shuabao import release_signing
+from shuabao.release_signing import canonical_manifest_sha256 as _canonical_manifest_sha256
+from shuabao.subscription_permit import PermitVerificationError, _load_public_keys_bytes
+from tools.prepare_manifest_trust import HOOK_NAME, manifest_trust_hook_source, require_external_key_path
 
 APP_EXE = "ShuaBao.exe"
 TLS_DLL_NAMES = ("libssl-3-x64.dll", "libcrypto-3-x64.dll")
 RUNTIME_KEYS = frozenset(
     {"schema_version", "base_url", "mode", "release_channel", "timeout_s"}
 )
+BRIDGE_SCHEMA_VERSION = 2
 
 
 def sha256_file(path: Path) -> str:
@@ -51,11 +68,30 @@ def _read_json(path: Path) -> dict[str, object] | None:
     return value if isinstance(value, dict) else None
 
 
-def _canonical_manifest_sha256(manifest: dict[str, object]) -> str:
-    payload = json.dumps(
-        manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")
-    ).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()
+def _verify_compiled_manifest_trust(exe_bytes: bytes, keys: Mapping[str, Ed25519PublicKey]) -> None:
+    """Inspect authenticated EXE bytes without importing/executing bundle code."""
+    from PyInstaller.archive.readers import CArchiveReader
+
+    # CArchiveReader requires a filename. Use the verifier's immutable snapshot
+    # rather than re-opening an EXE that could change after authentication.
+    with tempfile.TemporaryDirectory(prefix="shuabao-manifest-audit-") as scratch:
+        exe_path = Path(scratch) / APP_EXE
+        exe_path.write_bytes(exe_bytes)
+        archive = CArchiveReader(str(exe_path))
+        with exe_path.open("rb") as handle:
+            handle.seek(archive._end_offset - archive._COOKIE_LENGTH)
+            cookie = struct.unpack(archive._COOKIE_FORMAT, handle.read(archive._COOKIE_LENGTH))
+        if cookie[-2] != sys.version_info.major * 100 + sys.version_info.minor:
+            raise ValueError("archive Python version differs; use the build Python for this harness")
+        scripts = [name for name, entry in archive.toc.items() if entry[-1] == "s"]
+        if HOOK_NAME not in scripts or "desktop_app" not in scripts or scripts.index(HOOK_NAME) > scripts.index("desktop_app"):
+            raise ValueError("compiled manifest trust hook is missing or does not run before desktop_app")
+        compiled = marshal.loads(archive.extract(HOOK_NAME))
+        if not isinstance(compiled, CodeType):
+            raise ValueError("compiled manifest trust hook is not a Python code object")
+        expected = compile(manifest_trust_hook_source(keys), compiled.co_filename, "exec", dont_inherit=True, optimize=1)
+        if compiled != expected:
+            raise ValueError("compiled manifest trust hook differs from the operator registry")
 
 
 def _git(source_root: Path, *args: str) -> str:
@@ -128,6 +164,7 @@ def audit_bundle(
     python_root: Path | None = None,
     expected_source_sha: str | None = None,
     require_clean: bool = False,
+    pinned_keys: Mapping[str, Ed25519PublicKey] | None = None,
 ) -> dict[str, object]:
     """Return a machine-readable package audit without performing any input."""
 
@@ -155,6 +192,7 @@ def audit_bundle(
         identity = {}
 
     identity_sha = str(identity.get("source_sha") or "")
+    check("build_identity_schema", identity.get("schema_version") == 1, str(identity.get("schema_version")))
     if source_sha:
         check("source_sha_matches", identity_sha == source_sha, f"identity={identity_sha or '<missing>'} expected={source_sha}")
     else:
@@ -175,8 +213,56 @@ def audit_bundle(
     check("release_manifest_present", manifest is not None, str(manifest_path))
     if manifest is None:
         manifest = {}
+    keys = release_signing.PINNED_MANIFEST_PUBLIC_KEYS if pinned_keys is None else pinned_keys
+    verified_files: dict[str, bytes] = {}
+    try:
+        manifest, verified_files, _ = release_signing.verify_packaged_release_snapshot(
+            bundle,
+            pinned_keys=keys,
+            required_files=(APP_EXE, "subscription_runtime.json", "config/entitlement_public_keys.json", "web/dist/build_manifest.json"),
+        )
+    except release_signing.ReleaseManifestError as exc:
+        check("release_manifest_authenticated", False, f"{exc.code}: {exc.message}")
+        check("compiled_manifest_trust_matches", False, "manifest authentication required before inspecting EXE code")
+    else:
+        check("release_manifest_authenticated", True, "production signature and complete file verification passed")
+        try:
+            _verify_compiled_manifest_trust(verified_files[APP_EXE], keys)
+        except Exception as exc:
+            # Missing tooling, unsupported archives/Python, malformed code and
+            # mismatched pins all block handoff; none fall back to unsigned PASS.
+            check("compiled_manifest_trust_matches", False, f"{type(exc).__name__}: {exc}")
+        else:
+            check("compiled_manifest_trust_matches", True, "EXE startup hook matches the operator registry")
     check("release_manifest_schema", manifest.get("schema_version") == 1, str(manifest.get("schema_version")))
     if manifest:
+        manifest_channel = manifest.get("release_channel")
+        check(
+            "manifest_release_channel",
+            manifest_channel in {"dev", "internal-pilot", "external-beta", "release"},
+            str(manifest_channel),
+        )
+        check(
+            "manifest_bridge_schema",
+            manifest.get("bridge_schema_version") == BRIDGE_SCHEMA_VERSION,
+            str(manifest.get("bridge_schema_version")),
+        )
+        check(
+            "manifest_signature_status",
+            manifest.get("manifest_signature_status") == "SIGNED",
+            str(manifest.get("manifest_signature_status")),
+        )
+        check(
+            "identity_matches_manifest_policy",
+            identity.get("release_channel") == manifest_channel
+            and identity.get("bridge_schema_version") == BRIDGE_SCHEMA_VERSION
+            and identity.get("signature_status") == "SIGNED",
+            (
+                f"identity_channel={identity.get('release_channel')!r}; "
+                f"identity_bridge={identity.get('bridge_schema_version')!r}; "
+                f"identity_signature={identity.get('signature_status')!r}"
+            ),
+        )
         check("manifest_source_sha_matches", not source_sha or manifest.get("source_sha") == source_sha, str(manifest.get("source_sha")))
         expected_manifest_sha = str(identity.get("release_manifest_sha256") or "").lower()
         actual_manifest_sha = _canonical_manifest_sha256(manifest)
@@ -192,16 +278,70 @@ def audit_bundle(
     check("web_build_manifest_present", len(web_manifests) == 1, ", ".join(str(path) for path in web_manifests) or "missing")
     if len(web_manifests) == 1:
         web_manifest = _read_json(web_manifests[0]) or {}
+        check("web_manifest_schema", web_manifest.get("schema_version") == 1, str(web_manifest.get("schema_version")))
         check("web_source_sha_matches", not source_sha or web_manifest.get("source_sha") == source_sha, str(web_manifest.get("source_sha")))
+        check(
+            "web_release_policy_matches",
+            web_manifest.get("release_channel") == manifest.get("release_channel")
+            and web_manifest.get("bridge_schema_version") == BRIDGE_SCHEMA_VERSION,
+            (
+                f"channel={web_manifest.get('release_channel')!r}; "
+                f"bridge={web_manifest.get('bridge_schema_version')!r}"
+            ),
+        )
         check("web_tree_clean", not require_clean or web_manifest.get("source_tree_clean") is True, str(web_manifest.get("source_tree_clean")))
 
     runtime_path = bundle / "subscription_runtime.json"
-    runtime = _read_json(runtime_path)
+    runtime = None
+    runtime_bytes = verified_files.get("subscription_runtime.json")
+    if runtime_bytes is not None:
+        try:
+            parsed_runtime = json.loads(runtime_bytes.decode("utf-8"))
+        except (UnicodeError, json.JSONDecodeError):
+            parsed_runtime = None
+        runtime = parsed_runtime if isinstance(parsed_runtime, dict) else None
     check("subscription_runtime_present", runtime is not None, str(runtime_path))
     if runtime is None:
         runtime = {}
     unknown_runtime_keys = sorted(set(runtime) - RUNTIME_KEYS)
     check("subscription_runtime_no_secrets", not unknown_runtime_keys, "unknown fields: " + ", ".join(unknown_runtime_keys) if unknown_runtime_keys else "no secret fields")
+    check("subscription_runtime_schema", runtime.get("schema_version") == 1, str(runtime.get("schema_version")))
+    check("subscription_mode_enforced", runtime.get("mode") == "enforce", str(runtime.get("mode")))
+    runtime_channel = runtime.get("release_channel")
+    check(
+        "subscription_channel_matches_manifest",
+        runtime_channel in {"dev", "internal-pilot", "external-beta", "release"}
+        and runtime_channel == manifest.get("release_channel"),
+        f"runtime={runtime_channel!r} manifest={manifest.get('release_channel')!r}",
+    )
+
+    permit_registry_blobs = [
+        data for path, data in verified_files.items()
+        if path == "config/entitlement_public_keys.json"
+        or path.endswith("/config/entitlement_public_keys.json")
+    ]
+    permit_keys: Mapping[str, Ed25519PublicKey] = {}
+    if len(permit_registry_blobs) == 1:
+        try:
+            permit_keys = _load_public_keys_bytes(permit_registry_blobs[0])
+        except PermitVerificationError:
+            permit_keys = {}
+    check(
+        "entitlement_registry_nonempty",
+        bool(permit_keys),
+        f"verified Ed25519 keys={len(permit_keys)}",
+    )
+    manifest_raw = {
+        key.public_bytes(Encoding.Raw, PublicFormat.Raw) for key in keys.values()
+    }
+    permit_raw = {
+        key.public_bytes(Encoding.Raw, PublicFormat.Raw) for key in permit_keys.values()
+    }
+    check(
+        "manifest_permit_key_separation",
+        bool(manifest_raw) and bool(permit_raw) and manifest_raw.isdisjoint(permit_raw),
+        "independent keys" if manifest_raw.isdisjoint(permit_raw) else "manifest key reused as permit key",
+    )
     base_url = str(runtime.get("base_url") or "")
     try:
         parsed = urlsplit(base_url)
@@ -290,7 +430,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expected-source-sha", default="", help="测试/外部调用时显式提供源码 SHA")
     parser.add_argument("--require-clean", action="store_true", help="要求 tracked 工作树和 Web 构建清单均为 clean")
     parser.add_argument("--json", action="store_true", help="只输出 JSON")
+    parser.add_argument("--manifest-public-keys", type=Path, default=None, help="显式仓外 operator 公钥 registry；禁止从 bundle 读取信任公钥")
     args = parser.parse_args(argv)
+
+    keys = None
+    if args.manifest_public_keys is not None:
+        try:
+            key_path = require_external_key_path(args.manifest_public_keys, ROOT, args.source_root or ROOT, args.bundle)
+            keys = release_signing.load_manifest_public_keys(key_path)
+        except (ValueError, release_signing.ReleaseManifestError) as exc:
+            parser.error(f"manifest operator registry rejected: {exc}")
 
     report = audit_bundle(
         args.bundle,
@@ -298,6 +447,7 @@ def main(argv: list[str] | None = None) -> int:
         python_root=args.python_root,
         expected_source_sha=args.expected_source_sha or None,
         require_clean=args.require_clean,
+        pinned_keys=keys,
     )
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))

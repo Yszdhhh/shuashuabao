@@ -14,6 +14,7 @@ param(
     [string]$ReleaseChannel = "dev",
     [string]$ManifestSigningKeyPath = "",
     [string]$ManifestSigningKeyId = "",
+    [string]$ManifestPublicKeysPath = "",
     [string]$AuthenticodeCertificateThumbprint = "",
     [string]$AuthenticodeTimestampUrl = "",
     [string]$SignToolPath = ""
@@ -23,10 +24,12 @@ Set-Location -LiteralPath $PSScriptRoot
 
 # 渠道门禁：external-beta/release 是对外发包，所有宽松逃生口一律封死。
 $isExternalChannel = $ReleaseChannel -in @("external-beta", "release")
+if ($SubscriptionMode -ne "enforce") {
+    throw "external-beta/release 渠道要求 -SubscriptionMode enforce；所有 frozen 渠道均要求 -SubscriptionMode enforce，off/shadow 仅供源码开发运行。"
+}
 if ($isExternalChannel) {
     if ($SkipGate) { throw "external-beta/release 渠道禁止 -SkipGate：外发包必须通过完整发版门禁。" }
     if ($AllowDirty) { throw "external-beta/release 渠道禁止 -AllowDirty：外发包必须来自干净源码树。" }
-    if ($SubscriptionMode -ne "enforce") { throw "external-beta/release 渠道要求 -SubscriptionMode enforce。" }
 }
 
 # 订阅地址在构建前统一解析并校验：外发渠道必须显式传 HTTPS 生产地址，
@@ -107,11 +110,50 @@ function Resolve-SignTool {
     return $null
 }
 
+# Every frozen channel requires an operator signature, including dev/internal.
+$manifestKeyPath = $ManifestSigningKeyPath.Trim()
+if (-not $manifestKeyPath) { $manifestKeyPath = $env:SHUABAO_MANIFEST_SIGNING_KEY_PATH }
+if (-not $manifestKeyPath) { $manifestKeyPath = $env:SHUABAO_MANIFEST_SIGNING_KEY }
+$manifestKeyId = if ($ManifestSigningKeyId.Trim()) { $ManifestSigningKeyId.Trim() } else { $env:SHUABAO_MANIFEST_SIGNING_KEY_ID }
+$manifestPublicKeysPath = if ($ManifestPublicKeysPath.Trim()) { $ManifestPublicKeysPath.Trim() } else { $env:SHUABAO_MANIFEST_PUBLIC_KEYS_PATH }
+if (-not $manifestKeyPath -or -not (Test-Path -LiteralPath $manifestKeyPath -PathType Leaf)) {
+    throw "BLOCKED: frozen $ReleaseChannel 缺少真实 Ed25519 manifest 私钥路径（-ManifestSigningKeyPath 或 SHUABAO_MANIFEST_SIGNING_KEY_PATH），请由操作员提供。"
+}
+$manifestKeyPath = (Resolve-Path -LiteralPath $manifestKeyPath).Path
+# 私钥绝不能随源码/打包目录泄露；所有 frozen 渠道都在构建副作用前拒绝。
+$repoRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
+$forbiddenKeyRoots = @(
+    $repoRoot,
+    (Join-Path $repoRoot "build"),
+    (Join-Path $repoRoot "dist"),
+    (Join-Path $repoRoot "assets"),
+    (Join-Path $repoRoot "src"),
+    (Join-Path $repoRoot "config"),
+    (Join-Path $repoRoot "ui-v2")
+)
+$keySeparator = [System.IO.Path]::DirectorySeparatorChar
+foreach ($forbiddenKeyRoot in $forbiddenKeyRoots) {
+    if ($manifestKeyPath -eq $forbiddenKeyRoot -or
+        $manifestKeyPath.StartsWith($forbiddenKeyRoot + $keySeparator, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "BLOCKED: manifest 私钥不得位于仓库根或其 build/dist/assets/src/config/ui-v2 子路径内；请使用仓外受保护位置。"
+    }
+}
+if (-not $manifestKeyId) {
+    throw "BLOCKED: frozen $ReleaseChannel 缺少 manifest key id（-ManifestSigningKeyId 或 SHUABAO_MANIFEST_SIGNING_KEY_ID）。"
+}
+if (-not $manifestPublicKeysPath -or -not (Test-Path -LiteralPath $manifestPublicKeysPath -PathType Leaf)) {
+    throw "BLOCKED: frozen $ReleaseChannel 缺少真实 operator 公钥 registry（-ManifestPublicKeysPath 或 SHUABAO_MANIFEST_PUBLIC_KEYS_PATH）。"
+}
+$manifestPublicKeysPath = (Resolve-Path -LiteralPath $manifestPublicKeysPath).Path
+$python = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
+$trustPython = if (Test-Path -LiteralPath $python) { $python } else { (Get-Command python -ErrorAction Stop).Source }
+$manifestTrustHook = Join-Path $PSScriptRoot "build\manifest_trust\pyi_rth_manifest_trust.py"
+# Validate public/private correspondence and separation from permit keys before
+# dependency installs. Only the public-key hook is passed to PyInstaller.
+& $trustPython tools\prepare_manifest_trust.py --private-key $manifestKeyPath --public-keys $manifestPublicKeysPath --key-id $manifestKeyId --output-hook $manifestTrustHook
+if ($LASTEXITCODE -ne 0) { throw "BLOCKED: operator manifest signing material verification failed." }
+
 if ($isExternalChannel) {
-    $manifestKeyPath = $ManifestSigningKeyPath.Trim()
-    if (-not $manifestKeyPath) { $manifestKeyPath = $env:SHUABAO_MANIFEST_SIGNING_KEY_PATH }
-    if (-not $manifestKeyPath) { $manifestKeyPath = $env:SHUABAO_MANIFEST_SIGNING_KEY }
-    $manifestKeyId = if ($ManifestSigningKeyId.Trim()) { $ManifestSigningKeyId.Trim() } else { $env:SHUABAO_MANIFEST_SIGNING_KEY_ID }
     $certThumbprint = if ($AuthenticodeCertificateThumbprint.Trim()) {
         $AuthenticodeCertificateThumbprint.Trim().Replace(" ", "")
     } else {
@@ -123,32 +165,6 @@ if ($isExternalChannel) {
         $env:SHUABAO_AUTHENTICODE_TIMESTAMP_URL
     } else {
         $env:SHUABAO_TIMESTAMP_URL
-    }
-    if (-not $manifestKeyPath -or -not (Test-Path -LiteralPath $manifestKeyPath -PathType Leaf)) {
-        throw "external-beta/release 渠道缺少真实 Ed25519 manifest 私钥路径（-ManifestSigningKeyPath 或 SHUABAO_MANIFEST_SIGNING_KEY_PATH），请由操作员提供。"
-    }
-    $manifestKeyPath = (Resolve-Path -LiteralPath $manifestKeyPath).Path
-    # 私钥绝不能随源码/打包目录泄露：拒绝仓库根及其 build/dist/assets/src/config/ui-v2
-    # 子路径。本检查必须发生在任何构建副作用之前。
-    $repoRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
-    $forbiddenKeyRoots = @(
-        $repoRoot,
-        (Join-Path $repoRoot "build"),
-        (Join-Path $repoRoot "dist"),
-        (Join-Path $repoRoot "assets"),
-        (Join-Path $repoRoot "src"),
-        (Join-Path $repoRoot "config"),
-        (Join-Path $repoRoot "ui-v2")
-    )
-    $keySeparator = [System.IO.Path]::DirectorySeparatorChar
-    foreach ($forbiddenKeyRoot in $forbiddenKeyRoots) {
-        if ($manifestKeyPath -eq $forbiddenKeyRoot -or
-            $manifestKeyPath.StartsWith($forbiddenKeyRoot + $keySeparator, [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw "external-beta/release 渠道 manifest 私钥不得位于仓库根或其 build/dist/assets/src/config/ui-v2 子路径内：$manifestKeyPath。请将私钥迁移到仓库外的受保护位置。"
-        }
-    }
-    if (-not $manifestKeyId) {
-        throw "external-beta/release 渠道缺少 manifest key id（-ManifestSigningKeyId 或 SHUABAO_MANIFEST_SIGNING_KEY_ID），请由操作员提供。"
     }
     if ($certThumbprint -notmatch "^[0-9A-Fa-f]{40}$") {
         throw "external-beta/release 渠道缺少真实 Authenticode 证书 thumbprint，请由操作员提供。"
@@ -185,15 +201,11 @@ if ($isExternalChannel) {
     if (-not $signtoolPath) {
         throw "external-beta/release 渠道找不到真实 signtool.exe，请由操作员安装 Windows SDK 或显式传入 -SignToolPath。"
     }
-    $releaseSigningSource = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot "src\shuabao\release_signing.py"))
-    if ($releaseSigningSource -match 'PINNED_MANIFEST_PUBLIC_KEYS\s*:[^=]+=\s*\{\s*\}') {
-        throw "external-beta/release 渠道阻断：运行时 PINNED_MANIFEST_PUBLIC_KEYS 仍为空；请由操作员编译真实 Ed25519 SPKI pin 后重试。"
-    }
 }
 
-# Dev/internal packages remain explicitly unsigned; external packages claim SIGNED
-# only because the signer and verifier below are mandatory before delivery.
-$manifestSignatureStatus = if ($isExternalChannel) { "SIGNED" } else { "UNSIGNED" }
+# Signing plus the production verifier and compiled-pin harness are mandatory
+# before any frozen bundle may be delivered.
+$manifestSignatureStatus = "SIGNED"
 
 function Get-ReleaseFileSha256([string]$Path) {
     # Get-FileHash was added after the oldest Windows PowerShell supported by
@@ -312,6 +324,10 @@ if (-not (Test-Path -LiteralPath $python)) {
 
 & $uvCommand.Source pip install --python $python -r requirements-desktop.txt -r requirements-build.txt
 if ($LASTEXITCODE -ne 0) { throw "主程序依赖安装失败。" }
+$pythonBasePrefix = (& $python -c "import sys; print(sys.base_prefix)").Trim()
+if (-not $pythonBasePrefix -or -not (Test-Path -LiteralPath $pythonBasePrefix -PathType Container)) {
+    throw "无法解析打包 Python 的 sys.base_prefix，拒绝跳过 TLS DLL 来源比对。"
+}
 
 # Node 只用于构建期；先锁定依赖并重新生成 Web 静态产物，避免把陈旧 dist 打进包。
 $npm = Get-Command npm -ErrorAction Stop
@@ -368,8 +384,15 @@ if (-not $SkipGate) {
 }
 
 Write-Host "[2/4] PyInstaller 打包主程序 ..." -ForegroundColor Cyan
-& $python -m PyInstaller --noconfirm --clean "$APP_ID.spec"
-if ($LASTEXITCODE -ne 0) { throw "主程序打包失败。" }
+$previousManifestTrustHook = $env:SHUABAO_BUILD_MANIFEST_TRUST_HOOK
+try {
+    $env:SHUABAO_BUILD_MANIFEST_TRUST_HOOK = $manifestTrustHook
+    & $python -m PyInstaller --noconfirm --clean "$APP_ID.spec"
+    if ($LASTEXITCODE -ne 0) { throw "主程序打包失败。" }
+}
+finally {
+    $env:SHUABAO_BUILD_MANIFEST_TRUST_HOOK = $previousManifestTrustHook
+}
 
 $app = Join-Path $PSScriptRoot "dist\$APP_ID\$APP_ID.exe"
 if (-not (Test-Path -LiteralPath $app)) {
@@ -463,20 +486,15 @@ $releaseManifest = [ordered]@{
 }
 $releaseManifestJson = $releaseManifest | ConvertTo-Json -Depth 6
 Write-Utf8NoBom $releaseManifestPath $releaseManifestJson
-if ($isExternalChannel) {
-    $manifestSignaturePath = "$releaseManifestPath.sig"
-    try {
-        & $python tools\sign_release_manifest.py --manifest $releaseManifestPath --private-key $manifestKeyPath --key-id $manifestKeyId
-        if ($LASTEXITCODE -ne 0) { throw "manifest signer exited with code $LASTEXITCODE" }
-        $verifyCode = "import json,sys; from pathlib import Path; source=Path(sys.argv[1]); root=Path(sys.argv[2]); sys.path.insert(0,str(source/'src')); from shuabao.release_signing import PINNED_MANIFEST_PUBLIC_KEYS,verify_manifest_signature; verify_manifest_signature(json.loads((root/'release_manifest.json').read_text(encoding='utf-8')),json.loads((root/'release_manifest.json.sig').read_text(encoding='utf-8')),PINNED_MANIFEST_PUBLIC_KEYS)"
-        & $python -c $verifyCode $PSScriptRoot $releaseRoot
-        if ($LASTEXITCODE -ne 0) { throw "runtime manifest signature verification failed" }
-        Write-Host "release_manifest Ed25519 签名与固定 pin 校验通过。" -ForegroundColor Green
-    }
-    catch {
-        Remove-Item -LiteralPath $manifestSignaturePath, $releaseManifestPath -Force -ErrorAction SilentlyContinue
-        throw "外发渠道 manifest 签名/校验失败，拒绝交付：$($_.Exception.Message)"
-    }
+$manifestSignaturePath = "$releaseManifestPath.sig"
+try {
+    & $python tools\sign_release_manifest.py --manifest $releaseManifestPath --private-key $manifestKeyPath --key-id $manifestKeyId
+    if ($LASTEXITCODE -ne 0) { throw "manifest signer exited with code $LASTEXITCODE" }
+    Write-Host "release_manifest Ed25519 签名已生成；随后执行生产 verifier 与编译 pin harness。" -ForegroundColor Green
+}
+catch {
+    Remove-Item -LiteralPath $manifestSignaturePath, $releaseManifestPath -Force -ErrorAction SilentlyContinue
+    throw "frozen manifest 签名失败，拒绝交付：$($_.Exception.Message)"
 }
 $ocrModelManifestPath = Join-Path $releaseRoot "vision\_internal\models\ocr\MODEL_MANIFEST.json"
 if (-not (Test-Path -LiteralPath $ocrModelManifestPath -PathType Leaf)) {
@@ -508,7 +526,9 @@ Write-Host "已写入构建身份：$identityPath" -ForegroundColor Green
 $releaseHarness = Join-Path $PSScriptRoot "tools\release_harness.py"
 $harnessArgs = @(
     "--source-root", $PSScriptRoot,
-    "--bundle", $releaseRoot
+    "--bundle", $releaseRoot,
+    "--python-root", $pythonBasePrefix,
+    "--manifest-public-keys", $manifestPublicKeysPath
 )
 if (-not $AllowDirty) { $harnessArgs += "--require-clean" }
 & $python $releaseHarness @harnessArgs
@@ -622,7 +642,9 @@ if (-not [string]::IsNullOrWhiteSpace([string]$shortcutProof.Arguments)) {
 # 同步；任何失败都不算“已同步到桌面”。
 $deployedHarnessArgs = @(
     "--source-root", $PSScriptRoot,
-    "--bundle", $target
+    "--bundle", $target,
+    "--python-root", $pythonBasePrefix,
+    "--manifest-public-keys", $manifestPublicKeysPath
 )
 if (-not $AllowDirty) { $deployedHarnessArgs += "--require-clean" }
 & $python $releaseHarness @deployedHarnessArgs
