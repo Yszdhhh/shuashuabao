@@ -524,6 +524,16 @@ $versionLabel = "V$version"
 $desktop = [Environment]::GetFolderPath("Desktop")
 $target  = Join-Path $desktop "$APP_ID"
 $archive = Join-Path $desktop "$APP_NAME-旧版归档"
+
+# 先 fail-fast 检查旧桌面程序是否仍占用 ShuaBao.exe。robocopy /MIR 遇到锁定
+# EXE 会长时间重试，表面像“同步成功但用户仍是旧版”；构建必须直接告诉操作员
+# 哪些 PID 需要先正常退出，不能把锁等待当作部署进度。
+$runningDesktopProcesses = @(Get-Process -Name $APP_ID -ErrorAction SilentlyContinue)
+if ($runningDesktopProcesses.Count -gt 0) {
+    $runningPids = ($runningDesktopProcesses | ForEach-Object { $_.Id }) -join ","
+    throw "桌面同步前请先关闭 $APP_ID.exe（占用 PID: $runningPids），否则 robocopy 会锁等待。"
+}
+
 # 归档桌面上旧版目录（ShuaBao-* / 历史 GameScript-*），只留当前这一份
 if (-not (Test-Path -LiteralPath $archive)) {
     New-Item -ItemType Directory -Path $archive | Out-Null

@@ -132,6 +132,8 @@ def test_build_script_runs_harness_and_reads_shortcut_after_save() -> None:
     assert "$shortcutProof = $shell.CreateShortcut($lnk)" in text
     assert "$shortcutProof.TargetPath" in text
     assert "$shortcutProof.WorkingDirectory" in text
+    assert "$runningDesktopProcesses = @(Get-Process -Name $APP_ID" in text
+    assert "robocopy 会锁等待" in text
 
 
 def test_release_gate_scrubs_live_subscription_environment(monkeypatch) -> None:
