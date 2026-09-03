@@ -245,10 +245,10 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "runbook_manual_intervention": "若 UAC 未确认或窗口被遮挡，结束本次并重新从桌面快捷方式启动。",
     },
     "hitch_runtime": {
-        "handler": "_tick_main_line",
+        "handler": "tick",
         "call": "frame",
-        "start_condition": "已在蹭车进入的局内 HUD，或已打开胜利后的存档/时光之穴/传家宝页面；不需要回到大厅重搜。",
-        "production_entry": "Mediator._tick_main_line(frame)，复用现有自动任务、四挑战、结算存档和 Boss handler；压力转移需独立视觉锚点后才可接入。",
+        "start_condition": "整条蹭车链路：从大厅搜房、进入房间准备、到局内压力转移与战后 Boss。",
+        "production_entry": "Mediator.tick()，整链全自动运转。",
         "expected_steps": ("HUD", "AUTO_TASK", "FOUR_CHALLENGES", "POSTGAME_ARCHIVE", "BOSS_FALLBACK"),
         "success_postcondition": "自动任务、挑战和战后 Boss 均须各自通过既有视觉后置条件；单次输入不算成功。",
         "fail_condition": "输入被拒绝、既有生产 handler 进入 ERROR，或页面缺少既有分类/模板证据。",
@@ -396,6 +396,7 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             "HitchDismissPopup", "HitchLeaveFloorOne", "HitchConfirmLeave",
             "HitchSelectTab",
         },
+        "hitch_runtime": None,  # Whole-loop runtime target: do not restrict reasons
     }.get(target)
 
 SUPPORTED_TARGETS = tuple(TARGET_CONTRACTS)
@@ -1025,10 +1026,11 @@ def _target_contract(target: str) -> dict[str, Any]:
 
 
 def _invoke_target_handler(med: Mediator, target: str, frame: Frame) -> Any:
-    """Invoke exactly one existing production entry point for a target probe."""
+    if target == "hitch_runtime":
+        return med.tick()
     if target in {"time_cave", "heirloom"}:
         return med._tick_main_line(frame)
-    if target in {"lobby_hitch", "lobby_search"}:
+    if target in {"lobby_hitch", "lobby_search", "hitch_runtime"}:
         if med._lobby_room_list_evidence(frame):
             context = "LOBBY_ROOM"
             stage_page = False
