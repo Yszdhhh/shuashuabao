@@ -19,6 +19,7 @@ from shuabao.settings import Settings  # noqa: E402
 from shuabao.shell.mode_catalog import (  # noqa: E402
     ModeSpec,
     apply_mode_overlay,
+    get_spec,
 )
 
 
@@ -194,6 +195,18 @@ class ApplyModeOverlayTests(unittest.TestCase):
         self.assertEqual(3600, out.round_timeout_s)
         self.assertEqual(0, out.game_mode)
         self.assertTrue(out.auto_create_room)
+
+    def test_hitch_dashboard_contract_exposes_bosses_and_search_terms(self):
+        spec = get_spec("lobby_hitch")
+        self.assertEqual(Settings().hitch_stage_prefix, "4,3")
+        self.assertTrue({"hitch_stage_prefix", "cjb_boss", "sgzx_boss"}.issubset(spec.visible_settings))
+        selected = apply_mode_overlay(
+            Settings(hitch_stage_prefix="自定义主搜,自定义副搜", cjb_boss="01暴掠龙", sgzx_boss="08巨形缝合怪"),
+            "lobby_hitch",
+        )
+        self.assertEqual(selected.hitch_stage_prefix, "自定义主搜,自定义副搜")
+        self.assertEqual(selected.cjb_boss, "01暴掠龙")
+        self.assertEqual(selected.sgzx_boss, "08巨形缝合怪")
 
 
 if __name__ == "__main__":

@@ -116,7 +116,7 @@ class Settings:
     game_mode: int = 0  # 0=独狼/自己刷图
     # 运行方式目录 id（normal_farm / lobby_hitch / …）。不是 OBSERVE/LIVE。
     mode_id: str = "normal_farm"
-    hitch_stage_prefix: str = "3"  # 大厅找房搜索词，默认 3，可逗号分隔多词轮换（如 4,3）
+    hitch_stage_prefix: str = "4,3"  # 大厅找房搜索词，默认 4→3，可逗号分隔多词轮换
     hitch_rotate_interval: int = 10  # 搜索无结果时每隔多少轮自动轮换下一个搜索词
     follow_cycle_num: int = 100  # 跟车目标局数；启动时投影到 cycle_num
     hitch_cycle_num: int = 100  # 蹭车目标局数；启动时投影到 cycle_num
@@ -448,7 +448,7 @@ class Settings:
             clean["mode_id"] = mid or "normal_farm"
         if "hitch_stage_prefix" in clean:
             search_text = str(clean["hitch_stage_prefix"] or "").strip()[:64]
-            clean["hitch_stage_prefix"] = search_text or "3"
+            clean["hitch_stage_prefix"] = search_text or "4,3"
         for key, allowed, default in (
             ("follow_after_room", {"solo", "arch", "hitch"}, "solo"),
             ("hitch_after_goal", {"solo", "arch"}, "solo"),

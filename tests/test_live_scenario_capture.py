@@ -1373,9 +1373,9 @@ def test_probe_entry_also_overrides_generic_room_context() -> None:
     assert result is LoopAction.Continue
     assert calls == [("LOBBY_ROOM", None, False)]
 def test_lobby_hitch_uses_default_and_custom_search_text() -> None:
-    assert Settings().hitch_stage_prefix == "3"
+    assert Settings().hitch_stage_prefix == "4,3"
     assert Settings._from_dict({"hitch_stage_prefix": "4-8"}).hitch_stage_prefix == "4-8"
-    assert Settings._from_dict({"hitch_stage_prefix": "   "}).hitch_stage_prefix == "3"
+    assert Settings._from_dict({"hitch_stage_prefix": "   "}).hitch_stage_prefix == "4,3"
 
 
 def test_lobby_hitch_clicks_inside_search_box_above_anchor_center() -> None:
@@ -1404,7 +1404,7 @@ def test_lobby_hitch_clicks_inside_search_box_above_anchor_center() -> None:
     click_hit, text, reason = search.call_args.args
     assert click_hit.screen_x == 1346
     assert click_hit.screen_y == 332
-    assert (text, reason) == ("3", "HitchSearchBox")
+    assert (text, reason) == ("4", "HitchSearchBox")
     assert med._hitch_search_pending is not None
     assert med._hitch_prefix_searched is False
 

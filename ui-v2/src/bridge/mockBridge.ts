@@ -76,7 +76,8 @@ const MODES: ModeDTO[] = [
     badge: "可启动",
     blocked_reason: "",
     visible_settings: [
-      "hitch_stage_prefix", "hitch_cycle_num", "hitch_after_goal", "skip_password_rooms",
+      "hitch_stage_prefix", "hitch_rotate_interval", "hitch_cycle_num", "hitch_after_goal",
+      "cjb_boss", "sgzx_boss", "skip_password_rooms",
       "refresh_s", "never_quick_join", "hitch_reject_list", "dry_run",
     ],
   },
@@ -111,6 +112,7 @@ function snapshot(): SnapshotDTO {
     cycle_num: 100,
     follow_cycle_num: 100,
     hitch_cycle_num: 100,
+    hitch_stage_prefix: "4,3",
     follow_after_room: "solo",
     hitch_after_goal: "solo",
     follow_pair_code: "",

@@ -737,6 +737,10 @@
     }
     .hitch-spec dt { margin: 0; font-size: 12px; font-weight: 650; color: var(--p-muted); }
     .hitch-spec dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--p-ink); }
+    .hitch-config-head { align-items: center; }
+    .hitch-config-head .secondary { height: 34px; white-space: nowrap; }
+    .hitch-boss-grid { align-items: stretch; }
+    .hitch-boss-grid .pick-row { margin: 0; min-height: 64px; }
     .footer {
       display: none !important; flex: 0 0 56px; height: 56px; align-items: center; gap: 10px;
       padding: 0 14px; border-top: 1px solid var(--p-line); background: var(--p-chrome);
@@ -1308,9 +1312,9 @@
       </section>
     </div>
     <div class="hitch-page hitch" id="hitchBody" data-od-id="hitch-page">
-      <span class="pill warn">待验证 · 不可启动</span>
+      <span class="pill">可启动</span>
       <h2>组队 · 蹭车</h2>
-      <p>自动在大厅找房；达到蹭车目标后按预案切换任务。</p>
+      <p>自动在大厅找房并准备；局内沿用当前策略，战后按已选 Boss 和组队退出规则收口。</p>
       <section class="team-rules" data-team-rules="hitch" data-od-id="hitch-rules" aria-labelledby="hitchRulesTitle">
         <div class="team-rules-head">
           <h3 id="hitchRulesTitle">蹭车结束规则</h3>
@@ -1338,7 +1342,18 @@
           <span><small>02</small><b>入房后自动准备</b></span>
           <span><small>03</small><b>完成目标后切换</b></span>
         </div>
-        <div class="team-boundary"><strong>当前执行边界</strong><span>只保存蹭车预案；找房能力待验证，点火保持禁用。</span></div>
+        <div class="team-boundary"><strong>当前执行边界</strong><span>仅在可信大厅锚点、搜索框 OCR 确认和可加入房间证据齐全时输入。</span></div>
+      </section>
+      <section class="team-rules" data-od-id="hitch-boss-config" aria-labelledby="hitchBossTitle">
+        <div class="team-rules-head hitch-config-head">
+          <h3 id="hitchBossTitle">战后目标</h3>
+          <button type="button" class="secondary" id="btnHitchAdvanced" data-od-id="hitch-advanced-search">高级搜房</button>
+        </div>
+        <div class="team-rules-grid hitch-boss-grid">
+          <button type="button" class="pick-row" id="hitchCjbCard"><span class="k">传家宝 Boss</span><strong id="hitchCjbName">未选择</strong><i>选择</i></button>
+          <button type="button" class="pick-row" id="hitchBossCard"><span class="k">时光之穴 Boss</span><strong id="hitchBossName">未选择</strong><i>选择</i></button>
+        </div>
+        <p>传家宝与时光之穴分别按所选 Boss 处理；传家宝点击后必须等“已挑战”业务结果确认，才会关闭面板并进入组队退出等待。</p>
       </section>
       <button type="button" class="ghost-btn solid" id="btnFollow" style="align-self:flex-start">已经在房间里，改为跟车</button>
     </div>
@@ -1812,7 +1827,12 @@
     function renderNegatives() {
       $("negatives").innerHTML=NEG.map((card)=>`<label class="neg-item"><input type="checkbox" data-neg="${card.name}" ${state.negative.has(card.name)?"checked":""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span><span class="why">${card.why}</span></span></label>`).join("");
     }
-    function renderNames() { $("cjbName").textContent=stemLabel(state.cjb); $("bossName").textContent=stemLabel(state.boss); renderLaunchSummary(); }
+    function renderNames() {
+      const cjb=stemLabel(state.cjb), boss=stemLabel(state.boss);
+      $("cjbName").textContent=cjb; $("bossName").textContent=boss;
+      $("hitchCjbName").textContent=cjb; $("hitchBossName").textContent=boss;
+      renderLaunchSummary();
+    }
     function formatExpire(value) {
       if (!value) return "";
       const text = String(value);
@@ -1976,6 +1996,8 @@
     $("btnRep").addEventListener("click",()=>openModal("rep"));
     $("cjbCard").addEventListener("click",()=>openModal("cjb"));
     $("bossCard").addEventListener("click",()=>openModal("boss"));
+    $("hitchCjbCard").addEventListener("click",()=>openModal("cjb"));
+    $("hitchBossCard").addEventListener("click",()=>openModal("boss"));
     $("modalLayer").addEventListener("click",(e)=>{
       if (e.target.closest("[data-toggle-key]")) {
         const input=$("subscriptionKey"); const btn=e.target.closest("[data-toggle-key]");
@@ -2125,7 +2147,6 @@
     $("btnMore").addEventListener("click",()=>setDrawer(!state.drawer));
     $("drawerBackdrop").addEventListener("click",()=>setDrawer(false));
     $("btnStart").addEventListener("click",()=>{
-      if (state.scene==="hitch") return;
       const n = currentSkills().filter(Boolean).length;
       if (!n) {
         $("startErr").textContent = "还没选技能，先点自定义或一个流派";

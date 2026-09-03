@@ -127,8 +127,11 @@
       "flow": "LobbyHitchFlow",
       "visible_settings": [
         "hitch_stage_prefix",
+        "hitch_rotate_interval",
         "hitch_cycle_num",
         "hitch_after_goal",
+        "cjb_boss",
+        "sgzx_boss",
         "skip_password_rooms",
         "refresh_s",
         "never_quick_join",

@@ -104,6 +104,16 @@ function clampCycle(n: number): number {
   return Math.max(0, Math.min(999, Math.trunc(n)));
 }
 
+type HitchSearchTerms = { primary: string; secondary: string };
+
+function parseHitchSearchTerms(value: unknown): HitchSearchTerms {
+  const terms = String(value ?? "").replace(/，/g, ",").split(",")
+    .map((term) => term.trim()).filter(Boolean);
+  return { primary: terms[0] ?? "4", secondary: terms[1] ?? "3" };
+}
+
+let hitchSearchTerms: HitchSearchTerms = parseHitchSearchTerms("4,3");
+
 function bridgeErrorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -451,6 +461,7 @@ function applySwitches(settings: SettingsDTO): void {
 
 function rerenderAll(settings: SettingsDTO): void {
   renderChapterStage();
+  hitchSearchTerms = parseHitchSearchTerms(settings.hitch_stage_prefix);
   const cjb = asString(settings.cjb_boss); // 持久化选择压过推荐展示
   const boss = asString(settings.sgzx_boss);
   if (cjb) state.cjb = cjb;
@@ -462,6 +473,20 @@ function rerenderAll(settings: SettingsDTO): void {
   renderTeamRules();
   renderNegatives();
   refreshSummary(); // 内含 renderLaunchSummary
+}
+
+function openHitchSearchModal(): void {
+  state.modal = "hitch_search";
+  state._focusBack = document.activeElement;
+  const sheet = $("modalSheet");
+  sheet.className = "sheet";
+  sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">高级搜房</h2></div>` +
+    `<div class="sheet-body"><p class="hint">自定义后会按主搜、再副搜轮换；留空副搜可只使用主搜。</p>` +
+    `<div class="field"><label for="hitchPrimarySearch">主搜</label><input id="hitchPrimarySearch" type="text" maxlength="64" value="${escText(hitchSearchTerms.primary)}" autocomplete="off" /></div>` +
+    `<div class="field"><label for="hitchSecondarySearch">副搜</label><input id="hitchSecondarySearch" type="text" maxlength="64" value="${escText(hitchSearchTerms.secondary)}" autocomplete="off" /></div></div>` +
+    `<div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-apply-hitch-search="1" data-close="1">保存</button></div>`;
+  $("modalLayer").classList.add("show");
+  (document.getElementById("hitchPrimarySearch") as HTMLInputElement | null)?.focus();
 }
 
 let lastAppliedSnapshotSeq = 0;
@@ -755,6 +780,20 @@ function wireIntents(): void {
     },
     { capture: true },
   );
+  $("modalLayer").addEventListener("click", (event) => {
+    if (!(event.target as HTMLElement).closest("[data-apply-hitch-search]")) return;
+    const primary = (document.getElementById("hitchPrimarySearch") as HTMLInputElement | null)?.value.trim() ?? "";
+    const secondary = (document.getElementById("hitchSecondarySearch") as HTMLInputElement | null)?.value.trim() ?? "";
+    const search = [primary, secondary].filter(Boolean).join(",");
+    if (!search || search.length > 64) {
+      event.stopPropagation();
+      toast(!search ? "主搜不能为空" : "主搜和副搜合计最多 64 个字符");
+      return;
+    }
+    hitchSearchTerms = { primary, secondary };
+    pushConfig({ hitch_stage_prefix: search });
+  }, { capture: true });
+  $("btnHitchAdvanced").addEventListener("click", openHitchSearchModal);
 
   // 启动 / 停止（同一按钮，运行态切换为 stop_run）。
   $("btnStart").addEventListener("click", () => {
