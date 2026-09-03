@@ -152,6 +152,26 @@ def _live_identity(root: Path) -> _LiveIdentity:
         return _LiveIdentity("", "", "", True)
 
 
+def live_permit_request_context(root: Path, mode_id: str) -> dict[str, str] | None:
+    """Return only an authenticated frozen release identity for permit issuance."""
+    identity = _live_identity(Path(root))
+    requested_mode = str(mode_id or "").strip()
+    if (
+        not identity.packaged
+        or not identity.source_sha
+        or not identity.manifest_sha
+        or not identity.release_channel
+        or not requested_mode
+    ):
+        return None
+    return {
+        "source_sha": identity.source_sha,
+        "release_manifest_sha256": identity.manifest_sha,
+        "release_channel": identity.release_channel,
+        "mode_id": requested_mode,
+    }
+
+
 def resolve_live_permission(permission: Any, *, mode_id: str, root: Path) -> DevStartCapability | VerifiedPermit:
     """Resolve status DTOs into an explicit LIVE authorization artifact."""
     identity = _live_identity(Path(root))

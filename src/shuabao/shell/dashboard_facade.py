@@ -21,7 +21,7 @@ import sys
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 from shuabao.subscription_client import (
     SUBSCRIPTION_LICENSE_KEY_ENV,
     activate_device,
@@ -53,6 +53,7 @@ from shuabao.shell.runner_service import (
     RunnerService,
 )
 from shuabao.shell.runner_service import live_lock_busy
+from shuabao.shell.live_execute import live_permit_request_context
 from shuabao.shell.runtime_status import runtime_status_from_mediator
 from shuabao.shell.bridge_contract import (
     BRIDGE_REQUIRED_METHODS,
@@ -494,7 +495,7 @@ class DashboardFacade(QObject):
         # Subscription probes are bounded and cached.  Snapshot reads happen
         # on the QWebChannel GUI thread; never perform a network request merely
         # because the header/status DTO is being painted.
-        self._subscription_cache_key: tuple[str, str, str, str] | None = None
+        self._subscription_cache_key: tuple[str, ...] | None = None
         self._subscription_cache_at = 0.0
         self._subscription_cache: Any = None
         self._subscription_cache_ttl_s = 15.0
@@ -570,16 +571,52 @@ class DashboardFacade(QObject):
             "treasure": {"negative_allowlist": list(self._settings.treasure_allow_negative)},
         }
 
-    def _subscription_key(self) -> tuple[str, str, str, str]:
+    def _subscription_key(
+        self,
+        permit_request: Mapping[str, object] | None = None,
+    ) -> tuple[str, ...]:
         key = str(os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or "").strip()
         endpoint = str(os.environ.get("SHUABAO_SUBSCRIPTION_BASE_URL") or "").strip()
         mode = str(os.environ.get("SHUABAO_SUBSCRIPTION_MODE") or "").strip().lower()
         # Keep the raw key out of the in-memory cache key and diagnostic data.
         key_digest = hashlib.sha256(key.encode("utf-8")).hexdigest() if key else ""
-        return mode, endpoint, key_digest, str(os.environ.get("SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT") or "").strip()
+        base = (
+            mode,
+            endpoint,
+            key_digest,
+            str(os.environ.get("SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT") or "").strip(),
+        )
+        context = tuple(
+            str((permit_request or {}).get(field) or "").strip()
+            for field in (
+                "source_sha",
+                "release_manifest_sha256",
+                "release_channel",
+                "mode_id",
+            )
+        )
+        return base + context
 
-    def _subscription_permission(self, *, force: bool = False):
-        key = self._subscription_key()
+    def _permit_request_context(self, mode_id: str | None) -> dict[str, str] | None:
+        requested_mode = str(mode_id or "").strip()
+        if not requested_mode:
+            return None
+        root = self._root
+        if root is None and self._runner is not None:
+            candidate = getattr(self._runner, "root", None)
+            root = Path(candidate) if candidate is not None else None
+        if root is None:
+            return None
+        return live_permit_request_context(root, requested_mode)
+
+    def _subscription_permission(
+        self,
+        *,
+        force: bool = False,
+        mode_id: str | None = None,
+    ):
+        permit_request = self._permit_request_context(mode_id)
+        key = self._subscription_key(permit_request)
         now = time.monotonic()
         if (
             not force
@@ -588,7 +625,11 @@ class DashboardFacade(QObject):
             and now - self._subscription_cache_at < self._subscription_cache_ttl_s
         ):
             return self._subscription_cache
-        permission = check_start_permission()
+        permission = (
+            check_start_permission(permit_request=permit_request)
+            if permit_request is not None
+            else check_start_permission()
+        )
         self._subscription_cache_key = key
         self._subscription_cache_at = now
         self._subscription_cache = permission
@@ -604,7 +645,9 @@ class DashboardFacade(QObject):
         if not key:
             return {"active": False, "status": "未激活", "expires_at": ""}
         permission = self._subscription_cache
-        if permission is None or self._subscription_cache_key != self._subscription_key():
+        base_key = self._subscription_key()[:4]
+        cached_base = self._subscription_cache_key[:4] if self._subscription_cache_key else None
+        if permission is None or cached_base != base_key:
             return {"active": False, "status": "待校验", "expires_at": ""}
         return {
             "active": bool(permission.allowed and permission.would_allow is not False),
@@ -851,7 +894,7 @@ class DashboardFacade(QObject):
         )
         cycle_ok = isinstance(cycle_raw, int) and not isinstance(cycle_raw, bool) and cycle_raw >= 0
         pair_code = settings.follow_pair_code or ""
-        permission = self._subscription_permission()
+        permission = self._subscription_permission(mode_id=mode_id)
         runtime_root_ok = self._root is None or Path(self._root).is_dir() or self._runner is not None
         runtime_root_detail = (
             "运行目录可用"
@@ -919,7 +962,11 @@ class DashboardFacade(QObject):
     @Slot(str, result=str)
     def start_run(self, mode_id_json: str) -> str:
         """先刷新一次授权，随后 preflight 复用该结果并将同一对象传入 RunnerService。"""
-        permission = self._subscription_permission(force=True)
+        requested_mode_id = self._parse_keyed(mode_id_json, "mode_id")
+        permission = self._subscription_permission(
+            force=True,
+            mode_id=requested_mode_id,
+        )
         pre = json.loads(self.validate_preflight(mode_id_json))
         if not pre["ok"]:
             return json.dumps(self._rpc_response(False, error=pre["blocked_reason"]),
