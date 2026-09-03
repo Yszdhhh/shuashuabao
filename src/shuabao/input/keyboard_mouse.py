@@ -507,6 +507,7 @@ class InputExecutor:
             obscured = self._check_point_obscured(target_hwnd, x, y)
             if obscured:
                 print(f"[input] scroll ({x}, {y}) CANCELLED: {obscured.message}")
+                return obscured
         if self.stop_signal and (self.stop_signal.is_set() or self.stop_signal.is_stopped()):
             return ActionResult(
                 success=False,

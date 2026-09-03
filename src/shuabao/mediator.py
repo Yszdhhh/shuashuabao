@@ -613,10 +613,12 @@ class Mediator:
         prefixes_raw = getattr(settings, "hitch_stage_prefix", "3")
         prefix_list = [p.strip() for p in str(prefixes_raw).replace("，", ",").split(",") if p.strip()]
         rotate_int = int(getattr(settings, "hitch_rotate_interval", 10) or 10)
+        search_budget = max(JOIN_ATTEMPTS, rotate_int * max(1, len(prefix_list)))
         self._hitch_sm = HitchSearchSM(
             prefix=prefix_list[0] if prefix_list else "3",
             prefixes=prefix_list or ["3"],
             rotate_interval=rotate_int,
+            join_limit=search_budget,
             refresh_s_min=refresh_lo,
             refresh_s_max=refresh_hi,
         )
@@ -628,6 +630,9 @@ class Mediator:
         self._hitch_status = ""
         self._hitch_join_refresh_count = 0
         self._hitch_prefix_searched = False
+        self._hitch_search_pending: tuple[str, float] | None = None
+        self._hitch_search_ocr_next_at = 0.0
+        self._hitch_search_ocr_error_logged_at = 0.0
         self._hitch_rejected_row_ys: set[int] = set()
         self._hitch_pending_row_y: int | None = None
         # Session-local blacklist keyed by the visible lobby room-number cell.
@@ -692,7 +697,11 @@ class Mediator:
         self._time_cave_boss_done: bool = False
         self._hitch_postgame_hero_selected: bool = False
         self._hitch_postgame_returned_to_base: bool = False
-        self._hitch_heirloom_exit_at: float | None = None
+        self._post_game_hub_entered_at: float | None = None
+        self._post_game_active_wait_since: float | None = None
+        self._team_exit_ocr_next_at = 0.0
+        self._team_exit_ocr_hits = 0
+        self._team_exit_ocr_error_logged_at = 0.0
         # Optional post-victory great-rift chain.  Every input has a dedicated
         # anchor and a bounded post-click observation window.
         self._secret_realm_request_pending: bool = False
@@ -6009,8 +6018,11 @@ class Mediator:
             self._archive_challenge_index = 0
             self._hitch_postgame_hero_selected = False
             self._hitch_postgame_returned_to_base = False
-            self._hitch_heirloom_exit_at = None
             self._post_game_hub_entered_at = None
+            self._post_game_active_wait_since = None
+            self._team_exit_ocr_next_at = 0.0
+            self._team_exit_ocr_hits = 0
+            self._team_exit_ocr_error_logged_at = 0.0
             self._post_game_close_attempts = 0
             self._secret_realm_request_pending = False
             self._secret_realm_request_since = None
@@ -6625,6 +6637,53 @@ class Mediator:
         mode = str(getattr(self.settings, "mode_id", "") or "")
         return mode in {"lobby_hitch", "follow_team", "lead_team", "lead"}
 
+    def _team_post_game_player_left(self, frame: Frame, now: float) -> bool:
+        """Return true only after two bounded OCR confirmations of a leave notice."""
+        if now < self._team_exit_ocr_next_at:
+            return False
+        self._team_exit_ocr_next_at = now + 1.0
+        client = getattr(self, "_ocr_client", None)
+        if client is None:
+            return False
+        bbox = self._normalized_bbox(frame, (0.25, 0.58, 0.75, 0.74))
+        try:
+            response = client.shadow_predict(
+                frame,
+                "post_game_chat",
+                {"slot_id": 0, "bbox": bbox, "kind": "text"},
+                session="post_game",
+                panel_bbox=bbox,
+            )
+        except (AttributeError, OSError, TypeError, ValueError) as exc:
+            if now >= self._team_exit_ocr_error_logged_at:
+                print(f"[med] 战后队友退出 OCR 不可用: {type(exc).__name__}")
+                self._team_exit_ocr_error_logged_at = now + 10.0
+            return False
+        if response.status != "ok":
+            return False
+        text = "".join(str(response.raw_text or "").split())
+        markers = ("退出游戏", "离开游戏", "退出了游戏", "离开房间")
+        self._team_exit_ocr_hits = self._team_exit_ocr_hits + 1 if any(marker in text for marker in markers) else 0
+        if self._team_exit_ocr_hits >= 2:
+            print("[med] 战后队友退出提示已连续 OCR 确认")
+            return True
+        return False
+
+    def _wait_for_team_post_game_exit(self, frame: Frame, now: float) -> LoopAction:
+        if self._post_game_hub_entered_at is None:
+            self._post_game_hub_entered_at = now
+        if self._team_post_game_player_left(frame, now):
+            reason = "player left observed, team post-game exit"
+        elif now - self._post_game_hub_entered_at >= 180.0:
+            reason = "post-game team wait 180s timeout"
+        else:
+            print("[med] 组队战后等待队友退出或 180 秒上限（零输入）")
+            return LoopAction.Continue
+        self._post_game_pending = False
+        self._record_round_outcome(RoundOutcome.VICTORY, reason)
+        self.set_phase(Phase.QUIT, reason)
+        return LoopAction.Continue
+
     def _passive_choice_mode(self) -> bool:
         return self._hitch_enabled() or self._follow_enabled()
     def _lobby_room_list_evidence(self, frame: Frame) -> bool:
@@ -6948,9 +7007,39 @@ class Mediator:
         return ""
 
     def _hitch_prefix_ok(self, frame: Frame | None = None) -> bool:
-        if getattr(self, "_hitch_prefix_searched", False):
-            return True
-        return has_prefix_evidence(self._hitch_ocr_text(frame), self._hitch_sm.prefix)
+        return bool(
+            getattr(self, "_hitch_prefix_searched", False)
+            and getattr(self, "_hitch_search_pending", None) is None
+        )
+
+    def _hitch_search_prefix_confirmed(self, frame: Frame, prefix: str, now: float) -> bool:
+        """Verify the lobby search box before using its filtered room rows."""
+        override = getattr(self, "_hitch_search_text_override", None)
+        if override is not None:
+            return has_prefix_evidence(str(override), prefix)
+        if now < self._hitch_search_ocr_next_at:
+            return False
+        self._hitch_search_ocr_next_at = now + 0.5
+        client = getattr(self, "_ocr_client", None)
+        if client is None:
+            return False
+        bbox = self._normalized_bbox(frame, (0.82, 0.26, 0.97, 0.32))
+        try:
+            response = client.shadow_predict(
+                frame,
+                "lobby_search_box",
+                {"slot_id": 0, "bbox": bbox, "kind": "text"},
+                session="lobby_hitch",
+                panel_bbox=bbox,
+            )
+        except (AttributeError, OSError, TypeError, ValueError) as exc:
+            if now >= self._hitch_search_ocr_error_logged_at:
+                print(f"[L0] hitch 搜索框 OCR 不可用: {type(exc).__name__}")
+                self._hitch_search_ocr_error_logged_at = now + 10.0
+            return False
+        if response.status != "ok":
+            return False
+        return has_prefix_evidence(str(response.raw_text or ""), prefix)
 
     def _hitch_room_matched(self, frame: Frame | None = None) -> bool:
         override = getattr(self, "_hitch_match_override", None)
@@ -7020,6 +7109,9 @@ class Mediator:
             prefix=self._hitch_sm.prefix,
             prefixes=self._hitch_sm.prefixes,
             rotate_interval=self._hitch_sm.rotate_interval,
+            join_limit=self._hitch_sm.join_limit,
+            search_timeout_s=self._hitch_sm.search_timeout_s,
+            sleep_s=self._hitch_sm.sleep_s,
             refresh_s_min=self._hitch_sm.refresh_s_min,
             refresh_s_max=self._hitch_sm.refresh_s_max,
             continuous=self._hitch_sm.continuous,
@@ -7029,6 +7121,12 @@ class Mediator:
         self._awaiting_room_return = False
         self._hitch_re_search = True
         self._hitch_sm = self._new_hitch_sm()
+        self._hitch_prefix_searched = False
+        self._hitch_search_pending = None
+        self._hitch_refresh_required = True
+        self._hitch_pending_row_y = None
+        self._hitch_pending_room_key = None
+        self._hitch_rejected_row_ys.clear()
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
         print(f"[L0] hitch {evidence} 触发，重置状态回大厅")
@@ -7086,6 +7184,9 @@ class Mediator:
             self._hitch_re_search = False
             self.set_phase(Phase.STAGE_SELECT, "hitch stage page wait")
             print("[L0] hitch 选关页可见，零输入等待进局（不点关卡）")
+            return LoopAction.Continue
+        if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
+            print("[L0] hitch 黑帧/空帧，零输入等待可信大厅页面")
             return LoopAction.Continue
         # 0. 已请求退出时，蓝色“确定”本身就是动作专属证据。此分支
         # 必须先于通用弹窗模板，避免 KK 更新弹窗样式后无法退出。
@@ -7184,8 +7285,8 @@ class Mediator:
             self._hitch_floor_exit_confirmed = False
             self._hitch_floor_exit_attempted_at = None
             self._hitch_re_search = False
-            self._hitch_sm = self._new_hitch_sm()
-            self._hitch_refresh_required = True
+            self._hitch_after_exit(now)
+            self._hitch_re_search = False
             self.set_phase(Phase.LOBBY_ROOM, "hitch floor-one rejection returned to lobby")
             print("[L0] hitch 一楼条件不符，已回大厅；下个动作先刷新")
 
@@ -7248,41 +7349,38 @@ class Mediator:
         if not is_in_room_list:
             tab_unselected = self.find_scene(frame, "lobby_room_list_tab")
             if tab_unselected is None:
-                w, h = frame.width, frame.height
-                tab_unselected = MatchResult(
-                    name="lobby_room_list_tab",
-                    score=1.0,
-                    x=int(w * (355.0 / 1332.0)),
-                    y=int(h * (245.0 / 945.0)),
-                    w=120,
-                    h=34,
-                    screen_x=int(frame.left + w * (355.0 / 1332.0)),
-                    screen_y=int(frame.top + h * (245.0 / 945.0)),
-                )
+                self._hitch_sm.defer_retry(now)
+                self._hitch_status = "等待可信房间列表 Tab"
+                print("[L0] hitch 未识别房间列表 Tab，零输入等待")
+                return LoopAction.Continue
             self.act_click(tab_unselected, "HitchSelectTab")
             print(f"[L0] hitch 点击切换至房间列表 Tab: ({tab_unselected.screen_x}, {tab_unselected.screen_y})")
             return LoopAction.Continue
 
-        # 搜索一次，后续只走刷新；坐标按当前 L0 客户区比例换算。
-        prefix = str(getattr(self.settings, "hitch_stage_prefix", "3") or "3").strip()[:64] or "3"
-        if not getattr(self, "_hitch_prefix_searched", False) and is_in_room_list:
+        search_hit = self.find_scene(frame, "lobby_search_box")
+        pending_search = self._hitch_search_pending
+        if pending_search is not None:
+            prefix, pending_at = pending_search
+            if self._hitch_search_prefix_confirmed(frame, prefix, now):
+                self._hitch_prefix_searched = True
+                self._hitch_search_pending = None
+                self._hitch_rejected_row_ys.clear()
+                print(f"[L0] hitch 搜索词 '{prefix}' 已由搜索框 OCR 确认")
+            elif now - pending_at >= 3.0:
+                self._hitch_search_pending = None
+                self._hitch_prefix_searched = False
+                self._hitch_sm.defer_retry(now)
+                print(f"[L0] hitch 搜索词 '{prefix}' 未获视觉确认，零输入重试")
+            else:
+                print(f"[L0] hitch 等待搜索词 '{prefix}' 生效确认（零输入）")
+            return LoopAction.Continue
+
+        if not getattr(self, "_hitch_prefix_searched", False):
             prefix = self._hitch_sm.prefix
             if search_hit is None:
-                w, h = frame.width, frame.height
-                left = getattr(frame, "left", 0) or 0
-                top = getattr(frame, "top", 0) or 0
-                sx = int(w * (1187.0 / 1332.0))
-                sy = int(h * (292.0 / 945.0))
-                search_hit = MatchResult(
-                    name="lobby_search_box",
-                    score=1.0,
-                    x=sx,
-                    y=sy,
-                    w=185,
-                    h=30,
-                    screen_x=left + sx,
-                    screen_y=top + sy,
-                )
+                self._hitch_sm.defer_retry(now)
+                print("[L0] hitch 未识别搜索框，零输入等待")
+                return LoopAction.Continue
             else:
                 # The shipped anchor starts halfway down the input control and
                 # includes the gap/table header below it.  Its geometric centre
@@ -7292,8 +7390,8 @@ class Mediator:
                     screen_y=search_hit.screen_y - search_hit.h // 2,
                 )
             if self.act_search_box(search_hit, prefix, "HitchSearchBox"):
-                self._hitch_prefix_searched = True
-                self._hitch_rejected_row_ys.clear()
+                self._hitch_search_pending = (prefix, now)
+                self._hitch_prefix_searched = False
                 print(f"[L0] hitch 搜索词 '{prefix}' 已输入并回车: ({search_hit.screen_x}, {search_hit.screen_y})")
             else:
                 self._hitch_sm.defer_retry(now)
@@ -7350,6 +7448,7 @@ class Mediator:
                 rotated = self._hitch_sm.note_refresh(now)
                 if rotated:
                     self._hitch_prefix_searched = False
+                    self._hitch_search_pending = None
                     print(f"[L0] hitch 连续刷新未命中，自动轮换搜索词 -> {self._hitch_sm.prefix}")
                 self._hitch_refresh_required = False
                 self._hitch_rejected_row_ys.clear()
@@ -7359,7 +7458,7 @@ class Mediator:
                 self._hitch_status = "search"
                 print(
                     f"[L0] hitch refresh attempt={self._hitch_sm.attempts}/"
-                    f"{JOIN_ATTEMPTS} search={self._hitch_sm.prefix}"
+                    f"{self._hitch_sm.join_limit} search={self._hitch_sm.prefix}"
                 )
             else:
                 self._hitch_sm.defer_retry(now)
@@ -9609,7 +9708,7 @@ class Mediator:
             self._post_game_route = (
                 "heirloom"
                 if str(getattr(self.settings, "cjb_boss", "") or "").strip()
-                else "secret"
+                else ("team_wait_exit" if self._team_mode_enabled() else "secret")
             )
             print(f"[med] 存档与时光之穴完成，关闭存档面板 @ {close_hit.center} (尝试 {self._post_game_close_attempts}/3) 并转 {self._post_game_route}")
             self.act_click(close_hit, "CloseArchivePanel")
@@ -9635,13 +9734,17 @@ class Mediator:
                 print("[med] 大秘境确认后挑战广场过渡帧，零动作等待局内 HUD")
                 return LoopAction.Continue
             route = getattr(self, "_post_game_route", "secret")
-            if route == "boss_postgame" and self._team_mode_enabled() and self._hitch_heirloom_exit_at is None:
+            if route == "boss_postgame" and self._team_mode_enabled():
                 if not self._hitch_postgame_returned_to_base:
                     if self.act_key("F2", "HitchPostBossReturnOwnBase"):
                         self._hitch_postgame_returned_to_base = True
                         cjb_boss_cfg = str(getattr(self.settings, "cjb_boss", "") or "").strip()
-                        self._post_game_route = "heirloom" if cjb_boss_cfg else "secret"
+                        self._post_game_route = "heirloom" if cjb_boss_cfg else "team_wait_exit"
                     return LoopAction.Continue
+                self._post_game_route = "team_wait_exit"
+                route = "team_wait_exit"
+            if route == "team_wait_exit":
+                return self._wait_for_team_post_game_exit(frame, now)
             if route in {"archive", "heirloom"}:
                 entry = self._post_game_hub_entry_click(frame, route)
                 if entry is None:
@@ -9665,52 +9768,6 @@ class Mediator:
                 return LoopAction.Continue
             else:
                 self._post_game_active_wait_since = None
-            if route == "boss_postgame" and not self.settings.auto_secret_realm:
-                if getattr(self, "_post_game_hub_entered_at", None) is None:
-                    self._post_game_hub_entered_at = now
-                
-                # 1. 识别屏幕上是否有队友退出的提示（OCR/文本识别 "离开游戏"、"退出了游戏"）
-                ocr_client = getattr(self, "_ocr_client", None)
-                player_left = False
-                if ocr_client is not None and frame is not None and frame.bgr is not None:
-                    try:
-                        # 检查屏幕中下部系统公告/聊天区域 ROI: (0.20, 0.50, 0.80, 0.85)
-                        h, w = frame.bgr.shape[:2]
-                        chat_crop = frame.bgr[int(h * 0.50):int(h * 0.85), int(w * 0.20):int(w * 0.80)]
-                        ocr_res = ocr_client.ocr(chat_crop)
-                        for item in (ocr_res or []):
-                            txt = item.get("text", "") if isinstance(item, dict) else str(item)
-                            if any(kw in txt for kw in ["退出游戏", "离开游戏", "退出了游戏", "离开房间"]):
-                                player_left = True
-                                print(f"[med] 战后检测到队友退出提示 ({txt})，跟随触发局内退出")
-                                break
-                    except Exception:
-                        pass
-                if player_left:
-                    self._post_game_pending = False
-                    self._record_round_outcome(RoundOutcome.VICTORY, "player left observed, team follow exit")
-                    self.set_phase(Phase.QUIT, "player left observed, team follow exit")
-                    return LoopAction.Continue
-
-                # 2. 超时兜底机制：3分钟（180s）硬超时，或蹭车传家宝150秒退出
-                hub_duration = now - self._post_game_hub_entered_at
-                if hub_duration >= 180.0:
-                    print(f"[med] 战后广场停留已满 {hub_duration:.1f}s (>= 180s 兜底)，强制退出")
-                    self._post_game_pending = False
-                    self._record_round_outcome(RoundOutcome.VICTORY, "post game hub 180s timeout exit")
-                    self.set_phase(Phase.QUIT, "post game hub 180s timeout exit")
-                    return LoopAction.Continue
-
-                if self._team_mode_enabled() and self._hitch_heirloom_exit_at is not None:
-                    if now < self._hitch_heirloom_exit_at:
-                        print("[med] 传家宝挑战已完成，等待蹭车退出窗口（零动作）")
-                        return LoopAction.Continue
-
-                # 正常退出
-                self._post_game_pending = False
-                self._record_round_outcome(RoundOutcome.VICTORY, "configured Boss victory verified")
-                self.set_phase(Phase.QUIT, "configured Boss victory verified")
-                return LoopAction.Continue
             if self.settings.auto_secret_realm:
                 timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
                 if self._secret_realm_request_since is None:
@@ -9764,8 +9821,6 @@ class Mediator:
                 if not self._heirloom_boss_result_visible(frame):
                     return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
                 print("[med] 传家宝 Boss 业务后置确认成功，关闭传家宝面板")
-                if self._hitch_enabled() and self._hitch_heirloom_exit_at is None:
-                    self._hitch_heirloom_exit_at = now + 150.0
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
                 print("[med] 传家宝弹窗关闭重试已达上限，Fail-Closed 停止运行")

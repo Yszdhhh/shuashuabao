@@ -91,8 +91,13 @@ class HitchSearchSM:
             self.prefixes = [cleaned] if cleaned else ["3"]
         if not self.prefixes:
             self.prefixes = ["3"]
-        self.prefix_idx = 0
-        self.prefix = self.prefixes[0]
+        requested = normalize_prefix(prefix)
+        self.prefix_idx = (
+            self.prefixes.index(requested)
+            if requested in self.prefixes
+            else 0
+        )
+        self.prefix = self.prefixes[self.prefix_idx]
         self.rotate_interval = max(1, int(rotate_interval))
         self.refresh_cycles_on_prefix = 0
         self.join_limit = max(1, int(join_limit))

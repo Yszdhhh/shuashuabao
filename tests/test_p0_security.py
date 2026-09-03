@@ -247,6 +247,18 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertEqual(result.status, "CANCELLED_SENDINPUT_FAILED")
         self.assertEqual(click.call_count, 1)
 
+    def test_scroll_window_obscured_cancels_without_injection(self) -> None:
+        executor = InputExecutor()
+        ok = ActionResult(True, "OK", "")
+        obscured = ActionResult(False, "CANCELLED_WINDOW_OBSCURED", "overlay")
+        with patch.object(executor, "check_can_execute", return_value=ok), \
+             patch.object(executor, "_check_point_obscured", return_value=obscured), \
+             patch("shuabao.input.keyboard_mouse.scroll") as injected:
+            result = executor.scroll(10, 20, -3, target_hwnd=123, dry_run=False)
+
+        self.assertIs(result, obscured)
+        injected.assert_not_called()
+
     # ---------- Task 5: Cancellable InputExecutor & Safety Checks ----------
 
     def test_input_executor_precheck_emergency_stop(self) -> None:

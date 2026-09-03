@@ -729,6 +729,64 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertTrue(med._post_game_pending)
         self.assertEqual(med._post_game_route, "boss_postgame")
 
+    def test_all_team_modes_route_boss_postgame_to_unified_wait(self):
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        for mode in ("lobby_hitch", "follow_team", "lead_team", "lead"):
+            with self.subTest(mode=mode):
+                med = Mediator(Settings(mode_id=mode), ROOT)
+                med.set_phase(Phase.MAIN_LINE, "team post-game")
+                med._post_game_pending = True
+                med._post_game_route = "boss_postgame"
+                with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+                     patch.object(med, "act_key", return_value=True) as key:
+                    action = med._tick_main_line(frame)
+                self.assertEqual(action, LoopAction.Continue)
+                key.assert_called_once_with("F2", "HitchPostBossReturnOwnBase")
+                self.assertEqual(med._post_game_route, "team_wait_exit")
+
+    def test_team_wait_exit_uses_shadow_predict_and_requires_two_leave_confirmations(self):
+        med = Mediator(Settings(mode_id="follow_team"), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        client = MagicMock()
+        client.shadow_predict.return_value = MagicMock(status="ok", raw_text="队友退出游戏")
+        med._ocr_client = client
+
+        assert med._team_post_game_player_left(frame, 1.0) is False
+        assert med._team_post_game_player_left(frame, 2.0) is True
+
+        assert client.shadow_predict.call_count == 2
+        client.ocr.assert_not_called()
+        slot = client.shadow_predict.call_args.args[2]
+        assert slot["kind"] == "text"
+        assert slot["bbox"] == client.shadow_predict.call_args.kwargs["panel_bbox"]
+
+    def test_team_wait_exit_holds_zero_input_until_evidence_or_hard_timeout(self):
+        med = Mediator(Settings(mode_id="lead_team"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "team post-game")
+        med._post_game_pending = True
+        med._post_game_route = "team_wait_exit"
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+
+        with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "_team_post_game_player_left", return_value=False), \
+             patch.object(med, "act_click") as click, \
+             patch.object(med, "act_key") as key:
+            action = med._tick_main_line(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+        click.assert_not_called()
+        key.assert_not_called()
+
+        med._post_game_hub_entered_at = 0.0
+        with patch("shuabao.mediator.time.time", return_value=180.0), \
+             patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "_team_post_game_player_left", return_value=False):
+            action = med._tick_main_line(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.QUIT)
+
     def test_hub_route_opens_heirloom_after_archive_close(self):
         """After archive handling, the next hub action is the heirloom NPC, not rift."""
         med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
@@ -746,6 +804,26 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(action, LoopAction.Continue)
         click.assert_called_once_with(entry, "OpenHeirloomChallenges")
         self.assertEqual(med._post_game_route, "heirloom_active")
+
+    def test_team_archive_without_heirloom_routes_to_team_wait_exit(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "team archive route")
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        med._archive_challenge_index = len(med._ARCHIVE_CHALLENGE_NAMES)
+        frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
+        close = MatchResult("archive_panel_close", 0.99, 976, 197, 43, 31, 997, 212)
+
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_maybe_click_archive_challenge", return_value=None), \
+             patch.object(med, "_find_archive_panel_close", return_value=close), \
+             patch.object(med, "act_key", return_value=True), \
+             patch.object(med, "act_click", return_value=True):
+            med._tick_main_line(frame)
+            action = med._tick_main_line(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(med._post_game_route, "team_wait_exit")
 
     def test_victory_continue_retry_limit_fails_closed(self):
         """3 failed continue attempts must Fail-Closed into ERROR."""

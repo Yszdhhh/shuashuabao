@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-01T16:52:28.494375+00:00",
+  "generated_at": "2026-09-03T08:00:00+00:00",
   "spec": "ShuaBao.spec",
   "package_roots": [
     {
@@ -2078,8 +2078,8 @@
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
       "reason_required": "runtime UI/status/icon asset",
-      "size_bytes": 199,
-      "sha256": "124aada70203e7f4d5920e56a3cc0dcd5740d78725b0df349096a740c34ed75b"
+      "size_bytes": 712,
+      "sha256": "105c88e9d600ea19122ab22c3b2b8baace4f1d5f118ea09739b1cf2d40622089"
     },
     {
       "path": "assets/Images/lobby/lobby_in_game.png",

@@ -74,6 +74,7 @@ _INT_RANGES: dict[str, tuple[int, int]] = {
     "dragon_ball_count": (1, 10), "treasure_num": (0, 20),
     "cycle_num": (0, 999), "kill_boss_num": (0, 9999),
     "follow_cycle_num": (0, 999), "hitch_cycle_num": (0, 999),
+    "hitch_rotate_interval": (1, 100),
     "boss_live_time": (0, 3600), "archive_boss_time": (0, 3600),
     "auto_clean_interval": (0, 99), "develop_time": (0, 3000),
     "close_main_line_time": (0, 3600), "auto_gambling_time": (0, 3600),
@@ -299,7 +300,7 @@ class Settings:
             "reputation_cjb_boss", "reputation_sgzx_boss",
             "cjb_boss", "sgzx_boss", "window_title_contains",
             "ocr_repo_root", "images_dir", "bond_whitelist_mode",
-            "mode_id", "hitch_stage_prefix", "hitch_rotate_interval", "follow_after_room",
+            "mode_id", "hitch_stage_prefix", "follow_after_room",
             "hitch_after_goal", "follow_pair_code",
         }
         if fallback is not None:
@@ -313,7 +314,7 @@ class Settings:
             "develop_time", "reputation_type", "reputation_level",
             "reputation_stage1", "reputation_stage2", "boss_live_time",
             "kill_boss_num", "cycle_num", "archive_boss_time", "treasure_num",
-            "follow_cycle_num", "hitch_cycle_num",
+            "follow_cycle_num", "hitch_cycle_num", "hitch_rotate_interval",
             "auto_gambling_time", "click_delay_ms", "loop_sleep_ms",
             "artifact_cd", "artifact_slots", "choice_interval",
             "round_timeout_s", "round_tail_window_s", "recovery_timeout_s",

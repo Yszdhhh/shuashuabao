@@ -1221,7 +1221,7 @@ def test_lobby_hitch_confirms_exit_dialog_instead_of_escaping() -> None:
     assert "room-763405" in med._hitch_blacklisted_room_keys
 
 
-def test_lobby_hitch_selects_room_list_with_safe_scaled_fallback() -> None:
+def test_lobby_hitch_unknown_page_without_room_list_anchor_has_zero_input() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     frame = _fixture_frame()
 
@@ -1230,10 +1230,20 @@ def test_lobby_hitch_selects_room_list_with_safe_scaled_fallback() -> None:
         patch.object(med, "act_click", return_value=True) as click:
         med._tick_lobby_hitch(frame, "UNKNOWN")
 
-    hit, reason = click.call_args.args
-    assert reason == "HitchSelectTab"
-    assert hit.name == "lobby_room_list_tab"
-    assert hit.screen_x == int(frame.left + frame.width * (355.0 / 1332.0))
+    click.assert_not_called()
+
+
+def test_lobby_hitch_black_frame_has_zero_input_even_with_stale_template() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = Frame(np.zeros((945, 1332, 3), dtype=np.uint8), role="l0")
+
+    with patch.object(med, "find_scene", return_value=object()), \
+         patch.object(med, "act_click") as click, \
+         patch.object(med, "act_search_box") as search:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_not_called()
+    search.assert_not_called()
 
 
 def test_lobby_room_list_evidence_rejects_wrong_tab_template_hit() -> None:
@@ -1395,6 +1405,43 @@ def test_lobby_hitch_clicks_inside_search_box_above_anchor_center() -> None:
     assert click_hit.screen_x == 1346
     assert click_hit.screen_y == 332
     assert (text, reason) == ("3", "HitchSearchBox")
+    assert med._hitch_search_pending is not None
+    assert med._hitch_prefix_searched is False
+
+
+def test_lobby_hitch_waits_for_search_box_postcondition_before_scanning_rows() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_search_pending = ("3", 100.0)
+    frame = _fixture_frame()
+
+    with patch("shuabao.mediator.time.time", return_value=101.0), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_hitch_search_prefix_confirmed", return_value=False), \
+         patch.object(med, "_find_hitch_joinable_row") as scan, \
+         patch.object(med, "act_click") as click:
+        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
+
+    scan.assert_not_called()
+    click.assert_not_called()
+    assert med._hitch_prefix_searched is False
+
+
+def test_lobby_hitch_confirms_search_text_before_rows_are_eligible() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_search_pending = ("3", 100.0)
+    med._hitch_search_text_override = "3"
+    frame = _fixture_frame()
+
+    with patch("shuabao.mediator.time.time", return_value=101.0), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_find_hitch_joinable_row") as scan:
+        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
+
+    scan.assert_not_called()
+    assert med._hitch_prefix_searched is True
+    assert med._hitch_search_pending is None
 
 
 def test_lobby_hitch_refresh_clicks_above_anchor_center() -> None:
@@ -1509,6 +1556,79 @@ def test_lobby_hitch_refresh_cd_is_five_seconds() -> None:
     assert sm.tick(now=105.0, matched=False, prefix_ok=True).action is HitchAction.REFRESH
 
 
+def test_lobby_hitch_default_multi_prefix_budget_rotates_each_prefix_before_exhaustion() -> None:
+    from shuabao.lobby_hitch import HitchAction
+
+    med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4,3"), ROOT)
+    sm = med._hitch_sm
+
+    assert sm.join_limit == 20
+    for refresh in range(10):
+        sm.note_refresh(float(refresh))
+    assert sm.prefix == "3"
+    assert sm.tick(now=14.0, matched=False, prefix_ok=True).action is HitchAction.REFRESH
+    for refresh in range(10, 20):
+        sm.note_refresh(float(refresh))
+    assert sm.prefix == "4"
+    assert sm.refresh_cycles_on_prefix == 0
+
+
+def test_lobby_hitch_recreated_state_machine_preserves_current_prefix_and_limits() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4,3"), ROOT)
+    med._hitch_sm.rotate_prefix()
+    med._hitch_sm.search_timeout_s = 321.0
+    med._hitch_sm.sleep_s = 45.0
+
+    replacement = med._new_hitch_sm()
+
+    assert replacement.prefix == "3"
+    assert replacement.prefix_idx == 1
+    assert replacement.join_limit == 20
+    assert replacement.search_timeout_s == 321.0
+    assert replacement.sleep_s == 45.0
+
+
+def test_lobby_hitch_after_exit_clears_search_and_row_transients() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_prefix_searched = True
+    med._hitch_search_pending = ("3", 1.0)
+    med._hitch_pending_row_y = 385
+    med._hitch_pending_room_key = "room"
+    med._hitch_refresh_required = False
+    med._hitch_rejected_row_ys.add(385)
+
+    med._hitch_after_exit(10.0)
+
+    assert med._hitch_prefix_searched is False
+    assert med._hitch_search_pending is None
+    assert med._hitch_pending_row_y is None
+    assert med._hitch_pending_room_key is None
+    assert med._hitch_refresh_required is True
+    assert med._hitch_rejected_row_ys == set()
+
+
+def test_main_line_entry_clears_post_game_active_wait_timestamp() -> None:
+    med = Mediator(Settings(), ROOT)
+    med._post_game_active_wait_since = 12.0
+
+    med.set_phase(Phase.MAIN_LINE, "new round")
+
+    assert med._post_game_active_wait_since is None
+
+
+def test_hitch_rotate_interval_is_integer_and_clamped(tmp_path: Path) -> None:
+    assert Settings._from_dict({"hitch_rotate_interval": 10}).hitch_rotate_interval == 10
+    parsed = Settings._from_dict({"hitch_rotate_interval": "10"})
+    assert parsed.hitch_rotate_interval == 10
+    assert isinstance(parsed.hitch_rotate_interval, int)
+    path = tmp_path / "settings.json"
+    parsed.save(path)
+    assert Settings.load(path).hitch_rotate_interval == 10
+    assert Settings._from_dict({"hitch_rotate_interval": 0}).hitch_rotate_interval == 1
+    assert Settings._from_dict({"hitch_rotate_interval": 999}).hitch_rotate_interval == 100
+    assert Settings._from_dict({"hitch_rotate_interval": "bad"}).hitch_rotate_interval == 10
+
+
 def test_lobby_search_continuous_cycle_never_exhausts_to_go_home() -> None:
     from shuabao.lobby_hitch import HitchAction, HitchSearchSM
 
@@ -1542,14 +1662,21 @@ def test_until_success_cli_is_explicit_lobby_search_mode() -> None:
     assert args.until_success is True
 
 def test_lobby_hitch_does_not_treat_lobby_as_room_waiting() -> None:
+    from shuabao.vision.matcher import MatchResult
+
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     room_cancel = object()
+    search_box = MatchResult("lobby_search_box", 1.0, 1095, 295, 185, 30, 1346, 347)
     with patch.object(med, "_hitch_ocr_text", return_value=""), \
          patch.object(med, "_lobby_room_list_evidence", return_value=True), \
          patch.object(
              med,
              "find_scene",
-             side_effect=lambda _frame, key: room_cancel if key == "room_cancel_ready" else None,
+             side_effect=lambda _frame, key: (
+                 room_cancel if key == "room_cancel_ready"
+                 else search_box if key == "lobby_search_box"
+                 else None
+             ),
          ), \
          patch.object(med, "act_search_box", return_value=True) as search:
         med._tick_lobby_hitch(_fixture_frame(), "UNKNOWN")
