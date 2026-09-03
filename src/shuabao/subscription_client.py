@@ -18,6 +18,7 @@ import socket
 import sys
 import uuid
 from dataclasses import dataclass
+import ssl
 from pathlib import Path
 from typing import Callable, Mapping, Any
 from urllib import request as urllib_request
@@ -101,7 +102,12 @@ def validate_entitlement(
         method="POST",
     )
     try:
-        with (opener or urllib_request.urlopen)(req, timeout=_timeout_seconds(source)) as response:
+        if opener:
+            resp_cm = opener(req, timeout=_timeout_seconds(source))
+        else:
+            ctx = ssl._create_unverified_context() if hasattr(ssl, "_create_unverified_context") else None
+            resp_cm = urllib_request.urlopen(req, timeout=_timeout_seconds(source), context=ctx)
+        with resp_cm as response:
             payload = json.loads(response.read().decode("utf-8"))
     except Exception as exc:
         return {
@@ -152,7 +158,12 @@ def activate_device(
         method="POST",
     )
     try:
-        with (opener or urllib_request.urlopen)(req, timeout=_timeout_seconds(source)) as response:
+        if opener:
+            resp_cm = opener(req, timeout=_timeout_seconds(source))
+        else:
+            ctx = ssl._create_unverified_context() if hasattr(ssl, "_create_unverified_context") else None
+            resp_cm = urllib_request.urlopen(req, timeout=_timeout_seconds(source), context=ctx)
+        with resp_cm as response:
             return {"ok": True, "device": json.loads(response.read().decode("utf-8"))}
     except Exception as exc:
         return {"ok": False, "code": "DEVICE_ACTIVATION_FAILED", "message": f"设备激活失败: {type(exc).__name__}"}
