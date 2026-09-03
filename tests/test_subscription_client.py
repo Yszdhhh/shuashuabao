@@ -193,6 +193,7 @@ def test_check_start_permission_enforce_requires_server_permit():
     permission = check_start_permission(env=_ENFORCE_ENV, opener=_DenyAllOpener(_ALLOW))
     assert permission.allowed is False
     assert permission.code == "PERMIT_MISSING"
+    assert permission.entitlement_valid is True
 
 
 def test_check_start_permission_attaches_structurally_valid_permit():
