@@ -332,6 +332,24 @@ class TestP1A2ChallengeControls(unittest.TestCase):
 
         pressure.assert_not_called()
 
+    def test_pressure_clear_waits_for_its_first_interval_after_main_line_entry(self):
+        self.med.settings.auto_pressure = True
+        self.med.settings.pressure_interval_s = 20.0
+        self.med.set_phase(Phase.MAIN_LINE, "pressure schedule")
+        started_at = self.med._main_line_started_at
+        self.assertIsNotNone(started_at)
+        self.assertEqual(self.med._pressure_next_at, started_at + 20.0)
+
+        with patch.object(self.med, "_is_in_game_hud", return_value=True), \
+             patch.object(self.med, "act_key", return_value=True) as key:
+            self.assertIsNone(self.med._maybe_clear_pressure_monsters(self.frame_off, started_at + 19.9))
+            self.assertEqual(
+                self.med._maybe_clear_pressure_monsters(self.frame_off, started_at + 20.0),
+                LoopAction.Continue,
+            )
+
+        key.assert_called_once_with("f4", "ClearPressureMonsters")
+
     def test_pending_lifecycle_and_transitions(self):
         """Check PENDING lifecycle: initialized at PENDING, transitions to PENDING on right-click, ON when confirmed."""
         self.med._auto_task_done = True

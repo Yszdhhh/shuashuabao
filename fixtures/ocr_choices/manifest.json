@@ -2716,6 +2716,7 @@
       "panel_kind": "negative",
       "negative_reason": "加载画面",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_000s_loading.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_000s_loading.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2733,6 +2734,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（开局准备）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_000s_开局.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_000s_开局.png",
       "crops": [],
       "window_size": [
         1600,
@@ -2750,6 +2752,7 @@
       "panel_kind": "negative",
       "negative_reason": "胜利结算页",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_001s_victory.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_001s_victory.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2767,6 +2770,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（主线任务栏）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_003s_局内HUD.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_003s_局内HUD.png",
       "crops": [],
       "window_size": [
         1600,
@@ -2784,6 +2788,7 @@
       "panel_kind": "negative",
       "negative_reason": "选关页+存档挑战入口",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_003s_stage_select_archive_panel.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_003s_stage_select_archive_panel.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2801,6 +2806,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（准备阶段）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_006s_面板底部按钮.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_006s_面板底部按钮.png",
       "crops": [],
       "window_size": [
         1600,
@@ -2818,6 +2824,7 @@
       "panel_kind": "negative",
       "negative_reason": "选关页",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_010s_stage_select_hover.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_010s_stage_select_hover.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2835,6 +2842,7 @@
       "panel_kind": "negative",
       "negative_reason": "Boss 战（梦魔之王，倒计时悬浮条）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_020s_ingame_boss_mengmo.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_020s_ingame_boss_mengmo.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2852,6 +2860,7 @@
       "panel_kind": "negative",
       "negative_reason": "传家宝挑战弹窗（4 Boss 图标）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_022s_chuanjiabao_panel.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_022s_chuanjiabao_panel.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2869,6 +2878,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（NPC 箭头）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_023s_ingame_npc_arrow.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_023s_ingame_npc_arrow.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2886,6 +2896,7 @@
       "panel_kind": "negative",
       "negative_reason": "传家宝挑战弹窗 2",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_024s_chuanjiabao_panel_2.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_024s_chuanjiabao_panel_2.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2903,6 +2914,7 @@
       "panel_kind": "negative",
       "negative_reason": "Boss 战点击",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_027s_ingame_boss_click.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_027s_ingame_boss_click.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2920,6 +2932,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_027s_STAGESELECT疑似面板.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_027s_STAGESELECT疑似面板.png",
       "crops": [],
       "window_size": [
         1600,
@@ -2937,6 +2950,7 @@
       "panel_kind": "negative",
       "negative_reason": "退出确认弹窗",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_039s_exit_confirm.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_039s_exit_confirm.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2954,6 +2968,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（取消退出后）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_041s_ingame_after_cancel.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_041s_ingame_after_cancel.png",
       "crops": [],
       "window_size": [
         1586,
@@ -2971,6 +2986,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_120s_STAGESELECT疑似面板.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_120s_STAGESELECT疑似面板.png",
       "crops": [],
       "window_size": [
         1600,
@@ -2988,6 +3004,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_303s_STAGESELECT疑似面板.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_303s_STAGESELECT疑似面板.png",
       "crops": [],
       "window_size": [
         1600,
@@ -3005,6 +3022,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（主线任务栏/聊天文本，曾被误判选关页）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_414s_最后STAGESELECT.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec1_ingame_boss_20260809/t_414s_最后STAGESELECT.png",
       "crops": [],
       "window_size": [
         1600,
@@ -3022,6 +3040,7 @@
       "panel_kind": "negative",
       "negative_reason": "存档挑战弹窗（时光之穴选择）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_008.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_008.png",
       "crops": [],
       "window_size": [
         1586,
@@ -3039,6 +3058,7 @@
       "panel_kind": "negative",
       "negative_reason": "存档挑战弹窗+战利品/聊天文本",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_014.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_014.png",
       "crops": [],
       "window_size": [
         1586,
@@ -3056,6 +3076,7 @@
       "panel_kind": "negative",
       "negative_reason": "传家宝挑战弹窗（掉落详情）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_026.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_026.png",
       "crops": [],
       "window_size": [
         1586,
@@ -3073,6 +3094,7 @@
       "panel_kind": "negative",
       "negative_reason": "Boss 战（克雷什之父）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_032.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_032.png",
       "crops": [],
       "window_size": [
         1586,
@@ -3090,6 +3112,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内 HUD（安全区地图）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_038.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/rec2_postgame_exit_20260809/t_038.png",
       "crops": [],
       "window_size": [
         1586,
@@ -3107,6 +3130,7 @@
       "panel_kind": "negative",
       "negative_reason": "加载画面（960x540）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/live_e2e_20260807/20_t9_1968096.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/live_e2e_20260807/20_t9_1968096.png",
       "crops": [],
       "window_size": [
         960,
@@ -3124,6 +3148,7 @@
       "panel_kind": "negative",
       "negative_reason": "选关页（大厅）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/live_e2e_20260807/watch_78_1968096_1600x900.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/live_e2e_20260807/watch_78_1968096_1600x900.png",
       "crops": [],
       "window_size": [
         1600,
@@ -3141,6 +3166,7 @@
       "panel_kind": "negative",
       "negative_reason": "创建房间对话框（584x488）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/live_e2e_20260807/03_dialog.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/live_e2e_20260807/03_dialog.png",
       "crops": [],
       "window_size": [
         584,
@@ -3158,6 +3184,7 @@
       "panel_kind": "negative",
       "negative_reason": "房间等待页（1224x904）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/live_e2e_20260807/10_room.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/live_e2e_20260807/10_room.png",
       "crops": [],
       "window_size": [
         1224,
@@ -3175,6 +3202,7 @@
       "panel_kind": "negative",
       "negative_reason": "退出确认弹窗",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/live_postgame_20260808/live_exit_confirm.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/live_postgame_20260808/live_exit_confirm.png",
       "crops": [],
       "window_size": [
         1600,
@@ -3192,6 +3220,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内安全区 HUD",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/live_postgame_20260808/live_archive_panel.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/live_postgame_20260808/live_archive_panel.png",
       "crops": [],
       "window_size": [
         1616,
@@ -3209,6 +3238,7 @@
       "panel_kind": "negative",
       "negative_reason": "选关页",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/live_postgame_20260808/live_stage_select.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/live_postgame_20260808/live_stage_select.png",
       "crops": [],
       "window_size": [
         1600,
@@ -3226,6 +3256,7 @@
       "panel_kind": "negative",
       "negative_reason": "局内全屏（1920x1080）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/live_postgame_20260808/live_fullscreen.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/live_postgame_20260808/live_fullscreen.png",
       "crops": [],
       "window_size": [
         1920,
@@ -3243,6 +3274,7 @@
       "panel_kind": "negative",
       "negative_reason": "大裂隙确认弹窗",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/reborn_wow_screens_20260806/great_rift_confirm.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/reborn_wow_screens_20260806/great_rift_confirm.png",
       "crops": [],
       "window_size": [
         1602,
@@ -3260,6 +3292,7 @@
       "panel_kind": "negative",
       "negative_reason": "传家宝挑战 Boss 选择",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/reborn_wow_screens_20260806/heirloom_challenge_bosses.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/reborn_wow_screens_20260806/heirloom_challenge_bosses.png",
       "crops": [],
       "window_size": [
         1597,
@@ -3277,6 +3310,7 @@
       "panel_kind": "negative",
       "negative_reason": "黑帧",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/legacy_fixtures/black_frame.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/legacy_fixtures/black_frame.png",
       "crops": [],
       "window_size": [
         1600,
@@ -3294,6 +3328,7 @@
       "panel_kind": "negative",
       "negative_reason": "冻结帧",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/legacy_fixtures/frozen_frame.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/legacy_fixtures/frozen_frame.png",
       "crops": [],
       "window_size": [
         1600,
@@ -3311,6 +3346,7 @@
       "panel_kind": "negative",
       "negative_reason": "未知页面",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/legacy_fixtures/unknown_page.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/legacy_fixtures/unknown_page.png",
       "crops": [],
       "window_size": [
         1600,
@@ -3328,6 +3364,7 @@
       "panel_kind": "negative",
       "negative_reason": "助手窗口（非游戏页）",
       "original_frame": "C:/Users/10639/Desktop/🎮 影音游戏/GameScript-Local/fixtures/ocr_choices/negatives/legacy_fixtures/assistant_window_neg.png",
+      "fixture_frame": "fixtures/ocr_choices/negatives/legacy_fixtures/assistant_window_neg.png",
       "crops": [],
       "window_size": [
         800,

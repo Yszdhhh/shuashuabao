@@ -5991,7 +5991,14 @@ class Mediator:
             self._close_main_line_triggered = False
             self._main_line_closed_done = False
             self._challenge_recheck_at.clear()
-            self._pressure_next_at = 0.0
+            # F4 clears challenges.  The first confirmed HUD frame belongs to
+            # the normal bond-first opening cycle, so do not let a reset timer
+            # clear challenges immediately on game entry.
+            if self._hitch_enabled():
+                self._pressure_next_at = 0.0
+            else:
+                pressure_interval = float(getattr(self.settings, "pressure_interval_s", 20.0) or 20.0)
+                self._pressure_next_at = self._main_line_since + pressure_interval
             self._challenge_states = {
                 "coin_challenge": ChallengeState.PENDING,
                 "wood_challenge": ChallengeState.PENDING,

@@ -248,16 +248,19 @@ class TestRepoHead(unittest.TestCase):
 
 
 class TestNegativeChain(unittest.TestCase):
-    def test_black_frame_produces_zero_suggestions(self):
-        """真实负样本（黑帧）跑完整 触发/分类/建议 链 → 建议数 0。"""
-        entries = [
+    @staticmethod
+    def _negative_entries():
+        return [
             e
             for e in json.loads(
                 (REPO_ROOT / "fixtures" / "ocr_choices" / "manifest.json").read_text(encoding="utf-8")
             )["entries"]
             if e.get("panel_kind") == "negative"
         ]
-        black = next(e for e in entries if "black_frame" in e["id"])
+
+    def test_black_frame_produces_zero_suggestions(self):
+        """真实负样本（黑帧）跑完整 触发/分类/建议 链 → 建议数 0。"""
+        black = next(e for e in self._negative_entries() if "black_frame" in e["id"])
         images_dir = REPO_ROOT / "assets" / "Images"
         import tempfile
 
@@ -271,14 +274,7 @@ class TestNegativeChain(unittest.TestCase):
         self.assertTrue(res["passed"])
 
     def test_unknown_page_produces_zero_suggestions(self):
-        entries = [
-            e
-            for e in json.loads(
-                (REPO_ROOT / "fixtures" / "ocr_choices" / "manifest.json").read_text(encoding="utf-8")
-            )["entries"]
-            if e.get("panel_kind") == "negative"
-        ]
-        unk = next(e for e in entries if "unknown_page" in e["id"])
+        unk = next(e for e in self._negative_entries() if "unknown_page" in e["id"])
         import tempfile
 
         with tempfile.TemporaryDirectory() as td:
@@ -289,17 +285,30 @@ class TestNegativeChain(unittest.TestCase):
         self.assertTrue(res["passed"])
 
     def test_all_37_negatives_report_fields_complete(self):
-        entries = [
-            e
-            for e in json.loads(
-                (REPO_ROOT / "fixtures" / "ocr_choices" / "manifest.json").read_text(encoding="utf-8")
-            )["entries"]
-            if e.get("panel_kind") == "negative"
-        ]
+        entries = self._negative_entries()
         self.assertEqual(len(entries), 37)
         for e in entries:
-            for field in ("id", "original_frame", "negative_reason"):
+            for field in ("id", "original_frame", "fixture_frame", "negative_reason"):
                 self.assertIn(field, e)
+
+    def test_negative_fixture_paths_are_portable_and_ignore_provenance(self):
+        """Evaluation reads only repository-relative fixture_frame paths."""
+        for entry in self._negative_entries():
+            with self.subTest(entry=entry["id"]):
+                path = evo.resolve_fixture_frame(entry, REPO_ROOT)
+                self.assertTrue(path.is_file())
+                self.assertTrue(path.is_relative_to(REPO_ROOT))
+                self.assertFalse(Path(entry["fixture_frame"]).is_absolute())
+
+        black = next(e.copy() for e in self._negative_entries() if "black_frame" in e["id"])
+        black["original_frame"] = "C:/obsolete-user/Desktop/legacy/black_frame.png"
+        with tempfile.TemporaryDirectory() as td:
+            relocated_root = Path(td)
+            source = evo.resolve_fixture_frame(black, REPO_ROOT)
+            destination = relocated_root / black["fixture_frame"]
+            destination.parent.mkdir(parents=True)
+            shutil.copyfile(source, destination)
+            self.assertEqual(evo.resolve_fixture_frame(black, relocated_root), destination)
 
 
 class TestDepLock(unittest.TestCase):

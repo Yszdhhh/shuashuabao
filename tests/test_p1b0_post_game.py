@@ -729,6 +729,87 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertTrue(med._post_game_pending)
         self.assertEqual(med._post_game_route, "boss_postgame")
 
+    def test_team_heirloom_boss_chain_requires_postcondition_before_wait_exit(self):
+        """A team Boss click cannot bypass the heirloom result and two-leave exit gate."""
+        med = Mediator(Settings(mode_id="lobby_hitch", cjb_boss="01暴掠龙"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "team heirloom post-game chain")
+        med._post_game_pending = True
+        med._post_game_route = "boss_postgame"
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        heirloom_entry = MatchResult("post_game_heirloom_npc", 0.9, 1000, 340, 100, 30, 1050, 350)
+        configured_boss = MatchResult("01暴掠龙", 0.9, 900, 460, 80, 40, 940, 480)
+        close = MatchResult("close", 0.9, 990, 230, 20, 20, 1000, 240)
+        continue_game = MatchResult("continueGame", 0.9, 800, 500, 80, 40, 840, 520)
+
+        # Boss victory returns to this player's base once, then opens the
+        # configured heirloom route rather than quitting the team immediately.
+        with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "act_key", return_value=True) as key:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        key.assert_called_once_with("F2", "HitchPostBossReturnOwnBase")
+        self.assertEqual(med._post_game_route, "heirloom")
+
+        with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "_post_game_hub_entry_click", return_value=heirloom_entry), \
+             patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        click.assert_called_once_with(heirloom_entry, "OpenHeirloomChallenges")
+        self.assertEqual(med._post_game_route, "heirloom_active")
+
+        # A successful card click only starts observation; it cannot close the
+        # panel or enter team_wait_exit before the result postcondition appears.
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_heirloom_boss_result_visible", return_value=False), \
+             patch.object(med, "find", return_value=configured_boss), \
+             patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        click.assert_called_once_with(configured_boss, "BossConfigured")
+        self.assertEqual(med._post_game_route, "heirloom_active")
+        self.assertTrue(med._post_game_pending)
+
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_heirloom_boss_result_visible", return_value=False), \
+             patch.object(med, "act_click") as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        click.assert_not_called()
+        self.assertEqual(med._post_game_route, "heirloom_active")
+
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_heirloom_boss_result_visible", return_value=True), \
+             patch.object(med, "_find_heirloom_close", return_value=close), \
+             patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        click.assert_called_once_with(close, "DismissHeirloomDialog")
+        self.assertEqual(med._post_game_route, "boss_active")
+        self.assertFalse(med._post_game_pending)
+
+        with patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+             patch.object(med, "find", return_value=continue_game), \
+             patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        click.assert_called_once_with(continue_game, "ContinueGame")
+        self.assertEqual(med._post_game_route, "boss_postgame")
+        self.assertTrue(med._post_game_pending)
+
+        with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "_team_post_game_player_left", return_value=False), \
+             patch.object(med, "act_click") as click, \
+             patch.object(med, "act_key") as key:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        click.assert_not_called()
+        key.assert_not_called()
+        self.assertEqual(med._post_game_route, "team_wait_exit")
+
+        client = MagicMock()
+        client.shadow_predict.return_value = MagicMock(status="ok", raw_text="队友退出游戏")
+        med._ocr_client = client
+        med._post_game_hub_entered_at = 10.0
+        self.assertEqual(med._wait_for_team_post_game_exit(frame, 11.0), LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+        self.assertEqual(med._wait_for_team_post_game_exit(frame, 12.0), LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.QUIT)
+        self.assertEqual(client.shadow_predict.call_count, 2)
+
     def test_all_team_modes_route_boss_postgame_to_unified_wait(self):
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
         for mode in ("lobby_hitch", "follow_team", "lead_team", "lead"):

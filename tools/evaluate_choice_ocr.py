@@ -466,11 +466,35 @@ def classify_panel_replica(frame: Frame, images_dir: Path) -> str | None:
     return None
 
 
+def resolve_fixture_frame(entry: dict, repo_root: Path) -> Path:
+    """Resolve an OCR evaluation frame from its repository-relative fixture path.
+
+    ``original_frame`` is retained in the manifest as capture provenance.  It
+    may name a historical workstation, so evaluation must never use it as a
+    runtime file path.
+    """
+    relative = str(entry.get("fixture_frame") or "").strip()
+    if not relative:
+        raise ValueError(f"fixture_frame missing for {entry.get('id', '<unknown>')}")
+    candidate = Path(relative)
+    if candidate.is_absolute() or candidate.drive:
+        raise ValueError(f"fixture_frame must be repository-relative: {relative}")
+    root = repo_root.resolve()
+    resolved = (root / candidate).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"fixture_frame escapes repository root: {relative}") from exc
+    if not resolved.is_file():
+        raise FileNotFoundError(f"fixture_frame does not exist: {relative}")
+    return resolved
+
+
 def run_negative_chain(
     neg_entry: dict, images_dir: Path, rec, repo_root: Path, pre_dir: Path
 ) -> dict:
     """对单个负面板跑完整 触发/分类/建议 链，期望建议数 = 0。"""
-    frame_path = repo_root / neg_entry["original_frame"]
+    frame_path = resolve_fixture_frame(neg_entry, repo_root)
     img = _load_frame_bgr(frame_path)
     h, w = img.shape[:2]
     frame = Frame(bgr=img, left=0, top=0)
