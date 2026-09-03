@@ -32,6 +32,9 @@ if ($isExternalChannel) {
 # 订阅地址在构建前统一解析并校验：外发渠道必须显式传 HTTPS 生产地址，
 # 绝不静默回落 loopback；dev/internal-pilot 保留 loopback 默认值方便联调。
 $subscriptionUrlInput = $SubscriptionBaseUrl.Trim()
+if (-not $subscriptionUrlInput -and -not $isExternalChannel) {
+    $subscriptionUrlInput = [string]$env:SHUABAO_SUBSCRIPTION_BASE_URL
+}
 function Test-HostIsLoopback([string]$UrlHost) {
     # 按地址语义判定整个回环段：127.0.0.0/8、::1 —— 精确主机名列表会漏掉
     # 127.0.0.2 这类同段地址。非 IP 主机名（如 localhost 的 FQDN 尾点形式
