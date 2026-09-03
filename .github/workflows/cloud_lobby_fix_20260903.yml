@@ -38,6 +38,7 @@ jobs:
       - name: Apply fail-closed lobby patch
         shell: python
         run: |
+          import base64
           from pathlib import Path
 
           mediator_path = Path("src/shuabao/mediator.py")
@@ -92,7 +93,7 @@ jobs:
                           print("[L0] hitch 未识别搜索框，零输入等待")
                           return LoopAction.Continue
                       # The shipped anchor starts halfway down the input control and
-                      # includes the gap/table header below it.  Its geometric centre
+                      # includes the gap/table header below it. Its geometric centre
                       # is therefore outside the edit box on the live 1332x945 KK UI.
                       search_hit = replace(
                           search_hit,
@@ -114,100 +115,56 @@ jobs:
           text = text[:start] + replacement + text[end:]
           mediator_path.write_text(text, encoding="utf-8", newline="\n")
 
-          test_path = Path("tests/test_lobby_hitch_safety_regressions.py")
-          test_path.write_text('''from __future__ import annotations
-
-from pathlib import Path
-from unittest.mock import patch
-
-import cv2
-import numpy as np
-
-from shuabao.mediator import Mediator, Phase
-from shuabao.settings import Settings
-from shuabao.vision.capture import Frame
-from shuabao.vision.matcher import MatchResult
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-def _fixture_frame() -> Frame:
-    source = ROOT / "fixtures" / "replay" / "main_line_auto_on.png"
-    image = cv2.imdecode(np.fromfile(str(source), dtype=np.uint8), cv2.IMREAD_COLOR)
-    assert image is not None
-    return Frame(image, window_title="KK官方对战平台", hwnd=10001, role="l0")
-
-
-def _search_anchor() -> MatchResult:
-    return MatchResult(
-        name="lobby_search_box",
-        score=1.0,
-        x=1095,
-        y=295,
-        w=185,
-        h=30,
-        screen_x=1346,
-        screen_y=347,
-    )
-
-
-def test_hitch_rejected_search_input_never_marks_prefix_searched() -> None:
-    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-    anchor = _search_anchor()
-    with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
-         patch.object(
-             med,
-             "find_scene",
-             side_effect=lambda _frame, key: anchor if key == "lobby_search_box" else None,
-         ), \
-         patch.object(med, "act_search_box", return_value=False):
-        med._tick_lobby_hitch(_fixture_frame(), "LOBBY_ROOM")
-
-    assert med._hitch_search_pending is None
-    assert med._hitch_prefix_searched is False
-
-
-def test_hitch_search_confirmation_defers_room_scan_until_next_tick() -> None:
-    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-    med._hitch_search_pending = ("4", 100.0)
-    med._hitch_search_text_override = "4"
-    with patch("shuabao.mediator.time.time", return_value=101.0), \
-         patch.object(med, "_lobby_room_list_evidence", return_value=True), \
-         patch.object(med, "find_scene", return_value=None), \
-         patch.object(med, "_find_hitch_joinable_row") as scan:
-        med._tick_lobby_hitch(_fixture_frame(), "LOBBY_ROOM")
-
-    scan.assert_not_called()
-    assert med._hitch_search_pending is None
-    assert med._hitch_prefix_searched is True
-
-
-def test_hitch_cancel_ready_is_postcondition_not_click_target() -> None:
-    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-    cancel_ready = MatchResult(
-        name="room_cancel_ready",
-        score=1.0,
-        x=800,
-        y=600,
-        w=100,
-        h=30,
-        screen_x=850,
-        screen_y=615,
-    )
-
-    def fake_find(_frame, names, **_kwargs):
-        return cancel_ready if "room_cancel_ready" in names else None
-
-    with patch.object(med, "find", side_effect=fake_find), \
-         patch.object(med, "find_scene", return_value=None), \
-         patch.object(med, "_hitch_room_seat_decision", return_value="ready"), \
-         patch.object(med, "act_click") as click:
-        med._tick_lobby_hitch(_fixture_frame(), "ROOM_WAITING")
-
-    click.assert_not_called()
-    assert med.phase is Phase.ROOM_WAITING
-''', encoding="utf-8", newline="\n")
+          test_b64 = (
+              "ZnJvbSBfX2Z1dHVyZV9fIGltcG9ydCBhbm5vdGF0aW9ucwoKZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCmZyb20gdW5pdHRl"
+              "c3QubW9jayBpbXBvcnQgcGF0Y2gKCmltcG9ydCBjdjIKaW1wb3J0IG51bXB5IGFzIG5wCgpmcm9tIHNodWFiYW8ubWVkaWF0"
+              "b3IgaW1wb3J0IE1lZGlhdG9yLCBQaGFzZQpmcm9tIHNodWFiYW8uc2V0dGluZ3MgaW1wb3J0IFNldHRpbmdzCmZyb20gc2h1"
+              "YWJhby52aXNpb24uY2FwdHVyZSBpbXBvcnQgRnJhbWUKZnJvbSBzaHVhYmFvLnZpc2lvbi5tYXRjaGVyIGltcG9ydCBNYXRj"
+              "aFJlc3VsdAoKClJPT1QgPSBQYXRoKF9fZmlsZV9fKS5yZXNvbHZlKCkucGFyZW50c1sxXQoKCmRlZiBfZml4dHVyZV9mcmFt"
+              "ZSgpIC0+IEZyYW1lOgogICAgc291cmNlID0gUk9PVCAvICJmaXh0dXJlcyIgLyAicmVwbGF5IiAvICJtYWluX2xpbmVfYXV0"
+              "b19vbi5wbmciCiAgICBpbWFnZSA9IGN2Mi5pbWRlY29kZShucC5mcm9tZmlsZShzdHIoc291cmNlKSwgZHR5cGU9bnAudWlu"
+              "dDgpLCBjdjIuSU1SRUFEX0NPTE9SKQogICAgYXNzZXJ0IGltYWdlIGlzIG5vdCBOb25lCiAgICByZXR1cm4gRnJhbWUoaW1h"
+              "Z2UsIHdpbmRvd190aXRsZT0iS0vlrpjmlrnlr7nmiJjlubPlj7AiLCBod25kPTEwMDAxLCByb2xlPSJsMCIpCgoKZGVmIF9z"
+              "ZWFyY2hfYW5jaG9yKCkgLT4gTWF0Y2hSZXN1bHQ6CiAgICByZXR1cm4gTWF0Y2hSZXN1bHQoCiAgICAgICAgbmFtZT0ibG9i"
+              "Ynlfc2VhcmNoX2JveCIsCiAgICAgICAgc2NvcmU9MS4wLAogICAgICAgIHg9MTA5NSwKICAgICAgICB5PTI5NSwKICAgICAg"
+              "ICB3PTE4NSwKICAgICAgICBoPTMwLAogICAgICAgIHNjcmVlbl94PTEzNDYsCiAgICAgICAgc2NyZWVuX3k9MzQ3LAogICAg"
+              "KQoKCmRlZiB0ZXN0X2hpdGNoX3JlamVjdGVkX3NlYXJjaF9pbnB1dF9uZXZlcl9tYXJrc19wcmVmaXhfc2VhcmNoZWQoKSAt"
+              "PiBOb25lOgogICAgbWVkID0gTWVkaWF0b3IoU2V0dGluZ3MobW9kZV9pZD0ibG9iYnlfaGl0Y2giKSwgUk9PVCkKICAgIGFu"
+              "Y2hvciA9IF9zZWFyY2hfYW5jaG9yKCkKICAgIHdpdGggcGF0Y2gub2JqZWN0KG1lZCwgIl9sb2JieV9yb29tX2xpc3RfZXZp"
+              "ZGVuY2UiLCByZXR1cm5fdmFsdWU9VHJ1ZSksIFwKICAgICAgICAgcGF0Y2gub2JqZWN0KAogICAgICAgICAgICAgbWVkLAog"
+              "ICAgICAgICAgICAgImZpbmRfc2NlbmUiLAogICAgICAgICAgICAgc2lkZV9lZmZlY3Q9bGFtYmRhIF9mcmFtZSwga2V5OiBh"
+              "bmNob3IgaWYga2V5ID09ICJsb2JieV9zZWFyY2hfYm94IiBlbHNlIE5vbmUsCiAgICAgICAgICksIFwKICAgICAgICAgcGF0"
+              "Y2gub2JqZWN0KG1lZCwgImFjdF9zZWFyY2hfYm94IiwgcmV0dXJuX3ZhbHVlPUZhbHNlKToKICAgICAgICBtZWQuX3RpY2tf"
+              "bG9iYnlfaGl0Y2goX2ZpeHR1cmVfZnJhbWUoKSwgIkxPQkJZX1JPT00iKQoKICAgIGFzc2VydCBtZWQuX2hpdGNoX3NlYXJj"
+              "aF9wZW5kaW5nIGlzIE5vbmUKICAgIGFzc2VydCBtZWQuX2hpdGNoX3ByZWZpeF9zZWFyY2hlZCBpcyBGYWxzZQoKCmRlZiB0"
+              "ZXN0X2hpdGNoX3NlYXJjaF9jb25maXJtYXRpb25fZGVmZXJzX3Jvb21fc2Nhbl91bnRpbF9uZXh0X3RpY2soKSAtPiBOb25l"
+              "OgogICAgbWVkID0gTWVkaWF0b3IoU2V0dGluZ3MobW9kZV9pZD0ibG9iYnlfaGl0Y2giKSwgUk9PVCkKICAgIG1lZC5faGl0"
+              "Y2hfc2VhcmNoX3BlbmRpbmcgPSAoIjQiLCAxMDAuMCkKICAgIG1lZC5faGl0Y2hfc2VhcmNoX3RleHRfb3ZlcnJpZGUgPSAi"
+              "NCIKICAgIHdpdGggcGF0Y2goInNodWFiYW8ubWVkaWF0b3IudGltZS50aW1lIiwgcmV0dXJuX3ZhbHVlPTEwMS4wKSwgXAog"
+              "ICAgICAgICBwYXRjaC5vYmplY3QobWVkLCAiX2xvYmJ5X3Jvb21fbGlzdF9ldmlkZW5jZSIsIHJldHVybl92YWx1ZT1UcnVl"
+              "KSwgXAogICAgICAgICBwYXRjaC5vYmplY3QobWVkLCAiZmluZF9zY2VuZSIsIHJldHVybl92YWx1ZT1Ob25lKSwgXAogICAg"
+              "ICAgICBwYXRjaC5vYmplY3QobWVkLCAiX2ZpbmRfaGl0Y2hfam9pbmFibGVfcm93IikgYXMgc2NhbjoKICAgICAgICBtZWQu"
+              "X3RpY2tfbG9iYnlfaGl0Y2goX2ZpeHR1cmVfZnJhbWUoKSwgIkxPQkJZX1JPT00iKQoKICAgIHNjYW4uYXNzZXJ0X25vdF9j"
+              "YWxsZWQoKQogICAgYXNzZXJ0IG1lZC5faGl0Y2hfc2VhcmNoX3BlbmRpbmcgaXMgTm9uZQogICAgYXNzZXJ0IG1lZC5faGl0"
+              "Y2hfcHJlZml4X3NlYXJjaGVkIGlzIFRydWUKCgpkZWYgdGVzdF9oaXRjaF9jYW5jZWxfcmVhZHlfaXNfcG9zdGNvbmRpdGlv"
+              "bl9ub3RfY2xpY2tfdGFyZ2V0KCkgLT4gTm9uZToKICAgIG1lZCA9IE1lZGlhdG9yKFNldHRpbmdzKG1vZGVfaWQ9ImxvYmJ5"
+              "X2hpdGNoIiksIFJPT1QpCiAgICBjYW5jZWxfcmVhZHkgPSBNYXRjaFJlc3VsdCgKICAgICAgICBuYW1lPSJyb29tX2NhbmNl"
+              "bF9yZWFkeSIsCiAgICAgICAgc2NvcmU9MS4wLAogICAgICAgIHg9ODAwLAogICAgICAgIHk9NjAwLAogICAgICAgIHc9MTAw"
+              "LAogICAgICAgIGg9MzAsCiAgICAgICAgc2NyZWVuX3g9ODUwLAogICAgICAgIHNjcmVlbl95PTYxNSwKICAgICkKCiAgICBk"
+              "ZWYgZmFrZV9maW5kKF9mcmFtZSwgbmFtZXMsICoqX2t3YXJncyk6CiAgICAgICAgcmV0dXJuIGNhbmNlbF9yZWFkeSBpZiAi"
+              "cm9vbV9jYW5jZWxfcmVhZHkiIGluIG5hbWVzIGVsc2UgTm9uZQoKICAgIHdpdGggcGF0Y2gub2JqZWN0KG1lZCwgImZpbmQi"
+              "LCBzaWRlX2VmZmVjdD1mYWtlX2ZpbmQpLCBcCiAgICAgICAgIHBhdGNoLm9iamVjdChtZWQsICJmaW5kX3NjZW5lIiwgcmV0"
+              "dXJuX3ZhbHVlPU5vbmUpLCBcCiAgICAgICAgIHBhdGNoLm9iamVjdChtZWQsICJfaGl0Y2hfcm9vbV9zZWF0X2RlY2lzaW9u"
+              "IiwgcmV0dXJuX3ZhbHVlPSJyZWFkeSIpLCBcCiAgICAgICAgIHBhdGNoLm9iamVjdChtZWQsICJhY3RfY2xpY2siKSBhcyBj"
+              "bGljazoKICAgICAgICBtZWQuX3RpY2tfbG9iYnlfaGl0Y2goX2ZpeHR1cmVfZnJhbWUoKSwgIlJPT01fV0FJVElORyIpCgog"
+              "ICAgY2xpY2suYXNzZXJ0X25vdF9jYWxsZWQoKQogICAgYXNzZXJ0IG1lZC5waGFzZSBpcyBQaGFzZS5ST09NX1dBSVRJTkcK"
+          )
+          test_source = base64.b64decode(test_b64).decode("utf-8")
+          Path("tests/test_lobby_hitch_safety_regressions.py").write_text(
+              test_source,
+              encoding="utf-8",
+              newline="\n",
+          )
 
       - name: Run focused lobby regression suite
         run: |
