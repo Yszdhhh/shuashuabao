@@ -86,6 +86,11 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(self.med._l1_cycle_step, "skill")
         click.assert_called_once()
 
+    def test_main_line_entry_resets_auto_task_recheck_deadline(self):
+        self.med._auto_task_recheck_at = time.time() + 1000
+        self.med.set_phase(Phase.MAIN_LINE, "new game")
+        self.assertEqual(self.med._auto_task_recheck_at, 0.0)
+
     def test_periodic_auto_task_off_starts_fresh_repair_episode(self):
         toggle = hit("auto_task_toggle", 1450, 530)
         self.med._auto_task_done = True

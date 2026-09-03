@@ -5101,6 +5101,9 @@ class Mediator:
         if self.act_key("f4", "ClearPressureMonsters"):
             print(f"[L1] 压力转移: 按下 F4 清除挑怪 (下次间隔 {interval}s)")
             self._main_line_since = now
+            return LoopAction.Continue
+        return None
+
     def _maybe_click_hitch_pressure_transfer(self, frame: Frame, now: float) -> LoopAction | None:
         """蹭车模式：开局 25 秒内寻找装备栏上方的『压力转移』独立按钮并点击。"""
         if not self._team_mode_enabled():
@@ -6035,6 +6038,7 @@ class Mediator:
             self._auto_task_attempts = 0
             self._auto_task_pending_since = None
             self._auto_task_next_observe_at = None
+            self._auto_task_recheck_at = 0.0
             self._hitch_pressure_transferred = False
             self._auto_task_unknown_since = None
             self._victory_continue_attempts = 0

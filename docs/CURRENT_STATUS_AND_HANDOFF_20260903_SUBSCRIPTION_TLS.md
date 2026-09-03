@@ -1,6 +1,15 @@
 # 2026-09-03：桌面订阅 TLS 打包故障
 
-范围仅为 Shell/订阅传输与打包，不改大厅、局内或战后业务，不执行 KK 输入。
+TLS 修复范围为 Shell/订阅传输与打包，不执行 KK 输入。
+
+后续部署补记：`4320201` 在 TLS 提交后新增了压力转移功能，同时误删原 F4 helper 的
+`LoopAction.Continue` 返回值和新局 `_auto_task_recheck_at` 重置。
+两处均已由离线测试复现；为解除当前分支构建阻塞，单独补回原有语句，保留新增功能。
+该补记不代表压力转移已通过真机业务验证。
+
+补记验证：focused + contract 为 117 passed；完整门禁为 1342 passed / 2 xfailed /
+1 skipped，Standard 四阶段 4/4 PASS。执行期间另有操作修改
+`tools/live_scenario_capture.py`，不属于本次修复，不能将其擅自提交/覆盖。
 
 ## 已确认的故障证据
 
