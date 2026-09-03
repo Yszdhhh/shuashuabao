@@ -6983,8 +6983,9 @@ class Mediator:
         return None
 
     def _find_hitch_ready_button(self, frame: Frame) -> MatchResult | None:
-        # 优先通过模板匹配房间底部的准备/取消准备按钮
-        hit = self.find(frame, ["room_ready", "readyBtn", "room_cancel_ready"], threshold=0.75)
+        # 只返回可执行的“准备”按钮。“取消准备”是已准备成功的后置条件，
+        # 必须保持零输入，绝不能再次点击把客人切回未准备状态。
+        hit = self.find(frame, ["room_ready", "readyBtn"], threshold=0.75)
         if hit is not None:
             return hit
         control = self._hitch_room_action_control(frame)
@@ -7424,29 +7425,47 @@ class Mediator:
             return LoopAction.Continue
 
         search_hit = self.find_scene(frame, "lobby_search_box")
-        # 搜索框输入后直接放行，不再要求 OCR 再次强校验（避免 OCR 对单数字误判导致 3 秒反复超时清空死锁）
-        if getattr(self, "_hitch_search_pending", None) is not None:
-            self._hitch_prefix_searched = True
-            self._hitch_search_pending = None
-            self._hitch_rejected_row_ys.clear()
-            print(f"[L0] hitch 搜索词已生效，直接进入房间列表过滤与刷新循环")
+        pending_search = self._hitch_search_pending
+        if pending_search is not None:
+            prefix, pending_at = pending_search
+            if self._hitch_search_prefix_confirmed(frame, prefix, now):
+                self._hitch_prefix_searched = True
+                self._hitch_search_pending = None
+                self._hitch_rejected_row_ys.clear()
+                print(f"[L0] hitch 搜索词 '{prefix}' 已由搜索框视觉证据确认")
+            elif now - pending_at >= 3.0:
+                self._hitch_search_pending = None
+                self._hitch_prefix_searched = False
+                self._hitch_sm.defer_retry(now)
+                print(f"[L0] hitch 搜索词 '{prefix}' 未获视觉确认，零输入重试")
+            else:
+                print(f"[L0] hitch 等待搜索词 '{prefix}' 生效确认（零输入）")
+            # 确认成立的当前 tick 仍不扫描房间；下一张新帧才允许使用过滤结果。
+            return LoopAction.Continue
+
         if not getattr(self, "_hitch_prefix_searched", False):
             prefix = self._hitch_sm.prefix
             if search_hit is None:
                 self._hitch_sm.defer_retry(now)
                 print("[L0] hitch 未识别搜索框，零输入等待")
                 return LoopAction.Continue
-            else:
-                # The shipped anchor starts halfway down the input control and
-                # includes the gap/table header below it.  Its geometric centre
-                # is therefore outside the edit box on the live 1332x945 KK UI.
-                search_hit = replace(
-                    search_hit,
-                    screen_y=search_hit.screen_y - search_hit.h // 2,
+            # The shipped anchor starts halfway down the input control and
+            # includes the gap/table header below it. Its geometric centre
+            # is therefore outside the edit box on the live 1332x945 KK UI.
+            search_hit = replace(
+                search_hit,
+                screen_y=search_hit.screen_y - search_hit.h // 2,
+            )
+            if self.act_search_box(search_hit, prefix, "HitchSearchBox"):
+                self._hitch_search_pending = (prefix, now)
+                self._hitch_prefix_searched = False
+                print(
+                    f"[L0] hitch 搜索词 '{prefix}' 已输入并回车，等待后置确认: "
+                    f"({search_hit.screen_x}, {search_hit.screen_y})"
                 )
-            self.act_search_box(search_hit, prefix, "HitchSearchBox")
-            self._hitch_prefix_searched = True
-            print(f"[L0] hitch 搜索词 '{prefix}' 已输入并回车: ({search_hit.screen_x}, {search_hit.screen_y})")
+            else:
+                self._hitch_sm.defer_retry(now)
+                print(f"[L0] hitch 搜索词 '{prefix}' 输入被拒绝，保持未搜索状态")
             return LoopAction.Continue
 
         # 3. 扫描房间列表寻找可加入的房间（非 4/4 且 非 游戏中）
