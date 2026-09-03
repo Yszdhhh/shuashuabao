@@ -54,6 +54,19 @@ class StartPermission:
     dev_capability: DevStartCapability | None = None
 
 
+def _subscription_ssl_context() -> ssl.SSLContext:
+    """Use the Windows trust store in source and frozen desktop builds."""
+    return ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+
+
+def _transport_error(prefix: str, exc: Exception) -> str:
+    if isinstance(exc, ssl.SSLCertVerificationError):
+        return f"{prefix}: TLS 证书验证失败"
+    if isinstance(exc, ssl.SSLError):
+        return f"{prefix}: TLS 连接失败"
+    return f"{prefix}: {type(exc).__name__}"
+
+
 def validate_entitlement(
     license_key: str,
     *,
@@ -105,14 +118,15 @@ def validate_entitlement(
         if opener:
             resp_cm = opener(req, timeout=_timeout_seconds(source))
         else:
-            ctx = ssl._create_unverified_context() if hasattr(ssl, "_create_unverified_context") else None
-            resp_cm = urllib_request.urlopen(req, timeout=_timeout_seconds(source), context=ctx)
+            resp_cm = urllib_request.urlopen(
+                req, timeout=_timeout_seconds(source), context=_subscription_ssl_context()
+            )
         with resp_cm as response:
             payload = json.loads(response.read().decode("utf-8"))
     except Exception as exc:
         return {
             "valid": False, "status": "UNKNOWN", "code": "ENTITLEMENT_UNREACHABLE",
-            "message": f"订阅校验失败: {type(exc).__name__}",
+            "message": _transport_error("订阅校验失败", exc),
         }
     if not isinstance(payload, dict):
         return {
@@ -161,12 +175,13 @@ def activate_device(
         if opener:
             resp_cm = opener(req, timeout=_timeout_seconds(source))
         else:
-            ctx = ssl._create_unverified_context() if hasattr(ssl, "_create_unverified_context") else None
-            resp_cm = urllib_request.urlopen(req, timeout=_timeout_seconds(source), context=ctx)
+            resp_cm = urllib_request.urlopen(
+                req, timeout=_timeout_seconds(source), context=_subscription_ssl_context()
+            )
         with resp_cm as response:
             return {"ok": True, "device": json.loads(response.read().decode("utf-8"))}
     except Exception as exc:
-        return {"ok": False, "code": "DEVICE_ACTIVATION_FAILED", "message": f"设备激活失败: {type(exc).__name__}"}
+        return {"ok": False, "code": "DEVICE_ACTIVATION_FAILED", "message": _transport_error("设备激活失败", exc)}
 
 
 def _env_text(env: Mapping[str, str], key: str) -> str:

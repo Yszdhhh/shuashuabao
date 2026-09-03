@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+import ssl
 
-from shuabao.subscription_client import validate_entitlement
+from shuabao.subscription_client import activate_device, validate_entitlement
 
 
 class _Response:
@@ -17,6 +18,42 @@ class _Response:
 
     def read(self) -> bytes:
         return json.dumps(self._payload).encode("utf-8")
+
+
+def test_subscription_requests_use_verified_tls_context(monkeypatch):
+    import shuabao.subscription_client as client
+
+    contexts = []
+
+    def urlopen(_request, **kwargs):
+        contexts.append(kwargs["context"])
+        return _Response({"valid": True, "can_start_runner": True, "status": "ACTIVE"})
+
+    monkeypatch.setattr(client.urllib_request, "urlopen", urlopen)
+    env = {"SHUABAO_SUBSCRIPTION_BASE_URL": "https://subscription.example"}
+
+    activate_device("test-key", env=env)
+    validate_entitlement("test-key", env=env)
+
+    assert len(contexts) == 2
+    assert all(context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname for context in contexts)
+
+
+def test_subscription_tls_failure_is_specific_and_does_not_echo_key(monkeypatch):
+    import shuabao.subscription_client as client
+
+    def urlopen(*_args, **_kwargs):
+        raise ssl.SSLCertVerificationError(1, "certificate verification failed")
+
+    monkeypatch.setattr(client.urllib_request, "urlopen", urlopen)
+    result = activate_device(
+        "sensitive-test-key",
+        env={"SHUABAO_SUBSCRIPTION_BASE_URL": "https://subscription.example"},
+    )
+
+    assert result["code"] == "DEVICE_ACTIVATION_FAILED"
+    assert result["message"] == "设备激活失败: TLS 证书验证失败"
+    assert "sensitive-test-key" not in result["message"]
 
 
 def test_validate_entitlement_promotes_nested_expiry_for_all_dashboard_shells():
