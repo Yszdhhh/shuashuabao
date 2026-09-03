@@ -20,10 +20,14 @@ import hashlib
 import sys
 import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 from shuabao.subscription_client import (
     SUBSCRIPTION_LICENSE_KEY_ENV,
+    StartPermission,
+    _base_url,
+    _device_fingerprint,
     activate_device,
     check_start_permission,
     load_saved_license_key,
@@ -53,7 +57,11 @@ from shuabao.shell.runner_service import (
     RunnerService,
 )
 from shuabao.shell.runner_service import live_lock_busy
-from shuabao.shell.live_execute import live_permit_request_context
+from shuabao.shell.live_execute import (
+    check_live_start_permission,
+    live_permit_request_context,
+    live_permission_preflight,
+)
 from shuabao.shell.runtime_status import runtime_status_from_mediator
 from shuabao.shell.bridge_contract import (
     BRIDGE_REQUIRED_METHODS,
@@ -499,6 +507,7 @@ class DashboardFacade(QObject):
         self._subscription_cache_at = 0.0
         self._subscription_cache: Any = None
         self._subscription_cache_ttl_s = 15.0
+        self._subscription_live_check: tuple[bool, str, str] | None = None
 
     def _ensure_runner(self) -> Any:
         """注入的 runner 优先；否则按缺省构造 RunnerService(app_data, root)。"""
@@ -576,7 +585,7 @@ class DashboardFacade(QObject):
         permit_request: Mapping[str, object] | None = None,
     ) -> tuple[str, ...]:
         key = str(os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or "").strip()
-        endpoint = str(os.environ.get("SHUABAO_SUBSCRIPTION_BASE_URL") or "").strip()
+        endpoint = _base_url(os.environ)
         mode = str(os.environ.get("SHUABAO_SUBSCRIPTION_MODE") or "").strip().lower()
         # Keep the raw key out of the in-memory cache key and diagnostic data.
         key_digest = hashlib.sha256(key.encode("utf-8")).hexdigest() if key else ""
@@ -584,7 +593,7 @@ class DashboardFacade(QObject):
             mode,
             endpoint,
             key_digest,
-            str(os.environ.get("SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT") or "").strip(),
+            _device_fingerprint(os.environ, allow_override=not getattr(sys, "frozen", False)),
         )
         context = tuple(
             str((permit_request or {}).get(field) or "").strip()
@@ -597,17 +606,16 @@ class DashboardFacade(QObject):
         )
         return base + context
 
-    def _permit_request_context(self, mode_id: str | None) -> dict[str, str] | None:
-        requested_mode = str(mode_id or "").strip()
-        if not requested_mode:
-            return None
+    def _permission_root(self) -> Path | None:
         root = self._root
         if root is None and self._runner is not None:
             candidate = getattr(self._runner, "root", None)
             root = Path(candidate) if candidate is not None else None
-        if root is None:
-            return None
-        return live_permit_request_context(root, requested_mode)
+        return root
+
+    def _permit_request_context(self, mode_id: str | None) -> dict[str, str] | None:
+        root = self._permission_root()
+        return live_permit_request_context(root, mode_id) if root is not None and mode_id else None
 
     def _subscription_permission(
         self,
@@ -615,8 +623,9 @@ class DashboardFacade(QObject):
         force: bool = False,
         mode_id: str | None = None,
     ):
+        mode_id = mode_id or self._shell_dto()["selected_mode_id"]
         permit_request = self._permit_request_context(mode_id)
-        key = self._subscription_key(permit_request)
+        key = self._subscription_key(permit_request or {"mode_id": mode_id})
         now = time.monotonic()
         if (
             not force
@@ -625,34 +634,57 @@ class DashboardFacade(QObject):
             and now - self._subscription_cache_at < self._subscription_cache_ttl_s
         ):
             return self._subscription_cache
-        permission = (
-            check_start_permission(permit_request=permit_request)
-            if permit_request is not None
-            else check_start_permission()
+        permission = check_live_start_permission(
+            self._permission_root(), mode_id, checker=check_start_permission,
         )
         self._subscription_cache_key = key
         self._subscription_cache_at = now
         self._subscription_cache = permission
+        self._subscription_live_check = None
         return permission
 
     def _invalidate_subscription_cache(self) -> None:
         self._subscription_cache_key = None
         self._subscription_cache_at = 0.0
         self._subscription_cache = None
+        self._subscription_live_check = None
 
     def _subscription_dto(self) -> dict[str, Any]:
         key = str(os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or "").strip()
+        pending = {
+            "active": False, "status": "待校验", "expires_at": "",
+            "entitlement_valid": False, "live_authorized": False,
+            "live_status": "LIVE 授权待校验", "live_code": "LIVE_PENDING",
+        }
         if not key:
-            return {"active": False, "status": "未激活", "expires_at": ""}
+            return {**pending, "status": "未激活"}
         permission = self._subscription_cache
         base_key = self._subscription_key()[:4]
         cached_base = self._subscription_cache_key[:4] if self._subscription_cache_key else None
         if permission is None or cached_base != base_key:
-            return {"active": False, "status": "待校验", "expires_at": ""}
+            return pending
+        live_ok, live_code, live_detail = False, "LIVE_PENDING", "LIVE 授权待校验"
+        selected_mode = self._shell_dto()["selected_mode_id"]
+        current_context = self._permit_request_context(selected_mode)
+        current_full_key = self._subscription_key(current_context or {"mode_id": selected_mode})
+        if (
+            self._subscription_live_check is not None
+            and self._subscription_cache_key == current_full_key
+            and time.monotonic() - self._subscription_cache_at < self._subscription_cache_ttl_s
+        ):
+            live_ok, live_code, live_detail = self._subscription_live_check
+            permit = permission.permit
+            if live_ok and permit is not None and datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") > permit.expires_at:
+                live_ok, live_code, live_detail = False, "PERMIT_EXPIRED", "permit 已过期"
+        entitlement_valid = bool(permission.entitlement_valid)
         return {
-            "active": bool(permission.allowed and permission.would_allow is not False),
-            "status": str(permission.status or ("正常" if permission.allowed else "未激活")),
+            "active": entitlement_valid,
+            "status": "卡密有效" if entitlement_valid else str(permission.status or "未激活"),
             "expires_at": str(getattr(permission, "expires_at", "") or ""),
+            "entitlement_valid": entitlement_valid,
+            "live_authorized": live_ok and live_code == "PERMIT_VERIFIED",
+            "live_status": live_detail,
+            "live_code": live_code,
         }
 
     def _snapshot_dto(self, request_id: str | None = None) -> dict[str, Any]:
@@ -895,6 +927,10 @@ class DashboardFacade(QObject):
         cycle_ok = isinstance(cycle_raw, int) and not isinstance(cycle_raw, bool) and cycle_raw >= 0
         pair_code = settings.follow_pair_code or ""
         permission = self._subscription_permission(mode_id=mode_id)
+        live_ok, live_code, live_detail = live_permission_preflight(
+            permission, mode_id=mode_id, root=self._permission_root(),
+        )
+        self._subscription_live_check = live_ok, live_code, live_detail
         runtime_root_ok = self._root is None or Path(self._root).is_dir() or self._runner is not None
         runtime_root_detail = (
             "运行目录可用"
@@ -919,8 +955,8 @@ class DashboardFacade(QObject):
                   f"配对码 {len(pair_code)} 字符" if len(pair_code) <= 24 else "配对码超过 24 字符"),
             check(
                 "subscription",
-                bool(permission.allowed),
-                permission.message or f"订阅状态 {permission.status}",
+                live_ok,
+                live_detail,
             ),
             check(
                 "runtime_root",
@@ -1052,27 +1088,26 @@ class DashboardFacade(QObject):
             # snapshot perform another network request.  ``check_start_permission``
             # will re-probe when the user starts a run or the TTL expires.
             if valid:
-                from shuabao.subscription_client import StartPermission
-
                 self._subscription_cache_key = self._subscription_key()
                 self._subscription_cache_at = time.monotonic()
                 self._subscription_cache = StartPermission(
-                    True,
+                    False,
                     str(os.environ.get("SHUABAO_SUBSCRIPTION_MODE") or "enforce"),
                     status=status,
-                    code=str(val.get("code") or ""),
-                    message=str(val.get("message") or ""),
-                    would_allow=True,
+                    code="LIVE_PENDING",
+                    message="卡密有效；LIVE 授权待校验",
+                    would_allow=False,
                     expires_at=expires_at,
+                    entitlement_valid=True,
                 )
-            sub = {"active": valid, "status": status, "expires_at": expires_at}
+            sub = self._subscription_dto()
             self.snapshot_changed.emit(json.dumps(self._snapshot_dto(), ensure_ascii=False))
             return json.dumps(self._rpc_response(
                 valid,
                 subscription=sub,
                 status=status,
                 expires_at=expires_at,
-                message=f"激活成功！到期时间: {expires_at[:10] if len(expires_at)>=10 else expires_at}" if valid else f"状态: {status}",
+                message=f"卡密有效，LIVE 授权待校验。到期时间: {expires_at[:10] if len(expires_at)>=10 else expires_at}" if valid else f"状态: {status}",
             ), ensure_ascii=False)
         except Exception as exc:
             return json.dumps(self._rpc_response(False, message=f"激活异常: {exc}"), ensure_ascii=False)

@@ -105,6 +105,10 @@ export interface SubscriptionDTO {
   active: boolean;
   status: string;
   expires_at: string;
+  entitlement_valid?: boolean;
+  live_authorized?: boolean;
+  live_status?: string;
+  live_code?: string;
 }
 
 export interface SnapshotDTO {
@@ -154,7 +158,7 @@ export interface DashboardBridge {
   stop_run(): Promise<RunResult>;
   window_control(action: "minimize" | "close"): Promise<RpcResponse>;
   set_window_layout(layout: WindowLayout): Promise<RpcResponse>;
-  activate_subscription(key: string): Promise<{ ok: boolean; message: string; status?: string; expires_at?: string }>;
+  activate_subscription(key: string): Promise<{ ok: boolean; message: string; status?: string; expires_at?: string; subscription?: SubscriptionDTO }>;
 }
 
 export interface DashboardBridgeSignals {

@@ -25,7 +25,7 @@ from shuabao.shell.live_execute import (
     PermissionDenied,
     execute_runtime_mediator,
     live_lock_path,
-    live_permit_request_context,
+    check_live_start_permission,
     resolve_live_permission,
 )
 from shuabao.shell.mode_catalog import apply_mode_overlay, desktop_may_start
@@ -278,15 +278,11 @@ class RunnerService:
         if not desktop_may_start(mode_id):
             raise ModeNotEnabled(f"{mode_id} 未验证，不可从看板启动")
         if permission is None:
-            if permission_checker is not None:
-                permission = permission_checker()
-            else:
-                permit_request = live_permit_request_context(self.root, mode_id)
-                permission = (
-                    check_start_permission(permit_request=permit_request)
-                    if permit_request is not None
-                    else check_start_permission()
-                )
+            permission = check_live_start_permission(
+                self.root,
+                mode_id,
+                checker=permission_checker or check_start_permission,
+            )
         permission = resolve_live_permission(permission, mode_id=mode_id, root=self.root)
         if self.worker is not None:
             if self.worker.isRunning():

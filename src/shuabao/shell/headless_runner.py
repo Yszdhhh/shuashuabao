@@ -19,6 +19,7 @@ from shuabao.shell.live_execute import (
     LIVE_LOCK_NAME,
     PermissionDenied,
     PortableLiveLock,
+    check_live_start_permission,
     execute_runtime_mediator,
     live_lock_path,
     resolve_live_permission,
@@ -104,10 +105,12 @@ class HeadlessRunner:
         if self.stop_signal.is_set() or self.stop_signal.is_stopped():
             return self._cancelled_start_result(log_fn)
         snapshot = self._prepare_settings(settings)
-        if permission is None and permission_checker is not None:
-            permission = permission_checker()
         if permission is None:
-            permission = check_start_permission()
+            permission = check_live_start_permission(
+                self.root,
+                self.mode_id,
+                checker=permission_checker or check_start_permission,
+            )
         permission = resolve_live_permission(permission, mode_id=self.mode_id, root=self.root)
         incident_dir = self.app_data / "incidents"
         incident_dir.mkdir(parents=True, exist_ok=True)

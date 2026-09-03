@@ -20,6 +20,8 @@ from shuabao.release_signing import ReleaseManifestError, canonical_manifest_sha
 from shuabao.subscription_client import (
     StartPermission,
     _device_fingerprint,
+    _normalize_permit_request,
+    check_start_permission,
     subscription_mode,
 )
 from shuabao.paths import get_canonical_app_data_dir
@@ -164,17 +166,91 @@ def live_permit_request_context(root: Path, mode_id: str) -> dict[str, str] | No
         or not requested_mode
     ):
         return None
-    return {
+    context = {
         "source_sha": identity.source_sha,
         "release_manifest_sha256": identity.manifest_sha,
         "release_channel": identity.release_channel,
         "mode_id": requested_mode,
     }
+    try:
+        return _normalize_permit_request(context)
+    except (TypeError, ValueError):
+        return None
+
+
+def check_live_start_permission(
+    root: Path | None, mode_id: str, *, checker=None,
+) -> StartPermission:
+    """Every LIVE adapter uses the same authenticated request boundary."""
+    checker = check_start_permission if checker is None else checker
+    if subscription_mode() == "off":
+        return checker()
+    context = live_permit_request_context(root, mode_id) if root is not None else None
+    if context is None:
+        return StartPermission(
+            False, subscription_mode(), code="PERMIT_IDENTITY_UNTRUSTED",
+            message="发行身份未验证，LIVE 授权已阻断",
+        )
+    return checker(permit_request=context)
 
 
 def resolve_live_permission(permission: Any, *, mode_id: str, root: Path) -> DevStartCapability | VerifiedPermit:
     """Resolve status DTOs into an explicit LIVE authorization artifact."""
+    return _verify_live_permission(permission, mode_id=mode_id, root=root, consume_replay=True)
+
+
+def live_permission_preflight(
+    permission: StartPermission, *, mode_id: str, root: Path | None,
+) -> tuple[bool, str, str]:
+    """Verify readiness without consuming a permit or minting execution authority."""
+    code = str(permission.code or "UNKNOWN")
+    if permission.allowed:
+        try:
+            if root is None:
+                # Injected source adapters may resolve their checkout at start.
+                if (
+                    permission.dev_capability is not None
+                    and subscription_mode() == "off"
+                    and not getattr(sys, "frozen", False)
+                ):
+                    return True, "DEV_OFF", "源码开发模式；LIVE 发行授权不适用"
+                raise PermissionDenied("PERMIT_IDENTITY_UNTRUSTED")
+            artifact = _verify_live_permission(
+                permission, mode_id=mode_id, root=root, consume_replay=False,
+            )
+            if isinstance(artifact, DevStartCapability):
+                return True, "DEV_OFF", "源码开发模式；LIVE 发行授权不适用"
+            return True, "PERMIT_VERIFIED", "LIVE permit 已验签；启动时确认一次性授权"
+        except PermissionDenied as exc:
+            code = str(exc).rsplit(": ", 1)[-1]
+    labels = {
+        "LIVE_PENDING": "LIVE 授权待校验",
+        "PERMIT_IDENTITY_UNTRUSTED": "发行身份未验证",
+        "RELEASE_NOT_APPROVED": "发行未批准",
+        "MODE_NOT_ALLOWED": "当前模式未批准",
+        "PERMIT_MISSING": "permit 缺失",
+        "ENTITLEMENT_UNREACHABLE": "服务不可达",
+    }
+    detail = labels.get(code)
+    if detail is None:
+        detail = "permit 无效" if code.startswith("PERMIT_") else (permission.message or "卡密未通过校验")
+    return False, code, detail if code == "UNKNOWN" else f"{detail}（{code}）"
+
+
+def _verify_live_permission(
+    permission: Any, *, mode_id: str, root: Path, consume_replay: bool,
+) -> DevStartCapability | VerifiedPermit:
     identity = _live_identity(Path(root))
+    if isinstance(permission, StartPermission):
+        # The server decision is authoritative.  A permit field on a denied
+        # response must never be able to override ``allowed=False`` when a
+        # caller invokes RunnerService/HeadlessRunner directly.  Shadow mode
+        # records entitlement decisions only and cannot authorize LIVE.
+        if not permission.allowed:
+            code = str(permission.code or "PERMIT_REQUIRED")
+            raise PermissionDenied(f"订阅未授权，LIVE 已拒绝启动: {code}")
+        if permission.mode == "shadow":
+            raise PermissionDenied("订阅未授权，LIVE 已拒绝启动: PERMIT_REQUIRED")
     dev_capability = permission if isinstance(permission, DevStartCapability) else None
     if isinstance(permission, StartPermission):
         dev_capability = permission.dev_capability
@@ -208,8 +284,8 @@ def resolve_live_permission(permission: Any, *, mode_id: str, root: Path) -> Dev
         )
         return PermitVerifier(
             identity.registry_keys,
-            replay_store=_live_replay_store(),
-            issuer_token=_TRUSTED_ISSUER_TOKEN,
+            replay_store=_live_replay_store() if consume_replay else None,
+            issuer_token=_TRUSTED_ISSUER_TOKEN if consume_replay else None,
         ).verify(permit, context)
     except PermitVerificationError as exc:
         raise PermissionDenied(f"订阅未授权，LIVE 已拒绝启动: {exc.code}") from exc
