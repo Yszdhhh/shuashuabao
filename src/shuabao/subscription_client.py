@@ -36,6 +36,12 @@ SUBSCRIPTION_LICENSE_KEY_ENV = "SHUABAO_SUBSCRIPTION_LICENSE_KEY"
 SUBSCRIPTION_DEVICE_FP_ENV = "SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT"
 SUBSCRIPTION_TIMEOUT_ENV = "SHUABAO_SUBSCRIPTION_TIMEOUT_S"
 VALID_MODES = {"off", "shadow", "enforce"}
+PERMIT_REQUEST_FIELDS = (
+    "source_sha",
+    "release_manifest_sha256",
+    "release_channel",
+    "mode_id",
+)
 DEFAULT_LOCAL_BRIDGE_URL = "https://quebec-luis-flooring-kenneth.trycloudflare.com"
 
 _KEY_FILE_NAME = "subscription.key"
@@ -75,11 +81,29 @@ def _transport_error(prefix: str, exc: Exception) -> str:
     return f"{prefix}: {type(exc).__name__}"
 
 
+def _normalize_permit_request(
+    value: Mapping[str, object] | None,
+) -> dict[str, str] | None:
+    """Return the exact server permit-request shape or reject it before I/O."""
+    if value is None:
+        return None
+    if not isinstance(value, Mapping) or set(value) != set(PERMIT_REQUEST_FIELDS):
+        raise ValueError("permit request fields mismatch")
+    normalized: dict[str, str] = {}
+    for field in PERMIT_REQUEST_FIELDS:
+        raw = value.get(field)
+        if not isinstance(raw, str) or not raw.strip():
+            raise ValueError(f"permit request field invalid: {field}")
+        normalized[field] = raw.strip()
+    return normalized
+
+
 def validate_entitlement(
     license_key: str,
     *,
     env: Mapping[str, str] | None = None,
     opener: Callable[..., Any] | None = None,
+    permit_request: Mapping[str, object] | None = None,
 ) -> dict[str, Any]:
     """Validate one user-entered key against the Bridge contract.
 
@@ -107,7 +131,16 @@ def validate_entitlement(
             "valid": False, "status": "UNKNOWN", "code": "CONFIG_DEVICE_MISSING",
             "message": "Pilot 设备指纹未配置",
         }
-    body = {
+    try:
+        normalized_permit_request = _normalize_permit_request(permit_request)
+    except (TypeError, ValueError):
+        return {
+            "valid": False,
+            "status": "UNKNOWN",
+            "code": "CONFIG_PERMIT_REQUEST_INVALID",
+            "message": "LIVE permit 发行身份字段无效",
+        }
+    body: dict[str, object] = {
         "license_key": key,
         "hardware": {
             "fingerprint": fingerprint,
@@ -116,6 +149,8 @@ def validate_entitlement(
             "hostname": socket.gethostname() or None,
         },
     }
+    if normalized_permit_request is not None:
+        body["permit_request"] = normalized_permit_request
     req = urllib_request.Request(
         f"{base_url}/v1/entitlements/validate",
         data=json.dumps(body).encode("utf-8"),
@@ -321,6 +356,7 @@ def check_start_permission(
     *,
     env: Mapping[str, str] | None = None,
     opener: Callable[..., Any] | None = None,
+    permit_request: Mapping[str, object] | None = None,
 ) -> StartPermission:
     """Validate the local Pilot entitlement exactly once before LIVE begins.
 
@@ -359,10 +395,19 @@ def check_start_permission(
     if not fingerprint:
         return _deny(mode, "CONFIG_DEVICE_MISSING", "Pilot 设备指纹未配置")
 
-    payload = validate_entitlement(license_key, env=source, opener=opener)
+    if permit_request is None:
+        payload = validate_entitlement(license_key, env=source, opener=opener)
+    else:
+        payload = validate_entitlement(
+            license_key,
+            env=source,
+            opener=opener,
+            permit_request=permit_request,
+        )
     if payload.get("code") in {
         "CONFIG_BASE_URL_MISSING", "CONFIG_LICENSE_MISSING", "CONFIG_DEVICE_MISSING",
-        "CONFIG_BASE_URL_INVALID", "ENTITLEMENT_UNREACHABLE", "ENTITLEMENT_MALFORMED",
+        "CONFIG_BASE_URL_INVALID", "CONFIG_PERMIT_REQUEST_INVALID",
+        "ENTITLEMENT_UNREACHABLE", "ENTITLEMENT_MALFORMED",
     }:
         return _deny(mode, str(payload.get("code")), str(payload.get("message") or "订阅校验失败"))
     status = str(payload.get("status") or "UNKNOWN")
