@@ -120,6 +120,7 @@ class Settings:
     hitch_rotate_interval: int = 10  # 搜索无结果时每隔多少轮自动轮换下一个搜索词
     subscription_base_url: str = "https://quebec-luis-flooring-kenneth.trycloudflare.com"  # 默认云端鉴权中台地址
     subscription_mode: str = "enforce"  # 订阅模式：off / shadow / enforce
+    follow_cycle_num: int = 100  # 跟车目标局数；启动时投影到 cycle_num
     hitch_cycle_num: int = 100  # 蹭车目标局数；启动时投影到 cycle_num
     follow_after_room: str = "solo"  # 房间解散/被踢后预案：solo / arch / hitch
     hitch_after_goal: str = "solo"  # 达到蹭车目标后预案：solo / arch
