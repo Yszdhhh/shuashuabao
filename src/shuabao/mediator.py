@@ -1551,6 +1551,8 @@ class Mediator:
         "room_start", "stage_start", "start",
         "stage", "stage_page", "coin_challenge", "wood_challenge",
         "experience_challenge", "treasure_challenge",
+        "lobby_room_list", "lobby_room_list_tab", "lobby_room_list_selected",
+        "lobby_refresh", "lobby_search_box",
     })
 
     def _l0_scales(self) -> tuple[float, ...]:
@@ -6748,6 +6750,29 @@ class Mediator:
                 return True
         return False
 
+    def _find_hitch_room_list_tab(self, frame: Frame) -> MatchResult | None:
+        """Find only the fixed room-list tab slot, never a different active tab."""
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
+            return None
+        x0, x1 = int(frame.width * 0.22), int(frame.width * 0.34)
+        y0, y1 = int(frame.height * 0.23), int(frame.height * 0.29)
+        hit = self.find_scene(frame, "lobby_room_list_tab")
+        if hit is not None and x0 <= hit.x <= x1 and y0 <= hit.y <= y1:
+            return hit
+        # KK keeps the room-list label in this fixed navigation slot even when
+        # the active tab is elsewhere.  Require visible label pixels first.
+        slot = frame.bgr[y0:y1, x0:x1]
+        if slot.size == 0:
+            return None
+        gray = cv2.cvtColor(slot, cv2.COLOR_BGR2GRAY)
+        if int(np.count_nonzero(gray >= 160)) < 80:
+            return None
+        x, y = int(frame.width * 0.265), int(frame.height * 0.26)
+        return MatchResult(
+            "lobby_room_list_tab_slot", 1.0, x, y, 1, 1,
+            frame.left + x, frame.top + y,
+        )
+
     @staticmethod
     def _hitch_room_number_key(frame: Frame, row_y: int) -> str | None:
         """Return a scale-stable visual key for one lobby row's room number."""
@@ -7384,7 +7409,7 @@ class Mediator:
         # 1. 检查是否在房间列表中，若在地图详情等其他 Tab，点击「房间列表 99+」Tab 切换
         is_in_room_list = self._lobby_room_list_evidence(frame)
         if not is_in_room_list:
-            tab_unselected = self.find_scene(frame, "lobby_room_list_tab")
+            tab_unselected = self._find_hitch_room_list_tab(frame)
             if tab_unselected is None:
                 self._hitch_sm.defer_retry(now)
                 self._hitch_status = "等待可信房间列表 Tab"
@@ -7395,23 +7420,12 @@ class Mediator:
             return LoopAction.Continue
 
         search_hit = self.find_scene(frame, "lobby_search_box")
-        pending_search = self._hitch_search_pending
-        if pending_search is not None:
-            prefix, pending_at = pending_search
-            if self._hitch_search_prefix_confirmed(frame, prefix, now):
-                self._hitch_prefix_searched = True
-                self._hitch_search_pending = None
-                self._hitch_rejected_row_ys.clear()
-                print(f"[L0] hitch 搜索词 '{prefix}' 已由搜索框 OCR 确认")
-            elif now - pending_at >= 3.0:
-                self._hitch_search_pending = None
-                self._hitch_prefix_searched = False
-                self._hitch_sm.defer_retry(now)
-                print(f"[L0] hitch 搜索词 '{prefix}' 未获视觉确认，零输入重试")
-            else:
-                print(f"[L0] hitch 等待搜索词 '{prefix}' 生效确认（零输入）")
-            return LoopAction.Continue
-
+        # 搜索框输入后直接放行，不再要求 OCR 再次强校验（避免 OCR 对单数字误判导致 3 秒反复超时清空死锁）
+        if getattr(self, "_hitch_search_pending", None) is not None:
+            self._hitch_prefix_searched = True
+            self._hitch_search_pending = None
+            self._hitch_rejected_row_ys.clear()
+            print(f"[L0] hitch 搜索词已生效，直接进入房间列表过滤与刷新循环")
         if not getattr(self, "_hitch_prefix_searched", False):
             prefix = self._hitch_sm.prefix
             if search_hit is None:
@@ -7426,12 +7440,9 @@ class Mediator:
                     search_hit,
                     screen_y=search_hit.screen_y - search_hit.h // 2,
                 )
-            if self.act_search_box(search_hit, prefix, "HitchSearchBox"):
-                self._hitch_search_pending = (prefix, now)
-                self._hitch_prefix_searched = False
-                print(f"[L0] hitch 搜索词 '{prefix}' 已输入并回车: ({search_hit.screen_x}, {search_hit.screen_y})")
-            else:
-                self._hitch_sm.defer_retry(now)
+            self.act_search_box(search_hit, prefix, "HitchSearchBox")
+            self._hitch_prefix_searched = True
+            print(f"[L0] hitch 搜索词 '{prefix}' 已输入并回车: ({search_hit.screen_x}, {search_hit.screen_y})")
             return LoopAction.Continue
 
         # 3. 扫描房间列表寻找可加入的房间（非 4/4 且 非 游戏中）
