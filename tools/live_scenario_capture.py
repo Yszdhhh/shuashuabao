@@ -38,6 +38,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from typing import Any, Callable
 
@@ -2248,6 +2249,33 @@ def _ocr_bootstrap_preflight(med: Mediator) -> dict[str, Any]:
     return _jsonable(record)
 
 
+def _background_ocr_warmup(med: Mediator) -> None:
+    """Warm the OCR sidecar off the lobby loop's critical path.
+
+    Lobby search/refresh/ready decisions are template-only; the PaddleOCR
+    cold load (20-50s on this machine) must not delay them.  ``start()``
+    holds the client lock for the whole spawn, so the tick loop must poll
+    the lock-free ``ready`` flag instead of calling into the client while
+    this thread is running.  Failures still land in
+    ``med._ocr_bootstrap_health`` for the manifest; in-game OCR consumers
+    keep their existing fail-closed degradation.
+    """
+    prepare = getattr(med, "prepare_live_dependencies", None)
+    if not callable(prepare):
+        return
+    try:
+        prepare()
+    except Exception as exc:
+        try:
+            med._ocr_bootstrap_health = {
+                "healthy": False,
+                "stage": "background_warmup",
+                "reason": str(exc),
+            }
+        except Exception:
+            pass
+
+
 def _lobby_resource_preflight(med: Mediator, target: str | None) -> list[str]:
     if target not in {"lobby_hitch", "lobby_search"}:
         return []
@@ -2319,6 +2347,23 @@ def _live_input_preflight(
             "stage": "not_required",
             "reason": "visual-only lobby search does not require OCR",
         }
+    elif target in {"lobby_hitch", "hitch_runtime"} and runtime_mediator_error is None:
+        # 大厅/蹭车链路的前段（Tab 切换、搜索框、房间行、准备按钮）全部是
+        # 模板/视觉判定，不需要 OCR。PaddleOCR 冷加载实测 20-50 秒，改为
+        # 后台线程预热：搜房循环立即开跑，OCR 就绪前依赖它的路径按既有
+        # Fail-Closed 降级（hitch 局内面板本来就是立即关闭，不挑卡）。
+        ocr_health = {
+            "healthy": True,
+            "skipped": False,
+            "stage": "background_warmup",
+            "reason": "lobby start is visual-only; OCR warms up in a background thread",
+        }
+        threading.Thread(
+            target=_background_ocr_warmup,
+            args=(med,),
+            daemon=True,
+            name="ocr-background-warmup",
+        ).start()
     else:
         ocr_health = _ocr_bootstrap_preflight(med) if runtime_mediator_error is None else {
             "healthy": False,

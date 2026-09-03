@@ -128,6 +128,17 @@ class ShadowClient:
         return self._ready_reason
 
     @property
+    def ready(self) -> bool:
+        """Lock-free readiness snapshot.
+
+        ``start()`` holds ``self._lock`` for the whole worker spawn (cold
+        PaddleOCR load can take 20-60s).  Callers on the tick loop must poll
+        this property instead of touching ``shadow_predict``/``health_check``,
+        otherwise they would block on that lock and stall the visual loop.
+        """
+        return self._ready
+
+    @property
     def disabled(self) -> bool:
         return self._disabled and time.monotonic() < self._cooldown_until
 

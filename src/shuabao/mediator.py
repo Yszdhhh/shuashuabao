@@ -920,7 +920,9 @@ class Mediator:
             self._ocr_client = ShadowClient(
                 repo_root=target_repo,
                 timeout_ms=max(2500, int(settings.ocr_timeout_ms or 0)),
-                startup_timeout_ms=30000,
+                # 与 RuntimeMediator 同理：冷加载实测 19-35s，30s 上限会把
+                # 冷启动变成"超时+重载"的双倍等待。
+                startup_timeout_ms=60000,
                 trace_path=(Path(incident_dir) / "ocr_shadow.jsonl") if incident_dir else None,
             )
 
@@ -7089,6 +7091,18 @@ class Mediator:
             and getattr(self, "_hitch_search_pending", None) is None
         )
 
+    def _hitch_ocr_ready(self) -> bool:
+        """OCR 侧车是否已就绪（后台预热期间为 False；无锁探测不阻塞 tick）。
+
+        测试替身没有 ``ready`` 属性时按就绪处理，保持既有用例语义不变；
+        生产 ShadowClient 在 ``start()`` 持锁预热期间 ``ready`` 为 False。
+        """
+        client = getattr(self, "_ocr_client", None)
+        if client is None:
+            return False
+        ready = getattr(client, "ready", None)
+        return True if ready is None else bool(ready)
+
     def _hitch_search_prefix_confirmed(self, frame: Frame, prefix: str, now: float) -> bool:
         """Verify the lobby search box before using its filtered room rows."""
         override = getattr(self, "_hitch_search_text_override", None)
@@ -7099,6 +7113,10 @@ class Mediator:
         self._hitch_search_ocr_next_at = now + 0.5
         client = getattr(self, "_ocr_client", None)
         if client is None:
+            return False
+        # 后台预热期间 start() 持有客户端锁，此时调用 shadow_predict 会把
+        # 大厅 tick 卡到预热结束；未就绪一律快速返回 False。
+        if getattr(client, "ready", None) is False:
             return False
         bbox = self._normalized_bbox(frame, (0.82, 0.26, 0.97, 0.32))
         try:
@@ -7442,11 +7460,13 @@ class Mediator:
         pending_search = self._hitch_search_pending
         if pending_search is not None:
             prefix, pending_at = pending_search
-            if self._hitch_search_prefix_confirmed(frame, prefix, now):
+            if self._hitch_search_prefix_confirmed(frame, prefix, now) or (
+                not self._hitch_ocr_ready() and now - pending_at >= 1.5
+            ):
                 self._hitch_prefix_searched = True
                 self._hitch_search_pending = None
                 self._hitch_rejected_row_ys.clear()
-                print(f"[L0] hitch 搜索词 '{prefix}' 已由搜索框视觉证据确认")
+                print(f"[L0] hitch 搜索词 '{prefix}' 已生效（OCR 就绪走视觉确认；预热期按已校验输入放行）")
             elif now - pending_at >= 3.0:
                 self._hitch_search_pending = None
                 self._hitch_prefix_searched = False

@@ -75,7 +75,11 @@ class Mediator(CoreMediator):
                 self._ocr_client = ProductionShadowClient(
                     repo_root=Path(project_root),
                     timeout_ms=max(2500, int(getattr(settings, "ocr_timeout_ms", 0) or 0)),
-                    startup_timeout_ms=30000,
+                    # Cold PaddleOCR import+model load measured 19-35s on this
+                    # machine.  A 30s ceiling turned every cold start into a
+                    # timed-out first attempt (30s wasted) followed by a full
+                    # reload (~53s total, start_attempts=2 in the manifest).
+                    startup_timeout_ms=60000,
                     trace_path=trace_path,
                 )
             except Exception as exc:
