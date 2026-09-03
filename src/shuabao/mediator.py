@@ -6751,23 +6751,33 @@ class Mediator:
         return False
 
     def _find_hitch_room_list_tab(self, frame: Frame) -> MatchResult | None:
-        """Find only the fixed room-list tab slot, never a different active tab."""
+        """Find the room-list tab via template, OCR, or adaptive navigation layout."""
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return None
-        x0, x1 = int(frame.width * 0.22), int(frame.width * 0.34)
-        y0, y1 = int(frame.height * 0.23), int(frame.height * 0.29)
+        # 1. 优先模板匹配：只要在大厅上部导航栏 (y < 40%) 命中，直接使用其中心坐标
         hit = self.find_scene(frame, "lobby_room_list_tab")
-        if hit is not None and x0 <= hit.x <= x1 and y0 <= hit.y <= y1:
+        if hit is not None and hit.y < int(frame.height * 0.40):
             return hit
-        # KK keeps the room-list label in this fixed navigation slot even when
-        # the active tab is elsewhere.  Require visible label pixels first.
-        slot = frame.bgr[y0:y1, x0:x1]
-        if slot.size == 0:
-            return None
-        gray = cv2.cvtColor(slot, cv2.COLOR_BGR2GRAY)
-        if int(np.count_nonzero(gray >= 160)) < 80:
-            return None
-        x, y = int(frame.width * 0.265), int(frame.height * 0.26)
+        # 2. OCR 找字保底：若模板未命中，且有 OCR，在导航区找「房间列表」
+        try:
+            if hasattr(self, "shadow_client") and self.shadow_client:
+                nav_crop = frame.bgr[: int(frame.height * 0.35), :]
+                ocr_res = self.shadow_client.ocr(nav_crop)
+                for item in ocr_res:
+                    text = item.get("text", "")
+                    if "房间" in text or "列表" in text:
+                        box = item.get("box", [])
+                        if len(box) >= 4:
+                            cx = int(sum(pt[0] for pt in box) / len(box))
+                            cy = int(sum(pt[1] for pt in box) / len(box))
+                            return MatchResult(
+                                "lobby_room_list_tab_ocr", 1.0, cx, cy, 50, 20,
+                                frame.left + cx, frame.top + cy,
+                            )
+        except Exception:
+            pass
+        # 3. 自适应导航条几何兜底（正对「房间列表 99+」位置）
+        x, y = int(frame.width * 0.21), int(frame.height * 0.26)
         return MatchResult(
             "lobby_room_list_tab_slot", 1.0, x, y, 1, 1,
             frame.left + x, frame.top + y,
@@ -7318,12 +7328,16 @@ class Mediator:
             print("[L0] hitch 检测到平台提示弹窗，按 Esc 关闭并跳过失败房间")
             return LoopAction.Continue
 
-        ready_hit = self._find_hitch_ready_button(frame)
-        room_controls_visible = ready_hit is not None or self._hitch_room_controls_visible(frame)
+        is_in_room_list = self._lobby_room_list_evidence(frame)
+        ready_hit = None if is_in_room_list else self._find_hitch_ready_button(frame)
+        room_controls_visible = False if is_in_room_list else (ready_hit is not None or self._hitch_room_controls_visible(frame))
         in_room = (
-            room_start is not None
-            or context == "ROOM_WAITING"
-            or room_controls_visible
+            not is_in_room_list
+            and (
+                room_start is not None
+                or context == "ROOM_WAITING"
+                or room_controls_visible
+            )
         )
         if (
             self._hitch_sm.pending_join
