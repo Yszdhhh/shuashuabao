@@ -87,6 +87,7 @@ if (-not $sourceSha) {
     throw "无法解析当前 Git 提交，拒绝构建。"
 }
 $initialDirtyEntries = @(& git status --porcelain --untracked-files=all)
+$initialTrackedDirtyEntries = @(& git status --porcelain --untracked-files=no)
 if ($initialDirtyEntries.Count -gt 0 -and -not $AllowDirty) {
     throw "工作区存在未提交修改，拒绝生成正式包；如需仅用于本地诊断，请显式使用 -AllowDirty。"
 }
@@ -333,7 +334,7 @@ if (-not (Test-Path -LiteralPath $uiIndex -PathType Leaf)) {
 $uiManifest = [ordered]@{
     schema_version       = 1
     source_sha           = $sourceSha
-    source_tree_clean    = ($initialDirtyEntries.Count -eq 0)
+    source_tree_clean    = ($initialTrackedDirtyEntries.Count -eq 0)
     release_channel      = $ReleaseChannel
     index_sha256         = Get-ReleaseFileSha256 $uiIndex
     bridge_schema_version = 2
@@ -425,6 +426,7 @@ Write-Host "已写入订阅部署配置（不含卡密）：$subscriptionRuntime
 # build identity. Keep the sidecar beside ShuaBao.exe so robocopy deployment
 # carries the exact proof with the release.
 $sourceDirtyEntries = @(& git status --porcelain --untracked-files=all)
+$sourceTrackedDirtyEntries = @(& git status --porcelain --untracked-files=no)
 $buildId = (& $python -c "import sys; sys.path.insert(0, 'src'); from shuabao.mediator import BUILD_ID; print(BUILD_ID)").Trim()
 $releaseManifestPath = Join-Path $releaseRoot "release_manifest.json"
 # 复用 dist 重建时，旧的 release_manifest.json.sig 不能进入清单，也不能与新生成
@@ -481,7 +483,7 @@ $ocrModelManifestSha = Get-ReleaseFileSha256 $ocrModelManifestPath
 $identity = [ordered]@{
     schema_version     = 1
     source_sha         = $sourceSha
-    source_tree_clean  = ($sourceDirtyEntries.Count -eq 0)
+    source_tree_clean  = ($sourceTrackedDirtyEntries.Count -eq 0)
     build_id           = $buildId
     exe_name           = (Split-Path -Leaf $app)
     exe_sha256         = Get-ReleaseFileSha256 $app

@@ -150,9 +150,9 @@ def test_dev_channel_keeps_loopback_default_and_switches() -> None:
     assert "[switch]$AllowDirty" in text
 
 
-def test_ui_manifest_source_tree_clean_uses_initial_dirty_state() -> None:
+def test_ui_manifest_source_tree_clean_uses_initial_tracked_dirty_state() -> None:
     text = _build_script_text()
-    assert "($initialDirtyEntries.Count -eq 0)" in text
+    assert "($initialTrackedDirtyEntries.Count -eq 0)" in text
     assert not re.search(r"source_tree_clean\s*=\s*\$true", text), "UI manifest 不得恒写 true"
 
 
