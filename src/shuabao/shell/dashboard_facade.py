@@ -21,7 +21,7 @@ import sys
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 from shuabao.subscription_client import (
     SUBSCRIPTION_LICENSE_KEY_ENV,
     activate_device,
