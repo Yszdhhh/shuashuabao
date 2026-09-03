@@ -2815,20 +2815,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     loop_action=loop_action,
                 )
             if not _frame_is_valid(current_frame["value"]):
-                # If target window is minimized, allow mediator auto-restore to take effect across ticks
-                minimized = False
-                if current_frame["value"] is not None and getattr(current_frame["value"], "hwnd", None):
-                    from shuabao.vision.capture import is_window_minimized
-                    minimized = is_window_minimized(current_frame["value"].hwnd)
-                if not minimized or ticks >= 5:
-                    recorder.record_blocked(
-                        med,
-                        current_frame["value"],
-                        note="capture returned no valid frame; no more target input was attempted",
-                    )
-                    break
-                print(f"[live] 窗口最小化恢复中，等待下一次捕获 (tick {ticks})")
-                time.sleep(0.5)
+                # 坚韧容错原则：无论切屏、最小化还是转场黑屏，不直接退出进程自杀！记录并等待恢复
+                print(f"[live] 当前帧无效或正在过渡/最小化中，等待画面恢复 (tick {ticks})")
+                time.sleep(1.0)
+                continue
             if guard_events:
                 blocked = guard_events[-1]
                 recorder.record_blocked(
