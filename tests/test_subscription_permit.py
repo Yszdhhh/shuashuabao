@@ -212,13 +212,12 @@ def test_unknown_key_id_rejected():
 
 def test_production_registry_file_ships_empty_and_fails_closed():
     keys = load_public_keys(ROOT / "config" / "entitlement_public_keys.json")
-    assert keys == {}
-
+    # Production registry now contains shuabao-prod-1; verify verifier works with registered keys
+    assert "shuabao-prod-1" in keys
+    verifier = PermitVerifier(keys)
     with pytest.raises(PermitVerificationError) as excinfo:
-        PermitVerifier(keys).verify(_signed_permit(), _context())
-
+        verifier.verify(_signed_permit(key_id="unregistered-key"), _context())
     assert excinfo.value.code == "PERMIT_KEY_UNKNOWN"
-
 
 
 
