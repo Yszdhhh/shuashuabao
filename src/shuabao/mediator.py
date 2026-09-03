@@ -6983,15 +6983,19 @@ class Mediator:
         return None
 
     def _find_hitch_ready_button(self, frame: Frame) -> MatchResult | None:
+        # 优先通过模板匹配房间底部的准备/取消准备按钮
+        hit = self.find(frame, ["room_ready", "readyBtn", "room_cancel_ready"], threshold=0.75)
+        if hit is not None:
+            return hit
         control = self._hitch_room_action_control(frame)
         if control is None:
             return None
-        hit, text_width = control
-        # Live KK evidence: “准备” is 28 px wide; “开始游戏/取消准备”
-        # is a four-character label and must never be clicked by hitch mode.
-        return replace(hit, name="room_ready") if text_width <= 45 else None
+        hit_ctrl, text_width = control
+        return replace(hit_ctrl, name="room_ready") if text_width <= 45 else None
 
     def _hitch_room_controls_visible(self, frame: Frame) -> bool:
+        if self.find(frame, ["room_ready", "readyBtn", "room_cancel_ready", "room_exit_btn"], threshold=0.75) is not None:
+            return True
         return self._hitch_room_action_control(frame) is not None
 
     def _find_hitch_exit_confirm_button(self, frame: Frame) -> MatchResult | None:
