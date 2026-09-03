@@ -7,12 +7,56 @@ web 前端产物被打进包、WebEngine 模块被 hiddenimports 兜底、
 
 from pathlib import Path
 import re
+import runpy
+import sys
+from types import SimpleNamespace
+
+import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _spec_text() -> str:
     return (PROJECT_ROOT / "ShuaBao.spec").read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("missing", [None, "libssl-3-x64.dll", "libcrypto-3-x64.dll"])
+def test_spec_pins_python_tls_pair_even_if_analysis_selects_foreign_dlls(tmp_path, monkeypatch, missing):
+    dll_dir = tmp_path / "python" / "DLLs"
+    dll_dir.mkdir(parents=True)
+    names = ("libssl-3-x64.dll", "libcrypto-3-x64.dll")
+    for name in names:
+        if name != missing:
+            (dll_dir / name).write_bytes(b"test-only")
+    monkeypatch.setattr(sys, "base_prefix", str(dll_dir.parent))
+    collected = [("libssl-3-x64.dll", "foreign/poppler/ssl", "BINARY"),
+                 ("PySide6/libcrypto-3-x64.dll", "foreign/poppler/crypto", "BINARY"),
+                 ("_ssl.pyd", "python/_ssl.pyd", "EXTENSION")]
+    analysis_calls = []
+
+    def analysis(*args, **kwargs):
+        analysis_calls.append(kwargs)
+        return SimpleNamespace(binaries=collected.copy(), pure=[], scripts=[], datas=[])
+
+    def execute():
+        return runpy.run_path(str(PROJECT_ROOT / "ShuaBao.spec"), init_globals={
+            "SPECPATH": str(PROJECT_ROOT), "Analysis": analysis,
+            "PYZ": lambda *_a, **_kw: None, "EXE": lambda *_a, **_kw: None,
+            "COLLECT": lambda *_a, **_kw: None,
+        })
+
+    if missing:
+        with pytest.raises(RuntimeError, match="Python TLS dependency missing"):
+            execute()
+        assert not analysis_calls
+    else:
+        result = execute()
+        assert result["a"].binaries == [
+            (dest, str(dll_dir / Path(dest).name), kind) if Path(dest).name in names
+            else (dest, source, kind) for dest, source, kind in collected
+        ]
+        for name in names:
+            assert (str(dll_dir / name), ".") in analysis_calls[0]["binaries"]
 
 
 def test_spec_bundles_web_dist() -> None:

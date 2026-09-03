@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import sys
 import json
+import argparse
 from pathlib import Path
 
 from PySide6.QtCore import QLockFile
@@ -104,8 +105,43 @@ def _handle_unhandled_exception(exc_type, exc_value, exc_traceback):
     )
 
 
+def _write_subscription_check_report(path: Path, facade=None) -> bool:
+    """Opt-in packaged smoke: verified TLS + the UI activation slot, never start a run.
+
+    The key comes from the process environment/normal DPAPI load, not argv.
+    Reports deliberately omit keys, device identifiers and free-form responses.
+    """
+    import ssl
+    from shuabao.subscription_client import _subscription_ssl_context, _transport_error
+
+    report = {"frozen": bool(getattr(sys, "frozen", False)),
+              "executable": sys.executable, "openssl": ssl.OPENSSL_VERSION, "ok": False}
+    try:
+        context = _subscription_ssl_context()
+        report["verified_tls"] = context.verify_mode == ssl.CERT_REQUIRED and context.check_hostname
+        report["ca_count"] = len(context.get_ca_certs())
+        report["ok"] = report["verified_tls"] and report["ca_count"] > 0
+        if report["ok"] and facade is not None:
+            result = json.loads(facade.activate_subscription(json.dumps({
+                "key": os.environ.get("SHUABAO_SUBSCRIPTION_LICENSE_KEY", ""),
+            })))
+            report["ok"] = result.get("ok") is True
+            report["status"] = result.get("status", "")
+            report["expires_at"] = result.get("expires_at", "")
+    except Exception as exc:
+        report["ok"] = False
+        report["error"] = _transport_error("订阅自检失败", exc)
+    path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    return report["ok"]
+
+
 def main():
     global _INSTANCE_LOCK
+    parser = argparse.ArgumentParser(add_help=False)
+    checks = parser.add_mutually_exclusive_group()
+    checks.add_argument("--tls-check-report", type=Path)
+    checks.add_argument("--subscription-check-report", type=Path)
+    args, _ = parser.parse_known_args()
     # 正式桌面入口必须校验订阅；测试/诊断可显式设置 off 或 shadow。
     _load_packaged_subscription_config(ROOT)
     had_subscription_mode = "SHUABAO_SUBSCRIPTION_MODE" in os.environ
@@ -118,6 +154,9 @@ def main():
     if logo_ico.exists():
         app.setWindowIcon(QIcon(str(logo_ico)))
     sys.excepthook = _handle_unhandled_exception
+
+    if args.tls_check_report:
+        sys.exit(0 if _write_subscription_check_report(args.tls_check_report) else 1)
 
     APP_DATA.mkdir(parents=True, exist_ok=True)
     _INSTANCE_LOCK = QLockFile(str(APP_DATA / f"{APP_ID}.lock"))
@@ -140,12 +179,16 @@ def main():
         # 正式入口是 OD12 Web 看板；原生窗只保留给显式兼容诊断。Web 壳失败必须
         # 直接暴露错误，不能静默改成历史界面。
         shell_choice = os.environ.get("SHUABAO_SHELL", "web").strip().lower()
-        if shell_choice == "native":
+        if shell_choice == "native" and not args.subscription_check_report:
             window = MainWindow(app_data=APP_DATA)
         else:
             from shuabao.shell.web_config_shell import WebConfigShell
 
             window = WebConfigShell(app_data=APP_DATA, root=ROOT)
+        if args.subscription_check_report:
+            ok = _write_subscription_check_report(args.subscription_check_report, window.facade)
+            window.close()
+            sys.exit(0 if ok else 1)
         window.show()
         sys.exit(app.exec())
     finally:

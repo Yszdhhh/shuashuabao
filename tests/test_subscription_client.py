@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import json
-import os
 import ssl
-import subprocess
 import sys
-from pathlib import Path
+from urllib.error import URLError
 
 from shuabao.subscription_client import activate_device, validate_entitlement
 
@@ -24,40 +22,40 @@ class _Response:
         return json.dumps(self._payload).encode("utf-8")
 
 
-def test_activation_transport_defers_permit_dependency_in_fresh_interpreter():
-    root = Path(__file__).resolve().parents[1]
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(root / "src")
-    probe = """
-import json
-import sys
-from shuabao.subscription_client import activate_device
+def test_tls_initialization_failure_reports_safe_openssl_reason_before_network(monkeypatch):
+    import shuabao.subscription_client as client
 
-class Response:
-    def __enter__(self): return self
-    def __exit__(self, *_args): return False
-    def read(self): return b'{}'
+    error = ssl.SSLError(1, "sensitive-test-key and a private path")
+    error.library, error.reason = "ASN1", "NOT_ENOUGH_DATA"
 
-def opener(*_args, **_kwargs): return Response()
+    def context():
+        raise error
 
-assert 'shuabao.subscription_permit' not in sys.modules
-assert activate_device('test-key', env={
-    'SHUABAO_SUBSCRIPTION_BASE_URL': 'https://subscription.example',
-    'SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT': 'device',
-}, opener=opener)['ok'] is True
-assert 'shuabao.subscription_permit' not in sys.modules
-"""
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("TLS initialization failure must not reach the network")
 
-    result = subprocess.run(
-        [sys.executable, "-c", probe],
-        cwd=root,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    monkeypatch.setattr(client, "_subscription_ssl_context", context)
+    monkeypatch.setattr(client.urllib_request, "urlopen", forbidden)
+    result = activate_device("sensitive-test-key", env={
+        "SHUABAO_SUBSCRIPTION_BASE_URL": "https://subscription.example",
+    })
+    assert result["ok"] is False
+    assert result["message"] == "设备激活失败: TLS 初始化/连接失败 (ASN1/NOT_ENOUGH_DATA)"
 
-    assert result.returncode == 0, result.stderr
+
+def test_wrapped_certificate_error_is_reported_without_raw_details():
+    from shuabao.subscription_client import _transport_error
+
+    error = URLError(ssl.SSLCertVerificationError(1, "private key/path"))
+    assert _transport_error("失败", error) == "失败: TLS 证书验证失败"
+
+
+def test_ssl_error_does_not_expose_non_symbolic_details():
+    from shuabao.subscription_client import _transport_error
+
+    error = ssl.SSLError(1, "sensitive-test-key")
+    error.library, error.reason = "private path", "https://private.example"
+    assert _transport_error("失败", error) == "失败: TLS 初始化/连接失败"
 
 
 def test_subscription_requests_use_verified_tls_context(monkeypatch):

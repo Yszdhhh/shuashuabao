@@ -20,12 +20,15 @@ import uuid
 from dataclasses import dataclass
 import ssl
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Mapping, Any
+from typing import Callable, Mapping, Any
 from urllib import request as urllib_request
+from urllib.error import URLError
 from urllib.parse import urlsplit
-
-if TYPE_CHECKING:
-    from shuabao.subscription_permit import DevStartCapability, EntitlementPermit
+from shuabao.subscription_permit import (
+    DevStartCapability,
+    EntitlementPermit,
+    PermitVerificationError,
+)
 
 SUBSCRIPTION_MODE_ENV = "SHUABAO_SUBSCRIPTION_MODE"
 SUBSCRIPTION_BASE_URL_ENV = "SHUABAO_SUBSCRIPTION_BASE_URL"
@@ -58,10 +61,17 @@ def _subscription_ssl_context() -> ssl.SSLContext:
 
 
 def _transport_error(prefix: str, exc: Exception) -> str:
+    if isinstance(exc, URLError) and isinstance(exc.reason, Exception):
+        exc = exc.reason
     if isinstance(exc, ssl.SSLCertVerificationError):
         return f"{prefix}: TLS 证书验证失败"
     if isinstance(exc, ssl.SSLError):
-        return f"{prefix}: TLS 连接失败"
+        # Only OpenSSL's symbolic error codes are safe to display; never echo
+        # arbitrary exception text, which may contain request data.
+        codes = [str(getattr(exc, field, "") or "") for field in ("library", "reason")]
+        codes = [code for code in codes if code and all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_" for c in code)]
+        detail = f" ({'/'.join(codes)})" if codes else ""
+        return f"{prefix}: TLS 初始化/连接失败{detail}"
     return f"{prefix}: {type(exc).__name__}"
 
 
@@ -325,8 +335,6 @@ def check_start_permission(
     source = os.environ if env is None else env
     mode = subscription_mode(source)
     if mode == "off":
-        from shuabao.subscription_permit import DevStartCapability
-
         return StartPermission(
             allowed=True,
             mode=mode,
@@ -372,8 +380,6 @@ def check_start_permission(
             status=status,
         )
     try:
-        from shuabao.subscription_permit import EntitlementPermit, PermitVerificationError
-
         permit = EntitlementPermit.from_mapping(raw_permit)
     except PermitVerificationError as exc:
         return _deny(mode, exc.code, exc.message, status=status)

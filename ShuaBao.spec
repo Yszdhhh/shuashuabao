@@ -18,6 +18,16 @@ PROJECT_ROOT = Path(SPECPATH)
 SHIBOKEN_DLL = Path(shiboken6.__file__).resolve().parent / "shiboken6.abi3.dll"
 PYSIDE_ABI_DLL = Path(sys.base_prefix) / "python3.dll"
 
+# Qt dependency discovery can pick up Poppler's same-named OpenSSL DLLs from
+# PATH. _ssl.pyd must ship with the pair from its own Python installation.
+PYTHON_TLS_DLLS = {
+    name: Path(sys.base_prefix) / "DLLs" / name
+    for name in ("libssl-3-x64.dll", "libcrypto-3-x64.dll")
+}
+for path in PYTHON_TLS_DLLS.values():
+    if not path.is_file():
+        raise RuntimeError(f"Python TLS dependency missing: {path}")
+
 
 # 发行包运行时配置显式白名单：只打包生产运行时确实读取的配置，替代整目录
 # (config, config) 打包。文件缺失时 PyInstaller 分析阶段直接报错，不静默跳过。
@@ -55,6 +65,7 @@ a = Analysis(
     binaries=[
         (str(SHIBOKEN_DLL), "PySide6"),
         (str(PYSIDE_ABI_DLL), "PySide6"),
+        *[(str(path), ".") for path in PYTHON_TLS_DLLS.values()],
     ],
     datas=[
         (str(PROJECT_ROOT / "assets"), "assets"),
@@ -76,6 +87,13 @@ a = Analysis(
 # The host's Poppler runtime leaks an incompatible ICU DLL through PATH; Qt resolves
 # the system ICU correctly when this foreign binary is not bundled.
 a.binaries[:] = [entry for entry in a.binaries if entry[0].lower() != "icuuc.dll"]
+# Also replace any copies selected during dependency analysis (including
+# nested destinations), so collection cannot reintroduce a foreign pair.
+a.binaries[:] = [
+    (dest, str(PYTHON_TLS_DLLS[Path(dest).name.lower()]), kind)
+    if Path(dest).name.lower() in PYTHON_TLS_DLLS else (dest, source, kind)
+    for dest, source, kind in a.binaries
+]
 
 pyz = PYZ(a.pure)
 

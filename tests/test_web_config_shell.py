@@ -51,6 +51,51 @@ WEBENGINE_MODULES = (
 )
 
 
+@pytest.mark.parametrize("active", [True, False])
+def test_packaged_subscription_check_uses_ui_slot_and_omits_secrets(tmp_path, monkeypatch, active):
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_LICENSE_KEY", "sensitive-test-key")
+    facade = MagicMock()
+    facade.activate_subscription.return_value = json.dumps({
+        "ok": active, "status": "ACTIVE" if active else "DENIED",
+        "expires_at": "2026-12-31", "message": "sensitive-test-key",
+        "device_fingerprint": "private-device", "key": "sensitive-test-key",
+    })
+    path = tmp_path / "check.json"
+    assert desktop_app._write_subscription_check_report(path, facade) is active
+    report = json.loads(path.read_text(encoding="utf-8"))
+    assert report["verified_tls"] is True
+    assert report["ca_count"] > 0
+    assert report["status"] == ("ACTIVE" if active else "DENIED")
+    assert "sensitive-test-key" not in path.read_text(encoding="utf-8")
+    assert "private-device" not in path.read_text(encoding="utf-8")
+    facade.activate_subscription.assert_called_once_with(json.dumps({"key": "sensitive-test-key"}))
+    facade.start_run.assert_not_called()
+
+
+def test_packaged_tls_check_fails_closed_without_activating(tmp_path, monkeypatch):
+    import ssl
+    import shuabao.subscription_client as client
+
+    def broken_context():
+        raise ssl.SSLError(1, "private TLS details")
+
+    monkeypatch.setattr(client, "_subscription_ssl_context", broken_context)
+    facade = MagicMock()
+    path = tmp_path / "check.json"
+    assert desktop_app._write_subscription_check_report(path, facade) is False
+    report = json.loads(path.read_text(encoding="utf-8"))
+    assert report["error"] == "订阅自检失败: TLS 初始化/连接失败"
+    facade.activate_subscription.assert_not_called()
+
+
+def test_packaged_subscription_check_exits_failed_on_ui_slot_exception(tmp_path):
+    facade = MagicMock()
+    facade.activate_subscription.side_effect = RuntimeError("sensitive-test-key")
+    path = tmp_path / "check.json"
+    assert desktop_app._write_subscription_check_report(path, facade) is False
+    assert json.loads(path.read_text(encoding="utf-8"))["error"] == "订阅自检失败: RuntimeError"
+
+
 # ---------------------------------------------------------------- 夹具与假件
 
 
