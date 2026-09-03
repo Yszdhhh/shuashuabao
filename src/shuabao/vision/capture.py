@@ -603,7 +603,7 @@ def _find_window_rect(
     allow_fallback: bool = False,
 ) -> WindowTarget | None:
     """Return the highest-ranked target, optionally activating it."""
-    targets = find_window_targets(title_contains, role=role, allow_fallback=allow_fallback)
+    targets = find_window_targets(title_contains, role=role, allow_fallback=allow_fallback, allow_minimized=True)
     if not targets:
         return None
     target = targets[0]

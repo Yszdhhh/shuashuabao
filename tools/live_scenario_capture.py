@@ -2190,11 +2190,11 @@ def _build_identity_check(
 
 
 def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Frame | None, dict[str, Any]]:
-    is_lobby = target in {"lobby_hitch", "lobby_search"}
+    is_lobby = target in {"lobby_hitch", "lobby_search", "hitch_runtime"}
     role = "l0" if is_lobby else "l1"
     title = "" if is_lobby else str(getattr(settings, "window_title_contains", "") or "")
     try:
-        frame = capture(title, role=role, activate=False, allow_fallback=True)
+        frame = capture(title, role=role, activate=True, allow_fallback=True)
     except Exception as exc:
         return None, {
             "status": "BLOCKED",
@@ -2202,13 +2202,18 @@ def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Fr
             "reason": f"window capture exception: {exc}",
         }
     window_title = str(getattr(frame, "window_title", "") or "")
-    status = "READY" if _frame_is_valid(frame) else "BLOCKED"
-    reason = getattr(frame, "error", None)
-    if is_lobby and not any(
-        token in window_title.lower() for token in ("kk", "英雄三国")
+    is_minimized = getattr(frame, "error", None) == "Window is minimized"
+    if is_minimized and getattr(frame, "hwnd", None):
+        status = "READY"
+        reason = None
+    else:
+        status = "READY" if _frame_is_valid(frame) else "BLOCKED"
+        reason = getattr(frame, "error", None)
+    if is_lobby and window_title and not any(
+        token in window_title.lower() for token in ("kk", "英雄三国", "warcraft")
     ):
         status = "BLOCKED"
-        reason = f"unexpected lobby window title: {window_title or '<empty>'}"
+        reason = f"unexpected lobby window title: {window_title}"
     record = {
         "status": status,
         "requested_title": title,
@@ -2614,7 +2619,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         med = Mediator(settings, repo_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
         if elevation_blocked:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
-    med.set_phase(Phase.MAIN_LINE, f"{target} {'target probe' if probe else 'live capture'}")
+    initial_phase = Phase.LOBBY_ROOM if target in {"lobby_hitch", "lobby_search", "hitch_runtime"} else Phase.MAIN_LINE
+    med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
     probe_bootstrap = _bootstrap_target_probe(med, target) if probe and execution_mode == "target_handler" else {}
     recorder = BundleRecorder(
         bundle_dir,
@@ -2809,12 +2815,20 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     loop_action=loop_action,
                 )
             if not _frame_is_valid(current_frame["value"]):
-                recorder.record_blocked(
-                    med,
-                    current_frame["value"],
-                    note="capture returned no valid frame; no more target input was attempted",
-                )
-                break
+                # If target window is minimized, allow mediator auto-restore to take effect across ticks
+                minimized = False
+                if current_frame["value"] is not None and getattr(current_frame["value"], "hwnd", None):
+                    from shuabao.vision.capture import is_window_minimized
+                    minimized = is_window_minimized(current_frame["value"].hwnd)
+                if not minimized or ticks >= 5:
+                    recorder.record_blocked(
+                        med,
+                        current_frame["value"],
+                        note="capture returned no valid frame; no more target input was attempted",
+                    )
+                    break
+                print(f"[live] 窗口最小化恢复中，等待下一次捕获 (tick {ticks})")
+                time.sleep(0.5)
             if guard_events:
                 blocked = guard_events[-1]
                 recorder.record_blocked(
