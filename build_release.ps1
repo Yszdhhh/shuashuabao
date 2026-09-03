@@ -502,6 +502,20 @@ $identityJson = $identity | ConvertTo-Json -Depth 3
 Write-Utf8NoBom $identityPath $identityJson
 Write-Host "已写入构建身份：$identityPath" -ForegroundColor Green
 
+# 统一的冻结包 harness：源码 pytest 通过并不代表 onedir EXE 可交付。
+# 这里额外核对 EXE/manifest/UI 的 source_sha、EXE 哈希、Python TLS DLL 配对、
+# 订阅 endpoint/超时和 Web 清单；它只读文件与 Git，不启动游戏、不发输入。
+$releaseHarness = Join-Path $PSScriptRoot "tools\release_harness.py"
+$harnessArgs = @(
+    "--source-root", $PSScriptRoot,
+    "--bundle", $releaseRoot
+)
+if (-not $AllowDirty) { $harnessArgs += "--require-clean" }
+& $python $releaseHarness @harnessArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "冻结包 harness 校验失败，拒绝继续部署。"
+}
+
 if ($NoDeploy) { return }
 
 Write-Host "[4/4] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cyan
@@ -576,6 +590,35 @@ $shortcut.Arguments = ""
 $shortcut.WorkingDirectory = $target
 $shortcut.Description = "$APP_NAME $versionLabel · 重生魔兽刷刷刷单人挂机助手"
 $shortcut.Save()
+
+# Save 后重新打开 .lnk 做读取验证；只设置 COM 对象而不回读，会把旧目标
+# 或旧工作目录误当成同步成功，导致用户双击仍运行旧桌面副本。
+$shortcutProof = $shell.CreateShortcut($lnk)
+$expectedShortcutTarget = [System.IO.Path]::GetFullPath((Join-Path $target "$APP_ID.exe"))
+$actualShortcutTarget = [System.IO.Path]::GetFullPath([string]$shortcutProof.TargetPath)
+if (-not [System.String]::Equals($actualShortcutTarget, $expectedShortcutTarget, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "桌面快捷方式目标校验失败：实际=$actualShortcutTarget 期望=$expectedShortcutTarget"
+}
+$expectedShortcutWorkDir = [System.IO.Path]::GetFullPath($target).TrimEnd("\")
+$actualShortcutWorkDir = [System.IO.Path]::GetFullPath([string]$shortcutProof.WorkingDirectory).TrimEnd("\")
+if (-not [System.String]::Equals($actualShortcutWorkDir, $expectedShortcutWorkDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "桌面快捷方式工作目录校验失败：实际=$actualShortcutWorkDir 期望=$expectedShortcutWorkDir"
+}
+if (-not [string]::IsNullOrWhiteSpace([string]$shortcutProof.Arguments)) {
+    throw "桌面快捷方式不允许携带旧版本参数：$($shortcutProof.Arguments)"
+}
+
+# 再对最终桌面目录跑一次同一 harness，证明 robocopy 后的文件没有陈旧/半
+# 同步；任何失败都不算“已同步到桌面”。
+$deployedHarnessArgs = @(
+    "--source-root", $PSScriptRoot,
+    "--bundle", $target
+)
+if (-not $AllowDirty) { $deployedHarnessArgs += "--require-clean" }
+& $python $releaseHarness @deployedHarnessArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "桌面发行目录 harness 校验失败，拒绝交付。"
+}
 
 Write-Host "已部署：$target" -ForegroundColor Green
 Write-Host "快捷方式：$lnk" -ForegroundColor Green

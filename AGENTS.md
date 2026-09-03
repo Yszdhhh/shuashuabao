@@ -51,6 +51,7 @@ python tools/release_gate.py
 - 整体评审与已知结构性风险：`docs/reviews/PROJECT_REVIEW_20260812.md`
 - 改动纪律细则：`docs/CONTRIBUTING_GATE.md`
 - 外部 agent 入口索引：`docs/agent_shared_logs/INDEX_FOR_AGENTS.md`
+- 发布/桌面同步事故 harness：`docs/agent_shared_logs/RELEASE_HARNESS_LESSONS.md`
 
 `docs/` 下有大量按波次堆叠的历史文档（B0–B10 / N/S/O/P/G/R 两套阶段命名并存），
 **互相矛盾且多数已过期**。遇到冲突以最新交接文档 + 最新 trace 为准，不要照着旧蓝图施工。
@@ -88,3 +89,24 @@ powershell -ExecutionPolicy Bypass -File .\build_release.ps1
 - 构建后必须核对 `C:\Users\10639\Desktop\ShuaBao\build_identity.json` 的 `source_sha` 等于本根 `git rev-parse HEAD`，并确认 `刷刷宝.lnk` 指向该目录。源码、`ui-v2/dist`、EXE、快捷方式四者不一致时停止交付。
 - 桌面 EXE 需要 UAC 或真实游戏交互而无法启动时，状态只能写 `BLOCKED`，不能用 pytest、源码日志或旧截图替代 Level 3 证据。
 - 交接文档必须记录本次源码 commit、产物 hash、正式入口和仍需真机验证的项目，避免下个 agent 回到旧版本。
+
+### 6.1 发布事故 harness（强制）
+
+开始处理订阅、桌面 UI、`ui-v2/`、`build_release.ps1` 或 `ShuaBao.spec` 前，先读
+[`docs/agent_shared_logs/RELEASE_HARNESS_LESSONS.md`](docs/agent_shared_logs/RELEASE_HARNESS_LESSONS.md)。
+它记录了本项目已经付过代价的故障模式：源码 Python 通过但冻结 EXE 失败、同名
+OpenSSL DLL 错配、Cloudflare 冷启动超时、桌面快捷方式仍指向旧包，以及把 click
+success 误当业务成功。
+
+构建脚本会自动执行两次冻结包 harness；若需手工检查最终桌面目录，必须使用：
+
+```powershell
+python tools/release_harness.py `
+  --source-root "G:\刷刷宝\GameScript-Local" `
+  --bundle "C:\Users\10639\Desktop\ShuaBao" `
+  --require-clean
+```
+
+该命令只读 Git/文件，不启动 KK、不发送输入、不读取或打印卡密。任一检查失败时
+只能报告 `FAIL/BLOCKED` 并停止交付；不得用源码 CLI、旧桌面日志、单次点击成功或
+手工替换 DLL 代替最终冻结 EXE 验证。

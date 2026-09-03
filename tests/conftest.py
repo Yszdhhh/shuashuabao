@@ -16,6 +16,7 @@ Windows 上重跑确定，不能沿用云端的通过数（云端会少 40+ 条�
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -24,6 +25,20 @@ for path in (ROOT / "src", ROOT):
     text = str(path)
     if text not in sys.path:
         sys.path.insert(0, text)
+
+# 离线 tests/ 和 release gate 绝不能继承操作员桌面上的 live 订阅环境。
+# 用户可以在 Windows 用户环境中设置 enforce/远端 endpoint；若不隔离，
+# 与订阅无关的 facade/面板测试会突然尝试真实授权并统一报 PERMIT_MISSING。
+# 需要覆盖该边界的用例必须用 pytest monkeypatch 显式设置，而不是依赖宿主机。
+_LIVE_SUBSCRIPTION_ENV = (
+    "SHUABAO_SUBSCRIPTION_MODE",
+    "SHUABAO_SUBSCRIPTION_BASE_URL",
+    "SHUABAO_SUBSCRIPTION_LICENSE_KEY",
+    "SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT",
+    "SHUABAO_SUBSCRIPTION_TIMEOUT_S",
+)
+for _name in _LIVE_SUBSCRIPTION_ENV:
+    os.environ.pop(_name, None)
 
 
 def _install_linux_win_shims() -> None:

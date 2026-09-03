@@ -33,6 +33,7 @@ if hasattr(sys.stdout, "reconfigure"):
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -45,6 +46,13 @@ BASELINE_PATH = ROOT / "docs" / "baselines" / "GATE_BASELINE.json"
 RUNTIME_ASSET_MANIFEST = ROOT / "config" / "runtime_asset_manifest.json"
 
 PYTHON = sys.executable
+_LIVE_SUBSCRIPTION_ENV = (
+    "SHUABAO_SUBSCRIPTION_MODE",
+    "SHUABAO_SUBSCRIPTION_BASE_URL",
+    "SHUABAO_SUBSCRIPTION_LICENSE_KEY",
+    "SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT",
+    "SHUABAO_SUBSCRIPTION_TIMEOUT_S",
+)
 
 
 @dataclass
@@ -59,6 +67,12 @@ class StageResult:
 
 
 def _run(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
+    # The release gate is an offline, zero-input check.  Never let an
+    # operator's desktop enforce/endpoint/key environment leak into pytest or
+    # frozen replay; tests that cover this boundary set it explicitly.
+    env = os.environ.copy()
+    for name in _LIVE_SUBSCRIPTION_ENV:
+        env.pop(name, None)
     proc = subprocess.run(
         argv,
         cwd=str(ROOT),
@@ -66,6 +80,7 @@ def _run(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=env,
         timeout=timeout,
     )
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
