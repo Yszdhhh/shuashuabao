@@ -2747,6 +2747,36 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
 
         med.emergency_listener = EmergencyStopListener(stop_signal)
         med.emergency_listener.start()
+
+        # 悬浮 HUD：屏幕正上方常驻，随时点击直接退出测试
+        import threading
+        def _run_hud():
+            try:
+                import tkinter as tk
+                root = tk.Tk()
+                root.title("ShuaBao Test HUD")
+                root.overrideredirect(True)
+                root.attributes("-topmost", True)
+                root.attributes("-alpha", 0.95)
+                root.geometry("400x42+600+10")
+                root.configure(bg="#141821")
+                lbl = tk.Label(root, text=f"【刷刷宝实机测试】{target}", fg="#00F0FF", bg="#141821", font=("Microsoft YaHei", 9, "bold"))
+                lbl.pack(side=tk.LEFT, padx=12)
+                def _on_stop():
+                    stop_signal.trigger("User clicked HUD stop")
+                    try: root.destroy()
+                    except Exception: pass
+                btn = tk.Button(root, text="■ 停止测试 (点此退出)", fg="white", bg="#E63946", activebackground="#C1121F", activeforeground="white", font=("Microsoft YaHei", 9, "bold"), relief=tk.FLAT, command=_on_stop, cursor="hand2")
+                btn.pack(side=tk.RIGHT, padx=10, pady=5)
+                while not stop_signal.is_set():
+                    try: root.update()
+                    except Exception: break
+                    time.sleep(0.05)
+                try: root.destroy()
+                except Exception: pass
+            except Exception as e:
+                print(f"[HUD] 悬浮窗启动异常 (不影响测试): {e}")
+        threading.Thread(target=_run_hud, daemon=True).start()
         while (
             (until_success or ticks < args.max_ticks)
             and (deadline is None or time.monotonic() <= deadline)
