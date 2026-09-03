@@ -169,6 +169,11 @@ def test_diagnostic_build_uses_configured_subscription_endpoint() -> None:
     assert "$env:SHUABAO_SUBSCRIPTION_BASE_URL" in text
 
 
+def test_packaged_subscription_timeout_allows_tunnel_cold_start() -> None:
+    text = _build_script_text()
+    assert "timeout_s = 10" in text
+
+
 def test_external_channels_require_explicit_https_subscription() -> None:
     text = _build_script_text()
     assert "external-beta/release 订阅地址必须为显式 HTTPS" in text

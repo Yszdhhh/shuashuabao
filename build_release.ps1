@@ -418,7 +418,7 @@ $subscriptionRuntime = [ordered]@{
     base_url = $subscriptionUrl.TrimEnd("/")
     mode = $SubscriptionMode
     release_channel = $ReleaseChannel
-    timeout_s = 3
+    timeout_s = 10
 }
 $subscriptionRuntimeJson = $subscriptionRuntime | ConvertTo-Json -Depth 3
 Write-Utf8NoBom $subscriptionRuntimePath $subscriptionRuntimeJson

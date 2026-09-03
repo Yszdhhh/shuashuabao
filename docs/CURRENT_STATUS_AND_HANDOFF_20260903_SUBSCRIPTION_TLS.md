@@ -11,6 +11,11 @@ TLS 修复范围为 Shell/订阅传输与打包，不执行 KK 输入。
 1 skipped，Standard 四阶段 4/4 PASS。执行期间另有操作修改
 `tools/live_scenario_capture.py`，不属于本次修复，不能将其擅自提交/覆盖。
 
+桌面 TLS 自检通过后，使用本机已保存卡密调用完整看板激活槽：第一次激活在发行包
+硬编码的 3 秒预算上返回 `TimeoutError`，同一服务改用 10 秒预算后 0.78 秒成功，
+校验接口同时返回 valid/can_start_runner=true。发行 sidecar 超时恢复为 10 秒；
+不关闭 TLS 校验，也不把网络动作成功当业务激活成功。
+
 ## 已确认的故障证据
 
 - 排查基线：`trial-merge@603fecaefd535f95720662ea3794109e29fc5671`。
