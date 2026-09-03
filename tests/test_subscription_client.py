@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 import ssl
+import subprocess
+import sys
+from pathlib import Path
 
 from shuabao.subscription_client import activate_device, validate_entitlement
 
@@ -18,6 +22,42 @@ class _Response:
 
     def read(self) -> bytes:
         return json.dumps(self._payload).encode("utf-8")
+
+
+def test_activation_transport_defers_permit_dependency_in_fresh_interpreter():
+    root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(root / "src")
+    probe = """
+import json
+import sys
+from shuabao.subscription_client import activate_device
+
+class Response:
+    def __enter__(self): return self
+    def __exit__(self, *_args): return False
+    def read(self): return b'{}'
+
+def opener(*_args, **_kwargs): return Response()
+
+assert 'shuabao.subscription_permit' not in sys.modules
+assert activate_device('test-key', env={
+    'SHUABAO_SUBSCRIPTION_BASE_URL': 'https://subscription.example',
+    'SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT': 'device',
+}, opener=opener)['ok'] is True
+assert 'shuabao.subscription_permit' not in sys.modules
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_subscription_requests_use_verified_tls_context(monkeypatch):

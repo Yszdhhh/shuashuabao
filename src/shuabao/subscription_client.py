@@ -20,14 +20,12 @@ import uuid
 from dataclasses import dataclass
 import ssl
 from pathlib import Path
-from typing import Callable, Mapping, Any
+from typing import TYPE_CHECKING, Callable, Mapping, Any
 from urllib import request as urllib_request
 from urllib.parse import urlsplit
-from shuabao.subscription_permit import (
-    DevStartCapability,
-    EntitlementPermit,
-    PermitVerificationError,
-)
+
+if TYPE_CHECKING:
+    from shuabao.subscription_permit import DevStartCapability, EntitlementPermit
 
 SUBSCRIPTION_MODE_ENV = "SHUABAO_SUBSCRIPTION_MODE"
 SUBSCRIPTION_BASE_URL_ENV = "SHUABAO_SUBSCRIPTION_BASE_URL"
@@ -327,6 +325,8 @@ def check_start_permission(
     source = os.environ if env is None else env
     mode = subscription_mode(source)
     if mode == "off":
+        from shuabao.subscription_permit import DevStartCapability
+
         return StartPermission(
             allowed=True,
             mode=mode,
@@ -372,6 +372,8 @@ def check_start_permission(
             status=status,
         )
     try:
+        from shuabao.subscription_permit import EntitlementPermit, PermitVerificationError
+
         permit = EntitlementPermit.from_mapping(raw_permit)
     except PermitVerificationError as exc:
         return _deny(mode, exc.code, exc.message, status=status)
