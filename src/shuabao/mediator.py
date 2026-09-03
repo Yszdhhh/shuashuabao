@@ -5101,8 +5101,34 @@ class Mediator:
         if self.act_key("f4", "ClearPressureMonsters"):
             print(f"[L1] 压力转移: 按下 F4 清除挑怪 (下次间隔 {interval}s)")
             self._main_line_since = now
-            return LoopAction.Continue
+    def _maybe_click_hitch_pressure_transfer(self, frame: Frame, now: float) -> LoopAction | None:
+        """蹭车模式：开局 25 秒内寻找装备栏上方的『压力转移』独立按钮并点击。"""
+        if not self._team_mode_enabled():
+            return None
+        if getattr(self, "_hitch_pressure_transferred", False):
+            return None
+        # 开局 25 秒之后如果还没点到，按钮会消失，放弃尝试
+        main_line_duration = now - getattr(self, "_main_line_since", now)
+        if main_line_duration > 25.0:
+            self._hitch_pressure_transferred = True
+            return None
+        if not self._is_in_game_hud(frame):
+            return None
+        # 优先在屏幕中下方/右下方区域找压力转移按钮
+        hit = self.find(
+            frame,
+            ["yalizhuanyi"],
+            threshold=0.65,
+            roi=(0.30, 0.50, 0.90, 0.95),
+        )
+        if hit:
+            print(f"[med] 发现开局压力转移按钮 @ {hit.center}")
+            if self.act_click(hit, "HitchPressureTransfer"):
+                self._hitch_pressure_transferred = True
+                print("[med] 压力转移按钮点击成功，怪物成功转移至房主一楼")
+                return LoopAction.Continue
         return None
+
 
     def _find_secret_realm_npc(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
@@ -6009,7 +6035,7 @@ class Mediator:
             self._auto_task_attempts = 0
             self._auto_task_pending_since = None
             self._auto_task_next_observe_at = None
-            self._auto_task_recheck_at = 0.0
+            self._hitch_pressure_transferred = False
             self._auto_task_unknown_since = None
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
@@ -10125,7 +10151,11 @@ class Mediator:
 
         # F4 是“清除挑战”，不是“压力转移”；蹭车模式在未验证压力转移
         # 按钮锚点前禁止自动按 F4，避免清掉仍可完成的挑战。
-        if not self._hitch_enabled():
+        if self._hitch_enabled():
+            pt_res = self._maybe_click_hitch_pressure_transfer(frame, now)
+            if pt_res is not None:
+                return pt_res
+        else:
             pressure_res = self._maybe_clear_pressure_monsters(frame, now)
             if pressure_res is not None:
                 return pressure_res
