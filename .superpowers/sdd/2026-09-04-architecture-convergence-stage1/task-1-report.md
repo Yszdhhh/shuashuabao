@@ -1,7 +1,8 @@
 # Task 1 Report — typed expected-value OCR validation
 
-Status: DONE (P2 re-review fix applied)
-Commits: 55b58df, 42acb63, 67db284 (refactor/architecture-convergence-20260904)
+Status: DONE (final review compatibility fix applied)
+Commits: c943215, 55b58df, 42acb63, 67db284 (+ report docs b23de45, f311a4a)
+  on refactor/architecture-convergence-20260904
 
 ## Scope
 - New `src/shuabao/vision/ocr_verifier.py`: stdlib-only (`re`, `unicodedata`) helpers
@@ -24,6 +25,22 @@ Commits: 55b58df, 42acb63, 67db284 (refactor/architecture-convergence-20260904)
 - Extra sibling check (brief file list lacks test_lobby_hitch.py; only the safety-regressions sibling exists): `tests/test_live_scenario_capture.py -q` → 73 passed (covers `_hitch_search_text_override` + `has_prefix_evidence` path).
 
 Formatters/linters/project-wide suites skipped per brief.
+
+## Final review compatibility fix (c943215)
+Two findings, both fixed in `has_prefix_evidence` only (helper contract
+unchanged, malformed/overlong still fail-closed):
+1. Configured expected prefix was not normalized, so `('３','３')` failed.
+   The expected word now also goes through NFKC + strip before comparison.
+2. Legacy `_PREFIX_RE` accepted em dash `3—4`; NFKC does not map em dash to
+   ASCII, so `_OCCUPANCY_RE` now includes `—` alongside `/` and `-`
+   (`x/y`、`x-y`、`x—y`).
+Direct regressions added: fullwidth prefix in both argument positions
+(`('３','３')`, `('3','３')`, `('３','3')`), em dash occupancy `3—4`/`３—４`,
+and new negatives `3—-4`, `3—`. Red confirmed on `('３','３')` before the fix.
+Acceptance matrix smoke-checked: 23 cases (fullwidth prefix variants, em dash
+forms, malformed shapes, trailing text, wrong prefix, empty, overlong 65 chars)
+all behave as specified; focused suites green (ocr_verifier 11, trio 56,
+live_scenario_capture 73).
 
 ## Re-review P2 fix (55b58df)
 Finding: the 42acb63 alphabet widened `verify_expected_text` to digits+/-, so
