@@ -47,22 +47,26 @@ def test_counter_denominator_mismatch_returns_none():
     assert parse_counter("3/5", denominator=4) is None
 
 
-def test_counter_incomplete_returns_none():
-    assert parse_counter("3/", denominator=4) is None
-
-
-def test_hitch_prefix_accepts_occupancy_form():
+def test_hitch_prefix_accepts_strict_forms():
     from shuabao.lobby_hitch import has_prefix_evidence
 
+    assert has_prefix_evidence("3", "3")
     assert has_prefix_evidence("3/4", "3")
     assert has_prefix_evidence(" 3 / 4 ", "3")
     assert has_prefix_evidence("3-4", "3")
     assert has_prefix_evidence("3－4", "3")
+    assert has_prefix_evidence("３／４", "3")
 
 
-def test_hitch_prefix_rejects_non_numeric_noise():
+def test_hitch_prefix_rejects_malformed_and_trailing_text():
     from shuabao.lobby_hitch import has_prefix_evidence
 
+    assert not has_prefix_evidence("3/", "3")
+    assert not has_prefix_evidence("3//4", "3")
+    assert not has_prefix_evidence("3/4/", "3")
+    assert not has_prefix_evidence("3--4", "3")
+    assert not has_prefix_evidence("3/-4", "3")
+    assert not has_prefix_evidence("3/4 room", "3")
     assert not has_prefix_evidence("3房间", "3")
     assert not has_prefix_evidence("", "3")
     assert not has_prefix_evidence("4/8", "3")

@@ -12,7 +12,7 @@ import unicodedata
 from dataclasses import dataclass
 from enum import Enum
 
-from shuabao.vision.ocr_verifier import NUMERIC_ALPHABET, verify_expected_text
+from shuabao.vision.ocr_verifier import MAX_LENGTH, NUMERIC_ALPHABET
 
 
 JOIN_ATTEMPTS = 3
@@ -33,21 +33,8 @@ class HitchPhase(str, Enum):
     SLEEP_RETRY = "sleep_retry"
 
 
-_SEPARATORS = "/-"
-_OCCUPANCY_RE = re.compile(
-    r"(?:^|[\s,，])(\d+)\s*[/\-]\s*(\d+)(?:\s|$|[，,])"
-)
 
-
-def _occupancy_forms(text: str, want: str) -> bool:
-    """占据比（x/y、x-y）中的前导 x 与搜索词一致时视为有效证据。"""
-    if not want:
-        return False
-    normalized = unicodedata.normalize("NFKC", str(text or "")).strip()
-    for match in _OCCUPANCY_RE.finditer(normalized):
-        if match.group(1) == want:
-            return True
-    return False
+_OCCUPANCY_RE = re.compile(r"(\d+)[/\-](\d+)")
 
 
 class HitchAction(str, Enum):
@@ -74,15 +61,19 @@ def classify_hitch_ocr(text: str) -> str | None:
 
 
 def has_prefix_evidence(text: str, prefix: str) -> bool:
-    """Return whether captured text contains the configured search term."""
+    """Return whether captured text is the configured numeric search term
+    or a strict occupancy form (x/y、x-y，含全角与空白归一化变体)。"""
     want = normalize_prefix(prefix)
-    # 占据比形式（3/4、3-4、全角 ３－４）是合法历史形态：分隔符参与
-    # NFKC 归一化，但仍要求除分隔符外全部字符都在数值字母表内。
-    return verify_expected_text(
-        text,
-        want,
-        allowed_chars=NUMERIC_ALPHABET + _SEPARATORS,
-    ) or _occupancy_forms(text, want)
+    if not want:
+        return False
+    normalized = unicodedata.normalize("NFKC", str(text or "")).strip()
+    if not normalized or len(normalized) > MAX_LENGTH:
+        return False
+    compact = "".join(normalized.split())
+    occupancy = _OCCUPANCY_RE.fullmatch(compact)
+    if occupancy is not None:
+        return occupancy.group(1) == want
+    return compact == want and all(ch in NUMERIC_ALPHABET for ch in compact)
 
 
 @dataclass
