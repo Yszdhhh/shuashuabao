@@ -3,7 +3,8 @@
 Date: 2026-09-04
 Branch: `refactor/architecture-convergence-20260904`
 Audit base: `59833447b40706c533b4caecddcb94c3ee32e9f1`
-Remote observation: after `git fetch origin`, `origin/trial-merge` resolved to `bea21e509c5b175042e092af6199ac49c3b0d7f4`, not the user-specified `59833447b40706c533b4caecddcb94c3ee32e9f1`. This worktree intentionally remains on the requested audit base; the mismatch is a release blocker for later merge/base selection.
+Remote observation: after `git fetch origin`, `origin/trial-merge` resolved to `bea21e509c5b175042e092af6199ac49c3b0d7f4`, not the user-specified `59833447b40706c533b4caecddcb94c3ee32e9f1`.
+Governance sync: `bea21e509c5b175042e092af6199ac49c3b0d7f4` is the docs-only external-reference addendum; its content is synchronized onto this branch without production-code rework. Original audit and production baseline remain anchored at `59833447b40706c533b4caecddcb94c3ee32e9f1`.
 
 ## Scope and evidence method
 
