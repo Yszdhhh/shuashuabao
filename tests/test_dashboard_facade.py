@@ -507,6 +507,60 @@ def test_frozen_preflight_fails_closed_without_trust_anchor(qapp, tmp_path: Path
     assert "MANIFEST_TRUST_ANCHOR_MISSING" in detail
 
 
+def test_current_source_sha_does_not_spawn_git_without_repo(tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell import live_execute
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("git must not spawn without a checkout")
+
+    monkeypatch.setattr(live_execute.subprocess, "run", boom)
+    assert facade_module._current_source_sha(tmp_path) == ""
+
+
+def test_frozen_current_source_sha_skips_git_even_with_dot_git(tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell import live_execute
+
+    (tmp_path / ".git").mkdir()
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("frozen runtime must not spawn git")
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(live_execute.subprocess, "run", boom)
+    assert facade_module._current_source_sha(tmp_path) == ""
+
+
+def test_frozen_preflight_reuses_verify_cache_with_live_identity(qapp, tmp_path: Path, monkeypatch):
+    from shuabao import release_signing as rs
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell import live_execute
+    from shuabao.shell.runner_service import RunnerService
+
+    rs.clear_packaged_release_verify_cache()
+    package = _signed_frozen_package(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(package / "ShuaBao.exe"))
+    monkeypatch.setattr(rs, "PINNED_MANIFEST_PUBLIC_KEYS", facade_module.PINNED_MANIFEST_PUBLIC_KEYS)
+    calls = {"n": 0}
+    real = rs._verify_packaged_release
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(rs, "_verify_packaged_release", counted)
+    ok, detail = facade_module._build_identity_preflight(
+        package, RunnerService(tmp_path, package)
+    )
+    identity = live_execute._live_identity(package)
+    assert ok, detail
+    assert identity.packaged is True
+    assert identity.source_sha == "b" * 40
+    assert calls["n"] == 1
+
+
 def test_frozen_preflight_ignores_sidecar_when_signature_missing(qapp, tmp_path: Path, monkeypatch):
     from shuabao.shell import dashboard_facade as facade_module
     from shuabao.shell.runner_service import RunnerService

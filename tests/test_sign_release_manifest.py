@@ -177,3 +177,111 @@ def test_verify_manifest_files_allows_directories_and_attests_nested_files(tmp_p
     }]}
     # 目录本身不参与 manifest 条目比较；只有 regular files 需要被 attest 或属于元数据例外。
     assert verify_manifest_files(manifest, tmp_path) == {"config/_internal/entitlement_public_keys.json": b"keys"}
+
+
+def _signed_package(tmp_path: Path) -> tuple[Path, dict[str, object]]:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from shuabao.release_signing import canonical_manifest_bytes
+
+    package = tmp_path / "ShuaBao"
+    package.mkdir()
+    files = []
+    for relative, payload in (
+        ("config/entitlement_public_keys.json", b'{"keys": {}}'),
+        ("subscription_runtime.json", b'{"schema_version":1}'),
+        ("ShuaBao.exe", b"exe"),
+    ):
+        path = package / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        files.append({
+            "path": relative,
+            "size_bytes": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        })
+    manifest = {
+        "schema_version": 1,
+        "source_sha": "a" * 40,
+        "release_channel": "internal-pilot",
+        "bridge_schema_version": 2,
+        "files": files,
+    }
+    canonical = canonical_manifest_bytes(manifest)
+    (package / "release_manifest.json").write_bytes(canonical)
+    private = Ed25519PrivateKey.generate()
+    envelope = {
+        "schema_version": 1,
+        "algorithm": "Ed25519",
+        "key_id": "manifest",
+        "manifest_sha256": hashlib.sha256(canonical).hexdigest(),
+        "signature": base64.urlsafe_b64encode(private.sign(canonical)).rstrip(b"=").decode("ascii"),
+    }
+    (package / "release_manifest.json.sig").write_text(json.dumps(envelope), encoding="utf-8")
+    return package, {"manifest": private.public_key()}
+
+
+def test_verify_packaged_release_snapshot_reuses_process_cache(tmp_path: Path, monkeypatch) -> None:
+    from shuabao import release_signing as rs
+
+    rs.clear_packaged_release_verify_cache()
+    package, keys = _signed_package(tmp_path)
+    calls = {"n": 0}
+    real = rs._verify_packaged_release
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(rs, "_verify_packaged_release", counted)
+    first = rs.verify_packaged_release_snapshot(
+        package, pinned_keys=keys, required_files=("subscription_runtime.json",)
+    )
+    second = rs.verify_packaged_release_snapshot(
+        package, pinned_keys=keys, required_files=("config/entitlement_public_keys.json",)
+    )
+    assert calls["n"] == 1
+    assert first[0]["source_sha"] == second[0]["source_sha"]
+    assert "config/entitlement_public_keys.json" in second[1]
+
+
+def test_verify_cache_invalidates_when_manifest_changes(tmp_path: Path, monkeypatch) -> None:
+    from shuabao import release_signing as rs
+
+    rs.clear_packaged_release_verify_cache()
+    package, keys = _signed_package(tmp_path)
+    calls = {"n": 0}
+    real = rs._verify_packaged_release
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(rs, "_verify_packaged_release", counted)
+    rs.verify_packaged_release_snapshot(package, pinned_keys=keys)
+    (package / "release_manifest.json").write_bytes(b'{"schema_version": 1}')
+    with pytest.raises(rs.ReleaseManifestError):
+        rs.verify_packaged_release_snapshot(package, pinned_keys=keys)
+    assert calls["n"] == 2
+
+
+def test_verify_cache_fail_closed_without_rehash(tmp_path: Path, monkeypatch) -> None:
+    from shuabao import release_signing as rs
+
+    rs.clear_packaged_release_verify_cache()
+    package = tmp_path / "pkg"
+    package.mkdir()
+    (package / "release_manifest.json").write_text("{}", encoding="utf-8")
+    (package / "release_manifest.json.sig").write_text("{}", encoding="utf-8")
+    calls = {"n": 0}
+    real = rs._verify_packaged_release
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(rs, "_verify_packaged_release", counted)
+    with pytest.raises(rs.ReleaseManifestError, match="MANIFEST_TRUST_ANCHOR_MISSING"):
+        rs.verify_packaged_release_snapshot(package, pinned_keys={})
+    with pytest.raises(rs.ReleaseManifestError, match="MANIFEST_TRUST_ANCHOR_MISSING"):
+        rs.verify_packaged_release_snapshot(package, pinned_keys={})
+    assert calls["n"] == 1

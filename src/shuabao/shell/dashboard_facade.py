@@ -17,8 +17,8 @@ from __future__ import annotations
 import os
 import json
 import hashlib
+import logging
 import sys
-import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,6 +58,7 @@ from shuabao.shell.runner_service import (
 )
 from shuabao.shell.runner_service import live_lock_busy
 from shuabao.shell.live_execute import (
+    _git_source_sha,
     check_live_start_permission,
     live_permit_request_context,
     live_permission_preflight,
@@ -73,8 +74,10 @@ from shuabao.release_signing import (
     ReleaseManifestError,
     canonical_manifest_sha256,
     verify_packaged_release_snapshot,
+    warmup_packaged_release_cache,
 )
 
+LOGGER = logging.getLogger("ShuaBao")
 THEMES = ("light", "dark")
 DEFAULT_SHELL_THEME = "light"
 DEFAULT_SHELL_MODE_ID = "normal_farm"
@@ -105,22 +108,12 @@ def _blocked_reason(mode_id: str) -> str:
 
 
 def _current_source_sha(root: Path | None) -> str:
+    # Frozen identity is the signed manifest, not a checkout. Spawning git.exe
+    # from a packaged GUI (no .git) flashes console windows on every snapshot.
+    if getattr(sys, "frozen", False):
+        return ""
     base = Path(root) if root is not None else Path.cwd()
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(base), "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=3,
-            check=False,
-        )
-        if proc.returncode == 0:
-            return proc.stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        pass
-    return ""
+    return _git_source_sha(base)
 
 
 def _build_identity_metadata(root: Path | None) -> dict[str, str]:
@@ -508,6 +501,7 @@ class DashboardFacade(QObject):
         self._subscription_cache: Any = None
         self._subscription_cache_ttl_s = 15.0
         self._subscription_live_check: tuple[bool, str, str] | None = None
+        warmup_packaged_release_cache()
 
     def _ensure_runner(self) -> Any:
         """注入的 runner 优先；否则按缺省构造 RunnerService(app_data, root)。"""
@@ -902,9 +896,22 @@ class DashboardFacade(QObject):
     @Slot(str, result=str)
     def validate_preflight(self, mode_id_json: str) -> str:
         mode_id = self._parse_keyed(mode_id_json, "mode_id")
+        t_all = time.perf_counter()
 
         def check(cid: str, ok: bool, detail: str) -> dict[str, Any]:
             return {"id": cid, "ok": bool(ok), "detail": detail}
+
+        def _timed(name: str, fn):
+            started = time.perf_counter()
+            try:
+                return fn()
+            finally:
+                LOGGER.info(
+                    "[preflight] check=%s elapsed_ms=%.1f mode=%s",
+                    name,
+                    (time.perf_counter() - started) * 1000,
+                    mode_id,
+                )
 
         specs = load_specs()
         if mode_id not in specs:
@@ -926,9 +933,12 @@ class DashboardFacade(QObject):
         )
         cycle_ok = isinstance(cycle_raw, int) and not isinstance(cycle_raw, bool) and cycle_raw >= 0
         pair_code = settings.follow_pair_code or ""
-        permission = self._subscription_permission(mode_id=mode_id)
-        live_ok, live_code, live_detail = live_permission_preflight(
-            permission, mode_id=mode_id, root=self._permission_root(),
+        permission = _timed("subscription", lambda: self._subscription_permission(mode_id=mode_id))
+        live_ok, live_code, live_detail = _timed(
+            "subscription_permit",
+            lambda: live_permission_preflight(
+                permission, mode_id=mode_id, root=self._permission_root(),
+            ),
         )
         self._subscription_live_check = live_ok, live_code, live_detail
         runtime_root_ok = self._root is None or Path(self._root).is_dir() or self._runner is not None
@@ -939,12 +949,21 @@ class DashboardFacade(QObject):
             if self._runner is not None
             else "启动时解析运行目录"
         )
-        ocr_ok, ocr_detail = _ocr_preflight(settings, self._root, self._runner)
+        ocr_ok, ocr_detail = _timed("ocr", lambda: _ocr_preflight(settings, self._root, self._runner))
         uipi_ok, uipi_detail = _uipi_preflight(settings, self._root, self._runner)
-        window_ok, window_detail = _target_window_preflight(
-            settings, mode_id, self._root, self._runner
+        window_ok, window_detail = _timed(
+            "window",
+            lambda: _target_window_preflight(settings, mode_id, self._root, self._runner),
         )
-        identity_ok, identity_detail = _build_identity_preflight(self._root, self._runner)
+        identity_ok, identity_detail = _timed(
+            "identity",
+            lambda: _build_identity_preflight(self._root, self._runner),
+        )
+        LOGGER.info(
+            "[preflight] total elapsed_ms=%.1f mode=%s",
+            (time.perf_counter() - t_all) * 1000,
+            mode_id,
+        )
         checks = [
             check("mode_enabled", enabled, "已验证可启动" if enabled else _blocked_reason(mode_id)),
             check("live_lock", lock_free, "live.lock 空闲" if lock_free else "live.lock 已被占用"),

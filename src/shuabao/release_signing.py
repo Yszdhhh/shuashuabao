@@ -9,14 +9,20 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import os
 import stat
+import sys
+import threading
+import time
 from pathlib import Path
 from typing import Mapping
 
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from cryptography.hazmat.primitives.serialization import load_der_public_key
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat, load_der_public_key
+
+LOGGER = logging.getLogger("ShuaBao")
 
 MANIFEST_SCHEMA_VERSION = 1
 PINNED_MANIFEST_PUBLIC_KEYS: Mapping[str, Ed25519PublicKey] = {}
@@ -199,6 +205,124 @@ def verify_manifest_files(
     return verified_files
 
 
+_VERIFY_LOCK = threading.Lock()
+_VERIFY_CACHE: dict[tuple[object, ...], tuple[str, object]] = {}
+
+
+def _pinned_keys_fingerprint(keys: Mapping[str, Ed25519PublicKey] | None) -> tuple[tuple[str, bytes], ...]:
+    mapping = PINNED_MANIFEST_PUBLIC_KEYS if keys is None else keys
+    items: list[tuple[str, bytes]] = []
+    for key_id in sorted(mapping):
+        public = mapping[key_id]
+        raw = public.public_bytes(Encoding.Raw, PublicFormat.Raw)
+        items.append((str(key_id), raw))
+    return tuple(items)
+
+
+def _package_fingerprint(package_root: Path) -> tuple[object, ...]:
+    root = Path(package_root).resolve()
+    items: list[object] = [str(root)]
+    for name in ("release_manifest.json", "release_manifest.json.sig"):
+        path = root / name
+        try:
+            st = path.stat()
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            items.extend((st.st_mtime_ns, st.st_size, digest))
+        except OSError:
+            items.extend((0, 0, ""))
+    return tuple(items)
+
+
+def _require_attested_files(verified_files: Mapping[str, bytes], required_files: tuple[str, ...]) -> None:
+    missing = [
+        required for required in required_files
+        if not any(
+            path == required.replace("\\", "/")
+            or path.endswith("/" + required.replace("\\", "/"))
+            for path in verified_files
+        )
+    ]
+    if missing:
+        raise ReleaseManifestError("MANIFEST_FILE_UNATTESTED", f"发行清单未绑定必需文件: {missing}")
+
+
+def clear_packaged_release_verify_cache() -> None:
+    """Test helper: drop the process-local frozen verify cache."""
+    with _VERIFY_LOCK:
+        _VERIFY_CACHE.clear()
+
+
+def _cached_verify_packaged_release(
+    package_root: Path,
+    *,
+    pinned_keys: Mapping[str, Ed25519PublicKey] | None = None,
+    required_files: tuple[str, ...] = (),
+) -> tuple[dict[str, object], dict[str, bytes], bytes]:
+    key = (_package_fingerprint(package_root), _pinned_keys_fingerprint(pinned_keys))
+    with _VERIFY_LOCK:
+        cached = _VERIFY_CACHE.get(key)
+        if cached is None:
+            started = time.perf_counter()
+            try:
+                result = _verify_packaged_release(
+                    package_root,
+                    pinned_keys=pinned_keys,
+                    required_files=(),
+                )
+                cached = ("ok", result)
+            except Exception as exc:
+                cached = ("err", exc)
+            _VERIFY_CACHE[key] = cached
+            LOGGER.info(
+                "[release] verify_packaged_release_snapshot cache_store elapsed_ms=%.1f root=%s",
+                (time.perf_counter() - started) * 1000,
+                Path(package_root),
+            )
+        else:
+            LOGGER.info(
+                "[release] verify_packaged_release_snapshot cache_hit root=%s",
+                Path(package_root),
+            )
+    kind, payload = cached
+    if kind == "err":
+        raise payload  # type: ignore[misc]
+    manifest, verified_files, manifest_bytes = payload  # type: ignore[misc]
+    _require_attested_files(verified_files, required_files)
+    _verify_no_extra_files(Path(package_root), set(verified_files))
+    return manifest, verified_files, manifest_bytes
+
+
+def warmup_packaged_release_cache(package_root: Path | None = None) -> None:
+    """Frozen-only: hash/verify the signed snapshot off the GUI click path."""
+    if not getattr(sys, "frozen", False):
+        return
+    root = Path(package_root) if package_root is not None else Path(sys.executable).resolve().parent
+    if not (root / "release_manifest.json").is_file():
+        return
+
+    def _run() -> None:
+        started = time.perf_counter()
+        try:
+            verify_packaged_release_snapshot(
+                root,
+                required_files=("config/entitlement_public_keys.json",),
+            )
+            LOGGER.info(
+                "[release] packaged snapshot warmup ok elapsed_ms=%.1f root=%s",
+                (time.perf_counter() - started) * 1000,
+                root,
+            )
+        except Exception as exc:
+            LOGGER.info(
+                "[release] packaged snapshot warmup failed elapsed_ms=%.1f root=%s error=%s",
+                (time.perf_counter() - started) * 1000,
+                root,
+                exc,
+            )
+
+    threading.Thread(target=_run, daemon=True, name="shuabao-manifest-warmup").start()
+
+
 def _verify_packaged_release(
     package_root: Path,
     *,
@@ -232,7 +356,7 @@ def verify_packaged_release(
     pinned_keys: Mapping[str, Ed25519PublicKey] | None = None,
     required_files: tuple[str, ...] = (),
 ) -> dict[str, object]:
-    return _verify_packaged_release(package_root, pinned_keys=pinned_keys, required_files=required_files)[0]
+    return _cached_verify_packaged_release(package_root, pinned_keys=pinned_keys, required_files=required_files)[0]
 
 
 def verify_packaged_release_snapshot(
@@ -241,4 +365,4 @@ def verify_packaged_release_snapshot(
     pinned_keys: Mapping[str, Ed25519PublicKey] | None = None,
     required_files: tuple[str, ...] = (),
 ) -> tuple[dict[str, object], dict[str, bytes], bytes]:
-    return _verify_packaged_release(package_root, pinned_keys=pinned_keys, required_files=required_files)
+    return _cached_verify_packaged_release(package_root, pinned_keys=pinned_keys, required_files=required_files)

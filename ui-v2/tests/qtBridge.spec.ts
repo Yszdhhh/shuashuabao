@@ -6,6 +6,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   QWEBCHANNEL_SRC,
+  DEFAULT_CALL_TIMEOUT_MS,
+  PREFLIGHT_CALL_TIMEOUT_MS,
   createQtBridge,
   type RawFacade,
 } from "../src/bridge/qtBridge";
@@ -229,6 +231,11 @@ describe("qtBridge 错误处理", () => {
     delete harness.facade.stop_run;
     installHost(harness);
     await expect(createQtBridge(200)).rejects.toThrow(/facade 对象缺失或方法面不完整/);
+  });
+
+  it("validate_preflight 单独拉长 timeout，其它 facade 调用仍为 10s", () => {
+    expect(DEFAULT_CALL_TIMEOUT_MS).toBe(10_000);
+    expect(PREFLIGHT_CALL_TIMEOUT_MS).toBe(60_000);
   });
 
   it("bridge schema 不匹配时在任何业务调用前拒绝建桥", async () => {

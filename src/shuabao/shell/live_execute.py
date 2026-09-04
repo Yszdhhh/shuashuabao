@@ -86,15 +86,20 @@ class PermissionDenied(RuntimeError):
 def _git_source_sha(root: Path) -> str:
     if not (root / ".git").exists():
         return ""
+    kwargs: dict[str, Any] = {
+        "capture_output": True,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "timeout": 3,
+        "check": False,
+    }
+    if os.name == "nt":
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
     try:
         proc = subprocess.run(
             ["git", "-C", str(root), "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=3,
-            check=False,
+            **kwargs,
         )
     except (OSError, subprocess.SubprocessError):
         return ""

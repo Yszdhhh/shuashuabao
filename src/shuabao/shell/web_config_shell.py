@@ -109,41 +109,38 @@ def _source_sha(root: Path) -> str | None:
         except (OSError, ValueError, AttributeError):
             pass
     if (root / ".git").exists():
-        try:
-            proc = subprocess.run(
-                ["git", "-C", str(root), "rev-parse", "HEAD"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=3,
-                check=False,
-            )
-            if proc.returncode == 0:
-                value = proc.stdout.strip()
-                return value or None
-        except (OSError, subprocess.SubprocessError):
-            pass
+        proc = _run_git(root, "rev-parse", "HEAD")
+        if proc is not None and proc.returncode == 0:
+            value = proc.stdout.strip()
+            return value or None
     return None
+
+
+def _run_git(root: Path, *git_args: str) -> subprocess.CompletedProcess[str] | None:
+    kwargs: dict[str, Any] = {
+        "capture_output": True,
+        "text": True,
+        "encoding": "utf-8",
+        "errors": "replace",
+        "timeout": 3,
+        "check": False,
+    }
+    if sys.platform == "win32":
+        kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+    try:
+        return subprocess.run(["git", "-C", str(root), *git_args], **kwargs)
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def _worktree_dirty(root: Path) -> bool:
     """Return whether a source checkout has uncommitted files."""
     if not (Path(root) / ".git").exists():
         return False
-    try:
-        proc = subprocess.run(
-            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=3,
-            check=False,
-        )
-        return bool(proc.returncode == 0 and proc.stdout.strip())
-    except (OSError, subprocess.SubprocessError):
+    proc = _run_git(root, "status", "--porcelain", "--untracked-files=all")
+    if proc is None:
         return True
+    return bool(proc.returncode == 0 and proc.stdout.strip())
 
 
 def _validate_dist_manifest(index: Path, root: Path) -> None:
