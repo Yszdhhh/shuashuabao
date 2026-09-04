@@ -8,6 +8,7 @@ import os
 import sys
 import json
 import argparse
+import math
 from pathlib import Path
 
 from PySide6.QtCore import QLockFile
@@ -18,6 +19,7 @@ ROOT = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.paths import migrate_legacy_data  # noqa: E402
+from shuabao.release_signing import ReleaseManifestError, verify_packaged_release_snapshot  # noqa: E402
 from shuabao.shell.main_window import (  # noqa: E402
     APP_DATA,
     APP_ID,
@@ -49,51 +51,56 @@ _INSTANCE_LOCK: QLockFile | None = None
 
 
 def _load_packaged_subscription_config(root: Path) -> None:
-    """Load sidecar deployment settings with frozen-channel fail-closed rules.
-
-    External channels pin the sidecar endpoint and enforce subscription checks;
-    dev/internal-pilot retain environment-first diagnostic behavior.  Missing
-    or unknown channels also enforce in frozen packages.  The sidecar remains
-    editable and unsigned, so external distribution still needs a signed
-    manifest/Permit to prevent tampering.
-    """
+    """Use authenticated frozen configuration; source runs keep their environment."""
     if not getattr(sys, "frozen", False):
         return
-    candidates = (
-        Path(sys.executable).resolve().parent / "subscription_runtime.json",
-        Path(root) / "subscription_runtime.json",
-    )
-    payload = None
-    for path in candidates:
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if isinstance(data, dict) and data.get("schema_version") == 1:
-            payload = data
-            break
-    if payload is None:
-        os.environ["SHUABAO_SUBSCRIPTION_MODE"] = "enforce"
+    # Every frozen channel requires LIVE authorization.  Invalid/missing signed
+    # configuration must also block ordinary activation traffic to a stale URL.
+    os.environ["SHUABAO_SUBSCRIPTION_MODE"] = "enforce"
+    os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = "invalid-packaged-subscription-url"
+    os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] = "10"
+    try:
+        manifest, verified_files, _ = verify_packaged_release_snapshot(
+            Path(sys.executable).resolve().parent,
+            required_files=("subscription_runtime.json",),
+        )
+        payload = json.loads(verified_files["subscription_runtime.json"].decode("utf-8"))
+        allowed_fields = {
+            "schema_version", "base_url", "mode", "release_channel", "timeout_s",
+        }
+        if (
+            not isinstance(payload, dict)
+            or set(payload) - allowed_fields
+            or payload.get("schema_version") != 1
+            or payload.get("mode") != "enforce"
+        ):
+            return
+        channel = manifest.get("release_channel")
+        if (
+            channel not in {"dev", "internal-pilot", "external-beta", "release"}
+            or payload.get("release_channel") != channel
+        ):
+            return
+        endpoint = payload.get("base_url")
+        timeout = payload.get("timeout_s", 10)
+        if (
+            not isinstance(endpoint, str)
+            or not endpoint.strip()
+            or isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+        ):
+            return
+        from shuabao.subscription_client import _base_url
+
+        endpoint = _base_url({"SHUABAO_SUBSCRIPTION_BASE_URL": endpoint})
+        if not endpoint:
+            return
+    except (OSError, UnicodeError, ValueError, KeyError, TypeError, ReleaseManifestError):
         return
-    endpoint = str(payload.get("base_url") or "").strip()
-    mode = str(payload.get("mode") or "").strip().lower()
-    timeout = str(payload.get("timeout_s") or "").strip()
-    channel = str(payload.get("release_channel") or "").strip().lower()
-    if channel in {"external-beta", "release"}:
-        # Empty sidecar endpoints must not fall through to env/default loopback.
-        os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = endpoint or "invalid-external-subscription-url"
-        os.environ["SHUABAO_SUBSCRIPTION_MODE"] = "enforce"
-    elif channel not in {"dev", "internal-pilot"}:
-        if endpoint and "SHUABAO_SUBSCRIPTION_BASE_URL" not in os.environ:
-            os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = endpoint
-        os.environ["SHUABAO_SUBSCRIPTION_MODE"] = "enforce"
-    else:
-        if endpoint and "SHUABAO_SUBSCRIPTION_BASE_URL" not in os.environ:
-            os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = endpoint
-        if mode and "SHUABAO_SUBSCRIPTION_MODE" not in os.environ:
-            os.environ["SHUABAO_SUBSCRIPTION_MODE"] = mode
-    if timeout and "SHUABAO_SUBSCRIPTION_TIMEOUT_S" not in os.environ:
-        os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] = timeout
+    os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] = endpoint
+    os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] = str(timeout)
 
 
 def _handle_unhandled_exception(exc_type, exc_value, exc_traceback):

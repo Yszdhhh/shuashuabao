@@ -59,7 +59,10 @@
 项目根目录提供了 PowerShell 构建脚本 `build_release.ps1`：
 
 ```powershell
-.\build_release.ps1
+ .\build_release.ps1 `
+   -ManifestSigningKeyPath "<仓外 operator manifest private key>" `
+   -ManifestSigningKeyId "<operator key id>" `
+   -ManifestPublicKeysPath "<仓外 operator public-key registry>"
 ```
 
 **脚本内部执行流程**：

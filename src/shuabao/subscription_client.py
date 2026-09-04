@@ -14,6 +14,7 @@ import ctypes
 import hashlib
 import json
 import os
+import re
 import socket
 import sys
 import uuid
@@ -42,6 +43,7 @@ PERMIT_REQUEST_FIELDS = (
     "release_channel",
     "mode_id",
 )
+LIVE_MODE_IDS = frozenset({"normal_farm", "lobby_hitch", "follow_team", "lead_team"})
 DEFAULT_LOCAL_BRIDGE_URL = "https://quebec-luis-flooring-kenneth.trycloudflare.com"
 
 _KEY_FILE_NAME = "subscription.key"
@@ -59,6 +61,8 @@ class StartPermission:
     expires_at: str = ""
     permit: EntitlementPermit | None = None
     dev_capability: DevStartCapability | None = None
+    # Entitlement status is independent of a verified, release-bound LIVE permit.
+    entitlement_valid: bool = False
 
 
 def _subscription_ssl_context() -> ssl.SSLContext:
@@ -95,6 +99,13 @@ def _normalize_permit_request(
         if not isinstance(raw, str) or not raw.strip():
             raise ValueError(f"permit request field invalid: {field}")
         normalized[field] = raw.strip()
+    if (
+        not re.fullmatch(r"[0-9a-f]{40}", normalized["source_sha"])
+        or not re.fullmatch(r"[0-9a-f]{64}", normalized["release_manifest_sha256"])
+        or normalized["release_channel"] not in {"dev", "internal-pilot", "external-beta", "release"}
+        or normalized["mode_id"] not in LIVE_MODE_IDS
+    ):
+        raise ValueError("permit request release identity invalid")
     return normalized
 
 
@@ -332,7 +343,10 @@ def _timeout_seconds(env: Mapping[str, str]) -> float:
     return max(0.5, min(10.0, value))
 
 
-def _deny(mode: str, code: str, message: str, *, status: str = "UNKNOWN") -> StartPermission:
+def _deny(
+    mode: str, code: str, message: str, *, status: str = "UNKNOWN",
+    entitlement_valid: bool = False,
+) -> StartPermission:
     if mode == "shadow":
         return StartPermission(
             allowed=True,
@@ -341,6 +355,7 @@ def _deny(mode: str, code: str, message: str, *, status: str = "UNKNOWN") -> Sta
             code=code,
             message=message,
             would_allow=False,
+            entitlement_valid=entitlement_valid,
         )
     return StartPermission(
         allowed=False,
@@ -349,6 +364,7 @@ def _deny(mode: str, code: str, message: str, *, status: str = "UNKNOWN") -> Sta
         code=code,
         message=message,
         would_allow=False,
+        entitlement_valid=entitlement_valid,
     )
 
 
@@ -415,7 +431,10 @@ def check_start_permission(
     message = str(payload.get("message") or "")
     would_allow = bool(payload.get("valid")) and payload.get("can_start_runner") is True
     if not would_allow:
-        return _deny(mode, code, message or f"订阅状态不允许启动: {status}", status=status)
+        return _deny(
+            mode, code, message or f"订阅状态不允许启动: {status}", status=status,
+            entitlement_valid=bool(payload.get("valid")),
+        )
     raw_permit = payload.get("permit")
     if raw_permit is None:
         return _deny(
@@ -423,11 +442,12 @@ def check_start_permission(
             "PERMIT_MISSING",
             "订阅服务未返回 permit；enforce 模式必须返回有效签名 permit",
             status=status,
+            entitlement_valid=True,
         )
     try:
         permit = EntitlementPermit.from_mapping(raw_permit)
     except PermitVerificationError as exc:
-        return _deny(mode, exc.code, exc.message, status=status)
+        return _deny(mode, exc.code, exc.message, status=status, entitlement_valid=True)
     return StartPermission(
         allowed=True,
         mode=mode,
@@ -437,4 +457,5 @@ def check_start_permission(
         would_allow=True,
         expires_at=str(payload.get("expires_at") or ""),
         permit=permit,
+        entitlement_valid=True,
     )

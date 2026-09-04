@@ -29,6 +29,9 @@ def test_spec_pins_python_tls_pair_even_if_analysis_selects_foreign_dlls(tmp_pat
         if name != missing:
             (dll_dir / name).write_bytes(b"test-only")
     monkeypatch.setattr(sys, "base_prefix", str(dll_dir.parent))
+    trust_hook = tmp_path / "pyi_rth_manifest_trust.py"
+    trust_hook.write_text("# test-only build hook", encoding="utf-8")
+    monkeypatch.setenv("SHUABAO_BUILD_MANIFEST_TRUST_HOOK", str(trust_hook))
     collected = [("libssl-3-x64.dll", "foreign/poppler/ssl", "BINARY"),
                  ("PySide6/libcrypto-3-x64.dll", "foreign/poppler/crypto", "BINARY"),
                  ("_ssl.pyd", "python/_ssl.pyd", "EXTENSION")]
@@ -57,6 +60,7 @@ def test_spec_pins_python_tls_pair_even_if_analysis_selects_foreign_dlls(tmp_pat
         ]
         for name in names:
             assert (str(dll_dir / name), ".") in analysis_calls[0]["binaries"]
+        assert str(trust_hook) in analysis_calls[0]["runtime_hooks"]
 
 
 def test_spec_bundles_web_dist() -> None:
@@ -92,7 +96,7 @@ def test_spec_places_shiboken_loader_dll_on_windows_search_path() -> None:
 
 def test_spec_registers_pyside_dll_directory_before_imports() -> None:
     text = _spec_text()
-    assert 'runtime_hooks=[str(PROJECT_ROOT / "packaging" / "pyi_rth_pyside6_path.py")]' in text
+    assert 'runtime_hooks=[str(PROJECT_ROOT / "packaging" / "pyi_rth_pyside6_path.py"), manifest_trust_hook]' in text
     hook = (PROJECT_ROOT / "packaging" / "pyi_rth_pyside6_path.py").read_text(encoding="utf-8")
     assert 'os.add_dll_directory(str(_pyside_dir))' in hook
 
@@ -227,7 +231,7 @@ def test_release_channel_recorded_in_all_four_sidecars() -> None:
 
 def test_build_identity_records_channel_signature_fact() -> None:
     text = _build_script_text()
-    assert '$manifestSignatureStatus = if ($isExternalChannel) { "SIGNED" } else { "UNSIGNED" }' in text
+    assert '$manifestSignatureStatus = "SIGNED"' in text
     assert "signature_status   = $manifestSignatureStatus" in text
 
 # --- 发行包运行时配置白名单（ShuaBao.spec 只打生产消费者） ---
@@ -323,11 +327,13 @@ def test_external_channels_declare_explicit_signing_inputs_and_env_fallbacks() -
     for marker in (
         '[string]$ManifestSigningKeyPath = ""',
         '[string]$ManifestSigningKeyId = ""',
+        '[string]$ManifestPublicKeysPath = ""',
         '[string]$AuthenticodeCertificateThumbprint = ""',
         '[string]$AuthenticodeTimestampUrl = ""',
         '[string]$SignToolPath = ""',
         '$env:SHUABAO_MANIFEST_SIGNING_KEY',
         '$env:SHUABAO_MANIFEST_SIGNING_KEY_ID',
+        '$env:SHUABAO_MANIFEST_PUBLIC_KEYS_PATH',
         '$env:SHUABAO_AUTHENTICODE_CERT_THUMBPRINT',
         '$env:SHUABAO_AUTHENTICODE_TIMESTAMP_URL',
         '$env:SHUABAO_TIMESTAMP_URL',
@@ -343,7 +349,7 @@ def test_external_channels_fail_closed_before_expensive_build_without_real_signi
         assert preflight < text.index(marker), f"签名门禁必须先于{marker}"
     assert "ManifestSigningKeyPath" in text and "ManifestSigningKeyId" in text
     assert "AuthenticodeCertificateThumbprint" in text and "AuthenticodeTimestampUrl" in text
-    assert "PINNED_MANIFEST_PUBLIC_KEYS" in text
+    assert "tools\\prepare_manifest_trust.py" in text
     assert "operator" in text.lower() or "操作员" in text
 
 
@@ -353,8 +359,8 @@ def test_external_channels_sign_and_verify_manifest_after_generation() -> None:
     assert "--private-key" in text
     assert "--key-id" in text
     assert "release_manifest.json.sig" in text
-    assert "verify_manifest_signature" in text
-    assert "$manifestSignatureStatus = if ($isExternalChannel) { \"SIGNED\" } else { \"UNSIGNED\" }" in text
+    assert '"--manifest-public-keys", $manifestPublicKeysPath' in text
+    assert '$manifestSignatureStatus = "SIGNED"' in text
 
 
 def test_external_channels_sign_both_exes_with_rfc3161_before_authenticode_validation() -> None:
@@ -419,10 +425,17 @@ def test_external_channels_verify_mode_evidence_before_packaging() -> None:
     assert text.count("无法解析（畸形 JSON）") >= 2
 
 
-def test_dev_channel_keeps_unsigned_identity_and_normal_gate() -> None:
+def test_every_frozen_channel_requires_signing_and_compiled_operator_trust() -> None:
     text = _build_script_text()
-    assert '$manifestSignatureStatus = if ($isExternalChannel) { "SIGNED" } else { "UNSIGNED" }' in text
+    assert '$manifestSignatureStatus = "SIGNED"' in text
+    assert '"UNSIGNED"' not in text
+    assert '所有 frozen 渠道均要求 -SubscriptionMode enforce' in text
     assert "signature_status   = $manifestSignatureStatus" in text
+    assert text.index("tools\\prepare_manifest_trust.py") < text.index("Get-Command uv")
+    assert "$env:SHUABAO_BUILD_MANIFEST_TRUST_HOOK = $manifestTrustHook" in text
+    assert "$env:SHUABAO_BUILD_MANIFEST_TRUST_HOOK = $previousManifestTrustHook" in text
+    assert not re.search(r"if \(\$isExternalChannel\)\s*\{\s*\$manifestSignaturePath", text)
+    assert "missing build-time operator manifest trust hook" in _spec_text()
 
 
 def test_external_channels_reject_in_tree_manifest_signing_key_before_build() -> None:

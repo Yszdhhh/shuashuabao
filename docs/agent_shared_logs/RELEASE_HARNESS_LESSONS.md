@@ -92,7 +92,10 @@ python -m pytest tests -q --tb=short
 powershell -ExecutionPolicy Bypass -File .\build_release.ps1 `
   -ReleaseChannel dev -AllowDirty `
   -SubscriptionBaseUrl "https://<approved-endpoint>" `
-  -SubscriptionMode enforce
+  -SubscriptionMode enforce `
+  -ManifestSigningKeyPath "<仓外 operator manifest private key>" `
+  -ManifestSigningKeyId "<operator key id>" `
+  -ManifestPublicKeysPath "<仓外 operator public-key registry>"
 ```
 
 `build_release.ps1` 会自动调用 `tools/release_harness.py` 两次：一次检查 `dist`，
@@ -105,6 +108,8 @@ powershell -ExecutionPolicy Bypass -File .\build_release.ps1 `
 python tools/release_harness.py `
   --source-root "G:\刷刷宝\GameScript-Local" `
   --bundle "C:\Users\10639\Desktop\ShuaBao" `
+  --python-root "<build Python sys.base_prefix>" `
+  --manifest-public-keys "<仓外 operator manifest public-key registry>" `
   --require-clean
 ```
 

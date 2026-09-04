@@ -117,7 +117,9 @@ async function withTimeout<T>(p: Promise<T>, timeoutMs: number, message: string)
   }
 }
 
-const DEFAULT_CALL_TIMEOUT_MS = 10_000;
+export const DEFAULT_CALL_TIMEOUT_MS = 10_000;
+/** Frozen preflight may wait on a first-time manifest verify (~20s) plus staging permit. */
+export const PREFLIGHT_CALL_TIMEOUT_MS = 60_000;
 
 async function callMethod<T>(name: string, pending: Promise<string>, timeoutMs = DEFAULT_CALL_TIMEOUT_MS): Promise<T> {
   let raw: string;
@@ -144,7 +146,11 @@ function wrapFacade(facade: RawFacade): DashboardBridge {
     update_shell: (patch: Partial<{ theme: "light" | "dark"; selected_mode_id: string }>) =>
       callMethod<ShellPatchResult>("update_shell", facade.update_shell(JSON.stringify(patch))),
     validate_preflight: (mode_id: string) =>
-      callMethod<PreflightDTO>("validate_preflight", facade.validate_preflight(JSON.stringify({ mode_id }))),
+      callMethod<PreflightDTO>(
+        "validate_preflight",
+        facade.validate_preflight(JSON.stringify({ mode_id })),
+        PREFLIGHT_CALL_TIMEOUT_MS,
+      ),
     start_run: (mode_id: string, expectedRevision?: number) =>
       callMethod<RunResult>("start_run", facade.start_run(JSON.stringify({ mode_id, expected_settings_revision: expectedRevision }))),
     stop_run: () => callMethod<RunResult>("stop_run", facade.stop_run()),

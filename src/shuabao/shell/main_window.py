@@ -64,6 +64,7 @@ from shuabao.subscription_client import (
     validate_entitlement,
 )
 from shuabao.shell.pet_hud import FloatingPetHud
+from shuabao.shell.live_execute import check_live_start_permission, live_permission_preflight
 from shuabao.shell.theme_styles import (
     apply_app_palette,
     get_qss,
@@ -1171,6 +1172,7 @@ class MainWindow(QMainWindow):
             os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = self._subscription_key
         self._subscription_status = "未激活"
         self._subscription_expires_at = ""
+        self._live_preflight_state: tuple[bool, str, str] | None = None
         self._game_count = 0
         self._syncing_bonds = False
         self._build_btn_group = QButtonGroup(self)
@@ -2308,12 +2310,13 @@ class MainWindow(QMainWindow):
 
     def _apply_subscription_result(self, payload: dict) -> None:
         valid = bool(payload.get("valid")) and payload.get("can_start_runner") is True
-        self._subscription_status = "正常" if valid else str(payload.get("status") or "未激活")
+        self._live_preflight_state = None
+        self._subscription_status = "卡密有效" if valid else str(payload.get("status") or "未激活")
         self._subscription_expires_at = str(payload.get("expires_at") or "")
         expires = self._subscription_expires_at[:10]
         if valid:
-            self.lbl_subscription.setText(f"订阅至 {expires}" if expires else "订阅：正常")
-            color = "#16a34a"
+            self.lbl_subscription.setText(f"卡密有效{' · ' + expires + ' 到期' if expires else ''} · LIVE 待校验")
+            color = "#b45309"
         else:
             self.lbl_subscription.setText(f"订阅：{self._subscription_status}")
             color = "#b45309"
@@ -2326,13 +2329,28 @@ class MainWindow(QMainWindow):
         if not self._subscription_key:
             self._apply_subscription_result({"valid": False, "status": "未激活"})
             return
+        if subscription_mode() == "off" and not getattr(sys, "frozen", False):
+            self._subscription_status = "源码开发模式"
+            self._subscription_expires_at = ""
+            self._live_preflight_state = True, "DEV_OFF", "源码开发模式；LIVE 授权不适用"
+            self.lbl_subscription.setText("源码开发模式 · LIVE 不适用")
+            self.lbl_subscription.setStyleSheet(
+                "font-weight:700; color:#b45309; background:rgba(2,132,199,0.1); "
+                "border-radius:12px; padding:3px 10px;"
+            )
+            self._refresh_chrome()
+            return
         try:
             self._apply_subscription_result(validate_entitlement(self._subscription_key))
         except Exception:
             self._apply_subscription_result({"valid": False, "status": "校验失败"})
 
     def _subscription_allows_start(self) -> bool:
-        return subscription_mode() in {"off", "shadow"} or self._subscription_status == "正常"
+        # This only enables the authorization attempt; toggle_run verifies LIVE.
+        return (
+            (subscription_mode() == "off" and not getattr(sys, "frozen", False))
+            or self._subscription_status == "卡密有效"
+        )
 
 
     def keyPressEvent(self, event):
@@ -3624,6 +3642,11 @@ class MainWindow(QMainWindow):
             self.lbl_precheck.setToolTip("运行方式未验证")
             self.lbl_precheck.setStyleSheet(f"color:{t['neon_danger']}; font-weight:700;")
             return
+        if subscription_mode() == "off" and not getattr(sys, "frozen", False):
+            self.lbl_precheck.setText("预检 ● 开发模式")
+            self.lbl_precheck.setToolTip("源码开发模式不申请 LIVE permit")
+            self.lbl_precheck.setStyleSheet(f"color:{t['neon_warning']}; font-weight:700;")
+            return
         if not self._subscription_allows_start():
             self.lbl_precheck.setText("订阅 ● 未激活")
             self.lbl_precheck.setToolTip("请输入有效卡密后才能开始运行")
@@ -3633,6 +3656,12 @@ class MainWindow(QMainWindow):
             self.lbl_precheck.setText("预检 ● 红")
             self.lbl_precheck.setToolTip("live.lock 被占用")
             self.lbl_precheck.setStyleSheet(f"color:{t['neon_danger']}; font-weight:700;")
+            return
+        live_state = getattr(self, "_live_preflight_state", None)
+        if not live_state or live_state[1] != "PERMIT_VERIFIED":
+            self.lbl_precheck.setText("预检 ● LIVE 待校验")
+            self.lbl_precheck.setToolTip("卡密有效；点击开始时再验证当前发行 permit")
+            self.lbl_precheck.setStyleSheet(f"color:{t['neon_warning']}; font-weight:700;")
             return
         if not _is_admin():
             self.lbl_precheck.setText("预检 ● 黄")
@@ -4375,11 +4404,16 @@ class MainWindow(QMainWindow):
         if not desktop_may_start(mode_id):
             self.log(f"[阻断] {mode_id} 未验证", "error")
             return
-        permission = check_start_permission()
-        if not permission.allowed:
-            self._refresh_subscription_status()
-            QMessageBox.warning(self, "订阅未授权", permission.message or "请输入有效卡密后再启动")
-            self.log(f"[阻断] 订阅未授权：{permission.code}", "error")
+        permission = check_live_start_permission(ROOT, mode_id, checker=check_start_permission)
+        live_ok, live_code, live_detail = live_permission_preflight(permission, mode_id=mode_id, root=ROOT)
+        self._live_preflight_state = live_ok, live_code, live_detail
+        self.lbl_subscription.setText(live_detail)
+        refresh_precheck = getattr(self, "_refresh_precheck", None)
+        if callable(refresh_precheck):
+            refresh_precheck()
+        if not live_ok:
+            QMessageBox.warning(self, "LIVE 未授权", live_detail)
+            self.log(f"[阻断] LIVE 未授权：{live_code}", "error")
             return
         try:
             settings = self.collect_settings_from_ui()

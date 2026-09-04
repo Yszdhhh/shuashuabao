@@ -3,9 +3,11 @@
 //   - 序列化：版本化 Slot 的 JSON 入参/出参契约
 //   - 信号派发：三信号 connect 后可从 facade 侧回推
 //   - 错误处理：transport 超时、facade 缺失、方法拒绝、非 JSON 返回、信号缺失
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   QWEBCHANNEL_SRC,
+  DEFAULT_CALL_TIMEOUT_MS,
+  PREFLIGHT_CALL_TIMEOUT_MS,
   createQtBridge,
   type RawFacade,
 } from "../src/bridge/qtBridge";
@@ -229,6 +231,55 @@ describe("qtBridge 错误处理", () => {
     delete harness.facade.stop_run;
     installHost(harness);
     await expect(createQtBridge(200)).rejects.toThrow(/facade 对象缺失或方法面不完整/);
+  });
+
+  it("validate_preflight 单独拉长 timeout，其它 facade 调用仍为 10s", () => {
+    expect(DEFAULT_CALL_TIMEOUT_MS).toBe(10_000);
+    expect(PREFLIGHT_CALL_TIMEOUT_MS).toBe(60_000);
+  });
+
+  it("仅 validate_preflight 使用 60s timeout，其它方法仍在 10s 截止", async () => {
+    const harness = makeFacade((name) => {
+      if (name === "validate_preflight") {
+        return () =>
+          new Promise<string>((resolve) => {
+            setTimeout(
+              () => resolve(JSON.stringify({ ok: true, blocked_reason: "", checks: [] })),
+              15_000,
+            );
+          });
+      }
+      if (name === "get_snapshot") {
+        return () =>
+          new Promise<string>(() => {
+            /* intentionally never resolves within default timeout */
+          });
+      }
+      return undefined;
+    });
+    installHost(harness);
+    const { bridge } = await createQtBridge();
+
+    vi.useFakeTimers();
+    try {
+      const preflight = bridge.validate_preflight("normal_farm");
+      await vi.advanceTimersByTimeAsync(14_999);
+      let settled = false;
+      void preflight.then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(preflight).resolves.toEqual({ ok: true, blocked_reason: "", checks: [] });
+
+      const snapshot = bridge.get_snapshot();
+      const snapshotExpectation = expect(snapshot).rejects.toThrow(/facade\.get_snapshot 调用失败:.*10000ms/);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await snapshotExpectation;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("bridge schema 不匹配时在任何业务调用前拒绝建桥", async () => {

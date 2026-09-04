@@ -104,6 +104,8 @@ success 误当业务成功。
 python tools/release_harness.py `
   --source-root "G:\刷刷宝\GameScript-Local" `
   --bundle "C:\Users\10639\Desktop\ShuaBao" `
+  --python-root "<build Python sys.base_prefix>" `
+  --manifest-public-keys "<仓外 operator manifest public-key registry>" `
   --require-clean
 ```
 

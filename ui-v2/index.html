@@ -1842,7 +1842,7 @@
       return Boolean(state.subscription && state.subscription.active);
     }
     function subscriptionTone() {
-      if (isSubscriptionOk()) return "ok";
+      if (state.subscription.live_authorized) return "ok";
       const status = state.subscription.status || "未激活";
       if (/过期|到期|失效|无效|拒绝|失败/.test(status)) return "bad";
       return "warn";
@@ -1850,7 +1850,7 @@
     function subscriptionPillLabel() {
       if (isSubscriptionOk()) {
         const exp = formatExpire(state.subscription.expires_at);
-        return exp ? `至 ${exp}` : "已激活";
+        return `卡密有效${exp ? ` · ${exp} 到期` : ""} · ${state.subscription.live_status || "LIVE 授权待校验"}`;
       }
       return state.subscription.status || "未激活";
     }
@@ -1858,7 +1858,9 @@
       if (sub) state.subscription = {
         active: Boolean(sub.active),
         status: sub.status || (sub.active ? "正常" : "未激活"),
-        expires_at: sub.expires_at || ""
+        expires_at: sub.expires_at || "",
+        live_authorized: Boolean(sub.live_authorized),
+        live_status: sub.live_status || "LIVE 授权待校验"
       };
       const pill = $("subscriptionPill");
       if (pill) {
@@ -1879,7 +1881,7 @@
       let nowText = "订阅未激活";
       if (isSubscriptionOk()) {
         const exp = formatExpire(sub.expires_at);
-        nowText = exp ? `当前授权正常 · ${exp} 到期` : "当前授权正常";
+        nowText = `卡密有效${exp ? ` · ${exp} 到期` : ""} · ${sub.live_status || "LIVE 授权待校验"}`;
       } else if (/过期/.test(sub.status || "")) {
         nowText = "订阅已过期";
       }

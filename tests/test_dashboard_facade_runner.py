@@ -246,6 +246,11 @@ def test_activate_subscription_accepts_the_bridge_activation_shape(monkeypatch, 
     res = json.loads(f.activate_subscription(json.dumps({"key": "local-test-key"})))
     assert res["ok"] is True
     assert res["subscription"]["active"] is True
+    assert res["subscription"]["entitlement_valid"] is True
+    assert res["subscription"]["live_authorized"] is False
+    assert res["subscription"]["live_code"] == "LIVE_PENDING"
+    assert f._subscription_cache.allowed is False
+    assert f._subscription_cache.permit is None
 
 
 def test_preflight_failure_blocks_before_runner(qapp, tmp_path: Path):
@@ -757,14 +762,23 @@ def test_runner_start_denied_checker_blocks_without_network(tmp_path: Path, monk
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
     probed = []
 
-    def checker() -> StartPermission:
-        probed.append(1)
+    def checker(**kwargs) -> StartPermission:
+        probed.append(kwargs)
         return _denied_permission()
 
+    from shuabao.shell import live_execute
+    identity = live_execute._LiveIdentity("a" * 40, "b" * 64, "dev", True)
+    monkeypatch.setattr(live_execute, "_live_identity", lambda _root: identity)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "enforce")
     runner = RunnerService(tmp_path, tmp_path)
     with pytest.raises(PermissionDenied):
         runner.start("normal_farm", Settings(), permission_checker=checker)
-    assert probed == [1]
+    assert probed == [{"permit_request": {
+        "source_sha": "a" * 40,
+        "release_manifest_sha256": "b" * 64,
+        "release_channel": "dev",
+        "mode_id": "normal_farm",
+    }}]
     assert runner.worker is None
 def test_runner_start_allowed_permission_reaches_shared_executor(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(rs_module, "MediatorWorker", ScriptedWorker)
@@ -789,15 +803,24 @@ def test_headless_run_blocking_denied_permission_blocks_before_mkdir_and_lock(tm
 
     probed = []
 
-    def checker() -> StartPermission:
-        probed.append(1)
+    def checker(**kwargs) -> StartPermission:
+        probed.append(kwargs)
         return _denied_permission()
 
     monkeypatch.setattr(hr_module, "execute_runtime_mediator", None)  # 若被调用立即崩溃
+    from shuabao.shell import live_execute
+    identity = live_execute._LiveIdentity("a" * 40, "b" * 64, "dev", True)
+    monkeypatch.setattr(live_execute, "_live_identity", lambda _root: identity)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "enforce")
     runner = HeadlessRunner(tmp_path, tmp_path)
     with pytest.raises(PermissionDenied):
         runner.run_blocking(Settings(), permission_checker=checker)
-    assert probed == [1]
+    assert probed == [{"permit_request": {
+        "source_sha": "a" * 40,
+        "release_manifest_sha256": "b" * 64,
+        "release_channel": "dev",
+        "mode_id": "normal_farm",
+    }}]
     assert not (tmp_path / "incidents").exists(), "拒绝时不得创建 incidents 目录"
     assert not (tmp_path / "ShuaBao.live.lock").exists()
     assert runner.mediator is None

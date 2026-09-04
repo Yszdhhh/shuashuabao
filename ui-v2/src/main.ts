@@ -579,7 +579,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
   }
 }
 
-function applySubscription(sub?: { active?: boolean; status?: string; expires_at?: string }): void {
+function applySubscription(sub?: { active?: boolean; status?: string; expires_at?: string; live_authorized?: boolean; live_status?: string }): void {
   const globalFn = (window as unknown as Record<string, unknown>).applySubscription;
   if (typeof globalFn === "function") {
     (globalFn as (s?: unknown) => void)(sub);
@@ -590,8 +590,8 @@ function applySubscription(sub?: { active?: boolean; status?: string; expires_at
   const isOk = Boolean(sub?.active);
   const status = sub?.status || "未激活";
   const exp = sub?.expires_at ? (sub.expires_at.length >= 10 ? sub.expires_at.substring(0, 10) : sub.expires_at) : "";
-  pill.textContent = isOk ? `订阅：正常${exp ? ` (${exp} 到期)` : ""}` : `订阅：${status}`;
-  pill.dataset.state = isOk ? "ok" : "warn";
+  pill.textContent = `${isOk ? `卡密有效${exp ? ` (${exp} 到期)` : ""}` : `订阅：${status}`} · ${sub?.live_status || "LIVE 授权待校验"}`;
+  pill.dataset.state = sub?.live_authorized ? "ok" : "warn";
 }
 
 // ---------------------------------------------------------------- 运行态信号
@@ -827,10 +827,10 @@ function wireIntents(): void {
     try {
       const res = await (bridge
         ? bridge.activate_subscription(key)
-        : Promise.resolve({ ok: false, message: "后端桥接未就绪", status: "", expires_at: "" }));
+        : Promise.resolve({ ok: false, message: "后端桥接未就绪", status: "", expires_at: "", subscription: undefined }));
       if (res && res.ok) {
         toast(res.message || "订阅激活成功！");
-        applySubscription({ active: true, status: res.status || "正常", expires_at: res.expires_at || "" });
+        applySubscription(res.subscription || { active: true, status: "卡密有效", expires_at: res.expires_at || "", live_authorized: false, live_status: "LIVE 授权待校验" });
         ((document.querySelector("#modalSheet [data-close]") as HTMLButtonElement | null))?.click();
       } else {
         toast("激活失败：" + (res?.message || "卡密无效"));

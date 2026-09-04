@@ -82,13 +82,37 @@ class DesktopPanelTests(unittest.TestCase):
     def test_native_dashboard_keeps_subscription_status_and_key_entry_visible(self):
         self.assertEqual(self.window.btn_activate_subscription.text(), "输入卡密")
         self.assertEqual(self.window.lbl_subscription.text(), "订阅：未激活")
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "enforce"}):
+            self.window._apply_subscription_result({
+                "valid": True,
+                "can_start_runner": True,
+                "status": "ACTIVE",
+                "expires_at": "2027-08-31T14:56:58Z",
+            })
+        self.assertEqual(
+            self.window.lbl_subscription.text(),
+            "卡密有效 · 2027-08-31 到期 · LIVE 待校验",
+        )
+        self.assertEqual(self.window.lbl_precheck.text(), "预检 ● LIVE 待校验")
+
+    def test_source_off_subscription_refresh_does_not_request_entitlement(self):
+        self.window._subscription_key = "source-only-test-key"
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "off"}), \
+             patch.object(main_window_module, "validate_entitlement", side_effect=AssertionError("off source must not query")):
+            self.window._refresh_subscription_status()
+        self.assertEqual(self.window.lbl_subscription.text(), "源码开发模式 · LIVE 不适用")
+        self.assertEqual(self.window.lbl_precheck.text(), "预检 ● 开发模式")
+
+    def test_entitlement_valid_native_precheck_remains_live_pending(self):
         self.window._apply_subscription_result({
             "valid": True,
             "can_start_runner": True,
             "status": "ACTIVE",
-            "expires_at": "2027-08-31T14:56:58Z",
         })
-        self.assertEqual(self.window.lbl_subscription.text(), "订阅至 2027-08-31")
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "enforce"}), \
+             patch.object(main_window_module, "_is_admin", return_value=True):
+            self.window._refresh_precheck()
+        self.assertEqual(self.window.lbl_precheck.text(), "预检 ● LIVE 待校验")
 
     def test_external_hud_uses_status_context_and_stays_outside_game_frame(self):
         hud = OverlayHud()
@@ -887,8 +911,11 @@ class DesktopPanelTests(unittest.TestCase):
 
         w = self.window
         w.current_theme = "light"
+        w._subscription_status = "卡密有效"
+        w._live_preflight_state = True, "PERMIT_VERIFIED", "LIVE permit 已验签"
         w._apply_component_theme()
-        with patch("shuabao.shell.main_window._is_admin", return_value=True):
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "enforce"}), \
+             patch("shuabao.shell.main_window._is_admin", return_value=True):
             w._refresh_precheck()
         self.assertIn(tokens("light")["neon_success"], w.lbl_precheck.styleSheet())
 
@@ -1367,7 +1394,8 @@ class DesktopPanelTests(unittest.TestCase):
         from shuabao.subscription_permit import DevStartCapability
 
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.object(mediator_mod, "Mediator", FailClosedProbeMediator), \
+            with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "off"}), \
+                    patch.object(mediator_mod, "Mediator", FailClosedProbeMediator), \
                     patch.object(runtime_mediator_mod, "Mediator", RuntimeFailClosedProbeMediator):
                 worker = desktop_app.MediatorWorker(
                     Settings(dry_run=True, ocr_mode="off"), ROOT, max_steps=1, incident_dir=tmp,
@@ -1386,11 +1414,14 @@ class DesktopPanelTests(unittest.TestCase):
             raw = (group / "metadata.json").read_text(encoding="utf-8")
             self.assertNotIn("top-secret-pw", raw, "密码不得归档")
     def test_toggle_run_passes_preflight_permission_to_runner(self):
-        permission = StartPermission(True, "enforce", status="ACTIVE", code="ACTIVE", would_allow=True)
+        from shuabao.subscription_permit import DevStartCapability
+
+        permission = StartPermission(True, "off", dev_capability=DevStartCapability.for_off())
         worker = MagicMock()
         self.window.worker_thread = None
         self.window.runner.start = MagicMock(return_value=worker)
-        with patch.object(main_window_module, "check_start_permission", return_value=permission), \
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "off"}), \
+             patch.object(main_window_module, "check_start_permission", return_value=permission), \
              patch.object(main_window_module, "_is_admin", return_value=True), \
              patch.object(self.window, "collect_settings_from_ui", return_value=Settings()), \
              patch.object(self.window, "_write_user_bundle"):
@@ -1596,18 +1627,19 @@ class DesktopPanelTests(unittest.TestCase):
         from shuabao.shell.runner_service import RunnerService
 
         service = RunnerService(Path(self.tmp.name), ROOT)
-        worker = service.start(
-            "follow_team",
-            Settings(cycle_num=7, follow_cycle_num=12, hitch_cycle_num=18),
-        )
-        self.assertEqual(12, worker.settings.cycle_num)
-        service.release_after_finish()
-        worker = service.start(
-            "lobby_hitch",
-            Settings(cycle_num=7, follow_cycle_num=12, hitch_cycle_num=18),
-        )
-        self.assertEqual(18, worker.settings.cycle_num)
-        service.release_after_finish()
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "off"}):
+            worker = service.start(
+                "follow_team",
+                Settings(cycle_num=7, follow_cycle_num=12, hitch_cycle_num=18),
+            )
+            self.assertEqual(12, worker.settings.cycle_num)
+            service.release_after_finish()
+            worker = service.start(
+                "lobby_hitch",
+                Settings(cycle_num=7, follow_cycle_num=12, hitch_cycle_num=18),
+            )
+            self.assertEqual(18, worker.settings.cycle_num)
+            service.release_after_finish()
 
     def test_team_settings_are_sanitized_fail_closed(self):
         settings = Settings._from_dict({
