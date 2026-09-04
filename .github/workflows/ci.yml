@@ -170,7 +170,7 @@ jobs:
         run: |
           $isTag = "${{ startsWith(github.ref, 'refs/tags/v') }}" -eq "true"
           $channel = if ($isTag) { "release" } else { "dev" }
-          $gate = if ($isTag) { @() } else { @("-SkipGate") }
+          $gate = if ($isTag) { @{} } else { @{ SkipGate = $true } }
           $subscriptionUrl = if ($isTag) { $env:SHUABAO_SUBSCRIPTION_BASE_URL } else { "" }
           .\build_release.ps1 @gate -NoDeploy `
             -ReleaseChannel $channel `
