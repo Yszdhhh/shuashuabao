@@ -285,3 +285,67 @@ def test_verify_cache_fail_closed_without_rehash(tmp_path: Path, monkeypatch) ->
     with pytest.raises(rs.ReleaseManifestError, match="MANIFEST_TRUST_ANCHOR_MISSING"):
         rs.verify_packaged_release_snapshot(package, pinned_keys={})
     assert calls["n"] == 1
+
+
+def test_verify_cache_reuses_attested_bytes_not_disk(tmp_path: Path) -> None:
+    """Cache must return verified snapshot bytes; mutating disk must not change them."""
+    from shuabao import release_signing as rs
+
+    rs.clear_packaged_release_verify_cache()
+    package, keys = _signed_package(tmp_path)
+    first = rs.verify_packaged_release_snapshot(
+        package, pinned_keys=keys, required_files=("subscription_runtime.json",)
+    )
+    target = package / "subscription_runtime.json"
+    original = first[1]["subscription_runtime.json"]
+    target.write_bytes(b'{"tampered": true}')
+    second = rs.verify_packaged_release_snapshot(
+        package, pinned_keys=keys, required_files=("subscription_runtime.json",)
+    )
+    assert second[1]["subscription_runtime.json"] == original
+    assert second[1]["subscription_runtime.json"] != target.read_bytes()
+
+
+def test_verify_cache_distinct_package_roots_do_not_share(tmp_path: Path, monkeypatch) -> None:
+    from shuabao import release_signing as rs
+    import shutil
+
+    rs.clear_packaged_release_verify_cache()
+    (tmp_path / "a").mkdir()
+    package_a, keys = _signed_package(tmp_path / "a")
+    package_b = tmp_path / "b" / "pkg"
+    shutil.copytree(package_a, package_b)
+    # Re-sign is unnecessary if we copy the same signed tree; fingerprints differ by root path.
+    calls = {"n": 0}
+    real = rs._verify_packaged_release
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(rs, "_verify_packaged_release", counted)
+    rs.verify_packaged_release_snapshot(package_a, pinned_keys=keys)
+    rs.verify_packaged_release_snapshot(package_b, pinned_keys=keys)
+    assert calls["n"] == 2
+
+
+def test_verify_cache_fail_closed_when_fingerprint_changes_during_verify(tmp_path: Path, monkeypatch) -> None:
+    from shuabao import release_signing as rs
+
+    rs.clear_packaged_release_verify_cache()
+    package, keys = _signed_package(tmp_path)
+    real = rs._verify_packaged_release
+
+    def mutate_then_verify(*args, **kwargs):
+        result = real(*args, **kwargs)
+        # Change manifest bytes after a successful verify so re-fingerprint diverges.
+        (package / "release_manifest.json").write_bytes(
+            (package / "release_manifest.json").read_bytes() + b"\n"
+        )
+        return result
+
+    monkeypatch.setattr(rs, "_verify_packaged_release", mutate_then_verify)
+    with pytest.raises(rs.ReleaseManifestError, match="MANIFEST_VERIFY_RACE"):
+        rs.verify_packaged_release_snapshot(package, pinned_keys=keys)
+    # Race must not leave a success entry keyed by the pre-verify fingerprint.
+    assert rs._VERIFY_CACHE == {} or all(kind == "err" for kind, _ in rs._VERIFY_CACHE.values())

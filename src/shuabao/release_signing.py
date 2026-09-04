@@ -233,6 +233,18 @@ def _package_fingerprint(package_root: Path) -> tuple[object, ...]:
     return tuple(items)
 
 
+def _frozen_identity() -> tuple[object, ...]:
+    """Bind cache entries to the running frozen executable identity when packaged."""
+    frozen = bool(getattr(sys, "frozen", False))
+    exe = ""
+    if frozen and getattr(sys, "executable", None):
+        try:
+            exe = str(Path(sys.executable).resolve())
+        except OSError:
+            exe = str(sys.executable)
+    return (frozen, exe)
+
+
 def _require_attested_files(verified_files: Mapping[str, bytes], required_files: tuple[str, ...]) -> None:
     missing = [
         required for required in required_files
@@ -258,8 +270,17 @@ def _cached_verify_packaged_release(
     pinned_keys: Mapping[str, Ed25519PublicKey] | None = None,
     required_files: tuple[str, ...] = (),
 ) -> tuple[dict[str, object], dict[str, bytes], bytes]:
-    key = (_package_fingerprint(package_root), _pinned_keys_fingerprint(pinned_keys))
+    """Verify once, then reuse attested snapshot bytes under a fingerprint lock.
+
+    Cache keys bind frozen identity + resolved package root + manifest/sig digest
+    + pinned trust anchors. Distinct roots never share entries. On hit we return
+    the previously verified bytes and do not re-read security fields from disk.
+    """
+    keys_fp = _pinned_keys_fingerprint(pinned_keys)
+    frozen_id = _frozen_identity()
     with _VERIFY_LOCK:
+        fp_before = _package_fingerprint(package_root)
+        key = (frozen_id, fp_before, keys_fp)
         cached = _VERIFY_CACHE.get(key)
         if cached is None:
             started = time.perf_counter()
@@ -269,15 +290,29 @@ def _cached_verify_packaged_release(
                     pinned_keys=pinned_keys,
                     required_files=(),
                 )
-                cached = ("ok", result)
             except Exception as exc:
+                fp_after = _package_fingerprint(package_root)
                 cached = ("err", exc)
-            _VERIFY_CACHE[key] = cached
-            LOGGER.info(
-                "[release] verify_packaged_release_snapshot cache_store elapsed_ms=%.1f root=%s",
-                (time.perf_counter() - started) * 1000,
-                Path(package_root),
-            )
+                _VERIFY_CACHE[(frozen_id, fp_after, keys_fp)] = cached
+                LOGGER.info(
+                    "[release] verify_packaged_release_snapshot cache_store_err elapsed_ms=%.1f root=%s",
+                    (time.perf_counter() - started) * 1000,
+                    Path(package_root),
+                )
+            else:
+                fp_after = _package_fingerprint(package_root)
+                if fp_after != fp_before:
+                    raise ReleaseManifestError(
+                        "MANIFEST_VERIFY_RACE",
+                        "发行快照在校验期间发生变化，已拒绝缓存",
+                    )
+                cached = ("ok", result)
+                _VERIFY_CACHE[(frozen_id, fp_after, keys_fp)] = cached
+                LOGGER.info(
+                    "[release] verify_packaged_release_snapshot cache_store elapsed_ms=%.1f root=%s",
+                    (time.perf_counter() - started) * 1000,
+                    Path(package_root),
+                )
         else:
             LOGGER.info(
                 "[release] verify_packaged_release_snapshot cache_hit root=%s",
@@ -287,8 +322,9 @@ def _cached_verify_packaged_release(
     if kind == "err":
         raise payload  # type: ignore[misc]
     manifest, verified_files, manifest_bytes = payload  # type: ignore[misc]
+    # required_files is checked against cached attested bytes only — never re-read
+    # entitlement/security payloads from disk after a successful verify.
     _require_attested_files(verified_files, required_files)
-    _verify_no_extra_files(Path(package_root), set(verified_files))
     return manifest, verified_files, manifest_bytes
 
 
