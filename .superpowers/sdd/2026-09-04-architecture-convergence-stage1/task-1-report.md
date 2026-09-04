@@ -1,7 +1,8 @@
 # Task 1 Report — typed expected-value OCR validation
 
-Status: DONE (final review compatibility fix applied)
-Commits: c943215, 55b58df, 42acb63, 67db284 (+ report docs b23de45, f311a4a)
+Status: DONE (acceptance follow-up applied)
+Commits: 01f297c, c943215, 55b58df, 42acb63, 67db284 (+ docs b23de45, f311a4a,
+  43a7b40) on refactor/architecture-convergence-20260904
   on refactor/architecture-convergence-20260904
 
 ## Scope
@@ -20,12 +21,27 @@ Commits: c943215, 55b58df, 42acb63, 67db284 (+ report docs b23de45, f311a4a)
   Now 12 cases (helper + reviewer regressions).
 
 ## Focused tests
-- `python -m pytest tests/test_ocr_verifier.py -q` → 11 passed (red first, then green).
-- `python -m pytest tests/test_ocr_verifier.py tests/test_lobby_hitch_safety_regressions.py tests/test_l1_cycle_recheck_merchant.py -q --tb=short` → 56 passed.
+- `python -m pytest tests/test_ocr_verifier.py -q` → 13 passed (red first, then green).
+- `python -m pytest tests/test_ocr_verifier.py tests/test_lobby_hitch_safety_regressions.py tests/test_l1_cycle_recheck_merchant.py -q --tb=short` → 58 passed.
 - Extra sibling check (brief file list lacks test_lobby_hitch.py; only the safety-regressions sibling exists): `tests/test_live_scenario_capture.py -q` → 73 passed (covers `_hitch_search_text_override` + `has_prefix_evidence` path).
 
 Formatters/linters/project-wide suites skipped per brief.
 
+## Acceptance follow-up (01f297c)
+Two findings, fixed in `has_prefix_evidence` (strict occupancy branch kept):
+1. P1 wiring restored: the exact numeric-prefix branch again routes through
+   `verify_expected_text(compact, want, allowed_chars=NUMERIC_ALPHABET,
+   max_length=MAX_LENGTH)`, gated by `compact == want` so containment cannot
+   widen the match. A spy test
+   (`test_hitch_prefix_numeric_branch_uses_typed_helper`) asserts the branch
+   calls the helper with the numeric alphabet.
+2. Overlong expected rejected before truncation: the prefix is NFKC-bounded
+   directly (`len > MAX_LENGTH` → False) instead of passing through
+   `normalize_prefix`, whose 64-char truncation let `('3'*64, '3'*65)` match.
+   Covered by `test_hitch_prefix_rejects_overlong_expected_before_truncation`.
+Red confirmed on both before the fix. Focused suites green (ocr_verifier 13,
+trio 58, live_scenario_capture 73); 26-case matrix smoke-checked OK including
+`('3'*64,'3'*64)` pass and `('3'*64,'3'*65)`/`('3'*65,'3')` rejections.
 ## Final review compatibility fix (c943215)
 Two findings, both fixed in `has_prefix_evidence` only (helper contract
 unchanged, malformed/overlong still fail-closed):
