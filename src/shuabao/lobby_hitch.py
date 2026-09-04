@@ -11,6 +11,9 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
+from shuabao.vision.ocr_verifier import NUMERIC_ALPHABET, verify_expected_text
+
+
 JOIN_ATTEMPTS = 3
 SEARCH_TIMEOUT_S = 120.0
 SLEEP_RETRY_S = 120.0
@@ -54,9 +57,11 @@ def classify_hitch_ocr(text: str) -> str | None:
 
 def has_prefix_evidence(text: str, prefix: str) -> bool:
     """Return whether captured text contains the configured search term."""
-    raw = "".join(str(text or "").split())
-    want = "".join(normalize_prefix(prefix).split())
-    return bool(raw and want and want in raw)
+    return verify_expected_text(
+        text,
+        normalize_prefix(prefix),
+        allowed_chars=NUMERIC_ALPHABET,
+    )
 
 
 @dataclass
