@@ -10,7 +10,7 @@
       "version": "PP-OCRv5_mobile_rec (paddleocr 3.7.0 / paddlex 3.7.2)",
       "license": "Apache-2.0",
       "license_source": "PaddleOCR 官方发布模型（https://github.com/PaddlePaddle/PaddleOCR）",
-      "source_url": "https://paddleocr.bj.bcebos.com/PP-OCRv5/chinese/PP-OCRv5_mobile_rec_infer.tar",
+      "source_url": "https://paddle-model-ecology.bj.bcebos.com/paddlex/official_inference_model/paddle3.0.0/PP-OCRv5_mobile_rec_infer.tar",
       "model_dir": "models/ocr/PP-OCRv5_mobile_rec_infer",
       "present_in_repo": false,
       "archive": {
