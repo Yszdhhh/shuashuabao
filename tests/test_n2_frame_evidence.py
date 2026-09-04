@@ -284,7 +284,9 @@ class TickReasonWhitelistTests(unittest.TestCase):
             trace_path = str(Path(tmp) / "trace.jsonl")
             clock = FakeClock(start=10.0)
             stop_signal = StopSignal()
-            with clock.install():
+            with clock.install(), patch(
+                "shuabao.mediator.time.perf_counter", return_value=100.0
+            ):
                 med = Mediator(Settings(), ROOT, stop_signal=stop_signal)
                 med.executor = FakeInputExecutor(stop_signal, clock)
                 src = _StageSource()
