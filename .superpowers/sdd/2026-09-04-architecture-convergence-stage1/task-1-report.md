@@ -1,7 +1,7 @@
 # Task 1 Report — typed expected-value OCR validation
 
-Status: DONE (reviewer follow-up applied)
-Commits: 42acb63, 67db284 (refactor/architecture-convergence-20260904)
+Status: DONE (P2 re-review fix applied)
+Commits: 55b58df, 42acb63, 67db284 (refactor/architecture-convergence-20260904)
 
 ## Scope
 - New `src/shuabao/vision/ocr_verifier.py`: stdlib-only (`re`, `unicodedata`) helpers
@@ -19,11 +19,27 @@ Commits: 42acb63, 67db284 (refactor/architecture-convergence-20260904)
   Now 12 cases (helper + reviewer regressions).
 
 ## Focused tests
-- `python -m pytest tests/test_ocr_verifier.py -q` → 12 passed (red first, then green).
-- `python -m pytest tests/test_ocr_verifier.py tests/test_lobby_hitch_safety_regressions.py tests/test_l1_cycle_recheck_merchant.py -q --tb=short` → 57 passed.
+- `python -m pytest tests/test_ocr_verifier.py -q` → 11 passed (red first, then green).
+- `python -m pytest tests/test_ocr_verifier.py tests/test_lobby_hitch_safety_regressions.py tests/test_l1_cycle_recheck_merchant.py -q --tb=short` → 56 passed.
 - Extra sibling check (brief file list lacks test_lobby_hitch.py; only the safety-regressions sibling exists): `tests/test_live_scenario_capture.py -q` → 73 passed (covers `_hitch_search_text_override` + `has_prefix_evidence` path).
 
 Formatters/linters/project-wide suites skipped per brief.
+
+## Re-review P2 fix (55b58df)
+Finding: the 42acb63 alphabet widened `verify_expected_text` to digits+/-, so
+malformed shapes passed: `3/`, `3//4`, `3/4/`, `3--4`, `3/-4`, `3/4 room`.
+Fix (minimal, `lobby_hitch.py` only — helper contract unchanged):
+- `has_prefix_evidence` no longer routes through `verify_expected_text`.
+  It NFKC-normalizes, bounds to MAX_LENGTH, strips all whitespace, then either
+  fullmatches the strict `_OCCUPANCY_RE` (`x/y` or `x-y`) requiring the leading
+  x to equal the configured prefix, or accepts the whole compact string only
+  when it equals the prefix over the numeric alphabet. Anything else fails
+  closed. Fullwidth and whitespace variants (`３／４`, ` 3 / 4 `) normalize in.
+Negative regressions added: `3/`, `3//4`, `3/4/`, `3--4`, `3/-4`, `3/4 room`,
+`3房间`, `4/8`, empty; positives: `3`, `3/4`, ` 3 / 4 `, `3-4`, `3－4`, `３／４`.
+Red confirmed on `3/` before the fix.
+Acceptance matrix smoke-checked (15 positive/negative cases + classify_hitch_ocr
+markers): OK.
 
 ## Reviewer follow-up (42acb63)
 Finding: `has_prefix_evidence("3/4", "3")` returned False because the numeric
