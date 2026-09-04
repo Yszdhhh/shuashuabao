@@ -26,6 +26,7 @@ class Mediator(CoreMediator):
     """Core Mediator plus production liveness/safety invariants."""
 
     _RUNTIME_STALL_TIMEOUT_S = 15.0
+    _RUNTIME_WATCHDOG_MAX_ESC_ATTEMPTS = 2
     _PANEL_FAIL_FORWARD_S = 8.0
 
     def __init__(self, settings, project_root, *args: Any, **kwargs: Any) -> None:
@@ -49,6 +50,10 @@ class Mediator(CoreMediator):
         # cache so an interrupted episode is always re-armed from zero.
         self._runtime_watchdog_hud_confirmations: int = 0
         self._runtime_watchdog_last_frame_id: int | None = None
+        # Task 3: bounded same-target mechanical recovery.  ESC attempts
+        # without fresh-frame verified progress accumulate here; exceeding
+        # the cap escalates to the existing fail-closed ERROR phase.
+        self._runtime_watchdog_esc_attempts: int = 0
 
         # Prevent the generic core constructor from creating a legacy-compatible
         # OCR client. LIVE replaces it with the ShuaBao-only production client
@@ -88,6 +93,7 @@ class Mediator(CoreMediator):
         self._last_runtime_progress_at = time.time()
         self._runtime_watchdog_hud_confirmations = 0
         self._runtime_watchdog_last_frame_id = None
+        self._runtime_watchdog_esc_attempts = 0
 
     # ------------------------------------------------------------------
     # LIVE dependency bootstrap.
@@ -296,6 +302,9 @@ class Mediator(CoreMediator):
         result = super()._tick_main_line(frame)
         if getattr(self, "_tick_input_executed", False):
             self._runtime_watchdog_hud_confirmations = 0
+            # Task 3: a real core input is fresh-frame verified progress;
+            # re-arm the bounded ESC budget for the next stall episode.
+            self._runtime_watchdog_esc_attempts = 0
             self._mark_runtime_progress(now)
             return result
         if not hud_confirmed or not self._runtime_watchdog_allowed(now):
@@ -312,7 +321,20 @@ class Mediator(CoreMediator):
         # ESC is a bounded observation recovery only.  Do not advance the L1
         # cycle in the same tick: the next fresh frame must let the core FSM
         # prove the page mutation/ownership before any cycle transition.
+        # Task 3: same-target bounded retry.  act_key success alone is NOT
+        # business success — only a subsequent fresh frame proving mutation
+        # (via _mark_runtime_progress from a real input/confirm path) re-arms
+        # the budget.  Unverified ESCs accumulate; cap exhaustion is
+        # fail-closed into the existing ERROR phase.
+        if self._runtime_watchdog_esc_attempts >= self._RUNTIME_WATCHDOG_MAX_ESC_ATTEMPTS:
+            print(
+                f"[med] LIVE 看门狗 fail-closed：连续 {self._runtime_watchdog_esc_attempts} 次 ESC 未获得后置帧证据，"
+                "停止机械重试，转 ERROR"
+            )
+            self.set_phase(Phase.ERROR, "runtime watchdog ESC budget exhausted")
+            return LoopAction.Continue
         if self.act_key("escape", "RuntimeWatchdog-EscUnstuck"):
+            self._runtime_watchdog_esc_attempts += 1
             self._main_line_since = now
             self._mark_runtime_progress(now)
         return LoopAction.Continue
