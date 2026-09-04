@@ -8,7 +8,7 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 launcherDir = fso.GetParentFolderName(WScript.ScriptFullName)
 ps1 = launcherDir & "\ShuaBaoLauncher.ps1"
 If Not fso.FileExists(ps1) Then
-    MsgBox "缺少 ShuaBaoLauncher.ps1：" & vbCrLf & ps1, 16, "刷刷宝启动失败"
+    MsgBox "Missing ShuaBaoLauncher.ps1:" & vbCrLf & ps1, 16, "ShuaBao launch failed"
     WScript.Quit 1
 End If
 

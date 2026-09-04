@@ -1,4 +1,4 @@
-# Stable ShuaBao entry. Reads current.json, checks identity, starts app-*\ShuaBao.exe.
+﻿# Stable ShuaBao entry. Reads current.json, checks identity, starts app-*\ShuaBao.exe.
 # No subscription, FSM, updater, or remote control.
 $ErrorActionPreference = "Stop"
 $installRoot = $null

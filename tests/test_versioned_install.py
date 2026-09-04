@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import inspect
 import json
 from pathlib import Path
 
@@ -107,6 +108,83 @@ def test_n_to_n_plus_one_switches_current_and_keeps_previous(tmp_path: Path, sig
     assert report["status"] == "PASS", report["errors"]
 
 
+def test_place_copies_to_staging_validates_then_renames() -> None:
+    """Failed-install atomicity contract: dest is created only after staging verify."""
+    src = inspect.getsource(versioned_install.place_release)
+    assert src.index("_copy_bundle(src, staging)") < src.index("verify_release_dir(staging)")
+    assert src.index("verify_release_dir(staging)") < src.index("os.rename(staging, dest)")
+    except_block = src[src.index("except Exception:"):]
+    assert "_rmtree(staging)" in except_block
+
+
+def test_copy_failure_leaves_no_final_dir_and_can_retry(tmp_path: Path, signing_key, monkeypatch) -> None:
+    bundle, _ = _bundle(tmp_path / "b", signing_key, "a" * 40)
+    root = tmp_path / "install"
+    dest = root / "app-0.3-dev-aaaaaaaaaaaa"
+
+    def boom(src, dst, *args, **kwargs):
+        Path(dst).mkdir(parents=True)
+        (Path(dst) / "partial.bin").write_bytes(b"incomplete")
+        raise OSError("simulated copy failure")
+
+    original = versioned_install.shutil.copytree
+    monkeypatch.setattr(versioned_install.shutil, "copytree", boom)
+    with pytest.raises(OSError, match="simulated copy failure"):
+        place_release(bundle, root)
+    assert not dest.exists()
+    assert not list(root.glob("*.staging"))
+    monkeypatch.setattr(versioned_install.shutil, "copytree", original)
+    result = place_release(bundle, root)
+    assert result["copied"] is True
+    assert dest.is_dir()
+    assert (dest / "ShuaBao.exe").is_file()
+
+
+def test_staging_validation_failure_leaves_no_final_dir_and_can_retry(
+    tmp_path: Path, signing_key, monkeypatch
+) -> None:
+    bundle, _ = _bundle(tmp_path / "b", signing_key, "a" * 40)
+    root = tmp_path / "install"
+    dest = root / "app-0.3-dev-aaaaaaaaaaaa"
+    real_verify = versioned_install.verify_release_dir
+
+    def wrapped(path, *args, **kwargs):
+        identity = real_verify(path, *args, **kwargs)
+        if Path(path).name.endswith(".staging"):
+            raise InstallError("simulated staging validation failure")
+        return identity
+
+    monkeypatch.setattr(versioned_install, "verify_release_dir", wrapped)
+    with pytest.raises(InstallError, match="staging validation"):
+        place_release(bundle, root)
+    assert not dest.exists()
+    assert not list(root.glob("*.staging"))
+    monkeypatch.setattr(versioned_install, "verify_release_dir", real_verify)
+    result = place_release(bundle, root)
+    assert dest.is_dir()
+    assert result["dir_name"] == dest.name
+
+
+def test_rename_failure_leaves_no_final_dir_and_can_retry(tmp_path: Path, signing_key, monkeypatch) -> None:
+    bundle, _ = _bundle(tmp_path / "b", signing_key, "a" * 40)
+    root = tmp_path / "install"
+    dest = root / "app-0.3-dev-aaaaaaaaaaaa"
+    real_rename = versioned_install.os.rename
+
+    def boom(src, dst):
+        raise OSError("simulated rename failure")
+
+    monkeypatch.setattr(versioned_install.os, "rename", boom)
+    with pytest.raises(OSError, match="simulated rename failure"):
+        place_release(bundle, root)
+    assert not dest.exists()
+    assert not list(root.glob("*.staging"))
+    monkeypatch.setattr(versioned_install.os, "rename", real_rename)
+    result = place_release(bundle, root)
+    assert dest.is_dir()
+    assert result["copied"] is True
+
+
 def test_failed_new_install_does_not_switch_current(tmp_path: Path, signing_key) -> None:
     good, _ = _bundle(tmp_path / "good", signing_key, "a" * 40)
     bad, _ = _bundle(tmp_path / "bad", signing_key, "c" * 40)
@@ -163,6 +241,64 @@ def test_existing_dir_with_different_identity_is_not_overwritten(tmp_path: Path,
     with pytest.raises(InstallError, match="拒绝覆盖"):
         place_release(bundle, root)
     assert (dest / "ShuaBao.exe").read_bytes() == b"not-the-release"
+
+
+def test_rollback_validates_previous_with_verify_release_dir() -> None:
+    """Rollback reuses verify_release_dir (attested files on), not pointer-only trust."""
+    src = inspect.getsource(versioned_install.rollback_release)
+    target_line = [line for line in src.splitlines() if "verify_release_dir(dest)" in line][0]
+    assert "check_file_hashes=False" not in target_line
+    assert "identity = verify_release_dir(dest)" in src
+
+
+def test_rollback_rejects_corrupt_attested_file_without_switching(tmp_path: Path, signing_key) -> None:
+    first, _ = _bundle(tmp_path / "n", signing_key, "a" * 40)
+    second, _ = _bundle(tmp_path / "n1", signing_key, "b" * 40)
+    root = tmp_path / "install"
+    install_release(first, root)
+    install_release(second, root)
+    previous = root / "app-0.3-dev-aaaaaaaaaaaa"
+    (previous / "subscription_runtime.json").write_text('{"tampered": true}', encoding="utf-8")
+    before = read_current(root)
+    with pytest.raises(InstallError, match="manifest 文件 hash 失败"):
+        rollback_release(root)
+    assert read_current(root) == before
+    assert before is not None
+    assert before["current"] == "app-0.3-dev-bbbbbbbbbbbb"
+
+
+def test_rollback_rejects_source_channel_and_canonical_manifest_mismatch(
+    tmp_path: Path, signing_key
+) -> None:
+    first, _ = _bundle(tmp_path / "n", signing_key, "a" * 40)
+    second, _ = _bundle(tmp_path / "n1", signing_key, "b" * 40)
+    root = tmp_path / "install"
+    install_release(first, root)
+    install_release(second, root)
+    previous = root / "app-0.3-dev-aaaaaaaaaaaa"
+    before = read_current(root)
+
+    identity_path = previous / "build_identity.json"
+    identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    identity["source_sha"] = "e" * 40
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+    with pytest.raises(InstallError, match="source_sha"):
+        rollback_release(root)
+    assert read_current(root) == before
+
+    identity["source_sha"] = "a" * 40
+    identity["release_channel"] = "release"
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+    with pytest.raises(InstallError, match="release_channel"):
+        rollback_release(root)
+    assert read_current(root) == before
+
+    identity["release_channel"] = "dev"
+    identity["release_manifest_sha256"] = "f" * 64
+    identity_path.write_text(json.dumps(identity), encoding="utf-8")
+    with pytest.raises(InstallError, match="canonical SHA"):
+        rollback_release(root)
+    assert read_current(root) == before
 
 
 def test_rollback_switches_to_previous_without_rebuild(tmp_path: Path, signing_key) -> None:
@@ -249,8 +385,11 @@ def test_cli_status_and_rollback(tmp_path: Path, signing_key, capsys) -> None:
 
 def test_launcher_templates_mention_identity_checks() -> None:
     root = Path(__file__).resolve().parents[1]
-    ps1 = (root / "tools" / "launcher" / "ShuaBaoLauncher.ps1").read_text(encoding="utf-8")
-    vbs = (root / "tools" / "launcher" / "ShuaBaoLauncher.vbs").read_text(encoding="utf-8")
+    ps1_path = root / "tools" / "launcher" / "ShuaBaoLauncher.ps1"
+    vbs_path = root / "tools" / "launcher" / "ShuaBaoLauncher.vbs"
+    assert ps1_path.read_bytes().startswith(b"\xef\xbb\xbf"), "Windows PowerShell 5.1 needs a UTF-8 BOM to parse Chinese strings"
+    ps1 = ps1_path.read_text(encoding="utf-8-sig")
+    vbs = vbs_path.read_text(encoding="ascii")
     assert "current.json" in ps1
     assert "build_identity.json" in ps1
     assert "Start-Process" in ps1
@@ -258,6 +397,7 @@ def test_launcher_templates_mention_identity_checks() -> None:
     assert "activate_device" not in ps1
     assert "ShuaBaoLauncher.ps1" in vbs
     assert "WindowStyle Hidden" in vbs
+    assert "ExecutionPolicy Bypass" in vbs
 
 
 def test_build_identity_metadata_exposes_version_and_channel(tmp_path: Path) -> None:
