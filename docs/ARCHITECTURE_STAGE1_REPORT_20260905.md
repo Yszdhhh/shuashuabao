@@ -50,6 +50,8 @@ Final HEAD: 见本文末尾提交清单。
 
 ## Full verification（Phase A3）
 
+**提交后复跑（HEAD 3898214）**: `pytest tests -q --tb=short -p no:faulthandler` → **EXIT=0，1474 passed, 13 skipped, 2 xfailed**。
+**提交后 flake 修复**: `test_tick_trace_carries_reason_and_evidence_gen` 在整机高负载下偶发 `capture_wait`（FakeClock 不覆盖 `time.perf_counter`，`see()` 捕获计时用真实墙钟）。修复：测试内固定 `perf_counter`；模块 5 连跑稳定 18 passed。该 flake 为既有测试基建问题，非 Task 2/3 引入。
 | 项 | 结果 |
 |---|---|
 | `python -m pytest tests -q --tb=short` | **1474 passed, 13 skipped, 2 xfailed, 211 subtests**（高于合入前主线 1444；新增 Task 2/3 共 6 项回归） |
@@ -74,8 +76,8 @@ Final HEAD: 见本文末尾提交清单。
 | `829c56b` | sync: merge latest trial-merge (upstream `f1d10ba`) |
 | `6879abb` | fix: reset transient recovery state at episode boundaries (Task 2) |
 | `e682f9e` | fix: bound runtime watchdog EscUnstuck with fresh-frame postcondition (Task 3) |
-| `<gate-fix commit>` | fix(release): disable faulthandler in gate pytest stage |
-| `<report commit>` | docs: record Stage 1 architecture convergence completion |
+| `6f01832` | fix(release): disable faulthandler in gate pytest stage + docs: record Stage 1 completion report |
+| `3898214` | test: pin perf_counter in tick-trace regression to remove load-sensitive flake（终态 HEAD） |
 
 ## Remaining known issues
 
