@@ -69,7 +69,7 @@ Update `has_prefix_evidence` to call `verify_expected_text` with the normalized 
 
 - [ ] **Step 5: Run focused tests**
 
-Run: `python -m pytest tests/test_ocr_verifier.py tests/test_lobby_hitch.py tests/test_l1_cycle_recheck_merchant.py -q --tb=short`  
+Run: `python -m pytest tests/test_ocr_verifier.py tests/test_lobby_hitch_safety_regressions.py tests/test_l1_cycle_recheck_merchant.py -q --tb=short`  
 Expected: all pass; existing wrong-positive discount tests remain blocking.
 
 - [ ] **Step 6: Commit**
