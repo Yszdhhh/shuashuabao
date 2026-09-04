@@ -343,8 +343,8 @@ def promote_release(install_root: Path, dir_name: str) -> dict[str, Any]:
                 previous = pointer["current"]
             except InstallError:
                 previous = pointer.get("previous")
-    payload = write_current(root, identity, dir_name, previous)
     launcher = write_launcher(root)
+    payload = write_current(root, identity, dir_name, previous)
     keep = {dir_name}
     if previous:
         keep.add(previous)
@@ -390,8 +390,8 @@ def rollback_release(install_root: Path | None = None) -> dict[str, Any]:
     old = root / new_previous
     if old.is_dir():
         verify_release_dir(old, check_file_hashes=False)
-    payload = write_current(root, identity, previous, new_previous)
     launcher = write_launcher(root)
+    payload = write_current(root, identity, previous, new_previous)
     payload["launcher"] = str(launcher)
     payload["install_root"] = str(root)
     payload["path"] = str(dest)

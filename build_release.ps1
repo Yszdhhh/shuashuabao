@@ -559,32 +559,6 @@ if ($runningDesktopProcesses.Count -gt 0) {
     Write-Host "提示：$APP_ID.exe 仍在运行（PID: $runningPids）。新版本会装到独立目录；下次从稳定入口启动才会切到新包。" -ForegroundColor Yellow
 }
 
-if (-not (Test-Path -LiteralPath $archive)) {
-    New-Item -ItemType Directory -Path $archive | Out-Null
-}
-Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
-    Where-Object {
-        ($_.Name -like "$APP_ID-*" -or $_.Name -like "GameScript-*") -and
-        ($_.FullName -ne $legacyDesktopInstall)
-    } |
-    ForEach-Object {
-        $dest = Join-Path $archive $_.Name
-        if (Test-Path -LiteralPath $dest) {
-            Remove-Item -LiteralPath $dest -Recurse -Force
-        }
-        Move-Item -LiteralPath $_.FullName -Destination $dest -Force
-        Write-Host "已归档：$($_.Name)" -ForegroundColor DarkYellow
-    }
-if (Test-Path -LiteralPath $legacyDesktopInstall -PathType Container) {
-    $legacyStamp = [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssZ")
-    $legacyDest = Join-Path $archive "$APP_ID-desktop-legacy-$legacyStamp"
-    if (Test-Path -LiteralPath $legacyDest) {
-        Remove-Item -LiteralPath $legacyDest -Recurse -Force
-    }
-    Move-Item -LiteralPath $legacyDesktopInstall -Destination $legacyDest -Force
-    Write-Host "已归档旧桌面可变安装目录：$legacyDest" -ForegroundColor DarkYellow
-}
-
 $env:PYTHONPATH = Join-Path $PSScriptRoot "src"
 $placeRaw = & $python -m shuabao.versioned_install place --bundle $srcDist --install-root $installRoot | Out-String
 if ($LASTEXITCODE -ne 0) {
@@ -643,19 +617,9 @@ if (-not (Test-Path -LiteralPath $launcherVbs -PathType Leaf)) {
 }
 
 # 统一桌面单一入口快捷方式：「刷刷宝.lnk」→ 稳定 launcher，而不是某个版本 EXE。
+# 旧 Desktop\ShuaBao 与旧快捷方式必须在新入口 proof 通过之后才归档。
 $lnkName = "$APP_NAME.lnk"
 $lnk = Join-Path $desktop $lnkName
-Get-ChildItem -LiteralPath $desktop -Filter "*.lnk" -ErrorAction SilentlyContinue |
-    Where-Object {
-        $_.Name -eq "刷刷宝看板.lnk" -or
-        $_.Name -like "$APP_NAME V*.lnk" -or
-        $_.Name -like "GameScript*.lnk"
-    } |
-    ForEach-Object {
-        $dest = Join-Path $archive $_.Name
-        Move-Item -LiteralPath $_.FullName -Destination $dest -Force
-        Write-Host "已归档旧快捷方式：$($_.Name)" -ForegroundColor DarkYellow
-    }
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($lnk)
 $shortcut.TargetPath = $launcherVbs
@@ -684,6 +648,43 @@ if (-not [System.String]::Equals($actualShortcutWorkDir, $expectedShortcutWorkDi
 if (-not [string]::IsNullOrWhiteSpace([string]$shortcutProof.Arguments)) {
     throw "桌面快捷方式不允许携带旧版本参数：$($shortcutProof.Arguments)"
 }
+
+if (-not (Test-Path -LiteralPath $archive)) {
+    New-Item -ItemType Directory -Path $archive | Out-Null
+}
+Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
+    Where-Object {
+        ($_.Name -like "$APP_ID-*" -or $_.Name -like "GameScript-*") -and
+        ($_.FullName -ne $legacyDesktopInstall)
+    } |
+    ForEach-Object {
+        $dest = Join-Path $archive $_.Name
+        if (Test-Path -LiteralPath $dest) {
+            Remove-Item -LiteralPath $dest -Recurse -Force
+        }
+        Move-Item -LiteralPath $_.FullName -Destination $dest -Force
+        Write-Host "已归档：$($_.Name)" -ForegroundColor DarkYellow
+    }
+if (Test-Path -LiteralPath $legacyDesktopInstall -PathType Container) {
+    $legacyStamp = [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssZ")
+    $legacyDest = Join-Path $archive "$APP_ID-desktop-legacy-$legacyStamp"
+    if (Test-Path -LiteralPath $legacyDest) {
+        Remove-Item -LiteralPath $legacyDest -Recurse -Force
+    }
+    Move-Item -LiteralPath $legacyDesktopInstall -Destination $legacyDest -Force
+    Write-Host "已归档旧桌面可变安装目录：$legacyDest" -ForegroundColor DarkYellow
+}
+Get-ChildItem -LiteralPath $desktop -Filter "*.lnk" -ErrorAction SilentlyContinue |
+    Where-Object {
+        $_.Name -eq "刷刷宝看板.lnk" -or
+        $_.Name -like "$APP_NAME V*.lnk" -or
+        $_.Name -like "GameScript*.lnk"
+    } |
+    ForEach-Object {
+        $dest = Join-Path $archive $_.Name
+        Move-Item -LiteralPath $_.FullName -Destination $dest -Force
+        Write-Host "已归档旧快捷方式：$($_.Name)" -ForegroundColor DarkYellow
+    }
 
 Write-Host "已安装：$target" -ForegroundColor Green
 Write-Host "current：$installRoot\current.json" -ForegroundColor Green

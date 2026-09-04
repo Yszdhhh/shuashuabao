@@ -202,6 +202,50 @@ def test_failed_new_install_does_not_switch_current(tmp_path: Path, signing_key)
     assert not list(root.glob("*.staging"))
 
 
+def test_promote_and_rollback_write_launcher_before_current_pointer() -> None:
+    for fn in (versioned_install.promote_release, versioned_install.rollback_release):
+        src = inspect.getsource(fn)
+        assert src.index("write_launcher(") < src.index("write_current("), fn.__name__
+
+
+def test_promote_keeps_current_when_write_launcher_fails(tmp_path: Path, signing_key, monkeypatch) -> None:
+    first, _ = _bundle(tmp_path / "n", signing_key, "a" * 40)
+    second, _ = _bundle(tmp_path / "n1", signing_key, "b" * 40)
+    root = tmp_path / "install"
+    install_release(first, root)
+    placed = place_release(second, root)
+    before = read_current(root)
+
+    def boom(*args, **kwargs):
+        raise InstallError("simulated launcher write failure")
+
+    monkeypatch.setattr(versioned_install, "write_launcher", boom)
+    with pytest.raises(InstallError, match="launcher write failure"):
+        promote_release(root, placed["dir_name"])
+    assert read_current(root) == before
+    assert before is not None
+    assert before["current"] == "app-0.3-dev-aaaaaaaaaaaa"
+
+
+def test_rollback_keeps_current_when_write_launcher_fails(tmp_path: Path, signing_key, monkeypatch) -> None:
+    first, _ = _bundle(tmp_path / "n", signing_key, "a" * 40)
+    second, _ = _bundle(tmp_path / "n1", signing_key, "b" * 40)
+    root = tmp_path / "install"
+    install_release(first, root)
+    install_release(second, root)
+    before = read_current(root)
+
+    def boom(*args, **kwargs):
+        raise InstallError("simulated launcher write failure")
+
+    monkeypatch.setattr(versioned_install, "write_launcher", boom)
+    with pytest.raises(InstallError, match="launcher write failure"):
+        rollback_release(root)
+    assert read_current(root) == before
+    assert before is not None
+    assert before["current"] == "app-0.3-dev-bbbbbbbbbbbb"
+
+
 def test_place_without_switch_then_promote_switches_current(tmp_path: Path, signing_key) -> None:
     first, _ = _bundle(tmp_path / "n", signing_key, "a" * 40)
     second, _ = _bundle(tmp_path / "n1", signing_key, "b" * 40)
