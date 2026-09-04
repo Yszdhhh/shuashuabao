@@ -12,7 +12,11 @@ import unicodedata
 from dataclasses import dataclass
 from enum import Enum
 
-from shuabao.vision.ocr_verifier import MAX_LENGTH, NUMERIC_ALPHABET
+from shuabao.vision.ocr_verifier import (
+    MAX_LENGTH,
+    NUMERIC_ALPHABET,
+    verify_expected_text,
+)
 
 
 JOIN_ATTEMPTS = 3
@@ -63,18 +67,27 @@ def classify_hitch_ocr(text: str) -> str | None:
 def has_prefix_evidence(text: str, prefix: str) -> bool:
     """Return whether captured text is the configured numeric search term
     or a strict occupancy form (x/y、x-y、x—y，含全角与空白归一化变体)。"""
-    # 期望词同样走 NFKC：配置端可能给出全角 ３，需与归一化后的 OCR 文本对齐。
-    want = unicodedata.normalize("NFKC", normalize_prefix(prefix)).strip()
-    if not want:
+    # 期望词必须先做有界 NFKC 归一化（不经 normalize_prefix 的 64 截断），
+    # 超长期望词在截断前即 fail-closed。
+    normalized_prefix = unicodedata.normalize("NFKC", str(prefix or "")).strip()
+    if len(normalized_prefix) > MAX_LENGTH:
         return False
+    want = normalized_prefix or normalize_prefix(prefix)
     normalized = unicodedata.normalize("NFKC", str(text or "")).strip()
     if not normalized or len(normalized) > MAX_LENGTH:
         return False
     compact = "".join(normalized.split())
-    occupancy = _OCCUPANCY_RE.fullmatch(compact)
-    if occupancy is not None:
-        return occupancy.group(1) == want
-    return compact == want and all(ch in NUMERIC_ALPHABET for ch in compact)
+    match = _OCCUPANCY_RE.fullmatch(compact)
+    if match is not None:
+        return match.group(1) == want
+    # P1 契约：纯数字前缀分支必须经由 verify_expected_text 校验；
+    # compact == want 保证精确匹配而非子串包含。
+    return compact == want and verify_expected_text(
+        text,
+        want,
+        allowed_chars=NUMERIC_ALPHABET,
+        max_length=MAX_LENGTH,
+    )
 
 
 @dataclass

@@ -75,3 +75,27 @@ def test_hitch_prefix_rejects_malformed_and_trailing_text():
     assert not has_prefix_evidence("3房间", "3")
     assert not has_prefix_evidence("", "3")
     assert not has_prefix_evidence("4/8", "3")
+
+
+def test_hitch_prefix_rejects_overlong_expected_before_truncation():
+    from shuabao.lobby_hitch import has_prefix_evidence
+
+    # normalize_prefix 会截断到 64；超长期望词必须在截断前就被拒绝。
+    assert not has_prefix_evidence("3" * 64, "3" * 65)
+
+
+def test_hitch_prefix_numeric_branch_uses_typed_helper(monkeypatch):
+    from shuabao import lobby_hitch
+
+    calls = []
+
+    def _spy(text, expected, *, allowed_chars=None, max_length=None):
+        calls.append((text, expected, allowed_chars, max_length))
+        return True
+
+    monkeypatch.setattr(lobby_hitch, "verify_expected_text", _spy)
+    assert lobby_hitch.has_prefix_evidence("3", "3")
+    assert calls, "numeric-prefix branch must route through verify_expected_text"
+    text, expected, allowed_chars, _max_length = calls[0]
+    assert expected == "3"
+    assert allowed_chars == lobby_hitch.NUMERIC_ALPHABET
