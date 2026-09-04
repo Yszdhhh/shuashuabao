@@ -34,7 +34,7 @@ class HitchPhase(str, Enum):
 
 
 
-_OCCUPANCY_RE = re.compile(r"(\d+)[/\-](\d+)")
+_OCCUPANCY_RE = re.compile(r"(\d+)[/\-—](\d+)")
 
 
 class HitchAction(str, Enum):
@@ -62,8 +62,9 @@ def classify_hitch_ocr(text: str) -> str | None:
 
 def has_prefix_evidence(text: str, prefix: str) -> bool:
     """Return whether captured text is the configured numeric search term
-    or a strict occupancy form (x/y、x-y，含全角与空白归一化变体)。"""
-    want = normalize_prefix(prefix)
+    or a strict occupancy form (x/y、x-y、x—y，含全角与空白归一化变体)。"""
+    # 期望词同样走 NFKC：配置端可能给出全角 ３，需与归一化后的 OCR 文本对齐。
+    want = unicodedata.normalize("NFKC", normalize_prefix(prefix)).strip()
     if not want:
         return False
     normalized = unicodedata.normalize("NFKC", str(text or "")).strip()

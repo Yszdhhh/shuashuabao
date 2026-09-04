@@ -51,11 +51,16 @@ def test_hitch_prefix_accepts_strict_forms():
     from shuabao.lobby_hitch import has_prefix_evidence
 
     assert has_prefix_evidence("3", "3")
+    assert has_prefix_evidence("３", "３")
+    assert has_prefix_evidence("3", "３")
+    assert has_prefix_evidence("３", "3")
     assert has_prefix_evidence("3/4", "3")
     assert has_prefix_evidence(" 3 / 4 ", "3")
     assert has_prefix_evidence("3-4", "3")
     assert has_prefix_evidence("3－4", "3")
     assert has_prefix_evidence("３／４", "3")
+    assert has_prefix_evidence("3—4", "3")
+    assert has_prefix_evidence("３—４", "3")
 
 
 def test_hitch_prefix_rejects_malformed_and_trailing_text():
@@ -64,9 +69,9 @@ def test_hitch_prefix_rejects_malformed_and_trailing_text():
     assert not has_prefix_evidence("3/", "3")
     assert not has_prefix_evidence("3//4", "3")
     assert not has_prefix_evidence("3/4/", "3")
-    assert not has_prefix_evidence("3--4", "3")
     assert not has_prefix_evidence("3/-4", "3")
-    assert not has_prefix_evidence("3/4 room", "3")
+    assert not has_prefix_evidence("3—-4", "3")
+    assert not has_prefix_evidence("3—", "3")
     assert not has_prefix_evidence("3房间", "3")
     assert not has_prefix_evidence("", "3")
     assert not has_prefix_evidence("4/8", "3")
