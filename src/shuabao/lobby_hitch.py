@@ -8,6 +8,7 @@ join_attempts 以本模块的 3 为准（mode_specs 历史值 2 不再采用）�
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from enum import Enum
 
@@ -30,6 +31,23 @@ class HitchPhase(str, Enum):
     SEARCH = "search"
     LOBBY_HOME = "lobby_home"
     SLEEP_RETRY = "sleep_retry"
+
+
+_SEPARATORS = "/-"
+_OCCUPANCY_RE = re.compile(
+    r"(?:^|[\s,，])(\d+)\s*[/\-]\s*(\d+)(?:\s|$|[，,])"
+)
+
+
+def _occupancy_forms(text: str, want: str) -> bool:
+    """占据比（x/y、x-y）中的前导 x 与搜索词一致时视为有效证据。"""
+    if not want:
+        return False
+    normalized = unicodedata.normalize("NFKC", str(text or "")).strip()
+    for match in _OCCUPANCY_RE.finditer(normalized):
+        if match.group(1) == want:
+            return True
+    return False
 
 
 class HitchAction(str, Enum):
@@ -57,11 +75,14 @@ def classify_hitch_ocr(text: str) -> str | None:
 
 def has_prefix_evidence(text: str, prefix: str) -> bool:
     """Return whether captured text contains the configured search term."""
+    want = normalize_prefix(prefix)
+    # 占据比形式（3/4、3-4、全角 ３－４）是合法历史形态：分隔符参与
+    # NFKC 归一化，但仍要求除分隔符外全部字符都在数值字母表内。
     return verify_expected_text(
         text,
-        normalize_prefix(prefix),
-        allowed_chars=NUMERIC_ALPHABET,
-    )
+        want,
+        allowed_chars=NUMERIC_ALPHABET + _SEPARATORS,
+    ) or _occupancy_forms(text, want)
 
 
 @dataclass
