@@ -96,3 +96,11 @@ def test_hitch_prefix_numeric_branch_uses_typed_helper(monkeypatch):
     monkeypatch.setattr(lobby_hitch, "verify_expected_text", _spy)
     assert lobby_hitch.has_prefix_evidence("3", "3")
     assert calls == [("3", "3", lobby_hitch.NUMERIC_ALPHABET, 64)]
+
+
+def test_normalize_prefix_preserves_overlong_authority_for_verifier():
+    from shuabao.lobby_hitch import has_prefix_evidence, normalize_prefix
+
+    expected = "3" * 65
+    assert normalize_prefix(expected) == expected
+    assert not has_prefix_evidence("3" * 64, expected)

@@ -51,3 +51,14 @@ The brief names `tests/test_lobby_hitch.py`, but that file is absent from this
 worktree; the existing hitch safety, merchant, and live-scenario siblings were
 run instead. No formatters, linters, project-wide suites, real input, or desktop
 automation were run.
+
+## Final truncation correction
+
+- `normalize_prefix` no longer truncates configured authority strings to 64
+  characters; it only applies the existing default/edge-strip behavior.
+  `verify_expected_text` remains the sole bounded expected-value authority and
+  rejects overlong values instead of allowing a silent truncation match.
+- Regression `test_normalize_prefix_preserves_overlong_authority_for_verifier`
+  covers both preservation and `has_prefix_evidence` rejection of a 65-character
+  expected prefix. Red confirmed before the correction.
+- Final focused trio after correction: **58 passed**; `git diff --check` passed.

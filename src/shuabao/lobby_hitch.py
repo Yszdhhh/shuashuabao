@@ -49,7 +49,7 @@ class HitchAction(str, Enum):
 
 
 def normalize_prefix(value: object) -> str:
-    text = str(value or "3").strip()[:64]
+    text = str(value or "3").strip()
     return text or "3"
 
 
