@@ -55,6 +55,8 @@ export interface ModeDTO {
     status: string;
     reason: string;
     source_sha?: string;
+    version?: string;
+    release_channel?: string;
     release_manifest_sha256?: string;
     exe_sha256?: string;
     bridge_schema_version?: string;

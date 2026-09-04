@@ -276,6 +276,8 @@ function applyLaunchability(): void {
       : null;
     const identity = mode?.current_evidence;
     const identityDetail = [
+      identity?.version ? `version=${identity.version}` : "",
+      identity?.release_channel ? `release_channel=${identity.release_channel}` : "",
       identity?.source_sha ? `source_sha=${identity.source_sha}` : "",
       identity?.release_manifest_sha256 ? `manifest_sha256=${identity.release_manifest_sha256}` : "",
       identity?.exe_sha256 ? `exe_sha256=${identity.exe_sha256}` : "",
@@ -293,14 +295,28 @@ function applyLaunchability(): void {
     evidence.dataset.historicalStatus = historical;
     const identityPill = $("identityPill");
     if (identityPill) {
+      const version = identity?.version || "";
+      const channel = identity?.release_channel || "";
       const sourceShort = identity?.source_sha?.slice(0, 12) || "";
       const manifestShort = identity?.release_manifest_sha256?.slice(0, 12) || "";
       const modelShort = identity?.ocr_model_sha256?.slice(0, 12) || "";
       identityPill.textContent = sourceShort
-        ? `构建 ${sourceShort} · 清单 ${manifestShort || "待补"} · 桥${identity?.bridge_schema_version || "?"} · OCR ${modelShort || "待补"}`
+        ? `v${version || "?"} · ${channel || "source"} · 构建 ${sourceShort} · 清单 ${manifestShort || "待补"}`
         : "构建身份：待预检";
-      identityPill.title = identityDetail || buildCheck?.detail || "后端预检后显示 source_sha、整包 manifest、EXE、桥接和 OCR 模型哈希";
+      identityPill.title = identityDetail || buildCheck?.detail || "后端预检后显示 version、release_channel、source_sha、整包 manifest、EXE、桥接和 OCR 模型哈希";
       identityPill.dataset.status = buildCheck?.ok === false ? "FAIL" : (identityDetail ? "READY" : "PENDING");
+      const versionLabel = $("versionLabel");
+      if (versionLabel) {
+        versionLabel.textContent = sourceShort
+          ? `v${version || "0.3"} · ${channel || "source"} · ${sourceShort}`
+          : (version ? `v${version}` : "v0.3");
+        versionLabel.title = [
+          version ? `version=${version}` : "",
+          channel ? `release_channel=${channel}` : "",
+          sourceShort ? `source_sha=${sourceShort}` : "",
+          manifestShort ? `manifest_sha=${manifestShort}` : "",
+        ].filter(Boolean).join(" · ") || "构建身份：待预检";
+      }
     }
   }
   if (runActive) return;

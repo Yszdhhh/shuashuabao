@@ -118,6 +118,7 @@ def _make_bundle(tmp_path: Path, private: Ed25519PrivateKey, *, timeout_s: int =
             "schema_version": 1,
             "source_sha": source_sha,
             "source_tree_clean": True,
+            "version": "0.3",
             "exe_name": "ShuaBao.exe",
             "exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
             "bridge_schema_version": 2,
@@ -418,7 +419,9 @@ def test_build_script_runs_harness_and_reads_shortcut_after_save() -> None:
     assert "$shortcutProof.TargetPath" in text
     assert "$shortcutProof.WorkingDirectory" in text
     assert "$runningDesktopProcesses = @(Get-Process -Name $APP_ID" in text
-    assert "robocopy 会锁等待" in text
+    assert "shuabao.versioned_install" in text
+    assert "ShuaBaoLauncher.vbs" in text
+    assert "拒绝切换 current" in text
 
 
 def test_release_gate_scrubs_live_subscription_environment(monkeypatch) -> None:
