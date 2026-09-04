@@ -13,7 +13,7 @@ import unicodedata
 MAX_LENGTH = 64
 NUMERIC_ALPHABET = "0123456789"
 
-_COUNTER_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
+_COUNTER_RE = re.compile(r"(\d+)\s*[/\-—]\s*(\d+)")
 
 
 def _normalize(text: object, max_length: int) -> str | None:
@@ -31,22 +31,25 @@ def verify_expected_text(
     allowed_chars: str | None = None,
     max_length: int = MAX_LENGTH,
 ) -> bool:
-    """归一化后校验期望文本是否出现在输入文本中。
+    """验证归一化文本与期望值完全相等。
 
-    allowed_chars 提供时，输入文本的每个归一化字符都必须在该字母表内；
-    输入/期望为空、超长或含越界字符一律返回 False。
+    期望值与输入均须非空且有界；提供 allowed_chars 时，双方每个归一化
+    字符都必须在该字母表内。所有失败路径均返回 False。
     """
     raw = _normalize(text, max_length)
     want = _normalize(expected, max_length)
     if raw is None or want is None:
         return False
-    if allowed_chars is not None and any(ch not in allowed_chars for ch in raw):
-        return False
-    return want in raw
+    if allowed_chars is not None:
+        if any(ch not in allowed_chars for ch in raw):
+            return False
+        if any(ch not in allowed_chars for ch in want):
+            return False
+    return raw == want
 
 
 def parse_counter(text: str, *, denominator: int | None = None) -> tuple[int, int] | None:
-    """解析有界的 x/y 数值文本；denominator 提供时必须一致，否则 None。"""
+    """解析有界的 x/y、x-y 或 x—y 数值文本；分母提供时必须一致。"""
     raw = _normalize(text, MAX_LENGTH)
     if raw is None:
         return None

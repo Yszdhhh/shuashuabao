@@ -15,6 +15,7 @@ from enum import Enum
 from shuabao.vision.ocr_verifier import (
     MAX_LENGTH,
     NUMERIC_ALPHABET,
+    parse_counter,
     verify_expected_text,
 )
 
@@ -36,9 +37,6 @@ class HitchPhase(str, Enum):
     LOBBY_HOME = "lobby_home"
     SLEEP_RETRY = "sleep_retry"
 
-
-
-_OCCUPANCY_RE = re.compile(r"(\d+)[/\-—](\d+)")
 
 
 class HitchAction(str, Enum):
@@ -65,28 +63,17 @@ def classify_hitch_ocr(text: str) -> str | None:
 
 
 def has_prefix_evidence(text: str, prefix: str) -> bool:
-    """Return whether captured text is the configured numeric search term
-    or a strict occupancy form (x/y、x-y、x—y，含全角与空白归一化变体)。"""
-    # 期望词必须先做有界 NFKC 归一化（不经 normalize_prefix 的 64 截断），
-    # 超长期望词在截断前即 fail-closed。
-    normalized_prefix = unicodedata.normalize("NFKC", str(prefix or "")).strip()
-    if len(normalized_prefix) > MAX_LENGTH:
-        return False
-    want = normalized_prefix or normalize_prefix(prefix)
+    """Clean observed OCR and delegate expected-value authority to the verifier."""
     normalized = unicodedata.normalize("NFKC", str(text or "")).strip()
     if not normalized or len(normalized) > MAX_LENGTH:
         return False
     compact = "".join(normalized.split())
-    match = _OCCUPANCY_RE.fullmatch(compact)
-    if match is not None:
-        return match.group(1) == want
-    # P1 契约：纯数字前缀分支必须经由 verify_expected_text 校验；
-    # compact == want 保证精确匹配而非子串包含。
-    return compact == want and verify_expected_text(
-        text,
-        want,
+    counter = parse_counter(compact)
+    observed = str(counter[0]) if counter is not None else compact
+    return verify_expected_text(
+        observed,
+        prefix,
         allowed_chars=NUMERIC_ALPHABET,
-        max_length=MAX_LENGTH,
     )
 
 
