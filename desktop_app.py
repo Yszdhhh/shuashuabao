@@ -166,6 +166,12 @@ def main():
         sys.exit(0 if _write_subscription_check_report(args.tls_check_report) else 1)
 
     APP_DATA.mkdir(parents=True, exist_ok=True)
+    try:
+        from shuabao.versioned_install import describe_runtime_identity
+
+        LOGGER.info("[identity] %s", describe_runtime_identity())
+    except Exception:
+        LOGGER.exception("[identity] 无法读取运行身份")
     _INSTANCE_LOCK = QLockFile(str(APP_DATA / f"{APP_ID}.lock"))
     _INSTANCE_LOCK.setStaleLockTime(8000)
     _INSTANCE_LOCK.removeStaleLockFile()

@@ -134,6 +134,8 @@ def _build_identity_metadata(root: Path | None) -> dict[str, str]:
             continue
         metadata = {
             "source_sha": str(payload.get("source_sha") or "").strip(),
+            "version": str(payload.get("version") or "").strip(),
+            "release_channel": str(payload.get("release_channel") or "").strip(),
             "release_manifest_sha256": str(payload.get("release_manifest_sha256") or "").strip().lower(),
             "exe_sha256": str(payload.get("exe_sha256") or "").strip().lower(),
             "bridge_schema_version": str(payload.get("bridge_schema_version") or "").strip(),
@@ -153,6 +155,8 @@ def _build_identity_metadata(root: Path | None) -> dict[str, str]:
                         pass
                 if not metadata["bridge_schema_version"]:
                     metadata["bridge_schema_version"] = str(manifest.get("bridge_schema_version") or "")
+                if not metadata["release_channel"]:
+                    metadata["release_channel"] = str(manifest.get("release_channel") or "")
                 if not metadata["ocr_model_sha256"]:
                     for entry in manifest.get("files") or []:
                         if not isinstance(entry, dict):
@@ -162,8 +166,13 @@ def _build_identity_metadata(root: Path | None) -> dict[str, str]:
                             metadata["ocr_model_sha256"] = str(entry.get("sha256") or "").strip().lower()
                             break
         return metadata
+    from shuabao import __version__
+
     source_sha = _current_source_sha(base)
-    return {"source_sha": source_sha} if source_sha else {}
+    metadata = {"version": str(__version__)}
+    if source_sha:
+        metadata["source_sha"] = source_sha
+    return metadata
 
 
 def _evidence_path(base: Path, configured: Any, candidates: tuple[Path, ...]) -> Path | None:
@@ -208,6 +217,8 @@ def _mode_evidence(mode_id: str, root: Path | None) -> dict[str, Any]:
         "status": status,
         "reason": str(entry.get("reason") or ""),
         "source_sha": str(entry.get("source_sha") or ""),
+        "version": str(entry.get("version") or ""),
+        "release_channel": str(entry.get("release_channel") or ""),
         "release_manifest_sha256": str(entry.get("release_manifest_sha256") or ""),
         "exe_sha256": str(entry.get("exe_sha256") or ""),
         "bridge_schema_version": str(entry.get("bridge_schema_version") or ""),
@@ -218,7 +229,15 @@ def _mode_evidence(mode_id: str, root: Path | None) -> dict[str, Any]:
         "postcondition": str(entry.get("postcondition") or ""),
     }
     build_identity = _build_identity_metadata(root)
-    for key in ("source_sha", "release_manifest_sha256", "exe_sha256", "bridge_schema_version", "ocr_model_sha256"):
+    for key in (
+        "source_sha",
+        "version",
+        "release_channel",
+        "release_manifest_sha256",
+        "exe_sha256",
+        "bridge_schema_version",
+        "ocr_model_sha256",
+    ):
         if not result[key] and build_identity.get(key):
             result[key] = build_identity[key]
     current_source = _current_source_sha(base)

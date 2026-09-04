@@ -43,4 +43,4 @@ Write-Host "[sync] build_release → Desktop ..." -ForegroundColor Cyan
 & powershell -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build_release.ps1") @gate @dirty @signing
 if ($LASTEXITCODE -ne 0) { throw "build_release failed" }
 
-Write-Host "[sync] 完成：桌面「刷刷宝.lnk」已指向 Desktop\ShuaBao\ShuaBao.exe；构建身份与发行清单已由 build_release 回验。" -ForegroundColor Green
+Write-Host "[sync] 完成：桌面「刷刷宝.lnk」已指向稳定 launcher；版本目录与 current.json 已由 build_release 回验。" -ForegroundColor Green

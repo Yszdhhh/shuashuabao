@@ -449,11 +449,16 @@ Write-Host "已写入订阅部署配置（不含卡密）：$subscriptionRuntime
 
 # A live-input capture refuses to run unless the checked-out source commit,
 # the packaged EXE and this sidecar agree. A version label alone is not a
-# build identity. Keep the sidecar beside ShuaBao.exe so robocopy deployment
-# carries the exact proof with the release.
+# build identity. Keep the sidecar beside ShuaBao.exe so versioned install
+# copies the exact proof into app-<id>.
 $sourceDirtyEntries = @(& git status --porcelain --untracked-files=all)
 $sourceTrackedDirtyEntries = @(& git status --porcelain --untracked-files=no)
 $buildId = (& $python -c "import sys; sys.path.insert(0, 'src'); from shuabao.mediator import BUILD_ID; print(BUILD_ID)").Trim()
+$version = (& $python -c "import sys; sys.path.insert(0,'src'); import shuabao; print(shuabao.__version__)").Trim()
+if (-not $version) {
+    throw "无法解析 shuabao.__version__，拒绝构建。"
+}
+$versionLabel = "V$version"
 $releaseManifestPath = Join-Path $releaseRoot "release_manifest.json"
 # 复用 dist 重建时，旧的 release_manifest.json.sig 不能进入清单，也不能与新生成
 # 的签名混用：先生成清单元数据，再移除陈旧签名并重新签名。
@@ -506,6 +511,7 @@ $identity = [ordered]@{
     source_sha         = $sourceSha
     source_tree_clean  = ($sourceTrackedDirtyEntries.Count -eq 0)
     build_id           = $buildId
+    version            = $version
     exe_name           = (Split-Path -Leaf $app)
     exe_sha256         = Get-ReleaseFileSha256 $app
     bridge_schema_version = 2
@@ -538,46 +544,35 @@ if ($LASTEXITCODE -ne 0) {
 
 if ($NoDeploy) { return }
 
-Write-Host "[4/4] 部署到桌面并更新快捷方式 ..." -ForegroundColor Cyan
-$version = (& $python -c "import sys; sys.path.insert(0,'src'); import shuabao; print(shuabao.__version__)").Trim()
-$versionLabel = "V$version"
+Write-Host "[4/4] 版本化安装并更新稳定快捷方式 ..." -ForegroundColor Cyan
 $desktop = [Environment]::GetFolderPath("Desktop")
-$target  = Join-Path $desktop "$APP_ID"
 $archive = Join-Path $desktop "$APP_NAME-旧版归档"
+$installRoot = if ($env:SHUABAO_INSTALL_ROOT) { $env:SHUABAO_INSTALL_ROOT } else { Join-Path $env:LOCALAPPDATA $APP_ID }
+$legacyDesktopInstall = Join-Path $desktop $APP_ID
+$srcDist = Join-Path $PSScriptRoot "dist\$APP_ID"
 
-# 先 fail-fast 检查旧桌面程序是否仍占用 ShuaBao.exe。robocopy /MIR 遇到锁定
-# EXE 会长时间重试，表面像“同步成功但用户仍是旧版”；构建必须直接告诉操作员
-# 哪些 PID 需要先正常退出，不能把锁等待当作部署进度。
+# 版本化安装复制到新 app-* 目录，不再覆盖正在运行的 EXE。
+# 仍提示占用，避免操作员误以为当前进程已经是新包。
 $runningDesktopProcesses = @(Get-Process -Name $APP_ID -ErrorAction SilentlyContinue)
 if ($runningDesktopProcesses.Count -gt 0) {
     $runningPids = ($runningDesktopProcesses | ForEach-Object { $_.Id }) -join ","
-    throw "桌面同步前请先关闭 $APP_ID.exe（占用 PID: $runningPids），否则 robocopy 会锁等待。"
+    Write-Host "提示：$APP_ID.exe 仍在运行（PID: $runningPids）。新版本会装到独立目录；下次从稳定入口启动才会切到新包。" -ForegroundColor Yellow
 }
 
-# 归档桌面上旧版目录（ShuaBao-* / 历史 GameScript-*），只留当前这一份
-if (-not (Test-Path -LiteralPath $archive)) {
-    New-Item -ItemType Directory -Path $archive | Out-Null
+$env:PYTHONPATH = Join-Path $PSScriptRoot "src"
+$placeRaw = & $python -m shuabao.versioned_install place --bundle $srcDist --install-root $installRoot | Out-String
+if ($LASTEXITCODE -ne 0) {
+    throw "versioned install place 失败：$placeRaw"
 }
-Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
-    Where-Object {
-        ($_.Name -like "$APP_ID-*" -or $_.Name -like "GameScript-*") -and
-        ($_.FullName -ne $target)
-    } |
-    ForEach-Object {
-        $dest = Join-Path $archive $_.Name
-        if (Test-Path -LiteralPath $dest) {
-            Remove-Item -LiteralPath $dest -Recurse -Force
-        }
-        Move-Item -LiteralPath $_.FullName -Destination $dest -Force
-        Write-Host "已归档：$($_.Name)" -ForegroundColor DarkYellow
-    }
+$placed = $placeRaw | ConvertFrom-Json
+if (-not $placed -or -not $placed.dir_name -or -not $placed.path) {
+    throw "versioned install place 未返回目录：$placeRaw"
+}
+$target = [string]$placed.path
 
-$srcDist = Join-Path $PSScriptRoot "dist\$APP_ID"
-cmd.exe /c "robocopy `"$srcDist`" `"$target`" /MIR /NJH /NJS /NFL /NDL & if %ERRORLEVEL% LEQ 7 (exit /b 0) else (exit /b %ERRORLEVEL%)" | Out-Null
-if ($LASTEXITCODE -gt 7) { throw "部署发行目录失败。" }
-
-# Post-copy proof: the shortcut target must contain the exact sidecars emitted
-# above. A partial or stale robocopy result is never accepted as a release.
+# Post-copy proof: the versioned app dir must contain the exact sidecars
+# emitted above. A partial copy is never accepted as a release, and current
+# is not switched until this proof plus the frozen harness both pass.
 $deployedIdentityPath = Join-Path $target "build_identity.json"
 $deployedManifestPath = Join-Path $target "release_manifest.json"
 if (-not (Test-Path -LiteralPath $deployedIdentityPath) -or
@@ -588,7 +583,7 @@ $deployedIdentity = Read-Utf8NoBom $deployedIdentityPath | ConvertFrom-Json
 if ($deployedIdentity.source_sha -ne $sourceSha -or
     $deployedIdentity.release_manifest_sha256 -ne (Get-CanonicalManifestSha256 $deployedManifestPath) -or
     $deployedIdentity.source_tree_clean -ne $true) {
-    throw "部署后的构建身份校验失败，拒绝更新快捷方式。"
+    throw "部署后的构建身份校验失败，拒绝切换 current。"
 }
 $deployedManifest = Read-Utf8NoBom $deployedManifestPath | ConvertFrom-Json
 foreach ($entry in @($deployedManifest.files)) {
@@ -599,9 +594,86 @@ foreach ($entry in @($deployedManifest.files)) {
     }
 }
 
-# 统一桌面单一入口快捷方式：「刷刷宝.lnk」；归档旧版本快捷方式与看板快捷方式
+$deployedHarnessArgs = @(
+    "--source-root", $PSScriptRoot,
+    "--bundle", $target,
+    "--python-root", $pythonBasePrefix,
+    "--manifest-public-keys", $manifestPublicKeysPath
+)
+if (-not $AllowDirty) { $deployedHarnessArgs += "--require-clean" }
+& $python $releaseHarness @deployedHarnessArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "版本目录 harness 校验失败，拒绝切换 current。"
+}
+
+$promoteRaw = & $python -m shuabao.versioned_install promote --install-root $installRoot --dir-name $placed.dir_name | Out-String
+if ($LASTEXITCODE -ne 0) {
+    throw "versioned install promote 失败：$promoteRaw"
+}
+
+$launcherVbs = Join-Path $installRoot "launcher\ShuaBaoLauncher.vbs"
+if (-not (Test-Path -LiteralPath $launcherVbs -PathType Leaf)) {
+    throw "稳定 launcher 未写入：$launcherVbs"
+}
+
+# 统一桌面单一入口快捷方式：「刷刷宝.lnk」→ 稳定 launcher，而不是某个版本 EXE。
+# 旧 Desktop\ShuaBao 与旧快捷方式必须在新入口 proof 通过之后才归档。
 $lnkName = "$APP_NAME.lnk"
 $lnk = Join-Path $desktop $lnkName
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut($lnk)
+$shortcut.TargetPath = $launcherVbs
+$shortcut.Arguments = ""
+$shortcut.WorkingDirectory = Join-Path $installRoot "launcher"
+$shortcut.Description = "$APP_NAME $versionLabel · 重生魔兽刷刷刷单人挂机助手"
+$launcherIcon = Join-Path $installRoot "launcher\app_logo.ico"
+if (Test-Path -LiteralPath $launcherIcon -PathType Leaf) {
+    $shortcut.IconLocation = $launcherIcon
+}
+$shortcut.Save()
+
+# Save 后重新打开 .lnk 做读取验证；只设置 COM 对象而不回读，会把旧目标
+# 或旧工作目录误当成同步成功，导致用户双击仍运行旧桌面副本。
+$shortcutProof = $shell.CreateShortcut($lnk)
+$expectedShortcutTarget = [System.IO.Path]::GetFullPath($launcherVbs)
+$actualShortcutTarget = [System.IO.Path]::GetFullPath([string]$shortcutProof.TargetPath)
+if (-not [System.String]::Equals($actualShortcutTarget, $expectedShortcutTarget, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "桌面快捷方式目标校验失败：实际=$actualShortcutTarget 期望=$expectedShortcutTarget"
+}
+$expectedShortcutWorkDir = [System.IO.Path]::GetFullPath((Join-Path $installRoot "launcher")).TrimEnd("\")
+$actualShortcutWorkDir = [System.IO.Path]::GetFullPath([string]$shortcutProof.WorkingDirectory).TrimEnd("\")
+if (-not [System.String]::Equals($actualShortcutWorkDir, $expectedShortcutWorkDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "桌面快捷方式工作目录校验失败：实际=$actualShortcutWorkDir 期望=$expectedShortcutWorkDir"
+}
+if (-not [string]::IsNullOrWhiteSpace([string]$shortcutProof.Arguments)) {
+    throw "桌面快捷方式不允许携带旧版本参数：$($shortcutProof.Arguments)"
+}
+
+if (-not (Test-Path -LiteralPath $archive)) {
+    New-Item -ItemType Directory -Path $archive | Out-Null
+}
+Get-ChildItem -LiteralPath $desktop -Directory -ErrorAction SilentlyContinue |
+    Where-Object {
+        ($_.Name -like "$APP_ID-*" -or $_.Name -like "GameScript-*") -and
+        ($_.FullName -ne $legacyDesktopInstall)
+    } |
+    ForEach-Object {
+        $dest = Join-Path $archive $_.Name
+        if (Test-Path -LiteralPath $dest) {
+            Remove-Item -LiteralPath $dest -Recurse -Force
+        }
+        Move-Item -LiteralPath $_.FullName -Destination $dest -Force
+        Write-Host "已归档：$($_.Name)" -ForegroundColor DarkYellow
+    }
+if (Test-Path -LiteralPath $legacyDesktopInstall -PathType Container) {
+    $legacyStamp = [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssZ")
+    $legacyDest = Join-Path $archive "$APP_ID-desktop-legacy-$legacyStamp"
+    if (Test-Path -LiteralPath $legacyDest) {
+        Remove-Item -LiteralPath $legacyDest -Recurse -Force
+    }
+    Move-Item -LiteralPath $legacyDesktopInstall -Destination $legacyDest -Force
+    Write-Host "已归档旧桌面可变安装目录：$legacyDest" -ForegroundColor DarkYellow
+}
 Get-ChildItem -LiteralPath $desktop -Filter "*.lnk" -ErrorAction SilentlyContinue |
     Where-Object {
         $_.Name -eq "刷刷宝看板.lnk" -or
@@ -613,45 +685,10 @@ Get-ChildItem -LiteralPath $desktop -Filter "*.lnk" -ErrorAction SilentlyContinu
         Move-Item -LiteralPath $_.FullName -Destination $dest -Force
         Write-Host "已归档旧快捷方式：$($_.Name)" -ForegroundColor DarkYellow
     }
-$shell = New-Object -ComObject WScript.Shell
-$shortcut = $shell.CreateShortcut($lnk)
-$shortcut.TargetPath = Join-Path $target "$APP_ID.exe"
-$shortcut.Arguments = ""
-$shortcut.WorkingDirectory = $target
-$shortcut.Description = "$APP_NAME $versionLabel · 重生魔兽刷刷刷单人挂机助手"
-$shortcut.Save()
 
-# Save 后重新打开 .lnk 做读取验证；只设置 COM 对象而不回读，会把旧目标
-# 或旧工作目录误当成同步成功，导致用户双击仍运行旧桌面副本。
-$shortcutProof = $shell.CreateShortcut($lnk)
-$expectedShortcutTarget = [System.IO.Path]::GetFullPath((Join-Path $target "$APP_ID.exe"))
-$actualShortcutTarget = [System.IO.Path]::GetFullPath([string]$shortcutProof.TargetPath)
-if (-not [System.String]::Equals($actualShortcutTarget, $expectedShortcutTarget, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "桌面快捷方式目标校验失败：实际=$actualShortcutTarget 期望=$expectedShortcutTarget"
-}
-$expectedShortcutWorkDir = [System.IO.Path]::GetFullPath($target).TrimEnd("\")
-$actualShortcutWorkDir = [System.IO.Path]::GetFullPath([string]$shortcutProof.WorkingDirectory).TrimEnd("\")
-if (-not [System.String]::Equals($actualShortcutWorkDir, $expectedShortcutWorkDir, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "桌面快捷方式工作目录校验失败：实际=$actualShortcutWorkDir 期望=$expectedShortcutWorkDir"
-}
-if (-not [string]::IsNullOrWhiteSpace([string]$shortcutProof.Arguments)) {
-    throw "桌面快捷方式不允许携带旧版本参数：$($shortcutProof.Arguments)"
-}
-
-# 再对最终桌面目录跑一次同一 harness，证明 robocopy 后的文件没有陈旧/半
-# 同步；任何失败都不算“已同步到桌面”。
-$deployedHarnessArgs = @(
-    "--source-root", $PSScriptRoot,
-    "--bundle", $target,
-    "--python-root", $pythonBasePrefix,
-    "--manifest-public-keys", $manifestPublicKeysPath
-)
-if (-not $AllowDirty) { $deployedHarnessArgs += "--require-clean" }
-& $python $releaseHarness @deployedHarnessArgs
-if ($LASTEXITCODE -ne 0) {
-    throw "桌面发行目录 harness 校验失败，拒绝交付。"
-}
-
-Write-Host "已部署：$target" -ForegroundColor Green
+Write-Host "已安装：$target" -ForegroundColor Green
+Write-Host "current：$installRoot\current.json" -ForegroundColor Green
+Write-Host "稳定入口：$launcherVbs" -ForegroundColor Green
 Write-Host "快捷方式：$lnk" -ForegroundColor Green
 Write-Host "提示：需要真实点击时请右键快捷方式以管理员身份运行。" -ForegroundColor Yellow
+Write-Host "回滚：python -m shuabao.versioned_install rollback --install-root `"$installRoot`"" -ForegroundColor DarkGray

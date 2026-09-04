@@ -425,6 +425,32 @@ def test_external_channels_verify_mode_evidence_before_packaging() -> None:
     assert text.count("无法解析（畸形 JSON）") >= 2
 
 
+def test_build_script_deploys_versioned_install_and_stable_launcher() -> None:
+    text = _build_script_text()
+    assert "shuabao.versioned_install place" in text
+    assert "shuabao.versioned_install promote" in text
+    assert 'Join-Path $env:LOCALAPPDATA $APP_ID' in text
+    assert "ShuaBaoLauncher.vbs" in text
+    assert '$shortcut.TargetPath = $launcherVbs' in text
+    assert 'Join-Path $target "$APP_ID.exe"' not in text
+    assert 'robocopy `"$srcDist`" `"$target`" /MIR' not in text
+    assert "version            = $version" in text
+    assert text.index("versioned_install place") < text.index("versioned_install promote")
+    assert text.index('throw "版本目录 harness 校验失败，拒绝切换 current。"') < text.index("versioned_install promote")
+
+
+def test_build_script_archives_legacy_desktop_after_shortcut_proof() -> None:
+    text = _build_script_text()
+    deploy = text[text.index("if ($NoDeploy)"):]
+    proof = deploy.index("桌面快捷方式不允许携带旧版本参数")
+    assert deploy.index("versioned_install place") < proof
+    assert deploy.index("versioned_install promote") < proof
+    assert deploy.index("$shortcutProof = $shell.CreateShortcut($lnk)") < proof
+    assert proof < deploy.index("已归档旧桌面可变安装目录")
+    assert proof < deploy.index("已归档旧快捷方式")
+    assert proof < deploy.index("Move-Item -LiteralPath $legacyDesktopInstall")
+
+
 def test_every_frozen_channel_requires_signing_and_compiled_operator_trust() -> None:
     text = _build_script_text()
     assert '$manifestSignatureStatus = "SIGNED"' in text
