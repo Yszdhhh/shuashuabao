@@ -34,6 +34,21 @@ def test_release_script_builds_and_embeds_the_ocr_worker() -> None:
     assert "主程序打包失败" in release_script
 
 
+def test_release_script_verifies_modelscope_cache_integrity() -> None:
+    """Closure C: uv archive cache was silently truncated (modelscope lost
+    308 files incl. metainfo.py → frozen worker died with
+    `No module named 'modelscope.metainfo'`).  uv sync trusts its cache, so
+    the release script must run an import-level acceptance gate after every
+    sync and purge + reinstall on failure instead of shipping a broken
+    worker."""
+    root = Path(__file__).resolve().parents[1]
+    release_script = (root / "build_release.ps1").read_text(encoding="utf-8")
+
+    assert "import modelscope, modelscope.metainfo, modelscope.hub.errors" in release_script
+    assert "uv cache clean modelscope" in release_script or "cache clean modelscope" in release_script
+    assert "拒绝打包" in release_script
+
+
 def test_ocr_packaging_uses_one_open_cv_distribution() -> None:
     root = Path(__file__).resolve().parents[1]
     lock = (root / "requirements-ocr.lock").read_text(encoding="utf-8")

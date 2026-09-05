@@ -410,6 +410,20 @@ if (-not (Test-Path -LiteralPath $ocrPython)) {
 & $uvCommand.Source pip sync --python $ocrPython requirements-ocr.lock
 if ($LASTEXITCODE -ne 0) { throw "OCR 依赖安装失败。" }
 
+# uv 的 archive 缓存曾被静默截断（modelscope 1.39.1 少 308 个文件，
+# 运行时报 `No module named 'modelscope.metainfo'`）。uv sync 信任缓存，
+# 不会重下已损坏的解压包，因此每次 sync 后必须做导入级完整性验收：
+# 验收失败 → 清掉该包的缓存归档强制重下，再 sync 一次并复验。
+& $ocrPython -c "import modelscope, modelscope.metainfo, modelscope.hub.errors"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "OCR 缓存完整性验收失败，清除 modelscope 缓存归档并重装 ..." -ForegroundColor Yellow
+    & $uvCommand.Source cache clean modelscope
+    & $uvCommand.Source pip sync --python $ocrPython requirements-ocr.lock
+    if ($LASTEXITCODE -ne 0) { throw "OCR 依赖重装失败。" }
+    & $ocrPython -c "import modelscope, modelscope.metainfo, modelscope.hub.errors"
+    if ($LASTEXITCODE -ne 0) { throw "modelscope 缓存重装后仍不完整，拒绝打包。" }
+}
+
 Write-Host "[3/4] PyInstaller 打包 OCR worker 和模型 ..." -ForegroundColor Cyan
 & $ocrPython -m PyInstaller --noconfirm --clean "ShuaBaoOCR.spec"
 if ($LASTEXITCODE -ne 0) { throw "OCR worker 打包失败。" }
