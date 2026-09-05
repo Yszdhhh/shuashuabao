@@ -7009,16 +7009,19 @@ class Mediator:
         return self._hitch_room_action_control(frame) is not None
 
     def _hitch_exit_modal_visible(self, frame: Frame) -> bool:
-        """Return True if frame visibly contains a known confirmation modal/dialog."""
+        """Return True if frame visibly contains explicit exit-specific modal evidence.
+
+        Generic dialog frames (lobby_popup_dialog, lobby_popup_title) indicate a popup,
+        but only explicit exit-specific markers (lobby_popup_leave, exit_confirm_btn,
+        exit_cancel_btn, exit_confirm) grant authority to click HitchConfirmLeave.
+        """
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return False
-        # Direct template recognition for KK lobby popup dialogs
+        # Direct exit-specific template recognition
         if self.find(
             frame,
             [
-                "lobby/lobby_popup_dialog",
                 "lobby/lobby_popup_leave",
-                "lobby/lobby_popup_title",
                 "lobby/exit_confirm_btn",
                 "lobby/exit_cancel_btn",
             ],
@@ -7026,9 +7029,7 @@ class Mediator:
         ) is not None:
             return True
         if (
-            self.find_scene(frame, "lobby_popup_dialog") is not None
-            or self.find_scene(frame, "lobby_popup_title") is not None
-            or self.find_scene(frame, "lobby_popup_leave") is not None
+            self.find_scene(frame, "lobby_popup_leave") is not None
             or self.find_scene(frame, "exit_confirm") is not None
         ):
             return True
@@ -7342,22 +7343,28 @@ class Mediator:
             )
             if exit_attempted:
                 # SendInput can report failure while KK already opened this
-                # modal.  The modal itself is the visual postcondition for
-                # Exit, so only now arm the Confirm branch.
+                # modal. The modal itself is the visual postcondition for
+                # Exit, so arm the exit pending flag.
                 if not getattr(self, "_hitch_floor_exit_pending", False):
                     self._hitch_floor_exit_pending = True
                     if self._hitch_pending_room_key is not None:
                         self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-                confirm = self._find_hitch_exit_confirm_button(frame)
-                if confirm is not None and self.act_click(confirm, "HitchConfirmLeave"):
-                    self._hitch_floor_exit_confirmed = True
-                    self._hitch_status = "exit_confirmed"
-                    print(
-                        "[L0] hitch 已确认退出房间: "
-                        f"({confirm.screen_x}, {confirm.screen_y})"
-                    )
+                # Only explicit exit-specific modal markers allow clicking Confirm;
+                # generic dialog frames (lobby_popup_dialog / lobby_popup_title) alone
+                # must not grant HitchConfirmLeave input authority.
+                if self._hitch_exit_modal_visible(frame):
+                    confirm = self._find_hitch_exit_confirm_button(frame)
+                    if confirm is not None and self.act_click(confirm, "HitchConfirmLeave"):
+                        self._hitch_floor_exit_confirmed = True
+                        self._hitch_status = "exit_confirmed"
+                        print(
+                            "[L0] hitch 已确认退出房间: "
+                            f"({confirm.screen_x}, {confirm.screen_y})"
+                        )
+                    else:
+                        print("[L0] hitch 退出确认弹窗可见，但蓝色确定按钮未确认（零输入等待）")
                 else:
-                    print("[L0] hitch 退出确认弹窗可见，但蓝色确定按钮未确认（零输入等待）")
+                    print("[L0] hitch 检测到通用弹窗但无明确退出标识，禁止点击确认（零输入等待）")
                 return LoopAction.Continue
             dismissed = self.act_key("esc", "HitchDismissPopup")
             if dismissed and self._hitch_sm.pending_join:

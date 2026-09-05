@@ -1241,8 +1241,37 @@ def test_lobby_hitch_confirm_leave_zero_input_when_modal_identity_unconfirmed() 
     assert getattr(med, "_hitch_floor_exit_confirmed", False) is False
 
 
-def test_lobby_hitch_confirm_leave_clicks_when_known_modal_present() -> None:
-    """Issue B: 存在已知确认弹窗且定位到确认按钮时，允许发起 HitchConfirmLeave 点击。"""
+def test_lobby_hitch_generic_popup_without_exit_specific_marker_has_zero_input() -> None:
+    """P1: exit_pending + generic popup (lobby_popup_dialog) + blue block + no exit-specific marker => ZERO INPUT。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    image = np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8)
+    # Draw blue confirmation block candidate
+    cv2.rectangle(image, (120, 350), (330, 410), (200, 130, 20), -1)
+    frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
+    med._hitch_floor_exit_pending = True
+    med._hitch_pending_room_key = "room-763405"
+
+    # Mock generic popup hit (e.g. lobby_popup_dialog) without exit-specific markers
+    def mock_find_scene(f: Frame, key: str, **kwargs):
+        if key == "lobby_popup_dialog":
+            return MatchResult(name="lobby_popup_dialog", score=0.9, x=100, y=100, w=400, h=60, screen_x=120, screen_y=120)
+        return None
+
+    with patch.object(med, "find_scene", side_effect=mock_find_scene), \
+        patch.object(med, "find", return_value=None), \
+        patch.object(med, "act_click", return_value=True) as click, \
+        patch.object(med, "act_key") as key:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    # Generic popup alone must NOT grant HitchConfirmLeave input authority
+    click.assert_not_called()
+    key.assert_not_called()
+    assert med._hitch_floor_exit_pending is True
+    assert getattr(med, "_hitch_floor_exit_confirmed", False) is False
+
+
+def test_lobby_hitch_confirm_leave_clicks_when_exit_specific_marker_present() -> None:
+    """P1: 存在明确 exit-specific marker 且定位到确认按钮时，允许发起 HitchConfirmLeave 点击。"""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     image = np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8)
     cv2.rectangle(image, (120, 350), (330, 410), (200, 130, 20), -1)
@@ -1259,7 +1288,6 @@ def test_lobby_hitch_confirm_leave_clicks_when_known_modal_present() -> None:
     assert click.call_args.args[1] == "HitchConfirmLeave"
     key.assert_not_called()
     assert med._hitch_floor_exit_confirmed is True
-
 def test_lobby_hitch_exit_confirm_rejection_recovers_when_modal_dismissed() -> None:
     """act_click 拒绝后弹窗在下一帧消失：必须收尾退出回大厅，不能永久挂起。"""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
