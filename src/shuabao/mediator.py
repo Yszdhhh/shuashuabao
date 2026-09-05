@@ -7357,12 +7357,27 @@ class Mediator:
             self.set_phase(Phase.LOBBY_ROOM, "hitch join rejected")
             return LoopAction.Continue
         if getattr(self, "_hitch_floor_exit_pending", False):
-            if in_room:
+            # 走到这里已经证明退出确认弹窗不在当前帧（exit_confirm/dialog 分支
+            # 都提前 return）。act_click 被拒（鼠标被移动 / SendInput 校验失败）
+            # 或用户手动 Esc 关掉弹窗时，_hitch_floor_exit_confirmed 永远不会置真。
+            # 因此只有实体房间控件才算仍在房内；陈旧的 context=="ROOM_WAITING"
+            # 不能无限挂住退出闩锁。超过 3 秒仍无确认弹窗也按已退出收尾。
+            tangible_room = room_start is not None or room_controls_visible
+            lobby_visible = self._lobby_room_list_evidence(frame)
+            stale_exit = (
+                getattr(self, "_hitch_floor_exit_attempted_at", None) is not None
+                and now - float(self._hitch_floor_exit_attempted_at) > 3.0
+            )
+            if tangible_room and not lobby_visible and not stale_exit:
                 print("[L0] hitch 已点击退出，等待大厅列表（零输入）")
                 return LoopAction.Continue
             if frame.bgr is None or float(np.mean(frame.bgr)) < 3.0:
                 print("[L0] hitch 退出后捕获到黑帧，保持退出状态等待确认窗口/大厅")
                 return LoopAction.Continue
+            # 退出确认点击被拒/弹窗被手动关闭时，黑名单是在这里补记的：
+            # act_click 失败的那条分支从未有机会写入 pending room key。
+            if self._hitch_pending_room_key is not None:
+                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
             self._hitch_floor_exit_pending = False
             self._hitch_floor_exit_confirmed = False
             self._hitch_floor_exit_attempted_at = None
@@ -7371,6 +7386,7 @@ class Mediator:
             self._hitch_re_search = False
             self.set_phase(Phase.LOBBY_ROOM, "hitch floor-one rejection returned to lobby")
             print("[L0] hitch 一楼条件不符，已回大厅；下个动作先刷新")
+            return LoopAction.Continue
 
         if in_room and not self._hitch_re_search:
             if self._hitch_sm.pending_join:

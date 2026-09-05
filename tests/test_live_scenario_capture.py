@@ -1221,6 +1221,90 @@ def test_lobby_hitch_confirms_exit_dialog_instead_of_escaping() -> None:
     assert "room-763405" in med._hitch_blacklisted_room_keys
 
 
+def test_lobby_hitch_exit_confirm_rejection_recovers_when_modal_dismissed() -> None:
+    """act_click 拒绝后弹窗在下一帧消失：必须收尾退出回大厅，不能永久挂起。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    modal = np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8)
+    cv2.rectangle(modal, (120, 350), (330, 410), (200, 130, 20), -1)
+    modal_frame = Frame(modal, window_title="KK官方对战平台", hwnd=99, role="l0")
+    lobby_frame = Frame(
+        np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    med._hitch_floor_exit_pending = True
+    med._hitch_floor_exit_confirmed = False
+    med._hitch_floor_exit_attempted_at = 100.0
+    med._hitch_pending_room_key = "room-763405"
+
+    with patch("shuabao.mediator.time.time", return_value=101.0), \
+        patch.object(med, "find_scene", return_value=None), \
+        patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+        patch.object(med, "_find_hitch_ready_button", return_value=None), \
+        patch.object(med, "_hitch_room_controls_visible", return_value=False), \
+        patch.object(med, "act_click", return_value=False) as click:
+        med._tick_lobby_hitch(modal_frame, "UNKNOWN")
+        assert click.call_args.args[1] == "HitchConfirmLeave"
+        assert med._hitch_floor_exit_pending is True
+        assert med._hitch_floor_exit_confirmed is False
+
+        med._tick_lobby_hitch(lobby_frame, "UNKNOWN")
+
+    assert med.phase is Phase.LOBBY_ROOM
+    assert med._hitch_floor_exit_pending is False
+    assert med._hitch_floor_exit_confirmed is False
+    assert med._hitch_floor_exit_attempted_at is None
+    assert "room-763405" in med._hitch_blacklisted_room_keys
+    assert med._hitch_pending_room_key is None
+
+
+def test_lobby_hitch_stale_room_waiting_context_does_not_block_exit_return_to_lobby() -> None:
+    """陈旧 context=="ROOM_WAITING" 不能替代实体房间控件挂住退出闩锁。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = Frame(
+        np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    med._hitch_floor_exit_pending = True
+    med._hitch_floor_exit_confirmed = True
+    med._hitch_floor_exit_attempted_at = 100.0
+    med._hitch_pending_room_key = "room-763405"
+
+    with patch("shuabao.mediator.time.time", return_value=101.0), \
+        patch.object(med, "find_scene", return_value=None), \
+        patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+        patch.object(med, "_find_hitch_ready_button", return_value=None), \
+        patch.object(med, "_hitch_room_controls_visible", return_value=False), \
+        patch.object(med, "act_click", return_value=False) as click:
+        med._tick_lobby_hitch(frame, "ROOM_WAITING")
+
+    click.assert_not_called()
+    assert med.phase is Phase.LOBBY_ROOM
+    assert med._hitch_floor_exit_pending is False
+    assert "room-763405" in med._hitch_blacklisted_room_keys
+
+
+def test_lobby_hitch_tangible_room_controls_hold_exit_latch_while_transitioning() -> None:
+    """房间控件实体可见且未超时、无大厅证据时，退出闩锁必须继续等待。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = Frame(
+        np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    med._hitch_floor_exit_pending = True
+    med._hitch_floor_exit_attempted_at = 100.0
+
+    with patch("shuabao.mediator.time.time", return_value=101.0), \
+        patch.object(med, "find_scene", return_value=None), \
+        patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+        patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+        patch.object(med, "act_click", return_value=False) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_not_called()
+    assert med._hitch_floor_exit_pending is True
+    assert med._hitch_floor_exit_attempted_at == 100.0
+
+
 def test_lobby_hitch_unknown_page_without_room_list_anchor_has_zero_input() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     frame = _fixture_frame()
