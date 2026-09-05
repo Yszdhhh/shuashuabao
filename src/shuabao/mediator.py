@@ -7008,6 +7008,32 @@ class Mediator:
             return True
         return self._hitch_room_action_control(frame) is not None
 
+    def _hitch_exit_modal_visible(self, frame: Frame) -> bool:
+        """Return True if frame visibly contains a known confirmation modal/dialog."""
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
+            return False
+        # Direct template recognition for KK lobby popup dialogs
+        if self.find(
+            frame,
+            [
+                "lobby/lobby_popup_dialog",
+                "lobby/lobby_popup_leave",
+                "lobby/lobby_popup_title",
+                "lobby/exit_confirm_btn",
+                "lobby/exit_cancel_btn",
+            ],
+            threshold=0.75,
+        ) is not None:
+            return True
+        if (
+            self.find_scene(frame, "lobby_popup_dialog") is not None
+            or self.find_scene(frame, "lobby_popup_title") is not None
+            or self.find_scene(frame, "lobby_popup_leave") is not None
+            or self.find_scene(frame, "exit_confirm") is not None
+        ):
+            return True
+        return False
+
     def _find_hitch_exit_confirm_button(self, frame: Frame) -> MatchResult | None:
         """Find the blue Confirm control in KK's modern exit-room dialog."""
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
@@ -7270,29 +7296,35 @@ class Mediator:
         if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
             print("[L0] hitch 黑帧/空帧，零输入等待可信大厅页面")
             return LoopAction.Continue
-        # 0. 已请求退出时，蓝色“确定”本身就是动作专属证据。此分支
-        # 必须先于通用弹窗模板，避免 KK 更新弹窗样式后无法退出。
-        exit_confirm = (
-            self._find_hitch_exit_confirm_button(frame)
-            if getattr(self, "_hitch_floor_exit_pending", False)
-            else None
-        )
-        if exit_confirm is not None:
-            if getattr(self, "_hitch_floor_exit_confirmed", False):
-                print("[L0] hitch 退出确认已点击，等待回到大厅列表（零输入）")
+        # 0. 已请求退出时，必须同时满足：
+        # a) 当前处于 exit pending 流程；
+        # b) 当前 fresh frame 属于已知退出确认 modal/dialog（避免仅有蓝色色块几何即误触发）；
+        # c) 定位到有效的确定按钮。
+        # 无法确认当前 fresh frame 属于已知退出确认 modal 时 ZERO INPUT。
+        exit_pending = getattr(self, "_hitch_floor_exit_pending", False)
+        if exit_pending:
+            modal_visible = self._hitch_exit_modal_visible(frame)
+            exit_confirm = self._find_hitch_exit_confirm_button(frame) if modal_visible else None
+            if exit_confirm is not None:
+                if getattr(self, "_hitch_floor_exit_confirmed", False):
+                    print("[L0] hitch 退出确认已点击，等待回到大厅列表（零输入）")
+                    return LoopAction.Continue
+                if self.act_click(exit_confirm, "HitchConfirmLeave"):
+                    if self._hitch_pending_room_key is not None:
+                        self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+                    self._hitch_floor_exit_confirmed = True
+                    self._hitch_status = "exit_confirmed"
+                    print(
+                        "[L0] hitch 已确认退出房间: "
+                        f"({exit_confirm.screen_x}, {exit_confirm.screen_y})"
+                    )
+                else:
+                    print("[L0] hitch 退出确认按钮点击被拒绝（零输入等待）")
                 return LoopAction.Continue
-            if self.act_click(exit_confirm, "HitchConfirmLeave"):
-                if self._hitch_pending_room_key is not None:
-                    self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-                self._hitch_floor_exit_confirmed = True
-                self._hitch_status = "exit_confirmed"
-                print(
-                    "[L0] hitch 已确认退出房间: "
-                    f"({exit_confirm.screen_x}, {exit_confirm.screen_y})"
-                )
-            else:
-                print("[L0] hitch 退出确认按钮点击被拒绝（零输入等待）")
-            return LoopAction.Continue
+            elif self._find_hitch_exit_confirm_button(frame) is not None:
+                # 仅检测到蓝色几何块但无法确认已知确认弹窗身份，必须零输入等待
+                print("[L0] hitch 检测到蓝色色块但无法确认已知退出弹窗身份（零输入等待）")
+                return LoopAction.Continue
 
         # 检查其他弹窗（如满员/密码/等级不满足）。Esc 只关闭
         # 当前 KK 同进程模态框，绝不点击弹窗里的 Quick Join。
@@ -7982,6 +8014,7 @@ class Mediator:
             self._hitch_enabled()
             and context == "ROOM_WAITING"
             and self._lobby_room_list_evidence(frame)
+            and not getattr(self, "_hitch_floor_exit_pending", False)
         ):
             context = "LOBBY_ROOM"
             stage_page = False

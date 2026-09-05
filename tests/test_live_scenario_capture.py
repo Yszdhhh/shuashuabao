@@ -1209,7 +1209,8 @@ def test_lobby_hitch_confirms_exit_dialog_instead_of_escaping() -> None:
     med._hitch_floor_exit_pending = True
     med._hitch_pending_room_key = "room-763405"
 
-    with patch.object(med, "find_scene", return_value=None), \
+    with patch.object(med, "_hitch_exit_modal_visible", return_value=True), \
+        patch.object(med, "find_scene", return_value=None), \
         patch.object(med, "act_click", return_value=True) as click, \
         patch.object(med, "act_key") as key:
         med._tick_lobby_hitch(frame, "UNKNOWN")
@@ -1220,6 +1221,44 @@ def test_lobby_hitch_confirms_exit_dialog_instead_of_escaping() -> None:
     assert med._hitch_floor_exit_confirmed is True
     assert "room-763405" in med._hitch_blacklisted_room_keys
 
+def test_lobby_hitch_confirm_leave_zero_input_when_modal_identity_unconfirmed() -> None:
+    """Issue B: 仅有蓝色色块几何但无法确认已知退出弹窗身份时，必须零输入等待。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    image = np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8)
+    cv2.rectangle(image, (120, 350), (330, 410), (200, 130, 20), -1)
+    frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
+    med._hitch_floor_exit_pending = True
+    med._hitch_pending_room_key = "room-763405"
+
+    with patch.object(med, "_hitch_exit_modal_visible", return_value=False), \
+        patch.object(med, "act_click", return_value=True) as click, \
+        patch.object(med, "act_key") as key:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_not_called()
+    key.assert_not_called()
+    assert med._hitch_floor_exit_pending is True
+    assert getattr(med, "_hitch_floor_exit_confirmed", False) is False
+
+
+def test_lobby_hitch_confirm_leave_clicks_when_known_modal_present() -> None:
+    """Issue B: 存在已知确认弹窗且定位到确认按钮时，允许发起 HitchConfirmLeave 点击。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    image = np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8)
+    cv2.rectangle(image, (120, 350), (330, 410), (200, 130, 20), -1)
+    frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
+    med._hitch_floor_exit_pending = True
+    med._hitch_pending_room_key = "room-763405"
+
+    with patch.object(med, "_hitch_exit_modal_visible", return_value=True), \
+        patch.object(med, "act_click", return_value=True) as click, \
+        patch.object(med, "act_key") as key:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_called_once()
+    assert click.call_args.args[1] == "HitchConfirmLeave"
+    key.assert_not_called()
+    assert med._hitch_floor_exit_confirmed is True
 
 def test_lobby_hitch_exit_confirm_rejection_recovers_when_modal_dismissed() -> None:
     """act_click 拒绝后弹窗在下一帧消失：必须收尾退出回大厅，不能永久挂起。"""
@@ -1237,6 +1276,7 @@ def test_lobby_hitch_exit_confirm_rejection_recovers_when_modal_dismissed() -> N
     med._hitch_pending_room_key = "room-763405"
 
     with patch("shuabao.mediator.time.time", return_value=101.0), \
+        patch.object(med, "_hitch_exit_modal_visible", return_value=True), \
         patch.object(med, "find_scene", return_value=None), \
         patch.object(med, "_lobby_room_list_evidence", return_value=True), \
         patch.object(med, "_find_hitch_ready_button", return_value=None), \
@@ -1350,6 +1390,34 @@ def test_lobby_hitch_conflicting_room_and_lobby_holds_pending_zero_input() -> No
     click.assert_not_called()
     assert med._hitch_floor_exit_pending is True
     assert med.phase is not Phase.LOBBY_ROOM
+
+def test_tick_l0_exit_pending_does_not_clobber_room_start_and_stays_zero_input() -> None:
+    """Issue A: 当 _hitch_floor_exit_pending=True 时，必须经过 _tick_l0()，
+    禁止 ROOM_WAITING + lobby evidence 把 room_start 清成 None；
+    冲突 room_start=True + lobby=True 到达 _tick_lobby_hitch() 后仍判 ambiguous / pending / 零输入。
+    """
+    from shuabao.vision.matcher import MatchResult
+
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_floor_exit_pending = True
+    med._hitch_pending_room_key = "room-763405"
+    med.phase = Phase.LOBBY_ROOM
+
+    frame = Frame(np.full((904, 1224, 3), 100, dtype=np.uint8), window_title="KK官方对战平台", role="l0")
+    fake_room_start = MatchResult(name="room_start", score=0.9, x=100, y=100, w=50, h=50, screen_x=125, screen_y=125)
+
+    with patch.object(med, "_detect_context", return_value="ROOM_WAITING"), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(med, "_find_room_start", return_value=fake_room_start), \
+         patch.object(med, "act_click") as click, \
+         patch.object(med, "act_key") as key:
+        action = med._tick_l0(frame)
+
+    # 校验：零输入，保持 pending，绝不转回 Phase.LOBBY_ROOM 成功态
+    click.assert_not_called()
+    key.assert_not_called()
+    assert med._hitch_floor_exit_pending is True
+    assert action == LoopAction.Continue
 
 def test_lobby_hitch_unknown_page_without_room_list_anchor_has_zero_input() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
