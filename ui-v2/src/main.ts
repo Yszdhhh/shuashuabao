@@ -886,6 +886,11 @@ async function boot(): Promise<void> {
   }
   wireIntents();
   applySnapshot(await bridge.get_snapshot());
+  // Closure A: one-shot startup validation for a saved key. The facade is
+  // the single validation path; snapshot_changed delivers the outcome.
+  if (bridge && "refresh_subscription_status" in bridge) {
+    void bridge.refresh_subscription_status().catch(() => undefined);
+  }
 }
 
 boot().catch(showFatal);

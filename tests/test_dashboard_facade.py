@@ -49,6 +49,7 @@ EXPECTED_SLOTS = {
     "start_run",
     "stop_run",
     "activate_subscription",
+    "refresh_subscription_status",
     "get_bridge_info",
 }
 EXPECTED_SIGNALS = {"snapshot_changed", "run_status_changed", "log_appended"}
@@ -160,7 +161,7 @@ def test_snapshot_does_not_probe_subscription_network_before_preflight(monkeypat
     monkeypatch.setenv("SHUABAO_SUBSCRIPTION_LICENSE_KEY", "cached-key")
     monkeypatch.setattr("shuabao.shell.dashboard_facade.check_start_permission", fail_probe)
     f = DashboardFacade(tmp_path)
-    assert json.loads(f.get_snapshot())["subscription"]["status"] == "待校验"
+    assert json.loads(f.get_snapshot())["subscription"]["status"] == "正在校验"
     assert calls == 0
 
 

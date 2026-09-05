@@ -14,13 +14,12 @@ RunnerService（§6.3）。禁止直接触碰 api_server / runtime_mediator。
 
 from __future__ import annotations
 
-import os
 import json
 import hashlib
 import logging
+import os
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 from shuabao.subscription_client import (
@@ -519,8 +518,16 @@ class DashboardFacade(QObject):
         self._subscription_cache_at = 0.0
         self._subscription_cache: Any = None
         self._subscription_cache_ttl_s = 15.0
-        self._subscription_live_check: tuple[bool, str, str] | None = None
+        self._subscription_refreshing = False
         warmup_packaged_release_cache()
+        # Closure A: saved key → one-shot startup validation (async, no
+        # snapshot-paint I/O). The refresh slot is idempotent and guarded.
+        if self._saved_license_key():
+            QTimer.singleShot(0, lambda: self.refresh_subscription_status())
+
+    def _saved_license_key(self) -> str:
+        """Effective saved credential: env injection first, DPAPI blob second."""
+        return str(os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or "").strip()
 
     def _ensure_runner(self) -> Any:
         """注入的 runner 优先；否则按缺省构造 RunnerService(app_data, root)。"""
@@ -665,7 +672,7 @@ class DashboardFacade(QObject):
     def _subscription_dto(self) -> dict[str, Any]:
         key = str(os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or "").strip()
         pending = {
-            "active": False, "status": "待校验", "expires_at": "",
+            "active": False, "status": "正在校验", "expires_at": "",
             "entitlement_valid": False, "live_authorized": False,
             "live_status": "LIVE 授权待校验", "live_code": "LIVE_PENDING",
         }
@@ -690,15 +697,31 @@ class DashboardFacade(QObject):
             if live_ok and permit is not None and datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") > permit.expires_at:
                 live_ok, live_code, live_detail = False, "PERMIT_EXPIRED", "permit 已过期"
         entitlement_valid = bool(permission.entitlement_valid)
+        status = "卡密有效" if entitlement_valid else self._subscription_status_label(permission)
         return {
             "active": entitlement_valid,
-            "status": "卡密有效" if entitlement_valid else str(permission.status or "未激活"),
+            "status": status,
             "expires_at": str(getattr(permission, "expires_at", "") or ""),
             "entitlement_valid": entitlement_valid,
             "live_authorized": live_ok and live_code == "PERMIT_VERIFIED",
             "live_status": live_detail,
             "live_code": live_code,
         }
+
+    @staticmethod
+    def _subscription_status_label(permission: Any) -> str:
+        """Closure A: saved-key failures stay distinguishable from 未激活."""
+        code = str(getattr(permission, "code", "") or "")
+        status = str(getattr(permission, "status", "") or "")
+        if code in {"ENTITLEMENT_UNREACHABLE", "ENTITLEMENT_MALFORMED"}:
+            return "网络异常"
+        if code == "PERMIT_EXPIRED" or status == "EXPIRED":
+            return "已过期"
+        if code in {"RELEASE_NOT_APPROVED", "PERMIT_IDENTITY_UNTRUSTED", "MODE_NOT_ALLOWED"}:
+            return "发行未批准"
+        if status and status != "UNKNOWN":
+            return status
+        return "校验失败"
 
     def _snapshot_dto(self, request_id: str | None = None) -> dict[str, Any]:
         self._snapshot_seq += 1
@@ -786,6 +809,48 @@ class DashboardFacade(QObject):
     @Slot(result=str)
     def get_snapshot(self) -> str:
         return json.dumps(self._snapshot_dto(), ensure_ascii=False)
+
+    @Slot(result=str)
+    def refresh_subscription_status(self) -> str:
+        """Closure A: one-shot startup validation for a saved key.
+
+        Same bounded GUI-thread probe as ``activate_subscription`` (no worker
+        thread, so no cross-thread signal teardown races); ordinary snapshot
+        paints never trigger I/O. Never re-activates or re-binds; the result
+        lands in the subscription cache and ``snapshot_changed`` repaints.
+        """
+        if not self._saved_license_key():
+            return json.dumps(self._rpc_response(True, error="NO_SAVED_KEY"), ensure_ascii=False)
+        if self._subscription_refreshing:
+            return json.dumps(self._rpc_response(True, error="VALIDATION_IN_PROGRESS"), ensure_ascii=False)
+        self._subscription_refreshing = True
+        try:
+            try:
+                permission = self._subscription_permission(force=True)
+                mode_id = self._shell_dto()["selected_mode_id"]
+                live_ok, live_code, live_detail = live_permission_preflight(
+                    permission, mode_id=mode_id, root=self._permission_root(),
+                )
+            except Exception as exc:
+                permission = StartPermission(
+                    False, str(os.environ.get("SHUABAO_SUBSCRIPTION_MODE") or "enforce"),
+                    status="UNKNOWN", code="ENTITLEMENT_UNREACHABLE",
+                    message=f"订阅校验失败: {exc}",
+                )
+                live_ok, live_code, live_detail = False, "ENTITLEMENT_UNREACHABLE", "网络异常"
+            # Exception path bypasses _subscription_permission's own cache
+            # write; both paths must land the permission in the cache.
+            mode_id = self._shell_dto()["selected_mode_id"]
+            self._subscription_cache = permission
+            self._subscription_cache_key = self._subscription_key(
+                self._permit_request_context(mode_id) or {"mode_id": mode_id}
+            )
+            self._subscription_cache_at = time.monotonic()
+            self._subscription_live_check = live_ok, live_code, live_detail
+            self.snapshot_changed.emit(json.dumps(self._snapshot_dto(), ensure_ascii=False))
+            return json.dumps(self._rpc_response(True), ensure_ascii=False)
+        finally:
+            self._subscription_refreshing = False
 
     @Slot(result=str)
     def get_bridge_info(self) -> str:
