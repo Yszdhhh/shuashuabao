@@ -1,8 +1,14 @@
 # ShuaBao Cloud Architect Control Tower — 2026-09-05
 
-> Purpose: a cloud-side control-tower handoff for the next ChatGPT/cloud reviewer or a new conversation window. It summarizes the latest accepted architecture decisions, current workstreams, trust boundaries, merge order, and stop conditions.
+> Purpose: canonical cloud-side handoff for the next ChatGPT/cloud reviewer or a new conversation window.
 >
-> This document is a coordination/status artifact. Repository facts are distinguished from operator/VPS facts that were reported from the live environment and are not independently reproducible from this repository alone.
+> This document records the latest accepted repository state, live-ops evidence, architecture boundaries, workstream ordering, stop conditions, and the current product-development priority. Where historical sections or older status-delta documents conflict with this file, **this file is authoritative after the latest commit**.
+>
+> Evidence classes must remain distinct:
+> - **GitHub independently verified**: branch/commit/file facts read directly from GitHub.
+> - **Agent-reported local tests**: pytest/release-gate/local Windows results reported by an execution agent.
+> - **VPS live-environment evidence**: production/backup/restore facts reported from VPS-A/VPS-B.
+> - **Real-machine Ground Truth**: actual KK/game-machine business-path evidence. Never infer this from pytest/replay/click success.
 
 ## 1. Repository / release baseline
 
@@ -10,50 +16,38 @@ Repository: `Yszdhhh/shuashuabao`
 
 Main integration branch: `trial-merge`
 
-Verified integration baseline immediately before this document was created:
+GitHub-verified `trial-merge` immediately before this handoff refresh:
+
+`dc9e65bfaab7a7b645b7ec380aa299dd179e99d7`
+
+This handoff refresh is docs-only and advances `trial-merge`; future agents MUST fetch the actual remote HEAD before doing any work.
+
+Accepted Release P0 implementation baseline:
 
 `f1d10ba7ebec2fa61f4a6210bd6ff07868b93d0c`
 
-That SHA is the accepted Release P0 implementation and was fast-forwarded from `release/versioned-install-p0-20260904` after:
+Accepted Release P0 model:
+
+- versioned immutable install dirs: `app-<version>-<channel>-<source12>/`;
+- stable launcher;
+- atomic `current.json`;
+- current + N-1 rollback;
+- failed install does not pollute final version dirs;
+- launcher is created before pointer switch;
+- legacy archive only after new shortcut/package proof succeeds;
+- Release P0 does not alter subscription/permit trust semantics.
+
+Historical accepted Release P0 evidence reported by the local agent:
 
 - full pytest: `1455 passed, 13 skipped, 2 xfailed`;
 - `python tools/release_gate.py`: PASS;
-- Windows launcher smoke: PASS;
-- failed-install staging/atomicity regressions: PASS;
-- rollback full package-validation regressions: PASS;
-- launcher-before-pointer and legacy-archive-after-shortcut-proof ordering regressions: PASS.
+- Windows launcher smoke: PASS.
 
-The commit that adds this document advances `trial-merge` by one docs-only commit. Future agents MUST verify the actual current `origin/trial-merge` SHA rather than assuming `f1d10ba...` is still HEAD.
-**Stage 1 integrated baseline (2026-09-05)**: `ed11a7e8bc8d4bb94b91c60e5b79db3af4f2cbd1` — Architecture Stage 1 (Tasks 1/2/3) merged into `trial-merge`; full pytest `1474 passed, 13 skipped, 2 xfailed`; `python tools/release_gate.py` PASS (4/4); `disconnect_modal_missing` remains its historical `BLOCKED`.  See section 4.
+Do not redesign Release P0 unless a concrete regression proves the current model insufficient.
 
-### Release P0 accepted model
+## 2. Frozen release / trust boundary
 
-The old mutable deployment:
-
-`Desktop/ShuaBao/ShuaBao.exe`
-
-has been replaced by a versioned-install model under canonical app data:
-
-- `app-<version>-<channel>-<source12>/`
-- stable `launcher/`
-- atomic `current.json`
-- current + previous rollback
-- desktop shortcut points to the stable launcher, not directly to one versioned EXE.
-
-Important accepted invariants:
-
-1. bundle copies to `.staging`, validates, then renames to final `app-*`;
-2. incomplete failed installs do not become final immutable version dirs;
-3. rollback reuses package validation and checks attested file hashes;
-4. stable launcher is written before `current.json` is switched;
-5. old mutable Desktop install / old shortcuts are archived only after new package validation, harness, promotion, launcher creation, and shortcut readback proof succeed;
-6. Release P0 does NOT change subscription/permit trust semantics.
-
-External-beta frozen release is NOT yet declared PASS. A real external build with operational signing credentials/Authenticode remains a later release gate.
-
-## 2. Frozen trust model — do not redesign casually
-
-Current release/LIVE identity is intentionally bound across:
+Current release/LIVE identity remains bound across:
 
 - device identity;
 - `source_sha`;
@@ -61,13 +55,13 @@ Current release/LIVE identity is intentionally bound across:
 - `release_channel`;
 - `mode_id` / allowed modes.
 
-The permit verifier is fail-closed and the permit maximum lifetime is short (15 minutes in current client code). Current design does not imply a continuously renewed session lease.
+The permit verifier remains fail-closed. Current design does not imply a long offline lease or continuously renewed gameplay session.
 
-Do NOT casually adopt the following ideas without a dedicated proof/audit:
+Do NOT casually introduce without a dedicated proof/audit:
 
-- moving `release_channel` out of the signed manifest / trust boundary;
-- adding expiry to the immutable local release manifest;
-- introducing session grace / continuous renew semantics;
+- removing `release_channel` from signed trust identity;
+- expiry inside the immutable local manifest;
+- session grace / continuous permit renewal;
 - active-active subscription nodes;
 - full TUF/update framework;
 - delta updater;
@@ -79,26 +73,25 @@ Recommended separation remains:
 - immutable local release manifest = provenance/integrity identity;
 - freshness/expiry = online release feed / permit / trusted-key metadata when later needed.
 
-## 3. Core automation architecture decisions
+## 3. Core game architecture — frozen safety invariants
 
-The core game architecture remains:
+The core architecture remains:
 
 `Frame -> Perception -> Scene/FSM -> Policy -> Input -> Business Postcondition`
 
 Hard invariants:
 
 - UNKNOWN / ambiguous / stale / unclassified evidence => ZERO INPUT;
-- click/SendInput success is not business PASS;
-- frame change/button disappearance/bookmark/synthetic replay alone are not business PASS;
-- only a fresh-frame explicit business postcondition advances business FSM;
+- click success / SendInput success is not business PASS;
+- frame change / button disappearance / bookmark / synthetic replay is not business PASS;
+- only a fresh-frame explicit business postcondition advances business FSM state;
 - recovery may input only from independently recognized whitelisted known recovery scenes;
-- no generic UNKNOWN -> ESC/back/home fallback;
-- mechanical retry may be shared; business fallback stays in caller Policy/FSM;
-- one decision should use one fresh frame authority/generation;
-- retry must be time/attempt/rate bounded and must re-observe the same precondition;
-- no second FrameEvidence, second action FSM, second incident service, second OCR service, BT, workflow DSL, or generic game engine unless a later audit proves existing types cannot express the invariant.
+- no generic UNKNOWN -> ESC / Back / Home fallback;
+- mechanical retry may be shared, but business fallback stays in caller Policy/FSM;
+- one decision should use one fresh-frame authority/generation;
+- retries must be attempt/time/rate bounded and must re-observe preconditions.
 
-Existing architecture to reuse:
+Reuse existing architecture first:
 
 - `FrameEvidence`
 - `MatchResult`
@@ -109,240 +102,427 @@ Existing architecture to reuse:
 - existing matcher/color helpers
 - existing production OCR bootstrap/client
 
-## 4. Architecture-convergence workstream
+Do not introduce without evidence:
 
-Branch:
+- second FrameEvidence;
+- second action FSM / VerifiedAction framework;
+- second retry/recovery framework;
+- second OCR service;
+- second incident system;
+- Behavior Tree;
+- statechart migration;
+- workflow DSL;
+- generic game engine.
+
+## 4. Architecture Convergence status
+
+Architecture branch:
 
 `refactor/architecture-convergence-20260904`
 
-Original audit base:
+GitHub-verified accepted branch HEAD:
 
-`59833447b40706c533b4caecddcb94c3ee32e9f1`
+`82557e9fb41b255ec29f71052c42d9e850ca4702`
 
-Stage 0 audit: PASS.
+Stage 0: **PASS**.
 
-Stage 1 Task 1 (typed expected-value OCR): PASS, cloud-reviewed, MERGED.
+Stage 1: **DONE / MERGED / PASS**.
 
-Stage 1 Task 2 (transient-state episode-boundary resets): PASS (internal reviewer), MERGED — commit `6879abb` on the architecture branch.
+Stage 1 merge commit on `trial-merge`:
 
-Stage 1 Task 3 (bounded RuntimeWatchdog-EscUnstuck): PASS (internal reviewer), MERGED — commit `e682f9e` on the architecture branch.
+`ed11a7e8bc8d4bb94b91c60e5b79db3af4f2cbd1`
 
-Stage 1 full verification: full pytest `1474 passed, 13 skipped, 2 xfailed`; `python tools/release_gate.py` PASS (4/4); `disconnect_modal_missing` remains historical `BLOCKED` (not falsified).  Completion report: `docs/ARCHITECTURE_STAGE1_REPORT_20260905.md`.
+Accepted Stage 1 scope:
 
-Task 1 accepted rollback point:
+1. Typed expected-value OCR verifier
+   - NFKC;
+   - bounded input;
+   - exact equality;
+   - malformed/overlong/invalid expected values fail closed;
+   - containment/fuzzy matching is not expected-value authority.
 
-`4aa065554206556746f6ef3a2f938d45a15db0ca`
+2. Transient lifecycle reset
+   - resets only proven leaking transient state such as `_pending_action`, `_pending_action_unconfirmed_count`, runtime-watchdog HUD latch, and hitch floor-exit transient state;
+   - legitimate transition budgets are not globally cleared.
 
-Task 1 accepted behavior:
+3. RuntimeWatchdog-EscUnstuck bounded recovery
+   - ESC attempt cap = 2;
+   - action-send success is not business PASS;
+   - unverified recovery consumes budget;
+   - budget exhaustion enters existing `Phase.ERROR`;
+   - UNKNOWN receives no ESC authority;
+   - no second recovery/action framework.
 
-- one `verify_expected_text()` authority for bounded expected-value OCR;
-- NFKC normalization on observed and expected values;
-- empty/overlong/disallowed values fail closed;
-- exact equality, not containment/fuzzy acceptance;
-- strict bounded counter parser;
-- lobby helper delegates expected-value authority to the verifier;
-- no production OCR service/model rewrite.
+Agent-reported post-Stage1 verification:
 
-Known non-blocking P2 debt: settings-loading normalization for `hitch_stage_prefix` still has historical truncation/default behavior that is not the Task 1 match authority. Do not mix this cleanup into unrelated Task 2 work without a focused contract/test.
+- `1474 passed, 13 skipped, 2 xfailed, 211 subtests`;
+- `python tools/release_gate.py`: PASS 4/4;
+- `disconnect_modal_missing` remains historical BLOCKED and was not falsified.
 
-### Stage 1 execution result (2026-09-05)
+Known P2 test-infra debt remains Windows PyQt6/faulthandler interaction; release-gate pytest uses `-p no:faulthandler` rather than hiding pytest exit status.
 
-Task 2 executed as approved: only proven transient fields were reset, each backed by a failing regression first; no unrelated transition budgets/timers were cleared.  Task 3 executed as approved: single mechanical target (RuntimeWatchdog-EscUnstuck), bounded attempts (cap 2), fresh-frame postcondition re-arms budget only on real core input, UNKNOWN remains zero input, no second retry/recovery framework.
+**Architecture Stage 2 = HOLD.**
 
-The unattended execution boundary (END OF STAGE 1) was respected; the full run was: sync `f1d10ba` -> Task 2 + review -> Task 3 + review -> full pytest -> release gate -> push -> STOP, then final integration into `trial-merge` after cloud MERGE PASS.
+Do NOT auto-enter Stage 2. Architecture work is now subordinate to concrete product-function blockers.
 
-Do NOT auto-enter Stage 2 or real-machine KK/SendInput work.  **Stage 2 = HOLD, not authorized.**  No real KK / SendInput / GT was executed for Stage 1.
+## 5. Subscription control plane / VPS-A — production closed and maintenance-only
 
-Known P2 test-infra debt from Stage 1: Windows faulthandler x PyQt6 processEvents conflict in the dashboard-facade tests; release-gate pytest stage now runs with `-p no:faulthandler` (commit `6f01832` on the architecture branch).  Bare local `pytest tests` should use the same flag.  `disconnect_modal_missing` remains an existing P2/BLOCKED frozen-replay scene.
+Separate repository:
 
-## 5. Grok Bot / subscription control-plane — live ops facts
+`Yszdhhh/shuashuabao-subscription-lab`
 
-The following are operator/live-environment facts reported from the Grok Bot/VPS-A audit and G1 cutover, not facts derivable solely from this repository.
+Accepted G2.1 branch:
 
-G1 production cutover verdict: `PRODUCTION_CUTOVER_PASS`.
+`ops/release-lifecycle-g2-20260905`
 
-Reported production state:
+Accepted G2.1 commit:
 
-- previous production tree: `46d9aaf...`, dirty/old, no PermitIssuer;
-- validated candidate: `c9e1aa44e1f0c195560604e9767dffc7d3a3e67e`;
-- actual deployed production: `c9e1aa44e1f0c195560604e9767dffc7d3a3e67e`;
-- production listener: uvicorn on `:8010`;
-- PermitIssuer: present in production;
-- production permit signer key id: `shuabao-prod-2`;
-- entitlement regression: PASS;
-- exact release binding negative tests: PASS;
-- no destructive DB/schema migration;
-- no session-grace/continuous-renew product was added;
-- rollback point/runbook was preserved by the ops agent.
+`306c66ab10b2a45b9e50e0e436981fd71c1b7fad`
 
-Current main external-beta blocker on the control plane:
+Cloud code-review status before deployment: **PASS / approved for production cutover**.
 
-- stable/fixed HTTPS hostname is NOT ready; temporary Quick Tunnel remains in use.
+VPS-A live-ops final verdict reported on 2026-09-05:
 
-Do not treat a temporary tunnel hostname as a formal external-beta endpoint.
+- `G2_PRODUCTION_CUTOVER_PASS`;
+- `PUBLIC_EDGE_MATCHES_PRODUCTION`;
+- `FIRST_REAL_PRIMARY_BACKUP_READY`;
+- VPS-A operator: **STOP / MAINTENANCE_ONLY**.
 
-### Grok G2 planned boundary
+Reported production live state:
 
-The next approved design is a THIN release lifecycle on top of the existing exact release approval fact source:
+- listener: `:8010`;
+- deployed revision: `306c66ab10b2a45b9e50e0e436981fd71c1b7fad`;
+- `/health service_revision`: same revision;
+- production signer key id: `shuabao-prod-2`;
+- signer was not rotated;
+- rollback preserve point exists under `/home/box/services/_shuabao_preserve/g2-cutover-20260905T033826Z/` with pre-G2 revision `c9e1aa44...`;
+- no destructive DB migration was reported.
 
-- approved (already exists)
-- blocked
-- recommended
-- outdated
-- `min_supported` only if current data/version model supports it safely
+Accepted G2 behavior now reported live in production:
 
-Semantics:
+- thin release lifecycle supports exact approval plus `BLOCKED`, advisory `recommended`, advisory `outdated`;
+- public release status does not expose `operator_note`, `updated_by`, `updated_at`;
+- admin endpoints fail closed without configured admin secret;
+- recommended fields survive environment re-seed unless explicitly overwritten;
+- `/health` exposes bounded non-secret `service_revision` for deployment identity proof;
+- permit contract remains `POST /v1/entitlements/validate` with `permit_request` context;
+- do not use `/v1/permits -> 404` as an edge-freshness test.
 
-- BLOCKED => no new permit, stable code `RELEASE_BLOCKED`;
-- not approved => `RELEASE_NOT_APPROVED`;
-- recommended/outdated are advisory and must not bypass or replace exact permit binding;
-- no entitlement/device redesign;
-- no session grace;
-- no key rotation/movement;
-- no remote game-policy/input authority.
+Current public edge is still a temporary Quick Tunnel. Local and public `service_revision` were reported equal at `306c66a...`, therefore the current classification is:
 
-Safe unattended boundary for G2:
+`PUBLIC_EDGE_MATCHES_PRODUCTION`
 
-implement/test -> isolated/staging listener -> contract matrix/soak -> production rollout + HTTPS runbook -> STOP.
+This does **not** make the Quick Tunnel an acceptable final external-beta endpoint.
 
-Do NOT auto-deploy G2 to production or change production DNS while the user is away unless a separately authorized task explicitly grants that action.
+Do not wake Grok for normal code review, documentation, architecture discussion, prompt writing, or routine test analysis. Grok is now reserved for unavoidable VPS-A production operations only.
 
-## 6. VPS-B workstream
+## 6. VPS-B Passive Recovery Node — PASS and maintenance-only
 
-VPS-B is a PASSIVE RECOVERY NODE, not a second production brain.
+VPS-B role remains strictly:
 
-Confirmed by the user at this handoff: the FIRST VPS-B task has already been dispatched and is currently running.
+**PASSIVE RECOVERY NODE**
 
-Therefore DO NOT start a second competing VPS-B agent/task in parallel.
+It must never become:
 
-The later, more detailed “target mode” VPS-B plan is a continuation/extension of the same workstream, not a separate node/project.
+- production PermitIssuer;
+- production DB writer;
+- holder of production permit-signing private key;
+- holder of manifest-signing private key;
+- active-active peer;
+- automatic DNS failover authority.
 
-The first task already substantially covers:
+Reported Phase-1 host posture:
 
-- host baseline/inventory;
-- passive backup receiver design/setup within safe bounds;
-- restore rehearsal/readiness;
-- external health probe;
-- no production API/signer/DB-writer role.
+- Ubuntu 24.04;
+- SSH key-only authentication;
+- management port `50022/tcp`;
+- dedicated non-privileged `shuabao-backup` account;
+- isolated `/srv/shuabao-backup`, `/srv/shuabao-restore-test`, `/opt/shuabao-ops` paths;
+- backup-only age encryption identity;
+- retention / disk / staleness guards;
+- passive health probe;
+- recurring restore validation;
+- existing Shadowsocks/Hysteria services left intact and accepted for Phase 1.
 
-Let the currently running VPS-B agent reach its defined STOP and inspect its report before issuing another task. A follow-up should be incremental only for gaps such as:
+### First real Primary backup
 
-- minimum hardening not completed;
-- backup retention/disk guard;
-- receiver wiring to Primary;
-- first real encrypted backup arrival;
-- restore rehearsal against a real Primary backup;
-- timers/alerts/health-probe persistence.
+VPS-A reported first off-host encrypted artifact:
 
-Hard VPS-B boundaries:
+`shuabao_backup_primary-substate-20260905T034025Z.tar.gz.age`
 
-- no production PermitIssuer;
-- no production DB writer;
-- no production permit signing private key;
-- no manifest signing private key;
-- no active-active;
-- no automatic DNS failover;
-- no new monitoring platform unless proven necessary.
+Primary-reported encrypted artifact SHA256:
 
-## 7. Current workstream ordering / merge strategy
+`57a49d2922a26837ca8fef6929ad88e14b1fd8542ba938558340fc59b51bc84b`
 
-Preferred convergence order:
+VPS-B reported:
 
-1. Release P0: DONE and merged to `trial-merge`.
-2. Architecture Stage 1: DONE and merged to `trial-merge` (`ed11a7e`); Tasks 1/2/3 = MERGED/PASS.  Stage 2 = HOLD.
-3. Grok G2: isolated/staging only until cloud/user production review.
-4. VPS-B first passive-recovery task: allow current running agent to finish; then review gaps before follow-up.
-5. Stable HTTPS hostname: explicit ops decision/change window.
-6. Release P1 / external-beta client integration: only after server release-lifecycle + hostname contract are stable.
-7. Architecture Stage 2 / real business transitions / real-machine GT: explicit later gate; do not start automatically.
+- `REAL_PRIMARY_BACKUP_INGESTED_AND_VERIFIED`;
+- encrypted checksum/ingest completed;
+- no claim of restore PASS until the later real restore validation.
 
-Do not run multiple agents that modify the same ShuaBao core files/worktree concurrently.
+### Final real restore validation
 
-## 8. External-reference conclusions already accepted
+VPS-B final live-ops report states the first real Primary artifact was validated end-to-end in an isolated restore sandbox:
 
-External projects are pattern references, not frameworks to import.
+- encrypted artifact located in `/srv/shuabao-backup/archive/`;
+- SHA256 recomputation reported MATCH against the Primary value / companion checksum;
+- age decrypt: SUCCESS;
+- restored SQLite: `subscription_state.db`, 77,824 bytes;
+- reported `journal_mode = wal`, `user_version = 0`;
+- `PRAGMA integrity_check = ok`;
+- dynamic `sqlite_master` discovery, not synthetic hard-coded schema authority;
+- close/reopen validation: PASS;
+- plaintext scratch cleanup: PASS;
+- recurring restore tooling compatibility: PASS;
+- `shuabao-restore-validation.timer` remains active for daily UTC 03:30 validation.
 
-Useful patterns:
+Reported real user-table set and row-count sanity:
 
-- Airtest: bounded visual loop/timeouts;
-- ok-script: simplest recognizer by semantic job + scene-local scheduling;
-- MAA/MaaFramework: RGB/HSV color evidence can supplement template shape evidence; current upstream fusion fact previously verified as direct multiplication, not the stale geometric-mean claim;
-- OAS/OnmyojiAutoScript: typed OCR and bounded polling/intervals;
-- Alas: known-scene recovery, bounded waits, click rate limiting, incident evidence.
+- `local_activations`: 4
+- `local_licenses`: 6
+- `processed_events`: 0
+- `release_policies`: 0
+- `subscription_bindings`: 0
+- `trial_accounts`: 0
+- `trial_devices`: 0
+- `trial_reservations`: 0
 
-Rejected overreach:
+Final accepted VPS-B verdict:
 
-- broad YOLO replacement for fixed UI;
-- Behavior Tree/statechart migration;
-- workflow task DSL in recognition config;
-- universal recovery actions from UNKNOWN;
+`REAL_PRIMARY_RESTORE_PASS`
 
-## 9. Release/control-plane recommendations currently classified
+`READY_FOR_PASSIVE_BACKUP`
 
-ADOPTED / IN PROGRESS:
+`VPS-B = MAINTENANCE_ONLY`
 
-- immutable release identity;
-- versioned install dirs;
-- stable launcher/current pointer;
-- N-1 local rollback;
-- UI/log release identity visibility;
-- production PermitIssuer cutover;
-- passive VPS-B backup/restore/health role.
+No further VPS-B construction work is authorized unless a concrete backup/restore regression appears.
 
-ADOPT SOON, after current reviews:
+Note: the final pasted VPS-B report omitted the literal recomputed hash value in one field but explicitly reported MATCH against the already recorded Primary hash and companion checksum. This is treated as a P2 reporting omission, not a reason to reopen the node.
 
-- thin blocked/recommended/outdated lifecycle;
-- stable HTTPS hostname;
-- signed update/release status feed or notification-only update contract;
-- operational Authenticode external-beta build.
+## 7. Off-host backup operating contract
 
-DEFER / EXPERIMENT LATER:
+Primary -> VPS-B backup is now reported operational.
 
-- one small Cython/Nuitka protection experiment only after release reproducibility is stable;
-- warm standby VPS-B only after passive backup/restore is proven;
-- signed resource pack for fast vision fixes, if later needed.
+Accepted properties:
 
-REJECT FOR NOW:
+- Primary creates a consistent SQLite snapshot (not bare copy of live WAL/DB);
+- age encryption occurs before transfer;
+- encrypted artifact + SHA256 are transferred;
+- dedicated Ed25519 transport identity is used;
+- VPS-B SSH target: `shuabao-backup@172.245.52.129:50022`;
+- partial uploads are ignored until complete artifact/checksum pairing is present;
+- encrypted archive is promoted only after checksum verification;
+- real restore tooling dynamically discovers schema via `sqlite_master`;
+- plaintext restore scratch is cleaned after validation.
 
-- active-active VPS;
-- 24–72 hour offline permit lease;
-- full TUF implementation;
-- delta patching;
-- project-wide obfuscation/anti-debug stack.
+Primary backup schedule reported live:
 
-## 10. What the next cloud architect must do first
+- every 6 hours via the existing VPS-A supervisor mechanism (VPS-A does not use systemd for this task).
 
-Before making any new recommendation:
+VPS-B restore validation schedule reported live:
 
-1. fetch/verify current `origin/trial-merge` HEAD;
-2. inspect `refactor/architecture-convergence-20260904` current HEAD and agent report;
-3. treat Grok production and VPS-B status as OPS facts requiring their latest reports, not repository assumptions;
-4. read these existing architecture docs:
-   - `docs/ARCHITECTURE_CONVERGENCE_20260904.md`
-   - `docs/LOCAL_AGENT_REFACTOR_HANDOFF_20260904.md`
-   - `docs/FABLE_EXTERNAL_REVIEW_NOTES_20260904.md`
-   - `docs/LOCAL_AGENT_EXTERNAL_REFERENCE_ADDENDUM_20260904.md`
-   - `docs/ARCHITECTURE_STAGE0_AUDIT_20260904.md` (on architecture branch if not yet merged)
-   - `docs/RELEASE_P0_INSTALL_AUDIT_20260904.md`
-5. do not claim real-machine business PASS from pytest, replay, click success, or synthetic evidence;
-6. preserve UNKNOWN zero-input and explicit business postcondition requirements;
-7. prefer minimal diffs and existing architecture reuse over new abstractions.
+- daily UTC 03:30 via `shuabao-restore-validation.timer`.
 
-## 11. Next control-tower checkpoint
+Do not confuse transfer/ingest success with restore PASS; both have now been separately demonstrated for the first real Primary artifact.
 
-The next useful whole-system review should happen when the following reports are available:
+## 8. External Beta status
 
-- Architecture Stage 1 final report;
-- Grok G2 isolated/staging final report (if G2 has been dispatched);
-- VPS-B first-task final passive-recovery report.
+External Beta is still **HOLD**.
 
-At that checkpoint decide together:
+Remaining major gates:
 
-1. Architecture Stage 1 merge / no-merge;
-2. Grok G2 production deployment / hold;
-3. VPS-B official daily backup enrollment / follow-up gaps;
-4. stable HTTPS hostname cutover plan;
-5. Release P1 / external-beta unlock;
-6. whether to enter Architecture Stage 2 and real-machine GT work.
+1. fixed HTTPS hostname / Named Tunnel / DNS cutover;
+2. final external-beta client endpoint/identity integration;
+3. operational Authenticode-signed external build;
+4. any final external-beta-specific release smoke.
 
-Until then, do not add another broad architecture/release workstream.
+G2 production deployment and real off-host restore are no longer blockers.
+
+Quick Tunnel is acceptable as current temporary live connectivity evidence but must not be treated as the final formal endpoint.
+
+Do not start fixed-hostname work automatically while Core Function Completion is the current main product priority unless external-beta release is explicitly being prepared.
+
+## 9. Project priority shift — Core Function Completion
+
+The infrastructure/control-plane/DR construction phase is considered sufficiently closed for now.
+
+The project main thread is now:
+
+**ShuaBao Core Function Completion**
+
+The objective is no longer broad architecture refinement. The objective is to make the actual user workflow complete and reliably usable.
+
+Target resource allocation:
+
+- ~80%: real ShuaBao product functions / end-to-end gameplay loop completion;
+- ~10%: stability, recognition, FSM regressions found while completing functions;
+- ~5%: small architecture convergence strictly required by a concrete blocker;
+- ~5%: high-value model/GPT experimentation on difficult development problems only.
+
+Infrastructure/VPS work is maintenance-only unless a production incident or release gate requires it.
+
+### Current functional priority order
+
+1. User can actually start the product
+   - startup;
+   - subscription/permit;
+   - preflight;
+   - dashboard start;
+   - actual input authority.
+
+2. Main挂机 loop
+   - lobby search;
+   - multi-keyword rotation;
+   - room join/hitch;
+   - in-game main loop;
+   - post-game handling;
+   - next-game continuation.
+
+3. Post-game/Boss chain
+   - post-game recognition;
+   - NPC flow;
+   - Boss selection;
+   - 时光之穴;
+   - 传家宝;
+   - fallback only from known recognized post-game state;
+   - UNKNOWN remains zero-input.
+
+4. Secondary gameplay functions
+   - 秘境;
+   - 黑商;
+   - other secondary resources/interactions.
+
+5. Architecture cleanup only when a concrete product blocker proves it necessary.
+
+### Required Functional Completion Map classifications
+
+Each major function should be classified only as one of:
+
+- `REAL_MACHINE_PASS`
+- `CODE_AND_TEST_PASS_GT_MISSING`
+- `OFFLINE_REPLAY_PASS`
+- `PARTIAL`
+- `BLOCKED`
+- `UNKNOWN`
+
+Never upgrade a function to `REAL_MACHINE_PASS` from pytest, click success, SendInput success, frame change, bookmark, or synthetic replay.
+
+## 10. Local Agent execution policy from now on
+
+Local Agent is the primary implementation worker.
+
+Preferred loop:
+
+`highest-value real blocker -> minimal failing regression -> minimal existing-abstraction fix -> focused tests -> relevant regression -> real-machine GT if needed -> STOP`
+
+After one highest-priority blocker is completed, the Agent should STOP and return evidence for cloud review instead of automatically opening a second broad workstream.
+
+Avoid:
+
+- broad mediator refactor;
+- architecture astronautics;
+- framework imports;
+- unrelated cleanup;
+- mass renames/directory migrations;
+- building new abstractions before proving existing ones cannot express the invariant.
+
+Architecture Stage 2 remains HOLD while this product-completion loop is active.
+
+## 11. Model / GPT assistance policy
+
+Advanced models are a development-plane accelerator, not a runtime control authority.
+
+Use high-cost/high-capability models for the hardest minority of problems, for example:
+
+- cross-module root-cause analysis after ordinary local work stalls;
+- complex FSM/race-condition review;
+- difficult evidence synthesis;
+- high-risk minimal-diff design review.
+
+Do not put a general LLM into the runtime decision loop as:
+
+`Frame -> remote LLM -> SendInput`
+
+The deterministic fail-closed game architecture remains authoritative.
+
+A separate broad “GPT system upgrade” workstream is not authorized while major product functions remain incomplete.
+
+## 12. Current control-tower verdicts
+
+- Release P0: **PASS / MERGED**
+- Architecture Stage 0: **PASS**
+- Architecture Stage 1: **PASS / MERGED**
+- Architecture Stage 2: **HOLD**
+- G2.1 code review: **PASS**
+- G2.1 production cutover: **PASS**
+- Public edge identity: **PUBLIC_EDGE_MATCHES_PRODUCTION**
+- First real off-host Primary backup: **PASS**
+- First real Primary restore on VPS-B: **REAL_PRIMARY_RESTORE_PASS**
+- VPS-A: **MAINTENANCE_ONLY**
+- VPS-B: **READY_FOR_PASSIVE_BACKUP / MAINTENANCE_ONLY**
+- External Beta: **HOLD**
+- Main project thread: **CORE FUNCTION COMPLETION**
+
+## 13. What the next cloud architect must do first
+
+Before making a new recommendation:
+
+1. fetch and verify actual `origin/trial-merge` HEAD;
+2. read this document first;
+3. read `docs/CLOUD_ARCHITECT_STATUS_DELTA_20260905.md` only as historical delta context where useful;
+4. do not reopen completed VPS/G2/Release-P0 work without concrete contradictory evidence;
+5. inspect the latest Local Agent Core Function Completion report;
+6. classify each claimed result by evidence level;
+7. select the next highest-value functional blocker, not the next broad architecture idea;
+8. preserve UNKNOWN zero-input and explicit fresh-frame business-postcondition requirements.
+
+## 14. Next checkpoint
+
+The next control-tower checkpoint is the Local Agent **Core Function Completion Sprint 1** return.
+
+Expected return:
+
+- Functional Completion Map;
+- P0/P1/P2;
+- one selected highest-value blocker;
+- root cause;
+- minimal diff;
+- regression/test evidence;
+- whether real-machine GT is still required;
+- branch / commit / push / merge state.
+
+Cloud review should then decide only the next smallest useful action:
+
+- `PASS`
+- `CONDITIONAL PASS`
+- `BLOCKED`
+- `READY_FOR_REAL_MACHINE_GT`
+- `MERGE PASS`
+- `HOLD`
+
+Do not automatically start a second blocker or Architecture Stage 2.
+
+## 15. Handoff maintenance rule
+
+This file is the canonical cloud control-tower handoff and should be updated after **major project state changes**, so a new cloud reviewer does not have to reconstruct state from chat history.
+
+Update this file when any of the following occurs:
+
+- a major workstream moves PASS/BLOCKED/HOLD/MAINTENANCE_ONLY;
+- a production deployment/cutover/rollback occurs;
+- an external-beta gate opens or closes;
+- a major branch/merge baseline changes;
+- a real-machine GT milestone materially changes function status;
+- a major architecture stage is authorized/completed/abandoned;
+- backup/restore/DR status materially changes;
+- project priority/order changes.
+
+Do not update it for every tiny code commit or ordinary focused test result.
+
+For every future major update:
+
+1. independently verify GitHub state first;
+2. distinguish GitHub facts from Agent/VPS/GT evidence;
+3. update this handoff docs-only;
+4. commit/push the handoff update;
+5. report the resulting handoff commit SHA.
