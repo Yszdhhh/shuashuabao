@@ -24,6 +24,7 @@ That SHA is the accepted Release P0 implementation and was fast-forwarded from `
 - launcher-before-pointer and legacy-archive-after-shortcut-proof ordering regressions: PASS.
 
 The commit that adds this document advances `trial-merge` by one docs-only commit. Future agents MUST verify the actual current `origin/trial-merge` SHA rather than assuming `f1d10ba...` is still HEAD.
+**Stage 1 integrated baseline (2026-09-05)**: `ed11a7e8bc8d4bb94b91c60e5b79db3af4f2cbd1` — Architecture Stage 1 (Tasks 1/2/3) merged into `trial-merge`; full pytest `1474 passed, 13 skipped, 2 xfailed`; `python tools/release_gate.py` PASS (4/4); `disconnect_modal_missing` remains its historical `BLOCKED`.  See section 4.
 
 ### Release P0 accepted model
 
@@ -120,7 +121,13 @@ Original audit base:
 
 Stage 0 audit: PASS.
 
-Stage 1 Task 1 (typed expected-value OCR): PASS and cloud-reviewed.
+Stage 1 Task 1 (typed expected-value OCR): PASS, cloud-reviewed, MERGED.
+
+Stage 1 Task 2 (transient-state episode-boundary resets): PASS (internal reviewer), MERGED — commit `6879abb` on the architecture branch.
+
+Stage 1 Task 3 (bounded RuntimeWatchdog-EscUnstuck): PASS (internal reviewer), MERGED — commit `e682f9e` on the architecture branch.
+
+Stage 1 full verification: full pytest `1474 passed, 13 skipped, 2 xfailed`; `python tools/release_gate.py` PASS (4/4); `disconnect_modal_missing` remains historical `BLOCKED` (not falsified).  Completion report: `docs/ARCHITECTURE_STAGE1_REPORT_20260905.md`.
 
 Task 1 accepted rollback point:
 
@@ -138,40 +145,15 @@ Task 1 accepted behavior:
 
 Known non-blocking P2 debt: settings-loading normalization for `hitch_stage_prefix` still has historical truncation/default behavior that is not the Task 1 match authority. Do not mix this cleanup into unrelated Task 2 work without a focused contract/test.
 
-### Approved remaining Stage 1 scope
+### Stage 1 execution result (2026-09-05)
 
-Task 2: reset only proven transient state at real episode boundaries.
+Task 2 executed as approved: only proven transient fields were reset, each backed by a failing regression first; no unrelated transition budgets/timers were cleared.  Task 3 executed as approved: single mechanical target (RuntimeWatchdog-EscUnstuck), bounded attempts (cap 2), fresh-frame postcondition re-arms budget only on real core input, UNKNOWN remains zero input, no second retry/recovery framework.
 
-Fields identified by Stage 0/plan include:
+The unattended execution boundary (END OF STAGE 1) was respected; the full run was: sync `f1d10ba` -> Task 2 + review -> Task 3 + review -> full pytest -> release gate -> push -> STOP, then final integration into `trial-merge` after cloud MERGE PASS.
 
-- `_pending_action`
-- `_pending_action_unconfirmed_count`
-- runtime watchdog HUD latch
-- `_hitch_floor_exit_pending`
-- `_hitch_floor_exit_confirmed`
+Do NOT auto-enter Stage 2 or real-machine KK/SendInput work.  **Stage 2 = HOLD, not authorized.**  No real KK / SendInput / GT was executed for Stage 1.
 
-Do not reset unrelated transition budgets/timers without a failing regression proving leakage.
-
-Task 3: bound ONE existing mechanical recovery path (preferred candidate: runtime watchdog ESC unstuck, if actual code/test evidence supports it).
-
-Required Task 3 invariants:
-
-- known-scene authority;
-- one mechanical target;
-- bounded attempts/deadline;
-- fresh postcondition;
-- click success alone never advances business state;
-- UNKNOWN produces zero input;
-- retry re-observes same precondition;
-- no second retry/recovery framework.
-
-The intended unattended execution boundary is the END OF STAGE 1:
-
-sync latest `trial-merge` -> Task 2 + review/fix -> Task 3 + review/fix -> full pytest -> release gate -> push branch -> STOP.
-
-Do NOT auto-enter Stage 2 or real-machine KK/SendInput work.
-
-Current execution status after Task 1 is not assumed here; the next reviewer must inspect the branch/agent report to determine whether Task 2/3 have already started or completed.
+Known P2 test-infra debt from Stage 1: Windows faulthandler x PyQt6 processEvents conflict in the dashboard-facade tests; release-gate pytest stage now runs with `-p no:faulthandler` (commit `6f01832` on the architecture branch).  Bare local `pytest tests` should use the same flag.  `disconnect_modal_missing` remains an existing P2/BLOCKED frozen-replay scene.
 
 ## 5. Grok Bot / subscription control-plane — live ops facts
 
@@ -267,7 +249,7 @@ Hard VPS-B boundaries:
 Preferred convergence order:
 
 1. Release P0: DONE and merged to `trial-merge`.
-2. Architecture Stage 1: sync latest `trial-merge`, finish Tasks 2/3, full gate, cloud review.
+2. Architecture Stage 1: DONE and merged to `trial-merge` (`ed11a7e`); Tasks 1/2/3 = MERGED/PASS.  Stage 2 = HOLD.
 3. Grok G2: isolated/staging only until cloud/user production review.
 4. VPS-B first passive-recovery task: allow current running agent to finish; then review gaps before follow-up.
 5. Stable HTTPS hostname: explicit ops decision/change window.
@@ -294,7 +276,6 @@ Rejected overreach:
 - Behavior Tree/statechart migration;
 - workflow task DSL in recognition config;
 - universal recovery actions from UNKNOWN;
-- framework duplication around already-existing FrameEvidence/ActionLifecycle/IncidentArchiver.
 
 ## 9. Release/control-plane recommendations currently classified
 
