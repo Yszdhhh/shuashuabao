@@ -5948,6 +5948,10 @@ class Mediator:
             self._round_started_at = None
             self._round_deadline = None
             self._outcome_recorded = False
+            # Task 2: round/episode boundary — stale in-flight action tokens
+            # must not bleed into the next episode and gate its first ticks.
+            self._pending_action = None
+            self._pending_action_unconfirmed_count = 0
             self._round_outcome = None
             # S0 ⑤：跨局每类面板会话计数/冷却清零（上限按"每局每类"计）
             self._panel_episode_count = {}
@@ -6046,6 +6050,11 @@ class Mediator:
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
             self._post_game_pending = False
+            # Task 2: runtime watchdog HUD latch re-arms from zero on each
+            # MAIN_LINE entry; stale confirmations from the prior episode
+            # would grant unverified input authority on first ticks.
+            self._runtime_watchdog_hud_confirmations = 0
+            self._runtime_watchdog_last_frame_id = None
             self._post_game_hud_confirmations = 0
             self._pending_archive_panel_frames = 0
             self._post_game_archive_pending_only = False
@@ -7193,6 +7202,12 @@ class Mediator:
         self._hitch_refresh_required = True
         self._hitch_pending_row_y = None
         self._hitch_pending_room_key = None
+        # Task 2: floor-exit transient must not leak across episode re-entry;
+        # every hitch reset path converges here, so clear the pending/confirmed
+        # latch at this single real episode boundary.
+        self._hitch_floor_exit_pending = False
+        self._hitch_floor_exit_confirmed = False
+        self._hitch_floor_exit_attempted_at = None
         self._hitch_rejected_row_ys.clear()
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:

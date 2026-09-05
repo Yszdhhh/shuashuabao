@@ -8,8 +8,17 @@ join_attempts 以本模块的 3 为准（mode_specs 历史值 2 不再采用）�
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 from enum import Enum
+
+from shuabao.vision.ocr_verifier import (
+    MAX_LENGTH,
+    NUMERIC_ALPHABET,
+    parse_counter,
+    verify_expected_text,
+)
+
 
 JOIN_ATTEMPTS = 3
 SEARCH_TIMEOUT_S = 120.0
@@ -29,6 +38,7 @@ class HitchPhase(str, Enum):
     SLEEP_RETRY = "sleep_retry"
 
 
+
 class HitchAction(str, Enum):
     NONE = "none"
     REFRESH = "refresh"
@@ -39,7 +49,7 @@ class HitchAction(str, Enum):
 
 
 def normalize_prefix(value: object) -> str:
-    text = str(value or "3").strip()[:64]
+    text = str(value or "3").strip()
     return text or "3"
 
 
@@ -53,10 +63,18 @@ def classify_hitch_ocr(text: str) -> str | None:
 
 
 def has_prefix_evidence(text: str, prefix: str) -> bool:
-    """Return whether captured text contains the configured search term."""
-    raw = "".join(str(text or "").split())
-    want = "".join(normalize_prefix(prefix).split())
-    return bool(raw and want and want in raw)
+    """Clean observed OCR and delegate expected-value authority to the verifier."""
+    normalized = unicodedata.normalize("NFKC", str(text or "")).strip()
+    if not normalized or len(normalized) > MAX_LENGTH:
+        return False
+    compact = "".join(normalized.split())
+    counter = parse_counter(compact)
+    observed = str(counter[0]) if counter is not None else compact
+    return verify_expected_text(
+        observed,
+        prefix,
+        allowed_chars=NUMERIC_ALPHABET,
+    )
 
 
 @dataclass

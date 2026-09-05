@@ -96,7 +96,10 @@ def stage_pytest() -> StageResult:
     # hand-picked list can stay green while a newly added regression suite is
     # red, so run the complete tests/ tree here and let pytest's exit code be
     # the stage truth.
-    code, out = _run([PYTHON, "-m", "pytest", "tests", "-q", "--tb=short"])
+    # -p no:faulthandler: Windows 上 PyQt6 事件循环（dashboard facade 测试的
+    # processEvents）与 faulthandler 致命转储相互冲突，随机 access-violation
+    # 中断整个 pytest 进程；禁用后全量 1474 通过，观测计数不受影响。
+    code, out = _run([PYTHON, "-m", "pytest", "tests", "-q", "--tb=short", "-p", "no:faulthandler"])
     counts: dict[str, int] = {}
     for label in ("passed", "failed", "error", "xfailed", "xpassed", "skipped"):
         match = re.search(rf"(\d+) {label}", out)
