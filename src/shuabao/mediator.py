@@ -7364,15 +7364,14 @@ class Mediator:
             # 不能无限挂住退出闩锁。超过 3 秒仍无确认弹窗也按已退出收尾。
             tangible_room = room_start is not None or room_controls_visible
             lobby_visible = self._lobby_room_list_evidence(frame)
-            stale_exit = (
-                getattr(self, "_hitch_floor_exit_attempted_at", None) is not None
-                and now - float(self._hitch_floor_exit_attempted_at) > 3.0
-            )
-            if tangible_room and not lobby_visible and not stale_exit:
-                print("[L0] hitch 已点击退出，等待大厅列表（零输入）")
-                return LoopAction.Continue
             if frame.bgr is None or float(np.mean(frame.bgr)) < 3.0:
                 print("[L0] hitch 退出后捕获到黑帧，保持退出状态等待确认窗口/大厅")
+                return LoopAction.Continue
+            if not (lobby_visible and not tangible_room):
+                print(
+                    "[L0] hitch 已点击退出，等待大厅列表且无房间实体控件（零输入）: "
+                    f"lobby_visible={lobby_visible}, tangible_room={tangible_room}"
+                )
                 return LoopAction.Continue
             # 退出确认点击被拒/弹窗被手动关闭时，黑名单是在这里补记的：
             # act_click 失败的那条分支从未有机会写入 pending room key。

@@ -1258,7 +1258,7 @@ def test_lobby_hitch_exit_confirm_rejection_recovers_when_modal_dismissed() -> N
 
 
 def test_lobby_hitch_stale_room_waiting_context_does_not_block_exit_return_to_lobby() -> None:
-    """陈旧 context=="ROOM_WAITING" 不能替代实体房间控件挂住退出闩锁。"""
+    """场景 A: 陈旧 context=='ROOM_WAITING' + tangible_room=False + lobby_visible=True -> finalize 到 LOBBY_ROOM。"""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     frame = Frame(
         np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
@@ -1271,7 +1271,7 @@ def test_lobby_hitch_stale_room_waiting_context_does_not_block_exit_return_to_lo
 
     with patch("shuabao.mediator.time.time", return_value=101.0), \
         patch.object(med, "find_scene", return_value=None), \
-        patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+        patch.object(med, "_lobby_room_list_evidence", return_value=True), \
         patch.object(med, "_find_hitch_ready_button", return_value=None), \
         patch.object(med, "_hitch_room_controls_visible", return_value=False), \
         patch.object(med, "act_click", return_value=False) as click:
@@ -1283,8 +1283,54 @@ def test_lobby_hitch_stale_room_waiting_context_does_not_block_exit_return_to_lo
     assert "room-763405" in med._hitch_blacklisted_room_keys
 
 
-def test_lobby_hitch_tangible_room_controls_hold_exit_latch_while_transitioning() -> None:
-    """房间控件实体可见且未超时、无大厅证据时，退出闩锁必须继续等待。"""
+def test_lobby_hitch_tangible_room_with_timeout_still_zero_input_and_no_lobby() -> None:
+    """场景 B: tangible_room=True + elapsed > 3s + lobby_visible=False -> 绝不进入 LOBBY_ROOM，零输入等待。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = Frame(
+        np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    med._hitch_floor_exit_pending = True
+    med._hitch_floor_exit_attempted_at = 100.0
+
+    with patch("shuabao.mediator.time.time", return_value=110.0), \
+        patch.object(med, "find_scene", return_value=None), \
+        patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+        patch.object(med, "_find_hitch_ready_button", return_value=None), \
+        patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+        patch.object(med, "act_click", return_value=False) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_not_called()
+    assert med._hitch_floor_exit_pending is True
+    assert med.phase is not Phase.LOBBY_ROOM
+
+
+def test_lobby_hitch_no_room_no_lobby_holds_pending_zero_input() -> None:
+    """场景 C: tangible_room=False + lobby_visible=False -> 缺少大厅依据，保持 pending 零输入。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = Frame(
+        np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    med._hitch_floor_exit_pending = True
+    med._hitch_floor_exit_attempted_at = 100.0
+
+    with patch("shuabao.mediator.time.time", return_value=105.0), \
+        patch.object(med, "find_scene", return_value=None), \
+        patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+        patch.object(med, "_find_hitch_ready_button", return_value=None), \
+        patch.object(med, "_hitch_room_controls_visible", return_value=False), \
+        patch.object(med, "act_click", return_value=False) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_not_called()
+    assert med._hitch_floor_exit_pending is True
+    assert med.phase is not Phase.LOBBY_ROOM
+
+
+def test_lobby_hitch_conflicting_room_and_lobby_holds_pending_zero_input() -> None:
+    """场景 D: tangible_room=True + lobby_visible=True -> 证据冲突/歧义，保持 pending 零输入。"""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     frame = Frame(
         np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
@@ -1295,15 +1341,15 @@ def test_lobby_hitch_tangible_room_controls_hold_exit_latch_while_transitioning(
 
     with patch("shuabao.mediator.time.time", return_value=101.0), \
         patch.object(med, "find_scene", return_value=None), \
-        patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+        patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+        patch.object(med, "_find_hitch_ready_button", return_value=None), \
         patch.object(med, "_hitch_room_controls_visible", return_value=True), \
         patch.object(med, "act_click", return_value=False) as click:
         med._tick_lobby_hitch(frame, "UNKNOWN")
 
     click.assert_not_called()
     assert med._hitch_floor_exit_pending is True
-    assert med._hitch_floor_exit_attempted_at == 100.0
-
+    assert med.phase is not Phase.LOBBY_ROOM
 
 def test_lobby_hitch_unknown_page_without_room_list_anchor_has_zero_input() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
@@ -1328,6 +1374,21 @@ def test_lobby_hitch_black_frame_has_zero_input_even_with_stale_template() -> No
 
     click.assert_not_called()
     search.assert_not_called()
+
+def test_lobby_hitch_exit_pending_black_frame_holds_zero_input() -> None:
+    """场景 E: 退出 pending 状态下收到全黑帧，必须保持 pending 且零输入（不回归）。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = Frame(np.zeros((945, 1332, 3), dtype=np.uint8), role="l0")
+    med._hitch_floor_exit_pending = True
+
+    with patch.object(med, "act_click") as click, \
+         patch.object(med, "act_key") as key:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_not_called()
+    key.assert_not_called()
+    assert med._hitch_floor_exit_pending is True
+    assert med.phase is not Phase.LOBBY_ROOM
 
 
 def test_lobby_room_list_evidence_rejects_wrong_tab_template_hit() -> None:
