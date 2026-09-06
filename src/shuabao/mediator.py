@@ -1083,7 +1083,16 @@ class Mediator:
         hitch_exit_probe = role == "l0" and getattr(self, "_hitch_floor_exit_pending", False)
         self._capture_candidates = len(targets)
         self._confirmed_room_hwnd = None
+        # One grab per HWND per call.  The room-signature pre-pass below,
+        # the probe paths and the sticky/ranking paths all ask for the same
+        # candidates; without this memo every l0 tick with 2+ KK windows
+        # captured each window twice.
+        capture_cache: dict[int, Frame] = {}
+
         def capture_one(target):
+            key = int(getattr(target, "hwnd", 0) or 0)
+            if key and key in capture_cache:
+                return capture_cache[key]
             frame = capture_target(target)
             if (
                 not frame.is_valid
@@ -1091,6 +1100,8 @@ class Mediator:
             ):
                 activate_window(target.hwnd)
                 frame = capture_target(target)
+            if key:
+                capture_cache[key] = frame
             return frame
         if role == "l0" and len(targets) >= 2:
             for cand_target in targets:

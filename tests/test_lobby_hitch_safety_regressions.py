@@ -68,6 +68,7 @@ def test_hitch_search_confirmation_defers_room_scan_until_next_tick() -> None:
 
 def test_hitch_cancel_ready_is_postcondition_not_click_target() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = _fixture_frame()
     cancel_ready = MatchResult(
         name="room_cancel_ready",
         score=1.0,
@@ -78,15 +79,32 @@ def test_hitch_cancel_ready_is_postcondition_not_click_target() -> None:
         screen_x=850,
         screen_y=615,
     )
+    exit_btn = MatchResult(
+        name="room_exit_btn",
+        score=1.0,
+        x=1100,
+        y=60,
+        w=60,
+        h=28,
+        screen_x=1150,
+        screen_y=75,
+    )
 
     def fake_find(_frame, names, **_kwargs):
+        if "room_exit_btn" in names:
+            return exit_btn
         return cancel_ready if "room_cancel_ready" in names else None
+
+    # Room identity is owned by the confirmed-room HWND authority
+    # (_capture_best -> _is_confirmed_room_frame), not by a lone template
+    # hit, so seed it to put this tick genuinely inside the room.
+    med._confirmed_room_hwnd = frame.hwnd
 
     with patch.object(med, "find", side_effect=fake_find), \
          patch.object(med, "find_scene", return_value=None), \
          patch.object(med, "_hitch_room_seat_decision", return_value="ready"), \
          patch.object(med, "act_click") as click:
-        med._tick_lobby_hitch(_fixture_frame(), "ROOM_WAITING")
+        med._tick_lobby_hitch(frame, "ROOM_WAITING")
 
     click.assert_not_called()
     assert med.phase is Phase.ROOM_WAITING
