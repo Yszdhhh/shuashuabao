@@ -27,6 +27,7 @@ import base64
 import hashlib
 import http.server
 import json
+import os
 import socketserver
 import sys
 import threading
@@ -342,6 +343,40 @@ def test_missing_or_empty_operator_registry_fails_closed(
     assert "policy" not in handler.store
 
 
+
+def test_package_inside_trust_anchor_is_strictly_rejected(
+    tmp_path: Path, signing_key: Ed25519PrivateKey, bridge, admin_env
+) -> None:
+    """P1: operator manifest trust anchor must live strictly outside the package.
+
+    A package must never be allowed to attest itself by embedding its own key
+    registry and pointing --public-keys into itself.
+    """
+    handler, base_url = bridge
+    bundle = _signed_bundle(tmp_path, signing_key)
+
+    # 构造一个位于 package 内部的 self_trust_keys.json
+    self_trust = bundle / "self_trust_keys.json"
+    raw_spki = signing_key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)
+    self_trust.write_text(
+        json.dumps({"keys": {"test-manifest": base64.b64encode(raw_spki).decode("ascii")}}),
+        encoding="utf-8",
+    )
+
+    # 1. 显式 --public-keys 指向包内文件
+    rc = adr.main(["--package", str(bundle), "--base-url", base_url, "--public-keys", str(self_trust)])
+    assert rc != 0, "pointing --public-keys into the package must fail closed"
+    assert "policy" not in handler.store, "must not make remote admin API calls"
+
+    # 2. 环境变量指回包内文件
+    os.environ[adr.PUBLIC_KEYS_ENV] = str(self_trust)
+    try:
+        rc2 = adr.main(["--package", str(bundle), "--base-url", base_url])
+        assert rc2 != 0, "env pointing into the package must fail closed"
+        assert "policy" not in handler.store
+    finally:
+        os.environ.pop(adr.PUBLIC_KEYS_ENV, None)
+
 # ---------------------------------------------------------------------------
 # Section 2: Hard channel gating (external-beta / release always blocked)
 # ---------------------------------------------------------------------------
@@ -468,3 +503,48 @@ def test_user_config_changes_never_change_release_identity(
     assert before["source_sha"] == after["source_sha"]
     assert before["release_manifest_sha256"] == after["release_manifest_sha256"]
     assert before["release_channel"] == after["release_channel"]
+
+
+@pytest.mark.parametrize("fake_loopback", [
+    "http://127.evil.example",
+    "http://127.example.com",
+    "http://127.0.0.1.evil.com",
+    "http://not-loopback.example",
+])
+def test_fake_loopback_http_endpoints_are_strictly_rejected(
+    tmp_path: Path, signing_key: Ed25519PrivateKey, operator_registry: Path, admin_env, fake_loopback: str
+) -> None:
+    """P0: http://127.evil.example must never be treated as loopback.
+
+    Only true IP loopbacks (127.0.0.0/8, ::1) or exact localhost are allowed
+    over HTTP. Pseudo-loopback DNS hostnames must fail closed without making
+    any HTTP calls or transmitting credentials.
+    """
+    bundle = _signed_bundle(tmp_path, signing_key)
+    with pytest.raises(adr.ApprovalError, match="real IP loopback"):
+        adr._endpoint_or_die(fake_loopback)
+
+    # 确保 main 面对伪 loopback 退出码非 0 且零 HTTP 连接
+    rc = adr.main(["--package", str(bundle), "--base-url", fake_loopback])
+    assert rc != 0
+
+
+@pytest.mark.parametrize("valid_loopback", [
+    "http://127.0.0.1:8000",
+    "http://127.0.0.2:8000",
+    "http://[::1]:8000",
+    "http://localhost:8000",
+    "http://localhost.:8000",
+])
+def test_real_loopback_and_localhost_are_accepted(valid_loopback: str) -> None:
+    """P0: genuine IP loopback addresses and normalized localhost are valid HTTP exceptions."""
+    res = adr._endpoint_or_die(valid_loopback)
+    assert res == valid_loopback.rstrip("/")
+
+
+def test_embedded_userinfo_in_url_is_strictly_rejected() -> None:
+    """P0: URLs embedding credentials must be rejected fail-closed."""
+    with pytest.raises(adr.ApprovalError, match="不得内嵌凭据"):
+        adr._endpoint_or_die("https://user:pass@example.com")
+    with pytest.raises(adr.ApprovalError, match="不得内嵌凭据"):
+        adr._endpoint_or_die("http://user:pass@127.0.0.1:8000")
