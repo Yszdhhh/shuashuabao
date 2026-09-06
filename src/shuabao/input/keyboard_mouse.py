@@ -14,6 +14,7 @@ __all__ = [
     "activate_window",
     "reacquire_target_window",
     "foreground_matches_target",
+    "window_belongs_to_target",
     "get_clipboard_text",
     "get_foreground_window",
     "is_current_process_elevated",
@@ -98,6 +99,9 @@ def get_foreground_window() -> int | None:
         return None
 
 
+GA_ROOT = 2  # GetAncestor flag: walk to the owning top-level window
+
+
 def _window_pid(hwnd: int | None) -> int:
     """PID for hwnd; 0 if unknown."""
     if not hwnd:
@@ -113,6 +117,28 @@ def _window_pid(hwnd: int | None) -> int:
         return 0
 
 
+def _window_root(hwnd: int | None) -> int:
+    """Top-level window that owns hwnd (GetAncestor GA_ROOT); 0 if unknown.
+
+    KK renders its UI in an embedded CEF/Chromium view, so a point over the
+    game surface resolves to a Chrome_RenderWidgetHostHWND child that lives in
+    its own renderer process. GA_ROOT walks any such child back to the KK
+    top-level HWND, which PID comparison alone cannot do.
+    """
+    if not hwnd:
+        return 0
+    try:
+        import ctypes
+
+        get_ancestor = ctypes.windll.user32.GetAncestor
+        get_ancestor.restype = ctypes.c_void_p
+        get_ancestor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        root = get_ancestor(ctypes.c_void_p(int(hwnd)), GA_ROOT)
+    except Exception:
+        return 0
+    return int(root or 0)
+
+
 def foreground_matches_target(target_hwnd: int, fg: int | None) -> bool:
     """True if fg is target, or another top-level window of the same process.
 
@@ -126,6 +152,30 @@ def foreground_matches_target(target_hwnd: int, fg: int | None) -> bool:
     tp = _window_pid(target_hwnd)
     fp = _window_pid(fg)
     return tp > 0 and tp == fp
+
+
+def window_belongs_to_target(target_hwnd: int, hwnd: int | None) -> bool:
+    """Single authority for "this HWND is part of the target's own surface".
+
+    Accepted, in order:
+      1. the exact target HWND;
+      2. any window sharing the target's GA_ROOT top-level window - KK's
+         embedded CEF renderer children qualify even though their PID differs;
+      3. another top-level window of the same process (KK create-room modal).
+
+    Fail-closed: when ancestry cannot be resolved both roots read as 0 and the
+    root leg is skipped, so a foreign window is never admitted on class name or
+    an unknown ancestry.
+    """
+    if hwnd is None:
+        return False
+    if int(hwnd) == int(target_hwnd):
+        return True
+    target_root = _window_root(target_hwnd)
+    other_root = _window_root(hwnd)
+    if target_root and other_root and target_root == other_root:
+        return True
+    return foreground_matches_target(target_hwnd, hwnd)
 
 
 def get_clipboard_text() -> str | None:
@@ -272,7 +322,9 @@ class InputExecutor:
 
         Real-machine failure mode: game window partially covered by editor/
         terminal; SendInput lands on the covering window and the game never
-        reacts. WindowFromPoint tells us the topmost window at the click point.
+        reacts. WindowFromPoint tells us the topmost window at the click point,
+        which for KK is normally an embedded CEF renderer child rather than the
+        target HWND itself - window_belongs_to_target() resolves that ownership.
         """
         try:
             import ctypes
@@ -284,13 +336,14 @@ class InputExecutor:
             return None
         if top == 0:
             return None
-        if foreground_matches_target(target_hwnd, top):
+        if window_belongs_to_target(target_hwnd, top):
             return None
         return ActionResult(
             success=False,
             status="CANCELLED_WINDOW_OBSCURED",
             message=(
-                f"Click point ({x},{y}) is covered by another window (hwnd={top}). "
+                f"Click point ({x},{y}) is covered by another window (hwnd={top}, "
+                f"root={_window_root(top)}; target root={_window_root(target_hwnd)}). "
                 "Move editors/terminals off the game window or bring the game to front."
             ),
         )
