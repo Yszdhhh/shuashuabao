@@ -224,6 +224,15 @@ class RecoveryStep(Enum):
     DONE = auto()
 
 
+# 仅允许全局断线/强失败抢占的真实局内阶段集合（pre-game/大厅/选关等过渡阶段严禁被全局抢占中断）
+IN_GAME_FAILURE_PREEMPT_PHASES = {
+    Phase.MAIN_LINE,
+    Phase.EARLY_CHALLENGE,
+    Phase.ANCHOR_BOSS,
+    Phase.LONGZHU,
+    Phase.QUIT,
+}
+
 class RoundOutcome(Enum):
     """S0 终局 outcome：一局只能记录一个（_outcome_recorded 守卫）。"""
 
@@ -233,6 +242,7 @@ class RoundOutcome(Enum):
     DISCONNECT = auto()
 
 
+Outcome = RoundOutcome
 class PanelState(Enum):
     """S0 ⑤ 面板会话 FSM：CLOSED→OPEN_REQUESTED→WAIT_VISIBLE→ACTIVE→WAIT_MUTATION→CLOSING→COOLDOWN。"""
 
@@ -8835,28 +8845,17 @@ class Mediator:
         # selection/panel/artifact/challenge/主动开面板输入。
         if self.phase == Phase.RECOVER_FAILURE:
             return self._tick_recovery(frame)
-
-        # 强失败与断线抢占仅在 L1 局内生效；L0 大厅/搜房阶段不存在局内结算或重连弹窗，
-        # 绝不让小尺寸 retryConnect (20x33) 或灰暗像素在大厅误触发进入 RECOVER_FAILURE。
-        l0_phases = {
-            Phase.BOOT,
-            Phase.WAIT_EXIT,
-            Phase.LOBBY_ROOM,
-            Phase.PREPARE,
-            Phase.PLATFORM_MAP,
-            Phase.CREATE_ROOM,
-            Phase.ROOM_WAITING,
-        }
-        if self.phase in l0_phases:
-            disconnect_hit = None
-            strong_fail_hit = None
-        else:
+        # 强失败与断线抢占仅在真实局内阶段生效；大厅/选关/过渡阶段绝无局内强失败或重连，
+        # 严禁在此类阶段被小尺寸 retryConnect 或环境色块误抢占。
+        if self.phase in IN_GAME_FAILURE_PREEMPT_PHASES:
             disconnect_hit = self.find_scene(frame, "disconnect")
             strong_fail_hit = None if disconnect_hit else self.find_scene(frame, "fail")
+        else:
+            disconnect_hit = None
+            strong_fail_hit = None
         if disconnect_hit or strong_fail_hit:
             kind = "DISCONNECT" if disconnect_hit else "FAIL"
             if self._recovery_step == "DONE" and self.phase == Phase.QUIT:
-                # 恢复完成后旧失败像素可能残留（QUIT 打开退出确认期间）：不重复恢复。
                 self._failure_candidate_frames = 0
             else:
                 if self._failure_candidate_kind != kind:

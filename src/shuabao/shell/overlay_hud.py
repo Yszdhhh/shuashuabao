@@ -201,6 +201,7 @@ class OverlayHud(QWidget):
         self._drag_pos: QPoint | None = None
         self._user_moved = False
         self._has_game_window = False
+        self._anchor_hwnd: int | None = None
         self._compact_layout = False
         self.apply_theme("light")
 
@@ -395,7 +396,7 @@ class OverlayHud(QWidget):
         else:
             self.setWindowOpacity(0.96)
 
-    def _accept_rect(self, rect: QRect | None, is_game: bool) -> None:
+    def _accept_rect(self, rect: QRect | None, is_game: bool, hwnd: int | None = None) -> None:
         if rect is None or not rect.isValid() or rect.width() < 200 or rect.height() < 200:
             return
         if rect.top() < -100:
@@ -403,22 +404,34 @@ class OverlayHud(QWidget):
         # 锚定游戏区宽度决定运行时紧凑度：窄区隐藏可选组件、宽区恢复；
         # 位置仍走下方原有锁定逻辑，不随宽度变化。
         self._set_compact_layout(rect.width() < self._COMPACT_WIDTH)
-        # 已经吸附过游戏窗口后直接永久锁定，不再随帧浮动
+        # 规则 1：一旦获得明确的英雄三国游戏 HWND，直接从 L0 锚点切换到 L1 game 锚点并永久锁定
+        if is_game:
+            if not self._has_game_window or self._anchor_hwnd != hwnd:
+                self._has_game_window = True
+                self._anchor_hwnd = hwnd
+                self._pinned_rect = QRect(rect)
+            self._move_pinned()
+            return
+
+        # 已经吸附过游戏窗口后，非游戏窗绝不再抢夺锚点
         if self._has_game_window:
             return
-        if is_game:
-            self._has_game_window = True
+
+        # 规则 2：初始未锚定时，首次吸附当前非游戏窗（如大厅主窗口）；若无 HWND（如纯 QRect 模式）亦允许更新
+        if self._pinned_rect is None or self._anchor_hwnd is None or hwnd is None:
+            self._anchor_hwnd = hwnd
             self._pinned_rect = QRect(rect)
-        elif self._pinned_rect is None:
-            self._pinned_rect = QRect(rect)
-        elif not self._has_game_window:
-            # 若两者均非游戏窗（如平台窗口），且位移小于 16 像素，视为同一个窗口不抖动
+        # 规则 3：若为同一个非游戏 HWND，允许随窗口移动更新 rect（并防抖）
+        elif hwnd == self._anchor_hwnd:
             dx = abs(self._pinned_rect.x() - rect.x())
             dy = abs(self._pinned_rect.y() - rect.y())
             dw = abs(self._pinned_rect.width() - rect.width())
             dh = abs(self._pinned_rect.height() - rect.height())
-            if dx > 16 or dy > 16 or dw > 16 or dh > 16:
+            if dx > 8 or dy > 8 or dw > 8 or dh > 8:
                 self._pinned_rect = QRect(rect)
+        # 规则 4：突然出现不同的非游戏 HWND（如 308x800 子窗/弹窗），严禁切换 HUD anchor，保持原大厅窗口
+        else:
+            return
         screen = QGuiApplication.primaryScreen()
         if screen is None:
             return
@@ -472,6 +485,11 @@ class OverlayHud(QWidget):
         """Pin to the game client top-centre. Keep last good rect if capture flickers."""
         rect: QRect | None = None
         hwnd = getattr(target, "hwnd", None) if target is not None else None
+        if hwnd is not None:
+            try:
+                hwnd = int(hwnd)
+            except (ValueError, TypeError):
+                hwnd = None
         title = str(getattr(target, "window_title", "") or "")
         if "刷刷宝" in title or "ShuaBao" in title:
             return
@@ -499,7 +517,7 @@ class OverlayHud(QWidget):
                     rect = QRect(left, top, width, height)
             except (TypeError, ValueError):
                 rect = None
-        self._accept_rect(rect, is_game)
+        self._accept_rect(rect, is_game, hwnd=hwnd)
         self._move_pinned()
 
 OverlayHUD = OverlayHud
