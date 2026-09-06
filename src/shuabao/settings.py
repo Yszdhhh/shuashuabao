@@ -681,7 +681,12 @@ class Settings:
 
     def images_path(self, root: Path) -> Path:
         p = Path(self.images_dir)
-        return p if p.is_absolute() else (root / p)
+        if p.is_absolute():
+            return p
+        candidate = root / p
+        if not candidate.exists() and (root / "_internal" / p).exists():
+            return root / "_internal" / p
+        return candidate
 
     def skill_template_names(self) -> list[str]:
         """技能短码 → 找图名（含 skills/ 前缀）。"""
