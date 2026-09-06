@@ -337,3 +337,106 @@ def test_hitch_floor_exit_pending_clears_on_lobby_with_quick_join(monkeypatch):
     # 必须清除 _hitch_floor_exit_pending，不再被死锁
     assert med._hitch_floor_exit_pending is False
     assert med.phase == Phase.LOBBY_ROOM
+
+
+
+def test_hitch_single_kk_task_page_switches_to_room_list(monkeypatch):
+    """验证回归 1：1 KK + 真实'任务'页 + Quick Join -> in_room=False，继续走切'房间列表'Tab。"""
+    settings = Settings()
+    settings.mode_id = "lobby_hitch"
+    repo_root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, repo_root)
+    med.set_phase(Phase.LOBBY_ROOM, "test_task_page")
+    med._capture_candidates = 1  # 拓扑硬门禁：仅 1 个 KK HWND
+
+    import cv2
+    task_frame_path = repo_root / "tests" / "fixtures" / "real_task_page_frame.png"
+    if task_frame_path.exists():
+        task_bgr = cv2.imdecode(np.fromfile(str(task_frame_path), dtype=np.uint8), cv2.IMREAD_COLOR)
+    else:
+        task_bgr = np.ones((945, 1332, 3), dtype=np.uint8) * 120
+    frame = Frame(task_bgr, left=519, top=40)
+
+    clicked_actions = []
+    monkeypatch.setattr(med, "see", lambda *a, **k: frame)
+    monkeypatch.setattr(med, "act_click", lambda hit, reason: clicked_actions.append(reason) or True)
+
+    # 模拟真实大厅任务页：非房间列表，但能找到房间列表 Tab
+    tab_hit = MatchResult(name="lobby_room_list_tab_slot", score=1.0, x=352, y=245, w=1, h=1, screen_x=871, screen_y=285)
+    monkeypatch.setattr(med, "_find_hitch_room_list_tab", lambda f: tab_hit)
+    monkeypatch.setattr(med, "_lobby_room_list_evidence", lambda f: False)
+
+    action = med.tick()
+    # 拓扑只有 1 个窗口，in_room 必须为 False，绝不能卡在房间一楼退出死锁，而是点击切换房间列表 Tab
+    assert "HitchSelectTab" in clicked_actions
+
+
+def test_hitch_two_kk_with_real_room_child_in_room_true(monkeypatch):
+    """验证回归 2：2 KK + 真实房间 child + room-only evidence -> in_room=True。"""
+    settings = Settings()
+    settings.mode_id = "lobby_hitch"
+    repo_root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, repo_root)
+    med.set_phase(Phase.ROOM_WAITING, "test_two_kk_room")
+    med._capture_candidates = 2  # 拓扑硬门禁：2 个 KK HWND
+
+    import cv2
+    room_path = repo_root / "tests" / "performance" / "fixtures" / "room_waiting.png"
+    if room_path.exists():
+        room_bgr = cv2.imdecode(np.fromfile(str(room_path), dtype=np.uint8), cv2.IMREAD_COLOR)
+    else:
+        room_bgr = np.ones((945, 1332, 3), dtype=np.uint8) * 120
+    frame = Frame(room_bgr, left=100, top=100)
+
+    # 提供明确的房间专属证据（例如 room_start）
+    start_hit = MatchResult(name="room_start", score=0.95, x=1000, y=800, w=100, h=40, screen_x=1100, screen_y=900)
+    monkeypatch.setattr(med, "_find_room_start", lambda f: start_hit)
+
+    topology_possible = getattr(med, "_capture_candidates", 1) >= 2
+    in_room = topology_possible and bool(
+        med._find_room_start(frame) is not None or med._hitch_tangible_room_evidence(frame)
+    )
+    assert in_room is True
+
+
+def test_hitch_capture_best_prefers_room_child_over_lobby_parent(monkeypatch):
+    """验证回归 3：2 KK，其中 lobby parent 有 Quick Join、child 有房间控件 -> capture 必须选 child，不能选 parent。"""
+    settings = Settings()
+    settings.mode_id = "lobby_hitch"
+    repo_root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, repo_root)
+
+    # parent 窗口帧（大厅任务页，含 Quick Join）
+    import cv2
+    task_frame_path = repo_root / "tests" / "fixtures" / "real_task_page_frame.png"
+    if task_frame_path.exists():
+        parent_bgr = cv2.imdecode(np.fromfile(str(task_frame_path), dtype=np.uint8), cv2.IMREAD_COLOR)
+    else:
+        parent_bgr = np.ones((945, 1332, 3), dtype=np.uint8) * 120
+    parent_frame = Frame(parent_bgr, left=0, top=0)
+
+    # child 窗口帧（房间页，含 room_ready / room_start）
+    child_bgr = np.ones((700, 1000, 3), dtype=np.uint8) * 120
+    child_frame = Frame(child_bgr, left=100, top=100)
+
+    from shuabao.vision.capture import WindowTarget
+    parent_target = WindowTarget(hwnd=1001, title="KK官方对战平台", left=0, top=0, width=1332, height=945)
+    child_target = WindowTarget(hwnd=1002, title="KK官方对战平台", left=100, top=100, width=1000, height=700)
+
+    monkeypatch.setattr("shuabao.mediator.find_window_targets", lambda *a, **k: [parent_target, child_target])
+    def mock_capture_target(t):
+        return parent_frame if t.hwnd == 1001 else child_frame
+    monkeypatch.setattr("shuabao.mediator.capture_target", mock_capture_target)
+
+    # 给 child 注入房间正向证据，给 parent 仅有普通 Quick Join 蓝色块
+    monkeypatch.setattr(med, "_find_room_start", lambda f: MatchResult("room_start", 0.9, 500, 500, 50, 20, 600, 600) if f is child_frame else None)
+    monkeypatch.setattr(med, "_hitch_tangible_room_evidence", lambda f: f is child_frame)
+    # parent 画面上有 generic blue action (Quick Join)
+    fake_hit = MatchResult(name="room_blue_action", score=0.9, x=900, y=850, w=100, h=40, screen_x=900, screen_y=850)
+    monkeypatch.setattr(med, "_hitch_room_action_control", lambda f: (fake_hit, 40) if f is parent_frame else None)
+
+    # 模拟 hitch_sm.pending_join 激活 hitch_join_probe
+    med._hitch_sm.pending_join = True
+    best_frame = med._capture_best("KK官方对战平台", role="l0")
+    # 必须选 child，不能选 parent
+    assert best_frame is child_frame

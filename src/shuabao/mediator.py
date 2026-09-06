@@ -1114,7 +1114,7 @@ class Mediator:
                 # While a join is pending, the healthy lobby parent must not
                 # starve the child window that owns Ready/Exit controls.
                 for candidate in frames:
-                    if self._hitch_room_controls_visible(candidate):
+                    if self._find_room_start(candidate) is not None or self._hitch_tangible_room_evidence(candidate):
                         self._capture_miss_streak = 0
                         return candidate
             for candidate in frames:
@@ -7398,11 +7398,9 @@ class Mediator:
             return LoopAction.Continue
 
         ready_hit = self._find_hitch_ready_button(frame)
-        room_controls_visible = ready_hit is not None or self._hitch_room_controls_visible(frame)
-        in_room = (
-            room_start is not None
-            or context == "ROOM_WAITING"
-            or room_controls_visible
+        topology_possible = getattr(self, "_capture_candidates", 1) >= 2
+        in_room = topology_possible and bool(
+            room_start is not None or self._hitch_tangible_room_evidence(frame)
         )
         if (
             self._hitch_sm.pending_join
