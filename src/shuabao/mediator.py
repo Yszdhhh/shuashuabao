@@ -1082,6 +1082,7 @@ class Mediator:
         hitch_join_probe = role == "l0" and self._hitch_sm.pending_join
         hitch_exit_probe = role == "l0" and getattr(self, "_hitch_floor_exit_pending", False)
         self._capture_candidates = len(targets)
+        previous_confirmed_room = self._confirmed_room_hwnd
         self._confirmed_room_hwnd = None
         # One grab per HWND per call.  The room-signature pre-pass below,
         # the probe paths and the sticky/ranking paths all ask for the same
@@ -1109,6 +1110,15 @@ class Mediator:
                 if cand_frame.hwnd is not None and self._is_confirmed_room_frame(cand_frame):
                     self._confirmed_room_hwnd = cand_frame.hwnd
                     break
+        if role == "l0" and self._confirmed_room_hwnd != previous_confirmed_room:
+            # Transition only - this runs every tick.  Room identity is the
+            # single thing a live hitch run cannot be audited without: it must
+            # name the real room HWND and never the pet window.
+            print(
+                f"[med] confirmed room hwnd {previous_confirmed_room} -> "
+                f"{self._confirmed_room_hwnd} candidates="
+                + repr([(t.hwnd, t.width, t.height) for t in targets])
+            )
         if not targets:
             return capture(title, role=role, activate=False)
         # KK exposes the create-room form as a second same-title HWND.  The
