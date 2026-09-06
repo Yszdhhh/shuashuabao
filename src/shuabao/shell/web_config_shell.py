@@ -391,6 +391,11 @@ class WebConfigShell(QMainWindow):
             target = f"跟随跟车({settings.follow_pair_code or '自动'})"
         else:
             target = (settings.stage_targets or [f"{settings.stage1}-{settings.stage2}"])[0]
+        hud_modes = {
+            "normal_farm": "单人模式",
+            "follow_team": "组队跟车模式",
+            "lobby_hitch": "组队蹭车模式",
+        }
         mode = hud_modes.get(mode_id)
         if not mode:
             try:
