@@ -1114,10 +1114,17 @@ class Mediator:
             # Transition only - this runs every tick.  Room identity is the
             # single thing a live hitch run cannot be audited without: it must
             # name the real room HWND and never the pet window.
+            candidates = [
+                (
+                    getattr(t, "hwnd", None),
+                    getattr(t, "width", None),
+                    getattr(t, "height", None),
+                )
+                for t in targets
+            ]
             print(
                 f"[med] confirmed room hwnd {previous_confirmed_room} -> "
-                f"{self._confirmed_room_hwnd} candidates="
-                + repr([(t.hwnd, t.width, t.height) for t in targets])
+                f"{self._confirmed_room_hwnd} candidates={candidates!r}"
             )
         if not targets:
             return capture(title, role=role, activate=False)

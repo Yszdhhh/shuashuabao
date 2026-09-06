@@ -182,7 +182,9 @@ class FrameEvidenceTests(unittest.TestCase):
 
             # 连续第 2 帧失配（N=2）→ 才枚举候选并分类
             med._capture_best("英雄三国KK", "l1")
-            self.assertEqual(ct.call_count, 4, "第 2 帧失配：1 次上次 hwnd + 2 次候选枚举")
+            # 一个 HWND 每次 _capture_best 只抓一次：第 2 帧抓 101（上次 hwnd）
+            # 与 202（枚举新增），101 的枚举命中 memo 不再重复抓屏。
+            self.assertEqual(ct.call_count, 3, "第 2 帧失配：上次 hwnd + 候选枚举，每 HWND 仅 1 次")
             self.assertGreater(fs.call_count, 0, "枚举时才做分类排序")
 
     def test_frame_evidence_holds_strong_frame_reference(self):
@@ -485,7 +487,7 @@ class ReviewFixTests(unittest.TestCase):
             self.assertEqual(ct.call_count, 1, "第 1 帧无信号仍返回上次 hwnd（容忍 1 帧）")
             self.assertIs(f1, frames[101])
             med._capture_best("英雄三国KK", "l1")
-            self.assertGreaterEqual(ct.call_count, 4, "第 2 帧连续无信号必须候选枚举（上次 hwnd + 全部候选）")
+            self.assertGreaterEqual(ct.call_count, 3, "第 2 帧连续无信号必须候选枚举（上次 hwnd + 全部候选，每 HWND 仅 1 次）")
 
     # #1 反向：像素有效且有信号 → 一直 sticky（不重排）
     def test_capture_best_sticky_with_signal_keeps_last_hwnd(self):

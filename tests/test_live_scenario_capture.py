@@ -1177,7 +1177,12 @@ def test_lobby_hitch_clicks_two_character_ready_but_not_four_character_action() 
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     frame = _synthetic_hitch_room(3)
 
-    with patch.object(med, "find_scene", return_value=None), \
+    # Room identity is established by _capture_best -> _is_confirmed_room_frame.
+    # This tick is called directly, and the synthetic frame carries no real
+    # room_exit_btn template, so seed the authority the capture layer owns.
+    med._confirmed_room_hwnd = frame.hwnd
+    with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+         patch.object(med, "find_scene", return_value=None), \
          patch.object(med, "act_click", return_value=True) as click:
         med._tick_lobby_hitch(frame, "UNKNOWN")
 
@@ -1191,7 +1196,12 @@ def test_lobby_hitch_leaves_when_host_is_not_on_floor_one() -> None:
     frame = _synthetic_hitch_room(0, first_row_host=False)
     med._hitch_pending_room_key = "room-763405"
 
-    with patch.object(med, "find_scene", return_value=None), \
+    # Room identity is established by _capture_best -> _is_confirmed_room_frame.
+    # This tick is called directly, and the synthetic frame carries no real
+    # room_exit_btn template, so seed the authority the capture layer owns.
+    med._confirmed_room_hwnd = frame.hwnd
+    with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+         patch.object(med, "find_scene", return_value=None), \
          patch.object(med, "act_click", return_value=True) as click:
         med._tick_lobby_hitch(frame, "UNKNOWN")
 
@@ -1407,12 +1417,16 @@ def test_lobby_hitch_conflicting_room_and_lobby_holds_pending_zero_input() -> No
     med._hitch_floor_exit_pending = True
     med._hitch_floor_exit_attempted_at = 100.0
 
+    # Room identity is established by _capture_best -> _is_confirmed_room_frame.
+    # This tick is called directly, and the synthetic frame carries no real
+    # room_exit_btn template, so seed the authority the capture layer owns.
+    med._confirmed_room_hwnd = frame.hwnd
     with patch("shuabao.mediator.time.time", return_value=101.0), \
         patch.object(med, "find_scene", return_value=None), \
         patch.object(med, "_lobby_room_list_evidence", return_value=True), \
         patch.object(med, "_find_hitch_ready_button", return_value=None), \
         patch.object(med, "_hitch_room_controls_visible", return_value=True), \
-        patch.object(med, "_hitch_tangible_room_evidence", return_value=True), \
+        patch.object(med, "_is_confirmed_room_frame", return_value=True), \
         patch.object(med, "act_click", return_value=False) as click:
         med._tick_lobby_hitch(frame, "UNKNOWN")
 
@@ -1432,10 +1446,15 @@ def test_tick_l0_exit_pending_does_not_clobber_room_start_and_stays_zero_input()
     med._hitch_pending_room_key = "room-763405"
     med.phase = Phase.LOBBY_ROOM
 
-    frame = Frame(np.full((904, 1224, 3), 100, dtype=np.uint8), window_title="KK官方对战平台", role="l0")
+    frame = Frame(np.full((904, 1224, 3), 100, dtype=np.uint8), window_title="KK官方对战平台", hwnd=99, role="l0")
     fake_room_start = MatchResult(name="room_start", score=0.9, x=100, y=100, w=50, h=50, screen_x=125, screen_y=125)
 
-    with patch.object(med, "_detect_context", return_value="ROOM_WAITING"), \
+    # Room identity is established by _capture_best -> _is_confirmed_room_frame.
+    # This tick is called directly, and the synthetic frame carries no real
+    # room_exit_btn template, so seed the authority the capture layer owns.
+    med._confirmed_room_hwnd = frame.hwnd
+    with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+         patch.object(med, "_detect_context", return_value="ROOM_WAITING"), \
          patch.object(med, "_lobby_room_list_evidence", return_value=True), \
          patch.object(med, "_find_room_start", return_value=fake_room_start), \
          patch.object(med, "act_click") as click, \
