@@ -273,3 +273,67 @@ def test_main_line_in_game_preempts_to_recover_failure_on_two_consecutive_hits(m
     # 第 2 帧：连续两帧确认，抢占进入 RECOVER_FAILURE
     med.tick()
     assert med.phase == Phase.RECOVER_FAILURE, "MAIN_LINE 连续两帧确认后必须进入 RECOVER_FAILURE！"
+
+
+def test_hitch_tangible_room_evidence_excludes_lobby_quick_join(monkeypatch):
+    """验证：大厅房间列表 + Quick Join 蓝色按钮时，tangible_room 必须为 False。"""
+    settings = Settings()
+    med = Mediator(settings, Path(__file__).resolve().parents[1])
+    rng = np.random.default_rng(777)
+    frame = Frame(rng.integers(0, 256, size=(945, 1332, 3), dtype=np.uint8))
+
+    # 模拟大厅可见
+    monkeypatch.setattr(med, "_lobby_room_list_evidence", lambda f: True)
+    # 模拟出现大厅底部的蓝色动作控件（例如 Quick Join / 创建房间）
+    fake_hit = MatchResult(name="room_blue_action", score=0.9, x=900, y=850, w=100, h=40, screen_x=900, screen_y=850)
+    monkeypatch.setattr(med, "_hitch_room_action_control", lambda f: (fake_hit, 40))
+    # 房间专属正向模板不命中
+    monkeypatch.setattr(med, "find_scene", lambda f, s, **k: None)
+    monkeypatch.setattr(med, "find", lambda f, t, **k: None)
+
+    # 旧实现中 _hitch_room_controls_visible 会为 True
+    assert med._hitch_room_controls_visible(frame) is True
+    # 但专属实体房间证据必须为 False
+    assert med._hitch_tangible_room_evidence(frame) is False
+    assert med._lobby_room_list_evidence(frame) is True
+
+
+def test_hitch_tangible_room_evidence_accepts_real_room(monkeypatch):
+    """验证：真实房间内的专属控件（如 room_ready, readyBtn, room_start）命中时，tangible_room 为 True。"""
+    settings = Settings()
+    med = Mediator(settings, Path(__file__).resolve().parents[1])
+    rng = np.random.default_rng(888)
+    frame = Frame(rng.integers(0, 256, size=(945, 1332, 3), dtype=np.uint8))
+
+    fake_hit = MatchResult(name="readyBtn", score=0.9, x=900, y=850, w=100, h=40, screen_x=900, screen_y=850)
+    monkeypatch.setattr(med, "find", lambda f, t, **k: fake_hit if "readyBtn" in t else None)
+    monkeypatch.setattr(med, "find_scene", lambda f, s, **k: None)
+
+    assert med._hitch_tangible_room_evidence(frame) is True
+
+
+def test_hitch_floor_exit_pending_clears_on_lobby_with_quick_join(monkeypatch):
+    """验证：floor_exit_pending 状态下，面对大厅（含 Quick Join 蓝色按钮），必须成功清除 pending 并推进。"""
+    settings = Settings()
+    settings.mode_id = "lobby_hitch"
+    med = Mediator(settings, Path(__file__).resolve().parents[1])
+    med.set_phase(Phase.ROOM_WAITING, "test_exit_pending")
+    med._hitch_floor_exit_pending = True
+    med._hitch_floor_exit_confirmed = True
+
+    rng = np.random.default_rng(999)
+    frame = Frame(rng.integers(0, 256, size=(945, 1332, 3), dtype=np.uint8))
+
+    monkeypatch.setattr(med, "see", lambda *a, **k: frame)
+    monkeypatch.setattr(med, "_lobby_room_list_evidence", lambda f: True)
+    # 模拟大厅底部有蓝色控件
+    fake_hit = MatchResult(name="room_blue_action", score=0.9, x=900, y=850, w=100, h=40, screen_x=900, screen_y=850)
+    monkeypatch.setattr(med, "_hitch_room_action_control", lambda f: (fake_hit, 40))
+    monkeypatch.setattr(med, "find_scene", lambda f, s, **k: None)
+    monkeypatch.setattr(med, "find", lambda f, t, **k: None)
+
+    # 运行一次 tick
+    action = med.tick()
+    # 必须清除 _hitch_floor_exit_pending，不再被死锁
+    assert med._hitch_floor_exit_pending is False
+    assert med.phase == Phase.LOBBY_ROOM

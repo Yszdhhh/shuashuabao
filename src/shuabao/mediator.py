@@ -7017,6 +7017,21 @@ class Mediator:
         if self.find(frame, ["room_ready", "readyBtn", "room_cancel_ready", "room_exit_btn"], threshold=0.75) is not None:
             return True
         return self._hitch_room_action_control(frame) is not None
+    def _hitch_tangible_room_evidence(self, frame: Frame) -> bool:
+        """明确的、房间专属的正向实体控件证据。
+
+        禁止把通用蓝色几何块回退（_hitch_room_action_control / room_blue_action）
+        作为状态证据，避免大厅 Quick Join、创建房间、刷新等蓝色控件导致误判仍在房内。
+        """
+        if self.find_scene(frame, "room_start") is not None:
+            return True
+        if self.find(
+            frame,
+            ["room_ready", "readyBtn", "room_cancel_ready", "room_exit_btn", "room_start"],
+            threshold=0.75,
+        ) is not None:
+            return True
+        return False
 
     def _hitch_exit_modal_visible(self, frame: Frame) -> bool:
         """Return True if frame visibly contains explicit exit-specific modal evidence.
@@ -7411,7 +7426,7 @@ class Mediator:
             # 或用户手动 Esc 关掉弹窗时，_hitch_floor_exit_confirmed 永远不会置真。
             # 因此只有实体房间控件才算仍在房内；陈旧的 context=="ROOM_WAITING"
             # 不能无限挂住退出闩锁。超过 3 秒仍无确认弹窗也按已退出收尾。
-            tangible_room = room_start is not None or room_controls_visible
+            tangible_room = self._hitch_tangible_room_evidence(frame)
             lobby_visible = self._lobby_room_list_evidence(frame)
             if frame.bgr is None or float(np.mean(frame.bgr)) < 3.0:
                 print("[L0] hitch 退出后捕获到黑帧，保持退出状态等待确认窗口/大厅")
