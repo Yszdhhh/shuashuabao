@@ -317,11 +317,5 @@ export function createMockBridge(options: MockBridgeOptions = {}): DashboardBrid
       }
       return { ok: true, message: "测试卡密激活成功", status: "正常", expires_at: "2026-09-30" };
     },
-    async refresh_subscription_status() {
-      if (options.subscriptionAllowed === false) {
-        return { ok: false, error: "开发桥模拟订阅拒绝" };
-      }
-      return { ok: true, subscription: current.subscription };
-    },
   };
 }

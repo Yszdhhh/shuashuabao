@@ -161,7 +161,6 @@ export interface DashboardBridge {
   window_control(action: "minimize" | "close"): Promise<RpcResponse>;
   set_window_layout(layout: WindowLayout): Promise<RpcResponse>;
   activate_subscription(key: string): Promise<{ ok: boolean; message: string; status?: string; expires_at?: string; subscription?: SubscriptionDTO }>;
-  refresh_subscription_status(): Promise<{ ok: boolean; error?: string; subscription?: SubscriptionDTO }>;
 }
 
 export interface DashboardBridgeSignals {

@@ -14,7 +14,6 @@ import type {
   RunResult,
   ShellPatchResult,
   SnapshotDTO,
-  SubscriptionDTO,
   WindowLayout,
 } from "./types";
 export const QWEBCHANNEL_SRC = "qrc:///qtwebchannel/qwebchannel.js";
@@ -52,7 +51,6 @@ export type RawFacade = {
   window_control(action_json: string): Promise<string>;
   set_window_layout(layout_json: string): Promise<string>;
   activate_subscription(key_json: string): Promise<string>;
-  refresh_subscription_status(): Promise<string>;
 } & {
   snapshot_changed?: SignalLike<[string]>;
   run_status_changed?: SignalLike<[string]>;
@@ -164,12 +162,6 @@ function wrapFacade(facade: RawFacade): DashboardBridge {
       callMethod<{ ok: boolean; message: string; status?: string; expires_at?: string }>(
         "activate_subscription",
         facade.activate_subscription(JSON.stringify({ key })),
-      ),
-    refresh_subscription_status: () =>
-      callMethod<{ ok: boolean; subscription?: SubscriptionDTO; error?: string }>(
-        "refresh_subscription_status",
-        facade.refresh_subscription_status(),
-        PREFLIGHT_CALL_TIMEOUT_MS,
       ),
   };
 }
