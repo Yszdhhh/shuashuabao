@@ -371,72 +371,108 @@ def test_hitch_single_kk_task_page_switches_to_room_list(monkeypatch):
     assert "HitchSelectTab" in clicked_actions
 
 
-def test_hitch_two_kk_with_real_room_child_in_room_true(monkeypatch):
-    """验证回归 2：2 KK + 真实房间 child + room-only evidence -> in_room=True。"""
+def test_case_a_lobby_plus_pet_window_not_room(monkeypatch):
+    """Case A: 大厅 + 宠物/探险第二 KK 窗口, KK HWND 数 = 2 -> confirmed_room_hwnd=None, in_room=False"""
     settings = Settings()
     settings.mode_id = "lobby_hitch"
     repo_root = Path(__file__).resolve().parents[1]
     med = Mediator(settings, repo_root)
-    med.set_phase(Phase.ROOM_WAITING, "test_two_kk_room")
-    med._capture_candidates = 2  # 拓扑硬门禁：2 个 KK HWND
 
     import cv2
-    room_path = repo_root / "tests" / "performance" / "fixtures" / "room_waiting.png"
-    if room_path.exists():
-        room_bgr = cv2.imdecode(np.fromfile(str(room_path), dtype=np.uint8), cv2.IMREAD_COLOR)
-    else:
-        room_bgr = np.ones((945, 1332, 3), dtype=np.uint8) * 120
-    frame = Frame(room_bgr, left=100, top=100)
+    lobby_bgr = cv2.imdecode(np.fromfile(str(repo_root / "tests/fixtures/real_task_page_frame.png"), dtype=np.uint8), cv2.IMREAD_COLOR)
+    pet_bgr = cv2.imdecode(np.fromfile(str(repo_root / "tests/fixtures/real_pet_window_frame.png"), dtype=np.uint8), cv2.IMREAD_COLOR)
 
-    # 提供明确的房间专属证据（例如 room_start）
-    start_hit = MatchResult(name="room_start", score=0.95, x=1000, y=800, w=100, h=40, screen_x=1100, screen_y=900)
-    monkeypatch.setattr(med, "_find_room_start", lambda f: start_hit)
+    lobby_frame = Frame(lobby_bgr, left=0, top=0, hwnd=1001)
+    pet_frame = Frame(pet_bgr, left=100, top=100, hwnd=1002)
 
-    topology_possible = getattr(med, "_capture_candidates", 1) >= 2
-    in_room = topology_possible and bool(
-        med._find_room_start(frame) is not None or med._hitch_tangible_room_evidence(frame)
+    from shuabao.vision.capture import WindowTarget
+    t_lobby = WindowTarget(hwnd=1001, title="KK官方对战平台", left=0, top=0, width=1332, height=945)
+    t_pet = WindowTarget(hwnd=1002, title="KK官方对战平台", left=100, top=100, width=600, height=818)
+
+    monkeypatch.setattr("shuabao.mediator.find_window_targets", lambda *a, **k: [t_lobby, t_pet])
+    monkeypatch.setattr("shuabao.mediator.capture_target", lambda t: lobby_frame if t.hwnd == 1001 else pet_frame)
+
+    frame = med._capture_best("KK官方对战平台", role="l0")
+    assert med._confirmed_room_hwnd is None
+
+    confirmed_room_hwnd = getattr(med, "_confirmed_room_hwnd", None)
+    in_room = bool(
+        frame.hwnd is not None
+        and confirmed_room_hwnd is not None
+        and frame.hwnd == confirmed_room_hwnd
+        and med._is_confirmed_room_frame(frame)
+    )
+    assert in_room is False
+
+
+def test_case_b_lobby_plus_real_room_selects_room(monkeypatch):
+    """Case B: 大厅 + 用户提供的真实房间窗口, KK HWND 数 = 2 -> 必须选择真实房间 HWND"""
+    settings = Settings()
+    settings.mode_id = "lobby_hitch"
+    repo_root = Path(__file__).resolve().parents[1]
+    med = Mediator(settings, repo_root)
+
+    import cv2
+    lobby_bgr = cv2.imdecode(np.fromfile(str(repo_root / "tests/fixtures/real_task_page_frame.png"), dtype=np.uint8), cv2.IMREAD_COLOR)
+    room_bgr = cv2.imdecode(np.fromfile(str(repo_root / "tests/fixtures/real_room_window_frame.png"), dtype=np.uint8), cv2.IMREAD_COLOR)
+
+    lobby_frame = Frame(lobby_bgr, left=0, top=0, hwnd=1001)
+    room_frame = Frame(room_bgr, left=100, top=100, hwnd=1003)
+
+    from shuabao.vision.capture import WindowTarget
+    t_lobby = WindowTarget(hwnd=1001, title="KK官方对战平台", left=0, top=0, width=1332, height=945)
+    t_room = WindowTarget(hwnd=1003, title="KK官方对战平台", left=100, top=100, width=1032, height=721)
+
+    monkeypatch.setattr("shuabao.mediator.find_window_targets", lambda *a, **k: [t_lobby, t_room])
+    monkeypatch.setattr("shuabao.mediator.capture_target", lambda t: lobby_frame if t.hwnd == 1001 else room_frame)
+
+    med._hitch_sm.pending_join = True
+    best_frame = med._capture_best("KK官方对战平台", role="l0")
+    assert med._confirmed_room_hwnd == 1003
+    assert best_frame.hwnd == 1003
+
+    confirmed_room_hwnd = getattr(med, "_confirmed_room_hwnd", None)
+    in_room = bool(
+        best_frame.hwnd is not None
+        and confirmed_room_hwnd is not None
+        and best_frame.hwnd == confirmed_room_hwnd
+        and med._is_confirmed_room_frame(best_frame)
     )
     assert in_room is True
 
 
-def test_hitch_capture_best_prefers_room_child_over_lobby_parent(monkeypatch):
-    """验证回归 3：2 KK，其中 lobby parent 有 Quick Join、child 有房间控件 -> capture 必须选 child，不能选 parent。"""
+def test_case_c_lobby_plus_pet_plus_room_selects_room(monkeypatch):
+    """Case C: 大厅 + 宠物窗口 + 房间窗口, KK HWND 数 = 3 -> 必须忽略宠物 HWND，选择房间 HWND"""
     settings = Settings()
     settings.mode_id = "lobby_hitch"
     repo_root = Path(__file__).resolve().parents[1]
     med = Mediator(settings, repo_root)
 
-    # parent 窗口帧（大厅任务页，含 Quick Join）
     import cv2
-    task_frame_path = repo_root / "tests" / "fixtures" / "real_task_page_frame.png"
-    if task_frame_path.exists():
-        parent_bgr = cv2.imdecode(np.fromfile(str(task_frame_path), dtype=np.uint8), cv2.IMREAD_COLOR)
-    else:
-        parent_bgr = np.ones((945, 1332, 3), dtype=np.uint8) * 120
-    parent_frame = Frame(parent_bgr, left=0, top=0)
+    lobby_bgr = cv2.imdecode(np.fromfile(str(repo_root / "tests/fixtures/real_task_page_frame.png"), dtype=np.uint8), cv2.IMREAD_COLOR)
+    pet_bgr = cv2.imdecode(np.fromfile(str(repo_root / "tests/fixtures/real_pet_window_frame.png"), dtype=np.uint8), cv2.IMREAD_COLOR)
+    room_bgr = cv2.imdecode(np.fromfile(str(repo_root / "tests/fixtures/real_room_window_frame.png"), dtype=np.uint8), cv2.IMREAD_COLOR)
 
-    # child 窗口帧（房间页，含 room_ready / room_start）
-    child_bgr = np.ones((700, 1000, 3), dtype=np.uint8) * 120
-    child_frame = Frame(child_bgr, left=100, top=100)
+    lobby_frame = Frame(lobby_bgr, left=0, top=0, hwnd=1001)
+    pet_frame = Frame(pet_bgr, left=100, top=100, hwnd=1002)
+    room_frame = Frame(room_bgr, left=200, top=200, hwnd=1003)
 
     from shuabao.vision.capture import WindowTarget
-    parent_target = WindowTarget(hwnd=1001, title="KK官方对战平台", left=0, top=0, width=1332, height=945)
-    child_target = WindowTarget(hwnd=1002, title="KK官方对战平台", left=100, top=100, width=1000, height=700)
+    t_lobby = WindowTarget(hwnd=1001, title="KK官方对战平台", left=0, top=0, width=1332, height=945)
+    t_pet = WindowTarget(hwnd=1002, title="KK官方对战平台", left=100, top=100, width=600, height=818)
+    t_room = WindowTarget(hwnd=1003, title="KK官方对战平台", left=200, top=200, width=1032, height=721)
 
-    monkeypatch.setattr("shuabao.mediator.find_window_targets", lambda *a, **k: [parent_target, child_target])
-    def mock_capture_target(t):
-        return parent_frame if t.hwnd == 1001 else child_frame
-    monkeypatch.setattr("shuabao.mediator.capture_target", mock_capture_target)
+    monkeypatch.setattr("shuabao.mediator.find_window_targets", lambda *a, **k: [t_lobby, t_pet, t_room])
+    def mock_capture(t):
+        if t.hwnd == 1001:
+            return lobby_frame
+        elif t.hwnd == 1002:
+            return pet_frame
+        else:
+            return room_frame
+    monkeypatch.setattr("shuabao.mediator.capture_target", mock_capture)
 
-    # 给 child 注入房间正向证据，给 parent 仅有普通 Quick Join 蓝色块
-    monkeypatch.setattr(med, "_find_room_start", lambda f: MatchResult("room_start", 0.9, 500, 500, 50, 20, 600, 600) if f is child_frame else None)
-    monkeypatch.setattr(med, "_hitch_tangible_room_evidence", lambda f: f is child_frame)
-    # parent 画面上有 generic blue action (Quick Join)
-    fake_hit = MatchResult(name="room_blue_action", score=0.9, x=900, y=850, w=100, h=40, screen_x=900, screen_y=850)
-    monkeypatch.setattr(med, "_hitch_room_action_control", lambda f: (fake_hit, 40) if f is parent_frame else None)
-
-    # 模拟 hitch_sm.pending_join 激活 hitch_join_probe
     med._hitch_sm.pending_join = True
     best_frame = med._capture_best("KK官方对战平台", role="l0")
-    # 必须选 child，不能选 parent
-    assert best_frame is child_frame
+    assert med._confirmed_room_hwnd == 1003
+    assert best_frame.hwnd == 1003

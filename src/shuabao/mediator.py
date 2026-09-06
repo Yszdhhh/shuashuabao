@@ -592,6 +592,7 @@ class Mediator:
         # 多窗口捕获：上次健康 hwnd 优先；连续 N=2 不健康/失配才枚举候选
         self._capture_miss_streak = 0
         self._capture_candidates = 0
+        self._confirmed_room_hwnd: int | None = None
         # N2.3：白名单 reason（无法解释 tick>1s=0 审计）与输入标记
         self._tick_reason: str | None = None
         self._tick_input_executed = False
@@ -1081,6 +1082,7 @@ class Mediator:
         hitch_join_probe = role == "l0" and self._hitch_sm.pending_join
         hitch_exit_probe = role == "l0" and getattr(self, "_hitch_floor_exit_pending", False)
         self._capture_candidates = len(targets)
+        self._confirmed_room_hwnd = None
         def capture_one(target):
             frame = capture_target(target)
             if (
@@ -1090,6 +1092,12 @@ class Mediator:
                 activate_window(target.hwnd)
                 frame = capture_target(target)
             return frame
+        if role == "l0" and len(targets) >= 2:
+            for cand_target in targets:
+                cand_frame = capture_one(cand_target)
+                if cand_frame.hwnd is not None and self._is_confirmed_room_frame(cand_frame):
+                    self._confirmed_room_hwnd = cand_frame.hwnd
+                    break
         if not targets:
             return capture(title, role=role, activate=False)
         # KK exposes the create-room form as a second same-title HWND.  The
@@ -1114,7 +1122,7 @@ class Mediator:
                 # While a join is pending, the healthy lobby parent must not
                 # starve the child window that owns Ready/Exit controls.
                 for candidate in frames:
-                    if self._find_room_start(candidate) is not None or self._hitch_tangible_room_evidence(candidate):
+                    if candidate.hwnd is not None and candidate.hwnd == self._confirmed_room_hwnd:
                         self._capture_miss_streak = 0
                         return candidate
             for candidate in frames:
@@ -1125,7 +1133,7 @@ class Mediator:
             # open room over the larger platform map — max(size) would always
             # pick 1328x945 and starve room_start (r10 trace_20260812_102844).
             for candidate in frames:
-                if self._find_room_start(candidate):
+                if candidate.hwnd is not None and candidate.hwnd == self._confirmed_room_hwnd:
                     self._capture_miss_streak = 0
                     return candidate
             # Otherwise fall through to sticky / signal ranking.
@@ -7033,6 +7041,30 @@ class Mediator:
             return True
         return False
 
+    def _is_confirmed_room_frame(self, frame: Frame) -> bool:
+        """当前 room signature 判定：必须同时具有退出按钮与开始/准备按钮。
+
+        room_exit_btn
+        AND
+        (
+          room_start
+          OR room_ready
+          OR readyBtn
+          OR room_cancel_ready
+        )
+        单个模板命中、generic blue geometry、context==ROOM_WAITING、KK 窗口数量都不得单独授予房间身份。
+        """
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
+            return False
+        has_exit = self.find(frame, ["room_exit_btn"], threshold=0.90) is not None
+        if not has_exit:
+            return False
+        has_action = (
+            self._find_room_start(frame) is not None
+            or self.find(frame, ["room_ready", "readyBtn", "room_cancel_ready"], threshold=0.90) is not None
+        )
+        return bool(has_action)
+
     def _hitch_exit_modal_visible(self, frame: Frame) -> bool:
         """Return True if frame visibly contains explicit exit-specific modal evidence.
 
@@ -7398,9 +7430,12 @@ class Mediator:
             return LoopAction.Continue
 
         ready_hit = self._find_hitch_ready_button(frame)
-        topology_possible = getattr(self, "_capture_candidates", 0) != 1
-        in_room = topology_possible and bool(
-            room_start is not None or self._hitch_tangible_room_evidence(frame)
+        confirmed_room_hwnd = getattr(self, "_confirmed_room_hwnd", None)
+        in_room = bool(
+            frame.hwnd is not None
+            and confirmed_room_hwnd is not None
+            and frame.hwnd == confirmed_room_hwnd
+            and self._is_confirmed_room_frame(frame)
         )
         if (
             self._hitch_sm.pending_join
@@ -7424,8 +7459,11 @@ class Mediator:
             # 或用户手动 Esc 关掉弹窗时，_hitch_floor_exit_confirmed 永远不会置真。
             # 因此只有实体房间控件才算仍在房内；陈旧的 context=="ROOM_WAITING"
             # 不能无限挂住退出闩锁。超过 3 秒仍无确认弹窗也按已退出收尾。
-            tangible_room = topology_possible and bool(
-                room_start is not None or self._hitch_tangible_room_evidence(frame)
+            tangible_room = bool(
+                frame.hwnd is not None
+                and confirmed_room_hwnd is not None
+                and frame.hwnd == confirmed_room_hwnd
+                and self._is_confirmed_room_frame(frame)
             )
             lobby_visible = self._lobby_room_list_evidence(frame)
             if frame.bgr is None or float(np.mean(frame.bgr)) < 3.0:
