@@ -411,11 +411,19 @@ class OverlayHud(QWidget):
             self._pinned_rect = QRect(rect)
         elif self._pinned_rect is None:
             self._pinned_rect = QRect(rect)
-        area = self._pinned_rect
+        elif not self._has_game_window:
+            # 若两者均非游戏窗（如平台窗口），且位移小于 16 像素，视为同一个窗口不抖动
+            dx = abs(self._pinned_rect.x() - rect.x())
+            dy = abs(self._pinned_rect.y() - rect.y())
+            dw = abs(self._pinned_rect.width() - rect.width())
+            dh = abs(self._pinned_rect.height() - rect.height())
+            if dx > 16 or dy > 16 or dw > 16 or dh > 16:
+                self._pinned_rect = QRect(rect)
         screen = QGuiApplication.primaryScreen()
         if screen is None:
             return
         screen_geo = screen.availableGeometry()
+        area = self._pinned_rect
         if area is None or not area.isValid():
             area = screen_geo
 

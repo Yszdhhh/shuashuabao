@@ -478,6 +478,7 @@ function applySwitches(settings: SettingsDTO): void {
 function rerenderAll(settings: SettingsDTO): void {
   renderChapterStage();
   hitchSearchTerms = parseHitchSearchTerms(settings.hitch_stage_prefix);
+  (window as unknown as { hitchSearchTerms: HitchSearchTerms }).hitchSearchTerms = hitchSearchTerms;
   const cjb = asString(settings.cjb_boss); // 持久化选择压过推荐展示
   const boss = asString(settings.sgzx_boss);
   if (cjb) state.cjb = cjb;

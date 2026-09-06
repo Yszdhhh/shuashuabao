@@ -384,15 +384,15 @@ class WebConfigShell(QMainWindow):
         except Exception:
             started_settings = None
         settings = started_settings or getattr(self.runner, "_started_settings", None) or self.facade._settings
-        target = (settings.stage_targets or [f"{settings.stage1}-{settings.stage2}"])[0]
         mode_id = str(run.get("mode_id") or settings.mode_id or "normal_farm")
-        hud_modes = {
-            "normal_farm": "单人模式",
-            "follow_team": "组队跟车模式",
-            "lobby_hitch": "组队蹭车模式",
-        }
+        if mode_id == "lobby_hitch":
+            target = f"大厅找房({settings.hitch_stage_prefix or '4,3'})"
+        elif mode_id == "follow_team":
+            target = f"跟随跟车({settings.follow_pair_code or '自动'})"
+        else:
+            target = (settings.stage_targets or [f"{settings.stage1}-{settings.stage2}"])[0]
         mode = hud_modes.get(mode_id)
-        if mode is None:
+        if not mode:
             try:
                 mode = get_spec(mode_id).label
             except Exception:

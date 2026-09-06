@@ -1001,7 +1001,7 @@ class Mediator:
     def _compute_context(self, frame: Frame, role: str | None = None) -> str:
         if self._selection_anchor(frame):
             value = "MAIN_LINE"
-        elif self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail"):
+        elif role != "l0" and (self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail")):
             value = "QUIT"
         elif self._is_in_game_hud(frame):
             # The task bar/Boss timer can parse as a stage row.  Strong HUD
@@ -8836,8 +8836,23 @@ class Mediator:
         if self.phase == Phase.RECOVER_FAILURE:
             return self._tick_recovery(frame)
 
-        disconnect_hit = self.find_scene(frame, "disconnect")
-        strong_fail_hit = None if disconnect_hit else self.find_scene(frame, "fail")
+        # 强失败与断线抢占仅在 L1 局内生效；L0 大厅/搜房阶段不存在局内结算或重连弹窗，
+        # 绝不让小尺寸 retryConnect (20x33) 或灰暗像素在大厅误触发进入 RECOVER_FAILURE。
+        l0_phases = {
+            Phase.BOOT,
+            Phase.WAIT_EXIT,
+            Phase.LOBBY_ROOM,
+            Phase.PREPARE,
+            Phase.PLATFORM_MAP,
+            Phase.CREATE_ROOM,
+            Phase.ROOM_WAITING,
+        }
+        if self.phase in l0_phases:
+            disconnect_hit = None
+            strong_fail_hit = None
+        else:
+            disconnect_hit = self.find_scene(frame, "disconnect")
+            strong_fail_hit = None if disconnect_hit else self.find_scene(frame, "fail")
         if disconnect_hit or strong_fail_hit:
             kind = "DISCONNECT" if disconnect_hit else "FAIL"
             if self._recovery_step == "DONE" and self.phase == Phase.QUIT:
