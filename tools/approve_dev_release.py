@@ -1,7 +1,7 @@
 """Operator-side dev exact-release approval against the subscription control plane.
 
-Closure B: reads the canonical identity of a freshly built, gate-verified
-package and registers the exact tuple
+Closure B: reads the canonical identity of a freshly built, gate-verified,
+**signature-verified** package and registers the exact tuple
 ``source_sha + release_manifest_sha256 + release_channel`` through the
 existing admin API (``PUT/POST /v1/admin/releases``), then proves the write
 with a read-after-write query against the public ``/v1/releases/status``.
@@ -11,20 +11,33 @@ Identity is computed with ``shuabao.release_signing.canonical_manifest_sha256``
 ``build_identity.json`` and the frozen ``live_execute._live_identity()``.
 There is deliberately no second hashing scheme here.
 
+Verification before approval (no second verifier; the existing
+``verify_packaged_release_snapshot`` covers all of it):
+- Ed25519 ``release_manifest.json.sig`` against the operator public-key
+  registry (loaded from an explicit operator path / env — never from the
+  package itself, which must not verify its own trust anchor);
+- attested file hash/size for every manifest entry;
+- extra unsigned files in the package root;
+- ``build_identity.json`` agreement with the canonical manifest identity.
+
+Channel policy: only ``dev`` / ``internal-pilot`` may ever be auto-approved.
+``external-beta`` / ``release`` are always BLOCKED here — they go through an
+independent human promotion / sign-off flow, never through this dev helper.
+
 Security boundaries:
 - admin credentials come only from the operator environment
   (``SHUABAO_SUBSCRIPTION_ADMIN_USER`` / ``SHUABAO_SUBSCRIPTION_ADMIN_PASSWORD``);
   they are never written to the registry, logs, package or client;
 - endpoints must be HTTPS, or loopback HTTP for local verification;
-- ``dev`` / ``internal-pilot`` only unless ``--allow-channel`` is passed;
-- any transport, auth or read-back failure exits non-zero (fail closed);
+- any verification, transport, auth or read-back failure exits non-zero
+  (fail closed) and never touches the remote admin API;
 - the runtime client keeps no self-approval capability.
 """
-
 from __future__ import annotations
 
 import argparse
-import getpass
+import base64
+
 import json
 import os
 import re
@@ -36,33 +49,63 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from shuabao.release_signing import canonical_manifest_sha256  # noqa: E402
+from shuabao.release_signing import (  # noqa: E402
+    ReleaseManifestError,
+    canonical_manifest_sha256,
+    verify_packaged_release_snapshot,
+)
+from shuabao.subscription_permit import load_public_keys  # noqa: E402
 
 APPROVED_MODES = ("lobby_hitch", "normal_farm", "follow_team")
 CHANNELS = ("dev", "internal-pilot", "external-beta", "release")
+# dev helper: only these two channels may ever be auto-approved.
+# external-beta/release always BLOCKED — independent human promotion/sign-off.
 OPERATOR_CHANNELS = ("dev", "internal-pilot")
 HEX40 = re.compile(r"[0-9a-f]{40}")
 HEX64 = re.compile(r"[0-9a-f]{64}")
 ADMIN_USER_ENV = "SHUABAO_SUBSCRIPTION_ADMIN_USER"
 ADMIN_PASSWORD_ENV = "SHUABAO_SUBSCRIPTION_ADMIN_PASSWORD"
 BASE_URL_ENV = "SHUABAO_SUBSCRIPTION_BASE_URL"
+PUBLIC_KEYS_ENV = "SHUABAO_MANIFEST_PUBLIC_KEYS_PATH"
 
 
 class ApprovalError(RuntimeError):
     """Fail-closed rejection: never approve an unverified artifact."""
 
 
-def load_package_identity(package_root: Path) -> dict[str, str]:
-    """Read the exact identity from the real package bytes via the canonical authority."""
-    manifest_path = package_root / "release_manifest.json"
-    if not manifest_path.is_file():
-        raise ApprovalError(f"缺少 release_manifest.json: {manifest_path}")
+def _load_operator_keys(public_keys_path: str) -> dict[str, object]:
+    """Load the operator's manifest public-key registry from OUTSIDE the package.
+
+    The package must never be trusted to verify itself: the trust anchor comes
+    from an explicit operator path or the existing build-time env variable
+    (the same one ``build_release.ps1`` reads).
+    """
+    raw = str(public_keys_path or os.environ.get(PUBLIC_KEYS_ENV) or "").strip()
+    if not raw:
+        raise ApprovalError(
+            f"缺少 operator manifest 公钥注册表（--public-keys 或 {PUBLIC_KEYS_ENV}）；"
+            "不得信任 package 自带密钥验证自身"
+        )
     try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise ApprovalError(f"release_manifest.json 不可读: {exc}") from exc
-    if not isinstance(manifest, dict):
-        raise ApprovalError("release_manifest.json 根必须是 JSON object")
+        keys = load_public_keys(Path(raw))
+    except Exception as exc:
+        raise ApprovalError(f"operator 公钥注册表不可用: {exc}") from exc
+    if not keys:
+        raise ApprovalError("operator 公钥注册表为空")
+    return keys
+
+
+def load_package_identity(package_root: Path, *, public_keys_path: str = "") -> dict[str, str]:
+    """Verify the real package (signature + attested files + no extras), then
+    derive the canonical identity and cross-check ``build_identity.json``."""
+    root = Path(package_root)
+    keys = _load_operator_keys(public_keys_path)
+    try:
+        manifest, _verified_files, _manifest_bytes = verify_packaged_release_snapshot(
+            root, pinned_keys=keys,
+        )
+    except ReleaseManifestError as exc:
+        raise ApprovalError(f"发行包验证失败（{exc.code}）: {exc.message}") from exc
     source_sha = str(manifest.get("source_sha") or "").strip().lower()
     channel = str(manifest.get("release_channel") or "").strip()
     if not HEX40.fullmatch(source_sha):
@@ -72,12 +115,27 @@ def load_package_identity(package_root: Path) -> dict[str, str]:
     manifest_sha = canonical_manifest_sha256(manifest)
     if not HEX64.fullmatch(manifest_sha):
         raise ApprovalError("canonical manifest sha256 计算失败")
-    return {
+
+    identity = {
         "source_sha": source_sha,
         "release_manifest_sha256": manifest_sha,
         "release_channel": channel,
-        "package_root": str(package_root),
+        "package_root": str(root),
     }
+    identity_path = root / "build_identity.json"
+    if not identity_path.is_file():
+        raise ApprovalError(f"缺少 build_identity.json: {identity_path}")
+    try:
+        build_identity = json.loads(identity_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ApprovalError(f"build_identity.json 不可读: {exc}") from exc
+    if str(build_identity.get("release_manifest_sha256") or "").lower() != manifest_sha:
+        raise ApprovalError("build_identity manifest SHA 与 canonical manifest 不一致")
+    if str(build_identity.get("source_sha") or "").lower() != source_sha:
+        raise ApprovalError("build_identity source_sha 与 manifest 不一致")
+    if str(build_identity.get("release_channel") or "") != channel:
+        raise ApprovalError("build_identity release_channel 与 manifest 不一致")
+    return identity
 
 
 def _validate_modes(modes: list[str]) -> list[str]:
@@ -141,8 +199,6 @@ def push_release_policy(
         raise ApprovalError(
             f"缺少运维凭据：{ADMIN_USER_ENV}/{ADMIN_PASSWORD_ENV} 只能来自仓外安全环境"
         )
-    import base64
-
     token = base64.b64encode(f"{user}:{password}".encode("utf-8")).decode("ascii")
     body = json.dumps(
         {
@@ -218,7 +274,13 @@ def write_audit_record(identity: dict[str, str], *, registry_path: Path, modes: 
         e for e in entries
         if (str(e.get("source_sha")), str(e.get("release_manifest_sha256")), str(e.get("release_channel"))) != key
     ]
-    entries.append({**identity, "allowed_modes": modes, "package_root": identity["package_root"]})
+    entries.append({
+        "source_sha": identity["source_sha"],
+        "release_manifest_sha256": identity["release_manifest_sha256"],
+        "release_channel": identity["release_channel"],
+        "allowed_modes": modes,
+        "package_root": identity["package_root"],
+    })
     registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(
         json.dumps(entries, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
@@ -231,18 +293,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", type=Path, help="可选：本地运维审计记录 JSON")
     parser.add_argument("--modes", default=",".join(APPROVED_MODES))
     parser.add_argument("--base-url", default="", help=f"默认读 {BASE_URL_ENV}")
-    parser.add_argument("--allow-channel", action="store_true", help="显式允许非 dev/internal-pilot 渠道")
+    parser.add_argument("--public-keys", default="", help=f"operator manifest 公钥注册表（默认读 {PUBLIC_KEYS_ENV}）")
     parser.add_argument("--timeout", type=float, default=15.0)
     args = parser.parse_args(argv)
 
     try:
-        identity = load_package_identity(args.package)
+        # 1. Verify the real package first: signature, attested files, extras,
+        #    build_identity agreement. No remote API call on any failure.
+        identity = load_package_identity(
+            args.package, public_keys_path=args.public_keys,
+        )
         modes = _validate_modes([m.strip() for m in args.modes.split(",") if m.strip()])
-        channel = identity["release_channel"]
-        if channel not in OPERATOR_CHANNELS and not args.allow_channel:
+        # 2. Hard channel gate: external-beta/release are never auto-approved.
+        if identity["release_channel"] not in OPERATOR_CHANNELS:
             raise ApprovalError(
-                f"渠道 {channel!r} 需要 --allow-channel 显式确认（外发渠道走人工签核，不自动批准）"
+                f"渠道 {identity['release_channel']!r} 禁止本工具自动批准；"
+                "external-beta/release 必须走独立人工 promotion/sign-off 流程"
             )
+        # 3. Remote push + verified read-back.
         base_url = args.base_url or os.environ.get(BASE_URL_ENV, "")
         push_release_policy(identity, base_url=base_url, modes=modes, timeout=args.timeout)
         status = verify_release_approved(identity, base_url=base_url, modes=modes, timeout=args.timeout)
