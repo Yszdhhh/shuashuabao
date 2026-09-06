@@ -7426,7 +7426,7 @@ class Mediator:
             # 或用户手动 Esc 关掉弹窗时，_hitch_floor_exit_confirmed 永远不会置真。
             # 因此只有实体房间控件才算仍在房内；陈旧的 context=="ROOM_WAITING"
             # 不能无限挂住退出闩锁。超过 3 秒仍无确认弹窗也按已退出收尾。
-            tangible_room = self._hitch_tangible_room_evidence(frame)
+            tangible_room = room_start is not None or self._hitch_tangible_room_evidence(frame)
             lobby_visible = self._lobby_room_list_evidence(frame)
             if frame.bgr is None or float(np.mean(frame.bgr)) < 3.0:
                 print("[L0] hitch 退出后捕获到黑帧，保持退出状态等待确认窗口/大厅")

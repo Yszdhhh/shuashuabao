@@ -1412,6 +1412,7 @@ def test_lobby_hitch_conflicting_room_and_lobby_holds_pending_zero_input() -> No
         patch.object(med, "_lobby_room_list_evidence", return_value=True), \
         patch.object(med, "_find_hitch_ready_button", return_value=None), \
         patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+        patch.object(med, "_hitch_tangible_room_evidence", return_value=True), \
         patch.object(med, "act_click", return_value=False) as click:
         med._tick_lobby_hitch(frame, "UNKNOWN")
 
