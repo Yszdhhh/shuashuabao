@@ -1,44 +1,36 @@
 # ShuaBao Cloud Architect Control Tower — CURRENT
 
-> Canonical short-form handoff for the current execution state. New cloud/Astra/Aster/Codex conversations should read this file first from branch `handoff/latest`, then independently re-read the live GitHub branch HEADs before trusting any Agent report.
+> Canonical short-form handoff for the current execution state.
+> New cloud/Aster/Astra/Opus/Codex conversations should read this file first from branch `handoff/latest`, then independently re-read the live `origin/trial-merge` HEAD before trusting any Agent report.
 >
-> Historical/deeper context remains in `docs/CLOUD_ARCHITECT_CONTROL_TOWER_20260905.md`. Where this CURRENT file conflicts with the older handoff, this CURRENT file wins for active priorities and next-step ordering.
+> Historical/deeper context remains in `docs/CLOUD_ARCHITECT_CONTROL_TOWER_20260905.md` and `docs/reviews/REAL_MACHINE_HITCH_DIAGNOSIS_20260906.md`.
+> Where this CURRENT file conflicts with older docs, this file wins for active priority and next-step ordering.
 
-## 0. Current operating mode: REAL-MACHINE FIRST
+## 0. Operating mode: REAL-MACHINE FIRST
 
-The project is temporarily in **Real-Machine First** mode.
+Current priority is not architecture elegance or broad cleanup. The only product objective is to make the formal desktop package complete one bounded Hitch chain on the real KK client:
 
-Primary goal:
+`arbitrary lobby tab -> room list -> keyword search/rotation -> join room -> confirm real room HWND -> floor-1 condition fails -> exit -> real exit confirmation -> fresh lobby -> at least one subsequent real refresh/search -> STOP`
 
-`formal desktop package -> Start -> real lobby search -> join room -> floor-1 condition fails -> exit -> real exit confirm -> fresh lobby -> at least one subsequent real refresh/search`
+Until this chain succeeds once:
 
-Until this bounded chain runs successfully once:
-
-- do not start Architecture Stage 2;
-- do not perform broad refactors or code slimming;
-- do not expand OCR/FSM/watchdog/recovery frameworks;
-- do not reopen already-accepted subscription/release architecture unless it is the direct runtime blocker;
-- do not fix speculative P2/P3 issues before they appear in the current real-machine chain;
-- do not turn one observed failure into a multi-module cleanup campaign;
-- use targeted regression only for the direct blocker, then rebuild and return to real-machine execution quickly.
+- no Architecture Stage 2;
+- no broad Mediator refactor;
+- no speculative OCR/FSM/watchdog/recovery expansion;
+- no unrelated P2/P3 cleanup before the current real-machine blocker is resolved;
+- a large pytest count is regression evidence only, never business PASS;
+- click/SendInput success is not business PASS;
+- UNKNOWN / ambiguous / stale / unauthorized evidence => ZERO INPUT.
 
 Required iteration loop:
 
-`real run -> preserve evidence at first blocking point -> identify one direct root cause -> minimal fix -> targeted regression -> one clean package -> resume real run`
+`real run -> preserve first blocker evidence -> minimal root-cause fix -> targeted regression -> commit/push -> one clean package -> exact approval -> resume real run`
 
-Do **not** use this loop:
+The current local execution Agent is authorized to continue through the next 1–2 direct blockers in the same bounded Hitch chain without stopping for a new cloud instruction, unless new user Ground Truth or an external environment decision is genuinely required.
 
-`one failure -> audit many modules -> speculative fixes -> large redesign -> huge test pass -> first real run reveals a new basic integration failure`.
+## 1. Git state — independently verified
 
-Validation priority is now:
-
-`real business closure > fresh real-machine evidence > targeted regression > full regression > architectural elegance`.
-
-A large pytest count is regression evidence only. It is never a substitute for a real business PASS.
-
-## 1. Git state at this handoff
-
-Main repository:
+Repository:
 
 `Yszdhhh/shuashuabao`
 
@@ -46,216 +38,255 @@ Main integration branch:
 
 `trial-merge`
 
-GitHub independently verified current HEAD:
+### Current remote HEAD
 
-`52d89a2ab336f245d28588bc47ae0af24b7622d7`
+At this handoff update, GitHub independently shows:
+
+`origin/trial-merge = 614bad89fe27ac3c11e739160ebfa19b19dec5e9`
 
 Commit:
 
-`fix(vision,hud,mediator): exclude ToolTipSaveBits HWND, anchor HUD by HWND identity, and whitelist in-game failure preempt`
+`fix(input): accept target-owned CEF child windows in obscured gate`
 
 Parent:
 
-`1c4066602a6f5402caf08c4c6e63026a50558e5e`
+`d8de9ef69a2f7d19371d9af228b51ac08c39023c`
 
-This `handoff/latest` branch is deliberately separate from `trial-merge` so documentation updates do not change the current code-bearing release identity.
+Important: Opus is actively executing the local closure task. New conversations must re-read `origin/trial-merge` because it may advance beyond `614bad89...`.
 
-Current cloud verdict for `52d89a2...`:
+This handoff lives on the separate branch `handoff/latest` so documentation refreshes do not mutate the code-bearing release identity on `trial-merge`.
 
-`CODE_REVIEW_PASS_WITH_TEST_DEBT`
+## 2. Recent real-machine progression
 
-`APPROVED_FOR_ONE_CLEAN_REBUILD_AND_IMMEDIATE_HITCH_GT`
+### 2.1 Earlier runtime blockers already resolved
 
-Do not request another speculative repair round before the next real run unless the package/cold-start gate itself fails.
+The recent Hitch real-machine campaign found and addressed:
 
-## 2. Why `52d89a2...` exists
+1. `Qt5152QWindowToolTipSaveBits` 308x800 helper HWND being captured instead of the real KK lobby;
+2. HUD jumping between unrelated HWNDs;
+3. pre-game/L0 disconnect/fail false preemption;
+4. generic blue lobby controls being treated as room controls;
+5. floor-exit pending deadlock after returning to lobby;
+6. assuming `>=2 KK HWNDs` automatically means a room exists;
+7. source/package/current identity drift between Git and the installed desktop package.
 
-The previous real-machine attempt exposed three direct runtime defects:
+Do not reopen these areas without new real-machine evidence.
 
-1. KK window capture selected a `308x800` transient helper window with class `Qt5152QWindowToolTipSaveBits` instead of the real approximately `1334x947` platform window.
-2. HUD anchoring followed changing frame rectangles/HWNDs and visibly jumped between windows.
-3. Generic disconnect/fail detection could preempt pre-game/L0 phases and enter `RECOVER_FAILURE` before the Hitch search chain began.
+### 2.2 Room HWND identity — accepted direction
 
-### Accepted production changes in `52d89a2...`
+A critical Ground Truth correction was established from user-provided real screenshots:
 
-#### A. Window identity / transient helper exclusion
+- KK can have a second non-room window such as the pet/exploration UI;
+- therefore `KK HWND count >= 2` is only a topology hint, not room identity;
+- the true room is a distinct KK HWND with room-specific structure/actions.
 
-`src/shuabao/vision/capture.py`
+Commit `6c71828888f1442993ba82295c7cbf49d586d96a` introduced:
 
-- explicitly rejects ToolTip/SaveBits transient helper classes during target enumeration;
-- includes the observed physical class `Qt5152QWindowToolTipSaveBits`;
-- removes the old generic rule that blindly gave the smallest KK window a large priority boost;
-- leaves real create/join/exit child-window selection to the existing semantic probes in `_capture_best()`.
+- `_confirmed_room_hwnd`;
+- strict composite room signature;
+- real screenshot fixtures for pet and room windows;
+- lobby+pet => no room;
+- lobby+room => select room;
+- lobby+pet+room => ignore pet, select room.
 
-For the exact observed `main KK window + Qt5152QWindowToolTipSaveBits` topology, the transient helper is now removed before capture selection.
+The current room signature is intentionally stronger than generic blue geometry:
 
-#### B. HUD HWND identity anchoring
+`room_exit_btn AND (room_start OR room_ready OR readyBtn OR room_cancel_ready)`
 
-`src/shuabao/shell/overlay_hud.py`
+Generic blue controls, `context==ROOM_WAITING`, or window count alone must not grant room identity.
 
-- stores an anchor HWND;
-- same non-game HWND may update geometry;
-- a different non-game HWND cannot steal the HUD anchor;
-- an explicitly identified game HWND may take over from the L0 anchor and then remains authoritative.
+### 2.3 Packaged-project path repair
 
-This directly addresses the observed cross-window HUD jump rather than only small geometric jitter.
+Commit `d8de9ef69a2f7d19371d9af228b51ac08c39023c` added packaged `_internal` fallbacks for:
 
-#### C. In-game-only strong failure preemption
+- `config/scenes.json`;
+- relative image/template paths.
 
-`src/shuabao/mediator.py`
+This commit is a packaging/runtime path fix, not a replacement for the room identity work in its parent `6c718288...`.
 
-Global disconnect/fail preemption is now authorized only for the explicit in-game whitelist:
+## 3. Current direct blocker discovered before Opus takeover
 
-- `MAIN_LINE`
-- `EARLY_CHALLENGE`
-- `ANCHOR_BOSS`
-- `LONGZHU`
-- `QUIT`
+The Hitch state machine had progressed to the room-list search action and correctly found the real search box:
 
-Pre-game/lobby/stage-transition phases are outside this authority set.
+`HitchSearchBox @ (1746,331)`
 
-The safety invariant remains:
+The input was then cancelled by:
 
-`UNKNOWN / ambiguous / stale / unauthorized evidence => ZERO INPUT`.
+`CANCELLED_WINDOW_OBSCURED`
 
-## 3. Independent cloud findings that are NOT reasons for another pre-GT repair round
+Physical diagnosis:
 
-Two debts were found during cloud review. Record them, but do not reopen code before the next real run solely for these items.
+- `WindowFromPoint(1746,331)` returned `HWND=37164458`;
+- class: `Chrome_RenderWidgetHostHWND`;
+- title: `Chrome Legacy Window`;
+- its root HWND was `31985540`;
+- that root HWND was the KK official platform target itself.
 
-### Test debt A — the 12-phase negative disconnect test is not actually a healthy-frame test
+Therefore this was NOT an external Chrome browser covering KK.
+It was KK's own embedded CEF/Chromium renderer child surface.
 
-`tests/test_hitch_l0_and_hud_fixes.py` labels the frame as healthy but constructs it with a constant `np.full(..., 100)` image.
+The old obscured gate compared exact HWND / PID semantics and could reject a CEF renderer that belongs to KK but runs in a different renderer process.
 
-Production `check_frame_health()` marks frames with standard deviation `< 1.0` as `LOW_ENTROPY`, so this test may return before the failure-preempt block. Therefore the reported claim that all 12 cases exercised a healthy high-entropy forced disconnect path is stronger than the test actually proves.
+## 4. Opus local takeover — ACTIVE EXECUTION
 
-This is a **test-quality debt**, not a current production blocker, because the production authority check itself is a simple positive whitelist and the excluded phases are visibly outside it.
+Opus 5 was explicitly assigned as the local Windows execution Agent, not as a cloud-only reviewer.
 
-Fix this later during the stability/ablation work unless the next real run shows a failure-preempt regression.
+Its job is to operate directly in the local `trial-merge` worktree and close the real chain:
 
-### Test/design debt B — comment says “large KK main window default”, ranking code only removes the small-window boost
+1. modify local production code;
+2. targeted tests;
+3. commit + push;
+4. clean build;
+5. manifest/signature/release gates;
+6. exact remote release approval;
+7. immutable package + atomic `current.json` switch;
+8. launch from the real desktop shortcut;
+9. run the bounded Hitch real-machine chain;
+10. after the chain works, perform only a light local simplicity audit of the touched window/input/Hitch code.
 
-The new capture ranking gives ordinary KK candidates the same base KK score and still gives foreground a bonus. It does not explicitly add an area/main-window preference despite the comment saying the large lobby is the default baseline.
+Do not ask Opus to stop after every normal direct blocker. It may continue the same minimal repair loop until the bounded chain passes or a genuinely new Ground Truth/environment blocker appears.
 
-For the exact observed ToolTipSaveBits failure this is not blocking because that helper HWND is now excluded entirely.
+## 5. Opus progress already visible in Git
 
-If a future real run shows a **different non-transient KK child HWND** stealing capture, promote this debt to the next direct blocker. Do not patch it speculatively now.
+Opus has already pushed the first code fix:
 
-## 4. Test evidence boundary
+`614bad89fe27ac3c11e739160ebfa19b19dec5e9`
 
-Agent-reported local results for `52d89a2...` include targeted tests, full pytest, and release gate PASS.
+Changed production area:
 
-GitHub currently exposes no combined CI statuses for this commit. Therefore:
+`src/shuabao/input/keyboard_mouse.py`
 
-- treat the Agent pytest/release-gate numbers as local execution evidence;
-- do not call them cloud CI;
-- do not infer real-machine PASS from them.
+New targeted test file:
 
-The reported total pytest count also differs from an earlier report despite added tests. Do not spend the current real-machine window investigating that count discrepancy unless a test gate actually fails during the next clean build.
+`tests/test_input_window_ownership.py`
 
-## 5. Immediate next action — no more design work first
+The commit introduces a root-window ownership concept using Win32 ancestry (`GetAncestor(..., GA_ROOT)`) instead of a class-name whitelist.
 
-From `trial-merge @ 52d89a2ab336f245d28588bc47ae0af24b7622d7`:
+Intended ownership semantics:
 
-1. confirm worktree clean and remote HEAD still exactly `52d89a2...`;
-2. perform **one** clean immutable build;
-3. run the existing release gate/signature/package verification;
-4. exact-approve that package against the subscription release policy using the existing approved mechanism;
-5. atomically switch `current.json`, preserving `previous`;
-6. cold-start from the real desktop shortcut;
-7. confirm saved DPAPI license restores automatically, subscription is ACTIVE, LIVE permit is verified, OCR worker is READY, and no immediate HUD/window regression appears;
-8. if cold start passes, immediately execute the bounded Hitch real-machine GT below.
+- exact target HWND => target-owned;
+- same non-zero root HWND => target-owned, including KK embedded CEF renderer children even when renderer PID differs;
+- existing legal same-process top-level/modal behavior remains compatible;
+- unrelated external Chrome/Terminal/VS Code/Explorer with a different root remains `CANCELLED_WINDOW_OBSCURED`;
+- unresolved ancestry is fail-closed;
+- no blanket `Chrome_RenderWidgetHostHWND` allowlist.
 
-Do not insert another broad Astra review between clean build and GT.
+At the time of this handoff update, this code commit exists remotely, but its final package/deployment/real-machine business result has NOT yet been accepted. Do not label it REAL_MACHINE_PASS until the actual UI postconditions below are observed.
 
-## 6. Bounded Hitch GT boundary
+## 6. Package/release identity state
 
-Use the **formal production dashboard**, real KK/game windows, and the current frozen package.
+Last locally reported installed package before the Opus input fix:
 
-Required boundary:
+`app-0.3-dev-6c71828888f1`
 
-`大厅 -> keyword search/rotation -> join room -> floor1 condition fails -> exit -> real exit confirmation -> fresh lobby -> at least one subsequent real refresh/search -> STOP`
+That package is now behind both `d8de9ef...` and `614bad89...`.
 
-Do not continue into the next successful join or MAIN_LINE during this bounded pass.
+Expected Opus next step is to build ONE new immutable package from the final code-bearing SHA after the current direct fix set stabilizes.
 
-Only three final classifications are valid:
+Before real GT, require four-way local identity readback:
+
+- local Git / `origin/trial-merge` code-bearing SHA;
+- `build_identity.source_sha`;
+- `current.json.current_source_sha`;
+- actually running `ShuaBao.exe` package path/source identity.
+
+They must match exactly.
+
+Do not push a docs-only commit to `trial-merge` after the final package is built; put subsequent handoff documentation on `handoff/latest` instead.
+
+## 7. Immediate real-machine acceptance path for Opus
+
+### Stage A — lobby/search
+
+With the pet window allowed to remain open:
+
+`arbitrary lobby tab -> start lobby_hitch -> pet HWND ignored -> lobby parent selected -> room-list tab selected -> HitchSearchBox found -> KK-owned CEF child accepted by input guard -> keyword entered -> search result visibly takes effect`
+
+Search PASS requires a real UI postcondition. `SendInput SUCCESS` alone is insufficient.
+
+### Stage B — join/room identity
+
+`search/refresh -> join -> confirmed_room_hwnd resolves to the true room HWND -> pet HWND remains ignored -> floor-1 condition evaluated`
+
+### Stage C — exit/return
+
+`floor-1 rejection -> exit -> real exit-confirm modal -> confirm -> fresh lobby -> room HWND disappears/loses authority -> at least one new refresh/search -> STOP`
+
+Do not continue into the next successful room join during the bounded pass.
+
+Valid final classifications:
 
 - `REAL_MACHINE_PASS`
 - `BLOCKED_REAL_MACHINE_GT`
 - `BLOCKED_GT_ENVIRONMENT`
 
-Rules:
+## 8. Evidence to preserve on the next blocker
 
-- click success is not business PASS;
-- SendInput success is not business PASS;
-- button disappearance/frame change is not business PASS;
-- business advancement requires fresh explicit postcondition evidence;
-- UNKNOWN/ambiguous/stale/unclassified means zero input;
-- if the run fails, preserve the evidence bundle first and fix only the first direct blocker;
-- do not use a failure as permission to redesign unrelated modules.
+If the chain blocks again, preserve before changing code:
 
-## 7. First successful run becomes the Golden Run
+- complete log slice around the first blocker;
+- screenshot/frame;
+- current phase/context;
+- current action + ActionResult;
+- all relevant HWNDs with title/class/PID/root HWND;
+- current package/source identity;
+- whether the observed postcondition exists.
 
-When the first complete bounded Hitch pass succeeds:
+Then repair only that direct blocker.
 
-- preserve the full logs/traces/screenshots/identity metadata as the first **Golden Run**;
-- do not immediately “optimize” that successful path;
-- future OCR/window/FSM/HUD/release changes should be compared against this Golden Run before being accepted.
+## 9. Light code audit AFTER the real chain works
 
-The purpose is to stop each architecture upgrade from behaving like a fresh integration project.
+Only after the bounded chain succeeds, Opus may perform a low-risk local audit limited to:
 
-## 8. Stability ablation — DEFERRED UNTIL TONIGHT / AFTER CURRENT REAL RUN
+- `src/shuabao/input/keyboard_mouse.py`;
+- Hitch/window identity paths in `src/shuabao/mediator.py`;
+- related capture/window selection paths in `src/shuabao/vision/capture.py`;
+- directly related tests.
 
-A stability ablation task is intentionally deferred so it cannot derail the current real-machine objective.
+Audit goal:
 
-The ablation phase is **observation and experiment design first**, not another architecture rewrite.
+make the authority boundaries easy to understand:
 
-Initial layers to isolate later:
+- Window identity;
+- Room identity;
+- Input safety.
 
-- WindowIdentity / HWND topology
-- Capture
-- Scene perception / template matching
-- OCR
-- Authority / role+phase ownership
-- FrameEvidence / action authorization
-- FSM
-- HUD
-- RuntimeWatchdog
+Allowed low-risk cleanup:
 
-Goal:
+- remove obvious duplicate conditions/dead local branches;
+- extract/reuse 1–2 small behavior-equivalent helpers;
+- correct stale comments;
+- remove clearly obsolete local compatibility logic if proof is strong.
 
-identify which layer creates instability and which upstream evidence failure cascades through the control tower.
+If cleanup may alter business behavior, record it as debt and do not implement it in this closure task.
 
-Do not start implementation, broad refactors, package churn, or production behavior changes as part of the first ablation pass.
+No broad Mediator decomposition or Architecture Stage 2 here.
 
-A likely later architectural concern is that `mediator.py` carries too many responsibilities and that L0/L1/authority concepts are repeated in multiple places, but this is **not** a reason to interrupt the current attempt to get one real run working.
+## 10. Golden Run and deferred stability ablation
 
-## 9. Architecture and known debt freeze
+The first complete bounded Hitch success becomes the first Golden Run.
+Preserve its full logs, screenshots, HWND topology, package identity and business postconditions.
 
-Architecture branch:
+The previously planned stability ablation remains deferred until after the current real-machine closure. Its purpose is to isolate WindowIdentity/Capture/Perception/OCR/Authority/FrameEvidence/FSM/HUD/Watchdog instability, not to interrupt the current GT with another rewrite.
 
-`refactor/architecture-convergence-20260904`
+Architecture Stage 2 remains HOLD.
 
-Stage 2 remains **HOLD** until the current real-machine path is working and the later ablation evidence says what should actually be extracted.
+## 11. Subscription/release notes
 
-Known RuntimeWatchdog P1 remains deferred unless it directly blocks the bounded GT. Do not build a new watchdog/recovery system before then.
+The subscription/release control plane and immutable package model remain accepted. Reopen only if the new package cannot obtain exact approval/permit.
 
-The FrameEvidence/action-gate safety model remains accepted. Do not weaken stale-evidence or one-input-per-fresh-authority protections merely to make the script “keep moving”. Availability improvements should reacquire valid evidence rather than authorize actions from stale/unknown evidence.
+Never copy previously exposed admin credentials into Git, logs, packages or future prompts.
 
-## 10. Subscription/release operational notes
+The current `trycloudflare.com` endpoint may support the dev/GT path while healthy, but it is not proof of a permanent External Beta hostname. External Beta remains a later independent gate.
 
-The subscription/release control plane and immutable package model are already accepted architecture. Do not reopen them unless the next package cannot obtain exact approval/permit.
-
-A subscription admin credential was previously exposed in conversational text. Never copy that credential into Git, docs, logs, packages, or future prompts. Rotate it before relying on it for further sensitive/admin operations if rotation has not already occurred.
-
-The current `trycloudflare.com` endpoint may be used only for the current dev/GT path while it is demonstrably healthy; it is not proof of a fixed External Beta production hostname. External Beta remains a separate later gate.
-
-## 11. New-conversation bootstrap
+## 12. New-conversation bootstrap
 
 If context is lost or a new Agent/chat takes over:
 
-1. read `handoff/latest:docs/CLOUD_ARCHITECT_CONTROL_TOWER_CURRENT.md` first;
-2. independently verify `origin/trial-merge` before trusting any reported SHA;
-3. if `trial-merge` has moved beyond `52d89a2...`, inspect only the delta before proceeding;
-4. preserve **Real-Machine First** priority until one bounded Hitch Golden Run exists;
-5. do not restart broad architecture/audit work merely because context changed;
-6. continue from the first unresolved real-machine blocker and keep scope minimal.
+1. read `handoff/latest:docs/CLOUD_ARCHITECT_CONTROL_TOWER_CURRENT.md`;
+2. independently read the live `origin/trial-merge` HEAD — Opus may have advanced it beyond `614bad89...`;
+3. inspect only the delta after the last verified SHA instead of restarting a full repository audit;
+4. preserve REAL-MACHINE FIRST priority;
+5. if Opus is still executing locally, do not start a second concurrent code writer on the same branch/worktree;
+6. continue from the first unresolved real-machine blocker;
+7. do not call the task complete until the bounded chain reaches fresh lobby + one subsequent real refresh/search.
