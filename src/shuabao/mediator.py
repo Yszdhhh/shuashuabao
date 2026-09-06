@@ -7398,7 +7398,7 @@ class Mediator:
             return LoopAction.Continue
 
         ready_hit = self._find_hitch_ready_button(frame)
-        topology_possible = getattr(self, "_capture_candidates", 1) >= 2
+        topology_possible = getattr(self, "_capture_candidates", 0) != 1
         in_room = topology_possible and bool(
             room_start is not None or self._hitch_tangible_room_evidence(frame)
         )
