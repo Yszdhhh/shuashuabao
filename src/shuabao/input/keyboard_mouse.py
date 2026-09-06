@@ -139,6 +139,32 @@ def _window_root(hwnd: int | None) -> int:
     return int(root or 0)
 
 
+def _window_class_and_title(hwnd: int | None) -> tuple[str, str]:
+    """(class_name, title) for hwnd; empty strings when unavailable."""
+    if not hwnd:
+        return ("", "")
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        cls = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(int(hwnd), cls, 256)
+        title = ctypes.create_unicode_buffer(256)
+        user32.GetWindowTextW(int(hwnd), title, 256)
+        return (cls.value, title.value)
+    except Exception:
+        return ("", "")
+
+
+def _describe_window(hwnd: int | None) -> str:
+    """hwnd/root/pid/class/title in one line, for input-cancellation messages."""
+    cls, title = _window_class_and_title(hwnd)
+    return (
+        f"hwnd={hwnd} root={_window_root(hwnd)} pid={_window_pid(hwnd)} "
+        f"class={cls!r} title={title!r}"
+    )
+
+
 def foreground_matches_target(target_hwnd: int, fg: int | None) -> bool:
     """True if fg is target, or another top-level window of the same process.
 
@@ -338,12 +364,15 @@ class InputExecutor:
             return None
         if window_belongs_to_target(target_hwnd, top):
             return None
+        # Name the covering window in full.  A cancellation here is otherwise
+        # indistinguishable between a real foreign overlay and an ownership
+        # resolution miss, and re-diagnosing it costs a whole build cycle.
         return ActionResult(
             success=False,
             status="CANCELLED_WINDOW_OBSCURED",
             message=(
-                f"Click point ({x},{y}) is covered by another window (hwnd={top}, "
-                f"root={_window_root(top)}; target root={_window_root(target_hwnd)}). "
+                f"Click point ({x},{y}) is covered by another window: "
+                f"{_describe_window(top)}; target={_describe_window(target_hwnd)}. "
                 "Move editors/terminals off the game window or bring the game to front."
             ),
         )
