@@ -269,3 +269,119 @@ def test_refresh_without_saved_key_is_noop(qapp, tmp_path, monkeypatch):
     assert result["error"] == "NO_SAVED_KEY"
     assert seen == []
     assert f._subscription_cache is None
+
+
+# ------------------------------------------------- P0-1: ACTIVE / PERMIT_VERIFIED path
+
+def _real_permit(*, expires_at: str):
+    from shuabao.subscription_permit import EntitlementPermit
+
+    return EntitlementPermit.from_mapping({
+        "schema_version": 1,
+        "product_id": "shuabao",
+        "audience": "live-runner",
+        "issuer": "shuabao-subscription",
+        "permit_id": "permit-startup",
+        "jti": "permit-startup",
+        "license_id": "license-startup",
+        "device_id": "device-test",
+        "device_fingerprint": "device-test",
+        "release_channel": "dev",
+        "source_sha": "a" * 40,
+        "release_manifest_sha256": "b" * 64,
+        "allowed_modes": ["lobby_hitch"],
+        "features": ["automation"],
+        "issued_at": "2026-09-05T12:00:00Z",
+        "expires_at": expires_at,
+        "nonce": "nonce-startup",
+        "signature_algorithm": "Ed25519",
+        "key_id": "shuabao-test-1",
+        "signature": "c2ln",
+    })
+
+
+def test_active_permit_verified_renders_without_nameerror(
+    qapp, tmp_path, enforce_env, forbid_activation
+):
+    """The live_ok + non-None permit branch touches datetime.now(timezone.utc).
+
+    A dropped import used to raise NameError exactly here, so the ACTIVE
+    render path is pinned with a real EntitlementPermit.
+    """
+    permit = _real_permit(expires_at="2099-01-01T00:00:00Z")
+    _stub_permission(
+        enforce_env,
+        allowed=True, mode="enforce", status="ACTIVE", code="OK",
+        message="ok", would_allow=True, entitlement_valid=True,
+        expires_at=permit.expires_at, permit=permit,
+    )
+    _stub_preflight(enforce_env, (True, "PERMIT_VERIFIED", "LIVE permit 已验签"))
+    f = DashboardFacade(tmp_path)
+    f.refresh_subscription_status()
+    assert _wait(qapp, lambda: f._subscription_cache is not None)
+
+    sub = _subscription(f)
+    assert sub["active"] is True
+    assert sub["status"] == "卡密有效"
+    assert sub["live_authorized"] is True
+    assert sub["live_code"] == "PERMIT_VERIFIED"
+
+
+def test_expired_permit_downgrades_active_snapshot(
+    qapp, tmp_path, enforce_env, forbid_activation
+):
+    permit = _real_permit(expires_at="2001-01-01T00:00:00Z")
+    _stub_permission(
+        enforce_env,
+        allowed=True, mode="enforce", status="ACTIVE", code="OK",
+        message="ok", would_allow=True, entitlement_valid=True,
+        expires_at=permit.expires_at, permit=permit,
+    )
+    _stub_preflight(enforce_env, (True, "PERMIT_VERIFIED", "LIVE permit 已验签"))
+    f = DashboardFacade(tmp_path)
+    f.refresh_subscription_status()
+    assert _wait(qapp, lambda: f._subscription_cache is not None)
+
+    sub = _subscription(f)
+    assert sub["live_authorized"] is False
+    assert sub["live_code"] == "PERMIT_EXPIRED"
+
+
+# ------------------------------------------------ P1: exactly one startup validation
+
+def test_single_startup_validation_and_no_paint_probing(qapp, tmp_path, monkeypatch):
+    """One cold start = one entitlement probe; snapshot repaints add none."""
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "enforce")
+    monkeypatch.delenv(SUBSCRIPTION_LICENSE_KEY_ENV, raising=False)
+    saved_environ = os.environ.copy()
+    monkeypatch.setattr(df_module, "load_saved_license_key", lambda _app_data: "saved-test-key")
+    seen = _stub_permission(
+        monkeypatch,
+        allowed=True, mode="enforce", status="ACTIVE", code="OK",
+        message="ok", would_allow=True, entitlement_valid=True,
+    )
+    _stub_preflight(monkeypatch, (True, "PERMIT_VERIFIED", "LIVE permit 已验签"))
+    try:
+        # Drain singleShot timers left pending by earlier facades in this
+        # process (they probe through the current module stubs) before
+        # arming the facade under test, so the count is isolated.
+        for _ in range(10):
+            qapp.processEvents()
+        seen.clear()
+        f = DashboardFacade(tmp_path)
+        assert seen == [], "construction itself must not probe"
+        # Drive the single lifecycle authority (the init-scheduled one-shot).
+        assert _wait(qapp, lambda: f._subscription_cache is not None)
+        assert len(seen) == 1, f"cold start must probe exactly once, got {len(seen)}"
+        # Repaints (including the web boot's get_snapshot) never re-probe.
+        for _ in range(5):
+            _subscription(f)
+            qapp.processEvents()
+        assert len(seen) == 1, "snapshot repaint must not trigger network"
+        # An explicit refresh call while the cache is fresh is also a no-op probe.
+        f.refresh_subscription_status()
+        qapp.processEvents()
+        assert len(seen) == 1
+    finally:
+        os.environ.clear()
+        os.environ.update(saved_environ)

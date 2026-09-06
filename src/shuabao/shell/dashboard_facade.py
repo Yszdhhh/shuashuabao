@@ -20,6 +20,7 @@ import logging
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping
 from shuabao.subscription_client import (
@@ -826,7 +827,10 @@ class DashboardFacade(QObject):
         self._subscription_refreshing = True
         try:
             try:
-                permission = self._subscription_permission(force=True)
+                # Respect the existing TTL cache: a cold start has an empty
+                # cache and probes exactly once; repaints and repeat calls do
+                # not re-issue network I/O. start_run keeps its own force=True.
+                permission = self._subscription_permission()
                 mode_id = self._shell_dto()["selected_mode_id"]
                 live_ok, live_code, live_detail = live_permission_preflight(
                     permission, mode_id=mode_id, root=self._permission_root(),
