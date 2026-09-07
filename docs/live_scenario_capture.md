@@ -138,3 +138,44 @@ python tools/live_scenario_capture.py reproduce `
 
 Frozen replay is offline regression evidence only. Formal Live PASS remains a
 later uninterrupted Natural E2E on the real game.
+
+## Solo Full-Cycle (GUI 12)
+
+`12 单人完整循环（推荐）` is the primary single-player acceptance lane. It
+starts only from a normal KK state where a room can be created, takes an
+in-memory `normal_farm` settings copy, and runs the existing
+`RuntimeMediator.tick()` path. The Harness has no room/stage/hero/main-line,
+choice, merchant, Boss, post-game, quit, or next-round implementation.
+
+The run records these observation checkpoints: `PRECHECK_OK`, room request and
+confirmation, stage target/start confirmation, game HWND/HUD, auto-task/four
+challenge observation, L1 activity, victory/continue/post-game route, return
+to baseline, and next-round request/confirmation. Random merchant or choice
+panels remain `NOT_OBSERVED`; they cannot fail an otherwise valid run.
+
+Natural E2E PASS is issued only when the first production round completed,
+returned to a real `PLATFORM_MAP` or `ROOM_WAITING` baseline, then production
+started the next round and a later fresh frame has business evidence of
+`STAGE_SELECT`, `STAGE_STARTING`, `HERO_SETUP`, or the Hero HUD. A successful
+click, room-start click, stage-start click, or generic frame mutation is never
+enough. `MANUAL_INTERVENTION`, production `ERROR`, or an input observed on
+`UNKNOWN` disqualifies the run.
+
+Every run is written below `%TEMP%\shuabao-captures\solo_full_cycle_<timestamp>`
+and includes `manifest.json`, `timeline.jsonl`, `actions.jsonl`, `summary.md`,
+`screens/` (event-driven frames), `trace/trace.jsonl`, incident references,
+and a read-only `config_snapshot.json`. The manifest and GUI show the harness
+branch/SHA, source runtime identity, EXE path, `mode_id`, and config snapshot
+hash. `SOURCE_RUNTIME` means the harness instantiates RuntimeMediator from the
+checked-out source; a selected EXE is recorded as package identity only and is
+not confused with the executing runtime.
+
+## Solo arbitrary-state takeover (GUI 13)
+
+GUI 13 offers one selector for `Stage Select`, `Mid-game HUD`,
+`Skill/Bond/Treasure panel`, `Pause`, `Victory`, `Archive Panel`, `Heirloom`,
+and `NPC Hub`. The selected value is operator-provided Ground Truth metadata.
+The tool starts the normal production tick from `BOOT` and does not force a
+phase, click a page, dismiss a dialog, or add an alternate recovery policy.
+It is the acceptance lane for production Arbitrary-State Takeover work, not a
+replacement FSM.

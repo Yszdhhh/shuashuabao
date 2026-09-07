@@ -98,6 +98,20 @@ function Resolve-OperatorSettingsPath {
     return $null
 }
 
+function Resolve-SoloCaptureRoot {
+    $path = Join-Path $env:TEMP "shuabao-captures"
+    New-Item -ItemType Directory -Path $path -Force | Out-Null
+    return (Resolve-Path -LiteralPath $path).Path
+}
+
+function Get-GitIdentity {
+    $branch = (& git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null).Trim()
+    $sha = (& git -C $RepoRoot rev-parse HEAD 2>$null).Trim()
+    if (-not $branch) { $branch = "unknown" }
+    if (-not $sha) { $sha = "unknown" }
+    return @{ Branch = $branch; Sha = $sha }
+}
+
 function Invoke-CaptureTool {
     param([Parameter(Mandatory = $true)][string[]]$CliArgs)
 
@@ -209,6 +223,46 @@ function Invoke-HitchRuntimeCapture {
     Invoke-CaptureTool $cliArgs
 }
 
+function Invoke-SoloFullCycleCapture {
+    $cliArgs = @(
+        "capture",
+        "--target", "solo_full_cycle",
+        "--out", $script:SoloCaptureRoot,
+        "--repo-root", $RepoRoot,
+        "--duration", "5400",
+        "--max-ticks", "40000",
+        "--interval", "0.15",
+        "--generate",
+        "--automation-exe", $script:AutomationExe,
+        "--live-input",
+        "--confirm-live-input",
+        "--allow-dev-source"
+    )
+    if ($script:OperatorSettingsPath) { $cliArgs += @("--settings", $script:OperatorSettingsPath) }
+    Write-Host "[launcher] 单人完整循环：Production RuntimeMediator.tick()；首局闭环后仅在下一局业务证据确认时 PASS" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-SoloTakeoverCapture {
+    Add-Type -AssemblyName Microsoft.VisualBasic
+    $choices = "A Stage Select; B Mid-game HUD; C Skill/Bond/Treasure panel; D Pause; E Victory; F Archive Panel; G Heirloom; H NPC Hub"
+    $selected = [Microsoft.VisualBasic.Interaction]::InputBox("选择起始 Ground Truth：`r`n$choices", "单人任意状态接管", "B")
+    if (-not $selected) { return }
+    $code = $selected.Trim().Substring(0, 1).ToUpperInvariant()
+    $map = @{ A = "stage_select"; B = "midgame_hud"; C = "choice_panel"; D = "pause"; E = "victory"; F = "archive_panel"; G = "heirloom"; H = "npc_hub" }
+    if (-not $map.ContainsKey($code)) { throw "请选择 A-H。" }
+    $cliArgs = @(
+        "capture", "--target", "solo_takeover", "--takeover-case", $map[$code],
+        "--out", $script:SoloCaptureRoot, "--repo-root", $RepoRoot,
+        "--duration", "600", "--max-ticks", "5000", "--interval", "0.15",
+        "--generate", "--automation-exe", $script:AutomationExe,
+        "--live-input", "--confirm-live-input", "--allow-dev-source"
+    )
+    if ($script:OperatorSettingsPath) { $cliArgs += @("--settings", $script:OperatorSettingsPath) }
+    Write-Host "[launcher] 单人任意状态接管：$($map[$code])；仅调用 production Mediator.tick()" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
 function Get-LatestFailBundle {
     if (-not (Test-Path -LiteralPath $script:CaptureRoot -PathType Container)) {
         return $null
@@ -252,7 +306,9 @@ function Reproduce-LatestFail {
 $script:PythonPath = Resolve-PythonPath
 $script:AutomationExe = Resolve-AutomationExe
 $script:CaptureRoot = Resolve-CaptureRoot
+$script:SoloCaptureRoot = Resolve-SoloCaptureRoot
 $script:OperatorSettingsPath = Resolve-OperatorSettingsPath
+$script:HarnessIdentity = Get-GitIdentity
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -261,8 +317,8 @@ Add-Type -AssemblyName System.Drawing
 $script:MenuForm = New-Object System.Windows.Forms.Form
 $script:MenuForm.Text = "刷刷宝 · Live 实机测试"
 $script:MenuForm.StartPosition = "CenterScreen"
-$script:MenuForm.Size = New-Object System.Drawing.Size(760, 836)
-$script:MenuForm.MinimumSize = New-Object System.Drawing.Size(760, 836)
+$script:MenuForm.Size = New-Object System.Drawing.Size(760, 1080)
+$script:MenuForm.MinimumSize = New-Object System.Drawing.Size(760, 1080)
 $script:MenuForm.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
 $script:MenuForm.TopMost = $true
 
@@ -282,9 +338,9 @@ $status.ForeColor = [System.Drawing.Color]::FromArgb(90, 60, 0)
 $script:MenuForm.Controls.Add($status)
 
 $paths = New-Object System.Windows.Forms.Label
-$paths.Text = "EXE: $script:AutomationExe`r`n证据目录: $script:CaptureRoot"
+$paths.Text = "Harness: $($script:HarnessIdentity.Branch) @ $($script:HarnessIdentity.Sha)`r`nProduction source: $($script:HarnessIdentity.Sha)  |  Runtime: SOURCE_RUNTIME`r`nProduction package/EXE: $script:AutomationExe`r`n证据目录: $script:CaptureRoot  |  单人: $script:SoloCaptureRoot  |  mode_id: normal_farm"
 $paths.AutoSize = $false
-$paths.Size = New-Object System.Drawing.Size(700, 42)
+$paths.Size = New-Object System.Drawing.Size(700, 76)
 $paths.Location = New-Object System.Drawing.Point(24, 118)
 $paths.ForeColor = [System.Drawing.Color]::DimGray
 $script:MenuForm.Controls.Add($paths)
@@ -328,22 +384,24 @@ $green = [System.Drawing.Color]::FromArgb(224, 244, 226)
 $blue = [System.Drawing.Color]::FromArgb(225, 238, 250)
 $yellow = [System.Drawing.Color]::FromArgb(255, 246, 210)
 
-Add-MenuButton "1  启动前检查`r`n    只检查环境，不操作游戏" 24 170 { Invoke-Readiness } $blue
-Add-MenuButton "2  背包道具`r`n    吞噬丹（羁绊≥4）/英雄卡" 390 170 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
-Add-MenuButton "3  黑商 + 背包长测（推荐）`r`n    刷新/拿取/吞噬丹/英雄卡/神器，最长10分钟" 24 256 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
-Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→存档8项→时光之穴/传家宝兜底" 390 256 { Invoke-BossSeriesCapture } $green
-Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 342 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
-Add-MenuButton "6  时光之穴 Boss fallback（实机）`r`n    已打开列表后自动选择最后可识别 Boss" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $false } $green
-Add-MenuButton "7  传家宝 Boss 选择`r`n    复用 cjb_boss 选择并验证真实 HUD" 24 428 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $false } $green
-Add-MenuButton "8  大厅搜房准备整链（持续到成功）`r`n    拒绝异常房→刷新→合规房→准备后才结束" 390 428 { Invoke-TargetProbe -Target "lobby_search" -GroundTruthOnly $false } $green
-Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 24 514 { Open-LatestFailBundle } $blue
-Add-MenuButton "10 Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 390 514 { Reproduce-LatestFail } $blue
-Add-MenuButton "11 蹭车局内续跑（随时开始）`r`n    压力转移→自动任务/四挑战→结算 Boss 兜底" 24 600 { Invoke-HitchRuntimeCapture } $green
+Add-MenuButton "1  启动前检查`r`n    只检查环境，不操作游戏" 24 210 { Invoke-Readiness } $blue
+Add-MenuButton "2  背包道具`r`n    吞噬丹（羁绊≥4）/英雄卡" 390 210 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
+Add-MenuButton "3  黑商 + 背包长测（推荐）`r`n    刷新/拿取/吞噬丹/英雄卡/神器，最长10分钟" 24 296 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
+Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→存档8项→时光之穴/传家宝兜底" 390 296 { Invoke-BossSeriesCapture } $green
+Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 382 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
+Add-MenuButton "6  时光之穴 Boss fallback（实机）`r`n    已打开列表后自动选择最后可识别 Boss" 390 382 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $false } $green
+Add-MenuButton "7  传家宝 Boss 选择`r`n    复用 cjb_boss 选择并验证真实 HUD" 24 468 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $false } $green
+Add-MenuButton "8  大厅搜房准备整链（持续到成功）`r`n    拒绝异常房→刷新→合规房→准备后才结束" 390 468 { Invoke-TargetProbe -Target "lobby_search" -GroundTruthOnly $false } $green
+Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 24 554 { Open-LatestFailBundle } $blue
+Add-MenuButton "10 Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 390 554 { Reproduce-LatestFail } $blue
+Add-MenuButton "11 蹭车局内续跑（随时开始）`r`n    压力转移→自动任务/四挑战→结算 Boss 兜底" 24 640 { Invoke-HitchRuntimeCapture } $green
+Add-MenuButton "12 单人完整循环（推荐）`r`n    创房→选关→局内→结算→回房→下一把（仅下一局业务证据 PASS）" 390 640 { Invoke-SoloFullCycleCapture } $green
+Add-MenuButton "13 单人任意状态接管`r`n    A-H 选择起始 Ground Truth，production Mediator.tick() 接管" 24 726 { Invoke-SoloTakeoverCapture } $yellow
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
 $exitButton.Size = New-Object System.Drawing.Size(706, 44)
-$exitButton.Location = New-Object System.Drawing.Point(24, 686)
+$exitButton.Location = New-Object System.Drawing.Point(390, 742)
 $exitButton.Add_Click({ $script:MenuForm.Close() })
 $script:MenuForm.Controls.Add($exitButton)
 
@@ -351,7 +409,7 @@ $footer = New-Object System.Windows.Forms.Label
 $footer.Text = "注意：不要同时启动普通刷刷宝。点击测试按钮后，本窗口暂时隐藏，黑色日志窗口显示运行状态；测试结束后按钮菜单自动回来。"
 $footer.AutoSize = $false
 $footer.Size = New-Object System.Drawing.Size(700, 48)
-$footer.Location = New-Object System.Drawing.Point(24, 742)
+$footer.Location = New-Object System.Drawing.Point(24, 812)
 $footer.ForeColor = [System.Drawing.Color]::Firebrick
 $script:MenuForm.Controls.Add($footer)
 

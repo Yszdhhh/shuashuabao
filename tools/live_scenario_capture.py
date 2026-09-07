@@ -261,6 +261,44 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "runbook_pass": "记录实际动作和各自的真实后置证据；不得用 click success 代替。",
         "runbook_manual_intervention": "需要手动推进页面时先标记 FAIL，再标 MANUAL_INTERVENTION。",
     },
+    "solo_full_cycle": {
+        "handler": "tick",
+        "call": "frame",
+        "start_condition": "KK 英雄三国平台处于正常可建房状态；使用当前正式单人挂机配置（normal_farm），启动后全程 hands-off。",
+        "production_entry": "RuntimeMediator.tick() / Mediator.tick()；Harness 只观察既有 phase、trace control、生产页面分类器和业务后置状态。",
+        "expected_steps": (
+            "PRECHECK_OK", "ROOM_CREATE_CONFIRMED", "STAGE_START_CONFIRMED",
+            "INGAME_HUD_CONFIRMED", "L1_CYCLE_ACTIVE", "VICTORY_CONFIRMED",
+            "RETURN_BASE_CONFIRMED", "NEXT_ROUND_CONFIRMED",
+        ),
+        "success_postcondition": "第一局由生产 runtime 完整结束并回到可继续业务基线；随后生产 runtime 已自动请求下一局，且在请求后的 fresh frame 上由生产 Stage/Loading/Hero HUD 证据确认下一局已启动。click success、单帧变化或 RoomStart/StageStart 请求均不构成 PASS。",
+        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入、输入目标窗口不正确、第一局已失败，或达到终点前生产链停止/超时。",
+        "blocked_condition": "KK 不在可建房基线、窗口/OCR/RuntimeMediator/身份校验不可用、权限或服务器环境不满足；BLOCKED 时零业务输入。",
+        "max_probe_time_s": 5400.0,
+        "natural_e2e_eligible": "仅 mediator_tick 连续实机链、无 FAIL/MANUAL_INTERVENTION、无 ERROR/UNKNOWN 输入，且 NEXT_ROUND_CONFIRMED 由 fresh business evidence 取得时才是 Natural E2E PASS。",
+        "bundle_replay": "保留事件驱动帧和现有 ReplayCaseLoader；full-cycle metadata 只描述实机观察结果，frozen replay 不复制或替代生产 FSM。",
+        "runbook_manual": "把 KK 停在正常可创建单人房的页面。确认普通刷刷宝未运行，且当前配置就是要验收的 normal_farm 单人配置。",
+        "runbook_hands_off": "启动后不要点击 KK、游戏、弹窗或切换窗口；Shift+F12 仅作紧急停止，p/f/m 仅记录证据。",
+        "runbook_pass": "只有 NEXT_ROUND_CONFIRMED 后才会标记 Natural E2E PASS；黑商或特定随机面板未出现只标 NOT_OBSERVED。",
+        "runbook_manual_intervention": "一旦人工推进生产页面，记录 MANUAL_INTERVENTION；保留证据但本次永远不能是 Natural E2E PASS。",
+    },
+    "solo_takeover": {
+        "handler": "tick",
+        "call": "frame",
+        "start_condition": "用户将单人游戏停在 --takeover-case 指定的真实 Ground Truth（stage_select/midgame_hud/choice_panel/pause/victory/archive_panel/heirloom/npc_hub）。",
+        "production_entry": "RuntimeMediator.tick() / Mediator.tick()；Harness 不设置 phase、不点页面、不实现任一面板或结算策略。",
+        "expected_steps": ("GROUND_TRUTH_CAPTURED", "PRODUCTION_TICK_ACTIVE", "CASE_POSTCONDITION_OBSERVED"),
+        "success_postcondition": "指定起点被 production classifier 观察到，随后只有 existing Mediator.tick() 的页面分类、后置确认或安全停止证据才可记录本 case 的结果。",
+        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入或指定起点无法由 fresh frame 分类。",
+        "blocked_condition": "环境、窗口、权限、依赖或 Ground Truth 不满足时 BLOCKED；Harness 不帮忙 ESC/F1/切窗口或强制 phase。",
+        "max_probe_time_s": 600.0,
+        "natural_e2e_eligible": "这是 Arbitrary-State Takeover 验收，独立于 Solo Full-Cycle Natural E2E；MANUAL_INTERVENTION 永远不计为 unattended pass。",
+        "bundle_replay": "沿用事件帧和 ReplayCaseLoader；case metadata 只保存所选 Ground Truth，不复制 production FSM。",
+        "runbook_manual": "先手动把游戏停在目标真实页面，再在 GUI 选 A-H；点击后不要再人工推进。",
+        "runbook_hands_off": "启动后仅让 production runtime 接管；Shift+F12 可停止，p/f/m 仅留证据。",
+        "runbook_pass": "由 production 页面分类和后置证据记录；单次 click success 不算 PASS。",
+        "runbook_manual_intervention": "手工处理后记录 MANUAL_INTERVENTION，本次结果不能作为 unattended 验收。",
+    },
 }
 
 # HARNESS readiness and production readiness are intentionally independent.
@@ -341,6 +379,21 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
         ),
         "ground_truth_only": False,
     },
+    "solo_full_cycle": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "从可建房基线执行真实单人 normal_farm 全链；Harness 不实现创房、选关、局内、结算或下一局策略，只观察 production RuntimeMediator.tick() 的既有证据。",
+        "routes": (
+            {"route": "solo_production_runtime_tick", "readiness": "CONDITIONAL"},
+            {"route": "solo_next_round_business_postcondition", "readiness": "CONDITIONAL"},
+        ),
+        "ground_truth_only": False,
+    },
+    "solo_takeover": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "单人任意状态接管的验收入口；指定起点仅作为 Ground Truth metadata，执行始终是 production Mediator.tick()。",
+        "routes": ({"route": "solo_arbitrary_state_runtime_tick", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
 }
 
 
@@ -397,6 +450,8 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             "HitchSelectTab",
         },
         "hitch_runtime": None,  # Whole-loop runtime target: do not restrict reasons
+        "solo_full_cycle": None,  # Whole-loop runtime target: production remains sole authority
+        "solo_takeover": None,  # Whole-loop runtime target: production remains sole authority
     }.get(target)
 
 SUPPORTED_TARGETS = tuple(TARGET_CONTRACTS)
@@ -412,6 +467,172 @@ TARGET_HANDLERS = {
     target: str(contract["handler"])
     for target, contract in TARGET_CONTRACTS.items()
 }
+
+
+SOLO_FULL_CYCLE_CHECKPOINTS = (
+    "PRECHECK_OK",
+    "ROOM_CREATE_REQUEST",
+    "ROOM_CREATE_CONFIRMED",
+    "STAGE_TARGET_VISIBLE",
+    "STAGE_SELECTED_CONFIRMED",
+    "STAGE_START_REQUEST",
+    "STAGE_START_CONFIRMED",
+    "GAME_HWND_CONFIRMED",
+    "INGAME_HUD_CONFIRMED",
+    "AUTO_TASK_CONFIRMED",
+    "CHALLENGE_STATE_OBSERVED",
+    "L1_CYCLE_ACTIVE",
+    "VICTORY_CONFIRMED",
+    "CONTINUE_CONFIRMED",
+    "POSTGAME_SURFACE_CLASSIFIED",
+    "POSTGAME_ROUTE_PROGRESS",
+    "RETURN_BASE_CONFIRMED",
+    "NEXT_ROUND_REQUEST",
+    "NEXT_ROUND_CONFIRMED",
+)
+SOLO_OPTIONAL_EVENTS = ("BLACK_MERCHANT", "RANDOM_SKILL_PANEL", "RANDOM_BOND_PANEL", "RANDOM_TREASURE_PANEL")
+_SOLO_RETURN_BASE_PHASES = {"PLATFORM_MAP", "ROOM_WAITING"}
+_SOLO_NEXT_ROUND_PHASES = {"STAGE_SELECT", "STAGE_STARTING", "HERO_SETUP", "MAIN_LINE"}
+
+
+class SoloFullCycleObserver:
+    """Observe production facts for one solo round; it never dispatches game logic."""
+
+    def __init__(self) -> None:
+        self._observation_no = 0
+        self._next_request_observation: int | None = None
+        self.failed_reason: str | None = None
+        self.manual_intervention_seen = False
+        self.checkpoints = {
+            name: {"status": "NOT_OBSERVED"}
+            for name in SOLO_FULL_CYCLE_CHECKPOINTS
+        }
+        self.optional_events = {
+            name: {"status": "NOT_OBSERVED"}
+            for name in SOLO_OPTIONAL_EVENTS
+        }
+
+    def _pass(self, name: str, *, evidence: dict[str, Any]) -> None:
+        if self.checkpoints[name]["status"] == "NOT_OBSERVED":
+            self.checkpoints[name] = {"status": "PASS", "evidence": _jsonable(evidence)}
+
+    def fail(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
+        if self.failed_reason is None:
+            self.failed_reason = reason
+        for name in ("NEXT_ROUND_CONFIRMED",):
+            if self.checkpoints[name]["status"] == "NOT_OBSERVED":
+                self.checkpoints[name] = {"status": "FAIL", "reason": reason, "evidence": _jsonable(evidence or {})}
+
+    def manual_intervention(self) -> None:
+        self.manual_intervention_seen = True
+
+    def precheck(self, ready: bool, detail: dict[str, Any]) -> None:
+        if ready:
+            self._pass("PRECHECK_OK", evidence=detail)
+        else:
+            self.checkpoints["PRECHECK_OK"] = {"status": "BLOCKED", "evidence": _jsonable(detail)}
+
+    def observe(
+        self,
+        med: Mediator,
+        state: dict[str, Any],
+        frame: Frame | None,
+        trace_row: dict[str, Any] | None,
+        action: dict[str, Any] | None,
+    ) -> bool:
+        """Map existing production trace/classifier output to test checkpoints."""
+        self._observation_no += 1
+        phase = str(state.get("phase") or "")
+        context = str(state.get("context") or "")
+        reason = str((action or {}).get("reason") or "")
+        controls = list((trace_row or {}).get("controls") or [])
+        evidence = {"observation": self._observation_no, "phase": phase, "context": context, "reason": reason}
+        if phase == "ERROR":
+            self.fail("production runtime entered ERROR", evidence=evidence)
+        if action is not None and context == "UNKNOWN":
+            self.fail("production input on UNKNOWN context", evidence=evidence)
+        if str((action or {}).get("input_status") or "") in {
+            "CANCELLED_NO_TARGET_HWND", "CANCELLED_WINDOW_INVALID",
+            "CANCELLED_WINDOW_CHANGED", "CANCELLED_WINDOW_OBSCURED",
+        }:
+            self.fail("production input rejected by window-ownership guard", evidence=evidence)
+        if reason.startswith("CreateRoom-") or any(
+            item.get("control") == "create_room" and item.get("state") == "OPEN_REQUESTED"
+            for item in controls if isinstance(item, dict)
+        ):
+            self._pass("ROOM_CREATE_REQUEST", evidence=evidence)
+        if self.checkpoints["ROOM_CREATE_REQUEST"]["status"] == "PASS" and phase in {"ROOM_WAITING", "STAGE_SELECT"}:
+            self._pass("ROOM_CREATE_CONFIRMED", evidence=evidence)
+        if phase == "STAGE_SELECT":
+            self._pass("STAGE_TARGET_VISIBLE", evidence=evidence)
+        if bool(getattr(med, "_stage_selected", False)):
+            self._pass("STAGE_SELECTED_CONFIRMED", evidence=evidence)
+        if reason == "StageStart":
+            self._pass("STAGE_START_REQUEST", evidence=evidence)
+        if self.checkpoints["STAGE_START_REQUEST"]["status"] == "PASS" and phase in {"STAGE_STARTING", "HERO_SETUP", "MAIN_LINE"}:
+            self._pass("STAGE_START_CONFIRMED", evidence=evidence)
+        if _frame_is_valid(frame):
+            try:
+                if med._is_game_client_frame(frame):
+                    self._pass("GAME_HWND_CONFIRMED", evidence=evidence)
+                if med._is_in_game_hud(frame):
+                    self._pass("INGAME_HUD_CONFIRMED", evidence=evidence)
+            except (AttributeError, TypeError):
+                pass
+            try:
+                postgame = med._post_game_state(frame)
+            except (AttributeError, TypeError):
+                postgame = None
+            if postgame == "POST_VICTORY":
+                self._pass("VICTORY_CONFIRMED", evidence=evidence)
+            if postgame:
+                self._pass("POSTGAME_SURFACE_CLASSIFIED", evidence={**evidence, "surface": postgame})
+        if any(item.get("control") == "auto_task" and item.get("state") == "ON" for item in controls if isinstance(item, dict)):
+            self._pass("AUTO_TASK_CONFIRMED", evidence=evidence)
+        if any(
+            str(item.get("control", "")).endswith("_challenge") and item.get("state") == "ON"
+            for item in controls if isinstance(item, dict)
+        ):
+            self._pass("CHALLENGE_STATE_OBSERVED", evidence=evidence)
+        if phase == "MAIN_LINE" and state.get("l1_cycle_step") is not None:
+            self._pass("L1_CYCLE_ACTIVE", evidence=evidence)
+        if reason == "ContinueGame" and bool(state.get("post_game_pending")):
+            self._pass("CONTINUE_CONFIRMED", evidence=evidence)
+        if self.checkpoints["CONTINUE_CONFIRMED"]["status"] == "PASS" and bool(state.get("post_game_pending")):
+            self._pass("POSTGAME_ROUTE_PROGRESS", evidence=evidence)
+        if self.checkpoints["VICTORY_CONFIRMED"]["status"] == "PASS" and phase in _SOLO_RETURN_BASE_PHASES:
+            self._pass("RETURN_BASE_CONFIRMED", evidence=evidence)
+        returned = self.checkpoints["RETURN_BASE_CONFIRMED"]["status"] == "PASS"
+        if returned and self.checkpoints["NEXT_ROUND_REQUEST"]["status"] == "NOT_OBSERVED" and (
+            reason.startswith("CreateRoom-") or reason == "StageStart" or phase in _SOLO_NEXT_ROUND_PHASES
+        ):
+            self._pass("NEXT_ROUND_REQUEST", evidence=evidence)
+            self._next_request_observation = self._observation_no
+        if (
+            self._next_request_observation is not None
+            and self._observation_no > self._next_request_observation
+            and phase in _SOLO_NEXT_ROUND_PHASES
+            and _frame_is_valid(frame)
+        ):
+            self._pass("NEXT_ROUND_CONFIRMED", evidence={**evidence, "fresh_frame": True})
+        return self.is_pass
+
+    @property
+    def is_pass(self) -> bool:
+        return (
+            self.failed_reason is None
+            and not self.manual_intervention_seen
+            and all(self.checkpoints[name]["status"] == "PASS" for name in SOLO_FULL_CYCLE_CHECKPOINTS)
+        )
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "contract_version": 1,
+            "checkpoints": _jsonable(self.checkpoints),
+            "optional_events": _jsonable(self.optional_events),
+            "natural_e2e": "PASS" if self.is_pass else ("DISQUALIFIED_MANUAL_INTERVENTION" if self.manual_intervention_seen else "PENDING_OR_FAILED"),
+            "failure_reason": self.failed_reason,
+        }
 
 FAILURE_TAXONOMY = (
     "L0_CAPTURE_ENV",
@@ -528,6 +749,18 @@ def _commit_sha(repo_root: Path) -> str:
         return "unknown"
     sha = result.stdout.strip()
     return sha if result.returncode == 0 and sha else "unknown"
+
+
+def _git_branch(repo_root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(repo_root), capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return "unknown"
+    branch = result.stdout.strip()
+    return branch if result.returncode == 0 and branch else "unknown"
 
 
 def _copy_frame(frame: Frame | None, timestamp: float | None = None) -> Frame | None:
@@ -1474,10 +1707,19 @@ class BundleRecorder:
     ) -> None:
         self.bundle_dir = Path(bundle_dir).resolve()
         self.frames_dir = self.bundle_dir / "frames"
+        self.screens_dir = self.bundle_dir / "screens"
+        self.trace_dir = self.bundle_dir / "trace"
         self.bundle_dir.mkdir(parents=True, exist_ok=True)
         self.frames_dir.mkdir(parents=True, exist_ok=True)
+        self.screens_dir.mkdir(parents=True, exist_ok=True)
+        self.trace_dir.mkdir(parents=True, exist_ok=True)
         self.manifest_path = self.bundle_dir / "manifest.json"
         self.trace_path = self.bundle_dir / "trace.jsonl"
+        self.timeline_path = self.bundle_dir / "timeline.jsonl"
+        self.actions_path = self.bundle_dir / "actions.jsonl"
+        self.summary_path = self.bundle_dir / "summary.md"
+        self.timeline_path.touch()
+        self.actions_path.touch()
         self._trace_offset = 0
         self._recent_trace: deque[dict[str, Any]] = deque(maxlen=20)
         self._saved_by_signature: dict[str, str] = {}
@@ -1490,6 +1732,10 @@ class BundleRecorder:
         self.inputs_this_tick: list[dict[str, Any]] = []
         contract = _target_contract(target)
         production_fact = _production_fact(target)
+        settings_snapshot = _settings_snapshot(settings)
+        settings_hash = hashlib.sha256(
+            json.dumps(settings_snapshot, ensure_ascii=False, sort_keys=True).encode("utf-8")
+        ).hexdigest()
         natural_e2e_eligible = execution_mode == "mediator_tick"
         natural_e2e_state = (
             "REQUIRED_LIVE_PASS"
@@ -1522,12 +1768,26 @@ class BundleRecorder:
             },
             "execution_mode": execution_mode,
             "tested_commit_sha": _commit_sha(repo_root),
+            "harness_identity": {
+                "branch": _git_branch(repo_root),
+                "sha": _commit_sha(repo_root),
+                "runtime_kind": "SOURCE_RUNTIME",
+                "production_source_sha": _commit_sha(repo_root),
+                "production_package": None,
+                "mode_id": settings_snapshot.get("mode_id"),
+                "config_snapshot_hash": settings_hash,
+            },
             "repo_root": str(repo_root.resolve()),
             "initial_phase": initial_phase,
-            "settings": _settings_snapshot(settings),
+            "settings": settings_snapshot,
             "frames": [],
+            "screens_dir": "screens",
+            "incident_refs": "incidents",
             "events": [],
             "trace_file": "trace.jsonl",
+            "timeline_file": "timeline.jsonl",
+            "actions_file": "actions.jsonl",
+            "trace_dir": "trace",
             "recent_trace": [],
             "bookmarks": [],
             "bookmark_summary": {status: 0 for status in BOOKMARK_STATUSES},
@@ -1550,6 +1810,11 @@ class BundleRecorder:
                 "live_probe": "PENDING" if execution_mode == "target_handler" else "NOT_A_PROBE",
             },
         }
+        if target == "solo_full_cycle":
+            self.solo_observer: SoloFullCycleObserver | None = SoloFullCycleObserver()
+            self.manifest["solo_full_cycle"] = self.solo_observer.payload()
+        else:
+            self.solo_observer = None
 
     def elapsed(self) -> float:
         return max(0.0, time.monotonic() - self._clock_start)
@@ -1558,14 +1823,17 @@ class BundleRecorder:
         self.inputs_this_tick = []
 
     def record_input(self, method: str, args: tuple[Any, ...], kwargs: dict[str, Any], result: ActionResult) -> None:
-        self.inputs_this_tick.append({
+        record = {
             "method": method,
             "args": _jsonable(args),
             "kwargs": _jsonable(kwargs),
             "success": bool(result.success),
             "status": result.status,
             "message": result.message,
-        })
+        }
+        self.inputs_this_tick.append(record)
+        with self.actions_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(_jsonable(record), ensure_ascii=False) + "\n")
 
     def record_preflight(self, payload: dict[str, Any]) -> None:
         """Persist the read-only proof required before any real game input."""
@@ -1824,6 +2092,7 @@ class BundleRecorder:
         frame_id = f"f{self._frame_number:04d}_{safe_kind}"
         path = self.frames_dir / f"{frame_id}.png"
         _write_png(path, frame)
+        shutil.copy2(path, self.screens_dir / path.name)
         self._frame_number += 1
         self._saved_by_signature[signature] = frame_id
         self.manifest["frames"].append({
@@ -1896,6 +2165,8 @@ class BundleRecorder:
         if before_state is None:
             before_state = self._last_state or dict(after_state)
         action = _action_from_tick(med, self.inputs_this_tick)
+        if action is not None and self.inputs_this_tick:
+            action["input_status"] = self.inputs_this_tick[0].get("status")
         if self._pending_event_index is not None:
             pending_event = self.manifest["events"][self._pending_event_index]
             pending_base = _postcondition_snapshot(
@@ -1992,6 +2263,11 @@ class BundleRecorder:
         }
         self._event_number += 1
         self.manifest["events"].append(_jsonable(event))
+        with self.timeline_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(_jsonable(event), ensure_ascii=False) + "\n")
+        if self.solo_observer is not None:
+            self.solo_observer.observe(med, after_state, after_frame or before_frame, trace_row, action)
+            self.manifest["solo_full_cycle"] = self.solo_observer.payload()
         if (
             event["postcondition"].get("observed") is True
             and event["postcondition"].get("authoritative", True)
@@ -2059,8 +2335,28 @@ class BundleRecorder:
 
     def finalize(self) -> Path:
         self._read_trace()
+        if self.trace_path.exists():
+            shutil.copy2(self.trace_path, self.trace_dir / "trace.jsonl")
+        if self.solo_observer is not None:
+            self.manifest["solo_full_cycle"] = self.solo_observer.payload()
         self.manifest["completed_at_utc"] = _utc_now()
         self._write_manifest()
+        summary = [
+            f"# Live Harness Summary: {self.manifest['target']}", "",
+            f"- Harness: {self.manifest['harness_identity']['branch']} @ {self.manifest['harness_identity']['sha']}",
+            f"- Runtime: {self.manifest['harness_identity']['runtime_kind']}",
+            f"- mode_id: {self.manifest['harness_identity']['mode_id']}",
+            f"- config snapshot hash: {self.manifest['harness_identity']['config_snapshot_hash']}",
+            f"- Natural E2E: {self.manifest['verification']['natural_e2e']}",
+        ]
+        if self.solo_observer is not None:
+            summary.extend(["", "## Solo Full-Cycle", ""])
+            summary.extend(
+                f"- {name}: {item['status']}"
+                for name, item in self.solo_observer.checkpoints.items()
+            )
+            summary.append(f"- Natural E2E: {self.solo_observer.payload()['natural_e2e']}")
+        self.summary_path.write_text("\n".join(summary) + "\n", encoding="utf-8")
         return self.manifest_path
 
 
@@ -2454,6 +2750,12 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     if target == "hitch_runtime":
         # 蹭车续跑在传家宝挑战确认后按既有退出链收敛；秘境另行显式配置。
         settings.auto_secret_realm = False
+    if target == "solo_full_cycle":
+        # Test-session-only copy: this does not write the operator settings.
+        settings.mode_id = "normal_farm"
+        settings.auto_create_room = True
+    if target == "solo_takeover":
+        settings.mode_id = "normal_farm"
     return settings
 
 
@@ -2595,6 +2897,8 @@ def _append_bookmark_command(
 
 def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     target = args.target
+    if target == "solo_takeover" and not getattr(args, "takeover_case", None):
+        raise ValueError("solo_takeover 需要 --takeover-case")
     until_success = bool(getattr(args, "until_success", False))
     if until_success and (not probe or target != "lobby_search" or not args.live_input):
         raise ValueError("--until-success 仅允许 lobby_search 的真实输入 probe")
@@ -2624,7 +2928,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         med = Mediator(settings, repo_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
         if elevation_blocked:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
-    initial_phase = Phase.LOBBY_ROOM if target in {"lobby_hitch", "lobby_search", "hitch_runtime"} else Phase.MAIN_LINE
+    initial_phase = (
+        Phase.BOOT if target == "solo_takeover"
+        else (Phase.LOBBY_ROOM if target in {"lobby_hitch", "lobby_search", "hitch_runtime", "solo_full_cycle"} else Phase.MAIN_LINE)
+    )
     med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
     probe_bootstrap = _bootstrap_target_probe(med, target) if probe and execution_mode == "target_handler" else {}
     recorder = BundleRecorder(
@@ -2635,6 +2942,21 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         initial_phase=med.phase.name,
         execution_mode=execution_mode,
     )
+    if target == "solo_takeover":
+        recorder.manifest["solo_takeover"] = {
+            "ground_truth_case": str(getattr(args, "takeover_case", "") or "unspecified"),
+            "execution": "production Mediator.tick() only",
+        }
+    session_config = bundle_dir / "config_snapshot.json"
+    session_config.write_text(
+        json.dumps(recorder.manifest["settings"], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    recorder.manifest["isolated_session_config"] = {
+        "path": session_config.name,
+        "source_settings_path": str(args.settings) if args.settings else "official settings (read-only)",
+        "writes_operator_settings": False,
+    }
     if probe_bootstrap:
         recorder.manifest["probe_bootstrap"] = probe_bootstrap
     if execution_mode == "ground_truth_only":
@@ -2654,6 +2976,16 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             runtime_mediator_error=runtime_mediator_error,
         )
         recorder.record_preflight(preflight)
+        recorder.manifest["harness_identity"]["production_package"] = (
+            (preflight.get("actual_exe") or {}).get("automation_exe")
+            or str(getattr(args, "automation_exe", "") or "")
+            or None
+        )
+        if recorder.solo_observer is not None:
+            recorder.solo_observer.precheck(
+                preflight.get("status") == "READY", preflight,
+            )
+            recorder.manifest["solo_full_cycle"] = recorder.solo_observer.payload()
     else:
         recorder.record_preflight({
             "status": "NOT_REQUESTED",
@@ -2710,6 +3042,9 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         for status, note in bookmark_reader.poll():
             bookmark_frame = current_frame["value"] or _capture_after(med)
             recorder.bookmark(status, med, bookmark_frame, note=note)
+            if status == "MANUAL_INTERVENTION" and recorder.solo_observer is not None:
+                recorder.solo_observer.manual_intervention()
+                recorder.manifest["solo_full_cycle"] = recorder.solo_observer.payload()
             print(f"[bookmark] {status} {note}".rstrip())
             if (
                 awaiting_manual_resume
@@ -2849,6 +3184,14 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     after_frame=_capture_after(med) if recorder.inputs_this_tick else None,
                     loop_action=loop_action,
                 )
+                if recorder.solo_observer is not None and recorder.solo_observer.is_pass:
+                    # The production runtime reached the requested business end
+                    # state. Stop through its ordinary safety hook; do not kill
+                    # the game process or synthesize an extra UI action.
+                    med.stop()
+                    print("[solo] NEXT_ROUND_CONFIRMED; requested production safe stop")
+                    ticks += 1
+                    break
             if not _frame_is_valid(current_frame["value"]):
                 # 坚韧容错原则：无论切屏、最小化还是转场黑屏，不直接退出进程自杀！记录并等待恢复
                 print(f"[live] 当前帧无效或正在过渡/最小化中，等待画面恢复 (tick {ticks})")
@@ -2936,6 +3279,19 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 current_frame["value"],
             note=f"lobby search/room-select visual postcondition failed: {post_state}",
             )
+        if (
+            recorder.solo_observer is not None
+            and not recorder.solo_observer.is_pass
+            and not recorder.solo_observer.manual_intervention_seen
+            and recorder.solo_observer.failed_reason is None
+            and not _is_emergency_reason(stop_signal.reason)
+        ):
+            recorder.solo_observer.fail("solo full-cycle ended before NEXT_ROUND_CONFIRMED")
+            recorder.manifest["solo_full_cycle"] = recorder.solo_observer.payload()
+            recorder.bookmark(
+                "FAIL", med, current_frame["value"],
+                note="solo full-cycle ended before NEXT_ROUND_CONFIRMED",
+            )
     finally:
         if med.emergency_listener:
             med.emergency_listener.stop()
@@ -2956,6 +3312,11 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             "bookmark_file": str(bookmark_file),
             "continue_after_failure": bool(getattr(args, "continue_after_failure", False)),
         }
+        if recorder.solo_observer is not None:
+            solo = recorder.solo_observer.payload()
+            recorder.manifest["solo_full_cycle"] = solo
+            recorder.manifest["verification"]["natural_e2e"] = solo["natural_e2e"]
+            recorder.manifest["verification"]["natural_e2e_eligible"] = bool(recorder.solo_observer.is_pass)
         recorder.finalize()
         if live_lane is not None:
             live_lane.release()
@@ -3528,11 +3889,14 @@ def _print_runbook(target: str | None = None) -> None:
         fact = _production_fact(name)
         print(f"[{name}]")
         print(f"1. 手动做到：{contract['runbook_manual']}")
-        if name == "boss_challenge":
+        if name in {"boss_challenge", "solo_full_cycle", "solo_takeover"}:
+            extra = ""
+            if name == "solo_takeover":
+                extra = " --takeover-case midgame_hud"
             print(
                 "2. 执行：python tools/live_scenario_capture.py capture "
                 f"--target {name} --out C:/tmp/shuabao-captures "
-                "--duration 600 --max-ticks 5000 "
+                f"--duration {int(contract['max_probe_time_s'])} --max-ticks 40000{extra} "
                 "--automation-exe C:/path/to/ShuaBao.exe --live-input "
                 "--confirm-live-input --continue-after-failure --generate"
             )
@@ -3564,6 +3928,12 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--duration", type=float, default=60.0)
     parser.add_argument("--interval", type=float, default=0.3)
     parser.add_argument("--max-ticks", type=int, default=1000)
+    parser.add_argument(
+        "--takeover-case",
+        choices=("stage_select", "midgame_hud", "choice_panel", "pause", "victory", "archive_panel", "heirloom", "npc_hub"),
+        default=None,
+        help="solo_takeover 的 operator-provided Ground Truth；不改变 production phase 或逻辑",
+    )
     parser.add_argument(
         "--until-success",
         action="store_true",
@@ -3670,6 +4040,9 @@ def _bundle_exit_code(bundle_dir: Path) -> int:
         terminal_kind = str((result.get("evidence") or {}).get("kind") or "")
         terminal_observed = bool(result.get("authoritative")) and terminal_kind == "lobby_hitch_ready"
         code = 0 if search_observed and terminal_observed else 4
+    elif manifest.get("target") == "solo_full_cycle":
+        solo = manifest.get("solo_full_cycle") or {}
+        code = 0 if solo.get("natural_e2e") == "PASS" else 4
     else:
         code = 0
     manifest["process_exit_code"] = code

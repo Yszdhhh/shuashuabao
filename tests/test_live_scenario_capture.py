@@ -34,6 +34,8 @@ from tools.live_scenario_capture import (
     FAILURE_TAXONOMY,
     BundleRecorder,
     RecordingInputExecutor,
+    SOLO_FULL_CYCLE_CHECKPOINTS,
+    SoloFullCycleObserver,
     SUPPORTED_TARGETS,
     TARGET_CONTRACT_FIELDS,
     TARGET_CONTRACTS,
@@ -436,6 +438,8 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
         "lobby_hitch",
         "lobby_search",
         "hitch_runtime",
+        "solo_full_cycle",
+        "solo_takeover",
     )
     for contract in TARGET_CONTRACTS.values():
         assert all(contract.get(field) for field in TARGET_CONTRACT_FIELDS)
@@ -455,12 +459,15 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["lobby_hitch"]["production_readiness"] == "CONDITIONAL"
     assert by_target["lobby_search"]["production_readiness"] == "CONDITIONAL"
     assert by_target["hitch_runtime"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["solo_full_cycle"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["solo_takeover"]["production_readiness"] == "CONDITIONAL"
     assert TARGET_CONTRACTS["lobby_search"]["max_probe_time_s"] == 90.0
     assert by_target["time_cave"]["ground_truth_only"] is False
     assert by_target["heirloom"]["ground_truth_only"] is False
     assert by_target["lobby_hitch"]["ground_truth_only"] is False
     assert by_target["lobby_search"]["ground_truth_only"] is False
     assert by_target["hitch_runtime"]["ground_truth_only"] is False
+    assert by_target["solo_full_cycle"]["ground_truth_only"] is False
     assert any(
         route["route"] == "black_merchant_wood" and route["readiness"] == "CONDITIONAL"
         for route in by_target["black_merchant"]["production_routes"]
@@ -476,6 +483,101 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
     assert report["replay_self_check"]["status"] == "PASS"
     assert report["live_input_preflight"]["status"] == "REQUIRED"
     assert set(TARGET_PRODUCTION_FACTS) == set(SUPPORTED_TARGETS)
+
+
+class _SoloObserverMediator:
+    _stage_selected = False
+    postgame: str | None = None
+
+    @staticmethod
+    def _is_game_client_frame(frame: Frame) -> bool:
+        return True
+
+    @staticmethod
+    def _is_in_game_hud(frame: Frame) -> bool:
+        return True
+
+    def _post_game_state(self, frame: Frame) -> str | None:
+        return self.postgame
+
+
+def _solo_state(phase: str, **updates: object) -> dict[str, object]:
+    state: dict[str, object] = {
+        "phase": phase, "context": phase, "l1_cycle_step": "AUTO_TASK",
+        "post_game_pending": False,
+    }
+    state.update(updates)
+    return state
+
+
+def test_solo_full_cycle_contract_requires_fresh_next_round_business_evidence() -> None:
+    observer = SoloFullCycleObserver()
+    med = _SoloObserverMediator()
+    frame = _fixture_frame()
+    observer.precheck(True, {"status": "READY"})
+    observer.observe(med, _solo_state("PLATFORM_MAP"), frame, {"controls": [{"control": "create_room", "state": "OPEN_REQUESTED"}]}, {"reason": "CreateRoom-open"})
+    observer.observe(med, _solo_state("ROOM_WAITING"), frame, {"controls": []}, None)
+    med._stage_selected = True
+    observer.observe(med, _solo_state("STAGE_SELECT"), frame, {"controls": []}, None)
+    observer.observe(med, _solo_state("STAGE_STARTING"), frame, {"controls": []}, {"reason": "StageStart"})
+    observer.observe(med, _solo_state("MAIN_LINE"), frame, {"controls": [{"control": "auto_task", "state": "ON"}, {"control": "coin_challenge", "state": "ON"}]}, None)
+    med.postgame = "POST_VICTORY"
+    observer.observe(med, _solo_state("MAIN_LINE"), frame, {"controls": []}, None)
+    observer.observe(med, _solo_state("MAIN_LINE", post_game_pending=True), frame, {"controls": []}, {"reason": "ContinueGame"})
+    med.postgame = "ARCHIVE_PANEL"
+    observer.observe(med, _solo_state("MAIN_LINE", post_game_pending=True), frame, {"controls": []}, None)
+    med.postgame = None
+    observer.observe(med, _solo_state("PLATFORM_MAP"), frame, {"controls": []}, None)
+    observer.observe(med, _solo_state("STAGE_SELECT"), frame, {"controls": []}, None)
+    assert observer.checkpoints["NEXT_ROUND_CONFIRMED"]["status"] == "NOT_OBSERVED"
+    observer.observe(med, _solo_state("STAGE_STARTING"), frame, {"controls": []}, None)
+    assert observer.is_pass
+    assert all(observer.checkpoints[name]["status"] == "PASS" for name in SOLO_FULL_CYCLE_CHECKPOINTS)
+
+
+def test_solo_manual_intervention_and_click_success_cannot_make_natural_pass() -> None:
+    observer = SoloFullCycleObserver()
+    observer.precheck(True, {"status": "READY"})
+    observer.manual_intervention()
+    assert not observer.is_pass
+    assert observer.payload()["natural_e2e"] == "DISQUALIFIED_MANUAL_INTERVENTION"
+    click_only = SoloFullCycleObserver()
+    click_only.precheck(True, {"status": "READY"})
+    assert not click_only.is_pass
+    assert click_only.checkpoints["NEXT_ROUND_CONFIRMED"]["status"] == "NOT_OBSERVED"
+
+
+def test_solo_bundle_writes_identity_and_required_evidence_layout(tmp_path: Path) -> None:
+    recorder = BundleRecorder(
+        tmp_path / "solo_full_cycle_sample", repo_root=ROOT, target="solo_full_cycle",
+        settings=Settings(dry_run=True, ocr_mode="off", mode_id="normal_farm"),
+        initial_phase="LOBBY_ROOM", execution_mode="mediator_tick",
+    )
+    recorder.finalize()
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["harness_identity"]["runtime_kind"] == "SOURCE_RUNTIME"
+    assert manifest["harness_identity"]["mode_id"] == "normal_farm"
+    assert manifest["harness_identity"]["config_snapshot_hash"]
+    assert (recorder.bundle_dir / "summary.md").is_file()
+    assert (recorder.bundle_dir / "trace").is_dir()
+
+
+def test_live_launcher_registers_solo_and_keeps_existing_targets() -> None:
+    launcher = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    for label in ("1  启动前检查", "11 蹭车局内续跑", "12 单人完整循环", "13 单人任意状态接管"):
+        assert label in launcher
+    assert '"solo_full_cycle"' in launcher
+    assert '"solo_takeover"' in launcher
+    assert "pyautogui" not in launcher.lower()
+    assert "sendinput" not in launcher.lower()
+
+
+def test_live_harness_has_no_direct_game_input_implementation() -> None:
+    source = (ROOT / "tools" / "live_scenario_capture.py").read_text(encoding="utf-8").lower()
+    assert "pyautogui" not in source
+    assert "keyboard.press" not in source
+    assert "mouse.click" not in source
+    assert "ctypes.windll.user32.sendinput" not in source
 
 
 def test_blocked_summary_and_secret_realm_probe_bootstrap_are_evidence_only(tmp_path: Path) -> None:
