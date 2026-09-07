@@ -113,7 +113,12 @@ function Resolve-OcrPython {
 function Show-HarnessSettingsPanel {
     $source = if ($script:OperatorSettingsPath) { $script:OperatorSettingsPath } else { Join-Path $RepoRoot "config\default_settings.json" }
     $raw = if (Test-Path -LiteralPath $source -PathType Leaf) {
-        Get-Content -Raw -LiteralPath $source | ConvertFrom-Json
+        try {
+            [System.IO.File]::ReadAllText($source, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+        } catch {
+            $reason = ($_.Exception.Message -split "`r?`n")[0]
+            throw "临时设置面板无法读取 UTF-8 配置：$source`r`n$reason"
+        }
     } else {
         [pscustomobject]@{}
     }
@@ -174,7 +179,8 @@ function Show-HarnessSettingsPanel {
         $raw.auto_create_room = $true
         $stamp = Get-Date -Format "yyyyMMdd_HHmmss_ffff"
         $script:HarnessSettingsPath = Join-Path $script:SoloCaptureRoot "live_harness_settings_$stamp.json"
-        $raw | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $script:HarnessSettingsPath -Encoding UTF8
+        $json = $raw | ConvertTo-Json -Depth 12
+        [System.IO.File]::WriteAllText($script:HarnessSettingsPath, $json, [System.Text.UTF8Encoding]::new($false))
         $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
         $form.Close()
     })

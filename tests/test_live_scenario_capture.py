@@ -642,6 +642,8 @@ def test_live_launcher_uses_isolated_settings_copy_and_local_ocr_runtime() -> No
     assert "Resolve-OcrPython" in launcher
     assert "SHUABAO_OCR_PYTHON" in launcher
     assert "Show-HarnessSettingsPanel" in launcher
+    assert "ReadAllText($source, [System.Text.Encoding]::UTF8)" in launcher
+    assert "WriteAllText($script:HarnessSettingsPath, $json, [System.Text.UTF8Encoding]::new($false))" in launcher
     assert '"live_harness_settings_$stamp.json"' in launcher
     assert '"--settings", $script:HarnessSettingsPath' in launcher
     assert "不会写正式 user_settings.json" in launcher
