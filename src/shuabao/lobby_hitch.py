@@ -78,6 +78,38 @@ def has_prefix_evidence(text: str, prefix: str) -> bool:
 
 
 @dataclass
+class SearchTransaction:
+    """One bounded attempt to make ``prefix`` visibly take effect in the box.
+
+    Replaces the old ``_hitch_prefix_searched`` / ``_hitch_search_pending``
+    pair.  Those two booleans could encode the illegal combination "searched
+    and still pending"; a single optional transaction cannot.  ``typed_at`` is
+    stamped **after** the input action returns, so the visual-confirmation
+    budget is never consumed by the seconds ``search_text()`` itself spends
+    clicking, clearing and typing.
+    """
+
+    prefix: str
+    opened_at: float
+    #: ``(hwnd, client width, client height)`` this proof belongs to.  A proof
+    #: about one surface says nothing about another, so the lobby subflow drops
+    #: the transaction when the window identity or client size changes.  ``None``
+    #: means "not bound to a surface yet" and never invalidates on its own.
+    surface: tuple[object, int, int] | None = None
+    typed_at: float | None = None
+    confirmed: bool = False
+
+    @property
+    def awaiting_confirm(self) -> bool:
+        """True once the text was typed but the box has not yet proven it."""
+        return self.typed_at is not None and not self.confirmed
+
+    def reopen_for_retype(self) -> None:
+        """Drop the unconfirmed attempt, keeping this operation's start time."""
+        self.typed_at = None
+
+
+@dataclass
 class HitchDecision:
     action: HitchAction
     phase: HitchPhase
@@ -181,6 +213,36 @@ class HitchSearchSM:
             self.next_allowed_at,
             float(now) + self.refresh_s_min,
         )
+
+    def begin_search_window(self, now: float) -> None:
+        """Open the bounded search operation clock; idempotent per operation.
+
+        ``tick()`` used to be the only place that armed ``search_started_at``,
+        so every early return upstream of it (missing locator, unconfirmed
+        postcondition, rejected input) sat outside the budget entirely and
+        could wait forever.  The lobby subflow now arms the clock as soon as
+        the room list is trusted, which puts those paths inside the same
+        bounded operation.
+        """
+        if self.search_started_at is None:
+            self.search_started_at = float(now)
+
+    def search_window_expired(self, now: float) -> bool:
+        """True when this search operation has burned its durable budget."""
+        if self.search_started_at is None:
+            return False
+        return self._elapsed(now) >= self.search_timeout_s
+
+    def input_allowed(self, now: float) -> bool:
+        """Cooldown gate for input-bearing retries only.
+
+        Observation (capture, locator, OCR postcondition) must never be
+        blocked by this: a cooldown throttles what we send, not what we look
+        at.  ``defer_retry()`` writes ``next_allowed_at``; before this the
+        search-input path never read it, which made that field a dead control
+        surface for the one action it was meant to throttle.
+        """
+        return float(now) >= self.next_allowed_at
 
     def note_join_click(self, now: float) -> None:
         self.pending_join = True

@@ -6,6 +6,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 
+from shuabao.lobby_hitch import SearchTransaction
 from shuabao.mediator import Mediator, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
@@ -23,15 +24,16 @@ def _fixture_frame() -> Frame:
 
 
 def _search_anchor() -> MatchResult:
+    """The stable search-control anchor as the production template matches it."""
     return MatchResult(
-        name="lobby_search_box",
-        score=1.0,
-        x=1095,
-        y=295,
-        w=185,
-        h=30,
-        screen_x=1346,
-        screen_y=347,
+        name="lobby_search_icon",
+        score=0.99,
+        x=1256,
+        y=281,
+        w=26,
+        h=22,
+        screen_x=1256,
+        screen_y=281,
     )
 
 
@@ -42,18 +44,19 @@ def test_hitch_rejected_search_input_never_marks_prefix_searched() -> None:
          patch.object(
              med,
              "find_scene",
-             side_effect=lambda _frame, key: anchor if key == "lobby_search_box" else None,
+             side_effect=lambda _frame, key: anchor if key == "lobby_search_icon" else None,
          ), \
          patch.object(med, "act_search_box", return_value=False):
         med._tick_lobby_hitch(_fixture_frame(), "LOBBY_ROOM")
 
-    assert med._hitch_search_pending is None
-    assert med._hitch_prefix_searched is False
+    tx = med._hitch_search
+    assert tx is None or tx.awaiting_confirm is False
+    assert med._hitch_prefix_ok() is False
 
 
 def test_hitch_search_confirmation_defers_room_scan_until_next_tick() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-    med._hitch_search_pending = ("4", 100.0)
+    med._hitch_search = SearchTransaction(prefix="4", opened_at=100.0, typed_at=100.0)
     med._hitch_search_text_override = "4"
     with patch("shuabao.mediator.time.time", return_value=101.0), \
          patch.object(med, "_lobby_room_list_evidence", return_value=True), \
@@ -62,8 +65,9 @@ def test_hitch_search_confirmation_defers_room_scan_until_next_tick() -> None:
         med._tick_lobby_hitch(_fixture_frame(), "LOBBY_ROOM")
 
     scan.assert_not_called()
-    assert med._hitch_search_pending is None
-    assert med._hitch_prefix_searched is True
+    assert med._hitch_search is not None
+    assert med._hitch_search.confirmed is True
+    assert med._hitch_prefix_ok() is True
 
 
 def test_hitch_cancel_ready_is_postcondition_not_click_target() -> None:

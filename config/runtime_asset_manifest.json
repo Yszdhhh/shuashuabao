@@ -2178,6 +2178,14 @@
       "sha256": "8a83f9dcbb1153387f8ce02e29231c2778b56f5568dbacf01ab70a53acf4b70e"
     },
     {
+      "path": "assets/Images/lobby/lobby_search_icon.png",
+      "purpose": "runtime_ui",
+      "provenance": "cropped from fixtures/lobby_hitch_20260814/list_empty_search_t000.png at (1267,263) 26x22",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 1160,
+      "sha256": "2def6c4e2e3c4d1b60183cfcdc5c099454758d9dfb7eba33a506ce5b2187e1d6"
+    },
+    {
       "path": "assets/Images/lobby/room_cancel_ready.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",

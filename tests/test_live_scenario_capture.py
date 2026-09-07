@@ -19,12 +19,14 @@ import numpy as np
 import tools.live_scenario_capture as live_capture
 
 from shuabao.input.keyboard_mouse import ActionResult
+from shuabao.lobby_hitch import SearchTransaction
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import BUILD_ID, Mediator, Phase
 from shuabao.policy.merchant_fsm import MerchantFSM, MerchantPhase
 from shuabao.settings import Settings
 from shuabao.stop_signal import StopSignal
 from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
 from tools.live_scenario_capture import (
     BOOKMARK_STATUSES,
     BookmarkCommandReader,
@@ -56,6 +58,20 @@ from tools.live_scenario_capture import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _search_icon_anchor() -> MatchResult:
+    """The stable search-control anchor as the production template matches it."""
+    return MatchResult(
+        name="lobby_search_icon",
+        score=0.99,
+        x=1256,
+        y=281,
+        w=26,
+        h=22,
+        screen_x=1256,
+        screen_y=281,
+    )
 
 
 def _fixture_frame() -> Frame:
@@ -1639,40 +1655,32 @@ def test_lobby_hitch_uses_default_and_custom_search_text() -> None:
     assert Settings._from_dict({"hitch_stage_prefix": "   "}).hitch_stage_prefix == "4,3"
 
 
-def test_lobby_hitch_clicks_inside_search_box_above_anchor_center() -> None:
-    from shuabao.vision.matcher import MatchResult
-
+def test_lobby_hitch_clicks_text_area_left_of_search_icon() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-    anchor = MatchResult(
-        name="lobby_search_box",
-        score=1.0,
-        x=1095,
-        y=295,
-        w=185,
-        h=30,
-        screen_x=1346,
-        screen_y=347,
-    )
+    anchor = _search_icon_anchor()
     with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
          patch.object(
              med,
              "find_scene",
-             side_effect=lambda _frame, key: anchor if key == "lobby_search_box" else None,
+             side_effect=lambda _frame, key: anchor if key == "lobby_search_icon" else None,
          ), \
          patch.object(med, "act_search_box", return_value=True) as search:
         med._tick_lobby_hitch(_fixture_frame(), "LOBBY_ROOM")
 
     click_hit, text, reason = search.call_args.args
-    assert click_hit.screen_x == 1346
-    assert click_hit.screen_y == 332
+    # Middle of the text area: inside the edit box, clear of the magnifier.
+    assert (click_hit.screen_x, click_hit.screen_y) == (1180, 292)
     assert (text, reason) == ("4", "HitchSearchBox")
-    assert med._hitch_search_pending is not None
-    assert med._hitch_prefix_searched is False
+    tx = med._hitch_search
+    assert tx is not None and tx.prefix == "4"
+    assert tx.awaiting_confirm is True
+    assert tx.confirmed is False
 
 
 def test_lobby_hitch_waits_for_search_box_postcondition_before_scanning_rows() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-    med._hitch_search_pending = ("3", 100.0)
+    med._hitch_sm.prefix = "3"
+    med._hitch_search = SearchTransaction(prefix="3", opened_at=100.0, typed_at=100.0)
     frame = _fixture_frame()
 
     with patch("shuabao.mediator.time.time", return_value=101.0), \
@@ -1685,12 +1693,13 @@ def test_lobby_hitch_waits_for_search_box_postcondition_before_scanning_rows() -
 
     scan.assert_not_called()
     click.assert_not_called()
-    assert med._hitch_prefix_searched is False
+    assert med._hitch_prefix_ok() is False
 
 
 def test_lobby_hitch_confirms_search_text_before_rows_are_eligible() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-    med._hitch_search_pending = ("3", 100.0)
+    med._hitch_sm.prefix = "3"
+    med._hitch_search = SearchTransaction(prefix="3", opened_at=100.0, typed_at=100.0)
     med._hitch_search_text_override = "3"
     frame = _fixture_frame()
 
@@ -1701,8 +1710,9 @@ def test_lobby_hitch_confirms_search_text_before_rows_are_eligible() -> None:
         med._tick_lobby_hitch(frame, "LOBBY_ROOM")
 
     scan.assert_not_called()
-    assert med._hitch_prefix_searched is True
-    assert med._hitch_search_pending is None
+    assert med._hitch_search is not None
+    assert med._hitch_search.confirmed is True
+    assert med._hitch_prefix_ok() is True
 
 
 def test_lobby_hitch_refresh_clicks_above_anchor_center() -> None:
@@ -1851,8 +1861,9 @@ def test_lobby_hitch_recreated_state_machine_preserves_current_prefix_and_limits
 
 def test_lobby_hitch_after_exit_clears_search_and_row_transients() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-    med._hitch_prefix_searched = True
-    med._hitch_search_pending = ("3", 1.0)
+    med._hitch_search = SearchTransaction(
+        prefix="3", opened_at=1.0, typed_at=1.0, confirmed=True,
+    )
     med._hitch_pending_row_y = 385
     med._hitch_pending_room_key = "room"
     med._hitch_refresh_required = False
@@ -1860,8 +1871,8 @@ def test_lobby_hitch_after_exit_clears_search_and_row_transients() -> None:
 
     med._hitch_after_exit(10.0)
 
-    assert med._hitch_prefix_searched is False
-    assert med._hitch_search_pending is None
+    assert med._hitch_search is None
+    assert med._hitch_prefix_ok() is False
     assert med._hitch_pending_row_y is None
     assert med._hitch_pending_room_key is None
     assert med._hitch_refresh_required is True
@@ -1927,7 +1938,7 @@ def test_lobby_hitch_does_not_treat_lobby_as_room_waiting() -> None:
 
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     room_cancel = object()
-    search_box = MatchResult("lobby_search_box", 1.0, 1095, 295, 185, 30, 1346, 347)
+    search_box = _search_icon_anchor()
     with patch.object(med, "_hitch_ocr_text", return_value=""), \
          patch.object(med, "_lobby_room_list_evidence", return_value=True), \
          patch.object(
@@ -1935,7 +1946,7 @@ def test_lobby_hitch_does_not_treat_lobby_as_room_waiting() -> None:
              "find_scene",
              side_effect=lambda _frame, key: (
                  room_cancel if key == "room_cancel_ready"
-                 else search_box if key == "lobby_search_box"
+                 else search_box if key == "lobby_search_icon"
                  else None
              ),
          ), \
@@ -1950,7 +1961,9 @@ def test_lobby_hitch_failed_join_does_not_arm_pending_join() -> None:
     from shuabao.vision.matcher import MatchResult
 
     med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4"), ROOT)
-    med._hitch_prefix_searched = True
+    med._hitch_search = SearchTransaction(
+        prefix="4", opened_at=0.0, typed_at=0.0, confirmed=True,
+    )
     frame = _fixture_frame()
     hit = MatchResult("room_list_row", 1.0, 100, 100, 100, 40, 100, 100)
     decision = HitchDecision(HitchAction.JOIN, HitchPhase.SEARCH, "match", 0, 0.0)
@@ -1966,7 +1979,9 @@ def test_lobby_hitch_failed_join_does_not_arm_pending_join() -> None:
 
 def test_lobby_hitch_join_timeout_closes_popup_and_skips_failed_row() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4"), ROOT)
-    med._hitch_prefix_searched = True
+    med._hitch_search = SearchTransaction(
+        prefix="4", opened_at=0.0, typed_at=0.0, confirmed=True,
+    )
     med._hitch_pending_row_y = 385
     med._hitch_sm.note_join_click(97.0)
     frame = _fixture_frame()
@@ -1991,7 +2006,9 @@ def test_lobby_hitch_failed_join_forces_refresh_before_next_room() -> None:
     from shuabao.lobby_hitch import HitchAction
 
     med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4"), ROOT)
-    med._hitch_prefix_searched = True
+    med._hitch_search = SearchTransaction(
+        prefix="4", opened_at=0.0, typed_at=0.0, confirmed=True,
+    )
     med._hitch_refresh_required = True
     frame = _fixture_frame()
     refresh_hit = type("Hit", (), {
@@ -2070,7 +2087,7 @@ def test_lobby_resource_preflight_rejects_blank_templates(tmp_path: Path) -> Non
     lobby = tmp_path / "lobby"
     lobby.mkdir()
     for name in (
-        "lobby_search_box.png",
+        "lobby_search_icon.png",
         "lobby_refresh.png",
         "lobby_room_list_selected.png",
     ):

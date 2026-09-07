@@ -78,6 +78,7 @@ from shuabao.lobby_hitch import (
     FollowTeamSM,
     HitchAction,
     HitchSearchSM,
+    SearchTransaction,
     classify_hitch_ocr,
     has_prefix_evidence,
     normalize_prefix,
@@ -640,8 +641,9 @@ class Mediator:
         self._hitch_re_search = False
         self._hitch_status = ""
         self._hitch_join_refresh_count = 0
-        self._hitch_prefix_searched = False
-        self._hitch_search_pending: tuple[str, float] | None = None
+        # One optional transaction replaces the old
+        # ``_hitch_prefix_searched`` / ``_hitch_search_pending`` pair.
+        self._hitch_search: SearchTransaction | None = None
         self._hitch_search_ocr_next_at = 0.0
         self._hitch_search_ocr_error_logged_at = 0.0
         self._hitch_rejected_row_ys: set[int] = set()
@@ -1497,6 +1499,12 @@ class Mediator:
         # 误点局内退出按钮；无真实素材，测试用合成 matcher 证据驱动）。
         "ok": (0.20, 0.20, 0.80, 0.80),
         "close": (0.20, 0.20, 0.80, 0.80),
+        # KK draws the same magnifier glyph in its global top-bar search box,
+        # which scores 0.92-0.95 against this template — above the production
+        # match_threshold.  The room-list control sits at y≈0.29 of the client
+        # in every measured client size, so the band below excludes the top
+        # bar by geometry instead of hoping the score margin holds.
+        "lobby_search_icon": (0.60, 0.16, 1.00, 0.46),
     }
 
     def _scene_roi(self, scene_key: str) -> tuple[float, float, float, float] | None:
@@ -1598,7 +1606,7 @@ class Mediator:
         "stage", "stage_page", "coin_challenge", "wood_challenge",
         "experience_challenge", "treasure_challenge",
         "lobby_room_list", "lobby_room_list_tab", "lobby_room_list_selected",
-        "lobby_refresh", "lobby_search_box",
+        "lobby_refresh", "lobby_search_box", "lobby_search_icon",
     })
 
     def _l0_scales(self) -> tuple[float, ...]:
@@ -6799,7 +6807,10 @@ class Mediator:
             and int(frame.height * 0.22) <= selected.y <= int(frame.height * 0.30)
         ):
             return True
-        for key in ("lobby_refresh", "lobby_search_box"):
+        # lobby_search_icon rather than lobby_search_box: the box asset stops
+        # matching as soon as a prefix is typed, so it withdrew this evidence
+        # precisely when the room list was filtered and most trustworthy.
+        for key in ("lobby_refresh", "lobby_search_icon"):
             hit = self.find_scene(frame, key)
             if hit is not None and hit.y >= int(frame.height * 0.20):
                 return True
@@ -7195,10 +7206,84 @@ class Mediator:
         return ""
 
     def _hitch_prefix_ok(self, frame: Frame | None = None) -> bool:
-        return bool(
-            getattr(self, "_hitch_prefix_searched", False)
-            and getattr(self, "_hitch_search_pending", None) is None
+        """Rows are eligible only while a confirmed search transaction stands."""
+        tx = self._hitch_search
+        return tx is not None and tx.confirmed
+
+    # The search control is an absolute-size KK asset: measured identically
+    # (179x25 box, 26x22 magnifier, 152px of text area left of the icon) on
+    # both a 1332x945 and a 1600x900 client.  Offsets below are template-space
+    # pixels, scaled by the matched icon width so a scaled client still maps.
+    _SEARCH_ICON_W = 26
+    _SEARCH_BOX_TEXT_W = 152
+    _SEARCH_BOX_PAD_Y = 2
+    _SEARCH_GLYPH_W = 16
+    # Visual confirmation budget, measured from the moment the input action
+    # completes.  The shipped 3.0s ran from tick start, so the 1.3s that
+    # search_text() spent on the real client came out of it and left room for
+    # a single OCR sample before the timeout fired.
+    _HITCH_SEARCH_CONFIRM_S = 3.0
+
+    def _find_hitch_search_box(self, frame: Frame) -> MatchResult | None:
+        """Locate the search control by its magnifier, never by its content.
+
+        The shipped ``lobby_search_box`` asset spans the whole input, so the
+        placeholder text is part of the pattern: typing the prefix — the very
+        action we are trying to confirm — drops it from 0.96 to 0.62-0.74,
+        under the production ``match_threshold``.  The magnifier is the one
+        part of the control that does not change with EMPTY/typed/focused
+        state, and it holds 0.987-1.000 across every measured frame.
+        """
+        icon = self.find_scene(frame, "lobby_search_icon")
+        if icon is None:
+            return None
+        scale = max(int(icon.w), 1) / self._SEARCH_ICON_W
+        # Click the middle of the text area: inside the edit box, clear of the
+        # magnifier (which is KK's submit affordance, not a focus target).
+        x = icon.x - int(round(self._SEARCH_BOX_TEXT_W / 2 * scale))
+        y = icon.y + icon.h // 2
+        return replace(
+            icon,
+            name="lobby_search_box_input",
+            x=x,
+            y=y,
+            screen_x=(getattr(frame, "left", 0) or 0) + x,
+            screen_y=(getattr(frame, "top", 0) or 0) + y,
         )
+
+    def _hitch_search_content_bbox(
+        self, frame: Frame, icon: MatchResult, prefix: str
+    ) -> tuple[int, int, int, int] | None:
+        """Crop only the typed-text corner of the box, derived from the icon.
+
+        The shipped ROI was a fixed normalized band that mostly framed the
+        empty area and the divider rule above the control, clipped the glyph
+        bottoms, and swallowed both the magnifier and the I-beam pointer that
+        ``search_text()`` leaves inside the box.  On the incident frames the
+        production OCR read that crop as ``"a"``.  Anchoring on the icon and
+        keeping only enough width for the prefix plus one unexpected glyph
+        reads ``"4"`` instead, and still shows the placeholder (never a digit)
+        while the box is empty.
+        """
+        scale = max(int(icon.w), 1) / self._SEARCH_ICON_W
+
+        def px(value: float) -> int:
+            """Template-space pixels -> this frame's pixels."""
+            return int(round(value * scale))
+
+        width = min(
+            max(self._SEARCH_GLYPH_W * (len(prefix) + 2), self._SEARCH_GLYPH_W * 3),
+            self._SEARCH_BOX_TEXT_W,
+        )
+        x0 = icon.x - px(self._SEARCH_BOX_TEXT_W)
+        x1 = x0 + px(width)
+        y0 = icon.y - px(self._SEARCH_BOX_PAD_Y)
+        y1 = icon.y + icon.h + px(self._SEARCH_BOX_PAD_Y)
+        x0, x1 = max(0, x0), min(frame.width, x1)
+        y0, y1 = max(0, y0), min(frame.height, y1)
+        if x1 - x0 < 8 or y1 - y0 < 8:
+            return None
+        return (x0, y0, x1, y1)
 
     def _hitch_search_prefix_confirmed(self, frame: Frame, prefix: str, now: float) -> bool:
         """Verify the lobby search box before using its filtered room rows."""
@@ -7211,7 +7296,12 @@ class Mediator:
         client = getattr(self, "_ocr_client", None)
         if client is None:
             return False
-        bbox = self._normalized_bbox(frame, (0.82, 0.26, 0.97, 0.32))
+        icon = self.find_scene(frame, "lobby_search_icon")
+        if icon is None:
+            return False
+        bbox = self._hitch_search_content_bbox(frame, icon, prefix)
+        if bbox is None:
+            return False
         try:
             response = client.shadow_predict(
                 frame,
@@ -7309,8 +7399,10 @@ class Mediator:
         self._awaiting_room_return = False
         self._hitch_re_search = True
         self._hitch_sm = self._new_hitch_sm()
-        self._hitch_prefix_searched = False
-        self._hitch_search_pending = None
+        # KK keeps the previously typed text in the box across a room exit, so
+        # clearing our own transaction is exactly right: the next episode must
+        # re-prove the prefix visually rather than inherit this one's proof.
+        self._hitch_search = None
         self._hitch_refresh_required = True
         self._hitch_pending_row_y = None
         self._hitch_pending_room_key = None
@@ -7584,49 +7676,78 @@ class Mediator:
             print(f"[L0] hitch 点击切换至房间列表 Tab: ({tab_unselected.screen_x}, {tab_unselected.screen_y})")
             return LoopAction.Continue
 
-        search_hit = self.find_scene(frame, "lobby_search_box")
-        pending_search = self._hitch_search_pending
-        if pending_search is not None:
-            prefix, pending_at = pending_search
-            if self._hitch_search_prefix_confirmed(frame, prefix, now):
-                self._hitch_prefix_searched = True
-                self._hitch_search_pending = None
+        # Everything from here to the row scan is one bounded search
+        # operation.  Arming the clock at the subflow entrance — rather than
+        # inside HitchSearchSM.tick(), which sits behind every early return
+        # below — is what makes the locator/postcondition/retry waits
+        # terminate instead of parking forever on zero input.
+        self._hitch_sm.begin_search_window(now)
+        surface = (frame.hwnd, frame.width, frame.height)
+        tx = self._hitch_search
+        if tx is not None and (
+            # A rotated prefix invalidates whatever the box currently proves.
+            tx.prefix != self._hitch_sm.prefix
+            # So does a different window or client size: the proof was about
+            # a surface that is no longer the one in front of us.
+            or (tx.surface is not None and tx.surface != surface)
+        ):
+            tx = self._hitch_search = None
+
+        if tx is not None and tx.awaiting_confirm:
+            if self._hitch_search_prefix_confirmed(frame, tx.prefix, now):
+                tx.confirmed = True
                 self._hitch_rejected_row_ys.clear()
-                print(f"[L0] hitch 搜索词 '{prefix}' 已由搜索框视觉证据确认")
-            elif now - pending_at >= 3.0:
-                self._hitch_search_pending = None
-                self._hitch_prefix_searched = False
+                print(f"[L0] hitch 搜索词 '{tx.prefix}' 已由搜索框视觉证据确认")
+            elif now - float(tx.typed_at or now) >= self._HITCH_SEARCH_CONFIRM_S:
+                # Elapsed time cannot manufacture visual evidence, so this
+                # never confirms.  Reopen the same operation for a bounded
+                # retype; the durable budget below still owns the way out.
+                tx.reopen_for_retype()
                 self._hitch_sm.defer_retry(now)
-                print(f"[L0] hitch 搜索词 '{prefix}' 未获视觉确认，零输入重试")
+                print(f"[L0] hitch 搜索词 '{tx.prefix}' 未获视觉确认，零输入重试")
             else:
-                print(f"[L0] hitch 等待搜索词 '{prefix}' 生效确认（零输入）")
+                print(f"[L0] hitch 等待搜索词 '{tx.prefix}' 生效确认（零输入）")
             # 确认成立的当前 tick 仍不扫描房间；下一张新帧才允许使用过滤结果。
             return LoopAction.Continue
 
-        if not getattr(self, "_hitch_prefix_searched", False):
+        if tx is None or not tx.confirmed:
             prefix = self._hitch_sm.prefix
-            if search_hit is None:
-                self._hitch_sm.defer_retry(now)
-                print("[L0] hitch 未识别搜索框，零输入等待")
+            if not self._hitch_sm.search_window_expired(now):
+                search_hit = self._find_hitch_search_box(frame)
+                if search_hit is None:
+                    self._hitch_sm.defer_retry(now)
+                    print("[L0] hitch 未识别搜索框，零输入等待")
+                elif not self._hitch_sm.input_allowed(now):
+                    # A cooldown throttles what we send, never what we look
+                    # at; the postcondition above keeps reading every frame.
+                    print(f"[L0] hitch 搜索词 '{prefix}' 重试冷却中，零输入观察")
+                else:
+                    if tx is None:
+                        tx = self._hitch_search = SearchTransaction(
+                            prefix=prefix, opened_at=now, surface=surface,
+                        )
+                    if self.act_search_box(search_hit, prefix, "HitchSearchBox"):
+                        # Stamped after the action returns: search_text()
+                        # spends over a second clicking/clearing/typing on the
+                        # real client and that must not be billed to the
+                        # visual confirmation window.
+                        tx.typed_at = time.time()
+                        print(
+                            f"[L0] hitch 搜索词 '{prefix}' 已输入并回车，等待后置确认: "
+                            f"({search_hit.screen_x}, {search_hit.screen_y})"
+                        )
+                    else:
+                        self._hitch_sm.defer_retry(now)
+                        print(f"[L0] hitch 搜索词 '{prefix}' 输入被拒绝，保持未搜索状态")
                 return LoopAction.Continue
-            # The shipped anchor starts halfway down the input control and
-            # includes the gap/table header below it. Its geometric centre
-            # is therefore outside the edit box on the live 1332x945 KK UI.
-            search_hit = replace(
-                search_hit,
-                screen_y=search_hit.screen_y - search_hit.h // 2,
-            )
-            if self.act_search_box(search_hit, prefix, "HitchSearchBox"):
-                self._hitch_search_pending = (prefix, now)
-                self._hitch_prefix_searched = False
-                print(
-                    f"[L0] hitch 搜索词 '{prefix}' 已输入并回车，等待后置确认: "
-                    f"({search_hit.screen_x}, {search_hit.screen_y})"
-                )
-            else:
-                self._hitch_sm.defer_retry(now)
-                print(f"[L0] hitch 搜索词 '{prefix}' 输入被拒绝，保持未搜索状态")
-            return LoopAction.Continue
+            # Durable budget spent without a confirmed search.  Drop the
+            # operation and fall through to the state machine, which owns the
+            # bounded way back (GO_HOME -> lobby home -> sleep retry).  The
+            # postcondition is never faked and rows stay ineligible, so an
+            # unfiltered list can still not be joined.
+            self._hitch_search = None
+            self._hitch_status = "搜索预算耗尽"
+            print(f"[L0] hitch 搜索词 '{prefix}' 预算耗尽，交由状态机回退安全基线")
 
         # 3. 扫描房间列表寻找可加入的房间（非 4/4 且 非 游戏中）
         joinable_hit = None
@@ -7678,8 +7799,7 @@ class Mediator:
             if clicked:
                 rotated = self._hitch_sm.note_refresh(now)
                 if rotated:
-                    self._hitch_prefix_searched = False
-                    self._hitch_search_pending = None
+                    self._hitch_search = None
                     print(f"[L0] hitch 连续刷新未命中，自动轮换搜索词 -> {self._hitch_sm.prefix}")
                 self._hitch_refresh_required = False
                 self._hitch_rejected_row_ys.clear()

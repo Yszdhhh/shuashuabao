@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-03 10:49:37",
-  "reason": "Register reviewed 8262ad8 lobby runtime assets (19) and scene template references (15) after zero-missing runtime audit; preserve bond-first frozen HUD behavior after F4 startup fix.",
+  "updated_at": "2026-09-07 12:38:18",
+  "reason": "Register lobby_search_icon: the shipped lobby_search_box asset spans the whole input, so typing the search prefix dropped it from 0.96 to 0.62-0.74 (production match_threshold 0.85) and deadlocked the 20260907 real-machine hitch run. Adds 1 scene (147->148) and 1 hash-verified runtime asset (386->387).",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 1327,
+        "passed": 1603,
         "xfailed": 2,
         "skipped": 1
       }
@@ -30,13 +30,13 @@
     "scene_templates": {
       "title": "scenes.json 模板完整性",
       "observed": {
-        "ok": 147,
+        "ok": 148,
         "missing": 0,
         "asset_spec_assets_root": 1,
         "asset_manifest_schema": 1,
         "asset_package_root_whole_tree": 1,
-        "asset_files": 386,
-        "asset_allowlisted": 386,
+        "asset_files": 387,
+        "asset_allowlisted": 387,
         "asset_missing_allowlist": 0,
         "asset_stale_manifest": 0,
         "asset_forbidden_paths": 0,

@@ -212,6 +212,13 @@
       "method": "CreateRoom",
       "action": "click"
     },
+    "lobby_search_icon": {
+      "templates": [
+        "lobby/lobby_search_icon"
+      ],
+      "method": "CreateRoom",
+      "action": "click"
+    },
     "lobby_quick_join": {
       "templates": [
         "lobby/lobby_quick_join"

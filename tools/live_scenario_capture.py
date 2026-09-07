@@ -2254,8 +2254,11 @@ def _lobby_resource_preflight(med: Mediator, target: str | None) -> list[str]:
     images = Path(getattr(med, "images", "") or "")
     # Search is the requested first action. Row-safety assets are checked at
     # join time so a bad lock template cannot suppress the initial search.
-    required = ("lobby_search_box.png", "lobby_refresh.png") if target == "lobby_search" else (
-        "lobby_search_box.png", "lobby_refresh.png", "lobby_room_list_selected.png",
+    # lobby_search_icon is what the production locator resolves the search
+    # control with; the whole-box asset it replaced stopped matching as soon
+    # as a prefix was typed, so requiring it here proved nothing.
+    required = ("lobby_search_icon.png", "lobby_refresh.png") if target == "lobby_search" else (
+        "lobby_search_icon.png", "lobby_refresh.png", "lobby_room_list_selected.png",
     )
     missing: list[str] = []
     for name in required:
