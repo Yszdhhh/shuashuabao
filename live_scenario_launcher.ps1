@@ -112,20 +112,66 @@ function Resolve-OcrPython {
     return ($candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
 }
 
+function Resolve-OcrModelDir {
+    $candidates = @()
+    if ($env:SHUABAO_OCR_MODEL_DIR) { $candidates += $env:SHUABAO_OCR_MODEL_DIR }
+    $candidates += (Join-Path $RepoRoot "models\ocr")
+    $workspaceRoot = Split-Path (Split-Path $RepoRoot -Parent) -Parent
+    $candidates += (Join-Path $workspaceRoot "GameScript-Local\models\ocr")
+    foreach ($candidate in $candidates) {
+        $model = if ((Split-Path $candidate -Leaf) -eq "PP-OCRv5_mobile_rec_infer") {
+            $candidate
+        } else {
+            Join-Path $candidate "PP-OCRv5_mobile_rec_infer"
+        }
+        if (
+            (Test-Path -LiteralPath (Join-Path $model "inference.json") -PathType Leaf) -and
+            (Test-Path -LiteralPath (Join-Path $model "inference.pdiparams") -PathType Leaf) -and
+            (Test-Path -LiteralPath (Join-Path $model "inference.yml") -PathType Leaf)
+        ) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    return $null
+}
+
+function Read-HarnessSettingsSource {
+    $source = if ($script:OperatorSettingsPath) { $script:OperatorSettingsPath } else { Join-Path $RepoRoot "config\default_settings.json" }
+    try {
+        $raw = [System.IO.File]::ReadAllText($source, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+    } catch {
+        $reason = ($_.Exception.Message -split "`r?`n")[0]
+        throw "Harness 无法读取 UTF-8 配置：$source`r`n$reason"
+    }
+    return @{ Path = $source; Value = $raw }
+}
+
+function Save-HarnessSettingsCopy {
+    param([Parameter(Mandatory = $true)]$SettingsObject)
+
+    $SettingsObject.mode_id = "normal_farm"
+    $SettingsObject.auto_create_room = $true
+    $stamp = Get-Date -Format "yyyyMMdd_HHmmss_ffff"
+    $path = Join-Path $script:SoloCaptureRoot "live_harness_settings_$stamp.json"
+    $json = $SettingsObject | ConvertTo-Json -Depth 12
+    [System.IO.File]::WriteAllText($path, $json, [System.Text.UTF8Encoding]::new($false))
+    return $path
+}
+
+function New-DashboardSettingsSnapshot {
+    $loaded = Read-HarnessSettingsSource
+    $path = Save-HarnessSettingsCopy $loaded.Value
+    Write-Host "[launcher] 已只读复制正式看板设置：$($loaded.Path)" -ForegroundColor DarkGray
+    Write-Host "[launcher] 本次隔离设置副本：$path" -ForegroundColor DarkGray
+    return $path
+}
+
 function Show-HarnessSettingsPanel {
     param([switch]$ConstructOnly)
 
-    $source = if ($script:OperatorSettingsPath) { $script:OperatorSettingsPath } else { Join-Path $RepoRoot "config\default_settings.json" }
-    $raw = if (Test-Path -LiteralPath $source -PathType Leaf) {
-        try {
-            [System.IO.File]::ReadAllText($source, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
-        } catch {
-            $reason = ($_.Exception.Message -split "`r?`n")[0]
-            throw "临时设置面板无法读取 UTF-8 配置：$source`r`n$reason"
-        }
-    } else {
-        [pscustomobject]@{}
-    }
+    $loaded = Read-HarnessSettingsSource
+    $source = $loaded.Path
+    $raw = $loaded.Value
     function Value-OrDefault($Name, $Default) {
         $property = $raw.PSObject.Properties[$Name]
         if ($null -eq $property -or $null -eq $property.Value) { return $Default }
@@ -168,7 +214,7 @@ function Show-HarnessSettingsPanel {
     $merchant = New-Object System.Windows.Forms.CheckBox
     $merchant.Text = "黑商"; $merchant.Checked = [bool](Value-OrDefault "merchant_enabled" $false); $merchant.Location = [System.Drawing.Point]::new(140, $y); $form.Controls.Add($merchant)
     $start = New-Object System.Windows.Forms.Button
-    $start.Text = "保存临时设置并开始"; $start.Size = New-Object System.Drawing.Size(220, 38); $start.Location = [System.Drawing.Point]::new(295, ($y + 35))
+    $start.Text = "保存为下一次测试的临时覆盖"; $start.Size = New-Object System.Drawing.Size(220, 38); $start.Location = [System.Drawing.Point]::new(295, ($y + 35))
     $start.Add_Click({
         $skills = @($controls["skills"].Text -split "[,;\s]+" | Where-Object { $_ })
         if ($skills.Count -gt 4) { [System.Windows.Forms.MessageBox]::Show("技能最多 4 个。", "临时 Harness 设置") | Out-Null; return }
@@ -179,12 +225,7 @@ function Show-HarnessSettingsPanel {
         $raw.sgzx_boss = $controls["sgzx_boss"].Text.Trim()
         $raw.auto_secret_realm = [bool]$secret.Checked
         $raw.merchant_enabled = [bool]$merchant.Checked
-        $raw.mode_id = "normal_farm"
-        $raw.auto_create_room = $true
-        $stamp = Get-Date -Format "yyyyMMdd_HHmmss_ffff"
-        $script:HarnessSettingsPath = Join-Path $script:SoloCaptureRoot "live_harness_settings_$stamp.json"
-        $json = $raw | ConvertTo-Json -Depth 12
-        [System.IO.File]::WriteAllText($script:HarnessSettingsPath, $json, [System.Text.UTF8Encoding]::new($false))
+        $script:HarnessSettingsPath = Save-HarnessSettingsCopy $raw
         $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
         $form.Close()
     })
@@ -221,12 +262,15 @@ function Invoke-CaptureTool {
     }
 
     $previousOcr = $env:SHUABAO_OCR_PYTHON
+    $previousOcrModel = $env:SHUABAO_OCR_MODEL_DIR
     if ($script:OcrPython) { $env:SHUABAO_OCR_PYTHON = $script:OcrPython }
+    if ($script:OcrModelDir) { $env:SHUABAO_OCR_MODEL_DIR = $script:OcrModelDir }
     try {
         & $script:PythonPath $ToolPath @CliArgs
         $exitCode = [int]$LASTEXITCODE
     } finally {
         if ($null -eq $previousOcr) { Remove-Item Env:SHUABAO_OCR_PYTHON -ErrorAction SilentlyContinue } else { $env:SHUABAO_OCR_PYTHON = $previousOcr }
+        if ($null -eq $previousOcrModel) { Remove-Item Env:SHUABAO_OCR_MODEL_DIR -ErrorAction SilentlyContinue } else { $env:SHUABAO_OCR_MODEL_DIR = $previousOcrModel }
     }
     $script:LastToolExitCode = $exitCode
     Write-Host "[launcher] tool exit code: $exitCode" -ForegroundColor DarkGray
@@ -331,7 +375,13 @@ function Invoke-HitchRuntimeCapture {
 }
 
 function Invoke-SoloFullCycleCapture {
-    if (-not (Show-HarnessSettingsPanel)) { return }
+    $settingsPath = $script:HarnessSettingsPath
+    $script:HarnessSettingsPath = $null
+    if (-not $settingsPath -or -not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
+        $settingsPath = New-DashboardSettingsSnapshot
+    } else {
+        Write-Host "[launcher] 本次使用已保存的临时覆盖：$settingsPath" -ForegroundColor DarkGray
+    }
     $cliArgs = @(
         "capture",
         "--target", "solo_full_cycle",
@@ -346,9 +396,18 @@ function Invoke-SoloFullCycleCapture {
         "--confirm-live-input",
         "--allow-dev-source"
     )
-    $cliArgs += @("--settings", $script:HarnessSettingsPath)
+    $cliArgs += @("--settings", $settingsPath)
     Write-Host "[launcher] 单人完整循环：Production RuntimeMediator.tick()；首局闭环后仅在下一局业务证据确认时 PASS" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-SoloSettingsPanel {
+    if (Show-HarnessSettingsPanel) {
+        [System.Windows.Forms.MessageBox]::Show(
+            "临时覆盖已保存；下一次点击 12 时使用一次。之后会恢复为自动读取正式看板设置。",
+            "单人完整循环 · 临时设置"
+        ) | Out-Null
+    }
 }
 
 function Invoke-SoloTakeoverCapture {
@@ -417,6 +476,7 @@ $script:CaptureRoot = Resolve-CaptureRoot
 $script:SoloCaptureRoot = Resolve-SoloCaptureRoot
 $script:OperatorSettingsPath = Resolve-OperatorSettingsPath
 $script:OcrPython = Resolve-OcrPython
+$script:OcrModelDir = Resolve-OcrModelDir
 $script:HarnessIdentity = Get-GitIdentity
 $script:ProductionBaselineSha = "b15da05f4fd7313b02b2cc466e319d9683aa979c"
 
@@ -425,9 +485,15 @@ Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
 if ($SettingsPanelSmokeTest) {
-    if (Show-HarnessSettingsPanel -ConstructOnly) {
-        Write-Host "Settings panel construction: PASS"
-        exit 0
+    $smokeSettings = New-DashboardSettingsSnapshot
+    try {
+        [void]([System.IO.File]::ReadAllText($smokeSettings, [System.Text.Encoding]::UTF8) | ConvertFrom-Json)
+        if (Show-HarnessSettingsPanel -ConstructOnly) {
+            Write-Host "Settings snapshot and optional panel construction: PASS"
+            exit 0
+        }
+    } finally {
+        Remove-Item -LiteralPath $smokeSettings -ErrorAction SilentlyContinue
     }
     exit 1
 }
@@ -448,7 +514,7 @@ $title.Location = [System.Drawing.Point]::new(22, 18)
 $script:MenuForm.Controls.Add($title)
 
 $status = New-Object System.Windows.Forms.Label
-$status.Text = "核心验收仅保留两条完整链路：单人完整循环与蹭车局内续跑。`r`n12 会先打开临时设置面板；测试开始后放开鼠标，紧急停止用 Shift+F12；p/f/m 只用于留证据。"
+$status.Text = "核心验收仅保留两条完整链路：单人完整循环与蹭车局内续跑。`r`n12 默认直接复制正式看板设置；仅需单次覆盖时点「临时设置」。紧急停止用 Shift+F12。"
 $status.AutoSize = $false
 $status.Size = New-Object System.Drawing.Size(700, 58)
 $status.Location = [System.Drawing.Point]::new(24, 60)
@@ -503,10 +569,11 @@ $blue = [System.Drawing.Color]::FromArgb(225, 238, 250)
 $yellow = [System.Drawing.Color]::FromArgb(255, 246, 210)
 
 Add-MenuButton "1  启动前检查`r`n    只检查环境、OCR 与窗口条件，不操作游戏" 24 230 { Invoke-Readiness } $blue
-Add-MenuButton "12 单人完整循环（推荐）`r`n    临时设置→创房→选关→局内→结算→回房→下一把" 390 230 { Invoke-SoloFullCycleCapture } $green
+Add-MenuButton "12 单人完整循环（推荐）`r`n    自动读取正式看板→创房→选关→局内→结算→下一把" 390 230 { Invoke-SoloFullCycleCapture } $green
 Add-MenuButton "11 蹭车局内续跑`r`n    入局后接管→自动任务/四挑战→结算链路" 24 316 { Invoke-HitchRuntimeCapture } $green
 Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败/阻塞证据" 390 316 { Open-LatestFailBundle } $blue
 Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回归）" 24 402 { Reproduce-LatestFail } $blue
+Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认无需填写" 390 402 { Invoke-SoloSettingsPanel } $yellow
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"

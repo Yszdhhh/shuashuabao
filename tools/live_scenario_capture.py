@@ -2509,7 +2509,7 @@ def _build_identity_check(
 
 
 def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Frame | None, dict[str, Any]]:
-    is_lobby = target in {"lobby_hitch", "lobby_search", "hitch_runtime"}
+    is_lobby = target in {"lobby_hitch", "lobby_search", "hitch_runtime", "solo_full_cycle"}
     role = "l0" if is_lobby else "l1"
     title = "" if is_lobby else str(getattr(settings, "window_title_contains", "") or "")
     try:
@@ -2654,7 +2654,7 @@ def _live_input_preflight(
     if not bool(ocr_health.get("healthy")):
         reasons.append(f"ocr_bootstrap_unhealthy: {ocr_health.get('reason') or ocr_health.get('stage')}")
     if window.get("status") != "READY":
-        reasons.append(f"game window unavailable: {window.get('reason') or window.get('requested_title')}")
+        reasons.append(f"target window unavailable: {window.get('reason') or window.get('requested_title')}")
 
     lane: LiveLane | None = None
     single_instance: dict[str, Any] = {

@@ -141,23 +141,27 @@ later uninterrupted Natural E2E on the real game.
 
 ## Solo Full-Cycle (GUI 12)
 
-`12 单人完整循环（推荐）` is the primary single-player acceptance lane. Before
-launch it opens a small Harness-only settings panel. Its defaults are read
-from `%LOCALAPPDATA%\\ShuaBao\\user_settings.json` (or
-`config/default_settings.json` when no user file exists), and it writes a
-timestamped copy below `%TEMP%\\shuabao-captures`; it never writes the
-production settings. The panel exposes the normal-farm stage target, skills,
-bonds, optional Heirloom/Time Cave Boss, Secret Realm, and merchant values.
-The copy is forced to `mode_id=normal_farm` and `auto_create_room=true`, then
-runs the existing
+`12 单人完整循环（推荐）` is the primary single-player acceptance lane. It reads
+the settings already saved by the production dashboard from
+`%LOCALAPPDATA%\\ShuaBao\\user_settings.json` (or
+`config/default_settings.json` when no user file exists) and immediately
+writes a timestamped Harness copy below `%TEMP%\\shuabao-captures`; no manual
+re-entry is required and it never writes production settings. The optional
+`单人临时设置` button exposes the normal-farm stage target, skills, bonds,
+optional Heirloom/Time Cave Boss, Secret Realm, and merchant values. An
+override applies to the next run once; later runs return to the current
+dashboard settings. Every copy is forced to `mode_id=normal_farm` and
+`auto_create_room=true`, then runs the existing
 `RuntimeMediator.tick()` path. The Harness has no room/stage/hero/main-line,
 choice, merchant, Boss, post-game, quit, or next-round implementation.
 
-The launcher resolves an OCR Python worker from an explicit
-`SHUABAO_OCR_PYTHON`, the worktree's `.venv-ocr`, or the existing local main
-worktree OCR environment. It exports that value only to the invoked Harness
-process, so an absent OCR venv in the isolated Harness worktree does not cause
-a false preflight failure and production environment/package remains unchanged.
+The launcher resolves an OCR Python worker and a complete OCR model directory
+from explicit environment variables, the Harness worktree, or the existing
+local main worktree. It exports those values only to the invoked Harness
+process, so an intentionally model-light Harness worktree does not cause a
+false `model_missing` preflight failure and the production environment/package
+remains unchanged. Solo preflight starts from a real KK L0 window because the
+production runtime itself owns BOOT alignment and later game-HWND acquisition.
 
 The GUI front door is intentionally limited to preflight, the single-player
 full cycle, the hitch complete-cycle lane, and failure inspection/replay. The

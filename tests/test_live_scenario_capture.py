@@ -595,6 +595,22 @@ def test_solo_full_cycle_starts_from_boot() -> None:
     assert _initial_phase_for_target("solo_full_cycle") is Phase.BOOT
 
 
+def test_solo_full_cycle_preflight_accepts_l0_platform_window() -> None:
+    frame = Frame(
+        np.full((120, 160, 3), 127, dtype=np.uint8),
+        window_title="KK对战平台",
+        hwnd=10002,
+        role="l0",
+    )
+    with patch.object(live_capture, "capture", return_value=frame) as capture_call:
+        result, evidence = live_capture._window_preflight(
+            Settings(window_title_contains="英雄三国"), target="solo_full_cycle",
+        )
+    assert result is frame
+    assert evidence["status"] == "READY"
+    capture_call.assert_called_once_with("", role="l0", activate=True, allow_fallback=True)
+
+
 def test_solo_manual_intervention_and_click_success_cannot_make_natural_pass() -> None:
     observer = SoloFullCycleObserver()
     observer.precheck(True, {"status": "READY"})
@@ -641,15 +657,20 @@ def test_live_launcher_uses_isolated_settings_copy_and_local_ocr_runtime() -> No
     launcher = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
     assert "Resolve-OcrPython" in launcher
     assert "SHUABAO_OCR_PYTHON" in launcher
+    assert "Resolve-OcrModelDir" in launcher
+    assert "SHUABAO_OCR_MODEL_DIR" in launcher
     assert "Show-HarnessSettingsPanel" in launcher
     assert "SettingsPanelSmokeTest" in launcher
     assert "Show-HarnessSettingsPanel -ConstructOnly" in launcher
     assert "New-Object System.Drawing.Point" not in launcher
     assert "ReadAllText($source, [System.Text.Encoding]::UTF8)" in launcher
-    assert "WriteAllText($script:HarnessSettingsPath, $json, [System.Text.UTF8Encoding]::new($false))" in launcher
+    assert "WriteAllText($path, $json, [System.Text.UTF8Encoding]::new($false))" in launcher
     assert '"live_harness_settings_$stamp.json"' in launcher
-    assert '"--settings", $script:HarnessSettingsPath' in launcher
+    assert '"--settings", $settingsPath' in launcher
     assert "不会写正式 user_settings.json" in launcher
+    solo = launcher.split("function Invoke-SoloFullCycleCapture", 1)[1].split("function Invoke-SoloSettingsPanel", 1)[0]
+    assert "New-DashboardSettingsSnapshot" in solo
+    assert "Show-HarnessSettingsPanel" not in solo
 
 
 def test_live_harness_has_no_direct_game_input_implementation() -> None:
