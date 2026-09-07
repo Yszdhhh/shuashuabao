@@ -491,8 +491,7 @@ SOLO_FULL_CYCLE_CHECKPOINTS = (
     "NEXT_ROUND_CONFIRMED",
 )
 SOLO_OPTIONAL_EVENTS = ("BLACK_MERCHANT", "RANDOM_SKILL_PANEL", "RANDOM_BOND_PANEL", "RANDOM_TREASURE_PANEL")
-_SOLO_RETURN_BASE_PHASES = {"PLATFORM_MAP", "ROOM_WAITING"}
-_SOLO_NEXT_ROUND_PHASES = {"STAGE_SELECT", "STAGE_STARTING", "HERO_SETUP", "MAIN_LINE"}
+SOLO_PRODUCTION_BASELINE_SHA = "b15da05f4fd7313b02b2cc466e319d9683aa979c"
 
 
 class SoloFullCycleObserver:
@@ -500,7 +499,8 @@ class SoloFullCycleObserver:
 
     def __init__(self) -> None:
         self._observation_no = 0
-        self._next_request_observation: int | None = None
+        self._continue_requested = False
+        self._next_request_frame_fingerprint: str | None = None
         self.failed_reason: str | None = None
         self.manual_intervention_seen = False
         self.checkpoints = {
@@ -547,6 +547,8 @@ class SoloFullCycleObserver:
         reason = str((action or {}).get("reason") or "")
         controls = list((trace_row or {}).get("controls") or [])
         evidence = {"observation": self._observation_no, "phase": phase, "context": context, "reason": reason}
+        surfaces = self._physical_surfaces(med, frame)
+        evidence["physical_surfaces"] = surfaces
         if phase == "ERROR":
             self.fail("production runtime entered ERROR", evidence=evidence)
         if action is not None and context == "UNKNOWN":
@@ -561,61 +563,79 @@ class SoloFullCycleObserver:
             for item in controls if isinstance(item, dict)
         ):
             self._pass("ROOM_CREATE_REQUEST", evidence=evidence)
-        if self.checkpoints["ROOM_CREATE_REQUEST"]["status"] == "PASS" and phase in {"ROOM_WAITING", "STAGE_SELECT"}:
+        if self.checkpoints["ROOM_CREATE_REQUEST"]["status"] == "PASS" and (surfaces["room"] or surfaces["stage"]):
             self._pass("ROOM_CREATE_CONFIRMED", evidence=evidence)
-        if phase == "STAGE_SELECT":
+        if surfaces["stage"] and surfaces["stage_target"]:
             self._pass("STAGE_TARGET_VISIBLE", evidence=evidence)
-        if bool(getattr(med, "_stage_selected", False)):
+        if surfaces["stage"] and bool(getattr(med, "_stage_selected", False)):
             self._pass("STAGE_SELECTED_CONFIRMED", evidence=evidence)
         if reason == "StageStart":
             self._pass("STAGE_START_REQUEST", evidence=evidence)
-        if self.checkpoints["STAGE_START_REQUEST"]["status"] == "PASS" and phase in {"STAGE_STARTING", "HERO_SETUP", "MAIN_LINE"}:
+        if self.checkpoints["STAGE_START_REQUEST"]["status"] == "PASS" and (surfaces["hero"] or surfaces["hud"]):
             self._pass("STAGE_START_CONFIRMED", evidence=evidence)
-        if _frame_is_valid(frame):
-            try:
-                if med._is_game_client_frame(frame):
-                    self._pass("GAME_HWND_CONFIRMED", evidence=evidence)
-                if med._is_in_game_hud(frame):
-                    self._pass("INGAME_HUD_CONFIRMED", evidence=evidence)
-            except (AttributeError, TypeError):
-                pass
-            try:
-                postgame = med._post_game_state(frame)
-            except (AttributeError, TypeError):
-                postgame = None
-            if postgame == "POST_VICTORY":
-                self._pass("VICTORY_CONFIRMED", evidence=evidence)
-            if postgame:
-                self._pass("POSTGAME_SURFACE_CLASSIFIED", evidence={**evidence, "surface": postgame})
-        if any(item.get("control") == "auto_task" and item.get("state") == "ON" for item in controls if isinstance(item, dict)):
+        if surfaces["game_hwnd"]:
+            self._pass("GAME_HWND_CONFIRMED", evidence=evidence)
+        if surfaces["hud"]:
+            self._pass("INGAME_HUD_CONFIRMED", evidence=evidence)
+        postgame = surfaces["postgame"]
+        if postgame == "POST_VICTORY":
+            self._pass("VICTORY_CONFIRMED", evidence=evidence)
+        if postgame:
+            self._pass("POSTGAME_SURFACE_CLASSIFIED", evidence={**evidence, "surface": postgame})
+        if surfaces["hud"] and any(item.get("control") == "auto_task" and item.get("state") == "ON" for item in controls if isinstance(item, dict)):
             self._pass("AUTO_TASK_CONFIRMED", evidence=evidence)
-        if any(
+        if surfaces["hud"] and any(
             str(item.get("control", "")).endswith("_challenge") and item.get("state") == "ON"
             for item in controls if isinstance(item, dict)
         ):
             self._pass("CHALLENGE_STATE_OBSERVED", evidence=evidence)
-        if phase == "MAIN_LINE" and state.get("l1_cycle_step") is not None:
+        if surfaces["hud"] and state.get("l1_cycle_step") is not None:
             self._pass("L1_CYCLE_ACTIVE", evidence=evidence)
-        if reason == "ContinueGame" and bool(state.get("post_game_pending")):
+        if reason == "ContinueGame" and postgame == "POST_VICTORY":
+            self._continue_requested = True
+        if self._continue_requested and postgame in {"ARCHIVE_PANEL", "NPC_HUB", "HEIRLOOM_DIALOG"}:
             self._pass("CONTINUE_CONFIRMED", evidence=evidence)
-        if self.checkpoints["CONTINUE_CONFIRMED"]["status"] == "PASS" and bool(state.get("post_game_pending")):
+        if self.checkpoints["CONTINUE_CONFIRMED"]["status"] == "PASS" and postgame in {"ARCHIVE_PANEL", "NPC_HUB", "HEIRLOOM_DIALOG"}:
             self._pass("POSTGAME_ROUTE_PROGRESS", evidence=evidence)
-        if self.checkpoints["VICTORY_CONFIRMED"]["status"] == "PASS" and phase in _SOLO_RETURN_BASE_PHASES:
+        if self.checkpoints["VICTORY_CONFIRMED"]["status"] == "PASS" and (surfaces["room"] or surfaces["platform"]):
             self._pass("RETURN_BASE_CONFIRMED", evidence=evidence)
         returned = self.checkpoints["RETURN_BASE_CONFIRMED"]["status"] == "PASS"
-        if returned and self.checkpoints["NEXT_ROUND_REQUEST"]["status"] == "NOT_OBSERVED" and (
-            reason.startswith("CreateRoom-") or reason == "StageStart" or phase in _SOLO_NEXT_ROUND_PHASES
-        ):
+        if returned and self.checkpoints["NEXT_ROUND_REQUEST"]["status"] == "NOT_OBSERVED" and (reason.startswith("CreateRoom-") or reason == "StageStart"):
             self._pass("NEXT_ROUND_REQUEST", evidence=evidence)
-            self._next_request_observation = self._observation_no
+            self._next_request_frame_fingerprint = _frame_fingerprint(frame)
         if (
-            self._next_request_observation is not None
-            and self._observation_no > self._next_request_observation
-            and phase in _SOLO_NEXT_ROUND_PHASES
+            self._next_request_frame_fingerprint is not None
             and _frame_is_valid(frame)
+            and _frame_fingerprint(frame) != self._next_request_frame_fingerprint
+            and (surfaces["stage"] or surfaces["hero"] or surfaces["hud"])
         ):
             self._pass("NEXT_ROUND_CONFIRMED", evidence={**evidence, "fresh_frame": True})
         return self.is_pass
+
+    @staticmethod
+    def _physical_surfaces(med: Mediator, frame: Frame | None) -> dict[str, Any]:
+        """Use existing production classifiers only; missing evidence stays false."""
+        observed: dict[str, Any] = {
+            "room": False, "platform": False, "stage": False, "stage_target": False,
+            "hero": False, "hud": False, "game_hwnd": False, "postgame": None,
+        }
+        if not _frame_is_valid(frame):
+            return observed
+        for key, method in (
+            ("room", "_find_room_start"), ("platform", "_find_map_create_room"),
+            ("stage", "_find_stage_page"), ("stage_target", "_find_stage_target"),
+            ("hero", "_hero_modal_buttons"), ("hud", "_is_in_game_hud"),
+            ("game_hwnd", "_is_game_client_frame"),
+        ):
+            try:
+                observed[key] = bool(getattr(med, method)(frame))
+            except (AttributeError, TypeError):
+                continue
+        try:
+            observed["postgame"] = med._post_game_state(frame)
+        except (AttributeError, TypeError):
+            pass
+        return observed
 
     @property
     def is_pass(self) -> bool:
@@ -1771,6 +1791,7 @@ class BundleRecorder:
             "harness_identity": {
                 "branch": _git_branch(repo_root),
                 "sha": _commit_sha(repo_root),
+                "production_baseline_sha": SOLO_PRODUCTION_BASELINE_SHA,
                 "runtime_kind": "SOURCE_RUNTIME",
                 "production_source_sha": _commit_sha(repo_root),
                 "production_package": None,
@@ -2895,6 +2916,14 @@ def _append_bookmark_command(
     return path
 
 
+def _initial_phase_for_target(target: str) -> Phase:
+    if target in {"solo_full_cycle", "solo_takeover"}:
+        return Phase.BOOT
+    if target in {"lobby_hitch", "lobby_search", "hitch_runtime"}:
+        return Phase.LOBBY_ROOM
+    return Phase.MAIN_LINE
+
+
 def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     target = args.target
     if target == "solo_takeover" and not getattr(args, "takeover_case", None):
@@ -2928,10 +2957,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         med = Mediator(settings, repo_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
         if elevation_blocked:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
-    initial_phase = (
-        Phase.BOOT if target == "solo_takeover"
-        else (Phase.LOBBY_ROOM if target in {"lobby_hitch", "lobby_search", "hitch_runtime", "solo_full_cycle"} else Phase.MAIN_LINE)
-    )
+    initial_phase = _initial_phase_for_target(target)
     med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
     probe_bootstrap = _bootstrap_target_probe(med, target) if probe and execution_mode == "target_handler" else {}
     recorder = BundleRecorder(

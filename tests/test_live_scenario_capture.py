@@ -46,6 +46,7 @@ from tools.live_scenario_capture import (
     _build_identity_check,
     _capture_input_guard,
     _install_action_reason_bridge,
+    _initial_phase_for_target,
     _invoke_black_merchant_probe_handlers,
     generate_cases,
     main,
@@ -488,14 +489,33 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
 class _SoloObserverMediator:
     _stage_selected = False
     postgame: str | None = None
+    room = False
+    platform = False
+    stage = False
+    stage_target = False
+    hero = False
+    hud = False
 
-    @staticmethod
-    def _is_game_client_frame(frame: Frame) -> bool:
+    def _is_game_client_frame(self, frame: Frame) -> bool:
         return True
 
-    @staticmethod
-    def _is_in_game_hud(frame: Frame) -> bool:
-        return True
+    def _find_room_start(self, frame: Frame) -> bool:
+        return self.room
+
+    def _find_map_create_room(self, frame: Frame) -> bool:
+        return self.platform
+
+    def _find_stage_page(self, frame: Frame) -> bool:
+        return self.stage
+
+    def _find_stage_target(self, frame: Frame) -> bool:
+        return self.stage_target
+
+    def _hero_modal_buttons(self, frame: Frame) -> bool:
+        return self.hero
+
+    def _is_in_game_hud(self, frame: Frame) -> bool:
+        return self.hud
 
     def _post_game_state(self, frame: Frame) -> str | None:
         return self.postgame
@@ -515,24 +535,64 @@ def test_solo_full_cycle_contract_requires_fresh_next_round_business_evidence() 
     med = _SoloObserverMediator()
     frame = _fixture_frame()
     observer.precheck(True, {"status": "READY"})
+    med.platform = True
     observer.observe(med, _solo_state("PLATFORM_MAP"), frame, {"controls": [{"control": "create_room", "state": "OPEN_REQUESTED"}]}, {"reason": "CreateRoom-open"})
+    med.platform = False
+    med.room = True
     observer.observe(med, _solo_state("ROOM_WAITING"), frame, {"controls": []}, None)
+    med.room = False
+    med.stage = True
+    med.stage_target = True
     med._stage_selected = True
     observer.observe(med, _solo_state("STAGE_SELECT"), frame, {"controls": []}, None)
+    med.stage = False
+    med.stage_target = False
+    med.hud = True
     observer.observe(med, _solo_state("STAGE_STARTING"), frame, {"controls": []}, {"reason": "StageStart"})
     observer.observe(med, _solo_state("MAIN_LINE"), frame, {"controls": [{"control": "auto_task", "state": "ON"}, {"control": "coin_challenge", "state": "ON"}]}, None)
+    med.hud = False
     med.postgame = "POST_VICTORY"
     observer.observe(med, _solo_state("MAIN_LINE"), frame, {"controls": []}, None)
     observer.observe(med, _solo_state("MAIN_LINE", post_game_pending=True), frame, {"controls": []}, {"reason": "ContinueGame"})
     med.postgame = "ARCHIVE_PANEL"
     observer.observe(med, _solo_state("MAIN_LINE", post_game_pending=True), frame, {"controls": []}, None)
     med.postgame = None
+    med.platform = True
     observer.observe(med, _solo_state("PLATFORM_MAP"), frame, {"controls": []}, None)
+    med.platform = False
+    med.stage = True
+    med.stage_target = True
+    observer.observe(med, _solo_state("STAGE_SELECT"), frame, {"controls": []}, {"reason": "StageStart"})
     observer.observe(med, _solo_state("STAGE_SELECT"), frame, {"controls": []}, None)
     assert observer.checkpoints["NEXT_ROUND_CONFIRMED"]["status"] == "NOT_OBSERVED"
-    observer.observe(med, _solo_state("STAGE_STARTING"), frame, {"controls": []}, None)
+    fresh = _fixture_frame()
+    fresh.bgr[0, 0, 0] ^= 1
+    observer.observe(med, _solo_state("STAGE_STARTING"), fresh, {"controls": []}, None)
     assert observer.is_pass
     assert all(observer.checkpoints[name]["status"] == "PASS" for name in SOLO_FULL_CYCLE_CHECKPOINTS)
+
+
+def test_solo_phase_only_or_stale_frame_never_confirms_next_round() -> None:
+    observer = SoloFullCycleObserver()
+    med = _SoloObserverMediator()
+    frame = _fixture_frame()
+    observer.precheck(True, {"status": "READY"})
+    med.room = True
+    observer._pass("VICTORY_CONFIRMED", evidence={})
+    observer.observe(med, _solo_state("ROOM_WAITING"), frame, {"controls": []}, None)
+    med.room = False
+    observer.observe(med, _solo_state("STAGE_SELECT"), frame, {"controls": []}, {"reason": "StageStart"})
+    med.stage = True
+    med.stage_target = True
+    observer.observe(med, _solo_state("STAGE_SELECT"), frame, {"controls": []}, None)
+    assert observer.checkpoints["NEXT_ROUND_CONFIRMED"]["status"] == "NOT_OBSERVED"
+    med.stage = False
+    observer.observe(med, _solo_state("MAIN_LINE"), frame, {"controls": []}, None)
+    assert observer.checkpoints["L1_CYCLE_ACTIVE"]["status"] == "NOT_OBSERVED"
+
+
+def test_solo_full_cycle_starts_from_boot() -> None:
+    assert _initial_phase_for_target("solo_full_cycle") is Phase.BOOT
 
 
 def test_solo_manual_intervention_and_click_success_cannot_make_natural_pass() -> None:
@@ -556,6 +616,7 @@ def test_solo_bundle_writes_identity_and_required_evidence_layout(tmp_path: Path
     recorder.finalize()
     manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
     assert manifest["harness_identity"]["runtime_kind"] == "SOURCE_RUNTIME"
+    assert manifest["harness_identity"]["production_baseline_sha"] == "b15da05f4fd7313b02b2cc466e319d9683aa979c"
     assert manifest["harness_identity"]["mode_id"] == "normal_farm"
     assert manifest["harness_identity"]["config_snapshot_hash"]
     assert (recorder.bundle_dir / "summary.md").is_file()
@@ -568,6 +629,8 @@ def test_live_launcher_registers_solo_and_keeps_existing_targets() -> None:
         assert label in launcher
     assert '"solo_full_cycle"' in launcher
     assert '"solo_takeover"' in launcher
+    for label in ("Harness SHA:", "Production baseline SHA:", "Runtime source SHA:", "Runtime type: SOURCE_RUNTIME"):
+        assert label in launcher
     assert "pyautogui" not in launcher.lower()
     assert "sendinput" not in launcher.lower()
 

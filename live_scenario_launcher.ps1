@@ -309,6 +309,7 @@ $script:CaptureRoot = Resolve-CaptureRoot
 $script:SoloCaptureRoot = Resolve-SoloCaptureRoot
 $script:OperatorSettingsPath = Resolve-OperatorSettingsPath
 $script:HarnessIdentity = Get-GitIdentity
+$script:ProductionBaselineSha = "b15da05f4fd7313b02b2cc466e319d9683aa979c"
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -338,9 +339,9 @@ $status.ForeColor = [System.Drawing.Color]::FromArgb(90, 60, 0)
 $script:MenuForm.Controls.Add($status)
 
 $paths = New-Object System.Windows.Forms.Label
-$paths.Text = "Harness: $($script:HarnessIdentity.Branch) @ $($script:HarnessIdentity.Sha)`r`nProduction source: $($script:HarnessIdentity.Sha)  |  Runtime: SOURCE_RUNTIME`r`nProduction package/EXE: $script:AutomationExe`r`n证据目录: $script:CaptureRoot  |  单人: $script:SoloCaptureRoot  |  mode_id: normal_farm"
+$paths.Text = "Harness SHA: $($script:HarnessIdentity.Branch) @ $($script:HarnessIdentity.Sha)`r`nProduction baseline SHA: $script:ProductionBaselineSha`r`nRuntime source SHA: $($script:HarnessIdentity.Sha)  |  Runtime type: SOURCE_RUNTIME`r`nProduction package/EXE: $script:AutomationExe`r`n证据目录: $script:CaptureRoot  |  单人: $script:SoloCaptureRoot  |  mode_id: normal_farm"
 $paths.AutoSize = $false
-$paths.Size = New-Object System.Drawing.Size(700, 76)
+$paths.Size = New-Object System.Drawing.Size(700, 96)
 $paths.Location = New-Object System.Drawing.Point(24, 118)
 $paths.ForeColor = [System.Drawing.Color]::DimGray
 $script:MenuForm.Controls.Add($paths)
@@ -384,24 +385,24 @@ $green = [System.Drawing.Color]::FromArgb(224, 244, 226)
 $blue = [System.Drawing.Color]::FromArgb(225, 238, 250)
 $yellow = [System.Drawing.Color]::FromArgb(255, 246, 210)
 
-Add-MenuButton "1  启动前检查`r`n    只检查环境，不操作游戏" 24 210 { Invoke-Readiness } $blue
-Add-MenuButton "2  背包道具`r`n    吞噬丹（羁绊≥4）/英雄卡" 390 210 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
-Add-MenuButton "3  黑商 + 背包长测（推荐）`r`n    刷新/拿取/吞噬丹/英雄卡/神器，最长10分钟" 24 296 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
-Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→存档8项→时光之穴/传家宝兜底" 390 296 { Invoke-BossSeriesCapture } $green
-Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 382 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
-Add-MenuButton "6  时光之穴 Boss fallback（实机）`r`n    已打开列表后自动选择最后可识别 Boss" 390 382 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $false } $green
-Add-MenuButton "7  传家宝 Boss 选择`r`n    复用 cjb_boss 选择并验证真实 HUD" 24 468 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $false } $green
-Add-MenuButton "8  大厅搜房准备整链（持续到成功）`r`n    拒绝异常房→刷新→合规房→准备后才结束" 390 468 { Invoke-TargetProbe -Target "lobby_search" -GroundTruthOnly $false } $green
-Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 24 554 { Open-LatestFailBundle } $blue
-Add-MenuButton "10 Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 390 554 { Reproduce-LatestFail } $blue
-Add-MenuButton "11 蹭车局内续跑（随时开始）`r`n    压力转移→自动任务/四挑战→结算 Boss 兜底" 24 640 { Invoke-HitchRuntimeCapture } $green
-Add-MenuButton "12 单人完整循环（推荐）`r`n    创房→选关→局内→结算→回房→下一把（仅下一局业务证据 PASS）" 390 640 { Invoke-SoloFullCycleCapture } $green
-Add-MenuButton "13 单人任意状态接管`r`n    A-H 选择起始 Ground Truth，production Mediator.tick() 接管" 24 726 { Invoke-SoloTakeoverCapture } $yellow
+Add-MenuButton "1  启动前检查`r`n    只检查环境，不操作游戏" 24 230 { Invoke-Readiness } $blue
+Add-MenuButton "2  背包道具`r`n    吞噬丹（羁绊≥4）/英雄卡" 390 230 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
+Add-MenuButton "3  黑商 + 背包长测（推荐）`r`n    刷新/拿取/吞噬丹/英雄卡/神器，最长10分钟" 24 316 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
+Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→存档8项→时光之穴/传家宝兜底" 390 316 { Invoke-BossSeriesCapture } $green
+Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 402 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
+Add-MenuButton "6  时光之穴 Boss fallback（实机）`r`n    已打开列表后自动选择最后可识别 Boss" 390 402 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $false } $green
+Add-MenuButton "7  传家宝 Boss 选择`r`n    复用 cjb_boss 选择并验证真实 HUD" 24 488 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $false } $green
+Add-MenuButton "8  大厅搜房准备整链（持续到成功）`r`n    拒绝异常房→刷新→合规房→准备后才结束" 390 488 { Invoke-TargetProbe -Target "lobby_search" -GroundTruthOnly $false } $green
+Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 24 574 { Open-LatestFailBundle } $blue
+Add-MenuButton "10 Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 390 574 { Reproduce-LatestFail } $blue
+Add-MenuButton "11 蹭车局内续跑（随时开始）`r`n    压力转移→自动任务/四挑战→结算 Boss 兜底" 24 660 { Invoke-HitchRuntimeCapture } $green
+Add-MenuButton "12 单人完整循环（推荐）`r`n    创房→选关→局内→结算→回房→下一把（仅下一局业务证据 PASS）" 390 660 { Invoke-SoloFullCycleCapture } $green
+Add-MenuButton "13 单人任意状态接管`r`n    A-H 选择起始 Ground Truth，production Mediator.tick() 接管" 24 746 { Invoke-SoloTakeoverCapture } $yellow
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
 $exitButton.Size = New-Object System.Drawing.Size(706, 44)
-$exitButton.Location = New-Object System.Drawing.Point(390, 742)
+$exitButton.Location = New-Object System.Drawing.Point(390, 762)
 $exitButton.Add_Click({ $script:MenuForm.Close() })
 $script:MenuForm.Controls.Add($exitButton)
 
@@ -409,7 +410,7 @@ $footer = New-Object System.Windows.Forms.Label
 $footer.Text = "注意：不要同时启动普通刷刷宝。点击测试按钮后，本窗口暂时隐藏，黑色日志窗口显示运行状态；测试结束后按钮菜单自动回来。"
 $footer.AutoSize = $false
 $footer.Size = New-Object System.Drawing.Size(700, 48)
-$footer.Location = New-Object System.Drawing.Point(24, 812)
+$footer.Location = New-Object System.Drawing.Point(24, 832)
 $footer.ForeColor = [System.Drawing.Color]::Firebrick
 $script:MenuForm.Controls.Add($footer)
 

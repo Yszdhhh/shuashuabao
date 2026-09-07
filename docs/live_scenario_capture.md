@@ -154,12 +154,12 @@ to baseline, and next-round request/confirmation. Random merchant or choice
 panels remain `NOT_OBSERVED`; they cannot fail an otherwise valid run.
 
 Natural E2E PASS is issued only when the first production round completed,
-returned to a real `PLATFORM_MAP` or `ROOM_WAITING` baseline, then production
-started the next round and a later fresh frame has business evidence of
-`STAGE_SELECT`, `STAGE_STARTING`, `HERO_SETUP`, or the Hero HUD. A successful
-click, room-start click, stage-start click, or generic frame mutation is never
-enough. `MANUAL_INTERVENTION`, production `ERROR`, or an input observed on
-`UNKNOWN` disqualifies the run.
+returned to a real L0 surface (`room_start` or `map_create_room` production
+classifier), then production made a next-round request and a different, fresh
+frame is classified by production as a real Stage surface, Hero setup, or HUD.
+Internal phase, a valid frame, a successful click, room-start click,
+stage-start click, or generic frame mutation is never enough. `MANUAL_INTERVENTION`,
+production `ERROR`, or an input observed on `UNKNOWN` disqualifies the run.
 
 Every run is written below `%TEMP%\shuabao-captures\solo_full_cycle_<timestamp>`
 and includes `manifest.json`, `timeline.jsonl`, `actions.jsonl`, `summary.md`,
