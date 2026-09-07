@@ -221,14 +221,20 @@ def test_stage_page_handoff_precedes_auto_task_gate():
 
 
 def test_tqtz_is_one_shot_and_blocks_regular_choice_until_confirmed():
+    """B1 契约：点击成功只挂起 pending（点击≠已接受），确认前零-input 等待
+    fresh 帧确认，绝不二次点击。"""
     med = Mediator(Settings(), ROOT)
     frame = _frame()
     tqtz_hit = MatchResult("tqtz", .85, 438, 79, 85, 22, 665, 171)
     with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
          patch.object(med, "act_click", return_value=True) as click:
         assert med._maybe_click_tqtz(frame, 100.0) is LoopAction.Continue
-        assert med._maybe_click_tqtz(frame, 102.0) is None
+        # pending 观察窗：fresh 帧图标仍在 → 零输入等待，不落定成功
+        assert med._maybe_click_tqtz(frame, 102.0) is LoopAction.Continue
     assert click.call_count == 1
+    assert getattr(med, "_tqtz_pending", False) is True
+    assert getattr(med, "_tqtz_clicked", False) is False
 
 def test_tqtz_transition_waits_for_boss_entry_before_regular_cycle():
     med = Mediator(Settings(cjb_boss="04大范"), ROOT)

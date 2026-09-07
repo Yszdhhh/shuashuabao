@@ -2130,6 +2130,12 @@ class Mediator:
 
     def _ensure_auto_task_enabled(self, frame: Frame) -> LoopAction | None:
         """Enable auto-task with a bounded post-click observation window."""
+        # B2：auto_close_main_line 触发后期望状态是 OFF——通用启用门禁绝不
+        # 得再把勾选打回去；主线关闭完成后亦永不重新启用。
+        if getattr(self.settings, "auto_close_main_line", False) and getattr(self, "_close_main_line_triggered", False):
+            return None
+        if getattr(self, "_main_line_closed_done", False):
+            return None
         now = time.time()
         state, hit = self._auto_task_state(frame)
         fuse = self._auto_task_unknown_fuse(state)
@@ -4438,7 +4444,14 @@ class Mediator:
         return int(np.count_nonzero(green)) >= 100
 
     def _archive_hitch_card_unavailable(self, frame: Frame, card_index: int) -> bool:
-        """Detect the red ``0/8`` counter on the two resource-gated cards."""
+        """Detect the red ``0/8`` counter on the two resource-gated cards.
+
+        B3 修复：只看分子数字（counter ROI 左半，约 x0..x0+0.012w）的红像素
+        密度。真实 7/8 的分子是绿字且分母/斜杠也贡献红/暖像素——旧的全
+        counter >= 40 阈值会把 7/8 误判为不可用。实机测量（reborn_wow 与
+        live_postgame 真实帧）：0/8 全红态分子红像素 >= 75，7/8 细笔画
+        分子 < 50；取中值 60 为判定阈值，双向各留 ~20% 余量。
+        """
         if frame.bgr is None or card_index not in {2, 3}:
             return False
         col, row = card_index % 4, card_index // 4
@@ -4450,10 +4463,12 @@ class Mediator:
         ]
         if counter.size == 0:
             return False
-        hsv = cv2.cvtColor(counter, cv2.COLOR_BGR2HSV)
+        # 分子数字只占 counter 左侧约 0.012w（counter 全宽 0.025w）。
+        numerator = counter[:, : max(1, int(counter.shape[1] * 0.48))]
+        hsv = cv2.cvtColor(numerator, cv2.COLOR_BGR2HSV)
         red = (((hsv[:, :, 0] <= 15) | (hsv[:, :, 0] >= 160))
                & (hsv[:, :, 1] >= 100) & (hsv[:, :, 2] >= 80))
-        return int(np.count_nonzero(red)) >= 40
+        return int(np.count_nonzero(red)) >= 60
 
     def _archive_challenge_plan(self) -> tuple[tuple[str, int], ...]:
         if self._team_mode_enabled():
@@ -4671,6 +4686,9 @@ class Mediator:
                 and hub_rift and w * 0.45 <= hub_rift.x <= w * 0.70 and h * 0.15 <= hub_rift.y <= h * 0.55
                 and hub_hero and w * 0.15 <= hub_hero.x <= w * 0.35 and hub_hero.y <= h * 0.15
                 and getattr(self, "_post_game_route", "") != "boss_active"
+                # B4：存档面板关闭按钮可见 ⇒ 这是 ARCHIVE_PANEL 不是纯 NPC_HUB；
+                # 两类战后页面互斥，绝不互相触发。
+                and self._find_archive_panel_close(frame) is None
             ):
                 return "NPC_HUB"
 
@@ -4732,6 +4750,8 @@ class Mediator:
                 and quit_hit.y <= h * 0.15
                 and rift_npc_right
                 and (hero_hit or (hub_archive is not None and hub_heirloom is not None))
+                # B4：与 ARCHIVE_PANEL 互斥——关闭按钮可见时不分类为 NPC_HUB。
+                and close_hit is None
             ):
                 return "NPC_HUB"
 
@@ -5041,9 +5061,48 @@ class Mediator:
         self._hero_focus_next_check_at = now + 1.5
         return LoopAction.Continue
     def _maybe_click_tqtz(self, frame: Frame, now: float) -> LoopAction | None:
-        """局内检测到 10 分钟『提前挑战』图标（tqtz.png）时主动点击触发打 Boss。"""
+        """局内检测到 10 分钟『提前挑战』图标（tqtz.png）时主动点击触发打 Boss。
+
+        点击成功 ≠ 挑战已接受（B1 修复）：点击只挂起 pending，随后必须在
+        fresh 帧上确认图标消失（或 Boss 目标面出现）才落定 `_tqtz_clicked`；
+        5 秒观察窗超时则清 pending 允许有界重试。
+        """
         if getattr(self, "_tqtz_clicked", False):
             return None
+        if getattr(self, "_tqtz_pending", False):
+            # 已点击待确认：等待 fresh 帧再核查，期间零输入。
+            if now < getattr(self, "_tqtz_next_check_at", 0.0):
+                return LoopAction.Continue
+            self._tqtz_next_check_at = now + 1.0
+            tqtz_hit = self.find(
+                frame,
+                ["tqtz"],
+                threshold=0.80,
+                roi=(0.20, 0.03, 0.45, 0.15),
+            )
+            # 正置确认：要求有效非黑游戏帧且 (tqtz 已消失 或 boss_entry 面板出现)
+            frame_valid = frame is not None and frame.bgr is not None and getattr(frame, "is_valid", True)
+            if frame_valid and (tqtz_hit is None or not isinstance(tqtz_hit, MatchResult) or self.find_scene(frame, "boss_entry")):
+                print("[early] tqtz 图标消失 / boss_entry 面板出现（fresh 有效帧确认），提前挑战已接受")
+                self._tqtz_clicked = True
+                self._tqtz_pending = False
+                self._tqtz_pending_frame = None
+                return LoopAction.Continue
+            if now - self._tqtz_pending_since >= 5.0:
+                # 有界重试：最多重试 3 次，防止冻结/黑帧无限点击
+                attempts = getattr(self, "_tqtz_attempts", 1)
+                if attempts >= 3:
+                    print("[early] tqtz 重试达上限 3 次，放弃提前挑战（零输入保护）")
+                    self._tqtz_pending = False
+                    self._tqtz_clicked = True  # 锁定不再尝试
+                    self._tqtz_pending_frame = None
+                    self._early_challenge_pending = False
+                else:
+                    print(f"[early] tqtz 点击后 5s 图标仍在，重试次数 {attempts}/3，允许重试")
+                    self._tqtz_pending = False
+                    self._tqtz_pending_frame = None
+                    self._early_challenge_pending = False
+            return LoopAction.Continue
         if now < getattr(self, "_tqtz_next_check_at", 0.0):
             return None
         tqtz_hit = self.find(
@@ -5066,7 +5125,11 @@ class Mediator:
             f" takeover_elapsed={takeover_elapsed}s @ {tqtz_hit.center}，点击提前挑战"
         )
         if self.act_click(tqtz_hit, "ClickTQTZ"):
-            self._tqtz_clicked = True
+            self._tqtz_attempts = getattr(self, "_tqtz_attempts", 0) + 1
+            self._tqtz_pending = True
+            self._tqtz_pending_since = now
+            self._tqtz_next_check_at = now + 1.0
+            self._tqtz_pending_frame = frame
             self._early_challenge_pending = True
             self._early_challenge_started_at = now
             self._early_challenge_clicked_at = None
@@ -6105,6 +6168,8 @@ class Mediator:
             self._challenge_next_observe_at.clear()
             self._tqtz_clicked = False
             self._tqtz_next_check_at = 0.0
+            self._tqtz_pending = False
+            self._tqtz_pending_since = 0.0
             self._pause_resume_attempts = 0
             self._pause_resume_next_at = 0.0
             self._close_main_line_triggered = False

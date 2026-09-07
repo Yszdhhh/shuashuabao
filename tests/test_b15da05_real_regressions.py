@@ -19,7 +19,8 @@ import cv2
 import numpy as np
 import pytest
 
-from shuabao.mediator import Mediator, Phase
+from shuabao.mediator import Mediator, LoopAction, Phase
+from shuabao.vision.matcher import MatchResult
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 
@@ -30,6 +31,11 @@ FIXTURES = {
     "kicked": ROOT / "tests" / "fixtures" / "real_kicked_modal_frame.jpg",
     "archive": ROOT / "tests" / "fixtures" / "real_archive_panel_frame.jpg",
     "midgame": ROOT / "tests" / "fixtures" / "real_midgame_hitch_hud_frame.png",
+    # 真实战后帧（reborn_wow / live 实拍）：B3 分子红像素测量与 B4 互斥用。
+    "rw_archive": ROOT / "fixtures" / "reborn_wow" / "endgame" / "archive_challenge_panel.png",
+    "rw_hub": ROOT / "fixtures" / "reborn_wow" / "endgame" / "challenge_npc_hub.png",
+    "live_archive": ROOT / "fixtures" / "live_postgame_20260808" / "live_archive_challenges.png",
+    "live_start": ROOT / "fixtures" / "live_postgame_20260808" / "live_archive_start_panel.png",
 }
 
 
@@ -406,3 +412,195 @@ def test_tick_l0_computes_startup_once() -> None:
          patch.object(med, "_detect_context", return_value="LOBBY_ROOM"):
         med._tick_l0(frame)
     assert su.call_count == 1
+
+
+def test_b1_tqtz_click_latches_pending_until_fresh_frame_confirms() -> None:
+    """B1：tqtz 点击成功 ≠ 挑战已接受。点击只挂起 pending，必须 fresh 帧
+    确认图标消失（或 Boss 面出现）才落定 _tqtz_clicked；确认前零输入。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    frame = _game_frame("midgame")
+    tqtz_hit = MatchResult("tqtz", 0.85, 438, 79, 85, 22, 665, 171)
+    with patch.object(med, "find", return_value=tqtz_hit) as find, \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        # 首帧：点击成功 → pending，不落定 clicked
+        assert med._maybe_click_tqtz(frame, 100.0) is LoopAction.Continue
+        assert med._tqtz_clicked is False
+        assert med._tqtz_pending is True
+        assert med._tqtz_pending_since == 100.0
+        assert med._tqtz_next_check_at == 101.0
+        assert click.call_count == 1
+        # 观察窗内（now < next_check_at）：零输入等待
+        assert med._maybe_click_tqtz(frame, 100.5) is LoopAction.Continue
+        assert find.call_count == 1, "观察窗内不得重复扫描/点击"
+        # fresh 帧图标仍在（未超 5s）：继续零输入等待，不重复点击
+        assert med._maybe_click_tqtz(frame, 101.5) is LoopAction.Continue
+        assert med._tqtz_clicked is False
+        assert med._tqtz_pending is True
+        assert click.call_count == 1
+        # fresh 帧图标消失 → 接受挑战
+        with patch.object(med, "find", return_value=None):
+            assert med._maybe_click_tqtz(frame, 103.0) is LoopAction.Continue
+    assert med._tqtz_clicked is True
+    assert med._tqtz_pending is False
+    assert click.call_count == 1, "确认成功前绝不允许第二次点击"
+
+
+def test_b1_tqtz_pending_timeout_resets_for_bounded_retry() -> None:
+    """B1：pending 5 秒观察窗超时 → 清 pending 允许有界重试（不落定成功）。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    frame = _game_frame("midgame")
+    tqtz_hit = MatchResult("tqtz", 0.85, 438, 79, 85, 22, 665, 171)
+    med._tqtz_pending = True
+    med._tqtz_pending_since = 100.0
+    med._tqtz_next_check_at = 101.0
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        # 105.5 >= pending_since + 5.0：图标仍在 → 超时重置 pending
+        assert med._maybe_click_tqtz(frame, 105.5) is LoopAction.Continue
+        assert med._tqtz_pending is False
+        assert med._tqtz_clicked is False
+        # 下一帧允许重新点击（有界重试）
+        assert med._maybe_click_tqtz(frame, 106.5) is LoopAction.Continue
+    assert click.call_count == 1
+    assert med._tqtz_pending is True, "重试点击成功后重新进入 pending 确认"
+    assert med._tqtz_pending_since == 106.5
+
+
+def test_b1_round_reset_clears_tqtz_pending() -> None:
+    """B1：进入新一局（MAIN_LINE）时 pending 状态必须清零。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med._tqtz_pending = True
+    med._tqtz_pending_since = 12345.0
+    med.set_phase(Phase.MAIN_LINE)
+    assert med._tqtz_pending is False
+    assert med._tqtz_pending_since == 0.0
+
+
+def test_b2_auto_task_gate_never_reenables_after_main_line_close() -> None:
+    """B2：auto_close_main_line 触发后/主线关闭完成后，通用自动任务启用
+    门禁绝不能再把勾选打回去（期望状态是 OFF）。"""
+    frame = _game_frame("midgame")
+    toggle = SimpleNamespace(center=(1500, 500), x=1490, y=490, w=20, h=20,
+                             screen_x=1500, screen_y=500, name="auto_task", score=0.9)
+
+    # 对照组：无关闭标志时门禁正常启用（点击 toggle）
+    med = _hitch_mediator()
+    med.set_phase(Phase.MAIN_LINE)
+    with patch.object(med, "_auto_task_state", return_value=("OFF", None)), \
+         patch.object(med, "_auto_task_unknown_fuse", return_value=None), \
+         patch.object(med, "_find_auto_task_toggle", return_value=toggle), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._ensure_auto_task_enabled(frame) is LoopAction.Continue
+    assert click.call_count == 1
+
+    # auto_close_main_line=True 且已触发关闭 → 必须返回 None 且零输入
+    med2 = _hitch_mediator()
+    med2.settings.auto_close_main_line = True
+    med2._close_main_line_triggered = True
+    with patch.object(med2, "_auto_task_state", return_value=("OFF", None)), \
+         patch.object(med2, "_auto_task_unknown_fuse", return_value=None), \
+         patch.object(med2, "_find_auto_task_toggle", return_value=toggle), \
+         patch.object(med2, "act_click", return_value=True) as click2:
+        assert med2._ensure_auto_task_enabled(frame) is None
+    click2.assert_not_called()
+
+    # 主线关闭已完成 → 永不重新启用
+    med3 = _hitch_mediator()
+    med3.settings.auto_close_main_line = True
+    med3._main_line_closed_done = True
+    with patch.object(med3, "_auto_task_state", return_value=("OFF", None)), \
+         patch.object(med3, "_auto_task_unknown_fuse", return_value=None), \
+         patch.object(med3, "_find_auto_task_toggle", return_value=toggle), \
+         patch.object(med3, "act_click", return_value=True) as click3:
+        assert med3._ensure_auto_task_enabled(frame) is None
+    click3.assert_not_called()
+
+
+def test_b3_real_progress_counters_are_not_unavailable() -> None:
+    """B3：真实 7/8、8/8 进度帧（绿色分子数字）绝不判为 0/8 不可用。
+
+    实机测量（reborn_wow / live_postgame 真实帧）：gem/loot 卡分子数字为
+    绿色渲染，分子 ROI（counter 左半 ≈ 0.012w）红像素 0-3，全 counter 红
+    像素最高 40+；旧的全 counter >= 40 阈值会误伤。
+    """
+    for name in ("rw_archive", "live_archive", "archive"):
+        med = _hitch_mediator()
+        frame = _game_frame(name)
+        for card_index in (2, 3):
+            assert med._archive_hitch_card_unavailable(frame, card_index) is False, (
+                f"{name} card{card_index} 是 7/8 或 8/8 实拍进度，不得判为 0/8 不可用"
+            )
+
+
+def test_b3_dense_red_numerator_is_unavailable() -> None:
+    """B3：0/8 全红态（分子 ROI 红像素 >= 75 的实测形态）必须判为不可用。
+
+    仓库暂无 0/8 实拍帧；正例以真实 counter ROI 几何 + 实测红色 '0' 字形
+    密度（>=75 红像素）重构，验证阈值路径。7/8 负例全部为纯实拍帧。
+    """
+    med = _hitch_mediator()
+    frame = _game_frame("archive")
+    h, w = frame.bgr.shape[:2]
+    col, row = 2 % 4, 2 // 4
+    cx = int(w * med._ARCHIVE_CHALLENGE_X[col])
+    cy = int(h * med._ARCHIVE_CHALLENGE_Y[row])
+    # 0/8 分子 '0' 字形：红色填充（实测 0/8 分子红像素 >= 75）
+    red_bgr = (60, 60, 230)  # BGR 纯红
+    x0 = cx + int(w * 0.004)
+    x1 = x0 + max(10, int(w * 0.010))
+    y0 = cy - int(h * 0.072)
+    y1 = cy - int(h * 0.045)
+    modified = frame.bgr.copy()
+    cv2.rectangle(modified, (x0, y0), (x1, y1), red_bgr, -1)
+    modified_frame = Frame(modified, window_title="英雄三国KK", hwnd=frame.hwnd, role="l1")
+    assert med._archive_hitch_card_unavailable(modified_frame, 2) is True
+    # 原始帧（7/8 实拍）仍为可用
+    assert med._archive_hitch_card_unavailable(frame, 2) is False
+
+
+def test_b4_npc_hub_and_archive_panel_are_mutually_exclusive() -> None:
+    """B4：存档面板关闭按钮可见 ⇒ 绝不分类为 NPC_HUB；真实广场帧仍为
+    NPC_HUB，真实存档面板帧仍为 ARCHIVE_PANEL。"""
+    med = _hitch_mediator()
+    # 真实广场帧：无关闭按钮 → NPC_HUB
+    hub_frame = _game_frame("rw_hub")
+    assert med._post_game_state(hub_frame) == "NPC_HUB"
+
+    # 同一广场帧若叠加存档面板关闭按钮证据 → 不再是纯 NPC_HUB
+    med2 = _hitch_mediator()
+    fake_close = MatchResult("lobby/archive_panel_close", 0.9, 1560, 260, 30, 30, 1560, 260)
+    with patch.object(med2, "_find_archive_panel_close", return_value=fake_close):
+        assert med2._post_game_state(hub_frame) != "NPC_HUB"
+
+    # 真实存档面板帧（关闭按钮可见）→ 恒为 ARCHIVE_PANEL，绝不 NPC_HUB
+    med3 = _hitch_mediator()
+    archive_frame = _game_frame("rw_archive")
+    assert med3._post_game_state(archive_frame) == "ARCHIVE_PANEL"
+
+
+def test_b5_unclassified_post_game_frame_is_zero_input() -> None:
+    """B5：战后状态 UNKNOWN（_post_game_state 为 None）时主循环零输入。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    # 真实未分类战后帧（live 实拍，_post_game_state -> None）
+    frame = _game_frame("live_start")
+    assert med._post_game_state(frame) is None
+    med._post_game_pending = True
+    clicks: list[str] = []
+    keys: list[str] = []
+    with patch.object(med, "_find_failure_gift", return_value=None), \
+         patch.object(med, "_round_tail_checks_active", return_value=False), \
+         patch.object(med, "_maybe_clear_pressure_monsters", return_value=LoopAction.Continue), \
+         patch.object(med, "_maybe_click_tqtz", return_value=None), \
+         patch.object(med, "_tick_early_challenge", return_value=None), \
+         patch.object(med, "_ensure_auto_task_enabled", return_value=None), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason: clicks.append(reason) or True), \
+         patch.object(med, "act_key", side_effect=lambda key, reason: keys.append(key) or True), \
+         patch.object(med, "act_right_click", side_effect=lambda hit, reason: clicks.append(reason) or True):
+        assert med._tick_main_line(frame) is LoopAction.Continue
+    assert not clicks, f"UNKNOWN 战后帧上严禁任何点击: {clicks}"
+    assert not keys, f"UNKNOWN 战后帧上严禁任何按键: {keys}"
