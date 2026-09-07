@@ -1283,14 +1283,8 @@ class Mediator:
             # SW_RESTORE（activate_window 内含），下一 tick 重新捕获。
             try:
                 from shuabao.vision.capture import is_window_minimized
-
                 if is_window_minimized(frame.hwnd):
-                    print(
-                        f"[med] 目标窗口已最小化，自动恢复 hwnd={frame.hwnd} "
-                        f"title='{frame.window_title}' phase={self.phase.name}"
-                    )
-                    activate_window(frame.hwnd)
-                    self._last_auto_activate_ts = time.time()
+                    frame.is_minimized = True
             except Exception:
                 pass
         # 会话级 UI 缩放校准：取宽高相对 1600x900 的较小缩放比（保守）
@@ -6801,12 +6795,8 @@ class Mediator:
                     & ((blue.astype(np.int16) - red.astype(np.int16)) > 70)
                 if int(np.count_nonzero(selected_pixels)) >= 20:
                     return True
-        selected = self.find_scene(frame, "lobby_room_list_selected")
-        if selected is not None and (
-            int(frame.width * 0.22) <= selected.x <= int(frame.width * 0.34)
-            and int(frame.height * 0.22) <= selected.y <= int(frame.height * 0.30)
-        ):
-            return True
+        # b15da05 P1-A: lobby_room_list_selected is a plain grey background patch without selected text authority. Drop it.
+        # Only room-list-specific controls or actual blue-selected highlight pixels may stand in for the selected tab.
         # Only room-list-specific controls may stand in for the selected tab.
         # A search-control locator must not appear here: locating a control is
         # not proof of which surface owns it, and KK draws the same magnifier
@@ -7730,6 +7720,23 @@ class Mediator:
             if self._hitch_sm.pending_join:
                 self._hitch_sm.complete_join()
                 self._hitch_join_refresh_count = self._hitch_sm.attempts
+            # b15da05 P1-C: 180 秒开局等待预算在 Ready 确认后优先判定，避免被座位抖动拦截
+            ready_confirmed_at = getattr(self, "_hitch_ready_confirmed_at", None)
+            if ready_confirmed_at is not None and now - ready_confirmed_at >= 180.0:
+                print("[L0] hitch 房间已准备等待超过 180 秒，房主未开局，拉黑房间并退出")
+                if self._hitch_pending_room_key:
+                    self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+                exit_hit = self._find_hitch_exit_button(frame)
+                if exit_hit is not None:
+                    self.act_click(exit_hit, "HitchFloorExit")
+                    self._hitch_floor_exit_pending = True
+                    self._hitch_floor_exit_attempted_at = now
+                else:
+                    self.act_key("esc", "HitchReadyTimeoutExit")
+                    self._hitch_after_exit(now)
+                    self.set_phase(Phase.LOBBY_ROOM, "hitch ready timeout without exit button")
+                return LoopAction.Continue
+
             seat_decision = self._hitch_room_seat_decision(frame)
             if seat_decision != "ready":
                 exit_hit = self._find_hitch_exit_button(frame)
@@ -7762,6 +7769,9 @@ class Mediator:
                     print("[L0] hitch 准备点击被拒绝，保持房间等待")
                 self.set_phase(Phase.ROOM_WAITING, "hitch guest ready")
                 return LoopAction.Continue
+            # 准备按钮已消失且一楼确认，记录 Ready 业务后置时间
+            if getattr(self, "_hitch_ready_confirmed_at", None) is None:
+                self._hitch_ready_confirmed_at = now
             self.set_phase(Phase.ROOM_WAITING, "hitch in room waiting host")
             print("[L0] hitch 已进房，等待房主开始（不点 RoomStart）")
             return LoopAction.Continue
@@ -8244,7 +8254,10 @@ class Mediator:
         if self._find_room_start(frame):
             return "ROOM_WAITING"
         if self._is_game_client_frame(frame):
-            if self._post_game_state(frame) == "PAUSED":
+            post_game = self._post_game_state(frame)
+            if post_game in {"ARCHIVE_PANEL", "HEIRLOOM_DIALOG", "NPC_HUB", "POST_VICTORY"}:
+                return post_game
+            if post_game == "PAUSED":
                 return "PAUSED"
             if frame.bgr is not None and float(np.std(frame.bgr)) > 8.0:
                 return "IN_GAME"
@@ -8265,6 +8278,18 @@ class Mediator:
             Phase.WAIT_UI,
             Phase.ROOM_WAITING,
         }:
+            startup = self._startup_state(frame)
+            if startup in {"ARCHIVE_PANEL", "HEIRLOOM_DIALOG", "NPC_HUB", "POST_VICTORY"}:
+                self.set_phase(Phase.MAIN_LINE, f"startup reconcile to {startup}")
+                self._post_game_pending = True
+                self._post_game_reconciled = True
+                if startup == "ARCHIVE_PANEL":
+                    self._post_game_route = "archive"
+                elif startup == "HEIRLOOM_DIALOG":
+                    self._post_game_route = "heirloom_active"
+                elif startup == "NPC_HUB":
+                    self._post_game_route = "team_wait_exit" if self._team_mode_enabled() else "npc_hub"
+                return LoopAction.Continue
             startup = self._startup_state(frame)
             if startup == "PAUSED":
                 self.set_phase(Phase.MAIN_LINE, "startup found paused game")
@@ -10493,6 +10518,12 @@ class Mediator:
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
 
+        # b15da05 P0-D: 蹭车模式下压力转移限时 46 秒，必须在自动任务门禁之前优先执行
+        if self._hitch_enabled():
+            pt_res = self._maybe_click_hitch_pressure_transfer(frame, now)
+            if pt_res is not None:
+                return pt_res
+
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)
         if auto_res is not None:
@@ -10528,11 +10559,7 @@ class Mediator:
 
         # F4 是“清除挑战”，不是“压力转移”；蹭车模式在未验证压力转移
         # 按钮锚点前禁止自动按 F4，避免清掉仍可完成的挑战。
-        if self._hitch_enabled():
-            pt_res = self._maybe_click_hitch_pressure_transfer(frame, now)
-            if pt_res is not None:
-                return pt_res
-        else:
+        if not self._hitch_enabled():
             pressure_res = self._maybe_clear_pressure_monsters(frame, now)
             if pressure_res is not None:
                 return pressure_res

@@ -25,6 +25,8 @@ class Frame:
     is_valid: bool = True
     error: str | None = None
     role: str | None = None
+    # b15da05 P0-C: see() 只观察不激活；最小化状态在此标记，供上层/日志消费。
+    is_minimized: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_gray_cache", None)
