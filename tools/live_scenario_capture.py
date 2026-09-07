@@ -272,8 +272,8 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
             "RETURN_BASE_CONFIRMED", "NEXT_ROUND_CONFIRMED",
         ),
         "success_postcondition": "第一局由生产 runtime 完整结束并回到可继续业务基线；随后生产 runtime 已自动请求下一局，且在请求后的 fresh frame 上由生产 Stage/Loading/Hero HUD 证据确认下一局已启动。click success、单帧变化或 RoomStart/StageStart 请求均不构成 PASS。",
-        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入、输入目标窗口不正确、第一局已失败，或达到终点前生产链停止/超时。",
-        "blocked_condition": "KK 不在可建房基线、窗口/OCR/RuntimeMediator/身份校验不可用、权限或服务器环境不满足；BLOCKED 时零业务输入。",
+        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入、生产输入执行失败、第一局已失败，或达到终点前生产链停止/超时。",
+        "blocked_condition": "KK 不在可建房基线、窗口/OCR/RuntimeMediator/身份校验不可用、权限或服务器环境不满足，或外部窗口抢焦点/遮挡导致 ownership guard 拒绝输入；BLOCKED 时零业务输入。",
         "max_probe_time_s": 5400.0,
         "natural_e2e_eligible": "仅 mediator_tick 连续实机链、无 FAIL/MANUAL_INTERVENTION、无 ERROR/UNKNOWN 输入，且 NEXT_ROUND_CONFIRMED 由 fresh business evidence 取得时才是 Natural E2E PASS。",
         "bundle_replay": "保留事件驱动帧和现有 ReplayCaseLoader；full-cycle metadata 只描述实机观察结果，frozen replay 不复制或替代生产 FSM。",
@@ -294,8 +294,8 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
             "POSTGAME_ROUTE_PROGRESS",
         ),
         "success_postcondition": "生产 classifier 先确认真实 Stage Select，再确认 startChallenge 后的 Hero/HUD；随后局内循环和战后既有秘境/Boss/存档/传家宝路由由真实 Mediator.tick() 继续。羁绊、技能、宝物、进化、装备、拾取、黑商等随机或条件事件未出现只记 NOT_OBSERVED，不以 click success 或 phase-only 计 PASS。",
-        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入、窗口 ownership guard 拒绝输入、Stage/Hero/HUD 业务后置未确认，或战后路由进入错误状态。",
-        "blocked_condition": "启动帧不是可由 production classifier 确认的游戏内 Stage Select、游戏窗口/OCR/RuntimeMediator/权限不可用；BLOCKED 时不发出业务输入。",
+        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入、生产输入执行失败、Stage/Hero/HUD 业务后置未确认，或战后路由进入错误状态。",
+        "blocked_condition": "启动帧不是可由 production classifier 确认的游戏内 Stage Select、游戏窗口/OCR/RuntimeMediator/权限不可用，或外部窗口抢焦点/遮挡导致 ownership guard 拒绝输入；BLOCKED 时不发出业务输入。",
         "max_probe_time_s": 3600.0,
         "natural_e2e_eligible": "只有从真实 Stage Select 开始，连续 mediator_tick 完成选关进局、真实 HUD/L1、战后页面及既有路线进展，且无 ERROR/UNKNOWN 输入、FAIL 或 MANUAL_INTERVENTION 时才有资格。",
         "bundle_replay": "沿用事件驱动 capture、trace 和 ReplayCaseLoader；metadata 只保存生产 classifier 观察，不复制 startChallenge、MAIN_LINE 或战后 FSM。",
@@ -526,15 +526,140 @@ SOLO_FULL_CYCLE_CHECKPOINTS = (
 SOLO_OPTIONAL_EVENTS = ("BLACK_MERCHANT", "RANDOM_SKILL_PANEL", "RANDOM_BOND_PANEL", "RANDOM_TREASURE_PANEL")
 SOLO_PRODUCTION_BASELINE_SHA = "b15da05f4fd7313b02b2cc466e319d9683aa979c"
 
+# These are diagnostic ledgers, not additional acceptance checkpoints.  Each
+# entry separates a production action request from a later production
+# postcondition.  A request can therefore be PASS while the business result is
+# still NOT_OBSERVED; the latter must never be promoted to a Natural E2E pass.
+SOLO_ROUTE_OBSERVATIONS = (
+    "EARLY_CHALLENGE",
+    "ARCHIVE_LOOT",
+    "HEIRLOOM_ROUTE",
+    "SECRET_REALM_ROUTE",
+)
 
-class SoloFullCycleObserver:
+
+def _new_route_observations() -> dict[str, dict[str, Any]]:
+    return {
+        name: {
+            "status": "NOT_OBSERVED",
+            "request_status": "NOT_OBSERVED",
+            "confirmation_status": "NOT_OBSERVED",
+        }
+        for name in SOLO_ROUTE_OBSERVATIONS
+    }
+
+
+_WINDOW_GUARD_STATUSES = {
+    "CANCELLED_NO_TARGET_HWND",
+    "CANCELLED_WINDOW_INVALID",
+    "CANCELLED_WINDOW_CHANGED",
+    "CANCELLED_WINDOW_OBSCURED",
+}
+
+
+class _SoloRouteDiagnosticsMixin:
+    """Shared request/postcondition ledger for solo observers.
+
+    This mixin is intentionally observation-only: every surface and
+    postcondition comes from an existing production classifier or production
+    state snapshot.  It does not decide, click, or advance a game phase.
+    """
+
+    def _init_route_diagnostics(self) -> None:
+        self._route_request_frame_fingerprints: dict[str, str | None] = {}
+        self.route_observations = _new_route_observations()
+
+    @staticmethod
+    def _request_status(action: dict[str, Any] | None) -> str:
+        status = str((action or {}).get("input_status") or "SUCCESS")
+        if status in _WINDOW_GUARD_STATUSES:
+            return "BLOCKED"
+        if status != "SUCCESS":
+            return "FAIL"
+        return "PASS"
+
+    def _route_request(
+        self,
+        name: str,
+        *,
+        action: dict[str, Any] | None,
+        evidence: dict[str, Any],
+        frame: Frame | None,
+    ) -> None:
+        item = self.route_observations[name]
+        if item["request_status"] != "NOT_OBSERVED":
+            return
+        request_status = self._request_status(action)
+        item["request_status"] = request_status
+        item["request_evidence"] = _jsonable(evidence)
+        self._route_request_frame_fingerprints[name] = _frame_fingerprint(frame)
+        if request_status in {"FAIL", "BLOCKED"}:
+            item["status"] = request_status
+
+    def _route_confirmation(self, name: str, *, evidence: dict[str, Any]) -> None:
+        item = self.route_observations[name]
+        if item["request_status"] != "PASS" or item["confirmation_status"] == "PASS":
+            return
+        item["confirmation_status"] = "PASS"
+        item["confirmation_evidence"] = _jsonable(evidence)
+        item["status"] = "PASS"
+
+    def _observe_route_diagnostics(
+        self,
+        med: Mediator,
+        state: dict[str, Any],
+        frame: Frame | None,
+        surfaces: dict[str, Any],
+        reason: str,
+        action: dict[str, Any] | None,
+        evidence: dict[str, Any],
+    ) -> None:
+        if reason == "ClickTQTZ":
+            self._route_request("EARLY_CHALLENGE", action=action, evidence=evidence, frame=frame)
+        elif reason == "ArchiveChallenge-loot":
+            self._route_request("ARCHIVE_LOOT", action=action, evidence=evidence, frame=frame)
+        elif reason in {"OpenGreatRift", "ConfirmGreatRift"}:
+            self._route_request("SECRET_REALM_ROUTE", action=action, evidence=evidence, frame=frame)
+        elif reason.startswith("BossConfigured") and surfaces.get("postgame") == "HEIRLOOM_DIALOG":
+            self._route_request("HEIRLOOM_ROUTE", action=action, evidence=evidence, frame=frame)
+
+        fingerprint = _frame_fingerprint(frame)
+        for name in SOLO_ROUTE_OBSERVATIONS:
+            request_fp = self._route_request_frame_fingerprints.get(name)
+            if not request_fp or not fingerprint or fingerprint == request_fp:
+                continue
+            if name == "EARLY_CHALLENGE" and surfaces.get("boss_entry"):
+                # ``boss_entry`` is an existing production scene classifier;
+                # no Harness ROI/coordinate detector is introduced here.
+                self._route_confirmation(name, evidence=evidence)
+            elif name == "ARCHIVE_LOOT" and surfaces.get("postgame") == "ARCHIVE_PANEL":
+                try:
+                    completed = bool(med._archive_challenge_completed(frame, 3))
+                except (AttributeError, TypeError):
+                    completed = False
+                if completed:
+                    self._route_confirmation(name, evidence=evidence)
+            elif name == "HEIRLOOM_ROUTE" and surfaces.get("postgame") == "HEIRLOOM_DIALOG":
+                self._route_confirmation(name, evidence=evidence)
+            elif name == "SECRET_REALM_ROUTE" and (
+                bool(state.get("secret_realm_active")) and bool(surfaces.get("hud"))
+            ):
+                self._route_confirmation(name, evidence=evidence)
+
+
+class SoloFullCycleObserver(_SoloRouteDiagnosticsMixin):
     """Observe production facts for one solo round; it never dispatches game logic."""
 
     def __init__(self) -> None:
         self._observation_no = 0
         self._continue_requested = False
+        self._room_request_frame_fingerprint: str | None = None
+        self._victory_frame_fingerprint: str | None = None
         self._next_request_frame_fingerprint: str | None = None
+        self._init_route_diagnostics()
         self.failed_reason: str | None = None
+        self.blocked_reason: str | None = None
+        self.blocked_evidence: dict[str, Any] | None = None
         self.manual_intervention_seen = False
         self.checkpoints = {
             name: {"status": "NOT_OBSERVED"}
@@ -556,6 +681,18 @@ class SoloFullCycleObserver:
             if self.checkpoints[name]["status"] == "NOT_OBSERVED":
                 self.checkpoints[name] = {"status": "FAIL", "reason": reason, "evidence": _jsonable(evidence or {})}
 
+    def block(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
+        """Record an environment blockage without turning it into a product FAIL."""
+        if self.blocked_reason is None:
+            self.blocked_reason = reason
+            self.blocked_evidence = _jsonable(evidence or {})
+        if self.checkpoints["NEXT_ROUND_CONFIRMED"]["status"] == "NOT_OBSERVED":
+            self.checkpoints["NEXT_ROUND_CONFIRMED"] = {
+                "status": "BLOCKED",
+                "reason": reason,
+                "evidence": _jsonable(evidence or {}),
+            }
+
     def manual_intervention(self) -> None:
         self.manual_intervention_seen = True
 
@@ -564,6 +701,7 @@ class SoloFullCycleObserver:
             self._pass("PRECHECK_OK", evidence=detail)
         else:
             self.checkpoints["PRECHECK_OK"] = {"status": "BLOCKED", "evidence": _jsonable(detail)}
+            self.block("live input preflight blocked", evidence=detail)
 
     def observe(
         self,
@@ -586,18 +724,29 @@ class SoloFullCycleObserver:
             self.fail("production runtime entered ERROR", evidence=evidence)
         if action is not None and context == "UNKNOWN":
             self.fail("production input on UNKNOWN context", evidence=evidence)
-        if str((action or {}).get("input_status") or "") in {
-            "CANCELLED_NO_TARGET_HWND", "CANCELLED_WINDOW_INVALID",
-            "CANCELLED_WINDOW_CHANGED", "CANCELLED_WINDOW_OBSCURED",
-        }:
-            self.fail("production input rejected by window-ownership guard", evidence=evidence)
+        if str((action or {}).get("input_status") or "") in _WINDOW_GUARD_STATUSES:
+            self.block("environment window-ownership guard rejected production input", evidence=evidence)
         if reason.startswith("CreateRoom-") or any(
             item.get("control") == "create_room" and item.get("state") == "OPEN_REQUESTED"
             for item in controls if isinstance(item, dict)
         ):
             self._pass("ROOM_CREATE_REQUEST", evidence=evidence)
-        if self.checkpoints["ROOM_CREATE_REQUEST"]["status"] == "PASS" and (surfaces["room"] or surfaces["stage"]):
-            self._pass("ROOM_CREATE_CONFIRMED", evidence=evidence)
+            if self._room_request_frame_fingerprint is None:
+                self._room_request_frame_fingerprint = _frame_fingerprint(frame)
+        if (
+            self.checkpoints["ROOM_CREATE_REQUEST"]["status"] == "PASS"
+            and self._room_request_frame_fingerprint
+            and _frame_fingerprint(frame) != self._room_request_frame_fingerprint
+            and (surfaces["room"] or surfaces["stage"])
+        ):
+            self._pass(
+                "ROOM_CREATE_CONFIRMED",
+                evidence={
+                    **evidence,
+                    "fresh_frame": True,
+                    "business_surface": "room" if surfaces["room"] else "stage",
+                },
+            )
         if surfaces["stage"] and surfaces["stage_target"]:
             self._pass("STAGE_TARGET_VISIBLE", evidence=evidence)
         if surfaces["stage"] and bool(getattr(med, "_stage_selected", False)):
@@ -613,6 +762,8 @@ class SoloFullCycleObserver:
         postgame = surfaces["postgame"]
         if postgame == "POST_VICTORY":
             self._pass("VICTORY_CONFIRMED", evidence=evidence)
+            if self._victory_frame_fingerprint is None:
+                self._victory_frame_fingerprint = _frame_fingerprint(frame)
         if postgame:
             self._pass("POSTGAME_SURFACE_CLASSIFIED", evidence={**evidence, "surface": postgame})
         if surfaces["hud"] and any(item.get("control") == "auto_task" and item.get("state") == "ON" for item in controls if isinstance(item, dict)):
@@ -630,8 +781,20 @@ class SoloFullCycleObserver:
             self._pass("CONTINUE_CONFIRMED", evidence=evidence)
         if self.checkpoints["CONTINUE_CONFIRMED"]["status"] == "PASS" and postgame in {"ARCHIVE_PANEL", "NPC_HUB", "HEIRLOOM_DIALOG"}:
             self._pass("POSTGAME_ROUTE_PROGRESS", evidence=evidence)
-        if self.checkpoints["VICTORY_CONFIRMED"]["status"] == "PASS" and (surfaces["room"] or surfaces["platform"]):
-            self._pass("RETURN_BASE_CONFIRMED", evidence=evidence)
+        if (
+            self.checkpoints["VICTORY_CONFIRMED"]["status"] == "PASS"
+            and self._victory_frame_fingerprint
+            and _frame_fingerprint(frame) != self._victory_frame_fingerprint
+            and (surfaces["room"] or surfaces["platform"])
+        ):
+            self._pass(
+                "RETURN_BASE_CONFIRMED",
+                evidence={
+                    **evidence,
+                    "fresh_frame": True,
+                    "business_surface": "room" if surfaces["room"] else "platform",
+                },
+            )
         returned = self.checkpoints["RETURN_BASE_CONFIRMED"]["status"] == "PASS"
         if returned and self.checkpoints["NEXT_ROUND_REQUEST"]["status"] == "NOT_OBSERVED" and (reason.startswith("CreateRoom-") or reason == "StageStart"):
             self._pass("NEXT_ROUND_REQUEST", evidence=evidence)
@@ -640,9 +803,14 @@ class SoloFullCycleObserver:
             self._next_request_frame_fingerprint is not None
             and _frame_is_valid(frame)
             and _frame_fingerprint(frame) != self._next_request_frame_fingerprint
-            and (surfaces["stage"] or surfaces["hero"] or surfaces["hud"])
+            and (
+                surfaces["hero"]
+                or surfaces["hud"]
+                or (surfaces["stage"] and surfaces["stage_target"])
+            )
         ):
             self._pass("NEXT_ROUND_CONFIRMED", evidence={**evidence, "fresh_frame": True})
+        self._observe_route_diagnostics(med, state, frame, surfaces, reason, action, evidence)
         return self.is_pass
 
     @staticmethod
@@ -650,7 +818,8 @@ class SoloFullCycleObserver:
         """Use existing production classifiers only; missing evidence stays false."""
         observed: dict[str, Any] = {
             "room": False, "platform": False, "stage": False, "stage_target": False,
-            "hero": False, "hud": False, "game_hwnd": False, "postgame": None,
+            "hero": False, "hud": False, "game_hwnd": False, "boss_entry": False,
+            "postgame": None,
         }
         if not _frame_is_valid(frame):
             return observed
@@ -665,6 +834,10 @@ class SoloFullCycleObserver:
             except (AttributeError, TypeError):
                 continue
         try:
+            observed["boss_entry"] = bool(med.find_scene(frame, "boss_entry"))
+        except (AttributeError, TypeError):
+            pass
+        try:
             observed["postgame"] = med._post_game_state(frame)
         except (AttributeError, TypeError):
             pass
@@ -674,6 +847,7 @@ class SoloFullCycleObserver:
     def is_pass(self) -> bool:
         return (
             self.failed_reason is None
+            and self.blocked_reason is None
             and not self.manual_intervention_seen
             and all(self.checkpoints[name]["status"] == "PASS" for name in SOLO_FULL_CYCLE_CHECKPOINTS)
         )
@@ -683,8 +857,15 @@ class SoloFullCycleObserver:
             "contract_version": 1,
             "checkpoints": _jsonable(self.checkpoints),
             "optional_events": _jsonable(self.optional_events),
-            "natural_e2e": "PASS" if self.is_pass else ("DISQUALIFIED_MANUAL_INTERVENTION" if self.manual_intervention_seen else "PENDING_OR_FAILED"),
+            "route_observations": _jsonable(self.route_observations),
+            "natural_e2e": "PASS" if self.is_pass else (
+                "DISQUALIFIED_MANUAL_INTERVENTION"
+                if self.manual_intervention_seen
+                else ("BLOCKED" if self.blocked_reason else "PENDING_OR_FAILED")
+            ),
             "failure_reason": self.failed_reason,
+            "blocked_reason": self.blocked_reason,
+            "blocked_evidence": _jsonable(self.blocked_evidence),
         }
 
 
@@ -705,13 +886,16 @@ SOLO_INGAME_CHECKPOINTS = (
 )
 
 
-class SoloIngameChainObserver:
+class SoloIngameChainObserver(_SoloRouteDiagnosticsMixin):
     """Observe the production stage-to-post-game chain without adding FSM logic."""
 
     def __init__(self) -> None:
         self._observation_no = 0
         self._postgame_seen = False
+        self._init_route_diagnostics()
         self.failed_reason: str | None = None
+        self.blocked_reason: str | None = None
+        self.blocked_evidence: dict[str, Any] | None = None
         self.manual_intervention_seen = False
         self.checkpoints = {
             name: {"status": "NOT_OBSERVED"}
@@ -737,6 +921,18 @@ class SoloIngameChainObserver:
                     "evidence": _jsonable(evidence or {}),
                 }
 
+    def block(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
+        """Record an environment blockage without turning it into a product FAIL."""
+        if self.blocked_reason is None:
+            self.blocked_reason = reason
+            self.blocked_evidence = _jsonable(evidence or {})
+        if self.checkpoints["POSTGAME_ROUTE_PROGRESS"]["status"] == "NOT_OBSERVED":
+            self.checkpoints["POSTGAME_ROUTE_PROGRESS"] = {
+                "status": "BLOCKED",
+                "reason": reason,
+                "evidence": _jsonable(evidence or {}),
+            }
+
     def manual_intervention(self) -> None:
         self.manual_intervention_seen = True
 
@@ -748,6 +944,7 @@ class SoloIngameChainObserver:
                 "status": "BLOCKED",
                 "evidence": _jsonable(detail),
             }
+            self.block("live input preflight blocked", evidence=detail)
 
     def observe(
         self,
@@ -776,11 +973,8 @@ class SoloIngameChainObserver:
             self.fail("production runtime entered ERROR", evidence=evidence)
         if action is not None and context == "UNKNOWN":
             self.fail("production input on UNKNOWN context", evidence=evidence)
-        if str((action or {}).get("input_status") or "") in {
-            "CANCELLED_NO_TARGET_HWND", "CANCELLED_WINDOW_INVALID",
-            "CANCELLED_WINDOW_CHANGED", "CANCELLED_WINDOW_OBSCURED",
-        }:
-            self.fail("production input rejected by window-ownership guard", evidence=evidence)
+        if str((action or {}).get("input_status") or "") in _WINDOW_GUARD_STATUSES:
+            self.block("environment window-ownership guard rejected production input", evidence=evidence)
 
         if surfaces["stage"]:
             self._pass("STAGE_SELECT_CONFIRMED", evidence=evidence)
@@ -838,6 +1032,7 @@ class SoloIngameChainObserver:
                 marker in reason_lower for marker in markers
             ):
                 self.optional_events[name] = {"status": "OBSERVED", "evidence": _jsonable(evidence)}
+        self._observe_route_diagnostics(med, state, frame, surfaces, reason, action, evidence)
         return self.is_pass
 
     @staticmethod
@@ -849,6 +1044,7 @@ class SoloIngameChainObserver:
     def is_pass(self) -> bool:
         return (
             self.failed_reason is None
+            and self.blocked_reason is None
             and not self.manual_intervention_seen
             and all(self.checkpoints[name]["status"] == "PASS" for name in SOLO_INGAME_CHECKPOINTS)
         )
@@ -858,11 +1054,15 @@ class SoloIngameChainObserver:
             "contract_version": 1,
             "checkpoints": _jsonable(self.checkpoints),
             "optional_events": _jsonable(self.optional_events),
+            "route_observations": _jsonable(self.route_observations),
             "natural_e2e": "PASS" if self.is_pass else (
                 "DISQUALIFIED_MANUAL_INTERVENTION"
-                if self.manual_intervention_seen else "PENDING_OR_FAILED"
+                if self.manual_intervention_seen
+                else ("BLOCKED" if self.blocked_reason else "PENDING_OR_FAILED")
             ),
             "failure_reason": self.failed_reason,
+            "blocked_reason": self.blocked_reason,
+            "blocked_evidence": _jsonable(self.blocked_evidence),
         }
 
 FAILURE_TAXONOMY = (
@@ -1742,8 +1942,15 @@ def _failure_class_hints(summary: dict[str, Any]) -> list[dict[str, str]]:
     policy = summary.get("policy_decision")
     if policy is not None and not action:
         add("L3_POLICY_DECISION", "production trace contains a policy decision but no input action followed")
+    window_blocked = (
+        str(summary.get("status") or "").startswith("BLOCKED")
+        and str(input_result.get("status") or "") in _WINDOW_GUARD_STATUSES
+    )
     if action and (input_result.get("success") is False or str(input_result.get("status") or "").startswith("CANCELLED")):
-        add("L4_INPUT_EXECUTION", "recorded input result is rejected/cancelled")
+        if window_blocked:
+            add("L8_TEST_EVIDENCE", "environment window ownership/obscuration blocked the input; no product FAIL was inferred")
+        else:
+            add("L4_INPUT_EXECUTION", "recorded input result is rejected/cancelled")
     if action and input_result.get("success") is True and frame_changed is False:
         add("L4_INPUT_EXECUTION", "input succeeded but the recorded before/after frame fingerprint is unchanged")
         add("L5_POSTCONDITION", "input succeeded but no visual change was recorded")
@@ -2017,6 +2224,8 @@ class BundleRecorder:
                 "sha": _commit_sha(repo_root),
                 "production_baseline_sha": SOLO_PRODUCTION_BASELINE_SHA,
                 "runtime_kind": "SOURCE_RUNTIME",
+                "runtime_type": "SOURCE_RUNTIME",
+                "runtime_source_sha": _commit_sha(repo_root),
                 "production_source_sha": _commit_sha(repo_root),
                 "production_package": None,
                 "mode_id": settings_snapshot.get("mode_id"),
@@ -2607,6 +2816,13 @@ class BundleRecorder:
                 f"- {name}: {item['status']}"
                 for name, item in self.solo_observer.checkpoints.items()
             )
+            for name, item in self.solo_observer.route_observations.items():
+                summary.append(
+                    f"- {name}: {item['status']} "
+                    f"(request={item['request_status']}, confirmation={item['confirmation_status']})"
+                )
+            if getattr(self.solo_observer, "blocked_reason", None):
+                summary.append(f"- BLOCKED_REASON: {self.solo_observer.blocked_reason}")
             summary.append(f"- Natural E2E: {self.solo_observer.payload()['natural_e2e']}")
         self.summary_path.write_text("\n".join(summary) + "\n", encoding="utf-8")
         return self.manifest_path
@@ -3522,6 +3738,19 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                         f"reason={blocked['reason']!r}: {blocked['denial']}"
                     ),
                 )
+                if (
+                    recorder.solo_observer is not None
+                    and getattr(recorder.solo_observer, "blocked_reason", None)
+                ):
+                    # A foreground/ownership violation is an environment
+                    # blockage, not a production business FAIL.  Stop through
+                    # the runtime's safe hook and preserve the evidence; do
+                    # not continue sending inputs while another window owns
+                    # or obscures the target.
+                    med.stop()
+                    print("[capture] window ownership blocked; requested production safe stop")
+                    ticks += 1
+                    break
             if loop_action is LoopAction.Break:
                 if med.phase is not Phase.ERROR:
                     break
@@ -3599,6 +3828,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             and not recorder.solo_observer.is_pass
             and not recorder.solo_observer.manual_intervention_seen
             and recorder.solo_observer.failed_reason is None
+            and getattr(recorder.solo_observer, "blocked_reason", None) is None
             and not _is_emergency_reason(stop_signal.reason)
         ):
             end_reason = (
@@ -4362,10 +4592,10 @@ def _bundle_exit_code(bundle_dir: Path) -> int:
         code = 0 if search_observed and terminal_observed else 4
     elif manifest.get("target") == "solo_full_cycle":
         solo = manifest.get("solo_full_cycle") or {}
-        code = 0 if solo.get("natural_e2e") == "PASS" else 4
+        code = 0 if solo.get("natural_e2e") == "PASS" else (3 if solo.get("natural_e2e") == "BLOCKED" else 4)
     elif manifest.get("target") == "solo_ingame_chain":
         solo = manifest.get("solo_ingame_chain") or {}
-        code = 0 if solo.get("natural_e2e") == "PASS" else 4
+        code = 0 if solo.get("natural_e2e") == "PASS" else (3 if solo.get("natural_e2e") == "BLOCKED" else 4)
     else:
         code = 0
     manifest["process_exit_code"] = code

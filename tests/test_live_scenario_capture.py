@@ -36,6 +36,7 @@ from tools.live_scenario_capture import (
     RecordingInputExecutor,
     SOLO_FULL_CYCLE_CHECKPOINTS,
     SOLO_INGAME_CHECKPOINTS,
+    SOLO_ROUTE_OBSERVATIONS,
     SoloFullCycleObserver,
     SoloIngameChainObserver,
     SUPPORTED_TARGETS,
@@ -500,6 +501,8 @@ class _SoloObserverMediator:
     stage_target = False
     hero = False
     hud = False
+    boss_entry = False
+    archive_completed = False
 
     def _is_game_client_frame(self, frame: Frame) -> bool:
         return True
@@ -525,6 +528,12 @@ class _SoloObserverMediator:
     def _post_game_state(self, frame: Frame) -> str | None:
         return self.postgame
 
+    def find_scene(self, frame: Frame, scene: str) -> bool:
+        return scene == "boss_entry" and self.boss_entry
+
+    def _archive_challenge_completed(self, frame: Frame, index: int) -> bool:
+        return index == 3 and self.archive_completed
+
 
 def _solo_state(phase: str, **updates: object) -> dict[str, object]:
     state: dict[str, object] = {
@@ -544,7 +553,9 @@ def test_solo_full_cycle_contract_requires_fresh_next_round_business_evidence() 
     observer.observe(med, _solo_state("PLATFORM_MAP"), frame, {"controls": [{"control": "create_room", "state": "OPEN_REQUESTED"}]}, {"reason": "CreateRoom-open"})
     med.platform = False
     med.room = True
-    observer.observe(med, _solo_state("ROOM_WAITING"), frame, {"controls": []}, None)
+    room_frame = _fixture_frame()
+    room_frame.bgr[0, 0, 0] ^= 1
+    observer.observe(med, _solo_state("ROOM_WAITING"), room_frame, {"controls": []}, None)
     med.room = False
     med.stage = True
     med.stage_target = True
@@ -563,7 +574,9 @@ def test_solo_full_cycle_contract_requires_fresh_next_round_business_evidence() 
     observer.observe(med, _solo_state("MAIN_LINE", post_game_pending=True), frame, {"controls": []}, None)
     med.postgame = None
     med.platform = True
-    observer.observe(med, _solo_state("PLATFORM_MAP"), frame, {"controls": []}, None)
+    base_frame = _fixture_frame()
+    base_frame.bgr[0, 0, 0] ^= 2
+    observer.observe(med, _solo_state("PLATFORM_MAP"), base_frame, {"controls": []}, None)
     med.platform = False
     med.stage = True
     med.stage_target = True
@@ -629,6 +642,79 @@ def test_solo_ingame_observer_requires_physical_stage_hud_and_postgame_evidence(
     assert set(observer.checkpoints) == set(SOLO_INGAME_CHECKPOINTS)
 
 
+def test_solo_route_click_success_requires_a_fresh_production_postcondition() -> None:
+    observer = SoloIngameChainObserver()
+    med = _SoloObserverMediator()
+    frame = _fixture_frame()
+    observer.precheck(True, {"status": "READY"})
+    med.hud = True
+    observer.observe(
+        med,
+        _solo_state("MAIN_LINE"),
+        frame,
+        {"controls": []},
+        {"reason": "ClickTQTZ", "input_status": "SUCCESS"},
+    )
+    fresh = _fixture_frame()
+    fresh.bgr[0, 0, 0] ^= 1
+    observer.observe(med, _solo_state("MAIN_LINE"), fresh, {"controls": []}, None)
+    early = observer.payload()["route_observations"]["EARLY_CHALLENGE"]
+    assert early["request_status"] == "PASS"
+    assert early["confirmation_status"] == "NOT_OBSERVED"
+    assert early["status"] == "NOT_OBSERVED"
+
+
+def test_solo_route_fresh_production_boss_surface_confirms_early_challenge() -> None:
+    observer = SoloIngameChainObserver()
+    med = _SoloObserverMediator()
+    frame = _fixture_frame()
+    observer.precheck(True, {"status": "READY"})
+    med.hud = True
+    observer.observe(
+        med,
+        _solo_state("MAIN_LINE"),
+        frame,
+        {"controls": []},
+        {"reason": "ClickTQTZ", "input_status": "SUCCESS"},
+    )
+    med.boss_entry = True
+    fresh = _fixture_frame()
+    fresh.bgr[0, 0, 0] ^= 1
+    observer.observe(med, _solo_state("MAIN_LINE"), fresh, {"controls": []}, None)
+    early = observer.payload()["route_observations"]["EARLY_CHALLENGE"]
+    assert early["status"] == "PASS"
+    assert early["confirmation_status"] == "PASS"
+
+
+def test_solo_window_ownership_rejection_is_blocked_not_production_fail() -> None:
+    observer = SoloIngameChainObserver()
+    med = _SoloObserverMediator()
+    observer.precheck(True, {"status": "READY"})
+    observer.observe(
+        med,
+        _solo_state("MAIN_LINE"),
+        _fixture_frame(),
+        {"controls": []},
+        {"reason": "OpenBondPanel", "input_status": "CANCELLED_WINDOW_OBSCURED"},
+    )
+    assert observer.blocked_reason is not None
+    assert observer.failed_reason is None
+    assert observer.checkpoints["POSTGAME_ROUTE_PROGRESS"]["status"] == "BLOCKED"
+    assert observer.payload()["natural_e2e"] == "BLOCKED"
+
+
+def test_solo_route_observation_schema_is_explicit_and_non_authoritative() -> None:
+    observer = SoloIngameChainObserver()
+    payload = observer.payload()
+    assert tuple(payload["route_observations"]) == SOLO_ROUTE_OBSERVATIONS
+    assert all(
+        item["status"] == "NOT_OBSERVED"
+        and item["request_status"] == "NOT_OBSERVED"
+        and item["confirmation_status"] == "NOT_OBSERVED"
+        for item in payload["route_observations"].values()
+    )
+
+
 def test_solo_full_cycle_preflight_accepts_l0_platform_window() -> None:
     frame = Frame(
         np.full((120, 160, 3), 127, dtype=np.uint8),
@@ -683,6 +769,8 @@ def test_solo_bundle_writes_identity_and_required_evidence_layout(tmp_path: Path
     recorder.finalize()
     manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
     assert manifest["harness_identity"]["runtime_kind"] == "SOURCE_RUNTIME"
+    assert manifest["harness_identity"]["runtime_type"] == "SOURCE_RUNTIME"
+    assert manifest["harness_identity"]["runtime_source_sha"] == manifest["harness_identity"]["sha"]
     assert manifest["harness_identity"]["production_baseline_sha"] == "b15da05f4fd7313b02b2cc466e319d9683aa979c"
     assert manifest["harness_identity"]["mode_id"] == "normal_farm"
     assert manifest["harness_identity"]["config_snapshot_hash"]
@@ -729,6 +817,12 @@ def test_live_launcher_uses_isolated_settings_copy_and_local_ocr_runtime() -> No
     assert "Show-HarnessSettingsPanel -ConstructOnly" in launcher
     assert "New-Object System.Drawing.Point" not in launcher
     assert "ReadAllText($source, [System.Text.Encoding]::UTF8)" in launcher
+    assert "默认点击 12 会自动读取正式看板设置" in launcher
+    for setting_name in (
+        "auto_close_main_line", "auto_archaeology", "auto_secret_realm",
+        "auto_bond", "auto_treasure", "auto_weapon", "merchant_enabled",
+    ):
+        assert f'Name = "{setting_name}"' in launcher
     assert "WriteAllText($path, $json, [System.Text.UTF8Encoding]::new($false))" in launcher
     assert '"live_harness_settings_$stamp.json"' in launcher
     assert '"--settings", $settingsPath' in launcher

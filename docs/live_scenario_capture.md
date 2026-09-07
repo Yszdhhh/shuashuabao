@@ -199,6 +199,28 @@ hash. `SOURCE_RUNTIME` means the harness instantiates RuntimeMediator from the
 checked-out source; a selected EXE is recorded as package identity only and is
 not confused with the executing runtime.
 
+### Solo route evidence ledger
+
+The solo observers also write `route_observations` for `EARLY_CHALLENGE`,
+`ARCHIVE_LOOT`, `HEIRLOOM_ROUTE`, and `SECRET_REALM_ROUTE`. Each entry has an
+independent `request_status` and `confirmation_status`:
+
+- a successful production click records only `request_status: PASS`;
+- confirmation requires a later frame and an existing production classifier
+  (for example `boss_entry`, `ARCHIVE_PANEL` plus the production archive-card
+  verifier, `HEIRLOOM_DIALOG`, or `_secret_realm_active` plus the production
+  HUD classifier);
+- if that evidence does not appear, the entry remains `NOT_OBSERVED` and can
+  never authorize Natural E2E PASS.
+
+The Harness does not add card OCR, fixed coordinates, or a fallback business
+detector. If the production classifier cannot establish the surface, the
+result stays `NOT_OBSERVED`/`BLOCKED` for follow-up in the production branch.
+An external foreground/ownership rejection (`CANCELLED_WINDOW_CHANGED`,
+`CANCELLED_WINDOW_OBSCURED`, and related statuses) is an environment
+`BLOCKED` result; the Harness requests the runtime's safe stop and does not
+continue sending input behind the obstructing window.
+
 ## Solo arbitrary-state takeover (CLI contract)
 
 The CLI contract offers one selector for `Stage Select`, `Mid-game HUD`,

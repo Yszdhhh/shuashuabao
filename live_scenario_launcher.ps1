@@ -185,12 +185,12 @@ function Show-HarnessSettingsPanel {
     $form = New-Object System.Windows.Forms.Form
     $form.Text = "单人完整循环 · 临时 Harness 设置"
     $form.StartPosition = "CenterScreen"
-    $form.Size = New-Object System.Drawing.Size(560, 460)
+    $form.Size = New-Object System.Drawing.Size(620, 590)
     $form.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
     $form.TopMost = $true
     $note = New-Object System.Windows.Forms.Label
-    $note.Text = "来源：$source`r`n仅生成 %TEMP%\shuabao-captures\live_harness_settings_<timestamp>.json；不会写正式 user_settings.json。"
-    $note.AutoSize = $false; $note.Size = New-Object System.Drawing.Size(510, 48); $note.Location = [System.Drawing.Point]::new(20, 15)
+    $note.Text = "默认点击 12 会自动读取正式看板设置，无需在这里输入。`r`n来源：$source`r`n本页只生成临时覆盖，不会写正式 user_settings.json。"
+    $note.AutoSize = $false; $note.Size = New-Object System.Drawing.Size(570, 62); $note.Location = [System.Drawing.Point]::new(20, 15)
     $note.ForeColor = [System.Drawing.Color]::DimGray; $form.Controls.Add($note)
     $fields = @(
         @{ Label = "目标关卡（逗号分隔）"; Name = "stage_targets"; Value = (Csv-Value "stage_targets") },
@@ -208,12 +208,30 @@ function Show-HarnessSettingsPanel {
         $box.Text = [string]$field.Value; $box.Size = New-Object System.Drawing.Size(285, 28); $box.Location = [System.Drawing.Point]::new(230, $y)
         $controls[$field.Name] = $box; $form.Controls.Add($box); $y += 42
     }
-    $secret = New-Object System.Windows.Forms.CheckBox
-    $secret.Text = "自动秘境"; $secret.Checked = [bool](Value-OrDefault "auto_secret_realm" $false); $secret.Location = [System.Drawing.Point]::new(20, $y); $form.Controls.Add($secret)
-    $merchant = New-Object System.Windows.Forms.CheckBox
-    $merchant.Text = "黑商"; $merchant.Checked = [bool](Value-OrDefault "merchant_enabled" $false); $merchant.Location = [System.Drawing.Point]::new(140, $y); $form.Controls.Add($merchant)
+    $toggleSpecs = @(
+        @{ Label = "自动秘境"; Name = "auto_secret_realm" },
+        @{ Label = "5-5 后关闭自动任务"; Name = "auto_close_main_line" },
+        @{ Label = "存档/考古挑战"; Name = "auto_archaeology" },
+        @{ Label = "自动羁绊"; Name = "auto_bond" },
+        @{ Label = "自动宝物"; Name = "auto_treasure" },
+        @{ Label = "自动装备"; Name = "auto_weapon" },
+        @{ Label = "黑商"; Name = "merchant_enabled" }
+    )
+    $toggleControls = @{}
+    $toggleY = $y
+    for ($i = 0; $i -lt $toggleSpecs.Count; $i++) {
+        $spec = $toggleSpecs[$i]
+        $check = New-Object System.Windows.Forms.CheckBox
+        $check.Text = $spec.Label
+        $check.Checked = [bool](Value-OrDefault $spec.Name $false)
+        $check.Location = [System.Drawing.Point]::new((20 + (($i % 2) * 290)), ($toggleY + ([math]::Floor($i / 2) * 30)))
+        $check.AutoSize = $true
+        $toggleControls[$spec.Name] = $check
+        $form.Controls.Add($check)
+    }
+    $toggleY += ([math]::Ceiling($toggleSpecs.Count / 2) * 30)
     $start = New-Object System.Windows.Forms.Button
-    $start.Text = "保存为下一次测试的临时覆盖"; $start.Size = New-Object System.Drawing.Size(220, 38); $start.Location = [System.Drawing.Point]::new(295, ($y + 35))
+    $start.Text = "保存为下一次测试的临时覆盖"; $start.Size = New-Object System.Drawing.Size(250, 38); $start.Location = [System.Drawing.Point]::new(330, ($toggleY + 16))
     $start.Add_Click({
         $skills = @($controls["skills"].Text -split "[,;\s]+" | Where-Object { $_ })
         if ($skills.Count -gt 4) { [System.Windows.Forms.MessageBox]::Show("技能最多 4 个。", "临时 Harness 设置") | Out-Null; return }
@@ -222,15 +240,16 @@ function Show-HarnessSettingsPanel {
         $raw.bonds = @($controls["bonds"].Text -split "[,;\s]+" | Where-Object { $_ })
         $raw.cjb_boss = $controls["cjb_boss"].Text.Trim()
         $raw.sgzx_boss = $controls["sgzx_boss"].Text.Trim()
-        $raw.auto_secret_realm = [bool]$secret.Checked
-        $raw.merchant_enabled = [bool]$merchant.Checked
+        foreach ($spec in $toggleSpecs) {
+            $raw.($spec.Name) = [bool]$toggleControls[$spec.Name].Checked
+        }
         $script:HarnessSettingsPath = Save-HarnessSettingsCopy $raw
         $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
         $form.Close()
     })
     $form.Controls.Add($start)
     $cancel = New-Object System.Windows.Forms.Button
-    $cancel.Text = "取消"; $cancel.Size = New-Object System.Drawing.Size(90, 38); $cancel.Location = [System.Drawing.Point]::new(190, ($y + 35))
+    $cancel.Text = "取消"; $cancel.Size = New-Object System.Drawing.Size(90, 38); $cancel.Location = [System.Drawing.Point]::new(230, ($toggleY + 16))
     $cancel.Add_Click({ $form.Close() }); $form.Controls.Add($cancel)
     if ($ConstructOnly) {
         $form.Dispose()
