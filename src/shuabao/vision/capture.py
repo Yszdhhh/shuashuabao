@@ -610,21 +610,19 @@ def _capture_print_window(target: WindowTarget) -> Frame | None:
 def _find_window_rect(
     title_contains: str,
     role: str | None = None,
-    activate: bool = True,
     allow_fallback: bool = False,
 ) -> WindowTarget | None:
-    """Return the highest-ranked target, optionally activating it."""
+    """Return the highest-ranked target without changing foreground state."""
     targets = find_window_targets(title_contains, role=role, allow_fallback=allow_fallback, allow_minimized=True)
-    if not targets:
-        return None
-    target = targets[0]
-    if activate:
-        activate_window(target.hwnd)
-    return target
+    return targets[0] if targets else None
 
 
-def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
-    """Capture one visible target aligned to client area coordinates."""
+def capture_target(target: WindowTarget) -> Frame:
+    """Capture one visible target aligned to client area coordinates.
+
+    P0-2：采集全程零 activate/restore——被遮挡窗口走 PrintWindow 离屏抓取，
+    焦点获取严格限定在真实输入动作前（keyboard_mouse / mediator act_* 门）。
+    """
     if is_window_minimized(target.hwnd):
         return Frame(
             bgr=np.zeros((0, 0, 3), dtype=np.uint8),
@@ -637,9 +635,7 @@ def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
             error="Window is minimized",
         )
 
-    if activate:
-        activate_window(target.hwnd)
-    elif _foreground_window() != target.hwnd:
+    if _foreground_window() != target.hwnd:
         offscreen = _capture_print_window(target)
         if offscreen is not None:
             return offscreen
@@ -696,14 +692,14 @@ def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
         )
 
 
-def capture(title_contains: str = "", role: str | None = None, activate: bool = True, allow_fallback: bool = False) -> Frame:
+def capture(title_contains: str = "", role: str | None = None, allow_fallback: bool = False) -> Frame:
     if mss is None:
         return Frame(
             bgr=np.zeros((0, 0, 3), dtype=np.uint8),
             is_valid=False,
             error="mss not installed",
         )
-    target = _find_window_rect(title_contains, role=role, activate=False, allow_fallback=allow_fallback)
+    target = _find_window_rect(title_contains, role=role, allow_fallback=allow_fallback)
     if target is None:
         print(f"[capture] target window not found: {title_contains!r}")
         return Frame(
@@ -712,4 +708,4 @@ def capture(title_contains: str = "", role: str | None = None, activate: bool = 
             is_valid=False,
             error=f"Target window not found: {title_contains!r}",
         )
-    return capture_target(target, activate=activate)
+    return capture_target(target)

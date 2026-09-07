@@ -154,8 +154,9 @@ def test_see_never_activates_a_valid_platform_frame():
     activate.assert_not_called()
 
 
-def test_see_restores_minimized_target_window():
-    """用户规则：所有窗口都可能最小化；无效帧 + IsIconic → SW_RESTORE。"""
+def test_see_zero_side_effect_on_minimized_target_window():
+    """P0-2（20260908）：观察期零前台副作用——无效/最小化帧只标记
+    is_minimized，绝不 activate/restore；焦点严格限定在真实输入动作前。"""
     med = Mediator(Settings(), ROOT)
     med.set_phase(Phase.BOOT)
     minimized = Frame(
@@ -167,9 +168,9 @@ def test_see_restores_minimized_target_window():
          patch.object(med, "_frame_signal", return_value=0), \
          patch("shuabao.vision.capture.is_window_minimized", return_value=True), \
          patch("shuabao.mediator.activate_window", return_value=True) as restore:
-        med.see("test")
-    assert restore.call_count == 1
-    assert restore.call_args.args[0] == 333
+        frame = med.see("test")
+    assert frame.is_minimized is True
+    restore.assert_not_called()
 
 
 def test_full_boot_tick_takes_over_paused_game_window():

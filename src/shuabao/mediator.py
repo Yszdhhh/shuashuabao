@@ -652,6 +652,11 @@ class Mediator:
         self._hitch_blacklisted_room_keys: set[str] = set()
         self._hitch_pending_room_key: str | None = None
         self._hitch_floor_exit_attempted_at: float | None = None
+        # P0-6：Ready 180s 超时退房生命周期（确认离房+大厅可见后才拉黑）
+        self._hitch_ready_timeout_pending: bool = False
+        self._hitch_ready_timeout_leave_at: float | None = None
+        # P0-4：压力转移点击后的后置条件验证锚点（确认按钮消失才算成功）
+        self._hitch_pressure_click_at: float | None = None
         self._hitch_refresh_required = False
         self._follow_sm = FollowTeamSM()
         self._hitch_search_actions: list[str] = []
@@ -1097,12 +1102,6 @@ class Mediator:
             if key and key in capture_cache:
                 return capture_cache[key]
             frame = capture_target(target)
-            if (
-                not frame.is_valid
-                and "英雄三国" in str(getattr(target, "title", "") or "")
-            ):
-                activate_window(target.hwnd)
-                frame = capture_target(target)
             if key:
                 capture_cache[key] = frame
             return frame
@@ -1129,7 +1128,7 @@ class Mediator:
                 f"{self._confirmed_room_hwnd} candidates={candidates!r}"
             )
         if not targets:
-            return capture(title, role=role, activate=False)
+            return capture(title, role=role)
         # KK exposes the create-room form as a second same-title HWND.  The
         # sticky parent window still looks healthy, so the generic fast path
         # would otherwise starve the dialog forever.  Probe every candidate
@@ -1202,6 +1201,22 @@ class Mediator:
             key=lambda pair: (self._frame_signal(pair[1], role), int(pair[1].hwnd == previous_hwnd)),
         )[1]
 
+    def _probe_l1_game_frame(self) -> Frame | None:
+        """探游戏窗（含最小化/被遮挡，窗口标题即路由依据）。
+
+        20260827（用户规则）：英雄三国窗口存在就无条件绑定 L1，进入选关/局内
+        判定，绝不捕获并置前 KK 平台窗；只有游戏窗不存在才允许回落平台流。
+        P0-1：该探测同时服务 BOOT 与 ROOM_WAITING（被动 L1 接管）。
+        """
+        game_frame = self._capture_best(",".join(L1_WINDOW_KEYWORDS), "l1")
+        if (
+            game_frame is not None
+            and game_frame.hwnd is not None
+            and self._is_game_client_frame(game_frame)
+        ):
+            return game_frame
+        return None
+
     def see(self, reason: str = "") -> Frame:
         # A single tick asks the same scene questions from capture ranking,
         # context classification and the phase handler.  Reuse those results
@@ -1222,21 +1237,17 @@ class Mediator:
         }
         role = "l0" if self.phase in l0_phases else "l1"
         frame = None
-        if self.phase == Phase.BOOT:
-            # 20260827（用户规则）：启动阶段先探游戏窗——英雄三国窗口存在
-            # （含最小化/被遮挡，窗口标题即路由依据）就无条件绑定 L1，进入
-            # 选关/局内判定，绝不捕获并置前 KK 平台窗；只有游戏窗不存在才
-            # 允许回大厅建房。旧实现先按 L0 抓平台窗并置前，帧尾才探测游戏窗，
-            # 游戏帧无效（最小化/PrintWindow 黑帧）时静默落到平台流 → 误建房。
-            game_frame = self._capture_best(",".join(L1_WINDOW_KEYWORDS), "l1")
-            if (
-                game_frame is not None
-                and game_frame.hwnd is not None
-                and self._is_game_client_frame(game_frame)
-            ):
-                print(
-                    f"[boot] 英雄三国窗口存在 hwnd={game_frame.hwnd}，直接接手游戏内流程"
-                )
+        if self.phase in (Phase.BOOT, Phase.ROOM_WAITING):
+            game_frame = self._probe_l1_game_frame()
+            if game_frame is not None:
+                if self.phase == Phase.BOOT:
+                    print(
+                        f"[boot] 英雄三国窗口存在 hwnd={game_frame.hwnd}，直接接手游戏内流程"
+                    )
+                else:
+                    print(
+                        f"[L0] ROOM_WAITING 发现英雄三国窗口 hwnd={game_frame.hwnd}，观察移交 L1 游戏帧"
+                    )
                 frame = game_frame
                 role = "l1"
                 title = ",".join(L1_WINDOW_KEYWORDS)
@@ -5155,17 +5166,42 @@ class Mediator:
         return None
 
     def _maybe_click_hitch_pressure_transfer(self, frame: Frame, now: float) -> LoopAction | None:
-        """蹭车模式：开局 25 秒内寻找装备栏上方的『压力转移』独立按钮并点击。"""
+        """蹭车模式：开局 25 秒内寻找装备栏上方的『压力转移』独立按钮并点击。
+
+        P0-4 后置条件生命周期：点击成功只记录 ``_hitch_pressure_click_at``；
+        下一帧在可信局内 HUD 上验证按钮已消失/状态已变化，才置
+        ``_hitch_pressure_transferred = True``。25 秒窗口过期≠成功，只放弃尝试。
+        """
         if not self._team_mode_enabled():
             return None
         if getattr(self, "_hitch_pressure_transferred", False):
             return None
-        # 开局 25 秒之后如果还没点到，按钮会消失，放弃尝试
+        # 开局 25 秒之后如果还没点到，按钮会消失，放弃尝试（不是成功）
         main_line_duration = now - getattr(self, "_main_line_since", now)
         if main_line_duration > 25.0:
-            self._hitch_pressure_transferred = True
+            # 25 秒窗口过期 ≠ 转移成功：不置 _hitch_pressure_transferred，
+            # 只是放弃新的尝试（窗口检查本身保证后续 tick 直接跳过）。
             return None
         if not self._is_in_game_hud(frame):
+            return None
+        click_at = getattr(self, "_hitch_pressure_click_at", None)
+        if click_at is not None:
+            # 后置条件验证：按钮仍在 = 点击未生效，等下一帧；按钮消失 = 成功
+            hit = self.find(
+                frame,
+                ["yalizhuanyi"],
+                threshold=0.65,
+                roi=(0.30, 0.50, 0.90, 0.95),
+            )
+            if hit is None:
+                self._hitch_pressure_transferred = True
+                print("[med] 压力转移按钮已消失，转移后置条件确认")
+            elif now - click_at >= 5.0:
+                # 按钮还在且超时未消失 → 后置条件失败，重新尝试点击
+                print("[med] 压力转移点击后按钮仍可见（后置条件未确认），重试")
+                self._hitch_pressure_click_at = None
+            self._hitch_ready_timeout_pending = False
+            self._hitch_ready_timeout_leave_at = None
             return None
         # 优先在屏幕中下方/右下方区域找压力转移按钮
         hit = self.find(
@@ -5177,8 +5213,8 @@ class Mediator:
         if hit:
             print(f"[med] 发现开局压力转移按钮 @ {hit.center}")
             if self.act_click(hit, "HitchPressureTransfer"):
-                self._hitch_pressure_transferred = True
-                print("[med] 压力转移按钮点击成功，怪物成功转移至房主一楼")
+                self._hitch_pressure_click_at = now
+                print("[med] 压力转移按钮已点击，等待后置条件确认（按钮消失）")
                 return LoopAction.Continue
         return None
 
@@ -6094,6 +6130,7 @@ class Mediator:
             self._auto_task_next_observe_at = None
             self._auto_task_recheck_at = 0.0
             self._hitch_pressure_transferred = False
+            self._hitch_pressure_click_at = None
             self._auto_task_unknown_since = None
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
@@ -7404,6 +7441,9 @@ class Mediator:
         self._hitch_floor_exit_pending = False
         self._hitch_floor_exit_confirmed = False
         self._hitch_floor_exit_attempted_at = None
+        # P0-6：180s 超时退房生命周期随每次 episode 边界一并收敛
+        self._hitch_ready_timeout_pending = False
+        self._hitch_ready_timeout_leave_at = None
         self._hitch_rejected_row_ys.clear()
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
@@ -7556,6 +7596,46 @@ class Mediator:
         # A confirmed transaction falls through: the row scan is the caller's.
         return None
 
+    def _detect_hitch_kick_event(self, frame: Frame) -> str | None:
+        """P0-5：被踢/移出弹窗的生产识别（不依赖 _hitch_ocr_override）。
+
+        dialog 检测器命中（外扩 5%）或 typed 固定 ROI（KK 居中弹窗标题/正文带）
+        上做受限 OCR；文本命中 KICK/DISSOLVE 标记或『移出』即确认为被踢证据。
+        OCR 不可用或无命中返回 None，fail-closed 交给通用弹窗链（只 Esc）。
+        """
+        client = getattr(self, "_ocr_client", None)
+        if client is None or frame.bgr is None or frame.width < 200 or frame.height < 120:
+            return None
+        dialog = self.find_scene(frame, "lobby_popup_dialog") or self.find_scene(frame, "lobby_popup_title")
+        if dialog is not None:
+            x0 = max(0, int(dialog.x - 0.05 * frame.width))
+            y0 = max(0, int(dialog.y - 0.05 * frame.height))
+            x1 = min(frame.width, int(dialog.x + dialog.w + 0.05 * frame.width))
+            y1 = min(frame.height, int(dialog.y + dialog.h + 0.05 * frame.height))
+        else:
+            x0, y0 = int(0.30 * frame.width), int(0.30 * frame.height)
+            x1, y1 = int(0.70 * frame.width), int(0.66 * frame.height)
+        if x1 - x0 < 32 or y1 - y0 < 16:
+            return None
+        bbox = (x0, y0, x1, y1)
+        try:
+            response = client.shadow_predict(
+                frame,
+                "hitch_kick_modal",
+                {"slot_id": 0, "bbox": bbox, "kind": "text"},
+                session="lobby_hitch",
+                panel_bbox=bbox,
+            )
+        except (AttributeError, OSError, TypeError, ValueError) as exc:
+            print(f"[L0] hitch 被踢弹窗 OCR 不可用: {type(exc).__name__}")
+            return None
+        if response.status != "ok":
+            return None
+        text = str(response.raw_text or "")
+        if not text:
+            return None
+        return classify_hitch_ocr(text) or ("被移出" if "移出" in text else None)
+
     def _tick_lobby_hitch(
         self,
         frame: Frame,
@@ -7564,8 +7644,18 @@ class Mediator:
         stage_page: bool = False,
     ) -> LoopAction:
         now = time.time()
-        # Live lobby scanning is visual; only an explicit OCR test override can
-        # carry kick/dissolve text.  Avoid scanning the whole room table here.
+        # P0-1：蹭车在 ROOM_WAITING 收到已验证的游戏窗帧时，绝不强推 MAIN_LINE
+        # （旧实现会把 game client 帧误判成已在局内而吞掉房内状态）；零输入交给
+        # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
+        if self.phase == Phase.ROOM_WAITING and self._is_game_client_frame(frame):
+            if getattr(self, "_hitch_ready_timeout_pending", False):
+                self._hitch_ready_timeout_pending = False
+                self._hitch_ready_timeout_leave_at = None
+                print("[L0] hitch 180s 等待期间房主开局，取消超时退房并移交游戏流程")
+            print("[L0] hitch ROOM_WAITING 观察到游戏客户端帧，零输入移交状态对齐")
+            return LoopAction.Continue
+        # P0-5 后：通用 OCR 测试 override 仍保留为显式注入口；生产链路已由
+        # _detect_hitch_kick_event 覆盖，不再需要 override 才能识别被踢文本。
         event = classify_hitch_ocr(str(getattr(self, "_hitch_ocr_override", "") or ""))
         if event:
             return self._hitch_reset_lobby(event, now)
@@ -7581,6 +7671,20 @@ class Mediator:
         if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
             print("[L0] hitch 黑帧/空帧，零输入等待可信大厅页面")
             return LoopAction.Continue
+        # P0-5：弹窗处于显式覆盖时（dialog/title 命中，或当前处于房间等待），
+        # 探测被踢/移出弹窗（真实 OCR，不依赖 _hitch_ocr_override）。避免在正常大厅搜索页每帧做无弹窗 OCR。
+        has_modal_anchor = bool(
+            self.find_scene(frame, "lobby_popup_dialog")
+            or self.find_scene(frame, "lobby_popup_title")
+            or context == "ROOM_WAITING"
+            or self.phase == Phase.ROOM_WAITING
+        )
+        if has_modal_anchor:
+            kick_event = self._detect_hitch_kick_event(frame)
+            if kick_event:
+                print("[L0] hitch 弹窗 OCR 命中被移出/解散文本，关闭弹窗并重置回大厅")
+                self.act_key("esc", "HitchKickDismiss")
+                return self._hitch_reset_lobby(kick_event, now)
         # 0. 已请求退出时，必须同时满足：
         # a) 当前处于 exit pending 流程；
         # b) 当前 fresh frame 属于已知退出确认 modal/dialog（避免仅有蓝色色块几何即误触发）；
@@ -7680,6 +7784,7 @@ class Mediator:
                 print("[L0] hitch 进房超时，但提示关闭输入被拒绝")
             self.set_phase(Phase.LOBBY_ROOM, "hitch join rejected")
             return LoopAction.Continue
+
         if getattr(self, "_hitch_floor_exit_pending", False):
             # 走到这里已经证明退出确认弹窗不在当前帧（exit_confirm/dialog 分支
             # 都提前 return）。act_click 被拒（鼠标被移动 / SendInput 校验失败）
@@ -7716,25 +7821,55 @@ class Mediator:
             print("[L0] hitch 一楼条件不符，已回大厅；下个动作先刷新")
             return LoopAction.Continue
 
+        if getattr(self, "_hitch_ready_timeout_pending", False):
+            # P0-6：180s 超时退房进行中。只有 fresh 帧证明已离房（无房间实体
+            # 控件）且大厅/房间列表基线可见，才拉黑房号并回大厅找房；否则零
+            # 输入等待。房主此时开局（房间消失）则不拉黑、转交游戏内流程。
+            if self._is_game_client_frame(frame):
+                self._hitch_ready_timeout_pending = False
+                print("[L0] hitch 180s 等待期间房主开局，房间已消失，转交游戏内流程")
+                return LoopAction.Continue
+            lobby_visible = self._lobby_room_list_evidence(frame)
+            if lobby_visible and not in_room:
+                if self._hitch_pending_room_key is not None:
+                    self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+                self._hitch_pending_room_key = None
+                self._hitch_ready_timeout_pending = False
+                self._hitch_after_exit(now)
+                self.set_phase(Phase.LOBBY_ROOM, "hitch ready timeout returned to lobby")
+                print("[L0] hitch 180s 超时退出已确认回大厅，房间拉黑并继续找房")
+                return LoopAction.Continue
+            room_window = bool(
+                frame.hwnd is not None
+                and frame.hwnd == getattr(self, "_confirmed_room_hwnd", None)
+            )
+            if room_window or getattr(self, "_hitch_ready_timeout_leave_at", None) is None:
+                last = getattr(self, "_hitch_ready_timeout_leave_at", None)
+                if last is None or now - last >= 5.0:
+                    # P0-6：超时安全退出统一使用 Esc（避免混入 floor-exit 提前拉黑机器），
+                    # 严格保证必须在收到 fresh 大厅可见帧后才写入黑名单
+                    self.act_key("esc", "HitchReadyTimeoutExit")
+                    self._hitch_ready_timeout_leave_at = now
+            print("[L0] hitch 180s 退出进行中，等待离房并回到大厅（零输入等待）")
+            return LoopAction.Continue
+
         if in_room and not self._hitch_re_search:
             if self._hitch_sm.pending_join:
                 self._hitch_sm.complete_join()
                 self._hitch_join_refresh_count = self._hitch_sm.attempts
-            # b15da05 P1-C: 180 秒开局等待预算在 Ready 确认后优先判定，避免被座位抖动拦截
+            # b15da05 P1-C / P0-6: 180 秒开局等待预算在 Ready 确认后优先判定。
+            # 超时先挂起 pending 闩锁并发起安全退房（退出按钮或 Esc）；只有
+            # fresh 帧确认已离房且大厅列表基线可见后才拉黑房号（见下方
+            # _hitch_ready_timeout_pending 处理块）。
             ready_confirmed_at = getattr(self, "_hitch_ready_confirmed_at", None)
-            if ready_confirmed_at is not None and now - ready_confirmed_at >= 180.0:
-                print("[L0] hitch 房间已准备等待超过 180 秒，房主未开局，拉黑房间并退出")
-                if self._hitch_pending_room_key:
-                    self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-                exit_hit = self._find_hitch_exit_button(frame)
-                if exit_hit is not None:
-                    self.act_click(exit_hit, "HitchFloorExit")
-                    self._hitch_floor_exit_pending = True
-                    self._hitch_floor_exit_attempted_at = now
-                else:
-                    self.act_key("esc", "HitchReadyTimeoutExit")
-                    self._hitch_after_exit(now)
-                    self.set_phase(Phase.LOBBY_ROOM, "hitch ready timeout without exit button")
+            if (
+                ready_confirmed_at is not None
+                and now - ready_confirmed_at >= 180.0
+                and not getattr(self, "_hitch_ready_timeout_pending", False)
+            ):
+                self._hitch_ready_timeout_pending = True
+                self._hitch_ready_timeout_leave_at = None
+                print("[L0] hitch 房间已准备等待超过 180 秒，房主未开局，发起安全退房（确认离房后才拉黑）")
                 return LoopAction.Continue
 
             seat_decision = self._hitch_room_seat_decision(frame)
@@ -8249,19 +8384,24 @@ class Mediator:
         return LoopAction.Break
     def _startup_state(self, frame: Frame) -> str:
         """Classify the currently captured taskbar window before L0 actions."""
-        if self._find_stage_page(frame):
-            return "STAGE_SELECT"
-        if self._find_room_start(frame):
-            return "ROOM_WAITING"
         if self._is_game_client_frame(frame):
+            # P0-3：战后界面（存档/传家宝/NPC 广场）先于选关页判定——这些面板
+            # 会携带类选关页锚点，先查选关页会把战后入口误抢占成 STAGE_SELECT。
             post_game = self._post_game_state(frame)
             if post_game in {"ARCHIVE_PANEL", "HEIRLOOM_DIALOG", "NPC_HUB", "POST_VICTORY"}:
                 return post_game
             if post_game == "PAUSED":
                 return "PAUSED"
+            if self._find_stage_page(frame):
+                return "STAGE_SELECT"
             if frame.bgr is not None and float(np.std(frame.bgr)) > 8.0:
                 return "IN_GAME"
+            # 无法证明任何已知界面的 L1 帧（黑帧/静态帧）：UNKNOWN → 零输入
+            return "UNKNOWN"
+        if self._find_stage_page(frame):
             return "STAGE_SELECT"
+        if self._find_room_start(frame):
+            return "ROOM_WAITING"
         if self._find_create_confirm(frame):
             return "CREATE_ROOM"
         if self._auto_room_enabled() and self._find_map_create_room(frame):
@@ -8271,7 +8411,7 @@ class Mediator:
 
     def _tick_l0(self, frame: Frame) -> LoopAction:
         """Handle map → create dialog → room → stage without guessing clicks."""
-        if self.phase in {
+        if not getattr(self, "_awaiting_room_return", False) and self.phase in {
             Phase.BOOT,
             Phase.PREPARE,
             Phase.LOBBY_ROOM,
@@ -8290,11 +8430,15 @@ class Mediator:
                 elif startup == "NPC_HUB":
                     self._post_game_route = "team_wait_exit" if self._team_mode_enabled() else "npc_hub"
                 return LoopAction.Continue
-            startup = self._startup_state(frame)
             if startup == "PAUSED":
                 self.set_phase(Phase.MAIN_LINE, "startup found paused game")
                 return LoopAction.Continue
             if startup == "IN_GAME":
+                # P0-1：ROOM_WAITING 下只有可信局内 HUD 才允许接管到 MAIN_LINE；
+                # 其余（UNKNOWN L1 帧/静态黑帧）零输入等待，不武断进局。
+                if self.phase == Phase.ROOM_WAITING and not self._is_in_game_hud(frame):
+                    print("[L0] ROOM_WAITING 游戏帧缺少可信局内 HUD，零输入等待状态对齐")
+                    return LoopAction.Continue
                 self.set_phase(Phase.MAIN_LINE, "startup found existing game")
                 return LoopAction.Continue
 
@@ -9055,16 +9199,6 @@ class Mediator:
 
         self._missing_window_since = None
 
-        # Target window foreground check: if target HWND lost foreground, pause business inputs
-        # and invalidate cached evidence / OCR / coordinates.
-        if not self.settings.dry_run and isinstance(self.executor, InputExecutor) and frame.hwnd and is_window_valid(frame.hwnd):
-            fg = get_foreground_window()
-            if not foreground_matches_target(frame.hwnd, fg):
-                print(f"[med] target hwnd={frame.hwnd} lost foreground (fg={fg}), invalidating evidence and pausing inputs")
-                self.invalidate_evidence("foreground-lost")
-                if not self._reacquire_target_window(frame.hwnd):
-                    print(f"[med] cannot reacquire foreground for hwnd={frame.hwnd}, waiting next tick")
-                    return LoopAction.Continue
 
         # N2.2：本 tick 动作授权锚点（健康放行后才建立）。
         # 任一成功输入会推进 evidence.gen / _input_seq；act_* 前置断言
