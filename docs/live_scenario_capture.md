@@ -141,11 +141,28 @@ later uninterrupted Natural E2E on the real game.
 
 ## Solo Full-Cycle (GUI 12)
 
-`12 单人完整循环（推荐）` is the primary single-player acceptance lane. It
-starts only from a normal KK state where a room can be created, takes an
-in-memory `normal_farm` settings copy, and runs the existing
+`12 单人完整循环（推荐）` is the primary single-player acceptance lane. Before
+launch it opens a small Harness-only settings panel. Its defaults are read
+from `%LOCALAPPDATA%\\ShuaBao\\user_settings.json` (or
+`config/default_settings.json` when no user file exists), and it writes a
+timestamped copy below `%TEMP%\\shuabao-captures`; it never writes the
+production settings. The panel exposes the normal-farm stage target, skills,
+bonds, optional Heirloom/Time Cave Boss, Secret Realm, and merchant values.
+The copy is forced to `mode_id=normal_farm` and `auto_create_room=true`, then
+runs the existing
 `RuntimeMediator.tick()` path. The Harness has no room/stage/hero/main-line,
 choice, merchant, Boss, post-game, quit, or next-round implementation.
+
+The launcher resolves an OCR Python worker from an explicit
+`SHUABAO_OCR_PYTHON`, the worktree's `.venv-ocr`, or the existing local main
+worktree OCR environment. It exports that value only to the invoked Harness
+process, so an absent OCR venv in the isolated Harness worktree does not cause
+a false preflight failure and production environment/package remains unchanged.
+
+The GUI front door is intentionally limited to preflight, the single-player
+full cycle, the hitch complete-cycle lane, and failure inspection/replay. The
+older probes and the arbitrary-state takeover target remain available to the
+CLI/replay contracts, but are no longer competing primary GUI lanes.
 
 The run records these observation checkpoints: `PRECHECK_OK`, room request and
 confirmation, stage target/start confirmation, game HWND/HUD, auto-task/four

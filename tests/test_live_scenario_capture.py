@@ -623,16 +623,28 @@ def test_solo_bundle_writes_identity_and_required_evidence_layout(tmp_path: Path
     assert (recorder.bundle_dir / "trace").is_dir()
 
 
-def test_live_launcher_registers_solo_and_keeps_existing_targets() -> None:
+def test_live_launcher_focuses_complete_cycle_lanes_and_keeps_target_contracts() -> None:
     launcher = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
-    for label in ("1  启动前检查", "11 蹭车局内续跑", "12 单人完整循环", "13 单人任意状态接管"):
+    for label in ("1  启动前检查", "11 蹭车局内续跑", "12 单人完整循环"):
         assert label in launcher
+    for old_menu in ('Add-MenuButton "2  ', 'Add-MenuButton "3  ', 'Add-MenuButton "4  ', 'Add-MenuButton "5  ', 'Add-MenuButton "6  ', 'Add-MenuButton "7  ', 'Add-MenuButton "8  ', 'Add-MenuButton "13 '):
+        assert old_menu not in launcher
     assert '"solo_full_cycle"' in launcher
     assert '"solo_takeover"' in launcher
     for label in ("Harness SHA:", "Production baseline SHA:", "Runtime source SHA:", "Runtime type: SOURCE_RUNTIME"):
         assert label in launcher
     assert "pyautogui" not in launcher.lower()
     assert "sendinput" not in launcher.lower()
+
+
+def test_live_launcher_uses_isolated_settings_copy_and_local_ocr_runtime() -> None:
+    launcher = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
+    assert "Resolve-OcrPython" in launcher
+    assert "SHUABAO_OCR_PYTHON" in launcher
+    assert "Show-HarnessSettingsPanel" in launcher
+    assert '"live_harness_settings_$stamp.json"' in launcher
+    assert '"--settings", $script:HarnessSettingsPath' in launcher
+    assert "不会写正式 user_settings.json" in launcher
 
 
 def test_live_harness_has_no_direct_game_input_implementation() -> None:
