@@ -22,6 +22,7 @@ from shuabao.vision.ocr_verifier import (
 
 JOIN_ATTEMPTS = 3
 SEARCH_TIMEOUT_S = 120.0
+GO_HOME_CONFIRM_S = 10.0
 SLEEP_RETRY_S = 120.0
 REFRESH_S_MIN = 5.0
 REFRESH_S_MAX = 5.0
@@ -161,6 +162,10 @@ class HitchSearchSM:
         self.refresh_s_max = max(self.refresh_s_min, hi)
         self.continuous = bool(continuous)
         self.join_confirm_timeout_s = 1.0
+        # A navigation click is an input, not a navigation.  If GO_HOME never
+        # produces lobby-page evidence, stop re-sending it and take the
+        # bounded sleep instead of clicking the same dead anchor forever.
+        self.go_home_confirm_timeout_s = GO_HOME_CONFIRM_S
         self.phase = HitchPhase.SEARCH
         self.attempts = 0
         self.search_started_at: float | None = None
@@ -244,6 +249,22 @@ class HitchSearchSM:
         """
         return float(now) >= self.next_allowed_at
 
+    def enter_sleep_retry(self, now: float) -> None:
+        """Back off for one bounded sleep instead of spinning on a dead exit.
+
+        ``tick()`` keeps returning GO_HOME once the operation is exhausted, so
+        a lobby with no reachable navigation anchor would re-decide the same
+        unreachable action every tick.  Sleeping is the state machine's own
+        safe baseline, costs zero input, and lets the next wake start a fresh
+        operation.
+        """
+        self.phase = HitchPhase.SLEEP_RETRY
+        self.sleep_until = float(now) + self.sleep_s
+        self.pending_join = False
+        self.join_clicked_at = None
+        self.go_home_clicked = False
+        self.go_home_clicked_at = None
+
     def note_join_click(self, now: float) -> None:
         self.pending_join = True
         self.join_clicked_at = float(now)
@@ -262,8 +283,12 @@ class HitchSearchSM:
         self.join_clicked_at = None
 
     def note_go_home(self, now: float) -> None:
+        # Keep the first click of a sequence as the confirmation anchor.  If
+        # every re-click reset it, `go_home_confirm_timeout_s` could never
+        # accumulate and the same unconfirmed navigation would repeat forever.
+        if not self.go_home_clicked:
+            self.go_home_clicked_at = float(now)
         self.go_home_clicked = True
-        self.go_home_clicked_at = float(now)
         self.next_allowed_at = float(now) + self.refresh_s_min
 
     def confirm_lobby_home(self) -> None:
@@ -349,8 +374,13 @@ class HitchSearchSM:
             self.go_home_clicked_at = None
             exhausted = False
         if exhausted:
-            if self.go_home_clicked and now < self.next_allowed_at:
-                return self._decision(HitchAction.NONE, "await_lobby_home", now)
+            if self.go_home_clicked:
+                waited = float(now) - float(self.go_home_clicked_at or now)
+                if waited >= self.go_home_confirm_timeout_s:
+                    self.enter_sleep_retry(now)
+                    return self._decision(HitchAction.SLEEP, "go_home_unconfirmed", now)
+                if now < self.next_allowed_at:
+                    return self._decision(HitchAction.NONE, "await_lobby_home", now)
             if now < self.next_allowed_at:
                 return self._decision(HitchAction.NONE, "await_go_home", now)
             return self._decision(HitchAction.GO_HOME, "search_exhausted", now)

@@ -6807,13 +6807,15 @@ class Mediator:
             and int(frame.height * 0.22) <= selected.y <= int(frame.height * 0.30)
         ):
             return True
-        # lobby_search_icon rather than lobby_search_box: the box asset stops
-        # matching as soon as a prefix is typed, so it withdrew this evidence
-        # precisely when the room list was filtered and most trustworthy.
-        for key in ("lobby_refresh", "lobby_search_icon"):
-            hit = self.find_scene(frame, key)
-            if hit is not None and hit.y >= int(frame.height * 0.20):
-                return True
+        # Only room-list-specific controls may stand in for the selected tab.
+        # A search-control locator must not appear here: locating a control is
+        # not proof of which surface owns it, and KK draws the same magnifier
+        # in its always-present top-bar search box.  lobby_search_icon
+        # therefore locates the search control and nothing else; the tab
+        # evidence above and this refresh control carry the surface authority.
+        refresh = self.find_scene(frame, "lobby_refresh")
+        if refresh is not None and refresh.y >= int(frame.height * 0.20):
+            return True
         return False
 
     def _find_hitch_room_list_tab(self, frame: Frame) -> MatchResult | None:
@@ -7449,6 +7451,121 @@ class Mediator:
         print("[L0] follow_team 未在房间，零输入等待（不创房、不 quick join）")
         return LoopAction.Continue
 
+    def _tick_hitch_room_list_tab(self, frame: Frame, now: float) -> LoopAction | None:
+        """Acquire the room-list tab inside the search operation's budget.
+
+        ``None`` hands the tick to ``HitchSearchSM``.  Tab acquisition used to
+        sit outside every budget: a tab that was never recognised, or one that
+        was clicked but never switched, could hold the run on zero input
+        forever.  The click path also never consulted ``next_allowed_at``, so
+        the ``defer_retry()`` beside it throttled nothing.
+        """
+        if self._hitch_sm.search_window_expired(now):
+            # Time cannot switch a tab.  Drop any stale proof and let the
+            # state machine take its bounded way back to a safe baseline.
+            self._hitch_search = None
+            self._hitch_status = "房间列表 Tab 预算耗尽"
+            print("[L0] hitch 房间列表 Tab 预算耗尽，交由状态机回退安全基线")
+            return None
+        tab_unselected = self._find_hitch_room_list_tab(frame)
+        if tab_unselected is None:
+            self._hitch_sm.defer_retry(now)
+            self._hitch_status = "等待可信房间列表 Tab"
+            print("[L0] hitch 未识别房间列表 Tab，零输入等待")
+            return LoopAction.Continue
+        if not self._hitch_sm.input_allowed(now):
+            # A cooldown throttles what we send, never what we look at.
+            self._hitch_status = "房间列表 Tab 重试冷却"
+            print("[L0] hitch 房间列表 Tab 重试冷却中，零输入观察")
+            return LoopAction.Continue
+        if self.act_click(tab_unselected, "HitchSelectTab"):
+            print(
+                "[L0] hitch 点击切换至房间列表 Tab: "
+                f"({tab_unselected.screen_x}, {tab_unselected.screen_y})"
+            )
+        else:
+            print("[L0] hitch 房间列表 Tab 点击被拒绝，零输入等待")
+        # A successful click is an input, not a switched page: cool down either
+        # way and re-prove the surface from a later frame.
+        self._hitch_sm.defer_retry(now)
+        return LoopAction.Continue
+
+    def _tick_hitch_search(self, frame: Frame, now: float) -> LoopAction | None:
+        """Drive one bounded search transaction on a trusted room-list frame.
+
+        ``None`` means the operation's budget is spent and the state machine
+        owns the next decision.
+        """
+        surface = (frame.hwnd, frame.width, frame.height)
+        tx = self._hitch_search
+        if tx is not None and (
+            # A rotated prefix invalidates whatever the box currently proves.
+            tx.prefix != self._hitch_sm.prefix
+            # So does a different window or client size: the proof was about
+            # a surface that is no longer the one in front of us.
+            or (tx.surface is not None and tx.surface != surface)
+        ):
+            tx = self._hitch_search = None
+
+        if tx is not None and tx.awaiting_confirm:
+            if self._hitch_search_prefix_confirmed(frame, tx.prefix, now):
+                tx.confirmed = True
+                self._hitch_rejected_row_ys.clear()
+                print(f"[L0] hitch 搜索词 '{tx.prefix}' 已由搜索框视觉证据确认")
+            elif now - float(tx.typed_at or now) >= self._HITCH_SEARCH_CONFIRM_S:
+                # Elapsed time cannot manufacture visual evidence, so this
+                # never confirms.  Reopen the same operation for a bounded
+                # retype; the durable budget below still owns the way out.
+                tx.reopen_for_retype()
+                self._hitch_sm.defer_retry(now)
+                print(f"[L0] hitch 搜索词 '{tx.prefix}' 未获视觉确认，零输入重试")
+            else:
+                print(f"[L0] hitch 等待搜索词 '{tx.prefix}' 生效确认（零输入）")
+            # 确认成立的当前 tick 仍不扫描房间；下一张新帧才允许使用过滤结果。
+            return LoopAction.Continue
+
+        if tx is None or not tx.confirmed:
+            prefix = self._hitch_sm.prefix
+            if not self._hitch_sm.search_window_expired(now):
+                search_hit = self._find_hitch_search_box(frame)
+                if search_hit is None:
+                    self._hitch_sm.defer_retry(now)
+                    print("[L0] hitch 未识别搜索框，零输入等待")
+                elif not self._hitch_sm.input_allowed(now):
+                    # A cooldown throttles what we send, never what we look
+                    # at; the postcondition above keeps reading every frame.
+                    print(f"[L0] hitch 搜索词 '{prefix}' 重试冷却中，零输入观察")
+                else:
+                    if tx is None:
+                        tx = self._hitch_search = SearchTransaction(
+                            prefix=prefix, opened_at=now, surface=surface,
+                        )
+                    if self.act_search_box(search_hit, prefix, "HitchSearchBox"):
+                        # Stamped after the action returns: search_text()
+                        # spends over a second clicking/clearing/typing on the
+                        # real client and that must not be billed to the
+                        # visual confirmation window.
+                        tx.typed_at = time.time()
+                        print(
+                            f"[L0] hitch 搜索词 '{prefix}' 已输入并回车，等待后置确认: "
+                            f"({search_hit.screen_x}, {search_hit.screen_y})"
+                        )
+                    else:
+                        self._hitch_sm.defer_retry(now)
+                        print(f"[L0] hitch 搜索词 '{prefix}' 输入被拒绝，保持未搜索状态")
+                return LoopAction.Continue
+            # Durable budget spent without a confirmed search.  Drop the
+            # operation and fall through to the state machine, which owns the
+            # bounded way back (GO_HOME -> lobby home -> sleep retry).  The
+            # postcondition is never faked and rows stay ineligible, so an
+            # unfiltered list can still not be joined.
+            self._hitch_search = None
+            self._hitch_status = "搜索预算耗尽"
+            print(f"[L0] hitch 搜索词 '{prefix}' 预算耗尽，交由状态机回退安全基线")
+            return None
+        # A confirmed transaction falls through: the row scan is the caller's.
+        return None
+
     def _tick_lobby_hitch(
         self,
         frame: Frame,
@@ -7663,91 +7780,22 @@ class Mediator:
             self.set_phase(Phase.LOBBY_ROOM, "hitch 大厅主页")
             return LoopAction.Continue
 
-        # 1. 检查是否在房间列表中，若在地图详情等其他 Tab，点击「房间列表 99+」Tab 切换
-        is_in_room_list = self._lobby_room_list_evidence(frame)
-        if not is_in_room_list:
-            tab_unselected = self._find_hitch_room_list_tab(frame)
-            if tab_unselected is None:
-                self._hitch_sm.defer_retry(now)
-                self._hitch_status = "等待可信房间列表 Tab"
-                print("[L0] hitch 未识别房间列表 Tab，零输入等待")
-                return LoopAction.Continue
-            self.act_click(tab_unselected, "HitchSelectTab")
-            print(f"[L0] hitch 点击切换至房间列表 Tab: ({tab_unselected.screen_x}, {tab_unselected.screen_y})")
-            return LoopAction.Continue
-
-        # Everything from here to the row scan is one bounded search
-        # operation.  Arming the clock at the subflow entrance — rather than
-        # inside HitchSearchSM.tick(), which sits behind every early return
-        # below — is what makes the locator/postcondition/retry waits
-        # terminate instead of parking forever on zero input.
+        # The lobby search operation begins at the room-list tab, not at the
+        # search box: acquiring the tab, locating the control, typing and
+        # proving the prefix are stages of one bounded operation, so they
+        # share one budget.  Arming the clock here — rather than inside
+        # HitchSearchSM.tick(), which sits behind every early return in both
+        # stages — is what makes those waits terminate instead of parking
+        # forever on zero input.
         self._hitch_sm.begin_search_window(now)
-        surface = (frame.hwnd, frame.width, frame.height)
-        tx = self._hitch_search
-        if tx is not None and (
-            # A rotated prefix invalidates whatever the box currently proves.
-            tx.prefix != self._hitch_sm.prefix
-            # So does a different window or client size: the proof was about
-            # a surface that is no longer the one in front of us.
-            or (tx.surface is not None and tx.surface != surface)
-        ):
-            tx = self._hitch_search = None
 
-        if tx is not None and tx.awaiting_confirm:
-            if self._hitch_search_prefix_confirmed(frame, tx.prefix, now):
-                tx.confirmed = True
-                self._hitch_rejected_row_ys.clear()
-                print(f"[L0] hitch 搜索词 '{tx.prefix}' 已由搜索框视觉证据确认")
-            elif now - float(tx.typed_at or now) >= self._HITCH_SEARCH_CONFIRM_S:
-                # Elapsed time cannot manufacture visual evidence, so this
-                # never confirms.  Reopen the same operation for a bounded
-                # retype; the durable budget below still owns the way out.
-                tx.reopen_for_retype()
-                self._hitch_sm.defer_retry(now)
-                print(f"[L0] hitch 搜索词 '{tx.prefix}' 未获视觉确认，零输入重试")
-            else:
-                print(f"[L0] hitch 等待搜索词 '{tx.prefix}' 生效确认（零输入）")
-            # 确认成立的当前 tick 仍不扫描房间；下一张新帧才允许使用过滤结果。
-            return LoopAction.Continue
-
-        if tx is None or not tx.confirmed:
-            prefix = self._hitch_sm.prefix
-            if not self._hitch_sm.search_window_expired(now):
-                search_hit = self._find_hitch_search_box(frame)
-                if search_hit is None:
-                    self._hitch_sm.defer_retry(now)
-                    print("[L0] hitch 未识别搜索框，零输入等待")
-                elif not self._hitch_sm.input_allowed(now):
-                    # A cooldown throttles what we send, never what we look
-                    # at; the postcondition above keeps reading every frame.
-                    print(f"[L0] hitch 搜索词 '{prefix}' 重试冷却中，零输入观察")
-                else:
-                    if tx is None:
-                        tx = self._hitch_search = SearchTransaction(
-                            prefix=prefix, opened_at=now, surface=surface,
-                        )
-                    if self.act_search_box(search_hit, prefix, "HitchSearchBox"):
-                        # Stamped after the action returns: search_text()
-                        # spends over a second clicking/clearing/typing on the
-                        # real client and that must not be billed to the
-                        # visual confirmation window.
-                        tx.typed_at = time.time()
-                        print(
-                            f"[L0] hitch 搜索词 '{prefix}' 已输入并回车，等待后置确认: "
-                            f"({search_hit.screen_x}, {search_hit.screen_y})"
-                        )
-                    else:
-                        self._hitch_sm.defer_retry(now)
-                        print(f"[L0] hitch 搜索词 '{prefix}' 输入被拒绝，保持未搜索状态")
-                return LoopAction.Continue
-            # Durable budget spent without a confirmed search.  Drop the
-            # operation and fall through to the state machine, which owns the
-            # bounded way back (GO_HOME -> lobby home -> sleep retry).  The
-            # postcondition is never faked and rows stay ineligible, so an
-            # unfiltered list can still not be joined.
-            self._hitch_search = None
-            self._hitch_status = "搜索预算耗尽"
-            print(f"[L0] hitch 搜索词 '{prefix}' 预算耗尽，交由状态机回退安全基线")
+        # 1. 检查是否在房间列表中，若在地图详情等其他 Tab，点击「房间列表 99+」Tab 切换
+        if not self._lobby_room_list_evidence(frame):
+            action = self._tick_hitch_room_list_tab(frame, now)
+        else:
+            action = self._tick_hitch_search(frame, now)
+        if action is not None:
+            return action
 
         # 3. 扫描房间列表寻找可加入的房间（非 4/4 且 非 游戏中）
         joinable_hit = None
@@ -7825,7 +7873,13 @@ class Mediator:
                 self._hitch_sm.note_go_home(now)
                 print("[L0] hitch GO_HOME 已点击，等待大厅页证据（本 tick 不改写大厅主页）")
             else:
-                print("[L0] hitch GO_HOME 无导航锚点，零输入观察")
+                # GO_HOME is only decided once the operation is exhausted, so
+                # an unreachable anchor here would otherwise re-decide the same
+                # dead action every tick.  Back off instead of spinning; this
+                # sends nothing and a later wake retries from scratch.
+                self._hitch_sm.enter_sleep_retry(now)
+                self._hitch_status = "休眠重试"
+                print("[L0] hitch GO_HOME 无导航锚点，转入有界休眠重试（零输入）")
             self.set_phase(Phase.LOBBY_ROOM, "hitch go_home")
             return LoopAction.Continue
         if decision.action == HitchAction.SLEEP:

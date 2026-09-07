@@ -1,10 +1,11 @@
 """Mandatory offline replay: real production OCR worker on the real incident frames.
 
 The pytest suite replays *recorded* OCR text so it stays deterministic and
-sidecar-free.  This script closes that gap by spawning the actual production
-``ShadowClient`` worker and reading the 20260907 incident frames with it, so
-the tight content crop is proven against the real model rather than against a
-stub.
+sidecar-free.  This script closes that gap by spawning the OCR worker through
+``ProductionShadowClient`` — the same class, runtime resolution and model
+directory the LIVE ``RuntimeMediator`` uses — and reading the 20260907
+incident frames with it, so the tight content crop is proven against the real
+model rather than against a stub.
 
 It re-reads each frame twice:
 
@@ -36,7 +37,7 @@ from shuabao.lobby_hitch import has_prefix_evidence  # noqa: E402
 from shuabao.mediator import Mediator  # noqa: E402
 from shuabao.settings import Settings  # noqa: E402
 from shuabao.vision.capture import Frame  # noqa: E402
-from shuabao.vision.ocr_shadow.client import ShadowClient  # noqa: E402
+from shuabao.vision.ocr_shadow.production import ProductionShadowClient  # noqa: E402
 
 FIXTURES = ROOT / "fixtures" / "lobby_hitch_search_20260907"
 LEGACY = ROOT / "fixtures" / "lobby_hitch_20260814"
@@ -65,14 +66,48 @@ def _frame(path: Path, left: int, top: int) -> Frame:
 def main() -> int:
     med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4"), ROOT)
     try:
-        client = ShadowClient(repo_root=ROOT, timeout_ms=8000, startup_timeout_ms=120000)
+        # Same client, runtime resolution and model directory as LIVE.
+        client = ProductionShadowClient(
+            repo_root=ROOT, timeout_ms=8000, startup_timeout_ms=120000
+        )
     except Exception as exc:  # pragma: no cover - environment failure path
         print(f"BLOCKED: mandatory production OCR replay unavailable ({exc!r})")
         return 2
 
     rows: list[dict] = []
     failures: list[str] = []
+    runtime: dict = {}
     try:
+        # Force startup now so a dead runtime is reported as BLOCKED rather
+        # than as a per-case OCR miss.
+        client.shadow_predict(
+            _frame(CASES[0][1], CASES[0][2], CASES[0][3]),
+            "replay_warmup",
+            {"slot_id": 0, "bbox": list(SHIPPED_BBOX), "kind": "text"},
+            session="hitch_search_replay",
+            panel_bbox=SHIPPED_BBOX,
+        )
+        runtime = {
+            "client": type(client).__name__,
+            "worker_command": [str(v) for v in (client.worker_command or [])],
+            "python_executable": str(client.python_executable),
+            "model_dir": str(client.model_dir),
+            "repo_root": str(client.repo_root),
+            "model_name": client.model_name,
+            "model_hash": client.model_hash,
+            "model_validated": client.model_validated,
+            "is_available": client.is_available,
+            "load_ms": round(float(client.load_ms), 1),
+        }
+        print("\n--- production OCR runtime identity ---")
+        for key, value in runtime.items():
+            print(f"  {key:<18}: {value}")
+        if not client.is_available or not client.model_validated:
+            failures.append(
+                "BLOCKED: mandatory production OCR replay unavailable "
+                f"(is_available={client.is_available} "
+                f"model_validated={client.model_validated})"
+            )
         for label, path, left, top, prefix, must_confirm in CASES:
             frame = _frame(path, left, top)
             med.invalidate_evidence("replay")
@@ -127,7 +162,10 @@ def main() -> int:
 
     out = ROOT / "artifacts" / "hitch_search_ocr_replay.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(rows, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    out.write_text(
+        json.dumps({"runtime": runtime, "cases": rows}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     print(f"\nwrote {out}")
 
     # The shipped band must still misread the incident frame; if it ever stops

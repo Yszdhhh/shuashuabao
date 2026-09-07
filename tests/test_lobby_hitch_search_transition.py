@@ -29,6 +29,7 @@ production OCR worker against the same fixtures with no stub at all.
 from __future__ import annotations
 
 import json
+from functools import lru_cache
 from pathlib import Path
 from unittest.mock import patch
 
@@ -176,6 +177,43 @@ def _tick(med: Mediator, frame: Frame, clock: _Clock, context: str = "LOBBY_ROOM
     med.invalidate_evidence("new frame")
     with patch("shuabao.mediator.time.time", clock):
         return med._tick_lobby_hitch(frame, context)
+
+
+@lru_cache(maxsize=4)
+def _off_room_list_image(kind: str) -> np.ndarray:
+    return _build_off_room_list_image(kind)
+
+
+def _off_room_list_frame(kind: str) -> Frame:
+    """A real lobby frame that is *not* the trusted room list.
+
+    ``kind="unselected"`` keeps the room-list nav tab legible but removes the
+    blue selection, so the tab is clickable while the surface is unproven.
+    ``kind="notab"`` also paints the nav slot out, so the tab is unreachable.
+    Both keep the search magnifier fully visible, which is what makes them
+    useful: a locator must not be able to grant room-list authority.
+    """
+    return Frame(
+        _off_room_list_image(kind), left=CLIENT_LEFT, top=CLIENT_TOP,
+        window_title="KK官方对战平台", hwnd=CLIENT_HWND, role="l0",
+    )
+
+
+def _build_off_room_list_image(kind: str) -> np.ndarray:
+    image = _read(FIXTURES / EMPTY).copy()
+    height, width = image.shape[:2]
+    # Remove the room list's own refresh control (a genuine surface authority).
+    image[270:320, 1010:1090] = 0
+    y0, y1 = int(height * 0.22), int(height * 0.31)
+    x0, x1 = int(width * 0.20), int(width * 0.36)
+    if kind == "unselected":
+        gray = cv2.cvtColor(image[y0:y1, x0:x1], cv2.COLOR_BGR2GRAY)
+        image[y0:y1, x0:x1] = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    elif kind == "notab":
+        image[y0:y1, x0:x1] = 0
+    else:  # pragma: no cover - guards a typo in a test
+        raise AssertionError(kind)
+    return image
 
 
 # --------------------------------------------------------------------------
@@ -607,6 +645,190 @@ def test_refresh_click_alone_does_not_grant_row_eligibility() -> None:
 
     assert med._hitch_prefix_ok() is False
     assert exe.kinds("double_click") == []
+
+
+# --------------------------------------------------------------------------
+# Surface authority is not the locator's job
+# --------------------------------------------------------------------------
+
+def test_search_icon_alone_never_grants_room_list_authority() -> None:
+    """Locating the search control says nothing about which surface owns it."""
+    med, _ = _mediator()
+    for kind in ("unselected", "notab"):
+        frame = _off_room_list_frame(kind)
+        med.invalidate_evidence("new frame")
+        icon = med.find_scene(frame, "lobby_search_icon")
+        assert icon is not None and icon.score >= med.settings.match_threshold, kind
+        med.invalidate_evidence("new frame")
+        assert med._lobby_room_list_evidence(frame) is False, kind
+
+
+def test_real_room_list_frames_still_carry_authority() -> None:
+    med, _ = _mediator()
+    for name in (EMPTY, TYPED, RESULTS):
+        frame = _frame(name)
+        med.invalidate_evidence("new frame")
+        assert med._lobby_room_list_evidence(frame) is True, name
+
+
+def test_an_unproven_surface_never_reaches_the_search_input() -> None:
+    clock = _Clock()
+    med, exe = _mediator(ocr=ReplayShadowClient("4"))
+    for _ in range(5):
+        _tick(med, _off_room_list_frame("unselected"), clock)
+        clock.advance(1.0)
+    assert exe.kinds("search_text") == []
+    assert med._hitch_prefix_ok() is False
+
+
+# --------------------------------------------------------------------------
+# The tab stage shares the search operation's durable budget
+# --------------------------------------------------------------------------
+
+def test_tab_acquisition_arms_the_same_operation_budget() -> None:
+    clock = _Clock()
+    med, _ = _mediator(ocr=ReplayShadowClient("4"))
+    assert med._hitch_sm.search_started_at is None
+    _tick(med, _off_room_list_frame("notab"), clock)
+    # The clock starts at the tab, not at the search box.
+    assert med._hitch_sm.search_started_at == clock.now
+
+
+def test_tab_never_found_does_not_wait_forever() -> None:
+    clock = _Clock()
+    med, exe = _mediator(ocr=ReplayShadowClient("4"))
+    med._hitch_sm.search_timeout_s = 20.0
+    for _ in range(120):
+        _tick(med, _off_room_list_frame("notab"), clock)
+        clock.advance(1.0)
+        if med._hitch_sm.phase is HitchPhase.SLEEP_RETRY:
+            break
+    assert med._hitch_sm.phase is HitchPhase.SLEEP_RETRY
+    assert med._hitch_sm.sleep_until > clock.now
+    assert clock.now - 1000.0 < 80.0
+    # The tab was never reachable, so it was never clicked...
+    assert ("click", 911, 281) not in exe.calls
+    # ...and an unproven surface was never searched or joined.
+    assert exe.kinds("search_text") == []
+    assert exe.kinds("double_click") == []
+    assert med._hitch_prefix_ok() is False
+
+
+def test_unconfirmed_go_home_backs_off_instead_of_reclicking_forever() -> None:
+    """A navigation click is an input, not a navigation."""
+    clock = _Clock()
+    med, exe = _mediator(ocr=ReplayShadowClient("4"))
+    med._hitch_sm.search_timeout_s = 20.0
+    for _ in range(120):
+        _tick(med, _off_room_list_frame("notab"), clock)
+        clock.advance(1.0)
+        if med._hitch_sm.phase is HitchPhase.SLEEP_RETRY:
+            break
+    assert med._hitch_sm.phase is HitchPhase.SLEEP_RETRY
+    # The lobby page never appeared, so GO_HOME must not have been re-sent
+    # on its cooldown indefinitely.
+    assert len(exe.kinds("click")) <= 3, exe.calls
+
+
+def test_tab_click_that_never_switches_is_bounded_not_spun() -> None:
+    clock = _Clock()
+    med, exe = _mediator(ocr=ReplayShadowClient("4"))
+    med._hitch_sm.search_timeout_s = 30.0
+    step = 0
+    for step in range(120):
+        _tick(med, _off_room_list_frame("unselected"), clock)
+        clock.advance(1.0)
+        if med._hitch_sm.phase is HitchPhase.SLEEP_RETRY:
+            break
+    clicks = [c for c in exe.calls if c[0] == "click"]
+    assert clicks, "the tab was reachable, so it should have been tried"
+    # Throttled by the cooldown rather than re-clicked every tick...
+    assert len(clicks) < (step + 1) / 3, (len(clicks), step + 1)
+    # ...and the whole stage stayed inside the operation budget.
+    assert med._hitch_sm.phase is HitchPhase.SLEEP_RETRY
+    assert clock.now - 1000.0 < 90.0
+    assert exe.kinds("search_text") == []
+    assert exe.kinds("double_click") == []
+
+
+def test_tab_retry_honours_the_input_cooldown() -> None:
+    clock = _Clock()
+    med, exe = _mediator(ocr=ReplayShadowClient("4"))
+    frame = _off_room_list_frame("unselected")
+
+    _tick(med, frame, clock)
+    assert len(exe.kinds("click")) == 1
+    cooldown_until = med._hitch_sm.next_allowed_at
+    assert cooldown_until > clock.now
+
+    # Observation keeps running every tick; the click does not.
+    while clock.now + 1.0 < cooldown_until:
+        clock.advance(1.0)
+        _tick(med, frame, clock)
+        assert len(exe.kinds("click")) == 1, clock.now
+
+    # Input is allowed again exactly when the cooldown elapses.
+    clock.advance(1.0)
+    assert clock.now == cooldown_until
+    _tick(med, frame, clock)
+    assert len(exe.kinds("click")) == 2
+
+
+def test_tab_budget_is_not_refilled_by_retrying() -> None:
+    clock = _Clock()
+    med, _ = _mediator(ocr=ReplayShadowClient("4"))
+    frame = _off_room_list_frame("unselected")
+    _tick(med, frame, clock)
+    started = med._hitch_sm.search_started_at
+    for _ in range(25):
+        clock.advance(1.0)
+        _tick(med, frame, clock)
+    assert med._hitch_sm.search_started_at == started
+
+
+def test_tab_budget_exhaustion_never_fakes_the_room_list() -> None:
+    clock = _Clock()
+    med, exe = _mediator(ocr=ReplayShadowClient("4"))
+    med._hitch_sm.search_timeout_s = 15.0
+    for _ in range(50):
+        _tick(med, _off_room_list_frame("notab"), clock)
+        clock.advance(1.0)
+        # At no point may an unproven surface become searchable or joinable.
+        assert med._hitch_prefix_ok() is False
+    assert exe.kinds("search_text") == []
+    assert exe.kinds("double_click") == []
+
+
+def test_full_tab_then_search_then_confirm_then_join_chain() -> None:
+    """The whole operation, starting one stage earlier than before."""
+    clock = _Clock()
+    ocr = ReplayShadowClient("4")
+    med, exe = _mediator(ocr=ocr)
+
+    # Stage 1: the room list is not up yet, so the tab is clicked.
+    _tick(med, _off_room_list_frame("unselected"), clock)
+    assert len(exe.kinds("click")) == 1
+    assert exe.kinds("search_text") == []
+
+    # Stage 2: the tab switched; the search control is located and typed.
+    # The tab click armed a cooldown, so wait it out exactly as production does.
+    clock.advance(med._hitch_sm.refresh_s_min + 1.0)
+    _tick(med, _frame(EMPTY), clock)
+    assert len(exe.kinds("search_text")) == 1
+
+    # Stage 3: the typed box proves the prefix through the real crop.
+    clock.advance(1.0)
+    _tick(med, _frame(TYPED), clock)
+    assert med._hitch_prefix_ok() is True
+
+    # Stage 4: a fresh result frame unlocks the row scan and the join.
+    clock.advance(1.0)
+    _tick(med, _frame(RESULTS), clock)
+    assert len(exe.kinds("double_click")) == 1
+    assert med._hitch_sm.pending_join is True
+
+    # One budget covered all four stages.
+    assert med._hitch_sm.search_started_at == 1000.0
 
 
 # --------------------------------------------------------------------------
