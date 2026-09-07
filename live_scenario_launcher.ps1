@@ -1,9 +1,11 @@
 ﻿# Thin Windows menu for the existing tools/live_scenario_capture.py only.
 # It discovers paths and forwards arguments; production logic stays in the tool.
 
+param([switch]$SettingsPanelSmokeTest)
+
 $ErrorActionPreference = "Stop"
 
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+if (-not $SettingsPanelSmokeTest -and -not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $scriptPath = if ($PSCommandPath) { $PSCommandPath } else { Join-Path $PSScriptRoot "live_scenario_launcher.ps1" }
     Start-Process powershell.exe -ArgumentList "-NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -File `"$scriptPath`"" -WorkingDirectory $PSScriptRoot -Verb RunAs
     exit
@@ -111,6 +113,8 @@ function Resolve-OcrPython {
 }
 
 function Show-HarnessSettingsPanel {
+    param([switch]$ConstructOnly)
+
     $source = if ($script:OperatorSettingsPath) { $script:OperatorSettingsPath } else { Join-Path $RepoRoot "config\default_settings.json" }
     $raw = if (Test-Path -LiteralPath $source -PathType Leaf) {
         try {
@@ -141,7 +145,7 @@ function Show-HarnessSettingsPanel {
     $form.TopMost = $true
     $note = New-Object System.Windows.Forms.Label
     $note.Text = "来源：$source`r`n仅生成 %TEMP%\shuabao-captures\live_harness_settings_<timestamp>.json；不会写正式 user_settings.json。"
-    $note.AutoSize = $false; $note.Size = New-Object System.Drawing.Size(510, 48); $note.Location = New-Object System.Drawing.Point(20, 15)
+    $note.AutoSize = $false; $note.Size = New-Object System.Drawing.Size(510, 48); $note.Location = [System.Drawing.Point]::new(20, 15)
     $note.ForeColor = [System.Drawing.Color]::DimGray; $form.Controls.Add($note)
     $fields = @(
         @{ Label = "目标关卡（逗号分隔）"; Name = "stage_targets"; Value = (Csv-Value "stage_targets") },
@@ -154,17 +158,17 @@ function Show-HarnessSettingsPanel {
     $y = 74
     foreach ($field in $fields) {
         $label = New-Object System.Windows.Forms.Label
-        $label.Text = $field.Label; $label.AutoSize = $true; $label.Location = New-Object System.Drawing.Point(20, $y + 4); $form.Controls.Add($label)
+        $label.Text = $field.Label; $label.AutoSize = $true; $label.Location = [System.Drawing.Point]::new(20, ($y + 4)); $form.Controls.Add($label)
         $box = New-Object System.Windows.Forms.TextBox
-        $box.Text = [string]$field.Value; $box.Size = New-Object System.Drawing.Size(285, 28); $box.Location = New-Object System.Drawing.Point(230, $y)
+        $box.Text = [string]$field.Value; $box.Size = New-Object System.Drawing.Size(285, 28); $box.Location = [System.Drawing.Point]::new(230, $y)
         $controls[$field.Name] = $box; $form.Controls.Add($box); $y += 42
     }
     $secret = New-Object System.Windows.Forms.CheckBox
-    $secret.Text = "自动秘境"; $secret.Checked = [bool](Value-OrDefault "auto_secret_realm" $false); $secret.Location = New-Object System.Drawing.Point(20, $y); $form.Controls.Add($secret)
+    $secret.Text = "自动秘境"; $secret.Checked = [bool](Value-OrDefault "auto_secret_realm" $false); $secret.Location = [System.Drawing.Point]::new(20, $y); $form.Controls.Add($secret)
     $merchant = New-Object System.Windows.Forms.CheckBox
-    $merchant.Text = "黑商"; $merchant.Checked = [bool](Value-OrDefault "merchant_enabled" $false); $merchant.Location = New-Object System.Drawing.Point(140, $y); $form.Controls.Add($merchant)
+    $merchant.Text = "黑商"; $merchant.Checked = [bool](Value-OrDefault "merchant_enabled" $false); $merchant.Location = [System.Drawing.Point]::new(140, $y); $form.Controls.Add($merchant)
     $start = New-Object System.Windows.Forms.Button
-    $start.Text = "保存临时设置并开始"; $start.Size = New-Object System.Drawing.Size(220, 38); $start.Location = New-Object System.Drawing.Point(295, $y + 35)
+    $start.Text = "保存临时设置并开始"; $start.Size = New-Object System.Drawing.Size(220, 38); $start.Location = [System.Drawing.Point]::new(295, ($y + 35))
     $start.Add_Click({
         $skills = @($controls["skills"].Text -split "[,;\s]+" | Where-Object { $_ })
         if ($skills.Count -gt 4) { [System.Windows.Forms.MessageBox]::Show("技能最多 4 个。", "临时 Harness 设置") | Out-Null; return }
@@ -186,8 +190,12 @@ function Show-HarnessSettingsPanel {
     })
     $form.Controls.Add($start)
     $cancel = New-Object System.Windows.Forms.Button
-    $cancel.Text = "取消"; $cancel.Size = New-Object System.Drawing.Size(90, 38); $cancel.Location = New-Object System.Drawing.Point(190, $y + 35)
+    $cancel.Text = "取消"; $cancel.Size = New-Object System.Drawing.Size(90, 38); $cancel.Location = [System.Drawing.Point]::new(190, ($y + 35))
     $cancel.Add_Click({ $form.Close() }); $form.Controls.Add($cancel)
+    if ($ConstructOnly) {
+        $form.Dispose()
+        return $true
+    }
     return $form.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK
 }
 
@@ -416,6 +424,14 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
+if ($SettingsPanelSmokeTest) {
+    if (Show-HarnessSettingsPanel -ConstructOnly) {
+        Write-Host "Settings panel construction: PASS"
+        exit 0
+    }
+    exit 1
+}
+
 $script:MenuForm = New-Object System.Windows.Forms.Form
 $script:MenuForm.Text = "刷刷宝 · Live 实机测试"
 $script:MenuForm.StartPosition = "CenterScreen"
@@ -428,14 +444,14 @@ $title = New-Object System.Windows.Forms.Label
 $title.Text = "刷刷宝 Live 实机测试"
 $title.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 18, [System.Drawing.FontStyle]::Bold)
 $title.AutoSize = $true
-$title.Location = New-Object System.Drawing.Point(22, 18)
+$title.Location = [System.Drawing.Point]::new(22, 18)
 $script:MenuForm.Controls.Add($title)
 
 $status = New-Object System.Windows.Forms.Label
 $status.Text = "核心验收仅保留两条完整链路：单人完整循环与蹭车局内续跑。`r`n12 会先打开临时设置面板；测试开始后放开鼠标，紧急停止用 Shift+F12；p/f/m 只用于留证据。"
 $status.AutoSize = $false
 $status.Size = New-Object System.Drawing.Size(700, 58)
-$status.Location = New-Object System.Drawing.Point(24, 60)
+$status.Location = [System.Drawing.Point]::new(24, 60)
 $status.ForeColor = [System.Drawing.Color]::FromArgb(90, 60, 0)
 $script:MenuForm.Controls.Add($status)
 
@@ -443,7 +459,7 @@ $paths = New-Object System.Windows.Forms.Label
 $paths.Text = "Harness SHA: $($script:HarnessIdentity.Branch) @ $($script:HarnessIdentity.Sha)`r`nProduction baseline SHA: $script:ProductionBaselineSha`r`nRuntime source SHA: $($script:HarnessIdentity.Sha)  |  Runtime type: SOURCE_RUNTIME`r`nProduction package/EXE: $script:AutomationExe`r`n证据目录: $script:CaptureRoot  |  单人: $script:SoloCaptureRoot  |  mode_id: normal_farm"
 $paths.AutoSize = $false
 $paths.Size = New-Object System.Drawing.Size(700, 96)
-$paths.Location = New-Object System.Drawing.Point(24, 118)
+$paths.Location = [System.Drawing.Point]::new(24, 118)
 $paths.ForeColor = [System.Drawing.Color]::DimGray
 $script:MenuForm.Controls.Add($paths)
 
@@ -458,7 +474,7 @@ function Add-MenuButton {
     $button = New-Object System.Windows.Forms.Button
     $button.Text = $Text
     $button.Size = New-Object System.Drawing.Size(340, 76)
-    $button.Location = New-Object System.Drawing.Point($Left, $Top)
+    $button.Location = [System.Drawing.Point]::new($Left, $Top)
     $button.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $button.Padding = New-Object System.Windows.Forms.Padding(12, 0, 6, 0)
     $button.BackColor = $Color
@@ -495,7 +511,7 @@ Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
 $exitButton.Size = New-Object System.Drawing.Size(706, 44)
-$exitButton.Location = New-Object System.Drawing.Point(24, 500)
+$exitButton.Location = [System.Drawing.Point]::new(24, 500)
 $exitButton.Add_Click({ $script:MenuForm.Close() })
 $script:MenuForm.Controls.Add($exitButton)
 
@@ -503,7 +519,7 @@ $footer = New-Object System.Windows.Forms.Label
 $footer.Text = "注意：不要同时启动普通刷刷宝。点击测试按钮后，本窗口暂时隐藏，黑色日志窗口显示运行状态；测试结束后按钮菜单自动回来。"
 $footer.AutoSize = $false
 $footer.Size = New-Object System.Drawing.Size(700, 48)
-$footer.Location = New-Object System.Drawing.Point(24, 560)
+$footer.Location = [System.Drawing.Point]::new(24, 560)
 $footer.ForeColor = [System.Drawing.Color]::Firebrick
 $script:MenuForm.Controls.Add($footer)
 
