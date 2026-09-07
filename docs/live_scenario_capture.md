@@ -139,9 +139,9 @@ python tools/live_scenario_capture.py reproduce `
 Frozen replay is offline regression evidence only. Formal Live PASS remains a
 later uninterrupted Natural E2E on the real game.
 
-## Solo Full-Cycle (GUI 12)
+## Solo In-Game Chain (GUI 12)
 
-`12 单人完整循环（推荐）` is the primary single-player acceptance lane. It reads
+`12 单人局内完整链路（推荐）` is the primary single-player acceptance lane. It reads
 the settings already saved by the production dashboard from
 `%LOCALAPPDATA%\\ShuaBao\\user_settings.json` (or
 `config/default_settings.json` when no user file exists) and immediately
@@ -150,39 +150,47 @@ re-entry is required and it never writes production settings. The optional
 `单人临时设置` button exposes the normal-farm stage target, skills, bonds,
 optional Heirloom/Time Cave Boss, Secret Realm, and merchant values. An
 override applies to the next run once; later runs return to the current
-dashboard settings. Every copy is forced to `mode_id=normal_farm` and
-`auto_create_room=true`, then runs the existing
-`RuntimeMediator.tick()` path. The Harness has no room/stage/hero/main-line,
-choice, merchant, Boss, post-game, quit, or next-round implementation.
+dashboard settings. The operator must leave the game in the real Stage Select
+surface; the Harness copy is used for one isolated session, sets
+`mode_id=normal_farm`, disables the create-room fallback for this lane, and
+runs the existing `RuntimeMediator.tick()` path. The Harness has no
+room/stage/hero/main-line, choice, merchant, Boss, post-game, quit, or
+next-round implementation.
 
 The launcher resolves an OCR Python worker and a complete OCR model directory
 from explicit environment variables, the Harness worktree, or the existing
 local main worktree. It exports those values only to the invoked Harness
 process, so an intentionally model-light Harness worktree does not cause a
 false `model_missing` preflight failure and the production environment/package
-remains unchanged. Solo preflight starts from a real KK L0 window because the
-production runtime itself owns BOOT alignment and later game-HWND acquisition.
+remains unchanged. The primary solo GUI lane starts from a real game L1
+window whose production classifier confirms `STAGE_SELECT`; it does not
+activate or hold a KK room window. The original `solo_full_cycle` KK L0
+contract remains available to CLI/replay acceptance when the room chain is
+needed explicitly.
 
 The GUI front door is intentionally limited to preflight, the single-player
-full cycle, the hitch complete-cycle lane, and failure inspection/replay. The
-older probes and the arbitrary-state takeover target remain available to the
-CLI/replay contracts, but are no longer competing primary GUI lanes.
+in-game chain, the hitch in-game continuation lane, and failure
+inspection/replay. The older narrow probes and arbitrary-state takeover target
+remain available to the CLI/replay contracts, but are no longer competing
+primary GUI lanes.
 
-The run records these observation checkpoints: `PRECHECK_OK`, room request and
-confirmation, stage target/start confirmation, game HWND/HUD, auto-task/four
-challenge observation, L1 activity, victory/continue/post-game route, return
-to baseline, and next-round request/confirmation. Random merchant or choice
-panels remain `NOT_OBSERVED`; they cannot fail an otherwise valid run.
+The in-game lane records `PRECHECK_OK`, production Stage Select/start
+confirmation, game HWND/HUD, auto-task/four-challenge observation, L1
+activity, and post-game route progress. Random merchant or choice panels remain
+`NOT_OBSERVED`; they cannot fail an otherwise valid run. The original
+`solo_full_cycle` contract still records the separate KK room/next-round
+checkpoints when explicitly invoked from the CLI.
 
-Natural E2E PASS is issued only when the first production round completed,
-returned to a real L0 surface (`room_start` or `map_create_room` production
-classifier), then production made a next-round request and a different, fresh
-frame is classified by production as a real Stage surface, Hero setup, or HUD.
-Internal phase, a valid frame, a successful click, room-start click,
-stage-start click, or generic frame mutation is never enough. `MANUAL_INTERVENTION`,
-production `ERROR`, or an input observed on `UNKNOWN` disqualifies the run.
+For GUI 12, Natural E2E PASS requires a production-classified Stage Select,
+verified startChallenge/Hero/HUD, production L1 evidence, and a classified
+post-game route. For the explicit `solo_full_cycle` CLI lane, PASS additionally
+requires the separate real-L0 return and fresh next-round Stage/Hero/HUD
+postcondition. Internal phase, a valid frame, a successful click, room-start
+click, stage-start click, or generic frame mutation is never enough.
+`MANUAL_INTERVENTION`, production `ERROR`, or an input observed on `UNKNOWN`
+disqualifies either lane.
 
-Every run is written below `%TEMP%\shuabao-captures\solo_full_cycle_<timestamp>`
+Every run is written below `%TEMP%\shuabao-captures\solo_ingame_chain_<timestamp>`
 and includes `manifest.json`, `timeline.jsonl`, `actions.jsonl`, `summary.md`,
 `screens/` (event-driven frames), `trace/trace.jsonl`, incident references,
 and a read-only `config_snapshot.json`. The manifest and GUI show the harness
@@ -191,9 +199,9 @@ hash. `SOURCE_RUNTIME` means the harness instantiates RuntimeMediator from the
 checked-out source; a selected EXE is recorded as package identity only and is
 not confused with the executing runtime.
 
-## Solo arbitrary-state takeover (GUI 13)
+## Solo arbitrary-state takeover (CLI contract)
 
-GUI 13 offers one selector for `Stage Select`, `Mid-game HUD`,
+The CLI contract offers one selector for `Stage Select`, `Mid-game HUD`,
 `Skill/Bond/Treasure panel`, `Pause`, `Victory`, `Archive Panel`, `Heirloom`,
 and `NPC Hub`. The selected value is operator-provided Ground Truth metadata.
 The tool starts the normal production tick from `BOOT` and does not force a

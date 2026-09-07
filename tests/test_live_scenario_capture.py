@@ -35,7 +35,9 @@ from tools.live_scenario_capture import (
     BundleRecorder,
     RecordingInputExecutor,
     SOLO_FULL_CYCLE_CHECKPOINTS,
+    SOLO_INGAME_CHECKPOINTS,
     SoloFullCycleObserver,
+    SoloIngameChainObserver,
     SUPPORTED_TARGETS,
     TARGET_CONTRACT_FIELDS,
     TARGET_CONTRACTS,
@@ -440,6 +442,7 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
         "lobby_search",
         "hitch_runtime",
         "solo_full_cycle",
+        "solo_ingame_chain",
         "solo_takeover",
     )
     for contract in TARGET_CONTRACTS.values():
@@ -461,6 +464,7 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["lobby_search"]["production_readiness"] == "CONDITIONAL"
     assert by_target["hitch_runtime"]["production_readiness"] == "CONDITIONAL"
     assert by_target["solo_full_cycle"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["solo_ingame_chain"]["production_readiness"] == "CONDITIONAL"
     assert by_target["solo_takeover"]["production_readiness"] == "CONDITIONAL"
     assert TARGET_CONTRACTS["lobby_search"]["max_probe_time_s"] == 90.0
     assert by_target["time_cave"]["ground_truth_only"] is False
@@ -469,6 +473,7 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["lobby_search"]["ground_truth_only"] is False
     assert by_target["hitch_runtime"]["ground_truth_only"] is False
     assert by_target["solo_full_cycle"]["ground_truth_only"] is False
+    assert by_target["solo_ingame_chain"]["ground_truth_only"] is False
     assert any(
         route["route"] == "black_merchant_wood" and route["readiness"] == "CONDITIONAL"
         for route in by_target["black_merchant"]["production_routes"]
@@ -595,6 +600,35 @@ def test_solo_full_cycle_starts_from_boot() -> None:
     assert _initial_phase_for_target("solo_full_cycle") is Phase.BOOT
 
 
+def test_solo_ingame_chain_starts_from_stage_select_and_uses_l1_window() -> None:
+    assert _initial_phase_for_target("solo_ingame_chain") is Phase.STAGE_SELECT
+    assert _initial_phase_for_target("hitch_runtime") is Phase.MAIN_LINE
+    with patch.object(Settings, "load_official", return_value=Settings(auto_create_room=True)):
+        settings = live_capture._prepare_settings(None, "solo_ingame_chain", live_input=True)
+    assert settings.mode_id == "normal_farm"
+    assert settings.auto_create_room is False
+
+
+def test_solo_ingame_preflight_requires_production_stage_surface() -> None:
+    frame = Frame(
+        np.full((120, 160, 3), 127, dtype=np.uint8),
+        window_title="英雄三国",
+        hwnd=10003,
+        role="l1",
+    )
+    med = SimpleNamespace(_find_stage_page=lambda current: current is frame)
+    assert live_capture._start_surface_preflight(med, "solo_ingame_chain", frame)["status"] == "READY"
+    blocked = live_capture._start_surface_preflight(med, "solo_ingame_chain", None)
+    assert blocked["status"] == "BLOCKED"
+
+
+def test_solo_ingame_observer_requires_physical_stage_hud_and_postgame_evidence() -> None:
+    observer = SoloIngameChainObserver()
+    observer.precheck(True, {"status": "READY"})
+    assert not observer.is_pass
+    assert set(observer.checkpoints) == set(SOLO_INGAME_CHECKPOINTS)
+
+
 def test_solo_full_cycle_preflight_accepts_l0_platform_window() -> None:
     frame = Frame(
         np.full((120, 160, 3), 127, dtype=np.uint8),
@@ -609,6 +643,23 @@ def test_solo_full_cycle_preflight_accepts_l0_platform_window() -> None:
     assert result is frame
     assert evidence["status"] == "READY"
     capture_call.assert_called_once_with("", role="l0", activate=True, allow_fallback=True)
+
+
+def test_solo_ingame_preflight_selects_l1_game_window_not_kk_room() -> None:
+    frame = Frame(
+        np.full((120, 160, 3), 127, dtype=np.uint8),
+        window_title="英雄三国",
+        hwnd=10004,
+        role="l1",
+    )
+    with patch.object(live_capture, "capture", return_value=frame) as capture_call:
+        result, evidence = live_capture._window_preflight(
+            Settings(window_title_contains="英雄三国"), target="solo_ingame_chain",
+        )
+    assert result is frame
+    assert evidence["status"] == "READY"
+    assert evidence["title"] == "英雄三国"
+    capture_call.assert_called_once_with("英雄三国", role="l1", activate=True, allow_fallback=True)
 
 
 def test_solo_manual_intervention_and_click_success_cannot_make_natural_pass() -> None:
@@ -639,13 +690,27 @@ def test_solo_bundle_writes_identity_and_required_evidence_layout(tmp_path: Path
     assert (recorder.bundle_dir / "trace").is_dir()
 
 
+def test_solo_ingame_bundle_declares_stage_select_start(tmp_path: Path) -> None:
+    recorder = BundleRecorder(
+        tmp_path / "solo_ingame_chain_sample", repo_root=ROOT, target="solo_ingame_chain",
+        settings=Settings(dry_run=True, ocr_mode="off", mode_id="normal_farm"),
+        initial_phase="STAGE_SELECT", execution_mode="mediator_tick",
+    )
+    recorder.finalize()
+    manifest = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["target"] == "solo_ingame_chain"
+    assert manifest["initial_phase"] == "STAGE_SELECT"
+    assert manifest["solo_ingame_chain"]["natural_e2e"] == "PENDING_OR_FAILED"
+
+
 def test_live_launcher_focuses_complete_cycle_lanes_and_keeps_target_contracts() -> None:
     launcher = (ROOT / "live_scenario_launcher.ps1").read_text(encoding="utf-8")
-    for label in ("1  启动前检查", "11 蹭车局内续跑", "12 单人完整循环"):
+    for label in ("1  启动前检查", "11 蹭车局内续跑", "12 单人局内完整链路"):
         assert label in launcher
     for old_menu in ('Add-MenuButton "2  ', 'Add-MenuButton "3  ', 'Add-MenuButton "4  ', 'Add-MenuButton "5  ', 'Add-MenuButton "6  ', 'Add-MenuButton "7  ', 'Add-MenuButton "8  ', 'Add-MenuButton "13 '):
         assert old_menu not in launcher
-    assert '"solo_full_cycle"' in launcher
+    assert '"solo_ingame_chain"' in launcher
+    assert '"solo_full_cycle"' not in launcher
     assert '"solo_takeover"' in launcher
     for label in ("Harness SHA:", "Production baseline SHA:", "Runtime source SHA:", "Runtime type: SOURCE_RUNTIME"):
         assert label in launcher
@@ -668,9 +733,10 @@ def test_live_launcher_uses_isolated_settings_copy_and_local_ocr_runtime() -> No
     assert '"live_harness_settings_$stamp.json"' in launcher
     assert '"--settings", $settingsPath' in launcher
     assert "不会写正式 user_settings.json" in launcher
-    solo = launcher.split("function Invoke-SoloFullCycleCapture", 1)[1].split("function Invoke-SoloSettingsPanel", 1)[0]
+    solo = launcher.split("function Invoke-SoloIngameChainCapture", 1)[1].split("function Invoke-SoloSettingsPanel", 1)[0]
     assert "New-DashboardSettingsSnapshot" in solo
     assert "Show-HarnessSettingsPanel" not in solo
+    assert '"--target", "solo_ingame_chain"' in solo
 
 
 def test_live_harness_has_no_direct_game_input_implementation() -> None:

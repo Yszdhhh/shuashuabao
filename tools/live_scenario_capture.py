@@ -247,16 +247,16 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "hitch_runtime": {
         "handler": "tick",
         "call": "frame",
-        "start_condition": "整条蹭车链路：从大厅搜房、进入房间准备、到局内压力转移与战后 Boss。",
-        "production_entry": "Mediator.tick()，整链全自动运转。",
+        "start_condition": "游戏窗口已经处于已确认的蹭车局内 HUD，或 production classifier 已确认的战后存档/传家宝页面；不再从 KK 大厅/房间窗口启动。",
+        "production_entry": "Mediator.tick()，从局内接管后继续压力转移、自动任务、四挑战与既有战后 Boss 路由。",
         "expected_steps": ("HUD", "AUTO_TASK", "FOUR_CHALLENGES", "POSTGAME_ARCHIVE", "BOSS_FALLBACK"),
         "success_postcondition": "自动任务、挑战和战后 Boss 均须各自通过既有视觉后置条件；单次输入不算成功。",
         "fail_condition": "输入被拒绝、既有生产 handler 进入 ERROR，或页面缺少既有分类/模板证据。",
-        "blocked_condition": "捕获无效、不是已确认局内 HUD或已分类战后页面时，零输入等待或由既有 Fail-Closed 收口。",
+        "blocked_condition": "捕获无效、启动帧不是已确认局内 HUD 或 production 分类的战后页面时，BLOCKED 且不发业务输入。",
         "max_probe_time_s": 3600.0,
         "natural_e2e_eligible": "仅连续真机 Mediator.tick() 链、无人工干预、并由各生产后置条件确认时有资格。",
         "bundle_replay": "沿用现有事件帧、ReplayCaseLoader 和 FakeInputExecutor；不创建另一套蹭车局内状态机。",
-        "runbook_manual": "可从当前任意已确认局内 HUD 或已打开的存档/传家宝页面开始；紧急停止用 Shift+F12。",
+        "runbook_manual": "把游戏停在已确认局内 HUD，或已经打开的存档/传家宝页面；不要停在 KK 大厅/房间窗口。紧急停止用 Shift+F12。",
         "runbook_hands_off": "启动后不要手动点压力转移、自动任务、挑战、存档卡或 Boss。",
         "runbook_pass": "记录实际动作和各自的真实后置证据；不得用 click success 代替。",
         "runbook_manual_intervention": "需要手动推进页面时先标记 FAIL，再标 MANUAL_INTERVENTION。",
@@ -281,6 +281,28 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "runbook_hands_off": "启动后不要点击 KK、游戏、弹窗或切换窗口；Shift+F12 仅作紧急停止，p/f/m 仅记录证据。",
         "runbook_pass": "只有 NEXT_ROUND_CONFIRMED 后才会标记 Natural E2E PASS；黑商或特定随机面板未出现只标 NOT_OBSERVED。",
         "runbook_manual_intervention": "一旦人工推进生产页面，记录 MANUAL_INTERVENTION；保留证据但本次永远不能是 Natural E2E PASS。",
+    },
+    "solo_ingame_chain": {
+        "handler": "tick",
+        "call": "frame",
+        "start_condition": "英雄三国游戏窗口已经打开并停在游戏内选关（Stage Select）页面；Harness 只接管选关之后的 startChallenge、Hero setup、MAIN_LINE、局尾与既有秘境/Boss 路由。",
+        "production_entry": "RuntimeMediator.tick() / Mediator.tick()，初始 phase=STAGE_SELECT；Harness 不选择房间、不激活 KK 房间窗口、不复制局内决策。",
+        "expected_steps": (
+            "STAGE_SELECT_CONFIRMED", "STAGE_TARGET_VISIBLE", "STAGE_SELECTED_CONFIRMED",
+            "STAGE_START_REQUEST", "STAGE_START_CONFIRMED", "GAME_HWND_CONFIRMED",
+            "INGAME_HUD_CONFIRMED", "L1_CYCLE_ACTIVE", "POSTGAME_SURFACE_CLASSIFIED",
+            "POSTGAME_ROUTE_PROGRESS",
+        ),
+        "success_postcondition": "生产 classifier 先确认真实 Stage Select，再确认 startChallenge 后的 Hero/HUD；随后局内循环和战后既有秘境/Boss/存档/传家宝路由由真实 Mediator.tick() 继续。羁绊、技能、宝物、进化、装备、拾取、黑商等随机或条件事件未出现只记 NOT_OBSERVED，不以 click success 或 phase-only 计 PASS。",
+        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入、窗口 ownership guard 拒绝输入、Stage/Hero/HUD 业务后置未确认，或战后路由进入错误状态。",
+        "blocked_condition": "启动帧不是可由 production classifier 确认的游戏内 Stage Select、游戏窗口/OCR/RuntimeMediator/权限不可用；BLOCKED 时不发出业务输入。",
+        "max_probe_time_s": 3600.0,
+        "natural_e2e_eligible": "只有从真实 Stage Select 开始，连续 mediator_tick 完成选关进局、真实 HUD/L1、战后页面及既有路线进展，且无 ERROR/UNKNOWN 输入、FAIL 或 MANUAL_INTERVENTION 时才有资格。",
+        "bundle_replay": "沿用事件驱动 capture、trace 和 ReplayCaseLoader；metadata 只保存生产 classifier 观察，不复制 startChallenge、MAIN_LINE 或战后 FSM。",
+        "runbook_manual": "先把英雄三国置于游戏内选关页面，不要停在 KK 房间/大厅；确认正式看板配置已加载，尤其关卡、技能、羁绊、秘境和 Boss 选项。",
+        "runbook_hands_off": "点击按钮后不要再点关卡、英雄、羁绊/技能/宝物、装备、进化、黑商、秘境或 Boss 页面；紧急停止仍用 Shift+F12，p/f/m 只记录证据。",
+        "runbook_pass": "必须先有真实 Stage Select → Hero/HUD → L1，再有战后页面及既有路线后置证据；随机黑商或特定面板未自然出现只记 NOT_OBSERVED。",
+        "runbook_manual_intervention": "若需要人工越过页面或遮挡，先记录 FAIL；人工操作后记录 MANUAL_INTERVENTION，本次不能作为无人值守 PASS。",
     },
     "solo_takeover": {
         "handler": "tick",
@@ -388,6 +410,16 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
         ),
         "ground_truth_only": False,
     },
+    "solo_ingame_chain": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "从游戏内 Stage Select 接管真实 normal_farm；覆盖生产 startChallenge、Hero setup、MAIN_LINE、局尾与既有秘境/Boss/存档/传家宝路线，不触碰 KK 创房窗口。",
+        "routes": (
+            {"route": "solo_ingame_stage_to_hud", "readiness": "CONDITIONAL"},
+            {"route": "solo_ingame_l1_policy_handlers", "readiness": "CONDITIONAL"},
+            {"route": "solo_ingame_postgame_secret_or_boss", "readiness": "CONDITIONAL"},
+        ),
+        "ground_truth_only": False,
+    },
     "solo_takeover": {
         "production_readiness": "CONDITIONAL",
         "scope": "单人任意状态接管的验收入口；指定起点仅作为 Ground Truth metadata，执行始终是 production Mediator.tick()。",
@@ -451,6 +483,7 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
         },
         "hitch_runtime": None,  # Whole-loop runtime target: do not restrict reasons
         "solo_full_cycle": None,  # Whole-loop runtime target: production remains sole authority
+        "solo_ingame_chain": None,  # Whole-loop runtime target: production remains sole authority
         "solo_takeover": None,  # Whole-loop runtime target: production remains sole authority
     }.get(target)
 
@@ -651,6 +684,184 @@ class SoloFullCycleObserver:
             "checkpoints": _jsonable(self.checkpoints),
             "optional_events": _jsonable(self.optional_events),
             "natural_e2e": "PASS" if self.is_pass else ("DISQUALIFIED_MANUAL_INTERVENTION" if self.manual_intervention_seen else "PENDING_OR_FAILED"),
+            "failure_reason": self.failed_reason,
+        }
+
+
+SOLO_INGAME_CHECKPOINTS = (
+    "PRECHECK_OK",
+    "STAGE_SELECT_CONFIRMED",
+    "STAGE_TARGET_VISIBLE",
+    "STAGE_SELECTED_CONFIRMED",
+    "STAGE_START_REQUEST",
+    "STAGE_START_CONFIRMED",
+    "GAME_HWND_CONFIRMED",
+    "INGAME_HUD_CONFIRMED",
+    "AUTO_TASK_CONFIRMED",
+    "CHALLENGE_STATE_OBSERVED",
+    "L1_CYCLE_ACTIVE",
+    "POSTGAME_SURFACE_CLASSIFIED",
+    "POSTGAME_ROUTE_PROGRESS",
+)
+
+
+class SoloIngameChainObserver:
+    """Observe the production stage-to-post-game chain without adding FSM logic."""
+
+    def __init__(self) -> None:
+        self._observation_no = 0
+        self._postgame_seen = False
+        self.failed_reason: str | None = None
+        self.manual_intervention_seen = False
+        self.checkpoints = {
+            name: {"status": "NOT_OBSERVED"}
+            for name in SOLO_INGAME_CHECKPOINTS
+        }
+        self.optional_events = {
+            name: {"status": "NOT_OBSERVED"}
+            for name in SOLO_OPTIONAL_EVENTS
+        }
+
+    def _pass(self, name: str, *, evidence: dict[str, Any]) -> None:
+        if self.checkpoints[name]["status"] == "NOT_OBSERVED":
+            self.checkpoints[name] = {"status": "PASS", "evidence": _jsonable(evidence)}
+
+    def fail(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
+        if self.failed_reason is None:
+            self.failed_reason = reason
+        for name in ("POSTGAME_ROUTE_PROGRESS",):
+            if self.checkpoints[name]["status"] == "NOT_OBSERVED":
+                self.checkpoints[name] = {
+                    "status": "FAIL",
+                    "reason": reason,
+                    "evidence": _jsonable(evidence or {}),
+                }
+
+    def manual_intervention(self) -> None:
+        self.manual_intervention_seen = True
+
+    def precheck(self, ready: bool, detail: dict[str, Any]) -> None:
+        if ready:
+            self._pass("PRECHECK_OK", evidence=detail)
+        else:
+            self.checkpoints["PRECHECK_OK"] = {
+                "status": "BLOCKED",
+                "evidence": _jsonable(detail),
+            }
+
+    def observe(
+        self,
+        med: Mediator,
+        state: dict[str, Any],
+        frame: Frame | None,
+        trace_row: dict[str, Any] | None,
+        action: dict[str, Any] | None,
+    ) -> bool:
+        """Map only existing production classifier/trace output to checkpoints."""
+        self._observation_no += 1
+        phase = str(state.get("phase") or "")
+        context = str(state.get("context") or "")
+        reason = str((action or {}).get("reason") or "")
+        controls = [item for item in list((trace_row or {}).get("controls") or []) if isinstance(item, dict)]
+        evidence = {
+            "observation": self._observation_no,
+            "phase": phase,
+            "context": context,
+            "reason": reason,
+            "physical_surfaces": self._physical_surfaces(med, frame),
+        }
+        surfaces = evidence["physical_surfaces"]
+
+        if phase == "ERROR":
+            self.fail("production runtime entered ERROR", evidence=evidence)
+        if action is not None and context == "UNKNOWN":
+            self.fail("production input on UNKNOWN context", evidence=evidence)
+        if str((action or {}).get("input_status") or "") in {
+            "CANCELLED_NO_TARGET_HWND", "CANCELLED_WINDOW_INVALID",
+            "CANCELLED_WINDOW_CHANGED", "CANCELLED_WINDOW_OBSCURED",
+        }:
+            self.fail("production input rejected by window-ownership guard", evidence=evidence)
+
+        if surfaces["stage"]:
+            self._pass("STAGE_SELECT_CONFIRMED", evidence=evidence)
+        if surfaces["stage"] and surfaces["stage_target"]:
+            self._pass("STAGE_TARGET_VISIBLE", evidence=evidence)
+        if surfaces["stage"] and bool(getattr(med, "_stage_selected", False)):
+            self._pass("STAGE_SELECTED_CONFIRMED", evidence=evidence)
+        if reason == "StageStart":
+            self._pass("STAGE_START_REQUEST", evidence=evidence)
+        if self.checkpoints["STAGE_START_REQUEST"]["status"] == "PASS" and (
+            surfaces["hero"] or surfaces["hud"]
+        ):
+            self._pass("STAGE_START_CONFIRMED", evidence=evidence)
+        if surfaces["game_hwnd"] and frame is not None and getattr(frame, "hwnd", None):
+            self._pass("GAME_HWND_CONFIRMED", evidence=evidence)
+        if surfaces["hud"]:
+            self._pass("INGAME_HUD_CONFIRMED", evidence=evidence)
+        if surfaces["hud"] and any(
+            item.get("control") == "auto_task" and item.get("state") == "ON"
+            for item in controls
+        ):
+            self._pass("AUTO_TASK_CONFIRMED", evidence=evidence)
+        if surfaces["hud"] and any(
+            str(item.get("control", "")).endswith("_challenge") and item.get("state") == "ON"
+            for item in controls
+        ):
+            self._pass("CHALLENGE_STATE_OBSERVED", evidence=evidence)
+        # L1 is not phase-only: require a production HUD classifier plus a
+        # production control/scene trace from the same observation.
+        if surfaces["hud"] and state.get("l1_cycle_step") is not None and (
+            controls or list((trace_row or {}).get("scenes") or [])
+        ):
+            self._pass("L1_CYCLE_ACTIVE", evidence=evidence)
+
+        postgame = surfaces["postgame"]
+        if postgame:
+            self._postgame_seen = True
+            self._pass("POSTGAME_SURFACE_CLASSIFIED", evidence={**evidence, "surface": postgame})
+        if self._postgame_seen and (
+            bool(state.get("post_game_pending"))
+            or bool(state.get("secret_realm_active"))
+            or reason in {"ContinueGame", "BossConfigured", "OpenGreatRift", "ConfirmGreatRift"}
+        ):
+            self._pass("POSTGAME_ROUTE_PROGRESS", evidence=evidence)
+
+        reason_lower = reason.lower()
+        optional_map = (
+            ("BLACK_MERCHANT", ("blackmerchant", "merchant")),
+            ("RANDOM_SKILL_PANEL", ("skill",)),
+            ("RANDOM_BOND_PANEL", ("bond",)),
+            ("RANDOM_TREASURE_PANEL", ("treasure",)),
+        )
+        for name, markers in optional_map:
+            if self.optional_events[name]["status"] == "NOT_OBSERVED" and any(
+                marker in reason_lower for marker in markers
+            ):
+                self.optional_events[name] = {"status": "OBSERVED", "evidence": _jsonable(evidence)}
+        return self.is_pass
+
+    @staticmethod
+    def _physical_surfaces(med: Mediator, frame: Frame | None) -> dict[str, Any]:
+        # Reuse the same production classifier adapter as the full-cycle case.
+        return SoloFullCycleObserver._physical_surfaces(med, frame)
+
+    @property
+    def is_pass(self) -> bool:
+        return (
+            self.failed_reason is None
+            and not self.manual_intervention_seen
+            and all(self.checkpoints[name]["status"] == "PASS" for name in SOLO_INGAME_CHECKPOINTS)
+        )
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "contract_version": 1,
+            "checkpoints": _jsonable(self.checkpoints),
+            "optional_events": _jsonable(self.optional_events),
+            "natural_e2e": "PASS" if self.is_pass else (
+                "DISQUALIFIED_MANUAL_INTERVENTION"
+                if self.manual_intervention_seen else "PENDING_OR_FAILED"
+            ),
             "failure_reason": self.failed_reason,
         }
 
@@ -1279,7 +1490,7 @@ def _target_contract(target: str) -> dict[str, Any]:
 
 
 def _invoke_target_handler(med: Mediator, target: str, frame: Frame) -> Any:
-    if target == "hitch_runtime":
+    if target in {"hitch_runtime", "solo_ingame_chain"}:
         return med.tick()
     if target in {"time_cave", "heirloom"}:
         return med._tick_main_line(frame)
@@ -1427,6 +1638,19 @@ def _stage_from_observation(
         if state.get("post_game_pending"):
             return "ENTRY_VISIBLE"
         return "POSTGAME_DETECT"
+
+    if target == "solo_ingame_chain":
+        if state.get("secret_realm_active") or observed:
+            return "POSTGAME_ROUTE_PROGRESS"
+        if state.get("post_game_pending") or state.get("phase") in {"QUIT", "NEXT"}:
+            return "POSTGAME_SURFACE_CLASSIFIED"
+        if "stagestart" in reason:
+            return "STAGE_START_CONFIRMED" if observed else "STAGE_START_REQUEST"
+        if state.get("phase") == "MAIN_LINE" and "hud" in template_names:
+            return "L1_CYCLE_ACTIVE"
+        if "stage" in template_names:
+            return "STAGE_SELECT_CONFIRMED"
+        return "STAGE_SELECT_CONFIRMED" if state.get("phase") == "STAGE_SELECT" else "INGAME_HUD_CONFIRMED"
 
     if target == "lobby_search":
         if "hitchready" in reason:
@@ -1831,9 +2055,15 @@ class BundleRecorder:
                 "live_probe": "PENDING" if execution_mode == "target_handler" else "NOT_A_PROBE",
             },
         }
+        self.solo_observer_key: str | None = None
         if target == "solo_full_cycle":
-            self.solo_observer: SoloFullCycleObserver | None = SoloFullCycleObserver()
-            self.manifest["solo_full_cycle"] = self.solo_observer.payload()
+            self.solo_observer_key = "solo_full_cycle"
+            self.solo_observer: SoloFullCycleObserver | SoloIngameChainObserver | None = SoloFullCycleObserver()
+            self.manifest[self.solo_observer_key] = self.solo_observer.payload()
+        elif target == "solo_ingame_chain":
+            self.solo_observer_key = "solo_ingame_chain"
+            self.solo_observer = SoloIngameChainObserver()
+            self.manifest[self.solo_observer_key] = self.solo_observer.payload()
         else:
             self.solo_observer = None
 
@@ -2288,7 +2518,7 @@ class BundleRecorder:
             fh.write(json.dumps(_jsonable(event), ensure_ascii=False) + "\n")
         if self.solo_observer is not None:
             self.solo_observer.observe(med, after_state, after_frame or before_frame, trace_row, action)
-            self.manifest["solo_full_cycle"] = self.solo_observer.payload()
+            self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
         if (
             event["postcondition"].get("observed") is True
             and event["postcondition"].get("authoritative", True)
@@ -2359,7 +2589,7 @@ class BundleRecorder:
         if self.trace_path.exists():
             shutil.copy2(self.trace_path, self.trace_dir / "trace.jsonl")
         if self.solo_observer is not None:
-            self.manifest["solo_full_cycle"] = self.solo_observer.payload()
+            self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
         self.manifest["completed_at_utc"] = _utc_now()
         self._write_manifest()
         summary = [
@@ -2371,7 +2601,8 @@ class BundleRecorder:
             f"- Natural E2E: {self.manifest['verification']['natural_e2e']}",
         ]
         if self.solo_observer is not None:
-            summary.extend(["", "## Solo Full-Cycle", ""])
+            heading = "Solo Full-Cycle" if self.solo_observer_key == "solo_full_cycle" else "Solo In-Game Chain"
+            summary.extend(["", f"## {heading}", ""])
             summary.extend(
                 f"- {name}: {item['status']}"
                 for name, item in self.solo_observer.checkpoints.items()
@@ -2509,7 +2740,10 @@ def _build_identity_check(
 
 
 def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Frame | None, dict[str, Any]]:
-    is_lobby = target in {"lobby_hitch", "lobby_search", "hitch_runtime", "solo_full_cycle"}
+    # Only targets that intentionally start in KK own the L0 window.  The
+    # primary solo and hitch GUI lanes start from the already-open game window
+    # and must never select/bring a KK room window to the foreground.
+    is_lobby = target in {"lobby_hitch", "lobby_search", "solo_full_cycle"}
     role = "l0" if is_lobby else "l1"
     title = "" if is_lobby else str(getattr(settings, "window_title_contains", "") or "")
     try:
@@ -2543,6 +2777,47 @@ def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Fr
         "reason": reason,
     }
     return frame, record
+
+
+def _start_surface_preflight(
+    med: Mediator,
+    target: str,
+    frame: Frame | None,
+) -> dict[str, Any]:
+    """Check the operator-provided start surface with production classifiers."""
+    result: dict[str, Any] = {
+        "target": target,
+        "status": "NOT_REQUIRED",
+        "observed": True,
+        "classifier": None,
+    }
+    if target == "solo_ingame_chain":
+        result.update({"status": "REQUIRED", "classifier": "_find_stage_page", "observed": False})
+        if _frame_is_valid(frame):
+            try:
+                result["observed"] = bool(med._find_stage_page(frame))
+            except (AttributeError, TypeError):
+                result["observed"] = False
+        result["status"] = "READY" if result["observed"] else "BLOCKED"
+        result["reason"] = (
+            "production Stage Select classifier confirmed"
+            if result["observed"]
+            else "expected in-game Stage Select surface was not confirmed by production classifier"
+        )
+    elif target == "hitch_runtime":
+        result.update({"status": "REQUIRED", "classifier": "_is_in_game_hud/_post_game_state", "observed": False})
+        if _frame_is_valid(frame):
+            try:
+                result["observed"] = bool(med._is_in_game_hud(frame)) or bool(med._post_game_state(frame))
+            except (AttributeError, TypeError):
+                result["observed"] = False
+        result["status"] = "READY" if result["observed"] else "BLOCKED"
+        result["reason"] = (
+            "production in-game HUD/post-game classifier confirmed"
+            if result["observed"]
+            else "expected in-game HUD or post-game surface was not confirmed by production classifier"
+        )
+    return result
 
 
 def _ocr_bootstrap_preflight(med: Mediator) -> dict[str, Any]:
@@ -2626,6 +2901,7 @@ def _live_input_preflight(
     ) and not is_current_process_elevated()
     frame, window = _window_preflight(settings, target=getattr(args, "target", None))
     target = str(getattr(args, "target", "") or "")
+    start_surface = _start_surface_preflight(med, target, frame)
     if elevation_blocked:
         ocr_health = {
             "healthy": False,
@@ -2655,6 +2931,8 @@ def _live_input_preflight(
         reasons.append(f"ocr_bootstrap_unhealthy: {ocr_health.get('reason') or ocr_health.get('stage')}")
     if window.get("status") != "READY":
         reasons.append(f"target window unavailable: {window.get('reason') or window.get('requested_title')}")
+    if start_surface.get("status") == "BLOCKED":
+        reasons.append(str(start_surface.get("reason") or "target start surface not confirmed"))
 
     lane: LiveLane | None = None
     single_instance: dict[str, Any] = {
@@ -2682,6 +2960,7 @@ def _live_input_preflight(
         "settings_snapshot": _settings_snapshot(settings),
         "ocr_bootstrap_health": ocr_health,
         "window": window,
+        "start_surface": start_surface,
         "resource_preflight": {"missing": resource_missing},
         "single_instance": single_instance,
         "blocked_reasons": reasons,
@@ -2775,6 +3054,12 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
         # Test-session-only copy: this does not write the operator settings.
         settings.mode_id = "normal_farm"
         settings.auto_create_room = True
+    if target == "solo_ingame_chain":
+        # The operator supplies the already-open game Stage Select surface.
+        # Keep all policy/route settings from the dashboard, but prevent this
+        # session from falling back to the KK create-room path.
+        settings.mode_id = "normal_farm"
+        settings.auto_create_room = False
     if target == "solo_takeover":
         settings.mode_id = "normal_farm"
     return settings
@@ -2917,10 +3202,14 @@ def _append_bookmark_command(
 
 
 def _initial_phase_for_target(target: str) -> Phase:
+    if target == "solo_ingame_chain":
+        return Phase.STAGE_SELECT
     if target in {"solo_full_cycle", "solo_takeover"}:
         return Phase.BOOT
-    if target in {"lobby_hitch", "lobby_search", "hitch_runtime"}:
+    if target in {"lobby_hitch", "lobby_search"}:
         return Phase.LOBBY_ROOM
+    if target == "hitch_runtime":
+        return Phase.MAIN_LINE
     return Phase.MAIN_LINE
 
 
@@ -3011,7 +3300,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             recorder.solo_observer.precheck(
                 preflight.get("status") == "READY", preflight,
             )
-            recorder.manifest["solo_full_cycle"] = recorder.solo_observer.payload()
+            recorder.manifest[str(recorder.solo_observer_key)] = recorder.solo_observer.payload()
     else:
         recorder.record_preflight({
             "status": "NOT_REQUESTED",
@@ -3070,7 +3359,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             recorder.bookmark(status, med, bookmark_frame, note=note)
             if status == "MANUAL_INTERVENTION" and recorder.solo_observer is not None:
                 recorder.solo_observer.manual_intervention()
-                recorder.manifest["solo_full_cycle"] = recorder.solo_observer.payload()
+                recorder.manifest[str(recorder.solo_observer_key)] = recorder.solo_observer.payload()
             print(f"[bookmark] {status} {note}".rstrip())
             if (
                 awaiting_manual_resume
@@ -3312,11 +3601,16 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             and recorder.solo_observer.failed_reason is None
             and not _is_emergency_reason(stop_signal.reason)
         ):
-            recorder.solo_observer.fail("solo full-cycle ended before NEXT_ROUND_CONFIRMED")
-            recorder.manifest["solo_full_cycle"] = recorder.solo_observer.payload()
+            end_reason = (
+                "solo full-cycle ended before NEXT_ROUND_CONFIRMED"
+                if recorder.solo_observer_key == "solo_full_cycle"
+                else "solo in-game chain ended before POSTGAME_ROUTE_PROGRESS"
+            )
+            recorder.solo_observer.fail(end_reason)
+            recorder.manifest[str(recorder.solo_observer_key)] = recorder.solo_observer.payload()
             recorder.bookmark(
                 "FAIL", med, current_frame["value"],
-                note="solo full-cycle ended before NEXT_ROUND_CONFIRMED",
+                note=end_reason,
             )
     finally:
         if med.emergency_listener:
@@ -3340,7 +3634,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         }
         if recorder.solo_observer is not None:
             solo = recorder.solo_observer.payload()
-            recorder.manifest["solo_full_cycle"] = solo
+            recorder.manifest[str(recorder.solo_observer_key)] = solo
             recorder.manifest["verification"]["natural_e2e"] = solo["natural_e2e"]
             recorder.manifest["verification"]["natural_e2e_eligible"] = bool(recorder.solo_observer.is_pass)
         recorder.finalize()
@@ -3915,7 +4209,7 @@ def _print_runbook(target: str | None = None) -> None:
         fact = _production_fact(name)
         print(f"[{name}]")
         print(f"1. 手动做到：{contract['runbook_manual']}")
-        if name in {"boss_challenge", "solo_full_cycle", "solo_takeover"}:
+        if name in {"boss_challenge", "hitch_runtime", "solo_full_cycle", "solo_ingame_chain", "solo_takeover"}:
             extra = ""
             if name == "solo_takeover":
                 extra = " --takeover-case midgame_hud"
@@ -4068,6 +4362,9 @@ def _bundle_exit_code(bundle_dir: Path) -> int:
         code = 0 if search_observed and terminal_observed else 4
     elif manifest.get("target") == "solo_full_cycle":
         solo = manifest.get("solo_full_cycle") or {}
+        code = 0 if solo.get("natural_e2e") == "PASS" else 4
+    elif manifest.get("target") == "solo_ingame_chain":
+        solo = manifest.get("solo_ingame_chain") or {}
         code = 0 if solo.get("natural_e2e") == "PASS" else 4
     else:
         code = 0

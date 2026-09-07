@@ -150,7 +150,6 @@ function Save-HarnessSettingsCopy {
     param([Parameter(Mandatory = $true)]$SettingsObject)
 
     $SettingsObject.mode_id = "normal_farm"
-    $SettingsObject.auto_create_room = $true
     $stamp = Get-Date -Format "yyyyMMdd_HHmmss_ffff"
     $path = Join-Path $script:SoloCaptureRoot "live_harness_settings_$stamp.json"
     $json = $SettingsObject | ConvertTo-Json -Depth 12
@@ -374,7 +373,7 @@ function Invoke-HitchRuntimeCapture {
     Invoke-CaptureTool $cliArgs
 }
 
-function Invoke-SoloFullCycleCapture {
+function Invoke-SoloIngameChainCapture {
     $settingsPath = $script:HarnessSettingsPath
     $script:HarnessSettingsPath = $null
     if (-not $settingsPath -or -not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
@@ -384,11 +383,11 @@ function Invoke-SoloFullCycleCapture {
     }
     $cliArgs = @(
         "capture",
-        "--target", "solo_full_cycle",
+        "--target", "solo_ingame_chain",
         "--out", $script:SoloCaptureRoot,
         "--repo-root", $RepoRoot,
-        "--duration", "5400",
-        "--max-ticks", "40000",
+        "--duration", "3600",
+        "--max-ticks", "30000",
         "--interval", "0.15",
         "--generate",
         "--automation-exe", $script:AutomationExe,
@@ -397,7 +396,7 @@ function Invoke-SoloFullCycleCapture {
         "--allow-dev-source"
     )
     $cliArgs += @("--settings", $settingsPath)
-    Write-Host "[launcher] 单人完整循环：Production RuntimeMediator.tick()；首局闭环后仅在下一局业务证据确认时 PASS" -ForegroundColor Cyan
+    Write-Host "[launcher] 单人局内完整链路：从游戏内 Stage Select 接管；Production RuntimeMediator.tick()；不激活 KK 房间窗口" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -405,7 +404,7 @@ function Invoke-SoloSettingsPanel {
     if (Show-HarnessSettingsPanel) {
         [System.Windows.Forms.MessageBox]::Show(
             "临时覆盖已保存；下一次点击 12 时使用一次。之后会恢复为自动读取正式看板设置。",
-            "单人完整循环 · 临时设置"
+            "单人局内链路 · 临时设置"
         ) | Out-Null
     }
 }
@@ -514,7 +513,7 @@ $title.Location = [System.Drawing.Point]::new(22, 18)
 $script:MenuForm.Controls.Add($title)
 
 $status = New-Object System.Windows.Forms.Label
-$status.Text = "核心验收仅保留两条完整链路：单人完整循环与蹭车局内续跑。`r`n12 默认直接复制正式看板设置；仅需单次覆盖时点「临时设置」。紧急停止用 Shift+F12。"
+$status.Text = "核心验收仅保留两条局内链路：单人 Stage Select→局内→战后路线，与蹭车局内续跑。`r`n12 默认只读复制正式看板设置；测试从游戏内选关页开始，不走 KK 创房。紧急停止用 Shift+F12。"
 $status.AutoSize = $false
 $status.Size = New-Object System.Drawing.Size(700, 58)
 $status.Location = [System.Drawing.Point]::new(24, 60)
@@ -569,11 +568,11 @@ $blue = [System.Drawing.Color]::FromArgb(225, 238, 250)
 $yellow = [System.Drawing.Color]::FromArgb(255, 246, 210)
 
 Add-MenuButton "1  启动前检查`r`n    只检查环境、OCR 与窗口条件，不操作游戏" 24 230 { Invoke-Readiness } $blue
-Add-MenuButton "12 单人完整循环（推荐）`r`n    自动读取正式看板→创房→选关→局内→结算→下一把" 390 230 { Invoke-SoloFullCycleCapture } $green
+Add-MenuButton "12 单人局内完整链路（推荐）`r`n    从游戏内选关→局内策略→结算/秘境/Boss" 390 230 { Invoke-SoloIngameChainCapture } $green
 Add-MenuButton "11 蹭车局内续跑`r`n    入局后接管→自动任务/四挑战→结算链路" 24 316 { Invoke-HitchRuntimeCapture } $green
 Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败/阻塞证据" 390 316 { Open-LatestFailBundle } $blue
 Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回归）" 24 402 { Reproduce-LatestFail } $blue
-Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认无需填写" 390 402 { Invoke-SoloSettingsPanel } $yellow
+Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认读取正式看板" 390 402 { Invoke-SoloSettingsPanel } $yellow
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
