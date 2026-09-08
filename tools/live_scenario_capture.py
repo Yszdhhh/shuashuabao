@@ -49,6 +49,15 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 if str(ROOT / "tests") not in sys.path:
     sys.path.insert(0, str(ROOT / "tests"))
+if str(ROOT / "tools") not in sys.path:
+    sys.path.insert(0, str(ROOT / "tools"))
+
+from live_harness_identity import (  # noqa: E402
+    FROZEN_PRODUCTION_CODE_BASELINE,
+    HARNESS_BASE_SHA,
+    format_identity_text,
+    identity_report,
+)
 
 from shuabao.input.keyboard_mouse import (
     ActionResult,
@@ -247,19 +256,163 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "hitch_runtime": {
         "handler": "tick",
         "call": "frame",
-        "start_condition": "整条蹭车链路：从大厅搜房、进入房间准备、到局内压力转移与战后 Boss。",
-        "production_entry": "Mediator.tick()，整链全自动运转。",
+        "start_condition": "游戏窗口已经处于已确认的蹭车局内 HUD，或 production classifier 已确认的战后存档/传家宝页面；不再从 KK 大厅/房间窗口启动。",
+        "production_entry": "Mediator.tick()，从局内接管后继续压力转移、自动任务、四挑战与既有战后 Boss 路由。",
         "expected_steps": ("HUD", "AUTO_TASK", "FOUR_CHALLENGES", "POSTGAME_ARCHIVE", "BOSS_FALLBACK"),
         "success_postcondition": "自动任务、挑战和战后 Boss 均须各自通过既有视觉后置条件；单次输入不算成功。",
         "fail_condition": "输入被拒绝、既有生产 handler 进入 ERROR，或页面缺少既有分类/模板证据。",
-        "blocked_condition": "捕获无效、不是已确认局内 HUD或已分类战后页面时，零输入等待或由既有 Fail-Closed 收口。",
+        "blocked_condition": "捕获无效、启动帧不是已确认局内 HUD 或 production 分类的战后页面时，BLOCKED 且不发业务输入。",
         "max_probe_time_s": 3600.0,
         "natural_e2e_eligible": "仅连续真机 Mediator.tick() 链、无人工干预、并由各生产后置条件确认时有资格。",
         "bundle_replay": "沿用现有事件帧、ReplayCaseLoader 和 FakeInputExecutor；不创建另一套蹭车局内状态机。",
-        "runbook_manual": "可从当前任意已确认局内 HUD 或已打开的存档/传家宝页面开始；紧急停止用 Shift+F12。",
+        "runbook_manual": "把游戏停在已确认局内 HUD，或已经打开的存档/传家宝页面；不要停在 KK 大厅/房间窗口。紧急停止用 Shift+F12。",
         "runbook_hands_off": "启动后不要手动点压力转移、自动任务、挑战、存档卡或 Boss。",
         "runbook_pass": "记录实际动作和各自的真实后置证据；不得用 click success 代替。",
         "runbook_manual_intervention": "需要手动推进页面时先标记 FAIL，再标 MANUAL_INTERVENTION。",
+    },
+    "solo_ingame_chain": {
+        "handler": "tick",
+        "call": "frame",
+        "start_condition": "英雄三国游戏窗口已经打开并停在游戏内选关（Stage Select）页面；Harness 只接管选关之后的 startChallenge、Hero setup、MAIN_LINE、局尾与既有秘境/Boss 路由。",
+        "production_entry": "RuntimeMediator.tick() / Mediator.tick()，初始 phase=STAGE_SELECT；Harness 不选择房间、不激活 KK 房间窗口、不复制局内决策。",
+        "expected_steps": (
+            "STAGE_SELECT_CONFIRMED", "STAGE_TARGET_VISIBLE", "STAGE_SELECTED_CONFIRMED",
+            "STAGE_START_REQUEST", "STAGE_START_CONFIRMED", "GAME_HWND_CONFIRMED",
+            "INGAME_HUD_CONFIRMED", "L1_CYCLE_ACTIVE", "POSTGAME_SURFACE_CLASSIFIED",
+            "POSTGAME_ROUTE_PROGRESS",
+        ),
+        "success_postcondition": "生产 classifier 先确认真实 Stage Select，再确认 startChallenge 后的 Hero/HUD；随后局内循环和战后既有秘境/Boss/存档/传家宝路由由真实 Mediator.tick() 继续。羁绊、技能、宝物、进化、装备、拾取、黑商等随机或条件事件未出现只记 NOT_OBSERVED，不以 click success 或 phase-only 计 PASS。",
+        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入、生产输入执行失败、Stage/Hero/HUD 业务后置未确认，或战后路由进入错误状态。",
+        "blocked_condition": "启动帧不是可由 production classifier 确认的游戏内 Stage Select、游戏窗口/OCR/RuntimeMediator/权限不可用，或外部窗口抢焦点/遮挡导致 ownership guard 拒绝输入；BLOCKED 时不发出业务输入。",
+        "max_probe_time_s": 3600.0,
+        "natural_e2e_eligible": "只有从真实 Stage Select 开始，连续 mediator_tick 完成选关进局、真实 HUD/L1、战后页面及既有路线进展，且无 ERROR/UNKNOWN 输入、FAIL 或 MANUAL_INTERVENTION 时才有资格。",
+        "bundle_replay": "沿用事件驱动 capture、trace 和 ReplayCaseLoader；metadata 只保存生产 classifier 观察，不复制 startChallenge、MAIN_LINE 或战后 FSM。",
+        "runbook_manual": "先把英雄三国置于游戏内选关页面，不要停在 KK 房间/大厅；确认正式看板配置已加载，尤其关卡、技能、羁绊、秘境和 Boss 选项。",
+        "runbook_hands_off": "点击按钮后不要再点关卡、英雄、羁绊/技能/宝物、装备、进化、黑商、秘境或 Boss 页面；紧急停止仍用 Shift+F12，p/f/m 只记录证据。",
+        "runbook_pass": "必须先有真实 Stage Select → Hero/HUD → L1，再有战后页面及既有路线后置证据；随机黑商或特定面板未自然出现只记 NOT_OBSERVED。",
+        "runbook_manual_intervention": "若需要人工越过页面或遮挡，先记录 FAIL；人工操作后记录 MANUAL_INTERVENTION，本次不能作为无人值守 PASS。",
+    },
+    "hitch_lobby_chain": {
+        "handler": "tick",
+        "call": "frame",
+        "start_condition": "把 KK/大厅停在当前 production 支持的真实大厅房间列表；不要预先点房间。满员/被踢/房间消失/无结果必须由 production lobby hitch 自己恢复并重新搜索。",
+        "production_entry": "Mediator.tick() → production _tick_l0/_tick_lobby_hitch（mode_id=lobby_hitch）。Harness 不搜房、不点房间坐标、不补搜索 FSM；进局后继续走现有蹭车局内 Mediator.tick()。",
+        "expected_steps": (
+            "LOBBY_DETECT", "SEARCH_INPUT", "JOIN", "ROOM_WAITING_CONFIRMED",
+            "RECOVER_OR_RESEARCH", "INGAME_HUD_CONFIRMED",
+        ),
+        "success_postcondition": "production lobby hitch 在真实大厅完成搜房/JOIN，并以 ROOM_WAITING 或可信局内 HUD 确认进局；刷新、click success、窗口变化单独都不算 PASS。",
+        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入，或进房/恢复后置未被生产 classifier 确认。",
+        "blocked_condition": "窗口身份/页面 UNKNOWN、不是大厅房间列表、WindowRole 不可信时 ZERO INPUT。",
+        "max_probe_time_s": 3600.0,
+        "natural_e2e_eligible": "仅从真实大厅开始的连续 Mediator.tick() 链、无人工介入、并由生产后置确认进局时有资格。",
+        "bundle_replay": "沿用事件帧和 ReplayCaseLoader；不把大厅搜房复制进测试工具。",
+        "runbook_manual": "把 KK 停在英雄三国房间列表；确认普通刷刷宝未运行。紧急停止用 Shift+F12。",
+        "runbook_hands_off": "启动后不要点房间、刷新、准备或开始游戏；让 production lobby hitch 接管。",
+        "runbook_pass": "必须观察到生产确认的进房/局内 HUD；Refresh 不是终态。",
+        "runbook_manual_intervention": "卡在密码房或弹窗时先 FAIL，再标 MANUAL_INTERVENTION。",
+    },
+    "choice_bond_skill": {
+        "handler": "_tick_panel_fsm",
+        "call": "frame_now",
+        "start_condition": "请将真实游戏停在局内 HUD，或已经打开的羁绊/技能选卡面板。不要停在大厅。",
+        "production_entry": "先调用现有 Mediator._tick_panel_fsm(frame, anchor, now)；若面板未打开，再调用 _maybe_open_choice_panel(frame)。不复制选卡策略。",
+        "expected_steps": ("PANEL_OR_HUD", "OPEN_OR_ACTIVE", "SELECT", "MUTATION_CONFIRMED"),
+        "success_postcondition": "生产面板 FSM 进入 WAIT_MUTATION 后，fresh frame 上观察到面板变化或面板关闭；click success 单独不算 PASS。",
+        "fail_condition": "输入被拒绝、生产 ERROR，或选择后没有 mutation/关闭后置。",
+        "blocked_condition": "窗口/页面 UNKNOWN、不是局内 HUD/选卡面板时 ZERO INPUT。",
+        "max_probe_time_s": 45.0,
+        "natural_e2e_eligible": "probe 本身不算 Natural E2E。",
+        "bundle_replay": "沿用事件帧和 ReplayCaseLoader。",
+        "runbook_manual": "把游戏停在局内 HUD 或已打开的羁绊/技能面板。",
+        "runbook_hands_off": "启动后不要再点 G/F 或卡牌。",
+        "runbook_pass": "只有生产 mutation/关闭后置才是 PASS。",
+        "runbook_manual_intervention": "被其他弹窗挡住时先 FAIL。",
+    },
+    "treasure": {
+        "handler": "_tick_panel_fsm",
+        "call": "frame_now",
+        "start_condition": "请将真实游戏停在局内 HUD，或已经打开的宝物面板。",
+        "production_entry": "现有 Mediator._tick_panel_fsm / _maybe_open_choice_panel；Harness 只把 cycle step 设为 treasure，不实现宝物策略。",
+        "expected_steps": ("PANEL_OR_HUD", "OPEN_OR_ACTIVE", "SELECT", "MUTATION_CONFIRMED"),
+        "success_postcondition": "生产宝物面板 mutation 或关闭被 fresh frame 确认；click success 不算 PASS。",
+        "fail_condition": "输入被拒绝、生产 ERROR，或无 mutation 后置。",
+        "blocked_condition": "不是局内 HUD/宝物面板，或 auto_treasure 关闭导致无入口时 BLOCKED。",
+        "max_probe_time_s": 45.0,
+        "natural_e2e_eligible": "probe 本身不算 Natural E2E。",
+        "bundle_replay": "沿用事件帧和 ReplayCaseLoader。",
+        "runbook_manual": "把游戏停在局内 HUD 或已打开宝物面板，并确认自动宝物已开。",
+        "runbook_hands_off": "启动后不要再点 V 或宝物卡。",
+        "runbook_pass": "只有生产 mutation/关闭后置才是 PASS。",
+        "runbook_manual_intervention": "被其他弹窗挡住时先 FAIL。",
+    },
+    "hero_evolve": {
+        "handler": "_tick_main_line",
+        "call": "frame",
+        "start_condition": "请将真实游戏停在能够触发进化的合法局内 HUD（金色「点击进化」可见，无中央选卡面板抢占）。",
+        "production_entry": "现有 Mediator._tick_main_line(frame)；仅把 _l1_cycle_step 设为 evolve，让生产进化分支与 _evolve_feedback_seen 后置生效。",
+        "expected_steps": ("EVOLVE_VISIBLE", "CLICK", "FEEDBACK_CONFIRMED"),
+        "success_postcondition": "ClickEvolve 之后生产 _evolve_feedback_seen 或英雄三选一面板出现；输入 API 成功单独不算 PASS。",
+        "fail_condition": "输入被拒绝、连续无反馈，或生产 ERROR。",
+        "blocked_condition": "进化按钮不可见、窗口 UNKNOWN 时 ZERO INPUT。",
+        "max_probe_time_s": 30.0,
+        "natural_e2e_eligible": "probe 本身不算 Natural E2E。",
+        "bundle_replay": "沿用事件帧和 ReplayCaseLoader。",
+        "runbook_manual": "把游戏停在进化按钮可见的局内 HUD。",
+        "runbook_hands_off": "启动后不要再点进化或英雄卡。",
+        "runbook_pass": "必须有生产进化反馈或英雄选择面板。",
+        "runbook_manual_intervention": "被面板挡住时先 FAIL。",
+    },
+    "inventory_devour": {
+        "handler": "_maybe_use_inventory_item",
+        "call": "frame",
+        "start_condition": "请将真实游戏停在无中央面板、无黑商的局内 HUD；背包已有吞噬丹，本局至少完成过一次进化，羁绊数量至少 4 且 auto_devour_dan 已开启。",
+        "production_entry": "Mediator._maybe_use_inventory_item(frame)；只接受 WAIT_DEVOUR_DAN 业务后置。",
+        "expected_steps": ("DETECT_SLOT", "USE", "VERIFY_CONSUMED"),
+        "success_postcondition": "现有 WAIT_DEVOUR_DAN verifier 确认吞噬丹消耗；click success 不算 PASS。",
+        "fail_condition": "输入被拒绝、PendingAction 到期未确认，或生产 ERROR。",
+        "blocked_condition": "HUD/物品前置不满足时 ZERO INPUT。",
+        "max_probe_time_s": 15.0,
+        "natural_e2e_eligible": "probe 本身不算 Natural E2E。",
+        "bundle_replay": "沿用事件帧和 ReplayCaseLoader。",
+        "runbook_manual": "停在无弹窗局内 HUD，背包准备吞噬丹。",
+        "runbook_hands_off": "不要点击背包槽位。",
+        "runbook_pass": "只有 WAIT_DEVOUR_DAN 确认才是 PASS。",
+        "runbook_manual_intervention": "被弹窗挡住时先 FAIL。",
+    },
+    "inventory_hero_card": {
+        "handler": "_maybe_use_inventory_item",
+        "call": "frame",
+        "start_condition": "请将真实游戏停在无中央面板、无黑商的局内 HUD；背包已有英雄卡，本局至少完成过一次进化。",
+        "production_entry": "Mediator._maybe_use_inventory_item(frame)；只接受 WAIT_HERO_CHOICE 业务后置。",
+        "expected_steps": ("DETECT_SLOT", "USE", "VERIFY_HERO_CHOICE"),
+        "success_postcondition": "现有 WAIT_HERO_CHOICE verifier 确认打开真实英雄选择页；click success 不算 PASS。",
+        "fail_condition": "输入被拒绝、PendingAction 到期未确认，或生产 ERROR。",
+        "blocked_condition": "HUD/物品前置不满足时 ZERO INPUT。",
+        "max_probe_time_s": 15.0,
+        "natural_e2e_eligible": "probe 本身不算 Natural E2E。",
+        "bundle_replay": "沿用事件帧和 ReplayCaseLoader。",
+        "runbook_manual": "停在无弹窗局内 HUD，背包准备英雄卡。",
+        "runbook_hands_off": "不要点击背包槽位。",
+        "runbook_pass": "只有英雄选择页后置才是 PASS。",
+        "runbook_manual_intervention": "被弹窗挡住时先 FAIL。",
+    },
+    "archive_challenge": {
+        "handler": "_maybe_click_archive_challenge",
+        "call": "frame_now",
+        "start_condition": "请将真实游戏停在战后已打开的存档挑战面板（1~8 卡位可见）。",
+        "production_entry": "Mediator._maybe_click_archive_challenge(frame, now)；不实现卡位策略。",
+        "expected_steps": ("ARCHIVE_PANEL", "CLICK", "CHALLENGE_HUD_CONFIRMED"),
+        "success_postcondition": "对应真实挑战 HUD / 合法后续业务页面被 production classifier 确认；click success 不算 PASS。",
+        "fail_condition": "输入被拒绝、页面不变，或生产 ERROR。",
+        "blocked_condition": "不是 ARCHIVE_PANEL 或无可挑战证据时 ZERO INPUT。",
+        "max_probe_time_s": 30.0,
+        "natural_e2e_eligible": "probe 本身不算 Natural E2E。",
+        "bundle_replay": "沿用事件帧和 ReplayCaseLoader。",
+        "runbook_manual": "人工打开存档挑战面板。",
+        "runbook_hands_off": "不要再点存档卡。",
+        "runbook_pass": "必须出现真实挑战 HUD/后续业务页。",
+        "runbook_manual_intervention": "卡面不可点时先 FAIL。",
     },
 }
 
@@ -341,7 +494,453 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
         ),
         "ground_truth_only": False,
     },
+    "solo_ingame_chain": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "从游戏内 Stage Select 接管真实 normal_farm；覆盖生产 startChallenge、Hero setup、MAIN_LINE、局尾与既有秘境/Boss/存档/传家宝路线，不触碰 KK 创房窗口。",
+        "routes": (
+            {"route": "solo_ingame_stage_to_hud", "readiness": "CONDITIONAL"},
+            {"route": "solo_ingame_l1_policy_handlers", "readiness": "CONDITIONAL"},
+            {"route": "solo_ingame_postgame_secret_or_boss", "readiness": "CONDITIONAL"},
+        ),
+        "ground_truth_only": False,
+    },
+    "hitch_lobby_chain": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "从真实大厅调用 production Mediator.tick()/_tick_lobby_hitch；搜房、JOIN、满员/被踢恢复与进局全部由 production lobby hitch 决定。",
+        "routes": (
+            {"route": "production_lobby_hitch_search_join", "readiness": "CONDITIONAL"},
+            {"route": "production_hitch_ingame_handoff", "readiness": "CONDITIONAL"},
+        ),
+        "ground_truth_only": False,
+    },
+    "choice_bond_skill": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "只调用现有面板 FSM / 打开羁绊或技能面板入口；PASS 需要 mutation 后置。",
+        "routes": ({"route": "production_panel_fsm_bond_skill", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "treasure": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "只调用现有宝物面板入口；PASS 需要 mutation 后置。",
+        "routes": ({"route": "production_panel_fsm_treasure", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "hero_evolve": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "只进入 production 进化分支；PASS 需要 _evolve_feedback_seen 或英雄选择面板。",
+        "routes": ({"route": "production_click_evolve", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "inventory_devour": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "只走现有吞噬丹 verifier。",
+        "routes": ({"route": "inventory_swallow_pill", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "inventory_hero_card": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "只走现有英雄卡 WAIT_HERO_CHOICE verifier。",
+        "routes": ({"route": "inventory_hero_card", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "archive_challenge": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "只调用现有存档挑战 handler；PASS 必须看到挑战 HUD/后续业务页，而不是 click success。",
+        "routes": ({"route": "archive_challenge_1_to_8", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
 }
+
+TARGETED_PROBE_MENU = (
+    ("A", "choice_bond_skill", "羁绊 / 技能选卡"),
+    ("B", "treasure", "宝物"),
+    ("C", "hero_evolve", "英雄进化"),
+    ("D", "inventory_devour", "背包 - 吞噬丹"),
+    ("E", "inventory_hero_card", "背包 - 英雄卡"),
+    ("F", "black_merchant", "黑商"),
+    ("G", "archive_challenge", "存档挑战 1~8"),
+    ("H", "heirloom", "传家宝 / Boss"),
+    ("I", "secret_realm", "秘境"),
+    ("J", "lobby_search", "大厅搜房 / Join"),
+)
+LONG_CHAIN_TARGETS = ("hitch_runtime", "solo_ingame_chain", "hitch_lobby_chain")
+PROBE_RESULT_STATUSES = (
+    "PASS",
+    "FAIL",
+    "BLOCKED_PRECONDITION",
+    "BLOCKED_MISSING_GT",
+    "BLOCKED_NO_PRODUCTION_ENTRYPOINT",
+    "BLOCKED_REQUIRES_PRODUCTION_CHANGE",
+    "BLOCKED_PRECHECK",
+    "UNKNOWN",
+    "TIMEOUT_FAIL_CLOSED",
+    "ABORTED",
+)
+
+SOLO_INGAME_CHECKPOINTS = (
+    "PRECHECK_OK",
+    "STAGE_SELECT_CONFIRMED",
+    "STAGE_TARGET_VISIBLE",
+    "STAGE_SELECTED_CONFIRMED",
+    "STAGE_START_REQUEST",
+    "STAGE_START_CONFIRMED",
+    "GAME_HWND_CONFIRMED",
+    "INGAME_HUD_CONFIRMED",
+    "AUTO_TASK_CONFIRMED",
+    "CHALLENGE_STATE_OBSERVED",
+    "L1_CYCLE_ACTIVE",
+    "POSTGAME_SURFACE_CLASSIFIED",
+    "POSTGAME_ROUTE_PROGRESS",
+)
+SOLO_OPTIONAL_EVENTS = ("BLACK_MERCHANT", "RANDOM_SKILL_PANEL", "RANDOM_BOND_PANEL", "RANDOM_TREASURE_PANEL")
+SOLO_ROUTE_OBSERVATIONS = ("EARLY_CHALLENGE", "ARCHIVE_LOOT", "HEIRLOOM_ROUTE", "SECRET_REALM_ROUTE")
+_WINDOW_GUARD_STATUSES = {
+    "CANCELLED_NO_TARGET_HWND",
+    "CANCELLED_WINDOW_INVALID",
+    "CANCELLED_WINDOW_CHANGED",
+    "CANCELLED_WINDOW_OBSCURED",
+}
+
+
+def _new_route_observations() -> dict[str, dict[str, Any]]:
+    return {
+        name: {
+            "status": "NOT_OBSERVED",
+            "request_status": "NOT_OBSERVED",
+            "confirmation_status": "NOT_OBSERVED",
+        }
+        for name in SOLO_ROUTE_OBSERVATIONS
+    }
+
+
+def _physical_surfaces(med: Mediator, frame: Frame | None) -> dict[str, Any]:
+    """Use existing production classifiers only; missing evidence stays false."""
+    observed: dict[str, Any] = {
+        "room": False, "platform": False, "stage": False, "stage_target": False,
+        "hero": False, "hud": False, "game_hwnd": False, "boss_entry": False,
+        "lobby": False, "postgame": None,
+    }
+    if not _frame_is_valid(frame):
+        return observed
+    for key, method in (
+        ("room", "_find_room_start"), ("platform", "_find_map_create_room"),
+        ("stage", "_find_stage_page"), ("stage_target", "_find_stage_target"),
+        ("hero", "_hero_modal_buttons"), ("hud", "_is_in_game_hud"),
+        ("game_hwnd", "_is_game_client_frame"),
+        ("lobby", "_lobby_room_list_evidence"),
+    ):
+        try:
+            observed[key] = bool(getattr(med, method)(frame))
+        except (AttributeError, TypeError):
+            continue
+    try:
+        observed["boss_entry"] = bool(med.find_scene(frame, "boss_entry"))
+    except (AttributeError, TypeError):
+        pass
+    try:
+        observed["postgame"] = med._post_game_state(frame)
+    except (AttributeError, TypeError):
+        pass
+    return observed
+
+
+class _SoloRouteDiagnosticsMixin:
+    """Observation-only request/postcondition ledger.  No clicks, no FSM."""
+
+    def _init_route_diagnostics(self) -> None:
+        self._route_request_frame_fingerprints: dict[str, str | None] = {}
+        self.route_observations = _new_route_observations()
+
+    @staticmethod
+    def _request_status(action: dict[str, Any] | None) -> str:
+        status = str((action or {}).get("input_status") or "SUCCESS")
+        if status in _WINDOW_GUARD_STATUSES:
+            return "BLOCKED"
+        if status != "SUCCESS":
+            return "FAIL"
+        return "PASS"
+
+    def _route_request(self, name: str, *, action: dict[str, Any] | None, evidence: dict[str, Any], frame: Frame | None) -> None:
+        item = self.route_observations[name]
+        if item["request_status"] != "NOT_OBSERVED":
+            return
+        request_status = self._request_status(action)
+        item["request_status"] = request_status
+        item["request_evidence"] = _jsonable(evidence)
+        self._route_request_frame_fingerprints[name] = _frame_fingerprint(frame)
+        if request_status in {"FAIL", "BLOCKED"}:
+            item["status"] = request_status
+
+    def _route_confirmation(self, name: str, *, evidence: dict[str, Any]) -> None:
+        item = self.route_observations[name]
+        if item["request_status"] != "PASS" or item["confirmation_status"] == "PASS":
+            return
+        item["confirmation_status"] = "PASS"
+        item["confirmation_evidence"] = _jsonable(evidence)
+        item["status"] = "PASS"
+
+    def _observe_route_diagnostics(
+        self,
+        med: Mediator,
+        state: dict[str, Any],
+        frame: Frame | None,
+        surfaces: dict[str, Any],
+        reason: str,
+        action: dict[str, Any] | None,
+        evidence: dict[str, Any],
+    ) -> None:
+        if reason == "ClickTQTZ":
+            self._route_request("EARLY_CHALLENGE", action=action, evidence=evidence, frame=frame)
+        elif reason == "ArchiveChallenge-loot":
+            self._route_request("ARCHIVE_LOOT", action=action, evidence=evidence, frame=frame)
+        elif reason in {"OpenGreatRift", "ConfirmGreatRift"}:
+            self._route_request("SECRET_REALM_ROUTE", action=action, evidence=evidence, frame=frame)
+        elif reason.startswith("BossConfigured") and surfaces.get("postgame") == "HEIRLOOM_DIALOG":
+            self._route_request("HEIRLOOM_ROUTE", action=action, evidence=evidence, frame=frame)
+        fingerprint = _frame_fingerprint(frame)
+        for name in SOLO_ROUTE_OBSERVATIONS:
+            request_fp = self._route_request_frame_fingerprints.get(name)
+            if not request_fp or not fingerprint or fingerprint == request_fp:
+                continue
+            if name == "EARLY_CHALLENGE" and surfaces.get("boss_entry"):
+                self._route_confirmation(name, evidence=evidence)
+            elif name == "ARCHIVE_LOOT" and surfaces.get("postgame") == "ARCHIVE_PANEL":
+                try:
+                    completed = bool(med._archive_challenge_completed(frame, 3))
+                except (AttributeError, TypeError):
+                    completed = False
+                if completed:
+                    self._route_confirmation(name, evidence=evidence)
+            elif name == "HEIRLOOM_ROUTE" and surfaces.get("postgame") == "HEIRLOOM_DIALOG":
+                self._route_confirmation(name, evidence=evidence)
+            elif name == "SECRET_REALM_ROUTE" and bool(state.get("secret_realm_active")) and bool(surfaces.get("hud")):
+                self._route_confirmation(name, evidence=evidence)
+
+
+class SoloIngameChainObserver(_SoloRouteDiagnosticsMixin):
+    """Observe the production stage-to-post-game chain without adding FSM logic."""
+
+    def __init__(self) -> None:
+        self._observation_no = 0
+        self._postgame_seen = False
+        self._init_route_diagnostics()
+        self.failed_reason: str | None = None
+        self.blocked_reason: str | None = None
+        self.blocked_evidence: dict[str, Any] | None = None
+        self.manual_intervention_seen = False
+        self.checkpoints = {name: {"status": "NOT_OBSERVED"} for name in SOLO_INGAME_CHECKPOINTS}
+        self.optional_events = {name: {"status": "NOT_OBSERVED"} for name in SOLO_OPTIONAL_EVENTS}
+
+    def _pass(self, name: str, *, evidence: dict[str, Any]) -> None:
+        if self.checkpoints[name]["status"] == "NOT_OBSERVED":
+            self.checkpoints[name] = {"status": "PASS", "evidence": _jsonable(evidence)}
+
+    def fail(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
+        if self.failed_reason is None:
+            self.failed_reason = reason
+        if self.checkpoints["POSTGAME_ROUTE_PROGRESS"]["status"] == "NOT_OBSERVED":
+            self.checkpoints["POSTGAME_ROUTE_PROGRESS"] = {
+                "status": "FAIL", "reason": reason, "evidence": _jsonable(evidence or {}),
+            }
+
+    def block(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
+        if self.blocked_reason is None:
+            self.blocked_reason = reason
+            self.blocked_evidence = _jsonable(evidence or {})
+        if self.checkpoints["POSTGAME_ROUTE_PROGRESS"]["status"] == "NOT_OBSERVED":
+            self.checkpoints["POSTGAME_ROUTE_PROGRESS"] = {
+                "status": "BLOCKED", "reason": reason, "evidence": _jsonable(evidence or {}),
+            }
+
+    def manual_intervention(self) -> None:
+        self.manual_intervention_seen = True
+
+    def precheck(self, ready: bool, detail: dict[str, Any]) -> None:
+        if ready:
+            self._pass("PRECHECK_OK", evidence=detail)
+        else:
+            self.checkpoints["PRECHECK_OK"] = {"status": "BLOCKED", "evidence": _jsonable(detail)}
+            self.block("live input preflight blocked", evidence=detail)
+
+    def observe(
+        self,
+        med: Mediator,
+        state: dict[str, Any],
+        frame: Frame | None,
+        trace_row: dict[str, Any] | None,
+        action: dict[str, Any] | None,
+    ) -> bool:
+        self._observation_no += 1
+        phase = str(state.get("phase") or "")
+        context = str(state.get("context") or "")
+        reason = str((action or {}).get("reason") or "")
+        controls = [item for item in list((trace_row or {}).get("controls") or []) if isinstance(item, dict)]
+        surfaces = _physical_surfaces(med, frame)
+        evidence = {
+            "observation": self._observation_no,
+            "phase": phase,
+            "context": context,
+            "reason": reason,
+            "physical_surfaces": surfaces,
+        }
+        if phase == "ERROR":
+            self.fail("production runtime entered ERROR", evidence=evidence)
+        if action is not None and context == "UNKNOWN":
+            self.fail("production input on UNKNOWN context", evidence=evidence)
+        if str((action or {}).get("input_status") or "") in _WINDOW_GUARD_STATUSES:
+            self.block("environment window-ownership guard rejected production input", evidence=evidence)
+        if surfaces["stage"]:
+            self._pass("STAGE_SELECT_CONFIRMED", evidence=evidence)
+        if surfaces["stage"] and surfaces["stage_target"]:
+            self._pass("STAGE_TARGET_VISIBLE", evidence=evidence)
+        if surfaces["stage"] and bool(getattr(med, "_stage_selected", False)):
+            self._pass("STAGE_SELECTED_CONFIRMED", evidence=evidence)
+        if reason == "StageStart":
+            self._pass("STAGE_START_REQUEST", evidence=evidence)
+        if self.checkpoints["STAGE_START_REQUEST"]["status"] == "PASS" and (surfaces["hero"] or surfaces["hud"]):
+            self._pass("STAGE_START_CONFIRMED", evidence=evidence)
+        if surfaces["game_hwnd"] and frame is not None and getattr(frame, "hwnd", None):
+            self._pass("GAME_HWND_CONFIRMED", evidence=evidence)
+        if surfaces["hud"]:
+            self._pass("INGAME_HUD_CONFIRMED", evidence=evidence)
+        if surfaces["hud"] and any(item.get("control") == "auto_task" and item.get("state") == "ON" for item in controls):
+            self._pass("AUTO_TASK_CONFIRMED", evidence=evidence)
+        if surfaces["hud"] and any(str(item.get("control", "")).endswith("_challenge") and item.get("state") == "ON" for item in controls):
+            self._pass("CHALLENGE_STATE_OBSERVED", evidence=evidence)
+        if surfaces["hud"] and state.get("l1_cycle_step") is not None and (
+            controls or list((trace_row or {}).get("scenes") or [])
+        ):
+            self._pass("L1_CYCLE_ACTIVE", evidence=evidence)
+        postgame = surfaces["postgame"]
+        if postgame:
+            self._postgame_seen = True
+            self._pass("POSTGAME_SURFACE_CLASSIFIED", evidence={**evidence, "surface": postgame})
+        if self._postgame_seen and (
+            bool(state.get("post_game_pending"))
+            or bool(state.get("secret_realm_active"))
+            or reason in {"ContinueGame", "BossConfigured", "OpenGreatRift", "ConfirmGreatRift"}
+        ):
+            self._pass("POSTGAME_ROUTE_PROGRESS", evidence=evidence)
+        reason_lower = reason.lower()
+        for name, markers in (
+            ("BLACK_MERCHANT", ("blackmerchant", "merchant")),
+            ("RANDOM_SKILL_PANEL", ("skill",)),
+            ("RANDOM_BOND_PANEL", ("bond",)),
+            ("RANDOM_TREASURE_PANEL", ("treasure",)),
+        ):
+            if self.optional_events[name]["status"] == "NOT_OBSERVED" and any(marker in reason_lower for marker in markers):
+                self.optional_events[name] = {"status": "OBSERVED", "evidence": _jsonable(evidence)}
+        self._observe_route_diagnostics(med, state, frame, surfaces, reason, action, evidence)
+        return self.is_pass
+
+    @property
+    def is_pass(self) -> bool:
+        return (
+            self.failed_reason is None
+            and self.blocked_reason is None
+            and not self.manual_intervention_seen
+            and all(self.checkpoints[name]["status"] == "PASS" for name in SOLO_INGAME_CHECKPOINTS)
+        )
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "contract_version": 1,
+            "checkpoints": _jsonable(self.checkpoints),
+            "optional_events": _jsonable(self.optional_events),
+            "route_observations": _jsonable(self.route_observations),
+            "natural_e2e": "PASS" if self.is_pass else (
+                "DISQUALIFIED_MANUAL_INTERVENTION" if self.manual_intervention_seen
+                else ("BLOCKED" if self.blocked_reason else "PENDING_OR_FAILED")
+            ),
+            "failure_reason": self.failed_reason,
+            "blocked_reason": self.blocked_reason,
+            "blocked_evidence": _jsonable(self.blocked_evidence),
+        }
+
+
+class HitchLobbyChainObserver:
+    """Observe production lobby hitch until in-game HUD.  No search/join logic."""
+
+    def __init__(self) -> None:
+        self.failed_reason: str | None = None
+        self.blocked_reason: str | None = None
+        self.manual_intervention_seen = False
+        self.checkpoints = {
+            "PRECHECK_OK": {"status": "NOT_OBSERVED"},
+            "LOBBY_DETECT": {"status": "NOT_OBSERVED"},
+            "SEARCH_OR_JOIN_REQUEST": {"status": "NOT_OBSERVED"},
+            "ROOM_WAITING_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "INGAME_HUD_CONFIRMED": {"status": "NOT_OBSERVED"},
+        }
+
+    def _pass(self, name: str, *, evidence: dict[str, Any]) -> None:
+        if self.checkpoints[name]["status"] == "NOT_OBSERVED":
+            self.checkpoints[name] = {"status": "PASS", "evidence": _jsonable(evidence)}
+
+    def fail(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
+        if self.failed_reason is None:
+            self.failed_reason = reason
+
+    def block(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
+        if self.blocked_reason is None:
+            self.blocked_reason = reason
+
+    def manual_intervention(self) -> None:
+        self.manual_intervention_seen = True
+
+    def precheck(self, ready: bool, detail: dict[str, Any]) -> None:
+        if ready:
+            self._pass("PRECHECK_OK", evidence=detail)
+        else:
+            self.checkpoints["PRECHECK_OK"] = {"status": "BLOCKED", "evidence": _jsonable(detail)}
+            self.block("live input preflight blocked", evidence=detail)
+
+    def observe(
+        self,
+        med: Mediator,
+        state: dict[str, Any],
+        frame: Frame | None,
+        trace_row: dict[str, Any] | None,
+        action: dict[str, Any] | None,
+    ) -> bool:
+        phase = str(state.get("phase") or "")
+        reason = str((action or {}).get("reason") or "")
+        surfaces = _physical_surfaces(med, frame)
+        evidence = {"phase": phase, "reason": reason, "physical_surfaces": surfaces}
+        if phase == "ERROR":
+            self.fail("production runtime entered ERROR", evidence=evidence)
+        if action is not None and str(state.get("context") or "") == "UNKNOWN":
+            self.fail("production input on UNKNOWN context", evidence=evidence)
+        if surfaces.get("lobby") or phase in {"LOBBY_ROOM", "PREPARE"}:
+            self._pass("LOBBY_DETECT", evidence=evidence)
+        if reason.startswith("Hitch"):
+            self._pass("SEARCH_OR_JOIN_REQUEST", evidence=evidence)
+        if phase == "ROOM_WAITING" or surfaces.get("room"):
+            self._pass("ROOM_WAITING_CONFIRMED", evidence=evidence)
+        if surfaces.get("hud") and surfaces.get("game_hwnd"):
+            self._pass("INGAME_HUD_CONFIRMED", evidence=evidence)
+        return self.is_pass
+
+    @property
+    def is_pass(self) -> bool:
+        return (
+            self.failed_reason is None
+            and self.blocked_reason is None
+            and not self.manual_intervention_seen
+            and all(item["status"] == "PASS" for item in self.checkpoints.values())
+        )
+
+    def payload(self) -> dict[str, Any]:
+        return {
+            "contract_version": 1,
+            "checkpoints": _jsonable(self.checkpoints),
+            "natural_e2e": "PASS" if self.is_pass else (
+                "DISQUALIFIED_MANUAL_INTERVENTION" if self.manual_intervention_seen
+                else ("BLOCKED" if self.blocked_reason else "PENDING_OR_FAILED")
+            ),
+            "failure_reason": self.failed_reason,
+            "blocked_reason": self.blocked_reason,
+        }
 
 
 def _production_fact(target: str) -> dict[str, Any]:
@@ -397,6 +996,26 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             "HitchSelectTab",
         },
         "hitch_runtime": None,  # Whole-loop runtime target: do not restrict reasons
+        "solo_ingame_chain": None,
+        "hitch_lobby_chain": None,
+        "choice_bond_skill": {
+            "OpenSkillPanel", "OpenBondPanel", "技能选择", "羁绊选择",
+            "CloseSelfOpenedPanel", "CloseNaturalPanel", "CloseFallback",
+            "PanelClose", "CompactSkillChoice",
+        },
+        "treasure": {
+            "OpenTreasurePanel", "宝物选择", "CloseSelfOpenedPanel",
+            "CloseNaturalPanel", "CloseFallback", "PanelClose",
+        },
+        "hero_evolve": {"ClickEvolve", "SelectEvolutionCard"},
+        "inventory_devour": {"UseInventory-swallow_pill"},
+        "inventory_hero_card": {"UseInventory-hero-card"},
+        "archive_challenge": {
+            "ArchiveChallenge-skill", "ArchiveChallenge-strengthen",
+            "ArchiveChallenge-gem", "ArchiveChallenge-loot",
+            "ArchiveChallenge-key", "ArchiveChallenge-recast",
+            "ArchiveChallenge-blessing", "ArchiveChallenge-skill2",
+        },
     }.get(target)
 
 SUPPORTED_TARGETS = tuple(TARGET_CONTRACTS)
@@ -528,6 +1147,44 @@ def _commit_sha(repo_root: Path) -> str:
         return "unknown"
     sha = result.stdout.strip()
     return sha if result.returncode == 0 and sha else "unknown"
+
+
+def _git_branch(repo_root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return "unknown"
+    branch = result.stdout.strip()
+    return branch if result.returncode == 0 and branch else "unknown"
+
+
+def _window_evidence(frame: Frame | None) -> dict[str, Any]:
+    if frame is None:
+        return {
+            "hwnd": None,
+            "title": None,
+            "rect": None,
+            "role": None,
+            "valid": False,
+        }
+    return {
+        "hwnd": getattr(frame, "hwnd", None),
+        "title": str(getattr(frame, "window_title", "") or ""),
+        "rect": [
+            int(getattr(frame, "left", 0) or 0),
+            int(getattr(frame, "top", 0) or 0),
+            int(getattr(frame, "width", 0) or 0),
+            int(getattr(frame, "height", 0) or 0),
+        ],
+        "role": getattr(frame, "role", None),
+        "valid": _frame_is_valid(frame),
+    }
 
 
 def _copy_frame(frame: Frame | None, timestamp: float | None = None) -> Frame | None:
@@ -993,6 +1650,60 @@ def _target_postcondition_snapshot(
             return {"observed": False, "state": "partial_refresh_only", "kind": "lobby_hitch_refresh"}
         return {"observed": False, "state": "not_observed", "kind": reason or "lobby_hitch_search"}
 
+    if target in {"choice_bond_skill", "treasure"}:
+        panel_state = str(after_state.get("panel_state") or "")
+        if panel_state == "WAIT_MUTATION" or (
+            str(after_state.get("panel_kind") or "") in {"skill", "bond", "treasure"}
+            and panel_state in {"CLOSING", "COOLDOWN"}
+        ):
+            return {"observed": True, "state": "confirmed", "kind": "panel_mutation"}
+        return {"observed": False, "state": "waiting", "kind": "panel_mutation"}
+
+    if target == "hero_evolve":
+        if reason == "ClickEvolve":
+            try:
+                seen = bool(med._evolve_feedback_seen(frame)) if _frame_is_valid(frame) else False
+            except (AttributeError, TypeError):
+                seen = False
+            if seen or bool(getattr(med, "_evolve_awaiting_hero_pick", False)):
+                return {"observed": True, "state": "confirmed", "kind": "evolve_feedback"}
+            return {"observed": False, "state": "waiting", "kind": "evolve_feedback"}
+        if reason == "SelectEvolutionCard":
+            return {"observed": True, "state": "confirmed", "kind": "evolve_hero_pick"}
+        return {"observed": False, "state": "not_observed", "kind": reason or "hero_evolve"}
+
+    if target == "inventory_devour":
+        if "UseInventory-swallow_pill" in reason and base.get("observed") is True:
+            return {"observed": True, "state": "confirmed", "kind": "inventory_swallow_pill"}
+        return {"observed": False, "state": "not_observed", "kind": reason or "inventory_devour"}
+
+    if target == "inventory_hero_card":
+        if "UseInventory-hero-card" in reason and base.get("observed") is True:
+            return {"observed": True, "state": "confirmed", "kind": "inventory_hero_card"}
+        return {"observed": False, "state": "not_observed", "kind": reason or "inventory_hero_card"}
+
+    if target == "archive_challenge":
+        if reason.startswith("ArchiveChallenge-") and _frame_is_valid(frame):
+            try:
+                hud = bool(med._is_in_game_hud(frame)) and med._post_game_state(frame) is None
+            except (AttributeError, TypeError):
+                hud = False
+            if hud:
+                return {"observed": True, "state": "confirmed", "kind": "archive_challenge_hud"}
+            return {"observed": False, "state": "waiting", "kind": "archive_challenge_hud"}
+        return {"observed": False, "state": "not_observed", "kind": reason or "archive_challenge"}
+
+    if target == "hitch_lobby_chain":
+        if after_state.get("phase") == "ROOM_WAITING":
+            return {"observed": True, "state": "confirmed", "kind": "lobby_hitch_in_room", "authoritative": False}
+        if _frame_is_valid(frame):
+            try:
+                if med._is_in_game_hud(frame) and med._is_game_client_frame(frame):
+                    return {"observed": True, "state": "confirmed", "kind": "hitch_ingame_hud"}
+            except (AttributeError, TypeError):
+                pass
+        return {"observed": False, "state": "waiting", "kind": "hitch_lobby_chain"}
+
     return base
 
 
@@ -1025,12 +1736,39 @@ def _target_contract(target: str) -> dict[str, Any]:
         raise ValueError(f"未知 target: {target}") from exc
 
 
+def _invoke_choice_probe(med: Mediator, frame: Frame, *, cycle_step: str) -> Any:
+    """Compose existing production panel entrypoints.  No card policy lives here."""
+    now = time.time()
+    setattr(med, "_l1_cycle_step", cycle_step)
+    setattr(med, "_choice_target", cycle_step)
+    anchor = None
+    try:
+        anchor = med._selection_anchor(frame)
+    except (AttributeError, TypeError):
+        anchor = None
+    panel = med._tick_panel_fsm(frame, anchor, now)
+    if panel is not None:
+        return panel
+    return med._maybe_open_choice_panel(frame, anchor=anchor)
+
+
 def _invoke_target_handler(med: Mediator, target: str, frame: Frame) -> Any:
-    if target == "hitch_runtime":
+    if target in {"hitch_runtime", "solo_ingame_chain", "hitch_lobby_chain"}:
         return med.tick()
+    if target == "choice_bond_skill":
+        return _invoke_choice_probe(med, frame, cycle_step="bond")
+    if target == "treasure":
+        return _invoke_choice_probe(med, frame, cycle_step="treasure")
+    if target == "hero_evolve":
+        setattr(med, "_l1_cycle_step", "evolve")
+        return med._tick_main_line(frame)
+    if target in {"inventory_devour", "inventory_hero_card"}:
+        return med._maybe_use_inventory_item(frame)
+    if target == "archive_challenge":
+        return med._maybe_click_archive_challenge(frame, time.time())
     if target in {"time_cave", "heirloom"}:
         return med._tick_main_line(frame)
-    if target in {"lobby_hitch", "lobby_search", "hitch_runtime"}:
+    if target in {"lobby_hitch", "lobby_search"}:
         if med._lobby_room_list_evidence(frame):
             context = "LOBBY_ROOM"
             stage_page = False
@@ -1490,6 +2228,8 @@ class BundleRecorder:
         self.inputs_this_tick: list[dict[str, Any]] = []
         contract = _target_contract(target)
         production_fact = _production_fact(target)
+        settings_snapshot = _settings_snapshot(settings)
+        identity = identity_report(repo_root=repo_root)
         natural_e2e_eligible = execution_mode == "mediator_tick"
         natural_e2e_state = (
             "REQUIRED_LIVE_PASS"
@@ -1499,9 +2239,11 @@ class BundleRecorder:
         self.manifest: dict[str, Any] = {
             "capture_schema_version": 1,
             "bundle_id": self.bundle_dir.name,
+            "run_id": self.bundle_dir.name,
             "process_pid": os.getpid(),
             "parent_process_pid": os.getppid(),
             "created_at_utc": _utc_now(),
+            "timestamp": _utc_now(),
             "completed_at_utc": None,
             "target": target,
             "production_handler": (
@@ -1521,10 +2263,32 @@ class BundleRecorder:
                 for key in TARGET_CONTRACT_FIELDS
             },
             "execution_mode": execution_mode,
-            "tested_commit_sha": _commit_sha(repo_root),
+            "tested_commit_sha": identity["harness_head"],
+            "harness_sha": identity["harness_head"],
+            "harness_base_sha": identity["harness_base"],
+            "runtime_worktree_sha": identity["runtime_worktree_sha"],
+            "production_baseline_sha": identity["frozen_production_code_baseline"],
+            "production_diff_status": identity["production_code_diff"],
+            "ready_for_gt": bool(identity["ready_for_gt"]),
+            "harness_identity": {
+                "branch": identity["harness_branch"],
+                "sha": identity["harness_head"],
+                "harness_base_sha": identity["harness_base"],
+                "production_baseline_sha": identity["frozen_production_code_baseline"],
+                "production_diff_status": identity["production_code_diff"],
+                "runtime_kind": "SOURCE_RUNTIME",
+                "runtime_type": "SOURCE_RUNTIME",
+                "runtime_worktree": identity["runtime_worktree"],
+                "runtime_source_sha": identity["runtime_worktree_sha"],
+                "runtime_source_path": identity.get("runtime_source_path"),
+                "runtime_source_verified": identity.get("runtime_source_verified"),
+                "ready_for_gt": bool(identity["ready_for_gt"]),
+                "mode_id": settings_snapshot.get("mode_id"),
+            },
             "repo_root": str(repo_root.resolve()),
             "initial_phase": initial_phase,
-            "settings": _settings_snapshot(settings),
+            "settings": settings_snapshot,
+            "window": {"hwnd": None, "title": None, "rect": None, "role": None},
             "frames": [],
             "events": [],
             "trace_file": "trace.jsonl",
@@ -1540,6 +2304,8 @@ class BundleRecorder:
                 "evidence": None,
                 "authoritative": False,
             },
+            "final_status": "UNKNOWN",
+            "final_reason": None,
             "live_preflight": {"status": "NOT_REQUESTED"},
             "verification": {
                 "frozen_replay": "PENDING",
@@ -1550,6 +2316,18 @@ class BundleRecorder:
                 "live_probe": "PENDING" if execution_mode == "target_handler" else "NOT_A_PROBE",
             },
         }
+        self.solo_observer_key: str | None = None
+        self.solo_observer: SoloIngameChainObserver | HitchLobbyChainObserver | None
+        if target == "solo_ingame_chain":
+            self.solo_observer_key = "solo_ingame_chain"
+            self.solo_observer = SoloIngameChainObserver()
+            self.manifest[self.solo_observer_key] = self.solo_observer.payload()
+        elif target == "hitch_lobby_chain":
+            self.solo_observer_key = "hitch_lobby_chain"
+            self.solo_observer = HitchLobbyChainObserver()
+            self.manifest[self.solo_observer_key] = self.solo_observer.payload()
+        else:
+            self.solo_observer = None
 
     def elapsed(self) -> float:
         return max(0.0, time.monotonic() - self._clock_start)
@@ -1626,9 +2404,13 @@ class BundleRecorder:
         """Persist a concrete capture blockage without exposing BLOCKED as a user marker."""
         if self._blocked_recorded:
             return None
-        if status not in {"BLOCKED", "BLOCKED_PRECHECK"}:
+        if status not in {"BLOCKED", "BLOCKED_PRECHECK", "BLOCKED_PRECONDITION"}:
             raise ValueError(f"未知 automatic blocked status: {status}")
         self._blocked_recorded = True
+        if frame is not None:
+            self.manifest["window"] = _window_evidence(frame)
+        elif isinstance(self.manifest.get("live_preflight"), dict) and self.manifest["live_preflight"].get("window"):
+            self.manifest["window"] = self.manifest["live_preflight"]["window"]
         return self._record_evidence_bookmark(
             status,
             med,
@@ -2003,6 +2785,13 @@ class BundleRecorder:
             )
         if action is not None and event["postcondition"].get("observed") is not True:
             self._pending_event_index = len(self.manifest["events"]) - 1
+        if before_frame is not None:
+            self.manifest["window"] = _window_evidence(before_frame)
+        elif after_frame is not None:
+            self.manifest["window"] = _window_evidence(after_frame)
+        if self.solo_observer is not None:
+            self.solo_observer.observe(med, after_state, after_frame or before_frame, trace_row, action)
+            self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
         self._write_manifest()
         return event
 
@@ -2060,8 +2849,48 @@ class BundleRecorder:
     def finalize(self) -> Path:
         self._read_trace()
         self.manifest["completed_at_utc"] = _utc_now()
+        if self.solo_observer is not None:
+            self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
+        window = self.manifest.get("window") or {}
+        preflight_window = (self.manifest.get("live_preflight") or {}).get("window") or {}
+        if not window.get("hwnd") and preflight_window:
+            self.manifest["window"] = preflight_window
+        self.manifest["final_status"], self.manifest["final_reason"] = self._compute_final_status()
         self._write_manifest()
         return self.manifest_path
+
+    def _compute_final_status(self) -> tuple[str, str]:
+        preflight = self.manifest.get("live_preflight") or {}
+        preflight_status = str(preflight.get("status") or "")
+        if preflight_status in {"BLOCKED_PRECHECK", "BLOCKED_PRECONDITION"}:
+            return preflight_status, "; ".join(preflight.get("blocked_reasons") or [preflight_status])
+        if self.manifest.get("ready_for_gt") is False and self.manifest.get("execution_mode") != "ground_truth_only":
+            if str((self.manifest.get("capture_options") or {}).get("requested_live_input")) in {"True", "true"} or preflight_status == "BLOCKED_PRECHECK":
+                reasons = list((self.manifest.get("harness_identity") or {}).get("blocked_reasons") or [])
+                reasons.extend(preflight.get("blocked_reasons") or [])
+                return "BLOCKED_PRECHECK", "; ".join(reasons) or "READY FOR GT = NO"
+        if self.solo_observer is not None and getattr(self.solo_observer, "blocked_reason", None):
+            return "BLOCKED_PRECONDITION", str(self.solo_observer.blocked_reason)
+        if self.solo_observer is not None and getattr(self.solo_observer, "manual_intervention_seen", False):
+            return "ABORTED", "MANUAL_INTERVENTION"
+        failures = list(self.manifest.get("automatic_failures") or [])
+        fail_notes = [str(item.get("note") or item.get("status") or "") for item in failures]
+        if any("emergency" in note.lower() or "shift+f12" in note.lower() for note in fail_notes):
+            return "ABORTED", "emergency stop"
+        if any(str(item.get("status")) in {"BLOCKED", "BLOCKED_PRECHECK", "BLOCKED_PRECONDITION"} for item in failures):
+            status = str(failures[-1].get("status") or "BLOCKED_PRECONDITION")
+            return status, str(failures[-1].get("note") or status)
+        if any("timeout" in note.lower() for note in fail_notes):
+            return "TIMEOUT_FAIL_CLOSED", fail_notes[-1] if fail_notes else "timeout"
+        if self.manifest.get("target_result", {}).get("authoritative"):
+            return "PASS", "authoritative business postcondition"
+        if self.solo_observer is not None and getattr(self.solo_observer, "is_pass", False):
+            return "PASS", "observer business postcondition"
+        if self.solo_observer is not None and getattr(self.solo_observer, "failed_reason", None):
+            return "FAIL", str(self.solo_observer.failed_reason)
+        if failures or self.manifest.get("verification", {}).get("fail_bookmark_seen"):
+            return "FAIL", fail_notes[-1] if fail_notes else "FAIL bookmark"
+        return "UNKNOWN", "no authoritative business postcondition"
 
 
 def _capture_after(med: Mediator) -> Frame | None:
@@ -2125,12 +2954,14 @@ def _build_identity_check(
         "build_identity_path": None,
         "blocked_reasons": [],
     }
-    if allow_dev_source:
+    reasons: list[str] = record["blocked_reasons"]
+    if allow_dev_source and automation_exe is None:
+        # Source-runtime may skip EXE matching, but never skips the production
+        # baseline / worktree gate in `_live_input_preflight`.
         record["status"] = "READY"
         record["dev_source_override"] = True
+        record["runtime_kind"] = "SOURCE_RUNTIME"
         return record
-
-    reasons: list[str] = record["blocked_reasons"]
     if tested_sha == "unknown":
         reasons.append("tested source SHA unavailable")
     if worktree_clean is not True:
@@ -2192,7 +3023,8 @@ def _build_identity_check(
 
 
 def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Frame | None, dict[str, Any]]:
-    is_lobby = target in {"lobby_hitch", "lobby_search", "hitch_runtime"}
+    # Only targets that intentionally start in KK own the L0 window.
+    is_lobby = target in {"lobby_hitch", "lobby_search", "hitch_lobby_chain"}
     role = "l0" if is_lobby else "l1"
     title = "" if is_lobby else str(getattr(settings, "window_title_contains", "") or "")
     try:
@@ -2221,11 +3053,154 @@ def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Fr
         "requested_title": title,
         "hwnd": getattr(frame, "hwnd", None),
         "title": window_title,
+        "rect": [
+            int(getattr(frame, "left", 0) or 0),
+            int(getattr(frame, "top", 0) or 0),
+            int(getattr(frame, "width", 0) or 0),
+            int(getattr(frame, "height", 0) or 0),
+        ],
+        "role": getattr(frame, "role", None) or role,
         "size": [getattr(frame, "width", 0), getattr(frame, "height", 0)],
         "frame_fingerprint": _frame_fingerprint(frame),
         "reason": reason,
     }
     return frame, record
+
+
+def _start_surface_preflight(
+    med: Mediator,
+    target: str,
+    frame: Frame | None,
+) -> dict[str, Any]:
+    """Check the operator-provided start surface with production classifiers."""
+    result: dict[str, Any] = {
+        "target": target,
+        "status": "NOT_REQUIRED",
+        "observed": True,
+        "classifier": None,
+        "runbook": str((_target_contract(target).get("runbook_manual") or "")),
+    }
+    if not _frame_is_valid(frame):
+        if target in {
+            "solo_ingame_chain", "hitch_runtime", "hitch_lobby_chain",
+            "choice_bond_skill", "treasure", "hero_evolve",
+            "inventory_devour", "inventory_hero_card", "inventory_item",
+            "black_merchant", "archive_challenge", "secret_realm",
+            "heirloom", "time_cave", "lobby_hitch", "lobby_search",
+        }:
+            result.update({
+                "status": "BLOCKED",
+                "observed": False,
+                "reason": "start surface frame is missing or invalid; ZERO INPUT",
+            })
+        return result
+
+    def _ok(classifier: str, observed: bool, reason_ok: str, reason_bad: str) -> dict[str, Any]:
+        result.update({
+            "status": "READY" if observed else "BLOCKED",
+            "classifier": classifier,
+            "observed": observed,
+            "reason": reason_ok if observed else reason_bad,
+        })
+        return result
+
+    if target == "solo_ingame_chain":
+        try:
+            observed = bool(med._find_stage_page(frame))
+        except (AttributeError, TypeError):
+            observed = False
+        return _ok(
+            "_find_stage_page",
+            observed,
+            "production Stage Select classifier confirmed",
+            "expected in-game Stage Select surface was not confirmed; ZERO INPUT",
+        )
+    if target == "hitch_runtime":
+        try:
+            observed = bool(med._is_in_game_hud(frame)) or bool(med._post_game_state(frame))
+        except (AttributeError, TypeError):
+            observed = False
+        return _ok(
+            "_is_in_game_hud/_post_game_state",
+            observed,
+            "production in-game HUD/post-game classifier confirmed",
+            "expected in-game HUD or post-game surface was not confirmed; ZERO INPUT",
+        )
+    if target in {"hitch_lobby_chain", "lobby_hitch", "lobby_search"}:
+        try:
+            observed = bool(med._lobby_room_list_evidence(frame))
+        except (AttributeError, TypeError):
+            observed = False
+        return _ok(
+            "_lobby_room_list_evidence",
+            observed,
+            "production lobby room-list classifier confirmed",
+            "expected lobby room list was not confirmed; ZERO INPUT",
+        )
+    if target in {"choice_bond_skill", "treasure", "hero_evolve", "inventory_devour", "inventory_hero_card", "inventory_item", "black_merchant"}:
+        try:
+            hud = bool(med._is_in_game_hud(frame))
+        except (AttributeError, TypeError):
+            hud = False
+        panel = False
+        try:
+            panel = med._selection_anchor(frame) is not None
+        except (AttributeError, TypeError):
+            panel = False
+        evolve = False
+        if target == "hero_evolve":
+            try:
+                evolve = bool(med._has_evolve_button(frame))
+            except (AttributeError, TypeError):
+                evolve = False
+            observed = hud and (evolve or panel)
+            return _ok(
+                "_has_evolve_button",
+                observed,
+                "evolve-capable HUD confirmed",
+                "expected evolve-capable in-game HUD was not confirmed; ZERO INPUT",
+            )
+        observed = hud or panel
+        return _ok(
+            "_is_in_game_hud/_selection_anchor",
+            observed,
+            "in-game HUD or choice panel confirmed",
+            "expected in-game HUD/panel was not confirmed; ZERO INPUT",
+        )
+    if target == "archive_challenge":
+        try:
+            observed = med._post_game_state(frame) == "ARCHIVE_PANEL"
+        except (AttributeError, TypeError):
+            observed = False
+        return _ok(
+            "_post_game_state==ARCHIVE_PANEL",
+            observed,
+            "archive challenge panel confirmed",
+            "expected archive panel was not confirmed; ZERO INPUT",
+        )
+    if target == "secret_realm":
+        try:
+            observed = med._post_game_state(frame) in {"NPC_HUB", "POST_VICTORY"}
+        except (AttributeError, TypeError):
+            observed = False
+        return _ok(
+            "_post_game_state NPC_HUB",
+            observed,
+            "secret-realm start surface confirmed",
+            "expected NPC hub/post-victory surface was not confirmed; ZERO INPUT",
+        )
+    if target in {"heirloom", "time_cave"}:
+        try:
+            observed = med._post_game_state(frame) in {"HEIRLOOM_DIALOG", "NPC_HUB", "ARCHIVE_PANEL"}
+        except (AttributeError, TypeError):
+            observed = False
+        return _ok(
+            "_post_game_state boss list",
+            observed,
+            "boss/heirloom start surface confirmed",
+            "expected boss/heirloom surface was not confirmed; ZERO INPUT",
+        )
+    return result
 
 
 def _ocr_bootstrap_preflight(med: Mediator) -> dict[str, Any]:
@@ -2249,7 +3224,7 @@ def _ocr_bootstrap_preflight(med: Mediator) -> dict[str, Any]:
 
 
 def _lobby_resource_preflight(med: Mediator, target: str | None) -> list[str]:
-    if target not in {"lobby_hitch", "lobby_search"}:
+    if target not in {"lobby_hitch", "lobby_search", "hitch_lobby_chain"}:
         return []
     images = Path(getattr(med, "images", "") or "")
     # Search is the requested first action. Row-safety assets are checked at
@@ -2329,6 +3304,13 @@ def _live_input_preflight(
             "reason": runtime_mediator_error,
         }
     reasons = list(identity.get("blocked_reasons") or [])
+    gt_identity = identity_report(
+        repo_root=repo_root,
+        automation_exe=getattr(args, "automation_exe", None),
+        require_exe=bool(getattr(args, "live_input", False) and not getattr(args, "allow_dev_source", False)),
+    )
+    if not gt_identity.get("ready_for_gt"):
+        reasons.extend(list(gt_identity.get("blocked_reasons") or []))
     if elevation_blocked:
         reasons.append(str(ocr_health["reason"]))
     resource_missing = _lobby_resource_preflight(med, getattr(args, "target", None))
@@ -2338,6 +3320,9 @@ def _live_input_preflight(
         reasons.append(f"ocr_bootstrap_unhealthy: {ocr_health.get('reason') or ocr_health.get('stage')}")
     if window.get("status") != "READY":
         reasons.append(f"game window unavailable: {window.get('reason') or window.get('requested_title')}")
+    start_surface = _start_surface_preflight(med, target, frame)
+    if start_surface.get("status") == "BLOCKED":
+        reasons.append(f"BLOCKED_PRECONDITION: {start_surface.get('reason') or 'start surface not confirmed'}")
 
     lane: LiveLane | None = None
     single_instance: dict[str, Any] = {
@@ -2358,13 +3343,19 @@ def _live_input_preflight(
     else:
         single_instance["reason"] = "not acquired because an earlier precheck failed"
 
+    blocked_status = "BLOCKED_PRECHECK"
+    if any(str(reason).startswith("BLOCKED_PRECONDITION") for reason in reasons) and identity.get("status") == "READY" and gt_identity.get("ready_for_gt"):
+        blocked_status = "BLOCKED_PRECONDITION"
     return ({
-        "status": "READY" if not reasons else "BLOCKED_PRECHECK",
+        "status": "READY" if not reasons else blocked_status,
         "tested_source_sha": _commit_sha(repo_root),
         "actual_exe": identity,
+        "harness_identity": gt_identity,
+        "ready_for_gt": bool(gt_identity.get("ready_for_gt")),
         "settings_snapshot": _settings_snapshot(settings),
         "ocr_bootstrap_health": ocr_health,
         "window": window,
+        "start_surface": start_surface,
         "resource_preflight": {"missing": resource_missing},
         "single_instance": single_instance,
         "blocked_reasons": reasons,
@@ -2438,6 +3429,8 @@ def _load_operator_settings(path: Path | None) -> Settings:
 
 def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Settings:
     settings = _load_operator_settings(path)
+    if not live_input:
+        settings.dry_run = True
     # A Ground Truth-only target remains zero-input even when an operator
     # accidentally supplied --live-input. Never turn a production flag on in
     # Boss/时间之穴测试只在内存中使用不可用哨兵，强制验证最后可识别 Boss fallback。
@@ -2446,7 +3439,7 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
         settings.cjb_boss = "55吞咽者布鲁"
         settings.sgzx_boss = "55吞咽者布鲁"
         settings.auto_secret_realm = False
-    if target in {"lobby_hitch", "lobby_search", "hitch_runtime"}:
+    if target in {"lobby_hitch", "lobby_search", "hitch_runtime", "hitch_lobby_chain"}:
         settings.mode_id = "lobby_hitch"
         settings.auto_create_room = False
         settings.skip_password_rooms = True
@@ -2454,6 +3447,13 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     if target == "hitch_runtime":
         # 蹭车续跑在传家宝挑战确认后按既有退出链收敛；秘境另行显式配置。
         settings.auto_secret_realm = False
+    if target == "solo_ingame_chain":
+        settings.mode_id = "normal_farm"
+        settings.auto_create_room = False
+    if target == "treasure":
+        settings.auto_treasure = True
+    if target == "choice_bond_skill":
+        settings.auto_bond = True
     return settings
 
 
@@ -2506,6 +3506,37 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
                 if target == "lobby_search"
                 else "target probe starts from game lobby room list to search and join room"
             ),
+        }
+    if target in {"black_merchant", "inventory_item", "inventory_devour", "inventory_hero_card"}:
+        med._evolve_ok_this_cycle = True
+        if target == "inventory_devour":
+            return {
+                "evolve_ok_this_cycle": True,
+                "reason": "operator start condition confirms one completed evolution; existing devour-pill handler retains all gates",
+            }
+        if target == "inventory_hero_card":
+            return {
+                "evolve_ok_this_cycle": True,
+                "reason": "operator start condition confirms one completed evolution; existing hero-card handler retains all gates",
+            }
+    if target == "hero_evolve":
+        med._l1_cycle_step = "evolve"
+        return {"l1_cycle_step": "evolve", "reason": "probe starts at production evolve cycle step"}
+    if target == "choice_bond_skill":
+        med._l1_cycle_step = "bond"
+        med._choice_target = "bond"
+        return {"l1_cycle_step": "bond", "reason": "probe starts at production bond/skill panel entry"}
+    if target == "treasure":
+        med._l1_cycle_step = "treasure"
+        med._choice_target = "treasure"
+        return {"l1_cycle_step": "treasure", "reason": "probe starts at production treasure panel entry"}
+    if target == "archive_challenge":
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        return {
+            "post_game_pending": True,
+            "post_game_route": "archive",
+            "reason": "probe starts on an already-open archive panel; existing handler retains card policy",
         }
     if target != "secret_realm":
         return {}
@@ -2566,6 +3597,16 @@ def _is_emergency_reason(reason: str | None) -> bool:
     return "emergency" in text or "shift+f12" in text or "f12 emergency" in text
 
 
+def _initial_phase_for_target(target: str) -> Phase:
+    if target == "solo_ingame_chain":
+        return Phase.STAGE_SELECT
+    if target in {"lobby_hitch", "lobby_search", "hitch_lobby_chain"}:
+        return Phase.LOBBY_ROOM
+    if target == "hitch_runtime":
+        return Phase.MAIN_LINE
+    return Phase.MAIN_LINE
+
+
 def _resume_after_manual_intervention(med: Mediator) -> None:
     """Resume the observation loop only after an explicit manual bookmark."""
     med.stop_signal.reset()
@@ -2596,8 +3637,15 @@ def _append_bookmark_command(
 def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     target = args.target
     until_success = bool(getattr(args, "until_success", False))
-    if until_success and (not probe or target != "lobby_search" or not args.live_input):
-        raise ValueError("--until-success 仅允许 lobby_search 的真实输入 probe")
+    until_success_ok = (
+        args.live_input
+        and (
+            (probe and target == "lobby_search")
+            or (not probe and target == "hitch_lobby_chain")
+        )
+    )
+    if until_success and not until_success_ok:
+        raise ValueError("--until-success 仅允许 lobby_search probe 或 hitch_lobby_chain capture 的真实输入")
     contract = _target_contract(target)
     _require_live_confirmation(args.live_input, args.confirm_live_input)
     repo_root = Path(args.repo_root).resolve()
@@ -2624,8 +3672,14 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         med = Mediator(settings, repo_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
         if elevation_blocked:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
-    initial_phase = Phase.LOBBY_ROOM if target in {"lobby_hitch", "lobby_search", "hitch_runtime"} else Phase.MAIN_LINE
+    initial_phase = _initial_phase_for_target(target)
     med.set_phase(initial_phase, f"{target} {'target probe' if probe else 'live capture'}")
+    if target == "hitch_lobby_chain":
+        med._hitch_re_search = False
+        try:
+            med._hitch_sm.continuous = True
+        except AttributeError:
+            pass
     probe_bootstrap = _bootstrap_target_probe(med, target) if probe and execution_mode == "target_handler" else {}
     recorder = BundleRecorder(
         bundle_dir,
@@ -2654,13 +3708,22 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             runtime_mediator_error=runtime_mediator_error,
         )
         recorder.record_preflight(preflight)
+        recorder.manifest["window"] = preflight.get("window") or recorder.manifest.get("window")
+        recorder.manifest["ready_for_gt"] = bool(preflight.get("ready_for_gt", recorder.manifest.get("ready_for_gt")))
+        if recorder.solo_observer is not None:
+            recorder.solo_observer.precheck(preflight.get("status") == "READY", preflight)
+            recorder.manifest[str(recorder.solo_observer_key)] = recorder.solo_observer.payload()
     else:
+        dry_identity = identity_report(repo_root=repo_root, automation_exe=getattr(args, "automation_exe", None))
         recorder.record_preflight({
             "status": "NOT_REQUESTED",
             "tested_source_sha": _commit_sha(repo_root),
+            "harness_identity": dry_identity,
+            "ready_for_gt": bool(dry_identity.get("ready_for_gt")),
             "settings_snapshot": _settings_snapshot(settings),
             "reason": "dry-run or Ground Truth capture without --live-input",
         })
+        recorder.manifest["ready_for_gt"] = bool(dry_identity.get("ready_for_gt"))
 
     guard_events: list[dict[str, str]] = []
 
@@ -2693,7 +3756,7 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
     current_frame: dict[str, Frame | None] = {"value": None}
     live_preflight_blocked = bool(
         args.live_input
-        and recorder.manifest.get("live_preflight", {}).get("status") == "BLOCKED_PRECHECK"
+        and str(recorder.manifest.get("live_preflight", {}).get("status") or "").startswith("BLOCKED")
     )
 
     def capture_for_tick(reason: str = "") -> Frame:
@@ -2711,6 +3774,9 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             bookmark_frame = current_frame["value"] or _capture_after(med)
             recorder.bookmark(status, med, bookmark_frame, note=note)
             print(f"[bookmark] {status} {note}".rstrip())
+            if status == "MANUAL_INTERVENTION" and recorder.solo_observer is not None:
+                recorder.solo_observer.manual_intervention()
+                recorder.manifest[str(recorder.solo_observer_key)] = recorder.solo_observer.payload()
             if (
                 awaiting_manual_resume
                 and status == "MANUAL_INTERVENTION"
@@ -2720,6 +3786,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 awaiting_manual_resume = False
                 print("[capture] manual intervention recorded; observation loop resumed")
 
+    print(format_identity_text(identity_report(repo_root=repo_root, automation_exe=getattr(args, "automation_exe", None))))
+    print(f"[runbook] 请将真实游戏停在以下页面/状态：{contract['runbook_manual']}")
     print(
         f"[capture] bundle={bundle_dir} bookmark_file={bookmark_file} "
         "keys: p=PASS f=FAIL m=MANUAL_INTERVENTION"
@@ -2739,47 +3807,58 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                     at_s=0.0,
                 )
             note = "; ".join(recorder.manifest["live_preflight"].get("blocked_reasons") or [])
+            blocked_status = str(recorder.manifest["live_preflight"].get("status") or "BLOCKED_PRECHECK")
+            if blocked_status not in {"BLOCKED", "BLOCKED_PRECHECK", "BLOCKED_PRECONDITION"}:
+                blocked_status = "BLOCKED_PRECHECK"
             recorder.record_blocked(
                 med,
                 current_frame["value"],
-                status="BLOCKED_PRECHECK",
+                status=blocked_status,
                 note=f"live input refused before target handler: {note}",
             )
-            print("[preflight] BLOCKED_PRECHECK; no business handler or game input was attempted")
+            print(f"[preflight] {blocked_status}; no business handler or game input was attempted")
             return bundle_dir
 
         med.emergency_listener = EmergencyStopListener(stop_signal)
         med.emergency_listener.start()
 
-        # 悬浮 HUD：屏幕正上方常驻，随时点击直接退出测试
-        import threading
-        def _run_hud():
-            try:
-                import tkinter as tk
-                root = tk.Tk()
-                root.title("ShuaBao Test HUD")
-                root.overrideredirect(True)
-                root.attributes("-topmost", True)
-                root.attributes("-alpha", 0.95)
-                root.geometry("400x42+600+10")
-                root.configure(bg="#141821")
-                lbl = tk.Label(root, text=f"【刷刷宝实机测试】{target}", fg="#00F0FF", bg="#141821", font=("Microsoft YaHei", 9, "bold"))
-                lbl.pack(side=tk.LEFT, padx=12)
-                def _on_stop():
-                    stop_signal.trigger("User clicked HUD stop")
-                    try: root.destroy()
-                    except Exception: pass
-                btn = tk.Button(root, text="■ 停止测试 (点此退出)", fg="white", bg="#E63946", activebackground="#C1121F", activeforeground="white", font=("Microsoft YaHei", 9, "bold"), relief=tk.FLAT, command=_on_stop, cursor="hand2")
-                btn.pack(side=tk.RIGHT, padx=10, pady=5)
-                while not stop_signal.is_set():
-                    try: root.update()
-                    except Exception: break
-                    time.sleep(0.05)
-                try: root.destroy()
-                except Exception: pass
-            except Exception as e:
-                print(f"[HUD] 悬浮窗启动异常 (不影响测试): {e}")
-        threading.Thread(target=_run_hud, daemon=True).start()
+        if args.live_input:
+            import threading
+
+            def _run_hud():
+                try:
+                    import tkinter as tk
+                    root = tk.Tk()
+                    root.title("ShuaBao Test HUD")
+                    root.overrideredirect(True)
+                    root.attributes("-topmost", True)
+                    root.attributes("-alpha", 0.95)
+                    root.geometry("400x42+600+10")
+                    root.configure(bg="#141821")
+                    lbl = tk.Label(root, text=f"【刷刷宝实机测试】{target}", fg="#00F0FF", bg="#141821", font=("Microsoft YaHei", 9, "bold"))
+                    lbl.pack(side=tk.LEFT, padx=12)
+                    def _on_stop():
+                        stop_signal.trigger("User clicked HUD stop")
+                        try:
+                            root.destroy()
+                        except Exception:
+                            pass
+                    btn = tk.Button(root, text="■ 停止测试 (点此退出)", fg="white", bg="#E63946", activebackground="#C1121F", activeforeground="white", font=("Microsoft YaHei", 9, "bold"), relief=tk.FLAT, command=_on_stop, cursor="hand2")
+                    btn.pack(side=tk.RIGHT, padx=10, pady=5)
+                    while not stop_signal.is_set():
+                        try:
+                            root.update()
+                        except Exception:
+                            break
+                        time.sleep(0.05)
+                    try:
+                        root.destroy()
+                    except Exception:
+                        pass
+                except Exception as exc:
+                    print(f"[HUD] 悬浮窗启动异常 (不影响测试): {exc}")
+
+            threading.Thread(target=_run_hud, daemon=True).start()
         while (
             (until_success or ticks < args.max_ticks)
             and (deadline is None or time.monotonic() <= deadline)
@@ -2897,6 +3976,13 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             ):
                 ticks += 1
                 break
+            if (
+                target == "hitch_lobby_chain"
+                and recorder.solo_observer is not None
+                and recorder.solo_observer.is_pass
+            ):
+                ticks += 1
+                break
             ticks += 1
             if stop_signal.is_set() and not awaiting_manual_resume:
                 break
@@ -2904,9 +3990,11 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 time.sleep(float(args.interval))
         if (
             probe
+            and args.live_input
             and execution_mode == "target_handler"
             and deadline is not None
             and time.monotonic() >= deadline
+            and ticks >= 1
             and not recorder.manifest["target_result"].get("authoritative")
             and not recorder.manifest["automatic_failures"]
             and not _is_emergency_reason(stop_signal.reason)
@@ -3453,16 +4541,20 @@ def readiness_report(
             "failure_summary": "READY" if callable(_build_failure_summary) else "MISSING",
             "replay_conversion": "READY" if replay_ok else "MISSING",
         })
+    identity = identity_report(repo_root=repo_root)
     return {
         "readiness_schema_version": 2,
         "repo_root": str(repo_root),
         "tested_commit_sha": sha,
+        "harness_identity": identity,
+        "ready_for_gt": bool(identity.get("ready_for_gt")),
         "replay_self_check": {"status": "PASS" if replay_ok else "FAIL", "detail": replay_detail},
         "live_input_preflight": {
             "status": "REQUIRED",
             "required_facts": (
                 "tested_source_sha", "actual_exe_build_hash", "settings_snapshot",
                 "ocr_bootstrap_health", "hwnd_title_size", "single_instance",
+                "harness_base", "production_code_diff", "runtime_worktree",
             ),
         },
         "targets": targets,
@@ -3474,6 +4566,9 @@ def _print_readiness(report: dict[str, Any], *, as_json: bool = False) -> None:
         print(json.dumps(report, ensure_ascii=False, indent=2))
         return
     print(f"[readiness] commit={report.get('tested_commit_sha')}")
+    identity = report.get("harness_identity") or {}
+    if identity:
+        print(format_identity_text(identity))
     replay = report.get("replay_self_check") or {}
     print(f"[readiness] replay_self_check={replay.get('status')}: {replay.get('detail')}")
     print("TARGET             HARNESS_READINESS  PRODUCTION_READINESS  MAX_PROBE  SCOPE / GAPS")
@@ -3567,7 +4662,7 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--until-success",
         action="store_true",
-        help="仅用于 lobby_search 实机 probe：忽略 duration/max-ticks，直到客人准备得到真实后置确认",
+        help="lobby_search probe 或 hitch_lobby_chain capture：忽略 duration/max-ticks，直到生产后置确认",
     )
     parser.add_argument(
         "--bookmark-file",
@@ -3634,6 +4729,10 @@ def build_parser() -> argparse.ArgumentParser:
     readiness_parser.add_argument("--settings", type=Path, default=None, help="可选：同时检查本次 settings 的 target 前置")
     readiness_parser.add_argument("--quick", action="store_true", help="跳过临时 bundle 的离线 replay self-check")
     readiness_parser.add_argument("--json", action="store_true")
+    identity_parser = sub.add_parser("identity", help="打印 Harness/production/runtime 身份与 READY FOR GT")
+    identity_parser.add_argument("--repo-root", type=Path, default=ROOT)
+    identity_parser.add_argument("--automation-exe", type=Path, default=None)
+    identity_parser.add_argument("--json", action="store_true")
     contracts_parser = sub.add_parser("contracts", help="显示六个 Target Test Contract")
     contracts_parser.add_argument("--target", choices=SUPPORTED_TARGETS, default=None)
     contracts_parser.add_argument("--json", action="store_true")
@@ -3719,6 +4818,13 @@ def main(argv: list[str] | None = None) -> int:
                 repo_root=args.repo_root.resolve(),
                 variants=raw_variants,
             ) == 0 else 1
+        if args.command == "identity":
+            report = identity_report(repo_root=args.repo_root, automation_exe=args.automation_exe)
+            if args.json:
+                print(json.dumps(report, ensure_ascii=False, indent=2))
+            else:
+                print(format_identity_text(report))
+            return 0 if report["ready_for_gt"] else 1
         if args.command == "readiness":
             settings = _load_operator_settings(args.settings)
             report = readiness_report(
@@ -3727,7 +4833,8 @@ def main(argv: list[str] | None = None) -> int:
                 run_replay_self_check=not args.quick,
             )
             _print_readiness(report, as_json=args.json)
-            return 0 if all(item["harness_readiness"] == "READY" for item in report["targets"]) else 1
+            harness_ok = all(item["harness_readiness"] == "READY" for item in report["targets"])
+            return 0 if harness_ok and report.get("ready_for_gt", True) else 1
         if args.command == "contracts":
             _print_contracts(args.target, as_json=args.json)
             return 0

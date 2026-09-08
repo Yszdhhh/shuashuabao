@@ -436,6 +436,14 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
         "lobby_hitch",
         "lobby_search",
         "hitch_runtime",
+        "solo_ingame_chain",
+        "hitch_lobby_chain",
+        "choice_bond_skill",
+        "treasure",
+        "hero_evolve",
+        "inventory_devour",
+        "inventory_hero_card",
+        "archive_challenge",
     )
     for contract in TARGET_CONTRACTS.values():
         assert all(contract.get(field) for field in TARGET_CONTRACT_FIELDS)
@@ -455,6 +463,14 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
     assert by_target["lobby_hitch"]["production_readiness"] == "CONDITIONAL"
     assert by_target["lobby_search"]["production_readiness"] == "CONDITIONAL"
     assert by_target["hitch_runtime"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["solo_ingame_chain"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["hitch_lobby_chain"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["choice_bond_skill"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["treasure"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["hero_evolve"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["inventory_devour"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["inventory_hero_card"]["production_readiness"] == "CONDITIONAL"
+    assert by_target["archive_challenge"]["production_readiness"] == "CONDITIONAL"
     assert TARGET_CONTRACTS["lobby_search"]["max_probe_time_s"] == 90.0
     assert by_target["time_cave"]["ground_truth_only"] is False
     assert by_target["heirloom"]["ground_truth_only"] is False

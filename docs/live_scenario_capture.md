@@ -1,5 +1,18 @@
 # Live Scenario Capture → Frozen Replay
 
+The 2026-09-08 harness refresh (`test/live-harness-refresh-20260908`) is derived
+from `origin/trial-merge` @ `d1fb4a5`. Frozen production code baseline is
+`decb9b6`. The GUI identity banner reports Harness HEAD / Base / Runtime
+Worktree / Production Code Diff / READY FOR GT. READY FOR GT = NO fail-closes
+live acceptance buttons.
+
+New GUI lanes:
+
+- `13 hitch_lobby_chain` — production `Mediator.tick()` from a real lobby
+- Targeted live probes A–J — thin adapters over existing production handlers
+
+Do not copy production FSMs into this tool.
+
 `tools/live_scenario_capture.py` is a thin adapter over the existing
 `ReplayCaseLoader / FakeClock / FakeInputExecutor / ScenarioRunner`. Normal
 capture calls `Mediator.tick()`; a conditional probe calls one named existing

@@ -1,9 +1,11 @@
 ﻿# Thin Windows menu for the existing tools/live_scenario_capture.py only.
 # It discovers paths and forwards arguments; production logic stays in the tool.
 
+param([switch]$SettingsPanelSmokeTest)
+
 $ErrorActionPreference = "Stop"
 
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+if (-not $SettingsPanelSmokeTest -and -not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $scriptPath = if ($PSCommandPath) { $PSCommandPath } else { Join-Path $PSScriptRoot "live_scenario_launcher.ps1" }
     Start-Process powershell.exe -ArgumentList "-NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -File `"$scriptPath`"" -WorkingDirectory $PSScriptRoot -Verb RunAs
     exit
@@ -19,9 +21,15 @@ if (-not (Test-Path -LiteralPath $ToolPath -PathType Leaf)) {
 $script:LastToolExitCode = 0
 
 function Resolve-PythonPath {
-    $venvPython = Join-Path $RepoRoot ".venv\Scripts\python.exe"
-    if (Test-Path -LiteralPath $venvPython -PathType Leaf) {
-        return $venvPython
+    $candidates = @(
+        (Join-Path $RepoRoot ".venv\Scripts\python.exe")
+    )
+    $workspaceRoot = Split-Path (Split-Path $RepoRoot -Parent) -Parent
+    $candidates += (Join-Path $workspaceRoot "GameScript-Local\.venv\Scripts\python.exe")
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $candidate
+        }
     }
 
     $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
@@ -33,12 +41,11 @@ function Resolve-PythonPath {
 }
 
 function Get-ExeCandidates {
-    $desktop = [Environment]::GetFolderPath("Desktop")
+    # Never pick a Desktop/old-worktree EXE. The live harness must load this
+    # worktree's production source, or a package built from it.
     return @(
         (Join-Path $RepoRoot "dist\ShuaBao\ShuaBao.exe"),
-        (Join-Path $RepoRoot "dist\ShuaBao.exe"),
-        (Join-Path $desktop "ShuaBao\ShuaBao.exe"),
-        (Join-Path $desktop "刷刷宝\ShuaBao.exe")
+        (Join-Path $RepoRoot "dist\ShuaBao.exe")
     )
 }
 
@@ -98,6 +105,214 @@ function Resolve-OperatorSettingsPath {
     return $null
 }
 
+function Resolve-OcrPython {
+    $candidates = @()
+    if ($env:SHUABAO_OCR_PYTHON) { $candidates += $env:SHUABAO_OCR_PYTHON }
+    $candidates += (Join-Path $RepoRoot ".venv-ocr\Scripts\python.exe")
+    # The Harness worktree is intentionally small. Reuse the existing local OCR
+    # environment read-only; this changes neither the production worktree nor
+    # the production settings/package.
+    $workspaceRoot = Split-Path (Split-Path $RepoRoot -Parent) -Parent
+    $candidates += (Join-Path $workspaceRoot "GameScript-Local\.venv-ocr\Scripts\python.exe")
+    return ($candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1)
+}
+
+function Resolve-OcrModelDir {
+    $candidates = @()
+    if ($env:SHUABAO_OCR_MODEL_DIR) { $candidates += $env:SHUABAO_OCR_MODEL_DIR }
+    $candidates += (Join-Path $RepoRoot "models\ocr")
+    $workspaceRoot = Split-Path (Split-Path $RepoRoot -Parent) -Parent
+    $candidates += (Join-Path $workspaceRoot "GameScript-Local\models\ocr")
+    foreach ($candidate in $candidates) {
+        $model = if ((Split-Path $candidate -Leaf) -eq "PP-OCRv5_mobile_rec_infer") {
+            $candidate
+        } else {
+            Join-Path $candidate "PP-OCRv5_mobile_rec_infer"
+        }
+        if (
+            (Test-Path -LiteralPath (Join-Path $model "inference.json") -PathType Leaf) -and
+            (Test-Path -LiteralPath (Join-Path $model "inference.pdiparams") -PathType Leaf) -and
+            (Test-Path -LiteralPath (Join-Path $model "inference.yml") -PathType Leaf)
+        ) {
+            return (Resolve-Path -LiteralPath $candidate).Path
+        }
+    }
+    return $null
+}
+
+function Read-HarnessSettingsSource {
+    $source = if ($script:OperatorSettingsPath) { $script:OperatorSettingsPath } else { Join-Path $RepoRoot "config\default_settings.json" }
+    try {
+        $raw = [System.IO.File]::ReadAllText($source, [System.Text.Encoding]::UTF8) | ConvertFrom-Json
+    } catch {
+        $reason = ($_.Exception.Message -split "`r?`n")[0]
+        throw "Harness 无法读取 UTF-8 配置：$source`r`n$reason"
+    }
+    return @{ Path = $source; Value = $raw }
+}
+
+function Save-HarnessSettingsCopy {
+    param([Parameter(Mandatory = $true)]$SettingsObject)
+
+    $SettingsObject.mode_id = "normal_farm"
+    $stamp = Get-Date -Format "yyyyMMdd_HHmmss_ffff"
+    $path = Join-Path $script:SoloCaptureRoot "live_harness_settings_$stamp.json"
+    $json = $SettingsObject | ConvertTo-Json -Depth 12
+    [System.IO.File]::WriteAllText($path, $json, [System.Text.UTF8Encoding]::new($false))
+    return $path
+}
+
+function New-DashboardSettingsSnapshot {
+    $loaded = Read-HarnessSettingsSource
+    $path = Save-HarnessSettingsCopy $loaded.Value
+    Write-Host "[launcher] 已只读复制正式看板设置：$($loaded.Path)" -ForegroundColor DarkGray
+    Write-Host "[launcher] 本次隔离设置副本：$path" -ForegroundColor DarkGray
+    return $path
+}
+
+function Show-HarnessSettingsPanel {
+    param([switch]$ConstructOnly)
+
+    $loaded = Read-HarnessSettingsSource
+    $source = $loaded.Path
+    $raw = $loaded.Value
+    function Value-OrDefault($Name, $Default) {
+        $property = $raw.PSObject.Properties[$Name]
+        if ($null -eq $property -or $null -eq $property.Value) { return $Default }
+        return $property.Value
+    }
+    function Csv-Value($Name) {
+        $value = Value-OrDefault $Name @()
+        if ($value -is [System.Collections.IEnumerable] -and $value -isnot [string]) { return [string]::Join(",", @($value)) }
+        return [string]$value
+    }
+
+    $form = New-Object System.Windows.Forms.Form
+    $form.Text = "单人完整循环 · 临时 Harness 设置"
+    $form.StartPosition = "CenterScreen"
+    $form.Size = New-Object System.Drawing.Size(620, 590)
+    $form.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
+    $form.TopMost = $true
+    $note = New-Object System.Windows.Forms.Label
+    $note.Text = "默认点击 12 会自动读取正式看板设置，无需在这里输入。`r`n来源：$source`r`n本页只生成临时覆盖，不会写正式 user_settings.json。"
+    $note.AutoSize = $false; $note.Size = New-Object System.Drawing.Size(570, 62); $note.Location = [System.Drawing.Point]::new(20, 15)
+    $note.ForeColor = [System.Drawing.Color]::DimGray; $form.Controls.Add($note)
+    $fields = @(
+        @{ Label = "目标关卡（逗号分隔）"; Name = "stage_targets"; Value = (Csv-Value "stage_targets") },
+        @{ Label = "技能 short code（最多 4 个）"; Name = "skills"; Value = (Csv-Value "skills") },
+        @{ Label = "羁绊（逗号分隔）"; Name = "bonds"; Value = (Csv-Value "bonds") },
+        @{ Label = "传家宝 Boss（留空则跳过）"; Name = "cjb_boss"; Value = (Value-OrDefault "cjb_boss" "") },
+        @{ Label = "时光之穴 Boss（留空则跳过）"; Name = "sgzx_boss"; Value = (Value-OrDefault "sgzx_boss" "") }
+    )
+    $controls = @{}
+    $y = 74
+    foreach ($field in $fields) {
+        $label = New-Object System.Windows.Forms.Label
+        $label.Text = $field.Label; $label.AutoSize = $true; $label.Location = [System.Drawing.Point]::new(20, ($y + 4)); $form.Controls.Add($label)
+        $box = New-Object System.Windows.Forms.TextBox
+        $box.Text = [string]$field.Value; $box.Size = New-Object System.Drawing.Size(285, 28); $box.Location = [System.Drawing.Point]::new(230, $y)
+        $controls[$field.Name] = $box; $form.Controls.Add($box); $y += 42
+    }
+    $toggleSpecs = @(
+        @{ Label = "自动秘境"; Name = "auto_secret_realm" },
+        @{ Label = "5-5 后关闭自动任务"; Name = "auto_close_main_line" },
+        @{ Label = "存档/考古挑战"; Name = "auto_archaeology" },
+        @{ Label = "自动羁绊"; Name = "auto_bond" },
+        @{ Label = "自动宝物"; Name = "auto_treasure" },
+        @{ Label = "自动装备"; Name = "auto_weapon" },
+        @{ Label = "黑商"; Name = "merchant_enabled" }
+    )
+    $toggleControls = @{}
+    $toggleY = $y
+    for ($i = 0; $i -lt $toggleSpecs.Count; $i++) {
+        $spec = $toggleSpecs[$i]
+        $check = New-Object System.Windows.Forms.CheckBox
+        $check.Text = $spec.Label
+        $check.Checked = [bool](Value-OrDefault $spec.Name $false)
+        $check.Location = [System.Drawing.Point]::new((20 + (($i % 2) * 290)), ($toggleY + ([math]::Floor($i / 2) * 30)))
+        $check.AutoSize = $true
+        $toggleControls[$spec.Name] = $check
+        $form.Controls.Add($check)
+    }
+    $toggleY += ([math]::Ceiling($toggleSpecs.Count / 2) * 30)
+    $start = New-Object System.Windows.Forms.Button
+    $start.Text = "保存为下一次测试的临时覆盖"; $start.Size = New-Object System.Drawing.Size(250, 38); $start.Location = [System.Drawing.Point]::new(330, ($toggleY + 16))
+    $start.Add_Click({
+        $skills = @($controls["skills"].Text -split "[,;\s]+" | Where-Object { $_ })
+        if ($skills.Count -gt 4) { [System.Windows.Forms.MessageBox]::Show("技能最多 4 个。", "临时 Harness 设置") | Out-Null; return }
+        $raw.stage_targets = @($controls["stage_targets"].Text -split "[,;\s]+" | Where-Object { $_ })
+        $raw.skills = $skills
+        $raw.bonds = @($controls["bonds"].Text -split "[,;\s]+" | Where-Object { $_ })
+        $raw.cjb_boss = $controls["cjb_boss"].Text.Trim()
+        $raw.sgzx_boss = $controls["sgzx_boss"].Text.Trim()
+        foreach ($spec in $toggleSpecs) {
+            $raw.($spec.Name) = [bool]$toggleControls[$spec.Name].Checked
+        }
+        $script:HarnessSettingsPath = Save-HarnessSettingsCopy $raw
+        $form.DialogResult = [System.Windows.Forms.DialogResult]::OK
+        $form.Close()
+    })
+    $form.Controls.Add($start)
+    $cancel = New-Object System.Windows.Forms.Button
+    $cancel.Text = "取消"; $cancel.Size = New-Object System.Drawing.Size(90, 38); $cancel.Location = [System.Drawing.Point]::new(230, ($toggleY + 16))
+    $cancel.Add_Click({ $form.Close() }); $form.Controls.Add($cancel)
+    if ($ConstructOnly) {
+        $form.Dispose()
+        return $true
+    }
+    return $form.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK
+}
+
+function Resolve-SoloCaptureRoot {
+    $path = Join-Path $env:TEMP "shuabao-captures"
+    New-Item -ItemType Directory -Path $path -Force | Out-Null
+    return (Resolve-Path -LiteralPath $path).Path
+}
+
+function Get-HarnessIdentity {
+    if (-not $script:PythonPath) {
+        return @{
+            ReadyForGt = $false
+            Text = "Harness HEAD: unknown`r`nREADY FOR GT: NO`r`nBLOCKED: python unavailable"
+            Json = $null
+        }
+    }
+    $identityArgs = @(
+        $ToolPath, "identity", "--repo-root", $RepoRoot, "--json"
+    )
+    if ($script:AutomationExe -and (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
+        $identityArgs += @("--automation-exe", $script:AutomationExe)
+    }
+    $json = & $script:PythonPath @identityArgs 2>$null
+    if (-not $json) {
+        return @{
+            ReadyForGt = $false
+            Text = "Harness HEAD: unknown`r`nREADY FOR GT: NO`r`nBLOCKED: identity command failed"
+            Json = $null
+        }
+    }
+    $parsed = $json | ConvertFrom-Json
+    $lines = @(
+        "Harness HEAD: $($parsed.harness_head)",
+        "Harness Base: $($parsed.harness_base)",
+        "Runtime Worktree: $($parsed.runtime_worktree)",
+        "Frozen Production Code Baseline: $($parsed.frozen_production_code_baseline)",
+        "Production Code Diff: $($parsed.production_code_diff)",
+        "MATCH / READY: $($parsed.match)",
+        "READY FOR GT: $(if ($parsed.ready_for_gt) { 'YES' } else { 'NO' })"
+    )
+    return @{
+        ReadyForGt = [bool]$parsed.ready_for_gt
+        Text = [string]::Join("`r`n", $lines)
+        Json = $parsed
+    }
+}
+
+function Assert-ReadyForGt {
+    if ($script:ReadyForGt) { return }
+    throw "READY FOR GT = NO。正式验收按钮已锁定。请先用「1 启动前检查」查看身份门禁。"
+}
+
 function Invoke-CaptureTool {
     param([Parameter(Mandatory = $true)][string[]]$CliArgs)
 
@@ -105,8 +320,17 @@ function Invoke-CaptureTool {
         throw "找不到 Python。请先创建 .venv 或把 Python 置于 PATH。"
     }
 
-    & $script:PythonPath $ToolPath @CliArgs
-    $exitCode = [int]$LASTEXITCODE
+    $previousOcr = $env:SHUABAO_OCR_PYTHON
+    $previousOcrModel = $env:SHUABAO_OCR_MODEL_DIR
+    if ($script:OcrPython) { $env:SHUABAO_OCR_PYTHON = $script:OcrPython }
+    if ($script:OcrModelDir) { $env:SHUABAO_OCR_MODEL_DIR = $script:OcrModelDir }
+    try {
+        & $script:PythonPath $ToolPath @CliArgs
+        $exitCode = [int]$LASTEXITCODE
+    } finally {
+        if ($null -eq $previousOcr) { Remove-Item Env:SHUABAO_OCR_PYTHON -ErrorAction SilentlyContinue } else { $env:SHUABAO_OCR_PYTHON = $previousOcr }
+        if ($null -eq $previousOcrModel) { Remove-Item Env:SHUABAO_OCR_MODEL_DIR -ErrorAction SilentlyContinue } else { $env:SHUABAO_OCR_MODEL_DIR = $previousOcrModel }
+    }
     $script:LastToolExitCode = $exitCode
     Write-Host "[launcher] tool exit code: $exitCode" -ForegroundColor DarkGray
     if ($exitCode -ne 0) {
@@ -118,11 +342,28 @@ function Invoke-Readiness {
     Invoke-CaptureTool @("readiness", "--repo-root", $RepoRoot)
 }
 
+function Add-LiveRuntimeArgs {
+    param([Parameter(Mandatory = $true)][System.Collections.Generic.List[string]]$CliArgs)
+
+    $CliArgs.Add("--live-input") | Out-Null
+    $CliArgs.Add("--confirm-live-input") | Out-Null
+    if ($script:AutomationExe -and (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
+        $CliArgs.Add("--automation-exe") | Out-Null
+        $CliArgs.Add($script:AutomationExe) | Out-Null
+    } else {
+        $CliArgs.Add("--allow-dev-source") | Out-Null
+    }
+}
+
 function Invoke-TargetProbe {
     param(
         [Parameter(Mandatory = $true)][string]$Target,
         [Parameter(Mandatory = $true)][bool]$GroundTruthOnly
     )
+
+    if (-not $GroundTruthOnly) {
+        Assert-ReadyForGt
+    }
 
     $cliArgs = @(
         "probe",
@@ -134,12 +375,9 @@ function Invoke-TargetProbe {
     )
 
     if (-not $GroundTruthOnly) {
-        $cliArgs += @(
-            "--automation-exe", $script:AutomationExe,
-            "--live-input",
-            "--confirm-live-input",
-            "--allow-dev-source"
-        )
+        $live = New-Object System.Collections.Generic.List[string]
+        Add-LiveRuntimeArgs $live
+        $cliArgs += @($live)
         if ($script:OperatorSettingsPath) {
             $cliArgs += @("--settings", $script:OperatorSettingsPath)
         }
@@ -188,6 +426,7 @@ function Invoke-BossSeriesCapture {
 }
 
 function Invoke-HitchRuntimeCapture {
+    Assert-ReadyForGt
     $cliArgs = @(
         "capture",
         "--target", "hitch_runtime",
@@ -196,16 +435,97 @@ function Invoke-HitchRuntimeCapture {
         "--duration", "3600",
         "--max-ticks", "30000",
         "--continue-after-failure",
-        "--generate",
-        "--automation-exe", $script:AutomationExe,
-        "--live-input",
-        "--confirm-live-input",
-        "--allow-dev-source"
+        "--generate"
     )
+    $live = New-Object System.Collections.Generic.List[string]
+    Add-LiveRuntimeArgs $live
+    $cliArgs += @($live)
     if ($script:OperatorSettingsPath) {
         $cliArgs += @("--settings", $script:OperatorSettingsPath)
     }
     Write-Host "[launcher] 蹭车局内续跑：压力转移→自动任务/四挑战→结算存档→时光之穴/传家宝 Boss" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-HitchLobbyChainCapture {
+    Assert-ReadyForGt
+    $cliArgs = @(
+        "capture",
+        "--target", "hitch_lobby_chain",
+        "--out", $script:CaptureRoot,
+        "--repo-root", $RepoRoot,
+        "--duration", "3600",
+        "--max-ticks", "30000",
+        "--interval", "0.15",
+        "--continue-after-failure",
+        "--generate"
+    )
+    $live = New-Object System.Collections.Generic.List[string]
+    Add-LiveRuntimeArgs $live
+    $cliArgs += @($live)
+    if ($script:OperatorSettingsPath) {
+        $cliArgs += @("--settings", $script:OperatorSettingsPath)
+    }
+    Write-Host "[launcher] 13 大厅蹭车完整链路：production Mediator.tick() / lobby hitch；Harness 不点房间" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-SoloIngameChainCapture {
+    Assert-ReadyForGt
+    $settingsPath = $script:HarnessSettingsPath
+    $script:HarnessSettingsPath = $null
+    if (-not $settingsPath -or -not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
+        $settingsPath = New-DashboardSettingsSnapshot
+    } else {
+        Write-Host "[launcher] 本次使用已保存的临时覆盖：$settingsPath" -ForegroundColor DarkGray
+    }
+    $cliArgs = @(
+        "capture",
+        "--target", "solo_ingame_chain",
+        "--out", $script:SoloCaptureRoot,
+        "--repo-root", $RepoRoot,
+        "--duration", "3600",
+        "--max-ticks", "30000",
+        "--interval", "0.15",
+        "--generate"
+    )
+    $live = New-Object System.Collections.Generic.List[string]
+    Add-LiveRuntimeArgs $live
+    $cliArgs += @($live)
+    $cliArgs += @("--settings", $settingsPath)
+    Write-Host "[launcher] 单人局内完整链路：从游戏内 Stage Select 接管；Production RuntimeMediator.tick()；不激活 KK 房间窗口" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-SoloSettingsPanel {
+    if (Show-HarnessSettingsPanel) {
+        [System.Windows.Forms.MessageBox]::Show(
+            "临时覆盖已保存；下一次点击 12 时使用一次。之后会恢复为自动读取正式看板设置。",
+            "单人局内链路 · 临时设置"
+        ) | Out-Null
+    }
+}
+
+function Invoke-SoloTakeoverCapture {
+    Assert-ReadyForGt
+    Add-Type -AssemblyName Microsoft.VisualBasic
+    $choices = "A Stage Select; B Mid-game HUD; C Skill/Bond/Treasure panel; D Pause; E Victory; F Archive Panel; G Heirloom; H NPC Hub"
+    $selected = [Microsoft.VisualBasic.Interaction]::InputBox("选择起始 Ground Truth：`r`n$choices", "单人任意状态接管", "B")
+    if (-not $selected) { return }
+    $code = $selected.Trim().Substring(0, 1).ToUpperInvariant()
+    $map = @{ A = "stage_select"; B = "midgame_hud"; C = "choice_panel"; D = "pause"; E = "victory"; F = "archive_panel"; G = "heirloom"; H = "npc_hub" }
+    if (-not $map.ContainsKey($code)) { throw "请选择 A-H。" }
+    $cliArgs = @(
+        "capture", "--target", "solo_takeover", "--takeover-case", $map[$code],
+        "--out", $script:SoloCaptureRoot, "--repo-root", $RepoRoot,
+        "--duration", "600", "--max-ticks", "5000", "--interval", "0.15",
+        "--generate"
+    )
+    $live = New-Object System.Collections.Generic.List[string]
+    Add-LiveRuntimeArgs $live
+    $cliArgs += @($live)
+    if ($script:OperatorSettingsPath) { $cliArgs += @("--settings", $script:OperatorSettingsPath) }
+    Write-Host "[launcher] 单人任意状态接管：$($map[$code])；仅调用 production Mediator.tick()" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -252,17 +572,37 @@ function Reproduce-LatestFail {
 $script:PythonPath = Resolve-PythonPath
 $script:AutomationExe = Resolve-AutomationExe
 $script:CaptureRoot = Resolve-CaptureRoot
+$script:SoloCaptureRoot = Resolve-SoloCaptureRoot
 $script:OperatorSettingsPath = Resolve-OperatorSettingsPath
+$script:OcrPython = Resolve-OcrPython
+$script:OcrModelDir = Resolve-OcrModelDir
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 
+if ($SettingsPanelSmokeTest) {
+    $smokeSettings = New-DashboardSettingsSnapshot
+    try {
+        [void]([System.IO.File]::ReadAllText($smokeSettings, [System.Text.Encoding]::UTF8) | ConvertFrom-Json)
+        if (Show-HarnessSettingsPanel -ConstructOnly) {
+            Write-Host "Settings snapshot and optional panel construction: PASS"
+            exit 0
+        }
+    } finally {
+        Remove-Item -LiteralPath $smokeSettings -ErrorAction SilentlyContinue
+    }
+    exit 1
+}
+
+$script:IdentityInfo = Get-HarnessIdentity
+$script:ReadyForGt = [bool]$script:IdentityInfo.ReadyForGt
+
 $script:MenuForm = New-Object System.Windows.Forms.Form
 $script:MenuForm.Text = "刷刷宝 · Live 实机测试"
 $script:MenuForm.StartPosition = "CenterScreen"
-$script:MenuForm.Size = New-Object System.Drawing.Size(760, 836)
-$script:MenuForm.MinimumSize = New-Object System.Drawing.Size(760, 836)
+$script:MenuForm.Size = New-Object System.Drawing.Size(760, 860)
+$script:MenuForm.MinimumSize = New-Object System.Drawing.Size(760, 860)
 $script:MenuForm.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
 $script:MenuForm.TopMost = $true
 
@@ -270,23 +610,28 @@ $title = New-Object System.Windows.Forms.Label
 $title.Text = "刷刷宝 Live 实机测试"
 $title.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 18, [System.Drawing.FontStyle]::Bold)
 $title.AutoSize = $true
-$title.Location = New-Object System.Drawing.Point(22, 18)
+$title.Location = [System.Drawing.Point]::new(22, 18)
 $script:MenuForm.Controls.Add($title)
 
 $status = New-Object System.Windows.Forms.Label
-$status.Text = "点击按钮即可开始，不需要输入数字。2-8 会先通过 preflight；4 跑 Boss 系列；8 持续搜房直到真实准备成功。`r`n测试开始后放开鼠标；紧急停止用 Shift+F12；p/f/m 只用于留证据。"
+$status.Text = "11/12/13 是正式验收长链。单项实机测试走 production handler，不复制业务逻辑。`r`nREADY FOR GT = NO 时验收按钮锁定。紧急停止用 Shift+F12。不要同时启动普通刷刷宝。"
 $status.AutoSize = $false
-$status.Size = New-Object System.Drawing.Size(700, 58)
-$status.Location = New-Object System.Drawing.Point(24, 60)
+$status.Size = New-Object System.Drawing.Size(700, 48)
+$status.Location = [System.Drawing.Point]::new(24, 60)
 $status.ForeColor = [System.Drawing.Color]::FromArgb(90, 60, 0)
 $script:MenuForm.Controls.Add($status)
 
 $paths = New-Object System.Windows.Forms.Label
-$paths.Text = "EXE: $script:AutomationExe`r`n证据目录: $script:CaptureRoot"
+$exeText = if ($script:AutomationExe) { $script:AutomationExe } else { "(source runtime, no worktree EXE)" }
+$paths.Text = "$($script:IdentityInfo.Text)`r`nRuntime type: SOURCE_RUNTIME  |  EXE: $exeText`r`n证据目录: $script:CaptureRoot  |  单人: $script:SoloCaptureRoot"
 $paths.AutoSize = $false
-$paths.Size = New-Object System.Drawing.Size(700, 42)
-$paths.Location = New-Object System.Drawing.Point(24, 118)
-$paths.ForeColor = [System.Drawing.Color]::DimGray
+$paths.Size = New-Object System.Drawing.Size(700, 150)
+$paths.Location = [System.Drawing.Point]::new(24, 110)
+if ($script:ReadyForGt) {
+    $paths.ForeColor = [System.Drawing.Color]::FromArgb(20, 90, 40)
+} else {
+    $paths.ForeColor = [System.Drawing.Color]::Firebrick
+}
 $script:MenuForm.Controls.Add($paths)
 
 function Add-MenuButton {
@@ -300,7 +645,7 @@ function Add-MenuButton {
     $button = New-Object System.Windows.Forms.Button
     $button.Text = $Text
     $button.Size = New-Object System.Drawing.Size(340, 76)
-    $button.Location = New-Object System.Drawing.Point($Left, $Top)
+    $button.Location = [System.Drawing.Point]::new($Left, $Top)
     $button.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $button.Padding = New-Object System.Windows.Forms.Padding(12, 0, 6, 0)
     $button.BackColor = $Color
@@ -327,31 +672,81 @@ function Add-MenuButton {
 $green = [System.Drawing.Color]::FromArgb(224, 244, 226)
 $blue = [System.Drawing.Color]::FromArgb(225, 238, 250)
 $yellow = [System.Drawing.Color]::FromArgb(255, 246, 210)
+$locked = [System.Drawing.Color]::FromArgb(220, 220, 220)
 
-Add-MenuButton "1  启动前检查`r`n    只检查环境，不操作游戏" 24 170 { Invoke-Readiness } $blue
-Add-MenuButton "2  背包道具`r`n    吞噬丹（羁绊≥4）/英雄卡" 390 170 { Invoke-TargetProbe -Target "inventory_item" -GroundTruthOnly $false } $green
-Add-MenuButton "3  黑商 + 背包长测（推荐）`r`n    刷新/拿取/吞噬丹/英雄卡/神器，最长10分钟" 24 256 { Invoke-TargetProbe -Target "black_merchant" -GroundTruthOnly $false } $green
-Add-MenuButton "4  Boss 系列整链（推荐）`r`n    tqtz→Boss→结算→存档8项→时光之穴/传家宝兜底" 390 256 { Invoke-BossSeriesCapture } $green
-Add-MenuButton "5  秘境进入`r`n    从胜利后 NPC/确认页进入并验证 HUD" 24 342 { Invoke-TargetProbe -Target "secret_realm" -GroundTruthOnly $false } $green
-Add-MenuButton "6  时光之穴 Boss fallback（实机）`r`n    已打开列表后自动选择最后可识别 Boss" 390 342 { Invoke-TargetProbe -Target "time_cave" -GroundTruthOnly $false } $green
-Add-MenuButton "7  传家宝 Boss 选择`r`n    复用 cjb_boss 选择并验证真实 HUD" 24 428 { Invoke-TargetProbe -Target "heirloom" -GroundTruthOnly $false } $green
-Add-MenuButton "8  大厅搜房准备整链（持续到成功）`r`n    拒绝异常房→刷新→合规房→准备后才结束" 390 428 { Invoke-TargetProbe -Target "lobby_search" -GroundTruthOnly $false } $green
-Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败证据" 24 514 { Open-LatestFailBundle } $blue
-Add-MenuButton "10 Reproduce 最新 FAIL`r`n    一键进入 Frozen Replay" 390 514 { Reproduce-LatestFail } $blue
-Add-MenuButton "11 蹭车局内续跑（随时开始）`r`n    压力转移→自动任务/四挑战→结算 Boss 兜底" 24 600 { Invoke-HitchRuntimeCapture } $green
+function Invoke-TargetedProbeMenu {
+    $probeForm = New-Object System.Windows.Forms.Form
+    $probeForm.Text = "单项实机测试"
+    $probeForm.StartPosition = "CenterScreen"
+    $probeForm.Size = New-Object System.Drawing.Size(720, 620)
+    $probeForm.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10)
+    $probeForm.TopMost = $true
+    $note = New-Object System.Windows.Forms.Label
+    $note.Text = "每个 Probe 只调用当前 production handler。缺前置则 ZERO INPUT。不要伪造 PASS。"
+    $note.AutoSize = $false
+    $note.Size = New-Object System.Drawing.Size(660, 40)
+    $note.Location = [System.Drawing.Point]::new(20, 12)
+    $probeForm.Controls.Add($note)
+    $probes = @(
+        @{ Key = "A"; Target = "choice_bond_skill"; Label = "A  羁绊 / 技能选卡" },
+        @{ Key = "B"; Target = "treasure"; Label = "B  宝物" },
+        @{ Key = "C"; Target = "hero_evolve"; Label = "C  英雄进化" },
+        @{ Key = "D"; Target = "inventory_devour"; Label = "D  背包 - 吞噬丹" },
+        @{ Key = "E"; Target = "inventory_hero_card"; Label = "E  背包 - 英雄卡" },
+        @{ Key = "F"; Target = "black_merchant"; Label = "F  黑商" },
+        @{ Key = "G"; Target = "archive_challenge"; Label = "G  存档挑战 1~8" },
+        @{ Key = "H"; Target = "heirloom"; Label = "H  传家宝 / Boss" },
+        @{ Key = "I"; Target = "secret_realm"; Label = "I  秘境" },
+        @{ Key = "J"; Target = "lobby_search"; Label = "J  大厅搜房 / Join" }
+    )
+    for ($i = 0; $i -lt $probes.Count; $i++) {
+        $spec = $probes[$i]
+        $button = New-Object System.Windows.Forms.Button
+        $button.Text = $spec.Label
+        $button.Size = New-Object System.Drawing.Size(320, 42)
+        $button.Location = [System.Drawing.Point]::new((20 + (($i % 2) * 340)), (60 + ([math]::Floor($i / 2) * 50)))
+        $button.Tag = $spec.Target
+        $button.Add_Click({
+            $probeForm.Hide()
+            try {
+                Invoke-TargetProbe -Target ([string]$this.Tag) -GroundTruthOnly $false
+            } finally {
+                $probeForm.Show()
+                $probeForm.Activate()
+            }
+        })
+        $probeForm.Controls.Add($button)
+    }
+    $close = New-Object System.Windows.Forms.Button
+    $close.Text = "返回主菜单"
+    $close.Size = New-Object System.Drawing.Size(660, 36)
+    $close.Location = [System.Drawing.Point]::new(20, 520)
+    $close.Add_Click({ $probeForm.Close() })
+    $probeForm.Controls.Add($close)
+    [void]$probeForm.ShowDialog()
+}
+
+Add-MenuButton "1  启动前检查`r`n    环境 / OCR / production / 身份门禁，不操作游戏" 24 270 { Invoke-Readiness } $blue
+Add-MenuButton "12 单人局内完整链路`r`n    Stage Select→局内→战后；production tick()" $(if ($script:ReadyForGt) { 390 } else { 390 }) 270 { Invoke-SoloIngameChainCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "11 蹭车局内完整链路`r`n    已入局后接管→自动任务/四挑战→结算" 24 356 { Invoke-HitchRuntimeCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "13 大厅蹭车完整链路`r`n    大厅→production lobby hitch→进局" 390 356 { Invoke-HitchLobbyChainCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "单项实机测试`r`n    A-J 只调 production handler" 24 442 { Invoke-TargetedProbeMenu } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败/阻塞证据" 390 442 { Open-LatestFailBundle } $blue
+Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回归）" 24 528 { Reproduce-LatestFail } $blue
+Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认读取正式看板" 390 528 { Invoke-SoloSettingsPanel } $yellow
 
 $exitButton = New-Object System.Windows.Forms.Button
 $exitButton.Text = "关闭菜单"
 $exitButton.Size = New-Object System.Drawing.Size(706, 44)
-$exitButton.Location = New-Object System.Drawing.Point(24, 686)
+$exitButton.Location = [System.Drawing.Point]::new(24, 624)
 $exitButton.Add_Click({ $script:MenuForm.Close() })
 $script:MenuForm.Controls.Add($exitButton)
 
 $footer = New-Object System.Windows.Forms.Label
-$footer.Text = "注意：不要同时启动普通刷刷宝。点击测试按钮后，本窗口暂时隐藏，黑色日志窗口显示运行状态；测试结束后按钮菜单自动回来。"
+$footer.Text = "注意：不要同时启动普通刷刷宝。UNKNOWN / 窗口身份不可信时 ZERO INPUT。点击测试按钮后本窗口暂时隐藏。"
 $footer.AutoSize = $false
 $footer.Size = New-Object System.Drawing.Size(700, 48)
-$footer.Location = New-Object System.Drawing.Point(24, 742)
+$footer.Location = [System.Drawing.Point]::new(24, 680)
 $footer.ForeColor = [System.Drawing.Color]::Firebrick
 $script:MenuForm.Controls.Add($footer)
 
