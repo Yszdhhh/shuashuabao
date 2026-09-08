@@ -266,8 +266,12 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
     finally:
         com_probe_lnk.unlink(missing_ok=True)
     if not com_ok:
-        pytest.skip(
-            "WScript.Shell cannot persist Unicode .lnk with VBS target on this host (CI runner)"
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            pytest.skip(
+                "WScript.Shell cannot persist Unicode .lnk with VBS target on this host (CI_ENVIRONMENT_NOT_CAPABLE)"
+            )
+        pytest.fail(
+            "LOCAL_WINDOWS_SHORTCUT_GT_FAILED: WScript.Shell cannot persist Unicode .lnk with VBS target on local Windows host"
         )
 
     lnk = desktop / "刷刷宝-P0-smoke.lnk"

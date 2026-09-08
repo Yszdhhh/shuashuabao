@@ -1003,3 +1003,35 @@ def test_b3_archive_counter_classification_matrix() -> None:
             assert med._maybe_click_archive_challenge(frame, 100.0) is LoopAction.Continue
         click.assert_not_called()
         assert med._archive_challenge_index == 0, "UNKNOWN 状态零输入，绝不推进挑战计划"
+
+
+def test_stage_page_ownership_rejects_kk_platform_title() -> None:
+    """KK 平台窗口即便检测到数字行也不得获得 stage authority；
+    游戏客户端窗口（英雄三国）检测到数字行才获得 stage authority。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    frame_kk = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="KK官方对战平台", role="l0")
+    frame_game = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", role="l1")
+
+    with patch.object(med, "_visible_stage_rows", return_value=True):
+        assert med._find_stage_page(frame_kk) is False, "KK 平台窗口即便检测到数字行也不得获得 stage authority"
+        assert med._find_stage_page(frame_game) is True, "游戏客户端窗口检测到数字行获得 stage authority"
+
+
+def test_lobby_hitch_ignores_stage_select_context_on_kk_platform_frame() -> None:
+    """KK 平台 frame 即便 context=="STAGE_SELECT"/stage_page=True 也不得转
+    Phase.STAGE_SELECT，必须零输入保持大厅状态。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.LOBBY_ROOM)
+    frame_kk = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="KK官方对战平台", role="l0")
+
+    clicks = []
+    keys = []
+    med.act_click = lambda hit, reason: clicks.append((hit, reason)) or True
+    med.act_key = lambda key, reason: keys.append((key, reason)) or True
+
+    # 即使 context=="STAGE_SELECT" 或 stage_page=True，KK frame 也不得转 STAGE_SELECT，必须零输入
+    res = med._tick_lobby_hitch(frame_kk, context="STAGE_SELECT", stage_page=True)
+    assert res is LoopAction.Continue
+    assert med.phase != Phase.STAGE_SELECT
+    assert len(clicks) == 0
+    assert len(keys) == 0

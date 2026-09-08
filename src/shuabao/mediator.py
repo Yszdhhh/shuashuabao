@@ -7848,9 +7848,13 @@ class Mediator:
             self.set_phase(Phase.MAIN_LINE, "hitch already in game")
             return LoopAction.Continue
         if stage_page or context == "STAGE_SELECT":
-            self._hitch_re_search = False
-            self.set_phase(Phase.STAGE_SELECT, "hitch stage page wait")
-            print("[L0] hitch 选关页可见，零输入等待进局（不点关卡）")
+            # 只有当前 frame 同时满足可信 game-client ownership 时，才允许转 Phase.STAGE_SELECT
+            if self._is_game_client_frame(frame):
+                self._hitch_re_search = False
+                self.set_phase(Phase.STAGE_SELECT, "hitch stage page wait")
+                print("[L0] hitch 选关页可见，零输入等待进局（不点关卡）")
+                return LoopAction.Continue
+            print("[L0] hitch 忽略非游戏窗口的 STAGE_SELECT 晋级请求，零输入保持大厅状态")
             return LoopAction.Continue
         if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
             print("[L0] hitch 黑帧/空帧，零输入等待可信大厅页面")
@@ -8417,6 +8421,10 @@ class Mediator:
         key = ("stage_page",)
 
         def compute() -> bool:
+            title = (frame.window_title or "").lower()
+            # 明确属于 KK 平台窗口、且不是已知 game-client title 时，在 _visible_stage_rows 之前拒绝
+            if title and any(kw in title for kw in ("kk", "对战平台", "platform")) and not self._is_game_client_frame(frame):
+                return False
             if self._visible_stage_rows(frame):
                 return True
             # The numbered-row parser above is the preferred detector.  The
