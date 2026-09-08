@@ -277,34 +277,36 @@ function Get-HarnessIdentity {
             Json = $null
         }
     }
-    $identityArgs = @(
-        $ToolPath, "identity", "--repo-root", $RepoRoot, "--json"
-    )
+    $identityScript = Join-Path $RepoRoot "tools\live_harness_identity.py"
+    $identityArgs = @($identityScript, "--repo-root", $RepoRoot)
     if ($script:AutomationExe -and (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
         $identityArgs += @("--automation-exe", $script:AutomationExe)
     }
-    $json = & $script:PythonPath @identityArgs 2>$null
-    if (-not $json) {
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $raw = & $script:PythonPath @identityArgs 2>&1
+        $code = [int]$LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $prevEap
+    }
+    $lines = @($raw | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ })
+    $text = [string]::Join("`r`n", $lines)
+    if (-not $text) {
         return @{
             ReadyForGt = $false
-            Text = "Harness HEAD: unknown`r`nREADY FOR GT: NO`r`nBLOCKED: identity command failed"
+            Text = "Harness HEAD: unknown`r`nREADY FOR GT: NO`r`nBLOCKED: identity command failed (exit $code)"
             Json = $null
         }
     }
-    $parsed = $json | ConvertFrom-Json
-    $lines = @(
-        "Harness HEAD: $($parsed.harness_head)",
-        "Harness Base: $($parsed.harness_base)",
-        "Runtime Worktree: $($parsed.runtime_worktree)",
-        "Frozen Production Code Baseline: $($parsed.frozen_production_code_baseline)",
-        "Production Code Diff: $($parsed.production_code_diff)",
-        "MATCH / READY: $($parsed.match)",
-        "READY FOR GT: $(if ($parsed.ready_for_gt) { 'YES' } else { 'NO' })"
-    )
+    $ready = $false
+    foreach ($line in $lines) {
+        if ($line -match '^\s*READY FOR GT:\s*YES\s*$') { $ready = $true }
+    }
     return @{
-        ReadyForGt = [bool]$parsed.ready_for_gt
-        Text = [string]::Join("`r`n", $lines)
-        Json = $parsed
+        ReadyForGt = $ready
+        Text = $text
+        Json = $null
     }
 }
 
@@ -569,6 +571,21 @@ function Reproduce-LatestFail {
     }
 }
 
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+[System.Windows.Forms.Application]::EnableVisualStyles()
+
+function Show-LauncherError {
+    param([string]$Message)
+    [System.Windows.Forms.MessageBox]::Show(
+        $Message,
+        "刷刷宝 Live 实机测试启动失败",
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error
+    ) | Out-Null
+}
+
+try {
 $script:PythonPath = Resolve-PythonPath
 $script:AutomationExe = Resolve-AutomationExe
 $script:CaptureRoot = Resolve-CaptureRoot
@@ -576,10 +593,6 @@ $script:SoloCaptureRoot = Resolve-SoloCaptureRoot
 $script:OperatorSettingsPath = Resolve-OperatorSettingsPath
 $script:OcrPython = Resolve-OcrPython
 $script:OcrModelDir = Resolve-OcrModelDir
-
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-[System.Windows.Forms.Application]::EnableVisualStyles()
 
 if ($SettingsPanelSmokeTest) {
     $smokeSettings = New-DashboardSettingsSnapshot
@@ -752,3 +765,7 @@ $script:MenuForm.Controls.Add($footer)
 
 [void]$script:MenuForm.ShowDialog()
 exit $script:LastToolExitCode
+} catch {
+    Show-LauncherError $_.Exception.Message
+    exit 1
+}
