@@ -209,11 +209,11 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
     )
     # Missing Enabled value means WSH is at the OS default (enabled).
     assert "0x0" not in probe["wsh_reg"]
-    # GitHub hosted runners cannot create real Desktop .lnk files
-    # (WScript.Shell COM CreateShortcut raises).  Probe COM availability
-    # with a throwaway shortcut; skip the physical-desktop portion when
-    # unavailable so the content/security assertions above still gate CI.
-    com_probe_lnk = tmp_path / "com-probe.lnk"
+    # GitHub hosted runners cannot save non-ASCII (Chinese) .lnk filenames
+    # on the Desktop (WScript.Shell Save() raises FileNotFoundException).
+    # Probe the exact real mode: same Desktop directory + Chinese filename.
+    desktop = Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Desktop"
+    com_probe_lnk = desktop / "刷刷宝-P0-probe.lnk"
     com_ok = True
     try:
         subprocess.run(
@@ -234,9 +234,8 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
     finally:
         com_probe_lnk.unlink(missing_ok=True)
     if not com_ok:
-        pytest.skip("WScript.Shell COM unavailable on this host (CI runner)")
+        pytest.skip("WScript.Shell cannot save Chinese .lnk on this host (CI runner)")
 
-    desktop = Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Desktop"
     lnk = desktop / "刷刷宝-P0-smoke.lnk"
 
     def _create_shortcut() -> None:
