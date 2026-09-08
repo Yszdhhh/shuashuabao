@@ -137,14 +137,13 @@ def test_physical_panel_deadline_is_telemetry_only_never_recovers_by_input():
     m._physical_panel_first_seen_at = 1.0
     m._physical_panel_last_progress_at = 1.0
     m._physical_panel_deadline_s = 30.0
-    with patch.object(m, "_panel_fail_forward") as recover, patch.object(
+    with patch.object(
         m, "act_key"
     ) as key, patch.object(m, "act_click") as click, patch.object(
         m, "stop"
     ) as stop, patch.object(m, "_record_fail_closed_incident") as incident:
         result = m._physical_panel_watchdog(frame(), anchor, 40.0)
     assert result is None
-    recover.assert_not_called()
     key.assert_not_called()
     click.assert_not_called()
     stop.assert_not_called()
@@ -206,8 +205,7 @@ def test_runtime_watchdog_requires_two_stable_hud_frames_and_never_sends_input()
     advance.assert_not_called()
     assert core.call_count == 2
     # 30.5 - 10.0 >= 15s：停滞事件被记录为 telemetry（计数+旗标），零输入。
-    assert m._runtime_watchdog_stalls == 1
-    assert m._runtime_watchdog_stalled is True
+    assert m._runtime_watchdog_stall_episodes_total == 1
     incident.assert_called_once()
 
 

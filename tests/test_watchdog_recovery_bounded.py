@@ -83,10 +83,10 @@ def test_stalled_watchdog_never_sends_any_input_and_records_telemetry():
     key.assert_not_called()
     click.assert_not_called()
     set_phase.assert_not_called()
-    assert m._runtime_watchdog_stalls == 3
+    assert m._runtime_watchdog_stall_episodes_total == 1  # one episode, not per-tick
     assert m._runtime_watchdog_stalled is True
     assert m.phase == Phase.MAIN_LINE, "telemetry-only watchdog must not fail the run"
-    assert incident.call_count == 3
+    assert incident.call_count == 1
 
 
 def test_verified_progress_clears_stalled_flag_and_marks_progress():
@@ -94,7 +94,7 @@ def test_verified_progress_clears_stalled_flag_and_marks_progress():
     flag and refreshes the progress clock so normal play continues."""
     m = med()
     _prime_stalled(m)
-    m._runtime_watchdog_stalls = 2
+    m._runtime_watchdog_stall_episodes_total = 2
     m._runtime_watchdog_stalled = True
     # Simulate: core input executed this tick -> progress verified by marker.
     with patch("shuabao.runtime_mediator.time.time", return_value=30.5), patch.object(

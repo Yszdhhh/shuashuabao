@@ -38,15 +38,16 @@ class Mediator(CoreMediator):
         self._physical_panel_deadline_s: float = 30.0
         self._physical_panel_recoveries: int = 0
         self._ocr_bootstrap_health: dict[str, Any] | None = None
-        self._panel_fail_forward_events: int = 0
         self._ocr_runtime_init_error: str | None = None
         self._l1_cycle_index: int = 0
         self._runtime_panel_unknown_signature: tuple[str, int] | None = None
         self._runtime_panel_unknown_since: float | None = None
         self._last_runtime_progress_at: float = time.time()
-        # S0 去输入化看门狗的遥测计数（零物理输入，仅观察/记录）。
-        self._runtime_watchdog_stalls: int = 0
+        # S0 去输入化看门狗的遥测状态：stall_episodes_total 是会话级累计
+        # （episode 语义，非每 tick），stalled/first_stall_at 是局内当前态。
+        self._runtime_watchdog_stall_episodes_total: int = 0
         self._runtime_watchdog_stalled: bool = False
+        self._runtime_watchdog_first_stall_at: float | None = None
         # The watchdog may observe a stable in-game HUD, but it must never
         # treat an UNKNOWN/transition frame as permission to send a key.  Keep
         # a small consecutive-frame latch separate from the core FSM evidence
@@ -89,9 +90,9 @@ class Mediator(CoreMediator):
         self._physical_panel_deadline_s = max(30.0, min(60.0, episode_deadline * 2.5))
         self._runtime_watchdog_hud_confirmations = 0
         self._runtime_watchdog_last_frame_id = None
-        self._runtime_watchdog_stalls = 0
+        self._runtime_watchdog_stall_episodes_total = 0
         self._runtime_watchdog_stalled = False
-        self._panel_fail_forward_events = 0
+        self._runtime_watchdog_first_stall_at = None
 
     # ------------------------------------------------------------------
     # LIVE dependency bootstrap.
@@ -299,8 +300,10 @@ class Mediator(CoreMediator):
         # swallowed by a liveness shortcut.
         result = super()._tick_main_line(frame)
         if getattr(self, "_tick_input_executed", False):
+            # 验证输入进展：重置本局"当前停滞"状态并重新计时。
             self._runtime_watchdog_hud_confirmations = 0
             self._runtime_watchdog_stalled = False
+            self._runtime_watchdog_first_stall_at = None
             self._mark_runtime_progress(now)
             return result
         if not hud_confirmed or not self._runtime_watchdog_allowed(now):
@@ -313,17 +316,22 @@ class Mediator(CoreMediator):
         # S0 稳定性简化：看门狗彻底去输入化。纯 telemetry / state flag——
         # 严禁盲发 ESC 等物理输入；实际业务推进完全交由 Core 现有的
         # _advance_l1_cycle() / 面板 CLOSING 状态机处理。
-        self._runtime_watchdog_stalls += 1
+        # Episode 语义：只在 not-stalled -> stalled 转变时记一次事件
+        # （一次归档 + 一条日志）；持续停滞的后续 tick 不再重复计数/归档。
+        # 重新武装只发生在 _tick_input_executed 或新 MAIN_LINE 回合边界。
+        if self._runtime_watchdog_stalled:
+            return LoopAction.Continue
+        self._runtime_watchdog_stall_episodes_total += 1
         self._runtime_watchdog_stalled = True
-        if not hasattr(self, "_runtime_watchdog_first_stall_at"):
-            self._runtime_watchdog_first_stall_at = now
+        self._runtime_watchdog_first_stall_at = now
         print(
             f"[med] LIVE 活性看门狗（telemetry）：{stagnant_for:.1f}s 无真实输入/确认进展"
-            f"（累计停滞事件 {self._runtime_watchdog_stalls}），零输入，交由 Core FSM 推进"
+            f"（累计停滞 episode {self._runtime_watchdog_stall_episodes_total}），"
+            "零输入，交由 Core FSM 推进"
         )
         self._record_fail_closed_incident(
             f"runtime_watchdog_stall: stagnant_for={stagnant_for:.2f}s "
-            f"stalls={self._runtime_watchdog_stalls} (zero-input telemetry)"
+            f"episodes={self._runtime_watchdog_stall_episodes_total} (zero-input telemetry)"
         )
         return LoopAction.Continue
 
@@ -390,30 +398,6 @@ class Mediator(CoreMediator):
         self._runtime_panel_unknown_signature = None
         self._runtime_panel_unknown_since = None
 
-    def _panel_fail_forward(self, frame, anchor, now: float) -> LoopAction:
-        """S0 收敛：Fail-Forward 不再注入任何物理按键（历史 verified-close
-        点击 / ESC 链已删除）。仅记录 telemetry：真正的面板关闭与恢复统一由
-        Core `_tick_panel_fsm` 内部的 `PanelState.CLOSING` 机制负责（由
-        CLOSING 处理 verified close / hide 和 bounded convergence）。
-        """
-        try:
-            kind = (
-                self._panel_kind_of(frame, anchor)
-                if anchor is not None
-                else str(getattr(self, "_panel_kind", "unknown") or "unknown")
-            )
-        except Exception:
-            kind = "unknown"
-        self._panel_fail_forward_events += 1
-        self._record_fail_closed_incident(
-            f"panel_fail_forward_telemetry: kind={kind} hwnd={int(getattr(frame, 'hwnd', 0) or 0)}"
-        )
-        print(
-            f"[L1] Fail-Forward（telemetry-only，零物理输入）：{kind} 面板恢复"
-            "交由 Core CLOSING 状态机收敛"
-        )
-        return LoopAction.Continue
-
     def _physical_panel_watchdog(self, frame, anchor, now: float) -> LoopAction | None:
         if anchor is None:
             if self._physical_panel_signature is None:
@@ -437,8 +421,8 @@ class Mediator(CoreMediator):
         if stagnant_for < self._physical_panel_deadline_s:
             return None
 
-        # S0 收敛：物理面板停滞只做监控/telemetry，不再调用 `_panel_fail_forward`
-        # 或注入 act_key；恢复交由 Core `_tick_panel_fsm`（CLOSING 状态机与
+        # S0 收敛：物理面板停滞只做监控/telemetry（fail-forward 方法已删除），
+        # 不注入 act_key；恢复交由 Core `_tick_panel_fsm`（CLOSING 状态机与
         # episode hard deadline）统一负责。刷新哨兵时间避免每 tick 重复归档。
         note = (
             "physical_panel_stagnation_observed: "
@@ -727,6 +711,12 @@ class Mediator(CoreMediator):
             self._reset_physical_panel_guard()
             self._l1_cycle_index = 0
             self._l1_cycle_step = "bond"
+            # 新回合边界：局内"当前停滞"活性状态不得继承上一局；
+            # _runtime_watchdog_stall_episodes_total 保持会话级累计不清零。
+            self._runtime_watchdog_stalled = False
+            self._runtime_watchdog_first_stall_at = None
+            self._runtime_watchdog_hud_confirmations = 0
+            self._runtime_watchdog_last_frame_id = None
             self._mark_runtime_progress()
 
     def _maybe_open_choice_panel(self, frame, anchor=None):
@@ -812,9 +802,8 @@ class Mediator(CoreMediator):
                 "physical_panel_deadline_s": self._physical_panel_deadline_s,
                 "physical_panel_recoveries": self._physical_panel_recoveries,
                 "runtime_panel_unknown_since": self._runtime_panel_unknown_since,
-                "runtime_watchdog_stalls": self._runtime_watchdog_stalls,
+                "runtime_watchdog_stall_episodes_total": self._runtime_watchdog_stall_episodes_total,
                 "runtime_watchdog_stalled": self._runtime_watchdog_stalled,
-                "panel_fail_forward_events": self._panel_fail_forward_events,
                 "last_runtime_progress_at": self._last_runtime_progress_at,
                 "l1_cycle_index": self._l1_cycle_index,
                 "ocr_bootstrap_health": self._ocr_bootstrap_health,
