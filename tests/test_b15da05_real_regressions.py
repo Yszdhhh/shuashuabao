@@ -63,11 +63,14 @@ def _hitch_mediator() -> Mediator:
     return Mediator(Settings(dry_run=True, ocr_mode="off", mode_id="lobby_hitch"), ROOT)
 
 
-def _fake_ocr_client(text: str, rec_score: float) -> SimpleNamespace:
-    """C6 收紧后的可信 OCR 语义：raw_text + rec_score 即 counter 解析 authority。"""
+def _fake_ocr_client(text: str, rec_score: float, status: str = "ok") -> SimpleNamespace:
+    """C6 收紧后的可信 OCR 语义：status=="ok" + raw_text + rec_score 才是
+    counter 解析 authority。"""
     return SimpleNamespace(
         is_available=True,
-        shadow_predict=lambda *args, **kwargs: SimpleNamespace(raw_text=text, rec_score=rec_score),
+        shadow_predict=lambda *args, **kwargs: SimpleNamespace(
+            status=status, raw_text=text, rec_score=rec_score
+        ),
     )
 
 
@@ -743,3 +746,230 @@ def test_b5_unclassified_post_game_frame_is_zero_input() -> None:
         assert med._tick_main_line(frame) is LoopAction.Continue
     assert not clicks, f"UNKNOWN 战后帧上严禁任何点击: {clicks}"
     assert not keys, f"UNKNOWN 战后帧上严禁任何按键: {keys}"
+
+
+def test_pending_join_timeout_without_known_modal_is_zero_input() -> None:
+    """进房超时 + 帧上无任何可信已知弹窗（被踢 OCR / 显式 dialog/title）→
+    零输入：绝不发送 HitchDismissPopup；仅拒绝本次进房并回大厅。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.LOBBY_ROOM)
+    frame = _kk_frame("kicked")
+    med._hitch_pending_row_y = 385
+    med._hitch_sm.note_join_click(97.0)
+    assert med._hitch_sm.pending_join is True
+
+    clicks: list[str] = []
+    keys: list[str] = []
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_find_hitch_ready_button", return_value=None), \
+         patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True) as key, \
+         patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True) as click, \
+         patch("shuabao.mediator.time.time", return_value=100.0):
+        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
+
+    key.assert_not_called(), f"未知画面超时必须零输入，实际按键: {keys}"
+    click.assert_not_called()
+    assert med._hitch_sm.pending_join is False, "超时仍必须拒绝本次进房"
+    assert med._hitch_pending_row_y is None
+    assert med._hitch_rejected_row_ys == {385}
+    assert med.phase is Phase.LOBBY_ROOM
+
+
+def test_pending_join_timeout_with_known_modal_still_dismisses() -> None:
+    """进房超时 + 可信已知弹窗 authority（OCR 命中被踢文本）→ 允许安全 Esc。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.LOBBY_ROOM)
+    frame = _kk_frame("kicked")
+    med._hitch_pending_row_y = 385
+    med._hitch_sm.note_join_click(97.0)
+
+    clicks: list[str] = []
+    keys: list[str] = []
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_find_hitch_ready_button", return_value=None), \
+         patch.object(med, "_detect_hitch_kick_event", return_value="kicked"), \
+         patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True), \
+         patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True), \
+         patch("shuabao.mediator.time.time", return_value=100.0):
+        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
+
+    assert keys == ["esc"], keys
+    assert clicks == []
+    assert med._hitch_sm.pending_join is False
+    assert med._hitch_pending_row_y is None
+    assert med._hitch_rejected_row_ys == {385}
+    assert med.phase is Phase.LOBBY_ROOM
+
+
+def test_ready_timeout_pending_on_unknown_surface_is_zero_input() -> None:
+    """180s 超时退房 episode 中，未知 surface（窗口失配且无房间实体控件）上
+    绝不发送 HitchReadyTimeoutExit；预算耗尽后 Fail-Closed Break；
+    fresh 房间证据恢复后才允许有界 Esc。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.ROOM_WAITING)
+    frame = _kk_frame("kicked")
+    med._confirmed_room_hwnd = 99999  # 与 frame.hwnd 失配：未知 surface
+    med._hitch_pending_room_key = "room-765432"
+    med._hitch_ready_timeout_pending = True
+    med._hitch_ready_timeout_deadline = 230.0
+    med._hitch_ready_timeout_attempts = 0
+    med._hitch_ready_timeout_leave_at = None
+    now = 200.0
+
+    clicks: list[str] = []
+    keys: list[str] = []
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_is_confirmed_room_frame", return_value=False), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+         patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True), \
+         patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True), \
+         patch("shuabao.mediator.time.time", return_value=now):
+        med._tick_lobby_hitch(frame, "ROOM_WAITING")
+    assert keys == [] and clicks == [], f"未知 surface 必须零输入: keys={keys}, clicks={clicks}"
+    assert med._hitch_ready_timeout_pending is True
+    assert med._hitch_ready_timeout_attempts == 0
+    assert "room-765432" not in med._hitch_blacklisted_room_keys
+
+    # 尝试预算耗尽 → Fail-Closed Break，仍零输入
+    med._hitch_ready_timeout_attempts = 3
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_is_confirmed_room_frame", return_value=False), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+         patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True), \
+         patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True), \
+         patch("shuabao.mediator.time.time", return_value=now):
+        assert med._tick_lobby_hitch(frame, "ROOM_WAITING") is LoopAction.Break
+    assert keys == [] and clicks == []
+
+    # fresh 房间签名恢复 → 允许有界安全 Esc（预算重置）
+    med._hitch_ready_timeout_attempts = 0
+    med._confirmed_room_hwnd = frame.hwnd
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+         patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True), \
+         patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True), \
+         patch("shuabao.mediator.time.time", return_value=now):
+        med._tick_lobby_hitch(frame, "ROOM_WAITING")
+    assert keys == ["esc"], keys
+    assert med._hitch_ready_timeout_attempts == 1
+    assert med._hitch_ready_timeout_pending is True
+
+
+def test_tqtz_third_pending_confirmed_on_fresh_frame() -> None:
+    """第 3 次点击的 pending 请求必须先走完 fresh 确认生命周期：
+    fresh boss_entry → 落定 clicked=True，绝不因 attempts==3 提前 ABANDONED。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    frame = _game_frame("midgame")
+    tqtz_hit = MatchResult("tqtz", 0.85, 438, 79, 85, 22, 665, 171)
+    med._tqtz_attempts = 2
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        # 第 3 次点击成功 → pending 挂起（此刻 attempts==3）
+        assert med._maybe_click_tqtz(frame, 100.0) is LoopAction.Continue
+    assert med._tqtz_attempts == 3 and med._tqtz_pending is True
+    assert med._tqtz_abandoned is False
+
+    # 观察窗内（未超 5s）即便图标仍在也绝不 ABANDONED，零输入等待
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=False), \
+         patch.object(med, "act_click", return_value=True) as click2:
+        assert med._maybe_click_tqtz(frame, 100.5) is LoopAction.Continue
+        click2.assert_not_called()
+    assert med._tqtz_abandoned is False
+    assert med._tqtz_pending is True
+
+    # fresh 帧 boss_entry 强后置证据 → 确认成功，而非放弃
+    fresh_frame = _game_frame("midgame")
+    boss_hit = MatchResult("boss_entry", 0.9, 640, 300, 120, 60, 640, 300)
+    with patch.object(med, "find", return_value=None), \
+         patch.object(med, "find_scene", side_effect=lambda f, key: boss_hit if key == "boss_entry" else None), \
+         patch.object(med, "_is_in_game_hud", return_value=False), \
+         patch.object(med, "act_click", return_value=True) as click3:
+        assert med._maybe_click_tqtz(fresh_frame, 102.0) is LoopAction.Continue
+        click3.assert_not_called(), "确认阶段严禁二次点击"
+    assert med._tqtz_clicked is True
+    assert med._tqtz_pending is False
+    assert med._tqtz_abandoned is False, "第 3 次确认成功绝不能被标记为放弃"
+
+
+def test_tqtz_third_pending_timeout_becomes_abandoned() -> None:
+    """第 3 次 pending 5 秒观察窗超时且图标仍在 → ABANDONED（非伪装成功），
+    后续调用零输入；未超时的观察窗内绝不提前 ABANDONED。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    frame = _game_frame("midgame")
+    tqtz_hit = MatchResult("tqtz", 0.85, 438, 79, 85, 22, 665, 171)
+    med._tqtz_attempts = 2
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        # 第 3 次点击成功 → pending 挂起
+        assert med._maybe_click_tqtz(frame, 100.0) is LoopAction.Continue
+    assert med._tqtz_attempts == 3 and med._tqtz_pending is True
+
+    # 观察窗内：图标仍在 → 零输入等待，绝不提前 ABANDONED
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=False), \
+         patch.object(med, "act_click", return_value=True) as click2:
+        assert med._maybe_click_tqtz(frame, 100.5) is LoopAction.Continue
+        click2.assert_not_called()
+    assert med._tqtz_abandoned is False
+    assert med._tqtz_pending is True
+
+    # 5s 超时且图标仍在（HUD 上未消失）→ 第 3 次尝试标记 ABANDONED
+    # （fresh 帧才能推进 generation 门禁；同请求帧恒零输入）
+    timeout_frame = _game_frame("midgame")
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=False), \
+         patch.object(med, "act_click", return_value=True) as click3:
+        assert med._maybe_click_tqtz(timeout_frame, 106.0) is LoopAction.Continue
+        click3.assert_not_called(), "ABANDONED 后严禁再次点击"
+    assert med._tqtz_abandoned is True
+    assert med._tqtz_clicked is False
+    assert med._tqtz_pending is False
+    assert med._early_challenge_pending is False
+
+    # ABANDONED 短路：后续调用零输入
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click4:
+        assert med._maybe_click_tqtz(frame, 107.0) is LoopAction.Continue
+        click4.assert_not_called()
+    assert med._tqtz_clicked is False, "ABANDONED 绝不允许伪装成已点击成功"
+
+
+def test_b3_archive_counter_classification_matrix() -> None:
+    """C6 状态矩阵：OCR 响应 status != "ok" 时即使 raw_text/rec_score 完整可信
+    也必须 UNKNOWN；status=="ok" + 结构化 0/8 + rec_score>=0.75 才授权 UNAVAILABLE。"""
+    med = _hitch_mediator()
+    frame = _game_frame("archive")
+
+    def _state(status: str, text: str, score: float) -> str:
+        with patch.object(med, "_ocr_client", _fake_ocr_client(text, score, status=status)):
+            return med._archive_hitch_card_progress_state(frame, 2)
+
+    assert _state("ok", "0/8", 0.99) == "UNAVAILABLE"
+    assert _state("ok", "1/8", 0.99) == "AVAILABLE"
+    assert _state("ok", "8/8", 0.99) == "COMPLETED"
+    assert _state("ok", "0/3", 0.99) == "UNKNOWN"
+    assert _state("ok", "0/8", 0.50) == "UNKNOWN"
+    # status 异常：即使 raw_text/rec_score 完美也绝不授权任何业务状态
+    assert _state("unavailable", "0/8", 0.99) == "UNKNOWN"
+    assert _state("", "0/8", 0.99) == "UNKNOWN"
+
+    # status="unavailable" + 0/8 + 0.99 → UNKNOWN：unavailable 接口 False，
+    # 且挑战点击链零输入（卡面命中也绝不点击、绝不推进计划）。
+    with patch.object(med, "_ocr_client", _fake_ocr_client("0/8", 0.99, status="unavailable")):
+        assert med._archive_hitch_card_unavailable(frame, 2) is False
+        card_hit = MatchResult("lobby/archive_card3", 0.92, 700, 500, 140, 70, 700, 500)
+        with patch.object(med, "_find_archive_challenge_card", return_value=card_hit), \
+             patch.object(med, "act_click", return_value=True) as click:
+            assert med._maybe_click_archive_challenge(frame, 100.0) is LoopAction.Continue
+        click.assert_not_called()
+        assert med._archive_challenge_index == 0, "UNKNOWN 状态零输入，绝不推进挑战计划"

@@ -4465,8 +4465,9 @@ class Mediator:
             return "UNKNOWN"
 
         # 优先使用 OCR client（若启用且可用）解析 typed counter ROI。
-        # C6 收紧：UNAVAILABLE 只有在可信 OCR（rec_score >= 0.75）明确解析出
-        # 分母 == 8 且分子 == 0 时才成立；低置信度或非 8 分母（如 0/3）绝不授权 UNAVAILABLE。
+        # C6 收紧：UNAVAILABLE 只有在 OCR 响应 status=="ok" 且可信
+        # （rec_score >= 0.75）明确解析出分母 == 8 且分子 == 0 时才成立；
+        # status 异常/低置信度或非 8 分母（如 0/3）绝不授权 UNAVAILABLE。
         ocr_client = getattr(self, "_ocr_client", None)
         if ocr_client and getattr(ocr_client, "is_available", False):
             try:
@@ -4479,11 +4480,12 @@ class Mediator:
                     "archive_counter",
                     {"index": card_index, "bbox": (x0, y0, x1, y1), "kind": "counter"}
                 )
+                status = str(getattr(resp, "status", "") or "").lower()
                 text = (getattr(resp, "raw_text", "") or "").strip()
                 score = float(getattr(resp, "rec_score", 0.0) or 0.0)
                 import re
                 m = re.search(r"(\d+)\s*/\s*(\d+)", text)
-                if m and score >= 0.75:
+                if status == "ok" and m and score >= 0.75:
                     num, den = int(m.group(1)), int(m.group(2))
                     if den == 8:
                         if num == 0:
@@ -5106,17 +5108,6 @@ class Mediator:
         """
         if getattr(self, "_tqtz_abandoned", False):
             return LoopAction.Continue
-        if getattr(self, "_tqtz_attempts", 0) >= 3:
-            # C5 修复：exhausted 必须标记为 _tqtz_abandoned，绝不能伪装 _tqtz_clicked = True
-            print("[early] tqtz 重试达上限 3 次，标记 ABANDONED 放弃提前挑战（不再尝试，非成功）")
-            self._tqtz_abandoned = True
-            self._tqtz_pending = False
-            self._tqtz_clicked = False
-            self._tqtz_pending_frame = None
-            self._early_challenge_pending = False
-            return LoopAction.Continue
-        if getattr(self, "_tqtz_clicked", False):
-            return None
         if getattr(self, "_tqtz_pending", False):
             # C5 修复：同 generation / same request frame => ZERO INPUT => NOT CONFIRMED
             req_gen = getattr(self, "_tqtz_request_generation", None)
@@ -5155,15 +5146,31 @@ class Mediator:
                 self._tqtz_pending_frame = None
                 return LoopAction.Continue
 
-            # 未确认且已等待 5s：清 pending 允许有界重试；
-            # attempts >= 3 的 ABANDONED 兜底在函数头部守卫完成。
+            # 未确认且已等待 5s：先清 pending 结束本次确认请求；
+            # 第 3 次尝试的超时在此收尾为 ABANDONED（绝不允许静默伪装成功）。
             if now - self._tqtz_pending_since >= 5.0:
-                attempts = getattr(self, "_tqtz_attempts", 1)
-                print(f"[early] tqtz 点击后 5s 图标仍在，重试次数 {attempts}/3，允许重试")
+                attempts = getattr(self, "_tqtz_attempts", 0)
                 self._tqtz_pending = False
                 self._tqtz_pending_frame = None
                 self._early_challenge_pending = False
+                if attempts >= 3:
+                    self._tqtz_abandoned = True
+                    self._tqtz_clicked = False
+                    print("[early] tqtz 3次尝试均未确认且第3次已超时，标记 ABANDONED 放弃")
+                    return LoopAction.Continue
+                print(f"[early] tqtz 点击后 5s 图标仍在，重试次数 {attempts}/3，允许重试")
             return LoopAction.Continue
+        if getattr(self, "_tqtz_attempts", 0) >= 3:
+            # C5 修复：exhausted 必须标记为 _tqtz_abandoned，绝不能伪装 _tqtz_clicked = True
+            print("[early] tqtz 重试达上限 3 次，标记 ABANDONED 放弃提前挑战（不再尝试，非成功）")
+            self._tqtz_abandoned = True
+            self._tqtz_pending = False
+            self._tqtz_clicked = False
+            self._tqtz_pending_frame = None
+            self._early_challenge_pending = False
+            return LoopAction.Continue
+        if getattr(self, "_tqtz_clicked", False):
+            return None
 
         if now < getattr(self, "_tqtz_next_check_at", 0.0):
             return None
@@ -7938,14 +7945,27 @@ class Mediator:
             and self._hitch_sm.join_clicked_at is not None
             and now - self._hitch_sm.join_clicked_at >= self._hitch_sm.join_confirm_timeout_s
         ):
-            dismissed = self.act_key("esc", "HitchDismissPopup")
-            if dismissed:
+            # 超时只授权两件事：拒绝本次进房并回大厅。Esc（HitchDismissPopup）
+            # 必须有可信已知模态 authority（被踢 OCR 命中或显式弹窗 dialog/title）
+            # 才允许发出；未知画面一律零输入，绝不盲 Esc。
+            kick_event = self._detect_hitch_kick_event(frame)
+            dialog_hit = (
+                self.find_scene(frame, "lobby_popup_dialog")
+                or self.find_scene(frame, "lobby_popup_title")
+            )
+            if kick_event is not None or dialog_hit is not None:
+                dismissed = self.act_key("esc", "HitchDismissPopup")
+                if dismissed:
+                    self._hitch_reject_pending_join(now, "join_rejected")
+                    self._hitch_search_actions.append("reject")
+                    print("[L0] hitch 进房超时：关闭满员/密码等提示，继续本页下一房间")
+                else:
+                    self._hitch_sm.defer_retry(now)
+                    print("[L0] hitch 进房超时，但提示关闭输入被拒绝")
+            else:
                 self._hitch_reject_pending_join(now, "join_rejected")
                 self._hitch_search_actions.append("reject")
-                print("[L0] hitch 进房超时：关闭满员/密码等提示，继续本页下一房间")
-            else:
-                self._hitch_sm.defer_retry(now)
-                print("[L0] hitch 进房超时，但提示关闭输入被拒绝")
+                print("[L0] hitch 进房超时且无可信弹窗证据：零输入拒绝本次进房回大厅")
             self.set_phase(Phase.LOBBY_ROOM, "hitch join rejected")
             return LoopAction.Continue
 
@@ -8021,12 +8041,15 @@ class Mediator:
                 print("[L0] hitch 180s 退房重试预算耗尽（3次/超时），Fail-Closed 停止发键等待人工介入")
                 return LoopAction.Break
 
-            room_window = bool(
-                frame.hwnd is not None
-                and frame.hwnd == getattr(self, "_confirmed_room_hwnd", None)
-            )
+            # Esc（HitchReadyTimeoutExit）只允许在 fresh 房间证据上发出：
+            # in_room（窗口匹配 + room signature）或当前帧物理确认房间实体控件。
+            # 未知 surface 一律零输入；预算耗尽由上方 deadline 守卫 Break 兜底。
             last = getattr(self, "_hitch_ready_timeout_leave_at", None)
-            if attempts < 3 and (last is None or now - last >= 5.0):
+            if (
+                (in_room or self._is_confirmed_room_frame(frame))
+                and attempts < 3
+                and (last is None or now - last >= 5.0)
+            ):
                 self.act_key("esc", "HitchReadyTimeoutExit")
                 self._hitch_ready_timeout_leave_at = now
                 self._hitch_ready_timeout_attempts = attempts + 1
