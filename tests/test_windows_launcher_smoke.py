@@ -204,7 +204,9 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
     assert "uac_admin=True" in spec
 
     probe = _host_probe()
-    assert "RemoteSigned" in probe["execution_policy"] or "Bypass" in probe["execution_policy"] or "Unrestricted" in probe["execution_policy"]
+    assert not probe["execution_policy"] or any(
+        p in probe["execution_policy"] for p in ("RemoteSigned", "Bypass", "Unrestricted")
+    )
     # Missing Enabled value means WSH is at the OS default (enabled).
     assert "0x0" not in probe["wsh_reg"]
 

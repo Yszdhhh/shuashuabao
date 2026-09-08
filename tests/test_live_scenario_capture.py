@@ -1993,10 +1993,14 @@ def test_lobby_hitch_join_timeout_closes_popup_and_skips_failed_row() -> None:
          patch.object(med, "_hitch_ocr_text", return_value=""), \
          patch.object(med, "find_scene", return_value=None), \
          patch.object(med, "_hitch_room_controls_visible", return_value=False), \
-         patch.object(med, "act_key", return_value=True) as key:
+         patch.object(med, "act_key", return_value=True) as key, \
+         patch.object(med, "act_click", return_value=True) as click:
         med._tick_lobby_hitch(frame, "LOBBY_ROOM")
 
-    key.assert_called_once_with("esc", "HitchDismissPopup")
+    # 20260908 新契约：无可信已知弹窗 authority 时，join 超时绝不盲 Esc。
+    # 只拒绝本次进房并回大厅（零输入）。
+    key.assert_not_called()
+    click.assert_not_called()
     assert med._hitch_sm.pending_join is False
     assert med._hitch_pending_row_y is None
     assert med._hitch_rejected_row_ys == {385}
@@ -2045,13 +2049,15 @@ def test_lobby_hitch_never_falls_back_to_quick_join() -> None:
 
 
 def test_lobby_hitch_popup_is_dismissed_before_search_action() -> None:
+    """已知弹窗 authority（OCR 命中被踢/解散文本）才允许 Esc 关闭。"""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     med._hitch_pending_row_y = 385
     med._hitch_sm.note_join_click(10.0)
     frame = _fixture_frame()
-    dialog = type("Hit", (), {"x": 10, "y": 10, "screen_x": 10, "screen_y": 10})()
-    with patch.object(med, "find_scene", side_effect=lambda _frame, key: dialog if key == "lobby_popup_dialog" else None), \
-         patch.object(med, "act_key", return_value=True) as key:
+    with (
+        patch.object(med, "_detect_hitch_kick_event", return_value="KICK"),
+        patch.object(med, "act_key", return_value=True) as key,
+    ):
         med._tick_lobby_hitch(frame, "UNKNOWN")
     key.assert_called_once_with("esc", "HitchDismissPopup")
     assert med._hitch_rejected_row_ys == {385}
