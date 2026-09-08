@@ -839,6 +839,28 @@ def test_black_merchant_probe_composes_existing_handlers_one_input_per_tick() ->
     assert calls == ["merchant"]
 
 
+def test_harness_capture_kwargs_match_production_signature(monkeypatch) -> None:
+    import inspect
+
+    allowed = set(inspect.signature(live_capture.capture).parameters)
+    calls: list[dict] = []
+
+    def fake_capture(*_args, **kwargs):
+        calls.append(kwargs)
+        extra = set(kwargs) - allowed
+        assert not extra, extra
+        return Frame(bgr=np.zeros((8, 8, 3), dtype=np.uint8), is_valid=False, error="synthetic")
+
+    monkeypatch.setattr(live_capture, "capture", fake_capture)
+    live_capture._window_preflight(Settings(), target="hitch_lobby_chain")
+    live_capture._capture_after(SimpleNamespace(
+        phase=Phase.LOBBY_ROOM,
+        _capture_title=lambda: "",
+        _last_frame=None,
+    ))
+    assert calls
+
+
 def test_blocked_preflight_does_not_dispatch_any_business_handler(tmp_path: Path, monkeypatch) -> None:
     calls: list[str] = []
     frame = _fixture_frame()
