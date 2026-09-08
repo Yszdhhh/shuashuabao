@@ -2896,7 +2896,7 @@ class BundleRecorder:
 def _capture_after(med: Mediator) -> Frame | None:
     """Capture once after an input; ordinary no-action ticks never call this."""
     try:
-        return _copy_frame(capture(med._capture_title(), role=_role_for_phase(med.phase), activate=False))
+        return _copy_frame(capture(med._capture_title(), role=_role_for_phase(med.phase)))
     except Exception:
         return _copy_frame(getattr(med, "_last_frame", None))
 
@@ -3028,7 +3028,7 @@ def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Fr
     role = "l0" if is_lobby else "l1"
     title = "" if is_lobby else str(getattr(settings, "window_title_contains", "") or "")
     try:
-        frame = capture(title, role=role, activate=True, allow_fallback=True)
+        frame = capture(title, role=role, allow_fallback=True)
     except Exception as exc:
         return None, {
             "status": "BLOCKED",
