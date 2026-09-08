@@ -7015,7 +7015,7 @@ class Mediator:
         if frame.bgr is not None:
             tab = frame.bgr[
                 int(frame.height * 0.24):int(frame.height * 0.29),
-                int(frame.width * 0.22):int(frame.width * 0.34),
+                int(frame.width * 0.22):int(frame.width * 0.32),
             ]
             if tab.size:
                 blue, green, red = cv2.split(tab)
@@ -7040,7 +7040,7 @@ class Mediator:
         """Find only the fixed room-list tab slot, never a different active tab."""
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return None
-        x0, x1 = int(frame.width * 0.22), int(frame.width * 0.34)
+        x0, x1 = int(frame.width * 0.22), int(frame.width * 0.32)
         y0, y1 = int(frame.height * 0.23), int(frame.height * 0.29)
         hit = self.find_scene(frame, "lobby_room_list_tab")
         if hit is not None and x0 <= hit.x <= x1 and y0 <= hit.y <= y1:

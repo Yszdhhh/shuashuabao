@@ -70,6 +70,24 @@ def test_hitch_search_confirmation_defers_room_scan_until_next_tick() -> None:
     assert med._hitch_prefix_ok() is True
 
 
+def test_comment_tab_is_not_room_list_and_switches_to_room_list() -> None:
+    """评论页的蓝色活动标签不能越界伪装成房间列表。"""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    image = np.full((945, 1332, 3), 12, dtype=np.uint8)
+    # 房间列表的灰色文字仍在固定槽位；评论页才是当前蓝色活动标签。
+    image[235:255, 325:405] = (180, 180, 180)
+    image[235:255, 438:466] = (210, 160, 10)
+    frame = Frame(image, window_title="KK官方对战平台", hwnd=10001, role="l0")
+
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._lobby_room_list_evidence(frame) is False
+        assert med._find_hitch_room_list_tab(frame) is not None
+        med._tick_lobby_hitch(frame, "PLATFORM_MAP")
+
+    assert click.call_args.args[1] == "HitchSelectTab"
+
+
 def test_hitch_cancel_ready_is_postcondition_not_click_target() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     frame = _fixture_frame()
