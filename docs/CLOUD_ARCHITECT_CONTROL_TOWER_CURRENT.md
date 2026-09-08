@@ -35,6 +35,8 @@ Current status:
 - `LOCAL_WINDOWS_LAUNCHER_GT = SELF_REPORTED_PASS`
 - `PRODUCT_GOLDEN_RUN = NOT_RUN`
 - `PRODUCT_RELEASE_APPROVAL = NO`
+- `COMPETITOR_A_DEEP_DECOMPOSITION = COMPLETE_FOR_S0_REFERENCE`
+- `STABILITY_SIMPLIFICATION_S0 = RESEARCH_ONLY / IMPLEMENTATION_HOLD`
 
 Do not describe the current branch as full production-release PASS.
 
@@ -113,77 +115,108 @@ The production Policy call path remained unchanged through the freeze and docs m
 
 Policy implementation is currently **held** while a stability-simplification review is completed.
 
-## 4. Why Policy implementation is temporarily held
+## 4. Same-game competitor stability research — current status
 
-A local Grok read-only audit compared several same-game mature competitor scripts and found a high-value pattern:
+Canonical research synthesis:
 
-- stability appears to come less from better CV and more from simpler control authority;
-- mature competitors still use many templates, but typically constrain the active detector set by current window/job/page;
-- recovery tends to be local rather than distributed among multiple watchdogs/fallback owners;
-- long-run stability benefits from small cross-round transient state and clear reset boundaries.
+`docs/COMPETITOR_STABILITY_DECOMPOSITION_20260908.md`
 
-Important evidence limitation:
+The first broad Grok audit and two subsequent Competitor-A checkpoints are now reviewed.
 
-The first Grok comparison used old ShuaBao `main@7edae990` for some detailed ShuaBao-side observations. Its architectural conclusion is useful, but current-ShuaBao implementation claims must be rechecked against `decb9b6/d1fb4a5` before becoming implementation requirements.
+### 4.1 What survives current-SHA validation
 
-Current cloud spot-check already confirms:
+High-value findings that remain useful:
 
-- the old cross-window STAGE_SELECT issue is now fixed;
-- window-role authority is improved but not fully unified;
-- the large Phase/control surface still exists;
-- Core Mediator has a 15s internal-cycle liveness path;
-- RuntimeMediator still has a separate 15s HUD-confirmed ESC watchdog with its own bounded retry/error escalation;
-- therefore duplicate liveness/recovery ownership remains a real current-SHA simplification candidate.
+- mature same-game tools may own hundreds of templates without running all of them as global authorities every tick;
+- the important metric is the active detector/authority set for the current window/job/page, not total asset inventory;
+- Competitor A exposes a narrower explicit shared orchestration surface: one abstract `Run`, 20 current concrete `Run` owners, and `LoopAction.Continue/Break` as a small visible return surface;
+- common mechanical capabilities such as capture/input/quit live on a shared job base surface while business orchestration appears more subclass-local;
+- this is evidence for **owner locality / narrow shared orchestration**, not proof that Competitor A is globally simpler or safer;
+- long-run design should minimize unnecessary cross-round transient state and make reset ownership explicit.
+
+### 4.2 Claims that were deliberately downgraded
+
+Because the current Competitor-A production method bodies are obfuscated, these are NOT current-build facts:
+
+- old named LaunchGame/BeginGame/CreateRoom/SelectStage execution order;
+- `FindNodeWithTimeOut` as the current postcondition implementation;
+- old infinite scrolling / exact historical thresholds;
+- UNKNOWN always continuing instead of erroring;
+- absence of global ESC/watchdog/fail-streak;
+- old UIA/InputSimulator runtime behavior;
+- Tesseract being on the active OCR path.
+
+Missing readable metadata is not proof of runtime absence.
+
+### 4.3 Precision on Competitor-A window ownership
+
+`AutoJob.GameWindow` is an instance `InitOnly` field. This proves the reference field is per-instance and cannot be reassigned after construction. It does **not** prove:
+
+- each job owns a unique underlying window object;
+- the object is immutable;
+- the underlying HWND cannot change internally;
+- multiple jobs do not share the same referent.
+
+Use this only as a narrow ownership-shape signal.
+
+### 4.4 Current ShuaBao-side comparison
+
+Current ShuaBao production still explicitly exposes:
+
+- 21 top-level `Phase` values;
+- `ChallengeState`;
+- `RecoveryKind / RecoveryStep / RecoveryState`;
+- `PanelState`;
+- `ActionLifecycle`;
+- `InteractionSurface`;
+- general `PendingAction` state;
+- lobby-specific hitch/follow state machines;
+- bounded attempt/deadline objects;
+- Mediator-owned session/transient latches.
+
+These abstractions are not individually condemned. The risk is combinatorial authority: several locally correct FSMs, latches, watchdogs, deadlines, and fallback paths can compose into a much larger implicit control graph.
+
+Current-SHA spot checks continue to support duplicate liveness/recovery ownership as a real simplification candidate, especially overlapping Core-vs-Runtime liveness mechanisms.
 
 ## 5. Current competitor-research task
 
-Continue the same Grok thread with a second-stage **Deep Stability Decomposition**.
+Competitor A is now considered **sufficient for S0 reference**. Do not spend another broad reverse-engineering round on A unless a specific unresolved implementation question becomes blocking.
 
-Priority:
+Next checkpoint:
 
-`Competitor A > Competitor C >>> Competitor B`
+`Competitor C — narrow structural and long-run stability cross-validation`
 
-Checkpoint 1 should deep-dissect Competitor A only and stop for review.
+Purpose:
 
-Allowed on authorized local competitor copies:
+Determine whether the same high-value patterns independently recur in another same-game mature implementation:
 
-- static unpacking
-- decompilation / IL / bytecode inspection
-- PyInstaller/resource indexing
-- string and call-graph analysis
-- asset-to-job/page/function mapping
+- page/job ownership locality;
+- active detector scheduling vs total asset inventory;
+- window binding lifecycle;
+- action/postcondition locality;
+- recovery ownership;
+- UNKNOWN handling;
+- round/session reset boundaries;
+- cross-round transient state.
 
-Do not bypass account authorization, network licensing, anti-cheat, or access-control mechanisms.
+This is cross-validation, not a second exhaustive reverse-engineering project.
 
-The target is not 100% source recovery. The target is to reconstruct the smallest stability architecture:
+Competitor B remains low priority unless a new authorized readable surface appears.
 
-`startup -> process/window discovery -> HWND binding -> Job/Page -> active detectors -> action authority -> input -> postcondition -> retry/recovery -> round reset -> next round`
-
-Key outputs:
-
-- execution graph
-- state lifetime map (`FRAME/PAGE/ACTION/ROUND/SESSION/PERSISTENT`)
-- asset authority map
-- failure/recovery matrix
-- long-run stability mechanisms
-- top simplicity advantages over ShuaBao
-- unsafe competitor patterns not to copy
-
-No ShuaBao code changes during this research.
+No ShuaBao production code changes during this research.
 
 ## 6. Stability Simplification S0 — candidate, not yet implementation contract
 
-After the deep competitor checkpoint and current-SHA cloud review, the likely next production wave is a narrowly scoped stability simplification before Policy v0.1.
+Current candidate principles are now better defined:
 
-Current candidate themes:
+1. **Localize orchestration authority.** One clear business owner should progress the active page/job/episode. Shared capture/input helpers remain mechanical capabilities and should not independently progress business state.
+2. **Restrict detector authority by verified window/page ownership.** Large template inventories are acceptable; only a bounded relevant set should hold transition authority for the current context.
+3. **Separate observable scene state from action-lifecycle state.** Re-observe current scene facts where possible; retain only minimum request/input/fresh-postcondition correlation for genuinely asynchronous actions.
+4. **One liveness/recovery owner per failure domain.** Core FSM, runtime wrapper, modal recovery, watchdog and fallback layers must not independently escape/progress the same failure.
+5. **Make state lifetime explicit.** Classify important control state as `FRAME_LOCAL / PAGE_LOCAL / ACTION_LOCAL / ROUND_LOCAL / SESSION_GLOBAL / PERSISTENT`, with explicit reset owner/boundary.
+6. **Prefer simplification/consolidation over new fallback layers.** S0 should remove or unify control authority before adding new detectors/retries/watchdogs.
 
-1. Unify `PLATFORM / GAME / UNKNOWN` window-role authority before page detectors obtain transition authority.
-2. Make detector scheduling page/job-local on the Golden Path; unrelated detectors may provide high-confidence safety vetoes but should not independently jump the FSM.
-3. Remove or consolidate duplicate liveness/recovery ownership, especially overlapping Core vs Runtime 15s mechanisms.
-4. Separate observable scene state from minimum action-lifecycle memory: do not cache scene facts that can be re-observed, but retain request/input/fresh-postcondition correlation.
-5. Reduce cross-round transient state and make round/session reset boundaries explicit.
-
-Do not implement these until the competitor checkpoint is reviewed and a small S0 contract is frozen.
+Do not implement these until Competitor C cross-validation is reviewed and a minimal S0 contract is frozen.
 
 ## 7. Safety invariants that remain non-negotiable
 
@@ -194,6 +227,7 @@ Do not implement these until the competitor checkpoint is reviewed and a small S
 - Perception recovery, input recovery, and business fallback are different concepts.
 - UNKNOWN may trigger bounded re-observation/reacquisition, but UNKNOWN alone never authorizes blind ESC/QUIT/HOME.
 - Do not weaken tests, thresholds, fixtures, or baselines to create a PASS.
+- Do not copy proprietary competitor code or image assets into ShuaBao; extract architecture/stability principles only.
 
 ## 8. Release-gate distinction
 
@@ -229,9 +263,9 @@ Stale branches may be deleted only after durable archive refs exist where needed
 
 Current recommended order:
 
-1. Grok Competitor-A deep stability checkpoint (read-only).
-2. Cloud current-SHA validation and freeze of a minimal Stability Simplification S0 contract.
-3. Local production Agent implements only that S0 scope.
+1. Grok Competitor-C narrow stability cross-validation (read-only).
+2. Cloud review of A+C evidence and freeze of a **minimal** Stability Simplification S0 contract.
+3. Local production Agent implements only that frozen S0 scope.
 4. Targeted tests + Standard CI.
 5. Fresh real-machine Golden Path run, aiming for repeated consecutive rounds, not one lucky pass.
 6. Re-audit Policy production call path and then start Policy v0.1.
