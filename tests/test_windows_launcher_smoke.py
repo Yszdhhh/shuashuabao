@@ -209,12 +209,15 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
     )
     # Missing Enabled value means WSH is at the OS default (enabled).
     assert "0x0" not in probe["wsh_reg"]
-    # GitHub hosted runners cannot save non-ASCII (Chinese) .lnk filenames
-    # on the Desktop (WScript.Shell Save() raises FileNotFoundException).
-    # Probe the exact real mode: same Desktop directory + Chinese filename.
+    # Physical-desktop capability probe: must be equivalent to the real
+    # operations below — Unicode (Chinese) .lnk filename on the real
+    # Desktop, VBS TargetPath, WorkingDirectory, and Save() persistence.
+    # GitHub hosted runners fail here (WScript.Shell Save() raises
+    # FileNotFoundException for non-ASCII lnk names), so skip the
+    # physical-desktop segment only when this exact capability is absent.
     desktop = Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Desktop"
     com_probe_lnk = desktop / "刷刷宝-P0-probe.lnk"
-    com_ok = True
+    com_ok = False
     try:
         subprocess.run(
             [
@@ -222,19 +225,50 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
                 "-NoProfile",
                 "-Command",
                 "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:LNK);"
-                "$s.TargetPath = 'cmd.exe';"
+                "$s.TargetPath = $env:VBS;"
+                "$s.Arguments = '';"
+                "$s.WorkingDirectory = $env:WD;"
                 "$s.Save()",
             ],
             check=True,
             timeout=20,
-            env={**os.environ, "LNK": str(com_probe_lnk)},
+            env={
+                **os.environ,
+                "LNK": str(com_probe_lnk),
+                "VBS": str(launcher_vbs),
+                "WD": str(launcher_vbs.parent),
+            },
         )
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        # Save() returning without error is not proof — read back what persisted.
+        proof = tmp_path / "com-probe-proof.txt"
+        subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:LNK);"
+                "$utf8 = New-Object System.Text.UTF8Encoding $false;"
+                "[IO.File]::WriteAllText($env:PROOF, ($s.TargetPath + [char]10 + $s.WorkingDirectory), $utf8)",
+            ],
+            check=True,
+            timeout=20,
+            env={**os.environ, "LNK": str(com_probe_lnk), "PROOF": str(proof)},
+        )
+        lines = proof.read_text(encoding="utf-8").splitlines()
+        target = lines[0] if lines else ""
+        workdir = lines[1] if len(lines) > 1 else ""
+        com_ok = (
+            Path(target).resolve() == launcher_vbs.resolve()
+            and Path(workdir).resolve() == launcher_vbs.parent.resolve()
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError, ValueError):
         com_ok = False
     finally:
         com_probe_lnk.unlink(missing_ok=True)
     if not com_ok:
-        pytest.skip("WScript.Shell cannot save Chinese .lnk on this host (CI runner)")
+        pytest.skip(
+            "WScript.Shell cannot persist Unicode .lnk with VBS target on this host (CI runner)"
+        )
 
     lnk = desktop / "刷刷宝-P0-smoke.lnk"
 
