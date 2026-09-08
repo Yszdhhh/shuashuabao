@@ -1,6 +1,6 @@
 # ShuaBao Same-Game Competitor Stability Decomposition — 2026-09-08
 
-> Control-tower research note. Documentation only. Do not merge this branch into production merely to carry research notes.
+> Control-tower research note. Documentation only. Do not merge `handoff/latest` into production merely to carry research notes.
 
 ## 1. Scope and baselines
 
@@ -21,169 +21,178 @@ Competitor work to date was read-only. No ShuaBao production code was modified a
 - Initial same-game competitor overview: complete.
 - Competitor A Deep Stability Decomposition Checkpoint 1: PASS with precision corrections.
 - Competitor A structural Checkpoint 2: PASS with precision corrections.
-- Further Competitor A reverse-engineering: HOLD; expected marginal value is now low.
-- Next recommended checkpoint: Competitor C structural/long-run decomposition for independent cross-validation.
-- Competitor B remains low-evidence because its internal implementation is not sufficiently observable under the current read-only/static boundaries.
+- Competitor C Stability Cross-Validation Checkpoint 3: PASS.
+- Further broad A/C reverse-engineering: HOLD; expected marginal value is now low.
+- Competitor B: HOLD / low evidence; do not continue unless a later implementation question creates a specific evidence gap.
+- `EVIDENCE_SUFFICIENT_TO_FREEZE_SHUABAO_S0 = YES`.
+
+Detailed C synthesis:
+
+`docs/COMPETITOR_C_CROSS_VALIDATION_20260908.md`
+
+Frozen implementation contract:
+
+`docs/STABILITY_SIMPLIFICATION_S0_IMPLEMENTATION_CONTRACT_20260908.md`
 
 ## 3. Competitor A — strongest current facts
 
 The current production binary statically preserves an `AutoJob` abstraction with one abstract `Run` and 20 concrete `Run` implementations. The comparable 1.4.1 build had 18 concrete implementations. The obfuscated current build does not permit a safe name-for-name mapping from old PDB source filenames to current concrete types, so the identities of the two additional jobs are UNKNOWN.
 
-The following helper/capability surface is statically visible in the current build:
+The visible current helper/capability surface includes `GameWindow` as an instance `InitOnly` field, `PressKey`, `QuitGame`, `CaptureWin`, `LoopAction.Continue / Break`, `Settings.get_Default`, image-search/OpenCV dependencies and input references.
 
-- `GameWindow` as an instance `InitOnly` field on `AutoJob`;
-- `PressKey` on `AutoJob`;
-- `QuitGame` on `AutoJob`;
-- `CaptureWin` on `AutoJob`;
-- `LoopAction.Continue / Break`;
-- `Settings.get_Default` as a static settings singleton entry;
-- image-search/OpenCV dependency surface;
-- mouse click/scroll/double-click/right-click references;
-- `Thread.Sleep` reference;
-- `MonitorGameOver` symbol remains present, but call sites are UNKNOWN.
+Precision boundary: `GameWindow` being an instance `InitOnly` reference proves only that the reference field is per-object and cannot be reassigned after construction. It does NOT prove unique ownership of the underlying window object, immutability of the referent, or immutability of the HWND.
 
-Precision boundary: `GameWindow` being an instance `InitOnly` reference proves only that the reference field is per-object and cannot be reassigned after construction. It does NOT prove that each job owns a unique underlying window object, that the referent is immutable, or that the underlying HWND cannot change internally.
-
-## 4. Competitor A — explicit orchestration shape
-
-The strongest reusable structural signal is not that Competitor A is proven globally simpler. Current method bodies are obfuscated and cannot support that claim.
-
-What is supported is narrower:
-
-- explicit shared orchestration is exposed as one abstract `Run`, a set of concrete `Run` owners, and a two-value `LoopAction` return surface;
-- common mechanical capabilities are provided by a relatively thin `AutoJob` base surface;
-- individual concrete jobs can own private state fields without expanding the global visible orchestration type surface;
-- static metadata exposes fewer named shared control-state concepts than ShuaBao's current production architecture.
-
-This should be described as:
+A supports:
 
 `NARROWER_EXPLICIT_SHARED_ORCHESTRATION_SURFACE`
 
-not as:
+not:
 
 `COMPETITOR_A_PROVEN_SIMPLER_OVERALL`.
 
-## 5. Checkpoint-1 claims deliberately downgraded
+## 4. Competitor A — claims deliberately downgraded
 
-The current 8 MB production build has obfuscated/encrypted method bodies for the relevant paths. Therefore these older-build observations are NOT current-build facts:
+Because the current A production method bodies are obfuscated/encrypted, these older-build observations are NOT current-build facts:
 
-- the old named sequence such as LaunchGame / BeginGame / CreateRoom / EntryF1 / SelectStage;
-- `FindNodeWithTimeOut` as the current postcondition mechanism;
-- old infinite stage scrolling behavior and old numeric matching thresholds;
-- old UNKNOWN->Continue runtime behavior;
-- absence of a global ESC path;
-- absence of watchdog/fail-streak behavior;
-- old UIA/InputSimulator runtime usage;
-- Tesseract being on the actual active OCR execution path.
+- old named LaunchGame/BeginGame/CreateRoom/SelectStage order;
+- `FindNodeWithTimeOut` as current postcondition implementation;
+- old infinite scrolling / exact historical thresholds;
+- UNKNOWN always continuing instead of erroring;
+- absence of global ESC/watchdog/fail-streak;
+- old UIA/InputSimulator runtime behavior;
+- Tesseract being on the active OCR path.
 
-They may remain historical evidence or strong inference where appropriate, but the current production method body is UNKNOWN.
+Missing readable metadata is not proof of runtime absence.
 
-Absence of a readable MemberRef/TypeDef name is never sufficient to prove runtime absence.
+## 5. Competitor C — independent cross-validation
 
-## 6. ShuaBao current-SHA comparison
+C provides stronger readable static evidence for the seven questions relevant to long-run stability.
 
-Current ShuaBao production still exposes a broad explicit control surface, including:
+Observed execution shape:
+
+- one normal master round sequence owns main business progression;
+- one thin outer shell owns game-window-loss cleanup/retry;
+- an alternate archive mode is mutually exclusive at startup rather than a parallel progression FSM;
+- a window watchdog signals loss but does not itself click or change business phase.
+
+Observed window model:
+
+- platform/KK and game windows use separate discovery/lifecycle logic;
+- KK ownership is validated before launch;
+- game HWNDs are re-enumerated each round;
+- failure to activate/validate the intended target prevents blind input;
+- unresolved stale game windows stop progression into the next round.
+
+Observed detector model:
+
+- C owns hundreds of assets, but current page/job functions enable only a small relevant detector subset;
+- room/menu/load phases use very small named sets;
+- battle uses bounded color gates plus limited high-priority template sets;
+- skill/card scans are filtered by user choice/current strategy/completion state rather than scanning the whole inventory every tick.
+
+Observed postcondition model:
+
+- several important actions re-observe after input;
+- panel UNKNOWN does not authorize repeat-click;
+- victory retry is bounded;
+- exit requires game-window disappearance before the round advances.
+
+C also contains unsafe patterns that MUST NOT be copied: fixed-coordinate business actions, pure sleep in some stage paths, foreground-exclusive assumptions, blind long waits, and some weak disappearance-only completion semantics.
+
+## 6. A vs C cross-validation
+
+### H1 — narrow/single progression ownership
+
+`CONFIRMED`
+
+A and C use different structures, but both expose a narrow shared progression surface rather than many peer FSMs independently advancing the same flow.
+
+### H2 — asset inventory is not detector authority
+
+`CONFIRMED`
+
+Both competitors can own large asset inventories while restricting the active detector set to the current business job/page.
+
+### H3 — mechanical capabilities separated from business orchestration
+
+`CONFIRMED`
+
+Capture/input/window/image-search helpers are mechanical capabilities; business progression remains owned by the job/function layer.
+
+### H4 — re-observation over long semantic latch
+
+`PARTIAL`
+
+C strongly re-observes page state and has explicit local/round state, but still retains legitimate session-global values.
+
+### H5 — explicit round reset limits transient contamination
+
+`PARTIAL`
+
+C resets retry/cooldown/task/window-monitor state at round boundaries while intentionally preserving room bindings and session counters.
+
+Overall:
+
+- `A_C_OWNER_LOCALITY_CROSS_VALIDATION = YES`
+- `A_C_PAGE_LOCAL_DETECTOR_AUTHORITY = YES`
+- `A_C_REDUCED_SHARED_TRANSIENT_STATE = PARTIAL`
+- `EVIDENCE_SUFFICIENT_TO_FREEZE_SHUABAO_S0 = YES`
+
+## 7. ShuaBao current-SHA comparison
+
+Current ShuaBao production explicitly exposes a broad control surface including:
 
 - 21 top-level `Phase` values;
 - `ChallengeState`;
-- `RecoveryKind` / `RecoveryStep` / `RecoveryState`;
+- `RecoveryKind / RecoveryStep / RecoveryState`;
 - `PanelState`;
 - `ActionLifecycle`;
 - `InteractionSurface` arbitration;
 - general `PendingAction` lifecycle memory;
-- lobby-specific `HitchSearchSM` / follow-state machinery;
+- lobby-specific hitch/follow state machinery;
 - bounded attempt/deadline structures;
 - Mediator-owned session/transient latches.
 
-This does not mean these abstractions are individually wrong. Most were introduced for valid safety reasons.
+These abstractions are not individually condemned. The risk is combinatorial authority: multiple locally reasonable state machines, latches, deadlines, watchdogs and recovery paths can compose into a much larger implicit control graph.
 
-The current concern is combinatorial authority: multiple locally reasonable state machines, latches, deadlines, watchdogs, and recovery paths can compose into a large implicit control graph.
+A current-SHA simplification target remains duplicate liveness/recovery ownership, including overlapping Core-vs-Runtime liveness mechanisms.
 
-A current-SHA example remains important: Core Mediator and RuntimeMediator have had separate liveness/recovery ownership, including overlapping 15-second mechanisms. Duplicate liveness ownership is therefore still a concrete S0 simplification candidate and should be reviewed explicitly rather than adding another fallback layer.
+## 8. Cross-validated S0 principles
 
-## 7. What the research does and does not support
+The research now supports freezing seven internal design constraints:
 
-Supported:
+1. one clear business progression owner per active failure domain;
+2. asset inventory is not detector authority — restrict authority to current verified window/page/job;
+3. mechanical capabilities do not independently own business progression;
+4. freshly re-observable scene facts should not be kept as long-lived semantic latches;
+5. transient retry/pending/recovery state needs explicit round reset ownership;
+6. window ownership/activation gates detector and input authority;
+7. mechanical input success is not business success — require fresh business-relevant postconditions and keep UNKNOWN fail-closed.
 
-1. Same-game mature competitors also use many image assets; raw template count is not the key stability variable.
-2. The meaningful metric is the detector/authority set active for the current job/page, not total asset inventory.
-3. Competitor A exposes a narrower shared orchestration surface and stronger job-local ownership shape than ShuaBao's current explicit control model.
-4. Long-run stability work should focus on authority locality, bounded local recovery, explicit state lifetime, and round/session reset boundaries.
-5. ShuaBao should examine whether observable scene state is being unnecessarily cached across ticks/rounds.
-6. Minimum action-lifecycle memory remains necessary where request->input->fresh postcondition correlation is required.
+These principles are now frozen in:
 
-Not supported:
-
-1. Competitor A is not proven globally simpler or safer.
-2. Competitor A is not proven to have no watchdog, no global ESC, no retry cap, or no recovery state.
-3. Soft `Continue`, blind sleep, blind ESC/QUIT, or unbounded retries must not be copied as safety patterns.
-4. A missing readable symbol in obfuscated metadata is not proof that a runtime behavior is absent.
-5. Historical thresholds/ROI/input behavior from old builds are not current-production ground truth.
-
-## 8. Reusable S0 design signals
-
-The current research justifies these candidate principles for a future Stability Simplification S0 contract:
-
-### 8.1 Localize orchestration authority
-
-Business progression should have one clear owner for the active page/job/episode. Common capture/input helpers may remain shared mechanical capabilities, but they should not create independent business progression authority.
-
-### 8.2 Restrict detector authority by window/page ownership
-
-Large asset libraries are acceptable. The active detector set and transition authority should be constrained by verified window role and current business page/job.
-
-### 8.3 Distinguish observable scene state from action lifecycle state
-
-If a fact can be freshly re-observed from the current trusted frame, prefer re-observation over long-lived semantic latches.
-
-Retain only the minimum state needed for a real asynchronous action contract, such as:
-
-- request/action identity;
-- precondition evidence generation/fingerprint;
-- input attempt;
-- bounded deadline/attempts;
-- expected business postcondition;
-- fresh outcome evidence.
-
-### 8.4 One liveness/recovery owner per failure domain
-
-Do not allow Core FSM, Runtime wrapper, watchdog, modal recovery, and fallback layers to independently progress or escape the same business failure.
-
-Perception recovery, input recovery, and business fallback must remain distinct.
-
-### 8.5 Make state lifetime explicit
-
-Classify nontrivial control state as:
-
-`FRAME_LOCAL / PAGE_LOCAL / ACTION_LOCAL / ROUND_LOCAL / SESSION_GLOBAL / PERSISTENT`
-
-Round-local/transient state should have an explicit reset owner and boundary. Long-running stability should be validated across repeated rounds, not inferred from one successful path.
+`docs/STABILITY_SIMPLIFICATION_S0_IMPLEMENTATION_CONTRACT_20260908.md`
 
 ## 9. Safety rules that competitor simplicity must not override
 
 - `UNKNOWN / ambiguous -> ZERO INPUT`.
 - UNKNOWN may authorize bounded re-observation/reacquisition, not blind ESC/QUIT/HOME.
-- Click or key dispatch success is not a business postcondition.
+- Click/key dispatch success is not a business postcondition.
 - Frame mutation/fingerprint change alone is not business completion.
-- Fresh business-relevant evidence is required for business state transitions.
-- No fixture/threshold/baseline weakening to make tests pass.
-- Do not copy proprietary competitor code or image assets into ShuaBao; extract architecture and stability principles only.
+- Fresh business-relevant evidence is required for business transitions.
+- No fixture/threshold/baseline weakening merely to obtain PASS.
+- Do not copy proprietary competitor code, image assets, credentials or license material into ShuaBao.
 
-## 10. Next research checkpoint
+## 10. Research stop / next phase
 
-Do not spend another large round reverse-engineering Competitor A unless a specific unresolved question becomes implementation-blocking.
+Broad competitor research is now stopped.
 
-Next, perform a narrow read-only Competitor C decomposition to test whether the same independent structural patterns recur:
+Next phase is internal ShuaBao execution:
 
-- page/job ownership locality;
-- active detector scheduling vs total assets;
-- window binding lifecycle;
-- action/postcondition locality;
-- recovery ownership;
-- UNKNOWN behavior;
-- round/session reset boundaries;
-- cross-round transient state.
-
-The purpose is cross-validation, not a second exhaustive reverse-engineering project.
-
-If A and C independently show the same high-value structure, the control tower may freeze a minimal ShuaBao Stability Simplification S0 implementation contract. Until then, production refactoring remains HOLD.
+1. implement the frozen Stability Simplification S0 contract on an isolated production branch;
+2. in parallel, run a non-overlapping test/CI-efficiency branch;
+3. targeted tests + Standard CI;
+4. repeated real-machine Golden Path validation;
+5. re-audit Policy call path, then resume Policy v0.1;
+6. explicit Strict Zero-Defect / Frozen OCR / remaining product GT;
+7. only then finalize main/trial ancestry reconciliation.
