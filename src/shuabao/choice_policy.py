@@ -1154,20 +1154,27 @@ def _decide_collectible(
         for slot in eligible:
             if (
                 slot.confidence >= settings.min_confidence
-                and slot.rarity == "green"
-                and "神符" in str(slot.name or "")
-            ):
-                return PolicyDecision.select(
-                    slot.index, f"宝物优先神符【{slot.name}】 @ slot {slot.index}"
-                )
-        for slot in eligible:
-            if (
-                slot.confidence >= settings.min_confidence
                 and _is_must_take(slot.name, settings.treasure_must_take)
             ):
                 return PolicyDecision.select(
                     slot.index, f"宝物必拿秒选【{slot.name}】 @ slot {slot.index}"
                 )
+        treasure_rarity_rank = {"red": 0, "orange": 1, "purple": 2, "green": -1}
+        better_unnamed = any(
+            (not str(slot.name or "").strip())
+            and treasure_rarity_rank.get(str(slot.rarity or ""), -1) > -1
+            for slot in eligible
+        )
+        if not better_unnamed:
+            for slot in eligible:
+                if (
+                    slot.confidence >= settings.min_confidence
+                    and slot.rarity == "green"
+                    and "神符" in str(slot.name or "")
+                ):
+                    return PolicyDecision.select(
+                        slot.index, f"宝物优先神符【{slot.name}】 @ slot {slot.index}"
+                    )
     else:
         eligible = cands.slots
         if kind == PANEL_BOND:

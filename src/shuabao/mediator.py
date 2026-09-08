@@ -818,7 +818,7 @@ class Mediator:
         # fingerprint guards remain the anti-loop safety boundary; the
         # per-kind episode count is the terminal guard for repeated unresolved
         # panel episodes in one round.
-        self._l1_cycle_step = "bond"
+        self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
         self._l1_cycle_owned_panel = False
         self._l1_cycle_selected = False
         # 三面板主动打开时间戳（G/F/V）：0.0 = 本局从未成功打开 → 首次立即允许；
@@ -2119,7 +2119,7 @@ class Mediator:
         return max(30.0, min(60.0, value))
 
     def _auto_task_unknown_fuse(self, state: str) -> LoopAction | None:
-        """Independent monotonic fuse. ``_main_line_since`` cannot postpone it."""
+        """Keep unknown loading surfaces input-free until the game UI returns."""
         normalized = str(state or "").strip().upper()
         if normalized in {"ON", "OFF"}:
             self._auto_task_unknown_since = None
@@ -2132,16 +2132,14 @@ class Mediator:
             self._auto_task_unknown_since = now_mono
         elapsed = now_mono - self._auto_task_unknown_since
         timeout = self._auto_task_unknown_timeout_s()
-        if elapsed < timeout:
-            return None
-        note = (
-            f"LivenessTimeout: auto_task UNKNOWN for {elapsed:.1f}s "
-            f"(limit {timeout:.1f}s)"
-        )
-        print(f"[L1] {note}，Fail-Closed 停止运行")
-        self.set_phase(Phase.ERROR, note)
-        self.stop()
-        return LoopAction.Break
+        if elapsed >= timeout:
+            print(
+                f"[L1] 自动任务 UNKNOWN 已持续 {elapsed:.1f}s "
+                f"(阈值 {timeout:.1f}s)，保持零输入等待页面恢复"
+            )
+        # Loading/interstitial screens have no stable auto-task control.  They
+        # are not an unsafe command condition, so do not end the live run.
+        return LoopAction.Continue
 
     def _ensure_auto_task_enabled(self, frame: Frame) -> LoopAction | None:
         """Enable auto-task with a bounded post-click observation window."""
@@ -3074,21 +3072,47 @@ class Mediator:
         bond_occupancy = self._bond_bar_occupancy(frame)
         live_free_slots = max(0, 10 - int(bond_occupancy)) if bond_occupancy is not None else None
 
-        decision = choose_action(
-            PanelCandidates(
-                panel_kind=kind,
-                slots=slots,
-                set_progress=bond_progress,
-                free_slots=live_free_slots,
-                refresh_count=self._choice_session.refreshes,
-                has_giveup=self._panel_has_giveup(frame, kind),
-                can_refresh=self._panel_can_refresh(frame, kind),
-                settings=self._policy_settings(),
-                owned_skill_cards=self._confirmed_skill_cards(),
-                owned_bond_cards=self._confirmed_bond_cards(),
-            ),
-            self._choice_session,
-        )
+        can_refresh = self._panel_can_refresh(frame, kind)
+        policy_settings = self._policy_settings()
+        if self._hitch_enabled() and kind == "treasure":
+            talisman = next(
+                (
+                    slot for slot in slots
+                    if slot.confidence >= policy_settings.min_confidence
+                    and slot.rarity == "green"
+                    and "神符" in str(slot.name or "")
+                ),
+                None,
+            )
+            if talisman is not None:
+                decision = PolicyDecision.select(
+                    talisman.index,
+                    f"蹭车宝物只拿绿色神符【{talisman.name}】 @ slot {talisman.index}",
+                )
+            elif can_refresh and self._choice_session.refreshes < self._choice_session.max_refreshes:
+                decision = PolicyDecision(
+                    PolicyAction.REFRESH,
+                    None,
+                    "蹭车宝物未找到绿色神符，刷新后重试",
+                )
+            else:
+                decision = PolicyDecision.close("蹭车宝物无绿色神符，关闭后等待结算")
+        else:
+            decision = choose_action(
+                PanelCandidates(
+                    panel_kind=kind,
+                    slots=slots,
+                    set_progress=bond_progress,
+                    free_slots=live_free_slots,
+                    refresh_count=self._choice_session.refreshes,
+                    has_giveup=self._panel_has_giveup(frame, kind),
+                    can_refresh=can_refresh,
+                    settings=policy_settings,
+                    owned_skill_cards=self._confirmed_skill_cards(),
+                    owned_bond_cards=self._confirmed_bond_cards(),
+                ),
+                self._choice_session,
+            )
         owned = (
             getattr(self, "_panel_opened_by_us", None) == kind
             or (self._l1_cycle_owned_panel and self._panel_kind == kind)
@@ -3470,14 +3494,18 @@ class Mediator:
     # 后 ERROR 停机。用户确认的正确时序：进化全流程（点进化→选英雄→进化全部）
     # 完成后，才做装备升级与背包道具，故 evolve 排在 equipment 之前。
     _L1_CYCLE_ORDER = ("bond", "skill", "bond", "skill", "treasure", "evolve", "equipment", "pickup", "merchant", "artifact")
+    _HITCH_L1_CYCLE_ORDER = ("merchant", "treasure", "hitch_idle")
 
     def _advance_l1_cycle(self, completed: str | None = None) -> None:
         current = completed or self._l1_cycle_step
+        order = self._HITCH_L1_CYCLE_ORDER if self._hitch_enabled() else self._L1_CYCLE_ORDER
+        if current == "hitch_idle" and self._hitch_enabled():
+            return
         try:
-            index = self._L1_CYCLE_ORDER.index(current)
+            index = order.index(current)
         except ValueError:
             index = -1
-        nxt = self._L1_CYCLE_ORDER[(index + 1) % len(self._L1_CYCLE_ORDER)]
+        nxt = order[(index + 1) % len(order)]
         if nxt == "evolve":
             self._evolve_ok_this_cycle = False
             self._evolve_awaiting_hero_pick = False
@@ -3502,16 +3530,18 @@ class Mediator:
             anchor = self._selection_anchor(frame)
         if anchor:
             return None
-        if self._passive_choice_mode():
-            return None
         if self._panel_state != PanelState.CLOSED:
             # 已有面板会话进行中（WAIT_VISIBLE/ACTIVE/…）：不再发起新打开
             return LoopAction.Continue
         now = time.time()
         target = getattr(self, "_choice_target", None) or self._l1_cycle_step
+        if self._passive_choice_mode() and not (
+            self._hitch_enabled() and target == "treasure"
+        ):
+            return None
         # 木材数值尚无经验证的 HUD 读取链；在基础卡未满 80% 时直接锁定 F，
         # 比猜测木材数更保守，也保证高木材阶段不会被 G/V/进化抢占。
-        if self._bond_base_progress_pending():
+        if not self._hitch_enabled() and self._bond_base_progress_pending():
             target = "bond"
         if target in ("skill", "bond", "treasure"):
             panel_enabled = (
@@ -4195,7 +4225,17 @@ class Mediator:
             detected_slots.extend(discounts)
             if discounts:
                 fingerprint = self._merchant_fingerprint(frame, detected_slots)
-        self._merchant_fsm = self._merchant_fsm.observe(present, fingerprint, now)
+        previous_fsm = self._merchant_fsm
+        self._merchant_fsm = previous_fsm.observe(present, fingerprint, now)
+        if (
+            self._hitch_enabled()
+            and previous_fsm.phase is MerchantPhase.VERIFYING
+            and previous_fsm.purchases > 0
+            and fingerprint != previous_fsm.pending_fingerprint
+        ):
+            print("[L1] 蹭车黑商吞噬丹购买已确认，转宝物神符")
+            self._advance_l1_cycle("merchant")
+            return LoopAction.Continue
         if not present or self._merchant_fsm.phase is MerchantPhase.EVICTED:
             return None
         merchant_enabled_flag = getattr(self.settings, "merchant_enabled", True)
@@ -4253,6 +4293,10 @@ class Mediator:
                     now, timeout_s=retry_s, cap=reroll_cap
                 )
                 self._merchant_next_at = now + retry_s
+            return LoopAction.Continue
+        if self._hitch_enabled() and self._merchant_fsm.rerolls >= reroll_cap:
+            print("[L1] 蹭车黑商刷新预算已用完，转宝物神符，不终止本局")
+            self._advance_l1_cycle("merchant")
             return LoopAction.Continue
         return LoopAction.Continue if (present and (detected_slots or ranked or refresh_available)) else None
 
@@ -6241,7 +6285,7 @@ class Mediator:
             self._panel_anchor_candidate = None
         if phase == Phase.MAIN_LINE and self.phase != Phase.MAIN_LINE:
             self._stage_attempt_budget = None
-            self._l1_cycle_step = "bond"
+            self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
             self._l1_cycle_last_advance_at = time.time()
         if phase == Phase.RECOVER_FAILURE and self.phase != Phase.RECOVER_FAILURE:
             # 进入恢复：清面板许可与待输入 token（抢占后 panel FSM 全部状态让位）
@@ -6382,10 +6426,11 @@ class Mediator:
             self._evolve_click_at = 0.0
             self._evolve_fail_count = 0
             self._evolve_baseline = None
-            self._l1_cycle_step = "bond"
+            self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
             self._l1_cycle_owned_panel = False
             self._l1_cycle_selected = False
             self._merchant_next_at = 0.0
+            self._merchant_fsm = MerchantFSM()
             self._equipment_next_at = 0.0
             self._equipment_pending_until = 0.0
             self._pickup_next_at = 0.0
@@ -9813,6 +9858,9 @@ class Mediator:
         self._l1_cycle_selected = False
         self._clear_pending_skill_cards()
         self._reset_choice_session()
+        if self._hitch_enabled() and cycle_owned and cycle_kind == "treasure":
+            self._advance_l1_cycle("treasure")
+            return
         if (
             cycle_owned
             and cycle_kind == self._l1_cycle_step
@@ -9930,6 +9978,8 @@ class Mediator:
     def _hitch_fail_close_choice_panel(self, frame: Frame, now: float) -> bool:
         """跟车/蹭车局内选择面板立即关闭；零刷新、零挑选。处理了本 tick 则 True。"""
         if not self._passive_choice_mode():
+            return False
+        if self._hitch_enabled() and self._panel_kind == "treasure":
             return False
         close_kind = self._panel_kind if self._panel_kind in ("skill", "bond", "treasure", "card") else None
         close_hit = self._close_current_panel(frame, close_kind)
@@ -10760,14 +10810,26 @@ class Mediator:
         # 与 has_card 互斥 → CONFLICT → 2.5s 后整个运行被 ERROR 停掉。
         _panel_class = self._classify_choice_panel(frame) if anchor else None
         has_hero = bool(
-            anchor
+            self._evolve_hero_choice_pending()
+            and anchor
             and _panel_class is None
             and self._find_evolution_choice(frame, anchor)
         )
         has_card = (not has_hero) and (bool(anchor) or self._panel_state != PanelState.CLOSED)
         # 商店检测在存在中央选卡/进化/词条弹窗或主线处于前置主动步骤(F/G/V/进化/装备/拾取)时严格抑制，绝不插队抢点击
         mainline_proactive_active = self._l1_cycle_step in ("bond", "skill", "treasure", "evolve", "equipment", "pickup")
-        has_merchant = False if (has_card or has_hero or has_affix or mainline_proactive_active) else self._black_merchant_present(frame)
+        hitch_bootstrap_pending = self._hitch_enabled() and (
+            not self._hitch_pressure_transferred
+            or not self._auto_task_done
+            or len(self._challenge_done) < len(self._challenge_states)
+        )
+        has_merchant = False if (
+            has_card
+            or has_hero
+            or has_affix
+            or mainline_proactive_active
+            or hitch_bootstrap_pending
+        ) else self._black_merchant_present(frame)
 
         surface = resolve_interaction_surface(
             recovery_modal=has_recovery,
@@ -10997,6 +11059,9 @@ class Mediator:
         if opened is not None:
             self._main_line_since = now
             return opened
+
+        if self._hitch_enabled() and self._l1_cycle_step == "hitch_idle":
+            return LoopAction.Continue
 
         # 显式循环中的神器阶段；无到期槽位时推进到技能。
         if self._l1_cycle_step == "artifact":

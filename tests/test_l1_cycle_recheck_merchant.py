@@ -13,7 +13,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from shuabao.choice_policy import PolicySettings
+from shuabao.choice_policy import PolicyAction, PolicySettings, SlotCandidate
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import ChallengeState, Mediator, PanelState, Phase
 from shuabao.merchant_scanner import MERCHANT_STRIP_ROI, MerchantScanner, MerchantSlotItem
@@ -51,6 +51,76 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.med._l1_cycle_selected = False
         self.med._finish_panel_episode()
         self.assertEqual(self.med._l1_cycle_step, "skill")
+
+    def test_hitch_round_runs_merchant_then_treasure_then_waits(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "live hitch round")
+        self.assertEqual(med._l1_cycle_step, "merchant")
+
+        med._advance_l1_cycle("merchant")
+        self.assertEqual(med._l1_cycle_step, "treasure")
+        med._advance_l1_cycle("treasure")
+        self.assertEqual(med._l1_cycle_step, "hitch_idle")
+        med._advance_l1_cycle()
+        self.assertEqual(med._l1_cycle_step, "hitch_idle")
+
+    def test_hitch_opens_treasure_but_keeps_bond_passive(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med._l1_cycle_step = "treasure"
+        with patch.object(med, "_selection_anchor", return_value=None), \
+                patch.object(med, "_bond_base_progress_pending", return_value=True), \
+                patch.object(med, "act_click", return_value=True) as click:
+            self.assertIs(med._maybe_open_choice_panel(self.frame), LoopAction.Continue)
+        self.assertEqual(click.call_args.args[1], "OpenTreasurePanel")
+
+        passive = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        passive._l1_cycle_step = "bond"
+        with patch.object(passive, "_selection_anchor", return_value=None), \
+                patch.object(passive, "act_click", return_value=True) as click2:
+            self.assertIsNone(passive._maybe_open_choice_panel(self.frame))
+        click2.assert_not_called()
+
+    def test_hitch_treasure_ocr_selects_only_green_named_talisman(self):
+        med = Mediator(Settings(mode_id="lobby_hitch", ocr_mode="live"), ROOT)
+        med._panel_opened_by_us = "treasure"
+        med._panel_kind = "treasure"
+        med._l1_cycle_step = "treasure"
+        med._l1_cycle_owned_panel = True
+        slots = (
+            SlotCandidate(index=0, name="卡牌大师", rarity="orange", confidence=0.99),
+            SlotCandidate(index=1, name="恢复神符", rarity="green", confidence=0.90),
+        )
+        selected = hit("selected", 800, 400)
+        with patch.object(med, "_ocr_panel_slots", return_value=[{"index": 0}]), \
+                patch.object(med, "_slots_to_candidates", return_value=slots), \
+                patch.object(med, "_extract_live_set_progress", return_value=None), \
+                patch.object(med, "_bond_bar_occupancy", return_value=None), \
+                patch.object(med, "_panel_has_giveup", return_value=True), \
+                patch.object(med, "_panel_can_refresh", return_value=True), \
+                patch.object(med, "_policy_decision_to_hit", return_value=("treasure", selected)) as mapped:
+            self.assertIsNone(med._ocr_reward_choice(self.frame, "treasure"))
+            self.assertIs(med._ocr_reward_choice(self.frame, "treasure"), selected)
+
+        decision = mapped.call_args.args[2]
+        self.assertIs(decision.action, PolicyAction.SELECT_SLOT)
+        self.assertEqual(decision.index, 1)
+
+    def test_hitch_confirmed_pill_purchase_advances_to_treasure(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med._l1_cycle_step = "merchant"
+        med._merchant_fsm = MerchantFSM(
+            phase=MerchantPhase.VERIFYING,
+            fingerprint="old",
+            purchases=1,
+            pending_fingerprint="old",
+            deadline=time.time() + 5,
+        )
+        with patch.object(med, "_black_merchant_present", return_value=True), \
+                patch.object(med, "_black_merchant_cards_present", return_value=False), \
+                patch.object(med, "_merchant_refresh_available", return_value=False), \
+                patch.object(med, "_merchant_fingerprint", return_value="new"):
+            self.assertIs(med._maybe_black_merchant(self.frame), LoopAction.Continue)
+        self.assertEqual(med._l1_cycle_step, "treasure")
 
     def test_background_cycle_uses_inventory_pickup_merchant_then_artifact(self):
         self.assertEqual(

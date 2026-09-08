@@ -457,7 +457,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
 
         self.assertIs(mediator.phase, Phase.ERROR)
 
-    def test_main_line_watchdog_never_injects_global_escape(self) -> None:
+    def test_main_line_unknown_surface_never_injects_or_advances_cycle(self) -> None:
         mediator = Mediator(Settings(), Path(__file__).resolve().parents[1])
         mediator.phase = Phase.MAIN_LINE
         mediator._auto_task_done = True
@@ -472,7 +472,7 @@ class P0SecurityFoundationTests(unittest.TestCase):
             self.assertEqual(mediator._tick_main_line(frame), LoopAction.Continue)
 
         key.assert_not_called()
-        advance.assert_called_once()
+        advance.assert_not_called()
 
     def test_legacy_real_mode_prohibited(self) -> None:
         args = argparse.Namespace(config=None, legacy=True, longzhu=False, steps=10)

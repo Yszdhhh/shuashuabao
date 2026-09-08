@@ -623,6 +623,23 @@ def test_b2_auto_task_gate_never_reenables_after_main_line_close() -> None:
     click3.assert_not_called()
 
 
+def test_auto_task_unknown_loading_wait_never_stops_live_run() -> None:
+    """加载过场没有自动任务控件时，只等待，绝不能终止整局。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.MAIN_LINE)
+    med._auto_task_unknown_since = 0.0
+
+    with patch.object(med, "_auto_task_state", return_value=("UNKNOWN", None)), \
+         patch("shuabao.mediator.time.monotonic", return_value=60.0), \
+         patch.object(med, "stop") as stop, \
+         patch.object(med, "act_click") as click:
+        assert med._ensure_auto_task_enabled(_game_frame("midgame")) is LoopAction.Continue
+
+    assert med.phase is Phase.MAIN_LINE
+    stop.assert_not_called()
+    click.assert_not_called()
+
+
 def test_b3_real_progress_counters_are_not_unavailable() -> None:
     """B3：真实 7/8、8/8 进度帧（绿色分子数字）绝不判为 0/8 不可用。
 

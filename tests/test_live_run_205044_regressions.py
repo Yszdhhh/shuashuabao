@@ -424,6 +424,7 @@ class LiveRun205044Tests(unittest.TestCase):
         med = Mediator(Settings(), ROOT)
         med.phase = Phase.MAIN_LINE
         med._l1_cycle_step = "merchant"
+        med._evolve_feedback_pending = True
         image = np.zeros((900, 1600, 3), dtype=np.uint8)
         cv2.rectangle(image, (550, 150), (784, 510), (180, 30, 180), 4)
         cv2.rectangle(image, (816, 150), (1050, 510), (180, 180, 30), 4)
@@ -441,6 +442,22 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(click.call_args.args[1], "SelectEvolutionCard")
         merchant.assert_not_called()
         self.assertEqual(med._l1_cycle_step, "merchant")
+
+    def test_unowned_evolution_shape_never_authorizes_a_card_click(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        med.phase = Phase.MAIN_LINE
+        anchor = MatchResult("treasure_hide_btn", 0.81, 580, 572, 10, 10, 580, 572)
+        bogus = MatchResult("evolution_card_0_rank_4", 0.9, 600, 300, 50, 80, 625, 340)
+        with patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "find", return_value=None), \
+                patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+                patch.object(med, "_selection_anchor", return_value=anchor), \
+                patch.object(med, "_classify_choice_panel", return_value=None), \
+                patch.object(med, "_find_evolution_choice", return_value=bogus), \
+                patch.object(med, "act_click", return_value=True) as click:
+            self.assertIs(med._tick_main_line(frame()), LoopAction.Continue)
+
+        self.assertFalse(any(call.args[1] == "SelectEvolutionCard" for call in click.call_args_list))
 
     def test_failure_modal_red_exit_requires_green_sibling(self) -> None:
         med = Mediator(Settings(), ROOT)
@@ -612,6 +629,7 @@ class LiveRun205044Tests(unittest.TestCase):
         med = Mediator(Settings(), ROOT)
         med.phase = Phase.MAIN_LINE
         med._l1_cycle_step = "evolve"
+        med._evolve_feedback_pending = True
         image = np.zeros((900, 1600, 3), dtype=np.uint8)
         cv2.rectangle(image, (550, 150), (784, 510), (180, 30, 180), 4)
         cv2.rectangle(image, (816, 150), (1050, 510), (180, 180, 30), 4)

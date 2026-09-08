@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-07 12:38:18",
-  "reason": "Register lobby_search_icon: the shipped lobby_search_box asset spans the whole input, so typing the search prefix dropped it from 0.96 to 0.62-0.74 (production match_threshold 0.85) and deadlocked the 20260907 real-machine hitch run. Adds 1 scene (147->148) and 1 hash-verified runtime asset (386->387).",
+  "updated_at": "2026-09-09 01:14:28",
+  "reason": "Live hitch full-run repair: comment-tab ownership, nonfatal loading wait, merchant-to-green-talisman wiring, and evolution click ownership; refresh accumulated verified pytest counts.",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 1603,
+        "passed": 1667,
         "xfailed": 2,
-        "skipped": 1
+        "skipped": 13
       }
     },
     "frozen_replay": {

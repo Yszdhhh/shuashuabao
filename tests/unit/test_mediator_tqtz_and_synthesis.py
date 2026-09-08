@@ -79,8 +79,8 @@ def test_treasure_yazhi_negative_ban_by_default():
     assert dec.index == 1
 
 
-def test_treasure_talisman_outranks_generic_must_take():
-    """已可靠识别的任意神符优先于其它非负面宝物。"""
+def test_global_treasure_must_take_still_outranks_talisman():
+    """普通模式保留必拿名单；蹭车的神符限定由 Mediator 单独执行。"""
     settings = assemble_policy_settings(
         settings=Settings(),
         skill_labels={},
@@ -104,8 +104,8 @@ def test_treasure_talisman_outranks_generic_must_take():
     dec = choose_action(cands, SessionState())
 
     assert dec.action == PolicyAction.SELECT_SLOT
-    assert dec.index == 1
-    assert "神符" in dec.reason
+    assert dec.index == 0
+    assert "必拿" in dec.reason
 
 
 def test_non_green_talisman_does_not_get_talisman_priority():
