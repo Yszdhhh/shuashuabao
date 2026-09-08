@@ -4464,7 +4464,9 @@ class Mediator:
         if counter.size == 0:
             return "UNKNOWN"
 
-        # 优先使用 OCR client（若启用且可用）解析 typed counter ROI
+        # 优先使用 OCR client（若启用且可用）解析 typed counter ROI。
+        # C6 收紧：UNAVAILABLE 只有在可信 OCR（rec_score >= 0.75）明确解析出
+        # 分母 == 8 且分子 == 0 时才成立；低置信度或非 8 分母（如 0/3）绝不授权 UNAVAILABLE。
         ocr_client = getattr(self, "_ocr_client", None)
         if ocr_client and getattr(ocr_client, "is_available", False):
             try:
@@ -4478,40 +4480,21 @@ class Mediator:
                     {"index": card_index, "bbox": (x0, y0, x1, y1), "kind": "counter"}
                 )
                 text = (getattr(resp, "raw_text", "") or "").strip()
+                score = float(getattr(resp, "rec_score", 0.0) or 0.0)
                 import re
                 m = re.search(r"(\d+)\s*/\s*(\d+)", text)
-                if m:
+                if m and score >= 0.75:
                     num, den = int(m.group(1)), int(m.group(2))
-                    if num == 0:
-                        return "UNAVAILABLE"
-                    elif num >= den:
-                        return "COMPLETED"
-                    else:
+                    if den == 8:
+                        if num == 0:
+                            return "UNAVAILABLE"
+                        if num >= den:
+                            return "COMPLETED"
                         return "AVAILABLE"
             except Exception:
                 pass
-
-        # 当 OCR 未接入/离线时，基于结构化形态分析：
-        # 绿色文字表示进行中进度 (1..7/8 或 8/8) -> AVAILABLE / COMPLETED
-        hsv = cv2.cvtColor(counter, cv2.COLOR_BGR2HSV)
-        green = (hsv[:, :, 0] >= 35) & (hsv[:, :, 0] <= 85) & (hsv[:, :, 1] >= 60) & (hsv[:, :, 2] >= 60)
-        green_count = int(np.count_nonzero(green))
-        if green_count >= 15:
-            # 存在明显的绿色进度文字，绝非 0/8
-            return "AVAILABLE"
-
-        # 若 OCR 离线，仅当检测到真实的红色/白色文字笔画时判定。
-        # 注意：纯颜色阈值（如单纯红像素 >= 60）不构成 production business authority。
-        # 当且仅当结构化解析能明确证明 0/8 时才返回 UNAVAILABLE；
-        # 无法证明时保持 UNKNOWN，UNKNOWN 绝不授权判定为不可挑战。
-
-        # 若无任何绿色文字且无任何文字笔画 -> UNKNOWN（不能确定为不可挑战）
-        gray = cv2.cvtColor(counter, cv2.COLOR_BGR2GRAY)
-        text_strokes = (gray > 100)
-        if int(np.count_nonzero(text_strokes)) < 10:
-            return "UNKNOWN"
-
-        # 未能取得 0/8 结构化绝对证据时，保守返回 UNKNOWN（绝不凭单纯红像素判定不可挑战）
+        # OCR 离线/低置信度/非 8 分母：绿色像素只能作为辅助证据，绝不单独授权
+        # AVAILABLE；未取得可信 OCR 结构化证据时统一 UNKNOWN（零输入等待）。
         return "UNKNOWN"
 
     def _archive_hitch_card_unavailable(self, frame: Frame, card_index: int) -> bool:
@@ -4540,9 +4523,14 @@ class Mediator:
             print("[med] 存档挑战计划已完成，关闭面板并转传家宝")
             return None
         label, card_index = plan[index]
-        if self._archive_hitch_card_unavailable(frame, card_index):
-            print(f"[med] 蹭车存档挑战 {label} 显示 0/8，跳过不可挑战卡")
+        progress_state = self._archive_hitch_card_progress_state(frame, card_index)
+        if progress_state == "UNAVAILABLE":
+            print(f"[med] 蹭车存档挑战 {label} 可信 OCR 明确 0/8，跳过不可挑战卡")
             self._archive_challenge_index = index + 1
+            return LoopAction.Continue
+        if progress_state != "AVAILABLE":
+            # UNKNOWN/COMPLETED：无可信『可挑战』证据 → 零输入（卡面模板命中也不点击）
+            print(f"[med] 存档挑战 {label} 进度状态 {progress_state} 无可信可挑战证据，零输入等待")
             return LoopAction.Continue
         hit = self._find_archive_challenge_card(frame, card_index)
         if hit is None:
@@ -5116,7 +5104,18 @@ class Mediator:
         fresh 帧上确认图标消失（或 Boss 目标面出现）才落定 `_tqtz_clicked`；
         5 秒观察窗超时则清 pending 允许有界重试。
         """
-        if getattr(self, "_tqtz_clicked", False) or getattr(self, "_tqtz_abandoned", False):
+        if getattr(self, "_tqtz_abandoned", False):
+            return LoopAction.Continue
+        if getattr(self, "_tqtz_attempts", 0) >= 3:
+            # C5 修复：exhausted 必须标记为 _tqtz_abandoned，绝不能伪装 _tqtz_clicked = True
+            print("[early] tqtz 重试达上限 3 次，标记 ABANDONED 放弃提前挑战（不再尝试，非成功）")
+            self._tqtz_abandoned = True
+            self._tqtz_pending = False
+            self._tqtz_clicked = False
+            self._tqtz_pending_frame = None
+            self._early_challenge_pending = False
+            return LoopAction.Continue
+        if getattr(self, "_tqtz_clicked", False):
             return None
         if getattr(self, "_tqtz_pending", False):
             # C5 修复：同 generation / same request frame => ZERO INPUT => NOT CONFIRMED
@@ -5156,22 +5155,14 @@ class Mediator:
                 self._tqtz_pending_frame = None
                 return LoopAction.Continue
 
-            # 未确认且已等待 5s：
+            # 未确认且已等待 5s：清 pending 允许有界重试；
+            # attempts >= 3 的 ABANDONED 兜底在函数头部守卫完成。
             if now - self._tqtz_pending_since >= 5.0:
                 attempts = getattr(self, "_tqtz_attempts", 1)
-                if attempts >= 3:
-                    # C5 修复：exhausted 必须标记为 _tqtz_abandoned，绝不能伪装 _tqtz_clicked = True
-                    print("[early] tqtz 重试达上限 3 次，标记 ABANDONED 放弃提前挑战（不再尝试，非成功）")
-                    self._tqtz_pending = False
-                    self._tqtz_abandoned = True
-                    self._tqtz_clicked = False
-                    self._tqtz_pending_frame = None
-                    self._early_challenge_pending = False
-                else:
-                    print(f"[early] tqtz 点击后 5s 图标仍在，重试次数 {attempts}/3，允许重试")
-                    self._tqtz_pending = False
-                    self._tqtz_pending_frame = None
-                    self._early_challenge_pending = False
+                print(f"[early] tqtz 点击后 5s 图标仍在，重试次数 {attempts}/3，允许重试")
+                self._tqtz_pending = False
+                self._tqtz_pending_frame = None
+                self._early_challenge_pending = False
             return LoopAction.Continue
 
         if now < getattr(self, "_tqtz_next_check_at", 0.0):
@@ -6121,6 +6112,17 @@ class Mediator:
 
     # ---------- 阶段推进 ----------
 
+    def _reset_tqtz_round_state(self) -> None:
+        """每局边界清零提前挑战（tqtz）状态：重试预算/ABANDONED 绝不跨局残留。"""
+        self._tqtz_clicked = False
+        self._tqtz_pending = False
+        self._tqtz_pending_since = 0.0
+        self._tqtz_pending_frame = None
+        self._tqtz_next_check_at = 0.0
+        self._tqtz_request_generation = -1
+        self._tqtz_attempts = 0
+        self._tqtz_abandoned = False
+
     def set_phase(self, phase: Phase, note: str = "") -> None:
         if phase != self.phase:
             print(f"[med] phase {self.phase.name} → {phase.name} {note}")
@@ -6187,6 +6189,8 @@ class Mediator:
             self._round_started_at = None
             self._round_deadline = None
             self._outcome_recorded = False
+            # 跨局重置：提前挑战重试预算/ABANDONED 必须随新一轮清零
+            self._reset_tqtz_round_state()
             # Task 2: round/episode boundary — stale in-flight action tokens
             # must not bleed into the next episode and gate its first ticks.
             self._pending_action = None
@@ -6258,10 +6262,7 @@ class Mediator:
             self._challenge_unknown_since.clear()
             self._challenge_pending_since.clear()
             self._challenge_next_observe_at.clear()
-            self._tqtz_clicked = False
-            self._tqtz_next_check_at = 0.0
-            self._tqtz_pending = False
-            self._tqtz_pending_since = 0.0
+            self._reset_tqtz_round_state()
             self._pause_resume_attempts = 0
             self._pause_resume_next_at = 0.0
             self._close_main_line_triggered = False
@@ -7806,9 +7807,15 @@ class Mediator:
         # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
         if self.phase == Phase.ROOM_WAITING and self._is_game_client_frame(frame):
             if getattr(self, "_hitch_ready_timeout_pending", False):
-                self._hitch_ready_timeout_pending = False
-                self._hitch_ready_timeout_leave_at = None
-                print("[L0] hitch 180s 等待期间房主开局，取消超时退房并移交游戏流程")
+                # P0-1b：窗口标题命中不是开局证据。只有可信局内 HUD 或选关页
+                # 才允许取消 180s 超时退房；否则保持退房 episode，本帧零输入。
+                if self._is_in_game_hud(frame) or stage_page or self._find_stage_page(frame):
+                    self._hitch_ready_timeout_pending = False
+                    self._hitch_ready_timeout_leave_at = None
+                    print("[L0] hitch 180s 等待期间房主开局（可信局内/选关证据），取消超时退房并移交游戏流程")
+                else:
+                    print("[L0] hitch 游戏客户端帧无可信局内/选关证据，保持超时退房（零输入）")
+                    return LoopAction.Continue
             print("[L0] hitch ROOM_WAITING 观察到游戏客户端帧，零输入移交状态对齐")
             return LoopAction.Continue
         # P0-5 后：通用 OCR 测试 override 仍保留为显式注入口；生产链路已由
@@ -7911,10 +7918,10 @@ class Mediator:
                 else:
                     print("[L0] hitch 检测到通用弹窗但无明确退出标识，禁止点击确认（零输入等待）")
                 return LoopAction.Continue
-            dismissed = self.act_key("esc", "HitchDismissPopup")
-            if dismissed and self._hitch_sm.pending_join:
-                self._hitch_reject_pending_join(now, "popup_rejected")
-            print("[L0] hitch 检测到平台提示弹窗，按 Esc 关闭并跳过失败房间")
+            # UNKNOWN_GENERIC_MODAL：无法识别为被踢/退出弹窗的通用模态一律零输入。
+            # 禁止自动 Esc（HitchDismissPopup）——盲 Esc 可能落到未知面板；
+            # 等待可信 OCR 命中 KNOWN_KICK 或人工介入。
+            print("[L0] hitch 检测到未知通用弹窗，零输入等待（禁止自动 Esc）")
             return LoopAction.Continue
 
         ready_hit = self._find_hitch_ready_button(frame)
@@ -7982,10 +7989,14 @@ class Mediator:
             # P0-6 & C4：180s 超时退房进行中。
             # 1. 房主若在此期间开局：取消退出、绝不拉黑、转交游戏内流程（被动 L1 接管）
             if self._is_game_client_frame(frame):
-                self._hitch_ready_timeout_pending = False
-                self._hitch_ready_timeout_attempts = 0
-                self._hitch_ready_timeout_deadline = None
-                print("[L0] hitch 180s 等待期间房主开局，房间已消失，转交游戏内流程")
+                # P0-1b：仅窗口标题不得取消退房 episode；必须有可信局内 HUD/选关页。
+                if self._is_in_game_hud(frame) or stage_page or self._find_stage_page(frame):
+                    self._hitch_ready_timeout_pending = False
+                    self._hitch_ready_timeout_attempts = 0
+                    self._hitch_ready_timeout_deadline = None
+                    print("[L0] hitch 180s 等待期间房主开局（可信局内/选关证据），房间已消失，转交游戏内流程")
+                    return LoopAction.Continue
+                print("[L0] hitch 退房 episode 中游戏客户端帧无可信面证据，保持退房（零输入）")
                 return LoopAction.Continue
 
             # 2. 物理证明已离房且大厅可见：拉黑房号，重置状态，回大厅找房
@@ -8002,7 +8013,7 @@ class Mediator:
                 print("[L0] hitch 180s 超时退出已确认回大厅，房间拉黑并继续找房")
                 return LoopAction.Continue
 
-            # 3. C4 修复：有界退房 episode（最多 3 次安全退出输入，>=5s 间隔，20s 截止期）
+            # 3. C4 修复：有界退房 episode（最多 3 次安全退出输入，>=5s 间隔，30s 截止期）
             deadline = getattr(self, "_hitch_ready_timeout_deadline", None)
             attempts = getattr(self, "_hitch_ready_timeout_attempts", 0)
             if deadline is not None and (now > deadline or attempts >= 3):
@@ -8041,7 +8052,7 @@ class Mediator:
                 self._hitch_ready_timeout_pending = True
                 self._hitch_ready_timeout_leave_at = None
                 self._hitch_ready_timeout_attempts = 0
-                self._hitch_ready_timeout_deadline = now + 20.0
+                self._hitch_ready_timeout_deadline = now + 30.0
                 print("[L0] hitch 房间已准备等待超过 180 秒，房主未开局，发起安全退房 episode（当帧 0 输入）")
                 return LoopAction.Continue
 

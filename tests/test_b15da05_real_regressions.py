@@ -38,6 +38,11 @@ FIXTURES = {
     "live_start": ROOT / "fixtures" / "live_postgame_20260808" / "live_archive_start_panel.png",
 }
 
+# 被踢弹窗真实帧（tests/fixtures/real_kicked_modal_frame.jpg）的地面真值：
+# 单测环境 OCR 离线（无 worker），真实帧上的被踢/移出文本无法用生产 OCR 链
+# 解析（RAW FRAME 证据缺失），识别链 fail-closed → UNKNOWN_GENERIC_MODAL。
+KICK_REAL_GT = "BLOCKED_MISSING_RAW_FRAME"
+
 
 def _load(name: str) -> np.ndarray:
     path = FIXTURES[name]
@@ -56,6 +61,14 @@ def _game_frame(name: str, hwnd: int = 10001) -> Frame:
 
 def _hitch_mediator() -> Mediator:
     return Mediator(Settings(dry_run=True, ocr_mode="off", mode_id="lobby_hitch"), ROOT)
+
+
+def _fake_ocr_client(text: str, rec_score: float) -> SimpleNamespace:
+    """C6 收紧后的可信 OCR 语义：raw_text + rec_score 即 counter 解析 authority。"""
+    return SimpleNamespace(
+        is_available=True,
+        shadow_predict=lambda *args, **kwargs: SimpleNamespace(raw_text=text, rec_score=rec_score),
+    )
 
 
 def test_real_leaderboard_not_room_list_authority() -> None:
@@ -361,23 +374,29 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
 
 
 def test_kick_modal_production_recognition_without_ocr_override() -> None:
-    """P0-5：真实被踢弹窗帧上，不注入任何 OCR override，生产识别链
-    （dialog 检测器/typed ROI OCR）命中『移出』文本 → Esc 关闭 + 重置回大厅，
-    绝不点击弹窗内蓝色主按钮。"""
+    """P0-5：生产识别链在 OCR 离线时（KICK_REAL_GT=BLOCKED_MISSING_RAW_FRAME，
+    RAW FRAME 文本证据缺失）对未知通用弹窗必须零输入：绝不点击弹窗内按钮，
+    也绝不自动 Esc（HitchDismissPopup 已封死）。OCR 可用/override 命中被踢
+    文本时才允许安全关闭并重置回大厅。"""
     med = _hitch_mediator()
     assert med._hitch_ocr_override is None, "生产链路不得依赖 ocr_override"
     frame = _kk_frame("kicked")
     med._hitch_pending_row_y = 385
     med._hitch_sm.note_join_click(1.0)
 
+    # KICK_REAL_GT=BLOCKED_MISSING_RAW_FRAME：单测环境 OCR 离线，真实帧的被踢
+    # 文本无法用生产 OCR 链解析（RAW FRAME 证据缺失）→ 识别链 fail-closed。
+    # 弹窗身份不可确认为已知被踢/退出弹窗 → 按 UNKNOWN_GENERIC_MODAL 处理：
+    # 零输入（绝不点击，也绝不盲 Esc——盲 Esc 可能落到未知面板）。
+    dialog_hit = MatchResult("lobby_popup_dialog", 0.9, 400, 300, 500, 250, 400, 300)
     clicks: list[str] = []
     keys: list[str] = []
-    with patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True), \
+    with patch.object(med, "find_scene", return_value=dialog_hit), \
+         patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True), \
          patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True):
         med._tick_lobby_hitch(frame, "LOBBY_ROOM")
-    # OCR client 不可用（单测环境）：fail-closed 落入通用弹窗链 → Esc 关闭，
-    # 依旧零点击。识别增强（_detect_hitch_kick_event）在 OCR 可用时接管。
     assert not clicks, f"被踢弹窗上严禁任何点击: {clicks}"
+    assert not keys, f"未知通用弹窗必须零输入（禁止自动 Esc），实际按键: {keys}"
     med2 = _hitch_mediator()
     med2.set_phase(Phase.LOBBY_ROOM)
     med2._hitch_ocr_override = "你已被移出了房间"
@@ -494,6 +513,45 @@ def test_b1_round_reset_clears_tqtz_pending() -> None:
     assert med._tqtz_pending_since == 0.0
 
 
+def test_c_tqtz_two_round_reset_allows_attempt_in_second_round() -> None:
+    """C5/C6：第一局 tqtz 重试预算耗尽（3 次）→ ABANDONED 放弃（绝不伪装成功）；
+    每局边界 reset 必须清空 ABANDONED 与重试预算，第二局允许重新点击尝试。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    frame = _game_frame("midgame")
+    tqtz_hit = MatchResult("tqtz", 0.85, 438, 79, 85, 22, 665, 171)
+
+    # 第一轮：3 次点击耗尽重试预算
+    med._tqtz_attempts = 3
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        # 预算耗尽的第一帧调用：标记 ABANDONED（而非伪装 clicked=True）
+        assert med._maybe_click_tqtz(frame, 100.0) is LoopAction.Continue
+        assert med._tqtz_abandoned is True
+        assert med._tqtz_clicked is False
+        assert med._tqtz_pending is False
+        # ABANDONED 短路：后续调用零输入、零点击
+        assert med._maybe_click_tqtz(frame, 101.0) is LoopAction.Continue
+        assert click.call_count == 0
+    assert med._tqtz_clicked is False, "ABANDONED 绝不允许伪装成已点击成功"
+
+    # 每局边界 reset（进入新一局）：ABANDONED 与 attempts 必须清零
+    med.set_phase(Phase.MAIN_LINE)
+    assert med._tqtz_abandoned is False
+    assert med._tqtz_attempts == 0
+
+    # 第二轮：tqtz 图标可见 → 允许重新点击并进入 pending 确认
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click2:
+        assert med._maybe_click_tqtz(frame, 300.0) is LoopAction.Continue
+    assert click2.call_count == 1
+    assert med._tqtz_pending is True
+    assert med._tqtz_clicked is False
+    assert med._tqtz_attempts == 1
+
+
 def test_b2_auto_task_gate_never_reenables_after_main_line_close() -> None:
     """B2：auto_close_main_line 触发后/主线关闭完成后，通用自动任务启用
     门禁绝不能再把勾选打回去（期望状态是 OFF）。"""
@@ -570,9 +628,77 @@ def test_b3_synthetic_red_block_does_not_authorize_unavailable() -> None:
     # C6 契约：纯合成红块无法形成结构化 OCR / 笔画文字证据 -> 状态必须是 UNKNOWN，unavailable 必须是 False
     assert med._archive_hitch_card_progress_state(modified_frame, 2) == "UNKNOWN"
     assert med._archive_hitch_card_unavailable(modified_frame, 2) is False
-    # 原始帧（7/8 实拍）仍为可用（AVAILABLE）
-    assert med._archive_hitch_card_progress_state(frame, 2) == "AVAILABLE"
+    # 原始帧（7/8 实拍）：离线模式（ocr_mode="off"）无可信 OCR 证据，绿色像素
+    # 不再单独授权 AVAILABLE → 状态 UNKNOWN（零输入等待），unavailable 仍为 False。
+    assert med._archive_hitch_card_progress_state(frame, 2) == "UNKNOWN"
     assert med._archive_hitch_card_unavailable(frame, 2) is False
+
+
+def test_archive_counter_trusted_ocr_0_of_8_is_unavailable() -> None:
+    """C6 收紧：可信 OCR（rec_score >= 0.75）明确解析 0/8 → UNAVAILABLE。"""
+    med = _hitch_mediator()
+    frame = _game_frame("archive")
+    fake = _fake_ocr_client("0/8", 0.9)
+    with patch.object(med, "_ocr_client", fake):
+        assert med._archive_hitch_card_progress_state(frame, 2) == "UNAVAILABLE"
+        assert med._archive_hitch_card_unavailable(frame, 2) is True
+
+
+def test_archive_counter_trusted_ocr_0_of_3_denominator_is_unknown() -> None:
+    """C6 收紧：分母非 8（如 0/3）绝不是 0/8 不可用 → UNKNOWN，绝不授权 unavailable。"""
+    med = _hitch_mediator()
+    frame = _game_frame("archive")
+    fake = _fake_ocr_client("0/3", 0.9)
+    with patch.object(med, "_ocr_client", fake):
+        assert med._archive_hitch_card_progress_state(frame, 2) == "UNKNOWN"
+        assert med._archive_hitch_card_unavailable(frame, 2) is False
+
+
+def test_archive_counter_low_confidence_0_of_8_is_unknown() -> None:
+    """C6 收紧：低置信度（rec_score < 0.75）OCR 即使读出 0/8 也绝不授权 UNAVAILABLE。"""
+    med = _hitch_mediator()
+    frame = _game_frame("archive")
+    fake = _fake_ocr_client("0/8", 0.5)
+    with patch.object(med, "_ocr_client", fake):
+        assert med._archive_hitch_card_progress_state(frame, 2) == "UNKNOWN"
+        assert med._archive_hitch_card_unavailable(frame, 2) is False
+
+
+def test_archive_counter_green_noise_without_ocr_is_unknown() -> None:
+    """C6 收紧：绿色像素只是辅助证据，绝不单独授权 AVAILABLE；
+    OCR 离线时绿色噪声 ROI 必须 UNKNOWN（unavailable 仍为 False）。"""
+    med = _hitch_mediator()
+    frame = _game_frame("archive")
+    h, w = frame.bgr.shape[:2]
+    col, row = 2 % 4, 2 // 4
+    cx = int(w * med._ARCHIVE_CHALLENGE_X[col])
+    cy = int(h * med._ARCHIVE_CHALLENGE_Y[row])
+    x0 = min(w, cx + int(w * 0.002))
+    x1 = min(w, cx + int(w * 0.027))
+    y0 = max(0, cy - int(h * 0.078))
+    y1 = max(0, cy - int(h * 0.039))
+    modified = frame.bgr.copy()
+    rng = np.random.default_rng(7)
+    noise = np.zeros((y1 - y0, x1 - x0, 3), dtype=np.uint8)
+    noise[..., 1] = rng.integers(120, 255, (y1 - y0, x1 - x0))  # 纯绿色通道噪声
+    modified[y0:y1, x0:x1] = noise
+    green_frame = Frame(modified, window_title="英雄三国KK", hwnd=frame.hwnd, role="l1")
+    assert med._archive_hitch_card_progress_state(green_frame, 2) == "UNKNOWN"
+    assert med._archive_hitch_card_unavailable(green_frame, 2) is False
+
+
+def test_archive_challenge_unknown_state_with_card_hit_is_zero_input() -> None:
+    """UNKNOWN 进度 + 卡面模板命中 → 零输入（Continue），绝不点击卡面。"""
+    med = _hitch_mediator()
+    frame = _game_frame("archive")
+    # 离线模式：gem 卡（plan 首位，card_index=2）无可信 OCR → UNKNOWN
+    assert med._archive_hitch_card_progress_state(frame, 2) == "UNKNOWN"
+    card_hit = MatchResult("lobby/archive_card3", 0.92, 700, 500, 140, 70, 700, 500)
+    with patch.object(med, "_find_archive_challenge_card", return_value=card_hit), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_click_archive_challenge(frame, 100.0) is LoopAction.Continue
+    click.assert_not_called()
+    assert med._archive_challenge_index == 0, "UNKNOWN 状态零输入，绝不推进挑战计划"
 
 
 def test_b4_npc_hub_and_archive_panel_are_mutually_exclusive() -> None:
