@@ -24,6 +24,7 @@ import statistics
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -31,12 +32,14 @@ import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.mediator import Mediator, PanelState, Phase  # noqa: E402
 from shuabao.settings import Settings  # noqa: E402
 from shuabao.vision.capture import Frame, check_frame_health  # noqa: E402
 from shuabao.vision.matcher import clear_template_cache  # noqa: E402
+from tests.test_scenario_replay import FakeClock, FakeInputExecutor  # noqa: E402
 
 IMAGES_DIR = ROOT / "assets" / "Images"
 FIXTURES_DIR = ROOT / "tests" / "performance" / "fixtures"
@@ -157,7 +160,7 @@ def run_decision(med: Mediator, frame: Frame, health_ok: bool) -> dict:
     """返回 {context_ms, decision_ms, action, action_ms, fail_hit, context}。
 
     镜像 _tick_impl：健康门禁 → 全局 fail/disconnect 优先（面板互斥）→ 按阶段分发。
-    输入为 dry-run（Settings.dry_run=True），绝不产生真实输入。
+    输入止于 FakeInputExecutor，保留 LIVE 门控语义且绝不产生真实输入。
     """
     out: dict = {"context_ms": 0.0, "decision_ms": 0.0, "action": None, "action_ms": 0.0, "fail_hit": False, "context": None}
     if not health_ok:
@@ -183,12 +186,44 @@ def run_decision(med: Mediator, frame: Frame, health_ok: bool) -> dict:
     out["decision_ms"] = (time.perf_counter() - t0) * 1000.0
     if action is not None:
         out["action"] = action.name
-        # action 阶段 = 决策返回动作后的分派开销（dry-run 下 executor 零成本；
+        # action 阶段 = 决策返回动作后的分派开销（fake executor 零成本；
         # 真实输入另有 ~390ms 固定等待，见报告说明）
         ta = time.perf_counter()
-        out["action_ms"] = 0.0  # 动作执行本身在决策内已完成（dry-run）；这里记录 0 + 说明
+        out["action_ms"] = 0.0  # 动作执行本身在决策内已完成；这里记录 0 + 说明
         out["action_dispatch_ms"] = (time.perf_counter() - ta) * 1000.0
     return out
+
+
+@contextmanager
+def record_detector_authority(med: Mediator):
+    """Count production detector-family entry points without changing decisions."""
+    counts: dict[str, int] = {}
+    originals: dict[str, object] = {}
+
+    def wrap(name: str, family: str) -> None:
+        original = getattr(med, name)
+        originals[name] = original
+
+        def observed(*args, **kwargs):
+            counts[family] = counts.get(family, 0) + 1
+            return original(*args, **kwargs)
+
+        setattr(med, name, observed)
+
+    for name, family in (
+        ("_selection_anchor", "panel"),
+        ("_post_game_state", "post_game"),
+        ("_is_in_game_hud", "hud"),
+        ("_find_stage_page", "stage"),
+        ("_auto_task_state_detail", "auto_task"),
+        ("_find_reward_choice", "choice"),
+    ):
+        wrap(name, family)
+    try:
+        yield counts
+    finally:
+        for name, original in originals.items():
+            setattr(med, name, original)
 
 
 # ---- tick 状态重置：exact-static 模式复用同一 Mediator 时需要（保持各次迭代同一代码路径）----
@@ -266,7 +301,9 @@ def reset_tick_state(med: Mediator, manifest_entry: dict) -> None:
 
 
 def fresh_mediator(manifest_entry: dict) -> Mediator:
-    med = Mediator(Settings(), ROOT)
+    # Preserve LIVE decision gates while making SendInput unreachable.
+    med = Mediator(Settings(dry_run=False), ROOT)
+    med.executor = FakeInputExecutor(med.stop_signal, FakeClock(start=time.time()))
     skills = manifest_entry.get("skills")
     if skills:
         med.settings.skills = list(skills)
@@ -287,6 +324,8 @@ class StageTiming:
     match_pixels: int = 0
     context: str | None = None
     action: str | None = None
+    detector_calls: dict[str, int] = field(default_factory=dict)
+    attempted_inputs: tuple[str, ...] = ()
 
 
 def bench_one(
@@ -309,12 +348,19 @@ def bench_one(
         issue_values = {i.value for i in health.issues}
         health_ok = health.is_healthy or issue_values.issubset({"frozen", "old_frame"})
 
-    res = run_decision(med, frame, health_ok)
+    med._trace_actions = []
+    med._trace_scenes = []
+    with record_detector_authority(med) as detector_calls:
+        res = run_decision(med, frame, health_ok)
     st.decision_ms = res["decision_ms"]
     st.context_ms = res["context_ms"]
     st.action_ms = res["action_ms"]
     st.context = res["context"]
     st.action = res["action"]
+    st.detector_calls = dict(detector_calls)
+    st.attempted_inputs = tuple(
+        str(row.get("intent")) for row in med._trace_actions if row.get("intent")
+    )
     st.match_calls = match_count()
     st.match_pixels = match_pixels()
     st.total_ms = st.capture_ms + st.health_ms + st.context_ms + st.decision_ms + st.action_ms
@@ -371,6 +417,18 @@ def bench_mode(
             "samples": len(vals),
         }
 
+    detector_families = sorted({family for run in runs for family in run.detector_calls})
+    detector_calls = {
+        family: {
+            "min": min(run.detector_calls.get(family, 0) for run in runs),
+            "p50": statistics.median(run.detector_calls.get(family, 0) for run in runs),
+            "max": max(run.detector_calls.get(family, 0) for run in runs),
+        }
+        for family in detector_families
+    }
+    attempted_input_counts = [len(run.attempted_inputs) for run in runs]
+    contexts = sorted({r.context for r in runs})
+    decisions = sorted({r.action for r in runs if r.action})
     return {
         "mode": entry["mode"],
         "fixture": entry["fixture_id"],
@@ -382,8 +440,18 @@ def bench_mode(
         "action_ms": agg("action_ms"),
         "match_calls": agg("match_calls"),
         "match_pixels": agg("match_pixels"),
-        "contexts": sorted({r.context for r in runs}),
-        "actions": sorted({r.action for r in runs if r.action}),
+        "contexts": contexts,
+        "actions": decisions,
+        "resolved_contexts": contexts,
+        "decisions": decisions,
+        "active_detector_families": detector_families,
+        "detector_calls": detector_calls,
+        "attempted_inputs": sorted({item for run in runs for item in run.attempted_inputs}),
+        "attempted_input_count": {
+            "min": min(attempted_input_counts),
+            "p50": statistics.median(attempted_input_counts),
+            "max": max(attempted_input_counts),
+        },
     }
 
 
@@ -550,6 +618,21 @@ def render_markdown(report: dict) -> str:
         lines.append(f"- times_ms: {times}  P50={statistics.median(times):.1f}  P95={sorted(times)[max(0, int(0.95*len(times))-1)]:.1f}")
     else:
         lines.append(f"- {lc.get('note', 'skipped')}")
+    lines += [
+        "",
+        "## Detector authority profile",
+        "",
+        "| fixture | mode | matcher calls | search pixels | detector families | resolved context | decision | attempted input |",
+        "|---|---|---:|---:|---|---|---|---|",
+    ]
+    for r in report["fixtures"]:
+        lines.append(
+            f"| {r['fixture_id']} | {r['mode']} | {r['match_calls']['p50_ms']} | "
+            f"{r['match_pixels']['p50_ms']} | {', '.join(r['active_detector_families']) or '-'} | "
+            f"{', '.join(str(value) for value in r['resolved_contexts'] if value is not None) or '-'} | "
+            f"{', '.join(r['decisions']) or '-'} | "
+            f"{', '.join(r['attempted_inputs']) or 'none'} |"
+        )
     return "\n".join(lines) + "\n"
 
 

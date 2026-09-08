@@ -10,6 +10,7 @@
 
 - capture（帧解码代理）+ health + context + decision + action 分阶段耗时；
 - `cv2.matchTemplate` 调用次数与搜索像素总量（进程内包装计数）；
+- active detector family、resolved context、decision 与 attempted input；
 - 环境记录（Python/OpenCV/CPU/分辨率/commit）+ assets/Images 模板聚合 SHA256；
 - 输出 `docs/baselines/N0_BENCHMARK.json` + `.md`，同一命令可重跑。
 
@@ -47,6 +48,7 @@
 - 三次连续运行中位偏差 ≤10%（以 warm-changed idle_hud P50 为准）；
 - 报告含 commit、环境、模板聚合 SHA、P50/P95、匹配次数、搜索像素；
 - 黑屏类 fixture 期望被健康门禁拦截（decision=0），属正常语义。
+- CI 契约使用 matcher/detector call count 与 search surface，不以 runner 毫秒数作硬门禁。
 
 ## 视频侧（panel→input 延迟）
 

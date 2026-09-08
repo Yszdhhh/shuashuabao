@@ -63,6 +63,34 @@ class BenchmarkSmokeTest(unittest.TestCase):
                 self.assertGreater(r["match_pixels"]["p50_ms"], 0)
             self.assertEqual(r["contexts"], ["MAIN_LINE"])
             self.assertTrue(r["context_verified"])
+            self.assertEqual(r["resolved_contexts"], ["MAIN_LINE"])
+            self.assertEqual(r["decisions"], ["Continue"])
+            self.assertIn("post_game", r["active_detector_families"])
+            self.assertGreaterEqual(r["detector_calls"]["post_game"]["max"], 1)
+            self.assertEqual(r["attempted_inputs"], ["click:continueGame"])
+            self.assertEqual(r["attempted_input_count"]["max"], 1)
+
+        by_mode = {r["mode"]: r for r in entries}
+        self.assertEqual(by_mode["warm_changed"]["match_calls"]["min_ms"], 28)
+        self.assertEqual(by_mode["warm_changed"]["match_calls"]["max_ms"], 28)
+        self.assertEqual(by_mode["warm_changed"]["match_pixels"]["min_ms"], 9_857_786)
+        self.assertEqual(by_mode["warm_changed"]["match_pixels"]["max_ms"], 9_857_786)
+        self.assertEqual(
+            by_mode["warm_changed"]["detector_calls"],
+            {
+                "hud": {"min": 1, "p50": 1, "max": 1},
+                "panel": {"min": 3, "p50": 3, "max": 3},
+                "post_game": {"min": 1, "p50": 1, "max": 1},
+            },
+        )
+        self.assertLessEqual(
+            by_mode["exact_static"]["match_calls"]["max_ms"],
+            by_mode["warm_changed"]["match_calls"]["max_ms"],
+        )
+        self.assertLessEqual(
+            by_mode["exact_static"]["match_pixels"]["max_ms"],
+            by_mode["warm_changed"]["match_pixels"]["max_ms"],
+        )
 
 
 if __name__ == "__main__":
