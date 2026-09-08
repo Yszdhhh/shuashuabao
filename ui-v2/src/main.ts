@@ -301,7 +301,7 @@ function applyLaunchability(): void {
       const manifestShort = identity?.release_manifest_sha256?.slice(0, 12) || "";
       const modelShort = identity?.ocr_model_sha256?.slice(0, 12) || "";
       identityPill.textContent = sourceShort
-        ? `v${version || "?"} · ${channel || "source"} · 构建 ${sourceShort} · 清单 ${manifestShort || "待补"}`
+        ? `v${version || "?"} · ${channel || "source"} · 构建 ${sourceShort} · 清单 ${manifestShort || "待补"} · 模型 ${modelShort || "待补"}`
         : "构建身份：待预检";
       identityPill.title = identityDetail || buildCheck?.detail || "后端预检后显示 version、release_channel、source_sha、整包 manifest、EXE、桥接和 OCR 模型哈希";
       identityPill.dataset.status = buildCheck?.ok === false ? "FAIL" : (identityDetail ? "READY" : "PENDING");
@@ -315,6 +315,7 @@ function applyLaunchability(): void {
           channel ? `release_channel=${channel}` : "",
           sourceShort ? `source_sha=${sourceShort}` : "",
           manifestShort ? `manifest_sha=${manifestShort}` : "",
+          modelShort ? `ocr_model_sha=${modelShort}` : "",
         ].filter(Boolean).join(" · ") || "构建身份：待预检";
       }
     }

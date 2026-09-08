@@ -1524,6 +1524,9 @@ def test_lobby_hitch_exit_pending_black_frame_holds_zero_input() -> None:
 
 
 def test_lobby_room_list_evidence_rejects_wrong_tab_template_hit() -> None:
+    """模板命中（find_scene right_tab MatchResult）本身不再是房间列表证据：
+    ea9776c 安全修复后灰模板权威被移除，仅蓝色高亮像素或刷新控件才是真权威，
+    因此 wrong_tab 与 right_tab 的 template-only 命中都必须拒绝（False）。"""
     from shuabao.vision.matcher import MatchResult
 
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
@@ -1540,7 +1543,7 @@ def test_lobby_room_list_evidence_rejects_wrong_tab_template_hit() -> None:
         med, "find_scene", side_effect=lambda _frame, key: right_tab
         if key == "lobby_room_list_selected" else None,
     ):
-        assert med._lobby_room_list_evidence(frame) is True
+        assert med._lobby_room_list_evidence(frame) is False
 
 
 def test_lobby_room_list_evidence_accepts_selected_tab_highlight() -> None:

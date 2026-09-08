@@ -5114,6 +5114,19 @@ class Mediator:
             cur_evidence = self._ensure_evidence(frame)
             cur_gen = cur_evidence.gen if cur_evidence else None
             if req_gen is not None and cur_gen is not None and cur_gen <= req_gen:
+                # 墙钟硬截止：即使证据 generation 不前进（same Frame / frozen frame），
+                # 5.0s 后 pending 也必须收敛，防止永久零输入挂起（C5 后续加固）。
+                if now - self._tqtz_pending_since >= 5.0:
+                    attempts = getattr(self, "_tqtz_attempts", 0)
+                    self._tqtz_pending = False
+                    self._tqtz_pending_frame = None
+                    self._early_challenge_pending = False
+                    if attempts >= 3:
+                        self._tqtz_abandoned = True
+                        self._tqtz_clicked = False
+                        print("[early] tqtz 同帧证据 5s 墙钟超时且尝试已满 3 次，标记 ABANDONED")
+                    else:
+                        print(f"[early] tqtz 同帧证据 5s 墙钟超时，清 pending 允许重试（{attempts}/3）")
                 return LoopAction.Continue
 
             # 观察窗内零输入等待

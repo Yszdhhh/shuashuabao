@@ -944,6 +944,36 @@ def test_tqtz_third_pending_timeout_becomes_abandoned() -> None:
     assert med._tqtz_clicked is False, "ABANDONED 绝不允许伪装成已点击成功"
 
 
+def test_tqtz_same_generation_pending_expires_after_wall_clock_5s() -> None:
+    """同帧（same generation）证据不推进时，5s 墙钟硬截止也必须收敛 pending：
+    same-gen 观察窗内零输入；>= 5s 清 pending，attempts>=3 则 ABANDONED（非伪装成功）。"""
+    med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    frame = _game_frame("midgame")
+    tqtz_hit = MatchResult("tqtz", 0.85, 438, 79, 85, 22, 665, 171)
+    with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        # 首帧点击成功 → pending 挂起，记录 request generation
+        assert med._maybe_click_tqtz(frame, 100.0) is LoopAction.Continue
+        assert med._tqtz_pending is True
+        assert med._tqtz_request_generation is not None
+        assert med._tqtz_request_generation >= 0
+        assert click.call_count == 1
+        # 同一帧对象（same generation）观察窗内：零输入等待
+        assert med._maybe_click_tqtz(frame, 101.0) is LoopAction.Continue
+        assert med._tqtz_pending is True
+        assert click.call_count == 1
+        # 同一帧对象，now = pending_since + 5.1：墙钟硬截止必须收敛
+        assert med._maybe_click_tqtz(frame, 105.1) is LoopAction.Continue
+        assert med._tqtz_pending is False
+        assert med._tqtz_pending_frame is None
+        assert med._early_challenge_pending is False
+        assert click.call_count == 1, "同帧 pending 收敛绝不允许额外点击"
+    assert med._tqtz_abandoned is False, "attempts<3 时仅清 pending，允许有界重试"
+
+
+
 def test_b3_archive_counter_classification_matrix() -> None:
     """C6 状态矩阵：OCR 响应 status != "ok" 时即使 raw_text/rec_score 完整可信
     也必须 UNKNOWN；status=="ok" + 结构化 0/8 + rec_score>=0.75 才授权 UNAVAILABLE。"""
