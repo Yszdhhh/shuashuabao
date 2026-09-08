@@ -221,14 +221,14 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     },
     "lobby_hitch": {
         "handler": "_tick_lobby_hitch",
-        "start_condition": "把游戏停在大厅对战/房间列表界面；搜索词默认 3，也可自定义；脚本一次输入并回车搜索，之后按刷新 CD 搜房，遇到特殊房间弹窗自动关闭。",
+        "start_condition": "把游戏停在可信大厅对战页；若未在房间列表，production 先点击可识别的房间列表 Tab。搜索词默认 3，也可自定义；脚本一次输入并回车搜索，之后按刷新 CD 搜房，遇到特殊房间弹窗自动关闭。",
         "production_entry": "Mediator._tick_lobby_hitch(frame, context, room_start, stage_page)",
         "expected_steps": (
             "LOBBY_DETECT", "SCAN", "REFRESH", "ROOM_FOUND", "JOIN", "ROOM_WAITING_CONFIRMED",
         ),
         "success_postcondition": "成功匹配前缀并点击加入后，画面进入房间等待界面（ROOM_WAITING 或 room_start 锚点出现），且 _hitch_sm 确认进房成功；单次 click success 不算成功。",
         "fail_condition": "刷新/进房输入被拒绝、超过 join_attempts/search_timeout 仍未进房且无大厅退回、或进入错误状态。",
-        "blocked_condition": "capture 无效、未在大厅对战列表界面、或当前无可识别房间。",
+        "blocked_condition": "capture 无效、既未确认大厅房间列表也未识别到可切入的房间列表 Tab、或当前无可识别房间。",
         "max_probe_time_s": 600.0,
         "natural_e2e_eligible": "只有从真实大厅列表开始、识别到目标前缀、点击进房并由真实 ROOM_WAITING HUD 确认、且无 FAIL/MANUAL_INTERVENTION bookmark 时才算 Natural E2E。",
         "bundle_replay": "重放大厅搜房、刷新与进房转场帧；四种故障变体按标准 Loader 注入。",
@@ -239,12 +239,12 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     },
     "lobby_search": {
         "handler": "_tick_lobby_hitch",
-        "start_condition": "把 KK 官方对战平台停在英雄三国房间列表；脚本输入当前 hitch_stage_prefix，并只点击人数未满、非游戏中、非锁定的房间；无候选时按 5 秒 CD 刷新。",
+        "start_condition": "把 KK 官方对战平台停在英雄三国可信大厅页；若未在房间列表，production 先切入可识别的房间列表 Tab。随后脚本输入当前 hitch_stage_prefix，并只点击人数未满、非游戏中、非锁定的房间；无候选时按 5 秒 CD 刷新。",
         "production_entry": "Mediator._tick_lobby_hitch(frame, context, room_start, stage_page)；默认探针最长 90 秒，桌面整链使用 --until-success 持续到准备成功。",
         "expected_steps": ("LOBBY_DETECT", "SEARCH_INPUT", "SEARCH_CONFIRMED", "ROW_SCAN", "JOIN_OR_REFRESH", "REJECT_OR_READY", "READY_CONFIRMED"),
         "success_postcondition": "搜索输入得到确认，并在拒绝满员/密码/首槽不合规房与 5 秒 CD 刷新后，进入合规房间、真实点击客人“准备”，且准备按钮状态发生变化。刷新只算过程证据。",
         "fail_condition": "搜索、刷新或安全房间行输入被拒绝，或动作成功但 5 秒内没有对应视觉后置证据。",
-        "blocked_condition": "未提权、KK 窗口不可用、未在房间列表、搜索框/刷新模板不可用，或房间行安全证据不足。",
+        "blocked_condition": "未提权、KK 窗口不可用、既未确认房间列表也未识别到可切入的房间列表 Tab、搜索框/刷新模板不可用，或房间行安全证据不足。",
         "max_probe_time_s": 90.0,
         "natural_e2e_eligible": "只有从真实列表持续执行到合规房客人准备后置确认，且无人工介入，才有资格作为大厅搜房 Natural E2E。",
         "bundle_replay": "记录真实搜索动作前后帧和五步输入结果；冻结重放只验证证据结构，不替代实机输入。",
@@ -295,7 +295,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "hitch_lobby_chain": {
         "handler": "tick",
         "call": "frame",
-        "start_condition": "把 KK/大厅停在当前 production 支持的真实大厅房间列表；不要预先点房间。满员/被踢/房间消失/无结果必须由 production lobby hitch 自己恢复并重新搜索。",
+        "start_condition": "把 KK 停在英雄三国可信大厅页：已在房间列表可直接搜房；若可识别未选中的房间列表 Tab，则先由 production 切入列表。不要预先点房间。满员/被踢/房间消失/无结果必须由 production lobby hitch 自己恢复并重新搜索。",
         "production_entry": "Mediator.tick() → production _tick_l0/_tick_lobby_hitch（mode_id=lobby_hitch）。Harness 不搜房、不点房间坐标、不补搜索 FSM；进局后继续走现有蹭车局内 Mediator.tick()。",
         "expected_steps": (
             "LOBBY_DETECT", "SEARCH_INPUT", "JOIN", "ROOM_WAITING_CONFIRMED",
@@ -303,7 +303,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         ),
         "success_postcondition": "production lobby hitch 在真实大厅完成搜房/JOIN，并以 ROOM_WAITING 或可信局内 HUD 确认进局；刷新、click success、窗口变化单独都不算 PASS。",
         "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入，或进房/恢复后置未被生产 classifier 确认。",
-        "blocked_condition": "窗口身份/页面 UNKNOWN、不是大厅房间列表、WindowRole 不可信时 ZERO INPUT。",
+        "blocked_condition": "窗口身份/页面 UNKNOWN、既无已选中房间列表证据也无可信房间列表 Tab、或 WindowRole 不可信时 ZERO INPUT。",
         "max_probe_time_s": 3600.0,
         "natural_e2e_eligible": "仅从真实大厅开始的连续 Mediator.tick() 链、无人工介入、并由生产后置确认进局时有资格。",
         "bundle_replay": "沿用事件帧和 ReplayCaseLoader；不把大厅搜房复制进测试工具。",
@@ -3128,14 +3128,20 @@ def _start_surface_preflight(
         )
     if target in {"hitch_lobby_chain", "lobby_hitch", "lobby_search"}:
         try:
-            observed = bool(med._lobby_room_list_evidence(frame))
+            in_room_list = bool(med._lobby_room_list_evidence(frame))
         except (AttributeError, TypeError):
-            observed = False
+            in_room_list = False
+        tab = None
+        if not in_room_list:
+            try:
+                tab = med._find_hitch_room_list_tab(frame)
+            except (AttributeError, TypeError):
+                tab = None
         return _ok(
-            "_lobby_room_list_evidence",
-            observed,
-            "production lobby room-list classifier confirmed",
-            "expected lobby room list was not confirmed; ZERO INPUT",
+            "_lobby_room_list_evidence/_find_hitch_room_list_tab",
+            in_room_list or tab is not None,
+            "production lobby room-list classifier confirmed" if in_room_list else "production room-list tab locator confirmed; Mediator will acquire the list before searching",
+            "expected lobby room list or a selectable room-list tab was not confirmed; ZERO INPUT",
         )
     if target in {"choice_bond_skill", "treasure", "hero_evolve", "inventory_devour", "inventory_hero_card", "inventory_item", "black_merchant"}:
         try:
@@ -3232,8 +3238,8 @@ def _lobby_resource_preflight(med: Mediator, target: str | None) -> list[str]:
     # lobby_search_icon is what the production locator resolves the search
     # control with; the whole-box asset it replaced stopped matching as soon
     # as a prefix was typed, so requiring it here proved nothing.
-    required = ("lobby_search_icon.png", "lobby_refresh.png") if target == "lobby_search" else (
-        "lobby_search_icon.png", "lobby_refresh.png", "lobby_room_list_selected.png",
+    required = ("lobby_search_icon.png", "lobby_refresh.png", "lobby_room_list_tab.png") if target == "lobby_search" else (
+        "lobby_search_icon.png", "lobby_refresh.png", "lobby_room_list_tab.png", "lobby_room_list_selected.png",
     )
     missing: list[str] = []
     for name in required:
@@ -3444,6 +3450,12 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
         settings.auto_create_room = False
         settings.skip_password_rooms = True
         settings.never_quick_join = True
+    if target == "hitch_lobby_chain":
+        # Full live chain: black merchant only buys a verified swallow pill;
+        # the production treasure policy independently prioritizes green talismans.
+        settings.merchant_enabled = True
+        settings.auto_devour_dan = True
+        settings.auto_treasure = True
     if target == "hitch_runtime":
         # 蹭车续跑在传家宝挑战确认后按既有退出链收敛；秘境另行显式配置。
         settings.auto_secret_realm = False

@@ -100,6 +100,16 @@ def test_non_boss_target_keeps_operator_boss_choices() -> None:
     assert settings.sgzx_boss == "10吞噬者芬鲁斯"
 
 
+def test_hitch_lobby_chain_enables_its_full_runtime_route() -> None:
+    configured = Settings(merchant_enabled=False, auto_devour_dan=False, auto_treasure=False)
+    with patch.object(Settings, "load_official", return_value=configured):
+        settings = live_capture._prepare_settings(None, "hitch_lobby_chain", live_input=True)
+
+    assert settings.merchant_enabled is True
+    assert settings.auto_devour_dan is True
+    assert settings.auto_treasure is True
+
+
 def test_direct_heirloom_start_enters_existing_selection_handler() -> None:
     med = Mediator(Settings(cjb_boss="01暴掠龙"), ROOT)
     frame = _fixture_frame()
@@ -1622,6 +1632,20 @@ def test_lobby_room_list_evidence_accepts_selected_tab_highlight() -> None:
         assert med._lobby_room_list_evidence(frame) is True
 
 
+def test_hitch_start_preflight_accepts_a_selectable_room_list_tab() -> None:
+    frame = _fixture_frame()
+    med = SimpleNamespace(
+        _lobby_room_list_evidence=lambda _frame: False,
+        _find_hitch_room_list_tab=lambda _frame: object(),
+    )
+
+    result = live_capture._start_surface_preflight(med, "hitch_lobby_chain", frame)
+
+    assert result["status"] == "READY"
+    assert result["classifier"] == "_lobby_room_list_evidence/_find_hitch_room_list_tab"
+    assert "will acquire the list" in result["reason"]
+
+
 def test_lobby_hitch_postcondition_and_stage() -> None:
     med = Mediator(Settings(), ROOT)
     frame = _fixture_frame()
@@ -2153,8 +2177,8 @@ def test_lobby_resource_preflight_reports_missing_templates(tmp_path: Path) -> N
     med = SimpleNamespace(images=tmp_path)
     missing = live_capture._lobby_resource_preflight(med, "lobby_hitch")
 
-    assert len(missing) == 3
-    assert len(live_capture._lobby_resource_preflight(med, "lobby_search")) == 2
+    assert len(missing) == 4
+    assert len(live_capture._lobby_resource_preflight(med, "lobby_search")) == 3
     assert live_capture._lobby_resource_preflight(med, "black_merchant") == []
 
 
@@ -2164,11 +2188,12 @@ def test_lobby_resource_preflight_rejects_blank_templates(tmp_path: Path) -> Non
     for name in (
         "lobby_search_icon.png",
         "lobby_refresh.png",
+        "lobby_room_list_tab.png",
         "lobby_room_list_selected.png",
     ):
         cv2.imwrite(str(lobby / name), np.zeros((24, 32, 3), dtype=np.uint8))
 
     missing = live_capture._lobby_resource_preflight(SimpleNamespace(images=tmp_path), "lobby_hitch")
 
-    assert len(missing) == 3
+    assert len(missing) == 4
     assert all("blank or low-contrast" in item for item in missing)
