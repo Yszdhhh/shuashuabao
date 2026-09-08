@@ -281,7 +281,8 @@ class P1B0PostGameTests(unittest.TestCase):
         loot_x = int(frame.width * med._ARCHIVE_CHALLENGE_X[3])
         frame.bgr[gem_y - 70:gem_y - 35, loot_x + 2:loot_x + 43] = (255, 255, 255)
 
-        with patch.object(med, "act_click", return_value=True) as click:
+        # C6 契约：_archive_hitch_card_unavailable 必须在解析为 UNAVAILABLE 时才跳过
+        with patch.object(med, "_archive_hitch_card_unavailable", side_effect=lambda f, idx: idx == 2),              patch.object(med, "act_click", return_value=True) as click:
             self.assertEqual(med._maybe_click_archive_challenge(frame, 1.0), LoopAction.Continue)
             self.assertEqual(med._archive_challenge_index, 1)
             self.assertEqual(med._maybe_click_archive_challenge(frame, 2.0), LoopAction.Continue)

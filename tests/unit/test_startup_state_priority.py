@@ -191,17 +191,44 @@ def test_full_boot_tick_takes_over_paused_game_window():
     assert med.phase is Phase.MAIN_LINE
 
 
-def test_startup_with_existing_game_window_enters_main_line_without_create_room():
+def test_startup_with_noisy_frame_without_hud_is_unknown():
+    """C1: 随机 noisy 帧无 trusted HUD / Stage / PostGame => UNKNOWN（零输入）。"""
     med = Mediator(Settings(), ROOT)
     med.set_phase(Phase.PREPARE)
     noisy = np.random.default_rng(1).integers(0, 255, (900, 1600, 3), dtype=np.uint8)
     frame = Frame(noisy, left=185, top=81, hwnd=1184474, window_title="英雄三国KK")
-    with patch.object(med, "_find_stage_page", return_value=False), \
-         patch.object(med, "_find_room_start", return_value=None), \
-         patch.object(med, "_find_create_confirm", return_value=None), \
-         patch.object(med, "_find_map_create_room", return_value=None):
+    with (
+        patch.object(med, "_find_stage_page", return_value=False),
+        patch.object(med, "_find_room_start", return_value=None),
+        patch.object(med, "_find_create_confirm", return_value=None),
+        patch.object(med, "_find_map_create_room", return_value=None),
+        patch.object(med, "_is_in_game_hud", return_value=False),
+    ):
         state = med._startup_state(frame)
-    assert state == "IN_GAME"
+    assert state == "UNKNOWN"
+
+
+def test_startup_with_trusted_hud_is_in_game_for_all_phases():
+    """C1: 验证 BOOT / PREPARE / ROOM_WAITING 在 trusted HUD 下对齐 MAIN_LINE / IN_GAME。"""
+    med = Mediator(Settings(), ROOT)
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), left=185, top=81, hwnd=1184474, window_title="英雄三国KK")
+    with (
+        patch.object(med, "_find_stage_page", return_value=False),
+        patch.object(med, "_find_room_start", return_value=None),
+        patch.object(med, "_is_in_game_hud", return_value=True),
+    ):
+        assert med._startup_state(frame) == "IN_GAME"
+
+    # 验证 L0 _tick_l0 在 BOOT / PREPARE / ROOM_WAITING 下均接管至 MAIN_LINE
+    for p in (Phase.BOOT, Phase.PREPARE, Phase.ROOM_WAITING):
+        med.set_phase(p)
+        with (
+            patch.object(med, "_startup_state", return_value="IN_GAME"),
+            patch.object(med, "_is_in_game_hud", return_value=True),
+        ):
+            res = med._tick_l0(frame)
+            assert res is LoopAction.Continue
+            assert med.phase is Phase.MAIN_LINE
 
 
 def test_stage_page_handoff_precedes_auto_task_gate():

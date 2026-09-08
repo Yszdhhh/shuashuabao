@@ -334,12 +334,19 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     assert med._hitch_pressure_click_at == 10.0
     assert med._hitch_pressure_transferred is False
 
-    # 下一帧按钮消失 → transferred 确认
-    with patch.object(med, "_team_mode_enabled", return_value=True), \
-         patch.object(med, "_is_in_game_hud", return_value=True), \
-         patch.object(med, "find", return_value=None), \
-         patch("shuabao.mediator.time.time", return_value=12.0):
+    # C2 修复：同一 request 帧绝不 confirm；只有 fresh generation 且按钮消失才 confirm
+    with (
+        patch.object(med, "_team_mode_enabled", return_value=True),
+        patch.object(med, "_is_in_game_hud", return_value=True),
+        patch.object(med, "find", return_value=None),
+        patch("shuabao.mediator.time.time", return_value=12.0),
+    ):
+        # 同一 request 帧（generation 未变）：不 confirm
         med._maybe_click_hitch_pressure_transfer(frame, 12.0)
+        assert med._hitch_pressure_transferred is False
+        # fresh 帧（不同 Frame 产生新 generation）：确认 transferred
+        fresh_frame = _game_frame("midgame")
+        med._maybe_click_hitch_pressure_transfer(fresh_frame, 12.0)
     assert med._hitch_pressure_transferred is True
 
     # 25 秒窗口过期：未点过 → 不置 transferred（放弃 ≠ 成功）
@@ -439,9 +446,16 @@ def test_b1_tqtz_click_latches_pending_until_fresh_frame_confirms() -> None:
         assert med._tqtz_clicked is False
         assert med._tqtz_pending is True
         assert click.call_count == 1
-        # fresh 帧图标消失 → 接受挑战
-        with patch.object(med, "find", return_value=None):
+        # C5 修复：同一 request 帧即便 locator miss 也不得 confirm
+        with (
+            patch.object(med, "find", return_value=None),
+            patch.object(med, "_is_in_game_hud", return_value=True),
+        ):
             assert med._maybe_click_tqtz(frame, 103.0) is LoopAction.Continue
+            assert med._tqtz_clicked is False
+            # fresh 帧（新 Frame 产生新 generation）且仍在 HUD：确认 clicked
+            fresh_frame = _game_frame("midgame")
+            assert med._maybe_click_tqtz(fresh_frame, 103.0) is LoopAction.Continue
     assert med._tqtz_clicked is True
     assert med._tqtz_pending is False
     assert click.call_count == 1, "确认成功前绝不允许第二次点击"
@@ -536,29 +550,28 @@ def test_b3_real_progress_counters_are_not_unavailable() -> None:
             )
 
 
-def test_b3_dense_red_numerator_is_unavailable() -> None:
-    """B3：0/8 全红态（分子 ROI 红像素 >= 75 的实测形态）必须判为不可用。
-
-    仓库暂无 0/8 实拍帧；正例以真实 counter ROI 几何 + 实测红色 '0' 字形
-    密度（>=75 红像素）重构，验证阈值路径。7/8 负例全部为纯实拍帧。
-    """
+def test_b3_synthetic_red_block_does_not_authorize_unavailable() -> None:
+    """C6：删除单纯红像素作为生产 business authority。纯人工合成红块必须判定为 UNKNOWN，
+    绝不能直接授权判定为不可用（unavailable）。"""
     med = _hitch_mediator()
     frame = _game_frame("archive")
     h, w = frame.bgr.shape[:2]
     col, row = 2 % 4, 2 // 4
     cx = int(w * med._ARCHIVE_CHALLENGE_X[col])
     cy = int(h * med._ARCHIVE_CHALLENGE_Y[row])
-    # 0/8 分子 '0' 字形：红色填充（实测 0/8 分子红像素 >= 75）
-    red_bgr = (60, 60, 230)  # BGR 纯红
-    x0 = cx + int(w * 0.004)
-    x1 = x0 + max(10, int(w * 0.010))
-    y0 = cy - int(h * 0.072)
-    y1 = cy - int(h * 0.045)
+    red_bgr = (60, 60, 230)
+    x0 = cx + int(w * 0.002)
+    x1 = cx + int(w * 0.027)
+    y0 = cy - int(h * 0.078)
+    y1 = cy - int(h * 0.039)
     modified = frame.bgr.copy()
     cv2.rectangle(modified, (x0, y0), (x1, y1), red_bgr, -1)
     modified_frame = Frame(modified, window_title="英雄三国KK", hwnd=frame.hwnd, role="l1")
-    assert med._archive_hitch_card_unavailable(modified_frame, 2) is True
-    # 原始帧（7/8 实拍）仍为可用
+    # C6 契约：纯合成红块无法形成结构化 OCR / 笔画文字证据 -> 状态必须是 UNKNOWN，unavailable 必须是 False
+    assert med._archive_hitch_card_progress_state(modified_frame, 2) == "UNKNOWN"
+    assert med._archive_hitch_card_unavailable(modified_frame, 2) is False
+    # 原始帧（7/8 实拍）仍为可用（AVAILABLE）
+    assert med._archive_hitch_card_progress_state(frame, 2) == "AVAILABLE"
     assert med._archive_hitch_card_unavailable(frame, 2) is False
 
 
