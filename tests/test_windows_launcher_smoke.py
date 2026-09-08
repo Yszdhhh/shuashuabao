@@ -209,6 +209,32 @@ def test_windows_launcher_shortcut_vbs_ps1_current_and_rollback(tmp_path: Path, 
     )
     # Missing Enabled value means WSH is at the OS default (enabled).
     assert "0x0" not in probe["wsh_reg"]
+    # GitHub hosted runners cannot create real Desktop .lnk files
+    # (WScript.Shell COM CreateShortcut raises).  Probe COM availability
+    # with a throwaway shortcut; skip the physical-desktop portion when
+    # unavailable so the content/security assertions above still gate CI.
+    com_probe_lnk = tmp_path / "com-probe.lnk"
+    com_ok = True
+    try:
+        subprocess.run(
+            [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:LNK);"
+                "$s.TargetPath = 'cmd.exe';"
+                "$s.Save()",
+            ],
+            check=True,
+            timeout=20,
+            env={**os.environ, "LNK": str(com_probe_lnk)},
+        )
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+        com_ok = False
+    finally:
+        com_probe_lnk.unlink(missing_ok=True)
+    if not com_ok:
+        pytest.skip("WScript.Shell COM unavailable on this host (CI runner)")
 
     desktop = Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Desktop"
     lnk = desktop / "刷刷宝-P0-smoke.lnk"
