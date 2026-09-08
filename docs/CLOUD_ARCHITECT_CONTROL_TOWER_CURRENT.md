@@ -1,586 +1,501 @@
 # ShuaBao Cloud Architect Control Tower — CURRENT
 
-> Canonical short-form handoff for the active ShuaBao execution state.
-> New cloud/Opus/Sol/Codex conversations should read this file first from branch `handoff/latest`, then independently re-read the live `origin/trial-merge` HEAD before trusting any older Agent report.
-> This handoff branch is documentation-only. Do not merge it into `trial-merge` merely to carry status notes.
+> Canonical handoff for the active ShuaBao control-tower state.
+> Always read this file first from `handoff/latest`, then independently verify the live `origin/trial-merge` HEAD before trusting any local Agent report.
+> This branch is documentation-only. Do not merge `handoff/latest` into `trial-merge` just to carry status notes.
 
-## 0. Current phase
-
-The project has moved beyond the original 2026-09-07 Hitch search-box deadlock. That defect was fixed in the `b15da05` line, but subsequent real-machine runs exposed broader runtime-state / surface-authority / window-ownership / post-game / choice-policy gaps.
-
-The current work is now split into three layers:
-
-1. **Runtime correctness / arbitrary-state takeover** — make the production runtime align from the current physical surface instead of depending on a prescribed historical path.
-2. **Natural E2E acceptance harness** — independently capture/verify real production behavior without copying the production FSM or treating click success as business PASS.
-3. **Choice Policy evolution** — after runtime/state alignment is stable, evolve from rigid hard-whitelist rules toward a deterministic, explainable utility-scoring policy using structured KB facts and live evidence.
-
-Do not mix these three layers in one implementation wave.
-
-Current intended sequence:
-
-`Corrective A runtime closure -> Sol exact-SHA review -> Corrective B solo production blockers -> Sol exact-SHA review -> Choice Policy v0.1 minimal rules -> align Harness to exact production candidate -> fresh Natural E2E bundle -> Opus targeted/final red-team -> Sol final exact-SHA review -> build -> exact release approval -> bounded multi-entry Golden Run`
-
-## 1. Live Git state
+## 0. Current executive state
 
 Repository:
 
-`Yszdhhh/shuashuabao`
+`https://github.com/Yszdhhh/shuashuabao`
 
-Integration branch:
+Production integration branch:
 
 `trial-merge`
 
 Last independently verified remote HEAD:
 
-`ea9776cc3f1836624ce058240b447a0ff890fbe1`
+`21c33c727f7f9521db39c8c6ef70876b9b890eda`
 
-Commit message:
+Commit:
 
-`fix(hitch): fix cold-start reconcile, ready 180s budget, and observation foreground thrash`
+`fix(runtime): close fresh-evidence and bounded lifecycle gaps`
 
 Parent:
 
-`b15da05f4fd7313b02b2cc466e319d9683aa979c`
+`a3bc4cdad0b11decaa578140e1a03c4b5380b8e7`
 
-The `ea9776` commit changed only:
+Verified commit chain:
+
+`ea9776cc3f1836624ce058240b447a0ff890fbe1`
+→ `474d1bce932a1a533d768cb4ebcd3ffa866edb01`  Corrective A
+→ `a3bc4cdad0b11decaa578140e1a03c4b5380b8e7`  Corrective B
+→ `21c33c727f7f9521db39c8c6ef70876b9b890eda`  Corrective C
+
+Current cloud verdict:
+
+`CORRECTIVE_C_ACCEPTANCE = REJECT / BLOCKED_WITH_CODE_DEFECTS`
+
+Therefore:
+
+- `BUILD_AUTHORIZATION = NO`
+- `RELEASE_APPROVAL = NO`
+- `GOLDEN_RUN_AUTHORIZATION = NO`
+
+The next production task is a narrow **Corrective C-D** on top of `21c33c7`, not a new feature wave.
+
+In parallel, a local **Astra read-only architecture review** is being run for the future KB / decision-policy redesign. Astra must not modify production while Corrective C-D is active.
+
+## 1. Historical context
+
+The original 2026-09-07 Hitch search deadlock was fixed in the `b15da05` line. Subsequent real-machine runs then exposed broader problems in:
+
+- Room List surface authority
+- ROOM_WAITING → L1 takeover
+- foreground ownership
+- arbitrary-state startup reconciliation
+- Ready 180s timeout lifecycle
+- Pressure Transfer postcondition
+- TQTZ early-challenge lifecycle
+- Archive 7/8 availability
+- NPC Hub / Archive / Stage mutual exclusion
+- rigid choice-policy behavior / KB under-wiring
+
+The current project is intentionally split into three independent workstreams:
+
+1. **Runtime correctness** — physical-surface authority, bounded lifecycles, fresh business postconditions.
+2. **Natural E2E Harness** — real-production execution/evidence capture without copied FSM or fake success.
+3. **Choice Policy / KB evolution** — future deterministic, explainable, less-rigid strategy layer.
+
+Do not mix these into one implementation commit.
+
+## 2. Corrective A — landed
+
+Commit:
+
+`474d1bce932a1a533d768cb4ebcd3ffa866edb01`
+
+A addressed:
+
+- ROOM_WAITING passive L1 probing
+- observation-path focus removal
+- post-game/startup precedence
+- Pressure Transfer request/postcondition direction
+- Kick detection path
+- Ready 180s exit sequencing
+
+Cloud review after A/B found that several claimed closures were still partial, which led to Corrective C.
+
+## 3. Corrective B — landed
+
+Commit:
+
+`a3bc4cdad0b11decaa578140e1a03c4b5380b8e7`
+
+B addressed:
+
+- TQTZ no longer treating click-success as business success
+- `auto_close_main_line=true` vs generic AutoTask re-enable conflict
+- Archive 7/8 false-unavailable issue
+- NPC Hub / Archive mutual exclusion
+- UNKNOWN post-game zero-input intent
+
+Cloud review found B still had stale/fresh-evidence gaps and weak availability authority, which led to Corrective C.
+
+## 4. Corrective C — exact-SHA review
+
+Current HEAD:
+
+`21c33c727f7f9521db39c8c6ef70876b9b890eda`
+
+C changed:
 
 - `src/shuabao/mediator.py`
-- `src/shuabao/vision/capture.py`
-- four real fixture images
 - `tests/test_b15da05_real_regressions.py`
+- `tests/unit/test_startup_state_priority.py`
+- `tests/test_p1b0_post_game.py`
 
-The branch had no GitHub CI/status checks attached when last inspected. Local Agent test summaries are useful evidence but are not independently equivalent to a cloud-verified CI result.
+### 4.1 C1 Cold-start / arbitrary takeover
 
-### Important Sol review result for `ea9776`
+This direction is accepted at code level:
 
-`ea9776` is **NOT accepted as a final runtime candidate yet**.
+- old `std > 8 => IN_GAME` weak authority was removed;
+- game-client startup now prefers known PostGame / Pause / Stage / trusted HUD;
+- unclassified game-client frames become `UNKNOWN` rather than automatically entering MAIN_LINE.
 
-The local report claimed all seven P0/P1 items were closed, but exact remote source review found multiple gaps between the report and the code actually pushed. Therefore:
+This closes an important class of arbitrary noisy-frame takeover errors.
 
-`EA9776_STATUS = PARTIAL / CORRECTIVE_REQUIRED`
+### 4.2 C2 Pressure Transfer
 
-Do not build/package/approve/live-test `ea9776` as the final candidate before Corrective A.
+Direction is largely accepted at code level:
 
-## 2. Historical accepted baseline before `ea9776`
+- click success no longer equals transfer success;
+- timeout no longer equals transfer success;
+- request stores FrameEvidence generation;
+- confirmation requires a later generation plus trusted HUD plus pressure locator disappearance;
+- Pressure path no longer intentionally owns Ready-timeout semantics.
 
-The immediately preceding code baseline was:
+Keep this lifecycle isolated.
 
-`b15da05f4fd7313b02b2cc466e319d9683aa979c`
+### 4.3 C3 Kick modal — NOT PROVEN
 
-This line had already fixed the original real-machine Hitch search deadlock by separating the Room List tab acquisition / search locator / search transaction / OCR confirmation lifecycle and by removing search-icon authority from Room List surface authority.
+The C report claimed:
 
-The old immutable package built from `b15da05` was:
+`override = NO`
 
-`C:\Users\10639\AppData\Local\ShuaBao\app-0.3-dev-b15da05f4fd7`
+but exact remote tests still contain `_hitch_ocr_override` injection in the kick regression.
 
-That package and its approval are historical only once production code advances. Exact release approvals do not inherit across source/manifest identity changes.
+Therefore the real chain remains unproven:
 
-Do not overwrite historical packages.
+`real kicked frame -> production OCR -> typed kick classification -> safe dismiss`
 
-## 3. Real-machine findings after the original Hitch search fix
+Known real incident path to inspect locally before declaring missing GT:
 
-### 3.1 Leaderboard -> Room List false authority
+`C:\Users\10639\AppData\Local\ShuaBao\incidents\incident_160515_883_314868a6`
 
-A real launch from the KK Hero detail `Leaderboard` tab produced:
+Also re-audit generic modal handling:
 
-`hitch 未识别搜索框，零输入等待`
+- **KNOWN_KICK** may safely dismiss via Esc/X/Cancel when not in active game authority;
+- **UNKNOWN_GENERIC_MODAL** must remain ZERO INPUT;
+- never click `立即购买`.
 
-The user manually clicked `房间列表 99+`, after which the search flow immediately resumed.
+Do not use OCR override or synthetic text as Ground Truth.
 
-Root cause was proven:
+### 4.4 C4 Ready 180s — still defective
 
-`real Leaderboard frame`
--> weak `lobby_room_list_selected` template false-positive (almost plain grey background)
--> `_lobby_room_list_evidence(frame) == True`
--> `_tick_hitch_room_list_tab()` bypassed
--> real Leaderboard has no search box
--> search locator fails
--> zero-input loop.
+The C report and exact source disagree.
 
-`ea9776` correctly removed this weak `lobby_room_list_selected` template as independent Room List selected authority. Keep this direction.
+Reported:
 
-### 3.2 Kicked-room modal
+- 30s hard deadline
+- `AttemptBudget(actions_left=3)`
+- `_hitch_host_started(frame)` based cancellation
 
-Real modal:
+Exact code instead uses:
 
-`平台提示`
-`您已被房主移出了房间`
+- a 20s timeout episode deadline;
+- plain `_hitch_ready_timeout_attempts < 3` plus >=5s spacing;
+- `_is_game_client_frame(frame)` / game-window title as a cancellation signal.
 
-Buttons include:
+The main code defect is semantic:
 
-- `立即购买`
-- `取消`
-- top-right `X`
+`game client HWND/title exists != host/game business start confirmed`
 
-Product rule remains:
+A Ready-timeout leave episode may only be cancelled by a trusted L1 business surface (for example trusted HUD / Stage / another already-validated L1 surface), not by title presence alone.
 
-`confirmed KK modal + confirmed not active game + safe dismiss class -> Esc / X / Cancel`
+Current rule remains:
 
-Never click `立即购买`.
+`Ready business confirmed -> 180s wait -> bounded safe leave -> fresh lobby/no-room confirmation -> blacklist stable room key`
 
-UNKNOWN/unclassified modal remains ZERO INPUT.
+Never blacklist before physical exit confirmation.
 
-Important evidence-quality caveat: the `ea9776` added regression injects `_hitch_ocr_override="你已被房主踢出房间"`; this proves handling only after test-injected classification, not real production recognition of the user modal. Real recognition/dispatch remains to be proven in Corrective A with the actual frame and production path.
+### 4.5 C5 TQTZ — P0 cross-round lifecycle leak
 
-### 3.3 Ready room with absent host
+C added explicit `_tqtz_abandoned=True` after retry exhaustion, which is correct for the current round.
 
-Real behavior observed: guest successfully Ready, host did not start for ~4–5 minutes.
+However current round-reset code clears `_tqtz_clicked` / pending fields but does not clearly reset:
 
-User product decision:
+- `_tqtz_abandoned = False`
+- `_tqtz_attempts = 0`
+- request-generation lifecycle state
 
-`Ready business postcondition confirmed -> start 180s READY_WAIT`
+Because `_maybe_click_tqtz()` returns immediately when `_tqtz_abandoned` is true, one exhausted round can permanently suppress TQTZ in future rounds.
 
-If trusted Hero L1/game evidence appears within 180s:
+Required regression:
 
-`cancel wait -> reconcile to L1`
+`round 1 -> exhaust 3 attempts -> ABANDONED`
+→ round-reset seam
+→ `round 2 -> TQTZ must be eligible again`
 
-If no game after 180s:
+Do not solve this with a second parallel lifecycle.
 
-`safe leave flow -> fresh exit/lobby postcondition -> session blacklist stable room_key -> never Join same room again in the current run`
+### 4.6 C6 Archive availability — still not authoritative enough
 
-Use the existing session `_hitch_blacklisted_room_keys`; do not create a second blacklist.
+C correctly removed the old red-pixel `>=60` UNAVAILABLE authority.
 
-`ea9776` currently blacklists too early (before confirmed exit) and can call `_hitch_after_exit()` immediately after an Esc when no Exit button is found. This is not an accepted business postcondition and must be corrected.
+Current code can parse OCR text like `num/den`, but exact review found remaining weaknesses:
 
-### 3.4 L0 -> L1 handoff / KK foreground thrash
+- `0/x` can be generalized too broadly unless denominator is explicitly validated as the expected archive counter (e.g. exact `0/8` when that is the true mechanic);
+- OCR confidence/status must be strong enough before creating business authority;
+- a green-pixel count still directly returns `AVAILABLE` in the fallback path;
+- most importantly, the compatibility wrapper returns only `unavailable: bool`, so `UNKNOWN` can collapse to `False` and the caller may continue to challenge-card lookup/click.
 
-A real room successfully started the game and the `英雄三国KK` game HWND appeared, yet the script remained on L0/Platform behavior and kept pulling `KK官方对战平台` back to the foreground.
+Required typed semantics:
 
-The same run showed no in-game bootstrap actions:
+- `AVAILABLE` -> action may proceed if other authority holds
+- `UNAVAILABLE` -> skip safely
+- `UNKNOWN` -> ZERO INPUT / no challenge click
 
-- Pressure Transfer not clicked
-- Auto Task not enabled
-- four challenges not initialized
+Green pixels may remain diagnostic/supporting evidence but should not independently authorize a business click.
 
-Offline real-frame replay showed the in-game detectors themselves were healthy; the common upstream blocker was that MAIN_LINE / correct L1 ownership was not reached.
+Required negative tests should include:
 
-Important exact-source review of `ea9776`:
+- exact trusted `0/8`
+- `0/3`
+- low-confidence `0/8`
+- green-noise ROI
+- `UNKNOWN + card template hit`
 
-- local report claimed passive L1 probe was expanded to `BOOT + ROOM_WAITING`;
-- exact pushed source still probes L1 only under `if self.phase == Phase.BOOT`;
-- `ROOM_WAITING` remains in the L0 role set.
+Do not use synthetic colored rectangles as production proof.
 
-Therefore:
+### 4.7 B5 UNKNOWN post-game zero-input
 
-`ROOM_WAITING_PASSIVE_L1_TAKEOVER = NOT ACTUALLY CLOSED IN EA9776`
+The rewritten test is better than the prior version because it no longer patches a business helper to force an early return.
 
-### 3.5 Observation foreground side effects
+Keep the full-dispatch requirement:
 
-User rule:
+real/unclassified frame -> production `_tick_main_line()` -> no click/key/scroll -> no fake business phase advance.
 
-**Observation must not change foreground.**
+## 5. Corrective C full gate status
 
-Capture / detector / OCR / FSM observation should not restore, activate, bring-to-top, or reacquire a window. Focus is legal only immediately before an already-authorized real input action, and the target must match the current business surface authority.
+The Agent reported:
 
-`ea9776` removed one `see()` minimized-window activation path, but exact source still contains observation-side focus mutation paths, including:
+`python tools/release_gate.py --json`
 
-- `_capture_best.capture_one()` activating an invalid Hero target before recapture;
-- main tick reacquiring foreground when `frame.hwnd` is not foreground before an actual business action intent exists.
+with raw top-level:
 
-Therefore:
+`verdict = FAIL`
 
-`OBSERVATION_ZERO_FOREGROUND_SIDE_EFFECT = NOT CLOSED IN EA9776`
+Pytest stage:
 
-Corrective A must audit every remaining `activate/reacquire/BringWindowToTop/SetForegroundWindow` caller and classify it as ACTION or OBSERVATION.
+- passed: 384
+- failed: 1
 
-## 4. Arbitrary-state takeover / state reconciliation
+The failing test was reported as:
 
-The desired product behavior is no longer “start only from a prescribed page.”
+`test_lobby_room_list_evidence_rejects_wrong_tab_template_hit`
 
-ShuaBao should, whenever safely possible:
+Do not automatically accept the claim that this is “historical debt.”
 
-`Observe current physical surface -> classify strong evidence -> establish business authority -> reconstruct the minimum state -> enter the existing FSM at the correct point`
+Correct attribution requirement for C-D:
 
-Examples:
+Run that exact test on a detached `a3bc4cd` worktree and on the new C-D SHA.
 
-- Leaderboard/detail tab -> navigate to Room List in Hitch mode
-- already in room, not Ready -> evaluate/Ready
-- already Ready -> start/restart bounded Ready wait from first observed Ready evidence
-- mid-game HUD -> resume normal MAIN_LINE; Hitch checks Pressure/AutoTask/challenges from the current UI state
-- Stage Select -> resume Stage FSM
-- POST_VICTORY -> resume post-game route
-- ARCHIVE_PANEL -> resume archive/Boss logic
-- HEIRLOOM_DIALOG -> resume configured Boss logic
-- NPC_HUB -> resume post-game hub route
-- UNKNOWN -> ZERO INPUT
+Only if both fail with the same failure signature can it be classified as pre-existing baseline debt.
 
-Important design rule:
+Do not modify the test / threshold / baseline just to obtain green status.
 
-Do not build a giant second Router/FSM. Use a thin Surface Reconciliation seam that maps current strong physical evidence to existing phase/FSM entry points.
+## 6. Corrective C-D — NEXT production task
 
-### `ea9776` cold-start status
+Start from:
 
-`ea9776` added partial post-game reconciliation, but the exact `_startup_state()` still checks Stage Select before `_post_game_state()` for a game client. The local report claimed the opposite ordering.
+`21c33c727f7f9521db39c8c6ef70876b9b890eda`
 
-A fresh solo run also showed post-game classifier cross-contamination around Archive/NPC Hub, proving surface precedence/mutual exclusion remains incomplete.
+Scope is intentionally narrow:
 
-Corrective A must fix the actual physical-surface precedence and remove repeated `_startup_state(frame)` calls in `_tick_l0`.
+1. **TQTZ per-round reset**
+   - reset `_tqtz_abandoned`, `_tqtz_attempts`, request/pending generation state at the existing round-reset seam;
+   - add a two-round regression.
 
-## 5. Pressure Transfer bootstrap semantics
+2. **Ready-timeout cancellation authority**
+   - remove game-window-title / `_is_game_client_frame` as sufficient “host started” evidence;
+   - require an already trusted L1 business surface;
+   - unclassified Hero/game window must not cancel the bounded leave episode.
 
-User expects Hitch in-game bootstrap roughly:
+3. **Kick Ground Truth**
+   - inspect `incident_160515_883_314868a6` and related local incident material;
+   - use a real raw frame if recoverable;
+   - no `_hitch_ocr_override` for proof;
+   - UNKNOWN generic modal = ZERO INPUT.
 
-`trusted HUD -> Pressure Transfer if still available -> AutoTask -> four challenges -> normal L1 loop`
+4. **Archive typed availability**
+   - only trusted exact progress evidence may yield UNAVAILABLE/AVAILABLE;
+   - validate denominator/mechanic and OCR confidence;
+   - no green-pixel-only action authority;
+   - UNKNOWN must not collapse into “not unavailable” and proceed to click.
 
-`ea9776` correctly moved Pressure Transfer before the AutoTask gate. Preserve that priority.
+5. **Release-gate attribution**
+   - A/B the specific Lobby Room List test on `a3bc4cd` and C-D final;
+   - run complete `python tools/release_gate.py --json` after targeted tests.
 
-However exact source still has incorrect state semantics:
+Corrective C-D must remain one narrow production commit.
 
-- `main_line_duration > 25s -> _hitch_pressure_transferred = True`
-- `act_click(...) SUCCESS -> _hitch_pressure_transferred = True`
+Do not:
 
-Both are invalid.
+- build
+- approve release
+- run Golden Run
+- modify Choice Policy
+- modify Harness
+- add generic watchdog/fallback
+- loosen global thresholds
 
-Timeout/opportunity expiration != successful transfer.
+After C-D push, Sol must independently verify exact remote SHA/diff before any build/live authorization.
 
-SendInput/click success != business transfer success.
-
-Corrective A must make `_hitch_pressure_transferred` mean only a fresh business postcondition. If the opportunity naturally expires or is absent on cold-start, stop trying without claiming success.
-
-## 6. Solo Live Harness — independent test branch
+## 7. Solo Live Harness
 
 Dedicated Harness branch:
 
 `test/solo-live-harness-20260907`
 
-Latest independently verified remote HEAD:
+Last independently verified Harness HEAD:
 
 `144c0c9adc366a35548f6e1c2e52fad8387da090`
 
-This branch is intentionally isolated from `trial-merge`.
+Harness remains useful for evidence capture, but its branch diverged from the production line at the old `b15da05` baseline.
 
-It modifies only:
+Therefore current Harness must **not** be treated as formal acceptance authority for `21c33c7` or future C-D code until the pure Harness commits are rebased/cherry-picked onto the exact frozen production candidate.
 
-- `tools/live_scenario_capture.py`
-- `live_scenario_launcher.ps1`
-- `tests/test_live_scenario_capture.py`
-- `docs/live_scenario_capture.md`
-- `docs/live_harness_opus_review_20260907.md`
+Formal rule:
 
-The Harness continues to call real production `RuntimeMediator/Mediator.tick()` and does not copy the game FSM or send direct business input itself.
+`Harness SOURCE_RUNTIME == exact production candidate SHA`
 
-Current GUI has a `solo_ingame_chain` path starting from a real Stage Select for focused single-player in-game/post-game testing. The original BOOT->room->next-round full-cycle contract remains in CLI/data but is not the current primary menu path.
+before new Natural E2E acceptance.
 
-### Critical version-alignment warning
+Current Harness architecture isolation was directionally acceptable, but prior Opus review found acceptance weaknesses such as internal-state promotion, stale confirmation, BLOCKED/safe-stop ordering, and incomplete real-machine coverage of latest Harness changes.
 
-The Harness branch diverged from `trial-merge` at `b15da05`. Because it runs `SOURCE_RUNTIME`, running the current Harness worktree does **not** automatically test `ea9776` or future production SHAs.
+Carry those findings into the future rebased Harness review.
 
-Before formal Natural E2E acceptance, rebase/cherry-pick the pure Harness commits onto the exact final production candidate so that:
+## 8. Choice Policy / KB modernization — parallel READ-ONLY research
 
-`Harness runtime source == production candidate source`
+The user wants ShuaBao to stop behaving like a rigid rule script.
 
-Do not claim a Harness PASS against one production SHA when SOURCE_RUNTIME actually loaded another.
+Current diagnosis:
 
-## 7. Fresh Solo Harness findings / current production blockers
+The project has accumulated many KB facts, guides, lexicons, presets and policy rules, but much of that knowledge is consumed as:
 
-A real single-player in-game/post-game diagnostic found the following production issues. The Harness correctly refused to promote these to PASS merely because clicks succeeded.
+- hard whitelist
+- prerequisite gate
+- rank
+- fixed lexicographic priority
+- threshold
 
-### 7.1 Early Challenge / TQTZ
+rather than as a structured game-state / mechanics / tradeoff model.
 
-Production saw the real `5-5 + 10min` `提前挑战` icon and emitted `ClickTQTZ`.
+This creates the observed behavior:
 
-Input returned SUCCESS, but the fresh frame still showed the same icon and no business postcondition was confirmed.
+“more KB -> more rules -> still rigid.”
 
-`TQTZ_REQUEST = OBSERVED`
-`TQTZ_BUSINESS_CONFIRMATION = NOT PROVEN`
+### Current desired long-term properties
 
-Future Corrective B must treat TQTZ as request + fresh postcondition, not click-success success.
+The future strategy layer should remain:
 
-### 7.2 `auto_close_main_line=true` conflict
+- deterministic
+- replayable
+- testable
+- explainable
+- low-latency
+- safe/fail-closed
 
-The official configuration snapshot had:
+Do not use online LLM decisions, opaque RL, black-box neural control, or a giant second FSM.
 
-`auto_close_main_line = true`
+### User-supplied strategy examples
 
-Production first emitted `DisableAutoTask`, then later repeatedly emitted `EnableAutoTask`.
+Future policy should eventually be able to reason about:
 
-This is a production ordering/gating conflict, not a Harness defect.
+- growth cards having higher value earlier;
+- cards one or two copies from synthesis having higher value;
+- hero-stat synergy, e.g. high Intelligence -> INT-linked value rises;
+- skill synergy, e.g. fire/burn build -> fire/burn cards rise;
+- `奥术箭` as main carry -> energy/magic/INT synergy rises;
+- slot pressure vs expected near-term synthesis/consumption slot release;
+- TAKE vs REFRESH vs GIVEUP/HIDE tradeoff;
+- refresh-resource opportunity cost.
 
-Corrective B must ensure that a user-configured “close/disable main line” policy cannot be immediately undone by the generic `_ensure_auto_task_enabled()` path.
+### Immediate user-approved v0.1 behaviors
 
-### 7.3 Archive loot challenge 7/8
+Do not implement until runtime correctness is frozen.
 
-Real archive panel showed loot challenge approximately `7/8`, yet no `ArchiveChallenge-loot` action occurred.
+1. If trusted `next_refresh_cost >= 100 wood` and bond slots are still relatively empty, REFRESH should no longer be the blind default. Existing safe/legal candidate may beat refresh; if no safe candidate exists, CLOSE/HIDE is preferable to blindly burning resources.
 
-Read-only analysis localized this to `_archive_hitch_card_unavailable()` using a warm/red pixel heuristic that can misclassify a valid red progress counter as “unavailable”.
+2. When the current route is provably Fengshen, confidently recognized `肉身成圣` must be allowed as a high-priority Fengshen accelerator candidate rather than being discarded merely because the ordinary hard whitelist does not include it.
 
-Corrective B should replace the weak heuristic with business-state evidence that distinguishes `0/8 unavailable` from `7/8 available`.
+Important forensic correction:
 
-### 7.4 NPC Hub / post-game route
+`肉身成圣` OCR itself was good in the real run (roughly 0.94–0.998). The failure was policy/KB wiring, not OCR recognition.
 
-After the Archive panel closed, the client showed an NPC-Hub-like post-game surface, but production failed to confirm `NPC_HUB`, and the route eventually hit:
+Do not treat `肉身成圣` as an ordinary persistent owned-card model without proving its consumable/accelerator lifecycle.
 
-`post-game transition timeout`
+## 9. Astra strategy review — in progress / expected next
 
-This is a production classifier/surface-precedence problem. Harness intentionally did not invent a fake detector.
+A local Astra Agent has been assigned a **read-only architecture/mechanics study** on a frozen strategy-review worktree.
 
-Corrective B should enforce mutual exclusion between Archive / NPC Hub / Stage Select / other post-game surfaces based on real frames.
+The intended Astra role is open-ended diagnosis/design, not production coding.
 
-### 7.5 External window obstruction
+It should independently answer why the current system has “lots of KB but still feels dumb,” audit actual KB wiring, and propose the smallest useful next-generation decision architecture.
 
-Real run observed:
+The working hypothesis offered to Astra is only a candidate, not a mandate:
 
-- `CANCELLED_WINDOW_CHANGED`
-- `CANCELLED_WINDOW_OBSCURED`
-- `CANCELLED_SENDINPUT_FAILED`
+`hard safety/eligibility -> structured current state -> soft value/tradeoff evaluation -> deterministic action -> fresh business postcondition`
 
-The foreground/covering window was Chrome (`Chrome_WidgetWin_0`).
+Astra is free to reject Goal layers / utility scoring / lookahead if it finds a simpler better structure.
 
-Harness now treats external obstruction as environment `BLOCKED` and requests a safe stop instead of pretending it is a production business FAIL or automatically using ESC/F1/focus hacks.
+Astra should distinguish knowledge classes/evidence such as:
 
-Natural E2E for that run remains:
+- Fact
+- Mechanics
+- Strategy / preference
+- LIVE_VERIFIED
+- REPLAY_VERIFIED
+- GUIDE
+- INFERRED
+- UNKNOWN
 
-`NOT PASSED / BLOCKED_BY_PRODUCTION_AND_ENVIRONMENT`
+and explain which evidence can authorize irreversible actions vs only influence soft score/telemetry.
 
-## 8. Opus stage review — PAUSED, findings retained
-
-An Opus review was started on the Solo Harness / old real bundle and then intentionally paused because the production and Harness baselines were moving.
-
-Do not discard the findings; do not continue reviewing the obsolete snapshot.
-
-Useful stage findings included:
-
-- Harness post-game progress could still be over-promoted from internal state/request rather than strong physical confirmation in some paths;
-- StageStart could admit stale-frame confirmation;
-- BLOCKED safe-stop handling / ordering needed tightening;
-- environment BLOCKED could mask a later product FAIL if precedence is wrong;
-- the real Solo run used an older Harness snapshot than the acceptance code later reviewed, so the latest Harness tightening did not have real-machine coverage.
-
-Recommended use of Opus:
-
-After Corrective A/B and Harness exact-source alignment, give Opus one frozen package:
-
-`PRODUCTION_SHA + HARNESS_SHA + fresh exact-version real bundle + prior Opus findings`
-
-and request a targeted no-write final red-team review.
-
-## 9. `肉身成圣` / Fengshen finding
-
-A key forensic correction:
-
-The real OCR did **not** primarily fail to read `肉身成圣`.
-
-The raw run showed `肉身成圣` recognized repeatedly with high confidence (about 0.94–0.998). The real reason it was refreshed away was the current hard-whitelist / advanced-group policy filtering it out.
-
-Current structure:
-
-- KB knows `肉身成圣` and describes it as a 3-card accelerator related to Fengshen;
-- choice lexicon can identify it;
-- current hard whitelist / `choice_policy.json` Fengshen group and official defaults do not include it as a legal runtime candidate;
-- mechanics evidence is not yet fully live-verified even though identity evidence is now live-verified.
-
-Do **not** solve this by an OCR threshold tweak.
-
-Do **not** simply pretend `肉身成圣` is a normal persistent `owned_bond_cards` card; its consumable/accelerator semantics differ from ordinary held/synthesis cards.
-
-## 10. Choice Policy v0.1 — user-approved minimal behavior (after runtime closure)
-
-Do not implement this concurrently with Corrective A/B.
-
-After core runtime is stable, the user wants a conservative first policy improvement with only two behavioral changes.
-
-### 10.1 High refresh cost + empty slots
-
-User rule:
-
-If the next bond refresh is already around `100 wood` and the bond slots are still relatively empty, do not continue refreshing blindly.
-
-Safe v0.1 interpretation:
-
-If a **trusted structured refresh-cost evidence** proves:
-
-`next_refresh_cost >= 100`
-
-and:
-
-`free_slots >= 3`
-
-then REFRESH loses its default priority.
-
-- if an already-legal/safe current candidate exists -> take the best candidate under the existing ranking;
-- if no legal safe candidate exists -> CLOSE/HIDE;
-- do not loosen hard-whitelist safety merely to save wood.
-
-Evidence gate: do not hard-code a price ladder from memory. First prove the refresh-cost source from KB/trace/UI/runtime data.
-
-### 10.2 Fengshen-stage `肉身成圣`
-
-When the current active advanced route is provably Fengshen, and a slot is confidently recognized as `肉身成圣`, it should be allowed as a Fengshen accelerator candidate even if absent from the ordinary hard whitelist.
-
-Conservative v0.1 ordering:
-
-1. deterministic near-complete synthesis
-2. deterministic duplicate/merge improvement
-3. Fengshen-active `肉身成圣`
-4. ordinary legal Fengshen/base preset
-5. REFRESH
-6. CLOSE/GIVEUP
-
-Do not fabricate 1/3, 2/3, 3/3, consumed-state, or Fengshen-progress facts if runtime evidence cannot prove them.
-
-## 11. Choice Policy v1 direction — dynamic utility, NOT IMPLEMENTED YET
-
-The longer-term goal is to make choice behavior less rigid while remaining deterministic, auditable and safe.
-
-Desired action space:
-
-- `TAKE(slot_i)`
-- `REFRESH`
-- `GIVEUP`
-- `CLOSE/HIDE`
-- possibly `DEFER` only where the real UI supports temporarily hiding and safely returning
-
-Recommended architecture:
-
-### Layer A — Eligibility / hard safety
-
-Hard constraints remain non-negotiable:
-
-- unknown / low-confidence irreversible candidate cannot be selected;
-- unsafe/negative effects can be excluded;
-- impossible resource action cannot be selected;
-- ambiguous surface -> ZERO INPUT;
-- mutual exclusion / verified prerequisite constraints remain gates.
-
-### Layer B — Structured current state
-
-Use explicit facts such as:
-
-- game phase/time
-- hero attributes / dominant stat
-- current skills and skill tags
-- owned cards
-- verified set/progress
-- free slots / slot pressure
-- resource balance and next refresh cost
-- current advanced route (e.g. Fengshen)
-- expected near-term slot release where mechanics are actually verified
-- evidence confidence / source quality
-
-### Layer C — Explainable utility features
-
-Examples requested by user:
-
-- **growth card early-game bonus** — growth/scaling cards have higher utility earlier and decay later;
-- **easy synthesis bonus** — cards requiring only one or two additional copies have higher utility because synthesis is near and can release slot pressure;
-- **hero-stat synergy** — if Intelligence is currently the dominant scaling attribute, Intelligence-related cards gain utility;
-- **skill-element/tag synergy** — fire/burn cards gain utility when current skills are fire/burn-oriented; energy/magic cards gain utility when a skill such as `奥术箭` is the main carry;
-- **slot pressure / expected release** — a full slot bar is a penalty, but a verified near-term consumable/synthesis release can reduce that penalty;
-- **resource opportunity cost** — REFRESH utility drops as refresh cost rises, especially when slots are empty and a safe card is already available.
-
-### Layer D — deterministic action selection + business postcondition
-
-Compute an explainable utility for every eligible action, choose the highest deterministic action, then require the normal fresh business postcondition.
-
-No reinforcement learning is required for the first versions.
-
-### Decision telemetry requirement
-
-Future policy should log the candidate action ledger, e.g. feature contributions and final score, so a bad decision can be audited and weights can be tuned from real runs.
-
-Do not make the score a black box.
-
-## 12. Why the current system still feels rigid
-
-The current `choice_policy.py` is deterministic and safety-oriented, but much of the current behavior is a sequence of hard filters and lexicographic priorities:
-
-`whitelist -> prerequisite -> base/advanced gate -> capacity gate -> near-complete -> must-take -> duplicate -> preset -> refresh -> synthesis -> quality -> close`
-
-This is robust but cannot naturally compare tradeoffs such as:
-
-`take a decent card now vs spend 100 wood refreshing vs preserve a nearly-full slot vs pursue a route accelerator`.
-
-The KB is currently consumed mostly as lookup/gating/ranking metadata rather than as a structured game-mechanics model. Therefore “more KB” does not automatically produce smarter decisions.
-
-The architectural goal is not to delete safety rules. It is to separate:
-
-- **hard legality/safety constraints** from
-- **soft value/tradeoff evaluation**.
-
-The first stays rule-based; the second becomes feature/utility-based.
-
-## 13. Corrective A — NEXT production task
-
-Corrective A is the immediate next production step and should be executed by one writer only.
-
-Required closure:
-
-1. implement true `ROOM_WAITING -> passive L1 candidate -> strong surface reconcile` without focus side effects;
-2. remove all observation-path foreground activation/reacquisition; focus only action-scoped;
-3. correct Surface Reconciliation precedence/mutual exclusion, especially post-game vs Stage;
-4. make Pressure Transfer state mean fresh business postcondition only;
-5. prove real kicked-modal recognition/dispatch without `_hitch_ocr_override` test injection;
-6. make Ready-180s timeout wait for fresh exit/lobby confirmation before blacklisting/resetting;
-7. add real transition regressions and run the full mandatory release gate.
-
-Do not build, approve or LIVE during Corrective A.
-
-After push, GPT-5.6 Sol must re-read exact remote SHA/diff before authorizing Corrective B.
-
-## 14. Corrective B — planned after Corrective A review
-
-Use the fresh Solo real evidence to fix only these production blockers:
-
-- TQTZ request -> fresh business postcondition;
-- `auto_close_main_line=true` cannot be undone by generic AutoTask enable path;
-- Archive loot `7/8` vs unavailable distinction;
-- NPC Hub / Archive / Stage post-game classifier mutual exclusion;
-- UNKNOWN post-game/surface remains ZERO INPUT.
-
-Do not mix Fengshen/Choice Policy v1 into Corrective B.
-
-## 15. Acceptance policy
-
-Final acceptance remains real-machine, not unit-test count.
-
-Required hierarchy:
-
-`real physical surface -> production classifier/evidence -> business authority -> real production action -> fresh frame -> business postcondition`
-
-Forbidden substitutions:
-
-- click success
-- SendInput success
-- phase change alone
-- frame changed
-- seeded test boolean/state
-- synthetic replay
-- old-version bundle
-
-Formal future Golden Run should be multi-entry, including at least:
-
-- arbitrary L0 tab / Leaderboard -> Room List -> Hitch search/join/Ready;
-- Room Ready -> external host start -> passive L1 takeover;
-- mid-game cold-start;
-- Stage Select cold-start;
-- POST_VICTORY / ARCHIVE_PANEL / HEIRLOOM_DIALOG / NPC_HUB cold-start;
-- solo full-cycle or stage-to-post-game chain with fresh business evidence;
-- UNKNOWN safety zero-input.
-
-## 16. Hard rules
-
-1. Always re-read live `origin/trial-merge` before acting; live Git wins over this handoff.
-2. Keep one production code writer at a time.
-3. Keep Harness changes isolated from production; align SOURCE_RUNTIME to the exact production candidate only for formal acceptance.
-4. Do not use Opus to keep reviewing an obsolete moving snapshot. Use it on a frozen final candidate + fresh bundle.
-5. Observation must not steal foreground.
-6. HWND/title presence alone never grants business authority.
-7. UNKNOWN / unauthorized surface remains fail-closed / ZERO INPUT.
-8. Do not weaken safety with generic ESC/watchdog/fixed-coordinate/global-threshold hacks.
-9. Do not treat KB guide text as verified runtime mechanics without evidence metadata.
-10. Never place operator credentials, private keys, tokens or secret values into Git, prompts, packages, logs or this handoff.
-11. Exact package/release approval must be regenerated after accepted production-code changes.
-12. The real Golden Run is the acceptance gate, not local test counts.
-
-## 17. New-conversation bootstrap
-
-For the next cloud conversation:
-
-1. read `handoff/latest:docs/CLOUD_ARCHITECT_CONTROL_TOWER_CURRENT.md`;
-2. independently verify live `origin/trial-merge`;
-3. if Corrective A has landed, compare its exact SHA against `ea9776` and review the actual diff before trusting the Agent summary;
-4. only after Sol accepts Corrective A authorize Corrective B;
-5. keep Choice Policy v0.1 separate from runtime stabilization;
-6. later align the Harness worktree to the exact production candidate and generate a fresh bundle;
-7. then resume Opus as targeted final red-team, followed by Sol final review;
-8. only then build, exact-approve and run the bounded multi-entry Golden Run.
+Next cloud conversation is expected to receive:
+
+1. Astra architecture review report;
+2. Corrective C-D Agent delivery report.
+
+Cloud must independently verify C-D exact Git SHA before trusting the Agent report.
+
+## 10. Opus sequencing
+
+Do not ask Opus to modify production now.
+
+Recommended sequence:
+
+Astra independent architecture study
+→ Corrective C-D closes runtime blockers
+→ Sol exact-SHA C-D review
+→ freeze production candidate
+→ align Harness SOURCE_RUNTIME to exact candidate
+→ fresh real Natural E2E bundle
+→ Opus second-pass red-team using Astra report + actual code + fresh evidence
+→ Sol final synthesis/review
+→ only then implementation of the approved Choice Policy migration / build/release as authorized.
+
+For policy architecture specifically:
+
+- Astra = open-ended model/mechanics designer
+- Opus = adversarial simplifier / assumption challenger
+- Sol = final integration/decision reviewer
+
+Avoid two independent “big designs” that are never reconciled.
+
+## 11. Hard product/engineering rules
+
+1. Live Git beats all Agent summaries.
+2. One production code writer at a time.
+3. Click/SendInput success is never business success.
+4. Same-frame/stale-frame mutation is not a fresh postcondition.
+5. Physical surface evidence -> business authority -> action -> fresh physical postcondition.
+6. UNKNOWN / ambiguity -> FAIL_CLOSED / ZERO INPUT.
+7. HWND/title presence alone is not business authority.
+8. Observation must not change foreground; focus is action-scoped only.
+9. Do not weaken safety with generic ESC, watchdogs, global threshold loosening or fixed-coordinate hacks.
+10. Real fixtures and real-machine bundles outrank synthetic fixtures for acceptance.
+11. Guide/KB text must not silently become verified runtime mechanics.
+12. Do not mix Choice Policy redesign into runtime corrective commits.
+13. No build/release/Golden Run while current runtime candidate is rejected or blocked.
+14. Never commit tokens, secrets, credentials or sensitive operator data.
+
+## 12. New-conversation bootstrap
+
+In the next conversation:
+
+1. Read this handoff from `handoff/latest`.
+2. Independently verify live `origin/trial-merge` HEAD.
+3. User will likely provide the Astra review and Corrective C-D report.
+4. For C-D, compare exact `21c33c7..FINAL_SHA`, inspect changed production functions/tests, and verify release-gate attribution rather than trusting summary prose.
+5. Re-check especially:
+   - TQTZ two-round reset
+   - Ready-timeout strong cancellation authority
+   - real Kick GT / no override / UNKNOWN generic popup zero-input
+   - Archive AVAILABLE/UNAVAILABLE/UNKNOWN typed authority
+   - exact Lobby Room List baseline A/B test
+6. Classify findings P0/P1/P2 and decide whether production is ready to freeze.
+7. Separately review Astra's architecture proposal; do not let it drive production until runtime correctness is accepted.
+8. If production becomes accepted, next step is Harness exact-source alignment + fresh Natural E2E before build/release authorization.
