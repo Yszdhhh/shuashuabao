@@ -79,6 +79,63 @@ def test_treasure_yazhi_negative_ban_by_default():
     assert dec.index == 1
 
 
+def test_treasure_talisman_outranks_generic_must_take():
+    """已可靠识别的任意神符优先于其它非负面宝物。"""
+    settings = assemble_policy_settings(
+        settings=Settings(),
+        skill_labels={},
+        fetter_labels={},
+        policy_doc={},
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_TREASURE,
+        slots=(
+            SlotCandidate(index=0, name="卡牌大师", rarity="orange", confidence=0.95),
+            SlotCandidate(index=1, name="恢复神符", rarity="green", confidence=0.85),
+        ),
+        set_progress=None,
+        refresh_count=0,
+        has_giveup=True,
+        can_refresh=False,
+        owned_skill_cards=(),
+        settings=settings,
+    )
+
+    dec = choose_action(cands, SessionState())
+
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 1
+    assert "神符" in dec.reason
+
+
+def test_non_green_talisman_does_not_get_talisman_priority():
+    """“神符”名称缺少绿色品质证据时，不能触发神符优先规则。"""
+    settings = assemble_policy_settings(
+        settings=Settings(),
+        skill_labels={},
+        fetter_labels={},
+        policy_doc={},
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_TREASURE,
+        slots=(
+            SlotCandidate(index=0, name="奥术神符", rarity="orange", confidence=0.95),
+            SlotCandidate(index=1, name="卡牌大师", rarity="blue", confidence=0.85),
+        ),
+        set_progress=None,
+        refresh_count=0,
+        has_giveup=True,
+        can_refresh=False,
+        owned_skill_cards=(),
+        settings=settings,
+    )
+
+    dec = choose_action(cands, SessionState())
+
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 1
+
+
 def test_treasure_yazhi_allowed_when_explicitly_checked():
     """压制 在看板中勾选允许后，可以正常作为高品质宝物被选中。"""
     settings = assemble_policy_settings(

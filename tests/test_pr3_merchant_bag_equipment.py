@@ -35,8 +35,8 @@ def make_test_frame(width: int = 1600, height: int = 900) -> Frame:
     )
 
 class TestMerchantScanner(unittest.TestCase):
-    def test_scanner_priority_ordering(self):
-        """Discounts and swallow pills and wood items should be prioritized in order."""
+    def test_scanner_returns_only_swallow_pills(self):
+        """黑商策略只能授权吞噬丹，折扣和木材必须被忽略。"""
         scanner = MerchantScanner(
             attr_routes=["intelligence"],
             focus_skills=["奥术箭"],
@@ -50,9 +50,7 @@ class TestMerchantScanner(unittest.TestCase):
             MerchantSlotItem(slot_index=1, center_ratio=(0.74, 0.72), item_type="devour_pill", label="吞噬丹"),
         ]
         ranked = scanner.rank_purchases(items, bond_bar_nonempty=True)
-        self.assertEqual(ranked[0].item_type, "discount")
-        self.assertEqual(ranked[1].item_type, "devour_pill")
-        self.assertEqual(ranked[2].item_type, "wood")
+        self.assertEqual([item.item_type for item in ranked], ["devour_pill"])
 
     def test_scanner_filters_negative_items(self):
         """Negative treasures must be strictly filtered out."""
@@ -62,8 +60,7 @@ class TestMerchantScanner(unittest.TestCase):
             MerchantSlotItem(slot_index=1, center_ratio=(0.74, 0.72), item_type="wood", label="木材礼包"),
         ]
         ranked = scanner.rank_purchases(items, bond_bar_nonempty=False)
-        self.assertEqual(len(ranked), 1)
-        self.assertEqual(ranked[0].item_type, "wood")
+        self.assertEqual(ranked, [])
 
     def test_scanner_skips_pill_when_bond_bar_empty(self):
         """Swallow pill must not be purchased if bond bar is empty."""
@@ -73,8 +70,7 @@ class TestMerchantScanner(unittest.TestCase):
             MerchantSlotItem(slot_index=1, center_ratio=(0.74, 0.72), item_type="wood", label="木材礼包"),
         ]
         ranked = scanner.rank_purchases(items, bond_bar_nonempty=False)
-        self.assertEqual(len(ranked), 1)
-        self.assertEqual(ranked[0].item_type, "wood")
+        self.assertEqual(ranked, [])
 
 
 class TestBagHeroCardAndDevourPill(unittest.TestCase):

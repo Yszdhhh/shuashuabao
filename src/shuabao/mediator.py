@@ -4129,16 +4129,7 @@ class Mediator:
         return items
 
     def _maybe_black_merchant(self, frame: Frame) -> MatchResult | None:
-        """Buy known safe merchant items according to 5-slot priority, otherwise perform guarded refresh.
-        Priority:
-        1. OCR 明确读到 2折/5折 -> 购买（8折不买）
-        2. 命中 吞噬丹 icon 小模板 (danGif) -> 购买
-        3. 命中 木材礼包完整商品模板 (merchant_wood) -> 购买
-        没有其它拿取。买完这三类或当前没有这三类，就点刷新。
-
-        支线循环：能买就买（折扣/吞噬丹/木材），买完当前可识别目标后刷新再找；
-        刷新钮没了再回到 G。
-        """
+        """黑商只买可信吞噬丹；其它商品一律跳过并走既有刷新路径。"""
         now = time.time()
         present = self._black_merchant_present(frame)
         cards_present = self._black_merchant_cards_present(frame)

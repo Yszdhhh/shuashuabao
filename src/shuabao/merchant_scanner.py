@@ -2,11 +2,7 @@
 
 规则体系:
 1. 固定 5 槽 ROI 扫描。
-2. 实际会买的只有三种，没有其它拿取:
-   - Priority 1: OCR 明确识别的 2折/5折（不含 8折）
-   - Priority 2: 吞噬丹 icon 小模板 (danGif)
-   - Priority 3: 木材礼包完整商品模板 (merchant_wood)
-   - 8折/普通宝石/属性卡/技能卡一律不买；买完这三类就刷新。
+2. 实际只买吞噬丹 icon 小模板 (danGif)；其它商品一律不拿并交给刷新路径。
 3. 商店指纹用槽位占用 + 已识别目标，不用整条商品 ROI 逐像素哈希。
    倒计时、图标动画和局部 HUD 变化不得打断 CONFIRMING→READY。
 """
@@ -125,11 +121,8 @@ class MerchantScanner:
         slots: Sequence[MerchantSlotItem],
         bond_bar_nonempty: bool = True,
     ) -> list[MerchantSlotItem]:
-        """根据优先级为可购买的槽位排序。
-
-        过滤负面物品。
-        """
-        candidates: list[tuple[int, MerchantSlotItem]] = []
+        """只返回可安全确认的吞噬丹，按槽位序保持确定性。"""
+        candidates: list[MerchantSlotItem] = []
 
         for item in slots:
             if item.is_negative:
@@ -137,21 +130,8 @@ class MerchantScanner:
             if item.label in NEGATIVE_ITEM_NAMES:
                 continue
 
-            # Priority 1: 5折 / 2折 折扣商品
-            if item.item_type == "discount" or any(kw in item.label for kw in DISCOUNT_KEYWORDS):
-                candidates.append((1, item))
-                continue
-
-            # Priority 2: 吞噬丹。merchant purchase itself does not consume it.
+            # 黑商购买与背包内吞噬是两步；这里只授权购买吞噬丹。
             if item.item_type == "devour_pill" or "danGif" in item.label or "吞噬" in item.label:
                 if bond_bar_nonempty:
-                    candidates.append((2, item))
-                continue
-
-            # Priority 3: 木材礼包
-            if item.item_type == "wood" or "wood" in item.label or "木材" in item.label:
-                candidates.append((3, item))
-                continue
-        # 按 priority 从小到大，再按 slot_index 确定性排序
-        candidates.sort(key=lambda pair: (pair[0], pair[1].slot_index))
-        return [item for _, item in candidates]
+                    candidates.append(item)
+        return sorted(candidates, key=lambda item: item.slot_index)
