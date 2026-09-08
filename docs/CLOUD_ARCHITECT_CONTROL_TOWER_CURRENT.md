@@ -10,35 +10,70 @@ Repository:
 
 `https://github.com/Yszdhhh/shuashuabao`
 
-Current production integration:
+Current production integration branch:
 
 `trial-merge@d1fb4a51310f3f847ebeee110d51d8423050468b`
 
-Parent production-code baseline:
+Current S0 / production candidate:
 
-`decb9b6eb3559e39ea51e26864eaada0d648855b`
+`refactor/stability-s0-20260908@dc108892d8590c04828dc176482bee32ba348914`
 
-`d1fb4a5` differs from `decb9b6` only by the two frozen Policy v0.1 documentation files.
+Current test/CI lane:
+
+`test/ci-speed-and-stability-harness-20260908@c5589d4876aad6ed0625473e20f2542446a2fbe6`
+
+Current Live Harness:
+
+`test/live-harness-current-20260908@4b19e1005690509dc243dd1870a035422c10e640`
+
+Live Harness production baseline:
+
+`dc108892d8590c04828dc176482bee32ba348914`
 
 Current status:
 
 - `FINAL_FREEZE_HYGIENE = PASS`
 - `CORRECTIVE_C_RELEASE_DEBT = CLOSED`
-- `STANDARD_CI = PASS`
-- `STANDARD_RELEASE_GATE = PASS`
-- `STRICT_ZERO_DEFECT = NOT_RUN`
-- `FROZEN_OCR_RELEASE_SMOKE = NOT_RUN`
-- `LOCAL_WINDOWS_LAUNCHER_GT = SELF_REPORTED_PASS`
-- `PRODUCT_GOLDEN_RUN = NOT_RUN`
-- `PRODUCT_RELEASE_APPROVAL = NO`
 - `COMPETITOR_A_C_CROSS_VALIDATION = COMPLETE`
-- `STABILITY_SIMPLIFICATION_S0_CONTRACT = FROZEN_FOR_IMPLEMENTATION`
+- `COMPETITOR_RESEARCH = HOLD`
+- `COMPETITOR_CORE_ASSETS_EXTRACTED = YES`
+- `STABILITY_SIMPLIFICATION_S0 = IMPLEMENTED_TO_CURRENT_CANDIDATE / REAL_GT_PENDING`
+- `S0_SINGLE_OWNER_TARGET = PASS_FOR_TARGETED_DOMAINS`
+- `WINDOW_AUTHORITY = PASS_FOR_CURRENT_SCOPE`
+- `PAGE_LOCAL_DETECTOR_AUTHORITY = PARTIAL`
+- `ROUND_LIFETIME_PROOF = PARTIAL / REAL_GT_PENDING`
+- `POSTCONDITION_SAFETY = PRESERVED`
+- `TEST_CI_LANE = COMPLETE_ON_ISOLATED_BRANCH / NOT_INTEGRATED`
+- `LIVE_HARNESS = READY_FOR_GT`
+- `TRIAL_MERGE = UNCHANGED`
+- `REMOTE_CI_ON_DC108892 = NOT_RUN`
+- `PRODUCT_GOLDEN_RUN = NOT_RUN`
 - `POLICY_V01_IMPLEMENTATION = HOLD_UNTIL_S0_VALIDATED`
 - `MAIN_RECONCILIATION = HOLD`
+- `PRODUCT_RELEASE_APPROVAL = NO`
 
-Do not describe the current branch as full production-release PASS.
+Do not describe the current state as full production-release PASS.
 
-## 1. Frozen refs / Git topology
+## 1. Canonical detailed docs
+
+Read these next when relevant:
+
+- S0 implementation contract:
+  `docs/STABILITY_SIMPLIFICATION_S0_IMPLEMENTATION_CONTRACT_20260908.md`
+- competitor stability synthesis:
+  `docs/COMPETITOR_STABILITY_DECOMPOSITION_20260908.md`
+- competitor C cross-validation:
+  `docs/COMPETITOR_C_CROSS_VALIDATION_20260908.md`
+- current competitor-asset landing matrix:
+  `docs/COMPETITOR_ASSET_LANDING_STATUS_20260908.md`
+- Git cleanup manifest:
+  `docs/GIT_CLEANUP_MANIFEST_20260908.md`
+- frozen Policy v0.1 contract:
+  `docs/policy/POLICY_V01_IMPLEMENTATION_CONTRACT_20260908.md`
+- Policy evidence appendix:
+  `docs/policy/POLICY_V01_EVIDENCE_APPENDIX_20260908.md`
+
+## 2. Immutable / historical refs
 
 Keep immutable:
 
@@ -50,199 +85,216 @@ Old public `main` remains:
 
 `7edae9909ab1c757da27a45c4409f464aae66b04`
 
-Pre-stability ancestry-repair candidate:
+Pre-stability ancestry-repair candidate remains:
 
 `integration/reconcile-main-trial-20260908@1c8ef1ac53e2ee83dec73420f8ffef4aabb2b5a4`
 
-It has old main + `d1fb4a5` as parents and a tree content-identical to `d1fb4a5`. Do not move `main` to it yet; S0 will create a newer final convergence target.
+Do not move `main` to it. S0 and later integration create a newer final convergence target.
 
-## 2. Final freeze closure
+## 3. Competitor research — what is actually reusable
 
-`decb9b6` closed the final two freeze-hygiene items:
+Broad competitor research is stopped. A/C evidence was sufficient to freeze internal ShuaBao constraints, not to copy competitor source/assets.
 
-1. physical Desktop shortcut capability failure now SKIPs only on GitHub Actions; ordinary local Windows fails instead of silently skipping;
-2. stage-page ownership rejects explicit KK/platform frames before numbered-row authority, and lobby hitch requires verified game-client ownership before STAGE_SELECT progression.
+Core reusable architecture assets:
 
-Do not cherry-pick the old cloud-sync WIP; its useful stage ownership idea is already reimplemented and regression-tested in current production.
+1. one clear progression/recovery owner per active failure domain;
+2. asset inventory is not detector authority — only the verified current page/job subset should be authoritative;
+3. capture/window/input/timers are mechanical helpers, not independent business owners;
+4. prefer fresh re-observation over long-lived semantic latches where the frame can answer the question;
+5. retain only minimum legitimate asynchronous action memory;
+6. explicit action/round/session state lifetime and reset ownership;
+7. PLATFORM/GAME/UNKNOWN ownership gates detector/input authority;
+8. input dispatch success is never business success; UNKNOWN remains zero-input.
 
-## 3. Policy v0.1
+Current landing summary is maintained in:
 
-Frozen research baseline:
+`docs/COMPETITOR_ASSET_LANDING_STATUS_20260908.md`
 
-`a3bc4cdad0b11decaa578140e1a03c4b5380b8e7`
+Key current verdict:
 
-Frozen docs source:
+- single-owner/liveness target: landed for known S0 duplicate-owner domains;
+- window ownership authority: strongly landed for current scope;
+- detector authority narrowing: only partial;
+- full transient lifetime proof: only partial until repeated real-machine rounds;
+- postcondition/UNKNOWN safety: preserved.
 
-`80e0bd89ee926bcf433f7492c9657f0b95f7c42b`
+No more broad competitor reverse engineering unless a specific current implementation question creates an evidence gap.
 
-Canonical docs were migrated content-exactly to `d1fb4a5`:
+## 4. Current S0 production candidate — `dc108892`
 
-- `docs/policy/POLICY_V01_IMPLEMENTATION_CONTRACT_20260908.md`
-- `docs/policy/POLICY_V01_EVIDENCE_APPENDIX_20260908.md`
+The current S0 branch is six commits ahead of `d1fb4a5` and includes the original S0 refactor plus live lobby fixes discovered during current-SHA testing.
 
-Policy production call paths were unchanged by the docs migration.
+### 4.1 S0 architectural changes landed
 
-Policy implementation remains HOLD until S0 is implemented and validated.
+- centralized typed `WindowRole = PLATFORM | GAME | UNKNOWN`;
+- `KK` alone cannot grant GAME authority;
+- Runtime MAIN_LINE watchdog no longer injects generic ESC and is telemetry-only;
+- Runtime duplicate panel physical recovery/fail-forward authority removed;
+- Core remains the relevant business owner for those domains;
+- watchdog stall telemetry is episode-based and its current-round/session lifetime is explicit;
+- dead Runtime panel fail-forward API/residue removed;
+- existing business postcondition and UNKNOWN zero-input contracts preserved.
 
-## 4. Same-game competitor research — CLOSED FOR NOW
+### 4.2 Latest lobby convergence
 
-Canonical synthesis:
+Current `dc108892` no longer uses the temporary popup-size heuristic.
 
-`docs/COMPETITOR_STABILITY_DECOMPOSITION_20260908.md`
+Pending join now records the lobby origin HWND. If a different KK HWND appears, it must prove the real room signature (exit + ready/start controls) before ROOM_WAITING authority. A different KK HWND without room controls is treated as a pending-join dialog and safely dismissed/rejected. Same-window explicit dialog handling remains available.
 
-Competitor C cross-validation:
+The two hitch exit phase-handoff defects are also restored/fixed:
 
-`docs/COMPETITOR_C_CROSS_VALIDATION_20260908.md`
+- verified failure exit: `RECOVER_FAILURE -> LOBBY_ROOM` after the verified exit/hitch cleanup;
+- normal confirmed exit: `NEXT -> LOBBY_ROOM` after the verified exit/hitch cleanup.
 
-Research status:
+These fixes prevent stale RECOVER_FAILURE/NEXT state from producing next-tick ERROR/timeout after a successful exit.
 
-- initial broad comparison: complete;
-- Competitor A Checkpoint 1: PASS with precision corrections;
-- Competitor A Checkpoint 2: PASS with precision corrections;
-- Competitor C Checkpoint 3: PASS;
-- Competitor B: HOLD / no further broad work;
-- broad competitor research now STOPPED unless a specific later implementation question creates an evidence gap.
+### 4.3 Important boundary
 
-Cross-validated findings:
+This does not prove arbitrary full-screen/DPI/layout variants are fully supported. The specific pending-join popup fix is now based on window/surface identity rather than `440x260`, but full layout robustness still requires real-machine GT.
 
-- `A_C_OWNER_LOCALITY = YES`;
-- `A_C_PAGE_LOCAL_DETECTOR_AUTHORITY = YES`;
-- `A_C_REDUCED_SHARED_TRANSIENT_STATE = PARTIAL`;
-- `EVIDENCE_SUFFICIENT_TO_FREEZE_SHUABAO_S0 = YES`.
+## 5. Test/CI lane — `c5589d4`
 
-Important interpretation:
+Completed on the isolated branch:
 
-This does not prove either competitor is globally simpler or safer. It does show that two independent mature same-game implementations expose a narrower shared progression surface and constrain recognition/action authority more locally than ShuaBao's current explicit control graph.
+- removed duplicate full Python pytest execution while retaining the authoritative Standard Release Gate;
+- split UI check/unit/build from Python Standard Release Gate into parallel jobs;
+- measured GitHub Actions wall-time reduction from about `17m59s` to `10m14s` (~43% on the observed runs);
+- added a 50-round zero-real-input lifecycle audit using production classes with fake input;
+- added detector/matcher/search-pixel authority profiling;
+- did not modify prohibited S0 production files.
 
-Competitor C additionally provides readable evidence that hundreds of image assets can coexist with only a small page/job-specific active detector set, and that round-local retry/cooldown/window-monitor state can be explicitly reset at the next-round boundary.
+Important:
 
-Do not copy C's unsafe patterns: fixed-coordinate business actions, pure sleeps as confirmation, foreground-exclusive assumptions, weak disappearance-only completion, blind long waits, or any secrets/proprietary assets.
+- this branch is not yet integrated into the current S0 candidate;
+- its lifecycle audit must be adapted to current S0 fields because old watchdog fields changed/vanished;
+- the temporary test-branch workflow trigger should not be carried into final production CI.
 
-## 5. Stability Simplification S0 — FROZEN CONTRACT
+Do not merge `c5589d4` blindly before rebasing/adapting it to the final candidate.
 
-Canonical implementation contract:
+## 6. Live Harness — `4b19e100`
 
-`docs/STABILITY_SIMPLIFICATION_S0_IMPLEMENTATION_CONTRACT_20260908.md`
+Current branch:
 
-S0 is now authorized for implementation on an isolated branch.
+`test/live-harness-current-20260908@4b19e1005690509dc243dd1870a035422c10e640`
 
-Frozen principles:
+Current production baseline:
 
-1. one clear business progression owner per active failure domain;
-2. detector authority limited to verified current window/page/job;
-3. mechanical helpers do not independently own business progression;
-4. freshly re-observable scene facts should not become long-lived semantic latches;
-5. keep only minimum asynchronous request/input/fresh-postcondition memory;
-6. classify state lifetime and explicitly reset transient action/round state;
-7. window ownership/activation gates recognition and input authority.
+`dc108892d8590c04828dc176482bee32ba348914`
 
-Mandatory current-SHA focus:
+The Harness is now a diagnostic control surface layered on current production, not an alternate product implementation.
 
-- audit and consolidate overlapping liveness/recovery ownership, especially Core-vs-Runtime mechanisms;
-- unify `PLATFORM / GAME / UNKNOWN` authority without making `KK` alone a GAME grant;
-- narrow detector/transition authority along the Golden Path;
-- distinguish re-observable scene state from legitimate `PendingAction`/action-lifecycle memory;
-- prove round reset boundaries for pending/retry/recovery state.
+Verified structure:
 
-S0 is a simplification wave, not a feature rewrite. Do not start Policy v0.1, strategy scoring, OCR/CV framework replacement, UI redesign, auth work, or release/build work inside S0.
+- `dc108892 -> 4b19e100` adds Harness/launcher/docs/tests/tools only;
+- no `src/shuabao/**` production delta;
+- identity gate pins the expected production SHA and rejects known old runtime/harness identities;
+- long lanes call current production Mediator flows;
+- targeted probes call current production handlers/adapters rather than copied FSM logic.
 
-## 6. Non-negotiable safety invariants
+Current intended use:
 
-- `UNKNOWN / ambiguous -> ZERO INPUT`.
-- UNKNOWN may authorize bounded re-observation/reacquisition, never blind ESC/QUIT/HOME.
-- Click/key/SendInput success is not business success.
-- Frame mutation/bookmark/fingerprint change alone is not business completion.
-- Business transition requires fresh, business-relevant evidence.
-- Perception recovery, input retry and business fallback are distinct.
-- Do not weaken tests, thresholds, fixtures or baselines merely to obtain PASS.
+- Harness = targeted real-machine diagnosis and integration testing;
+- final desktop production package = later formal Natural E2E / Golden Run.
 
-## 7. Parallel test / CI efficiency lane — AUTHORIZED
+## 7. Real-machine GT — next decisive phase
 
-A separate branch may proceed in parallel:
+Freeze this pair for the next live episode:
 
-`test/ci-speed-and-stability-harness-20260908`
+- Production: `dc108892d8590c04828dc176482bee32ba348914`
+- Harness: `4b19e1005690509dc243dd1870a035422c10e640`
 
-This lane must remain non-overlapping with S0 production files.
+Do not patch while a probe is running. For every FAIL, save bundle/trace/screenshots before changing code.
 
-Allowed:
+Recommended order:
 
-- `.github/workflows/ci.yml`;
-- test-only files under `tests/`;
-- zero-input benchmark/audit tooling;
-- test-harness documentation.
+### 7.1 Lobby first
 
-Forbidden in this lane:
+Validate independently:
 
-- `src/shuabao/mediator.py`;
-- `src/shuabao/runtime_mediator.py`;
-- `src/shuabao/vision/capture.py`;
-- `src/shuabao/interaction_surface.py`;
-- Policy production/config;
-- fixture/threshold/gate-baseline weakening;
-- fixing discovered production defects directly — report them to the S0 owner.
+- valid room join -> real ROOM_WAITING;
+- full-room/pending-join dialog -> close/reject -> fresh lobby -> continue next room;
+- password/other join-reject dialogs;
+- true room child HWND is not mistaken for a popup;
+- full-screen/layout variant;
+- kicked/dissolved -> fresh lobby -> continue searching;
+- in-game failure -> red exit -> fresh exit -> hitch LOBBY_ROOM -> no ERROR;
+- normal round exit -> hitch LOBBY_ROOM -> no NEXT timeout.
 
-### 7.1 Verified CI inefficiency
+### 7.2 Targeted single-player/business probes
 
-Current `.github/workflows/ci.yml` runs `python -m pytest tests -q --tb=short`, then calls `python tools/release_gate.py`.
+Then test:
 
-`tools/release_gate.py::stage_pytest()` itself runs the complete `tests/` tree as the authoritative offline gate.
+- bond / core skill;
+- hero evolve;
+- devour pill;
+- treasure;
+- inventory/hero-card path;
+- black merchant;
+- archive challenge 1..8 (especially the previously missed slot);
+- heirloom/configured Boss compliance;
+- secret realm complete entry chain.
 
-Therefore Standard CI currently executes the full Python test suite twice.
+A targeted PASS proves the feature itself can close on real GT. A long-chain PASS then proves orchestration/integration does not break it.
 
-A CI-only branch should remove this duplicate execution while preserving the Standard Release Gate's complete pytest stage and failure semantics.
+### 7.3 Long chains
 
-The same branch may evaluate splitting UI typecheck/unit/build from the Python Standard Release Gate into parallel jobs. `tools/release_gate.py` has no direct `ui-v2` dependency. Workflow success must still require both sides to pass.
+After targeted probes:
 
-Do not turn hosted-runner wall-clock performance timings into hard gates unless reproducibility is demonstrated. Prefer deterministic call-count/detector-surface contracts and keep hardware-sensitive timing as benchmark evidence.
+- 13 lobby-hitch full chain;
+- 12 solo full chain;
+- 11 hitch in-game full chain.
 
-### 7.2 Parallel test-harness work
+## 8. Product issues intentionally not solved by S0
 
-Useful zero-input work that may proceed before S0 lands:
+Do not confuse S0 stability work with gameplay-policy intelligence.
 
-- characterize round/action/session state lifetimes and add tests for already-valid reset invariants;
-- add a synthetic repeated-round harness that detects stale pending/recovery/cooldown state without sending real input;
-- instrument detector/matcher call counts or active detector families on representative fixtures for before/after S0 comparison;
-- preserve current business/safety semantics; if a characterization exposes an existing defect, report rather than changing production in this branch.
+Still open after S0:
 
-## 8. Release-gate distinction
+- bond logic is not yet intelligent enough;
+- early-game policy should strongly prioritize bond + core skill formation;
+- devour pill should accelerate bond formation without embedding inventory logic into the bond-panel FSM;
+- evolve/treasure/inventory/black-merchant actions still need real-machine closure and smoother orchestration;
+- core-vs-secondary stage/action priority needs a formal product contract;
+- archive challenge can still miss an item until current-SHA GT closes it;
+- heirloom/configured Boss compliance needs repeated GT;
+- secret realm still lacks a proven complete successful real-machine chain.
 
-Normal `trial-merge` push success remains only Standard CI / Standard Release Gate.
+Planned later waves after S0 real validation:
 
-It does not substitute for:
+- `S1 = In-game Priority / Bond Intelligence`
+- `S2 = Action Closure (evolve / treasure / inventory / merchant)`
+- `S3 = Post-game Closure (archive / heirloom / Boss / secret realm)`
 
-- Strict Zero-Defect Release Gate;
-- Frozen OCR Release Smoke;
-- required local/real-machine GT;
-- repeated post-S0 Golden Path validation.
+Policy v0.1 remains HOLD until S0 validation.
 
-Before release/main reconciliation, run the explicit release gates on the actual final candidate.
+## 9. Release / integration status
 
-## 9. Git cleanup
+Current integration branch remains:
 
-Canonical cleanup manifest:
+`trial-merge@d1fb4a51310f3f847ebeee110d51d8423050468b`
 
-`docs/GIT_CLEANUP_MANIFEST_20260908.md`
+Do not merge S0 into `trial-merge` yet.
 
-Open PR count was cleaned to zero; stale superseded PRs were closed without merge.
+Before integration/release:
 
-Strong stale/superseded delete candidates are already recorded in the manifest. Diverged refs remain HOLD until semantic disposition. Do not merge old branches merely to preserve history.
+1. current-SHA real-machine GT;
+2. adapt/integrate the `c5589d4` CI/test improvements onto the final candidate;
+3. run Standard CI / Standard Release Gate on the actual final candidate;
+4. repeated real-machine Golden Path, recommended 10 consecutive rounds;
+5. explicit Strict Zero-Defect / Frozen OCR release gates;
+6. only then resume Policy/S1 and main/trial ancestry reconciliation.
 
-The cloud connector does not currently provide remote branch-ref deletion; final `git push origin --delete ...` execution can be delegated locally once the manifest is complete.
+Current exact S0 candidate `dc108892` has no GitHub-hosted CI run attached yet. Local regression results may be used as evidence but must not be mislabeled remote CI.
 
-## 10. Immediate sequencing / parallelization
+## 10. Immediate next-session instructions
 
-Run three non-overlapping lanes:
+A new conversation should:
 
-### Lane A — S0 production implementation
+1. read this file first;
+2. read `docs/COMPETITOR_ASSET_LANDING_STATUS_20260908.md` if architecture status matters;
+3. independently verify `trial-merge`, `refactor/stability-s0-20260908`, `test/ci-speed-and-stability-harness-20260908`, and `test/live-harness-current-20260908` before trusting any fresh Agent report;
+4. treat `dc108892 + 4b19e100` as the current frozen live-test pair unless refs have advanced;
+5. consume real-machine bundles before proposing further production changes;
+6. keep competitor research, Policy v0.1, and main reconciliation on HOLD unless the current gates explicitly clear them.
 
-Local main production Agent, fresh branch from exact `d1fb4a5`, following the frozen S0 contract. Require Failure Model + Contract Matrix before edits.
-
-### Lane B — test/CI efficiency
-
-Separate Agent/branch; workflow + test/harness only, no production S0 files. Primary quick win: eliminate duplicated full pytest and evaluate safe UI/Python job parallelism.
-
-### Lane C — cloud control tower
-
-Continue Git semantic cleanup, review both branches independently, and keep Policy/main reconciliation frozen.
-
-After S0 and test/CI branches independently pass review, integrate in controlled order, run Standard CI, then fresh repeated real-machine Golden Path validation. Policy v0.1 resumes only after S0 validation.
+Do not let a later Agent silently replace real GT with click success, replay success, frame mutation, or self-reported test counts.
