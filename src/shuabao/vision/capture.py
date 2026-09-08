@@ -14,6 +14,29 @@ except ImportError:  # pragma: no cover
     mss = None  # type: ignore
 
 
+class WindowRole(str, Enum):
+    PLATFORM = "platform"
+    GAME = "game"
+    UNKNOWN = "unknown"
+
+
+def classify_window_role(title: str | None) -> WindowRole:
+    """Classify a window title into platform / game / unknown.
+
+    "KK" alone is the platform window, never the game client. Game keywords
+    win over platform keywords when a title mentions both.
+    """
+    if not title:
+        return WindowRole.UNKNOWN
+    t = title.lower()
+    is_game = any(k in t for k in ("英雄三国", "魔兽世界", "warcraft", "魔兽争霸"))
+    is_platform = any(k in t for k in ("kk", "对战平台", "竞技平台"))
+    if is_game:
+        return WindowRole.GAME
+    if is_platform:
+        return WindowRole.PLATFORM
+    return WindowRole.UNKNOWN
+
 @dataclass
 class Frame:
     bgr: np.ndarray

@@ -43,7 +43,9 @@ from shuabao.vision.capture import (
     FrameHealthResult,
     L0_WINDOW_KEYWORDS,
     L1_WINDOW_KEYWORDS,
+    WindowRole,
     activate_window,
+    classify_window_role,
     reacquire_target_window as capture_reacquire_target_window,
     capture,
     capture_target,
@@ -1285,7 +1287,7 @@ class Mediator:
         # acquired only by the input guard immediately before a verified action;
         # otherwise a valid L0 frame can repeatedly pull KK above a launching game.
         transition_phases = (Phase.ROOM_STARTING, Phase.STAGE_STARTING, Phase.WAIT_EXIT)
-        is_platform_frame = role == "l0" or any(k in getattr(frame, "window_title", "") for k in ("KK", "对战平台", "竞技平台"))
+        is_platform_frame = role == "l0" or classify_window_role(getattr(frame, "window_title", None)) == WindowRole.PLATFORM
         suppress_activate = self.phase in transition_phases and is_platform_frame
         if frame.hwnd and not frame.is_valid and not suppress_activate:
             # 20260823（用户规则）：所有目标窗口都可能被最小化。最小化窗口的
@@ -8414,8 +8416,7 @@ class Mediator:
         return self._memo(("stage_rows", round(self._ui_scale, 3)), frame, lambda: visible_stage_rows(frame, self.images))
 
     def _is_game_client_frame(self, frame: Frame) -> bool:
-        title = (frame.window_title or "").lower()
-        return any(key in title for key in ("英雄三国", "魔兽世界", "warcraft", "魔兽争霸"))
+        return classify_window_role(getattr(frame, "window_title", None)) == WindowRole.GAME
 
     def _find_stage_page(self, frame: Frame) -> bool:
         key = ("stage_page",)

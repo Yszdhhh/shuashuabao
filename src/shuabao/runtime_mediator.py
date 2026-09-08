@@ -25,9 +25,8 @@ from shuabao.vision.stage_selector import configured_stage_id, selected_stage_ro
 class Mediator(CoreMediator):
     """Core Mediator plus production liveness/safety invariants."""
 
-    _RUNTIME_STALL_TIMEOUT_S = 15.0
-    _RUNTIME_WATCHDOG_MAX_ESC_ATTEMPTS = 2
-    _PANEL_FAIL_FORWARD_S = 8.0
+    # S0 稳定性简化：MAIN_LINE 看门狗去输入化——纯遥测/状态旗标，零物理输入。
+    _RUNTIME_NO_PROGRESS_MAX_STALL_S = 15.0
 
     def __init__(self, settings, project_root, *args: Any, **kwargs: Any) -> None:
         self._bond_cards_pending: list[str] = []
@@ -39,22 +38,21 @@ class Mediator(CoreMediator):
         self._physical_panel_deadline_s: float = 30.0
         self._physical_panel_recoveries: int = 0
         self._ocr_bootstrap_health: dict[str, Any] | None = None
+        self._panel_fail_forward_events: int = 0
         self._ocr_runtime_init_error: str | None = None
         self._l1_cycle_index: int = 0
         self._runtime_panel_unknown_signature: tuple[str, int] | None = None
         self._runtime_panel_unknown_since: float | None = None
         self._last_runtime_progress_at: float = time.time()
+        # S0 去输入化看门狗的遥测计数（零物理输入，仅观察/记录）。
+        self._runtime_watchdog_stalls: int = 0
+        self._runtime_watchdog_stalled: bool = False
         # The watchdog may observe a stable in-game HUD, but it must never
         # treat an UNKNOWN/transition frame as permission to send a key.  Keep
         # a small consecutive-frame latch separate from the core FSM evidence
         # cache so an interrupted episode is always re-armed from zero.
         self._runtime_watchdog_hud_confirmations: int = 0
         self._runtime_watchdog_last_frame_id: int | None = None
-        # Task 3: bounded same-target mechanical recovery.  ESC attempts
-        # without fresh-frame verified progress accumulate here; exceeding
-        # the cap escalates to the existing fail-closed ERROR phase.
-        self._runtime_watchdog_esc_attempts: int = 0
-
         # Prevent the generic core constructor from creating a legacy-compatible
         # OCR client. LIVE replaces it with the ShuaBao-only production client
         # immediately after core state is initialized.
@@ -89,11 +87,11 @@ class Mediator(CoreMediator):
 
         episode_deadline = float(getattr(self.settings, "panel_hard_deadline_s", 15.0) or 15.0)
         self._physical_panel_deadline_s = max(30.0, min(60.0, episode_deadline * 2.5))
-        self._l1_cycle_index = 0
-        self._last_runtime_progress_at = time.time()
         self._runtime_watchdog_hud_confirmations = 0
         self._runtime_watchdog_last_frame_id = None
-        self._runtime_watchdog_esc_attempts = 0
+        self._runtime_watchdog_stalls = 0
+        self._runtime_watchdog_stalled = False
+        self._panel_fail_forward_events = 0
 
     # ------------------------------------------------------------------
     # LIVE dependency bootstrap.
@@ -302,41 +300,31 @@ class Mediator(CoreMediator):
         result = super()._tick_main_line(frame)
         if getattr(self, "_tick_input_executed", False):
             self._runtime_watchdog_hud_confirmations = 0
-            # Task 3: a real core input is fresh-frame verified progress;
-            # re-arm the bounded ESC budget for the next stall episode.
-            self._runtime_watchdog_esc_attempts = 0
+            self._runtime_watchdog_stalled = False
             self._mark_runtime_progress(now)
             return result
         if not hud_confirmed or not self._runtime_watchdog_allowed(now):
             return result
 
         stagnant_for = now - float(getattr(self, "_last_runtime_progress_at", now) or now)
-        if stagnant_for < self._RUNTIME_STALL_TIMEOUT_S:
+        if stagnant_for < self._RUNTIME_NO_PROGRESS_MAX_STALL_S:
             return result
 
+        # S0 稳定性简化：看门狗彻底去输入化。纯 telemetry / state flag——
+        # 严禁盲发 ESC 等物理输入；实际业务推进完全交由 Core 现有的
+        # _advance_l1_cycle() / 面板 CLOSING 状态机处理。
+        self._runtime_watchdog_stalls += 1
+        self._runtime_watchdog_stalled = True
+        if not hasattr(self, "_runtime_watchdog_first_stall_at"):
+            self._runtime_watchdog_first_stall_at = now
         print(
-            f"[med] LIVE 活性看门狗：{stagnant_for:.1f}s 无真实输入/确认进展，"
-            "在连续 HUD 证据上发送一次 ESC，等待下一帧后置确认"
+            f"[med] LIVE 活性看门狗（telemetry）：{stagnant_for:.1f}s 无真实输入/确认进展"
+            f"（累计停滞事件 {self._runtime_watchdog_stalls}），零输入，交由 Core FSM 推进"
         )
-        # ESC is a bounded observation recovery only.  Do not advance the L1
-        # cycle in the same tick: the next fresh frame must let the core FSM
-        # prove the page mutation/ownership before any cycle transition.
-        # Task 3: same-target bounded retry.  act_key success alone is NOT
-        # business success — only a subsequent fresh frame proving mutation
-        # (via _mark_runtime_progress from a real input/confirm path) re-arms
-        # the budget.  Unverified ESCs accumulate; cap exhaustion is
-        # fail-closed into the existing ERROR phase.
-        if self._runtime_watchdog_esc_attempts >= self._RUNTIME_WATCHDOG_MAX_ESC_ATTEMPTS:
-            print(
-                f"[med] LIVE 看门狗 fail-closed：连续 {self._runtime_watchdog_esc_attempts} 次 ESC 未获得后置帧证据，"
-                "停止机械重试，转 ERROR"
-            )
-            self.set_phase(Phase.ERROR, "runtime watchdog ESC budget exhausted")
-            return LoopAction.Continue
-        if self.act_key("escape", "RuntimeWatchdog-EscUnstuck"):
-            self._runtime_watchdog_esc_attempts += 1
-            self._main_line_since = now
-            self._mark_runtime_progress(now)
+        self._record_fail_closed_incident(
+            f"runtime_watchdog_stall: stagnant_for={stagnant_for:.2f}s "
+            f"stalls={self._runtime_watchdog_stalls} (zero-input telemetry)"
+        )
         return LoopAction.Continue
 
     # ------------------------------------------------------------------
@@ -403,37 +391,28 @@ class Mediator(CoreMediator):
         self._runtime_panel_unknown_since = None
 
     def _panel_fail_forward(self, frame, anchor, now: float) -> LoopAction:
-        # 20260822：删除 3s 品质盲选（FailForward-Rarity）——实机与用户反馈均
-        # 证实盲选=乱拿（宝物"选蓝不选紫"同源）。Fail-Forward 只走已验证
-        # 关闭锚点 → ESC → Fail-Closed 的安全链。
-        kind = self._panel_kind_of(frame, anchor) if anchor is not None else str(getattr(self, "_panel_kind", "unknown"))
-        close_hit = self._verified_panel_close(frame, kind)
-        if close_hit is not None and self.act_click(close_hit, "PanelFailForward-VerifiedClose"):
-            self._bump_choice_attempts()
-            self._panel_executed_actions += 1
-            self._panel_last_progress_at = now
-            self._stage_panel_choice_action("close", (kind, close_hit.name))
-            self._panel_state = PanelState.WAIT_MUTATION
-            self._panel_mutation_baseline = self._panel_roi_region(frame)
-            self._panel_last_input_at = now
-            self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
-            self._clear_runtime_unknown_panel()
-            print(f"[L1] Fail-Forward：品质不可判，点击已验证关闭锚点 {close_hit.name}")
-            return LoopAction.Continue
-
-        if self.act_key("escape", "PanelFailForward-Esc"):
-            self._panel_state = PanelState.WAIT_MUTATION
-            self._panel_mutation_baseline = self._panel_roi_region(frame)
-            self._panel_last_input_at = now
-            self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
-            self._clear_runtime_unknown_panel()
-            print("[L1] Fail-Forward：无可信卡/关闭锚点，发送 ESC 并等待画面确认")
-            return LoopAction.Continue
-
-        print("[L1] Fail-Forward：ESC 被输入门禁拒绝，同一物理面板无法恢复，Fail-Closed 停止运行")
-        self.set_phase(Phase.ERROR, "physical panel fail-forward exhausted")
-        self.stop()
-        return LoopAction.Break
+        """S0 收敛：Fail-Forward 不再注入任何物理按键（历史 verified-close
+        点击 / ESC 链已删除）。仅记录 telemetry：真正的面板关闭与恢复统一由
+        Core `_tick_panel_fsm` 内部的 `PanelState.CLOSING` 机制负责（由
+        CLOSING 处理 verified close / hide 和 bounded convergence）。
+        """
+        try:
+            kind = (
+                self._panel_kind_of(frame, anchor)
+                if anchor is not None
+                else str(getattr(self, "_panel_kind", "unknown") or "unknown")
+            )
+        except Exception:
+            kind = "unknown"
+        self._panel_fail_forward_events += 1
+        self._record_fail_closed_incident(
+            f"panel_fail_forward_telemetry: kind={kind} hwnd={int(getattr(frame, 'hwnd', 0) or 0)}"
+        )
+        print(
+            f"[L1] Fail-Forward（telemetry-only，零物理输入）：{kind} 面板恢复"
+            "交由 Core CLOSING 状态机收敛"
+        )
+        return LoopAction.Continue
 
     def _physical_panel_watchdog(self, frame, anchor, now: float) -> LoopAction | None:
         if anchor is None:
@@ -458,8 +437,11 @@ class Mediator(CoreMediator):
         if stagnant_for < self._physical_panel_deadline_s:
             return None
 
+        # S0 收敛：物理面板停滞只做监控/telemetry，不再调用 `_panel_fail_forward`
+        # 或注入 act_key；恢复交由 Core `_tick_panel_fsm`（CLOSING 状态机与
+        # episode hard deadline）统一负责。刷新哨兵时间避免每 tick 重复归档。
         note = (
-            "physical_panel_stagnation_recovered: "
+            "physical_panel_stagnation_observed: "
             f"kind={signature[0]} hwnd={signature[1]} "
             f"stagnant_for={stagnant_for:.2f}s deadline={self._physical_panel_deadline_s:.2f}s"
         )
@@ -468,21 +450,15 @@ class Mediator(CoreMediator):
         self._physical_panel_last_progress_at = now
         print(
             f"[L1] 同一物理选择面板无确认进展 {stagnant_for:.1f}s，"
-            f"执行第 {self._physical_panel_recoveries} 次 Fail-Forward 恢复，不停止脚本"
+            f"记录第 {self._physical_panel_recoveries} 次遥测（零输入）；"
+            "恢复交由 Core 面板 FSM CLOSING 收敛"
         )
-        return self._panel_fail_forward(frame, anchor, now)
+        return None
 
     def _tick_panel_fsm(self, frame, anchor, now: float):
         guard = self._physical_panel_watchdog(frame, anchor, now)
         if guard is not None:
             return guard
-        if (
-            getattr(self, "_panel_state", PanelState.CLOSED) == PanelState.ACTIVE
-            and anchor is not None
-            and self._runtime_panel_unknown_since is not None
-            and now - self._runtime_panel_unknown_since >= self._PANEL_FAIL_FORWARD_S
-        ):
-            return self._panel_fail_forward(frame, anchor, now)
         result = super()._tick_panel_fsm(frame, anchor, now)
         if anchor is None and getattr(self, "_panel_state", PanelState.CLOSED) in {PanelState.CLOSED, PanelState.COOLDOWN}:
             self._clear_runtime_unknown_panel()
@@ -836,6 +812,9 @@ class Mediator(CoreMediator):
                 "physical_panel_deadline_s": self._physical_panel_deadline_s,
                 "physical_panel_recoveries": self._physical_panel_recoveries,
                 "runtime_panel_unknown_since": self._runtime_panel_unknown_since,
+                "runtime_watchdog_stalls": self._runtime_watchdog_stalls,
+                "runtime_watchdog_stalled": self._runtime_watchdog_stalled,
+                "panel_fail_forward_events": self._panel_fail_forward_events,
                 "last_runtime_progress_at": self._last_runtime_progress_at,
                 "l1_cycle_index": self._l1_cycle_index,
                 "ocr_bootstrap_health": self._ocr_bootstrap_health,

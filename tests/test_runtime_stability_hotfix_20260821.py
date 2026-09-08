@@ -128,7 +128,8 @@ def test_runtime_merchant_uses_integrated_core_handler():
     core_merchant.assert_called_once_with(merchant_frame)
 
 
-def test_physical_panel_deadline_recovers_instead_of_stopping_runtime():
+def test_physical_panel_deadline_is_telemetry_only_never_recovers_by_input():
+    """S0 收敛：物理面板停滞只做 telemetry，不派发 Fail-Forward、不发输入、不停机。"""
     m = med()
     anchor = hit("skill_refresh_btn", 850, 550)
     m._panel_kind = "skill"
@@ -136,13 +137,20 @@ def test_physical_panel_deadline_recovers_instead_of_stopping_runtime():
     m._physical_panel_first_seen_at = 1.0
     m._physical_panel_last_progress_at = 1.0
     m._physical_panel_deadline_s = 30.0
-    with patch.object(m, "_panel_fail_forward", return_value=LoopAction.Continue) as recover, patch.object(
+    with patch.object(m, "_panel_fail_forward") as recover, patch.object(
+        m, "act_key"
+    ) as key, patch.object(m, "act_click") as click, patch.object(
         m, "stop"
-    ) as stop:
+    ) as stop, patch.object(m, "_record_fail_closed_incident") as incident:
         result = m._physical_panel_watchdog(frame(), anchor, 40.0)
-    assert result is LoopAction.Continue
-    recover.assert_called_once()
+    assert result is None
+    recover.assert_not_called()
+    key.assert_not_called()
+    click.assert_not_called()
     stop.assert_not_called()
+    incident.assert_called_once()
+    assert m._physical_panel_recoveries == 1
+    assert m._physical_panel_last_progress_at == 40.0
 
 
 def test_runtime_watchdog_is_independent_from_core_main_line_since():
@@ -169,7 +177,8 @@ def test_runtime_watchdog_is_independent_from_core_main_line_since():
     core.assert_called_once()
 
 
-def test_runtime_watchdog_requires_two_stable_hud_frames_and_never_advances_cycle():
+def test_runtime_watchdog_requires_two_stable_hud_frames_and_never_sends_input():
+    """S0 去输入化：双帧 HUD 确认 + 停滞达标只记录 telemetry，绝不发任何输入。"""
     m = med()
     m.phase = Phase.MAIN_LINE
     m.settings.pre_wave_protection = False
@@ -179,20 +188,27 @@ def test_runtime_watchdog_requires_two_stable_hud_frames_and_never_advances_cycl
     m._pending_action = None
     m._last_runtime_progress_at = 10.0
     with patch("shuabao.runtime_mediator.time.time", return_value=30.5), patch.object(
-        m, "act_key", return_value=True
-    ) as key, patch.object(m, "_advance_l1_cycle") as advance, patch.object(
+        m, "act_key"
+    ) as key, patch.object(m, "act_click") as click, patch.object(
+        m, "_advance_l1_cycle"
+    ) as advance, patch.object(
         CoreMediator, "_tick_main_line", return_value=LoopAction.Continue
     ) as core, patch.object(m, "_post_game_state", return_value=None), patch.object(
         m, "_is_in_game_hud", return_value=True
-    ):
+    ), patch.object(m, "_record_fail_closed_incident") as incident:
         first = m._tick_main_line(frame())
         second = m._tick_main_line(frame())
 
     assert first is LoopAction.Continue
     assert second is LoopAction.Continue
-    key.assert_called_once_with("escape", "RuntimeWatchdog-EscUnstuck")
+    key.assert_not_called()
+    click.assert_not_called()
     advance.assert_not_called()
     assert core.call_count == 2
+    # 30.5 - 10.0 >= 15s：停滞事件被记录为 telemetry（计数+旗标），零输入。
+    assert m._runtime_watchdog_stalls == 1
+    assert m._runtime_watchdog_stalled is True
+    incident.assert_called_once()
 
 
 def test_runtime_watchdog_hud_latch_resets_after_interruption():

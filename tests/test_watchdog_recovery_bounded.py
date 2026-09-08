@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Stage 1 Task 3 — bounded mechanical recovery (RuntimeWatchdog-EscUnstuck).
+"""S0 stability — runtime watchdog de-inputization (telemetry only).
 
 Invariants enforced here:
-- ESC success (act_key True) is NOT business success; a fresh frame must
-  prove page mutation (progress re-arm) before the watchdog re-fires.
-- Same-target attempts are bounded; budget exhaustion escalates to the
-  existing fail-closed ERROR phase, never an UNKNOWN→ESC fallback.
-- UNKNOWN frame = zero input at all times.
+- A stalled MAIN_LINE with two confirmed HUD frames NEVER sends any physical
+  input (no ESC): the watchdog only accumulates telemetry and sets a flag.
+- Business advancement stays with the core FSM (_advance_l1_cycle / panel
+  CLOSING); a true input deadlock is bounded by existing core deadlines.
+- Only a real core input (_tick_input_executed) clears the stalled flag and
+  refreshes the progress clock.
 """
 
 from __future__ import annotations
@@ -50,59 +51,19 @@ def _prime_stalled(m) -> None:
     m._post_game_pending = False
     m._pending_action = None
     m._last_runtime_progress_at = 10.0
-    m._runtime_watchdog_esc_attempts = 0
 
 
-def test_esc_unstuck_click_success_without_page_mutation_consumes_budget_and_fails_closed():
-    """act_key True but stale progress (no mutation) must consume attempt budget;
-    exceeding the bounded cap must fail closed into the existing ERROR phase,
-    never loop ESC forever and never claim success."""
+def test_stalled_watchdog_never_sends_any_input_and_records_telemetry():
+    """S0 去输入化：即使 act_key 可用，停滞看门狗也绝不发送任何物理输入；
+    停滞只累计 telemetry（stalls 计数 + stalled 旗标 + incident 归档）。"""
     m = med()
     _prime_stalled(m)
-    m._RUNTIME_STALL_TIMEOUT_S = 5.0
-    # act_key succeeds physically each time, but _mark_runtime_progress is
-    # stubbed to a no-op: page mutation never verified.
+    m._RUNTIME_NO_PROGRESS_MAX_STALL_S = 5.0
     with patch("shuabao.runtime_mediator.time.time", return_value=30.5), patch.object(
         m, "act_key", return_value=True
     ) as key, patch.object(
-        m, "_mark_runtime_progress"
-    ), patch.object(
-        m, "_post_game_state", return_value=None
-    ), patch.object(
-        m, "_is_in_game_hud", return_value=True
-    ), patch.object(
-        CoreMediator, "_tick_main_line", return_value=LoopAction.Continue
-    ) as core, patch.object(
-        m, "set_phase"
-    ) as set_phase:
-        # HUD latch needs two distinct frames before the watchdog is armed:
-        # tick1 primes the latch (no send), tick2 send(=1), tick3 send(=2),
-        # tick4 entry gate sees 2>=2 -> fail-closed, no further ESC.
-        first = m._tick_main_line(frame())
-        second = m._tick_main_line(frame())
-        third = m._tick_main_line(frame())
-        fourth = m._tick_main_line(frame())
-
-    assert first is LoopAction.Continue
-    assert second is LoopAction.Continue
-    assert third is LoopAction.Continue
-    assert fourth is LoopAction.Continue
-    set_phase.assert_called_once()
-    assert set_phase.call_args[0][0] is Phase.ERROR
-    assert key.call_count == 2, "budget cap must stop further ESC after 2 sends"
-    assert m._runtime_watchdog_esc_attempts >= m._RUNTIME_WATCHDOG_MAX_ESC_ATTEMPTS
-
-
-def test_unverified_progress_does_not_rearm_watchdog_budget():
-    """After ESC, only verified progress (fresh-frame mutation) resets the
-    attempt counter; an act_key success with no observed progress must keep
-    the counter accumulating toward the bounded cap."""
-    m = med()
-    _prime_stalled(m)
-    m._RUNTIME_STALL_TIMEOUT_S = 5.0
-    with patch("shuabao.runtime_mediator.time.time", return_value=30.5), patch.object(
-        m, "act_key", return_value=True
-    ), patch.object(m, "_mark_runtime_progress"), patch.object(
+        m, "act_click", return_value=True
+    ) as click, patch.object(
         m, "_post_game_state", return_value=None
     ), patch.object(
         m, "_is_in_game_hud", return_value=True
@@ -110,34 +71,38 @@ def test_unverified_progress_does_not_rearm_watchdog_budget():
         CoreMediator, "_tick_main_line", return_value=LoopAction.Continue
     ), patch.object(
         m, "set_phase"
-    ):
-        # tick1 primes the HUD latch (no send), tick2 send(=1), tick3
-        # send(=2): the counter accumulates because no fresh-frame verified
-        # progress occurs (all progress markers stubbed out).
+    ) as set_phase, patch.object(
+        m, "_record_fail_closed_incident"
+    ) as incident:
+        # tick1 primes the HUD latch (no telemetry yet), tick2+ accumulate.
         m._tick_main_line(frame())
-        first = m._runtime_watchdog_esc_attempts
         m._tick_main_line(frame())
-        second = m._runtime_watchdog_esc_attempts
         m._tick_main_line(frame())
-        third = m._runtime_watchdog_esc_attempts
-    assert first == 0
-    assert second == 1
-    assert third == 2, "unverified progress must not re-arm the watchdog budget"
+        m._tick_main_line(frame())
+
+    key.assert_not_called()
+    click.assert_not_called()
+    set_phase.assert_not_called()
+    assert m._runtime_watchdog_stalls == 3
+    assert m._runtime_watchdog_stalled is True
+    assert m.phase == Phase.MAIN_LINE, "telemetry-only watchdog must not fail the run"
+    assert incident.call_count == 3
 
 
-def test_verified_progress_rearms_watchdog_budget():
-    """A fresh frame proving progress (via real _mark_runtime_progress call
-    path) resets the same-target attempt counter so normal play continues."""
+def test_verified_progress_clears_stalled_flag_and_marks_progress():
+    """A fresh frame proving progress (real core input) resets the stalled
+    flag and refreshes the progress clock so normal play continues."""
     m = med()
     _prime_stalled(m)
-    m._RUNTIME_STALL_TIMEOUT_S = 5.0
-    m._runtime_watchdog_esc_attempts = 2  # one below cap
+    m._runtime_watchdog_stalls = 2
+    m._runtime_watchdog_stalled = True
     # Simulate: core input executed this tick -> progress verified by marker.
     with patch("shuabao.runtime_mediator.time.time", return_value=30.5), patch.object(
         CoreMediator, "_tick_main_line", return_value=LoopAction.Continue
-    ) as core:
+    ):
         m._tick_input_executed = True
         m._tick_main_line(frame())
-    assert m._runtime_watchdog_esc_attempts == 0, (
-        "verified input progress must re-arm the bounded watchdog budget"
+    assert m._runtime_watchdog_stalled is False, (
+        "verified input progress must clear the watchdog stalled flag"
     )
+    assert m._last_runtime_progress_at == 30.5
