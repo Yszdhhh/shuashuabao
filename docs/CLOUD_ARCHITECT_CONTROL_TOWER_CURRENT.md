@@ -1,7 +1,7 @@
 # ShuaBao Cloud Architect Control Tower — CURRENT
 
 > Canonical handoff for the active ShuaBao control-tower state.
-> Always read this file first from `handoff/latest`, then independently verify live Git refs before trusting any local Agent report.
+> Always read this file first from `handoff/latest`, then independently verify live Git refs before trusting any Agent report.
 > This branch is documentation-only. Do not merge `handoff/latest` into production merely to carry status notes.
 
 ## 0. Executive state
@@ -10,19 +10,15 @@ Repository:
 
 `https://github.com/Yszdhhh/shuashuabao`
 
-Current production-integration branch:
+Current production integration:
 
-`trial-merge`
-
-Current verified `trial-merge` HEAD:
-
-`d1fb4a51310f3f847ebeee110d51d8423050468b`
+`trial-merge@d1fb4a51310f3f847ebeee110d51d8423050468b`
 
 Parent production-code baseline:
 
 `decb9b6eb3559e39ea51e26864eaada0d648855b`
 
-`d1fb4a5` differs from `decb9b6` only by the two frozen Policy v0.1 documentation files. No production code, tests, config, fixtures, thresholds, baselines, or workflows changed in that migration.
+`d1fb4a5` differs from `decb9b6` only by the two frozen Policy v0.1 documentation files.
 
 Current status:
 
@@ -35,246 +31,218 @@ Current status:
 - `LOCAL_WINDOWS_LAUNCHER_GT = SELF_REPORTED_PASS`
 - `PRODUCT_GOLDEN_RUN = NOT_RUN`
 - `PRODUCT_RELEASE_APPROVAL = NO`
-- `COMPETITOR_A_DEEP_DECOMPOSITION = COMPLETE_FOR_S0_REFERENCE`
-- `STABILITY_SIMPLIFICATION_S0 = RESEARCH_ONLY / IMPLEMENTATION_HOLD`
+- `COMPETITOR_A_C_CROSS_VALIDATION = COMPLETE`
+- `STABILITY_SIMPLIFICATION_S0_CONTRACT = FROZEN_FOR_IMPLEMENTATION`
+- `POLICY_V01_IMPLEMENTATION = HOLD_UNTIL_S0_VALIDATED`
+- `MAIN_RECONCILIATION = HOLD`
 
 Do not describe the current branch as full production-release PASS.
 
 ## 1. Frozen refs / Git topology
 
-Durable refs created by the cloud control tower:
+Keep immutable:
 
 - `archive/final-green-trial-20260908` -> `decb9b6eb3559e39ea51e26864eaada0d648855b`
 - `archive/final-policy-base-20260908` -> `d1fb4a51310f3f847ebeee110d51d8423050468b`
 - `archive/old-main-20260908` -> `7edae9909ab1c757da27a45c4409f464aae66b04`
 
-The old public `main` still points to:
+Old public `main` remains:
 
 `7edae9909ab1c757da27a45c4409f464aae66b04`
 
-A two-parent ancestry-repair candidate exists at:
+Pre-stability ancestry-repair candidate:
 
-`integration/reconcile-main-trial-20260908`
+`integration/reconcile-main-trial-20260908@1c8ef1ac53e2ee83dec73420f8ffef4aabb2b5a4`
 
-candidate commit:
+It has old main + `d1fb4a5` as parents and a tree content-identical to `d1fb4a5`. Do not move `main` to it yet; S0 will create a newer final convergence target.
 
-`1c8ef1ac53e2ee83dec73420f8ffef4aabb2b5a4`
+## 2. Final freeze closure
 
-Its parents are old `main` and `d1fb4a5`, and its tree is content-identical to `d1fb4a5`. It is currently a **pre-stability reconciliation candidate only**. Do not move `main` to it yet.
+`decb9b6` closed the final two freeze-hygiene items:
 
-## 2. Final freeze hygiene closure
+1. physical Desktop shortcut capability failure now SKIPs only on GitHub Actions; ordinary local Windows fails instead of silently skipping;
+2. stage-page ownership rejects explicit KK/platform frames before numbered-row authority, and lobby hitch requires verified game-client ownership before STAGE_SELECT progression.
 
-`decb9b6` closed the final two freeze-hygiene items.
+Do not cherry-pick the old cloud-sync WIP; its useful stage ownership idea is already reimplemented and regression-tested in current production.
 
-### 2.1 Windows launcher capability semantics
+## 3. Policy v0.1
 
-The physical Desktop shortcut probe remains semantically equivalent to the actual operation:
-
-- real Desktop
-- Unicode `.lnk`
-- VBS TargetPath
-- WorkingDirectory
-- Save
-- COM read-back
-
-If the equivalent capability probe fails:
-
-- on GitHub Actions -> the physical-desktop section may be `SKIP / CI_ENVIRONMENT_NOT_CAPABLE`;
-- on an ordinary local Windows host -> the test must `FAIL / LOCAL_WINDOWS_SHORTCUT_GT_FAILED`.
-
-A local report stated the launcher smoke passed without skip. Cloud cannot independently execute the physical local desktop test, so this remains self-reported local GT.
-
-### 2.2 Stage-page ownership
-
-Current production now rejects explicit KK/platform-title frames before stage-row authority and requires game-client ownership before lobby hitch may transition to `STAGE_SELECT`.
-
-This closes the known old WIP safety delta where KK/platform numeric rows could obtain stage-selection authority.
-
-Do not cherry-pick the old WIP branch.
-
-## 3. Policy v0.1 contract
-
-Frozen source research baseline:
+Frozen research baseline:
 
 `a3bc4cdad0b11decaa578140e1a03c4b5380b8e7`
 
-Frozen docs source commit:
+Frozen docs source:
 
 `80e0bd89ee926bcf433f7492c9657f0b95f7c42b`
 
-Canonical docs migrated content-exactly onto final trial at:
-
-`d1fb4a51310f3f847ebeee110d51d8423050468b`
-
-Files:
+Canonical docs were migrated content-exactly to `d1fb4a5`:
 
 - `docs/policy/POLICY_V01_IMPLEMENTATION_CONTRACT_20260908.md`
 - `docs/policy/POLICY_V01_EVIDENCE_APPENDIX_20260908.md`
 
-The production Policy call path remained unchanged through the freeze and docs migration.
+Policy production call paths were unchanged by the docs migration.
 
-Policy implementation is currently **held** while a stability-simplification review is completed.
+Policy implementation remains HOLD until S0 is implemented and validated.
 
-## 4. Same-game competitor stability research — current status
+## 4. Same-game competitor research — CLOSED FOR NOW
 
-Canonical research synthesis:
+Canonical synthesis:
 
 `docs/COMPETITOR_STABILITY_DECOMPOSITION_20260908.md`
 
-The first broad Grok audit and two subsequent Competitor-A checkpoints are now reviewed.
+Competitor C cross-validation:
 
-### 4.1 What survives current-SHA validation
+`docs/COMPETITOR_C_CROSS_VALIDATION_20260908.md`
 
-High-value findings that remain useful:
+Research status:
 
-- mature same-game tools may own hundreds of templates without running all of them as global authorities every tick;
-- the important metric is the active detector/authority set for the current window/job/page, not total asset inventory;
-- Competitor A exposes a narrower explicit shared orchestration surface: one abstract `Run`, 20 current concrete `Run` owners, and `LoopAction.Continue/Break` as a small visible return surface;
-- common mechanical capabilities such as capture/input/quit live on a shared job base surface while business orchestration appears more subclass-local;
-- this is evidence for **owner locality / narrow shared orchestration**, not proof that Competitor A is globally simpler or safer;
-- long-run design should minimize unnecessary cross-round transient state and make reset ownership explicit.
+- initial broad comparison: complete;
+- Competitor A Checkpoint 1: PASS with precision corrections;
+- Competitor A Checkpoint 2: PASS with precision corrections;
+- Competitor C Checkpoint 3: PASS;
+- Competitor B: HOLD / no further broad work;
+- broad competitor research now STOPPED unless a specific later implementation question creates an evidence gap.
 
-### 4.2 Claims that were deliberately downgraded
+Cross-validated findings:
 
-Because the current Competitor-A production method bodies are obfuscated, these are NOT current-build facts:
+- `A_C_OWNER_LOCALITY = YES`;
+- `A_C_PAGE_LOCAL_DETECTOR_AUTHORITY = YES`;
+- `A_C_REDUCED_SHARED_TRANSIENT_STATE = PARTIAL`;
+- `EVIDENCE_SUFFICIENT_TO_FREEZE_SHUABAO_S0 = YES`.
 
-- old named LaunchGame/BeginGame/CreateRoom/SelectStage execution order;
-- `FindNodeWithTimeOut` as the current postcondition implementation;
-- old infinite scrolling / exact historical thresholds;
-- UNKNOWN always continuing instead of erroring;
-- absence of global ESC/watchdog/fail-streak;
-- old UIA/InputSimulator runtime behavior;
-- Tesseract being on the active OCR path.
+Important interpretation:
 
-Missing readable metadata is not proof of runtime absence.
+This does not prove either competitor is globally simpler or safer. It does show that two independent mature same-game implementations expose a narrower shared progression surface and constrain recognition/action authority more locally than ShuaBao's current explicit control graph.
 
-### 4.3 Precision on Competitor-A window ownership
+Competitor C additionally provides readable evidence that hundreds of image assets can coexist with only a small page/job-specific active detector set, and that round-local retry/cooldown/window-monitor state can be explicitly reset at the next-round boundary.
 
-`AutoJob.GameWindow` is an instance `InitOnly` field. This proves the reference field is per-instance and cannot be reassigned after construction. It does **not** prove:
+Do not copy C's unsafe patterns: fixed-coordinate business actions, pure sleeps as confirmation, foreground-exclusive assumptions, weak disappearance-only completion, blind long waits, or any secrets/proprietary assets.
 
-- each job owns a unique underlying window object;
-- the object is immutable;
-- the underlying HWND cannot change internally;
-- multiple jobs do not share the same referent.
+## 5. Stability Simplification S0 — FROZEN CONTRACT
 
-Use this only as a narrow ownership-shape signal.
+Canonical implementation contract:
 
-### 4.4 Current ShuaBao-side comparison
+`docs/STABILITY_SIMPLIFICATION_S0_IMPLEMENTATION_CONTRACT_20260908.md`
 
-Current ShuaBao production still explicitly exposes:
+S0 is now authorized for implementation on an isolated branch.
 
-- 21 top-level `Phase` values;
-- `ChallengeState`;
-- `RecoveryKind / RecoveryStep / RecoveryState`;
-- `PanelState`;
-- `ActionLifecycle`;
-- `InteractionSurface`;
-- general `PendingAction` state;
-- lobby-specific hitch/follow state machines;
-- bounded attempt/deadline objects;
-- Mediator-owned session/transient latches.
+Frozen principles:
 
-These abstractions are not individually condemned. The risk is combinatorial authority: several locally correct FSMs, latches, watchdogs, deadlines, and fallback paths can compose into a much larger implicit control graph.
+1. one clear business progression owner per active failure domain;
+2. detector authority limited to verified current window/page/job;
+3. mechanical helpers do not independently own business progression;
+4. freshly re-observable scene facts should not become long-lived semantic latches;
+5. keep only minimum asynchronous request/input/fresh-postcondition memory;
+6. classify state lifetime and explicitly reset transient action/round state;
+7. window ownership/activation gates recognition and input authority.
 
-Current-SHA spot checks continue to support duplicate liveness/recovery ownership as a real simplification candidate, especially overlapping Core-vs-Runtime liveness mechanisms.
+Mandatory current-SHA focus:
 
-## 5. Current competitor-research task
+- audit and consolidate overlapping liveness/recovery ownership, especially Core-vs-Runtime mechanisms;
+- unify `PLATFORM / GAME / UNKNOWN` authority without making `KK` alone a GAME grant;
+- narrow detector/transition authority along the Golden Path;
+- distinguish re-observable scene state from legitimate `PendingAction`/action-lifecycle memory;
+- prove round reset boundaries for pending/retry/recovery state.
 
-Competitor A is now considered **sufficient for S0 reference**. Do not spend another broad reverse-engineering round on A unless a specific unresolved implementation question becomes blocking.
+S0 is a simplification wave, not a feature rewrite. Do not start Policy v0.1, strategy scoring, OCR/CV framework replacement, UI redesign, auth work, or release/build work inside S0.
 
-Next checkpoint:
-
-`Competitor C — narrow structural and long-run stability cross-validation`
-
-Purpose:
-
-Determine whether the same high-value patterns independently recur in another same-game mature implementation:
-
-- page/job ownership locality;
-- active detector scheduling vs total asset inventory;
-- window binding lifecycle;
-- action/postcondition locality;
-- recovery ownership;
-- UNKNOWN handling;
-- round/session reset boundaries;
-- cross-round transient state.
-
-This is cross-validation, not a second exhaustive reverse-engineering project.
-
-Competitor B remains low priority unless a new authorized readable surface appears.
-
-No ShuaBao production code changes during this research.
-
-## 6. Stability Simplification S0 — candidate, not yet implementation contract
-
-Current candidate principles are now better defined:
-
-1. **Localize orchestration authority.** One clear business owner should progress the active page/job/episode. Shared capture/input helpers remain mechanical capabilities and should not independently progress business state.
-2. **Restrict detector authority by verified window/page ownership.** Large template inventories are acceptable; only a bounded relevant set should hold transition authority for the current context.
-3. **Separate observable scene state from action-lifecycle state.** Re-observe current scene facts where possible; retain only minimum request/input/fresh-postcondition correlation for genuinely asynchronous actions.
-4. **One liveness/recovery owner per failure domain.** Core FSM, runtime wrapper, modal recovery, watchdog and fallback layers must not independently escape/progress the same failure.
-5. **Make state lifetime explicit.** Classify important control state as `FRAME_LOCAL / PAGE_LOCAL / ACTION_LOCAL / ROUND_LOCAL / SESSION_GLOBAL / PERSISTENT`, with explicit reset owner/boundary.
-6. **Prefer simplification/consolidation over new fallback layers.** S0 should remove or unify control authority before adding new detectors/retries/watchdogs.
-
-Do not implement these until Competitor C cross-validation is reviewed and a minimal S0 contract is frozen.
-
-## 7. Safety invariants that remain non-negotiable
+## 6. Non-negotiable safety invariants
 
 - `UNKNOWN / ambiguous -> ZERO INPUT`.
-- Click/key/SendInput success is not a business postcondition.
-- A frame mutation/bookmark/fingerprint change is not business success by itself.
+- UNKNOWN may authorize bounded re-observation/reacquisition, never blind ESC/QUIT/HOME.
+- Click/key/SendInput success is not business success.
+- Frame mutation/bookmark/fingerprint change alone is not business completion.
 - Business transition requires fresh, business-relevant evidence.
-- Perception recovery, input recovery, and business fallback are different concepts.
-- UNKNOWN may trigger bounded re-observation/reacquisition, but UNKNOWN alone never authorizes blind ESC/QUIT/HOME.
-- Do not weaken tests, thresholds, fixtures, or baselines to create a PASS.
-- Do not copy proprietary competitor code or image assets into ShuaBao; extract architecture/stability principles only.
+- Perception recovery, input retry and business fallback are distinct.
+- Do not weaken tests, thresholds, fixtures or baselines merely to obtain PASS.
+
+## 7. Parallel test / CI efficiency lane — AUTHORIZED
+
+A separate branch may proceed in parallel:
+
+`test/ci-speed-and-stability-harness-20260908`
+
+This lane must remain non-overlapping with S0 production files.
+
+Allowed:
+
+- `.github/workflows/ci.yml`;
+- test-only files under `tests/`;
+- zero-input benchmark/audit tooling;
+- test-harness documentation.
+
+Forbidden in this lane:
+
+- `src/shuabao/mediator.py`;
+- `src/shuabao/runtime_mediator.py`;
+- `src/shuabao/vision/capture.py`;
+- `src/shuabao/interaction_surface.py`;
+- Policy production/config;
+- fixture/threshold/gate-baseline weakening;
+- fixing discovered production defects directly — report them to the S0 owner.
+
+### 7.1 Verified CI inefficiency
+
+Current `.github/workflows/ci.yml` runs `python -m pytest tests -q --tb=short`, then calls `python tools/release_gate.py`.
+
+`tools/release_gate.py::stage_pytest()` itself runs the complete `tests/` tree as the authoritative offline gate.
+
+Therefore Standard CI currently executes the full Python test suite twice.
+
+A CI-only branch should remove this duplicate execution while preserving the Standard Release Gate's complete pytest stage and failure semantics.
+
+The same branch may evaluate splitting UI typecheck/unit/build from the Python Standard Release Gate into parallel jobs. `tools/release_gate.py` has no direct `ui-v2` dependency. Workflow success must still require both sides to pass.
+
+Do not turn hosted-runner wall-clock performance timings into hard gates unless reproducibility is demonstrated. Prefer deterministic call-count/detector-surface contracts and keep hardware-sensitive timing as benchmark evidence.
+
+### 7.2 Parallel test-harness work
+
+Useful zero-input work that may proceed before S0 lands:
+
+- characterize round/action/session state lifetimes and add tests for already-valid reset invariants;
+- add a synthetic repeated-round harness that detects stale pending/recovery/cooldown state without sending real input;
+- instrument detector/matcher call counts or active detector families on representative fixtures for before/after S0 comparison;
+- preserve current business/safety semantics; if a characterization exposes an existing defect, report rather than changing production in this branch.
 
 ## 8. Release-gate distinction
 
-A normal `trial-merge` push executes Standard CI, but current workflow design does not make Strict Zero-Defect or Frozen OCR execute on every normal push.
+Normal `trial-merge` push success remains only Standard CI / Standard Release Gate.
 
-Therefore:
+It does not substitute for:
 
-`STANDARD_CI = PASS`
+- Strict Zero-Defect Release Gate;
+- Frozen OCR Release Smoke;
+- required local/real-machine GT;
+- repeated post-S0 Golden Path validation.
 
-is not equivalent to:
+Before release/main reconciliation, run the explicit release gates on the actual final candidate.
 
-`PRODUCT_RELEASE_GATE = PASS`.
+## 9. Git cleanup
 
-Before final main reconciliation/release, explicitly prove the required release gates and remaining real-machine GT.
+Canonical cleanup manifest:
 
-## 9. Git cleanup / stale branch policy
+`docs/GIT_CLEANUP_MANIFEST_20260908.md`
 
-Do not merge orphan branches merely because they contain unique commits.
+Open PR count was cleaned to zero; stale superseded PRs were closed without merge.
 
-Already classified:
+Strong stale/superseded delete candidates are already recorded in the manifest. Diverged refs remain HOLD until semantic disposition. Do not merge old branches merely to preserve history.
 
-- `fix/release-bound-permit-client-20260903` -> superseded by current trial; do not merge/cherry-pick.
-- `integration/subscription-lobby-pilot-20260831` -> superseded by current trial architecture plus historical docs value; do not merge.
-- `feat/entitlement-client-v1-20260829` -> stale alternative architecture; do not merge.
-- `test/solo-live-harness-20260907` -> harness/evidence archive; preserve until any useful harness-only changes are deliberately ported.
-- `wip/concurrent-lobby-overlay-20260903` -> stale experiment with unsafe timeout-driven confirmation; do not merge.
-- `wip/cloud-sync-local-overlay-20260903` -> old WIP; its one useful stage-page ownership safety idea is now implemented in current trial; do not merge.
-- `docs/policy-v01-contract-20260908` -> immutable source archive; its two canonical docs have already been migrated content-exactly to `d1fb4a5`.
+The cloud connector does not currently provide remote branch-ref deletion; final `git push origin --delete ...` execution can be delegated locally once the manifest is complete.
 
-Stale branches may be deleted only after durable archive refs exist where needed and after the cloud cleanup manifest confirms no remaining unique semantic value.
+## 10. Immediate sequencing / parallelization
 
-## 10. Immediate sequencing
+Run three non-overlapping lanes:
 
-Current recommended order:
+### Lane A — S0 production implementation
 
-1. Grok Competitor-C narrow stability cross-validation (read-only).
-2. Cloud review of A+C evidence and freeze of a **minimal** Stability Simplification S0 contract.
-3. Local production Agent implements only that frozen S0 scope.
-4. Targeted tests + Standard CI.
-5. Fresh real-machine Golden Path run, aiming for repeated consecutive rounds, not one lucky pass.
-6. Re-audit Policy production call path and then start Policy v0.1.
-7. Explicit Strict Zero-Defect / Frozen OCR / remaining product GT gates.
-8. Only then finalize ancestry reconciliation and move `main` + `trial-merge` together to the same final commit.
+Local main production Agent, fresh branch from exact `d1fb4a5`, following the frozen S0 contract. Require Failure Model + Contract Matrix before edits.
 
-Until step 8, keep:
+### Lane B — test/CI efficiency
 
-- `main` at old snapshot,
-- `trial-merge` as active integration,
-- archive refs immutable,
-- `integration/reconcile-main-trial-20260908` as a pre-stability candidate only.
+Separate Agent/branch; workflow + test/harness only, no production S0 files. Primary quick win: eliminate duplicated full pytest and evaluate safe UI/Python job parallelism.
+
+### Lane C — cloud control tower
+
+Continue Git semantic cleanup, review both branches independently, and keep Policy/main reconciliation frozen.
+
+After S0 and test/CI branches independently pass review, integrate in controlled order, run Standard CI, then fresh repeated real-machine Golden Path validation. Policy v0.1 resumes only after S0 validation.
