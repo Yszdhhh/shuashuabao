@@ -344,17 +344,13 @@ function Invoke-Readiness {
     Invoke-CaptureTool @("readiness", "--repo-root", $RepoRoot)
 }
 
-function Add-LiveRuntimeArgs {
-    param([Parameter(Mandatory = $true)][System.Collections.Generic.List[string]]$CliArgs)
-
-    $CliArgs.Add("--live-input") | Out-Null
-    $CliArgs.Add("--confirm-live-input") | Out-Null
-    if ($script:AutomationExe -and (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
-        $CliArgs.Add("--automation-exe") | Out-Null
-        $CliArgs.Add($script:AutomationExe) | Out-Null
-    } else {
-        $CliArgs.Add("--allow-dev-source") | Out-Null
-    }
+function Get-LiveRuntimeArgs {
+    # Windows PowerShell 5.1 treats an empty Generic.List as $null, so a
+    # Mandatory List parameter throws "无法将参数绑定到参数 CliArgs".
+    # Return a plain array. Live ticks import this worktree's source; a leftover
+    # dist EXE whose source_sha lags harness-only commits would fail-close
+    # before any tick, so do not pass --automation-exe here.
+    return @("--live-input", "--confirm-live-input", "--allow-dev-source")
 }
 
 function Invoke-TargetProbe {
@@ -377,9 +373,7 @@ function Invoke-TargetProbe {
     )
 
     if (-not $GroundTruthOnly) {
-        $live = New-Object System.Collections.Generic.List[string]
-        Add-LiveRuntimeArgs $live
-        $cliArgs += @($live)
+        $cliArgs += @(Get-LiveRuntimeArgs)
         if ($script:OperatorSettingsPath) {
             $cliArgs += @("--settings", $script:OperatorSettingsPath)
         }
@@ -390,7 +384,7 @@ function Invoke-TargetProbe {
             # guest Ready (or the operator presses Shift+F12).
             $cliArgs += @("--until-success", "--interval", "0.15")
         }
-        if (-not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
+        if ($script:AutomationExe -and -not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
             Write-Host "[launcher] 未找到 EXE；仍交给现有 preflight 处理：$script:AutomationExe" -ForegroundColor Yellow
         }
     }
@@ -421,7 +415,7 @@ function Invoke-BossSeriesCapture {
     Write-Host "[launcher] Boss 系列整链：现有 Mediator.tick()；tqtz/Boss/结算→存档8项→时光之穴/传家宝兜底" -ForegroundColor Cyan
     Write-Host "[launcher] capture_root=$script:CaptureRoot" -ForegroundColor DarkGray
     Write-Host "[launcher] automation_exe=$script:AutomationExe" -ForegroundColor DarkGray
-    if (-not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
+    if ($script:AutomationExe -and -not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
         Write-Host "[launcher] 未找到 EXE；仍交给现有 preflight 处理：$script:AutomationExe" -ForegroundColor Yellow
     }
     Invoke-CaptureTool $cliArgs
@@ -439,9 +433,7 @@ function Invoke-HitchRuntimeCapture {
         "--continue-after-failure",
         "--generate"
     )
-    $live = New-Object System.Collections.Generic.List[string]
-    Add-LiveRuntimeArgs $live
-    $cliArgs += @($live)
+    $cliArgs += @(Get-LiveRuntimeArgs)
     if ($script:OperatorSettingsPath) {
         $cliArgs += @("--settings", $script:OperatorSettingsPath)
     }
@@ -462,9 +454,7 @@ function Invoke-HitchLobbyChainCapture {
         "--continue-after-failure",
         "--generate"
     )
-    $live = New-Object System.Collections.Generic.List[string]
-    Add-LiveRuntimeArgs $live
-    $cliArgs += @($live)
+    $cliArgs += @(Get-LiveRuntimeArgs)
     if ($script:OperatorSettingsPath) {
         $cliArgs += @("--settings", $script:OperatorSettingsPath)
     }
@@ -491,9 +481,7 @@ function Invoke-SoloIngameChainCapture {
         "--interval", "0.15",
         "--generate"
     )
-    $live = New-Object System.Collections.Generic.List[string]
-    Add-LiveRuntimeArgs $live
-    $cliArgs += @($live)
+    $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
     Write-Host "[launcher] 单人局内完整链路：从游戏内 Stage Select 接管；Production RuntimeMediator.tick()；不激活 KK 房间窗口" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
@@ -523,9 +511,7 @@ function Invoke-SoloTakeoverCapture {
         "--duration", "600", "--max-ticks", "5000", "--interval", "0.15",
         "--generate"
     )
-    $live = New-Object System.Collections.Generic.List[string]
-    Add-LiveRuntimeArgs $live
-    $cliArgs += @($live)
+    $cliArgs += @(Get-LiveRuntimeArgs)
     if ($script:OperatorSettingsPath) { $cliArgs += @("--settings", $script:OperatorSettingsPath) }
     Write-Host "[launcher] 单人任意状态接管：$($map[$code])；仅调用 production Mediator.tick()" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
