@@ -406,6 +406,26 @@ def test_pending_join_popup_dismisses_without_clicking_quick_join() -> None:
     assert med2._hitch_re_search is False
 
 
+def test_pending_join_popup_child_window_dismisses_before_room_waiting() -> None:
+    med = _hitch_mediator()
+    med._hitch_pending_row_y = 385
+    med._hitch_sm.note_join_click(1.0)
+    frame = Frame(
+        np.full((260, 440, 3), 18, dtype=np.uint8),
+        window_title="KK官方对战平台",
+        hwnd=1253798,
+        role="l0",
+    )
+    with patch.object(med, "act_key", return_value=True) as key, \
+         patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+    key.assert_called_once_with("esc", "HitchDismissJoinPopup")
+    click.assert_not_called()
+    assert med.phase is Phase.LOBBY_ROOM
+    assert med._hitch_sm.pending_join is False
+    assert med._hitch_rejected_row_ys == {385}
+
+
 def test_generic_popup_without_pending_join_remains_zero_input() -> None:
     med = _hitch_mediator()
     frame = _kk_frame("kicked")
