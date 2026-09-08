@@ -1,35 +1,62 @@
 {
   "version": "1.0",
-  "_comment": "B2-3 OCR 词典归一化事实数据。来源：config/skill_labels.json 技能白名单(16 短码)、rec1/ops 实机帧画面文字、REBORN_WOW_GAME_STRATEGY_RESEARCH 奥术/奥数同义词对齐、CLOUD_REVIEW 龙珠面板。aliases=常见 OCR 混淆/简称(R 后缀、空格、数字变体)；confusions=明确观察到的易混对(前缀共享)；set_membership=套装归属(仅龙珠/三国已证实)。未观察到的不写入。",
+  "_comment": "B2-3 OCR 词典归一化事实数据。来源：config/skill_labels.json 技能白名单(16 短码)、rec1/ops 实机帧画面文字、REBORN_WOW_GAME_STRATEGY_RESEARCH 奥术/奥数同义词对齐、CLOUD_REVIEW 龙珠面板。aliases=常见 OCR 混淆/简称(R 后缀、空格、数字变体)；confusions=明确观察到的易混对(前缀共享)；set_membership=套装归属(仅龙珠/三国已证实)。未观察到的不写入。奥数三项的 _legacy_truth_only 条目仅保留 D0 人工复核使用的历史规范写法，不参与运行时 lookup。",
   "entries": {
-    "奥数箭": {
+    "奥术箭": {
       "aliases": [
-        "奥术箭"
+        "奥数箭"
       ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": "奥数箭"
+      "set_membership": "奥术箭"
     },
-    "奥数激光": {
+    "奥术激光": {
       "aliases": [
-        "奥术激光"
+        "奥数激光"
       ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [],
-      "set_membership": "奥数激光"
+      "set_membership": "奥术激光"
     },
-    "奥数射线": {
+    "奥术射线": {
       "aliases": [
-        "奥术射线"
+        "奥数射线"
       ],
       "kind": "skill",
       "version_seen": "1.3.x",
       "confusions": [
         "射线"
       ],
-      "set_membership": "奥数射线"
+      "set_membership": "奥术射线"
+    },
+    "奥数箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "compat-20260831",
+      "confusions": [],
+      "set_membership": "奥术箭",
+      "_legacy_truth_only": true,
+      "_runtime_canonical": "奥术箭"
+    },
+    "奥数激光": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "compat-20260831",
+      "confusions": [],
+      "set_membership": "奥术激光",
+      "_legacy_truth_only": true,
+      "_runtime_canonical": "奥术激光"
+    },
+    "奥数射线": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "compat-20260831",
+      "confusions": [],
+      "set_membership": "奥术射线",
+      "_legacy_truth_only": true,
+      "_runtime_canonical": "奥术射线"
     },
     "冰霜新星": {
       "aliases": [],
@@ -3568,10 +3595,15 @@
       "_note": "攻略：每杀20得1道灵气，每道渡劫+2%。未上帧。"
     },
     "元禾五极山": {
-      "aliases": ["元和五极山", "元磁五极山"],
+      "aliases": [
+        "元和五极山",
+        "元磁五极山"
+      ],
       "kind": "bond",
       "version_seen": "live-20260827",
-      "confusions": ["元和五极山"],
+      "confusions": [
+        "元和五极山"
+      ],
       "set_membership": "修仙",
       "_note": "实机确认：太乙青山+元磁神山+阴阳大五行山+北极元山+昊阴寒魄山 5座山合成UR，真雷劫+五行劫必成。"
     },
@@ -3592,18 +3624,26 @@
       "_note": "五极山散件之二。"
     },
     "元磁神山": {
-      "aliases": ["元气神山"],
+      "aliases": [
+        "元气神山"
+      ],
       "kind": "bond",
       "version_seen": "live-20260827",
-      "confusions": ["元气神山"],
+      "confusions": [
+        "元气神山"
+      ],
       "set_membership": "修仙",
       "_note": "五极山散件之三（实机卡名『元磁神山』，旧词表曾误记为元气神山）。"
     },
     "昊阴寒魄山": {
-      "aliases": ["后羿寒魄山"],
+      "aliases": [
+        "后羿寒魄山"
+      ],
       "kind": "bond",
       "version_seen": "live-20260827",
-      "confusions": ["后羿寒魄山"],
+      "confusions": [
+        "后羿寒魄山"
+      ],
       "set_membership": "修仙",
       "_note": "五极山散件之四（实机卡名『昊阴寒魄山』，旧词表曾误记为后羿寒魄山）。"
     },
@@ -3782,12 +3822,18 @@
       "_note": "攻略：刷新消耗-10；吃悬赏令有概率给黄金猿。不要与黄金猿互设别名。未上帧。"
     },
     "悬赏令": {
-      "aliases": [],
+      "aliases": [
+        "红色悬赏令",
+        "橙色悬赏令",
+        "紫色悬赏令",
+        "蓝色悬赏令",
+        "绿色悬赏令"
+      ],
       "kind": "bond",
-      "version_seen": "guide-20260815",
+      "version_seen": "live-20260830",
       "confusions": [],
       "set_membership": "海盗",
-      "_note": "攻略：按颜色消对应海盗。红消全部。未上帧。"
+      "_note": "实机背包/选卡确认：UR红/SSR橙/SR紫/R蓝/N绿五色悬赏令。左上角为装备位槽号，右下角为数量。按品质向下吞噬海盗卡。"
     },
     "奎尔德拉": {
       "aliases": [],
@@ -3826,6 +3872,90 @@
       "confusions": [],
       "set_membership": "宝藏",
       "_note": "攻略：宝藏特殊卡，两张同时获得合成1张UR并吞噬。未上帧，F9为准。"
+    },
+    "箭神": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "普攻"
+    },
+    "紫极天雷": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "天雷"
+    },
+    "无限电流": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "闪电链"
+    },
+    "地爆天星": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "陨石"
+    },
+    "高频脉冲": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥术激光"
+    },
+    "风力回旋": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "飓风"
+    },
+    "强化飓风": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "飓风"
+    },
+    "风暴狂潮": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "飓风"
+    },
+    "余震": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "地震"
+    },
+    "散射箭矢": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥术箭"
+    },
+    "奥术狂潮": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "奥术箭"
+    },
+    "究极冰箭": {
+      "aliases": [],
+      "kind": "skill",
+      "version_seen": "1.3.x",
+      "confusions": [],
+      "set_membership": "寒冰箭"
     }
   },
   "aliases": {

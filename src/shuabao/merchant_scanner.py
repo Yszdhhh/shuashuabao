@@ -2,15 +2,13 @@
 
 规则体系:
 1. 固定 5 槽 ROI 扫描。
-2. 购买优先级:
-   - Priority 1: 折扣小模板 (1折/2折/3折/4折/5折 等)
-   - Priority 2: 吞噬丹 icon 小模板 (danGif) -> 仅当羁绊栏非空且未超上限
-   - Priority 3: 木材礼包 icon 小模板 (merchant_wood / woodgift)
-   - Priority 4: 属性线/主属性关键词匹配 (智力 / 力量 / 敏捷)
-   - Priority 5: 技能 / 羁绊偏好卡片 (技能 focus / 偏好羁绊)
-   - Priority 6: 免费刷新 (仅在开启刷新且满足条件时)
-   - 负面宝物 / 负收益物品严格过滤与跳过。
-3. 商店指纹排除倒计时秒数，避免缓存频繁击穿。
+2. 实际会买的只有三种，没有其它拿取:
+   - Priority 1: OCR 明确识别的 2折/5折（不含 8折）
+   - Priority 2: 吞噬丹 icon 小模板 (danGif)
+   - Priority 3: 木材礼包完整商品模板 (merchant_wood)
+   - 8折/普通宝石/属性卡/技能卡一律不买；买完这三类就刷新。
+3. 商店指纹用槽位占用 + 已识别目标，不用整条商品 ROI 逐像素哈希。
+   倒计时、图标动画和局部 HUD 变化不得打断 CONFIRMING→READY。
 """
 
 from __future__ import annotations
@@ -18,6 +16,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import hashlib
 from typing import Sequence
+
+import cv2
 import numpy as np
 
 # 1600x900 基准下黑商 5 槽 ROI 定义
@@ -25,6 +25,9 @@ import numpy as np
 # 5 个槽位水平等分
 MERCHANT_STRIP_ROI = (0.70, 0.67, 0.90, 0.79)
 MERCHANT_SLOT_COUNT = 5
+MERCHANT_SLOT_CENTER_X0 = 1172 / 1600
+MERCHANT_SLOT_STEP_X = 55 / 1600
+MERCHANT_SLOT_CENTER_Y = 640 / 900
 
 DISCOUNT_KEYWORDS = ("2折", "5折", "二折", "五折")
 NEGATIVE_ITEM_NAMES = ("贪欲之刃", "贪婪献祭", "杀敌流失", "扣除金币", "生命削减")
@@ -45,7 +48,7 @@ class MerchantScanResult:
     is_present: bool
     slots: list[MerchantSlotItem] = field(default_factory=list)
     refresh_available: bool = False
-    refresh_ratio: tuple[float, float] = (0.91, 0.72)
+    refresh_ratio: tuple[float, float] = (0.911, 0.702)
     fingerprint: str = ""
 
 
@@ -67,24 +70,55 @@ class MerchantScanner:
     @staticmethod
     def get_slot_center_ratio(slot_idx: int) -> tuple[float, float]:
         """获取 5 槽中第 slot_idx 槽 (0..4) 的归一化中心坐标。"""
-        x_min, y_min, x_max, y_max = MERCHANT_STRIP_ROI
-        slot_w = (x_max - x_min) / MERCHANT_SLOT_COUNT
-        cx = x_min + (slot_idx + 0.5) * slot_w
-        cy = (y_min + y_max) / 2.0
-        return (cx, cy)
+        return (
+            MERCHANT_SLOT_CENTER_X0 + slot_idx * MERCHANT_SLOT_STEP_X,
+            MERCHANT_SLOT_CENTER_Y,
+        )
 
     @staticmethod
-    def compute_merchant_fingerprint(roi_bgr: np.ndarray | None) -> str:
-        """排除易变的倒计时文本区域，计算商品图标区域的稳定哈希。"""
+    def slot_occupancy_bits(roi_bgr: np.ndarray | None) -> tuple[int, ...]:
+        """Per-slot filled/empty bits from the icon region, ignoring price text."""
+        if roi_bgr is None or roi_bgr.size == 0:
+            return (0,) * MERCHANT_SLOT_COUNT
+        width = int(roi_bgr.shape[1])
+        slot_w = width / float(MERCHANT_SLOT_COUNT)
+        bits: list[int] = []
+        for index in range(MERCHANT_SLOT_COUNT):
+            x0 = int(index * slot_w)
+            x1 = int((index + 1) * slot_w)
+            slot = roi_bgr[:, x0:x1]
+            if slot.size == 0:
+                bits.append(0)
+                continue
+            slot_h, slot_w_px = slot.shape[:2]
+            icon = slot[
+                : max(1, int(slot_h * 0.70)),
+                max(0, int(slot_w_px * 0.10)) : max(1, int(slot_w_px * 0.90)),
+            ]
+            if icon.size == 0:
+                bits.append(0)
+                continue
+            hsv = cv2.cvtColor(icon, cv2.COLOR_BGR2HSV)
+            occupied = (hsv[:, :, 1] > 80) & (hsv[:, :, 2] > 70)
+            bits.append(1 if float(occupied.mean()) >= 0.12 else 0)
+        return tuple(bits)
+
+    @staticmethod
+    def compute_merchant_fingerprint(
+        roi_bgr: np.ndarray | None,
+        slot_items: Sequence[MerchantSlotItem] | None = None,
+    ) -> str:
+        """Hash slot occupancy plus recognized targets, not whole-strip pixels."""
         if roi_bgr is None or roi_bgr.size == 0:
             return ""
-        # 裁剪掉底部可能包含秒数/金币文本的 20% 高度区域，只保留图标特征
-        h, w = roi_bgr.shape[:2]
-        crop_h = max(1, int(h * 0.80))
-        stable_region = roi_bgr[:crop_h, :]
-        # 缩放至小图做轻量 dhash / sha256
-        small = stable_region[::4, ::4]
-        return hashlib.md5(small.tobytes()).hexdigest()
+        occupancy = MerchantScanner.slot_occupancy_bits(roi_bgr)
+        targets = tuple(
+            sorted(
+                (int(item.slot_index), str(item.item_type))
+                for item in (slot_items or ())
+            )
+        )
+        return hashlib.md5(f"{occupancy}|{targets}".encode("utf-8")).hexdigest()
 
     def rank_purchases(
         self,
@@ -108,7 +142,7 @@ class MerchantScanner:
                 candidates.append((1, item))
                 continue
 
-            # Priority 2: 吞噬丹 (需羁绊栏非空)
+            # Priority 2: 吞噬丹。merchant purchase itself does not consume it.
             if item.item_type == "devour_pill" or "danGif" in item.label or "吞噬" in item.label:
                 if bond_bar_nonempty:
                     candidates.append((2, item))

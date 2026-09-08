@@ -175,6 +175,107 @@
       "action": "click",
       "alias_of": "room_start"
     },
+    "lobby_refresh": {
+      "templates": [
+        "lobby/lobby_refresh"
+      ],
+      "method": "CreateRoom",
+      "action": "click"
+    },
+    "lobby_room_list": {
+      "templates": [
+        "lobby/lobby_room_list",
+        "lobby/lobby_room_list_selected"
+      ],
+      "method": "CreateRoom",
+      "action": "detect_only"
+    },
+    "lobby_room_list_tab": {
+      "templates": [
+        "lobby/lobby_room_list_tab"
+      ],
+      "method": "CreateRoom",
+      "action": "click"
+    },
+    "lobby_room_list_selected": {
+      "templates": [
+        "lobby/lobby_room_list_selected"
+      ],
+      "method": "CreateRoom",
+      "action": "detect_only"
+    },
+    "lobby_search_box": {
+      "templates": [
+        "lobby/lobby_search_box"
+      ],
+      "threshold": 0.70,
+      "method": "CreateRoom",
+      "action": "click"
+    },
+    "lobby_search_icon": {
+      "templates": [
+        "lobby/lobby_search_icon"
+      ],
+      "method": "CreateRoom",
+      "action": "click"
+    },
+    "lobby_quick_join": {
+      "templates": [
+        "lobby/lobby_quick_join"
+      ],
+      "method": "CreateRoom",
+      "action": "click"
+    },
+    "lobby_join": {
+      "templates": [
+        "lobby/lobby_3_4",
+        "lobby/lobby_quick_join"
+      ],
+      "method": "CreateRoom",
+      "action": "click"
+    },
+    "lobby_3_4": {
+      "templates": [
+        "lobby/lobby_3_4"
+      ],
+      "method": "CreateRoom",
+      "action": "detect_only"
+    },
+    "lobby_popup_dialog": {
+      "templates": [
+        "lobby/lobby_popup_dialog"
+      ],
+      "method": "CreateRoom",
+      "action": "detect_only"
+    },
+    "lobby_popup_leave": {
+      "templates": [
+        "lobby/lobby_popup_leave"
+      ],
+      "method": "CreateRoom",
+      "action": "click"
+    },
+    "lobby_room_lock": {
+      "templates": [
+        "lobby/lobby_room_lock"
+      ],
+      "method": "CreateRoom",
+      "action": "detect_only"
+    },
+    "room_cancel_ready": {
+      "templates": [
+        "lobby/room_cancel_ready"
+      ],
+      "method": "CreateRoom",
+      "action": "detect_only"
+    },
+    "room_exit_btn": {
+      "templates": [
+        "lobby/room_exit_btn"
+      ],
+      "method": "CreateRoom",
+      "action": "detect_only"
+    },
     "start": {
       "templates": [
         "lobby/roomStart",

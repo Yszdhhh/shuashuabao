@@ -26,6 +26,51 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWi
 from shuabao.shell.theme_styles import tokens
 
 
+_HUD_MODE_LABELS = {
+    "solo": "单人模式",
+    "lead": "组队带车模式",
+    "follow": "组队跟车模式",
+    "hitch": "组队蹭车模式",
+}
+_HUD_MODE_HEADLINES = {
+    "solo": "自动推进",
+    "lead": "房间自动开局",
+    "follow": "房间内自动准备",
+    "hitch": "大厅搜房",
+}
+_HUD_MODE_ALIASES = {
+    "normal_farm": "solo",
+    "单人": "solo",
+    "单人刷图": "solo",
+    "单人模式": "solo",
+    "自己刷图": "solo",
+    "lead_team": "lead",
+    "带车": "lead",
+    "组队带车": "lead",
+    "组队 · 带车": "lead",
+    "组队  带车": "lead",
+    "组队带车模式": "lead",
+    "follow_team": "follow",
+    "跟车": "follow",
+    "组队跟车": "follow",
+    "组队 · 跟车": "follow",
+    "组队  跟车": "follow",
+    "组队跟车模式": "follow",
+    "lobby_hitch": "hitch",
+    "蹭车": "hitch",
+    "组队蹭车": "hitch",
+    "组队 · 蹭车": "hitch",
+    "组队  蹭车": "hitch",
+    "组队蹭车模式": "hitch",
+}
+
+
+def _normalize_hud_mode(value: str) -> tuple[str, str, str]:
+    raw = str(value or "").strip()
+    key = _HUD_MODE_ALIASES.get(raw, raw if raw in _HUD_MODE_LABELS else "solo")
+    return key, _HUD_MODE_LABELS[key], _HUD_MODE_HEADLINES[key]
+
+
 def _hwnd_client_rect(hwnd: int) -> QRect | None:
     if not hwnd:
         return None
@@ -156,6 +201,7 @@ class OverlayHud(QWidget):
         self._drag_pos: QPoint | None = None
         self._user_moved = False
         self._has_game_window = False
+        self._anchor_hwnd: int | None = None
         self._compact_layout = False
         self.apply_theme("light")
 
@@ -169,6 +215,8 @@ class OverlayHud(QWidget):
             return QColor(t["neon_success"])
         if state == "error":
             return QColor(t["neon_danger"])
+        if state == "preview":
+            return QColor(t["accent_gold"])
         if state in ("paused", "recovering"):
             return QColor(t["neon_warning"])
         return QColor(t["accent_gold"])
@@ -178,8 +226,9 @@ class OverlayHud(QWidget):
         self._theme = theme
         self._palette = t
         accent = self._status_accent().name()
+        headline_color = t["neon_danger"] if self._status_state == "preview" else t["text_primary"]
         self.label.setStyleSheet(
-            f"QLabel#hudHeadline {{ color: {t['text_primary']}; background: transparent; border: none; "
+            f"QLabel#hudHeadline {{ color: {headline_color}; background: transparent; border: none; "
             "font: 700 13px 'Microsoft YaHei UI', sans-serif; }"
         )
         self.detail_label.setStyleSheet(
@@ -307,19 +356,15 @@ class OverlayHud(QWidget):
         count = max(0, int(game_count or 0))
         cycle = max(0, int(cycle_num or 0))
         reason = str(terminal_reason or "").strip()
-        target_text = str(target or "目标待确认").strip()
-        mode_text = str(mode or "自动推进").strip()
+        target_text = str(target or "待确认").strip()
+        mode_key, mode_label, headline = _normalize_hud_mode(mode)
         strategy_text = str(strategy or "自动推进").strip()
-        round_text = f"第 {count}/{cycle} 局" if cycle else f"第 {count} 局 · 手动停"
+        round_text = f"第 {count} / {cycle} 局" if cycle else f"第 {count} 局"
+        preview = running and mode_key == "hitch"
         if running:
-            text = f"正在{mode_text}，目标 {target_text}"
-            context = strategy_text
-            if phase_text:
-                context = f"{context} · {phase_text}"
-            if ocr_text:
-                context = f"{context} · OCR {ocr_text}"
-            self.detail_label.setText(f"{round_text} · {context}")
-            self.live_label.setText("● 运行中")
+            text = headline
+            self.detail_label.setText(f"{mode_label} · {round_text} · 目标 {target_text}")
+            self.live_label.setText("● 预览中" if preview else "● 运行中")
             self.btn_stop.show()
         else:
             text = "已停止，等待下一次指令"
@@ -333,10 +378,12 @@ class OverlayHud(QWidget):
             self.btn_stop.hide()
 
         self.label.setText(text)
-        self.target_chip.setText(f"目标 {target_text}")
+        self.target_chip.setText(f"关卡 {target_text}")
         self.round_chip.setText(round_text)
         self.strategy_chip.setText(strategy_text)
         self._status_state = self._state_for(running, phase_text, reason)
+        if preview:
+            self._status_state = "preview"
         self._paint_status()
         self.adjustSize()
         self._move_pinned()
@@ -349,7 +396,7 @@ class OverlayHud(QWidget):
         else:
             self.setWindowOpacity(0.96)
 
-    def _accept_rect(self, rect: QRect | None, is_game: bool) -> None:
+    def _accept_rect(self, rect: QRect | None, is_game: bool, hwnd: int | None = None) -> None:
         if rect is None or not rect.isValid() or rect.width() < 200 or rect.height() < 200:
             return
         if rect.top() < -100:
@@ -357,19 +404,39 @@ class OverlayHud(QWidget):
         # 锚定游戏区宽度决定运行时紧凑度：窄区隐藏可选组件、宽区恢复；
         # 位置仍走下方原有锁定逻辑，不随宽度变化。
         self._set_compact_layout(rect.width() < self._COMPACT_WIDTH)
-        # 已经吸附过游戏窗口后直接永久锁定，不再随帧浮动
+        # 规则 1：一旦获得明确的英雄三国游戏 HWND，直接从 L0 锚点切换到 L1 game 锚点并永久锁定
+        if is_game:
+            if not self._has_game_window or self._anchor_hwnd != hwnd:
+                self._has_game_window = True
+                self._anchor_hwnd = hwnd
+                self._pinned_rect = QRect(rect)
+            self._move_pinned()
+            return
+
+        # 已经吸附过游戏窗口后，非游戏窗绝不再抢夺锚点
         if self._has_game_window:
             return
-        if is_game:
-            self._has_game_window = True
+
+        # 规则 2：初始未锚定时，首次吸附当前非游戏窗（如大厅主窗口）；若无 HWND（如纯 QRect 模式）亦允许更新
+        if self._pinned_rect is None or self._anchor_hwnd is None or hwnd is None:
+            self._anchor_hwnd = hwnd
             self._pinned_rect = QRect(rect)
-        elif self._pinned_rect is None:
-            self._pinned_rect = QRect(rect)
-        area = self._pinned_rect
+        # 规则 3：若为同一个非游戏 HWND，允许随窗口移动更新 rect（并防抖）
+        elif hwnd == self._anchor_hwnd:
+            dx = abs(self._pinned_rect.x() - rect.x())
+            dy = abs(self._pinned_rect.y() - rect.y())
+            dw = abs(self._pinned_rect.width() - rect.width())
+            dh = abs(self._pinned_rect.height() - rect.height())
+            if dx > 8 or dy > 8 or dw > 8 or dh > 8:
+                self._pinned_rect = QRect(rect)
+        # 规则 4：突然出现不同的非游戏 HWND（如 308x800 子窗/弹窗），严禁切换 HUD anchor，保持原大厅窗口
+        else:
+            return
         screen = QGuiApplication.primaryScreen()
         if screen is None:
             return
         screen_geo = screen.availableGeometry()
+        area = self._pinned_rect
         if area is None or not area.isValid():
             area = screen_geo
 
@@ -418,6 +485,11 @@ class OverlayHud(QWidget):
         """Pin to the game client top-centre. Keep last good rect if capture flickers."""
         rect: QRect | None = None
         hwnd = getattr(target, "hwnd", None) if target is not None else None
+        if hwnd is not None:
+            try:
+                hwnd = int(hwnd)
+            except (ValueError, TypeError):
+                hwnd = None
         title = str(getattr(target, "window_title", "") or "")
         if "刷刷宝" in title or "ShuaBao" in title:
             return
@@ -445,7 +517,7 @@ class OverlayHud(QWidget):
                     rect = QRect(left, top, width, height)
             except (TypeError, ValueError):
                 rect = None
-        self._accept_rect(rect, is_game)
+        self._accept_rect(rect, is_game, hwnd=hwnd)
         self._move_pinned()
 
 OverlayHUD = OverlayHud

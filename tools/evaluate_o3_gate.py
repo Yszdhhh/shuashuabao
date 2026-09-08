@@ -31,6 +31,7 @@ from shuabao.vision.choice_ocr import (  # noqa: E402
     load_lexicon,
     lookup_lexicon,
     normalize_choice_text,
+    truth_status_of as _truth_status_of,
 )
 from crop_ocr_choices import frozen_roi_for_slot  # noqa: E402
 
@@ -348,16 +349,7 @@ def run_dataset_eval(dataset: dict, model_dir: Path, device: str, cpu_threads: i
 # 指标
 # ---------------------------------------------------------------------------
 def truth_status_of(canonical: str | None, lexicon: dict) -> str:
-    if canonical is None:
-        return "unknown"
-    entries = lexicon["entries"]
-    if canonical in entries:
-        return "in_lexicon"
-    # alias 覆盖
-    for c, entry in entries.items():
-        if canonical in entry.get("aliases", []):
-            return "alias_covered"
-    return "unknown"
+    return _truth_status_of(canonical, lexicon)
 
 
 def metrics_from_samples(raw_samples: list[dict], progress_samples: list[dict], lexicon: dict) -> dict:

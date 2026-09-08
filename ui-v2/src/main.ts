@@ -1,4 +1,5 @@
 import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, resetStickyFailure, currentSettingsRevision } from "./config_queue";
+import { normalizeAttributeValues, restoreAttributeIds } from "./strategy_codec";
 // Task 5：qtBridge 真实接线（设计规格 §7）。OD12 的 DOM/CSS 与内联脚本保持原样；
 // 本模块只做三件事：
 //   1) bridge 探测：production → qtBridge(QWebChannel)，dev/浏览器 → 诚实 mock；
@@ -9,7 +10,7 @@ import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, resetStickyF
 //      btnStart → validate_preflight → start_run（运行中同按钮变 stop_run）；
 //      btnMin/btnClose → window_control；run_status_changed → 徽标/进度；
 //      log_appended → 运行日志；snapshot_changed → 快照重渲染。
-import type { DashboardBridge, ModeDTO, RunStatusDTO, SettingsDTO, SnapshotDTO, StrategyDTO } from "./bridge/types";
+import type { DashboardBridge, ModeDTO, PreflightDTO, RunStatusDTO, SettingsDTO, SnapshotDTO, StrategyDTO, WindowLayout } from "./bridge/types";
 
 // —— index.html 内联脚本暴露的全局（经典脚本 globalThis 绑定）——
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -29,7 +30,7 @@ declare function renderBonds(): void;
 declare function renderNegatives(): void;
 declare function renderPrestige(): void;
 declare function renderTeamRules(): void;
-declare function recommendChallenges(): void;
+declare function renderNames(): void;
 declare function currentSkills(): string[];
 declare function applyOfficial(id: string): void;
 /** OD12 场景 ↔ 目录 mode_id（config/mode_specs.json）；带车复用 normal_farm 建房链。 */
@@ -78,6 +79,8 @@ let runActive = false;
 let startBusy = false;
 let modeCatalog = new Map<string, ModeDTO>();
 let lastShellJson = "";
+let lastWindowLayout: WindowLayout | "" = "";
+let lastPreflight: { modeId: string; settingsRevision: number; result: PreflightDTO } | null = null;
 
 export function getBridge(): DashboardBridge | null {
   return bridge;
@@ -101,6 +104,16 @@ function clampCycle(n: number): number {
   return Math.max(0, Math.min(999, Math.trunc(n)));
 }
 
+type HitchSearchTerms = { primary: string; secondary: string };
+
+function parseHitchSearchTerms(value: unknown): HitchSearchTerms {
+  const terms = String(value ?? "").replace(/，/g, ",").split(",")
+    .map((term) => term.trim()).filter(Boolean);
+  return { primary: terms[0] ?? "4", secondary: terms[1] ?? "3" };
+}
+
+let hitchSearchTerms: HitchSearchTerms = parseHitchSearchTerms("4,3");
+
 function bridgeErrorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -123,6 +136,10 @@ function afterGlobalCall(name: string, hook: () => void): void {
 
 function pushConfig(patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> }): void {
   if (!bridge || applying) return;
+  // Any settings mutation invalidates the previous backend preflight.  The
+  // launch indicator must not keep advertising a result for stale settings.
+  lastPreflight = null;
+  applyLaunchability();
   enqueueConfigPatch(patch, bridge)
     .then((res) => {
       if (!res.ok) {
@@ -146,8 +163,15 @@ function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string 
 
 function syncWindowLayout(scene: string): void {
   if (!bridge) return;
-  const layout = scene === "wizard" ? "chooser" : "dashboard";
-  bridge.set_window_layout(layout).catch((err) => console.error("[ui-v2] 窗口尺寸同步失败:", err));
+  const layout: WindowLayout = scene === "wizard"
+    ? (String(state.wizKind) === "team" ? "chooser-team" : "chooser-solo")
+    : "dashboard";
+  if (layout === lastWindowLayout) return;
+  lastWindowLayout = layout;
+  bridge.set_window_layout(layout).catch((err) => {
+    if (lastWindowLayout === layout) lastWindowLayout = "";
+    console.error("[ui-v2] 窗口尺寸同步失败:", err);
+  });
 }
 
 function showStartErr(msg: string): void {
@@ -188,15 +212,7 @@ const ADV_PACK_CARDS: Record<string, string[]> = {
 
 function pushBondsAndAttributes(): void {
   const rawAttrs = Array.isArray(state.attr) ? state.attr : Array.from(state.attr || []);
-  const attrMap: Record<string, "int" | "str" | "agi"> = {
-    intelligence: "int",
-    strength: "str",
-    agility: "agi",
-    int: "int",
-    str: "str",
-    agi: "agi",
-  };
-  const activeAttrs = rawAttrs.map((a: string) => attrMap[a]).filter(Boolean) as ("int" | "str" | "agi")[];
+  const activeAttrs = normalizeAttributeValues(rawAttrs);
 
   const validBonds = ["祝福", "成长", "经济", "贪婪", "挑战"];
   const growthList = Array.isArray(state.growth) ? state.growth : Array.from(state.growth || []);
@@ -246,17 +262,92 @@ function currentModeId(): string {
 
 /** OD12 只负责展示；是否能点火始终以后端 mode catalog 为准。 */
 function applyLaunchability(): void {
-  if (runActive) return;
+  const evidence = $("evidencePill");
   const mode = modeCatalog.get(currentModeId());
+  if (evidence) {
+    const historical = mode?.evidence_status?.trim() || "unknown";
+    const current = mode?.current_evidence?.status?.trim() || "MISSING";
+    const reason = mode?.current_evidence?.reason?.trim() || "未提供原因";
+    const buildCheck = lastPreflight?.modeId === currentModeId()
+      ? lastPreflight.result.checks.find((check) => check.id === "build_identity")
+      : null;
+    const ocrCheck = lastPreflight?.modeId === currentModeId()
+      ? lastPreflight.result.checks.find((check) => check.id === "ocr_runtime")
+      : null;
+    const identity = mode?.current_evidence;
+    const identityDetail = [
+      identity?.version ? `version=${identity.version}` : "",
+      identity?.release_channel ? `release_channel=${identity.release_channel}` : "",
+      identity?.source_sha ? `source_sha=${identity.source_sha}` : "",
+      identity?.release_manifest_sha256 ? `manifest_sha256=${identity.release_manifest_sha256}` : "",
+      identity?.exe_sha256 ? `exe_sha256=${identity.exe_sha256}` : "",
+      identity?.bridge_schema_version ? `bridge_schema=${identity.bridge_schema_version}` : "",
+      identity?.ocr_model_sha256 ? `ocr_model_sha256=${identity.ocr_model_sha256}` : "",
+    ].filter(Boolean).join("；");
+    evidence.textContent = `当前证据：${current}`;
+    evidence.title = mode
+      ? `${mode.label} 当前构建证据：${current}（${reason}）；历史覆盖：${historical}`
+        + (identityDetail ? `；当前构建身份：${identityDetail}` : "")
+        + (buildCheck ? `；构建身份：${buildCheck.detail}` : "")
+        + (ocrCheck ? `；OCR：${ocrCheck.detail}` : "")
+      : "当前运行方式证据状态未知";
+    evidence.dataset.status = current;
+    evidence.dataset.historicalStatus = historical;
+    const identityPill = $("identityPill");
+    if (identityPill) {
+      const version = identity?.version || "";
+      const channel = identity?.release_channel || "";
+      const sourceShort = identity?.source_sha?.slice(0, 12) || "";
+      const manifestShort = identity?.release_manifest_sha256?.slice(0, 12) || "";
+      const modelShort = identity?.ocr_model_sha256?.slice(0, 12) || "";
+      identityPill.textContent = sourceShort
+        ? `v${version || "?"} · ${channel || "source"} · 构建 ${sourceShort} · 清单 ${manifestShort || "待补"} · 模型 ${modelShort || "待补"}`
+        : "构建身份：待预检";
+      identityPill.title = identityDetail || buildCheck?.detail || "后端预检后显示 version、release_channel、source_sha、整包 manifest、EXE、桥接和 OCR 模型哈希";
+      identityPill.dataset.status = buildCheck?.ok === false ? "FAIL" : (identityDetail ? "READY" : "PENDING");
+      const versionLabel = $("versionLabel");
+      if (versionLabel) {
+        versionLabel.textContent = sourceShort
+          ? `v${version || "0.3"} · ${channel || "source"} · ${sourceShort}`
+          : (version ? `v${version}` : "v0.3");
+        versionLabel.title = [
+          version ? `version=${version}` : "",
+          channel ? `release_channel=${channel}` : "",
+          sourceShort ? `source_sha=${sourceShort}` : "",
+          manifestShort ? `manifest_sha=${manifestShort}` : "",
+          modelShort ? `ocr_model_sha=${modelShort}` : "",
+        ].filter(Boolean).join(" · ") || "构建身份：待预检";
+      }
+    }
+  }
+  if (runActive) return;
   const skillsReady = currentSkills().filter(Boolean).length > 0;
-  const launchable = Boolean(mode?.startable) && skillsReady;
+  const locallyLaunchable = Boolean(mode?.startable) && skillsReady;
+  const preflightCurrent = lastPreflight
+    && lastPreflight.modeId === currentModeId()
+    && lastPreflight.settingsRevision === Number(state.settings_revision ?? 0)
+    ? lastPreflight.result
+    : null;
   const button = $("btnStart") as HTMLButtonElement;
-  button.disabled = !launchable;
-  button.textContent = launchable ? "开始运行" : "不可启动";
+  // Local checks decide whether the user can request a backend preflight;
+  // only the backend result may claim that the run is actually ready.
+  button.disabled = !locallyLaunchable;
+  button.textContent = locallyLaunchable ? "开始运行" : "不可启动";
   button.classList.remove("stop");
-  $("lamp").className = "lamp" + (launchable ? "" : " bad");
-  $("lampText").textContent = launchable ? "预检通过" : (mode?.startable ? "待选技能" : "不可启动");
-  showStartErr(launchable ? "" : (mode?.blocked_reason || (skillsReady ? "后端未开放此运行方式" : "请先选择至少一个技能")));
+  const backendReady = locallyLaunchable && Boolean(preflightCurrent?.ok);
+  $("lamp").className = "lamp" + (backendReady ? "" : (locallyLaunchable ? " pending" : " bad"));
+  $("lampText").textContent = backendReady
+    ? "预检通过"
+    : (mode?.startable ? (skillsReady ? "等待后端预检" : "待选技能") : "不可启动");
+  if (!mode?.startable) {
+    showStartErr(mode?.blocked_reason || "后端未开放此运行方式");
+  } else if (!skillsReady) {
+    showStartErr("请先选择至少一个技能");
+  } else if (preflightCurrent && !preflightCurrent.ok) {
+    showStartErr(preflightCurrent.blocked_reason || "预检未通过");
+  } else {
+    showStartErr("");
+  }
 }
 
 async function startRun(): Promise<void> {
@@ -270,6 +361,12 @@ async function startRun(): Promise<void> {
 
     // §6.3：UI 先本地预检给反馈；start_run 内部还会再验一次（fail-closed）。
     const pf = await b.validate_preflight(modeId);
+    lastPreflight = {
+      modeId,
+      settingsRevision: Number(pf.settings_revision ?? state.settings_revision ?? 0),
+      result: pf,
+    };
+    applyLaunchability();
     if (!pf.ok) {
       showStartErr(pf.blocked_reason || "预检未通过");
       return;
@@ -294,8 +391,10 @@ function applyTheme(theme: unknown): void {
   if ((theme === "light" || theme === "dark") && theme !== state.theme) {
     state.theme = theme;
     $("scene-app").dataset.theme = theme;
+    document.body.dataset.theme = theme;
     $("btnTheme").textContent = theme === "dark" ? "浅色" : "深色";
     $("btnTheme").setAttribute("aria-pressed", String(theme === "dark"));
+    $("btnTheme").setAttribute("aria-label", theme === "dark" ? "当前深色，切换到浅色" : "当前浅色，切换到深色");
   }
 }
 
@@ -379,17 +478,33 @@ function applySwitches(settings: SettingsDTO): void {
 
 function rerenderAll(settings: SettingsDTO): void {
   renderChapterStage();
-  recommendChallenges(); // 按关卡推荐 Boss/传家宝（展示默认）
+  hitchSearchTerms = parseHitchSearchTerms(settings.hitch_stage_prefix);
+  (window as unknown as { hitchSearchTerms: HitchSearchTerms }).hitchSearchTerms = hitchSearchTerms;
   const cjb = asString(settings.cjb_boss); // 持久化选择压过推荐展示
   const boss = asString(settings.sgzx_boss);
   if (cjb) state.cjb = cjb;
   if (boss) state.boss = boss;
+  renderNames();
   renderBuilds();
   renderBonds();
   renderPrestige();
   renderTeamRules();
   renderNegatives();
   refreshSummary(); // 内含 renderLaunchSummary
+}
+
+function openHitchSearchModal(): void {
+  state.modal = "hitch_search";
+  state._focusBack = document.activeElement;
+  const sheet = $("modalSheet");
+  sheet.className = "sheet";
+  sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">高级搜房</h2></div>` +
+    `<div class="sheet-body"><p class="hint">自定义后会按主搜、再副搜轮换；留空副搜可只使用主搜。</p>` +
+    `<div class="field"><label for="hitchPrimarySearch">主搜</label><input id="hitchPrimarySearch" type="text" maxlength="64" value="${escText(hitchSearchTerms.primary)}" autocomplete="off" /></div>` +
+    `<div class="field"><label for="hitchSecondarySearch">副搜</label><input id="hitchSecondarySearch" type="text" maxlength="64" value="${escText(hitchSearchTerms.secondary)}" autocomplete="off" /></div></div>` +
+    `<div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-apply-hitch-search="1" data-close="1">保存</button></div>`;
+  $("modalLayer").classList.add("show");
+  (document.getElementById("hitchPrimarySearch") as HTMLInputElement | null)?.focus();
 }
 
 let lastAppliedSnapshotSeq = 0;
@@ -399,6 +514,9 @@ export function applySnapshot(snap: SnapshotDTO): void {
   if (snap.snapshot_seq && snap.snapshot_seq <= lastAppliedSnapshotSeq) return;
   if (snap.snapshot_seq) lastAppliedSnapshotSeq = snap.snapshot_seq;
   if (snap.settings_revision !== undefined) {
+    if (Number(snap.settings_revision) !== Number(state.settings_revision ?? 0)) {
+      lastPreflight = null;
+    }
     state.settings_revision = snap.settings_revision;
     setSettingsRevision(snap.settings_revision);
     resetStickyFailure();
@@ -440,7 +558,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
       state.bondSaved = true;
       if (Array.isArray(snap.strategy.attributes)) {
         settings.attributes = snap.strategy.attributes;
-        state.attr = new Set(snap.strategy.attributes);
+        state.attr = restoreAttributeIds(snap.strategy.attributes);
       }
       if (snap.strategy.merchant) {
         settings.merchant_enabled = snap.strategy.merchant.enabled;
@@ -466,11 +584,32 @@ export function applySnapshot(snap: SnapshotDTO): void {
     const roomPassword = asString(settings.room_password);
     if (roomName !== null) ($("roomName") as HTMLInputElement).value = roomName;
     if (roomPassword !== null) ($("roomPass") as HTMLInputElement).value = roomPassword;
+    applySubscription(snap.subscription);
     rerenderAll(settings);
+    // The first snapshot is authoritative for a run that may already be
+    // STARTING/COMPLETE/FAILED.  Do not wait for a later Qt signal or the
+    // dashboard can briefly (or permanently, after a fast bootstrap failure)
+    // show the wrong lifecycle state.
+    if (snap.run) applyRunStatus(snap.run);
     applyLaunchability();
   } finally {
     applying = false;
   }
+}
+
+function applySubscription(sub?: { active?: boolean; status?: string; expires_at?: string; live_authorized?: boolean; live_status?: string }): void {
+  const globalFn = (window as unknown as Record<string, unknown>).applySubscription;
+  if (typeof globalFn === "function") {
+    (globalFn as (s?: unknown) => void)(sub);
+    return;
+  }
+  const pill = $("subscriptionPill");
+  if (!pill) return;
+  const isOk = Boolean(sub?.active);
+  const status = sub?.status || "未激活";
+  const exp = sub?.expires_at ? (sub.expires_at.length >= 10 ? sub.expires_at.substring(0, 10) : sub.expires_at) : "";
+  pill.textContent = `${isOk ? `卡密有效${exp ? ` (${exp} 到期)` : ""}` : `订阅：${status}`} · ${sub?.live_status || "LIVE 授权待校验"}`;
+  pill.dataset.state = sub?.live_authorized ? "ok" : "warn";
 }
 
 // ---------------------------------------------------------------- 运行态信号
@@ -565,11 +704,17 @@ function wireIntents(): void {
   afterGlobalCall("renderSkillRank", pushSkills);
   // 羁绊配置按用户显式点击“保存羁绊”落盘，避免每次重绘都产生一次配置请求。
   afterGlobalCall("renderNegatives", pushNegatives);
+  afterGlobalCall("renderWizard", () => {
+    if (String(state.scene) === "wizard") syncWindowLayout("wizard");
+  });
   afterGlobalCall("refreshSummary", applyLaunchability);
   afterGlobalCall("setScene", () => {
     syncWindowLayout(String(state.scene));
     const modeId = SCENE_TO_MODE_ID[state.scene];
-    if (modeId) pushShell({ selected_mode_id: modeId });
+    if (modeId) {
+      lastPreflight = null;
+      pushShell({ selected_mode_id: modeId });
+    }
   });
 
   // 负面效果勾选变化事件
@@ -584,10 +729,10 @@ function wireIntents(): void {
     }
   });
 
-  // 摘要视图下 ▲▼ 调整高级卡组顺序：内联处理器已改 state.adv，这里补落盘，
-  // 让"保存后仍可调序"无需再点一次保存。
+  // 摘要视图下调整高级卡组顺序：内联处理器已改 state.adv，这里补落盘，
+  // 让“保存后仍可调序”无需再点一次保存。
   $("bonds").addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest("[data-adv-move]") && state.bondSaved) {
+    if ((e.target as HTMLElement).closest("[data-adv-move], [data-adv-pick]") && state.bondSaved) {
       defer(() => pushBondsAndAttributes());
     }
   });
@@ -653,6 +798,20 @@ function wireIntents(): void {
     },
     { capture: true },
   );
+  $("modalLayer").addEventListener("click", (event) => {
+    if (!(event.target as HTMLElement).closest("[data-apply-hitch-search]")) return;
+    const primary = (document.getElementById("hitchPrimarySearch") as HTMLInputElement | null)?.value.trim() ?? "";
+    const secondary = (document.getElementById("hitchSecondarySearch") as HTMLInputElement | null)?.value.trim() ?? "";
+    const search = [primary, secondary].filter(Boolean).join(",");
+    if (!search || search.length > 64) {
+      event.stopPropagation();
+      toast(!search ? "主搜不能为空" : "主搜和副搜合计最多 64 个字符");
+      return;
+    }
+    hitchSearchTerms = { primary, secondary };
+    pushConfig({ hitch_stage_prefix: search });
+  }, { capture: true });
+  $("btnHitchAdvanced").addEventListener("click", openHitchSearchModal);
 
   // 启动 / 停止（同一按钮，运行态切换为 stop_run）。
   $("btnStart").addEventListener("click", () => {
@@ -669,6 +828,40 @@ function wireIntents(): void {
   // 窗口控制。
   $("btnMin").addEventListener("click", () => void bridge?.window_control("minimize").catch(console.error));
   $("btnClose").addEventListener("click", () => void bridge?.window_control("close").catch(console.error));
+  // 激活订阅卡密：使用看板内嵌引导层，不调用浏览器脚本框。
+  $("btnActivateKey")?.addEventListener("click", async () => {
+    const opener = (window as unknown as Record<string, unknown>).openSubscriptionModal;
+    if (typeof opener === "function") (opener as () => void)();
+  });
+  $("modalLayer").addEventListener("click", async (event) => {
+    const submit = (event.target as HTMLElement).closest("[data-activate-subscription]") as HTMLButtonElement | null;
+    if (!submit) return;
+    const key = (document.getElementById("subscriptionKey") as HTMLInputElement | null)?.value.trim() ?? "";
+    if (!key) {
+      toast("请输入卡密");
+      return;
+    }
+    submit.disabled = true;
+    try {
+      const res = await (bridge
+        ? bridge.activate_subscription(key)
+        : Promise.resolve({ ok: false, message: "后端桥接未就绪", status: "", expires_at: "", subscription: undefined }));
+      if (res && res.ok) {
+        toast(res.message || "订阅激活成功！");
+        applySubscription(res.subscription || { active: true, status: "卡密有效", expires_at: res.expires_at || "", live_authorized: false, live_status: "LIVE 授权待校验" });
+        ((document.querySelector("#modalSheet [data-close]") as HTMLButtonElement | null))?.click();
+      } else {
+        toast("激活失败：" + (res?.message || "卡密无效"));
+        if (res?.status) {
+          applySubscription({ active: false, status: res.status, expires_at: res.expires_at || "" });
+        }
+      }
+    } catch (err) {
+      toast("激活请求异常：" + String(err));
+    } finally {
+      submit.disabled = false;
+    }
+  });
 }
 
 // ---------------------------------------------------------------- 启动

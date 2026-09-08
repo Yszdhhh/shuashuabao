@@ -1,11 +1,13 @@
 // Task 5：qtBridge 单元测试。node 环境下以最小假宿主（window.qt / QWebChannel /
 // document）驱动真实 qtBridge 代码路径，验证：
-//   - 序列化：八方法的 JSON 入参/出参契约（§6.1 全部 @Slot(str)->str）
+//   - 序列化：版本化 Slot 的 JSON 入参/出参契约
 //   - 信号派发：三信号 connect 后可从 facade 侧回推
 //   - 错误处理：transport 超时、facade 缺失、方法拒绝、非 JSON 返回、信号缺失
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   QWEBCHANNEL_SRC,
+  DEFAULT_CALL_TIMEOUT_MS,
+  PREFLIGHT_CALL_TIMEOUT_MS,
   createQtBridge,
   type RawFacade,
 } from "../src/bridge/qtBridge";
@@ -74,6 +76,16 @@ function makeFacade(
     snapshot_changed: makeSignal(),
   };
   const defaultHandlers: Record<string, (arg?: string) => Promise<string>> = {
+    get_bridge_info: async () => JSON.stringify({
+      ok: true,
+      schema_version: 2,
+      required_methods: [
+        "get_bridge_info", "get_snapshot", "update_config", "update_shell",
+        "validate_preflight", "start_run", "stop_run", "window_control",
+        "set_window_layout", "activate_subscription",
+      ],
+      required_signals: ["snapshot_changed", "run_status_changed", "log_appended"],
+    }),
     get_snapshot: async () => SNAPSHOT_JSON,
     update_config: async () => JSON.stringify({ ok: true, errors: [], settings: {} }),
     update_shell: async () => JSON.stringify({ ok: true, errors: [], shell: {} }),
@@ -82,6 +94,7 @@ function makeFacade(
     stop_run: async () => JSON.stringify({ ok: true }),
     window_control: async () => JSON.stringify({ ok: true }),
     set_window_layout: async () => JSON.stringify({ ok: true }),
+    activate_subscription: async () => JSON.stringify({ ok: true, message: "ok" }),
   };
   const facade: AnyRecord = {};
   for (const [name, handler] of Object.entries(defaultHandlers)) {
@@ -115,7 +128,7 @@ beforeEach(() => {
 });
 
 describe("qtBridge 序列化契约", () => {
-  it("八方法按 §6.1 序列化入参并解析出参", async () => {
+  it("版本化方法面按 JSON 契约序列化入参并解析出参", async () => {
     const harness = makeFacade();
     installHost(harness);
     const { bridge } = await createQtBridge();
@@ -130,8 +143,10 @@ describe("qtBridge 序列化契约", () => {
     await expect(bridge.stop_run()).resolves.toEqual({ ok: true });
     await expect(bridge.window_control("minimize")).resolves.toEqual({ ok: true });
     await expect(bridge.set_window_layout("chooser")).resolves.toEqual({ ok: true });
+    await expect(bridge.activate_subscription("test-key")).resolves.toEqual({ ok: true, message: "ok" });
 
     expect(harness.calls).toEqual([
+      ["get_bridge_info"],
       ["get_snapshot"],
       ["update_config", JSON.stringify({ cycle_num: 3 })],
       ["update_shell", JSON.stringify({ theme: "dark" })],
@@ -140,6 +155,7 @@ describe("qtBridge 序列化契约", () => {
       ["stop_run"],
       ["window_control", JSON.stringify({ action: "minimize" })],
       ["set_window_layout", JSON.stringify({ layout: "chooser" })],
+      ["activate_subscription", JSON.stringify({ key: "test-key" })],
     ]);
   });
 
@@ -215,6 +231,65 @@ describe("qtBridge 错误处理", () => {
     delete harness.facade.stop_run;
     installHost(harness);
     await expect(createQtBridge(200)).rejects.toThrow(/facade 对象缺失或方法面不完整/);
+  });
+
+  it("validate_preflight 单独拉长 timeout，其它 facade 调用仍为 10s", () => {
+    expect(DEFAULT_CALL_TIMEOUT_MS).toBe(10_000);
+    expect(PREFLIGHT_CALL_TIMEOUT_MS).toBe(60_000);
+  });
+
+  it("仅 validate_preflight 使用 60s timeout，其它方法仍在 10s 截止", async () => {
+    const harness = makeFacade((name) => {
+      if (name === "validate_preflight") {
+        return () =>
+          new Promise<string>((resolve) => {
+            setTimeout(
+              () => resolve(JSON.stringify({ ok: true, blocked_reason: "", checks: [] })),
+              15_000,
+            );
+          });
+      }
+      if (name === "get_snapshot") {
+        return () =>
+          new Promise<string>(() => {
+            /* intentionally never resolves within default timeout */
+          });
+      }
+      return undefined;
+    });
+    installHost(harness);
+    const { bridge } = await createQtBridge();
+
+    vi.useFakeTimers();
+    try {
+      const preflight = bridge.validate_preflight("normal_farm");
+      await vi.advanceTimersByTimeAsync(14_999);
+      let settled = false;
+      void preflight.then(() => {
+        settled = true;
+      });
+      await Promise.resolve();
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(preflight).resolves.toEqual({ ok: true, blocked_reason: "", checks: [] });
+
+      const snapshot = bridge.get_snapshot();
+      const snapshotExpectation = expect(snapshot).rejects.toThrow(/facade\.get_snapshot 调用失败:.*10000ms/);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await snapshotExpectation;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("bridge schema 不匹配时在任何业务调用前拒绝建桥", async () => {
+    const harness = makeFacade((name) =>
+      name === "get_bridge_info"
+        ? async () => JSON.stringify({ ok: true, schema_version: 1, required_methods: [], required_signals: [] })
+        : undefined,
+    );
+    installHost(harness);
+    await expect(createQtBridge(200)).rejects.toThrow(/bridge schema 不匹配/);
   });
 });
 

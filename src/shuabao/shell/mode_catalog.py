@@ -146,8 +146,8 @@ def action_is_forbidden(reason: str, forbidden: tuple[str, ...] | list[str] | No
 
 def hitch_refresh_window() -> tuple[float, float]:
     spec = get_spec("lobby_hitch")
-    lo = float(spec.budgets.get("refresh_s_min", 3) or 3)
-    hi = float(spec.budgets.get("refresh_s_max", 4) or 4)
+    lo = float(spec.budgets.get("refresh_s_min", 5) or 5)
+    hi = float(spec.budgets.get("refresh_s_max", 5) or 5)
     if lo > hi:
         lo, hi = hi, lo
     return max(0.0, lo), max(lo, hi)

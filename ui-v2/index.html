@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="zh-CN">
 <head>
@@ -7,25 +6,25 @@
   <title>刷刷宝看板</title>
   <style>
     :root {
-      --bg: #08090a;
-      --surface: #191a1b;
-      --surface-warm: var(--surface);
-      --fg: #f7f8f8;
-      --fg-2: #d0d6e0;
-      --muted: #8a8f98;
-      --meta: #62666d;
-      --border: rgba(255, 255, 255, 0.08);
+      --bg: #1f2228;
+      --surface: #252830;
+      --surface-warm: rgba(255, 255, 255, 0.05);
+      --fg: #ffffff;
+      --fg-2: rgba(255, 255, 255, 0.7);
+      --muted: rgba(255, 255, 255, 0.5);
+      --meta: rgba(255, 255, 255, 0.3);
+      --border: rgba(255, 255, 255, 0.1);
       --border-soft: rgba(255, 255, 255, 0.05);
-      --accent: #5e6ad2;
-      --accent-on: #ffffff;
-      --accent-hover: #828fff;
-      --accent-active: #4752c4;
-      --success: #27a644;
+      --accent: #ffffff;
+      --accent-on: #1f2228;
+      --accent-hover: rgba(255, 255, 255, 0.9);
+      --accent-active: rgba(255, 255, 255, 0.8);
+      --success: #16a34a;
       --warn: #eab308;
       --danger: #dc2626;
-      --font-display: "Inter Variable", "Inter", "SF Pro Display", -apple-system, system-ui, "Segoe UI", sans-serif;
-      --font-body: "Inter Variable", "Inter", "SF Pro Display", -apple-system, system-ui, "Segoe UI", sans-serif;
-      --font-mono: "Berkeley Mono", ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
+      --font-display: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      --font-body: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", sans-serif;
+      --font-mono: "Cascadia Mono", "Sarasa Mono SC", ui-monospace, Consolas, monospace;
       --text-xs: 12px;
       --text-sm: 14px;
       --text-base: 16px;
@@ -45,9 +44,6 @@
       --space-6: 24px;
       --space-8: 32px;
       --space-12: 48px;
-      --section-y-desktop: 80px;
-      --section-y-tablet: 48px;
-      --section-y-phone: 32px;
       --radius-sm: 6px;
       --radius-md: 8px;
       --radius-lg: 12px;
@@ -59,13 +55,9 @@
       --motion-fast: 150ms;
       --motion-base: 200ms;
       --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-      --container-max: 1200px;
-      --container-gutter-desktop: 24px;
-      --container-gutter-tablet: 16px;
-      --container-gutter-phone: 12px;
     }
     * { box-sizing: border-box; }
-    html, body { margin: 0; min-height: 100%; }
+    html, body { width: 100%; height: 100%; margin: 0; min-height: 100%; }
     body {
       min-height: 100dvh;
       display: grid;
@@ -112,26 +104,144 @@
       --p-gold-soft: color-mix(in oklab, var(--p-gold) 12%, var(--p-paper));
       --p-blue: oklch(0.52 0.16 255);
       --p-ok: oklch(0.46 0.12 145);
+      --p-warn: #9e6a03;
       --p-danger: oklch(0.48 0.18 25);
       --p-on: oklch(0.99 0.004 250);
+      --p-chrome: var(--p-paper);
       --p-radius: 6px;
       --p-focus: 0 0 0 2px color-mix(in oklab, var(--p-blue) 55%, transparent);
       --p-shadow: 0 10px 28px color-mix(in oklab, var(--p-ink) 18%, transparent);
       font-family: var(--p-font);
+      font-size: 13px;
+      font-weight: 400;
       color: var(--p-ink);
     }
+    body[data-theme="dark"] { color-scheme: dark; }
+    body[data-theme="dark"] .win,
+    body[data-theme="dark"] .wiz,
     .win[data-theme="dark"] {
-      --p-bg: oklch(0.22 0.028 250);
-      --p-paper: oklch(0.26 0.032 250);
-      --p-ink: oklch(0.94 0.012 250);
-      --p-muted: oklch(0.78 0.028 250);
-      --p-faint: oklch(0.72 0.02 250);
-      --p-line: oklch(0.36 0.028 250);
-      --p-fill: oklch(0.30 0.03 250);
-      --p-gold: oklch(0.78 0.12 85);
-      --p-gold-ink: oklch(0.22 0.04 85);
-      --p-gold-soft: color-mix(in oklab, var(--p-gold) 14%, var(--p-paper));
-      --p-shadow: 0 10px 28px oklch(0.1 0.02 250 / 0.55);
+      --p-bg: #1f2228;
+      --p-paper: #262930;
+      --p-chrome: #1b1e24;
+      --p-ink: #ffffff;
+      --p-muted: rgba(255, 255, 255, 0.7);
+      --p-faint: rgba(255, 255, 255, 0.5);
+      --p-line: rgba(255, 255, 255, 0.1);
+      --p-fill: rgba(255, 255, 255, 0.05);
+      --p-gold: #ffffff;
+      --p-gold-ink: #1f2228;
+      --p-gold-soft: rgba(255, 255, 255, 0.06);
+      --p-blue: rgb(59, 130, 246);
+      --p-ok: #16a34a;
+      --p-warn: #eab308;
+      --p-danger: #dc2626;
+      --p-on: #ffffff;
+      --p-focus: 0 0 0 3px rgb(59 130 246 / 0.5);
+      --p-shadow: none;
+    }
+    body[data-theme="dark"] .win,
+    .win[data-theme="dark"] {
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+    }
+    body[data-theme="dark"] .wiz {
+      border-color: rgba(255, 255, 255, 0.1);
+      box-shadow: none;
+    }
+    body[data-theme="dark"] .win .titlebar,
+    body[data-theme="dark"] .win .footer,
+    .win[data-theme="dark"] .titlebar,
+    .win[data-theme="dark"] .footer {
+      background: var(--p-chrome);
+    }
+    body[data-theme="dark"] .win .rail,
+    .win[data-theme="dark"] .rail {
+      background: var(--p-paper);
+    }
+    body[data-theme="dark"] .win .main,
+    .win[data-theme="dark"] .main {
+      background: var(--p-bg);
+    }
+    body[data-theme="dark"] .selected-deck .panel,
+    .win[data-theme="dark"] .selected-deck .panel {
+      border-color: rgba(255, 255, 255, 0.2);
+      background: rgba(255, 255, 255, 0.03);
+      box-shadow: none;
+    }
+    body[data-theme="dark"] .selected-deck .module-icon,
+    .win[data-theme="dark"] .selected-deck .module-icon {
+      color: rgba(255, 255, 255, 0.85);
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    body[data-theme="dark"] .switch[aria-pressed="true"],
+    .win[data-theme="dark"] .switch[aria-pressed="true"] {
+      background: #ffffff;
+      border-color: #ffffff;
+    }
+    body[data-theme="dark"] .switch[aria-pressed="true"]::after,
+    .win[data-theme="dark"] .switch[aria-pressed="true"]::after {
+      background: #1f2228;
+    }
+    body[data-theme="dark"] .deck-tag,
+    .win[data-theme="dark"] .deck-tag {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    body[data-theme="dark"] .selected-deck .deck-tag,
+    .win[data-theme="dark"] .selected-deck .deck-tag {
+      background: rgba(255, 255, 255, 0.06);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    body[data-theme="dark"] select,
+    body[data-theme="dark"] input[type="text"],
+    body[data-theme="dark"] input[type="number"],
+    body[data-theme="dark"] input[type="password"],
+    body[data-theme="dark"] .dd-btn,
+    body[data-theme="dark"] .pick-row,
+    body[data-theme="dark"] .stepper,
+    .win[data-theme="dark"] select,
+    .win[data-theme="dark"] input[type="text"],
+    .win[data-theme="dark"] input[type="number"],
+    .win[data-theme="dark"] input[type="password"],
+    .win[data-theme="dark"] .dd-btn,
+    .win[data-theme="dark"] .pick-row,
+    .win[data-theme="dark"] .stepper {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    body[data-theme="dark"] .modal-layer,
+    .win[data-theme="dark"] .modal-layer {
+      background: rgba(0, 0, 0, 0.62);
+    }
+    body[data-theme="dark"] .drawer-backdrop,
+    .win[data-theme="dark"] .drawer-backdrop {
+      background: rgba(0, 0, 0, 0.5);
+    }
+    body[data-theme="dark"] .key-row,
+    .win[data-theme="dark"] .key-row { background: rgba(255, 255, 255, 0.05); }
+    body[data-theme="dark"] .key-row:focus-within,
+    .win[data-theme="dark"] .key-row:focus-within { background: rgba(255, 255, 255, 0.08); }
+    body[data-theme="dark"] .key-row input,
+    body[data-theme="dark"] .key-row input:focus,
+    .win[data-theme="dark"] .key-row input,
+    .win[data-theme="dark"] .key-row input:focus { background: transparent; }
+    body[data-theme="dark"] .dd-menu,
+    .win[data-theme="dark"] .dd-menu {
+      box-shadow: none;
+    }
+    body[data-theme="dark"] .ghost-btn.solid,
+    body[data-theme="dark"] .secondary,
+    .win[data-theme="dark"] .ghost-btn.solid,
+    .win[data-theme="dark"] .secondary {
+      background: #262930;
+    }
+    body[data-theme="dark"] .gold:hover,
+    body[data-theme="dark"] .primary:hover:not(.stop):not(:disabled),
+    .win[data-theme="dark"] .gold:hover,
+    .win[data-theme="dark"] .primary:hover:not(.stop):not(:disabled) {
+      background: rgba(255, 255, 255, 0.9);
+      border-color: rgba(255, 255, 255, 0.9);
+      color: #1f2228;
     }
     .win .pill {
       border-color: var(--p-line); color: var(--p-muted); background: var(--p-paper);
@@ -141,45 +251,39 @@
       border-color: color-mix(in srgb, var(--p-danger) 40%, var(--p-line));
     }
     .win button:focus-visible, .win select:focus-visible, .win input:focus-visible,
-    .wiz button:focus-visible, .game-run button:focus-visible { box-shadow: var(--p-focus); outline: none; }
+    .wiz button:focus-visible { box-shadow: var(--p-focus); outline: none; }
 
-    .logo-box, .hud-logo {
+    .logo-box {
       display: block; overflow: hidden; flex: 0 0 auto; background: oklch(0.22 0.05 255);
+      width: 26px; height: 26px; border-radius: 6px;
     }
-    .logo-box { width: 22px; height: 22px; border-radius: 5px; }
     .logo-box img {
-      width: 22px !important; height: 22px !important;
-      max-width: 22px !important; max-height: 22px !important;
-      object-fit: cover !important;
-    }
-    .hud-logo { width: 18px; height: 18px; border-radius: 4px; }
-    .hud-logo img {
-      width: 18px !important; height: 18px !important;
-      max-width: 18px !important; max-height: 18px !important;
+      width: 26px !important; height: 26px !important;
+      max-width: 26px !important; max-height: 26px !important;
       object-fit: cover !important;
     }
     .ico { display: inline-flex; overflow: hidden; border-radius: 4px; flex: 0 0 auto; background: oklch(0.22 0.04 280); }
     .ico img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
 
     .wiz {
-      width: 480px; padding: 0; overflow: hidden; background: var(--p-paper);
-      border: 1px solid var(--p-line); border-radius: 10px; display: flex; flex-direction: column;
+      width: min(560px, calc(100% - 32px)); padding: 0; overflow: hidden; background: var(--p-paper);
+      border: 1px solid var(--p-line); border-radius: 12px; display: flex; flex-direction: column;
       box-shadow: var(--p-shadow), 0 0 0 1px color-mix(in oklab, var(--p-paper) 70%, transparent) inset;
     }
-    .wiz-head { display: flex; align-items: flex-start; gap: 10px; padding: 18px 18px 15px; border-bottom: 1px solid var(--p-line); }
-    .wiz-mark { width: 30px; height: 30px; border-radius: 7px; overflow: hidden; flex: 0 0 auto; background: oklch(0.22 0.05 255); }
+    .wiz-head { display: flex; align-items: flex-start; gap: 14px; padding: 24px 24px 20px; border-bottom: 1px solid var(--p-line); }
+    .wiz-mark { width: 40px; height: 40px; border-radius: 8px; overflow: hidden; flex: 0 0 auto; background: oklch(0.22 0.05 255); }
     .wiz-mark img { width: 100%; height: 100%; object-fit: cover; }
     .wiz-copy { min-width: 0; }
-    .wiz-eyebrow { margin: 0 0 2px; color: var(--p-faint); font-size: 10px; line-height: 1.3; font-weight: 700; letter-spacing: .08em; }
-    .wiz-copy p:last-child { margin: 4px 0 0; color: var(--p-muted); font-size: 12px; line-height: 1.45; }
-    .wiz-body { display: flex; flex-direction: column; gap: 12px; padding: 15px 18px 18px; background: color-mix(in oklab, var(--p-bg) 86%, var(--p-paper)); }
+    .wiz-eyebrow { margin: 0 0 4px; color: var(--p-faint); font-size: 12px; line-height: 1.3; font-weight: 700; letter-spacing: .08em; }
+    .wiz-body { display: flex; flex-direction: column; gap: 16px; padding: 20px 24px 24px; background: color-mix(in oklab, var(--p-bg) 86%, var(--p-paper)); }
     .wiz .choice-list { padding-top: 0; border-top: 0; }
-    .wiz .wcard { min-height: 64px; background: var(--p-paper); }
-    .wiz h2 { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.35; }
+    .wiz .wcard { min-height: 76px; background: var(--p-paper); }
+    .wiz .wcard.solo { min-height: 58px; }
+    .wiz h2 { margin: 0; font-size: 22px; font-weight: 650; line-height: 1.3; }
     .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; }
     .seg button {
-      height: 32px; border: 0; border-right: 1px solid var(--p-line);
-      background: var(--p-paper); color: var(--p-muted); font-size: 13px; font-weight: 600;
+      height: 40px; border: 0; border-right: 1px solid var(--p-line);
+      background: var(--p-paper); color: var(--p-muted); font-size: 15px; font-weight: 600;
     }
     .seg button:last-child { border-right: 0; }
     .seg button[aria-pressed="true"] { background: var(--p-gold); color: var(--p-gold-ink); }
@@ -190,21 +294,23 @@
     }
     .choice-list { display: flex; flex-direction: column; gap: 6px; }
     .wcard, .mode-card {
-      width: 100%; text-align: left; padding: 10px 12px;
+      width: 100%; text-align: left; padding: 16px 18px;
       border: 1px solid var(--p-line); background: var(--p-paper);
       border-radius: var(--p-radius); display: grid;
-      grid-template-columns: 52px minmax(0, 1fr); column-gap: 10px; row-gap: 2px;
+      grid-template-columns: 64px minmax(0, 1fr); column-gap: 12px; row-gap: 4px;
       font-family: var(--p-font); color: var(--p-ink);
     }
-    .wcard.solo, .mode-row.solo .mode-card { grid-template-columns: minmax(0, 1fr); }
+    .wcard.solo, .mode-row.solo .mode-card {
+      grid-template-columns: minmax(0, 1fr); place-items: center; text-align: center;
+    }
     .wcard em, .mode-card em {
       grid-row: 1 / span 2; align-self: center; font-style: normal;
-      font-size: 11px; font-weight: 700; color: var(--p-faint);
+      font-size: 13px; font-weight: 700; color: var(--p-faint);
     }
     .wcard.solo em, .mode-row.solo .mode-card em { display: none; }
-    .wcard strong, .mode-card h2, .mode-card strong { grid-column: 2; margin: 0; font-size: 14px; font-weight: 650; line-height: 1.35; }
+    .wcard strong, .mode-card h2, .mode-card strong { grid-column: 2; margin: 0; font-size: 17px; font-weight: 650; line-height: 1.35; }
     .wcard.solo strong, .mode-row.solo .mode-card strong { grid-column: 1; }
-    .wcard span, .mode-card p { grid-column: 2; margin: 0; font-size: 12px; line-height: 1.5; color: var(--p-muted); font-weight: 400; }
+    .wcard span, .mode-card p { grid-column: 2; margin: 0; font-size: 14px; line-height: 1.5; color: var(--p-muted); font-weight: 400; }
     .wcard.solo span, .mode-row.solo .mode-card p { grid-column: 1; }
     .wcard:hover, .mode-card:hover { background: var(--p-fill); color: var(--p-ink); }
     .wcard[aria-pressed="true"], .mode-card[aria-pressed="true"] {
@@ -216,13 +322,13 @@
       background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper));
       color: var(--p-ink);
     }
-    .hint { margin: 0; color: var(--p-muted); font-size: 12px; line-height: 1.5; font-weight: 400; }
-    .wiz-nav { display: flex; gap: 10px; align-items: center; padding: 12px 18px; border-top: 1px solid var(--p-line); background: var(--p-paper); }
+    .hint { margin: 0; color: var(--p-muted); font-size: 14px; line-height: 1.55; font-weight: 400; }
+    .wiz-nav { display: flex; gap: 12px; align-items: center; padding: 16px 24px; border-top: 1px solid var(--p-line); background: var(--p-paper); }
     .sheet-nav { display: flex; gap: 10px; align-items: center; }
     .gold, .primary {
-      height: 36px; min-width: 96px; padding: 0 16px; border-radius: var(--p-radius);
+      height: 42px; min-width: 112px; padding: 0 18px; border-radius: var(--p-radius);
       border: 1px solid var(--p-gold); background: var(--p-gold); color: var(--p-gold-ink);
-      font-size: 13px; font-weight: 700; font-family: var(--p-font);
+      font-size: 15px; font-weight: 700; font-family: var(--p-font);
     }
     .gold:hover, .primary:hover {
       background: color-mix(in oklab, var(--p-gold) 86%, var(--p-paper));
@@ -231,36 +337,36 @@
     }
     .gold:active, .primary:active { transform: translateY(1px); }
     .secondary, .ghost-btn.solid {
-      height: 36px; padding: 0 12px; border-radius: var(--p-radius);
+      height: 42px; padding: 0 16px; border-radius: var(--p-radius);
       border: 1px solid var(--p-line); background: var(--p-paper); color: var(--p-ink);
-      font-weight: 600; font-family: var(--p-font);
+      font-size: 14px; font-weight: 600; font-family: var(--p-font);
     }
     .secondary:hover, .ghost-btn.solid:hover { background: var(--p-fill); color: var(--p-ink); }
 
     .win {
-      width: min(920px, 100%); height: 720px; background: var(--p-bg);
-      border: 1px solid var(--p-line); border-radius: 8px;
+      width: 100%; height: 100%; background: var(--p-bg);
+      border: none; border-radius: 0;
       overflow: hidden; display: flex; flex-direction: column;
-      box-shadow: var(--p-shadow); position: relative;
+      box-shadow: none; position: relative;
     }
     .titlebar {
-      height: 40px; flex: 0 0 40px; display: flex; align-items: center; gap: 8px;
-      padding: 0 8px 0 12px; overflow: hidden;
-      border-bottom: 1px solid var(--p-line); background: var(--p-paper);
+      height: 48px; flex: 0 0 48px; display: flex; align-items: center; gap: 10px;
+      padding: 0 10px 0 14px; overflow: hidden;
+      border-bottom: 1px solid var(--p-line); background: var(--p-chrome);
     }
-    .brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .brand h1 { margin: 0; font-size: 14px; font-weight: 700; text-wrap: balance; }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand h1 { margin: 0; font-size: 16px; font-weight: 700; text-wrap: balance; }
     .win h2, .win h3, .wiz h2 { text-wrap: balance; }
-    .ver { font-size: 11px; color: var(--p-faint); font-weight: 600; }
+    .ver { font-size: 12px; color: var(--p-faint); font-weight: 600; }
     .status-pill, .games {
-      font-size: 11px; font-weight: 600; color: var(--p-muted);
+      font-size: 12px; font-weight: 600; color: var(--p-muted);
       display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
     }
-    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--p-faint); }
+    .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--p-faint); }
     .games b { color: var(--p-ink); font-variant-numeric: tabular-nums; font-weight: 700; }
     .titlebar .grow { flex: 1; min-width: 8px; }
     .icon-btn, .win-btn {
-      height: 28px; min-width: 32px; padding: 0 8px; font-size: 12px; font-weight: 600;
+      height: 32px; min-width: 36px; padding: 0 10px; font-size: 13px; font-weight: 600;
       border: 0; background: transparent; color: var(--p-muted); border-radius: 4px;
     }
     .icon-btn:hover, .win-btn:hover { background: var(--p-fill); color: var(--p-ink); }
@@ -268,33 +374,68 @@
 
     .body, .hitch-page { display: none !important; flex: 1; min-height: 0; }
     body[data-scene="farm"] .body,
-    body[data-scene="lead"] .body { display: grid !important; grid-template-columns: 204px minmax(0, 1fr); }
+    body[data-scene="lead"] .body { display: grid !important; grid-template-columns: 248px minmax(0, 1fr); }
     body[data-scene="follow"] .hitch-page.follow,
     body[data-scene="hitch"] .hitch-page.hitch {
-      display: flex !important; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 12px;
-      padding: 28px 32px 20px;
+      display: flex !important; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 16px;
+      padding: 32px 36px 24px;
     }
     .hitch-page .ghost-btn.solid { width: auto; }
-    body[data-scene="wizard"] { background: oklch(0.955 0.008 250); padding: 10px; }
+    body[data-scene="wizard"] {
+      display: flex; width: 100%; height: 100%; min-height: 0;
+      background: oklch(0.955 0.008 250); padding: 0; overflow: hidden; place-items: stretch;
+    }
+    body[data-scene="wizard"] .wiz {
+      width: 100%; height: 100%; min-height: 0; flex: 1 1 auto;
+      --p-radius: 8px;
+      border: 1px solid var(--p-line); border-radius: 12px;
+      box-shadow: var(--p-shadow), 0 0 0 1px color-mix(in oklab, var(--p-paper) 70%, transparent) inset;
+    }
+    body[data-scene="wizard"] .wiz-head {
+      flex: 0 0 auto; padding: 16px 24px;
+    }
+    body[data-scene="wizard"] .wiz-body {
+      flex: 1 1 auto; min-height: 0; gap: 12px; padding: 16px 24px 18px; overflow: hidden;
+    }
+    body[data-scene="wizard"] .choice-list { gap: 10px; }
+    body[data-scene="wizard"] .wcard {
+      min-height: 72px; padding: 12px 16px;
+    }
+    body[data-scene="wizard"] .wcard.solo { min-height: 56px; }
+    body[data-scene="wizard"] .wiz-nav {
+      flex: 0 0 auto; padding: 12px 24px;
+    }
 
     .rail, .main { min-height: 0; overflow: auto; }
-    .rail { padding: 12px 12px 16px; border-right: 1px solid var(--p-line); background: var(--p-paper); }
-    .main { padding: 12px 14px 16px; display: grid; grid-template-columns: minmax(0, 1fr) 196px; gap: 16px; align-content: start; }
+    .rail { padding: 16px 16px 20px; border-right: 1px solid var(--p-line); background: var(--p-paper); }
+    .main { padding: 16px 18px 20px; display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 20px; align-content: start; }
     .main-workspace { min-width: 0; }
     .selected-deck { min-width: 0; padding-left: 14px; border-left: 1px solid var(--p-line); }
-    .selected-deck .panel { position: sticky; top: 0; padding: 12px; border: 1px solid color-mix(in oklab, var(--p-gold) 42%, var(--p-line)); border-radius: var(--p-radius); background: var(--p-gold-soft); box-shadow: 0 0 0 1px color-mix(in oklab, var(--p-paper) 72%, transparent) inset; }
+    .selected-deck .panel { position: sticky; top: 0; max-height: 100%; overflow: auto; padding: 14px 14px 16px; border: 1px solid color-mix(in oklab, var(--p-gold) 42%, var(--p-line)); border-radius: var(--p-radius); background: var(--p-gold-soft); box-shadow: 0 0 0 1px color-mix(in oklab, var(--p-paper) 72%, transparent) inset; }
     .selected-deck h3 { margin-bottom: 8px; }
-    .launch-ready { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; color: var(--p-ok); font-size: 11px; font-weight: 700; }
+    .launch-ready { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; color: var(--p-ok); font-size: 13px; font-weight: 700; }
     .launch-ready.is-blocked { color: var(--p-danger); }
     .launch-ready i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-    .launch-check + .launch-check { margin-top: 11px; padding-top: 11px; border-top: 1px solid var(--p-line); }
-    .launch-check h4 { margin: 0 0 6px; color: var(--p-muted); font-size: 11px; font-weight: 650; }
-    .launch-value { margin: 0; color: var(--p-ink); font-size: 12px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
-    .launch-skills { display: grid; gap: 5px; }
-    .launch-skill { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr); gap: 6px; align-items: center; min-height: 26px; }
+    .launch-facts { display: grid; margin: 0; }
+    .launch-facts > div { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 0; border-top: 1px solid color-mix(in oklab, var(--p-line) 80%, transparent); }
+    .block-icon {
+      width: 14px; height: 14px; display: inline-grid; place-items: center; flex: 0 0 auto; margin: 0;
+    }
+    .block-icon svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .launch-facts .block-icon, .launch-block .block-icon { color: var(--p-muted); }
+    .launch-facts dt { margin: 0; display: inline-flex; align-items: center; gap: 8px; color: var(--p-muted); font-size: 12px; font-weight: 650; }
+    .launch-facts dd { margin: 0; color: var(--p-ink); font-size: 13px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+    .launch-block { padding: 8px 0 0; margin-top: 2px; border-top: 1px solid color-mix(in oklab, var(--p-line) 80%, transparent); }
+    .launch-block h4, .bond-block h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 8px; color: var(--p-muted); font-size: 12px; font-weight: 650; }
+    .bond-block h4 { color: var(--p-ink); font-size: 13px; font-weight: 650; }
+    .launch-sub { margin: 6px 0 4px; color: var(--p-muted); font-size: 11px; font-weight: 650; letter-spacing: .02em; }
+    .launch-block h4 + .launch-sub { margin-top: 0; }
+    .launch-value { margin: 0; color: var(--p-ink); font-size: 13px; font-weight: 650; line-height: 1.5; overflow-wrap: anywhere; }
+    .launch-skills { display: grid; gap: 4px; }
+    .launch-skill { display: grid; grid-template-columns: 18px 22px minmax(0, 1fr); gap: 6px; align-items: center; min-height: 24px; }
     .launch-skill i { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--p-gold); color: var(--p-gold-ink); font-size: 10px; font-style: normal; font-weight: 800; }
     .launch-skill img { width: 22px; height: 22px; border-radius: 4px; object-fit: cover; }
-    .launch-skill b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--p-ink); font-size: 11px; font-weight: 650; }
+    .launch-skill b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--p-ink); font-size: 12px; font-weight: 650; }
     .deck-group + .deck-group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--p-line); }
     .deck-group h4 { margin: 0 0 7px; color: var(--p-muted); font-size: 11px; font-weight: 650; }
     .deck-tags { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -307,8 +448,8 @@
     .main .bond-config h3 { margin-bottom: 8px; }
     .panel { background: transparent; border: 0; border-radius: 0; padding: 0; }
     .panel + .panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--p-line); }
-    .panel h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 650; color: var(--p-ink); letter-spacing: 0; }
-    .module-icon { width: 18px; height: 18px; display: inline-grid; place-items: center; flex: 0 0 auto; border: 1px solid var(--p-line); border-radius: 5px; background: var(--p-fill); color: var(--p-faint); }
+    .panel h3 { margin: 0 0 10px; display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 650; color: var(--p-ink); letter-spacing: 0; line-height: 1.3; }
+    .module-icon { width: 18px; height: 18px; display: inline-grid; place-items: center; flex: 0 0 auto; margin: 0; border: 1px solid var(--p-line); border-radius: 5px; background: var(--p-fill); color: var(--p-faint); }
     .module-icon svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
     .selected-deck .module-icon { color: var(--p-gold-ink); background: color-mix(in oklab, var(--p-gold) 20%, var(--p-paper)); border-color: color-mix(in oklab, var(--p-gold) 42%, var(--p-line)); }
     .field { display: grid; gap: 4px; margin-bottom: 8px; }
@@ -317,9 +458,9 @@
     .row > * { min-width: 0; }
     .grow { flex: 1; }
     select, input[type="text"], input[type="number"], .dd-btn, .pick-row {
-      width: 100%; height: 32px; border-radius: var(--p-radius);
+      width: 100%; height: 36px; border-radius: var(--p-radius);
       border: 1px solid var(--p-line); background: var(--p-bg);
-      padding: 0 10px; font-size: 13px; font-family: var(--p-font); color: var(--p-ink);
+      padding: 0 12px; font-size: 14px; font-family: var(--p-font); color: var(--p-ink);
     }
     input::placeholder { color: var(--p-faint); }
     .dd { position: relative; }
@@ -332,22 +473,23 @@
       background: var(--p-paper); border: 1px solid var(--p-line); border-radius: var(--p-radius);
       box-shadow: 0 10px 28px color-mix(in oklab, var(--p-ink) 16%, transparent);
     }
+    .dd.open { z-index: 8; }
     .dd.open .dd-menu { display: block; }
     .dd-menu button {
-      width: 100%; height: 30px; border: 0; background: transparent; color: var(--p-ink);
-      text-align: left; padding: 0 10px; font-size: 12px; font-weight: 600;
+      width: 100%; height: 36px; border: 0; background: transparent; color: var(--p-ink);
+      text-align: left; padding: 0 12px; font-size: 13px; font-weight: 600;
     }
     .dd-menu button:hover, .dd-menu button[aria-selected="true"] { background: var(--p-gold-soft); color: var(--p-ink); }
-    .stepper { display: flex; height: 32px; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; background: var(--p-bg); }
-    .stepper button { width: 28px; border: 0; background: var(--p-fill); color: var(--p-ink); }
+    .stepper { display: flex; height: 36px; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; background: var(--p-bg); }
+    .stepper button { width: 32px; border: 0; background: var(--p-fill); color: var(--p-ink); }
     .stepper button:hover { background: var(--p-gold-soft); }
     .stepper output, .stepper input {
-      flex: 1; min-width: 0; width: 0; height: 32px; border: 0; background: transparent;
-      padding: 0; text-align: center; font-size: 12px; font-weight: 700;
+      flex: 1; min-width: 0; width: 0; height: 36px; border: 0; background: transparent;
+      padding: 0; text-align: center; font-size: 13px; font-weight: 700;
       font-variant-numeric: tabular-nums; color: inherit; border-radius: 0;
     }
     .stepper input:focus { outline: none; background: var(--p-gold-soft); }
-    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; font-size: 13px; }
+    .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; font-size: 14px; }
     .switch {
       width: 36px; height: 20px; border-radius: 99px; border: 1px solid var(--p-line);
       background: var(--p-bg); position: relative; flex: 0 0 36px; padding: 0;
@@ -370,15 +512,15 @@
       border: 2px solid var(--p-gold); background: oklch(0.22 0.04 255);
     }
     .rep-art img { width: 100% !important; height: 100% !important; object-fit: cover; object-position: center; }
-    .rep-item b { display: block; font-size: 11px; font-weight: 700; line-height: 1.3; }
-    .rep-fx { display: block; font-size: 10px; color: var(--p-muted); line-height: 1.35; }
+    .rep-item b { display: block; font-size: 12px; font-weight: 700; line-height: 1.3; }
+    .rep-fx { display: block; font-size: 11px; color: var(--p-muted); line-height: 1.35; }
     .rep-foot { display: flex; align-items: center; gap: 8px; min-width: 0; }
     .rep-foot .stats { flex: 1; min-width: 0; margin: 0; font-size: 11px; color: var(--p-muted); line-height: 1.4; }
     .rep-foot .stats b { color: var(--p-ink); font-variant-numeric: tabular-nums; }
     .text-btn {
-      height: 24px; padding: 0 8px; border-radius: 4px; flex: 0 0 auto;
+      height: 28px; padding: 0 10px; border-radius: 4px; flex: 0 0 auto;
       border: 1px solid var(--p-line); background: var(--p-paper); color: var(--p-ink);
-      font-size: 11px; font-weight: 650; font-family: var(--p-font);
+      font-size: 12px; font-weight: 650; font-family: var(--p-font);
     }
     .text-btn:hover { background: var(--p-fill); color: var(--p-ink); }
     .pick-row {
@@ -386,25 +528,25 @@
       font-family: var(--p-font); font-weight: 600; background: var(--p-bg);
     }
     .pick-row:hover { background: var(--p-fill); color: var(--p-ink); }
-    .pick-row .k { color: var(--p-muted); font-size: 12px; flex: 0 0 52px; font-weight: 600; }
-    .pick-row strong { flex: 1; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pick-row i { font-style: normal; font-size: 11px; color: var(--p-faint); }
+    .pick-row .k { color: var(--p-muted); font-size: 13px; flex: 0 0 56px; font-weight: 600; }
+    .pick-row strong { flex: 1; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pick-row i { font-style: normal; font-size: 12px; color: var(--p-faint); }
     .lead-box { display: none; }
     body[data-scene="lead"] .lead-box { display: block; }
-    .skill-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+    .skill-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .skill-head h3 { margin: 0; }
     .skill-head .hint { margin-left: auto; }
     .builds { display: flex; flex-direction: column; }
     .build {
-      width: 100%; text-align: left; padding: 6px 8px; border: 0; border-bottom: 1px solid var(--p-line);
+      width: 100%; text-align: left; padding: 10px 8px; border: 0; border-bottom: 1px solid var(--p-line);
       background: transparent; border-radius: 0; font-family: var(--p-font); color: var(--p-ink);
-      display: grid; grid-template-columns: 88px auto; align-items: center; gap: 8px;
+      display: grid; grid-template-columns: 96px auto; align-items: center; gap: 10px;
     }
     .build:last-child { border-bottom: 0; }
     .build:hover { background: var(--p-fill); color: var(--p-ink); }
     .build[aria-pressed="true"] { background: var(--p-gold-soft); }
     .build[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); color: var(--p-ink); }
-    .build strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+    .build strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
     .build.custom-card {
       grid-template-columns: 64px minmax(0, 1fr);
       align-items: center; padding: 6px 8px; gap: 10px;
@@ -424,7 +566,7 @@
       gap: 8px; min-width: 0; justify-content: start;
     }
     .sk { display: flex; align-items: center; position: relative; }
-    .sk .ico, .slot { width: 22px; height: 22px; flex: 0 0 22px; }
+    .sk .ico, .slot { width: 26px; height: 26px; flex: 0 0 26px; }
     .custom-card .sk,
     .custom-card button.sk.unpick,
     .custom-card .slot {
@@ -435,7 +577,7 @@
     }
     .slot { border: 1px dashed var(--p-line); border-radius: 4px; background: var(--p-bg); }
     button.sk.unpick {
-      width: 22px; height: 22px; padding: 0; border: 0; background: transparent;
+      width: 26px; height: 26px; padding: 0; border: 0; background: transparent;
       border-radius: 4px; cursor: pointer;
     }
     button.sk.unpick:hover { outline: 2px solid var(--p-danger); outline-offset: 1px; }
@@ -445,15 +587,15 @@
       color: var(--p-on); font-size: 13px; font-weight: 800; border-radius: 4px;
     }
     .add-custom, .ghost-btn {
-      height: 32px; border-radius: var(--p-radius); border: 1px dashed var(--p-line);
-      background: transparent; color: var(--p-muted); font-size: 13px; font-weight: 600;
+      height: 40px; border-radius: var(--p-radius); border: 1px dashed var(--p-line);
+      background: transparent; color: var(--p-muted); font-size: 14px; font-weight: 600;
     }
-    .add-custom { width: 100%; margin-top: 6px; }
+    .add-custom { width: 100%; margin-top: 8px; }
     .add-custom:hover { background: var(--p-fill); color: var(--p-ink); }
-    .ghost-btn.solid { border-style: solid; height: 32px; padding: 0 12px; color: var(--p-ink); background: var(--p-paper); }
+    .ghost-btn.solid { border-style: solid; height: 42px; padding: 0 16px; color: var(--p-ink); background: var(--p-paper); }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; }
     .chip {
-      height: 24px; padding: 0 8px; font-size: 11px; border-radius: 4px;
+      height: 28px; padding: 0 10px; font-size: 12px; border-radius: 4px;
       border: 1px solid var(--p-line); background: var(--p-paper); color: var(--p-ink);
       font-family: var(--p-font); font-weight: 600;
     }
@@ -463,12 +605,12 @@
     .skill-grid { display: none; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
     .skill-grid.show { display: grid; }
     .skill-cell {
-      display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 8px;
-      font-size: 12px; font-family: var(--p-font); font-weight: 600; min-width: 0;
+      display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px;
+      font-size: 13px; font-family: var(--p-font); font-weight: 600; min-width: 0;
       border: 1px solid var(--p-line); background: var(--p-paper); border-radius: var(--p-radius); color: var(--p-ink);
     }
     .skill-cell:hover { background: var(--p-fill); color: var(--p-ink); }
-    .skill-cell .ico { width: 18px; height: 18px; }
+    .skill-cell .ico { width: 22px; height: 22px; }
     .skill-cell[aria-pressed="true"] { border-color: var(--p-gold); background: var(--p-gold-soft); }
     .skill-cell[aria-pressed="true"]:hover { background: color-mix(in oklab, var(--p-gold) 18%, var(--p-paper)); color: var(--p-ink); }
     .skill-cell[aria-pressed="true"]::after {
@@ -477,15 +619,16 @@
     .skill-cell[aria-pressed="true"]:hover::after { color: var(--p-danger); }
     .skill-cell.is-dim { opacity: 0.38; }
     .skill-rank { display: none; flex-direction: column; gap: 6px; margin-top: 10px; }
-    .skill-rank.show { display: flex; }
+    .skill-rank.show, .skill-rank:not(:empty) { display: flex; }
+    .builds:empty, #bonds:empty, #selectedDeck:empty { min-height: 48px; }
     .priority-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 3px 8px; }
-    .priority-head b { font-size: 12px; font-weight: 650; }
+    .priority-head b { font-size: 13px; font-weight: 650; }
     .priority-head .hint { margin: 0; }
     .rank-list { display: flex; flex-direction: column; }
     .rank-card {
-      display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) 132px 14px;
-      gap: 6px; align-items: center; min-height: 40px; touch-action: none;
-      padding: 4px 2px; border: 0; border-bottom: 1px solid var(--p-line);
+      display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) minmax(112px, 132px) 44px;
+      gap: 6px; align-items: center; min-height: 48px; touch-action: none;
+      padding: 6px 2px; border: 0; border-bottom: 1px solid var(--p-line);
       background: transparent; border-radius: 0; font-family: var(--p-font); color: var(--p-ink);
     }
     .rank-card:last-child { border-bottom: 0; }
@@ -502,74 +645,116 @@
     .rank-card.is-carry .rank-no { background: var(--p-gold); color: var(--p-gold-ink); }
     .rank-card .ico { width: 28px; height: 28px; border-radius: 5px; }
     .rank-card .name { min-width: 0; }
-    .rank-card .name b { display: block; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .rank-card .name span { display: block; font-size: 10px; color: var(--p-muted); }
+    .rank-card .name b { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank-card .name span { display: block; font-size: 11px; color: var(--p-muted); }
     .rank-card select {
-      height: 28px; width: 132px; font-size: 11px; padding: 0 4px;
+      grid-column: 4; grid-row: 1; width: 100%; min-width: 0;
+      height: 32px; font-size: 12px; padding: 0 6px;
       border: 1px solid var(--p-line); background: var(--p-bg); border-radius: 4px; color: var(--p-ink);
     }
-    .grip { color: var(--p-faint); font-size: 11px; letter-spacing: 0.12em; }
-    .bond-block { margin-top: 8px; }
+    .rank-card .rank-move { display: flex; grid-column: 5; grid-row: 1; gap: 2px; width: 44px; }
+    .rank-card .grip { display: none; }
+    .rank-card .rank-move button {
+      width: 21px; min-height: 26px; border: 1px solid var(--p-line); background: var(--p-fill);
+      color: var(--p-ink); border-radius: 3px; padding: 0; font-size: 9px; line-height: 1;
+    }
+    .rank-card .rank-move button:hover { background: var(--p-gold-soft); color: var(--p-ink); }
+    .rank-card .rank-move button:disabled, .rank-card .rank-move button:disabled:hover {
+      opacity: 0.4; cursor: not-allowed; background: var(--p-fill); color: var(--p-faint);
+    }
+    .bond-block { margin-top: 10px; }
     .bond-block:first-child { margin-top: 0; }
-    .bond-block h4 { margin: 0 0 6px; font-size: 12px; font-weight: 650; color: var(--p-ink); }
+    .bond-block h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 650; color: var(--p-ink); }
+    .bond-locked {
+      display: flex; flex-wrap: wrap; gap: 5px;
+      padding: 8px; border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg);
+    }
     .bond-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--p-line); }
     .bond-actions .hint { margin: 0; }
-    .bond-actions .gold { margin-left: auto; min-height: 30px; white-space: nowrap; }
-    .adv-order { display: flex; flex-direction: column; margin-top: 8px; border-top: 1px solid var(--p-line); }
-    .adv-rank {
-      display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center;
-      min-height: 34px; border-bottom: 1px solid var(--p-line);
+    .bond-actions .gold, .bond-actions .secondary { margin-left: auto; min-height: 42px; white-space: nowrap; }
+    .adv-priority {
+      display: block; margin-top: 8px;
     }
-    .adv-rank b { min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .adv-rank span { font-size: 11px; color: var(--p-muted); }
-    .adv-rank .rank-no { width: 20px; height: 20px; }
+    .adv-priority-label { padding-top: 9px; color: var(--p-muted); font-size: 12px; font-weight: 650; line-height: 1; }
+    .adv-priority-list { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .adv-priority-row { display: grid; grid-template-columns: minmax(0, 1fr) 22px; gap: 6px; align-items: stretch; }
+    .adv-combo-wrap { position: relative; min-width: 0; }
+    .adv-combo.dd-btn {
+      display: grid; grid-template-columns: 20px minmax(0, 1fr) auto 10px;
+      align-items: center; gap: 6px; height: 36px; min-width: 0; padding: 0 8px 0 6px;
+      border: 1px solid var(--p-line); border-radius: 4px; background: var(--p-bg); color: var(--p-ink);
+      transition: border-color 160ms var(--ease-standard), background 160ms var(--ease-standard);
+    }
+    .adv-combo.dd-btn:hover { background: var(--p-fill); color: var(--p-ink); }
+    .adv-combo-wrap.open .adv-combo { border-color: color-mix(in oklab, var(--p-gold) 55%, var(--p-line)); background: var(--p-paper); }
+    .adv-combo .rank-no { width: 18px; height: 18px; font-size: 10px; }
+    .adv-combo b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 650; }
+    .adv-combo em { font-style: normal; color: var(--p-muted); font-size: 12px; font-weight: 500; white-space: nowrap; }
+    .adv-combo i { font-style: normal; color: var(--p-faint); font-size: 10px; }
+    .adv-combo-wrap .dd-menu { top: calc(100% + 3px); }
+    .adv-step {
+      display: grid; grid-template-rows: 1fr 1fr; width: 22px;
+      border: 1px solid var(--p-line); border-radius: 4px; overflow: hidden; background: var(--p-paper);
+    }
+    .adv-step button {
+      width: 22px; height: 15px; padding: 0; border: 0; border-radius: 0;
+      background: var(--p-paper); color: var(--p-muted); font-size: 8px; line-height: 1;
+    }
+    .adv-step button + button { border-top: 1px solid var(--p-line); }
+    .adv-step button:hover { background: var(--p-fill); color: var(--p-ink); }
+    .adv-step button:disabled, .adv-step button:disabled:hover { opacity: 0.35; background: var(--p-paper); color: var(--p-faint); cursor: not-allowed; }
     .rank-move { display: flex; gap: 4px; }
     .rank-move button { width: 28px; height: 26px; padding: 0; }
-    .hitch-page h2 { margin: 0; font-size: 22px; font-weight: 650; line-height: 1.3; letter-spacing: -0.02em; }
-    .hitch-page p { margin: 0; color: var(--p-muted); font-size: 13px; line-height: 1.6; max-width: 52ch; }
+    .hitch-page h2 { margin: 0; font-size: 24px; font-weight: 700; line-height: 1.3; letter-spacing: 0; }
+    .hitch-page p { margin: 0; color: var(--p-muted); font-size: 15px; line-height: 1.6; max-width: none; }
     .team-rules {
       width: 100%; margin-top: 2px; padding: 18px 0 16px;
       border-top: 1px solid var(--p-line); border-bottom: 1px solid var(--p-line);
     }
     .team-rules-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-    .team-rules-head h3 { margin: 0; font-size: 13px; line-height: 1.4; font-weight: 650; }
-    .team-rules-state { font-size: 11px; color: var(--p-muted); white-space: nowrap; }
+    .team-rules-head h3 { margin: 0; font-size: 15px; line-height: 1.4; font-weight: 650; }
+    .team-rules-state { font-size: 12px; color: var(--p-muted); white-space: nowrap; }
     .team-rules-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(240px, 1.2fr); gap: 16px; align-items: end; }
     .team-rules .field { margin: 0; }
     .team-rules .stepper, .team-rules select { height: 40px; }
     .team-route { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 18px; border: 1px solid var(--p-line); border-radius: var(--p-radius); overflow: hidden; }
     .team-route span { min-width: 0; padding: 12px 14px; background: var(--p-paper); border-right: 1px solid var(--p-line); }
     .team-route span:last-child { border-right: 0; }
-    .team-route small { display: block; margin-bottom: 3px; font: 600 10px/1.3 var(--p-mono); color: var(--p-faint); letter-spacing: .06em; }
-    .team-route b { display: block; font-size: 12px; line-height: 1.45; font-weight: 650; color: var(--p-ink); }
+    .team-route small { display: block; margin-bottom: 3px; font: 600 11px/1.3 var(--p-mono); color: var(--p-faint); letter-spacing: .06em; }
+    .team-route b { display: block; font-size: 14px; line-height: 1.45; font-weight: 650; color: var(--p-ink); }
     .team-pair { display: grid; grid-template-columns: minmax(0, 1fr) 190px auto; gap: 10px; align-items: end; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--p-line); }
-    .team-pair-copy strong { display: block; font-size: 12px; line-height: 1.4; }
-    .team-pair-copy span { display: block; margin-top: 3px; color: var(--p-muted); font-size: 11px; line-height: 1.5; }
+    .team-pair-copy strong { display: block; font-size: 13px; line-height: 1.4; }
+    .team-pair-copy span { display: block; margin-top: 3px; color: var(--p-muted); font-size: 12px; line-height: 1.5; }
     .team-pair .field { margin: 0; }
     .team-pair .secondary { min-height: 40px; white-space: nowrap; }
     .team-boundary { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--p-line); }
-    .team-boundary strong { flex: 0 0 auto; font-size: 12px; }
-    .team-boundary span { color: var(--p-muted); font-size: 11px; line-height: 1.5; text-align: right; }
+    .team-boundary strong { flex: 0 0 auto; font-size: 13px; }
+    .team-boundary span { color: var(--p-muted); font-size: 12px; line-height: 1.5; text-align: right; }
     .hitch-spec {
       display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px 16px;
-      margin: 4px 0 8px; max-width: 56ch; padding: 10px 0;
+      margin: 4px 0 8px; max-width: none; padding: 10px 0;
       border-top: 1px solid var(--p-line); border-bottom: 1px solid var(--p-line);
     }
     .hitch-spec dt { margin: 0; font-size: 12px; font-weight: 650; color: var(--p-muted); }
     .hitch-spec dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--p-ink); }
+    .hitch-config-head { align-items: center; }
+    .hitch-config-head .secondary { height: 34px; white-space: nowrap; }
+    .hitch-boss-grid { align-items: stretch; }
+    .hitch-boss-grid .pick-row { margin: 0; min-height: 64px; }
     .footer {
-      display: none !important; flex: 0 0 48px; height: 48px; align-items: center; gap: 8px;
-      padding: 0 10px; border-top: 1px solid var(--p-line); background: var(--p-paper);
+      display: none !important; flex: 0 0 56px; height: 56px; align-items: center; gap: 10px;
+      padding: 0 14px; border-top: 1px solid var(--p-line); background: var(--p-chrome);
+      position: relative; z-index: 5;
     }
     body[data-scene="farm"] .footer,
     body[data-scene="lead"] .footer,
     body[data-scene="follow"] .footer,
     body[data-scene="hitch"] .footer { display: flex !important; }
-    .summary { flex: 1; min-width: 0; font-size: 12px; color: var(--p-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .lamp { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--p-ok); white-space: nowrap; }
+    .lamp { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--p-ok); white-space: nowrap; }
     .lamp .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .lamp.pending { color: var(--p-warn); }
     .lamp.bad { color: var(--p-danger); }
-    .primary { min-width: 120px; height: 36px; }
+    .primary { min-width: 128px; height: 42px; }
     .primary.stop { background: var(--p-danger); border-color: var(--p-danger); color: var(--p-on); }
     .primary.stop:hover {
       background: color-mix(in oklab, var(--p-danger) 88%, var(--p-paper));
@@ -580,9 +765,9 @@
       background: var(--p-fill); color: var(--p-faint); border-color: var(--p-line); cursor: not-allowed; filter: none;
     }
     .drawer {
-      position: absolute; inset: 40px 0 48px auto; width: 320px; background: var(--p-bg);
+      position: absolute; inset: 48px 0 56px auto; width: 320px; background: var(--p-bg);
       border-left: 1px solid var(--p-line); transform: translateX(104%);
-      transition: transform 200ms var(--ease-standard); padding: 14px; overflow: auto; z-index: 8;
+      transition: transform 200ms var(--ease-standard); padding: 16px; overflow: auto; z-index: 8;
     }
     .drawer.open { transform: translateX(0); }
     .drawer h3 { margin: 0 0 10px; font-size: 15px; }
@@ -599,13 +784,13 @@
     .neg-item .fx { display: block; margin-top: 2px; font-size: 11px; color: var(--p-muted); line-height: 1.45; font-weight: 500; }
     .neg-item .why { display: block; margin-top: 3px; font-size: 11px; color: var(--p-danger); line-height: 1.4; font-weight: 650; }
     .toast {
-      position: absolute; right: 16px; bottom: 60px; background: var(--p-paper);
+      position: absolute; right: 16px; bottom: 68px; background: var(--p-paper);
       border: 1px solid var(--p-line); color: var(--p-ink); padding: 8px 12px; border-radius: var(--p-radius);
       font-size: 12px; font-weight: 600; opacity: 0; pointer-events: none; z-index: 9;
     }
     .toast.show { opacity: 1; }
     .modal-layer {
-      display: none; position: absolute; inset: 40px 0 48px 0; z-index: 18;
+      display: none; position: absolute; inset: 48px 0 56px 0; z-index: 18;
       align-items: center; justify-content: center;
       background: color-mix(in oklab, var(--p-ink) 36%, transparent); padding: 10px;
     }
@@ -616,6 +801,75 @@
       padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 10px; color: var(--p-ink);
     }
     .sheet.pick { width: min(560px, 100%); }
+    .sheet.subscription { width: min(420px, 100%); padding: 0; overflow: hidden; background: var(--p-paper); }
+    .subscription-head { padding: 18px 20px 14px; border-bottom: 1px solid var(--p-line); background: var(--p-paper); }
+    .subscription-kicker { margin: 0 0 6px; font-size: 12px; font-weight: 650; letter-spacing: 0; color: var(--p-muted); }
+    .subscription-head h2 { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; color: var(--p-ink); }
+    .subscription-now {
+      margin: 10px 0 0; display: inline-flex; align-items: center; gap: 6px;
+      height: 24px; padding: 0 9px; width: fit-content; max-width: 100%;
+      border-radius: 999px; border: 1px solid var(--p-line);
+      color: var(--p-muted); font-size: 12px; font-weight: 650; line-height: 1;
+    }
+    .subscription-now i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+    .subscription-now.is-ok {
+      color: var(--p-ok);
+      border-color: color-mix(in srgb, var(--p-ok) 38%, var(--p-line));
+      background: color-mix(in srgb, var(--p-ok) 12%, var(--p-paper));
+    }
+    .subscription-now.is-warn {
+      color: var(--p-warn);
+      border-color: color-mix(in srgb, var(--p-warn) 40%, var(--p-line));
+      background: color-mix(in srgb, var(--p-warn) 12%, var(--p-paper));
+    }
+    .subscription-now.is-bad {
+      color: var(--p-danger);
+      border-color: color-mix(in srgb, var(--p-danger) 40%, var(--p-line));
+      background: color-mix(in srgb, var(--p-danger) 12%, var(--p-paper));
+    }
+    .subscription-body { padding: 16px 20px 10px; display: grid; gap: 8px; }
+    .subscription-body label { display: grid; gap: 8px; font-size: 12px; font-weight: 650; color: var(--p-muted); }
+    .key-row {
+      display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch;
+      border: 1px solid var(--p-line); border-radius: var(--p-radius); background: var(--p-bg); overflow: hidden;
+    }
+    .key-row:focus-within { border-color: color-mix(in oklab, var(--p-gold) 55%, var(--p-line)); background: var(--p-paper); }
+    .key-row.is-invalid { border-color: var(--p-danger); }
+    .subscription-body input {
+      width: 100%; box-sizing: border-box; min-height: 40px; padding: 0 12px;
+      border: 0; border-radius: 0; background: transparent; color: var(--p-ink);
+      font: 500 14px/1.4 var(--p-font); letter-spacing: 0;
+    }
+    .subscription-body input:focus { outline: none; box-shadow: none; background: transparent; }
+    .subscription-body input.is-invalid { border-color: transparent; }
+    .key-toggle {
+      height: auto; min-width: 64px; padding: 0 12px;
+      border: 0; border-left: 1px solid var(--p-line); border-radius: 0;
+      background: transparent; color: var(--p-muted); font-size: 13px; font-weight: 650;
+    }
+    .key-toggle:hover { background: var(--p-fill); color: var(--p-ink); }
+    .key-toggle[aria-pressed="true"] { color: var(--p-ink); }
+    .subscription-err {
+      display: none; margin: 0; color: var(--p-danger); font-size: 12px; font-weight: 650; line-height: 1.45;
+    }
+    .subscription-err.show { display: block; }
+    .subscription-body small { display: block; margin: 0; color: var(--p-muted); font-size: 12px; line-height: 1.5; font-weight: 400; }
+    .subscription-nav { display: flex; align-items: center; gap: 8px; padding: 12px 20px 16px; border-top: 1px solid var(--p-line); }
+    .subscription-nav .secondary, .subscription-nav .gold { height: 36px; min-width: 96px; font-size: 13px; }
+    .subscription-pill {
+      display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px;
+      flex: 0 0 auto; border-radius: 999px; border: 1px solid var(--p-line); background: var(--p-paper);
+      color: var(--p-muted); font-size: 12px; font-weight: 650; font-family: var(--p-font);
+    }
+    .subscription-pill:hover { background: var(--p-fill); color: var(--p-ink); }
+    .subscription-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .subscription-pill[data-state="ok"] { color: var(--p-ok); border-color: color-mix(in oklab, var(--p-ok) 38%, var(--p-line)); background: color-mix(in oklab, var(--p-ok) 10%, var(--p-paper)); }
+    .subscription-pill[data-state="ok"]:hover { background: color-mix(in oklab, var(--p-ok) 16%, var(--p-paper)); color: var(--p-ok); }
+    .subscription-pill[data-state="warn"] { color: var(--p-warn); border-color: color-mix(in srgb, var(--p-warn) 42%, var(--p-line)); background: color-mix(in srgb, var(--p-warn) 12%, var(--p-paper)); }
+    .subscription-pill[data-state="warn"]:hover { background: color-mix(in srgb, var(--p-warn) 18%, var(--p-paper)); }
+    .subscription-pill[data-state="bad"] { color: var(--p-danger); border-color: color-mix(in oklab, var(--p-danger) 42%, var(--p-line)); background: color-mix(in oklab, var(--p-danger) 10%, var(--p-paper)); }
+    .subscription-pill[data-state="bad"]:hover { background: color-mix(in oklab, var(--p-danger) 16%, var(--p-paper)); color: var(--p-danger); }
+
     .sheet-head { display: flex; align-items: center; gap: 10px; }
     .sheet-head h2 { margin: 0; font-size: 15px; line-height: 1.35; }
     .sheet-cap { margin-left: auto; font-size: 11px; color: var(--p-muted); }
@@ -749,7 +1003,7 @@
       to { opacity: 1; }
     }
     .empty {
-      margin: 0; padding: 8px 0 2px; font-size: 12px; line-height: 1.5;
+      margin: 0; padding: 10px 0 2px; font-size: 13px; line-height: 1.5;
       color: var(--p-muted); font-weight: 400;
     }
     .empty b, .empty strong { color: var(--p-ink); font-weight: 650; }
@@ -759,7 +1013,7 @@
       background: var(--p-fill); color: var(--p-muted);
     }
     .err-inline {
-      display: none; margin: 0 8px 0 0; font-size: 12px; font-weight: 650;
+      display: none; margin: 0 8px 0 0; font-size: 13px; font-weight: 650;
       color: var(--p-danger); white-space: nowrap;
     }
     .err-inline.show {
@@ -768,7 +1022,7 @@
       border-radius: 4px; background: color-mix(in oklab, var(--p-danger) 8%, var(--p-paper));
     }
     .load-bar {
-      display: none; position: absolute; left: 0; right: 0; bottom: 48px; height: 2px;
+      display: none; position: absolute; left: 0; right: 0; bottom: 56px; height: 2px;
       background: var(--p-line); overflow: hidden; z-index: 6;
     }
     .load-bar.show { display: block; }
@@ -781,7 +1035,7 @@
       to { transform: translateX(320%); }
     }
     .drawer-backdrop {
-      display: none; position: absolute; inset: 40px 0 48px 0;
+      display: none; position: absolute; inset: 48px 0 56px 0;
       background: color-mix(in oklab, var(--p-ink) 28%, transparent); z-index: 7;
     }
     .drawer-backdrop.open { display: block; }
@@ -801,40 +1055,22 @@
     }
     .chip, .text-btn, .dd-menu button, .skill-cell { min-height: 28px; }
     .mini-step button { width: 24px; height: 24px; }
-    .rank-card {
-      grid-template-columns: 22px 28px minmax(0, 1fr) minmax(112px, 132px) 44px;
-      min-height: 48px;
-    }
-    .rank-card select { grid-column: 4; grid-row: 1; width: 100%; min-width: 0; }
-    .rank-card .rank-move { display: flex; grid-column: 5; grid-row: 1; gap: 2px; width: 44px; }
-    .rank-card .grip { display: none; }
-    .rank-card .rank-move button {
-      width: 21px; min-height: 26px; border: 1px solid var(--p-line); background: var(--p-fill);
-      color: var(--p-ink); border-radius: 3px; padding: 0; font-size: 9px; line-height: 1;
-    }
-    .rank-card .rank-move button:hover { background: var(--p-gold-soft); color: var(--p-ink); }
-    .rank-card .rank-move button:disabled, .rank-card .rank-move button:disabled:hover {
-      opacity: 0.4; cursor: not-allowed; background: var(--p-fill); color: var(--p-faint);
-    }
     button:disabled { cursor: not-allowed; }
     .secondary:disabled, .ghost-btn:disabled, .chip:disabled,
     .skill-cell:disabled, .dd-btn:disabled, .text-btn:disabled {
       background: var(--p-fill); color: var(--p-faint); border-color: var(--p-line);
       opacity: .62; transform: none;
     }
-    .hitch-page { max-width: none; }
-    .hitch-page h2 { font-size: 18px; font-weight: 700; letter-spacing: 0; }
-    .hitch-page p { max-width: none; }
-    .hitch-spec { max-width: none; }
     .panel h3 { letter-spacing: 0; }
     .skill-hint {
-      margin: 6px 0 0; font-size: 12px; line-height: 1.45; color: var(--p-muted);
+      margin: 8px 0 0; font-size: 13px; line-height: 1.5; color: var(--p-muted);
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
-    .footer .primary { min-height: 36px; }
+    .footer .primary { min-height: 42px; }
     .dd-menu { overscroll-behavior: contain; }
     .secondary:active, .ghost-btn.solid:active { transform: translateY(1px); }
-    .gold:disabled, .gold:disabled:hover {
+    .gold:disabled, .gold:disabled:hover,
+    .primary:disabled, .primary:disabled:hover {
       background: var(--p-fill); color: var(--p-faint); border-color: var(--p-line); cursor: not-allowed; transform: none;
     }
     .win[aria-busy="true"] .body, .win[aria-busy="true"] .hitch-page { pointer-events: none; opacity: 0.72; }
@@ -857,30 +1093,36 @@
       .dd-menu button:active { transform: none; }
     }
     @media (max-width: 860px) {
-      .win { width: min(740px, 100%); height: auto; min-height: 640px; }
       body[data-scene="farm"] .body, body[data-scene="lead"] .body { grid-template-columns: 1fr; }
       .rail { border-right: 0; border-bottom: 1px solid var(--p-line); }
       .main { display: block; }
       .selected-deck { margin-top: 14px; padding: 14px 0 0; border-top: 1px solid var(--p-line); border-left: 0; }
-      .selected-deck .panel { position: static; }
+      .selected-deck .panel { position: static; max-height: none; }
       .rep-layout { grid-template-columns: 1fr; }
       .fac-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .pick-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      .wiz { width: min(440px, 100%); }
+      .wiz { width: min(520px, 100%); }
       .rank-card { grid-template-columns: 22px 28px minmax(0, 1fr) 44px; min-height: 60px; }
       .rank-card select { grid-column: 3 / 5; grid-row: 2; }
       .rank-card .rank-move { display: grid; grid-column: 4; grid-row: 1 / span 2; }
       .rank-card .rank-move button { width: auto; min-height: 20px; }
       .rank-card .grip { display: none; }
-      body { padding: 12px 8px; align-items: stretch; }
+      body { padding: 0; align-items: stretch; }
     }
     @media (max-width: 600px) {
-      .win { width: 100%; min-height: calc(100dvh - 96px); border-radius: 0; }
+      .win { width: 100%; min-height: 100dvh; border-radius: 0; }
       .titlebar { height: 48px; flex-basis: 48px; }
       .chrome-wide { display: none !important; }
       .icon-btn, .win-btn { height: 44px; min-width: 44px; }
       .gold, .primary, .secondary, .ghost-btn.solid,
-      .seg button, .dd-btn, .pick-row, .add-custom, .skill-cell, .chip { min-height: 44px; }
+      .seg button, .dd-btn, .pick-row, .add-custom, .skill-cell, .chip,
+      .adv-combo.dd-btn { min-height: 44px; height: 44px; }
+      .adv-priority { grid-template-columns: 1fr; }
+      .adv-priority-label { padding-top: 0; }
+      .adv-priority-row { grid-template-columns: minmax(0, 1fr) 44px; }
+      .adv-step { width: 44px; }
+      .adv-step button { width: 44px; height: 22px; font-size: 10px; }
+      .adv-combo em { display: none; }
       .stepper { height: 44px; }
       .stepper button { width: 44px; }
       .stepper output, .stepper input { height: 44px; }
@@ -918,221 +1160,264 @@
         flex: 0 0 auto; height: auto; min-height: 48px; padding: 10px; gap: 8px;
       }
       .footer .ghost-btn.solid, .footer .primary { width: 100%; }
-      .summary, .err-inline { grid-column: 1 / -1; margin: 0; white-space: normal; }
+      .err-inline { grid-column: 1 / -1; margin: 0; white-space: normal; }
       .lamp { min-height: 44px; }
       .drawer { width: min(320px, 100%); inset: 48px 0 0 auto; }
       .drawer-backdrop, .modal-layer { inset: 48px 0 0 0; }
       .load-bar { top: 48px; bottom: auto; }
       .toast { left: 12px; right: 12px; bottom: 12px; text-align: center; }
+      .key-row { grid-template-columns: minmax(0, 1fr) 44px; }
+      .key-toggle { min-width: 44px; }
     }
   </style>
 </head>
-<body data-scene="farm">
+<body data-scene="farm" data-theme="dark">
   <a class="sr-only" href="#scene-app">跳到看板</a>
-        <section class="wiz" id="scene-wizard" data-od-id="wizard" role="dialog" aria-modal="true" aria-labelledby="wizTitle" aria-hidden="true">
-          <header class="wiz-head">
-            <span class="wiz-mark"><img src="assets/app_logo.png" alt="" /></span>
-            <div class="wiz-copy">
-              <p class="wiz-eyebrow">刷刷宝 · 运行设置</p>
-              <h2 id="wizTitle">选择运行方式</h2>
-              <p>先确定队伍关系，再进入看板配置关卡与技能。</p>
-            </div>
-          </header>
-          <div class="wiz-body">
-            <div class="seg" id="wizKind">
-              <button type="button" data-kind="solo" aria-pressed="true">单人</button>
-              <button type="button" data-kind="team" aria-pressed="false">组队</button>
-            </div>
-            <div id="wizSoloPane">
-              <div class="choice-list">
-                <button type="button" class="wcard solo" id="wizSolo" aria-pressed="true">
-                  <strong>单人刷图</strong>
-                  <span>自己建房，自己点开始。</span>
-                </button>
-              </div>
-            </div>
-            <div id="wizTeamPane" class="hidden">
-              <div class="choice-list">
-                <button type="button" class="wcard" data-team="lead"><em>车头</em><strong>带车</strong><span>你开房当车头。到人后房间自动开始。</span></button>
-                <button type="button" class="wcard" data-team="follow"><em>已在房</em><strong>跟车</strong><span>已在房间，自动每局准备。</span></button>
-                <button type="button" class="wcard" data-team="hitch"><em>待验证</em><strong>蹭车</strong><span>自动在大厅找房蹭车。</span></button>
-              </div>
-            </div>
-            <p class="hint" id="wizHint">关卡和技能在看板上选，这里只定运行方式。</p>
-          </div>
-          <div class="wiz-nav">
-            <button type="button" class="secondary" id="wizCancel">取消</button>
-            <span class="grow"></span>
-            <button type="button" class="gold" id="wizApply" data-od-id="wiz-apply">进入看板</button>
-          </div>
-        </section>
 
-        <section class="win" id="scene-app" data-od-id="dashboard" data-theme="light">
-          <div class="titlebar">
-            <div class="brand">
-              <span class="logo-box"><img src="assets/app_logo.png" alt="刷刷宝" width="22" height="22" /></span>
-              <h1>刷刷宝</h1>
-              <span class="ver chrome-wide">v0.3</span>
+  <section class="wiz" id="scene-wizard" data-od-id="wizard" role="region" aria-labelledby="wizTitle" aria-hidden="true">
+    <header class="wiz-head">
+      <span class="wiz-mark"><img src="assets/app_logo.png" alt="" /></span>
+      <div class="wiz-copy">
+        <p class="wiz-eyebrow">刷刷宝 · 运行设置</p>
+        <h2 id="wizTitle">选择运行方式</h2>
+      </div>
+    </header>
+    <div class="wiz-body">
+      <div class="seg" id="wizKind">
+        <button type="button" data-kind="solo" aria-pressed="true">单人</button>
+        <button type="button" data-kind="team" aria-pressed="false">组队</button>
+      </div>
+      <div id="wizSoloPane">
+        <div class="choice-list">
+          <button type="button" class="wcard solo" id="wizSolo" aria-pressed="true">
+            <strong>单人刷图</strong>
+          </button>
+        </div>
+      </div>
+      <div id="wizTeamPane" class="hidden">
+        <div class="choice-list">
+          <button type="button" class="wcard" data-team="lead"><em>车头</em><strong>带车</strong><span>你当车头，房间自动开始。</span></button>
+          <button type="button" class="wcard" data-team="follow"><em>已在房</em><strong>跟车</strong><span>已在房间，自动每局准备。</span></button>
+          <button type="button" class="wcard" data-team="hitch"><em>待验证</em><strong>蹭车</strong><span>自动在大厅找房蹭车。</span></button>
+        </div>
+      </div>
+      <p class="hint hidden" id="wizHint"></p>
+    </div>
+    <div class="wiz-nav">
+      <button type="button" class="secondary" id="wizCancel">取消</button>
+      <span class="grow"></span>
+      <button type="button" class="gold" id="wizApply" data-od-id="wiz-apply">进入看板</button>
+    </div>
+  </section>
+
+  <section class="win" id="scene-app" data-od-id="dashboard" data-theme="dark">
+    <div class="titlebar">
+      <div class="brand">
+        <span class="logo-box"><img src="assets/app_logo.png" alt="刷刷宝" width="26" height="26" /></span>
+        <h1>刷刷宝</h1>
+        <span class="ver chrome-wide" id="versionLabel">v0.3</span>
+      </div>
+      <span class="status-pill chrome-wide" id="statusPill"><span class="dot"></span>待命</span>
+      <span class="games chrome-wide" id="gamesMeter" aria-live="polite">今日 <b id="gamesToday">0</b> / <b id="gamesCap">2</b></span>
+      <div class="grow"></div>
+      <span class="sr-only" id="evidencePill" data-status="unknown" data-historical-status="unknown" aria-hidden="true"></span>
+      <span class="sr-only" id="identityPill" data-status="PENDING" aria-hidden="true"></span>
+      <button type="button" class="subscription-pill chrome-wide" id="subscriptionPill" data-od-id="subscription-pill" data-state="warn" aria-haspopup="dialog" title="打开订阅授权">未激活</button>
+      <button type="button" class="icon-btn chrome-wide" id="btnTheme" aria-pressed="true" aria-label="当前深色，切换到浅色">浅色</button>
+      <button type="button" class="icon-btn" id="btnWizard">快速开局</button>
+      <button type="button" class="win-btn" id="btnMin" aria-label="最小化">─</button>
+      <button type="button" class="win-btn close" id="btnClose" aria-label="关闭">✕</button>
+    </div>
+    <div class="body" id="farmBody">
+      <aside class="rail">
+        <section class="panel" data-od-id="run-target">
+          <h3 data-od-id="run-target-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path></svg></span>运行目标</h3>
+          <div class="field"><label id="lblChapter">篇章</label><div class="dd" data-dd="chapter"><button type="button" class="dd-btn" id="chapterBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblChapter"><b>熔火之心  二阶段</b><i>▾</i></button><div class="dd-menu" id="chapterMenu" role="listbox" aria-labelledby="lblChapter"></div></div></div>
+          <div class="row">
+            <div class="field grow"><label id="lblStage">关卡</label><div class="dd" data-dd="stage"><button type="button" class="dd-btn" id="stageBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblStage"><b>2-1</b><i>▾</i></button><div class="dd-menu" id="stageMenu" role="listbox" aria-labelledby="lblStage"></div></div></div>
+            <div class="field" style="width:100px"><label id="lblCycle">目标局数</label><div class="stepper" role="group" aria-labelledby="lblCycle"><button type="button" id="cycleMinus" aria-label="减少目标局数">−</button><input id="cycleOut" type="text" inputmode="numeric" value="2" aria-label="目标局数" autocomplete="off" /><button type="button" id="cyclePlus" aria-label="增加目标局数">+</button></div></div>
+          </div>
+          <div class="switch-row"><span id="lblHero">声望挑战</span><button type="button" class="switch" id="swHero" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblHero"></button></div>
+          <div class="prestige" id="heroBox">
+            <div class="rep-picked" id="repTags"></div>
+            <div class="rep-foot">
+              <div class="stats" id="repStats"></div>
+              <button type="button" class="text-btn" id="btnRep">调整</button>
             </div>
-            <span class="status-pill chrome-wide" id="statusPill"><span class="dot"></span>待命</span>
-            <span class="games chrome-wide" id="gamesMeter" aria-live="polite">今日 <b id="gamesToday">0</b> / <b id="gamesCap">100</b></span>
-            <div class="grow"></div>
-            <button type="button" class="icon-btn chrome-wide" id="btnTheme" aria-pressed="false" aria-label="切换深色浅色">深色</button>
-            <button type="button" class="icon-btn" id="btnWizard">快速开局</button>
-            <button type="button" class="win-btn" id="btnMin" aria-label="最小化">─</button>
-            <button type="button" class="win-btn close" id="btnClose" aria-label="关闭">✕</button>
           </div>
-          <div class="body" id="farmBody">
-            <aside class="rail">
-              <section class="panel" data-od-id="run-target">
-                <h3 data-od-id="run-target-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="4.5"></circle><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2"></path></svg></span>运行目标</h3>
-                <div class="field"><label id="lblChapter">篇章</label><div class="dd" data-dd="chapter"><button type="button" class="dd-btn" id="chapterBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblChapter"><b></b><i>▾</i></button><div class="dd-menu" id="chapterMenu" role="listbox" aria-labelledby="lblChapter"></div></div></div>
-                <div class="row">
-                  <div class="field grow"><label id="lblStage">关卡</label><div class="dd" data-dd="stage"><button type="button" class="dd-btn" id="stageBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblStage"><b></b><i>▾</i></button><div class="dd-menu" id="stageMenu" role="listbox" aria-labelledby="lblStage"></div></div></div>
-                  <div class="field" style="width:100px"><label id="lblCycle">目标局数</label><div class="stepper" role="group" aria-labelledby="lblCycle"><button type="button" id="cycleMinus" aria-label="减少目标局数">−</button><input id="cycleOut" type="text" inputmode="numeric" value="100" aria-label="目标局数" autocomplete="off" /><button type="button" id="cyclePlus" aria-label="增加目标局数">+</button></div></div>
-                </div>
-                <div class="switch-row"><span id="lblHero">声望挑战</span><button type="button" class="switch" id="swHero" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblHero"></button></div>
-                <div class="prestige" id="heroBox">
-                  <div class="rep-picked" id="repTags"></div>
-                  <div class="rep-foot">
-                    <div class="stats" id="repStats"></div>
-                    <button type="button" class="text-btn" id="btnRep">调整</button>
-                  </div>
-                </div>
-                <button type="button" class="pick-row" id="cjbCard"><span class="k">传家宝</span><strong id="cjbName">莫阿姆</strong><i>选择</i></button>
-                <button type="button" class="pick-row" id="bossCard"><span class="k">Boss</span><strong id="bossName">怀特迈恩</strong><i>选择</i></button>
-                <div class="switch-row"><span id="lblSecret">自动秘境</span><button type="button" class="switch" id="swSecret" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblSecret"></button></div>
-                <div class="switch-row"><span id="lblCloseML">5-5 后取消自动主线</span><button type="button" class="switch" id="swCloseML" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblCloseML"></button></div>
-                <div class="switch-row"><span id="lblAutoArch">票刷完自动考古</span><button type="button" class="switch" id="swAutoArch" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblAutoArch"></button></div>
-              </section>
-              <section class="panel lead-box" id="leadBox">
-                <h3 data-od-id="lead-room-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 13.5V3.5A1.5 1.5 0 0 1 4.5 2H11.5A1.5 1.5 0 0 1 13 3.5v10"></path><path d="M6 8h.01M3 13.5h10"></path></svg></span>带车房间</h3>
-                <div class="field"><label for="roomName">房间名称</label><input id="roomName" type="text" value="刷刷宝车队" autocomplete="off" /></div>
-                <div class="field"><label for="roomPass">房间密码</label><input id="roomPass" type="text" placeholder="可空" autocomplete="off" /></div>
-                <div class="switch-row"><span id="lblNewRoom">每局新建房间</span><button type="button" class="switch" id="swNewRoom" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblNewRoom"></button></div>
-                <p class="hint">带车不点房间开始，交给房间自动开始。</p>
-              </section>
-            </aside>
-            <section class="main">
-              <div class="main-workspace">
-              <div class="panel" data-od-id="skill-panel">
-                <div class="skill-head"><h3 data-od-id="skill-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 9.4 6.6 14.5 8l-5.1 1.4L8 14.5 6.6 9.4 1.5 8l5.1-1.4L8 1.5Z"></path></svg></span>技能搭配</h3><span class="hint" id="skillCount">已选 4 / 4</span></div>
-                <button type="button" class="ghost-btn solid hidden" id="btnBackBuilds" style="align-self:flex-start;height:28px;padding:0 10px;font-size:12px;margin-bottom:8px;">选择其他策略</button>
-                <div class="builds" id="builds"></div>
-                <button type="button" class="add-custom" id="btnAddCustom" data-od-id="btn-custom">自定义</button>
-                <p class="skill-hint" id="skillHint"></p>
-                <p class="empty hidden" id="skillEmpty"></p>
-                <div class="skill-grid" id="skillGrid" role="group" aria-label="十六技能"></div>
-                <div class="skill-rank" id="skillRank"></div>
-              </div>
-              <section class="panel bond-config" data-od-id="bond-panel">
-                <h3 data-od-id="bond-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6.3 9.7 4.8 11.2a2.3 2.3 0 0 1-3.2-3.2L4 5.6a2.3 2.3 0 0 1 3.2 0"></path><path d="m9.7 6.3 1.5-1.5a2.3 2.3 0 0 1 3.2 3.2L12 10.4a2.3 2.3 0 0 1-3.2 0"></path><path d="m5.8 10.2 4.4-4.4"></path></svg></span>羁绊配置</h3>
-                <div id="bonds"></div>
-              </section>
-              </div>
-              <aside class="selected-deck" data-od-id="launch-check-panel" aria-label="启动前核对">
-                <div class="panel">
-                  <h3 data-od-id="launch-check-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 13 3.4v3.9c0 3.2-2.1 5.7-5 7.2-2.9-1.5-5-4-5-7.2V3.4L8 1.5Z"></path><path d="m5.6 8 1.5 1.5 3.3-3.3"></path></svg></span>启动前核对</h3>
-                  <div id="selectedDeck" aria-live="polite"></div>
-                </div>
-              </aside>
-            </section>
-          </div>
-          <div class="hitch-page hitch" id="hitchBody" data-od-id="hitch-page">
-            <span class="pill warn">待验证 · 不可启动</span>
-            <h2>组队 · 蹭车</h2>
-            <p>自动在大厅找房；达到蹭车目标后按预案切换任务。</p>
-            <section class="team-rules" data-team-rules="hitch" data-od-id="hitch-rules" aria-labelledby="hitchRulesTitle">
-              <div class="team-rules-head">
-                <h3 id="hitchRulesTitle">蹭车结束规则</h3>
-                <span class="team-rules-state">仅保存配置</span>
-              </div>
-              <div class="team-rules-grid">
-                <div class="field">
-                  <label for="hitchCycle">目标游戏局数</label>
-                  <div class="stepper">
-                    <button type="button" data-team-cycle-step="-1" aria-label="减少蹭车目标局数">−</button>
-                    <input id="hitchCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="蹭车目标游戏局数">
-                    <button type="button" data-team-cycle-step="1" aria-label="增加蹭车目标局数">＋</button>
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="hitchAfterGoal">目标结束后</label>
-                  <select id="hitchAfterGoal" data-team-rule="afterGoal" data-od-id="hitch-after-goal">
-                    <option value="solo">去单人刷票</option>
-                    <option value="arch">去考古</option>
-                  </select>
-                </div>
-              </div>
-              <div class="team-route" data-od-id="hitch-route" aria-label="蹭车运行路径">
-                <span><small>01</small><b>大厅自动找房</b></span>
-                <span><small>02</small><b>入房后自动准备</b></span>
-                <span><small>03</small><b>完成目标后切换</b></span>
-              </div>
-              <div class="team-boundary"><strong>当前执行边界</strong><span>只保存蹭车预案；找房能力待验证，点火保持禁用。</span></div>
-            </section>
-            <button type="button" class="ghost-btn solid" id="btnFollow" style="align-self:flex-start">已经在房间里，改为跟车</button>
-          </div>
-          <div class="hitch-page follow" id="followBody" data-od-id="follow-page">
-            <span class="pill">可启动</span>
-            <h2>组队 · 跟车</h2>
-            <p>已在房间自动准备；房间解散或被踢出后按预案切换。</p>
-            <section class="team-rules" data-team-rules="follow" data-od-id="follow-rules" aria-labelledby="followRulesTitle">
-              <div class="team-rules-head">
-                <h3 id="followRulesTitle">跟车结束规则</h3>
-                <span class="team-rules-state">仅保存配置</span>
-              </div>
-              <div class="team-rules-grid">
-                <div class="field">
-                  <label for="followCycle">目标游戏局数</label>
-                  <div class="stepper">
-                    <button type="button" data-team-cycle-step="-1" aria-label="减少跟车目标局数">−</button>
-                    <input id="followCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="跟车目标游戏局数">
-                    <button type="button" data-team-cycle-step="1" aria-label="增加跟车目标局数">＋</button>
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="followAfterRoom">房间解散 / 被踢出后</label>
-                  <select id="followAfterRoom" data-team-rule="afterRoom" data-od-id="follow-after-room">
-                    <option value="solo">去单人刷票</option>
-                    <option value="arch">去考古</option>
-                    <option value="hitch">转为大厅蹭车</option>
-                  </select>
-                </div>
-              </div>
-              <div class="team-route" data-od-id="follow-route" aria-label="跟车运行路径">
-                <span><small>01</small><b>对齐带车端</b></span>
-                <span><small>02</small><b>同步准备与目标局数</b></span>
-                <span><small>03</small><b>房间结束后切换</b></span>
-              </div>
-              <form class="team-pair" id="followPairForm" data-od-id="follow-pairing">
-                <div class="team-pair-copy"><strong>带车端配对</strong><span>两台脚本填写同一配对码，后续接入后同步房间、准备状态和目标局数。</span></div>
-                <div class="field"><label for="followPairCode">配对码或角色名</label><input id="followPairCode" data-team-pair data-od-id="follow-pair-code" type="text" maxlength="24" autocomplete="off" placeholder="输入配对信息"></div>
-                <button type="submit" class="secondary" data-od-id="follow-pair-save">保存配对</button>
-              </form>
-            </section>
-            <button type="button" class="ghost-btn solid" id="btnBackHitch" style="align-self:flex-start">改为大厅蹭车</button>
-          </div>
-          <footer class="footer" id="footer">
-            <button type="button" class="ghost-btn solid" id="btnSwitchMode">切换运行方式</button>
-            <button type="button" class="ghost-btn solid" id="btnMore" aria-expanded="false" aria-controls="drawer">更多设置</button>
-            <div class="summary" id="summary">单人刷图  1-10  常规</div>
-            <span class="err-inline" id="startErr" role="alert"></span>
-            <div class="lamp" id="lamp"><span class="dot"></span><span id="lampText">预检通过</span></div>
-            <button type="button" class="primary" id="btnStart" data-od-id="btn-start" aria-describedby="startErr">开始运行</button>
-          </footer>
-          <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
-          <aside class="drawer" id="drawer" role="dialog" aria-labelledby="drawerTitle" aria-modal="false" aria-hidden="true">
-            <h3 id="drawerTitle">更多设置</h3>
-            <h4>特殊宝物（默认不拿）</h4>
-            <div class="neg" id="negatives"></div>
-            <h4>龙珠</h4>
-            <div class="switch-row"><span id="lblDragon">优先拿龙珠</span><button type="button" class="switch" id="swDragon" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblDragon"></button></div>
-          </aside>
-          <div class="load-bar" id="loadBar" role="progressbar" aria-label="正在连接" aria-hidden="true"><i></i></div>
-          <div class="modal-layer" id="modalLayer"><div class="sheet" id="modalSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
-          <div class="toast" id="toast" role="status" aria-live="polite"></div>
+          <button type="button" class="pick-row" id="cjbCard"><span class="k">传家宝</span><strong id="cjbName">马格纳斯</strong><i>选择</i></button>
+          <button type="button" class="pick-row" id="bossCard"><span class="k">Boss</span><strong id="bossName">巨石火人</strong><i>选择</i></button>
+          <div class="switch-row"><span id="lblSecret">自动秘境</span><button type="button" class="switch" id="swSecret" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblSecret"></button></div>
+          <div class="switch-row"><span id="lblCloseML">5-5 后取消自动主线</span><button type="button" class="switch" id="swCloseML" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblCloseML"></button></div>
+          <div class="switch-row"><span id="lblAutoArch">票刷完自动考古</span><button type="button" class="switch" id="swAutoArch" role="switch" aria-checked="true" aria-pressed="true" aria-labelledby="lblAutoArch"></button></div>
         </section>
+        <section class="panel lead-box" id="leadBox">
+          <h3 data-od-id="lead-room-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3 13.5V3.5A1.5 1.5 0 0 1 4.5 2H11.5A1.5 1.5 0 0 1 13 3.5v10"></path><path d="M6 8h.01M3 13.5h10"></path></svg></span>带车房间</h3>
+          <div class="field"><label for="roomName">房间名称</label><input id="roomName" type="text" value="刷刷宝车队" autocomplete="off" /></div>
+          <div class="field"><label for="roomPass">房间密码</label><input id="roomPass" type="text" placeholder="可空" autocomplete="off" /></div>
+          <div class="switch-row"><span id="lblNewRoom">每局新建房间</span><button type="button" class="switch" id="swNewRoom" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblNewRoom"></button></div>
+          <p class="hint">带车不点房间开始，交给房间自动开始。</p>
+        </section>
+      </aside>
+      <section class="main">
+        <div class="main-workspace">
+        <div class="panel" data-od-id="skill-panel">
+          <div class="skill-head"><h3 data-od-id="skill-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 9.4 6.6 14.5 8l-5.1 1.4L8 14.5 6.6 9.4 1.5 8l5.1-1.4L8 1.5Z"></path></svg></span>技能搭配</h3><span class="hint" id="skillCount">已选 4 / 4</span></div>
+          <button type="button" class="ghost-btn solid" id="btnBackBuilds">选择其他策略</button>
+          <div class="builds" id="builds">
+            <button type="button" class="build" data-id="arcane_open" aria-pressed="true"><strong>奥术开荒</strong><div class="skills-inline"><span class="sk" title="奥术箭"><span class="ico" style="width:22px;height:22px"><img src="assets/skills/asj.png" alt="" width="22" height="22" /></span></span><span class="sk" title="奥术激光"><span class="ico" style="width:22px;height:22px"><img src="assets/skills/asjg.png" alt="" width="22" height="22" /></span></span><span class="sk" title="奥术射线"><span class="ico" style="width:22px;height:22px"><img src="assets/skills/assx.png" alt="" width="22" height="22" /></span></span><span class="sk" title="剑气"><span class="ico" style="width:22px;height:22px"><img src="assets/skills/jq.png" alt="" width="22" height="22" /></span></span></div></button>
+          </div>
+          <button type="button" class="add-custom hidden" id="btnAddCustom" data-od-id="btn-custom">自定义</button>
+          <p class="skill-hint hidden" id="skillHint"></p>
+          <p class="empty hidden" id="skillEmpty"></p>
+          <div class="skill-grid" id="skillGrid" role="group" aria-label="十六技能"></div>
+          <div class="skill-rank show" id="skillRank">
+            <div class="priority-head"><b>技能优先级</b><span class="hint">拖动或按 ↑ ↓ 排序</span></div>
+            <div class="rank-list" id="rankList">
+              <div class="rank-card is-carry" data-code="asj" tabindex="0"><span class="rank-no">1</span><span class="ico" style="width:28px;height:28px"><img src="assets/skills/asj.png" alt="" width="28" height="28" /></span><div class="name"><b>奥术箭</b><span>主 C · 第1优先级 · 智力/能量</span></div><select data-route="asj" aria-label="奥术箭 路线"><option value="damage" selected>优先伤害</option><option value="split">优先次级箭</option><option value="cooldown">优先急速抽箭</option></select><span class="rank-move"><button type="button" data-move="-1" disabled aria-label="奥术箭 上移">▲</button><button type="button" data-move="1" aria-label="奥术箭 下移">▼</button></span><span class="grip" aria-hidden="true">⋮⋮</span></div>
+              <div class="rank-card" data-code="asjg" tabindex="0"><span class="rank-no">2</span><span class="ico" style="width:28px;height:28px"><img src="assets/skills/asjg.png" alt="" width="28" height="28" /></span><div class="name"><b>奥术激光</b><span>第2优先级 · 智力/能量</span></div><select data-route="asjg" aria-label="奥术激光 路线"><option value="flood" selected>优先奥能洪流</option><option value="sweep">优先奥能扫射</option><option value="uptime">优先持续覆盖</option></select><span class="rank-move"><button type="button" data-move="-1" aria-label="奥术激光 上移">▲</button><button type="button" data-move="1" aria-label="奥术激光 下移">▼</button></span><span class="grip" aria-hidden="true">⋮⋮</span></div>
+              <div class="rank-card" data-code="assx" tabindex="0"><span class="rank-no">3</span><span class="ico" style="width:28px;height:28px"><img src="assets/skills/assx.png" alt="" width="28" height="28" /></span><div class="name"><b>奥术射线</b><span>第3优先级 · 智力/能量</span></div><select data-route="assx" aria-label="奥术射线 路线"><option value="damage" selected>优先伤害易伤</option><option value="guide">优先制导箭</option><option value="uptime">优先持续多目标</option></select><span class="rank-move"><button type="button" data-move="-1" aria-label="奥术射线 上移">▲</button><button type="button" data-move="1" aria-label="奥术射线 下移">▼</button></span><span class="grip" aria-hidden="true">⋮⋮</span></div>
+              <div class="rank-card" data-code="jq" tabindex="0"><span class="rank-no">4</span><span class="ico" style="width:28px;height:28px"><img src="assets/skills/jq.png" alt="" width="28" height="28" /></span><div class="name"><b>剑气</b><span>第4优先级 · 力量/物理</span></div><select data-route="jq" aria-label="剑气 路线"><option value="ice" selected>优先碎冰</option><option value="flame">优先烈焰斩</option><option value="projectile">优先弹速体型</option></select><span class="rank-move"><button type="button" data-move="-1" aria-label="剑气 上移">▲</button><button type="button" data-move="1" disabled aria-label="剑气 下移">▼</button></span><span class="grip" aria-hidden="true">⋮⋮</span></div>
+            </div>
+          </div>
+        </div>
+        <section class="panel bond-config" data-od-id="bond-panel">
+          <h3 data-od-id="bond-panel-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M6.3 9.7 4.8 11.2a2.3 2.3 0 0 1-3.2-3.2L4 5.6a2.3 2.3 0 0 1 3.2 0"></path><path d="m9.7 6.3 1.5-1.5a2.3 2.3 0 0 1 3.2 3.2L12 10.4a2.3 2.3 0 0 1-3.2 0"></path><path d="m5.8 10.2 4.4-4.4"></path></svg></span>羁绊配置</h3>
+          <div id="bonds">
+            <div class="bond-block" data-od-id="bond-saved-summary"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"></rect><path d="M5.6 7V5.3a2.4 2.4 0 0 1 4.8 0V7"></path></svg></span>基础卡组</h4><div class="bond-locked"><span class="deck-tag">智力</span><span class="deck-tag">祝福</span><span class="deck-tag">成长</span><span class="deck-tag">经济</span><span class="deck-tag">贪婪</span><span class="deck-tag">挑战</span><span class="deck-tag">法术</span><span class="deck-tag">急速</span><span class="deck-tag">魔能</span><span class="deck-tag">暴击</span></div></div>
+            <div class="bond-block" data-od-id="advanced-pack-priority"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.8 9.6 6.1 14.2 6.5 10.8 9.6 11.8 14.2 8 11.9 4.2 14.2 5.2 9.6 1.8 6.5 6.4 6.1Z"></path></svg></span>高级卡组顺序</h4><div class="adv-priority" data-od-id="advanced-pack-priority"><div class="adv-priority-list"><div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第1优先级 海盗"><span class="rank-no">1</span><b title="海盗">海盗</b><em>第1优先级</em><i>▾</i></button><div class="dd-menu" role="listbox"><button type="button" role="option" data-adv-pick="haidao" data-adv-slot="0" aria-selected="true">海盗</button><button type="button" role="option" data-adv-pick="fengshen" data-adv-slot="0" aria-selected="false">封神</button></div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="haidao" disabled aria-label="海盗 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="haidao" aria-label="海盗 下移">▼</button></span></div><div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第2优先级 封神"><span class="rank-no">2</span><b title="封神">封神</b><em>第2优先级</em><i>▾</i></button><div class="dd-menu" role="listbox"><button type="button" role="option" data-adv-pick="haidao" data-adv-slot="1" aria-selected="false">海盗</button><button type="button" role="option" data-adv-pick="fengshen" data-adv-slot="1" aria-selected="true">封神</button></div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="fengshen" aria-label="封神 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="fengshen" disabled aria-label="封神 下移">▼</button></span></div></div></div></div>
+            <div class="bond-actions"><p class="hint">卡组已锁定。高级优先级用下拉或 ▲▼ 即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>
+          </div>
+        </section>
+        </div>
+        <aside class="selected-deck" data-od-id="launch-check-panel" aria-label="启动前核对">
+          <div class="panel">
+            <h3 data-od-id="launch-check-heading"><span class="module-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 13 3.4v3.9c0 3.2-2.1 5.7-5 7.2-2.9-1.5-5-4-5-7.2V3.4L8 1.5Z"></path><path d="m5.6 8 1.5 1.5 3.3-3.3"></path></svg></span>启动前核对</h3>
+            <div id="selectedDeck" aria-live="polite">
+              <p class="launch-ready is-blocked"><i></i>订阅未激活</p>
+              <dl class="launch-facts">
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 14V2.6"></path><path d="M3.5 2.6h8.8L10.2 5.7 12.3 8.8H3.5Z"></path></svg></span>关卡</dt><dd>2-1 · 2 局</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="6.1" cy="6" r="2"></circle><path d="M2.6 13c.3-2.1 1.7-3.3 3.5-3.3S9.3 10.9 9.6 13"></path><circle cx="11" cy="6.3" r="1.5"></circle><path d="M10.3 9.8c1.3.3 2.4 1.3 2.7 3.2"></path></svg></span>方式</dt><dd>单人模式</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.6 13 3.5v3.8c0 3.1-2.1 5.5-5 7-2.9-1.5-5-3.9-5-7V3.5L8 1.6Z"></path></svg></span>声望</dt><dd>未启用</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3" y="3.5" width="8" height="10" rx="1.2"></rect><path d="M6 2.5h6.5v10"></path></svg></span>传家宝</dt><dd>马格纳斯</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.5 9.2 6.4 14.2 7.6 9.2 8.8 8 13.7 6.8 8.8 1.8 7.6 6.8 6.4Z"></path></svg></span>Boss</dt><dd>巨石火人</dd></div>
+                <div><dt><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"></rect><path d="M5.6 7V5.3a2.4 2.4 0 0 1 4.8 0V7"></path></svg></span>订阅</dt><dd>未激活</dd></div>
+              </dl>
+              <div class="launch-block"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M8 1.8 9.6 6.1 14.2 6.5 10.8 9.6 11.8 14.2 8 11.9 4.2 14.2 5.2 9.6 1.8 6.5 6.4 6.1Z"></path></svg></span>技能</h4><div class="launch-skills"><span class="launch-skill"><i>1</i><img src="assets/skills/asj.png" alt="" width="22" height="22" /><b>奥术箭</b></span><span class="launch-skill"><i>2</i><img src="assets/skills/asjg.png" alt="" width="22" height="22" /><b>奥术激光</b></span><span class="launch-skill"><i>3</i><img src="assets/skills/assx.png" alt="" width="22" height="22" /><b>奥术射线</b></span><span class="launch-skill"><i>4</i><img src="assets/skills/jq.png" alt="" width="22" height="22" /><b>剑气</b></span></div></div>
+              <div class="launch-block"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.15"></circle><path d="M6.45 2h3.1l.48 1.72 1.48.62 1.68-.58 1.18 2.05-1.22 1.08.04 1.62 1.18 1.08-1.18 2.05-1.68-.58-1.48.62L9.55 14H6.45l-.48-1.72-1.48-.62-1.68.58-1.18-2.05 1.22-1.08-.04-1.62-1.18-1.08 1.18-2.05 1.68.58 1.48-.62L6.45 2Z"></path></svg></span>常规设置</h4><div class="deck-tags"><span class="deck-tag">秘境 开</span><span class="deck-tag">考古 开</span><span class="deck-tag">龙珠 关</span><span class="deck-tag">取消主线 开</span><span class="deck-tag">每周新建 关</span></div></div>
+              <div class="launch-block"><h4><span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16"><rect x="3" y="3.5" width="8" height="10" rx="1.2"></rect><path d="M6 2.5h6.5v10"></path></svg></span>卡组</h4><p class="launch-sub">基础 · 已锁定</p><div class="deck-tags"><span class="deck-tag">智力</span><span class="deck-tag">祝福</span><span class="deck-tag">成长</span><span class="deck-tag">经济</span><span class="deck-tag">贪婪</span><span class="deck-tag">挑战</span><span class="deck-tag">法术</span><span class="deck-tag">急速</span><span class="deck-tag">魔能</span><span class="deck-tag">暴击</span></div><p class="launch-sub">高级 · 按顺序</p><div class="deck-tags"><span class="deck-tag">1·海盗</span><span class="deck-tag">2·封神</span></div></div>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </div>
+    <div class="hitch-page hitch" id="hitchBody" data-od-id="hitch-page">
+      <span class="pill">可启动</span>
+      <h2>组队 · 蹭车</h2>
+      <p>自动在大厅找房并准备；局内沿用当前策略，战后按已选 Boss 和组队退出规则收口。</p>
+      <section class="team-rules" data-team-rules="hitch" data-od-id="hitch-rules" aria-labelledby="hitchRulesTitle">
+        <div class="team-rules-head">
+          <h3 id="hitchRulesTitle">蹭车结束规则</h3>
+          <span class="team-rules-state">仅保存配置</span>
+        </div>
+        <div class="team-rules-grid">
+          <div class="field">
+            <label for="hitchCycle">目标游戏局数</label>
+            <div class="stepper">
+              <button type="button" data-team-cycle-step="-1" aria-label="减少蹭车目标局数">−</button>
+              <input id="hitchCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="蹭车目标游戏局数">
+              <button type="button" data-team-cycle-step="1" aria-label="增加蹭车目标局数">＋</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="hitchAfterGoal">目标结束后</label>
+            <select id="hitchAfterGoal" data-team-rule="afterGoal" data-od-id="hitch-after-goal">
+              <option value="solo">去单人刷票</option>
+              <option value="arch">去考古</option>
+            </select>
+          </div>
+        </div>
+        <div class="team-route" data-od-id="hitch-route" aria-label="蹭车运行路径">
+          <span><small>01</small><b>大厅自动找房</b></span>
+          <span><small>02</small><b>入房后自动准备</b></span>
+          <span><small>03</small><b>完成目标后切换</b></span>
+        </div>
+        <div class="team-boundary"><strong>当前执行边界</strong><span>仅在可信大厅锚点、搜索框 OCR 确认和可加入房间证据齐全时输入。</span></div>
+      </section>
+      <section class="team-rules" data-od-id="hitch-boss-config" aria-labelledby="hitchBossTitle">
+        <div class="team-rules-head hitch-config-head">
+          <h3 id="hitchBossTitle">战后目标</h3>
+          <button type="button" class="secondary" id="btnHitchAdvanced" data-od-id="hitch-advanced-search">高级搜房</button>
+        </div>
+        <div class="team-rules-grid hitch-boss-grid">
+          <button type="button" class="pick-row" id="hitchCjbCard"><span class="k">传家宝 Boss</span><strong id="hitchCjbName">未选择</strong><i>选择</i></button>
+          <button type="button" class="pick-row" id="hitchBossCard"><span class="k">时光之穴 Boss</span><strong id="hitchBossName">未选择</strong><i>选择</i></button>
+        </div>
+        <p>传家宝与时光之穴分别按所选 Boss 处理；传家宝点击后必须等“已挑战”业务结果确认，才会关闭面板并进入组队退出等待。</p>
+      </section>
+      <button type="button" class="ghost-btn solid" id="btnFollow" style="align-self:flex-start">已经在房间里，改为跟车</button>
+    </div>
+    <div class="hitch-page follow" id="followBody" data-od-id="follow-page">
+      <span class="pill">可启动</span>
+      <h2>组队 · 跟车</h2>
+      <p>已在房间自动准备；房间解散或被踢出后按预案切换。</p>
+      <section class="team-rules" data-team-rules="follow" data-od-id="follow-rules" aria-labelledby="followRulesTitle">
+        <div class="team-rules-head">
+          <h3 id="followRulesTitle">跟车结束规则</h3>
+          <span class="team-rules-state">仅保存配置</span>
+        </div>
+        <div class="team-rules-grid">
+          <div class="field">
+            <label for="followCycle">目标游戏局数</label>
+            <div class="stepper">
+              <button type="button" data-team-cycle-step="-1" aria-label="减少跟车目标局数">−</button>
+              <input id="followCycle" data-team-cycle-input type="text" inputmode="numeric" autocomplete="off" aria-label="跟车目标游戏局数">
+              <button type="button" data-team-cycle-step="1" aria-label="增加跟车目标局数">＋</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="followAfterRoom">房间解散 / 被踢出后</label>
+            <select id="followAfterRoom" data-team-rule="afterRoom" data-od-id="follow-after-room">
+              <option value="solo">去单人刷票</option>
+              <option value="arch">去考古</option>
+              <option value="hitch">转为大厅蹭车</option>
+            </select>
+          </div>
+        </div>
+        <div class="team-route" data-od-id="follow-route" aria-label="跟车运行路径">
+          <span><small>01</small><b>对齐带车端</b></span>
+          <span><small>02</small><b>同步准备与目标局数</b></span>
+          <span><small>03</small><b>房间结束后切换</b></span>
+        </div>
+        <form class="team-pair" id="followPairForm" data-od-id="follow-pairing">
+          <div class="team-pair-copy"><strong>带车端配对</strong><span>两台脚本填写同一配对码，后续接入后同步房间、准备状态和目标局数。</span></div>
+          <div class="field"><label for="followPairCode">配对码或角色名</label><input id="followPairCode" data-team-pair data-od-id="follow-pair-code" type="text" maxlength="24" autocomplete="off" placeholder="输入配对信息"></div>
+          <button type="submit" class="secondary" data-od-id="follow-pair-save">保存配对</button>
+        </form>
+      </section>
+      <button type="button" class="ghost-btn solid" id="btnBackHitch" style="align-self:flex-start">改为大厅蹭车</button>
+    </div>
+    <footer class="footer" id="footer">
+      <button type="button" class="ghost-btn solid" id="btnSwitchMode">切换运行方式</button>
+      <button type="button" class="ghost-btn solid" id="btnMore" aria-expanded="false" aria-controls="drawer">更多设置</button>
+      <button type="button" class="ghost-btn solid" id="btnActivateKey" data-od-id="btn-activate-key">激活卡密</button>
+      <span class="grow"></span>
+      <span class="err-inline" id="startErr" role="alert"></span>
+      <div class="lamp pending" id="lamp"><span class="dot"></span><span id="lampText">等待后端预检</span></div>
+      <button type="button" class="primary" id="btnStart" data-od-id="btn-start" aria-describedby="startErr">开始运行</button>
+    </footer>
+    <div class="drawer-backdrop" id="drawerBackdrop" hidden></div>
+    <aside class="drawer" id="drawer" role="dialog" aria-labelledby="drawerTitle" aria-modal="false" aria-hidden="true">
+      <h3 id="drawerTitle">更多设置</h3>
+      <h4>特殊宝物（默认不拿）</h4>
+      <div class="neg" id="negatives"></div>
+      <h4>龙珠</h4>
+      <div class="switch-row"><span id="lblDragon">优先拿龙珠</span><button type="button" class="switch" id="swDragon" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblDragon"></button></div>
+    </aside>
+    <div class="load-bar" id="loadBar" role="progressbar" aria-label="正在连接" aria-hidden="true"><i></i></div>
+    <div class="modal-layer" id="modalLayer"><div class="sheet" id="modalSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </section>
 
   <script>
     const SKILLS = { asj:"奥术箭", asjg:"奥术激光", assx:"奥术射线", bsxx:"冰霜新星", byj:"爆炎箭", dcw:"电磁网", dz:"地震", hbj:"寒冰箭", hq:"火球", jf:"飓风", jq:"剑气", ljf:"龙卷风", pg:"普攻", sdl:"闪电链", tl:"天雷", ys:"陨石" };
@@ -1175,11 +1460,9 @@
       { id:"shouhu", name:"守护巨龙", short:"守护", affix:["怪物强度 ×1.2","怪物攻击 +50%","怪物血量 +50%","怪物防御 +50%","怪物强度 ×1.3","玩家最终全属性 -30%","玩家附加伤害 -60%","双 BOSS · 怪物强度 ×1.3","最终攻击 -25%，全属性 -15%","怪物强度 ×1.5（极难）"] }
     ];
     const CHAPTERS = [{id:1,label:"旧世界大陆  一阶段"},{id:2,label:"熔火之心  二阶段"},{id:3,label:"黑翼之潮  三阶段"},{id:4,label:"安琪拉  四阶段"}];
-    const CJB_STEMS = ["01暴掠龙","02血腥猛犸","03洛卡纳哈","04克雷什之父","05撼地兽","06鳄王","07古龙龟","08战争雷霆蜥蜴","09钦原","10马格纳斯","11嗜血的索克","12战争之王","13蛇王纳什","14青蛙之神","15猛虎之神","16阿迦玛甘","17年兽","18乌索克","19玛洛恩","20鲁克玛","54莫阿姆"];
+    const CJB_STEMS = ["01暴掠龙","02血腥猛犸","03洛卡纳哈","04克雷什之父","05撼地兽","06鳄王","07古龙龟","08战争雷霆蜥蜴","09钦原","10马格纳斯","11嗜血的索克","12战争之王","13蛇王纳什","14青蛙之神","15猛虎之神","16阿迦玛甘","17年兽","18乌索克","19玛洛恩","20鲁克玛"];
     const BOSS_STEMS = ["01霍格","02祈求着耶戈什","03曲奇","04大范","05克雷什","06吞噬者穆坦努斯","07大法师阿鲁高","08巨形缝合怪","09摩拉迪姆","10吞噬者芬鲁斯","11瑟玛普拉格","12卡尔加","13寒冰巫妖","14虎王邦加拉什","15莫格莱尼","16怀特迈恩","17阿扎达斯","18瑟莱德丝公主","19加兹瑞拉","20伊兰尼库斯之影","21索瑞森大帝","22维姆萨拉克","23巴纳扎尔","24瑞文戴尔男爵","25黑暗院长加林","26达基萨斯将军","27戈多克大王","28加兹兰卡","29血神哈卡","30火焰行者","31巨石火人","32吞噬者图恩","33玛格曼达","34加尔","35火牛贝利尔","36迦顿男爵","37超大熔岩巨人","38管理者","39拉格纳罗斯","40费尔默","41埃博诺克","42弗莱格尔","43堕落的红龙","44狂野的拉格佐尔","45寒冰将军格尔","46暮光将军佐拉","47狂龙萨兹拉克","48龙巢守护者","49克洛玛古斯","50奥妮克希亚","51奈法利安","52库林纳克斯","53拉贾克斯将军","54莫阿姆","55吞咽者布鲁"];
     const TEXT_STEMS = new Set(["38管理者","44狂野的拉格佐尔","45寒冰将军格尔","46暮光将军佐拉","47狂龙萨兹拉克"]);
-    const STAGE_BOSS = {"1-1":"大范","1-2":"吞噬者穆坦努斯","1-3":"大法师阿鲁高","1-4":"巨形缝合怪","1-5":"摩拉迪姆","1-6":"瑟玛普拉格","1-7":"卡尔加","1-8":"寒冰巫妖","1-9":"虎王邦加拉什","1-10":"怀特迈恩","1-11":"阿扎达斯","1-12":"瑟莱德丝公主","1-13":"加兹瑞拉","1-14":"伊兰尼库斯之影","1-15":"索瑞森大帝","1-16":"维姆萨拉克","1-17":"巴纳扎尔","1-18":"瑞文戴尔男爵","1-19":"黑暗院长加林","1-20":"达基萨斯将军","1-21":"戈多克大王","1-22":"加兹兰卡","1-23":"血神哈卡","2-1":"玛格曼达","2-2":"加尔","2-3":"火牛贝利尔"};
-    const STAGE_CJB = {"1-8":"暴掠龙","1-9":"血腥猛犸","1-10":"洛卡纳哈","1-12":"克雷什之父","1-16":"撼地兽","1-17":"鳄王","1-18":"古龙龟","1-20":"战争雷霆蜥蜴","1-23":"钦原","2-1":"马格纳斯","2-2":"嗜血的索克","2-3":"战争之王"};
     const STAGE_MAX = {1:23,2:7,3:9,4:3};
     const NEG = [
       { name:"透支力量", effect:"全属性增幅+120%。本局每获得一个宝物，宝物效果-10%（之前获得的也计算在内）。", why:"越拿越亏：后续宝物收益被持续抽走。" },
@@ -1190,22 +1473,20 @@
       { name:"等级优势", effect:"立即获得当前等级×10 的全属性。", why:"一次性属性，完整描述待补。" },
       { name:"木材梭哈", effect:"55% 概率木材翻倍；45% 概率木材清 0。", why:"可能清空木材，默认不拿。" }
     ];
-    const MUST_TAKE = ["EX","ONEPIECE","至高进化","一身神装","满级大佬","全都要","卡牌大师"];
-    const MODE_LABEL = { solo:"单人刷图", lead:"组队  带车", follow:"组队  跟车", hitch:"组队  蹭车" };
-    const TEAM_ACTION_LABEL = { solo:"去单人刷票", arch:"去考古", hitch:"转为大厅蹭车" };
+    const MODE_LABEL = { solo:"单人模式", lead:"组队带车模式", follow:"组队跟车模式", hitch:"组队蹭车模式" };
     const stemLabel = (stem) => stem.replace(/^\d+/, "");
-    const findStem = (stems, label) => stems.find((s) => stemLabel(s) === label) || "";
     const state = {
       scene:"farm", mode:"solo", wizKind:"solo", wizTeam:"lead", wizardReturnScene:"farm",
-      theme:"light", hero:true, cycle:100, played:0, autoSecret:false, autoArch:false, closeMainline:false, newRoom:false, chapter:1, stage:10, dragonPrefer:true,
+      theme:"dark", hero:false, cycle:2, played:0, autoSecret:true, autoArch:true, closeMainline:true, newRoom:false, chapter:2, stage:1, dragonPrefer:false,
       teamRules:{follow:{cycle:100,afterRoom:"solo",recoveryHours:1,pairCode:""},hitch:{cycle:100,afterGoal:"solo",recoveryHours:1}},
-      selected:"arcane_open", custom:[{id:"custom:1", name:"自定义", skills:[]}], collapsed:false, drawer:false,
-      modal:"", focusFac:"kenrito", attr:new Set(["intelligence"]), growth:new Set(["成长","经济","贪婪","挑战"]),
-      basic:new Set(["法术","急速","箭术"]), adv:[], advDraft:[], advEditing:false, bondSaved:false,
+      selected:"arcane_open", custom:[{id:"custom:1", name:"自定义", skills:[]}], collapsed:true, drawer:false,
+      modal:"", focusFac:"kenrito", attr:new Set(["intelligence"]), growth:new Set(["祝福","成长","经济","贪婪","挑战"]),
+      basic:new Set(["法术","急速","魔能","暴击"]), adv:["haidao","fengshen"], advDraft:[], advEditing:false, bondSaved:true,
       alloc:{heifeng:0,yinse:0,kenrito:5,tanxian:3,yuansu:0,shouhu:0}, draft:null,
       negative:new Set(),
       routes:Object.fromEntries(Object.keys(FAMILIES).map((c)=>[c,FAMILIES[c].routes[0][0]])),
-      priority:["asj","asjg","assx","jq"], cjb:"54莫阿姆", boss:"16怀特迈恩"
+      priority:["asj","asjg","assx","jq"], cjb:"03洛卡纳哈", boss:"31巨石火人",
+      subscription:{ active:false, status:"未激活", expires_at:"" }
     };
     const $ = (id) => document.getElementById(id);
     const icon = (code, size) => {
@@ -1237,8 +1518,9 @@
     }
     function usedPoints(map) { return Object.values(map || state.alloc).reduce((a,b)=>a+b,0); }
     function budgetAvail() { const n = state.chapter===1 ? state.stage : (state.chapter===2 ? 23+state.stage : 42); return Math.min(n,23); }
-    function toast(msg) { const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._id); toast._id=setTimeout(()=>t.classList.remove("show"),1400); }
+    function toast(msg) { const t=$("toast"); if (!t) return; t.textContent=msg; t.classList.add("show"); clearTimeout(toast._id); toast._id=setTimeout(()=>t.classList.remove("show"),1400); }
     function setSwitch(el, on) {
+      if (!el) return;
       el.setAttribute("aria-pressed", on ? "true" : "false");
       el.setAttribute("aria-checked", on ? "true" : "false");
     }
@@ -1295,6 +1577,7 @@
     }
     function renderDD(kind, items, value, labelOf) {
       const btn = $(kind+"Btn"), menu = $(kind+"Menu");
+      if (!btn || !menu) return;
       const cur = items.find((it)=>String(it.id)===String(value)) || items[0];
       btn.querySelector("b").textContent = labelOf(cur);
       menu.innerHTML = items.map((it)=>`<button type="button" role="option" data-dd-val="${it.id}" aria-selected="${String(it.id)===String(value)}">${labelOf(it)}</button>`).join("");
@@ -1358,16 +1641,48 @@
       const b = BUILDS.find((x)=>x.id===id); if (!b) return;
       state.attr=new Set(b.attr); state.growth=new Set(b.growth); state.basic=new Set(b.basic); state.adv=[]; state.advDraft=[]; state.advEditing=false; state.bondSaved=false;
     }
+    function blockIcon(kind) {
+      const paths = {
+        attr: '<path d="M8 1.6 9.7 6.1 14.4 6.5 10.9 9.7 11.9 14.3 8 11.9 4.1 14.3 5.1 9.7 1.6 6.5 6.3 6.1Z"></path>',
+        growth: '<path d="M8 14V7.2"></path><path d="M8 7.2c.2-3 2.4-5.4 5.2-5.4-1 2.6-.8 4.6-5.2 5.4Z"></path><path d="M8 8.4c-.2-2.5-2.3-4.6-5-4.6 1 2.1.8 3.8 5 4.6Z"></path>',
+        cards: '<rect x="3" y="3.5" width="8" height="10" rx="1.2"></rect><path d="M6 2.5h6.5v10"></path>',
+        star: '<path d="M8 1.8 9.6 6.1 14.2 6.5 10.8 9.6 11.8 14.2 8 11.9 4.2 14.2 5.2 9.6 1.8 6.5 6.4 6.1Z"></path>',
+        lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.2"></rect><path d="M5.6 7V5.3a2.4 2.4 0 0 1 4.8 0V7"></path>',
+        flag: '<path d="M3.5 14V2.6"></path><path d="M3.5 2.6h8.8L10.2 5.7 12.3 8.8H3.5Z"></path>',
+        users: '<circle cx="6.1" cy="6" r="2"></circle><path d="M2.6 13c.3-2.1 1.7-3.3 3.5-3.3S9.3 10.9 9.6 13"></path><circle cx="11" cy="6.3" r="1.5"></circle><path d="M10.3 9.8c1.3.3 2.4 1.3 2.7 3.2"></path>',
+        spark: '<path d="M8 1.5 9.2 6.4 14.2 7.6 9.2 8.8 8 13.7 6.8 8.8 1.8 7.6 6.8 6.4Z"></path>',
+        shield: '<path d="M8 1.6 13 3.5v3.8c0 3.1-2.1 5.5-5 7-2.9-1.5-5-3.9-5-7V3.5L8 1.6Z"></path>',
+        sliders: '<path d="M3 4.5h10"></path><path d="M3 8h10"></path><path d="M3 11.5h10"></path><circle cx="6" cy="4.5" r="1.3"></circle><circle cx="10" cy="8" r="1.3"></circle><circle cx="7.5" cy="11.5" r="1.3"></circle>',
+        gear: '<circle cx="8" cy="8" r="2.15"></circle><path d="M6.45 2h3.1l.48 1.72 1.48.62 1.68-.58 1.18 2.05-1.22 1.08.04 1.62 1.18 1.08-1.18 2.05-1.68-.58-1.48.62L9.55 14H6.45l-.48-1.72-1.48-.62-1.68.58-1.18-2.05 1.22-1.08-.04-1.62-1.18-1.08 1.18-2.05 1.68.58 1.48-.62L6.45 2Z"></path>'
+      };
+      return `<span class="block-icon" aria-hidden="true"><svg viewBox="0 0 16 16">${paths[kind] || paths.cards}</svg></span>`;
+    }
+    function assignAdvSlot(slot, packId) {
+      const cur = state.adv.indexOf(packId);
+      if (cur < 0 || cur === slot || slot < 0 || slot >= state.adv.length) return;
+      const next = state.adv.slice();
+      const [item] = next.splice(cur, 1);
+      next.splice(slot, 0, item);
+      state.adv = next;
+      state.advDraft = next.slice();
+      renderBonds();
+    }
+    function advPriorityMarkup(advancedOrder) {
+      if (!advancedOrder.length) return `<p class="deck-note">暂未选择高级卡组。</p>`;
+      const last = advancedOrder.length - 1;
+      const rows = advancedOrder.map((pack, index) => {
+        const options = advancedOrder.map((item) => `<button type="button" role="option" data-adv-pick="${item.id}" data-adv-slot="${index}" aria-selected="${item.id===pack.id}">${item.label}</button>`).join("");
+        return `<div class="adv-priority-row"><div class="dd adv-combo-wrap"><button type="button" class="adv-combo dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="第${index+1}优先级 ${pack.label}"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><em>第${index+1}优先级</em><i>▾</i></button><div class="dd-menu" role="listbox">${options}</div></div><span class="adv-step"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===last ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`;
+      }).join("");
+      return `<div class="adv-priority" data-od-id="advanced-pack-priority"><div class="adv-priority-list">${rows}</div></div>`;
+    }
     function renderBonds() {
       const packById = Object.fromEntries(ADV.map((pack)=>[pack.id, pack]));
       if (state.bondSaved) { renderBondSummary(packById); renderLaunchSummary(); return; }
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const advancedOrderEditor = advancedOrder.length
-        ? `<div class="adv-order" data-od-id="advanced-pack-priority">${advancedOrder.map((pack,index)=>`<div class="adv-rank"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><span class="rank-move"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===advancedOrder.length-1 ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`).join("")}</div>`
-        : "";
-      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>高级卡组（点击勾选/取消）</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrderEditor}</div>`;
-      const coreCards = `<div class="bond-block"><h4>属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
-      const save = `<div class="bond-actions"><p class="hint">调整后点击保存，运行时才会使用这份羁绊和卡组配置。</p><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
+      const advanced = `<div class="bond-block" data-od-id="advanced-pack-selector"><h4>${blockIcon("star")}高级卡组</h4><div class="chips">${ADV.map((pack)=>`<button type="button" class="chip" data-pack="${pack.id}" aria-pressed="${state.adv.includes(pack.id)}">${pack.label}</button>`).join("")}</div>${advancedOrder.length ? advPriorityMarkup(advancedOrder) : `<p class="deck-note">勾选后在此调整优先级，不必先锁定卡组。</p>`}</div>`;
+      const coreCards = `<div class="bond-block"><h4>${blockIcon("attr")}属性</h4><div class="chips">${ATTR.map((a)=>`<button type="button" class="chip" data-attr="${a.id}" aria-pressed="${state.attr.has(a.id)}">${a.label}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("growth")}发育卡组</h4><div class="chips">${GROWTH.map((n)=>`<button type="button" class="chip" data-bond-set="growth" data-bond="${n}" aria-pressed="${state.growth.has(n)}">${n}</button>`).join("")}</div></div><div class="bond-block"><h4>${blockIcon("cards")}基础卡组</h4><div class="chips">${BASIC.map((n)=>`<button type="button" class="chip" data-bond-set="basic" data-bond="${n}" aria-pressed="${state.basic.has(n)}">${n}</button>`).join("")}</div></div>`;
+      const save = `<div class="bond-actions"><p class="hint">保存后锁定卡组勾选；高级顺序仍可随时改。</p><button type="button" class="gold" id="btnSaveBonds">保存羁绊</button></div>`;
       $("bonds").innerHTML = `${coreCards}${advanced}${save}`;
       renderLaunchSummary();
     }
@@ -1378,14 +1693,11 @@
         ...BASIC.filter((n)=>state.basic.has(n))
       ];
       const basicRow = basics.length
-        ? `<div class="chips">${basics.map((n)=>`<span class="deck-tag">${n}</span>`).join("")}</div>`
+        ? `<div class="bond-locked">${basics.map((n)=>`<span class="deck-tag">${n}</span>`).join("")}</div>`
         : `<p class="deck-note">暂未选择基础羁绊。</p>`;
       const advancedOrder = state.adv.map((id)=>packById[id]).filter(Boolean);
-      const advRow = advancedOrder.length
-        ? `<div class="adv-order" data-od-id="advanced-pack-priority">${advancedOrder.map((pack,index)=>`<div class="adv-rank"><span class="rank-no">${index+1}</span><b title="${pack.label}">${pack.label}</b><span class="rank-move"><button type="button" data-adv-move="-1" data-adv-id="${pack.id}" ${index===0 ? "disabled" : ""} aria-label="${pack.label} 上移">▲</button><button type="button" data-adv-move="1" data-adv-id="${pack.id}" ${index===advancedOrder.length-1 ? "disabled" : ""} aria-label="${pack.label} 下移">▼</button></span></div>`).join("")}</div>`
-        : `<p class="deck-note">暂未选择高级卡组。</p>`;
-      const actions = `<div class="bond-actions"><p class="hint">已保存这份羁绊配置；拖动 ▲▼ 调整高级卡组顺序即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>`;
-      $("bonds").innerHTML = `<div class="bond-block" data-od-id="bond-saved-summary"><h4>基础卡组</h4>${basicRow}</div><div class="bond-block" data-od-id="advanced-pack-priority"><h4>高级卡组（按顺序生效）</h4>${advRow}</div>${actions}`;
+      const actions = `<div class="bond-actions"><p class="hint">卡组已锁定。高级优先级用下拉或 ▲▼ 即时生效。</p><button type="button" class="secondary" id="btnEditBonds">调整配置</button></div>`;
+      $("bonds").innerHTML = `<div class="bond-block" data-od-id="bond-saved-summary"><h4>${blockIcon("lock")}基础卡组</h4>${basicRow}</div><div class="bond-block" data-od-id="advanced-pack-priority"><h4>${blockIcon("star")}高级卡组顺序</h4>${advPriorityMarkup(advancedOrder)}</div>${actions}`;
     }
     function renderLaunchSummary() {
       const selectedBasics = [
@@ -1396,26 +1708,29 @@
       const advancedOrder = state.adv.map((id)=>ADV.find((item)=>item.id===id)).filter(Boolean);
       const factions = FACTIONS.filter((item)=>state.alloc[item.id]).map((item)=>`${item.short}×${state.alloc[item.id]}`);
       const current = currentSkills().filter(Boolean);
-      const launchBlocked = state.scene === "hitch" || current.length === 0;
-      const launchStatus = state.scene === "hitch"
-        ? "蹭车模式不可启动"
-        : current.length === 0 ? "请先选择技能" : "启动配置已就绪";
+      const subOk = isSubscriptionOk();
+      const launchBlocked = current.length === 0 || !subOk;
+      const launchStatus = current.length === 0 ? "请先选择技能" : (subOk ? "等待后端预检" : `订阅${state.subscription.status || "未激活"}`);
       const rankedSkills = [...state.priority.filter((code)=>current.includes(code)), ...current.filter((code)=>!state.priority.includes(code))].slice(0,4);
       const detailTags = [
-        `自动秘境：${state.autoSecret ? "开" : "关"}`,
-        `自动考古：${state.autoArch ? "开" : "关"}`,
-        `龙珠优先：${state.dragonPrefer ? "开" : "关"}`,
-        `取消主线：${state.closeMainline ? "开" : "关"}`,
-        `每局新建：${state.newRoom ? "开" : "关"}`
+        `秘境 ${state.autoSecret ? "开" : "关"}`,
+        `考古 ${state.autoArch ? "开" : "关"}`,
+        `龙珠 ${state.dragonPrefer ? "开" : "关"}`,
+        `取消主线 ${state.closeMainline ? "开" : "关"}`,
+        `每周新建 ${state.newRoom ? "开" : "关"}`
       ];
       const basicSummary = selectedBasics.length
         ? `<div class="deck-tags">${selectedBasics.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div>`
         : `<span class="deck-tag empty">暂未选择</span>`;
       const advancedSummary = advancedOrder.length
         ? `<div class="deck-tags">${advancedOrder.map((pack,index)=>`<span class="deck-tag">${index+1}·${pack.label}</span>`).join("")}</div>`
-        : `<p class="deck-note">暂未选择高级卡组。</p>`;
+        : `<span class="deck-tag empty">未启用</span>`;
       const skillSummary = rankedSkills.length ? `<div class="launch-skills">${rankedSkills.map((code,index)=>`<span class="launch-skill"><i>${index+1}</i><img src="assets/skills/${code}.png" alt="" width="22" height="22" /><b>${SKILLS[code]}</b></span>`).join("")}</div>` : `<p class="deck-note">暂未选择技能。</p>`;
-      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><div class="launch-check"><h4>目标关卡</h4><p class="launch-value">${state.chapter}-${state.stage} · ${state.cycle ? `${state.cycle} 局` : "手动停"}</p></div><div class="launch-check"><h4>运行方式</h4><p class="launch-value">${MODE_LABEL[state.mode]||"单人刷图"}</p></div><div class="launch-check"><h4>已选技能</h4>${skillSummary}</div><div class="launch-check"><h4>声望挑战</h4><p class="launch-value">${state.hero ? (factions.join("、") || "已启用，待选择") : "未启用"}</p></div><div class="launch-check"><h4>传家宝 / Boss</h4><p class="launch-value">${stemLabel(state.cjb)} / ${stemLabel(state.boss)}</p></div><div class="launch-check"><h4>细节设置</h4><div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div></div><div class="launch-check"><h4>基础卡组</h4>${basicSummary}</div><div class="launch-check"><h4>高级卡组</h4>${advancedSummary}</div>`;
+      const prestigeValue = state.hero ? (factions.join("、") || "已启用，待选择") : "未启用";
+      const subValue = subOk
+        ? (formatExpire(state.subscription.expires_at) ? `正常 · ${formatExpire(state.subscription.expires_at)} 到期` : "正常")
+        : (state.subscription.status || "未激活");
+      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><dl class="launch-facts"><div><dt>${blockIcon("flag")}${state.mode === "hitch" ? "搜房" : (state.mode === "follow" ? "跟车" : "关卡")}</dt><dd>${state.mode === "hitch" ? (window.hitchSearchTerms ? `${window.hitchSearchTerms.primary},${window.hitchSearchTerms.secondary}` : "4,3") : (state.mode === "follow" ? (state.teamRules?.follow?.pairCode || "自动配对") : `${state.chapter}-${state.stage}`)} · ${state.mode === "hitch" ? (state.teamRules?.hitch?.cycle ? `${state.teamRules.hitch.cycle} 局` : "手动停") : (state.mode === "follow" ? (state.teamRules?.follow?.cycle ? `${state.teamRules.follow.cycle} 局` : "手动停") : (state.cycle ? `${state.cycle} 局` : "手动停"))}</dd></div><div><dt>${blockIcon("users")}方式</dt><dd>${MODE_LABEL[state.mode]||"单人模式"}</dd></div><div><dt>${blockIcon("shield")}声望</dt><dd>${prestigeValue}</dd></div><div><dt>${blockIcon("cards")}传家宝</dt><dd>${stemLabel(state.cjb)||"未选"}</dd></div><div><dt>${blockIcon("spark")}Boss</dt><dd>${stemLabel(state.boss)||"未选"}</dd></div><div><dt>${blockIcon("lock")}订阅</dt><dd>${subValue}</dd></div></dl><div class="launch-block"><h4>${blockIcon("star")}技能</h4>${skillSummary}</div><div class="launch-block"><h4>${blockIcon("gear")}常规设置</h4><div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div></div><div class="launch-block"><h4>${blockIcon("cards")}卡组</h4><p class="launch-sub">基础${state.bondSaved ? " · 已锁定" : ""}</p>${basicSummary}<p class="launch-sub">高级 · 按顺序</p>${advancedSummary}</div>`;
     }
     function renderBuilds() {
       const isCustom = state.selected.startsWith("custom:");
@@ -1512,12 +1827,78 @@
     function renderNegatives() {
       $("negatives").innerHTML=NEG.map((card)=>`<label class="neg-item"><input type="checkbox" data-neg="${card.name}" ${state.negative.has(card.name)?"checked":""} /><span><b>${card.name}</b><span class="fx">${card.effect}</span><span class="why">${card.why}</span></span></label>`).join("");
     }
-    function renderNames() { $("cjbName").textContent=stemLabel(state.cjb); $("bossName").textContent=stemLabel(state.boss); renderLaunchSummary(); }
-    function recommendChallenges() {
-      const key=`${state.chapter}-${state.stage}`;
-      const boss=findStem(BOSS_STEMS, STAGE_BOSS[key]||""); if (boss) state.boss=boss;
-      const cjb=findStem(CJB_STEMS, STAGE_CJB[key]||""); if (cjb) state.cjb=cjb;
-      renderNames();
+    function renderNames() {
+      const cjb=stemLabel(state.cjb), boss=stemLabel(state.boss);
+      $("cjbName").textContent=cjb; $("bossName").textContent=boss;
+      $("hitchCjbName").textContent=cjb; $("hitchBossName").textContent=boss;
+      renderLaunchSummary();
+    }
+    function formatExpire(value) {
+      if (!value) return "";
+      const text = String(value);
+      return text.length >= 10 ? text.slice(0, 10) : text;
+    }
+    function isSubscriptionOk() {
+      return Boolean(state.subscription && state.subscription.active);
+    }
+    function subscriptionTone() {
+      if (state.subscription.live_authorized) return "ok";
+      const status = state.subscription.status || "未激活";
+      if (/过期|到期|失效|无效|拒绝|失败/.test(status)) return "bad";
+      return "warn";
+    }
+    function subscriptionPillLabel() {
+      if (isSubscriptionOk()) {
+        const exp = formatExpire(state.subscription.expires_at);
+        return `卡密有效${exp ? ` · ${exp} 到期` : ""} · ${state.subscription.live_status || "LIVE 授权待校验"}`;
+      }
+      return state.subscription.status || "未激活";
+    }
+    function applySubscription(sub) {
+      if (sub) state.subscription = {
+        active: Boolean(sub.active),
+        status: sub.status || (sub.active ? "正常" : "未激活"),
+        expires_at: sub.expires_at || "",
+        live_authorized: Boolean(sub.live_authorized),
+        live_status: sub.live_status || "LIVE 授权待校验"
+      };
+      const pill = $("subscriptionPill");
+      if (pill) {
+        const tone = subscriptionTone();
+        pill.dataset.state = tone;
+        pill.innerHTML = `<span class="dot" aria-hidden="true"></span>${subscriptionPillLabel()}`;
+        pill.title = isSubscriptionOk() ? "查看或激活卡密" : "激活卡密";
+        pill.setAttribute("aria-label", isSubscriptionOk() ? `订阅${subscriptionPillLabel()}` : `订阅${subscriptionPillLabel()}，打开卡密`);
+      }
+      const btn = $("btnActivateKey");
+      if (btn) btn.textContent = "激活卡密";
+    }
+    function openSubscriptionModal() {
+      state.modal = "subscription";
+      state._focusBack = document.activeElement;
+      const sub = state.subscription;
+      const tone = subscriptionTone();
+      let nowText = "订阅未激活";
+      if (isSubscriptionOk()) {
+        const exp = formatExpire(sub.expires_at);
+        nowText = `卡密有效${exp ? ` · ${exp} 到期` : ""} · ${sub.live_status || "LIVE 授权待校验"}`;
+      } else if (/过期/.test(sub.status || "")) {
+        nowText = "订阅已过期";
+      }
+      const cta = isSubscriptionOk() ? "更换并保存" : "激活并保存";
+      $("modalSheet").className = "sheet subscription";
+      $("modalSheet").innerHTML = `<div class="subscription-head"><p class="subscription-kicker">刷刷宝 · 订阅授权</p><h2 id="sheetTitle">激活卡密</h2><p class="subscription-now is-${tone}"><i></i>${nowText}</p></div><div class="subscription-body"><label for="subscriptionKey">订阅卡密<div class="key-row" id="subscriptionKeyRow"><input id="subscriptionKey" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴卡密" /><button type="button" class="key-toggle" data-toggle-key="1" aria-pressed="false">显示</button></div></label><p class="subscription-err" id="subscriptionErr" role="alert"></p><small>绑定本机用户，激活后才能开始运行。</small></div><div class="subscription-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-activate-subscription="1">${cta}</button></div>`;
+      $("modalLayer").classList.add("show");
+      const input = $("subscriptionKey");
+      if (input) input.focus();
+    }
+    function showSubscriptionErr(msg) {
+      const err = $("subscriptionErr");
+      const input = $("subscriptionKey");
+      const row = $("subscriptionKeyRow");
+      if (err) { err.textContent = msg; err.classList.toggle("show", Boolean(msg)); }
+      if (input) input.classList.toggle("is-invalid", Boolean(msg));
+      if (row) row.classList.toggle("is-invalid", Boolean(msg));
     }
     function setKind(kind, root) {
       root.querySelectorAll("[data-kind]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.kind===kind?"true":"false"));
@@ -1527,35 +1908,28 @@
       $("wizSoloPane").classList.toggle("hidden", state.wizKind!=="solo");
       $("wizTeamPane").classList.toggle("hidden", state.wizKind!=="team");
       $("wizTeamPane").querySelectorAll("[data-team]").forEach((btn)=>btn.setAttribute("aria-pressed", btn.dataset.team===state.wizTeam?"true":"false"));
-      $("wizHint").textContent = state.wizKind==="solo"
-        ? "进入看板后再选关卡和技能。单人：自己建房，自己点开始。"
-        : (state.wizTeam==="lead"?"带车：你当车头，房间自动开始。"
-          : state.wizTeam==="follow"?"跟车：已在房间里等队长，不建房、不点开始。"
-          : "蹭车：大厅搜房。待验证，看板不点火。");
+      const hint = state.wizKind==="team" && state.wizTeam==="lead"
+        ? "带车：你当车头，房间自动开始。"
+        : "";
+      $("wizHint").textContent = hint;
+      $("wizHint").classList.toggle("hidden", !hint);
     }
     function refreshSummary() {
       const names=currentSkills().filter(Boolean).map((c)=>SKILLS[c]);
-      const diff=state.hero?"声望挑战":"常规";
-      const mode=MODE_LABEL[state.mode]||"单人刷图";
-      const rep=state.hero?FACTIONS.filter((f)=>state.alloc[f.id]).map((f)=>`${f.short}×${state.alloc[f.id]}`).join(" "):"";
-      const teamRule=state.teamRules[state.mode];
-      $("summary").textContent=teamRule
-        ? `${mode}  ${teamRule.cycle?teamRule.cycle+" 局":"手动停"}  ${state.mode==="hitch"?"目标后":"解散后"}：${TEAM_ACTION_LABEL[state.mode==="hitch"?teamRule.afterGoal:teamRule.afterRoom]}`
-        : `${mode}  ${state.cycle?state.cycle+" 局":"手动停"}  ${state.chapter}-${state.stage}  ${diff}${rep?"  "+rep:""}  ${names.join(" ")||"未选技能"}`;
-      const hitch = state.scene==="hitch";
       const skillsReady = names.length > 0;
-      const launchable = !hitch && skillsReady;
+      const launchable = skillsReady;
       $("btnStart").disabled=!launchable;
-      $("lamp").className="lamp"+(launchable?"":" bad");
-      $("lampText").textContent=hitch?"不可启动":skillsReady?"预检通过":"待选技能";
+      $("lamp").className="lamp"+(skillsReady?" pending":" bad");
+      $("lampText").textContent=skillsReady?"等待后端预检":"待选技能";
       $("btnStart").textContent=launchable?"开始运行":"不可启动";
       $("btnStart").classList.remove("stop");
-      if (hitch || !skillsReady) {
-        $("startErr").textContent = hitch ? "蹭车只搜房，不能点火" : "请先选择至少一个技能";
+      if (!skillsReady) {
+        $("startErr").textContent = "请先选择至少一个技能";
         $("startErr").classList.add("show");
       } else {
         $("startErr").classList.remove("show");
       }
+      applySubscription();
       renderLaunchSummary();
     }
     function normalizeTeamCycle(value) {
@@ -1573,12 +1947,17 @@
       });
     }
     function setScene(scene) {
+      if (scene==="wizard" && state.scene!=="wizard") {
+        state.wizardReturnScene = ["farm","lead","follow","hitch"].includes(state.scene) ? state.scene : "farm";
+      }
       if (scene==="farm") state.mode="solo";
       else if (scene==="lead"||scene==="follow"||scene==="hitch") state.mode=scene;
       state.scene=scene;
       document.body.dataset.scene=scene;
-      $("scene-wizard").setAttribute("aria-hidden", scene==="wizard" ? "false" : "true");
-      $("scene-app").setAttribute("aria-hidden", ["farm","lead","follow","hitch"].includes(scene) ? "false" : "true");
+      const wiz = $("scene-wizard");
+      if (wiz) wiz.setAttribute("aria-hidden", scene==="wizard" ? "false" : "true");
+      const app = $("scene-app");
+      if (app) app.setAttribute("aria-hidden", ["farm","lead","follow","hitch"].includes(scene) ? "false" : "true");
       if (scene==="wizard") renderWizard();
       $("lblCycle").textContent=scene==="lead"?"带车目标局数":"目标局数";
       $("statusPill").innerHTML='<span class="dot"></span>待命';
@@ -1598,8 +1977,8 @@
         const opt=e.target.closest("[data-dd-val]");
         if (opt) {
           const kind=dd.dataset.dd, val=Number(opt.dataset.ddVal); dd.classList.remove("open");
-          if (kind==="chapter") { state.chapter=val; state.stage=Math.min(state.stage, STAGE_MAX[val]); recommendChallenges(); renderPrestige(); }
-          if (kind==="stage") { state.stage=val; recommendChallenges(); renderPrestige(); }
+          if (kind==="chapter") { state.chapter=val; state.stage=Math.min(state.stage, STAGE_MAX[val]); renderPrestige(); }
+          if (kind==="stage") { state.stage=val; renderPrestige(); }
           renderChapterStage(); refreshSummary();
         }
       }
@@ -1619,7 +1998,19 @@
     $("btnRep").addEventListener("click",()=>openModal("rep"));
     $("cjbCard").addEventListener("click",()=>openModal("cjb"));
     $("bossCard").addEventListener("click",()=>openModal("boss"));
+    $("hitchCjbCard").addEventListener("click",()=>openModal("cjb"));
+    $("hitchBossCard").addEventListener("click",()=>openModal("boss"));
     $("modalLayer").addEventListener("click",(e)=>{
+      if (e.target.closest("[data-toggle-key]")) {
+        const input=$("subscriptionKey"); const btn=e.target.closest("[data-toggle-key]");
+        if (!input || !btn) return;
+        const show = input.type === "password";
+        input.type = show ? "text" : "password";
+        btn.textContent = show ? "隐藏" : "显示";
+        btn.setAttribute("aria-pressed", show ? "true" : "false");
+        input.focus();
+        return;
+      }
       if (e.target===$("modalLayer") || e.target.closest("[data-close]")) {
         if (e.target.closest("[data-close='off']")) state.hero=false;
         closeModal(); renderPrestige(); refreshSummary(); return;
@@ -1693,18 +2084,21 @@
     $("bonds").addEventListener("click",(e)=>{
       if (e.target.closest("#btnSaveBonds")) { state.bondSaved=true; renderBonds(); return; }
       if (e.target.closest("#btnEditBonds")) { state.bondSaved=false; renderBonds(); return; }
+      const advPick=e.target.closest("[data-adv-pick]");
+      if (advPick) { assignAdvSlot(Number(advPick.dataset.advSlot), advPick.dataset.advPick); return; }
+      const advMove=e.target.closest("[data-adv-move]");
+      if (advMove) {
+        const i=state.adv.indexOf(advMove.dataset.advId), j=i+Number(advMove.dataset.advMove);
+        if (i<0 || j<0 || j>=state.adv.length) return;
+        [state.adv[i],state.adv[j]]=[state.adv[j],state.adv[i]];
+        state.advDraft=state.adv.slice(); renderBonds(); return;
+      }
+      if (state.bondSaved) return;
       const attr=e.target.closest("[data-attr]"); if (attr) { const id=attr.dataset.attr; if (state.attr.has(id)) state.attr.delete(id); else state.attr.add(id); renderBonds(); return; }
       const pack=e.target.closest("[data-pack]"); if (pack) { const id=pack.dataset.pack; if (state.adv.includes(id)) { state.adv=state.adv.filter((item)=>item!==id); } else { state.adv=[...state.adv,id]; } state.advDraft=state.adv.slice(); renderBonds(); return; }
       const chip=e.target.closest("[data-bond]"); if (!chip) return;
       const setName=chip.dataset.bondSet, name=chip.dataset.bond;
       if (state[setName].has(name)) state[setName].delete(name); else state[setName].add(name); renderBonds();
-    });
-    $("bonds").addEventListener("click",(e)=>{
-      const advMove=e.target.closest("[data-adv-move]"); if (!advMove) return;
-      const i=state.adv.indexOf(advMove.dataset.advId), j=i+Number(advMove.dataset.advMove);
-      if (i<0 || j<0 || j>=state.adv.length) return;
-      [state.adv[i],state.adv[j]]=[state.adv[j],state.adv[i]];
-      state.advDraft=state.adv.slice(); renderBonds();
     });
     $("negatives").addEventListener("change",(e)=>{ const box=e.target.closest("input[data-neg]"); if (!box) return; if (box.checked) state.negative.add(box.dataset.neg); else state.negative.delete(box.dataset.neg); });
     $("wizKind").addEventListener("click",(e)=>{
@@ -1755,7 +2149,6 @@
     $("btnMore").addEventListener("click",()=>setDrawer(!state.drawer));
     $("drawerBackdrop").addEventListener("click",()=>setDrawer(false));
     $("btnStart").addEventListener("click",()=>{
-      if (state.scene==="hitch") return;
       const n = currentSkills().filter(Boolean).length;
       if (!n) {
         $("startErr").textContent = "还没选技能，先点自定义或一个流派";
@@ -1766,12 +2159,16 @@
       }
       $("startErr").classList.remove("show");
     });
+    $("btnActivateKey").addEventListener("click", openSubscriptionModal);
+    $("subscriptionPill").addEventListener("click", openSubscriptionModal);
     $("btnWizard").addEventListener("click",openWizard);
     $("btnTheme").addEventListener("click",()=>{
       state.theme=state.theme==="dark"?"light":"dark";
       $("scene-app").dataset.theme=state.theme;
+      document.body.dataset.theme=state.theme;
       $("btnTheme").textContent=state.theme==="dark"?"浅色":"深色";
       $("btnTheme").setAttribute("aria-pressed", state.theme==="dark" ? "true" : "false");
+      $("btnTheme").setAttribute("aria-label", state.theme==="dark" ? "当前深色，切换到浅色" : "当前浅色，切换到深色");
     });
     document.addEventListener("keydown",(e)=>{
       if (e.key==="Escape") {
@@ -1792,9 +2189,16 @@
         else if (!e.shiftKey && document.activeElement===last) { e.preventDefault(); first.focus(); }
       }
     });
-    renderChapterStage(); recommendChallenges(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
+    applySubscription();
+    setSwitch($("swSecret"), state.autoSecret);
+    setSwitch($("swCloseML"), state.closeMainline);
+    setSwitch($("swAutoArch"), state.autoArch);
+    setSwitch($("swDragon"), state.dragonPrefer);
+    renderChapterStage(); renderNames(); renderBuilds(); renderBonds(); renderNegatives(); renderPrestige(); renderTeamRules();
     setScene("farm");
+    window.openSubscriptionModal = openSubscriptionModal;
+    window.applySubscription = applySubscription;
   </script>
-    <script type="module" src="./src/main.ts"></script>
+  <script type="module" src="./src/main.ts"></script>
 </body>
 </html>

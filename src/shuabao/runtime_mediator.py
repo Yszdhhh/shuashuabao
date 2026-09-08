@@ -26,7 +26,8 @@ class Mediator(CoreMediator):
     """Core Mediator plus production liveness/safety invariants."""
 
     _RUNTIME_STALL_TIMEOUT_S = 15.0
-    _PANEL_FAIL_FORWARD_S = 3.0
+    _RUNTIME_WATCHDOG_MAX_ESC_ATTEMPTS = 2
+    _PANEL_FAIL_FORWARD_S = 8.0
 
     def __init__(self, settings, project_root, *args: Any, **kwargs: Any) -> None:
         self._bond_cards_pending: list[str] = []
@@ -43,6 +44,16 @@ class Mediator(CoreMediator):
         self._runtime_panel_unknown_signature: tuple[str, int] | None = None
         self._runtime_panel_unknown_since: float | None = None
         self._last_runtime_progress_at: float = time.time()
+        # The watchdog may observe a stable in-game HUD, but it must never
+        # treat an UNKNOWN/transition frame as permission to send a key.  Keep
+        # a small consecutive-frame latch separate from the core FSM evidence
+        # cache so an interrupted episode is always re-armed from zero.
+        self._runtime_watchdog_hud_confirmations: int = 0
+        self._runtime_watchdog_last_frame_id: int | None = None
+        # Task 3: bounded same-target mechanical recovery.  ESC attempts
+        # without fresh-frame verified progress accumulate here; exceeding
+        # the cap escalates to the existing fail-closed ERROR phase.
+        self._runtime_watchdog_esc_attempts: int = 0
 
         # Prevent the generic core constructor from creating a legacy-compatible
         # OCR client. LIVE replaces it with the ShuaBao-only production client
@@ -68,7 +79,7 @@ class Mediator(CoreMediator):
             try:
                 self._ocr_client = ProductionShadowClient(
                     repo_root=Path(project_root),
-                    timeout_ms=int(getattr(settings, "ocr_timeout_ms", 1500) or 1500),
+                    timeout_ms=max(2500, int(getattr(settings, "ocr_timeout_ms", 0) or 0)),
                     startup_timeout_ms=30000,
                     trace_path=trace_path,
                 )
@@ -80,6 +91,9 @@ class Mediator(CoreMediator):
         self._physical_panel_deadline_s = max(30.0, min(60.0, episode_deadline * 2.5))
         self._l1_cycle_index = 0
         self._last_runtime_progress_at = time.time()
+        self._runtime_watchdog_hud_confirmations = 0
+        self._runtime_watchdog_last_frame_id = None
+        self._runtime_watchdog_esc_attempts = 0
 
     # ------------------------------------------------------------------
     # LIVE dependency bootstrap.
@@ -116,11 +130,26 @@ class Mediator(CoreMediator):
         )
         started = time.perf_counter()
 
-        if not client.start():
+        # Paddle's worker occasionally loses its first startup race while the
+        # game is also initializing.  A failed first spawn is not evidence
+        # that the OCR runtime is unavailable: reset that child and try once
+        # more before refusing LIVE input.  We remain fail-closed throughout;
+        # no business action is reached until a worker has sent a valid ready
+        # response, completed ping, and completed warmup.
+        start_attempts = 0
+        while start_attempts < 2:
+            start_attempts += 1
+            if client.start():
+                break
+            if start_attempts < 2:
+                client.rearm()
+
+        if start_attempts >= 2 and not client.health_check().get("ready"):
             self._ocr_bootstrap_health = {
                 "healthy": False,
                 "stage": "start",
                 "reason": client.ready_reason or "start_failed",
+                "start_attempts": start_attempts,
                 "model_validated": client.model_validated,
                 "model_name": client.model_name,
                 "model_hash": client.model_hash,
@@ -162,6 +191,7 @@ class Mediator(CoreMediator):
             {
                 "stage": "ready",
                 "reason": "ok" if health.get("healthy") else (health.get("ready_reason") or "health_failed"),
+                "start_attempts": start_attempts,
                 "warmup_ms": round(warmup_ms, 1),
                 "bootstrap_ms": round((time.perf_counter() - started) * 1000.0, 1),
             }
@@ -234,21 +264,80 @@ class Mediator(CoreMediator):
             return False
         return True
 
+    def _runtime_watchdog_hud_confirmed(self, frame) -> bool:
+        """Require two distinct, uninterrupted frames of a known HUD.
+
+        This guard is deliberately observation-only.  A post-game page, an
+        unresolved transition, or a frame that is not independently recognized
+        as the in-game HUD clears the latch and grants no watchdog input.
+        """
+        frame_id = id(frame)
+        if frame_id == self._runtime_watchdog_last_frame_id:
+            return self._runtime_watchdog_hud_confirmations >= 2
+        self._runtime_watchdog_last_frame_id = frame_id
+
+        if getattr(self, "_post_game_pending", False):
+            self._runtime_watchdog_hud_confirmations = 0
+            return False
+        try:
+            if self._post_game_state(frame) is not None or not self._is_in_game_hud(frame):
+                self._runtime_watchdog_hud_confirmations = 0
+                return False
+        except Exception:
+            # A classifier failure is equivalent to UNKNOWN for a safety
+            # watchdog: never convert an exception into an input authority.
+            self._runtime_watchdog_hud_confirmations = 0
+            return False
+
+        self._runtime_watchdog_hud_confirmations += 1
+        return self._runtime_watchdog_hud_confirmations >= 2
+
     def _tick_main_line(self, frame):
         now = time.time()
-        if self._runtime_watchdog_allowed(now):
-            stagnant_for = now - float(getattr(self, "_last_runtime_progress_at", now) or now)
-            if stagnant_for >= self._RUNTIME_STALL_TIMEOUT_S:
-                print(
-                    f"[med] LIVE 活性看门狗：{stagnant_for:.1f}s 无真实输入/确认进展，"
-                    "ESC 脱困并推进主循环"
-                )
-                self.act_key("escape", "RuntimeWatchdog-EscUnstuck")
-                self._advance_l1_cycle()
-                self._main_line_since = now
-                self._mark_runtime_progress(now)
-                return LoopAction.Continue
-        return super()._tick_main_line(frame)
+        hud_confirmed = self._runtime_watchdog_hud_confirmed(frame)
+
+        # Core arbitration always runs first.  In particular, black/UNKNOWN
+        # frames must still reach the normal zero-input path instead of being
+        # swallowed by a liveness shortcut.
+        result = super()._tick_main_line(frame)
+        if getattr(self, "_tick_input_executed", False):
+            self._runtime_watchdog_hud_confirmations = 0
+            # Task 3: a real core input is fresh-frame verified progress;
+            # re-arm the bounded ESC budget for the next stall episode.
+            self._runtime_watchdog_esc_attempts = 0
+            self._mark_runtime_progress(now)
+            return result
+        if not hud_confirmed or not self._runtime_watchdog_allowed(now):
+            return result
+
+        stagnant_for = now - float(getattr(self, "_last_runtime_progress_at", now) or now)
+        if stagnant_for < self._RUNTIME_STALL_TIMEOUT_S:
+            return result
+
+        print(
+            f"[med] LIVE 活性看门狗：{stagnant_for:.1f}s 无真实输入/确认进展，"
+            "在连续 HUD 证据上发送一次 ESC，等待下一帧后置确认"
+        )
+        # ESC is a bounded observation recovery only.  Do not advance the L1
+        # cycle in the same tick: the next fresh frame must let the core FSM
+        # prove the page mutation/ownership before any cycle transition.
+        # Task 3: same-target bounded retry.  act_key success alone is NOT
+        # business success — only a subsequent fresh frame proving mutation
+        # (via _mark_runtime_progress from a real input/confirm path) re-arms
+        # the budget.  Unverified ESCs accumulate; cap exhaustion is
+        # fail-closed into the existing ERROR phase.
+        if self._runtime_watchdog_esc_attempts >= self._RUNTIME_WATCHDOG_MAX_ESC_ATTEMPTS:
+            print(
+                f"[med] LIVE 看门狗 fail-closed：连续 {self._runtime_watchdog_esc_attempts} 次 ESC 未获得后置帧证据，"
+                "停止机械重试，转 ERROR"
+            )
+            self.set_phase(Phase.ERROR, "runtime watchdog ESC budget exhausted")
+            return LoopAction.Continue
+        if self.act_key("escape", "RuntimeWatchdog-EscUnstuck"):
+            self._runtime_watchdog_esc_attempts += 1
+            self._main_line_since = now
+            self._mark_runtime_progress(now)
+        return LoopAction.Continue
 
     # ------------------------------------------------------------------
     # Physical panel liveness across core episode resets.
@@ -410,6 +499,24 @@ class Mediator(CoreMediator):
     # Evolution: never treat refresh as a completed hero pick; 3-card fallback.
     # ------------------------------------------------------------------
     def _find_evolution_choice(self, frame, anchor=None):
+        # A normal reward panel can share the central-card geometry with the
+        # evolution modal.  Its classification is stronger evidence than the
+        # generic edge detector, so never run that detector on a known panel.
+        # The explicit post-evolve state is stronger still: hero choices share
+        # the treasure lock artwork, so it must reach the hero ranker first.
+        awaiting_hero = bool(
+            getattr(self, "_evolve_awaiting_hero_pick", False)
+            or getattr(self, "_evolve_feedback_pending", False)
+        )
+        active_reward = (
+            getattr(self, "_panel_opened_by_us", None) in ("skill", "bond", "treasure")
+            or (
+                getattr(self, "_panel_state", PanelState.CLOSED) != PanelState.CLOSED
+                and getattr(self, "_panel_kind", None) in ("skill", "bond", "treasure")
+            )
+        )
+        if not awaiting_hero and (active_reward or self._classify_choice_panel(frame) is not None):
+            return None
         hit = super()._find_evolution_choice(frame, anchor)
         if hit is not None and "refresh" not in str(getattr(hit, "name", "")).lower():
             return hit
@@ -417,7 +524,7 @@ class Mediator(CoreMediator):
         # 绝不能在已定性为 skill/bond/treasure/card 的选择面板上触发——
         # 那会把普通三选一当成进化弹窗盲点（宝物"选蓝不选紫"的根因）。
         if (
-            getattr(self, "_evolve_awaiting_hero_pick", False)
+            awaiting_hero
             and getattr(self, "_panel_opened_by_us", None) is None
             and getattr(self, "_panel_state", PanelState.CLOSED) == PanelState.CLOSED
             and self._classify_choice_panel(frame) is None
@@ -435,11 +542,11 @@ class Mediator(CoreMediator):
         now = time.time()
         if pending is not None and not pending.is_confirmed(frame) and now < pending.deadline:
             return LoopAction.Continue
-        if self._black_merchant_present(frame) or self._panel_state != PanelState.CLOSED:
+        if self._panel_state != PanelState.CLOSED:
             return None
 
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
-        if self.settings.auto_devour_dan and self._bond_bar_nonempty(frame):
+        if self.settings.auto_devour_dan and self._can_consume_inventory_swallow_pill(frame):
             pill = self.find(
                 frame,
                 ["danGif"],
@@ -487,7 +594,7 @@ class Mediator(CoreMediator):
         hero_card = self.find(
             frame,
             ["hero_card_item"],
-            threshold=0.70,
+            threshold=0.65,
             roi=inventory_roi,
             scales=(0.8, 0.9, 1.0, 1.1, 1.2),
         )
@@ -508,34 +615,10 @@ class Mediator(CoreMediator):
         return LoopAction.Continue
 
     # ------------------------------------------------------------------
-    # Merchant: swallow pill remains independent; refresh obeys user opt-in.
+    # Merchant: use the single integrated core handler in LIVE too.
     # ------------------------------------------------------------------
     def _maybe_black_merchant(self, frame):
-        if bool(getattr(self.settings, "auto_gambling", False)):
-            return super()._maybe_black_merchant(frame)
-        now = time.time()
-        if now < self._merchant_next_at or not self._black_merchant_present(frame):
-            return None
-        if not bool(getattr(self.settings, "auto_devour_dan", True)) or not self._bond_bar_nonempty(frame):
-            return None
-        pill = self.find(
-            frame,
-            ["danGif"],
-            threshold=0.50,
-            scales=(0.5, 0.6, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5),
-            roi=(0.70, 0.66, 0.90, 0.76),
-        )
-        if not self._in_merchant_strip(frame, pill):
-            return None
-        hit = self._hud_button_hit(
-            frame,
-            "black_merchant_swallow_pill",
-            (pill.x / frame.width, pill.y / frame.height),
-        )
-        if self.act_click(hit, "BlackMerchant-swallow_pill"):
-            self._merchant_next_at = now + max(1.2, float(self.settings.ui_action_interval_s))
-            return LoopAction.Continue
-        return None
+        return super()._maybe_black_merchant(frame)
 
     # ------------------------------------------------------------------
     # Stage selection: SendInput success alone is not selection proof.
@@ -667,6 +750,7 @@ class Mediator(CoreMediator):
             self._bond_cards_owned.clear()
             self._reset_physical_panel_guard()
             self._l1_cycle_index = 0
+            self._l1_cycle_step = "bond"
             self._mark_runtime_progress()
 
     def _maybe_open_choice_panel(self, frame, anchor=None):
@@ -703,6 +787,9 @@ class Mediator(CoreMediator):
             self._arm_runtime_unknown_panel(frame, kind)
         result = super()._find_reward_choice(frame, anchor=anchor)
         if result is None:
+            if getattr(self, "_choice_policy_idle", False):
+                self._clear_runtime_unknown_panel()
+                return None
             self._arm_runtime_unknown_panel(frame, kind)
             return None
 

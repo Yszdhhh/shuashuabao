@@ -98,6 +98,18 @@ def test_stage_start_requires_positive_highlight_and_rearms_selection():
     assert m._stage_selected is False
 
 
+def test_inventory_uses_swallow_pill_while_merchant_strip_is_visible():
+    m = med(auto_devour_dan=True)
+    pill = hit("danGif", 1100, 780)
+    with patch.object(m, "_black_merchant_present", return_value=True), patch.object(
+        m, "_can_consume_inventory_swallow_pill", return_value=True
+    ), patch.object(m, "find", return_value=pill), patch.object(
+        m, "act_click", return_value=True
+    ) as click:
+        assert m._maybe_use_inventory_item(frame()) is LoopAction.Continue
+    click.assert_called_once_with(pill, "UseInventory-swallow_pill")
+
+
 def test_merchant_disabled_does_not_implicitly_refresh_or_buy_other_items():
     m = med(auto_gambling_time=0, auto_devour_dan=False)
     m._merchant_next_at = 0.0
@@ -106,6 +118,14 @@ def test_merchant_disabled_does_not_implicitly_refresh_or_buy_other_items():
     ) as click:
         assert m._maybe_black_merchant(frame()) is None
     click.assert_not_called()
+
+
+def test_runtime_merchant_uses_integrated_core_handler():
+    m = med()
+    merchant_frame = frame()
+    with patch.object(CoreMediator, "_maybe_black_merchant", return_value=LoopAction.Continue) as core_merchant:
+        assert m._maybe_black_merchant(merchant_frame) is LoopAction.Continue
+    core_merchant.assert_called_once_with(merchant_frame)
 
 
 def test_physical_panel_deadline_recovers_instead_of_stopping_runtime():
@@ -142,6 +162,58 @@ def test_runtime_watchdog_is_independent_from_core_main_line_since():
     ) as core, patch.object(m, "_post_game_state", return_value=None):
         result = m._tick_main_line(frame())
     assert result is LoopAction.Continue
+    # A black/UNKNOWN frame is not HUD evidence: core arbitration still runs,
+    # and the watchdog must not send a key or advance the L1 cycle.
+    key.assert_not_called()
+    advance.assert_not_called()
+    core.assert_called_once()
+
+
+def test_runtime_watchdog_requires_two_stable_hud_frames_and_never_advances_cycle():
+    m = med()
+    m.phase = Phase.MAIN_LINE
+    m.settings.pre_wave_protection = False
+    m.settings.dry_run = False
+    m._panel_state = PanelState.CLOSED
+    m._post_game_pending = False
+    m._pending_action = None
+    m._last_runtime_progress_at = 10.0
+    with patch("shuabao.runtime_mediator.time.time", return_value=30.5), patch.object(
+        m, "act_key", return_value=True
+    ) as key, patch.object(m, "_advance_l1_cycle") as advance, patch.object(
+        CoreMediator, "_tick_main_line", return_value=LoopAction.Continue
+    ) as core, patch.object(m, "_post_game_state", return_value=None), patch.object(
+        m, "_is_in_game_hud", return_value=True
+    ):
+        first = m._tick_main_line(frame())
+        second = m._tick_main_line(frame())
+
+    assert first is LoopAction.Continue
+    assert second is LoopAction.Continue
     key.assert_called_once_with("escape", "RuntimeWatchdog-EscUnstuck")
-    advance.assert_called_once()
-    core.assert_not_called()
+    advance.assert_not_called()
+    assert core.call_count == 2
+
+
+def test_runtime_watchdog_hud_latch_resets_after_interruption():
+    m = med()
+    m.phase = Phase.MAIN_LINE
+    m.settings.pre_wave_protection = False
+    m.settings.dry_run = False
+    m._panel_state = PanelState.CLOSED
+    m._post_game_pending = False
+    m._pending_action = None
+    m._last_runtime_progress_at = 10.0
+    with patch("shuabao.runtime_mediator.time.time", return_value=30.5), patch.object(
+        m, "act_key", return_value=True
+    ) as key, patch.object(
+        CoreMediator, "_tick_main_line", return_value=LoopAction.Continue
+    ), patch.object(m, "_post_game_state", return_value=None), patch.object(
+        m, "_is_in_game_hud", side_effect=[True, False, True]
+    ):
+        m._tick_main_line(frame())
+        m._tick_main_line(frame())
+        m._tick_main_line(frame())
+
+    # Only one HUD frame follows the interruption, so no watchdog input.
+    key.assert_not_called()

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "notes": "当前构建证据绑定清单。没有同 SHA、同发行清单和同 EXE 的真实素材时必须保持 MISSING/BLOCKED。",
+  "modes": {
+    "normal_farm": {"status": "MISSING", "reason": "当前 SHA 尚未绑定完整实机证据"},
+    "follow_team": {"status": "MISSING", "reason": "跟车队长开局/掉线/回房仍待当前构建真机证据"},
+    "gambling_wood": {"status": "MISSING", "reason": "运行方式未开放"},
+    "raid_wait": {"status": "MISSING", "reason": "运行方式未开放"},
+    "lobby_hitch": {"status": "MISSING", "reason": "蹭车点击闭环仍待当前构建真机证据"},
+    "lab": {"status": "MISSING", "reason": "仅 CLI 入口，不属于桌面正式验收"}
+  }
+}

@@ -2372,12 +2372,56 @@
             "guide_effect": "剑柄+剑刃同时在栏才合成；三国吞的不算；先拿一个会卡手"
           }
         ],
+        "bounty_mechanics": {
+          "description": "悬赏令是专用于消除海盗卡组的特殊道具/卡牌。越高级的悬赏令可消除的海盗卡范围越广，按颜色与品质向下兼容吞噬。",
+          "visual_fixture": "fixtures/card_template_assertions/positives/haidao_bounty_scrolls_strip_20260830.png",
+          "tiers": {
+            "UR": {
+              "color": "红色",
+              "rarity": "UR",
+              "template": "assets/Images/haidao/haidao_bounty_ur_red.png",
+              "devour_scope": "所有颜色/所有品质的海盗卡（含UR、SSR、SR、R、N的可吞噬海盗卡）"
+            },
+            "SSR": {
+              "color": "橙色",
+              "rarity": "SSR",
+              "template": "assets/Images/haidao/haidao_bounty_ssr_orange.png",
+              "devour_scope": "SSR及以下品质海盗卡（含SSR、SR、R、N）"
+            },
+            "SR": {
+              "color": "紫色",
+              "rarity": "SR",
+              "template": "assets/Images/haidao/haidao_bounty_sr_purple.png",
+              "devour_scope": "SR及以下品质海盗卡（含SR、R、N）"
+            },
+            "R": {
+              "color": "蓝色",
+              "rarity": "R",
+              "template": "assets/Images/haidao/haidao_bounty_r_blue.png",
+              "devour_scope": "R及以下品质海盗卡（含R、N）"
+            },
+            "N": {
+              "color": "绿色",
+              "rarity": "N",
+              "template": "assets/Images/haidao/haidao_bounty_n_green.png",
+              "devour_scope": "N品质（绿色）海盗卡"
+            }
+          },
+          "devour_exceptions": {
+            "undevourable": [
+              "海盗成长卡（不可吞噬）"
+            ],
+            "devourable": [
+              "正常后续从海盗卡组中拿到的卡牌均可吞噬"
+            ]
+          }
+        },
         "bounty_colors": {
-          "红": "所有颜色",
-          "橙": "橙色海盗",
-          "紫": "紫色海盗",
-          "蓝": "蓝色海盗",
-          "绿": "绿色海盗"
+          "红": "UR（红色）- 吞噬所有颜色海盗卡",
+          "橙": "SSR（橙色）- 吞噬SSR及以下海盗卡",
+          "紫": "SR（紫色）- 吞噬SR及以下海盗卡",
+          "蓝": "R（蓝色）- 吞噬R及以下海盗卡",
+          "绿": "N（绿色）- 吞噬N（绿色）海盗卡"
         },
         "play_notes": [
           "经济核心，攻称所有流派先做，约1.5–2分钟",

@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from shuabao.choice_policy import SessionState
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import Mediator, PanelState, Phase, RecoveryKind, RecoveryStep, RoundOutcome
+from shuabao.runtime_mediator import Mediator as RuntimeMediator
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult
@@ -27,6 +28,77 @@ def frame() -> Frame:
 
 
 class LiveRun205044Tests(unittest.TestCase):
+    def test_owned_bond_select_waits_for_second_ocr_frame(self) -> None:
+        med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
+        med._panel_opened_by_us = "bond"
+        med._panel_kind = "bond"
+        slots = [
+            {"index": 0, "name": "祝福", "confidence": 0.99, "raw_text": "祝福"},
+            {"index": 1, "name": "体术", "confidence": 0.99, "raw_text": "体术"},
+            {"index": 2, "name": "亡灵", "confidence": 0.99, "raw_text": "亡灵"},
+            {"index": 3, "name": "刀刀", "confidence": 0.99, "raw_text": "刀刀"},
+        ]
+        with patch.object(med, "_ocr_panel_slots", return_value=slots):
+            self.assertIsNone(med._ocr_reward_choice(frame(), "bond"))
+            hit = med._ocr_reward_choice(frame(), "bond")
+        self.assertIsNotNone(hit)
+        self.assertIn("祝福", hit.name)
+
+    def test_live_ocr_miss_waits_instead_of_refreshing_bond_panel(self) -> None:
+        med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
+        med._panel_opened_by_us = "bond"
+        med._panel_kind = "bond"
+        refresh = MatchResult("bond_refresh_btn", 0.99, 1038, 575, 56, 26, 1038, 575)
+        anchor = MatchResult("bond_hide_btn", 0.85, 805, 575, 94, 26, 805, 575)
+        with patch.object(med, "_ocr_reward_choice", return_value=None), \
+                patch.object(med, "_find_panel_refresh", return_value=refresh) as find_refresh:
+            choice = med._find_reward_choice(frame(), anchor)
+        self.assertIsNone(choice)
+        self.assertTrue(med._choice_policy_idle)
+        find_refresh.assert_not_called()
+
+    def test_runtime_allows_awaited_hero_over_false_treasure_lock(self) -> None:
+        med = RuntimeMediator(Settings(), ROOT)
+        med._evolve_awaiting_hero_pick = True
+        expected = MatchResult("evolution_card_1_rank_5", 0.99, 900, 320, 1, 1, 900, 320)
+        with patch.object(med, "_classify_choice_panel", return_value="treasure"), \
+                patch("shuabao.mediator.Mediator._find_evolution_choice", return_value=expected) as core_choice:
+            self.assertIs(med._find_evolution_choice(frame()), expected)
+        core_choice.assert_called_once()
+
+    def test_evolve_feedback_pending_does_not_classify_treasure(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        med._evolve_feedback_pending = True
+        lock = MatchResult("treasure_lock_btn", 0.99, 1, 1, 1, 1, 1, 1)
+        hide = MatchResult("hide", 0.96, 1, 1, 1, 1, 1, 1)
+
+        def fake_find(_frame, names, **_kwargs):
+            if "treasure_lock_btn" in names:
+                return lock
+            if "hide" in names:
+                return hide
+            return None
+
+        with patch.object(med, "find", side_effect=fake_find):
+            self.assertIsNone(med._classify_choice_panel(frame()))
+
+    def test_main_line_starts_on_bond(self) -> None:
+        med = Mediator(Settings(), ROOT)
+        self.assertEqual(med._l1_cycle_step, "bond")
+        med.set_phase(Phase.MAIN_LINE, "live start")
+        self.assertEqual(med._l1_cycle_step, "bond")
+        runtime = RuntimeMediator(Settings(), ROOT)
+        runtime.set_phase(Phase.MAIN_LINE, "live start")
+        self.assertEqual(runtime._l1_cycle_step, "bond")
+        self.assertEqual(runtime._l1_cycle_index, 0)
+
+    def test_runtime_rejects_evolution_detector_on_active_bond_panel(self) -> None:
+        med = RuntimeMediator(Settings(), ROOT)
+        med._panel_opened_by_us = "bond"
+        with patch("shuabao.mediator.Mediator._find_evolution_choice") as core_choice:
+            self.assertIsNone(med._find_evolution_choice(frame()))
+        core_choice.assert_not_called()
+
     def test_strong_failure_counts_two_new_evidence_generations(self) -> None:
         med = Mediator(Settings(), ROOT)
         med.set_phase(Phase.MAIN_LINE, "live consecutive frames")
@@ -50,19 +122,21 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertIs(med.phase, Phase.RECOVER_FAILURE)
         self.assertIs(med._recovery_state.kind, RecoveryKind.FAIL)
 
-    def test_skill_ocr_safe_fill_never_masquerades_same_icon_as_configured(self) -> None:
+    def test_skill_ocr_miss_refreshes_without_masquerading_as_configured(self) -> None:
         med = Mediator(Settings(skills=["assx"]), ROOT)
         slots = [
             {"index": 0, "name": "电磁网", "confidence": 0.99, "raw_text": "电磁网", "family_source": "badge"},
             {"index": 1, "name": "重创", "confidence": 0.99, "raw_text": "重创", "family_source": "badge"},
             {"index": 2, "name": None, "confidence": 0.0, "raw_text": "多重射线", "family_source": "badge"},
         ]
-        with patch.object(med, "_ocr_panel_slots", return_value=slots):
+        refresh = MatchResult("skill_refresh_btn", 0.99, 1000, 575, 56, 26, 1000, 575)
+        with patch.object(med, "_ocr_panel_slots", return_value=slots), \
+                patch.object(med, "_find_panel_refresh", return_value=refresh):
             fill_hit = med._ocr_reward_choice(frame(), "skill")
         # 未读成奥数射线时，同图标/原始文本不得冒充配置技能 assx；
-        # 但四技能槽未满允许从已验证目录中的合法技能安全补位。
+        # 严格白名单未命中时只刷新，绝不补位拿配置外技能。
         self.assertIsNotNone(fill_hit)
-        self.assertEqual(fill_hit.name, "重创")
+        self.assertEqual(fill_hit.name, "skill_refresh_btn")
         self.assertNotEqual(fill_hit.name, "assx")
 
         slots[2] = {"index": 2, "name": "奥术射线", "confidence": 0.99, "raw_text": "奥术射线", "family_source": "badge"}
@@ -144,7 +218,7 @@ class LiveRun205044Tests(unittest.TestCase):
 
     def test_existing_advanced_bond_progress_can_still_be_finished(self) -> None:
         # 硬白名单：用户勾选「亡灵天灾」后才可完成进度；未勾选的海盗变体仍不可选。
-        med = Mediator(Settings(cards=["亡灵天灾"], bond_whitelist_mode="hard"), ROOT)
+        med = Mediator(Settings(cards=["亡灵天灾"], bonds=[], bond_whitelist_mode="hard"), ROOT)
         slots = [
             {"index": 0, "name": "亡灵天灾", "confidence": 0.99, "raw_text": "亡灵天灾(2/3)"},
             {"index": 1, "name": "白赚海盗", "confidence": 0.99, "raw_text": "白赚海盗(0/3)"},
@@ -380,9 +454,27 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertEqual(hit.name, "failure_exit")
         self.assertTrue(690 <= hit.x <= 701)
 
+        # Green button obscured (e.g. mouse hover): the authoritative red exit
+        # component in the modal's LEFT bottom half is still 退出游戏.
         image[570:609, 843:965] = 0
         with patch.object(med, "find_scene", return_value=fail):
-            self.assertIsNone(med._find_failure_exit_button(Frame(image)))
+            hit = med._find_failure_exit_button(Frame(image))
+        self.assertIsNotNone(hit)
+        self.assertTrue(690 <= hit.x <= 701)
+
+        # Red component in the modal's RIGHT half is NOT the exit button.
+        image2 = np.zeros((900, 1600, 3), dtype=np.uint8)
+        cv2.rectangle(image2, (860, 570), (981, 608), (0, 0, 220), -1)
+        with patch.object(med, "find_scene", return_value=fail):
+            self.assertIsNone(med._find_failure_exit_button(Frame(image2)))
+
+        # 20260831 审查：gameFail 图标下沿以上的红色警告组件不是退出按钮
+        # （红兜底只接受图标下沿以下的按钮带；锚点放低使组件仍在 ROI 内）。
+        image3 = np.zeros((900, 1600, 3), dtype=np.uint8)
+        cv2.rectangle(image3, (635, 580), (756, 618), (0, 0, 220), -1)
+        low_fail = MatchResult("gameFail", 0.99, 752, 560, 96, 96, 752, 608)
+        with patch.object(med, "find_scene", return_value=low_fail):
+            self.assertIsNone(med._find_failure_exit_button(Frame(image3)))
 
     def test_direct_failure_exit_returns_to_same_room_flow(self) -> None:
         med = Mediator(Settings(), ROOT)

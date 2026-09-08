@@ -15,6 +15,7 @@
 paddlepaddle==3.3.1
 paddleocr==3.7.0
 paddlex==3.7.2
+setuptools==84.0.0
 opencv-contrib-python==4.10.0.84
 # 评测脚本直接依赖（crop 工具用 Pillow；evaluator 用 psutil 统计 RSS）
 Pillow>=10.0

@@ -244,12 +244,21 @@ class ShadowClient:
             self._record_crash("spawn")
             return False
         self._proc = proc
-        self._lines = queue.Queue()
+        # The reader threads must retain the queues/lists belonging to this
+        # process.  _terminate() can close an old worker while _spawn() is
+        # already preparing a replacement; dereferencing self._lines from the
+        # old thread can then inject its EOF marker into the replacement queue.
+        read_queue: queue.Queue[str] = queue.Queue()
+        stderr_chunks: list[str] = []
+        self._lines = read_queue
+        self._stderr_chunks = stderr_chunks
         self._ready = False
-        self._reader = threading.Thread(target=self._read_lines, args=(proc,), daemon=True)
+        self._reader = threading.Thread(
+            target=self._read_lines, args=(proc, read_queue), daemon=True
+        )
         self._reader.start()
         self._err_reader = threading.Thread(
-            target=self._read_stderr, args=(proc,), daemon=True
+            target=self._read_stderr, args=(proc, stderr_chunks), daemon=True
         )
         self._err_reader.start()
         self._await_ready(self.startup_timeout_ms / 1000)
@@ -296,17 +305,21 @@ class ShadowClient:
         except (queue.Empty, ValueError, json.JSONDecodeError):
             return False
 
-    def _read_lines(self, proc: subprocess.Popen[str]) -> None:
+    def _read_lines(
+        self, proc: subprocess.Popen[str], read_queue: queue.Queue[str]
+    ) -> None:
         stream = proc.stdout
         if stream is None:
             return
         try:
             for line in stream:
-                self._lines.put(line.rstrip("\r\n"))
+                read_queue.put(line.rstrip("\r\n"))
         finally:
-            self._lines.put("")
+            read_queue.put("")
 
-    def _read_stderr(self, proc: subprocess.Popen[str]) -> None:
+    def _read_stderr(
+        self, proc: subprocess.Popen[str], stderr_chunks: list[str]
+    ) -> None:
         stream = proc.stderr
         if stream is None:
             return
@@ -315,9 +328,9 @@ class ShadowClient:
                 text = line.rstrip("\r\n")
                 if text:
                     LOGGER.warning("[ocr_worker:stderr] %s", text)
-                    self._stderr_chunks.append(text)
-                    if len(self._stderr_chunks) > 40:
-                        del self._stderr_chunks[:-40]
+                    stderr_chunks.append(text)
+                    if len(stderr_chunks) > 40:
+                        del stderr_chunks[:-40]
         except OSError:
             return
 

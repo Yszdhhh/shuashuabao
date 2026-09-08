@@ -49,6 +49,8 @@
 
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import dataclass, fields
 from enum import Enum
 from pathlib import Path
@@ -124,6 +126,8 @@ DEFAULT_NEGATIVE_NAMES = (
 DEFAULT_MAX_ATTEMPTS = 12
 DEFAULT_MAX_REFRESHES = 3
 DEFAULT_MAX_WAITS = 5
+_BOND_PROGRESS_RE = re.compile(r"(\d+)\s*/\s*(\d+)")
+_BOND_NEAR_COMPLETE_CONF = 0.40
 
 
 from shuabao.interaction_surface import ActionLifecycle
@@ -209,6 +213,11 @@ class PolicySettings:
 
     skill_presets: tuple[str, ...] = ()
     bond_presets: tuple[str, ...] = ()
+    # 高级卡只在基础卡已达到目标比例后才进入候选；两者仍共用同一白名单。
+    bond_base_presets: tuple[str, ...] = ()
+    bond_advanced_presets: tuple[str, ...] = ()
+    bond_advanced_groups: tuple[tuple[str, ...], ...] = ()
+    bond_base_completion_ratio: float = 0.80
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
     min_confidence: float = 0.0
@@ -221,6 +230,8 @@ class PolicySettings:
     allow_skill_giveup: bool = False
     skill_focus_families: tuple[str, ...] = ()
     skill_fill_empty_slots: bool = False
+    # 严格白名单未命中时是否在已验证刷新按钮上重抽；仍绝不选配置外技能。
+    skill_refresh_on_focus_miss: bool = False
     skill_archive_levels: tuple[tuple[str, int], ...] = ()
     # 挂件协同关闭名单；只改变已合法候选之间的排序，不改变焦点/前置/互斥合法性。
     skill_disabled_amplifiers: tuple[str, ...] = ()
@@ -261,6 +272,20 @@ class PolicySettings:
                 if s
             )),
         )
+        object.__setattr__(self, "bond_base_presets", tuple(dict.fromkeys(
+            str(s).strip() for s in self.bond_base_presets if str(s).strip()
+        )))
+        object.__setattr__(self, "bond_advanced_presets", tuple(dict.fromkeys(
+            str(s).strip() for s in self.bond_advanced_presets if str(s).strip()
+        )))
+        object.__setattr__(self, "bond_advanced_groups", tuple(
+            tuple(dict.fromkeys(str(s).strip() for s in group if str(s).strip()))
+            for group in self.bond_advanced_groups
+            if group
+        ))
+        object.__setattr__(self, "bond_base_completion_ratio", max(
+            0.0, min(1.0, float(self.bond_base_completion_ratio))
+        ))
 
     @classmethod
     def from_mapping(cls, raw: Mapping[str, Any] | None) -> "PolicySettings":
@@ -308,6 +333,14 @@ class PolicySettings:
         return cls(
             skill_presets=tuple(str(s) for s in (raw.get("skill_presets") or ())),
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
+            bond_base_presets=tuple(str(s) for s in (raw.get("bond_base_presets") or ())),
+            bond_advanced_presets=tuple(str(s) for s in (raw.get("bond_advanced_presets") or ())),
+            bond_advanced_groups=tuple(
+                tuple(str(x).strip() for x in group if str(x).strip())
+                for group in (raw.get("bond_advanced_groups") or ())
+                if group
+            ),
+            bond_base_completion_ratio=float(raw.get("bond_base_completion_ratio", 0.80)),
             treasure_presets=tuple(str(s) for s in (raw.get("treasure_presets") or ())),
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
             min_confidence=0.0 if min_conf is None else float(min_conf),
@@ -329,6 +362,7 @@ class PolicySettings:
             allow_skill_giveup=bool(raw.get("allow_skill_giveup", False)),
             skill_focus_families=tuple(str(s) for s in (raw.get("skill_focus_families") or ())),
             skill_fill_empty_slots=bool(raw.get("skill_fill_empty_slots", False)),
+            skill_refresh_on_focus_miss=bool(raw.get("skill_refresh_on_focus_miss", False)),
             skill_archive_levels=normalize_archive_levels(raw.get("skill_archive_levels")),
             skill_disabled_amplifiers=tuple(
                 str(s) for s in (raw.get("skill_disabled_amplifiers") or ()) if str(s).strip()
@@ -371,14 +405,42 @@ def assemble_policy_settings(
         text = str(item or "").strip()
         if text and text not in bond_presets:
             bond_presets.append(text)
+    card_presets: list[str] = []
     for item in getattr(settings, "cards", None) or ():
         text = str(item or "").strip()
         if not text:
             continue
         stem = Path(text).stem
         text = str(fetter_labels.get(stem, stem))
+        if text and text not in card_presets:
+            card_presets.append(text)
         if text and text not in bond_presets:
             bond_presets.append(text)
+
+    advanced_names = tuple(
+        str(item).strip() for item in (bond_cfg.get("advanced_names") or ()) if str(item).strip()
+    )
+    advanced_presets = tuple(
+        item for item in bond_presets if matches_bond_preset(item, advanced_names)
+    )
+    base_presets = tuple(item for item in bond_presets if item not in advanced_presets)
+    catalog_groups: list[tuple[str, ...]] = []
+    for group in (bond_cfg.get("advanced_groups") or ()):
+        names = tuple(str(x).strip() for x in (group or ()) if str(x).strip())
+        if names:
+            catalog_groups.append(names)
+    selected_groups: list[tuple[str, ...]] = []
+    used_groups: set[tuple[str, ...]] = set()
+    for item in bond_presets:
+        for group in catalog_groups:
+            if group in used_groups:
+                continue
+            if item in group or matches_bond_preset(item, group):
+                used_groups.add(group)
+                selected = tuple(name for name in group if name in advanced_presets)
+                if selected:
+                    selected_groups.append(selected)
+                break
 
     allow_neg = getattr(settings, "treasure_allow_negative", None)
     if allow_neg is None:
@@ -440,9 +502,14 @@ def assemble_policy_settings(
             "skill_presets": expand_skill_preset_names(tuple(skill_families)),
             "skill_focus_families": tuple(skill_families),
             "skill_fill_empty_slots": bool(skill_cfg.get("fill_empty_slots", False)),
+            "skill_refresh_on_focus_miss": bool(skill_cfg.get("refresh_on_focus_miss", False)),
             "skill_archive_levels": getattr(settings, "skill_archive_levels", None),
             "skill_disabled_amplifiers": getattr(settings, "smart_route_disabled_amplifiers", None),
             "bond_presets": tuple(bond_presets),
+            "bond_base_presets": base_presets,
+            "bond_advanced_presets": advanced_presets,
+            "bond_advanced_groups": tuple(selected_groups),
+            "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
             "treasure_presets": (),
             "quality_order": raw.get("quality_order"),
             "min_confidence": 0.60 if min_conf is None else min_conf,
@@ -721,9 +788,10 @@ def _rank_skill_candidates(
     missing_main_names = frozenset(
         name for name in focus_families if name and name not in owned_branch_families
     )
-    ranked: list[tuple[int, int, int, int, int, int, int, int, int, float, int]] = []
+    ranked: list[tuple[int, int, int, int, int, int, int, int, float, int, float, int]] = []
     # 用户技能族优先级 + 路线偏好（均为 ranking-only 键；空值时恒为 0，行为零变化）。
     user_priority_order = {fam: pos for pos, fam in enumerate(settings.skill_priority)}
+    habit_scores = dict(settings.habit_name_scores)
     route_pref_by_family = {
         fam: (prefers, avoids)
         for fam, _rid, prefers, avoids in settings.skill_route_preferences
@@ -833,6 +901,9 @@ def _rank_skill_candidates(
             (slot.card_fact and slot.card_fact.is_new) or getattr(slot, "is_new", False)
         )
         is_new_rank = 0 if is_new else 1
+        # 习惯分只在合法性、前置、角色、品质、等级和 NEW 状态完全相同时
+        # 打破平局；它不能让配置外或低置信候选获得点击权限。
+        habit_rank = -float(habit_scores.get(slot.name, 0.0)) if slot.name else 0.0
         fam_order_rank = 0
         if settings.skill_focus_families and fam and fam in focus_families:
             fam_order_rank = focus_families.index(fam)
@@ -856,13 +927,14 @@ def _rank_skill_candidates(
                 int(rarity_rank),
                 int(level_key),
                 int(is_new_rank),
+                habit_rank,
                 int(fam_order_rank),
                 -modifier,
                 int(slot.index),
             )
         )
     ranked.sort()
-    return [entry[10] for entry in ranked]
+    return [entry[11] for entry in ranked]
 
 
 def _rank_skill_fill_candidates(
@@ -927,14 +999,13 @@ def _decide_skill(
                 f"通用安全补位：{name}/{rarity} @ slot {index}",
             )
     unread = _all_skill_names_missing(cands.slots)
-    max_skill_waits = min(state.max_waits, 2)
+    max_skill_waits = min(state.max_waits, 8)
     if unread:
         if state.waits < max_skill_waits:
             return PolicyDecision(PolicyAction.WAIT, None, "技能卡名未读出，等待（不刷新/放弃）")
-        return PolicyDecision(
-            PolicyAction.CLOSE,
-            None,
-            f"技能卡名未读出，已观察 {state.waits} 次，严格关闭面板",
+        return _skill_refresh_or_close(
+            cands, state, settings,
+            f"技能卡名未读出，已观察 {state.waits} 次",
         )
     readable_count = sum(
         1 for s in cands.slots if (
@@ -946,12 +1017,64 @@ def _decide_skill(
         )
     )
     if readable_count > 0 and not ranked:
-        return PolicyDecision(
-            PolicyAction.CLOSE,
-            None,
-            "技能未命中预设/焦点系，严格关闭面板（不刷新/不放弃）",
-        )
+        return _skill_refresh_or_close(cands, state, settings, "技能未命中预设/焦点系")
     return _skill_last_resort(cands, settings, "无预设/焦点技能")
+
+
+def _skill_refresh_or_close(
+    cands: PanelCandidates, state: SessionState, settings: PolicySettings, why: str
+) -> PolicyDecision:
+    if (
+        settings.skill_refresh_on_focus_miss
+        and (settings.skill_presets or settings.skill_focus_families)
+        and cands.can_refresh
+        and state.refreshes < state.max_refreshes
+    ):
+        return PolicyDecision(
+            PolicyAction.REFRESH,
+            None,
+            f"{why}，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+        )
+    return PolicyDecision(PolicyAction.CLOSE, None, f"{why}，严格关闭面板")
+
+
+def _slot_stack_progress(slot: SlotCandidate) -> tuple[int, int] | None:
+    blob = f"{slot.name or ''} {slot.evidence or ''}"
+    hit = _BOND_PROGRESS_RE.search(blob)
+    if not hit:
+        return None
+    have, need = int(hit.group(1)), int(hit.group(2))
+    if need > 1:
+        return have, need
+    return None
+
+
+def _near_complete_bond_slots(
+    cands: PanelCandidates, settings: PolicySettings
+) -> tuple[SlotCandidate, ...]:
+    """差一张就能合成的预设/已持有卡，无脑拿。"""
+    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+    from shuabao.bond_capacity import stack_need
+
+    found: list[SlotCandidate] = []
+    for slot in cands.slots:
+        name = str(slot.name or "").strip()
+        if not name or float(slot.confidence or 0.0) < _BOND_NEAR_COMPLETE_CONF:
+            continue
+        allowed = matches_bond_preset(name, settings.bond_presets) or any(
+            matches_bond_preset(have, (name,)) for have in owned
+        )
+        if not allowed:
+            continue
+        progress = _slot_stack_progress(slot)
+        if progress is None:
+            need = stack_need(name)
+            have = sum(1 for item in owned if matches_bond_preset(item, (name,)))
+        else:
+            have, need = progress
+        if need and have is not None and int(need) - int(have) == 1:
+            found.append(slot)
+    return tuple(found)
 
 
 def _bond_progress_hits(
@@ -1039,9 +1162,52 @@ def _decide_collectible(
     else:
         eligible = cands.slots
         if kind == PANEL_BOND:
+            near = _near_complete_bond_slots(cands, settings)
+            if near:
+                slot = max(near, key=lambda item: (float(item.confidence or 0.0), -int(item.index)))
+                return PolicyDecision.select(
+                    slot.index,
+                    f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
+                )
             eligible = _bond_capacity_candidates(cands, eligible, settings)
-            if not eligible:
-                return _no_safe_candidate(cands, state, kind, "槽位压力下无可合成/核心候选")
+            owned_bonds = {str(name).strip() for name in cands.owned_bond_cards if str(name).strip()}
+            if not _bond_base_ready(cands, settings):
+                eligible = tuple(
+                    slot for slot in eligible
+                    if (
+                        matches_bond_preset(slot.name, settings.bond_base_presets)
+                        # A past run may already contain an advanced card. Let
+                        # its duplicate finish/merge, but never start another.
+                        or str(slot.name or "").strip() in owned_bonds
+                    )
+                )
+                if not eligible:
+                    if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
+                        return PolicyDecision(
+                            PolicyAction.REFRESH,
+                            None,
+                            f"基础羁绊未达 80%，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+                        )
+                    return _no_safe_candidate(cands, state, kind, "基础羁绊未达 80%，本页无基础卡")
+            else:
+                active_adv = _active_advanced_presets(cands, settings)
+                if settings.bond_advanced_presets and active_adv:
+                    eligible = tuple(
+                        slot for slot in eligible
+                        if (
+                            matches_bond_preset(slot.name, settings.bond_base_presets)
+                            or matches_bond_preset(slot.name, active_adv)
+                            or str(slot.name or "").strip() in owned_bonds
+                        )
+                    )
+                    if not eligible:
+                        if state.refreshes < state.max_refreshes and getattr(cands, "can_refresh", False):
+                            return PolicyDecision(
+                                PolicyAction.REFRESH,
+                                None,
+                                f"当前高级卡组未完成，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+                            )
+                        return _no_safe_candidate(cands, state, kind, "当前高级卡组未完成，本页无合法卡")
             if settings.bond_whitelist_mode == WHITELIST_HARD:
                 eligible = tuple(
                     slot for slot in eligible
@@ -1116,10 +1282,52 @@ def _decide_collectible(
     return _no_safe_candidate(cands, state, kind, "无安全候选")
 
 
+def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
+    """高级卡只在已确认取得 80% 配置基础卡后才有选择权。"""
+    bases = settings.bond_base_presets
+    if not bases or not settings.bond_advanced_presets:
+        return True
+    required = math.ceil(len(bases) * settings.bond_base_completion_ratio)
+    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+    completed = sum(
+        any(matches_bond_preset(name, (base,)) for name in owned)
+        for base in bases
+    )
+    return completed >= required
+
+
+def _active_advanced_presets(cands: PanelCandidates, settings: PolicySettings) -> tuple[str, ...]:
+    """同一时刻只推进一套高级卡组，顺序取自用户白名单里这套卡第一次出现的位置。"""
+    groups = settings.bond_advanced_groups
+    if not groups:
+        return settings.bond_advanced_presets
+    owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
+    for group in groups:
+        required = max(1, math.ceil(len(group) * settings.bond_base_completion_ratio))
+        have = sum(
+            any(matches_bond_preset(name, (card,)) for name in owned)
+            for card in group
+        )
+        if have < required:
+            return group
+    return groups[-1]
+
+
 def _no_safe_candidate(
     cands: PanelCandidates, state: SessionState, kind: str | None, why: str
 ) -> PolicyDecision:
-    del state
+    settings = cands.settings
+    if (
+        kind == PANEL_TREASURE
+        and settings.treasure_refresh_on_no_safe
+        and cands.can_refresh
+        and state.refreshes < state.max_refreshes
+    ):
+        return PolicyDecision(
+            PolicyAction.REFRESH,
+            None,
+            f"宝物 {why}，第 {state.refreshes + 1}/{state.max_refreshes} 次刷新",
+        )
     return PolicyDecision(
         PolicyAction.CLOSE,
         None,

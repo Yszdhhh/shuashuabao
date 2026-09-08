@@ -12,11 +12,16 @@
 from __future__ import annotations
 
 import json
+import sys
+import os
 from dataclasses import replace
 from pathlib import Path
 
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import pytest
-from PySide6.QtCore import QCoreApplication, QLockFile, QMetaMethod
+from PySide6.QtCore import QLockFile, QMetaMethod
+from PySide6.QtWidgets import QApplication
 
 from shuabao.paths import live_lock_path, user_settings_path
 from shuabao.choice_policy import (
@@ -31,6 +36,7 @@ from shuabao.mediator import Mediator
 from shuabao.shell.dashboard_facade import (
     PREFLIGHT_CHECK_IDS,
     DashboardFacade,
+    _mode_evidence,
 )
 
 EXPECTED_SLOTS = {
@@ -42,6 +48,9 @@ EXPECTED_SLOTS = {
     "set_window_layout",
     "start_run",
     "stop_run",
+    "activate_subscription",
+    "refresh_subscription_status",
+    "get_bridge_info",
 }
 EXPECTED_SIGNALS = {"snapshot_changed", "run_status_changed", "log_appended"}
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,9 +58,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture(scope="module")
 def qapp():
-    app = QCoreApplication.instance()
+    app = QApplication.instance()
     if app is None:
-        app = QCoreApplication([])
+        app = QApplication([])
     return app
 
 
@@ -117,7 +126,7 @@ def test_snapshot_shape_strips_denylist(qapp, tmp_path: Path):
     f = DashboardFacade(tmp_path)
     snap = json.loads(f.get_snapshot())
     assert set(snap) == {
-        "request_id", "settings_revision", "snapshot_seq", "settings", "strategy", "shell", "modes", "run",
+        "request_id", "settings_revision", "snapshot_seq", "settings", "strategy", "shell", "modes", "run", "subscription",
     }
     assert "lab_focus" not in snap["settings"]
     assert snap["settings"]["click_delay_ms"] == 200
@@ -125,9 +134,71 @@ def test_snapshot_shape_strips_denylist(qapp, tmp_path: Path):
     assert snap["shell"]["selected_mode_id"]
     assert snap["modes"], "modes 数组不得为空"
     for m in snap["modes"]:
-        assert set(m) == {"id", "label", "startable", "evidence_status", "badge",
+        assert set(m) == {"id", "label", "startable", "evidence_status", "current_evidence", "badge",
                           "blocked_reason", "visible_settings"}
+        assert m["current_evidence"]["status"] in {"PASS", "BLOCKED", "MISSING", "STALE"}
     assert snap["run"]["state"] == "IDLE"
+
+
+def test_bridge_info_exposes_versioned_required_surface(qapp, tmp_path: Path):
+    f = DashboardFacade(tmp_path)
+    info = json.loads(f.get_bridge_info())
+    assert info["ok"] is True
+    assert info["schema_version"] == 2
+    assert "activate_subscription" in info["required_methods"]
+    assert "get_bridge_info" in info["required_methods"]
+    assert set(info["required_signals"]) == EXPECTED_SIGNALS
+
+
+def test_snapshot_does_not_probe_subscription_network_before_preflight(monkeypatch, qapp, tmp_path: Path):
+    calls = 0
+
+    def fail_probe():
+        nonlocal calls
+        calls += 1
+        raise AssertionError("snapshot painting must not perform entitlement I/O")
+
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_LICENSE_KEY", "cached-key")
+    monkeypatch.setattr("shuabao.shell.dashboard_facade.check_start_permission", fail_probe)
+    f = DashboardFacade(tmp_path)
+    assert json.loads(f.get_snapshot())["subscription"]["status"] == "正在校验"
+    assert calls == 0
+
+
+def test_current_pass_evidence_requires_matching_release_artifacts(tmp_path: Path):
+    """A green evidence label cannot outlive its manifest or EXE bytes."""
+    import hashlib
+    from shuabao.release_signing import canonical_manifest_sha256
+    package = tmp_path / "dist" / "ShuaBao"
+    package.mkdir(parents=True)
+    exe = package / "ShuaBao.exe"
+    exe.write_bytes(b"current-exe")
+    manifest = package / "release_manifest.json"
+    manifest.write_text(
+        json.dumps({"schema_version": 1, "source_sha": "source-a", "files": []}),
+        encoding="utf-8",
+    )
+    config = tmp_path / "config"
+    config.mkdir()
+    config.joinpath("mode_evidence.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "modes": {
+                    "normal_farm": {
+                        "status": "PASS",
+                        "source_sha": "source-a",
+                        "release_manifest_sha256": canonical_manifest_sha256(json.loads(manifest.read_text(encoding="utf-8"))),
+                        "exe_sha256": hashlib.sha256(exe.read_bytes()).hexdigest(),
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    evidence = _mode_evidence("normal_farm", tmp_path)
+    assert evidence["status"] == "STALE"
+    assert "发行清单" in evidence["reason"]
 
 
 # ---------------------------------------------------------------- update_config
@@ -201,7 +272,7 @@ def test_template_mode_uses_saved_bond_labels_as_card_anchors(qapp, tmp_path: Pa
         "strategy": {"bonds": ["成长"]},
     })))["ok"] is True
     mediator = Mediator(f._settings, ROOT)
-    assert mediator._bond_template_preferences() == ["chengzhang", "fs", "yihuo"]
+    assert mediator._bond_template_preferences() == ["chengzhang", "fashu", "yihuo"]
 
 
 def test_stage_target_and_hero_plan_round_trip_to_runtime_settings(qapp, tmp_path: Path):
@@ -352,6 +423,160 @@ def test_preflight_follow_pair_code_too_long(qapp, tmp_path: Path):
     assert any(c["id"] == "follow_pair_code" and not c["ok"] for c in pre["checks"])
 
 
+def _signed_frozen_package(tmp_path: Path, monkeypatch) -> Path:
+    import base64
+    import hashlib
+
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from shuabao.shell import dashboard_facade as facade_module
+
+    package = tmp_path / "ShuaBao"
+    package.mkdir()
+    files = []
+    for relative, payload in (
+        ("config/entitlement_public_keys.json", b'{"keys": {}}'),
+        ("vision/_internal/models/ocr/MODEL_MANIFEST.json", b"{}"),
+        ("ShuaBao.exe", b"frozen-shuabao-exe"),
+    ):
+        path = package / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+        files.append({
+            "path": relative,
+            "size_bytes": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        })
+    manifest = {
+        "manifest_signature_status": "SIGNED",
+        "schema_version": 1,
+        "source_sha": "b" * 40,
+        "bridge_schema_version": 2,
+        "release_channel": "external-beta",
+        "files": files,
+    }
+    canonical = json.dumps(
+        manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    (package / "release_manifest.json").write_bytes(canonical)
+    private = Ed25519PrivateKey.generate()
+    envelope = {
+        "schema_version": 1,
+        "algorithm": "Ed25519",
+        "key_id": "manifest",
+        "manifest_sha256": hashlib.sha256(canonical).hexdigest(),
+        "signature": base64.urlsafe_b64encode(private.sign(canonical)).rstrip(b"=").decode("ascii"),
+    }
+    (package / "release_manifest.json.sig").write_text(json.dumps(envelope), encoding="utf-8")
+    (package / "build_identity.json").write_text(
+        json.dumps({"exe_name": "ShuaBao.exe", "source_sha": "display-only"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        facade_module, "PINNED_MANIFEST_PUBLIC_KEYS", {"manifest": private.public_key()}
+    )
+    return package
+
+
+def test_frozen_preflight_passes_on_signed_snapshot(qapp, tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell.runner_service import RunnerService
+
+    package = _signed_frozen_package(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(package / "ShuaBao.exe"))
+    ok, detail = facade_module._build_identity_preflight(
+        package, RunnerService(tmp_path, package)
+    )
+    assert ok, detail
+    assert "source_sha=" + "b" * 40 in detail
+    assert "release_channel=external-beta" in detail
+    assert "bridge_schema=2" in detail
+
+
+def test_frozen_preflight_fails_closed_without_trust_anchor(qapp, tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell.runner_service import RunnerService
+
+    package = _signed_frozen_package(tmp_path, monkeypatch)
+    monkeypatch.setattr(facade_module, "PINNED_MANIFEST_PUBLIC_KEYS", {})
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(package / "ShuaBao.exe"))
+    ok, detail = facade_module._build_identity_preflight(
+        package, RunnerService(tmp_path, package)
+    )
+    assert not ok
+    assert "MANIFEST_TRUST_ANCHOR_MISSING" in detail
+
+
+def test_current_source_sha_does_not_spawn_git_without_repo(tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell import live_execute
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("git must not spawn without a checkout")
+
+    monkeypatch.setattr(live_execute.subprocess, "run", boom)
+    assert facade_module._current_source_sha(tmp_path) == ""
+
+
+def test_frozen_current_source_sha_skips_git_even_with_dot_git(tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell import live_execute
+
+    (tmp_path / ".git").mkdir()
+
+    def boom(*_args, **_kwargs):
+        raise AssertionError("frozen runtime must not spawn git")
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(live_execute.subprocess, "run", boom)
+    assert facade_module._current_source_sha(tmp_path) == ""
+
+
+def test_frozen_preflight_reuses_verify_cache_with_live_identity(qapp, tmp_path: Path, monkeypatch):
+    from shuabao import release_signing as rs
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell import live_execute
+    from shuabao.shell.runner_service import RunnerService
+
+    rs.clear_packaged_release_verify_cache()
+    package = _signed_frozen_package(tmp_path, monkeypatch)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(package / "ShuaBao.exe"))
+    monkeypatch.setattr(rs, "PINNED_MANIFEST_PUBLIC_KEYS", facade_module.PINNED_MANIFEST_PUBLIC_KEYS)
+    calls = {"n": 0}
+    real = rs._verify_packaged_release
+
+    def counted(*args, **kwargs):
+        calls["n"] += 1
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(rs, "_verify_packaged_release", counted)
+    ok, detail = facade_module._build_identity_preflight(
+        package, RunnerService(tmp_path, package)
+    )
+    identity = live_execute._live_identity(package)
+    assert ok, detail
+    assert identity.packaged is True
+    assert identity.source_sha == "b" * 40
+    assert calls["n"] == 1
+
+
+def test_frozen_preflight_ignores_sidecar_when_signature_missing(qapp, tmp_path: Path, monkeypatch):
+    from shuabao.shell import dashboard_facade as facade_module
+    from shuabao.shell.runner_service import RunnerService
+
+    package = _signed_frozen_package(tmp_path, monkeypatch)
+    (package / "release_manifest.json.sig").unlink()
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(package / "ShuaBao.exe"))
+    ok, detail = facade_module._build_identity_preflight(
+        package, RunnerService(tmp_path, package)
+    )
+    assert not ok
+    assert "MANIFEST_SIGNATURE_MISSING" in detail
+
+
 # ---------------------------------------------------------------- window_control
 
 
@@ -373,7 +598,9 @@ def test_window_control_without_handler_fails_closed(qapp, tmp_path: Path):
 
 def test_set_window_layout_only_allows_ephemeral_known_layouts(facade):
     assert json.loads(facade.set_window_layout(json.dumps({"layout": "chooser"})))["ok"] is True
-    assert facade.recorded_layouts == ["chooser"]
+    for layout in ("chooser-solo", "chooser-team"):
+        assert json.loads(facade.set_window_layout(json.dumps({"layout": layout}))).get("ok") is True
+    assert facade.recorded_layouts == ["chooser", "chooser-solo", "chooser-team"]
     assert json.loads(facade.set_window_layout(json.dumps({"layout": "unknown"})))["ok"] is False
 
 

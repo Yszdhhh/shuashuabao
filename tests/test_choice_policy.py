@@ -350,6 +350,95 @@ class TestSkillEmptyConfig(unittest.TestCase):
 class TestBondTreasureUnknown(unittest.TestCase):
     """羁绊/宝物：unknown 绝不点击，阻塞面板直接关闭。"""
 
+    def test_near_complete_bond_takes_immediately(self):
+        policy = settings(
+            bond_presets=["成长", "经济", "贪婪", "挑战", "暴击"],
+            bond_base_presets=["成长", "经济", "贪婪", "挑战", "暴击"],
+            bond_advanced_presets=["封神"],
+        )
+        d = choose_action(
+            bond_cands(
+                [
+                    SlotCandidate(index=0, name="三国", confidence=0.90),
+                    SlotCandidate(index=1, name="刀刀", confidence=0.90),
+                    SlotCandidate(index=2, name="挑战", confidence=0.52, evidence="挑战(2/3)"),
+                    SlotCandidate(index=3, name="暴击", confidence=0.70, evidence="暴击(0/2)"),
+                ],
+                settings=policy,
+            ),
+            SessionState(),
+        )
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 2))
+        self.assertIn("差一张合成", d.reason)
+
+    def test_advanced_bond_waits_for_eighty_percent_base_progress(self):
+        policy = settings(
+            bond_presets=["成长", "经济", "贪婪", "挑战", "封神"],
+            bond_base_presets=["成长", "经济", "贪婪", "挑战"],
+            bond_advanced_presets=["封神"],
+        )
+        d = choose_action(
+            bond_cands(
+                [slot(0, "封神")], can_refresh=True, settings=policy,
+                owned_bond_cards=("成长", "经济"),
+            ),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.REFRESH)
+
+    def test_advanced_bond_unlocks_after_eighty_percent_base_progress(self):
+        policy = settings(
+            bond_presets=["成长", "经济", "贪婪", "挑战", "封神"],
+            bond_base_presets=["成长", "经济", "贪婪", "挑战"],
+            bond_advanced_presets=["封神"],
+        )
+        d = choose_action(
+            bond_cands(
+                [slot(0, "封神")], settings=policy,
+                owned_bond_cards=("成长", "经济", "贪婪", "挑战"),
+            ),
+            SessionState(),
+        )
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
+
+    def test_second_advanced_pack_waits_for_active_pack(self):
+        policy = settings(
+            bond_presets=["成长", "经济", "贪婪", "挑战", "海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏", "封神"],
+            bond_base_presets=["成长", "经济", "贪婪", "挑战"],
+            bond_advanced_presets=["海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏", "封神"],
+            bond_advanced_groups=(
+                ("海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"),
+                ("封神",),
+            ),
+        )
+        d = choose_action(
+            bond_cands(
+                [slot(0, "封神")], can_refresh=True, settings=policy,
+                owned_bond_cards=("成长", "经济", "贪婪", "挑战", "海盗"),
+            ),
+            SessionState(),
+        )
+        self.assertEqual(d.action, PolicyAction.REFRESH)
+
+    def test_second_advanced_pack_unlocks_after_active_pack(self):
+        policy = settings(
+            bond_presets=["成长", "经济", "贪婪", "挑战", "海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏", "封神"],
+            bond_base_presets=["成长", "经济", "贪婪", "挑战"],
+            bond_advanced_presets=["海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏", "封神"],
+            bond_advanced_groups=(
+                ("海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"),
+                ("封神",),
+            ),
+        )
+        d = choose_action(
+            bond_cands(
+                [slot(0, "封神")], settings=policy,
+                owned_bond_cards=("成长", "经济", "贪婪", "挑战", "海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"),
+            ),
+            SessionState(),
+        )
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
+
     def test_bond_unknown_only_slot_no_click(self):
         d = choose_action(
             bond_cands([slot(0, None)], settings=settings(bond_presets=["三国"])),
@@ -1184,10 +1273,11 @@ class TestAssemblePolicySettings(unittest.TestCase):
     }
 
     @staticmethod
-    def fake_settings(skills, cards=(), allow_neg=(), archive=None):
+    def fake_settings(skills, cards=(), bonds=(), allow_neg=(), archive=None):
         return SimpleNamespace(
             skills=list(skills),
             cards=list(cards),
+            bonds=list(bonds),
             treasure_allow_negative=list(allow_neg),
             skill_archive_levels=dict(archive or {}),
         )
@@ -1323,6 +1413,28 @@ class TestAssemblePolicySettings(unittest.TestCase):
             policy_doc={},
         )
         self.assertEqual(ps.bond_presets, ("乱世三国", "unknown_stem"))
+
+    def test_bonds_remain_base_when_cards_are_all_advanced(self):
+        ps = assemble_policy_settings(
+            settings=self.fake_settings(
+                ["jq"],
+                cards=["封神", "封神榜", "海盗"],
+                bonds=["成长", "经济", "贪婪", "挑战", "祝福"],
+            ),
+            skill_labels=self.LABELS,
+            fetter_labels={},
+            policy_doc={
+                "bond": {
+                    "base_completion_ratio": 0.8,
+                    "advanced_names": ["封神", "封神榜", "海盗"],
+                    "advanced_groups": [["封神", "封神榜"], ["海盗"]],
+                }
+            },
+        )
+        self.assertEqual(ps.bond_base_presets, ("成长", "经济", "贪婪", "挑战", "祝福"))
+        self.assertEqual(ps.bond_advanced_presets, ("封神", "封神榜", "海盗"))
+        self.assertEqual(ps.bond_advanced_groups[0][0], "封神")
+        self.assertEqual(ps.bond_advanced_groups[1][0], "海盗")
 
     def test_treasure_allow_negative_from_settings(self):
         ps = assemble_policy_settings(

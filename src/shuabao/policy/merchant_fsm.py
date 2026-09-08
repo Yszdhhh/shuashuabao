@@ -37,6 +37,12 @@ class MerchantFSM:
                 return replace(self, phase=MerchantPhase.CONFIRMING, fingerprint=fingerprint,
                                pending_fingerprint="", deadline=0.0)
             if now >= self.deadline:
+                # A refresh of five unknown slots often keeps the same occupancy
+                # fingerprint. That is not a dead merchant; keep recycling while
+                # the game still shows the refresh control. A timed-out purchase
+                # stays fail-closed.
+                if self.purchases == 0:
+                    return replace(self, phase=MerchantPhase.READY, pending_fingerprint="", deadline=0.0)
                 return replace(self, phase=MerchantPhase.EVICTED)
             return self
         if self.phase is MerchantPhase.READY and fingerprint == self.fingerprint:
@@ -57,8 +63,14 @@ class MerchantFSM:
         return replace(self, phase=MerchantPhase.VERIFYING, purchases=self.purchases + 1,
                        pending_fingerprint=self.fingerprint, deadline=now + max(0.0, timeout_s))
 
-    def begin_reroll(self, now: float, *, timeout_s: float) -> "MerchantFSM":
-        if not self.can_reroll(3):
+    def begin_reroll(self, now: float, *, timeout_s: float, cap: int = 20) -> "MerchantFSM":
+        if not self.can_reroll(cap):
             return self
-        return replace(self, phase=MerchantPhase.VERIFYING, rerolls=self.rerolls + 1,
-                       pending_fingerprint=self.fingerprint, deadline=now + max(0.0, timeout_s))
+        return replace(
+            self,
+            phase=MerchantPhase.VERIFYING,
+            rerolls=self.rerolls + 1,
+            purchases=0,
+            pending_fingerprint=self.fingerprint,
+            deadline=now + max(0.0, timeout_s),
+        )

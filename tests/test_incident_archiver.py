@@ -318,6 +318,102 @@ class IncidentArchiverTest(unittest.TestCase):
         n = len(sorted(tmp.rglob("panel_*.jpg")))
         self.assertEqual(n, 2)
 
+    # ---- 6.5 panel 样本参与容量/保留期回收 ----
+
+    def test_panel_capacity_deletes_oldest_samples(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        arch = IncidentArchiver(root=tmp, max_bytes=20_000)
+        for seed in range(10):
+            arch.sample_panel(_gradient_frame(seed), {"panel_kind": "skill"})
+        files = [f for f in tmp.rglob("panel_*") if f.is_file()]
+        total = sum(f.stat().st_size for f in files)
+        self.assertLessEqual(total, 20_000, "panel 样本必须受容量上限约束")
+        self.assertTrue(files, "最新样本不应被全部删光")
+
+    def test_panel_retention_deletes_expired_samples(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        arch = IncidentArchiver(root=tmp, retention_days=7)
+        self.assertIsNotNone(arch.sample_panel(_gradient_frame(3), {"panel_kind": "skill"}))
+        # 回拨 mtime 使首个样本超过 7 天保留期
+        old = time.time() - 8 * 86400
+        for f in tmp.rglob("panel_*"):
+            os.utime(f, (old, old))
+        self.assertIsNotNone(arch.sample_panel(_gradient_frame(4), {"panel_kind": "treasure"}))
+        panels = sorted(tmp.rglob("panel_*.jpg"))
+        self.assertEqual(len(panels), 1, "过期 panel 样本必须被保留期清理")
+
+    def test_panel_cleanup_keeps_fresh_samples_and_foreign_files(self) -> None:
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        arch = IncidentArchiver(root=tmp, retention_days=7)
+        self.assertIsNotNone(arch.sample_panel(_gradient_frame(5), {"panel_kind": "skill"}))
+        stray = next(tmp.rglob("panels"))
+        (stray / "user_note.txt").write_text("keep me", encoding="utf-8")
+        arch.cleanup()
+        self.assertEqual(len(sorted(tmp.rglob("panel_*.jpg"))), 1, "未过期样本必须保留")
+        self.assertTrue((stray / "user_note.txt").is_file(), "非本模块文件不得删除")
+
+    def test_panel_foreign_prefixed_file_untouched_and_uncounted(self) -> None:
+        """非本模块创建的 panel_* 前缀文件不删除、不计入容量。"""
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        arch = IncidentArchiver(root=tmp, max_bytes=20_000)
+        for seed in range(4):  # ~4 组 panel 对，总量 ~16KB < 20KB
+            arch.sample_panel(_gradient_frame(seed), {"panel_kind": "skill"})
+        panels_dir = next(tmp.rglob("panels"))
+        (panels_dir / "panel_user.txt").write_text("x" * 25_000, encoding="utf-8")
+        arch.cleanup()
+        self.assertTrue((panels_dir / "panel_user.txt").is_file(),
+                        "非本模块创建的 panel_* 前缀文件不得删除")
+        self.assertEqual(len(sorted(tmp.rglob("panel_*.jpg"))), 4,
+                        "panel_user.txt 不得计入容量导致样本被删")
+
+    def test_incident_non_dir_entry_ignored(self) -> None:
+        """incidents/ 下非目录 incident_* 文件不删除、不计入容量。"""
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        arch = IncidentArchiver(root=tmp, max_bytes=20_000)
+        self.assertIsNotNone(
+            arch.maybe_record(frame_before=None, frame_now=_gradient_frame(8), metadata=_meta()))
+        incidents_dir = next(tmp.rglob("incidents"))
+        (incidents_dir / "incident_user.txt").write_text("x" * 25_000, encoding="utf-8")
+        arch.cleanup()
+        self.assertTrue((incidents_dir / "incident_user.txt").is_file(),
+                        "非目录 incident_* 文件不得删除")
+        self.assertEqual(len(sorted(tmp.rglob("incident_*/metadata.json"))), 1,
+                        "非目录条目不得计入容量导致 incident 组被删")
+
+    def test_keep_protects_panel_pair(self) -> None:
+        """max_bytes 极小时，刚写入样本的配对 JSON 也不得被容量清理删除。"""
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        clock = FakeClock(start=1000.0)
+        arch = IncidentArchiver(root=tmp, max_bytes=100, now_fn=clock.now)
+        self.assertIsNotNone(arch.sample_panel(_gradient_frame(9), {"panel_kind": "skill"}))
+        panels = sorted(tmp.rglob("panel_*.jpg"))
+        self.assertEqual(len(panels), 1, "keep 的 jpg 不得被删")
+        self.assertTrue(panels[0].with_suffix(".json").is_file(),
+                        "keep 的配对 JSON 不得被容量清理删除")
+
+    def test_panel_unicode_digit_filename_not_whitelisted(self) -> None:
+        """Unicode 数字文件名（\d 会放行）不算 panel 样本：不删除、不计容量。"""
+        tmp = Path(tempfile.mkdtemp(prefix="inc_panel_"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        arch = IncidentArchiver(root=tmp, max_bytes=20_000)
+        for seed in range(4):  # ~16.5KB < 20KB
+            arch.sample_panel(_gradient_frame(seed), {"panel_kind": "skill"})
+        panels_dir = next(tmp.rglob("panels"))
+        # Arabic-Indic 数字（U+0661 等，Nd 类）：Python \d 匹配，ASCII 白名单必须拒绝
+        unicode_name = "panel_١٢٣٤٥٦_٠٠٠_deadbeef.jpg"
+        (panels_dir / unicode_name).write_bytes(b"x" * 25_000)
+        arch.cleanup()
+        self.assertTrue((panels_dir / unicode_name).is_file(),
+                        "Unicode 数字文件名不得被当作 panel 样本删除")
+        self.assertEqual(len(sorted(tmp.rglob("panel_*.jpg"))), 5,
+                        "Unicode 文件不得计入容量导致正常样本被删")
+
     # ---- 7. S0.5 生产 incident：metadata 完整性 / 触发点 / 不泄露密码 ----
 
     def test_mediator_fail_closed_metadata_s0_fields_no_password(self) -> None:

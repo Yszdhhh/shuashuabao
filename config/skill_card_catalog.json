@@ -68,11 +68,11 @@
     {
       "name": "次级箭",
       "family": "奥数箭",
-      "effect": "奥术箭首次命中分裂出次级箭",
+      "effect": "奥术箭首次命中后，分裂出1个可以造成150%攻击[能量]魔法伤害的次级箭",
       "prereq": "箭矢增幅",
       "exclude": "",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "次级增伤",
@@ -155,7 +155,7 @@
       "prereq": "箭矢增幅x2",
       "exclude": "",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "急速抽箭",
@@ -164,7 +164,7 @@
       "prereq": "箭矢增幅,强化箭矢",
       "exclude": "爆炸箭矢",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "强化飞箭",
@@ -173,7 +173,7 @@
       "prereq": "箭矢增幅x3",
       "exclude": "",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003"
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "火焰射击",
@@ -187,11 +187,11 @@
     {
       "name": "集束箭矢",
       "family": "奥数箭",
-      "effect": "50级解锁",
-      "prereq": "",
+      "effect": "奥术箭发射的箭矢更加集中，奥术箭数量+1",
+      "prereq": "箭矢齐射x2",
       "exclude": "",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "source": "user_screenshot_20260902",
       "unlock": "50级"
     },
     {
@@ -769,11 +769,11 @@
     {
       "name": "冰晶爆裂",
       "family": "寒冰箭",
-      "effect": "小冰箭先对主目标造成1次伤害再释放，小冰箭数量+1",
+      "effect": "小冰箭会对原本的主目标造成1次伤害再释放，小冰箭数量+1",
       "prereq": "蚀骨冰棱",
       "exclude": "",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "source": "user_screenshot_20260902",
       "unlock": "36级"
     },
     {
@@ -783,17 +783,17 @@
       "prereq": "冰箭增幅x3",
       "exclude": "",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "source": "user_screenshot_20260902",
       "unlock": "43级"
     },
     {
       "name": "永冻天球",
       "family": "寒冰箭",
-      "effect": "50级解锁",
-      "prereq": "强化冰箭,蚀骨之寒",
+      "effect": "每释放5次寒冰箭，生成一个持续3秒的永冻天球，每0.5秒造成100%寒冰箭的范围伤害，并附加1层冻伤。如果目标已有5层冻伤，则清空目标冻伤层数，造成500%寒冰箭的伤害并附加0.3秒的深度冻结",
+      "prereq": "",
       "exclude": "",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "source": "user_screenshot_20260902",
       "unlock": "50级"
     },
     {
@@ -1986,11 +1986,11 @@
     {
       "name": "风力回旋",
       "family": "飓风",
-      "effect": "飓风消失时往回再释放1个保留全部强化的飓风",
-      "prereq": "",
+      "effect": "飓风消失时往回再次释放1个保留所有强化的飓风",
+      "prereq": "多重风暴",
       "exclude": "",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "source": "user_screenshot_20260902",
       "unlock": "40级"
     },
     {
@@ -2000,7 +2000,7 @@
       "prereq": "飓风增幅x3",
       "exclude": "",
       "aliases": [],
-      "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
+      "source": "user_screenshot_20260902",
       "unlock": "43级"
     },
     {
@@ -2115,6 +2115,106 @@
       "aliases": [],
       "source": "user_skill_tree_20260812_plus_recording_20260813_003003",
       "unlock": "43级"
+    },
+    {
+      "name": "箭神",
+      "family": "普攻",
+      "effect": "基础普攻伤害+100%，普攻额外附加300%攻击的自适应伤害",
+      "prereq": "强化箭矢x2",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "56级"
+    },
+    {
+      "name": "紫极天雷",
+      "family": "天雷",
+      "effect": "天雷命中目标后，对目标周围600范围内的随机敌人施放2次造成100%天雷伤害的紫极天雷",
+      "prereq": "审判之雷",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "60级"
+    },
+    {
+      "name": "无限电流",
+      "family": "闪电链",
+      "effect": "闪电链弹射时不再忽视已命中单位(可以在两个怪之间来回弹射)",
+      "prereq": "永动电流",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "60级"
+    },
+    {
+      "name": "地爆天星",
+      "family": "陨石",
+      "effect": "每释放3次陨石，释放1次地爆天星，地爆天星会缓慢落下，下降过程中造成3次500%陨石的伤害，落地后发生爆炸，造成2000%陨石的伤害",
+      "prereq": "陨石碎片,星落,毁灭陨石",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "56级"
+    },
+    {
+      "name": "高频脉冲",
+      "family": "奥数激光",
+      "effect": "激光闪射伤害频率翻倍，伤害翻倍，范围翻倍",
+      "prereq": "激光闪射",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "56级"
+    },
+    {
+      "name": "风暴狂潮",
+      "family": "飓风",
+      "effect": "飓风齐射+2",
+      "prereq": "贯通之风,强袭飓风,多重风暴",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "60级"
+    },
+    {
+      "name": "余震",
+      "family": "地震",
+      "effect": "地震结束后会在周围触发2次小范围造成50%地震伤害的余震",
+      "prereq": "强震,地震速击,地震增幅",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "56级"
+    },
+    {
+      "name": "散射箭矢",
+      "family": "奥数箭",
+      "effect": "次级箭会对原本的主目标造成1次伤害再释放，次级箭数量+1",
+      "prereq": "次级扩散",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "56级"
+    },
+    {
+      "name": "奥术狂潮",
+      "family": "奥数箭",
+      "effect": "奥术箭额外释放1次，数量+2，穿透+3",
+      "prereq": "箭矢齐射,箭矢连发,强力箭矢",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "60级"
+    },
+    {
+      "name": "究极冰箭",
+      "family": "寒冰箭",
+      "effect": "三棱冰箭造成的伤害提高50%",
+      "prereq": "三棱冰箭",
+      "exclude": "",
+      "aliases": [],
+      "source": "user_screenshot_20260902",
+      "unlock": "60级"
     }
   ]
 }

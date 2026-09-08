@@ -4,6 +4,7 @@
 > **再读当前状态：** [`docs/CURRENT_STATUS_AND_HANDOFF_20260812.md`](../CURRENT_STATUS_AND_HANDOFF_20260812.md)。本索引下方内容以早期 L0 日志研究为主，若与当前状态冲突，以新交接文档和最新 trace 为准。
 >
 > **提交前必过：** `python tools/release_gate.py`（退出码 0）。细则见 [`docs/CONTRIBUTING_GATE.md`](../CONTRIBUTING_GATE.md)。
+> **发布/桌面同步必读：** [`RELEASE_HARNESS_LESSONS.md`](RELEASE_HARNESS_LESSONS.md)；构建脚本会自动核对冻结 EXE、TLS DLL、Web 清单、订阅配置和桌面同步。
 
 ## 一句话问题
 

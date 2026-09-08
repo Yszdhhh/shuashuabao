@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 import os
 import sys
@@ -48,6 +49,51 @@ WEBENGINE_MODULES = (
     "PySide6.QtWebEngineCore",
     "PySide6.QtWebEngineWidgets",
 )
+
+
+@pytest.mark.parametrize("active", [True, False])
+def test_packaged_subscription_check_uses_ui_slot_and_omits_secrets(tmp_path, monkeypatch, active):
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_LICENSE_KEY", "sensitive-test-key")
+    facade = MagicMock()
+    facade.activate_subscription.return_value = json.dumps({
+        "ok": active, "status": "ACTIVE" if active else "DENIED",
+        "expires_at": "2026-12-31", "message": "sensitive-test-key",
+        "device_fingerprint": "private-device", "key": "sensitive-test-key",
+    })
+    path = tmp_path / "check.json"
+    assert desktop_app._write_subscription_check_report(path, facade) is active
+    report = json.loads(path.read_text(encoding="utf-8"))
+    assert report["verified_tls"] is True
+    assert report["ca_count"] > 0
+    assert report["status"] == ("ACTIVE" if active else "DENIED")
+    assert "sensitive-test-key" not in path.read_text(encoding="utf-8")
+    assert "private-device" not in path.read_text(encoding="utf-8")
+    facade.activate_subscription.assert_called_once_with(json.dumps({"key": "sensitive-test-key"}))
+    facade.start_run.assert_not_called()
+
+
+def test_packaged_tls_check_fails_closed_without_activating(tmp_path, monkeypatch):
+    import ssl
+    import shuabao.subscription_client as client
+
+    def broken_context():
+        raise ssl.SSLError(1, "private TLS details")
+
+    monkeypatch.setattr(client, "_subscription_ssl_context", broken_context)
+    facade = MagicMock()
+    path = tmp_path / "check.json"
+    assert desktop_app._write_subscription_check_report(path, facade) is False
+    report = json.loads(path.read_text(encoding="utf-8"))
+    assert report["error"] == "订阅自检失败: TLS 初始化/连接失败"
+    facade.activate_subscription.assert_not_called()
+
+
+def test_packaged_subscription_check_exits_failed_on_ui_slot_exception(tmp_path):
+    facade = MagicMock()
+    facade.activate_subscription.side_effect = RuntimeError("sensitive-test-key")
+    path = tmp_path / "check.json"
+    assert desktop_app._write_subscription_check_report(path, facade) is False
+    assert json.loads(path.read_text(encoding="utf-8"))["error"] == "订阅自检失败: RuntimeError"
 
 
 # ---------------------------------------------------------------- 夹具与假件
@@ -120,17 +166,22 @@ def _new_shell(tmp_path: Path, runner=None) -> WebConfigShell:
     )
 
 def test_host_window_matches_od12_product_size(shell):
-    """宿主=产品窗 920×720：独立看板，无画布黑边。"""
-    assert (shell.width(), shell.height()) == (920, 720)
+    """宿主=产品窗 1080×820：独立看板，无画布黑边。"""
+    assert (shell.width(), shell.height()) == (1080, 820)
 
 
-def test_wizard_layout_fits_the_single_runtime_mode_picker(shell):
+def test_wizard_layout_uses_content_sized_solo_and_team_windows(shell):
+    shell._set_window_layout("chooser-solo")
+    assert (shell.width(), shell.height()) == (560, 300)
+    shell._set_window_layout("chooser-team")
+    assert (shell.width(), shell.height()) == (560, 560)
+    # Legacy callers that only know chooser retain the team-sized contract.
     shell._set_window_layout("chooser")
-    assert (shell.width(), shell.height()) == (520, 500)
+    assert (shell.width(), shell.height()) == (560, 560)
     region = shell._titlebar_drag_region
-    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 290, 40)
+    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 330, 40)
     shell._set_window_layout("dashboard")
-    assert (shell.width(), shell.height()) == (920, 720)
+    assert (shell.width(), shell.height()) == (1080, 820)
 
 
 def test_runtime_uses_only_the_full_mode_wizard():
@@ -160,12 +211,43 @@ def test_frameless_titlebar_drag_region_receives_native_mouse_press(shell, monke
 
 
 def test_production_canvas_semantics_host_exact_product_window():
-    """生产态：body 只保留居中语义；折叠断点必须低于固定视口 920。"""
+    """生产态：body 只保留居中语义；折叠断点必须低于固定视口 1080。"""
     html = (ROOT / "ui-v2" / "index.html").read_text(encoding="utf-8")
     assert "place-items: center;" in html
     assert "padding: 24px 16px;" not in html, "生产态不得残留沙盒画布留白"
     assert "@media (max-width: 920px)" not in html, "920 断点会在固定视口误触发单列"
     assert "@media (max-width: 860px)" in html
+    assert 'body[data-scene="wizard"] {\n      display: flex;' in html
+    assert 'body[data-scene="wizard"] .wiz {\n      width: 100%; height: 100%;' in html
+    assert 'background: oklch(0.955 0.008 250); padding: 0; overflow: hidden;' in html
+    assert '--p-radius: 8px;' in html
+    assert 'border: 1px solid var(--p-line); border-radius: 12px;' in html
+    assert 'box-shadow: var(--p-shadow)' in html
+    assert 'grid-template-columns: minmax(0, 1fr); place-items: center; text-align: center;' in html
+    assert 'id="summary"' not in html, "生产底栏不得再渲染重复摘要"
+    assert 'cjb:"03洛卡纳哈"' in html
+    assert 'const MODE_LABEL = { solo:"单人模式", lead:"组队带车模式", follow:"组队跟车模式", hitch:"组队蹭车模式" };' in html
+
+
+def test_stage_choice_preserves_explicit_boss_choices():
+    """关卡选择只改 stage_targets；Boss/传家宝保持用户的显式选择。"""
+    html = (ROOT / "ui-v2" / "index.html").read_text(encoding="utf-8")
+    bridge = (ROOT / "ui-v2" / "src" / "main.ts").read_text(encoding="utf-8")
+
+    assert "recommendChallenges" not in html
+    assert "STAGE_BOSS" not in html
+    assert "STAGE_CJB" not in html
+    assert "recommendChallenges" not in bridge
+    assert "if (cjb) state.cjb = cjb;" in bridge
+    assert "if (boss) state.boss = boss;" in bridge
+    assert "renderNames();" in bridge
+
+
+def test_webengine_view_uses_widget_safe_border_reset():
+    """QWebEngineView is a QWidget; use its margins/style instead of QFrame APIs."""
+    source = (ROOT / "src" / "shuabao" / "shell" / "web_config_shell.py").read_text(encoding="utf-8")
+    assert "setFrameShape" not in source
+    assert 'setContentsMargins(0, 0, 0, 0)' in source
 
 
 def test_desktop_web_launcher_defaults_to_isolated_app_data():
@@ -175,6 +257,365 @@ def test_desktop_web_launcher_defaults_to_isolated_app_data():
     assert "SHUABAO_APP_DATA" in text
     assert "ShuaBaoWeb" in text
     assert 'If appData = "" Then' in text
+
+
+def _sign_packaged_subscription_config(monkeypatch, package_root, *, manifest_channel=None):
+    """Temporary test keys authenticate a synthetic bundle; no runtime key file."""
+    import base64
+    import hashlib
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from shuabao import release_signing
+
+    private = Ed25519PrivateKey.generate()
+    sidecar = package_root / "subscription_runtime.json"
+    payload = json.loads(sidecar.read_text(encoding="utf-8")) if sidecar.exists() else {}
+    manifest = {
+        "schema_version": 1,
+        "source_sha": "a" * 40,
+        "release_channel": manifest_channel or payload.get("release_channel") or "dev",
+        "files": [
+            {"path": path.name, "size_bytes": path.stat().st_size,
+             "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+            for path in (package_root / "ShuaBao.exe", sidecar) if path.exists()
+        ],
+    }
+    (package_root / "release_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (package_root / "release_manifest.json.sig").write_text(json.dumps({
+        "schema_version": 1, "algorithm": "Ed25519", "key_id": "temporary-manifest-test",
+        "manifest_sha256": release_signing.canonical_manifest_sha256(manifest),
+        "signature": base64.urlsafe_b64encode(private.sign(
+            release_signing.canonical_manifest_bytes(manifest),
+        )).decode().rstrip("="),
+    }), encoding="utf-8")
+    monkeypatch.setattr(release_signing, "PINNED_MANIFEST_PUBLIC_KEYS", {
+        "temporary-manifest-test": private.public_key(),
+    })
+
+
+def test_frozen_entry_loads_non_secret_subscription_sidecar(monkeypatch, tmp_path):
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps({"schema_version": 1, "release_channel": "dev", "base_url": "https://license.example", "mode": "enforce", "timeout_s": 2}),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_BASE_URL", raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_MODE", raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_TIMEOUT_S", raising=False)
+
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "https://license.example"
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+    assert os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] == "2"
+    # The function intentionally writes process-level deployment settings;
+    # explicitly undo them so this test remains isolated when desktop tests
+    # are selected together in a different order.
+    for name in (
+        "SHUABAO_SUBSCRIPTION_BASE_URL",
+        "SHUABAO_SUBSCRIPTION_MODE",
+        "SHUABAO_SUBSCRIPTION_TIMEOUT_S",
+    ):
+        os.environ.pop(name, None)
+def test_external_channel_ignores_environment_mode_and_pins_sidecar_url(monkeypatch, tmp_path):
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "https://license.example",
+                "mode": "enforce",
+                "release_channel": "external-beta",
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_BASE_URL", "http://127.0.0.1:9999")
+
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+    assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "https://license.example"
+
+
+def test_external_channel_rejects_non_enforce_or_secret_sidecar(monkeypatch, tmp_path):
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "https://license.example",
+                "mode": "off",
+                "release_channel": "release",
+                "license_key": "card-secret-must-not-load",
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_MODE", raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_LICENSE_KEY", raising=False)
+
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+    assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "invalid-packaged-subscription-url"
+    assert "SHUABAO_SUBSCRIPTION_LICENSE_KEY" not in os.environ
+
+def test_external_empty_sidecar_url_rejects_environment_url(monkeypatch, tmp_path):
+    from shuabao.subscription_client import check_start_permission
+
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "",
+                "mode": "enforce",
+                "release_channel": "external-beta",
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "enforce")
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_BASE_URL", "https://attacker.example")
+
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+    desktop_app._load_packaged_subscription_config(tmp_path)
+    permission = check_start_permission(
+        env=dict(os.environ),
+        opener=lambda *_args, **_kwargs: pytest.fail("invalid external URL must not reach network"),
+    )
+
+    assert permission.allowed is False
+    assert permission.code == "CONFIG_BASE_URL_INVALID"
+
+
+def test_external_empty_sidecar_url_rejects_default_loopback(monkeypatch, tmp_path):
+    from shuabao.subscription_client import check_start_permission
+
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "",
+                "mode": "enforce",
+                "release_channel": "release",
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_BASE_URL", raising=False)
+    monkeypatch.delenv("SHUABAO_SUBSCRIPTION_MODE", raising=False)
+
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+    desktop_app._load_packaged_subscription_config(tmp_path)
+    permission = check_start_permission(
+        env=dict(os.environ),
+        opener=lambda *_args, **_kwargs: pytest.fail("invalid external URL must not reach network"),
+    )
+
+    assert permission.allowed is False
+    assert permission.code == "CONFIG_BASE_URL_INVALID"
+
+
+@pytest.mark.parametrize("release_channel", [None, "unrecognized"])
+def test_frozen_missing_or_unknown_channel_defaults_to_enforce(monkeypatch, tmp_path, release_channel):
+    payload = {
+        "schema_version": 1,
+        "base_url": "https://license.example",
+        "mode": "off",
+    }
+    if release_channel is not None:
+        payload["release_channel"] = release_channel
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(json.dumps(payload), encoding="utf-8")
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "shadow")
+
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+
+def test_frozen_missing_sidecar_defaults_to_enforce(monkeypatch, tmp_path):
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "shadow")
+
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+
+
+@pytest.mark.parametrize("release_channel", ["dev", "internal-pilot"])
+def test_diagnostic_channels_use_verified_config_over_environment(monkeypatch, tmp_path, release_channel):
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "base_url": "https://license.example",
+                "mode": "enforce",
+                "release_channel": release_channel,
+            }
+        ),
+        encoding="utf-8",
+    )
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"stub")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe), raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+    assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "https://license.example"
+    assert os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] == "10"
+
+
+@pytest.mark.parametrize("channel", ["dev", "internal-pilot", "external-beta", "release"])
+def test_all_frozen_channels_override_stale_endpoint_mode_and_timeout(monkeypatch, tmp_path, channel):
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(json.dumps({
+        "schema_version": 1, "release_channel": channel,
+        "base_url": "https://license.example", "mode": "enforce", "timeout_s": 10,
+    }), encoding="utf-8")
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"synthetic-test-bundle")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe))
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_BASE_URL", "https://stale.example")
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_TIMEOUT_S", "0.5")
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "https://license.example"
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+    assert os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] == "10"
+
+
+@pytest.mark.parametrize("damage", [
+    "missing-signature", "tampered-sidecar", "unknown-key", "channel-mismatch",
+    "invalid-timeout", "invalid-schema", "empty-url", "remote-http",
+    "unknown-field", "non-enforce-mode",
+])
+def test_invalid_frozen_config_blocks_network_and_environment_fallback(monkeypatch, tmp_path, damage):
+    from shuabao import release_signing
+    from shuabao.subscription_client import validate_entitlement
+
+    payload = {"schema_version": 1, "release_channel": "dev",
+               "base_url": "https://license.example", "mode": "enforce", "timeout_s": 10}
+    if damage == "invalid-timeout":
+        payload["timeout_s"] = -1
+    elif damage == "invalid-schema":
+        payload["schema_version"] = 2
+    elif damage == "empty-url":
+        payload["base_url"] = ""
+    elif damage == "remote-http":
+        payload["base_url"] = "http://license.example"
+    elif damage == "unknown-field":
+        payload["license_key"] = "must-never-enter-a-frozen-sidecar"
+    elif damage == "non-enforce-mode":
+        payload["mode"] = "off"
+    sidecar = tmp_path / "subscription_runtime.json"
+    sidecar.write_text(json.dumps(payload), encoding="utf-8")
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"synthetic-test-bundle")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe))
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_BASE_URL", "https://stale.example")
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    _sign_packaged_subscription_config(
+        monkeypatch, tmp_path, manifest_channel="release" if damage == "channel-mismatch" else None,
+    )
+    if damage == "missing-signature":
+        (tmp_path / "release_manifest.json.sig").unlink()
+    elif damage == "tampered-sidecar":
+        payload["base_url"] = "https://tampered.example"
+        sidecar.write_text(json.dumps(payload), encoding="utf-8")
+    elif damage == "unknown-key":
+        monkeypatch.setattr(release_signing, "PINNED_MANIFEST_PUBLIC_KEYS", {})
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+    result = validate_entitlement(
+        "temporary-test-license", env=dict(os.environ),
+        opener=lambda *_args, **_kwargs: pytest.fail("untrusted configuration must not reach network"),
+    )
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "enforce"
+    assert result["valid"] is False
+    assert result["code"] == "CONFIG_BASE_URL_INVALID"
+
+
+def test_frozen_config_uses_verified_bytes_without_rereading_sidecar(monkeypatch, tmp_path):
+    sidecar = tmp_path / "subscription_runtime.json"
+    payload = {"schema_version": 1, "release_channel": "dev",
+               "base_url": "https://license.example", "mode": "enforce", "timeout_s": 10}
+    sidecar.write_text(json.dumps(payload), encoding="utf-8")
+    exe = tmp_path / "ShuaBao.exe"
+    exe.write_bytes(b"synthetic-test-bundle")
+    monkeypatch.setattr(desktop_app.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop_app.sys, "executable", str(exe))
+    _sign_packaged_subscription_config(monkeypatch, tmp_path)
+    verify = desktop_app.verify_packaged_release_snapshot
+
+    def verify_then_replace(*args, **kwargs):
+        result = verify(*args, **kwargs)
+        sidecar.write_text(json.dumps({**payload, "base_url": "https://tampered.example"}), encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(desktop_app, "verify_packaged_release_snapshot", verify_then_replace)
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "https://license.example"
+
+
+def test_source_entry_keeps_development_environment_without_reading_bundle(monkeypatch, tmp_path):
+    monkeypatch.setattr(desktop_app.sys, "frozen", False, raising=False)
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_MODE", "off")
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_BASE_URL", "http://127.0.0.1:8765")
+    monkeypatch.setenv("SHUABAO_SUBSCRIPTION_TIMEOUT_S", "2")
+    monkeypatch.setattr(desktop_app, "verify_packaged_release_snapshot", lambda *_a, **_k: pytest.fail("source mode must not read a bundle"))
+
+    desktop_app._load_packaged_subscription_config(tmp_path)
+
+    assert os.environ["SHUABAO_SUBSCRIPTION_MODE"] == "off"
+    assert os.environ["SHUABAO_SUBSCRIPTION_BASE_URL"] == "http://127.0.0.1:8765"
+    assert os.environ["SHUABAO_SUBSCRIPTION_TIMEOUT_S"] == "2"
 
 
 # ---------------------------------------------------- QWebChannel 唯一注册（§6.1）
@@ -392,6 +833,37 @@ def test_resolve_dist_index_dev_then_packaged(tmp_path):
         resolve_dist_index(tmp_path / "nowhere")
 
 
+def test_resolve_dist_index_rejects_stale_manifest(tmp_path):
+    dist = tmp_path / "ui-v2" / "dist"
+    dist.mkdir(parents=True)
+    index = dist / "index.html"
+    index.write_text("<html>current</html>", encoding="utf-8")
+    (dist / "build_manifest.json").write_text(json.dumps({
+        "schema_version": 1,
+        "source_sha": "source-a",
+        "index_sha256": "0" * 64,
+    }), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="index.html"):
+        resolve_dist_index(tmp_path)
+
+
+def test_resolve_dist_index_rejects_source_sha_mismatch(tmp_path):
+    dist = tmp_path / "ui-v2" / "dist"
+    dist.mkdir(parents=True)
+    index = dist / "index.html"
+    index.write_text("<html>current</html>", encoding="utf-8")
+    digest = hashlib.sha256(index.read_bytes()).hexdigest()
+    (tmp_path / "build_identity.json").write_text(json.dumps({"source_sha": "current-sha"}), encoding="utf-8")
+    (dist / "build_manifest.json").write_text(json.dumps({
+        "schema_version": 1,
+        "source_sha": "stale-sha",
+        "index_sha256": digest,
+        "bridge_schema_version": 2,
+    }), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="源码提交不一致"):
+        resolve_dist_index(tmp_path)
+
+
 def test_missing_webengine_raises_loudly(monkeypatch):
     """缺 QtWebEngine 时显式 ModuleNotFoundError，绝不静默回退原生（§8）。"""
     spec = importlib.util.spec_from_file_location("_wcs_missing_webengine", wcs.__file__)
@@ -404,7 +876,7 @@ def test_missing_webengine_raises_loudly(monkeypatch):
             spec.loader.exec_module(module)
 
 
-# ------------------------------------------------------ desktop_app 环境切换（§9）
+# ------------------------------------------------------ desktop_app 正式入口（§9）
 
 
 def _run_main(tmp_path: Path, env_value: str | None):
@@ -438,7 +910,7 @@ def _run_main(tmp_path: Path, env_value: str | None):
     return native_mock, web_shell_mock
 
 
-def test_entry_web_env_uses_web_shell(tmp_path):
+def test_entry_uses_the_web_dashboard_by_default(tmp_path):
     mw, wc = _run_main(tmp_path, "web")
     wc.assert_called_once()
     kwargs = wc.call_args.kwargs
@@ -451,14 +923,14 @@ def test_entry_web_env_uses_web_shell(tmp_path):
     ("env_value", "uses_web"),
     ((None, True), ("web", True), ("native", False), ("NATIVE", False), ("weird", True)),
 )
-def test_entry_shell_router_keeps_web_default_and_native_escape_hatch(tmp_path, env_value, uses_web):
-    """Web 壳是正式默认入口；只有显式 native 才允许旧窗口接管。"""
+def test_entry_uses_web_dashboard_except_explicit_native_compatibility(tmp_path, env_value, uses_web):
+    """正式版固定 Web；只有显式 native 才能进入历史兼容看板。"""
     mw, wc = _run_main(tmp_path, env_value)
     if uses_web:
         wc.assert_called_once()
         mw.assert_not_called()
     else:
-        mw.assert_called_once()
+        mw.assert_called_once_with(app_data=tmp_path)
         wc.assert_not_called()
 
 

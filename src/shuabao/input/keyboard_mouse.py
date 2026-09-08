@@ -14,6 +14,7 @@ __all__ = [
     "activate_window",
     "reacquire_target_window",
     "foreground_matches_target",
+    "window_belongs_to_target",
     "get_clipboard_text",
     "get_foreground_window",
     "is_current_process_elevated",
@@ -98,6 +99,9 @@ def get_foreground_window() -> int | None:
         return None
 
 
+GA_ROOT = 2  # GetAncestor flag: walk to the owning top-level window
+
+
 def _window_pid(hwnd: int | None) -> int:
     """PID for hwnd; 0 if unknown."""
     if not hwnd:
@@ -113,6 +117,54 @@ def _window_pid(hwnd: int | None) -> int:
         return 0
 
 
+def _window_root(hwnd: int | None) -> int:
+    """Top-level window that owns hwnd (GetAncestor GA_ROOT); 0 if unknown.
+
+    KK renders its UI in an embedded CEF/Chromium view, so a point over the
+    game surface resolves to a Chrome_RenderWidgetHostHWND child that lives in
+    its own renderer process. GA_ROOT walks any such child back to the KK
+    top-level HWND, which PID comparison alone cannot do.
+    """
+    if not hwnd:
+        return 0
+    try:
+        import ctypes
+
+        get_ancestor = ctypes.windll.user32.GetAncestor
+        get_ancestor.restype = ctypes.c_void_p
+        get_ancestor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        root = get_ancestor(ctypes.c_void_p(int(hwnd)), GA_ROOT)
+    except Exception:
+        return 0
+    return int(root or 0)
+
+
+def _window_class_and_title(hwnd: int | None) -> tuple[str, str]:
+    """(class_name, title) for hwnd; empty strings when unavailable."""
+    if not hwnd:
+        return ("", "")
+    try:
+        import ctypes
+
+        user32 = ctypes.windll.user32
+        cls = ctypes.create_unicode_buffer(256)
+        user32.GetClassNameW(int(hwnd), cls, 256)
+        title = ctypes.create_unicode_buffer(256)
+        user32.GetWindowTextW(int(hwnd), title, 256)
+        return (cls.value, title.value)
+    except Exception:
+        return ("", "")
+
+
+def _describe_window(hwnd: int | None) -> str:
+    """hwnd/root/pid/class/title in one line, for input-cancellation messages."""
+    cls, title = _window_class_and_title(hwnd)
+    return (
+        f"hwnd={hwnd} root={_window_root(hwnd)} pid={_window_pid(hwnd)} "
+        f"class={cls!r} title={title!r}"
+    )
+
+
 def foreground_matches_target(target_hwnd: int, fg: int | None) -> bool:
     """True if fg is target, or another top-level window of the same process.
 
@@ -126,6 +178,30 @@ def foreground_matches_target(target_hwnd: int, fg: int | None) -> bool:
     tp = _window_pid(target_hwnd)
     fp = _window_pid(fg)
     return tp > 0 and tp == fp
+
+
+def window_belongs_to_target(target_hwnd: int, hwnd: int | None) -> bool:
+    """Single authority for "this HWND is part of the target's own surface".
+
+    Accepted, in order:
+      1. the exact target HWND;
+      2. any window sharing the target's GA_ROOT top-level window - KK's
+         embedded CEF renderer children qualify even though their PID differs;
+      3. another top-level window of the same process (KK create-room modal).
+
+    Fail-closed: when ancestry cannot be resolved both roots read as 0 and the
+    root leg is skipped, so a foreign window is never admitted on class name or
+    an unknown ancestry.
+    """
+    if hwnd is None:
+        return False
+    if int(hwnd) == int(target_hwnd):
+        return True
+    target_root = _window_root(target_hwnd)
+    other_root = _window_root(hwnd)
+    if target_root and other_root and target_root == other_root:
+        return True
+    return foreground_matches_target(target_hwnd, hwnd)
 
 
 def get_clipboard_text() -> str | None:
@@ -201,6 +277,8 @@ class InputExecutor:
 
     def __init__(self, stop_signal: StopSignal | None = None) -> None:
         self.stop_signal = stop_signal or StopSignal()
+        self._last_search_steps: list[dict] = []
+        self._last_type_text_steps: list[dict] = []
 
     def check_can_execute(self, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
         if self.stop_signal and (self.stop_signal.is_set() or self.stop_signal.is_stopped()):
@@ -270,7 +348,9 @@ class InputExecutor:
 
         Real-machine failure mode: game window partially covered by editor/
         terminal; SendInput lands on the covering window and the game never
-        reacts. WindowFromPoint tells us the topmost window at the click point.
+        reacts. WindowFromPoint tells us the topmost window at the click point,
+        which for KK is normally an embedded CEF renderer child rather than the
+        target HWND itself - window_belongs_to_target() resolves that ownership.
         """
         try:
             import ctypes
@@ -282,13 +362,17 @@ class InputExecutor:
             return None
         if top == 0:
             return None
-        if foreground_matches_target(target_hwnd, top):
+        if window_belongs_to_target(target_hwnd, top):
             return None
+        # Name the covering window in full.  A cancellation here is otherwise
+        # indistinguishable between a real foreign overlay and an ownership
+        # resolution miss, and re-diagnosing it costs a whole build cycle.
         return ActionResult(
             success=False,
             status="CANCELLED_WINDOW_OBSCURED",
             message=(
-                f"Click point ({x},{y}) is covered by another window (hwnd={top}). "
+                f"Click point ({x},{y}) is covered by another window: "
+                f"{_describe_window(top)}; target={_describe_window(target_hwnd)}. "
                 "Move editors/terminals off the game window or bring the game to front."
             ),
         )
@@ -321,6 +405,79 @@ class InputExecutor:
             return post
         status = "DRY_RUN" if dry_run else "SUCCESS"
         return ActionResult(success=True, status=status, message=f"Clicked ({x}, {y})")
+
+    def double_click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 50) -> ActionResult:
+        check = self.check_can_execute(target_hwnd, dry_run=dry_run)
+        if not check.success:
+            print(f"[input] double_click ({x}, {y}) CANCELLED: {check.message}")
+            return check
+        if not dry_run and target_hwnd:
+            obscured = self._check_point_obscured(target_hwnd, x, y)
+            if obscured:
+                print(f"[input] double_click ({x}, {y}) CANCELLED: {obscured.message}")
+                return obscured
+        if self.stop_signal and (self.stop_signal.is_set() or self.stop_signal.is_stopped()):
+            return ActionResult(
+                success=False,
+                status="CANCELLED_EMERGENCY_STOP",
+                message=f"Action cancelled by stop signal: {self.stop_signal.reason}",
+            )
+        first_injected = click(x, y, dry_run=dry_run, delay_ms=delay_ms)
+        if not dry_run and not first_injected:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_SENDINPUT_FAILED",
+                message=f"SendInput did not inject first click at ({x}, {y})",
+            )
+        time.sleep(0.08)
+        second_injected = click(x, y, dry_run=dry_run, delay_ms=delay_ms)
+        if not dry_run and not second_injected:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_SENDINPUT_FAILED",
+                message=f"SendInput did not inject second click at ({x}, {y})",
+            )
+        post = self._post_check(target_hwnd, dry_run)
+        if post:
+            return post
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message=f"Double-clicked ({x}, {y})")
+
+    def search_text(self, x: int, y: int, text: str, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
+        self._last_search_steps = []
+        check = self.check_can_execute(target_hwnd, dry_run=dry_run)
+        if not check.success:
+            print(f"[input] search_text ({x}, {y}) CANCELLED: {check.message}")
+            return check
+        if self.stop_signal and (self.stop_signal.is_set() or self.stop_signal.is_stopped()):
+            return ActionResult(
+                success=False,
+                status="CANCELLED_EMERGENCY_STOP",
+                message=f"Action cancelled by stop signal: {self.stop_signal.reason}",
+            )
+        steps = (
+            ("click", lambda: self.click(x, y, target_hwnd=target_hwnd, dry_run=dry_run, delay_ms=80)),
+            ("hotkey", lambda: self.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=dry_run)),
+            ("press_key", lambda: self.press_key("backspace", target_hwnd=target_hwnd, dry_run=dry_run)),
+            ("type_text", lambda: self.type_text(text, target_hwnd=target_hwnd, dry_run=dry_run)),
+            ("press_key", lambda: self.press_key("return", target_hwnd=target_hwnd, dry_run=dry_run)),
+        )
+        for method, action in steps:
+            result = action()
+            step = {
+                "method": method,
+                "success": bool(result.success),
+                "status": result.status,
+                "message": result.message,
+            }
+            if method == "type_text":
+                step["characters"] = list(self._last_type_text_steps)
+            self._last_search_steps.append(step)
+            if not result.success:
+                return result
+            time.sleep(0.02)
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message=f"Searched text {text!r} at ({x}, {y})")
 
     def right_click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 120) -> ActionResult:
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
@@ -432,6 +589,7 @@ class InputExecutor:
             obscured = self._check_point_obscured(target_hwnd, x, y)
             if obscured:
                 print(f"[input] scroll ({x}, {y}) CANCELLED: {obscured.message}")
+                return obscured
         if self.stop_signal and (self.stop_signal.is_set() or self.stop_signal.is_stopped()):
             return ActionResult(
                 success=False,
@@ -453,6 +611,7 @@ class InputExecutor:
 
     def type_text(self, text: str, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
         """Type literal characters (digits/ascii) via key events — more reliable than paste in CEF."""
+        self._last_type_text_steps = []
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
         if not check.success:
             print(f"[input] type_text CANCELLED: {check.message}")
@@ -463,7 +622,40 @@ class InputExecutor:
                 status="CANCELLED_EMERGENCY_STOP",
                 message=f"Action cancelled by stop signal: {self.stop_signal.reason}",
             )
-        type_text(text, dry_run=dry_run)
+        try:
+            injected = type_text(text, dry_run=dry_run)
+        except Exception as exc:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_SENDINPUT_FAILED",
+                message=f"Keyboard SendInput exception: {exc}",
+            )
+        text_value = str(text)
+        self._last_type_text_steps = [
+            {
+                "index": index,
+                "char": char,
+                "success": bool(ok),
+                "status": "DRY_RUN" if dry_run else ("SUCCESS" if ok else "CANCELLED_SENDINPUT_FAILED"),
+            }
+            for index, (char, ok) in enumerate(zip(text_value, injected))
+        ]
+        if len(injected) != len(text_value):
+            return ActionResult(
+                success=False,
+                status="CANCELLED_SENDINPUT_FAILED",
+                message=(
+                    f"Keyboard SendInput reported {len(injected)}/{len(text_value)} "
+                    "characters"
+                ),
+            )
+        for step in self._last_type_text_steps:
+            if not step["success"]:
+                return ActionResult(
+                    success=False,
+                    status="CANCELLED_SENDINPUT_FAILED",
+                    message=f"Keyboard SendInput failed at character index {step['index']}",
+                )
         post = self._post_check(target_hwnd, dry_run)
         if post:
             return post
@@ -557,11 +749,12 @@ def paste_text(text: str, dry_run: bool = True) -> None:
                 )
 
 
-def type_text(text: str, dry_run: bool = True) -> None:
+def type_text(text: str, dry_run: bool = True) -> list[bool]:
     """Type ASCII/digits with key events (CEF-friendlier than clipboard paste)."""
     print(f"[input] type_text len={len(text)} dry_run={dry_run}")
-    if dry_run or not text:
-        return
+    text_value = str(text)
+    if dry_run or not text_value:
+        return [True for _ in text_value]
     import ctypes
     from ctypes import wintypes as w
 
@@ -577,49 +770,69 @@ def type_text(text: str, dry_run: bool = True) -> None:
             ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
         ]
 
+    # INPUT's native union is sized by MOUSEINPUT (32 bytes on Win64), not by
+    # KEYBDINPUT alone (24 bytes). A keyboard-only union makes INPUT 32 bytes
+    # instead of the required 40, so SendInput rejects it with error 87.
+    class MOUSEINPUT(ctypes.Structure):
+        _fields_ = [
+            ("dx", w.LONG),
+            ("dy", w.LONG),
+            ("mouseData", w.DWORD),
+            ("dwFlags", w.DWORD),
+            ("time", w.DWORD),
+            ("dwExtraInfo", ctypes.POINTER(ctypes.c_ulong)),
+        ]
+
     class INPUT_UNION(ctypes.Union):
-        _fields_ = [("ki", KEYBDINPUT)]
+        _fields_ = [("mi", MOUSEINPUT), ("ki", KEYBDINPUT)]
 
     class INPUT(ctypes.Structure):
         _fields_ = [("type", w.DWORD), ("union", INPUT_UNION)]
 
-    def tap(vk: int) -> None:
+    def tap(vk: int) -> bool:
         down = INPUT()
         down.type = 1  # INPUT_KEYBOARD
         down.union.ki = KEYBDINPUT(vk, 0, 0, 0, None)
         up = INPUT()
         up.type = 1
         up.union.ki = KEYBDINPUT(vk, 0, KEYEVENTF_KEYUP, 0, None)
-        user32.SendInput(1, ctypes.byref(down), ctypes.sizeof(INPUT))
+        down_ok = int(user32.SendInput(1, ctypes.byref(down), ctypes.sizeof(INPUT))) == 1
         time.sleep(0.02)
-        user32.SendInput(1, ctypes.byref(up), ctypes.sizeof(INPUT))
+        up_ok = int(user32.SendInput(1, ctypes.byref(up), ctypes.sizeof(INPUT))) == 1
         time.sleep(0.03)
+        return down_ok and up_ok
 
-    for ch in str(text):
+    results: list[bool] = []
+    for ch in text_value:
         if "0" <= ch <= "9":
-            tap(ord(ch))  # VK_0..VK_9 == ASCII
+            results.append(tap(ord(ch)))  # VK_0..VK_9 == ASCII
         elif "a" <= ch.lower() <= "z":
-            tap(ord(ch.upper()))
+            results.append(tap(ord(ch.upper())))
         elif ch in (" ", "\t"):
-            tap(0x20 if ch == " " else 0x09)
+            results.append(tap(0x20 if ch == " " else 0x09))
         else:
             # fallback scan via VkKeyScanW
             vk_full = int(user32.VkKeyScanW(ord(ch)))
             if vk_full == -1:
+                results.append(False)
                 continue
             vk = vk_full & 0xFF
             shift = bool(vk_full & 0x100)
+            shift_down_ok = True
             if shift:
                 tap_shift_down = INPUT()
                 tap_shift_down.type = 1
                 tap_shift_down.union.ki = KEYBDINPUT(0x10, 0, 0, 0, None)
-                user32.SendInput(1, ctypes.byref(tap_shift_down), ctypes.sizeof(INPUT))
-            tap(vk)
+                shift_down_ok = int(user32.SendInput(1, ctypes.byref(tap_shift_down), ctypes.sizeof(INPUT))) == 1
+            key_ok = shift_down_ok and tap(vk)
+            shift_up_ok = True
             if shift:
                 tap_shift_up = INPUT()
                 tap_shift_up.type = 1
                 tap_shift_up.union.ki = KEYBDINPUT(0x10, 0, KEYEVENTF_KEYUP, 0, None)
-                user32.SendInput(1, ctypes.byref(tap_shift_up), ctypes.sizeof(INPUT))
+                shift_up_ok = int(user32.SendInput(1, ctypes.byref(tap_shift_up), ctypes.sizeof(INPUT))) == 1
+            results.append(key_ok and shift_up_ok)
+    return results
 
 
 def scroll(x: int, y: int, clicks: int, dry_run: bool = True) -> None:
@@ -694,7 +907,7 @@ def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> bool:
         return int(user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INPUT)))
 
     # Original: Mouse.set_Position → Sleep(200) → Click → Sleep(500)
-    user32.SetCursorPos(int(x), int(y))
+    positioned = bool(user32.SetCursorPos(int(x), int(y)))
     time.sleep(0.20)
     move_ok = send(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, ax, ay)
     time.sleep(0.02)
@@ -702,4 +915,7 @@ def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> bool:
     time.sleep(0.05)
     up_ok = send(up_flag)
     time.sleep(max(delay_ms, 0) / 1000.0)
-    return bool(down_ok) and bool(up_ok)
+    final = w.POINT()
+    cursor_read = bool(user32.GetCursorPos(ctypes.byref(final)))
+    cursor_at_target = cursor_read and abs(int(final.x) - int(x)) <= 2 and abs(int(final.y) - int(y)) <= 2
+    return positioned and bool(move_ok) and bool(down_ok) and bool(up_ok) and cursor_at_target

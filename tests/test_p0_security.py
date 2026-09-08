@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 from pathlib import Path
 import time
 import unittest
@@ -11,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 
 from shuabao.input.emergency_stop import EmergencyStopListener
-from shuabao.input.keyboard_mouse import InputExecutor, get_clipboard_text, paste_text, set_clipboard_text
+from shuabao.input.keyboard_mouse import ActionResult, InputExecutor, get_clipboard_text, paste_text, set_clipboard_text, type_text
 from shuabao.loop_action import LoopAction
 from shuabao.mediator import AttemptBudget, Mediator, Phase
 from shuabao.settings import Settings
@@ -210,6 +211,53 @@ class P0SecurityFoundationTests(unittest.TestCase):
             self.assertFalse(res_press.success)
             self.assertEqual(res_press.status, "CANCELLED_NO_TARGET_HWND")
             mock_press.assert_not_called()
+
+    def test_search_text_stops_on_first_failed_input_step(self) -> None:
+        executor = InputExecutor()
+        failed = ActionResult(False, "CANCELLED_SENDINPUT_FAILED", "injected failure")
+        with patch.object(executor, "click", return_value=failed) as click:
+            result = executor.search_text(10, 20, "4", target_hwnd=123, dry_run=True)
+
+        self.assertIs(result, failed)
+        click.assert_called_once()
+
+    def test_win64_keyboard_input_uses_native_input_size(self) -> None:
+        sizes: list[int] = []
+
+        def accept_one(_count, _input, input_size):
+            sizes.append(int(input_size))
+            return 1
+
+        with patch.object(ctypes.windll.user32, "SendInput", side_effect=accept_one), \
+             patch("shuabao.input.keyboard_mouse.time.sleep", return_value=None):
+            result = type_text("3", dry_run=False)
+
+        self.assertEqual(result, [True])
+        self.assertEqual(sizes, [40, 40])
+
+    def test_double_click_rejects_first_injection_failure(self) -> None:
+        executor = InputExecutor()
+        ok = ActionResult(True, "OK", "")
+        with patch.object(executor, "check_can_execute", return_value=ok), \
+             patch.object(executor, "_check_point_obscured", return_value=None), \
+             patch("shuabao.input.keyboard_mouse.click", side_effect=[False, True]) as click:
+            result = executor.double_click(10, 20, target_hwnd=123, dry_run=False)
+
+        self.assertFalse(result.success)
+        self.assertEqual(result.status, "CANCELLED_SENDINPUT_FAILED")
+        self.assertEqual(click.call_count, 1)
+
+    def test_scroll_window_obscured_cancels_without_injection(self) -> None:
+        executor = InputExecutor()
+        ok = ActionResult(True, "OK", "")
+        obscured = ActionResult(False, "CANCELLED_WINDOW_OBSCURED", "overlay")
+        with patch.object(executor, "check_can_execute", return_value=ok), \
+             patch.object(executor, "_check_point_obscured", return_value=obscured), \
+             patch("shuabao.input.keyboard_mouse.scroll") as injected:
+            result = executor.scroll(10, 20, -3, target_hwnd=123, dry_run=False)
+
+        self.assertIs(result, obscured)
+        injected.assert_not_called()
 
     # ---------- Task 5: Cancellable InputExecutor & Safety Checks ----------
 

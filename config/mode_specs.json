@@ -16,6 +16,8 @@
         "skills",
         "cards",
         "treasure_allow_negative",
+        "cjb_boss",
+        "sgzx_boss",
         "auto_secret_realm",
         "dry_run"
       ],
@@ -28,7 +30,7 @@
         "round_timeout_s": 3600
       },
       "evidence_status": "live_partial",
-      "notes": "现有 Mediator L0+L1。本 Flow 只文档化阶段，不替代 mediator。"
+      "notes": "现有 Mediator L0+L1。本 Flow 只文档化阶段，不替代 mediator。历史 bundle 已覆盖存档 8 卡、Boss 路由和大秘境动作；当前 SHA 的存档/传家宝两帧门禁需复验，时光之穴完整 NPC 入口与大秘境 active 证据仍待补。失败页红退出按钮可直接点击（左侧权威红色组件），或左上角退出走标准确认框。"
     },
     "follow_team": {
       "id": "follow_team",
@@ -125,8 +127,11 @@
       "flow": "LobbyHitchFlow",
       "visible_settings": [
         "hitch_stage_prefix",
+        "hitch_rotate_interval",
         "hitch_cycle_num",
         "hitch_after_goal",
+        "cjb_boss",
+        "sgzx_boss",
         "skip_password_rooms",
         "refresh_s",
         "never_quick_join",
@@ -159,8 +164,8 @@
       "budgets": {
         "search_timeout_s": 120,
         "join_attempts": 3,
-        "refresh_s_min": 3,
-        "refresh_s_max": 4,
+        "refresh_s_min": 5,
+        "refresh_s_max": 5,
         "hitch_stage_prefix_values": [
           3,
           4
