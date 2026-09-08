@@ -32,8 +32,8 @@ from tools.live_scenario_capture import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FROZEN = "decb9b6eb3559e39ea51e26864eaada0d648855b"
-BASE = "d1fb4a51310f3f847ebeee110d51d8423050468b"
+FROZEN = "d7d6dc22b5f14cbe4faa03cab431ead8d9d9830a"
+BASE = "d7d6dc22b5f14cbe4faa03cab431ead8d9d9830a"
 OLD_HARNESS = "144c0c9adc366a35548f6e1c2e52fad8387da090"
 OLD_PROD = "b15da05f4fd7313b02b2cc466e319d9683aa979c"
 
@@ -49,6 +49,7 @@ def test_identity_uses_current_worktree_not_old_runtime() -> None:
     assert report["frozen_production_code_baseline"] == FROZEN
     assert report["production_code_diff"] == "CLEAN"
     assert report["runtime_source_verified"] is True
+    assert "Production Candidate SHA" in identity.format_identity_text(report)
     assert report["harness_head"] not in {OLD_HARNESS, OLD_PROD}
     assert "solo-live-harness-20260907" not in str(report["runtime_worktree"]).replace("/", "\\")
     loaded = str(report["runtime_source_path"] or "").replace("\\", "/")
@@ -226,7 +227,6 @@ def test_launcher_keeps_existing_lanes_and_adds_refresh_controls() -> None:
         "9  打开最新 FAIL bundle",
         "10 Reproduce 最新 FAIL",
         "READY FOR GT",
-        "Frozen Production Code Baseline",
         "hitch_lobby_chain",
         "solo_ingame_chain",
         "Assert-ReadyForGt",

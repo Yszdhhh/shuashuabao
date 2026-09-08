@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-HARNESS_BASE_SHA = "d1fb4a51310f3f847ebeee110d51d8423050468b"
-FROZEN_PRODUCTION_CODE_BASELINE = "decb9b6eb3559e39ea51e26864eaada0d648855b"
+HARNESS_BASE_SHA = "d7d6dc22b5f14cbe4faa03cab431ead8d9d9830a"
+FROZEN_PRODUCTION_CODE_BASELINE = "d7d6dc22b5f14cbe4faa03cab431ead8d9d9830a"
 FORBIDDEN_RUNTIME_SHAS = (
     "144c0c9adc366a35548f6e1c2e52fad8387da090",
     "b15da05f4fd7313b02b2cc466e319d9683aa979c",
@@ -245,6 +245,7 @@ def format_identity_text(report: dict[str, Any]) -> str:
     lines = [
         f"Harness HEAD: {report.get('harness_head')}",
         f"Harness Base: {report.get('harness_base')}",
+        f"Production Candidate SHA: {report.get('frozen_production_code_baseline')}",
         f"Runtime Worktree: {report.get('runtime_worktree')}",
         f"Frozen Production Code Baseline: {report.get('frozen_production_code_baseline')}",
         f"Production Code Diff: {report.get('production_code_diff')}",
