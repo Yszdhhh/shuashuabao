@@ -376,21 +376,14 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     assert med2._hitch_pressure_transferred is False
 
 
-def test_kick_modal_production_recognition_without_ocr_override() -> None:
-    """P0-5：生产识别链在 OCR 离线时（KICK_REAL_GT=BLOCKED_MISSING_RAW_FRAME，
-    RAW FRAME 文本证据缺失）对未知通用弹窗必须零输入：绝不点击弹窗内按钮，
-    也绝不自动 Esc（HitchDismissPopup 已封死）。OCR 可用/override 命中被踢
-    文本时才允许安全关闭并重置回大厅。"""
+def test_pending_join_popup_dismisses_without_clicking_quick_join() -> None:
+    """刚点房间行后出现的 KK 弹窗只 Esc 取消、拒绝本行，绝不点快速加入。"""
     med = _hitch_mediator()
     assert med._hitch_ocr_override is None, "生产链路不得依赖 ocr_override"
     frame = _kk_frame("kicked")
     med._hitch_pending_row_y = 385
     med._hitch_sm.note_join_click(1.0)
 
-    # KICK_REAL_GT=BLOCKED_MISSING_RAW_FRAME：单测环境 OCR 离线，真实帧的被踢
-    # 文本无法用生产 OCR 链解析（RAW FRAME 证据缺失）→ 识别链 fail-closed。
-    # 弹窗身份不可确认为已知被踢/退出弹窗 → 按 UNKNOWN_GENERIC_MODAL 处理：
-    # 零输入（绝不点击，也绝不盲 Esc——盲 Esc 可能落到未知面板）。
     dialog_hit = MatchResult("lobby_popup_dialog", 0.9, 400, 300, 500, 250, 400, 300)
     clicks: list[str] = []
     keys: list[str] = []
@@ -399,7 +392,9 @@ def test_kick_modal_production_recognition_without_ocr_override() -> None:
          patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True):
         med._tick_lobby_hitch(frame, "LOBBY_ROOM")
     assert not clicks, f"被踢弹窗上严禁任何点击: {clicks}"
-    assert not keys, f"未知通用弹窗必须零输入（禁止自动 Esc），实际按键: {keys}"
+    assert keys == ["esc"]
+    assert med._hitch_sm.pending_join is False
+    assert med._hitch_rejected_row_ys == {385}
     med2 = _hitch_mediator()
     med2.set_phase(Phase.LOBBY_ROOM)
     med2._hitch_ocr_override = "你已被移出了房间"
@@ -409,6 +404,18 @@ def test_kick_modal_production_recognition_without_ocr_override() -> None:
     click2.assert_not_called()
     assert med2.phase is Phase.LOBBY_ROOM
     assert med2._hitch_re_search is False
+
+
+def test_generic_popup_without_pending_join_remains_zero_input() -> None:
+    med = _hitch_mediator()
+    frame = _kk_frame("kicked")
+    dialog_hit = MatchResult("lobby_popup_dialog", 0.9, 400, 300, 500, 250, 400, 300)
+    with patch.object(med, "find_scene", return_value=dialog_hit), \
+         patch.object(med, "act_key", return_value=True) as key, \
+         patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
+    key.assert_not_called()
+    click.assert_not_called()
 
 
 def test_startup_state_post_game_precedence() -> None:
