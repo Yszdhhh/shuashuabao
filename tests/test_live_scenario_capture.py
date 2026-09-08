@@ -1077,6 +1077,34 @@ def test_lobby_hitch_pending_join_prefers_separate_room_hwnd() -> None:
     assert selected.hwnd == 20
 
 
+def test_lobby_hitch_pending_join_prefers_new_unconfirmed_popup_window() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    lobby = Frame(
+        np.full((945, 1332, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=10, role="l0",
+    )
+    popup = Frame(
+        np.full((720, 960, 3), (18, 18, 18), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=20, role="l0",
+    )
+    med._last_frame = lobby
+    med._last_capture_role = "l0"
+    med._hitch_sm.note_join_click(1.0)
+    med._hitch_join_origin_hwnd = lobby.hwnd
+    targets = [
+        SimpleNamespace(hwnd=10, title="KK官方对战平台"),
+        SimpleNamespace(hwnd=20, title="KK官方对战平台"),
+    ]
+
+    with patch("shuabao.mediator.find_window_targets", return_value=targets), \
+         patch("shuabao.mediator.capture_target", side_effect=lambda target: (
+             popup if target.hwnd == 20 else lobby
+         )):
+        selected = med._capture_best("KK官方对战平台", "l0")
+
+    assert selected.hwnd == 20
+
+
 def test_lobby_hitch_pending_exit_prefers_confirm_child_without_dialog_template() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     lobby = Frame(

@@ -650,6 +650,7 @@ class Mediator:
         self._hitch_search_ocr_error_logged_at = 0.0
         self._hitch_rejected_row_ys: set[int] = set()
         self._hitch_pending_row_y: int | None = None
+        self._hitch_join_origin_hwnd: int | None = None
         # Session-local blacklist keyed by the visible lobby room-number cell.
         self._hitch_blacklisted_room_keys: set[str] = set()
         self._hitch_pending_room_key: str | None = None
@@ -1154,6 +1155,18 @@ class Mediator:
                 # starve the child window that owns Ready/Exit controls.
                 for candidate in frames:
                     if candidate.hwnd is not None and candidate.hwnd == self._confirmed_room_hwnd:
+                        self._capture_miss_streak = 0
+                        return candidate
+                origin_hwnd = self._hitch_join_origin_hwnd
+                for candidate in frames:
+                    if (
+                        origin_hwnd is not None
+                        and candidate.hwnd is not None
+                        and candidate.hwnd != origin_hwnd
+                        and not self._is_confirmed_room_frame(candidate)
+                    ):
+                        # A new KK window without room controls is the pending
+                        # join dialog, not a room.  Return it so Esc targets it.
                         self._capture_miss_streak = 0
                         return candidate
             for candidate in frames:
@@ -6614,6 +6627,13 @@ class Mediator:
         self._recovery_state = None
         if self._hitch_enabled():
             self._hitch_after_exit(now)
+            # P0 fix: the recovery state is already None here; leaving the
+            # phase at RECOVER_FAILURE would make the next tick hit the
+            # defensive "recovery state missing" ERROR/stop path. Hand off to
+            # the standard evidence-gated hitch L0 flow: search/clicks only
+            # resume on fresh lobby/room facts; UNKNOWN/transition frames stay
+            # zero input (_tick_lobby_hitch black/evidence gates).
+            self.set_phase(Phase.LOBBY_ROOM, "verified failure exit; hitch re-search")
             return LoopAction.Continue
         self._awaiting_room_return = True
         self.set_phase(Phase.PREPARE, "failure exit clicked; verify same room")
@@ -7578,6 +7598,7 @@ class Mediator:
         if self._hitch_pending_row_y is not None:
             self._hitch_rejected_row_ys.add(self._hitch_pending_row_y)
         self._hitch_pending_row_y = None
+        self._hitch_join_origin_hwnd = None
         self._hitch_sm.reject_join(now)
         self._hitch_refresh_required = True
         self._hitch_status = reason
@@ -7605,6 +7626,7 @@ class Mediator:
         self._hitch_search = None
         self._hitch_refresh_required = True
         self._hitch_pending_row_y = None
+        self._hitch_join_origin_hwnd = None
         self._hitch_pending_room_key = None
         # Task 2: floor-exit transient must not leak across episode re-entry;
         # every hitch reset path converges here, so clear the pending/confirmed
@@ -7852,13 +7874,15 @@ class Mediator:
         if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
             print("[L0] hitch 黑帧/空帧，零输入等待可信大厅页面")
             return LoopAction.Continue
-        # KK 将“房间已满”作为独立 440x260 子窗口捕获。它不携带完整大厅
-        # 模板，必须在任何 ROOM_WAITING 判定前，凭待进房事务取消该子窗口。
+        # KK 的进房提示可能是独立窗口，也可能覆盖大厅。只要它在一次进房
+        # 请求后新出现、且没有房间实体控件，就不是已进房，Esc 关闭即可。
         if (
             self._hitch_sm.pending_join
             and frame.role == "l0"
-            and 280 <= frame.width <= 600
-            and 160 <= frame.height <= 350
+            and self._hitch_join_origin_hwnd is not None
+            and frame.hwnd is not None
+            and frame.hwnd != self._hitch_join_origin_hwnd
+            and not self._is_confirmed_room_frame(frame)
         ):
             dismissed = self.act_key("esc", "HitchDismissJoinPopup")
             if dismissed:
@@ -7921,6 +7945,17 @@ class Mediator:
             or self.find_scene(frame, "lobby_popup_title")
         )
         if dialog_hit is not None:
+            if self._hitch_sm.pending_join:
+                dismissed = self.act_key("esc", "HitchDismissJoinPopup")
+                if dismissed:
+                    self._hitch_reject_pending_join(now, "join_rejected")
+                    self._hitch_search_actions.append("reject")
+                    print("[L0] hitch 进房提示已取消，跳过本行并继续找房")
+                else:
+                    self._hitch_sm.defer_retry(now)
+                    print("[L0] hitch 进房提示关闭输入被拒绝，等待重试")
+                self.set_phase(Phase.LOBBY_ROOM, "hitch join popup dismissed")
+                return LoopAction.Continue
             exit_attempted = (
                 getattr(self, "_hitch_floor_exit_pending", False)
                 or (
@@ -7953,9 +7988,7 @@ class Mediator:
                 else:
                     print("[L0] hitch 检测到通用弹窗但无明确退出标识，禁止点击确认（零输入等待）")
                 return LoopAction.Continue
-            # UNKNOWN_GENERIC_MODAL：无法识别为被踢/退出弹窗的通用模态一律零输入。
-            # 禁止自动 Esc（HitchDismissPopup）——盲 Esc 可能落到未知面板；
-            # 等待可信 OCR 命中 KNOWN_KICK 或人工介入。
+            # UNKNOWN_GENERIC_MODAL：没有待进房事务时仍然零输入，禁止盲 Esc。
             print("[L0] hitch 检测到未知通用弹窗，零输入等待（禁止自动 Esc）")
             return LoopAction.Continue
 
@@ -8088,6 +8121,7 @@ class Mediator:
         if in_room and not self._hitch_re_search:
             if self._hitch_sm.pending_join:
                 self._hitch_sm.complete_join()
+                self._hitch_join_origin_hwnd = None
                 self._hitch_join_refresh_count = self._hitch_sm.attempts
             # b15da05 P1-C / P0-6: 180 秒开局等待预算在 Ready 确认后优先判定。
             # 超时先挂起 pending 闩锁并发起安全退房（退出按钮或 Esc）；只有
@@ -8205,6 +8239,7 @@ class Mediator:
                 clicked = bool(self.act_double_click(hit, "HitchJoin"))
                 if clicked:
                     self._hitch_sm.note_join_click(now)
+                    self._hitch_join_origin_hwnd = frame.hwnd
                     self._hitch_pending_row_y = hit.y
                     self._hitch_pending_room_key = self._hitch_room_number_key(frame, hit.y)
                     self._hitch_search_actions.append("join")
@@ -11121,6 +11156,12 @@ class Mediator:
                 return LoopAction.Continue
             if self._hitch_enabled():
                 self._hitch_after_exit(time.time())
+                # P0 fix: same phase disconnect as the RECOVER_FAILURE exit —
+                # leaving the phase at NEXT makes the following tick wait for
+                # a confirm dialog that is already gone, then hit the
+                # "exit confirmation timeout" ERROR/stop path. Hand off to the
+                # evidence-gated hitch L0 flow instead.
+                self.set_phase(Phase.LOBBY_ROOM, "exit confirmed; hitch re-search")
                 return LoopAction.Continue
             self._awaiting_room_return = True
             self.set_phase(Phase.PREPARE, "exit confirmed; verify same room")

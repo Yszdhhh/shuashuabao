@@ -406,12 +406,13 @@ def test_pending_join_popup_dismisses_without_clicking_quick_join() -> None:
     assert med2._hitch_re_search is False
 
 
-def test_pending_join_popup_child_window_dismisses_before_room_waiting() -> None:
+def test_pending_join_popup_new_window_dismisses_before_room_waiting() -> None:
     med = _hitch_mediator()
     med._hitch_pending_row_y = 385
     med._hitch_sm.note_join_click(1.0)
+    med._hitch_join_origin_hwnd = 10001
     frame = Frame(
-        np.full((260, 440, 3), 18, dtype=np.uint8),
+        np.full((720, 960, 3), 18, dtype=np.uint8),
         window_title="KK官方对战平台",
         hwnd=1253798,
         role="l0",
