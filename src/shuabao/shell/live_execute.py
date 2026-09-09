@@ -376,6 +376,10 @@ def execute_runtime_mediator(
         mediator.run(max_steps=max_steps)
     except Exception as exc:
         result["terminal_reason"] = f"任务异常退出: {exc}"
+        if mediator is not None:
+            note = getattr(mediator, "note_external_stop", None)
+            if callable(note):
+                note("UNRECOVERABLE_CRASH")
         LOGGER.exception("[异常] %s", result["terminal_reason"])
     finally:
         if mediator is not None:

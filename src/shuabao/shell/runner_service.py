@@ -225,6 +225,9 @@ class MediatorWorker(QThread):
         self._stop_requested = True
         self.stop_signal.trigger("RunnerService stop requested")
         if self.mediator:
+            note = getattr(self.mediator, "note_external_stop", None)
+            if callable(note):
+                note("USER_STOP")
             self.mediator.stop()
 
 

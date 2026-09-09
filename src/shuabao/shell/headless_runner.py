@@ -183,6 +183,9 @@ class HeadlessRunner:
         self.stop_signal.trigger("HeadlessRunner stop requested")
         if self.mediator is not None:
             try:
+                note = getattr(self.mediator, "note_external_stop", None)
+                if callable(note):
+                    note("USER_STOP")
                 self.mediator.stop()
             except Exception:
                 pass
