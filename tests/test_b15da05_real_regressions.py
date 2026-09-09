@@ -487,8 +487,32 @@ def test_real_platform_modal_uses_x_only_after_fresh_esc_reobserve() -> None:
     click2.assert_called_once_with(shell2.close, "HitchDismissPlatformModalClose")
 
 
-def test_real_platform_modal_exhaustion_is_fail_closed_not_permanent_wait() -> None:
-    """GT：中性关闭已穷尽时明确失败留档，不把卡死伪装成 Continue。"""
+def test_real_platform_modal_same_frame_object_can_be_fresh_capture() -> None:
+    """Fresh capture generation, not Python Frame identity, gates X fallback."""
+    med = _hitch_mediator()
+    frame = _kk_frame("modal_level")
+    shell = med._kk_platform_modal_shell(frame)
+    assert shell is not None
+
+    med._capture_generation = 1
+    with patch.object(med, "act_key", return_value=True) as key, \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._tick_hitch_platform_modal(frame, shell, 1.0) is LoopAction.Continue
+    key.assert_called_once_with("esc", "HitchDismissPlatformModalEsc")
+    click.assert_not_called()
+
+    # The capture layer may reuse the same immutable Frame object for static
+    # pixels; a new generation still represents a new application observation.
+    med._capture_generation = 2
+    with patch.object(med, "act_key", return_value=True) as key2, \
+         patch.object(med, "act_click", return_value=True) as click2:
+        assert med._tick_hitch_platform_modal(frame, shell, 4.0) is LoopAction.Continue
+    key2.assert_not_called()
+    click2.assert_called_once_with(shell.close, "HitchDismissPlatformModalClose")
+
+
+def test_real_platform_modal_exhaustion_reacquires_without_stopping() -> None:
+    """GT：中性关闭已穷尽时留档并有界重采集，长线程不 ERROR/stop。"""
     med = _hitch_mediator()
     frame = _kk_frame("modal_kicked")
     shell = med._kk_platform_modal_shell(frame)
@@ -497,11 +521,12 @@ def test_real_platform_modal_exhaustion_is_fail_closed_not_permanent_wait() -> N
     with patch.object(med, "stop") as stop, \
          patch.object(med, "act_click") as click, \
          patch.object(med, "act_key") as key:
-        assert med._tick_hitch_platform_modal(frame, shell, 10.0) is LoopAction.Break
-    stop.assert_called_once()
+        assert med._tick_hitch_platform_modal(frame, shell, 10.0) is LoopAction.Continue
+    stop.assert_not_called()
     click.assert_not_called()
     key.assert_not_called()
-    assert med.phase is Phase.ERROR
+    assert med.phase is not Phase.ERROR
+    assert med._hitch_platform_modal_reobserve_until is not None
 
 
 def test_real_room_surface_cannot_be_reclassified_as_platform_modal() -> None:

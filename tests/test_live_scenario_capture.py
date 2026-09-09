@@ -1058,8 +1058,20 @@ def test_lobby_hitch_pending_join_prefers_separate_room_hwnd() -> None:
         np.full((945, 1332, 3), (24, 22, 20), dtype=np.uint8),
         window_title="KK官方对战平台", hwnd=10, role="l0",
     )
-    room = _synthetic_hitch_room(0)
-    room.hwnd = 20
+    room_image = cv2.imdecode(
+        np.fromfile(
+            str(ROOT / "tests" / "fixtures" / "real_room_window_frame.png"),
+            dtype=np.uint8,
+        ),
+        cv2.IMREAD_COLOR,
+    )
+    assert room_image is not None
+    room = Frame(
+        room_image,
+        window_title="KK官方对战平台",
+        hwnd=20,
+        role="l0",
+    )
     med._last_frame = lobby
     med._last_capture_role = "l0"
     med._hitch_sm.note_join_click(1.0)
@@ -1134,16 +1146,27 @@ def test_lobby_hitch_pending_exit_prefers_confirm_child_without_dialog_template(
 
 def test_lobby_search_ready_requires_button_state_change() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-
-    def room_frame(text_width: int) -> Frame:
-        image = np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8)
-        cv2.rectangle(image, (792, 596), (931, 631), (200, 130, 20), -1)
-        left = 862 - text_width // 2
-        cv2.rectangle(image, (left, 607), (left + text_width - 1, 619), (245, 245, 245), -1)
-        return Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
-
-    before = room_frame(28)
-    after = room_frame(64)
+    before = Frame(
+        cv2.imdecode(
+            np.fromfile(
+                str(ROOT / "fixtures" / "lobby_hitch_20260814" / "kk_room_ready_btn_t040.png"),
+                dtype=np.uint8,
+            ),
+            cv2.IMREAD_COLOR,
+        ),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    after = Frame(
+        cv2.imdecode(
+            np.fromfile(
+                str(ROOT / "fixtures" / "lobby_hitch_20260814" / "kk_room_cancel_ready_t041.png"),
+                dtype=np.uint8,
+            ),
+            cv2.IMREAD_COLOR,
+        ),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    assert before.bgr is not None and after.bgr is not None
     action = {"reason": "HitchReady", "point": [862, 614]}
     input_record = {"success": True, "status": "SUCCESS"}
 
@@ -1182,18 +1205,14 @@ def _synthetic_hitch_room(
     return Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
 
 
-def test_lobby_hitch_prepares_only_when_host_is_on_first_row() -> None:
+def test_lobby_hitch_seat_unknown_never_authorizes_exit() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
 
-    assert med._hitch_room_seat_decision(_synthetic_hitch_room(0)) == "ready"
-    assert med._hitch_room_seat_decision(_synthetic_hitch_room(3)) == "ready"
+    assert med._hitch_room_seat_decision(_synthetic_hitch_room(0)) == "unknown"
+    assert med._hitch_room_seat_decision(_synthetic_hitch_room(3)) == "unknown"
     assert med._hitch_room_seat_decision(
         _synthetic_hitch_room(3, first_row_host=False),
-    ) == "leave_host_not_floor_one"
-    avatar_only = _synthetic_hitch_room(3, first_row_host=False)
-    avatar_only.bgr[209:233, 1080:1110] = (30, 50, 230)
-    assert med._hitch_room_seat_decision(avatar_only) == "leave_host_not_floor_one"
-    assert med._find_hitch_exit_button(_synthetic_hitch_room(0)) is not None
+    ) == "unknown"
 
 
 def test_lobby_search_floor_one_exit_requires_visual_room_close() -> None:
@@ -1219,15 +1238,19 @@ def test_lobby_search_floor_one_exit_requires_visual_room_close() -> None:
 
 def test_lobby_hitch_clicks_two_character_ready_but_not_four_character_action() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-    frame = _synthetic_hitch_room(3)
+    image = cv2.imdecode(
+        np.fromfile(
+            str(ROOT / "fixtures" / "lobby_hitch_20260814" / "kk_room_ready_btn_t040.png"),
+            dtype=np.uint8,
+        ),
+        cv2.IMREAD_COLOR,
+    )
+    assert image is not None
+    frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
 
-    # Room identity is established by _capture_best -> _is_confirmed_room_frame.
-    # This tick is called directly, and the synthetic frame carries no real
-    # room_exit_btn template, so seed the authority the capture layer owns.
+    # Room identity is established by the real page-level contract.
     med._confirmed_room_hwnd = frame.hwnd
-    with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
-         patch.object(med, "find_scene", return_value=None), \
-         patch.object(med, "act_click", return_value=True) as click:
+    with patch.object(med, "act_click", return_value=True) as click:
         med._tick_lobby_hitch(frame, "UNKNOWN")
 
     click.assert_called_once()
@@ -1235,7 +1258,7 @@ def test_lobby_hitch_clicks_two_character_ready_but_not_four_character_action() 
     assert med.phase is Phase.ROOM_WAITING
 
 
-def test_lobby_hitch_leaves_when_host_is_not_on_floor_one() -> None:
+def test_lobby_hitch_unknown_seat_does_not_leave_or_blacklist() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     frame = _synthetic_hitch_room(0, first_row_host=False)
     med._hitch_pending_room_key = "room-763405"
@@ -1249,10 +1272,9 @@ def test_lobby_hitch_leaves_when_host_is_not_on_floor_one() -> None:
          patch.object(med, "act_click", return_value=True) as click:
         med._tick_lobby_hitch(frame, "UNKNOWN")
 
-    click.assert_called_once()
-    assert click.call_args.args[1] == "HitchLeaveFloorOne"
-    assert med._hitch_floor_exit_pending is True
-    assert "room-763405" in med._hitch_blacklisted_room_keys
+    click.assert_not_called()
+    assert med._hitch_floor_exit_pending is False
+    assert "room-763405" not in med._hitch_blacklisted_room_keys
 
 
 def test_lobby_hitch_confirms_exit_dialog_instead_of_escaping() -> None:
@@ -1262,7 +1284,7 @@ def test_lobby_hitch_confirms_exit_dialog_instead_of_escaping() -> None:
     frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
     med._hitch_floor_exit_pending = True
     med._hitch_pending_room_key = "room-763405"
-    med._confirmed_room_hwnd = 99
+    med._confirmed_room_hwnd = frame.hwnd
 
     with patch.object(med, "_hitch_exit_modal_visible", return_value=True), \
         patch.object(med, "find_scene", return_value=None), \
@@ -1325,6 +1347,58 @@ def test_lobby_hitch_generic_popup_without_exit_specific_marker_has_zero_input()
     assert getattr(med, "_hitch_floor_exit_confirmed", False) is False
 
 
+def test_lobby_hitch_low_information_leave_crop_has_no_exit_authority() -> None:
+    """The dark lobby_popup_leave crop must not grant exit-modal authority."""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = Frame(
+        np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    requested: list[str] = []
+
+    def record_find(_frame: Frame, names, **_kwargs):
+        requested.extend(names if isinstance(names, (list, tuple)) else [str(names)])
+        return None
+
+    with patch.object(med, "find", side_effect=record_find), \
+        patch.object(med, "find_scene", return_value=None), \
+        patch.object(med, "_find_hitch_exit_confirm_button", return_value=None):
+        assert med._hitch_exit_modal_visible(frame) is False
+
+    assert "lobby/lobby_popup_leave" not in requested
+
+
+def test_lobby_hitch_exit_deadline_reobserves_without_inferring_exit() -> None:
+    """An expired exit budget must recover/reclassify, never finalize or stop."""
+    med = Mediator(Settings(dry_run=True, mode_id="lobby_hitch"), ROOT)
+    frame = Frame(
+        np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=99, role="l0",
+    )
+    med._hitch_floor_exit_pending = True
+    med._hitch_floor_exit_deadline = 100.0
+    med._hitch_floor_exit_input_generation = 1
+    med._capture_generation = 2
+
+    with patch("shuabao.mediator.time.time", return_value=101.0), \
+        patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+        patch.object(med, "_hitch_exit_modal_visible", return_value=False), \
+        patch.object(med, "_record_lobby_observation_incident") as incident, \
+        patch.object(med, "act_click") as click, \
+        patch.object(med, "act_key") as key, \
+        patch.object(med, "stop") as stop:
+        action = med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    assert action is LoopAction.Continue
+    incident.assert_called_once()
+    click.assert_not_called()
+    key.assert_not_called()
+    stop.assert_not_called()
+    assert med._hitch_floor_exit_pending is True
+    assert med._hitch_floor_exit_deadline == 109.0
+    assert med._hitch_floor_exit_reobserve_until == 103.0
+
+
 def test_lobby_hitch_confirm_leave_clicks_when_exit_specific_marker_present() -> None:
     """P1: 存在明确 exit-specific marker 且定位到确认按钮时，允许发起 HitchConfirmLeave 点击。"""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
@@ -1333,7 +1407,7 @@ def test_lobby_hitch_confirm_leave_clicks_when_exit_specific_marker_present() ->
     frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
     med._hitch_floor_exit_pending = True
     med._hitch_pending_room_key = "room-763405"
-    med._confirmed_room_hwnd = 99
+    med._confirmed_room_hwnd = frame.hwnd
 
     with patch.object(med, "_hitch_exit_modal_visible", return_value=True), \
         patch.object(med, "act_click", return_value=True) as click, \
@@ -1579,14 +1653,14 @@ def test_lobby_room_list_evidence_rejects_wrong_tab_template_hit() -> None:
         assert med._lobby_room_list_evidence(frame) is False
 
 
-def test_lobby_room_list_evidence_accepts_selected_tab_highlight() -> None:
+def test_lobby_room_list_evidence_rejects_selected_tab_highlight_without_surface() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     image = np.zeros((945, 1332, 3), dtype=np.uint8)
     cv2.rectangle(image, (311, 254), (400, 260), (200, 130, 20), -1)
     frame = Frame(image, role="l0")
 
     with patch.object(med, "find_scene", return_value=None):
-        assert med._lobby_room_list_evidence(frame) is True
+        assert med._lobby_room_list_evidence(frame) is False
 
 
 def test_lobby_hitch_postcondition_and_stage() -> None:
@@ -1777,6 +1851,7 @@ def test_lobby_hitch_refresh_clicks_above_anchor_center() -> None:
 def test_lobby_hitch_row_templates_are_rooted_at_repo() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(med, "find_scene", return_value=_search_icon_anchor()), \
          patch("shuabao.mediator._load_template", return_value=None) as load:
         med._find_hitch_joinable_row(_fixture_frame())
     assert [call.args[0] for call in load.call_args_list] == [
@@ -1817,6 +1892,7 @@ def test_lobby_hitch_skips_full_and_active_rows_before_available_row() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     med._hitch_rejected_row_ys.add(first_y + 2 * row_step)
     with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(med, "find_scene", return_value=_search_icon_anchor()), \
          patch("shuabao.mediator._load_template", side_effect=load_template):
         hit = med._find_hitch_joinable_row(Frame(image))
 
@@ -1842,6 +1918,7 @@ def test_lobby_hitch_skips_gray_lock_without_badge_dependency() -> None:
     full_template[::2, ::2] = 255
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+         patch.object(med, "find_scene", return_value=_search_icon_anchor()), \
          patch("shuabao.mediator._load_template", side_effect=lambda path: (
              full_template if path.name == "lobby_4_4.png" else None
          )):
@@ -2110,6 +2187,31 @@ def test_lobby_hitch_popup_is_dismissed_before_search_action() -> None:
     assert med._hitch_sm.pending_join is False
     assert "reject" in med._hitch_search_actions
     assert med.phase is Phase.LOBBY_ROOM
+
+
+def test_lobby_hitch_shared_modal_shell_escs_without_rejecting_row() -> None:
+    """共享 KK modal shell 允许中性 Esc，但不读取正文或立即拒绝进房。"""
+    med = Mediator(Settings(dry_run=True, mode_id="lobby_hitch"), ROOT)
+    med._hitch_pending_row_y = 385
+    med._hitch_sm.note_join_click(10.0)
+    image = cv2.imdecode(
+        np.fromfile(
+            str(ROOT / "tests" / "fixtures" / "gt_kk_platform_modal_level_insufficient_overlay.png"),
+            dtype=np.uint8,
+        ),
+        cv2.IMREAD_COLOR,
+    )
+    assert image is not None
+    frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
+    with (
+        patch.object(med, "act_key", return_value=True) as key,
+        patch.object(med, "_hitch_room_list_row_count", return_value=3),
+        patch.object(med, "find_scene", return_value=None),
+    ):
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+    key.assert_called_once_with("esc", "HitchDismissPlatformModalEsc")
+    assert med._hitch_rejected_row_ys == set()
+    assert med._hitch_sm.pending_join is True
 
 
 def test_lobby_search_popup_dismiss_accepts_rejected_row_state_evidence() -> None:

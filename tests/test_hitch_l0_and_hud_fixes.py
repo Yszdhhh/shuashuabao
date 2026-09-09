@@ -291,25 +291,20 @@ def test_hitch_tangible_room_evidence_excludes_lobby_quick_join(monkeypatch):
     monkeypatch.setattr(med, "find_scene", lambda f, s, **k: None)
     monkeypatch.setattr(med, "find", lambda f, t, **k: None)
 
-    # 旧实现中 _hitch_room_controls_visible 会为 True
-    assert med._hitch_room_controls_visible(frame) is True
-    # 但专属实体房间证据必须为 False
+    # 低信息/通用蓝色几何不再拥有 ROOM control authority。
+    assert med._hitch_room_controls_visible(frame) is False
     assert med._hitch_tangible_room_evidence(frame) is False
     assert med._lobby_room_list_evidence(frame) is True
 
 
-def test_hitch_tangible_room_evidence_accepts_real_room(monkeypatch):
-    """验证：真实房间内的专属控件（如 room_ready, readyBtn, room_start）命中时，tangible_room 为 True。"""
+def test_hitch_tangible_room_evidence_requires_real_room_surface():
+    """随机帧上的 readyBtn 假命中不能授予 ROOM；真实 GT 另由 candidate contract 覆盖。"""
     settings = Settings()
     med = Mediator(settings, Path(__file__).resolve().parents[1])
     rng = np.random.default_rng(888)
     frame = Frame(rng.integers(0, 256, size=(945, 1332, 3), dtype=np.uint8))
 
-    fake_hit = MatchResult(name="readyBtn", score=0.9, x=900, y=850, w=100, h=40, screen_x=900, screen_y=850)
-    monkeypatch.setattr(med, "find", lambda f, t, **k: fake_hit if "readyBtn" in t else None)
-    monkeypatch.setattr(med, "find_scene", lambda f, s, **k: None)
-
-    assert med._hitch_tangible_room_evidence(frame) is True
+    assert med._hitch_tangible_room_evidence(frame) is False
 
 
 def test_hitch_floor_exit_pending_clears_on_lobby_with_quick_join(monkeypatch):

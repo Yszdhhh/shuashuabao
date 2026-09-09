@@ -337,6 +337,14 @@ class G0LeaveOldRoomTests(unittest.TestCase):
 class G0ArchaeologyHandoffTests(unittest.TestCase):
     """契约 #6：click 仅 request；fresh generation kaogu 锚点才 COMPLETE。"""
 
+def _arch_btn_find(frame, names, **_k):
+    """Phase B 后 request 需要可见模板：只对考古按钮返回命中。"""
+    return _hit("lobby/stage_archaeology_btn", 1376, 812) if "lobby/stage_archaeology_btn" in names else None
+
+
+class G0ArchaeologyHandoffTests(unittest.TestCase):
+    """契约 #6：click 仅 request；fresh generation kaogu 锚点才 COMPLETE。"""
+
     def _arch_mediator(self) -> Mediator:
         return Mediator(Settings(dry_run=True, auto_archaeology=True), ROOT)
 
@@ -344,7 +352,7 @@ class G0ArchaeologyHandoffTests(unittest.TestCase):
         med = self._arch_mediator()
         frame1 = _noise_frame(seed=81)
         clicks: list[str] = []
-        with patch.object(med, "find", return_value=None), \
+        with patch.object(med, "find", side_effect=_arch_btn_find), \
                 patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True):
             # cycle 完成 handoff：首次调用即发 request
             med._archaeology_handoff_pending = True
@@ -370,7 +378,7 @@ class G0ArchaeologyHandoffTests(unittest.TestCase):
         med = self._arch_mediator()
         frame1 = _noise_frame(seed=83)
         clicks: list[str] = []
-        with patch.object(med, "find", return_value=None), \
+        with patch.object(med, "find", side_effect=_arch_btn_find), \
                 patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True), \
                 _Ctx([patch.object(med, "_archaeology_mode_anchor", return_value=None)]):
             med._archaeology_handoff_pending = True
@@ -386,7 +394,7 @@ class G0ArchaeologyHandoffTests(unittest.TestCase):
         med = self._arch_mediator()
         frame1 = _noise_frame(seed=85)
         clicks: list[str] = []
-        with patch.object(med, "find", return_value=None), \
+        with patch.object(med, "find", side_effect=_arch_btn_find), \
                 patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True), \
                 _Ctx([patch.object(med, "_archaeology_mode_anchor", return_value=None)]):
             med._archaeology_handoff_pending = True
@@ -620,6 +628,106 @@ class G0CycleCompleteArchaeologyEndToEndTests(unittest.TestCase):
         self.assertIs(med.phase, Phase.ERROR)
         self.assertEqual(med._classify_run_exit(), RunExitReason.FATAL_ENVIRONMENT_FAILURE)
 
+
+
+class G0PressureMissingButtonBudgetTests(unittest.TestCase):
+    """Phase A：fresh HUD 连续看不到压力按钮 → 有界观察预算耗尽 → core failed。
+
+    全程零盲点输入；core failed 后 POST_VICTORY 仍可抢占观察。
+    """
+
+    def test_missing_button_budget_exhausts_to_core_failed_without_clicks(self) -> None:
+        clock = FakeClock(start=100.0)
+        med = _hitch_mediator(clock)
+        med.set_phase(Phase.MAIN_LINE, "pressure missing")
+        frame = _noise_frame(seed=51)
+        med._capture_best = lambda *a, **k: frame
+        patches = _pressure_tick_patches(med, None)
+        act_click = patch.object(med, "act_click")
+        patches.append(act_click)
+        with clock.install(), _Ctx(patches):
+            # 预算内：每 tick 零输入 Continue，绝不 core failed
+            for _ in range(39):
+                clock.advance(1.0)
+                self.assertIs(med.tick(), LoopAction.Continue)
+                self.assertFalse(med._hitch_pressure_core_failed, "预算内不得提前 fail")
+            # 第 40 次 miss → 预算耗尽 → core failed
+            clock.advance(1.0)
+            self.assertIs(med.tick(), LoopAction.Continue)
+            self.assertTrue(med._hitch_pressure_core_failed, "预算耗尽 → core failed")
+            med.act_click.assert_not_called()
+        self.assertFalse(med._hitch_pressure_transferred, "core failed 永不计作 pressure success")
+        self.assertEqual(len(med.executor.action_ledger), 0, "全程零盲点输入")
+
+    def test_core_failed_by_missing_budget_postgame_still_preempts(self) -> None:
+        med = _hitch_mediator(FakeClock(start=100.0))
+        med.set_phase(Phase.MAIN_LINE, "missing budget exhausted")
+        med._hitch_pressure_core_failed = True
+        frame = _noise_frame(seed=53)
+        with patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+                patch.object(med, "_maybe_click_hitch_pressure_transfer") as gate, \
+                patch.object(med, "find", return_value=_hit("continueGame", 800, 560)):
+            self.assertIs(med._tick_main_line(frame), LoopAction.Continue)
+            gate.assert_not_called()
+        continue_clicks = [r for r in med.executor.action_ledger if r.method == "click"]
+        self.assertEqual(len(continue_clicks), 1, "POST_VICTORY 链路仍可抢占观察")
+        self.assertTrue(med._post_game_pending)
+
+
+class G0ArchaeologyTemplateMissBudgetTests(unittest.TestCase):
+    """Phase B：考古模板 miss → 零输入有界 reobserve；超界 FATAL；
+    锚点出现后走原 request/confirm 流（绝不伪造固定坐标）。
+    """
+
+    def _arch_mediator(self) -> Mediator:
+        return Mediator(Settings(dry_run=True, auto_archaeology=True), ROOT)
+
+    def test_template_miss_zero_input_then_fails_closed(self) -> None:
+        med = self._arch_mediator()
+        frame = _noise_frame(seed=87)
+        clicks: list[str] = []
+        with patch.object(med, "find", return_value=None), \
+                patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True):
+            med._archaeology_handoff_pending = True
+            # 预算内：每 tick 零输入 Continue
+            for i in range(39):
+                med._archaeology_template_miss_budget = 40 - i
+                self.assertIs(med._maybe_switch_to_archaeology(frame), LoopAction.Continue)
+                self.assertEqual(clicks, [], "无 anchor 绝不产生任何 click")
+            # 超界 → FATAL fail-closed
+            med._archaeology_template_miss_budget = 1
+            self.assertIs(med._maybe_switch_to_archaeology(frame), LoopAction.Break)
+        self.assertEqual(clicks, [], "超界路径也零输入")
+        self.assertIs(med.phase, Phase.ERROR)
+        self.assertFalse(med._archaeology_handoff_confirmed)
+        self.assertEqual(med._classify_run_exit(), RunExitReason.FATAL_ENVIRONMENT_FAILURE)
+
+    def test_template_reappears_resumes_original_request_flow(self) -> None:
+        med = self._arch_mediator()
+        frame1 = _noise_frame(seed=88)
+        frame2 = _noise_frame(seed=89)
+        clicks: list[str] = []
+        btn = _hit("lobby/stage_archaeology_btn", 1376, 812)
+
+        def find(frame, names, **_k):
+            return btn if "lobby/stage_archaeology_btn" in names else None
+
+        with patch.object(med, "find", side_effect=find), \
+                patch.object(med, "act_click", side_effect=lambda _h, reason="": clicks.append(reason) or True):
+            med._archaeology_handoff_pending = True
+            med._archaeology_template_miss_budget = 5  # 曾经历 miss，不阻塞后续 request
+            self.assertIs(med._maybe_switch_to_archaeology(frame1), LoopAction.Continue)
+            self.assertEqual(clicks, ["SwitchToArchaeology"], "模板出现 → 原 request 流")
+            self.assertIsNotNone(med._archaeology_click_at)
+            self.assertFalse(med._archaeology_handoff_confirmed, "click 仅 request")
+            # fresh generation + kaogu 锚点 → COMPLETE
+            with _Ctx([patch.object(med, "_archaeology_mode_anchor", return_value=_hit("kaogu"))]):
+                self.assertIs(med._maybe_switch_to_archaeology(frame2), LoopAction.Break)
+        self.assertTrue(med._archaeology_handoff_confirmed)
+        self.assertIs(med.phase, Phase.COMPLETE)
+        self.assertEqual(clicks, ["SwitchToArchaeology"], "确认阶段零额外输入")
 
 if __name__ == "__main__":
     unittest.main()
