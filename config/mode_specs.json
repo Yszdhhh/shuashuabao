@@ -141,6 +141,7 @@
       "hidden_defaults": {
         "game_mode": 0,
         "auto_create_room": false,
+        "auto_secret_realm": false,
         "skip_password_rooms": true,
         "never_quick_join": true,
         "hitch_reject_list": {

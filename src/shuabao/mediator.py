@@ -3399,7 +3399,7 @@ class Mediator:
                 close_hit = self._close_current_panel(frame, kind)
                 return (kind, close_hit) if close_hit is not None else None
             # treasure：仅在非 OCR live 模式下允许品质色兜底；OCR live 下严格由 policy fail-closed。
-            if ocr_mode != "live":
+            if ocr_mode != "live" and not self._hitch_enabled():
                 rarity_hit = self._rarity_choice(frame, kind)
                 if rarity_hit is not None:
                     return (kind, rarity_hit)
