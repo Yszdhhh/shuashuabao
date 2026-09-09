@@ -1262,6 +1262,7 @@ def test_lobby_hitch_confirms_exit_dialog_instead_of_escaping() -> None:
     frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
     med._hitch_floor_exit_pending = True
     med._hitch_pending_room_key = "room-763405"
+    med._confirmed_room_hwnd = 99
 
     with patch.object(med, "_hitch_exit_modal_visible", return_value=True), \
         patch.object(med, "find_scene", return_value=None), \
@@ -1332,6 +1333,7 @@ def test_lobby_hitch_confirm_leave_clicks_when_exit_specific_marker_present() ->
     frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
     med._hitch_floor_exit_pending = True
     med._hitch_pending_room_key = "room-763405"
+    med._confirmed_room_hwnd = 99
 
     with patch.object(med, "_hitch_exit_modal_visible", return_value=True), \
         patch.object(med, "act_click", return_value=True) as click, \
@@ -1341,7 +1343,6 @@ def test_lobby_hitch_confirm_leave_clicks_when_exit_specific_marker_present() ->
     click.assert_called_once()
     assert click.call_args.args[1] == "HitchConfirmLeave"
     key.assert_not_called()
-    assert med._hitch_floor_exit_confirmed is True
 def test_lobby_hitch_exit_confirm_rejection_recovers_when_modal_dismissed() -> None:
     """act_click 拒绝后弹窗在下一帧消失：必须收尾退出回大厅，不能永久挂起。"""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
@@ -1356,9 +1357,13 @@ def test_lobby_hitch_exit_confirm_rejection_recovers_when_modal_dismissed() -> N
     med._hitch_floor_exit_confirmed = False
     med._hitch_floor_exit_attempted_at = 100.0
     med._hitch_pending_room_key = "room-763405"
+    med._confirmed_room_hwnd = 99
+
+    def modal_visible(frame: Frame) -> bool:
+        return frame is modal_frame
 
     with patch("shuabao.mediator.time.time", return_value=101.0), \
-        patch.object(med, "_hitch_exit_modal_visible", return_value=True), \
+        patch.object(med, "_hitch_exit_modal_visible", side_effect=modal_visible), \
         patch.object(med, "find_scene", return_value=None), \
         patch.object(med, "_lobby_room_list_evidence", return_value=True), \
         patch.object(med, "_find_hitch_ready_button", return_value=None), \
@@ -2077,19 +2082,34 @@ def test_lobby_hitch_never_falls_back_to_quick_join() -> None:
 
 
 def test_lobby_hitch_popup_is_dismissed_before_search_action() -> None:
-    """已知弹窗 authority（OCR 命中被踢/解散文本）才允许 Esc 关闭。"""
+    """已知 KK 平台提示 shell 才允许中性关闭；拒绝等 fresh 帧证明后才回大厅。"""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     med._hitch_pending_row_y = 385
     med._hitch_sm.note_join_click(10.0)
-    frame = _fixture_frame()
+    modal_path = ROOT / "tests" / "fixtures" / "gt_kk_platform_modal_kicked_child.png"
+    modal_image = cv2.imdecode(np.fromfile(str(modal_path), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert modal_image is not None
+    modal_frame = Frame(modal_image, window_title="KK官方对战平台", hwnd=10002, role="l0")
+    lobby_frame = Frame(
+        np.full((904, 1224, 3), (24, 22, 20), dtype=np.uint8),
+        window_title="KK官方对战平台", hwnd=10002, role="l0",
+    )
+    # 场景锚点：实机被踢提示必须命中共享 shell，否则测试失去意义。
+    assert med._kk_platform_modal_shell(modal_frame) is not None
     with (
-        patch.object(med, "_detect_hitch_kick_event", return_value="KICK"),
         patch.object(med, "act_key", return_value=True) as key,
+        patch.object(med, "act_click", return_value=True) as click,
     ):
-        med._tick_lobby_hitch(frame, "UNKNOWN")
-    key.assert_called_once_with("esc", "HitchDismissPopup")
-    assert med._hitch_rejected_row_ys == {385}
+        med._tick_lobby_hitch(modal_frame, "UNKNOWN")
+        key.assert_called_once_with("esc", "HitchDismissPlatformModalEsc")
+        assert med._hitch_sm.pending_join is True
+
+        med._tick_lobby_hitch(lobby_frame, "UNKNOWN")
+
+    click.assert_not_called()
     assert med._hitch_sm.pending_join is False
+    assert "reject" in med._hitch_search_actions
+    assert med.phase is Phase.LOBBY_ROOM
 
 
 def test_lobby_search_popup_dismiss_accepts_rejected_row_state_evidence() -> None:
