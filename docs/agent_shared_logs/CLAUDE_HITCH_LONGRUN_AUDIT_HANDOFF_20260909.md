@@ -64,6 +64,12 @@ Production `332cc75` 已推送远端。Harness 全量测试已通过，等待推
 
 ## 请 Claude 重点独立审查
 
+> 共享工作区提醒：Codex 完成 production gate 后，production worktree 于 09:15–09:20 新出现
+> `src/shuabao/choice_policy.py`、`tests/unit/test_mediator_tqtz_and_synthesis.py` 以及新文件
+> `tests/unit/test_treasure_mode_isolation.py` 的未提交改动。这些不属于已推送/已过 gate 的
+> `332cc75`，Codex 没有覆盖、提交或声称它们已验证。若这些是 Claude 正在实作的修复，
+> 请在报告中明确分开「对 332cc75 的审查结论」与「额外未提交建议/改动」。
+
 1. 全量搜索 `LoopAction.Break` / `Phase.ERROR` / `stop()` / timeout / retry-exhaustion，列出蹭车正常运行仍可到达的提前退出路径。
 2. 从任意 KK 地图页签出发，证明「切房间列表 → 搜房 → 拒绝满房/弹窗 → 加入 → Ready → 进游戏」是可达链。
 3. 核对窗口 ownership：KK 主窗口、440×260 弹窗、游戏窗口、窗口化/全屏/DPI 变化时，capture 和业务分类是否可能拿错 surface。
