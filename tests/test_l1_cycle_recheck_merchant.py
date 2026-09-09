@@ -122,6 +122,49 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
             self.assertIs(med._maybe_black_merchant(self.frame), LoopAction.Continue)
         self.assertEqual(med._l1_cycle_step, "treasure")
 
+    def test_hitch_auto_task_retry_exhaustion_skips_without_stopping_round(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med._auto_task_attempts = 3
+        toggle = hit("auto_task_toggle", 1450, 530)
+        with patch.object(med, "_auto_task_state", return_value=("OFF", toggle)), \
+                patch.object(med, "_find_auto_task_toggle", return_value=toggle), \
+                patch.object(med, "act_click") as click:
+            self.assertIsNone(med._ensure_auto_task_enabled(self.frame))
+        self.assertTrue(med._auto_task_done)
+        self.assertFalse(med.stop_signal.is_set())
+        click.assert_not_called()
+
+    def test_hitch_challenge_retry_exhaustion_skips_all_without_stopping_round(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        keys = tuple(med._challenge_states)
+        med._challenge_attempts = {key: 3 for key in keys}
+        with patch.object(med, "_find_challenge_button", return_value=None), \
+                patch.object(med, "act_right_click") as right_click:
+            self.assertIsNone(med._ensure_challenge_buttons(self.frame))
+        self.assertEqual(med._challenge_done, set(keys))
+        self.assertFalse(med.stop_signal.is_set())
+        right_click.assert_not_called()
+
+    def test_hitch_pressure_window_uses_round_start_not_last_action_time(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med._main_line_started_at = 100.0
+        med._main_line_since = 129.0
+        with patch.object(med, "_is_in_game_hud") as hud, \
+                patch.object(med, "find") as find:
+            self.assertIsNone(med._maybe_click_hitch_pressure_transfer(self.frame, 130.0))
+        hud.assert_not_called()
+        find.assert_not_called()
+
+    def test_hitch_non_pill_stock_without_refresh_yields_to_treasure(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        with patch.object(med, "_black_merchant_present", return_value=True), \
+                patch.object(med, "_black_merchant_cards_present", return_value=False), \
+                patch.object(med, "_merchant_refresh_available", return_value=False), \
+                patch.object(med, "find", side_effect=[None, hit("merchant_wood")]), \
+                patch.object(med, "_in_merchant_strip", return_value=True), \
+                patch.object(med, "_merchant_slot_index", return_value=1):
+            self.assertIsNone(med._maybe_black_merchant(self.frame))
+
     def test_background_cycle_uses_inventory_pickup_merchant_then_artifact(self):
         self.assertEqual(
             self.med._L1_CYCLE_ORDER,

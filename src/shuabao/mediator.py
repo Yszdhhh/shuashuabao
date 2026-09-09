@@ -660,6 +660,8 @@ class Mediator:
         self._hitch_ready_timeout_leave_at: float | None = None
         # P0-4：压力转移点击后的后置条件验证锚点（确认按钮消失才算成功）
         self._hitch_pressure_click_at: float | None = None
+        self._hitch_pressure_request_generation: int | None = None
+        self._hitch_pressure_retry_count: int = 0
         self._hitch_refresh_required = False
         self._follow_sm = FollowTeamSM()
         self._hitch_search_actions: list[str] = []
@@ -715,6 +717,7 @@ class Mediator:
         # 面板消失后由既有 MAIN_LINE/胜利链继续收敛。
         self._archive_challenge_index: int = 0
         self._archive_challenge_next_at: float = 0.0
+        self._archive_challenge_observe_attempts: int = 0
         self._time_cave_boss_done: bool = False
         self._hitch_postgame_hero_selected: bool = False
         self._hitch_postgame_returned_to_base: bool = False
@@ -828,6 +831,7 @@ class Mediator:
         self._last_bond_attempt = 0.0
         self._last_treasure_attempt = 0.0
         self._merchant_next_at = 0.0
+        self._merchant_discovery_deadline: float | None = None
         self._equipment_next_at = 0.0
         self._equipment_pending_until = 0.0
         self._equipment_fsm = EquipmentFSM()
@@ -2137,6 +2141,12 @@ class Mediator:
                 f"[L1] 自动任务 UNKNOWN 已持续 {elapsed:.1f}s "
                 f"(阈值 {timeout:.1f}s)，保持零输入等待页面恢复"
             )
+            if self._hitch_enabled():
+                print("[L1] 蹭车自动任务无法确认，本局跳过该步但继续等待战局结果")
+                self._auto_task_done = True
+                self._auto_task_recheck_at = 0.0
+                self._auto_task_unknown_since = None
+                return None
         # Loading/interstitial screens have no stable auto-task control.  They
         # are not an unsafe command condition, so do not end the live run.
         return LoopAction.Continue
@@ -2208,6 +2218,11 @@ class Mediator:
             return None
         if self._auto_task_attempts >= 3:
             self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
+            if self._hitch_enabled():
+                print(f"[L1] 蹭车自动任务重试已达上限 ({self._auto_task_attempts})，本局跳过该步并继续")
+                self._auto_task_done = True
+                self._auto_task_recheck_at = 0.0
+                return None
             print(f"[L1] 自动任务点击重试已达上限 ({self._auto_task_attempts})，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "auto_task attempt limit reached")
             self.stop()
@@ -2229,6 +2244,11 @@ class Mediator:
             return LoopAction.Continue
 
         if self._auto_task_attempts >= 3:
+            if self._hitch_enabled():
+                print(f"[L1] 蹭车自动任务输入失败已达上限 ({self._auto_task_attempts})，本局跳过该步并继续")
+                self._auto_task_done = True
+                self._auto_task_recheck_at = 0.0
+                return None
             print(f"[L1] 自动任务点击失败且重试已达上限 ({self._auto_task_attempts})，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "EnableAutoTask click failed")
             self.stop()
@@ -4298,6 +4318,10 @@ class Mediator:
             print("[L1] 蹭车黑商刷新预算已用完，转宝物神符，不终止本局")
             self._advance_l1_cycle("merchant")
             return LoopAction.Continue
+        if self._hitch_enabled():
+            # 蹭车只拿吞噬丹；已识别到的木头/折扣不是购买授权，
+            # 且没有可刷新控件时必须把控制权交给宝物步骤。
+            return None
         return LoopAction.Continue if (present and (detected_slots or ranked or refresh_available)) else None
 
     def _find_compact_skill_choice(self, frame: Frame) -> MatchResult | None:
@@ -4576,21 +4600,38 @@ class Mediator:
             return None
         label, card_index = plan[index]
         progress_state = self._archive_hitch_card_progress_state(frame, card_index)
-        if progress_state == "UNAVAILABLE":
-            print(f"[med] 蹭车存档挑战 {label} 可信 OCR 明确 0/8，跳过不可挑战卡")
+        if progress_state in {"UNAVAILABLE", "COMPLETED"}:
+            reason = "可信 OCR 明确 0/8" if progress_state == "UNAVAILABLE" else "可信 OCR 明确已完成"
+            print(f"[med] 蹭车存档挑战 {label} {reason}，转下一张卡")
             self._archive_challenge_index = index + 1
+            self._archive_challenge_observe_attempts = 0
             return LoopAction.Continue
         if progress_state != "AVAILABLE":
-            # UNKNOWN/COMPLETED：无可信『可挑战』证据 → 零输入（卡面模板命中也不点击）
-            print(f"[med] 存档挑战 {label} 进度状态 {progress_state} 无可信可挑战证据，零输入等待")
+            # UNKNOWN 不授权点击，但长期运行也不能永久卡在一张卡。
+            self._archive_challenge_observe_attempts += 1
+            if self._archive_challenge_observe_attempts >= 5:
+                print(f"[med] 存档挑战 {label} 连续 5 次无可信进度，零输入跳过并转下一张卡")
+                self._archive_challenge_index = index + 1
+                self._archive_challenge_observe_attempts = 0
+                return LoopAction.Continue
+            self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
+            print(f"[med] 存档挑战 {label} 进度状态 {progress_state}，零输入复核 ({self._archive_challenge_observe_attempts}/5)")
             return LoopAction.Continue
         hit = self._find_archive_challenge_card(frame, card_index)
         if hit is None:
-            print(f"[med] 存档挑战卡位 {card_index + 1}/8 无有效卡面证据，零输入等待")
+            self._archive_challenge_observe_attempts += 1
+            if self._archive_challenge_observe_attempts >= 5:
+                print(f"[med] 存档挑战卡位 {card_index + 1}/8 连续 5 次无卡面证据，跳过并继续")
+                self._archive_challenge_index = index + 1
+                self._archive_challenge_observe_attempts = 0
+                return LoopAction.Continue
+            self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
+            print(f"[med] 存档挑战卡位 {card_index + 1}/8 无有效卡面证据，零输入复核 ({self._archive_challenge_observe_attempts}/5)")
             return LoopAction.Continue
         print(f"[med] 存档挑战 {index + 1}/{len(plan)}：点击 {label} @ {hit.center}")
         if self.act_click(hit, f"ArchiveChallenge-{label}"):
             self._archive_challenge_index = index + 1
+            self._archive_challenge_observe_attempts = 0
             self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
             self._post_game_route = "archive_active"
         return LoopAction.Continue
@@ -5373,7 +5414,8 @@ class Mediator:
         if getattr(self, "_hitch_pressure_transferred", False):
             return None
         # 开局 25 秒之后如果还没点到，按钮会消失，放弃尝试（不是成功）
-        main_line_duration = now - getattr(self, "_main_line_since", now)
+        main_line_started_at = getattr(self, "_main_line_started_at", None)
+        main_line_duration = now - (main_line_started_at if main_line_started_at is not None else now)
         if main_line_duration > 25.0:
             # 25 秒窗口过期 ≠ 转移成功：不置 _hitch_pressure_transferred，
             # 只是放弃新的尝试（窗口检查本身保证后续 tick 直接跳过）。
@@ -5582,6 +5624,12 @@ class Mediator:
             ("treasure_challenge", "宝物"),
         ):
             if scene_key in self._challenge_done:
+                if self._hitch_enabled():
+                    # 蹭车开局只尝试一次四挑战；后续的 F4/状态波动不得
+                    # 重新阻断黑商、宝物和战后等待。
+                    self._challenge_states[scene_key] = ChallengeState.ON
+                    self._challenge_unknown_since.pop(scene_key, None)
+                    continue
                 recheck_at = self._challenge_recheck_at.get(scene_key)
                 if recheck_at is None or now < recheck_at:
                     if recheck_at is None:
@@ -5672,6 +5720,11 @@ class Mediator:
 
             attempts = self._challenge_attempts.get(scene_key, 0)
             if attempts >= 3:
+                if self._hitch_enabled():
+                    print(f"[L1] 蹭车 {label}挑战重试已达上限 ({attempts})，本局跳过该步并继续")
+                    self._challenge_done.add(scene_key)
+                    self._challenge_recheck_at.pop(scene_key, None)
+                    continue
                 print(f"[L1] {label}挑战重试次数已达上限 ({attempts}) 且未确认开启，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, f"{scene_key} attempt limit reached")
                 self.stop()
@@ -5716,6 +5769,11 @@ class Mediator:
             if self.phase == Phase.ERROR or self.stop_signal.is_set():
                 return LoopAction.Break
             if not act_res and current_attempts >= 3:
+                if self._hitch_enabled():
+                    print(f"[L1] 蹭车 {label}挑战输入失败已达上限 ({current_attempts})，本局跳过该步并继续")
+                    self._challenge_done.add(scene_key)
+                    self._challenge_recheck_at.pop(scene_key, None)
+                    continue
                 print(f"[L1] {label}挑战右键发送失败且重试已达上限 ({current_attempts})，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, f"{scene_key} right_click failed limit reached")
                 self.stop()
@@ -6359,6 +6417,8 @@ class Mediator:
             self._auto_task_recheck_at = 0.0
             self._hitch_pressure_transferred = False
             self._hitch_pressure_click_at = None
+            self._hitch_pressure_request_generation = None
+            self._hitch_pressure_retry_count = 0
             self._auto_task_unknown_since = None
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
@@ -6377,6 +6437,7 @@ class Mediator:
             self._post_game_route = "secret"
             self._time_cave_boss_done = False
             self._archive_challenge_index = 0
+            self._archive_challenge_observe_attempts = 0
             self._hitch_postgame_hero_selected = False
             self._hitch_postgame_returned_to_base = False
             self._post_game_hub_entered_at = None
@@ -6430,6 +6491,7 @@ class Mediator:
             self._l1_cycle_owned_panel = False
             self._l1_cycle_selected = False
             self._merchant_next_at = 0.0
+            self._merchant_discovery_deadline = None
             self._merchant_fsm = MerchantFSM()
             self._equipment_next_at = 0.0
             self._equipment_pending_until = 0.0
@@ -10823,7 +10885,11 @@ class Mediator:
         # 商店检测在存在中央选卡/进化/词条弹窗或主线处于前置主动步骤(F/G/V/进化/装备/拾取)时严格抑制，绝不插队抢点击
         mainline_proactive_active = self._l1_cycle_step in ("bond", "skill", "treasure", "evolve", "equipment", "pickup")
         hitch_bootstrap_pending = self._hitch_enabled() and (
-            not self._hitch_pressure_transferred
+            (
+                not self._hitch_pressure_transferred
+                and self._main_line_started_at is not None
+                and now - self._main_line_started_at <= 25.0
+            )
             or not self._auto_task_done
             or len(self._challenge_done) < len(self._challenge_states)
         )
@@ -10993,7 +11059,7 @@ class Mediator:
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
 
-        # b15da05 P0-D: 蹭车模式下压力转移限时 46 秒，必须在自动任务门禁之前优先执行
+        # b15da05 P0-D: 蹭车模式下压力转移限时 25 秒，必须在自动任务门禁之前优先执行
         if self._hitch_enabled():
             pt_res = self._maybe_click_hitch_pressure_transfer(frame, now)
             if pt_res is not None:
@@ -11153,9 +11219,17 @@ class Mediator:
             if now < self._merchant_next_at:
                 return LoopAction.Continue
             if not self._black_merchant_present(frame):
+                if self._hitch_enabled():
+                    if self._merchant_discovery_deadline is None:
+                        self._merchant_discovery_deadline = now + 10.0
+                        print("[L1] 蹭车黑商尚未出现，零输入观察最多 10s")
+                        return LoopAction.Continue
+                    if now < self._merchant_discovery_deadline:
+                        return LoopAction.Continue
                 print("[L1] 黑商不在，转回 G 技能")
                 self._advance_l1_cycle("merchant")
                 return LoopAction.Continue
+            self._merchant_discovery_deadline = None
             merchant_res = self._maybe_black_merchant(frame)
             if merchant_res is not None:
                 self._main_line_since = now

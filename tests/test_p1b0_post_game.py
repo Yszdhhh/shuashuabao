@@ -297,6 +297,29 @@ class P1B0PostGameTests(unittest.TestCase):
             ["ArchiveChallenge-loot", "ArchiveChallenge-key", "ArchiveChallenge-blessing"],
         )
 
+    def test_hitch_archive_completed_card_advances_without_click(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        with patch.object(med, "_archive_hitch_card_progress_state", return_value="COMPLETED"), \
+                patch.object(med, "act_click") as click:
+            self.assertEqual(med._maybe_click_archive_challenge(frame, 1.0), LoopAction.Continue)
+        self.assertEqual(med._archive_challenge_index, 1)
+        click.assert_not_called()
+
+    def test_hitch_archive_unknown_is_bounded_and_skips_without_click(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        with patch.object(med, "_archive_challenge_completed", return_value=False), \
+                patch.object(med, "_archive_hitch_card_progress_state", return_value="UNKNOWN"), \
+                patch.object(med, "act_click") as click:
+            now = 1.0
+            for _ in range(5):
+                self.assertEqual(med._maybe_click_archive_challenge(frame, now), LoopAction.Continue)
+                now = med._archive_challenge_next_at + 0.1
+        self.assertEqual(med._archive_challenge_index, 1)
+        self.assertEqual(med._archive_challenge_observe_attempts, 0)
+        click.assert_not_called()
+
     def test_hitch_postgame_uses_f1_before_archive_and_f2_after_time_cave_boss(self):
         """Follow mode owns its hero view before archive and returns to base before heirloom."""
         med = Mediator(Settings(mode_id="lobby_hitch", cjb_boss="54莫阿姆"), ROOT)
