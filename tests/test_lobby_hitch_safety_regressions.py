@@ -130,3 +130,15 @@ def test_hitch_cancel_ready_is_postcondition_not_click_target() -> None:
 
     click.assert_not_called()
     assert med.phase is Phase.ROOM_WAITING
+
+
+def test_hitch_blacklisted_room_keys_aging() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    with patch("time.time", return_value=100.0):
+        med._hitch_blacklisted_room_keys.add("room-123", added_at=100.0)
+    # Within TTL: key remains blacklisted.
+    with patch("time.time", return_value=200.0):
+        assert "room-123" in med._hitch_blacklisted_room_keys
+    # Beyond TTL (1800s): key ages out and is pruned.
+    with patch("time.time", return_value=2000.0):
+        assert "room-123" not in med._hitch_blacklisted_room_keys

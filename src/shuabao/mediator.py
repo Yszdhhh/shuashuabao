@@ -444,6 +444,56 @@ class AttemptBudget:
         return True
 
 
+_REAL_TIME = time.time  # captured at import; immune to test-time patching of time.time
+
+
+class AgingBlacklist:
+    """Session blacklist with TTL aging to prevent room pool starvation in multi-hour runs."""
+
+    def __init__(self, ttl_s: float = 1800.0) -> None:
+        self._entries: dict[str, float] = {}
+        self.ttl_s = ttl_s
+
+    def add(self, key: str, added_at: float | None = None) -> None:
+        if key:
+            # Expiry checks compare against time.time(), which tests may patch
+            # to a frozen past epoch. Clock-less adds therefore clamp UP to the
+            # real wall clock (identical to time.time() in production) so an
+            # entry is never born already expired; explicit added_at is honored
+            # verbatim.
+            self._entries[str(key)] = (
+                float(added_at) if added_at is not None else max(time.time(), _REAL_TIME())
+            )
+
+    def prune(self, now: float | None = None) -> None:
+        t = time.time() if now is None else float(now)
+        expired = [k for k, v in self._entries.items() if t - v >= self.ttl_s]
+        for k in expired:
+            del self._entries[k]
+
+    def __contains__(self, key: object) -> bool:
+        if not isinstance(key, str) or key not in self._entries:
+            return False
+        if time.time() - self._entries[key] >= self.ttl_s:
+            del self._entries[key]
+            return False
+        return True
+
+    def __len__(self) -> int:
+        self.prune()
+        return len(self._entries)
+
+    def __iter__(self):
+        self.prune()
+        return iter(list(self._entries.keys()))
+
+    def clear(self) -> None:
+        self._entries.clear()
+
+    def discard(self, key: str) -> None:
+        self._entries.pop(key, None)
+
+
 class Mediator:
     _CREATE_ROOM_CONFIRM_WINDOW_S = 4.0
     _CREATE_ROOM_TOTAL_TIMEOUT_S = 60.0
@@ -651,8 +701,11 @@ class Mediator:
         self._hitch_rejected_row_ys: set[int] = set()
         self._hitch_pending_row_y: int | None = None
         self._hitch_join_origin_hwnd: int | None = None
+        # P1-1：进房/未知弹窗的有界 ESC 关闭预算；弹窗在 fresh 帧上消失后重置。
+        self._hitch_popup_esc_attempts = 0
+        self._hitch_popup_esc_last_at: float | None = None
         # Session-local blacklist keyed by the visible lobby room-number cell.
-        self._hitch_blacklisted_room_keys: set[str] = set()
+        self._hitch_blacklisted_room_keys = AgingBlacklist(ttl_s=1800.0)
         self._hitch_pending_room_key: str | None = None
         self._hitch_floor_exit_attempted_at: float | None = None
         # P0-6：Ready 180s 超时退房生命周期（确认离房+大厅可见后才拉黑）
@@ -7536,6 +7589,30 @@ class Mediator:
     # a single OCR sample before the timeout fired.
     _HITCH_SEARCH_CONFIRM_S = 3.0
 
+    # P1-1：进房/未知弹窗的有界 Esc 关闭预算。输入层成功不等于弹窗关闭，
+    # 所以关闭尝试计数、冷却，并在 fresh 帧证明弹窗消失后重置；
+    # 耗尽后零输入观察，绝不无限循环发 Esc。
+    _HITCH_POPUP_ESC_LIMIT = 4
+    _HITCH_POPUP_ESC_COOLDOWN_S = 2.0
+
+    def _hitch_popup_esc_budget(self, now: float) -> str:
+        """Classify the bounded popup-Esc budget: allow / cooldown / exhausted."""
+        if self._hitch_popup_esc_attempts >= self._HITCH_POPUP_ESC_LIMIT:
+            return "exhausted"
+        last = self._hitch_popup_esc_last_at
+        if last is not None and now - float(last) < self._HITCH_POPUP_ESC_COOLDOWN_S:
+            return "cooldown"
+        return "allow"
+
+    def _hitch_popup_esc_budget_used(self) -> bool:
+        return bool(self._hitch_popup_esc_attempts or self._hitch_popup_esc_last_at is not None)
+
+    def _hitch_popup_esc_send(self, now: float, reason: str) -> bool:
+        """Send one bounded Esc and record the attempt regardless of input result."""
+        self._hitch_popup_esc_attempts += 1
+        self._hitch_popup_esc_last_at = now
+        return bool(self.act_key("esc", reason))
+
     def _find_hitch_search_box(self, frame: Frame) -> MatchResult | None:
         """Locate the search control by its magnifier, never by its content.
 
@@ -7676,7 +7753,6 @@ class Mediator:
                 if hit is not None:
                     return hit
         return None
-
     def _hitch_lobby_home_visible(self, frame: Frame) -> bool:
         override = getattr(self, "_hitch_lobby_home_override", None)
         if override is not None:
@@ -7690,7 +7766,8 @@ class Mediator:
         if self._hitch_pending_row_y is not None:
             self._hitch_rejected_row_ys.add(self._hitch_pending_row_y)
         self._hitch_pending_row_y = None
-        self._hitch_join_origin_hwnd = None
+        # P1-1：origin hwnd 保留到 fresh 帧证明回到主窗口再清；关闭预算
+        # 不在此重置——Esc 后弹窗可能仍在，预算沿用本 episode。
         self._hitch_sm.reject_join(now)
         self._hitch_refresh_required = True
         self._hitch_status = reason
@@ -7733,6 +7810,9 @@ class Mediator:
         self._hitch_ready_timeout_deadline = None
         self._hitch_ready_confirmed_at = None
         self._hitch_rejected_row_ys.clear()
+        # P1-1：关闭预算不在此重置——本函数也服务被踢重置路径，那里
+        # 弹窗可能仍在，重置会重新计满预算造成无限 Esc。预算只随
+        # 「fresh 帧证明弹窗消失」收敛（见 _tick_lobby_hitch 顶部）。
         # 蹭车可能从加载画面直接进 MAIN_LINE，不经 STAGE_SELECT。
         # 因此已验证的离局边界必须自己清理上局 hard deadline/outcome，
         # 否则次局会继承过期 deadline 并立即退出。
@@ -7989,17 +8069,52 @@ class Mediator:
         if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
             print("[L0] hitch 黑帧/空帧，零输入等待可信大厅页面")
             return LoopAction.Continue
-        # KK 的进房提示可能是独立窗口，也可能覆盖大厅。只要它在一次进房
-        # 请求后新出现、且没有房间实体控件，就不是已进房，Esc 关闭即可。
+        # KK 同帧内的通用弹窗锚点（dialog/title），一次计算全程复用。
+        dialog_hit = (
+            self.find_scene(frame, "lobby_popup_dialog")
+            or self.find_scene(frame, "lobby_popup_title")
+        )
+        # P1-1：弹窗消失的证据 = fresh 帧回到 origin 主窗口（或 origin 已随
+        # episode 清空）且无任何弹窗锚点。只有该证据才重置关闭预算并解除
+        # origin 锚点；子窗口帧（弹窗可能仍未关闭、模板也未必命中）不得
+        # 据此重置，预算沿用本 episode。
         if (
-            self._hitch_sm.pending_join
+            not self._hitch_sm.pending_join
+            and dialog_hit is None
+            and self._hitch_popup_esc_budget_used()
+            and (
+                self._hitch_join_origin_hwnd is None
+                or (
+                    frame.hwnd is not None
+                    and frame.hwnd == self._hitch_join_origin_hwnd
+                )
+            )
+        ):
+            self._hitch_popup_esc_attempts = 0
+            self._hitch_popup_esc_last_at = None
+            self._hitch_join_origin_hwnd = None
+        # KK 的进房提示可能是独立子窗口：一次进房请求后新出现、无房间实体
+        # 控件就不是已进房，Esc 关闭即可；关闭尝试受预算约束（P1-1）。
+        child_popup = (
+            (self._hitch_sm.pending_join or self._hitch_popup_esc_attempts > 0)
             and frame.role == "l0"
             and self._hitch_join_origin_hwnd is not None
             and frame.hwnd is not None
             and frame.hwnd != self._hitch_join_origin_hwnd
             and not self._is_confirmed_room_frame(frame)
-        ):
-            dismissed = self.act_key("esc", "HitchDismissJoinPopup")
+        )
+        if child_popup:
+            budget = self._hitch_popup_esc_budget(now)
+            if budget == "exhausted":
+                print("[L0] hitch 进房弹窗关闭预算耗尽，零输入观察等待弹窗消失")
+                self.set_phase(Phase.LOBBY_ROOM, "hitch join popup esc exhausted")
+                return LoopAction.Continue
+            if budget == "cooldown":
+                self._hitch_sm.defer_retry(now)
+                print("[L0] hitch 进房弹窗关闭冷却中，零输入观察")
+                self.set_phase(Phase.LOBBY_ROOM, "hitch join popup esc cooldown")
+                return LoopAction.Continue
+            dismissed = self._hitch_popup_esc_send(now, "HitchDismissJoinPopup")
             if dismissed:
                 self._hitch_reject_pending_join(now, "join_rejected")
                 self._hitch_search_actions.append("reject")
@@ -8012,16 +8127,20 @@ class Mediator:
         # P0-5：弹窗处于显式覆盖时（dialog/title 命中，或当前处于房间等待），
         # 探测被踢/移出弹窗（真实 OCR，不依赖 _hitch_ocr_override）。避免在正常大厅搜索页每帧做无弹窗 OCR。
         has_modal_anchor = bool(
-            self.find_scene(frame, "lobby_popup_dialog")
-            or self.find_scene(frame, "lobby_popup_title")
+            dialog_hit
             or context == "ROOM_WAITING"
             or self.phase == Phase.ROOM_WAITING
         )
         if has_modal_anchor:
             kick_event = self._detect_hitch_kick_event(frame)
             if kick_event:
+                budget = self._hitch_popup_esc_budget(now)
+                if budget == "exhausted":
+                    print("[L0] hitch 被踢弹窗关闭预算耗尽，零输入观察等待弹窗消失")
+                    return LoopAction.Continue
+                if budget == "allow":
+                    self._hitch_popup_esc_send(now, "HitchKickDismiss")
                 print("[L0] hitch 弹窗 OCR 命中被移出/解散文本，关闭弹窗并重置回大厅")
-                self.act_key("esc", "HitchKickDismiss")
                 return self._hitch_reset_lobby(kick_event, now)
         # 0. 已请求退出时，必须同时满足：
         # a) 当前处于 exit pending 流程；
@@ -8053,15 +8172,19 @@ class Mediator:
                 print("[L0] hitch 检测到蓝色色块但无法确认已知退出弹窗身份（零输入等待）")
                 return LoopAction.Continue
 
-        # 检查其他弹窗（如满员/密码/等级不满足）。Esc 只关闭
-        # 当前 KK 同进程模态框，绝不点击弹窗里的 Quick Join。
-        dialog_hit = (
-            self.find_scene(frame, "lobby_popup_dialog")
-            or self.find_scene(frame, "lobby_popup_title")
-        )
         if dialog_hit is not None:
-            if self._hitch_sm.pending_join:
-                dismissed = self.act_key("esc", "HitchDismissJoinPopup")
+            if self._hitch_sm.pending_join or self._hitch_popup_esc_budget_used():
+                budget = self._hitch_popup_esc_budget(now)
+                if budget == "exhausted":
+                    print("[L0] hitch 进房提示关闭预算耗尽，零输入观察等待弹窗消失")
+                    self.set_phase(Phase.LOBBY_ROOM, "hitch join popup esc exhausted")
+                    return LoopAction.Continue
+                if budget == "cooldown":
+                    self._hitch_sm.defer_retry(now)
+                    print("[L0] hitch 进房提示关闭冷却中，零输入观察")
+                    self.set_phase(Phase.LOBBY_ROOM, "hitch join popup esc cooldown")
+                    return LoopAction.Continue
+                dismissed = self._hitch_popup_esc_send(now, "HitchDismissJoinPopup")
                 if dismissed:
                     self._hitch_reject_pending_join(now, "join_rejected")
                     self._hitch_search_actions.append("reject")

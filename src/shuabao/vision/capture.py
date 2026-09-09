@@ -494,7 +494,7 @@ def find_window_targets(
                 # 2. 只有 KK 时：大窗口（大厅主界面）作为默认基线赋权置前；
                 # 真正业务子窗口（房间/建房/退出弹窗）由 _capture_best 的语义探针遴选，
                 # 严禁在此以单纯“面积最小=正确业务窗”做盲目强抢占。
-                score += 100
+                score += 100 + min(50.0, area / 20000.0)
             if target.hwnd == foreground:
                 score += 20
             if "挂机助手" in title or "懒人系列" in title:
