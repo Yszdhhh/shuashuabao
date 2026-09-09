@@ -15,7 +15,7 @@
 - Harness identity baseline: `332cc75e36ecb21ead31120021d1c4d1bfbfff1b`
 - 桌面入口: `C:\Users\10639\Desktop\刷刷宝 Live 实机测试.lnk`
 
-Production `332cc75` 已推送远端。Harness 在写本文档时尚未完成最后全量 gate/推送，但定向测试已是 `103 passed`。
+Production `332cc75` 已推送远端。Harness 全量测试已通过，等待推送；未能重建 EXE，原因是当前环境缺少仓外真实 Ed25519 manifest 签名材料。
 
 ## 用户的真实业务诉求
 
@@ -55,8 +55,12 @@ Production `332cc75` 已推送远端。Harness 在写本文档时尚未完成最
 - Production 结算/跨局/回归定向：`105 passed, 6 subtests passed`。
 - Production 跨局核心：`32 passed`。
 - Harness 定向：`103 passed`。
+- Production release gate：`1681 passed, 13 skipped, 2 xfailed`，frozen replay / 148 个 scene template / 56 个 contract 全部 PASS。
+- Harness 全量：`1700 passed, 13 skipped, 2 xfailed, 211 subtests passed`；仅有 2 条已知 OCR stderr reader 关闭竞态 warning。
 - 一次沙箱内 Harness 运行出现 20 个 Windows Temp ACL 权限错误；沙箱外重跑为 `103 passed`，不是产品逻辑失败。
-- 写本文档时尚未完成最后 production `tools/release_gate.py`、Harness 全量测试、identity CLI 和桌面入口再确认。
+- Harness source identity：production code diff `CLEAN`，runtime source verified；因当前 worktree `dist\ShuaBao\ShuaBao.exe` 尚不存在，EXE identity 为 `MISSING`。
+- `build_release.ps1 -SkipGate -NoDeploy` 在产生副作用前正确阻止：缺少 `ManifestSigningKeyPath` / `ManifestSigningKeyId` / `ManifestPublicKeysPath`。不得伪造私钥或手改 identity 绕过。
+- 桌面快捷方式已验证指向当前 `live-harness-current-20260908\live_scenario_launcher.ps1`。
 
 ## 请 Claude 重点独立审查
 
