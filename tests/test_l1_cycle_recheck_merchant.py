@@ -145,15 +145,21 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertFalse(med.stop_signal.is_set())
         right_click.assert_not_called()
 
-    def test_hitch_pressure_window_uses_round_start_not_last_action_time(self):
+    def test_hitch_pressure_gate_does_not_expire_with_round_time(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         med._main_line_started_at = 100.0
         med._main_line_since = 129.0
-        with patch.object(med, "_is_in_game_hud") as hud, \
-                patch.object(med, "find") as find:
-            self.assertIsNone(med._maybe_click_hitch_pressure_transfer(self.frame, 130.0))
-        hud.assert_not_called()
-        find.assert_not_called()
+        pressure = hit("yalizhuanyi", 1200, 700)
+        with patch.object(med, "_is_in_game_hud", return_value=True) as hud, \
+                patch.object(med, "find", return_value=pressure) as find, \
+                patch.object(med, "act_click", return_value=True) as click:
+            self.assertIs(
+                med._maybe_click_hitch_pressure_transfer(self.frame, 130.0),
+                LoopAction.Continue,
+            )
+        hud.assert_called_once_with(self.frame)
+        find.assert_called_once()
+        click.assert_called_once_with(pressure, "HitchPressureTransfer")
 
     def test_hitch_non_pill_stock_without_refresh_yields_to_treasure(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
