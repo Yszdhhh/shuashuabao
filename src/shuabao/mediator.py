@@ -8147,6 +8147,36 @@ class Mediator:
                 print("[L0] hitch KK 进房弹窗子窗口取消输入被拒绝，等待重试")
             self.set_phase(Phase.LOBBY_ROOM, "hitch join popup child dismissed")
             return LoopAction.Continue
+        # KK 还会在已确认进房之后，用独立的 440x260 平台提示通知
+        # 「房主已经跑路」。此时 pending_join 已在进房确认时清空、并且
+        # confirmed_room_hwnd 指向旧房间，不能再把这个子窗口误当作
+        # ROOM_WAITING 而零输入卡住。尺寸、L0 ownership 和无房间实体
+        # 三项共同授权的唯一输入仍是 Esc：绝不点击它提供的“创建房间”。
+        compact_lobby_popup = (
+            frame.role == "l0"
+            and self.phase in (Phase.ROOM_WAITING, Phase.LOBBY_ROOM)
+            and context == "UNKNOWN"
+            and 280 <= frame.width <= 600
+            and 160 <= frame.height <= 350
+            and not self._is_confirmed_room_frame(frame)
+        )
+        if compact_lobby_popup:
+            budget = self._hitch_popup_esc_budget(now)
+            if budget == "exhausted":
+                print("[L0] hitch 紧凑平台提示关闭预算耗尽，零输入观察等待提示消失")
+                self.set_phase(Phase.LOBBY_ROOM, "hitch compact popup esc exhausted")
+                return LoopAction.Continue
+            if budget == "cooldown":
+                print("[L0] hitch 紧凑平台提示关闭冷却中，零输入观察")
+                self.set_phase(Phase.LOBBY_ROOM, "hitch compact popup esc cooldown")
+                return LoopAction.Continue
+            dismissed = self._hitch_popup_esc_send(now, "HitchDismissCompactLobbyPopup")
+            if dismissed:
+                print("[L0] hitch 房主离开平台提示已取消，回大厅重新找房")
+                return self._hitch_reset_lobby("compact_lobby_popup", now)
+            print("[L0] hitch 紧凑平台提示取消输入被拒绝，等待下一次受控重试")
+            self.set_phase(Phase.LOBBY_ROOM, "hitch compact popup dismiss rejected")
+            return LoopAction.Continue
         # P0-5：弹窗处于显式覆盖时（dialog/title 命中，或当前处于房间等待），
         # 探测被踢/移出弹窗（真实 OCR，不依赖 _hitch_ocr_override）。避免在正常大厅搜索页每帧做无弹窗 OCR。
         has_modal_anchor = bool(
