@@ -524,6 +524,21 @@ def test_owner_kick_popup_on_main_lobby_window_dismisses_without_ocr() -> None:
 
     key.assert_called_once_with("esc", "HitchDismissKnownLobbyPopup")
     click.assert_not_called()
+    # Esc 派发成功不是关闭后置；房间身份未确认时不得点击购买/创建。
+    assert med.phase is Phase.ROOM_WAITING
+    assert med._hitch_popup_esc_pending_kind == "known_lobby"
+
+    frame2 = Frame(
+        np.full((945, 1332, 3), 18, dtype=np.uint8),
+        window_title="KK官方对战平台",
+        hwnd=1253046,
+        role="l0",
+    )
+    with patch.object(med, "find_scene", return_value=None),          patch.object(med, "find", return_value=None),          patch.object(med, "_detect_hitch_kick_event", return_value=None),          patch.object(med, "act_key", return_value=True) as key2,          patch.object(med, "act_click", return_value=True) as click2:
+        med._tick_lobby_hitch(frame2, "UNKNOWN")
+
+    key2.assert_not_called()
+    click2.assert_not_called()
     assert med.phase is Phase.LOBBY_ROOM
 
 

@@ -752,7 +752,10 @@ class Mediator:
         self._hitch_surface_reason: str | None = None
         self._hitch_surface_coarse: str | None = None
         self._hitch_surface_cycles: int = 0
+        self._hitch_surface_yielded: bool = False
         self._hitch_surface_reacquire_at: float | None = None
+        self._hitch_optional_skipped: set[str] = set()
+        self._hitch_floor_exit_reobserve_since: float | None = None
         self._hitch_recovery_exhausted: bool = False
         self._hitch_recovery_exhausted_reason: str | None = None
         self._hitch_last_game_hwnd: int | None = None
@@ -5516,6 +5519,9 @@ class Mediator:
     _HITCH_PRESSURE_BUDGET_S = 45.0
     _HITCH_SURFACE_REOBSERVE_S = 4.0
     _HITCH_SURFACE_REACQUIRE_COOLDOWN_S = 2.0
+    _HITCH_SURFACE_CYCLE_LIMIT = 2
+    _HITCH_FLOOR_EXIT_REOBSERVE_S = 8.0
+    _HITCH_VICTORY_OR_FAILURE = frozenset({"POST_VICTORY", "FAILURE_GIFT", "FAILURE"})
     _HITCH_OUTCOME_PAGES = frozenset({
         "POST_VICTORY",
         "ARCHIVE_PANEL",
@@ -5565,6 +5571,47 @@ class Mediator:
             pass
         return None
 
+    def _hitch_visible_victory_or_failure(self, frame: Frame | None) -> str | None:
+        """Victory/failure that must preempt optional steps, secret-realm wait, and recovery sinks."""
+        if frame is None or getattr(frame, "bgr", None) is None:
+            return None
+        try:
+            post = self._post_game_state(frame)
+        except Exception:
+            post = None
+        if post == "POST_VICTORY":
+            return post
+        try:
+            if self._find_failure_gift(frame) is not None:
+                return "FAILURE_GIFT"
+        except Exception:
+            pass
+        try:
+            if self.find_scene(frame, "fail") is not None or self.find_scene(frame, "disconnect") is not None:
+                return "FAILURE"
+        except Exception:
+            pass
+        return None
+
+    def _hitch_mark_optional_skipped(self, step: str) -> None:
+        skipped = getattr(self, "_hitch_optional_skipped", None)
+        if skipped is None:
+            skipped = set()
+            self._hitch_optional_skipped = skipped
+        skipped.add(step)
+
+    def _hitch_optional_is_skipped(self, step: str) -> bool:
+        return step in getattr(self, "_hitch_optional_skipped", set())
+
+    def _hitch_clear_secret_realm_entry(self, reason: str) -> None:
+        print(f"[med] hitch secret-realm entry yields ({reason}); unconfirmed is not success")
+        self._secret_realm_entering_since = None
+        self._secret_realm_request_pending = False
+        self._secret_realm_request_since = None
+        self._secret_realm_active = False
+        self._secret_realm_hud_confirmations = 0
+        self._secret_realm_last_hud_frame_id = None
+
     def _hitch_pressure_released(self) -> bool:
         return bool(
             getattr(self, "_hitch_pressure_transferred", False)
@@ -5590,17 +5637,28 @@ class Mediator:
         print(f"[med] 蹭车压力转移预算耗尽（{why}），跳过该步并继续观察胜负（未确认≠成功）")
 
     def _hitch_optional_exhausted(self, frame: Frame | None, now: float, step: str) -> LoopAction:
-        """Optional hitch step budget is done. Do not stop, and do not reset the counter."""
-        print(f"[med] hitch optional step skipped ({step}); no reset, no stop, observe outcome")
+        """Optional hitch step budget is done. SKIPPED stays skipped; outcome stays visible."""
+        self._hitch_mark_optional_skipped(step)
+        print(f"[med] hitch optional step skipped ({step}); no reset, no extra click, no stop")
+        outcome = self._hitch_visible_victory_or_failure(frame) if frame is not None else None
+        if outcome:
+            print(f"[med] hitch optional {step} skipped; yield immediately to {outcome}")
+            return LoopAction.Continue
+        page = None
+        if frame is not None:
+            try:
+                page = self._fresh_hitch_outcome(frame)
+            except Exception:
+                page = None
+        if page:
+            # The page itself is the outcome. Do not bury it in a recovery sink.
+            print(f"[med] hitch optional {step} skipped; keep outcome page {page} observable")
+            return LoopAction.Continue
         return self._hitch_advance_surface_recovery(frame, now, f"optional_exhausted:{step}")
 
     def _hitch_abandon_secret_realm(self, reason: str) -> LoopAction:
         """Hitch must not die on an optional secret-realm miss. Do not invent rift behavior."""
-        print(f"[med] hitch secret-realm step unconfirmed ({reason}); skip and keep observing")
-        self._secret_realm_entering_since = None
-        self._secret_realm_request_pending = False
-        self._secret_realm_request_since = None
-        self._secret_realm_active = False
+        self._hitch_clear_secret_realm_entry(reason)
         return LoopAction.Continue
 
     def _observe_surface_ladder(self, frame: Frame | None) -> SurfaceLadder:
@@ -5724,6 +5782,7 @@ class Mediator:
         self._hitch_surface_since = None
         self._hitch_surface_reason = None
         self._hitch_surface_cycles = 0
+        self._hitch_surface_yielded = False
         self._hitch_surface_reacquire_at = None
         self._hitch_unknown_since = None
 
@@ -5750,12 +5809,29 @@ class Mediator:
             return False
 
     def _hitch_advance_surface_recovery(self, frame: Frame | None, now: float, reason: str) -> LoopAction:
-        """ZERO business input: reobserve → reacquire → reclassify. Never stop, never blind lobby."""
+        """ZERO business input: bounded reobserve → reacquire → reclassify.
+
+        The cycle budget cannot reset itself when the reason string changes.
+        After the budget, yield to outcome/coarse reclassification each tick.
+        Later GAME-absent+PLATFORM/L0 may still hand off; GAME return resumes the round.
+        """
         ladder = self._observe_surface_ladder(frame)
         self._remember_surface_coarse(ladder)
         if self._hitch_lobby_handoff_authorized(frame):
             return self._hitch_commit_lobby_handoff(now, f"{reason}; platform authority, game absent")
         unhealthy = str(reason).startswith("unhealthy")
+        if getattr(self, "_hitch_surface_yielded", False) or getattr(self, "_hitch_surface_phase", None) == "yield":
+            if ladder.coarse == "GAME":
+                self._clear_hitch_surface_recovery()
+                print(f"[med] hitch surface recovery yielded then GAME returned ({reason}); resume round")
+                return LoopAction.Continue
+            self._hitch_surface_phase = "yield"
+            self._hitch_surface_yielded = True
+            print(
+                "[med] hitch surface recovery yielded to outcome/coarse reclassification "
+                f"coarse={ladder.coarse} ({reason}); zero business input"
+            )
+            return LoopAction.Continue
         if ladder.coarse == "GAME" and not unhealthy:
             # Same HWND still the game surface. Keep round state; resume observation.
             self._clear_hitch_surface_recovery()
@@ -5765,12 +5841,15 @@ class Mediator:
             print(f"[med] hitch unhealthy GAME hwnd={ladder.hwnd}; reacquire same window, do not hand off")
         phase = getattr(self, "_hitch_surface_phase", None) or "reobserve"
         since = getattr(self, "_hitch_surface_since", None)
-        if since is None or getattr(self, "_hitch_surface_reason", None) != reason:
+        # Reason changes must not restart the clock or wipe the cycle count.
+        if since is None:
             self._hitch_surface_phase = "reobserve"
             self._hitch_surface_since = now
             self._hitch_surface_reason = reason
             print(f"[med] hitch evidence recovery reobserve ({reason}); zero business input")
             return LoopAction.Continue
+        if getattr(self, "_hitch_surface_reason", None) != reason:
+            self._hitch_surface_reason = reason
         elapsed = now - float(since)
         if phase == "reobserve":
             if elapsed < self._HITCH_SURFACE_REOBSERVE_S:
@@ -5786,10 +5865,34 @@ class Mediator:
             return LoopAction.Continue
         cycles = int(getattr(self, "_hitch_surface_cycles", 0) or 0) + 1
         self._hitch_surface_cycles = cycles
+        if cycles >= self._HITCH_SURFACE_CYCLE_LIMIT:
+            self._hitch_surface_phase = "yield"
+            self._hitch_surface_yielded = True
+            print(
+                f"[med] hitch evidence recovery budget spent cycles={cycles} ({reason}); "
+                "yield to outcome/coarse reclassification, no self-reset"
+            )
+            return LoopAction.Continue
         self._hitch_surface_phase = "reobserve"
         self._hitch_surface_since = now
         print(f"[med] hitch evidence recovery cycle {cycles} ({reason}); coarse={self._hitch_surface_coarse} not erased")
         return LoopAction.Continue
+
+    def _hitch_floor_exit_observe(self, frame: Frame, now: float, lobby_visible: bool) -> LoopAction | None:
+        """Bounded wait for lobby-list evidence. None means the evidence gate may clear the round."""
+        if lobby_visible:
+            return None
+        since = getattr(self, "_hitch_floor_exit_reobserve_since", None)
+        if since is None:
+            self._hitch_floor_exit_reobserve_since = now
+            print("[L0] hitch 退出后有界观察大厅列表证据（零输入，不发明点击）")
+            return LoopAction.Continue
+        elapsed = now - float(since)
+        if elapsed < self._HITCH_FLOOR_EXIT_REOBSERVE_S:
+            print(f"[L0] hitch 退出后有界观察大厅列表 {elapsed:.1f}s（零输入）")
+            return LoopAction.Continue
+        print("[L0] hitch 退出后大厅列表证据未出现，粗分类并交还结局/表面恢复（零业务输入，不清局）")
+        return self._hitch_advance_surface_recovery(frame, now, "floor_exit_pending")
 
     def _hitch_handle_unknown_page(self, frame: Frame, now: float, source: str) -> LoopAction:
         """UNKNOWN page: zero business input, then bounded reobserve/reacquire/reclassify."""
@@ -8256,6 +8359,7 @@ class Mediator:
         self._hitch_floor_exit_pending = False
         self._hitch_floor_exit_confirmed = False
         self._hitch_floor_exit_attempted_at = None
+        self._hitch_floor_exit_reobserve_since = None
         # P0-6：180s 超时退房生命周期随每次 episode 边界一并收敛
         self._hitch_ready_timeout_pending = False
         self._hitch_ready_timeout_leave_at = None
@@ -8641,7 +8745,21 @@ class Mediator:
             exit_confirm = self._find_hitch_exit_confirm_button(frame) if modal_visible else None
             if exit_confirm is not None:
                 if getattr(self, "_hitch_floor_exit_confirmed", False):
-                    print("[L0] hitch 退出确认已点击，等待回到大厅列表（零输入）")
+                    lobby_visible = self._lobby_room_list_evidence(frame)
+                    wait = self._hitch_floor_exit_observe(frame, now, lobby_visible)
+                    if wait is not None:
+                        return wait
+                    if self._hitch_pending_room_key is not None:
+                        self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+                    self._hitch_floor_exit_pending = False
+                    self._hitch_floor_exit_confirmed = False
+                    self._hitch_floor_exit_attempted_at = None
+                    self._hitch_floor_exit_reobserve_since = None
+                    self._hitch_re_search = False
+                    self._hitch_after_exit(now)
+                    self._hitch_re_search = False
+                    self.set_phase(Phase.LOBBY_ROOM, "hitch floor-one rejection returned to lobby")
+                    print("[L0] hitch 退出确认后大厅列表证据已出现，已回大厅（无额外点击）")
                     return LoopAction.Continue
                 if self.act_click(exit_confirm, "HitchConfirmLeave"):
                     if self._hitch_pending_room_key is not None:
@@ -8789,14 +8907,16 @@ class Mediator:
             )
             lobby_visible = self._lobby_room_list_evidence(frame)
             if frame.bgr is None or float(np.mean(frame.bgr)) < 3.0:
-                print("[L0] hitch 退出后捕获到黑帧，保持退出状态等待确认窗口/大厅")
-                return LoopAction.Continue
-            if not (lobby_visible and not tangible_room):
-                print(
-                    "[L0] hitch 已点击退出，等待大厅列表且无房间实体控件（零输入）: "
-                    f"lobby_visible={lobby_visible}, tangible_room={tangible_room}"
-                )
-                return LoopAction.Continue
+                print("[L0] hitch 退出后捕获到黑帧，计入有界观察（零输入，不清局）")
+                return self._hitch_floor_exit_observe(frame, now, False)
+            if tangible_room or not lobby_visible:
+                wait = self._hitch_floor_exit_observe(frame, now, bool(lobby_visible and not tangible_room))
+                if wait is not None:
+                    print(
+                        "[L0] hitch 已点击退出，有界等待大厅列表且无房间实体控件（零输入）: "
+                        f"lobby_visible={lobby_visible}, tangible_room={tangible_room}"
+                    )
+                    return wait
             # 退出确认点击被拒/弹窗被手动关闭时，黑名单是在这里补记的：
             # act_click 失败的那条分支从未有机会写入 pending room key。
             if self._hitch_pending_room_key is not None:
@@ -8804,6 +8924,7 @@ class Mediator:
             self._hitch_floor_exit_pending = False
             self._hitch_floor_exit_confirmed = False
             self._hitch_floor_exit_attempted_at = None
+            self._hitch_floor_exit_reobserve_since = None
             self._hitch_re_search = False
             self._hitch_after_exit(now)
             self._hitch_re_search = False
@@ -9350,6 +9471,13 @@ class Mediator:
         return self._stage_attempt_budget
 
     def _fail_stage_budget(self, reason: str) -> LoopAction:
+        if self._hitch_enabled():
+            print(f"[L0] hitch 选关预算耗尽（{reason}），不终止，交还结局/表面恢复")
+            return self._hitch_advance_surface_recovery(
+                getattr(self, "_last_frame", None),
+                time.time(),
+                f"stage_budget:{reason}",
+            )
         print(f"[L0] 选关尝试预算耗尽（{reason}），Fail-Closed 停止运行")
         self.set_phase(Phase.ERROR, f"stage attempt budget exhausted: {reason}")
         self.stop()
@@ -10175,66 +10303,84 @@ class Mediator:
                 elapsed = now - self._missing_window_since
                 print(f"[med] Unhealthy frame ({health.details}), waiting {elapsed:.1f}s phase={self.phase.name}")
                 if self._hitch_enabled():
-                    # 先收同一 HWND / 重新捕获。只有 fresh 证据证明 GAME 不在
-                    # 且 PLATFORM/L0 仍有权威时，才清局并交大厅。禁止盲切 LOBBY_ROOM。
-                    return self._hitch_advance_surface_recovery(frame, now, f"unhealthy:{health.details}")
-                in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
-                if self.phase == Phase.ROOM_STARTING:
-                    if self._room_start_deadline is None:
-                        self._room_start_deadline = now + self._l0_transition_timeout()
-                    if now >= self._room_start_deadline:
-                        print("[med] ROOM_STARTING 不健康帧超过宏观过渡期限，回退房间等待")
-                        self.set_phase(Phase.ROOM_WAITING, "room start unhealthy alignment timeout")
+                    # 非静态不健康帧先做结局分类。secret-realm / 表面恢复
+                    # 不得挡住已经可见的胜负。命中后跳出本 else，进入正常决策。
+                    outcome = self._hitch_visible_victory_or_failure(frame)
+                    if outcome:
+                        print(f"[med] hitch unhealthy non-static frame yields to outcome classification: {outcome}")
+                    else:
+                        action = self._hitch_advance_surface_recovery(frame, now, f"unhealthy:{health.details}")
+                        if not getattr(self, "_hitch_surface_yielded", False):
+                            return action
+                        print("[med] hitch surface recovery yielded; coarse reclassification each tick, no same-step loop")
+                        if self._hitch_visible_victory_or_failure(frame) is None:
+                            return action
+                        print("[med] hitch yielded recovery still sees victory/failure; continue outcome classification")
+                    # outcome visible: skip the timeout sink below
+                else:
+                    outcome = None
+                if self._hitch_enabled() and (
+                    outcome or self._hitch_visible_victory_or_failure(frame)
+                ):
+                    print("[med] hitch unhealthy frame continues into outcome classification")
+                else:
+                    in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
+                    if self.phase == Phase.ROOM_STARTING:
+                        if self._room_start_deadline is None:
+                            self._room_start_deadline = now + self._l0_transition_timeout()
+                        if now >= self._room_start_deadline:
+                            print("[med] ROOM_STARTING 不健康帧超过宏观过渡期限，回退房间等待")
+                            self.set_phase(Phase.ROOM_WAITING, "room start unhealthy alignment timeout")
+                        return LoopAction.Continue
+                    elif self.phase == Phase.STAGE_SELECT:
+                        if self._room_action_deadline is None:
+                            self._room_action_deadline = now + self._l0_transition_timeout()
+                        if now >= self._room_action_deadline:
+                            print("[med] STAGE_SELECT 不健康帧超过宏观期限，续期继续（不停止）")
+                            self._room_action_deadline = now + self._l0_transition_timeout()
+                        return LoopAction.Continue
+                    elif self.phase in in_game_phases:
+                        if elapsed >= 60:
+                            print("[med] 局内阶段不健康帧持续超过 60s，停止运行")
+                            self.set_phase(Phase.ERROR, "unhealthy frame timeout")
+                            self.stop()
+                            return LoopAction.Break
+                    elif self.phase in (Phase.HERO_SETUP, Phase.STAGE_STARTING):
+                        # 英雄弹窗/加载过场的黑帧可能较长：与观察窗对齐（最高 60s），不提前误杀
+                        hero_window = getattr(self, "_hero_observation_timeout", lambda: 60)()
+                        window = max(hero_window, self.settings.query_timeout)
+                        if elapsed >= window:
+                            print(f"[med] {self.phase.name} 不健康帧持续超过 {window:.0f}s，停止运行")
+                            self.set_phase(Phase.ERROR, "unhealthy frame timeout")
+                            self.stop()
+                            return LoopAction.Break
+                    elif self.phase == Phase.BOOT:
+                        # The platform/game process can take longer than one
+                        # capture cycle to create a visible window.  Keep waiting
+                        # for a bounded period instead of failing after two slow
+                        # splash-screen captures.
+                        boot_timeout = min(self.settings.query_timeout, 15)
+                        if self.settings.query_timeout > 15:
+                            boot_timeout = max(30, min(self.settings.query_timeout, 60))
+                        if elapsed >= boot_timeout:
+                            print(f"[med] 启动阶段等待窗口超过 {boot_timeout}s，停止运行")
+                            self.set_phase(Phase.ERROR, "unhealthy frame timeout")
+                            self.stop()
+                            return LoopAction.Break
+                    elif self.phase in (Phase.CREATE_ROOM, Phase.PLATFORM_MAP, Phase.ROOM_WAITING, Phase.LOBBY_ROOM):
+                        # 建房弹窗/平台窗短暂不可见（用户操作间隙、弹窗切换）不应 15s 误杀；
+                        # 与 BOOT 同窗容忍，超时才 Fail-Closed。
+                        l0_timeout = max(30, min(self.settings.query_timeout, 60))
+                        if elapsed >= l0_timeout:
+                            print(f"[med] {self.phase.name} 等待窗口超过 {l0_timeout}s，停止运行")
+                            self.set_phase(Phase.ERROR, "unhealthy frame timeout")
+                            self.stop()
+                            return LoopAction.Break
+                    elif elapsed >= min(self.settings.query_timeout, 15):
+                        self.set_phase(Phase.ERROR, "unhealthy frame timeout")
+                        self.stop()
+                        return LoopAction.Break
                     return LoopAction.Continue
-                elif self.phase == Phase.STAGE_SELECT:
-                    if self._room_action_deadline is None:
-                        self._room_action_deadline = now + self._l0_transition_timeout()
-                    if now >= self._room_action_deadline:
-                        print("[med] STAGE_SELECT 不健康帧超过宏观期限，续期继续（不停止）")
-                        self._room_action_deadline = now + self._l0_transition_timeout()
-                    return LoopAction.Continue
-                elif self.phase in in_game_phases:
-                    if elapsed >= 60:
-                        print("[med] 局内阶段不健康帧持续超过 60s，停止运行")
-                        self.set_phase(Phase.ERROR, "unhealthy frame timeout")
-                        self.stop()
-                        return LoopAction.Break
-                elif self.phase in (Phase.HERO_SETUP, Phase.STAGE_STARTING):
-                    # 英雄弹窗/加载过场的黑帧可能较长：与观察窗对齐（最高 60s），不提前误杀
-                    hero_window = getattr(self, "_hero_observation_timeout", lambda: 60)()
-                    window = max(hero_window, self.settings.query_timeout)
-                    if elapsed >= window:
-                        print(f"[med] {self.phase.name} 不健康帧持续超过 {window:.0f}s，停止运行")
-                        self.set_phase(Phase.ERROR, "unhealthy frame timeout")
-                        self.stop()
-                        return LoopAction.Break
-                elif self.phase == Phase.BOOT:
-                    # The platform/game process can take longer than one
-                    # capture cycle to create a visible window.  Keep waiting
-                    # for a bounded period instead of failing after two slow
-                    # splash-screen captures.
-                    boot_timeout = min(self.settings.query_timeout, 15)
-                    if self.settings.query_timeout > 15:
-                        boot_timeout = max(30, min(self.settings.query_timeout, 60))
-                    if elapsed >= boot_timeout:
-                        print(f"[med] 启动阶段等待窗口超过 {boot_timeout}s，停止运行")
-                        self.set_phase(Phase.ERROR, "unhealthy frame timeout")
-                        self.stop()
-                        return LoopAction.Break
-                elif self.phase in (Phase.CREATE_ROOM, Phase.PLATFORM_MAP, Phase.ROOM_WAITING, Phase.LOBBY_ROOM):
-                    # 建房弹窗/平台窗短暂不可见（用户操作间隙、弹窗切换）不应 15s 误杀；
-                    # 与 BOOT 同窗容忍，超时才 Fail-Closed。
-                    l0_timeout = max(30, min(self.settings.query_timeout, 60))
-                    if elapsed >= l0_timeout:
-                        print(f"[med] {self.phase.name} 等待窗口超过 {l0_timeout}s，停止运行")
-                        self.set_phase(Phase.ERROR, "unhealthy frame timeout")
-                        self.stop()
-                        return LoopAction.Break
-                elif elapsed >= min(self.settings.query_timeout, 15):
-                    self.set_phase(Phase.ERROR, "unhealthy frame timeout")
-                    self.stop()
-                    return LoopAction.Break
-                return LoopAction.Continue
 
         self._missing_window_since = None
         if self._hitch_enabled():
@@ -11103,21 +11249,27 @@ class Mediator:
         now = time.time()
         secret_entry_observation = self._secret_realm_entering_since is not None
 
-        if not secret_entry_observation and self._hitch_enabled():
-            event = classify_hitch_ocr(self._hitch_ocr_text())
-            if event:
-                return self._hitch_reset_lobby(event, now)
+        if self._hitch_enabled():
+            visible_terminal = self._hitch_visible_victory_or_failure(frame)
+            if visible_terminal and secret_entry_observation:
+                print(f"[med] hitch secret-realm entering yields to victory/failure: {visible_terminal}")
+                self._hitch_clear_secret_realm_entry(visible_terminal)
+                secret_entry_observation = False
+            if not secret_entry_observation:
+                event = classify_hitch_ocr(self._hitch_ocr_text())
+                if event:
+                    return self._hitch_reset_lobby(event, now)
 
-            # 结局观察高于一切可选步骤。fresh 胜负/战后页出现时，压力转移
-            # 不得挡住 victory/failure 处理。未确认的压力转移仍不是成功；
-            # 预算耗尽只 SKIP，不永久门禁本局。
-            outcome = self._fresh_hitch_outcome(frame)
-            if outcome:
-                print(f"[med] 蹭车可选步骤让位于结局观察: {outcome}")
-            else:
-                pt_res = self._maybe_click_hitch_pressure_transfer(frame, now)
-                if pt_res is not None:
-                    return pt_res
+                # 结局观察高于一切可选步骤。fresh 胜负/战后页出现时，压力转移
+                # 不得挡住 victory/failure 处理。未确认的压力转移仍不是成功；
+                # 预算耗尽只 SKIP，不永久门禁本局。
+                outcome = self._fresh_hitch_outcome(frame)
+                if outcome:
+                    print(f"[med] 蹭车可选步骤让位于结局观察: {outcome}")
+                else:
+                    pt_res = self._maybe_click_hitch_pressure_transfer(frame, now)
+                    if pt_res is not None:
+                        return pt_res
 
         # ---- 专属动作后置条件等待 (PendingAction Active Waiting) ----
         if self._pending_action is not None:
@@ -11160,12 +11312,16 @@ class Mediator:
         # 战后页面优先于一切局内动作。胜利后只允许以下专用链：
         # 继续游戏 → 关闭存档面板（如出现）→ NPC 广场 → 局内退出。
         post_game = self._post_game_state(frame)
-        # Once the great-rift “是” click is accepted, every subsequent frame
-        # is observation-only until the dedicated two-frame HUD postcondition
-        # below is proven.  This guard must precede all post-game handlers so
-        # an unexpected modal cannot trigger a second click.
+        # Once the great-rift “是” click is accepted, subsequent frames are
+        # observation-only until the two-frame HUD postcondition. Visible
+        # victory/failure preempts that wait; unconfirmed entry is not success.
         if self._secret_realm_entering_since is not None:
-            return self._observe_secret_realm_entry(frame, now, post_game)
+            visible_terminal = self._hitch_visible_victory_or_failure(frame) if self._hitch_enabled() else None
+            if visible_terminal:
+                print(f"[med] hitch secret-realm entering does not block {visible_terminal}")
+                self._hitch_clear_secret_realm_entry(visible_terminal)
+            else:
+                return self._observe_secret_realm_entry(frame, now, post_game)
         if post_game == "ARCHIVE_PANEL" and self._post_game_archive_pending_only:
             if frame is getattr(self, "_prev_frame", None):
                 print("[med] 存档 pending+X 捕获未变化，不计入第二帧（零动作）")
@@ -11257,8 +11413,21 @@ class Mediator:
             self._main_line_since = now
         if post_game == "PAUSED":
             self._main_line_since = now
+            if self._hitch_enabled() and self._hitch_optional_is_skipped("pause_resume"):
+                terminal = self._hitch_visible_victory_or_failure(frame)
+                if terminal:
+                    print(f"[med] hitch pause-resume skipped; yield immediately to {terminal}")
+                else:
+                    print("[med] hitch pause-resume skipped; observe, no extra click, no rearm")
+                return LoopAction.Continue
             return self._maybe_resume_paused(frame, now)
         if post_game == "POST_VICTORY":
+            if self._hitch_enabled() and (
+                self._hitch_optional_is_skipped("victory_continue")
+                or self._hitch_optional_is_skipped("victory_continue_pending")
+            ):
+                print("[med] hitch victory-continue skipped; observe victory, no extra click, no rearm")
+                return LoopAction.Continue
             if self._post_game_pending:
                 elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
                 if elapsed >= min(self.settings.query_timeout, 30):
@@ -11363,6 +11532,9 @@ class Mediator:
                 else:
                     return LoopAction.Continue
 
+            if self._hitch_enabled() and self._hitch_optional_is_skipped("archive_close"):
+                print("[med] hitch archive-close skipped; observe, no extra click, no rearm")
+                return LoopAction.Continue
             if self._post_game_close_attempts >= 3:
                 if self._hitch_enabled():
                     return self._hitch_optional_exhausted(frame, now, "archive_close")
@@ -11501,6 +11673,9 @@ class Mediator:
                     return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
                 print("[med] 传家宝 Boss 业务后置确认成功，关闭传家宝面板")
             attempts = self._aux_dialog_attempts[post_game]
+            if self._hitch_enabled() and self._hitch_optional_is_skipped("heirloom_close"):
+                print("[med] hitch heirloom-close skipped; observe, no extra click, no rearm")
+                return LoopAction.Continue
             if attempts >= 3:
                 if self._hitch_enabled():
                     return self._hitch_optional_exhausted(frame, now, "heirloom_close")
@@ -12007,6 +12182,16 @@ class Mediator:
         elapsed = time.time() - self._exit_since if self._exit_since else 0.0
 
         if self.phase == Phase.QUIT:
+            if self._hitch_enabled():
+                terminal = self._hitch_visible_victory_or_failure(frame)
+                if terminal:
+                    print(f"[med] hitch quit-exit yields immediately to {terminal}")
+                    self.phase = Phase.MAIN_LINE
+                    self._main_line_since = time.time()
+                    return self._tick_main_line(frame)
+                if self._hitch_optional_is_skipped("quit_exit_button"):
+                    print("[med] hitch quit-exit skipped; observe outcome, no extra click, no rearm")
+                    return LoopAction.Continue
             if self._find_exit_confirm(frame):
                 self.set_phase(Phase.NEXT, "exit confirmation already visible")
                 return LoopAction.Continue
@@ -12028,6 +12213,16 @@ class Mediator:
             return LoopAction.Continue
 
         if self.phase == Phase.NEXT:
+            if self._hitch_enabled():
+                terminal = self._hitch_visible_victory_or_failure(frame)
+                if terminal:
+                    print(f"[med] hitch quit-confirm yields immediately to {terminal}")
+                    self.phase = Phase.MAIN_LINE
+                    self._main_line_since = time.time()
+                    return self._tick_main_line(frame)
+                if self._hitch_optional_is_skipped("quit_exit_confirm"):
+                    print("[med] hitch quit-confirm skipped; observe outcome, no extra click, no rearm")
+                    return LoopAction.Continue
             if self._exit_confirm_attempts >= 3 or elapsed >= timeout:
                 if self._hitch_enabled():
                     return self._hitch_optional_exhausted(frame, time.time(), "quit_exit_confirm")

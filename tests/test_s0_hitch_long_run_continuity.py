@@ -274,3 +274,178 @@ def test_secret_realm_timeout_does_not_stop_hitch() -> None:
     assert med._secret_realm_entering_since is None
     stop.assert_not_called()
     assert med._run_exit_reason is None
+
+
+def test_surface_recovery_budget_cannot_reset_and_yields() -> None:
+    med = _hitch()
+    med.set_phase(Phase.MAIN_LINE)
+    frame = _platform_frame()
+    with patch.object(med, "_hitch_lobby_handoff_authorized", return_value=False), \
+            patch.object(med, "_hitch_try_reacquire_same_hwnd", return_value=False), \
+            patch.object(med, "stop") as stop:
+        assert med._hitch_advance_surface_recovery(frame, 10.0, "stuck") is LoopAction.Continue
+        assert med._hitch_surface_phase == "reobserve"
+        since = med._hitch_surface_since
+        # A new reason must not restart the budget.
+        assert med._hitch_advance_surface_recovery(frame, 12.0, "stuck-other") is LoopAction.Continue
+        assert med._hitch_surface_since == since
+        assert med._hitch_surface_cycles == 0
+        now = 10.0
+        for _ in range(12):
+            now += 5.0
+            med._hitch_advance_surface_recovery(frame, now, "stuck-other")
+            if med._hitch_surface_yielded:
+                break
+        assert med._hitch_surface_yielded is True
+        assert med._hitch_surface_phase == "yield"
+        cycles = med._hitch_surface_cycles
+        assert med._hitch_advance_surface_recovery(frame, now + 30.0, "brand-new") is LoopAction.Continue
+        assert med._hitch_surface_yielded is True
+        assert med._hitch_surface_cycles == cycles
+        assert med.phase is Phase.MAIN_LINE
+    stop.assert_not_called()
+    assert med._run_exit_reason is None
+
+    game = _game_frame()
+    with patch.object(med, "_hitch_lobby_handoff_authorized", return_value=False):
+        assert med._hitch_advance_surface_recovery(game, now + 40.0, "unhealthy:black") is LoopAction.Continue
+    assert med._hitch_surface_yielded is False
+    assert med.phase is Phase.MAIN_LINE
+
+    med._hitch_last_game_hwnd = 20
+    med._hitch_surface_coarse = "GAME"
+    with patch.object(med, "_hitch_game_absent_proven", return_value=True), \
+            patch.object(med, "_hitch_after_exit", wraps=med._hitch_after_exit) as after_exit:
+        action = med._hitch_advance_surface_recovery(frame, now + 50.0, "yielded-later")
+    assert action is LoopAction.Continue
+    after_exit.assert_called_once()
+    assert med.phase is Phase.LOBBY_ROOM
+
+
+def test_floor_exit_pending_reobserve_does_not_clear_without_lobby_evidence() -> None:
+    med = _hitch()
+    med.set_phase(Phase.ROOM_WAITING)
+    med._hitch_floor_exit_pending = True
+    med._hitch_floor_exit_confirmed = True
+    frame = _platform_frame()
+    with patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+            patch.object(med, "_is_confirmed_room_frame", return_value=False), \
+            patch.object(med, "find_scene", return_value=None), \
+            patch.object(med, "find", return_value=None), \
+            patch.object(med, "act_click") as click, \
+            patch.object(med, "act_key") as key, \
+            patch.object(med, "stop") as stop:
+        first = med._tick_lobby_hitch(frame, "UNKNOWN")
+        assert first is LoopAction.Continue
+        assert med._hitch_floor_exit_reobserve_since is not None
+        assert med.phase is Phase.ROOM_WAITING
+        assert med._hitch_floor_exit_pending is True
+        later = med._hitch_floor_exit_reobserve_since + med._HITCH_FLOOR_EXIT_REOBSERVE_S + 0.5
+        with patch("shuabao.mediator.time.time", return_value=later):
+            second = med._tick_lobby_hitch(frame, "UNKNOWN")
+    assert second is LoopAction.Continue
+    click.assert_not_called()
+    key.assert_not_called()
+    stop.assert_not_called()
+    assert med.phase is Phase.ROOM_WAITING
+    assert med._hitch_floor_exit_pending is True
+    assert med._hitch_surface_phase == "reobserve"
+    assert med._run_exit_reason is None
+
+    with patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+            patch.object(med, "_is_confirmed_room_frame", return_value=False), \
+            patch.object(med, "find_scene", return_value=None), \
+            patch.object(med, "find", return_value=None), \
+            patch.object(med, "act_click") as click2, \
+            patch.object(med, "act_key") as key2:
+        done = med._tick_lobby_hitch(frame, "UNKNOWN")
+    assert done is LoopAction.Continue
+    click2.assert_not_called()
+    key2.assert_not_called()
+    assert med.phase is Phase.LOBBY_ROOM
+    assert med._hitch_floor_exit_pending is False
+
+
+def test_optional_skip_keeps_victory_observable_and_does_not_rearm() -> None:
+    med = _hitch()
+    med.set_phase(Phase.MAIN_LINE)
+    med._victory_continue_attempts = 3
+    frame = _game_frame()
+    with patch.object(med, "_hitch_ocr_text", return_value=""), \
+            patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+            patch.object(med, "find", return_value=_hit("continueGame")), \
+            patch.object(med, "act_click") as click, \
+            patch.object(med, "stop") as stop:
+        assert med._tick_main_line(frame) is LoopAction.Continue
+        assert med._hitch_optional_is_skipped("victory_continue")
+        assert med._tick_main_line(frame) is LoopAction.Continue
+    assert med._victory_continue_attempts == 3
+    click.assert_not_called()
+    stop.assert_not_called()
+
+    gift = _hit("failureGift", 700, 400)
+    with patch.object(med, "_hitch_ocr_text", return_value=""), \
+            patch.object(med, "_post_game_state", return_value=None), \
+            patch.object(med, "_find_failure_gift", return_value=gift), \
+            patch.object(med, "act_click", return_value=True) as click2, \
+            patch.object(med, "stop") as stop2:
+        assert med._tick_main_line(frame) is LoopAction.Continue
+    click2.assert_called()
+    assert click2.call_args.args[1] == "DismissFailureReward"
+    assert med._victory_continue_attempts == 3
+    assert med._hitch_optional_is_skipped("victory_continue")
+    stop2.assert_not_called()
+    assert med._run_exit_reason is None
+
+
+def test_secret_realm_entering_does_not_block_victory() -> None:
+    med = _hitch()
+    med.set_phase(Phase.MAIN_LINE)
+    med.settings.auto_secret_realm = True
+    med._secret_realm_entering_since = 5.0
+    frame = _game_frame()
+    with patch.object(med, "_hitch_ocr_text", return_value=""), \
+            patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+            patch.object(med, "find", return_value=_hit("continueGame")), \
+            patch.object(med, "act_click", return_value=True) as click, \
+            patch.object(med, "stop") as stop:
+        action = med._tick_main_line(frame)
+    assert action is LoopAction.Continue
+    assert med._secret_realm_entering_since is None
+    assert med._secret_realm_active is False
+    click.assert_called()
+    stop.assert_not_called()
+    assert med._run_exit_reason is None
+
+
+def test_quit_exit_skipped_yields_to_visible_victory() -> None:
+    med = _hitch()
+    med.set_phase(Phase.QUIT)
+    med._exit_button_attempts = 3
+    med._exit_since = 1.0
+    frame = _game_frame()
+    with patch.object(med, "_hitch_ocr_text", return_value=""), \
+            patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+            patch.object(med, "_find_game_exit", return_value=_hit("quit", 20, 20)), \
+            patch.object(med, "act_click") as click, \
+            patch.object(med, "stop") as stop:
+        action = med._tick_l1_tail(frame)
+    assert action is LoopAction.Continue
+    assert med.phase is Phase.MAIN_LINE
+    click.assert_not_called()
+    stop.assert_not_called()
+    assert med._exit_button_attempts == 3
+    assert med._run_exit_reason is None
+
+
+def test_hitch_stage_budget_does_not_stop() -> None:
+    med = _hitch()
+    med.set_phase(Phase.STAGE_SELECT)
+    med._last_frame = _game_frame()
+    with patch.object(med, "stop") as stop:
+        action = med._fail_stage_budget("hard deadline")
+    assert action is LoopAction.Continue
+    stop.assert_not_called()
+    assert med.phase is Phase.STAGE_SELECT
+    assert med._run_exit_reason is None
+    assert med._hitch_surface_yielded is False
