@@ -335,6 +335,9 @@ function Invoke-CaptureTool {
     }
     $script:LastToolExitCode = $exitCode
     Write-Host "[launcher] tool exit code: $exitCode" -ForegroundColor DarkGray
+    if ($exitCode -eq 3) {
+        Write-Host "[launcher] 启动前置条件未满足；请先还原并前台显示目标 KK/游戏窗口，再重试。" -ForegroundColor Yellow
+    }
     if ($exitCode -ne 0) {
         Write-Host "[launcher] 工具失败；请查看上方 preflight/manifest 证据。" -ForegroundColor Red
     }

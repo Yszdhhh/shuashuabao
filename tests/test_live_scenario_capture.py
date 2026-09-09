@@ -871,6 +871,35 @@ def test_harness_capture_kwargs_match_production_signature(monkeypatch) -> None:
     assert calls
 
 
+def test_minimized_lobby_window_is_explicitly_blocked(monkeypatch) -> None:
+    frame = Frame(
+        bgr=np.zeros((8, 8, 3), dtype=np.uint8),
+        hwnd=101,
+        window_title="KK官方对战平台",
+        is_valid=False,
+        error="Window is minimized",
+        role="l0",
+    )
+    monkeypatch.setattr(live_capture, "capture", lambda *_args, **_kwargs: frame)
+
+    _frame, record = live_capture._window_preflight(Settings(), target="hitch_lobby_chain")
+
+    assert record["status"] == "BLOCKED"
+    assert "restore it" in str(record["reason"])
+
+
+def test_blocked_precondition_bundle_returns_nonzero_exit_code(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(
+        json.dumps({"live_preflight": {"status": "BLOCKED_PRECONDITION"}}),
+        encoding="utf-8",
+    )
+
+    assert live_capture._bundle_exit_code(tmp_path) == 3
+    persisted = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert persisted["process_exit_code"] == 3
+
+
 def test_blocked_preflight_does_not_dispatch_any_business_handler(tmp_path: Path, monkeypatch) -> None:
     calls: list[str] = []
     frame = _fixture_frame()

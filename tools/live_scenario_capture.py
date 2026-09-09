@@ -3038,8 +3038,10 @@ def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Fr
     window_title = str(getattr(frame, "window_title", "") or "")
     is_minimized = getattr(frame, "error", None) == "Window is minimized"
     if is_minimized and getattr(frame, "hwnd", None):
-        status = "READY"
-        reason = None
+        # A live run cannot verify its start surface from a minimized target.
+        # Report the actionable reason here; the caller will send zero input.
+        status = "BLOCKED"
+        reason = "target window is minimized; restore it before starting live capture"
     else:
         status = "READY" if _frame_is_valid(frame) else "BLOCKED"
         reason = getattr(frame, "error", None)
@@ -3828,7 +3830,10 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 status=blocked_status,
                 note=f"live input refused before target handler: {note}",
             )
-            print(f"[preflight] {blocked_status}; no business handler or game input was attempted")
+            print(
+                f"[preflight] {blocked_status}: {note or 'live precondition not met'}; "
+                "no business handler or game input was attempted"
+            )
             return bundle_dir
 
         med.emergency_listener = EmergencyStopListener(stop_signal)
@@ -4751,7 +4756,7 @@ def _bundle_preflight_blocked(bundle_dir: Path) -> bool:
         manifest = json.loads((Path(bundle_dir) / "manifest.json").read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
         return False
-    return bool((manifest.get("live_preflight") or {}).get("status") == "BLOCKED_PRECHECK")
+    return str((manifest.get("live_preflight") or {}).get("status") or "").startswith("BLOCKED")
 
 
 def _bundle_exit_code(bundle_dir: Path) -> int:
@@ -4761,7 +4766,7 @@ def _bundle_exit_code(bundle_dir: Path) -> int:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
         return 2
-    if (manifest.get("live_preflight") or {}).get("status") == "BLOCKED_PRECHECK":
+    if str((manifest.get("live_preflight") or {}).get("status") or "").startswith("BLOCKED"):
         code = 3
     elif manifest.get("target") == "lobby_search":
         events = manifest.get("events") or []
