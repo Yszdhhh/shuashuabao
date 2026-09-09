@@ -171,6 +171,9 @@ def test_hitch_after_exit_cleanup_semantics_preserved() -> None:
     med._hitch_refresh_required = False
     med._hitch_pending_row_y = 123.0
     med._hitch_floor_exit_pending = True
+    med._hitch_ready_confirmed_at = 1.0
+    med._hitch_ready_timeout_attempts = 3
+    med._hitch_ready_timeout_deadline = 99.0
     med._awaiting_room_return = True
 
     med._hitch_after_exit(100.0)
@@ -180,6 +183,9 @@ def test_hitch_after_exit_cleanup_semantics_preserved() -> None:
     assert med._hitch_refresh_required is True
     assert med._hitch_pending_row_y is None
     assert med._hitch_floor_exit_pending is False
+    assert med._hitch_ready_confirmed_at is None
+    assert med._hitch_ready_timeout_attempts == 0
+    assert med._hitch_ready_timeout_deadline is None
     assert med._awaiting_room_return is False
 
 

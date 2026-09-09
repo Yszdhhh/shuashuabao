@@ -7682,6 +7682,9 @@ class Mediator:
         # P0-6：180s 超时退房生命周期随每次 episode 边界一并收敛
         self._hitch_ready_timeout_pending = False
         self._hitch_ready_timeout_leave_at = None
+        self._hitch_ready_timeout_attempts = 0
+        self._hitch_ready_timeout_deadline = None
+        self._hitch_ready_confirmed_at = None
         self._hitch_rejected_row_ys.clear()
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
@@ -8143,9 +8146,10 @@ class Mediator:
             deadline = getattr(self, "_hitch_ready_timeout_deadline", None)
             attempts = getattr(self, "_hitch_ready_timeout_attempts", 0)
             if deadline is not None and (now > deadline or attempts >= 3):
-                # 尝试/截止期耗尽且仍未证明离房：Fail-Closed 停机保全，不再持续按 Esc
-                print("[L0] hitch 180s 退房重试预算耗尽（3次/超时），Fail-Closed 停止发键等待人工介入")
-                return LoopAction.Break
+                # 尝试/截止期耗尽只撤销输入许可，不能返回 Break 结束整个长期运行。
+                # 后续 fresh 大厅证据仍可自动收尾；UNKNOWN 保持零输入观察。
+                print("[L0] hitch 180s 退房重试预算耗尽（3次/超时），停止发键并持续等待可信大厅证据")
+                return LoopAction.Continue
 
             # Esc（HitchReadyTimeoutExit）只允许在 fresh 房间证据上发出：
             # in_room（窗口匹配 + room signature）或当前帧物理确认房间实体控件。

@@ -848,7 +848,7 @@ def test_pending_join_timeout_with_known_modal_still_dismisses() -> None:
 
 def test_ready_timeout_pending_on_unknown_surface_is_zero_input() -> None:
     """180s 超时退房 episode 中，未知 surface（窗口失配且无房间实体控件）上
-    绝不发送 HitchReadyTimeoutExit；预算耗尽后 Fail-Closed Break；
+    绝不发送 HitchReadyTimeoutExit；预算耗尽后保持运行并继续零输入观察；
     fresh 房间证据恢复后才允许有界 Esc。"""
     med = _hitch_mediator()
     med.set_phase(Phase.ROOM_WAITING)
@@ -875,7 +875,7 @@ def test_ready_timeout_pending_on_unknown_surface_is_zero_input() -> None:
     assert med._hitch_ready_timeout_attempts == 0
     assert "room-765432" not in med._hitch_blacklisted_room_keys
 
-    # 尝试预算耗尽 → Fail-Closed Break，仍零输入
+    # 尝试预算耗尽 → 保持运行，仍零输入
     med._hitch_ready_timeout_attempts = 3
     with patch.object(med, "find_scene", return_value=None), \
          patch.object(med, "_is_confirmed_room_frame", return_value=False), \
@@ -883,8 +883,9 @@ def test_ready_timeout_pending_on_unknown_surface_is_zero_input() -> None:
          patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True), \
          patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True), \
          patch("shuabao.mediator.time.time", return_value=now):
-        assert med._tick_lobby_hitch(frame, "ROOM_WAITING") is LoopAction.Break
+        assert med._tick_lobby_hitch(frame, "ROOM_WAITING") is LoopAction.Continue
     assert keys == [] and clicks == []
+    assert med.phase is Phase.ROOM_WAITING
 
     # fresh 房间签名恢复 → 允许有界安全 Esc（预算重置）
     med._hitch_ready_timeout_attempts = 0
