@@ -109,7 +109,7 @@ def test_global_treasure_must_take_still_outranks_talisman():
 
 
 def test_non_green_talisman_does_not_get_talisman_priority():
-    """“神符”名称缺少绿色品质证据时，不能触发神符优先规则。"""
+    """普通模式品质优先：橙色神符按品质链直接选中，蓝色必拿不再压过更高品质。"""
     settings = assemble_policy_settings(
         settings=Settings(),
         skill_labels={},
@@ -133,7 +133,7 @@ def test_non_green_talisman_does_not_get_talisman_priority():
     dec = choose_action(cands, SessionState())
 
     assert dec.action == PolicyAction.SELECT_SLOT
-    assert dec.index == 1
+    assert dec.index == 0
 
 
 def test_treasure_yazhi_allowed_when_explicitly_checked():

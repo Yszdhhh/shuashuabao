@@ -246,6 +246,8 @@ class PolicySettings:
     treasure_refresh_on_no_safe: bool = True
     # Dual-gated KB snapshot. None / empty view never changes ranking.
     mechanics_view: Any = None
+    # 运行方式目录 id（normal_farm / lobby_hitch / …）。决定宝物选择裁决分支。
+    mode_id: str = "normal_farm"
 
     def __post_init__(self) -> None:
         if self.bond_whitelist_mode not in VALID_WHITELIST_MODES:
@@ -370,6 +372,7 @@ class PolicySettings:
             treasure_must_take=(
                 tuple(str(s) for s in must_take) if must_take is not None else DEFAULT_TREASURE_MUST_TAKE
             ),
+            mode_id=str(raw.get("mode_id", "normal_farm") or "normal_farm"),
             treasure_refresh_on_no_safe=bool(raw.get("treasure_refresh_on_no_safe", True)),
             mechanics_view=raw.get("mechanics_view"),
         )
@@ -529,6 +532,7 @@ def assemble_policy_settings(
             "skill_route_preferences": tuple(route_prefs),
             "treasure_allow_negative": tuple(str(s) for s in allow_neg),
             "treasure_refresh_on_no_safe": bool(treasure_cfg.get("refresh_on_no_safe", False)),
+            "mode_id": str(getattr(settings, "mode_id", "normal_farm") or "normal_farm"),
             "habit_name_scores": habit_name_scores,
             "allow_skill_giveup": bool(raw.get("allow_skill_giveup", False)),
             "mechanics_view": mechanics_view,
@@ -1151,21 +1155,11 @@ def _decide_collectible(
         return _no_safe_candidate(cands, state, kind, "卡名未读出/无安全候选")
     if kind == PANEL_TREASURE:
         eligible = _drop_negative_treasures(cands.slots, settings)
-        for slot in eligible:
-            if (
-                slot.confidence >= settings.min_confidence
-                and _is_must_take(slot.name, settings.treasure_must_take)
-            ):
-                return PolicyDecision.select(
-                    slot.index, f"宝物必拿秒选【{slot.name}】 @ slot {slot.index}"
-                )
-        treasure_rarity_rank = {"red": 0, "orange": 1, "purple": 2, "green": -1}
-        better_unnamed = any(
-            (not str(slot.name or "").strip())
-            and treasure_rarity_rank.get(str(slot.rarity or ""), -1) > -1
-            for slot in eligible
-        )
-        if not better_unnamed:
+        if not eligible:
+            return _no_safe_candidate(cands, state, kind, "无安全候选（全部为负面宝物）")
+
+        # 蹭车模式：专项获取绿色神符
+        if getattr(settings, "mode_id", "normal_farm") == "lobby_hitch":
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
@@ -1173,8 +1167,50 @@ def _decide_collectible(
                     and "神符" in str(slot.name or "")
                 ):
                     return PolicyDecision.select(
-                        slot.index, f"宝物优先神符【{slot.name}】 @ slot {slot.index}"
+                        slot.index, f"蹭车模式优先绿色神符【{slot.name}】 @ slot {slot.index}"
                     )
+
+        # 普通模式（及蹭车无绿色神符时）：
+        # 产品裁决：先过滤黑名单，剩余只按现有品质顺序选择，不再让 must_take / presets / synthesis 压过更高品质。
+        best_quality_hit = _match_quality(cands, settings, slots=eligible, allow_unnamed=True)
+        if best_quality_hit is None:
+            return _no_safe_candidate(cands, state, kind, "无安全候选")
+
+        best_rarity = _slot_rarity(eligible, best_quality_hit)
+        best_rank = _rarity_rank(best_rarity, settings.quality_order)
+        top_eligible = tuple(
+            slot for slot in eligible
+            if _rarity_rank(slot.rarity, settings.quality_order) == best_rank
+        )
+
+        for slot in top_eligible:
+            if (
+                slot.confidence >= settings.min_confidence
+                and _is_must_take(slot.name, settings.treasure_must_take)
+            ):
+                return PolicyDecision.select(
+                    slot.index, f"宝物必拿秒选【{slot.name}】 @ slot {slot.index}"
+                )
+
+        preset_hit = _match_preset(
+            top_eligible,
+            presets,
+            settings.min_confidence,
+            quality_order=settings.quality_order,
+            habit_name_scores=settings.habit_name_scores,
+        )
+        if preset_hit is not None:
+            name = _slot_name(cands.slots, preset_hit)
+            return PolicyDecision.select(preset_hit, f"{kind} 预设命中：{name} @ slot {preset_hit}")
+
+        synth_hit = _match_synthesis(cands, settings.min_confidence, slots=top_eligible)
+        if synth_hit is not None:
+            name = _slot_name(cands.slots, synth_hit)
+            return PolicyDecision.select(synth_hit, f"{kind} 套装进度优先：{name} @ slot {synth_hit}")
+
+        name = _slot_name(cands.slots, best_quality_hit)
+        rarity = best_rarity or "未知品质"
+        return PolicyDecision.select(best_quality_hit, f"{kind} 品质降级：{name}/{rarity} @ slot {best_quality_hit}")
     else:
         eligible = cands.slots
         if kind == PANEL_BOND:
