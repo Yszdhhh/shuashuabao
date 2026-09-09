@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -440,7 +441,7 @@ def test_pending_join_popup_new_window_dismisses_before_room_waiting() -> None:
     med._hitch_sm.note_join_click(1.0)
     med._hitch_join_origin_hwnd = 10001
     frame = Frame(
-        np.full((720, 960, 3), 18, dtype=np.uint8),
+        np.full((260, 440, 3), 18, dtype=np.uint8),
         window_title="KK官方对战平台",
         hwnd=1253798,
         role="l0",
@@ -453,6 +454,25 @@ def test_pending_join_popup_new_window_dismisses_before_room_waiting() -> None:
     assert med.phase is Phase.LOBBY_ROOM
     assert med._hitch_sm.pending_join is False
     assert med._hitch_rejected_row_ys == {385}
+
+
+def test_pending_join_never_escs_a_large_unanchored_room_window() -> None:
+    """未完成房间双锚点时，大房间窗口也不能被误当作紧凑进房提示。"""
+    med = _hitch_mediator()
+    med._hitch_sm.note_join_click(time.time())
+    med._hitch_join_origin_hwnd = 10001
+    frame = Frame(
+        np.full((904, 1224, 3), 18, dtype=np.uint8),
+        window_title="KK官方对战平台",
+        hwnd=38802858,
+        role="l0",
+    )
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "find", return_value=None), \
+         patch.object(med, "act_key", return_value=True) as key:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    key.assert_not_called()
 
 
 def test_owner_left_compact_popup_dismisses_after_join_was_confirmed() -> None:
@@ -475,6 +495,33 @@ def test_owner_left_compact_popup_dismisses_after_join_was_confirmed() -> None:
     click.assert_not_called()
     assert med.phase is Phase.LOBBY_ROOM
     assert med._hitch_re_search is False
+
+
+def test_owner_kick_popup_on_main_lobby_window_dismisses_without_ocr() -> None:
+    """被踢提示覆盖主大厅时，低分已知弹窗锚点足以授权 Esc 恢复搜房。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.ROOM_WAITING)
+    frame = Frame(
+        np.full((945, 1332, 3), 18, dtype=np.uint8),
+        window_title="KK官方对战平台",
+        hwnd=1253046,
+        role="l0",
+    )
+    popup = MatchResult("lobby_popup_dialog", 0.72, 381, 334, 415, 65, 589, 366)
+
+    def fake_find(_frame, names, **_kwargs):
+        return popup if names == ["lobby_popup_dialog"] else None
+
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "find", side_effect=fake_find), \
+         patch.object(med, "_detect_hitch_kick_event", return_value=None), \
+         patch.object(med, "act_key", return_value=True) as key, \
+         patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    key.assert_called_once_with("esc", "HitchDismissKnownLobbyPopup")
+    click.assert_not_called()
+    assert med.phase is Phase.LOBBY_ROOM
 
 
 def test_generic_popup_without_pending_join_remains_zero_input() -> None:

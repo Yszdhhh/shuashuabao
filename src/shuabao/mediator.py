@@ -7483,7 +7483,9 @@ class Mediator:
         """
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return False
-        has_exit = self.find(frame, ["room_exit_btn"], threshold=0.90) is not None
+        # KK 1224x904 房间实帧中退出按钮稳定命中 0.872；这是房间身份
+        # 判定而非点击授权，0.85 仍需与第二个房间控件同时成立。
+        has_exit = self.find(frame, ["room_exit_btn"], threshold=0.85) is not None
         if not has_exit:
             return False
         has_action = (
@@ -8097,13 +8099,16 @@ class Mediator:
             self.find_scene(frame, "lobby_popup_dialog")
             or self.find_scene(frame, "lobby_popup_title")
         )
+        # 这类 KK 平台提示的 scene 阈值在实机缩放下未必足够高；低阈值
+        # 仅用于确认可安全 Esc 的已知弹窗，不授予任何按钮点击权限。
+        known_popup = dialog_hit or self.find(frame, ["lobby_popup_dialog"], threshold=0.70)
         # P1-1：弹窗消失的证据 = fresh 帧回到 origin 主窗口（或 origin 已随
         # episode 清空）且无任何弹窗锚点。只有该证据才重置关闭预算并解除
         # origin 锚点；子窗口帧（弹窗可能仍未关闭、模板也未必命中）不得
         # 据此重置，预算沿用本 episode。
         if (
             not self._hitch_sm.pending_join
-            and dialog_hit is None
+            and known_popup is None
             and self._hitch_popup_esc_budget_used()
             and (
                 self._hitch_join_origin_hwnd is None
@@ -8125,6 +8130,10 @@ class Mediator:
             and frame.hwnd is not None
             and frame.hwnd != self._hitch_join_origin_hwnd
             and not self._is_confirmed_room_frame(frame)
+            and (
+                (280 <= frame.width <= 600 and 160 <= frame.height <= 350)
+                or known_popup is not None
+            )
         )
         if child_popup:
             budget = self._hitch_popup_esc_budget(now)
@@ -8224,6 +8233,28 @@ class Mediator:
                 # 仅检测到蓝色几何块但无法确认已知确认弹窗身份，必须零输入等待
                 print("[L0] hitch 检测到蓝色色块但无法确认已知退出弹窗身份（零输入等待）")
                 return LoopAction.Continue
+
+        # 被房主移出后，KK 将提示覆盖在主大厅窗口而非独立 440x260 子窗口。
+        # 已知提示锚点 + ROOM_WAITING 共同证明此时 Esc 只会取消提示，绝不
+        # 点击“立即购买/创建房间”；OCR 读不出正文也必须能恢复搜房。
+        if (
+            known_popup is not None
+            and self.phase == Phase.ROOM_WAITING
+            and not getattr(self, "_hitch_ready_timeout_pending", False)
+            and not self._is_confirmed_room_frame(frame)
+        ):
+            budget = self._hitch_popup_esc_budget(now)
+            if budget == "exhausted":
+                print("[L0] hitch 主窗口平台提示关闭预算耗尽，零输入观察")
+                return LoopAction.Continue
+            if budget == "cooldown":
+                print("[L0] hitch 主窗口平台提示关闭冷却中，零输入观察")
+                return LoopAction.Continue
+            if self._hitch_popup_esc_send(now, "HitchDismissKnownLobbyPopup"):
+                print("[L0] hitch 主窗口平台提示已取消，回大厅重新找房")
+                return self._hitch_reset_lobby("known_lobby_popup", now)
+            print("[L0] hitch 主窗口平台提示取消输入被拒绝，等待下一次受控重试")
+            return LoopAction.Continue
 
         if dialog_hit is not None:
             if self._hitch_sm.pending_join or self._hitch_popup_esc_budget_used():
