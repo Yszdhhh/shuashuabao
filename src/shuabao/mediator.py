@@ -9537,6 +9537,10 @@ class Mediator:
                 self._missing_window_since = self._missing_window_since or now
                 elapsed = now - self._missing_window_since
                 print(f"[med] Unhealthy frame ({health.details}), waiting {elapsed:.1f}s phase={self.phase.name}")
+                if self._hitch_enabled():
+                    # 蹭车是长期观察模式；黑屏/转场/窗口短暂消失只撤销
+                    # 输入权，不得把整个 run 终止。Shift+F12/用户停止仍在上方抢占。
+                    return LoopAction.Continue
                 in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
                 if self.phase == Phase.ROOM_STARTING:
                     if self._room_start_deadline is None:
@@ -10585,6 +10589,12 @@ class Mediator:
             if self._post_game_pending:
                 elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
                 if elapsed >= min(self.settings.query_timeout, 30):
+                    if self._hitch_enabled():
+                        print("[med] 蹭车继续游戏后胜利页仍在，重新武装有界点击并继续观察")
+                        self._post_game_pending = False
+                        self._victory_continue_attempts = 0
+                        self._victory_continue_since = None
+                        return LoopAction.Continue
                     print("[med] 继续游戏后胜利页未消失，Fail-Closed 停止运行")
                     self.set_phase(Phase.ERROR, "victory page did not close")
                     self.stop()
@@ -10593,6 +10603,10 @@ class Mediator:
                 return LoopAction.Continue
 
             if self._victory_continue_attempts >= 3:
+                if self._hitch_enabled():
+                    print("[med] 蹭车继续游戏重试预算耗尽，重新武装并保持运行")
+                    self._victory_continue_attempts = 0
+                    return LoopAction.Continue
                 print("[med] 胜利结算点击继续游戏重试已达上限，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "victory continue attempts exhausted")
                 self.stop()
@@ -10629,6 +10643,11 @@ class Mediator:
 
         if post_game == "ARCHIVE_PANEL":
             if not self._post_game_pending:
+                if self._hitch_enabled():
+                    print("[med] 蹭车直接识别到存档挑战页，接管战后链并继续")
+                    self._post_game_pending = True
+                    self._post_game_route = "archive"
+                    return LoopAction.Continue
                 print("[med] 非胜利链路进入存档面板，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "unexpected archive panel")
                 self.stop()
@@ -10668,6 +10687,10 @@ class Mediator:
                 return LoopAction.Continue
 
             if self._post_game_close_attempts >= 3:
+                if self._hitch_enabled():
+                    print("[med] 蹭车存档面板关闭重试预算耗尽，重新武装并继续等待专用关闭按钮")
+                    self._post_game_close_attempts = 0
+                    return LoopAction.Continue
                 print("[med] 存档面板关闭重试已达上限，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "archive close attempts exhausted")
                 self.stop()
@@ -10687,6 +10710,11 @@ class Mediator:
             return LoopAction.Continue
         if post_game == "NPC_HUB":
             if not self._post_game_pending:
+                if self._hitch_enabled():
+                    print("[med] 蹭车直接识别到战后挑战广场，接管存档→传家宝链")
+                    self._post_game_pending = True
+                    self._post_game_route = "archive"
+                    return LoopAction.Continue
                 print("[med] 非胜利链路进入挑战广场，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "unexpected post-game NPC hub")
                 self.stop()
@@ -10795,6 +10823,10 @@ class Mediator:
                 print("[med] 传家宝 Boss 业务后置确认成功，关闭传家宝面板")
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
+                if self._hitch_enabled():
+                    print("[med] 蹭车传家宝弹窗关闭重试预算耗尽，重新武装并继续观察")
+                    self._aux_dialog_attempts[post_game] = 0
+                    return LoopAction.Continue
                 print("[med] 传家宝弹窗关闭重试已达上限，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "heirloom dialog close attempts exhausted")
                 self.stop()
@@ -10865,6 +10897,9 @@ class Mediator:
             self._main_line_since = now
             return LoopAction.Continue
         if post_game:
+            if self._hitch_enabled():
+                print(f"[med] 蹭车遇到未实现战后页面 {post_game}，零输入等待可识别页面")
+                return LoopAction.Continue
             print(f"[med] 识别到尚未实现的战后页面 {post_game}，Fail-Closed 停止运行（零输入）")
             self.set_phase(Phase.ERROR, f"unverified post-game page {post_game}")
             self.stop()
@@ -10941,6 +10976,9 @@ class Mediator:
                 surface = InteractionSurface.EQUIPMENT_AFFIX_MODAL
                 self._surface_conflict_since = None
             elif conflict_duration >= conflict_deadline:
+                if self._hitch_enabled():
+                    print(f"[med][surface] 蹭车互斥弹窗冲突持续 {conflict_duration:.2f}s，保持零输入等待表面收敛")
+                    return LoopAction.Continue
                 print(f"[med][surface] 互斥弹窗冲突持续超时 ({conflict_duration:.2f}s >= {conflict_deadline:.2f}s)，记录 incident 并转 Phase.ERROR")
                 self.set_phase(Phase.ERROR, f"interaction surface conflict timeout ({conflict_duration:.2f}s)")
                 self.stop()
@@ -11044,6 +11082,9 @@ class Mediator:
         if self._post_game_pending:
             elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
             if elapsed >= min(self.settings.query_timeout, 30):
+                if self._hitch_enabled():
+                    print("[med] 蹭车战后转场超时，保持零输入等待存档面板/挑战广场")
+                    return LoopAction.Continue
                 print("[med] 继续游戏后未确认到存档面板或挑战广场，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "post-game transition timeout")
                 self.stop()
@@ -11281,6 +11322,11 @@ class Mediator:
                 self.set_phase(Phase.NEXT, "exit confirmation already visible")
                 return LoopAction.Continue
             if self._exit_button_attempts >= 3 or elapsed >= timeout:
+                if self._hitch_enabled():
+                    print("[med] 蹭车局内退出按钮观察窗到期，重新武装并继续等待专用锨点")
+                    self._exit_button_attempts = 0
+                    self._exit_since = time.time()
+                    return LoopAction.Continue
                 print("[med] 未能打开专用退出确认框，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit button timeout")
                 self.stop()
@@ -11297,6 +11343,11 @@ class Mediator:
 
         if self.phase == Phase.NEXT:
             if self._exit_confirm_attempts >= 3 or elapsed >= timeout:
+                if self._hitch_enabled():
+                    print("[med] 蹭车退出确认观察窗到期，重新武装并继续等待专用按钮")
+                    self._exit_confirm_attempts = 0
+                    self._exit_since = time.time()
+                    return LoopAction.Continue
                 print("[med] 退出确认框未能安全确认，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit confirmation timeout")
                 self.stop()

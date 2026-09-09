@@ -320,6 +320,44 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(med._archive_challenge_observe_attempts, 0)
         click.assert_not_called()
 
+    def test_hitch_victory_retry_exhaustion_rearms_without_stopping(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "hitch victory")
+        med._victory_continue_attempts = 3
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        with patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+                patch.object(med, "stop") as stop:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        self.assertEqual(med._victory_continue_attempts, 0)
+        self.assertNotEqual(med.phase, Phase.ERROR)
+        stop.assert_not_called()
+
+    def test_hitch_direct_archive_panel_adopts_postgame_chain(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "hitch archive direct")
+        med._post_game_pending = False
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+                patch.object(med, "stop") as stop:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        self.assertTrue(med._post_game_pending)
+        self.assertEqual(med._post_game_route, "archive")
+        stop.assert_not_called()
+
+    def test_hitch_unknown_postgame_transition_timeout_keeps_waiting(self):
+        med = Mediator(Settings(mode_id="lobby_hitch", query_timeout=3), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "hitch postgame loading")
+        med._post_game_pending = True
+        med._victory_continue_since = 1.0
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        with patch("shuabao.mediator.time.time", return_value=10.0), \
+                patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "stop") as stop:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        self.assertNotEqual(med.phase, Phase.ERROR)
+        stop.assert_not_called()
+
     def test_hitch_postgame_uses_f1_before_archive_and_f2_after_time_cave_boss(self):
         """Follow mode owns its hero view before archive and returns to base before heirloom."""
         med = Mediator(Settings(mode_id="lobby_hitch", cjb_boss="54莫阿姆"), ROOT)
