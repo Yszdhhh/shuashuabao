@@ -4,297 +4,204 @@
 > Always read this file first from `handoff/latest`, then independently verify live Git refs before trusting any Agent report.
 > This branch is documentation-only. Do not merge `handoff/latest` into production merely to carry status notes.
 
-## 0. Executive state
+## 0. Current verified refs
 
 Repository:
 
 `https://github.com/Yszdhhh/shuashuabao`
 
-Current production integration branch:
+Formal G0 / production candidate:
+
+`refactor/stability-s0-20260908@d9148c893f160a6486aeedc8f106fa764be7d931`
+
+Lobby test-candidate provenance:
+
+`test/lobby-hitch-surface-correction-20260909@53afb4376bd371c3e7bdffd7fff1f13eb6cfd1a5`
+
+Live Harness:
+
+`test/live-harness-current-20260908@ff54891d1cf3087471ab1ec1a7b66e7fc27bd8da`
+
+Stable integration branch:
 
 `trial-merge@d1fb4a51310f3f847ebeee110d51d8423050468b`
 
-Current S0 / production candidate:
+Dated detailed snapshot:
 
-`refactor/stability-s0-20260908@dc108892d8590c04828dc176482bee32ba348914`
+`docs/CLOUD_ARCHITECT_CONTROL_TOWER_20260909.md`
 
-Current test/CI lane:
+Current executive state:
 
-`test/ci-speed-and-stability-harness-20260908@c5589d4876aad6ed0625473e20f2542446a2fbe6`
-
-Current Live Harness:
-
-`test/live-harness-current-20260908@4b19e1005690509dc243dd1870a035422c10e640`
-
-Live Harness production baseline:
-
-`dc108892d8590c04828dc176482bee32ba348914`
-
-Current status:
-
-- `FINAL_FREEZE_HYGIENE = PASS`
-- `CORRECTIVE_C_RELEASE_DEBT = CLOSED`
-- `COMPETITOR_A_C_CROSS_VALIDATION = COMPLETE`
-- `COMPETITOR_RESEARCH = HOLD`
-- `COMPETITOR_CORE_ASSETS_EXTRACTED = YES`
-- `STABILITY_SIMPLIFICATION_S0 = IMPLEMENTED_TO_CURRENT_CANDIDATE / REAL_GT_PENDING`
-- `S0_SINGLE_OWNER_TARGET = PASS_FOR_TARGETED_DOMAINS`
-- `WINDOW_AUTHORITY = PASS_FOR_CURRENT_SCOPE`
-- `PAGE_LOCAL_DETECTOR_AUTHORITY = PARTIAL`
-- `ROUND_LIFETIME_PROOF = PARTIAL / REAL_GT_PENDING`
-- `POSTCONDITION_SAFETY = PRESERVED`
-- `TEST_CI_LANE = COMPLETE_ON_ISOLATED_BRANCH / NOT_INTEGRATED`
-- `LIVE_HARNESS = READY_FOR_GT`
+- `FORMAL_G0 = d9148c`
+- `LOBBY_53AF_RECONCILED_INTO_G0 = YES`
+- `PRESSURE_BOUNDED_FAILURE_CONTRACT = COMMITTED`
+- `ARCHAEOLOGY_BLIND_COORDINATE_FALLBACK = REMOVED`
+- `LOBBY_SURFACE/READY/SINGLE_HWND/MODAL_LIVENESS = RECONCILED`
 - `TRIAL_MERGE = UNCHANGED`
-- `REMOTE_CI_ON_DC108892 = NOT_RUN`
-- `PRODUCT_GOLDEN_RUN = NOT_RUN`
-- `POLICY_V01_IMPLEMENTATION = HOLD_UNTIL_S0_VALIDATED`
-- `MAIN_RECONCILIATION = HOLD`
-- `PRODUCT_RELEASE_APPROVAL = NO`
+- `LIVE_GT_ON_D9148C = NOT_PROVEN`
+- `FORMAL_RELEASE = HOLD`
+- `PUBLIC_BAG_TRANSFER = LOCAL_TEST_AGENT_ACTIVE / NOT_PROMOTED`
+- `COMP3_REVERSE_ENGINEERING_COMPLETE = YES`
+- `COMP3_CLOUD_TRUTH_REBASE_TASK = ISSUED / AWAITING RETURN`
 
-Do not describe the current state as full production-release PASS.
+Do not describe the project as production-release PASS.
 
-## 1. Canonical detailed docs
+## 1. Main Agent — sole formal production integrator
 
-Read these next when relevant:
+Current formal commit `d9148c` reconciles three previously separate blockers:
 
-- S0 implementation contract:
-  `docs/STABILITY_SIMPLIFICATION_S0_IMPLEMENTATION_CONTRACT_20260908.md`
-- competitor stability synthesis:
-  `docs/COMPETITOR_STABILITY_DECOMPOSITION_20260908.md`
-- competitor C cross-validation:
-  `docs/COMPETITOR_C_CROSS_VALIDATION_20260908.md`
-- current competitor-asset landing matrix:
-  `docs/COMPETITOR_ASSET_LANDING_STATUS_20260908.md`
-- Git cleanup manifest:
-  `docs/GIT_CLEANUP_MANIFEST_20260908.md`
-- frozen Policy v0.1 contract:
-  `docs/policy/POLICY_V01_IMPLEMENTATION_CONTRACT_20260908.md`
-- Policy evidence appendix:
-  `docs/policy/POLICY_V01_EVIDENCE_APPENDIX_20260908.md`
+1. **Hitch pressure transfer** — bounded fresh reobserve if `yalizhuanyi` never appears; exhaustion records `PRESSURE_CORE_FAILURE`, does not mark pressure transferred, and does not unlock optional-success semantics.
+2. **Archaeology handoff** — removes the fabricated `(0.86W, 0.903H)` coordinate fallback; template miss is zero-input bounded reobserve, then fail-closed.
+3. **Lobby candidate 53afb437** — manually reconciled ROOM/ROOM_LIST page identity, Ready/CancelReady contract, seat-UNKNOWN non-destructive behavior, single-HWND support, modal freshness/liveness, and GO_HOME/exit authority state machine.
 
-## 2. Immutable / historical refs
+The commit message reports `Release gate 4/4 PASS` and `pytest 1751 passed, 0 failed`; this is committed Agent-reported evidence, not independent cloud execution.
 
-Keep immutable:
+From here:
 
-- `archive/final-green-trial-20260908` -> `decb9b6eb3559e39ea51e26864eaada0d648855b`
-- `archive/final-policy-base-20260908` -> `d1fb4a51310f3f847ebeee110d51d8423050468b`
-- `archive/old-main-20260908` -> `7edae9909ab1c757da27a45c4409f464aae66b04`
+- freeze broad G0 rewrites;
+- cloud-audit exact `d9148c` before promotion;
+- then run real Live Harness / Natural GT on the exact frozen candidate;
+- preserve immutable bundles before any fix to a live failure;
+- local fixes return through isolated candidate -> cloud review -> Main Agent manual reconciliation;
+- do not move `trial-merge` yet.
 
-Old public `main` remains:
+Still unproven: repeated multi-round real-machine continuity, real pressure business postcondition, archaeology handoff real chain, final Harness repin to the approved SHA, external-alpha soak / golden run.
 
-`7edae9909ab1c757da27a45c4409f464aae66b04`
+## 2. Local Test Agent — 吞噬丹 / 绿色神符 -> 公共背包
 
-Pre-stability ancestry-repair candidate remains:
+This is a separate local Windows feature/GT lane. It must not directly modify the formal G0 branch.
 
-`integration/reconcile-main-trial-20260908@1c8ef1ac53e2ee83dec73420f8ffef4aabb2b5a4`
+Product contract for `lobby_hitch`:
 
-Do not move `main` to it. S0 and later integration create a newer final convergence target.
+- transfer `吞噬丹` to Public Bag;
+- transfer green talisman only when OCR/name evidence confirms `神符`;
+- treat this as transfer/storage, not item use.
 
-## 3. Competitor research — what is actually reusable
+Required interaction chain:
 
-Broad competitor research is stopped. A/C evidence was sufficient to freeze internal ShuaBao constraints, not to copy competitor source/assets.
+`fresh source evidence -> RIGHT CLICK personal source item -> B -> fresh Bag page -> fresh Public Bag identity -> derive empty public slot from panel/grid geometry -> LEFT CLICK public slot -> fresh transfer postcondition`
 
-Core reusable architecture assets:
+Hard rule:
 
-1. one clear progression/recovery owner per active failure domain;
-2. asset inventory is not detector authority — only the verified current page/job subset should be authoritative;
-3. capture/window/input/timers are mechanical helpers, not independent business owners;
-4. prefer fresh re-observation over long-lived semantic latches where the frame can answer the question;
-5. retain only minimum legitimate asynchronous action memory;
-6. explicit action/round/session state lifetime and reset ownership;
-7. PLATFORM/GAME/UNKNOWN ownership gates detector/input authority;
-8. input dispatch success is never business success; UNKNOWN remains zero-input.
+`LEFT CLICK PERSONAL SOURCE ITEM = FORBIDDEN`
 
-Current landing summary is maintained in:
+because that can directly use/consume the item.
 
-`docs/COMPETITOR_ASSET_LANDING_STATUS_20260908.md`
+Required labels include:
 
-Key current verdict:
+`PERSONAL_BAG`, `PUBLIC_BAG`, `PUBLIC_BAG_EMPTY_SLOT`, `PUBLIC_BAG_OCCUPIED_SLOT`, `SOURCE_DEVOUR_PILL`, `SOURCE_TALISMAN`, `SOURCE_SELECTED`, `DEPOSIT_REQUESTED`, `DEPOSIT_CONFIRMED`, `PUBLIC_BAG_FULL`.
 
-- single-owner/liveness target: landed for known S0 duplicate-owner domains;
-- window ownership authority: strongly landed for current scope;
-- detector authority narrowing: only partial;
-- full transient lifetime proof: only partial until repeated real-machine rounds;
-- postcondition/UNKNOWN safety: preserved.
+Do not use global fixed coordinates for public slots. Derive from fresh panel bbox + grid row/column geometry.
 
-No more broad competitor reverse engineering unless a specific current implementation question creates an evidence gap.
+Solo screenshots/recording may prove layout/right-click/B-transition only. They do not prove real hitch Public Bag transfer success. `PUBLIC_BAG_DEPOSIT_GT=PASS` requires before/after fresh business evidence on the exact candidate SHA.
 
-## 4. Current S0 production candidate — `dc108892`
+Promotion path:
 
-The current S0 branch is six commits ahead of `d1fb4a5` and includes the original S0 refactor plus live lobby fixes discovered during current-SHA testing.
+`local candidate -> offline real GT -> local Live Harness GT -> isolated branch commit/push -> cloud audit -> Main Agent reconcile -> final repin/soak`
 
-### 4.1 S0 architectural changes landed
+If Live GT is blocked only by no usable KK window, a fully offline-gated candidate may still be pushed for cloud review, but must remain:
 
-- centralized typed `WindowRole = PLATFORM | GAME | UNKNOWN`;
-- `KK` alone cannot grant GAME authority;
-- Runtime MAIN_LINE watchdog no longer injects generic ESC and is telemetry-only;
-- Runtime duplicate panel physical recovery/fail-forward authority removed;
-- Core remains the relevant business owner for those domains;
-- watchdog stall telemetry is episode-based and its current-round/session lifetime is explicit;
-- dead Runtime panel fail-forward API/residue removed;
-- existing business postcondition and UNKNOWN zero-input contracts preserved.
+`LIVE_GT_REQUIRED_BEFORE_PROMOTION=YES`
 
-### 4.2 Latest lobby convergence
+`PRODUCTION_PROMOTION_ALLOWED=NO`
 
-Current `dc108892` no longer uses the temporary popup-size heuristic.
+## 3. Competitor Decomposition Agent — current task
 
-Pending join now records the lobby origin HWND. If a different KK HWND appears, it must prove the real room signature (exit + ready/start controls) before ROOM_WAITING authority. A different KK HWND without room controls is treated as a pending-join dialog and safely dismissed/rejected. Same-window explicit dialog handling remains available.
+Competitor-3 broad reverse engineering is closed.
 
-The two hitch exit phase-handoff defects are also restored/fixed:
+Local reported artifact root:
 
-- verified failure exit: `RECOVER_FAILURE -> LOBBY_ROOM` after the verified exit/hitch cleanup;
-- normal confirmed exit: `NEXT -> LOBBY_ROOM` after the verified exit/hitch cleanup.
+`C:\Users\10639\Desktop\竞品\拆解资产落库\02_参考脚本3\分析报告`
 
-These fixes prevent stale RECOVER_FAILURE/NEXT state from producing next-tick ERROR/timeout after a successful exit.
+Reported outputs:
 
-### 4.3 Important boundary
+- `COMP3_ASSET_CATALOG.csv`
+- `COMP3_ASSET_QUALITY_SUMMARY.md/.json`
+- `COMP3_TO_SHUABAO_TRANSFER_MAP.md`
+- `dis_evidence.json`
+- two reproducible analysis scripts
 
-This does not prove arbitrary full-screen/DPI/layout variants are fully supported. The specific pending-join popup fix is now based on window/surface identity rather than `440x260`, but full layout robustness still requires real-machine GT.
+Reported final competitor status:
 
-## 5. Test/CI lane — `c5589d4`
+- `COMP3_REVERSE_ENGINEERING_COMPLETE=YES`
+- `NEED_MORE_COMP3_DECOMPILATION=NO`
+- `COMP3_ASSETS_SHOULD_ENTER_SHUABAO=NO`
+- `COMP3_METHODS_WORTH_TRANSFERRING=YES`
 
-Completed on the isolated branch:
+New task issued:
 
-- removed duplicate full Python pytest execution while retaining the authoritative Standard Release Gate;
-- split UI check/unit/build from Python Standard Release Gate into parallel jobs;
-- measured GitHub Actions wall-time reduction from about `17m59s` to `10m14s` (~43% on the observed runs);
-- added a 50-round zero-real-input lifecycle audit using production classes with fake input;
-- added detector/matcher/search-pixel authority profiling;
-- did not modify prohibited S0 production files.
+`CLOUD_TRUTH_REBASE_AND_GT_LAB_BOOTSTRAP`
 
-Important:
+Status:
 
-- this branch is not yet integrated into the current S0 candidate;
-- its lifecycle audit must be adapted to current S0 fields because old watchdog fields changed/vanished;
-- the temporary test-branch workflow trigger should not be carried into final production CI.
+`ISSUED / AWAITING RETURN`
 
-Do not merge `c5589d4` blindly before rebasing/adapting it to the final candidate.
+Its first job is to rebase all old local ShuaBao findings against the current cloud truth instead of reusing stale line numbers.
 
-## 6. Live Harness — `4b19e100`
-
-Current branch:
-
-`test/live-harness-current-20260908@4b19e1005690509dc243dd1870a035422c10e640`
-
-Current production baseline:
-
-`dc108892d8590c04828dc176482bee32ba348914`
-
-The Harness is now a diagnostic control surface layered on current production, not an alternate product implementation.
-
-Verified structure:
-
-- `dc108892 -> 4b19e100` adds Harness/launcher/docs/tests/tools only;
-- no `src/shuabao/**` production delta;
-- identity gate pins the expected production SHA and rejects known old runtime/harness identities;
-- long lanes call current production Mediator flows;
-- targeted probes call current production handlers/adapters rather than copied FSM logic.
-
-Current intended use:
-
-- Harness = targeted real-machine diagnosis and integration testing;
-- final desktop production package = later formal Natural E2E / Golden Run.
-
-## 7. Real-machine GT — next decisive phase
-
-Freeze this pair for the next live episode:
-
-- Production: `dc108892d8590c04828dc176482bee32ba348914`
-- Harness: `4b19e1005690509dc243dd1870a035422c10e640`
-
-Do not patch while a probe is running. For every FAIL, save bundle/trace/screenshots before changing code.
-
-Recommended order:
-
-### 7.1 Lobby first
-
-Validate independently:
-
-- valid room join -> real ROOM_WAITING;
-- full-room/pending-join dialog -> close/reject -> fresh lobby -> continue next room;
-- password/other join-reject dialogs;
-- true room child HWND is not mistaken for a popup;
-- full-screen/layout variant;
-- kicked/dissolved -> fresh lobby -> continue searching;
-- in-game failure -> red exit -> fresh exit -> hitch LOBBY_ROOM -> no ERROR;
-- normal round exit -> hitch LOBBY_ROOM -> no NEXT timeout.
-
-### 7.2 Targeted single-player/business probes
-
-Then test:
-
-- bond / core skill;
-- hero evolve;
-- devour pill;
-- treasure;
-- inventory/hero-card path;
-- black merchant;
-- archive challenge 1..8 (especially the previously missed slot);
-- heirloom/configured Boss compliance;
-- secret realm complete entry chain.
-
-A targeted PASS proves the feature itself can close on real GT. A long-chain PASS then proves orchestration/integration does not break it.
-
-### 7.3 Long chains
-
-After targeted probes:
-
-- 13 lobby-hitch full chain;
-- 12 solo full chain;
-- 11 hitch in-game full chain.
-
-## 8. Product issues intentionally not solved by S0
-
-Do not confuse S0 stability work with gameplay-policy intelligence.
-
-Still open after S0:
-
-- bond logic is not yet intelligent enough;
-- early-game policy should strongly prioritize bond + core skill formation;
-- devour pill should accelerate bond formation without embedding inventory logic into the bond-panel FSM;
-- evolve/treasure/inventory/black-merchant actions still need real-machine closure and smoother orchestration;
-- core-vs-secondary stage/action priority needs a formal product contract;
-- archive challenge can still miss an item until current-SHA GT closes it;
-- heirloom/configured Boss compliance needs repeated GT;
-- secret realm still lacks a proven complete successful real-machine chain.
-
-Planned later waves after S0 real validation:
-
-- `S1 = In-game Priority / Bond Intelligence`
-- `S2 = Action Closure (evolve / treasure / inventory / merchant)`
-- `S3 = Post-game Closure (archive / heirloom / Boss / secret realm)`
-
-Policy v0.1 remains HOLD until S0 validation.
-
-## 9. Release / integration status
-
-Current integration branch remains:
-
-`trial-merge@d1fb4a51310f3f847ebeee110d51d8423050468b`
-
-Do not merge S0 into `trial-merge` yet.
-
-Before integration/release:
-
-1. current-SHA real-machine GT;
-2. adapt/integrate the `c5589d4` CI/test improvements onto the final candidate;
-3. run Standard CI / Standard Release Gate on the actual final candidate;
-4. repeated real-machine Golden Path, recommended 10 consecutive rounds;
-5. explicit Strict Zero-Defect / Frozen OCR release gates;
-6. only then resume Policy/S1 and main/trial ancestry reconciliation.
-
-Current exact S0 candidate `dc108892` has no GitHub-hosted CI run attached yet. Local regression results may be used as evidence but must not be mislabeled remote CI.
-
-## 10. Immediate next-session instructions
-
-A new conversation should:
-
-1. read this file first;
-2. read `docs/COMPETITOR_ASSET_LANDING_STATUS_20260908.md` if architecture status matters;
-3. independently verify `trial-merge`, `refactor/stability-s0-20260908`, `test/ci-speed-and-stability-harness-20260908`, and `test/live-harness-current-20260908` before trusting any fresh Agent report;
-4. treat `dc108892 + 4b19e100` as the current frozen live-test pair unless refs have advanced;
-5. consume real-machine bundles before proposing further production changes;
-6. keep competitor research, Policy v0.1, and main reconciliation on HOLD unless the current gates explicitly clear them.
-
-Do not let a later Agent silently replace real GT with click success, replay success, frame mutation, or self-reported test counts.
+Required current refs:
+
+- Formal G0 `d9148c...`
+- Lobby provenance `53afb437...`
+- Harness `ff54891...`
+
+Required return includes:
+
+- `SOURCE_OF_TRUTH_MANIFEST_20260909.md`
+- `GAP_REBASE_MATRIX`
+- refresh mutation evidence status
+- quarantine/watchdog starvation status
+- merchant `purchases==0` provenance/current status
+- formal-vs-53afb Lobby low-information asset comparison
+- battle real-GT coverage matrix
+- optional ShuaBao authority-asset hygiene manifest
+
+Role boundary:
+
+- Competitor Agent = cloud-truth reconciliation, GT taxonomy, hard negatives, asset/ROI quality, Merchant Refresh three-state GT support.
+- Local Test Agent = sole owner of actual devour-pill/green-talisman Public Bag operation candidate + live transfer validation.
+- Competitor Agent must not modify `src/shuabao/**`, formal G0, Lobby candidate, or Harness pin unless explicitly reassigned.
+
+## 4. Agent / branch ownership
+
+| Lane | Owner | Writable target | State |
+|---|---|---|---|
+| Formal G0 | Main Agent | `refactor/stability-s0-20260908` | `d9148c`, freeze pending audit/GT |
+| Lobby provenance | historical test candidate / cloud audit | `test/lobby-hitch-surface-correction-20260909` | `53afb437`, reconciled into G0 |
+| Live Harness | Test/Harness Agent | `test/live-harness-current-20260908` | `ff54891`; do not assume `d9148c` pin |
+| Public Bag feature/GT | Local Test Agent | isolated local test candidate | active / not promoted |
+| Competitor methods/GT audit | Competitor Agent | docs/tools-only local lane unless reassigned | task issued |
+| Stable integration | nobody during current gate | `trial-merge` | unchanged `d1fb4a5` |
+
+No concurrent production ownership.
+
+## 5. Safety contracts that remain authoritative
+
+- one progression/recovery owner per failure domain;
+- mechanical capability != business authority;
+- input/click success != business success;
+- frame mutation/window change != business success;
+- fresh re-observation over long semantic latches;
+- UNKNOWN => zero input except bounded reacquire/reobserve;
+- a known trusted KK platform-modal shell may permit bounded neutral dismiss, but is not the same as UNKNOWN;
+- timeout never proves leave/success;
+- only fresh verified leave may finalize a round transition;
+- pressure transfer is core in hitch mode, not optional;
+- no blind coordinate fallback for archaeology or page transitions;
+- never weaken tests, GT, thresholds, fixtures, or baselines to manufacture PASS.
+
+## 6. Immediate control-tower sequence
+
+1. Cloud-audit exact `d9148c`.
+2. Receive Public Bag Test Agent return; if pushed, verify exact branch/SHA/diff before accepting.
+3. Receive Competitor Agent `GAP_REBASE_MATRIX`; only current-ref-confirmed debt may become a production task.
+4. Approve and repin Harness only after the exact candidate is accepted for GT.
+5. Run real Lobby/hitch multi-round GT including pressure business success and exit->next continuity.
+6. Run real Public Bag transfer GT for devour pill + green talisman on exact test candidate.
+7. Any validated local production patch returns through cloud review and Main Agent reconciliation.
+8. Keep `trial-merge` unchanged until all required release and real-GT gates are explicitly green.
+
+## 7. New-conversation start instruction
+
+A new conversation should begin with:
+
+> Take over ShuaBao. Read `handoff/latest:docs/CLOUD_ARCHITECT_CONTROL_TOWER_CURRENT.md` first and then `docs/CLOUD_ARCHITECT_CONTROL_TOWER_20260909.md`. Independently verify all live refs. Formal G0 was last verified at `d9148c893f160a6486aeedc8f106fa764be7d931`; Lobby provenance candidate `53afb4376bd371c3e7bdffd7fff1f13eb6cfd1a5`; Live Harness `ff54891d1cf3087471ab1ec1a7b66e7fc27bd8da`; `trial-merge` remains `d1fb4a51310f3f847ebeee110d51d8423050468b`. Main Agent owns production integration; Local Test Agent owns the Public Bag transfer candidate/GT; Competitor Agent owns cloud-truth/asset/GT audit only. Do not modify code before verifying refs and pending Agent returns.
