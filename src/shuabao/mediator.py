@@ -253,7 +253,26 @@ class RoundOutcome(Enum):
     DISCONNECT = auto()
 
 
+class RunExitReason(str, Enum):
+    """G0 P0：mediator 终止的唯一停止归因（run() 退出时写入 exit_reason）。
+
+    复用 StopSignal，不引入第二套停止系统：外部 stop reason（F12/Shift+F12
+    或 RunnerService/HeadlessRunner）在退出时归 EMERGENCY_STOP/USER_STOP；
+    Mediator.stop() 只在尚无外部 stop 时才写信号，绝不覆盖先到的外部 reason。
+    """
+
+    USER_STOP = "USER_STOP"
+    EMERGENCY_STOP = "EMERGENCY_STOP"
+    CONFIGURED_CYCLE_COMPLETE = "CONFIGURED_CYCLE_COMPLETE"
+    ARCHAEOLOGY_HANDOFF_COMPLETE = "ARCHAEOLOGY_HANDOFF_COMPLETE"
+    UIPI_PERMISSION_FAILURE = "UIPI_PERMISSION_FAILURE"
+    FATAL_ENVIRONMENT_FAILURE = "FATAL_ENVIRONMENT_FAILURE"
+    PROCESS_CRASH = "PROCESS_CRASH"
+    UNEXPECTED_TERMINATION = "UNEXPECTED_TERMINATION"
+
+
 Outcome = RoundOutcome
+
 class PanelState(Enum):
     """S0 ⑤ 面板会话 FSM：CLOSED→OPEN_REQUESTED→WAIT_VISIBLE→ACTIVE→WAIT_MUTATION→CLOSING→COOLDOWN。"""
 
@@ -600,6 +619,14 @@ class Mediator:
         self.executor = InputExecutor(stop_signal=self.stop_signal)
         self.emergency_listener: EmergencyStopListener | None = None
         self.phase = Phase.BOOT
+        # G0 P0 可观测性：run 终止归因 + 最近业务/恢复动作 + 窗口快照。
+        self.exit_reason: RunExitReason | None = None
+        self.last_business_action: str | None = None
+        self.recent_recovery_actions: list[str] = []
+        self.last_window_role: str | None = None
+        self.last_window_hwnd: int | None = None
+        self.game_platform_window_snapshot: dict[str, bool] = {}
+        self._archaeology_handoff_confirmed: bool = False
         self.game_count = 0
         self._running = False
         self._longzhu_deadline: float | None = None
@@ -815,6 +842,15 @@ class Mediator:
         self._exit_confirm_attempts: int = 0
         self._exit_since: float | None = None
         self._awaiting_room_return: bool = False
+        # G0 P0 contract #7：同房返回后先离开旧房（语义控件 request→fresh 证据）。
+        self._room_leave_pending: bool = False
+        self._room_leave_next_at: float = 0.0
+        self._room_leave_attempts: int = 0
+        # G0 P0 contract #8：cycle 完成 + auto_archaeology 的 handoff 标记。
+        self._archaeology_handoff_pending: bool = False
+        self._archaeology_click_at: float | None = None
+        self._archaeology_click_generation: int | None = None
+        self._archaeology_click_attempts: int = 0
         self._selection_unknown_attempts: int = 0
         self._selection_unknown_since: float | None = None
         self._selection_repeat_key: tuple[str, str, int, int] | None = None
@@ -1401,6 +1437,9 @@ class Mediator:
         self._prev_frame = self._last_frame
         self._last_frame = frame
         self._last_capture_role = role
+        # G0 P0 contract #3：最后窗口 role/HWND 快照。
+        self.last_window_role = role
+        self.last_window_hwnd = frame.hwnd
         if frame.hwnd is None and not frame.window_title:
             context = "NO_WINDOW"
         elif self.phase == Phase.HERO_SETUP:
@@ -1791,6 +1830,8 @@ class Mediator:
                 self._tick_reason = "input_executor_wait"
             if not self.settings.dry_run:
                 self.invalidate_evidence("input")
+            # G0 P0 contract #3：最近业务动作可读（输入 reason 即动作名）。
+            self.last_business_action = reason
         return res.success
 
     def _action_forbidden(self, reason: str) -> bool:
@@ -5481,17 +5522,27 @@ class Mediator:
         return None
 
     def _maybe_click_hitch_pressure_transfer(self, frame: Frame, now: float) -> LoopAction | None:
-        """蹭车模式的 P0 压力转移门禁。
+        """蹭车模式的 P0 压力转移门禁（core action）。
 
         只要本局压力转移尚未由 fresh HUD 证实完成，调用方就必须停在这里：
         不得放行自动任务、四挑战、商店、宝物或任何其他局内输入。点击成功
         只记录 request；只有后续 fresh 帧确认按钮消失，才置
         ``_hitch_pressure_transferred = True``。时间窗口或重试次数绝不构成成功。
+
+        G0 P0 contract #4：固定 bounded budget（5 次点击 request）内仍无法
+        fresh 证实完成 → 记录 incident 并置 ``_hitch_pressure_core_failed``。
+        core failed 本局永不计作 pressure success，也永不释放 optional
+        business actions；但调用方继续观察 victory/failure/exit 生命周期，
+        每 tick 零输入等待 outcome——不 stop、不进入不可观测状态。
         """
         if not self._team_mode_enabled():
             return None
         if getattr(self, "_hitch_pressure_transferred", False):
             return None
+        if getattr(self, "_hitch_pressure_core_failed", False):
+            # core failed：本局剩余时间每 tick 零输入等待 outcome；调用方
+            # 持续可观察（victory/failure/exit 生命周期不受影响）。
+            return LoopAction.Continue
         if not self._is_in_game_hud(frame):
             # 未能确认局内 HUD 时也不能把压力转移门禁降级为普通主线。
             return LoopAction.Continue
@@ -5522,6 +5573,10 @@ class Mediator:
                 # 诊断，绝不能成为放行其他局内动作的理由。
                 retries = getattr(self, "_hitch_pressure_retry_count", 0) + 1
                 self._hitch_pressure_retry_count = retries
+                self._hitch_pressure_request_attempts = getattr(self, "_hitch_pressure_request_attempts", 0) + 1
+                if self._hitch_pressure_request_attempts >= 5:
+                    self._mark_pressure_core_failed(now, "retry budget exhausted")
+                    return LoopAction.Continue
                 print(f"[med] 压力转移点击后按钮仍可见（后置条件未确认），继续重试 ({retries})")
                 self._hitch_pressure_click_at = None
             # 等待确认/重试期间是强制零输入门禁。
@@ -5542,10 +5597,28 @@ class Mediator:
                 self._hitch_pressure_request_generation = evidence.gen if evidence else 0
                 print("[med] 压力转移按钮已点击，等待后置条件确认（按钮消失）")
                 return LoopAction.Continue
+            # 点击被门禁/执行器拒绝：计入 bounded budget 的消耗。
+            self._hitch_pressure_request_attempts = getattr(self, "_hitch_pressure_request_attempts", 0) + 1
+            if self._hitch_pressure_request_attempts >= 5:
+                self._mark_pressure_core_failed(now, "click rejected budget exhausted")
+                return LoopAction.Continue
         # 看不到按钮也不能猜测已经完成；保持零输入观察，直到看到并点击，
         # 再由 fresh 帧证实它消失。
         print("[med] 蹭车压力转移尚未确认，保持门禁并等待按钮")
         return LoopAction.Continue
+
+    def _mark_pressure_core_failed(self, now: float, reason: str) -> None:
+        """G0 P0 contract #4：压力 core action 在 bounded budget 内未证实完成。"""
+        if getattr(self, "_hitch_pressure_core_failed", False):
+            return
+        self._hitch_pressure_core_failed = True
+        click_at = getattr(self, "_hitch_pressure_click_at", None)
+        self._hitch_pressure_click_at = None
+        print(f"[med] 压力转移 core failed（{reason}），本局只等待 outcome，不释放 optional actions")
+        # incident 第二参数是 elapsed 语义：从最后一次 request 起算的真实耗时。
+        self._record_environment_incident(
+            "hitch_pressure_core_failed", max(0.0, now - click_at) if click_at is not None else 0.0
+        )
 
 
     def _find_secret_realm_npc(self, frame: Frame) -> MatchResult | None:
@@ -6073,21 +6146,62 @@ class Mediator:
         gray = cv2.cvtColor(remainder.bgr[14:34, :21], cv2.COLOR_BGR2GRAY)
         return int((gray > 150).sum()) < 18
 
-    def _maybe_switch_to_archaeology(self, frame: Frame) -> LoopAction | None:
-        """Challenge ticket exhausted → click 考古模式 → stop script.
+    def _archaeology_mode_anchor(self, frame: Frame) -> MatchResult | None:
+        """考古模式业务锚点：kaogu/kaoguMode 任一命中即视为考古页证据。"""
+        return self.find(
+            frame,
+            ["kaogu", "kaoguMode"],
+            threshold=0.70,
+            scales=self._hot_scales(),
+        )
 
-        Confirms 3 consecutive frames before acting to avoid a flicker false
-        positive. Returns LoopAction.Break after switching, None otherwise.
+    def _maybe_switch_to_archaeology(self, frame: Frame) -> LoopAction | None:
+        """票尽 / cycle 完成 → 考古模式 request → fresh 证据确认（contract #8）。
+
+        click 仅 request；只有 request 之后 fresh evidence generation 上命中
+        ``kaogu``/``kaoguMode`` 业务锚点，才 COMPLETE +
+        ARCHAEOLOGY_HANDOFF_COMPLETE。click success/frame mutation 绝不当成功。
         """
         if not getattr(self.settings, "auto_archaeology", True):
             return None
-        if self._ticket_exhausted(frame):
+        click_at = getattr(self, "_archaeology_click_at", None)
+        if click_at is not None:
+            req_gen = self._archaeology_click_generation
+            evidence = self._ensure_evidence(frame)
+            cur_gen = evidence.gen if evidence else None
+            if req_gen is not None and cur_gen is not None and cur_gen <= req_gen:
+                return LoopAction.Continue
+            if self._archaeology_mode_anchor(frame) is not None:
+                print("[med] 考古模式业务锚点 fresh 命中，handoff COMPLETE")
+                self._archaeology_handoff_confirmed = True
+                self._archaeology_click_at = None
+                self.set_phase(Phase.COMPLETE, "archaeology mode confirmed")
+                self.stop()
+                return LoopAction.Break
+            if time.time() - click_at >= 30.0:
+                print("[med] 考古模式点击后 30s 未见 kaogu 锚点，Fail-Closed 停止")
+                self.set_phase(Phase.ERROR, "archaeology mode confirmation timeout")
+                self.stop()
+                return LoopAction.Break
+            print("[med] 考古模式点击后等待 fresh kaogu/kaoguMode 锚点（零动作）")
+            return LoopAction.Continue
+        handoff_pending = getattr(self, "_archaeology_handoff_pending", False)
+        if handoff_pending:
+            self._ticket_zero_frames = 0
+            print("[L0] cycle 完成 handoff：点击考古模式（request，待 fresh 锚点确认）")
+        elif self._ticket_exhausted(frame):
             count = getattr(self, "_ticket_zero_frames", 0) + 1
             self._ticket_zero_frames = count
             if count < 3:
                 print(f"[L0] 挑战券剩余为 0（确认 {count}/3），等待稳定…")
                 return LoopAction.Continue
-            print("[L0] 挑战券已清空，点击考古模式并结束脚本")
+            print("[L0] 挑战券已清空，点击考古模式（request，待 fresh 锚点确认）")
+        else:
+            self._ticket_zero_frames = 0
+            return None
+        arch_hit = self.find(frame, ["lobby/stage_archaeology_btn"], threshold=0.70)
+        if arch_hit is None:
+            # 模板不可见时退回既有固定坐标 request（与旧行为同位）。
             arch_hit = MatchResult(
                 name="archaeology_switch",
                 score=1.0,
@@ -6098,17 +6212,19 @@ class Mediator:
                 screen_x=frame.left + int(frame.width * 0.86),
                 screen_y=frame.top + int(frame.height * 0.903),
             )
-            result = self.act_click(arch_hit, "SwitchToArchaeology")
-            self._ticket_zero_frames = 0
-            if not result:
+        result = self.act_click(arch_hit, "SwitchToArchaeology")
+        self._ticket_zero_frames = 0
+        if not result:
+            self._archaeology_click_attempts += 1
+            if self._archaeology_click_attempts >= 3:
                 self.set_phase(Phase.ERROR, "archaeology switch input rejected")
                 self.stop()
                 return LoopAction.Break
-            self.set_phase(Phase.QUIT, "archaeology mode after challenge ticket exhausted")
-            self.stop()
-            return LoopAction.Break
-        self._ticket_zero_frames = 0
-        return None
+            return LoopAction.Continue
+        evidence = self._ensure_evidence(frame)
+        self._archaeology_click_at = time.time()
+        self._archaeology_click_generation = evidence.gen if evidence else None
+        return LoopAction.Continue
 
     def _current_faction_spec(self) -> "FactionSpec":
         plan = getattr(self, "_hero_plan", None)
@@ -6490,6 +6606,13 @@ class Mediator:
             self._hitch_pressure_click_at = None
             self._hitch_pressure_request_generation = None
             self._hitch_pressure_retry_count = 0
+            self._hitch_pressure_request_attempts = 0
+            self._hitch_pressure_core_failed = False
+            self._archaeology_handoff_pending = False
+            self._archaeology_click_at = None
+            self._archaeology_click_generation = None
+            self._archaeology_click_attempts = 0
+            self._room_leave_pending = False
             self._auto_task_unknown_since = None
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
@@ -6616,6 +6739,8 @@ class Mediator:
         )
         self._recovery_step = None
         self.set_phase(Phase.RECOVER_FAILURE, f"recovery start ({kind.name})")
+        # G0 P0 contract #3：最近恢复动作可读（fail-closed bounded list）。
+        self.recent_recovery_actions = (self.recent_recovery_actions + [f"{kind.name}:start:{int(now)}"])[-20:]
         self._record_recovery_incident("recovery_start")
 
     def _recovery_anchor(self, frame: Frame, rs: RecoveryState) -> MatchResult | None:
@@ -8861,6 +8986,50 @@ class Mediator:
         return "UNKNOWN"
 
 
+    def _tick_leave_old_room(self, frame: Frame, room_start, now: float) -> LoopAction | None:
+        """G0 P0 contract #7：同房返回证明完成后离开旧房的最小 owner。
+
+        复用既有语义控件（GO_HOME: lobby_home/lobby_back/room_exit_btn 与
+        房间退出按钮），只发 request；绝不通过尺寸或 click success 宣称已
+        离房。只有 fresh room-list authority（既有 ``_lobby_room_list_evidence``）
+        成立才放行进 PLATFORM_MAP。预算 bounded：超时 → Fail-Closed 保持
+        手动房等待语义（不创建新房、不猜测）。
+
+        Returns None to continue normal L0 flow (episode not started).
+        """
+        if not self._room_leave_pending:
+            return None
+        # fresh room-list authority：真实房间列表证据成立才算已离房。
+        if self._lobby_room_list_evidence(frame) and room_start is None:
+            self._room_leave_pending = False
+            self._room_leave_attempts = 0
+            self.set_phase(Phase.PLATFORM_MAP, "left old room; create next")
+            self._room_action_deadline = None
+            return LoopAction.Continue
+        if self._action_timed_out():
+            print("[med] 离开旧房超时（fresh room-list 未成立），回大厅保持手动房等待，不创建新房")
+            self._room_leave_pending = False
+            # 必须清掉过期 deadline：成功分支同样清理，否则残留会污染后续
+            # _action_timed_out() 消费者（LOBBY_ROOM 阶段的正常有界等待）。
+            self._room_action_deadline = None
+            self.set_phase(Phase.LOBBY_ROOM, "leave old room timeout; manual room wait")
+            return LoopAction.Continue
+        if now >= self._room_leave_next_at:
+            # 只发一次 request，然后等待 fresh 证据；click success 不构成离房。
+            hit = self._hitch_action_hit(frame, HitchAction.GO_HOME)
+            if hit is None and room_start is not None:
+                hit = self.find(frame, ["room_exit_btn"], threshold=0.75)
+            if hit is not None:
+                if self.act_click(hit, "LeaveOldRoom"):
+                    self._room_leave_attempts += 1
+                self._room_leave_next_at = now + 3.0
+            else:
+                self._room_leave_next_at = now + 1.0
+        print("[med] 离开旧房等待 fresh room-list authority（零输入观察）")
+        return LoopAction.Continue
+
+
+
     def _tick_l0(self, frame: Frame) -> LoopAction:
         """Handle map → create dialog → room → stage without guessing clicks."""
         if not getattr(self, "_awaiting_room_return", False) and self.phase in {
@@ -8912,12 +9081,17 @@ class Mediator:
             context = "LOBBY_ROOM"
             stage_page = False
             room_start = None
+
         else:
             # 选关页底部也会误匹配通用 room_start；沿用分类器的优先级，
             # 先确认编号关卡页，再查房间开始按钮。
             stage_page = context == "STAGE_SELECT"
             room_start = None if stage_page else self._find_room_start(frame)
 
+        if self._room_leave_pending:
+            leave = self._tick_leave_old_room(frame, room_start, now=time.time())
+            if leave is not None:
+                return leave
         if self._awaiting_room_return and self._hitch_enabled():
             self._awaiting_room_return = False
             self._hitch_re_search = True
@@ -8934,12 +9108,30 @@ class Mediator:
                     self.set_phase(Phase.ERROR, "failure streak limit reached")
                     self.stop()
                     return LoopAction.Break
-                # S0 ⑥：cycle_num>0 且已完成指定局数 → COMPLETE 停止，绝不点下一局开始
+                # S0 ⑥：cycle_num>0 且已完成指定局数。
                 if self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num:
+                    if getattr(self.settings, "auto_archaeology", True) and not self._hitch_enabled():
+                        # G0 P0 contract #8：cycle 完成 + auto_archaeology →
+                        # 交由既有选关路由进入考古模式（request/confirm），
+                        # 不立即停止，保留正常房间/生命周期证据链。
+                        print("[med] cycle 完成 + auto_archaeology，经既有选关路由进入考古模式")
+                        self._archaeology_handoff_pending = True
+                        self.set_phase(Phase.ROOM_WAITING, "cycle complete; archaeology via stage select")
+                        self._room_action_deadline = time.time() + self.settings.query_timeout
+                        return LoopAction.Continue
                     print(f"[med] 已完成 cycle_num={self.settings.cycle_num} 局，转 COMPLETE 停止（不点下一局开始）")
                     self.set_phase(Phase.COMPLETE, "cycle_num reached")
                     self.stop()
                     return LoopAction.Break
+                if self._auto_room_enabled() and not self._hitch_enabled() and not self._follow_enabled():
+                    # G0 P0 contract #7：同房返回证明完成 → 先用既有语义控件
+                    # （lobby_home/lobby_back/room_exit_btn）离开旧房，fresh
+                    # room-list authority 后才进 PLATFORM_MAP 创建下一房。
+                    self._room_leave_pending = True
+                    self._room_leave_next_at = 0.0
+                    self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
+                    self.set_phase(Phase.PREPARE, "same room verified; leaving old room")
+                    return LoopAction.Continue
                 self.set_phase(Phase.ROOM_WAITING, "same room verified")
                 self._room_action_deadline = time.time() + self.settings.query_timeout
                 return LoopAction.Continue
@@ -9085,6 +9277,18 @@ class Mediator:
         if self.phase == Phase.ROOM_WAITING:
             if stage_page:
                 self.set_phase(Phase.STAGE_SELECT, "stage page after room")
+                return LoopAction.Continue
+            if getattr(self, "_archaeology_handoff_pending", False):
+                # G0 P0 contract #8 / Stage1 P1-1：cycle 完成后考古 handoff 待处理，
+                # 绝不点 RoomStart 开新局（违反 S0⑥）。零输入等选关页自然出现，
+                # 进入上方 stage_page 分支后交给考古 request/confirm 路由收敛。
+                # 有界：选关页始终不出现则 Fail-Closed 停止（绝不改点房间开始/建房）。
+                if self._action_timed_out():
+                    print("[L0] cycle 完成考古 handoff 超时仍未出现选关页，Fail-Closed 停止")
+                    self.set_phase(Phase.ERROR, "archaeology handoff stage page timeout")
+                    self.stop()
+                    return LoopAction.Break
+                print("[L0] cycle 完成考古 handoff：零输入等待选关页，绝不点房间开始")
                 return LoopAction.Continue
             if room_start:
                 print(f"[L0] 房间内点击开始 {room_start.name} score={room_start.score:.3f}")
@@ -9391,9 +9595,56 @@ class Mediator:
 
     # ---------- 主循环（中介调度）----------
 
+    def _snapshot_window_existence(self) -> None:
+        """G0 P0 contract #3/#6：游戏/平台窗口存在性快照（只读 Win32 枚举）。"""
+        try:
+            game_targets = find_window_targets(
+                ",".join(L1_WINDOW_KEYWORDS), role="l1", allow_minimized=True
+            )
+        except Exception:
+            game_targets = []
+        try:
+            platform_targets = find_window_targets(
+                ",".join(L0_WINDOW_KEYWORDS), role="l0", allow_minimized=True
+            )
+        except Exception:
+            platform_targets = []
+        self.game_platform_window_snapshot = {
+            "game": bool(game_targets),
+            "platform": bool(platform_targets),
+        }
+
+    def _record_environment_incident(self, kind: str, elapsed: float) -> None:
+        """G0 P0 contract #6/#4：环境/压力异常 incident 归档（archiver 缺省空转）。"""
+        if self._archiver is None:
+            return
+        frame = self._last_frame
+        if frame is None or frame.bgr is None or frame.bgr.size == 0:
+            return
+        saved = self._archiver.maybe_record(
+            frame_before=self._prev_frame,
+            frame_now=frame,
+            metadata=self._incident_meta(
+                kind,
+                f"{kind} persisted {elapsed:.1f}s",
+                final_action="wait" if kind == "hitch_pressure_core_failed" else "stop",
+                extra={"window_snapshot": dict(self.game_platform_window_snapshot)},
+            ),
+            healthy=False,
+            health_issues=[],
+            health_details=kind,
+        )
+        if saved is not None:
+            self._incident_pending_fp = saved
+            if self._tick_reason is None:
+                self._tick_reason = "incident_write"
+
     def stop(self) -> None:
         self._running = False
-        self.stop_signal.trigger("Mediator.stop()")
+        # G0 P0 contract：先到的外部 stop reason（F12/Shift+F12/UI 等）拥有
+        # 归因权，Mediator.stop() 绝不覆盖；只在尚无外部 stop 时写信号。
+        if not self.stop_signal.is_set():
+            self.stop_signal.trigger("Mediator.stop()")
 
     def tick(self) -> LoopAction:
         """单步：一帧截屏 → 按阶段决策 → 执行。"""
@@ -9594,6 +9845,41 @@ class Mediator:
                 if self._hitch_enabled():
                     # 蹭车是长期观察模式；黑屏/转场/窗口短暂消失只撤销
                     # 输入权，不得把整个 run 终止。Shift+F12/用户停止仍在上方抢占。
+                    # G0 P0 contract #6：unhealthy 期间做有界窗口存在性观察——
+                    # 游戏/平台窗口均长时间不存在 → 记录 evidence 并
+                    # FATAL_ENVIRONMENT_FAILURE；不产生任何业务输入。
+                    self._snapshot_window_existence()
+                    bound = max(30.0, min(float(self.settings.query_timeout), 60.0))
+                    if elapsed >= bound:
+                        if (
+                            not self.game_platform_window_snapshot.get("game")
+                            and self.game_platform_window_snapshot.get("platform")
+                        ):
+                            # G0 contract #6：游戏窗消失 + fresh 平台房间列表权威
+                            # 实际成立 → 回大厅；绝不 timeout blind set_phase。
+                            platform_frame = self._capture_best(",".join(L0_WINDOW_KEYWORDS), "l0")
+                            if (
+                                platform_frame is not None
+                                and platform_frame.is_valid
+                                and self._lobby_room_list_evidence(platform_frame)
+                            ):
+                                print("[med] 蹭车 unhealthy：游戏窗消失但平台房间列表 fresh 权威成立，回 LOBBY_ROOM")
+                                self._hitch_after_exit(now)
+                                self.set_phase(Phase.LOBBY_ROOM, "unhealthy handoff: fresh platform room list")
+                                self._missing_window_since = None
+                                return LoopAction.Continue
+                        if (
+                            not self.game_platform_window_snapshot.get("game")
+                            and not self.game_platform_window_snapshot.get("platform")
+                        ):
+                            print("[med] 蹭车 unhealthy 期间游戏/平台窗口均不存在超过边界，FATAL_ENVIRONMENT_FAILURE")
+                            self._record_environment_incident("hitch_windows_missing", elapsed)
+                            self.set_phase(Phase.ERROR, "hitch no game/platform window")
+                            self.stop()
+                            return LoopAction.Break
+                        # 至少一个窗口仍在（但无 fresh 权威）：只撤销输入权，
+                        # 继续有界观察，绝不盲目改阶段。
+                        return LoopAction.Continue
                     return LoopAction.Continue
                 in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
                 if self.phase == Phase.ROOM_STARTING:
@@ -10515,12 +10801,22 @@ class Mediator:
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
         secret_entry_observation = self._secret_realm_entering_since is not None
-
         if not secret_entry_observation and self._hitch_enabled():
             event = classify_hitch_ocr(self._hitch_ocr_text())
             if event:
                 return self._hitch_reset_lobby(event, now)
 
+        # G0 P0 contract：post-game outcome authority（POST_VICTORY / ARCHIVE /
+        # NPC / PAUSED 等）必须在压力门禁之前观察。压力尚未完成不得遮蔽
+        # victory/failure；强失败/断线全局抢占仍在 _tick_impl 更早处。
+        post_game = self._post_game_state(frame)
+
+        if (
+            not secret_entry_observation
+            and self._hitch_enabled()
+            and post_game is None
+            and not getattr(self, "_hitch_pressure_core_failed", False)
+        ):
             # 蹭车开局的唯一 P0：压力转移未被 fresh HUD 证实完成前，任何
             # 其他局内路径（失败奖励、Boss、选卡、黑商、自动任务、四挑战等）
             # 都没有输入权。这个门禁必须在所有局内分发之前。
@@ -10559,13 +10855,21 @@ class Mediator:
             print(f"[med] 拦截到失败结算奖励弹窗 @ {fail_gift.center}，点击关闭")
             self.act_click(fail_gift, "DismissFailureReward")
             return LoopAction.Continue
-        # ---- S0 ⑤ 英雄焦点与操作面板检查（F1 自动切回） ----
+        # G0 contract #4：压力 core failed → 本局零输入等待 outcome。置于
+        # round hard deadline 与失败奖励拦截之后：deadline/post_game 生命周期
+        # 仍每 tick 可观察；不 stop、不进入不可观测状态。
+        if (
+            not secret_entry_observation
+            and self._hitch_enabled()
+            and post_game is None
+            and getattr(self, "_hitch_pressure_core_failed", False)
+        ):
+            return LoopAction.Continue
         # 若没有弹窗（_panel_state == CLOSED），但右下角未检测到英雄操作/技能/神符面板，
         # 说明视角或焦点未锁定在英雄上，主动发送 F1 键切回英雄操作面板。
 
         # 战后页面优先于一切局内动作。胜利后只允许以下专用链：
         # 继续游戏 → 关闭存档面板（如出现）→ NPC 广场 → 局内退出。
-        post_game = self._post_game_state(frame)
         # Once the great-rift “是” click is accepted, every subsequent frame
         # is observation-only until the dedicated two-frame HUD postcondition
         # below is proven.  This guard must precede all post-game handlers so
@@ -11480,23 +11784,34 @@ class Mediator:
                 )
                 self.set_phase(Phase.ERROR, "real input requires elevation (UIPI)")
                 self._running = False
+                self.exit_reason = RunExitReason.UIPI_PERMISSION_FAILURE
                 return
             print("[med] elevation OK — real SendInput path enabled")
         self.emergency_listener = EmergencyStopListener(self.stop_signal)
         self.emergency_listener.start()
+        self.exit_reason = None
         try:
             while self._running and not self.stop_signal.is_set():
                 # N2.3：固定 cadence —— sleep = max(0, cadence - elapsed)，time.monotonic。
                 # loop_sleep_ms 仅作兼容上限（默认 400ms 会盖住 loading 档的 500ms）。
                 tick_started = time.monotonic()
-                action = self.tick()
+                try:
+                    action = self.tick()
+                except Exception:
+                    # G0 contract #1/#2：运行循环内未捕获异常 → PROCESS_CRASH，
+                    # 归因后原样上抛（不吞异常、不改变传播语义）。
+                    self.exit_reason = RunExitReason.PROCESS_CRASH
+                    raise
                 steps += 1
                 if action == LoopAction.Break:
                     break
                 if max_steps is not None and steps >= max_steps:
+                    # max_steps 只属于测试/回放探针，不是业务终止归因。
                     print(f"[med] max_steps={max_steps}")
+                    self.exit_reason = RunExitReason.UNEXPECTED_TERMINATION
                     break
                 elapsed = time.monotonic() - tick_started
+
                 cadence = self._cadence_for_current_state()
                 cap = max(0.0, self.settings.loop_sleep_ms / 1000.0)
                 # N2-REVIEW #5：loop_sleep_ms 仅作稳定档兼容上限，loading/转场档
@@ -11509,7 +11824,42 @@ class Mediator:
                 self.emergency_listener = None
             if self._ocr_client is not None:
                 self._ocr_client.close()
-        print(f"[med] end steps={steps} games={self.game_count}")
+            if self.exit_reason is None:
+                self.exit_reason = self._classify_run_exit()
+            print(f"[med] end steps={steps} games={self.game_count} exit={self.exit_reason.value if self.exit_reason else 'N/A'}")
+
+    def _classify_run_exit(self) -> RunExitReason:
+        """run() 退出时的唯一停止归因（G0 P0 contract #2）。
+
+        先到的外部 StopSignal 拥有归因权（绝不覆盖）：F12/Shift+F12 →
+        EMERGENCY_STOP，其余外部 reason（RunnerService/Headless/UI 等）→
+        USER_STOP。Mediator.stop() 只在尚无外部 stop 时才写信号，随后读
+        mediator 锚点：考古 handoff 已确认 → ARCHAEOLOGY_HANDOFF_COMPLETE；
+        Phase.COMPLETE（cycle_num 达成）→ CONFIGURED_CYCLE_COMPLETE；
+        其余 fail-closed/未分类 break → FATAL_ENVIRONMENT_FAILURE /
+        UNEXPECTED_TERMINATION。
+        """
+        if self.stop_signal.is_set():
+            reason = str(self.stop_signal.reason or "")
+            if reason and reason != "Mediator.stop()":
+                # 先到的外部 stop 拥有归因权；Mediator.stop() 只走锚点分支。
+                if "emergency" in reason.lower():
+                    return RunExitReason.EMERGENCY_STOP
+                return RunExitReason.USER_STOP
+        if getattr(self, "_archaeology_handoff_confirmed", False):
+            return RunExitReason.ARCHAEOLOGY_HANDOFF_COMPLETE
+        if self.phase == Phase.COMPLETE:
+            return RunExitReason.CONFIGURED_CYCLE_COMPLETE
+        if self.phase == Phase.ERROR:
+            return RunExitReason.FATAL_ENVIRONMENT_FAILURE
+        return RunExitReason.UNEXPECTED_TERMINATION
+
+    @property
+    def round_elapsed(self) -> float | None:
+        """G0 contract #3：本局已进行秒数（round 起点 = hard deadline 锚点）。"""
+        if self._round_started_at is None:
+            return None
+        return max(0.0, time.time() - self._round_started_at)
 
     def _cadence_for_current_state(self) -> float:
         """状态分级 cadence（秒）：动作后 100ms / 稳定 HUD 300ms / loading 500ms / 候选 300ms。
