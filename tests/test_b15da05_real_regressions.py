@@ -422,8 +422,10 @@ def test_pending_join_popup_dismisses_without_clicking_quick_join() -> None:
         med._tick_lobby_hitch(frame, "LOBBY_ROOM")
     assert not clicks, f"被踢弹窗上严禁任何点击: {clicks}"
     assert keys == ["esc"]
-    assert med._hitch_sm.pending_join is False
-    assert med._hitch_rejected_row_ys == {385}
+    # Esc 派发成功不是关闭后置；本行仍待 fresh 帧证明弹窗消失。
+    assert med._hitch_sm.pending_join is True
+    assert med._hitch_rejected_row_ys == set()
+    assert med._hitch_popup_esc_pending_kind == "join_dialog"
     med2 = _hitch_mediator()
     med2.set_phase(Phase.LOBBY_ROOM)
     med2._hitch_ocr_override = "你已被移出了房间"
@@ -451,9 +453,9 @@ def test_pending_join_popup_new_window_dismisses_before_room_waiting() -> None:
         med._tick_lobby_hitch(frame, "UNKNOWN")
     key.assert_called_once_with("esc", "HitchDismissJoinPopup")
     click.assert_not_called()
-    assert med.phase is Phase.LOBBY_ROOM
-    assert med._hitch_sm.pending_join is False
-    assert med._hitch_rejected_row_ys == {385}
+    assert med._hitch_sm.pending_join is True
+    assert med._hitch_rejected_row_ys == set()
+    assert med._hitch_popup_esc_pending_kind == "join_child"
 
 
 def test_pending_join_never_escs_a_large_unanchored_room_window() -> None:
@@ -493,8 +495,9 @@ def test_owner_left_compact_popup_dismisses_after_join_was_confirmed() -> None:
 
     key.assert_called_once_with("esc", "HitchDismissCompactLobbyPopup")
     click.assert_not_called()
-    assert med.phase is Phase.LOBBY_ROOM
+    assert med.phase is Phase.ROOM_WAITING
     assert med._hitch_re_search is False
+    assert med._hitch_popup_esc_pending_kind == "compact"
 
 
 def test_owner_kick_popup_on_main_lobby_window_dismisses_without_ocr() -> None:

@@ -320,17 +320,20 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(med._archive_challenge_observe_attempts, 0)
         click.assert_not_called()
 
-    def test_hitch_victory_retry_exhaustion_rearms_without_stopping(self):
+    def test_hitch_victory_retry_exhaustion_skips_without_stopping_or_rearm(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "hitch victory")
         med._victory_continue_attempts = 3
         med._hitch_pressure_transferred = True  # P0 门禁已通过（8159de8）
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
         with patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
-                patch.object(med, "stop") as stop:
+                patch.object(med, "stop") as stop, \
+                patch.object(med, "act_click") as click:
             self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
-        self.assertEqual(med._victory_continue_attempts, 0)
+        self.assertEqual(med._victory_continue_attempts, 3)
         self.assertNotEqual(med.phase, Phase.ERROR)
+        self.assertIsNone(med._run_exit_reason)
+        click.assert_not_called()
         stop.assert_not_called()
 
     def test_hitch_direct_archive_panel_adopts_postgame_chain(self):

@@ -261,22 +261,24 @@ def test_hitch_lobby_reset_does_not_count_as_completed_round() -> None:
     assert med.game_count == 0
 
 
-def test_hitch_quit_and_confirm_timeouts_rearm_without_stopping() -> None:
+def test_hitch_quit_and_confirm_timeouts_skip_without_stopping_or_rearm() -> None:
+    """Stricter than rearm-forever: hitch stays alive, counters are not reset."""
     med = _hitch_mediator()
     med.set_phase(Phase.QUIT, "timeout exit")
     med._exit_button_attempts = 3
     with patch.object(med, "_find_exit_confirm", return_value=None), \
             patch.object(med, "stop") as stop:
         assert med._tick_l1_tail(_lobby_frame()) == LoopAction.Continue
-    assert med._exit_button_attempts == 0
+    assert med._exit_button_attempts == 3
     assert med.phase == Phase.QUIT
+    assert med._run_exit_reason is None
     stop.assert_not_called()
 
     med.set_phase(Phase.NEXT, "timeout confirm")
     med._exit_confirm_attempts = 3
     with patch.object(med, "stop") as stop2:
         assert med._tick_l1_tail(_lobby_frame()) == LoopAction.Continue
-    assert med._exit_confirm_attempts == 0
+    assert med._exit_confirm_attempts == 3
     assert med.phase == Phase.NEXT
     stop2.assert_not_called()
 

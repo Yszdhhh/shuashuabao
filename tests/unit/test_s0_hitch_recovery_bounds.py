@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """S0 回归：_recovery_failed 的模式隔离。
 
-蹭车（lobby_hitch）：恢复重试耗尽不是终局 —— 执行 _hitch_after_exit 清理、
-转 LOBBY_ROOM 大厅观察，运行绝不终止。
+蹭车（lobby_hitch）：恢复重试耗尽不是终局。没有 fresh GAME-absent
++ PLATFORM 证据时不得清理、不得盲切 LOBBY_ROOM；有证据后才交大厅。
+普通模式仍 Fail-Closed。
 普通模式：保持 Fail-Closed —— ERROR + stop()。
 """
 from __future__ import annotations
@@ -36,27 +37,37 @@ def _begin_recovery(med: Mediator):
     return rs
 
 
-def test_hitch_recovery_failed_enters_lobby_observation() -> None:
-    """蹭车恢复耗尽：_hitch_after_exit 清理 + LOBBY_ROOM，不 ERROR 不 stop。"""
+def test_hitch_recovery_failed_does_not_cleanup_before_evidence() -> None:
+    """蹭车恢复耗尽不得先清理再找证据，也不得盲切 LOBBY_ROOM 或停机。"""
     med = _mediator("lobby_hitch")
     rs = _begin_recovery(med)
     with patch.object(med, "_hitch_after_exit") as after_exit, \
-            patch.object(med, "stop") as stop:
+            patch.object(med, "stop") as stop, \
+            patch.object(med, "_hitch_lobby_handoff_authorized", return_value=False):
         action = med._recovery_failed(rs, "input rejected, attempts exhausted")
     assert action == LoopAction.Continue
-    after_exit.assert_called_once()
-    assert med.phase == Phase.LOBBY_ROOM
+    after_exit.assert_not_called()
+    assert med.phase == Phase.RECOVER_FAILURE
     stop.assert_not_called()
+    assert med._run_exit_reason is None
     assert med._recovery_state is rs
+    assert med._hitch_recovery_exhausted is True
 
 
-def test_hitch_recovery_failed_resets_for_re_search() -> None:
-    """蹭车恢复耗尽后必须重新找房：_hitch_re_search 置位、大厅状态复位。"""
+def test_hitch_recovery_failed_handoff_only_with_fresh_lobby_evidence() -> None:
+    """只有 fresh GAME-absent + PLATFORM 才清理并交大厅；那之前不得重新找房。"""
     med = _mediator("lobby_hitch")
     rs = _begin_recovery(med)
-    assert med._recovery_failed(rs, "recovery timeout") == LoopAction.Continue
+    with patch.object(med, "_hitch_lobby_handoff_authorized", return_value=False):
+        assert med._recovery_failed(rs, "recovery timeout") == LoopAction.Continue
+    assert med._hitch_re_search is False
+    assert med.phase == Phase.RECOVER_FAILURE
+
+    with patch.object(med, "_hitch_lobby_handoff_authorized", return_value=True):
+        assert med._recovery_failed(rs, "recovery timeout") == LoopAction.Continue
     assert med._hitch_re_search is True
-    assert med._awaiting_room_return is False
+    assert med.phase == Phase.LOBBY_ROOM
+    assert med._run_exit_reason is None
 
 
 def test_normal_recovery_failed_still_fails_closed() -> None:
