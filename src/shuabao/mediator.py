@@ -6803,7 +6803,13 @@ class Mediator:
         return LoopAction.Continue
 
     def _recovery_failed(self, rs: RecoveryState, reason: str) -> LoopAction:
-        """恢复重试耗尽/总预算到期：直接 ERROR、停止、写 incident；不能盲目 QUIT。"""
+        """恢复重试耗尽/总预算到期：普通模式直接 ERROR、停止、写 incident；hitch 模式清理后回大厅观察。"""
+        if self._hitch_enabled():
+            now = time.time()
+            print(f"[med] 蹭车恢复重试耗尽（{reason}）：执行后置退出清理，进入大厅观察，不终止运行")
+            self._hitch_after_exit(now)
+            self.set_phase(Phase.LOBBY_ROOM, f"hitch recovery failed ({reason}); awaiting lobby observation")
+            return LoopAction.Continue
         print(f"[med] 恢复失败（{reason}）：Fail-Closed 停止运行")
         self._record_recovery_incident("recovery_failed", reason=reason)
         self.set_phase(Phase.ERROR, f"recovery failed: {reason}")
