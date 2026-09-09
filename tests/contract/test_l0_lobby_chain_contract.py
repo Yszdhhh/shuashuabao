@@ -154,6 +154,19 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_post_game_archive_pending_only": True,
         "_secret_realm_hud_confirmations": 2,
         "_secret_realm_last_hud_frame_id": 12345,
+        "_public_bag_fsm": __import__(
+            "shuabao.policy.public_bag", fromlist=["PublicBagFSM", "PublicBagPhase"]
+        ).PublicBagFSM(
+            phase=__import__(
+                "shuabao.policy.public_bag", fromlist=["PublicBagPhase"]
+            ).PublicBagPhase.SOURCE_SELECTED,
+            source_id="swallow_pill",
+            source_slot=1,
+            deadline=1.0e9,
+            opened_by_us=True,
+        ),
+        "_public_bag_next_at": 1.0e9,
+        "_tick_post_confirm": False,
     }
 
     def _pollute(self, med: Mediator) -> None:

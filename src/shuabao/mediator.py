@@ -124,6 +124,17 @@ from shuabao.card_fact import CardFact, card_fact_from_slot
 from shuabao.policy.mechanics_view import MechanicsPolicyView
 from shuabao.policy.equipment_fsm import EquipmentFSM
 from shuabao.policy.merchant_fsm import MerchantFSM, MerchantPhase
+from shuabao.policy.public_bag import (
+    ANCHOR_ROIS,
+    EMPTY_SLOT_MAX_SATURATED,
+    EMPTY_SLOT_MAX_STD,
+    ITEM_BAR_SLOTS,
+    SLOT_SATURATION_MIN,
+    SLOT_VALUE_MIN,
+    BagLayout,
+    PublicBagFSM,
+    PublicBagPhase,
+)
 
 # 构建标识：写入 JSONL tick trace（B1-1），用于区分版本/里程碑来源。
 # 每次发布里程碑时更新；配合 git 提交哈希可精确定位产生该日志的代码。
@@ -895,6 +906,11 @@ class Mediator:
         self._equipment_pending_until = 0.0
         self._equipment_fsm = EquipmentFSM()
         self._merchant_fsm = MerchantFSM()
+        # 公共背包流转（lobby_hitch Rank-1）：FSM 只授权步骤，坐标全部由
+        # BagLayout 从锚点推导，个人格永远只右键。
+        self._public_bag_fsm = PublicBagFSM()
+        self._public_bag_next_at = 0.0
+        self._public_bag_deposit_before: tuple[float, int] | None = None
         self._pickup_next_at = 0.0
         self._equipment_round_next_at = 0.0
         self._equipment_round_current_slot = 2
@@ -3908,6 +3924,9 @@ class Mediator:
             return None
         if self._panel_state != PanelState.CLOSED:
             return None
+        if self._public_bag_fsm.active:
+            # 公共背包流转正持有队伍资产：此刻任何左键都会当场吃掉吞噬丹。
+            return None
         now = time.time()
         inventory_roi = (0.64, 0.77, 0.74, 0.98)
         if self.settings.auto_devour_dan and self._can_consume_inventory_swallow_pill(frame):
@@ -3918,6 +3937,9 @@ class Mediator:
                 roi=inventory_roi,
                 scales=(0.8, 0.9, 1.0, 1.1, 1.2),
             )
+            if pill is None:
+                # 丹在背包里而不在 HUD 栏时，只有背包页开着才看得到它。
+                pill = self._bag_page_swallow_pill(frame)
             if pill:
                 if now >= self._devour_dan_next_at and self._devour_dan_consecutive_clicks < 5:
                     baseline_occ = getattr(self, "_bond_bar_occupancy", lambda f: None)(frame)
@@ -4131,6 +4153,343 @@ class Mediator:
         """Do not spend a pill until the live bond bar contains more than three cards."""
         occupancy = self._bond_bar_occupancy(frame)
         return occupancy is not None and occupancy > 3
+
+    def _bag_page_swallow_pill(self, frame: Frame) -> MatchResult | None:
+        """Devour pill inside an open bag page's 物品栏, aimed at the slot center.
+
+        Only reachable when the bag page is confirmed by both anchors, so this
+        never turns a battlefield false positive into a click.  Left-clicking a
+        源物品格 consumes it, which is what ``auto_devour_dan`` wants in solo —
+        but under ``lobby_hitch`` the pill is a team asset bound for the public
+        bag, so this path stays closed there.
+        """
+        if self._hitch_enabled():
+            return None
+        layout = self._bag_layout(frame)
+        if layout is None:
+            return None
+        source = self._public_bag_source(frame, layout)
+        if source is None:
+            return None
+        return source[2]
+
+    # ---------- 公共背包流转 (docs/gt_lab/PUBLIC_BAG_GT_SPEC_20260909.md) ----------
+
+    _PUBLIC_BAG_ANCHORS = ("bag/public_bag_title", "bag/bag_sell_equipment")
+    _PUBLIC_BAG_ANCHOR_THRESHOLD = 0.80
+    _PUBLIC_BAG_PILL_TEMPLATES = ("danGif", "swallow_pill")
+
+    def _bag_layout(self, frame: Frame) -> BagLayout | None:
+        """Fresh-confirm the bag page (spec step 4) and the public bag (step 5).
+
+        Both anchors must be present *and* agree on one panel origin.  A single
+        template hit on a busy battlefield is not a bag page, and the whole
+        deposit chain hangs off this returning ``None`` when unsure.
+        """
+        if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
+            return None
+        title_name, sell_name = self._PUBLIC_BAG_ANCHORS
+        title = self.find(
+            frame,
+            [title_name],
+            threshold=self._PUBLIC_BAG_ANCHOR_THRESHOLD,
+            scales=self._hot_scales(),
+            roi=ANCHOR_ROIS[title_name],
+            mode="bag:public_title",
+        )
+        if title is None:
+            return None
+        sell = self.find(
+            frame,
+            [sell_name],
+            threshold=self._PUBLIC_BAG_ANCHOR_THRESHOLD,
+            scales=self._hot_scales(),
+            roi=ANCHOR_ROIS[sell_name],
+            mode="bag:sell_equipment",
+        )
+        if sell is None:
+            return None
+        scale = LayoutTransform.from_frame(frame.width, frame.height).uniform_scale
+        layout = BagLayout.from_anchor(title_name, title.x, title.y, scale)
+        if layout is None or not layout.anchor_matches(sell_name, sell.x, sell.y):
+            return None
+        return layout
+
+    @staticmethod
+    def _bag_slot_signature(frame: Frame, rect: tuple[int, int, int, int] | None) -> tuple[float, int] | None:
+        """(grayscale std, saturated pixel count) for one slot rect."""
+        if rect is None or frame.bgr is None:
+            return None
+        x0, y0, x1, y1 = rect
+        x0, y0 = max(0, x0), max(0, y0)
+        x1, y1 = min(frame.width, x1), min(frame.height, y1)
+        if x1 - x0 < 4 or y1 - y0 < 4:
+            return None
+        roi = frame.bgr[y0:y1, x0:x1]
+        if roi.size == 0:
+            return None
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        saturated = int(
+            ((hsv[:, :, 1] > SLOT_SATURATION_MIN) & (hsv[:, :, 2] > SLOT_VALUE_MIN)).sum()
+        )
+        std = float(cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY).std())
+        return (std, saturated)
+
+    def _bag_slot_empty(self, frame: Frame, rect: tuple[int, int, int, int] | None) -> bool:
+        """True only for a *verifiably* empty slot.
+
+        A cursor-occluded slot measures std 24-76 on the GT keyframes and fails
+        this check, so the deposit skips it instead of clicking through the
+        cursor into an unknown cell.
+        """
+        signature = self._bag_slot_signature(frame, rect)
+        if signature is None:
+            return False
+        std, saturated = signature
+        scale = min(frame.width / 1600.0, frame.height / 900.0)
+        limit = max(20.0, EMPTY_SLOT_MAX_SATURATED * scale * scale)
+        return std < EMPTY_SLOT_MAX_STD and saturated < limit
+
+    def _public_bag_empty_slot(
+        self, frame: Frame, layout: BagLayout
+    ) -> tuple[int, int, MatchResult] | None:
+        """Spec step 6: first verified PUBLIC_BAG_EMPTY_SLOT in fill order."""
+        for row, col in layout.public_slots():
+            rect = layout.public_slot_rect(row, col)
+            if not self._bag_slot_empty(frame, rect):
+                continue
+            center = layout.public_slot_center(row, col)
+            if center is None:
+                continue
+            x, y = center
+            return (
+                row,
+                col,
+                MatchResult(
+                    f"public_bag_slot_{row}_{col}",
+                    1.0,
+                    x,
+                    y,
+                    0,
+                    0,
+                    frame.left + x,
+                    frame.top + y,
+                ),
+            )
+        return None
+
+    def _public_bag_source(
+        self, frame: Frame, layout: BagLayout
+    ) -> tuple[str, int, MatchResult] | None:
+        """Spec step 1: fresh-confirm a deposit source in the panel's 物品栏.
+
+        Only the devour pill is claimed here.  The green-talisman criterion needs
+        an item name, and the 40x41 icon carries none: reading it means hovering
+        for the tooltip, which is an input we will not spend without real
+        multiplayer GT.  Until then an unidentified item is left alone.
+        """
+        rect = layout.item_bar_slot_rect(0)
+        last = layout.item_bar_slot_rect(ITEM_BAR_SLOTS - 1)
+        if rect is None or last is None:
+            return None
+        roi = (
+            max(0.0, rect[0] / frame.width - 0.01),
+            max(0.0, rect[1] / frame.height - 0.01),
+            min(1.0, last[2] / frame.width + 0.01),
+            min(1.0, last[3] / frame.height + 0.01),
+        )
+        hit = self.find(
+            frame,
+            list(self._PUBLIC_BAG_PILL_TEMPLATES),
+            threshold=0.70,
+            scales=(0.7, 0.8, 0.9, 1.0, 1.1, 1.2),
+            roi=roi,
+            mode="bag:item_bar_source",
+        )
+        if hit is None:
+            return None
+        index = layout.item_bar_slot_index(hit.x + hit.w // 2, hit.y + hit.h // 2)
+        if index is None:
+            return None
+        center = layout.item_bar_slot_center(index)
+        if center is None:
+            return None
+        x, y = center
+        return (
+            "swallow_pill",
+            index,
+            MatchResult(
+                f"item_bar_slot_{index}",
+                hit.score,
+                x,
+                y,
+                0,
+                0,
+                frame.left + x,
+                frame.top + y,
+            ),
+        )
+
+    def _public_bag_left_click_allowed(self, layout: BagLayout, hit: MatchResult) -> bool:
+        """铁律：左键只允许落在公共背包格，绝不落在个人背包/物品栏。"""
+        if layout.inside_personal_surface(hit.x, hit.y):
+            return False
+        return layout.inside_public_grid(hit.x, hit.y)
+
+    def _public_bag_deposit_confirmed(
+        self, frame: Frame, layout: BagLayout | None
+    ) -> bool | None:
+        """Spec step 8.  ``None`` = undecided, keep waiting inside the deadline."""
+        fsm = self._public_bag_fsm
+        target = fsm.target_slot
+        if layout is None or target is None:
+            return None
+        row, col = target
+        if self._bag_slot_empty(frame, layout.public_slot_rect(row, col)):
+            return None
+        source_rect = layout.item_bar_slot_rect(fsm.source_slot)
+        if source_rect is None:
+            return None
+        baseline = self._public_bag_deposit_before
+        current = self._bag_slot_signature(frame, source_rect)
+        if baseline is None or current is None:
+            return None
+        # The public slot filled up; the source slot must also have changed, or
+        # what we are looking at is a repaint rather than a transfer.
+        moved = abs(current[1] - int(baseline[1])) >= 20 or abs(current[0] - float(baseline[0])) >= 5.0
+        return True if moved else None
+
+    def _maybe_public_backpack_deposit(self, frame: Frame, now: float) -> LoopAction | None:
+        """PUBLIC_BACKPACK_DEPOSIT operation (GT spec §2.3).
+
+        One deposit at a time, one input per tick, and every step gated on a
+        fresh frame.  Returns ``None`` when the operation has nothing to do, so
+        the caller keeps its own cycle moving.
+        """
+        if not self._hitch_enabled():
+            return None
+        if self._pending_action is not None and time.time() < self._pending_action.deadline:
+            return None
+        layout = self._bag_layout(frame)
+        bag_visible = layout is not None
+
+        previous = self._public_bag_fsm
+        deposit_confirmed = (
+            self._public_bag_deposit_confirmed(frame, layout)
+            if previous.phase is PublicBagPhase.DEPOSIT_REQUESTED
+            else None
+        )
+        fsm = previous.observe(now, bag_visible=bag_visible, deposit_confirmed=deposit_confirmed)
+        if previous.phase is PublicBagPhase.DEPOSIT_REQUESTED and fsm.phase is not previous.phase:
+            # 存入的业务后置确认落定在这一 tick，写进 trace 的 post_confirm。
+            self._tick_post_confirm = fsm.deposits > previous.deposits
+        if fsm.phase is PublicBagPhase.ABORTED and previous.phase is not PublicBagPhase.ABORTED:
+            print(f"[L1] 公共背包流转中止：{fsm.abort_reason}")
+        self._public_bag_fsm = fsm
+
+        if fsm.phase is PublicBagPhase.IDLE:
+            if not fsm.can_start(now) or now < self._public_bag_next_at:
+                return None
+            if bag_visible:
+                self._public_bag_fsm = fsm.confirm_bag_visible(now)
+                return LoopAction.Continue
+            if not self._is_in_game_hud(frame):
+                return None
+            if self.act_key("b", "PublicBackpackDepositB"):
+                self._public_bag_fsm = fsm.request_bag_open(now)
+                self._public_bag_next_at = now + 1.0
+                print("[L1] 公共背包：按 B 打开背包页")
+                return LoopAction.Continue
+            return None
+
+        if fsm.phase is PublicBagPhase.BAG_OPEN_REQUESTED:
+            return LoopAction.Continue  # 零输入等待背包页
+
+        if fsm.phase is PublicBagPhase.BAG_VISIBLE:
+            if layout is None:  # observe() already aborted; never click blind
+                return LoopAction.Continue
+            source = self._public_bag_source(frame, layout)
+            if source is None:
+                self._public_bag_fsm = fsm.abort("no_deposit_source", now, cooldown_s=30.0)
+                return LoopAction.Continue
+            source_id, index, hit = source
+            # 铁律：源物品格只右键，左键会当场使用/装备掉队伍资产。
+            if self.act_right_click(hit, "PublicBackpackDepositRightClick"):
+                self._public_bag_deposit_before = None
+                signature = self._bag_slot_signature(frame, layout.item_bar_slot_rect(index))
+                if signature is not None:
+                    self._public_bag_deposit_before = signature
+                self._public_bag_fsm = fsm.select_source(source_id, index, now)
+                print(f"[L1] 公共背包：右键取出 {source_id} @ 物品栏槽 {index}")
+            return LoopAction.Continue
+
+        if fsm.phase is PublicBagPhase.SOURCE_SELECTED:
+            if layout is None:
+                return LoopAction.Continue
+            slot = self._public_bag_empty_slot(frame, layout)
+            if slot is None:
+                self._public_bag_fsm = fsm.abort("public_bag_full_or_unverified", now)
+                return LoopAction.Continue
+            row, col, hit = slot
+            if not self._public_bag_left_click_allowed(layout, hit):
+                self._public_bag_fsm = fsm.abort("deposit_target_outside_public_bag", now)
+                return LoopAction.Continue
+            if self.act_click(hit, "PublicBackpackDeposit"):
+                self._public_bag_fsm = fsm.request_deposit(row, col, now)
+                print(f"[L1] 公共背包：左键存入空格 ({row},{col})")
+            return LoopAction.Continue
+
+        if fsm.phase is PublicBagPhase.DEPOSIT_REQUESTED:
+            return LoopAction.Continue  # 零输入等待后置确认
+
+        if fsm.phase in (PublicBagPhase.DONE, PublicBagPhase.ABORTED):
+            if fsm.opened_by_us and bag_visible:
+                self._public_bag_fsm = fsm.request_close(now)
+            return LoopAction.Continue
+
+        if fsm.phase is PublicBagPhase.CLOSE_REQUESTED:
+            if not bag_visible:
+                return LoopAction.Continue  # observe() 下一 tick 收口
+            if now >= self._public_bag_next_at and self.act_key("b", "PublicBackpackDepositB"):
+                self._public_bag_next_at = now + 1.0
+            return LoopAction.Continue
+
+        return LoopAction.Continue
+
+    def _public_backpack_deposit_postcondition(
+        self, before_frame: Frame | None, frame: Frame
+    ) -> dict:
+        """Business postcondition for the live harness (never "click succeeded")."""
+        result: dict[str, object] = {
+            "observed": False,
+            "state": "public_bag_surface_not_confirmed",
+            "kind": "public_backpack_deposit",
+        }
+        layout = self._bag_layout(frame) if frame is not None else None
+        if layout is None:
+            return result
+        fsm = self._public_bag_fsm
+        target = fsm.target_slot
+        result["deposits"] = fsm.deposits
+        result["phase"] = fsm.phase.name
+        if target is None:
+            result["state"] = "no_deposit_requested"
+            return result
+        row, col = target
+        result["target_slot"] = [row, col]
+        if before_frame is not None:
+            before_layout = self._bag_layout(before_frame)
+            if before_layout is not None and not self._bag_slot_empty(
+                before_frame, before_layout.public_slot_rect(row, col)
+            ):
+                result["state"] = "target_slot_was_not_empty_before"
+                return result
+        if self._bag_slot_empty(frame, layout.public_slot_rect(row, col)):
+            result["state"] = "target_slot_still_empty"
+            return result
+        result["observed"] = True
+        result["state"] = "confirmed"
+        return result
 
     @staticmethod
     def _merchant_refresh_hit(frame: Frame) -> MatchResult:
@@ -11466,6 +11825,12 @@ class Mediator:
             return opened
 
         if self._hitch_enabled() and self._l1_cycle_step == "hitch_idle":
+            # 蹭车停车位：其余支线都不做，但队伍资产（吞噬丹/神符）出现时
+            # 走公共背包流转。没有可信证据时该操作返回 None，仍是零输入。
+            deposit_res = self._maybe_public_backpack_deposit(frame, now)
+            if deposit_res is not None:
+                self._main_line_since = now
+                return deposit_res
             return LoopAction.Continue
 
         # 显式循环中的神器阶段；无到期槽位时推进到技能。
