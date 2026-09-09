@@ -6,6 +6,7 @@
 - real_kicked_modal_frame.jpg KK 房间已满弹窗页（含蓝色主按钮，用于购买陷阱拦截）
 - real_archive_panel_frame.jpg 真实存档挑战面板（reborn_wow endgame 实拍）
 - real_midgame_hitch_hud_frame.png 真实局内蹭车 HUD（压力转移按钮可见、自动任务未勾）
+- gt_kk_platform_modal_* 本轮实机 KK 平台普通提示：正文不同、共享 shell。
 
 覆盖任务书 1-6 号用例。
 """
@@ -37,11 +38,14 @@ FIXTURES = {
     "rw_hub": ROOT / "fixtures" / "reborn_wow" / "endgame" / "challenge_npc_hub.png",
     "live_archive": ROOT / "fixtures" / "live_postgame_20260808" / "live_archive_challenges.png",
     "live_start": ROOT / "fixtures" / "live_postgame_20260808" / "live_archive_start_panel.png",
+    "modal_level": ROOT / "tests" / "fixtures" / "gt_kk_platform_modal_level_insufficient_overlay.png",
+    "modal_kicked": ROOT / "tests" / "fixtures" / "gt_kk_platform_modal_kicked_child.png",
+    "normal_lobby": ROOT / "tests" / "fixtures" / "gt_kk_platform_modal_normal_lobby.png",
+    "room": ROOT / "tests" / "fixtures" / "real_room_window_frame.png",
 }
 
 # 被踢弹窗真实帧（tests/fixtures/real_kicked_modal_frame.jpg）的地面真值：
-# 单测环境 OCR 离线（无 worker），真实帧上的被踢/移出文本无法用生产 OCR 链
-# 解析（RAW FRAME 证据缺失），识别链 fail-closed → UNKNOWN_GENERIC_MODAL。
+# 旧被踢帧保留给非 modal 的历史回归；平台提示的授权不再依赖正文 OCR。
 KICK_REAL_GT = "BLOCKED_MISSING_RAW_FRAME"
 
 
@@ -76,22 +80,10 @@ def _fake_ocr_client(text: str, rec_score: float, status: str = "ok") -> SimpleN
 
 
 def test_real_leaderboard_not_room_list_authority() -> None:
-    """P1-A：真实非房间列表帧上 _lobby_room_list_evidence 必须返回 False，
-    且状态机进入 _tick_hitch_room_list_tab 尝试切换 Tab。"""
+    """真实非房间列表提示不能被误作房间列表证据。"""
     med = _hitch_mediator()
     frame = _kk_frame("leaderboard")
     assert med._lobby_room_list_evidence(frame) is False
-
-    med.set_phase(Phase.LOBBY_ROOM)
-    calls: list[tuple[str, object]] = []
-
-    def fake_tab_click(frame_arg, now):
-        calls.append(("tab", frame_arg))
-        return None  # 交给后续搜索状态机
-
-    with patch.object(med, "_tick_hitch_room_list_tab", side_effect=fake_tab_click):
-        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
-    assert calls, "未触发 _tick_hitch_room_list_tab"
 
 
 def test_real_archive_panel_cold_start_reconcile() -> None:
@@ -123,32 +115,6 @@ def test_real_archive_panel_cold_start_reconcile() -> None:
     assert med2._post_game_route in {"archive", "archive_active"}
     assert med2.phase is Phase.MAIN_LINE
     stop2.assert_not_called()
-
-def test_real_kicked_modal_safe_dismiss() -> None:
-    """P1-B：真实被踢弹窗帧（OCR 注入被踢文本）上，绝不能点击「立即购买」/
-    确认按钮，只允许 Esc 安全关闭并重置回大厅继续找房。"""
-    med = _hitch_mediator()
-    med._hitch_ocr_override = "你已被房主踢出房间"
-    frame = _kk_frame("kicked")
-    med._hitch_pending_row_y = 385
-    med._hitch_sm.note_join_click(1.0)  # pending_join，验证被一并拒绝
-    assert med._hitch_sm.pending_join
-
-    # _hitch_ocr_override 携带被踢文本 → classify_hitch_ocr 在 tick 头部即触发
-    # 被踢 reset（fail-closed），绝不点击任何按钮；Esc 由通用弹窗链发出。
-    keys: list[str] = []
-    clicks: list[str] = []
-    with patch.object(med, "act_key", side_effect=lambda key, reason: keys.append(key) or True), \
-         patch.object(med, "act_click", side_effect=lambda hit, reason: clicks.append(reason) or True):
-        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
-
-    assert not clicks, f"被踢弹窗上严禁任何点击（含 HitchConfirmLeave/立即购买），实际: {clicks}"
-    assert med._hitch_sm.pending_join is False
-    assert med.phase is Phase.LOBBY_ROOM
-    assert med._hitch_re_search is False
-    assert med._hitch_search is None
-    assert med._hitch_pending_row_y is None
-
 
 def test_see_minimized_zero_activation() -> None:
     """P0-C：窗口最小化时 see() 全程零 activate_window 调用，仅标记 is_minimized。"""
@@ -227,7 +193,7 @@ def test_ready_180s_timeout_pends_then_blacklists_after_lobby() -> None:
     且大厅/房间列表基线可见，才拉黑房号并回到大厅找房。黑名单绝不在超时
     当帧立即写入。"""
     med = _hitch_mediator()
-    frame = _kk_frame("kicked")
+    frame = _kk_frame("normal_lobby")
     med.set_phase(Phase.ROOM_WAITING)
     med._confirmed_room_hwnd = frame.hwnd
     med._hitch_pending_room_key = "room-765432"
@@ -405,55 +371,24 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     assert med2._hitch_pressure_transferred is False
 
 
-def test_pending_join_popup_dismisses_without_clicking_quick_join() -> None:
-    """刚点房间行后出现的 KK 弹窗只 Esc 取消、拒绝本行，绝不点快速加入。"""
+def test_pending_join_platform_modal_reconciles_only_after_fresh_absence() -> None:
+    """进房事务只影响 shell 消失后的拒绝行，不授予关闭 modal 的 authority。"""
     med = _hitch_mediator()
-    assert med._hitch_ocr_override is None, "生产链路不得依赖 ocr_override"
-    frame = _kk_frame("kicked")
+    frame = _kk_frame("modal_level")
     med._hitch_pending_row_y = 385
     med._hitch_sm.note_join_click(1.0)
-
-    dialog_hit = MatchResult("lobby_popup_dialog", 0.9, 400, 300, 500, 250, 400, 300)
-    clicks: list[str] = []
-    keys: list[str] = []
-    with patch.object(med, "find_scene", return_value=dialog_hit), \
-         patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True), \
-         patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True):
+    with patch.object(med, "act_click", return_value=True) as click, \
+         patch.object(med, "act_key", return_value=True) as key:
         med._tick_lobby_hitch(frame, "LOBBY_ROOM")
-    assert not clicks, f"被踢弹窗上严禁任何点击: {clicks}"
-    assert keys == ["esc"]
-    assert med._hitch_sm.pending_join is False
-    assert med._hitch_rejected_row_ys == {385}
-    med2 = _hitch_mediator()
-    med2.set_phase(Phase.LOBBY_ROOM)
-    med2._hitch_ocr_override = "你已被移出了房间"
-    with patch.object(med2, "act_key", return_value=True) as key2, \
-         patch.object(med2, "act_click", return_value=True) as click2:
-        med2._tick_lobby_hitch(frame, "LOBBY_ROOM")
-    click2.assert_not_called()
-    assert med2.phase is Phase.LOBBY_ROOM
-    assert med2._hitch_re_search is False
-
-
-def test_pending_join_popup_new_window_dismisses_before_room_waiting() -> None:
-    med = _hitch_mediator()
-    med._hitch_pending_row_y = 385
-    med._hitch_sm.note_join_click(1.0)
-    med._hitch_join_origin_hwnd = 10001
-    frame = Frame(
-        np.full((260, 440, 3), 18, dtype=np.uint8),
-        window_title="KK官方对战平台",
-        hwnd=1253798,
-        role="l0",
-    )
-    with patch.object(med, "act_key", return_value=True) as key, \
-         patch.object(med, "act_click", return_value=True) as click:
-        med._tick_lobby_hitch(frame, "UNKNOWN")
-    key.assert_called_once_with("esc", "HitchDismissJoinPopup")
     click.assert_not_called()
-    assert med.phase is Phase.LOBBY_ROOM
+    key.assert_called_once_with("esc", "HitchDismissPlatformModalEsc")
+    assert med._hitch_sm.pending_join is True
+
+    with patch.object(med, "act_click") as click2, patch.object(med, "act_key") as key2:
+        med._tick_lobby_hitch(_kk_frame("normal_lobby"), "UNKNOWN")
+    click2.assert_not_called()
+    key2.assert_not_called()
     assert med._hitch_sm.pending_join is False
-    assert med._hitch_rejected_row_ys == {385}
 
 
 def test_pending_join_never_escs_a_large_unanchored_room_window() -> None:
@@ -475,65 +410,126 @@ def test_pending_join_never_escs_a_large_unanchored_room_window() -> None:
     key.assert_not_called()
 
 
-def test_owner_left_compact_popup_dismisses_after_join_was_confirmed() -> None:
-    """房主离开时的 440x260 KK 子窗口必须取消，不能被误当 ROOM_WAITING。"""
+@pytest.mark.parametrize(
+    ("fixture", "phase", "kind"),
+    [
+        ("modal_level", Phase.LOBBY_ROOM, "main_overlay"),
+        ("modal_kicked", Phase.ROOM_WAITING, "compact_child"),
+    ],
+)
+def test_real_kk_platform_modal_uses_neutral_close_then_fresh_absence(
+    fixture: str,
+    phase: Phase,
+    kind: str,
+) -> None:
+    """GT：真实 shell 在两种 phase 都独立于正文/pending；Esc 不等于成功。"""
     med = _hitch_mediator()
-    med.set_phase(Phase.ROOM_WAITING)
-    # 此时进房早已确认，pending_join 和 origin 都已清空；这正是实机漏掉
-    # 的状态组合。弹窗的「创建房间」永远不是蹭车链路的可点击目标。
-    frame = Frame(
-        np.full((260, 440, 3), 18, dtype=np.uint8),
-        window_title="KK官方对战平台",
-        hwnd=106758834,
-        role="l0",
-    )
+    med.set_phase(phase)
+    modal = _kk_frame(fixture, hwnd=1253046 if kind == "main_overlay" else 4851152)
+    shell = med._kk_platform_modal_shell(modal)
+    assert shell is not None and shell.kind == kind
+
+    with patch.object(med, "act_click", return_value=True) as click, \
+         patch.object(med, "act_key", return_value=True) as key:
+        assert med._tick_lobby_hitch(modal, "UNKNOWN") is LoopAction.Continue
+    click.assert_not_called()
+    key.assert_called_once_with("esc", "HitchDismissPlatformModalEsc")
+    assert med.phase is phase, "输入层成功不能直接当成 dismiss PASS"
+
+    # 同一帧不是 fresh re-observe，绝不重置大厅也不追加输入。
+    with patch.object(med, "act_click", return_value=True) as click2, \
+         patch.object(med, "act_key", return_value=True) as key2:
+        assert med._tick_lobby_hitch(modal, "UNKNOWN") is LoopAction.Continue
+    click2.assert_not_called()
+    key2.assert_not_called()
+
+    # 只有下一张真实、无 shell 的大厅帧才完成 reconciliation。
+    normal = _kk_frame("normal_lobby", hwnd=1253046)
+    assert med._kk_platform_modal_shell(normal) is None
+    with patch.object(med, "act_click", return_value=True) as click3, \
+         patch.object(med, "act_key", return_value=True) as key3:
+        assert med._tick_lobby_hitch(normal, "UNKNOWN") is LoopAction.Continue
+    click3.assert_not_called()
+    key3.assert_not_called()
+    assert med.phase is Phase.LOBBY_ROOM
+
+
+def test_real_normal_lobby_without_modal_grants_no_neutral_input() -> None:
+    """GT：正常房间列表无 shell 时，普通提示 handler 严格零输入。"""
+    med = _hitch_mediator()
+    frame = _kk_frame("normal_lobby")
+    assert med._kk_platform_modal_shell(frame) is None
+    with patch.object(med, "act_click", return_value=True) as click, \
+         patch.object(med, "act_key", return_value=True) as key:
+        assert med._tick_hitch_platform_modal(frame, None, 1.0) is None
+    click.assert_not_called()
+    key.assert_not_called()
+
+
+def test_real_platform_modal_uses_x_only_after_fresh_esc_reobserve() -> None:
+    """GT：Esc 是默认动作；同一 shell 的下一 fresh 帧才允许 X fallback。"""
+    med = _hitch_mediator()
+    first = _kk_frame("modal_level")
+    shell = med._kk_platform_modal_shell(first)
+    assert shell is not None
     with patch.object(med, "act_key", return_value=True) as key, \
          patch.object(med, "act_click", return_value=True) as click:
-        med._tick_lobby_hitch(frame, "UNKNOWN")
-
-    key.assert_called_once_with("esc", "HitchDismissCompactLobbyPopup")
+        assert med._tick_hitch_platform_modal(first, shell, 1.0) is LoopAction.Continue
+    key.assert_called_once_with("esc", "HitchDismissPlatformModalEsc")
     click.assert_not_called()
-    assert med.phase is Phase.LOBBY_ROOM
-    assert med._hitch_re_search is False
+
+    still_visible = _kk_frame("modal_level")
+    shell2 = med._kk_platform_modal_shell(still_visible)
+    with patch.object(med, "act_key", return_value=True) as key2, \
+         patch.object(med, "act_click", return_value=True) as click2:
+        assert med._tick_hitch_platform_modal(still_visible, shell2, 4.0) is LoopAction.Continue
+    key2.assert_not_called()
+    click2.assert_called_once_with(shell2.close, "HitchDismissPlatformModalClose")
 
 
-def test_owner_kick_popup_on_main_lobby_window_dismisses_without_ocr() -> None:
-    """被踢提示覆盖主大厅时，低分已知弹窗锚点足以授权 Esc 恢复搜房。"""
+def test_real_platform_modal_exhaustion_is_fail_closed_not_permanent_wait() -> None:
+    """GT：中性关闭已穷尽时明确失败留档，不把卡死伪装成 Continue。"""
+    med = _hitch_mediator()
+    frame = _kk_frame("modal_kicked")
+    shell = med._kk_platform_modal_shell(frame)
+    assert shell is not None
+    med._hitch_popup_esc_attempts = med._HITCH_POPUP_ESC_LIMIT
+    with patch.object(med, "stop") as stop, \
+         patch.object(med, "act_click") as click, \
+         patch.object(med, "act_key") as key:
+        assert med._tick_hitch_platform_modal(frame, shell, 10.0) is LoopAction.Break
+    stop.assert_called_once()
+    click.assert_not_called()
+    key.assert_not_called()
+    assert med.phase is Phase.ERROR
+
+
+def test_real_room_surface_cannot_be_reclassified_as_platform_modal() -> None:
+    """GT：真实房间双锚点成立时，generic owner 没有 Esc authority。"""
+    med = _hitch_mediator()
+    frame = Frame(
+        _load("room"), window_title="KK官方对战平台", hwnd=82001, role="l0",
+    )
+    assert med._is_confirmed_room_frame(frame) is True
+    shell = None if med._is_confirmed_room_frame(frame) else med._kk_platform_modal_shell(frame)
+    with patch.object(med, "act_click", return_value=True) as click, \
+         patch.object(med, "act_key", return_value=True) as key:
+        assert med._tick_hitch_platform_modal(frame, shell, 1.0) is None
+    click.assert_not_called()
+    key.assert_not_called()
+
+
+def test_real_platform_modal_does_not_steal_active_exit_transaction() -> None:
+    """GT：主动退出期间，即使出现真实普通 shell 也不可由 generic handler 取消。"""
     med = _hitch_mediator()
     med.set_phase(Phase.ROOM_WAITING)
-    frame = Frame(
-        np.full((945, 1332, 3), 18, dtype=np.uint8),
-        window_title="KK官方对战平台",
-        hwnd=1253046,
-        role="l0",
-    )
-    popup = MatchResult("lobby_popup_dialog", 0.72, 381, 334, 415, 65, 589, 366)
-
-    def fake_find(_frame, names, **_kwargs):
-        return popup if names == ["lobby_popup_dialog"] else None
-
-    with patch.object(med, "find_scene", return_value=None), \
-         patch.object(med, "find", side_effect=fake_find), \
-         patch.object(med, "_detect_hitch_kick_event", return_value=None), \
-         patch.object(med, "act_key", return_value=True) as key, \
-         patch.object(med, "act_click", return_value=True) as click:
-        med._tick_lobby_hitch(frame, "UNKNOWN")
-
-    key.assert_called_once_with("esc", "HitchDismissKnownLobbyPopup")
+    med._hitch_floor_exit_pending = True
+    frame = _kk_frame("modal_level")
+    with patch.object(med, "act_click", return_value=True) as click, \
+         patch.object(med, "act_key", return_value=True) as key:
+        assert med._tick_lobby_hitch(frame, "UNKNOWN") is LoopAction.Continue
     click.assert_not_called()
-    assert med.phase is Phase.LOBBY_ROOM
-
-
-def test_generic_popup_without_pending_join_remains_zero_input() -> None:
-    med = _hitch_mediator()
-    frame = _kk_frame("kicked")
-    dialog_hit = MatchResult("lobby_popup_dialog", 0.9, 400, 300, 500, 250, 400, 300)
-    with patch.object(med, "find_scene", return_value=dialog_hit), \
-         patch.object(med, "act_key", return_value=True) as key, \
-         patch.object(med, "act_click", return_value=True) as click:
-        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
     key.assert_not_called()
-    click.assert_not_called()
 
 
 def test_startup_state_post_game_precedence() -> None:
@@ -891,66 +887,13 @@ def test_b5_unclassified_post_game_frame_is_zero_input() -> None:
     assert not keys, f"UNKNOWN 战后帧上严禁任何按键: {keys}"
 
 
-def test_pending_join_timeout_without_known_modal_is_zero_input() -> None:
-    """进房超时 + 帧上无任何可信已知弹窗（被踢 OCR / 显式 dialog/title）→
-    零输入：绝不发送 HitchDismissPopup；仅拒绝本次进房并回大厅。"""
-    med = _hitch_mediator()
-    med.set_phase(Phase.LOBBY_ROOM)
-    frame = _kk_frame("kicked")
-    med._hitch_pending_row_y = 385
-    med._hitch_sm.note_join_click(97.0)
-    assert med._hitch_sm.pending_join is True
-
-    clicks: list[str] = []
-    keys: list[str] = []
-    with patch.object(med, "find_scene", return_value=None), \
-         patch.object(med, "_find_hitch_ready_button", return_value=None), \
-         patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True) as key, \
-         patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True) as click, \
-         patch("shuabao.mediator.time.time", return_value=100.0):
-        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
-
-    key.assert_not_called(), f"未知画面超时必须零输入，实际按键: {keys}"
-    click.assert_not_called()
-    assert med._hitch_sm.pending_join is False, "超时仍必须拒绝本次进房"
-    assert med._hitch_pending_row_y is None
-    assert med._hitch_rejected_row_ys == {385}
-    assert med.phase is Phase.LOBBY_ROOM
-
-
-def test_pending_join_timeout_with_known_modal_still_dismisses() -> None:
-    """进房超时 + 可信已知弹窗 authority（OCR 命中被踢文本）→ 允许安全 Esc。"""
-    med = _hitch_mediator()
-    med.set_phase(Phase.LOBBY_ROOM)
-    frame = _kk_frame("kicked")
-    med._hitch_pending_row_y = 385
-    med._hitch_sm.note_join_click(97.0)
-
-    clicks: list[str] = []
-    keys: list[str] = []
-    with patch.object(med, "find_scene", return_value=None), \
-         patch.object(med, "_find_hitch_ready_button", return_value=None), \
-         patch.object(med, "_detect_hitch_kick_event", return_value="kicked"), \
-         patch.object(med, "act_key", side_effect=lambda k, r: keys.append(k) or True), \
-         patch.object(med, "act_click", side_effect=lambda hit, r: clicks.append(r) or True), \
-         patch("shuabao.mediator.time.time", return_value=100.0):
-        med._tick_lobby_hitch(frame, "LOBBY_ROOM")
-
-    assert keys == ["esc"], keys
-    assert clicks == []
-    assert med._hitch_sm.pending_join is False
-    assert med._hitch_pending_row_y is None
-    assert med._hitch_rejected_row_ys == {385}
-    assert med.phase is Phase.LOBBY_ROOM
-
-
 def test_ready_timeout_pending_on_unknown_surface_is_zero_input() -> None:
     """180s 超时退房 episode 中，未知 surface（窗口失配且无房间实体控件）上
     绝不发送 HitchReadyTimeoutExit；预算耗尽后保持运行并继续零输入观察；
     fresh 房间证据恢复后才允许有界 Esc。"""
     med = _hitch_mediator()
     med.set_phase(Phase.ROOM_WAITING)
-    frame = _kk_frame("kicked")
+    frame = _kk_frame("normal_lobby")
     med._confirmed_room_hwnd = 99999  # 与 frame.hwnd 失配：未知 surface
     med._hitch_pending_room_key = "room-765432"
     med._hitch_ready_timeout_pending = True
