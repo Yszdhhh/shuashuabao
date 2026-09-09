@@ -598,6 +598,9 @@ _WINDOW_GUARD_STATUSES = {
     "CANCELLED_NO_TARGET_HWND",
     "CANCELLED_WINDOW_INVALID",
     "CANCELLED_WINDOW_CHANGED",
+    # Post-injection foreground change: the operator's desktop stole focus after
+    # the input reached the game.  Environment, not a production defect.
+    "CANCELLED_WINDOW_CHANGED_AFTER_INPUT",
     "CANCELLED_WINDOW_OBSCURED",
 }
 

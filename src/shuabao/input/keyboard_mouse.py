@@ -272,6 +272,11 @@ def set_clipboard_text(text: str) -> bool:
         return False
 
 
+#: Post-injection guard status.  The input WAS sent; only its outcome is
+#: unverified.  Callers must not retry it as if nothing had happened.
+INPUT_DISPATCHED_UNVERIFIED = "CANCELLED_WINDOW_CHANGED_AFTER_INPUT"
+
+
 class InputExecutor:
     """Cancellable input executor with target window & foreground verification."""
 
@@ -327,6 +332,15 @@ class InputExecutor:
         return ActionResult(success=True, status="OK", message="Window verified")
 
     def _post_check(self, target_hwnd: int | None, dry_run: bool) -> ActionResult | None:
+        """Verify the window after injection.
+
+        A failure here is NOT the same as a pre-flight rejection: the input has
+        already been sent to the game.  It gets its own status so callers can
+        tell "never clicked" from "clicked, result unverified" — retrying the
+        latter double-clicks the game (2026-09-09 trace tick 464: the 暴怒神符
+        click was injected, reported ok=false, and the panel FSM then hammered
+        the same slot until it force-closed the panel).
+        """
         if self.stop_signal and (self.stop_signal.is_set() or self.stop_signal.is_stopped()):
             return ActionResult(
                 success=False,
@@ -338,7 +352,7 @@ class InputExecutor:
             if not foreground_matches_target(target_hwnd, fg):
                 return ActionResult(
                     success=False,
-                    status="CANCELLED_WINDOW_CHANGED",
+                    status=INPUT_DISPATCHED_UNVERIFIED,
                     message=f"Foreground window changed after action from {target_hwnd} to {fg}",
                 )
         return None

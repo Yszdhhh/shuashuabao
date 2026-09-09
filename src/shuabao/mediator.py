@@ -26,6 +26,7 @@ from shuabao import __version__
 from shuabao.incidents import IncidentArchiver
 from shuabao.input.emergency_stop import EmergencyStopListener
 from shuabao.input.keyboard_mouse import (
+    INPUT_DISPATCHED_UNVERIFIED,
     InputExecutor,
     foreground_matches_target,
     get_foreground_window,
@@ -640,6 +641,9 @@ class Mediator:
         # 与 evidence.gen/缓存解耦：dry-run 不丢性能复用（benchmark exact-static）。
         self._input_seq = 0
         self._tick_input_seq: int | None = None
+        self._last_input_status = ""
+        # 本 tick 落定的后置确认（选择面板 mutation / 公共背包存入）；每 tick 归零。
+        self._tick_post_confirm: bool | None = None
         # trace/incident 兼容镜像：_detect_context 每次计算后同步（evidence.context 是权威值）
         self._context_cache_value = "UNKNOWN"
         # 多窗口捕获：上次健康 hwnd 优先；连续 N=2 不健康/失配才枚举候选
@@ -1774,6 +1778,7 @@ class Mediator:
         - 每次成功输入（含 dry-run）递增 ``_input_seq``：同 tick 第二次动作
           被 _action_gate_ok 拒绝；LIVE 另有 invalidate_evidence 推进 gen。
         """
+        self._last_input_status = str(getattr(res, "status", "") or "")
         if res.success:
             self._tick_input_executed = True
             self._input_seq += 1
@@ -1781,7 +1786,17 @@ class Mediator:
                 self._tick_reason = "input_executor_wait"
             if not self.settings.dry_run:
                 self.invalidate_evidence("input")
+        elif self._last_input_status == INPUT_DISPATCHED_UNVERIFIED:
+            # 输入已注入、只是后置窗口校验没通过：证据必须失效，重复点击才是危险动作。
+            self._input_seq += 1
+            self._tick_input_executed = True
+            if not self.settings.dry_run:
+                self.invalidate_evidence("input-dispatched-unverified")
         return res.success
+
+    def _last_input_dispatched_unverified(self) -> bool:
+        """True when the last input reached the game but its outcome is unproven."""
+        return getattr(self, "_last_input_status", "") == INPUT_DISPATCHED_UNVERIFIED
 
     def _action_forbidden(self, reason: str) -> bool:
         mode_id = str(getattr(self.settings, "mode_id", "") or "")
@@ -9717,19 +9732,24 @@ class Mediator:
     def _trace_post_confirm(self) -> bool | None:
         """后置确认结果：仅在有现成确认点处填写，其余为 None。
 
-        现成确认点：失败恢复链完成（_recovery_step == "DONE"）说明
-        FAIL→OK→CLOSE 三步点击均已被后续帧确认。B3/B4 的 OCR/选择
-        后置确认在此阶段尚未实现。
+        现成确认点：
+          * 失败恢复链完成（``_recovery_step == "DONE"``）说明 FAIL→OK→CLOSE
+            三步点击均已被后续帧确认；
+          * 选择面板 WAIT_MUTATION 落定：mutation/面板消失 → True，确认窗
+            超时 → False。第 1 个神符点选成功却记 null，正是这一段缺失
+            （2026-09-09 trace tick 175）。
+          * 公共背包存入后置确认（DEPOSIT→DONE / ABORTED）。
         """
         if self._recovery_step == "DONE":
             return True
-        return None
+        return getattr(self, "_tick_post_confirm", None)
 
     def _tick_impl(self) -> LoopAction:
         self._trace_actions = []
         self._trace_scenes = []
         self._trace_controls = []
         self._trace_ocr_suggestion = None
+        self._tick_post_confirm = None
         self._interrupt_reason = None
         self._tick_reason = None
         self._tick_input_executed = False
@@ -10086,6 +10106,8 @@ class Mediator:
 
     def _confirm_panel_choice_action(self, now: float) -> None:
         action = self._panel_pending_choice_action
+        if action is not None:
+            self._tick_post_confirm = True
         if action == "select":
             if (
                 self._l1_cycle_owned_panel
@@ -10110,6 +10132,8 @@ class Mediator:
 
     def _expire_panel_choice_action(self) -> str | None:
         action = self._panel_pending_choice_action
+        if action is not None:
+            self._tick_post_confirm = False
         self._panel_pending_choice_action = None
         self._panel_pending_choice_fingerprint = None
         return action
@@ -10433,6 +10457,22 @@ class Mediator:
                     return LoopAction.Continue
                 print(f"[L1] {kind}选择 {hit.name} score={hit.score:.3f} @ {hit.center}")
                 clicked = self.act_click(hit, f"{kind}选择")
+                if not clicked and self._last_input_dispatched_unverified():
+                    # 点击已注入，只是后置窗口校验没过（2026-09-09 tick 464 暴怒神符）。
+                    # 当作已发出：进 WAIT_MUTATION 走后置确认，不再对同一张卡重复点。
+                    print(f"[L1] {kind}选择点击已注入但窗口后置未验证，转 WAIT_MUTATION 后置确认")
+                    self._panel_mutation_baseline = self._panel_roi_region(frame)
+                    self._panel_state = PanelState.WAIT_MUTATION
+                    self._panel_confirm_window = max(
+                        5.0, min(15.0, self.settings.recovery_timeout_s)
+                    )
+                    self._panel_last_input_at = now
+                    self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
+                    self._stage_panel_choice_action(
+                        self._panel_choice_action_kind(hit.name), fingerprint
+                    )
+                    self._panel_opened_by_us = None
+                    return LoopAction.Continue
                 if clicked:
                     # 成功执行的选卡/刷新/放弃/关闭动作才计入尝试预算（WAIT/被拒不加）。
                     self._bump_choice_attempts()
