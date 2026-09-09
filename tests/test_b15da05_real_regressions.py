@@ -455,6 +455,28 @@ def test_pending_join_popup_new_window_dismisses_before_room_waiting() -> None:
     assert med._hitch_rejected_row_ys == {385}
 
 
+def test_owner_left_compact_popup_dismisses_after_join_was_confirmed() -> None:
+    """房主离开时的 440x260 KK 子窗口必须取消，不能被误当 ROOM_WAITING。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.ROOM_WAITING)
+    # 此时进房早已确认，pending_join 和 origin 都已清空；这正是实机漏掉
+    # 的状态组合。弹窗的「创建房间」永远不是蹭车链路的可点击目标。
+    frame = Frame(
+        np.full((260, 440, 3), 18, dtype=np.uint8),
+        window_title="KK官方对战平台",
+        hwnd=106758834,
+        role="l0",
+    )
+    with patch.object(med, "act_key", return_value=True) as key, \
+         patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    key.assert_called_once_with("esc", "HitchDismissCompactLobbyPopup")
+    click.assert_not_called()
+    assert med.phase is Phase.LOBBY_ROOM
+    assert med._hitch_re_search is False
+
+
 def test_generic_popup_without_pending_join_remains_zero_input() -> None:
     med = _hitch_mediator()
     frame = _kk_frame("kicked")
