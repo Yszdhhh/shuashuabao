@@ -174,6 +174,9 @@ def test_hitch_after_exit_cleanup_semantics_preserved() -> None:
     med._hitch_ready_confirmed_at = 1.0
     med._hitch_ready_timeout_attempts = 3
     med._hitch_ready_timeout_deadline = 99.0
+    med._round_started_at = 1.0
+    med._round_deadline = 99.0
+    med._outcome_recorded = True
     med._awaiting_room_return = True
 
     med._hitch_after_exit(100.0)
@@ -186,6 +189,9 @@ def test_hitch_after_exit_cleanup_semantics_preserved() -> None:
     assert med._hitch_ready_confirmed_at is None
     assert med._hitch_ready_timeout_attempts == 0
     assert med._hitch_ready_timeout_deadline is None
+    assert med._round_started_at is None
+    assert med._round_deadline is None
+    assert med._outcome_recorded is False
     assert med._awaiting_room_return is False
 
 
@@ -214,5 +220,42 @@ def test_hitch_exit_confirm_in_next_leaves_phase_for_lobby_hitch_flow() -> None:
     click.assert_called_once_with(confirm, "QuitGame-confirm") if click.call_args else click.assert_called_once()
     assert med._hitch_re_search is True
     assert med._hitch_search is None
+    assert med.game_count == 1
     assert med.phase == Phase.LOBBY_ROOM
     stop.assert_not_called()
+
+
+def test_hitch_failure_exit_counts_round_and_rearms_next_round_deadline() -> None:
+    med = _hitch_mediator()
+    med._round_started_at = 1.0
+    med._round_deadline = 2.0
+    _verified_failure_exit(med)
+    assert med.game_count == 1
+    assert med._round_started_at is None
+    assert med._round_deadline is None
+    assert med._outcome_recorded is False
+
+    with patch("shuabao.mediator.time.time", return_value=200.0):
+        med.set_phase(Phase.MAIN_LINE, "next hitch round skipped stage page")
+    assert med._round_started_at == 200.0
+    assert med._round_deadline == 200.0 + med.settings.round_timeout_s
+
+
+def test_hitch_cycle_target_stops_only_after_verified_exit() -> None:
+    med = Mediator(
+        Settings(dry_run=True, ocr_mode="off", mode_id="lobby_hitch", cycle_num=1),
+        ROOT,
+    )
+    med._begin_recovery(RecoveryKind.FAIL)
+    rs = med._recovery_state
+    assert rs is not None
+    assert med._finish_direct_failure_exit(rs, 100.0) == LoopAction.Break
+    assert med.game_count == 1
+    assert med.phase == Phase.COMPLETE
+    assert med.stop_signal.is_set()
+
+
+def test_hitch_lobby_reset_does_not_count_as_completed_round() -> None:
+    med = _hitch_mediator()
+    assert med._hitch_reset_lobby("home", 100.0) == LoopAction.Continue
+    assert med.game_count == 0

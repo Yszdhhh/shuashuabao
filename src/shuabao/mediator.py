@@ -6733,15 +6733,7 @@ class Mediator:
         self._recovery_step = "DONE"
         self._recovery_state = None
         if self._hitch_enabled():
-            self._hitch_after_exit(now)
-            # P0 fix: the recovery state is already None here; leaving the
-            # phase at RECOVER_FAILURE would make the next tick hit the
-            # defensive "recovery state missing" ERROR/stop path. Hand off to
-            # the standard evidence-gated hitch L0 flow: search/clicks only
-            # resume on fresh lobby/room facts; UNKNOWN/transition frames stay
-            # zero input (_tick_lobby_hitch black/evidence gates).
-            self.set_phase(Phase.LOBBY_ROOM, "verified failure exit; hitch re-search")
-            return LoopAction.Continue
+            return self._finish_hitch_round(now, "verified failure exit; hitch re-search")
         self._awaiting_room_return = True
         self.set_phase(Phase.PREPARE, "failure exit clicked; verify same room")
         self._room_action_deadline = now + min(self.settings.query_timeout, 30)
@@ -7748,6 +7740,26 @@ class Mediator:
         self._hitch_ready_timeout_deadline = None
         self._hitch_ready_confirmed_at = None
         self._hitch_rejected_row_ys.clear()
+        # 蹭车可能从加载画面直接进 MAIN_LINE，不经 STAGE_SELECT。
+        # 因此已验证的离局边界必须自己清理上局 hard deadline/outcome，
+        # 否则次局会继承过期 deadline 并立即退出。
+        self._round_started_at = None
+        self._round_deadline = None
+        self._outcome_recorded = False
+        self._round_outcome = None
+
+    def _finish_hitch_round(self, now: float, note: str) -> LoopAction:
+        """记录一次已验证的蹭车离局，然后回到大厅继续找房。"""
+        self.game_count += 1
+        print(f"[med] 蹭车已完成离局 count={self.game_count}")
+        if self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num:
+            print(f"[med] 蹭车已完成 cycle_num={self.settings.cycle_num} 局，转 COMPLETE 停止")
+            self.set_phase(Phase.COMPLETE, "cycle_num reached")
+            self.stop()
+            return LoopAction.Break
+        self._hitch_after_exit(now)
+        self.set_phase(Phase.LOBBY_ROOM, note)
+        return LoopAction.Continue
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
         print(f"[L0] hitch {evidence} 触发，重置状态回大厅")
@@ -11298,14 +11310,7 @@ class Mediator:
             if not self.act_click(confirm_hit, "QuitGame-confirm"):
                 return LoopAction.Continue
             if self._hitch_enabled():
-                self._hitch_after_exit(time.time())
-                # P0 fix: same phase disconnect as the RECOVER_FAILURE exit —
-                # leaving the phase at NEXT makes the following tick wait for
-                # a confirm dialog that is already gone, then hit the
-                # "exit confirmation timeout" ERROR/stop path. Hand off to the
-                # evidence-gated hitch L0 flow instead.
-                self.set_phase(Phase.LOBBY_ROOM, "exit confirmed; hitch re-search")
-                return LoopAction.Continue
+                return self._finish_hitch_round(time.time(), "exit confirmed; hitch re-search")
             self._awaiting_room_return = True
             self.set_phase(Phase.PREPARE, "exit confirmed; verify same room")
             self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
