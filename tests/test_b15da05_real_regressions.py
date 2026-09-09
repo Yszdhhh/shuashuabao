@@ -633,8 +633,9 @@ def test_auto_task_unknown_loading_wait_never_stops_live_run() -> None:
          patch("shuabao.mediator.time.monotonic", return_value=60.0), \
          patch.object(med, "stop") as stop, \
          patch.object(med, "act_click") as click:
-        assert med._ensure_auto_task_enabled(_game_frame("midgame")) is LoopAction.Continue
+        assert med._ensure_auto_task_enabled(_game_frame("midgame")) is None
 
+    assert med._auto_task_done is True
     assert med.phase is Phase.MAIN_LINE
     stop.assert_not_called()
     click.assert_not_called()
