@@ -6509,9 +6509,14 @@ class Mediator:
         """Challenge ticket exhausted → click 考古模式 → stop script.
 
         Confirms 3 consecutive frames before acting to avoid a flicker false
-        positive. Returns LoopAction.Break after switching, None otherwise.
+        positive. Non-hitch returns LoopAction.Break after switching.
+        Hitch soak must not die here: skip the click, do not reset the
+        confirmation counter, and return to outcome/surface recovery.
         """
         if not getattr(self.settings, "auto_archaeology", True):
+            return None
+        if self._hitch_enabled() and self._hitch_optional_is_skipped("archaeology"):
+            # Already skipped. Missing or stale ticket evidence is not a new click.
             return None
         if self._ticket_exhausted(frame):
             count = getattr(self, "_ticket_zero_frames", 0) + 1
@@ -6519,6 +6524,10 @@ class Mediator:
             if count < 3:
                 print(f"[L0] 挑战券剩余为 0（确认 {count}/3），等待稳定…")
                 return LoopAction.Continue
+            if self._hitch_enabled():
+                print("[L0] hitch 挑战券已清空，跳过考古并交还结局/表面恢复（不点击、不停止）")
+                # Freeze the confirmation count. Zeroing it would re-confirm forever.
+                return self._hitch_optional_exhausted(frame, time.time(), "archaeology")
             print("[L0] 挑战券已清空，点击考古模式并结束脚本")
             arch_hit = MatchResult(
                 name="archaeology_switch",
@@ -7291,8 +7300,28 @@ class Mediator:
         """
         rs = self._recovery_state
         if rs is None:
-            if self._hitch_enabled() and getattr(self, "_hitch_recovery_exhausted", False):
-                return self._hitch_advance_surface_recovery(frame, time.time(), "recovery_exhausted")
+            if self._hitch_enabled():
+                now = time.time()
+                outcome = None
+                if frame is not None:
+                    try:
+                        outcome = self._hitch_visible_victory_or_failure(frame)
+                    except Exception:
+                        outcome = None
+                if outcome:
+                    print(f"[med] hitch recovery state missing yields to outcome watcher ({outcome})")
+                    self.phase = Phase.MAIN_LINE
+                    self._main_line_since = now
+                    return self._tick_main_line(frame)
+                if not getattr(self, "_hitch_recovery_exhausted", False):
+                    print("[med] hitch RECOVER_FAILURE 缺少恢复状态，不发明恢复、不停止，交还表面恢复")
+                    self._hitch_recovery_exhausted = True
+                    self._hitch_recovery_exhausted_reason = "recovery state missing"
+                else:
+                    print("[med] hitch RECOVER_FAILURE 缺少恢复状态，继续取证（不停止）")
+                # Missing recovery state is not a fresh episode. Do not call
+                # _begin_recovery (that would reset the budget into a retry loop).
+                return self._hitch_advance_surface_recovery(frame, now, "recovery_state_missing")
             # 防御：无状态但进入 RECOVER_FAILURE（异常回放/直接 set_phase）
             self.set_phase(Phase.ERROR, "recovery state missing")
             self.stop()
@@ -8619,6 +8648,10 @@ class Mediator:
             if self._is_game_client_frame(frame):
                 self._hitch_re_search = False
                 self.set_phase(Phase.STAGE_SELECT, "hitch stage page wait")
+                if getattr(self.settings, "auto_archaeology", False):
+                    arch_res = self._maybe_switch_to_archaeology(frame)
+                    if arch_res is not None:
+                        return arch_res
                 print("[L0] hitch 选关页可见，零输入等待进局（不点关卡）")
                 return LoopAction.Continue
             print("[L0] hitch 忽略非游戏窗口的 STAGE_SELECT 晋级请求，零输入保持大厅状态")
@@ -9214,6 +9247,31 @@ class Mediator:
             }
         )
 
+    def _fail_create_dialog_alignment(self, now: float, frame: Frame | None = None) -> LoopAction:
+        """Create-dialog alignment past its macro deadline.
+
+        Non-hitch stays Fail-Closed. Hitch skips without resetting the
+        attempt/deadline counters (that would rearm the click loop) and
+        without a blind lobby handoff.
+        """
+        self._trace_create_room_control("TIMEOUT", post_confirm=False, now=now)
+        if self._hitch_enabled():
+            print("[L0] hitch 创房状态对齐超过宏观期限，不终止，交还结局/表面恢复")
+            if self._create_room_flow_deadline is None or self._create_room_flow_deadline > now:
+                self._create_room_flow_deadline = now
+            evidence = frame if frame is not None else getattr(self, "_last_frame", None)
+            if evidence is None:
+                print("[L0] hitch 创房对齐超时且无帧证据，零业务输入")
+                self._hitch_mark_optional_skipped("create_room_alignment")
+                return self._hitch_advance_surface_recovery(None, now, "create_room_alignment")
+            if self._hitch_optional_is_skipped("create_room_alignment"):
+                return self._hitch_advance_surface_recovery(evidence, now, "create_room_alignment")
+            return self._hitch_optional_exhausted(evidence, now, "create_room_alignment")
+        print("[L0] 创房状态对齐超过宏观期限，Fail-Closed")
+        self.set_phase(Phase.ERROR, "create dialog alignment timeout")
+        self.stop()
+        return LoopAction.Break
+
     def _clear_create_room_request(self) -> None:
         self._create_room_pending_since = None
         self._create_room_next_observe_at = None
@@ -9261,14 +9319,12 @@ class Mediator:
             )
             return LoopAction.Continue
 
+        if self._hitch_enabled() and self._hitch_optional_is_skipped("create_room_alignment"):
+            return self._fail_create_dialog_alignment(now, getattr(self, "_last_frame", None))
         if self._create_room_flow_deadline is None:
             self._create_room_flow_deadline = now + self._l0_transition_timeout()
         if now >= self._create_room_flow_deadline:
-            self._trace_create_room_control("TIMEOUT", post_confirm=False, now=now)
-            print("[L0] 创房状态对齐超过宏观期限，Fail-Closed")
-            self.set_phase(Phase.ERROR, "create dialog alignment timeout")
-            self.stop()
-            return LoopAction.Break
+            return self._fail_create_dialog_alignment(now, getattr(self, "_last_frame", None))
 
         self._create_room_attempts += 1  # telemetry only; not a stop condition
         clicked = self.act_click(candidate, "CreateRoom-open")
@@ -9734,15 +9790,13 @@ class Mediator:
                     print("[L0] 创房点击失败，等待输入节流窗口（零动作）")
                 return LoopAction.Continue
 
+            if self._hitch_enabled() and self._hitch_optional_is_skipped("create_room_alignment"):
+                return self._fail_create_dialog_alignment(now, frame)
             if (
                 self._create_room_flow_deadline is not None
                 and now >= self._create_room_flow_deadline
             ):
-                self._trace_create_room_control("TIMEOUT", post_confirm=False, now=now)
-                print("[L0] 创房状态对齐超过宏观期限，Fail-Closed")
-                self.set_phase(Phase.ERROR, "create dialog alignment timeout")
-                self.stop()
-                return LoopAction.Break
+                return self._fail_create_dialog_alignment(now, frame)
 
             create = self._find_map_create_room(frame)
             if create:

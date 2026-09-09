@@ -90,15 +90,34 @@ def test_hitch_verified_failure_exit_does_not_error_next_tick() -> None:
     stop.assert_not_called()
     assert clicks == [] and keys == []
 
-    # 防御分支本身仍是 fail-closed 契约：RECOVER_FAILURE + 无状态 = ERROR+stop。
-    # 修复前，上面那次真实退出后每一 tick 都会走到这里。
+    # Hitch soak: RECOVER_FAILURE + missing state is not a legal stop, even
+    # when recovery was not already exhausted. Do not invent a new recovery
+    # episode. Non-hitch stays fail-closed.
     med2 = _hitch_mediator()
     med2.phase = Phase.RECOVER_FAILURE
     med2._recovery_state = None
-    with patch.object(med2, "stop") as stop2:
-        assert med2._tick_recovery(_lobby_frame()) == LoopAction.Break
-        assert med2.phase == Phase.ERROR
-        stop2.assert_called_once()
+    med2._hitch_recovery_exhausted = False
+    with patch.object(med2, "stop") as stop2, \
+            patch.object(med2, "_hitch_visible_victory_or_failure", return_value=None), \
+            patch.object(med2, "act_click") as click2:
+        assert med2._tick_recovery(_lobby_frame()) == LoopAction.Continue
+        assert med2.phase != Phase.ERROR
+        stop2.assert_not_called()
+        click2.assert_not_called()
+        assert med2._recovery_state is None
+        assert med2._hitch_recovery_exhausted is True
+        again = med2._tick_recovery(_lobby_frame())
+        assert again == LoopAction.Continue
+        assert med2._recovery_state is None
+    stop2.assert_not_called()
+
+    med3 = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+    med3.phase = Phase.RECOVER_FAILURE
+    med3._recovery_state = None
+    with patch.object(med3, "stop") as stop3:
+        assert med3._tick_recovery(_lobby_frame()) == LoopAction.Break
+        assert med3.phase == Phase.ERROR
+        stop3.assert_called_once()
 
 
 def test_hitch_after_verified_exit_requires_fresh_lobby_evidence_before_input() -> None:

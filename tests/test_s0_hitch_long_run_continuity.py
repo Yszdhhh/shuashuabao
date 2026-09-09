@@ -449,3 +449,137 @@ def test_hitch_stage_budget_does_not_stop() -> None:
     assert med.phase is Phase.STAGE_SELECT
     assert med._run_exit_reason is None
     assert med._hitch_surface_yielded is False
+
+
+def test_hitch_archaeology_ticket_exhaustion_does_not_stop() -> None:
+    med = _hitch()
+    med.settings.auto_archaeology = True
+    med.set_phase(Phase.STAGE_SELECT)
+    frame = _game_frame()
+    med._last_frame = frame
+    med._ticket_zero_frames = 2
+    with patch.object(med, "_ticket_exhausted", return_value=True), \
+            patch.object(med, "act_click") as click, \
+            patch.object(med, "stop") as stop, \
+            patch.object(med, "_hitch_lobby_handoff_authorized", return_value=False):
+        action = med._maybe_switch_to_archaeology(frame)
+    assert action is LoopAction.Continue
+    click.assert_not_called()
+    stop.assert_not_called()
+    assert med.phase is Phase.STAGE_SELECT
+    assert med._run_exit_reason is None
+    assert med._ticket_zero_frames == 3
+    assert med._hitch_optional_is_skipped("archaeology")
+
+    with patch.object(med, "_ticket_exhausted", return_value=True), \
+            patch.object(med, "act_click") as click2, \
+            patch.object(med, "stop") as stop2:
+        again = med._maybe_switch_to_archaeology(frame)
+    assert again is None
+    click2.assert_not_called()
+    stop2.assert_not_called()
+    assert med._ticket_zero_frames == 3
+    assert med.phase is not Phase.LOBBY_ROOM
+    assert med.phase is not Phase.ERROR
+
+    plain = Mediator(Settings(mode_id="lead", dry_run=True, ocr_mode="off", auto_archaeology=True), ROOT)
+    plain.set_phase(Phase.STAGE_SELECT)
+    plain._ticket_zero_frames = 2
+    with patch.object(plain, "_ticket_exhausted", return_value=True), \
+            patch.object(plain, "act_click", return_value=True) as click3, \
+            patch.object(plain, "stop") as stop3:
+        stopped = plain._maybe_switch_to_archaeology(frame)
+    assert stopped is LoopAction.Break
+    click3.assert_called()
+    stop3.assert_called_once()
+    assert plain.phase is Phase.QUIT
+
+
+def test_hitch_create_room_alignment_timeout_does_not_stop() -> None:
+    med = _hitch()
+    med.settings.dry_run = False
+    med.set_phase(Phase.PLATFORM_MAP)
+    frame = _platform_frame()
+    med._last_frame = frame
+    med._create_room_attempts = 2
+    med._create_room_flow_deadline = 10.0
+    candidate = _hit("create_room", 400, 300)
+    with patch.object(med, "act_click") as click, \
+            patch.object(med, "stop") as stop, \
+            patch.object(med, "_hitch_lobby_handoff_authorized", return_value=False):
+        action = med._request_create_room(candidate, 50.0)
+    assert action is LoopAction.Continue
+    click.assert_not_called()
+    stop.assert_not_called()
+    assert med.phase is Phase.PLATFORM_MAP
+    assert med._run_exit_reason is None
+    assert med._create_room_attempts == 2
+    assert med._hitch_optional_is_skipped("create_room_alignment")
+
+    with patch.object(med, "act_click") as click2, \
+            patch.object(med, "stop") as stop2, \
+            patch.object(med, "_hitch_lobby_handoff_authorized", return_value=False):
+        again = med._fail_create_dialog_alignment(80.0, None)
+    assert again is LoopAction.Continue
+    click2.assert_not_called()
+    stop2.assert_not_called()
+    assert med._create_room_attempts == 2
+    assert med.phase is not Phase.LOBBY_ROOM
+    assert med.phase is not Phase.ERROR
+
+    plain = Mediator(Settings(dry_run=False, ocr_mode="off"), ROOT)
+    plain.set_phase(Phase.PLATFORM_MAP)
+    plain._create_room_flow_deadline = 10.0
+    with patch.object(plain, "stop") as stop3:
+        stopped = plain._fail_create_dialog_alignment(50.0, _platform_frame())
+    assert stopped is LoopAction.Break
+    stop3.assert_called_once()
+    assert plain.phase is Phase.ERROR
+
+
+def test_hitch_recovery_state_missing_does_not_stop_when_not_exhausted() -> None:
+    med = _hitch()
+    med.phase = Phase.RECOVER_FAILURE
+    med._recovery_state = None
+    med._hitch_recovery_exhausted = False
+    frame = _platform_frame()
+    with patch.object(med, "stop") as stop, \
+            patch.object(med, "act_click") as click, \
+            patch.object(med, "_hitch_visible_victory_or_failure", return_value=None), \
+            patch.object(med, "_begin_recovery") as begin, \
+            patch.object(med, "_hitch_lobby_handoff_authorized", return_value=False):
+        action = med._tick_recovery(frame)
+    assert action is LoopAction.Continue
+    stop.assert_not_called()
+    click.assert_not_called()
+    begin.assert_not_called()
+    assert med.phase is Phase.RECOVER_FAILURE
+    assert med._recovery_state is None
+    assert med._hitch_recovery_exhausted is True
+    assert med._hitch_recovery_exhausted_reason == "recovery state missing"
+    assert med._run_exit_reason is None
+
+    with patch.object(med, "stop") as stop2, \
+            patch.object(med, "_begin_recovery") as begin2, \
+            patch.object(med, "_hitch_visible_victory_or_failure", return_value=None), \
+            patch.object(med, "_hitch_lobby_handoff_authorized", return_value=False):
+        again = med._tick_recovery(frame)
+    assert again is LoopAction.Continue
+    stop2.assert_not_called()
+    begin2.assert_not_called()
+    assert med._recovery_state is None
+    assert med.phase is not Phase.LOBBY_ROOM
+
+    victory = _game_frame()
+    med.phase = Phase.RECOVER_FAILURE
+    med._recovery_state = None
+    with patch.object(med, "_hitch_visible_victory_or_failure", return_value="POST_VICTORY"), \
+            patch.object(med, "_tick_main_line", return_value=LoopAction.Continue) as main, \
+            patch.object(med, "stop") as stop3, \
+            patch.object(med, "act_click") as click3:
+        yielded = med._tick_recovery(victory)
+    assert yielded is LoopAction.Continue
+    assert med.phase is Phase.MAIN_LINE
+    main.assert_called_once()
+    stop3.assert_not_called()
+    click3.assert_not_called()
