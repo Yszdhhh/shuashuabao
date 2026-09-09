@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-03T08:00:00+00:00",
+  "generated_at": "2026-09-09T15:56:02.496944+00:00",
   "spec": "ShuaBao.spec",
   "package_roots": [
     {
@@ -136,6 +136,22 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 3377,
       "sha256": "e04db1ec8713e55ecf2ecdd07de8e481a26c5b72ddec78a3c89bfe9899bb9c4d"
+    },
+    {
+      "path": "assets/Images/bag/bag_sell_equipment.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 5581,
+      "sha256": "f50e115e9a4e4b8b6f246c4f60a5006384d9756a0ff5b30014bf59d98ddadca4"
+    },
+    {
+      "path": "assets/Images/bag/public_bag_title.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 4958,
+      "sha256": "5c606fe1bee089b73e634c46e6343d7f0bdc1795f3839aaf8ca0b51a393e76ab"
     },
     {
       "path": "assets/Images/baoshi.png",
@@ -2180,7 +2196,7 @@
     {
       "path": "assets/Images/lobby/lobby_search_icon.png",
       "purpose": "runtime_ui",
-      "provenance": "cropped from fixtures/lobby_hitch_20260814/list_empty_search_t000.png at (1267,263) 26x22",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 1160,
       "sha256": "2def6c4e2e3c4d1b60183cfcdc5c099454758d9dfb7eba33a506ce5b2187e1d6"
