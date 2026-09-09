@@ -194,6 +194,33 @@ def test_hitch_bootstrap_priority() -> None:
     assert order[:2] == ["pressure", "auto_task"], f"压力转移必须先于自动任务: {order}"
 
 
+def test_hitch_pressure_gate_blocks_all_bootstrap_actions_until_confirmed() -> None:
+    """P0：压力转移尚未由 fresh 帧确认时，自动任务及后续四挑战不得穿透。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.MAIN_LINE)
+    frame = _game_frame("midgame")
+    order: list[str] = []
+
+    def pending_pressure(frame_arg, now):
+        order.append("pressure")
+        return LoopAction.Continue
+
+    def forbidden_auto_task(frame_arg):
+        order.append("auto_task")
+        return None
+
+    with patch.object(med, "_find_failure_gift", return_value=None), \
+         patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_find_stage_page", return_value=False), \
+         patch.object(med, "_is_in_game_hud", return_value=True), \
+         patch.object(med, "_maybe_click_hitch_pressure_transfer", side_effect=pending_pressure), \
+         patch.object(med, "_ensure_auto_task_enabled", side_effect=forbidden_auto_task), \
+         patch.object(med, "find", return_value=None):
+        assert med._tick_main_line(frame) is LoopAction.Continue
+
+    assert order == ["pressure"], f"压力转移门禁未确认时禁止后续局内动作: {order}"
+
+
 def test_ready_180s_timeout_pends_then_blacklists_after_lobby() -> None:
     """P0-6：180 秒超时先挂起 pending 并安全退房；只有 fresh 帧确认已离房
     且大厅/房间列表基线可见，才拉黑房号并回到大厅找房。黑名单绝不在超时
@@ -358,21 +385,22 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
         patch("shuabao.mediator.time.time", return_value=12.0),
     ):
         # 同一 request 帧（generation 未变）：不 confirm
-        med._maybe_click_hitch_pressure_transfer(frame, 12.0)
+        assert med._maybe_click_hitch_pressure_transfer(frame, 12.0) is LoopAction.Continue
         assert med._hitch_pressure_transferred is False
         # fresh 帧（不同 Frame 产生新 generation）：确认 transferred
         fresh_frame = _game_frame("midgame")
-        med._maybe_click_hitch_pressure_transfer(fresh_frame, 12.0)
+        assert med._maybe_click_hitch_pressure_transfer(fresh_frame, 12.0) is LoopAction.Continue
     assert med._hitch_pressure_transferred is True
 
-    # 25 秒窗口过期：未点过 → 不置 transferred（放弃 ≠ 成功）
+    # 即使原先的 25 秒窗口已过，未点过/未确认也必须继续门禁，不能放行。
     med2 = _hitch_mediator()
     med2.set_phase(Phase.MAIN_LINE)
     med2._main_line_since = 0.0
     with patch.object(med2, "_team_mode_enabled", return_value=True), \
+         patch.object(med2, "_is_in_game_hud", return_value=True), \
          patch.object(med2, "find", return_value=None), \
          patch("shuabao.mediator.time.time", return_value=30.0):
-        med2._maybe_click_hitch_pressure_transfer(frame, 30.0)
+        assert med2._maybe_click_hitch_pressure_transfer(frame, 30.0) is LoopAction.Continue
     assert med2._hitch_pressure_transferred is False
 
 

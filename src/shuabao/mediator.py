@@ -5403,25 +5403,20 @@ class Mediator:
         return None
 
     def _maybe_click_hitch_pressure_transfer(self, frame: Frame, now: float) -> LoopAction | None:
-        """蹭车模式：开局 25 秒内寻找装备栏上方的『压力转移』独立按钮并点击。
+        """蹭车模式的 P0 压力转移门禁。
 
-        P0-4 后置条件生命周期：点击成功只记录 ``_hitch_pressure_click_at``；
-        下一帧在可信局内 HUD 上验证按钮已消失/状态已变化，才置
-        ``_hitch_pressure_transferred = True``。25 秒窗口过期≠成功，只放弃尝试。
+        只要本局压力转移尚未由 fresh HUD 证实完成，调用方就必须停在这里：
+        不得放行自动任务、四挑战、商店、宝物或任何其他局内输入。点击成功
+        只记录 request；只有后续 fresh 帧确认按钮消失，才置
+        ``_hitch_pressure_transferred = True``。时间窗口或重试次数绝不构成成功。
         """
         if not self._team_mode_enabled():
             return None
         if getattr(self, "_hitch_pressure_transferred", False):
             return None
-        # 开局 25 秒之后如果还没点到，按钮会消失，放弃尝试（不是成功）
-        main_line_started_at = getattr(self, "_main_line_started_at", None)
-        main_line_duration = now - (main_line_started_at if main_line_started_at is not None else now)
-        if main_line_duration > 25.0:
-            # 25 秒窗口过期 ≠ 转移成功：不置 _hitch_pressure_transferred，
-            # 只是放弃新的尝试（窗口检查本身保证后续 tick 直接跳过）。
-            return None
         if not self._is_in_game_hud(frame):
-            return None
+            # 未能确认局内 HUD 时也不能把压力转移门禁降级为普通主线。
+            return LoopAction.Continue
         click_at = getattr(self, "_hitch_pressure_click_at", None)
         if click_at is not None:
             req_gen = getattr(self, "_hitch_pressure_request_generation", None)
@@ -5429,7 +5424,7 @@ class Mediator:
             cur_gen = cur_evidence.gen if cur_evidence else None
             # C2 修复：同一 request 帧绝不 confirm；必须当前 evidence generation 明确晚于 request 帧
             if req_gen is not None and cur_gen is not None and cur_gen <= req_gen:
-                return None
+                return LoopAction.Continue
 
             # 后置条件验证：必须是可信局内 HUD，且按钮已消失才置 transferred = True
             hit = self.find(
@@ -5442,24 +5437,19 @@ class Mediator:
                 self._hitch_pressure_transferred = True
                 self._hitch_pressure_click_at = None
                 print("[med] 压力转移按钮已消失，转移后置条件确认")
+                # 在确认帧本身不穿透到后续局内动作；从下一 tick 才放行。
+                return LoopAction.Continue
             elif now - click_at >= 5.0:
-                # 按钮还在且已过 5 秒 → 重试有界（最多重试 3 次）
+                # 按钮还在且已过 5 秒：仅允许重新尝试压力转移。次数只作
+                # 诊断，绝不能成为放行其他局内动作的理由。
                 retries = getattr(self, "_hitch_pressure_retry_count", 0) + 1
                 self._hitch_pressure_retry_count = retries
-                if retries <= 3:
-                    print(f"[med] 压力转移点击后按钮仍可见（后置条件未确认），重试 ({retries}/3)")
-                    self._hitch_pressure_click_at = None
-                else:
-                    print("[med] 压力转移重试次数超限（3次），放弃重试")
-                    self._hitch_pressure_click_at = None
-            # C2 修复：彻底删除错误耦合的 Ready timeout 清理。Pressure 流程不得干扰 Ready 状态。
-            return None
+                print(f"[med] 压力转移点击后按钮仍可见（后置条件未确认），继续重试 ({retries})")
+                self._hitch_pressure_click_at = None
+            # 等待确认/重试期间是强制零输入门禁。
+            return LoopAction.Continue
 
         # 优先在屏幕中下方/右下方区域找压力转移按钮
-        retries = getattr(self, "_hitch_pressure_retry_count", 0)
-        if retries > 3:
-            return None
-
         hit = self.find(
             frame,
             ["yalizhuanyi"],
@@ -5474,7 +5464,10 @@ class Mediator:
                 self._hitch_pressure_request_generation = evidence.gen if evidence else 0
                 print("[med] 压力转移按钮已点击，等待后置条件确认（按钮消失）")
                 return LoopAction.Continue
-        return None
+        # 看不到按钮也不能猜测已经完成；保持零输入观察，直到看到并点击，
+        # 再由 fresh 帧证实它消失。
+        print("[med] 蹭车压力转移尚未确认，保持门禁并等待按钮")
+        return LoopAction.Continue
 
 
     def _find_secret_realm_npc(self, frame: Frame) -> MatchResult | None:
@@ -10462,6 +10455,13 @@ class Mediator:
             if event:
                 return self._hitch_reset_lobby(event, now)
 
+            # 蹭车开局的唯一 P0：压力转移未被 fresh HUD 证实完成前，任何
+            # 其他局内路径（失败奖励、Boss、选卡、黑商、自动任务、四挑战等）
+            # 都没有输入权。这个门禁必须在所有局内分发之前。
+            pt_res = self._maybe_click_hitch_pressure_transfer(frame, now)
+            if pt_res is not None:
+                return pt_res
+
         # ---- 专属动作后置条件等待 (PendingAction Active Waiting) ----
         if self._pending_action is not None:
             if self._pending_action.is_confirmed(frame):
@@ -10932,11 +10932,7 @@ class Mediator:
         # 商店检测在存在中央选卡/进化/词条弹窗或主线处于前置主动步骤(F/G/V/进化/装备/拾取)时严格抑制，绝不插队抢点击
         mainline_proactive_active = self._l1_cycle_step in ("bond", "skill", "treasure", "evolve", "equipment", "pickup")
         hitch_bootstrap_pending = self._hitch_enabled() and (
-            (
-                not self._hitch_pressure_transferred
-                and self._main_line_started_at is not None
-                and now - self._main_line_started_at <= 25.0
-            )
+            not self._hitch_pressure_transferred
             or not self._auto_task_done
             or len(self._challenge_done) < len(self._challenge_states)
         )
@@ -11111,12 +11107,6 @@ class Mediator:
         if self._find_stage_page(frame) and not self._is_in_game_hud(frame):
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
-
-        # b15da05 P0-D: 蹭车模式下压力转移限时 25 秒，必须在自动任务门禁之前优先执行
-        if self._hitch_enabled():
-            pt_res = self._maybe_click_hitch_pressure_transfer(frame, now)
-            if pt_res is not None:
-                return pt_res
 
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)
