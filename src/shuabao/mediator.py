@@ -4775,6 +4775,28 @@ class Mediator:
             return None
         return hit
 
+    @staticmethod
+    def _post_game_hub_label_pair(
+        frame: Frame, archive: MatchResult | None, heirloom: MatchResult | None
+    ) -> bool:
+        """Are these the plaza's two side-by-side NPC labels?
+
+        Live frame ``f0133`` scores ``damijing`` at 0.597, so the old rift-NPC
+        gate could never classify that page and the heirloom entry was never
+        reached.  The replacement evidence is the label *pair*, and a pair is
+        only page evidence when it has the plaza's geometry: 存档挑战 and
+        传家宝挑战 render on one baseline, archive first, nearly touching.
+        Two unrelated 0.58 hits scattered across the battlefield do not.
+        """
+        if archive is None or heirloom is None:
+            return False
+        if abs(archive.y - heirloom.y) > frame.height * 0.02:
+            return False
+        if archive.x >= heirloom.x:
+            return False
+        gap = heirloom.x - (archive.x + archive.w)
+        return -frame.width * 0.01 <= gap <= frame.width * 0.10
+
     def _post_game_hub_entry_click(self, frame: Frame, route: str) -> MatchResult | None:
         """Turn a verified hub label into a click on the corresponding NPC."""
         label = self._find_post_game_hub_entry(frame, route)
@@ -4943,8 +4965,10 @@ class Mediator:
                 quit_hit
                 and quit_hit.x <= w * 0.10
                 and quit_hit.y <= h * 0.15
-                and rift_npc_right
-                and (hero_hit or (hub_archive is not None and hub_heirloom is not None))
+                and (
+                    (rift_npc_right and hero_hit)
+                    or self._post_game_hub_label_pair(frame, hub_archive, hub_heirloom)
+                )
                 # B4：与 ARCHIVE_PANEL 互斥——关闭按钮可见时不分类为 NPC_HUB。
                 and close_hit is None
             ):

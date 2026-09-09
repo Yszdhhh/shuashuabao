@@ -225,6 +225,61 @@ class P1B0PostGameTests(unittest.TestCase):
              patch.object(self.med, "_find_post_game_hub_entry", side_effect=fake_hub_entry):
             self.assertEqual(self.med._post_game_state(frame), "NPC_HUB")
 
+    def test_hub_classified_with_dual_challenge_labels_without_damijing(self):
+        """damijing score is too low on live plaza frames; the dual hub labels alone classify NPC_HUB."""
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+
+        def fake_find(_frame, names, **_kwargs):
+            name = names[0]
+            if name == "quit":
+                return MatchResult(name, 0.90, 20, 10, 70, 24, 55, 22)
+            if name in ("damijing", "HeroChallenge"):
+                return None
+            return None
+
+        def fake_hub_entry(_frame, route):
+            x = 900 if route == "archive" else 1010
+            return MatchResult(route, 0.66, x, 200, 90, 24, x + 45, 212)
+
+        with patch.object(self.med, "find", side_effect=fake_find), \
+             patch.object(self.med, "_find_post_game_hub_entry", side_effect=fake_hub_entry):
+            self.assertEqual(self.med._post_game_state(frame), "NPC_HUB")
+
+    def _hub_frame_state(self, archive_box, heirloom_box):
+        """Classify a hub frame whose only page evidence is the two NPC labels."""
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+
+        def fake_find(_frame, names, **_kwargs):
+            if names[0] == "quit":
+                return MatchResult("quit", 0.89, 39, 12, 75, 24, 76, 24)
+            return None
+
+        def fake_hub_entry(_frame, route):
+            x, y, w, h = archive_box if route == "archive" else heirloom_box
+            return MatchResult(route, 0.66, x, y, w, h, x + w // 2, y + h // 2)
+
+        with patch.object(self.med, "find", side_effect=fake_find), \
+             patch.object(self.med, "_find_post_game_hub_entry", side_effect=fake_hub_entry):
+            return self.med._post_game_state(frame)
+
+    def test_live_f0133_label_pair_geometry_classifies_the_hub(self):
+        """Exact boxes measured on 20260909 f0133_action_after.png (damijing scored 0.597)."""
+        self.assertEqual(
+            self._hub_frame_state((665, 146, 92, 24), (769, 146, 116, 27)),
+            "NPC_HUB",
+        )
+
+    def test_labels_on_different_rows_are_not_hub_evidence(self):
+        """Two scattered 0.58 hits are template noise, not the plaza's label row."""
+        self.assertIsNone(self._hub_frame_state((665, 146, 92, 24), (769, 320, 116, 27)))
+
+    def test_labels_far_apart_are_not_hub_evidence(self):
+        """存档挑战 and 传家宝挑战 render nearly touching; a screen-wide gap is noise."""
+        self.assertIsNone(self._hub_frame_state((300, 146, 92, 24), (1200, 146, 116, 27)))
+
+    def test_heirloom_label_left_of_archive_is_not_hub_evidence(self):
+        self.assertIsNone(self._hub_frame_state((769, 146, 92, 24), (665, 146, 116, 27)))
+
     def test_centered_live_hub_beats_false_item_panel_anchor(self):
         """The live plaza's central NPC layout must not be hidden by heroRefresh noise."""
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
