@@ -233,7 +233,7 @@ def test_targeted_probes_call_production_handlers_not_copies() -> None:
     assert labels == [
         "choice_bond_skill", "treasure", "hero_evolve", "inventory_devour",
         "inventory_hero_card", "black_merchant", "archive_challenge",
-        "heirloom", "secret_realm", "lobby_search",
+        "heirloom", "secret_realm", "lobby_search", "public_backpack_deposit",
     ]
 
 
@@ -255,7 +255,7 @@ def test_launcher_keeps_existing_lanes_and_adds_refresh_controls() -> None:
         "1  启动前检查",
         "11 蹭车局内完整链路",
         "12 单人完整链路",
-        "13 大厅蹭车完整链路",
+        "13 PRIMARY HITCH_FULL_NATURAL_E2E",
         "单项实机测试",
         "9  打开最新 FAIL bundle",
         "10 Reproduce 最新 FAIL",

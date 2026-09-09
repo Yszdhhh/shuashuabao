@@ -45,8 +45,54 @@ import cv2
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Tier-0 scenarios run the frozen production candidate from an explicit
+# source root while this Harness worktree remains the owner of the runner,
+# tests, and bundle schema.  Keep the default import behaviour unchanged for
+# the existing non-Tier-0 targets.
+PRODUCTION_TEST_CANDIDATE_SHA = "53afb4376bd371c3e7bdffd7fff1f13eb6cfd1a5"
+
+
+def _argv_value(name: str) -> str | None:
+    """Read a simple CLI option before argparse and production imports run."""
+    try:
+        index = sys.argv.index(name)
+    except ValueError:
+        return None
+    if index + 1 >= len(sys.argv):
+        return None
+    value = str(sys.argv[index + 1]).strip()
+    return value or None
+
+
+def _configured_production_source_root(explicit: str | Path | None = None) -> Path | None:
+    value = explicit or os.environ.get("SHUABAO_PRODUCTION_SOURCE_ROOT") or _argv_value(
+        "--production-source-root"
+    )
+    if not value:
+        return None
+    return Path(value).expanduser().resolve()
+
+
+def _configured_production_source_sha(explicit: str | None = None) -> str | None:
+    value = explicit or os.environ.get("SHUABAO_PRODUCTION_SOURCE_SHA") or _argv_value(
+        "--production-source-sha"
+    )
+    value = str(value).strip() if value else ""
+    return value or None
+
+
+_PRODUCTION_SOURCE_ROOT = _configured_production_source_root()
+if _PRODUCTION_SOURCE_ROOT is not None:
+    _injected_src = _PRODUCTION_SOURCE_ROOT / "src"
+    if _injected_src.is_dir():
+        sys.path.insert(0, str(_injected_src))
+
 if str(ROOT / "src") not in sys.path:
-    sys.path.insert(0, str(ROOT / "src"))
+    if _PRODUCTION_SOURCE_ROOT is None:
+        sys.path.insert(0, str(ROOT / "src"))
+    else:
+        sys.path.append(str(ROOT / "src"))
 if str(ROOT / "tests") not in sys.path:
     sys.path.insert(0, str(ROOT / "tests"))
 if str(ROOT / "tools") not in sys.path:
@@ -55,7 +101,7 @@ if str(ROOT / "tools") not in sys.path:
 from live_harness_identity import (  # noqa: E402
     FROZEN_PRODUCTION_CODE_BASELINE,
     HARNESS_BASE_SHA,
-    format_identity_text,
+    format_identity_text as _base_format_identity_text,
     identity_report,
 )
 
@@ -70,7 +116,12 @@ from shuabao.mediator import BUILD_ID, Mediator, Phase  # noqa: E402
 from shuabao.player_profile import LiveLane, LiveLaneBusy  # noqa: E402
 from shuabao.settings import Settings  # noqa: E402
 from shuabao.stop_signal import StopSignal  # noqa: E402
-from shuabao.vision.capture import Frame, capture  # noqa: E402
+from shuabao.vision.capture import (  # noqa: E402
+    Frame,
+    WindowRole,
+    capture,
+    classify_window_role,
+)
 from shuabao.vision.matcher import _load_template  # noqa: E402
 from test_scenario_replay import (  # noqa: E402
     ActionProbe,
@@ -85,6 +136,20 @@ from test_scenario_replay import (  # noqa: E402
     ScenarioRunner,
     _INPUT_KIND,
 )
+
+
+def _format_identity_text(report: dict[str, Any]) -> str:
+    """Render the injected production SHA, not the Harness baseline, as candidate."""
+    text = _base_format_identity_text(report)
+    source_sha = str(report.get("production_source_sha") or "").strip()
+    if not source_sha:
+        return text
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("Production Candidate SHA:"):
+            lines[index] = f"Production Candidate SHA: {source_sha}"
+            break
+    return "\r\n".join(lines)
 
 
 TARGET_CONTRACT_FIELDS = (
@@ -253,6 +318,118 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "runbook_pass": "只有真实进入合规房间并点击准备、且按钮状态变化得到确认，才是 Live Probe PASS；Refresh 不是终态。",
         "runbook_manual_intervention": "若 UAC 未确认或窗口被遮挡，结束本次并重新从桌面快捷方式启动。",
     },
+    "s01_lobby_surface_identity": {
+        "handler": "_detect_context",
+        "start_condition": "手工把 KK 停在房间列表、未准备房间、已准备房间、普通大厅其它页或平台弹窗之一；Scenario 默认零业务输入。",
+        "production_entry": "每次 fresh capture 调用 production Mediator 的页面/弹窗/Ready detector；Scenario 只记录分类、HWND 连续性与 contract。",
+        "expected_steps": ("CAPTURE", "WINDOW_IDENTITY", "SURFACE_CLASSIFIED", "READY_CONTRACT"),
+        "success_postcondition": "ROOM、ROOM_LIST、PLATFORM_MODAL、UNKNOWN 与 ready contract 均来自 production detector；UNKNOWN 始终零业务输入。",
+        "fail_condition": "ROOM_LIST 被判为 ROOM、ROOM 被判为 ROOM_LIST、普通大厅被判为 MODAL、或 UNKNOWN 上出现业务输入。",
+        "blocked_condition": "没有有效 KK capture/HWND；无窗口只允许 BLOCKED，不伪造页面分类。",
+        "max_probe_time_s": 30.0,
+        "natural_e2e_eligible": "仅用于页面身份 Ground Truth；不以本 target 宣称业务链 Live PASS。",
+        "bundle_replay": "保存真实 capture/frame identity/production classification；不生成 fabricated MatchResult。",
+        "runbook_manual": "依次手工停在 ROOM_LIST、未准备 ROOM、已准备 ROOM、普通大厅其它页或 KK platform modal。",
+        "runbook_hands_off": "启动后不要点击；该 target 默认零业务输入。",
+        "runbook_pass": "每个手工页面都由 production detector 给出正确身份；UNKNOWN 零输入。",
+        "runbook_manual_intervention": "页面不稳定时停止并保留 bundle，不在 Scenario 中手工分类。",
+    },
+    "s02_lobby_platform_modal": {
+        "handler": "tick",
+        "start_condition": "手工制造一个 KK blocking modal：等级不足、密码、被踢、房主离开、会员提示或同 shell 平台提示。",
+        "production_entry": "调用 production Mediator.tick()；只允许统一 Platform Modal Shell 的 neutral Esc/X dismiss。",
+        "expected_steps": ("MODAL_CONFIRMED", "NEUTRAL_DISMISS", "FRESH_REACQUIRE", "SURFACE_RECLASSIFIED"),
+        "success_postcondition": "fresh capture 证明 modal shell 消失，随后 fresh surface 被 production 重新分类为可信 lobby/platform surface；Esc dispatch success 单独不算 PASS。",
+        "fail_condition": "非 neutral 输入、modal 消失未被 fresh capture 证实、或 recovery 后仍错误停在旧 identity。",
+        "blocked_condition": "启动帧不是 production PLATFORM_MODAL；无 KK 窗口时 BLOCKED。",
+        "max_probe_time_s": 60.0,
+        "natural_e2e_eligible": "只有真实 modal 消失与后续 surface fresh-confirm 后才有资格；Scenario 不替代 production handler。",
+        "bundle_replay": "保存 modal 前后 frame、capture generation、HWND、trace、input 与 postcondition；静态像素也必须以新 capture generation 识别。",
+        "runbook_manual": "制造一个等级不足/密码/被踢/房主离开/会员提示等 KK 平台弹窗。",
+        "runbook_hands_off": "不要点击正向按钮；仅允许 production neutral dismiss。",
+        "runbook_pass": "modal shell 消失并由 fresh capture 重新分类；预算耗尽也不得 ERROR/stop/Break。",
+        "runbook_manual_intervention": "无法恢复时标 FAIL，保留完整 bundle 后停止该 Scenario。",
+    },
+    "s03_lobby_room_ready": {
+        "handler": "_tick_lobby_hitch",
+        "start_condition": "手工进入真实 ROOM；分别测试未准备、已准备和 ROOM=True 但 Ready contract UNKNOWN。",
+        "production_entry": "先由 production fresh-confirm ROOM，再读取 production Ready/CancelReady contract；仅在 ready contract=ready 时调用现有 Ready action。",
+        "expected_steps": ("ROOM_CONFIRMED", "READY_CONTRACT", "READY_OR_WAIT", "CANCEL_READY_CONFIRMED"),
+        "success_postcondition": "未准备房间 fresh-confirm CancelReady/已准备；已准备房间 Ready 点击次数为 0；UNKNOWN contract 零输入并 reobserve。",
+        "fail_condition": "ROOM 未确认就输入、已准备重复点 Ready、或 UNKNOWN seat/contract 导致退出房间/拉黑房号。",
+        "blocked_condition": "启动帧不是 production ROOM；无 KK 窗口时 BLOCKED。",
+        "max_probe_time_s": 60.0,
+        "natural_e2e_eligible": "仅真实 Ready/CancelReady 后置确认后才有资格；点击成功单独不算 PASS。",
+        "bundle_replay": "保存 ROOM/Ready contract/CancelReady fresh evidence、输入、HWND 与 trace；不补造 ready 模板。",
+        "runbook_manual": "先进入别人真实房间，分别停在未准备、已准备和无法判断 Ready contract 的页面。",
+        "runbook_hands_off": "不要手动点 Ready/CancelReady/退出。",
+        "runbook_pass": "未准备只点一次 Ready 并 fresh-confirm CancelReady；已准备零 Ready click；UNKNOWN 零输入。",
+        "runbook_manual_intervention": "真实页面不满足 contract 时标 FAIL/BLOCKED，不手工替代 detector。",
+    },
+    "s04_lobby_single_hwnd_room": {
+        "handler": "_detect_context",
+        "start_condition": "尽量使用单 KK HWND、全屏或仅一个可捕获平台窗口，并手工停在真实 ROOM。",
+        "production_entry": "fresh capture 调用 production ROOM detector 与 confirmed_room_hwnd 归属；Scenario 默认零输入。",
+        "expected_steps": ("CAPTURE", "ROOM_CONFIRMED", "SINGLE_HWND_CONTINUITY", "ROOM_WAIT"),
+        "success_postcondition": "ROOM=True 且 confirmed_room_hwnd 等于当前实际 HWND；不会因 len(targets)==1 回退 ROOM_LIST/GO_HOME。",
+        "fail_condition": "真实 ROOM 被判为 ROOM_LIST/UNKNOWN，confirmed_room_hwnd 丢失，或单窗口导致盲点退出/回家。",
+        "blocked_condition": "没有有效单 HWND KK capture；不以多窗口模拟单窗口 PASS。",
+        "max_probe_time_s": 30.0,
+        "natural_e2e_eligible": "只验证单窗口 ROOM identity continuity；后续 Ready 业务由 S03/S05 验证。",
+        "bundle_replay": "保存实际 HWND、窗口 title/role、frame size、generation 与 production classification。",
+        "runbook_manual": "使用单 KK HWND/全屏或只有一个可捕获平台窗口，实际停在 ROOM。",
+        "runbook_hands_off": "启动后不要点击；该 target 默认零业务输入。",
+        "runbook_pass": "fresh production ROOM evidence 与当前 HWND 连续一致。",
+        "runbook_manual_intervention": "窗口形态不满足时标 BLOCKED，不改 detector 迎合测试。",
+    },
+    "s05_lobby_search_join_ready": {
+        "handler": "_tick_lobby_hitch",
+        "start_condition": "手工停在真实 ROOM_LIST；由 production 完成搜索词确认、可加入行扫描、Join、modal neutral recovery、ROOM、Ready 与 CancelReady fresh-confirm。",
+        "production_entry": "调用现有 production _tick_lobby_hitch；Harness 不复制搜索、座位、退出或弹窗 FSM。",
+        "expected_steps": ("SEARCH_CONFIRMED", "JOIN_REQUEST", "ROOM_CONFIRMED", "READY_CONFIRMED"),
+        "success_postcondition": "SEARCH、JOIN、ROOM fresh-confirm、READY/CancelReady fresh-confirm 全部发生；click success、frame mutation、pending_join 单独不算 PASS。",
+        "fail_condition": "任一业务后置缺失、UNKNOWN 页面上输入、重复 Ready、或错误退出/拉黑。",
+        "blocked_condition": "没有可信 ROOM_LIST/搜索资源/KK window；无窗口时 BLOCKED。",
+        "max_probe_time_s": 600.0,
+        "natural_e2e_eligible": "完整真实大厅→搜索→进房→Ready 链且无 FAIL/MANUAL_INTERVENTION 才有资格。",
+        "bundle_replay": "沿用现有 event-driven bundle、trace 与 ReplayCaseLoader；只回放证据，不把 Lobby FSM 复制进 Harness。",
+        "runbook_manual": "把 KK 停在英雄三国 ROOM_LIST，确认没有其它刷刷宝实例运行。",
+        "runbook_hands_off": "启动后不要点搜索、房间、Ready、弹窗或退出；紧急停止仍用 Shift+F12。",
+        "runbook_pass": "四个 production fresh business postcondition 全部确认。",
+        "runbook_manual_intervention": "被异常房/弹窗卡住时先留 FAIL，再停止本次 Scenario。",
+    },
+    "s06_lobby_recovery_chain": {
+        "handler": "tick",
+        "start_condition": "S01–S05 已通过后从真实 ROOM_LIST 启动；连续运行 10–20 分钟或至少 5 次 production join attempt。",
+        "production_entry": "连续调用 production Mediator.tick()；所有 Lobby 输入、恢复、弹窗与 seat decision 均由 production handler 产生。",
+        "expected_steps": ("SEARCH", "JOIN", "RECOVER", "READY", "RECLASSIFY", "SOAK_SAFETY"),
+        "success_postcondition": "达到时间/次数门槛且 SILENT_STOP、永久零输入 stall、ROOM_LIST-as-ROOM、ROOM-as-MODAL、READY_REPEAT、UNKNOWN_SEAT_EXIT、BLIND_GO_HOME、unexpected_inputs 均为 0。",
+        "fail_condition": "任一安全指标非 0、生产 ERROR/stop、或未达到门槛即宣称 PASS。",
+        "blocked_condition": "S01–S05 未完成、无 KK 窗口或无法取得有效 capture/trace。",
+        "max_probe_time_s": 1200.0,
+        "natural_e2e_eligible": "仅达到至少 5 次 join 或 10 分钟并通过全部 safety metrics 才有资格。",
+        "bundle_replay": "保存 soak 期间事件帧、trace、HWND、classification、inputs、postconditions 与汇总 metrics。",
+        "runbook_manual": "完成 S01–S05 后，把 KK 停在 ROOM_LIST；准备让异常房/弹窗自然出现。",
+        "runbook_hands_off": "全程不要手动操作 Lobby；紧急停止仍用 Shift+F12。",
+        "runbook_pass": "达到 soak 门槛且所有安全指标为 0。",
+        "runbook_manual_intervention": "任何人工接管都会使本次 Natural E2E 失格并保留 bundle。",
+    },
+    "public_backpack_deposit": {
+        "handler": "_maybe_public_backpack_deposit",
+        "start_condition": "窄复现入口：只有在真实 GAME/HUD、目标吞噬丹或绿色 OCR 命中‘神符’的物品格 fresh-confirm，且无 modal/outcome 抢占时启动。首次运行必须进入 GT_CAPTURE：production 只执行识别目标格→右键→B，确认公共/个人背包页面后暂停。",
+        "production_entry": "调用冻结 candidate 的 PUBLIC_BACKPACK_DEPOSIT operation；Harness 不实现右键/B、背包转移或目标识别。当前 candidate 尚无该 production entrypoint，直到真实 GT 后保持 BLOCKED。",
+        "expected_steps": ("HUD_AUTHORITY", "ITEM_SLOT_CONFIRMED", "RIGHT_CLICK_B_GT_CAPTURE", "BAG_SURFACE_CONFIRMED", "MANUAL_TRANSFER_GT", "DEPOSIT_POSTCONDITION"),
+        "success_postcondition": "公共背包 surface 可见、目标原位置发生可信变化，且目标在公共背包出现或有等价明确 transfer postcondition；输入成功单独不算 PASS。",
+        "fail_condition": "在 modal/outcome/UNKNOWN 上输入、盲拖/盲点/无限重试、或 public bag transfer 后置缺失；记录 PUBLIC_BAG_DEPOSIT_FAILURE 但不停止整条 hitch 长线程。",
+        "blocked_condition": "production PUBLIC_BACKPACK_DEPOSIT operation 缺失、尚未完成 GT_CAPTURE、目标物品格/HUD/背包 surface 未 fresh-confirm。",
+        "max_probe_time_s": 120.0,
+        "natural_e2e_eligible": "首次 GT_CAPTURE + MANUAL_INTERVENTION 永不计 Natural E2E PASS；operation 实现并通过真实自动 deposit 后才可进入整链统计。",
+        "bundle_replay": "保存 before/action/after frame、HWND、尺寸、item bbox、public/private bag bbox、trace 与 production postcondition；不生成 fabricated MatchResult。",
+        "runbook_manual": "将真实游戏停在已确认 GAME/HUD，等目标吞噬丹或绿色 OCR 命中‘神符’出现在物品格。",
+        "runbook_hands_off": "首次 GT_CAPTURE 期间不要手工点物品或背包；收到暂停后由用户人工完成一次目标物品→公共背包转移。",
+        "runbook_pass": "首次只记录 GT_CAPTURE/MANUAL_INTERVENTION；后续 operation 必须 fresh-confirm 公共背包与 transfer postcondition。",
+        "runbook_manual_intervention": "用户人工完成一次真实转移动作，标记 MANUAL_INTERVENTION / GT_CAPTURE；本次不计 Natural E2E PASS。",
+    },
     "hitch_runtime": {
         "handler": "tick",
         "call": "frame",
@@ -295,21 +472,22 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "hitch_lobby_chain": {
         "handler": "tick",
         "call": "frame",
-        "start_condition": "把 KK 停在英雄三国可信大厅页：已在房间列表可直接搜房；若可识别未选中的房间列表 Tab，则先由 production 切入列表。不要预先点房间。满员/被踢/房间消失/无结果必须由 production lobby hitch 自己恢复并重新搜索。",
-        "production_entry": "Mediator.tick() → production _tick_l0/_tick_lobby_hitch（mode_id=lobby_hitch）。Harness 不搜房、不点房间坐标、不补搜索 FSM；进局后继续走现有蹭车局内 Mediator.tick()。",
+        "start_condition": "HITCH_FULL_NATURAL_E2E：把 KK 停在英雄三国真实 ROOM_LIST；不要预先点房间。由 production Mediator.tick() 连续处理搜房、Join、blocking modal、ROOM/Ready、进局、Pressure、局内 optional routes、Victory/Failure、真实退出、回到大厅并搜下一轮。",
+        "production_entry": "Mediator.tick() → production _tick_l0/_tick_lobby_hitch/_tick_main_line；Harness 只采证据和汇总，不复制 Lobby/L1 FSM。",
         "expected_steps": (
-            "LOBBY_DETECT", "SEARCH_INPUT", "JOIN", "ROOM_WAITING_CONFIRMED",
-            "RECOVER_OR_RESEARCH", "INGAME_HUD_CONFIRMED",
+            "ROOM_LIST", "SEARCH_CONFIRMED", "JOIN", "MODAL_RECOVERY",
+            "ROOM_READY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
+            "OPTIONAL_ROUTES", "OUTCOME", "REAL_EXIT", "LOBBY_RETURN", "NEXT_ROUND",
         ),
-        "success_postcondition": "production lobby hitch 在真实大厅完成搜房/JOIN，并以 ROOM_WAITING 或可信局内 HUD 确认进局；刷新、click success、窗口变化单独都不算 PASS。",
-        "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入，或进房/恢复后置未被生产 classifier 确认。",
-        "blocked_condition": "窗口身份/页面 UNKNOWN、既无已选中房间列表证据也无可信房间列表 Tab、或 WindowRole 不可信时 ZERO INPUT。",
+        "success_postcondition": "至少 3 个完整 hitch round；每轮由 production fresh-confirm 搜索/进房/Ready/Pressure/Outcome/真实回厅，至少覆盖一次 blocking modal recovery 和一次 Victory 或 Failure；首次公共背包动作只作为 GT_CAPTURE/MANUAL_INTERVENTION，不计 Natural E2E PASS。",
+        "fail_condition": "production runtime ERROR/静默停止/永久零输入 stall、UNKNOWN 上输入、ROOM_LIST-as-ROOM、ROOM-as-MODAL、重复 Ready、盲 GO_HOME、Pressure 未确认即放行、或回厅未 fresh-confirm。",
+        "blocked_condition": "窗口身份/页面 UNKNOWN、无可信 ROOM_LIST、candidate source 未验证、或尚未取得 Public Backpack GT；BLOCKED 时零业务输入。",
         "max_probe_time_s": 3600.0,
-        "natural_e2e_eligible": "仅从真实大厅开始的连续 Mediator.tick() 链、无人工介入、并由生产后置确认进局时有资格。",
-        "bundle_replay": "沿用事件帧和 ReplayCaseLoader；不把大厅搜房复制进测试工具。",
+        "natural_e2e_eligible": "HITCH_FULL_NATURAL_E2E 只认连续真实 Mediator.tick()；至少 3 rounds 且无人工介入，public backpack GT capture 不算 PASS。",
+        "bundle_replay": "沿用现有事件帧、trace、ReplayCaseLoader 和 FakeInputExecutor；只重放证据结构，不把大厅/局内 FSM 复制到 Harness。",
         "runbook_manual": "把 KK 停在英雄三国房间列表；确认普通刷刷宝未运行。紧急停止用 Shift+F12。",
-        "runbook_hands_off": "启动后不要点房间、刷新、准备或开始游戏；让 production lobby hitch 接管。",
-        "runbook_pass": "必须观察到生产确认的进房/局内 HUD；Refresh 不是终态。",
+        "runbook_hands_off": "启动后不要点房间、刷新、准备、开始、压力、黑商、宝物、背包或退出；让 production Mediator.tick() 接管。",
+        "runbook_pass": "至少 3 个完整 round 的 production fresh postcondition 和安全统计通过；click success/单次 frame mutation 不是 PASS。",
         "runbook_manual_intervention": "卡在密码房或弹窗时先 FAIL，再标 MANUAL_INTERVENTION。",
     },
     "choice_bond_skill": {
@@ -484,6 +662,48 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
         "routes": ({"route": "lobby_hitch_search_ready", "readiness": "CONDITIONAL"},),
         "ground_truth_only": False,
     },
+    "s01_lobby_surface_identity": {
+        "production_readiness": "GROUND_TRUTH_ONLY",
+        "scope": "只采集 production 页面身份、Platform Modal Shell、Ready/CancelReady contract、WindowRole、HWND 与 capture generation；默认零输入。",
+        "routes": ({"route": "lobby_surface_classification", "readiness": "GROUND_TRUTH_ONLY"},),
+        "ground_truth_only": True,
+    },
+    "s02_lobby_platform_modal": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "只调用 production tick 的统一 Platform Modal Shell neutral Esc/X recovery；禁止所有正向业务按钮。",
+        "routes": ({"route": "platform_modal_neutral_dismiss", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "s03_lobby_room_ready": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "真实 ROOM 中验证 production Ready/CancelReady contract；仅 ready contract=ready 允许 Ready，UNKNOWN 零输入。",
+        "routes": ({"route": "room_ready_contract", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "s04_lobby_single_hwnd_room": {
+        "production_readiness": "GROUND_TRUTH_ONLY",
+        "scope": "只采集单 KK HWND/全屏 ROOM identity continuity 与 confirmed_room_hwnd；默认零输入。",
+        "routes": ({"route": "single_hwnd_room_continuity", "readiness": "GROUND_TRUTH_ONLY"},),
+        "ground_truth_only": True,
+    },
+    "s05_lobby_search_join_ready": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "调用 production Lobby handler 完成搜索、Join、异常 modal neutral recovery、ROOM、Ready 与 CancelReady fresh-confirm；禁止 Quick Join/建房/开始。",
+        "routes": ({"route": "search_join_ready_chain", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "s06_lobby_recovery_chain": {
+        "production_readiness": "CONDITIONAL",
+        "scope": "在 S01–S05 通过后运行 10–20 分钟或至少 5 次 join attempt，统计 Lobby 恢复和零安全回归指标。",
+        "routes": ({"route": "lobby_recovery_soak", "readiness": "CONDITIONAL"},),
+        "ground_truth_only": False,
+    },
+    "public_backpack_deposit": {
+        "production_readiness": "BLOCKED_UNTIL_GT",
+        "scope": "窄复现 contract 只调用 production PUBLIC_BACKPACK_DEPOSIT；首次真实目标物品仅采 GT_CAPTURE + 用户人工转移，不能宣称自动 operation 已实现。",
+        "routes": ({"route": "public_backpack_deposit", "readiness": "BLOCKED_UNTIL_GT"},),
+        "ground_truth_only": False,
+    },
     "hitch_runtime": {
         "production_readiness": "CONDITIONAL",
         "scope": "从当前蹭车局随时接管：首个已确认 HUD 优先压力转移，再复用自动任务、四挑战与既有战后存档/时光之穴/传家宝末位 Boss fallback。",
@@ -506,10 +726,12 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     },
     "hitch_lobby_chain": {
         "production_readiness": "CONDITIONAL",
-        "scope": "从真实大厅调用 production Mediator.tick()/_tick_lobby_hitch；搜房、JOIN、满员/被踢恢复与进局全部由 production lobby hitch 决定。",
+        "scope": "HITCH_FULL_NATURAL_E2E：从真实 ROOM_LIST 连续调用 production Mediator.tick()，覆盖搜房、Join、blocking modal recovery、ROOM/Ready、Pressure、局内黑商/宝物/背包、Victory/Failure、真实退出、fresh 回厅与下一轮；Public Backpack 在真实 GT 前只记录 GT_CAPTURE。",
         "routes": (
-            {"route": "production_lobby_hitch_search_join", "readiness": "CONDITIONAL"},
-            {"route": "production_hitch_ingame_handoff", "readiness": "CONDITIONAL"},
+            {"route": "production_lobby_hitch_search_join_ready", "readiness": "CONDITIONAL"},
+            {"route": "production_hitch_pressure_and_ingame", "readiness": "CONDITIONAL"},
+            {"route": "production_hitch_outcome_exit_lobby_return", "readiness": "CONDITIONAL"},
+            {"route": "public_backpack_gt_capture", "readiness": "BLOCKED_UNTIL_GT"},
         ),
         "ground_truth_only": False,
     },
@@ -562,7 +784,38 @@ TARGETED_PROBE_MENU = (
     ("H", "heirloom", "传家宝 / Boss"),
     ("I", "secret_realm", "秘境"),
     ("J", "lobby_search", "大厅搜房 / Join"),
+    ("K", "public_backpack_deposit", "公共背包 GT / Deposit"),
 )
+TIER0_LOBBY_TARGETS = (
+    "s01_lobby_surface_identity",
+    "s02_lobby_platform_modal",
+    "s03_lobby_room_ready",
+    "s04_lobby_single_hwnd_room",
+    "s05_lobby_search_join_ready",
+    "s06_lobby_recovery_chain",
+)
+TIER0_MODAL_DISMISS_REASONS = {
+    "HitchDismissPlatformModalEsc",
+    "HitchDismissPlatformModalClose",
+}
+TIER0_LOBBY_SAFE_REASONS = {
+    "HitchSearchBox",
+    "HitchSearchType",
+    "HitchSearchEnter",
+    "HitchSelectTab",
+    "HitchRefresh",
+    "HitchJoin",
+    "HitchReady",
+    "HitchDismissPlatformModalEsc",
+    "HitchDismissPlatformModalClose",
+    "HitchLeaveFloorOne",
+    "HitchConfirmLeave",
+    "HitchLeaveRoom",
+    "HitchGoHome",
+}
+PRIMARY_LIVE_TARGET = "hitch_lobby_chain"
+PRIMARY_LIVE_SCENARIO = "HITCH_FULL_NATURAL_E2E"
+PUBLIC_BACKPACK_TARGET = "public_backpack_deposit"
 LONG_CHAIN_TARGETS = ("hitch_runtime", "solo_ingame_chain", "hitch_lobby_chain")
 PROBE_RESULT_STATUSES = (
     "PASS",
@@ -642,6 +895,87 @@ def _physical_surfaces(med: Mediator, frame: Frame | None) -> dict[str, Any]:
     except (AttributeError, TypeError):
         pass
     return observed
+
+
+def _production_lobby_surface(med: Mediator, frame: Frame | None) -> dict[str, Any]:
+    """Normalize production lobby evidence for bundles; never classify pixels here."""
+    generation = int(getattr(med, "_capture_generation", 0) or 0)
+    title = str(getattr(frame, "window_title", "") or "") if frame is not None else ""
+    role_value = getattr(getattr(frame, "role", None), "value", getattr(frame, "role", None))
+    window_role = classify_window_role(title).value
+    result: dict[str, Any] = {
+        "classification": "UNKNOWN",
+        "room": False,
+        "room_list": False,
+        "platform_modal": False,
+        "ready_contract": "unknown",
+        "ready_bbox": None,
+        "confirmed_room_hwnd": getattr(med, "_confirmed_room_hwnd", None),
+        "hwnd": getattr(frame, "hwnd", None) if frame is not None else None,
+        "window_title": title,
+        "window_role": window_role,
+        "frame_role": role_value,
+        "capture_generation": generation,
+        "capture_timestamp": getattr(frame, "timestamp", None) if frame is not None else None,
+        "frame_size": [getattr(frame, "width", 0), getattr(frame, "height", 0)] if frame is not None else None,
+        "modal_shell": None,
+        "context": None,
+    }
+    if not _frame_is_valid(frame):
+        return result
+
+    modal = None
+    try:
+        modal = med._kk_platform_modal_shell(frame)
+    except (AttributeError, TypeError):
+        pass
+    try:
+        result["context"] = str(med._detect_context(frame, "l0"))
+    except (AttributeError, TypeError):
+        result["context"] = None
+    room = False
+    room_list = False
+    try:
+        room = bool(med._is_confirmed_room_frame(frame))
+    except (AttributeError, TypeError):
+        try:
+            room = bool(med._hitch_room_controls_visible(frame))
+        except (AttributeError, TypeError):
+            pass
+    try:
+        room_list = bool(med._lobby_room_list_evidence(frame))
+    except (AttributeError, TypeError):
+        pass
+    result["room"] = room
+    result["room_list"] = room_list
+    if modal is not None:
+        result.update({
+            "classification": "PLATFORM_MODAL",
+            "platform_modal": True,
+            "modal_shell": _jsonable(modal),
+        })
+        return result
+    if room and room_list:
+        # Conflicting production evidence must not grant either page authority.
+        result["classification"] = "UNKNOWN"
+        result["context"] = "CONFLICTING_ROOM_AND_ROOM_LIST"
+    elif room:
+        result["classification"] = "ROOM"
+        try:
+            ready_state, ready_hit = med._hitch_room_ready_contract(frame)
+        except (AttributeError, TypeError):
+            ready_state, ready_hit = "unknown", None
+        result["ready_contract"] = str(ready_state or "unknown")
+        if ready_hit is not None:
+            result["ready_bbox"] = [
+                int(getattr(ready_hit, "x", 0)), int(getattr(ready_hit, "y", 0)),
+                int(getattr(ready_hit, "w", 0)), int(getattr(ready_hit, "h", 0)),
+            ]
+    elif room_list:
+        result["classification"] = "ROOM_LIST"
+    elif window_role == WindowRole.PLATFORM.value or str(result.get("context") or "") not in {"UNKNOWN", "None", ""}:
+        result["classification"] = "LOBBY"
+    return result
 
 
 class _SoloRouteDiagnosticsMixin:
@@ -859,18 +1193,82 @@ class SoloIngameChainObserver(_SoloRouteDiagnosticsMixin):
 
 
 class HitchLobbyChainObserver:
-    """Observe production lobby hitch until in-game HUD.  No search/join logic."""
+    """Ledger for the primary HITCH_FULL_NATURAL_E2E production chain.
+
+    This object observes production state/trace only. It does not search, pick
+    rows, choose seats, dismiss modals, or implement a recovery FSM.
+    """
+
+    _PRESSURE_CORE_REASONS = {
+        "OpenSkillPanel", "OpenBondPanel", "OpenTreasurePanel", "ClickEvolve",
+        "UseInventory-swallow_pill", "UseInventory-hero-card", "Pickup-Z",
+        "Artifact-Q", "Artifact-W", "Artifact-E", "ClearPressureMonsters",
+    }
 
     def __init__(self) -> None:
         self.failed_reason: str | None = None
         self.blocked_reason: str | None = None
+        self.blocked_evidence: dict[str, Any] | None = None
         self.manual_intervention_seen = False
+        self.observation_no = 0
+        self._last_observation_at = time.monotonic()
+        self._last_progress_at = self._last_observation_at
+        self._last_surface_key: tuple[Any, ...] | None = None
+        self._search_request_generation: int | None = None
+        self._join_request_generation: int | None = None
+        self._ready_request_generation: int | None = None
+        self._pressure_request_generation: int | None = None
+        self._modal_request_generation: int | None = None
+        self._merchant_request_generation: int | None = None
+        self._talisman_request_generation: int | None = None
+        self._active_round = False
+        self._outcome_seen_this_round = False
+        self._last_outcome: str | None = None
+        self._last_outcome_token: tuple[Any, ...] | None = None
+        self._last_lobby_generation: int | None = None
+        self._last_watchdog_episodes: int | None = None
+        self._permanent_stall_counted = False
         self.checkpoints = {
             "PRECHECK_OK": {"status": "NOT_OBSERVED"},
-            "LOBBY_DETECT": {"status": "NOT_OBSERVED"},
-            "SEARCH_OR_JOIN_REQUEST": {"status": "NOT_OBSERVED"},
-            "ROOM_WAITING_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "ROOM_LIST_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "SEARCH_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "ROOM_JOINED": {"status": "NOT_OBSERVED"},
+            "READY_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "MODAL_RECOVERY": {"status": "NOT_OBSERVED"},
             "INGAME_HUD_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "PRESSURE_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "OUTCOME_OBSERVED": {"status": "NOT_OBSERVED"},
+            "LOBBY_RETURN_CONFIRMED": {"status": "NOT_OBSERVED"},
+            "THREE_ROUNDS_CONFIRMED": {"status": "NOT_OBSERVED"},
+        }
+        self.metrics: dict[str, Any] = {
+            "rounds_started": 0,
+            "rooms_joined": 0,
+            "ready_confirmed": 0,
+            "pressure_confirmed": 0,
+            "pressure_core_failure": 0,
+            "modals_dismissed": 0,
+            "merchant_devour_acquired": 0,
+            "talisman_acquired": 0,
+            "public_bag_deposit_attempts": 0,
+            "public_bag_deposit_confirmed": 0,
+            "public_bag_deposit_failed": 0,
+            "victory_count": 0,
+            "failure_count": 0,
+            "lobby_returns": 0,
+            "longest_stall_s": 0.0,
+            "silent_stop_count": 0,
+            "zero_input_watchdog_episodes": 0,
+            "manual_intervention_count": 0,
+            "unexpected_inputs": 0,
+            "reclassifications": 0,
+            "recoveries": 0,
+            "permanent_zero_input_stall": 0,
+            "room_list_as_room_false_positive": 0,
+            "room_as_modal_false_positive": 0,
+            "ready_repeat": 0,
+            "unknown_seat_exit": 0,
+            "blind_go_home": 0,
         }
 
     def _pass(self, name: str, *, evidence: dict[str, Any]) -> None:
@@ -880,13 +1278,16 @@ class HitchLobbyChainObserver:
     def fail(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
         if self.failed_reason is None:
             self.failed_reason = reason
+        self._last_failure_evidence = _jsonable(evidence or {})
 
     def block(self, reason: str, *, evidence: dict[str, Any] | None = None) -> None:
         if self.blocked_reason is None:
             self.blocked_reason = reason
+            self.blocked_evidence = _jsonable(evidence or {})
 
     def manual_intervention(self) -> None:
         self.manual_intervention_seen = True
+        self.metrics["manual_intervention_count"] += 1
 
     def precheck(self, ready: bool, detail: dict[str, Any]) -> None:
         if ready:
@@ -894,6 +1295,33 @@ class HitchLobbyChainObserver:
         else:
             self.checkpoints["PRECHECK_OK"] = {"status": "BLOCKED", "evidence": _jsonable(detail)}
             self.block("live input preflight blocked", evidence=detail)
+
+    @staticmethod
+    def _action_success(action: dict[str, Any] | None) -> bool:
+        if (action or {}).get("input_success") is False:
+            return False
+        return str((action or {}).get("input_status") or "SUCCESS") == "SUCCESS"
+
+    @staticmethod
+    def _generation(state: dict[str, Any], surface: dict[str, Any]) -> int:
+        value = surface.get("capture_generation")
+        if value is None:
+            value = state.get("evidence_gen")
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _mark_recovery(self, surface: dict[str, Any], generation: int) -> None:
+        if self._modal_request_generation is None:
+            return
+        if generation <= self._modal_request_generation:
+            return
+        if surface.get("classification") != "PLATFORM_MODAL":
+            self.metrics["modals_dismissed"] += 1
+            self.metrics["recoveries"] += 1
+            self._modal_request_generation = None
+            self._pass("MODAL_RECOVERY", evidence=surface) if "MODAL_RECOVERY" in self.checkpoints else None
 
     def observe(
         self,
@@ -903,43 +1331,262 @@ class HitchLobbyChainObserver:
         trace_row: dict[str, Any] | None,
         action: dict[str, Any] | None,
     ) -> bool:
+        self.observation_no += 1
+        now = time.monotonic()
+        elapsed = max(0.0, now - self._last_observation_at)
+        self._last_observation_at = now
+        self.metrics["longest_stall_s"] = round(max(float(self.metrics["longest_stall_s"]), elapsed), 3)
         phase = str(state.get("phase") or "")
         reason = str((action or {}).get("reason") or "")
-        surfaces = _physical_surfaces(med, frame)
-        evidence = {"phase": phase, "reason": reason, "physical_surfaces": surfaces}
+        surface = _production_lobby_surface(med, frame)
+        physical = _physical_surfaces(med, frame)
+        generation = self._generation(state, surface)
+        surface_key = (
+            surface.get("classification"), surface.get("ready_contract"),
+            surface.get("hwnd"), generation,
+        )
+        if self._last_surface_key is not None and surface_key[:3] != self._last_surface_key[:3]:
+            self.metrics["reclassifications"] += 1
+        if surface_key[:3] != (None, None, None):
+            self._last_progress_at = now
+        self._last_surface_key = surface_key
+        evidence = {
+            "observation": self.observation_no,
+            "phase": phase,
+            "reason": reason,
+            "surface": surface,
+            "physical_surfaces": physical,
+            "trace": _jsonable(trace_row or {}),
+        }
+
+        watchdog_episodes = state.get("runtime_watchdog_stall_episodes_total")
+        try:
+            watchdog_episodes = int(watchdog_episodes) if watchdog_episodes is not None else None
+        except (TypeError, ValueError):
+            watchdog_episodes = None
+        if watchdog_episodes is not None:
+            if self._last_watchdog_episodes is not None and watchdog_episodes > self._last_watchdog_episodes:
+                self.metrics["zero_input_watchdog_episodes"] += (
+                    watchdog_episodes - self._last_watchdog_episodes
+                )
+            self._last_watchdog_episodes = watchdog_episodes
+        watchdog_stalled = bool(state.get("runtime_watchdog_stalled"))
+        if watchdog_stalled:
+            first_stall_at = state.get("runtime_watchdog_first_stall_at")
+            try:
+                stagnant_for = max(0.0, time.time() - float(first_stall_at))
+            except (TypeError, ValueError):
+                stagnant_for = 0.0
+            self.metrics["longest_stall_s"] = round(
+                max(float(self.metrics["longest_stall_s"]), stagnant_for), 3
+            )
+            if stagnant_for >= 60.0 and not self._permanent_stall_counted:
+                self.metrics["permanent_zero_input_stall"] += 1
+                self._permanent_stall_counted = True
+                self.fail("production zero-input watchdog exceeded bounded stall budget", evidence=evidence)
+        else:
+            self._permanent_stall_counted = False
+
         if phase == "ERROR":
             self.fail("production runtime entered ERROR", evidence=evidence)
-        if action is not None and str(state.get("context") or "") == "UNKNOWN":
-            self.fail("production input on UNKNOWN context", evidence=evidence)
-        if surfaces.get("lobby") or phase in {"LOBBY_ROOM", "PREPARE"}:
-            self._pass("LOBBY_DETECT", evidence=evidence)
-        if reason.startswith("Hitch"):
-            self._pass("SEARCH_OR_JOIN_REQUEST", evidence=evidence)
-        if phase == "ROOM_WAITING" or surfaces.get("room"):
-            self._pass("ROOM_WAITING_CONFIRMED", evidence=evidence)
-        if surfaces.get("hud") and surfaces.get("game_hwnd"):
+        if str((trace_row or {}).get("loop_action") or "") == "Break" and phase != "ERROR":
+            self.metrics["silent_stop_count"] += 1
+            self.fail("production loop returned Break without ERROR evidence", evidence=evidence)
+        if action is not None:
+            if not self._action_success(action):
+                if reason == "HitchPressureTransfer":
+                    self.metrics["pressure_core_failure"] += 1
+                if reason.startswith("PublicBackpack") or reason.startswith("PUBLIC_BACKPACK"):
+                    self.metrics["public_bag_deposit_failed"] += 1
+            if surface.get("classification") == "UNKNOWN":
+                self.fail("production input on UNKNOWN lobby/game surface", evidence=evidence)
+            if reason in {"HitchReady", "HitchReadyTimeoutExit"} and surface.get("ready_contract") != "ready":
+                if reason == "HitchReady" and self.metrics["ready_confirmed"] > 0:
+                    self.metrics["ready_repeat"] += 1
+            if reason in {"HitchLeaveFloorOne", "HitchConfirmLeave", "HitchLeaveRoom", "HitchGoHome", "HitchReadyTimeoutExit"}:
+                if surface.get("classification") == "UNKNOWN" or (
+                    surface.get("classification") == "ROOM"
+                    and surface.get("ready_contract") == "unknown"
+                ):
+                    self.metrics["unknown_seat_exit"] += 1
+            if reason == "HitchGoHome" and not bool(surface.get("room") or surface.get("room_list")):
+                self.metrics["blind_go_home"] += 1
+            if reason.startswith(("CreateRoom", "QuickJoin", "RoomStart", "StartHeroMode")):
+                self.metrics["unexpected_inputs"] += 1
+                self.fail("forbidden positive Lobby input in hitch chain", evidence=evidence)
+            if reason in self._PRESSURE_CORE_REASONS and not bool(state.get("hitch_pressure_transferred")):
+                self.metrics["pressure_core_failure"] += 1
+
+            if reason in {"HitchSearchBox", "HitchSearchType", "HitchSearchEnter"} and self._action_success(action):
+                self._search_request_generation = generation
+            elif reason == "HitchJoin" and self._action_success(action):
+                self._join_request_generation = generation
+            elif reason == "HitchReady" and self._action_success(action):
+                if self.metrics["ready_confirmed"] > 0:
+                    self.metrics["ready_repeat"] += 1
+                self._ready_request_generation = generation
+            elif reason == "HitchPressureTransfer" and self._action_success(action):
+                self._pressure_request_generation = generation
+            elif reason in TIER0_MODAL_DISMISS_REASONS and self._action_success(action):
+                self._modal_request_generation = generation
+            elif reason == "BlackMerchant-swallow_pill" and self._action_success(action):
+                self._merchant_request_generation = generation
+            elif (
+                ("treasure" in reason.lower() or "宝物" in reason)
+                and ("选择" in reason or "select" in reason.lower())
+                and self._action_success(action)
+            ):
+                self._talisman_request_generation = generation
+            elif reason.startswith("PublicBackpack") or reason.startswith("PUBLIC_BACKPACK"):
+                self.metrics["public_bag_deposit_attempts"] += 1
+
+        if surface.get("classification") == "ROOM_LIST":
+            self._pass("ROOM_LIST_CONFIRMED", evidence=evidence)
+            if self._search_request_generation is not None and generation > self._search_request_generation:
+                self._search_request_generation = None
+                self._pass("SEARCH_CONFIRMED", evidence=evidence)
+            if self._active_round and self._outcome_seen_this_round:
+                self.metrics["lobby_returns"] += 1
+                self._active_round = False
+                self._outcome_seen_this_round = False
+                self._last_outcome = None
+                self._last_lobby_generation = generation
+                self._pass("LOBBY_RETURN_CONFIRMED", evidence=evidence)
+        elif surface.get("classification") == "ROOM":
+            if self.metrics["rounds_started"] == 0 or not self._active_round:
+                self.metrics["rounds_started"] += 1
+                self.metrics["rooms_joined"] += 1
+                self._active_round = True
+                self._outcome_seen_this_round = False
+            if self._join_request_generation is not None and generation > self._join_request_generation:
+                self._join_request_generation = None
+                self._pass("ROOM_JOINED", evidence=evidence)
+            if surface.get("ready_contract") in {"cancel_ready", "start"}:
+                if self._ready_request_generation is not None and generation > self._ready_request_generation:
+                    self.metrics["ready_confirmed"] += 1
+                    self._ready_request_generation = None
+                    self._pass("READY_CONFIRMED", evidence=evidence)
+                elif self.metrics["ready_confirmed"] == 0 and self._active_round:
+                    # A manually already-ready room is valid proof for the
+                    # chain only when the production contract says so.
+                    self.metrics["ready_confirmed"] += 1
+                    self._pass("READY_CONFIRMED", evidence=evidence)
+            if self._search_request_generation is not None and generation > self._search_request_generation:
+                self._search_request_generation = None
+                self._pass("SEARCH_CONFIRMED", evidence=evidence)
+        if surface.get("classification") == "PLATFORM_MODAL":
+            # A room never yields modal authority; this is only a diagnostic
+            # consistency check around the production shell detector.
+            if physical.get("room"):
+                self.metrics["room_as_modal_false_positive"] += 1
+        if surface.get("room") and surface.get("room_list"):
+            self.metrics["room_list_as_room_false_positive"] += 1
+        self._mark_recovery(surface, generation)
+
+        if physical.get("hud") and physical.get("game_hwnd"):
             self._pass("INGAME_HUD_CONFIRMED", evidence=evidence)
+            if self._pressure_request_generation is not None and generation > self._pressure_request_generation:
+                if bool(state.get("hitch_pressure_transferred")):
+                    self.metrics["pressure_confirmed"] += 1
+                    self._pressure_request_generation = None
+                    self._pass("PRESSURE_CONFIRMED", evidence=evidence)
+            if self._pressure_request_generation is None and bool(state.get("hitch_pressure_transferred")):
+                self._pass("PRESSURE_CONFIRMED", evidence=evidence)
+
+        trace_s0 = (trace_row or {}).get("s0") or {}
+        outcome = str(
+            state.get("round_outcome")
+            or trace_s0.get("round_outcome")
+            or trace_s0.get("last_outcome")
+            or ""
+        )
+        outcome_token = (
+            outcome,
+            state.get("success_count"),
+            state.get("failure_count"),
+            state.get("disconnect_count"),
+            state.get("timeout_count"),
+        )
+        if outcome and outcome_token != self._last_outcome_token:
+            self._last_outcome_token = outcome_token
+            self._last_outcome = outcome
+            self._outcome_seen_this_round = True
+            if outcome == "VICTORY":
+                self.metrics["victory_count"] += 1
+            elif outcome in {"FAILURE", "TIMEOUT", "DISCONNECT"}:
+                self.metrics["failure_count"] += 1
+            self._pass("OUTCOME_OBSERVED", evidence=evidence)
+
+        if self._merchant_request_generation is not None and generation > self._merchant_request_generation:
+            pending = state.get("pending_action")
+            merchant = state.get("merchant_fsm") or {}
+            if (
+                pending is None
+                and int(merchant.get("purchases") or 0) > 0
+                and str(merchant.get("phase") or "") != "VERIFYING"
+            ):
+                self.metrics["merchant_devour_acquired"] += 1
+                self._merchant_request_generation = None
+        if self._talisman_request_generation is not None and generation > self._talisman_request_generation:
+            if (
+                state.get("panel_state") == "CLOSED"
+                and state.get("l1_cycle_step") in {"hitch_idle", "merchant", None}
+            ):
+                self.metrics["talisman_acquired"] += 1
+                self._talisman_request_generation = None
+        if self.metrics["rounds_started"] >= 3 and self.metrics["lobby_returns"] >= 3:
+            self._pass("THREE_ROUNDS_CONFIRMED", evidence={"metrics": self.metrics})
         return self.is_pass
 
     @property
     def is_pass(self) -> bool:
+        required = {
+            "PRECHECK_OK", "ROOM_LIST_CONFIRMED", "SEARCH_CONFIRMED", "ROOM_JOINED",
+            "READY_CONFIRMED", "MODAL_RECOVERY", "INGAME_HUD_CONFIRMED", "PRESSURE_CONFIRMED",
+            "OUTCOME_OBSERVED", "LOBBY_RETURN_CONFIRMED", "THREE_ROUNDS_CONFIRMED",
+        }
+        safety_zero = (
+            self.metrics["silent_stop_count"] == 0
+            and self.metrics["permanent_zero_input_stall"] == 0
+            and self.metrics["room_list_as_room_false_positive"] == 0
+            and self.metrics["room_as_modal_false_positive"] == 0
+            and self.metrics["ready_repeat"] == 0
+            and self.metrics["unknown_seat_exit"] == 0
+            and self.metrics["blind_go_home"] == 0
+            and self.metrics["unexpected_inputs"] == 0
+            and self.metrics["pressure_core_failure"] == 0
+        )
         return (
             self.failed_reason is None
             and self.blocked_reason is None
             and not self.manual_intervention_seen
-            and all(item["status"] == "PASS" for item in self.checkpoints.values())
+            and safety_zero
+            and self.metrics["rounds_started"] >= 3
+            and self.metrics["lobby_returns"] >= 3
+            and all(self.checkpoints[name]["status"] == "PASS" for name in required)
         )
 
     def payload(self) -> dict[str, Any]:
         return {
-            "contract_version": 1,
+            "contract_version": 2,
+            "scenario": PRIMARY_LIVE_SCENARIO,
+            "primary_target": PRIMARY_LIVE_TARGET,
             "checkpoints": _jsonable(self.checkpoints),
+            "metrics": _jsonable(self.metrics),
+            "public_backpack": {
+                "status": "GT_CAPTURE_PENDING" if self.metrics["public_bag_deposit_attempts"] == 0 else (
+                    "PASS" if self.metrics["public_bag_deposit_confirmed"] else "PENDING_OR_FAILED"
+                ),
+                "natural_e2e_eligible": False,
+            },
             "natural_e2e": "PASS" if self.is_pass else (
                 "DISQUALIFIED_MANUAL_INTERVENTION" if self.manual_intervention_seen
                 else ("BLOCKED" if self.blocked_reason else "PENDING_OR_FAILED")
             ),
             "failure_reason": self.failed_reason,
+            "failure_evidence": _jsonable(getattr(self, "_last_failure_evidence", None)),
             "blocked_reason": self.blocked_reason,
+            "blocked_evidence": _jsonable(self.blocked_evidence),
         }
 
 
@@ -993,11 +1640,22 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
         "lobby_search": {
             "HitchSearchBox", "HitchRefresh", "HitchJoin", "HitchReady",
             "HitchDismissPopup", "HitchLeaveFloorOne", "HitchConfirmLeave",
-            "HitchSelectTab",
+            "HitchSelectTab", "HitchDismissPlatformModalEsc",
+            "HitchDismissPlatformModalClose", "HitchLeaveRoom", "HitchGoHome",
         },
+        "s02_lobby_platform_modal": TIER0_MODAL_DISMISS_REASONS,
+        "s03_lobby_room_ready": {"HitchReady"},
+        "s05_lobby_search_join_ready": TIER0_LOBBY_SAFE_REASONS,
+        "s06_lobby_recovery_chain": TIER0_LOBBY_SAFE_REASONS,
         "hitch_runtime": None,  # Whole-loop runtime target: do not restrict reasons
         "solo_ingame_chain": None,
         "hitch_lobby_chain": None,
+        "public_backpack_deposit": {
+            "PublicBackpackDeposit",
+            "PUBLIC_BACKPACK_DEPOSIT",
+            "PublicBackpackDepositRightClick",
+            "PublicBackpackDepositB",
+        },
         "choice_bond_skill": {
             "OpenSkillPanel", "OpenBondPanel", "技能选择", "羁绊选择",
             "CloseSelfOpenedPanel", "CloseNaturalPanel", "CloseFallback",
@@ -1265,7 +1923,27 @@ def _state_snapshot(med: Mediator, context: str | None = None) -> dict[str, Any]
         "hitch_rejected_rows": sorted(getattr(med, "_hitch_rejected_row_ys", set())),
         "hitch_blacklisted_room_count": len(getattr(med, "_hitch_blacklisted_room_keys", set())),
         "hitch_refresh_required": getattr(med, "_hitch_refresh_required", False),
+        "hitch_pressure_transferred": getattr(med, "_hitch_pressure_transferred", False),
+        "hitch_pressure_click_at": getattr(med, "_hitch_pressure_click_at", None),
+        "hitch_pressure_request_generation": getattr(med, "_hitch_pressure_request_generation", None),
+        "hitch_ready_confirmed_at": getattr(med, "_hitch_ready_confirmed_at", None),
+        "hitch_re_search": getattr(med, "_hitch_re_search", False),
+        "hitch_status": getattr(med, "_hitch_status", None),
+        "game_count": getattr(med, "game_count", None),
+        "disconnect_count": getattr(med, "_disconnect_count", None),
+        "timeout_count": getattr(med, "_timeout_count", None),
+        "last_outcome": getattr(getattr(med, "_last_outcome", None), "name", None),
+        "outcome_recorded": getattr(med, "_outcome_recorded", None),
+        "success_count": getattr(med, "_success_count", None),
+        "failure_count": getattr(med, "_failure_count", None),
         "round_outcome": getattr(getattr(med, "_round_outcome", None), "name", None),
+        "runtime_watchdog_stall_episodes_total": getattr(
+            med, "_runtime_watchdog_stall_episodes_total", None
+        ),
+        "runtime_watchdog_stalled": getattr(med, "_runtime_watchdog_stalled", None),
+        "runtime_watchdog_first_stall_at": getattr(
+            med, "_runtime_watchdog_first_stall_at", None
+        ),
     })
 
 
@@ -1282,6 +1960,8 @@ def _action_from_tick(med: Mediator, input_records: list[dict[str, Any]]) -> dic
         "reason": trace_action.get("reason", ""),
         "target": target,
         "input_kind": _INPUT_KIND.get(record.get("method"), record.get("method")),
+        "input_status": record.get("status"),
+        "input_success": record.get("success"),
     }
     args = record.get("args") or []
     if record.get("method") in {"click", "right_click", "scroll", "search_text"} and len(args) >= 2:
@@ -1361,11 +2041,73 @@ def _target_postcondition_snapshot(
     """Add only target-specific, production-observable business evidence."""
     reason = str((action or {}).get("reason") or "")
 
+    if target in {"s03_lobby_room_ready", "s05_lobby_search_join_ready"}:
+        return _target_postcondition_snapshot(
+            "lobby_search",
+            med,
+            frame,
+            after_state,
+            action,
+            base,
+            before_frame=before_frame,
+            input_record=input_record,
+        )
+
+    if target == "s02_lobby_platform_modal":
+        if reason not in {"", *TIER0_MODAL_DISMISS_REASONS}:
+            return {"observed": False, "state": "unexpected_action", "kind": reason or "platform_modal"}
+        if reason == "":
+            return {"observed": False, "state": "modal_waiting", "kind": "platform_modal"}
+        if not bool((input_record or {}).get("success")):
+            return {"observed": False, "state": "input_rejected", "kind": "platform_modal_dismiss"}
+        fresh = bool(
+            _frame_is_valid(before_frame)
+            and _frame_is_valid(frame)
+            and getattr(before_frame, "timestamp", None) != getattr(frame, "timestamp", None)
+        )
+        modal_visible = False
+        try:
+            modal_visible = med._kk_platform_modal_shell(frame) is not None if _frame_is_valid(frame) else True
+        except (AttributeError, TypeError):
+            modal_visible = True
+        return {
+            "observed": bool(fresh and not modal_visible),
+            "state": "confirmed" if fresh and not modal_visible else "modal_not_dismissed",
+            "kind": "platform_modal_dismiss",
+            "authoritative": True,
+            "fresh_capture": fresh,
+            "modal_visible": modal_visible,
+        }
+
+    if target == PUBLIC_BACKPACK_TARGET:
+        verifier = getattr(med, "_public_backpack_deposit_postcondition", None)
+        if callable(verifier) and _frame_is_valid(frame):
+            try:
+                verified = verifier(before_frame, frame)
+            except (AttributeError, TypeError, ValueError):
+                verified = None
+            if isinstance(verified, dict):
+                return {**_jsonable(verified), "authoritative": bool(verified.get("observed"))}
+            if verified is True:
+                return {
+                    "observed": True,
+                    "state": "confirmed",
+                    "kind": "public_backpack_deposit",
+                    "authoritative": True,
+                }
+        return {
+            "observed": False,
+            "state": "production_deposit_verifier_missing",
+            "kind": "public_backpack_deposit",
+            "authoritative": False,
+        }
+
     if target == "lobby_search":
         if reason not in {
             "", "HitchSearchBox", "HitchRefresh", "HitchJoin", "HitchReady",
             "HitchDismissPopup", "HitchLeaveFloorOne", "HitchConfirmLeave",
-            "HitchSelectTab",
+            "HitchSelectTab", "HitchDismissPlatformModalEsc",
+            "HitchDismissPlatformModalClose", "HitchLeaveRoom", "HitchGoHome",
         }:
             return {"observed": False, "state": "unexpected_action", "kind": reason or "lobby_search"}
         if reason == "HitchDismissPopup":
@@ -1768,7 +2510,15 @@ def _invoke_target_handler(med: Mediator, target: str, frame: Frame) -> Any:
         return med._maybe_click_archive_challenge(frame, time.time())
     if target in {"time_cave", "heirloom"}:
         return med._tick_main_line(frame)
-    if target in {"lobby_hitch", "lobby_search"}:
+    if target == PUBLIC_BACKPACK_TARGET:
+        operation = getattr(med, "_maybe_public_backpack_deposit", None)
+        if not callable(operation):
+            return LoopAction.Continue
+        return operation(frame, time.time())
+    if target in {
+        "lobby_hitch", "lobby_search", "s02_lobby_platform_modal",
+        "s03_lobby_room_ready", "s05_lobby_search_join_ready",
+    }:
         if med._lobby_room_list_evidence(frame):
             context = "LOBBY_ROOM"
             stage_page = False
@@ -1912,6 +2662,30 @@ def _stage_from_observation(
         if state.get("post_game_pending"):
             return "ENTRY_VISIBLE"
         return "POSTGAME_DETECT"
+
+    if target == PUBLIC_BACKPACK_TARGET:
+        return "DEPOSIT_POSTCONDITION" if observed else (
+            "RIGHT_CLICK_B_GT_CAPTURE" if "right_click" in reason or "press_key" in reason
+            else "BAG_SURFACE_CONFIRMED" if state.get("public_backpack_surface")
+            else "ITEM_SLOT_CONFIRMED"
+        )
+
+    if target in {"s01_lobby_surface_identity", "s04_lobby_single_hwnd_room"}:
+        return "SURFACE_CLASSIFIED" if observed else "CAPTURE"
+
+    if target == "s02_lobby_platform_modal":
+        return "SURFACE_RECLASSIFIED" if observed else (
+            "NEUTRAL_DISMISS" if "hitchdismissplatformmodal" in reason else "MODAL_CONFIRMED"
+        )
+
+    if target in {"s03_lobby_room_ready", "s05_lobby_search_join_ready"}:
+        if "hitchready" in reason:
+            return "READY_CONFIRMED" if observed else "READY"
+        if "hitchjoin" in reason:
+            return "ROOM_WAITING_CONFIRMED" if observed else "JOIN"
+        if "hitchsearch" in reason:
+            return "SEARCH_CONFIRMED" if observed else "SEARCH_INPUT"
+        return "ROOM_CONFIRMED" if state.get("phase") == "ROOM_WAITING" else "ROOM_DETECT"
 
     if target == "lobby_search":
         if "hitchready" in reason:
@@ -2209,6 +2983,8 @@ class BundleRecorder:
         settings: Settings | dict[str, Any],
         initial_phase: str,
         execution_mode: str,
+        production_source_root: Path | None = None,
+        production_source_sha: str | None = None,
     ) -> None:
         self.bundle_dir = Path(bundle_dir).resolve()
         self.frames_dir = self.bundle_dir / "frames"
@@ -2229,7 +3005,11 @@ class BundleRecorder:
         contract = _target_contract(target)
         production_fact = _production_fact(target)
         settings_snapshot = _settings_snapshot(settings)
-        identity = identity_report(repo_root=repo_root)
+        identity = _scenario_identity(
+            repo_root=repo_root,
+            production_source_root=production_source_root,
+            production_source_sha=production_source_sha,
+        )
         natural_e2e_eligible = execution_mode == "mediator_tick"
         natural_e2e_state = (
             "REQUIRED_LIVE_PASS"
@@ -2246,6 +3026,8 @@ class BundleRecorder:
             "timestamp": _utc_now(),
             "completed_at_utc": None,
             "target": target,
+            "scenario": PRIMARY_LIVE_SCENARIO if target == PRIMARY_LIVE_TARGET else target,
+            "primary_live_target": PRIMARY_LIVE_TARGET,
             "production_handler": (
                 None
                 if production_fact.get("ground_truth_only")
@@ -2266,6 +3048,11 @@ class BundleRecorder:
             "tested_commit_sha": identity["harness_head"],
             "harness_sha": identity["harness_head"],
             "harness_base_sha": identity["harness_base"],
+            "production_source_root": identity.get("production_source_root"),
+            "production_source_sha": identity.get("production_source_sha"),
+            "production_source_expected_sha": identity.get("production_source_expected_sha"),
+            "production_source_clean": identity.get("production_source_clean"),
+            "candidate_source_injection": identity.get("candidate_source_injection", "INACTIVE"),
             "runtime_worktree_sha": identity["runtime_worktree_sha"],
             "production_baseline_sha": identity["frozen_production_code_baseline"],
             "production_diff_status": identity["production_code_diff"],
@@ -2282,6 +3069,9 @@ class BundleRecorder:
                 "runtime_source_sha": identity["runtime_worktree_sha"],
                 "runtime_source_path": identity.get("runtime_source_path"),
                 "runtime_source_verified": identity.get("runtime_source_verified"),
+                "production_source_root": identity.get("production_source_root"),
+                "production_source_sha": identity.get("production_source_sha"),
+                "candidate_source_injection": identity.get("candidate_source_injection", "INACTIVE"),
                 "ready_for_gt": bool(identity["ready_for_gt"]),
                 "mode_id": settings_snapshot.get("mode_id"),
             },
@@ -2720,6 +3510,10 @@ class BundleRecorder:
         should_save = self._last_state is None or bool(self.inputs_this_tick) or state_changed or loop_action is LoopAction.Break
         self._last_state = after_state
         if not should_save:
+            if self.solo_observer is not None:
+                self.solo_observer.observe(
+                    med, after_state, after_frame or before_frame, trace_row, action
+                )
             return None
         before_id = self._save_frame(before_frame, "action_before" if action else "state_change", at_s)
         after_id = None
@@ -2928,6 +3722,108 @@ def _git_worktree_clean(repo_root: Path) -> bool | None:
     return not bool(result.stdout.strip())
 
 
+def _git_paths_clean(repo_root: Path, *pathspecs: str) -> bool | None:
+    """Check only the injected production source path, not runtime captures."""
+    try:
+        result = subprocess.run(
+            [
+                "git", "status", "--porcelain", "--untracked-files=all", "--",
+                *(pathspecs or ("src/shuabao",)),
+            ],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return not bool(result.stdout.strip())
+
+
+def _module_source_path(module_name: str) -> Path | None:
+    module = sys.modules.get(module_name)
+    raw = getattr(module, "__file__", None) if module is not None else None
+    if not raw:
+        return None
+    try:
+        return Path(raw).resolve()
+    except OSError:
+        return None
+
+
+def _scenario_identity(
+    *,
+    repo_root: Path = ROOT,
+    automation_exe: Path | None = None,
+    require_exe: bool = False,
+    production_source_root: Path | None = None,
+    production_source_sha: str | None = None,
+) -> dict[str, Any]:
+    """Return Harness identity plus an auditable candidate-source injection.
+
+    ``live_harness_identity.identity_report`` intentionally protects the
+    Harness worktree.  Tier-0 additionally proves that the imported
+    ``shuabao`` package is from the frozen production candidate and that only
+    its production source path is clean; runtime bundles are outside that
+    source-path check.
+    """
+    repo_root = Path(repo_root).resolve()
+    identity = dict(identity_report(
+        repo_root=repo_root,
+        automation_exe=automation_exe,
+        require_exe=require_exe,
+    ))
+    source_root = production_source_root or _configured_production_source_root()
+    if source_root is None:
+        return identity
+
+    source_root = Path(source_root).resolve()
+    expected_sha = str(
+        production_source_sha
+        or _configured_production_source_sha()
+        or PRODUCTION_TEST_CANDIDATE_SHA
+    ).strip()
+    reasons = [
+        str(reason)
+        for reason in identity.get("blocked_reasons") or []
+        # The base helper sees this process's intentionally injected package
+        # and reports only its Harness-path mismatch. Re-prove the path below.
+        if not str(reason).startswith("imported shuabao is")
+    ]
+    package_path = _module_source_path("shuabao")
+    expected_package = (source_root / "src" / "shuabao").resolve()
+    source_sha = _commit_sha(source_root)
+    source_clean = _git_paths_clean(source_root, "src/shuabao")
+    source_ok = source_root.is_dir() and (source_root / "src" / "shuabao" / "__init__.py").is_file()
+    package_ok = bool(package_path and (package_path == expected_package / "__init__.py" or expected_package in package_path.parents))
+    if not source_ok:
+        reasons.append(f"production source root is missing or has no shuabao package: {source_root}")
+    if source_sha != expected_sha:
+        reasons.append(f"production candidate SHA mismatch: expected={expected_sha} actual={source_sha}")
+    if source_clean is not True:
+        reasons.append("production candidate src/shuabao is not clean")
+    if not package_ok:
+        reasons.append(f"imported shuabao is {package_path}, not {expected_package}")
+
+    identity.update({
+        "production_source_root": str(source_root),
+        "production_source_expected_sha": expected_sha,
+        "production_source_sha": source_sha,
+        "production_source_clean": source_clean,
+        "candidate_source_injection": "ACTIVE",
+        "runtime_worktree": str(source_root),
+        "runtime_worktree_sha": source_sha,
+        "runtime_source_path": str(package_path) if package_path else None,
+        "runtime_source_verified": package_ok and source_sha == expected_sha and source_clean is True,
+        "blocked_reasons": reasons,
+        "ready_for_gt": not reasons,
+        "match": "READY" if not reasons else "NO",
+    })
+    return identity
+
+
 def _build_identity_check(
     *,
     repo_root: Path,
@@ -3024,7 +3920,10 @@ def _build_identity_check(
 
 def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Frame | None, dict[str, Any]]:
     # Only targets that intentionally start in KK own the L0 window.
-    is_lobby = target in {"lobby_hitch", "lobby_search", "hitch_lobby_chain"}
+    is_lobby = target in {
+        "lobby_hitch", "lobby_search", "hitch_lobby_chain",
+        *TIER0_LOBBY_TARGETS,
+    }
     role = "l0" if is_lobby else "l1"
     title = "" if is_lobby else str(getattr(settings, "window_title_contains", "") or "")
     try:
@@ -3089,6 +3988,7 @@ def _start_surface_preflight(
             "inventory_devour", "inventory_hero_card", "inventory_item",
             "black_merchant", "archive_challenge", "secret_realm",
             "heirloom", "time_cave", "lobby_hitch", "lobby_search",
+            *TIER0_LOBBY_TARGETS, PUBLIC_BACKPACK_TARGET,
         }:
             result.update({
                 "status": "BLOCKED",
@@ -3105,6 +4005,47 @@ def _start_surface_preflight(
             "reason": reason_ok if observed else reason_bad,
         })
         return result
+
+    if target == "s01_lobby_surface_identity":
+        surface = _production_lobby_surface(med, frame)
+        return _ok(
+            "_production_lobby_surface",
+            True,
+            f"production surface capture available: {surface['classification']}",
+            "production lobby surface capture unavailable; ZERO INPUT",
+        )
+    if target == "s02_lobby_platform_modal":
+        surface = _production_lobby_surface(med, frame)
+        return _ok(
+            "_production_lobby_surface==PLATFORM_MODAL",
+            surface.get("classification") == "PLATFORM_MODAL",
+            "production Platform Modal Shell confirmed",
+            "blocking Platform Modal Shell was not confirmed; ZERO INPUT",
+        )
+    if target in {"s03_lobby_room_ready", "s04_lobby_single_hwnd_room"}:
+        surface = _production_lobby_surface(med, frame)
+        room_ok = surface.get("classification") == "ROOM"
+        if target == "s04_lobby_single_hwnd_room":
+            room_ok = room_ok and bool(surface.get("hwnd")) and surface.get("confirmed_room_hwnd") == surface.get("hwnd")
+        return _ok(
+            "_production_lobby_surface==ROOM",
+            room_ok,
+            "production ROOM and HWND continuity confirmed",
+            "production ROOM/ready start surface was not confirmed; ZERO INPUT",
+        )
+    if target == PUBLIC_BACKPACK_TARGET:
+        operation = callable(getattr(med, "_maybe_public_backpack_deposit", None))
+        hud = False
+        try:
+            hud = bool(med._is_in_game_hud(frame))
+        except (AttributeError, TypeError):
+            pass
+        return _ok(
+            "production PUBLIC_BACKPACK_DEPOSIT + _is_in_game_hud",
+            operation and hud,
+            "production public-backpack operation and GAME/HUD confirmed",
+            "frozen candidate has no PUBLIC_BACKPACK_DEPOSIT operation or GAME/HUD was not confirmed; BLOCKED until GT",
+        )
 
     if target == "solo_ingame_chain":
         try:
@@ -3129,7 +4070,10 @@ def _start_surface_preflight(
             "production in-game HUD/post-game classifier confirmed",
             "expected in-game HUD or post-game surface was not confirmed; ZERO INPUT",
         )
-    if target in {"hitch_lobby_chain", "lobby_hitch", "lobby_search"}:
+    if target in {
+        "hitch_lobby_chain", "lobby_hitch", "lobby_search",
+        "s05_lobby_search_join_ready", "s06_lobby_recovery_chain",
+    }:
         try:
             in_room_list = bool(med._lobby_room_list_evidence(frame))
         except (AttributeError, TypeError):
@@ -3233,7 +4177,10 @@ def _ocr_bootstrap_preflight(med: Mediator) -> dict[str, Any]:
 
 
 def _lobby_resource_preflight(med: Mediator, target: str | None) -> list[str]:
-    if target not in {"lobby_hitch", "lobby_search", "hitch_lobby_chain"}:
+    if target not in {
+        "lobby_hitch", "lobby_search", "hitch_lobby_chain",
+        "s05_lobby_search_join_ready", "s06_lobby_recovery_chain",
+    }:
         return []
     images = Path(getattr(med, "images", "") or "")
     # Search is the requested first action. Row-safety assets are checked at
@@ -3282,10 +4229,20 @@ def _live_input_preflight(
     runtime_mediator_error: str | None,
 ) -> tuple[dict[str, Any], LiveLane | None, Frame | None]:
     """Gather every mandatory live-input fact before dispatching a handler."""
+    scenario_identity = _scenario_identity(
+        repo_root=repo_root,
+        automation_exe=getattr(args, "automation_exe", None),
+        require_exe=bool(getattr(args, "live_input", False) and not getattr(args, "allow_dev_source", False)),
+        production_source_root=getattr(args, "production_source_root", None),
+        production_source_sha=getattr(args, "production_source_sha", None),
+    )
+    source_root = _configured_production_source_root(getattr(args, "production_source_root", None))
     identity = _build_identity_check(
         repo_root=repo_root,
         automation_exe=getattr(args, "automation_exe", None),
         build_identity_path=getattr(args, "build_identity", None),
+        source_sha=(scenario_identity.get("production_source_sha") or _commit_sha(repo_root)),
+        source_clean=(scenario_identity.get("production_source_clean") if source_root is not None else None),
         allow_dev_source=bool(getattr(args, "allow_dev_source", False)),
     )
     elevation_blocked = bool(getattr(args, "live_input", False)) and not bool(
@@ -3313,10 +4270,12 @@ def _live_input_preflight(
             "reason": runtime_mediator_error,
         }
     reasons = list(identity.get("blocked_reasons") or [])
-    gt_identity = identity_report(
+    gt_identity = _scenario_identity(
         repo_root=repo_root,
         automation_exe=getattr(args, "automation_exe", None),
         require_exe=bool(getattr(args, "live_input", False) and not getattr(args, "allow_dev_source", False)),
+        production_source_root=getattr(args, "production_source_root", None),
+        production_source_sha=getattr(args, "production_source_sha", None),
     )
     if not gt_identity.get("ready_for_gt"):
         reasons.extend(list(gt_identity.get("blocked_reasons") or []))
@@ -3357,7 +4316,10 @@ def _live_input_preflight(
         blocked_status = "BLOCKED_PRECONDITION"
     return ({
         "status": "READY" if not reasons else blocked_status,
-        "tested_source_sha": _commit_sha(repo_root),
+        "tested_source_sha": scenario_identity.get("production_source_sha") or _commit_sha(repo_root),
+        "production_source_root": scenario_identity.get("production_source_root"),
+        "production_source_sha": scenario_identity.get("production_source_sha"),
+        "candidate_source_injection": scenario_identity.get("candidate_source_injection", "INACTIVE"),
         "actual_exe": identity,
         "harness_identity": gt_identity,
         "ready_for_gt": bool(gt_identity.get("ready_for_gt")),
@@ -3415,6 +4377,16 @@ def _capture_input_guard(target: str, execution_mode: str) -> Callable[[str, str
     def guard(method: str, reason: str) -> str | None:
         if _ground_truth_only(target):
             return f"{target} production is BLOCKED; Ground Truth capture is zero-input"
+        if target == "s02_lobby_platform_modal" and reason not in TIER0_MODAL_DISMISS_REASONS:
+            return f"{target} permits neutral modal dismiss only"
+        if target in {"s05_lobby_search_join_ready", "s06_lobby_recovery_chain"} and reason not in TIER0_LOBBY_SAFE_REASONS:
+            return f"{target} action {(reason or method)!r} is outside the production Lobby safety allowlist"
+        if target == PUBLIC_BACKPACK_TARGET and not (
+            reason in (allowed or set())
+            or reason.startswith("PublicBackpack")
+            or reason.startswith("PUBLIC_BACKPACK")
+        ):
+            return f"{target} action {(reason or method)!r} is outside the production deposit contract"
         if execution_mode != "target_handler" or allowed is None:
             return None
         if reason not in allowed:
@@ -3448,7 +4420,10 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
         settings.cjb_boss = "55吞咽者布鲁"
         settings.sgzx_boss = "55吞咽者布鲁"
         settings.auto_secret_realm = False
-    if target in {"lobby_hitch", "lobby_search", "hitch_runtime", "hitch_lobby_chain"}:
+    if target in {
+        "lobby_hitch", "lobby_search", "hitch_runtime", "hitch_lobby_chain",
+        *TIER0_LOBBY_TARGETS, PUBLIC_BACKPACK_TARGET,
+    }:
         settings.mode_id = "lobby_hitch"
         settings.auto_create_room = False
         settings.skip_password_rooms = True
@@ -3506,18 +4481,18 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
             "post_game_route": med._post_game_route,
             "reason": "target probe starts from the existing challenge plaza or already-open challenge panel",
         }
-    if target in {"lobby_hitch", "lobby_search"}:
+    if target in {"lobby_hitch", "lobby_search", "s03_lobby_room_ready", "s05_lobby_search_join_ready"}:
         med.set_phase(Phase.LOBBY_ROOM, "lobby hitch target probe")
         med._hitch_re_search = False
-        if target == "lobby_search":
+        if target in {"lobby_search", "s05_lobby_search_join_ready"}:
             med._hitch_sm.continuous = True
         return {
             "phase": "LOBBY_ROOM",
             "mode_id": "lobby_hitch",
-            "continuous_until_ready": target == "lobby_search",
+            "continuous_until_ready": target in {"lobby_search", "s05_lobby_search_join_ready"},
             "reason": (
                 "target probe starts from the KK room list and repeats safe search cycles until verified guest Ready"
-                if target == "lobby_search"
+                if target in {"lobby_search", "s05_lobby_search_join_ready"}
                 else "target probe starts from game lobby room list to search and join room"
             ),
         }
@@ -3614,8 +4589,10 @@ def _is_emergency_reason(reason: str | None) -> bool:
 def _initial_phase_for_target(target: str) -> Phase:
     if target == "solo_ingame_chain":
         return Phase.BOOT
-    if target in {"lobby_hitch", "lobby_search", "hitch_lobby_chain"}:
+    if target in {"lobby_hitch", "lobby_search", "hitch_lobby_chain", "s01_lobby_surface_identity", "s02_lobby_platform_modal", "s05_lobby_search_join_ready", "s06_lobby_recovery_chain"}:
         return Phase.LOBBY_ROOM
+    if target in {"s03_lobby_room_ready", "s04_lobby_single_hwnd_room"}:
+        return Phase.ROOM_WAITING
     if target == "hitch_runtime":
         return Phase.MAIN_LINE
     return Phase.MAIN_LINE
@@ -3673,17 +4650,18 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         if _ground_truth_only(target)
         else ("target_handler" if probe else "mediator_tick")
     )
+    runtime_root = _configured_production_source_root(getattr(args, "production_source_root", None)) or repo_root
     runtime_mediator_error: str | None = None
     elevation_blocked = bool(args.live_input) and not bool(getattr(settings, "dry_run", True)) and not is_current_process_elevated()
     if args.live_input and not elevation_blocked:
         med, runtime_mediator_error = _new_live_mediator(
             settings,
-            repo_root,
+            runtime_root,
             stop_signal,
             bundle_dir / "incidents",
         )
     else:
-        med = Mediator(settings, repo_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
+        med = Mediator(settings, runtime_root, stop_signal=stop_signal, incident_dir=bundle_dir / "incidents")
         if elevation_blocked:
             runtime_mediator_error = "Real input requires an elevated process; accept the UAC prompt from the desktop launcher"
     initial_phase = _initial_phase_for_target(target)
@@ -3694,6 +4672,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             med._hitch_sm.continuous = True
         except AttributeError:
             pass
+    if runtime_root != repo_root:
+        print(f"[source-injection] production runtime={runtime_root} sha={_commit_sha(runtime_root)}")
     probe_bootstrap = _bootstrap_target_probe(med, target) if probe and execution_mode == "target_handler" else {}
     recorder = BundleRecorder(
         bundle_dir,
@@ -3702,6 +4682,8 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
         settings=settings,
         initial_phase=med.phase.name,
         execution_mode=execution_mode,
+        production_source_root=runtime_root if runtime_root != repo_root else None,
+        production_source_sha=getattr(args, "production_source_sha", None),
     )
     if probe_bootstrap:
         recorder.manifest["probe_bootstrap"] = probe_bootstrap
@@ -3728,7 +4710,12 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             recorder.solo_observer.precheck(preflight.get("status") == "READY", preflight)
             recorder.manifest[str(recorder.solo_observer_key)] = recorder.solo_observer.payload()
     else:
-        dry_identity = identity_report(repo_root=repo_root, automation_exe=getattr(args, "automation_exe", None))
+        dry_identity = _scenario_identity(
+            repo_root=repo_root,
+            automation_exe=getattr(args, "automation_exe", None),
+            production_source_root=getattr(args, "production_source_root", None),
+            production_source_sha=getattr(args, "production_source_sha", None),
+        )
         recorder.record_preflight({
             "status": "NOT_REQUESTED",
             "tested_source_sha": _commit_sha(repo_root),
@@ -3800,7 +4787,12 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
                 awaiting_manual_resume = False
                 print("[capture] manual intervention recorded; observation loop resumed")
 
-    print(format_identity_text(identity_report(repo_root=repo_root, automation_exe=getattr(args, "automation_exe", None))))
+    print(_format_identity_text(_scenario_identity(
+        repo_root=repo_root,
+        automation_exe=getattr(args, "automation_exe", None),
+        production_source_root=getattr(args, "production_source_root", None),
+        production_source_sha=getattr(args, "production_source_sha", None),
+    )))
     print(f"[runbook] 请将真实游戏停在以下页面/状态：{contract['runbook_manual']}")
     print(
         f"[capture] bundle={bundle_dir} bookmark_file={bookmark_file} "
@@ -4488,6 +5480,8 @@ def readiness_report(
     repo_root: Path = ROOT,
     settings: Settings | None = None,
     run_replay_self_check: bool = True,
+    production_source_root: Path | None = None,
+    production_source_sha: str | None = None,
 ) -> dict[str, Any]:
     """Report harness capability separately from production capability.
 
@@ -4551,11 +5545,19 @@ def readiness_report(
             "failure_summary": "READY" if callable(_build_failure_summary) else "MISSING",
             "replay_conversion": "READY" if replay_ok else "MISSING",
         })
-    identity = identity_report(repo_root=repo_root)
+    identity = _scenario_identity(
+        repo_root=repo_root,
+        production_source_root=production_source_root,
+        production_source_sha=production_source_sha,
+    )
     return {
         "readiness_schema_version": 2,
         "repo_root": str(repo_root),
         "tested_commit_sha": sha,
+        "primary_live_scenario": PRIMARY_LIVE_SCENARIO,
+        "primary_live_target": PRIMARY_LIVE_TARGET,
+        "production_source_sha": identity.get("production_source_sha"),
+        "production_source_root": identity.get("production_source_root"),
         "harness_identity": identity,
         "ready_for_gt": bool(identity.get("ready_for_gt")),
         "replay_self_check": {"status": "PASS" if replay_ok else "FAIL", "detail": replay_detail},
@@ -4578,7 +5580,7 @@ def _print_readiness(report: dict[str, Any], *, as_json: bool = False) -> None:
     print(f"[readiness] commit={report.get('tested_commit_sha')}")
     identity = report.get("harness_identity") or {}
     if identity:
-        print(format_identity_text(identity))
+        print(_format_identity_text(identity))
     replay = report.get("replay_self_check") or {}
     print(f"[readiness] replay_self_check={replay.get('status')}: {replay.get('detail')}")
     print("TARGET             HARNESS_READINESS  PRODUCTION_READINESS  MAX_PROBE  SCOPE / GAPS")
@@ -4665,6 +5667,17 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--target", choices=SUPPORTED_TARGETS, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=ROOT)
+    parser.add_argument(
+        "--production-source-root",
+        type=Path,
+        default=None,
+        help="Tier-0 candidate worktree whose src/shuabao is imported at runtime",
+    )
+    parser.add_argument(
+        "--production-source-sha",
+        default=None,
+        help=f"expected injected production SHA (default {PRODUCTION_TEST_CANDIDATE_SHA})",
+    )
     parser.add_argument("--settings", type=Path, default=None)
     parser.add_argument("--duration", type=float, default=60.0)
     parser.add_argument("--interval", type=float, default=0.3)
@@ -4734,16 +5747,20 @@ def build_parser() -> argparse.ArgumentParser:
     replay_parser.add_argument("--case", dest="case_dir", type=Path, default=None)
     replay_parser.add_argument("--bundle", type=Path, default=None)
     replay_parser.add_argument("--repo-root", type=Path, default=ROOT)
-    readiness_parser = sub.add_parser("readiness", help="启动实机前检查六个 target 的 contract/capture/bookmark/replay 能力")
+    readiness_parser = sub.add_parser("readiness", help="启动主链实机前检查 Harness/candidate contract、capture、bookmark 与 replay 能力")
     readiness_parser.add_argument("--repo-root", type=Path, default=ROOT)
+    readiness_parser.add_argument("--production-source-root", type=Path, default=None)
+    readiness_parser.add_argument("--production-source-sha", default=None)
     readiness_parser.add_argument("--settings", type=Path, default=None, help="可选：同时检查本次 settings 的 target 前置")
     readiness_parser.add_argument("--quick", action="store_true", help="跳过临时 bundle 的离线 replay self-check")
     readiness_parser.add_argument("--json", action="store_true")
     identity_parser = sub.add_parser("identity", help="打印 Harness/production/runtime 身份与 READY FOR GT")
     identity_parser.add_argument("--repo-root", type=Path, default=ROOT)
     identity_parser.add_argument("--automation-exe", type=Path, default=None)
+    identity_parser.add_argument("--production-source-root", type=Path, default=None)
+    identity_parser.add_argument("--production-source-sha", default=None)
     identity_parser.add_argument("--json", action="store_true")
-    contracts_parser = sub.add_parser("contracts", help="显示六个 Target Test Contract")
+    contracts_parser = sub.add_parser("contracts", help="显示主链与窄诊断 Target Test Contract")
     contracts_parser.add_argument("--target", choices=SUPPORTED_TARGETS, default=None)
     contracts_parser.add_argument("--json", action="store_true")
     runbook_parser = sub.add_parser("runbook", help="显示极简 target live runbook")
@@ -4829,11 +5846,16 @@ def main(argv: list[str] | None = None) -> int:
                 variants=raw_variants,
             ) == 0 else 1
         if args.command == "identity":
-            report = identity_report(repo_root=args.repo_root, automation_exe=args.automation_exe)
+            report = _scenario_identity(
+                repo_root=args.repo_root,
+                automation_exe=args.automation_exe,
+                production_source_root=args.production_source_root,
+                production_source_sha=args.production_source_sha,
+            )
             if args.json:
                 print(json.dumps(report, ensure_ascii=False, indent=2))
             else:
-                print(format_identity_text(report))
+                print(_format_identity_text(report))
             return 0 if report["ready_for_gt"] else 1
         if args.command == "readiness":
             settings = _load_operator_settings(args.settings)
@@ -4841,6 +5863,8 @@ def main(argv: list[str] | None = None) -> int:
                 repo_root=args.repo_root,
                 settings=settings,
                 run_replay_self_check=not args.quick,
+                production_source_root=args.production_source_root,
+                production_source_sha=args.production_source_sha,
             )
             _print_readiness(report, as_json=args.json)
             harness_ok = all(item["harness_readiness"] == "READY" for item in report["targets"])

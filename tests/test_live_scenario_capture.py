@@ -445,6 +445,13 @@ def test_all_target_contracts_have_a_structural_readiness_result() -> None:
         "secret_realm",
         "lobby_hitch",
         "lobby_search",
+        "s01_lobby_surface_identity",
+        "s02_lobby_platform_modal",
+        "s03_lobby_room_ready",
+        "s04_lobby_single_hwnd_room",
+        "s05_lobby_search_join_ready",
+        "s06_lobby_recovery_chain",
+        "public_backpack_deposit",
         "hitch_runtime",
         "solo_ingame_chain",
         "hitch_lobby_chain",
@@ -986,7 +993,8 @@ def test_lobby_hitch_allowed_reasons() -> None:
     assert live_capture._probe_allowed_reasons("lobby_search") == {
         "HitchSearchBox", "HitchRefresh", "HitchJoin", "HitchReady",
         "HitchDismissPopup", "HitchLeaveFloorOne", "HitchConfirmLeave",
-        "HitchSelectTab",
+        "HitchSelectTab", "HitchDismissPlatformModalEsc",
+        "HitchDismissPlatformModalClose", "HitchLeaveRoom", "HitchGoHome",
     }
 
 

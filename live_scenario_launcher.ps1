@@ -1,19 +1,32 @@
 ﻿# Thin Windows menu for the existing tools/live_scenario_capture.py only.
 # It discovers paths and forwards arguments; production logic stays in the tool.
 
-param([switch]$SettingsPanelSmokeTest)
+param(
+    [switch]$SettingsPanelSmokeTest,
+    [string]$ProductionSourceRoot = "G:\刷刷宝\Worktrees\lobby-hitch-surface-test",
+    [string]$ProductionSourceSha = "53afb4376bd371c3e7bdffd7fff1f13eb6cfd1a5"
+)
 
 $ErrorActionPreference = "Stop"
 
 if (-not $SettingsPanelSmokeTest -and -not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $scriptPath = if ($PSCommandPath) { $PSCommandPath } else { Join-Path $PSScriptRoot "live_scenario_launcher.ps1" }
-    Start-Process powershell.exe -ArgumentList "-NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -File `"$scriptPath`"" -WorkingDirectory $PSScriptRoot -Verb RunAs
+    $relaunchArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -File `"$scriptPath`" -ProductionSourceRoot `"$ProductionSourceRoot`" -ProductionSourceSha `"$ProductionSourceSha`""
+    if ($SettingsPanelSmokeTest) { $relaunchArgs += " -SettingsPanelSmokeTest" }
+    Start-Process powershell.exe -ArgumentList $relaunchArgs -WorkingDirectory $PSScriptRoot -Verb RunAs
     exit
 }
 
 $RepoRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 Set-Location -LiteralPath $RepoRoot
 $ToolPath = Join-Path $RepoRoot "tools\live_scenario_capture.py"
+$script:ProductionSourceRoot = (Resolve-Path -LiteralPath $ProductionSourceRoot).Path
+$script:ProductionSourceSha = $ProductionSourceSha.Trim().ToLowerInvariant()
+if ($script:ProductionSourceSha -notmatch '^[0-9a-f]{40}$') {
+    throw "Production candidate SHA 格式无效：$ProductionSourceSha"
+}
+$env:SHUABAO_PRODUCTION_SOURCE_ROOT = $script:ProductionSourceRoot
+$env:SHUABAO_PRODUCTION_SOURCE_SHA = $script:ProductionSourceSha
 
 if (-not (Test-Path -LiteralPath $ToolPath -PathType Leaf)) {
     throw "找不到现有工具：$ToolPath"
@@ -277,8 +290,13 @@ function Get-HarnessIdentity {
             Json = $null
         }
     }
-    $identityScript = Join-Path $RepoRoot "tools\live_harness_identity.py"
-    $identityArgs = @($identityScript, "--repo-root", $RepoRoot)
+    $identityScript = Join-Path $RepoRoot "tools\live_scenario_capture.py"
+    $identityArgs = @(
+        $identityScript, "identity", "--repo-root", $RepoRoot,
+        "--production-source-root", $script:ProductionSourceRoot,
+        "--production-source-sha", $script:ProductionSourceSha,
+        "--json"
+    )
     if ($script:AutomationExe -and (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
         $identityArgs += @("--automation-exe", $script:AutomationExe)
     }
@@ -290,23 +308,41 @@ function Get-HarnessIdentity {
     } finally {
         $ErrorActionPreference = $prevEap
     }
-    $lines = @($raw | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ })
-    $text = [string]::Join("`r`n", $lines)
-    if (-not $text) {
+    $jsonText = [string]::Join("`n", @($raw | ForEach-Object { [string]$_ }))
+    if (-not $jsonText.Trim()) {
         return @{
             ReadyForGt = $false
             Text = "Harness HEAD: unknown`r`nREADY FOR GT: NO`r`nBLOCKED: identity command failed (exit $code)"
             Json = $null
         }
     }
-    $ready = $false
-    foreach ($line in $lines) {
-        if ($line -match '^\s*READY FOR GT:\s*YES\s*$') { $ready = $true }
+    try {
+        $json = $jsonText | ConvertFrom-Json
+    } catch {
+        return @{
+            ReadyForGt = $false
+            Text = "Harness HEAD: unknown`r`nREADY FOR GT: NO`r`nBLOCKED: candidate identity JSON unreadable (exit $code)"
+            Json = $null
+        }
+    }
+    $ready = [bool]$json.ready_for_gt
+    $readyText = if ($ready) { "YES" } else { "NO" }
+    $textLines = @(
+        "Harness HEAD: $($json.harness_head)",
+        "Harness branch: $($json.harness_branch)",
+        "Production source: $($json.production_source_root)",
+        "Production candidate SHA: $($json.production_source_sha)",
+        "Candidate source clean: $($json.production_source_clean)",
+        "Candidate injection: $($json.candidate_source_injection)",
+        "READY FOR GT: $readyText"
+    )
+    foreach ($reason in @($json.blocked_reasons)) {
+        if ([string]$reason) { $textLines += "BLOCKED: $reason" }
     }
     return @{
         ReadyForGt = $ready
-        Text = $text
-        Json = $null
+        Text = [string]::Join("`r`n", $textLines)
+        Json = $json
     }
 }
 
@@ -324,14 +360,20 @@ function Invoke-CaptureTool {
 
     $previousOcr = $env:SHUABAO_OCR_PYTHON
     $previousOcrModel = $env:SHUABAO_OCR_MODEL_DIR
+    $previousSourceRoot = $env:SHUABAO_PRODUCTION_SOURCE_ROOT
+    $previousSourceSha = $env:SHUABAO_PRODUCTION_SOURCE_SHA
     if ($script:OcrPython) { $env:SHUABAO_OCR_PYTHON = $script:OcrPython }
     if ($script:OcrModelDir) { $env:SHUABAO_OCR_MODEL_DIR = $script:OcrModelDir }
+    $env:SHUABAO_PRODUCTION_SOURCE_ROOT = $script:ProductionSourceRoot
+    $env:SHUABAO_PRODUCTION_SOURCE_SHA = $script:ProductionSourceSha
     try {
         & $script:PythonPath $ToolPath @CliArgs
         $exitCode = [int]$LASTEXITCODE
     } finally {
         if ($null -eq $previousOcr) { Remove-Item Env:SHUABAO_OCR_PYTHON -ErrorAction SilentlyContinue } else { $env:SHUABAO_OCR_PYTHON = $previousOcr }
         if ($null -eq $previousOcrModel) { Remove-Item Env:SHUABAO_OCR_MODEL_DIR -ErrorAction SilentlyContinue } else { $env:SHUABAO_OCR_MODEL_DIR = $previousOcrModel }
+        if ($null -eq $previousSourceRoot) { Remove-Item Env:SHUABAO_PRODUCTION_SOURCE_ROOT -ErrorAction SilentlyContinue } else { $env:SHUABAO_PRODUCTION_SOURCE_ROOT = $previousSourceRoot }
+        if ($null -eq $previousSourceSha) { Remove-Item Env:SHUABAO_PRODUCTION_SOURCE_SHA -ErrorAction SilentlyContinue } else { $env:SHUABAO_PRODUCTION_SOURCE_SHA = $previousSourceSha }
     }
     $script:LastToolExitCode = $exitCode
     Write-Host "[launcher] tool exit code: $exitCode" -ForegroundColor DarkGray
@@ -344,7 +386,11 @@ function Invoke-CaptureTool {
 }
 
 function Invoke-Readiness {
-    Invoke-CaptureTool @("readiness", "--repo-root", $RepoRoot)
+    Invoke-CaptureTool @(
+        "readiness", "--repo-root", $RepoRoot,
+        "--production-source-root", $script:ProductionSourceRoot,
+        "--production-source-sha", $script:ProductionSourceSha
+    )
 }
 
 function Get-LiveRuntimeArgs {
@@ -353,7 +399,11 @@ function Get-LiveRuntimeArgs {
     # Return a plain array. Live ticks import this worktree's source; a leftover
     # dist EXE whose source_sha lags harness-only commits would fail-close
     # before any tick, so do not pass --automation-exe here.
-    return @("--live-input", "--confirm-live-input", "--allow-dev-source")
+    return @(
+        "--live-input", "--confirm-live-input", "--allow-dev-source",
+        "--production-source-root", $script:ProductionSourceRoot,
+        "--production-source-sha", $script:ProductionSourceSha
+    )
 }
 
 function Invoke-TargetProbe {
@@ -371,6 +421,8 @@ function Invoke-TargetProbe {
         "--target", $Target,
         "--out", $script:CaptureRoot,
         "--repo-root", $RepoRoot,
+        "--production-source-root", $script:ProductionSourceRoot,
+        "--production-source-sha", $script:ProductionSourceSha,
         "--continue-after-failure",
         "--generate"
     )
@@ -461,7 +513,25 @@ function Invoke-HitchLobbyChainCapture {
     if ($script:OperatorSettingsPath) {
         $cliArgs += @("--settings", $script:OperatorSettingsPath)
     }
-    Write-Host "[launcher] 13 大厅蹭车完整链路：production Mediator.tick() / lobby hitch；Harness 不点房间" -ForegroundColor Cyan
+    Write-Host "[launcher] PRIMARY HITCH_FULL_NATURAL_E2E：production Mediator.tick() 连续大厅蹭车链；Harness 不复制 FSM" -ForegroundColor Cyan
+    Invoke-CaptureTool $cliArgs
+}
+
+function Invoke-PublicBackpackDepositProbe {
+    Assert-ReadyForGt
+    $cliArgs = @(
+        "probe",
+        "--target", "public_backpack_deposit",
+        "--out", $script:CaptureRoot,
+        "--repo-root", $RepoRoot,
+        "--duration", "120",
+        "--max-ticks", "1000",
+        "--continue-after-failure",
+        "--generate"
+    )
+    $cliArgs += @(Get-LiveRuntimeArgs)
+    if ($script:OperatorSettingsPath) { $cliArgs += @("--settings", $script:OperatorSettingsPath) }
+    Write-Host "[launcher] 公共背包窄复现：首次只允许 production GT_CAPTURE；candidate 尚无 operation 时 BLOCKED" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -616,7 +686,7 @@ $title.Location = [System.Drawing.Point]::new(22, 18)
 $script:MenuForm.Controls.Add($title)
 
 $status = New-Object System.Windows.Forms.Label
-$status.Text = "11/12/13 是正式验收长链。单项实机测试走 production handler，不复制业务逻辑。`r`nREADY FOR GT = NO 时验收按钮锁定。紧急停止用 Shift+F12。不要同时启动普通刷刷宝。"
+$status.Text = "PRIMARY = HITCH_FULL_NATURAL_E2E（13）：整条大厅蹭车链连续运行；单项入口仅作整链失败后的窄复现。`r`n公共背包首次只做 GT_CAPTURE/MANUAL_INTERVENTION，不猜转移动作。READY FOR GT = NO 时验收按钮锁定。紧急停止用 Shift+F12。"
 $status.AutoSize = $false
 $status.Size = New-Object System.Drawing.Size(700, 48)
 $status.Location = [System.Drawing.Point]::new(24, 60)
@@ -699,7 +769,8 @@ function Invoke-TargetedProbeMenu {
         @{ Key = "G"; Target = "archive_challenge"; Label = "G  存档挑战 1~8" },
         @{ Key = "H"; Target = "heirloom"; Label = "H  传家宝 / Boss" },
         @{ Key = "I"; Target = "secret_realm"; Label = "I  秘境" },
-        @{ Key = "J"; Target = "lobby_search"; Label = "J  大厅搜房 / Join" }
+        @{ Key = "J"; Target = "lobby_search"; Label = "J  大厅搜房 / Join" },
+        @{ Key = "K"; Target = "public_backpack_deposit"; Label = "K  公共背包 GT / Deposit" }
     )
     for ($i = 0; $i -lt $probes.Count; $i++) {
         $spec = $probes[$i]
@@ -711,7 +782,11 @@ function Invoke-TargetedProbeMenu {
         $button.Add_Click({
             $probeForm.Hide()
             try {
-                Invoke-TargetProbe -Target ([string]$this.Tag) -GroundTruthOnly $false
+                if ([string]$this.Tag -eq "public_backpack_deposit") {
+                    Invoke-PublicBackpackDepositProbe
+                } else {
+                    Invoke-TargetProbe -Target ([string]$this.Tag) -GroundTruthOnly $false
+                }
             } finally {
                 $probeForm.Show()
                 $probeForm.Activate()
@@ -731,8 +806,8 @@ function Invoke-TargetedProbeMenu {
 Add-MenuButton "1  启动前检查`r`n    环境 / OCR / production / 身份门禁，不操作游戏" 24 270 { Invoke-Readiness } $blue
 Add-MenuButton "12 单人完整链路`r`n    大厅建房→选关→局内→战后；production tick()" $(if ($script:ReadyForGt) { 390 } else { 390 }) 270 { Invoke-SoloIngameChainCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
 Add-MenuButton "11 蹭车局内完整链路`r`n    已入局后接管→自动任务/四挑战→结算" 24 356 { Invoke-HitchRuntimeCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
-Add-MenuButton "13 大厅蹭车完整链路`r`n    大厅→production lobby hitch→进局" 390 356 { Invoke-HitchLobbyChainCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
-Add-MenuButton "单项实机测试`r`n    A-J 只调 production handler" 24 442 { Invoke-TargetedProbeMenu } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "13 PRIMARY HITCH_FULL_NATURAL_E2E`r`n    大厅→搜房→Ready→Pressure→整局→回厅→下一轮" 390 356 { Invoke-HitchLobbyChainCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "单项实机测试`r`n    A-K 只调 production handler" 24 442 { Invoke-TargetedProbeMenu } $(if ($script:ReadyForGt) { $green } else { $locked })
 Add-MenuButton "9  打开最新 FAIL bundle`r`n    直接查看最近失败/阻塞证据" 390 442 { Open-LatestFailBundle } $blue
 Add-MenuButton "10 Reproduce 最新 FAIL`r`n    进入 Frozen Replay（离线回归）" 24 528 { Reproduce-LatestFail } $blue
 Add-MenuButton "单人临时设置（可选）`r`n    仅覆盖下一次 12；默认读取正式看板" 390 528 { Invoke-SoloSettingsPanel } $yellow
