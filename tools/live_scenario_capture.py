@@ -3988,13 +3988,6 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             ):
                 ticks += 1
                 break
-            if (
-                target == "hitch_lobby_chain"
-                and recorder.solo_observer is not None
-                and recorder.solo_observer.is_pass
-            ):
-                ticks += 1
-                break
             ticks += 1
             if stop_signal.is_set() and not awaiting_manual_resume:
                 break

@@ -164,6 +164,12 @@ def test_long_chains_still_call_production_tick() -> None:
     assert LONG_CHAIN_TARGETS == ("hitch_runtime", "solo_ingame_chain", "hitch_lobby_chain")
 
 
+def test_hitch_lobby_chain_does_not_stop_at_first_verified_hud() -> None:
+    """首次进入局内只是链路中间证据，不是多局实测的终止条件。"""
+    source = (ROOT / "tools" / "live_scenario_capture.py").read_text(encoding="utf-8")
+    assert "recorder.solo_observer.is_pass" not in source
+
+
 def test_chain_13_settings_enable_production_lobby_hitch() -> None:
     settings = live_capture._prepare_settings(None, "hitch_lobby_chain", live_input=False)
     assert settings.mode_id == "lobby_hitch"
