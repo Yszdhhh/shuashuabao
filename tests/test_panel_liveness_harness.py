@@ -86,24 +86,32 @@ class PanelLivenessHarnessTests(unittest.TestCase):
                 self.assertIsNone(med._tick_panel_fsm(frame, None, clock.now()))
                 self.assertIs(med._panel_state, PanelState.CLOSED)
 
-            # The third open attempt is quarantined.  It neither clicks nor
-            # advances the cycle, and the cooldown cannot expire in this round.
+            # The third open attempt is quarantined with a long bounded
+            # cooldown.  It neither clicks nor advances the cycle.
             before_cycle = med._l1_cycle_step
             self.assertIs(med._maybe_open_choice_panel(frame), LoopAction.Continue)
             self.assertIs(med._panel_state, PanelState.COOLDOWN)
             self.assertEqual(med._panel_kind, "skill")
             self.assertEqual(med._panel_episode_count["skill"], 2)
-            self.assertEqual(med._panel_cooldown_until["skill"], float("inf"))
+            self.assertGreaterEqual(med._panel_cooldown_until["skill"], clock.now() + 59.0)
             self.assertEqual(med._l1_cycle_step, before_cycle)
 
-            # Even after a long wait the terminal COOLDOWN remains owned by
-            # the panel FSM; no hidden reopen is possible.
-            clock.advance(100.0)
+            # During the cooldown the FSM stays in COOLDOWN; no hidden
+            # reopen is possible before it expires.
+            clock.advance(1.0)
             self.assertIs(
                 med._tick_panel_fsm(frame, None, clock.now()),
                 LoopAction.Continue,
             )
             self.assertIs(med._panel_state, PanelState.COOLDOWN)
+
+            # Once the cooldown expires the FSM resets to CLOSED and the
+            # panel FSM no longer blocks main-line steps.
+            clock.advance(70.0)
+            self.assertIsNone(
+                med._tick_panel_fsm(frame, None, clock.now()),
+            )
+            self.assertIs(med._panel_state, PanelState.CLOSED)
 
         reasons = [record.reason for record in probe._records]
         self.assertEqual(reasons, ["OpenSkillPanel", "OpenSkillPanel"])
@@ -139,7 +147,8 @@ class PanelLivenessHarnessTests(unittest.TestCase):
                 self.assertIs(med._panel_state, PanelState.CLOSED)
 
             # The anchor is deliberately still present.  Reaching the cap
-            # holds the overlay in COOLDOWN instead of claiming it disappeared.
+            # parks the overlay behind a long bounded cooldown (60s) while
+            # the panel FSM stays responsible for the covering UI.
             self.assertIs(
                 med._tick_panel_fsm(frame, anchor, clock.now()),
                 LoopAction.Continue,
@@ -147,14 +156,22 @@ class PanelLivenessHarnessTests(unittest.TestCase):
             self.assertIs(med._panel_state, PanelState.COOLDOWN)
             self.assertEqual(med._panel_kind, "skill")
             self.assertEqual(med._panel_episode_count["skill"], 2)
-            self.assertEqual(med._panel_cooldown_until["skill"], float("inf"))
+            self.assertGreaterEqual(med._panel_cooldown_until["skill"], clock.now() + 59.0)
 
-            clock.advance(100.0)
+            clock.advance(1.0)
             self.assertIs(
                 med._tick_panel_fsm(frame, anchor, clock.now()),
                 LoopAction.Continue,
             )
             self.assertIs(med._panel_state, PanelState.COOLDOWN)
+
+            # After the bounded cooldown expires the FSM resets instead of
+            # freezing forever; the episode-count cap still blocks reentry.
+            clock.advance(70.0)
+            self.assertIsNone(
+                med._tick_panel_fsm(frame, anchor, clock.now()),
+            )
+            self.assertIs(med._panel_state, PanelState.CLOSED)
 
     def test_normal_successful_panels_do_not_consume_independent_failure_budgets(self) -> None:
         """Normal skill/bond/treasure episodes stay reusable in one round."""

@@ -771,6 +771,8 @@ class Mediator:
         self._archive_challenge_index: int = 0
         self._archive_challenge_next_at: float = 0.0
         self._archive_challenge_observe_attempts: int = 0
+        self._archive_challenge_click_attempts: int = 0
+        self._time_cave_boss_search_attempts: int = 0
         self._time_cave_boss_done: bool = False
         self._hitch_postgame_hero_selected: bool = False
         self._hitch_postgame_returned_to_base: bool = False
@@ -3627,15 +3629,14 @@ class Mediator:
                 and self._panel_episode_count.get(target, 0)
                 >= self.settings.panel_episode_limit_per_kind
             ):
-                # The limit is a fail-closed terminal quarantine for this kind
-                # in the current round.  Keep the visible/unknown panel in the
-                # panel FSM; never reset the counter or advance the L1 cycle.
+                # Episode 上限不再用 float("inf") 永久冻结 COOLDOWN：
+                # 长冷却到期后面板 FSM 归位，不得永久阻断压力转移/自动任务/黑商。
                 self._panel_kind = target
                 self._panel_state = PanelState.COOLDOWN
-                self._panel_cooldown_until[target] = float("inf")
+                self._panel_cooldown_until[target] = now + 60.0
                 self._panel_opened_by_us = None
                 self._skill_refresh_attempts = 0
-                print(f"[L1] {target} episode 上限已达，保持面板会话 Fail-Closed（本局不再重开）")
+                print(f"[L1] {target} episode 上限已达，进入 60s 冷却（本局不再重开该面板）")
                 return LoopAction.Continue
             reopen_at = self._panel_cooldown_until.get(target, 0.0)
             if now < reopen_at:
@@ -4682,11 +4683,22 @@ class Mediator:
             print(f"[med] 存档挑战卡位 {card_index + 1}/8 无有效卡面证据，零输入复核 ({self._archive_challenge_observe_attempts}/5)")
             return LoopAction.Continue
         print(f"[med] 存档挑战 {index + 1}/{len(plan)}：点击 {label} @ {hit.center}")
-        if self.act_click(hit, f"ArchiveChallenge-{label}"):
+        clicked = self.act_click(hit, f"ArchiveChallenge-{label}")
+        self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
+        if clicked:
             self._archive_challenge_index = index + 1
             self._archive_challenge_observe_attempts = 0
-            self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
+            self._archive_challenge_click_attempts = 0
             self._post_game_route = "archive_active"
+        else:
+            self._archive_challenge_click_attempts = getattr(self, "_archive_challenge_click_attempts", 0) + 1
+            if self._archive_challenge_click_attempts >= 3:
+                print(f"[med] 存档挑战 {label} 点击被拒达 3 次，跳过并转下一张卡")
+                self._archive_challenge_index = index + 1
+                self._archive_challenge_click_attempts = 0
+                self._archive_challenge_observe_attempts = 0
+            else:
+                print(f"[med] 存档挑战 {label} 点击被拒，冷却后重试 ({self._archive_challenge_click_attempts}/3)")
         return LoopAction.Continue
 
     def _post_game_boss_scroll_point(self, frame: Frame, post_game: str | None) -> tuple[int, int] | None:
@@ -5393,6 +5405,9 @@ class Mediator:
         """
         attempts = int(getattr(self, "_pause_resume_attempts", 0) or 0)
         if attempts >= 5:
+            if self._hitch_enabled():
+                print("[med] 蹭车暂停恢复重试已达上限（5次），保持零输入观察，不终止运行")
+                return LoopAction.Continue
             print("[med] 暂停恢复重试已达上限（5 次），Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "pause resume attempts exhausted")
             self.stop()
@@ -6484,6 +6499,8 @@ class Mediator:
             self._time_cave_boss_done = False
             self._archive_challenge_index = 0
             self._archive_challenge_observe_attempts = 0
+            self._archive_challenge_click_attempts = 0
+            self._time_cave_boss_search_attempts = 0
             self._hitch_postgame_hero_selected = False
             self._hitch_postgame_returned_to_base = False
             self._post_game_hub_entered_at = None
@@ -10241,14 +10258,19 @@ class Mediator:
                 and self._panel_episode_count.get(kind, 0)
                 >= self.settings.panel_episode_limit_per_kind
             ):
-                # The anchor is still present, so remain inside the panel FSM
-                # instead of pretending that the UI was cleared/progressed.
+                # 遮挡面板达到 episode 上限：不再用 float("inf") 永久冻结。
+                # 非蹭车：60s 长冷却后归位；蹭车：直接结束面板会话，
+                # 把控制权交还压力转移/自动任务/黑商等主线步骤。
                 self._panel_kind = kind
-                self._panel_state = PanelState.COOLDOWN
-                self._panel_cooldown_until[kind] = float("inf")
                 self._panel_opened_by_us = None
                 self._skill_refresh_attempts = 0
-                print(f"[L1] {kind} natural episode 上限已达，遮挡面板保持 Fail-Closed（本局不再重入）")
+                if self._hitch_enabled():
+                    print(f"[L1] 蹭车 {kind} natural episode 上限已达，结束面板会话并放行主线")
+                    self._finish_panel_episode()
+                    return None
+                self._panel_state = PanelState.COOLDOWN
+                self._panel_cooldown_until[kind] = now + 60.0
+                print(f"[L1] {kind} natural episode 上限已达，进入 60s 冷却（本局不再重入）")
                 return LoopAction.Continue
             self._enter_panel_episode(frame, anchor, kind, opened=False)
             # 自然面板：本 tick 直接进入 ACTIVE 处理
@@ -10689,6 +10711,9 @@ class Mediator:
                 and getattr(self, "_post_game_route", "") not in {"boss_active", "archive", "archive_active", "heirloom", "heirloom_active"}
                 and self.find_scene(frame, "archive")
             ):
+                if self._hitch_enabled():
+                    print("[med] 蹭车识别到未验证战后入口 archive，保持零输入观察（不直接停机）")
+                    return LoopAction.Continue
                 print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "unverified archive entry")
                 self.stop()
@@ -10802,12 +10827,22 @@ class Mediator:
                     return LoopAction.Continue
                 if boss_action is not None:
                     return boss_action
-                if self._boss_challenge_attempts >= 3:
-                    print("[med] 时光之穴 Boss 兜底选择未确认，Fail-Closed 停止运行")
-                    self.set_phase(Phase.ERROR, "time-cave Boss selection unconfirmed")
-                    self.stop()
-                    return LoopAction.Break
-                return LoopAction.Continue
+                # boss_action is None：Boss 入口/卡面本 tick 未能识别，计入观察预算。
+                self._time_cave_boss_search_attempts += 1
+                if self._boss_challenge_attempts >= 3 or self._time_cave_boss_search_attempts >= 5:
+                    if self._hitch_enabled():
+                        print("[med] 蹭车时光之穴 Boss 未能识别或确认，跳过该步并继续关闭存档面板")
+                        self._time_cave_boss_done = True
+                        self._boss_challenge_attempts = 0
+                        self._time_cave_boss_search_attempts = 0
+                        # 落到下方 _find_archive_panel_close 关闭存档面板
+                    else:
+                        print("[med] 时光之穴 Boss 兜底选择未确认，Fail-Closed 停止运行")
+                        self.set_phase(Phase.ERROR, "time-cave Boss selection unconfirmed")
+                        self.stop()
+                        return LoopAction.Break
+                else:
+                    return LoopAction.Continue
 
             if self._post_game_close_attempts >= 3:
                 if self._hitch_enabled():
@@ -11184,6 +11219,9 @@ class Mediator:
                 and "archive" in self.scenes
                 and self.find_scene(frame, "archive")
             ):
+                if self._hitch_enabled():
+                    print("[med] 蹭车识别到未验证战后入口 archive，保持零输入观察（不直接停机）")
+                    return LoopAction.Continue
                 print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "unverified archive entry")
                 self.stop()

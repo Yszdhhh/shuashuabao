@@ -324,6 +324,7 @@ class P1B0PostGameTests(unittest.TestCase):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "hitch victory")
         med._victory_continue_attempts = 3
+        med._hitch_pressure_transferred = True  # P0 门禁已通过（8159de8）
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
         with patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
                 patch.object(med, "stop") as stop:
@@ -334,8 +335,8 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_hitch_direct_archive_panel_adopts_postgame_chain(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-        med.set_phase(Phase.MAIN_LINE, "hitch archive direct")
         med._post_game_pending = False
+        med._hitch_pressure_transferred = True  # P0 门禁已通过（8159de8）
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
                 patch.object(med, "stop") as stop:
@@ -363,6 +364,7 @@ class P1B0PostGameTests(unittest.TestCase):
         med = Mediator(Settings(mode_id="lobby_hitch", cjb_boss="54莫阿姆"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "hitch post-game focus")
         med._post_game_pending = True
+        med._hitch_pressure_transferred = True  # P0 门禁已通过（8159de8）
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
 
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
@@ -798,6 +800,7 @@ class P1B0PostGameTests(unittest.TestCase):
         """A team Boss click cannot bypass the heirloom result and two-leave exit gate."""
         med = Mediator(Settings(mode_id="lobby_hitch", cjb_boss="01暴掠龙"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "team heirloom post-game chain")
+        med._hitch_pressure_transferred = True  # P0 门禁已通过（8159de8）
         med._post_game_pending = True
         med._post_game_route = "boss_postgame"
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
@@ -880,9 +883,9 @@ class P1B0PostGameTests(unittest.TestCase):
         for mode in ("lobby_hitch", "follow_team", "lead_team", "lead"):
             with self.subTest(mode=mode):
                 med = Mediator(Settings(mode_id=mode), ROOT)
-                med.set_phase(Phase.MAIN_LINE, "team post-game")
-                med._post_game_pending = True
                 med._post_game_route = "boss_postgame"
+                med._hitch_pressure_transferred = True  # P0 门禁已通过（8159de8）
+                med._post_game_pending = True
                 with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
                      patch.object(med, "act_key", return_value=True) as key:
                     action = med._tick_main_line(frame)
@@ -954,9 +957,10 @@ class P1B0PostGameTests(unittest.TestCase):
     def test_team_archive_without_heirloom_routes_to_team_wait_exit(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "team archive route")
+        med._hitch_pressure_transferred = True  # P0 门禁已通过（8159de8）
         med._post_game_pending = True
-        med._post_game_route = "archive"
         med._archive_challenge_index = len(med._ARCHIVE_CHALLENGE_NAMES)
+        med._post_game_route = "archive"
         frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
         close = MatchResult("archive_panel_close", 0.99, 976, 197, 43, 31, 997, 212)
 
