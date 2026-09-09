@@ -155,13 +155,40 @@ def test_emergency_stop_listener_is_still_wired() -> None:
 
 def test_long_chains_still_call_production_tick() -> None:
     assert _initial_phase_for_target("hitch_runtime") is Phase.MAIN_LINE
-    assert _initial_phase_for_target("solo_ingame_chain") is Phase.STAGE_SELECT
+    assert _initial_phase_for_target("solo_ingame_chain") is Phase.BOOT
     assert _initial_phase_for_target("hitch_lobby_chain") is Phase.LOBBY_ROOM
     med = SimpleNamespace(tick=lambda: "TICK")
     assert _invoke_target_handler(med, "hitch_runtime", _blank_frame()) == "TICK"
     assert _invoke_target_handler(med, "solo_ingame_chain", _blank_frame()) == "TICK"
     assert _invoke_target_handler(med, "hitch_lobby_chain", _blank_frame()) == "TICK"
     assert LONG_CHAIN_TARGETS == ("hitch_runtime", "solo_ingame_chain", "hitch_lobby_chain")
+
+
+def test_solo_chain_keeps_dashboard_room_creation_and_run_settings(monkeypatch) -> None:
+    dashboard = Settings(
+        mode_id="lobby_hitch",
+        auto_create_room=True,
+        cycle_num=5,
+        stage_targets=["1-21"],
+    )
+    monkeypatch.setattr(live_capture, "_load_operator_settings", lambda _path: dashboard)
+
+    settings = live_capture._prepare_settings(None, "solo_ingame_chain", live_input=True)
+
+    assert settings.mode_id == "normal_farm"
+    assert settings.auto_create_room is True
+    assert settings.cycle_num == 5
+    assert settings.stage_targets == ["1-21"]
+
+
+def test_solo_chain_preflight_accepts_production_l0_start_surface() -> None:
+    frame = _blank_frame(window_title="KK官方对战平台", hwnd=1, role="l0")
+    med = SimpleNamespace(_startup_state=lambda _frame: "PLATFORM_MAP")
+
+    result = _start_surface_preflight(med, "solo_ingame_chain", frame)
+
+    assert result["status"] == "READY"
+    assert result["classifier"] == "_startup_state"
 
 
 def test_hitch_lobby_chain_does_not_stop_at_first_verified_hud() -> None:
@@ -227,7 +254,7 @@ def test_launcher_keeps_existing_lanes_and_adds_refresh_controls() -> None:
     for label in (
         "1  启动前检查",
         "11 蹭车局内完整链路",
-        "12 单人局内完整链路",
+        "12 单人完整链路",
         "13 大厅蹭车完整链路",
         "单项实机测试",
         "9  打开最新 FAIL bundle",

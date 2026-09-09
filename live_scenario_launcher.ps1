@@ -486,7 +486,7 @@ function Invoke-SoloIngameChainCapture {
     )
     $cliArgs += @(Get-LiveRuntimeArgs)
     $cliArgs += @("--settings", $settingsPath)
-    Write-Host "[launcher] 单人局内完整链路：从游戏内 Stage Select 接管；Production RuntimeMediator.tick()；不激活 KK 房间窗口" -ForegroundColor Cyan
+    Write-Host "[launcher] 单人完整链路：沿用正式看板自动建房/局数/关卡；production 从大厅建房→选关→局内→战后" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -729,7 +729,7 @@ function Invoke-TargetedProbeMenu {
 }
 
 Add-MenuButton "1  启动前检查`r`n    环境 / OCR / production / 身份门禁，不操作游戏" 24 270 { Invoke-Readiness } $blue
-Add-MenuButton "12 单人局内完整链路`r`n    Stage Select→局内→战后；production tick()" $(if ($script:ReadyForGt) { 390 } else { 390 }) 270 { Invoke-SoloIngameChainCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
+Add-MenuButton "12 单人完整链路`r`n    大厅建房→选关→局内→战后；production tick()" $(if ($script:ReadyForGt) { 390 } else { 390 }) 270 { Invoke-SoloIngameChainCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
 Add-MenuButton "11 蹭车局内完整链路`r`n    已入局后接管→自动任务/四挑战→结算" 24 356 { Invoke-HitchRuntimeCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
 Add-MenuButton "13 大厅蹭车完整链路`r`n    大厅→production lobby hitch→进局" 390 356 { Invoke-HitchLobbyChainCapture } $(if ($script:ReadyForGt) { $green } else { $locked })
 Add-MenuButton "单项实机测试`r`n    A-J 只调 production handler" 24 442 { Invoke-TargetedProbeMenu } $(if ($script:ReadyForGt) { $green } else { $locked })

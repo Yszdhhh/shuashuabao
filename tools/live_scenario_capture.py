@@ -273,8 +273,8 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     "solo_ingame_chain": {
         "handler": "tick",
         "call": "frame",
-        "start_condition": "英雄三国游戏窗口已经打开并停在游戏内选关（Stage Select）页面；Harness 只接管选关之后的 startChallenge、Hero setup、MAIN_LINE、局尾与既有秘境/Boss 路由。",
-        "production_entry": "RuntimeMediator.tick() / Mediator.tick()，初始 phase=STAGE_SELECT；Harness 不选择房间、不激活 KK 房间窗口、不复制局内决策。",
+        "start_condition": "KK 英雄三国地图页、建房弹窗、已创建房间或游戏内选关页之一可由 production L0 classifier 确认；正式看板的自动建房开关决定是否由 production 创建房间。",
+        "production_entry": "RuntimeMediator.tick() / Mediator.tick()，初始 phase=BOOT；production _tick_l0 完成地图→建房→房间→选关，之后继续既有 Hero setup、MAIN_LINE、局尾与秘境/Boss 路由。Harness 不复制建房或局内决策。",
         "expected_steps": (
             "STAGE_SELECT_CONFIRMED", "STAGE_TARGET_VISIBLE", "STAGE_SELECTED_CONFIRMED",
             "STAGE_START_REQUEST", "STAGE_START_CONFIRMED", "GAME_HWND_CONFIRMED",
@@ -283,13 +283,13 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         ),
         "success_postcondition": "生产 classifier 先确认真实 Stage Select，再确认 startChallenge 后的 Hero/HUD；随后局内循环和战后既有秘境/Boss/存档/传家宝路由由真实 Mediator.tick() 继续。羁绊、技能、宝物、进化、装备、拾取、黑商等随机或条件事件未出现只记 NOT_OBSERVED，不以 click success 或 phase-only 计 PASS。",
         "fail_condition": "production runtime 进入 ERROR、UNKNOWN 页面上出现输入、生产输入执行失败、Stage/Hero/HUD 业务后置未确认，或战后路由进入错误状态。",
-        "blocked_condition": "启动帧不是可由 production classifier 确认的游戏内 Stage Select、游戏窗口/OCR/RuntimeMediator/权限不可用，或外部窗口抢焦点/遮挡导致 ownership guard 拒绝输入；BLOCKED 时不发出业务输入。",
+        "blocked_condition": "启动帧不是可由 production classifier 确认的地图/建房/房间/选关页面、游戏窗口/OCR/RuntimeMediator/权限不可用，或外部窗口抢焦点/遮挡导致 ownership guard 拒绝输入；BLOCKED 时不发出业务输入。",
         "max_probe_time_s": 3600.0,
-        "natural_e2e_eligible": "只有从真实 Stage Select 开始，连续 mediator_tick 完成选关进局、真实 HUD/L1、战后页面及既有路线进展，且无 ERROR/UNKNOWN 输入、FAIL 或 MANUAL_INTERVENTION 时才有资格。",
+        "natural_e2e_eligible": "只有从真实大厅/地图/房间或选关页开始，连续 mediator_tick 完成建房、选关进局、真实 HUD/L1、战后页面及既有路线进展，且无 ERROR/UNKNOWN 输入、FAIL 或 MANUAL_INTERVENTION 时才有资格。",
         "bundle_replay": "沿用事件驱动 capture、trace 和 ReplayCaseLoader；metadata 只保存生产 classifier 观察，不复制 startChallenge、MAIN_LINE 或战后 FSM。",
-        "runbook_manual": "先把英雄三国置于游戏内选关页面，不要停在 KK 房间/大厅；确认正式看板配置已加载，尤其关卡、技能、羁绊、秘境和 Boss 选项。",
-        "runbook_hands_off": "点击按钮后不要再点关卡、英雄、羁绊/技能/宝物、装备、进化、黑商、秘境或 Boss 页面；紧急停止仍用 Shift+F12，p/f/m 只记录证据。",
-        "runbook_pass": "必须先有真实 Stage Select → Hero/HUD → L1，再有战后页面及既有路线后置证据；随机黑商或特定面板未自然出现只记 NOT_OBSERVED。",
+        "runbook_manual": "把 KK 停在英雄三国地图页、建房弹窗、房间或游戏内选关页；确认正式看板配置已保存，尤其自动建房、局数、关卡、技能、羁绊、秘境和 Boss 选项。",
+        "runbook_hands_off": "点击按钮后不要再点建房、开始、关卡、英雄、羁绊/技能/宝物、装备、进化、黑商、秘境或 Boss 页面；紧急停止仍用 Shift+F12，p/f/m 只记录证据。",
+        "runbook_pass": "必须先有生产确认的地图/建房/房间/Stage Select → Hero/HUD → L1，再有战后页面及既有路线后置证据；随机黑商或特定面板未自然出现只记 NOT_OBSERVED。",
         "runbook_manual_intervention": "若需要人工越过页面或遮挡，先记录 FAIL；人工操作后记录 MANUAL_INTERVENTION，本次不能作为无人值守 PASS。",
     },
     "hitch_lobby_chain": {
@@ -496,9 +496,9 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     },
     "solo_ingame_chain": {
         "production_readiness": "CONDITIONAL",
-        "scope": "从游戏内 Stage Select 接管真实 normal_farm；覆盖生产 startChallenge、Hero setup、MAIN_LINE、局尾与既有秘境/Boss/存档/传家宝路线，不触碰 KK 创房窗口。",
+        "scope": "从 KK 地图/建房/房间或游戏内选关页接管真实 normal_farm；沿用正式看板自动建房，覆盖生产 L0、Hero setup、MAIN_LINE、局尾与既有秘境/Boss/存档/传家宝路线。",
         "routes": (
-            {"route": "solo_ingame_stage_to_hud", "readiness": "CONDITIONAL"},
+            {"route": "solo_lobby_to_stage_to_hud", "readiness": "CONDITIONAL"},
             {"route": "solo_ingame_l1_policy_handlers", "readiness": "CONDITIONAL"},
             {"route": "solo_ingame_postgame_secret_or_boss", "readiness": "CONDITIONAL"},
         ),
@@ -3108,14 +3108,15 @@ def _start_surface_preflight(
 
     if target == "solo_ingame_chain":
         try:
-            observed = bool(med._find_stage_page(frame))
+            startup = str(med._startup_state(frame))
         except (AttributeError, TypeError):
-            observed = False
+            startup = "UNKNOWN"
+        observed = startup in {"PLATFORM_MAP", "CREATE_ROOM", "ROOM_WAITING", "STAGE_SELECT", "IN_GAME"}
         return _ok(
-            "_find_stage_page",
+            "_startup_state",
             observed,
-            "production Stage Select classifier confirmed",
-            "expected in-game Stage Select surface was not confirmed; ZERO INPUT",
+            f"production single-player start surface confirmed: {startup}",
+            "expected production map/create-room/room/stage surface was not confirmed; ZERO INPUT",
         )
     if target == "hitch_runtime":
         try:
@@ -3463,7 +3464,6 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
         settings.auto_secret_realm = False
     if target == "solo_ingame_chain":
         settings.mode_id = "normal_farm"
-        settings.auto_create_room = False
     if target == "treasure":
         settings.auto_treasure = True
     if target == "choice_bond_skill":
@@ -3613,7 +3613,7 @@ def _is_emergency_reason(reason: str | None) -> bool:
 
 def _initial_phase_for_target(target: str) -> Phase:
     if target == "solo_ingame_chain":
-        return Phase.STAGE_SELECT
+        return Phase.BOOT
     if target in {"lobby_hitch", "lobby_search", "hitch_lobby_chain"}:
         return Phase.LOBBY_ROOM
     if target == "hitch_runtime":
