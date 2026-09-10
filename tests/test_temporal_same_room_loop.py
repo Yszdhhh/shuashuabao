@@ -76,29 +76,18 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         self.assertEqual(0, self.med.game_count)
 
         self._assert_one_input_at_most(lambda: self.med._tick_l0(room))
-        self.assertEqual(Phase.ROOM_WAITING, self.med.phase)
         self.assertEqual(1, self.med.game_count)
         self.assertFalse(self.med._awaiting_room_return)
+        # G0 contract #7：同房返回证明完成后进入 LeaveOldRoom episode，
+        # 等待既有语义控件请求离房，fresh room-list authority 才进 PLATFORM_MAP。
+        self.assertTrue(self.med._room_leave_pending)
+        self.assertEqual(Phase.PREPARE, self.med.phase)
 
+        # 同房 room 帧无可信 room-list 权威：episode 保持零输入观察。
+        # （room_start 仍可见 → GO_HOME 语义控件命中时仅发一次 request）
         self._assert_one_input_at_most(lambda: self.med._tick_l0(room))
-        self.assertEqual(Phase.ROOM_STARTING, self.med.phase)
-        self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
-        self.assertEqual(Phase.STAGE_SELECT, self.med.phase)
-        self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
-        self.med._stage_click_cooldown_until = 0
-        # 2026-08-16 L0 裁决：选关确认改用正向高亮接口（verify_stage_selection 已移除）。
-        _row = StageRow(label="1-12", stage_id=StageId(1, 12), center_x=0, center_y=0)
-        with patch("shuabao.mediator.selected_stage_row", return_value=_row):
-            self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
-            self.med._stage_click_cooldown_until = 0
-            self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
-        self.assertEqual(Phase.STAGE_STARTING, self.med.phase)
-        # startChallenge 子状态机：局内锚点需连续 2 帧确认，
-        # 首帧仅进入 VERIFY_INGAME（phase 保持 STAGE_STARTING），第二帧推进 MAIN_LINE
-        self._assert_one_input_at_most(lambda: self.med._tick_l0(main_line))
-        self.assertEqual(Phase.STAGE_STARTING, self.med.phase)
-        self._assert_one_input_at_most(lambda: self.med._tick_l0(main_line))
-        self.assertEqual(Phase.MAIN_LINE, self.med.phase)
+        self.assertTrue(self.med._room_leave_pending)
+        self.assertEqual(Phase.PREPARE, self.med.phase)
 
         self.assertEqual(
             [
@@ -106,15 +95,12 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
                 "CloseArchivePanel",
                 "QuitGame-open-confirm",
                 "QuitGame-confirm",
-                "RoomStart",
-                # 2026-08-20 起选关为幂等正向确认：fixture 上目标行已被
-                # selected_stage_row 判定为高亮命中 →「已高亮，跳过点选」，
-                # 不再产生 SelectStage-target 输入，直接 StageStart。
-                "StageStart",
+                "LeaveOldRoom",
             ],
             [reason for reason, _ in self.actions],
         )
         self.assertNotIn("CreateRoom-open", [reason for reason, _ in self.actions])
+        self.assertNotIn("RoomStart", [reason for reason, _ in self.actions])
 
     def test_unknown_choice_panel_is_bounded_instead_of_waiting_forever(self):
         # 57d40ce 后语义：未知选择面板保持零输入等待，超过 10s 才 Fail-Closed

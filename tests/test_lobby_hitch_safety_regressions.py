@@ -121,9 +121,12 @@ def test_hitch_cancel_ready_is_postcondition_not_click_target() -> None:
     # (_capture_best -> _is_confirmed_room_frame), not by a lone template
     # hit, so seed it to put this tick genuinely inside the room.
     med._confirmed_room_hwnd = frame.hwnd
+    med.set_phase(Phase.ROOM_WAITING, "cancel-ready-contract")
 
     with patch.object(med, "find", side_effect=fake_find), \
          patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+         patch.object(med, "_hitch_room_ready_contract", return_value=("cancel_ready", None)), \
          patch.object(med, "_hitch_room_seat_decision", return_value="ready"), \
          patch.object(med, "act_click") as click:
         med._tick_lobby_hitch(frame, "ROOM_WAITING")

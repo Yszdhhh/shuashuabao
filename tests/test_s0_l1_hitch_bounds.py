@@ -217,7 +217,7 @@ class HitchPostRoundFloorOneTests(unittest.TestCase):
         with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
                 patch.object(med, "_hitch_room_controls_visible", return_value=True), \
                 patch.object(med, "_hitch_room_seat_decision", return_value="ready"), \
-                patch.object(med, "_find_hitch_ready_button", return_value=ready), \
+                patch.object(med, "_hitch_room_ready_contract", return_value=("ready", ready)), \
                 patch.object(med, "_lobby_room_list_evidence", return_value=False), \
                 patch.object(med, "find_scene", return_value=None), \
                 patch.object(med, "act_click", return_value=True) as click:

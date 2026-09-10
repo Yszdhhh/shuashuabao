@@ -121,14 +121,15 @@ def test_stall_watchdog_never_escapes_inside_room_window() -> None:
     key.assert_not_called()
 
 
-def test_room_signature_templates_are_not_used_to_suppress_esc() -> None:
-    """实机缩放 0.833 下 _is_confirmed_room_frame 在被踢提示上误判为房间，
-    这正是旧「已知弹窗 Esc」分支被压住、零输入 73s 的原因。"""
+def test_kicked_prompt_is_not_a_room_at_live_ui_scale() -> None:
+    """旧 room signature（空白暗块模板）在实机缩放 0.833 下把被踢提示判成房间，
+    压住了弹窗 Esc、零输入 73s。G0 多信号 ROOM 契约必须判为非房间。"""
     med = _med()
     med.set_phase(Phase.ROOM_WAITING)
     med._ui_scale = 0.833
     frame = _kicked_frame()
-    assert med._is_confirmed_room_frame(frame) is True  # 已知缺陷，留作证据
+    assert med._is_confirmed_room_frame(frame) is False
+    assert med._kk_platform_modal_shell(frame) is not None
     assert med._find_hitch_platform_prompt_cancel(frame) is not None
     with patch.object(med, "act_key", return_value=True) as key:
         med._tick_hitch_stall_watchdog(frame, "UNKNOWN", 1000.0)

@@ -665,7 +665,10 @@ class S0CrossRoundTests(unittest.TestCase):
             self._room_return(med, clock)
             self.assertEqual(med.game_count, 1)
             self.assertEqual(med._failure_streak, 1)
-            self.assertIs(med.phase, Phase.ROOM_WAITING)
+            # G0 contract #7：同房返回证明完成后进入 LeaveOldRoom episode
+            #（PREPARE + _room_leave_pending），不再直接 ROOM_WAITING。
+            self.assertIs(med.phase, Phase.PREPARE)
+            self.assertTrue(med._room_leave_pending)
 
             # 局 2：中间一局完整胜利链 → streak 清零
             self._victory_round(med, clock, round_no=2)
@@ -690,7 +693,10 @@ class S0CrossRoundTests(unittest.TestCase):
         with clock.install():
             self._victory_round(med, clock, round_no=1)
             self.assertEqual(med.game_count, 1)
-            self.assertIs(med.phase, Phase.ROOM_WAITING, "cycle=2 时第 1 局后继续")
+            # G0 contract #7：第 1 局后同房证明完成 → LeaveOldRoom episode
+            #（PREPARE + _room_leave_pending），cycle 尚未达成、继续。
+            self.assertIs(med.phase, Phase.PREPARE)
+            self.assertTrue(med._room_leave_pending)
             self._victory_round(med, clock, round_no=2)
             self.assertEqual(med.game_count, 2)
             self.assertIs(med.phase, Phase.COMPLETE, "cycle_num=2 达成后转 COMPLETE")

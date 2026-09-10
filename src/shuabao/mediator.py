@@ -162,6 +162,14 @@ class FrameEvidence:
     context: str | None = None
 
 
+@dataclass(frozen=True)
+class PlatformModalShell:
+    """KK 平台普通提示的视觉外壳，不承载正文或正向按钮语义。"""
+
+    kind: str
+    close: MatchResult
+
+
 class _SceneCacheCompat:
     """兼容 shim：benchmark/旧调用仍访问 ``_scene_cache.clear()``。
 
@@ -260,7 +268,26 @@ class RoundOutcome(Enum):
     DISCONNECT = auto()
 
 
+class RunExitReason(str, Enum):
+    """G0 P0：mediator 终止的唯一停止归因（run() 退出时写入 exit_reason）。
+
+    复用 StopSignal，不引入第二套停止系统：外部 stop reason（F12/Shift+F12
+    或 RunnerService/HeadlessRunner）在退出时归 EMERGENCY_STOP/USER_STOP；
+    Mediator.stop() 只在尚无外部 stop 时才写信号，绝不覆盖先到的外部 reason。
+    """
+
+    USER_STOP = "USER_STOP"
+    EMERGENCY_STOP = "EMERGENCY_STOP"
+    CONFIGURED_CYCLE_COMPLETE = "CONFIGURED_CYCLE_COMPLETE"
+    ARCHAEOLOGY_HANDOFF_COMPLETE = "ARCHAEOLOGY_HANDOFF_COMPLETE"
+    UIPI_PERMISSION_FAILURE = "UIPI_PERMISSION_FAILURE"
+    FATAL_ENVIRONMENT_FAILURE = "FATAL_ENVIRONMENT_FAILURE"
+    PROCESS_CRASH = "PROCESS_CRASH"
+    UNEXPECTED_TERMINATION = "UNEXPECTED_TERMINATION"
+
+
 Outcome = RoundOutcome
+
 class PanelState(Enum):
     """S0 ⑤ 面板会话 FSM：CLOSED→OPEN_REQUESTED→WAIT_VISIBLE→ACTIVE→WAIT_MUTATION→CLOSING→COOLDOWN。"""
 
@@ -607,6 +634,14 @@ class Mediator:
         self.executor = InputExecutor(stop_signal=self.stop_signal)
         self.emergency_listener: EmergencyStopListener | None = None
         self.phase = Phase.BOOT
+        # G0 P0 可观测性：run 终止归因 + 最近业务/恢复动作 + 窗口快照。
+        self.exit_reason: RunExitReason | None = None
+        self.last_business_action: str | None = None
+        self.recent_recovery_actions: list[str] = []
+        self.last_window_role: str | None = None
+        self.last_window_hwnd: int | None = None
+        self.game_platform_window_snapshot: dict[str, bool] = {}
+        self._archaeology_handoff_confirmed: bool = False
         self.game_count = 0
         self._running = False
         self._longzhu_deadline: float | None = None
@@ -646,6 +681,9 @@ class Mediator:
         self._last_frame: Frame | None = None
         self._prev_frame: Frame | None = None
         self._last_capture_role: str | None = None
+        # 每次 see() 都代表一次新的应用采集观察，即使像素与上一帧完全相同。
+        # Lobby modal 的恢复门禁使用这个 generation，不使用 Python Frame identity。
+        self._capture_generation = 0
         # N2.2：单帧感知证据（FrameEvidence.cache 取代旧 _scene_cache / 每 tick clear）
         self._evidence: FrameEvidence | None = None
         self._tick_evidence: FrameEvidence | None = None
@@ -720,21 +758,35 @@ class Mediator:
         self._hitch_rejected_row_ys: set[int] = set()
         self._hitch_pending_row_y: int | None = None
         self._hitch_join_origin_hwnd: int | None = None
-        # P1-1：进房/未知弹窗的有界 ESC 关闭预算；弹窗在 fresh 帧上消失后重置。
+        # 平台普通提示默认 Esc；输入成功后必须等 fresh 帧证明 shell 消失。
         self._hitch_popup_esc_attempts = 0
         self._hitch_popup_esc_last_at: float | None = None
         self._hitch_platform_prompt_click_at: float | None = None
         # 无进展看门狗：UNKNOWN 起点；与 _last_input_at 取较晚者计时。
         self._hitch_unknown_since: float | None = None
         self._hitch_room_window_hwnd: int | None = None
+        self._hitch_platform_modal_input_frame: Frame | None = None
+        self._hitch_platform_modal_input_observation: tuple[int, float] | None = None
+        self._hitch_platform_modal_last_action: str | None = None
+        self._hitch_platform_modal_reobserve_until: float | None = None
+        self._hitch_platform_modal_reacquire_attempts = 0
         # Session-local blacklist keyed by the visible lobby room-number cell.
         self._hitch_blacklisted_room_keys = AgingBlacklist(ttl_s=1800.0)
         self._hitch_pending_room_key: str | None = None
+        self._hitch_floor_exit_pending = False
+        self._hitch_floor_exit_confirmed = False
         self._hitch_floor_exit_attempted_at: float | None = None
+        self._hitch_floor_exit_deadline: float | None = None
+        self._hitch_floor_exit_input_generation: int | None = None
+        self._hitch_floor_exit_reobserve_until: float | None = None
         # P0-6：Ready 180s 超时退房生命周期（确认离房+大厅可见后才拉黑）
         self._hitch_ready_timeout_pending: bool = False
         self._hitch_ready_timeout_leave_at: float | None = None
+        self._hitch_ready_confirmed_at: float | None = None
         # P0-4：压力转移点击后的后置条件验证锚点（确认按钮消失才算成功）
+        # G0 Phase A：按钮从未出现时的有界 fresh reobserve 预算（次数制，
+        # 与点击/重试 budget 数值风格一致）。耗尽 → core failed。
+        self._hitch_pressure_observe_budget = 40
         self._hitch_pressure_click_at: float | None = None
         self._hitch_pressure_request_generation: int | None = None
         self._hitch_pressure_retry_count: int = 0
@@ -834,6 +886,17 @@ class Mediator:
         self._exit_confirm_attempts: int = 0
         self._exit_since: float | None = None
         self._awaiting_room_return: bool = False
+        # G0 P0 contract #7：同房返回后先离开旧房（语义控件 request→fresh 证据）。
+        self._room_leave_pending: bool = False
+        self._room_leave_next_at: float = 0.0
+        self._room_leave_attempts: int = 0
+        # G0 P0 contract #8：cycle 完成 + auto_archaeology 的 handoff 标记。
+        # G0 Phase B：考古模板 miss 时的有界 reobserve 计数；超界 FATAL。
+        self._archaeology_template_miss_budget = 40
+        self._archaeology_handoff_pending: bool = False
+        self._archaeology_click_at: float | None = None
+        self._archaeology_click_generation: int | None = None
+        self._archaeology_click_attempts: int = 0
         self._selection_unknown_attempts: int = 0
         self._selection_unknown_since: float | None = None
         self._selection_repeat_key: tuple[str, str, int, int] | None = None
@@ -1129,6 +1192,10 @@ class Mediator:
             # 选关页底部也有开始/扫荡/英雄模式按钮，room_start 模板会误匹配
             # （官方 1936x1066 选关截图实测 roomStart 0.84 / kk_start 0.92）。
             value = "STAGE_SELECT"
+        elif self._is_confirmed_room_frame(frame):
+            value = "ROOM_WAITING"
+        elif self._lobby_room_list_evidence(frame):
+            value = "ROOM_LIST"
         elif self._find_room_start(frame):
             value = "ROOM_WAITING"
         elif self._find_create_confirm(frame):
@@ -1143,6 +1210,7 @@ class Mediator:
         context = self._detect_context(frame, role)
         return {
             "ROOM_WAITING": 100,
+            "ROOM_LIST": 80,
             "STAGE_SELECT": 90,
             "CREATE_ROOM": 80,
             "PLATFORM_MAP": 70,
@@ -1210,6 +1278,12 @@ class Mediator:
                 if cand_frame.hwnd is not None and self._is_confirmed_room_frame(cand_frame):
                     self._confirmed_room_hwnd = cand_frame.hwnd
                     break
+        if role == "l0" and len(targets) == 1:
+            # 单窗口/全屏 KK 没有第二个候选可供拓扑门禁比较；只要新采集的
+            # 页面结构已经证明是 ROOM，当前 HWND 就是唯一可执行 owner。
+            candidate = capture_one(targets[0])
+            if candidate.hwnd is not None and self._is_confirmed_room_frame(candidate):
+                self._confirmed_room_hwnd = candidate.hwnd
         if role == "l0" and self._confirmed_room_hwnd != previous_confirmed_room:
             # Transition only - this runs every tick.  Room identity is the
             # single thing a live hitch run cannot be audited without: it must
@@ -1425,9 +1499,13 @@ class Mediator:
             # 内容+位置相同：复用上一帧对象（场景缓存命中）。
             # 保持原时间戳：OLD_FRAME/FROZEN 静态检测仍会标记该帧为静态帧。
             frame = self._last_frame
+        self._capture_generation += 1
         self._prev_frame = self._last_frame
         self._last_frame = frame
         self._last_capture_role = role
+        # G0 P0 contract #3：最后窗口 role/HWND 快照。
+        self.last_window_role = role
+        self.last_window_hwnd = frame.hwnd
         if frame.hwnd is None and not frame.window_title:
             context = "NO_WINDOW"
         elif self.phase == Phase.HERO_SETUP:
@@ -1821,6 +1899,8 @@ class Mediator:
                 self._tick_reason = "input_executor_wait"
             if not self.settings.dry_run:
                 self.invalidate_evidence("input")
+            # G0 P0 contract #3：最近业务动作可读（输入 reason 即动作名）。
+            self.last_business_action = reason
         elif self._last_input_status == INPUT_DISPATCHED_UNVERIFIED:
             # 输入已注入、只是后置窗口校验没通过：证据必须失效，重复点击才是危险动作。
             self._input_seq += 1
@@ -6147,12 +6227,18 @@ class Mediator:
         return None
 
     def _maybe_click_hitch_pressure_transfer(self, frame: Frame, now: float) -> LoopAction | None:
-        """蹭车模式的 P0 压力转移门禁。
+        """蹭车模式的 P0 压力转移门禁（core action）。
 
         只要本局压力转移尚未由 fresh HUD 证实完成，调用方就必须停在这里：
         不得放行自动任务、四挑战、商店、宝物或任何其他局内输入。点击成功
         只记录 request；只有后续 fresh 帧确认按钮消失，才置
         ``_hitch_pressure_transferred = True``。时间窗口或重试次数绝不构成成功。
+
+        G0 P0 contract #4：固定 bounded budget（5 次点击 request）内仍无法
+        fresh 证实完成 → 记录 incident 并置 ``_hitch_pressure_core_failed``。
+        core failed 本局永不计作 pressure success，也永不释放 optional
+        business actions；但调用方继续观察 victory/failure/exit 生命周期，
+        每 tick 零输入等待 outcome——不 stop、不进入不可观测状态。
         """
         if not self._team_mode_enabled():
             return None
@@ -6165,6 +6251,10 @@ class Mediator:
         # is an explicit mid-game takeover fact; otherwise the normal
         # click-then-disappear postcondition gate remains in force.
         if self._adopt_hitch_midgame_takeover(frame):
+            return LoopAction.Continue
+        if getattr(self, "_hitch_pressure_core_failed", False):
+            # core failed：本局剩余时间每 tick 零输入等待 outcome；调用方
+            # 持续可观察（victory/failure/exit 生命周期不受影响）。
             return LoopAction.Continue
         if not self._is_in_game_hud(frame):
             # 未能确认局内 HUD 时也不能把压力转移门禁降级为普通主线。
@@ -6196,6 +6286,10 @@ class Mediator:
                 # 诊断，绝不能成为放行其他局内动作的理由。
                 retries = getattr(self, "_hitch_pressure_retry_count", 0) + 1
                 self._hitch_pressure_retry_count = retries
+                self._hitch_pressure_request_attempts = getattr(self, "_hitch_pressure_request_attempts", 0) + 1
+                if self._hitch_pressure_request_attempts >= 5:
+                    self._mark_pressure_core_failed(now, "retry budget exhausted")
+                    return LoopAction.Continue
                 print(f"[med] 压力转移点击后按钮仍可见（后置条件未确认），继续重试 ({retries})")
                 self._hitch_pressure_click_at = None
             # 等待确认/重试期间是强制零输入门禁。
@@ -6216,8 +6310,20 @@ class Mediator:
                 self._hitch_pressure_request_generation = evidence.gen if evidence else 0
                 print("[med] 压力转移按钮已点击，等待后置条件确认（按钮消失）")
                 return LoopAction.Continue
+            # 点击被门禁/执行器拒绝：计入 bounded budget 的消耗。
+            self._hitch_pressure_request_attempts = getattr(self, "_hitch_pressure_request_attempts", 0) + 1
+            if self._hitch_pressure_request_attempts >= 5:
+                self._mark_pressure_core_failed(now, "click rejected budget exhausted")
+                return LoopAction.Continue
         # 看不到按钮也不能猜测已经完成；保持零输入观察，直到看到并点击，
         # 再由 fresh 帧证实它消失。
+        # G0 Phase A：按钮从未出现也不能无限等；有界 fresh reobserve 预算
+        #（次数制，与 click/retry budget 数值风格一致）。预算内每 tick 零
+        # 输入观察；耗尽 → core failed（记 incident，不释放 optional）。
+        self._hitch_pressure_observe_budget -= 1
+        if self._hitch_pressure_observe_budget <= 0:
+            self._mark_pressure_core_failed(now, "pressure button never observed budget exhausted")
+            return LoopAction.Continue
         print("[med] 蹭车压力转移尚未确认，保持门禁并等待按钮")
         return LoopAction.Continue
 
@@ -6256,6 +6362,19 @@ class Mediator:
         self._hitch_pressure_request_generation = None
         print("[med] 识别到中场存档挑战进度条且压力转移按钮不存在，接手蹭车局内循环")
         return True
+
+    def _mark_pressure_core_failed(self, now: float, reason: str) -> None:
+        """G0 P0 contract #4：压力 core action 在 bounded budget 内未证实完成。"""
+        if getattr(self, "_hitch_pressure_core_failed", False):
+            return
+        self._hitch_pressure_core_failed = True
+        click_at = getattr(self, "_hitch_pressure_click_at", None)
+        self._hitch_pressure_click_at = None
+        print(f"[med] 压力转移 core failed（{reason}），本局只等待 outcome，不释放 optional actions")
+        # incident 第二参数是 elapsed 语义：从最后一次 request 起算的真实耗时。
+        self._record_environment_incident(
+            "hitch_pressure_core_failed", max(0.0, now - click_at) if click_at is not None else 0.0
+        )
 
 
     def _find_secret_realm_npc(self, frame: Frame) -> MatchResult | None:
@@ -6783,42 +6902,84 @@ class Mediator:
         gray = cv2.cvtColor(remainder.bgr[14:34, :21], cv2.COLOR_BGR2GRAY)
         return int((gray > 150).sum()) < 18
 
-    def _maybe_switch_to_archaeology(self, frame: Frame) -> LoopAction | None:
-        """Challenge ticket exhausted → click 考古模式 → stop script.
+    def _archaeology_mode_anchor(self, frame: Frame) -> MatchResult | None:
+        """考古模式业务锚点：kaogu/kaoguMode 任一命中即视为考古页证据。"""
+        return self.find(
+            frame,
+            ["kaogu", "kaoguMode"],
+            threshold=0.70,
+            scales=self._hot_scales(),
+        )
 
-        Confirms 3 consecutive frames before acting to avoid a flicker false
-        positive. Returns LoopAction.Break after switching, None otherwise.
+    def _maybe_switch_to_archaeology(self, frame: Frame) -> LoopAction | None:
+        """票尽 / cycle 完成 → 考古模式 request → fresh 证据确认（contract #8）。
+
+        click 仅 request；只有 request 之后 fresh evidence generation 上命中
+        ``kaogu``/``kaoguMode`` 业务锚点，才 COMPLETE +
+        ARCHAEOLOGY_HANDOFF_COMPLETE。click success/frame mutation 绝不当成功。
         """
         if not getattr(self.settings, "auto_archaeology", True):
             return None
-        if self._ticket_exhausted(frame):
+        click_at = getattr(self, "_archaeology_click_at", None)
+        if click_at is not None:
+            req_gen = self._archaeology_click_generation
+            evidence = self._ensure_evidence(frame)
+            cur_gen = evidence.gen if evidence else None
+            if req_gen is not None and cur_gen is not None and cur_gen <= req_gen:
+                return LoopAction.Continue
+            if self._archaeology_mode_anchor(frame) is not None:
+                print("[med] 考古模式业务锚点 fresh 命中，handoff COMPLETE")
+                self._archaeology_handoff_confirmed = True
+                self._archaeology_click_at = None
+                self.set_phase(Phase.COMPLETE, "archaeology mode confirmed")
+                self.stop()
+                return LoopAction.Break
+            if time.time() - click_at >= 30.0:
+                print("[med] 考古模式点击后 30s 未见 kaogu 锚点，Fail-Closed 停止")
+                self.set_phase(Phase.ERROR, "archaeology mode confirmation timeout")
+                self.stop()
+                return LoopAction.Break
+            print("[med] 考古模式点击后等待 fresh kaogu/kaoguMode 锚点（零动作）")
+            return LoopAction.Continue
+        handoff_pending = getattr(self, "_archaeology_handoff_pending", False)
+        if handoff_pending:
+            self._ticket_zero_frames = 0
+            print("[L0] cycle 完成 handoff：点击考古模式（request，待 fresh 锚点确认）")
+        elif self._ticket_exhausted(frame):
             count = getattr(self, "_ticket_zero_frames", 0) + 1
             self._ticket_zero_frames = count
             if count < 3:
                 print(f"[L0] 挑战券剩余为 0（确认 {count}/3），等待稳定…")
                 return LoopAction.Continue
-            print("[L0] 挑战券已清空，点击考古模式并结束脚本")
-            arch_hit = MatchResult(
-                name="archaeology_switch",
-                score=1.0,
-                x=int(frame.width * 0.86),
-                y=int(frame.height * 0.903),
-                w=0,
-                h=0,
-                screen_x=frame.left + int(frame.width * 0.86),
-                screen_y=frame.top + int(frame.height * 0.903),
-            )
-            result = self.act_click(arch_hit, "SwitchToArchaeology")
+            print("[L0] 挑战券已清空，点击考古模式（request，待 fresh 锚点确认）")
+        else:
             self._ticket_zero_frames = 0
-            if not result:
+            return None
+        arch_hit = self.find(frame, ["lobby/stage_archaeology_btn"], threshold=0.70)
+        if arch_hit is None:
+            # G0 Phase B：模板 miss 绝不伪造固定坐标 request。有界 fresh
+            # reobserve（零输入）；超界 → FATAL（_classify_run_exit 归因）。
+            self._archaeology_template_miss_budget -= 1
+            if self._archaeology_template_miss_budget <= 0:
+                print("[med] 考古按钮模板持续未出现，reobserve 预算耗尽，Fail-Closed 停止")
+                self.set_phase(Phase.ERROR, "archaeology button never observed")
+                self.stop()
+                return LoopAction.Break
+            print(f"[med] 考古按钮模板未出现，零输入 reobserve（剩余 {self._archaeology_template_miss_budget}）")
+            return LoopAction.Continue
+        result = self.act_click(arch_hit, "SwitchToArchaeology")
+        self._ticket_zero_frames = 0
+        if not result:
+            self._archaeology_click_attempts += 1
+            if self._archaeology_click_attempts >= 3:
                 self.set_phase(Phase.ERROR, "archaeology switch input rejected")
                 self.stop()
                 return LoopAction.Break
-            self.set_phase(Phase.QUIT, "archaeology mode after challenge ticket exhausted")
-            self.stop()
-            return LoopAction.Break
-        self._ticket_zero_frames = 0
-        return None
+            return LoopAction.Continue
+        evidence = self._ensure_evidence(frame)
+        self._archaeology_click_at = time.time()
+        self._archaeology_click_generation = evidence.gen if evidence else None
+        return LoopAction.Continue
 
     def _current_faction_spec(self) -> "FactionSpec":
         plan = getattr(self, "_hero_plan", None)
@@ -7202,6 +7363,15 @@ class Mediator:
             self._hitch_pressure_click_at = None
             self._hitch_pressure_request_generation = None
             self._hitch_pressure_retry_count = 0
+            self._hitch_pressure_request_attempts = 0
+            self._hitch_pressure_core_failed = False
+            self._hitch_pressure_observe_budget = 40
+            self._archaeology_handoff_pending = False
+            self._archaeology_click_at = None
+            self._archaeology_click_generation = None
+            self._archaeology_click_attempts = 0
+            self._archaeology_template_miss_budget = 40
+            self._room_leave_pending = False
             self._auto_task_unknown_since = None
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
@@ -7333,6 +7503,8 @@ class Mediator:
         )
         self._recovery_step = None
         self.set_phase(Phase.RECOVER_FAILURE, f"recovery start ({kind.name})")
+        # G0 P0 contract #3：最近恢复动作可读（fail-closed bounded list）。
+        self.recent_recovery_actions = (self.recent_recovery_actions + [f"{kind.name}:start:{int(now)}"])[-20:]
         self._record_recovery_incident("recovery_start")
 
     def _recovery_anchor(self, frame: Frame, rs: RecoveryState) -> MatchResult | None:
@@ -7789,6 +7961,41 @@ class Mediator:
         if saved is not None:
             self._incident_pending_fp = saved
 
+    def _record_lobby_observation_incident(
+        self,
+        kind: str,
+        reason: str,
+        frame: Frame | None = None,
+        *,
+        attempt: int | None = None,
+        extra: dict | None = None,
+    ) -> None:
+        """Archive a lobby recovery observation without entering ERROR/stop."""
+        if self._archiver is None:
+            return
+        current = frame or self._last_frame
+        if current is None or current.bgr is None or current.bgr.size == 0:
+            return
+        saved = self._archiver.maybe_record(
+            frame_before=self._prev_frame,
+            frame_now=current,
+            metadata=self._incident_meta(
+                f"lobby_{kind}",
+                reason,
+                final_action="wait",
+                attempt=attempt,
+                deadline=self._hitch_floor_exit_deadline,
+                extra=extra,
+            ),
+            healthy=True,
+            health_issues=[],
+            health_details="",
+        )
+        if saved is not None:
+            self._incident_pending_fp = saved
+            if self._tick_reason is None:
+                self._tick_reason = "incident_write"
+
     def _record_repeat_click(self, frame: Frame, choice: tuple[str, MatchResult], attempts: int) -> None:
         """B1-2：同一选择连续 2 次点击无页面变化时归档。
 
@@ -7905,31 +8112,82 @@ class Mediator:
 
     def _passive_choice_mode(self) -> bool:
         return self._hitch_enabled() or self._follow_enabled()
+
+    @staticmethod
+    def _hitch_room_list_row_count(frame: Frame, anchor: MatchResult) -> int:
+        """Count independent occupancy-row bands below the list surface anchor.
+
+        The occupancy cells are deliberately used only as corroboration.  A
+        single template hit, a tab background, or a generic blue button is not
+        enough to grant ROOM_LIST identity.
+        """
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
+            return 0
+        x0 = int(frame.width * 0.48)
+        x1 = int(frame.width * 0.82)
+        y0 = min(frame.height, int(anchor.y + anchor.h + frame.height * 0.025))
+        y1 = int(frame.height * 0.88)
+        roi = frame.bgr[y0:y1, x0:x1]
+        if roi.size == 0:
+            return 0
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        # KK's n/4 cell is bright text on a dark row; keep low-saturation text
+        # and exclude the colored row icons/avatars.
+        mask = ((gray >= 145) & (hsv[:, :, 1] < 125)).astype(np.uint8)
+        _count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask, 8)
+        centers: list[tuple[int, int]] = []
+        for x, y, width, height, area in stats[1:]:
+            x, y, width, height, area = map(int, (x, y, width, height, area))
+            if not (2 <= width <= 70 and 4 <= height <= 28 and area >= 8):
+                continue
+            centers.append((y + height // 2, area))
+        centers.sort()
+        bands: list[list[int]] = []
+        for center_y, area in centers:
+            if not bands or center_y - bands[-1][0] > 18:
+                bands.append([center_y, 1, area])
+            else:
+                bands[-1][1] += 1
+                bands[-1][2] += area
+        return sum(1 for _center_y, components, area in bands if components >= 2 or area >= 24)
+
     def _lobby_room_list_evidence(self, frame: Frame) -> bool:
-        """Return true only for controls in the room-list tab, never row text."""
-        if frame.bgr is not None:
-            tab = frame.bgr[
-                int(frame.height * 0.24):int(frame.height * 0.29),
-                int(frame.width * 0.22):int(frame.width * 0.32),
-            ]
-            if tab.size:
-                blue, green, red = cv2.split(tab)
-                selected_pixels = (blue > 100) & (green > 80) & (red < 100) \
-                    & ((blue.astype(np.int16) - red.astype(np.int16)) > 70)
-                if int(np.count_nonzero(selected_pixels)) >= 20:
-                    return True
-        # b15da05 P1-A: lobby_room_list_selected is a plain grey background patch without selected text authority. Drop it.
-        # Only room-list-specific controls or actual blue-selected highlight pixels may stand in for the selected tab.
-        # Only room-list-specific controls may stand in for the selected tab.
-        # A search-control locator must not appear here: locating a control is
-        # not proof of which surface owns it, and KK draws the same magnifier
-        # in its always-present top-bar search box.  lobby_search_icon
-        # therefore locates the search control and nothing else; the tab
-        # evidence above and this refresh control carry the surface authority.
+        """Require the search/table/row surface, never a low-information patch.
+
+        The search icon, room-list header, and either row occupancy evidence or
+        a refresh/selected-tab control must agree.  If the search control is
+        temporarily absent, the header itself is the structural row anchor so
+        the bounded search-recovery subflow can still run.  Join authority
+        remains stricter and requires the real search icon below.  Modal shell
+        detection runs first because a modal keeps the underlying list visible
+        by design.
+        """
+        if self._kk_platform_modal_shell(frame) is not None:
+            return False
+        search = self.find_scene(frame, "lobby_search_icon")
+        header = self.find_scene(frame, "lobby_room_list")
+        if header is None:
+            return False
+        if search is not None and not (int(frame.height * 0.15) <= search.y <= int(frame.height * 0.45)):
+            return False
         refresh = self.find_scene(frame, "lobby_refresh")
-        if refresh is not None and refresh.y >= int(frame.height * 0.20):
-            return True
-        return False
+        tab = frame.bgr[
+            int(frame.height * 0.24):int(frame.height * 0.29),
+            int(frame.width * 0.22):int(frame.width * 0.32),
+        ] if frame.bgr is not None else None
+        selected_pixels = 0
+        if tab is not None and tab.size:
+            blue, green, red = cv2.split(tab)
+            selected_pixels = int(np.count_nonzero(
+                (blue > 100) & (green > 80) & (red < 100)
+                & ((blue.astype(np.int16) - red.astype(np.int16)) > 70)
+            ))
+        rows = self._hitch_room_list_row_count(frame, search or header)
+        return bool(
+            (rows >= 2 and (refresh is not None or selected_pixels >= 20))
+            or (refresh is not None and selected_pixels >= 20)
+        )
 
     def _find_hitch_room_list_tab(self, frame: Frame) -> MatchResult | None:
         """Find only the fixed room-list tab slot, never a different active tab."""
@@ -7974,6 +8232,11 @@ class Mediator:
         """Return the first visible ``n/4`` row that is safe to join."""
         w, h = frame.width, frame.height
         if w <= 0 or h <= 0 or frame.bgr is None or not self._lobby_room_list_evidence(frame):
+            return None
+        # A degraded list surface may remain classifiable for bounded search
+        # recovery when the search box is occluded.  It must not grant room-row
+        # click authority without the real search-area anchor.
+        if self.find_scene(frame, "lobby_search_icon") is None:
             return None
 
         img_dir = self.images
@@ -8102,8 +8365,17 @@ class Mediator:
             )
         return None
 
-    def _hitch_room_blue_controls(self, frame: Frame) -> list[tuple[MatchResult, int]]:
-        """Return visually confirmed blue controls in the room action bar."""
+    def _hitch_room_blue_controls(
+        self,
+        frame: Frame,
+        *,
+        require_text: bool = True,
+    ) -> list[tuple[MatchResult, int]]:
+        """Return blue controls in the room action bar.
+
+        ``require_text`` is false only for ROOM page corroboration; click
+        authorization continues to use the labelled-control path.
+        """
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return []
         w, h = frame.width, frame.height
@@ -8112,20 +8384,20 @@ class Mediator:
         roi = frame.bgr[y0:y1, x0:x1]
         if roi.size == 0:
             return []
-        blue, green, red = cv2.split(roi)
-        blue_gap = blue.astype(np.int16) - red.astype(np.int16)
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        # The live KK blue has shifted BGR values across captures; HSV hue and
+        # saturation remain stable for both Ready and CancelReady controls.
         mask = (
-            (blue > 90)
-            & (green > 40)
-            & (green < 220)
-            & (red < 50)
-            & (blue_gap > 75)
+            (hsv[:, :, 0] >= 85)
+            & (hsv[:, :, 0] <= 125)
+            & (hsv[:, :, 1] >= 100)
+            & (hsv[:, :, 2] >= 90)
         ).astype(np.uint8)
         _, _, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
         controls: list[tuple[MatchResult, int]] = []
         for x, y, cw, ch, area in stats[1:]:
             if not (
-                w * 0.06 <= cw <= w * 0.16
+                w * 0.045 <= cw <= w * 0.16
                 and h * 0.025 <= ch <= h * 0.06
                 and area >= cw * ch * 0.55
             ):
@@ -8133,13 +8405,22 @@ class Mediator:
             crop = frame.bgr[y0 + y:y0 + y + ch, x0 + x:x0 + x + cw]
             gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
             saturation = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)[:, :, 1]
+            margin_x = max(2, int(cw * 0.03))
+            margin_y = max(2, int(ch * 0.08))
+            gray = gray[margin_y:ch - margin_y, margin_x:cw - margin_x]
+            saturation = saturation[margin_y:ch - margin_y, margin_x:cw - margin_x]
             ys, xs = np.where((gray > 150) & (saturation < 100))
             if xs.size < 60:
-                continue
-            text_width = int(xs.max() - xs.min() + 1)
-            text_height = int(ys.max() - ys.min() + 1)
-            if not (18 <= text_width <= 90 and 8 <= text_height <= 22):
-                continue
+                if require_text:
+                    continue
+                text_width = 0
+            else:
+                text_width = int(xs.max() - xs.min() + 1)
+                text_height = int(ys.max() - ys.min() + 1)
+                if not (18 <= text_width <= 90 and 8 <= text_height <= 22):
+                    if require_text:
+                        continue
+                    text_width = 0
             hit_x, hit_y = int(x0 + x), int(y0 + y)
             controls.append((
                 MatchResult(
@@ -8163,87 +8444,129 @@ class Mediator:
                 return replace(hit, name="room_primary_action"), text_width
         return None
 
-    def _find_hitch_ready_button(self, frame: Frame) -> MatchResult | None:
-        # 只返回可执行的“准备”按钮。“取消准备”是已准备成功的后置条件，
-        # 必须保持零输入，绝不能再次点击把客人切回未准备状态。
-        hit = self.find(frame, ["room_ready", "readyBtn"], threshold=0.75)
-        if hit is not None:
-            return hit
-        control = self._hitch_room_action_control(frame)
-        if control is None:
+    def _hitch_room_cover(self, frame: Frame) -> tuple[int, int, int, int] | None:
+        """Find the large square room artwork used by the real room surface."""
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return None
-        hit_ctrl, text_width = control
-        return replace(hit_ctrl, name="room_ready") if text_width <= 45 else None
+        hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
+        mask = ((hsv[:, :, 1] >= 90) & (hsv[:, :, 2] >= 70)).astype(np.uint8)
+        _count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask, 8)
+        candidates: list[tuple[int, tuple[int, int, int, int]]] = []
+        for x, y, width, height, area in stats[1:]:
+            x, y, width, height, area = map(int, (x, y, width, height, area))
+            if not (
+                width >= max(80, int(frame.width * 0.08))
+                and height >= max(80, int(frame.height * 0.12))
+                and width <= int(frame.width * 0.30)
+                and height <= int(frame.height * 0.40)
+                and x <= int(frame.width * 0.45)
+                and y <= int(frame.height * 0.52)
+                and 0.65 <= width / max(height, 1) <= 1.45
+                and area >= int(width * height * 0.45)
+            ):
+                continue
+            candidates.append((area, (x, y, width, height)))
+        if not candidates:
+            return None
+        return max(candidates, key=lambda item: item[0])[1]
+
+    def _hitch_room_surface_evidence(
+        self,
+        frame: Frame,
+    ) -> tuple[tuple[int, int, int, int], list[tuple[MatchResult, int]]] | None:
+        """Return multi-signal ROOM evidence without low-information assets."""
+        cover = self._hitch_room_cover(frame)
+        if cover is None:
+            return None
+        controls = [
+            item for item in self._hitch_room_blue_controls(frame)
+            if item[0].x > cover[0] + cover[2] + int(frame.width * 0.12)
+            and item[0].y >= cover[1] + cover[3] + int(frame.height * 0.12)
+        ]
+        geometry_controls = [
+            item for item in self._hitch_room_blue_controls(frame, require_text=False)
+            if item[0].x > cover[0] + cover[2] + int(frame.width * 0.12)
+            and item[0].y >= cover[1] + cover[3] + int(frame.height * 0.12)
+        ]
+        primary = [item for item in controls if item[0].x < int(frame.width * 0.82)]
+        has_authentic_start = self._find_room_start(frame) is not None
+        if not primary or (len(geometry_controls) < 2 and not has_authentic_start):
+            return None
+        # Player/seat area: require independent colored content between the
+        # cover and the action bar.  This rejects an isolated blue lobby button
+        # even when a page happens to contain a saturated icon.
+        x0 = min(frame.width - 1, cover[0] + cover[2] + int(frame.width * 0.02))
+        x1 = max(x0 + 1, int(frame.width * 0.92))
+        y0 = min(frame.height, cover[1] + int(cover[3] * 0.05))
+        y1 = min(frame.height, min(hit.y for hit, _text_width in geometry_controls) - 8)
+        seat_roi = frame.bgr[y0:y1, x0:x1]
+        if seat_roi.size == 0:
+            return None
+        seat_hsv = cv2.cvtColor(seat_roi, cv2.COLOR_BGR2HSV)
+        seat_pixels = int(np.count_nonzero(
+            (seat_hsv[:, :, 1] >= 45) & (seat_hsv[:, :, 2] >= 75)
+        ))
+        if seat_pixels < max(180, int(frame.width * frame.height * 0.00015)):
+            return None
+        return cover, sorted(controls, key=lambda item: item[0].x)
+
+    def _hitch_room_ready_contract(self, frame: Frame) -> tuple[str, MatchResult | None]:
+        """Classify real ROOM action state: ready/cancel-ready/start/unknown."""
+        surface = self._hitch_room_surface_evidence(frame)
+        if surface is None:
+            return "unknown", None
+        _cover, controls = surface
+        primary = next((item for item in controls if item[0].x < int(frame.width * 0.82)), None)
+        if primary is None:
+            return "unknown", None
+        hit, text_width = primary
+        if self._find_room_start(frame) is not None:
+            return "start", None
+        ratio = text_width / max(hit.w, 1)
+        if ratio <= 0.27:
+            return "ready", replace(hit, name="room_ready")
+        if ratio >= 0.32:
+            return "cancel_ready", None
+        return "unknown", None
+
+    def _find_hitch_ready_button(self, frame: Frame) -> MatchResult | None:
+        # 只返回真实 ROOM 结构内的 Ready。取消准备和房主 Start 都是
+        # 后置状态，绝不能把它们重新当作客人 Ready 点击。
+        state, hit = self._hitch_room_ready_contract(frame)
+        return hit if state == "ready" else None
 
     def _hitch_room_controls_visible(self, frame: Frame) -> bool:
-        if self.find(frame, ["room_ready", "readyBtn", "room_cancel_ready", "room_exit_btn"], threshold=0.75) is not None:
-            return True
-        return self._hitch_room_action_control(frame) is not None
-    def _hitch_tangible_room_evidence(self, frame: Frame) -> bool:
-        """明确的、房间专属的正向实体控件证据。
+        return self._hitch_room_surface_evidence(frame) is not None
 
-        禁止把通用蓝色几何块回退（_hitch_room_action_control / room_blue_action）
-        作为状态证据，避免大厅 Quick Join、创建房间、刷新等蓝色控件导致误判仍在房内。
-        """
-        if self.find_scene(frame, "room_start") is not None:
-            return True
-        if self.find(
-            frame,
-            ["room_ready", "readyBtn", "room_cancel_ready", "room_exit_btn", "room_start"],
-            threshold=0.75,
-        ) is not None:
-            return True
-        return False
+    def _hitch_tangible_room_evidence(self, frame: Frame) -> bool:
+        """明确的多证据 ROOM 页面证据；低信息暗块没有 authority。"""
+        return self._hitch_room_surface_evidence(frame) is not None
 
     def _is_confirmed_room_frame(self, frame: Frame) -> bool:
-        """当前 room signature 判定：必须同时具有退出按钮与开始/准备按钮。
-
-        room_exit_btn
-        AND
-        (
-          room_start
-          OR room_ready
-          OR readyBtn
-          OR room_cancel_ready
-        )
-        单个模板命中、generic blue geometry、context==ROOM_WAITING、KK 窗口数量都不得单独授予房间身份。
-        """
-        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
-            return False
-        # KK 1224x904 房间实帧中退出按钮稳定命中 0.872；这是房间身份
-        # 判定而非点击授权，0.85 仍需与第二个房间控件同时成立。
-        has_exit = self.find(frame, ["room_exit_btn"], threshold=0.85) is not None
-        if not has_exit:
-            return False
-        has_action = (
-            self._find_room_start(frame) is not None
-            or self.find(frame, ["room_ready", "readyBtn", "room_cancel_ready"], threshold=0.90) is not None
-        )
-        return bool(has_action)
+        """ROOM identity is a page-level multi-signal contract."""
+        return self._hitch_room_surface_evidence(frame) is not None
 
     def _hitch_exit_modal_visible(self, frame: Frame) -> bool:
         """Return True if frame visibly contains explicit exit-specific modal evidence.
 
         Generic dialog frames (lobby_popup_dialog, lobby_popup_title) indicate a popup,
-        but only explicit exit-specific markers (lobby_popup_leave, exit_confirm_btn,
+        but only high-information exit-specific markers (exit_confirm_btn,
         exit_cancel_btn, exit_confirm) grant authority to click HitchConfirmLeave.
+        The old ``lobby_popup_leave`` crop is a low-information dark block and is
+        deliberately excluded from both room and exit authority.
         """
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return False
-        # Direct exit-specific template recognition
+        # Direct high-information exit-specific template recognition.
         if self.find(
             frame,
-            [
-                "lobby/lobby_popup_leave",
-                "lobby/exit_confirm_btn",
-                "lobby/exit_cancel_btn",
-            ],
+            ["lobby/exit_confirm_btn", "lobby/exit_cancel_btn"],
             threshold=0.75,
         ) is not None:
             return True
         if (
-            self.find_scene(frame, "lobby_popup_leave") is not None
-            or self.find_scene(frame, "exit_confirm") is not None
+            self.find_scene(frame, "exit_confirm") is not None
+            or self._find_hitch_exit_confirm_button(frame) is not None
         ):
             return True
         return False
@@ -8290,25 +8613,13 @@ class Mediator:
         return None
 
     def _hitch_room_seat_decision(self, frame: Frame) -> str:
-        """Ready only when KK visibly marks the first room row as the host."""
-        if frame.bgr is None or not self._hitch_room_controls_visible(frame):
-            return "leave_uncertain"
-
-        h, w = frame.bgr.shape[:2]
-        first_y = int(h * 0.245)
-        host_state = frame.bgr[
-            max(0, first_y - 12):min(h, first_y + 12),
-            # “房主” is on the left of the status cell; the right side is a
-            # character portrait and can contain unrelated red pixels.
-            int(w * 0.81):int(w * 0.845),
-        ]
-        if host_state.size == 0:
-            return "leave_host_not_floor_one"
-        blue, green, red = cv2.split(host_state)
-        host_pixels = (red > 130) & ((red.astype(np.int16) - green.astype(np.int16)) > 45) \
-            & ((red.astype(np.int16) - blue.astype(np.int16)) > 80)
-        # The first row must visibly carry KK's red “房主” state label.
-        return "ready" if int(np.count_nonzero(host_pixels)) >= 18 else "leave_host_not_floor_one"
+        """Seat authority is unavailable until a real GT detector exists."""
+        if self._hitch_room_surface_evidence(frame) is None:
+            return "unknown"
+        # Current screenshots prove ROOM and Ready state, but do not prove the
+        # host/seat policy strongly enough.  UNKNOWN is wait/reobserve only;
+        # it never authorizes exit or room-number blacklisting.
+        return "unknown"
 
     def _hitch_ocr_text(self, frame: Frame | None = None) -> str:
         override = getattr(self, "_hitch_ocr_override", None)
@@ -8346,6 +8657,7 @@ class Mediator:
     # 耗尽后零输入观察，绝不无限循环发 Esc。
     _HITCH_POPUP_ESC_LIMIT = 4
     _HITCH_POPUP_ESC_COOLDOWN_S = 2.0
+    _HITCH_FLOOR_EXIT_BUDGET_S = 8.0
 
     def _hitch_popup_esc_budget(self, now: float) -> str:
         """Classify the bounded popup-Esc budget: allow / cooldown / exhausted."""
@@ -8356,14 +8668,155 @@ class Mediator:
             return "cooldown"
         return "allow"
 
-    def _hitch_popup_esc_budget_used(self) -> bool:
-        return bool(self._hitch_popup_esc_attempts or self._hitch_popup_esc_last_at is not None)
+    def _hitch_modal_observation_key(self, frame: Frame) -> tuple[int, float]:
+        """Identify a fresh application observation, not a Python object."""
+        generation = int(getattr(self, "_capture_generation", 0) or 0)
+        timestamp = float(getattr(frame, "timestamp", 0.0) or 0.0)
+        return generation, round(timestamp, 6)
 
-    def _hitch_popup_esc_send(self, now: float, reason: str) -> bool:
-        """Send one bounded Esc and record the attempt regardless of input result."""
+    def _kk_platform_modal_shell(self, frame: Frame) -> PlatformModalShell | None:
+        """Recognize the shared KK prompt shell from its cyan rim, dark panel and X.
+
+        This deliberately does not read the body or inspect the blue primary button:
+        the same shell is used by kicked, level and membership notices.  A plain KK
+        window has no authority; all three shell features are required.
+        """
+        title = (frame.window_title or "").lower()
+        if (
+            frame.role != "l0"
+            or not any(token in title for token in ("kk", "对战平台", "platform"))
+            or self._is_game_client_frame(frame)
+            or frame.bgr is None
+            or frame.width <= 0
+            or frame.height <= 0
+        ):
+            return None
+
+        def compute() -> PlatformModalShell | None:
+            hsv = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2HSV)
+            cyan = cv2.inRange(hsv, np.array([85, 120, 120]), np.array([110, 255, 255]))
+            _count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(cyan)
+            min_rim_width = max(80, int(frame.width * 0.12))
+            max_rim_width = frame.width
+            max_rim_height = max(5, int(frame.height * 0.01))
+            for x, y, width, height, _area in stats[1:]:
+                x, y, width, height = map(int, (x, y, width, height))
+                if not (min_rim_width <= width <= max_rim_width and 1 <= height <= max_rim_height):
+                    continue
+                close_height = max(24, int(width * 0.11))
+                if x + width > frame.width or y + close_height > frame.height:
+                    continue
+                panel = frame.bgr[y + max(8, int(width * 0.03)):min(frame.height, y + max(60, int(width * 0.23))), x + 8:x + width - 8]
+                if panel.size == 0 or float(np.mean(cv2.cvtColor(panel, cv2.COLOR_BGR2GRAY) < 80)) < 0.65:
+                    continue
+                close_roi = frame.bgr[y + max(6, int(width * 0.02)):y + close_height, x + int(width * 0.87):x + int(width * 0.99)]
+                close_gray = cv2.cvtColor(close_roi, cv2.COLOR_BGR2GRAY)
+                neutral = (
+                    (np.max(close_roi, axis=2) - np.min(close_roi, axis=2) < 35)
+                    & (close_gray > 100)
+                )
+                ys, xs = np.where(neutral)
+                if len(xs) < 30 or np.ptp(xs) < 6 or np.ptp(ys) < 6:
+                    continue
+                close_x = x + int(width * 0.87) + int(round(float(np.mean(xs))))
+                close_y = y + max(6, int(width * 0.02)) + int(round(float(np.mean(ys))))
+                close = MatchResult(
+                    "kk_platform_modal_close", 1.0,
+                    close_x - 5, close_y - 5, 10, 10,
+                    frame.left + close_x, frame.top + close_y,
+                )
+                compact = x <= max(2, int(frame.width * 0.01)) and y <= max(2, int(frame.height * 0.01)) and width >= int(frame.width * 0.90)
+                return PlatformModalShell("compact_child" if compact else "main_overlay", close)
+            return None
+
+        return self._memo(("kk_platform_modal_shell",), frame, compute)
+
+    def _tick_hitch_platform_modal(
+        self,
+        frame: Frame,
+        shell: PlatformModalShell | None,
+        now: float,
+    ) -> LoopAction | None:
+        """Close one owned platform prompt and reconcile only after its fresh absence."""
+        previous_observation = self._hitch_platform_modal_input_observation
+        current_observation = self._hitch_modal_observation_key(frame)
+        if previous_observation is not None and current_observation != previous_observation and shell is None:
+            self._hitch_platform_modal_input_frame = None
+            self._hitch_platform_modal_input_observation = None
+            self._hitch_platform_modal_last_action = None
+            self._hitch_popup_esc_attempts = 0
+            self._hitch_popup_esc_last_at = None
+            self._hitch_platform_modal_reobserve_until = None
+            self._hitch_platform_modal_reacquire_attempts = 0
+            if self._hitch_sm.pending_join:
+                self._hitch_reject_pending_join(now, "join_rejected")
+                self._hitch_search_actions.append("reject")
+            print("[L0] hitch KK 平台提示已在 fresh 帧消失，恢复大厅找房")
+            return self._hitch_reset_lobby("platform_modal_dismissed", now)
+        if shell is None:
+            return None
+        if previous_observation is not None and current_observation == previous_observation:
+            print("[L0] hitch 平台提示等待 fresh 帧复核（零输入）")
+            return LoopAction.Continue
+
+        reobserve_until = self._hitch_platform_modal_reobserve_until
+        if reobserve_until is not None:
+            if now < reobserve_until:
+                print("[L0] hitch 平台提示执行有界 reacquire/reclassify（零输入）")
+                return LoopAction.Continue
+            self._hitch_platform_modal_reobserve_until = None
+            self._hitch_platform_modal_input_frame = None
+            self._hitch_platform_modal_input_observation = None
+            self._hitch_platform_modal_last_action = None
+            self._hitch_popup_esc_attempts = 0
+            self._hitch_popup_esc_last_at = None
+            if not self.settings.dry_run and self._hitch_platform_modal_reacquire_attempts < 2:
+                self._hitch_platform_modal_reacquire_attempts += 1
+                try:
+                    self._reacquire_target_window(getattr(frame, "hwnd", None), timeout_s=0.5)
+                except Exception as exc:
+                    print(f"[L0] hitch 平台提示 reacquire 失败: {type(exc).__name__}")
+
+        budget = self._hitch_popup_esc_budget(now)
+        if budget == "exhausted":
+            self._hitch_status = "platform_modal_still_visible"
+            self._record_lobby_observation_incident(
+                "platform_modal_dismissal_budget_exhausted",
+                "Esc/X 有界尝试耗尽，转入 fresh capture/reclassify",
+                frame,
+                attempt=self._hitch_popup_esc_attempts,
+                extra={"capture_generation": getattr(self, "_capture_generation", 0)},
+            )
+            # This is a recovery boundary, not proof that the modal is gone.
+            # Space retries so a stuck prompt cannot receive an unbounded key
+            # storm, while keeping the long-running worker alive.
+            retry_round = min(3, int(getattr(self, "_hitch_platform_modal_reacquire_attempts", 0)) + 1)
+            self._hitch_platform_modal_reobserve_until = now + 2.0 + retry_round
+            self._hitch_platform_modal_input_frame = None
+            self._hitch_platform_modal_input_observation = None
+            self._hitch_platform_modal_last_action = None
+            self._hitch_popup_esc_attempts = 0
+            self._hitch_popup_esc_last_at = now
+            print("[L0] hitch 平台提示中性关闭预算耗尽，已记录 incident 并转入有界重采集（继续运行）")
+            return LoopAction.Continue
+        if budget == "cooldown":
+            print("[L0] hitch 平台提示关闭冷却中，零输入等待 fresh 帧")
+            return LoopAction.Continue
+
         self._hitch_popup_esc_attempts += 1
         self._hitch_popup_esc_last_at = now
-        return bool(self.act_key("esc", reason))
+        if self._hitch_platform_modal_last_action == "esc":
+            accepted = self.act_click(shell.close, "HitchDismissPlatformModalClose")
+            self._hitch_platform_modal_last_action = "close"
+        else:
+            accepted = self.act_key("esc", "HitchDismissPlatformModalEsc")
+            self._hitch_platform_modal_last_action = "esc"
+        if accepted:
+            self._hitch_platform_modal_input_frame = frame
+            self._hitch_platform_modal_input_observation = current_observation
+        else:
+            print("[L0] hitch 平台提示中性关闭输入被拒绝，等待受控重试")
+        return LoopAction.Continue
 
     def _find_hitch_search_box(self, frame: Frame) -> MatchResult | None:
         """Locate the search control by its magnifier, never by its content.
@@ -8500,7 +8953,7 @@ class Mediator:
                 screen_y=top + ry,
             )
         if action == HitchAction.GO_HOME:
-            for key in ("lobby_home", "lobby_back", "room_exit_btn"):
+            for key in ("lobby_home", "lobby_back"):
                 hit = self.find_scene(frame, key)
                 if hit is not None:
                     return hit
@@ -8555,6 +9008,9 @@ class Mediator:
         self._hitch_floor_exit_pending = False
         self._hitch_floor_exit_confirmed = False
         self._hitch_floor_exit_attempted_at = None
+        self._hitch_floor_exit_deadline = None
+        self._hitch_floor_exit_input_generation = None
+        self._hitch_floor_exit_reobserve_until = None
         # P0-6：180s 超时退房生命周期随每次 episode 边界一并收敛
         self._hitch_ready_timeout_pending = False
         self._hitch_ready_timeout_leave_at = None
@@ -8737,46 +9193,6 @@ class Mediator:
         # A confirmed transaction falls through: the row scan is the caller's.
         return None
 
-    def _detect_hitch_kick_event(self, frame: Frame) -> str | None:
-        """P0-5：被踢/移出弹窗的生产识别（不依赖 _hitch_ocr_override）。
-
-        dialog 检测器命中（外扩 5%）或 typed 固定 ROI（KK 居中弹窗标题/正文带）
-        上做受限 OCR；文本命中 KICK/DISSOLVE 标记或『移出』即确认为被踢证据。
-        OCR 不可用或无命中返回 None，fail-closed 交给通用弹窗链（只 Esc）。
-        """
-        client = getattr(self, "_ocr_client", None)
-        if client is None or frame.bgr is None or frame.width < 200 or frame.height < 120:
-            return None
-        dialog = self.find_scene(frame, "lobby_popup_dialog") or self.find_scene(frame, "lobby_popup_title")
-        if dialog is not None:
-            x0 = max(0, int(dialog.x - 0.05 * frame.width))
-            y0 = max(0, int(dialog.y - 0.05 * frame.height))
-            x1 = min(frame.width, int(dialog.x + dialog.w + 0.05 * frame.width))
-            y1 = min(frame.height, int(dialog.y + dialog.h + 0.05 * frame.height))
-        else:
-            x0, y0 = int(0.30 * frame.width), int(0.30 * frame.height)
-            x1, y1 = int(0.70 * frame.width), int(0.66 * frame.height)
-        if x1 - x0 < 32 or y1 - y0 < 16:
-            return None
-        bbox = (x0, y0, x1, y1)
-        try:
-            response = client.shadow_predict(
-                frame,
-                "hitch_kick_modal",
-                {"slot_id": 0, "bbox": bbox, "kind": "text"},
-                session="lobby_hitch",
-                panel_bbox=bbox,
-            )
-        except (AttributeError, OSError, TypeError, ValueError) as exc:
-            print(f"[L0] hitch 被踢弹窗 OCR 不可用: {type(exc).__name__}")
-            return None
-        if response.status != "ok":
-            return None
-        text = str(response.raw_text or "")
-        if not text:
-            return None
-        return classify_hitch_ocr(text) or ("被移出" if "移出" in text else None)
-
     def _find_hitch_platform_prompt_cancel(self, frame: Frame) -> MatchResult | None:
         """KK 主窗口上覆盖的「平台提示」（如被房主移出）里的灰色「取消」按钮。
 
@@ -8798,7 +9214,8 @@ class Mediator:
     def _tick_hitch_platform_prompt(self, frame: Frame, now: float) -> LoopAction | None:
         """点「取消」关掉 KK 主窗口上的平台提示，然后回大厅重新找房。
 
-        440x260 子窗口（退出确认、房间已满等）仍由原有分支处理：退出确认
+        先于 G0 的 _tick_hitch_platform_modal（Esc→X）执行；两者识别互为兜底。
+        440x260 子窗口（退出确认、房间已满等）交给 G0 分支：退出确认
         同样带「平台提示/取消」，点取消会中断离房，所以这里只看主窗口。
         实机证据：被踢提示上 Esc 连按 3 次都关不掉，只能点按钮。
         """
@@ -8825,6 +9242,13 @@ class Mediator:
         print(f"[L0] hitch 平台提示已点取消: ({cancel.screen_x}, {cancel.screen_y})，回大厅重新找房")
         return self._hitch_reset_lobby("platform_prompt", now)
 
+    def _hitch_room_buttons_visible(self, frame: Frame) -> bool:
+        """房间窗口身份：G0 多信号 ROOM 契约或房间退出按钮（实机大厅 78 帧零误报）。"""
+        return (
+            self._is_confirmed_room_frame(frame)
+            or self._find_hitch_exit_button(frame) is not None
+        )
+
     # 平台侧弹窗 30s 即算卡死；游戏窗口实测加载画面约 50s，放宽到 60s。
     _HITCH_STALL_ESC_L0_S = 30.0
     _HITCH_STALL_ESC_GAME_S = 60.0
@@ -8840,13 +9264,7 @@ class Mediator:
             self._hitch_unknown_since = None
             return None
         game = self._is_game_client_frame(frame)
-        # 房间窗口身份只认实机点成功过的准备/退出按钮（大厅 78 帧零误报）。
-        # _is_confirmed_room_frame 依赖的 room_exit_btn/room_cancel_ready
-        # 模板是空白暗块，大厅/被踢提示上同样命中，不能用来压制 Esc。
-        if not game and frame.hwnd is not None and (
-            self._find_hitch_exit_button(frame) is not None
-            or self._find_hitch_ready_button(frame) is not None
-        ):
+        if not game and frame.hwnd is not None and self._hitch_room_buttons_visible(frame):
             self._hitch_room_window_hwnd = frame.hwnd
         if context != "UNKNOWN":
             self._hitch_unknown_since = None
@@ -8892,11 +9310,6 @@ class Mediator:
                     return LoopAction.Continue
             print("[L0] hitch ROOM_WAITING 观察到游戏客户端帧，零输入移交状态对齐")
             return LoopAction.Continue
-        # P0-5 后：通用 OCR 测试 override 仍保留为显式注入口；生产链路已由
-        # _detect_hitch_kick_event 覆盖，不再需要 override 才能识别被踢文本。
-        event = classify_hitch_ocr(str(getattr(self, "_hitch_ocr_override", "") or ""))
-        if event:
-            return self._hitch_reset_lobby(event, now)
         if context in ("MAIN_LINE", "IN_GAME"):
             self._hitch_re_search = False
             self.set_phase(Phase.MAIN_LINE, "hitch already in game")
@@ -8913,230 +9326,84 @@ class Mediator:
         if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
             print("[L0] hitch 黑帧/空帧，零输入等待可信大厅页面")
             return LoopAction.Continue
-        # KK 同帧内的通用弹窗锚点（dialog/title），一次计算全程复用。
-        dialog_hit = (
-            self.find_scene(frame, "lobby_popup_dialog")
-            or self.find_scene(frame, "lobby_popup_title")
-        )
-        # 这类 KK 平台提示的 scene 阈值在实机缩放下未必足够高；低阈值
-        # 仅用于确认可安全 Esc 的已知弹窗，不授予任何按钮点击权限。
-        known_popup = dialog_hit or self.find(frame, ["lobby_popup_dialog"], threshold=0.70)
-        # P1-1：弹窗消失的证据 = fresh 帧回到 origin 主窗口（或 origin 已随
-        # episode 清空）且无任何弹窗锚点。只有该证据才重置关闭预算并解除
-        # origin 锚点；子窗口帧（弹窗可能仍未关闭、模板也未必命中）不得
-        # 据此重置，预算沿用本 episode。
-        if (
-            not self._hitch_sm.pending_join
-            and known_popup is None
-            and self._hitch_popup_esc_budget_used()
-            and (
-                self._hitch_join_origin_hwnd is None
-                or (
-                    frame.hwnd is not None
-                    and frame.hwnd == self._hitch_join_origin_hwnd
-                )
-            )
-        ):
-            self._hitch_popup_esc_attempts = 0
-            self._hitch_popup_esc_last_at = None
-            self._hitch_join_origin_hwnd = None
+        # 被踢等「平台提示」盖在 KK 主窗口上：直接点取消（Esc 实机关不掉）。
         prompt_action = self._tick_hitch_platform_prompt(frame, now)
         if prompt_action is not None:
             return prompt_action
-        # KK 的进房提示可能是独立子窗口：一次进房请求后新出现、无房间实体
-        # 控件就不是已进房，Esc 关闭即可；关闭尝试受预算约束（P1-1）。
-        child_popup = (
-            (self._hitch_sm.pending_join or self._hitch_popup_esc_attempts > 0)
-            and frame.role == "l0"
-            and self._hitch_join_origin_hwnd is not None
-            and frame.hwnd is not None
-            and frame.hwnd != self._hitch_join_origin_hwnd
-            and not self._is_confirmed_room_frame(frame)
-            and (
-                (280 <= frame.width <= 600 and 160 <= frame.height <= 350)
-                or known_popup is not None
-            )
-        )
-        if child_popup:
-            budget = self._hitch_popup_esc_budget(now)
-            if budget == "exhausted":
-                print("[L0] hitch 进房弹窗关闭预算耗尽，零输入观察等待弹窗消失")
-                self.set_phase(Phase.LOBBY_ROOM, "hitch join popup esc exhausted")
-                return LoopAction.Continue
-            if budget == "cooldown":
-                self._hitch_sm.defer_retry(now)
-                print("[L0] hitch 进房弹窗关闭冷却中，零输入观察")
-                self.set_phase(Phase.LOBBY_ROOM, "hitch join popup esc cooldown")
-                return LoopAction.Continue
-            dismissed = self._hitch_popup_esc_send(now, "HitchDismissJoinPopup")
-            if dismissed:
-                self._hitch_reject_pending_join(now, "join_rejected")
-                self._hitch_search_actions.append("reject")
-                print("[L0] hitch KK 进房弹窗子窗口已取消，跳过本行并继续找房")
-            else:
-                self._hitch_sm.defer_retry(now)
-                print("[L0] hitch KK 进房弹窗子窗口取消输入被拒绝，等待重试")
-            self.set_phase(Phase.LOBBY_ROOM, "hitch join popup child dismissed")
-            return LoopAction.Continue
-        # KK 还会在已确认进房之后，用独立的 440x260 平台提示通知
-        # 「房主已经跑路」。此时 pending_join 已在进房确认时清空、并且
-        # confirmed_room_hwnd 指向旧房间，不能再把这个子窗口误当作
-        # ROOM_WAITING 而零输入卡住。尺寸、L0 ownership 和无房间实体
-        # 三项共同授权的唯一输入仍是 Esc：绝不点击它提供的“创建房间”。
-        compact_lobby_popup = (
-            frame.role == "l0"
-            and self.phase in (Phase.ROOM_WAITING, Phase.LOBBY_ROOM)
-            and context == "UNKNOWN"
-            and 280 <= frame.width <= 600
-            and 160 <= frame.height <= 350
-            and not self._is_confirmed_room_frame(frame)
-        )
-        if compact_lobby_popup:
-            budget = self._hitch_popup_esc_budget(now)
-            if budget == "exhausted":
-                print("[L0] hitch 紧凑平台提示关闭预算耗尽，零输入观察等待提示消失")
-                self.set_phase(Phase.LOBBY_ROOM, "hitch compact popup esc exhausted")
-                return LoopAction.Continue
-            if budget == "cooldown":
-                print("[L0] hitch 紧凑平台提示关闭冷却中，零输入观察")
-                self.set_phase(Phase.LOBBY_ROOM, "hitch compact popup esc cooldown")
-                return LoopAction.Continue
-            dismissed = self._hitch_popup_esc_send(now, "HitchDismissCompactLobbyPopup")
-            if dismissed:
-                print("[L0] hitch 房主离开平台提示已取消，回大厅重新找房")
-                return self._hitch_reset_lobby("compact_lobby_popup", now)
-            print("[L0] hitch 紧凑平台提示取消输入被拒绝，等待下一次受控重试")
-            self.set_phase(Phase.LOBBY_ROOM, "hitch compact popup dismiss rejected")
-            return LoopAction.Continue
-        # P0-5：弹窗处于显式覆盖时（dialog/title 命中，或当前处于房间等待），
-        # 探测被踢/移出弹窗（真实 OCR，不依赖 _hitch_ocr_override）。避免在正常大厅搜索页每帧做无弹窗 OCR。
-        has_modal_anchor = bool(
-            dialog_hit
-            or context == "ROOM_WAITING"
-            or self.phase == Phase.ROOM_WAITING
-        )
-        if has_modal_anchor:
-            kick_event = self._detect_hitch_kick_event(frame)
-            if kick_event:
-                budget = self._hitch_popup_esc_budget(now)
-                if budget == "exhausted":
-                    print("[L0] hitch 被踢弹窗关闭预算耗尽，零输入观察等待弹窗消失")
-                    return LoopAction.Continue
-                if budget == "allow":
-                    self._hitch_popup_esc_send(now, "HitchKickDismiss")
-                print("[L0] hitch 弹窗 OCR 命中被移出/解散文本，关闭弹窗并重置回大厅")
-                return self._hitch_reset_lobby(kick_event, now)
-        # 0. 已请求退出时，必须同时满足：
-        # a) 当前处于 exit pending 流程；
-        # b) 当前 fresh frame 属于已知退出确认 modal/dialog（避免仅有蓝色色块几何即误触发）；
-        # c) 定位到有效的确定按钮。
-        # 无法确认当前 fresh frame 属于已知退出确认 modal 时 ZERO INPUT。
+        # A confirmed room is a separate surface class: generic modal handling
+        # never gets authority to Esc it.
+        room_surface = self._is_confirmed_room_frame(frame)
+        platform_modal = None if room_surface else self._kk_platform_modal_shell(frame)
+        # 主动退出事务优先于平台普通提示：绝不能把退出确认误按成通用取消。
         exit_pending = getattr(self, "_hitch_floor_exit_pending", False)
+        confirmed_room_hwnd = getattr(self, "_confirmed_room_hwnd", None)
         if exit_pending:
-            modal_visible = self._hitch_exit_modal_visible(frame)
-            exit_confirm = self._find_hitch_exit_confirm_button(frame) if modal_visible else None
-            if exit_confirm is not None:
-                if getattr(self, "_hitch_floor_exit_confirmed", False):
-                    print("[L0] hitch 退出确认已点击，等待回到大厅列表（零输入）")
+            # The dedicated exit transaction owns the page even when the
+            # confirmation dialog is still visible.  Its deadline is a
+            # recovery boundary, never proof that the room was left.  Handle
+            # it before the modal branch so an unrecognised/partially rendered
+            # exit dialog cannot park the transaction past its budget.
+            current_generation = int(getattr(self, "_capture_generation", 0) or 0)
+            input_generation = getattr(self, "_hitch_floor_exit_input_generation", None)
+            fresh_after_input = input_generation is None or current_generation > int(input_generation)
+            tangible_room_for_budget = bool(
+                frame.hwnd is not None
+                and confirmed_room_hwnd is not None
+                and frame.hwnd == confirmed_room_hwnd
+                and room_surface
+            )
+            lobby_for_budget = self._lobby_room_list_evidence(frame)
+            deadline = getattr(self, "_hitch_floor_exit_deadline", None)
+            if (
+                deadline is not None
+                and now >= float(deadline)
+                and not (lobby_for_budget and not tangible_room_for_budget and fresh_after_input)
+            ):
+                reobserve_until = getattr(self, "_hitch_floor_exit_reobserve_until", None)
+                if reobserve_until is not None and now < float(reobserve_until):
+                    print("[L0] hitch 退出事务预算到期，处于有界 reacquire/reclassify 观察期（零输入）")
                     return LoopAction.Continue
+                self._record_lobby_observation_incident(
+                    "floor_exit_reobserve_timeout",
+                    "退出事务预算到期，未把时间当作已退出，重新采集并分类",
+                    frame,
+                    extra={"capture_generation": current_generation},
+                )
+                self._hitch_floor_exit_reobserve_until = now + 2.0
+                self._hitch_floor_exit_deadline = now + self._HITCH_FLOOR_EXIT_BUDGET_S
+                if not self.settings.dry_run:
+                    try:
+                        self._reacquire_target_window(getattr(frame, "hwnd", None), timeout_s=0.5)
+                    except Exception as exc:
+                        print(f"[L0] hitch 退出事务 reacquire 失败: {type(exc).__name__}")
+                print("[L0] hitch 退出事务预算到期，已记录 incident 并重新观察（继续运行）")
+                return LoopAction.Continue
+            if (
+                getattr(self, "_hitch_floor_exit_reobserve_until", None) is not None
+                and now >= float(self._hitch_floor_exit_reobserve_until)
+            ):
+                self._hitch_floor_exit_reobserve_until = None
+        if (
+            exit_pending
+            and frame.hwnd is not None
+            and frame.hwnd == confirmed_room_hwnd
+            and self._hitch_exit_modal_visible(frame)
+        ):
+            exit_confirm = self._find_hitch_exit_confirm_button(frame)
+            if exit_confirm is not None and not getattr(self, "_hitch_floor_exit_confirmed", False):
                 if self.act_click(exit_confirm, "HitchConfirmLeave"):
                     if self._hitch_pending_room_key is not None:
                         self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
                     self._hitch_floor_exit_confirmed = True
                     self._hitch_status = "exit_confirmed"
-                    print(
-                        "[L0] hitch 已确认退出房间: "
-                        f"({exit_confirm.screen_x}, {exit_confirm.screen_y})"
-                    )
-                else:
-                    print("[L0] hitch 退出确认按钮点击被拒绝（零输入等待）")
-                return LoopAction.Continue
-            elif self._find_hitch_exit_confirm_button(frame) is not None:
-                # 仅检测到蓝色几何块但无法确认已知确认弹窗身份，必须零输入等待
-                print("[L0] hitch 检测到蓝色色块但无法确认已知退出弹窗身份（零输入等待）")
-                return LoopAction.Continue
-
-        # 被房主移出后，KK 将提示覆盖在主大厅窗口而非独立 440x260 子窗口。
-        # 已知提示锚点 + ROOM_WAITING 共同证明此时 Esc 只会取消提示，绝不
-        # 点击“立即购买/创建房间”；OCR 读不出正文也必须能恢复搜房。
-        if (
-            known_popup is not None
-            and self.phase == Phase.ROOM_WAITING
-            and not getattr(self, "_hitch_ready_timeout_pending", False)
-            and not self._is_confirmed_room_frame(frame)
-        ):
-            budget = self._hitch_popup_esc_budget(now)
-            if budget == "exhausted":
-                print("[L0] hitch 主窗口平台提示关闭预算耗尽，零输入观察")
-                return LoopAction.Continue
-            if budget == "cooldown":
-                print("[L0] hitch 主窗口平台提示关闭冷却中，零输入观察")
-                return LoopAction.Continue
-            if self._hitch_popup_esc_send(now, "HitchDismissKnownLobbyPopup"):
-                print("[L0] hitch 主窗口平台提示已取消，回大厅重新找房")
-                return self._hitch_reset_lobby("known_lobby_popup", now)
-            print("[L0] hitch 主窗口平台提示取消输入被拒绝，等待下一次受控重试")
             return LoopAction.Continue
-
-        if dialog_hit is not None:
-            if self._hitch_sm.pending_join or self._hitch_popup_esc_budget_used():
-                budget = self._hitch_popup_esc_budget(now)
-                if budget == "exhausted":
-                    print("[L0] hitch 进房提示关闭预算耗尽，零输入观察等待弹窗消失")
-                    self.set_phase(Phase.LOBBY_ROOM, "hitch join popup esc exhausted")
-                    return LoopAction.Continue
-                if budget == "cooldown":
-                    self._hitch_sm.defer_retry(now)
-                    print("[L0] hitch 进房提示关闭冷却中，零输入观察")
-                    self.set_phase(Phase.LOBBY_ROOM, "hitch join popup esc cooldown")
-                    return LoopAction.Continue
-                dismissed = self._hitch_popup_esc_send(now, "HitchDismissJoinPopup")
-                if dismissed:
-                    self._hitch_reject_pending_join(now, "join_rejected")
-                    self._hitch_search_actions.append("reject")
-                    print("[L0] hitch 进房提示已取消，跳过本行并继续找房")
-                else:
-                    self._hitch_sm.defer_retry(now)
-                    print("[L0] hitch 进房提示关闭输入被拒绝，等待重试")
-                self.set_phase(Phase.LOBBY_ROOM, "hitch join popup dismissed")
-                return LoopAction.Continue
-            exit_attempted = (
-                getattr(self, "_hitch_floor_exit_pending", False)
-                or (
-                    getattr(self, "_hitch_floor_exit_attempted_at", None) is not None
-                    and now - float(self._hitch_floor_exit_attempted_at) <= 3.0
-                )
-            )
-            if exit_attempted:
-                # SendInput can report failure while KK already opened this
-                # modal. The modal itself is the visual postcondition for
-                # Exit, so arm the exit pending flag.
-                if not getattr(self, "_hitch_floor_exit_pending", False):
-                    self._hitch_floor_exit_pending = True
-                    if self._hitch_pending_room_key is not None:
-                        self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-                # Only explicit exit-specific modal markers allow clicking Confirm;
-                # generic dialog frames (lobby_popup_dialog / lobby_popup_title) alone
-                # must not grant HitchConfirmLeave input authority.
-                if self._hitch_exit_modal_visible(frame):
-                    confirm = self._find_hitch_exit_confirm_button(frame)
-                    if confirm is not None and self.act_click(confirm, "HitchConfirmLeave"):
-                        self._hitch_floor_exit_confirmed = True
-                        self._hitch_status = "exit_confirmed"
-                        print(
-                            "[L0] hitch 已确认退出房间: "
-                            f"({confirm.screen_x}, {confirm.screen_y})"
-                        )
-                    else:
-                        print("[L0] hitch 退出确认弹窗可见，但蓝色确定按钮未确认（零输入等待）")
-                else:
-                    print("[L0] hitch 检测到通用弹窗但无明确退出标识，禁止点击确认（零输入等待）")
-                return LoopAction.Continue
-            # UNKNOWN_GENERIC_MODAL：没有待进房事务时仍然零输入，禁止盲 Esc。
-            print("[L0] hitch 检测到未知通用弹窗，零输入等待（禁止自动 Esc）")
+        if exit_pending and platform_modal is not None:
+            print("[L0] hitch 主动退出事务未识别到专用确认按钮，禁止通用关闭抢占")
             return LoopAction.Continue
-
-        ready_hit = self._find_hitch_ready_button(frame)
+        modal_action = self._tick_hitch_platform_modal(frame, platform_modal, now)
+        if modal_action is not None:
+            return modal_action
+        ready_state, ready_hit = self._hitch_room_ready_contract(frame)
         confirmed_room_hwnd = getattr(self, "_confirmed_room_hwnd", None)
         in_room = bool(
             frame.hwnd is not None
@@ -9150,27 +9417,12 @@ class Mediator:
             and self._hitch_sm.join_clicked_at is not None
             and now - self._hitch_sm.join_clicked_at >= self._hitch_sm.join_confirm_timeout_s
         ):
-            # 超时只授权两件事：拒绝本次进房并回大厅。Esc（HitchDismissPopup）
-            # 必须有可信已知模态 authority（被踢 OCR 命中或显式弹窗 dialog/title）
-            # 才允许发出；未知画面一律零输入，绝不盲 Esc。
-            kick_event = self._detect_hitch_kick_event(frame)
-            dialog_hit = (
-                self.find_scene(frame, "lobby_popup_dialog")
-                or self.find_scene(frame, "lobby_popup_title")
-            )
-            if kick_event is not None or dialog_hit is not None:
-                dismissed = self.act_key("esc", "HitchDismissPopup")
-                if dismissed:
-                    self._hitch_reject_pending_join(now, "join_rejected")
-                    self._hitch_search_actions.append("reject")
-                    print("[L0] hitch 进房超时：关闭满员/密码等提示，继续本页下一房间")
-                else:
-                    self._hitch_sm.defer_retry(now)
-                    print("[L0] hitch 进房超时，但提示关闭输入被拒绝")
-            else:
-                self._hitch_reject_pending_join(now, "join_rejected")
-                self._hitch_search_actions.append("reject")
-                print("[L0] hitch 进房超时且无可信弹窗证据：零输入拒绝本次进房回大厅")
+            # Blocking modal has already been handled by PlatformModalShell.
+            # Without that shell this is a genuine unknown surface: reject the
+            # join transaction but never send a blind Esc.
+            self._hitch_reject_pending_join(now, "join_rejected")
+            self._hitch_search_actions.append("reject")
+            print("[L0] hitch 进房超时且无平台 modal shell：零输入拒绝本次进房回大厅")
             self.set_phase(Phase.LOBBY_ROOM, "hitch join rejected")
             return LoopAction.Continue
 
@@ -9179,7 +9431,7 @@ class Mediator:
             # 都提前 return）。act_click 被拒（鼠标被移动 / SendInput 校验失败）
             # 或用户手动 Esc 关掉弹窗时，_hitch_floor_exit_confirmed 永远不会置真。
             # 因此只有实体房间控件才算仍在房内；陈旧的 context=="ROOM_WAITING"
-            # 不能无限挂住退出闩锁。超过 3 秒仍无确认弹窗也按已退出收尾。
+            # 不能无限挂住退出闩锁。但预算到期本身绝不是“已经退出”的证据。
             tangible_room = bool(
                 frame.hwnd is not None
                 and confirmed_room_hwnd is not None
@@ -9190,25 +9442,34 @@ class Mediator:
             if frame.bgr is None or float(np.mean(frame.bgr)) < 3.0:
                 print("[L0] hitch 退出后捕获到黑帧，保持退出状态等待确认窗口/大厅")
                 return LoopAction.Continue
+            current_generation = int(getattr(self, "_capture_generation", 0) or 0)
+            input_generation = getattr(self, "_hitch_floor_exit_input_generation", None)
+            fresh_after_input = input_generation is None or current_generation > int(input_generation)
+            if lobby_visible and not tangible_room and fresh_after_input:
+                # 只有 fresh 大厅页面证据才可完成事务；不由时间预算推断。
+                if self._hitch_pending_room_key is not None:
+                    self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+                self._hitch_floor_exit_pending = False
+                self._hitch_floor_exit_confirmed = False
+                self._hitch_floor_exit_attempted_at = None
+                self._hitch_floor_exit_deadline = None
+                self._hitch_floor_exit_input_generation = None
+                self._hitch_floor_exit_reobserve_until = None
+                self._hitch_re_search = False
+                self._hitch_after_exit(now)
+                self._hitch_re_search = False
+                self.set_phase(Phase.LOBBY_ROOM, "hitch floor-one rejection returned to lobby")
+                print("[L0] hitch 一楼条件不符，fresh 大厅证据确认已回大厅；下个动作先刷新")
+                return LoopAction.Continue
+            if lobby_visible and not tangible_room:
+                print("[L0] hitch 退出事务已看到大厅，但尚未取得 action 后 fresh 观察，零输入等待")
+                return LoopAction.Continue
             if not (lobby_visible and not tangible_room):
                 print(
                     "[L0] hitch 已点击退出，等待大厅列表且无房间实体控件（零输入）: "
                     f"lobby_visible={lobby_visible}, tangible_room={tangible_room}"
                 )
                 return LoopAction.Continue
-            # 退出确认点击被拒/弹窗被手动关闭时，黑名单是在这里补记的：
-            # act_click 失败的那条分支从未有机会写入 pending room key。
-            if self._hitch_pending_room_key is not None:
-                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-            self._hitch_floor_exit_pending = False
-            self._hitch_floor_exit_confirmed = False
-            self._hitch_floor_exit_attempted_at = None
-            self._hitch_re_search = False
-            self._hitch_after_exit(now)
-            self._hitch_re_search = False
-            self.set_phase(Phase.LOBBY_ROOM, "hitch floor-one rejection returned to lobby")
-            print("[L0] hitch 一楼条件不符，已回大厅；下个动作先刷新")
-            return LoopAction.Continue
 
         if getattr(self, "_hitch_ready_timeout_pending", False):
             # P0-6 & C4：180s 超时退房进行中。
@@ -9287,28 +9548,32 @@ class Mediator:
                 return LoopAction.Continue
 
             seat_decision = self._hitch_room_seat_decision(frame)
-            if seat_decision != "ready":
+            # Only a future, real-GT-backed detector may return "reject".
+            # UNKNOWN/legacy strings are observation states and have zero
+            # exit/blacklist authority.
+            if seat_decision == "reject":
                 exit_hit = self._find_hitch_exit_button(frame)
                 self._hitch_floor_exit_attempted_at = now if exit_hit is not None else None
                 if exit_hit is not None and self.act_click(exit_hit, "HitchLeaveFloorOne"):
-                    if self._hitch_pending_room_key is not None:
-                        self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
                     if self._hitch_pending_row_y is not None:
                         self._hitch_rejected_row_ys.add(self._hitch_pending_row_y)
                     self._hitch_pending_row_y = None
                     self._hitch_floor_exit_pending = True
                     self._hitch_floor_exit_confirmed = False
+                    self._hitch_floor_exit_deadline = now + self._HITCH_FLOOR_EXIT_BUDGET_S
+                    self._hitch_floor_exit_input_generation = int(getattr(self, "_capture_generation", 0) or 0)
+                    self._hitch_floor_exit_reobserve_until = None
                     self._hitch_status = seat_decision
                     print(
-                        f"[L0] hitch 一楼条件不符({seat_decision})，点击退出: "
+                        f"[L0] hitch seat detector 明确拒绝({seat_decision})，点击退出: "
                         f"({exit_hit.screen_x}, {exit_hit.screen_y})"
                     )
                 else:
                     self._hitch_sm.defer_retry(now)
-                    print(f"[L0] hitch 一楼条件不符({seat_decision})，但退出按钮未确认")
-                self.set_phase(Phase.ROOM_WAITING, "hitch reject floor one")
+                    print(f"[L0] hitch seat detector 明确拒绝({seat_decision})，但退出按钮未确认")
+                self.set_phase(Phase.ROOM_WAITING, "hitch reject by seat detector")
                 return LoopAction.Continue
-            if ready_hit is not None:
+            if ready_state == "ready" and ready_hit is not None:
                 if self.act_click(ready_hit, "HitchReady"):
                     self._hitch_pending_row_y = None
                     self._hitch_status = "已点击准备"
@@ -9318,11 +9583,19 @@ class Mediator:
                     print("[L0] hitch 准备点击被拒绝，保持房间等待")
                 self.set_phase(Phase.ROOM_WAITING, "hitch guest ready")
                 return LoopAction.Continue
-            # 准备按钮已消失且一楼确认，记录 Ready 业务后置时间
-            if getattr(self, "_hitch_ready_confirmed_at", None) is None:
+            if ready_state == "cancel_ready" and getattr(self, "_hitch_ready_confirmed_at", None) is None:
                 self._hitch_ready_confirmed_at = now
+            if ready_state in {"cancel_ready", "start"}:
+                self.set_phase(Phase.ROOM_WAITING, "hitch room ready contract observed")
+                print(f"[L0] hitch ROOM action={ready_state}，零输入等待开局")
+                return LoopAction.Continue
+            # seat/Ready 都无法判断时只 fresh reobserve，绝不因为 UNKNOWN 退出。
+            self._hitch_status = f"room_reobserve:{seat_decision}:{ready_state}"
             self.set_phase(Phase.ROOM_WAITING, "hitch in room waiting host")
-            print("[L0] hitch 已进房，等待房主开始（不点 RoomStart）")
+            print(
+                "[L0] hitch ROOM/seat 证据不足，fresh reobserve（零输入）: "
+                f"seat={seat_decision}, ready={ready_state}"
+            )
             return LoopAction.Continue
         if self._hitch_re_search and in_room:
             seat = self._hitch_room_seat_decision(frame)
@@ -9839,6 +10112,50 @@ class Mediator:
         return "UNKNOWN"
 
 
+    def _tick_leave_old_room(self, frame: Frame, room_start, now: float) -> LoopAction | None:
+        """G0 P0 contract #7：同房返回证明完成后离开旧房的最小 owner。
+
+        复用既有语义控件（GO_HOME: lobby_home/lobby_back/room_exit_btn 与
+        房间退出按钮），只发 request；绝不通过尺寸或 click success 宣称已
+        离房。只有 fresh room-list authority（既有 ``_lobby_room_list_evidence``）
+        成立才放行进 PLATFORM_MAP。预算 bounded：超时 → Fail-Closed 保持
+        手动房等待语义（不创建新房、不猜测）。
+
+        Returns None to continue normal L0 flow (episode not started).
+        """
+        if not self._room_leave_pending:
+            return None
+        # fresh room-list authority：真实房间列表证据成立才算已离房。
+        if self._lobby_room_list_evidence(frame) and room_start is None:
+            self._room_leave_pending = False
+            self._room_leave_attempts = 0
+            self.set_phase(Phase.PLATFORM_MAP, "left old room; create next")
+            self._room_action_deadline = None
+            return LoopAction.Continue
+        if self._action_timed_out():
+            print("[med] 离开旧房超时（fresh room-list 未成立），回大厅保持手动房等待，不创建新房")
+            self._room_leave_pending = False
+            # 必须清掉过期 deadline：成功分支同样清理，否则残留会污染后续
+            # _action_timed_out() 消费者（LOBBY_ROOM 阶段的正常有界等待）。
+            self._room_action_deadline = None
+            self.set_phase(Phase.LOBBY_ROOM, "leave old room timeout; manual room wait")
+            return LoopAction.Continue
+        if now >= self._room_leave_next_at:
+            # 只发一次 request，然后等待 fresh 证据；click success 不构成离房。
+            hit = self._hitch_action_hit(frame, HitchAction.GO_HOME)
+            if hit is None and room_start is not None:
+                hit = self.find(frame, ["room_exit_btn"], threshold=0.75)
+            if hit is not None:
+                if self.act_click(hit, "LeaveOldRoom"):
+                    self._room_leave_attempts += 1
+                self._room_leave_next_at = now + 3.0
+            else:
+                self._room_leave_next_at = now + 1.0
+        print("[med] 离开旧房等待 fresh room-list authority（零输入观察）")
+        return LoopAction.Continue
+
+
+
     def _tick_l0(self, frame: Frame) -> LoopAction:
         """Handle map → create dialog → room → stage without guessing clicks."""
         if not getattr(self, "_awaiting_room_return", False) and self.phase in {
@@ -9890,12 +10207,17 @@ class Mediator:
             context = "LOBBY_ROOM"
             stage_page = False
             room_start = None
+
         else:
             # 选关页底部也会误匹配通用 room_start；沿用分类器的优先级，
             # 先确认编号关卡页，再查房间开始按钮。
             stage_page = context == "STAGE_SELECT"
             room_start = None if stage_page else self._find_room_start(frame)
 
+        if self._room_leave_pending:
+            leave = self._tick_leave_old_room(frame, room_start, now=time.time())
+            if leave is not None:
+                return leave
         if self._awaiting_room_return and self._hitch_enabled():
             self._awaiting_room_return = False
             self._hitch_re_search = True
@@ -9912,12 +10234,30 @@ class Mediator:
                     self.set_phase(Phase.ERROR, "failure streak limit reached")
                     self.stop()
                     return LoopAction.Break
-                # S0 ⑥：cycle_num>0 且已完成指定局数 → COMPLETE 停止，绝不点下一局开始
+                # S0 ⑥：cycle_num>0 且已完成指定局数。
                 if self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num:
+                    if getattr(self.settings, "auto_archaeology", True) and not self._hitch_enabled():
+                        # G0 P0 contract #8：cycle 完成 + auto_archaeology →
+                        # 交由既有选关路由进入考古模式（request/confirm），
+                        # 不立即停止，保留正常房间/生命周期证据链。
+                        print("[med] cycle 完成 + auto_archaeology，经既有选关路由进入考古模式")
+                        self._archaeology_handoff_pending = True
+                        self.set_phase(Phase.ROOM_WAITING, "cycle complete; archaeology via stage select")
+                        self._room_action_deadline = time.time() + self.settings.query_timeout
+                        return LoopAction.Continue
                     print(f"[med] 已完成 cycle_num={self.settings.cycle_num} 局，转 COMPLETE 停止（不点下一局开始）")
                     self.set_phase(Phase.COMPLETE, "cycle_num reached")
                     self.stop()
                     return LoopAction.Break
+                if self._auto_room_enabled() and not self._hitch_enabled() and not self._follow_enabled():
+                    # G0 P0 contract #7：同房返回证明完成 → 先用既有语义控件
+                    # （lobby_home/lobby_back/room_exit_btn）离开旧房，fresh
+                    # room-list authority 后才进 PLATFORM_MAP 创建下一房。
+                    self._room_leave_pending = True
+                    self._room_leave_next_at = 0.0
+                    self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
+                    self.set_phase(Phase.PREPARE, "same room verified; leaving old room")
+                    return LoopAction.Continue
                 self.set_phase(Phase.ROOM_WAITING, "same room verified")
                 self._room_action_deadline = time.time() + self.settings.query_timeout
                 return LoopAction.Continue
@@ -10063,6 +10403,18 @@ class Mediator:
         if self.phase == Phase.ROOM_WAITING:
             if stage_page:
                 self.set_phase(Phase.STAGE_SELECT, "stage page after room")
+                return LoopAction.Continue
+            if getattr(self, "_archaeology_handoff_pending", False):
+                # G0 P0 contract #8 / Stage1 P1-1：cycle 完成后考古 handoff 待处理，
+                # 绝不点 RoomStart 开新局（违反 S0⑥）。零输入等选关页自然出现，
+                # 进入上方 stage_page 分支后交给考古 request/confirm 路由收敛。
+                # 有界：选关页始终不出现则 Fail-Closed 停止（绝不改点房间开始/建房）。
+                if self._action_timed_out():
+                    print("[L0] cycle 完成考古 handoff 超时仍未出现选关页，Fail-Closed 停止")
+                    self.set_phase(Phase.ERROR, "archaeology handoff stage page timeout")
+                    self.stop()
+                    return LoopAction.Break
+                print("[L0] cycle 完成考古 handoff：零输入等待选关页，绝不点房间开始")
                 return LoopAction.Continue
             if room_start:
                 print(f"[L0] 房间内点击开始 {room_start.name} score={room_start.score:.3f}")
@@ -10369,9 +10721,56 @@ class Mediator:
 
     # ---------- 主循环（中介调度）----------
 
+    def _snapshot_window_existence(self) -> None:
+        """G0 P0 contract #3/#6：游戏/平台窗口存在性快照（只读 Win32 枚举）。"""
+        try:
+            game_targets = find_window_targets(
+                ",".join(L1_WINDOW_KEYWORDS), role="l1", allow_minimized=True
+            )
+        except Exception:
+            game_targets = []
+        try:
+            platform_targets = find_window_targets(
+                ",".join(L0_WINDOW_KEYWORDS), role="l0", allow_minimized=True
+            )
+        except Exception:
+            platform_targets = []
+        self.game_platform_window_snapshot = {
+            "game": bool(game_targets),
+            "platform": bool(platform_targets),
+        }
+
+    def _record_environment_incident(self, kind: str, elapsed: float) -> None:
+        """G0 P0 contract #6/#4：环境/压力异常 incident 归档（archiver 缺省空转）。"""
+        if self._archiver is None:
+            return
+        frame = self._last_frame
+        if frame is None or frame.bgr is None or frame.bgr.size == 0:
+            return
+        saved = self._archiver.maybe_record(
+            frame_before=self._prev_frame,
+            frame_now=frame,
+            metadata=self._incident_meta(
+                kind,
+                f"{kind} persisted {elapsed:.1f}s",
+                final_action="wait" if kind == "hitch_pressure_core_failed" else "stop",
+                extra={"window_snapshot": dict(self.game_platform_window_snapshot)},
+            ),
+            healthy=False,
+            health_issues=[],
+            health_details=kind,
+        )
+        if saved is not None:
+            self._incident_pending_fp = saved
+            if self._tick_reason is None:
+                self._tick_reason = "incident_write"
+
     def stop(self) -> None:
         self._running = False
-        self.stop_signal.trigger("Mediator.stop()")
+        # G0 P0 contract：先到的外部 stop reason（F12/Shift+F12/UI 等）拥有
+        # 归因权，Mediator.stop() 绝不覆盖；只在尚无外部 stop 时写信号。
+        if not self.stop_signal.is_set():
+            self.stop_signal.trigger("Mediator.stop()")
 
     def tick(self) -> LoopAction:
         """单步：一帧截屏 → 按阶段决策 → 执行。"""
@@ -10577,6 +10976,41 @@ class Mediator:
                 if self._hitch_enabled():
                     # 蹭车是长期观察模式；黑屏/转场/窗口短暂消失只撤销
                     # 输入权，不得把整个 run 终止。Shift+F12/用户停止仍在上方抢占。
+                    # G0 P0 contract #6：unhealthy 期间做有界窗口存在性观察——
+                    # 游戏/平台窗口均长时间不存在 → 记录 evidence 并
+                    # FATAL_ENVIRONMENT_FAILURE；不产生任何业务输入。
+                    self._snapshot_window_existence()
+                    bound = max(30.0, min(float(self.settings.query_timeout), 60.0))
+                    if elapsed >= bound:
+                        if (
+                            not self.game_platform_window_snapshot.get("game")
+                            and self.game_platform_window_snapshot.get("platform")
+                        ):
+                            # G0 contract #6：游戏窗消失 + fresh 平台房间列表权威
+                            # 实际成立 → 回大厅；绝不 timeout blind set_phase。
+                            platform_frame = self._capture_best(",".join(L0_WINDOW_KEYWORDS), "l0")
+                            if (
+                                platform_frame is not None
+                                and platform_frame.is_valid
+                                and self._lobby_room_list_evidence(platform_frame)
+                            ):
+                                print("[med] 蹭车 unhealthy：游戏窗消失但平台房间列表 fresh 权威成立，回 LOBBY_ROOM")
+                                self._hitch_after_exit(now)
+                                self.set_phase(Phase.LOBBY_ROOM, "unhealthy handoff: fresh platform room list")
+                                self._missing_window_since = None
+                                return LoopAction.Continue
+                        if (
+                            not self.game_platform_window_snapshot.get("game")
+                            and not self.game_platform_window_snapshot.get("platform")
+                        ):
+                            print("[med] 蹭车 unhealthy 期间游戏/平台窗口均不存在超过边界，FATAL_ENVIRONMENT_FAILURE")
+                            self._record_environment_incident("hitch_windows_missing", elapsed)
+                            self.set_phase(Phase.ERROR, "hitch no game/platform window")
+                            self.stop()
+                            return LoopAction.Break
+                        # 至少一个窗口仍在（但无 fresh 权威）：只撤销输入权，
+                        # 继续有界观察，绝不盲目改阶段。
+                        return LoopAction.Continue
                     return LoopAction.Continue
                 in_game_phases = {Phase.MAIN_LINE, Phase.EARLY_CHALLENGE, Phase.ANCHOR_BOSS, Phase.LONGZHU}
                 if self.phase == Phase.ROOM_STARTING:
@@ -11518,12 +11952,22 @@ class Mediator:
     def _tick_main_line(self, frame: Frame) -> LoopAction:
         now = time.time()
         secret_entry_observation = self._secret_realm_entering_since is not None
-
         if not secret_entry_observation and self._hitch_enabled():
             event = classify_hitch_ocr(self._hitch_ocr_text())
             if event:
                 return self._hitch_reset_lobby(event, now)
 
+        # G0 P0 contract：post-game outcome authority（POST_VICTORY / ARCHIVE /
+        # NPC / PAUSED 等）必须在压力门禁之前观察。压力尚未完成不得遮蔽
+        # victory/failure；强失败/断线全局抢占仍在 _tick_impl 更早处。
+        post_game = self._post_game_state(frame)
+
+        if (
+            not secret_entry_observation
+            and self._hitch_enabled()
+            and post_game is None
+            and not getattr(self, "_hitch_pressure_core_failed", False)
+        ):
             # 蹭车开局的唯一 P0：压力转移未被 fresh HUD 证实完成前，任何
             # 其他局内路径（失败奖励、Boss、选卡、黑商、自动任务、四挑战等）
             # 都没有输入权。这个门禁必须在所有局内分发之前。
@@ -11577,13 +12021,21 @@ class Mediator:
             print(f"[med] 拦截到失败结算奖励弹窗 @ {fail_gift.center}，点击关闭")
             self.act_click(fail_gift, "DismissFailureReward")
             return LoopAction.Continue
-        # ---- S0 ⑤ 英雄焦点与操作面板检查（F1 自动切回） ----
+        # G0 contract #4：压力 core failed → 本局零输入等待 outcome。置于
+        # round hard deadline 与失败奖励拦截之后：deadline/post_game 生命周期
+        # 仍每 tick 可观察；不 stop、不进入不可观测状态。
+        if (
+            not secret_entry_observation
+            and self._hitch_enabled()
+            and post_game is None
+            and getattr(self, "_hitch_pressure_core_failed", False)
+        ):
+            return LoopAction.Continue
         # 若没有弹窗（_panel_state == CLOSED），但右下角未检测到英雄操作/技能/神符面板，
         # 说明视角或焦点未锁定在英雄上，主动发送 F1 键切回英雄操作面板。
 
         # 战后页面优先于一切局内动作。胜利后只允许以下专用链：
         # 继续游戏 → 关闭存档面板（如出现）→ NPC 广场 → 局内退出。
-        post_game = self._post_game_state(frame)
         # Once the great-rift “是” click is accepted, every subsequent frame
         # is observation-only until the dedicated two-frame HUD postcondition
         # below is proven.  This guard must precede all post-game handlers so
@@ -12564,23 +13016,34 @@ class Mediator:
                 )
                 self.set_phase(Phase.ERROR, "real input requires elevation (UIPI)")
                 self._running = False
+                self.exit_reason = RunExitReason.UIPI_PERMISSION_FAILURE
                 return
             print("[med] elevation OK — real SendInput path enabled")
         self.emergency_listener = EmergencyStopListener(self.stop_signal)
         self.emergency_listener.start()
+        self.exit_reason = None
         try:
             while self._running and not self.stop_signal.is_set():
                 # N2.3：固定 cadence —— sleep = max(0, cadence - elapsed)，time.monotonic。
                 # loop_sleep_ms 仅作兼容上限（默认 400ms 会盖住 loading 档的 500ms）。
                 tick_started = time.monotonic()
-                action = self.tick()
+                try:
+                    action = self.tick()
+                except Exception:
+                    # G0 contract #1/#2：运行循环内未捕获异常 → PROCESS_CRASH，
+                    # 归因后原样上抛（不吞异常、不改变传播语义）。
+                    self.exit_reason = RunExitReason.PROCESS_CRASH
+                    raise
                 steps += 1
                 if action == LoopAction.Break:
                     break
                 if max_steps is not None and steps >= max_steps:
+                    # max_steps 只属于测试/回放探针，不是业务终止归因。
                     print(f"[med] max_steps={max_steps}")
+                    self.exit_reason = RunExitReason.UNEXPECTED_TERMINATION
                     break
                 elapsed = time.monotonic() - tick_started
+
                 cadence = self._cadence_for_current_state()
                 cap = max(0.0, self.settings.loop_sleep_ms / 1000.0)
                 # N2-REVIEW #5：loop_sleep_ms 仅作稳定档兼容上限，loading/转场档
@@ -12593,7 +13056,42 @@ class Mediator:
                 self.emergency_listener = None
             if self._ocr_client is not None:
                 self._ocr_client.close()
-        print(f"[med] end steps={steps} games={self.game_count}")
+            if self.exit_reason is None:
+                self.exit_reason = self._classify_run_exit()
+            print(f"[med] end steps={steps} games={self.game_count} exit={self.exit_reason.value if self.exit_reason else 'N/A'}")
+
+    def _classify_run_exit(self) -> RunExitReason:
+        """run() 退出时的唯一停止归因（G0 P0 contract #2）。
+
+        先到的外部 StopSignal 拥有归因权（绝不覆盖）：F12/Shift+F12 →
+        EMERGENCY_STOP，其余外部 reason（RunnerService/Headless/UI 等）→
+        USER_STOP。Mediator.stop() 只在尚无外部 stop 时才写信号，随后读
+        mediator 锚点：考古 handoff 已确认 → ARCHAEOLOGY_HANDOFF_COMPLETE；
+        Phase.COMPLETE（cycle_num 达成）→ CONFIGURED_CYCLE_COMPLETE；
+        其余 fail-closed/未分类 break → FATAL_ENVIRONMENT_FAILURE /
+        UNEXPECTED_TERMINATION。
+        """
+        if self.stop_signal.is_set():
+            reason = str(self.stop_signal.reason or "")
+            if reason and reason != "Mediator.stop()":
+                # 先到的外部 stop 拥有归因权；Mediator.stop() 只走锚点分支。
+                if "emergency" in reason.lower():
+                    return RunExitReason.EMERGENCY_STOP
+                return RunExitReason.USER_STOP
+        if getattr(self, "_archaeology_handoff_confirmed", False):
+            return RunExitReason.ARCHAEOLOGY_HANDOFF_COMPLETE
+        if self.phase == Phase.COMPLETE:
+            return RunExitReason.CONFIGURED_CYCLE_COMPLETE
+        if self.phase == Phase.ERROR:
+            return RunExitReason.FATAL_ENVIRONMENT_FAILURE
+        return RunExitReason.UNEXPECTED_TERMINATION
+
+    @property
+    def round_elapsed(self) -> float | None:
+        """G0 contract #3：本局已进行秒数（round 起点 = hard deadline 锚点）。"""
+        if self._round_started_at is None:
+            return None
+        return max(0.0, time.time() - self._round_started_at)
 
     def _cadence_for_current_state(self) -> float:
         """状态分级 cadence（秒）：动作后 100ms / 稳定 HUD 300ms / loading 500ms / 候选 300ms。
