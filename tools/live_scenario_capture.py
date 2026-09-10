@@ -4220,6 +4220,52 @@ def _new_live_mediator(
         return Mediator(settings, repo_root, stop_signal=stop_signal, incident_dir=incident_dir), str(exc)
 
 
+def _await_start_surface(
+    med: Mediator,
+    target: str,
+    frame: Frame | None,
+    window: dict[str, Any],
+    settings: Settings,
+    *,
+    timeout_s: float = 0.0,
+    poll_s: float = 1.0,
+) -> tuple[dict[str, Any], Frame | None, dict[str, Any]]:
+    """Re-check the start surface for a bounded window before blocking.
+
+    The probe spends ~15s booting OCR before it ever looks at the screen
+    (20260910 archive_challenge/heirloom bundles: created 13:17:40, finished
+    13:17:57, one frame, BLOCKED).  A one-shot check that lands 15s after the
+    operator clicks the menu is unusable for the panel-gated probes: 存档挑战 and
+    传家宝 have to be open at that exact instant.  Polling for a bounded window
+    lets the operator open the panel after starting the probe, and costs
+    nothing for targets whose surface is already up.
+
+    Zero input throughout: this only captures and classifies.
+    """
+    surface = _start_surface_preflight(med, target, frame)
+    if surface.get("status") != "BLOCKED" or timeout_s <= 0.0:
+        return surface, frame, window
+    deadline = time.time() + timeout_s
+    print(
+        f"[preflight] {target} 起始界面尚未确认，最多等待 {timeout_s:.0f}s："
+        f"{surface.get('reason') or 'start surface not confirmed'}",
+        flush=True,
+    )
+    print("[preflight] 现在可以去游戏里把对应面板打开；本等待期零输入。", flush=True)
+    while time.time() < deadline:
+        time.sleep(poll_s)
+        next_frame, next_window = _window_preflight(settings, target=target)
+        if next_window.get("status") != "READY":
+            continue
+        candidate = _start_surface_preflight(med, target, next_frame)
+        if candidate.get("status") != "BLOCKED":
+            print(f"[preflight] {target} 起始界面已确认，开始跑。", flush=True)
+            return candidate, next_frame, next_window
+        surface, frame, window = candidate, next_frame, next_window
+    print(f"[preflight] {target} 等待超时，仍未确认起始界面；零输入退出。", flush=True)
+    return surface, frame, window
+
+
 def _live_input_preflight(
     *,
     args: argparse.Namespace,
@@ -4288,7 +4334,14 @@ def _live_input_preflight(
         reasons.append(f"ocr_bootstrap_unhealthy: {ocr_health.get('reason') or ocr_health.get('stage')}")
     if window.get("status") != "READY":
         reasons.append(f"game window unavailable: {window.get('reason') or window.get('requested_title')}")
-    start_surface = _start_surface_preflight(med, target, frame)
+    start_surface, frame, window = _await_start_surface(
+        med,
+        target,
+        frame,
+        window,
+        settings,
+        timeout_s=float(getattr(args, "start_surface_wait", 0.0) or 0.0),
+    )
     if start_surface.get("status") == "BLOCKED":
         reasons.append(f"BLOCKED_PRECONDITION: {start_surface.get('reason') or 'start surface not confirmed'}")
 
@@ -5680,6 +5733,15 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument("--settings", type=Path, default=None)
     parser.add_argument("--duration", type=float, default=60.0)
+    parser.add_argument(
+        "--start-surface-wait",
+        type=float,
+        default=90.0,
+        help=(
+            "在宣告 BLOCKED 之前，等待起始界面出现的秒数（零输入轮询）。"
+            "存档挑战/传家宝这类必须先开面板的 probe 靠它才有可操作时间；0 = 一次性判定。"
+        ),
+    )
     parser.add_argument("--interval", type=float, default=0.3)
     parser.add_argument("--max-ticks", type=int, default=1000)
     parser.add_argument(
