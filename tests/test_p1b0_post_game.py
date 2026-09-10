@@ -1284,3 +1284,154 @@ class P1B0PostGameTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PostGameBossRouteTests(unittest.TestCase):
+    """时光之穴 Boss 列表滚动 + 传家宝 Boss「已挑战」后置确认。"""
+
+    def _med(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med.settings.sgzx_boss = "53拉贾克斯将军"
+        med.settings.cjb_boss = "18乌索克"
+        med._post_game_pending = True
+        return med
+
+    @staticmethod
+    def _frame():
+        return Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+
+    # ---- 时光之穴：ARCHIVE_PANEL 右侧列表 ----------------------------------
+
+    def test_archive_boss_list_scrolls_inside_its_own_roi(self):
+        """配置 Boss 不在可见行时，滚轮必须落在存档面板右侧列表内。"""
+        med = self._med()
+        frame = self._frame()
+        roi = med._POST_GAME_BOSS_ROIS["ARCHIVE_PANEL"]
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "find", return_value=None), \
+             patch.object(med, "_find_last_recognized_post_game_boss", return_value=None), \
+             patch.object(med, "act_scroll", return_value=True) as scroll, \
+             patch.object(med, "act_click") as click:
+            self.assertEqual(
+                med._maybe_challenge_configured_boss(frame, 100.0), LoopAction.Continue
+            )
+        scroll.assert_called_once()
+        x, y, clicks, reason = scroll.call_args.args
+        self.assertEqual(reason, "BossConfigured-scroll")
+        self.assertLess(clicks, 0, "必须向下滚动")
+        self.assertTrue(
+            frame.width * roi[0] <= x <= frame.width * roi[2], f"滚动点 x={x} 落在列表 ROI 外"
+        )
+        self.assertTrue(
+            frame.height * roi[1] <= y <= frame.height * roi[3], f"滚动点 y={y} 落在列表 ROI 外"
+        )
+        click.assert_not_called()
+
+    def test_archive_boss_scroll_is_bounded_and_does_not_burn_click_budget(self):
+        """滚动预算独立且有界，滚完还没找到也不许乱点。"""
+        med = self._med()
+        frame = self._frame()
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "find", return_value=None), \
+             patch.object(med, "_find_last_recognized_post_game_boss", return_value=None), \
+             patch.object(med, "act_scroll", return_value=True) as scroll, \
+             patch.object(med, "act_click") as click:
+            now = 100.0
+            for _ in range(med._POST_GAME_BOSS_SCROLL_LIMIT + 2):
+                med._maybe_challenge_configured_boss(frame, now)
+                now = med._boss_challenge_next_at + 0.1
+        self.assertEqual(scroll.call_count, med._POST_GAME_BOSS_SCROLL_LIMIT)
+        click.assert_not_called()
+
+    def test_compact_boss_scales_cover_the_shrunken_cards(self):
+        """战后卡片被缩到 58~70px；尺度阶梯必须罩住这一档。"""
+        scales = Mediator._POST_GAME_BOSS_SCALES
+        self.assertLessEqual(min(scales), 0.40, "缺少足够小的尺度，缩小卡会漏匹配")
+        self.assertGreaterEqual(max(scales), 0.80)
+        ordered = sorted(scales)
+        gaps = [round(b - a, 3) for a, b in zip(ordered, ordered[1:])]
+        self.assertLessEqual(max(gaps), 0.10, f"尺度阶梯出现空档：{gaps}")
+        self.assertLess(
+            Mediator._POST_GAME_BOSS_MATCH_THRESHOLD,
+            0.70,
+            "缩小卡的匹配度低于常规阈值，战后专用阈值必须更低",
+        )
+
+    def test_archive_boss_click_marks_the_time_cave_route(self):
+        med = self._med()
+        frame = self._frame()
+        hit = MatchResult("boss/53拉贾克斯将军", 0.9, 1200, 400, 60, 60, 1200, 400)
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "find", return_value=hit), \
+             patch.object(med, "act_click", return_value=True) as click:
+            med._maybe_challenge_configured_boss(frame, 100.0)
+        click.assert_called_once_with(hit, "BossConfigured")
+        self.assertTrue(med._time_cave_boss_done)
+
+    # ---- 传家宝：HEIRLOOM_DIALOG 后置确认 ----------------------------------
+
+    def test_heirloom_boss_click_records_the_confirm_window(self):
+        med = self._med()
+        frame = self._frame()
+        hit = MatchResult("chuanjiaobao/18乌索克", 0.9, 700, 400, 60, 60, 700, 400)
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "find", return_value=hit), \
+             patch.object(med, "act_click", return_value=True) as click:
+            med._maybe_challenge_configured_boss(frame, 100.0)
+        click.assert_called_once_with(hit, "BossConfigured")
+        self.assertEqual(med._post_game_route, "heirloom_active")
+        self.assertEqual(med._heirloom_boss_clicked_at, 100.0)
+        self.assertFalse(med._heirloom_boss_confirm_unconfirmed)
+
+    def test_heirloom_result_toast_is_found_across_the_lower_band(self):
+        """旧版只认帧正中 9%x6% 的窄条；飘几个百分点就落空并永久挂起。"""
+        med = self._med()
+        for cx, cy in ((0.42, 0.56), (0.50, 0.62), (0.60, 0.70)):
+            frame = self._frame()
+            x = int(frame.width * cx)
+            y = int(frame.height * cy)
+            frame.bgr[y:y + 18, x:x + 90] = (40, 40, 230)  # red 已挑战 toast
+            self.assertTrue(
+                med._heirloom_boss_result_visible(frame),
+                f"toast at ({cx}, {cy}) 未被识别",
+            )
+
+    def test_scattered_combat_red_is_not_a_result_toast(self):
+        med = self._med()
+        frame = self._frame()
+        rng = np.random.default_rng(3)
+        for _ in range(400):
+            x = int(rng.integers(int(frame.width * 0.35), int(frame.width * 0.65)))
+            y = int(rng.integers(int(frame.height * 0.53), int(frame.height * 0.73)))
+            frame.bgr[y, x] = (40, 40, 230)
+        self.assertFalse(med._heirloom_boss_result_visible(frame))
+
+    def test_heirloom_wait_is_bounded_and_never_claims_success(self):
+        """点击已发出但后置一直不出现时，必须有界收敛，且不得记成成功。"""
+        med = self._med()
+        frame = self._frame()
+        med._boss_challenge_attempts = 1
+        med._heirloom_boss_clicked_at = 100.0
+
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_heirloom_boss_result_visible", return_value=False), \
+             patch.object(med, "act_click") as click:
+            inside = med._maybe_challenge_configured_boss(frame, 100.0 + 1.0)
+            self.assertEqual(inside, LoopAction.Continue)
+            self.assertFalse(med._heirloom_boss_confirm_unconfirmed, "窗口内不得提前放弃")
+
+            expired = med._maybe_challenge_configured_boss(
+                frame, 100.0 + med._HEIRLOOM_BOSS_CONFIRM_TIMEOUT_S + 0.1
+            )
+            self.assertEqual(expired, LoopAction.Continue)
+        self.assertTrue(med._heirloom_boss_confirm_unconfirmed, "超时必须记为未确认")
+        click.assert_not_called()
+
+    def test_heirloom_confirm_window_survives_more_than_one_tick(self):
+        """实测 1.64s/tick：确认窗必须覆盖至少三帧新证据。"""
+        self.assertGreaterEqual(Mediator._HEIRLOOM_BOSS_CONFIRM_TIMEOUT_S, 3.0 * 1.64)
+
+    def test_expired_confirm_is_ignored_when_no_click_was_sent(self):
+        med = self._med()
+        self.assertFalse(med._heirloom_boss_confirm_expired(1.0e9))
+        self.assertFalse(med._heirloom_boss_confirm_unconfirmed)

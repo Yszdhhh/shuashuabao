@@ -792,6 +792,9 @@ class Mediator:
         self._archive_challenge_click_attempts: int = 0
         # 同一张卡点了几次却还没出现绿色「已挑战」。
         self._archive_challenge_confirm_attempts: int = 0
+        # 传家宝 Boss 点击时刻与后置确认结果（None = 没点过）。
+        self._heirloom_boss_clicked_at: float | None = None
+        self._heirloom_boss_confirm_unconfirmed: bool = False
         self._time_cave_boss_search_attempts: int = 0
         self._time_cave_boss_done: bool = False
         self._hitch_postgame_hero_selected: bool = False
@@ -5564,6 +5567,14 @@ class Mediator:
         if post_game == "HEIRLOOM_DIALOG" and self._boss_challenge_attempts > 0:
             if self._heirloom_boss_result_visible(frame):
                 print("[med] 传家宝 Boss 后置已确认，停止重复点击")
+            elif self._heirloom_boss_confirm_expired(now):
+                # 有界收敛：点击已发出，后置在窗口内没出现也没报错，就别再
+                # 挂在弹窗里。收敛不等于成功——_heirloom_boss_confirm_expired
+                # 会把它记成 unconfirmed，业务后置绝不冒充 PASS。
+                print(
+                    f"[med] 传家宝 Boss 后置 {self._HEIRLOOM_BOSS_CONFIRM_TIMEOUT_S:.0f}s 未出现，"
+                    "有界收敛并允许关闭弹窗（不计成功）"
+                )
             else:
                 print("[med] 传家宝 Boss 已发起，等待‘已挑战’后置（零动作）")
             return LoopAction.Continue
@@ -5680,9 +5691,28 @@ class Mediator:
                 self._post_game_route = "boss_active" if self._team_mode_enabled() else "archive"
             elif post_game == "HEIRLOOM_DIALOG" and getattr(self, "_post_game_pending", False):
                 self._post_game_route = "heirloom_active"
+                self._heirloom_boss_clicked_at = now
             if getattr(self, "_early_challenge_pending", False):
                 self._early_challenge_clicked_at = now
         return LoopAction.Continue
+
+    #: 传家宝 Boss 点击后等待「已挑战」的上限。3s 在实测 1.64s/tick 的节拍下
+    #: 只够 1.8 个 tick，等于没给后置确认第二次机会；6s 至少覆盖三帧新证据。
+    _HEIRLOOM_BOSS_CONFIRM_TIMEOUT_S = 6.0
+
+    def _heirloom_boss_confirm_expired(self, now: float) -> bool:
+        """True once the post-click confirm window has run out.
+
+        Records the miss so the outcome stays honest: the page is allowed to
+        close, but nothing reports the challenge as confirmed.
+        """
+        clicked_at = getattr(self, "_heirloom_boss_clicked_at", None)
+        if clicked_at is None:
+            return False
+        if now - clicked_at < self._HEIRLOOM_BOSS_CONFIRM_TIMEOUT_S:
+            return False
+        self._heirloom_boss_confirm_unconfirmed = True
+        return True
 
     def _heirloom_boss_result_visible(self, frame: Frame) -> bool:
         """Detect the live page's post-click ``已挑战`` result toast.
@@ -5691,11 +5721,17 @@ class Mediator:
         heirloom dialog rather than changing the Boss card itself. This is a
         bounded postcondition check for the already-classified heirloom page;
         it grants no click authority and does not add another production FSM.
+
+        The band used to be a 9%-wide, 6%-tall rectangle pinned to the frame
+        centre.  Any window move, DPI change or the toast drifting a few
+        percent put it outside, and the caller then waited for ever.  Search
+        the dialog's whole lower-middle band instead; the connected-component
+        floor below is what keeps combat VFX from passing.
         """
         if frame.bgr is None or frame.width < 480 or frame.height < 270:
             return False
-        x0, x1 = int(frame.width * 0.456), int(frame.width * 0.544)
-        y0, y1 = int(frame.height * 0.594), int(frame.height * 0.656)
+        x0, x1 = int(frame.width * 0.34), int(frame.width * 0.66)
+        y0, y1 = int(frame.height * 0.52), int(frame.height * 0.74)
         crop = frame.bgr[max(0, y0):min(frame.height, y1), max(0, x0):min(frame.width, x1)]
         if crop.size == 0:
             return False
@@ -7014,6 +7050,8 @@ class Mediator:
             self._archive_challenge_observe_attempts = 0
             self._archive_challenge_click_attempts = 0
             self._archive_challenge_confirm_attempts = 0
+            self._heirloom_boss_clicked_at = None
+            self._heirloom_boss_confirm_unconfirmed = False
             self._time_cave_boss_search_attempts = 0
             self._hitch_postgame_hero_selected = False
             self._hitch_postgame_returned_to_base = False
@@ -11584,9 +11622,13 @@ class Mediator:
                 # a short “已挑战” toast. Once visible, close the dialog once
                 # and continue the already-selected post-game route; before
                 # then the configured-Boss handler is observation-only.
-                if not self._heirloom_boss_result_visible(frame):
+                if self._heirloom_boss_result_visible(frame):
+                    print("[med] 传家宝 Boss 业务后置确认成功，关闭传家宝面板")
+                elif self._heirloom_boss_confirm_expired(now):
+                    # 有界收敛：允许关闭，但明确记成未确认，绝不当成功上报。
+                    print("[med] 传家宝 Boss 后置确认超时，有界关闭弹窗（记为未确认）")
+                else:
                     return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
-                print("[med] 传家宝 Boss 业务后置确认成功，关闭传家宝面板")
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
                 if self._hitch_enabled():
