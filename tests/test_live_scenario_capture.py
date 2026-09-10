@@ -1315,18 +1315,34 @@ def test_lobby_hitch_clicks_two_character_ready_but_not_four_character_action() 
     assert med.phase is Phase.ROOM_WAITING
 
 
-def test_lobby_hitch_leaves_when_host_is_not_on_floor_one() -> None:
+def test_lobby_hitch_readies_first_even_if_host_not_floor_one() -> None:
+    """进房先点准备，避免未准备被踢；一楼检查放到准备之后。"""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     frame = _synthetic_hitch_room(0, first_row_host=False)
     med._hitch_pending_room_key = "room-763405"
-
-    # Room identity is established by _capture_best -> _is_confirmed_room_frame.
-    # This tick is called directly, and the synthetic frame carries no real
-    # room_exit_btn template, so seed the authority the capture layer owns.
     med._confirmed_room_hwnd = frame.hwnd
     with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
          patch.object(med, "find_scene", return_value=None), \
          patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_called_once()
+    assert click.call_args.args[1] == "HitchReady"
+    assert getattr(med, "_hitch_floor_exit_pending", False) is False
+    assert med._hitch_pending_room_key == "room-763405"
+
+
+def test_lobby_hitch_leaves_when_host_is_not_on_floor_one() -> None:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = _synthetic_hitch_room(0, first_row_host=False)
+    med._hitch_pending_room_key = "room-763405"
+    med._hitch_ready_confirmed_at = 1.0
+    med._confirmed_room_hwnd = frame.hwnd
+    with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+         patch.object(med, "_find_hitch_ready_button", return_value=None), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click, \
+         patch("shuabao.mediator.time.time", return_value=2.0):
         med._tick_lobby_hitch(frame, "UNKNOWN")
 
     click.assert_called_once()

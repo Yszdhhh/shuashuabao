@@ -261,6 +261,14 @@ def test_hitch_lobby_reset_does_not_count_as_completed_round() -> None:
     assert med.game_count == 0
 
 
+def test_hitch_kick_reset_blacklists_recorded_room() -> None:
+    med = _hitch_mediator()
+    med._hitch_pending_room_key = "room-kicked"
+    assert med._hitch_reset_lobby("kicked", 100.0) == LoopAction.Continue
+    assert "room-kicked" in med._hitch_blacklisted_room_keys
+    assert med._hitch_pending_room_key is None
+
+
 def test_hitch_quit_and_confirm_timeouts_rearm_without_stopping() -> None:
     med = _hitch_mediator()
     med.set_phase(Phase.QUIT, "timeout exit")

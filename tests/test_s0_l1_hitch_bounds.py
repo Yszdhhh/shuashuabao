@@ -56,6 +56,23 @@ class HitchPauseResumeExhaustionTests(unittest.TestCase):
         stop.assert_not_called()
 
 
+class HitchMisopenedStageTests(unittest.TestCase):
+    def test_hitch_main_line_stage_page_quits(self) -> None:
+        med = _hitch_mediator()
+        med._hitch_pressure_transferred = True
+        med._hitch_pending_room_key = "room-solo"
+        frame = _frame()
+        with patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_is_in_game_hud", return_value=False), \
+                patch.object(med, "_find_stage_page", return_value=True), \
+                patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None):
+            action = med._tick_main_line(frame)
+        self.assertIs(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.QUIT)
+        self.assertIn("room-solo", med._hitch_blacklisted_room_keys)
+
+
 class HitchUnverifiedArchiveTests(unittest.TestCase):
     def test_hitch_unverified_archive_does_not_stop(self) -> None:
         med = _hitch_mediator()
@@ -70,13 +87,14 @@ class HitchUnverifiedArchiveTests(unittest.TestCase):
                 patch.object(med, "stop") as stop, \
                 patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
                 patch.object(med, "_hitch_ocr_text", return_value=""), \
-                patch.object(med, "_find_failure_gift", return_value=None):
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_find_stage_page", return_value=False):
             action = med._tick_main_line(frame)
         self.assertIs(action, LoopAction.Continue)
         self.assertEqual(med.phase, Phase.MAIN_LINE)
         self.assertTrue(med._running)
         stop.assert_not_called()
-        scene.assert_called_once_with(frame, "archive")
+        scene.assert_any_call(frame, "archive")
 
 
 class HitchMidgameTakeoverTests(unittest.TestCase):
