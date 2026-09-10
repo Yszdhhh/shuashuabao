@@ -227,7 +227,10 @@ def test_targeted_probes_call_production_handlers_not_copies() -> None:
     _invoke_target_handler(med, "hero_evolve", frame)
     _invoke_target_handler(med, "inventory_devour", frame)
     _invoke_target_handler(med, "archive_challenge", frame)
-    assert calls == ["panel", "panel", "main", "inventory", "archive"]
+    # archive_challenge 走 production 的战后分发（_tick_main_line），由它自己
+    # 点广场 NPC 打开存档面板；直接调面板内的打卡 handler 等于要求操作者先手
+    # 动开好面板，那既不是被测的业务链，也让 preflight 只能死等 ARCHIVE_PANEL。
+    assert calls == ["panel", "panel", "main", "inventory", "main"]
     assert med._l1_cycle_step == "evolve"
     labels = [item[1] for item in TARGETED_PROBE_MENU]
     assert labels == [

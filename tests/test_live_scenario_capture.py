@@ -281,7 +281,8 @@ def test_capture_manifest_declares_supported_target_scope(tmp_path: Path) -> Non
     recorder.finalize()
     payload = json.loads((tmp_path / "bundle" / "manifest.json").read_text(encoding="utf-8"))
     assert payload["target"] == "heirloom"
-    assert payload["production_handler"] == "_maybe_challenge_configured_boss"
+    # 传家宝整条链（广场→点 NPC→弹窗→选 Boss）都在 production 的战后分发里。
+    assert payload["production_handler"] == "_tick_main_line"
     assert payload["execution_mode"] == "target_handler"
     assert payload["production_readiness"] == "CONDITIONAL"
     assert payload["ground_truth_only"] is False

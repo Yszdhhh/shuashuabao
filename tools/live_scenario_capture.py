@@ -247,10 +247,12 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "runbook_manual_intervention": "入口不稳定时按 m 停止自动输入，保留 bundle 证据。",
     },
     "heirloom": {
-        "handler": "_maybe_challenge_configured_boss",
-        "call": "frame_now",
-        "start_condition": "人工走到传家宝 Boss 选择页，且 settings 已配置 cjb_boss；脚本接管选择与转场。",
-        "production_entry": "Mediator._maybe_challenge_configured_boss(frame, time.time())，复用既有 Boss 模板/滚动/输入门禁。",
+        # 实际分发在 _invoke_target_handler 里走 _tick_main_line；这里的文案
+        # 曾经写成面板内的 Boss handler，容易让人以为要手动把弹窗开好。
+        "handler": "_tick_main_line",
+        "call": "frame",
+        "start_condition": "把真实游戏停在战后挑战广场（NPC_HUB）或已打开的传家宝弹窗，并在 settings 配置 cjb_boss；点 NPC 开弹窗这一步由 production 自己完成。",
+        "production_entry": "Mediator._tick_main_line(frame)：NPC_HUB→OpenHeirloomChallenges→HEIRLOOM_DIALOG→配置 Boss 选择，复用既有 Boss 模板/滚动/输入门禁。",
         "expected_steps": (
             "POSTGAME_DETECT", "ENTRY_VISIBLE", "CLICK", "REQUEST", "CONFIRM", "TRANSITION", "DESTINATION_CONFIRMED",
         ),
@@ -576,11 +578,11 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "runbook_manual_intervention": "被弹窗挡住时先 FAIL。",
     },
     "archive_challenge": {
-        "handler": "_maybe_click_archive_challenge",
-        "call": "frame_now",
-        "start_condition": "请将真实游戏停在战后已打开的存档挑战面板（1~8 卡位可见）。",
-        "production_entry": "Mediator._maybe_click_archive_challenge(frame, now)；不实现卡位策略。",
-        "expected_steps": ("ARCHIVE_PANEL", "CLICK", "CHALLENGE_HUD_CONFIRMED"),
+        "handler": "_tick_main_line",
+        "call": "frame",
+        "start_condition": "请将真实游戏停在战后挑战广场（NPC_HUB）或已打开的存档挑战面板；开面板这一步由 production 自己点 NPC 完成。",
+        "production_entry": "Mediator._tick_main_line(frame)：NPC_HUB→OpenArchiveChallenges→ARCHIVE_PANEL 打卡→关闭；Harness 不实现开面板也不实现卡位策略。",
+        "expected_steps": ("NPC_HUB", "OPEN_ARCHIVE_CHALLENGES", "ARCHIVE_PANEL", "CLICK", "CHALLENGE_HUD_CONFIRMED"),
         "success_postcondition": "对应真实挑战 HUD / 合法后续业务页面被 production classifier 确认；click success 不算 PASS。",
         "fail_condition": "输入被拒绝、页面不变，或生产 ERROR。",
         "blocked_condition": "不是 ARCHIVE_PANEL 或无可挑战证据时 ZERO INPUT。",
@@ -1669,6 +1671,8 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
         "inventory_devour": {"UseInventory-swallow_pill"},
         "inventory_hero_card": {"UseInventory-hero-card"},
         "archive_challenge": {
+            "OpenArchiveChallenges", "CloseArchivePanel",
+            "BossConfigured", "BossConfigured-scroll", "BossLastVisibleFallback",
             "ArchiveChallenge-skill", "ArchiveChallenge-strengthen",
             "ArchiveChallenge-gem", "ArchiveChallenge-loot",
             "ArchiveChallenge-key", "ArchiveChallenge-recast",
@@ -2506,9 +2510,11 @@ def _invoke_target_handler(med: Mediator, target: str, frame: Frame) -> Any:
         return med._tick_main_line(frame)
     if target in {"inventory_devour", "inventory_hero_card"}:
         return med._maybe_use_inventory_item(frame)
-    if target == "archive_challenge":
-        return med._maybe_click_archive_challenge(frame, time.time())
-    if target in {"time_cave", "heirloom"}:
+    if target in {"archive_challenge", "time_cave", "heirloom"}:
+        # 业务链是「广场 → 点 NPC 开面板 → 打卡 → 关面板 → 下一段」，整条都在
+        # production 里。之前 archive_challenge 直接调面板内的打卡 handler，
+        # 等于要求操作者先手动把面板开好——那既不是被测的业务，也让 preflight
+        # 只能死等 ARCHIVE_PANEL。统一走 production 的战后分发。
         return med._tick_main_line(frame)
     if target == PUBLIC_BACKPACK_TARGET:
         operation = getattr(med, "_maybe_public_backpack_deposit", None)
@@ -4122,14 +4128,14 @@ def _start_surface_preflight(
         )
     if target == "archive_challenge":
         try:
-            observed = med._post_game_state(frame) == "ARCHIVE_PANEL"
+            observed = med._post_game_state(frame) in {"ARCHIVE_PANEL", "NPC_HUB", "POST_VICTORY"}
         except (AttributeError, TypeError):
             observed = False
         return _ok(
-            "_post_game_state==ARCHIVE_PANEL",
+            "_post_game_state in {ARCHIVE_PANEL, NPC_HUB, POST_VICTORY}",
             observed,
-            "archive challenge panel confirmed",
-            "expected archive panel was not confirmed; ZERO INPUT",
+            "archive challenge start surface confirmed",
+            "expected challenge plaza or archive panel was not confirmed; ZERO INPUT",
         )
     if target == "secret_realm":
         try:
@@ -4578,7 +4584,7 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
         return {
             "post_game_pending": True,
             "post_game_route": "archive",
-            "reason": "probe starts on an already-open archive panel; existing handler retains card policy",
+            "reason": "probe starts at the challenge plaza or an already-open archive panel; production owns the NPC click and the card policy",
         }
     if target != "secret_realm":
         return {}
