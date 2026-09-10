@@ -52,17 +52,35 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.med._finish_panel_episode()
         self.assertEqual(self.med._l1_cycle_step, "skill")
 
-    def test_hitch_round_runs_merchant_then_treasure_then_waits(self):
+    def test_hitch_round_cycles_merchant_treasure_pickup_public_bag(self):
+        """蹭车环整局滚动，不再停在 hitch_idle。
+
+        停车位存在时公共背包只有一次机会，而队伍资产是整局陆续掉的：录像
+        背包.mp4 里公共格 (0,0)→(0,1)→(0,2) 是分几次填满的。
+        """
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "live hitch round")
         self.assertEqual(med._l1_cycle_step, "merchant")
 
-        med._advance_l1_cycle("merchant")
-        self.assertEqual(med._l1_cycle_step, "treasure")
-        med._advance_l1_cycle("treasure")
-        self.assertEqual(med._l1_cycle_step, "hitch_idle")
+        seen = []
+        for _ in range(8):
+            med._advance_l1_cycle()
+            seen.append(med._l1_cycle_step)
+        self.assertEqual(
+            seen,
+            ["treasure", "pickup", "public_bag", "merchant"] * 2,
+        )
+        self.assertNotIn("bond", seen, "蹭车不拿羁绊：那是发育自己")
+        self.assertNotIn("skill", seen, "蹭车不拿技能：那是发育自己")
+        self.assertNotIn("evolve", seen, "蹭车不点进化")
+        self.assertNotIn("equipment", seen, "蹭车不升级自己的装备")
+
+    def test_legacy_hitch_idle_state_rejoins_the_ring(self):
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "live hitch round")
+        med._l1_cycle_step = "hitch_idle"
         med._advance_l1_cycle()
-        self.assertEqual(med._l1_cycle_step, "hitch_idle")
+        self.assertEqual(med._l1_cycle_step, "merchant")
 
     def test_hitch_opens_treasure_but_keeps_bond_passive(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)

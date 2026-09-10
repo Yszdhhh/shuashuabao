@@ -3600,12 +3600,20 @@ class Mediator:
     # 后 ERROR 停机。用户确认的正确时序：进化全流程（点进化→选英雄→进化全部）
     # 完成后，才做装备升级与背包道具，故 evolve 排在 equipment 之前。
     _L1_CYCLE_ORDER = ("bond", "skill", "bond", "skill", "treasure", "evolve", "equipment", "pickup", "merchant", "artifact")
-    _HITCH_L1_CYCLE_ORDER = ("merchant", "treasure", "hitch_idle")
+    # 蹭车 = 打辅助：羁绊/技能/进化/装备都是发育自己，全部不在环里。
+    # 20260910 实机复盘：LIVE 走的是 RuntimeMediator，它此前写死 solo 顺序，
+    # 于是蹭车局照样点了进化和 1 号装备升级，而 hitch_idle 一次都没到——
+    # 公共背包挂在 hitch_idle 上就永远不会被调用。修复见 runtime_mediator。
+    # 这里不再留终点停车位：merchant→treasure→pickup→public_bag 循环滚动，
+    # 整局持续捡东西、持续往公共背包丢。
+    _HITCH_L1_CYCLE_ORDER = ("merchant", "treasure", "pickup", "public_bag")
 
     def _advance_l1_cycle(self, completed: str | None = None) -> None:
         current = completed or self._l1_cycle_step
         order = self._HITCH_L1_CYCLE_ORDER if self._hitch_enabled() else self._L1_CYCLE_ORDER
         if current == "hitch_idle" and self._hitch_enabled():
+            # 旧状态落点：直接回到环首，不再永久停车。
+            self._l1_cycle_step = order[0]
             return
         try:
             index = order.index(current)
@@ -11825,12 +11833,8 @@ class Mediator:
             return opened
 
         if self._hitch_enabled() and self._l1_cycle_step == "hitch_idle":
-            # 蹭车停车位：其余支线都不做，但队伍资产（吞噬丹/神符）出现时
-            # 走公共背包流转。没有可信证据时该操作返回 None，仍是零输入。
-            deposit_res = self._maybe_public_backpack_deposit(frame, now)
-            if deposit_res is not None:
-                self._main_line_since = now
-                return deposit_res
+            # legacy 停车位：新环不再产生这个步，留作旧状态的安全落点。
+            self._advance_l1_cycle("hitch_idle")
             return LoopAction.Continue
 
         # 显式循环中的神器阶段；无到期槽位时推进到技能。
@@ -11902,11 +11906,23 @@ class Mediator:
             result = self._maybe_upgrade_equipment(frame)
             self._main_line_since = now
             return result
+        if self._l1_cycle_step == "public_bag":
+            deposit_res = self._maybe_public_backpack_deposit(frame, now)
+            if deposit_res is not None:
+                self._main_line_since = now
+                return deposit_res
+            self._advance_l1_cycle("public_bag")
+            return LoopAction.Continue
+
         if self._l1_cycle_step == "pickup":
-            # 1. 拾取 Z
+            # 1. 拾取 Z（一键拾取到背包，兜住掉在地上没进包的道具）
             if now >= self._pickup_next_at and self.act_key("z", "Pickup-Z"):
                 self._pickup_next_at = now + 10.0
                 self._main_line_since = now
+            if self._hitch_enabled():
+                # 蹭车不吃丹、不用英雄卡：那是队伍资产，只负责搬进公共背包。
+                self._advance_l1_cycle("pickup")
+                return LoopAction.Continue
             # 2. 进化完成后的背包消耗品与英雄卡使用（在 evolve 之后安全使用）
             item_res = self._maybe_use_inventory_item(frame)
             if item_res is not None:

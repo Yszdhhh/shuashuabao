@@ -214,9 +214,19 @@ class Mediator(CoreMediator):
     def _mark_runtime_progress(self, now: float | None = None) -> None:
         self._last_runtime_progress_at = float(now if now is not None else time.time())
 
+    def _l1_cycle_order(self) -> tuple[str, ...]:
+        """蹭车和单人是两条完全不同的环，LIVE 必须和核心 Mediator 选同一条。
+
+        20260910 实机复盘：本方法此前写死 ``_L1_CYCLE_ORDER``，于是蹭车局在
+        LIVE 下照样走 bond/skill/evolve/equipment（点了进化、升了 1 号装备
+        —— 全是发育自己的动作），而蹭车专属步一次都没到，公共背包流转因此
+        从未被调用。bundle 里 ``l1_cycle_step`` 只出现 solo 步就是这个原因。
+        """
+        return self._HITCH_L1_CYCLE_ORDER if self._hitch_enabled() else self._L1_CYCLE_ORDER
+
     def _advance_l1_cycle(self, completed: str | None = None) -> None:
         """Advance by position, not tuple.index(), so duplicate bond/skill steps work."""
-        order = self._L1_CYCLE_ORDER
+        order = self._l1_cycle_order()
         current = completed or getattr(self, "_l1_cycle_step", order[0])
         idx = int(getattr(self, "_l1_cycle_index", 0) or 0)
         if not (0 <= idx < len(order) and order[idx] == current):
@@ -710,7 +720,7 @@ class Mediator(CoreMediator):
             self._bond_cards_owned.clear()
             self._reset_physical_panel_guard()
             self._l1_cycle_index = 0
-            self._l1_cycle_step = "bond"
+            self._l1_cycle_step = self._l1_cycle_order()[0]
             # 新回合边界：局内"当前停滞"活性状态不得继承上一局；
             # _runtime_watchdog_stall_episodes_total 保持会话级累计不清零。
             self._runtime_watchdog_stalled = False
@@ -725,6 +735,7 @@ class Mediator(CoreMediator):
         )
         if (
             target == "bond"
+            and not self._hitch_enabled()
             and getattr(self, "_panel_state", PanelState.CLOSED) == PanelState.CLOSED
             and self._bond_presets_complete()
         ):
