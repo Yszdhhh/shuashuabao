@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-10T04:36:16.880827+00:00",
+  "generated_at": "2026-09-10T12:35:54.213410+00:00",
   "spec": "ShuaBao.spec",
   "package_roots": [
     {
@@ -2080,6 +2080,22 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 34475,
       "sha256": "ba2a494b8c265a1b795e8f23ab57b1faab648e3805bfa51e3f18fc4ca0e9155b"
+    },
+    {
+      "path": "assets/Images/lobby/kk_platform_prompt_cancel.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 1167,
+      "sha256": "fce8eb7c756df94a8e8d42c04bc5a8a185f18e98baa4b0a33bf2e0ca8ef3b4db"
+    },
+    {
+      "path": "assets/Images/lobby/kk_platform_prompt_title.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 2308,
+      "sha256": "fa1f6d64d70f8e0dab9cf739aef49d1cc897a0823648427790e1d0ca1e1d78dc"
     },
     {
       "path": "assets/Images/lobby/lobby_1_4.png",

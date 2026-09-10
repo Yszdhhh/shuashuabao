@@ -656,6 +656,7 @@ class Mediator:
         self._input_seq = 0
         self._tick_input_seq: int | None = None
         self._last_input_status = ""
+        self._last_input_at: float | None = None
         # 本 tick 落定的后置确认（选择面板 mutation / 公共背包存入）；每 tick 归零。
         self._tick_post_confirm: bool | None = None
         # trace/incident 兼容镜像：_detect_context 每次计算后同步（evidence.context 是权威值）
@@ -722,6 +723,9 @@ class Mediator:
         # P1-1：进房/未知弹窗的有界 ESC 关闭预算；弹窗在 fresh 帧上消失后重置。
         self._hitch_popup_esc_attempts = 0
         self._hitch_popup_esc_last_at: float | None = None
+        self._hitch_platform_prompt_click_at: float | None = None
+        # 无进展看门狗：UNKNOWN 起点；与 _last_input_at 取较晚者计时。
+        self._hitch_unknown_since: float | None = None
         # Session-local blacklist keyed by the visible lobby room-number cell.
         self._hitch_blacklisted_room_keys = AgingBlacklist(ttl_s=1800.0)
         self._hitch_pending_room_key: str | None = None
@@ -1807,6 +1811,8 @@ class Mediator:
           被 _action_gate_ok 拒绝；LIVE 另有 invalidate_evidence 推进 gen。
         """
         self._last_input_status = str(getattr(res, "status", "") or "")
+        if res.success or self._last_input_status == INPUT_DISPATCHED_UNVERIFIED:
+            self._last_input_at = time.time()
         if res.success:
             self._tick_input_executed = True
             self._input_seq += 1
@@ -8770,6 +8776,87 @@ class Mediator:
             return None
         return classify_hitch_ocr(text) or ("被移出" if "移出" in text else None)
 
+    def _find_hitch_platform_prompt_cancel(self, frame: Frame) -> MatchResult | None:
+        """KK 主窗口上覆盖的「平台提示」（如被房主移出）里的灰色「取消」按钮。
+
+        旧的 lobby_popup_dialog 模板裁进了房间列表背景，被踢时从不命中；
+        这里只用弹窗自身的标题 + 取消按钮，并要求两者处在同一对话框几何内。
+        """
+        scales = (1.0, 0.9, 1.1)
+        title = self.find(frame, ["lobby/kk_platform_prompt_title"], threshold=0.85, scales=scales)
+        if title is None:
+            return None
+        cancel = self.find(frame, ["lobby/kk_platform_prompt_cancel"], threshold=0.85, scales=scales)
+        if cancel is None:
+            return None
+        dx, dy = cancel.x - title.x, cancel.y - title.y
+        if not (120 <= dx <= 260 and 100 <= dy <= 170):
+            return None
+        return cancel
+
+    def _tick_hitch_platform_prompt(self, frame: Frame, now: float) -> LoopAction | None:
+        """点「取消」关掉 KK 主窗口上的平台提示，然后回大厅重新找房。
+
+        440x260 子窗口（退出确认、房间已满等）仍由原有分支处理：退出确认
+        同样带「平台提示/取消」，点取消会中断离房，所以这里只看主窗口。
+        实机证据：被踢提示上 Esc 连按 3 次都关不掉，只能点按钮。
+        """
+        if (
+            frame.role != "l0"
+            or frame.width <= 600
+            or self.phase not in (Phase.ROOM_WAITING, Phase.LOBBY_ROOM)
+            or getattr(self, "_hitch_floor_exit_pending", False)
+        ):
+            return None
+        cancel = self._find_hitch_platform_prompt_cancel(frame)
+        if cancel is None:
+            return None
+        last = getattr(self, "_hitch_platform_prompt_click_at", None)
+        if last is not None and now - last < 1.5:
+            print("[L0] hitch 平台提示关闭冷却中，零输入观察")
+            return LoopAction.Continue
+        self._hitch_platform_prompt_click_at = now
+        if not self.act_click(cancel, "HitchDismissPlatformPrompt"):
+            print("[L0] hitch 平台提示「取消」点击被拒绝，改用 Esc")
+            self.act_key("esc", "HitchDismissPlatformPromptEsc")
+        if self._hitch_pending_room_key is not None:
+            self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+        print(f"[L0] hitch 平台提示已点取消: ({cancel.screen_x}, {cancel.screen_y})，回大厅重新找房")
+        return self._hitch_reset_lobby("platform_prompt", now)
+
+    # 平台侧弹窗 30s 即算卡死；游戏窗口实测加载画面约 50s，放宽到 60s。
+    _HITCH_STALL_ESC_L0_S = 30.0
+    _HITCH_STALL_ESC_GAME_S = 60.0
+
+    def _tick_hitch_stall_watchdog(self, frame: Frame, context: str, now: float) -> LoopAction | None:
+        """无进展兜底：大厅/房间等待阶段持续 UNKNOWN 且期间零输入时按一次 Esc。
+
+        覆盖模板还没收录的弹窗（实机：被踢提示 73s、游戏大厅弹窗 60s 零输入）。
+        确认的房间内不按——房间里 Esc 等于离房。Esc 本身计为输入，
+        所以仍卡住时每隔同样时长再试一次。
+        """
+        if self.phase not in (Phase.ROOM_WAITING, Phase.LOBBY_ROOM) or context != "UNKNOWN":
+            self._hitch_unknown_since = None
+            return None
+        if self._hitch_unknown_since is None:
+            self._hitch_unknown_since = now
+            return None
+        game = self._is_game_client_frame(frame)
+        room_hwnd = getattr(self, "_confirmed_room_hwnd", None)
+        if not game and (
+            self._is_confirmed_room_frame(frame)
+            # 开局倒计时/反作弊升级会盖住房间控件，但仍是房间窗口
+            or (room_hwnd is not None and frame.hwnd == room_hwnd)
+        ):
+            return None
+        limit = self._HITCH_STALL_ESC_GAME_S if game else self._HITCH_STALL_ESC_L0_S
+        quiet_since = max(self._hitch_unknown_since, self._last_input_at or 0.0)
+        if now - quiet_since < limit:
+            return None
+        print(f"[L0] hitch {now - quiet_since:.0f}s 无进展（UNKNOWN 且零输入），Esc 兜底")
+        self.act_key("esc", "HitchStallWatchdogEsc")
+        return LoopAction.Continue
+
     def _tick_lobby_hitch(
         self,
         frame: Frame,
@@ -8778,6 +8865,9 @@ class Mediator:
         stage_page: bool = False,
     ) -> LoopAction:
         now = time.time()
+        stall_action = self._tick_hitch_stall_watchdog(frame, context, now)
+        if stall_action is not None:
+            return stall_action
         # P0-1：蹭车在 ROOM_WAITING 收到已验证的游戏窗帧时，绝不强推 MAIN_LINE
         # （旧实现会把 game client 帧误判成已在局内而吞掉房内状态）；零输入交给
         # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
@@ -8842,6 +8932,9 @@ class Mediator:
             self._hitch_popup_esc_attempts = 0
             self._hitch_popup_esc_last_at = None
             self._hitch_join_origin_hwnd = None
+        prompt_action = self._tick_hitch_platform_prompt(frame, now)
+        if prompt_action is not None:
+            return prompt_action
         # KK 的进房提示可能是独立子窗口：一次进房请求后新出现、无房间实体
         # 控件就不是已进房，Esc 关闭即可；关闭尝试受预算约束（P1-1）。
         child_popup = (
