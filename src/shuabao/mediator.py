@@ -726,6 +726,7 @@ class Mediator:
         self._hitch_platform_prompt_click_at: float | None = None
         # 无进展看门狗：UNKNOWN 起点；与 _last_input_at 取较晚者计时。
         self._hitch_unknown_since: float | None = None
+        self._hitch_room_window_hwnd: int | None = None
         # Session-local blacklist keyed by the visible lobby room-number cell.
         self._hitch_blacklisted_room_keys = AgingBlacklist(ttl_s=1800.0)
         self._hitch_pending_room_key: str | None = None
@@ -8835,19 +8836,26 @@ class Mediator:
         确认的房间内不按——房间里 Esc 等于离房。Esc 本身计为输入，
         所以仍卡住时每隔同样时长再试一次。
         """
-        if self.phase not in (Phase.ROOM_WAITING, Phase.LOBBY_ROOM) or context != "UNKNOWN":
+        if self.phase not in (Phase.ROOM_WAITING, Phase.LOBBY_ROOM):
+            self._hitch_unknown_since = None
+            return None
+        game = self._is_game_client_frame(frame)
+        # 房间窗口身份只认实机点成功过的准备/退出按钮（大厅 78 帧零误报）。
+        # _is_confirmed_room_frame 依赖的 room_exit_btn/room_cancel_ready
+        # 模板是空白暗块，大厅/被踢提示上同样命中，不能用来压制 Esc。
+        if not game and frame.hwnd is not None and (
+            self._find_hitch_exit_button(frame) is not None
+            or self._find_hitch_ready_button(frame) is not None
+        ):
+            self._hitch_room_window_hwnd = frame.hwnd
+        if context != "UNKNOWN":
             self._hitch_unknown_since = None
             return None
         if self._hitch_unknown_since is None:
             self._hitch_unknown_since = now
             return None
-        game = self._is_game_client_frame(frame)
-        room_hwnd = getattr(self, "_confirmed_room_hwnd", None)
-        if not game and (
-            self._is_confirmed_room_frame(frame)
-            # 开局倒计时/反作弊升级会盖住房间控件，但仍是房间窗口
-            or (room_hwnd is not None and frame.hwnd == room_hwnd)
-        ):
+        # 开局倒计时/反作弊升级会盖住按钮，但仍是房间窗口：记住的 hwnd 兜底
+        if not game and frame.hwnd is not None and frame.hwnd == self._hitch_room_window_hwnd:
             return None
         limit = self._HITCH_STALL_ESC_GAME_S if game else self._HITCH_STALL_ESC_L0_S
         quiet_since = max(self._hitch_unknown_since, self._last_input_at or 0.0)

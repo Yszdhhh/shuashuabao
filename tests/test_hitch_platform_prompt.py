@@ -109,15 +109,42 @@ def test_stall_watchdog_counts_from_last_input_and_resets_on_known_context() -> 
 
 
 def test_stall_watchdog_never_escapes_inside_room_window() -> None:
-    """开局倒计时盖住房间控件时 context 也是 UNKNOWN；房间里 Esc 等于离房。"""
+    """开局倒计时盖住房间按钮时 context 也是 UNKNOWN；房间里 Esc 等于离房。"""
     med = _med()
     med.set_phase(Phase.ROOM_WAITING)
-    med._confirmed_room_hwnd = 7152024
-    room = Frame(np.full((904, 1224, 3), 30, dtype=np.uint8), window_title="KK官方对战平台", hwnd=7152024, role="l0")
+    room = Frame(_load("real_kk_room_window.png"), window_title="KK官方对战平台", hwnd=7152024, role="l0")
+    overlay = Frame(_load("real_kk_room_anticheat_overlay.png"), window_title="KK官方对战平台", hwnd=7152024, role="l0")
     with patch.object(med, "act_key", return_value=True) as key:
-        med._tick_hitch_stall_watchdog(room, "UNKNOWN", 1000.0)
-        assert med._tick_hitch_stall_watchdog(room, "UNKNOWN", 1100.0) is None
+        med._tick_hitch_stall_watchdog(room, "ROOM_WAITING", 990.0)  # 真实准备/退出按钮 → 记住房间窗口
+        med._tick_hitch_stall_watchdog(overlay, "UNKNOWN", 1000.0)
+        assert med._tick_hitch_stall_watchdog(overlay, "UNKNOWN", 1100.0) is None
     key.assert_not_called()
+
+
+def test_room_signature_templates_are_not_used_to_suppress_esc() -> None:
+    """实机缩放 0.833 下 _is_confirmed_room_frame 在被踢提示上误判为房间，
+    这正是旧「已知弹窗 Esc」分支被压住、零输入 73s 的原因。"""
+    med = _med()
+    med.set_phase(Phase.ROOM_WAITING)
+    med._ui_scale = 0.833
+    frame = _kicked_frame()
+    assert med._is_confirmed_room_frame(frame) is True  # 已知缺陷，留作证据
+    assert med._find_hitch_platform_prompt_cancel(frame) is not None
+    with patch.object(med, "act_key", return_value=True) as key:
+        med._tick_hitch_stall_watchdog(frame, "UNKNOWN", 1000.0)
+        assert med._tick_hitch_stall_watchdog(frame, "UNKNOWN", 1031.0) is LoopAction.Continue
+    key.assert_called_once_with("esc", "HitchStallWatchdogEsc")
+
+
+def test_kicked_prompt_cancel_clicked_at_live_ui_scale() -> None:
+    med = _med()
+    med.set_phase(Phase.ROOM_WAITING)
+    med._ui_scale = 0.833
+    with patch.object(med, "act_click", return_value=True) as click, \
+         patch.object(med, "act_key", return_value=True):
+        med._tick_lobby_hitch(_kicked_frame(), "UNKNOWN")
+    assert click.call_args.args[1] == "HitchDismissPlatformPrompt"
+    assert med.phase is Phase.LOBBY_ROOM
 
 
 def test_stall_watchdog_waits_60s_on_game_window_for_loading() -> None:
