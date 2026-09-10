@@ -4,7 +4,7 @@
 param(
     [switch]$SettingsPanelSmokeTest,
     [string]$ProductionSourceRoot = "G:\刷刷宝\Worktrees\live-g0-publicbag-v2",
-    [string]$ProductionSourceSha = "b9e48aaba3491a9adac02c206bb0695422a86703"
+    [string]$ProductionSourceSha = "4a99d3c83f705ffe6029896d06a93d233065d8e8"
 )
 
 $ErrorActionPreference = "Stop"
