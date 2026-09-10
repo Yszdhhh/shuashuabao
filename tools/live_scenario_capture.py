@@ -4257,16 +4257,35 @@ def _await_start_surface(
         f"{surface.get('reason') or 'start surface not confirmed'}",
         flush=True,
     )
-    print("[preflight] 现在可以去游戏里把对应面板打开；本等待期零输入。", flush=True)
-    while time.time() < deadline:
-        time.sleep(poll_s)
+    print("[preflight] 本等待期零输入。下面每秒回报一次 production 当前判定的页面。", flush=True)
+    while True:
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            break
+        time.sleep(min(poll_s, remaining))
         next_frame, next_window = _window_preflight(settings, target=target)
         if next_window.get("status") != "READY":
+            print(
+                f"[preflight] 剩余 {max(0.0, deadline - time.time()):.0f}s｜窗口未就绪："
+                f"{next_window.get('reason') or next_window.get('status')}",
+                flush=True,
+            )
             continue
         candidate = _start_surface_preflight(med, target, next_frame)
         if candidate.get("status") != "BLOCKED":
             print(f"[preflight] {target} 起始界面已确认，开始跑。", flush=True)
             return candidate, next_frame, next_window
+        # 打印分类器当前看到的页面：静默 90 秒和挂死无法区分，而"它现在
+        # 认成什么"正是操作者判断自己站错地方所需要的唯一信息。
+        try:
+            seen = med._post_game_state(next_frame)
+        except (AttributeError, TypeError):
+            seen = None
+        print(
+            f"[preflight] 剩余 {max(0.0, deadline - time.time()):.0f}s｜"
+            f"当前战后页面判定 = {seen or 'None（不在战后页面）'}",
+            flush=True,
+        )
         surface, frame, window = candidate, next_frame, next_window
     print(f"[preflight] {target} 等待超时，仍未确认起始界面；零输入退出。", flush=True)
     return surface, frame, window
@@ -5742,7 +5761,7 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--start-surface-wait",
         type=float,
-        default=90.0,
+        default=60.0,
         help=(
             "在宣告 BLOCKED 之前，等待起始界面出现的秒数（零输入轮询）。"
             "存档挑战/传家宝这类必须先开面板的 probe 靠它才有可操作时间；0 = 一次性判定。"
