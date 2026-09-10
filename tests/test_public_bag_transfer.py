@@ -276,6 +276,35 @@ class MediatorPublicBagTests(unittest.TestCase):
         key.assert_not_called()
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_OPEN_REQUESTED)
 
+    def test_deposit_chain_also_runs_on_the_post_game_plaza(self):
+        """打完这局在广场把手里剩下的交出去，是这条链最自然的收尾。
+
+        广场上 _is_in_game_hud 是 False（那是局内 HUD 的判据），只认它等于把
+        战后广场整个排除掉。
+        """
+        button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 744, 0, 0, 1520, 744)
+        with self._patch_layout(None),              patch.object(self.med, "_is_in_game_hud", return_value=False),              patch.object(self.med, "_post_game_state", return_value="NPC_HUB"),              patch.object(self.med, "_hud_hotkey_button", return_value=button),              patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(self.med._maybe_public_backpack_deposit(self.frame, 100.0), LoopAction.Continue)
+        click.assert_called_once_with(button, "PublicBackpackDepositB")
+
+    def test_deposit_chain_stays_silent_on_an_unclassified_page(self):
+        """既不是局内 HUD 也不是广场：零输入，别去猜。"""
+        with self._patch_layout(None),              patch.object(self.med, "_is_in_game_hud", return_value=False),              patch.object(self.med, "_post_game_state", return_value=None),              patch.object(self.med, "act_click") as click,              patch.object(self.med, "act_key") as key:
+            self.assertIsNone(self.med._maybe_public_backpack_deposit(self.frame, 100.0))
+        click.assert_not_called()
+        key.assert_not_called()
+
+    def test_archive_and_heirloom_pages_do_not_start_a_deposit(self):
+        """存档面板/传家宝弹窗上有它们自己的链，公共背包不插队。"""
+        for page in ("ARCHIVE_PANEL", "HEIRLOOM_DIALOG", "POST_VICTORY"):
+            self.med._public_bag_fsm = PublicBagFSM()
+            with self._patch_layout(None),                  patch.object(self.med, "_is_in_game_hud", return_value=False),                  patch.object(self.med, "_post_game_state", return_value=page),                  patch.object(self.med, "act_click") as click,                  patch.object(self.med, "act_key") as key:
+                self.assertIsNone(
+                    self.med._maybe_public_backpack_deposit(self.frame, 100.0), page
+                )
+            click.assert_not_called()
+            key.assert_not_called()
+
     def test_falls_back_to_the_b_key_when_the_button_is_not_found(self):
         with self._patch_layout(None), \
              patch.object(self.med, "_is_in_game_hud", return_value=True), \

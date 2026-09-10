@@ -4195,6 +4195,21 @@ class Mediator:
     _PUBLIC_BAG_ANCHOR_THRESHOLD = 0.80
     _PUBLIC_BAG_PILL_TEMPLATES = ("danGif", "swallow_pill")
 
+    def _public_bag_surface_ok(self, frame: Frame) -> bool:
+        """局内 HUD，或已分类的战后挑战广场。
+
+        战后广场同样有完整 HUD 和可点的 [B] 按钮（实机帧 f0133 上 0.842），队友
+        也还在房里，所以「打完这局把手里剩下的交出去」是这条链最自然的收尾时机。
+        但 ``_is_in_game_hud`` 在广场上返回 False（那是局内 HUD 的判据），只认它
+        就等于把战后广场排除在外。
+
+        放宽只影响「要不要去开背包」这一步；真正的安全性仍然由 ``_bag_layout``
+        的双锚点确认兜底——面板没被确认，右键和左键都发不出去。
+        """
+        if self._is_in_game_hud(frame):
+            return True
+        return self._post_game_state(frame) == "NPC_HUB"
+
     def _hud_hotkey_button(self, frame: Frame, name: str) -> MatchResult | None:
         """Locate one of the right-edge clickable hotkey twins ([B] / [Z]).
 
@@ -4500,7 +4515,7 @@ class Mediator:
                 return LoopAction.Continue
             if not fsm.can_start(now) or now < self._public_bag_next_at:
                 return None
-            if not self._is_in_game_hud(frame):
+            if not self._public_bag_surface_ok(frame):
                 return None
             if self._open_bag_page(frame):
                 self._public_bag_fsm = fsm.request_bag_open(now)
