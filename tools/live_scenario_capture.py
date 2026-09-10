@@ -4041,16 +4041,22 @@ def _start_surface_preflight(
         )
     if target == PUBLIC_BACKPACK_TARGET:
         operation = callable(getattr(med, "_maybe_public_backpack_deposit", None))
-        hud = False
+        surface = False
         try:
-            hud = bool(med._is_in_game_hud(frame))
+            # 局内 HUD 或战后挑战广场：广场上队友还在房里，公共背包仍然可用，
+            # 「局末把手里剩下的交出去」是这条链最自然的收尾时机。判据跟
+            # production 的 _public_bag_surface_ok 保持一致。
+            surface = bool(med._public_bag_surface_ok(frame))
         except (AttributeError, TypeError):
-            pass
+            try:
+                surface = bool(med._is_in_game_hud(frame))
+            except (AttributeError, TypeError):
+                pass
         return _ok(
-            "production PUBLIC_BACKPACK_DEPOSIT + _is_in_game_hud",
-            operation and hud,
-            "production public-backpack operation and GAME/HUD confirmed",
-            "frozen candidate has no PUBLIC_BACKPACK_DEPOSIT operation or GAME/HUD was not confirmed; BLOCKED until GT",
+            "production PUBLIC_BACKPACK_DEPOSIT + GAME/HUD or NPC_HUB",
+            operation and surface,
+            "production public-backpack operation and a usable surface confirmed",
+            "frozen candidate has no PUBLIC_BACKPACK_DEPOSIT operation, or neither GAME/HUD nor the post-game plaza was confirmed",
         )
 
     if target == "solo_ingame_chain":
