@@ -299,7 +299,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_archive_panel_visits_archive_cards_before_closing(self):
         """A pending archive page starts the eight-card sequence before close."""
-        med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
+        med = Mediator(Settings(cjb_boss="54莫阿姆", sgzx_boss="55吞咽者布鲁"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "archive order")
         med._post_game_pending = True
         med._post_game_route = "archive"
@@ -591,6 +591,7 @@ class P1B0PostGameTests(unittest.TestCase):
                 int(cx - frame.width * 0.040):int(cx + frame.width * 0.040),
             ] = (0, 255, 0)
             self.assertTrue(med._archive_challenge_completed(frame, index))
+        med._time_cave_boss_done = True  # isolate the archive-card completion branch
         close = MatchResult("close", 0.9, 990, 230, 20, 20, 1000, 240)
 
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
@@ -876,6 +877,21 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(med._post_game_route, "boss_active")
         self.assertFalse(med._post_game_pending)
 
+    def test_heirloom_without_config_uses_existing_last_visible_fallback(self):
+        """An empty cjb_boss must not fall through to the generic X click."""
+        med = Mediator(Settings(), ROOT)
+        med._post_game_pending = True
+        med._post_game_route = "heirloom_active"
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_heirloom_boss_result_visible", return_value=False), \
+             patch.object(med, "_heirloom_boss_confirm_expired", return_value=False), \
+             patch.object(med, "_maybe_challenge_configured_boss", return_value=LoopAction.Continue) as choose, \
+             patch.object(med, "act_click") as click:
+            self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
+        choose.assert_called_once()
+        click.assert_not_called()
+
     def test_heirloom_result_ignores_scattered_combat_red_vfx(self):
         """Red attack effects behind the dialog cannot close an unplayed page."""
         med = Mediator(Settings(cjb_boss="08战争雷霆蜥蜴"), ROOT)
@@ -1083,12 +1099,13 @@ class P1B0PostGameTests(unittest.TestCase):
         click.assert_called_once_with(entry, "OpenHeirloomChallenges")
         self.assertEqual(med._post_game_route, "heirloom_active")
 
-    def test_team_archive_without_heirloom_routes_to_team_wait_exit(self):
+    def test_team_archive_without_heirloom_routes_to_heirloom_fallback(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "team archive route")
         med._hitch_pressure_transferred = True  # P0 门禁已通过（8159de8）
         med._post_game_pending = True
         med._archive_challenge_index = len(med._ARCHIVE_CHALLENGE_NAMES)
+        med._time_cave_boss_done = True  # isolate the post-archive route choice
         med._post_game_route = "archive"
         frame = load_fixture_frame("fixtures/replay/archive_challenge_panel.png")
         close = MatchResult("archive_panel_close", 0.99, 976, 197, 43, 31, 997, 212)
@@ -1102,7 +1119,7 @@ class P1B0PostGameTests(unittest.TestCase):
             action = med._tick_main_line(frame)
 
         self.assertEqual(action, LoopAction.Continue)
-        self.assertEqual(med._post_game_route, "team_wait_exit")
+        self.assertEqual(med._post_game_route, "heirloom")
 
     def test_victory_continue_retry_limit_fails_closed(self):
         """3 failed continue attempts must Fail-Closed into ERROR."""

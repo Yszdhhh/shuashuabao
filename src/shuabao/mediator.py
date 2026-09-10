@@ -6066,6 +6066,14 @@ class Mediator:
             return None
         if getattr(self, "_hitch_pressure_transferred", False):
             return None
+        # A runtime can attach after the host has already completed the
+        # opening pressure-transfer step. The stable top ``存档挑战`` marker is
+        # real in-game progress (for example 2-7), not a timer or generic HUD
+        # glyph. With no pressure button and no classified post-game page it
+        # is an explicit mid-game takeover fact; otherwise the normal
+        # click-then-disappear postcondition gate remains in force.
+        if self._adopt_hitch_midgame_takeover(frame):
+            return LoopAction.Continue
         if not self._is_in_game_hud(frame):
             # 未能确认局内 HUD 时也不能把压力转移门禁降级为普通主线。
             return LoopAction.Continue
@@ -6120,6 +6128,42 @@ class Mediator:
         # 再由 fresh 帧证实它消失。
         print("[med] 蹭车压力转移尚未确认，保持门禁并等待按钮")
         return LoopAction.Continue
+
+    def _adopt_hitch_midgame_takeover(self, frame: Frame) -> bool:
+        """Adopt a verified already-running hitch round without guessing.
+
+        ``cundangInfo`` is rendered in the top progress strip once the map is
+        already in archive-challenge progression. It is accepted only with a
+        production HUD classification, no visible pressure-transfer control,
+        and no classified post-game page. Absence of a button alone never
+        grants input authority.
+        """
+        if not self._team_mode_enabled() or not self._is_in_game_hud(frame):
+            return False
+        if self._post_game_state(frame) is not None:
+            return False
+        pressure = self.find(
+            frame,
+            ["yalizhuanyi"],
+            threshold=0.65,
+            roi=(0.30, 0.50, 0.90, 0.95),
+        )
+        if pressure is not None:
+            return False
+        progress = self.find(
+            frame,
+            ["cundangInfo"],
+            threshold=0.85,
+            scales=self._hot_scales(),
+            roi=(0.0, 0.0, 0.30, 0.18),
+        )
+        if progress is None:
+            return False
+        self._hitch_pressure_transferred = True
+        self._hitch_pressure_click_at = None
+        self._hitch_pressure_request_generation = None
+        print("[med] 识别到中场存档挑战进度条且压力转移按钮不存在，接手蹭车局内循环")
+        return True
 
 
     def _find_secret_realm_npc(self, frame: Frame) -> MatchResult | None:
@@ -11500,9 +11544,10 @@ class Mediator:
                 if getattr(self, "_post_game_route", "") == "archive_active":
                     self._post_game_route = "archive"
                 return archive_action
-            # 八个存档卡位已全部消费。若配置了时光之穴 Boss（sgzx_boss），先发起挑战选择
-            configured_time_cave = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
-            if configured_time_cave and not getattr(self, "_time_cave_boss_done", False):
+            # 八个存档卡位已全部消费。配置时优先配置 Boss；未配置时由
+            # _maybe_challenge_configured_boss 在已分类列表中滚到底并只选择
+            # 最后一个模板可识别的卡。
+            if not getattr(self, "_time_cave_boss_done", False):
                 if now < self._boss_challenge_next_at:
                     return LoopAction.Continue
                 boss_action = self._maybe_challenge_configured_boss(frame, now)
@@ -11541,11 +11586,9 @@ class Mediator:
                 print("[med] 存档面板未找到专用关闭按钮，零动作等待")
                 return LoopAction.Continue
             self._post_game_close_attempts += 1
-            self._post_game_route = (
-                "heirloom"
-                if str(getattr(self.settings, "cjb_boss", "") or "").strip()
-                else ("team_wait_exit" if self._team_mode_enabled() else "secret")
-            )
+            # 传家宝同样支持“未配置即最后一个已识别 Boss”的规则，所以
+            # 不因 cjb_boss 为空跳过该页面。
+            self._post_game_route = "heirloom"
             print(f"[med] 存档与时光之穴完成，关闭存档面板 @ {close_hit.center} (尝试 {self._post_game_close_attempts}/3) 并转 {self._post_game_route}")
             self.act_click(close_hit, "CloseArchivePanel")
             return LoopAction.Continue
@@ -11652,7 +11695,6 @@ class Mediator:
             if (
                 self._post_game_pending
                 and getattr(self, "_post_game_route", "") == "heirloom_active"
-                and str(getattr(self.settings, "cjb_boss", "") or "").strip()
                 and self._boss_challenge_attempts < 3
             ):
                 # The page remains open after a successful click and displays

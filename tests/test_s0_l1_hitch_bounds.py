@@ -79,6 +79,35 @@ class HitchUnverifiedArchiveTests(unittest.TestCase):
         scene.assert_called_once_with(frame, "archive")
 
 
+class HitchMidgameTakeoverTests(unittest.TestCase):
+    def test_archive_progress_strip_adopts_an_already_running_round(self) -> None:
+        med = _hitch_mediator()
+        frame = _frame()
+        progress = MatchResult("cundangInfo", 0.95, 20, 45, 96, 20, 68, 55)
+
+        def find(_frame, names, **_kwargs):
+            return progress if names == ["cundangInfo"] else None
+
+        with patch.object(med, "_is_in_game_hud", return_value=True), \
+                patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "find", side_effect=find):
+            action = med._maybe_click_hitch_pressure_transfer(frame, 1.0)
+
+        self.assertIs(action, LoopAction.Continue)
+        self.assertTrue(med._hitch_pressure_transferred)
+
+    def test_missing_progress_strip_keeps_pressure_gate_closed(self) -> None:
+        med = _hitch_mediator()
+        frame = _frame()
+        with patch.object(med, "_is_in_game_hud", return_value=True), \
+                patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "find", return_value=None):
+            action = med._maybe_click_hitch_pressure_transfer(frame, 1.0)
+
+        self.assertIs(action, LoopAction.Continue)
+        self.assertFalse(med._hitch_pressure_transferred)
+
+
 class HitchTimeCaveBossTests(unittest.TestCase):
     def test_hitch_sgzx_boss_unseen_advances_to_archive_close(self) -> None:
         med = _hitch_mediator()
@@ -112,7 +141,7 @@ class HitchTimeCaveBossTests(unittest.TestCase):
         self.assertEqual(med._time_cave_boss_search_attempts, 0)
         act.assert_called_once()
         self.assertEqual(act.call_args.args[1], "CloseArchivePanel")
-        self.assertEqual(med._post_game_route, "team_wait_exit")
+        self.assertEqual(med._post_game_route, "heirloom")
 
 class HitchArchiveChallengeRejectionTests(unittest.TestCase):
     def test_hitch_archive_challenge_click_rejection_cooldown_and_skip(self) -> None:
