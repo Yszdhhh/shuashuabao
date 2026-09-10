@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-09T15:56:02.496944+00:00",
+  "generated_at": "2026-09-10T04:36:16.880827+00:00",
   "spec": "ShuaBao.spec",
   "package_roots": [
     {
@@ -144,6 +144,22 @@
       "reason_required": "runtime UI/status/icon asset",
       "size_bytes": 5581,
       "sha256": "f50e115e9a4e4b8b6f246c4f60a5006384d9756a0ff5b30014bf59d98ddadca4"
+    },
+    {
+      "path": "assets/Images/bag/bag_toggle_button.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 3899,
+      "sha256": "ea417ec80b27ebff5e59d99fde1f267d692b10dfaee8c8b36c1f29dd6a0b2bbf"
+    },
+    {
+      "path": "assets/Images/bag/hud_pickup_button.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 3949,
+      "sha256": "888e5f5169e45535c35d369cf70393de76d20e34e65b7da62d586ae45fe796a4"
     },
     {
       "path": "assets/Images/bag/public_bag_title.png",

@@ -74,7 +74,15 @@ ANCHOR_MARGINS: dict[str, tuple[float, float]] = {
 ANCHOR_ROIS: dict[str, tuple[float, float, float, float]] = {
     "bag/public_bag_title": (0.60, 0.04, 0.90, 0.22),
     "bag/bag_sell_equipment": (0.46, 0.42, 0.70, 0.64),
+    # The right-edge HUD carries clickable twins of the B / Z hotkeys.  Mouse
+    # input is the only injection path with live evidence in this project, so
+    # these buttons are how the bag actually gets opened.
+    "bag/bag_toggle_button": (0.92, 0.78, 0.98, 0.88),
+    "bag/hud_pickup_button": (0.92, 0.73, 0.98, 0.83),
 }
+
+#: Click point offsets inside those button templates (their own centres).
+HUD_BUTTON_TEMPLATES = ("bag/bag_toggle_button", "bag/hud_pickup_button")
 
 #: 物品栏 cells carry a drawn border, so their *full* rect never looks flat
 #: (empty slot std 20-24).  Probing the inner area instead separates cleanly:

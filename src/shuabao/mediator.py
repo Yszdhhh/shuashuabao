@@ -4192,6 +4192,37 @@ class Mediator:
     _PUBLIC_BAG_ANCHOR_THRESHOLD = 0.80
     _PUBLIC_BAG_PILL_TEMPLATES = ("danGif", "swallow_pill")
 
+    def _hud_hotkey_button(self, frame: Frame, name: str) -> MatchResult | None:
+        """Locate one of the right-edge clickable hotkey twins ([B] / [Z]).
+
+        20260910: the deposit probe pressed B five times, every press reported
+        SUCCESS, and the bag never opened — the game simply does not take that
+        keystroke (bundle public_backpack_deposit_20260910_122808_521256, all
+        five after-frames show plain HUD).  Mouse input is the injection path
+        this project has live evidence for, and the HUD draws a clickable book
+        icon labelled [B] right next to the [Z] pickup hand, so we click those
+        instead of trusting the key.
+        """
+        hit = self.find(
+            frame,
+            [name],
+            threshold=0.70,
+            scales=self._hot_scales(),
+            roi=ANCHOR_ROIS[name],
+            mode=f"hud_hotkey:{name}",
+        )
+        if hit is None:
+            return None
+        x, y = hit.x + hit.w // 2, hit.y + hit.h // 2
+        return MatchResult(name, hit.score, x, y, 0, 0, frame.left + x, frame.top + y)
+
+    def _open_bag_page(self, frame: Frame) -> bool:
+        """Ask the game for the bag page: click the [B] HUD button, else key B."""
+        button = self._hud_hotkey_button(frame, "bag/bag_toggle_button")
+        if button is not None:
+            return self.act_click(button, "PublicBackpackDepositB")
+        return self.act_key("b", "PublicBackpackDepositB")
+
     def _bag_layout(self, frame: Frame) -> BagLayout | None:
         """Fresh-confirm the bag page (spec step 4) and the public bag (step 5).
 
@@ -4468,10 +4499,10 @@ class Mediator:
                 return None
             if not self._is_in_game_hud(frame):
                 return None
-            if self.act_key("b", "PublicBackpackDepositB"):
+            if self._open_bag_page(frame):
                 self._public_bag_fsm = fsm.request_bag_open(now)
                 self._public_bag_next_at = now + 1.0
-                print("[L1] 公共背包：按 B 打开背包页")
+                print("[L1] 公共背包：请求打开背包页")
                 return LoopAction.Continue
             return None
 
@@ -11994,10 +12025,18 @@ class Mediator:
             return LoopAction.Continue
 
         if self._l1_cycle_step == "pickup":
-            # 1. 拾取 Z（一键拾取到背包，兜住掉在地上没进包的道具）
-            if now >= self._pickup_next_at and self.act_key("z", "Pickup-Z"):
-                self._pickup_next_at = now + 10.0
-                self._main_line_since = now
+            # 1. 拾取 Z（一键拾取到背包，兜住掉在地上没进包的道具）。
+            #    和背包同理：优先点 HUD 上的 [Z] 按钮，键盘只作兜底。
+            if now >= self._pickup_next_at:
+                pickup_button = self._hud_hotkey_button(frame, "bag/hud_pickup_button")
+                picked = (
+                    self.act_click(pickup_button, "Pickup-Z")
+                    if pickup_button is not None
+                    else self.act_key("z", "Pickup-Z")
+                )
+                if picked:
+                    self._pickup_next_at = now + 10.0
+                    self._main_line_since = now
             if self._hitch_enabled():
                 # 蹭车不吃丹、不用英雄卡：那是队伍资产，只负责搬进公共背包。
                 self._advance_l1_cycle("pickup")

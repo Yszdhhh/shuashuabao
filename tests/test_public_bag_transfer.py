@@ -259,13 +259,32 @@ class MediatorPublicBagTests(unittest.TestCase):
             self.assertIsNone(self.med._maybe_public_backpack_deposit(self.frame, 100.0))
         layout.assert_not_called()
 
-    def test_presses_b_only_on_a_confirmed_in_game_hud(self):
+    def test_opens_the_bag_by_clicking_the_hud_b_button(self):
+        """20260910 实机：按 B 五次全部 SUCCESS，背包一次都没开。
+
+        游戏不吃这记键；HUD 右缘那个 [B] 书本图标是可点的，鼠标才是本项目
+        有实机证据的注入路径。
+        """
+        button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 746, 0, 0, 1520, 746)
         with self._patch_layout(None), \
              patch.object(self.med, "_is_in_game_hud", return_value=True), \
-             patch.object(self.med, "act_key", return_value=True) as key:
+             patch.object(self.med, "_hud_hotkey_button", return_value=button), \
+             patch.object(self.med, "act_click", return_value=True) as click, \
+             patch.object(self.med, "act_key") as key:
+            self.assertEqual(self.med._maybe_public_backpack_deposit(self.frame, 100.0), LoopAction.Continue)
+        click.assert_called_once_with(button, "PublicBackpackDepositB")
+        key.assert_not_called()
+        self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_OPEN_REQUESTED)
+
+    def test_falls_back_to_the_b_key_when_the_button_is_not_found(self):
+        with self._patch_layout(None), \
+             patch.object(self.med, "_is_in_game_hud", return_value=True), \
+             patch.object(self.med, "_hud_hotkey_button", return_value=None), \
+             patch.object(self.med, "act_key", return_value=True) as key, \
+             patch.object(self.med, "act_click") as click:
             self.assertEqual(self.med._maybe_public_backpack_deposit(self.frame, 100.0), LoopAction.Continue)
         key.assert_called_once_with("b", "PublicBackpackDepositB")
-        self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_OPEN_REQUESTED)
+        click.assert_not_called()
 
     def test_open_page_with_nothing_to_deposit_is_zero_input(self):
         """常开面板的静息态：没源物品就什么都不做，也不关面板。"""
@@ -520,17 +539,24 @@ class MediatorPublicBagTests(unittest.TestCase):
             self.assertEqual(self.med._tick_main_line(self.frame), LoopAction.Continue)
         op.assert_called_once()
 
-    def test_hitch_pickup_presses_z_but_never_consumes_the_pill(self):
-        """Z 一键拾取兜住地上的道具；吞噬丹是队伍资产，蹭车不吃。"""
+    def test_hitch_pickup_clicks_the_hud_z_button_and_never_consumes_the_pill(self):
+        """Z 一键拾取兜住地上的道具；吞噬丹是队伍资产，蹭车不吃。
+
+        和 B 一样走 HUD 按钮：键盘注入在这台机器上没有实机证据。
+        """
+        button = MatchResult("bag/hud_pickup_button", 1.0, 1520, 704, 0, 0, 1520, 704)
         self.med._l1_cycle_step = "pickup"
         self.med._hitch_pressure_transferred = True
         with ExitStack() as stack:
             for name in self._MAIN_LINE_GATES:
                 stack.enter_context(patch.object(self.med, name, return_value=None))
+            stack.enter_context(patch.object(self.med, "_hud_hotkey_button", return_value=button))
+            click = stack.enter_context(patch.object(self.med, "act_click", return_value=True))
             key = stack.enter_context(patch.object(self.med, "act_key", return_value=True))
             use = stack.enter_context(patch.object(self.med, "_maybe_use_inventory_item"))
             self.med._tick_main_line(self.frame)
-        key.assert_called_once_with("z", "Pickup-Z")
+        click.assert_called_once_with(button, "Pickup-Z")
+        key.assert_not_called()
         use.assert_not_called()
         self.assertEqual(self.med._l1_cycle_step, "public_bag")
 
