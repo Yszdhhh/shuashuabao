@@ -143,6 +143,30 @@ class HitchTimeCaveBossTests(unittest.TestCase):
         self.assertEqual(act.call_args.args[1], "CloseArchivePanel")
         self.assertEqual(med._post_game_route, "heirloom")
 
+    def test_hitch_time_cave_click_still_on_panel_closes_and_routes_heirloom(self) -> None:
+        """点完时光之穴后面板还在时，不能停在 boss_active 零输入。"""
+        med = _hitch_mediator()
+        med._post_game_pending = True
+        med._post_game_route = "boss_active"
+        med._archive_challenge_index = 8
+        med._hitch_postgame_hero_selected = True
+        med._time_cave_boss_done = True
+        frame = _frame()
+        close_hit = MatchResult("lobby/archive_panel_close", 0.95, 1500, 100, 40, 40, 1520, 120)
+        with patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+                patch.object(med, "_maybe_click_archive_challenge", return_value=None), \
+                patch.object(med, "_find_archive_panel_close", return_value=close_hit), \
+                patch.object(med, "act_click", return_value=True) as act, \
+                patch.object(med, "stop") as stop:
+            action = med._tick_main_line(frame)
+        self.assertIs(action, LoopAction.Continue)
+        stop.assert_not_called()
+        act.assert_called_once_with(close_hit, "CloseArchivePanel")
+        self.assertEqual(med._post_game_route, "heirloom")
+
+
 class HitchArchiveChallengeRejectionTests(unittest.TestCase):
     def test_hitch_archive_challenge_click_rejection_cooldown_and_skip(self) -> None:
         med = _hitch_mediator()

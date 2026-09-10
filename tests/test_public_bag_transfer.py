@@ -113,6 +113,8 @@ class BagLayoutGeometryTests(unittest.TestCase):
         self.assertTrue(layout.inside_personal_surface(*layout.item_bar_slot_center(1)))
         self.assertFalse(layout.inside_personal_surface(*layout.public_slot_center(0, 0)))
         self.assertTrue(layout.inside_public_grid(*layout.public_slot_center(4, 4)))
+        self.assertTrue(layout.inside_personal_grid(*layout.personal_slot_center(0, 0)))
+        self.assertFalse(layout.inside_personal_grid(*layout.item_bar_slot_center(1)))
 
 
 class PublicBagFSMTests(unittest.TestCase):
@@ -137,6 +139,10 @@ class PublicBagFSMTests(unittest.TestCase):
         fsm = fsm.observe(0.7, bag_visible=True, deposit_confirmed=True)
         self.assertEqual(fsm.deposits, 2)
         self.assertIs(fsm.phase, PublicBagPhase.BAG_VISIBLE)
+        fsm = fsm.request_close(0.8)
+        self.assertIs(fsm.phase, PublicBagPhase.CLOSE_REQUESTED)
+        fsm = fsm.observe(0.9, bag_visible=False)
+        self.assertIs(fsm.phase, PublicBagPhase.IDLE)
 
     def test_idle_round_holds_the_open_page_without_timing_out(self):
         """整局没东西可搬也不是失败：面板留着，零输入等下一件掉落。"""
@@ -276,16 +282,18 @@ class MediatorPublicBagTests(unittest.TestCase):
         key.assert_not_called()
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_OPEN_REQUESTED)
 
-    def test_deposit_chain_also_runs_on_the_post_game_plaza(self):
-        """打完这局在广场把手里剩下的交出去，是这条链最自然的收尾。
-
-        广场上 _is_in_game_hud 是 False（那是局内 HUD 的判据），只认它等于把
-        战后广场整个排除掉。
-        """
+    def test_deposit_chain_does_not_open_on_the_post_game_plaza(self):
+        """广场上开背包会挡住存档/传家宝 NPC，局内才允许开。"""
         button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 744, 0, 0, 1520, 744)
-        with self._patch_layout(None),              patch.object(self.med, "_is_in_game_hud", return_value=False),              patch.object(self.med, "_post_game_state", return_value="NPC_HUB"),              patch.object(self.med, "_hud_hotkey_button", return_value=button),              patch.object(self.med, "act_click", return_value=True) as click:
-            self.assertEqual(self.med._maybe_public_backpack_deposit(self.frame, 100.0), LoopAction.Continue)
-        click.assert_called_once_with(button, "PublicBackpackDepositB")
+        with self._patch_layout(None), \
+             patch.object(self.med, "_is_in_game_hud", return_value=False), \
+             patch.object(self.med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(self.med, "_hud_hotkey_button", return_value=button), \
+             patch.object(self.med, "act_click") as click, \
+             patch.object(self.med, "act_key") as key:
+            self.assertIsNone(self.med._maybe_public_backpack_deposit(self.frame, 100.0))
+        click.assert_not_called()
+        key.assert_not_called()
 
     def test_deposit_chain_stays_silent_on_an_unclassified_page(self):
         """既不是局内 HUD 也不是广场：零输入，别去猜。"""
@@ -315,18 +323,21 @@ class MediatorPublicBagTests(unittest.TestCase):
         key.assert_called_once_with("b", "PublicBackpackDepositB")
         click.assert_not_called()
 
-    def test_open_page_with_nothing_to_deposit_is_zero_input(self):
-        """常开面板的静息态：没源物品就什么都不做，也不关面板。"""
+    def test_open_page_with_nothing_to_deposit_closes_the_bag(self):
+        """没源物品就关面板，避免一直挡住战后广场。"""
         self._bag_visible()
+        button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 746, 0, 0, 1520, 746)
         with self._patch_layout(self.layout), \
              patch.object(self.med, "_public_bag_source", return_value=None), \
+             patch.object(self.med, "_hud_hotkey_button", return_value=button), \
+             patch.object(self.med, "act_click", return_value=True) as click, \
              patch.object(self.med, "act_key") as key, \
-             patch.object(self.med, "act_click") as click, \
              patch.object(self.med, "act_right_click") as right:
             self.assertEqual(self.med._maybe_public_backpack_deposit(self.frame, 100.0), LoopAction.Continue)
-        for spy in (key, click, right):
-            spy.assert_not_called()
-        self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_VISIBLE)
+        click.assert_called_once_with(button, "PublicBackpackClose")
+        key.assert_not_called()
+        right.assert_not_called()
+        self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.CLOSE_REQUESTED)
 
     def test_source_item_is_right_clicked_never_left_clicked(self):
         self._bag_visible()
@@ -372,12 +383,31 @@ class MediatorPublicBagTests(unittest.TestCase):
         click.assert_not_called()
         self.assertEqual(self.med._public_bag_fsm.source_cell, (0, 1))
 
-    def test_deposit_left_clicks_the_first_verified_empty_public_slot(self):
+    def test_item_bar_source_stashes_into_the_personal_grid(self):
+        """物品栏先短距离进个人格，不直接甩到远处的公共格。"""
         self._bag_visible(
             phase=PublicBagPhase.SOURCE_SELECTED,
             source_id="item_bar_1",
             source_kind="item_bar",
             source_slot=1,
+            deadline=200.0,
+        )
+        x, y = self.layout.personal_slot_center(0, 0)
+        stash_hit = MatchResult("personal_bag_slot_0_0", 1.0, x, y, 0, 0, x, y)
+        with self._patch_layout(self.layout), \
+             patch.object(self.med, "_public_bag_empty_personal_slot", return_value=(0, 0, stash_hit)), \
+             patch.object(self.med, "act_click", return_value=True) as click:
+            self.assertEqual(self.med._maybe_public_backpack_deposit(self.frame, 100.0), LoopAction.Continue)
+        click.assert_called_once_with(stash_hit, "PublicBackpackStash")
+        self.assertEqual(self.med._public_bag_fsm.target_kind, "personal")
+        self.assertEqual(self.med._public_bag_fsm.target_slot, (0, 0))
+
+    def test_deposit_left_clicks_the_first_verified_empty_public_slot(self):
+        self._bag_visible(
+            phase=PublicBagPhase.SOURCE_SELECTED,
+            source_id="personal_0_1",
+            source_kind="personal",
+            source_cell=(0, 1),
             deadline=200.0,
         )
         x, y = self.layout.public_slot_center(*GT_DEPOSIT_SLOT)
@@ -389,14 +419,15 @@ class MediatorPublicBagTests(unittest.TestCase):
         click.assert_called_once_with(slot_hit, "PublicBackpackDeposit")
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.DEPOSIT_REQUESTED)
         self.assertEqual(self.med._public_bag_fsm.target_slot, (3, 0))
+        self.assertEqual(self.med._public_bag_fsm.target_kind, "public")
 
-    def test_a_deposit_target_inside_the_personal_bag_is_refused(self):
-        """铁律：左键绝不落在个人背包/物品栏，哪怕定位层给出了这样的目标。"""
+    def test_a_public_deposit_target_inside_the_personal_bag_is_refused(self):
+        """从个人格往公共格搬时，左键绝不能落回个人表面。"""
         self._bag_visible(
             phase=PublicBagPhase.SOURCE_SELECTED,
-            source_id="item_bar_1",
-            source_kind="item_bar",
-            source_slot=1,
+            source_id="personal_0_1",
+            source_kind="personal",
+            source_cell=(0, 1),
             deadline=200.0,
         )
         x, y = self.layout.personal_slot_center(3, 0)
@@ -450,6 +481,7 @@ class MediatorPublicBagTests(unittest.TestCase):
         with self._patch_layout(self.layout), \
              patch.object(self.med, "_public_bag_source", return_value=source), \
              patch.object(self.med, "_public_bag_empty_slot", return_value=None), \
+             patch.object(self.med, "_public_bag_empty_personal_slot", return_value=None), \
              patch.object(self.med, "act_right_click") as right, \
              patch.object(self.med, "act_click") as click:
             self.med._maybe_public_backpack_deposit(self.frame, 100.0)
@@ -476,7 +508,7 @@ class MediatorPublicBagTests(unittest.TestCase):
             spy.assert_not_called()
         self.assertIsNone(self.med._trace_post_confirm())
 
-    def test_confirmed_deposit_reports_post_confirm_true_and_keeps_the_page(self):
+    def test_confirmed_deposit_reports_post_confirm_true_then_closes_when_empty(self):
         self._bag_visible(
             phase=PublicBagPhase.DEPOSIT_REQUESTED,
             source_id="item_bar_1",
@@ -486,14 +518,18 @@ class MediatorPublicBagTests(unittest.TestCase):
             deadline=200.0,
             opened_by_us=True,
         )
+        button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 746, 0, 0, 1520, 746)
         with self._patch_layout(self.layout), \
              patch.object(self.med, "_public_bag_deposit_confirmed", return_value=True), \
              patch.object(self.med, "_public_bag_source", return_value=None), \
+             patch.object(self.med, "_hud_hotkey_button", return_value=button), \
+             patch.object(self.med, "act_click", return_value=True) as click, \
              patch.object(self.med, "act_key") as key:
             self.med._maybe_public_backpack_deposit(self.frame, 100.0)
         self.assertEqual(self.med._public_bag_fsm.deposits, 1)
-        self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_VISIBLE)
         self.assertIs(self.med._trace_post_confirm(), True)
+        click.assert_called_once_with(button, "PublicBackpackClose")
+        self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.CLOSE_REQUESTED)
         key.assert_not_called()
 
     def test_failed_deposit_reports_post_confirm_false(self):

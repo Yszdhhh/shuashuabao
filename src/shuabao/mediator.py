@@ -4186,28 +4186,21 @@ class Mediator:
     # 蹭车 = 打辅助：羁绊/技能/进化都是升级自己的动作，一律不碰。可移动的
     # 装备、宝物与消耗品都交给车队；装备栏 1 号固定为自己的武器，永远不尝试。
     #
-    # 20260910 实机录像（背包.mp4，多人房）确认了操作节奏：按一次 B 之后面板
-    # 全程不关，掉落先落在 物品栏/个人背包，再逐件搬进公共背包，公共格按
-    # (0,0)→(0,1)→(0,2) 行优先填。本实现照此工作。
+    # 20260910 实机：面板常开会挡住战后广场 NPC。有货才开，物品栏先短
+    # 距离进个人格，再迁公共格，搬完立刻关。
 
     _PUBLIC_BAG_ANCHORS = ("bag/public_bag_title", "bag/bag_sell_equipment")
     _PUBLIC_BAG_ANCHOR_THRESHOLD = 0.80
     _PUBLIC_BAG_PILL_TEMPLATES = ("danGif", "swallow_pill")
 
     def _public_bag_surface_ok(self, frame: Frame) -> bool:
-        """局内 HUD，或已分类的战后挑战广场。
+        """Only the in-game HUD may open the bag.
 
-        战后广场同样有完整 HUD 和可点的 [B] 按钮（实机帧 f0133 上 0.842），队友
-        也还在房里，所以「打完这局把手里剩下的交出去」是这条链最自然的收尾时机。
-        但 ``_is_in_game_hud`` 在广场上返回 False（那是局内 HUD 的判据），只认它
-        就等于把战后广场排除在外。
-
-        放宽只影响「要不要去开背包」这一步；真正的安全性仍然由 ``_bag_layout``
-        的双锚点确认兜底——面板没被确认，右键和左键都发不出去。
+        20260910 hitch: an open bag on NPC_HUB covers 存档挑战/传家宝挑战,
+        so the plaza NPCs never get a click. Drain during the fight, close,
+        and leave the plaza to the post-game route.
         """
-        if self._is_in_game_hud(frame):
-            return True
-        return self._post_game_state(frame) == "NPC_HUB"
+        return self._is_in_game_hud(frame)
 
     def _hud_hotkey_button(self, frame: Frame, name: str) -> MatchResult | None:
         """Locate one of the right-edge clickable hotkey twins ([B] / [Z]).
@@ -4233,12 +4226,15 @@ class Mediator:
         x, y = hit.x + hit.w // 2, hit.y + hit.h // 2
         return MatchResult(name, hit.score, x, y, 0, 0, frame.left + x, frame.top + y)
 
-    def _open_bag_page(self, frame: Frame) -> bool:
-        """Ask the game for the bag page: click the [B] HUD button, else key B."""
+    def _toggle_bag_page(self, frame: Frame, reason: str) -> bool:
+        """Click the HUD [B] book, else key B. Same control opens and closes."""
         button = self._hud_hotkey_button(frame, "bag/bag_toggle_button")
         if button is not None:
-            return self.act_click(button, "PublicBackpackDepositB")
-        return self.act_key("b", "PublicBackpackDepositB")
+            return self.act_click(button, reason)
+        return self.act_key("b", reason)
+
+    def _open_bag_page(self, frame: Frame) -> bool:
+        return self._toggle_bag_page(frame, "PublicBackpackDepositB")
 
     def _bag_layout(self, frame: Frame) -> BagLayout | None:
         """Fresh-confirm the bag page (spec step 4) and the public bag (step 5).
@@ -4357,6 +4353,34 @@ class Mediator:
             )
         return None
 
+    def _public_bag_empty_personal_slot(
+        self, frame: Frame, layout: BagLayout
+    ) -> tuple[int, int, MatchResult] | None:
+        """First verified empty personal-grid cell for the short item-bar stash."""
+        for row, col in layout.public_slots():
+            rect = layout.personal_slot_rect(row, col)
+            if not self._bag_slot_empty(frame, rect):
+                continue
+            center = layout.personal_slot_center(row, col)
+            if center is None:
+                continue
+            x, y = center
+            return (
+                row,
+                col,
+                MatchResult(
+                    f"personal_bag_slot_{row}_{col}",
+                    1.0,
+                    x,
+                    y,
+                    0,
+                    0,
+                    frame.left + x,
+                    frame.top + y,
+                ),
+            )
+        return None
+
     def _public_bag_source(self, frame: Frame, layout: BagLayout) -> dict | None:
         """Spec step 1: fresh-confirm the next thing to hand to the team.
 
@@ -4437,8 +4461,17 @@ class Mediator:
             return layout.personal_slot_rect(*fsm.source_cell)
         return None
 
-    def _public_bag_left_click_allowed(self, layout: BagLayout, hit: MatchResult) -> bool:
-        """铁律：左键只允许落在公共背包格，绝不落在个人背包/物品栏。"""
+    def _public_bag_left_click_allowed(
+        self, layout: BagLayout, hit: MatchResult, *, target_kind: str = "public"
+    ) -> bool:
+        """Left click: empty personal cell for stash, or public cell for deposit.
+
+        Occupied personal cells and the 物品栏 stay right-click-only.
+        """
+        if target_kind == "personal":
+            return layout.inside_personal_grid(hit.x, hit.y) and not (
+                layout.item_bar_slot_index(hit.x, hit.y) is not None
+            )
         if layout.inside_personal_surface(hit.x, hit.y):
             return False
         return layout.inside_public_grid(hit.x, hit.y)
@@ -4457,7 +4490,12 @@ class Mediator:
         if layout is None or target is None:
             return None
         row, col = target
-        if self._bag_slot_empty(frame, layout.public_slot_rect(row, col)):
+        target_rect = (
+            layout.personal_slot_rect(row, col)
+            if fsm.target_kind == "personal"
+            else layout.public_slot_rect(row, col)
+        )
+        if self._bag_slot_empty(frame, target_rect):
             return None
         source_rect = self._public_bag_source_rect(layout, fsm)
         if source_rect is None:
@@ -4474,13 +4512,14 @@ class Mediator:
                     return True
         return None
 
-    def _maybe_public_backpack_deposit(self, frame: Frame, now: float) -> LoopAction | None:
-        """PUBLIC_BACKPACK_DEPOSIT operation (GT spec 2.3).
+    def _public_bag_close_page(self, frame: Frame, fsm: PublicBagFSM, now: float) -> LoopAction:
+        if self._toggle_bag_page(frame, "PublicBackpackClose"):
+            self._public_bag_fsm = fsm.request_close(now)
+            print("[L1] 公共背包：无待搬物品，关闭背包页")
+        return LoopAction.Continue
 
-        One item at a time, one input per tick, every step gated on a fresh
-        frame, and the bag page held open between deposits.  Returns ``None``
-        when there is nothing to do so the caller keeps its own cycle moving.
-        """
+    def _maybe_public_backpack_deposit(self, frame: Frame, now: float) -> LoopAction | None:
+        """PUBLIC_BACKPACK_DEPOSIT: stash item-bar → personal, then personal → public, then close."""
         if not self._hitch_enabled():
             return None
         if self._pending_action is not None and time.time() < self._pending_action.deadline:
@@ -4496,10 +4535,10 @@ class Mediator:
         )
         fsm = previous.observe(now, bag_visible=bag_visible, deposit_confirmed=deposit_confirmed)
         if previous.phase is PublicBagPhase.DEPOSIT_REQUESTED and fsm.phase is not previous.phase:
-            # 存入的业务后置确认落定在这一 tick，写进 trace 的 post_confirm。
             self._tick_post_confirm = fsm.deposits > previous.deposits
             if fsm.deposits > previous.deposits:
-                print(f"[L1] 公共背包：第 {fsm.deposits} 件存入已确认，面板保持打开")
+                hop = "个人格" if previous.target_kind == "personal" else "公共格"
+                print(f"[L1] 公共背包：第 {fsm.deposits} 件已确认进{hop}")
         if fsm.phase is PublicBagPhase.ABORTED and previous.phase is not PublicBagPhase.ABORTED:
             print(f"[L1] 公共背包流转中止：{fsm.abort_reason}")
             if fsm.abort_reason.startswith("deposit_postcondition"):
@@ -4508,10 +4547,10 @@ class Mediator:
 
         if fsm.phase is PublicBagPhase.IDLE:
             if bag_visible and fsm.can_adopt_open_page():
-                # 面板已经开着（我们上次开的、或者玩家开的）：直接接管，
-                # 零输入，不受重开冷却影响。
-                self._public_bag_fsm = fsm.confirm_bag_visible(now)
-                return LoopAction.Continue
+                if layout is not None and self._public_bag_source(frame, layout) is not None:
+                    self._public_bag_fsm = fsm.confirm_bag_visible(now)
+                    return LoopAction.Continue
+                return self._public_bag_close_page(frame, fsm, now)
             if not fsm.can_start(now) or now < self._public_bag_next_at:
                 return None
             if not self._public_bag_surface_ok(frame):
@@ -4524,19 +4563,20 @@ class Mediator:
             return None
 
         if fsm.phase is PublicBagPhase.BAG_OPEN_REQUESTED:
-            return LoopAction.Continue  # 零输入等待背包页
+            return LoopAction.Continue
 
         if fsm.phase is PublicBagPhase.BAG_VISIBLE:
-            if layout is None:  # observe() already aborted; never click blind
+            if layout is None:
                 return LoopAction.Continue
             source = self._public_bag_source(frame, layout)
             if source is None:
-                # 面板保持打开、零输入等下一件掉落；这不是失败。
-                return LoopAction.Continue
-            if self._public_bag_empty_slot(frame, layout) is None:
+                return self._public_bag_close_page(frame, fsm, now)
+            if (
+                self._public_bag_empty_slot(frame, layout) is None
+                and self._public_bag_empty_personal_slot(frame, layout) is None
+            ):
                 self._public_bag_fsm = fsm.abort("public_bag_full_or_unverified", now)
                 return LoopAction.Continue
-            # 铁律：源物品格只右键，左键会当场使用/装备掉队伍资产。
             if self.act_right_click(source["hit"], "PublicBackpackDepositRightClick"):
                 source_rect = (
                     layout.item_bar_slot_probe_rect(source["slot_index"])
@@ -4557,21 +4597,36 @@ class Mediator:
         if fsm.phase is PublicBagPhase.SOURCE_SELECTED:
             if layout is None:
                 return LoopAction.Continue
-            slot = self._public_bag_empty_slot(frame, layout)
+            target_kind = "public"
+            slot = None
+            if fsm.source_kind == "item_bar":
+                slot = self._public_bag_empty_personal_slot(frame, layout)
+                if slot is not None:
+                    target_kind = "personal"
+            if slot is None:
+                slot = self._public_bag_empty_slot(frame, layout)
+                target_kind = "public"
             if slot is None:
                 self._public_bag_fsm = fsm.abort("public_bag_full_or_unverified", now)
                 return LoopAction.Continue
             row, col, hit = slot
-            if not self._public_bag_left_click_allowed(layout, hit):
+            if not self._public_bag_left_click_allowed(layout, hit, target_kind=target_kind):
                 self._public_bag_fsm = fsm.abort("deposit_target_outside_public_bag", now)
                 return LoopAction.Continue
-            if self.act_click(hit, "PublicBackpackDeposit"):
-                self._public_bag_fsm = fsm.request_deposit(row, col, now)
-                print(f"[L1] 公共背包：左键存入空格 ({row},{col})")
+            reason = "PublicBackpackStash" if target_kind == "personal" else "PublicBackpackDeposit"
+            if self.act_click(hit, reason):
+                self._public_bag_fsm = fsm.request_deposit(
+                    row, col, now, target_kind=target_kind
+                )
+                hop = "个人格" if target_kind == "personal" else "公共格"
+                print(f"[L1] 公共背包：左键放入{hop} ({row},{col})")
             return LoopAction.Continue
 
         if fsm.phase is PublicBagPhase.DEPOSIT_REQUESTED:
-            return LoopAction.Continue  # 零输入等待后置确认
+            return LoopAction.Continue
+
+        if fsm.phase is PublicBagPhase.CLOSE_REQUESTED:
+            return LoopAction.Continue
 
         return LoopAction.Continue
 
@@ -4602,14 +4657,20 @@ class Mediator:
             return result
         row, col = target
         result["target_slot"] = [row, col]
+        result["target_kind"] = fsm.target_kind
+        slot_rect = (
+            (lambda lay: lay.personal_slot_rect(row, col))
+            if fsm.target_kind == "personal"
+            else (lambda lay: lay.public_slot_rect(row, col))
+        )
         if before_frame is not None:
             before_layout = self._bag_layout(before_frame)
             if before_layout is not None and not self._bag_slot_empty(
-                before_frame, before_layout.public_slot_rect(row, col)
+                before_frame, slot_rect(before_layout)
             ):
                 result["state"] = "target_slot_was_not_empty_before"
                 return result
-        if self._bag_slot_empty(frame, layout.public_slot_rect(row, col)):
+        if self._bag_slot_empty(frame, slot_rect(layout)):
             result["state"] = "target_slot_still_empty"
             return result
         result["observed"] = True
@@ -5725,7 +5786,12 @@ class Mediator:
             if post_game == "ARCHIVE_PANEL":
                 self._time_cave_boss_done = True
                 self._boss_challenge_next_at = now + self.settings.ui_action_interval_s
-                self._post_game_route = "boss_active" if self._team_mode_enabled() else "archive"
+                if self._hitch_enabled():
+                    self._post_game_route = "archive"
+                else:
+                    self._post_game_route = (
+                        "boss_active" if self._team_mode_enabled() else "archive"
+                    )
             elif post_game == "HEIRLOOM_DIALOG" and getattr(self, "_post_game_pending", False):
                 self._post_game_route = "heirloom_active"
                 self._heirloom_boss_clicked_at = now
@@ -11378,6 +11444,22 @@ class Mediator:
         # an unexpected modal cannot trigger a second click.
         if self._secret_realm_entering_since is not None:
             return self._observe_secret_realm_entry(frame, now, post_game)
+        if self._hitch_enabled() and post_game == "NPC_HUB":
+            bag_open = self._bag_layout(frame) is not None
+            fsm = self._public_bag_fsm
+            if bag_open:
+                if fsm.phase is PublicBagPhase.CLOSE_REQUESTED:
+                    self._public_bag_fsm = fsm.observe(now, bag_visible=True)
+                    return LoopAction.Continue
+                print("[med] 战后广场背包仍开着，先关闭以免挡住 NPC")
+                if self._toggle_bag_page(frame, "PublicBackpackClose"):
+                    self._public_bag_fsm = PublicBagFSM(
+                        deposits=fsm.deposits,
+                        aborts=fsm.aborts,
+                    ).request_close(now)
+                return LoopAction.Continue
+            if fsm.phase is PublicBagPhase.CLOSE_REQUESTED:
+                self._public_bag_fsm = fsm.observe(now, bag_visible=False)
         if post_game == "ARCHIVE_PANEL" and self._post_game_archive_pending_only:
             if frame is getattr(self, "_prev_frame", None):
                 print("[med] 存档 pending+X 捕获未变化，不计入第二帧（零动作）")
@@ -11533,8 +11615,15 @@ class Mediator:
                     self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
                 return LoopAction.Continue
             if getattr(self, "_post_game_route", "") == "boss_active":
-                print("[med] 时光之穴 Boss 已发起，等待存档面板消失和局内 HUD（零动作）")
-                return LoopAction.Continue
+                if self._hitch_enabled():
+                    # 20260910 hitch: 点了时光之穴后面板还在，旧逻辑永久零输入
+                    # 等 HUD，存档窗关不上，传家宝 NPC 永远走不到。
+                    print("[med] 时光之穴点击后仍在存档面板，关闭面板并转传家宝")
+                    self._post_game_route = "archive"
+                    self._time_cave_boss_done = True
+                else:
+                    print("[med] 时光之穴 Boss 已发起，等待存档面板消失和局内 HUD（零动作）")
+                    return LoopAction.Continue
             # 存档面板的八个挑战先逐项尝试；这不会复制生产策略，只消费已分类
             # 页面上的稳定卡位。完成八卡后先尝试时光之穴 Boss，全部完成后关闭面板并转传家宝。
             archive_action = self._maybe_click_archive_challenge(frame, now)

@@ -1099,6 +1099,34 @@ class P1B0PostGameTests(unittest.TestCase):
         click.assert_called_once_with(entry, "OpenHeirloomChallenges")
         self.assertEqual(med._post_game_route, "heirloom_active")
 
+    def test_hitch_hub_closes_open_bag_before_heirloom_npc(self):
+        """广场上背包还开着时先关背包，不点传家宝 NPC。"""
+        from shuabao.policy.public_bag import BagLayout, PublicBagPhase
+
+        med = Mediator(Settings(mode_id="lobby_hitch", cjb_boss="54莫阿姆"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "hub bag")
+        med._hitch_pressure_transferred = True
+        med._post_game_pending = True
+        med._post_game_route = "heirloom"
+        frame = load_fixture_frame("fixtures/replay/challenge_npc_hub.png")
+        layout = BagLayout(670.0, 82.0, 1.0)
+        button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 746, 0, 0, 1520, 746)
+        entry = MatchResult("post_game_heirloom_npc", 0.64, 1000, 340, 100, 30, 1050, 350)
+
+        with patch.object(med, "_post_game_state", return_value="NPC_HUB"), \
+             patch.object(med, "_bag_layout", return_value=layout), \
+             patch.object(med, "_hud_hotkey_button", return_value=button), \
+             patch.object(med, "_post_game_hub_entry_click", return_value=entry), \
+             patch.object(med, "_find_failure_gift", return_value=None), \
+             patch.object(med, "_hitch_ocr_text", return_value=""), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once_with(button, "PublicBackpackClose")
+        self.assertEqual(med._post_game_route, "heirloom")
+        self.assertIs(med._public_bag_fsm.phase, PublicBagPhase.CLOSE_REQUESTED)
+
     def test_team_archive_without_heirloom_routes_to_heirloom_fallback(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "team archive route")
