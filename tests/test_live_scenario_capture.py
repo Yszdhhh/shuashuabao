@@ -980,8 +980,19 @@ def test_lobby_hitch_settings_and_bootstrap() -> None:
     with patch.object(Settings, "load_official", return_value=Settings(auto_secret_realm=True)):
         runtime_settings = live_capture._prepare_settings(None, "hitch_runtime", live_input=False)
     assert runtime_settings.mode_id == "lobby_hitch"
+    assert runtime_settings.cycle_num == runtime_settings.hitch_cycle_num
     assert runtime_settings.auto_create_room is False
     assert runtime_settings.auto_secret_realm is False
+
+    with patch.object(
+        Settings,
+        "load_official",
+        return_value=Settings(hitch_cycle_num=2, cycle_num=3, auto_secret_realm=True),
+    ):
+        chain_settings = live_capture._prepare_settings(None, "hitch_lobby_chain", live_input=True)
+    assert chain_settings.mode_id == "lobby_hitch"
+    assert chain_settings.cycle_num == 2
+    assert chain_settings.hitch_cycle_num == 2
 
 
 def test_lobby_hitch_allowed_reasons() -> None:
@@ -997,6 +1008,30 @@ def test_lobby_hitch_allowed_reasons() -> None:
         "HitchSelectTab", "HitchDismissPlatformModalEsc",
         "HitchDismissPlatformModalClose", "HitchLeaveRoom", "HitchGoHome",
     }
+    assert "OpenArchiveChallenges" in live_capture._probe_allowed_reasons("archive_challenge")
+    assert "OpenHeirloomChallenges" in live_capture._probe_allowed_reasons("heirloom")
+    assert "DismissHeirloomDialog" not in live_capture._probe_allowed_reasons("heirloom")
+
+
+def test_heirloom_probe_bootstrap_uses_classified_open_page() -> None:
+    med = Mediator(Settings(cjb_boss="01暴掠龙"), ROOT)
+    frame = _fixture_frame()
+    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"):
+        bootstrap = _bootstrap_target_probe(med, "heirloom", frame)
+    assert bootstrap["post_game_route"] == "heirloom_active"
+    assert bootstrap["classified_start_surface"] == "HEIRLOOM_DIALOG"
+    assert med._post_game_pending is True
+    assert med._post_game_route == "heirloom_active"
+
+
+def test_heirloom_probe_bootstrap_keeps_plaza_route_on_npc_hub() -> None:
+    med = Mediator(Settings(cjb_boss="01暴掠龙"), ROOT)
+    frame = _fixture_frame()
+    with patch.object(med, "_post_game_state", return_value="NPC_HUB"):
+        bootstrap = _bootstrap_target_probe(med, "heirloom", frame)
+    assert bootstrap["post_game_route"] == "heirloom"
+    assert bootstrap["classified_start_surface"] == "NPC_HUB"
+    assert med._post_game_route == "heirloom"
 
 
 def test_lobby_search_requires_input_and_room_list_pixel_change() -> None:

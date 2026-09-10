@@ -1632,7 +1632,13 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             "ArchiveChallenge-blessing", "ArchiveChallenge-skill2",
             "BossConfigured", "BossConfigured-scroll",
         },
-        "heirloom": {"BossConfigured", "BossConfigured-scroll"},
+        "heirloom": {
+            # H may begin on the post-game plaza. Opening the verified
+            # heirloom NPC is production behavior, so the narrow probe must
+            # not cancel it before the Boss selection branch can run.
+            "OpenHeirloomChallenges", "BossConfigured", "BossConfigured-scroll",
+            "BossLastVisibleFallback", "BossLastVisibleFallback-scroll",
+        },
         "secret_realm": {"OpenGreatRift", "ConfirmGreatRift"},
         "lobby_hitch": {
             "HitchRefresh", "HitchJoin", "HitchGoHome", "HitchLeaveRoom",
@@ -1672,7 +1678,8 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
         "inventory_hero_card": {"UseInventory-hero-card"},
         "archive_challenge": {
             "OpenArchiveChallenges", "CloseArchivePanel",
-            "BossConfigured", "BossConfigured-scroll", "BossLastVisibleFallback",
+            "BossConfigured", "BossConfigured-scroll",
+            "BossLastVisibleFallback", "BossLastVisibleFallback-scroll",
             "ArchiveChallenge-skill", "ArchiveChallenge-strengthen",
             "ArchiveChallenge-gem", "ArchiveChallenge-loot",
             "ArchiveChallenge-key", "ArchiveChallenge-recast",
@@ -4512,6 +4519,13 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
         settings.auto_create_room = False
         settings.skip_password_rooms = True
         settings.never_quick_join = True
+    if target in {"lobby_hitch", "lobby_search", "hitch_runtime", "hitch_lobby_chain"}:
+        # The desktop runner projects this mode-specific value before it
+        # constructs Mediator. The harness constructs it directly, so make
+        # the same explicit projection here; otherwise a stale generic
+        # cycle_num can silently turn the requested two-round hitch run into
+        # a three-round one.
+        settings.cycle_num = int(getattr(settings, "hitch_cycle_num", settings.cycle_num) or 0)
     if target == "hitch_lobby_chain":
         # Full live chain: black merchant only buys a verified swallow pill;
         # the production treasure policy independently prioritizes green talismans.
@@ -4530,7 +4544,9 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
     return settings
 
 
-def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
+def _bootstrap_target_probe(
+    med: Mediator, target: str, frame: Frame | None = None
+) -> dict[str, Any]:
     """Seed only the existing production state required to enter a target mid-flow.
 
     The values are not a replacement FSM and never select/click anything.  They
@@ -4558,12 +4574,20 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
             "reason": "operator start condition confirms one completed evolution; existing inventory handler retains all recognition and postcondition gates",
         }
     if target in {"time_cave", "heirloom"}:
+        # The probe can begin at the NPC plaza or at the already-open list.
+        # Only the existing production classifier may distinguish the two.
+        post_game = med._post_game_state(frame) if _frame_is_valid(frame) else None
         med._post_game_pending = True
-        med._post_game_route = "archive" if target == "time_cave" else "heirloom"
+        med._post_game_route = (
+            "archive"
+            if target == "time_cave"
+            else ("heirloom_active" if post_game == "HEIRLOOM_DIALOG" else "heirloom")
+        )
         return {
             "post_game_pending": True,
             "post_game_route": med._post_game_route,
-            "reason": "target probe starts from the existing challenge plaza or already-open challenge panel",
+            "classified_start_surface": post_game,
+            "reason": "production classifier routes a verified challenge plaza or already-open challenge panel",
         }
     if target in {"lobby_hitch", "lobby_search", "s03_lobby_room_ready", "s05_lobby_search_join_ready"}:
         med.set_phase(Phase.LOBBY_ROOM, "lobby hitch target probe")
@@ -4609,7 +4633,10 @@ def _bootstrap_target_probe(med: Mediator, target: str) -> dict[str, Any]:
         return {
             "post_game_pending": True,
             "post_game_route": "archive",
-            "reason": "probe starts at the challenge plaza or an already-open archive panel; production owns the NPC click and the card policy",
+            "classified_start_surface": (
+                med._post_game_state(frame) if _frame_is_valid(frame) else None
+            ),
+            "reason": "production main-line handler opens the archive NPC from the plaza or continues an open archive panel",
         }
     if target != "secret_realm":
         return {}
@@ -4758,7 +4785,15 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             pass
     if runtime_root != repo_root:
         print(f"[source-injection] production runtime={runtime_root} sha={_commit_sha(runtime_root)}")
-    probe_bootstrap = _bootstrap_target_probe(med, target) if probe and execution_mode == "target_handler" else {}
+    # Post-game probes require the preflight frame to choose between a plaza
+    # and an already-open dialog. Do not seed a generic route before that
+    # authoritative production classification is available.
+    post_game_probe_targets = {"archive_challenge", "time_cave", "heirloom"}
+    probe_bootstrap = (
+        _bootstrap_target_probe(med, target)
+        if probe and execution_mode == "target_handler" and target not in post_game_probe_targets
+        else {}
+    )
     recorder = BundleRecorder(
         bundle_dir,
         repo_root=repo_root,
@@ -4809,6 +4844,16 @@ def _run_live_capture(args: argparse.Namespace, *, probe: bool = False) -> Path:
             "reason": "dry-run or Ground Truth capture without --live-input",
         })
         recorder.manifest["ready_for_gt"] = bool(dry_identity.get("ready_for_gt"))
+
+    if (
+        probe
+        and execution_mode == "target_handler"
+        and target in post_game_probe_targets
+        and _frame_is_valid(preflight_frame)
+    ):
+        probe_bootstrap = _bootstrap_target_probe(med, target, preflight_frame)
+        recorder.manifest["probe_bootstrap"] = probe_bootstrap
+        recorder._write_manifest()
 
     guard_events: list[dict[str, str]] = []
 
