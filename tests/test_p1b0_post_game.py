@@ -326,46 +326,93 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual([p[0] for p in points[:4]], sorted(p[0] for p in points[:4]))
         self.assertLess(points[0][1], points[4][1])
 
-    def test_hitch_archive_skips_zero_gem_and_still_clicks_key(self):
-        """A red 0/8 resource card cannot make the later key card disappear."""
-        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
-        frame = Frame(np.random.default_rng(7).integers(0, 255, (900, 1600, 3), dtype=np.uint8), hwnd=10001)
-        gem_x = int(frame.width * med._ARCHIVE_CHALLENGE_X[2])
-        gem_y = int(frame.height * med._ARCHIVE_CHALLENGE_Y[0])
-        frame.bgr[gem_y - 70:gem_y - 35, gem_x + 2:gem_x + 43] = (0, 0, 220)
-        loot_x = int(frame.width * med._ARCHIVE_CHALLENGE_X[3])
-        frame.bgr[gem_y - 70:gem_y - 35, loot_x + 2:loot_x + 43] = (255, 255, 255)
+    def test_archive_walks_all_eight_cards_left_to_right(self):
+        """Owner ruling 20260910: click every card once, left to right.
 
-        # C6 契约：_archive_hitch_card_unavailable 必须在解析为 UNAVAILABLE 时才跳过
-        with patch.object(med, "_archive_hitch_card_progress_state",
-                          side_effect=lambda f, idx: "UNAVAILABLE" if idx == 2 else "AVAILABLE"), \
-             patch.object(med, "_archive_hitch_card_unavailable", side_effect=lambda f, idx: idx == 2), \
-             patch.object(med, "act_click", return_value=True) as click:
-            self.assertEqual(med._maybe_click_archive_challenge(frame, 1.0), LoopAction.Continue)
-            self.assertEqual(med._archive_challenge_index, 1)
-            self.assertEqual(med._maybe_click_archive_challenge(frame, 2.0), LoopAction.Continue)
-            self.assertEqual(med._maybe_click_archive_challenge(frame, med._archive_challenge_next_at + 1.0), LoopAction.Continue)
-            self.assertEqual(med._maybe_click_archive_challenge(frame, med._archive_challenge_next_at + 1.0), LoopAction.Continue)
-
-        self.assertEqual(
-            [call.args[1] for call in click.call_args_list],
-            ["ArchiveChallenge-loot", "ArchiveChallenge-key", "ArchiveChallenge-blessing"],
-        )
-
-    def test_hitch_archive_completed_card_advances_without_click(self):
+        The 20260910 run clicked two of eight — four slots were never in the
+        team plan and OCR skipped two more. A 0/8 card now costs one wasted
+        click instead of silently dropping the card.
+        """
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
-        with patch.object(med, "_archive_hitch_card_progress_state", return_value="COMPLETED"), \
+        card = MatchResult("archive_card", 0.9, 600, 300, 40, 40, 620, 320)
+        clicked_labels: list[str] = []
+
+        def fake_completed(_frame, index):
+            return index < len(clicked_labels)
+
+        with patch.object(med, "_archive_challenge_completed", side_effect=fake_completed), \
+             patch.object(med, "_archive_hitch_card_progress_state",
+                          side_effect=lambda f, idx: "UNAVAILABLE" if idx == 2 else "AVAILABLE"), \
+             patch.object(med, "_find_archive_challenge_card", return_value=card), \
+             patch.object(med, "act_click", return_value=True) as click:
+            click.side_effect = lambda _hit, reason: clicked_labels.append(reason) or True
+            now = 1.0
+            for _ in range(8):
+                self.assertEqual(med._maybe_click_archive_challenge(frame, now), LoopAction.Continue)
+                now = med._archive_challenge_next_at + 0.1
+            self.assertIsNone(med._maybe_click_archive_challenge(frame, now))
+
+        self.assertEqual(
+            clicked_labels,
+            [f"ArchiveChallenge-{name}" for name in med._ARCHIVE_CHALLENGE_NAMES],
+        )
+
+    def test_archive_card_advances_on_the_green_challenged_overlay(self):
+        """完成权威是卡面绿色「已挑战」，不是 OCR 计数。"""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        done = {0: True}
+        with patch.object(med, "_archive_challenge_completed", side_effect=lambda _f, i: done.get(i, False)), \
                 patch.object(med, "act_click") as click:
             self.assertEqual(med._maybe_click_archive_challenge(frame, 1.0), LoopAction.Continue)
         self.assertEqual(med._archive_challenge_index, 1)
         click.assert_not_called()
+
+    def test_ocr_completed_alone_no_longer_skips_a_card(self):
+        """20260910 实机：宝石/战利品显示 8/8 可点，却被 OCR 判成完成跳过。
+
+        OCR 进度降级为遥测后，没有绿色「已挑战」就不算完成，卡照点。
+        """
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        card = MatchResult("archive_challenge_skill", 0.9, 600, 300, 40, 40, 620, 320)
+        with patch.object(med, "_archive_challenge_completed", return_value=False), \
+                patch.object(med, "_archive_hitch_card_progress_state", return_value="COMPLETED"), \
+                patch.object(med, "_find_archive_challenge_card", return_value=card), \
+                patch.object(med, "act_click", return_value=True) as click:
+            self.assertEqual(med._maybe_click_archive_challenge(frame, 1.0), LoopAction.Continue)
+        click.assert_called_once_with(card, "ArchiveChallenge-skill")
+
+    def test_archive_plan_covers_all_eight_cards_left_to_right(self):
+        """Owner ruling 20260910：八张全点一遍，蹭车不再只覆盖四张。"""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        plan = med._archive_challenge_plan()
+        self.assertEqual([label for label, _ in plan], list(med._ARCHIVE_CHALLENGE_NAMES))
+        self.assertEqual([index for _, index in plan], list(range(8)))
+
+    def test_unconfirmed_card_is_reclicked_then_skipped_after_three_tries(self):
+        """点了没出现「已挑战」就在有界次数内重点同一张，不静默跳过。"""
+        med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        card = MatchResult("archive_challenge_skill", 0.9, 600, 300, 40, 40, 620, 320)
+        with patch.object(med, "_archive_challenge_completed", return_value=False), \
+                patch.object(med, "_archive_hitch_card_progress_state", return_value="AVAILABLE"), \
+                patch.object(med, "_find_archive_challenge_card", return_value=card), \
+                patch.object(med, "act_click", return_value=True) as click:
+            now = 1.0
+            for _ in range(3):
+                med._maybe_click_archive_challenge(frame, now)
+                now = med._archive_challenge_next_at + 0.1
+        self.assertEqual(click.call_count, 3)
+        self.assertEqual(med._archive_challenge_index, 1, "三次未确认后才允许跳到下一张")
 
     def test_hitch_archive_unknown_is_bounded_and_skips_without_click(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
         with patch.object(med, "_archive_challenge_completed", return_value=False), \
                 patch.object(med, "_archive_hitch_card_progress_state", return_value="UNKNOWN"), \
+                patch.object(med, "_find_archive_challenge_card", return_value=None), \
                 patch.object(med, "act_click") as click:
             now = 1.0
             for _ in range(5):

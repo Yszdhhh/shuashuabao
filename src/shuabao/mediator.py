@@ -789,6 +789,8 @@ class Mediator:
         self._archive_challenge_next_at: float = 0.0
         self._archive_challenge_observe_attempts: int = 0
         self._archive_challenge_click_attempts: int = 0
+        # 同一张卡点了几次却还没出现绿色「已挑战」。
+        self._archive_challenge_confirm_attempts: int = 0
         self._time_cave_boss_search_attempts: int = 0
         self._time_cave_boss_done: bool = False
         self._hitch_postgame_hero_selected: bool = False
@@ -5065,8 +5067,14 @@ class Mediator:
         return state == "UNAVAILABLE"
 
     def _archive_challenge_plan(self) -> tuple[tuple[str, int], ...]:
-        if self._team_mode_enabled():
-            return self._HITCH_ARCHIVE_CHALLENGE_SLOTS
+        """All eight cards, left to right, in both solo and team modes.
+
+        The old team plan covered four slots (gem/loot/key/blessing); the
+        20260910 run therefore left 技能/强化/重铸/技能挑战2 untouched, and the
+        OCR progress gate skipped gem/loot on top of that — two clicks out of
+        eight.  Owner ruling: click every card once; a card that is genuinely
+        unavailable costs one wasted click and nothing else.
+        """
         return tuple((label, index) for index, label in enumerate(self._ARCHIVE_CHALLENGE_NAMES))
 
     def _maybe_click_archive_challenge(self, frame: Frame, now: float) -> LoopAction | None:
@@ -5077,32 +5085,20 @@ class Mediator:
             return None
         if now < getattr(self, "_archive_challenge_next_at", 0.0):
             return LoopAction.Continue
-        if not self._hitch_enabled():
-            while index < len(plan) and self._archive_challenge_completed(frame, plan[index][1]):
-                index += 1
+        while index < len(plan) and self._archive_challenge_completed(frame, plan[index][1]):
+            # 绿色「已挑战」是最强的完成证据，两种模式都据此推进。
+            print(f"[med] 存档挑战 {plan[index][0]} 已显示「已挑战」，转下一张卡")
+            index += 1
+            self._archive_challenge_confirm_attempts = 0
         self._archive_challenge_index = index
         if index >= len(plan):
             print("[med] 存档挑战计划已完成，关闭面板并转传家宝")
             return None
         label, card_index = plan[index]
+        # OCR 进度只是遥测，不再是门禁：20260910 实机里宝石/战利品显示 8/8
+        # 可点，却被判成 UNAVAILABLE/COMPLETED 跳掉。唯一的完成权威是上面
+        # 那层绿色「已挑战」检测。
         progress_state = self._archive_hitch_card_progress_state(frame, card_index)
-        if progress_state in {"UNAVAILABLE", "COMPLETED"}:
-            reason = "可信 OCR 明确 0/8" if progress_state == "UNAVAILABLE" else "可信 OCR 明确已完成"
-            print(f"[med] 蹭车存档挑战 {label} {reason}，转下一张卡")
-            self._archive_challenge_index = index + 1
-            self._archive_challenge_observe_attempts = 0
-            return LoopAction.Continue
-        if progress_state != "AVAILABLE":
-            # UNKNOWN 不授权点击，但长期运行也不能永久卡在一张卡。
-            self._archive_challenge_observe_attempts += 1
-            if self._archive_challenge_observe_attempts >= 5:
-                print(f"[med] 存档挑战 {label} 连续 5 次无可信进度，零输入跳过并转下一张卡")
-                self._archive_challenge_index = index + 1
-                self._archive_challenge_observe_attempts = 0
-                return LoopAction.Continue
-            self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
-            print(f"[med] 存档挑战 {label} 进度状态 {progress_state}，零输入复核 ({self._archive_challenge_observe_attempts}/5)")
-            return LoopAction.Continue
         hit = self._find_archive_challenge_card(frame, card_index)
         if hit is None:
             self._archive_challenge_observe_attempts += 1
@@ -5114,13 +5110,24 @@ class Mediator:
             self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
             print(f"[med] 存档挑战卡位 {card_index + 1}/8 无有效卡面证据，零输入复核 ({self._archive_challenge_observe_attempts}/5)")
             return LoopAction.Continue
-        print(f"[med] 存档挑战 {index + 1}/{len(plan)}：点击 {label} @ {hit.center}")
+        print(
+            f"[med] 存档挑战 {index + 1}/{len(plan)}：点击 {label} @ {hit.center}"
+            f"（OCR 进度 {progress_state}）"
+        )
         clicked = self.act_click(hit, f"ArchiveChallenge-{label}")
         self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
         if clicked:
-            self._archive_challenge_index = index + 1
+            # 不盲目推进：下一 tick 由页首的绿色「已挑战」检测确认这一张真的
+            # 打上了，确认不了就在有界次数内重点同一张。
             self._archive_challenge_observe_attempts = 0
             self._archive_challenge_click_attempts = 0
+            self._archive_challenge_confirm_attempts = (
+                getattr(self, "_archive_challenge_confirm_attempts", 0) + 1
+            )
+            if self._archive_challenge_confirm_attempts >= 3:
+                print(f"[med] 存档挑战 {label} 点击 3 次仍未出现「已挑战」，跳过并转下一张卡")
+                self._archive_challenge_index = index + 1
+                self._archive_challenge_confirm_attempts = 0
             self._post_game_route = "archive_active"
         else:
             self._archive_challenge_click_attempts = getattr(self, "_archive_challenge_click_attempts", 0) + 1
@@ -6956,6 +6963,7 @@ class Mediator:
             self._archive_challenge_index = 0
             self._archive_challenge_observe_attempts = 0
             self._archive_challenge_click_attempts = 0
+            self._archive_challenge_confirm_attempts = 0
             self._time_cave_boss_search_attempts = 0
             self._hitch_postgame_hero_selected = False
             self._hitch_postgame_returned_to_base = False

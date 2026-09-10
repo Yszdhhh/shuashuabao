@@ -833,18 +833,34 @@ def test_archive_counter_green_noise_without_ocr_is_unknown() -> None:
     assert med._archive_hitch_card_unavailable(green_frame, 2) is False
 
 
-def test_archive_challenge_unknown_state_with_card_hit_is_zero_input() -> None:
-    """UNKNOWN 进度 + 卡面模板命中 → 零输入（Continue），绝不点击卡面。"""
+def test_archive_challenge_unknown_ocr_no_longer_blocks_the_click() -> None:
+    """Owner ruling 20260910: OCR 进度是遥测，不是点击门禁。
+
+    旧契约要求 UNKNOWN 进度零输入。实机 20260910 的结果是八张卡只点了两张：
+    宝石/战利品明明显示 8/8 可点，却被计数解析挡掉。现在唯一的完成权威是卡面
+    绿色「已挑战」，OCR 只写进日志；没确认完成的卡照点，多点一次无副作用。
+    """
     med = _hitch_mediator()
     frame = _game_frame("archive")
-    # 离线模式：gem 卡（plan 首位，card_index=2）无可信 OCR → UNKNOWN
     assert med._archive_hitch_card_progress_state(frame, 2) == "UNKNOWN"
     card_hit = MatchResult("lobby/archive_card3", 0.92, 700, 500, 140, 70, 700, 500)
-    with patch.object(med, "_find_archive_challenge_card", return_value=card_hit), \
+    with patch.object(med, "_archive_challenge_completed", return_value=False), \
+         patch.object(med, "_find_archive_challenge_card", return_value=card_hit), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._maybe_click_archive_challenge(frame, 100.0) is LoopAction.Continue
+    click.assert_called_once_with(card_hit, "ArchiveChallenge-skill")
+
+
+def test_archive_challenge_without_card_evidence_is_still_zero_input() -> None:
+    """卡面本身没有可信证据时仍然零输入——这条门禁没有放宽。"""
+    med = _hitch_mediator()
+    frame = _game_frame("archive")
+    with patch.object(med, "_archive_challenge_completed", return_value=False), \
+         patch.object(med, "_find_archive_challenge_card", return_value=None), \
          patch.object(med, "act_click", return_value=True) as click:
         assert med._maybe_click_archive_challenge(frame, 100.0) is LoopAction.Continue
     click.assert_not_called()
-    assert med._archive_challenge_index == 0, "UNKNOWN 状态零输入，绝不推进挑战计划"
+    assert med._archive_challenge_index == 0, "无卡面证据不得推进挑战计划"
 
 
 def test_b4_npc_hub_and_archive_panel_are_mutually_exclusive() -> None:
@@ -1137,16 +1153,11 @@ def test_b3_archive_counter_classification_matrix() -> None:
     assert _state("unavailable", "0/8", 0.99) == "UNKNOWN"
     assert _state("", "0/8", 0.99) == "UNKNOWN"
 
-    # status="unavailable" + 0/8 + 0.99 → UNKNOWN：unavailable 接口 False，
-    # 且挑战点击链零输入（卡面命中也绝不点击、绝不推进计划）。
+    # status="unavailable" + 0/8 + 0.99 → UNKNOWN：unavailable 接口仍返回 False。
+    # 这条分类矩阵没有放宽；变的只是它的用途——20260910 起该状态是遥测，
+    # 不再决定点不点卡（见 test_archive_challenge_unknown_ocr_no_longer_blocks_the_click）。
     with patch.object(med, "_ocr_client", _fake_ocr_client("0/8", 0.99, status="unavailable")):
         assert med._archive_hitch_card_unavailable(frame, 2) is False
-        card_hit = MatchResult("lobby/archive_card3", 0.92, 700, 500, 140, 70, 700, 500)
-        with patch.object(med, "_find_archive_challenge_card", return_value=card_hit), \
-             patch.object(med, "act_click", return_value=True) as click:
-            assert med._maybe_click_archive_challenge(frame, 100.0) is LoopAction.Continue
-        click.assert_not_called()
-        assert med._archive_challenge_index == 0, "UNKNOWN 状态零输入，绝不推进挑战计划"
 
 
 def test_stage_page_ownership_rejects_kk_platform_title() -> None:
