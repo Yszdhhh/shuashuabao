@@ -139,21 +139,19 @@ def test_readiness_keeps_public_backpack_blocked_until_production_gt() -> None:
     assert public["production_missing"] == [
         "production entry unavailable: _maybe_public_backpack_deposit",
     ]
-    assert TARGET_PRODUCTION_FACTS["public_backpack_deposit"]["production_readiness"] == "BLOCKED_UNTIL_GT"
+    assert TARGET_PRODUCTION_FACTS["public_backpack_deposit"]["production_readiness"] == "CONDITIONAL"
 
 
-def test_public_backpack_contract_is_gt_capture_then_production_operation() -> None:
+def test_public_backpack_contract_is_stash_then_public_then_close() -> None:
     contract = TARGET_CONTRACTS["public_backpack_deposit"]
     fact = TARGET_PRODUCTION_FACTS["public_backpack_deposit"]
 
     assert contract["handler"] == "_maybe_public_backpack_deposit"
-    assert "RIGHT_CLICK_B_GT_CAPTURE" in contract["expected_steps"]
-    assert "MANUAL_TRANSFER_GT" in contract["expected_steps"]
-    assert "GT_CAPTURE" in contract["runbook_manual_intervention"]
-    assert "首次只记录 GT_CAPTURE" in contract["runbook_pass"]
-    assert "Harness 不实现" in contract["production_entry"]
-    assert fact["production_readiness"] == "BLOCKED_UNTIL_GT"
-    assert "PUBLIC_BACKPACK_DEPOSIT" in contract["production_entry"]
+    assert "ITEM_BAR_STASH" in contract["expected_steps"]
+    assert "PUBLIC_DEPOSIT" in contract["expected_steps"]
+    assert "BAG_CLOSE" in contract["expected_steps"]
+    assert "物品栏" in contract["start_condition"]
+    assert fact["production_readiness"] == "CONDITIONAL"
 
 
 def test_capture_observes_every_tick_even_when_no_event_frame_is_saved() -> None:

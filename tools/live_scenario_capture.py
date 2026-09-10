@@ -251,19 +251,19 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         # 曾经写成面板内的 Boss handler，容易让人以为要手动把弹窗开好。
         "handler": "_tick_main_line",
         "call": "frame",
-        "start_condition": "把真实游戏停在战后挑战广场（NPC_HUB）或已打开的传家宝弹窗，并在 settings 配置 cjb_boss；点 NPC 开弹窗这一步由 production 自己完成。",
-        "production_entry": "Mediator._tick_main_line(frame)：NPC_HUB→OpenHeirloomChallenges→HEIRLOOM_DIALOG→配置 Boss 选择，复用既有 Boss 模板/滚动/输入门禁。",
+        "start_condition": "把真实游戏停在战后挑战广场（NPC_HUB）或已打开的传家宝弹窗；不要手点 NPC。有 cjb_boss 时点配置 Boss，没有则点列表最后一张可识别卡。",
+        "production_entry": "Mediator._tick_main_line(frame)：必要时先关背包→OpenHeirloomChallenges→HEIRLOOM_DIALOG→配置 Boss 或最后可识别卡。",
         "expected_steps": (
             "POSTGAME_DETECT", "ENTRY_VISIBLE", "CLICK", "REQUEST", "CONFIRM", "TRANSITION", "DESTINATION_CONFIRMED",
         ),
         "success_postcondition": "配置的 cjb_boss 卡被现有 handler 命中，随后真实局内 HUD/挑战目的地出现；click success 单独不算成功。",
         "fail_condition": "Boss 卡未命中、滚动后仍无证据、输入被拒绝、页面/局内 HUD 不变或生产 handler 进入 ERROR。",
-        "blocked_condition": "capture 无效、cjb_boss 未配置、页面未被 HEIRLOOM_DIALOG 分类，或没有有效卡面证据。",
-        "max_probe_time_s": 30.0,
+        "blocked_condition": "capture 无效，或页面既不是 NPC_HUB 也不是 HEIRLOOM_DIALOG。",
+        "max_probe_time_s": 90.0,
         "natural_e2e_eligible": "只有从真实传家宝页开始且真实 HUD 后置确认、无 FAIL/MANUAL_INTERVENTION bookmark 时才有资格；局部 probe 不算 Natural E2E。",
         "bundle_replay": "捕获的 postgame/entry/transition 关键帧按原 ReplayCaseLoader 格式重放，故障变体不改原始截图。",
-        "runbook_manual": "人工打开传家宝 Boss 列表，并确认 cjb_boss 已配置。",
-        "runbook_hands_off": "启动后不要再点 Boss 卡或滚动，让既有 handler 选择并等待真实 HUD。",
+        "runbook_manual": "停在挑战广场或已打开的传家宝弹窗。背包若开着由 production 先关。",
+        "runbook_hands_off": "启动后不要点 NPC、Boss 卡或滚动。",
         "runbook_pass": "配置 Boss 进入后的真实 HUD/挑战后置确认才算 Live Probe PASS；p 只保存人工证据。",
         "runbook_manual_intervention": "需要继续人工推进时按 m；它保留后续 Ground Truth，但不产生 Natural E2E。",
     },
@@ -418,19 +418,19 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
     },
     "public_backpack_deposit": {
         "handler": "_maybe_public_backpack_deposit",
-        "start_condition": "窄复现入口：只有在真实 GAME/HUD、目标吞噬丹或绿色 OCR 命中‘神符’的物品格 fresh-confirm，且无 modal/outcome 抢占时启动。首次运行必须进入 GT_CAPTURE：production 只执行识别目标格→右键→B，确认公共/个人背包页面后暂停。",
-        "production_entry": "调用冻结 candidate 的 PUBLIC_BACKPACK_DEPOSIT operation；Harness 不实现右键/B、背包转移或目标识别。当前 candidate 尚无该 production entrypoint，直到真实 GT 后保持 BLOCKED。",
-        "expected_steps": ("HUD_AUTHORITY", "ITEM_SLOT_CONFIRMED", "RIGHT_CLICK_B_GT_CAPTURE", "BAG_SURFACE_CONFIRMED", "MANUAL_TRANSFER_GT", "DEPOSIT_POSTCONDITION"),
-        "success_postcondition": "公共背包 surface 可见、目标原位置发生可信变化，且目标在公共背包出现或有等价明确 transfer postcondition；输入成功单独不算 PASS。",
-        "fail_condition": "在 modal/outcome/UNKNOWN 上输入、盲拖/盲点/无限重试、或 public bag transfer 后置缺失；记录 PUBLIC_BAG_DEPOSIT_FAILURE 但不停止整条 hitch 长线程。",
-        "blocked_condition": "production PUBLIC_BACKPACK_DEPOSIT operation 缺失、尚未完成 GT_CAPTURE、目标物品格/HUD/背包 surface 未 fresh-confirm。",
+        "start_condition": "真实局内 HUD；物品栏除 1 号格外至少两格有吞噬丹或神符。production 打开背包，物品栏先放入个人格再迁公共格，搬完关闭。",
+        "production_entry": "Mediator._maybe_public_backpack_deposit：HUD 开包→物品栏右键→个人空格→个人右键→公共空格→关包。",
+        "expected_steps": ("HUD_AUTHORITY", "BAG_OPEN", "ITEM_BAR_STASH", "PUBLIC_DEPOSIT", "BAG_CLOSE"),
+        "success_postcondition": "公共格从空变非空，物品栏对应格清空，随后背包关闭；click success 不算 PASS。",
+        "fail_condition": "在 modal/outcome/UNKNOWN 上输入、左键点到物品栏/已占用个人格、或 transfer 后置缺失。",
+        "blocked_condition": "HUD 未确认、背包双锚点未确认、或物品栏 2–6 号可搬格不足两格。",
         "max_probe_time_s": 120.0,
-        "natural_e2e_eligible": "首次 GT_CAPTURE + MANUAL_INTERVENTION 永不计 Natural E2E PASS；operation 实现并通过真实自动 deposit 后才可进入整链统计。",
+        "natural_e2e_eligible": "局部 probe 不算 Natural E2E；整链仍要单独验收。",
         "bundle_replay": "保存 before/action/after frame、HWND、尺寸、item bbox、public/private bag bbox、trace 与 production postcondition；不生成 fabricated MatchResult。",
-        "runbook_manual": "将真实游戏停在已确认 GAME/HUD，等目标吞噬丹或绿色 OCR 命中‘神符’出现在物品格。",
-        "runbook_hands_off": "首次 GT_CAPTURE 期间不要手工点物品或背包；收到暂停后由用户人工完成一次目标物品→公共背包转移。",
-        "runbook_pass": "首次只记录 GT_CAPTURE/MANUAL_INTERVENTION；后续 operation 必须 fresh-confirm 公共背包与 transfer postcondition。",
-        "runbook_manual_intervention": "用户人工完成一次真实转移动作，标记 MANUAL_INTERVENTION / GT_CAPTURE；本次不计 Natural E2E PASS。",
+        "runbook_manual": "停在局内 HUD，物品栏 2 号及以后至少两格有吞噬丹/神符。不要手搬。",
+        "runbook_hands_off": "启动后不要点背包、物品栏或公共格。",
+        "runbook_pass": "公共格占用变化且背包已关才算 Live Probe PASS。",
+        "runbook_manual_intervention": "需要人工推进时标 MANUAL_INTERVENTION；本次不计 Natural E2E PASS。",
     },
     "hitch_runtime": {
         "handler": "tick",
@@ -701,9 +701,9 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
         "ground_truth_only": False,
     },
     "public_backpack_deposit": {
-        "production_readiness": "BLOCKED_UNTIL_GT",
-        "scope": "窄复现 contract 只调用 production PUBLIC_BACKPACK_DEPOSIT；首次真实目标物品仅采 GT_CAPTURE + 用户人工转移，不能宣称自动 operation 已实现。",
-        "routes": ({"route": "public_backpack_deposit", "readiness": "BLOCKED_UNTIL_GT"},),
+        "production_readiness": "CONDITIONAL",
+        "scope": "K：局内 HUD 上物品栏除 1 号外至少两件可搬物；production 开包、物品栏→个人格→公共格、搬完关闭。公共格占用变化才算 probe PASS。",
+        "routes": ({"route": "public_backpack_deposit", "readiness": "CONDITIONAL"},),
         "ground_truth_only": False,
     },
     "hitch_runtime": {
@@ -1638,6 +1638,7 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             # not cancel it before the Boss selection branch can run.
             "OpenHeirloomChallenges", "BossConfigured", "BossConfigured-scroll",
             "BossLastVisibleFallback", "BossLastVisibleFallback-scroll",
+            "PublicBackpackClose",
         },
         "secret_realm": {"OpenGreatRift", "ConfirmGreatRift"},
         "lobby_hitch": {
@@ -1663,6 +1664,8 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             "PUBLIC_BACKPACK_DEPOSIT",
             "PublicBackpackDepositRightClick",
             "PublicBackpackDepositB",
+            "PublicBackpackStash",
+            "PublicBackpackClose",
         },
         "choice_bond_skill": {
             "OpenSkillPanel", "OpenBondPanel", "技能选择", "羁绊选择",
@@ -5597,8 +5600,6 @@ def _target_readiness_settings_gaps(target: str, settings: Settings | None) -> l
         return ["auto_devour_dan=false (swallow-pill route disabled)"]
     if target == "boss_challenge" and not (str(settings.cjb_boss).strip() or str(settings.sgzx_boss).strip()):
         return ["configure exactly one cjb_boss or sgzx_boss"]
-    if target == "heirloom" and not str(getattr(settings, "cjb_boss", "") or "").strip():
-        return ["configure cjb_boss for heirloom selection"]
     if target == "secret_realm" and not settings.auto_secret_realm:
         return ["auto_secret_realm=false"]
     return []

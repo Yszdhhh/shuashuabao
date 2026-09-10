@@ -445,6 +445,8 @@ function Invoke-TargetProbe {
         }
         if ($Target -eq "black_merchant") {
             $cliArgs += @("--duration", "600", "--max-ticks", "5000")
+        } elseif ($Target -eq "heirloom") {
+            $cliArgs += @("--duration", "90", "--max-ticks", "400")
         } elseif ($Target -eq "lobby_search") {
             # End-to-end chain: no time/tick cap. It exits only after a verified
             # guest Ready (or the operator presses Shift+F12).
@@ -542,7 +544,7 @@ function Invoke-PublicBackpackDepositProbe {
     )
     $cliArgs += @(Get-LiveRuntimeArgs)
     if ($script:OperatorSettingsPath) { $cliArgs += @("--settings", $script:OperatorSettingsPath) }
-    Write-Host "[launcher] 公共背包窄复现：首次只允许 production GT_CAPTURE；candidate 尚无 operation 时 BLOCKED" -ForegroundColor Cyan
+    Write-Host "[launcher] K 公共背包：物品栏除1号外至少两件；开包→个人格→公共格→关闭。不要手搬。" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -781,7 +783,7 @@ function Invoke-TargetedProbeMenu {
         @{ Key = "H"; Target = "heirloom"; Label = "H  传家宝 / Boss" },
         @{ Key = "I"; Target = "secret_realm"; Label = "I  秘境" },
         @{ Key = "J"; Target = "lobby_search"; Label = "J  大厅搜房 / Join" },
-        @{ Key = "K"; Target = "public_backpack_deposit"; Label = "K  公共背包 GT / Deposit" }
+        @{ Key = "K"; Target = "public_backpack_deposit"; Label = "K  公共背包 物品栏→个人→公共" }
     )
     for ($i = 0; $i -lt $probes.Count; $i++) {
         $spec = $probes[$i]

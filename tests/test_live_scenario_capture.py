@@ -1010,7 +1010,10 @@ def test_lobby_hitch_allowed_reasons() -> None:
     }
     assert "OpenArchiveChallenges" in live_capture._probe_allowed_reasons("archive_challenge")
     assert "OpenHeirloomChallenges" in live_capture._probe_allowed_reasons("heirloom")
+    assert "PublicBackpackClose" in live_capture._probe_allowed_reasons("heirloom")
     assert "DismissHeirloomDialog" not in live_capture._probe_allowed_reasons("heirloom")
+    assert "PublicBackpackStash" in live_capture._probe_allowed_reasons("public_backpack_deposit")
+    assert "PublicBackpackClose" in live_capture._probe_allowed_reasons("public_backpack_deposit")
 
 
 def test_heirloom_probe_bootstrap_uses_classified_open_page() -> None:
