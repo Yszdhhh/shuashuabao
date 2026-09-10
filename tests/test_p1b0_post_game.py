@@ -1099,6 +1099,27 @@ class P1B0PostGameTests(unittest.TestCase):
         click.assert_called_once_with(entry, "OpenHeirloomChallenges")
         self.assertEqual(med._post_game_route, "heirloom_active")
 
+    def test_heirloom_route_clicks_the_label_even_if_plaza_is_unclassified(self):
+        """H 实机：局内/广场未判成 NPC_HUB 时，仍要点传家宝标签开弹窗。"""
+        med = Mediator(Settings(cjb_boss="18乌索克"), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "heirloom label")
+        med._post_game_pending = True
+        med._post_game_route = "heirloom"
+        frame = load_fixture_frame("fixtures/replay/main_line_auto_on.png")
+        entry = MatchResult("chuanjiabao", 0.80, 1000, 340, 80, 24, 1040, 352)
+
+        with patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "_post_game_hub_entry_click", return_value=entry), \
+             patch.object(med, "_find_failure_gift", return_value=None), \
+             patch.object(med, "_maybe_click_tqtz", return_value=None), \
+             patch.object(med, "_tick_early_challenge", return_value=None), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+
+        self.assertEqual(action, LoopAction.Continue)
+        click.assert_called_once_with(entry, "OpenHeirloomChallenges")
+        self.assertEqual(med._post_game_route, "heirloom_active")
+
     def test_hitch_hub_closes_open_bag_before_heirloom_npc(self):
         """广场上背包还开着时先关背包，不点传家宝 NPC。"""
         from shuabao.policy.public_bag import BagLayout, PublicBagPhase

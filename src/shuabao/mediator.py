@@ -4194,12 +4194,16 @@ class Mediator:
     _PUBLIC_BAG_PILL_TEMPLATES = ("danGif", "swallow_pill")
 
     def _public_bag_surface_ok(self, frame: Frame) -> bool:
-        """Only the in-game HUD may open the bag.
+        """May we open or drain the bag on this frame?
 
-        20260910 hitch: an open bag on NPC_HUB covers 存档挑战/传家宝挑战,
-        so the plaza NPCs never get a click. Drain during the fight, close,
-        and leave the plaza to the post-game route.
+        Opening still needs a HUD. An already-open bag is itself the surface:
+        20260910 K started with the panel up and HUD anchors covered, so a
+        HUD-only gate blocked a page the dual anchors had already confirmed.
+        Plaza NPC_HUB is not a start surface — that covering bag blocked
+        heirloom/archive NPCs.
         """
+        if self._bag_layout(frame) is not None:
+            return True
         return self._is_in_game_hud(frame)
 
     def _hud_hotkey_button(self, frame: Frame, name: str) -> MatchResult | None:
@@ -11880,6 +11884,18 @@ class Mediator:
             self.set_phase(Phase.ERROR, f"unverified post-game page {post_game}")
             self.stop()
             return LoopAction.Break
+
+        if (
+            self._post_game_pending
+            and getattr(self, "_post_game_route", "") == "heirloom"
+        ):
+            entry = self._post_game_hub_entry_click(frame, "heirloom")
+            if entry is not None:
+                print(f"[med] 战后顺序：打开传家宝挑战 @ {entry.center}")
+                if self.act_click(entry, "OpenHeirloomChallenges"):
+                    self._post_game_route = "heirloom_active"
+                    self._main_line_since = now
+                return LoopAction.Continue
 
         # 已过 5-5 且 tqtz 出现时，提前挑战是游戏内最高优先级。
         early_res = self._maybe_click_tqtz(frame, now)

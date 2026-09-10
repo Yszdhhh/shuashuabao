@@ -282,6 +282,15 @@ class MediatorPublicBagTests(unittest.TestCase):
         key.assert_not_called()
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_OPEN_REQUESTED)
 
+    def test_open_bag_page_is_a_start_surface_even_if_hud_classifier_misses(self):
+        """K 实机：背包已经开着，HUD 锚点被面板挡住，HUD-only 门禁会零输入。"""
+        with patch.object(self.med, "_is_in_game_hud", return_value=False), \
+             patch.object(self.med, "_bag_layout", return_value=self.layout):
+            self.assertTrue(self.med._public_bag_surface_ok(self.frame))
+        with patch.object(self.med, "_is_in_game_hud", return_value=False), \
+             patch.object(self.med, "_bag_layout", return_value=None):
+            self.assertFalse(self.med._public_bag_surface_ok(self.frame))
+
     def test_deposit_chain_does_not_open_on_the_post_game_plaza(self):
         """广场上开背包会挡住存档/传家宝 NPC，局内才允许开。"""
         button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 744, 0, 0, 1520, 744)
