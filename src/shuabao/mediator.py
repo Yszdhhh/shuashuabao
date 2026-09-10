@@ -4196,15 +4196,17 @@ class Mediator:
     def _public_bag_surface_ok(self, frame: Frame) -> bool:
         """May we open or drain the bag on this frame?
 
-        Opening still needs a HUD. An already-open bag is itself the surface:
-        20260910 K started with the panel up and HUD anchors covered, so a
-        HUD-only gate blocked a page the dual anchors had already confirmed.
-        Plaza NPC_HUB is not a start surface — that covering bag blocked
-        heirloom/archive NPCs.
+        20260910 K f0000: hitch 局内 2-7，背包关着，zidong/shortKey 全 miss，
+        但右缘 [B] 书本 0.88。HUD-only 门禁让探针 60s 零输入后 BLOCKED。
+        战后广场仍禁止开包。
         """
         if self._bag_layout(frame) is not None:
             return True
-        return self._is_in_game_hud(frame)
+        if self._post_game_state(frame) == "NPC_HUB":
+            return False
+        if self._is_in_game_hud(frame):
+            return True
+        return self._hud_hotkey_button(frame, "bag/bag_toggle_button") is not None
 
     def _hud_hotkey_button(self, frame: Frame, name: str) -> MatchResult | None:
         """Locate one of the right-edge clickable hotkey twins ([B] / [Z]).
@@ -5053,7 +5055,9 @@ class Mediator:
     # 分开取 ROI。标签尺寸会随客户端渲染缩放，不能只扫 _hot_scales()。
     _POST_GAME_HUB_ENTRY_ROIS = {
         "archive": (0.35, 0.15, 0.55, 0.40),
-        "heirloom": (0.35, 0.15, 0.65, 0.40),
+        # 20260910 hitch 局内：传家宝挑战标签在 (1016,205) 宽 116px，右缘
+        # 超出 0.65，旧 ROI 把模板裁掉，find 直接 miss。
+        "heirloom": (0.45, 0.16, 0.80, 0.45),
     }
 
     # 存档页右侧时光之穴 Boss 卡是缩小后的 58~70px 图标；传家宝页的

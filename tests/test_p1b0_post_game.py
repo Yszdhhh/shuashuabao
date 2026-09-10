@@ -1148,6 +1148,35 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(med._post_game_route, "heirloom")
         self.assertIs(med._public_bag_fsm.phase, PublicBagPhase.CLOSE_REQUESTED)
 
+    def test_heirloom_hub_roi_covers_the_in_game_chuanjiabao_label(self):
+        """局内传家宝挑战标签 (1016,205) 宽 116，旧 ROI 右缘 0.65 会裁掉。"""
+        roi = Mediator._POST_GAME_HUB_ENTRY_ROIS["heirloom"]
+        w, h = 1600, 900
+        x, y, label_w = 1016, 205, 116
+        self.assertLessEqual(w * roi[0], x)
+        self.assertGreaterEqual(w * roi[2], x + label_w)
+        self.assertLessEqual(h * roi[1], y)
+        self.assertGreaterEqual(h * roi[3], y)
+
+    def test_live_hitch_ingame_frame_finds_bag_toggle_and_heirloom_label(self):
+        """20260910 18:31 K 起始帧：探针门禁当时把这两个 0.88+ 命中全挡掉了。"""
+        path = Path(
+            r"C:\Users\10639\AppData\Local\Temp\shuabao-captures"
+            r"\public_backpack_deposit_20260910_183126_428426\frames\f0000_state_change.png"
+        )
+        if not path.is_file():
+            self.skipTest("live K start frame not on disk")
+        image = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
+        self.assertIsNotNone(image)
+        frame = Frame(image, left=315, top=59, hwnd=1, window_title="英雄三国KK", role="l1")
+        med = Mediator(Settings(mode_id="lobby_hitch", dry_run=True, ocr_mode="off"), ROOT)
+        toggle = med._hud_hotkey_button(frame, "bag/bag_toggle_button")
+        heirloom = med._find_post_game_hub_entry(frame, "heirloom")
+        self.assertIsNotNone(toggle)
+        self.assertIsNotNone(heirloom)
+        self.assertTrue(med._public_bag_surface_ok(frame))
+        self.assertGreaterEqual(heirloom.score, 0.80)
+
     def test_team_archive_without_heirloom_routes_to_heirloom_fallback(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         med.set_phase(Phase.MAIN_LINE, "team archive route")

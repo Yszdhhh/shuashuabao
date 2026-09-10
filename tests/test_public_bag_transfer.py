@@ -288,8 +288,24 @@ class MediatorPublicBagTests(unittest.TestCase):
              patch.object(self.med, "_bag_layout", return_value=self.layout):
             self.assertTrue(self.med._public_bag_surface_ok(self.frame))
         with patch.object(self.med, "_is_in_game_hud", return_value=False), \
-             patch.object(self.med, "_bag_layout", return_value=None):
+             patch.object(self.med, "_bag_layout", return_value=None), \
+             patch.object(self.med, "_post_game_state", return_value=None), \
+             patch.object(self.med, "_hud_hotkey_button", return_value=None):
             self.assertFalse(self.med._public_bag_surface_ok(self.frame))
+
+    def test_bag_toggle_opens_when_hud_classifier_misses_in_game(self):
+        """K 20260910 18:31：局内 2-7，zidong miss，[B] 0.88，必须能开包。"""
+        button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 744, 0, 0, 1520, 744)
+        with self._patch_layout(None), \
+             patch.object(self.med, "_is_in_game_hud", return_value=False), \
+             patch.object(self.med, "_post_game_state", return_value=None), \
+             patch.object(self.med, "_hud_hotkey_button", return_value=button), \
+             patch.object(self.med, "act_click", return_value=True) as click, \
+             patch.object(self.med, "act_key") as key:
+            self.assertEqual(self.med._maybe_public_backpack_deposit(self.frame, 100.0), LoopAction.Continue)
+        click.assert_called_once_with(button, "PublicBackpackDepositB")
+        key.assert_not_called()
+        self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_OPEN_REQUESTED)
 
     def test_deposit_chain_does_not_open_on_the_post_game_plaza(self):
         """广场上开背包会挡住存档/传家宝 NPC，局内才允许开。"""
@@ -306,7 +322,12 @@ class MediatorPublicBagTests(unittest.TestCase):
 
     def test_deposit_chain_stays_silent_on_an_unclassified_page(self):
         """既不是局内 HUD 也不是广场：零输入，别去猜。"""
-        with self._patch_layout(None),              patch.object(self.med, "_is_in_game_hud", return_value=False),              patch.object(self.med, "_post_game_state", return_value=None),              patch.object(self.med, "act_click") as click,              patch.object(self.med, "act_key") as key:
+        with self._patch_layout(None), \
+             patch.object(self.med, "_is_in_game_hud", return_value=False), \
+             patch.object(self.med, "_post_game_state", return_value=None), \
+             patch.object(self.med, "_hud_hotkey_button", return_value=None), \
+             patch.object(self.med, "act_click") as click, \
+             patch.object(self.med, "act_key") as key:
             self.assertIsNone(self.med._maybe_public_backpack_deposit(self.frame, 100.0))
         click.assert_not_called()
         key.assert_not_called()
