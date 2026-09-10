@@ -3,8 +3,8 @@
 
 param(
     [switch]$SettingsPanelSmokeTest,
-    [string]$ProductionSourceRoot = "G:\刷刷宝\Worktrees\lobby-hitch-surface-test",
-    [string]$ProductionSourceSha = "53afb4376bd371c3e7bdffd7fff1f13eb6cfd1a5"
+    [string]$ProductionSourceRoot = "G:\刷刷宝\Worktrees\live-g0-publicbag-v2",
+    [string]$ProductionSourceSha = "b9e48aaba3491a9adac02c206bb0695422a86703"
 )
 
 $ErrorActionPreference = "Stop"
