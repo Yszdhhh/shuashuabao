@@ -1638,7 +1638,7 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             # not cancel it before the Boss selection branch can run.
             "OpenHeirloomChallenges", "BossConfigured", "BossConfigured-scroll",
             "BossLastVisibleFallback", "BossLastVisibleFallback-scroll",
-            "PublicBackpackClose",
+            "DismissHeirloomDialog", "PublicBackpackClose",
         },
         "secret_realm": {"OpenGreatRift", "ConfirmGreatRift"},
         "lobby_hitch": {
@@ -4063,10 +4063,10 @@ def _start_surface_preflight(
             except (AttributeError, TypeError):
                 pass
         return _ok(
-            "production PUBLIC_BACKPACK_DEPOSIT + GAME/HUD or NPC_HUB",
+            "production PUBLIC_BACKPACK_DEPOSIT + HUD or open bag page",
             operation and surface,
             "production public-backpack operation and a usable surface confirmed",
-            "frozen candidate has no PUBLIC_BACKPACK_DEPOSIT operation, or neither GAME/HUD nor the post-game plaza was confirmed",
+            "HUD 未确认且背包页未打开；局内开着的背包本身就是起始面",
         )
 
     if target == "solo_ingame_chain":
@@ -4169,6 +4169,11 @@ def _start_surface_preflight(
             observed = med._post_game_state(frame) in {"HEIRLOOM_DIALOG", "NPC_HUB", "ARCHIVE_PANEL"}
         except (AttributeError, TypeError):
             observed = False
+        if not observed and target == "heirloom":
+            try:
+                observed = med._find_post_game_hub_entry(frame, "heirloom") is not None
+            except (AttributeError, TypeError):
+                observed = False
         return _ok(
             "_post_game_state boss list",
             observed,
@@ -4452,9 +4457,13 @@ def _install_action_reason_bridge(med: Mediator) -> Callable[[], str]:
         ) -> Any:
             reason = kwargs.get("reason")
             if reason is None:
-                reason_index = 2 if _method_name == "act_search_box" else 1
-                if len(args) > reason_index:
-                    reason = args[reason_index]
+                # act_scroll(x, y, clicks, reason) — index 1 is the Y pixel.
+                # Take the last non-empty string so the probe guard sees
+                # BossConfigured-scroll, not "498".
+                for arg in reversed(args):
+                    if isinstance(arg, str) and arg:
+                        reason = arg
+                        break
             setattr(med, "_live_capture_action_reason", str(reason or ""))
             try:
                 return _original(*args, **kwargs)

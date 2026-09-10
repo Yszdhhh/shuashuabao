@@ -1011,7 +1011,7 @@ def test_lobby_hitch_allowed_reasons() -> None:
     assert "OpenArchiveChallenges" in live_capture._probe_allowed_reasons("archive_challenge")
     assert "OpenHeirloomChallenges" in live_capture._probe_allowed_reasons("heirloom")
     assert "PublicBackpackClose" in live_capture._probe_allowed_reasons("heirloom")
-    assert "DismissHeirloomDialog" not in live_capture._probe_allowed_reasons("heirloom")
+    assert "DismissHeirloomDialog" in live_capture._probe_allowed_reasons("heirloom")
     assert "PublicBackpackStash" in live_capture._probe_allowed_reasons("public_backpack_deposit")
     assert "PublicBackpackClose" in live_capture._probe_allowed_reasons("public_backpack_deposit")
 
@@ -1025,6 +1025,20 @@ def test_heirloom_probe_bootstrap_uses_classified_open_page() -> None:
     assert bootstrap["classified_start_surface"] == "HEIRLOOM_DIALOG"
     assert med._post_game_pending is True
     assert med._post_game_route == "heirloom_active"
+
+
+def test_action_reason_bridge_reads_act_scroll_reason_not_the_y_pixel() -> None:
+    med = Mediator(Settings(), ROOT)
+    seen: list[str] = []
+
+    def fake_scroll(x, y, clicks, reason=""):
+        seen.append(str(getattr(med, "_live_capture_action_reason", "")))
+        return True
+
+    med.act_scroll = fake_scroll  # type: ignore[method-assign]
+    live_capture._install_action_reason_bridge(med)
+    med.act_scroll(1080, 498, -5, "BossConfigured-scroll")
+    assert seen == ["BossConfigured-scroll"]
 
 
 def test_heirloom_probe_bootstrap_keeps_plaza_route_on_npc_hub() -> None:
