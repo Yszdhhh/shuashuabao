@@ -21,7 +21,7 @@
 | 当前 production 分支 | `test/live-g0-publicbag-treasure-20260910-v2` |
 | 功能行为基线 | `8d57a2a1e0872f9ff799751ec82102bd7cfc3715`（本次生产代码改动；当前 HEAD 仅额外包含本文档） |
 | Live Harness worktree | `G:\刷刷宝\Worktrees\live-harness-current-20260908` |
-| Harness HEAD | `57dbc0edd04d4403db46c2c952ddbe668fdda691` |
+| Harness HEAD | `ff9d79213be0f3cc396baff7e298150b7ebc9f56`（在 `57dbc0e` 上移植了 G/H 探针 bootstrap/allowlist 与 hitch 局数投影；不改变 production `src/`） |
 | 桌面入口 | `C:\Users\10639\Desktop\刷刷宝 Live 实机测试.lnk` |
 | 快捷方式当前注入 | `-ProductionSourceRoot "G:\刷刷宝\Worktrees\live-g0-publicbag-v2" -ProductionSourceSha "<该 worktree 的当前 HEAD>"`；已与当前 HEAD 同步，勿从历史记录复制旧 SHA |
 | 真实抓包根目录 | `C:\Users\10639\AppData\Local\Temp\shuabao-captures` |
@@ -193,3 +193,18 @@ python tools\live_scenario_capture.py capture --target hitch_lobby_chain `
 - 不要让 harness 为方便测试复制 NPC/Boss/房间选择策略；应调用 production `Mediator` 入口，并仅做证据/allowlist/身份门禁。
 - 外部 agent 可先只读审查；若修改 production，需要增加最小回归、提交 production 后更新快捷方式中的 SHA，并重新确认 identity 为 `READY`。
 - 交付报告请清楚分为：离线通过、真实输入已发出、真实业务后置确认、完整两局 Natural E2E；四者不能混用。
+
+## 10. 2026-09-10 外部审查补记（仍无新一轮真机 PASS）
+
+审查确认 production `src/` 在 `8d57a2a` 已包含中场接手、G/H 广场入口、未配置 Boss fallback、物品栏跳过 UI 1 号格。桌面 live 只注入 production `src/`，**不注入** production `tools/live_scenario_capture.py`。
+
+因此当时运行中的 harness HEAD `57dbc0e` 仍是旧探针适配器：
+
+- H allowlist 没有 `OpenHeirloomChallenges`，已打开传家宝页仍会先种 `heirloom` 路由，复现 `DismissHeirloomDialog + CANCELLED_PROBE_GUARD`。
+- `_prepare_settings` 没有把 `hitch_cycle_num` 投影到 `cycle_num`；正式设置 `hitch_cycle_num=2` / `cycle_num=3` 会让菜单 13 按 3 局停，而不是 2 局。
+
+已在 **harness worktree** 提交 `ff9d792`（`fix(harness): port postgame probe bootstrap and hitch cycle projection`）。production SHA 未改行为，仍是 `8d57a2a` + 本文档。快捷方式继续钉 production HEAD。
+
+离局后 KK 房间分支（代码审查，非真机）：`QuitGame-confirm` → `_finish_hitch_round` 只加一次 `game_count`；未达 `cycle_num` 则 `_hitch_re_search=True`，仍在房则 `HitchLeaveRoom`，不在房则重搜。不会在旧房里直接再点准备。`hitch_after_goal=solo` 在 COMPLETE 停机路径上尚未接线。
+
+本补记时游戏窗仍不存在，KK 仍最小化，因此没有启动菜单 13，也没有新的 G/H/公共背包真机 bundle。
