@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-HARNESS_BASE_SHA = "bf1d247eefd30d84ef5f88ffb2f13a334e2b9b4d"
-FROZEN_PRODUCTION_CODE_BASELINE = "bf1d247eefd30d84ef5f88ffb2f13a334e2b9b4d"
+HARNESS_BASE_SHA = "83835f3e69271e75f1f10578fb5678b4353f0485"
+FROZEN_PRODUCTION_CODE_BASELINE = "83835f3e69271e75f1f10578fb5678b4353f0485"
 FORBIDDEN_RUNTIME_SHAS = (
     "144c0c9adc366a35548f6e1c2e52fad8387da090",
     "b15da05f4fd7313b02b2cc466e319d9683aa979c",
@@ -72,9 +72,9 @@ def _dirty_production_paths(repo_root: Path) -> list[str]:
         return ["<git status failed for production paths>"]
     dirty: list[str] = []
     for line in out.splitlines():
-        path = line[3:].strip().replace("\\", "/")
-        if path:
-            dirty.append(path)
+        parts = line.strip().split(maxsplit=1)
+        if len(parts) == 2:
+            dirty.append(parts[1].strip().replace("\\", "/"))
     return dirty
 
 
