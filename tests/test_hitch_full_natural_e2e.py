@@ -27,6 +27,13 @@ ROOT = Path(__file__).resolve().parents[1]
 CANDIDATE_ROOT = Path(r"G:\刷刷宝\Worktrees\lobby-hitch-surface-test")
 
 
+def _candidate_sha() -> str:
+    return subprocess.check_output(
+        ["git", "-C", str(CANDIDATE_ROOT), "rev-parse", "HEAD"],
+        text=True,
+    ).strip()
+
+
 def test_primary_lane_is_the_full_chain_not_the_s01_to_s06_diagnostics() -> None:
     assert PRIMARY_LIVE_SCENARIO == "HITCH_FULL_NATURAL_E2E"
     assert PRIMARY_LIVE_TARGET == "hitch_lobby_chain"
@@ -77,6 +84,7 @@ def test_primary_ledger_exposes_required_metrics_and_does_not_pass_empty() -> No
 
 
 def test_candidate_source_identity_is_explicit_and_clean() -> None:
+    candidate_sha = _candidate_sha()
     completed = subprocess.run(
         [
             sys.executable,
@@ -87,7 +95,7 @@ def test_candidate_source_identity_is_explicit_and_clean() -> None:
             "--production-source-root",
             str(CANDIDATE_ROOT),
             "--production-source-sha",
-            PRODUCTION_TEST_CANDIDATE_SHA,
+            candidate_sha,
             "--json",
         ],
         cwd=ROOT,
@@ -98,8 +106,8 @@ def test_candidate_source_identity_is_explicit_and_clean() -> None:
     assert completed.returncode == 0, completed.stderr or completed.stdout
     report = json.loads(completed.stdout)
 
-    assert report["production_source_sha"] == PRODUCTION_TEST_CANDIDATE_SHA
-    assert report["runtime_worktree_sha"] == PRODUCTION_TEST_CANDIDATE_SHA
+    assert report["production_source_sha"] == candidate_sha
+    assert report["runtime_worktree_sha"] == candidate_sha
     assert report["production_source_clean"] is True
     assert report["candidate_source_injection"] == "ACTIVE"
     assert report["runtime_source_verified"] is True
@@ -107,7 +115,31 @@ def test_candidate_source_identity_is_explicit_and_clean() -> None:
     assert report["ready_for_gt"] is True
 
 
+def test_identity_blocks_when_production_source_sha_missing() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "live_scenario_capture.py"),
+            "identity",
+            "--repo-root",
+            str(ROOT),
+            "--production-source-root",
+            str(CANDIDATE_ROOT),
+            "--json",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 1
+    report = json.loads(completed.stdout)
+    assert report["ready_for_gt"] is False
+    assert any("production candidate SHA is not specified" in r for r in report["blocked_reasons"])
+
+
 def test_readiness_keeps_public_backpack_blocked_until_production_gt() -> None:
+    candidate_sha = _candidate_sha()
     completed = subprocess.run(
         [
             sys.executable,
@@ -118,7 +150,7 @@ def test_readiness_keeps_public_backpack_blocked_until_production_gt() -> None:
             "--production-source-root",
             str(CANDIDATE_ROOT),
             "--production-source-sha",
-            PRODUCTION_TEST_CANDIDATE_SHA,
+            candidate_sha,
             "--quick",
             "--json",
         ],
@@ -133,7 +165,7 @@ def test_readiness_keeps_public_backpack_blocked_until_production_gt() -> None:
     public = by_target["public_backpack_deposit"]
 
     assert report["primary_live_scenario"] == PRIMARY_LIVE_SCENARIO
-    assert report["production_source_sha"] == PRODUCTION_TEST_CANDIDATE_SHA
+    assert report["production_source_sha"] == candidate_sha
     assert public["production_entry_status"] == "MISSING"
     assert public["production_readiness"] == "BLOCKED"
     assert public["production_missing"] == [
@@ -170,7 +202,8 @@ def test_harness_and_launcher_do_not_contain_a_second_lobby_fsm() -> None:
     assert "def search_rooms" not in source
     assert "HITCH_FULL_NATURAL_E2E" in source
     assert "HITCH_FULL_NATURAL_E2E" in launcher
-    assert PRODUCTION_TEST_CANDIDATE_SHA in launcher
+    assert "ProductionSourceSha" in launcher
     assert "production-source-root" in launcher
     assert "public_backpack_deposit" in launcher
     assert "Mediator.tick()" in source
+

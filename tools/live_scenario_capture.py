@@ -50,7 +50,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # source root while this Harness worktree remains the owner of the runner,
 # tests, and bundle schema.  Keep the default import behaviour unchanged for
 # the existing non-Tier-0 targets.
-PRODUCTION_TEST_CANDIDATE_SHA = "53afb4376bd371c3e7bdffd7fff1f13eb6cfd1a5"
+PRODUCTION_TEST_CANDIDATE_SHA: str = ""
 
 
 def _argv_value(name: str) -> str | None:
@@ -1647,7 +1647,7 @@ def _probe_allowed_reasons(target: str) -> set[str] | None:
             # not cancel it before the Boss selection branch can run.
             "OpenHeirloomChallenges", "BossConfigured", "BossConfigured-scroll",
             "BossLastVisibleFallback", "BossLastVisibleFallback-scroll",
-            "DismissHeirloomDialog", "PublicBackpackClose",
+            "PublicBackpackClose",
         },
         "secret_realm": {"OpenGreatRift", "ConfirmGreatRift"},
         "lobby_hitch": {
@@ -3820,6 +3820,7 @@ def _scenario_identity(
         # The base helper sees this process's intentionally injected package
         # and reports only its Harness-path mismatch. Re-prove the path below.
         if not str(reason).startswith("imported shuabao is")
+        and not str(reason).startswith("production code diff is NOT_CLEAN")
     ]
     package_path = _module_source_path("shuabao")
     expected_package = (source_root / "src" / "shuabao").resolve()
@@ -3829,7 +3830,9 @@ def _scenario_identity(
     package_ok = bool(package_path and (package_path == expected_package / "__init__.py" or expected_package in package_path.parents))
     if not source_ok:
         reasons.append(f"production source root is missing or has no shuabao package: {source_root}")
-    if source_sha != expected_sha:
+    if not expected_sha:
+        reasons.append("production candidate SHA is not specified; explicit --production-source-sha required")
+    elif source_sha != expected_sha:
         reasons.append(f"production candidate SHA mismatch: expected={expected_sha} actual={source_sha}")
     if source_clean is not True:
         reasons.append("production candidate src/shuabao is not clean")
@@ -3845,7 +3848,7 @@ def _scenario_identity(
         "runtime_worktree": str(source_root),
         "runtime_worktree_sha": source_sha,
         "runtime_source_path": str(package_path) if package_path else None,
-        "runtime_source_verified": package_ok and source_sha == expected_sha and source_clean is True,
+        "runtime_source_verified": package_ok and bool(expected_sha) and source_sha == expected_sha and source_clean is True,
         "blocked_reasons": reasons,
         "ready_for_gt": not reasons,
         "match": "READY" if not reasons else "NO",
@@ -5835,7 +5838,7 @@ def _common_live_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--production-source-sha",
         default=None,
-        help=f"expected injected production SHA (default {PRODUCTION_TEST_CANDIDATE_SHA})",
+        help="expected injected production SHA (required for GT runs when candidate source is injected)",
     )
     parser.add_argument("--settings", type=Path, default=None)
     parser.add_argument("--duration", type=float, default=60.0)

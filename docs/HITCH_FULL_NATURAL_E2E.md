@@ -7,21 +7,21 @@
 ## 固定运行身份
 
 - Harness branch：`test/live-scenarios-tier0-lobby-20260909`
-- Production Test Candidate：
-  `53afb4376bd371c3e7bdffd7fff1f13eb6cfd1a5`
+- Production Test Candidate：通过 `--production-source-sha` 显式指定（禁止静默硬编码默认值）
 - Candidate worktree：`G:\刷刷宝\Worktrees\lobby-hitch-surface-test`
 - Harness worktree：`G:\刷刷宝\Worktrees\live-harness-current-20260908`
 - 运行时通过 `--production-source-root` / `--production-source-sha` 注入
   candidate 的 `src/shuabao`。bundle 会同时保存 Harness 和 production
-  source identity；source identity 不匹配时零输入阻塞。
+  source identity；source identity 未指定或不匹配时零输入阻塞。
 
 运行前先做身份检查：
 
 ```powershell
+$candidateSha = (git -C "G:\刷刷宝\Worktrees\lobby-hitch-surface-test" rev-parse HEAD).Trim()
 python tools/live_scenario_capture.py identity `
   --repo-root . `
   --production-source-root "G:\刷刷宝\Worktrees\lobby-hitch-surface-test" `
-  --production-source-sha 53afb4376bd371c3e7bdffd7fff1f13eb6cfd1a5 `
+  --production-source-sha $candidateSha `
   --json
 ```
 

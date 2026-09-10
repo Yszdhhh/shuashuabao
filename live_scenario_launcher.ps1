@@ -1,17 +1,19 @@
-﻿# Thin Windows menu for the existing tools/live_scenario_capture.py only.
+# Thin Windows menu for the existing tools/live_scenario_capture.py only.
 # It discovers paths and forwards arguments; production logic stays in the tool.
 
 param(
     [switch]$SettingsPanelSmokeTest,
-    [string]$ProductionSourceRoot = "G:\刷刷宝\Worktrees\lobby-hitch-surface-test",
-    [string]$ProductionSourceSha = "53afb4376bd371c3e7bdffd7fff1f13eb6cfd1a5"
+    [string]$ProductionSourceRoot = "",
+    [string]$ProductionSourceSha = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 if (-not $SettingsPanelSmokeTest -and -not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $scriptPath = if ($PSCommandPath) { $PSCommandPath } else { Join-Path $PSScriptRoot "live_scenario_launcher.ps1" }
-    $relaunchArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -File `"$scriptPath`" -ProductionSourceRoot `"$ProductionSourceRoot`" -ProductionSourceSha `"$ProductionSourceSha`""
+    $relaunchArgs = "-NoLogo -NoProfile -ExecutionPolicy Bypass -Sta -File `"$scriptPath`""
+    if ($ProductionSourceRoot) { $relaunchArgs += " -ProductionSourceRoot `"$ProductionSourceRoot`"" }
+    if ($ProductionSourceSha) { $relaunchArgs += " -ProductionSourceSha `"$ProductionSourceSha`"" }
     if ($SettingsPanelSmokeTest) { $relaunchArgs += " -SettingsPanelSmokeTest" }
     Start-Process powershell.exe -ArgumentList $relaunchArgs -WorkingDirectory $PSScriptRoot -Verb RunAs
     exit
@@ -31,13 +33,21 @@ Set-Location -LiteralPath $RepoRoot
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONIOENCODING = "utf-8"
 $ToolPath = Join-Path $RepoRoot "tools\live_scenario_capture.py"
-$script:ProductionSourceRoot = (Resolve-Path -LiteralPath $ProductionSourceRoot).Path
-$script:ProductionSourceSha = $ProductionSourceSha.Trim().ToLowerInvariant()
-if ($script:ProductionSourceSha -notmatch '^[0-9a-f]{40}$') {
+$script:ProductionSourceRoot = if ($ProductionSourceRoot) { (Resolve-Path -LiteralPath $ProductionSourceRoot).Path } else { "" }
+$script:ProductionSourceSha = if ($ProductionSourceSha) { $ProductionSourceSha.Trim().ToLowerInvariant() } else { "" }
+if ($script:ProductionSourceSha -and ($script:ProductionSourceSha -notmatch '^[0-9a-f]{40}$')) {
     throw "Production candidate SHA 格式无效：$ProductionSourceSha"
 }
-$env:SHUABAO_PRODUCTION_SOURCE_ROOT = $script:ProductionSourceRoot
-$env:SHUABAO_PRODUCTION_SOURCE_SHA = $script:ProductionSourceSha
+if ($script:ProductionSourceRoot) {
+    $env:SHUABAO_PRODUCTION_SOURCE_ROOT = $script:ProductionSourceRoot
+} else {
+    Remove-Item env:SHUABAO_PRODUCTION_SOURCE_ROOT -ErrorAction SilentlyContinue
+}
+if ($script:ProductionSourceSha) {
+    $env:SHUABAO_PRODUCTION_SOURCE_SHA = $script:ProductionSourceSha
+} else {
+    Remove-Item env:SHUABAO_PRODUCTION_SOURCE_SHA -ErrorAction SilentlyContinue
+}
 
 if (-not (Test-Path -LiteralPath $ToolPath -PathType Leaf)) {
     throw "找不到现有工具：$ToolPath"
@@ -302,12 +312,14 @@ function Get-HarnessIdentity {
         }
     }
     $identityScript = Join-Path $RepoRoot "tools\live_scenario_capture.py"
-    $identityArgs = @(
-        $identityScript, "identity", "--repo-root", $RepoRoot,
-        "--production-source-root", $script:ProductionSourceRoot,
-        "--production-source-sha", $script:ProductionSourceSha,
-        "--json"
-    )
+    $identityArgs = @($identityScript, "identity", "--repo-root", $RepoRoot)
+    if ($script:ProductionSourceRoot) {
+        $identityArgs += @("--production-source-root", $script:ProductionSourceRoot)
+    }
+    if ($script:ProductionSourceSha) {
+        $identityArgs += @("--production-source-sha", $script:ProductionSourceSha)
+    }
+    $identityArgs += @("--json")
     if ($script:AutomationExe -and (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
         $identityArgs += @("--automation-exe", $script:AutomationExe)
     }
@@ -375,8 +387,8 @@ function Invoke-CaptureTool {
     $previousSourceSha = $env:SHUABAO_PRODUCTION_SOURCE_SHA
     if ($script:OcrPython) { $env:SHUABAO_OCR_PYTHON = $script:OcrPython }
     if ($script:OcrModelDir) { $env:SHUABAO_OCR_MODEL_DIR = $script:OcrModelDir }
-    $env:SHUABAO_PRODUCTION_SOURCE_ROOT = $script:ProductionSourceRoot
-    $env:SHUABAO_PRODUCTION_SOURCE_SHA = $script:ProductionSourceSha
+    if ($script:ProductionSourceRoot) { $env:SHUABAO_PRODUCTION_SOURCE_ROOT = $script:ProductionSourceRoot }
+    if ($script:ProductionSourceSha) { $env:SHUABAO_PRODUCTION_SOURCE_SHA = $script:ProductionSourceSha }
     try {
         & $script:PythonPath $ToolPath @CliArgs
         $exitCode = [int]$LASTEXITCODE
@@ -397,11 +409,14 @@ function Invoke-CaptureTool {
 }
 
 function Invoke-Readiness {
-    Invoke-CaptureTool @(
-        "readiness", "--repo-root", $RepoRoot,
-        "--production-source-root", $script:ProductionSourceRoot,
-        "--production-source-sha", $script:ProductionSourceSha
-    )
+    $readinessArgs = @("readiness", "--repo-root", $RepoRoot)
+    if ($script:ProductionSourceRoot) {
+        $readinessArgs += @("--production-source-root", $script:ProductionSourceRoot)
+    }
+    if ($script:ProductionSourceSha) {
+        $readinessArgs += @("--production-source-sha", $script:ProductionSourceSha)
+    }
+    Invoke-CaptureTool $readinessArgs
 }
 
 function Get-LiveRuntimeArgs {
@@ -410,11 +425,14 @@ function Get-LiveRuntimeArgs {
     # Return a plain array. Live ticks import this worktree's source; a leftover
     # dist EXE whose source_sha lags harness-only commits would fail-close
     # before any tick, so do not pass --automation-exe here.
-    return @(
-        "--live-input", "--confirm-live-input", "--allow-dev-source",
-        "--production-source-root", $script:ProductionSourceRoot,
-        "--production-source-sha", $script:ProductionSourceSha
-    )
+    $runtimeArgs = @("--live-input", "--confirm-live-input", "--allow-dev-source")
+    if ($script:ProductionSourceRoot) {
+        $runtimeArgs += @("--production-source-root", $script:ProductionSourceRoot)
+    }
+    if ($script:ProductionSourceSha) {
+        $runtimeArgs += @("--production-source-sha", $script:ProductionSourceSha)
+    }
+    return $runtimeArgs
 }
 
 function Invoke-TargetProbe {
@@ -432,11 +450,15 @@ function Invoke-TargetProbe {
         "--target", $Target,
         "--out", $script:CaptureRoot,
         "--repo-root", $RepoRoot,
-        "--production-source-root", $script:ProductionSourceRoot,
-        "--production-source-sha", $script:ProductionSourceSha,
         "--continue-after-failure",
         "--generate"
     )
+    if ($script:ProductionSourceRoot) {
+        $cliArgs += @("--production-source-root", $script:ProductionSourceRoot)
+    }
+    if ($script:ProductionSourceSha) {
+        $cliArgs += @("--production-source-sha", $script:ProductionSourceSha)
+    }
 
     if (-not $GroundTruthOnly) {
         $cliArgs += @(Get-LiveRuntimeArgs)
