@@ -4544,6 +4544,7 @@ def _prepare_settings(path: Path | None, target: str, live_input: bool) -> Setti
         settings.merchant_enabled = True
         settings.auto_devour_dan = True
         settings.auto_treasure = True
+        settings.auto_secret_realm = False
     if target == "hitch_runtime":
         # 蹭车续跑在传家宝挑战确认后按既有退出链收敛；秘境另行显式配置。
         settings.auto_secret_realm = False
