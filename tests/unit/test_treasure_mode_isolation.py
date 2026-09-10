@@ -143,8 +143,8 @@ def test_normal_mode_negative_treasure_dropped():
 # ---------------------------------------------------------------------------
 
 
-def test_hitch_mode_green_talisman_beats_higher_quality():
-    """蹭车模式：绿色神符优先于其他非负面宝物（含更高品质）。"""
+def test_hitch_mode_talisman_beats_higher_quality():
+    """蹭车模式：神符优先于其他非负面宝物（含更高品质）。"""
     dec = _decide(
         (
             SlotCandidate(index=0, name="恢复神符", rarity="green", confidence=0.90),
@@ -152,11 +152,15 @@ def test_hitch_mode_green_talisman_beats_higher_quality():
         ),
         mode_id="lobby_hitch",
     )
-    _select(dec, 0, "蹭车模式优先绿色神符")
+    _select(dec, 0, "蹭车共享道具·神符")
 
 
-def test_hitch_mode_non_green_talisman_not_prioritized():
-    """蹭车模式：非绿色神符不触发专项获取，按品质链走。"""
+def test_hitch_mode_talisman_is_taken_at_any_rarity():
+    """Owner ruling 20260910：神符是共享道具，品质色不再是门槛。
+
+    旧契约只认绿色神符，蓝色神符会被更高品质的自用宝物顶掉。蹭车是打辅助，
+    能交给车队的只有共享道具，颜色无关。
+    """
     dec = _decide(
         (
             SlotCandidate(index=0, name="奥术神符", rarity="blue", confidence=0.90),
@@ -164,7 +168,31 @@ def test_hitch_mode_non_green_talisman_not_prioritized():
         ),
         mode_id="lobby_hitch",
     )
-    _select(dec, 1)
+    _select(dec, 0, "蹭车共享道具·神符")
+
+
+def test_hitch_mode_takes_devour_pill_then_hero_card():
+    """神符 > 吞噬丹 > 英雄卡：车主定的共享道具顺序。"""
+    dec = _decide(
+        (
+            SlotCandidate(index=0, name="英雄卡·希女王", rarity="blue", confidence=0.90),
+            SlotCandidate(index=1, name="吞噬丹", rarity="purple", confidence=0.90),
+        ),
+        mode_id="lobby_hitch",
+    )
+    _select(dec, 1, "蹭车共享道具·吞噬丹")
+
+
+def test_hitch_mode_falls_back_to_the_top_rarity_band():
+    """没有命名共享道具时，预算够就拿最高品质（EX/传说），拿完也进公共背包。"""
+    dec = _decide(
+        (
+            SlotCandidate(index=0, name="普通木剑", rarity="white", confidence=0.90),
+            SlotCandidate(index=1, name="天火燎原", rarity="red", confidence=0.90),
+        ),
+        mode_id="lobby_hitch",
+    )
+    _select(dec, 1, "蹭车共享道具·最高品质")
 
 
 def test_hitch_mode_negative_talisman_dropped():

@@ -98,6 +98,7 @@ from shuabao.choice_policy import (
     SlotCandidate,
     assemble_policy_settings,
     choose_action,
+    hitch_treasure_pick,
     matches_bond_preset,
     slot_fingerprint,
 )
@@ -3185,28 +3186,17 @@ class Mediator:
         can_refresh = self._panel_can_refresh(frame, kind)
         policy_settings = self._policy_settings()
         if self._hitch_enabled() and kind == "treasure":
-            talisman = next(
-                (
-                    slot for slot in slots
-                    if slot.confidence >= policy_settings.min_confidence
-                    and slot.rarity == "green"
-                    and "神符" in str(slot.name or "")
-                ),
-                None,
-            )
-            if talisman is not None:
-                decision = PolicyDecision.select(
-                    talisman.index,
-                    f"蹭车宝物只拿绿色神符【{talisman.name}】 @ slot {talisman.index}",
-                )
+            pick, reason = hitch_treasure_pick(slots, policy_settings)
+            if pick is not None:
+                decision = PolicyDecision.select(pick.index, reason)
             elif can_refresh and self._choice_session.refreshes < self._choice_session.max_refreshes:
                 decision = PolicyDecision(
                     PolicyAction.REFRESH,
                     None,
-                    "蹭车宝物未找到绿色神符，刷新后重试",
+                    "蹭车宝物无可共享道具（神符/吞噬丹/英雄卡/EX），刷新后重试",
                 )
             else:
-                decision = PolicyDecision.close("蹭车宝物无绿色神符，关闭后等待结算")
+                decision = PolicyDecision.close("蹭车宝物无可共享道具，关闭后等待结算")
         else:
             decision = choose_action(
                 PanelCandidates(

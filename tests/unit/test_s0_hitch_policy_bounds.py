@@ -130,11 +130,15 @@ def test_hitch_treasure_selects_green_talisman() -> None:
     assert result.name == "ocr_treasure:绿色神符"
 
 
-def test_hitch_treasure_non_green_only_refresh_or_close() -> None:
-    """蹭车宝物：非绿神符/非神符不选；预算内刷新（无钮降级关闭）/预算尽关闭。"""
+def test_hitch_treasure_without_shareable_item_only_refreshes_or_closes() -> None:
+    """蹭车宝物：没有可共享道具时不选；预算内刷新（无钮降级关闭）/预算尽关闭。
+
+    20260910 Owner ruling 之后「可共享」= 神符/吞噬丹/英雄卡/最高品质，所以
+    这条边界要用真正的自用宝物来构造，蓝色神符已经属于该拿的了。
+    """
     slots = (
         _slot(0, "橙色宝物", "orange"),
-        _slot(1, "蓝色神符", "blue"),
+        _slot(1, "蓝色护腕", "blue"),
     )
     med, patched = _talisman_stacks("lobby_hitch", slots, can_refresh=True)
     with patched() as (m, closer, close):

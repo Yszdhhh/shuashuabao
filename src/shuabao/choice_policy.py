@@ -1158,17 +1158,11 @@ def _decide_collectible(
         if not eligible:
             return _no_safe_candidate(cands, state, kind, "无安全候选（全部为负面宝物）")
 
-        # 蹭车模式：专项获取绿色神符
+        # 蹭车模式：只拿能交给车队的共享道具
         if getattr(settings, "mode_id", "normal_farm") == "lobby_hitch":
-            for slot in eligible:
-                if (
-                    slot.confidence >= settings.min_confidence
-                    and slot.rarity == "green"
-                    and "神符" in str(slot.name or "")
-                ):
-                    return PolicyDecision.select(
-                        slot.index, f"蹭车模式优先绿色神符【{slot.name}】 @ slot {slot.index}"
-                    )
+            pick, reason = hitch_treasure_pick(eligible, settings)
+            if pick is not None:
+                return PolicyDecision.select(pick.index, reason)
 
         # 普通模式（及蹭车无绿色神符时）：
         # 产品裁决：先过滤黑名单，剩余只按现有品质顺序选择，不再让 must_take / presets / synthesis 压过更高品质。
@@ -1463,6 +1457,45 @@ def is_negative_treasure(slot: SlotCandidate, settings: PolicySettings) -> bool:
     if not text:
         return False
     return any(pattern in text for pattern in settings.treasure_negative_patterns)
+
+
+#: 蹭车 = 打辅助。羁绊/技能/装备/进化都只强化自己，一律不碰；能交给车队的
+#: 只有宝物这一类共享道具。优先级由车主定：神符 > 吞噬丹 > 英雄卡 > 最高品质
+#: （EX/传说，预算够就拿），拿到手一律进公共背包。
+HITCH_TREASURE_KEYWORDS: tuple[tuple[str, str], ...] = (
+    ("神符", "神符"),
+    ("吞噬丹", "吞噬丹"),
+    ("英雄卡", "英雄卡"),
+)
+
+
+def hitch_treasure_pick(slots, settings):
+    """Return (slot, reason) for the first shareable treasure worth taking.
+
+    Named keywords come first in the owner's stated order; the top rarity band
+    is the last resort so an EX/legendary still gets picked up when nothing
+    named matches.  A slot whose name was not read confidently is never chosen —
+    an unnamed pick cannot be justified to the team.
+    """
+    named = [
+        slot for slot in slots
+        if slot.confidence >= settings.min_confidence and str(slot.name or "")
+    ]
+    for keyword, label in HITCH_TREASURE_KEYWORDS:
+        for slot in named:
+            if keyword in str(slot.name):
+                return slot, f"蹭车共享道具·{label}【{slot.name}】 @ slot {slot.index}"
+    best_rank = None
+    best_slot = None
+    for slot in named:
+        rank = _rarity_rank(slot.rarity, settings.quality_order)
+        if rank >= len(settings.quality_order):
+            continue
+        if best_rank is None or rank < best_rank:
+            best_rank, best_slot = rank, slot
+    if best_slot is not None and best_rank == 0:
+        return best_slot, f"蹭车共享道具·最高品质【{best_slot.name}】 @ slot {best_slot.index}"
+    return None, ""
 
 
 def _drop_negative_treasures(
