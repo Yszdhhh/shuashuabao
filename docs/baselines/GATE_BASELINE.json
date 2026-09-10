@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-09 01:14:28",
-  "reason": "Live hitch full-run repair: comment-tab ownership, nonfatal loading wait, merchant-to-green-talisman wiring, and evolution click ownership; refresh accumulated verified pytest counts.",
+  "updated_at": "2026-09-10 08:46:10",
+  "reason": "公共背包锚点入库：assets/Images/bag/{public_bag_title,bag_sell_equipment}.png 两张真实实机模板（_public_bag_gt_20260909/keyframes/t12_0.png 1:1 裁切），资产 allowlist 387->389；同时刷新已全绿的 pytest 计数（0 failed）。无 FAIL 被写进快照。",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 1667,
+        "passed": 1821,
         "xfailed": 2,
-        "skipped": 13
+        "skipped": 1
       }
     },
     "frozen_replay": {
@@ -35,8 +35,8 @@
         "asset_spec_assets_root": 1,
         "asset_manifest_schema": 1,
         "asset_package_root_whole_tree": 1,
-        "asset_files": 387,
-        "asset_allowlisted": 387,
+        "asset_files": 389,
+        "asset_allowlisted": 389,
         "asset_missing_allowlist": 0,
         "asset_stale_manifest": 0,
         "asset_forbidden_paths": 0,
