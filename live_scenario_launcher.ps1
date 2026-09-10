@@ -451,7 +451,7 @@ function Invoke-TargetProbe {
             $cliArgs += @("--until-success", "--interval", "0.15")
         }
         if ($script:AutomationExe -and -not (Test-Path -LiteralPath $script:AutomationExe -PathType Leaf)) {
-            Write-Host "[launcher] 未找到 EXE；仍交给现有 preflight 处理：$script:AutomationExe" -ForegroundColor Yellow
+            Write-Host "[launcher] 本次使用已验证的源码运行时；不需要 worktree EXE。" -ForegroundColor DarkGray
         }
     }
 
