@@ -125,6 +125,32 @@ class HitchMidgameTakeoverTests(unittest.TestCase):
         self.assertIs(action, LoopAction.Continue)
         self.assertFalse(med._hitch_pressure_transferred)
 
+    def test_victory_page_releases_pressure_gate(self) -> None:
+        med = _hitch_mediator()
+        frame = _frame()
+        with patch.object(med, "_is_in_game_hud", return_value=True), \
+                patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+                patch.object(med, "find", return_value=None):
+            action = med._maybe_click_hitch_pressure_transfer(frame, 1.0)
+
+        self.assertIsNone(action)
+        self.assertFalse(med._hitch_pressure_transferred)
+
+    def test_hitch_takeover_on_victory_clicks_continue(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.MAIN_LINE, "takeover")
+        hit = MatchResult("continueGame", 0.92, 800, 540, 120, 36, 860, 558)
+        with patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+                patch.object(med, "_bag_layout", return_value=None), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "find", return_value=hit), \
+                patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(_frame())
+        self.assertIs(action, LoopAction.Continue)
+        click.assert_called_once_with(hit, "ContinueGame")
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+
 
 class HitchTimeCaveBossTests(unittest.TestCase):
     def test_hitch_sgzx_boss_unseen_advances_to_archive_close(self) -> None:

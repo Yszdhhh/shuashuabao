@@ -6184,6 +6184,10 @@ class Mediator:
             return None
         if getattr(self, "_hitch_pressure_transferred", False):
             return None
+        # 胜利/暂停/存档/广场已经不是开局压力转移窗口。门禁若挡在
+        # ContinueGame 前面，接管会在胜利画面上零输入直到人工停止。
+        if self._post_game_state(frame) is not None:
+            return None
         # A runtime can attach after the host has already completed the
         # opening pressure-transfer step. The stable top ``存档挑战`` marker is
         # real in-game progress (for example 2-7), not a timer or generic HUD

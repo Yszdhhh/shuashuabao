@@ -391,6 +391,7 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     # 点击成功 → 只记录 click_at，不置 transferred
     with patch.object(med, "_team_mode_enabled", return_value=True), \
          patch.object(med, "_is_in_game_hud", return_value=True), \
+         patch.object(med, "_post_game_state", return_value=None), \
          patch.object(med, "find", return_value=hit), \
          patch.object(med, "act_click", return_value=True) as click, \
          patch("shuabao.mediator.time.time", return_value=10.0):
@@ -403,6 +404,7 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     with (
         patch.object(med, "_team_mode_enabled", return_value=True),
         patch.object(med, "_is_in_game_hud", return_value=True),
+        patch.object(med, "_post_game_state", return_value=None),
         patch.object(med, "find", return_value=None),
         patch("shuabao.mediator.time.time", return_value=12.0),
     ):
@@ -420,6 +422,7 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     med2._main_line_since = 0.0
     with patch.object(med2, "_team_mode_enabled", return_value=True), \
          patch.object(med2, "_is_in_game_hud", return_value=True), \
+         patch.object(med2, "_post_game_state", return_value=None), \
          patch.object(med2, "find", return_value=None), \
          patch("shuabao.mediator.time.time", return_value=30.0):
         assert med2._maybe_click_hitch_pressure_transfer(frame, 30.0) is LoopAction.Continue
