@@ -129,6 +129,8 @@ from shuabao.policy.public_bag import (
     EMPTY_SLOT_MAX_SATURATED,
     EMPTY_SLOT_MAX_STD,
     ITEM_BAR_SLOTS,
+    OCCUPIED_SLOT_MIN_SATURATED,
+    OCCUPIED_SLOT_MIN_STD,
     SLOT_SATURATION_MIN,
     SLOT_VALUE_MIN,
     BagLayout,
@@ -4179,9 +4181,17 @@ class Mediator:
         source = self._public_bag_source(frame, layout)
         if source is None:
             return None
-        return source[2]
+        return source["hit"]
 
     # ---------- 公共背包流转 (docs/gt_lab/PUBLIC_BAG_GT_SPEC_20260909.md) ----------
+    #
+    # 蹭车 = 打辅助：羁绊/技能/装备/进化都是升级自己，一律不碰；能共享的只有
+    # 宝物（主要是神符）和吞噬丹。所以局内拿到的任何东西都不留在自己身上，
+    # 全部经「右键源物品格 → 左键公共背包空格」交给车队。
+    #
+    # 20260910 实机录像（背包.mp4，多人房）确认了操作节奏：按一次 B 之后面板
+    # 全程不关，掉落先落在 物品栏/个人背包，再逐件搬进公共背包，公共格按
+    # (0,0)→(0,1)→(0,2) 行优先填。本实现照此工作。
 
     _PUBLIC_BAG_ANCHORS = ("bag/public_bag_title", "bag/bag_sell_equipment")
     _PUBLIC_BAG_ANCHOR_THRESHOLD = 0.80
@@ -4243,6 +4253,10 @@ class Mediator:
         std = float(cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY).std())
         return (std, saturated)
 
+    @staticmethod
+    def _bag_area_scale(frame: Frame) -> float:
+        return min(frame.width / 1600.0, frame.height / 900.0) ** 2
+
     def _bag_slot_empty(self, frame: Frame, rect: tuple[int, int, int, int] | None) -> bool:
         """True only for a *verifiably* empty slot.
 
@@ -4254,9 +4268,23 @@ class Mediator:
         if signature is None:
             return False
         std, saturated = signature
-        scale = min(frame.width / 1600.0, frame.height / 900.0)
-        limit = max(20.0, EMPTY_SLOT_MAX_SATURATED * scale * scale)
+        limit = max(20.0, EMPTY_SLOT_MAX_SATURATED * self._bag_area_scale(frame))
         return std < EMPTY_SLOT_MAX_STD and saturated < limit
+
+    def _bag_slot_occupied(self, frame: Frame, rect: tuple[int, int, int, int] | None) -> bool:
+        """True only for a *verifiably* occupied slot.
+
+        Empty and occupied are separate positive tests on purpose: the mouse
+        cursor alone reaches std 76 but never more than ~118 saturated pixels,
+        while a real item icon carries 103-823.  A cell that answers neither is
+        simply skipped this tick.
+        """
+        signature = self._bag_slot_signature(frame, rect)
+        if signature is None:
+            return False
+        std, saturated = signature
+        floor = max(20.0, OCCUPIED_SLOT_MIN_SATURATED * self._bag_area_scale(frame))
+        return std >= OCCUPIED_SLOT_MIN_STD and saturated >= floor
 
     def _public_bag_empty_slot(
         self, frame: Frame, layout: BagLayout
@@ -4286,57 +4314,65 @@ class Mediator:
             )
         return None
 
-    def _public_bag_source(
-        self, frame: Frame, layout: BagLayout
-    ) -> tuple[str, int, MatchResult] | None:
-        """Spec step 1: fresh-confirm a deposit source in the panel's 物品栏.
+    def _public_bag_source(self, frame: Frame, layout: BagLayout) -> dict | None:
+        """Spec step 1: fresh-confirm the next thing to hand to the team.
 
-        Only the devour pill is claimed here.  The green-talisman criterion needs
-        an item name, and the 40x41 icon carries none: reading it means hovering
-        for the tooltip, which is an input we will not spend without real
-        multiplayer GT.  Until then an unidentified item is left alone.
+        Under ``lobby_hitch`` nothing we pick up is ours, so the criterion is
+        "this slot verifiably holds an item", not "we recognised the item".
+        物品栏 is drained first (that is where fresh loot lands), then the
+        personal grid row by row.  A slot that is neither clearly empty nor
+        clearly occupied — the cursor is sitting on it, or a transfer is still
+        animating — is skipped, not guessed.
         """
-        rect = layout.item_bar_slot_rect(0)
-        last = layout.item_bar_slot_rect(ITEM_BAR_SLOTS - 1)
-        if rect is None or last is None:
-            return None
-        roi = (
-            max(0.0, rect[0] / frame.width - 0.01),
-            max(0.0, rect[1] / frame.height - 0.01),
-            min(1.0, last[2] / frame.width + 0.01),
-            min(1.0, last[3] / frame.height + 0.01),
-        )
-        hit = self.find(
-            frame,
-            list(self._PUBLIC_BAG_PILL_TEMPLATES),
-            threshold=0.70,
-            scales=(0.7, 0.8, 0.9, 1.0, 1.1, 1.2),
-            roi=roi,
-            mode="bag:item_bar_source",
-        )
-        if hit is None:
-            return None
-        index = layout.item_bar_slot_index(hit.x + hit.w // 2, hit.y + hit.h // 2)
-        if index is None:
-            return None
-        center = layout.item_bar_slot_center(index)
-        if center is None:
-            return None
-        x, y = center
-        return (
-            "swallow_pill",
-            index,
-            MatchResult(
-                f"item_bar_slot_{index}",
-                hit.score,
-                x,
-                y,
-                0,
-                0,
-                frame.left + x,
-                frame.top + y,
-            ),
-        )
+        for index in range(ITEM_BAR_SLOTS):
+            if not self._bag_slot_occupied(frame, layout.item_bar_slot_probe_rect(index)):
+                continue
+            center = layout.item_bar_slot_center(index)
+            if center is None:
+                continue
+            x, y = center
+            return {
+                "kind": "item_bar",
+                "slot_index": index,
+                "cell": None,
+                "source_id": f"item_bar_{index}",
+                "hit": MatchResult(
+                    f"item_bar_slot_{index}", 1.0, x, y, 0, 0, frame.left + x, frame.top + y
+                ),
+            }
+        for row, col in layout.public_slots():
+            if not self._bag_slot_occupied(frame, layout.personal_slot_rect(row, col)):
+                continue
+            center = layout.personal_slot_center(row, col)
+            if center is None:
+                continue
+            x, y = center
+            return {
+                "kind": "personal",
+                "slot_index": -1,
+                "cell": (row, col),
+                "source_id": f"personal_{row}_{col}",
+                "hit": MatchResult(
+                    f"personal_bag_slot_{row}_{col}",
+                    1.0,
+                    x,
+                    y,
+                    0,
+                    0,
+                    frame.left + x,
+                    frame.top + y,
+                ),
+            }
+        return None
+
+    def _public_bag_source_rect(
+        self, layout: BagLayout, fsm: PublicBagFSM
+    ) -> tuple[int, int, int, int] | None:
+        if fsm.source_kind == "item_bar":
+            return layout.item_bar_slot_probe_rect(fsm.source_slot)
+        if fsm.source_kind == "personal" and fsm.source_cell is not None:
+            return layout.personal_slot_rect(*fsm.source_cell)
+        return None
 
     def _public_bag_left_click_allowed(self, layout: BagLayout, hit: MatchResult) -> bool:
         """铁律：左键只允许落在公共背包格，绝不落在个人背包/物品栏。"""
@@ -4347,7 +4383,12 @@ class Mediator:
     def _public_bag_deposit_confirmed(
         self, frame: Frame, layout: BagLayout | None
     ) -> bool | None:
-        """Spec step 8.  ``None`` = undecided, keep waiting inside the deadline."""
+        """Spec step 8.  ``None`` = undecided, keep waiting inside the deadline.
+
+        A transfer is only confirmed when both ends moved: the public target
+        stopped being empty *and* the source slot is now empty.  Requiring both
+        is what separates a real transfer from a repaint or a cursor artefact.
+        """
         fsm = self._public_bag_fsm
         target = fsm.target_slot
         if layout is None or target is None:
@@ -4355,24 +4396,27 @@ class Mediator:
         row, col = target
         if self._bag_slot_empty(frame, layout.public_slot_rect(row, col)):
             return None
-        source_rect = layout.item_bar_slot_rect(fsm.source_slot)
+        source_rect = self._public_bag_source_rect(layout, fsm)
         if source_rect is None:
             return None
-        baseline = self._public_bag_deposit_before
-        current = self._bag_slot_signature(frame, source_rect)
-        if baseline is None or current is None:
-            return None
-        # The public slot filled up; the source slot must also have changed, or
-        # what we are looking at is a repaint rather than a transfer.
-        moved = abs(current[1] - int(baseline[1])) >= 20 or abs(current[0] - float(baseline[0])) >= 5.0
-        return True if moved else None
+        if self._bag_slot_empty(frame, source_rect):
+            return True
+        if self._bag_slot_occupied(frame, source_rect):
+            baseline = self._public_bag_deposit_before
+            current = self._bag_slot_signature(frame, source_rect)
+            if baseline is not None and current is not None:
+                # A stack that only lost some of its count still counts as a
+                # move; an unchanged icon does not.
+                if abs(current[1] - int(baseline[1])) >= 20:
+                    return True
+        return None
 
     def _maybe_public_backpack_deposit(self, frame: Frame, now: float) -> LoopAction | None:
-        """PUBLIC_BACKPACK_DEPOSIT operation (GT spec §2.3).
+        """PUBLIC_BACKPACK_DEPOSIT operation (GT spec 2.3).
 
-        One deposit at a time, one input per tick, and every step gated on a
-        fresh frame.  Returns ``None`` when the operation has nothing to do, so
-        the caller keeps its own cycle moving.
+        One item at a time, one input per tick, every step gated on a fresh
+        frame, and the bag page held open between deposits.  Returns ``None``
+        when there is nothing to do so the caller keeps its own cycle moving.
         """
         if not self._hitch_enabled():
             return None
@@ -4391,6 +4435,8 @@ class Mediator:
         if previous.phase is PublicBagPhase.DEPOSIT_REQUESTED and fsm.phase is not previous.phase:
             # 存入的业务后置确认落定在这一 tick，写进 trace 的 post_confirm。
             self._tick_post_confirm = fsm.deposits > previous.deposits
+            if fsm.deposits > previous.deposits:
+                print(f"[L1] 公共背包：第 {fsm.deposits} 件存入已确认，面板保持打开")
         if fsm.phase is PublicBagPhase.ABORTED and previous.phase is not PublicBagPhase.ABORTED:
             print(f"[L1] 公共背包流转中止：{fsm.abort_reason}")
         self._public_bag_fsm = fsm
@@ -4418,17 +4464,27 @@ class Mediator:
                 return LoopAction.Continue
             source = self._public_bag_source(frame, layout)
             if source is None:
-                self._public_bag_fsm = fsm.abort("no_deposit_source", now, cooldown_s=30.0)
+                # 面板保持打开、零输入等下一件掉落；这不是失败。
                 return LoopAction.Continue
-            source_id, index, hit = source
+            if self._public_bag_empty_slot(frame, layout) is None:
+                self._public_bag_fsm = fsm.abort("public_bag_full_or_unverified", now)
+                return LoopAction.Continue
             # 铁律：源物品格只右键，左键会当场使用/装备掉队伍资产。
-            if self.act_right_click(hit, "PublicBackpackDepositRightClick"):
-                self._public_bag_deposit_before = None
-                signature = self._bag_slot_signature(frame, layout.item_bar_slot_rect(index))
-                if signature is not None:
-                    self._public_bag_deposit_before = signature
-                self._public_bag_fsm = fsm.select_source(source_id, index, now)
-                print(f"[L1] 公共背包：右键取出 {source_id} @ 物品栏槽 {index}")
+            if self.act_right_click(source["hit"], "PublicBackpackDepositRightClick"):
+                source_rect = (
+                    layout.item_bar_slot_probe_rect(source["slot_index"])
+                    if source["kind"] == "item_bar"
+                    else layout.personal_slot_rect(*source["cell"])
+                )
+                self._public_bag_deposit_before = self._bag_slot_signature(frame, source_rect)
+                self._public_bag_fsm = fsm.select_source(
+                    source["source_id"],
+                    now,
+                    kind=source["kind"],
+                    slot_index=source["slot_index"],
+                    cell=source["cell"],
+                )
+                print(f"[L1] 公共背包：右键取出 {source['source_id']}")
             return LoopAction.Continue
 
         if fsm.phase is PublicBagPhase.SOURCE_SELECTED:
@@ -4450,18 +4506,6 @@ class Mediator:
         if fsm.phase is PublicBagPhase.DEPOSIT_REQUESTED:
             return LoopAction.Continue  # 零输入等待后置确认
 
-        if fsm.phase in (PublicBagPhase.DONE, PublicBagPhase.ABORTED):
-            if fsm.opened_by_us and bag_visible:
-                self._public_bag_fsm = fsm.request_close(now)
-            return LoopAction.Continue
-
-        if fsm.phase is PublicBagPhase.CLOSE_REQUESTED:
-            if not bag_visible:
-                return LoopAction.Continue  # observe() 下一 tick 收口
-            if now >= self._public_bag_next_at and self.act_key("b", "PublicBackpackDepositB"):
-                self._public_bag_next_at = now + 1.0
-            return LoopAction.Continue
-
         return LoopAction.Continue
 
     def _public_backpack_deposit_postcondition(
@@ -4481,7 +4525,13 @@ class Mediator:
         result["deposits"] = fsm.deposits
         result["phase"] = fsm.phase.name
         if target is None:
-            result["state"] = "no_deposit_requested"
+            # A completed transfer clears target_slot, so a positive deposit
+            # count is still authoritative evidence of the business outcome.
+            if fsm.deposits > 0:
+                result["observed"] = True
+                result["state"] = "confirmed"
+            else:
+                result["state"] = "no_deposit_requested"
             return result
         row, col = target
         result["target_slot"] = [row, col]

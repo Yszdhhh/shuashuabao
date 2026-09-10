@@ -116,25 +116,34 @@ class BagLayoutGeometryTests(unittest.TestCase):
 
 
 class PublicBagFSMTests(unittest.TestCase):
-    def test_happy_path_follows_the_spec_step_order(self):
+    def test_happy_path_keeps_the_page_open_between_deposits(self):
         fsm = PublicBagFSM()
         self.assertTrue(fsm.can_start(0.0))
         fsm = fsm.request_bag_open(0.0)
         self.assertIs(fsm.phase, PublicBagPhase.BAG_OPEN_REQUESTED)
         fsm = fsm.observe(0.1, bag_visible=True)
         self.assertIs(fsm.phase, PublicBagPhase.BAG_VISIBLE)
-        fsm = fsm.select_source("swallow_pill", 1, 0.2)
+        fsm = fsm.select_source("item_bar_3", 0.2, kind="item_bar", slot_index=3)
         self.assertIs(fsm.phase, PublicBagPhase.SOURCE_SELECTED)
-        fsm = fsm.request_deposit(3, 0, 0.3)
-        self.assertIs(fsm.phase, PublicBagPhase.DEPOSIT_REQUESTED)
+        self.assertTrue(fsm.carrying)
+        fsm = fsm.request_deposit(0, 0, 0.3)
         fsm = fsm.observe(0.4, bag_visible=True, deposit_confirmed=True)
-        self.assertIs(fsm.phase, PublicBagPhase.CLOSE_REQUESTED)
+        self.assertIs(fsm.phase, PublicBagPhase.BAG_VISIBLE, "存完不关面板，继续搬下一件")
         self.assertEqual(fsm.deposits, 1)
-        fsm = fsm.observe(0.5, bag_visible=False)
-        self.assertIs(fsm.phase, PublicBagPhase.IDLE)
+        self.assertFalse(fsm.carrying)
+
+        fsm = fsm.select_source("personal_0_1", 0.5, kind="personal", cell=(0, 1))
+        fsm = fsm.request_deposit(0, 1, 0.6)
+        fsm = fsm.observe(0.7, bag_visible=True, deposit_confirmed=True)
+        self.assertEqual(fsm.deposits, 2)
+        self.assertIs(fsm.phase, PublicBagPhase.BAG_VISIBLE)
+
+    def test_idle_round_holds_the_open_page_without_timing_out(self):
+        """整局没东西可搬也不是失败：面板留着，零输入等下一件掉落。"""
+        fsm = PublicBagFSM().request_bag_open(0.0).observe(0.1, bag_visible=True)
+        self.assertIs(fsm.observe(600.0, bag_visible=True).phase, PublicBagPhase.BAG_VISIBLE)
 
     def test_left_click_is_only_authorised_while_carrying_the_source(self):
-        fsm = PublicBagFSM()
         for phase in PublicBagPhase:
             candidate = PublicBagFSM(phase=phase)
             self.assertEqual(
@@ -142,14 +151,20 @@ class PublicBagFSMTests(unittest.TestCase):
                 phase is PublicBagPhase.SOURCE_SELECTED,
                 f"{phase} must not authorise a left click",
             )
-        self.assertFalse(fsm.can_left_click())
 
     def test_bag_page_disappearing_aborts_instead_of_clicking_blind(self):
         fsm = PublicBagFSM().request_bag_open(0.0).observe(0.1, bag_visible=True)
-        fsm = fsm.select_source("swallow_pill", 1, 0.2)
+        fsm = fsm.select_source("item_bar_3", 0.2, kind="item_bar", slot_index=3)
         fsm = fsm.observe(0.3, bag_visible=False)
         self.assertIs(fsm.phase, PublicBagPhase.ABORTED)
-        self.assertEqual(fsm.abort_reason, "bag_page_lost")
+        self.assertEqual(fsm.abort_reason, "bag_page_lost_while_carrying")
+
+    def test_page_closed_while_resting_reopens_quickly(self):
+        """玩家/游戏关掉面板只需重新按 B，不该背 20s 冷却。"""
+        fsm = PublicBagFSM().request_bag_open(0.0).observe(0.1, bag_visible=True)
+        aborted = fsm.observe(0.2, bag_visible=False)
+        self.assertEqual(aborted.abort_reason, "bag_page_lost")
+        self.assertLess(aborted.cooldown_until - 0.2, 5.0)
 
     def test_bag_never_opening_aborts_on_its_deadline(self):
         fsm = PublicBagFSM().request_bag_open(0.0, timeout_s=3.0)
@@ -163,7 +178,7 @@ class PublicBagFSMTests(unittest.TestCase):
             PublicBagFSM()
             .request_bag_open(0.0)
             .observe(0.1, bag_visible=True)
-            .select_source("swallow_pill", 1, 0.2)
+            .select_source("item_bar_3", 0.2, kind="item_bar", slot_index=3)
             .request_deposit(3, 0, 0.3, timeout_s=4.0)
         )
         waiting = fsm.observe(1.0, bag_visible=True, deposit_confirmed=None)
@@ -178,21 +193,24 @@ class PublicBagFSMTests(unittest.TestCase):
             PublicBagFSM()
             .request_bag_open(0.0)
             .observe(0.1, bag_visible=True)
-            .select_source("swallow_pill", 1, 0.2)
+            .select_source("item_bar_3", 0.2, kind="item_bar", slot_index=3)
             .request_deposit(3, 0, 0.3)
         )
         aborted = fsm.observe(0.4, bag_visible=True, deposit_confirmed=False)
         self.assertIs(aborted.phase, PublicBagPhase.ABORTED)
         self.assertEqual(aborted.abort_reason, "deposit_postcondition_failed")
 
-    def test_abort_holds_a_cooldown_before_the_next_attempt(self):
+    def test_abort_holds_a_cooldown_then_releases_to_idle(self):
         fsm = PublicBagFSM().abort("no_deposit_source", 100.0, cooldown_s=30.0)
-        self.assertFalse(PublicBagFSM(cooldown_until=fsm.cooldown_until).can_start(120.0))
-        self.assertTrue(PublicBagFSM(cooldown_until=fsm.cooldown_until).can_start(131.0))
+        self.assertIs(fsm.observe(101.0, bag_visible=True).phase, PublicBagPhase.ABORTED)
+        released = fsm.observe(104.0, bag_visible=True)
+        self.assertIs(released.phase, PublicBagPhase.IDLE)
+        self.assertFalse(released.can_start(120.0))
+        self.assertTrue(released.can_start(131.0))
 
     def test_out_of_order_transitions_are_refused(self):
         idle = PublicBagFSM()
-        self.assertIs(idle.select_source("swallow_pill", 0, 0.0).phase, PublicBagPhase.IDLE)
+        self.assertIs(idle.select_source("x", 0.0).phase, PublicBagPhase.IDLE)
         self.assertIs(idle.request_deposit(0, 0, 0.0).phase, PublicBagPhase.IDLE)
         self.assertIs(idle.confirm_deposit(0.0).phase, PublicBagPhase.IDLE)
         self.assertEqual(idle.confirm_deposit(0.0).deposits, 0)
@@ -206,6 +224,9 @@ class MediatorPublicBagTests(unittest.TestCase):
 
     def _patch_layout(self, layout: BagLayout | None):
         return patch.object(self.med, "_bag_layout", return_value=layout)
+
+    def _bag_visible(self, phase=PublicBagPhase.BAG_VISIBLE, **kwargs):
+        self.med._public_bag_fsm = PublicBagFSM(phase=phase, **kwargs)
 
     def test_zero_input_when_the_bag_page_is_not_confirmed(self):
         with self._patch_layout(None), \
@@ -232,11 +253,29 @@ class MediatorPublicBagTests(unittest.TestCase):
         key.assert_called_once_with("b", "PublicBackpackDepositB")
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_OPEN_REQUESTED)
 
-    def test_source_item_is_right_clicked_never_left_clicked(self):
-        self.med._public_bag_fsm = PublicBagFSM(phase=PublicBagPhase.BAG_VISIBLE, deadline=200.0)
-        source_hit = MatchResult("item_bar_slot_1", 0.9, *self.layout.item_bar_slot_center(1), 0, 0, 0, 0)
+    def test_open_page_with_nothing_to_deposit_is_zero_input(self):
+        """常开面板的静息态：没源物品就什么都不做，也不关面板。"""
+        self._bag_visible()
         with self._patch_layout(self.layout), \
-             patch.object(self.med, "_public_bag_source", return_value=("swallow_pill", 1, source_hit)), \
+             patch.object(self.med, "_public_bag_source", return_value=None), \
+             patch.object(self.med, "act_key") as key, \
+             patch.object(self.med, "act_click") as click, \
+             patch.object(self.med, "act_right_click") as right:
+            self.assertEqual(self.med._maybe_public_backpack_deposit(self.frame, 100.0), LoopAction.Continue)
+        for spy in (key, click, right):
+            spy.assert_not_called()
+        self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_VISIBLE)
+
+    def test_source_item_is_right_clicked_never_left_clicked(self):
+        self._bag_visible()
+        x, y = self.layout.item_bar_slot_center(1)
+        source_hit = MatchResult("item_bar_slot_1", 1.0, x, y, 0, 0, x, y)
+        source = {"kind": "item_bar", "slot_index": 1, "cell": None,
+                  "source_id": "item_bar_1", "hit": source_hit}
+        empty = (0, 0, MatchResult("public_bag_slot_0_0", 1.0, 1, 1, 0, 0, 1, 1))
+        with self._patch_layout(self.layout), \
+             patch.object(self.med, "_public_bag_source", return_value=source), \
+             patch.object(self.med, "_public_bag_empty_slot", return_value=empty), \
              patch.object(self.med, "act_right_click", return_value=True) as right, \
              patch.object(self.med, "act_click") as click:
             self.assertEqual(self.med._maybe_public_backpack_deposit(self.frame, 100.0), LoopAction.Continue)
@@ -245,9 +284,31 @@ class MediatorPublicBagTests(unittest.TestCase):
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.SOURCE_SELECTED)
         self.assertEqual(self.med._public_bag_fsm.source_slot, 1)
 
+    def test_personal_grid_item_is_also_a_deposit_source(self):
+        """录像里掉落先落在个人背包网格，不只是物品栏。"""
+        self._bag_visible()
+        x, y = self.layout.personal_slot_center(0, 1)
+        source_hit = MatchResult("personal_bag_slot_0_1", 1.0, x, y, 0, 0, x, y)
+        source = {"kind": "personal", "slot_index": -1, "cell": (0, 1),
+                  "source_id": "personal_0_1", "hit": source_hit}
+        empty = (0, 0, MatchResult("public_bag_slot_0_0", 1.0, 1, 1, 0, 0, 1, 1))
+        with self._patch_layout(self.layout), \
+             patch.object(self.med, "_public_bag_source", return_value=source), \
+             patch.object(self.med, "_public_bag_empty_slot", return_value=empty), \
+             patch.object(self.med, "act_right_click", return_value=True) as right, \
+             patch.object(self.med, "act_click") as click:
+            self.med._maybe_public_backpack_deposit(self.frame, 100.0)
+        right.assert_called_once_with(source_hit, "PublicBackpackDepositRightClick")
+        click.assert_not_called()
+        self.assertEqual(self.med._public_bag_fsm.source_cell, (0, 1))
+
     def test_deposit_left_clicks_the_first_verified_empty_public_slot(self):
-        self.med._public_bag_fsm = PublicBagFSM(
-            phase=PublicBagPhase.SOURCE_SELECTED, source_id="swallow_pill", source_slot=1, deadline=200.0
+        self._bag_visible(
+            phase=PublicBagPhase.SOURCE_SELECTED,
+            source_id="item_bar_1",
+            source_kind="item_bar",
+            source_slot=1,
+            deadline=200.0,
         )
         x, y = self.layout.public_slot_center(*GT_DEPOSIT_SLOT)
         slot_hit = MatchResult("public_bag_slot_3_0", 1.0, x, y, 0, 0, x, y)
@@ -261,8 +322,12 @@ class MediatorPublicBagTests(unittest.TestCase):
 
     def test_a_deposit_target_inside_the_personal_bag_is_refused(self):
         """铁律：左键绝不落在个人背包/物品栏，哪怕定位层给出了这样的目标。"""
-        self.med._public_bag_fsm = PublicBagFSM(
-            phase=PublicBagPhase.SOURCE_SELECTED, source_id="swallow_pill", source_slot=1, deadline=200.0
+        self._bag_visible(
+            phase=PublicBagPhase.SOURCE_SELECTED,
+            source_id="item_bar_1",
+            source_kind="item_bar",
+            source_slot=1,
+            deadline=200.0,
         )
         x, y = self.layout.personal_slot_center(3, 0)
         bad_hit = MatchResult("personal_slot", 1.0, x, y, 0, 0, x, y)
@@ -281,21 +346,25 @@ class MediatorPublicBagTests(unittest.TestCase):
             self.med._public_bag_left_click_allowed(layout, MatchResult("x", 1.0, x, y, 0, 0, x, y))
         )
 
-    def test_full_public_bag_aborts_without_input(self):
-        self.med._public_bag_fsm = PublicBagFSM(
-            phase=PublicBagPhase.SOURCE_SELECTED, source_id="swallow_pill", source_slot=1, deadline=200.0
-        )
+    def test_full_public_bag_aborts_without_touching_the_source(self):
+        self._bag_visible()
+        source = {"kind": "item_bar", "slot_index": 1, "cell": None, "source_id": "item_bar_1",
+                  "hit": MatchResult("item_bar_slot_1", 1.0, 1, 1, 0, 0, 1, 1)}
         with self._patch_layout(self.layout), \
+             patch.object(self.med, "_public_bag_source", return_value=source), \
              patch.object(self.med, "_public_bag_empty_slot", return_value=None), \
+             patch.object(self.med, "act_right_click") as right, \
              patch.object(self.med, "act_click") as click:
             self.med._maybe_public_backpack_deposit(self.frame, 100.0)
+        right.assert_not_called()
         click.assert_not_called()
         self.assertEqual(self.med._public_bag_fsm.abort_reason, "public_bag_full_or_unverified")
 
     def test_deposit_waits_zero_input_until_the_postcondition_lands(self):
-        self.med._public_bag_fsm = PublicBagFSM(
+        self._bag_visible(
             phase=PublicBagPhase.DEPOSIT_REQUESTED,
-            source_id="swallow_pill",
+            source_id="item_bar_1",
+            source_kind="item_bar",
             source_slot=1,
             target_slot=(3, 0),
             deadline=200.0,
@@ -310,10 +379,11 @@ class MediatorPublicBagTests(unittest.TestCase):
             spy.assert_not_called()
         self.assertIsNone(self.med._trace_post_confirm())
 
-    def test_confirmed_deposit_reports_post_confirm_true(self):
-        self.med._public_bag_fsm = PublicBagFSM(
+    def test_confirmed_deposit_reports_post_confirm_true_and_keeps_the_page(self):
+        self._bag_visible(
             phase=PublicBagPhase.DEPOSIT_REQUESTED,
-            source_id="swallow_pill",
+            source_id="item_bar_1",
+            source_kind="item_bar",
             source_slot=1,
             target_slot=(3, 0),
             deadline=200.0,
@@ -321,15 +391,19 @@ class MediatorPublicBagTests(unittest.TestCase):
         )
         with self._patch_layout(self.layout), \
              patch.object(self.med, "_public_bag_deposit_confirmed", return_value=True), \
-             patch.object(self.med, "act_key", return_value=True):
+             patch.object(self.med, "_public_bag_source", return_value=None), \
+             patch.object(self.med, "act_key") as key:
             self.med._maybe_public_backpack_deposit(self.frame, 100.0)
         self.assertEqual(self.med._public_bag_fsm.deposits, 1)
+        self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.BAG_VISIBLE)
         self.assertIs(self.med._trace_post_confirm(), True)
+        key.assert_not_called()
 
     def test_failed_deposit_reports_post_confirm_false(self):
-        self.med._public_bag_fsm = PublicBagFSM(
+        self._bag_visible(
             phase=PublicBagPhase.DEPOSIT_REQUESTED,
-            source_id="swallow_pill",
+            source_id="item_bar_1",
+            source_kind="item_bar",
             source_slot=1,
             target_slot=(3, 0),
             deadline=200.0,
@@ -346,7 +420,7 @@ class MediatorPublicBagTests(unittest.TestCase):
         self.assertEqual(result["state"], "public_bag_surface_not_confirmed")
 
     def test_postcondition_requires_the_target_slot_to_stop_being_empty(self):
-        self.med._public_bag_fsm = PublicBagFSM(
+        self._bag_visible(
             phase=PublicBagPhase.DEPOSIT_REQUESTED, source_slot=1, target_slot=(3, 0)
         )
         with self._patch_layout(self.layout), \
@@ -356,22 +430,29 @@ class MediatorPublicBagTests(unittest.TestCase):
         self.assertEqual(result["state"], "target_slot_still_empty")
 
     def test_postcondition_confirms_a_real_transfer(self):
-        self.med._public_bag_fsm = PublicBagFSM(
-            phase=PublicBagPhase.DEPOSIT_REQUESTED, source_slot=1, target_slot=(3, 0), deposits=0
+        self._bag_visible(
+            phase=PublicBagPhase.DEPOSIT_REQUESTED, source_slot=1, target_slot=(3, 0)
         )
-        empties = {"before": True, "after": False}
+        before = _frame()
 
         def fake_empty(frame, _rect):
-            return empties["before"] if frame is before else empties["after"]
+            return frame is before
 
-        before = _frame()
         with self._patch_layout(self.layout), patch.object(self.med, "_bag_slot_empty", side_effect=fake_empty):
             result = self.med._public_backpack_deposit_postcondition(before, self.frame)
         self.assertTrue(result["observed"])
         self.assertEqual(result["state"], "confirmed")
         self.assertEqual(result["target_slot"], [3, 0])
 
-    #: Everything the hitch main line checks before reaching its parking step.
+    def test_postcondition_accepts_a_completed_deposit_count(self):
+        """存完之后 target_slot 会被清空；累计计数仍是权威的业务证据。"""
+        self._bag_visible(deposits=2)
+        with self._patch_layout(self.layout):
+            result = self.med._public_backpack_deposit_postcondition(None, self.frame)
+        self.assertTrue(result["observed"])
+        self.assertEqual(result["deposits"], 2)
+
+    #: Everything the hitch main line checks before reaching its cycle steps.
     _MAIN_LINE_GATES = (
         "_maybe_click_hitch_pressure_transfer",
         "_tick_early_challenge",
@@ -384,8 +465,8 @@ class MediatorPublicBagTests(unittest.TestCase):
         "_maybe_open_choice_panel",
     )
 
-    def test_hitch_idle_step_drives_the_deposit_operation(self):
-        self.med._l1_cycle_step = "hitch_idle"
+    def test_public_bag_cycle_step_drives_the_deposit_operation(self):
+        self.med._l1_cycle_step = "public_bag"
         self.med._hitch_pressure_transferred = True
         with ExitStack() as stack:
             for name in self._MAIN_LINE_GATES:
@@ -397,6 +478,20 @@ class MediatorPublicBagTests(unittest.TestCase):
             )
             self.assertEqual(self.med._tick_main_line(self.frame), LoopAction.Continue)
         op.assert_called_once()
+
+    def test_hitch_pickup_presses_z_but_never_consumes_the_pill(self):
+        """Z 一键拾取兜住地上的道具；吞噬丹是队伍资产，蹭车不吃。"""
+        self.med._l1_cycle_step = "pickup"
+        self.med._hitch_pressure_transferred = True
+        with ExitStack() as stack:
+            for name in self._MAIN_LINE_GATES:
+                stack.enter_context(patch.object(self.med, name, return_value=None))
+            key = stack.enter_context(patch.object(self.med, "act_key", return_value=True))
+            use = stack.enter_context(patch.object(self.med, "_maybe_use_inventory_item"))
+            self.med._tick_main_line(self.frame)
+        key.assert_called_once_with("z", "Pickup-Z")
+        use.assert_not_called()
+        self.assertEqual(self.med._l1_cycle_step, "public_bag")
 
     def test_devour_pill_is_never_consumed_while_a_transfer_is_in_flight(self):
         self.med._public_bag_fsm = PublicBagFSM(phase=PublicBagPhase.SOURCE_SELECTED)
@@ -413,13 +508,15 @@ class MediatorPublicBagTests(unittest.TestCase):
     def test_bag_page_pill_is_reachable_in_solo(self):
         self.med.settings.mode_id = "normal_farm"
         hit = MatchResult("item_bar_slot_1", 0.9, 100, 100, 0, 0, 100, 100)
+        source = {"kind": "item_bar", "slot_index": 1, "cell": None,
+                  "source_id": "item_bar_1", "hit": hit}
         with patch.object(self.med, "_bag_layout", return_value=self.layout), \
-             patch.object(self.med, "_public_bag_source", return_value=("swallow_pill", 1, hit)):
+             patch.object(self.med, "_public_bag_source", return_value=source):
             self.assertIs(self.med._bag_page_swallow_pill(self.frame), hit)
 
 
 class BagSlotOccupancyTests(unittest.TestCase):
-    """Occupancy thresholds calibrated on the GT keyframes."""
+    """Occupancy thresholds calibrated on the GT keyframes and 背包.mp4."""
 
     def setUp(self):
         self.med = Mediator(Settings(dry_run=True, ocr_mode="off", mode_id="lobby_hitch"), ROOT)
@@ -430,32 +527,46 @@ class BagSlotOccupancyTests(unittest.TestCase):
         fill(bgr)
         return Frame(bgr=bgr, timestamp=0.0, left=0, top=0, hwnd=7)
 
-    def test_flat_dark_cell_reads_empty(self):
+    @staticmethod
+    def _paint_icon(bgr, rect, colour=(220, 40, 200)) -> None:
+        """A saturated, textured patch — a flat block is not what an icon looks like.
+
+        Real item icons measure std 42-76 on the GT frames; the occupancy test
+        deliberately wants both saturation *and* structure.
+        """
+        x0, y0, x1, y1 = rect
+        bgr[y0:y1, x0:x1] = colour
+        bgr[y0:y1:3, x0:x1] = (0, 0, 0)
+
+    def test_flat_dark_cell_reads_empty_and_not_occupied(self):
         layout = _gt_layout()
         frame = self._slot_frame(lambda _bgr: None)
-        self.assertTrue(self.med._bag_slot_empty(frame, layout.public_slot_rect(0, 0)))
+        rect = layout.public_slot_rect(0, 0)
+        self.assertTrue(self.med._bag_slot_empty(frame, rect))
+        self.assertFalse(self.med._bag_slot_occupied(frame, rect))
 
-    def test_saturated_icon_reads_occupied(self):
+    def test_saturated_icon_reads_occupied_and_not_empty(self):
         layout = _gt_layout()
         x0, y0, x1, y1 = layout.public_slot_rect(*GT_DEPOSIT_SLOT)
 
-        def fill(bgr):
-            bgr[y0:y1, x0:x1] = (220, 40, 200)  # the pill's magenta orb
+        frame = self._slot_frame(lambda bgr: self._paint_icon(bgr, (x0, y0, x1, y1)))
+        rect = layout.public_slot_rect(*GT_DEPOSIT_SLOT)
+        self.assertFalse(self.med._bag_slot_empty(frame, rect))
+        self.assertTrue(self.med._bag_slot_occupied(frame, rect))
 
-        frame = self._slot_frame(fill)
-        self.assertFalse(self.med._bag_slot_empty(frame, layout.public_slot_rect(*GT_DEPOSIT_SLOT)))
-
-    def test_high_contrast_cursor_is_not_reported_empty(self):
-        """A cursor-occluded cell is unknown, not empty — never a deposit target."""
+    def test_high_contrast_cursor_answers_neither_question(self):
+        """指针遮挡的格子既不是空也不是有物品——本 tick 直接跳过。"""
         layout = _gt_layout()
-        x0, y0, x1, y1 = layout.public_slot_rect(5, 1)
+        x0, y0, _x1, _y1 = layout.public_slot_rect(5, 1)
 
         def fill(bgr):
             bgr[y0:y0 + 20, x0:x0 + 20] = (255, 255, 255)
             bgr[y0 + 4:y0 + 16, x0 + 4:x0 + 16] = (0, 0, 0)
 
         frame = self._slot_frame(fill)
-        self.assertFalse(self.med._bag_slot_empty(frame, layout.public_slot_rect(5, 1)))
+        rect = layout.public_slot_rect(5, 1)
+        self.assertFalse(self.med._bag_slot_empty(frame, rect))
+        self.assertFalse(self.med._bag_slot_occupied(frame, rect))
 
     def test_empty_slot_scan_returns_the_first_cell_in_fill_order(self):
         layout = _gt_layout()
@@ -466,9 +577,40 @@ class BagSlotOccupancyTests(unittest.TestCase):
         self.assertEqual((row, col), (0, 0))
         self.assertEqual((hit.x, hit.y), layout.public_slot_center(0, 0))
 
-    def test_out_of_bounds_rect_is_never_empty(self):
+    def test_source_scan_drains_the_item_bar_before_the_personal_grid(self):
+        layout = _gt_layout()
+        bar = layout.item_bar_slot_probe_rect(2)
+        per = layout.personal_slot_rect(0, 0)
+
+        def fill(bgr):
+            self._paint_icon(bgr, bar)
+            self._paint_icon(bgr, per, colour=(40, 200, 220))
+
+        frame = self._slot_frame(fill)
+        source = self.med._public_bag_source(frame, layout)
+        self.assertIsNotNone(source)
+        self.assertEqual(source["kind"], "item_bar")
+        self.assertEqual(source["slot_index"], 2)
+
+    def test_source_scan_falls_through_to_the_personal_grid(self):
+        layout = _gt_layout()
+        per = layout.personal_slot_rect(1, 2)
+
+        frame = self._slot_frame(lambda bgr: self._paint_icon(bgr, per, colour=(40, 200, 220)))
+        source = self.med._public_bag_source(frame, layout)
+        self.assertIsNotNone(source)
+        self.assertEqual(source["kind"], "personal")
+        self.assertEqual(source["cell"], (1, 2))
+
+    def test_empty_bags_yield_no_source(self):
+        layout = _gt_layout()
+        frame = self._slot_frame(lambda _bgr: None)
+        self.assertIsNone(self.med._public_bag_source(frame, layout))
+
+    def test_out_of_bounds_rect_is_never_empty_nor_occupied(self):
         frame = self._slot_frame(lambda _bgr: None)
         self.assertFalse(self.med._bag_slot_empty(frame, None))
+        self.assertFalse(self.med._bag_slot_occupied(frame, None))
         self.assertFalse(self.med._bag_slot_empty(frame, (1598, 898, 1599, 899)))
 
 

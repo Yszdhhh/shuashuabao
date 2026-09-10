@@ -76,13 +76,24 @@ ANCHOR_ROIS: dict[str, tuple[float, float, float, float]] = {
     "bag/bag_sell_equipment": (0.46, 0.42, 0.70, 0.64),
 }
 
-#: Occupancy thresholds, calibrated on the GT keyframes.  An empty public slot
-#: measures std 3.2-7.7 and 0 saturated pixels; the deposited pill measures
-#: std 63 / 313 saturated pixels; the mouse cursor alone measures std 24-76 and
-#: <=118 saturated pixels, so a cursor-occluded slot is "not verifiably empty"
-#: rather than "empty".
+#: 物品栏 cells carry a drawn border, so their *full* rect never looks flat
+#: (empty slot std 20-24).  Probing the inner area instead separates cleanly:
+#: empty 1.6-2.0, occupied 42-76.
+ITEM_BAR_PROBE_INSET = 8.0
+
+#: Occupancy thresholds, calibrated on the GT keyframes and on the 20260910
+#: multiplayer capture (背包.mp4).  Measured on the inner probe rect:
+#:
+#:   empty  public / personal / 物品栏 : std 1.6-8.2,  saturated 0
+#:   occupied                          : std 42-76,    saturated 103-823
+#:   mouse cursor over an empty slot   : std 24-76,    saturated <=118
+#:
+#: Empty and occupied are therefore two *separate* positive tests, and a
+#: cursor-occluded cell answers neither — it is skipped, not guessed.
 EMPTY_SLOT_MAX_STD = 12.0
 EMPTY_SLOT_MAX_SATURATED = 200.0
+OCCUPIED_SLOT_MIN_STD = 30.0
+OCCUPIED_SLOT_MIN_SATURATED = 140.0
 SLOT_SATURATION_MIN = 110
 SLOT_VALUE_MIN = 80
 
@@ -198,6 +209,17 @@ class BagLayout:
     def item_bar_slot_center(self, index: int) -> tuple[int, int] | None:
         return self._center(self.item_bar_slot_rect(index))
 
+    def item_bar_slot_probe_rect(self, index: int) -> tuple[int, int, int, int] | None:
+        """Inner area of a 物品栏 slot, excluding its drawn border."""
+        rect = self.item_bar_slot_rect(index)
+        if rect is None:
+            return None
+        inset = int(round(ITEM_BAR_PROBE_INSET * self.scale))
+        x0, y0, x1, y1 = rect
+        if x1 - x0 <= 2 * inset or y1 - y0 <= 2 * inset:
+            return rect
+        return (x0 + inset, y0 + inset, x1 - inset, y1 - inset)
+
     # -- lookups -------------------------------------------------------------
 
     def item_bar_slot_index(self, x: float, y: float) -> int | None:
@@ -246,7 +268,7 @@ class BagLayout:
         return False
 
 
-# --- transfer state machine -------------------------------------------------
+# --- transfer state machine ----------------------------------------------------
 
 
 class PublicBagPhase(Enum):
@@ -255,8 +277,6 @@ class PublicBagPhase(Enum):
     BAG_VISIBLE = auto()
     SOURCE_SELECTED = auto()
     DEPOSIT_REQUESTED = auto()
-    CLOSE_REQUESTED = auto()
-    DONE = auto()
     ABORTED = auto()
 
 
@@ -267,16 +287,26 @@ _LEFT_CLICK_PHASES = frozenset({PublicBagPhase.SOURCE_SELECTED})
 
 @dataclass(frozen=True)
 class PublicBagFSM:
-    """One deposit at a time; every step needs fresh evidence or it aborts.
+    """One item in flight at a time, with the bag page held open between them.
 
-    The machine never returns a click target of its own — it only says which
+    The 20260910 multiplayer capture shows the operator's real cadence: press B
+    once, then keep depositing for the rest of the round without ever closing
+    the panel (the page is up from t5 to t17 while the fight continues, and the
+    public grid fills (0,0) -> (0,1) -> (0,2) as loot arrives).  So a confirmed
+    deposit returns to BAG_VISIBLE, not to a close-and-reopen cycle.
+
+    The machine never returns a click target of its own - it only says which
     step is authorised.  Coordinates come from :class:`BagLayout`, so a phase
     can never authorise a click on a personal slot.
     """
 
     phase: PublicBagPhase = PublicBagPhase.IDLE
     source_id: str = ""
+    #: "item_bar" or "personal" - which surface the carried item came from.
+    source_kind: str = ""
+    #: 物品栏 slot index, or the personal grid cell as (row, col).
     source_slot: int = -1
+    source_cell: tuple[int, int] | None = None
     target_slot: tuple[int, int] | None = None
     deadline: float = 0.0
     deposits: int = 0
@@ -289,7 +319,12 @@ class PublicBagFSM:
 
     @property
     def active(self) -> bool:
-        return self.phase not in (PublicBagPhase.IDLE, PublicBagPhase.DONE, PublicBagPhase.ABORTED)
+        return self.phase not in (PublicBagPhase.IDLE, PublicBagPhase.ABORTED)
+
+    @property
+    def carrying(self) -> bool:
+        """True while an item is attached to the cursor."""
+        return self.phase in (PublicBagPhase.SOURCE_SELECTED, PublicBagPhase.DEPOSIT_REQUESTED)
 
     def can_left_click(self) -> bool:
         return self.phase in _LEFT_CLICK_PHASES
@@ -310,18 +345,38 @@ class PublicBagFSM:
             opened_by_us=True,
         )
 
-    def confirm_bag_visible(self, now: float, *, timeout_s: float = 8.0) -> "PublicBagFSM":
-        """Steps 4+5: a fresh frame carries both the bag page and the public bag."""
-        if self.phase not in (PublicBagPhase.IDLE, PublicBagPhase.BAG_OPEN_REQUESTED):
+    def confirm_bag_visible(self, now: float) -> "PublicBagFSM":
+        """Steps 4+5: a fresh frame carries both the bag page and the public bag.
+
+        BAG_VISIBLE is the resting state and carries no deadline: an idle round
+        with nothing to deposit must not be an abort.
+        """
+        if self.phase not in (
+            PublicBagPhase.IDLE,
+            PublicBagPhase.BAG_OPEN_REQUESTED,
+            PublicBagPhase.DEPOSIT_REQUESTED,
+        ):
             return self
         return replace(
             self,
             phase=PublicBagPhase.BAG_VISIBLE,
-            deadline=now + max(0.0, timeout_s),
+            source_id="",
+            source_kind="",
+            source_slot=-1,
+            source_cell=None,
+            target_slot=None,
+            deadline=0.0,
         )
 
     def select_source(
-        self, source_id: str, slot_index: int, now: float, *, timeout_s: float = 6.0
+        self,
+        source_id: str,
+        now: float,
+        *,
+        kind: str = "item_bar",
+        slot_index: int = -1,
+        cell: tuple[int, int] | None = None,
+        timeout_s: float = 6.0,
     ) -> "PublicBagFSM":
         """Steps 1+2: the source was fresh-confirmed and right-clicked."""
         if self.phase is not PublicBagPhase.BAG_VISIBLE:
@@ -330,7 +385,9 @@ class PublicBagFSM:
             self,
             phase=PublicBagPhase.SOURCE_SELECTED,
             source_id=str(source_id),
+            source_kind=str(kind),
             source_slot=int(slot_index),
+            source_cell=cell,
             deadline=now + max(0.0, timeout_s),
         )
 
@@ -348,34 +405,10 @@ class PublicBagFSM:
         )
 
     def confirm_deposit(self, now: float) -> "PublicBagFSM":
-        """Step 8: a fresh frame proved the transfer."""
+        """Step 8: a fresh frame proved the transfer; stay on the open page."""
         if self.phase is not PublicBagPhase.DEPOSIT_REQUESTED:
             return self
-        return replace(
-            self,
-            phase=PublicBagPhase.CLOSE_REQUESTED if self.opened_by_us else PublicBagPhase.DONE,
-            deposits=self.deposits + 1,
-            deadline=now + 3.0,
-        )
-
-    def request_close(self, now: float, *, timeout_s: float = 3.0) -> "PublicBagFSM":
-        if self.phase not in (PublicBagPhase.DONE, PublicBagPhase.ABORTED):
-            return self
-        if not self.opened_by_us:
-            return self
-        return replace(
-            self,
-            phase=PublicBagPhase.CLOSE_REQUESTED,
-            deadline=now + max(0.0, timeout_s),
-        )
-
-    def finish(self, now: float, *, cooldown_s: float = 5.0) -> "PublicBagFSM":
-        return PublicBagFSM(
-            phase=PublicBagPhase.IDLE,
-            deposits=self.deposits,
-            aborts=self.aborts,
-            cooldown_until=now + max(0.0, cooldown_s),
-        )
+        return replace(self, deposits=self.deposits + 1).confirm_bag_visible(now)
 
     def abort(self, reason: str, now: float, *, cooldown_s: float = 20.0) -> "PublicBagFSM":
         if self.phase is PublicBagPhase.ABORTED:
@@ -385,9 +418,22 @@ class PublicBagFSM:
             phase=PublicBagPhase.ABORTED,
             aborts=self.aborts + 1,
             abort_reason=str(reason),
+            source_id="",
+            source_kind="",
+            source_slot=-1,
+            source_cell=None,
             target_slot=None,
             deadline=now + 3.0,
             cooldown_until=now + max(0.0, cooldown_s),
+        )
+
+    def release(self, now: float) -> "PublicBagFSM":
+        """Drop the lease and keep the accumulated counters."""
+        return PublicBagFSM(
+            phase=PublicBagPhase.IDLE,
+            deposits=self.deposits,
+            aborts=self.aborts,
+            cooldown_until=max(self.cooldown_until, now),
         )
 
     # -- observation ---------------------------------------------------------
@@ -414,16 +460,18 @@ class PublicBagFSM:
                 return self.abort("bag_page_not_visible", now)
             return self
 
-        if self.phase in (PublicBagPhase.BAG_VISIBLE, PublicBagPhase.SOURCE_SELECTED):
+        if self.phase is PublicBagPhase.BAG_VISIBLE:
+            # Resting state: hold the open page with zero input for as long as
+            # the round lasts.  Only losing the page ends the lease.
             if not bag_visible:
-                return self.abort("bag_page_lost", now)
+                return self.abort("bag_page_lost", now, cooldown_s=2.0)
+            return self
+
+        if self.phase is PublicBagPhase.SOURCE_SELECTED:
+            if not bag_visible:
+                return self.abort("bag_page_lost_while_carrying", now)
             if now >= self.deadline:
-                return self.abort(
-                    "source_select_timeout"
-                    if self.phase is PublicBagPhase.BAG_VISIBLE
-                    else "deposit_slot_timeout",
-                    now,
-                )
+                return self.abort("deposit_slot_timeout", now)
             return self
 
         if self.phase is PublicBagPhase.DEPOSIT_REQUESTED:
@@ -435,18 +483,9 @@ class PublicBagFSM:
                 return self.abort("deposit_postcondition_timeout", now)
             return self
 
-        if self.phase is PublicBagPhase.CLOSE_REQUESTED:
-            if not bag_visible:
-                return self.finish(now)
+        if self.phase is PublicBagPhase.ABORTED:
             if now >= self.deadline:
-                # The page stayed up.  Releasing the lease is safe: nothing is
-                # carried any more, and the next cycle re-confirms from scratch.
-                return self.finish(now, cooldown_s=20.0)
-            return self
-
-        if self.phase in (PublicBagPhase.DONE, PublicBagPhase.ABORTED):
-            if now >= self.deadline:
-                return self.finish(now, cooldown_s=max(0.0, self.cooldown_until - now))
+                return self.release(now)
             return self
 
         return self
