@@ -795,6 +795,7 @@ class Mediator:
         # 传家宝 Boss 点击时刻与后置确认结果（None = 没点过）。
         self._heirloom_boss_clicked_at: float | None = None
         self._heirloom_boss_confirm_unconfirmed: bool = False
+        self._hitch_heirloom_exit_since: float | None = None
         self._time_cave_boss_search_attempts: int = 0
         self._time_cave_boss_done: bool = False
         self._hitch_postgame_hero_selected: bool = False
@@ -4390,12 +4391,10 @@ class Mediator:
     def _public_bag_source(self, frame: Frame, layout: BagLayout) -> dict | None:
         """Spec step 1: fresh-confirm the next thing to hand to the team.
 
-        Under ``lobby_hitch`` nothing we pick up is ours, so the criterion is
-        "this slot verifiably holds an item", not "we recognised the item".
-        物品栏 is drained first (that is where fresh loot lands), then the
-        personal grid row by row.  A slot that is neither clearly empty nor
-        clearly occupied — the cursor is sitting on it, or a transfer is still
-        animating — is skipped, not guessed.
+        Under ``lobby_hitch`` every occupied 物品栏 slot 2–6 is team loot
+        (hero cards, gear, pills, talismans). We do not filter by template.
+        Drain the bar first, then the personal grid. A slot that is neither
+        clearly empty nor occupied is skipped, not guessed.
         """
         # 界面装备栏是 1..6，而这里用 0-based index。1 号（index 0）是固定
         # 自身装备，不能移动；从界面的 2..6 开始扫描，避免先右键自己的武器。
@@ -5863,6 +5862,18 @@ class Mediator:
             default=0,
         )
         return int(np.count_nonzero(red)) >= 100 and largest_component >= 50
+
+    def _heirloom_loot_popup_visible(self, frame: Frame) -> bool:
+        """Center-screen 装备 toast after the heirloom boss dies."""
+        hit = self.find(
+            frame,
+            ["zhuangbei"],
+            threshold=0.75,
+            scales=self._hot_scales(),
+            roi=(0.32, 0.22, 0.68, 0.58),
+        )
+        return hit is not None and "zhuangbei" in str(getattr(hit, "name", ""))
+
     def _maybe_ensure_hero_panel_focus(self, frame: Frame, now: float) -> LoopAction | None:
         """Only recover hero focus from two distinct, positively identified HUD frames."""
         if self._panel_state != PanelState.CLOSED:
@@ -8543,6 +8554,7 @@ class Mediator:
         self._hitch_ready_timeout_attempts = 0
         self._hitch_ready_timeout_deadline = None
         self._hitch_ready_confirmed_at = None
+        self._hitch_heirloom_exit_since = None
         self._hitch_rejected_row_ys.clear()
         # P1-1：关闭预算不在此重置——本函数也服务被踢重置路径，那里
         # 弹窗可能仍在，重置会重新计满预算造成无限 Esc。预算只随
@@ -9212,10 +9224,20 @@ class Mediator:
             print("[L0] hitch 已进房，等待房主开始（不点 RoomStart）")
             return LoopAction.Continue
         if self._hitch_re_search and in_room:
+            seat = self._hitch_room_seat_decision(frame)
+            if seat == "ready":
+                self._hitch_re_search = False
+                if ready_hit is not None and self.act_click(ready_hit, "HitchReady"):
+                    self._hitch_status = "已点击准备"
+                    print("[L0] hitch 战后一楼仍在，房间未散，点击准备")
+                else:
+                    print("[L0] hitch 战后一楼仍在，等待准备按钮")
+                self.set_phase(Phase.ROOM_WAITING, "hitch same-room ready after round")
+                return LoopAction.Continue
             hit = self._hitch_action_hit(frame, HitchAction.GO_HOME)
             if hit is not None:
                 self.act_click(hit, "HitchLeaveRoom")
-            print("[L0] hitch 战后仍在房，尝试离房回大厅列表")
+            print("[L0] hitch 战后一楼已不在，离房重搜")
             return LoopAction.Continue
         if self._hitch_re_search and not in_room:
             self._hitch_re_search = False
@@ -11434,6 +11456,21 @@ class Mediator:
             self.invalidate_evidence("round-deadline")
             self.set_phase(Phase.QUIT, "round deadline expired")
             return LoopAction.Continue
+        if (
+            not secret_entry_observation
+            and self._hitch_enabled()
+            and getattr(self, "_hitch_heirloom_exit_since", None)
+        ):
+            loot = self._heirloom_loot_popup_visible(frame)
+            waited = now - float(self._hitch_heirloom_exit_since)
+            if loot or waited >= 90.0:
+                why = "heirloom loot popup" if loot else "heirloom 90s timeout"
+                print(f"[med] 传家宝后退出：{why}")
+                self._hitch_heirloom_exit_since = None
+                self._record_round_outcome(RoundOutcome.VICTORY, why)
+                self.set_phase(Phase.QUIT, why)
+                return LoopAction.Continue
+
         fail_gift = None if secret_entry_observation else self._find_failure_gift(frame)
         if fail_gift is not None:
             print(f"[med] 拦截到失败结算奖励弹窗 @ {fail_gift.center}，点击关闭")
@@ -11551,6 +11588,12 @@ class Mediator:
             self._main_line_since = now
             return self._maybe_resume_paused(frame, now)
         if post_game == "POST_VICTORY":
+            if self._hitch_enabled() and getattr(self, "_hitch_heirloom_exit_since", None):
+                print("[med] 传家宝后出现胜利页，直接退出当前游戏")
+                self._hitch_heirloom_exit_since = None
+                self._record_round_outcome(RoundOutcome.VICTORY, "heirloom victory")
+                self.set_phase(Phase.QUIT, "heirloom victory")
+                return LoopAction.Continue
             if self._post_game_pending:
                 elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
                 if elapsed >= min(self.settings.query_timeout, 30):
@@ -11749,7 +11792,7 @@ class Mediator:
                 return LoopAction.Continue
             else:
                 self._post_game_active_wait_since = None
-            if self.settings.auto_secret_realm:
+            if self.settings.auto_secret_realm and not self._hitch_enabled():
                 timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
                 if self._secret_realm_request_since is None:
                     self._secret_realm_request_since = now
@@ -11823,13 +11866,14 @@ class Mediator:
             print(f"[med] 关闭传家宝弹窗 @ {close_hit.center} (尝试 {attempts + 1}/3)")
             if self.act_click(close_hit, "DismissHeirloomDialog"):
                 if self._post_game_pending and getattr(self, "_post_game_route", "") == "heirloom_active":
-                    # The selection result proves that the challenge was
-                    # accepted; the next authoritative completion evidence is
-                    # the normal Victory page, not a timer or Boss sprite.
                     self._post_game_route = "boss_active"
                     self._post_game_pending = False
                     self._post_game_close_attempts = 0
-                    print("[med] 传家宝 Boss 已进入挑战进行中，等待真实 Victory（零动作）")
+                    if self._hitch_enabled():
+                        self._hitch_heirloom_exit_since = now
+                        print("[med] 传家宝 Boss 已点，识别到装备弹出则立刻退出，否则 90s 后退出")
+                    else:
+                        print("[med] 传家宝 Boss 已进入挑战进行中，等待真实 Victory（零动作）")
             self._main_line_since = now
             return LoopAction.Continue
 

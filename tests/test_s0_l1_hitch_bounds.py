@@ -199,5 +199,78 @@ class HitchArchiveChallengeRejectionTests(unittest.TestCase):
         self.assertEqual(click.call_count, 4)
 
 
+class HitchPostRoundFloorOneTests(unittest.TestCase):
+    def _room_frame(self) -> Frame:
+        return Frame(
+            np.full((900, 1600, 3), 40, dtype=np.uint8),
+            hwnd=99,
+            window_title="KK官方对战平台",
+            role="l0",
+        )
+
+    def test_floor_one_still_there_clicks_ready(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.LOBBY_ROOM, "after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 99
+        ready = MatchResult("room_ready", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+                patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+                patch.object(med, "_hitch_room_seat_decision", return_value="ready"), \
+                patch.object(med, "_find_hitch_ready_button", return_value=ready), \
+                patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "act_click", return_value=True) as click:
+            med._tick_lobby_hitch(self._room_frame(), "ROOM_WAITING")
+        click.assert_called_with(ready, "HitchReady")
+        self.assertFalse(med._hitch_re_search)
+
+    def test_floor_one_gone_leaves_to_research(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.LOBBY_ROOM, "after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 99
+        leave = MatchResult("room_exit", 0.99, 1400, 80, 40, 20, 1420, 90)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+                patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+                patch.object(med, "_hitch_room_seat_decision", return_value="leave_host_not_floor_one"), \
+                patch.object(med, "_find_hitch_ready_button", return_value=None), \
+                patch.object(med, "_hitch_action_hit", return_value=leave), \
+                patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "act_click", return_value=True) as click:
+            med._tick_lobby_hitch(self._room_frame(), "ROOM_WAITING")
+        click.assert_called_with(leave, "HitchLeaveRoom")
+        self.assertTrue(med._hitch_re_search)
+
+
+class HitchHeirloomExitTests(unittest.TestCase):
+    def test_loot_popup_quits_immediately(self) -> None:
+        med = _hitch_mediator()
+        med._hitch_pressure_transferred = True
+        med._hitch_heirloom_exit_since = 10.0
+        with patch("shuabao.mediator.time.time", return_value=12.0), \
+                patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_heirloom_loot_popup_visible", return_value=True):
+            action = med._tick_main_line(_frame())
+        self.assertIs(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.QUIT)
+
+    def test_ninety_seconds_without_loot_also_quits(self) -> None:
+        med = _hitch_mediator()
+        med._hitch_pressure_transferred = True
+        med._hitch_heirloom_exit_since = 10.0
+        with patch("shuabao.mediator.time.time", return_value=101.0), \
+                patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_heirloom_loot_popup_visible", return_value=False):
+            action = med._tick_main_line(_frame())
+        self.assertIs(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.QUIT)
+
+
 if __name__ == "__main__":
     unittest.main()
