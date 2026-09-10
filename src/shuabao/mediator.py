@@ -4739,32 +4739,53 @@ class Mediator:
         result["deposits"] = fsm.deposits
         result["phase"] = fsm.phase.name
         if target is None:
-            # A completed transfer clears target_slot, so a positive deposit
-            # count is still authoritative evidence of the business outcome.
-            if fsm.deposits > 0:
-                result["observed"] = True
-                result["state"] = "confirmed"
-            else:
-                result["state"] = "no_deposit_requested"
+            result["state"] = "no_deposit_requested"
             return result
         row, col = target
         result["target_slot"] = [row, col]
         result["target_kind"] = fsm.target_kind
-        slot_rect = (
-            (lambda lay: lay.personal_slot_rect(row, col))
+        target_rect = (
+            layout.personal_slot_rect(row, col)
             if fsm.target_kind == "personal"
-            else (lambda lay: lay.public_slot_rect(row, col))
+            else layout.public_slot_rect(row, col)
         )
         if before_frame is not None:
             before_layout = self._bag_layout(before_frame)
             if before_layout is not None and not self._bag_slot_empty(
-                before_frame, slot_rect(before_layout)
+                before_frame, (
+                    before_layout.personal_slot_rect(row, col)
+                    if fsm.target_kind == "personal"
+                    else before_layout.public_slot_rect(row, col)
+                )
             ):
                 result["state"] = "target_slot_was_not_empty_before"
                 return result
-        if self._bag_slot_empty(frame, slot_rect(layout)):
+        if self._bag_slot_empty(frame, target_rect):
             result["state"] = "target_slot_still_empty"
             return result
+
+        source_rect = self._public_bag_source_rect(layout, fsm)
+        if source_rect is None:
+            result["state"] = "source_slot_not_identified"
+            return result
+        source_empty = self._bag_slot_empty(frame, source_rect)
+        if source_empty:
+            result["source_state"] = "empty"
+        else:
+            baseline = getattr(self, "_public_bag_deposit_before", None)
+            if before_frame is not None and baseline is None:
+                before_layout = self._bag_layout(before_frame)
+                if before_layout is not None:
+                    before_src_rect = self._public_bag_source_rect(before_layout, fsm)
+                    if before_src_rect is not None:
+                        baseline = self._bag_slot_signature(before_frame, before_src_rect)
+            current = self._bag_slot_signature(frame, source_rect)
+            if baseline is not None and current is not None and abs(current[1] - int(baseline[1])) >= 20:
+                result["source_state"] = "decreased"
+            else:
+                result["state"] = "source_slot_not_vacated_or_decreased"
+                return result
+
         result["observed"] = True
         result["state"] = "confirmed"
         return result
@@ -5727,19 +5748,16 @@ class Mediator:
             configured = str(getattr(self.settings, "cjb_boss", "") or "").strip()
             bosses = [configured] if configured else []
         compact_roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
-        # 已分类的时光之穴 / 传家宝列表在没配置时有明确兜底：滚到底，
-        # 只点最后一个能由模板确认的卡。其他页面仍然保持零输入。
-        fallback_only = compact_roi is not None and not bosses
-        if not bosses and not fallback_only:
-            print("[med] boss_entry 出现但未配置挑战 Boss，零输入等待")
-            return LoopAction.Continue
+        if not bosses:
+            print("[med] boss_entry 出现但未配置挑战 Boss，零输入")
+            return None
+
         # A configured Boss click is a one-shot request until the page proves
         # the business result. The live heirloom page keeps the same card
         # visible while its result toast is settling; clicking the same card
         # again is not a retry and can reopen/duplicate the challenge.
         if (
-            not fallback_only
-            and post_game == "HEIRLOOM_DIALOG"
+            post_game == "HEIRLOOM_DIALOG"
             and self._boss_challenge_attempts > 0
         ):
             if self._heirloom_boss_result_visible(frame):
@@ -5755,40 +5773,26 @@ class Mediator:
             else:
                 print("[med] 传家宝 Boss 已发起，等待‘已挑战’后置（零动作）")
             return LoopAction.Continue
-        if not fallback_only and self._boss_challenge_attempts >= 3:
+        if self._boss_challenge_attempts >= 3:
             return LoopAction.Continue
         if now < self._boss_challenge_next_at:
             return LoopAction.Continue
         boss_hit = None
-        used_fallback = False
-        if fallback_only:
-            scroll_point = self._post_game_boss_scroll_point(frame, post_game)
-            if scroll_point is not None and self._boss_challenge_scroll_attempts == 0:
-                self._boss_challenge_scroll_attempts = 1
-                delay = float(recheck_s) if recheck_s is not None else self.settings.ui_action_interval_s
-                self._boss_challenge_next_at = now + delay
-                x, y = scroll_point
-                print("[med] 未配置 Boss，滚到挑战列表底部并选择最后一个可识别卡")
-                self.act_scroll(x, y, -100, "BossLastVisibleFallback-scroll")
-                return LoopAction.Continue
-            boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
-            used_fallback = boss_hit is not None
-        else:
-            for name in bosses:
-                boss_hit = self.find(
-                    frame,
-                    [name, f"boss/{name}", f"chuanjiaobao/{name}"],
-                    threshold=0.80,
-                    scales=self._hot_scales(),
-                )
-                if boss_hit is not None:
-                    break
+        for name in bosses:
+            boss_hit = self.find(
+                frame,
+                [name, f"boss/{name}", f"chuanjiaobao/{name}"],
+                threshold=0.80,
+                scales=self._hot_scales(),
+            )
+            if boss_hit is not None:
+                break
 
         # The post-game archive/heirloom cards are rendered at roughly half
         # the source-template size. The normal boss-entry path remains on its
         # hot scale; only an already classified post-game page gets this
         # evidence-bounded compact-card search.
-        if not fallback_only and boss_hit is None and (
+        if boss_hit is None and (
             self._post_game_pending or compact_roi is not None
         ):
             compact_rois = (
@@ -5816,7 +5820,7 @@ class Mediator:
         # again by this same production handler. The separate counter keeps
         # the existing three observation budget intact while allowing the
         # bounded list navigation to finish.
-        if not fallback_only and boss_hit is None and compact_roi is not None:
+        if boss_hit is None and compact_roi is not None:
             scroll_point = self._post_game_boss_scroll_point(frame, post_game)
             if (
                 scroll_point is not None
@@ -5832,10 +5836,10 @@ class Mediator:
                 )
                 self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, "BossConfigured-scroll")
                 return LoopAction.Continue
-
-        if not fallback_only and boss_hit is None and compact_roi is not None:
             boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
             used_fallback = boss_hit is not None
+        else:
+            used_fallback = False
 
         self._boss_challenge_attempts += 1
         delay = float(recheck_s) if recheck_s is not None else (
@@ -5846,11 +5850,6 @@ class Mediator:
             if self._boss_challenge_attempts < 3:
                 print(f"[med] boss_entry 出现但未匹配到配置 Boss {bosses}（尝试 {self._boss_challenge_attempts}/3），零输入等待")
                 return LoopAction.Continue
-            # The old broad fallback scanned the entire frame after three
-            # misses.  That can mistake a live HUD sprite for a post-game card
-            # and click outside the classified challenge list.  Final fallback
-            # is authorized only on an already classified archive/heirloom
-            # page; normal in-game misses remain observation-only.
             if compact_roi is None:
                 print("[med] 非战后页面配置 Boss 连续未识别，禁止全帧兜底，零输入等待")
                 return LoopAction.Continue
@@ -5858,23 +5857,21 @@ class Mediator:
             if fallback is None:
                 print("[med] 配置 Boss 不可见，且未找到可验证的最后一个 Boss，零输入等待")
                 return LoopAction.Continue
-            print(f"[med] 配置 Boss 不可见，兜底点击当前可见列表最后一个 {fallback.name} @ {fallback.center}")
+            print(f"[med] 配置 Boss {bosses} 不可见/未开放，兜底点击当前可见列表最后一个 {fallback.name} @ {fallback.center}")
             if self.act_click(fallback, "BossLastVisibleFallback"):
                 self._main_line_since = now
                 if getattr(self, "_early_challenge_pending", False):
                     self._early_challenge_clicked_at = now
             return LoopAction.Continue
+
         if used_fallback:
-            if fallback_only:
-                print(f"[med] 未配置 Boss，点击列表最后可识别 Boss {boss_hit.name} @ {boss_hit.center}")
-            else:
-                print(
-                    f"[med] 配置 Boss {bosses} 未开放或未识别，"
-                    f"点击当前列表最后可识别 Boss {boss_hit.name} @ {boss_hit.center} "
-                    f"(尝试 {self._boss_challenge_attempts}/3)"
-                )
+            print(
+                f"[med] 配置 Boss {bosses} 未开放或未识别，"
+                f"点击当前列表最后可识别 Boss {boss_hit.name} @ {boss_hit.center} "
+                f"(尝试 {self._boss_challenge_attempts}/3)"
+            )
         else:
-            print(f"[med] Boss 提前挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
+            print(f"[med] Boss 挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
         if self.act_click(boss_hit, "BossConfigured"):
             self._main_line_since = now
             if post_game == "ARCHIVE_PANEL":
@@ -7283,7 +7280,22 @@ class Mediator:
             self._panel_fingerprint = None
             self._panel_fingerprint_attempts = 0
             self._panel_anchor_candidate = None
-        if phase == Phase.MAIN_LINE and self.phase != Phase.MAIN_LINE:
+        is_reentry_or_attach = any(
+            marker in note for marker in (
+                "already in game",
+                "reconcile",
+                "paused game",
+                "existing game",
+                "challenge start verified",
+                "challenge return",
+            )
+        )
+        entering_main_line = (
+            phase == Phase.MAIN_LINE
+            and not is_reentry_or_attach
+            and (self.phase != Phase.MAIN_LINE or "new game" in note)
+        )
+        if entering_main_line:
             self._stage_attempt_budget = None
             self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
             self._public_bag_fsm = PublicBagFSM()
@@ -7311,7 +7323,7 @@ class Mediator:
         self.phase = phase
         if phase == Phase.ERROR:
             self._interrupt_reason = note or "unspecified"
-        if phase == Phase.MAIN_LINE:
+        if entering_main_line:
             self._main_line_since = time.time()
             self._main_line_started_at = self._main_line_since
             self._selection_click_cooldown_until = 0.0
@@ -8768,8 +8780,6 @@ class Mediator:
             self._hitch_platform_modal_input_frame = None
             self._hitch_platform_modal_input_observation = None
             self._hitch_platform_modal_last_action = None
-            self._hitch_popup_esc_attempts = 0
-            self._hitch_popup_esc_last_at = None
             if not self.settings.dry_run and self._hitch_platform_modal_reacquire_attempts < 2:
                 self._hitch_platform_modal_reacquire_attempts += 1
                 try:
@@ -8795,7 +8805,6 @@ class Mediator:
             self._hitch_platform_modal_input_frame = None
             self._hitch_platform_modal_input_observation = None
             self._hitch_platform_modal_last_action = None
-            self._hitch_popup_esc_attempts = 0
             self._hitch_popup_esc_last_at = now
             print("[L0] hitch 平台提示中性关闭预算耗尽，已记录 incident 并转入有界重采集（继续运行）")
             return LoopAction.Continue
@@ -9212,7 +9221,7 @@ class Mediator:
         return cancel
 
     def _tick_hitch_platform_prompt(self, frame: Frame, now: float) -> LoopAction | None:
-        """点「取消」关掉 KK 主窗口上的平台提示，然后回大厅重新找房。
+        """点「取消」关掉 KK 主窗口上的平台提示，等待 fresh 帧消失复核后再回大厅重新找房。
 
         先于 G0 的 _tick_hitch_platform_modal（Esc→X）执行；两者识别互为兜底。
         440x260 子窗口（退出确认、房间已满等）交给 G0 分支：退出确认
@@ -9226,21 +9235,47 @@ class Mediator:
             or getattr(self, "_hitch_floor_exit_pending", False)
         ):
             return None
+
+        previous_observation = getattr(self, "_hitch_platform_prompt_input_observation", None)
+        current_observation = self._hitch_modal_observation_key(frame)
         cancel = self._find_hitch_platform_prompt_cancel(frame)
+
+        # 3A: fresh frame proves prompt absent -> then reset/search
+        if previous_observation is not None and current_observation != previous_observation and cancel is None:
+            self._hitch_platform_prompt_input_observation = None
+            self._hitch_platform_prompt_click_at = None
+            self._hitch_platform_prompt_pending = False
+            if self._hitch_pending_room_key is not None:
+                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+            if self._hitch_sm.pending_join:
+                self._hitch_reject_pending_join(now, "join_rejected")
+                self._hitch_search_actions.append("reject")
+            print("[L0] hitch 平台提示已在 fresh 帧消失，回大厅重新找房")
+            return self._hitch_reset_lobby("platform_prompt_dismissed", now)
+
         if cancel is None:
             return None
+
+        if previous_observation is not None and current_observation == previous_observation:
+            print("[L0] hitch 平台提示等待 fresh 帧复核（零输入）")
+            return LoopAction.Continue
+
         last = getattr(self, "_hitch_platform_prompt_click_at", None)
         if last is not None and now - last < 1.5:
             print("[L0] hitch 平台提示关闭冷却中，零输入观察")
             return LoopAction.Continue
+
         self._hitch_platform_prompt_click_at = now
-        if not self.act_click(cancel, "HitchDismissPlatformPrompt"):
-            print("[L0] hitch 平台提示「取消」点击被拒绝，改用 Esc")
-            self.act_key("esc", "HitchDismissPlatformPromptEsc")
-        if self._hitch_pending_room_key is not None:
-            self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-        print(f"[L0] hitch 平台提示已点取消: ({cancel.screen_x}, {cancel.screen_y})，回大厅重新找房")
-        return self._hitch_reset_lobby("platform_prompt", now)
+        if self.act_click(cancel, "HitchDismissPlatformPrompt"):
+            # 3A: Click success 不是 dismiss success。记录输入观察，零输入等待 fresh 帧证明消失。
+            self._hitch_platform_prompt_input_observation = current_observation
+            self._hitch_platform_prompt_pending = True
+            print(f"[L0] hitch 平台提示已发起取消: ({cancel.screen_x}, {cancel.screen_y})，零输入等待消失确认")
+            return LoopAction.Continue
+        else:
+            # 3B: Cancel 被拒绝，记录冷却并重观察，禁止发猜想性 Esc 或立刻重置
+            print("[L0] hitch 平台提示「取消」点击被拒绝，记录冷却并零输入重观察")
+            return LoopAction.Continue
 
     def _hitch_room_buttons_visible(self, frame: Frame) -> bool:
         """房间窗口身份：G0 多信号 ROOM 契约或房间退出按钮（实机大厅 78 帧零误报）。"""
@@ -9263,9 +9298,30 @@ class Mediator:
         if self.phase not in (Phase.ROOM_WAITING, Phase.LOBBY_ROOM):
             self._hitch_unknown_since = None
             return None
+        # 3D: 如果存在 active exit transaction、confirmed room、known platform prompt、generic modal shell，不得发送 Esc
+        if getattr(self, "_hitch_floor_exit_pending", False):
+            return None
         game = self._is_game_client_frame(frame)
-        if not game and frame.hwnd is not None and self._hitch_room_buttons_visible(frame):
+        if not game and frame.hwnd is not None and (
+            self._is_confirmed_room_frame(frame)
+            or self._hitch_room_buttons_visible(frame)
+        ):
             self._hitch_room_window_hwnd = frame.hwnd
+
+        confirmed_room_hwnd = getattr(self, "_confirmed_room_hwnd", None)
+        if (
+            (confirmed_room_hwnd is not None and frame.hwnd == confirmed_room_hwnd)
+            or self._is_confirmed_room_frame(frame)
+            or self._hitch_room_buttons_visible(frame)
+        ):
+            return None
+        if (
+            self._find_hitch_platform_prompt_cancel(frame) is not None
+            or getattr(self, "_hitch_platform_prompt_pending", False)
+        ):
+            return None
+        if self._kk_platform_modal_shell(frame) is not None:
+            return None
         if context != "UNKNOWN":
             self._hitch_unknown_since = None
             return None
@@ -9291,9 +9347,6 @@ class Mediator:
         stage_page: bool = False,
     ) -> LoopAction:
         now = time.time()
-        stall_action = self._tick_hitch_stall_watchdog(frame, context, now)
-        if stall_action is not None:
-            return stall_action
         # P0-1：蹭车在 ROOM_WAITING 收到已验证的游戏窗帧时，绝不强推 MAIN_LINE
         # （旧实现会把 game client 帧误判成已在局内而吞掉房内状态）；零输入交给
         # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
@@ -9326,17 +9379,15 @@ class Mediator:
         if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
             print("[L0] hitch 黑帧/空帧，零输入等待可信大厅页面")
             return LoopAction.Continue
-        # 被踢等「平台提示」盖在 KK 主窗口上：直接点取消（Esc 实机关不掉）。
-        prompt_action = self._tick_hitch_platform_prompt(frame, now)
-        if prompt_action is not None:
-            return prompt_action
+
         # A confirmed room is a separate surface class: generic modal handling
         # never gets authority to Esc it.
         room_surface = self._is_confirmed_room_frame(frame)
         platform_modal = None if room_surface else self._kk_platform_modal_shell(frame)
-        # 主动退出事务优先于平台普通提示：绝不能把退出确认误按成通用取消。
         exit_pending = getattr(self, "_hitch_floor_exit_pending", False)
         confirmed_room_hwnd = getattr(self, "_confirmed_room_hwnd", None)
+
+        # 1. ACTIVE EXIT TRANSACTION (highest authority)
         if exit_pending:
             # The dedicated exit transaction owns the page even when the
             # confirmation dialog is still visible.  Its deadline is a
@@ -9383,26 +9434,38 @@ class Mediator:
                 and now >= float(self._hitch_floor_exit_reobserve_until)
             ):
                 self._hitch_floor_exit_reobserve_until = None
-        if (
-            exit_pending
-            and frame.hwnd is not None
-            and frame.hwnd == confirmed_room_hwnd
-            and self._hitch_exit_modal_visible(frame)
-        ):
-            exit_confirm = self._find_hitch_exit_confirm_button(frame)
-            if exit_confirm is not None and not getattr(self, "_hitch_floor_exit_confirmed", False):
-                if self.act_click(exit_confirm, "HitchConfirmLeave"):
-                    if self._hitch_pending_room_key is not None:
-                        self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-                    self._hitch_floor_exit_confirmed = True
-                    self._hitch_status = "exit_confirmed"
-            return LoopAction.Continue
-        if exit_pending and platform_modal is not None:
-            print("[L0] hitch 主动退出事务未识别到专用确认按钮，禁止通用关闭抢占")
-            return LoopAction.Continue
+            if (
+                frame.hwnd is not None
+                and confirmed_room_hwnd is not None
+                and frame.hwnd == confirmed_room_hwnd
+                and self._hitch_exit_modal_visible(frame)
+            ):
+                exit_confirm = self._find_hitch_exit_confirm_button(frame)
+                if exit_confirm is not None and not getattr(self, "_hitch_floor_exit_confirmed", False):
+                    if self.act_click(exit_confirm, "HitchConfirmLeave"):
+                        if self._hitch_pending_room_key is not None:
+                            self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+                        self._hitch_floor_exit_confirmed = True
+                        self._hitch_status = "exit_confirmed"
+                return LoopAction.Continue
+            if platform_modal is not None:
+                print("[L0] hitch 主动退出事务未识别到专用确认按钮，禁止通用关闭抢占")
+                return LoopAction.Continue
+
+        # 2. KNOWN PLATFORM PROMPT
+        prompt_action = self._tick_hitch_platform_prompt(frame, now)
+        if prompt_action is not None:
+            return prompt_action
+
+        # 3. GENERIC VERIFIED PLATFORM MODAL
         modal_action = self._tick_hitch_platform_modal(frame, platform_modal, now)
         if modal_action is not None:
             return modal_action
+
+        # 4. STALL WATCHDOG (only last resort)
+        stall_action = self._tick_hitch_stall_watchdog(frame, context, now)
+        if stall_action is not None:
+            return stall_action
         ready_state, ready_hit = self._hitch_room_ready_contract(frame)
         confirmed_room_hwnd = getattr(self, "_confirmed_room_hwnd", None)
         in_room = bool(
@@ -9524,7 +9587,9 @@ class Mediator:
             print("[L0] hitch 180s 退出进行中，等待离房并回到大厅（零输入等待）")
             return LoopAction.Continue
 
-        if in_room and not self._hitch_re_search:
+        if in_room:
+            if self._hitch_re_search and ready_state in {"ready", "cancel_ready", "start"}:
+                self._hitch_re_search = False
             if self._hitch_sm.pending_join:
                 self._hitch_sm.complete_join()
                 self._hitch_join_origin_hwnd = None
@@ -9596,22 +9661,6 @@ class Mediator:
                 "[L0] hitch ROOM/seat 证据不足，fresh reobserve（零输入）: "
                 f"seat={seat_decision}, ready={ready_state}"
             )
-            return LoopAction.Continue
-        if self._hitch_re_search and in_room:
-            seat = self._hitch_room_seat_decision(frame)
-            if seat == "ready":
-                self._hitch_re_search = False
-                if ready_hit is not None and self.act_click(ready_hit, "HitchReady"):
-                    self._hitch_status = "已点击准备"
-                    print("[L0] hitch 战后一楼仍在，房间未散，点击准备")
-                else:
-                    print("[L0] hitch 战后一楼仍在，等待准备按钮")
-                self.set_phase(Phase.ROOM_WAITING, "hitch same-room ready after round")
-                return LoopAction.Continue
-            hit = self._hitch_action_hit(frame, HitchAction.GO_HOME)
-            if hit is not None:
-                self.act_click(hit, "HitchLeaveRoom")
-            print("[L0] hitch 战后一楼已不在，离房重搜")
             return LoopAction.Continue
         if self._hitch_re_search and not in_room:
             self._hitch_re_search = False
@@ -12008,11 +12057,18 @@ class Mediator:
         ):
             loot = self._heirloom_loot_popup_visible(frame)
             waited = now - float(self._hitch_heirloom_exit_since)
-            if loot or waited >= 90.0:
-                why = "heirloom loot popup" if loot else "heirloom 90s timeout"
+            if loot:
+                why = "heirloom loot popup"
                 print(f"[med] 传家宝后退出：{why}")
                 self._hitch_heirloom_exit_since = None
                 self._record_round_outcome(RoundOutcome.VICTORY, why)
+                self.set_phase(Phase.QUIT, why)
+                return LoopAction.Continue
+            if waited >= 90.0:
+                why = "heirloom 90s timeout"
+                print(f"[med] 传家宝后退出：{why}")
+                self._hitch_heirloom_exit_since = None
+                self._record_round_outcome(RoundOutcome.TIMEOUT, why)
                 self.set_phase(Phase.QUIT, why)
                 return LoopAction.Continue
 
@@ -12237,33 +12293,35 @@ class Mediator:
                 if getattr(self, "_post_game_route", "") == "archive_active":
                     self._post_game_route = "archive"
                 return archive_action
-            # 八个存档卡位已全部消费。配置时优先配置 Boss；未配置时由
-            # _maybe_challenge_configured_boss 在已分类列表中滚到底并只选择
-            # 最后一个模板可识别的卡。
+            # 八个存档卡位已全部消费。未配置时光之穴 Boss 时直接跳过，继续关闭面板。
             if not getattr(self, "_time_cave_boss_done", False):
-                if now < self._boss_challenge_next_at:
-                    return LoopAction.Continue
-                boss_action = self._maybe_challenge_configured_boss(frame, now)
-                if getattr(self, "_time_cave_boss_done", False):
-                    return LoopAction.Continue
-                if boss_action is not None:
-                    return boss_action
-                # boss_action is None：Boss 入口/卡面本 tick 未能识别，计入观察预算。
-                self._time_cave_boss_search_attempts += 1
-                if self._boss_challenge_attempts >= 3 or self._time_cave_boss_search_attempts >= 5:
-                    if self._hitch_enabled():
-                        print("[med] 蹭车时光之穴 Boss 未能识别或确认，跳过该步并继续关闭存档面板")
-                        self._time_cave_boss_done = True
-                        self._boss_challenge_attempts = 0
-                        self._time_cave_boss_search_attempts = 0
-                        # 落到下方 _find_archive_panel_close 关闭存档面板
-                    else:
-                        print("[med] 时光之穴 Boss 兜底选择未确认，Fail-Closed 停止运行")
-                        self.set_phase(Phase.ERROR, "time-cave Boss selection unconfirmed")
-                        self.stop()
-                        return LoopAction.Break
+                configured_sgzx = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
+                if not configured_sgzx:
+                    self._time_cave_boss_done = True
                 else:
-                    return LoopAction.Continue
+                    if now < self._boss_challenge_next_at:
+                        return LoopAction.Continue
+                    boss_action = self._maybe_challenge_configured_boss(frame, now)
+                    if getattr(self, "_time_cave_boss_done", False):
+                        return LoopAction.Continue
+                    if boss_action is not None:
+                        return boss_action
+                    # boss_action is None：Boss 入口/卡面本 tick 未能识别，计入观察预算。
+                    self._time_cave_boss_search_attempts += 1
+                    if self._boss_challenge_attempts >= 3 or self._time_cave_boss_search_attempts >= 5:
+                        if self._hitch_enabled():
+                            print("[med] 蹭车时光之穴 Boss 未能识别或确认，跳过该步并继续关闭存档面板")
+                            self._time_cave_boss_done = True
+                            self._boss_challenge_attempts = 0
+                            self._time_cave_boss_search_attempts = 0
+                            # 落到下方 _find_archive_panel_close 关闭存档面板
+                        else:
+                            print("[med] 时光之穴 Boss 兜底选择未确认，Fail-Closed 停止运行")
+                            self.set_phase(Phase.ERROR, "time-cave Boss selection unconfirmed")
+                            self.stop()
+                            return LoopAction.Break
+                    else:
+                        return LoopAction.Continue
 
             if self._post_game_close_attempts >= 3:
                 if self._hitch_enabled():
@@ -12279,9 +12337,8 @@ class Mediator:
                 print("[med] 存档面板未找到专用关闭按钮，零动作等待")
                 return LoopAction.Continue
             self._post_game_close_attempts += 1
-            # 传家宝同样支持“未配置即最后一个已识别 Boss”的规则，所以
-            # 不因 cjb_boss 为空跳过该页面。
-            self._post_game_route = "heirloom"
+            cjb_boss_cfg = str(getattr(self.settings, "cjb_boss", "") or "").strip()
+            self._post_game_route = "heirloom" if (cjb_boss_cfg or self._hitch_enabled()) else "npc_hub"
             print(f"[med] 存档与时光之穴完成，关闭存档面板 @ {close_hit.center} (尝试 {self._post_game_close_attempts}/3) 并转 {self._post_game_route}")
             self.act_click(close_hit, "CloseArchivePanel")
             return LoopAction.Continue
@@ -12385,8 +12442,10 @@ class Mediator:
                 # panel as a new challenge while the battle route is active.
                 print("[med] 传家宝面板关闭过渡中，Boss 挑战进行中（零动作）")
                 return LoopAction.Continue
+            configured_cjb = str(getattr(self.settings, "cjb_boss", "") or "").strip()
             if (
-                self._post_game_pending
+                configured_cjb
+                and self._post_game_pending
                 and getattr(self, "_post_game_route", "") == "heirloom_active"
                 and self._boss_challenge_attempts < 3
             ):

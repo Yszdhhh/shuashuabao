@@ -686,7 +686,7 @@ def test_c_tqtz_two_round_reset_allows_attempt_in_second_round() -> None:
     assert med._tqtz_clicked is False, "ABANDONED 绝不允许伪装成已点击成功"
 
     # 每局边界 reset（进入新一局）：ABANDONED 与 attempts 必须清零
-    med.set_phase(Phase.MAIN_LINE)
+    med.set_phase(Phase.MAIN_LINE, "new game")
     assert med._tqtz_abandoned is False
     assert med._tqtz_attempts == 0
 

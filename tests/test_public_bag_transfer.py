@@ -594,26 +594,54 @@ class MediatorPublicBagTests(unittest.TestCase):
 
     def test_postcondition_confirms_a_real_transfer(self):
         self._bag_visible(
-            phase=PublicBagPhase.DEPOSIT_REQUESTED, source_slot=1, target_slot=(3, 0)
+            phase=PublicBagPhase.DEPOSIT_REQUESTED, source_kind="item_bar", source_slot=1, target_slot=(3, 0)
         )
         before = _frame()
+        target_rect = self.layout.public_slot_rect(3, 0)
+        source_rect = self.layout.item_bar_slot_probe_rect(1)
 
-        def fake_empty(frame, _rect):
-            return frame is before
+        def fake_empty(frame, rect):
+            if rect == target_rect:
+                return frame is before
+            if rect == source_rect:
+                return frame is not before
+            return False
 
         with self._patch_layout(self.layout), patch.object(self.med, "_bag_slot_empty", side_effect=fake_empty):
             result = self.med._public_backpack_deposit_postcondition(before, self.frame)
         self.assertTrue(result["observed"])
         self.assertEqual(result["state"], "confirmed")
         self.assertEqual(result["target_slot"], [3, 0])
+        self.assertEqual(result["source_state"], "empty")
 
-    def test_postcondition_accepts_a_completed_deposit_count(self):
-        """存完之后 target_slot 会被清空；累计计数仍是权威的业务证据。"""
+    def test_postcondition_rejects_empty_target_slot_even_with_deposits(self):
+        """target_slot 为空时不能仅凭 deposits > 0 假确认，必须核验真实格子变化。"""
         self._bag_visible(deposits=2)
         with self._patch_layout(self.layout):
             result = self.med._public_backpack_deposit_postcondition(None, self.frame)
-        self.assertTrue(result["observed"])
+        self.assertFalse(result["observed"])
+        self.assertEqual(result["state"], "no_deposit_requested")
         self.assertEqual(result["deposits"], 2)
+
+    def test_postcondition_requires_source_slot_to_be_vacated_or_decreased(self):
+        """目标格被占用的同时，源格必须为空或堆叠数量确有减少。"""
+        self._bag_visible(
+            phase=PublicBagPhase.DEPOSIT_REQUESTED, source_kind="item_bar", source_slot=1, target_slot=(3, 0)
+        )
+        before = _frame()
+        target_rect = self.layout.public_slot_rect(3, 0)
+
+        def fake_empty(f, rect):
+            # target is empty before, occupied now; source is occupied both before and now
+            return f is before and rect == target_rect
+
+        with self._patch_layout(self.layout), \
+             patch.object(self.med, "_bag_slot_empty", side_effect=fake_empty), \
+             patch.object(self.med, "_bag_slot_signature", return_value=(0.5, 100)):
+            self.med._public_bag_deposit_before = (0.5, 100)
+            result = self.med._public_backpack_deposit_postcondition(before, self.frame)
+        self.assertFalse(result["observed"])
+        self.assertEqual(result["state"], "source_slot_not_vacated_or_decreased")
 
     #: Everything the hitch main line checks before reaching its cycle steps.
     _MAIN_LINE_GATES = (

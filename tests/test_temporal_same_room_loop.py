@@ -49,7 +49,7 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         self.assertLessEqual(len(self.actions) - before, 1)
         return action
 
-    def test_victory_returns_to_same_room_and_enters_second_main_line(self):
+    def test_normal_farm_same_room_victory_returns_to_room_and_leaves_old_room(self):
         self.med.set_phase(Phase.MAIN_LINE, "temporal replay start")
         victory = load_frame("fixtures/replay/victory_continue.png")
         archive = load_frame("fixtures/replay/archive_challenge_panel.png")
@@ -101,6 +101,59 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         )
         self.assertNotIn("CreateRoom-open", [reason for reason, _ in self.actions])
         self.assertNotIn("RoomStart", [reason for reason, _ in self.actions])
+
+    test_victory_returns_to_same_room_and_enters_second_main_line = (
+        test_normal_farm_same_room_victory_returns_to_room_and_leaves_old_room
+    )
+
+    def test_lobby_hitch_same_room_ready_and_wait_host(self):
+        from shuabao.vision.matcher import MatchResult
+
+        hitch_settings = Settings(
+            mode_id="lobby_hitch",
+            stage_targets=["1-12"],
+            dry_run=True,
+            auto_create_room=False,
+        )
+        med = Mediator(hitch_settings, ROOT)
+        actions: list[tuple[str, tuple[int, int]]] = []
+        med.act_click = lambda hit, reason="": actions.append((reason, hit.center)) or True
+
+        med.set_phase(Phase.LOBBY_ROOM, "hitch same room after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 10001
+
+        room = load_frame("fixtures/replay/room_waiting_host.png", "KK官方对战平台")
+        # 1. First tick in same room: ready_state is "ready", clicks HitchReady
+        ready = MatchResult("room_ready", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+             patch.object(med, "_hitch_room_ready_contract", return_value=("ready", ready)):
+            med._tick_lobby_hitch(room, "ROOM_WAITING")
+
+        self.assertEqual(["HitchReady"], [reason for reason, _ in actions])
+        self.assertFalse(med._hitch_re_search)
+        self.assertEqual(Phase.ROOM_WAITING, med.phase)
+
+        # 2. Second tick: ready_state is "cancel_ready" (already ready), zero input, waiting for host
+        cancel_ready = MatchResult("room_cancel_ready", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+             patch.object(med, "_hitch_room_ready_contract", return_value=("cancel_ready", cancel_ready)):
+            med._tick_lobby_hitch(room, "ROOM_WAITING")
+
+        self.assertEqual(["HitchReady"], [reason for reason, _ in actions])
+        self.assertFalse(med._hitch_re_search)
+        self.assertEqual(Phase.ROOM_WAITING, med.phase)
+
+        # 3. Third tick: host started countdown (ready_state == "start"), zero input waiting for game
+        start = MatchResult("room_start", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+             patch.object(med, "_hitch_room_ready_contract", return_value=("start", start)):
+            med._tick_lobby_hitch(room, "ROOM_WAITING")
+
+        self.assertEqual(["HitchReady"], [reason for reason, _ in actions])
+        self.assertEqual(Phase.ROOM_WAITING, med.phase)
+        self.assertNotIn("HitchLeaveRoom", [reason for reason, _ in actions])
+        self.assertNotIn("LeaveOldRoom", [reason for reason, _ in actions])
 
     def test_unknown_choice_panel_is_bounded_instead_of_waiting_forever(self):
         # 57d40ce 后语义：未知选择面板保持零输入等待，超过 10s 才 Fail-Closed

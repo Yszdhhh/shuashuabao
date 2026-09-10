@@ -175,9 +175,12 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 med._maybe_click_hitch_pressure_transfer(self.frame, 130.0),
                 LoopAction.Continue,
             )
-        hud.assert_called_once_with(self.frame)
-        find.assert_called_once()
+        self.assertTrue(hud.called)
+        self.assertTrue(find.called)
         click.assert_called_once_with(pressure, "HitchPressureTransfer")
+        self.assertEqual(getattr(med, "_hitch_pressure_click_at", None), 130.0)
+        self.assertFalse(getattr(med, "_hitch_pressure_transferred", False))
+        self.assertFalse(getattr(med, "_hitch_pressure_core_failed", False))
 
     def test_hitch_non_pill_stock_without_refresh_yields_to_treasure(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)

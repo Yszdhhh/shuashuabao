@@ -22,7 +22,7 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
 from shuabao.loop_action import LoopAction
-from shuabao.mediator import Mediator, Phase
+from shuabao.mediator import Mediator, Phase, RoundOutcome
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult
@@ -199,7 +199,7 @@ class HitchArchiveChallengeRejectionTests(unittest.TestCase):
         self.assertEqual(click.call_count, 4)
 
 
-class HitchPostRoundFloorOneTests(unittest.TestCase):
+class HitchPostRoundSameRoomTests(unittest.TestCase):
     def _room_frame(self) -> Frame:
         return Frame(
             np.full((900, 1600, 3), 40, dtype=np.uint8),
@@ -208,7 +208,7 @@ class HitchPostRoundFloorOneTests(unittest.TestCase):
             role="l0",
         )
 
-    def test_floor_one_still_there_clicks_ready(self) -> None:
+    def test_case_a_same_room_ready_clicks_ready_and_clears_research(self) -> None:
         med = _hitch_mediator()
         med.set_phase(Phase.LOBBY_ROOM, "after round")
         med._hitch_re_search = True
@@ -222,31 +222,74 @@ class HitchPostRoundFloorOneTests(unittest.TestCase):
                 patch.object(med, "find_scene", return_value=None), \
                 patch.object(med, "act_click", return_value=True) as click:
             med._tick_lobby_hitch(self._room_frame(), "ROOM_WAITING")
-        click.assert_called_with(ready, "HitchReady")
+        click.assert_called_once_with(ready, "HitchReady")
         self.assertFalse(med._hitch_re_search)
+        self.assertEqual(med.phase, Phase.ROOM_WAITING)
 
-    def test_floor_one_gone_leaves_to_research(self) -> None:
+    def test_case_b_same_room_cancel_ready_zero_input_clears_research(self) -> None:
         med = _hitch_mediator()
         med.set_phase(Phase.LOBBY_ROOM, "after round")
         med._hitch_re_search = True
         med._confirmed_room_hwnd = 99
-        leave = MatchResult("room_exit", 0.99, 1400, 80, 40, 20, 1420, 90)
+        cancel_ready = MatchResult("room_cancel_ready", 0.99, 400, 700, 80, 30, 440, 715)
         with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
                 patch.object(med, "_hitch_room_controls_visible", return_value=True), \
                 patch.object(med, "_hitch_room_seat_decision", return_value="leave_host_not_floor_one"), \
-                patch.object(med, "_find_hitch_ready_button", return_value=None), \
-                patch.object(med, "_hitch_action_hit", return_value=leave), \
+                patch.object(med, "_hitch_room_ready_contract", return_value=("cancel_ready", cancel_ready)), \
                 patch.object(med, "_lobby_room_list_evidence", return_value=False), \
                 patch.object(med, "find_scene", return_value=None), \
                 patch.object(med, "act_click", return_value=True) as click:
             med._tick_lobby_hitch(self._room_frame(), "ROOM_WAITING")
-        click.assert_called_with(leave, "HitchLeaveRoom")
-        self.assertTrue(med._hitch_re_search)
+        click.assert_not_called()
+        self.assertFalse(med._hitch_re_search)
+        self.assertEqual(med.phase, Phase.ROOM_WAITING)
+
+    def test_case_c_same_room_start_zero_input_clears_research(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.LOBBY_ROOM, "after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 99
+        start = MatchResult("room_start", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+                patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+                patch.object(med, "_hitch_room_seat_decision", return_value="start"), \
+                patch.object(med, "_hitch_room_ready_contract", return_value=("start", start)), \
+                patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "act_click", return_value=True) as click:
+            med._tick_lobby_hitch(self._room_frame(), "ROOM_WAITING")
+        click.assert_not_called()
+        self.assertFalse(med._hitch_re_search)
+        self.assertEqual(med.phase, Phase.ROOM_WAITING)
+
+    def test_case_d_room_dissolved_clears_research_and_searches_lobby(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.LOBBY_ROOM, "after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 99
+        lobby_frame = Frame(
+            np.full((900, 1600, 3), 40, dtype=np.uint8),
+            hwnd=123,
+            window_title="KK官方对战平台",
+            role="l0",
+        )
+        with patch.object(med, "_is_confirmed_room_frame", return_value=False), \
+                patch.object(med, "_hitch_room_controls_visible", return_value=False), \
+                patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+                patch.object(med, "_hitch_room_seat_decision", return_value="unknown"), \
+                patch.object(med, "_hitch_room_ready_contract", return_value=("unknown", None)), \
+                patch.object(med, "_hitch_action_hit", return_value=None), \
+                patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "act_click", return_value=True) as click:
+            med._tick_lobby_hitch(lobby_frame, "ROOM_WAITING")
+        self.assertFalse(med._hitch_re_search)
+        self.assertNotIn("HitchLeaveRoom", [call.args[1] for call in click.call_args_list])
 
 
 class HitchHeirloomExitTests(unittest.TestCase):
     def test_loot_popup_quits_immediately(self) -> None:
         med = _hitch_mediator()
+        med._failure_streak = 3
         med._hitch_pressure_transferred = True
         med._hitch_heirloom_exit_since = 10.0
         with patch("shuabao.mediator.time.time", return_value=12.0), \
@@ -257,9 +300,12 @@ class HitchHeirloomExitTests(unittest.TestCase):
             action = med._tick_main_line(_frame())
         self.assertIs(action, LoopAction.Continue)
         self.assertEqual(med.phase, Phase.QUIT)
+        self.assertEqual(med._last_outcome, RoundOutcome.VICTORY)
+        self.assertEqual(med._failure_streak, 0)
 
-    def test_ninety_seconds_without_loot_also_quits(self) -> None:
+    def test_ninety_seconds_without_loot_quits_with_timeout_and_preserves_streak(self) -> None:
         med = _hitch_mediator()
+        med._failure_streak = 3
         med._hitch_pressure_transferred = True
         med._hitch_heirloom_exit_since = 10.0
         with patch("shuabao.mediator.time.time", return_value=101.0), \
@@ -270,6 +316,8 @@ class HitchHeirloomExitTests(unittest.TestCase):
             action = med._tick_main_line(_frame())
         self.assertIs(action, LoopAction.Continue)
         self.assertEqual(med.phase, Phase.QUIT)
+        self.assertEqual(med._last_outcome, RoundOutcome.TIMEOUT)
+        self.assertEqual(med._failure_streak, 4)
 
 
 if __name__ == "__main__":

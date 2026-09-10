@@ -770,8 +770,8 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(clicked.name, "03洛卡纳哈")
         self.assertEqual(reason, "BossConfigured")
 
-    def test_unconfigured_post_game_lists_scroll_to_bottom_then_choose_last_card(self):
-        """未设 Boss 时不静默跳过：两类已分类列表都按末项兜底。"""
+    def test_unconfigured_post_game_lists_return_none_without_scrolling(self):
+        """未设 Boss 时不静默保底：两类已分类列表均返回 None，不滚动，不点击。"""
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
         last = MatchResult("12卡尔加", 0.91, 1110, 470, 62, 62, 1110, 470)
         for page, settings in (
@@ -785,17 +785,11 @@ class P1B0PostGameTests(unittest.TestCase):
                      patch.object(med, "_find_last_recognized_post_game_boss", return_value=last), \
                      patch.object(med, "act_scroll", return_value=True) as scroll, \
                      patch.object(med, "act_click", return_value=True) as click:
-                    self.assertEqual(
-                        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0),
-                        LoopAction.Continue,
+                    self.assertIsNone(
+                        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
                     )
-                    self.assertEqual(
-                        med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=1.0),
-                        LoopAction.Continue,
-                    )
-                self.assertEqual(scroll.call_args.args[2], -100)
-                self.assertEqual(scroll.call_args.args[3], "BossLastVisibleFallback-scroll")
-                click.assert_called_once_with(last, "BossConfigured")
+                scroll.assert_not_called()
+                click.assert_not_called()
 
     def test_unavailable_boss_stays_fail_closed_without_fallback_template(self):
         """An exhausted classified list still emits zero click when no card is recognized."""
@@ -877,20 +871,20 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(med._post_game_route, "boss_active")
         self.assertFalse(med._post_game_pending)
 
-    def test_heirloom_without_config_uses_existing_last_visible_fallback(self):
-        """An empty cjb_boss must not fall through to the generic X click."""
+    def test_heirloom_without_config_skips_boss_and_closes_dialog(self):
+        """An empty cjb_boss must not challenge boss and falls through to close button."""
         med = Mediator(Settings(), ROOT)
         med._post_game_pending = True
         med._post_game_route = "heirloom_active"
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        close = MatchResult("close", 0.90, 990, 230, 20, 20, 1000, 240)
         with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
-             patch.object(med, "_heirloom_boss_result_visible", return_value=False), \
-             patch.object(med, "_heirloom_boss_confirm_expired", return_value=False), \
-             patch.object(med, "_maybe_challenge_configured_boss", return_value=LoopAction.Continue) as choose, \
-             patch.object(med, "act_click") as click:
+             patch.object(med, "_maybe_challenge_configured_boss") as choose, \
+             patch.object(med, "_find_heirloom_close", return_value=close), \
+             patch.object(med, "act_click", return_value=True) as click:
             self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
-        choose.assert_called_once()
-        click.assert_not_called()
+        choose.assert_not_called()
+        click.assert_called_once_with(close, "DismissHeirloomDialog")
 
     def test_heirloom_result_ignores_scattered_combat_red_vfx(self):
         """Red attack effects behind the dialog cannot close an unplayed page."""
