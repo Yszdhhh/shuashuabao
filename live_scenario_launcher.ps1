@@ -19,6 +19,17 @@ if (-not $SettingsPanelSmokeTest -and -not ([Security.Principal.WindowsPrincipal
 
 $RepoRoot = (Resolve-Path -LiteralPath $PSScriptRoot).Path
 Set-Location -LiteralPath $RepoRoot
+# The tool prints UTF-8, but an elevated console starts on the OEM codepage
+# (936 on this machine).  Decoding UTF-8 as GBK turns the repo's Chinese path
+# "G:\刷刷宝\..." into "G:\\鍒峰埛瀹漒\Worktrees\\...", i.e. one of the doubled
+# backslashes becomes a lone "\W", and ConvertFrom-Json then dies with
+# "Unrecognized escape sequence".  The launcher reported that as
+# "candidate identity JSON unreadable (exit 0) / READY FOR GT: NO" — an
+# identity failure that had nothing to do with the candidate.  Pin both ends
+# to UTF-8 before any tool call.
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$env:PYTHONIOENCODING = "utf-8"
 $ToolPath = Join-Path $RepoRoot "tools\live_scenario_capture.py"
 $script:ProductionSourceRoot = (Resolve-Path -LiteralPath $ProductionSourceRoot).Path
 $script:ProductionSourceSha = $ProductionSourceSha.Trim().ToLowerInvariant()
