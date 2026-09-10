@@ -916,6 +916,9 @@ class Mediator:
         self._public_bag_fsm = PublicBagFSM()
         self._public_bag_next_at = 0.0
         self._public_bag_deposit_before: tuple[float, int] | None = None
+        # 搬不动的格子（装备栏里的在装武器等）：连续失败两次就本局跳过，
+        # 否则冷却到期后会一直回来重试同一格。
+        self._public_bag_failed_sources: dict[str, int] = {}
         self._pickup_next_at = 0.0
         self._equipment_round_next_at = 0.0
         self._equipment_round_current_slot = 2
@@ -4317,6 +4320,8 @@ class Mediator:
         animating — is skipped, not guessed.
         """
         for index in range(ITEM_BAR_SLOTS):
+            if self._public_bag_source_exhausted(f"item_bar_{index}"):
+                continue
             if not self._bag_slot_occupied(frame, layout.item_bar_slot_probe_rect(index)):
                 continue
             center = layout.item_bar_slot_center(index)
@@ -4333,6 +4338,8 @@ class Mediator:
                 ),
             }
         for row, col in layout.public_slots():
+            if self._public_bag_source_exhausted(f"personal_{row}_{col}"):
+                continue
             if not self._bag_slot_occupied(frame, layout.personal_slot_rect(row, col)):
                 continue
             center = layout.personal_slot_center(row, col)
@@ -4356,6 +4363,22 @@ class Mediator:
                 ),
             }
         return None
+
+    _PUBLIC_BAG_SOURCE_MAX_FAILURES = 2
+
+    def _public_bag_source_exhausted(self, source_id: str) -> bool:
+        return self._public_bag_failed_sources.get(source_id, 0) >= self._PUBLIC_BAG_SOURCE_MAX_FAILURES
+
+    def _public_bag_note_source_failure(self, source_id: str) -> None:
+        """Some slots simply cannot be handed over — the equipped weapon sits in
+        物品栏 slot 0 and will never move.  Two failures retire it for the round
+        instead of letting the abort cooldown bring us back to it for ever."""
+        if not source_id:
+            return
+        count = self._public_bag_failed_sources.get(source_id, 0) + 1
+        self._public_bag_failed_sources[source_id] = count
+        if count >= self._PUBLIC_BAG_SOURCE_MAX_FAILURES:
+            print(f"[L1] 公共背包：{source_id} 连续 {count} 次搬不动，本局跳过该格")
 
     def _public_bag_source_rect(
         self, layout: BagLayout, fsm: PublicBagFSM
@@ -4431,14 +4454,18 @@ class Mediator:
                 print(f"[L1] 公共背包：第 {fsm.deposits} 件存入已确认，面板保持打开")
         if fsm.phase is PublicBagPhase.ABORTED and previous.phase is not PublicBagPhase.ABORTED:
             print(f"[L1] 公共背包流转中止：{fsm.abort_reason}")
+            if fsm.abort_reason.startswith("deposit_postcondition"):
+                self._public_bag_note_source_failure(previous.source_id)
         self._public_bag_fsm = fsm
 
         if fsm.phase is PublicBagPhase.IDLE:
-            if not fsm.can_start(now) or now < self._public_bag_next_at:
-                return None
-            if bag_visible:
+            if bag_visible and fsm.can_adopt_open_page():
+                # 面板已经开着（我们上次开的、或者玩家开的）：直接接管，
+                # 零输入，不受重开冷却影响。
                 self._public_bag_fsm = fsm.confirm_bag_visible(now)
                 return LoopAction.Continue
+            if not fsm.can_start(now) or now < self._public_bag_next_at:
+                return None
             if not self._is_in_game_hud(frame):
                 return None
             if self.act_key("b", "PublicBackpackDepositB"):
@@ -6858,6 +6885,8 @@ class Mediator:
         if phase == Phase.MAIN_LINE and self.phase != Phase.MAIN_LINE:
             self._stage_attempt_budget = None
             self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
+            self._public_bag_fsm = PublicBagFSM()
+            self._public_bag_failed_sources = {}
             self._l1_cycle_last_advance_at = time.time()
         if phase == Phase.RECOVER_FAILURE and self.phase != Phase.RECOVER_FAILURE:
             # 进入恢复：清面板许可与待输入 token（抢占后 panel FSM 全部状态让位）
@@ -7005,6 +7034,8 @@ class Mediator:
             self._evolve_fail_count = 0
             self._evolve_baseline = None
             self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
+            self._public_bag_fsm = PublicBagFSM()
+            self._public_bag_failed_sources = {}
             self._l1_cycle_owned_panel = False
             self._l1_cycle_selected = False
             self._merchant_next_at = 0.0

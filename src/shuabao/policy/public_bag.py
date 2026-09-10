@@ -330,11 +330,21 @@ class PublicBagFSM:
         return self.phase in _LEFT_CLICK_PHASES
 
     def can_start(self, now: float) -> bool:
+        """May we spend a B press to open the page?"""
         return self.phase is PublicBagPhase.IDLE and now >= self.cooldown_until
+
+    def can_adopt_open_page(self) -> bool:
+        """An already-open page costs no input, so no cooldown applies.
+
+        Offline replay of 背包.mp4 caught this: after one open timed out, the
+        20s cooldown kept the machine IDLE for the rest of the clip even though
+        the panel was up and full of loot the whole time.
+        """
+        return self.phase is PublicBagPhase.IDLE
 
     # -- transitions ---------------------------------------------------------
 
-    def request_bag_open(self, now: float, *, timeout_s: float = 3.0) -> "PublicBagFSM":
+    def request_bag_open(self, now: float, *, timeout_s: float = 5.0) -> "PublicBagFSM":
         """Step 3: the B key was accepted while the bag page was not visible."""
         if self.phase is not PublicBagPhase.IDLE:
             return self
@@ -457,7 +467,8 @@ class PublicBagFSM:
             if bag_visible:
                 return self.confirm_bag_visible(now)
             if now >= self.deadline:
-                return self.abort("bag_page_not_visible", now)
+                # B 没落地只是键没生效，不是危险动作：短冷却后重按。
+                return self.abort("bag_page_not_visible", now, cooldown_s=5.0)
             return self
 
         if self.phase is PublicBagPhase.BAG_VISIBLE:

@@ -208,6 +208,20 @@ class PublicBagFSMTests(unittest.TestCase):
         self.assertFalse(released.can_start(120.0))
         self.assertTrue(released.can_start(131.0))
 
+    def test_an_already_open_page_is_adopted_regardless_of_cooldown(self):
+        """离线回放 背包.mp4 抓到的坑：一次开包超时后 20s 冷却把整段有货的
+        画面全部空过。接管一个已经开着的面板不花任何输入，不该受冷却限制。"""
+        fsm = PublicBagFSM().abort("bag_page_not_visible", 0.0, cooldown_s=20.0).release(3.0)
+        self.assertIs(fsm.phase, PublicBagPhase.IDLE)
+        self.assertFalse(fsm.can_start(4.0), "重按 B 仍要等冷却")
+        self.assertTrue(fsm.can_adopt_open_page(), "但面板已开就该立刻接管")
+
+    def test_failed_open_takes_a_short_cooldown_not_the_long_one(self):
+        fsm = PublicBagFSM().request_bag_open(0.0, timeout_s=5.0)
+        aborted = fsm.observe(5.1, bag_visible=False)
+        self.assertEqual(aborted.abort_reason, "bag_page_not_visible")
+        self.assertLessEqual(aborted.cooldown_until - 5.1, 5.0)
+
     def test_out_of_order_transitions_are_refused(self):
         idle = PublicBagFSM()
         self.assertIs(idle.select_source("x", 0.0).phase, PublicBagPhase.IDLE)
@@ -338,6 +352,33 @@ class MediatorPublicBagTests(unittest.TestCase):
         click.assert_not_called()
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.ABORTED)
         self.assertEqual(self.med._public_bag_fsm.abort_reason, "deposit_target_outside_public_bag")
+
+    def test_a_source_that_cannot_move_is_retired_for_the_round(self):
+        """装备栏 0 号格是在装的武器，永远搬不动；两次失败后本局不再回头。"""
+        self.med._public_bag_fsm = PublicBagFSM(
+            phase=PublicBagPhase.DEPOSIT_REQUESTED,
+            source_id="item_bar_0",
+            source_kind="item_bar",
+            source_slot=0,
+            target_slot=(0, 0),
+            deadline=200.0,
+        )
+        with self._patch_layout(self.layout),              patch.object(self.med, "_public_bag_deposit_confirmed", return_value=False):
+            self.med._maybe_public_backpack_deposit(self.frame, 100.0)
+        self.assertEqual(self.med._public_bag_failed_sources.get("item_bar_0"), 1)
+        self.assertFalse(self.med._public_bag_source_exhausted("item_bar_0"))
+
+        self.med._public_bag_fsm = PublicBagFSM(
+            phase=PublicBagPhase.DEPOSIT_REQUESTED,
+            source_id="item_bar_0",
+            source_kind="item_bar",
+            source_slot=0,
+            target_slot=(0, 0),
+            deadline=200.0,
+        )
+        with self._patch_layout(self.layout),              patch.object(self.med, "_public_bag_deposit_confirmed", return_value=False):
+            self.med._maybe_public_backpack_deposit(self.frame, 200.0)
+        self.assertTrue(self.med._public_bag_source_exhausted("item_bar_0"))
 
     def test_item_bar_hit_is_refused_as_a_deposit_target(self):
         layout = self.layout
@@ -601,6 +642,20 @@ class BagSlotOccupancyTests(unittest.TestCase):
         self.assertIsNotNone(source)
         self.assertEqual(source["kind"], "personal")
         self.assertEqual(source["cell"], (1, 2))
+
+    def test_retired_source_is_skipped_by_the_scan(self):
+        layout = _gt_layout()
+        bar0 = layout.item_bar_slot_probe_rect(0)
+        bar2 = layout.item_bar_slot_probe_rect(2)
+
+        def fill(bgr):
+            self._paint_icon(bgr, bar0)
+            self._paint_icon(bgr, bar2, colour=(40, 200, 220))
+
+        frame = self._slot_frame(fill)
+        self.assertEqual(self.med._public_bag_source(frame, layout)["slot_index"], 0)
+        self.med._public_bag_failed_sources["item_bar_0"] = 2
+        self.assertEqual(self.med._public_bag_source(frame, layout)["slot_index"], 2)
 
     def test_empty_bags_yield_no_source(self):
         layout = _gt_layout()
