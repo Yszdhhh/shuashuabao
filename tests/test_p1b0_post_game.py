@@ -769,6 +769,33 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(clicked.name, "03洛卡纳哈")
         self.assertEqual(reason, "BossConfigured")
 
+    def test_unconfigured_post_game_lists_scroll_to_bottom_then_choose_last_card(self):
+        """未设 Boss 时不静默跳过：两类已分类列表都按末项兜底。"""
+        frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+        last = MatchResult("12卡尔加", 0.91, 1110, 470, 62, 62, 1110, 470)
+        for page, settings in (
+            ("ARCHIVE_PANEL", Settings()),
+            ("HEIRLOOM_DIALOG", Settings()),
+        ):
+            with self.subTest(page=page):
+                med = Mediator(settings, ROOT)
+                med._post_game_pending = True
+                with patch.object(med, "_post_game_state", return_value=page), \
+                     patch.object(med, "_find_last_recognized_post_game_boss", return_value=last), \
+                     patch.object(med, "act_scroll", return_value=True) as scroll, \
+                     patch.object(med, "act_click", return_value=True) as click:
+                    self.assertEqual(
+                        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0),
+                        LoopAction.Continue,
+                    )
+                    self.assertEqual(
+                        med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=1.0),
+                        LoopAction.Continue,
+                    )
+                self.assertEqual(scroll.call_args.args[2], -100)
+                self.assertEqual(scroll.call_args.args[3], "BossLastVisibleFallback-scroll")
+                click.assert_called_once_with(last, "BossConfigured")
+
     def test_unavailable_boss_stays_fail_closed_without_fallback_template(self):
         """An exhausted classified list still emits zero click when no card is recognized."""
         med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)

@@ -4183,9 +4183,8 @@ class Mediator:
 
     # ---------- 公共背包流转 (docs/gt_lab/PUBLIC_BAG_GT_SPEC_20260909.md) ----------
     #
-    # 蹭车 = 打辅助：羁绊/技能/装备/进化都是升级自己，一律不碰；能共享的只有
-    # 宝物（主要是神符）和吞噬丹。所以局内拿到的任何东西都不留在自己身上，
-    # 全部经「右键源物品格 → 左键公共背包空格」交给车队。
+    # 蹭车 = 打辅助：羁绊/技能/进化都是升级自己的动作，一律不碰。可移动的
+    # 装备、宝物与消耗品都交给车队；装备栏 1 号固定为自己的武器，永远不尝试。
     #
     # 20260910 实机录像（背包.mp4，多人房）确认了操作节奏：按一次 B 之后面板
     # 全程不关，掉落先落在 物品栏/个人背包，再逐件搬进公共背包，公共格按
@@ -4368,7 +4367,9 @@ class Mediator:
         clearly occupied — the cursor is sitting on it, or a transfer is still
         animating — is skipped, not guessed.
         """
-        for index in range(ITEM_BAR_SLOTS):
+        # 界面装备栏是 1..6，而这里用 0-based index。1 号（index 0）是固定
+        # 自身装备，不能移动；从界面的 2..6 开始扫描，避免先右键自己的武器。
+        for index in range(1, ITEM_BAR_SLOTS):
             if self._public_bag_source_exhausted(f"item_bar_{index}"):
                 continue
             if not self._bag_slot_occupied(frame, layout.item_bar_slot_probe_rect(index)):
@@ -4419,9 +4420,7 @@ class Mediator:
         return self._public_bag_failed_sources.get(source_id, 0) >= self._PUBLIC_BAG_SOURCE_MAX_FAILURES
 
     def _public_bag_note_source_failure(self, source_id: str) -> None:
-        """Some slots simply cannot be handed over — the equipped weapon sits in
-        物品栏 slot 0 and will never move.  Two failures retire it for the round
-        instead of letting the abort cooldown bring us back to it for ever."""
+        """Retire an independently verified-but-unmovable source for this round."""
         if not source_id:
             return
         count = self._public_bag_failed_sources.get(source_id, 0) + 1
@@ -5572,14 +5571,22 @@ class Mediator:
             # 传家宝页只能选择 cjb_boss；sgzx_boss 属于时光之穴列表。
             configured = str(getattr(self.settings, "cjb_boss", "") or "").strip()
             bosses = [configured] if configured else []
-        if not bosses:
+        compact_roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
+        # 已分类的时光之穴 / 传家宝列表在没配置时有明确兜底：滚到底，
+        # 只点最后一个能由模板确认的卡。其他页面仍然保持零输入。
+        fallback_only = compact_roi is not None and not bosses
+        if not bosses and not fallback_only:
             print("[med] boss_entry 出现但未配置挑战 Boss，零输入等待")
             return LoopAction.Continue
         # A configured Boss click is a one-shot request until the page proves
         # the business result. The live heirloom page keeps the same card
         # visible while its result toast is settling; clicking the same card
         # again is not a retry and can reopen/duplicate the challenge.
-        if post_game == "HEIRLOOM_DIALOG" and self._boss_challenge_attempts > 0:
+        if (
+            not fallback_only
+            and post_game == "HEIRLOOM_DIALOG"
+            and self._boss_challenge_attempts > 0
+        ):
             if self._heirloom_boss_result_visible(frame):
                 print("[med] 传家宝 Boss 后置已确认，停止重复点击")
             elif self._heirloom_boss_confirm_expired(now):
@@ -5593,27 +5600,40 @@ class Mediator:
             else:
                 print("[med] 传家宝 Boss 已发起，等待‘已挑战’后置（零动作）")
             return LoopAction.Continue
-        if self._boss_challenge_attempts >= 3:
+        if not fallback_only and self._boss_challenge_attempts >= 3:
             return LoopAction.Continue
         if now < self._boss_challenge_next_at:
             return LoopAction.Continue
         boss_hit = None
-        for name in bosses:
-            boss_hit = self.find(
-                frame,
-                [name, f"boss/{name}", f"chuanjiaobao/{name}"],
-                threshold=0.80,
-                scales=self._hot_scales(),
-            )
-            if boss_hit is not None:
-                break
+        used_fallback = False
+        if fallback_only:
+            scroll_point = self._post_game_boss_scroll_point(frame, post_game)
+            if scroll_point is not None and self._boss_challenge_scroll_attempts == 0:
+                self._boss_challenge_scroll_attempts = 1
+                delay = float(recheck_s) if recheck_s is not None else self.settings.ui_action_interval_s
+                self._boss_challenge_next_at = now + delay
+                x, y = scroll_point
+                print("[med] 未配置 Boss，滚到挑战列表底部并选择最后一个可识别卡")
+                self.act_scroll(x, y, -100, "BossLastVisibleFallback-scroll")
+                return LoopAction.Continue
+            boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
+            used_fallback = boss_hit is not None
+        else:
+            for name in bosses:
+                boss_hit = self.find(
+                    frame,
+                    [name, f"boss/{name}", f"chuanjiaobao/{name}"],
+                    threshold=0.80,
+                    scales=self._hot_scales(),
+                )
+                if boss_hit is not None:
+                    break
 
         # The post-game archive/heirloom cards are rendered at roughly half
         # the source-template size. The normal boss-entry path remains on its
         # hot scale; only an already classified post-game page gets this
         # evidence-bounded compact-card search.
-        compact_roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
-        if boss_hit is None and (
+        if not fallback_only and boss_hit is None and (
             self._post_game_pending or compact_roi is not None
         ):
             compact_rois = (
@@ -5641,7 +5661,7 @@ class Mediator:
         # again by this same production handler. The separate counter keeps
         # the existing three observation budget intact while allowing the
         # bounded list navigation to finish.
-        if boss_hit is None and compact_roi is not None:
+        if not fallback_only and boss_hit is None and compact_roi is not None:
             scroll_point = self._post_game_boss_scroll_point(frame, post_game)
             if (
                 scroll_point is not None
@@ -5658,8 +5678,7 @@ class Mediator:
                 self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, "BossConfigured-scroll")
                 return LoopAction.Continue
 
-        used_fallback = False
-        if boss_hit is None and compact_roi is not None:
+        if not fallback_only and boss_hit is None and compact_roi is not None:
             boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
             used_fallback = boss_hit is not None
 
@@ -5691,11 +5710,14 @@ class Mediator:
                     self._early_challenge_clicked_at = now
             return LoopAction.Continue
         if used_fallback:
-            print(
-                f"[med] 配置 Boss {bosses} 未开放或未识别，"
-                f"点击当前列表最后可识别 Boss {boss_hit.name} @ {boss_hit.center} "
-                f"(尝试 {self._boss_challenge_attempts}/3)"
-            )
+            if fallback_only:
+                print(f"[med] 未配置 Boss，点击列表最后可识别 Boss {boss_hit.name} @ {boss_hit.center}")
+            else:
+                print(
+                    f"[med] 配置 Boss {bosses} 未开放或未识别，"
+                    f"点击当前列表最后可识别 Boss {boss_hit.name} @ {boss_hit.center} "
+                    f"(尝试 {self._boss_challenge_attempts}/3)"
+                )
         else:
             print(f"[med] Boss 提前挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
         if self.act_click(boss_hit, "BossConfigured"):
@@ -12304,4 +12326,3 @@ class Mediator:
         if health is not None and not health.is_healthy:
             return 0.500  # 非静态不健康等待
         return 0.300  # 稳定健康 HUD，无待确认动作
-

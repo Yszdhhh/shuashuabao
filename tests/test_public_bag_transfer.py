@@ -346,6 +346,14 @@ class MediatorPublicBagTests(unittest.TestCase):
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.SOURCE_SELECTED)
         self.assertEqual(self.med._public_bag_fsm.source_slot, 1)
 
+    def test_fixed_first_equipment_slot_is_never_selected_as_a_source(self):
+        """装备栏显示为 1..6；固定的 1 号（内部 index 0）必须完全跳过。"""
+        with patch.object(self.med, "_bag_slot_occupied", return_value=True):
+            source = self.med._public_bag_source(self.frame, self.layout)
+        self.assertIsNotNone(source)
+        self.assertEqual(source["source_id"], "item_bar_1")
+        self.assertEqual(source["slot_index"], 1)
+
     def test_personal_grid_item_is_also_a_deposit_source(self):
         """录像里掉落先落在个人背包网格，不只是物品栏。"""
         self._bag_visible()
@@ -401,32 +409,32 @@ class MediatorPublicBagTests(unittest.TestCase):
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.ABORTED)
         self.assertEqual(self.med._public_bag_fsm.abort_reason, "deposit_target_outside_public_bag")
 
-    def test_a_source_that_cannot_move_is_retired_for_the_round(self):
-        """装备栏 0 号格是在装的武器，永远搬不动；两次失败后本局不再回头。"""
+    def test_another_unmovable_source_is_retired_for_the_round(self):
+        """2~6 号仍可能临时不可移动；两次失败后本局不再回头。"""
         self.med._public_bag_fsm = PublicBagFSM(
             phase=PublicBagPhase.DEPOSIT_REQUESTED,
-            source_id="item_bar_0",
+            source_id="item_bar_1",
             source_kind="item_bar",
-            source_slot=0,
+            source_slot=1,
             target_slot=(0, 0),
             deadline=200.0,
         )
         with self._patch_layout(self.layout),              patch.object(self.med, "_public_bag_deposit_confirmed", return_value=False):
             self.med._maybe_public_backpack_deposit(self.frame, 100.0)
-        self.assertEqual(self.med._public_bag_failed_sources.get("item_bar_0"), 1)
-        self.assertFalse(self.med._public_bag_source_exhausted("item_bar_0"))
+        self.assertEqual(self.med._public_bag_failed_sources.get("item_bar_1"), 1)
+        self.assertFalse(self.med._public_bag_source_exhausted("item_bar_1"))
 
         self.med._public_bag_fsm = PublicBagFSM(
             phase=PublicBagPhase.DEPOSIT_REQUESTED,
-            source_id="item_bar_0",
+            source_id="item_bar_1",
             source_kind="item_bar",
-            source_slot=0,
+            source_slot=1,
             target_slot=(0, 0),
             deadline=200.0,
         )
         with self._patch_layout(self.layout),              patch.object(self.med, "_public_bag_deposit_confirmed", return_value=False):
             self.med._maybe_public_backpack_deposit(self.frame, 200.0)
-        self.assertTrue(self.med._public_bag_source_exhausted("item_bar_0"))
+        self.assertTrue(self.med._public_bag_source_exhausted("item_bar_1"))
 
     def test_item_bar_hit_is_refused_as_a_deposit_target(self):
         layout = self.layout
@@ -700,16 +708,16 @@ class BagSlotOccupancyTests(unittest.TestCase):
 
     def test_retired_source_is_skipped_by_the_scan(self):
         layout = _gt_layout()
-        bar0 = layout.item_bar_slot_probe_rect(0)
+        bar1 = layout.item_bar_slot_probe_rect(1)
         bar2 = layout.item_bar_slot_probe_rect(2)
 
         def fill(bgr):
-            self._paint_icon(bgr, bar0)
+            self._paint_icon(bgr, bar1)
             self._paint_icon(bgr, bar2, colour=(40, 200, 220))
 
         frame = self._slot_frame(fill)
-        self.assertEqual(self.med._public_bag_source(frame, layout)["slot_index"], 0)
-        self.med._public_bag_failed_sources["item_bar_0"] = 2
+        self.assertEqual(self.med._public_bag_source(frame, layout)["slot_index"], 1)
+        self.med._public_bag_failed_sources["item_bar_1"] = 2
         self.assertEqual(self.med._public_bag_source(frame, layout)["slot_index"], 2)
 
     def test_empty_bags_yield_no_source(self):
