@@ -516,8 +516,9 @@ function Invoke-HitchLobbyChainCapture {
         "--target", "hitch_lobby_chain",
         "--out", $script:CaptureRoot,
         "--repo-root", $RepoRoot,
-        "--duration", "3600",
-        "--max-ticks", "30000",
+        # 5 full hitch rounds (hitch_cycle_num=5) do not fit in one hour.
+        "--duration", "10800",
+        "--max-ticks", "60000",
         "--interval", "0.15",
         "--continue-after-failure",
         "--generate"
