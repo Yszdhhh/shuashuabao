@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-10 14:01:04",
-  "reason": "v2.2/v2.3 资产入库：assets/Images/bag/{bag_toggle_button,hud_pickup_button}.png 两个 HUD 热键按钮模板（20260910 实机帧 1:1 裁切，用来替代游戏不接受的 B/Z 键注入），allowlist 389->391；同时刷新已全绿的 pytest 计数。无 FAIL 被写进快照。",
+  "updated_at": "2026-09-11 01:21:37",
+  "reason": "Update release gate baseline: refresh pytest count to 1921 and sync asset allowlist count 391->393",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 1840,
+        "passed": 1921,
         "xfailed": 2,
-        "skipped": 13
+        "skipped": 15
       }
     },
     "frozen_replay": {
@@ -35,8 +35,8 @@
         "asset_spec_assets_root": 1,
         "asset_manifest_schema": 1,
         "asset_package_root_whole_tree": 1,
-        "asset_files": 391,
-        "asset_allowlisted": 391,
+        "asset_files": 393,
+        "asset_allowlisted": 393,
         "asset_missing_allowlist": 0,
         "asset_stale_manifest": 0,
         "asset_forbidden_paths": 0,
