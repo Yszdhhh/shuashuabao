@@ -9791,6 +9791,7 @@ class Mediator:
 
             host_takeover = (
                 ready_state == "ready"
+                and getattr(self, "_hitch_ready_confirmed_at", None) is not None
                 and self._find_room_start(frame) is not None
                 and self._hitch_host_marker_visible(frame)
             )
