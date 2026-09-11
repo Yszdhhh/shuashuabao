@@ -527,7 +527,7 @@ function Invoke-HitchRuntimeCapture {
     if ($script:OperatorSettingsPath) {
         $cliArgs += @("--settings", $script:OperatorSettingsPath)
     }
-    Write-Host "[launcher] 蹭车局内续跑：压力转移→自动任务/四挑战→结算存档→时光之穴/传家宝 Boss" -ForegroundColor Cyan
+    Write-Host "[launcher] 蹭车局内续跑：中途接管跳过压力转移→自动任务/四挑战→结算存档→时光之穴/传家宝 Boss" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 

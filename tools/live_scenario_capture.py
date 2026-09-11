@@ -436,8 +436,8 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "handler": "tick",
         "call": "frame",
         "start_condition": "游戏窗口已经处于已确认的蹭车局内 HUD，或 production classifier 已确认的战后存档/传家宝页面；不再从 KK 大厅/房间窗口启动。",
-        "production_entry": "Mediator.tick()，从局内接管后继续压力转移、自动任务、四挑战与既有战后 Boss 路由。",
-        "expected_steps": ("HUD", "AUTO_TASK", "FOUR_CHALLENGES", "POSTGAME_ARCHIVE", "BOSS_FALLBACK"),
+        "production_entry": "Mediator.tick()，从局内接管时跳过仅属于自然开局的压力转移，继续自动任务、四挑战与既有战后 Boss 路由。",
+        "expected_steps": ("HUD", "PRESSURE_SKIPPED_ON_TAKEOVER", "AUTO_TASK", "FOUR_CHALLENGES", "POSTGAME_ARCHIVE", "BOSS_FALLBACK"),
         "success_postcondition": "自动任务、挑战和战后 Boss 均须各自通过既有视觉后置条件；单次输入不算成功。",
         "fail_condition": "输入被拒绝、既有生产 handler 进入 ERROR，或页面缺少既有分类/模板证据。",
         "blocked_condition": "捕获无效、启动帧不是已确认局内 HUD 或 production 分类的战后页面时，BLOCKED 且不发业务输入。",
@@ -445,7 +445,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "natural_e2e_eligible": "仅连续真机 Mediator.tick() 链、无人工干预、并由各生产后置条件确认时有资格。",
         "bundle_replay": "沿用现有事件帧、ReplayCaseLoader 和 FakeInputExecutor；不创建另一套蹭车局内状态机。",
         "runbook_manual": "把游戏停在已确认局内 HUD，或已经打开的存档/传家宝页面；不要停在 KK 大厅/房间窗口。紧急停止用 Shift+F12。",
-        "runbook_hands_off": "启动后不要手动点压力转移、自动任务、挑战、存档卡或 Boss。",
+        "runbook_hands_off": "启动后不要手动点自动任务、挑战、存档卡或 Boss；测试 11 从局内接管，不检查压力转移。",
         "runbook_pass": "记录实际动作和各自的真实后置证据；不得用 click success 代替。",
         "runbook_manual_intervention": "需要手动推进页面时先标记 FAIL，再标 MANUAL_INTERVENTION。",
     },
@@ -708,7 +708,7 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     },
     "hitch_runtime": {
         "production_readiness": "CONDITIONAL",
-        "scope": "从当前蹭车局随时接管：首个已确认 HUD 优先压力转移，再复用自动任务、四挑战与既有战后存档/时光之穴/传家宝末位 Boss fallback。",
+        "scope": "从当前蹭车局随时接管：已确认 HUD 不再检查压力转移，直接复用自动任务、四挑战与既有战后存档/时光之穴/传家宝末位 Boss fallback。",
         "routes": (
             {"route": "hitch_pressure_transfer", "readiness": "CONDITIONAL"},
             {"route": "hitch_auto_task_and_challenges", "readiness": "CONDITIONAL"},
