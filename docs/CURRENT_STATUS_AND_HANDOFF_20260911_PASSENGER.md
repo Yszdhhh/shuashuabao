@@ -3,7 +3,7 @@
 ## 结论与固定身份
 
 - 对齐起点：`integration/formal-g0-live-20260911` @ `e017026ca9abff237bfd1f3f867a92a309a18df7`。
-- Production 提交：`be1606a48474343b031efded71ad265a3a6164bc`。
+- Production 提交：`b6f24edd74fbc6133815922272eca5321fdc2cb2`。
 - Harness rebaseline 提交：`b862e38c7ecbda969ba5959d0de03682b7fc00ae`。
 - Production 固定工作树：`G:\刷刷宝\Worktrees\prod-source-3904913-20260911`（detached，clean）。
 - 开发/Harness 工作树：`G:\刷刷宝\GameScript-Local`，分支 `fix/live-hitch-follow-closure-20260911`。
@@ -37,7 +37,7 @@
 
 - Launcher：`G:\刷刷宝\GameScript-Local\live_scenario_launcher.ps1`
 - `ProductionSourceRoot`：`G:\刷刷宝\Worktrees\prod-source-3904913-20260911`
-- `ProductionSourceSha`：`be1606a48474343b031efded71ad265a3a6164bc`
+- `ProductionSourceSha`：`b6f24edd74fbc6133815922272eca5321fdc2cb2`
 - 测试：`13 PRIMARY HITCH_FULL_NATURAL_E2E`，`hitch_cycle_num=5`。
 
 实机 PASS 必须以本次新 capture bundle 的 trace/manifest 为准；离线回归和用户旧附件不替代 5 局真实链路证据。

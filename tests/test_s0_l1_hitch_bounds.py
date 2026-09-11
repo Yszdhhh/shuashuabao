@@ -126,6 +126,19 @@ class HitchMidgameTakeoverTests(unittest.TestCase):
         self.assertIs(action, LoopAction.Continue)
         self.assertTrue(med._hitch_opening_pressure_armed)
 
+    def test_natural_ready_arms_pressure_even_when_room_number_ocr_is_missing(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.ROOM_WAITING, "joined room")
+        med._hitch_pending_room_key = None
+        med._hitch_ready_confirmed_at = 10.0
+        frame = _frame()
+        with patch.object(med, "_is_game_client_frame", return_value=True), \
+                patch.object(med, "_is_in_game_hud", return_value=True):
+            action = med._tick_lobby_hitch(frame, "UNKNOWN")
+
+        self.assertIs(action, LoopAction.Continue)
+        self.assertTrue(med._hitch_opening_pressure_armed)
+
     def test_archive_progress_strip_adopts_an_already_running_round(self) -> None:
         med = _hitch_mediator()
         frame = _frame()
