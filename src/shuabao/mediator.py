@@ -783,6 +783,10 @@ class Mediator:
         self._hitch_ready_timeout_pending: bool = False
         self._hitch_ready_timeout_leave_at: float | None = None
         self._hitch_ready_confirmed_at: float | None = None
+        # Only the natural lobby -> joined room -> Ready -> fresh HUD path may
+        # own the opening pressure-transfer gate.  A mid-game attach starts
+        # false and therefore never guesses that the opening action is pending.
+        self._hitch_opening_pressure_armed = False
         # P0-4：压力转移点击后的后置条件验证锚点（确认按钮消失才算成功）
         # G0 Phase A：按钮从未出现时的有界 fresh reobserve 预算（次数制，
         # 与点击/重试 budget 数值风格一致）。耗尽 → core failed。
@@ -9061,6 +9065,7 @@ class Mediator:
         self._hitch_ready_timeout_attempts = 0
         self._hitch_ready_timeout_deadline = None
         self._hitch_ready_confirmed_at = None
+        self._hitch_opening_pressure_armed = False
         self._hitch_heirloom_exit_since = None
         self._hitch_rejected_row_ys.clear()
         # P1-1：关闭预算不在此重置——本函数也服务被踢重置路径，那里
@@ -9399,6 +9404,10 @@ class Mediator:
         # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
         if self.phase == Phase.ROOM_WAITING and self._is_game_client_frame(frame):
             if self._is_in_game_hud(frame):
+                self._hitch_opening_pressure_armed = bool(
+                    self._hitch_pending_room_key
+                    and self._hitch_ready_confirmed_at is not None
+                )
                 if getattr(self, "_hitch_ready_timeout_pending", False):
                     self._hitch_ready_timeout_pending = False
                     self._hitch_ready_timeout_leave_at = None
@@ -12068,6 +12077,7 @@ class Mediator:
         if (
             not secret_entry_observation
             and self._hitch_enabled()
+            and self._hitch_opening_pressure_armed
             and post_game is None
             and not getattr(self, "_hitch_pressure_core_failed", False)
         ):

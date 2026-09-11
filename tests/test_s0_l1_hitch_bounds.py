@@ -98,6 +98,34 @@ class HitchUnverifiedArchiveTests(unittest.TestCase):
 
 
 class HitchMidgameTakeoverTests(unittest.TestCase):
+    def test_midgame_attach_does_not_run_opening_pressure_gate(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.MAIN_LINE, "startup found existing game")
+        frame = _frame()
+        with patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_find_stage_page", return_value=False), \
+                patch.object(med, "_is_in_game_hud", return_value=True), \
+                patch.object(med, "_maybe_click_hitch_pressure_transfer") as pressure, \
+                patch.object(med, "_ensure_auto_task_enabled", return_value=LoopAction.Continue):
+            action = med._tick_main_line(frame)
+
+        self.assertIs(action, LoopAction.Continue)
+        pressure.assert_not_called()
+
+    def test_natural_joined_ready_room_arms_opening_pressure_gate(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.ROOM_WAITING, "joined room")
+        med._hitch_pending_room_key = "room-765432"
+        med._hitch_ready_confirmed_at = 10.0
+        frame = _frame()
+        with patch.object(med, "_is_game_client_frame", return_value=True), \
+                patch.object(med, "_is_in_game_hud", return_value=True):
+            action = med._tick_lobby_hitch(frame, "UNKNOWN")
+
+        self.assertIs(action, LoopAction.Continue)
+        self.assertTrue(med._hitch_opening_pressure_armed)
+
     def test_archive_progress_strip_adopts_an_already_running_round(self) -> None:
         med = _hitch_mediator()
         frame = _frame()

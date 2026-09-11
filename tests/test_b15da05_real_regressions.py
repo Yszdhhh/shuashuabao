@@ -138,6 +138,7 @@ def test_hitch_bootstrap_priority() -> None:
     自动任务 OFF 时压力转移仍被调用（不破坏压力转移）。"""
     med = _hitch_mediator()
     med.set_phase(Phase.MAIN_LINE)
+    med._hitch_opening_pressure_armed = True
     frame = _game_frame("midgame")
     order: list[str] = []
 
@@ -165,6 +166,7 @@ def test_hitch_pressure_gate_blocks_all_bootstrap_actions_until_confirmed() -> N
     """P0：压力转移尚未由 fresh 帧确认时，自动任务及后续四挑战不得穿透。"""
     med = _hitch_mediator()
     med.set_phase(Phase.MAIN_LINE)
+    med._hitch_opening_pressure_armed = True
     frame = _game_frame("midgame")
     order: list[str] = []
 

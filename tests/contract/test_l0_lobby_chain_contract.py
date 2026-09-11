@@ -166,6 +166,7 @@ class C2InGameStateIsolation(unittest.TestCase):
             opened_by_us=True,
         ),
         "_public_bag_next_at": 1.0e9,
+        "_hitch_opening_pressure_armed": True,
         "_tick_post_confirm": False,
     }
 
