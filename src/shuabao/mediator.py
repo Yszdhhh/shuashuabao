@@ -9551,9 +9551,12 @@ class Mediator:
         # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
         if self.phase == Phase.ROOM_WAITING and self._is_game_client_frame(frame):
             if self._is_in_game_hud(frame):
+                # A successful guest Ready transition is the authoritative
+                # natural-entry proof.  Room-number OCR is only needed for
+                # blacklist bookkeeping and must not suppress the opening
+                # pressure gate when the number is temporarily unreadable.
                 self._hitch_opening_pressure_armed = bool(
-                    self._hitch_pending_room_key
-                    and self._hitch_ready_confirmed_at is not None
+                    self._hitch_ready_confirmed_at is not None
                 )
                 if getattr(self, "_hitch_ready_timeout_pending", False):
                     self._hitch_ready_timeout_pending = False
