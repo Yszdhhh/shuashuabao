@@ -2115,20 +2115,21 @@ def test_lobby_hitch_refresh_cd_is_five_seconds() -> None:
     assert sm.tick(now=105.0, matched=False, prefix_ok=True).action is HitchAction.REFRESH
 
 
-def test_lobby_hitch_default_multi_prefix_budget_rotates_each_prefix_before_exhaustion() -> None:
+def test_lobby_hitch_unmatched_result_switches_to_a_random_other_prefix() -> None:
     from shuabao.lobby_hitch import HitchAction
 
-    med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4,3"), ROOT)
+    med = Mediator(Settings(mode_id="lobby_hitch", hitch_stage_prefix="4,3,速"), ROOT)
     sm = med._hitch_sm
 
-    assert sm.join_limit == 20
-    for refresh in range(10):
-        sm.note_refresh(float(refresh))
-    assert sm.prefix == "3"
-    assert sm.tick(now=14.0, matched=False, prefix_ok=True).action is HitchAction.REFRESH
-    for refresh in range(10, 20):
-        sm.note_refresh(float(refresh))
-    assert sm.prefix == "4"
+    assert sm.rotate_interval == 1
+    assert sm.join_limit == 3
+    with patch("shuabao.lobby_hitch.random.choice", side_effect=["速", "3"]) as choose:
+        assert sm.note_refresh(0.0) is True
+        assert sm.prefix == "速"
+        assert sm.note_refresh(1.0) is True
+        assert sm.prefix == "3"
+    assert choose.call_args_list[0].args[0] == ["3", "速"]
+    assert choose.call_args_list[1].args[0] == ["4", "3"]
     assert sm.refresh_cycles_on_prefix == 0
 
 
@@ -2142,7 +2143,7 @@ def test_lobby_hitch_recreated_state_machine_preserves_current_prefix_and_limits
 
     assert replacement.prefix == "3"
     assert replacement.prefix_idx == 1
-    assert replacement.join_limit == 20
+    assert replacement.join_limit == 3
     assert replacement.search_timeout_s == 321.0
     assert replacement.sleep_s == 45.0
 
@@ -2186,7 +2187,7 @@ def test_hitch_rotate_interval_is_integer_and_clamped(tmp_path: Path) -> None:
     assert Settings.load(path).hitch_rotate_interval == 10
     assert Settings._from_dict({"hitch_rotate_interval": 0}).hitch_rotate_interval == 1
     assert Settings._from_dict({"hitch_rotate_interval": 999}).hitch_rotate_interval == 100
-    assert Settings._from_dict({"hitch_rotate_interval": "bad"}).hitch_rotate_interval == 10
+    assert Settings._from_dict({"hitch_rotate_interval": "bad"}).hitch_rotate_interval == 1
 
 
 def test_lobby_search_continuous_cycle_never_exhausts_to_go_home() -> None:

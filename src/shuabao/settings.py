@@ -117,7 +117,7 @@ class Settings:
     # 运行方式目录 id（normal_farm / lobby_hitch / …）。不是 OBSERVE/LIVE。
     mode_id: str = "normal_farm"
     hitch_stage_prefix: str = "4,3,速"  # 大厅找房搜索词，默认 4→3→速，可逗号分隔多词轮换
-    hitch_rotate_interval: int = 10  # 搜索无结果时每隔多少轮自动轮换下一个搜索词
+    hitch_rotate_interval: int = 1  # 搜索无可进房时立即随机轮换到另一个搜索词
     subscription_base_url: str = "https://quebec-luis-flooring-kenneth.trycloudflare.com"  # 默认云端鉴权中台地址
     subscription_mode: str = "enforce"  # 订阅模式：off / shadow / enforce
     follow_cycle_num: int = 100  # 跟车目标局数；启动时投影到 cycle_num

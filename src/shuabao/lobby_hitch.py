@@ -7,6 +7,7 @@ join_attempts 以本模块的 3 为准（mode_specs 历史值 2 不再采用）�
 
 from __future__ import annotations
 
+import random
 import re
 import unicodedata
 from dataclasses import dataclass
@@ -127,7 +128,7 @@ class HitchSearchSM:
         prefix: str = "3",
         *,
         prefixes: list[str] | tuple[str, ...] | None = None,
-        rotate_interval: int = 10,
+        rotate_interval: int = 1,
         join_limit: int = JOIN_ATTEMPTS,
         search_timeout_s: float = SEARCH_TIMEOUT_S,
         sleep_s: float = SLEEP_RETRY_S,
@@ -208,7 +209,10 @@ class HitchSearchSM:
     def rotate_prefix(self) -> str:
         if len(self.prefixes) <= 1:
             return self.prefix
-        self.prefix_idx = (self.prefix_idx + 1) % len(self.prefixes)
+        # An exhausted result set has no joinable room.  Pick any other
+        # configured term rather than repeatedly searching the same result.
+        next_prefix = random.choice([item for item in self.prefixes if item != self.prefix])
+        self.prefix_idx = self.prefixes.index(next_prefix)
         self.prefix = self.prefixes[self.prefix_idx]
         self.refresh_cycles_on_prefix = 0
         return self.prefix

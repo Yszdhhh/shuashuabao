@@ -733,7 +733,7 @@ class Mediator:
             pass
         prefixes_raw = getattr(settings, "hitch_stage_prefix", "3")
         prefix_list = [p.strip() for p in str(prefixes_raw).replace("，", ",").split(",") if p.strip()]
-        rotate_int = int(getattr(settings, "hitch_rotate_interval", 10) or 10)
+        rotate_int = int(getattr(settings, "hitch_rotate_interval", 1) or 1)
         search_budget = max(JOIN_ATTEMPTS, rotate_int * max(1, len(prefix_list)))
         self._hitch_sm = HitchSearchSM(
             prefix=prefix_list[0] if prefix_list else "3",
