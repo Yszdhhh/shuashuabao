@@ -779,7 +779,7 @@ class Mediator:
         self._hitch_floor_exit_deadline: float | None = None
         self._hitch_floor_exit_input_generation: int | None = None
         self._hitch_floor_exit_reobserve_until: float | None = None
-        # P0-6：Ready 180s 超时退房生命周期（确认离房+大厅可见后才拉黑）
+        # P0-6：Ready 70s 超时退房生命周期（确认离房+大厅可见后才拉黑）
         self._hitch_ready_timeout_pending: bool = False
         self._hitch_ready_timeout_leave_at: float | None = None
         self._hitch_ready_confirmed_at: float | None = None
@@ -987,6 +987,7 @@ class Mediator:
         # BagLayout 从锚点推导，个人格永远只右键。
         self._public_bag_fsm = PublicBagFSM()
         self._public_bag_next_at = 0.0
+        self._public_bag_empty_since: float | None = None
         self._public_bag_deposit_before: tuple[float, int] | None = None
         # 搬不动的格子（装备栏里的在装武器等）：连续失败两次就本局跳过，
         # 否则冷却到期后会一直回来重试同一格。
@@ -4280,6 +4281,7 @@ class Mediator:
     _PUBLIC_BAG_ANCHORS = ("bag/public_bag_title", "bag/bag_sell_equipment")
     _PUBLIC_BAG_ANCHOR_THRESHOLD = 0.80
     _PUBLIC_BAG_PILL_TEMPLATES = ("danGif", "swallow_pill")
+    _PUBLIC_BAG_EMPTY_CLOSE_S = 1.5
 
     def _public_bag_surface_ok(self, frame: Frame) -> bool:
         """May we open or drain the bag on this frame?
@@ -4290,7 +4292,13 @@ class Mediator:
         """
         if self._bag_layout(frame) is not None:
             return True
-        if self._post_game_state(frame) == "NPC_HUB":
+        if self._post_game_state(frame) in {
+            "NPC_HUB",
+            "POST_VICTORY",
+            "ARCHIVE_PANEL",
+            "HEIRLOOM_DIALOG",
+            "GREAT_RIFT_CONFIRM",
+        }:
             return False
         if self._is_in_game_hud(frame):
             return True
@@ -4483,26 +4491,6 @@ class Mediator:
         Drain the bar first, then the personal grid. A slot that is neither
         clearly empty nor occupied is skipped, not guessed.
         """
-        # 界面装备栏是 1..6，而这里用 0-based index。1 号（index 0）是固定
-        # 自身装备，不能移动；从界面的 2..6 开始扫描，避免先右键自己的武器。
-        for index in range(1, ITEM_BAR_SLOTS):
-            if self._public_bag_source_exhausted(f"item_bar_{index}"):
-                continue
-            if not self._bag_slot_occupied(frame, layout.item_bar_slot_probe_rect(index)):
-                continue
-            center = layout.item_bar_slot_center(index)
-            if center is None:
-                continue
-            x, y = center
-            return {
-                "kind": "item_bar",
-                "slot_index": index,
-                "cell": None,
-                "source_id": f"item_bar_{index}",
-                "hit": MatchResult(
-                    f"item_bar_slot_{index}", 1.0, x, y, 0, 0, frame.left + x, frame.top + y
-                ),
-            }
         for row, col in layout.public_slots():
             if self._public_bag_source_exhausted(f"personal_{row}_{col}"):
                 continue
@@ -4526,6 +4514,26 @@ class Mediator:
                     0,
                     frame.left + x,
                     frame.top + y,
+                ),
+            }
+        # 界面装备栏是 1..6，而这里用 0-based index。1 号（index 0）是固定
+        # 自身装备，不能移动；从界面的 2..6 开始扫描，避免先右键自己的武器。
+        for index in range(1, ITEM_BAR_SLOTS):
+            if self._public_bag_source_exhausted(f"item_bar_{index}"):
+                continue
+            if not self._bag_slot_occupied(frame, layout.item_bar_slot_probe_rect(index)):
+                continue
+            center = layout.item_bar_slot_center(index)
+            if center is None:
+                continue
+            x, y = center
+            return {
+                "kind": "item_bar",
+                "slot_index": index,
+                "cell": None,
+                "source_id": f"item_bar_{index}",
+                "hit": MatchResult(
+                    f"item_bar_slot_{index}", 1.0, x, y, 0, 0, frame.left + x, frame.top + y
                 ),
             }
         return None
@@ -4607,8 +4615,20 @@ class Mediator:
     def _public_bag_close_page(self, frame: Frame, fsm: PublicBagFSM, now: float) -> LoopAction:
         if self._toggle_bag_page(frame, "PublicBackpackClose"):
             self._public_bag_fsm = fsm.request_close(now)
+            self._public_bag_empty_since = None
             print("[L1] 公共背包：无待搬物品，关闭背包页")
         return LoopAction.Continue
+
+    def _public_bag_close_when_empty(
+        self, frame: Frame, fsm: PublicBagFSM, now: float
+    ) -> LoopAction:
+        """Wait a beat after open/stash before closing — occupancy lags a tick."""
+        if self._public_bag_empty_since is None:
+            self._public_bag_empty_since = now
+            return LoopAction.Continue
+        if now - self._public_bag_empty_since < self._PUBLIC_BAG_EMPTY_CLOSE_S:
+            return LoopAction.Continue
+        return self._public_bag_close_page(frame, fsm, now)
 
     def _maybe_public_backpack_deposit(self, frame: Frame, now: float) -> LoopAction | None:
         """PUBLIC_BACKPACK_DEPOSIT: stash item-bar → personal, then personal → public, then close."""
@@ -4640,9 +4660,10 @@ class Mediator:
         if fsm.phase is PublicBagPhase.IDLE:
             if bag_visible and fsm.can_adopt_open_page():
                 if layout is not None and self._public_bag_source(frame, layout) is not None:
+                    self._public_bag_empty_since = None
                     self._public_bag_fsm = fsm.confirm_bag_visible(now)
                     return LoopAction.Continue
-                return self._public_bag_close_page(frame, fsm, now)
+                return self._public_bag_close_when_empty(frame, fsm, now)
             if not fsm.can_start(now) or now < self._public_bag_next_at:
                 return None
             if not self._public_bag_surface_ok(frame):
@@ -4650,6 +4671,7 @@ class Mediator:
             if self._open_bag_page(frame):
                 self._public_bag_fsm = fsm.request_bag_open(now)
                 self._public_bag_next_at = now + 1.0
+                self._public_bag_empty_since = None
                 print("[L1] 公共背包：请求打开背包页")
                 return LoopAction.Continue
             return None
@@ -4662,7 +4684,8 @@ class Mediator:
                 return LoopAction.Continue
             source = self._public_bag_source(frame, layout)
             if source is None:
-                return self._public_bag_close_page(frame, fsm, now)
+                return self._public_bag_close_when_empty(frame, fsm, now)
+            self._public_bag_empty_since = None
             if (
                 self._public_bag_empty_slot(frame, layout) is None
                 and self._public_bag_empty_personal_slot(frame, layout) is None
@@ -4684,6 +4707,8 @@ class Mediator:
                     cell=source["cell"],
                 )
                 print(f"[L1] 公共背包：右键取出 {source['source_id']}")
+            else:
+                self._public_bag_note_source_failure(source["source_id"])
             return LoopAction.Continue
 
         if fsm.phase is PublicBagPhase.SOURCE_SELECTED:
@@ -6241,6 +6266,10 @@ class Mediator:
             return None
         if getattr(self, "_hitch_pressure_transferred", False):
             return None
+        # 胜利/暂停/存档/广场已经不是开局压力转移窗口。门禁若挡在
+        # ContinueGame 前面，接管会在胜利画面上零输入直到人工停止。
+        if self._post_game_state(frame) is not None:
+            return None
         # A runtime can attach after the host has already completed the
         # opening pressure-transfer step. The stable top ``存档挑战`` marker is
         # real in-game progress (for example 2-7), not a timer or generic HUD
@@ -6408,11 +6437,16 @@ class Mediator:
 
     def _find_game_exit(self, frame: Frame) -> MatchResult | None:
         hit = self.find(frame, ["quit"], threshold=0.78, scales=self._hot_scales(), roi=(0.0, 0.0, 0.12, 0.15))
-        if not hit:
-            return None
-        if hit.x > frame.width * 0.12 or hit.y > frame.height * 0.15:
-            return None
-        return hit
+        if hit is not None and hit.x <= frame.width * 0.12 and hit.y <= frame.height * 0.15:
+            return hit
+        # 蹭车误开的游戏大厅「退出游戏」在右上角，不是局内左上角。
+        if self._hitch_enabled():
+            hit = self.find(
+                frame, ["quit"], threshold=0.78, scales=self._hot_scales(), roi=(0.80, 0.00, 0.99, 0.12)
+            )
+            if hit is not None and hit.x >= frame.width * 0.80 and hit.y <= frame.height * 0.15:
+                return hit
+        return None
 
     def _find_exit_confirm(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
@@ -7459,6 +7493,7 @@ class Mediator:
             self._evolve_baseline = None
             self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
             self._public_bag_fsm = PublicBagFSM()
+            self._public_bag_empty_since = None
             self._public_bag_failed_sources = {}
             self._l1_cycle_owned_panel = False
             self._l1_cycle_selected = False
@@ -9020,7 +9055,7 @@ class Mediator:
         self._hitch_floor_exit_deadline = None
         self._hitch_floor_exit_input_generation = None
         self._hitch_floor_exit_reobserve_until = None
-        # P0-6：180s 超时退房生命周期随每次 episode 边界一并收敛
+        # P0-6：70s 超时退房生命周期随每次 episode 边界一并收敛
         self._hitch_ready_timeout_pending = False
         self._hitch_ready_timeout_leave_at = None
         self._hitch_ready_timeout_attempts = 0
@@ -9039,6 +9074,14 @@ class Mediator:
         self._outcome_recorded = False
         self._round_outcome = None
 
+    def _hitch_quit_misopened_stage(self) -> LoopAction:
+        """Solo stage/map page means we accidentally hosted. Quit, don't wait."""
+        if self._hitch_pending_room_key is not None:
+            self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+        print("[L0] hitch 误开选关/游戏大厅，退出当前游戏")
+        self.set_phase(Phase.QUIT, "hitch misopened stage page")
+        return LoopAction.Continue
+
     def _finish_hitch_round(self, now: float, note: str) -> LoopAction:
         """记录一次已验证的蹭车离局，然后回到大厅继续找房。"""
         self.game_count += 1
@@ -9054,6 +9097,9 @@ class Mediator:
 
     def _hitch_reset_lobby(self, evidence: str, now: float) -> LoopAction:
         print(f"[L0] hitch {evidence} 触发，重置状态回大厅")
+        if self._hitch_pending_room_key is not None:
+            self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+            print(f"[L0] hitch 拉黑房间 key={self._hitch_pending_room_key} ({evidence})")
         self._hitch_after_exit(now)
         self._hitch_status = "大厅主页"
         self._hitch_re_search = False
@@ -9287,6 +9333,7 @@ class Mediator:
     # 平台侧弹窗 30s 即算卡死；游戏窗口实测加载画面约 50s，放宽到 60s。
     _HITCH_STALL_ESC_L0_S = 30.0
     _HITCH_STALL_ESC_GAME_S = 60.0
+    _HITCH_READY_WAIT_S = 70.0
 
     def _tick_hitch_stall_watchdog(self, frame: Frame, context: str, now: float) -> LoopAction | None:
         """无进展兜底：大厅/房间等待阶段持续 UNKNOWN 且期间零输入时按一次 Esc。
@@ -9351,16 +9398,18 @@ class Mediator:
         # （旧实现会把 game client 帧误判成已在局内而吞掉房内状态）；零输入交给
         # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
         if self.phase == Phase.ROOM_WAITING and self._is_game_client_frame(frame):
-            if getattr(self, "_hitch_ready_timeout_pending", False):
-                # P0-1b：窗口标题命中不是开局证据。只有可信局内 HUD 或选关页
-                # 才允许取消 180s 超时退房；否则保持退房 episode，本帧零输入。
-                if self._is_in_game_hud(frame) or stage_page or self._find_stage_page(frame):
+            if self._is_in_game_hud(frame):
+                if getattr(self, "_hitch_ready_timeout_pending", False):
                     self._hitch_ready_timeout_pending = False
                     self._hitch_ready_timeout_leave_at = None
-                    print("[L0] hitch 180s 等待期间房主开局（可信局内/选关证据），取消超时退房并移交游戏流程")
-                else:
-                    print("[L0] hitch 游戏客户端帧无可信局内/选关证据，保持超时退房（零输入）")
-                    return LoopAction.Continue
+                    print("[L0] hitch 70s 等待期间房主开局（可信局内 HUD），取消超时退房并移交游戏流程")
+                print("[L0] hitch ROOM_WAITING 观察到游戏客户端帧，零输入移交状态对齐")
+                return LoopAction.Continue
+            if stage_page or self._find_stage_page(frame):
+                return self._hitch_quit_misopened_stage()
+            if getattr(self, "_hitch_ready_timeout_pending", False):
+                print("[L0] hitch 游戏客户端帧无可信局内证据，保持超时退房（零输入）")
+                return LoopAction.Continue
             print("[L0] hitch ROOM_WAITING 观察到游戏客户端帧，零输入移交状态对齐")
             return LoopAction.Continue
         if context in ("MAIN_LINE", "IN_GAME"):
@@ -9368,12 +9417,10 @@ class Mediator:
             self.set_phase(Phase.MAIN_LINE, "hitch already in game")
             return LoopAction.Continue
         if stage_page or context == "STAGE_SELECT":
-            # 只有当前 frame 同时满足可信 game-client ownership 时，才允许转 Phase.STAGE_SELECT
+            # 蹭车客人不应出现在单人选关/游戏大厅（扫荡/开始游戏/考古模式）。
+            # 出现即误开或自己成了房主，立刻退出，不要零输入干等。
             if self._is_game_client_frame(frame):
-                self._hitch_re_search = False
-                self.set_phase(Phase.STAGE_SELECT, "hitch stage page wait")
-                print("[L0] hitch 选关页可见，零输入等待进局（不点关卡）")
-                return LoopAction.Continue
+                return self._hitch_quit_misopened_stage()
             print("[L0] hitch 忽略非游戏窗口的 STAGE_SELECT 晋级请求，零输入保持大厅状态")
             return LoopAction.Continue
         if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
@@ -9535,16 +9582,17 @@ class Mediator:
                 return LoopAction.Continue
 
         if getattr(self, "_hitch_ready_timeout_pending", False):
-            # P0-6 & C4：180s 超时退房进行中。
+            # P0-6 & C4：70s 超时退房进行中。
             # 1. 房主若在此期间开局：取消退出、绝不拉黑、转交游戏内流程（被动 L1 接管）
             if self._is_game_client_frame(frame):
-                # P0-1b：仅窗口标题不得取消退房 episode；必须有可信局内 HUD/选关页。
-                if self._is_in_game_hud(frame) or stage_page or self._find_stage_page(frame):
+                if self._is_in_game_hud(frame):
                     self._hitch_ready_timeout_pending = False
                     self._hitch_ready_timeout_attempts = 0
                     self._hitch_ready_timeout_deadline = None
-                    print("[L0] hitch 180s 等待期间房主开局（可信局内/选关证据），房间已消失，转交游戏内流程")
+                    print("[L0] hitch 70s 等待期间房主开局（可信局内 HUD），房间已消失，转交游戏内流程")
                     return LoopAction.Continue
+                if stage_page or self._find_stage_page(frame):
+                    return self._hitch_quit_misopened_stage()
                 print("[L0] hitch 退房 episode 中游戏客户端帧无可信面证据，保持退房（零输入）")
                 return LoopAction.Continue
 
@@ -9559,7 +9607,7 @@ class Mediator:
                 self._hitch_ready_timeout_deadline = None
                 self._hitch_after_exit(now)
                 self.set_phase(Phase.LOBBY_ROOM, "hitch ready timeout returned to lobby")
-                print("[L0] hitch 180s 超时退出已确认回大厅，房间拉黑并继续找房")
+                print("[L0] hitch 70s 超时退出已确认回大厅，房间拉黑并继续找房")
                 return LoopAction.Continue
 
             # 3. C4 修复：有界退房 episode（最多 3 次安全退出输入，>=5s 间隔，30s 截止期）
@@ -9568,7 +9616,7 @@ class Mediator:
             if deadline is not None and (now > deadline or attempts >= 3):
                 # 尝试/截止期耗尽只撤销输入许可，不能返回 Break 结束整个长期运行。
                 # 后续 fresh 大厅证据仍可自动收尾；UNKNOWN 保持零输入观察。
-                print("[L0] hitch 180s 退房重试预算耗尽（3次/超时），停止发键并持续等待可信大厅证据")
+                print("[L0] hitch 70s 退房重试预算耗尽（3次/超时），停止发键并持续等待可信大厅证据")
                 return LoopAction.Continue
 
             # Esc（HitchReadyTimeoutExit）只允许在 fresh 房间证据上发出：
@@ -9584,7 +9632,7 @@ class Mediator:
                 self._hitch_ready_timeout_leave_at = now
                 self._hitch_ready_timeout_attempts = attempts + 1
 
-            print("[L0] hitch 180s 退出进行中，等待离房并回到大厅（零输入等待）")
+            print("[L0] hitch 70s 退出进行中，等待离房并回到大厅（零输入等待）")
             return LoopAction.Continue
 
         if in_room:
@@ -9594,23 +9642,37 @@ class Mediator:
                 self._hitch_sm.complete_join()
                 self._hitch_join_origin_hwnd = None
                 self._hitch_join_refresh_count = self._hitch_sm.attempts
-            # b15da05 P1-C / P0-6: 180 秒开局等待预算在 Ready 确认后优先判定。
-            # 超时先挂起 pending 闩锁并发起安全退房（退出按钮或 Esc）；只有
-            # fresh 帧确认已离房且大厅列表基线可见后才拉黑房号（见下方
-            # _hitch_ready_timeout_pending 处理块）。
+            # 70 秒从「已点准备」起算。先进房点准备，避免因未准备被踢；
+            # 准备后再记房号、观察一楼。一楼不符才退房并拉黑。
             ready_confirmed_at = getattr(self, "_hitch_ready_confirmed_at", None)
             if (
                 ready_confirmed_at is not None
-                and now - ready_confirmed_at >= 180.0
+                and now - ready_confirmed_at >= self._HITCH_READY_WAIT_S
                 and not getattr(self, "_hitch_ready_timeout_pending", False)
             ):
-                # C4：180s 到期当帧仅 arm episode，0 输入
                 self._hitch_ready_timeout_pending = True
                 self._hitch_ready_timeout_leave_at = None
                 self._hitch_ready_timeout_attempts = 0
                 self._hitch_ready_timeout_deadline = now + 30.0
-                print("[L0] hitch 房间已准备等待超过 180 秒，房主未开局，发起安全退房 episode（当帧 0 输入）")
+                print("[L0] hitch 房间已准备等待超过 70 秒，房主未开局，发起安全退房 episode（当帧 0 输入）")
                 return LoopAction.Continue
+
+            if ready_state == "ready" and ready_hit is not None:
+                if self.act_click(ready_hit, "HitchReady"):
+                    self._hitch_pending_row_y = None
+                    self._hitch_status = "已点击准备"
+                    print(f"[L0] hitch 点击客人准备: ({ready_hit.screen_x}, {ready_hit.screen_y})")
+                else:
+                    self._hitch_sm.defer_retry(now)
+                    print("[L0] hitch 准备点击被拒绝，保持房间等待")
+                self.set_phase(Phase.ROOM_WAITING, "hitch guest ready")
+                return LoopAction.Continue
+
+            if getattr(self, "_hitch_ready_confirmed_at", None) is None:
+                self._hitch_ready_confirmed_at = now
+                print(
+                    f"[L0] hitch 已准备，记录房间号 key={self._hitch_pending_room_key}"
+                )
 
             seat_decision = self._hitch_room_seat_decision(frame)
             # Only a future, real-GT-backed detector may return "reject".
@@ -9638,18 +9700,7 @@ class Mediator:
                     print(f"[L0] hitch seat detector 明确拒绝({seat_decision})，但退出按钮未确认")
                 self.set_phase(Phase.ROOM_WAITING, "hitch reject by seat detector")
                 return LoopAction.Continue
-            if ready_state == "ready" and ready_hit is not None:
-                if self.act_click(ready_hit, "HitchReady"):
-                    self._hitch_pending_row_y = None
-                    self._hitch_status = "已点击准备"
-                    print(f"[L0] hitch 点击客人准备: ({ready_hit.screen_x}, {ready_hit.screen_y})")
-                else:
-                    self._hitch_sm.defer_retry(now)
-                    print("[L0] hitch 准备点击被拒绝，保持房间等待")
-                self.set_phase(Phase.ROOM_WAITING, "hitch guest ready")
-                return LoopAction.Continue
-            if ready_state == "cancel_ready" and getattr(self, "_hitch_ready_confirmed_at", None) is None:
-                self._hitch_ready_confirmed_at = now
+
             if ready_state in {"cancel_ready", "start"}:
                 self.set_phase(Phase.ROOM_WAITING, "hitch room ready contract observed")
                 print(f"[L0] hitch ROOM action={ready_state}，零输入等待开局")
@@ -9721,7 +9772,10 @@ class Mediator:
                     self._hitch_pending_room_key = self._hitch_room_number_key(frame, hit.y)
                     self._hitch_search_actions.append("join")
                     self._hitch_status = "search"
-                    print(f"[L0] hitch 发现可加入房间，点击进入: ({hit.screen_x}, {hit.screen_y})")
+                    print(
+                        f"[L0] hitch 发现可加入房间，点击进入: ({hit.screen_x}, {hit.screen_y})"
+                        f" key={self._hitch_pending_room_key}"
+                    )
                 else:
                     self._hitch_sm.defer_retry(now)
                     print("[L0] hitch 进房点击被拒绝，等待 CD 后重试")
@@ -12098,14 +12152,26 @@ class Mediator:
         # an unexpected modal cannot trigger a second click.
         if self._secret_realm_entering_since is not None:
             return self._observe_secret_realm_entry(frame, now, post_game)
-        if self._hitch_enabled() and post_game == "NPC_HUB":
+        if (
+            self._hitch_enabled()
+            and post_game is None
+            and not self._is_in_game_hud(frame)
+            and self._find_stage_page(frame)
+        ):
+            if self._hitch_pending_room_key is not None:
+                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+            print("[med] hitch 误开选关/游戏大厅，退出当前游戏")
+            self.set_phase(Phase.QUIT, "hitch misopened stage page")
+            return LoopAction.Continue
+        if self._hitch_enabled() and post_game in {"NPC_HUB", "POST_VICTORY"}:
             bag_open = self._bag_layout(frame) is not None
             fsm = self._public_bag_fsm
             if bag_open:
                 if fsm.phase is PublicBagPhase.CLOSE_REQUESTED:
                     self._public_bag_fsm = fsm.observe(now, bag_visible=True)
                     return LoopAction.Continue
-                print("[med] 战后广场背包仍开着，先关闭以免挡住 NPC")
+                why = "胜利页" if post_game == "POST_VICTORY" else "战后广场"
+                print(f"[med] {why}背包仍开着，先关闭以免挡住继续游戏/NPC")
                 if self._toggle_bag_page(frame, "PublicBackpackClose"):
                     self._public_bag_fsm = PublicBagFSM(
                         deposits=fsm.deposits,
@@ -12907,6 +12973,8 @@ class Mediator:
             if deposit_res is not None:
                 self._main_line_since = now
                 return deposit_res
+            if self._bag_layout(frame) is not None or self._public_bag_fsm.active:
+                return LoopAction.Continue
             self._advance_l1_cycle("public_bag")
             return LoopAction.Continue
 
@@ -13000,6 +13068,9 @@ class Mediator:
                 return LoopAction.Break
             exit_hit = self._find_game_exit(frame)
             if not exit_hit:
+                if self._hitch_enabled() and self._find_stage_page(frame):
+                    self.act_key("esc", "HitchLeaveMisopenedStage")
+                    return LoopAction.Continue
                 print("[med] 等待局内左上角专用退出按钮（零动作）")
                 return LoopAction.Continue
             self._exit_button_attempts += 1

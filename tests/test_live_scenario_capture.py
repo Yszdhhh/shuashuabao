@@ -1398,6 +1398,27 @@ def test_lobby_hitch_clicks_two_character_ready_but_not_four_character_action() 
     assert med.phase is Phase.ROOM_WAITING
 
 
+def test_lobby_hitch_readies_first_even_if_host_not_floor_one() -> None:
+    from shuabao.vision.matcher import MatchResult
+
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = _synthetic_hitch_room(0, first_row_host=False)
+    med._confirmed_room_hwnd = frame.hwnd
+    ready_hit = MatchResult("room_ready_btn", 0.95, 860, 614, 792, 596, 931, 631)
+
+    with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+         patch.object(med, "_hitch_room_ready_contract", return_value=("ready", ready_hit)), \
+         patch.object(med, "_hitch_room_seat_decision", return_value="reject") as seat_dec, \
+         patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    click.assert_called_once_with(ready_hit, "HitchReady")
+    assert med._hitch_status == "已点击准备"
+    assert med.phase is Phase.ROOM_WAITING
+    assert med._hitch_floor_exit_pending is False
+    seat_dec.assert_not_called()
+
+
 def test_lobby_hitch_unknown_seat_does_not_leave_or_blacklist() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     frame = _synthetic_hitch_room(0, first_row_host=False)

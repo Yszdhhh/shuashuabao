@@ -188,8 +188,29 @@ def test_hitch_pressure_gate_blocks_all_bootstrap_actions_until_confirmed() -> N
     assert order == ["pressure"], f"压力转移门禁未确认时禁止后续局内动作: {order}"
 
 
+def test_ready_70s_timeout_does_not_fire_at_69s() -> None:
+    med = _hitch_mediator()
+    frame = _kk_frame("kicked")
+    med.set_phase(Phase.ROOM_WAITING)
+    med._confirmed_room_hwnd = frame.hwnd
+    med._hitch_pending_room_key = "room-765432"
+    med._hitch_ready_confirmed_at = 0.0
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+         patch.object(med, "_find_hitch_ready_button", return_value=None), \
+         patch.object(med, "_hitch_room_seat_decision", return_value="ready"), \
+         patch.object(med, "act_key") as key, \
+         patch.object(med, "act_click") as click, \
+         patch.object(med, "find", return_value=None), \
+         patch("shuabao.mediator.time.time", return_value=69.0):
+        med._tick_lobby_hitch(frame, "ROOM_WAITING")
+    assert med._hitch_ready_timeout_pending is False
+    key.assert_not_called()
+    click.assert_not_called()
+
+
 def test_ready_180s_timeout_pends_then_blacklists_after_lobby() -> None:
-    """P0-6：180 秒超时先挂起 pending 并安全退房；只有 fresh 帧确认已离房
+    """P0-6：70 秒超时先挂起 pending 并安全退房；只有 fresh 帧确认已离房
     且大厅/房间列表基线可见，才拉黑房号并回到大厅找房。黑名单绝不在超时
     当帧立即写入。"""
     med = _hitch_mediator()
@@ -336,6 +357,7 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     # 点击成功 → 只记录 click_at，不置 transferred
     with patch.object(med, "_team_mode_enabled", return_value=True), \
          patch.object(med, "_is_in_game_hud", return_value=True), \
+         patch.object(med, "_post_game_state", return_value=None), \
          patch.object(med, "find", return_value=hit), \
          patch.object(med, "act_click", return_value=True) as click, \
          patch("shuabao.mediator.time.time", return_value=10.0):
@@ -348,6 +370,7 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     with (
         patch.object(med, "_team_mode_enabled", return_value=True),
         patch.object(med, "_is_in_game_hud", return_value=True),
+        patch.object(med, "_post_game_state", return_value=None),
         patch.object(med, "find", return_value=None),
         patch("shuabao.mediator.time.time", return_value=12.0),
     ):
@@ -365,6 +388,7 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     med2._main_line_since = 0.0
     with patch.object(med2, "_team_mode_enabled", return_value=True), \
          patch.object(med2, "_is_in_game_hud", return_value=True), \
+         patch.object(med2, "_post_game_state", return_value=None), \
          patch.object(med2, "find", return_value=None), \
          patch("shuabao.mediator.time.time", return_value=30.0):
         assert med2._maybe_click_hitch_pressure_transfer(frame, 30.0) is LoopAction.Continue
@@ -1138,6 +1162,18 @@ def test_stage_page_ownership_rejects_kk_platform_title() -> None:
     with patch.object(med, "_visible_stage_rows", return_value=True):
         assert med._find_stage_page(frame_kk) is False, "KK 平台窗口即便检测到数字行也不得获得 stage authority"
         assert med._find_stage_page(frame_game) is True, "游戏客户端窗口检测到数字行获得 stage authority"
+
+
+def test_hitch_game_client_stage_page_quits_and_blacklists() -> None:
+    """误开单人选关/游戏大厅必须立刻 QUIT，并拉黑当前房间。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.ROOM_WAITING)
+    med._hitch_pending_room_key = "room-solo"
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", role="l1")
+    res = med._tick_lobby_hitch(frame, context="STAGE_SELECT", stage_page=True)
+    assert res is LoopAction.Continue
+    assert med.phase is Phase.QUIT
+    assert "room-solo" in med._hitch_blacklisted_room_keys
 
 
 def test_lobby_hitch_ignores_stage_select_context_on_kk_platform_frame() -> None:
