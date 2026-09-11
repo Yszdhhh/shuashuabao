@@ -116,7 +116,7 @@ class Settings:
     game_mode: int = 0  # 0=独狼/自己刷图
     # 运行方式目录 id（normal_farm / lobby_hitch / …）。不是 OBSERVE/LIVE。
     mode_id: str = "normal_farm"
-    hitch_stage_prefix: str = "4,3"  # 大厅找房搜索词，默认 4→3，可逗号分隔多词轮换
+    hitch_stage_prefix: str = "4,3,速"  # 大厅找房搜索词，默认 4→3→速，可逗号分隔多词轮换
     hitch_rotate_interval: int = 10  # 搜索无结果时每隔多少轮自动轮换下一个搜索词
     subscription_base_url: str = "https://quebec-luis-flooring-kenneth.trycloudflare.com"  # 默认云端鉴权中台地址
     subscription_mode: str = "enforce"  # 订阅模式：off / shadow / enforce
@@ -451,7 +451,7 @@ class Settings:
             clean["mode_id"] = mid or "normal_farm"
         if "hitch_stage_prefix" in clean:
             search_text = str(clean["hitch_stage_prefix"] or "").strip()[:64]
-            clean["hitch_stage_prefix"] = search_text or "4,3"
+            clean["hitch_stage_prefix"] = search_text or "4,3,速"
         for key, allowed, default in (
             ("follow_after_room", {"solo", "arch", "hitch"}, "solo"),
             ("hitch_after_goal", {"solo", "arch"}, "solo"),
