@@ -65,6 +65,13 @@ def test_hitch_prefix_accepts_cleaned_occupancy_and_exact_forms():
     assert has_prefix_evidence("44", "44")
 
 
+def test_hitch_prefix_accepts_exact_unicode_search_term():
+    from shuabao.lobby_hitch import has_prefix_evidence
+
+    assert has_prefix_evidence("速", "速")
+    assert not has_prefix_evidence("极速", "速")
+
+
 def test_hitch_prefix_rejects_malformed_ambiguous_and_invalid_expected():
     from shuabao.lobby_hitch import has_prefix_evidence
 

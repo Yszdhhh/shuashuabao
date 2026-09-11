@@ -353,6 +353,23 @@ def test_real_visual_transition_reaches_a_join_decision() -> None:
     assert med._hitch_sm.pending_join is True
 
 
+def test_unicode_search_confirmation_unlocks_join_decision() -> None:
+    clock = _Clock()
+    med, exe = _mediator(prefix="速", ocr=ReplayShadowClient("速"))
+
+    _tick(med, _frame(EMPTY), clock)
+    assert exe.kinds("search_text")[0][3] == "速"
+
+    clock.advance(1.0)
+    _tick(med, _frame(TYPED), clock)
+    assert med._hitch_prefix_ok() is True
+
+    clock.advance(1.0)
+    _tick(med, _frame(RESULTS), clock)
+    assert len(exe.kinds("double_click")) == 1
+    assert med._hitch_sm.pending_join is True
+
+
 def test_confirmation_reads_the_derived_crop_not_a_fixed_band() -> None:
     clock = _Clock()
     ocr = ReplayShadowClient("4")
