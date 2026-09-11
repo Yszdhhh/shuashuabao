@@ -1424,7 +1424,7 @@ def test_lobby_hitch_host_takeover_is_rejected_and_starts_bounded_exit() -> None
     med._hitch_ready_confirmed_at = time.time()
     med._hitch_host_row_changed(frame)  # pre-promotion baseline
     changed_image = image.copy()
-    cv2.rectangle(changed_image, (200, 85), (1000, 165), (32, 32, 32), -1)
+    cv2.rectangle(changed_image, (200, 85), (700, 165), (32, 32, 32), -1)
     changed = Frame(changed_image, window_title="KK官方对战平台", hwnd=99, role="l0")
     with patch.object(med, "act_click", return_value=True) as click:
         med._tick_lobby_hitch(changed, "UNKNOWN")
