@@ -42,6 +42,9 @@
         "follow_cycle_num",
         "follow_after_room",
         "follow_pair_code",
+        "cjb_boss",
+        "sgzx_boss",
+        "auto_secret_realm",
         "dry_run"
       ],
       "hidden_defaults": {

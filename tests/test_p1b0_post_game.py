@@ -998,6 +998,72 @@ class P1B0PostGameTests(unittest.TestCase):
         click.assert_not_called()
         self.assertEqual(med.phase, Phase.QUIT)
 
+    def test_live_heirloom_loot_shape_is_three_aligned_green_status_rows(self):
+        """The right-side live loot list is accepted; a lone green HUD row is not."""
+        med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        for y in (230, 300, 370):
+            for x in (1195, 1208, 1221):
+                cv2.rectangle(image, (x, y), (x + 9, y + 7), (0, 220, 0), -1)
+        with patch.object(med, "find", return_value=None):
+            self.assertTrue(med._heirloom_loot_popup_visible(Frame(image)))
+
+        image[300:] = 0
+        with patch.object(med, "find", return_value=None):
+            self.assertFalse(med._heirloom_loot_popup_visible(Frame(image)))
+
+    def test_follow_heirloom_victory_exits_without_secret_realm(self):
+        med = Mediator(
+            Settings(mode_id="follow_team", auto_secret_realm=False, cjb_boss="01暴掠龙"),
+            ROOT,
+        )
+        med.set_phase(Phase.MAIN_LINE, "follow heirloom victory")
+        med._post_game_route = "boss_active"
+        med._hitch_heirloom_exit_since = time.time()
+        frame = load_fixture_frame("fixtures/replay/victory_continue.png")
+        with patch.object(med, "_heirloom_loot_popup_visible", return_value=False), \
+             patch.object(med, "act_click") as click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.QUIT)
+        click.assert_not_called()
+
+    def test_follow_heirloom_victory_continues_to_secret_realm(self):
+        med = Mediator(
+            Settings(mode_id="follow_team", auto_secret_realm=True, cjb_boss="01暴掠龙"),
+            ROOT,
+        )
+        med.set_phase(Phase.MAIN_LINE, "follow heirloom then secret")
+        med._post_game_route = "boss_active"
+        med._hitch_heirloom_exit_since = time.time()
+        frame = load_fixture_frame("fixtures/replay/victory_continue.png")
+        with patch.object(med, "_heirloom_loot_popup_visible", return_value=False), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+        self.assertTrue(med._post_game_pending)
+        self.assertEqual(med._post_game_route, "secret")
+        click.assert_called_once()
+        self.assertEqual(click.call_args.args[1], "ContinueGame")
+
+    def test_follow_heirloom_loot_waits_for_victory_when_secret_is_enabled(self):
+        med = Mediator(Settings(mode_id="follow_team", auto_secret_realm=True), ROOT)
+        med.set_phase(Phase.MAIN_LINE, "follow heirloom loot")
+        med._hitch_heirloom_exit_since = time.time()
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
+        with patch.object(med, "_post_game_state", return_value=None), \
+             patch.object(med, "_heirloom_loot_popup_visible", return_value=True), \
+             patch.object(med, "act_click") as click, \
+             patch.object(med, "act_key") as key:
+            action = med._tick_main_line(frame)
+        self.assertEqual(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+        self.assertTrue(med._passenger_heirloom_for_secret)
+        self.assertIsNone(med._hitch_heirloom_exit_since)
+        click.assert_not_called()
+        key.assert_not_called()
+
     def test_all_team_modes_route_boss_postgame_to_unified_wait(self):
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
         for mode in ("lobby_hitch", "follow_team", "lead_team", "lead"):

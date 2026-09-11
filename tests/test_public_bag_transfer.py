@@ -477,6 +477,46 @@ class MediatorPublicBagTests(unittest.TestCase):
         self.assertEqual(self.med._public_bag_fsm.target_slot, (3, 0))
         self.assertEqual(self.med._public_bag_fsm.target_kind, "public")
 
+    def test_follow_mode_uses_the_full_right_left_right_left_transfer(self):
+        """Follow starts in-room but owns the same four input gestures as hitch."""
+        self.med.settings.mode_id = "follow_team"
+        item_x, item_y = self.layout.item_bar_slot_center(1)
+        personal_x, personal_y = self.layout.personal_slot_center(0, 0)
+        public_x, public_y = self.layout.public_slot_center(*GT_DEPOSIT_SLOT)
+        item = MatchResult("item_bar_slot_1", 1.0, item_x, item_y, 0, 0, item_x, item_y)
+        personal = MatchResult("personal_bag_slot_0_0", 1.0, personal_x, personal_y, 0, 0, personal_x, personal_y)
+        public = MatchResult("public_bag_slot_3_0", 1.0, public_x, public_y, 0, 0, public_x, public_y)
+        item_source = {"kind": "item_bar", "slot_index": 1, "cell": None,
+                       "source_id": "item_bar_1", "hit": item}
+        personal_source = {"kind": "personal", "slot_index": -1, "cell": (0, 0),
+                           "source_id": "personal_0_0", "hit": personal}
+        actions = []
+
+        with self._patch_layout(self.layout), \
+             patch.object(self.med, "_public_bag_source", return_value=item_source), \
+             patch.object(self.med, "_public_bag_empty_slot", return_value=(3, 0, public)), \
+             patch.object(self.med, "_public_bag_empty_personal_slot", return_value=(0, 0, personal)), \
+             patch.object(self.med, "act_right_click", side_effect=lambda hit, why: actions.append(("right", why)) or True), \
+             patch.object(self.med, "act_click", side_effect=lambda hit, why: actions.append(("left", why)) or True):
+            self._bag_visible()
+            self.med._maybe_public_backpack_deposit(self.frame, 100.0)
+            self.med._maybe_public_backpack_deposit(self.frame, 101.0)
+
+            self._bag_visible()
+            with patch.object(self.med, "_public_bag_source", return_value=personal_source):
+                self.med._maybe_public_backpack_deposit(self.frame, 102.0)
+            self.med._maybe_public_backpack_deposit(self.frame, 103.0)
+
+        self.assertEqual(
+            actions,
+            [
+                ("right", "PublicBackpackDepositRightClick"),
+                ("left", "PublicBackpackStash"),
+                ("right", "PublicBackpackDepositRightClick"),
+                ("left", "PublicBackpackDeposit"),
+            ],
+        )
+
     def test_a_public_deposit_target_inside_the_personal_bag_is_refused(self):
         """从个人格往公共格搬时，左键绝不能落回个人表面。"""
         self._bag_visible(

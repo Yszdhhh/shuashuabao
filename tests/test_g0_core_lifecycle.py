@@ -72,6 +72,9 @@ class _Ctx:
 def _hitch_mediator(clock: FakeClock, **kw) -> Mediator:
     med = Mediator(Settings(dry_run=False, mode_id="lobby_hitch", query_timeout=30, **kw), ROOT)
     med.executor = FakeInputExecutor(StopSignal(), clock)
+    # This helper models the natural lobby -> Ready -> fresh HUD chain. Tests
+    # for a mid-game attach use a plain Mediator and leave this latch false.
+    med._hitch_opening_pressure_armed = True
     return med
 
 

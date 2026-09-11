@@ -857,6 +857,7 @@ class Mediator:
         self._heirloom_boss_clicked_at: float | None = None
         self._heirloom_boss_confirm_unconfirmed: bool = False
         self._hitch_heirloom_exit_since: float | None = None
+        self._passenger_heirloom_for_secret = False
         self._time_cave_boss_search_attempts: int = 0
         self._time_cave_boss_done: bool = False
         self._hitch_postgame_hero_selected: bool = False
@@ -972,7 +973,7 @@ class Mediator:
         # fingerprint guards remain the anti-loop safety boundary; the
         # per-kind episode count is the terminal guard for repeated unresolved
         # panel episodes in one round.
-        self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
+        self._l1_cycle_step = "merchant" if self._passenger_mode() else "bond"
         self._l1_cycle_owned_panel = False
         self._l1_cycle_selected = False
         # 三面板主动打开时间戳（G/F/V）：0.0 = 本局从未成功打开 → 首次立即允许；
@@ -2331,7 +2332,7 @@ class Mediator:
                 f"[L1] 自动任务 UNKNOWN 已持续 {elapsed:.1f}s "
                 f"(阈值 {timeout:.1f}s)，保持零输入等待页面恢复"
             )
-            if self._hitch_enabled():
+            if self._passenger_mode():
                 print("[L1] 蹭车自动任务无法确认，本局跳过该步但继续等待战局结果")
                 self._auto_task_done = True
                 self._auto_task_recheck_at = 0.0
@@ -2408,7 +2409,7 @@ class Mediator:
             return None
         if self._auto_task_attempts >= 3:
             self._trace_auto_task_control(state, on_score, off_score, hit, pending_age)
-            if self._hitch_enabled():
+            if self._passenger_mode():
                 print(f"[L1] 蹭车自动任务重试已达上限 ({self._auto_task_attempts})，本局跳过该步并继续")
                 self._auto_task_done = True
                 self._auto_task_recheck_at = 0.0
@@ -2434,7 +2435,7 @@ class Mediator:
             return LoopAction.Continue
 
         if self._auto_task_attempts >= 3:
-            if self._hitch_enabled():
+            if self._passenger_mode():
                 print(f"[L1] 蹭车自动任务输入失败已达上限 ({self._auto_task_attempts})，本局跳过该步并继续")
                 self._auto_task_done = True
                 self._auto_task_recheck_at = 0.0
@@ -3284,7 +3285,7 @@ class Mediator:
 
         can_refresh = self._panel_can_refresh(frame, kind)
         policy_settings = self._policy_settings()
-        if self._hitch_enabled() and kind == "treasure":
+        if self._passenger_mode() and kind == "treasure":
             pick, reason = hitch_treasure_pick(slots, policy_settings)
             if pick is not None:
                 decision = PolicyDecision.select(pick.index, reason)
@@ -3523,7 +3524,7 @@ class Mediator:
                 close_hit = self._close_current_panel(frame, kind)
                 return (kind, close_hit) if close_hit is not None else None
             # treasure：仅在非 OCR live 模式下允许品质色兜底；OCR live 下严格由 policy fail-closed。
-            if ocr_mode != "live" and not self._hitch_enabled():
+            if ocr_mode != "live" and not self._passenger_mode():
                 rarity_hit = self._rarity_choice(frame, kind)
                 if rarity_hit is not None:
                     return (kind, rarity_hit)
@@ -3703,8 +3704,8 @@ class Mediator:
 
     def _advance_l1_cycle(self, completed: str | None = None) -> None:
         current = completed or self._l1_cycle_step
-        order = self._HITCH_L1_CYCLE_ORDER if self._hitch_enabled() else self._L1_CYCLE_ORDER
-        if current == "hitch_idle" and self._hitch_enabled():
+        order = self._HITCH_L1_CYCLE_ORDER if self._passenger_mode() else self._L1_CYCLE_ORDER
+        if current == "hitch_idle" and self._passenger_mode():
             # 旧状态落点：直接回到环首，不再永久停车。
             self._l1_cycle_step = order[0]
             return
@@ -3743,12 +3744,12 @@ class Mediator:
         now = time.time()
         target = getattr(self, "_choice_target", None) or self._l1_cycle_step
         if self._passive_choice_mode() and not (
-            self._hitch_enabled() and target == "treasure"
+            self._passenger_mode() and target == "treasure"
         ):
             return None
         # 木材数值尚无经验证的 HUD 读取链；在基础卡未满 80% 时直接锁定 F，
         # 比猜测木材数更保守，也保证高木材阶段不会被 G/V/进化抢占。
-        if not self._hitch_enabled() and self._bond_base_progress_pending():
+        if not self._passenger_mode() and self._bond_base_progress_pending():
             target = "bond"
         if target in ("skill", "bond", "treasure"):
             panel_enabled = (
@@ -4264,7 +4265,7 @@ class Mediator:
         but under ``lobby_hitch`` the pill is a team asset bound for the public
         bag, so this path stays closed there.
         """
-        if self._hitch_enabled():
+        if self._passenger_mode():
             return None
         layout = self._bag_layout(frame)
         if layout is None:
@@ -4490,10 +4491,10 @@ class Mediator:
     def _public_bag_source(self, frame: Frame, layout: BagLayout) -> dict | None:
         """Spec step 1: fresh-confirm the next thing to hand to the team.
 
-        Under ``lobby_hitch`` every occupied 物品栏 slot 2–6 is team loot
+        In passenger modes every occupied item-bar slot 2–6 is team loot
         (hero cards, gear, pills, talismans). We do not filter by template.
-        Drain the bar first, then the personal grid. A slot that is neither
-        clearly empty nor occupied is skipped, not guessed.
+        Drain the personal grid first, then the item bar. A slot that is
+        neither clearly empty nor occupied is skipped, not guessed.
         """
         for row, col in layout.public_slots():
             if self._public_bag_source_exhausted(f"personal_{row}_{col}"):
@@ -4636,7 +4637,7 @@ class Mediator:
 
     def _maybe_public_backpack_deposit(self, frame: Frame, now: float) -> LoopAction | None:
         """PUBLIC_BACKPACK_DEPOSIT: stash item-bar → personal, then personal → public, then close."""
-        if not self._hitch_enabled():
+        if not self._passenger_mode():
             return None
         if self._pending_action is not None and time.time() < self._pending_action.deadline:
             return None
@@ -5004,7 +5005,7 @@ class Mediator:
         previous_fsm = self._merchant_fsm
         self._merchant_fsm = previous_fsm.observe(present, fingerprint, now)
         if (
-            self._hitch_enabled()
+            self._passenger_mode()
             and previous_fsm.phase is MerchantPhase.VERIFYING
             and previous_fsm.purchases > 0
             and fingerprint != previous_fsm.pending_fingerprint
@@ -5070,11 +5071,11 @@ class Mediator:
                 )
                 self._merchant_next_at = now + retry_s
             return LoopAction.Continue
-        if self._hitch_enabled() and self._merchant_fsm.rerolls >= reroll_cap:
+        if self._passenger_mode() and self._merchant_fsm.rerolls >= reroll_cap:
             print("[L1] 蹭车黑商刷新预算已用完，转宝物神符，不终止本局")
             self._advance_l1_cycle("merchant")
             return LoopAction.Continue
-        if self._hitch_enabled():
+        if self._passenger_mode():
             # 蹭车只拿吞噬丹；已识别到的木头/折扣不是购买授权，
             # 且没有可刷新控件时必须把控制权交给宝物步骤。
             return None
@@ -5906,7 +5907,7 @@ class Mediator:
             if post_game == "ARCHIVE_PANEL":
                 self._time_cave_boss_done = True
                 self._boss_challenge_next_at = now + self.settings.ui_action_interval_s
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     self._post_game_route = "archive"
                 else:
                     self._post_game_route = (
@@ -5977,7 +5978,13 @@ class Mediator:
         return int(np.count_nonzero(red)) >= 100 and largest_component >= 50
 
     def _heirloom_loot_popup_visible(self, frame: Frame) -> bool:
-        """Center-screen 装备 toast after the heirloom boss dies."""
+        """Detect either the legacy toast or the live right-side loot list.
+
+        The live build renders several aligned green ``已获取`` rows in the
+        right-side equipment panel. This detector is only called after the
+        configured heirloom Boss result has been confirmed and its dialog has
+        closed, so it cannot grant click authority during ordinary combat.
+        """
         hit = self.find(
             frame,
             ["zhuangbei"],
@@ -5985,7 +5992,68 @@ class Mediator:
             scales=self._hot_scales(),
             roi=(0.32, 0.22, 0.68, 0.58),
         )
-        return hit is not None and "zhuangbei" in str(getattr(hit, "name", ""))
+        if hit is not None and "zhuangbei" in str(getattr(hit, "name", "")):
+            return True
+        if frame.bgr is None or frame.width < 640 or frame.height < 360:
+            return False
+
+        x0, x1 = int(frame.width * 0.70), int(frame.width * 0.98)
+        y0, y1 = int(frame.height * 0.12), int(frame.height * 0.72)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return False
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        green = (
+            (hsv[:, :, 0] >= 35)
+            & (hsv[:, :, 0] <= 95)
+            & (hsv[:, :, 1] >= 90)
+            & (hsv[:, :, 2] >= 110)
+        )
+        row_counts = np.count_nonzero(green, axis=1)
+        strong_rows = np.flatnonzero(row_counts >= max(6, int(crop.shape[1] * 0.025)))
+        if strong_rows.size == 0:
+            return False
+
+        bands: list[list[int]] = []
+        for row in strong_rows:
+            row_i = int(row)
+            if not bands or row_i - bands[-1][-1] > 6:
+                bands.append([row_i])
+            else:
+                bands[-1].append(row_i)
+
+        candidates: list[tuple[float, float]] = []
+        for band in bands:
+            top, bottom = band[0], band[-1]
+            band_mask = green[top : bottom + 1]
+            if int(np.count_nonzero(band_mask)) < 40:
+                continue
+            columns = np.flatnonzero(np.any(band_mask, axis=0))
+            if columns.size == 0:
+                continue
+            width = int(columns[-1] - columns[0] + 1)
+            if width < 18 or width > int(crop.shape[1] * 0.18):
+                continue
+            candidates.append(
+                ((top + bottom) / 2.0, (int(columns[0]) + int(columns[-1])) / 2.0)
+            )
+
+        min_gap = frame.height * 0.05
+        max_gap = frame.height * 0.11
+        max_x_drift = frame.width * 0.04
+        for start in range(len(candidates)):
+            chain = 1
+            previous_y, previous_x = candidates[start]
+            for current_y, current_x in candidates[start + 1 :]:
+                gap = current_y - previous_y
+                if gap > max_gap:
+                    break
+                if gap >= min_gap and abs(current_x - previous_x) <= max_x_drift:
+                    chain += 1
+                    previous_y, previous_x = current_y, current_x
+                    if chain >= 3:
+                        return True
+        return False
 
     def _maybe_ensure_hero_panel_focus(self, frame: Frame, now: float) -> LoopAction | None:
         """Only recover hero focus from two distinct, positively identified HUD frames."""
@@ -6187,7 +6255,7 @@ class Mediator:
         """
         attempts = int(getattr(self, "_pause_resume_attempts", 0) or 0)
         if attempts >= 5:
-            if self._hitch_enabled():
+            if self._passenger_mode():
                 print("[med] 蹭车暂停恢复重试已达上限（5次），保持零输入观察，不终止运行")
                 return LoopAction.Continue
             print("[med] 暂停恢复重试已达上限（5 次），Fail-Closed 停止运行")
@@ -6444,7 +6512,7 @@ class Mediator:
         if hit is not None and hit.x <= frame.width * 0.12 and hit.y <= frame.height * 0.15:
             return hit
         # 蹭车误开的游戏大厅「退出游戏」在右上角，不是局内左上角。
-        if self._hitch_enabled():
+        if self._passenger_mode():
             hit = self.find(
                 frame, ["quit"], threshold=0.78, scales=self._hot_scales(), roi=(0.80, 0.00, 0.99, 0.12)
             )
@@ -6559,7 +6627,7 @@ class Mediator:
             ("treasure_challenge", "宝物"),
         ):
             if scene_key in self._challenge_done:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     # 蹭车开局只尝试一次四挑战；后续的 F4/状态波动不得
                     # 重新阻断黑商、宝物和战后等待。
                     self._challenge_states[scene_key] = ChallengeState.ON
@@ -6655,7 +6723,7 @@ class Mediator:
 
             attempts = self._challenge_attempts.get(scene_key, 0)
             if attempts >= 3:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print(f"[L1] 蹭车 {label}挑战重试已达上限 ({attempts})，本局跳过该步并继续")
                     self._challenge_done.add(scene_key)
                     self._challenge_recheck_at.pop(scene_key, None)
@@ -6704,7 +6772,7 @@ class Mediator:
             if self.phase == Phase.ERROR or self.stop_signal.is_set():
                 return LoopAction.Break
             if not act_res and current_attempts >= 3:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print(f"[L1] 蹭车 {label}挑战输入失败已达上限 ({current_attempts})，本局跳过该步并继续")
                     self._challenge_done.add(scene_key)
                     self._challenge_recheck_at.pop(scene_key, None)
@@ -7335,7 +7403,7 @@ class Mediator:
         )
         if entering_main_line:
             self._stage_attempt_budget = None
-            self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
+            self._l1_cycle_step = "merchant" if self._passenger_mode() else "bond"
             self._public_bag_fsm = PublicBagFSM()
             self._public_bag_failed_sources = {}
             self._l1_cycle_last_advance_at = time.time()
@@ -7393,7 +7461,7 @@ class Mediator:
             # F4 clears challenges.  The first confirmed HUD frame belongs to
             # the normal bond-first opening cycle, so do not let a reset timer
             # clear challenges immediately on game entry.
-            if self._hitch_enabled():
+            if self._passenger_mode():
                 self._pressure_next_at = 0.0
             else:
                 pressure_interval = float(getattr(self.settings, "pressure_interval_s", 20.0) or 20.0)
@@ -7445,6 +7513,7 @@ class Mediator:
             self._archive_challenge_confirm_attempts = 0
             self._heirloom_boss_clicked_at = None
             self._heirloom_boss_confirm_unconfirmed = False
+            self._passenger_heirloom_for_secret = False
             self._time_cave_boss_search_attempts = 0
             self._hitch_postgame_hero_selected = False
             self._hitch_postgame_returned_to_base = False
@@ -7495,7 +7564,7 @@ class Mediator:
             self._evolve_click_at = 0.0
             self._evolve_fail_count = 0
             self._evolve_baseline = None
-            self._l1_cycle_step = "merchant" if self._hitch_enabled() else "bond"
+            self._l1_cycle_step = "merchant" if self._passenger_mode() else "bond"
             self._public_bag_fsm = PublicBagFSM()
             self._public_bag_empty_since = None
             self._public_bag_failed_sources = {}
@@ -8110,6 +8179,10 @@ class Mediator:
     def _follow_enabled(self) -> bool:
         return str(getattr(self.settings, "mode_id", "") or "") == "follow_team"
 
+    def _passenger_mode(self) -> bool:
+        """Hitch and follow share the in-game/post-game passenger contract."""
+        return self._hitch_enabled() or self._follow_enabled()
+
     def _team_mode_enabled(self) -> bool:
         mode = str(getattr(self.settings, "mode_id", "") or "")
         return mode in {"lobby_hitch", "follow_team", "lead_team", "lead"}
@@ -8162,7 +8235,7 @@ class Mediator:
         return LoopAction.Continue
 
     def _passive_choice_mode(self) -> bool:
-        return self._hitch_enabled() or self._follow_enabled()
+        return self._passenger_mode()
 
     @staticmethod
     def _hitch_room_list_row_count(frame: Frame, anchor: MatchResult) -> int:
@@ -11527,7 +11600,7 @@ class Mediator:
         self._l1_cycle_selected = False
         self._clear_pending_skill_cards()
         self._reset_choice_session()
-        if self._hitch_enabled() and cycle_owned and cycle_kind == "treasure":
+        if self._passenger_mode() and cycle_owned and cycle_kind == "treasure":
             self._advance_l1_cycle("treasure")
             return
         if (
@@ -11648,7 +11721,7 @@ class Mediator:
         """跟车/蹭车局内选择面板立即关闭；零刷新、零挑选。处理了本 tick 则 True。"""
         if not self._passive_choice_mode():
             return False
-        if self._hitch_enabled() and self._panel_kind == "treasure":
+        if self._passenger_mode() and self._panel_kind == "treasure":
             return False
         close_kind = self._panel_kind if self._panel_kind in ("skill", "bond", "treasure", "card") else None
         close_hit = self._close_current_panel(frame, close_kind)
@@ -11718,7 +11791,7 @@ class Mediator:
                 self._panel_kind = kind
                 self._panel_opened_by_us = None
                 self._skill_refresh_attempts = 0
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print(f"[L1] 蹭车 {kind} natural episode 上限已达，结束面板会话并放行主线")
                     self._finish_panel_episode()
                     return None
@@ -12116,12 +12189,17 @@ class Mediator:
             return LoopAction.Continue
         if (
             not secret_entry_observation
-            and self._hitch_enabled()
+            and self._passenger_mode()
             and getattr(self, "_hitch_heirloom_exit_since", None)
         ):
             loot = self._heirloom_loot_popup_visible(frame)
             waited = now - float(self._hitch_heirloom_exit_since)
             if loot:
+                if self._follow_enabled() and self.settings.auto_secret_realm:
+                    self._hitch_heirloom_exit_since = None
+                    self._passenger_heirloom_for_secret = True
+                    print("[med] 跟车已确认传家宝掉落，等待 Victory 后继续秘境")
+                    return LoopAction.Continue
                 why = "heirloom loot popup"
                 print(f"[med] 传家宝后退出：{why}")
                 self._hitch_heirloom_exit_since = None
@@ -12129,12 +12207,17 @@ class Mediator:
                 self.set_phase(Phase.QUIT, why)
                 return LoopAction.Continue
             if waited >= 90.0:
+                if self._follow_enabled() and self.settings.auto_secret_realm:
+                    print("[med] 跟车传家宝掉落未识别，继续等待 Victory/失败，不提前退出")
+                    return LoopAction.Continue
                 why = "heirloom 90s timeout"
                 print(f"[med] 传家宝后退出：{why}")
                 self._hitch_heirloom_exit_since = None
                 self._record_round_outcome(RoundOutcome.TIMEOUT, why)
                 self.set_phase(Phase.QUIT, why)
                 return LoopAction.Continue
+        if self._passenger_heirloom_for_secret and post_game is None:
+            return LoopAction.Continue
 
         fail_gift = None if secret_entry_observation else self._find_failure_gift(frame)
         if fail_gift is not None:
@@ -12163,7 +12246,7 @@ class Mediator:
         if self._secret_realm_entering_since is not None:
             return self._observe_secret_realm_entry(frame, now, post_game)
         if (
-            self._hitch_enabled()
+            self._passenger_mode()
             and post_game is None
             and not self._is_in_game_hud(frame)
             and self._find_stage_page(frame)
@@ -12173,7 +12256,7 @@ class Mediator:
             print("[med] hitch 误开选关/游戏大厅，退出当前游戏")
             self.set_phase(Phase.QUIT, "hitch misopened stage page")
             return LoopAction.Continue
-        if self._hitch_enabled() and post_game in {"NPC_HUB", "POST_VICTORY"}:
+        if self._passenger_mode() and post_game in {"NPC_HUB", "POST_VICTORY"}:
             bag_open = self._bag_layout(frame) is not None
             fsm = self._public_bag_fsm
             if bag_open:
@@ -12250,7 +12333,7 @@ class Mediator:
                 and getattr(self, "_post_game_route", "") not in {"boss_active", "archive", "archive_active", "heirloom", "heirloom_active"}
                 and self.find_scene(frame, "archive")
             ):
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车识别到未验证战后入口 archive，保持零输入观察（不直接停机）")
                     return LoopAction.Continue
                 print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
@@ -12273,16 +12356,20 @@ class Mediator:
             self._main_line_since = now
             return self._maybe_resume_paused(frame, now)
         if post_game == "POST_VICTORY":
-            if self._hitch_enabled() and getattr(self, "_hitch_heirloom_exit_since", None):
-                print("[med] 传家宝后出现胜利页，直接退出当前游戏")
+            if self._passenger_mode() and getattr(self, "_hitch_heirloom_exit_since", None):
                 self._hitch_heirloom_exit_since = None
-                self._record_round_outcome(RoundOutcome.VICTORY, "heirloom victory")
-                self.set_phase(Phase.QUIT, "heirloom victory")
-                return LoopAction.Continue
+                if self._follow_enabled() and self.settings.auto_secret_realm:
+                    self._passenger_heirloom_for_secret = True
+                    print("[med] 跟车传家宝 Victory 已确认，继续游戏后进入秘境")
+                else:
+                    print("[med] 传家宝后出现胜利页，直接退出当前游戏")
+                    self._record_round_outcome(RoundOutcome.VICTORY, "heirloom victory")
+                    self.set_phase(Phase.QUIT, "heirloom victory")
+                    return LoopAction.Continue
             if self._post_game_pending:
                 elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
                 if elapsed >= min(self.settings.query_timeout, 30):
-                    if self._hitch_enabled():
+                    if self._passenger_mode():
                         print("[med] 蹭车继续游戏后胜利页仍在，重新武装有界点击并继续观察")
                         self._post_game_pending = False
                         self._victory_continue_attempts = 0
@@ -12296,7 +12383,7 @@ class Mediator:
                 return LoopAction.Continue
 
             if self._victory_continue_attempts >= 3:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车继续游戏重试预算耗尽，重新武装并保持运行")
                     self._victory_continue_attempts = 0
                     return LoopAction.Continue
@@ -12317,11 +12404,15 @@ class Mediator:
                 # not reopen archive/heirloom just because those labels happen
                 # to be visible after Continue. Secret-realm entry, when
                 # enabled, is handled by the existing NPC_HUB branch below.
-                self._post_game_route = (
-                    "boss_postgame"
-                    if route_before_continue == "boss_active"
-                    else "archive"
-                )
+                if self._passenger_heirloom_for_secret:
+                    self._post_game_route = "secret"
+                    self._passenger_heirloom_for_secret = False
+                else:
+                    self._post_game_route = (
+                        "boss_postgame"
+                        if route_before_continue == "boss_active"
+                        else "archive"
+                    )
                 # A previous mid-round Boss probe must not consume the
                 # post-game page's independent configured-Boss observation
                 # budget.
@@ -12336,7 +12427,7 @@ class Mediator:
 
         if post_game == "ARCHIVE_PANEL":
             if not self._post_game_pending:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车直接识别到存档挑战页，接管战后链并继续")
                     self._post_game_pending = True
                     self._post_game_route = "archive"
@@ -12351,7 +12442,7 @@ class Mediator:
                     self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
                 return LoopAction.Continue
             if getattr(self, "_post_game_route", "") == "boss_active":
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     # 20260910 hitch: 点了时光之穴后面板还在，旧逻辑永久零输入
                     # 等 HUD，存档窗关不上，传家宝 NPC 永远走不到。
                     print("[med] 时光之穴点击后仍在存档面板，关闭面板并转传家宝")
@@ -12385,7 +12476,7 @@ class Mediator:
                     # boss_action is None：Boss 入口/卡面本 tick 未能识别，计入观察预算。
                     self._time_cave_boss_search_attempts += 1
                     if self._boss_challenge_attempts >= 3 or self._time_cave_boss_search_attempts >= 5:
-                        if self._hitch_enabled():
+                        if self._passenger_mode():
                             print("[med] 蹭车时光之穴 Boss 未能识别或确认，跳过该步并继续关闭存档面板")
                             self._time_cave_boss_done = True
                             self._boss_challenge_attempts = 0
@@ -12400,7 +12491,7 @@ class Mediator:
                         return LoopAction.Continue
 
             if self._post_game_close_attempts >= 3:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车存档面板关闭重试预算耗尽，重新武装并继续等待专用关闭按钮")
                     self._post_game_close_attempts = 0
                     return LoopAction.Continue
@@ -12414,13 +12505,13 @@ class Mediator:
                 return LoopAction.Continue
             self._post_game_close_attempts += 1
             cjb_boss_cfg = str(getattr(self.settings, "cjb_boss", "") or "").strip()
-            self._post_game_route = "heirloom" if (cjb_boss_cfg or self._hitch_enabled()) else "npc_hub"
+            self._post_game_route = "heirloom" if (cjb_boss_cfg or self._passenger_mode()) else "npc_hub"
             print(f"[med] 存档与时光之穴完成，关闭存档面板 @ {close_hit.center} (尝试 {self._post_game_close_attempts}/3) 并转 {self._post_game_route}")
             self.act_click(close_hit, "CloseArchivePanel")
             return LoopAction.Continue
         if post_game == "NPC_HUB":
             if not self._post_game_pending:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车直接识别到战后挑战广场，接管存档→传家宝链")
                     self._post_game_pending = True
                     self._post_game_route = "archive"
@@ -12538,7 +12629,7 @@ class Mediator:
                     return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车传家宝弹窗关闭重试预算耗尽，重新武装并继续观察")
                     self._aux_dialog_attempts[post_game] = 0
                     return LoopAction.Continue
@@ -12557,7 +12648,7 @@ class Mediator:
                     self._post_game_route = "boss_active"
                     self._post_game_pending = False
                     self._post_game_close_attempts = 0
-                    if self._hitch_enabled():
+                    if self._passenger_mode():
                         self._hitch_heirloom_exit_since = now
                         print("[med] 传家宝 Boss 已点，识别到装备弹出则立刻退出，否则 90s 后退出")
                     else:
@@ -12613,7 +12704,7 @@ class Mediator:
             self._main_line_since = now
             return LoopAction.Continue
         if post_game:
-            if self._hitch_enabled():
+            if self._passenger_mode():
                 print(f"[med] 蹭车遇到未实现战后页面 {post_game}，零输入等待可识别页面")
                 return LoopAction.Continue
             print(f"[med] 识别到尚未实现的战后页面 {post_game}，Fail-Closed 停止运行（零输入）")
@@ -12659,8 +12750,12 @@ class Mediator:
         has_card = (not has_hero) and (bool(anchor) or self._panel_state != PanelState.CLOSED)
         # 商店检测在存在中央选卡/进化/词条弹窗或主线处于前置主动步骤(F/G/V/进化/装备/拾取)时严格抑制，绝不插队抢点击
         mainline_proactive_active = self._l1_cycle_step in ("bond", "skill", "treasure", "evolve", "equipment", "pickup")
-        hitch_bootstrap_pending = self._hitch_enabled() and (
-            not self._hitch_pressure_transferred
+        hitch_bootstrap_pending = self._passenger_mode() and (
+            (
+                self._hitch_enabled()
+                and self._hitch_opening_pressure_armed
+                and not self._hitch_pressure_transferred
+            )
             or not self._auto_task_done
             or len(self._challenge_done) < len(self._challenge_states)
         )
@@ -12700,7 +12795,7 @@ class Mediator:
                 surface = InteractionSurface.EQUIPMENT_AFFIX_MODAL
                 self._surface_conflict_since = None
             elif conflict_duration >= conflict_deadline:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print(f"[med][surface] 蹭车互斥弹窗冲突持续 {conflict_duration:.2f}s，保持零输入等待表面收敛")
                     return LoopAction.Continue
                 print(f"[med][surface] 互斥弹窗冲突持续超时 ({conflict_duration:.2f}s >= {conflict_deadline:.2f}s)，记录 incident 并转 Phase.ERROR")
@@ -12789,7 +12884,7 @@ class Mediator:
                 and "archive" in self.scenes
                 and self.find_scene(frame, "archive")
             ):
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车识别到未验证战后入口 archive，保持零输入观察（不直接停机）")
                     return LoopAction.Continue
                 print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
@@ -12809,7 +12904,7 @@ class Mediator:
         if self._post_game_pending:
             elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
             if elapsed >= min(self.settings.query_timeout, 30):
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车战后转场超时，保持零输入等待存档面板/挑战广场")
                     return LoopAction.Continue
                 print("[med] 继续游戏后未确认到存档面板或挑战广场，Fail-Closed 停止运行")
@@ -12874,7 +12969,7 @@ class Mediator:
 
         # F4 是“清除挑战”，不是“压力转移”；蹭车模式在未验证压力转移
         # 按钮锚点前禁止自动按 F4，避免清掉仍可完成的挑战。
-        if not self._hitch_enabled():
+        if not self._passenger_mode():
             pressure_res = self._maybe_clear_pressure_monsters(frame, now)
             if pressure_res is not None:
                 return pressure_res
@@ -12904,7 +12999,7 @@ class Mediator:
             self._main_line_since = now
             return opened
 
-        if self._hitch_enabled() and self._l1_cycle_step == "hitch_idle":
+        if self._passenger_mode() and self._l1_cycle_step == "hitch_idle":
             # legacy 停车位：新环不再产生这个步，留作旧状态的安全落点。
             self._advance_l1_cycle("hitch_idle")
             return LoopAction.Continue
@@ -13001,7 +13096,7 @@ class Mediator:
                 if picked:
                     self._pickup_next_at = now + 10.0
                     self._main_line_since = now
-            if self._hitch_enabled():
+            if self._passenger_mode():
                 # 蹭车不吃丹、不用英雄卡：那是队伍资产，只负责搬进公共背包。
                 self._advance_l1_cycle("pickup")
                 return LoopAction.Continue
@@ -13017,7 +13112,7 @@ class Mediator:
             if now < self._merchant_next_at:
                 return LoopAction.Continue
             if not self._black_merchant_present(frame):
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     if self._merchant_discovery_deadline is None:
                         self._merchant_discovery_deadline = now + 10.0
                         print("[L1] 蹭车黑商尚未出现，零输入观察最多 10s")
@@ -13067,7 +13162,7 @@ class Mediator:
                 self.set_phase(Phase.NEXT, "exit confirmation already visible")
                 return LoopAction.Continue
             if self._exit_button_attempts >= 3 or elapsed >= timeout:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车局内退出按钮观察窗到期，重新武装并继续等待专用锨点")
                     self._exit_button_attempts = 0
                     self._exit_since = time.time()
@@ -13078,7 +13173,7 @@ class Mediator:
                 return LoopAction.Break
             exit_hit = self._find_game_exit(frame)
             if not exit_hit:
-                if self._hitch_enabled() and self._find_stage_page(frame):
+                if self._passenger_mode() and self._find_stage_page(frame):
                     self.act_key("esc", "HitchLeaveMisopenedStage")
                     return LoopAction.Continue
                 print("[med] 等待局内左上角专用退出按钮（零动作）")
@@ -13091,7 +13186,7 @@ class Mediator:
 
         if self.phase == Phase.NEXT:
             if self._exit_confirm_attempts >= 3 or elapsed >= timeout:
-                if self._hitch_enabled():
+                if self._passenger_mode():
                     print("[med] 蹭车退出确认观察窗到期，重新武装并继续等待专用按钮")
                     self._exit_confirm_attempts = 0
                     self._exit_since = time.time()

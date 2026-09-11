@@ -225,6 +225,23 @@ def test_hitch_exit_confirm_in_next_leaves_phase_for_lobby_hitch_flow() -> None:
     stop.assert_not_called()
 
 
+def test_hitch_misopened_stage_page_clicks_top_right_exit_before_escape() -> None:
+    """A false one-floor start uses the dedicated top-right exit, then NEXT confirms."""
+    med = _hitch_mediator()
+    med.set_phase(Phase.QUIT, "misopened one-floor game")
+    top_right_exit = _hit("quit", 1464, 52)
+    with patch.object(med, "_find_exit_confirm", return_value=None), \
+         patch.object(med, "_find_game_exit", return_value=top_right_exit), \
+         patch.object(med, "_find_stage_page", return_value=True), \
+         patch.object(med, "act_click", return_value=True) as click, \
+         patch.object(med, "act_key") as key:
+        action = med._tick_l1_tail(_lobby_frame())
+    assert action == LoopAction.Continue
+    click.assert_called_once_with(top_right_exit, "QuitGame-open-confirm")
+    key.assert_not_called()
+    assert med.phase == Phase.NEXT
+
+
 def test_hitch_failure_exit_counts_round_and_rearms_next_round_deadline() -> None:
     med = _hitch_mediator()
     med._round_started_at = 1.0
