@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-11 01:21:37",
-  "reason": "Update release gate baseline: refresh pytest count to 1921 and sync asset allowlist count 391->393",
+  "updated_at": "2026-09-11 09:09:18",
+  "reason": "Update release gate baseline: refresh pytest count to 1931 for formal integration 20260911",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 1921,
+        "passed": 1931,
         "xfailed": 2,
         "skipped": 15
       }
