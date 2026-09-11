@@ -123,7 +123,13 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         med._hitch_re_search = True
         med._confirmed_room_hwnd = 10001
 
-        room = load_frame("fixtures/replay/room_waiting_host.png", "KK官方对战平台")
+        # A guest seat (row 3, host on floor one).  room_waiting_host.png is a
+        # host view: KK offers the host no Ready and the hitch seat rules make
+        # a host leave, so it cannot model "ready and wait for the host".
+        room = load_frame(
+            "tests/fixtures/hitch_live_20260911/room_joined_self_row3_host_row1.png",
+            "KK官方对战平台",
+        )
         # 1. First tick in same room: ready_state is "ready", clicks HitchReady
         ready = MatchResult("room_ready", 0.99, 400, 700, 80, 30, 440, 715)
         with patch.object(med, "_is_confirmed_room_frame", return_value=True), \

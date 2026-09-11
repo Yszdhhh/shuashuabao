@@ -200,6 +200,17 @@ def _scrub_sensitive_keys(value):
     return value
 
 
+def _is_blank_capture(frame: Frame | None) -> bool:
+    """A captured window whose pixels are (near) pure black.
+
+    Same threshold as the lobby black-frame gate.  Invalid/empty captures are
+    not "blank": their owner is the minimized/health path, not ranking.
+    """
+    if frame is None or frame.bgr is None or not frame.bgr.size:
+        return False
+    return float(np.mean(frame.bgr)) < 3.0
+
+
 class Phase(Enum):
     """与官方日志阶段大致对应。"""
 
@@ -779,6 +790,37 @@ class Mediator:
         self._hitch_floor_exit_deadline: float | None = None
         self._hitch_floor_exit_input_generation: int | None = None
         self._hitch_floor_exit_reobserve_until: float | None = None
+        # One room-exit transaction: Exit click -> (separate 440x260 confirm
+        # HWND) -> Confirm -> fresh lobby.  Clicks are counted and the whole
+        # transaction has a hard cap so a swallowed click cannot park the run.
+        self._hitch_floor_exit_started_at: float | None = None
+        self._hitch_floor_exit_clicks = 0
+        self._hitch_floor_exit_confirm_clicks = 0
+        self._hitch_floor_exit_confirm_at: float | None = None
+        # Seat rules (user, 2026-09-11): ready or not, leave when we are the
+        # host, when we sit on floor one (row 1), or when the floor-one player
+        # leaves.  Our own row is learnt from the Ready transaction.
+        self._hitch_pre_ready_rows: list[str] | None = None
+        self._hitch_self_row: int | None = None
+        self._hitch_floor_one_baseline: np.ndarray | None = None
+        self._hitch_floor_one_candidate: np.ndarray | None = None
+        # (decision, capture generation, fresh confirmations)
+        self._hitch_seat_streak: tuple[str, int, int] | None = None
+        self._hitch_seat_generation: int | None = None
+        # HWNDs that existed before the join click.  A pre-existing window can
+        # never be the child a join just opened (a stale black room window
+        # pinned the 2026-09-11 live runs for minutes).
+        self._hitch_join_preexisting_hwnds: frozenset[int] = frozenset()
+        self._last_l0_target_hwnds: tuple[int, ...] = ()
+        self._capture_black_hwnds: tuple[int, ...] = ()
+        self._capture_selected_by: str | None = None
+        # KK main-window navigation fallback (user, 2026-09-11): when the lobby
+        # window is on some other page, first the top "游戏" tab, then the
+        # 英雄三国 / 重生魔兽刷刷刷 sidebar entry.  Bounded per off-page episode.
+        self._hitch_nav_since: float | None = None
+        self._hitch_nav_clicks = 0
+        self._hitch_nav_last_click_at: float | None = None
+        self._hitch_nav_input_generation: int | None = None
         # P0-6：Ready 70s 超时退房生命周期（确认离房+大厅可见后才拉黑）
         self._hitch_ready_timeout_pending: bool = False
         self._hitch_ready_timeout_leave_at: float | None = None
@@ -1278,6 +1320,25 @@ class Mediator:
             if key:
                 capture_cache[key] = frame
             return frame
+        self._capture_selected_by = None
+        if role == "l0":
+            self._last_l0_target_hwnds = tuple(
+                int(getattr(t, "hwnd", 0) or 0) for t in targets
+            )
+            self._capture_black_hwnds = ()
+        if role == "l0" and len(targets) >= 2:
+            # A pure-black same-title KK window carries no page evidence (a
+            # stale room window left by an earlier misclick stayed visible and
+            # black across runs).  It may never outrank a window with pixels:
+            # otherwise sticky, join-probe and ranking paths all pin to it
+            # while the frame health gate withholds every decision.
+            black = [t for t in targets if _is_blank_capture(capture_one(t))]
+            if black and len(black) < len(targets):
+                self._capture_black_hwnds = tuple(
+                    int(getattr(t, "hwnd", 0) or 0) for t in black
+                )
+                black_ids = {id(t) for t in black}
+                targets = [t for t in targets if id(t) not in black_ids]
         if role == "l0" and len(targets) >= 2:
             for cand_target in targets:
                 cand_frame = capture_one(cand_target)
@@ -1324,6 +1385,7 @@ class Mediator:
                 for candidate in frames:
                     if self._find_hitch_exit_confirm_button(candidate) is not None:
                         self._capture_miss_streak = 0
+                        self._capture_selected_by = "probe_exit_confirm"
                         return candidate
             if hitch_join_probe:
                 # KK opens the joined room as a separate same-title HWND.
@@ -1332,22 +1394,30 @@ class Mediator:
                 for candidate in frames:
                     if candidate.hwnd is not None and candidate.hwnd == self._confirmed_room_hwnd:
                         self._capture_miss_streak = 0
+                        self._capture_selected_by = "probe_join_room"
                         return candidate
                 origin_hwnd = self._hitch_join_origin_hwnd
+                preexisting = getattr(self, "_hitch_join_preexisting_hwnds", frozenset())
                 for candidate in frames:
                     if (
                         origin_hwnd is not None
                         and candidate.hwnd is not None
                         and candidate.hwnd != origin_hwnd
+                        and candidate.hwnd not in preexisting
+                        and not _is_blank_capture(candidate)
                         and not self._is_confirmed_room_frame(candidate)
                     ):
-                        # A new KK window without room controls is the pending
-                        # join dialog, not a room.  Return it so Esc targets it.
+                        # Only a window the join itself opened (a prompt such
+                        # as room-full, or a room still rendering) is the join
+                        # child.  Windows that already existed before the click
+                        # have no claim on the pending join.
                         self._capture_miss_streak = 0
+                        self._capture_selected_by = "probe_join_child"
                         return candidate
             for candidate in frames:
                 if self._find_create_confirm(candidate):
                     self._capture_miss_streak = 0
+                    self._capture_selected_by = "probe_create_confirm"
                     return candidate
             # Dialog closed (Create accepted or dismissed). Prefer an already
             # open room over the larger platform map — max(size) would always
@@ -1355,9 +1425,11 @@ class Mediator:
             for candidate in frames:
                 if candidate.hwnd is not None and candidate.hwnd == self._confirmed_room_hwnd:
                     self._capture_miss_streak = 0
+                    self._capture_selected_by = "probe_confirmed_room"
                     return candidate
             # Otherwise fall through to sticky / signal ranking.
         if len(targets) == 1:
+            self._capture_selected_by = "single"
             return capture_one(targets[0])
         prev = self._last_frame if self._last_capture_role == role else None
         if prev is not None and prev.hwnd is not None:
@@ -1367,10 +1439,12 @@ class Mediator:
                 valid = frame.bgr is not None and frame.bgr.size > 0 and frame.is_valid and frame.width > 0
                 if valid and self._sticky_frame_signal(frame, role):
                     self._capture_miss_streak = 0
+                    self._capture_selected_by = "sticky"
                     return frame
                 self._capture_miss_streak += 1
                 if self._capture_miss_streak < 2:
                     # 连续第 1 帧失配：仍返回该 hwnd 帧，下一帧才重选
+                    self._capture_selected_by = "sticky_miss"
                     return frame
                 # 连续 2 帧失配（无效或无信号）→ 候选枚举重排
         self._capture_miss_streak = 0
@@ -1387,6 +1461,7 @@ class Mediator:
             scored.append((cheap, f))
         scored.sort(key=lambda pair: (pair[0], int(pair[1].hwnd == previous_hwnd)), reverse=True)
         top = scored[:2]
+        self._capture_selected_by = "rank"
         return max(
             top,
             key=lambda pair: (self._frame_signal(pair[1], role), int(pair[1].hwnd == previous_hwnd)),
@@ -8318,7 +8393,12 @@ class Mediator:
         if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
             return None
         x0, x1 = int(frame.width * 0.22), int(frame.width * 0.32)
-        y0, y1 = int(frame.height * 0.23), int(frame.height * 0.29)
+        # KK chrome is fixed-pixel: the map tab strip sits ~244px below the
+        # client top on both the 945- and the 812-high lobby, so a pure height
+        # fraction misses it on the shorter client.  The lower bound stays
+        # below the green header buttons (y<=200).
+        y0 = max(int(frame.height * 0.23), 208)
+        y1 = max(int(frame.height * 0.29), 262)
         hit = self.find_scene(frame, "lobby_room_list_tab")
         if hit is not None and x0 <= hit.x <= x1 and y0 <= hit.y <= y1:
             return hit
@@ -8328,9 +8408,11 @@ class Mediator:
         if slot.size == 0:
             return None
         gray = cv2.cvtColor(slot, cv2.COLOR_BGR2GRAY)
-        if int(np.count_nonzero(gray >= 160)) < 80:
+        ys, xs = np.nonzero(gray >= 160)
+        if xs.size < 80:
             return None
-        x, y = int(frame.width * 0.265), int(frame.height * 0.26)
+        # Click the label itself, wherever the strip landed in the slot.
+        x, y = x0 + int(np.median(xs)), y0 + int(np.median(ys))
         return MatchResult(
             "lobby_room_list_tab_slot", 1.0, x, y, 1, 1,
             frame.left + x, frame.top + y,
@@ -8614,21 +8696,30 @@ class Mediator:
         ]
         primary = [item for item in controls if item[0].x < int(frame.width * 0.82)]
         has_authentic_start = self._find_room_start(frame) is not None
-        # A promoted guest is shown as the first-row red host while KK changes
-        # the primary action to green "等待准备".  It is still a real ROOM
-        # surface, even though there is no blue primary or Start control.
-        host_waiting = self._hitch_host_marker_visible(frame) and self._find_hitch_exit_button(frame) is not None
-        if not primary and not (has_authentic_start or host_waiting):
-            return None
-        if len(geometry_controls) < 2 and not (has_authentic_start or host_waiting):
-            return None
+        if (not primary or len(geometry_controls) < 2) and not has_authentic_start:
+            # A promoted guest is shown as a red host while KK changes the
+            # primary action to green "等待准备".  It is still a real ROOM
+            # surface, even though there is no blue primary or Start control.
+            # A host on any row sees seat drop-downs, so a promotion is still
+            # a ROOM when our row is not the first one.
+            host_waiting = (
+                self._hitch_host_marker_visible(frame) or self._hitch_self_is_host(frame)
+            ) and self._find_hitch_exit_button(frame) is not None
+            if not host_waiting:
+                return None
         # Player/seat area: require independent colored content between the
         # cover and the action bar.  This rejects an isolated blue lobby button
         # even when a page happens to contain a saturated icon.
         x0 = min(frame.width - 1, cover[0] + cover[2] + int(frame.width * 0.02))
         x1 = max(x0 + 1, int(frame.width * 0.92))
         y0 = min(frame.height, cover[1] + int(cover[3] * 0.05))
-        y1 = min(frame.height, min(hit.y for hit, _text_width in geometry_controls) - 8)
+        # Start-only / template-only rooms may have no geometric blue control;
+        # the action bar then starts at the artwork-relative bar position.
+        bar_y = min(
+            (hit.y for hit, _text_width in geometry_controls),
+            default=cover[1] + cover[3] * 2,
+        )
+        y1 = min(frame.height, bar_y - 8)
         seat_roi = frame.bgr[y0:y1, x0:x1]
         if seat_roi.size == 0:
             return None
@@ -8748,28 +8839,182 @@ class Mediator:
             return replace(hit, name="room_exit")
         return None
 
-    def _hitch_room_seat_decision(self, frame: Frame) -> str:
-        """Classify a hitch seat conservatively.
+    # KK draws the seat table at a fixed pixel size next to the square room
+    # artwork.  Offsets below are artwork-relative pixels at the 188px artwork
+    # measured identically on 1224x904, 1032x720 and 1600x900 room captures:
+    # row 1 centre 48px below the artwork top, 40px row pitch, avatar 35px and
+    # status text 695-745px right of the artwork.
+    _ROOM_ART_PX = 188.0
+    _ROOM_ROW1_DY = 48.0
+    _ROOM_ROW_PITCH = 40.0
+    _ROOM_FLOOR_ONE_SIG_DIFF = 0.20
 
-        Hitch is a guest-only lane.  A prepared guest whose first row changed
-        to the red ``房主`` marker has been promoted, whether KK currently
-        shows ``开始游戏`` or ``等待准备``.  In that case the caller is allowed
-        to run the existing bounded leave transaction; every other room shape
-        remains observation-only.
+    def _hitch_room_rows(self, frame: Frame) -> list[dict] | None:
+        """Classify the four seat rows of a real ROOM page.
+
+        Each row reports ``status`` (``host`` red 房主 / ``ready`` green 已准备 /
+        ``empty`` blue open-slot avatar / ``blank`` occupied without status),
+        ``combo`` (the name cell is a drop-down, which KK draws only for the
+        host) and ``name_sig`` (a normalised mask of the name text).
+        """
+        def compute() -> list[dict] | None:
+            cover = self._hitch_room_cover(frame)
+            if cover is None or frame.bgr is None:
+                return None
+            cx, cy, cw, ch = cover
+            kx, ky = cw / self._ROOM_ART_PX, ch / self._ROOM_ART_PX
+            right = cx + cw
+
+            def px(value: float, k: float) -> int:
+                return int(round(value * k))
+
+            rows: list[dict] = []
+            for index in range(4):
+                yc = cy + px(self._ROOM_ROW1_DY + self._ROOM_ROW_PITCH * index, ky)
+                half = max(6, px(9, ky))
+                band = max(8, px(16, ky))
+                if yc + band >= frame.height or right + px(760, kx) >= frame.width:
+                    return None
+                ax, ar = right + px(35, kx), max(6, px(10, kx))
+                avatar = frame.bgr[yc - ar:yc + ar, ax - ar:ax + ar].astype(np.int16)
+                ab, ag, a_r = avatar[..., 0], avatar[..., 1], avatar[..., 2]
+                empty = float(np.mean((ab >= 170) & (ag >= 70) & (ag <= 170) & (a_r <= 70)))
+                status_roi = frame.bgr[yc - half:yc + half, right + px(695, kx):right + px(745, kx)]
+                sb, sg, sr = (status_roi[..., i].astype(np.int16) for i in range(3))
+                green = int(np.count_nonzero((sg >= 140) & (sg - sr >= 40) & (sg - sb >= 40)))
+                hsv = cv2.cvtColor(status_roi, cv2.COLOR_BGR2HSV)
+                red = int(np.count_nonzero(
+                    ((hsv[..., 0] <= 12) | (hsv[..., 0] >= 170))
+                    & (hsv[..., 1] >= 100) & (hsv[..., 2] >= 80)
+                ))
+                # Host drop-downs: a 1px border line brighter than the pixels
+                # directly above and below, spanning most of the name column.
+                gray = cv2.cvtColor(
+                    frame.bgr[yc - band:yc + band, right + px(50, kx):right + px(270, kx)],
+                    cv2.COLOR_BGR2GRAY,
+                ).astype(np.int16)
+                line = (gray[1:-1] - gray[:-2] >= 10) & (gray[1:-1] - gray[2:] >= 10)
+                longest = 0
+                for mask_row in line:
+                    padded = np.concatenate(([0], mask_row.astype(np.int8), [0]))
+                    edges = np.flatnonzero(np.diff(padded))
+                    if edges.size:
+                        longest = max(longest, int(np.max(edges[1::2] - edges[::2])))
+                name = frame.bgr[yc - half:yc + half, right + px(62, kx):right + px(185, kx)]
+                name_mask = (name.max(axis=2) >= 150).astype(np.float32)
+                name_sig = (
+                    cv2.resize(name_mask, (48, 12), interpolation=cv2.INTER_AREA)
+                    if name_mask.sum() >= 20 else None
+                )
+                if red >= 35:
+                    status = "host"
+                elif green >= 25:
+                    status = "ready"
+                elif empty >= 0.25:
+                    status = "empty"
+                else:
+                    status = "blank"
+                rows.append({
+                    "row": index + 1,
+                    "status": status,
+                    "combo": longest >= int(cw * 0.80),
+                    "name_sig": name_sig,
+                })
+            return rows
+
+        return self._memo(("hitch_room_rows",), frame, compute)
+
+    def _hitch_room_like(self, frame: Frame) -> bool:
+        """Any seat-table evidence, even when the full ROOM contract fails."""
+        if self._is_confirmed_room_frame(frame):
+            return True
+        rows = self._hitch_room_rows(frame)
+        return bool(rows) and any(
+            row["combo"] or row["status"] in ("host", "ready", "empty") for row in rows
+        )
+
+    def _hitch_self_is_host(self, frame: Frame) -> bool:
+        """KK shows seat drop-downs only to the room's host: that host is us."""
+        rows = self._hitch_room_rows(frame)
+        return bool(rows) and any(row["combo"] for row in rows)
+
+    def _hitch_track_room_seats(self, frame: Frame) -> None:
+        """Learn our own row and the floor-one occupant from fresh room frames."""
+        generation = int(getattr(self, "_capture_generation", 0) or 0)
+        if generation == getattr(self, "_hitch_seat_generation", None):
+            return
+        self._hitch_seat_generation = generation
+        rows = self._hitch_room_rows(frame)
+        if not rows or any(row["combo"] for row in rows):
+            return
+        statuses = [row["status"] for row in rows]
+        pre_ready = getattr(self, "_hitch_pre_ready_rows", None)
+        if getattr(self, "_hitch_self_row", None) is None and pre_ready is not None:
+            # Our own Ready turns exactly our row from blank to 已准备.
+            turned = [
+                index for index, (before, after) in enumerate(zip(pre_ready, statuses))
+                if before == "blank" and after == "ready"
+            ]
+            if len(turned) == 1:
+                self._hitch_self_row = turned[0] + 1
+                print(f"[L0] hitch 本方座位由准备前后差分确定: 第 {self._hitch_self_row} 行")
+        if getattr(self, "_hitch_floor_one_baseline", None) is None:
+            first = rows[0]
+            if first["status"] != "empty" and first["name_sig"] is not None:
+                candidate = getattr(self, "_hitch_floor_one_candidate", None)
+                if (
+                    candidate is not None
+                    and float(np.mean(np.abs(first["name_sig"] - candidate)))
+                    <= self._ROOM_FLOOR_ONE_SIG_DIFF
+                ):
+                    self._hitch_floor_one_baseline = candidate
+                else:
+                    self._hitch_floor_one_candidate = first["name_sig"]
+
+    def _hitch_note_pre_ready_rows(self, frame: Frame) -> None:
+        """Remember seat statuses on the frame our Ready click was sent from."""
+        rows = self._hitch_room_rows(frame)
+        if not rows:
+            return
+        statuses = [row["status"] for row in rows]
+        self._hitch_pre_ready_rows = statuses
+        if getattr(self, "_hitch_self_row", None) is None and statuses.count("blank") == 1:
+            # Every other occupied seat is host or already ready: the one
+            # seat without a status is ours.
+            self._hitch_self_row = statuses.index("blank") + 1
+            print(f"[L0] hitch 本方座位由唯一未准备行确定: 第 {self._hitch_self_row} 行")
+
+    def _hitch_room_seat_decision(self, frame: Frame) -> str:
+        """Apply the hitch seat rules to a real ROOM page.
+
+        User rules (2026-09-11), ready or not: leave when we are the host,
+        when we sit on floor one (row 1), or when the floor-one player leaves.
+        Rules only apply after our own Ready transaction (or once KK offers us
+        no Ready at all); a fresh room is observed first, never rejected.
+        UNKNOWN is wait/reobserve only and never authorizes exit.
         """
         if self._hitch_room_surface_evidence(frame) is None:
             return "unknown"
-        # Only a guest that has already completed its own Ready transaction
-        # can be considered a promoted host.  A fresh room may legitimately
-        # show another player's host marker before we have prepared; do not
-        # reject that initial observation.
-        if (
-            getattr(self, "_hitch_ready_confirmed_at", None) is not None
-            and self._hitch_host_marker_visible(frame)
-        ):
+        if getattr(self, "_hitch_ready_confirmed_at", None) is None:
+            return "unknown"
+        rows = self._hitch_room_rows(frame)
+        if not rows:
+            return "unknown"
+        if any(row["combo"] for row in rows):
             return "reject_host_takeover"
-        # UNKNOWN is wait/reobserve only; it never authorizes exit or room
-        # number blacklisting.
+        if getattr(self, "_hitch_self_row", None) == 1:
+            return "reject_self_floor_one"
+        baseline = getattr(self, "_hitch_floor_one_baseline", None)
+        if baseline is not None:
+            first = rows[0]
+            if first["status"] == "empty":
+                return "reject_floor_one_left"
+            if (
+                first["name_sig"] is not None
+                and float(np.mean(np.abs(first["name_sig"] - baseline)))
+                > self._ROOM_FLOOR_ONE_SIG_DIFF
+            ):
+                return "reject_floor_one_left"
         return "unknown"
 
     def _hitch_host_marker_visible(self, frame: Frame) -> bool:
@@ -9153,6 +9398,48 @@ class Mediator:
         self._hitch_refresh_required = True
         self._hitch_status = reason
 
+    def _hitch_begin_room_exit(
+        self, exit_hit: MatchResult, now: float, reason: str, status: str,
+    ) -> bool:
+        """Click the room's Exit control and open (or continue) the exit
+        transaction.  Ready and not-ready guests share this one chain:
+        Exit -> KK's separate confirm HWND -> Confirm -> fresh lobby.
+        """
+        if not self.act_click(exit_hit, reason):
+            return False
+        if self._hitch_pending_row_y is not None:
+            self._hitch_rejected_row_ys.add(self._hitch_pending_row_y)
+        self._hitch_pending_row_y = None
+        self._hitch_floor_exit_pending = True
+        self._hitch_floor_exit_confirmed = False
+        self._hitch_floor_exit_attempted_at = now
+        if getattr(self, "_hitch_floor_exit_started_at", None) is None:
+            self._hitch_floor_exit_started_at = now
+        self._hitch_floor_exit_clicks = int(getattr(self, "_hitch_floor_exit_clicks", 0) or 0) + 1
+        self._hitch_floor_exit_deadline = now + self._HITCH_FLOOR_EXIT_BUDGET_S
+        self._hitch_floor_exit_input_generation = int(getattr(self, "_capture_generation", 0) or 0)
+        self._hitch_floor_exit_reobserve_until = None
+        self._hitch_status = status
+        return True
+
+    def _hitch_room_exit_blocked(self, frame: Frame, now: float, detail: str) -> LoopAction:
+        """End an exit transaction that cannot complete, with evidence."""
+        self._record_lobby_observation_incident(
+            "hitch_room_exit_blocked",
+            detail,
+            frame,
+            extra={
+                "exit_clicks": getattr(self, "_hitch_floor_exit_clicks", 0),
+                "confirm_clicks": getattr(self, "_hitch_floor_exit_confirm_clicks", 0),
+                "hwnd": frame.hwnd,
+                "confirmed_room_hwnd": getattr(self, "_confirmed_room_hwnd", None),
+            },
+        )
+        print(f"[L0] hitch 退房事务无法完成（{detail}），BLOCKED 停止")
+        self.set_phase(Phase.ERROR, "hitch room exit blocked")
+        self.stop()
+        return LoopAction.Break
+
     def _new_hitch_sm(self) -> HitchSearchSM:
         return HitchSearchSM(
             prefix=self._hitch_sm.prefix,
@@ -9187,6 +9474,18 @@ class Mediator:
         self._hitch_floor_exit_deadline = None
         self._hitch_floor_exit_input_generation = None
         self._hitch_floor_exit_reobserve_until = None
+        self._hitch_floor_exit_started_at = None
+        self._hitch_floor_exit_clicks = 0
+        self._hitch_floor_exit_confirm_clicks = 0
+        self._hitch_floor_exit_confirm_at = None
+        # Seat knowledge belongs to one room visit.
+        self._hitch_pre_ready_rows = None
+        self._hitch_self_row = None
+        self._hitch_floor_one_baseline = None
+        self._hitch_floor_one_candidate = None
+        self._hitch_seat_streak = None
+        self._hitch_seat_generation = None
+        self._hitch_join_preexisting_hwnds = frozenset()
         # P0-6：70s 超时退房生命周期随每次 episode 边界一并收敛
         self._hitch_ready_timeout_pending = False
         self._hitch_ready_timeout_leave_at = None
@@ -9266,6 +9565,116 @@ class Mediator:
         print("[L0] follow_team 未在房间，零输入等待（不创房、不 quick join）")
         return LoopAction.Continue
 
+    # KK chrome is drawn at a fixed pixel size.  Offsets are from the top-left
+    # of the "kk!官方对战平台" logo, measured on the live 1332x812 and 1332x945
+    # lobby: the "游戏" label box and the sidebar selection background.
+    _KK_NAV_GAME_BOX = (228, 2, 266, 26)
+    _KK_NAV_GAME_CLICK = (246, 14)
+    _KK_NAV_MAX_CLICKS = 6
+    _KK_NAV_COOLDOWN_S = 1.5
+    _KK_NAV_BLOCK_S = 60.0
+
+    def _hitch_kk_main_nav(self, frame: Frame) -> dict | None:
+        """Read the KK main window's navigation state, or None if this frame
+        is not the main window (room windows cut the logo; dialogs are small).
+        """
+        if frame.bgr is None or frame.width < 1000 or frame.height < 600:
+            return None
+        logo = self.find(frame, ["lobby/kk_nav_logo"], threshold=0.85, roi=(0.0, 0.0, 0.35, 0.12))
+        if logo is None or logo.x > 40 or logo.y > 30:
+            return None
+        gray = cv2.cvtColor(frame.bgr, cv2.COLOR_BGR2GRAY)
+        bx0, by0, bx1, by1 = self._KK_NAV_GAME_BOX
+        game_box = gray[logo.y + by0:logo.y + by1, logo.x + bx0:logo.x + bx1]
+        # Active tab label is pure white; inactive labels peak around 131.
+        game_active = bool(game_box.size) and int(np.count_nonzero(game_box >= 220)) >= 60
+        gx, gy = logo.x + self._KK_NAV_GAME_CLICK[0], logo.y + self._KK_NAV_GAME_CLICK[1]
+        game_click = MatchResult(
+            "kk_nav_game_tab", 1.0, gx, gy, 1, 1, frame.left + gx, frame.top + gy,
+        )
+        side: dict[str, tuple[MatchResult, bool]] = {}
+        for key, template in (
+            ("cssss", "lobby/kk_side_cssss_icon"),
+            ("yxsg", "lobby/kk_side_yxsg_icon"),
+        ):
+            hit = self.find(frame, [template], threshold=0.80, roi=(0.0, 0.05, 0.16, 1.0))
+            if hit is None or hit.x > 200:
+                continue
+            cy = hit.y + hit.h // 2
+            patch = gray[max(0, cy - 6):cy + 6, hit.x + 125:hit.x + 137]
+            # Selected sidebar rows are painted ~46 gray, others ~23.
+            selected = bool(patch.size) and float(np.mean(patch)) >= 35.0
+            side[key] = (hit, selected)
+        return {"game_active": game_active, "game_click": game_click, "side": side}
+
+    def _hitch_nav_reset(self) -> None:
+        self._hitch_nav_since = None
+        self._hitch_nav_clicks = 0
+        self._hitch_nav_last_click_at = None
+        self._hitch_nav_input_generation = None
+
+    def _tick_hitch_kk_nav(self, frame: Frame, nav: dict, now: float) -> LoopAction | None:
+        """Last-resort navigation back to the game page of the right game.
+
+        Only runs for the KK main window off the room list (never for rooms,
+        prompts or join children).  ``None`` means navigation is already
+        correct and the map-page flow owns the frame.
+        """
+        side_ok = any(selected for _hit, selected in nav["side"].values())
+        if nav["game_active"] and side_ok:
+            return None
+        if getattr(self, "_hitch_nav_since", None) is None:
+            self._hitch_nav_since = now
+        generation = int(getattr(self, "_capture_generation", 0) or 0)
+        input_generation = getattr(self, "_hitch_nav_input_generation", None)
+        if input_generation is not None and generation <= int(input_generation):
+            print("[L0] hitch 导航兜底等待 fresh 帧复核（零输入）")
+            return LoopAction.Continue
+        last = getattr(self, "_hitch_nav_last_click_at", None)
+        if last is not None and now - float(last) < self._KK_NAV_COOLDOWN_S:
+            print("[L0] hitch 导航兜底冷却中（零输入）")
+            return LoopAction.Continue
+        clicks = int(getattr(self, "_hitch_nav_clicks", 0) or 0)
+        if clicks >= self._KK_NAV_MAX_CLICKS or now - float(self._hitch_nav_since) >= self._KK_NAV_BLOCK_S:
+            self._record_lobby_observation_incident(
+                "kk_nav_recovery_exhausted",
+                "KK 主窗口导航兜底耗尽：未回到 游戏 + 英雄三国/重生魔兽刷刷刷",
+                frame,
+                extra={"clicks": clicks, "game_active": nav["game_active"],
+                       "side": {k: v[1] for k, v in nav["side"].items()}},
+            )
+            print("[L0] hitch KK 主窗口导航兜底耗尽，BLOCKED 停止")
+            self.set_phase(Phase.ERROR, "hitch kk navigation blocked")
+            self.stop()
+            return LoopAction.Break
+        if not nav["game_active"]:
+            target, reason = nav["game_click"], "HitchNavGameTab"
+            label = "顶部「游戏」"
+        else:
+            entry = nav["side"].get("cssss") or nav["side"].get("yxsg")
+            if entry is None:
+                # Sidebar not rendered yet (or the game is not listed):
+                # nothing verifiable to click; the time bound above ends it.
+                print("[L0] hitch 导航兜底：侧栏未出现英雄三国/重生魔兽刷刷刷入口，零输入等待")
+                return LoopAction.Continue
+            hit = entry[0]
+            cx, cy = hit.x + hit.w // 2, hit.y + hit.h // 2
+            target = MatchResult(
+                "kk_nav_sidebar_game", 1.0, cx, cy, 1, 1, frame.left + cx, frame.top + cy,
+            )
+            reason = "HitchNavSidebarGame"
+            label = "侧栏「重生魔兽刷刷刷」" if "cssss" in nav["side"] else "侧栏「英雄三国」"
+        self._hitch_nav_last_click_at = now
+        if self.act_click(target, reason):
+            self._hitch_nav_clicks = clicks + 1
+            self._hitch_nav_input_generation = generation
+            self._hitch_search = None
+            print(f"[L0] hitch 大厅不在目标页，导航兜底点击{label}（第 {self._hitch_nav_clicks} 次）")
+        else:
+            print(f"[L0] hitch 导航兜底点击{label}被拒绝，冷却后重试")
+        self.set_phase(Phase.LOBBY_ROOM, "hitch kk navigation fallback")
+        return LoopAction.Continue
+
     def _tick_hitch_room_list_tab(self, frame: Frame, now: float) -> LoopAction | None:
         """Acquire the room-list tab inside the search operation's budget.
 
@@ -9287,6 +9696,14 @@ class Mediator:
             self._hitch_sm.defer_retry(now)
             self._hitch_status = "等待可信房间列表 Tab"
             print("[L0] hitch 未识别房间列表 Tab，零输入等待")
+            return LoopAction.Continue
+        if self._hitch_room_like(frame):
+            # The fixed tab slot of the lobby lands on the first seat's avatar
+            # in a room window (2026-09-11 misclick, (672,308)).  A page with
+            # seat-table evidence never gets lobby navigation authority.
+            self._hitch_sm.defer_retry(now)
+            self._hitch_status = "房间页禁止大厅导航"
+            print("[L0] hitch 当前帧具有房间座位特征，禁止点击房间列表 Tab（零输入）")
             return LoopAction.Continue
         if not self._hitch_sm.input_allowed(now):
             # A cooldown throttles what we send, never what we look at.
@@ -9467,6 +9884,15 @@ class Mediator:
     _HITCH_STALL_ESC_L0_S = 30.0
     _HITCH_STALL_ESC_GAME_S = 60.0
     _HITCH_READY_WAIT_S = 70.0
+    # Lobby/room phases whose every KK surface stays unusable this long end in
+    # an explicit BLOCKED (ERROR) instead of zero-input observation forever.
+    _HITCH_L0_UNHEALTHY_BLOCK_S = 120.0
+    # Room exit: re-click Exit / Confirm when a fresh frame shows the click was
+    # swallowed; give up with an explicit BLOCKED after the hard cap.
+    _HITCH_EXIT_RETRY_S = 4.0
+    _HITCH_EXIT_MAX_CLICKS = 3
+    _HITCH_EXIT_HARD_CAP_S = 60.0
+    _HITCH_READY_TIMEOUT_GRACE_S = 60.0
 
     def _tick_hitch_stall_watchdog(self, frame: Frame, context: str, now: float) -> LoopAction | None:
         """无进展兜底：大厅/房间等待阶段持续 UNKNOWN 且期间零输入时按一次 Esc。
@@ -9591,6 +10017,17 @@ class Mediator:
                 and room_surface
             )
             lobby_for_budget = self._lobby_room_list_evidence(frame)
+            lobby_done = lobby_for_budget and not tangible_room_for_budget and fresh_after_input
+            started_at = getattr(self, "_hitch_floor_exit_started_at", None)
+            if (
+                started_at is not None
+                and now - float(started_at) >= self._HITCH_EXIT_HARD_CAP_S
+                and not lobby_done
+            ):
+                return self._hitch_room_exit_blocked(
+                    frame, now,
+                    f"退房事务 {now - float(started_at):.0f}s 未取得 fresh 大厅证据",
+                )
             deadline = getattr(self, "_hitch_floor_exit_deadline", None)
             if (
                 deadline is not None
@@ -9621,18 +10058,43 @@ class Mediator:
                 and now >= float(self._hitch_floor_exit_reobserve_until)
             ):
                 self._hitch_floor_exit_reobserve_until = None
+            # KK hosts "是否确认退出房间?" in its own small same-title HWND
+            # (440x260 on every live capture), not inside the room window.
+            exit_dialog_child = bool(
+                frame.hwnd is not None
+                and frame.hwnd != confirmed_room_hwnd
+                and not room_surface
+                and frame.width <= 700
+                and frame.height <= 450
+            )
             if (
                 frame.hwnd is not None
-                and confirmed_room_hwnd is not None
-                and frame.hwnd == confirmed_room_hwnd
+                and (
+                    (confirmed_room_hwnd is not None and frame.hwnd == confirmed_room_hwnd)
+                    or exit_dialog_child
+                )
                 and self._hitch_exit_modal_visible(frame)
             ):
                 exit_confirm = self._find_hitch_exit_confirm_button(frame)
-                if exit_confirm is not None and not getattr(self, "_hitch_floor_exit_confirmed", False):
+                confirmed = getattr(self, "_hitch_floor_exit_confirmed", False)
+                confirm_at = getattr(self, "_hitch_floor_exit_confirm_at", None)
+                confirm_clicks = int(getattr(self, "_hitch_floor_exit_confirm_clicks", 0) or 0)
+                # A Confirm that a fresh frame still shows was swallowed.
+                retry = bool(
+                    confirmed
+                    and fresh_after_input
+                    and confirm_at is not None
+                    and now - float(confirm_at) >= self._HITCH_EXIT_RETRY_S
+                    and confirm_clicks < self._HITCH_EXIT_MAX_CLICKS
+                )
+                if exit_confirm is not None and (not confirmed or retry):
                     if self.act_click(exit_confirm, "HitchConfirmLeave"):
                         if self._hitch_pending_room_key is not None:
                             self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
                         self._hitch_floor_exit_confirmed = True
+                        self._hitch_floor_exit_confirm_at = now
+                        self._hitch_floor_exit_confirm_clicks = confirm_clicks + 1
+                        self._hitch_floor_exit_input_generation = current_generation
                         self._hitch_status = "exit_confirmed"
                 return LoopAction.Continue
             if platform_modal is not None:
@@ -9717,6 +10179,25 @@ class Mediator:
             if lobby_visible and not tangible_room:
                 print("[L0] hitch 退出事务已看到大厅，但尚未取得 action 后 fresh 观察，零输入等待")
                 return LoopAction.Continue
+            attempted_at = getattr(self, "_hitch_floor_exit_attempted_at", None)
+            exit_clicks = int(getattr(self, "_hitch_floor_exit_clicks", 0) or 0)
+            if (
+                tangible_room
+                and fresh_after_input
+                and not getattr(self, "_hitch_floor_exit_confirmed", False)
+                and attempted_at is not None
+                and now - float(attempted_at) >= self._HITCH_EXIT_RETRY_S
+                and 0 < exit_clicks < self._HITCH_EXIT_MAX_CLICKS
+            ):
+                # A fresh room frame with no confirm prompt after the retry
+                # interval: the Exit click never reached KK.  Re-send the same
+                # semantic control (bounded); the hard cap ends the episode.
+                exit_hit = self._find_hitch_exit_button(frame)
+                if exit_hit is not None and self._hitch_begin_room_exit(
+                    exit_hit, now, "HitchLeaveFloorOne", self._hitch_status or "exit_retry",
+                ):
+                    print(f"[L0] hitch 退出点击未生效，重试第 {self._hitch_floor_exit_clicks} 次")
+                    return LoopAction.Continue
             if not (lobby_visible and not tangible_room):
                 print(
                     "[L0] hitch 已点击退出，等待大厅列表且无房间实体控件（零输入）: "
@@ -9758,22 +10239,22 @@ class Mediator:
             # when it cannot be located; ignored Esc presses must not strand
             # a ready guest in the room forever.
             exit_hit = self._find_hitch_exit_button(frame) if in_room else None
-            if exit_hit is not None and self.act_click(exit_hit, "HitchReadyTimeoutLeave"):
+            if exit_hit is not None and self._hitch_begin_room_exit(
+                exit_hit, now, "HitchReadyTimeoutLeave", "ready_timeout_exit_clicked",
+            ):
                 self._hitch_ready_timeout_pending = False
                 self._hitch_ready_timeout_attempts = 0
                 self._hitch_ready_timeout_deadline = None
-                self._hitch_floor_exit_pending = True
-                self._hitch_floor_exit_confirmed = False
-                self._hitch_floor_exit_attempted_at = now
-                self._hitch_floor_exit_deadline = now + self._HITCH_FLOOR_EXIT_BUDGET_S
-                self._hitch_floor_exit_input_generation = int(getattr(self, "_capture_generation", 0) or 0)
-                self._hitch_floor_exit_reobserve_until = None
-                self._hitch_status = "ready_timeout_exit_clicked"
                 print("[L0] hitch ready timeout: clicked room exit, awaiting explicit confirmation")
                 return LoopAction.Continue
 
             deadline = getattr(self, "_hitch_ready_timeout_deadline", None)
             attempts = getattr(self, "_hitch_ready_timeout_attempts", 0)
+            if deadline is not None and now > deadline + self._HITCH_READY_TIMEOUT_GRACE_S:
+                self._hitch_ready_timeout_pending = False
+                return self._hitch_room_exit_blocked(
+                    frame, now, "70s 超时退房截止期后仍未取得 fresh 大厅证据",
+                )
             if deadline is not None and (now > deadline or attempts >= 3):
                 # 尝试/截止期耗尽只撤销输入许可，不能返回 Break 结束整个长期运行。
                 # 后续 fresh 大厅证据仍可自动收尾；UNKNOWN 保持零输入观察。
@@ -9818,16 +10299,17 @@ class Mediator:
                 print("[L0] hitch 房间已准备等待超过 70 秒，房主未开局，发起安全退房 episode（当帧 0 输入）")
                 return LoopAction.Continue
 
-            host_takeover = (
-                ready_state == "ready"
-                and getattr(self, "_hitch_ready_confirmed_at", None) is not None
-                and self._find_room_start(frame) is not None
-                and self._hitch_host_marker_visible(frame)
-            )
-            if ready_state == "ready" and ready_hit is not None and not host_takeover:
+            # Seat knowledge (our row, the floor-one occupant) is learnt from
+            # every fresh room frame, including the one we Ready on.
+            self._hitch_track_room_seats(frame)
+            # KK offers the host no Ready; never press a Ready-looking control
+            # on a page that shows us the host's seat drop-downs.
+            host_view = self._hitch_self_is_host(frame)
+            if ready_state == "ready" and ready_hit is not None and not host_view:
                 if self.act_click(ready_hit, "HitchReady"):
                     self._hitch_pending_row_y = None
                     self._hitch_status = "已点击准备"
+                    self._hitch_note_pre_ready_rows(frame)
                     print(f"[L0] hitch 点击客人准备: ({ready_hit.screen_x}, {ready_hit.screen_y})")
                 else:
                     self._hitch_sm.defer_retry(now)
@@ -9845,31 +10327,39 @@ class Mediator:
                 )
 
             seat_decision = self._hitch_room_seat_decision(frame)
-            # Only a future, real-GT-backed detector may return "reject".
-            # UNKNOWN/legacy strings are observation states and have zero
-            # exit/blacklist authority.
-            if seat_decision in {"reject", "reject_host_takeover"}:
+            # Only the explicit seat rules may return "reject*".  UNKNOWN and
+            # legacy strings are observation states with zero exit/blacklist
+            # authority.
+            if seat_decision.startswith("reject"):
+                generation = int(getattr(self, "_capture_generation", 0) or 0)
+                streak = getattr(self, "_hitch_seat_streak", None)
+                if streak is None or streak[0] != seat_decision:
+                    confirmations = 1
+                elif streak[1] != generation:
+                    confirmations = streak[2] + 1
+                else:
+                    confirmations = streak[2]
+                self._hitch_seat_streak = (seat_decision, generation, confirmations)
+                if confirmations < 2:
+                    # One frame can catch KK mid-redraw (rows re-laid out as a
+                    # player leaves).  A second fresh frame must agree.
+                    print(f"[L0] hitch 座位规则命中({seat_decision})，等待第二张 fresh 帧复核（零输入）")
+                    self.set_phase(Phase.ROOM_WAITING, "hitch seat rule reobserve")
+                    return LoopAction.Continue
                 exit_hit = self._find_hitch_exit_button(frame)
-                self._hitch_floor_exit_attempted_at = now if exit_hit is not None else None
-                if exit_hit is not None and self.act_click(exit_hit, "HitchLeaveFloorOne"):
-                    if self._hitch_pending_row_y is not None:
-                        self._hitch_rejected_row_ys.add(self._hitch_pending_row_y)
-                    self._hitch_pending_row_y = None
-                    self._hitch_floor_exit_pending = True
-                    self._hitch_floor_exit_confirmed = False
-                    self._hitch_floor_exit_deadline = now + self._HITCH_FLOOR_EXIT_BUDGET_S
-                    self._hitch_floor_exit_input_generation = int(getattr(self, "_capture_generation", 0) or 0)
-                    self._hitch_floor_exit_reobserve_until = None
-                    self._hitch_status = seat_decision
+                if exit_hit is not None and self._hitch_begin_room_exit(
+                    exit_hit, now, "HitchLeaveFloorOne", seat_decision,
+                ):
                     print(
-                        f"[L0] hitch seat detector 明确拒绝({seat_decision})，点击退出: "
+                        f"[L0] hitch 座位规则拒绝({seat_decision})，点击退出: "
                         f"({exit_hit.screen_x}, {exit_hit.screen_y})"
                     )
                 else:
                     self._hitch_sm.defer_retry(now)
-                    print(f"[L0] hitch seat detector 明确拒绝({seat_decision})，但退出按钮未确认")
+                    print(f"[L0] hitch 座位规则拒绝({seat_decision})，但退出按钮未确认")
                 self.set_phase(Phase.ROOM_WAITING, "hitch reject by seat detector")
                 return LoopAction.Continue
+            self._hitch_seat_streak = None
 
             if ready_state in {"cancel_ready", "start"}:
                 self.set_phase(Phase.ROOM_WAITING, "hitch room ready contract observed")
@@ -9885,7 +10375,26 @@ class Mediator:
             return LoopAction.Continue
         if self._hitch_re_search and not in_room:
             self._hitch_re_search = False
-        if context == "UNKNOWN":
+        main_nav = None
+        lobby_list = self._lobby_room_list_evidence(frame)
+        if lobby_list:
+            if getattr(self, "_hitch_nav_since", None) is not None:
+                self._hitch_nav_reset()
+        elif (
+            not self._hitch_sm.pending_join
+            and platform_modal is None
+            and not self._hitch_room_like(frame)
+        ):
+            # Final fallback for a KK main window left on some other page
+            # (profile, store, another game...): top "游戏" tab first, then the
+            # 英雄三国 / 重生魔兽刷刷刷 sidebar entry.  Proven navigation also
+            # gives an UNKNOWN map sub-page (e.g. 任务) back to the tab flow.
+            main_nav = self._hitch_kk_main_nav(frame)
+            if main_nav is not None:
+                nav_action = self._tick_hitch_kk_nav(frame, main_nav, now)
+                if nav_action is not None:
+                    return nav_action
+        if context == "UNKNOWN" and main_nav is None and not lobby_list:
             # After a join attempt an unanchored child can be a room loading
             # surface or an unrecognised platform popup.  It is never proof
             # of the browser's room-list tab, so do not turn bright row pixels
@@ -9946,6 +10455,9 @@ class Mediator:
                 if clicked:
                     self._hitch_sm.note_join_click(now)
                     self._hitch_join_origin_hwnd = frame.hwnd
+                    self._hitch_join_preexisting_hwnds = frozenset(
+                        getattr(self, "_last_l0_target_hwnds", ())
+                    )
                     self._hitch_pending_row_y = hit.y
                     self._hitch_pending_room_key = self._hitch_room_number_key(frame, hit.y)
                     self._hitch_search_actions.append("join")
@@ -11140,7 +11652,43 @@ class Mediator:
                 "f1_shadow_misfire": self._f1_shadow_misfire,
             },
         }
+        # Additive audit fields: why a tick made no decision (health gate),
+        # which capture path chose the HWND, and the hitch transactions.
+        health = getattr(self, "_last_health", None)
+        row["health"] = (
+            None if health is None or health.is_healthy
+            else [issue.value for issue in health.issues]
+        )
+        row["capture"] = {
+            "candidates": getattr(self, "_capture_candidates", None),
+            "selected_by": getattr(self, "_capture_selected_by", None),
+            "black_hwnds": list(getattr(self, "_capture_black_hwnds", ()) or ()),
+        }
+        if self._hitch_enabled():
+            row["hitch"] = self._trace_hitch_state()
         self._trace_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+    def _trace_hitch_state(self) -> dict:
+        sm = self._hitch_sm
+        now = time.time()
+        return {
+            "status": self._hitch_status,
+            "pending_join": bool(sm.pending_join),
+            "join_age_s": (
+                round(now - sm.join_clicked_at, 1) if sm.join_clicked_at is not None else None
+            ),
+            "origin_hwnd": self._hitch_join_origin_hwnd,
+            "confirmed_room_hwnd": getattr(self, "_confirmed_room_hwnd", None),
+            "exit_pending": bool(getattr(self, "_hitch_floor_exit_pending", False)),
+            "exit_clicks": int(getattr(self, "_hitch_floor_exit_clicks", 0) or 0),
+            "exit_confirm_clicks": int(getattr(self, "_hitch_floor_exit_confirm_clicks", 0) or 0),
+            "ready_timeout_pending": bool(getattr(self, "_hitch_ready_timeout_pending", False)),
+            "self_row": getattr(self, "_hitch_self_row", None),
+            "floor_one_baseline": getattr(self, "_hitch_floor_one_baseline", None) is not None,
+            "seat_streak": (
+                list(self._hitch_seat_streak) if getattr(self, "_hitch_seat_streak", None) else None
+            ),
+        }
         self._trace_fh.flush()
 
     def _trace_settings_summary(self) -> dict:
@@ -11260,6 +11808,20 @@ class Mediator:
                     # G0 P0 contract #6：unhealthy 期间做有界窗口存在性观察——
                     # 游戏/平台窗口均长时间不存在 → 记录 evidence 并
                     # FATAL_ENVIRONMENT_FAILURE；不产生任何业务输入。
+                    sm = self._hitch_sm
+                    if (
+                        sm.pending_join
+                        and sm.join_clicked_at is not None
+                        and now - sm.join_clicked_at >= sm.join_confirm_timeout_s
+                    ):
+                        # The join's own timeout lives in _tick_lobby_hitch,
+                        # which an unhealthy frame never reaches.  Release the
+                        # join here (zero input) so the join probe stops
+                        # preferring a non-origin window and the next capture
+                        # re-ranks towards a window with page evidence.
+                        self._hitch_reject_pending_join(now, "join_rejected_unhealthy_surface")
+                        self._hitch_search_actions.append("reject")
+                        print("[L0] hitch 进房后只有不健康/黑色表面，零输入拒绝本次进房并重新选择大厅窗口")
                     self._snapshot_window_existence()
                     bound = max(30.0, min(float(self.settings.query_timeout), 60.0))
                     if elapsed >= bound:
@@ -11287,6 +11849,23 @@ class Mediator:
                             print("[med] 蹭车 unhealthy 期间游戏/平台窗口均不存在超过边界，FATAL_ENVIRONMENT_FAILURE")
                             self._record_environment_incident("hitch_windows_missing", elapsed)
                             self.set_phase(Phase.ERROR, "hitch no game/platform window")
+                            self.stop()
+                            return LoopAction.Break
+                        if (
+                            self.phase in (Phase.LOBBY_ROOM, Phase.ROOM_WAITING)
+                            and not self.game_platform_window_snapshot.get("game")
+                            and elapsed >= self._HITCH_L0_UNHEALTHY_BLOCK_S
+                        ):
+                            # Lobby/room phases with only unusable KK surfaces
+                            # (e.g. every KK window black) for this long cannot
+                            # recover on their own; end explicitly instead of
+                            # observing a dead surface forever.
+                            print(
+                                "[med] 蹭车 L0 阶段持续无可用平台画面 "
+                                f"{elapsed:.0f}s（{health.details} hwnd={frame.hwnd}），BLOCKED 停止"
+                            )
+                            self._record_environment_incident("hitch_l0_surface_blocked", elapsed)
+                            self.set_phase(Phase.ERROR, "hitch l0 surface blocked")
                             self.stop()
                             return LoopAction.Break
                         # 至少一个窗口仍在（但无 fresh 权威）：只撤销输入权，

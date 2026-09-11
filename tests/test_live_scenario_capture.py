@@ -1355,16 +1355,30 @@ def test_lobby_hitch_seat_unknown_never_authorizes_exit() -> None:
     ) == "unknown"
 
 
+def _live_room(name: str) -> Frame:
+    path = ROOT / "tests" / "fixtures" / "hitch_live_20260911" / name
+    image = cv2.imdecode(np.fromfile(str(path), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert image is not None, path
+    return Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
+
+
 def test_lobby_hitch_promoted_host_leaves_without_start_control() -> None:
-    """KK may show green 等待准备 after the prepared guest becomes host."""
+    """Live 20:03: KK shows green 等待准备 and seat drop-downs to the promoted host."""
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     med._hitch_ready_confirmed_at = 1.0
-    frame = _synthetic_hitch_room(0)
 
-    with patch.object(med, "_hitch_room_surface_evidence", return_value=((0, 0, 1, 1), [])), \
-         patch.object(med, "_find_room_start", return_value=None), \
-         patch.object(med, "_hitch_host_marker_visible", return_value=True):
-        assert med._hitch_room_seat_decision(frame) == "reject_host_takeover"
+    assert med._hitch_room_seat_decision(_live_room("room_promoted_host_waiting.png")) == "reject_host_takeover"
+
+
+def test_lobby_hitch_other_host_on_floor_one_is_not_a_takeover() -> None:
+    """A red 房主 on row 1 that is another player must not make us leave."""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_ready_confirmed_at = 1.0
+    frame = _live_room("room_ready_self_row3_host_row1.png")
+
+    assert med._hitch_host_marker_visible(frame) is True
+    assert med._hitch_self_is_host(frame) is False
+    assert med._hitch_room_seat_decision(frame) == "unknown"
 
 
 def test_lobby_search_floor_one_exit_requires_visual_room_close() -> None:

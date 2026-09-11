@@ -2098,6 +2098,30 @@
       "sha256": "fa1f6d64d70f8e0dab9cf739aef49d1cc897a0823648427790e1d0ca1e1d78dc"
     },
     {
+      "path": "assets/Images/lobby/kk_nav_logo.png",
+      "purpose": "runtime_ui",
+      "provenance": "cropped from live KK lobby capture hitch_lobby_chain_20260911_205544_814227/f0000",
+      "reason_required": "hitch KK main-window navigation fallback anchor",
+      "size_bytes": 5873,
+      "sha256": "3fbd50caa9349b4a324a017f982b3a296420d0123410a633640b944667aadb01"
+    },
+    {
+      "path": "assets/Images/lobby/kk_side_cssss_icon.png",
+      "purpose": "runtime_ui",
+      "provenance": "cropped from live KK lobby capture hitch_lobby_chain_20260911_205544_814227/f0000",
+      "reason_required": "hitch KK main-window navigation fallback anchor",
+      "size_bytes": 1889,
+      "sha256": "197c581bf775a72e8c788db732b96bb0e48e4833e2edd85130d22eb7a1816493"
+    },
+    {
+      "path": "assets/Images/lobby/kk_side_yxsg_icon.png",
+      "purpose": "runtime_ui",
+      "provenance": "cropped from live KK lobby capture hitch_lobby_chain_20260911_205544_814227/f0000",
+      "reason_required": "hitch KK main-window navigation fallback anchor",
+      "size_bytes": 1782,
+      "sha256": "633e1be3046dd7b267aa7953a585eb00be60ed5da5c5bfec59967c2a2cf45231"
+    },
+    {
       "path": "assets/Images/lobby/lobby_1_4.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",
