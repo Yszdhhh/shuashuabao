@@ -470,6 +470,10 @@ class RecoveryState:
     confirm_window: float = 15.0
     direct_exit: bool = False
     opening_exit_confirm: bool = False
+    # The modal's red 退出游戏 did nothing (live 2026-09-12: the game chat
+    # input lay over the button row).  Further attempts use the top-left
+    # 退出游戏 + standard confirmation instead.
+    prefer_game_exit: bool = False
 
 
 @dataclass
@@ -822,6 +826,8 @@ class Mediator:
         self._hitch_nav_clicks = 0
         self._hitch_nav_last_click_at: float | None = None
         self._hitch_nav_input_generation: int | None = None
+        self._game_chat_close_attempts = 0
+        self._game_chat_close_next_at = 0.0
         # P0-6：Ready 70s 超时退房生命周期（确认离房+大厅可见后才拉黑）
         self._hitch_ready_timeout_pending: bool = False
         self._hitch_ready_timeout_leave_at: float | None = None
@@ -6616,6 +6622,45 @@ class Mediator:
                 return hit
         return None
 
+    # The in-game "输入信息……/发送" chat input bar.  Live 2026-09-12 it opened
+    # right after the pressure click and stayed up all round: it swallowed
+    # the failure modal's 退出游戏 click and captures keyboard input.
+    _GAME_CHAT_ROI = (0.35, 0.58, 0.65, 0.72)
+    _GAME_CHAT_CLOSE_LIMIT = 2
+    _GAME_CHAT_CLOSE_WAIT_S = 2.0
+
+    def _game_chat_input_visible(self, frame: Frame) -> bool:
+        if not self._is_game_client_frame(frame):
+            return False
+        return self.find(
+            frame,
+            ["env/game_chat_input_bar"],
+            threshold=0.85,
+            scales=self._hot_scales(),
+            roi=self._GAME_CHAT_ROI,
+        ) is not None
+
+    def _maybe_close_game_chat(self, frame: Frame, now: float) -> LoopAction | None:
+        """Close an open chat input with Esc, verified on a later frame.
+
+        Bounded: after the limit the bar is left alone (clicks elsewhere
+        still work; only clicks *through* it are avoided by callers).
+        """
+        if not self._game_chat_input_visible(frame):
+            self._game_chat_close_attempts = 0
+            self._game_chat_close_next_at = 0.0
+            return None
+        attempts = int(getattr(self, "_game_chat_close_attempts", 0) or 0)
+        if attempts >= self._GAME_CHAT_CLOSE_LIMIT:
+            return None
+        if now < float(getattr(self, "_game_chat_close_next_at", 0.0) or 0.0):
+            return LoopAction.Continue
+        print("[med] 检测到局内聊天输入框处于打开状态，按 Esc 关闭")
+        if self.act_key("esc", "CloseGameChat"):
+            self._game_chat_close_attempts = attempts + 1
+            self._game_chat_close_next_at = now + self._GAME_CHAT_CLOSE_WAIT_S
+        return LoopAction.Continue
+
     def _find_exit_confirm(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
             frame,
@@ -7742,7 +7787,13 @@ class Mediator:
         命中的若是 gameDisconnect 文字模板则零输入等待，绝不点击 fail 的 ok/close。
         """
         if rs.step == RecoveryStep.FAIL_CONFIRM:
-            hit = self.find_scene(frame, "ok") or self._find_failure_exit_button(frame)
+            hit = None
+            if self._game_chat_input_visible(frame):
+                # The chat bar lies across the modal's button row: never
+                # click through it, use the top-left 退出游戏 instead.
+                rs.prefer_game_exit = True
+            if not rs.prefer_game_exit:
+                hit = self.find_scene(frame, "ok") or self._find_failure_exit_button(frame)
             if hit is not None:
                 return hit
             # The real secret-realm failure page has no center modal.  It keeps
@@ -7921,6 +7972,19 @@ class Mediator:
         """恢复重试耗尽/总预算到期：普通模式直接 ERROR、停止、写 incident；hitch 模式清理后回大厅观察。"""
         if self._hitch_enabled():
             now = time.time()
+            last = getattr(self, "_last_frame", None)
+            if last is not None and self._is_game_client_frame(last):
+                # The game is still up (live 2026-09-12: failure page with the
+                # modal buttons covered).  Leave it through the standard quit
+                # chain: top-left 退出游戏 -> confirmation -> next round.
+                print(f"[med] 蹭车恢复未完成（{reason}），游戏窗口仍在：改走左上角退出游戏链路")
+                self._record_round_outcome(RoundOutcome.FAILURE, f"hitch recovery fallback ({reason})")
+                self._recovery_state = None
+                # "DONE" keeps the QUIT phase from re-preempting into
+                # recovery on the still-visible failure page.
+                self._recovery_step = "DONE"
+                self.set_phase(Phase.QUIT, f"hitch recovery failed ({reason}); quit game")
+                return LoopAction.Continue
             print(f"[med] 蹭车恢复重试耗尽（{reason}）：执行后置退出清理，进入大厅观察，不终止运行")
             self._hitch_after_exit(now)
             self.set_phase(Phase.LOBBY_ROOM, f"hitch recovery failed ({reason}); awaiting lobby observation")
@@ -7966,6 +8030,12 @@ class Mediator:
             if now - rs.input_at >= rs.confirm_window:
                 # 确认窗超时：本步保留，消耗一次有界重试后回 READY
                 rs.waiting_confirm = False
+                if step == RecoveryStep.FAIL_CONFIRM and rs.direct_exit:
+                    # The modal exit click changed nothing: switch to the
+                    # top-left 退出游戏 path for the remaining attempts.
+                    rs.direct_exit = False
+                    rs.prefer_game_exit = True
+                    print("[med] 失败页中间退出按钮点击无效，改用左上角退出游戏")
                 return self._recovery_retry_or_fail(rs, step, now, "no mutation/post-anchor")
             return LoopAction.Continue
         if now < rs.next_allowed_at:
@@ -7997,7 +8067,9 @@ class Mediator:
                 return self._finish_direct_failure_exit(rs, now)
             rs.waiting_confirm = True
             rs.input_at = now
-            rs.confirm_window = min(15.0, rs.deadline - now)
+            # A modal exit either closes the game quickly or was swallowed.
+            window = 5.0 if rs.direct_exit else 15.0
+            rs.confirm_window = min(window, rs.deadline - now)
             print(f"[med] 恢复步骤 {rs.kind.name}/{rs.step.name} 已输入（等待后置确认）")
         else:
             limit = min(int(self.settings.recovery_action_limit), 3)
@@ -10133,6 +10205,16 @@ class Mediator:
             ):
                 self._hitch_reject_pending_join(now, "join_rejected")
                 self._hitch_search_actions.append("reject")
+            # _tick_l0 classifies with the l0 role, which never reports QUIT;
+            # read the failure/disconnect anchors of the game frame directly.
+            if context == "QUIT" or self.find_scene(frame, "fail") or self.find_scene(frame, "disconnect"):
+                # A failure/disconnect page of a game we are no longer
+                # tracking: leave it through the standard quit chain
+                # (top-left 退出游戏 -> confirmation) instead of waiting.
+                self._recovery_step = "DONE"
+                print("[L0] hitch 游戏窗口停在失败/断线页，走左上角退出游戏链路")
+                self.set_phase(Phase.QUIT, "hitch game window on failure page; quit game")
+                return LoopAction.Continue
             self._hitch_status = "game_window_align"
             print("[L0] hitch 英雄三国窗口已在前台流程中，零输入等待局内状态对齐")
             return LoopAction.Continue
@@ -12996,6 +13078,12 @@ class Mediator:
         # victory/failure；强失败/断线全局抢占仍在 _tick_impl 更早处。
         post_game = self._post_game_state(frame)
 
+        if not secret_entry_observation and self._passenger_mode():
+            # An open chat input swallows clicks under it and every hotkey;
+            # close it before any other in-game input.
+            chat_res = self._maybe_close_game_chat(frame, now)
+            if chat_res is not None:
+                return chat_res
         if (
             not secret_entry_observation
             and self._hitch_enabled()

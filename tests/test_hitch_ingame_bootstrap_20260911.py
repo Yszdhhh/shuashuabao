@@ -280,6 +280,91 @@ def test_round_without_pressure_button_goes_on_with_other_work() -> None:
     assert reasons and "HitchPressureTransfer" not in reasons
 
 
+FAIL_CHAT = "game_failure_page_chat_over_buttons.png"
+HUD_CHAT = "game_hud_chat_input_open.png"
+
+
+def _record(med: Mediator, handler, frame: Frame) -> list[tuple]:
+    acts: list[tuple] = []
+    with patch.object(med, "act_click", side_effect=lambda h, reason="": acts.append((reason, h.center)) or True), \
+         patch.object(med, "act_key", side_effect=lambda k, reason="": acts.append((reason, k)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        handler(frame)
+    return acts
+
+
+def test_open_chat_bar_is_closed_before_other_in_game_input() -> None:
+    med = _med()
+    med.set_phase(Phase.MAIN_LINE, "test")
+    med._auto_task_done = True
+    frame = _game(HUD_CHAT)
+
+    assert med._game_chat_input_visible(frame) is True
+    assert med._game_chat_input_visible(_game(OPENING)) is False
+    assert _record(med, med._tick_main_line, frame) == [("CloseGameChat", "esc")]
+    # Next tick inside the verify wait: no second Esc, nothing clicked under it.
+    assert _record(med, med._tick_main_line, frame) == []
+
+
+def test_failure_recovery_uses_top_left_exit_when_chat_covers_modal() -> None:
+    from shuabao.mediator import RecoveryKind
+
+    med = _med()
+    med.set_phase(Phase.MAIN_LINE, "test")
+    with contextlib.redirect_stdout(io.StringIO()):
+        med._begin_recovery(RecoveryKind.FAIL)
+
+    acts = _record(med, med._tick_recovery, _game(FAIL_CHAT))
+
+    assert acts == [("Recovery-FAIL-FAIL_CONFIRM", (76, 24))]
+    assert med._recovery_state.prefer_game_exit is True
+
+
+def test_swallowed_modal_exit_switches_to_top_left_exit() -> None:
+    from shuabao.mediator import RecoveryKind
+
+    med = _med()
+    med.set_phase(Phase.MAIN_LINE, "test")
+    frame = _game(FAIL_CHAT)
+    with contextlib.redirect_stdout(io.StringIO()):
+        med._begin_recovery(RecoveryKind.FAIL)
+    rs = med._recovery_state
+    rs.waiting_confirm, rs.direct_exit, rs.input_at = True, True, time.time() - 6.0
+    rs.confirm_window = 5.0
+
+    with patch.object(med, "_game_chat_input_visible", return_value=False):
+        _record(med, med._tick_recovery, frame)
+        assert rs.prefer_game_exit is True
+        rs.next_allowed_at = 0.0
+        acts = _record(med, med._tick_recovery, frame)
+    assert acts == [("Recovery-FAIL-FAIL_CONFIRM", (76, 24))]
+
+
+def test_hitch_recovery_giving_up_quits_a_still_running_game() -> None:
+    from shuabao.mediator import RecoveryKind
+
+    med = _med()
+    med.set_phase(Phase.MAIN_LINE, "test")
+    med._last_frame = _game(FAIL_CHAT)
+    with contextlib.redirect_stdout(io.StringIO()):
+        med._begin_recovery(RecoveryKind.FAIL)
+        med._recovery_failed(med._recovery_state, "test")
+
+    assert med.phase is Phase.QUIT
+    assert med._recovery_step == "DONE"
+
+
+def test_lobby_phase_failure_page_goes_to_the_quit_chain() -> None:
+    med = _med()
+    med.set_phase(Phase.LOBBY_ROOM, "test")
+    frame = _game(FAIL_CHAT)
+
+    assert _record(med, med._tick_l0, frame) == []
+    assert med.phase is Phase.QUIT
+    assert _record(med, med._tick_l1_tail, frame) == [("QuitGame-open-confirm", (76, 24))]
+    assert med.phase is Phase.NEXT
+
+
 def test_hero_focus_fallback_ignores_our_own_bag_page() -> None:
     med = _med()
     med.set_phase(Phase.MAIN_LINE, "test")

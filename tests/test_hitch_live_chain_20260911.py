@@ -143,6 +143,9 @@ def _run(world: KKWorld, ticks: int, *, until=None, trace: Path | None = None):
     with patch("shuabao.mediator.find_window_targets",
                side_effect=lambda title="", role=None, **_k: world.targets(role)), \
          patch("shuabao.mediator.capture_target", side_effect=world.capture), \
+         patch("shuabao.mediator.capture", return_value=Frame(
+             np.zeros((0, 0, 3), dtype=np.uint8), is_valid=False, error="no window",
+         )), \
          patch("shuabao.mediator.time.time", side_effect=lambda: world.clock), \
          patch("shuabao.vision.capture.is_window_minimized", return_value=False), \
          patch("shuabao.mediator.capture_reacquire_target_window", return_value=True), \

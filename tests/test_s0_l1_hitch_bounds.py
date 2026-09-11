@@ -181,6 +181,7 @@ class HitchMidgameTakeoverTests(unittest.TestCase):
                 patch.object(med, "_bag_layout", return_value=None), \
                 patch.object(med, "_find_failure_gift", return_value=None), \
                 patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_game_chat_input_visible", return_value=False), \
                 patch.object(med, "find", return_value=hit), \
                 patch.object(med, "act_click", return_value=True) as click:
             action = med._tick_main_line(_frame())
