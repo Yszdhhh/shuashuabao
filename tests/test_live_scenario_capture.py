@@ -955,6 +955,59 @@ def test_blocked_preflight_does_not_dispatch_any_business_handler(tmp_path: Path
     assert manifest["events"]
 
 
+def test_live_preflight_uses_window_recovered_during_start_surface_wait(tmp_path: Path) -> None:
+    class FakeLane:
+        path = tmp_path / "live.lock"
+        owner = {"pid": 1}
+
+        def __init__(self, _name: str) -> None:
+            pass
+
+        def acquire(self) -> None:
+            pass
+
+    args = SimpleNamespace(
+        live_input=True,
+        allow_dev_source=True,
+        automation_exe=None,
+        build_identity=None,
+        production_source_root=ROOT,
+        production_source_sha="candidate",
+        target="hitch_lobby_chain",
+        start_surface_wait=1.0,
+    )
+    initial_window = {"status": "BLOCKED", "reason": "target window is minimized"}
+    recovered_window = {"status": "READY", "title": "KK官方对战平台"}
+    recovered_frame = Frame(np.zeros((100, 100, 3), dtype=np.uint8), role="l0")
+    identity = {
+        "ready_for_gt": True,
+        "blocked_reasons": [],
+        "production_source_sha": "candidate",
+        "production_source_clean": True,
+        "candidate_source_injection": "ACTIVE",
+    }
+    with patch.object(live_capture, "_scenario_identity", return_value=identity), \
+         patch.object(live_capture, "_build_identity_check", return_value={"status": "READY", "blocked_reasons": []}), \
+         patch.object(live_capture, "is_current_process_elevated", return_value=True), \
+         patch.object(live_capture, "_ocr_bootstrap_preflight", return_value={"healthy": True}), \
+         patch.object(live_capture, "_lobby_resource_preflight", return_value=[]), \
+         patch.object(live_capture, "_window_preflight", return_value=(None, initial_window)), \
+         patch.object(live_capture, "_await_start_surface", return_value=({"status": "READY"}, recovered_frame, recovered_window)), \
+         patch.object(live_capture, "LiveLane", FakeLane):
+        report, lane, frame = live_capture._live_input_preflight(
+            args=args,
+            med=SimpleNamespace(),
+            settings=Settings(dry_run=False),
+            repo_root=ROOT,
+            runtime_mediator_error=None,
+        )
+
+    assert report["status"] == "READY"
+    assert not any("game window unavailable" in reason for reason in report["blocked_reasons"])
+    assert lane is not None
+    assert frame is recovered_frame
+
+
 def test_lobby_hitch_settings_and_bootstrap() -> None:
     settings = live_capture._prepare_settings(None, "lobby_hitch", live_input=False)
     assert settings.mode_id == "lobby_hitch"

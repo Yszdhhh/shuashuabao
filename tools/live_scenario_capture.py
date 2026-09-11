@@ -4394,8 +4394,6 @@ def _live_input_preflight(
         reasons.append("lobby templates unavailable: " + ", ".join(resource_missing))
     if not bool(ocr_health.get("healthy")):
         reasons.append(f"ocr_bootstrap_unhealthy: {ocr_health.get('reason') or ocr_health.get('stage')}")
-    if window.get("status") != "READY":
-        reasons.append(f"game window unavailable: {window.get('reason') or window.get('requested_title')}")
     start_surface, frame, window = _await_start_surface(
         med,
         target,
@@ -4404,6 +4402,8 @@ def _live_input_preflight(
         settings,
         timeout_s=float(getattr(args, "start_surface_wait", 0.0) or 0.0),
     )
+    if window.get("status") != "READY":
+        reasons.append(f"game window unavailable: {window.get('reason') or window.get('requested_title')}")
     if start_surface.get("status") == "BLOCKED":
         reasons.append(f"BLOCKED_PRECONDITION: {start_surface.get('reason') or 'start surface not confirmed'}")
 

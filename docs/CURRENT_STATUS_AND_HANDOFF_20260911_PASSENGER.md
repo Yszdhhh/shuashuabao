@@ -22,6 +22,7 @@
 
 - 定向回归：`187 passed, 61 subtests passed`。
 - Launcher 使用固定 `ProductionSourceRoot` 的 `SOURCE_RUNTIME` 时不再把仓库内未参与执行的旧 `dist/ShuaBao.exe` 带入身份门禁；真实使用 EXE 的入口仍保留原 SHA 校验。PowerShell Parser `0` 错误，Launcher UTF-8 BOM 保持。
+- L0 起点预检若首次命中最小化旧游戏窗、随后等待阶段已重新捕获并确认 KK 房间列表，以最终窗口状态裁决，不再残留过时的 `game window unavailable`；最终窗口仍不可用时继续 fail-closed、零输入。
 - Harness 身份：`production_code_diff=CLEAN`、`ready_for_gt=true`、`match=READY`。
 - 最终发布门禁（提交态，同一次运行）：
   - pytest：`1953 passed, 2 xfailed, 1 skipped`
