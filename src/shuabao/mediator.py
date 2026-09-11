@@ -8753,7 +8753,15 @@ class Mediator:
         """
         if self._hitch_room_surface_evidence(frame) is None:
             return "unknown"
-        if self._find_room_start(frame) is not None and self._hitch_host_marker_visible(frame):
+        # Only a guest that has already completed its own Ready transaction
+        # can be considered a promoted host.  A fresh room may legitimately
+        # show the host's Start button before we have prepared; do not reject
+        # that initial observation.
+        if (
+            getattr(self, "_hitch_ready_confirmed_at", None) is not None
+            and self._find_room_start(frame) is not None
+            and self._hitch_host_marker_visible(frame)
+        ):
             return "reject_host_takeover"
         # UNKNOWN is wait/reobserve only; it never authorizes exit or room
         # number blacklisting.
@@ -9797,7 +9805,10 @@ class Mediator:
                 self.set_phase(Phase.ROOM_WAITING, "hitch guest ready")
                 return LoopAction.Continue
 
-            if getattr(self, "_hitch_ready_confirmed_at", None) is None:
+            if (
+                getattr(self, "_hitch_ready_confirmed_at", None) is None
+                and ready_state != "ready"
+            ):
                 self._hitch_ready_confirmed_at = now
                 print(
                     f"[L0] hitch 已准备，记录房间号 key={self._hitch_pending_room_key}"
