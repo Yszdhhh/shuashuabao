@@ -169,6 +169,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         med._main_line_since = 129.0
         pressure = hit("yalizhuanyi", 1200, 700)
         with patch.object(med, "_is_in_game_hud", return_value=True) as hud, \
+                patch.object(med, "_post_game_state", return_value=None), \
                 patch.object(med, "find", return_value=pressure) as find, \
                 patch.object(med, "act_click", return_value=True) as click:
             self.assertIs(
