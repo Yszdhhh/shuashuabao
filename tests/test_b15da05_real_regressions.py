@@ -392,7 +392,8 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
     assert med._hitch_pressure_click_at == 10.0
     assert med._hitch_pressure_transferred is False
 
-    # C2 修复：同一 request 帧绝不 confirm；只有 fresh generation 且按钮消失才 confirm
+    # C2 修复：同一 request 帧绝不 confirm；只有 fresh generation 且按钮消失才 confirm。
+    # 用户规则（2026-09-12）：按钮不可见时门禁不阻塞（返回 None），其余局内流程照常。
     with (
         patch.object(med, "_team_mode_enabled", return_value=True),
         patch.object(med, "_is_in_game_hud", return_value=True),
@@ -401,14 +402,14 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
         patch("shuabao.mediator.time.time", return_value=12.0),
     ):
         # 同一 request 帧（generation 未变）：不 confirm
-        assert med._maybe_click_hitch_pressure_transfer(frame, 12.0) is LoopAction.Continue
+        assert med._maybe_click_hitch_pressure_transfer(frame, 12.0) is None
         assert med._hitch_pressure_transferred is False
         # fresh 帧（不同 Frame 产生新 generation）：确认 transferred
         fresh_frame = _game_frame("midgame")
-        assert med._maybe_click_hitch_pressure_transfer(fresh_frame, 12.0) is LoopAction.Continue
+        assert med._maybe_click_hitch_pressure_transfer(fresh_frame, 12.0) is None
     assert med._hitch_pressure_transferred is True
 
-    # 即使原先的 25 秒窗口已过，未点过/未确认也必须继续门禁，不能放行。
+    # 从未看到按钮：不猜测完成，但也绝不拖住局内流程。
     med2 = _hitch_mediator()
     med2.set_phase(Phase.MAIN_LINE)
     med2._main_line_since = 0.0
@@ -417,7 +418,7 @@ def test_pressure_transfer_postcondition_lifecycle() -> None:
          patch.object(med2, "_post_game_state", return_value=None), \
          patch.object(med2, "find", return_value=None), \
          patch("shuabao.mediator.time.time", return_value=30.0):
-        assert med2._maybe_click_hitch_pressure_transfer(frame, 30.0) is LoopAction.Continue
+        assert med2._maybe_click_hitch_pressure_transfer(frame, 30.0) is None
     assert med2._hitch_pressure_transferred is False
 
 

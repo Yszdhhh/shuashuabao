@@ -205,6 +205,81 @@ def test_bag_page_open_longer_than_the_lease_is_closed() -> None:
     assert med._public_bag_next_at >= now + Mediator._PUBLIC_BAG_REOPEN_COOLDOWN_S - 1
 
 
+def _room(name: str, hwnd: int = 99) -> Frame:
+    image = cv2.imdecode(np.fromfile(str(FIX / name), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert image is not None, name
+    return Frame(image, window_title="KK官方对战平台", hwnd=hwnd, role="l0")
+
+
+def test_gold_skinned_room_is_a_room_with_ready_and_exit_controls() -> None:
+    """Live 2026-09-12 00:51: a VIP room theme paints the action bar gold."""
+    med = _med()
+    not_ready = _room("room_gold_skin_not_ready.png")
+    ready = _room("room_gold_skin_ready.png")
+
+    assert med._is_confirmed_room_frame(not_ready) is True
+    state, hit = med._hitch_room_ready_contract(not_ready)
+    assert state == "ready" and hit is not None and hit.center == (862, 614)
+    assert med._hitch_room_ready_contract(ready)[0] in {"cancel_ready", "start"}
+    exit_hit = med._find_hitch_exit_button(ready)
+    assert exit_hit is not None and exit_hit.center == (1080, 614)
+
+
+def test_readied_member_room_window_keeps_lobby_flow_off() -> None:
+    med = _med()
+    med.set_phase(Phase.ROOM_WAITING, "test")
+    med._hitch_ready_confirmed_at = time.time() - 10
+    med._hitch_member_room_hwnd = 555
+    med._last_l0_target_hwnds = (7001, 555)
+    lobby = _room("lobby_room_list_812.png", hwnd=7001)
+
+    _result, reasons = _tick(med, lambda f: med._tick_lobby_hitch(f, "ROOM_LIST"), lobby)
+
+    assert reasons == []
+    assert med.phase is Phase.ROOM_WAITING
+    assert med._hitch_sm.pending_join is False
+
+
+def test_hitch_lobby_phase_takes_the_running_game_window() -> None:
+    from shuabao.vision.capture import WindowTarget
+
+    med = _med()
+    med.set_phase(Phase.LOBBY_ROOM, "test")
+    game = _game(OPENING)
+    target = WindowTarget(77, "英雄三国", 0, 0, 1600, 900, role="l1")
+
+    with patch("shuabao.mediator.find_window_targets",
+               side_effect=lambda title="", role=None, **_k: [target] if role == "l1" else []), \
+         patch("shuabao.mediator.capture_target", return_value=game), \
+         contextlib.redirect_stdout(io.StringIO()):
+        frame = med.see("test")
+
+    assert frame is game
+
+
+def test_visible_pressure_button_wins_even_on_attach() -> None:
+    med = _med()
+    med.set_phase(Phase.MAIN_LINE, "startup found existing game")
+    assert med._hitch_opening_pressure_armed is False
+
+    _result, reasons = _tick(med, med._tick_main_line, _game(OPENING))
+
+    assert reasons == ["HitchPressureTransfer"]
+
+
+def test_round_without_pressure_button_goes_on_with_other_work() -> None:
+    med = _med()
+    med.set_phase(Phase.MAIN_LINE, "startup found existing game")
+    frame = _game("game_hud_after_pressure_window.png")
+
+    assert med._maybe_click_hitch_pressure_transfer(frame, time.time()) is None
+    reasons: list[str] = []
+    for _ in range(3):
+        _result, tick_reasons = _tick(med, med._tick_main_line, frame)
+        reasons += tick_reasons
+    assert reasons and "HitchPressureTransfer" not in reasons
+
+
 def test_hero_focus_fallback_ignores_our_own_bag_page() -> None:
     med = _med()
     med.set_phase(Phase.MAIN_LINE, "test")

@@ -98,20 +98,28 @@ class HitchUnverifiedArchiveTests(unittest.TestCase):
 
 
 class HitchMidgameTakeoverTests(unittest.TestCase):
-    def test_midgame_attach_does_not_run_opening_pressure_gate(self) -> None:
+    def test_midgame_attach_still_clicks_a_visible_pressure_button_first(self) -> None:
+        """User rule 2026-09-12: a visible button always goes first, attach or not."""
         med = _hitch_mediator()
         med.set_phase(Phase.MAIN_LINE, "startup found existing game")
         frame = _frame()
+        button = MatchResult("yalizhuanyi", 0.9, 1100, 500, 180, 40, 1190, 520)
+
+        def find(_frame, names, **_kwargs):
+            return button if names == ["yalizhuanyi"] else None
+
         with patch.object(med, "_post_game_state", return_value=None), \
                 patch.object(med, "_find_failure_gift", return_value=None), \
                 patch.object(med, "_find_stage_page", return_value=False), \
                 patch.object(med, "_is_in_game_hud", return_value=True), \
-                patch.object(med, "_maybe_click_hitch_pressure_transfer") as pressure, \
-                patch.object(med, "_ensure_auto_task_enabled", return_value=LoopAction.Continue):
+                patch.object(med, "find", side_effect=find), \
+                patch.object(med, "_ensure_auto_task_enabled") as auto_task, \
+                patch.object(med, "act_click", return_value=True) as click:
             action = med._tick_main_line(frame)
 
         self.assertIs(action, LoopAction.Continue)
-        pressure.assert_not_called()
+        click.assert_called_once_with(button, "HitchPressureTransfer")
+        auto_task.assert_not_called()
 
     def test_natural_joined_ready_room_arms_opening_pressure_gate(self) -> None:
         med = _hitch_mediator()
@@ -126,7 +134,8 @@ class HitchMidgameTakeoverTests(unittest.TestCase):
         self.assertIs(action, LoopAction.Continue)
         self.assertTrue(med._hitch_opening_pressure_armed)
 
-    def test_archive_progress_strip_adopts_an_already_running_round(self) -> None:
+    def test_running_round_without_pressure_button_is_never_held(self) -> None:
+        """A takeover after the button closed must go on with auto-task/challenges."""
         med = _hitch_mediator()
         frame = _frame()
         progress = MatchResult("cundangInfo", 0.95, 20, 45, 96, 20, 68, 55)
@@ -139,10 +148,10 @@ class HitchMidgameTakeoverTests(unittest.TestCase):
                 patch.object(med, "find", side_effect=find):
             action = med._maybe_click_hitch_pressure_transfer(frame, 1.0)
 
-        self.assertIs(action, LoopAction.Continue)
-        self.assertTrue(med._hitch_pressure_transferred)
+        self.assertIsNone(action)
+        self.assertFalse(med._hitch_pressure_transferred, "absence is not a confirmed transfer")
 
-    def test_missing_progress_strip_keeps_pressure_gate_closed(self) -> None:
+    def test_missing_pressure_button_does_not_hold_the_gate(self) -> None:
         med = _hitch_mediator()
         frame = _frame()
         with patch.object(med, "_is_in_game_hud", return_value=True), \
@@ -150,7 +159,7 @@ class HitchMidgameTakeoverTests(unittest.TestCase):
                 patch.object(med, "find", return_value=None):
             action = med._maybe_click_hitch_pressure_transfer(frame, 1.0)
 
-        self.assertIs(action, LoopAction.Continue)
+        self.assertIsNone(action)
         self.assertFalse(med._hitch_pressure_transferred)
 
     def test_victory_page_releases_pressure_gate(self) -> None:

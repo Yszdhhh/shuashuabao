@@ -801,6 +801,7 @@ class Mediator:
         # host, when we sit on floor one (row 1), or when the floor-one player
         # leaves.  Our own row is learnt from the Ready transaction.
         self._hitch_pre_ready_rows: list[str] | None = None
+        self._hitch_member_room_hwnd: int | None = None
         self._hitch_self_row: int | None = None
         self._hitch_floor_one_baseline: np.ndarray | None = None
         self._hitch_floor_one_candidate: np.ndarray | None = None
@@ -829,11 +830,10 @@ class Mediator:
         # own the opening pressure-transfer gate.  A mid-game attach starts
         # false and therefore never guesses that the opening action is pending.
         self._hitch_opening_pressure_armed = False
-        # P0-4：压力转移点击后的后置条件验证锚点（确认按钮消失才算成功）
-        # G0 Phase A：按钮从未出现时的有界 fresh reobserve 预算（次数制，
-        # 与点击/重试 budget 数值风格一致）。耗尽 → core failed。
-        self._hitch_pressure_observe_budget = 40
+        # P0-4：压力转移点击后的后置条件验证锚点（fresh 帧按钮消失才算成功）。
+        # 用户规则 2026-09-12：按钮可见即优先点，不可见绝不阻塞局内流程。
         self._hitch_pressure_click_at: float | None = None
+        self._hitch_pressure_seen_since: float | None = None
         self._hitch_pressure_request_generation: int | None = None
         self._hitch_pressure_retry_count: int = 0
         self._hitch_refresh_required = False
@@ -1523,7 +1523,14 @@ class Mediator:
         }
         role = "l0" if self.phase in l0_phases else "l1"
         frame = None
-        if self.phase in (Phase.BOOT, Phase.ROOM_WAITING):
+        game_probe_phases = {Phase.BOOT, Phase.ROOM_WAITING}
+        if self._hitch_enabled():
+            # User rule: a running 英雄三国 window owns the view.  Live
+            # 2026-09-12 a hitch run knocked back to LOBBY_ROOM kept staring at
+            # the minimized KK lobby while its round played with zero input.
+            # (WAIT_EXIT is excluded: that is the game window closing.)
+            game_probe_phases |= {Phase.LOBBY_ROOM, Phase.PREPARE}
+        if self.phase in game_probe_phases:
             game_frame = self._probe_l1_game_frame()
             if game_frame is not None:
                 if self.phase == Phase.BOOT:
@@ -1532,7 +1539,7 @@ class Mediator:
                     )
                 else:
                     print(
-                        f"[L0] ROOM_WAITING 发现英雄三国窗口 hwnd={game_frame.hwnd}，观察移交 L1 游戏帧"
+                        f"[L0] {self.phase.name} 发现英雄三国窗口 hwnd={game_frame.hwnd}，观察移交 L1 游戏帧"
                     )
                 frame = game_frame
                 role = "l1"
@@ -6484,146 +6491,67 @@ class Mediator:
             return LoopAction.Continue
         return None
 
+    # User rule (2026-09-12): whenever the pressure-transfer button is on
+    # screen it is the first thing to click; without it nothing waits for it.
+    _HITCH_PRESSURE_CLICK_COOLDOWN_S = 3.0
+    # KK closes the button about 60s into the round.  Inside this window the
+    # visible button also holds other input between clicks; past it (a stuck
+    # or mis-detected button) it is still clicked first but no longer holds.
+    _HITCH_PRESSURE_PRIORITY_WINDOW_S = 60.0
+
     def _maybe_click_hitch_pressure_transfer(self, frame: Frame, now: float) -> LoopAction | None:
-        """蹭车模式的 P0 压力转移门禁（core action）。
+        """Pressure transfer: first priority while visible, never a blocker.
 
-        只要本局压力转移尚未由 fresh HUD 证实完成，调用方就必须停在这里：
-        不得放行自动任务、四挑战、商店、宝物或任何其他局内输入。点击成功
-        只记录 request；只有后续 fresh 帧确认按钮消失，才置
-        ``_hitch_pressure_transferred = True``。时间窗口或重试次数绝不构成成功。
-
-        G0 P0 contract #4：固定 bounded budget（5 次点击 request）内仍无法
-        fresh 证实完成 → 记录 incident 并置 ``_hitch_pressure_core_failed``。
-        core failed 本局永不计作 pressure success，也永不释放 optional
-        business actions；但调用方继续观察 victory/failure/exit 生命周期，
-        每 tick 零输入等待 outcome——不 stop、不进入不可观测状态。
+        * button visible -> click it (cooldown between clicks); inside the
+          priority window the ticks between clicks stay zero input so no
+          panel opens over it;
+        * button not visible -> ``None``: auto-task, the four challenges and
+          everything else proceed.  A takeover mid-round or a round without
+          the button therefore never hangs on it;
+        * ``_hitch_pressure_transferred`` is telemetry only: set when a fresh
+          frame no longer shows the button after our click.
         """
         if not self._team_mode_enabled():
             return None
-        if getattr(self, "_hitch_pressure_transferred", False):
-            return None
-        # 胜利/暂停/存档/广场已经不是开局压力转移窗口。门禁若挡在
-        # ContinueGame 前面，接管会在胜利画面上零输入直到人工停止。
         if self._post_game_state(frame) is not None:
             return None
-        # A runtime can attach after the host has already completed the
-        # opening pressure-transfer step. The stable top ``存档挑战`` marker is
-        # real in-game progress (for example 2-7), not a timer or generic HUD
-        # glyph. With no pressure button and no classified post-game page it
-        # is an explicit mid-game takeover fact; otherwise the normal
-        # click-then-disappear postcondition gate remains in force.
-        if self._adopt_hitch_midgame_takeover(frame):
-            return LoopAction.Continue
-        if getattr(self, "_hitch_pressure_core_failed", False):
-            # core failed：本局剩余时间每 tick 零输入等待 outcome；调用方
-            # 持续可观察（victory/failure/exit 生命周期不受影响）。
-            return LoopAction.Continue
         if not self._is_in_game_hud(frame):
-            # 未能确认局内 HUD 时也不能把压力转移门禁降级为普通主线。
-            return LoopAction.Continue
-        click_at = getattr(self, "_hitch_pressure_click_at", None)
-        if click_at is not None:
-            req_gen = getattr(self, "_hitch_pressure_request_generation", None)
-            cur_evidence = self._ensure_evidence(frame)
-            cur_gen = cur_evidence.gen if cur_evidence else None
-            # C2 修复：同一 request 帧绝不 confirm；必须当前 evidence generation 明确晚于 request 帧
-            if req_gen is not None and cur_gen is not None and cur_gen <= req_gen:
-                return LoopAction.Continue
-
-            # 后置条件验证：必须是可信局内 HUD，且按钮已消失才置 transferred = True
-            hit = self.find(
-                frame,
-                ["yalizhuanyi"],
-                threshold=0.65,
-                roi=(0.30, 0.50, 0.90, 0.95),
-            )
-            if hit is None:
-                self._hitch_pressure_transferred = True
-                self._hitch_pressure_click_at = None
-                print("[med] 压力转移按钮已消失，转移后置条件确认")
-                # 在确认帧本身不穿透到后续局内动作；从下一 tick 才放行。
-                return LoopAction.Continue
-            elif now - click_at >= 5.0:
-                # 按钮还在且已过 5 秒：仅允许重新尝试压力转移。次数只作
-                # 诊断，绝不能成为放行其他局内动作的理由。
-                retries = getattr(self, "_hitch_pressure_retry_count", 0) + 1
-                self._hitch_pressure_retry_count = retries
-                self._hitch_pressure_request_attempts = getattr(self, "_hitch_pressure_request_attempts", 0) + 1
-                if self._hitch_pressure_request_attempts >= 5:
-                    self._mark_pressure_core_failed(now, "retry budget exhausted")
-                    return LoopAction.Continue
-                print(f"[med] 压力转移点击后按钮仍可见（后置条件未确认），继续重试 ({retries})")
-                self._hitch_pressure_click_at = None
-            # 等待确认/重试期间是强制零输入门禁。
-            return LoopAction.Continue
-
-        # 优先在屏幕中下方/右下方区域找压力转移按钮
+            return None
         hit = self.find(
             frame,
             ["yalizhuanyi"],
             threshold=0.65,
             roi=(0.30, 0.50, 0.90, 0.95),
         )
-        if hit:
-            print(f"[med] 发现开局压力转移按钮 @ {hit.center}")
+        click_at = getattr(self, "_hitch_pressure_click_at", None)
+        if hit is None:
+            if click_at is not None:
+                evidence = self._ensure_evidence(frame)
+                cur_gen = evidence.gen if evidence else None
+                req_gen = getattr(self, "_hitch_pressure_request_generation", None)
+                if req_gen is None or cur_gen is None or cur_gen > req_gen:
+                    self._hitch_pressure_transferred = True
+                    self._hitch_pressure_click_at = None
+                    print("[med] 压力转移按钮已消失，转移后置条件确认")
+            self._hitch_pressure_seen_since = None
+            return None
+
+        seen_since = getattr(self, "_hitch_pressure_seen_since", None)
+        if seen_since is None:
+            seen_since = self._hitch_pressure_seen_since = now
+        if click_at is None or now - click_at >= self._HITCH_PRESSURE_CLICK_COOLDOWN_S:
+            print(f"[med] 发现压力转移按钮 @ {hit.center}，优先点击")
             if self.act_click(hit, "HitchPressureTransfer"):
                 self._hitch_pressure_click_at = now
+                self._hitch_pressure_request_attempts = (
+                    getattr(self, "_hitch_pressure_request_attempts", 0) + 1
+                )
                 evidence = self._ensure_evidence(frame)
                 self._hitch_pressure_request_generation = evidence.gen if evidence else 0
-                print("[med] 压力转移按钮已点击，等待后置条件确认（按钮消失）")
-                return LoopAction.Continue
-            # 点击被门禁/执行器拒绝：计入 bounded budget 的消耗。
-            self._hitch_pressure_request_attempts = getattr(self, "_hitch_pressure_request_attempts", 0) + 1
-            if self._hitch_pressure_request_attempts >= 5:
-                self._mark_pressure_core_failed(now, "click rejected budget exhausted")
-                return LoopAction.Continue
-        # 看不到按钮也不能猜测已经完成；保持零输入观察，直到看到并点击，
-        # 再由 fresh 帧证实它消失。
-        # G0 Phase A：按钮从未出现也不能无限等；有界 fresh reobserve 预算
-        #（次数制，与 click/retry budget 数值风格一致）。预算内每 tick 零
-        # 输入观察；耗尽 → core failed（记 incident，不释放 optional）。
-        self._hitch_pressure_observe_budget -= 1
-        if self._hitch_pressure_observe_budget <= 0:
-            self._mark_pressure_core_failed(now, "pressure button never observed budget exhausted")
             return LoopAction.Continue
-        print("[med] 蹭车压力转移尚未确认，保持门禁并等待按钮")
-        return LoopAction.Continue
-
-    def _adopt_hitch_midgame_takeover(self, frame: Frame) -> bool:
-        """Adopt a verified already-running hitch round without guessing.
-
-        ``cundangInfo`` is rendered in the top progress strip once the map is
-        already in archive-challenge progression. It is accepted only with a
-        production HUD classification, no visible pressure-transfer control,
-        and no classified post-game page. Absence of a button alone never
-        grants input authority.
-        """
-        if not self._team_mode_enabled() or not self._is_in_game_hud(frame):
-            return False
-        if self._post_game_state(frame) is not None:
-            return False
-        pressure = self.find(
-            frame,
-            ["yalizhuanyi"],
-            threshold=0.65,
-            roi=(0.30, 0.50, 0.90, 0.95),
-        )
-        if pressure is not None:
-            return False
-        progress = self.find(
-            frame,
-            ["cundangInfo"],
-            threshold=0.85,
-            scales=self._hot_scales(),
-            roi=(0.0, 0.0, 0.30, 0.18),
-        )
-        if progress is None:
-            return False
-        self._hitch_pressure_transferred = True
-        self._hitch_pressure_click_at = None
-        self._hitch_pressure_request_generation = None
-        print("[med] 识别到中场存档挑战进度条且压力转移按钮不存在，接手蹭车局内循环")
-        return True
+        if now - seen_since < self._HITCH_PRESSURE_PRIORITY_WINDOW_S:
+            return LoopAction.Continue
+        return None
 
     def _hitch_arm_opening_pressure(self, why: str) -> bool:
         """Arm the opening pressure-transfer gate on the room -> round edge.
@@ -6642,20 +6570,6 @@ class Mediator:
             print(f"[med] 蹭车开局压力转移门禁已武装（{why}）")
         self._hitch_opening_pressure_armed = natural
         return natural
-
-    def _mark_pressure_core_failed(self, now: float, reason: str) -> None:
-        """G0 P0 contract #4：压力 core action 在 bounded budget 内未证实完成。"""
-        if getattr(self, "_hitch_pressure_core_failed", False):
-            return
-        self._hitch_pressure_core_failed = True
-        click_at = getattr(self, "_hitch_pressure_click_at", None)
-        self._hitch_pressure_click_at = None
-        print(f"[med] 压力转移 core failed（{reason}），本局只等待 outcome，不释放 optional actions")
-        # incident 第二参数是 elapsed 语义：从最后一次 request 起算的真实耗时。
-        self._record_environment_incident(
-            "hitch_pressure_core_failed", max(0.0, now - click_at) if click_at is not None else 0.0
-        )
-
 
     def _find_secret_realm_npc(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
@@ -7661,11 +7575,11 @@ class Mediator:
             self._auto_task_recheck_at = 0.0
             self._hitch_pressure_transferred = False
             self._hitch_pressure_click_at = None
+            self._hitch_pressure_seen_since = None
             self._hitch_pressure_request_generation = None
             self._hitch_pressure_retry_count = 0
             self._hitch_pressure_request_attempts = 0
             self._hitch_pressure_core_failed = False
-            self._hitch_pressure_observe_budget = 40
             self._archaeology_handoff_pending = False
             self._archaeology_click_at = None
             self._archaeology_click_generation = None
@@ -8787,7 +8701,81 @@ class Mediator:
         self,
         frame: Frame,
     ) -> tuple[tuple[int, int, int, int], list[tuple[MatchResult, int]]] | None:
-        """Return multi-signal ROOM evidence without low-information assets."""
+        """Return multi-signal ROOM evidence without low-information assets.
+
+        The classic contract reads KK's default blue action bar.  Decorated
+        (VIP-skinned) rooms paint those controls gold, so a skin-independent
+        seat-table + label contract backs it up with no controls attached.
+        """
+        classic = self._hitch_room_surface_evidence_classic(frame)
+        if classic is not None:
+            return classic
+        skinless = self._hitch_room_skinless_evidence(frame)
+        if skinless is not None:
+            return skinless["cover"], []
+        return None
+
+    # Action-bar slots, artwork-relative like the seat table: the primary
+    # control (准备 / 取消准备 / 开始游戏 / 等待准备) and 退出.  Their white label
+    # pixel count (V>=200, S<=60, at the 188px artwork scale) does not depend
+    # on the room skin: measured on the default blue and the gold VIP theme,
+    # two characters give 120-165, four characters 260-335, the greyed
+    # 等待准备 zero.
+    _ROOM_PRIMARY_SLOT = (690.0, 423.0, 140.0, 36.0)
+    _ROOM_EXIT_SLOT = (934.0, 423.0, 88.0, 36.0)
+    _ROOM_TWO_CHAR_LABEL = (80, 220)
+    _ROOM_FOUR_CHAR_LABEL_MIN = 230
+
+    def _hitch_room_slot(
+        self, frame: Frame, cover: tuple[int, int, int, int], slot: tuple[float, float, float, float],
+        name: str,
+    ) -> tuple[float, MatchResult] | None:
+        """White label pixels in one action-bar slot, plus its click target."""
+        if frame.bgr is None:
+            return None
+        cx, cy, cw, _ch = cover
+        k = cw / self._ROOM_ART_PX
+        dx, dy, w, h = slot
+        x0, y0 = cx + int(round(dx * k)), cy + int(round(dy * k))
+        x1, y1 = x0 + int(round(w * k)), y0 + int(round(h * k))
+        if x0 < 0 or y0 < 0 or x1 > frame.width or y1 > frame.height or x1 - x0 < 8 or y1 - y0 < 8:
+            return None
+        hsv = cv2.cvtColor(frame.bgr[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+        rh, rw = hsv.shape[:2]
+        inner = hsv[int(rh * 0.2):int(rh * 0.8), int(rw * 0.1):int(rw * 0.9)]
+        white = int(np.count_nonzero((inner[..., 2] >= 200) & (inner[..., 1] <= 60)))
+        count = white / max(k * k, 1e-6)
+        mx, my = (x0 + x1) // 2, (y0 + y1) // 2
+        return count, MatchResult(name, 1.0, x0, y0, x1 - x0, y1 - y0, frame.left + mx, frame.top + my)
+
+    def _hitch_room_skinless_evidence(self, frame: Frame) -> dict | None:
+        """ROOM identity from the seat table and the 退出 label, any skin."""
+        def compute() -> dict | None:
+            cover = self._hitch_room_cover(frame)
+            if cover is None:
+                return None
+            rows = self._hitch_room_rows(frame)
+            if not rows or not any(row["status"] == "host" or row["combo"] for row in rows):
+                return None
+            exit_slot = self._hitch_room_slot(frame, cover, self._ROOM_EXIT_SLOT, "room_exit")
+            lo, hi = self._ROOM_TWO_CHAR_LABEL
+            if exit_slot is None or not lo <= exit_slot[0] <= hi:
+                return None
+            primary = self._hitch_room_slot(frame, cover, self._ROOM_PRIMARY_SLOT, "room_primary_action")
+            return {
+                "cover": cover,
+                "exit": exit_slot[1],
+                "primary": None if primary is None else primary[1],
+                "primary_white": 0.0 if primary is None else primary[0],
+            }
+
+        return self._memo(("hitch_room_skinless",), frame, compute)
+
+    def _hitch_room_surface_evidence_classic(
+        self,
+        frame: Frame,
+    ) -> tuple[tuple[int, int, int, int], list[tuple[MatchResult, int]]] | None:
+        """The default blue action-bar ROOM contract."""
         cover = self._hitch_room_cover(frame)
         if cover is None:
             return None
@@ -8844,6 +8832,18 @@ class Mediator:
         if surface is None:
             return "unknown", None
         _cover, controls = surface
+        if not controls:
+            # Skinned room: read the primary label length instead of colour.
+            skinless = self._hitch_room_skinless_evidence(frame)
+            if skinless is None or skinless["primary"] is None:
+                return "unknown", None
+            white = skinless["primary_white"]
+            lo, hi = self._ROOM_TWO_CHAR_LABEL
+            if lo <= white <= hi:
+                return "ready", replace(skinless["primary"], name="room_ready")
+            if white >= self._ROOM_FOUR_CHAR_LABEL_MIN:
+                return ("start" if self._find_room_start(frame) is not None else "cancel_ready"), None
+            return "unknown", None
         primary = next((item for item in controls if item[0].x < int(frame.width * 0.82)), None)
         if primary is None:
             return "unknown", None
@@ -8941,6 +8941,12 @@ class Mediator:
         # The modern dark-blue Exit control is intentionally excluded from
         # the saturated-blue geometry scan above; use its dedicated semantic
         # template as the fallback, still scoped to the confirmed ROOM page.
+        # Next the artwork-relative 退出 slot with a verified 2-char label: it
+        # holds for skinned rooms and for client sizes where the blue scan
+        # band clips the button (the template then matched the top bar).
+        skinless = self._hitch_room_skinless_evidence(frame)
+        if skinless is not None:
+            return skinless["exit"]
         hit = self.find(frame, ["room_exit_btn"], threshold=0.75)
         if hit is not None and hit.x > frame.width * 0.80:
             return replace(hit, name="room_exit")
@@ -9586,6 +9592,7 @@ class Mediator:
         self._hitch_floor_exit_confirm_clicks = 0
         self._hitch_floor_exit_confirm_at = None
         # Seat knowledge belongs to one room visit.
+        self._hitch_member_room_hwnd = None
         self._hitch_pre_ready_rows = None
         self._hitch_self_row = None
         self._hitch_floor_one_baseline = None
@@ -9991,6 +9998,9 @@ class Mediator:
     _HITCH_STALL_ESC_L0_S = 30.0
     _HITCH_STALL_ESC_GAME_S = 60.0
     _HITCH_READY_WAIT_S = 70.0
+    # Upper bound for holding the lobby flow while our readied room's window
+    # still exists but is not recognised (ready wait + exit + margin).
+    _HITCH_MEMBER_ROOM_HOLD_S = 150.0
     # Lobby/room phases whose every KK surface stays unusable this long end in
     # an explicit BLOCKED (ERROR) instead of zero-input observation forever.
     _HITCH_L0_UNHEALTHY_BLOCK_S = 120.0
@@ -10109,6 +10119,22 @@ class Mediator:
             if self._is_game_client_frame(frame):
                 return self._hitch_quit_misopened_stage()
             print("[L0] hitch 忽略非游戏窗口的 STAGE_SELECT 晋级请求，零输入保持大厅状态")
+            return LoopAction.Continue
+        if self._is_game_client_frame(frame) and not self._lobby_room_list_evidence(frame):
+            # A game window (loading, prelude panels) never gets lobby search,
+            # tab or join authority (nor the lobby stall-watchdog Esc); the
+            # in-game HUD hands over to MAIN_LINE.  A timed-out join is still
+            # settled so its row is skipped and the list refreshed later.
+            sm = self._hitch_sm
+            if (
+                sm.pending_join
+                and sm.join_clicked_at is not None
+                and now - sm.join_clicked_at >= sm.join_confirm_timeout_s
+            ):
+                self._hitch_reject_pending_join(now, "join_rejected")
+                self._hitch_search_actions.append("reject")
+            self._hitch_status = "game_window_align"
+            print("[L0] hitch 英雄三国窗口已在前台流程中，零输入等待局内状态对齐")
             return LoopAction.Continue
         if frame.bgr is None or not frame.bgr.size or float(np.mean(frame.bgr)) < 3.0:
             print("[L0] hitch 黑帧/空帧，零输入等待可信大厅页面")
@@ -10430,6 +10456,7 @@ class Mediator:
                 if self.act_click(ready_hit, "HitchReady"):
                     self._hitch_pending_row_y = None
                     self._hitch_status = "已点击准备"
+                    self._hitch_member_room_hwnd = frame.hwnd
                     self._hitch_note_pre_ready_rows(frame)
                     print(f"[L0] hitch 点击客人准备: ({ready_hit.screen_x}, {ready_hit.screen_y})")
                 else:
@@ -10496,6 +10523,23 @@ class Mediator:
             return LoopAction.Continue
         if self._hitch_re_search and not in_room:
             self._hitch_re_search = False
+        member_room = getattr(self, "_hitch_member_room_hwnd", None)
+        ready_at = getattr(self, "_hitch_ready_confirmed_at", None)
+        if (
+            self.phase == Phase.ROOM_WAITING
+            and member_room is not None
+            and frame.hwnd != member_room
+            and member_room in getattr(self, "_last_l0_target_hwnds", ())
+            and (ready_at is None or now - ready_at < self._HITCH_MEMBER_ROOM_HOLD_S)
+        ):
+            # We readied in that room and its window still exists (a skinned
+            # room page, the start countdown).  Live 2026-09-12 losing its
+            # classification sent the lobby flow to join another room while
+            # ours was starting.  Only a verified exit, a kick prompt or the
+            # room window disappearing may return us to the room list.
+            self._hitch_status = "member_room_still_open"
+            print("[L0] hitch 已准备的房间窗口仍在，不回大厅找房（零输入）")
+            return LoopAction.Continue
         main_nav = None
         lobby_list = self._lobby_room_list_evidence(frame)
         if lobby_list:
@@ -11100,7 +11144,7 @@ class Mediator:
                 if self.phase == Phase.ROOM_WAITING and not self._is_in_game_hud(frame):
                     print("[L0] ROOM_WAITING 游戏帧缺少可信局内 HUD，零输入等待状态对齐")
                     return LoopAction.Continue
-                if self.phase == Phase.ROOM_WAITING and self._hitch_arm_opening_pressure(
+                if self.phase in (Phase.ROOM_WAITING, Phase.LOBBY_ROOM) and self._hitch_arm_opening_pressure(
                     "room -> in-game HUD"
                 ):
                     # The natural room -> round entry: the first fresh in-game
@@ -12955,13 +12999,11 @@ class Mediator:
         if (
             not secret_entry_observation
             and self._hitch_enabled()
-            and self._hitch_opening_pressure_armed
             and post_game is None
-            and not getattr(self, "_hitch_pressure_core_failed", False)
         ):
-            # 蹭车开局的唯一 P0：压力转移未被 fresh HUD 证实完成前，任何
-            # 其他局内路径（失败奖励、Boss、选卡、黑商、自动任务、四挑战等）
-            # 都没有输入权。这个门禁必须在所有局内分发之前。
+            # 用户规则（2026-09-12）：画面里只要有压力转移按钮，永远先点它；
+            # 没有按钮就不等待，自动任务、四挑战等照常进行（中途接管、按钮已
+            # 自动关闭的局也不会卡死）。必须在所有局内分发之前检查。
             pt_res = self._maybe_click_hitch_pressure_transfer(frame, now)
             if pt_res is not None:
                 return pt_res
@@ -13028,16 +13070,6 @@ class Mediator:
         if fail_gift is not None:
             print(f"[med] 拦截到失败结算奖励弹窗 @ {fail_gift.center}，点击关闭")
             self.act_click(fail_gift, "DismissFailureReward")
-            return LoopAction.Continue
-        # G0 contract #4：压力 core failed → 本局零输入等待 outcome。置于
-        # round hard deadline 与失败奖励拦截之后：deadline/post_game 生命周期
-        # 仍每 tick 可观察；不 stop、不进入不可观测状态。
-        if (
-            not secret_entry_observation
-            and self._hitch_enabled()
-            and post_game is None
-            and getattr(self, "_hitch_pressure_core_failed", False)
-        ):
             return LoopAction.Continue
         # 若没有弹窗（_panel_state == CLOSED），但右下角未检测到英雄操作/技能/神符面板，
         # 说明视角或焦点未锁定在英雄上，主动发送 F1 键切回英雄操作面板。
@@ -13582,13 +13614,10 @@ class Mediator:
         has_card = (not has_hero) and (bool(anchor) or self._panel_state != PanelState.CLOSED)
         # 商店检测在存在中央选卡/进化/词条弹窗或主线处于前置主动步骤(F/G/V/进化/装备/拾取)时严格抑制，绝不插队抢点击
         mainline_proactive_active = self._l1_cycle_step in ("bond", "skill", "treasure", "evolve", "equipment", "pickup")
+        # A visible pressure button already returned above; its absence never
+        # holds anything, so only auto-task and the four challenges bootstrap.
         hitch_bootstrap_pending = self._passenger_mode() and (
-            (
-                self._hitch_enabled()
-                and self._hitch_opening_pressure_armed
-                and not self._hitch_pressure_transferred
-            )
-            or not self._auto_task_done
+            not self._auto_task_done
             or len(self._challenge_done) < len(self._challenge_states)
         )
         has_merchant = False if (

@@ -2,7 +2,8 @@
 
 覆盖契约：
 1. 压力转移 fresh confirmation：click 仅 request，fresh frame + yalizhuanyi 消失才 confirmed。
-2. 压力 bounded budget 耗尽 → _hitch_pressure_core_failed；optional 不放行但 POST_VICTORY 可观察。
+2. 压力转移（用户规则 2026-09-12）：按钮可见就优先点（有冷却、60s 优先窗口内阻塞其他输入）；
+   按钮不可见绝不阻塞局内流程，也没有 core-failed 整局零输入。
 3. 压力 gate 不遮蔽强失败/disconnect 全局抢占。
 4. _tick_main_line 中 postgame 分类先于压力 gate。
 5. Normal farm：同房返回证明 → leave-old-room episode；fresh room-list authority 才 PLATFORM_MAP。
@@ -144,77 +145,48 @@ class G0PressureTransferTests(unittest.TestCase):
             self.assertEqual(len(med.executor.action_ledger), 0, "零按钮期间零输入")
 
 
-class G0PressureBudgetTests(unittest.TestCase):
-    """契约 #2：bounded budget（5 次 request）耗尽 → core failed。"""
+class G0PressurePriorityTests(unittest.TestCase):
+    """契约 #2：可见即优先点击；不可见绝不阻塞；无 core-failed 整局零输入。"""
 
-    def _rejected_click_mediator(self) -> Mediator:
+    def _visible_button_mediator(self) -> Mediator:
         clock = FakeClock(start=100.0)
         med = _hitch_mediator(clock)
-        med.set_phase(Phase.MAIN_LINE, "pressure budget")
-        med._capture_best = lambda *a, **k: _noise_frame(seed=21)
-        click_hit = _hit("yalizhuanyi")
-        for p in _pressure_tick_patches(med, click_hit):
+        med.set_phase(Phase.MAIN_LINE, "pressure priority")
+        for p in _pressure_tick_patches(med, _hit("yalizhuanyi")):
             p.start()
             self.addCleanup(p.stop)
         return med
 
-    def test_click_rejected_budget_exhausts_to_core_failed(self) -> None:
-        med = self._rejected_click_mediator()
-        with patch.object(med, "act_click", return_value=False):
-            for attempt in range(1, 6):
-                res = med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=21 + attempt), time.time())
-                self.assertIs(res, LoopAction.Continue)
-                if attempt < 5:
-                    self.assertFalse(med._hitch_pressure_core_failed)
-        self.assertTrue(med._hitch_pressure_core_failed, "5 次被拒后 core failed")
-        self.assertFalse(med._hitch_pressure_transferred, "core failed 永不计作 pressure success")
-        # core failed 后每 tick 零输入 Continue（不再点击/不 stop）
-        res = med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=99), time.time())
-        self.assertIs(res, LoopAction.Continue)
+    def test_visible_button_clicked_with_cooldown_and_window_hold(self) -> None:
+        med = self._visible_button_mediator()
+        cooldown = Mediator._HITCH_PRESSURE_CLICK_COOLDOWN_S
+        window = Mediator._HITCH_PRESSURE_PRIORITY_WINDOW_S
+        with patch.object(med, "act_click", return_value=True) as click:
+            self.assertIs(med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=21), 0.0), LoopAction.Continue)
+            self.assertEqual(click.call_count, 1)
+            # 冷却内：不重复点击，但窗口内仍阻塞其他输入
+            self.assertIs(med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=22), 1.0), LoopAction.Continue)
+            self.assertEqual(click.call_count, 1)
+            # 冷却到：按钮仍在 → 再次优先点击
+            self.assertIs(med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=23), cooldown + 0.1), LoopAction.Continue)
+            self.assertEqual(click.call_count, 2)
+            # 优先窗口过后、冷却内：不再阻塞（None），但冷却一到仍先点
+            late = window + 1.0
+            med._hitch_pressure_click_at = late - 0.5
+            self.assertIsNone(med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=24), late))
+            self.assertIs(med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=25), late + cooldown), LoopAction.Continue)
+            self.assertEqual(click.call_count, 3)
+        self.assertFalse(getattr(med, "_hitch_pressure_core_failed", False))
 
-    def test_retry_budget_exhausts_to_core_failed(self) -> None:
-        med = self._rejected_click_mediator()
-        now = time.time()
-        with patch.object(med, "act_click", return_value=True):
-            med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=31), now)
-            self.assertFalse(med._hitch_pressure_core_failed)
-            # 按钮始终可见 + 每次等待 ≥5s：retry 与重新 click 交替消耗 budget，
-            # 第 5 次 retry request 耗尽（calls 2,4,6,8,10）。
-            for i in range(9):
-                now += 6.0
-                res = med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=32 + i), now)
+    def test_rejected_click_retries_after_cooldown_without_core_failed(self) -> None:
+        med = self._visible_button_mediator()
+        with patch.object(med, "act_click", return_value=False) as click:
+            for i in range(8):
+                res = med._maybe_click_hitch_pressure_transfer(_noise_frame(seed=31 + i), float(i) * 4.0)
                 self.assertIs(res, LoopAction.Continue)
-                if i < 8:
-                    self.assertFalse(med._hitch_pressure_core_failed)
-        self.assertTrue(med._hitch_pressure_core_failed, "bounded retry budget 耗尽 → core failed")
+        self.assertEqual(click.call_count, 8, "被拒的点击不进入冷却，按钮在就继续尝试")
+        self.assertFalse(getattr(med, "_hitch_pressure_core_failed", False))
         self.assertFalse(med._hitch_pressure_transferred)
-
-    def test_core_failed_blocks_optional_but_postgame_observable(self) -> None:
-        clock = FakeClock(start=100.0)
-        med = _hitch_mediator(clock)
-        med.set_phase(Phase.MAIN_LINE, "core failed wait")
-        med._hitch_pressure_core_failed = True
-        frame = _noise_frame(seed=41)
-        with patch.object(med, "_hitch_ocr_text", return_value=""), \
-                patch.object(med, "_find_failure_gift", return_value=None), \
-                patch.object(med, "_post_game_state", return_value=None), \
-                patch.object(med, "_maybe_click_hitch_pressure_transfer") as gate:
-            # 无 post-game：零输入等待 outcome；压力 gate 也不应再被推进
-            self.assertIs(med._tick_main_line(frame), LoopAction.Continue)
-            gate.assert_not_called()
-            self.assertEqual(len(med.executor.action_ledger), 0, "optional actions 不放行")
-        # POST_VICTORY 仍可观察/可路由：post-game 分类先于 core-failed 等待
-        med.set_phase(Phase.MAIN_LINE, "core failed victory")
-        with patch.object(med, "_hitch_ocr_text", return_value=""), \
-                patch.object(med, "_find_failure_gift", return_value=None), \
-                patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
-                patch.object(med, "_maybe_click_hitch_pressure_transfer") as gate, \
-                patch.object(med, "find", return_value=_hit("continueGame", 800, 560)):
-            self.assertIs(med._tick_main_line(frame), LoopAction.Continue)
-            gate.assert_not_called()
-        continue_clicks = [r for r in med.executor.action_ledger if r.method == "click"]
-        self.assertEqual(len(continue_clicks), 1, "POST_VICTORY 链路仍产生 ContinueGame 输入")
-        self.assertTrue(med._post_game_pending)
 
 
 class G0MainLineOrderingTests(unittest.TestCase):
@@ -633,50 +605,25 @@ class G0CycleCompleteArchaeologyEndToEndTests(unittest.TestCase):
 
 
 
-class G0PressureMissingButtonBudgetTests(unittest.TestCase):
-    """Phase A：fresh HUD 连续看不到压力按钮 → 有界观察预算耗尽 → core failed。
+class G0PressureMissingButtonTests(unittest.TestCase):
+    """用户规则 2026-09-12：看不到压力转移按钮时，局内流程照常进行。"""
 
-    全程零盲点输入；core failed 后 POST_VICTORY 仍可抢占观察。
-    """
-
-    def test_missing_button_budget_exhausts_to_core_failed_without_clicks(self) -> None:
+    def test_missing_button_never_holds_main_line(self) -> None:
         clock = FakeClock(start=100.0)
         med = _hitch_mediator(clock)
         med.set_phase(Phase.MAIN_LINE, "pressure missing")
         frame = _noise_frame(seed=51)
-        med._capture_best = lambda *a, **k: frame
+        med._auto_task_done = True
         patches = _pressure_tick_patches(med, None)
-        act_click = patch.object(med, "act_click")
-        patches.append(act_click)
-        with clock.install(), _Ctx(patches):
-            # 预算内：每 tick 零输入 Continue，绝不 core failed
-            for _ in range(39):
-                clock.advance(1.0)
-                self.assertIs(med.tick(), LoopAction.Continue)
-                self.assertFalse(med._hitch_pressure_core_failed, "预算内不得提前 fail")
-            # 第 40 次 miss → 预算耗尽 → core failed
-            clock.advance(1.0)
-            self.assertIs(med.tick(), LoopAction.Continue)
-            self.assertTrue(med._hitch_pressure_core_failed, "预算耗尽 → core failed")
-            med.act_click.assert_not_called()
-        self.assertFalse(med._hitch_pressure_transferred, "core failed 永不计作 pressure success")
-        self.assertEqual(len(med.executor.action_ledger), 0, "全程零盲点输入")
-
-    def test_core_failed_by_missing_budget_postgame_still_preempts(self) -> None:
-        med = _hitch_mediator(FakeClock(start=100.0))
-        med.set_phase(Phase.MAIN_LINE, "missing budget exhausted")
-        med._hitch_pressure_core_failed = True
-        frame = _noise_frame(seed=53)
-        with patch.object(med, "_hitch_ocr_text", return_value=""), \
-                patch.object(med, "_find_failure_gift", return_value=None), \
-                patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
-                patch.object(med, "_maybe_click_hitch_pressure_transfer") as gate, \
-                patch.object(med, "find", return_value=_hit("continueGame", 800, 560)):
+        patches.append(patch.object(med, "_ensure_auto_task_enabled", return_value=None))
+        with _Ctx(patches),                 patch.object(med, "_ensure_challenge_buttons", return_value=LoopAction.Continue) as challenges,                 patch.object(med, "act_click") as click:
+            for i in range(45):
+                self.assertIsNone(med._maybe_click_hitch_pressure_transfer(frame, 100.0 + i))
             self.assertIs(med._tick_main_line(frame), LoopAction.Continue)
-            gate.assert_not_called()
-        continue_clicks = [r for r in med.executor.action_ledger if r.method == "click"]
-        self.assertEqual(len(continue_clicks), 1, "POST_VICTORY 链路仍可抢占观察")
-        self.assertTrue(med._post_game_pending)
+        challenges.assert_called_once()
+        click.assert_not_called()
+        self.assertFalse(getattr(med, "_hitch_pressure_core_failed", False))
+        self.assertFalse(med._hitch_pressure_transferred, "absence is never a confirmed transfer")
 
 
 class G0ArchaeologyTemplateMissBudgetTests(unittest.TestCase):
