@@ -1035,6 +1035,7 @@ class Mediator:
         self._public_bag_fsm = PublicBagFSM()
         self._public_bag_next_at = 0.0
         self._public_bag_empty_since: float | None = None
+        self._public_bag_open_since: float | None = None
         self._public_bag_deposit_before: tuple[float, int] | None = None
         # 搬不动的格子（装备栏里的在装武器等）：连续失败两次就本局跳过，
         # 否则冷却到期后会一直回来重试同一格。
@@ -1198,8 +1199,10 @@ class Mediator:
                 return True
             if self.find(frame, ["shortKey"], threshold=th, scales=self._hot_scales(), roi=self._ENV_SHORTKEY_ROI):
                 return True
-            if self.find(frame, ["mainIdentifier"], threshold=th, scales=self._hot_scales()):
-                return True
+            # mainIdentifier is the "等待玩家1选择难度" banner of the in-game
+            # stage lobby (see _host_choosing_difficulty), never HUD evidence:
+            # counting it made a waiting guest "enter" MAIN_LINE before the
+            # round started (live 2026-09-11 23:42, pressure/auto-task lost).
             for sc in ("skill_panel", "card_panel"):
                 if self.find_scene(frame, sc):
                     return True
@@ -1211,6 +1214,23 @@ class Mediator:
             return False
 
         return bool(self._memo(("hud",), frame, compute))
+
+    def _host_choosing_difficulty(self, frame: Frame) -> bool:
+        """The in-game stage lobby as a non-host player sees it.
+
+        KK shows "等待玩家1选择难度" above the stage rows while player 1 picks
+        the difficulty.  A guest there is waiting for the round, not on a
+        misopened stage page, and has no input to give.
+        """
+        if not self._is_game_client_frame(frame):
+            return False
+        return self.find(
+            frame,
+            ["mainIdentifier"],
+            threshold=self.settings.match_threshold,
+            scales=self._hot_scales(),
+            roi=(0.30, 0.0, 0.75, 0.16),
+        ) is not None
 
     def _detect_context(self, frame: Frame, role: str | None = None) -> str:
         """Classify the visible page before taking a state-machine action."""
@@ -2408,9 +2428,12 @@ class Mediator:
                 f"(阈值 {timeout:.1f}s)，保持零输入等待页面恢复"
             )
             if self._passenger_mode():
-                print("[L1] 蹭车自动任务无法确认，本局跳过该步但继续等待战局结果")
+                # Stop holding the round, but keep watching: explicit OFF
+                # evidence later (the real HUD after a long pre-round page)
+                # re-arms the enable click through the recheck path.
+                print("[L1] 蹭车自动任务暂无法确认，先放行局内流程，稍后看到未勾选再开启")
                 self._auto_task_done = True
-                self._auto_task_recheck_at = 0.0
+                self._auto_task_recheck_at = time.time() + self.settings.ui_action_interval_s
                 self._auto_task_unknown_since = None
                 return None
         # Loading/interstitial screens have no stable auto-task control.  They
@@ -2427,12 +2450,30 @@ class Mediator:
             return None
         now = time.time()
         state, hit = self._auto_task_state(frame)
+        if getattr(self, "_auto_task_done", False):
+            # Once verified ON, a hidden checkbox (bag page, item tooltip,
+            # modal) is only "not visible this frame".  It must never freeze
+            # the main line: live 2026-09-11 an item tooltip covering it held
+            # every in-game action, the public-bag hop included, for minutes.
+            self._auto_task_unknown_since = None
+            if state == "UNKNOWN" and not self._is_in_game_hud(frame):
+                # Neither the checkbox nor any HUD anchor: a loading, black
+                # or foreign surface still gets no in-game input.
+                return LoopAction.Continue
+            if self._auto_task_recheck_at <= 0.0 or now < self._auto_task_recheck_at:
+                return None
+            if state == "UNKNOWN":
+                self._auto_task_recheck_at = now + self.settings.ui_action_interval_s
+                return None
+        was_done = getattr(self, "_auto_task_done", False)
         fuse = self._auto_task_unknown_fuse(state)
         if fuse is not None:
             return fuse
+        if not was_done and getattr(self, "_auto_task_done", False):
+            # The passenger fuse just released the round; its own recheck
+            # timer decides when to look again.
+            return None
         if getattr(self, "_auto_task_done", False):
-            if self._auto_task_recheck_at <= 0.0 or now < self._auto_task_recheck_at:
-                return None
             state, hit, on_score, off_score = self._auto_task_state_detail(frame)
             if state == "ON":
                 self._trace_auto_task_control(state, on_score, off_score, hit, None)
@@ -4362,6 +4403,14 @@ class Mediator:
     _PUBLIC_BAG_ANCHOR_THRESHOLD = 0.80
     _PUBLIC_BAG_PILL_TEMPLATES = ("danGif", "swallow_pill")
     _PUBLIC_BAG_EMPTY_CLOSE_S = 1.5
+    # The bag page covers the HUD, merchant, auto-task and post-game controls.
+    # One open episode may last this long before we close it ourselves, then
+    # stay closed for the reopen cooldown (live 2026-09-11: it stayed open for
+    # minutes and blocked ContinueGame / the archive plaza).
+    _PUBLIC_BAG_MAX_OPEN_S = 30.0
+    _PUBLIC_BAG_REOPEN_COOLDOWN_S = 45.0
+    # The player closing the page by hand is an instruction, not a glitch.
+    _PUBLIC_BAG_USER_CLOSE_COOLDOWN_S = 60.0
 
     def _public_bag_surface_ok(self, frame: Frame) -> bool:
         """May we open or drain the bag on this frame?
@@ -4733,12 +4782,33 @@ class Mediator:
                 print(f"[L1] 公共背包：第 {fsm.deposits} 件已确认进{hop}")
         if fsm.phase is PublicBagPhase.ABORTED and previous.phase is not PublicBagPhase.ABORTED:
             print(f"[L1] 公共背包流转中止：{fsm.abort_reason}")
-            if fsm.abort_reason.startswith("deposit_postcondition"):
+            if fsm.abort_reason.startswith("deposit_postcondition") or fsm.abort_reason in {
+                # A right-clicked item that never got placed is a failed move
+                # of that source too; without counting it the same cell was
+                # retried forever with the page held open.
+                "deposit_slot_timeout",
+                "bag_page_lost_while_carrying",
+            }:
                 self._public_bag_note_source_failure(previous.source_id)
+            if fsm.abort_reason == "bag_page_lost" and previous.phase is PublicBagPhase.BAG_VISIBLE:
+                # We did not ask for the close: the player shut the page.
+                self._public_bag_next_at = max(
+                    self._public_bag_next_at, now + self._PUBLIC_BAG_USER_CLOSE_COOLDOWN_S
+                )
+                print(
+                    f"[L1] 公共背包：背包页被手动关闭，{self._PUBLIC_BAG_USER_CLOSE_COOLDOWN_S:.0f}s 内不再自动打开"
+                )
+        self._public_bag_open_since = (
+            (self._public_bag_open_since or now) if bag_visible else None
+        )
         self._public_bag_fsm = fsm
 
         if fsm.phase is PublicBagPhase.IDLE:
             if bag_visible and fsm.can_adopt_open_page():
+                if now < self._public_bag_next_at:
+                    # Inside a reopen cooldown (lease expiry / manual close):
+                    # an open page is not ours to work and not ours to close.
+                    return None
                 if layout is not None and self._public_bag_source(frame, layout) is not None:
                     self._public_bag_empty_since = None
                     self._public_bag_fsm = fsm.confirm_bag_visible(now)
@@ -4762,6 +4832,18 @@ class Mediator:
         if fsm.phase is PublicBagPhase.BAG_VISIBLE:
             if layout is None:
                 return LoopAction.Continue
+            open_since = self._public_bag_open_since
+            if open_since is not None and now - open_since >= self._PUBLIC_BAG_MAX_OPEN_S:
+                # Nothing is on the cursor in BAG_VISIBLE, so closing is safe.
+                # Whatever is left waits for the next episode.
+                self._public_bag_next_at = max(
+                    self._public_bag_next_at, now + self._PUBLIC_BAG_REOPEN_COOLDOWN_S
+                )
+                print(
+                    f"[L1] 公共背包：本次已打开 {now - open_since:.0f}s，先关闭背包页，"
+                    f"{self._PUBLIC_BAG_REOPEN_COOLDOWN_S:.0f}s 后再处理剩余物品"
+                )
+                return self._public_bag_close_page(frame, fsm, now)
             source = self._public_bag_source(frame, layout)
             if source is None:
                 return self._public_bag_close_when_empty(frame, fsm, now)
@@ -6160,6 +6242,13 @@ class Mediator:
             self._hero_focus_lost_count = 0
             self._hero_focus_last_frame_id = None
             return None
+        # The bag page and its item tooltips cover the hero strip; that is our
+        # own UI, not lost hero focus.  F1 there only fights the bag hop.
+        bag_fsm = getattr(self, "_public_bag_fsm", None)
+        if (bag_fsm is not None and bag_fsm.active) or self._bag_layout(frame) is not None:
+            self._hero_focus_lost_count = 0
+            self._hero_focus_last_frame_id = None
+            return None
 
         frame_id = id(frame)
         if frame_id == getattr(self, "_hero_focus_last_frame_id", None):
@@ -6535,6 +6624,24 @@ class Mediator:
         self._hitch_pressure_request_generation = None
         print("[med] 识别到中场存档挑战进度条且压力转移按钮不存在，接手蹭车局内循环")
         return True
+
+    def _hitch_arm_opening_pressure(self, why: str) -> bool:
+        """Arm the opening pressure-transfer gate on the room -> round edge.
+
+        Returns True for a natural round entry (our own Ready was confirmed in
+        the room).  Only that path owns the gate; a mid-game attach never
+        guesses that the opening step is due.  The caller then enters
+        MAIN_LINE as a new round so the per-round state (pressure, auto-task,
+        challenges, post-game route) starts fresh instead of inheriting the
+        previous round's "done" flags.
+        """
+        if not self._hitch_enabled():
+            return False
+        natural = getattr(self, "_hitch_ready_confirmed_at", None) is not None
+        if natural and not self._hitch_opening_pressure_armed:
+            print(f"[med] 蹭车开局压力转移门禁已武装（{why}）")
+        self._hitch_opening_pressure_armed = natural
+        return natural
 
     def _mark_pressure_core_failed(self, now: float, reason: str) -> None:
         """G0 P0 contract #4：压力 core action 在 bounded budget 内未证实完成。"""
@@ -9971,6 +10078,10 @@ class Mediator:
                     print("[L0] hitch 70s 等待期间房主开局（可信局内 HUD），取消超时退房并移交游戏流程")
                 print("[L0] hitch ROOM_WAITING 观察到游戏客户端帧，零输入移交状态对齐")
                 return LoopAction.Continue
+            if self._host_choosing_difficulty(frame):
+                self._hitch_status = "host_choosing_difficulty"
+                print("[L0] hitch 游戏内等待 1 号位选择难度（零输入）")
+                return LoopAction.Continue
             if stage_page or self._find_stage_page(frame):
                 return self._hitch_quit_misopened_stage()
             if getattr(self, "_hitch_ready_timeout_pending", False):
@@ -9980,11 +10091,21 @@ class Mediator:
             return LoopAction.Continue
         if context in ("MAIN_LINE", "IN_GAME"):
             self._hitch_re_search = False
+            if self.phase == Phase.ROOM_WAITING and self._hitch_arm_opening_pressure(
+                "room -> in-game context"
+            ):
+                self.set_phase(Phase.MAIN_LINE, "hitch natural round entry")
+                return LoopAction.Continue
             self.set_phase(Phase.MAIN_LINE, "hitch already in game")
             return LoopAction.Continue
         if stage_page or context == "STAGE_SELECT":
             # 蹭车客人不应出现在单人选关/游戏大厅（扫荡/开始游戏/考古模式）。
             # 出现即误开或自己成了房主，立刻退出，不要零输入干等。
+            # 例外：「等待玩家1选择难度」是客人看到的正常开局前页面。
+            if self._host_choosing_difficulty(frame):
+                self._hitch_status = "host_choosing_difficulty"
+                print("[L0] hitch 游戏内等待 1 号位选择难度（零输入）")
+                return LoopAction.Continue
             if self._is_game_client_frame(frame):
                 return self._hitch_quit_misopened_stage()
             print("[L0] hitch 忽略非游戏窗口的 STAGE_SELECT 晋级请求，零输入保持大厅状态")
@@ -10978,6 +11099,15 @@ class Mediator:
                 # 其余（UNKNOWN L1 帧/静态黑帧）零输入等待，不武断进局。
                 if self.phase == Phase.ROOM_WAITING and not self._is_in_game_hud(frame):
                     print("[L0] ROOM_WAITING 游戏帧缺少可信局内 HUD，零输入等待状态对齐")
+                    return LoopAction.Continue
+                if self.phase == Phase.ROOM_WAITING and self._hitch_arm_opening_pressure(
+                    "room -> in-game HUD"
+                ):
+                    # The natural room -> round entry: the first fresh in-game
+                    # HUD a readied guest sees.  _tick_lobby_hitch's own arming
+                    # branch is never reached once MAIN_LINE is set here, and
+                    # an "existing game" note would skip the new-round init.
+                    self.set_phase(Phase.MAIN_LINE, "hitch natural round entry")
                     return LoopAction.Continue
                 self.set_phase(Phase.MAIN_LINE, "startup found existing game")
                 return LoopAction.Continue
@@ -12924,6 +13054,20 @@ class Mediator:
             self._passenger_mode()
             and post_game is None
             and not self._is_in_game_hud(frame)
+            and self._host_choosing_difficulty(frame)
+        ):
+            # Pre-round stage lobby of a guest: the round has not started, so
+            # none of the in-game gates (pressure, auto-task fuse) may run.
+            # Hitch goes back to ROOM_WAITING so the real round entry passes
+            # the room -> in-game edge that arms the pressure gate.
+            print("[med] 乘客模式：游戏内等待 1 号位选择难度（零输入）")
+            if self._hitch_enabled():
+                self.set_phase(Phase.ROOM_WAITING, "guest waits for player 1 difficulty")
+            return LoopAction.Continue
+        if (
+            self._passenger_mode()
+            and post_game is None
+            and not self._is_in_game_hud(frame)
             and self._find_stage_page(frame)
         ):
             if self._hitch_pending_room_key is not None:
@@ -12931,14 +13075,27 @@ class Mediator:
             print("[med] hitch 误开选关/游戏大厅，退出当前游戏")
             self.set_phase(Phase.QUIT, "hitch misopened stage page")
             return LoopAction.Continue
-        if self._passenger_mode() and post_game in {"NPC_HUB", "POST_VICTORY"}:
+        # The bag page covers the post-game controls it opened over.  Live
+        # 2026-09-11 it hid the archive plaza after ContinueGame, so the page
+        # never classified and the chain waited with zero input.  Close it on
+        # every post-game surface, and while the post-continue page is still
+        # unconfirmed.
+        bag_blocks_post_game = post_game in {
+            "NPC_HUB", "POST_VICTORY", "ARCHIVE_PANEL", "HEIRLOOM_DIALOG",
+        } or (post_game is None and getattr(self, "_post_game_pending", False))
+        if self._passenger_mode() and bag_blocks_post_game:
             bag_open = self._bag_layout(frame) is not None
             fsm = self._public_bag_fsm
             if bag_open:
                 if fsm.phase is PublicBagPhase.CLOSE_REQUESTED:
                     self._public_bag_fsm = fsm.observe(now, bag_visible=True)
                     return LoopAction.Continue
-                why = "胜利页" if post_game == "POST_VICTORY" else "战后广场"
+                why = {
+                    "POST_VICTORY": "胜利页",
+                    "NPC_HUB": "战后广场",
+                    "ARCHIVE_PANEL": "存档面板",
+                    "HEIRLOOM_DIALOG": "传家宝弹窗",
+                }.get(post_game, "战后转场")
                 print(f"[med] {why}背包仍开着，先关闭以免挡住继续游戏/NPC")
                 if self._toggle_bag_page(frame, "PublicBackpackClose"):
                     self._public_bag_fsm = PublicBagFSM(
@@ -13753,7 +13910,9 @@ class Mediator:
             if deposit_res is not None:
                 self._main_line_since = now
                 return deposit_res
-            if self._bag_layout(frame) is not None or self._public_bag_fsm.active:
+            if self._public_bag_fsm.active or (
+                self._bag_layout(frame) is not None and now >= self._public_bag_next_at
+            ):
                 return LoopAction.Continue
             self._advance_l1_cycle("public_bag")
             return LoopAction.Continue
