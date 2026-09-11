@@ -1,4 +1,4 @@
-# Thin Windows menu for the existing tools/live_scenario_capture.py only.
+﻿# Thin Windows menu for the existing tools/live_scenario_capture.py only.
 # It discovers paths and forwards arguments; production logic stays in the tool.
 
 param(
