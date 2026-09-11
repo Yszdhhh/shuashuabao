@@ -271,6 +271,10 @@ def test_launcher_keeps_existing_lanes_and_adds_refresh_controls() -> None:
     assert "GetFolderPath(\"Desktop\")" not in launcher
     assert "b15da05f4fd7313b02b2cc466e319d9683aa979c" not in launcher
     assert "solo-live-harness-20260907" not in launcher
+    assert (
+        "$script:AutomationExe = if ($script:ProductionSourceRoot) { $null } "
+        "else { Resolve-AutomationExe }"
+    ) in launcher
 
 
 def test_solo_observer_does_not_pass_on_click_success() -> None:

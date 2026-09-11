@@ -682,7 +682,10 @@ function Show-LauncherError {
 
 try {
 $script:PythonPath = Resolve-PythonPath
-$script:AutomationExe = Resolve-AutomationExe
+# ProductionSourceRoot means every live lane below uses the injected source
+# runtime (`--allow-dev-source`) and never executes a packaged EXE.  Do not let
+# an unrelated stale dist EXE veto that source-runtime identity.
+$script:AutomationExe = if ($script:ProductionSourceRoot) { $null } else { Resolve-AutomationExe }
 $script:CaptureRoot = Resolve-CaptureRoot
 $script:SoloCaptureRoot = Resolve-SoloCaptureRoot
 $script:OperatorSettingsPath = Resolve-OperatorSettingsPath
