@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 from shuabao.lobby_hitch import SearchTransaction
-from shuabao.mediator import Mediator, Phase
+from shuabao.mediator import LoopAction, Mediator, Phase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult
@@ -86,6 +86,30 @@ def test_comment_tab_is_not_room_list_and_switches_to_room_list() -> None:
         med._tick_lobby_hitch(frame, "PLATFORM_MAP")
 
     assert click.call_args.args[1] == "HitchSelectTab"
+
+
+def test_unknown_join_child_never_clicks_room_list_tab() -> None:
+    """A post-join unknown child has no lobby-navigation click authority."""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_sm.note_join_click(1.0)
+    med._hitch_join_origin_hwnd = 10001
+    frame = Frame(
+        np.full((904, 1224, 3), 18, dtype=np.uint8),
+        window_title="KK官方对战平台",
+        hwnd=20002,
+        role="l0",
+    )
+    tab = MatchResult("lobby_room_list_tab_slot", 1.0, 324, 235, 1, 1, 324, 235)
+
+    with patch("shuabao.mediator.time.time", return_value=3.0), \
+         patch.object(med, "_find_hitch_room_list_tab", return_value=tab), \
+         patch.object(med, "_reacquire_target_window", return_value=True) as reacquire, \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._tick_lobby_hitch(frame, "UNKNOWN") is LoopAction.Continue
+        assert med._tick_lobby_hitch(frame, "UNKNOWN") is LoopAction.Continue
+
+    reacquire.assert_called_once_with(10001, timeout_s=0.5)
+    click.assert_not_called()
 
 
 def test_hitch_cancel_ready_is_postcondition_not_click_target() -> None:

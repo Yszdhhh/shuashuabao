@@ -9672,6 +9672,9 @@ class Mediator:
             # join transaction but never send a blind Esc.
             self._hitch_reject_pending_join(now, "join_rejected")
             self._hitch_search_actions.append("reject")
+            origin_hwnd = self._hitch_join_origin_hwnd
+            if origin_hwnd is not None and frame.hwnd != origin_hwnd:
+                self._reacquire_target_window(origin_hwnd, timeout_s=0.5)
             print("[L0] hitch 进房超时且无平台 modal shell：零输入拒绝本次进房回大厅")
             self.set_phase(Phase.LOBBY_ROOM, "hitch join rejected")
             return LoopAction.Continue
@@ -9882,6 +9885,14 @@ class Mediator:
             return LoopAction.Continue
         if self._hitch_re_search and not in_room:
             self._hitch_re_search = False
+        if context == "UNKNOWN":
+            # After a join attempt an unanchored child can be a room loading
+            # surface or an unrecognised platform popup.  It is never proof
+            # of the browser's room-list tab, so do not turn bright row pixels
+            # into a click on an avatar or any other room control.
+            self._hitch_status = "unknown_surface_no_lobby_input"
+            print("[L0] hitch UNKNOWN 未获大厅/房间/弹窗实体证据，零输入等待")
+            return LoopAction.Continue
         if self._hitch_sm.can_confirm_lobby_home(now, self._hitch_lobby_home_visible(frame)):
             self._hitch_sm.confirm_lobby_home()
             self._hitch_status = "大厅主页"
