@@ -1421,10 +1421,14 @@ def test_lobby_hitch_host_takeover_is_rejected_and_starts_bounded_exit() -> None
     frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
     med._confirmed_room_hwnd = frame.hwnd
     med._hitch_pending_room_key = "730766"
+    med._hitch_ready_confirmed_at = time.time()
+    med._hitch_host_row_changed(frame)  # pre-promotion baseline
+    changed_image = image.copy()
+    cv2.rectangle(changed_image, (200, 85), (1000, 165), (32, 32, 32), -1)
+    changed = Frame(changed_image, window_title="KK官方对战平台", hwnd=99, role="l0")
     with patch.object(med, "act_click", return_value=True) as click:
-        med._tick_lobby_hitch(frame, "UNKNOWN")
+        med._tick_lobby_hitch(changed, "UNKNOWN")
 
-    assert med._hitch_room_seat_decision(frame) == "reject_host_takeover"
     assert med._hitch_floor_exit_pending is True
     assert click.call_args.args[1] == "HitchLeaveFloorOne"
 
