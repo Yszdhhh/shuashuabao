@@ -8734,90 +8734,16 @@ class Mediator:
         for hit, text_width in reversed(self._hitch_room_blue_controls(frame)):
             if hit.x > frame.width * 0.80 and text_width <= 45:
                 return replace(hit, name="room_exit")
-        # The modern dark-blue Exit control is intentionally excluded from
-        # the saturated-blue geometry scan above; use its dedicated semantic
-        # template as the fallback, still scoped to the confirmed ROOM page.
-        hit = self.find(frame, ["room_exit_btn"], threshold=0.75)
-        if hit is not None and hit.x > frame.width * 0.80:
-            return replace(hit, name="room_exit")
         return None
 
     def _hitch_room_seat_decision(self, frame: Frame) -> str:
-        """Classify a hitch seat conservatively.
-
-        Hitch is a guest-only lane.  The room's real ``开始游戏`` control plus
-        the red first-row ``房主`` marker is sufficient evidence that the
-        guest was promoted to host (or entered a room as host).  In that case
-        the caller is allowed to run the existing bounded leave transaction;
-        every other room shape remains observation-only.
-        """
+        """Seat authority is unavailable until a real GT detector exists."""
         if self._hitch_room_surface_evidence(frame) is None:
             return "unknown"
-        # Only a guest that has already completed its own Ready transaction
-        # can be considered a promoted host.  A fresh room may legitimately
-        # show the host's Start button before we have prepared; do not reject
-        # that initial observation.
-        row_changed = getattr(self, "_hitch_host_row_changed_last", None)
-        if row_changed is None:
-            row_changed = self._hitch_host_row_changed(frame)
-        self._hitch_host_row_changed_last = None
-        if (
-            getattr(self, "_hitch_ready_confirmed_at", None) is not None
-            and self._find_room_start(frame) is not None
-            and self._hitch_host_marker_visible(frame)
-            and row_changed
-        ):
-            return "reject_host_takeover"
-        # UNKNOWN is wait/reobserve only; it never authorizes exit or room
-        # number blacklisting.
+        # Current screenshots prove ROOM and Ready state, but do not prove the
+        # host/seat policy strongly enough.  UNKNOWN is wait/reobserve only;
+        # it never authorizes exit or room-number blacklisting.
         return "unknown"
-
-    def _hitch_host_marker_visible(self, frame: Frame) -> bool:
-        """Detect the red ``房主`` label in the first player row.
-
-        This is deliberately scoped to the room cover's first-row status
-        column, rather than a global red-pixel heuristic.  The marker is a
-        stable high-information cue on the KK room page and survives the
-        client scaling used by the live harness.
-        """
-        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
-            return False
-        cover = self._hitch_room_cover(frame)
-        if cover is None:
-            return False
-        x0 = max(0, int(frame.width * 0.80))
-        x1 = min(frame.width, int(frame.width * 0.98))
-        y0 = max(0, cover[1] - int(cover[3] * 0.02))
-        y1 = min(frame.height, cover[1] + int(cover[3] * 0.38))
-        roi = frame.bgr[y0:y1, x0:x1]
-        if roi.size == 0:
-            return False
-        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-        red = (
-            (((hsv[:, :, 0] <= 12) | (hsv[:, :, 0] >= 170))
-             & (hsv[:, :, 1] >= 100)
-             & (hsv[:, :, 2] >= 80))
-        )
-        return int(np.count_nonzero(red)) >= 35
-
-    def _hitch_host_row_changed(self, frame: Frame) -> bool:
-        """Return whether the first-room-row content changed since last frame."""
-        cover = self._hitch_room_cover(frame)
-        if cover is None or frame.bgr is None:
-            return False
-        x0 = max(0, cover[0] + cover[2])
-        x1 = min(frame.width, int(frame.width * 0.98))
-        y0 = max(0, cover[1] - int(cover[3] * 0.02))
-        y1 = min(frame.height, cover[1] + int(cover[3] * 0.38))
-        roi = frame.bgr[y0:y1, x0:x1]
-        if roi.size == 0:
-            return False
-        sample = cv2.resize(cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY), (64, 16))
-        previous = getattr(self, "_hitch_host_row_signature", None)
-        self._hitch_host_row_signature = sample
-        if previous is None or previous.shape != sample.shape:
-            return False
-        return float(np.mean(cv2.absdiff(previous, sample))) >= 8.0
 
     def _hitch_ocr_text(self, frame: Frame | None = None) -> str:
         override = getattr(self, "_hitch_ocr_override", None)
@@ -9551,12 +9477,9 @@ class Mediator:
         # 后续 surface reconciliation（stage/hero/hud/战后入口各归其位）。
         if self.phase == Phase.ROOM_WAITING and self._is_game_client_frame(frame):
             if self._is_in_game_hud(frame):
-                # A successful guest Ready transition is the authoritative
-                # natural-entry proof.  Room-number OCR is only needed for
-                # blacklist bookkeeping and must not suppress the opening
-                # pressure gate when the number is temporarily unreadable.
                 self._hitch_opening_pressure_armed = bool(
-                    self._hitch_ready_confirmed_at is not None
+                    self._hitch_pending_room_key
+                    and self._hitch_ready_confirmed_at is not None
                 )
                 if getattr(self, "_hitch_ready_timeout_pending", False):
                     self._hitch_ready_timeout_pending = False
@@ -9795,10 +9718,6 @@ class Mediator:
             return LoopAction.Continue
 
         if in_room:
-            # Keep a visual baseline of the first player row even on the
-            # initial Ready frame; a later promotion to host is detected as a
-            # fresh row mutation, not from a static host marker alone.
-            self._hitch_host_row_changed_last = self._hitch_host_row_changed(frame)
             if self._hitch_re_search and ready_state in {"ready", "cancel_ready", "start"}:
                 self._hitch_re_search = False
             if self._hitch_sm.pending_join:
@@ -9820,13 +9739,7 @@ class Mediator:
                 print("[L0] hitch 房间已准备等待超过 70 秒，房主未开局，发起安全退房 episode（当帧 0 输入）")
                 return LoopAction.Continue
 
-            host_takeover = (
-                ready_state == "ready"
-                and getattr(self, "_hitch_ready_confirmed_at", None) is not None
-                and self._find_room_start(frame) is not None
-                and self._hitch_host_marker_visible(frame)
-            )
-            if ready_state == "ready" and ready_hit is not None and not host_takeover:
+            if ready_state == "ready" and ready_hit is not None:
                 if self.act_click(ready_hit, "HitchReady"):
                     self._hitch_pending_row_y = None
                     self._hitch_status = "已点击准备"
@@ -9837,10 +9750,7 @@ class Mediator:
                 self.set_phase(Phase.ROOM_WAITING, "hitch guest ready")
                 return LoopAction.Continue
 
-            if (
-                getattr(self, "_hitch_ready_confirmed_at", None) is None
-                and ready_state != "ready"
-            ):
+            if getattr(self, "_hitch_ready_confirmed_at", None) is None:
                 self._hitch_ready_confirmed_at = now
                 print(
                     f"[L0] hitch 已准备，记录房间号 key={self._hitch_pending_room_key}"
@@ -9850,7 +9760,7 @@ class Mediator:
             # Only a future, real-GT-backed detector may return "reject".
             # UNKNOWN/legacy strings are observation states and have zero
             # exit/blacklist authority.
-            if seat_decision in {"reject", "reject_host_takeover"}:
+            if seat_decision == "reject":
                 exit_hit = self._find_hitch_exit_button(frame)
                 self._hitch_floor_exit_attempted_at = now if exit_hit is not None else None
                 if exit_hit is not None and self.act_click(exit_hit, "HitchLeaveFloorOne"):

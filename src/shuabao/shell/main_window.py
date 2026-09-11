@@ -2820,7 +2820,7 @@ class MainWindow(QMainWindow):
         search_row.addWidget(search_label)
         self.cmb_hitch_prefix = QLineEdit()
         self.cmb_hitch_prefix.setFixedHeight(36)
-        self.cmb_hitch_prefix.setPlaceholderText("如 4,3,速 或自定义房间号/名称")
+        self.cmb_hitch_prefix.setPlaceholderText("如 4,3 或自定义房间号/名称")
         self.cmb_hitch_prefix.setText("4")
         self.cmb_hitch_prefix.setMinimumWidth(180)
         search_row.addWidget(self.cmb_hitch_prefix)
@@ -2838,7 +2838,7 @@ class MainWindow(QMainWindow):
         btn_quick_43 = QPushButton("4轮换3")
         btn_quick_43.setFixedHeight(34)
         btn_quick_43.setToolTip("10轮未命中4时自动换搜3")
-        btn_quick_43.clicked.connect(lambda: self.cmb_hitch_prefix.setText("4,3,速"))
+        btn_quick_43.clicked.connect(lambda: self.cmb_hitch_prefix.setText("4,3"))
         search_row.addWidget(btn_quick_43)
 
         search_row.addStretch()
