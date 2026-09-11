@@ -25,7 +25,7 @@
 - L0 起点预检若首次命中最小化旧游戏窗、随后等待阶段已重新捕获并确认 KK 房间列表，以最终窗口状态裁决，不再残留过时的 `game window unavailable`；最终窗口仍不可用时继续 fail-closed、零输入。
 - Harness 身份：`production_code_diff=CLEAN`、`ready_for_gt=true`、`match=READY`。
 - 最终发布门禁（提交态，同一次运行）：
-  - pytest：`1953 passed, 2 xfailed, 1 skipped`
+  - pytest：`1956 passed, 2 xfailed, 1 skipped`
   - frozen replay：PASS（`disconnect_modal_missing` 仍按既有缺素材合同保持 BLOCKED）
   - scene templates：PASS，`148 ok, 0 missing`
   - contract：PASS，`56 passed`
