@@ -469,16 +469,11 @@ class InputExecutor:
                 status="CANCELLED_EMERGENCY_STOP",
                 message=f"Action cancelled by stop signal: {self.stop_signal.reason}",
             )
-        text_step = (
-            ("paste_text", lambda: self.paste_text(text, target_hwnd=target_hwnd, dry_run=dry_run))
-            if any(ord(char) > 0x7F for char in text)
-            else ("type_text", lambda: self.type_text(text, target_hwnd=target_hwnd, dry_run=dry_run))
-        )
         steps = (
             ("click", lambda: self.click(x, y, target_hwnd=target_hwnd, dry_run=dry_run, delay_ms=80)),
             ("hotkey", lambda: self.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=dry_run)),
             ("press_key", lambda: self.press_key("backspace", target_hwnd=target_hwnd, dry_run=dry_run)),
-            text_step,
+            ("type_text", lambda: self.type_text(text, target_hwnd=target_hwnd, dry_run=dry_run)),
             ("press_key", lambda: self.press_key("return", target_hwnd=target_hwnd, dry_run=dry_run)),
         )
         for method, action in steps:
@@ -769,7 +764,7 @@ def paste_text(text: str, dry_run: bool = True) -> None:
 
 
 def type_text(text: str, dry_run: bool = True) -> list[bool]:
-    """Type ASCII/digits with key events (CEF-friendlier than clipboard paste)."""
+    """Type text with native key events, including Unicode without an IME."""
     print(f"[input] type_text len={len(text)} dry_run={dry_run}")
     text_value = str(text)
     if dry_run or not text_value:
@@ -779,6 +774,7 @@ def type_text(text: str, dry_run: bool = True) -> list[bool]:
 
     user32 = ctypes.windll.user32
     KEYEVENTF_KEYUP = 0x0002
+    KEYEVENTF_UNICODE = 0x0004
 
     class KEYBDINPUT(ctypes.Structure):
         _fields_ = [
@@ -821,6 +817,19 @@ def type_text(text: str, dry_run: bool = True) -> list[bool]:
         time.sleep(0.03)
         return down_ok and up_ok
 
+    def tap_unicode(codepoint: int) -> bool:
+        down = INPUT()
+        down.type = 1
+        down.union.ki = KEYBDINPUT(0, codepoint, KEYEVENTF_UNICODE, 0, None)
+        up = INPUT()
+        up.type = 1
+        up.union.ki = KEYBDINPUT(0, codepoint, KEYEVENTF_UNICODE | KEYEVENTF_KEYUP, 0, None)
+        down_ok = int(user32.SendInput(1, ctypes.byref(down), ctypes.sizeof(INPUT))) == 1
+        time.sleep(0.02)
+        up_ok = int(user32.SendInput(1, ctypes.byref(up), ctypes.sizeof(INPUT))) == 1
+        time.sleep(0.03)
+        return down_ok and up_ok
+
     results: list[bool] = []
     for ch in text_value:
         if "0" <= ch <= "9":
@@ -829,6 +838,8 @@ def type_text(text: str, dry_run: bool = True) -> list[bool]:
             results.append(tap(ord(ch.upper())))
         elif ch in (" ", "\t"):
             results.append(tap(0x20 if ch == " " else 0x09))
+        elif ord(ch) > 0x7F:
+            results.append(tap_unicode(ord(ch)))
         else:
             # fallback scan via VkKeyScanW
             vk_full = int(user32.VkKeyScanW(ord(ch)))

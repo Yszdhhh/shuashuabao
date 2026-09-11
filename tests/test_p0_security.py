@@ -221,25 +221,40 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertIs(result, failed)
         click.assert_called_once()
 
-    def test_search_text_pastes_non_ascii_without_ime(self) -> None:
+    def test_search_text_injects_non_ascii_without_ime(self) -> None:
         executor = InputExecutor()
         ok = ActionResult(True, "OK", "")
         with patch.object(executor, "check_can_execute", return_value=ok), \
              patch.object(executor, "click", return_value=ok), \
              patch.object(executor, "hotkey", return_value=ok), \
              patch.object(executor, "press_key", return_value=ok), \
-             patch.object(executor, "paste_text", return_value=ok) as paste, \
              patch.object(executor, "type_text", return_value=ok) as typed, \
              patch("shuabao.input.keyboard_mouse.time.sleep", return_value=None):
             result = executor.search_text(10, 20, "速", target_hwnd=123, dry_run=False)
 
         self.assertTrue(result.success)
-        paste.assert_called_once_with("速", target_hwnd=123, dry_run=False)
-        typed.assert_not_called()
+        typed.assert_called_once_with("速", target_hwnd=123, dry_run=False)
         self.assertEqual(
             [step["method"] for step in executor._last_search_steps],
-            ["click", "hotkey", "press_key", "paste_text", "press_key"],
+            ["click", "hotkey", "press_key", "type_text", "press_key"],
         )
+
+    def test_type_text_injects_unicode_without_ime(self) -> None:
+        sent: list[bytes] = []
+
+        def accept_one(_count, input_data, input_size):
+            sent.append(ctypes.string_at(input_data, input_size))
+            return 1
+
+        with patch.object(ctypes.windll.user32, "SendInput", side_effect=accept_one), \
+             patch("shuabao.input.keyboard_mouse.time.sleep", return_value=None):
+            result = type_text("速", dry_run=False)
+
+        self.assertEqual(result, [True])
+        self.assertEqual(len(sent), 2)
+        self.assertEqual(int.from_bytes(sent[0][10:12], "little"), ord("速"))
+        self.assertEqual(int.from_bytes(sent[0][12:16], "little"), 0x0004)
+        self.assertEqual(int.from_bytes(sent[1][12:16], "little"), 0x0006)
 
     def test_win64_keyboard_input_uses_native_input_size(self) -> None:
         sizes: list[int] = []
