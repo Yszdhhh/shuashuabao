@@ -469,11 +469,16 @@ class InputExecutor:
                 status="CANCELLED_EMERGENCY_STOP",
                 message=f"Action cancelled by stop signal: {self.stop_signal.reason}",
             )
+        text_step = (
+            ("paste_text", lambda: self.paste_text(text, target_hwnd=target_hwnd, dry_run=dry_run))
+            if any(ord(char) > 0x7F for char in text)
+            else ("type_text", lambda: self.type_text(text, target_hwnd=target_hwnd, dry_run=dry_run))
+        )
         steps = (
             ("click", lambda: self.click(x, y, target_hwnd=target_hwnd, dry_run=dry_run, delay_ms=80)),
             ("hotkey", lambda: self.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=dry_run)),
             ("press_key", lambda: self.press_key("backspace", target_hwnd=target_hwnd, dry_run=dry_run)),
-            ("type_text", lambda: self.type_text(text, target_hwnd=target_hwnd, dry_run=dry_run)),
+            text_step,
             ("press_key", lambda: self.press_key("return", target_hwnd=target_hwnd, dry_run=dry_run)),
         )
         for method, action in steps:

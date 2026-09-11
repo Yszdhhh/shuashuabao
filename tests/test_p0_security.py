@@ -221,6 +221,26 @@ class P0SecurityFoundationTests(unittest.TestCase):
         self.assertIs(result, failed)
         click.assert_called_once()
 
+    def test_search_text_pastes_non_ascii_without_ime(self) -> None:
+        executor = InputExecutor()
+        ok = ActionResult(True, "OK", "")
+        with patch.object(executor, "check_can_execute", return_value=ok), \
+             patch.object(executor, "click", return_value=ok), \
+             patch.object(executor, "hotkey", return_value=ok), \
+             patch.object(executor, "press_key", return_value=ok), \
+             patch.object(executor, "paste_text", return_value=ok) as paste, \
+             patch.object(executor, "type_text", return_value=ok) as typed, \
+             patch("shuabao.input.keyboard_mouse.time.sleep", return_value=None):
+            result = executor.search_text(10, 20, "速", target_hwnd=123, dry_run=False)
+
+        self.assertTrue(result.success)
+        paste.assert_called_once_with("速", target_hwnd=123, dry_run=False)
+        typed.assert_not_called()
+        self.assertEqual(
+            [step["method"] for step in executor._last_search_steps],
+            ["click", "hotkey", "press_key", "paste_text", "press_key"],
+        )
+
     def test_win64_keyboard_input_uses_native_input_size(self) -> None:
         sizes: list[int] = []
 
