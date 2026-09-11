@@ -9770,6 +9770,24 @@ class Mediator:
                 return LoopAction.Continue
 
             # 3. C4 修复：有界退房 episode（最多 3 次安全退出输入，>=5s 间隔，30s 截止期）
+            # Prefer the semantic room Exit control.  Esc is only the fallback
+            # when it cannot be located; ignored Esc presses must not strand
+            # a ready guest in the room forever.
+            exit_hit = self._find_hitch_exit_button(frame) if in_room else None
+            if exit_hit is not None and self.act_click(exit_hit, "HitchReadyTimeoutLeave"):
+                self._hitch_ready_timeout_pending = False
+                self._hitch_ready_timeout_attempts = 0
+                self._hitch_ready_timeout_deadline = None
+                self._hitch_floor_exit_pending = True
+                self._hitch_floor_exit_confirmed = False
+                self._hitch_floor_exit_attempted_at = now
+                self._hitch_floor_exit_deadline = now + self._HITCH_FLOOR_EXIT_BUDGET_S
+                self._hitch_floor_exit_input_generation = int(getattr(self, "_capture_generation", 0) or 0)
+                self._hitch_floor_exit_reobserve_until = None
+                self._hitch_status = "ready_timeout_exit_clicked"
+                print("[L0] hitch ready timeout: clicked room exit, awaiting explicit confirmation")
+                return LoopAction.Continue
+
             deadline = getattr(self, "_hitch_ready_timeout_deadline", None)
             attempts = getattr(self, "_hitch_ready_timeout_attempts", 0)
             if deadline is not None and (now > deadline or attempts >= 3):

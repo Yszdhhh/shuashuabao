@@ -283,6 +283,30 @@ def test_ready_180s_timeout_pends_then_blacklists_after_lobby() -> None:
     click3.assert_not_called()
 
 
+def test_ready_timeout_prefers_visible_room_exit_transaction() -> None:
+    med = _hitch_mediator()
+    frame = _kk_frame("normal_lobby")
+    med.set_phase(Phase.ROOM_WAITING)
+    med._confirmed_room_hwnd = frame.hwnd
+    med._hitch_ready_timeout_pending = True
+    med._hitch_ready_timeout_deadline = 230.0
+    exit_hit = MatchResult("room_exit", 1.0, 100, 100, 80, 30, 140, 115)
+
+    with patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+         patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+         patch.object(med, "_find_hitch_exit_button", return_value=exit_hit), \
+         patch.object(med, "act_key") as key, \
+         patch.object(med, "act_click", return_value=True) as click, \
+         patch("shuabao.mediator.time.time", return_value=200.0):
+        assert med._tick_lobby_hitch(frame, "ROOM_WAITING") is LoopAction.Continue
+
+    click.assert_called_once_with(exit_hit, "HitchReadyTimeoutLeave")
+    key.assert_not_called()
+    assert med._hitch_ready_timeout_pending is False
+    assert med._hitch_floor_exit_pending is True
+
+
 def test_room_waiting_l1_takeover_passive() -> None:
     """P0-1：ROOM_WAITING 下 see() 探测到已验证游戏窗即被动移交 L1；_tick_l0
     对 UNKNOWN L1 帧零输入（不武断进 MAIN_LINE），可信 HUD 才接管。"""
