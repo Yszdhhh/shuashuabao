@@ -80,6 +80,7 @@ from shuabao.lobby_hitch import (
     FollowPhase,
     FollowTeamSM,
     HitchAction,
+    HitchPhase,
     HitchSearchSM,
     SearchTransaction,
     classify_hitch_ocr,
@@ -828,6 +829,15 @@ class Mediator:
         self._hitch_nav_input_generation: int | None = None
         self._game_chat_close_attempts = 0
         self._game_chat_close_next_at = 0.0
+        # Hitch liveness ladder (see _hitch_liveness_supervise).
+        self._liveness_last_progress_at: float | None = None
+        self._liveness_level = 0
+        self._liveness_level_at: float | None = None
+        self._liveness_family: str | None = None
+        self._liveness_family_since: float | None = None
+        self._hitch_dwell_room_left = False
+        # Verified game exit time: the closing window is not re-adopted.
+        self._hitch_game_exit_at: float | None = None
         # P0-6：Ready 70s 超时退房生命周期（确认离房+大厅可见后才拉黑）
         self._hitch_ready_timeout_pending: bool = False
         self._hitch_ready_timeout_leave_at: float | None = None
@@ -1536,6 +1546,12 @@ class Mediator:
             # the minimized KK lobby while its round played with zero input.
             # (WAIT_EXIT is excluded: that is the game window closing.)
             game_probe_phases |= {Phase.LOBBY_ROOM, Phase.PREPARE}
+            # ...except the window of the game we just left while it closes:
+            # re-adopting it would replay the post-game exit and count the
+            # round twice.
+            exit_at = getattr(self, "_hitch_game_exit_at", None)
+            if exit_at is not None and time.time() - exit_at < self._HITCH_GAME_CLOSE_GRACE_S:
+                game_probe_phases -= {Phase.LOBBY_ROOM, Phase.PREPARE}
         if self.phase in game_probe_phases:
             game_frame = self._probe_l1_game_frame()
             if game_frame is not None:
@@ -9625,6 +9641,225 @@ class Mediator:
         self.stop()
         return LoopAction.Break
 
+    # ---------- hitch liveness supervisor ----------
+
+    def _hitch_observe_world(self) -> str:
+        """What the screen really is, independent of the current phase."""
+        try:
+            game = self._probe_l1_game_frame()
+        except Exception:
+            game = None
+        if game is not None and game.bgr is not None and game.bgr.size:
+            if self.find_scene(game, "fail") or self.find_scene(game, "disconnect"):
+                return "game_failure"
+            if self._post_game_state(game) is not None:
+                return "game_postgame"
+            if self._host_choosing_difficulty(game):
+                return "game_waiting"
+            if self._is_in_game_hud(game):
+                return "game_round"
+            if self._find_stage_page(game):
+                return "game_stage"
+            return "game_unknown"
+        try:
+            kk = self._capture_best(",".join(L0_WINDOW_KEYWORDS), "l0")
+        except Exception:
+            kk = None
+        if kk is None or kk.bgr is None or not kk.bgr.size:
+            return "none"
+        if self._is_confirmed_room_frame(kk):
+            return "kk_room"
+        if self._lobby_room_list_evidence(kk):
+            return "kk_lobby"
+        return "kk_other"
+
+    def _hitch_soft_reset(self, now: float) -> None:
+        """Drop the stalled phase's transient state so its flow starts over."""
+        self.invalidate_evidence("hitch-liveness")
+        if self.phase == Phase.LOBBY_ROOM:
+            self._hitch_sm = self._new_hitch_sm()
+            self._hitch_search = None
+            self._hitch_refresh_required = True
+            self._hitch_nav_reset()
+        elif self.phase == Phase.MAIN_LINE:
+            self._panel_state = PanelState.CLOSED
+            self._panel_opened_by_us = None
+            self._pending_action = None
+            self._pending_action_unconfirmed_count = 0
+            fsm = self._public_bag_fsm
+            self._public_bag_fsm = PublicBagFSM(deposits=fsm.deposits, aborts=fsm.aborts)
+            self._public_bag_open_since = None
+            self._l1_cycle_step = "merchant"
+            self._auto_task_recheck_at = now
+            self._game_chat_close_attempts = 0
+            self._pause_resume_attempts = 0
+            self._pause_resume_next_at = 0.0
+        elif self.phase in (Phase.QUIT, Phase.NEXT):
+            self._exit_button_attempts = 0
+            self._exit_confirm_attempts = 0
+            self._exit_since = now
+        elif self.phase == Phase.ROOM_WAITING:
+            self._hitch_seat_streak = None
+
+    def _liveness_reset(self, now: float) -> None:
+        self._liveness_last_progress_at = now
+        self._liveness_level = 0
+        self._liveness_level_at = None
+
+    def _hitch_declared_wait_until(self) -> float:
+        """End of a designed, self-bounded zero-input wait; its budget starts
+        only after it.  Undeclared waits get no extension."""
+        if self.phase == Phase.LOBBY_ROOM and self._hitch_sm.phase == HitchPhase.SLEEP_RETRY:
+            return float(self._hitch_sm.sleep_until or 0.0)
+        return 0.0
+
+    def _hitch_liveness_supervise(self) -> None:
+        """One liveness contract for every hitch phase.
+
+        Local handlers may wait with zero input; this ladder bounds how long.
+        When a phase goes a whole budget without a successful input:
+          1. reconcile - observe the real screen and hand it to its owner phase,
+             or soft-reset the stalled phase's transient state;
+          2. leave - quit a running game / leave the KK room / restart search;
+          3. BLOCKED - ERROR + stop with an incident, never silent forever.
+        Any successful input (blind stall-watchdog keys excluded) resets it.
+        A running round's legitimate idle only ever gets the soft reset; the
+        round hard deadline bounds it.
+        """
+        if not self._hitch_enabled() or self.settings.dry_run or self.stop_signal.is_set():
+            return
+        if self.phase in (Phase.ERROR, Phase.COMPLETE):
+            return
+        now = time.time()
+        if self.phase == Phase.MAIN_LINE and self._round_deadline is None:
+            # An attached (non-natural) round skipped the new-round init; it
+            # still owns a hard deadline.
+            self._round_started_at = now
+            self._round_deadline = now + self.settings.round_timeout_s
+        progressed = self._tick_input_executed and (
+            self.last_business_action not in self._LIVENESS_BLIND_REASONS
+        )
+        if self._hitch_dwell_cap_hit(now):
+            return
+        if progressed or getattr(self, "_liveness_last_progress_at", None) is None:
+            self._liveness_reset(now)
+            return
+        since = max(
+            self._liveness_last_progress_at,
+            self._liveness_level_at or 0.0,
+            self._hitch_declared_wait_until(),
+        )
+        budget = self._HITCH_STALL_BUDGET_S.get(self.phase, self._HITCH_STALL_DEFAULT_S)
+        if now - since < budget:
+            return
+        stalled = now - self._liveness_last_progress_at
+        world = self._hitch_observe_world()
+        target = self._HITCH_WORLD_PHASE.get(world)
+        if self.phase in (Phase.QUIT, Phase.NEXT) and world.startswith("game"):
+            # The exit chain owns any game page; a swallowed menu goes back to
+            # the exit button instead of back into the round.
+            target = Phase.QUIT
+        if self.phase == Phase.MAIN_LINE and world == "game_round":
+            print(f"[med] 蹭车无进展监督：局内 {stalled:.0f}s 无输入，软复位局内瞬态（不退局）")
+            self._liveness_level_at = now
+            self._hitch_soft_reset(now)
+            return
+        self._liveness_level = int(getattr(self, "_liveness_level", 0) or 0) + 1
+        self._liveness_level_at = now
+        level = self._liveness_level
+        print(
+            f"[med] 蹭车无进展监督：{self.phase.name} 已 {stalled:.0f}s 无有效输入，"
+            f"实际画面={world}，升级第 {level} 级"
+        )
+        self._record_environment_incident(f"hitch_liveness_stall_l{level}", stalled)
+        if level == 1:
+            if target is not None and target != self.phase:
+                self._hitch_reconcile_to(target, world, now)
+            else:
+                self._hitch_soft_reset(now)
+            return
+        if level == 2:
+            self._hitch_liveness_leave(world, now)
+            return
+        print(f"[med] 蹭车无进展监督：校正/撤离后仍无有效输入（{world}），BLOCKED 停止")
+        self.set_phase(Phase.ERROR, f"hitch liveness blocked ({world})")
+        self.stop()
+
+    def _hitch_dwell_cap_hit(self, now: float) -> bool:
+        """Livelock guard: inputs that never get a phase family anywhere.
+
+        The no-input ladder cannot see a loop that keeps clicking (exit button
+        -> no confirmation -> exit button ...).  The exit chain, failure
+        recovery and the room each get a total dwell cap; the running round is
+        bounded by its own hard deadline and the lobby search may run forever.
+        """
+        family = self._HITCH_PHASE_FAMILY.get(self.phase)
+        if family != getattr(self, "_liveness_family", None):
+            self._liveness_family = family
+            self._liveness_family_since = now
+            self._hitch_dwell_room_left = False
+            return False
+        cap = self._HITCH_DWELL_CAP_S.get(family) if family else None
+        since = getattr(self, "_liveness_family_since", None)
+        if cap is None or since is None or now - since < cap:
+            return False
+        dwell = now - since
+        self._liveness_family_since = now
+        world = self._hitch_observe_world()
+        print(f"[med] 蹭车停留上限：{family} 已停留 {dwell:.0f}s 未推进（实际画面={world}）")
+        self._record_environment_incident(f"hitch_dwell_cap_{family}", dwell)
+        if family == "recover" and world.startswith("game"):
+            self._hitch_reconcile_to(Phase.QUIT, world, now)
+            return True
+        if family == "room" and not getattr(self, "_hitch_dwell_room_left", False):
+            self._hitch_dwell_room_left = True
+            self._hitch_liveness_leave(world, now)
+            return True
+        print(f"[med] 蹭车停留上限：{family} 无法推进，BLOCKED 停止")
+        self.set_phase(Phase.ERROR, f"hitch {family} dwell cap ({world})")
+        self.stop()
+        return True
+
+    def _hitch_liveness_leave(self, world: str, now: float) -> None:
+        if world.startswith("game"):
+            self._recovery_state = None
+            self._recovery_step = "DONE"
+            print(f"[med] 蹭车无进展监督：离开卡住的游戏（{world}）")
+            self.set_phase(Phase.QUIT, f"hitch liveness: leave stalled game ({world})")
+            return
+        if world == "kk_room":
+            # The room's own bounded exit transaction (Esc, fresh-lobby proof,
+            # BLOCKED after its grace) does the leaving.
+            self._hitch_ready_timeout_pending = True
+            self._hitch_ready_timeout_leave_at = None
+            self._hitch_ready_timeout_attempts = 0
+            self._hitch_ready_timeout_deadline = now + 30.0
+            print("[med] 蹭车无进展监督：离开卡住的房间")
+            self.set_phase(Phase.ROOM_WAITING, "hitch liveness: leave stalled room")
+            return
+        self._hitch_after_exit(now)
+        print(f"[med] 蹭车无进展监督：重新开始大厅找房（{world}）")
+        self.set_phase(Phase.LOBBY_ROOM, f"hitch liveness: restart lobby search ({world})")
+
+    def _hitch_reconcile_to(self, target: Phase, world: str, now: float) -> None:
+        note = f"hitch liveness reconcile ({world})"
+        if target == Phase.QUIT:
+            self._recovery_state = None
+            self._recovery_step = "DONE"
+        elif target == Phase.MAIN_LINE:
+            if self.phase in (Phase.ROOM_WAITING, Phase.LOBBY_ROOM) and self._hitch_arm_opening_pressure(
+                "liveness reconcile"
+            ):
+                note = "hitch natural round entry"
+        elif target in (Phase.LOBBY_ROOM, Phase.ROOM_WAITING) and self.phase in (
+            IN_GAME_FAILURE_PREEMPT_PHASES | {Phase.RECOVER_FAILURE, Phase.NEXT}
+        ):
+            # The game is gone without our verified exit: the old round's
+            # transient state must not leak into the KK flow.
+            self._hitch_after_exit(now)
+        print(f"[med] 蹭车无进展监督：阶段校正 {self.phase.name} → {target.name}（{world}）")
+        self.set_phase(target, note)
+
     def _new_hitch_sm(self) -> HitchSearchSM:
         return HitchSearchSM(
             prefix=self._hitch_sm.prefix,
@@ -9703,6 +9938,7 @@ class Mediator:
     def _finish_hitch_round(self, now: float, note: str) -> LoopAction:
         """记录一次已验证的蹭车离局，然后回到大厅继续找房。"""
         self.game_count += 1
+        self._hitch_game_exit_at = now
         print(f"[med] 蹭车已完成离局 count={self.game_count}")
         if self.settings.cycle_num > 0 and self.game_count >= self.settings.cycle_num:
             print(f"[med] 蹭车已完成 cycle_num={self.settings.cycle_num} 局，转 COMPLETE 停止")
@@ -10073,6 +10309,42 @@ class Mediator:
     # Upper bound for holding the lobby flow while our readied room's window
     # still exists but is not recognised (ready wait + exit + margin).
     _HITCH_MEMBER_ROOM_HOLD_S = 150.0
+    # Hitch liveness supervisor (user, 2026-09-12): no hitch phase may sit
+    # without a successful input for long, whatever branch is waiting.
+    # Budgets sit above the legitimate quiet stretches of each phase (the 70s
+    # ready wait plus exit, the ~70s quiet gaps of an auto-fighting round, a
+    # host picking the difficulty).
+    _HITCH_STALL_BUDGET_S = {
+        Phase.LOBBY_ROOM: 90.0,
+        Phase.ROOM_WAITING: 180.0,
+        Phase.MAIN_LINE: 180.0,
+        Phase.RECOVER_FAILURE: 90.0,
+        Phase.QUIT: 60.0,
+        Phase.NEXT: 60.0,
+    }
+    _HITCH_STALL_DEFAULT_S = 150.0
+    # Observed world -> the phase that owns it.
+    _HITCH_WORLD_PHASE = {
+        "game_failure": Phase.QUIT,
+        "game_stage": Phase.QUIT,
+        "game_round": Phase.MAIN_LINE,
+        "game_postgame": Phase.MAIN_LINE,
+        "game_waiting": Phase.ROOM_WAITING,
+        "kk_room": Phase.ROOM_WAITING,
+        "kk_lobby": Phase.LOBBY_ROOM,
+    }
+    # After a verified game exit the window takes a moment to close; the
+    # lobby phase must not re-adopt it as a running round meanwhile.
+    _HITCH_GAME_CLOSE_GRACE_S = 25.0
+    # Keys pressed blindly by a local stall watchdog are not progress.
+    _LIVENESS_BLIND_REASONS = frozenset({"HitchStallWatchdogEsc", "HitchLeaveMisopenedStage"})
+    # Livelock caps: total dwell per phase family, inputs or not.
+    _HITCH_PHASE_FAMILY = {
+        Phase.QUIT: "exit", Phase.NEXT: "exit",
+        Phase.RECOVER_FAILURE: "recover",
+        Phase.ROOM_WAITING: "room",
+    }
+    _HITCH_DWELL_CAP_S = {"exit": 240.0, "recover": 180.0, "room": 600.0}
     # Lobby/room phases whose every KK surface stays unusable this long end in
     # an explicit BLOCKED (ERROR) instead of zero-input observation forever.
     _HITCH_L0_UNHEALTHY_BLOCK_S = 120.0
@@ -11829,6 +12101,10 @@ class Mediator:
         phase_before_value = self.phase
         try:
             action = self._tick_impl()
+            if action is LoopAction.Continue:
+                self._hitch_liveness_supervise()
+                if self.stop_signal.is_set() and self.phase == Phase.ERROR:
+                    action = LoopAction.Break
             # dry_run is observation mode: an uncertain/unsupported page may
             # record an incident, but must not terminate the replay/observer.
             if (
@@ -11923,6 +12199,7 @@ class Mediator:
         if self._hitch_enabled():
             row["hitch"] = self._trace_hitch_state()
         self._trace_fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        self._trace_fh.flush()
 
     def _trace_hitch_state(self) -> dict:
         sm = self._hitch_sm
@@ -11944,8 +12221,12 @@ class Mediator:
             "seat_streak": (
                 list(self._hitch_seat_streak) if getattr(self, "_hitch_seat_streak", None) else None
             ),
+            "stall_s": (
+                round(now - self._liveness_last_progress_at, 1)
+                if getattr(self, "_liveness_last_progress_at", None) is not None else None
+            ),
+            "stall_level": int(getattr(self, "_liveness_level", 0) or 0),
         }
-        self._trace_fh.flush()
 
     def _trace_settings_summary(self) -> dict:
         """掩码设置摘要：仅白名单字段进 trace，密码类字段显式排除。
