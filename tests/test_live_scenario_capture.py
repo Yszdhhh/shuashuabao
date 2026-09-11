@@ -1355,6 +1355,18 @@ def test_lobby_hitch_seat_unknown_never_authorizes_exit() -> None:
     ) == "unknown"
 
 
+def test_lobby_hitch_promoted_host_leaves_without_start_control() -> None:
+    """KK may show green 等待准备 after the prepared guest becomes host."""
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med._hitch_ready_confirmed_at = 1.0
+    frame = _synthetic_hitch_room(0)
+
+    with patch.object(med, "_hitch_room_surface_evidence", return_value=((0, 0, 1, 1), [])), \
+         patch.object(med, "_find_room_start", return_value=None), \
+         patch.object(med, "_hitch_host_marker_visible", return_value=True):
+        assert med._hitch_room_seat_decision(frame) == "reject_host_takeover"
+
+
 def test_lobby_search_floor_one_exit_requires_visual_room_close() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     before = _synthetic_hitch_room(0)

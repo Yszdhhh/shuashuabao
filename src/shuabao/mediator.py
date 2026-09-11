@@ -8614,7 +8614,13 @@ class Mediator:
         ]
         primary = [item for item in controls if item[0].x < int(frame.width * 0.82)]
         has_authentic_start = self._find_room_start(frame) is not None
-        if not primary or (len(geometry_controls) < 2 and not has_authentic_start):
+        # A promoted guest is shown as the first-row red host while KK changes
+        # the primary action to green "等待准备".  It is still a real ROOM
+        # surface, even though there is no blue primary or Start control.
+        host_waiting = self._hitch_host_marker_visible(frame) and self._find_hitch_exit_button(frame) is not None
+        if not primary and not (has_authentic_start or host_waiting):
+            return None
+        if len(geometry_controls) < 2 and not (has_authentic_start or host_waiting):
             return None
         # Player/seat area: require independent colored content between the
         # cover and the action bar.  This rejects an isolated blue lobby button
@@ -8745,27 +8751,21 @@ class Mediator:
     def _hitch_room_seat_decision(self, frame: Frame) -> str:
         """Classify a hitch seat conservatively.
 
-        Hitch is a guest-only lane.  The room's real ``开始游戏`` control plus
-        the red first-row ``房主`` marker is sufficient evidence that the
-        guest was promoted to host (or entered a room as host).  In that case
-        the caller is allowed to run the existing bounded leave transaction;
-        every other room shape remains observation-only.
+        Hitch is a guest-only lane.  A prepared guest whose first row changed
+        to the red ``房主`` marker has been promoted, whether KK currently
+        shows ``开始游戏`` or ``等待准备``.  In that case the caller is allowed
+        to run the existing bounded leave transaction; every other room shape
+        remains observation-only.
         """
         if self._hitch_room_surface_evidence(frame) is None:
             return "unknown"
         # Only a guest that has already completed its own Ready transaction
         # can be considered a promoted host.  A fresh room may legitimately
-        # show the host's Start button before we have prepared; do not reject
-        # that initial observation.
-        row_changed = getattr(self, "_hitch_host_row_changed_last", None)
-        if row_changed is None:
-            row_changed = self._hitch_host_row_changed(frame)
-        self._hitch_host_row_changed_last = None
+        # show another player's host marker before we have prepared; do not
+        # reject that initial observation.
         if (
             getattr(self, "_hitch_ready_confirmed_at", None) is not None
-            and self._find_room_start(frame) is not None
             and self._hitch_host_marker_visible(frame)
-            and row_changed
         ):
             return "reject_host_takeover"
         # UNKNOWN is wait/reobserve only; it never authorizes exit or room
@@ -8799,25 +8799,6 @@ class Mediator:
              & (hsv[:, :, 2] >= 80))
         )
         return int(np.count_nonzero(red)) >= 35
-
-    def _hitch_host_row_changed(self, frame: Frame) -> bool:
-        """Return whether the first-room-row content changed since last frame."""
-        cover = self._hitch_room_cover(frame)
-        if cover is None or frame.bgr is None:
-            return False
-        x0 = max(0, cover[0] + cover[2])
-        x1 = min(frame.width, int(frame.width * 0.98))
-        y0 = max(0, cover[1] - int(cover[3] * 0.02))
-        y1 = min(frame.height, cover[1] + int(cover[3] * 0.38))
-        roi = frame.bgr[y0:y1, x0:x1]
-        if roi.size == 0:
-            return False
-        sample = cv2.resize(cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY), (64, 16))
-        previous = getattr(self, "_hitch_host_row_signature", None)
-        self._hitch_host_row_signature = sample
-        if previous is None or previous.shape != sample.shape:
-            return False
-        return float(np.mean(cv2.absdiff(previous, sample))) >= 8.0
 
     def _hitch_ocr_text(self, frame: Frame | None = None) -> str:
         override = getattr(self, "_hitch_ocr_override", None)
@@ -9813,10 +9794,6 @@ class Mediator:
             return LoopAction.Continue
 
         if in_room:
-            # Keep a visual baseline of the first player row even on the
-            # initial Ready frame; a later promotion to host is detected as a
-            # fresh row mutation, not from a static host marker alone.
-            self._hitch_host_row_changed_last = self._hitch_host_row_changed(frame)
             if self._hitch_re_search and ready_state in {"ready", "cancel_ready", "start"}:
                 self._hitch_re_search = False
             if self._hitch_sm.pending_join:
