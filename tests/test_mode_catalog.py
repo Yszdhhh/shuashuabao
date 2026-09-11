@@ -198,7 +198,7 @@ class ApplyModeOverlayTests(unittest.TestCase):
 
     def test_hitch_dashboard_contract_exposes_bosses_and_search_terms(self):
         spec = get_spec("lobby_hitch")
-        self.assertEqual(Settings().hitch_stage_prefix, "4,3")
+        self.assertEqual(Settings().hitch_stage_prefix, "4,3,速")
         self.assertTrue({"hitch_stage_prefix", "cjb_boss", "sgzx_boss"}.issubset(spec.visible_settings))
         selected = apply_mode_overlay(
             Settings(hitch_stage_prefix="自定义主搜,自定义副搜", cjb_boss="01暴掠龙", sgzx_boss="08巨形缝合怪"),

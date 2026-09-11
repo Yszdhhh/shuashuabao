@@ -3,7 +3,7 @@
 ## 结论与固定身份
 
 - 对齐起点：`integration/formal-g0-live-20260911` @ `e017026ca9abff237bfd1f3f867a92a309a18df7`。
-- Production 提交：`3904913314cd04802a4f610a5c64c8158fea6429`。
+- Production 提交：`adc6fb5792e6f366c046385343578d3efca9f45c`。
 - Harness rebaseline 提交：`b862e38c7ecbda969ba5959d0de03682b7fc00ae`。
 - Production 固定工作树：`G:\刷刷宝\Worktrees\prod-source-3904913-20260911`（detached，clean）。
 - 开发/Harness 工作树：`G:\刷刷宝\GameScript-Local`，分支 `fix/live-hitch-follow-closure-20260911`。
@@ -37,7 +37,16 @@
 
 - Launcher：`G:\刷刷宝\GameScript-Local\live_scenario_launcher.ps1`
 - `ProductionSourceRoot`：`G:\刷刷宝\Worktrees\prod-source-3904913-20260911`
-- `ProductionSourceSha`：`3904913314cd04802a4f610a5c64c8158fea6429`
+- `ProductionSourceSha`：`adc6fb5792e6f366c046385343578d3efca9f45c`
 - 测试：`13 PRIMARY HITCH_FULL_NATURAL_E2E`，`hitch_cycle_num=5`。
 
 实机 PASS 必须以本次新 capture bundle 的 trace/manifest 为准；离线回归和用户旧附件不替代 5 局真实链路证据。
+
+## 2026-09-11 本轮实机复盘与修正
+
+- 实机 bundle `hitch_lobby_chain_20260911_133833_722525` 实际只进入 1 次房间，`game_count=0` 、`pressure_confirmed=0` ，不是 5 局 PASS；结束原因为操作员点击 HUD 停止。
+- Harness 现在将进局 HUD 只记为中间证据，只在观察器完成配置局数并真实回大厅后才提升 authoritative target；`hitch_cycle_num=5` 时观察器需满 5 轮。
+- Production candidate 新提交 `adc6fb5792e6f366c046385343578d3efca9f45c`：蹇车房间发现「开始游戏」+首排红色「房主」标记时，认定客户被提升为房主，走现有有界退房（退出按钮使用专用模板兜底），不点 RoomStart。
+- 大厅搜索默认扩为 `4,3,速`，桌面快捷预设同步；用户自定义搜索词仍按原样保留。
+- 本机发现两个无父进程 OCR `python` 孤儿（PID `53188`/`57860`，合计约 460MB），已尝试精确结束，但 Windows 返回 `Access is denied`；未终止 KK 平台本体。
+- 回归：`121 passed` （针对 capture/hitch/mode）；桌面 shortcut 已同步到新 candidate SHA。

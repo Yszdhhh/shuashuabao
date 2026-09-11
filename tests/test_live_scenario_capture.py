@@ -1408,6 +1408,27 @@ def test_lobby_hitch_seat_unknown_never_authorizes_exit() -> None:
     ) == "unknown"
 
 
+def test_lobby_hitch_host_takeover_is_rejected_and_starts_bounded_exit() -> None:
+    image = cv2.imdecode(
+        np.fromfile(
+            str(ROOT / "tests" / "performance" / "fixtures" / "room_waiting.png"),
+            dtype=np.uint8,
+        ),
+        cv2.IMREAD_COLOR,
+    )
+    assert image is not None
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    frame = Frame(image, window_title="KK官方对战平台", hwnd=99, role="l0")
+    med._confirmed_room_hwnd = frame.hwnd
+    med._hitch_pending_room_key = "730766"
+    with patch.object(med, "act_click", return_value=True) as click:
+        med._tick_lobby_hitch(frame, "UNKNOWN")
+
+    assert med._hitch_room_seat_decision(frame) == "reject_host_takeover"
+    assert med._hitch_floor_exit_pending is True
+    assert click.call_args.args[1] == "HitchLeaveFloorOne"
+
+
 def test_lobby_search_floor_one_exit_requires_visual_room_close() -> None:
     med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
     before = _synthetic_hitch_room(0)
@@ -1988,9 +2009,41 @@ def test_probe_entry_also_overrides_generic_room_context() -> None:
     assert result is LoopAction.Continue
     assert calls == [("LOBBY_ROOM", None, False)]
 def test_lobby_hitch_uses_default_and_custom_search_text() -> None:
-    assert Settings().hitch_stage_prefix == "4,3"
+    assert Settings().hitch_stage_prefix == "4,3,速"
     assert Settings._from_dict({"hitch_stage_prefix": "4-8"}).hitch_stage_prefix == "4-8"
-    assert Settings._from_dict({"hitch_stage_prefix": "   "}).hitch_stage_prefix == "4,3"
+    assert Settings._from_dict({"hitch_stage_prefix": "   "}).hitch_stage_prefix == "4,3,速"
+
+
+def test_hitch_ingame_hud_is_intermediate_not_authoritative_target_pass() -> None:
+    frame = _fixture_frame()
+    med = SimpleNamespace(
+        _is_in_game_hud=lambda _frame: True,
+        _is_game_client_frame=lambda _frame: True,
+    )
+    post = live_capture._target_postcondition_snapshot(
+        "hitch_lobby_chain",
+        med,
+        frame,
+        {"phase": "MAIN_LINE"},
+        {"reason": "capture_wait"},
+        {},
+    )
+    assert post["observed"] is True
+    assert post["kind"] == "hitch_ingame_hud"
+    assert post["authoritative"] is False
+
+
+def test_hitch_observer_round_requirement_follows_configured_cycle_count(tmp_path: Path) -> None:
+    recorder = BundleRecorder(
+        tmp_path / "bundle",
+        repo_root=ROOT,
+        target="hitch_lobby_chain",
+        settings=Settings(hitch_cycle_num=5),
+        initial_phase="LOBBY_ROOM",
+        execution_mode="mediator_tick",
+    )
+    assert recorder.solo_observer is not None
+    assert recorder.solo_observer.required_rounds == 5
 
 
 def test_lobby_hitch_clicks_text_area_left_of_search_icon() -> None:

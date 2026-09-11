@@ -1216,7 +1216,8 @@ class HitchLobbyChainObserver:
         "Artifact-Q", "Artifact-W", "Artifact-E", "ClearPressureMonsters",
     }
 
-    def __init__(self) -> None:
+    def __init__(self, *, required_rounds: int = 3) -> None:
+        self.required_rounds = max(3, int(required_rounds or 3))
         self.failed_reason: str | None = None
         self.blocked_reason: str | None = None
         self.blocked_evidence: dict[str, Any] | None = None
@@ -1545,7 +1546,10 @@ class HitchLobbyChainObserver:
             ):
                 self.metrics["talisman_acquired"] += 1
                 self._talisman_request_generation = None
-        if self.metrics["rounds_started"] >= 3 and self.metrics["lobby_returns"] >= 3:
+        if (
+            self.metrics["rounds_started"] >= self.required_rounds
+            and self.metrics["lobby_returns"] >= self.required_rounds
+        ):
             self._pass("THREE_ROUNDS_CONFIRMED", evidence={"metrics": self.metrics})
         return self.is_pass
 
@@ -1572,8 +1576,8 @@ class HitchLobbyChainObserver:
             and self.blocked_reason is None
             and not self.manual_intervention_seen
             and safety_zero
-            and self.metrics["rounds_started"] >= 3
-            and self.metrics["lobby_returns"] >= 3
+            and self.metrics["rounds_started"] >= self.required_rounds
+            and self.metrics["lobby_returns"] >= self.required_rounds
             and all(self.checkpoints[name]["status"] == "PASS" for name in required)
         )
 
@@ -1582,6 +1586,7 @@ class HitchLobbyChainObserver:
             "contract_version": 2,
             "scenario": PRIMARY_LIVE_SCENARIO,
             "primary_target": PRIMARY_LIVE_TARGET,
+            "required_rounds": self.required_rounds,
             "checkpoints": _jsonable(self.checkpoints),
             "metrics": _jsonable(self.metrics),
             "public_backpack": {
@@ -2468,7 +2473,15 @@ def _target_postcondition_snapshot(
         if _frame_is_valid(frame):
             try:
                 if med._is_in_game_hud(frame) and med._is_game_client_frame(frame):
-                    return {"observed": True, "state": "confirmed", "kind": "hitch_ingame_hud"}
+                    # An in-game HUD is only an intermediate checkpoint.  The
+                    # hitch target is authoritative after the configured
+                    # number of complete rounds, never on the first HUD.
+                    return {
+                        "observed": True,
+                        "state": "confirmed",
+                        "kind": "hitch_ingame_hud",
+                        "authoritative": False,
+                    }
             except (AttributeError, TypeError):
                 pass
         return {"observed": False, "state": "waiting", "kind": "hitch_lobby_chain"}
@@ -3143,7 +3156,8 @@ class BundleRecorder:
             self.manifest[self.solo_observer_key] = self.solo_observer.payload()
         elif target == "hitch_lobby_chain":
             self.solo_observer_key = "hitch_lobby_chain"
-            self.solo_observer = HitchLobbyChainObserver()
+            configured_rounds = getattr(settings, "hitch_cycle_num", 3)
+            self.solo_observer = HitchLobbyChainObserver(required_rounds=configured_rounds)
             self.manifest[self.solo_observer_key] = self.solo_observer.payload()
         else:
             self.solo_observer = None
@@ -3674,6 +3688,22 @@ class BundleRecorder:
         self.manifest["completed_at_utc"] = _utc_now()
         if self.solo_observer is not None:
             self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
+            # Hitch HUD/room observations are intermediate evidence.  Promote
+            # the target result only after the observer has verified every
+            # required round and lobby return; this prevents a first-HUD
+            # capture from being reported as a natural-E2E PASS.
+            if (
+                self.manifest.get("target") == "hitch_lobby_chain"
+                and getattr(self.solo_observer, "is_pass", False)
+            ):
+                last_event = (self.manifest.get("events") or [{}])[-1]
+                self._record_authoritative_target_result(
+                    event_id=last_event.get("event_id"),
+                    postcondition={
+                        "kind": "hitch_rounds_complete",
+                    },
+                    target_stage="THREE_ROUNDS_CONFIRMED",
+                )
         window = self.manifest.get("window") or {}
         preflight_window = (self.manifest.get("live_preflight") or {}).get("window") or {}
         if not window.get("hwnd") and preflight_window:
