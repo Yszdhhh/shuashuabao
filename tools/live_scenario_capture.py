@@ -3035,7 +3035,7 @@ class BundleRecorder:
         self.manifest_path = self.bundle_dir / "manifest.json"
         self.trace_path = self.bundle_dir / "trace.jsonl"
         self._trace_offset = 0
-        self._recent_trace: deque[dict[str, Any]] = deque(maxlen=20)
+        self._recent_trace: deque[dict[str, Any]] = deque(maxlen=6)
         self._saved_by_signature: dict[str, str] = {}
         self._frame_number = 0
         self._event_number = 0
@@ -3548,7 +3548,7 @@ class BundleRecorder:
                         target_stage=pending_event.get("target_stage"),
                     )
                 self._pending_event_index = None
-                self._write_manifest()
+                self._write_manifest(checkpoint=False)
         state_changed = self._last_state is None or before_state != after_state
         should_save = self._last_state is None or bool(self.inputs_this_tick) or state_changed or loop_action is LoopAction.Break
         self._last_state = after_state
@@ -3606,7 +3606,6 @@ class BundleRecorder:
                 action,
                 postcondition,
             ),
-            "trace_tail": list(self._recent_trace),
             "recent_trace": list(self._recent_trace),
         }
         self._event_number += 1
@@ -3629,7 +3628,7 @@ class BundleRecorder:
         if self.solo_observer is not None:
             self.solo_observer.observe(med, after_state, after_frame or before_frame, trace_row, action)
             self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
-        self._write_manifest()
+        self._write_manifest(checkpoint=False)
         return event
 
     def record_direct(
@@ -3676,7 +3675,9 @@ class BundleRecorder:
             at_s=at_s,
         )
 
-    def _write_manifest(self) -> None:
+    def _write_manifest(self, *, checkpoint: bool = True) -> None:
+        if not checkpoint:
+            return
         payload = dict(self.manifest)
         payload["frame_count"] = len(self.manifest["frames"])
         payload["event_count"] = len(self.manifest["events"])
