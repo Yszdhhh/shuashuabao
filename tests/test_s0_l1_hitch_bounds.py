@@ -378,14 +378,14 @@ class HitchHeirloomExitTests(unittest.TestCase):
                 patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
                 patch.object(med, "_hitch_ocr_text", return_value=""), \
                 patch.object(med, "_find_failure_gift", return_value=None), \
-                patch.object(med, "_heirloom_loot_popup_visible", return_value=True):
+                patch.object(med, "_heirloom_loot_popup_visible", return_value=True),                 patch.object(med, "_top_bar_mode", return_value="plaza"):
             action = med._tick_main_line(_frame())
         self.assertIs(action, LoopAction.Continue)
         self.assertEqual(med.phase, Phase.QUIT)
         self.assertEqual(med._last_outcome, RoundOutcome.VICTORY)
         self.assertEqual(med._failure_streak, 0)
 
-    def test_ninety_seconds_without_loot_quits_with_timeout_and_preserves_streak(self) -> None:
+    def test_sixty_seconds_on_the_plaza_without_loot_quits_with_timeout_and_preserves_streak(self) -> None:
         med = _hitch_mediator()
         med._failure_streak = 3
         med._hitch_pressure_transferred = True
@@ -394,7 +394,7 @@ class HitchHeirloomExitTests(unittest.TestCase):
                 patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
                 patch.object(med, "_hitch_ocr_text", return_value=""), \
                 patch.object(med, "_find_failure_gift", return_value=None), \
-                patch.object(med, "_heirloom_loot_popup_visible", return_value=False):
+                patch.object(med, "_heirloom_loot_popup_visible", return_value=False),                 patch.object(med, "_top_bar_mode", return_value="plaza"):
             action = med._tick_main_line(_frame())
         self.assertIs(action, LoopAction.Continue)
         self.assertEqual(med.phase, Phase.QUIT)

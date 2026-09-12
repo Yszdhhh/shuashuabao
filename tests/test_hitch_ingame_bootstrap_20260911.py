@@ -293,18 +293,26 @@ def _record(med: Mediator, handler, frame: Frame) -> list[tuple]:
     return acts
 
 
-def test_chat_bar_is_observed_but_never_sent_keys() -> None:
-    # Live 10:19 run: Esc never closed the bar and it took no keyboard focus.
+def test_chat_bar_is_closed_with_enter_only_on_two_frame_proof() -> None:
+    # Enter toggles the bar (user, 2026-09-12); Esc never closed it.  Enter
+    # would *open* it on a stale frame, hence the two-frame proof.
     med = _med()
     med.set_phase(Phase.MAIN_LINE, "test")
     med._auto_task_done = True
-    frame = _game(HUD_CHAT)
 
-    assert med._game_chat_input_visible(frame) is True
+    assert med._game_chat_input_visible(_game(HUD_CHAT)) is True
     assert med._game_chat_input_visible(_game(OPENING)) is False
-    for _ in range(2):
-        acts = _record(med, med._tick_main_line, frame)
-        assert all(reason != "CloseGameChat" and key != "esc" for reason, key in acts)
+    first = _record(med, med._tick_main_line, _game(HUD_CHAT))
+    assert ("CloseGameChat", "enter") not in first
+    second = _record(med, med._tick_main_line, _game(HUD_CHAT))
+    assert second == [("CloseGameChat", "enter")]
+    # Right after the key: needs two fresh frames again, and the wait.
+    third = _record(med, med._tick_main_line, _game(HUD_CHAT))
+    assert ("CloseGameChat", "enter") not in third
+    # Never a key while the bar is not there.
+    med._game_chat_close_next_at = 0.0
+    fourth = _record(med, med._tick_main_line, _game(OPENING))
+    assert all(reason != "CloseGameChat" for reason, _key in fourth)
 
 
 def test_failure_recovery_uses_top_left_exit_when_chat_covers_modal() -> None:

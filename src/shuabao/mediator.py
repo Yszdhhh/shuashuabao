@@ -827,7 +827,15 @@ class Mediator:
         self._hitch_nav_clicks = 0
         self._hitch_nav_last_click_at: float | None = None
         self._hitch_nav_input_generation: int | None = None
-        self._game_chat_seen = False
+        self._game_chat_frames = 0
+        self._game_chat_close_attempts = 0
+        self._game_chat_close_next_at = 0.0
+        self._game_chat_last_frame: Frame | None = None
+        # 秘境/团本 detection during the post-heirloom wait.
+        self._hitch_instance_seen = False
+        self._hitch_instance_frames = 0
+        self._hitch_instance_announced = False
+        self._hitch_instance_last_frame: Frame | None = None
         # Hitch liveness ladder (see _hitch_liveness_supervise).
         self._liveness_last_progress_at: float | None = None
         self._liveness_level = 0
@@ -5867,12 +5875,17 @@ class Mediator:
             if find("cjbtiaozhan", 0.80):
                 return "HEIRLOOM_DIALOG"
 
-            # 3) Great rift confirm: ok/mijingOk in the dialog body (center), not the
-            #    right-side rift NPC icon or the bottom action strip.
-            for name, th in (("mijingOk", 0.75), ("ok", 0.85)):
-                m = find(name, th)
-                if m and w * 0.30 <= m.x <= w * 0.60 and h * 0.40 <= m.y <= h * 0.65:
-                    return "GREAT_RIFT_CONFIRM"
+            # 3) Great rift confirm: the grey 是 button (mijingOk 0.91 on the
+            #    real dialog).  The generic orange ok/确认 is not rift evidence:
+            #    live 2026-09-12 the player's own 退出游戏 confirmation scored
+            #    0.97 on it and was "cancelled" as a rift, and the failure modal
+            #    reached mijingOk 0.753 under the old 0.75 floor.
+            m = find("mijingOk", 0.85)
+            if (
+                m and w * 0.30 <= m.x <= w * 0.60 and h * 0.40 <= m.y <= h * 0.65
+                and self._find_exit_confirm(frame) is None
+            ):
+                return "GREAT_RIFT_CONFIRM"
 
             # 新版挑战广场底部的普通物品会误命中 heroRefresh；在前景弹窗
             # 均被排除后，三个页面专属锚点足以确认 NPC_HUB。
@@ -5949,6 +5962,15 @@ class Mediator:
                 and (
                     (rift_npc_right and hero_hit)
                     or self._post_game_hub_label_pair(frame, hub_archive, hub_heirloom)
+                    # Live 2026-09-12 f0333: the camera left only the 传家宝挑战
+                    # label in reach.  The top bar's 存档 mode label (0.97 on
+                    # every plaza frame, absent from wave HUDs) is the page
+                    # evidence; one NPC label anchors the hub itself.
+                    or (
+                        getattr(self, "_post_game_pending", False)
+                        and self._top_bar_mode(frame) == "plaza"
+                        and (hub_archive is not None or hub_heirloom is not None)
+                    )
                 )
                 # B4：与 ARCHIVE_PANEL 互斥——关闭按钮可见时不分类为 NPC_HUB。
                 and close_hit is None
@@ -5958,6 +5980,59 @@ class Mediator:
             return None
 
         return self._memo(key, frame, compute)
+
+    # The mode label right of the top-bar clock: 第N/5波 during waves, 存档 on
+    # the post-game plaza (and its archive/heirloom pages), 团本 in a raid.
+    _TOP_BAR_LABEL_ROI = (0.38, 0.0, 0.47, 0.07)
+
+    def _top_bar_mode(self, frame: Frame) -> str | None:
+        """'plaza' (存档), 'raid' (团本) or None (a wave counter / unknown)."""
+        if frame.bgr is None or frame.width < 480 or frame.height < 270:
+            return None
+        plaza = self.find(frame, ["cundangInfo"], threshold=0.85, roi=self._TOP_BAR_LABEL_ROI)
+        # 团本 scores 0.63 against 存档, so it must clear its own high floor
+        # and beat the plaza label.
+        raid = self.find(frame, ["tuanben"], threshold=0.85, roi=self._TOP_BAR_LABEL_ROI)
+        if raid is not None and (plaza is None or raid.score > plaza.score):
+            return "raid"
+        if plaza is not None:
+            return "plaza"
+        return None
+
+    _HITCH_INSTANCE_FRAMES = 3
+    _HITCH_HEIRLOOM_EXIT_S = 60.0
+
+    def _hitch_left_plaza(self, frame: Frame) -> bool:
+        """After the heirloom click: were we moved into 秘境 / 团本?
+
+        The host starts those from the plaza and the whole team is
+        teleported, so a passenger sees it as the plaza mode label going
+        away while the in-game chrome (top-left 退出游戏) stays - over three
+        distinct frames, so a loading screen or a dialog is not a verdict.
+        The top bar's 团本 label is a verdict on its own.  Latched until the
+        next heirloom wait.
+        """
+        if getattr(self, "_hitch_instance_seen", False):
+            return True
+        mode = self._top_bar_mode(frame)
+        if mode == "raid":
+            self._hitch_instance_seen = True
+            return True
+        if mode == "plaza":
+            self._hitch_instance_frames = 0
+            return False
+        quit_hit = self.find(frame, ["quit"], threshold=0.75, roi=(0.0, 0.0, 0.12, 0.08))
+        if quit_hit is None or self._post_game_state(frame) is not None:
+            return False
+        if self.find_scene(frame, "fail") or self.find_scene(frame, "disconnect"):
+            return False
+        # Hold the counted frame itself: ids of freed frames get reused.
+        if frame is not getattr(self, "_hitch_instance_last_frame", None):
+            self._hitch_instance_last_frame = frame
+            self._hitch_instance_frames = int(getattr(self, "_hitch_instance_frames", 0) or 0) + 1
+        if self._hitch_instance_frames >= self._HITCH_INSTANCE_FRAMES:
+            self._hitch_instance_seen = True
+        return bool(self._hitch_instance_seen)
 
     def _find_archive_panel_close(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
@@ -6737,11 +6812,12 @@ class Mediator:
 
     # The in-game "输入信息……/发送" chat input bar.  It lies across the failure
     # modal's button row and swallowed the 退出游戏 click (01:55 run); recovery
-    # routes around it via the top-left exit.  Live 10:19 run: it appears and
-    # disappears with no input of ours (10:42:48 gone, 10:42:57 back), Esc
-    # never closed it (3 appearances x 2 presses) and it takes no keyboard
-    # focus (F1 and every click worked under it).  So we only observe it.
+    # also routes around it via the top-left exit.  Enter toggles it (user,
+    # 2026-09-12); Esc never closed it (10:19 run, 3 appearances x 2 presses).
     _GAME_CHAT_ROI = (0.35, 0.58, 0.65, 0.72)
+    _GAME_CHAT_CLOSE_LIMIT = 2
+    _GAME_CHAT_CLOSE_WAIT_S = 2.0
+    _GAME_CHAT_CONFIRM_FRAMES = 2
 
     def _game_chat_input_visible(self, frame: Frame) -> bool:
         if not self._is_game_client_frame(frame):
@@ -6755,16 +6831,33 @@ class Mediator:
         ) is not None
 
     def _maybe_close_game_chat(self, frame: Frame, now: float) -> LoopAction | None:
-        """Note the chat bar once per appearance; never send keys for it.
+        """Close the chat bar with Enter - only on proof it is open.
 
-        Blind keys cannot close it and could close our own panels.  Clicks
-        through it are routed around by their callers (failure recovery).
+        Enter *opens* the bar too, so a key is sent only after two distinct
+        frames both show it, then the next two frames must be observed again
+        before any retry; two tries per appearance, then it is left alone
+        (clicks elsewhere work under it).
         """
-        visible = self._game_chat_input_visible(frame)
-        if visible and not getattr(self, "_game_chat_seen", False):
-            print("[med] 局内聊天输入条可见（非脚本打开、不抢键盘），不按键，点击避开该区域")
-        self._game_chat_seen = visible
-        return None
+        if not self._game_chat_input_visible(frame):
+            self._game_chat_frames = 0
+            self._game_chat_close_attempts = 0
+            return None
+        if frame is not getattr(self, "_game_chat_last_frame", None):
+            self._game_chat_last_frame = frame
+            self._game_chat_frames = int(getattr(self, "_game_chat_frames", 0) or 0) + 1
+        attempts = int(getattr(self, "_game_chat_close_attempts", 0) or 0)
+        if attempts >= self._GAME_CHAT_CLOSE_LIMIT:
+            return None
+        if self._game_chat_frames < self._GAME_CHAT_CONFIRM_FRAMES:
+            return None
+        if now < float(getattr(self, "_game_chat_close_next_at", 0.0) or 0.0):
+            return None
+        print("[med] 局内聊天输入条连续两帧可见，按 Enter 关闭")
+        if self.act_key("enter", "CloseGameChat"):
+            self._game_chat_close_attempts = attempts + 1
+            self._game_chat_close_next_at = now + self._GAME_CHAT_CLOSE_WAIT_S
+            self._game_chat_frames = 0
+        return LoopAction.Continue
 
     def _find_exit_confirm(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
@@ -7710,6 +7803,9 @@ class Mediator:
             self._panel_episode_count = {}
             self._panel_cooldown_until = {}
             self._hitch_treasure_retry_at = 0.0
+            self._hitch_instance_seen = False
+            self._hitch_instance_frames = 0
+            self._hitch_instance_announced = False
             # F4 clears challenges.  The first confirmed HUD frame belongs to
             # the normal bond-first opening cycle, so do not let a reset timer
             # clear challenges immediately on game entry.
@@ -10432,7 +10528,9 @@ class Mediator:
     # lobby phase must not re-adopt it as a running round meanwhile.
     _HITCH_GAME_CLOSE_GRACE_S = 25.0
     # Keys pressed blindly by a local stall watchdog are not progress.
-    _LIVENESS_BLIND_REASONS = frozenset({"HitchStallWatchdogEsc", "HitchLeaveMisopenedStage"})
+    _LIVENESS_BLIND_REASONS = frozenset(
+        {"HitchStallWatchdogEsc", "HitchLeaveMisopenedStage", "CloseGameChat"}
+    )
     # Livelock caps: total dwell per phase family, inputs or not.
     _HITCH_PHASE_FAMILY = {
         Phase.QUIT: "exit", Phase.NEXT: "exit",
@@ -13509,30 +13607,59 @@ class Mediator:
             and self._passenger_mode()
             and getattr(self, "_hitch_heirloom_exit_since", None)
         ):
-            loot = self._heirloom_loot_popup_visible(frame)
-            waited = now - float(self._hitch_heirloom_exit_since)
-            if loot:
-                if self._follow_enabled() and self.settings.auto_secret_realm:
+            # User rule (2026-09-12) after the heirloom Boss is sent:
+            #   1. the right-side equipment list and still on the plaza -> exit;
+            #   2. 60s on the plaza -> exit;
+            #   3. a failed game exits through the failure chain.
+            # Teleported into 秘境 / 团本 -> never exit here; that run ends
+            # in its own failure (or victory) page, which exits as usual.
+            if not self._follow_enabled() and self._hitch_left_plaza(frame):
+                if not getattr(self, "_hitch_instance_announced", False):
+                    self._hitch_instance_announced = True
+                    print("[med] 传家宝后画面已离开战后广场（秘境/团本），暂不退出，等失败/胜利页再退")
+            else:
+                # Rules 1/2 need the plaza on screen: an off-plaza frame may be
+                # the first of a teleport still being judged.  Neither plaza
+                # nor instance for another full window (a screen we can't
+                # read) still exits.
+                on_plaza = self._follow_enabled() or self._top_bar_mode(frame) == "plaza"
+                loot = on_plaza and self._heirloom_loot_popup_visible(frame)
+                waited = now - float(self._hitch_heirloom_exit_since)
+                timer_due = waited >= self._HITCH_HEIRLOOM_EXIT_S and (
+                    on_plaza or waited >= 2 * self._HITCH_HEIRLOOM_EXIT_S
+                )
+                if loot:
+                    if self._follow_enabled() and self.settings.auto_secret_realm:
+                        self._hitch_heirloom_exit_since = None
+                        self._passenger_heirloom_for_secret = True
+                        print("[med] 跟车已确认传家宝掉落，等待 Victory 后继续秘境")
+                        return LoopAction.Continue
+                    why = "heirloom loot popup"
+                    print(f"[med] 传家宝后退出：{why}")
                     self._hitch_heirloom_exit_since = None
-                    self._passenger_heirloom_for_secret = True
-                    print("[med] 跟车已确认传家宝掉落，等待 Victory 后继续秘境")
+                    self._record_round_outcome(RoundOutcome.VICTORY, why)
+                    self.set_phase(Phase.QUIT, why)
                     return LoopAction.Continue
-                why = "heirloom loot popup"
-                print(f"[med] 传家宝后退出：{why}")
-                self._hitch_heirloom_exit_since = None
-                self._record_round_outcome(RoundOutcome.VICTORY, why)
-                self.set_phase(Phase.QUIT, why)
-                return LoopAction.Continue
-            if waited >= 90.0:
-                if self._follow_enabled() and self.settings.auto_secret_realm:
-                    print("[med] 跟车传家宝掉落未识别，继续等待 Victory/失败，不提前退出")
+                if timer_due:
+                    if self._follow_enabled() and self.settings.auto_secret_realm:
+                        print("[med] 跟车传家宝掉落未识别，继续等待 Victory/失败，不提前退出")
+                        return LoopAction.Continue
+                    why = f"heirloom {self._HITCH_HEIRLOOM_EXIT_S:.0f}s timeout"
+                    print(f"[med] 传家宝后退出：{why}")
+                    self._hitch_heirloom_exit_since = None
+                    self._record_round_outcome(RoundOutcome.TIMEOUT, why)
+                    self.set_phase(Phase.QUIT, why)
                     return LoopAction.Continue
-                why = "heirloom 90s timeout"
-                print(f"[med] 传家宝后退出：{why}")
-                self._hitch_heirloom_exit_since = None
-                self._record_round_outcome(RoundOutcome.TIMEOUT, why)
-                self.set_phase(Phase.QUIT, why)
-                return LoopAction.Continue
+        if (
+            self._passenger_mode()
+            and post_game is None
+            and self._find_exit_confirm(frame) is not None
+        ):
+            # A 退出游戏 confirmation we did not open (our own exit runs in
+            # QUIT/NEXT) is the player's: leave it alone.  Live 2026-09-12 it
+            # was misread as the rift dialog and "cancelled".
+            print("[med] 局内出现非脚本打开的退出确认框，零输入（不替玩家取消）")
+            return LoopAction.Continue
         if self._passenger_heirloom_for_secret and post_game is None:
             return LoopAction.Continue
 
@@ -13984,7 +14111,13 @@ class Mediator:
                     self._post_game_close_attempts = 0
                     if self._passenger_mode():
                         self._hitch_heirloom_exit_since = now
-                        print("[med] 传家宝 Boss 已点，识别到装备弹出则立刻退出，否则 90s 后退出")
+                        self._hitch_instance_seen = False
+                        self._hitch_instance_frames = 0
+                        self._hitch_instance_announced = False
+                        print(
+                            "[med] 传家宝 Boss 已点：广场上识别到装备获取信息立刻退出，"
+                            f"否则 {self._HITCH_HEIRLOOM_EXIT_S:.0f}s 后退出；进入秘境/团本则等失败再退"
+                        )
                     else:
                         print("[med] 传家宝 Boss 已进入挑战进行中，等待真实 Victory（零动作）")
             self._main_line_since = now
