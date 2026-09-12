@@ -2864,7 +2864,23 @@ class Mediator:
         if named_4 <= 2:
             candidates_3 = scan(rois_3, panel_id)
         named_3 = sum(1 for s in candidates_3 if s.get("name"))
-        if rois_4 is not None and named_4 >= 1 and named_4 >= named_3:
+
+        def whole_titles(slots: list[dict]) -> int:
+            # A misaligned ROI reads two-character fragments (``梭哈``) that
+            # can still fuzzy-match a catalog name (``杀敌梭哈``).
+            return sum(
+                1 for s in slots
+                if len(re.sub(r"\s", "", str(s.get("raw_text") or ""))) >= 3
+                and float(s.get("rec_score") or 0.0) >= 0.6
+            )
+
+        # 2026-09-12 live: 3-slot read 双倍神符/提高上限/木材梭哈, 4-slot read
+        # ""/申符/上限/梭哈; both named one card, and the 4-slot tie hid the
+        # panel every time. On a tie the layout reading whole titles wins.
+        prefer_4 = named_4 > named_3 or (
+            named_4 == named_3 and whole_titles(candidates_4) >= whole_titles(candidates_3)
+        )
+        if rois_4 is not None and named_4 >= 1 and prefer_4:
             slot_count = 4
             slots = candidates_4
             desc_spec = self._OCR_DESC_ROIS_4.get(kind) if hasattr(self, "_OCR_DESC_ROIS_4") else None
