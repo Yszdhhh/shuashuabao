@@ -24,6 +24,7 @@ from PySide6.QtCore import QLockFile, QMetaMethod
 from PySide6.QtWidgets import QApplication
 
 from shuabao.paths import live_lock_path, user_settings_path
+from shuabao.settings import Settings
 from shuabao.choice_policy import (
     PANEL_BOND,
     PanelCandidates,
@@ -290,6 +291,49 @@ def test_stage_target_and_hero_plan_round_trip_to_runtime_settings(qapp, tmp_pat
     f2 = DashboardFacade(tmp_path)
     persisted = json.loads(f2.get_snapshot())["settings"]
     assert {key: persisted[key] for key in patch} == patch
+
+
+def test_hitch_settings_and_search_prefix_round_trip(qapp, tmp_path: Path):
+    """验证自定义搜房词（支持多词与中文，如 4,3,速）、Boss 设置与局数端到端往返。"""
+    fallback = Settings()
+    # 1. 验证 Settings.validate_patch 对中文与多词搜房词的放行规则
+    assert Settings.validate_patch({"hitch_stage_prefix": "4,3,速"}, fallback) == []
+    assert Settings.validate_patch({"hitch_stage_prefix": "速,4,刷,秘境"}, fallback) == []
+    assert Settings.validate_patch({"hitch_stage_prefix": "a" * 64}, fallback) == []
+    assert len(Settings.validate_patch({"hitch_stage_prefix": "a" * 65}, fallback)) > 0
+    assert len(Settings.validate_patch({"hitch_stage_prefix": "   "}, fallback)) > 0
+    assert Settings.validate_patch({"cjb_boss": "祖尔格拉布", "sgzx_boss": "麦迪文"}, fallback) == []
+    assert Settings.validate_patch({"hitch_cycle_num": 0, "follow_cycle_num": 0}, fallback) == []
+    assert Settings.validate_patch({"hitch_cycle_num": 100, "follow_cycle_num": 100}, fallback) == []
+    assert Settings.validate_patch({"hitch_after_goal": "solo"}, fallback) == []
+    assert Settings.validate_patch({"hitch_after_goal": "arch"}, fallback) == []
+    assert len(Settings.validate_patch({"hitch_after_goal": "end"}, fallback)) > 0
+    assert Settings.validate_patch({"follow_after_room": "solo"}, fallback) == []
+    assert Settings.validate_patch({"follow_after_room": "hitch"}, fallback) == []
+    assert Settings.validate_patch({"follow_after_room": "arch"}, fallback) == []
+
+    # 2. 经 DashboardFacade.update_config 写入与落盘验证
+    f = DashboardFacade(tmp_path)
+    patch = {
+        "hitch_stage_prefix": "4,3,速",
+        "cjb_boss": "传家宝首领",
+        "sgzx_boss": "时光之穴首领",
+        "hitch_cycle_num": 0,
+        "follow_cycle_num": 50,
+        "hitch_after_goal": "arch",
+        "follow_after_room": "hitch",
+    }
+    res = json.loads(f.update_config(json.dumps(patch)))
+    assert res["ok"] is True
+    assert res["errors"] == []
+    for k, v in patch.items():
+        assert res["settings"][k] == v
+
+    # 3. 跨实例重读验证
+    f2 = DashboardFacade(tmp_path)
+    snap = json.loads(f2.get_snapshot())["settings"]
+    for k, v in patch.items():
+        assert snap[k] == v
 
 
 def test_update_config_filters_invalid_and_never_writes(qapp, tmp_path: Path):

@@ -2852,7 +2852,6 @@
               <div class="after-choice" role="radiogroup" aria-labelledby="hitchAfterGoal" data-od-id="hitch-after-goal">
                 <button type="button" role="radio" data-team-rule="afterGoal" data-value="solo" aria-checked="true">去单刷</button>
                 <button type="button" role="radio" data-team-rule="afterGoal" data-value="arch" aria-checked="false">去考古</button>
-                <button type="button" role="radio" data-team-rule="afterGoal" data-value="end" aria-checked="false">结束</button>
               </div>
             </div>
           </div>
@@ -2868,6 +2867,7 @@
             <button type="button" class="text-btn" id="btnHitchAdvanced" data-od-id="hitch-advanced-search">高级搜房</button>
           </div>
           <div class="hitch-picks hitch-boss-grid">
+            <button type="button" class="pick-row" id="hitchSearchCard"><span class="k">搜房词</span><strong id="hitchSearchSummary">4, 3, 速</strong><i>设置</i></button>
             <button type="button" class="pick-row" id="hitchCjbCard"><span class="k">传家宝</span><strong id="hitchCjbName">未选择</strong><i>选择</i></button>
             <button type="button" class="pick-row" id="hitchBossCard"><span class="k">时光之穴</span><strong id="hitchBossName">未选择</strong><i>选择</i></button>
           </div>
@@ -4122,7 +4122,7 @@
       const onCount = [state.autoSecret, state.autoArch, state.dragonPrefer, state.closeMainline, state.newRoom].filter(Boolean).length;
       const skillSum = rankedSkills.length ? `${rankedSkills.length} 个 · 主C ${SKILLS[rankedSkills[0]]}` : `<b class="is-bad">未选择</b>`;
       const deckSum = `基础 ${selectedBasics.length} · 高级 ${advancedOrder.length ? advancedOrder.map((p)=>p.label).join("›") : "无"}`;
-      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><dl class="launch-facts"><div><dt>${state.mode === "hitch" ? "搜房" : (state.mode === "follow" ? "跟车" : "关卡")}</dt><dd>${state.mode === "hitch" ? (window.hitchSearchTerms ? `${window.hitchSearchTerms.primary},${window.hitchSearchTerms.secondary}` : "4,3") : (state.mode === "follow" ? "已在房间" : `${state.chapter}-${state.stage}`)} · ${state.mode === "hitch" ? (state.teamRules?.hitch?.cycle ? `${state.teamRules.hitch.cycle} 局` : "手动停") : (state.mode === "follow" ? (state.teamRules?.follow?.cycle ? `${state.teamRules.follow.cycle} 局` : "手动停") : (state.cycle ? `${state.cycle} 局` : "手动停"))}</dd></div><div><dt>方式</dt><dd>${MODE_LABEL_FULL[state.mode]||MODE_LABEL[state.mode]||"单刷"}</dd></div><div><dt>声望</dt><dd>${prestigeValue}</dd></div><div><dt>传家宝</dt><dd>${stemLabel(state.cjb)||"未选"}</dd></div><div><dt>Boss</dt><dd>${stemLabel(state.boss)||"未选"}</dd></div><div><dt>订阅</dt><dd>${subValue}</dd></div></dl>`
+      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><dl class="launch-facts"><div><dt>${state.mode === "hitch" ? "搜房" : (state.mode === "follow" ? "跟车" : "关卡")}</dt><dd>${state.mode === "hitch" ? (window.hitchSearchTerms ? (window.hitchSearchTerms.terms ? window.hitchSearchTerms.terms.join(",") : `${window.hitchSearchTerms.primary},${window.hitchSearchTerms.secondary}`) : "4,3,速") : (state.mode === "follow" ? "已在房间" : `${state.chapter}-${state.stage}`)} · ${state.mode === "hitch" ? (state.teamRules?.hitch?.cycle ? `${state.teamRules.hitch.cycle} 局` : "手动停") : (state.mode === "follow" ? (state.teamRules?.follow?.cycle ? `${state.teamRules.follow.cycle} 局` : "手动停") : (state.cycle ? `${state.cycle} 局` : "手动停"))}</dd></div><div><dt>方式</dt><dd>${MODE_LABEL_FULL[state.mode]||MODE_LABEL[state.mode]||"单刷"}</dd></div><div><dt>声望</dt><dd>${prestigeValue}</dd></div><div><dt>传家宝</dt><dd>${stemLabel(state.cjb)||"未选"}</dd></div><div><dt>Boss</dt><dd>${stemLabel(state.boss)||"未选"}</dd></div><div><dt>订阅</dt><dd>${subValue}</dd></div></dl>`
         + foldBlock("skills", "技能", skillSum, skillSummary)
         + foldBlock("rules", "常规", `${onCount} 项开启`, `<div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div>`)
         + foldBlock("deck", "卡组", deckSum, `<p class="launch-sub">基础${state.bondSaved ? " · 已锁定" : ""}</p>${basicSummary}<p class="launch-sub">高级 · 按顺序</p>${advancedSummary}`);
@@ -4256,6 +4256,12 @@
         if (nameEl) nameEl.textContent = value || "未选择";
         if (card) card.classList.toggle("is-empty", empty);
       });
+      const summaryEl = $("hitchSearchSummary");
+      if (summaryEl) {
+        const wTerms = window.hitchSearchTerms;
+        const terms = wTerms ? (wTerms.terms || [wTerms.primary, wTerms.secondary].filter(Boolean)) : ["4", "3", "速"];
+        summaryEl.textContent = terms.join(", ") || "未设置";
+      }
       renderLaunchSummary();
       renderHud();
     }
@@ -4790,7 +4796,6 @@
     });
     on("btnFollow", "click", () => switchScene("follow"));
     on("btnBackHitch", "click", () => switchScene("hitch"));
-    on("btnHitchAdvanced", "click", () => toast("高级搜房：沙盒仅展示入口，运行时走大厅 OCR"));
     document.querySelectorAll("[data-team-rules]").forEach((root)=>{
       const mode=root.dataset.teamRules;
       if (!state.teamRules[mode]) return;

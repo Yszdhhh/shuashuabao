@@ -106,15 +106,17 @@ function clampCycle(n: number): number {
   return Math.max(0, Math.min(999, Math.trunc(n)));
 }
 
-type HitchSearchTerms = { primary: string; secondary: string };
+export type HitchSearchTerms = { terms: string[]; primary: string; secondary: string };
 
-function parseHitchSearchTerms(value: unknown): HitchSearchTerms {
+export function parseHitchSearchTerms(value: unknown): HitchSearchTerms {
   const terms = String(value ?? "").replace(/，/g, ",").split(",")
     .map((term) => term.trim()).filter(Boolean);
-  return { primary: terms[0] ?? "4", secondary: terms[1] ?? "3" };
+  const unique = Array.from(new Set(terms));
+  const list = unique.length > 0 ? unique : ["4", "3", "速"];
+  return { terms: list, primary: list[0] ?? "4", secondary: list[1] ?? "3" };
 }
 
-let hitchSearchTerms: HitchSearchTerms = parseHitchSearchTerms("4,3");
+let hitchSearchTerms: HitchSearchTerms = parseHitchSearchTerms("4,3,速");
 
 function bridgeErrorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -512,10 +514,53 @@ function applySwitches(settings: SettingsDTO): void {
   }
 }
 
+function renderHitchSearchSummary(): void {
+  const el = document.getElementById("hitchSearchSummary");
+  if (el) el.textContent = hitchSearchTerms.terms.join(", ") || "未设置";
+}
+
+let modalDraftTerms: string[] = [];
+
+function renderHitchModalContent(): void {
+  const container = document.getElementById("hitchTermsContainer");
+  if (!container) return;
+  container.innerHTML = modalDraftTerms.map((term, i) => `
+    <div class="hitch-term-row" style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+      <span style="font-size:12px;color:var(--p-faint);width:16px;text-align:right;">${i + 1}</span>
+      <input type="text" class="hitch-term-input" data-idx="${i}" maxlength="32" value="${escText(term)}" placeholder="如 4、3、速" style="flex:1;min-width:0;height:32px;padding:0 8px;border:1px solid var(--p-line);border-radius:6px;background:var(--p-bg);color:var(--p-ink);font-size:13px;" autocomplete="off" />
+      <button type="button" class="term-nav-btn" data-term-move="-1" data-idx="${i}" ${i === 0 ? "disabled" : ""} title="上移" style="width:28px;height:28px;padding:0;border:1px solid var(--p-line);border-radius:6px;background:var(--p-paper);color:var(--p-ink);cursor:pointer;">▲</button>
+      <button type="button" class="term-nav-btn" data-term-move="1" data-idx="${i}" ${i === modalDraftTerms.length - 1 ? "disabled" : ""} title="下移" style="width:28px;height:28px;padding:0;border:1px solid var(--p-line);border-radius:6px;background:var(--p-paper);color:var(--p-ink);cursor:pointer;">▼</button>
+      <button type="button" class="term-nav-btn" data-term-del="${i}" title="删除" style="width:28px;height:28px;padding:0;border:1px solid var(--p-line);border-radius:6px;background:var(--p-paper);color:var(--p-danger, #e55);cursor:pointer;">✕</button>
+    </div>
+  `).join("");
+  updateHitchCharCount();
+}
+
+function syncModalDraftFromInputs(): void {
+  const inputs = document.querySelectorAll<HTMLInputElement>(".hitch-term-input");
+  inputs.forEach((input) => {
+    const idx = Number(input.dataset.idx);
+    if (idx >= 0 && idx < modalDraftTerms.length) {
+      modalDraftTerms[idx] = input.value;
+    }
+  });
+}
+
+function updateHitchCharCount(): void {
+  const countEl = document.getElementById("hitchTermsCharCount");
+  if (!countEl) return;
+  const filtered = modalDraftTerms.map((t) => t.trim()).filter(Boolean);
+  const unique = Array.from(new Set(filtered));
+  const totalLen = unique.join(",").length;
+  countEl.textContent = `合计 ${totalLen}/64 字符`;
+  countEl.style.color = totalLen > 64 ? "var(--p-danger, #e55)" : "var(--p-faint)";
+}
+
 function rerenderAll(settings: SettingsDTO): void {
   renderChapterStage();
   hitchSearchTerms = parseHitchSearchTerms(settings.hitch_stage_prefix);
   (window as unknown as { hitchSearchTerms: HitchSearchTerms }).hitchSearchTerms = hitchSearchTerms;
+  renderHitchSearchSummary();
   const cjb = asString(settings.cjb_boss); // 持久化选择压过推荐展示
   const boss = asString(settings.sgzx_boss);
   if (cjb) state.cjb = cjb;
@@ -532,15 +577,39 @@ function rerenderAll(settings: SettingsDTO): void {
 function openHitchSearchModal(): void {
   state.modal = "hitch_search";
   state._focusBack = document.activeElement;
+  modalDraftTerms = hitchSearchTerms.terms.length ? [...hitchSearchTerms.terms] : ["4", "3", "速"];
   const sheet = $("modalSheet");
   sheet.className = "sheet";
   sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">高级搜房</h2></div>` +
-    `<div class="sheet-body"><p class="hint">自定义后会按主搜、再副搜轮换；留空副搜可只使用主搜。</p>` +
-    `<div class="field"><label for="hitchPrimarySearch">主搜</label><input id="hitchPrimarySearch" type="text" maxlength="64" value="${escText(hitchSearchTerms.primary)}" autocomplete="off" /></div>` +
-    `<div class="field"><label for="hitchSecondarySearch">副搜</label><input id="hitchSecondarySearch" type="text" maxlength="64" value="${escText(hitchSearchTerms.secondary)}" autocomplete="off" /></div></div>` +
-    `<div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-apply-hitch-search="1" data-close="1">保存</button></div>`;
+    `<div class="sheet-body"><p class="hint" style="margin:0 0 10px;font-size:12px;color:var(--p-muted);line-height:1.4;">大厅找房时按顺序依次轮换。支持中文或任意文字（例如「速」「刷」「秘境」），合计上限 64 字符。</p>` +
+    `<div id="hitchTermsContainer" style="max-height:240px;overflow-y:auto;padding-right:4px;"></div>` +
+    `<div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;">` +
+    `<button type="button" class="text-btn" id="btnAddHitchTerm" style="font-size:12px;cursor:pointer;">+ 添加搜房词</button>` +
+    `<span id="hitchTermsCharCount" style="font-size:11px;color:var(--p-faint);"></span>` +
+    `</div></div>` +
+    `<div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-apply-hitch-search="1">保存</button></div>`;
+  renderHitchModalContent();
   $("modalLayer").classList.add("show");
-  (document.getElementById("hitchPrimarySearch") as HTMLInputElement | null)?.focus();
+  (sheet.querySelector(".hitch-term-input") as HTMLInputElement | null)?.focus();
+}
+
+function applyVisibleSettings(): void {
+  const modeId = currentModeId();
+  const mode = modeCatalog.get(modeId);
+  if (!mode || !Array.isArray(mode.visible_settings)) return;
+  const vis = new Set(mode.visible_settings);
+  const hitchCjb = document.getElementById("hitchCjbCard");
+  const hitchBoss = document.getElementById("hitchBossCard");
+  const followCjb = document.getElementById("followCjbCard");
+  const followBoss = document.getElementById("followBossCard");
+  const btnHitchAdv = document.getElementById("btnHitchAdvanced");
+  const hitchSearch = document.getElementById("hitchSearchCard");
+  if (hitchCjb) hitchCjb.style.display = vis.has("cjb_boss") ? "" : "none";
+  if (hitchBoss) hitchBoss.style.display = vis.has("sgzx_boss") ? "" : "none";
+  if (followCjb) followCjb.style.display = vis.has("cjb_boss") ? "" : "none";
+  if (followBoss) followBoss.style.display = vis.has("sgzx_boss") ? "" : "none";
+  if (btnHitchAdv) btnHitchAdv.style.display = vis.has("hitch_stage_prefix") ? "" : "none";
+  if (hitchSearch) hitchSearch.style.display = vis.has("hitch_stage_prefix") ? "" : "none";
 }
 
 let lastAppliedSnapshotSeq = 0;
@@ -616,6 +685,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
     applyPrestige(settings);
     applyStageTargets(settings);
     applyBuildAndSkills(settings);
+    applyVisibleSettings();
     const roomName = asString(settings.room_name);
     const roomPassword = asString(settings.room_password);
     if (roomName !== null) ($("roomName") as HTMLInputElement).value = roomName;
@@ -782,6 +852,7 @@ function wireIntents(): void {
       lastPreflight = null;
       pushShell({ selected_mode_id: modeId });
     }
+    applyVisibleSettings();
   });
 
   // 负面效果勾选变化事件
@@ -868,20 +939,75 @@ function wireIntents(): void {
     },
     { capture: true },
   );
+  $("modalLayer").addEventListener("input", (event) => {
+    if ((event.target as HTMLElement).matches(".hitch-term-input")) {
+      syncModalDraftFromInputs();
+      updateHitchCharCount();
+    }
+  });
   $("modalLayer").addEventListener("click", (event) => {
-    if (!(event.target as HTMLElement).closest("[data-apply-hitch-search]")) return;
-    const primary = (document.getElementById("hitchPrimarySearch") as HTMLInputElement | null)?.value.trim() ?? "";
-    const secondary = (document.getElementById("hitchSecondarySearch") as HTMLInputElement | null)?.value.trim() ?? "";
-    const search = [primary, secondary].filter(Boolean).join(",");
-    if (!search || search.length > 64) {
-      event.stopPropagation();
-      toast(!search ? "主搜不能为空" : "主搜和副搜合计最多 64 个字符");
+    const target = event.target as HTMLElement;
+    const addBtn = target.closest("#btnAddHitchTerm");
+    if (addBtn) {
+      syncModalDraftFromInputs();
+      modalDraftTerms.push("");
+      renderHitchModalContent();
+      const inputs = document.querySelectorAll<HTMLInputElement>(".hitch-term-input");
+      inputs[inputs.length - 1]?.focus();
       return;
     }
-    hitchSearchTerms = { primary, secondary };
-    pushConfig({ hitch_stage_prefix: search });
+    const moveBtn = target.closest("[data-term-move]") as HTMLElement | null;
+    if (moveBtn) {
+      syncModalDraftFromInputs();
+      const idx = Number(moveBtn.dataset.idx);
+      const dir = Number(moveBtn.dataset.termMove);
+      const targetIdx = idx + dir;
+      if (targetIdx >= 0 && targetIdx < modalDraftTerms.length) {
+        const tmp = modalDraftTerms[idx];
+        modalDraftTerms[idx] = modalDraftTerms[targetIdx];
+        modalDraftTerms[targetIdx] = tmp;
+        renderHitchModalContent();
+      }
+      return;
+    }
+    const delBtn = target.closest("[data-term-del]") as HTMLElement | null;
+    if (delBtn) {
+      syncModalDraftFromInputs();
+      const idx = Number(delBtn.dataset.termDel);
+      modalDraftTerms.splice(idx, 1);
+      if (!modalDraftTerms.length) modalDraftTerms.push("");
+      renderHitchModalContent();
+      return;
+    }
+    if (target.closest("[data-apply-hitch-search]")) {
+      syncModalDraftFromInputs();
+      const cleaned = modalDraftTerms.map((t) => t.trim()).filter(Boolean);
+      const unique = Array.from(new Set(cleaned));
+      const search = unique.join(",");
+      if (!unique.length) {
+        event.stopPropagation();
+        toast("搜房词不能为空");
+        return;
+      }
+      if (search.length > 64) {
+        event.stopPropagation();
+        toast("所有搜房词合计最多 64 个字符");
+        return;
+      }
+      hitchSearchTerms = {
+        terms: unique,
+        primary: unique[0] ?? "4",
+        secondary: unique[1] ?? "3",
+      };
+      (window as unknown as { hitchSearchTerms: HitchSearchTerms }).hitchSearchTerms = hitchSearchTerms;
+      renderHitchSearchSummary();
+      pushConfig({ hitch_stage_prefix: search });
+      ((document.querySelector("#modalSheet [data-close]") as HTMLButtonElement | null))?.click();
+      return;
+    }
   }, { capture: true });
   $("btnHitchAdvanced").addEventListener("click", openHitchSearchModal);
+  $("hitchSearchCard")?.addEventListener("click", openHitchSearchModal);
 
   // 启动 / 停止（同一按钮，运行态切换为 stop_run）。
   $("btnStart").addEventListener("click", () => {
@@ -962,4 +1088,6 @@ async function boot(): Promise<void> {
   applySnapshot(await bridge.get_snapshot());
 }
 
-boot().catch(showFatal);
+if (typeof window !== "undefined" && typeof document !== "undefined" && document.getElementById("scene-app")) {
+  boot().catch(showFatal);
+}
