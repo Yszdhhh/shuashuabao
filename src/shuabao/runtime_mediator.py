@@ -369,7 +369,7 @@ class Mediator(CoreMediator):
         if kind == "skill":
             names = ["skill_hide", "card_hide", "hide"]
         elif kind == "treasure":
-            names = ["card_hide", "treasure_hide_btn", "skill_hide", "hide"]
+            names = ["treasure_hide_btn", "hide"]
         elif kind in ("bond", "card"):
             names = ["card_hide", "bond_hide_btn", "skill_hide", "hide"]
         else:
