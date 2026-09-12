@@ -273,6 +273,7 @@ class MediatorPublicBagTests(unittest.TestCase):
         """
         button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 746, 0, 0, 1520, 746)
         with self._patch_layout(None), \
+             patch.object(self.med, "_hud_item_bar_state", return_value="items"), \
              patch.object(self.med, "_is_in_game_hud", return_value=True), \
              patch.object(self.med, "_hud_hotkey_button", return_value=button), \
              patch.object(self.med, "act_click", return_value=True) as click, \
@@ -297,6 +298,7 @@ class MediatorPublicBagTests(unittest.TestCase):
         """K 20260910 18:31：局内 2-7，zidong miss，[B] 0.88，必须能开包。"""
         button = MatchResult("bag/bag_toggle_button", 1.0, 1520, 744, 0, 0, 1520, 744)
         with self._patch_layout(None), \
+             patch.object(self.med, "_hud_item_bar_state", return_value="items"), \
              patch.object(self.med, "_is_in_game_hud", return_value=False), \
              patch.object(self.med, "_post_game_state", return_value=None), \
              patch.object(self.med, "_hud_hotkey_button", return_value=button), \
@@ -345,6 +347,7 @@ class MediatorPublicBagTests(unittest.TestCase):
 
     def test_falls_back_to_the_b_key_when_the_button_is_not_found(self):
         with self._patch_layout(None), \
+             patch.object(self.med, "_hud_item_bar_state", return_value="items"), \
              patch.object(self.med, "_is_in_game_hud", return_value=True), \
              patch.object(self.med, "_hud_hotkey_button", return_value=None), \
              patch.object(self.med, "act_key", return_value=True) as key, \

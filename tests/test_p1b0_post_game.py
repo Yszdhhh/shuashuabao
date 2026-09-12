@@ -845,6 +845,9 @@ class P1B0PostGameTests(unittest.TestCase):
         med._post_game_pending = True
         med._post_game_route = "heirloom_active"
         med._boss_challenge_attempts = 1
+        # The click itself is what proves "already sent" (a time-cave click
+        # sharing the counter must not, live 2026-09-12).
+        med._heirloom_boss_clicked_at = 9.5
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
         with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
              patch.object(med, "_heirloom_boss_result_visible", return_value=False), \

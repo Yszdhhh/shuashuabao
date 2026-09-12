@@ -827,8 +827,7 @@ class Mediator:
         self._hitch_nav_clicks = 0
         self._hitch_nav_last_click_at: float | None = None
         self._hitch_nav_input_generation: int | None = None
-        self._game_chat_close_attempts = 0
-        self._game_chat_close_next_at = 0.0
+        self._game_chat_seen = False
         # Hitch liveness ladder (see _hitch_liveness_supervise).
         self._liveness_last_progress_at: float | None = None
         self._liveness_level = 0
@@ -836,6 +835,10 @@ class Mediator:
         self._liveness_family: str | None = None
         self._liveness_family_since: float | None = None
         self._hitch_dwell_room_left = False
+        # Passenger V retry spacing after a "no treasure choices" click.
+        self._hitch_treasure_retry_at = 0.0
+        # A bag visit that left movable items in the personal grid.
+        self._public_bag_personal_leftover = False
         # Verified game exit time: the closing window is not re-adopted.
         self._hitch_game_exit_at: float | None = None
         # P0-6：Ready 70s 超时退房生命周期（确认离房+大厅可见后才拉黑）
@@ -3846,6 +3849,7 @@ class Mediator:
     # 这里不再留终点停车位：merchant→treasure→pickup→public_bag 循环滚动，
     # 整局持续捡东西、持续往公共背包丢。
     _HITCH_L1_CYCLE_ORDER = ("merchant", "treasure", "pickup", "public_bag")
+    _HITCH_TREASURE_RETRY_S = 30.0
 
     def _advance_l1_cycle(self, completed: str | None = None) -> None:
         current = completed or self._l1_cycle_step
@@ -3902,6 +3906,17 @@ class Mediator:
                 or (target == "bond" and getattr(self.settings, "auto_bond", True))
                 or (target == "treasure" and getattr(self.settings, "auto_treasure", True))
             )
+            if self._passenger_mode() and target == "treasure" and (
+                self._panel_episode_count.get(target, 0) >= self.settings.panel_episode_limit_per_kind
+                or now < getattr(self, "_hitch_treasure_retry_at", 0.0)
+            ):
+                # Live 2026-09-12: the capped treasure step parked the panel
+                # FSM in COOLDOWN, re-entered it the tick the cooldown ended
+                # and never left the step - no pickup, bag or merchant for
+                # the rest of the round (and the next: the count carried).
+                # A passenger simply skips V this lap.
+                self._advance_l1_cycle("treasure")
+                return LoopAction.Continue
             if (
                 panel_enabled
                 and self._panel_episode_count.get(target, 0)
@@ -4585,6 +4600,59 @@ class Mediator:
         floor = max(20.0, OCCUPIED_SLOT_MIN_SATURATED * self._bag_area_scale(frame))
         return std >= OCCUPIED_SLOT_MIN_STD and saturated >= floor
 
+    # The HUD's own 物品栏 (bottom right, 1600x900 baseline), laid out
+    # 1 2 / 3 4 / 5 6; slot 1 is the hero's fixed gear.  It stays visible with
+    # the bag page open and draws each icon larger than the page's copy.
+    _HUD_ITEM_BAR_FIRST = (1082, 735)
+    _HUD_ITEM_BAR_PITCH = 60
+    _HUD_ITEM_BAR_PROBE_HALF = 16
+
+    def _hud_item_bar_rect(self, frame: Frame, index: int) -> tuple[int, int, int, int] | None:
+        if frame.bgr is None or not LayoutTransform.is_supported(frame.width, frame.height):
+            return None
+        col, row = index % 2, index // 2
+        cx = self._HUD_ITEM_BAR_FIRST[0] + col * self._HUD_ITEM_BAR_PITCH
+        cy = self._HUD_ITEM_BAR_FIRST[1] + row * self._HUD_ITEM_BAR_PITCH
+        h = self._HUD_ITEM_BAR_PROBE_HALF
+        return LayoutTransform.from_frame(frame.width, frame.height).logical_roi(
+            cx - h, cy - h, cx + h, cy + h
+        )
+
+    def _hud_item_bar_state(self, frame: Frame) -> str:
+        """'items' / 'empty' / 'unknown' for the movable HUD slots 2-6.
+
+        A slot already retired as unmovable this round does not count.
+        """
+        all_empty = True
+        for index in range(1, ITEM_BAR_SLOTS):
+            rect = self._hud_item_bar_rect(frame, index)
+            if rect is None:
+                return "unknown"
+            if self._public_bag_source_exhausted(f"item_bar_{index}"):
+                continue
+            if self._bag_slot_occupied(frame, rect):
+                return "items"
+            if not self._bag_slot_empty(frame, rect):
+                all_empty = False
+        return "empty" if all_empty else "unknown"
+
+    def _item_bar_slot_occupied(self, frame: Frame, layout: BagLayout, index: int) -> bool:
+        """Bag-page 物品栏 slot holds an item.
+
+        Live 2026-09-12 the hero card measured 135 saturated pixels on the
+        page against a 140 floor (kept to reject the cursor), so it was never
+        handed over.  An icon the page can't call empty counts when the HUD's
+        larger copy of the same slot is clearly occupied - the cursor cannot
+        sit on both.
+        """
+        rect = layout.item_bar_slot_probe_rect(index)
+        if self._bag_slot_occupied(frame, rect):
+            return True
+        if self._bag_slot_empty(frame, rect):
+            return False
+        hud = self._hud_item_bar_rect(frame, index)
+        return hud is not None and self._bag_slot_occupied(frame, hud)
+
     def _public_bag_empty_slot(
         self, frame: Frame, layout: BagLayout
     ) -> tuple[int, int, MatchResult] | None:
@@ -4679,7 +4747,7 @@ class Mediator:
         for index in range(1, ITEM_BAR_SLOTS):
             if self._public_bag_source_exhausted(f"item_bar_{index}"):
                 continue
-            if not self._bag_slot_occupied(frame, layout.item_bar_slot_probe_rect(index)):
+            if not self._item_bar_slot_occupied(frame, layout, index):
                 continue
             center = layout.item_bar_slot_center(index)
             if center is None:
@@ -4796,6 +4864,15 @@ class Mediator:
             return None
         layout = self._bag_layout(frame)
         bag_visible = layout is not None
+        if layout is not None:
+            # Remember movable items left in the personal grid (a lease
+            # expiry, an aborted hop): they justify the next open even with
+            # an empty 物品栏.
+            self._public_bag_personal_leftover = any(
+                not self._public_bag_source_exhausted(f"personal_{row}_{col}")
+                and self._bag_slot_occupied(frame, layout.personal_slot_rect(row, col))
+                for row, col in layout.public_slots()
+            )
 
         previous = self._public_bag_fsm
         deposit_confirmed = (
@@ -4846,6 +4923,14 @@ class Mediator:
             if not fsm.can_start(now) or now < self._public_bag_next_at:
                 return None
             if not self._public_bag_surface_ok(frame):
+                return None
+            if (
+                self._hud_item_bar_state(frame) == "empty"
+                and not self._public_bag_personal_leftover
+            ):
+                # Open the bag only for something to hand over: an item in
+                # 物品栏 2-6 (or one we left in the personal grid).  Live
+                # 2026-09-12 it opened and closed empty after every pickup.
                 return None
             if self._open_bag_page(frame):
                 self._public_bag_fsm = fsm.request_bag_open(now)
@@ -5955,6 +6040,17 @@ class Mediator:
             print("[med] 战后页面未分类，Boss 挑战零输入等待")
             return LoopAction.Continue
         bosses = self._configured_boss_challenge_names()
+        if post_game in ("ARCHIVE_PANEL", "HEIRLOOM_DIALOG"):
+            previous_page = getattr(self, "_boss_challenge_page", None)
+            if previous_page is not None and previous_page != post_game:
+                # Each Boss list owns its own budget.  Live 2026-09-12 the
+                # time-cave click (attempts=1) carried into the heirloom page,
+                # which then read "Boss already sent" and waited with zero
+                # input for 9 minutes on an untouched heirloom grid.
+                self._boss_challenge_attempts = 0
+                self._boss_challenge_scroll_attempts = 0
+                self._boss_challenge_next_at = 0.0
+            self._boss_challenge_page = post_game
         if post_game == "ARCHIVE_PANEL":
             # 时光之穴页只能选择 sgzx_boss；cjb_boss 属于传家宝列表。
             configured = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
@@ -5975,6 +6071,7 @@ class Mediator:
         if (
             post_game == "HEIRLOOM_DIALOG"
             and self._boss_challenge_attempts > 0
+            and getattr(self, "_heirloom_boss_clicked_at", None) is not None
         ):
             if self._heirloom_boss_result_visible(frame):
                 print("[med] 传家宝 Boss 后置已确认，停止重复点击")
@@ -6638,12 +6735,13 @@ class Mediator:
                 return hit
         return None
 
-    # The in-game "输入信息……/发送" chat input bar.  Live 2026-09-12 it opened
-    # right after the pressure click and stayed up all round: it swallowed
-    # the failure modal's 退出游戏 click and captures keyboard input.
+    # The in-game "输入信息……/发送" chat input bar.  It lies across the failure
+    # modal's button row and swallowed the 退出游戏 click (01:55 run); recovery
+    # routes around it via the top-left exit.  Live 10:19 run: it appears and
+    # disappears with no input of ours (10:42:48 gone, 10:42:57 back), Esc
+    # never closed it (3 appearances x 2 presses) and it takes no keyboard
+    # focus (F1 and every click worked under it).  So we only observe it.
     _GAME_CHAT_ROI = (0.35, 0.58, 0.65, 0.72)
-    _GAME_CHAT_CLOSE_LIMIT = 2
-    _GAME_CHAT_CLOSE_WAIT_S = 2.0
 
     def _game_chat_input_visible(self, frame: Frame) -> bool:
         if not self._is_game_client_frame(frame):
@@ -6657,25 +6755,16 @@ class Mediator:
         ) is not None
 
     def _maybe_close_game_chat(self, frame: Frame, now: float) -> LoopAction | None:
-        """Close an open chat input with Esc, verified on a later frame.
+        """Note the chat bar once per appearance; never send keys for it.
 
-        Bounded: after the limit the bar is left alone (clicks elsewhere
-        still work; only clicks *through* it are avoided by callers).
+        Blind keys cannot close it and could close our own panels.  Clicks
+        through it are routed around by their callers (failure recovery).
         """
-        if not self._game_chat_input_visible(frame):
-            self._game_chat_close_attempts = 0
-            self._game_chat_close_next_at = 0.0
-            return None
-        attempts = int(getattr(self, "_game_chat_close_attempts", 0) or 0)
-        if attempts >= self._GAME_CHAT_CLOSE_LIMIT:
-            return None
-        if now < float(getattr(self, "_game_chat_close_next_at", 0.0) or 0.0):
-            return LoopAction.Continue
-        print("[med] 检测到局内聊天输入框处于打开状态，按 Esc 关闭")
-        if self.act_key("esc", "CloseGameChat"):
-            self._game_chat_close_attempts = attempts + 1
-            self._game_chat_close_next_at = now + self._GAME_CHAT_CLOSE_WAIT_S
-        return LoopAction.Continue
+        visible = self._game_chat_input_visible(frame)
+        if visible and not getattr(self, "_game_chat_seen", False):
+            print("[med] 局内聊天输入条可见（非脚本打开、不抢键盘），不按键，点击避开该区域")
+        self._game_chat_seen = visible
+        return None
 
     def _find_exit_confirm(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
@@ -7563,6 +7652,7 @@ class Mediator:
             self._l1_cycle_step = "merchant" if self._passenger_mode() else "bond"
             self._public_bag_fsm = PublicBagFSM()
             self._public_bag_failed_sources = {}
+            self._public_bag_personal_leftover = False
             self._l1_cycle_last_advance_at = time.time()
         if phase == Phase.RECOVER_FAILURE and self.phase != Phase.RECOVER_FAILURE:
             # 进入恢复：清面板许可与待输入 token（抢占后 panel FSM 全部状态让位）
@@ -7615,6 +7705,11 @@ class Mediator:
             self._close_main_line_triggered = False
             self._main_line_closed_done = False
             self._challenge_recheck_at.clear()
+            # Per-round panel caps.  Hitch rounds never pass STAGE_SELECT,
+            # where these used to reset, so round 2 inherited a capped V.
+            self._panel_episode_count = {}
+            self._panel_cooldown_until = {}
+            self._hitch_treasure_retry_at = 0.0
             # F4 clears challenges.  The first confirmed HUD frame belongs to
             # the normal bond-first opening cycle, so do not let a reset timer
             # clear challenges immediately on game entry.
@@ -7693,6 +7788,7 @@ class Mediator:
             self._boss_challenge_attempts = 0
             self._boss_challenge_scroll_attempts = 0
             self._boss_challenge_next_at = 0.0
+            self._boss_challenge_page = None
             self._aux_dialog_attempts = {"HEIRLOOM_DIALOG": 0, "GREAT_RIFT_CONFIRM": 0}
             # A verified game start owns a fresh retry/recovery episode.  A
             # timeout retry keeps its budget until this transition succeeds.
@@ -9691,7 +9787,6 @@ class Mediator:
             self._public_bag_open_since = None
             self._l1_cycle_step = "merchant"
             self._auto_task_recheck_at = now
-            self._game_chat_close_attempts = 0
             self._pause_resume_attempts = 0
             self._pause_resume_next_at = 0.0
         elif self.phase in (Phase.QUIT, Phase.NEXT):
@@ -13031,7 +13126,13 @@ class Mediator:
                 self._l1_cycle_selected = False
                 self._panel_state = PanelState.COOLDOWN
                 kind = self._panel_kind
-                if kind in ("skill", "bond", "treasure"):
+                if self._passenger_mode() and kind == "treasure":
+                    # V without a panel is the game's "宝物选择次数不足":
+                    # normal, not a failure.  Retry after new choices had
+                    # time to accrue instead of burning the per-round cap.
+                    self._hitch_treasure_retry_at = now + self._HITCH_TREASURE_RETRY_S
+                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                elif kind in ("skill", "bond", "treasure"):
                     self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
                     self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                 self._panel_opened_by_us = None

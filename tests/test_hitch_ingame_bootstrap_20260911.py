@@ -293,7 +293,8 @@ def _record(med: Mediator, handler, frame: Frame) -> list[tuple]:
     return acts
 
 
-def test_open_chat_bar_is_closed_before_other_in_game_input() -> None:
+def test_chat_bar_is_observed_but_never_sent_keys() -> None:
+    # Live 10:19 run: Esc never closed the bar and it took no keyboard focus.
     med = _med()
     med.set_phase(Phase.MAIN_LINE, "test")
     med._auto_task_done = True
@@ -301,9 +302,9 @@ def test_open_chat_bar_is_closed_before_other_in_game_input() -> None:
 
     assert med._game_chat_input_visible(frame) is True
     assert med._game_chat_input_visible(_game(OPENING)) is False
-    assert _record(med, med._tick_main_line, frame) == [("CloseGameChat", "esc")]
-    # Next tick inside the verify wait: no second Esc, nothing clicked under it.
-    assert _record(med, med._tick_main_line, frame) == []
+    for _ in range(2):
+        acts = _record(med, med._tick_main_line, frame)
+        assert all(reason != "CloseGameChat" and key != "esc" for reason, key in acts)
 
 
 def test_failure_recovery_uses_top_left_exit_when_chat_covers_modal() -> None:
