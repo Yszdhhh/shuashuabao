@@ -1472,6 +1472,7 @@ class P1B0PostGameTests(unittest.TestCase):
 
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
              patch.object(med, "act_scroll", return_value=True) as scroll, \
+             patch.object(med, "_post_game_boss_list_at_bottom", side_effect=[False, False, True]), \
              patch.object(med, "_find_last_recognized_post_game_boss", return_value=boss_target), \
              patch.object(med, "_find_archive_panel_close", return_value=close_target), \
              patch.object(med, "act_click", return_value=True) as click:
@@ -1552,14 +1553,27 @@ class PostGameBossRouteTests(unittest.TestCase):
         self.assertEqual(scroll.call_count, med._POST_GAME_BOSS_SCROLL_LIMIT)
         click.assert_not_called()
 
-    def test_bottom_detection_requires_stationary_frames_after_a_scroll(self):
-        """A list cannot be declared bottomed-out merely because it was scrolled."""
+    def test_bottom_detection_requires_two_scrollbar_frames_after_a_scroll(self):
+        """Only the isolated bottom thumb, never dynamic list pixels, authorizes fallback."""
         med = self._med()
         med._boss_challenge_scroll_attempts = 1
-        frame = self._frame()
-        self.assertFalse(med._post_game_boss_list_at_bottom(frame, "ARCHIVE_PANEL"))
+        image = np.zeros((900, 1600, 3), dtype=np.uint8)
+        image[430:500, 1347:1353] = 204
+        frame = Frame(image, hwnd=10001)
         self.assertFalse(med._post_game_boss_list_at_bottom(frame, "ARCHIVE_PANEL"))
         self.assertTrue(med._post_game_boss_list_at_bottom(frame, "ARCHIVE_PANEL"))
+
+    def test_scroll_limit_ends_after_bounded_unresolved_observations(self):
+        med = self._med()
+        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        frame = self._frame()
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "find", return_value=None), \
+             patch.object(med, "_post_game_boss_list_at_bottom", return_value=False):
+            self.assertIs(med._maybe_challenge_configured_boss(frame, 1.0), LoopAction.Continue)
+            self.assertIs(med._maybe_challenge_configured_boss(frame, 2.0), LoopAction.Continue)
+            self.assertIs(med._maybe_challenge_configured_boss(frame, 3.0), LoopAction.Break)
+        self.assertIs(med.phase, Phase.ERROR)
 
     def test_compact_boss_scales_cover_the_shrunken_cards(self):
         """战后卡片被缩到 58~70px；尺度阶梯必须罩住这一档。"""
