@@ -436,8 +436,8 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "handler": "tick",
         "call": "frame",
         "start_condition": "游戏窗口已经处于已确认的蹭车局内 HUD，或 production classifier 已确认的战后存档/传家宝页面；不再从 KK 大厅/房间窗口启动。",
-        "production_entry": "Mediator.tick()，从局内接管后继续压力转移、自动任务、四挑战与既有战后 Boss 路由。",
-        "expected_steps": ("HUD", "AUTO_TASK", "FOUR_CHALLENGES", "POSTGAME_ARCHIVE", "BOSS_FALLBACK"),
+        "production_entry": "Mediator.tick()，从局内接管时跳过仅属于自然开局的压力转移，继续自动任务、四挑战与既有战后 Boss 路由。",
+        "expected_steps": ("HUD", "PRESSURE_SKIPPED_ON_TAKEOVER", "AUTO_TASK", "FOUR_CHALLENGES", "POSTGAME_ARCHIVE", "BOSS_FALLBACK"),
         "success_postcondition": "自动任务、挑战和战后 Boss 均须各自通过既有视觉后置条件；单次输入不算成功。",
         "fail_condition": "输入被拒绝、既有生产 handler 进入 ERROR，或页面缺少既有分类/模板证据。",
         "blocked_condition": "捕获无效、启动帧不是已确认局内 HUD 或 production 分类的战后页面时，BLOCKED 且不发业务输入。",
@@ -445,7 +445,7 @@ TARGET_CONTRACTS: dict[str, dict[str, Any]] = {
         "natural_e2e_eligible": "仅连续真机 Mediator.tick() 链、无人工干预、并由各生产后置条件确认时有资格。",
         "bundle_replay": "沿用现有事件帧、ReplayCaseLoader 和 FakeInputExecutor；不创建另一套蹭车局内状态机。",
         "runbook_manual": "把游戏停在已确认局内 HUD，或已经打开的存档/传家宝页面；不要停在 KK 大厅/房间窗口。紧急停止用 Shift+F12。",
-        "runbook_hands_off": "启动后不要手动点压力转移、自动任务、挑战、存档卡或 Boss。",
+        "runbook_hands_off": "启动后不要手动点自动任务、挑战、存档卡或 Boss；测试 11 从局内接管，不检查压力转移。",
         "runbook_pass": "记录实际动作和各自的真实后置证据；不得用 click success 代替。",
         "runbook_manual_intervention": "需要手动推进页面时先标记 FAIL，再标 MANUAL_INTERVENTION。",
     },
@@ -708,7 +708,7 @@ TARGET_PRODUCTION_FACTS: dict[str, dict[str, Any]] = {
     },
     "hitch_runtime": {
         "production_readiness": "CONDITIONAL",
-        "scope": "从当前蹭车局随时接管：首个已确认 HUD 优先压力转移，再复用自动任务、四挑战与既有战后存档/时光之穴/传家宝末位 Boss fallback。",
+        "scope": "从当前蹭车局随时接管：已确认 HUD 不再检查压力转移，直接复用自动任务、四挑战与既有战后存档/时光之穴/传家宝末位 Boss fallback。",
         "routes": (
             {"route": "hitch_pressure_transfer", "readiness": "CONDITIONAL"},
             {"route": "hitch_auto_task_and_challenges", "readiness": "CONDITIONAL"},
@@ -1216,7 +1216,8 @@ class HitchLobbyChainObserver:
         "Artifact-Q", "Artifact-W", "Artifact-E", "ClearPressureMonsters",
     }
 
-    def __init__(self) -> None:
+    def __init__(self, *, required_rounds: int = 3) -> None:
+        self.required_rounds = max(3, int(required_rounds or 3))
         self.failed_reason: str | None = None
         self.blocked_reason: str | None = None
         self.blocked_evidence: dict[str, Any] | None = None
@@ -1545,7 +1546,10 @@ class HitchLobbyChainObserver:
             ):
                 self.metrics["talisman_acquired"] += 1
                 self._talisman_request_generation = None
-        if self.metrics["rounds_started"] >= 3 and self.metrics["lobby_returns"] >= 3:
+        if (
+            self.metrics["rounds_started"] >= self.required_rounds
+            and self.metrics["lobby_returns"] >= self.required_rounds
+        ):
             self._pass("THREE_ROUNDS_CONFIRMED", evidence={"metrics": self.metrics})
         return self.is_pass
 
@@ -1572,8 +1576,8 @@ class HitchLobbyChainObserver:
             and self.blocked_reason is None
             and not self.manual_intervention_seen
             and safety_zero
-            and self.metrics["rounds_started"] >= 3
-            and self.metrics["lobby_returns"] >= 3
+            and self.metrics["rounds_started"] >= self.required_rounds
+            and self.metrics["lobby_returns"] >= self.required_rounds
             and all(self.checkpoints[name]["status"] == "PASS" for name in required)
         )
 
@@ -1582,6 +1586,7 @@ class HitchLobbyChainObserver:
             "contract_version": 2,
             "scenario": PRIMARY_LIVE_SCENARIO,
             "primary_target": PRIMARY_LIVE_TARGET,
+            "required_rounds": self.required_rounds,
             "checkpoints": _jsonable(self.checkpoints),
             "metrics": _jsonable(self.metrics),
             "public_backpack": {
@@ -2468,7 +2473,15 @@ def _target_postcondition_snapshot(
         if _frame_is_valid(frame):
             try:
                 if med._is_in_game_hud(frame) and med._is_game_client_frame(frame):
-                    return {"observed": True, "state": "confirmed", "kind": "hitch_ingame_hud"}
+                    # An in-game HUD is only an intermediate checkpoint.  The
+                    # hitch target is authoritative after the configured
+                    # number of complete rounds, never on the first HUD.
+                    return {
+                        "observed": True,
+                        "state": "confirmed",
+                        "kind": "hitch_ingame_hud",
+                        "authoritative": False,
+                    }
             except (AttributeError, TypeError):
                 pass
         return {"observed": False, "state": "waiting", "kind": "hitch_lobby_chain"}
@@ -3143,7 +3156,8 @@ class BundleRecorder:
             self.manifest[self.solo_observer_key] = self.solo_observer.payload()
         elif target == "hitch_lobby_chain":
             self.solo_observer_key = "hitch_lobby_chain"
-            self.solo_observer = HitchLobbyChainObserver()
+            configured_rounds = getattr(settings, "hitch_cycle_num", 3)
+            self.solo_observer = HitchLobbyChainObserver(required_rounds=configured_rounds)
             self.manifest[self.solo_observer_key] = self.solo_observer.payload()
         else:
             self.solo_observer = None
@@ -3674,6 +3688,22 @@ class BundleRecorder:
         self.manifest["completed_at_utc"] = _utc_now()
         if self.solo_observer is not None:
             self.manifest[str(self.solo_observer_key)] = self.solo_observer.payload()
+            # Hitch HUD/room observations are intermediate evidence.  Promote
+            # the target result only after the observer has verified every
+            # required round and lobby return; this prevents a first-HUD
+            # capture from being reported as a natural-E2E PASS.
+            if (
+                self.manifest.get("target") == "hitch_lobby_chain"
+                and getattr(self.solo_observer, "is_pass", False)
+            ):
+                last_event = (self.manifest.get("events") or [{}])[-1]
+                self._record_authoritative_target_result(
+                    event_id=last_event.get("event_id"),
+                    postcondition={
+                        "kind": "hitch_rounds_complete",
+                    },
+                    target_stage="THREE_ROUNDS_CONFIRMED",
+                )
         window = self.manifest.get("window") or {}
         preflight_window = (self.manifest.get("live_preflight") or {}).get("window") or {}
         if not window.get("hwnd") and preflight_window:
@@ -4394,8 +4424,6 @@ def _live_input_preflight(
         reasons.append("lobby templates unavailable: " + ", ".join(resource_missing))
     if not bool(ocr_health.get("healthy")):
         reasons.append(f"ocr_bootstrap_unhealthy: {ocr_health.get('reason') or ocr_health.get('stage')}")
-    if window.get("status") != "READY":
-        reasons.append(f"game window unavailable: {window.get('reason') or window.get('requested_title')}")
     start_surface, frame, window = _await_start_surface(
         med,
         target,
@@ -4404,6 +4432,8 @@ def _live_input_preflight(
         settings,
         timeout_s=float(getattr(args, "start_surface_wait", 0.0) or 0.0),
     )
+    if window.get("status") != "READY":
+        reasons.append(f"game window unavailable: {window.get('reason') or window.get('requested_title')}")
     if start_surface.get("status") == "BLOCKED":
         reasons.append(f"BLOCKED_PRECONDITION: {start_surface.get('reason') or 'start surface not confirmed'}")
 

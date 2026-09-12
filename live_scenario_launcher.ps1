@@ -1,4 +1,4 @@
-# Thin Windows menu for the existing tools/live_scenario_capture.py only.
+﻿# Thin Windows menu for the existing tools/live_scenario_capture.py only.
 # It discovers paths and forwards arguments; production logic stays in the tool.
 
 param(
@@ -527,7 +527,7 @@ function Invoke-HitchRuntimeCapture {
     if ($script:OperatorSettingsPath) {
         $cliArgs += @("--settings", $script:OperatorSettingsPath)
     }
-    Write-Host "[launcher] 蹭车局内续跑：压力转移→自动任务/四挑战→结算存档→时光之穴/传家宝 Boss" -ForegroundColor Cyan
+    Write-Host "[launcher] 蹭车局内续跑：中途接管跳过压力转移→自动任务/四挑战→结算存档→时光之穴/传家宝 Boss" -ForegroundColor Cyan
     Invoke-CaptureTool $cliArgs
 }
 
@@ -682,7 +682,10 @@ function Show-LauncherError {
 
 try {
 $script:PythonPath = Resolve-PythonPath
-$script:AutomationExe = Resolve-AutomationExe
+# ProductionSourceRoot means every live lane below uses the injected source
+# runtime (`--allow-dev-source`) and never executes a packaged EXE.  Do not let
+# an unrelated stale dist EXE veto that source-runtime identity.
+$script:AutomationExe = if ($script:ProductionSourceRoot) { $null } else { Resolve-AutomationExe }
 $script:CaptureRoot = Resolve-CaptureRoot
 $script:SoloCaptureRoot = Resolve-SoloCaptureRoot
 $script:OperatorSettingsPath = Resolve-OperatorSettingsPath
