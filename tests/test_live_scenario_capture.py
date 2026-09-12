@@ -1961,9 +1961,9 @@ def test_probe_entry_also_overrides_generic_room_context() -> None:
     assert result is LoopAction.Continue
     assert calls == [("LOBBY_ROOM", None, False)]
 def test_lobby_hitch_uses_default_and_custom_search_text() -> None:
-    assert Settings().hitch_stage_prefix == "4,3"
+    assert Settings().hitch_stage_prefix == "4,3,速"
     assert Settings._from_dict({"hitch_stage_prefix": "4-8"}).hitch_stage_prefix == "4-8"
-    assert Settings._from_dict({"hitch_stage_prefix": "   "}).hitch_stage_prefix == "4,3"
+    assert Settings._from_dict({"hitch_stage_prefix": "   "}).hitch_stage_prefix == "4,3,速"
 
 
 def test_lobby_hitch_clicks_text_area_left_of_search_icon() -> None:
