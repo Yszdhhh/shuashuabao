@@ -45,4 +45,16 @@ describe("hitch dashboard contract", () => {
     const resultEmpty = parseHitchSearchTerms("");
     expect(resultEmpty.terms).toEqual(["4", "3", "速"]);
   });
+
+  it("displays fallback hint text on hitch, follow, and solo boss configuration sections", () => {
+    const hint = "找不到时：已解锁则按顺序定位，未解锁则选最后一个";
+    const matches = dashboard.match(new RegExp(hint, "g"));
+    expect(matches).not.toBeNull();
+    expect(matches!.length).toBe(3);
+  });
+
+  it("sorts modal boss stems by numeric prefix", () => {
+    expect(dashboard).toContain("const parseNo = (s) => parseInt(String(s).match(/^\\d+/)?.[0] || \"999\", 10);");
+    expect(dashboard).toContain(".sort((a, b) => parseNo(a) - parseNo(b))");
+  });
 });
