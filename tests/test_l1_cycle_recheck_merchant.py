@@ -32,6 +32,10 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         s = Settings()
         s.merchant_enabled = True
         self.med = Mediator(s, ROOT)
+        # Merchant spend tests below exercise stock/FSM decisions.  The live
+        # HUD reader has its own focused tests; keep these legacy cases from
+        # accidentally treating a synthetic black frame as a spending grant.
+        self.med._merchant_kill_balance = lambda _frame: 10_000
         self.frame = Frame(
             np.zeros((900, 1600, 3), dtype=np.uint8),
             window_title="game",
@@ -193,7 +197,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 patch.object(med, "_merchant_slot_index", return_value=1):
             self.assertIsNone(med._maybe_black_merchant(self.frame))
 
-    def test_background_cycle_uses_inventory_pickup_merchant_then_artifact(self):
+    def test_background_cycle_skips_range_pickup_until_the_item_bar_overflows(self):
         self.assertEqual(
             self.med._L1_CYCLE_ORDER,
             # 20260822：evolve 前置于 equipment（装备词缀弹窗异步渲染防双模态冲突）。
@@ -213,6 +217,26 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 patch.object(self.med, "_handle_self_opened_compact_panel", return_value=None), \
                 patch.object(self.med, "_maybe_open_choice_panel", return_value=None), \
                 patch.object(self.med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+                patch.object(self.med, "act_key", return_value=True) as key:
+            self.assertIs(self.med._tick_main_line(self.frame), LoopAction.Continue)
+        key.assert_not_called()
+        self.assertEqual(self.med._l1_cycle_step, "merchant")
+
+    def test_range_pickup_runs_when_all_movable_item_slots_are_full(self):
+        self.med._l1_cycle_step = "pickup"
+        self.med._auto_task_done = True
+        self.med._main_line_started_at = 1.0
+        with patch.object(self.med, "_post_game_state", return_value=None), \
+                patch.object(self.med, "find", return_value=None), \
+                patch.object(self.med, "_find_equipment_affix_choice", return_value=None), \
+                patch.object(self.med, "_selection_anchor", return_value=None), \
+                patch.object(self.med, "_ensure_auto_task_enabled", return_value=None), \
+                patch.object(self.med, "_ensure_challenge_buttons", return_value=None), \
+                patch.object(self.med, "_find_stage_page", return_value=False), \
+                patch.object(self.med, "_handle_self_opened_compact_panel", return_value=None), \
+                patch.object(self.med, "_maybe_open_choice_panel", return_value=None), \
+                patch.object(self.med, "_maybe_ensure_hero_panel_focus", return_value=None), \
+                patch.object(self.med, "_hud_item_bar_overflowed", return_value=True), \
                 patch.object(self.med, "act_key", return_value=True) as key:
             self.assertIs(self.med._tick_main_line(self.frame), LoopAction.Continue)
         key.assert_called_once_with("z", "Pickup-Z")
@@ -635,6 +659,91 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(result, LoopAction.Continue)
         click.assert_called_once()
         self.assertEqual(click.call_args.args[1], "BlackMerchant-swallow_pill")
+
+    def test_merchant_pill_requires_a_live_400_kill_balance(self):
+        """A visible pill is not purchase authority while the HUD shows 399."""
+        self.med._merchant_next_at = 0.0
+        self.med._merchant_fsm = MerchantFSM(phase=MerchantPhase.READY, fingerprint="pill")
+        pill = hit("danGif", 1280, 643)
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=True), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=False), \
+                patch.object(self.med, "_merchant_fingerprint", return_value="pill"), \
+                patch.object(self.med, "_bond_bar_nonempty", return_value=True), \
+                patch.object(self.med, "_merchant_kill_balance", return_value=399), \
+                patch.object(self.med, "find", side_effect=lambda _f, names, **_k: pill if names == ["danGif"] else None), \
+                patch.object(self.med, "act_click") as click:
+            result = self.med._maybe_black_merchant(self.frame)
+
+        self.assertIsNone(result)
+        click.assert_not_called()
+        self.assertGreater(self.med._merchant_budget_retry_at, time.time())
+
+    def test_merchant_refresh_reserves_the_follow_up_pill_budget(self):
+        """520 can pay a reroll but cannot pay its expected 400-pill follow-up."""
+        self.med._merchant_next_at = 0.0
+        self.med._merchant_fsm = MerchantFSM(phase=MerchantPhase.READY, fingerprint="empty")
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=False), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=True), \
+                patch.object(self.med, "_merchant_fingerprint", return_value="empty"), \
+                patch.object(self.med, "_merchant_kill_balance", return_value=520), \
+                patch.object(self.med, "find", return_value=None), \
+                patch.object(self.med, "act_click") as click:
+            result = self.med._maybe_black_merchant(self.frame)
+
+        self.assertIsNone(result)
+        click.assert_not_called()
+        self.assertGreater(self.med._merchant_budget_retry_at, time.time())
+
+    def test_merchant_spends_at_the_exact_budget_thresholds(self):
+        """400 authorizes a pill; a fresh 750 authorizes a reroll-plus-pill plan."""
+        pill = hit("danGif", 1280, 643)
+        self.med._merchant_next_at = 0.0
+        self.med._merchant_fsm = MerchantFSM(phase=MerchantPhase.READY, fingerprint="pill")
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=True), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=False), \
+                patch.object(self.med, "_merchant_fingerprint", return_value="pill"), \
+                patch.object(self.med, "_bond_bar_nonempty", return_value=True), \
+                patch.object(self.med, "_merchant_kill_balance", return_value=400), \
+                patch.object(self.med, "find", side_effect=lambda _f, names, **_k: pill if names == ["danGif"] else None), \
+                patch.object(self.med, "act_click", return_value=True) as pill_click:
+            self.assertIs(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+        pill_click.assert_called_once()
+        self.assertEqual(pill_click.call_args.args[1], "BlackMerchant-swallow_pill")
+
+        self.med._merchant_next_at = 0.0
+        self.med._merchant_fsm = MerchantFSM(phase=MerchantPhase.READY, fingerprint="empty")
+        with patch.object(self.med, "_black_merchant_present", return_value=True), \
+                patch.object(Mediator, "_black_merchant_cards_present", return_value=False), \
+                patch.object(self.med, "_merchant_refresh_available", return_value=True), \
+                patch.object(self.med, "_merchant_fingerprint", return_value="empty"), \
+                patch.object(self.med, "_merchant_kill_balance", return_value=750), \
+                patch.object(self.med, "find", return_value=None), \
+                patch.object(self.med, "act_click", return_value=True) as refresh_click:
+            self.assertIs(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
+        refresh_click.assert_called_once()
+        self.assertEqual(refresh_click.call_args.args[1], "BlackMerchant-refresh")
+
+    def test_merchant_kill_balance_accepts_only_high_confidence_numeric_ocr(self):
+        calls = []
+
+        class FakeOcr:
+            is_available = True
+
+            def shadow_predict(self, _frame, _panel_id, slot, **_kwargs):
+                calls.append(slot)
+                return SimpleNamespace(status="ok", raw_text="38", candidates=(), rec_score=0.99)
+
+        med = Mediator(Settings(), ROOT)
+        med._ocr_client = FakeOcr()
+        self.assertEqual(med._merchant_kill_balance(self.frame), 38)
+        # A parsed balance is cached for an unchanged HUD crop, avoiding five
+        # OCR requests in the same merchant encounter.
+        self.assertEqual(med._merchant_kill_balance(self.frame), 38)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["bbox"], (1340, 10, 1390, 35))
 
     def test_merchant_explicit_two_or_five_fold_ocr_is_not_purchased(self):
         self.med.settings.merchant_enabled = True

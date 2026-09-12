@@ -123,6 +123,7 @@ def test_capped_treasure_step_is_skipped_not_parked() -> None:
     med.set_phase(Phase.MAIN_LINE, "test")
     med._l1_cycle_step = "treasure"
     med._panel_episode_count["treasure"] = 5
+    before = time.time()
 
     result, reasons = _acts(med, med._maybe_open_choice_panel, _game(HUD_EMPTY), None)
 
@@ -130,6 +131,23 @@ def test_capped_treasure_step_is_skipped_not_parked() -> None:
     assert reasons == []
     assert med._panel_state is PanelState.CLOSED
     assert med._l1_cycle_step == "pickup"
+    assert med._hitch_treasure_retry_at > before
+
+
+def test_capped_treasure_step_reopens_after_its_retry_window() -> None:
+    """A V cap is a bounded episode, never a rest-of-round disable switch."""
+    med = _med(limit=5)
+    med.set_phase(Phase.MAIN_LINE, "test")
+    med._l1_cycle_step = "treasure"
+    med._panel_episode_count["treasure"] = 5
+    med._hitch_treasure_retry_at = time.time() - 0.1
+
+    result, reasons = _acts(med, med._maybe_open_choice_panel, _game(HUD_EMPTY), None)
+
+    assert result is LoopAction.Continue
+    assert reasons == ["OpenTreasurePanel"]
+    assert med._panel_episode_count.get("treasure", 0) == 0
+    assert med._hitch_treasure_retry_at == 0.0
 
 
 def test_no_treasure_choices_is_not_a_failure_and_retries_later() -> None:
@@ -187,7 +205,9 @@ def test_heirloom_grid_is_not_blocked_by_the_time_cave_boss_click() -> None:
             med._tick_main_line(frame)
 
     assert reasons, "heirloom grid must get input"
-    assert "BossConfigured" in reasons
+    # The configured 18乌索克 is absent from this real grid; the new policy
+    # must still reach the physical bottom before using its fallback.
+    assert "BossBottomFallback" in reasons
     assert med._heirloom_boss_clicked_at is not None
 
 

@@ -17,6 +17,7 @@ import pytest
 
 from shuabao.input.keyboard_mouse import ActionResult
 from shuabao.mediator import Mediator as CoreMediator, PanelState, Phase
+from shuabao.policy.merchant_fsm import MerchantFSM, MerchantPhase
 from shuabao.runtime_mediator import Mediator as RuntimeMediator
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
@@ -205,5 +206,24 @@ def test_pointer_parks_then_merchant_buys_on_next_real_frame(cls):
         clock.now += 1
         clock.path = HUD
         med._l1_cycle_step = "merchant"
+        med._merchant_kill_balance = lambda _frame: 10_000
         med.tick()
         assert "BlackMerchant-swallow_pill" in [a["reason"] for a in med._trace_actions]
+
+
+@pytest.mark.parametrize("cls", [CoreMediator, RuntimeMediator])
+def test_real_hud_merchant_does_not_spend_below_its_kill_budget(cls):
+    """The production tick must leave a 38-kill black merchant without input."""
+    with replay(cls) as (med, clock):
+        med._auto_task_done = True
+        med._challenge_done = set(med._challenge_states)
+        med._hitch_pressure_transferred = True
+        med._l1_cycle_step = "merchant"
+        med._merchant_fsm = MerchantFSM(phase=MerchantPhase.READY, fingerprint="stock")
+        med._merchant_kill_balance = lambda _frame: 38
+        clock.path = HUD
+        with patch.object(med, "_merchant_fingerprint", return_value="stock"):
+            med.tick()
+        assert "BlackMerchant-swallow_pill" not in [a["reason"] for a in med._trace_actions]
+        assert "BlackMerchant-refresh" not in [a["reason"] for a in med._trace_actions]
+        assert med._l1_cycle_step == "treasure"

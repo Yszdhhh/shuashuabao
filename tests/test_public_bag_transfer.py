@@ -769,8 +769,8 @@ class MediatorPublicBagTests(unittest.TestCase):
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.CLOSE_REQUESTED)
         click.assert_not_called()
 
-    def test_hitch_pickup_clicks_the_hud_z_button_and_never_consumes_the_pill(self):
-        """Z 一键拾取兜住地上的道具；吞噬丹是队伍资产，蹭车不吃。
+    def test_hitch_pickup_clicks_the_hud_z_button_only_when_item_bar_overflows(self):
+        """装备栏确认满格时才用 Z；吞噬丹始终是队伍资产，蹭车不吃。
 
         和 B 一样走 HUD 按钮：键盘注入在这台机器上没有实机证据。
         """
@@ -780,6 +780,7 @@ class MediatorPublicBagTests(unittest.TestCase):
         with ExitStack() as stack:
             for name in self._MAIN_LINE_GATES:
                 stack.enter_context(patch.object(self.med, name, return_value=None))
+            stack.enter_context(patch.object(self.med, "_hud_item_bar_overflowed", return_value=True))
             stack.enter_context(patch.object(self.med, "_hud_hotkey_button", return_value=button))
             click = stack.enter_context(patch.object(self.med, "act_click", return_value=True))
             key = stack.enter_context(patch.object(self.med, "act_key", return_value=True))

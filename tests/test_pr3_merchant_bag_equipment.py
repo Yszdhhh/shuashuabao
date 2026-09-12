@@ -77,6 +77,7 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
     def setUp(self):
         self.med = Mediator(Settings(), ROOT)
         self.med.settings.ui_action_interval_s = 0.5
+        self.med._merchant_kill_balance = lambda _frame: 10_000
         self.frame = make_test_frame()
 
     @patch("shuabao.mediator.time.time", return_value=100.0)

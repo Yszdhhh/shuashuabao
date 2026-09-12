@@ -147,6 +147,10 @@ def test_park_is_a_move_and_clears_the_mark() -> None:
 def test_merchant_buys_the_pill_once_the_strip_is_clear() -> None:
     med = _med()
     med._l1_cycle_step = "merchant"
+    # This fixture proves the strip is clear, not the live kill counter.  The
+    # budget itself is covered separately; grant it here to test pointer
+    # parking and normal pill selection.
+    med._merchant_kill_balance = lambda _frame: 1_000
     reasons = _tick(med, _frame(PILL_VISIBLE))
     assert "BlackMerchant-swallow_pill" in reasons
 

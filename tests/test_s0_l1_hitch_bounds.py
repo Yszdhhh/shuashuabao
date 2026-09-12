@@ -258,24 +258,27 @@ class HitchArchiveChallengeRejectionTests(unittest.TestCase):
         with patch.object(med, "_archive_hitch_card_progress_state", return_value="AVAILABLE"), \
                 patch.object(med, "_find_archive_challenge_card", return_value=hit), \
                 patch.object(med, "act_click", return_value=False) as click:
-            # Rejection 1 @ t=1.0: cooldown armed to 2.0, card not advanced.
+            # Post-game pages use the dedicated 0.35s recheck so archive
+            # cards begin immediately after settlement instead of waiting a
+            # full normal UI interval.
+            # Rejection 1 @ t=1.0: cooldown armed to 1.35, card not advanced.
             self.assertIs(med._maybe_click_archive_challenge(frame, 1.0), LoopAction.Continue)
             self.assertEqual(med._archive_challenge_click_attempts, 1)
             self.assertEqual(med._archive_challenge_index, 0)
-            self.assertEqual(med._archive_challenge_next_at, 2.0)
-            # t=1.5 inside cooldown: deferred, counter intact.
-            self.assertIs(med._maybe_click_archive_challenge(frame, 1.5), LoopAction.Continue)
+            self.assertEqual(med._archive_challenge_next_at, 1.35)
+            # t=1.2 inside cooldown: deferred, counter intact.
+            self.assertIs(med._maybe_click_archive_challenge(frame, 1.2), LoopAction.Continue)
             self.assertEqual(med._archive_challenge_click_attempts, 1)
-            # Rejection 2 @ t=2.1: counter increments, cooldown re-armed to 3.1.
-            self.assertIs(med._maybe_click_archive_challenge(frame, 2.1), LoopAction.Continue)
+            # Rejection 2 @ t=1.4: counter increments, cooldown re-armed to 1.75.
+            self.assertIs(med._maybe_click_archive_challenge(frame, 1.4), LoopAction.Continue)
             self.assertEqual(med._archive_challenge_click_attempts, 2)
-            # Rejection 3 @ t=3.2: budget trips, card skipped, cursor advances.
-            self.assertIs(med._maybe_click_archive_challenge(frame, 3.2), LoopAction.Continue)
+            # Rejection 3 @ t=1.8: budget trips, card skipped, cursor advances.
+            self.assertIs(med._maybe_click_archive_challenge(frame, 1.8), LoopAction.Continue)
             self.assertEqual(med._archive_challenge_click_attempts, 0)
             self.assertEqual(med._archive_challenge_index, 1)
             self.assertEqual(med._archive_challenge_observe_attempts, 0)
-            # Next card: attempted at 4.2 (cooldown expired), rejected again.
-            self.assertIs(med._maybe_click_archive_challenge(frame, 4.2), LoopAction.Continue)
+            # Next card: attempted at 2.2 (cooldown expired), rejected again.
+            self.assertIs(med._maybe_click_archive_challenge(frame, 2.2), LoopAction.Continue)
             self.assertEqual(med._archive_challenge_index, 1)
             self.assertEqual(med._archive_challenge_click_attempts, 1)
         self.assertEqual(click.call_count, 4)

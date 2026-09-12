@@ -148,6 +148,9 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_panel_fingerprint_attempts": 4,
         "_panel_f1_used_this_episode": True,
         "_merchant_next_at": 1.0e9,
+        "_merchant_budget_retry_at": 1.0e9,
+        "_merchant_kill_balance_fingerprint": "polluted",
+        "_merchant_kill_balance_value": 999,
         "_pickup_next_at": 1.0e9,
         "_post_game_hud_confirmations": 7,
         "_hitch_postgame_started_at": 1.0e9,
@@ -170,6 +173,8 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_public_bag_next_at": 1.0e9,
         "_hitch_opening_pressure_armed": True,
         "_tick_post_confirm": False,
+        "_boss_challenge_scroll_signature": "polluted",
+        "_boss_challenge_scroll_stable_frames": 7,
     }
 
     def _pollute(self, med: Mediator) -> None:

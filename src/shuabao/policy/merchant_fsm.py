@@ -31,7 +31,19 @@ class MerchantFSM:
         if not fingerprint:
             return replace(self, phase=MerchantPhase.CONFIRMING, fingerprint="")
         if self.phase is MerchantPhase.EVICTED:
-            return self
+            # A timed-out purchase must never be retried against the same
+            # stock.  A later, visibly different stock is a new encounter,
+            # though: keeping EVICTED forever made every later pill invisible
+            # until the whole merchant disappeared.
+            if fingerprint == self.fingerprint or fingerprint == self.pending_fingerprint:
+                return self
+            return replace(
+                self,
+                phase=MerchantPhase.CONFIRMING,
+                fingerprint=fingerprint,
+                pending_fingerprint="",
+                deadline=0.0,
+            )
         if self.phase is MerchantPhase.VERIFYING:
             if fingerprint != self.pending_fingerprint:
                 return replace(self, phase=MerchantPhase.CONFIRMING, fingerprint=fingerprint,

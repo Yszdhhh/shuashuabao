@@ -961,6 +961,11 @@ class Mediator:
         # is only list navigation telemetry; the existing BossConfigured
         # handler still owns recognition, click, and postcondition decisions.
         self._boss_challenge_scroll_attempts: int = 0
+        # A list must prove that it has stopped moving before its physical last
+        # card becomes a fallback target.  A fixed number of scrolls can stop
+        # halfway down a long time-cave list.
+        self._boss_challenge_scroll_signature: str | None = None
+        self._boss_challenge_scroll_stable_frames: int = 0
         self._boss_challenge_next_at: float = 0.0
         self._exit_button_attempts: int = 0
         self._exit_confirm_attempts: int = 0
@@ -1058,6 +1063,12 @@ class Mediator:
         self._last_bond_attempt = 0.0
         self._last_treasure_attempt = 0.0
         self._merchant_next_at = 0.0
+        # Merchant spends are governed by the live kill-resource HUD.  Keep a
+        # short retry separate from post-click verification cooldown so a
+        # resource-short shop does not park the hitch cycle at the merchant.
+        self._merchant_budget_retry_at = 0.0
+        self._merchant_kill_balance_fingerprint: str | None = None
+        self._merchant_kill_balance_value: int | None = None
         self._merchant_discovery_deadline: float | None = None
         self._equipment_next_at = 0.0
         self._equipment_pending_until = 0.0
@@ -3942,6 +3953,16 @@ class Mediator:
     # 整局持续捡东西、持续往公共背包丢。
     _HITCH_L1_CYCLE_ORDER = ("merchant", "treasure", "pickup", "public_bag")
     _HITCH_TREASURE_RETRY_S = 30.0
+    _MERCHANT_KILL_BALANCE_ROI = (1340 / 1600, 10 / 900, 1390 / 1600, 35 / 900)
+    _MERCHANT_KILL_BALANCE_MIN_SCORE = 0.95
+    _MERCHANT_DEVOUR_PILL_KILL_COST = 400
+    _MERCHANT_REFRESH_KILL_COST = 350
+    # Refreshing is useful only when its result can still be bought.  Reserve
+    # both the reroll and one pill rather than spending the last 350 points.
+    _MERCHANT_REFRESH_WITH_PILL_BUDGET = (
+        _MERCHANT_REFRESH_KILL_COST + _MERCHANT_DEVOUR_PILL_KILL_COST
+    )
+    _MERCHANT_BUDGET_RECHECK_S = 15.0
     # Open ground above the hero: no HUD element, so no tooltip.
     _POINTER_PARK = (0.62, 0.30)
 
@@ -4000,17 +4021,33 @@ class Mediator:
                 or (target == "bond" and getattr(self.settings, "auto_bond", True))
                 or (target == "treasure" and getattr(self.settings, "auto_treasure", True))
             )
-            if self._passenger_mode() and target == "treasure" and (
-                self._panel_episode_count.get(target, 0) >= self.settings.panel_episode_limit_per_kind
-                or now < getattr(self, "_hitch_treasure_retry_at", 0.0)
-            ):
-                # Live 2026-09-12: the capped treasure step parked the panel
-                # FSM in COOLDOWN, re-entered it the tick the cooldown ended
-                # and never left the step - no pickup, bag or merchant for
-                # the rest of the round (and the next: the count carried).
-                # A passenger simply skips V this lap.
-                self._advance_l1_cycle("treasure")
-                return LoopAction.Continue
+            if self._passenger_mode() and target == "treasure":
+                retry_at = float(getattr(self, "_hitch_treasure_retry_at", 0.0) or 0.0)
+                capped = (
+                    self._panel_episode_count.get(target, 0)
+                    >= self.settings.panel_episode_limit_per_kind
+                )
+                if capped and retry_at <= 0.0:
+                    # An abnormal V episode still needs a backoff, but its
+                    # per-round cap must not permanently disable treasure for
+                    # the rest of a long hitch game.
+                    self._hitch_treasure_retry_at = now + self._HITCH_TREASURE_RETRY_S
+                    print("[L1] 蹭车宝物异常 episode 已达上限，30s 后重置该窗口再试")
+                    self._advance_l1_cycle("treasure")
+                    return LoopAction.Continue
+                if now < retry_at:
+                    # A passenger simply skips V this lap while new choices
+                    # accrue; pickup, bag and merchant remain reachable.
+                    self._advance_l1_cycle("treasure")
+                    return LoopAction.Continue
+                if capped:
+                    # The bounded retry window elapsed.  Reset only V's
+                    # abnormal-episode accounting, then allow one fresh
+                    # attempt instead of making the cap terminal.
+                    self._panel_episode_count.pop(target, None)
+                    self._panel_cooldown_until.pop(target, None)
+                    self._hitch_treasure_retry_at = 0.0
+                    print("[L1] 蹭车宝物重试窗口到期，重置 V episode 预算并重新探测")
             if (
                 panel_enabled
                 and self._panel_episode_count.get(target, 0)
@@ -4730,6 +4767,30 @@ class Mediator:
                 all_empty = False
         return "empty" if all_empty else "unknown"
 
+    def _hud_item_bar_occupied_count(self, frame: Frame) -> int | None:
+        """Return the confirmed count of movable HUD slots, else ``None``.
+
+        Range pickup is not a periodic combat action.  It is reserved for the
+        actual equipment-overflow condition, so a partially occluded HUD must
+        not be guessed as full.
+        """
+        occupied = 0
+        for index in range(1, ITEM_BAR_SLOTS):
+            rect = self._hud_item_bar_rect(frame, index)
+            if rect is None:
+                return None
+            if self._bag_slot_occupied(frame, rect):
+                occupied += 1
+                continue
+            if not self._bag_slot_empty(frame, rect):
+                return None
+        return occupied
+
+    def _hud_item_bar_overflowed(self, frame: Frame) -> bool:
+        """True only when all movable equipment slots are visibly occupied."""
+        occupied = self._hud_item_bar_occupied_count(frame)
+        return occupied == ITEM_BAR_SLOTS - 1
+
     def _item_bar_slot_occupied(self, frame: Frame, layout: BagLayout, index: int) -> bool:
         """Bag-page 物品栏 slot holds an item.
 
@@ -5313,6 +5374,75 @@ class Mediator:
                 )
         return items
 
+    def _merchant_kill_balance(self, frame: Frame) -> int | None:
+        """Read the top-right skull counter used by black-merchant prices.
+
+        The counter is deliberately read from the HUD rather than inferred from
+        elapsed time or a configured kill target.  A malformed/low-confidence
+        OCR result has no spending authority.
+        """
+        if frame.bgr is None or frame.bgr.size == 0:
+            return None
+        bbox = self._normalized_bbox(frame, self._MERCHANT_KILL_BALANCE_ROI)
+        x0, y0, x1, y1 = bbox
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        fingerprint = hashlib.md5(crop.tobytes()).hexdigest()
+        cached = getattr(self, "_merchant_kill_balance_value", None)
+        if (
+            fingerprint == getattr(self, "_merchant_kill_balance_fingerprint", None)
+            and cached is not None
+        ):
+            return cached
+
+        self._merchant_kill_balance_fingerprint = fingerprint
+        self._merchant_kill_balance_value = None
+        client = getattr(self, "_ocr_client", None)
+        if client is None or not bool(getattr(client, "is_available", False)):
+            return None
+        try:
+            response = client.shadow_predict(
+                frame,
+                f"merchant-kill:{fingerprint}",
+                {"index": 0, "bbox": bbox, "kind": "counter"},
+                fingerprint=fingerprint,
+                panel_bbox=bbox,
+            )
+        except (AttributeError, OSError, TypeError, ValueError):
+            return None
+        if str(getattr(response, "status", "")) != "ok":
+            return None
+        if float(getattr(response, "rec_score", 0.0) or 0.0) < self._MERCHANT_KILL_BALANCE_MIN_SCORE:
+            return None
+        raw = str(getattr(response, "raw_text", "") or "")
+        if not raw:
+            candidates = tuple(getattr(response, "candidates", ()) or ())
+            raw = str(getattr(candidates[0], "name", "") or "") if candidates else ""
+        values = re.findall(r"(?<!\d)(\d{1,6})(?!\d)", raw)
+        if len(values) != 1:
+            return None
+        self._merchant_kill_balance_value = int(values[0])
+        return self._merchant_kill_balance_value
+
+    def _merchant_kill_budget_allows(
+        self, frame: Frame, now: float, required: int, action: str
+    ) -> bool:
+        """Grant a merchant spend only when the live kill balance proves it."""
+        balance = self._merchant_kill_balance(frame)
+        if balance is not None and balance >= required:
+            self._merchant_budget_retry_at = 0.0
+            return True
+        self._merchant_budget_retry_at = max(
+            float(getattr(self, "_merchant_budget_retry_at", 0.0) or 0.0),
+            now + self._MERCHANT_BUDGET_RECHECK_S,
+        )
+        if balance is None:
+            print(f"[L1] 黑商{action}未拿到可信杀敌数，零输入并稍后复核")
+        else:
+            print(f"[L1] 黑商{action}需要 {required} 杀敌数，当前 {balance}，本轮跳过")
+        return False
+
     def _maybe_black_merchant(self, frame: Frame) -> MatchResult | None:
         """黑商只买可信吞噬丹；其它商品一律跳过并走既有刷新路径。"""
         now = time.time()
@@ -5407,6 +5537,13 @@ class Mediator:
 
         if ranked and self._merchant_fsm.can_purchase(5):
             target_item = ranked[0]
+            if not self._merchant_kill_budget_allows(
+                frame,
+                now,
+                self._MERCHANT_DEVOUR_PILL_KILL_COST,
+                "吞噬丹购买",
+            ):
+                return None
             hit = self._hud_button_hit(
                 frame,
                 f"black_merchant_slot_{target_item.slot_index}",
@@ -5428,6 +5565,13 @@ class Mediator:
         # Nothing left to buy, or purchase budget exhausted: refresh this
         # encounter's remaining stock. Empty strip uses the same path.
         if refresh_available and self._merchant_fsm.can_reroll(reroll_cap):
+            if not self._merchant_kill_budget_allows(
+                frame,
+                now,
+                self._MERCHANT_REFRESH_WITH_PILL_BUDGET,
+                "刷新（含后续吞噬丹预留）",
+            ):
+                return None
             refresh = self._merchant_refresh_hit(frame)
             click_res = self.act_click(refresh, "BlackMerchant-refresh")
             if getattr(click_res, "success", bool(click_res)):
@@ -5575,8 +5719,12 @@ class Mediator:
     # unchanged; this lower bound applies only inside a classified post-game
     # list and is still above the observed near-match noise floor.
     _POST_GAME_BOSS_MATCH_THRESHOLD = 0.65
-    _POST_GAME_BOSS_SCROLL_LIMIT = 3
+    # A configured card can sit far below the initially visible rows. Scroll
+    # until the list proves it is at bottom; this is only a safety fuse.
+    _POST_GAME_BOSS_SCROLL_LIMIT = 16
     _POST_GAME_BOSS_SCROLL_CLICKS = -5
+    _POST_GAME_BOSS_BOTTOM_STABLE_FRAMES = 2
+    _POST_GAME_ACTION_RECHECK_S = 0.35
     _ARCHIVE_CHALLENGE_NAMES = (
         "skill", "strengthen", "gem", "loot",
         "key", "recast", "blessing", "skill2",
@@ -5589,6 +5737,15 @@ class Mediator:
     # 依据真实 1596x921/1597x929 战后 fixture；仅在 ARCHIVE_PANEL 已分类后使用。
     _ARCHIVE_CHALLENGE_X = (0.396, 0.465, 0.535, 0.604)
     _ARCHIVE_CHALLENGE_Y = (0.350, 0.466)
+
+    def _post_game_action_recheck(self, requested_s: float | None = None) -> float:
+        """Keep the serialized post-game chain responsive after each input."""
+        requested = (
+            float(requested_s)
+            if requested_s is not None
+            else float(getattr(self.settings, "ui_action_interval_s", 1.5) or 1.5)
+        )
+        return max(0.15, min(requested, self._POST_GAME_ACTION_RECHECK_S))
 
     def _find_archive_challenge_card(self, frame: Frame, index: int) -> MatchResult | None:
         """Return the classified archive card hitbox for one of the eight slots.
@@ -5731,10 +5888,8 @@ class Mediator:
             print("[med] 存档挑战计划已完成，关闭面板并转传家宝")
             return None
         label, card_index = plan[index]
-        # OCR 进度只是遥测，不再是门禁：20260910 实机里宝石/战利品显示 8/8
-        # 可点，却被判成 UNAVAILABLE/COMPLETED 跳掉。唯一的完成权威是上面
-        # 那层绿色「已挑战」检测。
-        progress_state = self._archive_hitch_card_progress_state(frame, card_index)
+        # OCR 进度既不授权点击、也不授权跳过。逐卡走 sidecar 会把结算
+        # 热路径拉慢；绿色「已挑战」是唯一的完成证据。
         hit = self._find_archive_challenge_card(frame, card_index)
         if hit is None:
             self._archive_challenge_observe_attempts += 1
@@ -5743,15 +5898,15 @@ class Mediator:
                 self._archive_challenge_index = index + 1
                 self._archive_challenge_observe_attempts = 0
                 return LoopAction.Continue
-            self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
+            self._archive_challenge_next_at = now + self._post_game_action_recheck()
             print(f"[med] 存档挑战卡位 {card_index + 1}/8 无有效卡面证据，零输入复核 ({self._archive_challenge_observe_attempts}/5)")
             return LoopAction.Continue
         print(
             f"[med] 存档挑战 {index + 1}/{len(plan)}：点击 {label} @ {hit.center}"
-            f"（OCR 进度 {progress_state}）"
+            "（绿色已挑战为唯一完成证据）"
         )
         clicked = self.act_click(hit, f"ArchiveChallenge-{label}")
-        self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
+        self._archive_challenge_next_at = now + self._post_game_action_recheck()
         if clicked:
             # 不盲目推进：下一 tick 由页首的绿色「已挑战」检测确认这一张真的
             # 打上了，确认不了就在有界次数内重点同一张。
@@ -5787,10 +5942,41 @@ class Mediator:
             frame.top + int(frame.height * (ry1 + ry2) / 2.0),
         )
 
+    def _post_game_boss_list_at_bottom(self, frame: Frame, post_game: str | None) -> bool:
+        """Confirm a classified Boss list is stationary at its lower boundary.
+
+        List cards contain small highlights, so fingerprint a reduced and
+        quantized grayscale crop rather than exact pixels. Two unchanged
+        observations after at least one scroll are required before fallback.
+        """
+        roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
+        if roi is None or frame.bgr is None or frame.bgr.size == 0:
+            return False
+        x0, y0, x1, y1 = self._normalized_bbox(frame, roi)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return False
+        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        thumb = cv2.resize(gray, (48, 72), interpolation=cv2.INTER_AREA)
+        signature = hashlib.md5((thumb // 32).tobytes()).hexdigest()
+        previous = getattr(self, "_boss_challenge_scroll_signature", None)
+        if signature == previous:
+            self._boss_challenge_scroll_stable_frames = (
+                int(getattr(self, "_boss_challenge_scroll_stable_frames", 0) or 0) + 1
+            )
+        else:
+            self._boss_challenge_scroll_stable_frames = 0
+        self._boss_challenge_scroll_signature = signature
+        return bool(
+            self._boss_challenge_scroll_attempts > 0
+            and self._boss_challenge_scroll_stable_frames
+            >= self._POST_GAME_BOSS_BOTTOM_STABLE_FRAMES
+        )
+
     def _find_last_recognized_post_game_boss(
         self, frame: Frame, post_game: str | None
     ) -> MatchResult | None:
-        """Find the highest-numbered visible card on a classified Boss page."""
+        """Find the physically last card on a classified, bottomed-out list."""
         subdir = {
             "ARCHIVE_PANEL": "boss",
             "HEIRLOOM_DIALOG": "chuanjiaobao",
@@ -5799,24 +5985,17 @@ class Mediator:
         if subdir is None or roi is None:
             return None
 
-        candidates: list[tuple[int, str]] = []
-        for path in (self.images / subdir).glob("*.png"):
-            match = re.match(r"^(\d+)", path.stem)
-            if match:
-                candidates.append((int(match.group(1)), path.stem))
-        names = [
-            f"{subdir}/{stem}"
-            for _number, stem in sorted(candidates, reverse=True)
-        ]
-        return self.find(
+        names = [f"{subdir}/{path.stem}" for path in (self.images / subdir).glob("*.png")]
+        hits = match_all(
             frame,
+            self.images,
             names,
             threshold=self._POST_GAME_BOSS_MATCH_THRESHOLD,
-            scales=self._POST_GAME_BOSS_SCALES,
+            scales=self._adapt_scales(self._POST_GAME_BOSS_SCALES),
             roi=roi,
-            early_stop=True,
-            mode="post-game-boss-fallback",
+            max_results=96,
         )
+        return max(hits, key=lambda hit: (hit.y + hit.h, hit.x + hit.w), default=None)
 
     def _find_post_game_hub_entry(self, frame: Frame, route: str) -> MatchResult | None:
         """Find a real challenge-hub label after the hub itself is classified.
@@ -6219,31 +6398,27 @@ class Mediator:
         if post_game in ("ARCHIVE_PANEL", "HEIRLOOM_DIALOG"):
             previous_page = getattr(self, "_boss_challenge_page", None)
             if previous_page is not None and previous_page != post_game:
-                # Each Boss list owns its own budget.  Live 2026-09-12 the
-                # time-cave click (attempts=1) carried into the heirloom page,
-                # which then read "Boss already sent" and waited with zero
-                # input for 9 minutes on an untouched heirloom grid.
+                # Every list owns an independent navigation budget and bottom
+                # evidence; time-cave state must not leak into heirloom.
                 self._boss_challenge_attempts = 0
                 self._boss_challenge_scroll_attempts = 0
+                self._boss_challenge_scroll_signature = None
+                self._boss_challenge_scroll_stable_frames = 0
                 self._boss_challenge_next_at = 0.0
             self._boss_challenge_page = post_game
         if post_game == "ARCHIVE_PANEL":
-            # 时光之穴页只能选择 sgzx_boss；cjb_boss 属于传家宝列表。
             configured = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
             bosses = [configured] if configured else []
         elif post_game == "HEIRLOOM_DIALOG":
-            # 传家宝页只能选择 cjb_boss；sgzx_boss 属于时光之穴列表。
             configured = str(getattr(self.settings, "cjb_boss", "") or "").strip()
             bosses = [configured] if configured else []
         compact_roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
-        if not bosses:
-            print("[med] boss_entry 出现但未配置挑战 Boss，零输入")
+        if not bosses and compact_roi is None:
+            print("[med] 非战后 Boss 入口未配置目标，零输入")
             return None
 
-        # A configured Boss click is a one-shot request until the page proves
-        # the business result. The live heirloom page keeps the same card
-        # visible while its result toast is settling; clicking the same card
-        # again is not a retry and can reopen/duplicate the challenge.
+        # A Boss click is one-shot until heirloom has either shown its result
+        # or its bounded confirmation window expires.
         if (
             post_game == "HEIRLOOM_DIALOG"
             and self._boss_challenge_attempts > 0
@@ -6252,9 +6427,6 @@ class Mediator:
             if self._heirloom_boss_result_visible(frame):
                 print("[med] 传家宝 Boss 后置已确认，停止重复点击")
             elif self._heirloom_boss_confirm_expired(now):
-                # 有界收敛：点击已发出，后置在窗口内没出现也没报错，就别再
-                # 挂在弹窗里。收敛不等于成功——_heirloom_boss_confirm_expired
-                # 会把它记成 unconfirmed，业务后置绝不冒充 PASS。
                 print(
                     f"[med] 传家宝 Boss 后置 {self._HEIRLOOM_BOSS_CONFIRM_TIMEOUT_S:.0f}s 未出现，"
                     "有界收敛并允许关闭弹窗（不计成功）"
@@ -6266,106 +6438,108 @@ class Mediator:
             return LoopAction.Continue
         if now < self._boss_challenge_next_at:
             return LoopAction.Continue
-        boss_hit = None
-        for name in bosses:
-            boss_hit = self.find(
-                frame,
-                [name, f"boss/{name}", f"chuanjiaobao/{name}"],
-                threshold=0.80,
-                scales=self._hot_scales(),
-            )
-            if boss_hit is not None:
-                break
 
-        # The post-game archive/heirloom cards are rendered at roughly half
-        # the source-template size. The normal boss-entry path remains on its
-        # hot scale; only an already classified post-game page gets this
-        # evidence-bounded compact-card search.
-        if boss_hit is None and (
-            self._post_game_pending or compact_roi is not None
-        ):
-            compact_rois = (
-                (compact_roi,) if compact_roi is not None
-                else tuple(self._POST_GAME_BOSS_ROIS.values())
-            )
+        boss_hit = None
+        if bosses and compact_roi is not None:
+            # The page classifier already proved where these compact cards can
+            # exist.  Searching the entire 1600x900 frame first delayed the
+            # post-game chain by a full template pass per card, after other
+            # players had already left the lobby.
             compact_scales = self._adapt_scales(self._POST_GAME_BOSS_SCALES)
             for name in bosses:
-                for roi in compact_rois:
-                    boss_hit = self.find(
-                        frame,
-                        [name, f"boss/{name}", f"chuanjiaobao/{name}"],
-                        threshold=self._POST_GAME_BOSS_MATCH_THRESHOLD,
-                        scales=compact_scales,
-                        roi=roi,
-                        mode="post-game-boss-grid",
-                    )
-                    if boss_hit is not None:
-                        break
+                boss_hit = self.find(
+                    frame,
+                    [name, f"boss/{name}", f"chuanjiaobao/{name}"],
+                    threshold=self._POST_GAME_BOSS_MATCH_THRESHOLD,
+                    scales=compact_scales,
+                    roi=compact_roi,
+                    mode="post-game-boss-grid",
+                )
                 if boss_hit is not None:
                     break
-        # A configured Boss can be below the initially visible rows in the
-        # archive list. Only scroll after the already classified list has
-        # been searched and only once per tick; the next frame is searched
-        # again by this same production handler. The separate counter keeps
-        # the existing three observation budget intact while allowing the
-        # bounded list navigation to finish.
+        else:
+            # Outside a classified post-game list, retain the legacy
+            # full-frame search: we do not infer a list ROI from UNKNOWN.
+            for name in bosses:
+                boss_hit = self.find(
+                    frame,
+                    [name, f"boss/{name}", f"chuanjiaobao/{name}"],
+                    threshold=0.80,
+                    scales=self._hot_scales(),
+                )
+                if boss_hit is not None:
+                    break
+            if boss_hit is None and bosses and self._post_game_pending:
+                compact_scales = self._adapt_scales(self._POST_GAME_BOSS_SCALES)
+                for name in bosses:
+                    for roi in self._POST_GAME_BOSS_ROIS.values():
+                        boss_hit = self.find(
+                            frame,
+                            [name, f"boss/{name}", f"chuanjiaobao/{name}"],
+                            threshold=self._POST_GAME_BOSS_MATCH_THRESHOLD,
+                            scales=compact_scales,
+                            roi=roi,
+                            mode="post-game-boss-grid",
+                        )
+                        if boss_hit is not None:
+                            break
+                    if boss_hit is not None:
+                        break
+
+        used_fallback = False
         if boss_hit is None and compact_roi is not None:
-            scroll_point = self._post_game_boss_scroll_point(frame, post_game)
-            if (
-                scroll_point is not None
-                and self._boss_challenge_scroll_attempts < self._POST_GAME_BOSS_SCROLL_LIMIT
-            ):
-                self._boss_challenge_scroll_attempts += 1
-                delay = float(recheck_s) if recheck_s is not None else self.settings.ui_action_interval_s
-                self._boss_challenge_next_at = now + delay
+            if self._post_game_boss_list_at_bottom(frame, post_game):
+                boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
+                used_fallback = boss_hit is not None
+                if boss_hit is None:
+                    self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
+                    print("[med] Boss 列表已到底，但未找到可验证的物理最后一张卡，零输入等待")
+                    return LoopAction.Continue
+            elif self._boss_challenge_scroll_attempts >= self._POST_GAME_BOSS_SCROLL_LIMIT:
+                self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
+                print("[med] Boss 列表滚动已到安全上限但未证明到底，禁止任意卡兜底")
+                return LoopAction.Continue
+            else:
+                scroll_point = self._post_game_boss_scroll_point(frame, post_game)
+                if scroll_point is None:
+                    print("[med] 已分类 Boss 列表缺少受约束滚动点，零输入等待")
+                    return LoopAction.Continue
+                next_attempt = self._boss_challenge_scroll_attempts + 1
+                self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
                 x, y = scroll_point
                 print(
-                    f"[med] 配置 Boss 未在当前可见行，向下滚动挑战列表 "
-                    f"(第 {self._boss_challenge_scroll_attempts}/{self._POST_GAME_BOSS_SCROLL_LIMIT} 次)"
+                    f"[med] {'配置 Boss 未在当前可见行' if bosses else '未配置 Boss，执行末卡兜底前探底'}，"
+                    f"向下滚动挑战列表 ({next_attempt}/{self._POST_GAME_BOSS_SCROLL_LIMIT})"
                 )
-                self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, "BossConfigured-scroll")
+                if self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, "BossConfigured-scroll"):
+                    self._boss_challenge_scroll_attempts = next_attempt
                 return LoopAction.Continue
-            boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
-            used_fallback = boss_hit is not None
-        else:
-            used_fallback = False
 
         self._boss_challenge_attempts += 1
-        delay = float(recheck_s) if recheck_s is not None else (
-            self.settings.ui_action_interval_s if compact_roi is not None else self._challenge_recheck_delay()
+        delay = (
+            self._post_game_action_recheck(recheck_s)
+            if compact_roi is not None
+            else self._challenge_recheck_delay()
         )
         self._boss_challenge_next_at = now + delay
         if boss_hit is None:
-            if self._boss_challenge_attempts < 3:
-                print(f"[med] boss_entry 出现但未匹配到配置 Boss {bosses}（尝试 {self._boss_challenge_attempts}/3），零输入等待")
-                return LoopAction.Continue
-            if compact_roi is None:
-                print("[med] 非战后页面配置 Boss 连续未识别，禁止全帧兜底，零输入等待")
-                return LoopAction.Continue
-            fallback = self._find_last_recognized_post_game_boss(frame, post_game)
-            if fallback is None:
-                print("[med] 配置 Boss 不可见，且未找到可验证的最后一个 Boss，零输入等待")
-                return LoopAction.Continue
-            print(f"[med] 配置 Boss {bosses} 不可见/未开放，兜底点击当前可见列表最后一个 {fallback.name} @ {fallback.center}")
-            if self.act_click(fallback, "BossLastVisibleFallback"):
-                self._main_line_since = now
-                if getattr(self, "_early_challenge_pending", False):
-                    self._early_challenge_clicked_at = now
+            print(
+                f"[med] boss_entry 未匹配到配置 Boss {bosses} "
+                f"（尝试 {self._boss_challenge_attempts}/3），零输入等待"
+            )
             return LoopAction.Continue
 
+        action_name = "BossBottomFallback" if used_fallback else "BossConfigured"
         if used_fallback:
-            print(
-                f"[med] 配置 Boss {bosses} 未开放或未识别，"
-                f"点击当前列表最后可识别 Boss {boss_hit.name} @ {boss_hit.center} "
-                f"(尝试 {self._boss_challenge_attempts}/3)"
-            )
+            source = "未配置" if not bosses else f"配置 Boss {bosses} 未开放或未识别"
+            print(f"[med] {source}，列表已确认到底，兜底点击物理最后卡 {boss_hit.name} @ {boss_hit.center}")
         else:
             print(f"[med] Boss 挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
-        if self.act_click(boss_hit, "BossConfigured"):
+        if self.act_click(boss_hit, action_name):
             self._main_line_since = now
             if post_game == "ARCHIVE_PANEL":
                 self._time_cave_boss_done = True
-                self._boss_challenge_next_at = now + self.settings.ui_action_interval_s
+                self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
                 if self._passenger_mode():
                     self._post_game_route = "archive"
                 else:
@@ -7986,6 +8160,8 @@ class Mediator:
             self._secret_realm_active = False
             self._boss_challenge_attempts = 0
             self._boss_challenge_scroll_attempts = 0
+            self._boss_challenge_scroll_signature = None
+            self._boss_challenge_scroll_stable_frames = 0
             self._boss_challenge_next_at = 0.0
             self._boss_challenge_page = None
             self._aux_dialog_attempts = {"HEIRLOOM_DIALOG": 0, "GREAT_RIFT_CONFIRM": 0}
@@ -8037,6 +8213,9 @@ class Mediator:
             self._l1_cycle_owned_panel = False
             self._l1_cycle_selected = False
             self._merchant_next_at = 0.0
+            self._merchant_budget_retry_at = 0.0
+            self._merchant_kill_balance_fingerprint = None
+            self._merchant_kill_balance_value = None
             self._merchant_discovery_deadline = None
             self._merchant_fsm = MerchantFSM()
             self._equipment_next_at = 0.0
@@ -14031,6 +14210,8 @@ class Mediator:
                 # budget.
                 self._boss_challenge_attempts = 0
                 self._boss_challenge_scroll_attempts = 0
+                self._boss_challenge_scroll_signature = None
+                self._boss_challenge_scroll_stable_frames = 0
                 self._boss_challenge_next_at = 0.0
                 if route_before_continue != "boss_active":
                     self._time_cave_boss_done = False
@@ -14052,7 +14233,7 @@ class Mediator:
             if self._team_mode_enabled() and not self._hitch_postgame_hero_selected:
                 if self.act_key("F1", "HitchPostGameSelectOwnHero"):
                     self._hitch_postgame_hero_selected = True
-                    self._archive_challenge_next_at = now + self.settings.ui_action_interval_s
+                    self._archive_challenge_next_at = now + self._post_game_action_recheck()
                 return LoopAction.Continue
             if getattr(self, "_post_game_route", "") == "boss_active":
                 if self._passenger_mode():
@@ -14073,35 +14254,34 @@ class Mediator:
                 if getattr(self, "_post_game_route", "") == "archive_active":
                     self._post_game_route = "archive"
                 return archive_action
-            # 八个存档卡位已全部消费。未配置时光之穴 Boss 时直接跳过，继续关闭面板。
-            if not getattr(self, "_time_cave_boss_done", False):
-                configured_sgzx = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
-                if not configured_sgzx:
-                    self._time_cave_boss_done = True
-                else:
-                    if now < self._boss_challenge_next_at:
-                        return LoopAction.Continue
-                    boss_action = self._maybe_challenge_configured_boss(frame, now)
-                    if getattr(self, "_time_cave_boss_done", False):
-                        return LoopAction.Continue
-                    if boss_action is not None:
-                        return boss_action
-                    # boss_action is None：Boss 入口/卡面本 tick 未能识别，计入观察预算。
-                    self._time_cave_boss_search_attempts += 1
-                    if self._boss_challenge_attempts >= 3 or self._time_cave_boss_search_attempts >= 5:
-                        if self._passenger_mode():
-                            print("[med] 蹭车时光之穴 Boss 未能识别或确认，跳过该步并继续关闭存档面板")
-                            self._time_cave_boss_done = True
-                            self._boss_challenge_attempts = 0
-                            self._time_cave_boss_search_attempts = 0
-                            # 落到下方 _find_archive_panel_close 关闭存档面板
-                        else:
-                            print("[med] 时光之穴 Boss 兜底选择未确认，Fail-Closed 停止运行")
-                            self.set_phase(Phase.ERROR, "time-cave Boss selection unconfirmed")
-                            self.stop()
-                            return LoopAction.Break
+            # 蹭车战后链即使没有预设，也必须在时光之穴探底后选物理最后卡；
+            # 普通刷图无预设时维持既有“关存档面板→退局”流程。
+            sgzx_boss_cfg = str(getattr(self.settings, "sgzx_boss", "") or "").strip()
+            needs_time_cave_boss = bool(sgzx_boss_cfg or self._passenger_mode())
+            if needs_time_cave_boss and not getattr(self, "_time_cave_boss_done", False):
+                if now < self._boss_challenge_next_at:
+                    return LoopAction.Continue
+                boss_action = self._maybe_challenge_configured_boss(frame, now)
+                if getattr(self, "_time_cave_boss_done", False):
+                    return LoopAction.Continue
+                if boss_action is not None:
+                    return boss_action
+                # boss_action is None：入口或卡面本 tick 未能识别，计入观察预算。
+                self._time_cave_boss_search_attempts += 1
+                if self._boss_challenge_attempts >= 3 or self._time_cave_boss_search_attempts >= 5:
+                    if self._passenger_mode():
+                        print("[med] 蹭车时光之穴 Boss 未能识别或确认，跳过该步并继续关闭存档面板")
+                        self._time_cave_boss_done = True
+                        self._boss_challenge_attempts = 0
+                        self._time_cave_boss_search_attempts = 0
+                        # 落到下方 _find_archive_panel_close 关闭存档面板
                     else:
-                        return LoopAction.Continue
+                        print("[med] 时光之穴 Boss 兜底选择未确认，Fail-Closed 停止运行")
+                        self.set_phase(Phase.ERROR, "time-cave Boss selection unconfirmed")
+                        self.stop()
+                        return LoopAction.Break
+                else:
+                    return LoopAction.Continue
 
             if self._post_game_close_attempts >= 3:
                 if self._passenger_mode():
@@ -14222,18 +14402,18 @@ class Mediator:
                 # panel as a new challenge while the battle route is active.
                 print("[med] 传家宝面板关闭过渡中，Boss 挑战进行中（零动作）")
                 return LoopAction.Continue
-            configured_cjb = str(getattr(self.settings, "cjb_boss", "") or "").strip()
             if getattr(self, "_boss_challenge_page", None) != post_game:
                 # The outer dispatch must hand this page its own budget before
                 # checking attempts; otherwise an exhausted archive budget
                 # skips the handler that would have reset it.
                 self._boss_challenge_attempts = 0
                 self._boss_challenge_scroll_attempts = 0
+                self._boss_challenge_scroll_signature = None
+                self._boss_challenge_scroll_stable_frames = 0
                 self._boss_challenge_next_at = 0.0
                 self._boss_challenge_page = post_game
             if (
-                configured_cjb
-                and self._post_game_pending
+                self._post_game_pending
                 and getattr(self, "_post_game_route", "") == "heirloom_active"
                 and self._boss_challenge_attempts < 3
             ):
@@ -14717,9 +14897,10 @@ class Mediator:
             return LoopAction.Continue
 
         if self._l1_cycle_step == "pickup":
-            # 1. 拾取 Z（一键拾取到背包，兜住掉在地上没进包的道具）。
+            # 1. 拾取 Z 不是常驻战斗按键。只有可移动装备栏 2-6 已全部
+            #    占满、确有溢出风险时才做范围拾取；空栏/不确定画面零输入。
             #    和背包同理：优先点 HUD 上的 [Z] 按钮，键盘只作兜底。
-            if now >= self._pickup_next_at:
+            if now >= self._pickup_next_at and self._hud_item_bar_overflowed(frame):
                 pickup_button = self._hud_hotkey_button(frame, "bag/hud_pickup_button")
                 picked = (
                     self.act_click(pickup_button, "Pickup-Z")
@@ -14742,6 +14923,11 @@ class Mediator:
             return LoopAction.Continue
 
         if self._l1_cycle_step == "merchant":
+            if now < getattr(self, "_merchant_budget_retry_at", 0.0):
+                # 余额不足/不可读时让循环继续做宝物、拾取和公共背包，等下一
+                # 个预算观察窗口再回来，而不是把整局卡在黑商步骤。
+                self._advance_l1_cycle("merchant")
+                return LoopAction.Continue
             if now < self._merchant_next_at:
                 return LoopAction.Continue
             if not self._black_merchant_present(frame):

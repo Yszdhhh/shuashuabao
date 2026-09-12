@@ -124,6 +124,17 @@ def test_merchant_requires_two_matching_frames_and_evicts_timeout() -> None:
     assert state.phase is MerchantPhase.EVICTED
 
 
+def test_evicted_merchant_rearms_only_for_visibly_new_stock() -> None:
+    """A failed pill stays quarantined, but cannot poison every later shop."""
+    state = MerchantFSM().observe(True, "old", 1.0).observe(True, "old", 2.0)
+    state = state.begin_purchase(2.0, timeout_s=1.0).observe(True, "old", 3.0)
+    assert state.phase is MerchantPhase.EVICTED
+    assert state.observe(True, "old", 4.0).phase is MerchantPhase.EVICTED
+    state = state.observe(True, "new", 5.0)
+    assert state.phase is MerchantPhase.CONFIRMING
+    assert state.observe(True, "new", 6.0).phase is MerchantPhase.READY
+
+
 def test_merchant_reroll_timeout_stays_ready_to_keep_refreshing() -> None:
     state = MerchantFSM().observe(True, "stock", 1.0).observe(True, "stock", 2.0)
     state = state.begin_reroll(2.0, timeout_s=1.0)

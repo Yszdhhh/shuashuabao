@@ -738,67 +738,97 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(clicked.name, "12卡尔加")
         self.assertEqual(reason, "BossConfigured")
 
-    def test_archive_unavailable_boss_falls_back_to_last_visible_card(self):
-        """After bounded scrolling, a real archive fixture selects its last recognized Boss."""
+    def test_classified_boss_search_is_limited_to_its_visible_list_roi(self):
+        """Settlement must not spend a full-screen template pass before clicking."""
+        med = Mediator(Settings(sgzx_boss="12卡尔加"), ROOT)
+        med._post_game_pending = True
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
+        target = MatchResult("boss/12卡尔加", 0.90, 1180, 420, 50, 50, 1180, 420)
+        with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "find", return_value=target) as find, \
+             patch.object(med, "act_click", return_value=True):
+            self.assertEqual(
+                med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0),
+                LoopAction.Continue,
+            )
+        self.assertEqual(find.call_count, 1)
+        self.assertEqual(find.call_args.kwargs["roi"], med._POST_GAME_BOSS_ROIS["ARCHIVE_PANEL"])
+        self.assertEqual(find.call_args.kwargs["mode"], "post-game-boss-grid")
+
+    def test_archive_unavailable_boss_falls_back_to_last_card_only_after_bottom(self):
+        """A verified lower boundary, not a fixed scroll count, authorizes fallback."""
         med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
         med._post_game_pending = True
-        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        med._boss_challenge_scroll_attempts = 1
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
 
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_post_game_boss_list_at_bottom", return_value=True), \
              patch.object(med, "act_click", return_value=True) as click:
             action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
 
         self.assertEqual(action, LoopAction.Continue)
         clicked, reason = click.call_args.args
-        self.assertEqual(clicked.name, "12卡尔加")
-        self.assertEqual(reason, "BossConfigured")
+        self.assertEqual(clicked.name, "09摩拉迪姆")
+        self.assertEqual(reason, "BossBottomFallback")
 
-    def test_heirloom_unavailable_boss_falls_back_to_last_visible_card(self):
-        """The same production handler reuses real heirloom templates for fallback."""
+    def test_heirloom_unavailable_boss_falls_back_to_last_card_only_after_bottom(self):
+        """The same production handler reuses heirloom templates after bottom proof."""
         med = Mediator(Settings(cjb_boss="54莫阿姆"), ROOT)
         med._post_game_pending = True
-        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        med._boss_challenge_scroll_attempts = 1
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
 
         with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+             patch.object(med, "_post_game_boss_list_at_bottom", return_value=True), \
              patch.object(med, "act_click", return_value=True) as click:
             action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
 
         self.assertEqual(action, LoopAction.Continue)
         clicked, reason = click.call_args.args
         self.assertEqual(clicked.name, "03洛卡纳哈")
-        self.assertEqual(reason, "BossConfigured")
+        self.assertEqual(reason, "BossBottomFallback")
 
-    def test_unconfigured_post_game_lists_return_none_without_scrolling(self):
-        """未设 Boss 时不静默保底：两类已分类列表均返回 None，不滚动，不点击。"""
+    def test_unconfigured_post_game_lists_scroll_to_bottom_then_choose_last_card(self):
+        """未设 Boss 时，两类列表都必须到底后才选物理最后卡。"""
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
         last = MatchResult("12卡尔加", 0.91, 1110, 470, 62, 62, 1110, 470)
         for page, settings in (
-            ("ARCHIVE_PANEL", Settings()),
-            ("HEIRLOOM_DIALOG", Settings()),
+            ("ARCHIVE_PANEL", Settings(sgzx_boss="", cjb_boss="")),
+            ("HEIRLOOM_DIALOG", Settings(sgzx_boss="", cjb_boss="")),
         ):
             with self.subTest(page=page):
                 med = Mediator(settings, ROOT)
                 med._post_game_pending = True
                 with patch.object(med, "_post_game_state", return_value=page), \
                      patch.object(med, "_find_last_recognized_post_game_boss", return_value=last), \
+                     patch.object(med, "_post_game_boss_list_at_bottom", side_effect=[False, False, True]), \
                      patch.object(med, "act_scroll", return_value=True) as scroll, \
                      patch.object(med, "act_click", return_value=True) as click:
-                    self.assertIsNone(
-                        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+                    self.assertEqual(
+                        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0),
+                        LoopAction.Continue,
                     )
-                scroll.assert_not_called()
-                click.assert_not_called()
+                    self.assertEqual(
+                        med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=1.0),
+                        LoopAction.Continue,
+                    )
+                    self.assertEqual(
+                        med._maybe_challenge_configured_boss(frame, 14.0, recheck_s=1.0),
+                        LoopAction.Continue,
+                    )
+                self.assertEqual(scroll.call_count, 2)
+                click.assert_called_once_with(last, "BossBottomFallback")
 
     def test_unavailable_boss_stays_fail_closed_without_fallback_template(self):
         """An exhausted classified list still emits zero click when no card is recognized."""
         med = Mediator(Settings(sgzx_boss="55吞咽者布鲁"), ROOT)
         med._post_game_pending = True
-        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        med._boss_challenge_scroll_attempts = 1
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
 
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+             patch.object(med, "_post_game_boss_list_at_bottom", return_value=True), \
              patch.object(med, "_find_last_recognized_post_game_boss", return_value=None), \
              patch.object(med, "act_scroll") as scroll, \
              patch.object(med, "act_click") as click:
@@ -807,6 +837,17 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(action, LoopAction.Continue)
         scroll.assert_not_called()
         click.assert_not_called()
+
+    def test_bottom_fallback_uses_card_position_not_template_number(self):
+        """The fallback chooses the visual lower-right card, never max filename."""
+        med = Mediator(Settings(), ROOT)
+        frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
+        top_numbered_high = MatchResult("boss/99顶部", 0.99, 1120, 260, 50, 50, 1120, 260)
+        bottom_left = MatchResult("boss/01底部左", 0.90, 1120, 440, 50, 50, 1120, 440)
+        bottom_right = MatchResult("boss/02底部右", 0.90, 1220, 440, 50, 50, 1220, 440)
+        with patch("shuabao.mediator.match_all", return_value=[top_numbered_high, bottom_left, bottom_right]):
+            selected = med._find_last_recognized_post_game_boss(frame, "ARCHIVE_PANEL")
+        self.assertIs(selected, bottom_right)
 
     def test_unclassified_post_game_transition_is_zero_input(self):
         """A pending post-game transition must not search or click an unknown frame."""
@@ -874,20 +915,20 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(med._post_game_route, "boss_active")
         self.assertFalse(med._post_game_pending)
 
-    def test_heirloom_without_config_skips_boss_and_closes_dialog(self):
-        """An empty cjb_boss must not challenge boss and falls through to close button."""
+    def test_heirloom_without_config_delegates_to_bottom_fallback(self):
+        """An empty cjb_boss must invoke the safe bottom-search handler first."""
         med = Mediator(Settings(), ROOT)
         med._post_game_pending = True
         med._post_game_route = "heirloom_active"
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
         close = MatchResult("close", 0.90, 990, 230, 20, 20, 1000, 240)
         with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
-             patch.object(med, "_maybe_challenge_configured_boss") as choose, \
+             patch.object(med, "_maybe_challenge_configured_boss", return_value=LoopAction.Continue) as choose, \
              patch.object(med, "_find_heirloom_close", return_value=close), \
              patch.object(med, "act_click", return_value=True) as click:
             self.assertEqual(med._tick_main_line(frame), LoopAction.Continue)
-        choose.assert_not_called()
-        click.assert_called_once_with(close, "DismissHeirloomDialog")
+        choose.assert_called_once()
+        click.assert_not_called()
 
     def test_heirloom_result_ignores_scattered_combat_red_vfx(self):
         """Red attack effects behind the dialog cannot close an unplayed page."""
@@ -1445,7 +1486,7 @@ class P1B0PostGameTests(unittest.TestCase):
             med._tick_main_line(frame_archive)
             self.assertEqual(med._post_game_route, "heirloom")
 
-        self.assertEqual(scroll.call_count, 3)
+        self.assertEqual(scroll.call_count, 2)
 
 
 if __name__ == "__main__":
@@ -1475,6 +1516,7 @@ class PostGameBossRouteTests(unittest.TestCase):
         roi = med._POST_GAME_BOSS_ROIS["ARCHIVE_PANEL"]
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
              patch.object(med, "find", return_value=None), \
+             patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
              patch.object(med, "_find_last_recognized_post_game_boss", return_value=None), \
              patch.object(med, "act_scroll", return_value=True) as scroll, \
              patch.object(med, "act_click") as click:
@@ -1499,6 +1541,7 @@ class PostGameBossRouteTests(unittest.TestCase):
         frame = self._frame()
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
              patch.object(med, "find", return_value=None), \
+             patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
              patch.object(med, "_find_last_recognized_post_game_boss", return_value=None), \
              patch.object(med, "act_scroll", return_value=True) as scroll, \
              patch.object(med, "act_click") as click:
@@ -1508,6 +1551,15 @@ class PostGameBossRouteTests(unittest.TestCase):
                 now = med._boss_challenge_next_at + 0.1
         self.assertEqual(scroll.call_count, med._POST_GAME_BOSS_SCROLL_LIMIT)
         click.assert_not_called()
+
+    def test_bottom_detection_requires_stationary_frames_after_a_scroll(self):
+        """A list cannot be declared bottomed-out merely because it was scrolled."""
+        med = self._med()
+        med._boss_challenge_scroll_attempts = 1
+        frame = self._frame()
+        self.assertFalse(med._post_game_boss_list_at_bottom(frame, "ARCHIVE_PANEL"))
+        self.assertFalse(med._post_game_boss_list_at_bottom(frame, "ARCHIVE_PANEL"))
+        self.assertTrue(med._post_game_boss_list_at_bottom(frame, "ARCHIVE_PANEL"))
 
     def test_compact_boss_scales_cover_the_shrunken_cards(self):
         """战后卡片被缩到 58~70px；尺度阶梯必须罩住这一档。"""
