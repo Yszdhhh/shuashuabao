@@ -3,6 +3,7 @@
 import type {
   BridgeInfoDTO,
   DashboardBridge,
+  DashboardBridgeSignals,
   ModeDTO,
   RunStatusDTO,
   SettingsDTO,
@@ -183,9 +184,54 @@ function preflight(mode_id: string, settings: SettingsDTO, options: MockBridgeOp
   };
 }
 
-export function createMockBridge(options: MockBridgeOptions = {}): DashboardBridge {
+export interface MockBridgeConnection {
+  bridge: DashboardBridge;
+  signals: DashboardBridgeSignals;
+}
+
+export function createMockBridgeConnection(options: MockBridgeOptions = {}): MockBridgeConnection {
   let current = snapshot();
-  return {
+  const snapshotListeners = new Set<(json: string) => void>();
+  const runStatusListeners = new Set<(json: string) => void>();
+  const logListeners = new Set<(text: string, level: string) => void>();
+
+  const emitSnapshot = (snap: SnapshotDTO) => {
+    const json = JSON.stringify(snap);
+    for (const cb of snapshotListeners) cb(json);
+  };
+  const emitRunStatus = (run: RunStatusDTO) => {
+    current = { ...current, run: { ...run } };
+    const json = JSON.stringify(run);
+    for (const cb of runStatusListeners) cb(json);
+  };
+  const emitLog = (text: string, level: string = "info") => {
+    for (const cb of logListeners) cb(text, level);
+  };
+
+  let runTimer: ReturnType<typeof setInterval> | null = null;
+  const stopTimer = () => {
+    if (runTimer !== null) {
+      clearInterval(runTimer);
+      runTimer = null;
+    }
+  };
+
+  const signals: DashboardBridgeSignals = {
+    snapshot_changed: {
+      connect: (cb) => { snapshotListeners.add(cb); },
+      disconnect: (cb) => { snapshotListeners.delete(cb); },
+    },
+    run_status_changed: {
+      connect: (cb) => { runStatusListeners.add(cb); },
+      disconnect: (cb) => { runStatusListeners.delete(cb); },
+    },
+    log_appended: {
+      connect: (cb) => { logListeners.add(cb); },
+      disconnect: (cb) => { logListeners.delete(cb); },
+    },
+  };
+
+  const bridge: DashboardBridge = {
     async get_bridge_info(): Promise<BridgeInfoDTO> {
       return {
         ok: true,
@@ -218,6 +264,7 @@ export function createMockBridge(options: MockBridgeOptions = {}): DashboardBrid
             }
           : current.strategy,
       };
+      emitSnapshot(current);
       return {
         ok: true,
         request_id,
@@ -234,6 +281,7 @@ export function createMockBridge(options: MockBridgeOptions = {}): DashboardBrid
         snapshot_seq: current.snapshot_seq + 1,
         shell: { ...current.shell, ...patch },
       };
+      emitSnapshot(current);
       return {
         ok: true,
         request_id: null,
@@ -271,51 +319,108 @@ export function createMockBridge(options: MockBridgeOptions = {}): DashboardBrid
             terminal_reason: options.startFailure,
           },
         };
+        emitRunStatus(current.run);
+        emitLog(`[mock] 启动失败：${options.startFailure}`, "error");
         return { ok: false, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq, error: options.startFailure };
       }
+      stopTimer();
       const cycle = mode_id === "follow_team"
         ? Number(current.settings.follow_cycle_num)
         : mode_id === "lobby_hitch"
         ? Number(current.settings.hitch_cycle_num)
         : Number(current.settings.cycle_num);
+      const cycleNum = Number.isFinite(cycle) ? cycle : 0;
+      let gameCount = 0;
+
       current = {
         ...current,
         snapshot_seq: current.snapshot_seq + 1,
         run: {
           ...current.run,
-          state: "RUNNING",
+          state: "STARTING",
           mode_id,
-          phase: "STARTING",
-          cycle_num: Number.isFinite(cycle) ? cycle : 0,
+          phase: "BOOT",
+          game_count: 0,
+          cycle_num: cycleNum,
           terminal_reason: "",
         },
       };
+      emitRunStatus(current.run);
+      emitLog(`[mock] 启动模式 ${mode_id}，目标局数: ${cycleNum || "无限制"}`, "info");
+
+      // 阶段轮播演示：模拟真实状态机迁移
+      const phases = [
+        "PREPARE", "CREATE_ROOM", "ROOM_WAITING", "ROOM_STARTING",
+        "STAGE_SELECT", "STAGE_STARTING", "MAIN_LINE", "EARLY_CHALLENGE",
+        "ANCHOR_BOSS", "LONGZHU", "QUIT", "NEXT"
+      ];
+      let phaseIdx = 0;
+      runTimer = setInterval(() => {
+        const nextPhase = phases[phaseIdx % phases.length];
+        phaseIdx++;
+        if (nextPhase === "MAIN_LINE") {
+          gameCount++;
+        }
+        emitRunStatus({
+          ...current.run,
+          state: "RUNNING",
+          phase: nextPhase,
+          game_count: gameCount,
+        });
+        emitLog(`[mock] 进入阶段: ${nextPhase} (第 ${gameCount} 局)`, "info");
+      }, 1500);
+
       return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
     async stop_run() {
+      stopTimer();
       current = {
         ...current,
         snapshot_seq: current.snapshot_seq + 1,
         run: {
           ...current.run,
-          state: current.run.state === "RUNNING" || current.run.state === "STARTING" ? "COMPLETE" : current.run.state,
-          phase: current.run.state === "RUNNING" || current.run.state === "STARTING" ? "COMPLETE" : current.run.phase,
-          terminal_reason: current.run.state === "RUNNING" || current.run.state === "STARTING" ? "开发桥模拟停止" : current.run.terminal_reason,
+          state: "STOPPING",
+          phase: "STOPPING",
+          terminal_reason: "",
         },
       };
+      emitRunStatus(current.run);
+      emitLog("[mock] 收到停止请求，等待当前动作安全收尾...", "warn");
+      setTimeout(() => {
+        current = {
+          ...current,
+          snapshot_seq: current.snapshot_seq + 1,
+          run: {
+            ...current.run,
+            state: "COMPLETE",
+            phase: "COMPLETE",
+            terminal_reason: "开发桥模拟停止",
+          },
+        };
+        emitRunStatus(current.run);
+        emitLog("[mock] 运行已安全结束", "info");
+      }, 400);
       return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
-    async window_control() {
+    async window_control(action) {
+      emitLog(`[mock] 窗口操作: ${action}`, "info");
       return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
-    async set_window_layout() {
+    async set_window_layout(layout) {
+      emitLog(`[mock] 切换布局: ${layout}`, "info");
       return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
-    async activate_subscription() {
+    async activate_subscription(key) {
       if (options.subscriptionAllowed === false) {
         return { ok: false, message: "开发桥模拟订阅拒绝", status: "未授权", expires_at: "" };
       }
       return { ok: true, message: "测试卡密激活成功", status: "正常", expires_at: "2026-09-30" };
     },
   };
+
+  return { bridge, signals };
+}
+
+export function createMockBridge(options: MockBridgeOptions = {}): DashboardBridge {
+  return createMockBridgeConnection(options).bridge;
 }

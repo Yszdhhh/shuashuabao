@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { createMockBridge } from "../src/bridge/mockBridge";
+import { describe, expect, it, vi } from "vitest";
+import { createMockBridge, createMockBridgeConnection } from "../src/bridge/mockBridge";
 import type { ModeDTO, RunStatusDTO, SnapshotDTO } from "../src/bridge/types";
 
 const RUN_STATES = ["IDLE", "STARTING", "RUNNING", "STOPPING", "COMPLETE", "FAILED"];
@@ -71,5 +71,35 @@ describe("mockBridge 形状契约", () => {
     expect(res.ok).toBe(true);
     expect(res.errors).toEqual([]);
     expect((await bridge.get_snapshot()).settings.cycle).toBe(3);
+  });
+
+  it("createMockBridgeConnection 派发 snapshot_changed / run_status_changed / log_appended 信号", async () => {
+    const conn = createMockBridgeConnection();
+    const onRun = vi.fn();
+    const onSnap = vi.fn();
+    const onLog = vi.fn();
+
+    conn.signals.run_status_changed.connect(onRun);
+    conn.signals.snapshot_changed.connect(onSnap);
+    conn.signals.log_appended.connect(onLog);
+
+    await conn.bridge.update_shell({ theme: "dark" });
+    expect(onSnap).toHaveBeenCalled();
+    const snap = JSON.parse(onSnap.mock.calls[0][0]);
+    expect(snap.shell.theme).toBe("dark");
+
+    await conn.bridge.start_run("normal_farm", 0);
+    expect(onRun).toHaveBeenCalled();
+    const run = JSON.parse(onRun.mock.calls[0][0]);
+    expect(run.state).toBe("STARTING");
+    expect(run.phase).toBe("BOOT");
+    expect(onLog).toHaveBeenCalled();
+
+    await conn.bridge.stop_run();
+    const stopCall = onRun.mock.calls.find((call) => {
+      const parsed = JSON.parse(call[0]);
+      return parsed.state === "STOPPING";
+    });
+    expect(stopCall).toBeDefined();
   });
 });

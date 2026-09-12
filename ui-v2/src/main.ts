@@ -332,7 +332,12 @@ function applyLaunchability(): void {
   // Local checks decide whether the user can request a backend preflight;
   // only the backend result may claim that the run is actually ready.
   button.disabled = !locallyLaunchable;
-  button.textContent = locallyLaunchable ? "开始运行" : "不可启动";
+  const textRunEl = document.getElementById("btnStartTextRun");
+  if (textRunEl) {
+    textRunEl.textContent = locallyLaunchable ? "开始运行" : "不可启动";
+  } else {
+    button.textContent = locallyLaunchable ? "开始运行" : "不可启动";
+  }
   button.classList.remove("stop");
   const backendReady = locallyLaunchable && Boolean(preflightCurrent?.ok);
   $("lamp").className = "lamp" + (backendReady ? "" : (locallyLaunchable ? " pending" : " bad"));
@@ -624,14 +629,30 @@ function applyRunStatus(run: RunStatusDTO): void {
   $("gamesToday").textContent = String(Math.max(0, Number(run.game_count) || 0));
   $("gamesCap").textContent = run.cycle_num > 0 ? String(run.cycle_num) : "手动";
   const btnStart = $("btnStart") as HTMLButtonElement;
+  const textStopEl = document.getElementById("btnStartTextStop");
+  const stopText = run.state === "STOPPING" ? "停止中…" : "停止运行";
+  if (textStopEl) {
+    textStopEl.textContent = stopText;
+  }
   if (runActive) {
-    btnStart.textContent = run.state === "STOPPING" ? "停止中…" : "停止运行";
+    if (!textStopEl) btnStart.textContent = stopText;
     btnStart.classList.add("stop");
     btnStart.disabled = run.state === "STOPPING";
   } else {
     btnStart.classList.remove("stop");
     refreshSummary(); // 恢复“开始运行”文案与可用性判定
     applyLaunchability();
+  }
+  const ctrlRunning = document.getElementById("ctrl-running") as HTMLInputElement | null;
+  if (ctrlRunning) ctrlRunning.checked = runActive;
+  document.body.dataset.running = runActive ? "true" : "false";
+  state.running = runActive;
+  state.hudPhase = run.phase;
+  state.played = Math.max(0, Number(run.game_count) || 0);
+  if (run.cycle_num !== undefined) state.cycle = run.cycle_num;
+  const win = window as unknown as Record<string, unknown>;
+  if (typeof win.renderHud === "function") {
+    (win.renderHud as () => void)();
   }
   if (run.state === "FAILED") {
     const msg = `${label}${run.terminal_reason ? "：" + run.terminal_reason : ""}`;
@@ -750,10 +771,14 @@ function wireIntents(): void {
     defer(() => pushShell({ theme: state.theme === "dark" ? "dark" : "light" })),
   );
 
-  // 配对码与接管预案。
-  $("followPairForm").addEventListener("submit", () =>
-    defer(() => pushConfig({ follow_pair_code: String(state.teamRules.follow.pairCode ?? "") })),
-  );
+  // 配对码与接管预案（若有表单则兼容保留，跟车业务无配对码则安全跳过）。
+  const followPairForm = document.getElementById("followPairForm");
+  if (followPairForm) {
+    followPairForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      defer(() => pushConfig({ follow_pair_code: String(state.teamRules.follow.pairCode ?? "") }));
+    });
+  }
   for (const [id, field] of [["roomName", "room_name"], ["roomPass", "room_password"]] as const) {
     $(id).addEventListener("change", (e) =>
       pushConfig({ [field]: (e.target as HTMLInputElement).value.trim() }),
@@ -878,8 +903,10 @@ function showFatal(err: unknown): void {
 async function boot(): Promise<void> {
   if (import.meta.env.MODE !== "production") {
     // dev/浏览器测试：诚实 mock，形状与 types.ts 一致；生产构建不打包此分支。
-    const { createMockBridge } = await import("./bridge/mockBridge");
-    bridge = createMockBridge();
+    const { createMockBridgeConnection } = await import("./bridge/mockBridge");
+    const conn = createMockBridgeConnection();
+    bridge = conn.bridge;
+    wireSignals(conn.signals);
   } else {
     const { createQtBridge } = await import("./bridge/qtBridge");
     const conn = await createQtBridge();
