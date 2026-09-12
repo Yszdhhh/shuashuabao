@@ -1,2 +1,7 @@
 node_modules/
 dist/
+_verify/out/
+_verify/baseline/
+_verify/real_shell_*/
+_verify/*.png
+_verify/host_trace.txt
