@@ -1,0 +1,38 @@
+{
+  "base_head": "f4c847c79b6a1ebf111d48c7c3db9d0bac5e7b97",
+  "review_regressions": {
+    "passed": 19,
+    "seconds": 30.90
+  },
+  "hitch_related": {
+    "passed": 271,
+    "subtests_passed": 8,
+    "seconds": 255.42
+  },
+  "split_pytest": [
+    {
+      "batch": 1,
+      "files": 49,
+      "passed": 1104,
+      "skipped": 8,
+      "known_failed": 5,
+      "subtests_passed": 86,
+      "seconds": 514.93
+    },
+    {
+      "batch": 2,
+      "files": 49,
+      "passed": 824,
+      "skipped": 4,
+      "xfailed": 2,
+      "subtests_passed": 16,
+      "seconds": 79.03
+    }
+  ],
+  "release_gate_without_pytest": {
+    "frozen_replay": "PASS: 6 PASS, 1 expected BLOCKED, 0 FAIL",
+    "contract": "PASS: 56 passed",
+    "scene_templates": "FAIL: snapshot 393, actual 398; missing=0 and asset integrity checks passed"
+  },
+  "task_python_or_pytest_processes_remaining": 0
+}

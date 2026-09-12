@@ -103,3 +103,13 @@
 - **吞噬丹不买**：黑商栏整局可见，吞噬丹露出时 0.99；但我们点完 [Z]/[B]/[V]/挑战图标后鼠标停在按钮上，说明框正好盖住右下黑商栏，黑商步从未看到吞噬丹。修复（通用）：局内点底部 HUD/右缘后标记「鼠标在 HUD 上」，下一次读 HUD（自动任务/四挑战/黑商/物品栏）前先把鼠标挪到空地（新输入原语 `InputExecutor.move` / `Mediator.act_move`，只移动不点击；背包事务中、面板打开、有待确认动作时不挪）。
 - 交接给本地审查 Agent：`docs/LOCAL_AGENT_HANDOFF_20260912_HITCH_REVIEW.md`。
 
+## 2026-09-12 本地架构审查与修复：基于候选 f4c847c，工作树未提交
+
+- 完整 A–H 报告：`docs/reviews/HITCH_ARCHITECTURE_REVIEW_20260912.md`；字段/重置/早返回/分类矩阵在 `docs/reviews/hitch_review_20260912/`。
+- 真实帧完整 Core/LIVE `tick()` 复现并修复：round deadline 前置于压力/聊天输入；乘客战后事务增加不可续期的300s总预算；自然新局清空panel episode与pending input；离开广场候选改为连续合格帧；传家宝页在外层预算判断前完成换页重置。
+- 旧 `HITCH_LIVENESS_AUDIT_20260912.md` 的C12及“战后重试均由监督兜底”已被初始反例推翻；本轮回归锁定新的deadline和战后总预算。秘境/团本仍无当前版本真实样本，“进入后不主动退出”与整局3600s deadline的最终优先级仍待真实证据定约。
+- `tests/test_hitch_review_20260912.py` 现有19项全部通过，不再用xfail隔离缺陷。蹭车相关集合271通过。`tests/test_*.py`按49/49两批顺序重跑：第一批1104通过、8跳过、5个已知失败、86个子测试通过；第二批824通过、4跳过、2个既有xfail、16个子测试通过。合同56通过；冻结回放6通过、1既有BLOCKED（缺断线素材）。
+- 分类矩阵覆盖2012张图片/6036上下文行；2张历史录制帧有ROOM/HUD重叠，但LIVE完整tick保持游戏优先，已加回归。不代表当前版本秘境/团本规则已验证。
+- `move`底层检查与click一致，但实机RecordingInputExecutor仍未包装move；只给出补包装建议，没有修改`GameScript-Local`。未实机、未看截图、未push、未改快捷方式、未commit、未更新gate baseline；detached HEAD仍为`f4c847c79b6a1ebf111d48c7c3db9d0bac5e7b97`，修复仅在工作树中，正式入口及既有产物不变。
+- 本次pytest/runner/矩阵进程均已结束；整机另有既有Hermes与Explorer启动的Python进程，未把无关进程当测试残留终止，详见报告进程记录。
+

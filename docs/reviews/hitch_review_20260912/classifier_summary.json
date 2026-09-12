@@ -1,0 +1,16 @@
+{
+  "rows": 6036,
+  "paths": 2012,
+  "unique_images": 1779,
+  "statuses": {
+    "classified": 2343,
+    "crop_or_small": 3693
+  },
+  "conflict_rows": 6,
+  "conflict_paths": [
+    "fixtures/ocr_choices/frames/rec9_mijing_20260810/d0_a_000224.png",
+    "fixtures/ocr_choices/frames/rec9_mijing_20260810/d0_a_000442.png"
+  ],
+  "errors": 0,
+  "postgame_hud_overlap_rows": 32
+}

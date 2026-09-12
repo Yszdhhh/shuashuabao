@@ -1,0 +1,18 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+__ test_new_round_treasure_does_not_inherit_previous_panel_timer[Mediator0] ___
+tests\test_hitch_review_20260912.py:158: in test_new_round_treasure_does_not_inherit_previous_panel_timer
+    assert med._panel_state != PanelState.COOLDOWN
+E   assert <PanelState.COOLDOWN: 7> != <PanelState.COOLDOWN: 7>
+E    +  where <PanelState.COOLDOWN: 7> = <shuabao.mediator.Mediator object at 0x000002853C078350>._panel_state
+E    +  and   <PanelState.COOLDOWN: 7> = PanelState.COOLDOWN
+__ test_new_round_treasure_does_not_inherit_previous_panel_timer[Mediator1] ___
+tests\test_hitch_review_20260912.py:158: in test_new_round_treasure_does_not_inherit_previous_panel_timer
+    assert med._panel_state != PanelState.COOLDOWN
+E   assert <PanelState.COOLDOWN: 7> != <PanelState.COOLDOWN: 7>
+E    +  where <PanelState.COOLDOWN: 7> = <shuabao.runtime_mediator.Mediator object at 0x00000285626583D0>._panel_state
+E    +  and   <PanelState.COOLDOWN: 7> = PanelState.COOLDOWN
+=========================== short test summary info ===========================
+FAILED tests/test_hitch_review_20260912.py::test_new_round_treasure_does_not_inherit_previous_panel_timer[Mediator0]
+FAILED tests/test_hitch_review_20260912.py::test_new_round_treasure_does_not_inherit_previous_panel_timer[Mediator1]
+2 failed, 11 deselected in 2.76s

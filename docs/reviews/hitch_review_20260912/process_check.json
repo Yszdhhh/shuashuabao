@@ -1,0 +1,75 @@
+﻿{
+    "checked_at":  "2026-09-12T13:25:00.2465575+08:00",
+    "baseline_python_pids":  [
+                                 19092,
+                                 17132,
+                                 24008,
+                                 24592
+                             ],
+    "task_processes_remaining":  [
+
+                                 ],
+    "unrelated_explorer_parent":  12636,
+    "observed":  [
+                     {
+                         "ProcessId":  19092,
+                         "ParentProcessId":  18612,
+                         "Name":  "python.exe",
+                         "ExecutablePath":  "C:\\Users\\10639\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe"
+                     },
+                     {
+                         "ProcessId":  17132,
+                         "ParentProcessId":  19092,
+                         "Name":  "python.exe",
+                         "ExecutablePath":  "C:\\Users\\10639\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\python.exe"
+                     },
+                     {
+                         "ProcessId":  24008,
+                         "ParentProcessId":  21564,
+                         "Name":  "python.exe",
+                         "ExecutablePath":  "C:\\Users\\10639\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe"
+                     },
+                     {
+                         "ProcessId":  24592,
+                         "ParentProcessId":  24008,
+                         "Name":  "python.exe",
+                         "ExecutablePath":  "C:\\Users\\10639\\AppData\\Roaming\\uv\\python\\cpython-3.11-windows-x86_64-none\\python.exe"
+                     },
+                     {
+                         "ProcessId":  2888,
+                         "ParentProcessId":  12636,
+                         "Name":  "pythonw.exe",
+                         "ExecutablePath":  null
+                     },
+                     {
+                         "ProcessId":  38268,
+                         "ParentProcessId":  2888,
+                         "Name":  "python.exe",
+                         "ExecutablePath":  null
+                     }
+                 ],
+    "conclusion":  "本次 pytest/runner/matrix 均已结束；未终止无关 Python 进程。",
+    "final_checked_at":  "2026-09-12T13:38:50.0620918+08:00",
+    "final_observed":  [
+                           {
+                               "ProcessId":  19092,
+                               "ParentProcessId":  18612,
+                               "Name":  "python.exe"
+                           },
+                           {
+                               "ProcessId":  17132,
+                               "ParentProcessId":  19092,
+                               "Name":  "python.exe"
+                           },
+                           {
+                               "ProcessId":  24008,
+                               "ParentProcessId":  21564,
+                               "Name":  "python.exe"
+                           },
+                           {
+                               "ProcessId":  24592,
+                               "ParentProcessId":  24008,
+                               "Name":  "python.exe"
+                           }
+                       ]
+}
