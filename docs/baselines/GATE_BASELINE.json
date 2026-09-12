@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-11 09:09:18",
-  "reason": "Update release gate baseline: refresh pytest count to 1931 for formal integration 20260911",
+  "updated_at": "2026-09-12 19:33:42",
+  "reason": "Promote verified hitch merchant/post-game candidate d0087e3: full regression 2063 passed; refresh five tracked, manifest-listed runtime templates added since the prior 393-file snapshot.",
   "note": "发版门禁快照。任何偏离都会让 tools/release_gate.py 失败。known_failures 里的每一项必须写明原因；修好后请重新 --update-baseline。",
   "stages": {
     "pytest": {
       "title": "单元/回归测试（tests/）",
       "observed": {
-        "passed": 1931,
+        "passed": 2063,
         "xfailed": 2,
-        "skipped": 15
+        "skipped": 13
       }
     },
     "frozen_replay": {
@@ -35,8 +35,8 @@
         "asset_spec_assets_root": 1,
         "asset_manifest_schema": 1,
         "asset_package_root_whole_tree": 1,
-        "asset_files": 393,
-        "asset_allowlisted": 393,
+        "asset_files": 398,
+        "asset_allowlisted": 398,
         "asset_missing_allowlist": 0,
         "asset_stale_manifest": 0,
         "asset_forbidden_paths": 0,
