@@ -32,8 +32,8 @@ from tools.live_scenario_capture import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-FROZEN = "d0087e342a51a0878d58328074f7ec926ed418c5"
-BASE = "d0087e342a51a0878d58328074f7ec926ed418c5"
+FROZEN = "155185e92412f8b0ead56b5178e63b9473bbf112"
+BASE = "155185e92412f8b0ead56b5178e63b9473bbf112"
 OLD_HARNESS = "144c0c9adc366a35548f6e1c2e52fad8387da090"
 OLD_PROD = "b15da05f4fd7313b02b2cc466e319d9683aa979c"
 
