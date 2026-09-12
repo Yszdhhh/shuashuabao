@@ -907,6 +907,9 @@ class Mediator:
         # While True, frames that no classifier recognizes must yield ZERO input
         # (no auto-task / challenge / stage actions) until timeout -> ERROR.
         self._post_game_pending: bool = False
+        # One immutable budget for the visible post-game UI transaction.
+        # Successful SendInput is not proof that Continue/X/NPC changed it.
+        self._hitch_postgame_started_at: float | None = None
         self._post_game_close_attempts: int = 0
         self._post_game_hud_confirmations: int = 0
         self._pending_archive_panel_frames: int = 0
@@ -6077,6 +6080,7 @@ class Mediator:
 
     _HITCH_INSTANCE_FRAMES = 3
     _HITCH_HEIRLOOM_EXIT_S = 60.0
+    _HITCH_POSTGAME_HARD_CAP_S = 300.0
 
     def _hitch_left_plaza(self, frame: Frame) -> bool:
         """After the heirloom click: were we moved into 秘境 / 团本?
@@ -6096,11 +6100,16 @@ class Mediator:
             return True
         if mode == "plaza":
             self._hitch_instance_frames = 0
+            self._hitch_instance_last_frame = None
             return False
         quit_hit = self.find(frame, ["quit"], threshold=0.75, roi=(0.0, 0.0, 0.12, 0.08))
         if quit_hit is None or self._post_game_state(frame) is not None:
+            self._hitch_instance_frames = 0
+            self._hitch_instance_last_frame = None
             return False
         if self.find_scene(frame, "fail") or self.find_scene(frame, "disconnect"):
+            self._hitch_instance_frames = 0
+            self._hitch_instance_last_frame = None
             return False
         # Hold the counted frame itself: ids of freed frames get reused.
         if frame is not getattr(self, "_hitch_instance_last_frame", None):
@@ -7882,6 +7891,7 @@ class Mediator:
             self._hitch_instance_seen = False
             self._hitch_instance_frames = 0
             self._hitch_instance_announced = False
+            self._hitch_instance_last_frame = None
             # F4 clears challenges.  The first confirmed HUD frame belongs to
             # the normal bond-first opening cycle, so do not let a reset timer
             # clear challenges immediately on game entry.
@@ -7918,6 +7928,7 @@ class Mediator:
             self._victory_continue_attempts = 0
             self._victory_continue_since = None
             self._post_game_pending = False
+            self._hitch_postgame_started_at = None
             # Task 2: runtime watchdog HUD latch re-arms from zero on each
             # MAIN_LINE entry; stale confirmations from the prior episode
             # would grant unverified input authority on first ticks.
@@ -7977,7 +7988,21 @@ class Mediator:
                 self._round_deadline = self._round_started_at + self.settings.round_timeout_s
             # S0 ⑤ 跨局 L1 瞬态重置：主动面板标记/神器 CD/主动面板时间戳/进化冷却
             self._panel_state = PanelState.CLOSED
+            self._panel_kind = None
+            self._panel_episode_id = None
+            self._panel_first_seen_at = None
+            self._panel_last_progress_at = None
+            self._panel_episode_started = None
+            self._panel_visible_deadline = None
+            self._panel_mutation_baseline = None
+            self._panel_pending_choice_action = None
+            self._panel_pending_choice_fingerprint = None
             self._panel_opened_by_us = None
+            self._panel_fingerprint = None
+            self._panel_fingerprint_attempts = 0
+            self._panel_anchor_candidate = None
+            self._pending_action = None
+            self._pending_action_unconfirmed_count = 0
             self._last_skill_panel = 0.0
             self._last_bond_attempt = 0.0
             self._last_treasure_attempt = 0.0
@@ -10182,6 +10207,7 @@ class Mediator:
         self._hitch_ready_confirmed_at = None
         self._hitch_opening_pressure_armed = False
         self._hitch_heirloom_exit_since = None
+        self._hitch_postgame_started_at = None
         self._hitch_rejected_row_ys.clear()
         # P1-1：关闭预算不在此重置——本函数也服务被踢重置路径，那里
         # 弹窗可能仍在，重置会重新计满预算造成无限 Esc。预算只随
@@ -13603,6 +13629,7 @@ class Mediator:
             self._secret_realm_hud_confirmations = 0
             self._secret_realm_last_hud_frame_id = None
             self._post_game_pending = False
+            self._hitch_postgame_started_at = None
             self._post_game_close_attempts = 0
             self._post_game_route = "secret"
             self._victory_continue_attempts = 0
@@ -13633,6 +13660,38 @@ class Mediator:
         # NPC / PAUSED 等）必须在压力门禁之前观察。压力尚未完成不得遮蔽
         # victory/failure；强失败/断线全局抢占仍在 _tick_impl 更早处。
         post_game = self._post_game_state(frame)
+
+        # The hard round deadline owns every MAIN_LINE page.  It must run
+        # before repeatable chat/pressure inputs, otherwise a persistent
+        # pressure button can return early forever after the deadline.
+        if not secret_entry_observation and self._round_deadline is not None and now >= self._round_deadline:
+            print(f"[med] round hard deadline 到期（{self.settings.round_timeout_s}s），记录 TIMEOUT 并转 QUIT")
+            self._record_round_outcome(RoundOutcome.TIMEOUT, "round deadline")
+            self._record_round_timeout_incident()
+            self.invalidate_evidence("round-deadline")
+            self.set_phase(Phase.QUIT, "round deadline expired")
+            return LoopAction.Continue
+
+        if not secret_entry_observation and self._passenger_mode() and (
+            post_game is not None or self._post_game_pending
+        ):
+            if self._hitch_postgame_started_at is None:
+                self._hitch_postgame_started_at = now
+            elif now - self._hitch_postgame_started_at >= self._HITCH_POSTGAME_HARD_CAP_S:
+                why = f"post-game UI {self._HITCH_POSTGAME_HARD_CAP_S:.0f}s hard cap"
+                print(f"[med] 蹭车战后界面总预算到期，转 QUIT（{why}）")
+                self._record_round_outcome(RoundOutcome.TIMEOUT, why)
+                self.set_phase(Phase.QUIT, why)
+                return LoopAction.Continue
+        elif (
+            not secret_entry_observation
+            and self._passenger_mode()
+            and not self._hitch_heirloom_exit_since
+        ):
+            # A one-frame false candidate must not age the next real
+            # post-game transaction.  Heirloom plaza/instance observation
+            # keeps the same budget until its own 60/120s rule resolves.
+            self._hitch_postgame_started_at = None
 
         if not secret_entry_observation and self._passenger_mode():
             # An open chat input swallows clicks under it and every hotkey;
@@ -13671,13 +13730,6 @@ class Mediator:
                 elif self._pending_action.target_id == "equipment_upgrade" or self._pending_action.kind == "EQUIPMENT_UPGRADE":
                     self._equipment_pending_until = now + 1.0
                 self._pending_action = None
-        if not secret_entry_observation and self._round_deadline is not None and now >= self._round_deadline:
-            print(f"[med] round hard deadline 到期（{self.settings.round_timeout_s}s），记录 TIMEOUT 并转 QUIT")
-            self._record_round_outcome(RoundOutcome.TIMEOUT, "round deadline")
-            self._record_round_timeout_incident()
-            self.invalidate_evidence("round-deadline")
-            self.set_phase(Phase.QUIT, "round deadline expired")
-            return LoopAction.Continue
         if (
             not secret_entry_observation
             and self._passenger_mode()
@@ -13690,6 +13742,7 @@ class Mediator:
             # Teleported into 秘境 / 团本 -> never exit here; that run ends
             # in its own failure (or victory) page, which exits as usual.
             if not self._follow_enabled() and self._hitch_left_plaza(frame):
+                self._hitch_postgame_started_at = None
                 if not getattr(self, "_hitch_instance_announced", False):
                     self._hitch_instance_announced = True
                     print("[med] 传家宝后画面已离开战后广场（秘境/团本），暂不退出，等失败/胜利页再退")
@@ -13838,6 +13891,7 @@ class Mediator:
             route = getattr(self, "_post_game_route", "")
             print(f"[med] 战后挑战目的地 HUD 连续两帧确认（{route}），恢复既有局内循环")
             self._post_game_pending = False
+            self._hitch_postgame_started_at = None
             self._post_game_close_attempts = 0
             self._post_game_hud_confirmations = 0
             if route != "boss_active":
@@ -14153,6 +14207,14 @@ class Mediator:
                 print("[med] 传家宝面板关闭过渡中，Boss 挑战进行中（零动作）")
                 return LoopAction.Continue
             configured_cjb = str(getattr(self.settings, "cjb_boss", "") or "").strip()
+            if getattr(self, "_boss_challenge_page", None) != post_game:
+                # The outer dispatch must hand this page its own budget before
+                # checking attempts; otherwise an exhausted archive budget
+                # skips the handler that would have reset it.
+                self._boss_challenge_attempts = 0
+                self._boss_challenge_scroll_attempts = 0
+                self._boss_challenge_next_at = 0.0
+                self._boss_challenge_page = post_game
             if (
                 configured_cjb
                 and self._post_game_pending
