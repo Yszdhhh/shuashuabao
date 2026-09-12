@@ -700,10 +700,10 @@
       "page": "HEIRLOOM_CHALLENGE",
       "target_scene": "cjbtiaozhan",
       "forbidden_click_regions": [],
-      "expected_state": "UNKNOWN",
+      "expected_state": "MAIN_LINE",
       "expected_action": "DismissHeirloomDialog",
       "expected_input_kind": "left_click",
-      "note": "P1-B0 safe dismissal: close the optional heirloom dialog with its verified X; never right-click a boss",
+      "note": "P1-B0 confirmed heirloom dialog remains on MAIN_LINE while its guarded Boss selection or safe dismissal is in progress",
       "required": true
     },
     {

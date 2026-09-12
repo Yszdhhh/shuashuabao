@@ -966,6 +966,7 @@ class Mediator:
         # halfway down a long time-cave list.
         self._boss_challenge_scroll_signature: str | None = None
         self._boss_challenge_scroll_stable_frames: int = 0
+        self._boss_challenge_unresolved_attempts: int = 0
         self._boss_challenge_next_at: float = 0.0
         self._exit_button_attempts: int = 0
         self._exit_confirm_attempts: int = 0
@@ -1295,6 +1296,8 @@ class Mediator:
             value = "MAIN_LINE"
         elif role != "l0" and (self.find_scene(frame, "disconnect") or self.find_scene(frame, "fail")):
             value = "QUIT"
+        elif self._post_game_state(frame) in {"POST_VICTORY", "ARCHIVE_PANEL", "HEIRLOOM_DIALOG"}:
+            value = "MAIN_LINE"
         elif self._is_in_game_hud(frame):
             # The task bar/Boss timer can parse as a stage row.  Strong HUD
             # anchors revoke STAGE_SELECT classification authority.
@@ -5713,6 +5716,9 @@ class Mediator:
         "ARCHIVE_PANEL": (0.64, 0.24, 0.86, 0.60),
         "HEIRLOOM_DIALOG": (0.30, 0.22, 0.76, 0.72),
     }
+    _POST_GAME_BOSS_SCROLLBAR_ROIS = {
+        "ARCHIVE_PANEL": (0.841, 0.270, 0.847, 0.556),
+    }
     _POST_GAME_BOSS_SCALES = (0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.80)
     # Compact post-game cards are rendered with a small overlay/border
     # difference from the source templates. Keep the normal entry threshold
@@ -5724,6 +5730,7 @@ class Mediator:
     _POST_GAME_BOSS_SCROLL_LIMIT = 16
     _POST_GAME_BOSS_SCROLL_CLICKS = -5
     _POST_GAME_BOSS_BOTTOM_STABLE_FRAMES = 2
+    _POST_GAME_BOSS_UNRESOLVED_LIMIT = 3
     _POST_GAME_ACTION_RECHECK_S = 0.35
     _ARCHIVE_CHALLENGE_NAMES = (
         "skill", "strengthen", "gem", "loot",
@@ -5943,30 +5950,32 @@ class Mediator:
         )
 
     def _post_game_boss_list_at_bottom(self, frame: Frame, post_game: str | None) -> bool:
-        """Confirm a classified Boss list is stationary at its lower boundary.
-
-        List cards contain small highlights, so fingerprint a reduced and
-        quantized grayscale crop rather than exact pixels. Two unchanged
-        observations after at least one scroll are required before fallback.
-        """
-        roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
-        if roi is None or frame.bgr is None or frame.bgr.size == 0:
+        """Require two bottom-thumb observations before selecting a fallback."""
+        scrollbar_roi = self._POST_GAME_BOSS_SCROLLBAR_ROIS.get(post_game or "")
+        if frame.bgr is None or frame.bgr.size == 0:
             return False
-        x0, y0, x1, y1 = self._normalized_bbox(frame, roi)
-        crop = frame.bgr[y0:y1, x0:x1]
-        if crop.size == 0:
-            return False
-        gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
-        thumb = cv2.resize(gray, (48, 72), interpolation=cv2.INTER_AREA)
-        signature = hashlib.md5((thumb // 32).tobytes()).hexdigest()
-        previous = getattr(self, "_boss_challenge_scroll_signature", None)
-        if signature == previous:
+        if scrollbar_roi is None:
+            # The verified heirloom dialog is a complete, non-scrolling grid.
+            # One harmless scroll attempt plus two observations proves its last card.
+            at_bottom = post_game == "HEIRLOOM_DIALOG"
+        else:
+            x0, y0, x1, y1 = self._normalized_bbox(frame, scrollbar_roi)
+            strip = frame.bgr[y0:y1, x0:x1]
+            if strip.size == 0:
+                return False
+            mask = cv2.cvtColor(strip, cv2.COLOR_BGR2GRAY) >= 180
+            count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask.astype(np.uint8))
+            height = max(1, strip.shape[0])
+            at_bottom = any(
+                2 <= w <= 12 and h >= 8 and y + h >= int(height * 0.94)
+                for _x, y, w, h, _area in stats[1:count]
+            )
+        if at_bottom:
             self._boss_challenge_scroll_stable_frames = (
                 int(getattr(self, "_boss_challenge_scroll_stable_frames", 0) or 0) + 1
             )
         else:
             self._boss_challenge_scroll_stable_frames = 0
-        self._boss_challenge_scroll_signature = signature
         return bool(
             self._boss_challenge_scroll_attempts > 0
             and self._boss_challenge_scroll_stable_frames
@@ -6404,6 +6413,7 @@ class Mediator:
                 self._boss_challenge_scroll_attempts = 0
                 self._boss_challenge_scroll_signature = None
                 self._boss_challenge_scroll_stable_frames = 0
+                self._boss_challenge_unresolved_attempts = 0
                 self._boss_challenge_next_at = 0.0
             self._boss_challenge_page = post_game
         if post_game == "ARCHIVE_PANEL":
@@ -6492,10 +6502,20 @@ class Mediator:
                 boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
                 used_fallback = boss_hit is not None
                 if boss_hit is None:
+                    self._boss_challenge_unresolved_attempts += 1
+                    if self._boss_challenge_unresolved_attempts >= self._POST_GAME_BOSS_UNRESOLVED_LIMIT:
+                        self.set_phase(Phase.ERROR, "bottomed Boss list has no verified last card")
+                        self.stop()
+                        return LoopAction.Break
                     self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
                     print("[med] Boss 列表已到底，但未找到可验证的物理最后一张卡，零输入等待")
                     return LoopAction.Continue
             elif self._boss_challenge_scroll_attempts >= self._POST_GAME_BOSS_SCROLL_LIMIT:
+                self._boss_challenge_unresolved_attempts += 1
+                if self._boss_challenge_unresolved_attempts >= self._POST_GAME_BOSS_UNRESOLVED_LIMIT:
+                    self.set_phase(Phase.ERROR, "Boss list bottom could not be verified")
+                    self.stop()
+                    return LoopAction.Break
                 self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
                 print("[med] Boss 列表滚动已到安全上限但未证明到底，禁止任意卡兜底")
                 return LoopAction.Continue
@@ -6513,6 +6533,7 @@ class Mediator:
                 )
                 if self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, "BossConfigured-scroll"):
                     self._boss_challenge_scroll_attempts = next_attempt
+                    self._boss_challenge_unresolved_attempts = 0
                 return LoopAction.Continue
 
         self._boss_challenge_attempts += 1
