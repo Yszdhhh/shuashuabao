@@ -420,6 +420,36 @@ class InputExecutor:
         status = "DRY_RUN" if dry_run else "SUCCESS"
         return ActionResult(success=True, status=status, message=f"Clicked ({x}, {y})")
 
+    def move(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
+        """Move the pointer without pressing a button (same pre/post checks as click)."""
+        check = self.check_can_execute(target_hwnd, dry_run=dry_run)
+        if not check.success:
+            print(f"[input] move ({x}, {y}) CANCELLED: {check.message}")
+            return check
+        if not dry_run and target_hwnd:
+            obscured = self._check_point_obscured(target_hwnd, x, y)
+            if obscured:
+                print(f"[input] move ({x}, {y}) CANCELLED: {obscured.message}")
+                return obscured
+        if self.stop_signal and (self.stop_signal.is_set() or self.stop_signal.is_stopped()):
+            return ActionResult(
+                success=False,
+                status="CANCELLED_EMERGENCY_STOP",
+                message=f"Action cancelled by stop signal: {self.stop_signal.reason}",
+            )
+        moved = move_cursor(x, y, dry_run=dry_run)
+        if not dry_run and not moved:
+            return ActionResult(
+                success=False,
+                status="CANCELLED_SENDINPUT_FAILED",
+                message=f"SendInput did not move the pointer to ({x}, {y})",
+            )
+        post = self._post_check(target_hwnd, dry_run)
+        if post:
+            return post
+        status = "DRY_RUN" if dry_run else "SUCCESS"
+        return ActionResult(success=True, status=status, message=f"Moved to ({x}, {y})")
+
     def double_click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 50) -> ActionResult:
         check = self.check_can_execute(target_hwnd, dry_run=dry_run)
         if not check.success:
@@ -699,6 +729,14 @@ def right_click(x: int, y: int, dry_run: bool = True, delay_ms: int = 120) -> bo
     return _send_mouse_click(int(x), int(y), right=True, delay_ms=delay_ms)
 
 
+def move_cursor(x: int, y: int, dry_run: bool = True) -> bool:
+    """Move the pointer only (SetCursorPos + absolute SendInput MOVE)."""
+    print(f"[input] move ({x}, {y}) dry_run={dry_run}")
+    if dry_run:
+        return True
+    return _send_mouse_click(int(x), int(y), right=False, delay_ms=0, press=False)
+
+
 def press_key(key: str, dry_run: bool = True) -> None:
     """key: e.g. 'f4', 'esc', 'z'.
 
@@ -880,8 +918,10 @@ def scroll(x: int, y: int, clicks: int, dry_run: bool = True) -> None:
     pyautogui.scroll(clicks)
 
 
-def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> bool:
+def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int, press: bool = True) -> bool:
     """user32 SetCursorPos + SendInput click (original GameScript path).
+
+    ``press=False`` stops after the absolute MOVE (pointer parking).
 
     Returns True only when both down and up were successfully injected
     (SendInput reports inserted events). Multi-monitor: absolute MOVE uses the
@@ -941,6 +981,11 @@ def _send_mouse_click(x: int, y: int, *, right: bool, delay_ms: int) -> bool:
     time.sleep(0.20)
     move_ok = send(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, ax, ay)
     time.sleep(0.02)
+    if not press:
+        final = w.POINT()
+        cursor_read = bool(user32.GetCursorPos(ctypes.byref(final)))
+        at_target = cursor_read and abs(int(final.x) - int(x)) <= 2 and abs(int(final.y) - int(y)) <= 2
+        return positioned and bool(move_ok) and at_target
     down_ok = send(down_flag)
     time.sleep(0.05)
     up_ok = send(up_flag)

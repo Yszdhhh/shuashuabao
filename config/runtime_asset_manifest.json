@@ -1434,6 +1434,14 @@
       "sha256": "6b64fe66a9cbc067d5e5f170aa569968c7bd553691dc6390a2fb2d78f25a1c25"
     },
     {
+      "path": "assets/Images/env/victory_banner.png",
+      "purpose": "runtime_ui",
+      "provenance": "cropped from live game capture hitch_lobby_chain_20260912_120333_103843/f0234",
+      "reason_required": "recognise the victory page while its banner animates, before 继续游戏 is drawn",
+      "size_bytes": 21507,
+      "sha256": "be82f5df699a2f87b1e92766543720205438b2b6f7fa37b047aade1b89867942"
+    },
+    {
       "path": "assets/Images/ex.png",
       "purpose": "runtime_ui",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",

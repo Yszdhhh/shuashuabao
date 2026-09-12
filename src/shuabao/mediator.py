@@ -843,6 +843,9 @@ class Mediator:
         self._liveness_family: str | None = None
         self._liveness_family_since: float | None = None
         self._hitch_dwell_room_left = False
+        # Our last click left the pointer on a HUD control whose tooltip can
+        # cover what the next step reads (see _note_pointer_on_hud).
+        self._pointer_needs_park = False
         # Passenger V retry spacing after a "no treasure choices" click.
         self._hitch_treasure_retry_at = 0.0
         # A bag visit that left movable items in the personal grid.
@@ -2033,6 +2036,8 @@ class Mediator:
         self._last_input_status = str(getattr(res, "status", "") or "")
         if res.success or self._last_input_status == INPUT_DISPATCHED_UNVERIFIED:
             self._last_input_at = time.time()
+            if reason == "ParkPointer":
+                self._pointer_needs_park = False
         if res.success:
             self._tick_input_executed = True
             self._input_seq += 1
@@ -2086,7 +2091,9 @@ class Mediator:
         )
         action_ms = (time.perf_counter() - t0) * 1000.0
         self._trace_actions.append({"intent": f"click:{hit.name}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
-        return self._finish_input(res, reason, action_ms)
+        ok = self._finish_input(res, reason, action_ms)
+        self._note_pointer_on_hud(hit)
+        return ok
 
     def act_right_click(self, hit: MatchResult, reason: str = "") -> bool:
         if self._action_forbidden(reason):
@@ -2105,7 +2112,9 @@ class Mediator:
         )
         action_ms = (time.perf_counter() - t0) * 1000.0
         self._trace_actions.append({"intent": f"right_click:{hit.name}", "at": [hit.screen_x, hit.screen_y], "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
-        return self._finish_input(res, reason, action_ms)
+        ok = self._finish_input(res, reason, action_ms)
+        self._note_pointer_on_hud(hit)
+        return ok
 
     def act_key(self, key: str, reason: str = "") -> bool:
         if self._action_forbidden(reason):
@@ -2122,6 +2131,62 @@ class Mediator:
         )
         action_ms = (time.perf_counter() - t0) * 1000.0
         self._trace_actions.append({"intent": f"key:{key}", "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
+        return self._finish_input(res, reason, action_ms)
+
+    def _note_pointer_on_hud(self, hit: MatchResult) -> None:
+        """After an in-game click the pointer rests on what it clicked.
+
+        Every bottom-HUD / right-edge control shows a tooltip in the right
+        panel while hovered (live 2026-09-12: [Z]/[B]/[V] and the challenge
+        icons covered the merchant strip; round 2 an item tooltip covered the
+        auto-task box).  Remember it so the next HUD read parks the pointer
+        first (_maybe_park_pointer).
+        """
+        frame = self._last_frame
+        if frame is None or not self._passenger_mode() or self.phase != Phase.MAIN_LINE:
+            return
+        x = hit.screen_x - frame.left
+        y = hit.screen_y - frame.top
+        if y >= frame.height * 0.55 or x >= frame.width * 0.85:
+            self._pointer_needs_park = True
+
+    def _maybe_park_pointer(self, frame: Frame) -> LoopAction | None:
+        """Clear our own tooltip before reading the HUD: move, don't click."""
+        if not getattr(self, "_pointer_needs_park", False):
+            return None
+        if (
+            self._public_bag_fsm.phase is not PublicBagPhase.IDLE
+            or self._panel_state != PanelState.CLOSED
+            or self._pending_action is not None
+        ):
+            # Mid-transaction the pointer is where the next click needs it.
+            return None
+        if self.act_move(
+            int(frame.width * self._POINTER_PARK[0]),
+            int(frame.height * self._POINTER_PARK[1]),
+            "ParkPointer",
+        ):
+            return LoopAction.Continue
+        # No move primitive (or input refused): read as before.
+        self._pointer_needs_park = False
+        return None
+
+    def act_move(self, x: int, y: int, reason: str = "") -> bool:
+        """Move the pointer to frame point (x, y) without pressing a button."""
+        mover = getattr(self.executor, "move", None)
+        if mover is None or self._last_frame is None:
+            return False
+        if self._action_forbidden(reason):
+            return False
+        if not self._action_gate_ok(reason):
+            return False
+        frame = self._last_frame
+        sx, sy = frame.left + int(x), frame.top + int(y)
+        print(f"[med] move pointer @ ({sx}, {sy}) ({reason})")
+        t0 = time.perf_counter()
+        res = mover(sx, sy, target_hwnd=frame.hwnd, dry_run=self.settings.dry_run)
+        action_ms = (time.perf_counter() - t0) * 1000.0
+        self._trace_actions.append({"intent": "move", "at": [sx, sy], "reason": reason, "ok": res.success, "action_ms": round(action_ms, 1)})
         return self._finish_input(res, reason, action_ms)
 
     def act_type_text(self, text: str, reason: str = "") -> bool:
@@ -3858,6 +3923,8 @@ class Mediator:
     # 整局持续捡东西、持续往公共背包丢。
     _HITCH_L1_CYCLE_ORDER = ("merchant", "treasure", "pickup", "public_bag")
     _HITCH_TREASURE_RETRY_S = 30.0
+    # Open ground above the hero: no HUD element, so no tooltip.
+    _POINTER_PARK = (0.62, 0.30)
 
     def _advance_l1_cycle(self, completed: str | None = None) -> None:
         current = completed or self._l1_cycle_step
@@ -5869,6 +5936,15 @@ class Mediator:
 
             # 1) Victory: continue button is unique to the victory modal.
             if find("continueGame", 0.80):
+                return "POST_VICTORY"
+            # The 胜利 banner animates in over the archive panel before 继续游戏
+            # is drawn (live 12:13, 0.97-1.0 on every victory frame, <=0.65
+            # elsewhere).  Without it that frame read as ARCHIVE_PANEL and the
+            # passenger started the archive chain under the victory modal.
+            if self.find(
+                frame, ["env/victory_banner"], threshold=0.85,
+                scales=self._hot_scales(), roi=(0.35, 0.10, 0.65, 0.40),
+            ):
                 return "POST_VICTORY"
 
             # 2) Heirloom: cjbtiaozhan banner is unique to the heirloom dialog.
@@ -10529,7 +10605,7 @@ class Mediator:
     _HITCH_GAME_CLOSE_GRACE_S = 25.0
     # Keys pressed blindly by a local stall watchdog are not progress.
     _LIVENESS_BLIND_REASONS = frozenset(
-        {"HitchStallWatchdogEsc", "HitchLeaveMisopenedStage", "CloseGameChat"}
+        {"HitchStallWatchdogEsc", "HitchLeaveMisopenedStage", "CloseGameChat", "ParkPointer"}
     )
     # Livelock caps: total dwell per phase family, inputs or not.
     _HITCH_PHASE_FAMILY = {
@@ -13827,8 +13903,14 @@ class Mediator:
                     self._record_round_outcome(RoundOutcome.VICTORY, "heirloom victory")
                     self.set_phase(Phase.QUIT, "heirloom victory")
                     return LoopAction.Continue
-            if self._post_game_pending:
-                elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
+            # "Continue already clicked" needs our click on record.  Live
+            # 2026-09-12 12:13: the victory banner animates over the archive
+            # panel, which classified ARCHIVE_PANEL first and set the pending
+            # flag; the finished victory page then read as "clicked, waiting"
+            # with no click time, so the wait never timed out and 继续游戏 was
+            # never pressed.
+            if self._post_game_pending and self._victory_continue_since is not None:
+                elapsed = now - self._victory_continue_since
                 if elapsed >= min(self.settings.query_timeout, 30):
                     if self._passenger_mode():
                         print("[med] 蹭车继续游戏后胜利页仍在，重新武装有界点击并继续观察")
@@ -14316,6 +14398,13 @@ class Mediator:
             return self._tick_recovery(frame)
         elif surface not in (InteractionSurface.HUD_ONLY, InteractionSurface.MERCHANT):
             return LoopAction.Continue
+
+        # Everything below reads the HUD (auto-task box, challenges, merchant
+        # strip, item bar).  A tooltip left by our own last click must not
+        # decide those reads.
+        park = self._maybe_park_pointer(frame)
+        if park is not None:
+            return park
 
         # ---- Boss 提前挑战（中段 HUD 入口，30s 节流 + 有界尝试）----
         # 20260822：boosIcon 等入口图标只出现在 idle HUD 上（无中央面板），
