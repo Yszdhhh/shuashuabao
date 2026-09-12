@@ -143,6 +143,7 @@ describe("qtBridge 序列化契约", () => {
     await expect(bridge.stop_run()).resolves.toEqual({ ok: true });
     await expect(bridge.window_control("minimize")).resolves.toEqual({ ok: true });
     await expect(bridge.set_window_layout("chooser")).resolves.toEqual({ ok: true });
+    await expect(bridge.set_window_layout("compact", 642)).resolves.toEqual({ ok: true });
     await expect(bridge.activate_subscription("test-key")).resolves.toEqual({ ok: true, message: "ok" });
 
     expect(harness.calls).toEqual([
@@ -155,6 +156,7 @@ describe("qtBridge 序列化契约", () => {
       ["stop_run"],
       ["window_control", JSON.stringify({ action: "minimize" })],
       ["set_window_layout", JSON.stringify({ layout: "chooser" })],
+      ["set_window_layout", JSON.stringify({ layout: "compact", height: 642 })],
       ["activate_subscription", JSON.stringify({ key: "test-key" })],
     ]);
   });

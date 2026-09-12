@@ -1600,6 +1600,12 @@
     .drawer h3 { margin: 0 0 12px; font-size: 15px; }
     .drawer h4 { margin: 16px 0 6px; font-size: 12px; color: var(--p-ink); font-weight: 650; display: flex; align-items: baseline; gap: 8px; }
     .drawer h4 small { font-size: 11px; font-weight: 500; color: var(--p-faint); }
+    .run-log-fold { margin-top: 16px; }
+    .run-log-all { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--p-faint); margin-bottom: 6px; }
+    .run-log { max-height: 180px; overflow: auto; font-size: 11px; line-height: 1.55; color: var(--p-ink); white-space: pre-wrap; word-break: break-all; }
+    .run-log [data-level="info"], .run-log [data-level="debug"] { display: none; color: var(--p-muted); }
+    .run-log.show-all [data-level="info"], .run-log.show-all [data-level="debug"] { display: block; }
+    .run-log [data-level="error"], .run-log [data-level="critical"] { color: var(--p-danger); }
     .neg { display: flex; flex-direction: column; }
     .neg-group { margin: 10px 0 2px; font-size: 11px; font-weight: 650; letter-spacing: .04em; color: var(--p-faint); }
     .neg-group:first-child { margin-top: 2px; }
@@ -2472,9 +2478,9 @@
     html:has(#ctrl-hitch:checked) #btnTheme,
     html:has(#ctrl-follow:checked) #btnTheme,
     html:has(#ctrl-hitch:checked) .brand h1,
-    html:has(#ctrl-follow:checked) .brand h1,
-    html:has(#ctrl-hitch:checked) #btnMin,
-    html:has(#ctrl-follow:checked) #btnMin { display: none !important; }
+    html:has(#ctrl-follow:checked) .brand h1 { display: none !important; }
+    /* 正式宿主固定尺寸、没有最大化；小窗保留最小化 + 关闭。 */
+    #btnMax { display: none !important; }
     html:has(#ctrl-hitch:checked) .footer,
     html:has(#ctrl-follow:checked) .footer {
       display: flex !important;
@@ -2936,6 +2942,13 @@
       <div class="neg" id="negatives"></div>
       <h4><span class="dragon-icon-wrap" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><defs><radialGradient id="dbGrad" cx="35%" cy="32%" r="65%"><stop offset="0%" stop-color="#ffe66d"/><stop offset="35%" stop-color="#ff9900"/><stop offset="75%" stop-color="#e65100"/><stop offset="100%" stop-color="#bf2600"/></radialGradient><linearGradient id="dbShine" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="url(#dbGrad)"/><ellipse cx="9" cy="7.5" rx="4.5" ry="2.2" fill="url(#dbShine)" transform="rotate(-25 9 7.5)"/><g fill="#c41c00"><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(13, 7)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(7, 17)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(19, 17)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(13, 27)"/></g></svg></span>龙珠</h4>
       <div class="switch-row"><span id="lblDragon"><span class="dragon-icon-wrap mini" aria-hidden="true"><svg viewBox="0 0 24 24" width="15" height="15"><defs><radialGradient id="dbGradM" cx="35%" cy="32%" r="65%"><stop offset="0%" stop-color="#ffe66d"/><stop offset="35%" stop-color="#ff9900"/><stop offset="75%" stop-color="#e65100"/><stop offset="100%" stop-color="#bf2600"/></radialGradient><linearGradient id="dbShineM" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="url(#dbGradM)"/><ellipse cx="9" cy="7.5" rx="4.5" ry="2.2" fill="url(#dbShineM)" transform="rotate(-25 9 7.5)"/><g fill="#c41c00"><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(13, 7)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(7, 17)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(19, 17)"/><polygon points="12,7 12.7,8.8 14.6,8.8 13.1,10 13.6,11.8 12,10.6 10.4,11.8 10.9,10 9.4,8.8 11.3,8.8" transform="scale(0.48) translate(13, 27)"/></g></svg></span>优先拿龙珠</span><button type="button" class="switch" id="swDragon" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblDragon"></button></div>
+      <details class="launch-fold run-log-fold" id="runLogFold">
+        <summary><span class="fold-title">日志</span><span class="fold-sum" id="runLogSum">暂无告警</span></summary>
+        <div class="fold-inner">
+          <label class="run-log-all"><input type="checkbox" id="runLogAll"> 显示全部</label>
+          <div id="odRunLog" class="run-log" aria-live="off"></div>
+        </div>
+      </details>
     </aside>
     <div class="load-bar" id="loadBar" role="progressbar" aria-label="正在连接" aria-hidden="true"><i></i></div>
     <div class="modal-layer" id="modalLayer" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"><div class="sheet" id="modalSheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle"></div></div>
@@ -4529,7 +4542,15 @@
       if (el && !el.checked) el.checked = true;
     }
     function syncHostWindowSize(isCompact, isRunning) {
-      // 窗口尺寸由 main.ts 经 set_window_layout 统一管理，第一阶段保持正式线 1080x820
+      // 窗口尺寸由 main.ts 经 set_window_layout 统一管理（大看板 dashboard / 蹭车跟车 compact）。
+    }
+    // 小窗高度 = 标题栏 + 内容自然高度 + 底栏，量出来交给宿主（main.ts → set_window_layout compact）。
+    function compactContentHeight() {
+      const page = document.querySelector(state.scene === "follow" ? "#followBody" : "#hitchBody");
+      const bar = document.querySelector("#scene-app .titlebar");
+      const foot = $("footer");
+      if (!page || !bar || !foot) return 640;
+      return Math.ceil(bar.offsetHeight + page.scrollHeight + foot.offsetHeight);
     }
     function setScene(scene) {
       const validScenes = ["farm", "lead", "follow", "hitch"];

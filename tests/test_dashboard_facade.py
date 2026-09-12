@@ -72,7 +72,7 @@ def facade(qapp, tmp_path: Path):
         tmp_path,
         on_minimize=lambda: actions.append("minimize"),
         on_close=lambda: actions.append("close"),
-        on_layout=layouts.append,
+        on_layout=lambda layout, **kw: layouts.append((layout, kw["height"]) if kw else layout),
     )
     f.recorded_actions = actions
     f.recorded_layouts = layouts
@@ -602,6 +602,15 @@ def test_set_window_layout_only_allows_ephemeral_known_layouts(facade):
         assert json.loads(facade.set_window_layout(json.dumps({"layout": layout}))).get("ok") is True
     assert facade.recorded_layouts == ["chooser", "chooser-solo", "chooser-team"]
     assert json.loads(facade.set_window_layout(json.dumps({"layout": "unknown"})))["ok"] is False
+
+
+def test_set_window_layout_compact_requires_a_sane_measured_height(facade):
+    ok = json.loads(facade.set_window_layout(json.dumps({"layout": "compact", "height": 642})))
+    assert ok["ok"] is True
+    for bad in (None, "642", 12, 99999, True):
+        payload = {"layout": "compact"} if bad is None else {"layout": "compact", "height": bad}
+        assert json.loads(facade.set_window_layout(json.dumps(payload)))["ok"] is False
+    assert facade.recorded_layouts == [("compact", 642)]
 
 
 def test_dashboard_contract_v2_strategy_and_revision_metadata(qapp, tmp_path: Path):

@@ -406,8 +406,8 @@ export function createMockBridgeConnection(options: MockBridgeOptions = {}): Moc
       emitLog(`[mock] 窗口操作: ${action}`, "info");
       return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
-    async set_window_layout(layout) {
-      emitLog(`[mock] 切换布局: ${layout}`, "info");
+    async set_window_layout(layout, height) {
+      emitLog(`[mock] 切换布局: ${layout}${height === undefined ? "" : ` h=${height}`}`, "info");
       return { ok: true, request_id: null, settings_revision: current.settings_revision, snapshot_seq: current.snapshot_seq };
     },
     async activate_subscription(key) {

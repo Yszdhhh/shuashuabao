@@ -33,6 +33,8 @@ declare function renderTeamRules(): void;
 declare function renderNames(): void;
 declare function currentSkills(): string[];
 declare function applyOfficial(id: string): void;
+declare function compactContentHeight(): number;
+declare function speakHud(phaseId: string, phaseName?: string): { say: string; extra: string; chip: string };
 /** OD12 场景 ↔ 目录 mode_id（config/mode_specs.json）；带车复用 normal_farm 建房链。 */
 const SCENE_TO_MODE_ID: Record<string, string> = {
   farm: "normal_farm",
@@ -70,7 +72,7 @@ const RUN_STATE_LABELS: Record<string, string> = {
   COMPLETE: "已完成",
   FAILED: "运行失败",
 };
-const LOG_TAIL_LINES = 8;
+const LOG_TAIL_LINES = 60;
 
 let bridge: DashboardBridge | null = null;
 /** 应用远端快照期间为 true：抑制本地 intent 回写，防信号回环。 */
@@ -79,7 +81,7 @@ let runActive = false;
 let startBusy = false;
 let modeCatalog = new Map<string, ModeDTO>();
 let lastShellJson = "";
-let lastWindowLayout: WindowLayout | "" = "";
+let lastWindowLayout = "";
 let lastPreflight: { modeId: string; settingsRevision: number; result: PreflightDTO } | null = null;
 
 export function getBridge(): DashboardBridge | null {
@@ -161,17 +163,46 @@ function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string 
     .catch((err) => toast(bridgeErrorText(err)));
 }
 
-function syncWindowLayout(scene: string): void {
-  if (!bridge) return;
-  const layout: WindowLayout = scene === "wizard"
-    ? (String(state.wizKind) === "team" ? "chooser-team" : "chooser-solo")
-    : "dashboard";
-  if (layout === lastWindowLayout) return;
-  lastWindowLayout = layout;
-  bridge.set_window_layout(layout).catch((err) => {
-    if (lastWindowLayout === layout) lastWindowLayout = "";
+function requestWindowLayout(layout: WindowLayout, height?: number): Promise<void> {
+  const b = bridge;
+  if (!b) return Promise.resolve();
+  const key = height === undefined ? layout : `${layout}:${height}`;
+  if (key === lastWindowLayout) return Promise.resolve();
+  lastWindowLayout = key;
+  return b.set_window_layout(layout, height).then(() => undefined, (err) => {
+    if (lastWindowLayout === key) lastWindowLayout = "";
     console.error("[ui-v2] 窗口尺寸同步失败:", err);
   });
+}
+
+const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+function measureCompact(): number {
+  const h = typeof compactContentHeight === "function" ? compactContentHeight() : 640;
+  return Math.max(1, Math.round(h));
+}
+
+function syncWindowLayout(scene: string): void {
+  if (!bridge) return;
+  if (scene === "hitch" || scene === "follow") {
+    // 蹭车/跟车 = 二级小窗：360 宽，高度按内容实测。第一次是在大窗宽度下量的，
+    // 窗口缩到 360 后内容会换行变高，所以缩完再量一次校正（最多两轮）。
+    void (async () => {
+      await nextFrame();
+      for (let round = 0; round < 3; round += 1) {
+        if (state.scene !== scene) return;
+        const h = measureCompact();
+        if (round > 0 && Math.abs(h - window.innerHeight) <= 2) return;
+        await requestWindowLayout("compact", h);
+        await nextFrame();
+        await nextFrame();
+      }
+    })();
+    return;
+  }
+  requestWindowLayout(scene === "wizard"
+    ? (String(state.wizKind) === "team" ? "chooser-team" : "chooser-solo")
+    : "dashboard");
 }
 
 function showStartErr(msg: string): void {
@@ -622,7 +653,9 @@ function applySubscription(sub?: { active?: boolean; status?: string; expires_at
 function applyRunStatus(run: RunStatusDTO): void {
   runActive = ACTIVE_RUN_STATES.has(run.state);
   const label = RUN_STATE_LABELS[run.state] ?? run.state;
-  $("statusPill").innerHTML = `<span class="dot"></span>${escText(label)}${run.phase ? " · " + escText(run.phase) : ""}`;
+  // 阶段只显示中文短词（speakHud），不把 MAIN_LINE 这类枚举直接给用户看。
+  const phaseChip = run.phase && runActive && typeof speakHud === "function" ? speakHud(run.phase).chip : "";
+  $("statusPill").innerHTML = `<span class="dot"></span>${escText(label)}${phaseChip ? " · " + escText(phaseChip) : ""}`;
   const loadBar = $("loadBar");
   loadBar.classList.toggle("show", runActive);
   loadBar.setAttribute("aria-hidden", runActive ? "false" : "true");
@@ -664,28 +697,41 @@ function applyRunStatus(run: RunStatusDTO): void {
 }
 
 let runLogEl: HTMLElement | null = null;
+let runLogAlerts = 0;
 
+/** 日志收在「宝物设置」抽屉底部的折叠区（index.html #odRunLog），默认只显示 warn/error。 */
 function ensureRunLogPanel(): HTMLElement {
   if (runLogEl) return runLogEl;
+  const existing = document.getElementById("odRunLog");
+  if (existing) {
+    runLogEl = existing;
+    const all = document.getElementById("runLogAll") as HTMLInputElement | null;
+    all?.addEventListener("change", () => existing.classList.toggle("show-all", all.checked));
+    return runLogEl;
+  }
+  // 旧 DOM 没有折叠区时的兜底：隐藏容器，只留 console 输出，绝不浮在界面上。
   runLogEl = document.createElement("div");
   runLogEl.id = "odRunLog";
-  runLogEl.setAttribute("aria-hidden", "true"); // 徽标已承载状态播报，日志纯视觉尾窗
-  // 运行日志尾窗：运行时注入的最小展示面，不改 OD12 DOM/CSS 源；pointer-events 关闭避免挡交互。
-  runLogEl.style.cssText =
-    "position:absolute;left:12px;bottom:56px;z-index:8;max-width:70%;pointer-events:none;" +
-    "font-size:11px;line-height:1.55;color:var(--p-ink);opacity:.78;white-space:pre-wrap;";
-  $("scene-app").appendChild(runLogEl);
+  runLogEl.hidden = true;
+  document.body.appendChild(runLogEl);
   return runLogEl;
 }
 
 function appendRunLog(text: string, level: string): void {
   console.log(`[run][${level}] ${text}`);
   const panel = ensureRunLogPanel();
+  const lvl = String(level || "info").toLowerCase();
   const line = document.createElement("div");
-  line.textContent = `[${level}] ${text}`;
-  if (level === "error" || level === "critical") line.style.color = "var(--p-danger)";
+  line.dataset.level = lvl;
+  line.textContent = `[${lvl}] ${text}`;
   panel.appendChild(line);
   while (panel.childElementCount > LOG_TAIL_LINES) panel.removeChild(panel.firstChild as ChildNode);
+  if (lvl === "warn" || lvl === "warning" || lvl === "error" || lvl === "critical") {
+    runLogAlerts += 1;
+    const sum = document.getElementById("runLogSum");
+    if (sum) sum.textContent = `${runLogAlerts} 条告警`;
+  }
+  panel.scrollTop = panel.scrollHeight;
 }
 
 type FacadeSignals = {
@@ -766,10 +812,9 @@ function wireIntents(): void {
   });
 
 
-  // 主题。
-  $("btnTheme").addEventListener("click", () =>
-    defer(() => pushShell({ theme: state.theme === "dark" ? "dark" : "light" })),
-  );
+  // 主题：index.html 在 View Transition 回调里（异步）才调 applyTheme，
+  // 所以挂在 applyTheme 之后推送，不能在 click 时读 state.theme（会读到旧值并把主题改回去）。
+  afterGlobalCall("applyTheme", () => pushShell({ theme: state.theme === "dark" ? "dark" : "light" }));
 
   // 配对码与接管预案（若有表单则兼容保留，跟车业务无配对码则安全跳过）。
   const followPairForm = document.getElementById("followPairForm");

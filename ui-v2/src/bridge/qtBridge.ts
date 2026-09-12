@@ -156,8 +156,11 @@ function wrapFacade(facade: RawFacade): DashboardBridge {
     stop_run: () => callMethod<RunResult>("stop_run", facade.stop_run()),
     window_control: (action: "minimize" | "close") =>
       callMethod<RpcResponse>("window_control", facade.window_control(JSON.stringify({ action }))),
-    set_window_layout: (layout: WindowLayout) =>
-      callMethod<RpcResponse>("set_window_layout", facade.set_window_layout(JSON.stringify({ layout }))),
+    set_window_layout: (layout: WindowLayout, height?: number) =>
+      callMethod<RpcResponse>(
+        "set_window_layout",
+        facade.set_window_layout(JSON.stringify(height === undefined ? { layout } : { layout, height })),
+      ),
     activate_subscription: (key: string) =>
       callMethod<{ ok: boolean; message: string; status?: string; expires_at?: string }>(
         "activate_subscription",

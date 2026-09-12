@@ -184,6 +184,20 @@ def test_wizard_layout_uses_content_sized_solo_and_team_windows(shell):
     assert (shell.width(), shell.height()) == (1080, 820)
 
 
+def test_compact_layout_is_360_wide_content_high_and_keeps_window_buttons(shell):
+    """蹭车/跟车二级小窗：宽 360、高=页面实测值；拖动区不盖住右侧最小化/关闭。"""
+    shell._set_window_layout("compact", height=642)
+    assert (shell.width(), shell.height()) == (360, 642)
+    region = shell._titlebar_drag_region
+    assert (region.x(), region.y(), region.width(), region.height()) == (0, 0, 264, 40)
+    # 过矮的实测值抬到下限，不会把窗口压扁。
+    shell._set_window_layout("compact", height=100)
+    assert (shell.width(), shell.height()) == (360, 400)
+    shell._set_window_layout("dashboard")
+    assert (shell.width(), shell.height()) == (1080, 820)
+    assert shell._titlebar_drag_region.width() == 850
+
+
 def test_runtime_uses_only_the_full_mode_wizard():
     """快速开局和底部切换入口必须共用完整向导，不能再走另一套简版 chooser。"""
     html = (ROOT / "ui-v2" / "index.html").read_text(encoding="utf-8")

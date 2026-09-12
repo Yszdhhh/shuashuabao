@@ -96,6 +96,8 @@ PREFLIGHT_CHECK_IDS = (
     "build_identity",
 )
 SETTINGS_REVISION_KEY = "_dashboard_settings_revision"
+WINDOW_LAYOUTS = frozenset({"dashboard", "chooser", "chooser-solo", "chooser-team", "compact"})
+COMPACT_HEIGHT_RANGE = (320, 1400)
 
 
 def _blocked_reason(mode_id: str) -> str:
@@ -483,7 +485,7 @@ class DashboardFacade(QObject):
         root: Path | None = None,
         on_minimize: Callable[[], None] | None = None,
         on_close: Callable[[], None] | None = None,
-        on_layout: Callable[[str], None] | None = None,
+        on_layout: Callable[..., None] | None = None,
         parent: QObject | None = None,
     ):
         super().__init__(parent)
@@ -1095,9 +1097,18 @@ class DashboardFacade(QObject):
     def set_window_layout(self, layout_json: str) -> str:
         """页面切换时只调整宿主尺寸；不写入用户配置。"""
         layout = self._parse_keyed(layout_json, "layout")
-        if layout not in {"dashboard", "chooser", "chooser-solo", "chooser-team"} or self._on_layout is None:
+        if layout not in WINDOW_LAYOUTS or self._on_layout is None:
             return json.dumps(self._rpc_response(False, error=f"不支持的布局: {layout!r}"), ensure_ascii=False)
-        self._on_layout(layout)
+        if layout == "compact":
+            # 蹭车/跟车二级小窗：高度由页面实测传入，宿主再按屏幕工作区收口。
+            data, _err = self._parse_object(layout_json)
+            height = (data or {}).get("height")
+            if type(height) is not int or not COMPACT_HEIGHT_RANGE[0] <= height <= COMPACT_HEIGHT_RANGE[1]:
+                return json.dumps(self._rpc_response(False, error=f"compact 高度非法: {height!r}"),
+                                  ensure_ascii=False)
+            self._on_layout(layout, height=height)
+        else:
+            self._on_layout(layout)
         return json.dumps(self._rpc_response(True), ensure_ascii=False)
 
     # ------------------------------------------------------------- 运行控制（§6.3）

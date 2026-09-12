@@ -148,7 +148,8 @@ export interface RunResult extends RpcResponse {
 
 export type UnsubscribeFn = () => void;
 
-export type WindowLayout = "dashboard" | "chooser" | "chooser-solo" | "chooser-team";
+/** compact = 蹭车/跟车二级小窗：宽 360，高度由页面实测后随 height 传入。 */
+export type WindowLayout = "dashboard" | "chooser" | "chooser-solo" | "chooser-team" | "compact";
 
 export interface DashboardBridge {
   get_bridge_info(): Promise<BridgeInfoDTO>;
@@ -159,7 +160,7 @@ export interface DashboardBridge {
   start_run(mode_id: string, expectedRevision?: number): Promise<RunResult>;
   stop_run(): Promise<RunResult>;
   window_control(action: "minimize" | "close"): Promise<RpcResponse>;
-  set_window_layout(layout: WindowLayout): Promise<RpcResponse>;
+  set_window_layout(layout: WindowLayout, height?: number): Promise<RpcResponse>;
   activate_subscription(key: string): Promise<{ ok: boolean; message: string; status?: string; expires_at?: string; subscription?: SubscriptionDTO }>;
 }
 

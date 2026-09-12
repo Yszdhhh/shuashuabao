@@ -64,6 +64,11 @@ _DASHBOARD_SIZE = (1080, 820)
 _CHOOSER_SOLO_SIZE = (560, 300)
 _CHOOSER_TEAM_SIZE = (560, 560)
 _CHOOSER_SIZE = _CHOOSER_TEAM_SIZE
+# 蹭车/跟车二级小窗（与桌面预览版一致：宽 360，高度按内容实测，约 612–642）。
+_COMPACT_WIDTH = 360
+_COMPACT_DEFAULT_HEIGHT = 640
+_COMPACT_MIN_HEIGHT = 400
+_COMPACT_TITLEBAR_BUTTONS = 96  # 小窗右侧只有最小化 + 关闭
 _TITLEBAR_DRAG_WIDTH, _TITLEBAR_DRAG_HEIGHT = 690, 40
 
 #: QWebChannel 注册名，与 ui-v2/src/bridge/qtBridge.ts FACADE_OBJECT_NAME 对齐。
@@ -309,19 +314,42 @@ class WebConfigShell(QMainWindow):
 
         self.view.load(QUrl.fromLocalFile(str(index)))
 
-    def _set_window_layout(self, layout: str) -> None:
-        """让看板与运行方式向导按内容使用相称的独立窗口。"""
+    def _set_window_layout(self, layout: str, height: int | None = None) -> None:
+        """让看板与运行方式向导按内容使用相称的独立窗口。
+
+        compact = 蹭车/跟车二级小窗：宽 360，高度用页面实测值，收进当前屏幕工作区；
+        大小窗互切时以窗口水平中心为锚点，避免小窗贴在原大窗左上角。
+        运行中照旧最小化 + 原生 OverlayHud，不做置顶（置顶小窗会盖住游戏、挡住脚本点击）。
+        """
         if layout == "chooser-solo":
             width, height = _CHOOSER_SOLO_SIZE
         elif layout in {"chooser", "chooser-team"}:
             width, height = _CHOOSER_TEAM_SIZE
+        elif layout == "compact":
+            width = _COMPACT_WIDTH
+            height = int(height or _COMPACT_DEFAULT_HEIGHT)
+            screen = self.screen()
+            if screen is not None:
+                height = min(height, screen.availableGeometry().height() - 48)
+            height = max(_COMPACT_MIN_HEIGHT, height)
         else:
             width, height = _DASHBOARD_SIZE
         if (self.width(), self.height()) != (width, height):
+            old = self.geometry()
             self.setFixedSize(width, height)
+            if old.width() != width:
+                x = old.x() + (old.width() - width) // 2
+                y = old.y()
+                screen = self.screen()
+                if screen is not None:
+                    work = screen.availableGeometry()
+                    x = max(work.left(), min(x, work.right() - width))
+                    y = max(work.top(), min(y, work.bottom() - height))
+                self.move(x, y)
         # 只覆盖标题文字区；紧凑页必须保留右侧最小化/关闭按钮的点击权。
+        reserve = _COMPACT_TITLEBAR_BUTTONS if layout == "compact" else 230
         self._titlebar_drag_region.setGeometry(
-            0, 0, max(0, width - 230), _TITLEBAR_DRAG_HEIGHT
+            0, 0, max(0, width - reserve), _TITLEBAR_DRAG_HEIGHT
         )
 
     def _begin_window_drag(self) -> None:
