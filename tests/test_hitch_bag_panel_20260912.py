@@ -199,6 +199,8 @@ def test_heirloom_grid_is_not_blocked_by_the_time_cave_boss_click() -> None:
     with patch.object(med, "act_click", side_effect=lambda _h, r="": reasons.append(r) or True), \
          patch.object(med, "act_key", side_effect=lambda _k, r="": reasons.append(r) or True), \
          patch.object(med, "act_scroll", side_effect=lambda *_a, **_k: reasons.append("scroll") or True), \
+         patch.object(med, "_post_game_boss_list_at_bottom", side_effect=[False, False, True, True, True]), \
+         patch("shuabao.mediator.is_slot_empty", return_value=True), \
          contextlib.redirect_stdout(io.StringIO()):
         for _ in range(5):
             med._boss_challenge_next_at = 0.0

@@ -78,6 +78,7 @@ from shuabao.policy.boss_order import (
     BossOrderDecision,
     VisibleCard,
     decide_boss_order_action,
+    is_slot_empty,
     parse_boss_order_number,
     LOCATE_FAILURE_FALLBACK_DEFAULT,
 )
@@ -5818,6 +5819,7 @@ class Mediator:
     }
     _POST_GAME_BOSS_SCROLLBAR_ROIS = {
         "ARCHIVE_PANEL": (0.841, 0.270, 0.847, 0.556),
+        "HEIRLOOM_DIALOG": (0.620, 0.268, 0.626, 0.535),
     }
     _POST_GAME_BOSS_SCALES = (0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.80)
     # Compact post-game cards are rendered with a small overlay/border
@@ -5832,7 +5834,7 @@ class Mediator:
     _POST_GAME_BOSS_BOTTOM_STABLE_FRAMES = 2
     _POST_GAME_BOSS_UNRESOLVED_LIMIT = 3
     _POST_GAME_BOSS_LOCATE_LIMIT = 3
-    _POST_GAME_BOSS_RETRY_THRESHOLD = 0.52
+    _POST_GAME_BOSS_RETRY_THRESHOLD = 0.58
     _POST_GAME_ACTION_RECHECK_S = 0.35
     _ARCHIVE_CHALLENGE_NAMES = (
         "skill", "strengthen", "gem", "loot",
@@ -6054,24 +6056,19 @@ class Mediator:
     def _post_game_boss_list_at_bottom(self, frame: Frame, post_game: str | None) -> bool:
         """Require two bottom-thumb observations before selecting a fallback."""
         scrollbar_roi = self._POST_GAME_BOSS_SCROLLBAR_ROIS.get(post_game or "")
-        if frame.bgr is None or frame.bgr.size == 0:
+        if frame.bgr is None or frame.bgr.size == 0 or scrollbar_roi is None:
             return False
-        if scrollbar_roi is None:
-            # The verified heirloom dialog is a complete, non-scrolling grid.
-            # One harmless scroll attempt plus two observations proves its last card.
-            at_bottom = post_game == "HEIRLOOM_DIALOG"
-        else:
-            x0, y0, x1, y1 = self._normalized_bbox(frame, scrollbar_roi)
-            strip = frame.bgr[y0:y1, x0:x1]
-            if strip.size == 0:
-                return False
-            mask = cv2.cvtColor(strip, cv2.COLOR_BGR2GRAY) >= 180
-            count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask.astype(np.uint8))
-            height = max(1, strip.shape[0])
-            at_bottom = any(
-                2 <= w <= 12 and h >= 8 and y + h >= int(height * 0.94)
-                for _x, y, w, h, _area in stats[1:count]
-            )
+        x0, y0, x1, y1 = self._normalized_bbox(frame, scrollbar_roi)
+        strip = frame.bgr[y0:y1, x0:x1]
+        if strip.size == 0:
+            return False
+        mask = cv2.cvtColor(strip, cv2.COLOR_BGR2GRAY) >= 180
+        count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask.astype(np.uint8))
+        height = max(1, strip.shape[0])
+        at_bottom = any(
+            2 <= w <= 12 and h >= 8 and y + h >= int(height * 0.94)
+            for _x, y, w, h, _area in stats[1:count]
+        )
         if at_bottom:
             self._boss_challenge_scroll_stable_frames = (
                 int(getattr(self, "_boss_challenge_scroll_stable_frames", 0) or 0) + 1
@@ -6085,12 +6082,10 @@ class Mediator:
         )
 
     def _post_game_boss_list_at_top(self, frame: Frame, post_game: str | None) -> bool:
-        """Check if the scrollable Boss list is confirmed at the top."""
+        """Check if the scrollable Boss list is confirmed at the top (requires 2 stable frames)."""
         scrollbar_roi = self._POST_GAME_BOSS_SCROLLBAR_ROIS.get(post_game or "")
-        if frame.bgr is None or frame.bgr.size == 0:
+        if frame.bgr is None or frame.bgr.size == 0 or scrollbar_roi is None:
             return False
-        if scrollbar_roi is None:
-            return True
         x0, y0, x1, y1 = self._normalized_bbox(frame, scrollbar_roi)
         strip = frame.bgr[y0:y1, x0:x1]
         if strip.size == 0:
@@ -6098,9 +6093,18 @@ class Mediator:
         mask = cv2.cvtColor(strip, cv2.COLOR_BGR2GRAY) >= 180
         count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask.astype(np.uint8))
         height = max(1, strip.shape[0])
-        return any(
+        at_top = any(
             2 <= w <= 12 and h >= 8 and y <= int(height * 0.08)
             for _x, y, w, h, _area in stats[1:count]
+        )
+        if at_top:
+            self._boss_challenge_scroll_top_stable_frames = (
+                int(getattr(self, "_boss_challenge_scroll_top_stable_frames", 0) or 0) + 1
+            )
+        else:
+            self._boss_challenge_scroll_top_stable_frames = 0
+        return bool(
+            getattr(self, "_boss_challenge_scroll_top_stable_frames", 0) >= 2
         )
 
     def _find_last_recognized_post_game_boss(
@@ -6125,7 +6129,16 @@ class Mediator:
             roi=roi,
             max_results=96,
         )
-        return max(hits, key=lambda hit: (hit.y + hit.h, hit.x + hit.w), default=None)
+        catalog = getattr(self, "_boss_catalog_cache", None)
+        valid_hits: list[MatchResult] = []
+        for hit in hits:
+            if post_game == "HEIRLOOM_DIALOG":
+                stem = Path(hit.name).stem
+                no = parse_boss_order_number(stem, catalog)
+                if no is not None and not (1 <= no <= 20):
+                    continue
+            valid_hits.append(hit)
+        return max(valid_hits, key=lambda hit: (hit.y + hit.h, hit.x + hit.w), default=None)
 
     def _bbox_to_normalized_roi(
         self, frame: Frame, bbox: tuple[int, int, int, int], padding: int = 12
@@ -6171,6 +6184,9 @@ class Mediator:
             no = parse_boss_order_number(stem, catalog)
             if no is None:
                 continue
+            if post_game == "HEIRLOOM_DIALOG" and not (1 <= no <= 20):
+                print(f"[med] 传家宝列表忽略超出范围序号卡片 {hit.name} (no={no})")
+                continue
             if any(abs(hit.center[0] - cx) < 20 and abs(hit.center[1] - cy) < 20 for cx, cy in seen_centers):
                 continue
             seen_centers.append(hit.center)
@@ -6202,9 +6218,11 @@ class Mediator:
         }.get(post_game or "")
         pred_roi = self._bbox_to_normalized_roi(frame, pred_box, padding=12)
         compact_scales = self._adapt_scales(self._POST_GAME_BOSS_SCALES)
+        # P2-8: 严格限定为当前页面子目录，不跨目录试探
+        template_names = [f"{subdir}/{target_name}"] if subdir else [target_name]
         hit = self.find(
             frame,
-            [target_name, f"boss/{target_name}", f"chuanjiaobao/{target_name}", f"{subdir}/{target_name}"],
+            template_names,
             threshold=self._POST_GAME_BOSS_RETRY_THRESHOLD,
             scales=compact_scales,
             roi=pred_roi,
@@ -6213,31 +6231,40 @@ class Mediator:
         if hit is not None:
             return hit
 
+        # P0-1: OCR 验证路径，遵循 ShadowClient 真实签名 (frame, panel_id, slot) 并捕获异常
         ocr_client = getattr(self, "_ocr_client", None)
         if ocr_client and getattr(ocr_client, "is_available", False) and frame.bgr is not None:
-            px, py, pw, ph = pred_box
-            x1 = max(0, px)
-            y1 = max(0, py)
-            x2 = min(frame.width, px + pw)
-            y2 = min(frame.height, py + ph)
-            card_crop = frame.bgr[y1:y2, x1:x2]
-            if card_crop.size > 0:
-                resp = ocr_client.shadow_predict(card_crop, frame_fingerprint=f"boss_pred:{target_name}")
-                text = (resp.get("text") or "") if isinstance(resp, dict) else str(resp)
+            try:
+                px, py, pw, ph = pred_box
+                x0 = max(0, px)
+                y0 = max(0, py)
+                x1 = min(frame.width, px + pw)
+                y1 = min(frame.height, py + ph)
+                target_no = parse_boss_order_number(target_name, getattr(self, "_boss_catalog_cache", None)) or 0
+                resp = ocr_client.shadow_predict(
+                    frame,
+                    "post_game_boss_slot",
+                    {"index": target_no, "bbox": (x0, y0, x1, y1), "kind": "boss_name"},
+                )
+                status = str(getattr(resp, "status", "") or "").lower()
+                text = (getattr(resp, "raw_text", "") or "").strip()
+                score = float(getattr(resp, "rec_score", 0.0) or 0.0)
                 label = re.sub(r"^\d+", "", target_name).strip()
-                if label and label in text:
-                    cx = (x1 + x2) // 2
-                    cy = (y1 + y2) // 2
+                if status == "ok" and score >= 0.75 and label and label in text:
+                    cx = (x0 + x1) // 2
+                    cy = (y0 + y1) // 2
                     return MatchResult(
                         f"ocr_boss:{target_name}",
-                        0.80,
-                        x1,
-                        y1,
+                        score,
+                        x0,
+                        y0,
                         pw,
                         ph,
                         frame.left + cx,
                         frame.top + cy,
                     )
+            except Exception as e:
+                print(f"[med] 预测格位 OCR 异常: {e}")
         return None
 
     def _record_boss_locate_failed_incident(self, bosses: list[str], last_card: str) -> None:
@@ -6665,8 +6692,11 @@ class Mediator:
                 self._boss_challenge_scroll_attempts = 0
                 self._boss_challenge_scroll_signature = None
                 self._boss_challenge_scroll_stable_frames = 0
+                self._boss_challenge_scroll_top_stable_frames = 0
                 self._boss_challenge_unresolved_attempts = 0
                 self._boss_challenge_locate_attempts = 0
+                self._boss_challenge_locate_exhausted = False
+                self._boss_challenge_bottom_scroll_attempts = 0
                 self._boss_challenge_next_at = 0.0
             self._boss_challenge_page = post_game
         if post_game == "ARCHIVE_PANEL":
@@ -6760,6 +6790,20 @@ class Mediator:
             at_bottom = self._post_game_boss_list_at_bottom(frame, post_game)
             at_top = self._post_game_boss_list_at_top(frame, post_game)
 
+            vx0 = int(frame.width * compact_roi[0])
+            vy0 = int(frame.height * compact_roi[1])
+            vx1 = int(frame.width * compact_roi[2])
+            vy1 = int(frame.height * compact_roi[3])
+            viewport_box = (vx0, vy0, vx1, vy1)
+
+            def check_slot_empty(b: tuple[int, int, int, int]) -> bool:
+                if frame.bgr is None or frame.bgr.size == 0:
+                    return True
+                bx0, by0 = max(0, b[0]), max(0, b[1])
+                bx1, by1 = min(frame.width, b[0] + b[2]), min(frame.height, b[1] + b[3])
+                crop = frame.bgr[by0:by1, bx0:bx1]
+                return is_slot_empty(crop)
+
             decision = decide_boss_order_action(
                 target_no,
                 visible_cards,
@@ -6769,8 +6813,14 @@ class Mediator:
                 scroll_limit=self._POST_GAME_BOSS_SCROLL_LIMIT,
                 locate_attempts=getattr(self, "_boss_challenge_locate_attempts", 0),
                 locate_limit=getattr(self, "_POST_GAME_BOSS_LOCATE_LIMIT", 3),
+                locate_exhausted=getattr(self, "_boss_challenge_locate_exhausted", False),
+                bottom_scroll_attempts=getattr(self, "_boss_challenge_bottom_scroll_attempts", 0),
+                bottom_scroll_limit=self._POST_GAME_BOSS_SCROLL_LIMIT,
                 page_type=post_game or "",
                 can_scroll=True,
+                viewport_box=viewport_box,
+                slot_empty_checker=check_slot_empty,
+                frame_bgr=frame.bgr,
             )
 
             if decision.action == BossOrderAction.CLICK_TARGET:
@@ -6782,6 +6832,8 @@ class Mediator:
                     action_name = "BossConfigured"
                 else:
                     self._boss_challenge_locate_attempts = getattr(self, "_boss_challenge_locate_attempts", 0) + 1
+                    if self._boss_challenge_locate_attempts >= self._POST_GAME_BOSS_LOCATE_LIMIT:
+                        self._boss_challenge_locate_exhausted = True
                     print(
                         f"[med] 预测格位未获得有效证据 "
                         f"({self._boss_challenge_locate_attempts}/{self._POST_GAME_BOSS_LOCATE_LIMIT})，零输入等待"
@@ -6793,15 +6845,24 @@ class Mediator:
                 if scroll_point is None:
                     print("[med] 已分类 Boss 列表缺少受约束滚动点，零输入等待")
                     return LoopAction.Continue
-                next_attempt = self._boss_challenge_scroll_attempts + 1
+                is_bottom_fallback = "回到底部" in decision.reason
+                if is_bottom_fallback:
+                    self._boss_challenge_locate_exhausted = True
+                    next_attempt = getattr(self, "_boss_challenge_bottom_scroll_attempts", 0) + 1
+                    scroll_tag = "BossConfigured-scroll-bottom"
+                    log_limit = f"{next_attempt}/{self._POST_GAME_BOSS_SCROLL_LIMIT}"
+                else:
+                    next_attempt = self._boss_challenge_scroll_attempts + 1
+                    scroll_tag = "BossConfigured-scroll"
+                    log_limit = f"{next_attempt}/{self._POST_GAME_BOSS_SCROLL_LIMIT}"
                 self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
                 x, y = scroll_point
-                print(
-                    f"[med] {decision.reason}，"
-                    f"向下滚动挑战列表 ({next_attempt}/{self._POST_GAME_BOSS_SCROLL_LIMIT})"
-                )
-                if self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, "BossConfigured-scroll"):
-                    self._boss_challenge_scroll_attempts = next_attempt
+                print(f"[med] {decision.reason}，向下滚动挑战列表 ({log_limit})")
+                if self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, scroll_tag):
+                    if is_bottom_fallback:
+                        self._boss_challenge_bottom_scroll_attempts = next_attempt
+                    else:
+                        self._boss_challenge_scroll_attempts = next_attempt
                     self._boss_challenge_unresolved_attempts = 0
                 return LoopAction.Continue
             elif decision.action == BossOrderAction.SCROLL_UP:

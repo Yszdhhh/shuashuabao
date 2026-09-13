@@ -17,10 +17,42 @@ import re
 import statistics
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 
 # 定位失败时的收口默认行为：默认点末卡；可选 "fail_closed"
 LOCATE_FAILURE_FALLBACK_DEFAULT: str = "last_card"
+
+
+def is_slot_empty(crop: Any) -> bool:
+    """Determine if a slot bounding box contains an empty slot background (no card).
+
+    Measured on fixtures (e.g. heirloom_challenge_bosses.png empty cols 3, 4, row 1):
+    - Real card slots: std >= 45, max_val >= 200, canny edge ratio >= 0.18
+    - Empty background slots: mean ~ 26, std <= 12, max_val <= 60, canny edge ratio <= 0.08
+    """
+    if crop is None:
+        return True
+    try:
+        import cv2
+        import numpy as np
+
+        if not isinstance(crop, np.ndarray) or crop.size == 0 or crop.shape[0] < 10 or crop.shape[1] < 10:
+            return True
+        if len(crop.shape) == 3:
+            gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = crop
+        std_val = float(np.std(gray))
+        max_val = float(np.max(gray))
+        if max_val < 80 and std_val < 20.0:
+            return True
+        edges = cv2.Canny(gray, 50, 150)
+        edge_ratio = float(np.count_nonzero(edges)) / float(edges.size)
+        if edge_ratio < 0.10 and std_val < 25.0:
+            return True
+        return False
+    except Exception:
+        return False
 
 
 class BossOrderAction(str, Enum):
@@ -202,8 +234,14 @@ def decide_boss_order_action(
     scroll_limit: int = 16,
     locate_attempts: int = 0,
     locate_limit: int = 3,
+    locate_exhausted: bool = False,
+    bottom_scroll_attempts: int = 0,
+    bottom_scroll_limit: int = 16,
     page_type: str = "ARCHIVE_PANEL",
     can_scroll: bool | None = None,
+    viewport_box: tuple[int, int, int, int] | None = None,
+    slot_empty_checker: Callable[[tuple[int, int, int, int]], bool] | None = None,
+    frame_bgr: Any = None,
 ) -> BossOrderDecision:
     """Pure decision function for post-game boss selection with unlock order fallback."""
     if can_scroll is None:
@@ -211,6 +249,15 @@ def decide_boss_order_action(
 
     cols = 4 if page_type == "ARCHIVE_PANEL" else 5
     default_pitch = (78.0, 76.0) if page_type == "ARCHIVE_PANEL" else (79.2, 79.5)
+    max_catalog_no = 53 if page_type == "ARCHIVE_PANEL" else 20
+
+    if slot_empty_checker is None and frame_bgr is not None:
+        def _check_empty(b: tuple[int, int, int, int]) -> bool:
+            x0, y0 = max(0, b[0]), max(0, b[1])
+            x1 = min(frame_bgr.shape[1], b[0] + b[2])
+            y1 = min(frame_bgr.shape[0], b[1] + b[3])
+            return is_slot_empty(frame_bgr[y0:y1, x0:x1])
+        slot_empty_checker = _check_empty
 
     # 1. 没配置目标：保持现状，探底后选末卡
     if target_no is None:
@@ -268,13 +315,76 @@ def decide_boss_order_action(
     phys_last_card = max(visible_cards, key=lambda c: (c.y + c.h, c.x + c.w))
     L = phys_last_card.no
 
+    def _locate_failed_fallback(reason_prefix: str) -> BossOrderDecision:
+        if at_bottom:
+            return BossOrderDecision(
+                action=BossOrderAction.CLICK_LAST_LOCATE_FAILED,
+                target_card=phys_last_card,
+                reason=f"{reason_prefix}且列表已确认到底，兜底选择末卡",
+            )
+        if can_scroll and bottom_scroll_attempts < bottom_scroll_limit:
+            return BossOrderDecision(
+                action=BossOrderAction.SCROLL_DOWN,
+                reason=f"定位失败，回到底部取末卡 ({bottom_scroll_attempts + 1}/{bottom_scroll_limit})",
+            )
+        return BossOrderDecision(
+            action=BossOrderAction.WAIT,
+            reason=f"{reason_prefix}回底滚动已到安全上限但未证明到底，禁止任意卡兜底，等待未决收敛",
+        )
+
+    # 若已处于定位尝试耗尽状态，直接走回底兜底
+    if locate_exhausted:
+        return _locate_failed_fallback("目标定位尝试已耗尽")
+
     # 规则 2: T > L 且已确认到底（目标还没解锁出来）
     if at_bottom and target_no > max_no:
-        return BossOrderDecision(
-            action=BossOrderAction.CLICK_LAST_NOT_UNLOCKED,
-            target_card=phys_last_card,
-            reason=f"目标序号 {target_no} > 末卡序号 {L}（列表已到底，目标未解锁），兜底选择末卡",
-        )
+        # P0-3: 必须证明已识别出的末卡就是物理末卡，不能把仅识别出的卡片当成物理末卡
+        if target_no > max_catalog_no or L >= max_catalog_no:
+            return BossOrderDecision(
+                action=BossOrderAction.CLICK_LAST_NOT_UNLOCKED,
+                target_card=phys_last_card,
+                reason=f"目标序号 {target_no} > 末卡序号 {L}（已达目录上限或到底确认未解锁），兜底选择末卡",
+            )
+        next_slot = predict_card_slot(L + 1, visible_cards, cols_per_row=cols, default_pitch=default_pitch)
+        if next_slot is None:
+            return BossOrderDecision(
+                action=BossOrderAction.WAIT,
+                reason=f"目标序号 {target_no} > 可见最大 {L}，但无法推算后续格位，等待证据",
+            )
+        nx, ny, nw, nh = next_slot
+        ncx, ncy = nx + nw // 2, ny + nh // 2
+        in_viewport = True
+        if viewport_box is not None:
+            vx0, vy0, vx1, vy1 = viewport_box
+            in_viewport = (vx0 <= ncx <= vx1) and (vy0 <= ncy <= vy1)
+
+        if in_viewport:
+            slot_is_empty = slot_empty_checker(next_slot) if slot_empty_checker is not None else False
+            if slot_is_empty:
+                return BossOrderDecision(
+                    action=BossOrderAction.CLICK_LAST_NOT_UNLOCKED,
+                    target_card=phys_last_card,
+                    reason=f"目标序号 {target_no} > 末卡序号 {L}，后续格位 L+1={L+1} 经像素校验为空格（末卡已证明），兜底选择末卡",
+                )
+            else:
+                # L+1 格位存在未识别卡片，L 不是末卡，禁止误点倒数第二张
+                if target_no == L + 1:
+                    return BossOrderDecision(
+                        action=BossOrderAction.CONFIRM_PREDICTED,
+                        predicted_box=next_slot,
+                        predicted_center=(ncx, ncy),
+                        reason=f"末卡 L={L} 后续格位存在未识别卡片，目标正是 L+1={target_no}，在预测格位做二次证据确认",
+                    )
+                return BossOrderDecision(
+                    action=BossOrderAction.WAIT,
+                    reason=f"末卡 L={L} 后续格位存在未识别卡片（真实末卡未知），目标序号 {target_no} > {L}，禁止点击倒数第二张，等待证据",
+                )
+        else:
+            # L+1 格位超出视口
+            return BossOrderDecision(
+                action=BossOrderAction.WAIT,
+                reason=f"目标序号 {target_no} > 可见最大 {L}，推算格位 L+1={L+1} 超出列表视野边界，无法证明末卡，等待证据",
+            )
 
     # 规则 1: 目标排在末卡前面或当前视野附近 (T <= L 或当前可见区)
     # 3A: 目标在当前可见区上方 (T < min_no)
@@ -285,20 +395,34 @@ def decide_boss_order_action(
                 reason=f"目标序号 {target_no} < 可见最小序号 {min_no}，向上滚动寻找 ({scroll_attempts + 1}/{scroll_limit})",
             )
         # 无法继续上滚或已到顶
-        if locate_attempts >= locate_limit or scroll_attempts >= scroll_limit or not can_scroll:
-            return BossOrderDecision(
-                action=BossOrderAction.CLICK_LAST_LOCATE_FAILED,
-                target_card=phys_last_card,
-                reason=f"目标序号 {target_no} < {min_no} 向上定位尝试已耗尽（at_top={at_top}），定位失败兜底",
-            )
+        if locate_attempts >= locate_limit or scroll_attempts >= scroll_limit or not can_scroll or at_top:
+            return _locate_failed_fallback(f"目标序号 {target_no} < {min_no} 向上定位尝试已耗尽（at_top={at_top}）")
         box = predict_card_slot(target_no, visible_cards, cols_per_row=cols, default_pitch=default_pitch)
-        center = (box[0] + box[2] // 2, box[1] + box[3] // 2) if box else None
-        return BossOrderDecision(
-            action=BossOrderAction.CONFIRM_PREDICTED,
-            predicted_box=box,
-            predicted_center=center,
-            reason=f"目标序号 {target_no} 在顶部边缘附近，在预测格位做确认 ({locate_attempts + 1}/{locate_limit})",
-        )
+        if box:
+            cx, cy = box[0] + box[2] // 2, box[1] + box[3] // 2
+            if viewport_box is not None:
+                vx0, vy0, vx1, vy1 = viewport_box
+                if cy < vy0:
+                    if can_scroll and not at_top and scroll_attempts < scroll_limit:
+                        return BossOrderDecision(
+                            action=BossOrderAction.SCROLL_UP,
+                            reason=f"目标序号 {target_no} 预测格位在视野上方 (y={box[1]} < {vy0})，向上滚动寻找 ({scroll_attempts + 1}/{scroll_limit})",
+                        )
+                    return _locate_failed_fallback(f"目标序号 {target_no} 预测格位在视野上方但无法上滚")
+                elif cy > vy1:
+                    if can_scroll and not at_bottom and scroll_attempts < scroll_limit:
+                        return BossOrderDecision(
+                            action=BossOrderAction.SCROLL_DOWN,
+                            reason=f"目标序号 {target_no} 预测格位在视野下方 (y={box[1] + box[3]} > {vy1})，向下滚动寻找 ({scroll_attempts + 1}/{scroll_limit})",
+                        )
+                    return _locate_failed_fallback(f"目标序号 {target_no} 预测格位在视野下方但无法下滚")
+            return BossOrderDecision(
+                action=BossOrderAction.CONFIRM_PREDICTED,
+                predicted_box=box,
+                predicted_center=(cx, cy),
+                reason=f"目标序号 {target_no} 在顶部边缘附近，在预测格位做确认 ({locate_attempts + 1}/{locate_limit})",
+            )
+        return _locate_failed_fallback(f"目标序号 {target_no} 无法推算预测格位")
 
     # 3B: 目标在当前可见区下方 (T > max_no 且未到底)
     if target_no > max_no and not at_bottom:
@@ -308,24 +432,39 @@ def decide_boss_order_action(
                 reason=f"目标序号 {target_no} > 可见最大序号 {max_no}，向下滚动寻找 ({scroll_attempts + 1}/{scroll_limit})",
             )
         return BossOrderDecision(
-            action=BossOrderAction.CLICK_LAST_LOCATE_FAILED,
-            target_card=phys_last_card,
-            reason=f"目标序号 {target_no} > {max_no} 向下滚动已到上限且未到底，定位失败兜底",
+            action=BossOrderAction.WAIT,
+            reason=f"目标序号 {target_no} > {max_no} 向下滚动已到安全上限 ({scroll_attempts}/{scroll_limit}) 但未证明到底，禁止任意卡兜底，等待收敛",
         )
 
     # 3C: 目标理应在当前可见区内 (min_no <= target_no <= max_no)
     if locate_attempts >= locate_limit:
-        return BossOrderDecision(
-            action=BossOrderAction.CLICK_LAST_LOCATE_FAILED,
-            target_card=phys_last_card,
-            reason=f"目标序号 {target_no} 在可见区 [{min_no}, {max_no}] 内但预测确认尝试耗尽 ({locate_attempts}/{locate_limit})，定位失败兜底",
+        return _locate_failed_fallback(
+            f"目标序号 {target_no} 在可见区 [{min_no}, {max_no}] 内但预测确认尝试耗尽 ({locate_attempts}/{locate_limit})"
         )
 
     box = predict_card_slot(target_no, visible_cards, cols_per_row=cols, default_pitch=default_pitch)
-    center = (box[0] + box[2] // 2, box[1] + box[3] // 2) if box else None
-    return BossOrderDecision(
-        action=BossOrderAction.CONFIRM_PREDICTED,
-        predicted_box=box,
-        predicted_center=center,
-        reason=f"目标序号 {target_no} 理应在可见区 [{min_no}, {max_no}] 内，在预测格位做二次证据确认 ({locate_attempts + 1}/{locate_limit})",
-    )
+    if box:
+        cx, cy = box[0] + box[2] // 2, box[1] + box[3] // 2
+        if viewport_box is not None:
+            vx0, vy0, vx1, vy1 = viewport_box
+            if cy < vy0:
+                if can_scroll and not at_top and scroll_attempts < scroll_limit:
+                    return BossOrderDecision(
+                        action=BossOrderAction.SCROLL_UP,
+                        reason=f"目标序号 {target_no} 预测格位在视野上方 (y={box[1]} < {vy0})，向上滚动寻找 ({scroll_attempts + 1}/{scroll_limit})",
+                    )
+                return _locate_failed_fallback(f"目标序号 {target_no} 预测格位在视野上方但无法上滚")
+            elif cy > vy1:
+                if can_scroll and not at_bottom and scroll_attempts < scroll_limit:
+                    return BossOrderDecision(
+                        action=BossOrderAction.SCROLL_DOWN,
+                        reason=f"目标序号 {target_no} 预测格位在视野下方 (y={box[1] + box[3]} > {vy1})，向下滚动寻找 ({scroll_attempts + 1}/{scroll_limit})",
+                    )
+                return _locate_failed_fallback(f"目标序号 {target_no} 预测格位在视野下方但无法下滚")
+        return BossOrderDecision(
+            action=BossOrderAction.CONFIRM_PREDICTED,
+            predicted_box=box,
+            predicted_center=(cx, cy),
+            reason=f"目标序号 {target_no} 理应在可见区 [{min_no}, {max_no}] 内，在预测格位做二次证据确认 ({locate_attempts + 1}/{locate_limit})",
+        )
+    return _locate_failed_fallback(f"目标序号 {target_no} 无法推算预测格位")

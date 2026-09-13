@@ -122,9 +122,17 @@ def test_archive_panel_target_not_unlocked_bottom_fallback(base_patches):
     med._post_game_pending = True
 
     clicked = []
+    from shuabao.policy.boss_order import VisibleCard
+    sim_bottom_cards = [
+        (VisibleCard(52, "52维希度斯", 100, 300, 58, 58, 0.9), MagicMock(name="boss/52维希度斯", center=(129, 329))),
+        (VisibleCard(53, "53拉贾克斯将军", 180, 300, 58, 58, 0.9), MagicMock(name="boss/53拉贾克斯将军", center=(209, 329))),
+    ]
 
     stdout_buf = io.StringIO()
     with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+         patch.object(med, "find", return_value=None), \
+         patch.object(med, "_find_visible_post_game_boss_cards", return_value=sim_bottom_cards), \
+         patch.object(med, "_find_last_recognized_post_game_boss", return_value=sim_bottom_cards[1][1]), \
          patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
          patch.object(med, "_post_game_boss_list_at_bottom", return_value=True), \
          contextlib.redirect_stdout(stdout_buf):
@@ -162,9 +170,9 @@ def test_heirloom_dialog_configured_target_in_view(base_patches):
 
 
 def test_heirloom_dialog_target_not_unlocked_bottom_fallback(base_patches):
-    """Target 18乌索克 (or 54莫阿姆) on heirloom dialog when at_bottom -> clicks last card."""
+    """Target 18乌索克 on heirloom dialog when at_bottom -> clicks last card."""
     frame = load_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
-    settings = Settings(cjb_boss="54莫阿姆", mode_id="solo", ocr_mode="off")
+    settings = Settings(cjb_boss="18乌索克", mode_id="solo", ocr_mode="off")
     med = Mediator(settings, ROOT)
     med._post_game_pending = True
 
@@ -204,3 +212,110 @@ def test_mediator_tick_lifecycle_archive_panel(base_patches):
     hit, reason = clicked[0]
     assert reason == "BossConfigured"
     assert "08" in hit.name or "缝合怪" in hit.name
+
+
+def test_p0_1_verify_boss_predicted_slot_ocr_signature(base_patches):
+    """P0-1: ShadowClient.shadow_predict signature and error resilience.
+
+    Uses create_autospec(ShadowClient, instance=True) to guarantee strict signature validation.
+    Verifies that status=='ok' and rec_score>=0.75 returns MatchResult,
+    and any exception inside shadow_predict is caught and returns None without crashing tick.
+    """
+    from unittest.mock import create_autospec
+    from shuabao.vision.ocr_shadow.client import ShadowClient, ShadowResponse
+
+    med = Mediator(Settings(), ROOT)
+    frame = load_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+
+    mock_ocr = create_autospec(ShadowClient, instance=True)
+    mock_ocr.is_available = True
+    med._ocr_client = mock_ocr
+
+    # Case A: OCR successfully recognizes target boss name with score >= 0.75
+    mock_resp = ShadowResponse(
+        seq=1,
+        status="ok",
+        candidates=[],
+        elapsed_ms=10.0,
+        reason="",
+        cache_hit=False,
+        raw_text="53拉贾克斯将军",
+        rec_score=0.85,
+        model_name="test_model",
+        model_hash="abc",
+        model_validated=True,
+    )
+    mock_ocr.shadow_predict.return_value = mock_resp
+
+    with patch.object(med, "find", return_value=None):
+        result = med._verify_boss_predicted_slot(
+            frame, "ARCHIVE_PANEL", "53拉贾克斯将军", (100, 200, 58, 58)
+        )
+    assert result is not None
+    assert "ocr_boss" in result.name
+    assert result.score == 0.85
+
+    # Case B: ShadowClient raises Exception -> caught safely, returns None
+    mock_ocr.shadow_predict.side_effect = RuntimeError("Simulated OCR worker crash")
+    with patch.object(med, "find", return_value=None), \
+         contextlib.redirect_stdout(io.StringIO()):
+        result_err = med._verify_boss_predicted_slot(
+            frame, "ARCHIVE_PANEL", "53拉贾克斯将军", (100, 200, 58, 58)
+        )
+    assert result_err is None
+
+
+def test_p0_3_heirloom_missing_last_card_does_not_click_second_to_last(base_patches):
+    """P0-3: On bottomed fixture, if last card is unverified, do not click second-to-last card.
+
+    Uses heirloom_challenge_bosses.png where cards 1, 2, 3 are present.
+    If card 3 is omitted from visible cards (simulating unverified card 3),
+    target 3 must NOT click card 2.
+    """
+    frame = load_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+    settings = Settings(cjb_boss="03洛卡纳哈", mode_id="solo", ocr_mode="off")
+    med = Mediator(settings, ROOT)
+    med._post_game_pending = True
+
+    clicked = []
+    # Mock visible cards to only show cards 1 and 2 (card 3 missing from recognized cards)
+    from shuabao.policy.boss_order import VisibleCard
+    sim_visible = [
+        (VisibleCard(1, "01暴掠龙", 607, 279, 58, 58, 0.8), MagicMock(name="01暴掠龙")),
+        (VisibleCard(2, "02血腥猛犸", 686, 278, 58, 58, 0.8), MagicMock(name="02血腥猛犸")),
+    ]
+
+    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+         patch.object(med, "find", return_value=None), \
+         patch.object(med, "_find_visible_post_game_boss_cards", return_value=sim_visible), \
+         patch.object(med, "_post_game_boss_list_at_bottom", return_value=True), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        med.set_phase(Phase.MAIN_LINE, "integration test")
+        action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+
+    # In heirloom_challenge_bosses.png, slot 3 (765, 281) actually has card 03, so slot 3 is NOT empty.
+    # Therefore, L=2 is NOT proven to be last card!
+    # Target is 3 (T == L+1), so it seeks confirmation on slot 3 (CONFIRM_PREDICTED),
+    # and NEVER clicks card 2!
+    assert action == LoopAction.Continue
+    assert len(clicked) == 0  # Does NOT click second-to-last card 2!
+
+
+def test_p1_4_heirloom_dialog_scrollbar_at_top_requires_two_stable_frames():
+    """P1-4: Verify HEIRLOOM_DIALOG scrollbar detection on real fixture and 2-frame stability."""
+    frame = load_frame("tests/fixtures/hitch_live_20260911/game_heirloom_boss_grid_open.png")
+    med = Mediator(Settings(), ROOT)
+
+    # First observation: stable frames count becomes 1 (< 2) -> at_top is False
+    top_1 = med._post_game_boss_list_at_top(frame, "HEIRLOOM_DIALOG")
+    assert top_1 is False
+    assert getattr(med, "_boss_challenge_scroll_top_stable_frames", 0) == 1
+
+    # Second observation: stable frames count becomes 2 (>= 2) -> at_top is True
+    top_2 = med._post_game_boss_list_at_top(frame, "HEIRLOOM_DIALOG")
+    assert top_2 is True
+
+    # At bottom must be False because thumb is at the top
+    assert med._post_game_boss_list_at_bottom(frame, "HEIRLOOM_DIALOG") is False
+
