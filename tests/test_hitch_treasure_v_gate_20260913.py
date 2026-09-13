@@ -99,6 +99,57 @@ class TestHitchTreasureVGate:
             assert action == LoopAction.Continue
             click.assert_not_called()
 
+    def test_1b_treasure_kill_none_bounded_probe(self) -> None:
+        """P2-G: Bounded probe allows opening V once after N skips or T seconds of kill OCR=None."""
+        med = make_mediator()
+        fr = make_frame()
+        btn = MatchResult("treasure_button", 0.95, 100, 100, 20, 20, 100, 100)
+
+        # Baseline: last kill balance known as 15
+        med._hitch_last_treasure_kill_balance = 15
+
+        # 1. First 4 skips with OCR=None: must NOT open V
+        with patch.object(med, "_merchant_kill_balance", return_value=None), \
+             patch.object(med, "_hud_button_hit", return_value=btn), \
+             patch.object(med, "act_click", return_value=True) as click:
+            for i in range(1, 5):
+                med._panel_state = PanelState.CLOSED
+                med._panel_cooldown_until["treasure"] = 0.0
+                med._panel_opened_by_us = None
+                med._choice_target = "treasure"
+                med._maybe_open_choice_panel(fr)
+                click.assert_not_called()
+                assert med._hitch_treasure_kill_none_skips == i
+
+            # 2. 5th skip (reaches N=5): bounded probe allows opening V once
+            med._panel_state = PanelState.CLOSED
+            med._panel_cooldown_until["treasure"] = 0.0
+            med._panel_opened_by_us = None
+            med._choice_target = "treasure"
+            action = med._maybe_open_choice_panel(fr)
+            assert action == LoopAction.Continue
+            assert click.call_count == 1
+            assert click.call_args[0][1] == "OpenTreasurePanel"
+            # Counter resets after probe
+            assert med._hitch_treasure_kill_none_skips == 0
+
+        # 3. Time-based probe: if >= 15 seconds elapsed, allows opening V even before 5 skips
+        med._panel_state = PanelState.CLOSED
+        med._panel_cooldown_until["treasure"] = 0.0
+        med._panel_opened_by_us = None
+        med._choice_target = "treasure"
+        med._hitch_treasure_kill_none_skips = 1
+        med._hitch_treasure_kill_none_first_at = time.time() - 20.0  # 20s ago
+
+        with patch.object(med, "_merchant_kill_balance", return_value=None), \
+             patch.object(med, "_hud_button_hit", return_value=btn), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_open_choice_panel(fr)
+            assert action == LoopAction.Continue
+            assert click.call_count == 1
+            assert click.call_args[0][1] == "OpenTreasurePanel"
+            assert med._hitch_treasure_kill_none_skips == 0
+
     def test_2_refresh_budget_whole_session_cap(self) -> None:
         """Requirement 2: Refresh budget capped across session (<=3) and consecutive no-picks."""
         med = make_mediator()

@@ -26,9 +26,10 @@ LOCATE_FAILURE_FALLBACK_DEFAULT: str = "last_card"
 def is_slot_empty(crop: Any) -> bool:
     """Determine if a slot bounding box contains an empty slot background (no card).
 
-    Measured on fixtures (e.g. heirloom_challenge_bosses.png empty cols 3, 4, row 1):
-    - Real card slots: std >= 45, max_val >= 200, canny edge ratio >= 0.18
-    - Empty background slots: mean ~ 26, std <= 12, max_val <= 60, canny edge ratio <= 0.08
+    Measured on fixtures (heirloom_challenge_bosses.png, archive_challenge_panel.png):
+    - Real card slots: std in [58.2, 75.7] (>= 50.0), max >= 240, canny edge ratio in [0.19, 0.36] (>= 0.15)
+    - Empty background slots: std in [2.0, 8.3] (<= 12.0), max in [37, 44] (<= 50), mean ~ 27, canny edge ratio in [0.00, 0.04] (<= 0.05)
+    - Separation criteria: (max <= 60.0 and std <= 12.0) or (edge_ratio <= 0.05 and std <= 15.0)
     """
     if crop is None:
         return True
@@ -44,11 +45,11 @@ def is_slot_empty(crop: Any) -> bool:
             gray = crop
         std_val = float(np.std(gray))
         max_val = float(np.max(gray))
-        if max_val < 80 and std_val < 20.0:
+        if max_val <= 60.0 and std_val <= 12.0:
             return True
         edges = cv2.Canny(gray, 50, 150)
         edge_ratio = float(np.count_nonzero(edges)) / float(edges.size)
-        if edge_ratio < 0.10 and std_val < 25.0:
+        if edge_ratio <= 0.05 and std_val <= 15.0:
             return True
         return False
     except Exception:
@@ -88,6 +89,32 @@ class BossOrderDecision:
     predicted_box: Optional[tuple[int, int, int, int]] = None  # (x, y, w, h)
     predicted_center: Optional[tuple[int, int]] = None
     reason: str = ""
+    stage: Optional[str] = None
+
+
+def get_catalog_max_order(
+    page_type: str = "ARCHIVE_PANEL",
+    catalog: dict | None = None,
+) -> int:
+    """Read max unlock order per section from challenge_boss_catalog."""
+    if catalog:
+        section = "boss" if page_type == "ARCHIVE_PANEL" else "chuanjiaobao"
+        items = catalog.get(section, [])
+        if isinstance(items, list) and items:
+            valid_nos = []
+            for item in items:
+                if isinstance(item, dict) and "no" in item:
+                    try:
+                        no_val = int(item["no"])
+                        if page_type == "HEIRLOOM_DIALOG" and no_val == 54:
+                            # 54莫阿姆 is known competitor-sync anomaly excluded from heirloom ordering
+                            continue
+                        valid_nos.append(no_val)
+                    except (ValueError, TypeError):
+                        pass
+            if valid_nos:
+                return max(valid_nos)
+    return 54 if page_type == "ARCHIVE_PANEL" else 20
 
 
 def parse_boss_order_number(
@@ -242,6 +269,8 @@ def decide_boss_order_action(
     viewport_box: tuple[int, int, int, int] | None = None,
     slot_empty_checker: Callable[[tuple[int, int, int, int]], bool] | None = None,
     frame_bgr: Any = None,
+    catalog: dict | None = None,
+    max_catalog_no: int | None = None,
 ) -> BossOrderDecision:
     """Pure decision function for post-game boss selection with unlock order fallback."""
     if can_scroll is None:
@@ -249,7 +278,8 @@ def decide_boss_order_action(
 
     cols = 4 if page_type == "ARCHIVE_PANEL" else 5
     default_pitch = (78.0, 76.0) if page_type == "ARCHIVE_PANEL" else (79.2, 79.5)
-    max_catalog_no = 53 if page_type == "ARCHIVE_PANEL" else 20
+    if max_catalog_no is None:
+        max_catalog_no = get_catalog_max_order(page_type, catalog)
 
     if slot_empty_checker is None and frame_bgr is not None:
         def _check_empty(b: tuple[int, int, int, int]) -> bool:
@@ -317,19 +347,53 @@ def decide_boss_order_action(
 
     def _locate_failed_fallback(reason_prefix: str) -> BossOrderDecision:
         if at_bottom:
-            return BossOrderDecision(
-                action=BossOrderAction.CLICK_LAST_LOCATE_FAILED,
-                target_card=phys_last_card,
-                reason=f"{reason_prefix}且列表已确认到底，兜底选择末卡",
-            )
+            # P2-D: 复用规则 2 的 L+1 空格校验；只有证明为物理末卡才点末卡，L+1 有卡时 WAIT
+            if target_no > max_catalog_no or L >= max_catalog_no:
+                return BossOrderDecision(
+                    action=BossOrderAction.CLICK_LAST_LOCATE_FAILED,
+                    target_card=phys_last_card,
+                    reason=f"{reason_prefix}且列表已确认到底（已达目录上限），兜底选择末卡",
+                )
+            next_slot = predict_card_slot(L + 1, visible_cards, cols_per_row=cols, default_pitch=default_pitch)
+            if next_slot is None:
+                return BossOrderDecision(
+                    action=BossOrderAction.WAIT,
+                    reason=f"{reason_prefix}且列表已确认到底，但无法推算后续格位 L+1={L+1}，等待证据",
+                )
+            nx, ny, nw, nh = next_slot
+            ncx, ncy = nx + nw // 2, ny + nh // 2
+            in_viewport = True
+            if viewport_box is not None:
+                vx0, vy0, vx1, vy1 = viewport_box
+                in_viewport = (vx0 <= ncx <= vx1) and (vy0 <= ncy <= vy1)
+            if in_viewport:
+                slot_is_empty = slot_empty_checker(next_slot) if slot_empty_checker is not None else False
+                if slot_is_empty:
+                    return BossOrderDecision(
+                        action=BossOrderAction.CLICK_LAST_LOCATE_FAILED,
+                        target_card=phys_last_card,
+                        reason=f"{reason_prefix}且列表已确认到底，后续格位 L+1={L+1} 经像素校验为空格（末卡已证明），兜底选择末卡",
+                    )
+                else:
+                    return BossOrderDecision(
+                        action=BossOrderAction.WAIT,
+                        reason=f"{reason_prefix}且列表已确认到底，但末卡 L={L} 后续格位存在未识别卡片（真实末卡未知），等待证据",
+                    )
+            else:
+                return BossOrderDecision(
+                    action=BossOrderAction.WAIT,
+                    reason=f"{reason_prefix}且列表已确认到底，但推算格位 L+1={L+1} 超出视野边界，无法证明末卡，等待证据",
+                )
         if can_scroll and bottom_scroll_attempts < bottom_scroll_limit:
             return BossOrderDecision(
                 action=BossOrderAction.SCROLL_DOWN,
                 reason=f"定位失败，回到底部取末卡 ({bottom_scroll_attempts + 1}/{bottom_scroll_limit})",
+                stage="return_to_bottom",
             )
         return BossOrderDecision(
             action=BossOrderAction.WAIT,
             reason=f"{reason_prefix}回底滚动已到安全上限但未证明到底，禁止任意卡兜底，等待未决收敛",
+            stage="return_to_bottom",
         )
 
     # 若已处于定位尝试耗尽状态，直接走回底兜底
@@ -394,9 +458,11 @@ def decide_boss_order_action(
                 action=BossOrderAction.SCROLL_UP,
                 reason=f"目标序号 {target_no} < 可见最小序号 {min_no}，向上滚动寻找 ({scroll_attempts + 1}/{scroll_limit})",
             )
-        # 无法继续上滚或已到顶
-        if locate_attempts >= locate_limit or scroll_attempts >= scroll_limit or not can_scroll or at_top:
-            return _locate_failed_fallback(f"目标序号 {target_no} < {min_no} 向上定位尝试已耗尽（at_top={at_top}）")
+        # 无法继续上滚或已到顶：在视野内预测格位尝试二次确认，用完 locate_limit 次后才兜底
+        if locate_attempts >= locate_limit:
+            return _locate_failed_fallback(
+                f"目标序号 {target_no} < {min_no} 向上定位尝试已耗尽 ({locate_attempts}/{locate_limit})（at_top={at_top}）"
+            )
         box = predict_card_slot(target_no, visible_cards, cols_per_row=cols, default_pitch=default_pitch)
         if box:
             cx, cy = box[0] + box[2] // 2, box[1] + box[3] // 2
@@ -420,7 +486,7 @@ def decide_boss_order_action(
                 action=BossOrderAction.CONFIRM_PREDICTED,
                 predicted_box=box,
                 predicted_center=(cx, cy),
-                reason=f"目标序号 {target_no} 在顶部边缘附近，在预测格位做确认 ({locate_attempts + 1}/{locate_limit})",
+                reason=f"目标序号 {target_no} < {min_no} 已到顶或无法上滚，在预测格位做二次证据确认 ({locate_attempts + 1}/{locate_limit})",
             )
         return _locate_failed_fallback(f"目标序号 {target_no} 无法推算预测格位")
 

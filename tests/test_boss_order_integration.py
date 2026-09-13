@@ -170,7 +170,14 @@ def test_heirloom_dialog_configured_target_in_view(base_patches):
 
 
 def test_heirloom_dialog_target_not_unlocked_bottom_fallback(base_patches):
-    """Target 18乌索克 on heirloom dialog when at_bottom -> clicks last card."""
+    """P0-A: Target 18乌索克 on 3-card heirloom dialog (no scrollbar) without patches.
+
+    Verifies:
+    1. Does not patch at_bottom, at_top, or find.
+    2. Takes 2 frames to establish stability on the no-scrollbar list.
+    3. Triggers BossBottomFallback clicking 03洛卡纳哈.
+    4. Log contains BossNotUnlockedLast.
+    """
     frame = load_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
     settings = Settings(cjb_boss="18乌索克", mode_id="solo", ocr_mode="off")
     med = Mediator(settings, ROOT)
@@ -178,18 +185,43 @@ def test_heirloom_dialog_target_not_unlocked_bottom_fallback(base_patches):
 
     clicked = []
     stdout_buf = io.StringIO()
-    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
-         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
-         patch.object(med, "_post_game_boss_list_at_bottom", return_value=True), \
+    with patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
          contextlib.redirect_stdout(stdout_buf):
+        med.set_phase(Phase.MAIN_LINE, "integration test")
+        # Frame 1: establishes stable frame count = 1, can_scroll=False -> waits
+        action1 = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+        assert action1 == LoopAction.Continue
+        assert len(clicked) == 0
+
+        # Frame 2: stable frame count = 2 -> confirmed at bottom, clicks 03洛卡纳哈
+        action2 = med._maybe_challenge_configured_boss(frame, 15.0, recheck_s=1.0)
+        assert action2 == LoopAction.Continue
+
+    assert len(clicked) == 1
+    hit, reason = clicked[0]
+    assert reason == "BossBottomFallback"
+    assert "03" in hit.name or "洛卡纳哈" in hit.name
+    assert "BossNotUnlockedLast" in stdout_buf.getvalue()
+
+
+def test_heirloom_dialog_target_02_clicks_directly(base_patches):
+    """P0-A: Target 02血腥猛犸 on 3-card heirloom dialog without patches clicks directly on frame 1."""
+    frame = load_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+    settings = Settings(cjb_boss="02血腥猛犸", mode_id="solo", ocr_mode="off")
+    med = Mediator(settings, ROOT)
+    med._post_game_pending = True
+
+    clicked = []
+    with patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
         med.set_phase(Phase.MAIN_LINE, "integration test")
         action = med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
 
     assert action == LoopAction.Continue
     assert len(clicked) == 1
     hit, reason = clicked[0]
-    assert reason == "BossBottomFallback"
-    assert "BossNotUnlockedLast" in stdout_buf.getvalue()
+    assert reason == "BossConfigured"
+    assert "02" in hit.name or "血腥猛犸" in hit.name
 
 
 def test_mediator_tick_lifecycle_archive_panel(base_patches):

@@ -157,16 +157,28 @@ def test_t_in_visible_range_locate_attempts_exhausted_falls_back():
     assert dec_scroll.action == BossOrderAction.SCROLL_DOWN
     assert "回到底部" in dec_scroll.reason
 
-    # If at bottom: selects physical last card
+    # If at bottom: selects physical last card if L+1 is verified empty
     dec_bottom = decide_boss_order_action(
         target_no=2,
         visible_cards=cards,
         locate_attempts=3,
         locate_limit=3,
         at_bottom=True,
+        slot_empty_checker=lambda b: True,
     )
     assert dec_bottom.action == BossOrderAction.CLICK_LAST_LOCATE_FAILED
     assert dec_bottom.target_card.no == 3  # physical last card
+
+    # If at bottom but L+1 has unverified card: WAIT (never click second-to-last)
+    dec_bottom_card = decide_boss_order_action(
+        target_no=2,
+        visible_cards=cards,
+        locate_attempts=3,
+        locate_limit=3,
+        at_bottom=True,
+        slot_empty_checker=lambda b: False,
+    )
+    assert dec_bottom_card.action == BossOrderAction.WAIT
 
     # If bottom scroll budget exhausted and still not at bottom: WAIT (never click unproven)
     dec_exhausted = decide_boss_order_action(
@@ -336,18 +348,31 @@ def test_p0_2_locate_failure_navigation_matrix():
         locate_limit=3,
     )
     assert dec1.action == BossOrderAction.SCROLL_DOWN
+    assert dec1.stage == "return_to_bottom"
     assert "回到底部" in dec1.reason
 
-    # Once at bottom -> clicks true bottom card with CLICK_LAST_LOCATE_FAILED
+    # Once at bottom -> clicks true bottom card with CLICK_LAST_LOCATE_FAILED if L+1 empty
     dec1_bottom = decide_boss_order_action(
         target_no=1,
         visible_cards=cards,
         at_top=False,
         at_bottom=True,
         locate_exhausted=True,
+        slot_empty_checker=lambda b: True,
     )
     assert dec1_bottom.action == BossOrderAction.CLICK_LAST_LOCATE_FAILED
     assert dec1_bottom.target_card.no == 6
+
+    # If L+1 has card -> WAIT
+    dec1_bottom_card = decide_boss_order_action(
+        target_no=1,
+        visible_cards=cards,
+        at_top=False,
+        at_bottom=True,
+        locate_exhausted=True,
+        slot_empty_checker=lambda b: False,
+    )
+    assert dec1_bottom_card.action == BossOrderAction.WAIT
 
     # Scenario 2: Downward search limit reached (3B) and not at bottom -> WAIT
     dec2 = decide_boss_order_action(
@@ -464,7 +489,12 @@ def test_catalog_vs_assets_consistency_and_anomalies():
     1. Chuanjiaobao 18-20 are present in catalog and assets.
     2. Chuanjiaobao 54莫阿姆 is present in both assets and catalog, but excluded from sorting in HEIRLOOM_DIALOG.
     3. Boss 24戴文戴尔男爵 and 24瑞文戴尔男爵 are aliases in assets (same order 24).
+    4. Every asset template stem in assets/Images/boss exists in catalog["boss"] (including 54莫阿姆).
+    5. Every asset template stem in assets/Images/chuanjiaobao exists in catalog["chuanjiaobao"].
+    6. Catalog max order matches assets: 54 for ARCHIVE_PANEL, 20 for HEIRLOOM_DIALOG.
     """
+    from shuabao.policy.boss_order import get_catalog_max_order
+
     catalog_path = ROOT / "config" / "challenge_boss_catalog.json"
     with open(catalog_path, encoding="utf-8") as f:
         catalog = json.load(f)
@@ -496,6 +526,65 @@ def test_catalog_vs_assets_consistency_and_anomalies():
     assert "24瑞文戴尔男爵" in boss_assets
     assert 24 in boss_items
     assert boss_items[24]["template_stem"] in {"24瑞文戴尔男爵", "24戴文戴尔男爵"}
+
+    # 4. Consistency: every boss asset must be registered in catalog["boss"]
+    for stem in boss_assets:
+        no = parse_boss_order_number(stem)
+        assert no in boss_items, f"Boss template {stem} missing from challenge_boss_catalog.json"
+
+    # 5. Consistency: every chuanjiaobao asset must be registered in catalog["chuanjiaobao"]
+    for stem in cjb_assets:
+        no = parse_boss_order_number(stem)
+        assert no in cjb_items, f"Chuanjiaobao template {stem} missing from challenge_boss_catalog.json"
+
+    # 6. Upper bounds
+    assert get_catalog_max_order("ARCHIVE_PANEL", catalog) == 54
+    assert get_catalog_max_order("HEIRLOOM_DIALOG", catalog) == 20
+
+
+def test_p1_b_target_earlier_than_visible_at_top_confirms_before_fallback():
+    """P1-B: When at_top and target < min_no, must attempt CONFIRM_PREDICTED before fallback."""
+    cards = [
+        VisibleCard(no=2, name="02耶戈什", x=180, y=200, w=58, h=58, score=0.88),
+        VisibleCard(no=3, name="03曲奇", x=260, y=200, w=58, h=58, score=0.85),
+    ]
+    viewport = (0, 0, 1000, 1000)
+
+    # 1. First locate attempt (attempts=0): must return CONFIRM_PREDICTED, not fallback!
+    dec0 = decide_boss_order_action(
+        target_no=1,
+        visible_cards=cards,
+        at_top=True,
+        locate_attempts=0,
+        locate_limit=3,
+        viewport_box=viewport,
+    )
+    assert dec0.action == BossOrderAction.CONFIRM_PREDICTED
+    assert dec0.predicted_box is not None
+
+    # 2. Second attempt (attempts=1): still CONFIRM_PREDICTED
+    dec1 = decide_boss_order_action(
+        target_no=1,
+        visible_cards=cards,
+        at_top=True,
+        locate_attempts=1,
+        locate_limit=3,
+        viewport_box=viewport,
+    )
+    assert dec1.action == BossOrderAction.CONFIRM_PREDICTED
+
+    # 3. Third attempt exhausted (attempts=3): now falls back
+    dec_exhausted = decide_boss_order_action(
+        target_no=1,
+        visible_cards=cards,
+        at_top=True,
+        at_bottom=False,
+        locate_attempts=3,
+        locate_limit=3,
+        viewport_box=viewport,
+    )
+    assert dec_exhausted.action == BossOrderAction.SCROLL_DOWN
+    assert dec_exhausted.stage == "return_to_bottom"
 
 
 def test_p1_5_heirloom_dialog_excludes_moam_54_from_ordering():

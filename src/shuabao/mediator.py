@@ -1005,6 +1005,8 @@ class Mediator:
         self._choice_policy_last_reason = ""
         self._ocr_confirm_key: tuple | None = None
         self._hitch_last_treasure_kill_balance: int | None = None
+        self._hitch_treasure_kill_none_skips: int = 0
+        self._hitch_treasure_kill_none_first_at: float | None = None
         self._hitch_treasure_total_refreshes: int = 0
         self._hitch_last_treasure_unconfirmed_fp: str | None = None
         self._treasure_consecutive_no_pick: int = 0
@@ -4127,11 +4129,33 @@ class Mediator:
                     elif has_kill_growth and (cur_fp is None or cur_fp != unconfirmed_fp):
                         self._hitch_last_treasure_unconfirmed_fp = None
                 # 杀敌余额门槛检查：
-                # 1. 已有上次杀敌数，但当前杀敌 OCR=None：不得 OpenTreasurePanel
+                # 1. 已有上次杀敌数，但当前杀敌 OCR=None：
+                # 连续跳过 N 个周期或超过 T 秒后，允许开一次 V 看面板（是否有面板以画面为准），避免持续遮挡导致整局不再开 V
                 if last_kills is not None and cur_kills is None:
-                    print(f"[L1] 蹭车宝物已有历史杀敌数 {last_kills}，但当前杀敌 OCR 为空，缺乏新次数凭据，跳过 V 推进循环")
-                    self._advance_l1_cycle("treasure")
-                    return LoopAction.Continue
+                    skips = getattr(self, "_hitch_treasure_kill_none_skips", 0) + 1
+                    self._hitch_treasure_kill_none_skips = skips
+                    first_at = getattr(self, "_hitch_treasure_kill_none_first_at", None)
+                    if first_at is None:
+                        self._hitch_treasure_kill_none_first_at = now
+                        first_at = now
+                    elapsed = now - first_at
+                    if skips >= 5 or elapsed >= 15.0:
+                        print(
+                            f"[L1] 蹭车宝物已有历史杀敌数 {last_kills} 但杀敌 OCR 持续为空（跳过 {skips} 次 / {elapsed:.1f}s），"
+                            f"触发有界探测，允许尝试打开 V 看面板（以画面为准）"
+                        )
+                        self._hitch_treasure_kill_none_skips = 0
+                        self._hitch_treasure_kill_none_first_at = None
+                    else:
+                        print(
+                            f"[L1] 蹭车宝物已有历史杀敌数 {last_kills}，但当前杀敌 OCR 为空，"
+                            f"缺乏新次数凭据，跳过 V 推进循环 ({skips}/5, {elapsed:.1f}s/15s)"
+                        )
+                        self._advance_l1_cycle("treasure")
+                        return LoopAction.Continue
+                elif cur_kills is not None:
+                    self._hitch_treasure_kill_none_skips = 0
+                    self._hitch_treasure_kill_none_first_at = None
                 # 2. 当前读出杀敌余额未增长，说明无新次数
                 if (
                     last_kills is not None
@@ -6053,11 +6077,47 @@ class Mediator:
             frame.top + int(frame.height * (ry1 + ry2) / 2.0),
         )
 
-    def _post_game_boss_list_at_bottom(self, frame: Frame, post_game: str | None) -> bool:
-        """Require two bottom-thumb observations before selecting a fallback."""
+    def _post_game_boss_has_no_scrollbar(self, frame: Frame, post_game: str | None) -> bool:
+        """Positive evidence that the boss list has no scrollbar (fits on 1 screen)."""
         scrollbar_roi = self._POST_GAME_BOSS_SCROLLBAR_ROIS.get(post_game or "")
         if frame.bgr is None or frame.bgr.size == 0 or scrollbar_roi is None:
             return False
+        x0, y0, x1, y1 = self._normalized_bbox(frame, scrollbar_roi)
+        strip = frame.bgr[y0:y1, x0:x1]
+        if strip.size == 0:
+            return False
+        gray = cv2.cvtColor(strip, cv2.COLOR_BGR2GRAY)
+        mask = gray >= 180
+        count, _labels, stats, _centroids = cv2.connectedComponentsWithStats(mask.astype(np.uint8))
+        has_bright_comp = any(
+            2 <= w <= 12 and h >= 8
+            for _x, _y, w, h, _area in stats[1:count]
+        )
+        mean_val = float(np.mean(gray))
+        std_val = float(np.std(gray))
+        return (
+            not has_bright_comp
+            and 15.0 <= mean_val < 60.0
+            and 5.0 <= std_val < 25.0
+        )
+
+    def _post_game_boss_list_at_bottom(self, frame: Frame, post_game: str | None) -> bool:
+        """Require two bottom-thumb observations before selecting a fallback.
+
+        If list has no scrollbar, both at_top and at_bottom hold (requires 2 stable frames).
+        """
+        scrollbar_roi = self._POST_GAME_BOSS_SCROLLBAR_ROIS.get(post_game or "")
+        if frame.bgr is None or frame.bgr.size == 0 or scrollbar_roi is None:
+            return False
+        if self._post_game_boss_has_no_scrollbar(frame, post_game):
+            self._boss_challenge_scroll_stable_frames = (
+                int(getattr(self, "_boss_challenge_scroll_stable_frames", 0) or 0) + 1
+            )
+            return bool(
+                self._boss_challenge_scroll_stable_frames
+                >= self._POST_GAME_BOSS_BOTTOM_STABLE_FRAMES
+            )
+
         x0, y0, x1, y1 = self._normalized_bbox(frame, scrollbar_roi)
         strip = frame.bgr[y0:y1, x0:x1]
         if strip.size == 0:
@@ -6082,10 +6142,21 @@ class Mediator:
         )
 
     def _post_game_boss_list_at_top(self, frame: Frame, post_game: str | None) -> bool:
-        """Check if the scrollable Boss list is confirmed at the top (requires 2 stable frames)."""
+        """Check if the scrollable Boss list is confirmed at the top (requires 2 stable frames).
+
+        If list has no scrollbar, both at_top and at_bottom hold (requires 2 stable frames).
+        """
         scrollbar_roi = self._POST_GAME_BOSS_SCROLLBAR_ROIS.get(post_game or "")
         if frame.bgr is None or frame.bgr.size == 0 or scrollbar_roi is None:
             return False
+        if self._post_game_boss_has_no_scrollbar(frame, post_game):
+            self._boss_challenge_scroll_top_stable_frames = (
+                int(getattr(self, "_boss_challenge_scroll_top_stable_frames", 0) or 0) + 1
+            )
+            return bool(
+                getattr(self, "_boss_challenge_scroll_top_stable_frames", 0) >= 2
+            )
+
         x0, y0, x1, y1 = self._normalized_bbox(frame, scrollbar_roi)
         strip = frame.bgr[y0:y1, x0:x1]
         if strip.size == 0:
@@ -6817,10 +6888,11 @@ class Mediator:
                 bottom_scroll_attempts=getattr(self, "_boss_challenge_bottom_scroll_attempts", 0),
                 bottom_scroll_limit=self._POST_GAME_BOSS_SCROLL_LIMIT,
                 page_type=post_game or "",
-                can_scroll=True,
+                can_scroll=not self._post_game_boss_has_no_scrollbar(frame, post_game),
                 viewport_box=viewport_box,
                 slot_empty_checker=check_slot_empty,
                 frame_bgr=frame.bgr,
+                catalog=getattr(self, "_boss_catalog_cache", None),
             )
 
             if decision.action == BossOrderAction.CLICK_TARGET:
@@ -6845,7 +6917,7 @@ class Mediator:
                 if scroll_point is None:
                     print("[med] 已分类 Boss 列表缺少受约束滚动点，零输入等待")
                     return LoopAction.Continue
-                is_bottom_fallback = "回到底部" in decision.reason
+                is_bottom_fallback = (decision.stage == "return_to_bottom") or ("回到底部" in decision.reason)
                 if is_bottom_fallback:
                     self._boss_challenge_locate_exhausted = True
                     next_attempt = getattr(self, "_boss_challenge_bottom_scroll_attempts", 0) + 1
