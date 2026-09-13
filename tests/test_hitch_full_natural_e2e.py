@@ -25,8 +25,7 @@ from tools.live_scenario_capture import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-_LOCAL_CANDIDATE = Path(r"G:\刷刷宝\Worktrees\lobby-hitch-surface-test")
-CANDIDATE_ROOT = _LOCAL_CANDIDATE if _LOCAL_CANDIDATE.is_dir() else ROOT
+CANDIDATE_ROOT = ROOT
 _UTF8_ENV = dict(os.environ, PYTHONIOENCODING="utf-8")
 
 
@@ -149,7 +148,7 @@ def test_identity_blocks_when_production_source_sha_missing() -> None:
     assert any("production candidate SHA is not specified" in r for r in report["blocked_reasons"])
 
 
-def test_readiness_keeps_public_backpack_blocked_until_production_gt() -> None:
+def test_readiness_reports_public_backpack_conditional_until_production_gt() -> None:
     candidate_sha = _candidate_sha()
     completed = subprocess.run(
         [
@@ -180,17 +179,13 @@ def test_readiness_keeps_public_backpack_blocked_until_production_gt() -> None:
 
     assert report["primary_live_scenario"] == PRIMARY_LIVE_SCENARIO
     assert report["production_source_sha"] == candidate_sha
-    if CANDIDATE_ROOT != ROOT:
-        assert public["production_entry_status"] == "MISSING"
-        assert public["production_readiness"] == "BLOCKED"
-        assert public["production_missing"] == [
-            "production entry unavailable: _maybe_public_backpack_deposit",
-        ]
-    else:
-        assert public["production_entry_status"] == "PRESENT"
-        assert public["production_readiness"] == "CONDITIONAL"
-        assert public["production_missing"] == []
-    assert TARGET_PRODUCTION_FACTS["public_backpack_deposit"]["production_readiness"] == "CONDITIONAL"
+    assert public["production_entry_status"] == "PRESENT"
+    assert public["production_readiness"] == "CONDITIONAL"
+    assert public["production_missing"] == []
+    assert (
+        public["production_readiness"]
+        == TARGET_PRODUCTION_FACTS["public_backpack_deposit"]["production_readiness"]
+    )
 
 
 def test_public_backpack_contract_is_stash_then_public_then_close() -> None:
