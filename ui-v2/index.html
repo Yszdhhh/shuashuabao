@@ -4309,7 +4309,13 @@
       if (pill) {
         const tone = subscriptionTone();
         pill.dataset.state = tone;
-        pill.innerHTML = `<span class="dot" aria-hidden="true"></span>${subscriptionPillLabel()}`;
+        // 订阅文案含 facade/服务端字符串，只能作为文本节点写入，不能进 innerHTML。
+        const dot = document.createElement("span");
+        dot.className = "dot";
+        dot.setAttribute("aria-hidden", "true");
+        pill.textContent = "";
+        pill.appendChild(dot);
+        pill.appendChild(document.createTextNode(subscriptionPillLabel()));
         pill.title = isSubscriptionOk() ? "查看或激活卡密" : "激活卡密";
         pill.setAttribute("aria-label", isSubscriptionOk() ? `订阅${subscriptionPillLabel()}` : `订阅${subscriptionPillLabel()}，打开卡密`);
       }
@@ -4330,7 +4336,10 @@
       }
       const cta = isSubscriptionOk() ? "更换并保存" : "激活并保存";
       $("modalSheet").className = "sheet subscription";
-      $("modalSheet").innerHTML = `<div class="subscription-head"><p class="subscription-kicker">刷刷宝 · 订阅授权</p><h2 id="sheetTitle">激活卡密</h2><p class="subscription-now is-${tone}"><i></i>${nowText}</p></div><div class="subscription-body"><label for="subscriptionKey">订阅卡密<div class="key-row" id="subscriptionKeyRow"><input id="subscriptionKey" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴卡密" aria-label="订阅卡密" /><button type="button" class="key-toggle" data-toggle-key="1" aria-pressed="false">显示</button></div></label><p class="subscription-err" id="subscriptionErr" role="alert"></p><small>绑定本机用户，激活后才能开始运行。</small></div><div class="subscription-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-activate-subscription="1">${cta}</button></div>`;
+      $("modalSheet").innerHTML = `<div class="subscription-head"><p class="subscription-kicker">刷刷宝 · 订阅授权</p><h2 id="sheetTitle">激活卡密</h2><p class="subscription-now is-${tone}" id="subscriptionNow"><i></i></p></div><div class="subscription-body"><label for="subscriptionKey">订阅卡密<div class="key-row" id="subscriptionKeyRow"><input id="subscriptionKey" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴卡密" aria-label="订阅卡密" /><button type="button" class="key-toggle" data-toggle-key="1" aria-pressed="false">显示</button></div></label><p class="subscription-err" id="subscriptionErr" role="alert"></p><small>绑定本机用户，激活后才能开始运行。</small></div><div class="subscription-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-activate-subscription="1">${cta}</button></div>`;
+      // nowText 含服务端 expires_at / live_status：骨架渲染后再以文本节点填入。
+      const nowEl = $("subscriptionNow");
+      if (nowEl) nowEl.appendChild(document.createTextNode(nowText));
       $("modalLayer").classList.add("show");
       const input = $("subscriptionKey");
       if (input) {
