@@ -126,18 +126,49 @@ class TestHitchTreasureVGate:
              patch.object(med, "_find_panel_refresh", return_value=refresh_hit), \
              patch.object(med, "_close_current_panel", return_value=close_hit):
 
-            # When total refreshes reach 3: cannot refresh, must close
+            # When total refreshes reach 3: do not refresh/close-loop; pick a
+            # deterministic fallback so the panel can finish and the next
+            # reward can be processed.
             med._hitch_treasure_total_refreshes = 3
             res = med._ocr_reward_choice(fr, "treasure")
-            assert res == close_hit
+            assert res is not None
+            assert res.name == "ocr_treasure:普通攻击"
             assert res != refresh_hit
 
-            # When consecutive no-picks reach 2: cannot refresh, must close
+            # The consecutive no-pick guard has the same fallback behavior.
             med._hitch_treasure_total_refreshes = 0
             med._treasure_consecutive_no_pick = 2
             res2 = med._ocr_reward_choice(fr, "treasure")
-            assert res2 == close_hit
+            assert res2 is not None
+            assert res2.name == "ocr_treasure:普通攻击"
             assert res2 != refresh_hit
+
+    def test_2b_no_refresh_charge_picks_positive_or_any_slot(self) -> None:
+        """末段无刷新次数时，即使没有共享道具也必须落地选卡。"""
+        med = make_mediator()
+        fr = make_frame()
+        slots = [
+            {"index": 0, "name": "压制", "confidence": 0.98, "description": "降低攻速"},
+            {"index": 1, "name": "力量提升", "confidence": 0.98},
+        ]
+        with patch.object(med, "_ocr_panel_slots", return_value=slots), \
+             patch.object(med, "_panel_can_refresh", return_value=False):
+            med._hitch_treasure_total_refreshes = 3
+            res = med._ocr_reward_choice(fr, "treasure")
+        assert res is not None
+        assert res.name == "ocr_treasure:力量提升"
+
+    def test_2c_no_refresh_charge_with_unread_names_picks_first_slot(self) -> None:
+        """刷新耗尽且 OCR 名称不可用时，仍点击第一张可定位卡而非隐藏。"""
+        med = make_mediator()
+        fr = make_frame()
+        slots = [{"index": 0, "name": "", "confidence": 0.1}]
+        with patch.object(med, "_ocr_panel_slots", return_value=slots), \
+             patch.object(med, "_panel_can_refresh", return_value=False):
+            med._hitch_treasure_total_refreshes = 3
+            res = med._ocr_reward_choice(fr, "treasure")
+        assert res is not None
+        assert res.name == "ocr_treasure:slot0"
 
     def test_3_ocr_no_candidates_safe_close_never_refresh(self) -> None:
         """Requirement 3: OCR failure / no valid candidates safely closes, never refreshes."""

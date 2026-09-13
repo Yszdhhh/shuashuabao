@@ -130,8 +130,8 @@ def test_hitch_treasure_selects_green_talisman() -> None:
     assert result.name == "ocr_treasure:绿色神符"
 
 
-def test_hitch_treasure_without_shareable_item_only_refreshes_or_closes() -> None:
-    """蹭车宝物：没有可共享道具时不选；预算内刷新（无钮降级关闭）/预算尽关闭。
+def test_hitch_treasure_without_shareable_item_only_refreshes_or_falls_back() -> None:
+    """蹭车宝物：预算内刷新（无钮降级关闭），预算尽时落地兜底选卡。
 
     20260910 Owner ruling 之后「可共享」= 神符/吞噬丹/英雄卡/最高品质，所以
     这条边界要用真正的自用宝物来构造，蓝色神符已经属于该拿的了。
@@ -151,28 +151,20 @@ def test_hitch_treasure_without_shareable_item_only_refreshes_or_closes() -> Non
     with patched2() as (m2, closer2, close2):
         m2._choice_session = SessionState(refreshes=99, max_refreshes=3)
         result2 = m2._ocr_reward_choice(_frame(), "treasure")
-    assert result2 == close2
-    closer2.assert_called_once()
+    assert result2 is not None
+    assert result2.name == "ocr_treasure:橙色宝物"
+    closer2.assert_not_called()
 
 
 def test_hitch_treasure_close_when_refresh_unavailable() -> None:
-    """蹭车宝物：无绿色神符且不可刷新 → 直接关闭，不回落品质链。"""
+    """蹭车宝物：无绿色神符且不可刷新 → 选择正向兜底，不隐藏卡面。"""
     slots = (_slot(0, "橙色宝物", "orange"),)
     med, patched = _talisman_stacks("lobby_hitch", slots, can_refresh=False)
     with patched() as (m, closer, close):
         result = m._ocr_reward_choice(_frame(), "treasure")
-    assert result == ("treasure", close)
-    closer.assert_called_once()
-
-def test_hitch_treasure_close_when_refresh_unavailable() -> None:
-    """蹭车宝物：无绿色神符且不可刷新 → 直接关闭，不回落品质链。"""
-    slots = (_slot(0, "橙色宝物", "orange"),)
-    med, patched = _talisman_stacks("lobby_hitch", slots, can_refresh=False)
-    with patched() as (m, closer, close):
-        result = m._ocr_reward_choice(_frame(), "treasure")
-    assert result == close
-    closer.assert_called_once()
-
+    assert result is not None
+    assert result.name == "ocr_treasure:橙色宝物"
+    closer.assert_not_called()
 
 def test_normal_treasure_live_ignores_green_talisman_rule() -> None:
     """普通模式 live OCR：不受蹭车绿神符规则约束（走通用品质策略）。"""

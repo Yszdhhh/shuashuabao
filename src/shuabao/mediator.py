@@ -110,6 +110,7 @@ from shuabao.choice_policy import (
     assemble_policy_settings,
     choose_action,
     hitch_treasure_pick,
+    is_negative_treasure,
     matches_bond_preset,
     slot_fingerprint,
 )
@@ -3610,7 +3611,13 @@ class Mediator:
             if pick is not None:
                 self._treasure_consecutive_no_pick = 0
                 decision = PolicyDecision.select(pick.index, reason)
-            elif not has_valid_names:
+            elif (
+                not has_valid_names
+                and can_refresh
+                and getattr(self, "_hitch_treasure_total_refreshes", 0) < 3
+                and self._choice_session.refreshes < self._choice_session.max_refreshes
+                and getattr(self, "_treasure_consecutive_no_pick", 0) < 2
+            ):
                 # OCR 没读到有效候选名：保持零输入或安全关闭，不要把识别失败当成“无共享道具后刷新”
                 self._treasure_consecutive_no_pick += 1
                 decision = PolicyDecision.close("蹭车宝物 OCR 未读出有效候选，安全关闭（不刷新）")
@@ -3626,8 +3633,28 @@ class Mediator:
                     "蹭车宝物无可共享道具（神符/吞噬丹/英雄卡/EX），刷新后重试",
                 )
             else:
-                self._treasure_consecutive_no_pick += 1
-                decision = PolicyDecision.close("蹭车宝物无可共享道具或刷新预算耗尽，关闭后等待结算")
+                # 末段没有刷新次数时不能把面板关掉：关闭会让主循环再次
+                # 看到同一张 V 面板并重开/隐藏，造成“空宝物堆积”和重复开关。
+                # 此时接受一个确定可点的候选；优先非负面、再退化到任意
+                # 已识别槽位，OCR 完全没名字时也允许点第一格，符合蹭车
+                # 末段“随便拿一个继续流程”的容错要求。
+                candidates = [
+                    s for s in slots
+                    if s.name and str(s.name).strip()
+                    and s.confidence >= policy_settings.min_confidence
+                ]
+                candidates = candidates or list(slots)
+                if candidates:
+                    positive = [s for s in candidates if not is_negative_treasure(s, policy_settings)]
+                    fallback = positive[0] if positive else candidates[0]
+                    self._treasure_consecutive_no_pick = 0
+                    decision = PolicyDecision.select(
+                        fallback.index,
+                        f"蹭车宝物末段兜底选择【{fallback.name or 'slot '+str(fallback.index)}】（刷新预算耗尽）",
+                    )
+                else:
+                    self._treasure_consecutive_no_pick += 1
+                    decision = PolicyDecision.close("蹭车宝物无可点击槽位，安全关闭")
         else:
             decision = choose_action(
                 PanelCandidates(
@@ -14719,6 +14746,31 @@ class Mediator:
             print("[med] 乘客模式：游戏内等待 1 号位选择难度（零输入）")
             if self._hitch_enabled():
                 self.set_phase(Phase.ROOM_WAITING, "guest waits for player 1 difficulty")
+            return LoopAction.Continue
+        # 结算面板关闭后有一个短暂的“存档”过渡帧：旧分类器可能暂时既
+        # 识别不到 ARCHIVE_PANEL，也还没识别成 NPC_HUB。此时不能被选关页
+        # 误判抢先退出，否则传家宝入口永远没有机会点击。优先保留已确定
+        # 的 heirloom/archive 路由，等广场锚点出现后由下方统一入口点击。
+        if (
+            self._passenger_mode()
+            and post_game is None
+            and self._post_game_pending
+            and getattr(self, "_post_game_route", "") in {"archive", "heirloom"}
+            and (
+                self._top_bar_mode(frame) == "plaza"
+                or self.find_scene(frame, "archive") is not None
+            )
+        ):
+            route = getattr(self, "_post_game_route", "")
+            entry = self._post_game_hub_entry_click(frame, route)
+            if entry is not None:
+                reason = "OpenArchiveChallenges" if route == "archive" else "OpenHeirloomChallenges"
+                print(f"[med] 战后过渡帧确认广场入口：打开{('存档' if route == 'archive' else '传家宝')}挑战 @ {entry.center}")
+                if self.act_click(entry, reason):
+                    self._post_game_route = f"{route}_active"
+                    self._main_line_since = now
+            else:
+                print(f"[med] 战后{route}路由仍在过渡帧，等待广场入口（零动作）")
             return LoopAction.Continue
         if (
             self._passenger_mode()
