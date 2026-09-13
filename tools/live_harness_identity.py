@@ -52,12 +52,25 @@ def git_branch(repo_root: Path) -> str:
     return out if code == 0 and out else "unknown"
 
 
+def _ensure_commit_available(repo_root: Path, commit: str) -> None:
+    """In shallow clones (e.g. CI runners), fetch historical commits if missing."""
+    if not commit or commit == "unknown":
+        return
+    if _git(repo_root, "cat-file", "-e", f"{commit}^{{commit}}")[0] != 0:
+        if _git(repo_root, "rev-parse", "--is-shallow-repository")[1] == "true":
+            _git(repo_root, "fetch", "--unshallow")
+            if _git(repo_root, "cat-file", "-e", f"{commit}^{{commit}}")[0] != 0:
+                _git(repo_root, "fetch", "--depth=50", "origin", commit)
+
+
 def is_ancestor(repo_root: Path, ancestor: str, descendant: str = "HEAD") -> bool:
+    _ensure_commit_available(repo_root, ancestor)
     code, _out, _err = _git(repo_root, "merge-base", "--is-ancestor", ancestor, descendant)
     return code == 0
 
 
 def _name_only_diff(repo_root: Path, baseline: str, pathspec: str) -> list[str]:
+    _ensure_commit_available(repo_root, baseline)
     code, out, _err = _git(repo_root, "diff", "--name-only", f"{baseline}...HEAD", "--", pathspec)
     if code != 0:
         code, out, _err = _git(repo_root, "diff", "--name-only", baseline, "HEAD", "--", pathspec)

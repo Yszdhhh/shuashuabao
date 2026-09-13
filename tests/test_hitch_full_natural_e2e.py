@@ -8,6 +8,7 @@ matches or production postconditions.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -24,7 +25,9 @@ from tools.live_scenario_capture import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CANDIDATE_ROOT = Path(r"G:\刷刷宝\Worktrees\lobby-hitch-surface-test")
+_LOCAL_CANDIDATE = Path(r"G:\刷刷宝\Worktrees\lobby-hitch-surface-test")
+CANDIDATE_ROOT = _LOCAL_CANDIDATE if _LOCAL_CANDIDATE.is_dir() else ROOT
+_UTF8_ENV = dict(os.environ, PYTHONIOENCODING="utf-8")
 
 
 def _candidate_sha() -> str:
@@ -99,6 +102,7 @@ def test_candidate_source_identity_is_explicit_and_clean() -> None:
             "--json",
         ],
         cwd=ROOT,
+        env=_UTF8_ENV,
         capture_output=True,
         text=True,
         check=False,
@@ -128,6 +132,7 @@ def test_identity_blocks_when_production_source_sha_missing() -> None:
             "--json",
         ],
         cwd=ROOT,
+        env=_UTF8_ENV,
         capture_output=True,
         text=True,
         check=False,
@@ -155,6 +160,7 @@ def test_readiness_keeps_public_backpack_blocked_until_production_gt() -> None:
             "--json",
         ],
         cwd=ROOT,
+        env=_UTF8_ENV,
         capture_output=True,
         text=True,
         check=False,
