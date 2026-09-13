@@ -1,7 +1,7 @@
 """Regression tests for Hitch Treasure V (三选一) panel FSM & policy fixes (2026-09-13).
 
 Addresses issues observed in hitch_lobby_chain_20260913_000146_191455 trace:
-1. Gated V opening: Requires increased kill balance or evidence, not just 30s timer.
+1. Independent V retry: Black-merchant kill balance cannot suppress treasure collection.
 2. Refresh budget: Whole-session refresh budget (max 3) & consecutive no-pick cap.
 3. OCR fail-closed: No candidates or OCR failure leads to safe close, never blind refresh.
 4. Panel classification: Joint anchor confirmation, giveUp anchor identifies skill not treasure.
@@ -42,13 +42,13 @@ def make_mediator() -> Mediator:
 
 
 class TestHitchTreasureVGate:
-    def test_1_treasure_open_gated_by_kills(self) -> None:
-        """Requirement 1: V opening requires kill balance increase or new evidence."""
+    def test_1_treasure_open_is_not_gated_by_merchant_kill_balance(self) -> None:
+        """A spent/stagnant merchant balance must not strand accumulated treasures."""
         med = make_mediator()
         fr = make_frame()
         btn = MatchResult("treasure_button", 0.95, 100, 100, 20, 20, 100, 100)
 
-        # Step 1: Kill balance is 10, first time opening
+        # A first V probe opens normally.
         with patch.object(med, "_merchant_kill_balance", return_value=10), \
              patch.object(med, "_hud_button_hit", return_value=btn), \
              patch.object(med, "act_click", return_value=True) as click:
@@ -58,97 +58,59 @@ class TestHitchTreasureVGate:
             assert click.call_args[0][1] == "OpenTreasurePanel"
             assert med._hitch_last_treasure_kill_balance == 10
 
-        # Reset panel FSM to CLOSED to simulate panel has completed and closed
+        # A known 10 -> 10 balance does not suppress a genuine later choice.
         med._panel_state = PanelState.CLOSED
         med._panel_cooldown_until["treasure"] = 0.0
         med._panel_opened_by_us = None
         med._choice_target = "treasure"
-
-        # Step 2: Kills have NOT increased (still 10). Should NOT open V.
         with patch.object(med, "_merchant_kill_balance", return_value=10), \
              patch.object(med, "_hud_button_hit", return_value=btn), \
              patch.object(med, "act_click", return_value=True) as click:
             action = med._maybe_open_choice_panel(fr)
             assert action == LoopAction.Continue
-            click.assert_not_called()
+            click.assert_called_once()
 
-        # Step 3: Kills increased to 15. Should open V.
-        med._panel_state = PanelState.CLOSED
-        med._panel_cooldown_until["treasure"] = 0.0
-        med._panel_opened_by_us = None
-        med._choice_target = "treasure"
-
-        with patch.object(med, "_merchant_kill_balance", return_value=15), \
-             patch.object(med, "_hud_button_hit", return_value=btn), \
-             patch.object(med, "act_click", return_value=True) as click:
-            action = med._maybe_open_choice_panel(fr)
-            assert action == LoopAction.Continue
-            assert click.call_count == 1
-            assert med._hitch_last_treasure_kill_balance == 15
-
-        # Step 4: Had last kills (15), but current kills OCR is None. Must NOT open V.
-        med._panel_state = PanelState.CLOSED
-        med._panel_cooldown_until["treasure"] = 0.0
-        med._panel_opened_by_us = None
-        med._choice_target = "treasure"
-
-        with patch.object(med, "_merchant_kill_balance", return_value=None), \
-             patch.object(med, "_hud_button_hit", return_value=btn), \
-             patch.object(med, "act_click", return_value=True) as click:
-            action = med._maybe_open_choice_panel(fr)
-            assert action == LoopAction.Continue
-            click.assert_not_called()
-
-    def test_1b_treasure_kill_none_bounded_probe(self) -> None:
-        """P2-G: Bounded probe allows opening V once after N skips or T seconds of kill OCR=None."""
+    def test_1b_treasure_empty_probe_uses_short_retry_not_kill_ocr(self) -> None:
+        """An empty V is rate-limited by its own retry timer, even if OCR is unavailable."""
         med = make_mediator()
         fr = make_frame()
         btn = MatchResult("treasure_button", 0.95, 100, 100, 20, 20, 100, 100)
+        med._hitch_treasure_retry_at = time.time() + 5.0
 
-        # Baseline: last kill balance known as 15
-        med._hitch_last_treasure_kill_balance = 15
-
-        # 1. First 4 skips with OCR=None: must NOT open V
         with patch.object(med, "_merchant_kill_balance", return_value=None), \
              patch.object(med, "_hud_button_hit", return_value=btn), \
              patch.object(med, "act_click", return_value=True) as click:
-            for i in range(1, 5):
-                med._panel_state = PanelState.CLOSED
-                med._panel_cooldown_until["treasure"] = 0.0
-                med._panel_opened_by_us = None
-                med._choice_target = "treasure"
-                med._maybe_open_choice_panel(fr)
-                click.assert_not_called()
-                assert med._hitch_treasure_kill_none_skips == i
+            assert med._maybe_open_choice_panel(fr) == LoopAction.Continue
+            click.assert_not_called()
 
-            # 2. 5th skip (reaches N=5): bounded probe allows opening V once
-            med._panel_state = PanelState.CLOSED
-            med._panel_cooldown_until["treasure"] = 0.0
-            med._panel_opened_by_us = None
-            med._choice_target = "treasure"
-            action = med._maybe_open_choice_panel(fr)
-            assert action == LoopAction.Continue
-            assert click.call_count == 1
-            assert click.call_args[0][1] == "OpenTreasurePanel"
-            # Counter resets after probe
-            assert med._hitch_treasure_kill_none_skips == 0
-
-        # 3. Time-based probe: if >= 15 seconds elapsed, allows opening V even before 5 skips
         med._panel_state = PanelState.CLOSED
         med._panel_cooldown_until["treasure"] = 0.0
         med._panel_opened_by_us = None
         med._choice_target = "treasure"
-        med._hitch_treasure_kill_none_skips = 1
-        med._hitch_treasure_kill_none_first_at = time.time() - 20.0  # 20s ago
-
+        med._hitch_treasure_retry_at = time.time() - 0.1
         with patch.object(med, "_merchant_kill_balance", return_value=None), \
              patch.object(med, "_hud_button_hit", return_value=btn), \
              patch.object(med, "act_click", return_value=True) as click:
-            action = med._maybe_open_choice_panel(fr)
-            assert action == LoopAction.Continue
-            assert click.call_count == 1
-            assert click.call_args[0][1] == "OpenTreasurePanel"
-            assert med._hitch_treasure_kill_none_skips == 0
+            assert med._maybe_open_choice_panel(fr) == LoopAction.Continue
+            click.assert_called_once()
+
+    def test_1c_treasure_balance_drop_does_not_block_unconfirmed_new_panel(self) -> None:
+        """A changed panel fingerprint clears the repeat-click guard without a kill increase."""
+        med = make_mediator()
+        fr = make_frame()
+        btn = MatchResult("treasure_button", 0.95, 100, 100, 20, 20, 100, 100)
+        med._hitch_last_treasure_unconfirmed_fp = "old-panel"
+        med._panel_state = PanelState.CLOSED
+        med._panel_cooldown_until["treasure"] = 0.0
+        med._panel_opened_by_us = None
+        med._choice_target = "treasure"
+        with patch.object(med, "_panel_physical_fingerprint", return_value="new-panel"), \
+             patch.object(med, "_merchant_kill_balance", return_value=1), \
+             patch.object(med, "_hud_button_hit", return_value=btn), \
+             patch.object(med, "act_click", return_value=True) as click:
+            assert med._maybe_open_choice_panel(fr) == LoopAction.Continue
+            click.assert_called_once()
+            assert med._hitch_last_treasure_unconfirmed_fp is None
 
     def test_2_refresh_budget_whole_session_cap(self) -> None:
         """Requirement 2: Refresh budget capped across session (<=3) and consecutive no-picks."""
@@ -198,6 +160,7 @@ class TestHitchTreasureVGate:
         """Requirement 4: giveUp anchor forces classification to skill, even if opened by V."""
         med = make_mediator()
         med._panel_opened_by_us = "treasure"
+        med._treasure_open_request_fp = "before-v"
         fr = make_frame()
 
         giveup_hit = MatchResult("giveUp", 0.963, 640, 600, 20, 20, 640, 600)
@@ -207,7 +170,8 @@ class TestHitchTreasureVGate:
                 return giveup_hit
             return None
 
-        with patch.object(med, "find", side_effect=mock_find):
+        with patch.object(med, "find", side_effect=mock_find), \
+             patch.object(med, "_panel_physical_fingerprint", return_value="before-v"):
             kind = med._panel_kind_of(fr, anchor=giveup_hit)
             assert kind == "skill"
             assert kind != "treasure"
@@ -216,6 +180,7 @@ class TestHitchTreasureVGate:
         """Requirement: Proactively opened by V, but only generic hide matches: must NOT classify as treasure."""
         med = make_mediator()
         med._panel_opened_by_us = "treasure"
+        med._treasure_open_request_fp = "before-v"
         fr = make_frame()
 
         hide_hit = MatchResult("hide", 0.95, 700, 600, 20, 20, 700, 600)
@@ -225,7 +190,8 @@ class TestHitchTreasureVGate:
                 return hide_hit
             return None
 
-        with patch.object(med, "find", side_effect=mock_find):
+        with patch.object(med, "find", side_effect=mock_find), \
+             patch.object(med, "_panel_physical_fingerprint", return_value="before-v"):
             kind = med._panel_kind_of(fr, anchor=hide_hit)
             assert kind != "treasure"
             assert kind == "unknown"

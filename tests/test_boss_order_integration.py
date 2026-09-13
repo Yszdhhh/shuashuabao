@@ -24,7 +24,8 @@ import cv2
 import numpy as np
 import pytest
 
-from shuabao.mediator import LoopAction, Mediator, Phase
+from shuabao.mediator import LoopAction, MatchResult, Mediator, Phase
+from shuabao.policy.boss_order import VisibleCard
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 
@@ -472,6 +473,49 @@ def test_boss_challenge_skipped_consecutive_warn_log(base_patches):
         assert "警告：时光之穴连续 2 局没有认出任何卡" in stdout_buf.getvalue()
         assert med.phase != Phase.ERROR
         assert not med.stop_signal.is_set()
+
+
+def test_grid_partial_row_proves_last_boss_only_after_two_frames():
+    """A full row followed by 37 and an empty 38 is a fast, safe bottom witness."""
+    med = Mediator(Settings(sgzx_boss="53拉贾克斯将军", ocr_mode="off"), ROOT)
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
+    pairs = []
+    for no in range(33, 38):
+        col, row = divmod(no - 1, 4)
+        x, y = 100 + row * 80, 220 + col * 80
+        card = VisibleCard(no, f"{no:02d}", x, y, 58, 58, 0.95)
+        hit = MatchResult(f"boss/{no:02d}", 0.95, x, y, 58, 58, x + 29, y + 29)
+        pairs.append((card, hit))
+
+    first, candidate = med._post_game_boss_grid_end_card(
+        frame, "ARCHIVE_PANEL", pairs, lambda _box: True
+    )
+    assert candidate is True
+    assert first is None
+    second, confirmed = med._post_game_boss_grid_end_card(
+        frame, "ARCHIVE_PANEL", pairs, lambda _box: True
+    )
+    assert confirmed is True
+    assert second is not None
+    assert second.name == "boss/37"
+
+
+def test_heirloom_dialog_keeps_boss_attempt_when_pending_flag_was_lost():
+    """A classified heirloom dialog must not close before its configured Boss is attempted."""
+    med = Mediator(Settings(cjb_boss="18乌索克", ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE, "heirloom regression")
+    med._post_game_pending = False
+    med._post_game_route = "heirloom_active"
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
+
+    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+         patch.object(med, "_maybe_challenge_configured_boss", return_value=LoopAction.Continue) as boss, \
+         patch.object(med, "_find_heirloom_close") as close:
+        action = med._tick_main_line(frame)
+
+    assert action == LoopAction.Continue
+    boss.assert_called_once()
+    close.assert_not_called()
 
 
 
