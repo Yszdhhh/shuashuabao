@@ -19,6 +19,12 @@ describe("hitch dashboard contract", () => {
     expect(dashboard).toContain('id="hitchSearchSummary"');
   });
 
+  it("escapes user search terms and backend subscription text in the launch summary", () => {
+    // 摘要用 innerHTML 渲染，页面可调用 QWebChannel facade：用户/后端字符串必须转义。
+    expect(dashboard).toContain("esc(window.hitchSearchTerms.terms ? window.hitchSearchTerms.terms.join(\",\")");
+    expect(dashboard).toContain('esc(state.subscription.status || "未激活")');
+  });
+
   it("removes sandbox toast for btnHitchAdvanced", () => {
     expect(dashboard).not.toContain('高级搜房：沙盒仅展示入口');
   });
