@@ -142,7 +142,7 @@ def test_archive_panel_target_not_unlocked_bottom_fallback(base_patches):
     assert action == LoopAction.Continue
     assert len(clicked) == 1
     hit, reason = clicked[0]
-    assert reason == "BossBottomFallback"
+    assert reason == "BossNotUnlockedLast"
     # Log contains BossNotUnlockedLast
     assert "BossNotUnlockedLast" in stdout_buf.getvalue()
 
@@ -199,7 +199,7 @@ def test_heirloom_dialog_target_not_unlocked_bottom_fallback(base_patches):
 
     assert len(clicked) == 1
     hit, reason = clicked[0]
-    assert reason == "BossBottomFallback"
+    assert reason == "BossNotUnlockedLast"
     assert "03" in hit.name or "洛卡纳哈" in hit.name
     assert "BossNotUnlockedLast" in stdout_buf.getvalue()
 
@@ -350,4 +350,128 @@ def test_p1_4_heirloom_dialog_scrollbar_at_top_requires_two_stable_frames():
 
     # At bottom must be False because thumb is at the top
     assert med._post_game_boss_list_at_bottom(frame, "HEIRLOOM_DIALOG") is False
+
+
+def test_boss_order_locate_failed_fallback_clicks_last_card(base_patches):
+    """When target locate attempts are exhausted, clicks last card with BossOrderLocateFailed."""
+    frame = load_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+    settings = Settings(cjb_boss="18乌索克", mode_id="solo", ocr_mode="off")
+    med = Mediator(settings, ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+    med._boss_challenge_locate_attempts = 3
+    med._boss_challenge_locate_exhausted = True
+
+    clicked = []
+    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+         patch.object(med, "find", return_value=None), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        # Frame 1: stable count 1
+        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0)
+        # Frame 2: stable count 2 -> bottom confirmed, locate exhausted -> fallback
+        action = med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=1.0)
+
+    assert action == LoopAction.Continue
+    assert len(clicked) == 1
+    hit, reason = clicked[0]
+    assert reason == "BossOrderLocateFailed"
+    assert "03" in hit.name or "洛卡纳哈" in hit.name
+
+
+def test_boss_last_visible_fallback_when_unresolved_limit_exceeded(base_patches):
+    """When list is not at bottom and unresolved limit exceeded, falls back to physically last card."""
+    frame = load_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+    settings = Settings(sgzx_boss="55吞咽者布鲁", mode_id="solo", ocr_mode="off")
+    med = Mediator(settings, ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+    med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+
+    clicked = []
+    with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+         patch.object(med, "find", return_value=None), \
+         patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        # Ticks 1 and 2: unresolved attempts 1, 2
+        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=0.1)
+        med._maybe_challenge_configured_boss(frame, 11.0, recheck_s=0.1)
+        # Tick 3: unresolved limit (3) exceeded -> falls back to physically last visible card
+        action = med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=0.1)
+
+    assert action == LoopAction.Continue
+    assert len(clicked) == 1
+    hit, reason = clicked[0]
+    assert reason == "BossLastVisibleFallback"
+    assert "09" in hit.name or "摩拉迪姆" in hit.name
+    assert med.phase != Phase.ERROR
+    assert not med.stop_signal.is_set()
+
+
+def test_boss_challenge_skipped_on_all_black_frame(base_patches):
+    """When no boss card is recognized on all-black frame, retries with pointer park then skips."""
+    black_frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
+    settings = Settings(sgzx_boss="01霍格", mode_id="solo", ocr_mode="off")
+    med = Mediator(settings, ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+    med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+
+    moved = []
+    clicked = []
+    with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+         patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
+         patch.object(med, "act_move", side_effect=lambda x, y, reason="": moved.append((x, y, reason)) or True), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        # 2 unresolved ticks + 6 anomaly retry ticks = 8 ticks
+        for t in range(1, 9):
+            action = med._maybe_challenge_configured_boss(black_frame, float(t), recheck_s=0.1)
+            assert action == LoopAction.Continue
+
+    # Pointer park occurred during anomaly retries
+    assert len(moved) >= 1
+    assert any("BossAnomalyParkPointer" in reason for _, _, reason in moved)
+    # Never clicked any card
+    assert len(clicked) == 0
+    # Did NOT enter ERROR, did NOT stop
+    assert med.phase != Phase.ERROR
+    assert not med.stop_signal.is_set()
+    # Advanced to close path
+    assert med._time_cave_boss_done is True
+    assert med._post_game_route == "archive"
+
+
+def test_boss_challenge_skipped_consecutive_warn_log(base_patches):
+    """When anomaly skip happens for 2 consecutive rounds, a warn-level log is emitted."""
+    black_frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
+    settings = Settings(sgzx_boss="01霍格", mode_id="solo", ocr_mode="off")
+    med = Mediator(settings, ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+    med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+
+    stdout_buf = io.StringIO()
+    with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+         patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
+         patch.object(med, "act_move", return_value=True), \
+         contextlib.redirect_stdout(stdout_buf):
+        # Round 1: complete 8 ticks to skip
+        for t in range(1, 9):
+            med._maybe_challenge_configured_boss(black_frame, float(t), recheck_s=0.1)
+        assert getattr(med, "_boss_anomaly_skip_counts", {}).get("ARCHIVE_PANEL") == 1
+        assert "警告：时光之穴连续 2 局没有认出任何卡" not in stdout_buf.getvalue()
+
+        # Arm round 2
+        med._time_cave_boss_done = False
+        med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+        for t in range(9, 17):
+            med._maybe_challenge_configured_boss(black_frame, float(t), recheck_s=0.1)
+        assert getattr(med, "_boss_anomaly_skip_counts", {}).get("ARCHIVE_PANEL") == 2
+        assert "警告：时光之穴连续 2 局没有认出任何卡" in stdout_buf.getvalue()
+        assert med.phase != Phase.ERROR
+        assert not med.stop_signal.is_set()
+
+
 

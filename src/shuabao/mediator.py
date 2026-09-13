@@ -83,7 +83,7 @@ from shuabao.policy.boss_order import (
     LOCATE_FAILURE_FALLBACK_DEFAULT,
 )
 from shuabao.vision.ocr_shadow.client import ShadowClient
-from shuabao.log_sink import emit_print as print  # noqa: A001
+from shuabao.log_sink import LOGGER, emit_print as print  # noqa: A001
 from shuabao.lobby_hitch import (
     JOIN_ATTEMPTS,
     FollowPhase,
@@ -5846,6 +5846,7 @@ class Mediator:
         "HEIRLOOM_DIALOG": (0.620, 0.268, 0.626, 0.535),
     }
     _POST_GAME_BOSS_SCALES = (0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.80)
+    _BOSS_WIDE_SCALES = (0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90)
     # Compact post-game cards are rendered with a small overlay/border
     # difference from the source templates. Keep the normal entry threshold
     # unchanged; this lower bound applies only inside a classified post-game
@@ -6179,7 +6180,7 @@ class Mediator:
         )
 
     def _find_last_recognized_post_game_boss(
-        self, frame: Frame, post_game: str | None
+        self, frame: Frame, post_game: str | None, scales: Sequence[float] | None = None
     ) -> MatchResult | None:
         """Find the physically last card on a classified, bottomed-out list."""
         subdir = {
@@ -6191,12 +6192,13 @@ class Mediator:
             return None
 
         names = [f"{subdir}/{path.stem}" for path in (self.images / subdir).glob("*.png")]
+        use_scales = scales if scales is not None else self._adapt_scales(self._POST_GAME_BOSS_SCALES)
         hits = match_all(
             frame,
             self.images,
             names,
             threshold=self._POST_GAME_BOSS_MATCH_THRESHOLD,
-            scales=self._adapt_scales(self._POST_GAME_BOSS_SCALES),
+            scales=use_scales,
             roi=roi,
             max_results=96,
         )
@@ -6210,6 +6212,104 @@ class Mediator:
                     continue
             valid_hits.append(hit)
         return max(valid_hits, key=lambda hit: (hit.y + hit.h, hit.x + hit.w), default=None)
+
+    def _record_boss_challenge_skipped_incident(
+        self, page_type: str, reason: str = "anomaly"
+    ) -> None:
+        """Record an incident when boss challenge is skipped due to unrecognized cards."""
+        if getattr(self, "_archiver", None) is None:
+            return
+        frame = self._last_frame
+        if frame is None or frame.bgr is None or frame.bgr.size == 0:
+            return
+        self._archiver.maybe_record(
+            frame_before=self._prev_frame or frame,
+            frame_now=frame,
+            metadata=self._incident_meta(
+                "boss_challenge_skipped",
+                f"boss challenge on {page_type} skipped: {reason}",
+                final_action="skip",
+                extra={"page_type": page_type, "reason": reason},
+            ),
+        )
+
+    def _handle_boss_anomaly_retry_or_skip(
+        self, frame: Frame, now: float, post_game: str | None, recheck_s: float
+    ) -> tuple[LoopAction, MatchResult | None, str]:
+        """Handle anomaly when not a single boss card can be recognized.
+
+        Returns (LoopAction, boss_hit, action_name):
+        - If wide scale retry finds a card: returns (LoopAction.Continue, boss_hit, "BossLastVisibleFallback")
+        - If still retrying (pointer park + wait): returns (LoopAction.Continue, None, "")
+        - If retries exhausted: records incident, tracks consecutive skips, emits warning if >= 2,
+          and skips boss challenge into close path, returning (LoopAction.Continue, None, "SKIPPED")
+        """
+        anomaly_limit = self._POST_GAME_BOSS_UNRESOLVED_LIMIT * 2
+        self._boss_anomaly_retry_attempts = getattr(self, "_boss_anomaly_retry_attempts", 0) + 1
+
+        # 1. 鼠标停车清理悬停遮挡
+        if self._POINTER_PARK is not None:
+            self.act_move(
+                int(frame.width * self._POINTER_PARK[0]),
+                int(frame.height * self._POINTER_PARK[1]),
+                "BossAnomalyParkPointer",
+            )
+
+        # 2. 用更宽尺度重新识别一次
+        wide_card = self._find_last_recognized_post_game_boss(
+            frame, post_game, scales=self._adapt_scales(self._BOSS_WIDE_SCALES)
+        )
+        if wide_card is not None:
+            self._boss_anomaly_retry_attempts = 0
+            self._boss_challenge_unresolved_attempts = 0
+            print(f"[med] [BossLastVisibleFallback] 宽尺度重试成功命中末卡 {wide_card.name} @ {wide_card.center}")
+            return (LoopAction.Continue, wide_card, "BossLastVisibleFallback")
+
+        if self._boss_anomaly_retry_attempts < anomaly_limit:
+            self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
+            print(
+                f"[med] Boss 列表未认出任何卡片，鼠标停车并以宽尺度重试 "
+                f"({self._boss_anomaly_retry_attempts}/{anomaly_limit})"
+            )
+            return (LoopAction.Continue, None, "")
+
+        # 达到 2 倍上限，全部失败，跳过本次 Boss 挑战
+        print(
+            f"[med] [BossChallengeSkipped] 一张卡都认不出，重试 {self._boss_anomaly_retry_attempts} 次耗尽，"
+            f"跳过本次 Boss 挑战 (reason=anomaly)"
+        )
+        self._trace_actions.append({
+            "intent": "boss_challenge_skipped",
+            "reason": "anomaly",
+            "page": post_game,
+        })
+        if not hasattr(self, "_boss_anomaly_skip_counts"):
+            self._boss_anomaly_skip_counts = {}
+        consecutive = self._boss_anomaly_skip_counts.get(post_game or "", 0) + 1
+        self._boss_anomaly_skip_counts[post_game or ""] = consecutive
+        if consecutive >= 2:
+            page_title = "时光之穴" if post_game == "ARCHIVE_PANEL" else ("传家宝" if post_game == "HEIRLOOM_DIALOG" else (post_game or ""))
+            warn_msg = f"警告：{page_title}连续 {consecutive} 局没有认出任何卡，请检查分辨率 / 遮挡"
+            print(f"[med] {warn_msg}")
+            LOGGER.warning(warn_msg)
+
+        self._record_boss_challenge_skipped_incident(post_game or "", reason="anomaly")
+
+        self._boss_anomaly_retry_attempts = 0
+        self._boss_challenge_unresolved_attempts = 0
+        self._boss_challenge_attempts = 0
+
+        # 进入关闭/继续路径，绝不停机
+        if post_game == "ARCHIVE_PANEL":
+            self._time_cave_boss_done = True
+            self._post_game_route = "archive"
+        elif post_game == "HEIRLOOM_DIALOG":
+            self._boss_challenge_attempts = 3
+            self._heirloom_boss_confirm_unconfirmed = True
+            if self._post_game_pending and getattr(self, "_post_game_route", "") == "heirloom_active":
+                self._post_game_pending = False
+
+        return (LoopAction.Continue, None, "SKIPPED")
 
     def _bbox_to_normalized_roi(
         self, frame: Frame, bbox: tuple[int, int, int, int], padding: int = 12
@@ -6957,52 +7057,58 @@ class Mediator:
                 boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
                 used_fallback = boss_hit is not None
                 if boss_hit is None:
-                    self._boss_challenge_unresolved_attempts += 1
-                    if self._boss_challenge_unresolved_attempts >= self._POST_GAME_BOSS_UNRESOLVED_LIMIT:
-                        self.set_phase(Phase.ERROR, "bottomed Boss list has no verified last card")
-                        self.stop()
-                        return LoopAction.Break
-                    self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
-                    print("[med] Boss 列表已到底，但未找到可验证的物理最后一张卡，零输入等待")
-                    return LoopAction.Continue
-                action_name = "BossBottomFallback"
-                source = "未配置" if not bosses else f"配置 Boss {bosses} 未解锁 (T > L)"
-                print(f"[med] [BossNotUnlockedLast] {source}，列表已确认到底，兜底点击物理最后卡 {boss_hit.name} @ {boss_hit.center}")
+                    loop_act, boss_hit, act_name = self._handle_boss_anomaly_retry_or_skip(frame, now, post_game, recheck_s)
+                    if boss_hit is not None:
+                        used_fallback = True
+                        action_name = act_name
+                    else:
+                        return loop_act
+                else:
+                    action_name = "BossNotUnlockedLast" if bosses else "BossBottomFallback"
+                    source = "未配置" if not bosses else f"配置 Boss {bosses} 未解锁 (T > L)"
+                    print(f"[med] [BossNotUnlockedLast] {source}，列表已确认到底，兜底点击物理最后卡 {boss_hit.name} @ {boss_hit.center}")
             elif decision.action == BossOrderAction.CLICK_LAST_LOCATE_FAILED:
-                if LOCATE_FAILURE_FALLBACK_DEFAULT == "last_card":
-                    boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
-                    used_fallback = boss_hit is not None
-                    if boss_hit is None:
-                        self._boss_challenge_unresolved_attempts += 1
-                        if self._boss_challenge_unresolved_attempts >= self._POST_GAME_BOSS_UNRESOLVED_LIMIT:
-                            self.set_phase(Phase.ERROR, "Boss locate failed and no last card found")
-                            self.stop()
-                            return LoopAction.Break
-                        self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
-                        return LoopAction.Continue
+                boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
+                used_fallback = boss_hit is not None
+                if boss_hit is None:
+                    loop_act, boss_hit, act_name = self._handle_boss_anomaly_retry_or_skip(frame, now, post_game, recheck_s)
+                    if boss_hit is not None:
+                        used_fallback = True
+                        action_name = act_name
+                    else:
+                        return loop_act
+                else:
                     action_name = "BossOrderLocateFailed"
                     print(
                         f"[med] BossOrderLocateFailed: 目标 Boss {bosses} 定位失败（尝试耗尽），"
                         f"兜底点击末卡 {boss_hit.name} @ {boss_hit.center}"
                     )
                     self._record_boss_locate_failed_incident(bosses, boss_hit.name)
-                else:
-                    self.set_phase(Phase.ERROR, "Boss order locate failed")
-                    self.stop()
-                    return LoopAction.Break
             elif decision.action == BossOrderAction.WAIT:
                 self._boss_challenge_unresolved_attempts += 1
                 if self._boss_challenge_unresolved_attempts >= self._POST_GAME_BOSS_UNRESOLVED_LIMIT:
-                    self.set_phase(Phase.ERROR, "Boss challenge unresolved limit exceeded")
-                    self.stop()
-                    return LoopAction.Break
-                self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
-                print(f"[med] {decision.reason}，零输入等待")
-                return LoopAction.Continue
-            elif decision.action == BossOrderAction.FAIL_CLOSED:
-                self.set_phase(Phase.ERROR, decision.reason)
-                self.stop()
-                return LoopAction.Break
+                    last_card = self._find_last_recognized_post_game_boss(frame, post_game)
+                    if last_card is not None:
+                        boss_hit = last_card
+                        used_fallback = True
+                        action_name = "BossLastVisibleFallback"
+                        self._boss_challenge_unresolved_attempts = 0
+                        print(
+                            f"[med] [BossLastVisibleFallback] {decision.reason}，未决达到上限 "
+                            f"({self._POST_GAME_BOSS_UNRESOLVED_LIMIT})，兜底点击画面内物理最后卡 "
+                            f"{boss_hit.name} @ {boss_hit.center}"
+                        )
+                    else:
+                        loop_act, boss_hit, act_name = self._handle_boss_anomaly_retry_or_skip(frame, now, post_game, recheck_s)
+                        if boss_hit is not None:
+                            used_fallback = True
+                            action_name = act_name
+                        else:
+                            return loop_act
+                else:
+                    self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
+                    print(f"[med] {decision.reason}，零输入等待")
+                    return LoopAction.Continue
 
         self._boss_challenge_attempts += 1
         delay = (
@@ -7022,6 +7128,9 @@ class Mediator:
             print(f"[med] Boss 挑战：点击配置 Boss {boss_hit.name} @ {boss_hit.center} (尝试 {self._boss_challenge_attempts}/3)")
         if self.act_click(boss_hit, action_name):
             self._main_line_since = now
+            self._boss_anomaly_retry_attempts = 0
+            if hasattr(self, "_boss_anomaly_skip_counts") and post_game in self._boss_anomaly_skip_counts:
+                self._boss_anomaly_skip_counts[post_game] = 0
             if post_game == "ARCHIVE_PANEL":
                 self._time_cave_boss_done = True
                 self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
@@ -14834,17 +14943,12 @@ class Mediator:
                 # boss_action is None：入口或卡面本 tick 未能识别，计入观察预算。
                 self._time_cave_boss_search_attempts += 1
                 if self._boss_challenge_attempts >= 3 or self._time_cave_boss_search_attempts >= 5:
-                    if self._passenger_mode():
-                        print("[med] 蹭车时光之穴 Boss 未能识别或确认，跳过该步并继续关闭存档面板")
-                        self._time_cave_boss_done = True
-                        self._boss_challenge_attempts = 0
-                        self._time_cave_boss_search_attempts = 0
-                        # 落到下方 _find_archive_panel_close 关闭存档面板
-                    else:
-                        print("[med] 时光之穴 Boss 兜底选择未确认，Fail-Closed 停止运行")
-                        self.set_phase(Phase.ERROR, "time-cave Boss selection unconfirmed")
-                        self.stop()
-                        return LoopAction.Break
+                    print("[med] 时光之穴 Boss 未能识别或确认，跳过该步并继续关闭存档面板")
+                    self._time_cave_boss_done = True
+                    self._boss_challenge_attempts = 0
+                    self._time_cave_boss_search_attempts = 0
+                    self._post_game_route = "archive"
+                    # 落到下方 _find_archive_panel_close 关闭存档面板
                 else:
                     return LoopAction.Continue
 

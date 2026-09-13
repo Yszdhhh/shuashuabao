@@ -770,7 +770,7 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(action, LoopAction.Continue)
         clicked, reason = click.call_args.args
         self.assertEqual(clicked.name, "09摩拉迪姆")
-        self.assertEqual(reason, "BossBottomFallback")
+        self.assertEqual(reason, "BossNotUnlockedLast")
 
     def test_heirloom_unavailable_boss_falls_back_to_last_card_only_after_bottom(self):
         """The same production handler reuses heirloom templates after bottom proof."""
@@ -787,7 +787,7 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(action, LoopAction.Continue)
         clicked, reason = click.call_args.args
         self.assertEqual(clicked.name, "03洛卡纳哈")
-        self.assertEqual(reason, "BossBottomFallback")
+        self.assertEqual(reason, "BossNotUnlockedLast")
 
     def test_unconfigured_post_game_lists_scroll_to_bottom_then_choose_last_card(self):
         """未设 Boss 时，两类列表都必须到底后才选物理最后卡。"""
@@ -1569,11 +1569,13 @@ class PostGameBossRouteTests(unittest.TestCase):
         frame = self._frame()
         with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
              patch.object(med, "find", return_value=None), \
-             patch.object(med, "_post_game_boss_list_at_bottom", return_value=False):
-            self.assertIs(med._maybe_challenge_configured_boss(frame, 1.0), LoopAction.Continue)
-            self.assertIs(med._maybe_challenge_configured_boss(frame, 2.0), LoopAction.Continue)
-            self.assertIs(med._maybe_challenge_configured_boss(frame, 3.0), LoopAction.Break)
-        self.assertIs(med.phase, Phase.ERROR)
+             patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
+             patch.object(med, "act_move", return_value=True):
+            for t in range(1, 9):
+                self.assertIs(med._maybe_challenge_configured_boss(frame, float(t)), LoopAction.Continue)
+        self.assertNotEqual(med.phase, Phase.ERROR)
+        self.assertTrue(med._time_cave_boss_done)
+        self.assertFalse(med.stop_signal.is_set())
 
     def test_compact_boss_scales_cover_the_shrunken_cards(self):
         """战后卡片被缩到 58~70px；尺度阶梯必须罩住这一档。"""

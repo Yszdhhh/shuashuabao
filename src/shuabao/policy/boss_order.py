@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Optional, Sequence
 
-# 定位失败时的收口默认行为：默认点末卡；可选 "fail_closed"
+# 定位失败时的收口行为：固定点末卡，不再停机
 LOCATE_FAILURE_FALLBACK_DEFAULT: str = "last_card"
 
 
@@ -64,7 +64,6 @@ class BossOrderAction(str, Enum):
     CLICK_LAST_NOT_UNLOCKED = "CLICK_LAST_NOT_UNLOCKED"
     CLICK_LAST_LOCATE_FAILED = "CLICK_LAST_LOCATE_FAILED"
     WAIT = "WAIT"
-    FAIL_CLOSED = "FAIL_CLOSED"
 
 
 @dataclass(frozen=True)

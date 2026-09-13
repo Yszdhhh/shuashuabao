@@ -47,7 +47,7 @@ describe("hitch dashboard contract", () => {
   });
 
   it("displays fallback hint text on hitch, follow, and solo boss configuration sections", () => {
-    const hint = "找不到时：已解锁则按顺序定位，未解锁则选最后一个";
+    const hint = "找不到时：按顺序定位，仍找不到就选能点到的最后一个";
     const matches = dashboard.match(new RegExp(hint, "g"));
     expect(matches).not.toBeNull();
     expect(matches!.length).toBe(3);
