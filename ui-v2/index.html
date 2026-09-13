@@ -5519,7 +5519,7 @@
       const subOk = isSubscriptionOk();
       const teamMode = state.mode === "hitch" || state.mode === "follow";
       const launchBlocked = (!teamMode && current.length === 0) || !subOk;
-      const launchStatus = (!teamMode && current.length === 0) ? "请先选择技能" : (subOk ? "等待后端预检" : `订阅${state.subscription.status || "未激活"}`);
+      const launchStatus = (!teamMode && current.length === 0) ? "请先选择技能" : (subOk ? "等待后端预检" : `订阅${esc(state.subscription.status || "未激活")}`);
       const rankedSkills = [...state.priority.filter((code)=>current.includes(code)), ...current.filter((code)=>!state.priority.includes(code))].slice(0,4);
       const detailTags = [
         `秘境 ${state.autoSecret ? "开" : "关"}`,
@@ -5537,13 +5537,13 @@
       const skillSummary = rankedSkills.length ? `<div class="launch-skills">${rankedSkills.map((code)=>`<span class="launch-skill">${SKILLS[code]}</span>`).join("")}</div>` : `<p class="deck-note">暂未选择技能。</p>`;
       const prestigeValue = state.hero ? (factions.join("、") || "已启用，待选择") : "未启用";
       const subValue = subOk
-        ? (formatExpire(state.subscription.expires_at) ? `正常 · ${formatExpire(state.subscription.expires_at).slice(5)} 到期` : "正常")  // 核对栏窄，只写月-日
-        : (state.subscription.status || "未激活");
+        ? (formatExpire(state.subscription.expires_at) ? `正常 · ${esc(formatExpire(state.subscription.expires_at).slice(5))} 到期` : "正常")  // 核对栏窄，只写月-日
+        : esc(state.subscription.status || "未激活");
       // 核心事实常显、放大；技能 / 常规 / 卡组只给一行摘要，点开才看标签明细
       const onCount = [state.autoSecret, state.autoArch, state.dragonPrefer, state.closeMainline, state.newRoom].filter(Boolean).length;
       const skillSum = rankedSkills.length ? `${rankedSkills.length} 个 · 主C ${SKILLS[rankedSkills[0]]}` : `<b class="is-bad">未选择</b>`;
       const deckSum = `基础 ${selectedBasics.length} · 高级 ${advancedOrder.length ? advancedOrder.map((p)=>p.label).join("›") : "无"}`;
-      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><dl class="launch-facts"><div><dt>${state.mode === "hitch" ? "搜房" : (state.mode === "follow" ? "跟车" : "关卡")}</dt><dd>${state.mode === "hitch" ? (window.hitchSearchTerms ? (window.hitchSearchTerms.terms ? window.hitchSearchTerms.terms.join(",") : `${window.hitchSearchTerms.primary},${window.hitchSearchTerms.secondary}`) : "4,3,速") : (state.mode === "follow" ? "已在房间" : `${state.chapter}-${state.stage}`)} · ${state.mode === "hitch" ? (state.teamRules?.hitch?.cycle ? `${state.teamRules.hitch.cycle} 局` : "手动停") : (state.mode === "follow" ? (state.teamRules?.follow?.cycle ? `${state.teamRules.follow.cycle} 局` : "手动停") : (state.cycle ? `${state.cycle} 局` : "手动停"))}</dd></div><div><dt>方式</dt><dd>${MODE_LABEL_FULL[state.mode]||MODE_LABEL[state.mode]||"单刷"}</dd></div><div><dt>声望</dt><dd>${prestigeValue}</dd></div><div><dt>传家宝</dt><dd>${stemLabel(state.cjb)||"未选"}</dd></div><div><dt>Boss</dt><dd>${stemLabel(state.boss)||"未选"}</dd></div><div><dt>订阅</dt><dd>${subValue}</dd></div></dl>`
+      $("selectedDeck").innerHTML = `<p class="launch-ready${launchBlocked ? " is-blocked" : ""}"><i></i>${launchStatus}</p><dl class="launch-facts"><div><dt>${state.mode === "hitch" ? "搜房" : (state.mode === "follow" ? "跟车" : "关卡")}</dt><dd>${state.mode === "hitch" ? (window.hitchSearchTerms ? esc(window.hitchSearchTerms.terms ? window.hitchSearchTerms.terms.join(",") : `${window.hitchSearchTerms.primary},${window.hitchSearchTerms.secondary}`) : "4,3,速") : (state.mode === "follow" ? "已在房间" : `${state.chapter}-${state.stage}`)} · ${state.mode === "hitch" ? (state.teamRules?.hitch?.cycle ? `${state.teamRules.hitch.cycle} 局` : "手动停") : (state.mode === "follow" ? (state.teamRules?.follow?.cycle ? `${state.teamRules.follow.cycle} 局` : "手动停") : (state.cycle ? `${state.cycle} 局` : "手动停"))}</dd></div><div><dt>方式</dt><dd>${MODE_LABEL_FULL[state.mode]||MODE_LABEL[state.mode]||"单刷"}</dd></div><div><dt>声望</dt><dd>${prestigeValue}</dd></div><div><dt>传家宝</dt><dd>${stemLabel(state.cjb)||"未选"}</dd></div><div><dt>Boss</dt><dd>${stemLabel(state.boss)||"未选"}</dd></div><div><dt>订阅</dt><dd>${subValue}</dd></div></dl>`
         + foldBlock("skills", "技能", skillSum, skillSummary)
         + foldBlock("rules", "常规", `${onCount} 项开启`, `<div class="deck-tags">${detailTags.map((item)=>`<span class="deck-tag">${item}</span>`).join("")}</div>`)
         + foldBlock("deck", "卡组", deckSum, `<p class="launch-sub">基础${state.bondSaved ? " · 已锁定" : ""}</p>${basicSummary}<p class="launch-sub">高级 · 按顺序</p>${advancedSummary}`);
