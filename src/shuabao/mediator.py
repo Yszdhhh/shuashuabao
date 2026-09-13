@@ -1005,7 +1005,7 @@ class Mediator:
         self._ocr_confirm_key: tuple | None = None
         self._hitch_last_treasure_kill_balance: int | None = None
         self._hitch_treasure_total_refreshes: int = 0
-        self._hitch_last_treasure_unconfirmed_fp: tuple | None = None
+        self._hitch_last_treasure_unconfirmed_fp: str | None = None
         self._treasure_consecutive_no_pick: int = 0
         # L1 运行时技能卡归属：pending = 点击后等待 WAIT_MUTATION 确认（episode 级）；
         # owned = 已确认学得（round 级，set_phase(MAIN_LINE) 重置）。未确认点击
@@ -2433,15 +2433,16 @@ class Mediator:
             )
             if skill_giveup is not None:
                 return "skill"
-            # 宝物必须有专用锚点联合确认
+            # 宝物必须有专用锚点联合确认（通用 hide 不得作为宝物依据）
             has_treasure_anchor = self.find(
-                frame, ["treasure_lock_btn", "treasure_hide_btn", "treasure_refresh_btn", "hide"],
+                frame, ["treasure_lock_btn", "treasure_hide_btn", "treasure_refresh_btn"],
                 threshold=min(0.70, self.settings.match_threshold),
                 scales=self._hot_scales(),
                 roi=self._PANEL_BUTTONS_ROI,
             ) is not None
             if has_treasure_anchor:
                 return "treasure"
+            return None
         elif opened in ("skill", "bond"):
             return opened
         threshold = min(0.70, self.settings.match_threshold)
@@ -2461,7 +2462,6 @@ class Mediator:
         if bond_hide is not None and bond_refresh is not None:
             return "bond"
         # Current treasure and skill panels share refresh/give-up artwork.
-        # The generic hide anchor is near-perfect only on the treasure layout.
         # G 三选也有「暂时隐藏」，treasure_lock 会误匹配遮罩（13号 200601 tick9）。
         # 放弃钮是技能独有；锁模板单独命中不足以为宝物（与 bond 单锚点同纪律）。
         skill_hit = self.find(
@@ -2469,7 +2469,7 @@ class Mediator:
             threshold=threshold, scales=scales, roi=roi,
         )
         treasure_lock = self.find(frame, ["treasure_lock_btn"], threshold=threshold, scales=scales, roi=roi)
-        treasure_hide = self.find(frame, ["treasure_hide_btn", "hide"], threshold=threshold, scales=scales, roi=roi)
+        treasure_hide = self.find(frame, ["treasure_hide_btn"], threshold=threshold, scales=scales, roi=roi)
         treasure_refresh = self.find(frame, ["treasure_refresh_btn"], threshold=threshold, scales=scales, roi=roi)
         if skill_hit is not None and skill_hit.name == "skill_giveup_btn":
             return "skill"
@@ -4111,15 +4111,27 @@ class Mediator:
                     # accrue; pickup, bag and merchant remain reachable.
                     self._advance_l1_cycle("treasure")
                     return LoopAction.Continue
-                # 选卡点击 mutation 未确认保护：杀敌未增长且无新场景时，不得马上重开同一 V
-                if getattr(self, "_hitch_last_treasure_unconfirmed_fp", None) is not None:
-                    if not has_kill_growth and cur_kills is not None:
+                # 选卡点击 mutation 未确认保护：实际比较物理面板指纹，且杀敌未增长时禁止重开
+                cur_fp = self._panel_physical_fingerprint(frame)
+                unconfirmed_fp = getattr(self, "_hitch_last_treasure_unconfirmed_fp", None)
+                if unconfirmed_fp is not None:
+                    if cur_fp is not None and cur_fp == unconfirmed_fp:
+                        print(f"[L1] 画面仍为上次未确认的宝物物理面板指纹（{cur_fp}），跳过 V 推进循环避免重复点击")
+                        self._advance_l1_cycle("treasure")
+                        return LoopAction.Continue
+                    if not has_kill_growth:
                         print(f"[L1] 蹭车宝物上次选卡 mutation 未确认且杀敌未增长（当前 {cur_kills} <= 上次 {last_kills}），跳过 V 避免重复点击")
                         self._advance_l1_cycle("treasure")
                         return LoopAction.Continue
-                    elif has_kill_growth:
+                    elif has_kill_growth and (cur_fp is None or cur_fp != unconfirmed_fp):
                         self._hitch_last_treasure_unconfirmed_fp = None
-                # 杀敌余额门槛检查：上次已记录过杀敌余额，且当前明确读出杀敌余额未增长，说明并无新的宝物次数
+                # 杀敌余额门槛检查：
+                # 1. 已有上次杀敌数，但当前杀敌 OCR=None：不得 OpenTreasurePanel
+                if last_kills is not None and cur_kills is None:
+                    print(f"[L1] 蹭车宝物已有历史杀敌数 {last_kills}，但当前杀敌 OCR 为空，缺乏新次数凭据，跳过 V 推进循环")
+                    self._advance_l1_cycle("treasure")
+                    return LoopAction.Continue
+                # 2. 当前读出杀敌余额未增长，说明无新次数
                 if (
                     last_kills is not None
                     and cur_kills is not None
@@ -13488,8 +13500,8 @@ class Mediator:
         if anchor.name in {"skill_giveup_btn"}:
             return "skill"
         if opened == "treasure":
-            # 宝物面板必须有 treasure 专用锚点联合确认，不能把 skill_giveup_btn/skill_refresh_btn/skill_hide 当作宝物依据
-            if anchor.name in {"treasure_hide_btn", "treasure_lock_btn", "treasure_refresh_btn", "hide"}:
+            # 宝物面板必须有 treasure 专用锚点联合确认，不能把 skill_giveup_btn/skill_refresh_btn/skill_hide/通用 hide 当作宝物依据
+            if anchor.name in {"treasure_hide_btn", "treasure_lock_btn", "treasure_refresh_btn"}:
                 return "treasure"
             has_giveup = self.find(
                 frame, ["skill_giveup_btn"],
@@ -13500,7 +13512,7 @@ class Mediator:
             if has_giveup is not None:
                 return "skill"
             has_treasure_anchor = self.find(
-                frame, ["treasure_lock_btn", "treasure_hide_btn", "treasure_refresh_btn", "hide"],
+                frame, ["treasure_lock_btn", "treasure_hide_btn", "treasure_refresh_btn"],
                 threshold=min(0.70, self.settings.match_threshold),
                 scales=self._hot_scales(),
                 roi=self._PANEL_BUTTONS_ROI,
@@ -13608,6 +13620,7 @@ class Mediator:
                 self._last_bond_attempt = 0.0
             elif self._panel_kind == "treasure":
                 self._last_treasure_attempt = 0.0
+            self._hitch_last_treasure_unconfirmed_fp = None
         elif action == "close":
             fp = self._panel_pending_choice_fingerprint
             hit_name = str(fp[1]).lower() if fp and len(fp) > 1 else ""
@@ -13728,6 +13741,14 @@ class Mediator:
         y2 = int(frame.height * 0.66)
         roi = frame.bgr[y1:y2, x1:x2]
         return roi if roi.size > 0 else None
+
+    def _panel_physical_fingerprint(self, frame: Frame) -> str | None:
+        """计算面板中央三选区域的真实物理图像指纹（MD5 摘要）。"""
+        roi = self._panel_roi_region(frame)
+        if roi is None:
+            return None
+        from shuabao.interaction_surface import compute_frame_roi_fingerprint
+        return compute_frame_roi_fingerprint(roi)
 
     def _verify_action_mutation(self, frame: Frame) -> bool:
         """Alias for _panel_mutation_confirmed verifying post-action frame mutation."""
@@ -13962,6 +13983,15 @@ class Mediator:
                         action_label = "treasure关闭"
                     else:
                         action_label = "treasure选择"
+                        cur_fp = self._panel_physical_fingerprint(frame)
+                        if cur_fp is not None and cur_fp == getattr(self, "_hitch_last_treasure_unconfirmed_fp", None):
+                            print(f"[L1] 宝物面板物理指纹（{cur_fp}）与上次未确认选卡一致，拒绝重复点击同一未响应面板，转 CLOSING")
+                            self._panel_state = PanelState.CLOSING
+                            self._panel_closing_attempts = 0
+                            self._panel_closing_started_at = now
+                            self._panel_opened_by_us = None
+                            self._skill_refresh_attempts = 0
+                            return LoopAction.Continue
                 else:
                     action_label = f"{kind}选择"
                 print(f"[L1] 动作派发: {action_label} [{hit.name}] score={hit.score:.3f} @ {hit.center}")
@@ -13980,8 +14010,8 @@ class Mediator:
                     self._stage_panel_choice_action(
                         action_kind, fingerprint
                     )
-                    if kind == "treasure":
-                        self._hitch_last_treasure_unconfirmed_fp = fingerprint
+                    if kind == "treasure" and action_kind == "select":
+                        self._hitch_last_treasure_unconfirmed_fp = self._panel_physical_fingerprint(frame)
                         cur_kills = self._merchant_kill_balance(frame)
                         if cur_kills is not None:
                             self._hitch_last_treasure_kill_balance = cur_kills
@@ -14019,7 +14049,7 @@ class Mediator:
                             5.0, min(15.0, self.settings.recovery_timeout_s)
                         )
                         if kind == "treasure" and action_kind == "select":
-                            self._hitch_last_treasure_unconfirmed_fp = fingerprint
+                            self._hitch_last_treasure_unconfirmed_fp = self._panel_physical_fingerprint(frame)
                             cur_kills = self._merchant_kill_balance(frame)
                             if cur_kills is not None:
                                 self._hitch_last_treasure_kill_balance = cur_kills

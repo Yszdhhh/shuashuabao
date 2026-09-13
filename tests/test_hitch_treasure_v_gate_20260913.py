@@ -86,6 +86,19 @@ class TestHitchTreasureVGate:
             assert click.call_count == 1
             assert med._hitch_last_treasure_kill_balance == 15
 
+        # Step 4: Had last kills (15), but current kills OCR is None. Must NOT open V.
+        med._panel_state = PanelState.CLOSED
+        med._panel_cooldown_until["treasure"] = 0.0
+        med._panel_opened_by_us = None
+        med._choice_target = "treasure"
+
+        with patch.object(med, "_merchant_kill_balance", return_value=None), \
+             patch.object(med, "_hud_button_hit", return_value=btn), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_open_choice_panel(fr)
+            assert action == LoopAction.Continue
+            click.assert_not_called()
+
     def test_2_refresh_budget_whole_session_cap(self) -> None:
         """Requirement 2: Refresh budget capped across session (<=3) and consecutive no-picks."""
         med = make_mediator()
@@ -148,6 +161,27 @@ class TestHitchTreasureVGate:
             assert kind == "skill"
             assert kind != "treasure"
 
+    def test_4b_opened_treasure_with_only_generic_hide_not_treasure(self) -> None:
+        """Requirement: Proactively opened by V, but only generic hide matches: must NOT classify as treasure."""
+        med = make_mediator()
+        med._panel_opened_by_us = "treasure"
+        fr = make_frame()
+
+        hide_hit = MatchResult("hide", 0.95, 700, 600, 20, 20, 700, 600)
+
+        def mock_find(frame, targets, **kwargs):
+            if "hide" in targets and "treasure_lock_btn" not in targets and "treasure_hide_btn" not in targets and "treasure_refresh_btn" not in targets:
+                return hide_hit
+            return None
+
+        with patch.object(med, "find", side_effect=mock_find):
+            kind = med._panel_kind_of(fr, anchor=hide_hit)
+            assert kind != "treasure"
+            assert kind == "unknown"
+
+            classified = med._classify_choice_panel(fr)
+            assert classified != "treasure"
+
     def test_5_treasure_close_never_falls_back_to_skill_hide(self) -> None:
         """Requirement 5: Treasure close targets only treasure_hide_btn / hide, never skill_hide."""
         med = make_mediator()
@@ -178,21 +212,66 @@ class TestHitchTreasureVGate:
             assert close_hit is None
 
     def test_6_unconfirmed_mutation_blocks_immediate_reopen(self) -> None:
-        """Requirement 6: Unconfirmed mutation prevents immediate reopening of same V."""
+        """Requirement 6: Unconfirmed mutation compares physical panel fingerprint and blocks reopening."""
         med = make_mediator()
-        fr = make_frame()
+        fr1 = make_frame()
+        fr1.bgr[200:300, 400:600] = 120  # distinct ROI pixels
+
+        fr2 = make_frame()
+        fr2.bgr[200:300, 400:600] = 240  # different ROI pixels
+
         btn = MatchResult("treasure_button", 0.95, 100, 100, 20, 20, 100, 100)
-        fp = ((0, 0, 100, 100), 12345)
-        med._hitch_last_treasure_unconfirmed_fp = fp
+
+        # Verify physical fingerprint is actually computed from the frame ROI
+        fp1 = med._panel_physical_fingerprint(fr1)
+        fp2 = med._panel_physical_fingerprint(fr2)
+        assert fp1 is not None and len(fp1) == 16
+        assert fp2 is not None and len(fp2) == 16
+        assert fp1 != fp2
+
+        # Set unconfirmed fingerprint to fp1
+        med._hitch_last_treasure_unconfirmed_fp = fp1
         med._hitch_last_treasure_kill_balance = 10
 
-        with patch.object(med, "_panel_fingerprint", return_value=fp), \
-             patch.object(med, "_merchant_kill_balance", return_value=10), \
+        # Case A: Frame fr1 matches the unconfirmed physical fingerprint.
+        # Even if kills grew (e.g. 20 > 10), it MUST NOT reopen while the same physical panel remains!
+        with patch.object(med, "_merchant_kill_balance", return_value=20), \
              patch.object(med, "_hud_button_hit", return_value=btn), \
              patch.object(med, "act_click", return_value=True) as click:
-            action = med._maybe_open_choice_panel(fr)
+            action = med._maybe_open_choice_panel(fr1)
             assert action == LoopAction.Continue
             click.assert_not_called()
+            assert med._hitch_last_treasure_unconfirmed_fp == fp1
+
+        # Case B: Frame fr2 has a different physical fingerprint and kills grew.
+        # It is now safe to open V, and the unconfirmed fingerprint is cleared.
+        with patch.object(med, "_merchant_kill_balance", return_value=20), \
+             patch.object(med, "_hud_button_hit", return_value=btn), \
+             patch.object(med, "act_click", return_value=True) as click:
+            action = med._maybe_open_choice_panel(fr2)
+            assert action == LoopAction.Continue
+            assert click.call_count == 1
+            assert med._hitch_last_treasure_unconfirmed_fp is None
+
+    def test_6b_mutation_confirmed_clears_unconfirmed_fingerprint(self) -> None:
+        """Requirement: When treasure select mutation is confirmed, unconfirmed fingerprint must be cleared."""
+        med = make_mediator()
+        now = time.time()
+
+        # Direct confirmation via _confirm_panel_choice_action
+        med._hitch_last_treasure_unconfirmed_fp = "deadbeef12345678"
+        med._panel_kind = "treasure"
+        med._stage_panel_choice_action("select", ("treasure", "card_0", 50, 50))
+        med._confirm_panel_choice_action(now)
+        assert med._hitch_last_treasure_unconfirmed_fp is None
+
+        # FSM WAIT_MUTATION confirmation when panel disappears (anchor is None)
+        med._hitch_last_treasure_unconfirmed_fp = "feedbeef87654321"
+        med._panel_kind = "treasure"
+        med._panel_state = PanelState.WAIT_MUTATION
+        med._stage_panel_choice_action("select", ("treasure", "card_0", 50, 50))
+        med._tick_panel_fsm(make_frame(), None, now)
+        assert med._hitch_last_treasure_unconfirmed_fp is None
 
     def test_7_action_labels_distinguished(self) -> None:
         """Requirement 7: Treasure click distinguishes treasure选择, treasure刷新, treasure关闭."""
