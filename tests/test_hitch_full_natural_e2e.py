@@ -180,11 +180,16 @@ def test_readiness_keeps_public_backpack_blocked_until_production_gt() -> None:
 
     assert report["primary_live_scenario"] == PRIMARY_LIVE_SCENARIO
     assert report["production_source_sha"] == candidate_sha
-    assert public["production_entry_status"] == "MISSING"
-    assert public["production_readiness"] == "BLOCKED"
-    assert public["production_missing"] == [
-        "production entry unavailable: _maybe_public_backpack_deposit",
-    ]
+    if CANDIDATE_ROOT != ROOT:
+        assert public["production_entry_status"] == "MISSING"
+        assert public["production_readiness"] == "BLOCKED"
+        assert public["production_missing"] == [
+            "production entry unavailable: _maybe_public_backpack_deposit",
+        ]
+    else:
+        assert public["production_entry_status"] == "PRESENT"
+        assert public["production_readiness"] == "CONDITIONAL"
+        assert public["production_missing"] == []
     assert TARGET_PRODUCTION_FACTS["public_backpack_deposit"]["production_readiness"] == "CONDITIONAL"
 
 
