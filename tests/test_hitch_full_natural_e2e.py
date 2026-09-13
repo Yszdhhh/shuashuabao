@@ -34,6 +34,8 @@ def _candidate_sha() -> str:
     return subprocess.check_output(
         ["git", "-C", str(CANDIDATE_ROOT), "rev-parse", "HEAD"],
         text=True,
+        encoding="utf-8",
+        errors="replace",
     ).strip()
 
 
@@ -105,6 +107,8 @@ def test_candidate_source_identity_is_explicit_and_clean() -> None:
         env=_UTF8_ENV,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert completed.returncode == 0, completed.stderr or completed.stdout
@@ -135,6 +139,8 @@ def test_identity_blocks_when_production_source_sha_missing() -> None:
         env=_UTF8_ENV,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert completed.returncode == 1
@@ -163,6 +169,8 @@ def test_readiness_keeps_public_backpack_blocked_until_production_gt() -> None:
         env=_UTF8_ENV,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     assert completed.returncode == 0, completed.stderr or completed.stdout
