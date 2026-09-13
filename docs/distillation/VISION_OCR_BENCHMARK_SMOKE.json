@@ -1,0 +1,589 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-29T13:12:31+0800",
+  "repo_head": {
+    "repo_head": "ffb3cfdf55980801634b218a078635402f932fe2",
+    "repo_branch": "trial-merge",
+    "repo_dirty": true
+  },
+  "evaluator": {
+    "script": "tools/benchmark_vision_ocr.py",
+    "manifest": "G:\\刷刷宝\\GameScript-Local\\docs\\distillation\\VISION_EVAL_MANIFEST.jsonl",
+    "manifest_sha256": "f880c4b15295e7cee8d096f4077223d8b8d8d3f1d94750efc559ead6012bb878",
+    "manifest_meta": {
+      "capture_session_field": "capture_session",
+      "corpus_root": "fixtures/ocr_choices",
+      "counts": {
+        "blind_holdout": 111,
+        "exact_duplicate_clusters": 0,
+        "exact_duplicate_samples": 0,
+        "near_duplicate_clusters": 4,
+        "near_duplicate_samples": 8,
+        "samples": 155,
+        "sessions": 7,
+        "train_tune": 44,
+        "unique_clusters": 151
+      },
+      "duplicate_algorithm": {
+        "cluster_id_prefix": "phash_dhash_cluster_",
+        "dhash": "8x9 grayscale horizontal gradient, 64-bit",
+        "dhash_max_hamming": 8,
+        "name": "sha256 OR (dHash + pHash) union-find",
+        "phash": "32x32 grayscale DCT low-frequency 8x8, 64-bit",
+        "phash_max_hamming": 16
+      },
+      "format": "jsonl",
+      "generated_at_utc": "2026-08-29T00:00:00+00:00",
+      "schema_version": 3,
+      "session_counts": {
+        "dragonball_webp_20260807": 6,
+        "live_postgame_20260808": 3,
+        "reborn_wow_screens_20260806": 9,
+        "rec1_ingame_boss_20260809": 26,
+        "rec3_260810": 12,
+        "rec5_260808": 87,
+        "rec7_short2_20260808": 12
+      },
+      "source_crop_policy": "source_crop is relative to corpus_root and is hash-verified",
+      "source_manifest": "docs/distillation/VISION_EVAL_ANNOTATIONS.jsonl",
+      "split_policy": "whole capture_session; reject any cluster crossing split"
+    },
+    "corpus_root": "G:\\刷刷宝\\GameScript-Local\\fixtures\\ocr_choices",
+    "corpus_stats": {
+      "samples": 155,
+      "sessions": 7,
+      "train_tune": 44,
+      "blind_holdout": 111,
+      "duplicate_clusters": 151,
+      "near_duplicate_clusters": 4,
+      "exact_duplicate_clusters": 0,
+      "source_files_exist": true
+    },
+    "sample_count_used": 3,
+    "dataset_comparability": {
+      "historical_o3_reference": "docs/baselines/O3_OFFLINE_GATE_20260811.md",
+      "historical_o3_slots": 388,
+      "historical_o3_sessions": 9,
+      "current_dataset_slots": 3,
+      "status": "NOT_COMPARABLE",
+      "reason": "different corpus/schema; this benchmark does not replace historical O3"
+    }
+  },
+  "model": {
+    "name": "PP-OCRv5_mobile_rec",
+    "subdir": "PP-OCRv5_mobile_rec_infer",
+    "manifest": "G:\\刷刷宝\\GameScript-Local\\models\\ocr\\MODEL_MANIFEST.json",
+    "hash_gate": {
+      "passed": true,
+      "checks": [
+        {
+          "file": "G:\\刷刷宝\\GameScript-Local\\models\\ocr\\PP-OCRv5_mobile_rec_infer\\inference.json",
+          "expected_sha256": "24587345250C7332D0FC6F9A44E794D078CDAEB64C302FEF906F325619DE2569",
+          "expected_size_bytes": 217724,
+          "exists": true,
+          "actual_size_bytes": 217724,
+          "actual_sha256": "24587345250C7332D0FC6F9A44E794D078CDAEB64C302FEF906F325619DE2569",
+          "size_ok": true,
+          "hash_ok": true,
+          "passed": true
+        },
+        {
+          "file": "G:\\刷刷宝\\GameScript-Local\\models\\ocr\\PP-OCRv5_mobile_rec_infer\\inference.pdiparams",
+          "expected_sha256": "2460DA90875937C94DB97EBA74AE3D9E5D4C4C57C42F1F41531C09A26BCC771A",
+          "expected_size_bytes": 16458665,
+          "exists": true,
+          "actual_size_bytes": 16458665,
+          "actual_sha256": "2460DA90875937C94DB97EBA74AE3D9E5D4C4C57C42F1F41531C09A26BCC771A",
+          "size_ok": true,
+          "hash_ok": true,
+          "passed": true
+        },
+        {
+          "file": "G:\\刷刷宝\\GameScript-Local\\models\\ocr\\PP-OCRv5_mobile_rec_infer\\inference.yml",
+          "expected_sha256": "5DFEB2777F6D0DB8177D8128A8ACFCF6E6276DC4AC73EA3BF0DC06D6A5E85D8E",
+          "expected_size_bytes": 148345,
+          "exists": true,
+          "actual_size_bytes": 148345,
+          "actual_sha256": "5DFEB2777F6D0DB8177D8128A8ACFCF6E6276DC4AC73EA3BF0DC06D6A5E85D8E",
+          "size_ok": true,
+          "hash_ok": true,
+          "passed": true
+        }
+      ],
+      "error": null
+    },
+    "staged_hash_gate": {
+      "passed": true,
+      "checks": [
+        {
+          "file": "C:\\Users\\10639\\AppData\\Local\\Temp\\shuabao_ocr_benchmark_wdabaqpv\\PP-OCRv5_mobile_rec_infer\\inference.json",
+          "expected_sha256": "24587345250C7332D0FC6F9A44E794D078CDAEB64C302FEF906F325619DE2569",
+          "expected_size_bytes": 217724,
+          "exists": true,
+          "actual_size_bytes": 217724,
+          "actual_sha256": "24587345250C7332D0FC6F9A44E794D078CDAEB64C302FEF906F325619DE2569",
+          "size_ok": true,
+          "hash_ok": true,
+          "passed": true
+        },
+        {
+          "file": "C:\\Users\\10639\\AppData\\Local\\Temp\\shuabao_ocr_benchmark_wdabaqpv\\PP-OCRv5_mobile_rec_infer\\inference.pdiparams",
+          "expected_sha256": "2460DA90875937C94DB97EBA74AE3D9E5D4C4C57C42F1F41531C09A26BCC771A",
+          "expected_size_bytes": 16458665,
+          "exists": true,
+          "actual_size_bytes": 16458665,
+          "actual_sha256": "2460DA90875937C94DB97EBA74AE3D9E5D4C4C57C42F1F41531C09A26BCC771A",
+          "size_ok": true,
+          "hash_ok": true,
+          "passed": true
+        },
+        {
+          "file": "C:\\Users\\10639\\AppData\\Local\\Temp\\shuabao_ocr_benchmark_wdabaqpv\\PP-OCRv5_mobile_rec_infer\\inference.yml",
+          "expected_sha256": "5DFEB2777F6D0DB8177D8128A8ACFCF6E6276DC4AC73EA3BF0DC06D6A5E85D8E",
+          "expected_size_bytes": 148345,
+          "exists": true,
+          "actual_size_bytes": 148345,
+          "actual_sha256": "5DFEB2777F6D0DB8177D8128A8ACFCF6E6276DC4AC73EA3BF0DC06D6A5E85D8E",
+          "size_ok": true,
+          "hash_ok": true,
+          "passed": true
+        }
+      ],
+      "error": null
+    }
+  },
+  "hardware": {
+    "platform": "Windows-10-10.0.19045-SP0",
+    "python": "3.11.15",
+    "device": "cpu",
+    "cpu_threads": 4
+  },
+  "status": "COMPLETED",
+  "metrics": {
+    "current_6_variant": {
+      "overall": {
+        "samples": 3,
+        "truth_known": 3,
+        "recognized": 3,
+        "top1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "fp": 0,
+        "fn": 0,
+        "unmatched": 0,
+        "unknown_truth": 0,
+        "unknown_misnormalization": 0,
+        "unknown_misnormalization_samples": []
+      },
+      "skill": {
+        "samples": 3,
+        "truth_known": 3,
+        "recognized": 3,
+        "top1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "fp": 0,
+        "fn": 0,
+        "unmatched": 0,
+        "unknown_truth": 0
+      },
+      "by_scene": {
+        "skill_choice": {
+          "samples": 3,
+          "truth_known": 3,
+          "recognized": 3,
+          "top1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "fp": 0,
+          "fn": 0,
+          "unmatched": 0,
+          "unknown_truth": 0
+        }
+      },
+      "by_split": {
+        "TRAIN_TUNE": {
+          "samples": 3,
+          "truth_known": 3,
+          "recognized": 3,
+          "top1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "fp": 0,
+          "fn": 0,
+          "unmatched": 0,
+          "unknown_truth": 0
+        }
+      },
+      "by_capture_session": {
+        "rec1_ingame_boss_20260809": {
+          "samples": 3,
+          "truth_known": 3,
+          "recognized": 3,
+          "top1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "fp": 0,
+          "fn": 0,
+          "unmatched": 0,
+          "unknown_truth": 0
+        }
+      },
+      "errors": []
+    },
+    "gray_2x": {
+      "overall": {
+        "samples": 3,
+        "truth_known": 3,
+        "recognized": 3,
+        "top1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "fp": 0,
+        "fn": 0,
+        "unmatched": 0,
+        "unknown_truth": 0,
+        "unknown_misnormalization": 0,
+        "unknown_misnormalization_samples": []
+      },
+      "skill": {
+        "samples": 3,
+        "truth_known": 3,
+        "recognized": 3,
+        "top1": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "fp": 0,
+        "fn": 0,
+        "unmatched": 0,
+        "unknown_truth": 0
+      },
+      "by_scene": {
+        "skill_choice": {
+          "samples": 3,
+          "truth_known": 3,
+          "recognized": 3,
+          "top1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "fp": 0,
+          "fn": 0,
+          "unmatched": 0,
+          "unknown_truth": 0
+        }
+      },
+      "by_split": {
+        "TRAIN_TUNE": {
+          "samples": 3,
+          "truth_known": 3,
+          "recognized": 3,
+          "top1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "fp": 0,
+          "fn": 0,
+          "unmatched": 0,
+          "unknown_truth": 0
+        }
+      },
+      "by_capture_session": {
+        "rec1_ingame_boss_20260809": {
+          "samples": 3,
+          "truth_known": 3,
+          "recognized": 3,
+          "top1": 1.0,
+          "precision": 1.0,
+          "recall": 1.0,
+          "fp": 0,
+          "fn": 0,
+          "unmatched": 0,
+          "unknown_truth": 0
+        }
+      },
+      "errors": []
+    }
+  },
+  "performance": {
+    "model_load_seconds": 2.5512121999636292,
+    "current_6_variant": {
+      "single_operation_count": 3,
+      "single_p50_ms": 125.93179999385029,
+      "single_p95_ms": 130.22444004309364,
+      "panel_sequential_count": 1,
+      "panel_sequential_p50_ms": 377.5588000426069,
+      "panel_sequential_p95_ms": 377.5588000426069,
+      "panel_size_distribution": {
+        "3": 1
+      },
+      "definition": "panel latency is the sum of per-slot operations for each inferred capture group; no batch speedup is assumed"
+    },
+    "gray_2x": {
+      "single_operation_count": 3,
+      "single_p50_ms": 22.273399983532727,
+      "single_p95_ms": 22.6433000236284,
+      "panel_sequential_count": 1,
+      "panel_sequential_p50_ms": 63.490700034890324,
+      "panel_sequential_p95_ms": 63.490700034890324,
+      "panel_size_distribution": {
+        "3": 1
+      },
+      "definition": "panel latency is the sum of per-slot operations for each inferred capture group; no batch speedup is assumed"
+    }
+  },
+  "candidate_decision": {
+    "status": "NO_CHANGE",
+    "reason": {
+      "gray_top1_strictly_better": false,
+      "gray_skill_recall_not_worse": true,
+      "gray_single_p95_not_worse": true
+    },
+    "next_stage": "retain current worker; collect more evidence",
+    "wired_to_production": false
+  },
+  "negative_panel_false_positive": {
+    "status": "not_available",
+    "reason": "this corpus contains labeled positive title crops only; use the existing O3 negative-panel chain separately"
+  },
+  "samples": [
+    {
+      "sample_id": "rec1_ingame_boss_20260809_t_015s_技能面板_giveUp证据_slot0",
+      "scene": "skill_choice",
+      "kind": "skill",
+      "capture_session": "rec1_ingame_boss_20260809",
+      "split": "TRAIN_TUNE",
+      "label": "次级箭",
+      "truth_canonical": "次级箭",
+      "truth_status": "in_lexicon",
+      "source_crop": "skill/rec1_ingame_boss_20260809/t_015s_技能面板_giveUp证据_slot0_name.png",
+      "current_6_variant": {
+        "text": "-次级箭",
+        "normalized": "-次级箭",
+        "canonical": "次级箭",
+        "score": 0.741325,
+        "seconds": 0.1259317999938503,
+        "variant_count": 6,
+        "variants": [
+          {
+            "variant": "bgr",
+            "text": "-次级箭",
+            "score": 0.741325,
+            "canonical": "次级箭",
+            "seconds": 0.023676
+          },
+          {
+            "variant": "r_minus_b",
+            "text": "",
+            "score": 0.0,
+            "canonical": null,
+            "seconds": 0.018871
+          },
+          {
+            "variant": "g_minus_b",
+            "text": "",
+            "score": 0.0,
+            "canonical": null,
+            "seconds": 0.019394
+          },
+          {
+            "variant": "b_minus_r",
+            "text": "次量",
+            "score": 0.671744,
+            "canonical": null,
+            "seconds": 0.022691
+          },
+          {
+            "variant": "otsu",
+            "text": "次级筋",
+            "score": 0.754848,
+            "canonical": null,
+            "seconds": 0.021329
+          },
+          {
+            "variant": "gray_threshold_180",
+            "text": "-",
+            "score": 0.28978,
+            "canonical": null,
+            "seconds": 0.019971
+          }
+        ]
+      },
+      "gray_2x": {
+        "text": "次级箭",
+        "normalized": "次级箭",
+        "canonical": "次级箭",
+        "score": 0.820088,
+        "seconds": 0.018532900023274124,
+        "variant_count": 1,
+        "variants": [
+          {
+            "variant": "gray_2x",
+            "text": "次级箭",
+            "score": 0.820088,
+            "canonical": "次级箭",
+            "seconds": 0.018533
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "rec1_ingame_boss_20260809_t_015s_技能面板_giveUp证据_slot1",
+      "scene": "skill_choice",
+      "kind": "skill",
+      "capture_session": "rec1_ingame_boss_20260809",
+      "split": "TRAIN_TUNE",
+      "label": "焦点",
+      "truth_canonical": "焦点",
+      "truth_status": "in_lexicon",
+      "source_crop": "skill/rec1_ingame_boss_20260809/t_015s_技能面板_giveUp证据_slot1_name.png",
+      "current_6_variant": {
+        "text": "焦点",
+        "normalized": "焦点",
+        "canonical": "焦点",
+        "score": 0.953044,
+        "seconds": 0.13070140004856512,
+        "variant_count": 6,
+        "variants": [
+          {
+            "variant": "bgr",
+            "text": "焦点",
+            "score": 0.953044,
+            "canonical": "焦点",
+            "seconds": 0.019784
+          },
+          {
+            "variant": "r_minus_b",
+            "text": "",
+            "score": 0.0,
+            "canonical": null,
+            "seconds": 0.021407
+          },
+          {
+            "variant": "g_minus_b",
+            "text": "",
+            "score": 0.0,
+            "canonical": null,
+            "seconds": 0.021636
+          },
+          {
+            "variant": "b_minus_r",
+            "text": "-_—",
+            "score": 0.367816,
+            "canonical": null,
+            "seconds": 0.026046
+          },
+          {
+            "variant": "otsu",
+            "text": "焦点",
+            "score": 0.713376,
+            "canonical": "焦点",
+            "seconds": 0.020109
+          },
+          {
+            "variant": "gray_threshold_180",
+            "text": "集点",
+            "score": 0.792104,
+            "canonical": null,
+            "seconds": 0.02172
+          }
+        ]
+      },
+      "gray_2x": {
+        "text": "焦点",
+        "normalized": "焦点",
+        "canonical": "焦点",
+        "score": 0.944089,
+        "seconds": 0.022273399983532727,
+        "variant_count": 1,
+        "variants": [
+          {
+            "variant": "gray_2x",
+            "text": "焦点",
+            "score": 0.944089,
+            "canonical": "焦点",
+            "seconds": 0.022273
+          }
+        ]
+      }
+    },
+    {
+      "sample_id": "rec1_ingame_boss_20260809_t_015s_技能面板_giveUp证据_slot2",
+      "scene": "skill_choice",
+      "kind": "skill",
+      "capture_session": "rec1_ingame_boss_20260809",
+      "split": "TRAIN_TUNE",
+      "label": "箭矢齐射",
+      "truth_canonical": "箭矢齐射",
+      "truth_status": "in_lexicon",
+      "source_crop": "skill/rec1_ingame_boss_20260809/t_015s_技能面板_giveUp证据_slot2_name.png",
+      "current_6_variant": {
+        "text": "失齐射",
+        "normalized": "失齐射",
+        "canonical": "箭矢齐射",
+        "score": 0.910007,
+        "seconds": 0.12092560000019148,
+        "variant_count": 6,
+        "variants": [
+          {
+            "variant": "bgr",
+            "text": "失齐射",
+            "score": 0.910007,
+            "canonical": "箭矢齐射",
+            "seconds": 0.020159
+          },
+          {
+            "variant": "r_minus_b",
+            "text": "",
+            "score": 0.0,
+            "canonical": null,
+            "seconds": 0.018902
+          },
+          {
+            "variant": "g_minus_b",
+            "text": "",
+            "score": 0.0,
+            "canonical": null,
+            "seconds": 0.018583
+          },
+          {
+            "variant": "b_minus_r",
+            "text": "最失",
+            "score": 0.742313,
+            "canonical": null,
+            "seconds": 0.020683
+          },
+          {
+            "variant": "otsu",
+            "text": "",
+            "score": 0.0,
+            "canonical": null,
+            "seconds": 0.022322
+          },
+          {
+            "variant": "gray_threshold_180",
+            "text": "",
+            "score": 0.0,
+            "canonical": null,
+            "seconds": 0.020276
+          }
+        ]
+      },
+      "gray_2x": {
+        "text": "失齐射",
+        "normalized": "失齐射",
+        "canonical": "箭矢齐射",
+        "score": 0.856985,
+        "seconds": 0.022684400028083473,
+        "variant_count": 1,
+        "variants": [
+          {
+            "variant": "gray_2x",
+            "text": "失齐射",
+            "score": 0.856985,
+            "canonical": "箭矢齐射",
+            "seconds": 0.022684
+          }
+        ]
+      }
+    }
+  ]
+}

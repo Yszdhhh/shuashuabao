@@ -1,0 +1,14 @@
+[
+  {
+    "batch": 1,
+    "files": 48,
+    "returncode": 1,
+    "seconds": 522.2
+  },
+  {
+    "batch": 2,
+    "files": 49,
+    "returncode": 0,
+    "seconds": 86.2
+  }
+]

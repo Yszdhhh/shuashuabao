@@ -168,7 +168,7 @@ class RoomStartingNoFallbackTest(unittest.TestCase):
             src = _FakeFrameSource([frame] if frame is not None else [])
             med._capture_best = src.capture_best
             med.set_phase(Phase.ROOM_STARTING, "test setup")
-            med._room_action_deadline = 0.0  # 必然超时（clock >= 0）
+            med._room_action_deadline = 0.0
         return med
 
     def test_window_present_keeps_room_starting(self) -> None:
@@ -184,6 +184,9 @@ class RoomStartingNoFallbackTest(unittest.TestCase):
     def test_window_missing_falls_back_to_room_waiting(self) -> None:
         clock = FakeClock(start=100.0)
         med = self._med(clock, None)
+        # 无窗口健康门禁使用 ROOM_STARTING 固定宏观期限，而不是通用 L0
+        # action deadline；显式耗尽它才能验证安全回退。
+        med._room_start_deadline = 0.0
         with clock.install():
             action = med.tick()
             self.assertEqual(med.phase, Phase.ROOM_WAITING, "窗口不存在时仍回退房间等待")

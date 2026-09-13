@@ -1,6 +1,6 @@
 // 生产 QWebChannel 桥（设计规格 §6/§7）。注入 qrc:///qtwebchannel/qwebchannel.js，
 // 连接 window.qt.webChannelTransport → channel.objects.facade（宿主唯一注册对象）。
-// 八个白名单方法入参出参均为 JSON 字符串：这里统一 stringify / parse。
+// 白名单方法入参出参均为 JSON 字符串：这里统一 stringify / parse。
 // 超时、缺 transport、facade 缺方法或缺信号一律显式抛错（main.ts 渲染报错页），
 // 不静默降级 mock（§7）。
 import type {
@@ -8,22 +8,26 @@ import type {
   ConfigPatchResult,
   DashboardBridge,
   DashboardBridgeSignals,
+  BridgeInfoDTO,
   PreflightDTO,
   RpcResponse,
   RunResult,
   ShellPatchResult,
   SnapshotDTO,
+  WindowLayout,
 } from "./types";
 export const QWEBCHANNEL_SRC = "qrc:///qtwebchannel/qwebchannel.js";
 export const FACADE_OBJECT_NAME = "facade";
+export const BRIDGE_SCHEMA_VERSION = 2;
 
 /** QWebChannel 连接/transport 等待的默认超时（ms）。 */
 export const DEFAULT_TIMEOUT_MS = 5000;
 
 type SignalLike<T extends unknown[]> = { connect(cb: (...args: T) => void): void };
 
-/** §6.1 白名单方法面：八个 Slot 一个都不能少。 */
+/** Versioned Slot surface: subscription and the handshake are mandatory. */
 const WHITELIST_METHODS = [
+  "get_bridge_info",
   "get_snapshot",
   "update_config",
   "update_shell",
@@ -32,10 +36,12 @@ const WHITELIST_METHODS = [
   "stop_run",
   "window_control",
   "set_window_layout",
+  "activate_subscription",
 ] as const;
 
 /** QWebChannel 注入脚本后暴露在 window 上的原始 facade 形状。 */
 export type RawFacade = {
+  get_bridge_info(): Promise<string>;
   get_snapshot(): Promise<string>;
   update_config(patch_json: string): Promise<string>;
   update_shell(patch_json: string): Promise<string>;
@@ -44,6 +50,7 @@ export type RawFacade = {
   stop_run(): Promise<string>;
   window_control(action_json: string): Promise<string>;
   set_window_layout(layout_json: string): Promise<string>;
+  activate_subscription(key_json: string): Promise<string>;
 } & {
   snapshot_changed?: SignalLike<[string]>;
   run_status_changed?: SignalLike<[string]>;
@@ -110,7 +117,9 @@ async function withTimeout<T>(p: Promise<T>, timeoutMs: number, message: string)
   }
 }
 
-const DEFAULT_CALL_TIMEOUT_MS = 10_000;
+export const DEFAULT_CALL_TIMEOUT_MS = 10_000;
+/** Frozen preflight may wait on a first-time manifest verify (~20s) plus staging permit. */
+export const PREFLIGHT_CALL_TIMEOUT_MS = 60_000;
 
 async function callMethod<T>(name: string, pending: Promise<string>, timeoutMs = DEFAULT_CALL_TIMEOUT_MS): Promise<T> {
   let raw: string;
@@ -126,23 +135,37 @@ async function callMethod<T>(name: string, pending: Promise<string>, timeoutMs =
   }
 }
 
-// 八方法统一 JSON 序列化出口；mode_id/action/layout 按 facade _parse_keyed 契约包成单键对象。
+// 白名单方法统一 JSON 序列化出口；mode_id/action/layout 按 facade
+// _parse_keyed 契约包成单键对象。
 function wrapFacade(facade: RawFacade): DashboardBridge {
   return {
+    get_bridge_info: () => callMethod<BridgeInfoDTO>("get_bridge_info", facade.get_bridge_info()),
     get_snapshot: () => callMethod<SnapshotDTO>("get_snapshot", facade.get_snapshot()),
     update_config: (patch: ConfigPatch) =>
       callMethod<ConfigPatchResult>("update_config", facade.update_config(JSON.stringify(patch))),
     update_shell: (patch: Partial<{ theme: "light" | "dark"; selected_mode_id: string }>) =>
       callMethod<ShellPatchResult>("update_shell", facade.update_shell(JSON.stringify(patch))),
     validate_preflight: (mode_id: string) =>
-      callMethod<PreflightDTO>("validate_preflight", facade.validate_preflight(JSON.stringify({ mode_id }))),
+      callMethod<PreflightDTO>(
+        "validate_preflight",
+        facade.validate_preflight(JSON.stringify({ mode_id })),
+        PREFLIGHT_CALL_TIMEOUT_MS,
+      ),
     start_run: (mode_id: string, expectedRevision?: number) =>
       callMethod<RunResult>("start_run", facade.start_run(JSON.stringify({ mode_id, expected_settings_revision: expectedRevision }))),
     stop_run: () => callMethod<RunResult>("stop_run", facade.stop_run()),
     window_control: (action: "minimize" | "close") =>
       callMethod<RpcResponse>("window_control", facade.window_control(JSON.stringify({ action }))),
-    set_window_layout: (layout: "dashboard" | "chooser") =>
-      callMethod<RpcResponse>("set_window_layout", facade.set_window_layout(JSON.stringify({ layout }))),
+    set_window_layout: (layout: WindowLayout, height?: number) =>
+      callMethod<RpcResponse>(
+        "set_window_layout",
+        facade.set_window_layout(JSON.stringify(height === undefined ? { layout } : { layout, height })),
+      ),
+    activate_subscription: (key: string) =>
+      callMethod<{ ok: boolean; message: string; status?: string; expires_at?: string }>(
+        "activate_subscription",
+        facade.activate_subscription(JSON.stringify({ key })),
+      ),
   };
 }
 
@@ -181,5 +204,20 @@ export async function createQtBridge(timeoutMs = DEFAULT_TIMEOUT_MS): Promise<Qt
       throw new Error(`facade 对象缺失或方法面不完整（缺 ${name}），拒绝建立桥接`);
     }
   }
-  return { bridge: wrapFacade(facade), signals: requireSignals(facade) };
+  const bridge = wrapFacade(facade);
+  const info = await bridge.get_bridge_info();
+  if (
+    !info.ok
+    || info.schema_version !== BRIDGE_SCHEMA_VERSION
+    || !Array.isArray(info.required_methods)
+    || !Array.isArray(info.required_signals)
+    || !WHITELIST_METHODS.every((name) => info.required_methods.includes(name))
+    || !["snapshot_changed", "run_status_changed", "log_appended"]
+      .every((name) => info.required_signals.includes(name))
+  ) {
+    throw new Error(
+      `facade bridge schema 不匹配（期望 ${BRIDGE_SCHEMA_VERSION}，收到 ${String(info.schema_version)}），拒绝建立桥接`,
+    );
+  }
+  return { bridge, signals: requireSignals(facade) };
 }

@@ -25,6 +25,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
 import threading
 import time
@@ -42,6 +43,8 @@ _DEFAULT_MAX_BYTES = 2 * 1024 ** 3
 _DEFAULT_RETENTION_DAYS = 7
 _DEFAULT_DEDUP_SECONDS = 60.0
 _INCIDENT_PREFIX = "incident_"
+_PANEL_PREFIX = "panel_"
+_PANEL_SAMPLE_RE = re.compile(r"^panel_[0-9]{6}_[0-9]{3}_[0-9a-f]{8}\.(?:jpg|json)$")
 
 
 def default_incident_dir() -> Path:
@@ -246,7 +249,7 @@ class IncidentArchiver:
                 json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
             self._last_saved[fp] = now
             self._prune_dedup(now)
-            self._enforce_limits(now, keep=None)
+            self._enforce_limits(now, keep=out_dir / img_name)
         return fp
 
     def cleanup(self) -> None:
@@ -376,49 +379,86 @@ class IncidentArchiver:
     def _enforce_limits(self, now: float, keep: Path | None = None) -> None:
         """保留期 + 容量上限。
 
-        只扫描 <root>/YYYYMMDD/incidents/ 下的 incident_* 目录（本模块唯一
-        创建路径）并删除过期/最旧目录；绝不触碰官方日志、用户录像等其它文件。
-        keep 为刚写入的 incident 目录（容量超标时也不删当次证据）。
+        只处理本模块创建的产物，绝不触碰官方日志、用户录像等其它文件：
+        - <root>/YYYYMMDD/incidents/incident_* 目录（仅目录）；
+        - <root>/YYYYMMDD/panels/panel_<HHMMSS>_<ms>_<fp8>.{jpg,json} 样本
+          （严格文件名匹配，panel_ 前缀的无关文件不算）。
+        keep 为刚写入的 incident 目录 / panel 文件：本身与其配对文件计入
+        总量但不参与删除（容量超标时也不删当次证据）。
         """
         retention_sec = self.retention_days * 86400
-        dirs: list[tuple[float, Path]] = []
+        dirs: list[tuple[float, Path, int]] = []
+        keep_paths: set[Path] = set()
         total = 0
+        if keep is not None:
+            keep_paths.add(keep)
+            sibling = self._panel_sibling(keep)
+            if sibling.is_file():
+                keep_paths.add(sibling)
+            for p in keep_paths:
+                if p.exists():
+                    total += self._entry_size(p)
         if self.root.is_dir():
             for day in sorted(self.root.iterdir()):
                 if not day.is_dir() or len(day.name) != 8 or not day.name.isdigit():
                     continue
-                incidents_dir = day / "incidents"
-                if not incidents_dir.is_dir():
-                    continue
-                for entry in incidents_dir.iterdir():
-                    if not entry.is_dir() or not entry.name.startswith(_INCIDENT_PREFIX):
+                for sub, prefix, want_dir in (
+                    ("incidents", _INCIDENT_PREFIX, True),
+                    ("panels", _PANEL_PREFIX, False),
+                ):
+                    subdir = day / sub
+                    if not subdir.is_dir():
                         continue
-                    if keep is not None and entry == keep:
-                        continue
-                    try:
-                        mtime = entry.stat().st_mtime
-                    except OSError:
-                        continue
-                    if mtime < now - retention_sec:
-                        self._rmtree(entry)
-                        continue
-                    size = self._dir_size(entry)
-                    total += size
-                    dirs.append((mtime, entry))
+                    for entry in subdir.iterdir():
+                        if entry.is_dir() != want_dir:
+                            continue
+                        if not entry.name.startswith(prefix):
+                            continue
+                        if not want_dir and not _PANEL_SAMPLE_RE.fullmatch(entry.name):
+                            continue
+                        if entry in keep_paths:
+                            continue
+                        try:
+                            mtime = entry.stat().st_mtime
+                        except OSError:
+                            continue
+                        if mtime < now - retention_sec:
+                            self._remove(entry)
+                            continue
+                        size = self._entry_size(entry)
+                        total += size
+                        dirs.append((mtime, entry, size))
         if total > self.max_bytes:
-            for _, entry in sorted(dirs):  # 最旧先删
+            for _, entry, size in sorted(dirs):  # 最旧先删
                 if total <= self.max_bytes:
                     break
-                size = self._dir_size(entry)
-                self._rmtree(entry)
+                if entry.exists():
+                    self._remove(entry)
+                # 已被配对删除顺带清掉的条目同样按记录 size 扣减
                 total -= size
 
     @staticmethod
-    def _dir_size(entry: Path) -> int:
-        return sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
+    def _panel_sibling(entry: Path) -> Path:
+        """panel 样本 jpg/json 配对文件的另一路径（仅对严格命名的样本有意义）。"""
+        if entry.suffix == ".jpg":
+            return entry.with_suffix(".json")
+        if entry.suffix == ".json":
+            return entry.with_suffix(".jpg")
+        return entry
 
     @staticmethod
-    def _rmtree(entry: Path) -> None:
-        """删除 incident_* 目录；名称不符（非本模块创建）则不删。"""
+    def _entry_size(entry: Path) -> int:
+        if entry.is_dir():
+            return sum(f.stat().st_size for f in entry.rglob("*") if f.is_file())
+        return entry.stat().st_size
+
+    @staticmethod
+    def _remove(entry: Path) -> None:
+        """只删除本模块创建的 incident_* 目录 / 严格命名的 panel_* 样本文件。"""
         if entry.is_dir() and entry.name.startswith(_INCIDENT_PREFIX):
             shutil.rmtree(entry, ignore_errors=True)
+        elif entry.is_file() and _PANEL_SAMPLE_RE.fullmatch(entry.name):
+            entry.unlink(missing_ok=True)
+            sibling = IncidentArchiver._panel_sibling(entry)
+            if sibling.is_file():
+                sibling.unlink(missing_ok=True)

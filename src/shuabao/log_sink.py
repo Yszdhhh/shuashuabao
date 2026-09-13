@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import builtins
 import logging
+import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -84,7 +85,16 @@ def emit_print(*args: object, **kwargs: object) -> None:
             LOGGER.warning(text)
         else:
             LOGGER.info(text)
-    builtins.print(*args, **kwargs)
+    try:
+        builtins.print(*args, **kwargs)
+    except UnicodeEncodeError:
+        stream = kwargs.get("file") or sys.stdout
+        encoding = getattr(stream, "encoding", None) or "utf-8"
+        safe_args = tuple(
+            str(value).encode(encoding, errors="backslashreplace").decode(encoding, errors="replace")
+            for value in args
+        )
+        builtins.print(*safe_args, **kwargs)
 
 
 def install_live_logging(

@@ -31,7 +31,9 @@ if hasattr(sys.stdout, "reconfigure"):
 
 
 import argparse
+import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -41,8 +43,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "docs" / "baselines" / "GATE_BASELINE.json"
+RUNTIME_ASSET_MANIFEST = ROOT / "config" / "runtime_asset_manifest.json"
 
 PYTHON = sys.executable
+_LIVE_SUBSCRIPTION_ENV = (
+    "SHUABAO_SUBSCRIPTION_MODE",
+    "SHUABAO_SUBSCRIPTION_BASE_URL",
+    "SHUABAO_SUBSCRIPTION_LICENSE_KEY",
+    "SHUABAO_SUBSCRIPTION_DEVICE_FINGERPRINT",
+    "SHUABAO_SUBSCRIPTION_TIMEOUT_S",
+)
 
 
 @dataclass
@@ -57,6 +67,12 @@ class StageResult:
 
 
 def _run(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
+    # The release gate is an offline, zero-input check.  Never let an
+    # operator's desktop enforce/endpoint/key environment leak into pytest or
+    # frozen replay; tests that cover this boundary set it explicitly.
+    env = os.environ.copy()
+    for name in _LIVE_SUBSCRIPTION_ENV:
+        env.pop(name, None)
     proc = subprocess.run(
         argv,
         cwd=str(ROOT),
@@ -64,6 +80,7 @@ def _run(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
         text=True,
         encoding="utf-8",
         errors="replace",
+        env=env,
         timeout=timeout,
     )
     return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
@@ -75,7 +92,14 @@ def _run(argv: list[str], timeout: int = 1800) -> tuple[int, str]:
 
 def stage_pytest() -> StageResult:
     started = time.time()
-    code, out = _run([PYTHON, "-m", "pytest", "tests/test_live_tier_crossing_integration.py", "tests/test_mediator_equipment_fsm_integration.py", "tests/test_hero_mode_temporal.py", "tests/test_p0_security.py", "tests/test_p1_choice_fsm_contracts.py", "tests/test_dashboard_facade.py", "tests/test_dashboard_facade_runner.py", "tests/test_choice_policy.py", "tests/test_l1_cycle_recheck_merchant.py", "tests/contract", "-q", "--tb=short"])
+    # The release gate is the repository's authoritative offline check.  A
+    # hand-picked list can stay green while a newly added regression suite is
+    # red, so run the complete tests/ tree here and let pytest's exit code be
+    # the stage truth.
+    # -p no:faulthandler: Windows 上 PyQt6 事件循环（dashboard facade 测试的
+    # processEvents）与 faulthandler 致命转储相互冲突，随机 access-violation
+    # 中断整个 pytest 进程；禁用后全量 1474 通过，观测计数不受影响。
+    code, out = _run([PYTHON, "-m", "pytest", "tests", "-q", "--tb=short", "-p", "no:faulthandler"])
     counts: dict[str, int] = {}
     for label in ("passed", "failed", "error", "xfailed", "xpassed", "skipped"):
         match = re.search(rf"(\d+) {label}", out)
@@ -106,7 +130,7 @@ def stage_frozen_replay() -> StageResult:
     return StageResult(
         name="frozen_replay",
         title="冻结端到端回放（fixtures/baselines/replay_frozen）",
-        status="PASS" if scenes else "FAIL",
+        status="PASS" if code == 0 and scenes else "FAIL",
         observed=scenes,
         detail="" if scenes else f"无法解析场景汇总（exit={code}）",
         duration_s=time.time() - started,
@@ -120,12 +144,148 @@ def stage_scene_templates() -> StageResult:
     match = re.search(r"ok=(\d+) missing=(\d+)", out)
     if match:
         observed = {"ok": int(match.group(1)), "missing": int(match.group(2))}
+    asset_result = stage_asset_leakage()
+    for key, value in asset_result.observed.items():
+        observed[f"asset_{key}"] = value
     return StageResult(
         name="scene_templates",
         title="scenes.json 模板完整性",
-        status="PASS" if code == 0 and observed.get("missing") == 0 else "FAIL",
+        status=(
+            "PASS"
+            if code == 0
+            and observed.get("missing") == 0
+            and asset_result.status == "PASS"
+            else "FAIL"
+        ),
         observed=observed,
-        detail="" if observed else f"无法解析 validate_scenes 输出（exit={code}）",
+        detail=(
+            ("" if observed else f"无法解析 validate_scenes 输出（exit={code}）")
+            + (f"; asset_gate={asset_result.detail}" if asset_result.detail else "")
+        ),
+        duration_s=time.time() - started,
+    )
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def stage_asset_leakage() -> StageResult:
+    """Verify the whole ``ShuaBao.spec`` assets tree is runtime-only and pinned."""
+    started = time.time()
+    observed = {
+        "spec_assets_root": 0,
+        "manifest_schema": 0,
+        "package_root_whole_tree": 0,
+        "files": 0,
+        "allowlisted": 0,
+        "missing_allowlist": 0,
+        "stale_manifest": 0,
+        "forbidden_paths": 0,
+        "metadata_missing": 0,
+        "hash_mismatch": 0,
+    }
+    errors: list[str] = []
+
+    spec_path = ROOT / "ShuaBao.spec"
+    spec_text = spec_path.read_text(encoding="utf-8") if spec_path.is_file() else ""
+    if re.search(r"PROJECT_ROOT\s*/\s*[\"']assets[\"']", spec_text):
+        observed["spec_assets_root"] = 1
+    else:
+        errors.append("ShuaBao.spec does not declare the expected whole assets source")
+
+    try:
+        manifest = json.loads(RUNTIME_ASSET_MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"runtime asset manifest unreadable: {exc}")
+        manifest = {}
+    if not isinstance(manifest, dict):
+        errors.append("runtime asset manifest root must be an object")
+        manifest = {}
+
+    if manifest.get("schema_version") == 1:
+        observed["manifest_schema"] = 1
+    else:
+        errors.append("runtime asset manifest schema_version must be 1")
+
+    package_roots = manifest.get("package_roots") or []
+    if any(
+        item.get("source") == "assets"
+        and item.get("target") == "assets"
+        and item.get("mode") == "whole_tree"
+        for item in package_roots
+        if isinstance(item, dict)
+    ):
+        observed["package_root_whole_tree"] = 1
+    else:
+        errors.append("runtime asset manifest must pin the whole assets tree")
+
+    asset_root = ROOT / "assets"
+    actual = {
+        path.relative_to(ROOT).as_posix(): path
+        for path in asset_root.rglob("*")
+        if path.is_file()
+    }
+    entries = manifest.get("entries") or []
+    allowlist: dict[str, dict] = {}
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("path"):
+            errors.append("runtime asset manifest contains a malformed entry")
+            continue
+        path = str(entry["path"]).replace("\\", "/")
+        if path in allowlist:
+            errors.append(f"duplicate manifest path: {path}")
+        allowlist[path] = entry
+
+    observed["files"] = len(actual)
+    missing_allowlist = sorted(set(actual) - set(allowlist))
+    stale_manifest = sorted(set(allowlist) - set(actual))
+    observed["missing_allowlist"] = len(missing_allowlist)
+    observed["stale_manifest"] = len(stale_manifest)
+    observed["allowlisted"] = len(set(actual) & set(allowlist))
+    if missing_allowlist:
+        errors.append(f"unallowlisted runtime assets: {missing_allowlist[:8]}")
+    if stale_manifest:
+        errors.append(f"stale manifest entries: {stale_manifest[:8]}")
+
+    forbidden_tokens = [str(item).lower() for item in manifest.get("forbidden_path_tokens") or []]
+    forbidden_paths = []
+    metadata_missing = []
+    hash_mismatch = []
+    for rel, path in actual.items():
+        if any(token in component.lower() for token in forbidden_tokens for component in Path(rel).parts):
+            forbidden_paths.append(rel)
+        entry = allowlist.get(rel)
+        if entry is None:
+            continue
+        if not all(str(entry.get(key) or "").strip() for key in ("purpose", "provenance", "reason_required")):
+            metadata_missing.append(rel)
+        try:
+            size_ok = int(entry.get("size_bytes", -1)) == path.stat().st_size
+        except (TypeError, ValueError):
+            size_ok = False
+        if not size_ok or str(entry.get("sha256", "")).lower() != _sha256(path):
+            hash_mismatch.append(rel)
+    observed["forbidden_paths"] = len(forbidden_paths)
+    observed["metadata_missing"] = len(metadata_missing)
+    observed["hash_mismatch"] = len(hash_mismatch)
+    if forbidden_paths:
+        errors.append(f"forbidden runtime asset paths: {forbidden_paths[:8]}")
+    if metadata_missing:
+        errors.append(f"allowlist metadata missing: {metadata_missing[:8]}")
+    if hash_mismatch:
+        errors.append(f"runtime asset hash/size mismatch: {hash_mismatch[:8]}")
+
+    return StageResult(
+        name="asset_leakage",
+        title="ShuaBao.spec 运行时资源泄漏门禁",
+        status="PASS" if not errors else "FAIL",
+        observed=observed,
+        detail="; ".join(errors),
         duration_s=time.time() - started,
     )
 

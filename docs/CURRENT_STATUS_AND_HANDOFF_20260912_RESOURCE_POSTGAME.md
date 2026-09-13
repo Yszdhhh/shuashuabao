@@ -1,0 +1,77 @@
+# 蹭车资源预算与战后链修复（2026-09-12）
+
+## 本轮结论
+
+真实蹭车包
+`C:\Users\10639\AppData\Local\Temp\shuabao-captures\hitch_lobby_chain_20260912_163424_071932`
+确认了三个独立的策略缺口，不是游戏中途停止运行：
+
+1. `f0312_action_before.png` 顶栏杀敌资源为 **520** 时，脚本仍发出了
+   `BlackMerchant-refresh`；刷新后已无法同时承担 350 刷新和 400 吞噬丹。
+2. `f0341_action_before.png` 顶栏资源仅 **38** 时，脚本仍发出了
+   `BlackMerchant-swallow_pill`，而吞噬丹价格是 400。
+3. 宝物 V 的异常 episode 上限、黑商 `EVICTED` 状态和无条件 Z 都可能让
+   中后期表现成“只按 Z / 不再拿宝物与吞噬丹”。
+
+旧包还显示结算阶段固定只滚 3 次便按“当前可见的编号最大卡”选 Boss：时光之穴
+在 tick 700 点了 `36迦顿男爵`，配置本应为 `53拉贾克斯将军`；传家宝也没有
+真正滚到底。每张存档挑战还额外走一次非授权 OCR sidecar，拖慢了结算热路径。
+
+## 已落地策略
+
+### 黑商和拾取
+
+- 吞噬丹购买必须由顶栏杀敌数的高置信 OCR 证明余额 **≥400**；读不出、低置信或
+  余额不足均零输入。
+- 寻找吞噬丹的刷新必须证明余额 **≥750**（350 刷新 + 400 后续购买预留）。
+  余额 520 这类情况不再做无效刷新。
+- 资源不足后 15 秒才重查，并立即让蹭车循环继续走宝物、拾取和公共背包，不把主线
+  停在黑商步。
+- 黑商购买后超时的同一库存仍隔离；库存指纹确实变化时重新以两帧确认进入新 encounter，
+  不再让一个旧 `EVICTED` 状态永久屏蔽后续吞噬丹。
+- Z 范围拾取只在 HUD 可移动装备栏 2–6 五格都被明确识别为已占用时执行；空格、遮挡或
+  识别不确定时零输入。
+- 宝物 V 达到异常 episode 上限后只跳过 30 秒，窗口到期会重置 V 的异常计数并重新探测，
+  不再永久停用本局后段宝物。
+
+### 战后存档、时光之穴与传家宝
+
+- 存档挑战只以绿色“已挑战”覆盖层作为完成证据；删除每卡一次的 sidecar OCR 热路径。
+- 连续战后动作采用最多 0.35 秒的复核间隔，避免沿用普通局内 UI 间隔。
+- 已分类的时光之穴/传家宝页，配置 Boss 直接在该列表 ROI 内查找，不再先做全屏模板扫描。
+- 配置 Boss 缺失或无预设时：持续向下滚动，至少滚过一次并取得两帧稳定的列表底部证据后，
+  才从实际可见模板命中里按 **物理位置最靠下、同排最靠右** 的卡作为兜底。
+  不再按模板文件编号或固定三次滚动后随意选择。16 次仅是“未能证明到底”时的安全上限，
+  到上限也不会盲点任意卡。
+
+## 已验证
+
+- 定向回归：`309 passed, 33 subtests passed`，覆盖 Core 和 RuntimeMediator；包括真实 HUD
+  蹭车 tick 在 38 杀敌时不购买/不刷新、400/750 临界值、Z 满格门禁、宝物窗口重开、
+  黑商新库存重武装、结算 ROI 限定搜索、到底后二帧稳定与物理末卡选择。
+- L0/L1 隔离契约同步新增的局内状态字段后通过。
+
+- 最终候选提交：`e43eb3b8c0d7a69546c1fc9681f71b5ef10c97aa`。
+- 最终 `python tools/release_gate.py --json`：**4/4 PASS**；pytest `2063 passed,
+  2 xfailed, 13 skipped`，冻结回放 PASS，场景模板 `398/398` 清单与哈希 PASS，契约
+  `56 passed`。快照已按原因刷新，未静默跳过失败。
+- 桌面 `刷刷宝 Live 实机测试.lnk` 已回读确认仍指向
+  `G:\刷刷宝\GameScript-Local\live_scenario_launcher.ps1`，并注入候选 SHA
+  `e43eb3b8c0d7a69546c1fc9681f71b5ef10c97aa`。
+- 正式冻结 EXE 尚未覆盖：`build_release.ps1` 在签名私钥前置条件处 BLOCKED（当前环境
+  未提供仓外 Ed25519 manifest 私钥、公钥 registry 与 key id），未使用绕过参数或手工拷贝。
+- 本次真实捕获 bundle `C:\tmp\shuabao-captures\hitch_lobby_chain_20260912_195351_849483`
+  已通过候选身份校验，但因未确认 UAC 提升而在 preflight 阶段 BLOCKED，未发送任何游戏输入；
+  后续接受 UAC 后可直接用下方命令续跑。
+
+完整 `python tools/release_gate.py` 与候选提交之后，使用：
+
+```powershell
+cd G:\刷刷宝\GameScript-Local
+.\live_scenario_launcher.ps1 `
+  -ProductionSourceRoot "G:\刷刷宝\Worktrees\prod-source-3904913-20260911" `
+  -ProductionSourceSha "<candidate HEAD>"
+```
+
+菜单 `13 PRIMARY HITCH_FULL_NATURAL_E2E` 运行正式看板设置的多局蹭车链路；最终验收以新
+capture bundle 的 trace/manifest 为准。

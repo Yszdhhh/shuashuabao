@@ -148,7 +148,33 @@ class C2InGameStateIsolation(unittest.TestCase):
         "_panel_fingerprint_attempts": 4,
         "_panel_f1_used_this_episode": True,
         "_merchant_next_at": 1.0e9,
+        "_merchant_budget_retry_at": 1.0e9,
+        "_merchant_kill_balance_fingerprint": "polluted",
+        "_merchant_kill_balance_value": 999,
         "_pickup_next_at": 1.0e9,
+        "_post_game_hud_confirmations": 7,
+        "_hitch_postgame_started_at": 1.0e9,
+        "_pending_archive_panel_frames": 7,
+        "_post_game_archive_pending_only": True,
+        "_secret_realm_hud_confirmations": 2,
+        "_secret_realm_last_hud_frame_id": 12345,
+        "_passenger_heirloom_for_secret": True,
+        "_public_bag_fsm": __import__(
+            "shuabao.policy.public_bag", fromlist=["PublicBagFSM", "PublicBagPhase"]
+        ).PublicBagFSM(
+            phase=__import__(
+                "shuabao.policy.public_bag", fromlist=["PublicBagPhase"]
+            ).PublicBagPhase.SOURCE_SELECTED,
+            source_id="swallow_pill",
+            source_slot=1,
+            deadline=1.0e9,
+            opened_by_us=True,
+        ),
+        "_public_bag_next_at": 1.0e9,
+        "_hitch_opening_pressure_armed": True,
+        "_tick_post_confirm": False,
+        "_boss_challenge_scroll_signature": "polluted",
+        "_boss_challenge_scroll_stable_frames": 7,
     }
 
     def _pollute(self, med: Mediator) -> None:

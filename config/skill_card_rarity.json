@@ -1,6 +1,6 @@
 {
-  "version": "2026-08-19",
-  "total_cards": 220,
+  "version": "2026-09-02",
+  "total_cards": 230,
   "cards": [
     {
       "name": "奥术箭矢",
@@ -39,8 +39,8 @@
       "rarity": "蓝",
       "family": "奥术箭",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "次级增伤",
@@ -111,24 +111,24 @@
       "rarity": "蓝",
       "family": "奥术箭",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "急速抽箭",
       "rarity": "紫",
       "family": "奥术箭",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "强化飞箭",
       "rarity": "白",
       "family": "奥术箭",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "火焰射击",
@@ -143,8 +143,8 @@
       "rarity": "橙",
       "family": "奥术箭",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "奥术增幅α",
@@ -636,27 +636,27 @@
     },
     {
       "name": "冰晶爆裂",
-      "rarity": "橙",
+      "rarity": "蓝",
       "family": "寒冰箭",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "强化冰箭",
-      "rarity": "白",
+      "rarity": "蓝",
       "family": "寒冰箭",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "永冻天球",
       "rarity": "橙",
       "family": "寒冰箭",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "雷击增幅",
@@ -1652,19 +1652,19 @@
     },
     {
       "name": "风力回旋",
-      "rarity": "橙",
-      "family": "地震",
+      "rarity": "绿",
+      "family": "飓风",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "强化飓风",
-      "rarity": "白",
-      "family": "地震",
+      "rarity": "绿",
+      "family": "飓风",
       "face": "card_grid",
-      "rarity_status": "real_machine_video",
-      "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     },
     {
       "name": "火球增幅",
@@ -1761,6 +1761,86 @@
       "face": "card_grid",
       "rarity_status": "real_machine_video",
       "source": "16技能_技能词条颜色与效果_视频核查版_20260819.docx"
+    },
+    {
+      "name": "箭神",
+      "rarity": "橙",
+      "family": "普攻",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
+    },
+    {
+      "name": "紫极天雷",
+      "rarity": "橙",
+      "family": "天雷",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
+    },
+    {
+      "name": "无限电流",
+      "rarity": "橙",
+      "family": "闪电链",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
+    },
+    {
+      "name": "地爆天星",
+      "rarity": "橙",
+      "family": "陨石",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
+    },
+    {
+      "name": "高频脉冲",
+      "rarity": "橙",
+      "family": "奥术激光",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
+    },
+    {
+      "name": "风暴狂潮",
+      "rarity": "橙",
+      "family": "飓风",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
+    },
+    {
+      "name": "余震",
+      "rarity": "橙",
+      "family": "地震",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
+    },
+    {
+      "name": "散射箭矢",
+      "rarity": "橙",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
+    },
+    {
+      "name": "奥术狂潮",
+      "rarity": "橙",
+      "family": "奥术箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
+    },
+    {
+      "name": "究极冰箭",
+      "rarity": "橙",
+      "family": "寒冰箭",
+      "face": "card_grid",
+      "rarity_status": "real_machine_screenshot",
+      "source": "user_screenshot_20260902"
     }
   ]
 }

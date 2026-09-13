@@ -1,0 +1,1219 @@
+{
+  "schema_version": 1,
+  "baseline_status": "FROZEN_2026-08-29",
+  "raw_scan_policy": "Stop scanning/curating the 27GB raw screenshot roots; future coverage work must use indexed subsets or new real Live Capture evidence.",
+  "generated_at_utc": "2026-08-29T06:46:45.810742+00:00",
+  "scope": {
+    "repo": "G:\\刷刷宝\\GameScript-Local",
+    "purpose": "Vision Corpus Coverage: asset distillation and evaluation only",
+    "raw_file_observation": "Counts are current filesystem observations; no global deduplication or gold-quality claim.",
+    "production_integration": "NOT_APPLIED",
+    "forbidden_changes": [
+      "fallback",
+      "watchdog",
+      "thread",
+      "recovery_manager",
+      "FSM",
+      "runtime wiring"
+    ]
+  },
+  "raw_roots": [
+    {
+      "id": "repo_fixtures",
+      "path": "fixtures",
+      "classification": "TEST_ONLY / DEV_ONLY",
+      "exists": true,
+      "image_files": 1952,
+      "bytes": 930363794,
+      "notes": "Indexed fixtures and replay assets; not all are gold samples."
+    },
+    {
+      "id": "testjia",
+      "path": "G:\\刷刷宝\\测试夹",
+      "classification": "DEV_ONLY",
+      "exists": true,
+      "image_files": 5333,
+      "bytes": 2451699088,
+      "notes": "Incident/test images outside the authoritative repository."
+    },
+    {
+      "id": "video_frames",
+      "path": "G:\\刷刷宝\\video_frames",
+      "classification": "DEV_ONLY",
+      "exists": true,
+      "image_files": 70,
+      "bytes": 207518158,
+      "notes": "Locally extracted video frames when present."
+    },
+    {
+      "id": "codex_evidence",
+      "path": "G:\\刷刷宝\\_codex_skill_video_evidence",
+      "classification": "DEV_ONLY",
+      "exists": true,
+      "image_files": 266,
+      "bytes": 256433149,
+      "notes": "Codex evidence images, not a production asset source."
+    },
+    {
+      "id": "video_archive",
+      "path": "G:\\测试视频+抽帧",
+      "classification": "DEV_ONLY",
+      "exists": true,
+      "image_files": 142075,
+      "bytes": 20922424491,
+      "notes": "Raw sequential video frames; no deduplication claim."
+    },
+    {
+      "id": "appdata_shuabao",
+      "path": "C:\\Users\\10639\\AppData\\Local\\ShuaBao",
+      "classification": "DEV_ONLY",
+      "exists": true,
+      "image_files": 11348,
+      "bytes": 4336093169,
+      "notes": "Runtime incidents/traces; incident evidence only."
+    },
+    {
+      "id": "legacy_1_5_1",
+      "path": "G:\\下载\\1.5.1.zip\\Images",
+      "classification": "DEV_REF",
+      "exists": true,
+      "image_files": 293,
+      "bytes": 1938546,
+      "notes": "Legacy reference images; not current-version approval."
+    }
+  ],
+  "indexed_evaluation": {
+    "vision_eval_samples": 155,
+    "vision_eval_sessions": 7,
+    "vision_eval_by_scene": {
+      "skill_choice": 47,
+      "bond_choice": 54,
+      "treasure_choice": 54
+    },
+    "ocr_treasure_description_calls": 12276,
+    "ocr_treasure_description_status": "all unavailable",
+    "treasure_decision_replay_mismatches": 0
+  },
+  "matrix": [
+    {
+      "scene_id": "skill_choice",
+      "layer": "L1/perception+decision",
+      "business_scenario": "技能选择",
+      "positive": {
+        "units": 47,
+        "unique_images": 47,
+        "sources": [
+          "docs/distillation/VISION_EVAL_MANIFEST.jsonl",
+          "fixtures/ocr_choices"
+        ],
+        "note": "Title-crop units; unique image count is hash/path deduplicated within this scene."
+      },
+      "negative": {
+        "units": 55,
+        "unique_images": 55,
+        "sources": [
+          "fixtures/ocr_choices/negatives"
+        ],
+        "note": "Shared explicit non-choice pool; it is not a scene-specific confusion set for every choice family."
+      },
+      "hard_negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立 scene-specific hard-negative set"
+        ],
+        "note": "缺少该场景独立、带期望 no-action 的 hard-negative 标注。"
+      },
+      "sessions": {
+        "real_capture_sessions": 7,
+        "real_capture_ids": [
+          "dragonball_webp_20260807",
+          "live_postgame_20260808",
+          "reborn_wow_screens_20260806",
+          "rec1_ingame_boss_20260809",
+          "rec3_260810",
+          "rec5_260808",
+          "rec7_short2_20260808"
+        ],
+        "snapshot_collections": [
+          "fixtures/ocr_choices"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "PRESENT",
+        "evidence": [
+          "VISION_EVAL_MANIFEST.json: source_crop + roi + hash",
+          "current six-variant OCR evaluation"
+        ]
+      },
+      "algorithm": {
+        "status": "PRESENT",
+        "evidence": [
+          "docs/distillation/VISION_OCR_BENCHMARK.json",
+          "existing choice OCR implementation (reference only)"
+        ]
+      },
+      "kpi": {
+        "status": "PRESENT",
+        "evidence": [
+          "VISION_OCR_BENCHMARK.json",
+          "CARD_TEMPLATE_BENCHMARK.json (bond/template scope)"
+        ]
+      },
+      "compression_status": "COMPRESSED",
+      "raw_material_disposition": "COMPRESSED",
+      "gap": "当前 KPI 不是全业务闭环证明；需继续补齐场景级 no-action/hard-negative 和多分辨率样本。"
+    },
+    {
+      "scene_id": "bond_choice",
+      "layer": "L1/perception+decision",
+      "business_scenario": "羁绊选择",
+      "positive": {
+        "units": 54,
+        "unique_images": 54,
+        "sources": [
+          "docs/distillation/VISION_EVAL_MANIFEST.jsonl",
+          "fixtures/ocr_choices"
+        ],
+        "note": "Title-crop units; unique image count is hash/path deduplicated within this scene."
+      },
+      "negative": {
+        "units": 55,
+        "unique_images": 55,
+        "sources": [
+          "fixtures/ocr_choices/negatives"
+        ],
+        "note": "Shared explicit non-choice pool; it is not a scene-specific confusion set for every choice family."
+      },
+      "hard_negative": {
+        "units": 423,
+        "unique_images": 6,
+        "sources": [
+          "docs/distillation/CARD_TEMPLATE_BENCHMARK.json"
+        ],
+        "note": "Template pair units; 6 positive frames are compared against 423 hard-negative pairs."
+      },
+      "sessions": {
+        "real_capture_sessions": 7,
+        "real_capture_ids": [
+          "dragonball_webp_20260807",
+          "live_postgame_20260808",
+          "reborn_wow_screens_20260806",
+          "rec1_ingame_boss_20260809",
+          "rec3_260810",
+          "rec5_260808",
+          "rec7_short2_20260808"
+        ],
+        "snapshot_collections": [
+          "fixtures/ocr_choices"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "PRESENT",
+        "evidence": [
+          "VISION_EVAL_MANIFEST.json: source_crop + roi + hash",
+          "current six-variant OCR evaluation"
+        ]
+      },
+      "algorithm": {
+        "status": "PRESENT",
+        "evidence": [
+          "docs/distillation/VISION_OCR_BENCHMARK.json",
+          "existing choice OCR implementation (reference only)",
+          "docs/distillation/CARD_TEMPLATE_BENCHMARK.json"
+        ]
+      },
+      "kpi": {
+        "status": "PRESENT",
+        "evidence": [
+          "VISION_OCR_BENCHMARK.json",
+          "CARD_TEMPLATE_BENCHMARK.json (bond/template scope)"
+        ]
+      },
+      "compression_status": "COMPRESSED",
+      "raw_material_disposition": "COMPRESSED",
+      "gap": "当前 KPI 不是全业务闭环证明；需继续补齐场景级 no-action/hard-negative 和多分辨率样本。"
+    },
+    {
+      "scene_id": "treasure_choice",
+      "layer": "L1/perception+decision",
+      "business_scenario": "宝物选择",
+      "positive": {
+        "units": 54,
+        "unique_images": 54,
+        "sources": [
+          "docs/distillation/VISION_EVAL_MANIFEST.jsonl",
+          "fixtures/ocr_choices"
+        ],
+        "note": "Title-crop units; unique image count is hash/path deduplicated within this scene."
+      },
+      "negative": {
+        "units": 55,
+        "unique_images": 55,
+        "sources": [
+          "fixtures/ocr_choices/negatives"
+        ],
+        "note": "Shared explicit non-choice pool; it is not a scene-specific confusion set for every choice family."
+      },
+      "hard_negative": {
+        "units": 10,
+        "unique_images": 10,
+        "sources": [
+          "fixtures/treasure_negative"
+        ],
+        "note": "Ten full-panel negative observations across six named negative cards; descriptions are semantic evidence, not approved templates."
+      },
+      "sessions": {
+        "real_capture_sessions": 7,
+        "real_capture_ids": [
+          "dragonball_webp_20260807",
+          "live_postgame_20260808",
+          "reborn_wow_screens_20260806",
+          "rec1_ingame_boss_20260809",
+          "rec3_260810",
+          "rec5_260808",
+          "rec7_short2_20260808"
+        ],
+        "snapshot_collections": [
+          "fixtures/ocr_choices"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "PRESENT",
+        "evidence": [
+          "VISION_EVAL_MANIFEST.json: source_crop + roi + hash",
+          "current six-variant OCR evaluation"
+        ]
+      },
+      "algorithm": {
+        "status": "PRESENT",
+        "evidence": [
+          "docs/distillation/VISION_OCR_BENCHMARK.json",
+          "existing choice OCR implementation (reference only)"
+        ]
+      },
+      "kpi": {
+        "status": "PRESENT",
+        "evidence": [
+          "VISION_OCR_BENCHMARK.json",
+          "CARD_TEMPLATE_BENCHMARK.json (bond/template scope)"
+        ]
+      },
+      "compression_status": "COMPRESSED",
+      "raw_material_disposition": "COMPRESSED",
+      "gap": "当前 KPI 不是全业务闭环证明；需继续补齐场景级 no-action/hard-negative 和多分辨率样本。"
+    },
+    {
+      "scene_id": "l0_platform_room_create",
+      "layer": "L0/platform",
+      "business_scenario": "地图页→创建房间→确认",
+      "positive": {
+        "units": 2,
+        "unique_images": 2,
+        "sources": [
+          "fixtures/manifest.json"
+        ],
+        "note": ""
+      },
+      "negative": {
+        "units": 2,
+        "unique_images": 2,
+        "sources": [
+          "fixtures/manifest.json"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 2,
+        "unique_images": 2,
+        "sources": [
+          "fixtures/lobby_hitch_20260814/INDEX.json"
+        ],
+        "note": "Modal/room-entry confusions; no claim of successful join."
+      },
+      "sessions": {
+        "real_capture_sessions": 1,
+        "real_capture_ids": [
+          "live_e2e_20260807"
+        ],
+        "snapshot_collections": [
+          "fixtures/replay"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "PRESENT",
+        "evidence": [
+          "fixtures/manifest.json",
+          "config/scenes.json existing room/create ROIs"
+        ]
+      },
+      "algorithm": {
+        "status": "PARTIAL",
+        "evidence": [
+          "existing template probes in Stage 2A evidence"
+        ]
+      },
+      "kpi": {
+        "status": "PARTIAL",
+        "evidence": [
+          "release gate scene/template checks",
+          "no reliable end-to-end join KPI"
+        ]
+      },
+      "compression_status": "PARTIAL",
+      "raw_material_disposition": "COMPRESSED",
+      "gap": "创建/确认证据可定位；大厅真实点击成功率、取消/密码/等级弹窗的动作等价性仍未形成稳定 KPI。"
+    },
+    {
+      "scene_id": "l0_room_list_join_ready",
+      "layer": "L0/platform",
+      "business_scenario": "房间列表筛选→识别可加入房→准备/等待",
+      "positive": {
+        "units": 5,
+        "unique_images": 5,
+        "sources": [
+          "fixtures/lobby_hitch_20260814/INDEX.json",
+          "fixtures/lobby_hitch_detail_20260814/README.md"
+        ],
+        "note": "Five representative positive states, while the detailed video contributes 20 client crops as research frames."
+      },
+      "negative": {
+        "units": 3,
+        "unique_images": 0,
+        "sources": [
+          "fixtures/lobby_hitch_20260814/README.md"
+        ],
+        "note": "Create/quick-join/quick-match were explicitly not clicked in the capture."
+      },
+      "hard_negative": {
+        "units": 5,
+        "unique_images": 3,
+        "sources": [
+          "fixtures/lobby_hitch_20260814/INDEX.json",
+          "fixtures/lobby_hitch_detail_20260814/README.md"
+        ],
+        "note": "Visually confusable full/locked/guest-ready states; not yet an audited confusion benchmark."
+      },
+      "sessions": {
+        "real_capture_sessions": 2,
+        "real_capture_ids": [
+          "lobby_hitch_20260814",
+          "lobby_hitch_detail_20260814"
+        ],
+        "snapshot_collections": []
+      },
+      "roi_or_parameters": {
+        "status": "PARTIAL",
+        "evidence": [
+          "client crop 203,84 / 1600x900",
+          "existing room/list template probes"
+        ]
+      },
+      "algorithm": {
+        "status": "PARTIAL",
+        "evidence": [
+          "template matching evidence only; no join-success action replay"
+        ]
+      },
+      "kpi": {
+        "status": "MISSING",
+        "evidence": [
+          "no reliable join→ready→start KPI"
+        ]
+      },
+      "compression_status": "PARTIAL",
+      "raw_material_disposition": "RESEARCH_ONLY",
+      "gap": "有真实录像代表帧，但无法证明蹭车加入成功；列表行、房间满、密码/锁标和准备态仍需成对标注。"
+    },
+    {
+      "scene_id": "l0_room_waiting_ready_start",
+      "layer": "L0/platform",
+      "business_scenario": "房间等待/准备态→开始倒计时",
+      "positive": {
+        "units": 1,
+        "unique_images": 1,
+        "sources": [
+          "fixtures/replay/room_waiting_host.png"
+        ],
+        "note": ""
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立独立 negative"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 2,
+        "unique_images": 2,
+        "sources": [
+          "fixtures/lobby_hitch_20260814/INDEX.json"
+        ],
+        "note": "Guest-ready/cancel-ready are dangerous room_start confusions; current template probe is below approved threshold for some states."
+      },
+      "sessions": {
+        "real_capture_sessions": 2,
+        "real_capture_ids": [
+          "live_e2e_20260807",
+          "lobby_hitch_detail_20260814"
+        ],
+        "snapshot_collections": []
+      },
+      "roi_or_parameters": {
+        "status": "PARTIAL",
+        "evidence": [
+          "room_waiting_host replay asset",
+          "room_start template threshold evidence"
+        ]
+      },
+      "algorithm": {
+        "status": "PARTIAL",
+        "evidence": [
+          "no full state/action sequence benchmark"
+        ]
+      },
+      "kpi": {
+        "status": "MISSING",
+        "evidence": [
+          "no stable false-start/ready-state KPI"
+        ]
+      },
+      "compression_status": "PARTIAL",
+      "raw_material_disposition": "RESEARCH_ONLY",
+      "gap": "等待、客人准备和房主开始三态尚未形成可安全放行的完整正负样本闭环。"
+    },
+    {
+      "scene_id": "l0_stage_select_start",
+      "layer": "L0/platform",
+      "business_scenario": "选关/难度/挑战→开始主线",
+      "positive": {
+        "units": 1,
+        "unique_images": 1,
+        "sources": [
+          "fixtures/manifest.json"
+        ],
+        "note": ""
+      },
+      "negative": {
+        "units": 2,
+        "unique_images": 4,
+        "sources": [
+          "fixtures/scenarios/",
+          "fixtures/manifest.json"
+        ],
+        "note": "Some are transition/archaeology evidence, not clean no-action labels."
+      },
+      "hard_negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立独立 hard-negative"
+        ],
+        "note": ""
+      },
+      "sessions": {
+        "real_capture_sessions": 1,
+        "real_capture_ids": [
+          "lobby_hitch_detail_20260814"
+        ],
+        "snapshot_collections": [
+          "reborn_wow_screens_20260806"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "PARTIAL",
+        "evidence": [
+          "stage target coordinates/scene templates",
+          "stage_select_20260814/ representative frame"
+        ]
+      },
+      "algorithm": {
+        "status": "PARTIAL",
+        "evidence": [
+          "frozen stage-select scroll replay PASS"
+        ]
+      },
+      "kpi": {
+        "status": "PARTIAL",
+        "evidence": [
+          "no reliable ticket-zero / wrong-stage action KPI"
+        ]
+      },
+      "compression_status": "PARTIAL",
+      "raw_material_disposition": "RESEARCH_ONLY",
+      "gap": "目标关卡样本存在；ticket 0/120 与挑战票据仍是 XFAIL/CAVEAT，不能当作真实修复证据。"
+    },
+    {
+      "scene_id": "l0_hero_setup",
+      "layer": "L0/platform",
+      "business_scenario": "英雄选择/属性/等级/开始",
+      "positive": {
+        "units": 1,
+        "unique_images": 1,
+        "sources": [
+          "fixtures/hero_modal_20260812_180825"
+        ],
+        "note": ""
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立独立 negative"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "54 ROI/level/card/strip crops are state variations, not validated hard negatives"
+        ],
+        "note": ""
+      },
+      "sessions": {
+        "real_capture_sessions": 1,
+        "real_capture_ids": [
+          "hero_modal_20260812_180825"
+        ],
+        "snapshot_collections": []
+      },
+      "roi_or_parameters": {
+        "status": "PARTIAL",
+        "evidence": [
+          "client_1600x900 + 54 ROI/state crops"
+        ]
+      },
+      "algorithm": {
+        "status": "MISSING",
+        "evidence": [
+          "no action-level detector/selector benchmark"
+        ]
+      },
+      "kpi": {
+        "status": "MISSING",
+        "evidence": [
+          "no complete target-level→Start KPI"
+        ]
+      },
+      "compression_status": "RESEARCH_ONLY",
+      "raw_material_disposition": "RESEARCH_ONLY",
+      "gap": "有素材蒸馏价值，但视频没有完整目标等级与 Start 闭环；不能压缩成生产参数。"
+    },
+    {
+      "scene_id": "l1_main_hud_challenges",
+      "layer": "L1/in-game",
+      "business_scenario": "主 HUD/自动任务/四挑战可见与切换",
+      "positive": {
+        "units": 2,
+        "unique_images": 2,
+        "sources": [
+          "fixtures/replay/",
+          "fixtures/lobby_hitch_detail_20260814/README.md"
+        ],
+        "note": "Auto off/on representative states; the detailed capture says four challenges are visible, but has no per-challenge action labels."
+      },
+      "negative": {
+        "units": 1,
+        "unique_images": 1,
+        "sources": [
+          "fixtures/replay/main_line_auto_on.png"
+        ],
+        "note": "Auto-on is a state negative for an auto-off action, not a global negative frame."
+      },
+      "hard_negative": {
+        "units": 2,
+        "unique_images": 6,
+        "sources": [
+          "fixtures/ocr_choices/negatives"
+        ],
+        "note": "Shared HUD/non-panel hard-negative candidates; not yet scene-paired."
+      },
+      "sessions": {
+        "real_capture_sessions": 2,
+        "real_capture_ids": [
+          "lobby_hitch_detail_20260814",
+          "longtest_20260814"
+        ],
+        "snapshot_collections": [
+          "reborn_wow_screens_20260806"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "PARTIAL",
+        "evidence": [
+          "main_line_auto_on/off and challenge scene assets",
+          "existing challenge ROIs"
+        ]
+      },
+      "algorithm": {
+        "status": "PARTIAL",
+        "evidence": [
+          "existing scene/template probes; no coverage-wide benchmark"
+        ]
+      },
+      "kpi": {
+        "status": "PARTIAL",
+        "evidence": [
+          "long-run event counts; no per-action precision/recall"
+        ]
+      },
+      "compression_status": "PARTIAL",
+      "raw_material_disposition": "RESEARCH_ONLY",
+      "gap": "主线与挑战的正面代表帧有；需要自动开/关、四挑战、不可见/遮挡和误点击对照的动作级 KPI。"
+    },
+    {
+      "scene_id": "l1_long_run_session",
+      "layer": "L1/liveness+telemetry",
+      "business_scenario": "长线程主循环、选择、刷新、羁绊与异常事件",
+      "positive": {
+        "units": 2,
+        "unique_images": 47,
+        "sources": [
+          "fixtures/longtest_20260814/trace_aligned.json",
+          "fixtures/longtest_20260814/focus"
+        ],
+        "note": "Two real runs are compressed to session telemetry; focus images remain diagnostic samples."
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未定义 session-level negative"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 96,
+        "unique_images": 47,
+        "sources": [
+          "fixtures/longtest_20260814/trace_aligned.json"
+        ],
+        "note": "Incident/stuck-event units, not hard-negative image labels."
+      },
+      "sessions": {
+        "real_capture_sessions": 2,
+        "real_capture_ids": [
+          "intelligence",
+          "strength"
+        ],
+        "snapshot_collections": [
+          "longtest_20260814/focus"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "PRESENT",
+        "evidence": [
+          "trace_aligned.json: 2 runs / 2996.4s / 6525 ticks",
+          "choice_decisions.json"
+        ]
+      },
+      "algorithm": {
+        "status": "PARTIAL",
+        "evidence": [
+          "event/decision telemetry; no new algorithm is introduced here"
+        ]
+      },
+      "kpi": {
+        "status": "PRESENT",
+        "evidence": [
+          "n_decisions=110",
+          "n_refreshes=57",
+          "n_window_loss_ticks=0",
+          "room_stuck_candidate=6; incident=90"
+        ]
+      },
+      "compression_status": "PARTIAL",
+      "raw_material_disposition": "COMPRESSED",
+      "gap": "长跑已压缩为 session/KPI，但不能把 incident/focus 图直接当作覆盖完成或生产 detector KPI。"
+    },
+    {
+      "scene_id": "l1_dragonball",
+      "layer": "L1/treasure semantics",
+      "business_scenario": "龙珠/进度型宝物识别与语义",
+      "positive": {
+        "units": 2,
+        "unique_images": 2,
+        "sources": [
+          "fixtures/ocr_choices/frames/dragonball_webp_20260807"
+        ],
+        "note": ""
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立龙珠 negative"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立龙珠 hard-negative"
+        ],
+        "note": ""
+      },
+      "sessions": {
+        "real_capture_sessions": 1,
+        "real_capture_ids": [
+          "dragonball_webp_20260807"
+        ],
+        "snapshot_collections": []
+      },
+      "roi_or_parameters": {
+        "status": "PARTIAL",
+        "evidence": [
+          "2 full-frame WebP + name/progress crops"
+        ]
+      },
+      "algorithm": {
+        "status": "MISSING",
+        "evidence": [
+          "no progress-state algorithm benchmark"
+        ]
+      },
+      "kpi": {
+        "status": "MISSING",
+        "evidence": [
+          "no false-positive / progression KPI"
+        ]
+      },
+      "compression_status": "RESEARCH_ONLY",
+      "raw_material_disposition": "RESEARCH_ONLY",
+      "gap": "只有研究素材和语义线索；缺少不同进度、非龙珠相似卡、跨 session 的可靠样本。"
+    },
+    {
+      "scene_id": "l1_wood_secret_merchant",
+      "layer": "L1/in-game",
+      "business_scenario": "木材挑战/秘境/黑市与掉落链",
+      "positive": {
+        "units": 2,
+        "unique_images": 2,
+        "sources": [
+          "fixtures/lobby_hitch_detail_20260814/README.md"
+        ],
+        "note": "Representative black-market/drop frames only; no click/action annotation."
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立独立 negative"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立独立 hard-negative"
+        ],
+        "note": ""
+      },
+      "sessions": {
+        "real_capture_sessions": 1,
+        "real_capture_ids": [
+          "lobby_hitch_detail_20260814"
+        ],
+        "snapshot_collections": []
+      },
+      "roi_or_parameters": {
+        "status": "PARTIAL",
+        "evidence": [
+          "existing wood/challenge/merchant scene assets",
+          "two representative full frames"
+        ]
+      },
+      "algorithm": {
+        "status": "MISSING",
+        "evidence": [
+          "no coverage-stage algorithm benchmark"
+        ]
+      },
+      "kpi": {
+        "status": "MISSING",
+        "evidence": [
+          "no merchant/secret/wood action KPI"
+        ]
+      },
+      "compression_status": "RESEARCH_ONLY",
+      "raw_material_disposition": "RESEARCH_ONLY",
+      "gap": "原始帧能说明业务存在，但缺少完整出现/不出现/遮挡/点击后状态转移样本。"
+    },
+    {
+      "scene_id": "l1_post_victory_archive_boss",
+      "layer": "L1/endgame",
+      "business_scenario": "胜利→归档/挑战 NPC/传家宝/大裂隙",
+      "positive": {
+        "units": 5,
+        "unique_images": 5,
+        "sources": [
+          "fixtures/replay/",
+          "fixtures/reborn_wow/manifest.json"
+        ],
+        "note": "One catalog frame per state; not a complete endgame session."
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立 endgame no-action pool"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 1,
+        "unique_images": 10,
+        "sources": [
+          "fixtures/live_postgame_20260808/README.md"
+        ],
+        "note": "archive_panel is documented as a safe-zone/minimap marker, not the actual archive modal."
+      },
+      "sessions": {
+        "real_capture_sessions": 2,
+        "real_capture_ids": [
+          "live_postgame_20260808",
+          "lobby_hitch_detail_20260814"
+        ],
+        "snapshot_collections": []
+      },
+      "roi_or_parameters": {
+        "status": "PARTIAL",
+        "evidence": [
+          "frozen replay/endgame catalog assets"
+        ]
+      },
+      "algorithm": {
+        "status": "PARTIAL",
+        "evidence": [
+          "archive/exit replay guards; current-version chain is incomplete"
+        ]
+      },
+      "kpi": {
+        "status": "PARTIAL",
+        "evidence": [
+          "frozen archive/exit checks, but no full chain KPI"
+        ]
+      },
+      "compression_status": "PARTIAL",
+      "raw_material_disposition": "RESEARCH_ONLY",
+      "gap": "单帧目录与部分 frozen replay 已有；真正胜利后链路、误识别安全区、连续 session 仍不够。"
+    },
+    {
+      "scene_id": "recovery_fail_giveup",
+      "layer": "Recovery",
+      "business_scenario": "失败/放弃面板的区分与收口",
+      "positive": {
+        "units": 3,
+        "unique_images": 3,
+        "sources": [
+          "fixtures/scenarios/fail_recovery_three_frames/"
+        ],
+        "note": "fail/ok/close replay evidence; giveup baseline is a frozen replay outcome."
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立独立 recovery negative"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 1,
+        "unique_images": 3,
+        "sources": [
+          "fixtures/scenarios/fail_recovery_three_frames/case.json"
+        ],
+        "note": "Giveup-vs-fail distinction is represented by the replay guard, not a broad image benchmark."
+      },
+      "sessions": {
+        "real_capture_sessions": 1,
+        "real_capture_ids": [
+          "fail_recovery_three_frames"
+        ],
+        "snapshot_collections": []
+      },
+      "roi_or_parameters": {
+        "status": "PRESENT",
+        "evidence": [
+          "fail/giveup scene anchors and three-frame harness"
+        ]
+      },
+      "algorithm": {
+        "status": "PRESENT",
+        "evidence": [
+          "fail/giveup replay guard"
+        ]
+      },
+      "kpi": {
+        "status": "PRESENT",
+        "evidence": [
+          "giveup_panel_not_fail PASS",
+          "fail_panel_preempt PASS"
+        ]
+      },
+      "compression_status": "COMPRESSED",
+      "raw_material_disposition": "COMPRESSED",
+      "gap": "已压缩为场景 guard/replay KPI；仍不等于真实断线弹窗覆盖。"
+    },
+    {
+      "scene_id": "recovery_pause_overlay",
+      "layer": "Recovery",
+      "business_scenario": "暂停覆盖层与恢复动作",
+      "positive": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "没有可审计的 current-version positive"
+        ],
+        "note": ""
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "没有可审计的 current-version negative"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "没有可审计的 current-version hard-negative"
+        ],
+        "note": ""
+      },
+      "sessions": {
+        "real_capture_sessions": 0,
+        "real_capture_ids": [],
+        "snapshot_collections": [
+          "tests/performance/fixtures/manifest.json"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "MISSING",
+        "evidence": [
+          "仅有场景配置/历史测试入口"
+        ]
+      },
+      "algorithm": {
+        "status": "MISSING",
+        "evidence": [
+          "full current-version pause overlay 未建立"
+        ]
+      },
+      "kpi": {
+        "status": "MISSING",
+        "evidence": [
+          "pause action KPI 未建立"
+        ]
+      },
+      "compression_status": "MISSING",
+      "raw_material_disposition": "MISSING",
+      "gap": "暂停 overlay 的现有测试回归与素材边界未完成，不能以配置条目替代实机证据。"
+    },
+    {
+      "scene_id": "recovery_disconnect",
+      "layer": "Recovery",
+      "business_scenario": "断线/退出确认弹窗 fail-closed",
+      "positive": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "fixtures/missing_disconnect.png (missing)"
+        ],
+        "note": ""
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立 disconnect negative"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立 disconnect hard-negative"
+        ],
+        "note": ""
+      },
+      "sessions": {
+        "real_capture_sessions": 0,
+        "real_capture_ids": [],
+        "snapshot_collections": [
+          "fixtures/manifest.json"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "MISSING",
+        "evidence": [
+          "disconnect modal positive fixture missing"
+        ]
+      },
+      "algorithm": {
+        "status": "MISSING",
+        "evidence": [
+          "no current-version visual algorithm evaluation"
+        ]
+      },
+      "kpi": {
+        "status": "BLOCKED",
+        "evidence": [
+          "release gate: disconnect_modal_missing BLOCKED baseline-consistent"
+        ]
+      },
+      "compression_status": "MISSING",
+      "raw_material_disposition": "MISSING",
+      "gap": "保持 BLOCKED；不得用合成帧或相邻退出弹窗替代。"
+    },
+    {
+      "scene_id": "treasure_business_semantics",
+      "layer": "L1/decision semantics",
+      "business_scenario": "必拿/负向宝物/描述负模式/刷新策略",
+      "positive": {
+        "units": 4,
+        "unique_images": 4,
+        "sources": [
+          "fixtures/treasure_must_take/README.md"
+        ],
+        "note": ""
+      },
+      "negative": {
+        "units": 6,
+        "unique_images": 10,
+        "sources": [
+          "fixtures/treasure_negative/INDEX.json"
+        ],
+        "note": "Six named negative semantic card classes."
+      },
+      "hard_negative": {
+        "units": 10,
+        "unique_images": 10,
+        "sources": [
+          "fixtures/treasure_negative/INDEX.json"
+        ],
+        "note": "Ten full-panel observations; not all are independent hard-negative labels."
+      },
+      "sessions": {
+        "real_capture_sessions": 0,
+        "real_capture_ids": [],
+        "snapshot_collections": [
+          "fixtures/treasure_must_take",
+          "fixtures/treasure_negative"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "PARTIAL",
+        "evidence": [
+          "name/description crops and business lists",
+          "description/negative_patterns retained"
+        ]
+      },
+      "algorithm": {
+        "status": "PRESENT",
+        "evidence": [
+          "choice_policy semantic lists",
+          "treasure description decision-equivalence replay"
+        ]
+      },
+      "kpi": {
+        "status": "PRESENT",
+        "evidence": [
+          "12276 unavailable desc calls; paired replay mismatch_count=0"
+        ]
+      },
+      "compression_status": "PARTIAL",
+      "raw_material_disposition": "COMPRESSED",
+      "gap": "业务语义已保留并可评测；仍需把必拿/负向卡放回真实多布局 panel/session 做识别 KPI。"
+    },
+    {
+      "scene_id": "ur_attr_route_semantics",
+      "layer": "L1/decision semantics",
+      "business_scenario": "UR 属性路线：智力/力量/敏捷",
+      "positive": {
+        "units": 9,
+        "unique_images": 9,
+        "sources": [
+          "fixtures/ur_attr_routes/INDEX.json"
+        ],
+        "note": "Nine semantic source images across three routes."
+      },
+      "negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立路线 negative"
+        ],
+        "note": ""
+      },
+      "hard_negative": {
+        "units": 0,
+        "unique_images": 0,
+        "sources": [
+          "未建立路线 hard-negative"
+        ],
+        "note": ""
+      },
+      "sessions": {
+        "real_capture_sessions": 0,
+        "real_capture_ids": [],
+        "snapshot_collections": [
+          "fixtures/ur_attr_routes"
+        ]
+      },
+      "roi_or_parameters": {
+        "status": "RESEARCH_ONLY",
+        "evidence": [
+          "source.png semantic cards; no click-template ROI"
+        ]
+      },
+      "algorithm": {
+        "status": "MISSING",
+        "evidence": [
+          "no route recognition benchmark"
+        ]
+      },
+      "kpi": {
+        "status": "MISSING",
+        "evidence": [
+          "no route precision/recall or outcome KPI"
+        ]
+      },
+      "compression_status": "RESEARCH_ONLY",
+      "raw_material_disposition": "RESEARCH_ONLY",
+      "gap": "当前只能支持业务知识蒸馏，不能支持视觉生产接入或路线成功率结论。"
+    }
+  ],
+  "disposition": {
+    "compressed": [
+      "skill_choice / bond_choice / treasure_choice title-crop ROI + OCR/template KPI",
+      "recovery_fail_giveup frozen replay guard and KPI",
+      "treasure_business_semantics lists + decision-equivalence evidence",
+      "longtest_20260814 two-session telemetry/KPI (not detector coverage)"
+    ],
+    "research_only": [
+      "raw incident images and sequential video frames",
+      "hero setup ROI/state crops",
+      "dragonball, wood/secret/merchant representative frames",
+      "treasure must-take and UR attribute route source images",
+      "single-frame endgame catalog and live postgame safe-zone marker"
+    ],
+    "missing_or_unreliable": [
+      "current-version disconnect modal positive",
+      "current-version pause overlay positive/negative pair",
+      "full lobby join→ready→start→return action sequence KPI",
+      "ticket-zero challenge evidence",
+      "complete hero setup target-level→Start loop",
+      "scene-specific negative/hard-negative/session KPI for dragonball, wood, secret, merchant and endgame chain"
+    ]
+  }
+}

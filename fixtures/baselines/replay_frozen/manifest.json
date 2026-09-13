@@ -61,7 +61,7 @@
       "required": true,
       "missing_resource": false,
       "ledger_expectation": [
-        {"frame_index": 0, "frame_id": "hud_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "OpenSkillPanel", "action_kind": "left_click", "click_point": [1452, 808]},
+        {"frame_index": 0, "frame_id": "hud_f1", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "OpenBondPanel", "action_kind": "left_click", "click_point": [1390, 808]},
         {"frame_index": 1, "frame_id": "hud_f2", "phase": "MAIN_LINE", "context": "MAIN_LINE", "action_name": "none", "action_kind": "none", "click_point": null}
       ]
     },

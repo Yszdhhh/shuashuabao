@@ -35,8 +35,8 @@ def make_test_frame(width: int = 1600, height: int = 900) -> Frame:
     )
 
 class TestMerchantScanner(unittest.TestCase):
-    def test_scanner_priority_ordering(self):
-        """Discounts and swallow pills and wood items should be prioritized in order."""
+    def test_scanner_returns_only_swallow_pills(self):
+        """黑商策略只能授权吞噬丹，折扣和木材必须被忽略。"""
         scanner = MerchantScanner(
             attr_routes=["intelligence"],
             focus_skills=["奥术箭"],
@@ -50,9 +50,7 @@ class TestMerchantScanner(unittest.TestCase):
             MerchantSlotItem(slot_index=1, center_ratio=(0.74, 0.72), item_type="devour_pill", label="吞噬丹"),
         ]
         ranked = scanner.rank_purchases(items, bond_bar_nonempty=True)
-        self.assertEqual(ranked[0].item_type, "discount")
-        self.assertEqual(ranked[1].item_type, "devour_pill")
-        self.assertEqual(ranked[2].item_type, "wood")
+        self.assertEqual([item.item_type for item in ranked], ["devour_pill"])
 
     def test_scanner_filters_negative_items(self):
         """Negative treasures must be strictly filtered out."""
@@ -62,8 +60,7 @@ class TestMerchantScanner(unittest.TestCase):
             MerchantSlotItem(slot_index=1, center_ratio=(0.74, 0.72), item_type="wood", label="木材礼包"),
         ]
         ranked = scanner.rank_purchases(items, bond_bar_nonempty=False)
-        self.assertEqual(len(ranked), 1)
-        self.assertEqual(ranked[0].item_type, "wood")
+        self.assertEqual(ranked, [])
 
     def test_scanner_skips_pill_when_bond_bar_empty(self):
         """Swallow pill must not be purchased if bond bar is empty."""
@@ -73,21 +70,21 @@ class TestMerchantScanner(unittest.TestCase):
             MerchantSlotItem(slot_index=1, center_ratio=(0.74, 0.72), item_type="wood", label="木材礼包"),
         ]
         ranked = scanner.rank_purchases(items, bond_bar_nonempty=False)
-        self.assertEqual(len(ranked), 1)
-        self.assertEqual(ranked[0].item_type, "wood")
+        self.assertEqual(ranked, [])
 
 
 class TestBagHeroCardAndDevourPill(unittest.TestCase):
     def setUp(self):
         self.med = Mediator(Settings(), ROOT)
         self.med.settings.ui_action_interval_s = 0.5
+        self.med._merchant_kill_balance = lambda _frame: 10_000
         self.frame = make_test_frame()
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
-    def test_devour_pill_consumed_when_bond_bar_nonempty(self, mock_time):
-        """Swallow pill is clicked in inventory and updates inventory next cooldown."""
+    def test_devour_pill_consumed_when_more_than_three_bonds(self, mock_time):
+        """Swallow pill is clicked only after the live bond bar exceeds three cards."""
         with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_bond_bar_nonempty", return_value=True), \
+             patch.object(self.med, "_can_consume_inventory_swallow_pill", return_value=True), \
              patch.object(self.med, "find") as mock_find, \
              patch.object(self.med, "act_click", return_value=True) as mock_click:
             pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)
@@ -97,6 +94,18 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
             self.assertEqual(action, LoopAction.Continue)
             mock_click.assert_called_once_with(pill_match, "UseInventory-swallow_pill")
             self.assertGreater(self.med._inventory_next_at, 100.0)
+
+    def test_devour_pill_waits_at_three_bonds(self):
+        with patch.object(self.med, "_bond_bar_occupancy", return_value=3), \
+             patch.object(self.med, "find") as mock_find, \
+             patch.object(self.med, "act_click") as mock_click:
+            self.assertIsNone(self.med._maybe_use_inventory_item(self.frame))
+        mock_find.assert_not_called()
+        mock_click.assert_not_called()
+
+    def test_devour_pill_gate_opens_at_four_bonds(self):
+        with patch.object(self.med, "_bond_bar_occupancy", return_value=4):
+            self.assertTrue(self.med._can_consume_inventory_swallow_pill(self.frame))
 
     @patch("shuabao.mediator.time.time", return_value=100.0)
     def test_hero_card_triggers_evolution_flow_with_pending_action(self, mock_time):
@@ -113,6 +122,7 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
             action = self.med._maybe_use_inventory_item(self.frame)
             self.assertEqual(action, LoopAction.Continue)
             mock_click.assert_called_once_with(hero_card_match, "UseInventory-hero-card")
+            self.assertEqual(mock_find.call_args.kwargs["threshold"], 0.65)
             self.assertIsNotNone(self.med._pending_action)
             self.assertEqual(self.med._pending_action.kind, "WAIT_HERO_CHOICE")
             self.assertEqual(self.med._pending_action.target_id, "hero_card_item")
@@ -141,7 +151,7 @@ class TestBagHeroCardAndDevourPill(unittest.TestCase):
     def test_devour_pill_episode_limit_and_reset(self, mock_time):
         """D2 invariant: Devour pill clicks cap at 5, reset when pill disappears or cycle resets."""
         with patch.object(self.med, "_black_merchant_present", return_value=False), \
-             patch.object(self.med, "_bond_bar_nonempty", return_value=True), \
+             patch.object(self.med, "_can_consume_inventory_swallow_pill", return_value=True), \
              patch.object(self.med, "find") as mock_find, \
              patch.object(self.med, "act_click", return_value=True) as mock_click:
             pill_match = MatchResult("danGif", 0.9, 1100, 750, 20, 20, 1100, 750)

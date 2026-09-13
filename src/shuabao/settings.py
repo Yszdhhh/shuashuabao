@@ -74,6 +74,7 @@ _INT_RANGES: dict[str, tuple[int, int]] = {
     "dragon_ball_count": (1, 10), "treasure_num": (0, 20),
     "cycle_num": (0, 999), "kill_boss_num": (0, 9999),
     "follow_cycle_num": (0, 999), "hitch_cycle_num": (0, 999),
+    "hitch_rotate_interval": (1, 100),
     "boss_live_time": (0, 3600), "archive_boss_time": (0, 3600),
     "auto_clean_interval": (0, 99), "develop_time": (0, 3000),
     "close_main_line_time": (0, 3600), "auto_gambling_time": (0, 3600),
@@ -115,7 +116,10 @@ class Settings:
     game_mode: int = 0  # 0=独狼/自己刷图
     # 运行方式目录 id（normal_farm / lobby_hitch / …）。不是 OBSERVE/LIVE。
     mode_id: str = "normal_farm"
-    hitch_stage_prefix: str = "3"  # 蹭车搜房前缀，仅 3/4
+    hitch_stage_prefix: str = "4,3,速"  # 大厅找房搜索词，默认 4→3→速，可逗号分隔多词轮换
+    hitch_rotate_interval: int = 1  # 搜索无可进房时立即随机轮换到另一个搜索词
+    subscription_base_url: str = "https://quebec-luis-flooring-kenneth.trycloudflare.com"  # 默认云端鉴权中台地址
+    subscription_mode: str = "enforce"  # 订阅模式：off / shadow / enforce
     follow_cycle_num: int = 100  # 跟车目标局数；启动时投影到 cycle_num
     hitch_cycle_num: int = 100  # 蹭车目标局数；启动时投影到 cycle_num
     follow_after_room: str = "solo"  # 房间解散/被踢后预案：solo / arch / hitch
@@ -180,7 +184,7 @@ class Settings:
     auto_bond: bool = True       # 主动按 F 开羁绊面板（低频，防烧木材）
     auto_treasure: bool = True   # 主动按 V 开宝物面板（低频，防烧刷新次数）
     choice_interval: int = 120   # 主动开面板的最小间隔（秒）
-    auto_devour_dan: bool = True # 自动使用吞噬丹（需羁绊栏非空）
+    auto_devour_dan: bool = True # 自动使用吞噬丹（实机羁绊数 > 3）
     evolve_mystic_priority: bool = False  # 未知/神秘进化优先（True=排最前，False=默认排在 SSR 之后、SR 之前）
     auto_artifact: bool = True   # 神器 Q/W/E 槽定时释放
     artifact_cd: int = 120       # 神器冷却秒数
@@ -218,13 +222,13 @@ class Settings:
     panel_hard_deadline_s: float = 15.0     # 单个面板 episode 无进展硬超时
     auto_task_unknown_timeout_s: float = 45.0  # 自动任务 UNKNOWN 熔断（钳制 30–60s）
     panel_action_limit_per_fingerprint: int = 3  # 同 fingerprint 同动作上限
-    panel_episode_limit_per_kind: int = 24      # 每局每类面板会话上限（5 会在技能还没点完时跳羁绊）
+    panel_episode_limit_per_kind: int = 24      # 每局每类异常重开上限；正常成功面板不消耗
     incident_sample_rate: float = 0.1           # 正常 panel episode 抽样归档率
     # OCR 只给三选一面板提供“名字证据”；live 时技能/羁绊没有可靠名字就不点。
     # Paddle 运行在独立 sidecar，主 EXE 不加载模型依赖。
     ocr_mode: str = "live"                      # off / shadow / live
     ocr_repo_root: str = ""                     # sidecar 的本地源码/模型根目录
-    ocr_timeout_ms: int = 1200                   # 单槽热推理超时
+    ocr_timeout_ms: int = 2500                   # 单槽热推理超时（稳准优先，live 另有 2500ms 下限）
     ocr_warmup_timeout_ms: int = 20000           # 首次模型加载/预热超时
     # N2.3 替代语义：主循环已改为状态分级 cadence（动作后 100ms / 稳定 HUD 300ms /
     # loading 500ms，见 Mediator._cadence_for_current_state）。本字段仅保留为兼容
@@ -298,7 +302,8 @@ class Settings:
             "reputation_cjb_boss", "reputation_sgzx_boss",
             "cjb_boss", "sgzx_boss", "window_title_contains",
             "ocr_repo_root", "images_dir", "bond_whitelist_mode",
-            "mode_id", "hitch_stage_prefix", "follow_after_room",
+            "mode_id", "hitch_stage_prefix", "hitch_rotate_interval", "follow_after_room",
+            "subscription_base_url", "subscription_mode",
             "hitch_after_goal", "follow_pair_code",
         }
         if fallback is not None:
@@ -312,7 +317,7 @@ class Settings:
             "develop_time", "reputation_type", "reputation_level",
             "reputation_stage1", "reputation_stage2", "boss_live_time",
             "kill_boss_num", "cycle_num", "archive_boss_time", "treasure_num",
-            "follow_cycle_num", "hitch_cycle_num",
+            "follow_cycle_num", "hitch_cycle_num", "hitch_rotate_interval",
             "auto_gambling_time", "click_delay_ms", "loop_sleep_ms",
             "artifact_cd", "artifact_slots", "choice_interval",
             "round_timeout_s", "round_tail_window_s", "recovery_timeout_s",
@@ -445,9 +450,8 @@ class Settings:
             mid = str(clean["mode_id"] or "").strip()
             clean["mode_id"] = mid or "normal_farm"
         if "hitch_stage_prefix" in clean:
-            prefix = str(clean["hitch_stage_prefix"] or "").strip()
-            head = prefix[:1] if prefix else "3"
-            clean["hitch_stage_prefix"] = head if head in {"3", "4"} else "3"
+            search_text = str(clean["hitch_stage_prefix"] or "").strip()[:64]
+            clean["hitch_stage_prefix"] = search_text or "4,3,速"
         for key, allowed, default in (
             ("follow_after_room", {"solo", "arch", "hitch"}, "solo"),
             ("hitch_after_goal", {"solo", "arch"}, "solo"),
@@ -621,8 +625,8 @@ class Settings:
                     errors.append("follow_pair_code 最多 24 字符")
                 elif key == "bond_whitelist_mode" and value not in {"soft", "hard"}:
                     errors.append("bond_whitelist_mode 取值非法")
-                elif key == "hitch_stage_prefix" and value not in {"3", "4"}:
-                    errors.append("hitch_stage_prefix 取值非法")
+                elif key == "hitch_stage_prefix" and (not value.strip() or len(value.strip()) > 64):
+                    errors.append("hitch_stage_prefix 必须为 1-64 个非空字符")
                 elif key == "follow_after_room" and value not in {"solo", "arch", "hitch"}:
                     errors.append("follow_after_room 取值非法")
                 elif key == "hitch_after_goal" and value not in {"solo", "arch"}:
@@ -677,7 +681,12 @@ class Settings:
 
     def images_path(self, root: Path) -> Path:
         p = Path(self.images_dir)
-        return p if p.is_absolute() else (root / p)
+        if p.is_absolute():
+            return p
+        candidate = root / p
+        if not candidate.exists() and (root / "_internal" / p).exists():
+            return root / "_internal" / p
+        return candidate
 
     def skill_template_names(self) -> list[str]:
         """技能短码 → 找图名（含 skills/ 前缀）。"""

@@ -9,6 +9,8 @@ from typing import Any
 
 def load_scenes(project_root: Path) -> dict[str, Any]:
     path = project_root / "config" / "scenes.json"
+    if not path.exists() and (project_root / "_internal" / "config" / "scenes.json").exists():
+        path = project_root / "_internal" / "config" / "scenes.json"
     return json.loads(path.read_text(encoding="utf-8"))
 
 

@@ -1,0 +1,62 @@
+........................................................................ [  8%]
+........s........sss.................................................... [ 17%]
+.................................................................. [ 25%]
+...................................................................... [ 33%]
+........................................................................ [ 42%]
+........................................................................ [ 51%]
+........................................................................ [ 59%]
+..........................x....x................................ [ 67%]
+........................................................................ [ 76%]
+........................................................................ [ 84%]
+........................................................................ [ 93%]
+......................................................                   [100%]
+============================== warnings summary ===============================
+tests/test_ocr_shadow.py::TestClientLifecycle::test_corrupt_model_is_unavailable
+  G:\刷刷宝\GameScript-Local\.venv\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-8 (_read_stderr)
+  
+  Traceback (most recent call last):
+    File "C:\Users\10639\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\threading.py", line 1045, in _bootstrap_inner
+      self.run()
+    File "C:\Users\10639\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\threading.py", line 982, in run
+      self._target(*self._args, **self._kwargs)
+    File "G:\刷刷宝\Worktrees\prod-source-3904913-20260911\src\shuabao\vision\ocr_shadow\client.py", line 327, in _read_stderr
+      for line in stream:
+  ValueError: I/O operation on closed file.
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+tests/test_ocr_shadow.py::TestClientLifecycle::test_corrupt_model_is_unavailable
+  G:\刷刷宝\GameScript-Local\.venv\Lib\site-packages\_pytest\threadexception.py:58: PytestUnhandledThreadExceptionWarning: Exception in thread Thread-6 (_read_stderr)
+  
+  Traceback (most recent call last):
+    File "C:\Users\10639\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\threading.py", line 1045, in _bootstrap_inner
+      self.run()
+    File "C:\Users\10639\AppData\Roaming\uv\python\cpython-3.11-windows-x86_64-none\Lib\threading.py", line 982, in run
+      self._target(*self._args, **self._kwargs)
+    File "G:\刷刷宝\Worktrees\prod-source-3904913-20260911\src\shuabao\vision\ocr_shadow\client.py", line 327, in _read_stderr
+      for line in stream:
+  ValueError: I/O operation on closed file.
+  
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+    warnings.warn(pytest.PytestUnhandledThreadExceptionWarning(msg))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+824 passed, 4 skipped, 2 xfailed, 2 warnings, 16 subtests passed in 83.79s (0:01:23)
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !
+Release of profile requested but WebEnginePage still not deleted. Expect troubles !

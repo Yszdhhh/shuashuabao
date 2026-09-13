@@ -51,6 +51,23 @@ export interface ModeDTO {
   label: string;
   startable: boolean;
   evidence_status: string;
+  current_evidence: {
+    status: string;
+    reason: string;
+    source_sha?: string;
+    version?: string;
+    release_channel?: string;
+    release_manifest_sha256?: string;
+    exe_sha256?: string;
+    bridge_schema_version?: string;
+    ocr_model_sha256?: string;
+    release_manifest_path?: string;
+    exe_path?: string;
+    scenario?: string;
+    captured_at?: string;
+    evidence_bundle?: string;
+    postcondition?: string;
+  };
   badge: string;
   blocked_reason: string;
   visible_settings: string[];
@@ -86,6 +103,16 @@ export interface PreflightDTO extends RpcResponse {
   checks: PreflightCheck[];
 }
 
+export interface SubscriptionDTO {
+  active: boolean;
+  status: string;
+  expires_at: string;
+  entitlement_valid?: boolean;
+  live_authorized?: boolean;
+  live_status?: string;
+  live_code?: string;
+}
+
 export interface SnapshotDTO {
   request_id: string | null;
   settings_revision: number;
@@ -95,8 +122,15 @@ export interface SnapshotDTO {
   shell: ShellDTO;
   modes: ModeDTO[];
   run: RunStatusDTO;
+  subscription?: SubscriptionDTO;
 }
 
+export interface BridgeInfoDTO {
+  ok: boolean;
+  schema_version: number;
+  required_methods: string[];
+  required_signals: string[];
+}
 export interface ConfigPatchResult extends RpcResponse {
   errors: string[];
   settings: SettingsDTO;
@@ -114,7 +148,11 @@ export interface RunResult extends RpcResponse {
 
 export type UnsubscribeFn = () => void;
 
+/** compact = 蹭车/跟车二级小窗：宽 360，高度由页面实测后随 height 传入。 */
+export type WindowLayout = "dashboard" | "chooser" | "chooser-solo" | "chooser-team" | "compact";
+
 export interface DashboardBridge {
+  get_bridge_info(): Promise<BridgeInfoDTO>;
   get_snapshot(): Promise<SnapshotDTO>;
   update_config(patch: ConfigPatch): Promise<ConfigPatchResult>;
   update_shell(patch: Partial<ShellDTO>): Promise<ShellPatchResult>;
@@ -122,7 +160,8 @@ export interface DashboardBridge {
   start_run(mode_id: string, expectedRevision?: number): Promise<RunResult>;
   stop_run(): Promise<RunResult>;
   window_control(action: "minimize" | "close"): Promise<RpcResponse>;
-  set_window_layout(layout: "dashboard" | "chooser"): Promise<RpcResponse>;
+  set_window_layout(layout: WindowLayout, height?: number): Promise<RpcResponse>;
+  activate_subscription(key: string): Promise<{ ok: boolean; message: string; status?: string; expires_at?: string; subscription?: SubscriptionDTO }>;
 }
 
 export interface DashboardBridgeSignals {

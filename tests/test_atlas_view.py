@@ -123,8 +123,8 @@ class AtlasViewJoinTests(unittest.TestCase):
     def test_bond_columns_split_by_short_code(self):
         jisu = self.view.get("急速")
         self.assertIsNotNone(jisu)
-        self.assertFalse(jisu.whitelist_ok)
-        self.assertIn("knowledge_only", jisu.flags)
+        self.assertTrue(jisu.whitelist_ok)
+        self.assertIn("whitelist_bond", jisu.flags)
         yanmie = self.view.get("湮灭者")
         self.assertTrue(yanmie.whitelist_ok)
         self.assertEqual(yanmie.short_code, "yanmiezhe")
@@ -336,10 +336,10 @@ class AtlasApplyOneWayTests(unittest.TestCase):
         self.assertEqual(diff.cards, ())
         self.assertIn("奥数箭", diff.rejected)
 
-    def test_knowledge_bond_cannot_apply(self):
+    def test_whitelisted_bond_can_apply(self):
         diff = apply_to_run(["急速"], view=self.view)
-        self.assertEqual(diff.cards, ())
-        self.assertIn("急速", diff.rejected)
+        self.assertEqual(diff.cards, ("jisu",))
+        self.assertNotIn("急速", diff.rejected)
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         self.assertLessEqual(len(self.actions) - before, 1)
         return action
 
-    def test_victory_returns_to_same_room_and_enters_second_main_line(self):
+    def test_normal_farm_same_room_victory_returns_to_room_and_leaves_old_room(self):
         self.med.set_phase(Phase.MAIN_LINE, "temporal replay start")
         victory = load_frame("fixtures/replay/victory_continue.png")
         archive = load_frame("fixtures/replay/archive_challenge_panel.png")
@@ -61,6 +61,9 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         main_line = load_frame("fixtures/replay/main_line_auto_on.png")
 
         self._assert_one_input_at_most(lambda: self.med._tick_main_line(victory))
+        # 本用例验证“退出后回同房并开第二局”，不重复覆盖已经由专项测试
+        # 验证的 8 张存档挑战卡。将游标置尾，保留正式关闭面板→NPC hub 链。
+        self.med._archive_challenge_index = len(self.med._ARCHIVE_CHALLENGE_NAMES)
         self._assert_one_input_at_most(lambda: self.med._tick_main_line(archive))
         self._assert_one_input_at_most(lambda: self.med._tick_main_line(hub))
         self.assertEqual(Phase.QUIT, self.med.phase)
@@ -73,29 +76,18 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         self.assertEqual(0, self.med.game_count)
 
         self._assert_one_input_at_most(lambda: self.med._tick_l0(room))
-        self.assertEqual(Phase.ROOM_WAITING, self.med.phase)
         self.assertEqual(1, self.med.game_count)
         self.assertFalse(self.med._awaiting_room_return)
+        # G0 contract #7：同房返回证明完成后进入 LeaveOldRoom episode，
+        # 等待既有语义控件请求离房，fresh room-list authority 才进 PLATFORM_MAP。
+        self.assertTrue(self.med._room_leave_pending)
+        self.assertEqual(Phase.PREPARE, self.med.phase)
 
+        # 同房 room 帧无可信 room-list 权威：episode 保持零输入观察。
+        # （room_start 仍可见 → GO_HOME 语义控件命中时仅发一次 request）
         self._assert_one_input_at_most(lambda: self.med._tick_l0(room))
-        self.assertEqual(Phase.ROOM_STARTING, self.med.phase)
-        self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
-        self.assertEqual(Phase.STAGE_SELECT, self.med.phase)
-        self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
-        self.med._stage_click_cooldown_until = 0
-        # 2026-08-16 L0 裁决：选关确认改用正向高亮接口（verify_stage_selection 已移除）。
-        _row = StageRow(label="1-12", stage_id=StageId(1, 12), center_x=0, center_y=0)
-        with patch("shuabao.mediator.selected_stage_row", return_value=_row):
-            self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
-            self.med._stage_click_cooldown_until = 0
-            self._assert_one_input_at_most(lambda: self.med._tick_l0(stage))
-        self.assertEqual(Phase.STAGE_STARTING, self.med.phase)
-        # startChallenge 子状态机：局内锚点需连续 2 帧确认，
-        # 首帧仅进入 VERIFY_INGAME（phase 保持 STAGE_STARTING），第二帧推进 MAIN_LINE
-        self._assert_one_input_at_most(lambda: self.med._tick_l0(main_line))
-        self.assertEqual(Phase.STAGE_STARTING, self.med.phase)
-        self._assert_one_input_at_most(lambda: self.med._tick_l0(main_line))
-        self.assertEqual(Phase.MAIN_LINE, self.med.phase)
+        self.assertTrue(self.med._room_leave_pending)
+        self.assertEqual(Phase.PREPARE, self.med.phase)
 
         self.assertEqual(
             [
@@ -103,15 +95,71 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
                 "CloseArchivePanel",
                 "QuitGame-open-confirm",
                 "QuitGame-confirm",
-                "RoomStart",
-                # 2026-08-20 起选关为幂等正向确认：fixture 上目标行已被
-                # selected_stage_row 判定为高亮命中 →「已高亮，跳过点选」，
-                # 不再产生 SelectStage-target 输入，直接 StageStart。
-                "StageStart",
+                "LeaveOldRoom",
             ],
             [reason for reason, _ in self.actions],
         )
         self.assertNotIn("CreateRoom-open", [reason for reason, _ in self.actions])
+        self.assertNotIn("RoomStart", [reason for reason, _ in self.actions])
+
+    test_victory_returns_to_same_room_and_enters_second_main_line = (
+        test_normal_farm_same_room_victory_returns_to_room_and_leaves_old_room
+    )
+
+    def test_lobby_hitch_same_room_ready_and_wait_host(self):
+        from shuabao.vision.matcher import MatchResult
+
+        hitch_settings = Settings(
+            mode_id="lobby_hitch",
+            stage_targets=["1-12"],
+            dry_run=True,
+            auto_create_room=False,
+        )
+        med = Mediator(hitch_settings, ROOT)
+        actions: list[tuple[str, tuple[int, int]]] = []
+        med.act_click = lambda hit, reason="": actions.append((reason, hit.center)) or True
+
+        med.set_phase(Phase.LOBBY_ROOM, "hitch same room after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 10001
+
+        # A guest seat (row 3, host on floor one).  room_waiting_host.png is a
+        # host view: KK offers the host no Ready and the hitch seat rules make
+        # a host leave, so it cannot model "ready and wait for the host".
+        room = load_frame(
+            "tests/fixtures/hitch_live_20260911/room_joined_self_row3_host_row1.png",
+            "KK官方对战平台",
+        )
+        # 1. First tick in same room: ready_state is "ready", clicks HitchReady
+        ready = MatchResult("room_ready", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+             patch.object(med, "_hitch_room_ready_contract", return_value=("ready", ready)):
+            med._tick_lobby_hitch(room, "ROOM_WAITING")
+
+        self.assertEqual(["HitchReady"], [reason for reason, _ in actions])
+        self.assertFalse(med._hitch_re_search)
+        self.assertEqual(Phase.ROOM_WAITING, med.phase)
+
+        # 2. Second tick: ready_state is "cancel_ready" (already ready), zero input, waiting for host
+        cancel_ready = MatchResult("room_cancel_ready", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+             patch.object(med, "_hitch_room_ready_contract", return_value=("cancel_ready", cancel_ready)):
+            med._tick_lobby_hitch(room, "ROOM_WAITING")
+
+        self.assertEqual(["HitchReady"], [reason for reason, _ in actions])
+        self.assertFalse(med._hitch_re_search)
+        self.assertEqual(Phase.ROOM_WAITING, med.phase)
+
+        # 3. Third tick: host started countdown (ready_state == "start"), zero input waiting for game
+        start = MatchResult("room_start", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+             patch.object(med, "_hitch_room_ready_contract", return_value=("start", start)):
+            med._tick_lobby_hitch(room, "ROOM_WAITING")
+
+        self.assertEqual(["HitchReady"], [reason for reason, _ in actions])
+        self.assertEqual(Phase.ROOM_WAITING, med.phase)
+        self.assertNotIn("HitchLeaveRoom", [reason for reason, _ in actions])
+        self.assertNotIn("LeaveOldRoom", [reason for reason, _ in actions])
 
     def test_unknown_choice_panel_is_bounded_instead_of_waiting_forever(self):
         # 57d40ce 后语义：未知选择面板保持零输入等待，超过 10s 才 Fail-Closed

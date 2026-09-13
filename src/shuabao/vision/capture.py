@@ -14,6 +14,29 @@ except ImportError:  # pragma: no cover
     mss = None  # type: ignore
 
 
+class WindowRole(str, Enum):
+    PLATFORM = "platform"
+    GAME = "game"
+    UNKNOWN = "unknown"
+
+
+def classify_window_role(title: str | None) -> WindowRole:
+    """Classify a window title into platform / game / unknown.
+
+    "KK" alone is the platform window, never the game client. Game keywords
+    win over platform keywords when a title mentions both.
+    """
+    if not title:
+        return WindowRole.UNKNOWN
+    t = title.lower()
+    is_game = any(k in t for k in ("英雄三国", "魔兽世界", "warcraft", "魔兽争霸"))
+    is_platform = any(k in t for k in ("kk", "对战平台", "竞技平台"))
+    if is_game:
+        return WindowRole.GAME
+    if is_platform:
+        return WindowRole.PLATFORM
+    return WindowRole.UNKNOWN
+
 @dataclass
 class Frame:
     bgr: np.ndarray
@@ -25,6 +48,8 @@ class Frame:
     is_valid: bool = True
     error: str | None = None
     role: str | None = None
+    # b15da05 P0-C: see() 只观察不激活；最小化状态在此标记，供上层/日志消费。
+    is_minimized: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_gray_cache", None)
@@ -83,6 +108,13 @@ DEFAULT_WINDOW_FALLBACKS = L0_WINDOW_KEYWORDS + L1_WINDOW_KEYWORDS
 # never be selected as the L1 game window, otherwise its blue controls can be
 # mistaken for the in-game stage UI.
 LOCAL_HELPER_WINDOW_KEYWORDS = ("挂机助手", "刷刷宝", "ShuaBao", "GameScript-Local", "本地版")
+# 明确排除瞬态、Tooltip、SaveBits、Shadow、浮动菜单等辅助子窗口类，避免误选 308x800 等非业务 HWND。
+TRANSIENT_HELPER_CLASS_NAMES = (
+    "Qt5152QWindowToolTipSaveBits",
+    "QWindowToolTipSaveBits",
+    "tooltips_class32",
+)
+_user32 = None
 
 
 @dataclass(frozen=True)
@@ -335,6 +367,14 @@ def is_local_helper_title(title: str) -> bool:
     """Return whether a title belongs to this project's control panel."""
     lowered = title.lower()
     return any(keyword.lower() in lowered for keyword in LOCAL_HELPER_WINDOW_KEYWORDS)
+def is_transient_helper_window(class_name: str, title: str = "") -> bool:
+    """判断是否为 ToolTip、SaveBits 等非业务辅助/瞬态窗口。"""
+    c = (class_name or "").strip()
+    if any(transient.lower() in c.lower() for transient in TRANSIENT_HELPER_CLASS_NAMES):
+        return True
+    if "tooltip" in c.lower() or "savebits" in c.lower():
+        return True
+    return False
 
 
 def _parse_window_keywords(title_contains: str) -> list[str]:
@@ -356,8 +396,7 @@ def find_window_targets(
     try:
         import ctypes
         from ctypes import wintypes
-
-        user32 = ctypes.windll.user32
+        user32 = _user32 or ctypes.windll.user32
         has_user_keywords = bool(title_contains and title_contains.strip())
         requested = _parse_window_keywords(title_contains)
         fallbacks = [k.lower() for k in DEFAULT_WINDOW_FALLBACKS]
@@ -389,6 +428,8 @@ def find_window_targets(
                 if (width > 200 and height > 200) or (allow_minimized and is_iconic):
                     hwnd_val = int(hwnd)
                     class_name = get_window_class_name(hwnd_val)
+                    if is_transient_helper_window(class_name, title):
+                        return True
                     pid, exe = get_window_process_info(hwnd_val)
                     c_left, c_top, c_width, c_height = get_client_rect_info(
                         hwnd_val, rect.left, rect.top, width, height
@@ -450,17 +491,10 @@ def find_window_targets(
             elif has_game_target:
                 score -= 1000  # 已有游戏进程时，KK大厅/房间降权排后
             elif "kk" in title or "对战平台" in title:
-                # 2. 只有 KK 时：若有一大一小两个窗口，小窗口（房间/建房弹窗）优先；若仅单窗口则大窗口大厅优先
-                if has_multiple_kk:
-                    # 面积较小者为房间/弹窗，赋予极高优先级
-                    min_area = min(t.width * t.height for t in kk_targets)
-                    if area == min_area:
-                        score += 300  # 小窗口（房间/建房）最高优先
-                    else:
-                        score += 100  # 大窗口（大厅）次之
-                else:
-                    score += 100   # 仅单个大厅窗口时正常置顶
-
+                # 2. 只有 KK 时：大窗口（大厅主界面）作为默认基线赋权置前；
+                # 真正业务子窗口（房间/建房/退出弹窗）由 _capture_best 的语义探针遴选，
+                # 严禁在此以单纯“面积最小=正确业务窗”做盲目强抢占。
+                score += 100 + min(50.0, area / 20000.0)
             if target.hwnd == foreground:
                 score += 20
             if "挂机助手" in title or "懒人系列" in title:
@@ -599,21 +633,19 @@ def _capture_print_window(target: WindowTarget) -> Frame | None:
 def _find_window_rect(
     title_contains: str,
     role: str | None = None,
-    activate: bool = True,
     allow_fallback: bool = False,
 ) -> WindowTarget | None:
-    """Return the highest-ranked target, optionally activating it."""
-    targets = find_window_targets(title_contains, role=role, allow_fallback=allow_fallback)
-    if not targets:
-        return None
-    target = targets[0]
-    if activate:
-        activate_window(target.hwnd)
-    return target
+    """Return the highest-ranked target without changing foreground state."""
+    targets = find_window_targets(title_contains, role=role, allow_fallback=allow_fallback, allow_minimized=True)
+    return targets[0] if targets else None
 
 
-def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
-    """Capture one visible target aligned to client area coordinates."""
+def capture_target(target: WindowTarget) -> Frame:
+    """Capture one visible target aligned to client area coordinates.
+
+    P0-2：采集全程零 activate/restore——被遮挡窗口走 PrintWindow 离屏抓取，
+    焦点获取严格限定在真实输入动作前（keyboard_mouse / mediator act_* 门）。
+    """
     if is_window_minimized(target.hwnd):
         return Frame(
             bgr=np.zeros((0, 0, 3), dtype=np.uint8),
@@ -626,9 +658,7 @@ def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
             error="Window is minimized",
         )
 
-    if activate:
-        activate_window(target.hwnd)
-    elif _foreground_window() != target.hwnd:
+    if _foreground_window() != target.hwnd:
         offscreen = _capture_print_window(target)
         if offscreen is not None:
             return offscreen
@@ -685,14 +715,14 @@ def capture_target(target: WindowTarget, activate: bool = False) -> Frame:
         )
 
 
-def capture(title_contains: str = "", role: str | None = None, activate: bool = True, allow_fallback: bool = False) -> Frame:
+def capture(title_contains: str = "", role: str | None = None, allow_fallback: bool = False) -> Frame:
     if mss is None:
         return Frame(
             bgr=np.zeros((0, 0, 3), dtype=np.uint8),
             is_valid=False,
             error="mss not installed",
         )
-    target = _find_window_rect(title_contains, role=role, activate=False, allow_fallback=allow_fallback)
+    target = _find_window_rect(title_contains, role=role, allow_fallback=allow_fallback)
     if target is None:
         print(f"[capture] target window not found: {title_contains!r}")
         return Frame(
@@ -701,4 +731,4 @@ def capture(title_contains: str = "", role: str | None = None, activate: bool = 
             is_valid=False,
             error=f"Target window not found: {title_contains!r}",
         )
-    return capture_target(target, activate=activate)
+    return capture_target(target)

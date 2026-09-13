@@ -1,0 +1,74 @@
+{
+  "_comment": "20260907 真机 lobby_hitch 搜索死锁事故帧。源录屏 20260907_104852.mp4，按生产日志报告的 KK 客户区 1332x945 @(559,36) 裁出，未缩放、未再编码尺寸。用于跨生产接缝的搜索 transition 回归；不是合成帧。",
+  "source_video": "G:\\测试视频+抽帧\\录屏素材\\20260907_104852.mp4",
+  "source_run_log": "G:\\测试视频+抽帧\\现场抽帧_20260907_104852\\ShuaBao_run_20260907_104852.log",
+  "incident_source_sha": "0128342e0ebde7754e3cabb7f2f6908580716c36",
+  "client_crop": {
+    "xy": [
+      559,
+      36
+    ],
+    "wh": [
+      1332,
+      945
+    ]
+  },
+  "production_match_threshold": 0.85,
+  "locator_asset": "assets/Images/lobby/lobby_search_icon.png",
+  "locator_asset_provenance": {
+    "cropped_from": "fixtures/lobby_hitch_20260814/list_empty_search_t000.png",
+    "bbox_xywh": [
+      1267,
+      263,
+      26,
+      22
+    ],
+    "why_stable": "放大镜图标是搜索控件里唯一不随 EMPTY/输入/聚焦变化的结构；不含占位文字、输入文字、光标或随聚焦变色的边框。",
+    "scene_roi": [
+      0.6,
+      0.16,
+      1.0,
+      0.46
+    ],
+    "scene_roi_reason": "KK 顶栏全局搜索框有同一个放大镜，对本模板可达 0.92-0.95（高于 0.85 生产阈值），必须用几何带排除，不能依赖分数余量。"
+  },
+  "items": [
+    {
+      "file": "search_empty_t035.png",
+      "t": 35.0,
+      "state": "EMPTY",
+      "seen": "空搜索框（占位「输入房间名称或房间号」），未输入",
+      "lobby_search_icon_score": 0.9893,
+      "old_lobby_search_box_score": 0.9614
+    },
+    {
+      "file": "search_typed4_t038.png",
+      "t": 38.0,
+      "state": "TYPED_4",
+      "seen": "已输入 4，输入框聚焦、光标可见、I 型鼠标指针停在框内",
+      "lobby_search_icon_score": 0.987,
+      "old_lobby_search_box_score": 0.6207
+    },
+    {
+      "file": "search_results4_t040.png",
+      "t": 40.0,
+      "state": "RESULTS_4",
+      "seen": "4 已生效，过滤后的房间列表可见（含可加入行）",
+      "lobby_search_icon_score": 0.9883,
+      "old_lobby_search_box_score": 0.7432
+    }
+  ],
+  "incident_production_ocr": {
+    "trace": "C:\\Users\\10639\\AppData\\Local\\ShuaBao\\incidents\\ocr_shadow.jsonl",
+    "ts": "2026-09-07 10:49:31.070190",
+    "bbox": [
+      1092,
+      245,
+      1292,
+      302
+    ],
+    "raw_text": "a",
+    "rec_score": 0.3418503999710083,
+    "note": "旧固定 normalized ROI 的结果；同 fingerprint 第二次为 cache_hit。"
+  }
+}

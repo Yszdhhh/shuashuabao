@@ -18,14 +18,18 @@ def slot(index: int, name: str | None, **kwargs: object) -> SlotCandidate:
     return SlotCandidate(index=index, name=name, confidence=0.95, **kwargs)
 
 
-def test_skill_focus_miss_closes_without_refresh_or_fill() -> None:
+def test_skill_focus_miss_refreshes_without_filling_unselected_family() -> None:
     decision = choose_action(PanelCandidates(
         panel_kind=PANEL_SKILL,
         slots=(slot(0, "地震"),),
         can_refresh=True,
-        settings=PolicySettings(skill_presets=("剑气",), skill_fill_empty_slots=False),
+        settings=PolicySettings(
+            skill_presets=("剑气",),
+            skill_fill_empty_slots=False,
+            skill_refresh_on_focus_miss=True,
+        ),
     ))
-    assert decision.action is PolicyAction.CLOSE
+    assert decision.action is PolicyAction.REFRESH
 
 def test_skill_runtime_assembled_strict_never_fills_unselected_family() -> None:
     import json
@@ -54,8 +58,8 @@ def test_skill_runtime_assembled_strict_never_fills_unselected_family() -> None:
         settings=runtime_settings,
         owned_skill_cards=("剑气",),
     ))
-    # Must strictly close panel without refreshing, giving up, or picking unselected "地震"
-    assert decision.action is PolicyAction.CLOSE
+    # Must refresh, never give up or pick unselected "地震".
+    assert decision.action is PolicyAction.REFRESH
 
 def test_treasure_negative_needs_explicit_allowlist_match() -> None:
     decision = choose_action(PanelCandidates(
@@ -64,6 +68,16 @@ def test_treasure_negative_needs_explicit_allowlist_match() -> None:
         settings=PolicySettings(treasure_allow_negative=("未知卡",)),
     ))
     assert decision.action is PolicyAction.CLOSE
+
+
+def test_treasure_negative_refreshes_when_button_is_verified() -> None:
+    decision = choose_action(PanelCandidates(
+        panel_kind=PANEL_TREASURE,
+        slots=(slot(0, "压制", rarity="red"),),
+        can_refresh=True,
+        settings=PolicySettings(),
+    ))
+    assert decision.action is PolicyAction.REFRESH
 
 
 def test_bond_slot_pressure_rejects_scatter_with_two_empty_slots() -> None:
@@ -109,6 +123,29 @@ def test_merchant_requires_two_matching_frames_and_evicts_timeout() -> None:
     state = state.observe(True, "same", 3.0)
     assert state.phase is MerchantPhase.EVICTED
 
+
+def test_evicted_merchant_rearms_only_for_visibly_new_stock() -> None:
+    """A failed pill stays quarantined, but cannot poison every later shop."""
+    state = MerchantFSM().observe(True, "old", 1.0).observe(True, "old", 2.0)
+    state = state.begin_purchase(2.0, timeout_s=1.0).observe(True, "old", 3.0)
+    assert state.phase is MerchantPhase.EVICTED
+    assert state.observe(True, "old", 4.0).phase is MerchantPhase.EVICTED
+    state = state.observe(True, "new", 5.0)
+    assert state.phase is MerchantPhase.CONFIRMING
+    assert state.observe(True, "new", 6.0).phase is MerchantPhase.READY
+
+
+def test_merchant_reroll_timeout_stays_ready_to_keep_refreshing() -> None:
+    state = MerchantFSM().observe(True, "stock", 1.0).observe(True, "stock", 2.0)
+    state = state.begin_reroll(2.0, timeout_s=1.0)
+    assert state.phase is MerchantPhase.VERIFYING
+    assert state.purchases == 0
+    state = state.observe(True, "stock", 3.0)
+    assert state.phase is MerchantPhase.READY
+    assert state.rerolls == 1
+    state = state.begin_reroll(3.0, timeout_s=1.0)
+    assert state.phase is MerchantPhase.VERIFYING
+
 def test_merchant_purchase_cap_requires_mutating_frames_between_actions() -> None:
     state = MerchantFSM()
     for count in range(5):
@@ -119,6 +156,16 @@ def test_merchant_purchase_cap_requires_mutating_frames_between_actions() -> Non
     state = state.observe(True, "frame-final", 11.0).observe(True, "frame-final", 12.0)
     assert state.purchases == 5
     assert state.begin_purchase(12.0, timeout_s=5.0) == state
+    state = state.begin_reroll(12.0, timeout_s=5.0)
+    assert state.rerolls == 1
+    assert state.purchases == 0
+    for count in range(19):
+        fp = f"reroll-{count}"
+        state = state.observe(True, fp, 30.0 + count).observe(True, fp, 31.0 + count)
+        state = state.begin_reroll(31.0 + count, timeout_s=5.0, cap=20)
+    assert state.rerolls == 20
+    state = state.observe(True, "reroll-end", 60.0).observe(True, "reroll-end", 61.0)
+    assert state.begin_reroll(61.0, timeout_s=5.0, cap=20) == state
 
 
 def test_equipment_action_lease_deduplicates_pending_slot() -> None:

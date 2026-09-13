@@ -1,0 +1,126 @@
+........................................................................ [  6%]
+........................................................................ [ 13%]
+.............................................................................................................................. [ 24%]
+........................................................................ [ 31%]
+........................................................................ [ 37%]
+..................................................... [ 42%]
+..................................................................... [ 48%]
+............................................................ [ 54%]
+........................................................................ [ 60%]
+........................................................................ [ 67%]
+.................................FF....F................................ [ 73%]
+........................................................................ [ 80%]
+........................F............................................... [ 87%]
+..................................................................F. [ 93%]
+.......................................... [ 97%]
+...........ssss......ssss.......                                         [100%]
+================================== FAILURES ===================================
+_____________ test_identity_uses_current_worktree_not_old_runtime _____________
+
+    def test_identity_uses_current_worktree_not_old_runtime() -> None:
+        report = identity.identity_report(repo_root=ROOT)
+        assert report["harness_base"] == BASE
+        assert report["frozen_production_code_baseline"] == FROZEN
+>       assert report["production_code_diff"] == "CLEAN"
+E       AssertionError: assert 'NOT_CLEAN' == 'CLEAN'
+E         
+E         - CLEAN
+E         + NOT_CLEAN
+
+tests\test_live_harness_refresh.py:50: AssertionError
+__________ test_production_code_diff_gate_is_clean_on_this_worktree ___________
+
+    def test_production_code_diff_gate_is_clean_on_this_worktree() -> None:
+        diff = identity.production_code_diff(ROOT)
+>       assert diff["status"] == "CLEAN"
+E       AssertionError: assert 'NOT_CLEAN' == 'CLEAN'
+E         
+E         - CLEAN
+E         + NOT_CLEAN
+
+tests\test_live_harness_refresh.py:62: AssertionError
+____________ test_fail_bundle_schema_includes_identity_and_window _____________
+
+tmp_path = WindowsPath('C:/Users/10639/AppData/Local/Temp/pytest-of-10639/pytest-789/test_fail_bundle_schema_includ0')
+
+    def test_fail_bundle_schema_includes_identity_and_window(tmp_path: Path) -> None:
+        recorder = BundleRecorder(
+            tmp_path / "bundle",
+            repo_root=ROOT,
+            target="hero_evolve",
+            settings=Settings(dry_run=True, ocr_mode="off"),
+            initial_phase="MAIN_LINE",
+            execution_mode="target_handler",
+        )
+        recorder.record_preflight({
+            "status": "BLOCKED_PRECONDITION",
+            "blocked_reasons": ["expected evolve-capable in-game HUD was not confirmed; ZERO INPUT"],
+            "window": {"hwnd": 1, "title": "英雄三国", "rect": [0, 0, 1600, 900], "role": "l1"},
+        })
+        recorder.record_blocked(
+            Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT),
+            _blank_frame(window_title="英雄三国", hwnd=1, role="l1"),
+            status="BLOCKED_PRECONDITION",
+            note="start surface missing",
+        )
+        recorder.finalize()
+        payload = json.loads(recorder.manifest_path.read_text(encoding="utf-8"))
+        for key in (
+            "run_id", "target", "timestamp", "harness_sha", "harness_base_sha",
+            "runtime_worktree_sha", "production_baseline_sha", "production_diff_status",
+            "final_status", "window",
+        ):
+            assert key in payload
+        assert payload["harness_base_sha"] == BASE
+        assert payload["production_baseline_sha"] == FROZEN
+>       assert payload["production_diff_status"] == "CLEAN"
+E       AssertionError: assert 'NOT_CLEAN' == 'CLEAN'
+E         
+E         - CLEAN
+E         + NOT_CLEAN
+
+tests\test_live_harness_refresh.py:141: AssertionError
+---------------------------- Captured stdout call -----------------------------
+[failure-summary]
+TARGET: hero_evolve
+FAILURE_CLASS_HINT: L8_TEST_EVIDENCE
+BUNDLE_PATH: C:\Users\10639\AppData\Local\Temp\pytest-of-10639\pytest-789\test_fail_bundle_schema_includ0\bundle
+BOOKMARK_ID: b0000
+REPLAY_COMMAND: python tools/live_scenario_capture.py reproduce --bundle "C:\Users\10639\AppData\Local\Temp\pytest-of-10639\pytest-789\test_fail_bundle_schema_includ0\bundle"
+RELEVANT_FILES:
+- C:\Users\10639\AppData\Local\Temp\pytest-of-10639\pytest-789\test_fail_bundle_schema_includ0\bundle\manifest.json
+- C:\Users\10639\AppData\Local\Temp\pytest-of-10639\pytest-789\test_fail_bundle_schema_includ0\bundle\trace.jsonl
+- C:\Users\10639\AppData\Local\Temp\pytest-of-10639\pytest-789\test_fail_bundle_schema_includ0\bundle\bookmarks\b0000.json
+- C:\Users\10639\AppData\Local\Temp\pytest-of-10639\pytest-789\test_fail_bundle_schema_includ0\bundle\failures\b0000_blocked_precondition.json
+- C:\Users\10639\AppData\Local\Temp\pytest-of-10639\pytest-789\test_fail_bundle_schema_includ0\bundle\failures\b0000_blocked_precondition.md
+____________ test_lobby_hitch_uses_default_and_custom_search_text _____________
+
+    def test_lobby_hitch_uses_default_and_custom_search_text() -> None:
+>       assert Settings().hitch_stage_prefix == "4,3"
+E       AssertionError: assert '4,3,速' == '4,3'
+E         
+E         - 4,3
+E         + 4,3,速
+E         ?    ++
+
+tests\test_live_scenario_capture.py:1964: AssertionError
+_ ApplyModeOverlayTests.test_hitch_dashboard_contract_exposes_bosses_and_search_terms _
+
+self = <test_mode_catalog.ApplyModeOverlayTests testMethod=test_hitch_dashboard_contract_exposes_bosses_and_search_terms>
+
+    def test_hitch_dashboard_contract_exposes_bosses_and_search_terms(self):
+        spec = get_spec("lobby_hitch")
+>       self.assertEqual(Settings().hitch_stage_prefix, "4,3")
+E       AssertionError: '4,3,速' != '4,3'
+E       - 4,3,速
+E       ?    --
+E       + 4,3
+
+tests\test_mode_catalog.py:201: AssertionError
+=========================== short test summary info ===========================
+FAILED tests/test_live_harness_refresh.py::test_identity_uses_current_worktree_not_old_runtime
+FAILED tests/test_live_harness_refresh.py::test_production_code_diff_gate_is_clean_on_this_worktree
+FAILED tests/test_live_harness_refresh.py::test_fail_bundle_schema_includes_identity_and_window
+FAILED tests/test_live_scenario_capture.py::test_lobby_hitch_uses_default_and_custom_search_text
+FAILED tests/test_mode_catalog.py::ApplyModeOverlayTests::test_hitch_dashboard_contract_exposes_bosses_and_search_terms
+5 failed, 1085 passed, 8 skipped, 86 subtests passed in 519.46s (0:08:39)

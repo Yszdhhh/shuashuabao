@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -67,20 +68,16 @@ def cmd_dry_run(args: argparse.Namespace) -> int:
 
 
 def cmd_run(args: argparse.Namespace) -> int:
-    s = load_settings(Path(args.config) if args.config else None)
-    s.dry_run = False
-    if args.legacy:
-        print("[SECURITY ERROR] --legacy mode does not support real input (dry_run=False) because it bypasses P0 security chain. Use Mediator runner instead.")
-        return 1
-    print("WARNING: will move mouse / click. Ctrl+C to stop.")
-    try:
-        # S0.5：CLI 生产入口也传入 incident 目录（默认 %LocalAppData%/ShuaBao/incidents）
-        med = Mediator(s, ROOT, incident_dir=default_incident_dir())
-        med.set_trace(str(ROOT / "logs" / f"trace_{time.strftime('%Y%m%d_%H%M%S')}.jsonl"))
-        med.run(max_steps=args.steps)
-    except KeyboardInterrupt:
-        print("stopped by user")
-    return 0
+    # Real input has one supported desktop boundary: DashboardFacade ->
+    # RunnerService -> live_execute -> RuntimeMediator.  The historical root
+    # CLI instantiated CoreMediator directly and therefore skipped entitlement,
+    # readiness and frozen build-identity checks.  Do not preserve that bypass.
+    print(
+        "[SECURITY ERROR] main.py run is disabled for real input. "
+        "Start ShuaBao through desktop_app.py / the packaged desktop shortcut "
+        "so subscription, preflight, build identity and RunnerService gates run."
+    )
+    return 1
 
 
 def cmd_inventory(_: argparse.Namespace) -> int:

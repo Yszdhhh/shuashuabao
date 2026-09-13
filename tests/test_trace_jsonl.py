@@ -93,7 +93,11 @@ class TraceTest(unittest.TestCase):
             trace_path = str(Path(tmp) / "trace.jsonl")
             clock = FakeClock(start=10.0)
             stop_signal = StopSignal()
-            settings = Settings(room_password="hunter2-secret", skills=["jq", "pg"])
+            settings = Settings(
+                room_password="hunter2-secret",
+                skills=["jq", "pg"],
+                ocr_mode="off",
+            )
             with clock.install():
                 med = Mediator(settings, ROOT, stop_signal=stop_signal)
                 med.executor = FakeInputExecutor(stop_signal, clock)

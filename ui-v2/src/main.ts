@@ -1,4 +1,5 @@
 import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, resetStickyFailure, currentSettingsRevision } from "./config_queue";
+import { normalizeAttributeValues, restoreAttributeIds } from "./strategy_codec";
 // Task 5：qtBridge 真实接线（设计规格 §7）。OD12 的 DOM/CSS 与内联脚本保持原样；
 // 本模块只做三件事：
 //   1) bridge 探测：production → qtBridge(QWebChannel)，dev/浏览器 → 诚实 mock；
@@ -9,7 +10,7 @@ import { enqueueConfigPatch, flushConfigQueue, setSettingsRevision, resetStickyF
 //      btnStart → validate_preflight → start_run（运行中同按钮变 stop_run）；
 //      btnMin/btnClose → window_control；run_status_changed → 徽标/进度；
 //      log_appended → 运行日志；snapshot_changed → 快照重渲染。
-import type { DashboardBridge, ModeDTO, RunStatusDTO, SettingsDTO, SnapshotDTO, StrategyDTO } from "./bridge/types";
+import type { DashboardBridge, ModeDTO, PreflightDTO, RunStatusDTO, SettingsDTO, SnapshotDTO, StrategyDTO, WindowLayout } from "./bridge/types";
 
 // —— index.html 内联脚本暴露的全局（经典脚本 globalThis 绑定）——
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -29,9 +30,11 @@ declare function renderBonds(): void;
 declare function renderNegatives(): void;
 declare function renderPrestige(): void;
 declare function renderTeamRules(): void;
-declare function recommendChallenges(): void;
+declare function renderNames(): void;
 declare function currentSkills(): string[];
 declare function applyOfficial(id: string): void;
+declare function compactContentHeight(): number;
+declare function speakHud(phaseId: string, phaseName?: string): { say: string; extra: string; chip: string };
 /** OD12 场景 ↔ 目录 mode_id（config/mode_specs.json）；带车复用 normal_farm 建房链。 */
 const SCENE_TO_MODE_ID: Record<string, string> = {
   farm: "normal_farm",
@@ -69,7 +72,7 @@ const RUN_STATE_LABELS: Record<string, string> = {
   COMPLETE: "已完成",
   FAILED: "运行失败",
 };
-const LOG_TAIL_LINES = 8;
+const LOG_TAIL_LINES = 60;
 
 let bridge: DashboardBridge | null = null;
 /** 应用远端快照期间为 true：抑制本地 intent 回写，防信号回环。 */
@@ -78,6 +81,8 @@ let runActive = false;
 let startBusy = false;
 let modeCatalog = new Map<string, ModeDTO>();
 let lastShellJson = "";
+let lastWindowLayout = "";
+let lastPreflight: { modeId: string; settingsRevision: number; result: PreflightDTO } | null = null;
 
 export function getBridge(): DashboardBridge | null {
   return bridge;
@@ -101,6 +106,18 @@ function clampCycle(n: number): number {
   return Math.max(0, Math.min(999, Math.trunc(n)));
 }
 
+export type HitchSearchTerms = { terms: string[]; primary: string; secondary: string };
+
+export function parseHitchSearchTerms(value: unknown): HitchSearchTerms {
+  const terms = String(value ?? "").replace(/，/g, ",").split(",")
+    .map((term) => term.trim()).filter(Boolean);
+  const unique = Array.from(new Set(terms));
+  const list = unique.length > 0 ? unique : ["4", "3", "速"];
+  return { terms: list, primary: list[0] ?? "4", secondary: list[1] ?? "3" };
+}
+
+let hitchSearchTerms: HitchSearchTerms = parseHitchSearchTerms("4,3,速");
+
 function bridgeErrorText(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
@@ -123,6 +140,10 @@ function afterGlobalCall(name: string, hook: () => void): void {
 
 function pushConfig(patch: Partial<SettingsDTO> & { strategy?: Partial<StrategyDTO> }): void {
   if (!bridge || applying) return;
+  // Any settings mutation invalidates the previous backend preflight.  The
+  // launch indicator must not keep advertising a result for stale settings.
+  lastPreflight = null;
+  applyLaunchability();
   enqueueConfigPatch(patch, bridge)
     .then((res) => {
       if (!res.ok) {
@@ -144,10 +165,46 @@ function pushShell(patch: { theme?: "light" | "dark"; selected_mode_id?: string 
     .catch((err) => toast(bridgeErrorText(err)));
 }
 
+function requestWindowLayout(layout: WindowLayout, height?: number): Promise<void> {
+  const b = bridge;
+  if (!b) return Promise.resolve();
+  const key = height === undefined ? layout : `${layout}:${height}`;
+  if (key === lastWindowLayout) return Promise.resolve();
+  lastWindowLayout = key;
+  return b.set_window_layout(layout, height).then(() => undefined, (err) => {
+    if (lastWindowLayout === key) lastWindowLayout = "";
+    console.error("[ui-v2] 窗口尺寸同步失败:", err);
+  });
+}
+
+const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+function measureCompact(): number {
+  const h = typeof compactContentHeight === "function" ? compactContentHeight() : 640;
+  return Math.max(1, Math.round(h));
+}
+
 function syncWindowLayout(scene: string): void {
   if (!bridge) return;
-  const layout = scene === "wizard" ? "chooser" : "dashboard";
-  bridge.set_window_layout(layout).catch((err) => console.error("[ui-v2] 窗口尺寸同步失败:", err));
+  if (scene === "hitch" || scene === "follow") {
+    // 蹭车/跟车 = 二级小窗：360 宽，高度按内容实测。第一次是在大窗宽度下量的，
+    // 窗口缩到 360 后内容会换行变高，所以缩完再量一次校正（最多两轮）。
+    void (async () => {
+      await nextFrame();
+      for (let round = 0; round < 3; round += 1) {
+        if (state.scene !== scene) return;
+        const h = measureCompact();
+        if (round > 0 && Math.abs(h - window.innerHeight) <= 2) return;
+        await requestWindowLayout("compact", h);
+        await nextFrame();
+        await nextFrame();
+      }
+    })();
+    return;
+  }
+  requestWindowLayout(scene === "wizard"
+    ? (String(state.wizKind) === "team" ? "chooser-team" : "chooser-solo")
+    : "dashboard");
 }
 
 function showStartErr(msg: string): void {
@@ -188,15 +245,7 @@ const ADV_PACK_CARDS: Record<string, string[]> = {
 
 function pushBondsAndAttributes(): void {
   const rawAttrs = Array.isArray(state.attr) ? state.attr : Array.from(state.attr || []);
-  const attrMap: Record<string, "int" | "str" | "agi"> = {
-    intelligence: "int",
-    strength: "str",
-    agility: "agi",
-    int: "int",
-    str: "str",
-    agi: "agi",
-  };
-  const activeAttrs = rawAttrs.map((a: string) => attrMap[a]).filter(Boolean) as ("int" | "str" | "agi")[];
+  const activeAttrs = normalizeAttributeValues(rawAttrs);
 
   const validBonds = ["祝福", "成长", "经济", "贪婪", "挑战"];
   const growthList = Array.isArray(state.growth) ? state.growth : Array.from(state.growth || []);
@@ -246,17 +295,97 @@ function currentModeId(): string {
 
 /** OD12 只负责展示；是否能点火始终以后端 mode catalog 为准。 */
 function applyLaunchability(): void {
-  if (runActive) return;
+  const evidence = $("evidencePill");
   const mode = modeCatalog.get(currentModeId());
+  if (evidence) {
+    const historical = mode?.evidence_status?.trim() || "unknown";
+    const current = mode?.current_evidence?.status?.trim() || "MISSING";
+    const reason = mode?.current_evidence?.reason?.trim() || "未提供原因";
+    const buildCheck = lastPreflight?.modeId === currentModeId()
+      ? lastPreflight.result.checks.find((check) => check.id === "build_identity")
+      : null;
+    const ocrCheck = lastPreflight?.modeId === currentModeId()
+      ? lastPreflight.result.checks.find((check) => check.id === "ocr_runtime")
+      : null;
+    const identity = mode?.current_evidence;
+    const identityDetail = [
+      identity?.version ? `version=${identity.version}` : "",
+      identity?.release_channel ? `release_channel=${identity.release_channel}` : "",
+      identity?.source_sha ? `source_sha=${identity.source_sha}` : "",
+      identity?.release_manifest_sha256 ? `manifest_sha256=${identity.release_manifest_sha256}` : "",
+      identity?.exe_sha256 ? `exe_sha256=${identity.exe_sha256}` : "",
+      identity?.bridge_schema_version ? `bridge_schema=${identity.bridge_schema_version}` : "",
+      identity?.ocr_model_sha256 ? `ocr_model_sha256=${identity.ocr_model_sha256}` : "",
+    ].filter(Boolean).join("；");
+    evidence.textContent = `当前证据：${current}`;
+    evidence.title = mode
+      ? `${mode.label} 当前构建证据：${current}（${reason}）；历史覆盖：${historical}`
+        + (identityDetail ? `；当前构建身份：${identityDetail}` : "")
+        + (buildCheck ? `；构建身份：${buildCheck.detail}` : "")
+        + (ocrCheck ? `；OCR：${ocrCheck.detail}` : "")
+      : "当前运行方式证据状态未知";
+    evidence.dataset.status = current;
+    evidence.dataset.historicalStatus = historical;
+    const identityPill = $("identityPill");
+    if (identityPill) {
+      const version = identity?.version || "";
+      const channel = identity?.release_channel || "";
+      const sourceShort = identity?.source_sha?.slice(0, 12) || "";
+      const manifestShort = identity?.release_manifest_sha256?.slice(0, 12) || "";
+      const modelShort = identity?.ocr_model_sha256?.slice(0, 12) || "";
+      identityPill.textContent = sourceShort
+        ? `v${version || "?"} · ${channel || "source"} · 构建 ${sourceShort} · 清单 ${manifestShort || "待补"} · 模型 ${modelShort || "待补"}`
+        : "构建身份：待预检";
+      identityPill.title = identityDetail || buildCheck?.detail || "后端预检后显示 version、release_channel、source_sha、整包 manifest、EXE、桥接和 OCR 模型哈希";
+      identityPill.dataset.status = buildCheck?.ok === false ? "FAIL" : (identityDetail ? "READY" : "PENDING");
+      const versionLabel = $("versionLabel");
+      if (versionLabel) {
+        versionLabel.textContent = sourceShort
+          ? `v${version || "0.3"} · ${channel || "source"} · ${sourceShort}`
+          : (version ? `v${version}` : "v0.3");
+        versionLabel.title = [
+          version ? `version=${version}` : "",
+          channel ? `release_channel=${channel}` : "",
+          sourceShort ? `source_sha=${sourceShort}` : "",
+          manifestShort ? `manifest_sha=${manifestShort}` : "",
+          modelShort ? `ocr_model_sha=${modelShort}` : "",
+        ].filter(Boolean).join(" · ") || "构建身份：待预检";
+      }
+    }
+  }
+  if (runActive) return;
   const skillsReady = currentSkills().filter(Boolean).length > 0;
-  const launchable = Boolean(mode?.startable) && skillsReady;
+  const locallyLaunchable = Boolean(mode?.startable) && skillsReady;
+  const preflightCurrent = lastPreflight
+    && lastPreflight.modeId === currentModeId()
+    && lastPreflight.settingsRevision === Number(state.settings_revision ?? 0)
+    ? lastPreflight.result
+    : null;
   const button = $("btnStart") as HTMLButtonElement;
-  button.disabled = !launchable;
-  button.textContent = launchable ? "开始运行" : "不可启动";
+  // Local checks decide whether the user can request a backend preflight;
+  // only the backend result may claim that the run is actually ready.
+  button.disabled = !locallyLaunchable;
+  const textRunEl = document.getElementById("btnStartTextRun");
+  if (textRunEl) {
+    textRunEl.textContent = locallyLaunchable ? "开始运行" : "不可启动";
+  } else {
+    button.textContent = locallyLaunchable ? "开始运行" : "不可启动";
+  }
   button.classList.remove("stop");
-  $("lamp").className = "lamp" + (launchable ? "" : " bad");
-  $("lampText").textContent = launchable ? "预检通过" : (mode?.startable ? "待选技能" : "不可启动");
-  showStartErr(launchable ? "" : (mode?.blocked_reason || (skillsReady ? "后端未开放此运行方式" : "请先选择至少一个技能")));
+  const backendReady = locallyLaunchable && Boolean(preflightCurrent?.ok);
+  $("lamp").className = "lamp" + (backendReady ? "" : (locallyLaunchable ? " pending" : " bad"));
+  $("lampText").textContent = backendReady
+    ? "预检通过"
+    : (mode?.startable ? (skillsReady ? "等待后端预检" : "待选技能") : "不可启动");
+  if (!mode?.startable) {
+    showStartErr(mode?.blocked_reason || "后端未开放此运行方式");
+  } else if (!skillsReady) {
+    showStartErr("请先选择至少一个技能");
+  } else if (preflightCurrent && !preflightCurrent.ok) {
+    showStartErr(preflightCurrent.blocked_reason || "预检未通过");
+  } else {
+    showStartErr("");
+  }
 }
 
 async function startRun(): Promise<void> {
@@ -270,6 +399,12 @@ async function startRun(): Promise<void> {
 
     // §6.3：UI 先本地预检给反馈；start_run 内部还会再验一次（fail-closed）。
     const pf = await b.validate_preflight(modeId);
+    lastPreflight = {
+      modeId,
+      settingsRevision: Number(pf.settings_revision ?? state.settings_revision ?? 0),
+      result: pf,
+    };
+    applyLaunchability();
     if (!pf.ok) {
       showStartErr(pf.blocked_reason || "预检未通过");
       return;
@@ -294,8 +429,10 @@ function applyTheme(theme: unknown): void {
   if ((theme === "light" || theme === "dark") && theme !== state.theme) {
     state.theme = theme;
     $("scene-app").dataset.theme = theme;
+    document.body.dataset.theme = theme;
     $("btnTheme").textContent = theme === "dark" ? "浅色" : "深色";
     $("btnTheme").setAttribute("aria-pressed", String(theme === "dark"));
+    $("btnTheme").setAttribute("aria-label", theme === "dark" ? "当前深色，切换到浅色" : "当前浅色，切换到深色");
   }
 }
 
@@ -377,19 +514,102 @@ function applySwitches(settings: SettingsDTO): void {
   }
 }
 
+function renderHitchSearchSummary(): void {
+  const el = document.getElementById("hitchSearchSummary");
+  if (el) el.textContent = hitchSearchTerms.terms.join(", ") || "未设置";
+}
+
+let modalDraftTerms: string[] = [];
+
+function renderHitchModalContent(): void {
+  const container = document.getElementById("hitchTermsContainer");
+  if (!container) return;
+  container.innerHTML = modalDraftTerms.map((term, i) => `
+    <div class="hitch-term-row" style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+      <span style="font-size:12px;color:var(--p-faint);width:16px;text-align:right;">${i + 1}</span>
+      <input type="text" class="hitch-term-input" data-idx="${i}" maxlength="32" value="${escText(term)}" placeholder="如 4、3、速" style="flex:1;min-width:0;height:32px;padding:0 8px;border:1px solid var(--p-line);border-radius:6px;background:var(--p-bg);color:var(--p-ink);font-size:13px;" autocomplete="off" />
+      <button type="button" class="term-nav-btn" data-term-move="-1" data-idx="${i}" ${i === 0 ? "disabled" : ""} title="上移" style="width:28px;height:28px;padding:0;border:1px solid var(--p-line);border-radius:6px;background:var(--p-paper);color:var(--p-ink);cursor:pointer;">▲</button>
+      <button type="button" class="term-nav-btn" data-term-move="1" data-idx="${i}" ${i === modalDraftTerms.length - 1 ? "disabled" : ""} title="下移" style="width:28px;height:28px;padding:0;border:1px solid var(--p-line);border-radius:6px;background:var(--p-paper);color:var(--p-ink);cursor:pointer;">▼</button>
+      <button type="button" class="term-nav-btn" data-term-del="${i}" title="删除" style="width:28px;height:28px;padding:0;border:1px solid var(--p-line);border-radius:6px;background:var(--p-paper);color:var(--p-danger, #e55);cursor:pointer;">✕</button>
+    </div>
+  `).join("");
+  updateHitchCharCount();
+}
+
+function syncModalDraftFromInputs(): void {
+  const inputs = document.querySelectorAll<HTMLInputElement>(".hitch-term-input");
+  inputs.forEach((input) => {
+    const idx = Number(input.dataset.idx);
+    if (idx >= 0 && idx < modalDraftTerms.length) {
+      modalDraftTerms[idx] = input.value;
+    }
+  });
+}
+
+function updateHitchCharCount(): void {
+  const countEl = document.getElementById("hitchTermsCharCount");
+  if (!countEl) return;
+  const filtered = modalDraftTerms.map((t) => t.trim()).filter(Boolean);
+  const unique = Array.from(new Set(filtered));
+  const totalLen = unique.join(",").length;
+  countEl.textContent = `合计 ${totalLen}/64 字符`;
+  countEl.style.color = totalLen > 64 ? "var(--p-danger, #e55)" : "var(--p-faint)";
+}
+
 function rerenderAll(settings: SettingsDTO): void {
   renderChapterStage();
-  recommendChallenges(); // 按关卡推荐 Boss/传家宝（展示默认）
+  hitchSearchTerms = parseHitchSearchTerms(settings.hitch_stage_prefix);
+  (window as unknown as { hitchSearchTerms: HitchSearchTerms }).hitchSearchTerms = hitchSearchTerms;
+  renderHitchSearchSummary();
   const cjb = asString(settings.cjb_boss); // 持久化选择压过推荐展示
   const boss = asString(settings.sgzx_boss);
   if (cjb) state.cjb = cjb;
   if (boss) state.boss = boss;
+  renderNames();
   renderBuilds();
   renderBonds();
   renderPrestige();
   renderTeamRules();
   renderNegatives();
   refreshSummary(); // 内含 renderLaunchSummary
+}
+
+function openHitchSearchModal(): void {
+  state.modal = "hitch_search";
+  state._focusBack = document.activeElement;
+  modalDraftTerms = hitchSearchTerms.terms.length ? [...hitchSearchTerms.terms] : ["4", "3", "速"];
+  const sheet = $("modalSheet");
+  sheet.className = "sheet";
+  sheet.innerHTML = `<div class="sheet-head"><h2 id="sheetTitle">高级搜房</h2></div>` +
+    `<div class="sheet-body"><p class="hint" style="margin:0 0 10px;font-size:12px;color:var(--p-muted);line-height:1.4;">大厅找房时按顺序依次轮换。支持中文或任意文字（例如「速」「刷」「秘境」），合计上限 64 字符。</p>` +
+    `<div id="hitchTermsContainer" style="max-height:240px;overflow-y:auto;padding-right:4px;"></div>` +
+    `<div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;">` +
+    `<button type="button" class="text-btn" id="btnAddHitchTerm" style="font-size:12px;cursor:pointer;">+ 添加搜房词</button>` +
+    `<span id="hitchTermsCharCount" style="font-size:11px;color:var(--p-faint);"></span>` +
+    `</div></div>` +
+    `<div class="sheet-nav"><button type="button" class="secondary" data-close="1">取消</button><span class="grow"></span><button type="button" class="gold" data-apply-hitch-search="1">保存</button></div>`;
+  renderHitchModalContent();
+  $("modalLayer").classList.add("show");
+  (sheet.querySelector(".hitch-term-input") as HTMLInputElement | null)?.focus();
+}
+
+function applyVisibleSettings(): void {
+  const modeId = currentModeId();
+  const mode = modeCatalog.get(modeId);
+  if (!mode || !Array.isArray(mode.visible_settings)) return;
+  const vis = new Set(mode.visible_settings);
+  const hitchCjb = document.getElementById("hitchCjbCard");
+  const hitchBoss = document.getElementById("hitchBossCard");
+  const followCjb = document.getElementById("followCjbCard");
+  const followBoss = document.getElementById("followBossCard");
+  const btnHitchAdv = document.getElementById("btnHitchAdvanced");
+  const hitchSearch = document.getElementById("hitchSearchCard");
+  if (hitchCjb) hitchCjb.style.display = vis.has("cjb_boss") ? "" : "none";
+  if (hitchBoss) hitchBoss.style.display = vis.has("sgzx_boss") ? "" : "none";
+  if (followCjb) followCjb.style.display = vis.has("cjb_boss") ? "" : "none";
+  if (followBoss) followBoss.style.display = vis.has("sgzx_boss") ? "" : "none";
+  if (btnHitchAdv) btnHitchAdv.style.display = vis.has("hitch_stage_prefix") ? "" : "none";
+  if (hitchSearch) hitchSearch.style.display = vis.has("hitch_stage_prefix") ? "" : "none";
 }
 
 let lastAppliedSnapshotSeq = 0;
@@ -399,6 +619,9 @@ export function applySnapshot(snap: SnapshotDTO): void {
   if (snap.snapshot_seq && snap.snapshot_seq <= lastAppliedSnapshotSeq) return;
   if (snap.snapshot_seq) lastAppliedSnapshotSeq = snap.snapshot_seq;
   if (snap.settings_revision !== undefined) {
+    if (Number(snap.settings_revision) !== Number(state.settings_revision ?? 0)) {
+      lastPreflight = null;
+    }
     state.settings_revision = snap.settings_revision;
     setSettingsRevision(snap.settings_revision);
     resetStickyFailure();
@@ -440,7 +663,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
       state.bondSaved = true;
       if (Array.isArray(snap.strategy.attributes)) {
         settings.attributes = snap.strategy.attributes;
-        state.attr = new Set(snap.strategy.attributes);
+        state.attr = restoreAttributeIds(snap.strategy.attributes);
       }
       if (snap.strategy.merchant) {
         settings.merchant_enabled = snap.strategy.merchant.enabled;
@@ -462,15 +685,37 @@ export function applySnapshot(snap: SnapshotDTO): void {
     applyPrestige(settings);
     applyStageTargets(settings);
     applyBuildAndSkills(settings);
+    applyVisibleSettings();
     const roomName = asString(settings.room_name);
     const roomPassword = asString(settings.room_password);
     if (roomName !== null) ($("roomName") as HTMLInputElement).value = roomName;
     if (roomPassword !== null) ($("roomPass") as HTMLInputElement).value = roomPassword;
+    applySubscription(snap.subscription);
     rerenderAll(settings);
+    // The first snapshot is authoritative for a run that may already be
+    // STARTING/COMPLETE/FAILED.  Do not wait for a later Qt signal or the
+    // dashboard can briefly (or permanently, after a fast bootstrap failure)
+    // show the wrong lifecycle state.
+    if (snap.run) applyRunStatus(snap.run);
     applyLaunchability();
   } finally {
     applying = false;
   }
+}
+
+function applySubscription(sub?: { active?: boolean; status?: string; expires_at?: string; live_authorized?: boolean; live_status?: string }): void {
+  const globalFn = (window as unknown as Record<string, unknown>).applySubscription;
+  if (typeof globalFn === "function") {
+    (globalFn as (s?: unknown) => void)(sub);
+    return;
+  }
+  const pill = $("subscriptionPill");
+  if (!pill) return;
+  const isOk = Boolean(sub?.active);
+  const status = sub?.status || "未激活";
+  const exp = sub?.expires_at ? (sub.expires_at.length >= 10 ? sub.expires_at.substring(0, 10) : sub.expires_at) : "";
+  pill.textContent = `${isOk ? `卡密有效${exp ? ` (${exp} 到期)` : ""}` : `订阅：${status}`} · ${sub?.live_status || "LIVE 授权待校验"}`;
+  pill.dataset.state = sub?.live_authorized ? "ok" : "warn";
 }
 
 // ---------------------------------------------------------------- 运行态信号
@@ -478,21 +723,39 @@ export function applySnapshot(snap: SnapshotDTO): void {
 function applyRunStatus(run: RunStatusDTO): void {
   runActive = ACTIVE_RUN_STATES.has(run.state);
   const label = RUN_STATE_LABELS[run.state] ?? run.state;
-  $("statusPill").innerHTML = `<span class="dot"></span>${escText(label)}${run.phase ? " · " + escText(run.phase) : ""}`;
+  // 阶段只显示中文短词（speakHud），不把 MAIN_LINE 这类枚举直接给用户看。
+  const phaseChip = run.phase && runActive && typeof speakHud === "function" ? speakHud(run.phase).chip : "";
+  $("statusPill").innerHTML = `<span class="dot"></span>${escText(label)}${phaseChip ? " · " + escText(phaseChip) : ""}`;
   const loadBar = $("loadBar");
   loadBar.classList.toggle("show", runActive);
   loadBar.setAttribute("aria-hidden", runActive ? "false" : "true");
   $("gamesToday").textContent = String(Math.max(0, Number(run.game_count) || 0));
   $("gamesCap").textContent = run.cycle_num > 0 ? String(run.cycle_num) : "手动";
   const btnStart = $("btnStart") as HTMLButtonElement;
+  const textStopEl = document.getElementById("btnStartTextStop");
+  const stopText = run.state === "STOPPING" ? "停止中…" : "停止运行";
+  if (textStopEl) {
+    textStopEl.textContent = stopText;
+  }
   if (runActive) {
-    btnStart.textContent = run.state === "STOPPING" ? "停止中…" : "停止运行";
+    if (!textStopEl) btnStart.textContent = stopText;
     btnStart.classList.add("stop");
     btnStart.disabled = run.state === "STOPPING";
   } else {
     btnStart.classList.remove("stop");
     refreshSummary(); // 恢复“开始运行”文案与可用性判定
     applyLaunchability();
+  }
+  const ctrlRunning = document.getElementById("ctrl-running") as HTMLInputElement | null;
+  if (ctrlRunning) ctrlRunning.checked = runActive;
+  document.body.dataset.running = runActive ? "true" : "false";
+  state.running = runActive;
+  state.hudPhase = run.phase;
+  state.played = Math.max(0, Number(run.game_count) || 0);
+  if (run.cycle_num !== undefined) state.cycle = run.cycle_num;
+  const win = window as unknown as Record<string, unknown>;
+  if (typeof win.renderHud === "function") {
+    (win.renderHud as () => void)();
   }
   if (run.state === "FAILED") {
     const msg = `${label}${run.terminal_reason ? "：" + run.terminal_reason : ""}`;
@@ -504,28 +767,41 @@ function applyRunStatus(run: RunStatusDTO): void {
 }
 
 let runLogEl: HTMLElement | null = null;
+let runLogAlerts = 0;
 
+/** 日志收在「宝物设置」抽屉底部的折叠区（index.html #odRunLog），默认只显示 warn/error。 */
 function ensureRunLogPanel(): HTMLElement {
   if (runLogEl) return runLogEl;
+  const existing = document.getElementById("odRunLog");
+  if (existing) {
+    runLogEl = existing;
+    const all = document.getElementById("runLogAll") as HTMLInputElement | null;
+    all?.addEventListener("change", () => existing.classList.toggle("show-all", all.checked));
+    return runLogEl;
+  }
+  // 旧 DOM 没有折叠区时的兜底：隐藏容器，只留 console 输出，绝不浮在界面上。
   runLogEl = document.createElement("div");
   runLogEl.id = "odRunLog";
-  runLogEl.setAttribute("aria-hidden", "true"); // 徽标已承载状态播报，日志纯视觉尾窗
-  // 运行日志尾窗：运行时注入的最小展示面，不改 OD12 DOM/CSS 源；pointer-events 关闭避免挡交互。
-  runLogEl.style.cssText =
-    "position:absolute;left:12px;bottom:56px;z-index:8;max-width:70%;pointer-events:none;" +
-    "font-size:11px;line-height:1.55;color:var(--p-ink);opacity:.78;white-space:pre-wrap;";
-  $("scene-app").appendChild(runLogEl);
+  runLogEl.hidden = true;
+  document.body.appendChild(runLogEl);
   return runLogEl;
 }
 
 function appendRunLog(text: string, level: string): void {
   console.log(`[run][${level}] ${text}`);
   const panel = ensureRunLogPanel();
+  const lvl = String(level || "info").toLowerCase();
   const line = document.createElement("div");
-  line.textContent = `[${level}] ${text}`;
-  if (level === "error" || level === "critical") line.style.color = "var(--p-danger)";
+  line.dataset.level = lvl;
+  line.textContent = `[${lvl}] ${text}`;
   panel.appendChild(line);
   while (panel.childElementCount > LOG_TAIL_LINES) panel.removeChild(panel.firstChild as ChildNode);
+  if (lvl === "warn" || lvl === "warning" || lvl === "error" || lvl === "critical") {
+    runLogAlerts += 1;
+    const sum = document.getElementById("runLogSum");
+    if (sum) sum.textContent = `${runLogAlerts} 条告警`;
+  }
+  panel.scrollTop = panel.scrollHeight;
 }
 
 type FacadeSignals = {
@@ -565,11 +841,18 @@ function wireIntents(): void {
   afterGlobalCall("renderSkillRank", pushSkills);
   // 羁绊配置按用户显式点击“保存羁绊”落盘，避免每次重绘都产生一次配置请求。
   afterGlobalCall("renderNegatives", pushNegatives);
+  afterGlobalCall("renderWizard", () => {
+    if (String(state.scene) === "wizard") syncWindowLayout("wizard");
+  });
   afterGlobalCall("refreshSummary", applyLaunchability);
   afterGlobalCall("setScene", () => {
     syncWindowLayout(String(state.scene));
     const modeId = SCENE_TO_MODE_ID[state.scene];
-    if (modeId) pushShell({ selected_mode_id: modeId });
+    if (modeId) {
+      lastPreflight = null;
+      pushShell({ selected_mode_id: modeId });
+    }
+    applyVisibleSettings();
   });
 
   // 负面效果勾选变化事件
@@ -584,10 +867,10 @@ function wireIntents(): void {
     }
   });
 
-  // 摘要视图下 ▲▼ 调整高级卡组顺序：内联处理器已改 state.adv，这里补落盘，
-  // 让"保存后仍可调序"无需再点一次保存。
+  // 摘要视图下调整高级卡组顺序：内联处理器已改 state.adv，这里补落盘，
+  // 让“保存后仍可调序”无需再点一次保存。
   $("bonds").addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest("[data-adv-move]") && state.bondSaved) {
+    if ((e.target as HTMLElement).closest("[data-adv-move], [data-adv-pick]") && state.bondSaved) {
       defer(() => pushBondsAndAttributes());
     }
   });
@@ -600,15 +883,18 @@ function wireIntents(): void {
   });
 
 
-  // 主题。
-  $("btnTheme").addEventListener("click", () =>
-    defer(() => pushShell({ theme: state.theme === "dark" ? "dark" : "light" })),
-  );
+  // 主题：index.html 在 View Transition 回调里（异步）才调 applyTheme，
+  // 所以挂在 applyTheme 之后推送，不能在 click 时读 state.theme（会读到旧值并把主题改回去）。
+  afterGlobalCall("applyTheme", () => pushShell({ theme: state.theme === "dark" ? "dark" : "light" }));
 
-  // 配对码与接管预案。
-  $("followPairForm").addEventListener("submit", () =>
-    defer(() => pushConfig({ follow_pair_code: String(state.teamRules.follow.pairCode ?? "") })),
-  );
+  // 配对码与接管预案（若有表单则兼容保留，跟车业务无配对码则安全跳过）。
+  const followPairForm = document.getElementById("followPairForm");
+  if (followPairForm) {
+    followPairForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      defer(() => pushConfig({ follow_pair_code: String(state.teamRules.follow.pairCode ?? "") }));
+    });
+  }
   for (const [id, field] of [["roomName", "room_name"], ["roomPass", "room_password"]] as const) {
     $(id).addEventListener("change", (e) =>
       pushConfig({ [field]: (e.target as HTMLInputElement).value.trim() }),
@@ -653,6 +939,75 @@ function wireIntents(): void {
     },
     { capture: true },
   );
+  $("modalLayer").addEventListener("input", (event) => {
+    if ((event.target as HTMLElement).matches(".hitch-term-input")) {
+      syncModalDraftFromInputs();
+      updateHitchCharCount();
+    }
+  });
+  $("modalLayer").addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const addBtn = target.closest("#btnAddHitchTerm");
+    if (addBtn) {
+      syncModalDraftFromInputs();
+      modalDraftTerms.push("");
+      renderHitchModalContent();
+      const inputs = document.querySelectorAll<HTMLInputElement>(".hitch-term-input");
+      inputs[inputs.length - 1]?.focus();
+      return;
+    }
+    const moveBtn = target.closest("[data-term-move]") as HTMLElement | null;
+    if (moveBtn) {
+      syncModalDraftFromInputs();
+      const idx = Number(moveBtn.dataset.idx);
+      const dir = Number(moveBtn.dataset.termMove);
+      const targetIdx = idx + dir;
+      if (targetIdx >= 0 && targetIdx < modalDraftTerms.length) {
+        const tmp = modalDraftTerms[idx];
+        modalDraftTerms[idx] = modalDraftTerms[targetIdx];
+        modalDraftTerms[targetIdx] = tmp;
+        renderHitchModalContent();
+      }
+      return;
+    }
+    const delBtn = target.closest("[data-term-del]") as HTMLElement | null;
+    if (delBtn) {
+      syncModalDraftFromInputs();
+      const idx = Number(delBtn.dataset.termDel);
+      modalDraftTerms.splice(idx, 1);
+      if (!modalDraftTerms.length) modalDraftTerms.push("");
+      renderHitchModalContent();
+      return;
+    }
+    if (target.closest("[data-apply-hitch-search]")) {
+      syncModalDraftFromInputs();
+      const cleaned = modalDraftTerms.map((t) => t.trim()).filter(Boolean);
+      const unique = Array.from(new Set(cleaned));
+      const search = unique.join(",");
+      if (!unique.length) {
+        event.stopPropagation();
+        toast("搜房词不能为空");
+        return;
+      }
+      if (search.length > 64) {
+        event.stopPropagation();
+        toast("所有搜房词合计最多 64 个字符");
+        return;
+      }
+      hitchSearchTerms = {
+        terms: unique,
+        primary: unique[0] ?? "4",
+        secondary: unique[1] ?? "3",
+      };
+      (window as unknown as { hitchSearchTerms: HitchSearchTerms }).hitchSearchTerms = hitchSearchTerms;
+      renderHitchSearchSummary();
+      pushConfig({ hitch_stage_prefix: search });
+      ((document.querySelector("#modalSheet [data-close]") as HTMLButtonElement | null))?.click();
+      return;
+    }
+  }, { capture: true });
+  $("btnHitchAdvanced").addEventListener("click", openHitchSearchModal);
+  $("hitchSearchCard")?.addEventListener("click", openHitchSearchModal);
 
   // 启动 / 停止（同一按钮，运行态切换为 stop_run）。
   $("btnStart").addEventListener("click", () => {
@@ -669,6 +1024,40 @@ function wireIntents(): void {
   // 窗口控制。
   $("btnMin").addEventListener("click", () => void bridge?.window_control("minimize").catch(console.error));
   $("btnClose").addEventListener("click", () => void bridge?.window_control("close").catch(console.error));
+  // 激活订阅卡密：使用看板内嵌引导层，不调用浏览器脚本框。
+  $("btnActivateKey")?.addEventListener("click", async () => {
+    const opener = (window as unknown as Record<string, unknown>).openSubscriptionModal;
+    if (typeof opener === "function") (opener as () => void)();
+  });
+  $("modalLayer").addEventListener("click", async (event) => {
+    const submit = (event.target as HTMLElement).closest("[data-activate-subscription]") as HTMLButtonElement | null;
+    if (!submit) return;
+    const key = (document.getElementById("subscriptionKey") as HTMLInputElement | null)?.value.trim() ?? "";
+    if (!key) {
+      toast("请输入卡密");
+      return;
+    }
+    submit.disabled = true;
+    try {
+      const res = await (bridge
+        ? bridge.activate_subscription(key)
+        : Promise.resolve({ ok: false, message: "后端桥接未就绪", status: "", expires_at: "", subscription: undefined }));
+      if (res && res.ok) {
+        toast(res.message || "订阅激活成功！");
+        applySubscription(res.subscription || { active: true, status: "卡密有效", expires_at: res.expires_at || "", live_authorized: false, live_status: "LIVE 授权待校验" });
+        ((document.querySelector("#modalSheet [data-close]") as HTMLButtonElement | null))?.click();
+      } else {
+        toast("激活失败：" + (res?.message || "卡密无效"));
+        if (res?.status) {
+          applySubscription({ active: false, status: res.status, expires_at: res.expires_at || "" });
+        }
+      }
+    } catch (err) {
+      toast("激活请求异常：" + String(err));
+    } finally {
+      submit.disabled = false;
+    }
+  });
 }
 
 // ---------------------------------------------------------------- 启动
@@ -685,8 +1074,10 @@ function showFatal(err: unknown): void {
 async function boot(): Promise<void> {
   if (import.meta.env.MODE !== "production") {
     // dev/浏览器测试：诚实 mock，形状与 types.ts 一致；生产构建不打包此分支。
-    const { createMockBridge } = await import("./bridge/mockBridge");
-    bridge = createMockBridge();
+    const { createMockBridgeConnection } = await import("./bridge/mockBridge");
+    const conn = createMockBridgeConnection();
+    bridge = conn.bridge;
+    wireSignals(conn.signals);
   } else {
     const { createQtBridge } = await import("./bridge/qtBridge");
     const conn = await createQtBridge();
@@ -697,4 +1088,6 @@ async function boot(): Promise<void> {
   applySnapshot(await bridge.get_snapshot());
 }
 
-boot().catch(showFatal);
+if (typeof window !== "undefined" && typeof document !== "undefined" && document.getElementById("scene-app")) {
+  boot().catch(showFatal);
+}

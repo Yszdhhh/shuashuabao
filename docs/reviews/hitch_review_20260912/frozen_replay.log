@@ -1,0 +1,58 @@
+[med] giveUp + 选择面板锚点：AMBIGUOUS_GIVEUP，非失败，继续面板 FSM
+[med] giveUp + 选择面板锚点：AMBIGUOUS_GIVEUP，非失败，继续面板 FSM
+[med] phase BOOT → MAIN_LINE frozen replay initial phase
+[med] capture tick 1920x1080 @(0,0) phase=MAIN_LINE target='英雄三国' window='英雄三国KK' hwnd=10001 context=MAIN_LINE
+[med] FAIL 候选第 1 帧，等待连续证据（零动作）
+[med] capture tick 1920x1080 @(0,0) phase=MAIN_LINE target='英雄三国' window='英雄三国KK' hwnd=10001 context=MAIN_LINE
+[med] FAIL 连续两帧确认，抢占并进入 RECOVER_FAILURE
+[med] phase MAIN_LINE → RECOVER_FAILURE recovery start (FAIL)
+[med] capture tick 1920x1080 @(0,0) phase=RECOVER_FAILURE target='英雄三国' window='英雄三国KK' hwnd=10001 context=MAIN_LINE
+[med] click failure_exit score=1.000 @ (800, 689) (Recovery-FAIL-FAIL_CONFIRM)
+[med] 恢复步骤 FAIL/FAIL_CONFIRM 已输入（等待后置确认）
+[med] phase BOOT → MAIN_LINE frozen replay initial phase
+[med] capture tick 1920x1080 @(0,0) phase=MAIN_LINE target='英雄三国' window='英雄三国KK' hwnd=10001 context=MAIN_LINE
+[med] giveUp + 选择面板锚点：AMBIGUOUS_GIVEUP，非失败，继续面板 FSM
+[L1] 面板锚点 skill_refresh_btn 0.759 待双帧确认
+[med] capture tick 1920x1080 @(0,0) phase=MAIN_LINE target='英雄三国' window='英雄三国KK' hwnd=10001 context=MAIN_LINE
+[med] giveUp + 选择面板锚点：AMBIGUOUS_GIVEUP，非失败，继续面板 FSM
+[L1] 技能刷新选择 skill_refresh_btn score=0.759 @ (1020, 654)
+[med] click skill_refresh_btn score=0.759 @ (1020, 654) (技能刷新选择)
+[med] capture tick 1609x932 @(0,0) phase=MAIN_LINE target='英雄三国' window='英雄三国KK' hwnd=10001 context=MAIN_LINE
+[med] phase BOOT → MAIN_LINE frozen replay initial phase
+[med] capture tick 1596x921 @(0,0) phase=MAIN_LINE target='英雄三国' window='英雄三国KK' hwnd=10001 context=MAIN_LINE
+[med] 非胜利链路进入存档面板，Fail-Closed 停止运行
+[med] phase MAIN_LINE → ERROR unexpected archive panel
+[med] OBSERVE incident: unexpected archive panel; continue with zero input
+[med] phase BOOT → MAIN_LINE frozen replay initial phase
+[med] capture tick 1609x932 @(0,0) phase=MAIN_LINE target='英雄三国' window='英雄三国KK' hwnd=10001 context=MAIN_LINE
+[L1] 自动任务开启模式已验证（已勾选）
+[L1] 金币挑战已是自动模式
+[L1] 木材挑战已是自动模式
+[L1] 经验挑战已是自动模式
+[L1] 宝物挑战已是自动模式
+[med] click bond_button score=1.000 @ (1390, 808) (OpenBondPanel)
+[L1] 开 F 羁绊（没新卡才转 G）
+[med] capture tick 1609x932 @(0,0) phase=MAIN_LINE target='英雄三国' window='英雄三国KK' hwnd=10001 context=MAIN_LINE
+[med] phase BOOT → STAGE_SELECT frozen replay initial phase
+[med] capture tick 1600x900 @(0,0) phase=STAGE_SELECT target='英雄三国' window='英雄三国KK' hwnd=10001 context=STAGE_SELECT
+[med] decision context=STAGE_SELECT phase=STAGE_SELECT
+[L0] 目标关卡不在当前列表，持续向下滚动寻找 (telemetry=1)
+[med] capture tick 1600x900 @(0,0) phase=STAGE_SELECT target='英雄三国' window='英雄三国KK' hwnd=10001 context=STAGE_SELECT
+[med] decision context=STAGE_SELECT phase=STAGE_SELECT
+[L0] 目标关卡不在当前列表，持续向下滚动寻找 (telemetry=2)
+[med] phase BOOT → QUIT frozen replay initial phase
+[med] capture tick 1600x900 @(0,0) phase=QUIT target='英雄三国' window='英雄三国KK' hwnd=10001 context=UNKNOWN
+[med] phase QUIT → NEXT exit confirmation already visible
+[med] capture tick 1600x900 @(0,0) phase=NEXT target='英雄三国' window='英雄三国KK' hwnd=10001 context=UNKNOWN
+[med] 确认退出当前游戏 @ (740, 520) (尝试 1/3)
+[med] click exit_confirm_btn score=0.815 @ (740, 520) (QuitGame-confirm)
+[med] phase NEXT → PREPARE exit confirmed; verify same room
+fail_panel_preempt           | off     | PASS     | frames=3
+giveup_panel_not_fail        | off     | PASS     | frames=3
+archive_challenge_open       | off     | PASS     | frames=1
+main_hud_idle                | off     | PASS     | frames=2
+stage_select_scroll          | off     | PASS     | frames=2
+exit_confirm_quit            | off     | PASS     | frames=2
+disconnect_modal_missing     | off     | BLOCKED  | frames=0 | failures=1 ledger_mismatch=0
+    FAIL 真实断线弹窗素材缺失（G2：idx_a 2778 帧 + idx_b 2569 帧扫描 0 命中 gameDisconnect/retryConnect；与 O3 missing_disconnect_modal、fixtures/scenarios fail_recovery_three_frames XFAIL 同源）。需 tools/net_block.py 实机触发后命名保存（<root>\disconnect\gameDisconnect_*.png）。
+Summary: Total=7 Passed=6 Blocked=1 Failed=0

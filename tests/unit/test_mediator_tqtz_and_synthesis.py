@@ -79,6 +79,63 @@ def test_treasure_yazhi_negative_ban_by_default():
     assert dec.index == 1
 
 
+def test_global_treasure_must_take_still_outranks_talisman():
+    """普通模式保留必拿名单；蹭车的神符限定由 Mediator 单独执行。"""
+    settings = assemble_policy_settings(
+        settings=Settings(),
+        skill_labels={},
+        fetter_labels={},
+        policy_doc={},
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_TREASURE,
+        slots=(
+            SlotCandidate(index=0, name="卡牌大师", rarity="orange", confidence=0.95),
+            SlotCandidate(index=1, name="恢复神符", rarity="green", confidence=0.85),
+        ),
+        set_progress=None,
+        refresh_count=0,
+        has_giveup=True,
+        can_refresh=False,
+        owned_skill_cards=(),
+        settings=settings,
+    )
+
+    dec = choose_action(cands, SessionState())
+
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 0
+    assert "必拿" in dec.reason
+
+
+def test_non_green_talisman_does_not_get_talisman_priority():
+    """普通模式品质优先：橙色神符按品质链直接选中，蓝色必拿不再压过更高品质。"""
+    settings = assemble_policy_settings(
+        settings=Settings(),
+        skill_labels={},
+        fetter_labels={},
+        policy_doc={},
+    )
+    cands = PanelCandidates(
+        panel_kind=PANEL_TREASURE,
+        slots=(
+            SlotCandidate(index=0, name="奥术神符", rarity="orange", confidence=0.95),
+            SlotCandidate(index=1, name="卡牌大师", rarity="blue", confidence=0.85),
+        ),
+        set_progress=None,
+        refresh_count=0,
+        has_giveup=True,
+        can_refresh=False,
+        owned_skill_cards=(),
+        settings=settings,
+    )
+
+    dec = choose_action(cands, SessionState())
+
+    assert dec.action == PolicyAction.SELECT_SLOT
+    assert dec.index == 0
+
+
 def test_treasure_yazhi_allowed_when_explicitly_checked():
     """压制 在看板中勾选允许后，可以正常作为高品质宝物被选中。"""
     settings = assemble_policy_settings(

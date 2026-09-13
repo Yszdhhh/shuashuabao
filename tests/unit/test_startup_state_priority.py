@@ -139,8 +139,24 @@ def test_boot_binds_minimized_game_window_and_never_activates_platform():
     assert all(call.args and call.args[0] != 111 for call in act.call_args_list)
 
 
-def test_see_restores_minimized_target_window():
-    """用户规则：所有窗口都可能最小化；无效帧 + IsIconic → SW_RESTORE。"""
+def test_see_never_activates_a_valid_platform_frame():
+    """感知可后台抓帧；不能因每轮 see() 把 KK 平台抢到游戏前面。"""
+    med = Mediator(Settings(), ROOT)
+    med.set_phase(Phase.ROOM_WAITING)
+    platform = Frame(
+        np.zeros((900, 1600, 3), dtype=np.uint8),
+        left=0, top=0, hwnd=111, window_title="KK官方对战平台",
+    )
+    with patch.object(med, "_capture_best", return_value=platform), \
+         patch.object(med, "_frame_signal", return_value=100), \
+         patch("shuabao.mediator.activate_window", return_value=True) as activate:
+        assert med.see("test") is platform
+    activate.assert_not_called()
+
+
+def test_see_zero_side_effect_on_minimized_target_window():
+    """P0-2（20260908）：观察期零前台副作用——无效/最小化帧只标记
+    is_minimized，绝不 activate/restore；焦点严格限定在真实输入动作前。"""
     med = Mediator(Settings(), ROOT)
     med.set_phase(Phase.BOOT)
     minimized = Frame(
@@ -152,9 +168,9 @@ def test_see_restores_minimized_target_window():
          patch.object(med, "_frame_signal", return_value=0), \
          patch("shuabao.vision.capture.is_window_minimized", return_value=True), \
          patch("shuabao.mediator.activate_window", return_value=True) as restore:
-        med.see("test")
-    assert restore.call_count == 1
-    assert restore.call_args.args[0] == 333
+        frame = med.see("test")
+    assert frame.is_minimized is True
+    restore.assert_not_called()
 
 
 def test_full_boot_tick_takes_over_paused_game_window():
@@ -175,17 +191,44 @@ def test_full_boot_tick_takes_over_paused_game_window():
     assert med.phase is Phase.MAIN_LINE
 
 
-def test_startup_with_existing_game_window_enters_main_line_without_create_room():
+def test_startup_with_noisy_frame_without_hud_is_unknown():
+    """C1: 随机 noisy 帧无 trusted HUD / Stage / PostGame => UNKNOWN（零输入）。"""
     med = Mediator(Settings(), ROOT)
     med.set_phase(Phase.PREPARE)
     noisy = np.random.default_rng(1).integers(0, 255, (900, 1600, 3), dtype=np.uint8)
     frame = Frame(noisy, left=185, top=81, hwnd=1184474, window_title="英雄三国KK")
-    with patch.object(med, "_find_stage_page", return_value=False), \
-         patch.object(med, "_find_room_start", return_value=None), \
-         patch.object(med, "_find_create_confirm", return_value=None), \
-         patch.object(med, "_find_map_create_room", return_value=None):
+    with (
+        patch.object(med, "_find_stage_page", return_value=False),
+        patch.object(med, "_find_room_start", return_value=None),
+        patch.object(med, "_find_create_confirm", return_value=None),
+        patch.object(med, "_find_map_create_room", return_value=None),
+        patch.object(med, "_is_in_game_hud", return_value=False),
+    ):
         state = med._startup_state(frame)
-    assert state == "IN_GAME"
+    assert state == "UNKNOWN"
+
+
+def test_startup_with_trusted_hud_is_in_game_for_all_phases():
+    """C1: 验证 BOOT / PREPARE / ROOM_WAITING 在 trusted HUD 下对齐 MAIN_LINE / IN_GAME。"""
+    med = Mediator(Settings(), ROOT)
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), left=185, top=81, hwnd=1184474, window_title="英雄三国KK")
+    with (
+        patch.object(med, "_find_stage_page", return_value=False),
+        patch.object(med, "_find_room_start", return_value=None),
+        patch.object(med, "_is_in_game_hud", return_value=True),
+    ):
+        assert med._startup_state(frame) == "IN_GAME"
+
+    # 验证 L0 _tick_l0 在 BOOT / PREPARE / ROOM_WAITING 下均接管至 MAIN_LINE
+    for p in (Phase.BOOT, Phase.PREPARE, Phase.ROOM_WAITING):
+        med.set_phase(p)
+        with (
+            patch.object(med, "_startup_state", return_value="IN_GAME"),
+            patch.object(med, "_is_in_game_hud", return_value=True),
+        ):
+            res = med._tick_l0(frame)
+            assert res is LoopAction.Continue
+            assert med.phase is Phase.MAIN_LINE
 
 
 def test_stage_page_handoff_precedes_auto_task_gate():
@@ -205,14 +248,20 @@ def test_stage_page_handoff_precedes_auto_task_gate():
 
 
 def test_tqtz_is_one_shot_and_blocks_regular_choice_until_confirmed():
+    """B1 契约：点击成功只挂起 pending（点击≠已接受），确认前零-input 等待
+    fresh 帧确认，绝不二次点击。"""
     med = Mediator(Settings(), ROOT)
     frame = _frame()
     tqtz_hit = MatchResult("tqtz", .85, 438, 79, 85, 22, 665, 171)
     with patch.object(med, "find", return_value=tqtz_hit), \
+         patch.object(med, "find_scene", return_value=None), \
          patch.object(med, "act_click", return_value=True) as click:
         assert med._maybe_click_tqtz(frame, 100.0) is LoopAction.Continue
-        assert med._maybe_click_tqtz(frame, 102.0) is None
+        # pending 观察窗：fresh 帧图标仍在 → 零输入等待，不落定成功
+        assert med._maybe_click_tqtz(frame, 102.0) is LoopAction.Continue
     assert click.call_count == 1
+    assert getattr(med, "_tqtz_pending", False) is True
+    assert getattr(med, "_tqtz_clicked", False) is False
 
 def test_tqtz_transition_waits_for_boss_entry_before_regular_cycle():
     med = Mediator(Settings(cjb_boss="04大范"), ROOT)

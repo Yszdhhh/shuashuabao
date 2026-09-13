@@ -1,0 +1,70 @@
+..FFFFFFFFF                                                              [100%]
+================================== FAILURES ===================================
+_ test_swallowed_victory_clicks_leave_before_whole_round_deadline[Mediator0] __
+tests\test_hitch_review_20260912.py:85: in test_swallowed_victory_clicks_leave_before_whole_round_deadline
+    assert med.phase in {Phase.QUIT, Phase.NEXT, Phase.ERROR}
+E   assert <Phase.MAIN_LINE: 14> in {<Phase.QUIT: 19>, <Phase.ERROR: 13>, <Phase.NEXT: 20>}
+E    +  where <Phase.MAIN_LINE: 14> = <shuabao.mediator.Mediator object at 0x00000278A031A990>.phase
+_ test_swallowed_victory_clicks_leave_before_whole_round_deadline[Mediator1] __
+tests\test_hitch_review_20260912.py:85: in test_swallowed_victory_clicks_leave_before_whole_round_deadline
+    assert med.phase in {Phase.QUIT, Phase.NEXT, Phase.ERROR}
+E   assert <Phase.MAIN_LINE: 14> in {<Phase.QUIT: 19>, <Phase.ERROR: 13>, <Phase.NEXT: 20>}
+E    +  where <Phase.MAIN_LINE: 14> = <shuabao.runtime_mediator.Mediator object at 0x00000278A0363AD0>.phase
+_ test_expired_round_deadline_preempts_persistent_pressure_button[Mediator0] __
+tests\test_hitch_review_20260912.py:97: in test_expired_round_deadline_preempts_persistent_pressure_button
+    assert med.phase == Phase.QUIT
+E   assert <Phase.MAIN_LINE: 14> == <Phase.QUIT: 19>
+E    +  where <Phase.MAIN_LINE: 14> = <shuabao.mediator.Mediator object at 0x00000278A03F6990>.phase
+E    +  and   <Phase.QUIT: 19> = Phase.QUIT
+_ test_expired_round_deadline_preempts_persistent_pressure_button[Mediator1] __
+tests\test_hitch_review_20260912.py:97: in test_expired_round_deadline_preempts_persistent_pressure_button
+    assert med.phase == Phase.QUIT
+E   assert <Phase.MAIN_LINE: 14> == <Phase.QUIT: 19>
+E    +  where <Phase.MAIN_LINE: 14> = <shuabao.runtime_mediator.Mediator object at 0x00000278A030DDD0>.phase
+E    +  and   <Phase.QUIT: 19> = Phase.QUIT
+_______ test_hitch_new_round_clears_pending_input_authority[Mediator0] ________
+tests\test_hitch_review_20260912.py:109: in test_hitch_new_round_clears_pending_input_authority
+    assert med._pending_action is None
+E   assert <object object at 0x00000278A0204530> is None
+E    +  where <object object at 0x00000278A0204530> = <shuabao.mediator.Mediator object at 0x00000278A035C3D0>._pending_action
+_______ test_hitch_new_round_clears_pending_input_authority[Mediator1] ________
+tests\test_hitch_review_20260912.py:109: in test_hitch_new_round_clears_pending_input_authority
+    assert med._pending_action is None
+E   assert <object object at 0x00000278A02045B0> is None
+E    +  where <object object at 0x00000278A02045B0> = <shuabao.runtime_mediator.Mediator object at 0x00000278A033CC90>._pending_action
+_________ test_instance_evidence_requires_consecutive_eligible_frames _________
+tests\test_hitch_review_20260912.py:120: in test_instance_evidence_requires_consecutive_eligible_frames
+    assert med._hitch_instance_frames == 0
+E   assert 1 == 0
+E    +  where 1 = <shuabao.runtime_mediator.Mediator object at 0x00000278A0360190>._hitch_instance_frames
+__ test_heirloom_resets_exhausted_archive_budget_before_dispatch[Mediator0] ___
+tests\test_hitch_review_20260912.py:135: in test_heirloom_resets_exhausted_archive_budget_before_dispatch
+    assert med._boss_challenge_page == "HEIRLOOM_DIALOG"
+E   AssertionError: assert 'ARCHIVE_PANEL' == 'HEIRLOOM_DIALOG'
+E     
+E     - HEIRLOOM_DIALOG
+E     + ARCHIVE_PANEL
+------------------------------ Captured log call ------------------------------
+WARNING  ShuaBao:log_sink.py:85 [med] click close score=0.969 @ (990, 212) (DismissHeirloomDialog)
+ERROR    ShuaBao:log_sink.py:83 [med] 传家宝 Boss 已点：广场上识别到装备获取信息立刻退出，否则 60s 后退出；进入秘境/团本则等失败再退
+__ test_heirloom_resets_exhausted_archive_budget_before_dispatch[Mediator1] ___
+tests\test_hitch_review_20260912.py:135: in test_heirloom_resets_exhausted_archive_budget_before_dispatch
+    assert med._boss_challenge_page == "HEIRLOOM_DIALOG"
+E   AssertionError: assert 'ARCHIVE_PANEL' == 'HEIRLOOM_DIALOG'
+E     
+E     - HEIRLOOM_DIALOG
+E     + ARCHIVE_PANEL
+------------------------------ Captured log call ------------------------------
+WARNING  ShuaBao:log_sink.py:85 [med] click close score=0.969 @ (990, 212) (DismissHeirloomDialog)
+ERROR    ShuaBao:log_sink.py:83 [med] 传家宝 Boss 已点：广场上识别到装备获取信息立刻退出，否则 60s 后退出；进入秘境/团本则等失败再退
+=========================== short test summary info ===========================
+FAILED tests/test_hitch_review_20260912.py::test_swallowed_victory_clicks_leave_before_whole_round_deadline[Mediator0]
+FAILED tests/test_hitch_review_20260912.py::test_swallowed_victory_clicks_leave_before_whole_round_deadline[Mediator1]
+FAILED tests/test_hitch_review_20260912.py::test_expired_round_deadline_preempts_persistent_pressure_button[Mediator0]
+FAILED tests/test_hitch_review_20260912.py::test_expired_round_deadline_preempts_persistent_pressure_button[Mediator1]
+FAILED tests/test_hitch_review_20260912.py::test_hitch_new_round_clears_pending_input_authority[Mediator0]
+FAILED tests/test_hitch_review_20260912.py::test_hitch_new_round_clears_pending_input_authority[Mediator1]
+FAILED tests/test_hitch_review_20260912.py::test_instance_evidence_requires_consecutive_eligible_frames
+FAILED tests/test_hitch_review_20260912.py::test_heirloom_resets_exhausted_archive_budget_before_dispatch[Mediator0]
+FAILED tests/test_hitch_review_20260912.py::test_heirloom_resets_exhausted_archive_budget_before_dispatch[Mediator1]
+9 failed, 2 passed in 35.72s

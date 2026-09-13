@@ -15,6 +15,7 @@ import json
 import math
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -280,15 +281,26 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.med.executor.dry_run = True
 
     def test_regressions_post_game_archive_boss_longzhu_priority(self):
-        """7. Check regression: archive/boss_entry/longzhu Fail-Closed 保留（S0 ⑧ 阶段门控）。"""
+        """7. Check regression: 20260831 实机复盘后未验证 archive 守卫只对
+        "无战后上下文"的帧 Fail-Closed（pending=False + 局尾窗口）；
+        `_post_game_pending=True` 战后过渡窗豁免为零输入 Continue。
+        boss_entry/longzhu 门控不变（见 p1a1/p0c1 契约）。"""
         self.med._auto_task_done = True
-        self.med._post_game_pending = True  # 局尾窗口（战后流程进行中）才检查
-
-        # Create dummy frame with 'archive' template matched
+        self.med._post_game_pending = False
+        self.med._round_deadline = time.time() + 5  # 局尾窗口内
         with patch.object(self.med, "find_scene", side_effect=lambda f, name, **kw: MatchResult("archive", 0.9, 100, 100, 50, 50, 100, 100) if name == "archive" else None):
             res = self.med._tick_main_line(self.frame_off)
             self.assertEqual(res, LoopAction.Break)
             self.assertEqual(self.med.phase, Phase.ERROR)
+
+        # 战后过渡窗（pending=True）：豁免守卫，零输入 Continue
+        self.med2 = Mediator(self.settings, ROOT)
+        self.med2._auto_task_done = True
+        self.med2.set_phase(Phase.MAIN_LINE, "test setup")
+        with patch.object(self.med2, "find_scene", side_effect=lambda f, name, **kw: MatchResult("archive", 0.9, 100, 100, 50, 50, 100, 100) if name == "archive" else None):
+            res = self.med2._tick_main_line(self.frame_off)
+            self.assertEqual(res, LoopAction.Continue)
+            self.assertEqual(self.med2.phase, Phase.MAIN_LINE)
 
     def test_reset_challenge_state_on_entering_new_main_line(self):
         """8. Check that set_phase(Phase.MAIN_LINE) resets challenge done/attempts and initializes states to PENDING."""
@@ -304,6 +316,39 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.assertEqual(len(self.med._challenge_unknown_since), 0)
         for key in ("coin_challenge", "wood_challenge", "experience_challenge", "treasure_challenge"):
             self.assertEqual(self.med._challenge_states.get(key), ChallengeState.PENDING)
+
+    def test_hitch_mode_never_maps_pressure_transfer_to_f4(self):
+        self.med.settings.mode_id = "lobby_hitch"
+        self.med._pressure_next_at = time.time() + 999.0
+        self.med.set_phase(Phase.MAIN_LINE, "hitch new game")
+        self.assertEqual(self.med._pressure_next_at, 0.0)
+
+        with patch.object(self.med, "_hitch_ocr_text", return_value=""), \
+             patch.object(self.med, "_find_failure_gift", return_value=None), \
+             patch.object(self.med, "_post_game_state", return_value=None), \
+             patch.object(self.med, "_maybe_clear_pressure_monsters", return_value=LoopAction.Continue) as pressure, \
+             patch.object(self.med, "_maybe_click_tqtz", return_value=None):
+            self.assertIs(self.med._tick_main_line(self.frame_off), LoopAction.Continue)
+
+        pressure.assert_not_called()
+
+    def test_pressure_clear_waits_for_its_first_interval_after_main_line_entry(self):
+        self.med.settings.auto_pressure = True
+        self.med.settings.pressure_interval_s = 20.0
+        self.med.set_phase(Phase.MAIN_LINE, "pressure schedule")
+        started_at = self.med._main_line_started_at
+        self.assertIsNotNone(started_at)
+        self.assertEqual(self.med._pressure_next_at, started_at + 20.0)
+
+        with patch.object(self.med, "_is_in_game_hud", return_value=True), \
+             patch.object(self.med, "act_key", return_value=True) as key:
+            self.assertIsNone(self.med._maybe_clear_pressure_monsters(self.frame_off, started_at + 19.9))
+            self.assertEqual(
+                self.med._maybe_clear_pressure_monsters(self.frame_off, started_at + 20.0),
+                LoopAction.Continue,
+            )
+
+        key.assert_called_once_with("f4", "ClearPressureMonsters")
 
     def test_pending_lifecycle_and_transitions(self):
         """Check PENDING lifecycle: initialized at PENDING, transitions to PENDING on right-click, ON when confirmed."""
@@ -353,15 +398,17 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         self.med._auto_task_done = True
         self.med.settings.query_timeout = 3
         dummy_label = MatchResult("coin_challenge", 0.8, 100, 500, 50, 20, 100, 500)
+        now = [100.0]
 
         with patch.object(self.med, "_find_challenge_button", return_value=(dummy_label, dummy_label)), \
              patch.object(self.med, "_resolve_challenge_state", return_value=ChallengeState.UNKNOWN), \
              patch.object(self.med.executor, "right_click") as mock_rc, \
-             patch("shuabao.mediator.time.time", side_effect=(100.0, 103.0, 103.0, 103.0)):
+             patch("shuabao.mediator.time.time", side_effect=lambda: now[0]):
             # 第一 tick：UNKNOWN → 零输入等待（Continue）
             self.assertEqual(self.med._ensure_challenge_buttons(self.frame_off), LoopAction.Continue)
             self.assertEqual(self.med._challenge_states.get("coin_challenge"), ChallengeState.UNKNOWN)
             # 超时后：跳过该挑战继续（Continue），不再整机停机
+            now[0] = 103.0
             self.assertEqual(self.med._ensure_challenge_buttons(self.frame_off), LoopAction.Continue)
             self.assertIn("coin_challenge", self.med._challenge_done)
 

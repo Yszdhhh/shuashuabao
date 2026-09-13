@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "baseline_id": "repo-wide-pytest-existing-failures-20260829",
+  "captured_at": "2026-08-29",
+  "policy": "NO_NEW_FAILURES",
+  "command": "python -m pytest tests -q",
+  "scope": "Current repo-wide pytest failure nodeids captured in this audit; do not fix unrelated historical Atlas, pause-overlay, UI detector, or replay behavior in this checkpoint.",
+  "expected_failure_count": 30,
+  "expected_failures": [
+    {
+      "nodeid": "tests/test_atlas_view.py::AtlasViewJoinTests::test_archive_tier_uses_json_text",
+      "area": "atlas",
+      "observed": "AtlasView.get('奥数箭') returned None"
+    },
+    {
+      "nodeid": "tests/test_atlas_view.py::AtlasViewJoinTests::test_bond_columns_split_by_short_code",
+      "area": "atlas",
+      "observed": "急速 whitelist_ok differed from the historical expectation"
+    },
+    {
+      "nodeid": "tests/test_atlas_view.py::AtlasViewJoinTests::test_empty_family_description_is_pending_not_invented",
+      "area": "atlas",
+      "observed": "奥数箭 family entry was absent"
+    },
+    {
+      "nodeid": "tests/test_atlas_view.py::AtlasViewJoinTests::test_ex_capstone_icons_and_cannot_devour",
+      "area": "atlas",
+      "observed": "帝炎 icon_path was empty"
+    },
+    {
+      "nodeid": "tests/test_atlas_view.py::AtlasViewJoinTests::test_projected_skill_names_subset_of_lexicon_or_catalog",
+      "area": "atlas",
+      "observed": "奥术箭 was outside the current lexicon/catalog projection"
+    },
+    {
+      "nodeid": "tests/test_atlas_view.py::AtlasApplyOneWayTests::test_family_and_bond_and_negative_apply",
+      "area": "atlas",
+      "observed": "historical apply expectation for 奥数箭/asj differed"
+    },
+    {
+      "nodeid": "tests/test_atlas_view.py::AtlasApplyOneWayTests::test_knowledge_bond_cannot_apply",
+      "area": "atlas",
+      "observed": "historical apply expectation for 急速/jisu differed"
+    },
+    {
+      "nodeid": "tests/test_external_review_regressions.py::ExternalReviewRegressionTests::test_pause_overlay_clicks_resume_before_game_actions",
+      "area": "pause-overlay",
+      "observed": "no verified ResumePausedGame click was emitted"
+    },
+    {
+      "nodeid": "tests/test_habit_preference.py::HabitTieBreakTests::test_habit_breaks_tie_within_preset",
+      "area": "policy-history",
+      "observed": "historical habit score tie-break expectation differed"
+    },
+    {
+      "nodeid": "tests/test_lobby_detectors.py::LobbyDetectorTests::test_create_dialog_button_is_found_in_bottom_roi",
+      "area": "lobby-detector",
+      "observed": "synthetic bottom-ROI create button was not detected"
+    },
+    {
+      "nodeid": "tests/test_lobby_detectors.py::LobbyDetectorTests::test_reward_choice_prefers_configured_skill_in_center_roi",
+      "area": "lobby-detector",
+      "observed": "configured skill reward fixture returned no choice"
+    },
+    {
+      "nodeid": "tests/test_p0a_create_room_gate.py::P0ACreateRoomGateTests::test_create_confirm_blue_fallback_still_works_on_small_dialog",
+      "area": "l0-create-room",
+      "observed": "historical small-dialog blue fallback expectation differed"
+    },
+    {
+      "nodeid": "tests/test_p0a_create_room_gate.py::P0ACreateRoomGateTests::test_embedded_create_dialog_requires_form_structure_and_chooses_left_button",
+      "area": "l0-create-room",
+      "observed": "embedded create-dialog fixture did not produce the historical click"
+    },
+    {
+      "nodeid": "tests/test_p0a_create_room_gate.py::P0ACreateRoomGateTests::test_retry_cap_prevents_fourth_click",
+      "area": "l0-create-room",
+      "observed": "historical retry-cap fixture expectation differed"
+    },
+    {
+      "nodeid": "tests/test_p0a_create_room_gate.py::P0ACreateRoomGateTests::test_successful_open_does_not_reclick_while_waiting_for_dialog",
+      "area": "l0-create-room",
+      "observed": "historical successful-open wait expectation differed"
+    },
+    {
+      "nodeid": "tests/test_p1a1_main_line_controls.py::P1A1MainLineControlsTests::test_skill_choice_3_real_screenshot",
+      "area": "l1-choice-history",
+      "observed": "historical real-screenshot choice expectation differed"
+    },
+    {
+      "nodeid": "tests/test_p1a1_main_line_controls.py::P1A1MainLineControlsTests::test_skill_choice_4_real_screenshot",
+      "area": "l1-choice-history",
+      "observed": "historical real-screenshot choice expectation differed"
+    },
+    {
+      "nodeid": "tests/test_p1a1_main_line_controls.py::P1A1MainLineControlsTests::test_skill_choice_candidate_count_is_not_a_hard_gate",
+      "area": "l1-choice-history",
+      "observed": "historical candidate-count gate expectation differed"
+    },
+    {
+      "nodeid": "tests/test_p1a1_main_line_controls.py::P1A1MainLineControlsTests::test_skill_choice_multiple_configured_skills_respects_priority",
+      "area": "l1-choice-history",
+      "observed": "historical multi-skill priority expectation differed"
+    },
+    {
+      "nodeid": "tests/test_p1a1_main_line_controls.py::P1A1MainLineControlsTests::test_skill_choice_no_preferred_hit_refreshes_then_blocks_giveup",
+      "area": "l1-choice-history",
+      "observed": "historical refresh/giveup expectation differed"
+    },
+    {
+      "nodeid": "tests/test_p1a1_main_line_controls.py::P1A1MainLineControlsTests::test_treasure_fixture_uses_real_card_centers_and_not_skill_layout",
+      "area": "l1-choice-history",
+      "observed": "historical treasure fixture center/layout expectation differed"
+    },
+    {
+      "nodeid": "tests/test_p1a1_main_line_controls.py::P1A1MainLineControlsTests::test_treasure_panel_precedes_generic_longzhu_stop",
+      "area": "l1-choice-history",
+      "observed": "historical treasure/longzhu ordering expectation differed"
+    },
+    {
+      "nodeid": "tests/test_scenario_replay.py::ScenarioReplayTests::test_case_skill_panel_one_missing",
+      "area": "scenario-replay",
+      "observed": "historical expectation was zero action; current replay emitted skill_hide"
+    },
+    {
+      "nodeid": "tests/test_skill_meta_presets.py::SkillMetaPresetsContract::test_arcane_default_codes",
+      "area": "skill-metadata",
+      "observed": "historical 奥术箭流 preset was absent"
+    },
+    {
+      "nodeid": "tests/test_ticket_archaeology.py::ChallengeTicketTests::test_zero_challenge_ticket_detected_in_remainder_roi",
+      "area": "ticket-archaeology",
+      "observed": "zero-ticket remainder fixture was not detected"
+    },
+    {
+      "nodeid": "tests/test_trace_jsonl.py::TraceTest::test_settings_summary_masks_password_fields",
+      "area": "trace-history",
+      "observed": "historical trace expectation required ocr_mode off; current default is live"
+    },
+    {
+      "nodeid": "tests/test_ui_scale.py::RoomStartingNoFallbackTest::test_window_missing_falls_back_to_room_waiting",
+      "area": "ui-scale-history",
+      "observed": "historical missing-window fallback expectation differed"
+    },
+    {
+      "nodeid": "tests/test_desktop_app.py::DesktopPanelTests::test_apply_official_build_fills_skills_bonds_reputation",
+      "area": "desktop-ui",
+      "observed": "historical official-build form expectation failed"
+    },
+    {
+      "nodeid": "tests/test_desktop_app.py::DesktopPanelTests::test_desktop_main_preserves_theme_loaded_by_real_window",
+      "area": "desktop-ui",
+      "observed": "historical real-window theme expectation failed"
+    },
+    {
+      "nodeid": "tests/test_desktop_app.py::DesktopPanelTests::test_negative_treasure_list_matches_policy_config",
+      "area": "desktop-ui",
+      "observed": "historical negative-treasure UI list expectation failed"
+    }
+  ],
+  "verification": {
+    "stable_non_qt_command": "python -m pytest tests -q --maxfail=0 --ignore=tests/test_desktop_app.py --ignore=tests/test_dashboard_facade_runner.py --ignore=tests/test_web_config_shell.py --ignore=tests/test_dashboard_facade.py --ignore=tests/test_packaging_spec.py",
+    "stable_non_qt_result": "27 failed, 830 passed, 1 skipped, 2 xfailed, 188 subtests passed",
+    "desktop_isolated_result": "3 failure nodeids isolated; remaining 94 tests passed after deselecting those three",
+    "other_qt_modules": "test_dashboard_facade.py 33 passed; test_dashboard_facade_runner.py 20 passed; test_web_config_shell.py 30 passed; test_packaging_spec.py 11 passed",
+    "unfiltered_runner_caveat": "The unfiltered Windows run reaches the same Atlas failures, then the desktop Qt test process terminates with access violation before pytest can print a complete summary. This is recorded as a runner caveat, not converted into an invented test nodeid."
+  },
+  "baseline_rule": "A future run may retain only these exact 30 nodeids as known failures. Any additional failed nodeid is a NO_NEW_FAILURES violation and must be investigated before claiming closure.",
+  "not_in_scope": [
+    "Atlas data projection fixes",
+    "pause-overlay behavior repair",
+    "historical L0/L1 detector fixture repairs",
+    "desktop UI historical expectation repairs",
+    "disconnect_modal_missing fixture creation"
+  ]
+}

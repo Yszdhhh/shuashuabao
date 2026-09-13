@@ -32,3 +32,62 @@ def test_frozen_package_without_sidecar_blocks_live_start(monkeypatch):
         "stage": "client",
         "reason": "packaged OCR runtime missing: expected ShuaBaoOCR.exe under the ShuaBao distribution",
     }
+
+
+def test_live_ocr_retries_one_transient_start_failure(monkeypatch):
+    created: list[object] = []
+
+    class TransientStartClient:
+        def __init__(self, **_kwargs) -> None:
+            self.start_calls = 0
+            self.rearm_calls = 0
+            self.closed = False
+            self.ready_reason = "ready_timeout"
+            self.model_validated = False
+            self.model_name = None
+            self.model_hash = None
+            created.append(self)
+
+        def start(self) -> bool:
+            self.start_calls += 1
+            if self.start_calls == 1:
+                return False
+            self.ready_reason = None
+            self.model_validated = True
+            self.model_name = "test-model"
+            self.model_hash = "test-hash"
+            return True
+
+        def rearm(self) -> None:
+            self.rearm_calls += 1
+
+        def ping(self, *, timeout_ms: int) -> bool:
+            return True
+
+        def warmup(self, *, timeout_ms: int) -> bool:
+            return True
+
+        def health_check(self) -> dict[str, object]:
+            return {
+                "healthy": True,
+                "ready": True,
+                "process_alive": True,
+                "model_validated": self.model_validated,
+                "model_name": self.model_name,
+                "model_hash": self.model_hash,
+                "ready_reason": self.ready_reason,
+                "load_ms": 1.0,
+            }
+
+        def close(self) -> None:
+            self.closed = True
+
+    monkeypatch.setattr(runtime_mediator, "ProductionShadowClient", TransientStartClient)
+    mediator = runtime_mediator.Mediator(Settings(ocr_mode="live"), ROOT)
+
+    assert mediator.prepare_live_dependencies() is True
+    client = created[0]
+    assert client.start_calls == 2
+    assert client.rearm_calls == 1
+    assert client.closed is False
+    assert mediator._ocr_bootstrap_health["start_attempts"] == 2

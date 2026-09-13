@@ -31,12 +31,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 import desktop_app  # noqa: E402
+from shuabao.shell import main_window as main_window_module  # noqa: E402
 from shuabao.shell.overlay_hud import OverlayHud  # noqa: E402
 from shuabao.mediator import Mediator as RealMediator  # noqa: E402
 from shuabao.mediator import Phase  # noqa: E402
 from shuabao.settings import Settings  # noqa: E402
+from shuabao.subscription_client import StartPermission  # noqa: E402
 from shuabao.vision.capture import Frame  # noqa: E402
-
 
 class DesktopPanelTests(unittest.TestCase):
     @classmethod
@@ -78,6 +79,41 @@ class DesktopPanelTests(unittest.TestCase):
         ):
             self.assertNotIn(removed_text, panel_text)
 
+    def test_native_dashboard_keeps_subscription_status_and_key_entry_visible(self):
+        self.assertEqual(self.window.btn_activate_subscription.text(), "输入卡密")
+        self.assertEqual(self.window.lbl_subscription.text(), "订阅：未激活")
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "enforce"}):
+            self.window._apply_subscription_result({
+                "valid": True,
+                "can_start_runner": True,
+                "status": "ACTIVE",
+                "expires_at": "2027-08-31T14:56:58Z",
+            })
+        self.assertEqual(
+            self.window.lbl_subscription.text(),
+            "卡密有效 · 2027-08-31 到期 · LIVE 待校验",
+        )
+        self.assertEqual(self.window.lbl_precheck.text(), "预检 ● LIVE 待校验")
+
+    def test_source_off_subscription_refresh_does_not_request_entitlement(self):
+        self.window._subscription_key = "source-only-test-key"
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "off"}), \
+             patch.object(main_window_module, "validate_entitlement", side_effect=AssertionError("off source must not query")):
+            self.window._refresh_subscription_status()
+        self.assertEqual(self.window.lbl_subscription.text(), "源码开发模式 · LIVE 不适用")
+        self.assertEqual(self.window.lbl_precheck.text(), "预检 ● 开发模式")
+
+    def test_entitlement_valid_native_precheck_remains_live_pending(self):
+        self.window._apply_subscription_result({
+            "valid": True,
+            "can_start_runner": True,
+            "status": "ACTIVE",
+        })
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "enforce"}), \
+             patch.object(main_window_module, "_is_admin", return_value=True):
+            self.window._refresh_precheck()
+        self.assertEqual(self.window.lbl_precheck.text(), "预检 ● LIVE 待校验")
+
     def test_external_hud_uses_status_context_and_stays_outside_game_frame(self):
         hud = OverlayHud()
         try:
@@ -91,9 +127,9 @@ class DesktopPanelTests(unittest.TestCase):
                 mode="单人刷图",
                 strategy="声望挑战",
             )
-            self.assertEqual("正在单人刷图，目标 1-10", hud.status_text)
-            self.assertEqual("目标 1-10", hud.target_chip.text())
-            self.assertEqual("第 3/100 局", hud.round_chip.text())
+            self.assertEqual("自动推进", hud.status_text)
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
+            self.assertEqual("第 3 / 100 局", hud.round_chip.text())
             self.assertEqual("声望挑战", hud.strategy_chip.text())
             self.assertFalse(hud.btn_stop.isHidden())
             self.assertGreaterEqual(hud.height(), 58)
@@ -109,6 +145,33 @@ class DesktopPanelTests(unittest.TestCase):
             hud.update_status(False, game_count=3, cycle_num=100, target="1-10")
             self.assertIn("已停止", hud.status_text)
             self.assertTrue(hud.btn_stop.isHidden())
+        finally:
+            hud.close()
+
+    def test_hud_uses_mode_specific_gold_copy_and_hitch_preview(self):
+        hud = OverlayHud()
+        try:
+            for mode, headline, label in (
+                ("单人模式", "自动推进", "单人模式"),
+                ("组队带车模式", "房间自动开局", "组队带车模式"),
+                ("组队跟车模式", "房间内自动准备", "组队跟车模式"),
+                ("组队蹭车模式", "大厅搜房", "组队蹭车模式"),
+            ):
+                hud.update_status(
+                    True, "MAIN_LINE", "就绪", 3, 100,
+                    target="1-10", mode=mode, strategy="声望挑战",
+                )
+                self.assertEqual(headline, hud.status_text)
+                self.assertEqual(
+                    f"{label} · 第 3 / 100 局 · 目标 1-10",
+                    hud.detail_label.text(),
+                )
+                self.assertEqual(
+                    "● 预览中" if mode == "组队蹭车模式" else "● 运行中",
+                    hud.live_label.text(),
+                )
+                if mode == "组队蹭车模式":
+                    self.assertEqual("preview", hud.status_state)
         finally:
             hud.close()
 
@@ -145,7 +208,7 @@ class DesktopPanelTests(unittest.TestCase):
                 mode="单人",
             )
             self.assertFalse(hud.btn_stop.isHidden())
-            self.assertEqual("目标 1-10", hud.target_chip.text())
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
         finally:
             hud.close()
 
@@ -164,7 +227,7 @@ class DesktopPanelTests(unittest.TestCase):
                 strategy="声望挑战",
             )
             hud._set_compact_layout(True)
-            self.assertEqual("正在自己刷图，目标 1-10", hud.status_text)
+            self.assertEqual("自动推进", hud.status_text)
             self.assertTrue(hud.btn_stop.isVisible())
             self.assertTrue(hud.target_chip.isHidden())
             self.assertTrue(hud.round_chip.isHidden())
@@ -175,8 +238,8 @@ class DesktopPanelTests(unittest.TestCase):
             self.assertFalse(hud.label.isHidden())
             self.assertFalse(hud.detail_label.isHidden())
             # 状态数据只改可见性，绝不重写
-            self.assertEqual("目标 1-10", hud.target_chip.text())
-            self.assertEqual("第 3/100 局", hud.round_chip.text())
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
+            self.assertEqual("第 3 / 100 局", hud.round_chip.text())
             self.assertEqual("声望挑战", hud.strategy_chip.text())
             hud._set_compact_layout(False)
             self.assertFalse(hud.target_chip.isHidden())
@@ -229,9 +292,9 @@ class DesktopPanelTests(unittest.TestCase):
             self.assertFalse(hud.label.isHidden())
             self.assertFalse(hud.detail_label.isHidden())
             self.assertTrue(hud.btn_stop.isVisible())
-            self.assertEqual("正在自己刷图，目标 1-10", hud.status_text)
-            self.assertEqual("目标 1-10", hud.target_chip.text())
-            self.assertEqual("第 3/100 局", hud.round_chip.text())
+            self.assertEqual("自动推进", hud.status_text)
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
+            self.assertEqual("第 3 / 100 局", hud.round_chip.text())
             self.assertEqual("声望挑战", hud.strategy_chip.text())
         finally:
             hud.close()
@@ -256,7 +319,7 @@ class DesktopPanelTests(unittest.TestCase):
             self.assertTrue(hud.target_chip.isHidden())
             self.assertTrue(hud.brand_label.isHidden())
             self.assertTrue(hud.btn_stop.isVisible())
-            self.assertEqual("正在自己刷图，目标 1-10", hud.status_text)
+            self.assertEqual("自动推进", hud.status_text)
             # 宽游戏区 → 恢复
             hud.anchor_to_target(QRect(0, 0, OverlayHud._COMPACT_WIDTH + 200, 400))
             hud.update_status(
@@ -282,7 +345,7 @@ class DesktopPanelTests(unittest.TestCase):
         self.window.update_status(True, "MAIN_LINE", 2, ocr_status="就绪")
         hud = self.window.overlay_hud
         self.assertIsNotNone(hud)
-        self.assertEqual("目标 1-10", hud.target_chip.text())
+        self.assertEqual("关卡 1-10", hud.target_chip.text())
         self.assertEqual("自动秘境", hud.strategy_chip.text())
         self.assertNotIn("技能", hud.status_text)
 
@@ -302,8 +365,43 @@ class DesktopPanelTests(unittest.TestCase):
         try:
             self.window._poll_runtime()
             hud = self.window.overlay_hud
-            self.assertEqual("目标 1-10", hud.target_chip.text())
+            self.assertEqual("关卡 1-10", hud.target_chip.text())
             self.assertEqual("自动秘境", hud.strategy_chip.text())
+        finally:
+            self.window.worker_thread = None
+
+    def test_native_runtime_poll_uses_started_settings_snapshot(self):
+        """Editing the form during a run must not rewrite the HUD run facts."""
+        self.window.txt_stage_target.setText("1-10")
+        self.window.spn_follow_cycle_num.setValue(99)
+        self.window.chk_secret_realm.setChecked(False)
+        self.window.runner.mode_id = "follow_team"
+        self.window.runner._started_settings = Settings(
+            mode_id="follow_team",
+            stage_targets=["2-4"],
+            cycle_num=12,
+            follow_cycle_num=12,
+            auto_reputation=False,
+            auto_secret_realm=True,
+        )
+        self.window._started_mode_variant = "follow"
+        self.window.worker_thread = SimpleNamespace(
+            mediator=SimpleNamespace(
+                game_count=4,
+                phase="MAIN_LINE",
+                _ocr_bootstrap_health={"healthy": True},
+                _trace_actions=(),
+                _last_frame=None,
+            ),
+            isRunning=lambda: True,
+        )
+        try:
+            self.window._poll_runtime()
+            hud = self.window.overlay_hud
+            self.assertEqual("关卡 2-4", hud.target_chip.text())
+            self.assertIn("组队跟车模式", hud.detail_label.text())
+            self.assertEqual("自动秘境", hud.strategy_chip.text())
+            self.assertEqual("第 4 / 12 局", hud.round_chip.text())
         finally:
             self.window.worker_thread = None
 
@@ -342,6 +440,7 @@ class DesktopPanelTests(unittest.TestCase):
         fake_window = MagicMock()
         fake_window.current_theme = "light"
         with (
+            patch.dict(os.environ, {"SHUABAO_SHELL": "native"}),
             patch.object(desktop_app, "QApplication", return_value=fake_app),
             patch.object(desktop_app, "QLockFile", return_value=fake_lock),
             patch.object(desktop_app, "MainWindow", return_value=fake_window),
@@ -724,6 +823,7 @@ class DesktopPanelTests(unittest.TestCase):
             text = self.window.launch_check.text()
             for heading in (
                 "启动前核对",
+                "证据状态",
                 "目标关卡",
                 "运行方式",
                 "已选技能",
@@ -811,8 +911,11 @@ class DesktopPanelTests(unittest.TestCase):
 
         w = self.window
         w.current_theme = "light"
+        w._subscription_status = "卡密有效"
+        w._live_preflight_state = True, "PERMIT_VERIFIED", "LIVE permit 已验签"
         w._apply_component_theme()
-        with patch("shuabao.shell.main_window._is_admin", return_value=True):
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "enforce"}), \
+             patch("shuabao.shell.main_window._is_admin", return_value=True):
             w._refresh_precheck()
         self.assertIn(tokens("light")["neon_success"], w.lbl_precheck.styleSheet())
 
@@ -1088,11 +1191,12 @@ class DesktopPanelTests(unittest.TestCase):
 
     def test_negative_treasure_list_matches_policy_config(self):
         """面板展示的负面宝物必须与策略配置同源，避免 UI 与判定脱节。"""
-        from shuabao.choice_policy import DEFAULT_NEGATIVE_NAMES
         from shuabao.shell.main_window import TREASURE_UI_HIDDEN
 
+        policy = json.loads((ROOT / "config" / "choice_policy.json").read_text(encoding="utf-8"))
+        configured = (policy.get("treasure") or {}).get("negative_names") or []
         self.assertEqual(
-            sorted(name for name in DEFAULT_NEGATIVE_NAMES if name not in TREASURE_UI_HIDDEN),
+            sorted(name for name in configured if name not in TREASURE_UI_HIDDEN),
             sorted(self.window.grp_negative._boxes),
         )
 
@@ -1287,10 +1391,15 @@ class DesktopPanelTests(unittest.TestCase):
         class RuntimeFailClosedProbeMediator(runtime_mediator_mod.Mediator, FailClosedProbeMediator):
             pass
 
+        from shuabao.subscription_permit import DevStartCapability
+
         with tempfile.TemporaryDirectory() as tmp:
-            with patch.object(mediator_mod, "Mediator", FailClosedProbeMediator),                     patch.object(runtime_mediator_mod, "Mediator", RuntimeFailClosedProbeMediator):
+            with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "off"}), \
+                    patch.object(mediator_mod, "Mediator", FailClosedProbeMediator), \
+                    patch.object(runtime_mediator_mod, "Mediator", RuntimeFailClosedProbeMediator):
                 worker = desktop_app.MediatorWorker(
-                    Settings(dry_run=True), ROOT, max_steps=1, incident_dir=tmp
+                    Settings(dry_run=True, ocr_mode="off"), ROOT, max_steps=1, incident_dir=tmp,
+                    permission=DevStartCapability(mode="off"),
                 )
                 worker._start_trace = lambda: None  # 测试不写 APP_DATA trace
                 worker.run()
@@ -1304,6 +1413,22 @@ class DesktopPanelTests(unittest.TestCase):
                 self.assertIn(field, meta, f"metadata 必须含 {field}")
             raw = (group / "metadata.json").read_text(encoding="utf-8")
             self.assertNotIn("top-secret-pw", raw, "密码不得归档")
+    def test_toggle_run_passes_preflight_permission_to_runner(self):
+        from shuabao.subscription_permit import DevStartCapability
+
+        permission = StartPermission(True, "off", dev_capability=DevStartCapability.for_off())
+        worker = MagicMock()
+        self.window.worker_thread = None
+        self.window.runner.start = MagicMock(return_value=worker)
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "off"}), \
+             patch.object(main_window_module, "check_start_permission", return_value=permission), \
+             patch.object(main_window_module, "_is_admin", return_value=True), \
+             patch.object(self.window, "collect_settings_from_ui", return_value=Settings()), \
+             patch.object(self.window, "_write_user_bundle"):
+            self.window.toggle_run()
+        self.window.runner.start.assert_called_once()
+        assert self.window.runner.start.call_args.kwargs["permission"] is permission
+
 
     def test_run_mode_and_stage_difficulty_are_not_mixed(self):
         text = self._panel_text()
@@ -1332,7 +1457,7 @@ class DesktopPanelTests(unittest.TestCase):
 
     def test_user_settings_path_is_under_app_data(self):
         path = self.window.user_settings_path()
-        self.assertEqual(path.parent, Path(self.tmp.name))
+        self.assertEqual(path.parent.resolve(), Path(self.tmp.name).resolve())
         self.assertEqual(path.name, "user_settings.json")
         self.assertNotIn("config", path.parts[-2:])
 
@@ -1502,18 +1627,19 @@ class DesktopPanelTests(unittest.TestCase):
         from shuabao.shell.runner_service import RunnerService
 
         service = RunnerService(Path(self.tmp.name), ROOT)
-        worker = service.start(
-            "follow_team",
-            Settings(cycle_num=7, follow_cycle_num=12, hitch_cycle_num=18),
-        )
-        self.assertEqual(12, worker.settings.cycle_num)
-        service.release_after_finish()
-        worker = service.start(
-            "lobby_hitch",
-            Settings(cycle_num=7, follow_cycle_num=12, hitch_cycle_num=18),
-        )
-        self.assertEqual(18, worker.settings.cycle_num)
-        service.release_after_finish()
+        with patch.dict(os.environ, {"SHUABAO_SUBSCRIPTION_MODE": "off"}):
+            worker = service.start(
+                "follow_team",
+                Settings(cycle_num=7, follow_cycle_num=12, hitch_cycle_num=18),
+            )
+            self.assertEqual(12, worker.settings.cycle_num)
+            service.release_after_finish()
+            worker = service.start(
+                "lobby_hitch",
+                Settings(cycle_num=7, follow_cycle_num=12, hitch_cycle_num=18),
+            )
+            self.assertEqual(18, worker.settings.cycle_num)
+            service.release_after_finish()
 
     def test_team_settings_are_sanitized_fail_closed(self):
         settings = Settings._from_dict({

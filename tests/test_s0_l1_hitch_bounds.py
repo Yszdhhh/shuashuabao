@@ -1,0 +1,409 @@
+"""S0 L1 hitch bounds: exhaustion must observe, never ERROR/stop.
+
+Covers four L1 liveness contracts:
+1. Pause-resume retry exhaustion keeps the run alive in hitch mode.
+2. Unverified post-game archive entry keeps zero-input observation in hitch.
+3. Time-cave Boss step has a bounded search budget and falls through to the
+   archive panel close instead of hanging or stopping.
+4. Archive challenge click rejection cools down, then skips to the next card.
+"""
+
+from __future__ import annotations
+
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import numpy as np
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "src") not in sys.path:
+    sys.path.insert(0, str(ROOT / "src"))
+
+from shuabao.loop_action import LoopAction
+from shuabao.mediator import Mediator, Phase, RoundOutcome
+from shuabao.settings import Settings
+from shuabao.vision.capture import Frame
+from shuabao.vision.matcher import MatchResult
+
+
+def _frame() -> Frame:
+    return Frame(np.zeros((900, 1600, 3), dtype=np.uint8), left=185, top=81, hwnd=1184474, window_title="英雄三国KK")
+
+
+def _hitch_mediator() -> Mediator:
+    med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
+    med.set_phase(Phase.MAIN_LINE, "hitch l1 bounds setup")
+    med._running = True  # 模拟 live run：stop() 必须保持未被调用
+    return med
+
+class HitchPauseResumeExhaustionTests(unittest.TestCase):
+    def test_hitch_pause_resume_exhausted_does_not_stop(self) -> None:
+        med = _hitch_mediator()
+        frame = _frame()
+        continue_hit = MatchResult("pause_continue_game", 0.98, 700, 400, 200, 50, 980, 480)
+        with patch.object(med, "find", return_value=continue_hit), \
+                patch.object(med, "act_click", return_value=True) as click, \
+                patch.object(med, "stop") as stop:
+            for i in range(7):
+                action = med._maybe_resume_paused(frame, float(i))
+                self.assertIs(action, LoopAction.Continue)
+        self.assertEqual(click.call_count, 5)
+        self.assertEqual(med._pause_resume_attempts, 5)
+        self.assertNotEqual(med.phase, Phase.ERROR)
+        self.assertTrue(med._running)
+        stop.assert_not_called()
+
+
+class HitchMisopenedStageTests(unittest.TestCase):
+    def test_hitch_main_line_stage_page_quits(self) -> None:
+        med = _hitch_mediator()
+        med._hitch_pressure_transferred = True
+        med._hitch_pending_room_key = "room-solo"
+        frame = _frame()
+        with patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_is_in_game_hud", return_value=False), \
+                patch.object(med, "_find_stage_page", return_value=True), \
+                patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None):
+            action = med._tick_main_line(frame)
+        self.assertIs(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.QUIT)
+        self.assertIn("room-solo", med._hitch_blacklisted_room_keys)
+
+
+class HitchUnverifiedArchiveTests(unittest.TestCase):
+    def test_hitch_unverified_archive_does_not_stop(self) -> None:
+        med = _hitch_mediator()
+        med._post_game_pending = False
+        med._post_game_route = "secret"
+        med._victory_continue_attempts = 1  # 局尾检查窗口激活
+        frame = _frame()
+        archive_hit = MatchResult("archive", 0.95, 800, 300, 100, 60, 850, 330)
+        with patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "find_scene", return_value=archive_hit) as scene, \
+                patch.object(med, "find", return_value=None), \
+                patch.object(med, "stop") as stop, \
+                patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_find_stage_page", return_value=False):
+            action = med._tick_main_line(frame)
+        self.assertIs(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+        self.assertTrue(med._running)
+        stop.assert_not_called()
+        scene.assert_any_call(frame, "archive")
+
+
+class HitchMidgameTakeoverTests(unittest.TestCase):
+    def test_midgame_attach_still_clicks_a_visible_pressure_button_first(self) -> None:
+        """User rule 2026-09-12: a visible button always goes first, attach or not."""
+        med = _hitch_mediator()
+        med.set_phase(Phase.MAIN_LINE, "startup found existing game")
+        frame = _frame()
+        button = MatchResult("yalizhuanyi", 0.9, 1100, 500, 180, 40, 1190, 520)
+
+        def find(_frame, names, **_kwargs):
+            return button if names == ["yalizhuanyi"] else None
+
+        with patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_find_stage_page", return_value=False), \
+                patch.object(med, "_is_in_game_hud", return_value=True), \
+                patch.object(med, "find", side_effect=find), \
+                patch.object(med, "_ensure_auto_task_enabled") as auto_task, \
+                patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(frame)
+
+        self.assertIs(action, LoopAction.Continue)
+        click.assert_called_once_with(button, "HitchPressureTransfer")
+        auto_task.assert_not_called()
+
+    def test_natural_joined_ready_room_arms_opening_pressure_gate(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.ROOM_WAITING, "joined room")
+        med._hitch_pending_room_key = "room-765432"
+        med._hitch_ready_confirmed_at = 10.0
+        frame = _frame()
+        with patch.object(med, "_is_game_client_frame", return_value=True), \
+                patch.object(med, "_is_in_game_hud", return_value=True):
+            action = med._tick_lobby_hitch(frame, "UNKNOWN")
+
+        self.assertIs(action, LoopAction.Continue)
+        self.assertTrue(med._hitch_opening_pressure_armed)
+
+    def test_running_round_without_pressure_button_is_never_held(self) -> None:
+        """A takeover after the button closed must go on with auto-task/challenges."""
+        med = _hitch_mediator()
+        frame = _frame()
+        progress = MatchResult("cundangInfo", 0.95, 20, 45, 96, 20, 68, 55)
+
+        def find(_frame, names, **_kwargs):
+            return progress if names == ["cundangInfo"] else None
+
+        with patch.object(med, "_is_in_game_hud", return_value=True), \
+                patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "find", side_effect=find):
+            action = med._maybe_click_hitch_pressure_transfer(frame, 1.0)
+
+        self.assertIsNone(action)
+        self.assertFalse(med._hitch_pressure_transferred, "absence is not a confirmed transfer")
+
+    def test_missing_pressure_button_does_not_hold_the_gate(self) -> None:
+        med = _hitch_mediator()
+        frame = _frame()
+        with patch.object(med, "_is_in_game_hud", return_value=True), \
+                patch.object(med, "_post_game_state", return_value=None), \
+                patch.object(med, "find", return_value=None):
+            action = med._maybe_click_hitch_pressure_transfer(frame, 1.0)
+
+        self.assertIsNone(action)
+        self.assertFalse(med._hitch_pressure_transferred)
+
+    def test_victory_page_releases_pressure_gate(self) -> None:
+        med = _hitch_mediator()
+        frame = _frame()
+        with patch.object(med, "_is_in_game_hud", return_value=True), \
+                patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+                patch.object(med, "find", return_value=None):
+            action = med._maybe_click_hitch_pressure_transfer(frame, 1.0)
+
+        self.assertIsNone(action)
+        self.assertFalse(med._hitch_pressure_transferred)
+
+    def test_hitch_takeover_on_victory_clicks_continue(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.MAIN_LINE, "takeover")
+        hit = MatchResult("continueGame", 0.92, 800, 540, 120, 36, 860, 558)
+        with patch.object(med, "_post_game_state", return_value="POST_VICTORY"), \
+                patch.object(med, "_bag_layout", return_value=None), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_game_chat_input_visible", return_value=False), \
+                patch.object(med, "find", return_value=hit), \
+                patch.object(med, "act_click", return_value=True) as click:
+            action = med._tick_main_line(_frame())
+        self.assertIs(action, LoopAction.Continue)
+        click.assert_called_once_with(hit, "ContinueGame")
+        self.assertEqual(med.phase, Phase.MAIN_LINE)
+
+
+class HitchTimeCaveBossTests(unittest.TestCase):
+    def test_hitch_sgzx_boss_unseen_advances_to_archive_close(self) -> None:
+        med = _hitch_mediator()
+        med.settings.sgzx_boss = "55吞咽者布鲁"
+        med._post_game_pending = True
+        med._post_game_route = "archive"
+        med._archive_challenge_index = 8  # all eight cards consumed
+        med._hitch_postgame_hero_selected = True  # 跳过 F1 选英雄步
+        med._time_cave_boss_done = False
+        med._boss_challenge_attempts = 0
+        med._time_cave_boss_search_attempts = 0
+        frame = _frame()
+        close_hit = MatchResult("lobby/archive_panel_close", 0.95, 1500, 100, 40, 40, 1520, 120)
+        with patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_maybe_challenge_configured_boss", return_value=None) as boss, \
+                patch.object(med, "_find_archive_panel_close", return_value=close_hit), \
+                patch.object(med, "act_click", return_value=True) as act, \
+                patch.object(med, "stop") as stop:
+            results = [med._tick_main_line(frame) for _ in range(6)]
+        for action in results:
+            self.assertIs(action, LoopAction.Continue)
+        self.assertNotEqual(med.phase, Phase.ERROR)
+        self.assertTrue(med._running)
+        stop.assert_not_called()
+        # The boss step gets five observation ticks, then the budget trip
+        # marks it done and hands control to the archive panel close.
+        self.assertEqual(boss.call_count, 5)
+        self.assertTrue(med._time_cave_boss_done)
+        self.assertEqual(med._boss_challenge_attempts, 0)
+        self.assertEqual(med._time_cave_boss_search_attempts, 0)
+        act.assert_called_once()
+        self.assertEqual(act.call_args.args[1], "CloseArchivePanel")
+        self.assertEqual(med._post_game_route, "heirloom")
+
+    def test_hitch_time_cave_click_still_on_panel_closes_and_routes_heirloom(self) -> None:
+        """点完时光之穴后面板还在时，不能停在 boss_active 零输入。"""
+        med = _hitch_mediator()
+        med._post_game_pending = True
+        med._post_game_route = "boss_active"
+        med._archive_challenge_index = 8
+        med._hitch_postgame_hero_selected = True
+        med._time_cave_boss_done = True
+        frame = _frame()
+        close_hit = MatchResult("lobby/archive_panel_close", 0.95, 1500, 100, 40, 40, 1520, 120)
+        with patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+                patch.object(med, "_maybe_click_archive_challenge", return_value=None), \
+                patch.object(med, "_find_archive_panel_close", return_value=close_hit), \
+                patch.object(med, "act_click", return_value=True) as act, \
+                patch.object(med, "stop") as stop:
+            action = med._tick_main_line(frame)
+        self.assertIs(action, LoopAction.Continue)
+        stop.assert_not_called()
+        act.assert_called_once_with(close_hit, "CloseArchivePanel")
+        self.assertEqual(med._post_game_route, "heirloom")
+
+
+class HitchArchiveChallengeRejectionTests(unittest.TestCase):
+    def test_hitch_archive_challenge_click_rejection_cooldown_and_skip(self) -> None:
+        med = _hitch_mediator()
+        med.settings.ui_action_interval_s = 1.0  # 明确冷却时长，时间线可推演
+        frame = _frame()
+        hit = MatchResult("skill", 0.95, 300, 200, 80, 60, 340, 230)
+        with patch.object(med, "_archive_hitch_card_progress_state", return_value="AVAILABLE"), \
+                patch.object(med, "_find_archive_challenge_card", return_value=hit), \
+                patch.object(med, "act_click", return_value=False) as click:
+            # Post-game pages use the dedicated 0.35s recheck so archive
+            # cards begin immediately after settlement instead of waiting a
+            # full normal UI interval.
+            # Rejection 1 @ t=1.0: cooldown armed to 1.35, card not advanced.
+            self.assertIs(med._maybe_click_archive_challenge(frame, 1.0), LoopAction.Continue)
+            self.assertEqual(med._archive_challenge_click_attempts, 1)
+            self.assertEqual(med._archive_challenge_index, 0)
+            self.assertEqual(med._archive_challenge_next_at, 1.35)
+            # t=1.2 inside cooldown: deferred, counter intact.
+            self.assertIs(med._maybe_click_archive_challenge(frame, 1.2), LoopAction.Continue)
+            self.assertEqual(med._archive_challenge_click_attempts, 1)
+            # Rejection 2 @ t=1.4: counter increments, cooldown re-armed to 1.75.
+            self.assertIs(med._maybe_click_archive_challenge(frame, 1.4), LoopAction.Continue)
+            self.assertEqual(med._archive_challenge_click_attempts, 2)
+            # Rejection 3 @ t=1.8: budget trips, card skipped, cursor advances.
+            self.assertIs(med._maybe_click_archive_challenge(frame, 1.8), LoopAction.Continue)
+            self.assertEqual(med._archive_challenge_click_attempts, 0)
+            self.assertEqual(med._archive_challenge_index, 1)
+            self.assertEqual(med._archive_challenge_observe_attempts, 0)
+            # Next card: attempted at 2.2 (cooldown expired), rejected again.
+            self.assertIs(med._maybe_click_archive_challenge(frame, 2.2), LoopAction.Continue)
+            self.assertEqual(med._archive_challenge_index, 1)
+            self.assertEqual(med._archive_challenge_click_attempts, 1)
+        self.assertEqual(click.call_count, 4)
+
+
+class HitchPostRoundSameRoomTests(unittest.TestCase):
+    def _room_frame(self) -> Frame:
+        return Frame(
+            np.full((900, 1600, 3), 40, dtype=np.uint8),
+            hwnd=99,
+            window_title="KK官方对战平台",
+            role="l0",
+        )
+
+    def test_case_a_same_room_ready_clicks_ready_and_clears_research(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.LOBBY_ROOM, "after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 99
+        ready = MatchResult("room_ready", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+                patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+                patch.object(med, "_hitch_room_seat_decision", return_value="ready"), \
+                patch.object(med, "_hitch_room_ready_contract", return_value=("ready", ready)), \
+                patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "act_click", return_value=True) as click:
+            med._tick_lobby_hitch(self._room_frame(), "ROOM_WAITING")
+        click.assert_called_once_with(ready, "HitchReady")
+        self.assertFalse(med._hitch_re_search)
+        self.assertEqual(med.phase, Phase.ROOM_WAITING)
+
+    def test_case_b_same_room_cancel_ready_zero_input_clears_research(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.LOBBY_ROOM, "after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 99
+        cancel_ready = MatchResult("room_cancel_ready", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+                patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+                patch.object(med, "_hitch_room_seat_decision", return_value="leave_host_not_floor_one"), \
+                patch.object(med, "_hitch_room_ready_contract", return_value=("cancel_ready", cancel_ready)), \
+                patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "act_click", return_value=True) as click:
+            med._tick_lobby_hitch(self._room_frame(), "ROOM_WAITING")
+        click.assert_not_called()
+        self.assertFalse(med._hitch_re_search)
+        self.assertEqual(med.phase, Phase.ROOM_WAITING)
+
+    def test_case_c_same_room_start_zero_input_clears_research(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.LOBBY_ROOM, "after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 99
+        start = MatchResult("room_start", 0.99, 400, 700, 80, 30, 440, 715)
+        with patch.object(med, "_is_confirmed_room_frame", return_value=True), \
+                patch.object(med, "_hitch_room_controls_visible", return_value=True), \
+                patch.object(med, "_hitch_room_seat_decision", return_value="start"), \
+                patch.object(med, "_hitch_room_ready_contract", return_value=("start", start)), \
+                patch.object(med, "_lobby_room_list_evidence", return_value=False), \
+                patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "act_click", return_value=True) as click:
+            med._tick_lobby_hitch(self._room_frame(), "ROOM_WAITING")
+        click.assert_not_called()
+        self.assertFalse(med._hitch_re_search)
+        self.assertEqual(med.phase, Phase.ROOM_WAITING)
+
+    def test_case_d_room_dissolved_clears_research_and_searches_lobby(self) -> None:
+        med = _hitch_mediator()
+        med.set_phase(Phase.LOBBY_ROOM, "after round")
+        med._hitch_re_search = True
+        med._confirmed_room_hwnd = 99
+        lobby_frame = Frame(
+            np.full((900, 1600, 3), 40, dtype=np.uint8),
+            hwnd=123,
+            window_title="KK官方对战平台",
+            role="l0",
+        )
+        with patch.object(med, "_is_confirmed_room_frame", return_value=False), \
+                patch.object(med, "_hitch_room_controls_visible", return_value=False), \
+                patch.object(med, "_lobby_room_list_evidence", return_value=True), \
+                patch.object(med, "_hitch_room_seat_decision", return_value="unknown"), \
+                patch.object(med, "_hitch_room_ready_contract", return_value=("unknown", None)), \
+                patch.object(med, "_hitch_action_hit", return_value=None), \
+                patch.object(med, "find_scene", return_value=None), \
+                patch.object(med, "act_click", return_value=True) as click:
+            med._tick_lobby_hitch(lobby_frame, "ROOM_WAITING")
+        self.assertFalse(med._hitch_re_search)
+        self.assertNotIn("HitchLeaveRoom", [call.args[1] for call in click.call_args_list])
+
+
+class HitchHeirloomExitTests(unittest.TestCase):
+    def test_loot_popup_quits_immediately(self) -> None:
+        med = _hitch_mediator()
+        med._failure_streak = 3
+        med._hitch_pressure_transferred = True
+        med._hitch_heirloom_exit_since = 10.0
+        with patch("shuabao.mediator.time.time", return_value=12.0), \
+                patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_heirloom_loot_popup_visible", return_value=True),                 patch.object(med, "_top_bar_mode", return_value="plaza"):
+            action = med._tick_main_line(_frame())
+        self.assertIs(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.QUIT)
+        self.assertEqual(med._last_outcome, RoundOutcome.VICTORY)
+        self.assertEqual(med._failure_streak, 0)
+
+    def test_sixty_seconds_on_the_plaza_without_loot_quits_with_timeout_and_preserves_streak(self) -> None:
+        med = _hitch_mediator()
+        med._failure_streak = 3
+        med._hitch_pressure_transferred = True
+        med._hitch_heirloom_exit_since = 10.0
+        with patch("shuabao.mediator.time.time", return_value=101.0), \
+                patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
+                patch.object(med, "_hitch_ocr_text", return_value=""), \
+                patch.object(med, "_find_failure_gift", return_value=None), \
+                patch.object(med, "_heirloom_loot_popup_visible", return_value=False),                 patch.object(med, "_top_bar_mode", return_value="plaza"):
+            action = med._tick_main_line(_frame())
+        self.assertIs(action, LoopAction.Continue)
+        self.assertEqual(med.phase, Phase.QUIT)
+        self.assertEqual(med._last_outcome, RoundOutcome.TIMEOUT)
+        self.assertEqual(med._failure_streak, 4)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -1,0 +1,14 @@
+..xxxxxxxxxxx....                                                        [100%]
+=========================== short test summary info ===========================
+XFAIL tests/test_hitch_review_20260912.py::test_swallowed_victory_clicks_leave_before_whole_round_deadline[Mediator0] - R1: swallowed Continue resets liveness; no postgame dwell cap
+XFAIL tests/test_hitch_review_20260912.py::test_swallowed_victory_clicks_leave_before_whole_round_deadline[Mediator1] - R1: swallowed Continue resets liveness; no postgame dwell cap
+XFAIL tests/test_hitch_review_20260912.py::test_expired_round_deadline_preempts_persistent_pressure_button[Mediator0] - R2: visible pressure returns before round hard deadline
+XFAIL tests/test_hitch_review_20260912.py::test_expired_round_deadline_preempts_persistent_pressure_button[Mediator1] - R2: visible pressure returns before round hard deadline
+XFAIL tests/test_hitch_review_20260912.py::test_hitch_new_round_clears_pending_input_authority[Mediator0] - R3: pending action survives hitch round boundary
+XFAIL tests/test_hitch_review_20260912.py::test_hitch_new_round_clears_pending_input_authority[Mediator1] - R3: pending action survives hitch round boundary
+XFAIL tests/test_hitch_review_20260912.py::test_instance_evidence_requires_consecutive_eligible_frames - R4: invalid intervening frames do not reset instance streak
+XFAIL tests/test_hitch_review_20260912.py::test_heirloom_resets_exhausted_archive_budget_before_dispatch[Mediator0] - R5: outer heirloom gate reads previous page budget before reset
+XFAIL tests/test_hitch_review_20260912.py::test_heirloom_resets_exhausted_archive_budget_before_dispatch[Mediator1] - R5: outer heirloom gate reads previous page budget before reset
+XFAIL tests/test_hitch_review_20260912.py::test_new_round_treasure_does_not_inherit_previous_panel_timer[Mediator0] - R3b: old panel episode deadline expires newly opened treasure
+XFAIL tests/test_hitch_review_20260912.py::test_new_round_treasure_does_not_inherit_previous_panel_timer[Mediator1] - R3b: old panel episode deadline expires newly opened treasure
+6 passed, 11 xfailed in 37.89s

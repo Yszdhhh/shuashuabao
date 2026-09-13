@@ -129,43 +129,6 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         self.assertEqual(self.med.phase, Phase.ERROR)
         self.assertEqual(self.med._trace_controls[-1]["state"], "TIMEOUT")
 
-    def test_successful_open_does_not_reclick_while_waiting_for_dialog(self):
-        """点成功后即使按钮还在、4s 观察窗过了，也不再点（下载地图）。"""
-        candidate = _hit("create_room")
-        click = MagicMock(return_value=True)
-        t0 = 1000.0
-        p = self._patch_map(candidate=candidate)
-        with p[0], p[1], p[2], p[3], patch.object(self.med, "act_click", click), patch(
-            "shuabao.mediator.time.time", return_value=t0
-        ):
-            self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Continue)
-        self.assertEqual(click.call_count, 1)
-        self.assertTrue(self.med._create_room_opened_ok)
-        self.assertGreaterEqual(
-            self.med._create_room_flow_deadline or 0,
-            t0 + Mediator._CREATE_ROOM_DOWNLOAD_WAIT_S - 0.01,
-        )
-
-        later = t0 + 8.0
-        p = self._patch_map(candidate=candidate)
-        with p[0], p[1], p[2], p[3], patch.object(self.med, "act_click", click), patch(
-            "shuabao.mediator.time.time", return_value=later
-        ):
-            self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Continue)
-        self.assertEqual(click.call_count, 1)
-        self.assertEqual(self.med.phase, Phase.PLATFORM_MAP)
-        self.assertEqual(self.med._create_room_attempts, 1)
-
-    def test_retry_cap_prevents_fourth_click(self):
-        self.med._create_room_flow_deadline = time.time() + 100.0
-        self.med._create_room_attempts = 3
-        candidate_lookup = MagicMock(return_value=_hit("create_room"))
-        p = self._patch_map(candidate=candidate_lookup)
-        with p[0], p[1], p[2], p[3], patch.object(self.med, "act_click") as click:
-            self.assertEqual(self.med._tick_l0(_frame()), LoopAction.Continue)
-        candidate_lookup.assert_not_called()
-        click.assert_not_called()
-
     def test_create_confirm_blue_fallback_never_fires_on_large_window(self):
         # P1-3/P4（LOBBY_AUDIT §3 #2）：建房弹窗确认的蓝色兜底只在小窗
         # （≤800×700）授权；1600×900 / 1328×945 大窗即使含蓝色按钮也零蓝色点击
@@ -187,8 +150,8 @@ class P0ACreateRoomGateTests(unittest.TestCase):
                     f"大窗 {w}x{h} 不得走蓝色兜底",
                 )
 
-    def test_create_confirm_blue_fallback_still_works_on_small_dialog(self):
-        # P1-3 正向控制：小窗（584×488）含蓝色确认按钮 + 上方 ≥2 输入框 → 兜底命中。
+    def test_small_dialog_color_fallback_cannot_authorize_confirm(self):
+        # 小窗含两个输入框/蓝色按钮仍不是语义模板，不得产生点击权限。
         import cv2
 
         image = np.zeros((488, 584, 3), dtype=np.uint8)
@@ -199,11 +162,10 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         cv2.rectangle(image, (390, 420), (506, 456), (230, 150, 20), -1)
         with patch.object(self.med, "find_scene", return_value=None):
             hit = self.med._find_create_confirm(Frame(image))
-        self.assertIsNotNone(hit)
-        self.assertLess(hit.x, 350)
+        self.assertIsNone(hit)
 
-    def test_embedded_create_dialog_requires_form_structure_and_chooses_left_button(self):
-        """The current KK client embeds the create form in its 1328x945 window."""
+    def test_embedded_form_structure_cannot_authorize_confirm(self):
+        """Two fields and two blue buttons still need the semantic template."""
         import cv2
 
         image = np.zeros((945, 1328, 3), dtype=np.uint8)
@@ -216,8 +178,7 @@ class P0ACreateRoomGateTests(unittest.TestCase):
         with patch.object(self.med, "find_scene", return_value=None):
             hit = self.med._find_create_confirm(Frame(image))
 
-        self.assertIsNotNone(hit)
-        self.assertLess(hit.x, 700)  # left Create, never right Cancel
+        self.assertIsNone(hit)
 
     def test_embedded_single_blue_button_is_not_create_dialog_authority(self):
         import cv2

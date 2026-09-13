@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QGraphicsOpacityEffect,
@@ -42,7 +43,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QListWidget,
-    QListWidgetItem,
     QListView,
     QPushButton,
     QRadioButton,
@@ -54,7 +54,17 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shuabao.subscription_client import (
+    SUBSCRIPTION_LICENSE_KEY_ENV,
+    activate_device,
+    check_start_permission,
+    load_saved_license_key,
+    save_license_key,
+    subscription_mode,
+    validate_entitlement,
+)
 from shuabao.shell.pet_hud import FloatingPetHud
+from shuabao.shell.live_execute import check_live_start_permission, live_permission_preflight
 from shuabao.shell.theme_styles import (
     apply_app_palette,
     get_qss,
@@ -62,6 +72,7 @@ from shuabao.shell.theme_styles import (
     official_build_qss,
     skill_card_qss,
     tokens,
+    wizard_qss,
 )
 from shuabao.shell.wizard_dialog import (
     GameStyleWizardDialog,
@@ -1069,6 +1080,47 @@ class InlineOverlay(QFrame):
         super().hideEvent(event)
 
 
+class SubscriptionDialog(QDialog):
+    """Native subscription dialog using the same visual language as the quick-start wizard."""
+
+    def __init__(self, parent: QWidget, *, theme: str, status_text: str) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("订阅激活")
+        self.setModal(True)
+        self.setFixedSize(500, 260)
+        self.setStyleSheet(wizard_qss(theme))
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(22, 20, 22, 18)
+        layout.setSpacing(12)
+        eyebrow = QLabel("刷刷宝 · 订阅中心")
+        eyebrow.setObjectName("wizardStep")
+        layout.addWidget(eyebrow)
+        title = QLabel("输入卡密以激活本机")
+        title.setObjectName("wizardTitle")
+        layout.addWidget(title)
+        hint = QLabel("卡密会绑定当前 Windows 用户并加密保存。当前状态：" + status_text)
+        hint.setObjectName("hintLabel")
+        hint.setWordWrap(True)
+        layout.addWidget(hint)
+        self.key_input = QLineEdit()
+        self.key_input.setPlaceholderText("请输入卡密")
+        self.key_input.setClearButtonEnabled(True)
+        self.key_input.setMinimumHeight(38)
+        layout.addWidget(self.key_input)
+        actions = QHBoxLayout()
+        actions.addStretch()
+        cancel = QPushButton("取消")
+        cancel.setObjectName("secondaryBtn")
+        cancel.clicked.connect(self.reject)
+        actions.addWidget(cancel)
+        confirm = QPushButton("激活并保存")
+        confirm.setObjectName("goldBtn")
+        confirm.clicked.connect(self.accept)
+        actions.addWidget(confirm)
+        layout.addLayout(actions)
+
+
 class MainWindow(QMainWindow):
     def __init__(self, app_data: Path | None = None):
         super().__init__()
@@ -1095,7 +1147,7 @@ class MainWindow(QMainWindow):
             "early_challenge": False,
             "treasure_allow_negative": [],
             "advanced_packs": [],
-            "hitch_stage_prefix": "3",
+            "hitch_stage_prefix": "4",
             "selected_build_id": "",
             "selected_mode_variant": "solo",
             "custom_builds": [],
@@ -1108,7 +1160,19 @@ class MainWindow(QMainWindow):
         self._runtime_phase = "IDLE"
         self._ocr_status = "未启动"
         self._last_action = ""
+        # The mode variant and settings snapshot used by the last run remain
+        # available for the terminal HUD.  Editing the form while a worker is
+        # alive must never rewrite the run that is already in flight.
+        self._started_mode_variant: str | None = None
         self.overlay_hud: OverlayHud | None = None
+        self._subscription_key = str(
+            os.environ.get(SUBSCRIPTION_LICENSE_KEY_ENV) or load_saved_license_key(self.app_data)
+        ).strip()
+        if self._subscription_key:
+            os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = self._subscription_key
+        self._subscription_status = "未激活"
+        self._subscription_expires_at = ""
+        self._live_preflight_state: tuple[bool, str, str] | None = None
         self._game_count = 0
         self._syncing_bonds = False
         self._build_btn_group = QButtonGroup(self)
@@ -1134,6 +1198,7 @@ class MainWindow(QMainWindow):
         self._setup_tray()
         restored_dashboard = self.user_settings_path().is_file()
         self.load_local_settings(silent=True)
+        self._refresh_subscription_status()
         self._wire_auto_save()
         if not restored_dashboard:
             self._show_mode_choice()
@@ -1269,6 +1334,16 @@ class MainWindow(QMainWindow):
         games_box.addWidget(self.lbl_games)
         games_box.addWidget(self.lbl_games_cap)
         header.addLayout(games_box)
+
+        header.addStretch()
+
+        # 顶部中间空白处：订阅状态与到期时间显示
+        self.lbl_subscription = QLabel("订阅：未激活")
+        self.lbl_subscription.setObjectName("lblSubscription")
+        self.lbl_subscription.setStyleSheet(
+            "font-weight:700; color:#0284c7; background:rgba(2,132,199,0.1); border-radius:12px; padding:3px 10px;"
+        )
+        header.addWidget(self.lbl_subscription)
 
         header.addStretch()
 
@@ -1423,6 +1498,12 @@ class MainWindow(QMainWindow):
         self.btn_more_settings.setObjectName("btnMoreSettings")
         self.btn_more_settings.setCursor(Qt.PointingHandCursor)
         self.btn_more_settings.setToolTip("展开特殊宝物、存档等级、属性线与低频诊断配置")
+        self.btn_activate_subscription = QPushButton("输入卡密")
+        self.btn_activate_subscription.setObjectName("btnActivateSubscription")
+        self.btn_activate_subscription.setCursor(Qt.PointingHandCursor)
+        self.btn_activate_subscription.setToolTip("输入订阅卡密进行设备激活与授权刷新")
+        self.btn_activate_subscription.clicked.connect(self._on_activate_subscription_clicked)
+        foot.addWidget(self.btn_activate_subscription)
         self.btn_more_settings.clicked.connect(self._toggle_more_settings)
         foot.addWidget(self.btn_more_settings)
 
@@ -1585,9 +1666,6 @@ class MainWindow(QMainWindow):
         self.cmb_chapter.currentIndexChanged.connect(self._on_chapter_changed)
         self.cmb_stage.currentIndexChanged.connect(self._on_stage_combo_changed)
         self.txt_stage_target.textChanged.connect(self._on_stage_target_edited)
-        self.cmb_chapter.currentIndexChanged.connect(self._recommend_challenges_for_stage)
-        self.cmb_stage.currentIndexChanged.connect(self._recommend_challenges_for_stage)
-        self.txt_stage_target.textEdited.connect(self._recommend_challenges_for_stage)
         self.cmb_chapter.currentIndexChanged.connect(self._refresh_stage_picker_rows)
         self.cmb_stage.currentIndexChanged.connect(self._refresh_stage_picker_rows)
 
@@ -1807,7 +1885,7 @@ class MainWindow(QMainWindow):
             "不归秘境：第四章起开放，20/25/30 层同战力更高；入口、层数选择和 NPC 锚点尚未验证。"
             "当前开关只控制既有通用秘境入口，默认关闭。"
         )
-        self.secret_options = QLabel("已启用已验证入口")
+        self.secret_options = QLabel("入口证据待补齐（默认关闭）")
         self.secret_options.setObjectName("hintLabel")
         self.secret_options.setVisible(False)
         self.chk_secret_realm.toggled.connect(self.secret_options.setVisible)
@@ -2051,6 +2129,8 @@ class MainWindow(QMainWindow):
             f"{self.lbl_precheck.text()}（{self.lbl_precheck.toolTip()}）",
             "运行方式",
             f"{self.selected_mode_label()} · {strategy}",
+            "证据状态",
+            spec.evidence_status or "unknown",
         ]
         if hasattr(self, "txt_stage_target"):
             stage = self.txt_stage_target.text().strip() or "-"
@@ -2119,7 +2199,7 @@ class MainWindow(QMainWindow):
             else:
                 cycle = int(self.spn_hitch_cycle_num.value())
                 action = action_labels.get(str(self.cmb_hitch_after_goal.currentData()), "去单人刷票")
-                extra = f"搜索 {self.cmb_hitch_prefix.currentData() or '3'}"
+                extra = f"搜索 {self.cmb_hitch_prefix.text().strip() or '4'}"
                 trigger = "达到蹭车目标后"
                 extra_label = "找房条件"
             cycle_text = "手动停" if cycle <= 0 else f"{cycle} 局"
@@ -2193,6 +2273,85 @@ class MainWindow(QMainWindow):
 
     def _toggle_more_settings(self) -> None:
         self.grp_advanced.setChecked(not self.grp_advanced.isChecked())
+
+    def _on_activate_subscription_clicked(self) -> None:
+        dialog = SubscriptionDialog(
+            self,
+            theme=self.current_theme,
+            status_text=self._subscription_status,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        key = str(dialog.key_input.text() or "").strip()
+        if not key:
+            QMessageBox.warning(self, "提示", "卡密不能为空")
+            return
+        try:
+            act = activate_device(key)
+            if not act.get("ok"):
+                err = act.get("message") or act.get("error") or "设备激活失败"
+                QMessageBox.critical(self, "激活失败", f"激活未成功: {err}")
+                return
+            val = validate_entitlement(key)
+            if not (bool(val.get("valid")) and val.get("can_start_runner") is True):
+                self._apply_subscription_result(val)
+                QMessageBox.warning(self, "激活未完成", str(val.get("message") or "该卡密当前不允许启动"))
+                return
+            if not save_license_key(self.app_data, key):
+                QMessageBox.critical(self, "保存失败", "卡密已验证，但无法加密保存到本机。")
+                return
+            self._subscription_key = key
+            os.environ[SUBSCRIPTION_LICENSE_KEY_ENV] = key
+            self._apply_subscription_result(val)
+            exp = self._subscription_expires_at or "未返回"
+            QMessageBox.information(self, "激活成功", f"订阅已激活并保存。\n\n到期时间：{exp}")
+        except Exception as e:
+            QMessageBox.critical(self, "激活错误", f"请求订阅服务异常:\n{e}")
+
+    def _apply_subscription_result(self, payload: dict) -> None:
+        valid = bool(payload.get("valid")) and payload.get("can_start_runner") is True
+        self._live_preflight_state = None
+        self._subscription_status = "卡密有效" if valid else str(payload.get("status") or "未激活")
+        self._subscription_expires_at = str(payload.get("expires_at") or "")
+        expires = self._subscription_expires_at[:10]
+        if valid:
+            self.lbl_subscription.setText(f"卡密有效{' · ' + expires + ' 到期' if expires else ''} · LIVE 待校验")
+            color = "#b45309"
+        else:
+            self.lbl_subscription.setText(f"订阅：{self._subscription_status}")
+            color = "#b45309"
+        self.lbl_subscription.setStyleSheet(
+            f"font-weight:700; color:{color}; background:rgba(2,132,199,0.1); border-radius:12px; padding:3px 10px;"
+        )
+        self._refresh_chrome()
+
+    def _refresh_subscription_status(self) -> None:
+        if not self._subscription_key:
+            self._apply_subscription_result({"valid": False, "status": "未激活"})
+            return
+        if subscription_mode() == "off" and not getattr(sys, "frozen", False):
+            self._subscription_status = "源码开发模式"
+            self._subscription_expires_at = ""
+            self._live_preflight_state = True, "DEV_OFF", "源码开发模式；LIVE 授权不适用"
+            self.lbl_subscription.setText("源码开发模式 · LIVE 不适用")
+            self.lbl_subscription.setStyleSheet(
+                "font-weight:700; color:#b45309; background:rgba(2,132,199,0.1); "
+                "border-radius:12px; padding:3px 10px;"
+            )
+            self._refresh_chrome()
+            return
+        try:
+            self._apply_subscription_result(validate_entitlement(self._subscription_key))
+        except Exception:
+            self._apply_subscription_result({"valid": False, "status": "校验失败"})
+
+    def _subscription_allows_start(self) -> bool:
+        # This only enables the authorization attempt; toggle_run verifies LIVE.
+        return (
+            (subscription_mode() == "off" and not getattr(sys, "frozen", False))
+            or self._subscription_status == "卡密有效"
+        )
+
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
@@ -2659,14 +2818,44 @@ class MainWindow(QMainWindow):
         search_label = QLabel("找房条件")
         search_label.setObjectName("teamPairTitle")
         search_row.addWidget(search_label)
-        self.cmb_hitch_prefix = QComboBox()
+        self.cmb_hitch_prefix = QLineEdit()
         self.cmb_hitch_prefix.setFixedHeight(36)
-        self.cmb_hitch_prefix.addItem("搜索 3", "3")
-        self.cmb_hitch_prefix.addItem("搜索 4", "4")
-        self.cmb_hitch_prefix.setMaximumWidth(180)
+        self.cmb_hitch_prefix.setPlaceholderText("如 4,3,速 或自定义房间号/名称")
+        self.cmb_hitch_prefix.setText("4")
+        self.cmb_hitch_prefix.setMinimumWidth(180)
         search_row.addWidget(self.cmb_hitch_prefix)
+
+        btn_quick_3 = QPushButton("搜 3")
+        btn_quick_3.setFixedHeight(34)
+        btn_quick_3.clicked.connect(lambda: self.cmb_hitch_prefix.setText("3"))
+        search_row.addWidget(btn_quick_3)
+
+        btn_quick_4 = QPushButton("搜 4")
+        btn_quick_4.setFixedHeight(34)
+        btn_quick_4.clicked.connect(lambda: self.cmb_hitch_prefix.setText("4"))
+        search_row.addWidget(btn_quick_4)
+
+        btn_quick_43 = QPushButton("4轮换3")
+        btn_quick_43.setFixedHeight(34)
+        btn_quick_43.setToolTip("10轮未命中4时自动换搜3")
+        btn_quick_43.clicked.connect(lambda: self.cmb_hitch_prefix.setText("4,3,速"))
+        search_row.addWidget(btn_quick_43)
+
         search_row.addStretch()
         bl.addLayout(search_row)
+
+        # 组队 Boss 挑战选择（时光之穴 & 传家宝）
+        boss_row = QHBoxLayout()
+        boss_label = QLabel("Boss 挑战")
+        boss_label.setObjectName("teamPairTitle")
+        boss_row.addWidget(boss_label)
+        btn_pick_hitch_boss = QPushButton("配置组队 Boss / 传家宝")
+        btn_pick_hitch_boss.setFixedHeight(34)
+        btn_pick_hitch_boss.setCursor(Qt.PointingHandCursor)
+        btn_pick_hitch_boss.clicked.connect(lambda: self._select_mode("normal_farm"))
+        boss_row.addWidget(btn_pick_hitch_boss)
+        boss_row.addStretch()
+        bl.addLayout(boss_row)
         self.txt_hitch_exact = QLineEdit()
         self.txt_hitch_exact.setPlaceholderText("后续拓展")
         self.txt_hitch_exact.setEnabled(False)
@@ -2963,12 +3152,11 @@ class MainWindow(QMainWindow):
         return tokens_list
 
     def _advanced_pack_tokens(self) -> list[str]:
-        enabled = set(self._shell_extras.get("advanced_packs") or [])
+        enabled = [str(x) for x in (self._shell_extras.get("advanced_packs") or []) if str(x)]
         banned = {"解放的圣剑", "帝炎", "法天象地"}
         tokens_list: list[str] = []
-        for pack_id, spec in ADVANCED_PACKS.items():
-            if pack_id not in enabled:
-                continue
+        for pack_id in enabled:
+            spec = ADVANCED_PACKS.get(pack_id) or {}
             banned.update(str(n) for n in (spec.get("exclude_ex") or []))
             for name in spec.get("cards") or []:
                 text = str(name).strip()
@@ -2978,6 +3166,17 @@ class MainWindow(QMainWindow):
                 if token not in tokens_list:
                     tokens_list.append(token)
         return tokens_list
+
+    def _bond_codes_from_names(self, items) -> list[str]:
+        out: list[str] = []
+        for item in items or ():
+            text = Path(str(item or "").strip()).stem
+            if not text:
+                continue
+            code = code_for_bond_name(text) or text
+            if code not in out:
+                out.append(code)
+        return out
 
     def assemble_whitelist_cards(self) -> list[str]:
         inverted = set(self._shell_extras.get("bond_inverted") or [])
@@ -2994,9 +3193,15 @@ class MainWindow(QMainWindow):
         for token in self._advanced_pack_tokens():
             if token not in out:
                 out.append(token)
-        for code in self._effective_scheme_codes():
-            if code not in inverted and code not in out:
-                out.append(code)
+        # Keep extras that live only in settings.cards (法术/暴击/魔能).
+        # Do not re-inject a stale _shell.bond_scheme (that is how 箭术 leaked).
+        for code in self._bond_codes_from_names(getattr(self.settings, "cards", None) or ()):
+            if code in out or code in inverted:
+                continue
+            box = self._bond_plan_boxes.get(code)
+            if box is not None and not box.isChecked():
+                continue
+            out.append(code)
         return out
 
     def _refill_stage_combo(self, keep_stage: int | None = None) -> None:
@@ -3282,6 +3487,15 @@ class MainWindow(QMainWindow):
             return "组队 · 带车"
         return get_spec(self.selected_mode_id()).label
 
+    def selected_hud_mode_label(self) -> str:
+        """Return the full runtime mode name used by the external HUD."""
+        return {
+            "solo": "单人模式",
+            "lead": "组队带车模式",
+            "follow": "组队跟车模式",
+            "hitch": "组队蹭车模式",
+        }[self.selected_mode_variant()]
+
     def _select_mode(self, mode_id: str) -> None:
         requested = str(mode_id or "normal_farm")
         if requested in {"lead", "lead_team"}:
@@ -3392,7 +3606,7 @@ class MainWindow(QMainWindow):
         for control in (self.btn_solo_mode, self.btn_lead_mode, self.btn_follow_mode, self.btn_hitch_mode):
             control.setEnabled(not running)
         self.btn_main.setText(start_button_text(spec, running=running))
-        can = desktop_may_start(spec.id) or running
+        can = (desktop_may_start(spec.id) and self._subscription_allows_start()) or running
         self.btn_main.setEnabled(can)
         self.btn_main.setObjectName("btnStop" if running else "btnStart")
         self.btn_main.setStyle(self.btn_main.style())
@@ -3428,10 +3642,26 @@ class MainWindow(QMainWindow):
             self.lbl_precheck.setToolTip("运行方式未验证")
             self.lbl_precheck.setStyleSheet(f"color:{t['neon_danger']}; font-weight:700;")
             return
+        if subscription_mode() == "off" and not getattr(sys, "frozen", False):
+            self.lbl_precheck.setText("预检 ● 开发模式")
+            self.lbl_precheck.setToolTip("源码开发模式不申请 LIVE permit")
+            self.lbl_precheck.setStyleSheet(f"color:{t['neon_warning']}; font-weight:700;")
+            return
+        if not self._subscription_allows_start():
+            self.lbl_precheck.setText("订阅 ● 未激活")
+            self.lbl_precheck.setToolTip("请输入有效卡密后才能开始运行")
+            self.lbl_precheck.setStyleSheet(f"color:{t['neon_danger']}; font-weight:700;")
+            return
         if live_lock_busy(self.app_data) and not self._is_running():
             self.lbl_precheck.setText("预检 ● 红")
             self.lbl_precheck.setToolTip("live.lock 被占用")
             self.lbl_precheck.setStyleSheet(f"color:{t['neon_danger']}; font-weight:700;")
+            return
+        live_state = getattr(self, "_live_preflight_state", None)
+        if not live_state or live_state[1] != "PERMIT_VERIFIED":
+            self.lbl_precheck.setText("预检 ● LIVE 待校验")
+            self.lbl_precheck.setToolTip("卡密有效；点击开始时再验证当前发行 permit")
+            self.lbl_precheck.setStyleSheet(f"color:{t['neon_warning']}; font-weight:700;")
             return
         if not _is_admin():
             self.lbl_precheck.setText("预检 ● 黄")
@@ -3450,8 +3680,71 @@ class MainWindow(QMainWindow):
             return int(self.spn_hitch_cycle_num.value())
         return int(self.spn_cycle_num.value()) if hasattr(self, "spn_cycle_num") else 0
 
+    def _runtime_settings_snapshot(self) -> Settings:
+        """Return the immutable settings snapshot owned by the last run.
+
+        ``RunnerService`` keeps this snapshot through terminal reporting.  The
+        fallback to the editable form is only for the ordinary idle state (or
+        compatibility test doubles that do not expose the helper).
+        """
+        getter = getattr(self.runner, "started_settings", None)
+        if callable(getter):
+            try:
+                snapshot = getter()
+            except Exception:
+                snapshot = None
+            if snapshot is not None:
+                return snapshot
+        snapshot = getattr(self.runner, "_started_settings", None)
+        return snapshot if snapshot is not None else self.settings
+
+    def _has_runtime_settings_snapshot(self) -> bool:
+        getter = getattr(self.runner, "started_settings", None)
+        if callable(getter):
+            try:
+                return getter() is not None
+            except Exception:
+                pass
+        return getattr(self.runner, "_started_settings", None) is not None
+
+    def _runtime_cycle_num(self) -> int:
+        settings = self._runtime_settings_snapshot()
+        mode_id = str(getattr(self.runner, "mode_id", "") or getattr(settings, "mode_id", "") or self.selected_mode_id())
+        if mode_id == "follow_team":
+            return max(0, int(getattr(settings, "follow_cycle_num", 0) or 0))
+        if mode_id == "lobby_hitch":
+            return max(0, int(getattr(settings, "hitch_cycle_num", 0) or 0))
+        return max(0, int(getattr(settings, "cycle_num", 0) or 0))
+
+    def _runtime_hud_mode_label(self) -> str:
+        variant = self._started_mode_variant if self._has_runtime_settings_snapshot() else None
+        if not variant:
+            variant = self.selected_mode_variant()
+        return {
+            "solo": "单人模式",
+            "lead": "组队带车模式",
+            "follow": "组队跟车模式",
+            "hitch": "组队蹭车模式",
+        }.get(str(variant), self.selected_hud_mode_label())
+
+    def _runtime_display_context(self) -> tuple[str, str, str, int]:
+        """Resolve target/strategy/cycle from the running snapshot, not the form."""
+        if not self._has_runtime_settings_snapshot():
+            target = self.txt_stage_target.text().strip() if hasattr(self, "txt_stage_target") else ""
+            strategy = "声望挑战" if bool(getattr(self, "cmb_mode", None) and self.cmb_mode.currentData()) else "自动推进"
+            if hasattr(self, "chk_secret_realm") and self.chk_secret_realm.isChecked():
+                strategy = "自动秘境"
+            return target, self.selected_hud_mode_label(), strategy, self._current_cycle_num()
+        settings = self._runtime_settings_snapshot()
+        targets = [str(item).strip() for item in (getattr(settings, "stage_targets", None) or []) if str(item).strip()]
+        target = targets[0] if targets else ""
+        strategy = "声望挑战" if bool(getattr(settings, "auto_reputation", False)) else "自动推进"
+        if bool(getattr(settings, "auto_secret_realm", False)):
+            strategy = "自动秘境"
+        return target, self._runtime_hud_mode_label(), strategy, self._runtime_cycle_num()
+
     def _refresh_progress(self) -> None:
-        cycle = self._current_cycle_num()
+        cycle = self._runtime_cycle_num() if self._has_runtime_settings_snapshot() else self._current_cycle_num()
         prog = progress_from_counts(self._game_count, cycle, running=self._is_running())
         self.lbl_games.setText(f"今日局数: {prog.game_count}" if prog.cycle_num <= 0 else f"今日局数: {prog.game_count}/{prog.cycle_num}")
         self.lbl_games_cap.setText(prog.label)
@@ -3474,12 +3767,7 @@ class MainWindow(QMainWindow):
         self._ocr_status = ocr_status
         self._last_action = last_action or self._last_action
         if self.overlay_hud is not None:
-            cycle = self._current_cycle_num()
-            target = self.txt_stage_target.text().strip() if hasattr(self, "txt_stage_target") else ""
-            mode = self.selected_mode_label()
-            strategy = "声望挑战" if bool(self.cmb_mode.currentData()) else "自动推进"
-            if hasattr(self, "chk_secret_realm") and self.chk_secret_realm.isChecked():
-                strategy = "自动秘境"
+            target, mode, strategy, cycle = self._runtime_display_context()
             self.overlay_hud.anchor_to_target(getattr(mediator, "_last_frame", None))
             self.overlay_hud.update_status(
                 True, phase, ocr_status, self._game_count, cycle,
@@ -3727,7 +4015,7 @@ class MainWindow(QMainWindow):
         self.cmb_follow_after_room.currentIndexChanged.connect(self._schedule_auto_save)
         self.cmb_hitch_after_goal.currentIndexChanged.connect(self._schedule_auto_save)
         self.txt_follow_pair_code.textChanged.connect(self._schedule_auto_save)
-        self.cmb_hitch_prefix.currentIndexChanged.connect(self._schedule_auto_save)
+        self.cmb_hitch_prefix.textChanged.connect(self._schedule_auto_save)
         self.chk_secret_realm.toggled.connect(self._schedule_auto_save)
         self.chk_auto_archaeology.toggled.connect(self._schedule_auto_save)
         self.chk_auto_close_main_line.toggled.connect(self._schedule_auto_save)
@@ -3750,7 +4038,7 @@ class MainWindow(QMainWindow):
         self.cmb_follow_after_room.currentIndexChanged.connect(self._refresh_chrome)
         self.cmb_hitch_after_goal.currentIndexChanged.connect(self._refresh_chrome)
         self.txt_follow_pair_code.textChanged.connect(self._refresh_launch_check)
-        self.cmb_hitch_prefix.currentIndexChanged.connect(self._refresh_launch_check)
+        self.cmb_hitch_prefix.textChanged.connect(self._refresh_launch_check)
         self.chk_secret_realm.toggled.connect(self._refresh_launch_check)
         self.chk_auto_close_main_line.toggled.connect(self._refresh_launch_check)
         self.chk_auto_archaeology.toggled.connect(self._refresh_launch_check)
@@ -3792,6 +4080,14 @@ class MainWindow(QMainWindow):
     def _write_user_bundle(self, settings: Settings) -> None:
         path = self.user_settings_path()
         path.parent.mkdir(parents=True, exist_ok=True)
+        # `cards` is the worker whitelist. Mirror it for the dashboard, and
+        # persist inverted from actual unchecked boxes so a stale scheme
+        # cannot resurrect 箭术 etc. on the next launch.
+        self._shell_extras["bond_scheme"] = list(settings.cards)
+        self._shell_extras["bond_inverted"] = [
+            code for code, box in getattr(self, "_bond_plan_boxes", {}).items()
+            if not box.isChecked()
+        ]
         data = collect_persistable_settings(settings)
         data["_shell"] = dict(self._shell_extras)
         data["_shell_schema"] = SHELL_SCHEMA_VERSION
@@ -3840,12 +4136,7 @@ class MainWindow(QMainWindow):
             self.lbl_summary.setText(f"已停止：{reason}")
         self.lbl_run_status.setStyle(self.lbl_run_status.style())
         if self.overlay_hud is not None:
-            cycle = self._current_cycle_num()
-            target = self.txt_stage_target.text().strip() if hasattr(self, "txt_stage_target") else ""
-            mode = self.selected_mode_label()
-            strategy = "声望挑战" if bool(self.cmb_mode.currentData()) else "自动推进"
-            if hasattr(self, "chk_secret_realm") and self.chk_secret_realm.isChecked():
-                strategy = "自动秘境"
+            target, mode, strategy, cycle = self._runtime_display_context()
             self.overlay_hud.update_status(
                 bool(running), self._runtime_phase, self._ocr_status,
                 self._game_count, cycle, self._terminal_reason, self._last_action,
@@ -3925,23 +4216,18 @@ class MainWindow(QMainWindow):
         hitch_action = self.cmb_hitch_after_goal.findData(str(getattr(settings, "hitch_after_goal", "solo") or "solo"))
         self.cmb_hitch_after_goal.setCurrentIndex(hitch_action if hitch_action >= 0 else 0)
         self.txt_follow_pair_code.setText(str(getattr(settings, "follow_pair_code", "") or "")[:24])
-        hitch_prefix = self.cmb_hitch_prefix.findData(str(getattr(settings, "hitch_stage_prefix", "3") or "3")[:1])
-        self.cmb_hitch_prefix.setCurrentIndex(hitch_prefix if hitch_prefix >= 0 else 0)
+        self.cmb_hitch_prefix.setText(str(getattr(settings, "hitch_stage_prefix", "4") or "4").strip()[:64] or "4")
         self.settings.skill_priority = [str(c) for c in (getattr(settings, "skill_priority", None) or [])]
         self.settings.skill_custom_routes = dict(getattr(settings, "skill_custom_routes", None) or {})
         self.skill_grid.set_skills(settings.skills or [])
         self.archive_grid.set_levels(dict(getattr(settings, "skill_archive_levels", None) or {}))
 
-        card_stems = []
-        for item in settings.cards or []:
-            text = str(item or "").strip()
-            if text:
-                card_stems.append(Path(text).stem)
-        if card_stems:
-            self._shell_extras["bond_scheme"] = list(card_stems)
-            self._shell_extras["bond_inverted"] = [
-                code for code in self._bond_plan_boxes if code not in set(card_stems)
-            ]
+        whitelist = self._bond_codes_from_names(
+            list(settings.cards or []) + list(getattr(settings, "bonds", None) or [])
+        )
+        if whitelist:
+            self._shell_extras["bond_scheme"] = whitelist
+            self._shell_extras["bond_inverted"] = []
         elif bond_default:
             self._shell_extras.pop("bond_scheme", None)
             self._shell_extras.pop("bond_inverted", None)
@@ -3999,7 +4285,7 @@ class MainWindow(QMainWindow):
         settings.mode_id = self.selected_mode_id()
         prefix_widget = getattr(self, "cmb_hitch_prefix", None)
         if prefix_widget is not None:
-            settings.hitch_stage_prefix = str(prefix_widget.currentData() or "3")[:1] or "3"
+            settings.hitch_stage_prefix = str(prefix_widget.text() or "4").strip()[:64] or "4"
         settings.stage1 = stage_index
         settings.stage2 = stage_index
         settings.stage_targets = [target]
@@ -4028,6 +4314,11 @@ class MainWindow(QMainWindow):
             **self.skill_priority_bar.route_selections(),
         }
         settings.cards = self.assemble_whitelist_cards()
+        settings.bonds = [
+            bond_display_name(code)
+            for code, box in self._bond_plan_boxes.items()
+            if box.isChecked()
+        ]
         settings.treasure_allow_negative = self.grp_negative.get_allowed()
         settings.auto_reputation = bool(self.cmb_mode.currentData())
         allocations = self._rep_allocations()
@@ -4081,11 +4372,17 @@ class MainWindow(QMainWindow):
                 return False
 
         self.skill_grid.set_skills(new_skills)
+        # The compact bond chips only represent the basic pack.  Attribute/UR
+        # codes from an official build live in settings.cards and are merged by
+        # assemble_whitelist_cards(); without this assignment the dashboard
+        # silently dropped zhili/yanmiezhe/fs before starting a real run.
+        self.settings.cards = list(new_cards)
         self._shell_extras["selected_build_id"] = build_id
         self._shell_extras["bond_scheme"] = list(new_cards)
         self._shell_extras["bond_inverted"] = [
             code for code in self._bond_plan_boxes if code not in set(new_cards)
         ]
+        self._rebuild_bond_plan()
         self._sync_bonds_from_scheme()
         rep_spin = self.rep_alloc_spins.get(int(new_rep or 0))
         if rep_spin is not None and rep_spin.value() == 0:
@@ -4107,6 +4404,17 @@ class MainWindow(QMainWindow):
         if not desktop_may_start(mode_id):
             self.log(f"[阻断] {mode_id} 未验证", "error")
             return
+        permission = check_live_start_permission(ROOT, mode_id, checker=check_start_permission)
+        live_ok, live_code, live_detail = live_permission_preflight(permission, mode_id=mode_id, root=ROOT)
+        self._live_preflight_state = live_ok, live_code, live_detail
+        self.lbl_subscription.setText(live_detail)
+        refresh_precheck = getattr(self, "_refresh_precheck", None)
+        if callable(refresh_precheck):
+            refresh_precheck()
+        if not live_ok:
+            QMessageBox.warning(self, "LIVE 未授权", live_detail)
+            self.log(f"[阻断] LIVE 未授权：{live_code}", "error")
+            return
         try:
             settings = self.collect_settings_from_ui()
         except ValueError as exc:
@@ -4125,13 +4433,14 @@ class MainWindow(QMainWindow):
             self.log("[阻断] 真机运行需要管理员权限", "error")
             return
         try:
-            worker = self.runner.start(mode_id, settings)
+            worker = self.runner.start(mode_id, settings, permission=permission)
         except ModeNotEnabled as exc:
             self.log(f"[阻断] {exc}", "error")
             return
         except Exception as exc:
             self.log(f"[阻断] {exc}", "error")
             return
+        self._started_mode_variant = self.selected_mode_variant()
         self.worker_thread = worker
         worker.signals.log_emitted.connect(self._on_worker_log)
         worker.signals.status_changed.connect(self.update_status)

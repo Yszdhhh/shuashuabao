@@ -18,14 +18,20 @@ from typing import Any
 from PySide6.QtCore import QLockFile, QObject, QThread, Signal
 
 from shuabao.settings import Settings
+from shuabao.subscription_client import check_start_permission
 from shuabao.stop_signal import StopSignal
 from shuabao.shell.live_execute import (
     LIVE_LOCK_NAME,
+    PermissionDenied,
     execute_runtime_mediator,
     live_lock_path,
+    check_live_start_permission,
+    resolve_live_permission,
 )
 from shuabao.shell.mode_catalog import apply_mode_overlay, desktop_may_start
 from shuabao.shell.runtime_status import (
+    RUNNER_COMPLETE,
+    RUNNER_FAILED,
     RUNNER_IDLE,
     RUNNER_RUNNING,
     RUNNER_STARTING,
@@ -49,6 +55,8 @@ class LogSignal(QObject):
 
 
 class MediatorWorker(QThread):
+    """QThread wrapper around the shared runtime executor."""
+
     def __init__(
         self,
         settings: Settings,
@@ -56,6 +64,7 @@ class MediatorWorker(QThread):
         max_steps: int | None = None,
         incident_dir: str | Path | None = None,
         stop_signal: StopSignal | None = None,
+        permission=None,
     ):
         super().__init__()
         self.settings = settings
@@ -63,6 +72,7 @@ class MediatorWorker(QThread):
         self.max_steps = max_steps
         self.incident_dir = Path(incident_dir) if incident_dir else Path(root_dir) / "incidents"
         self.stop_signal = stop_signal or StopSignal()
+        self.permission = permission
         self.signals = LogSignal()
         self.mediator = None
         self._stop_requested = False
@@ -169,12 +179,25 @@ class MediatorWorker(QThread):
             log=_log,
             should_abort=lambda: self._stop_requested,
             on_mediator=_on_mediator,
+            permission=self.permission,
         )
         self.mediator = result.get("mediator") or self.mediator
         if result.get("ocr_status"):
             self.ocr_status = str(result["ocr_status"])
         if result.get("terminal_reason"):
             self.terminal_reason = str(result["terminal_reason"])
+        # ``execute_runtime_mediator`` deliberately returns a structured
+        # failure instead of raising when bootstrap/import/OCR setup fails.
+        # Preserve that failure as ERROR here; otherwise the worker would
+        # still carry its optimistic STARTING phase and
+        # ``release_after_finish`` would downgrade a failed launch to
+        # COMPLETE.  A terminal reason with no usable mediator is never a
+        # successful run.
+        result_phase = str(result.get("phase") or "").upper()
+        if result_phase:
+            self.phase = result_phase
+        if self.terminal_reason and self.phase in {"", "IDLE", "STARTING"}:
+            self.phase = "ERROR"
         count = int(result.get("game_count") or 0)
         reason = self._terminal_reason_from_mediator()
         self._emit_status(
@@ -250,14 +273,28 @@ class RunnerService:
             self.runner_state = RUNNER_IDLE
             self._started_settings = None
 
-
-    def start(self, mode_id: str, settings_snapshot: Settings) -> MediatorWorker:
+    def start(self, mode_id: str, settings_snapshot: Settings, *, permission=None, permission_checker=None) -> MediatorWorker:
+        """LIVE 启动：订阅门禁在 lock/worker 之前 fail-closed。"""
         if not desktop_may_start(mode_id):
             raise ModeNotEnabled(f"{mode_id} 未验证，不可从看板启动")
+        if permission is None:
+            permission = check_live_start_permission(
+                self.root,
+                mode_id,
+                checker=permission_checker or check_start_permission,
+            )
+        permission = resolve_live_permission(permission, mode_id=mode_id, root=self.root)
         if self.worker is not None:
             if self.worker.isRunning():
                 raise RuntimeError("already running")
             self.release_after_finish(self.worker)
+            # A terminal snapshot is intentionally kept visible until the
+            # next explicit start.  Starting a new run consumes that snapshot
+            # and creates a fresh lifecycle, including a fresh settings copy.
+            self.worker = None
+            self.mode_id = None
+            self._started_settings = None
+            self.runner_state = RUNNER_IDLE
         snapshot = apply_mode_overlay(copy.deepcopy(settings_snapshot), mode_id)
         if mode_id == "follow_team":
             snapshot.cycle_num = int(snapshot.follow_cycle_num)
@@ -276,6 +313,7 @@ class RunnerService:
                 self.root,
                 incident_dir=self.app_data / "incidents",
                 stop_signal=StopSignal(),
+                permission=permission,
             )
             worker.finished.connect(lambda: self._release_worker(worker))
             self.worker = worker
@@ -308,15 +346,26 @@ class RunnerService:
         if worker is not None and worker.isRunning():
             return
         lock = self._live_lock
+        phase = str(getattr(worker, "phase", "") or "").upper() if worker is not None else ""
+        terminal_reason = str(getattr(worker, "terminal_reason", "") or "") if worker is not None else ""
         try:
             if lock is not None:
                 lock.unlock()
         finally:
             if self._live_lock is lock:
                 self._live_lock = None
-            self.runner_state = RUNNER_IDLE
-            self.mode_id = None
-            self._started_settings = None
+            # Keep the finished worker/mode/settings available to the shell so
+            # the formal dashboard can report the terminal outcome and the
+            # exact settings snapshot used by that run.  A worker that was
+            # constructed but never started has no terminal evidence and is
+            # released back to the ordinary idle state.
+            if worker is None or (phase in {"", "IDLE"} and not terminal_reason):
+                self.runner_state = RUNNER_IDLE
+                self.worker = None
+                self.mode_id = None
+                self._started_settings = None
+            else:
+                self.runner_state = RUNNER_FAILED if phase == "ERROR" else RUNNER_COMPLETE
 
     def started_settings(self) -> Settings | None:
         return self._started_settings
