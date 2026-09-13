@@ -6208,7 +6208,7 @@ class Mediator:
             if post_game == "HEIRLOOM_DIALOG":
                 stem = Path(hit.name).stem
                 no = parse_boss_order_number(stem, catalog)
-                if no is not None and not (1 <= no <= 20):
+                if no is None or not (1 <= no <= 20):
                     continue
             valid_hits.append(hit)
         return max(valid_hits, key=lambda hit: (hit.y + hit.h, hit.x + hit.w), default=None)
@@ -6993,6 +6993,8 @@ class Mediator:
                 slot_empty_checker=check_slot_empty,
                 frame_bgr=frame.bgr,
                 catalog=getattr(self, "_boss_catalog_cache", None),
+                unresolved_attempts=self._boss_challenge_unresolved_attempts,
+                unresolved_limit=self._POST_GAME_BOSS_UNRESOLVED_LIMIT,
             )
 
             if decision.action == BossOrderAction.CLICK_TARGET:
@@ -7084,31 +7086,32 @@ class Mediator:
                         f"兜底点击末卡 {boss_hit.name} @ {boss_hit.center}"
                     )
                     self._record_boss_locate_failed_incident(bosses, boss_hit.name)
+            elif decision.action == BossOrderAction.CLICK_LAST_VISIBLE_FALLBACK:
+                boss_hit = self._find_last_recognized_post_game_boss(frame, post_game)
+                if boss_hit is None:
+                    loop_act, boss_hit, act_name = self._handle_boss_anomaly_retry_or_skip(frame, now, post_game, recheck_s)
+                    if boss_hit is None:
+                        return loop_act
+                    action_name = act_name
+                else:
+                    action_name = "BossLastVisibleFallback"
+                    self._boss_challenge_unresolved_attempts = 0
+                    print(f"[med] [BossLastVisibleFallback] {decision.reason}：{boss_hit.name} @ {boss_hit.center}")
+                used_fallback = True
+            elif decision.action == BossOrderAction.NO_CARD_ANOMALY:
+                loop_act, boss_hit, act_name = self._handle_boss_anomaly_retry_or_skip(frame, now, post_game, recheck_s)
+                if boss_hit is None:
+                    return loop_act
+                used_fallback = True
+                action_name = act_name
             elif decision.action == BossOrderAction.WAIT:
                 self._boss_challenge_unresolved_attempts += 1
-                if self._boss_challenge_unresolved_attempts >= self._POST_GAME_BOSS_UNRESOLVED_LIMIT:
-                    last_card = self._find_last_recognized_post_game_boss(frame, post_game)
-                    if last_card is not None:
-                        boss_hit = last_card
-                        used_fallback = True
-                        action_name = "BossLastVisibleFallback"
-                        self._boss_challenge_unresolved_attempts = 0
-                        print(
-                            f"[med] [BossLastVisibleFallback] {decision.reason}，未决达到上限 "
-                            f"({self._POST_GAME_BOSS_UNRESOLVED_LIMIT})，兜底点击画面内物理最后卡 "
-                            f"{boss_hit.name} @ {boss_hit.center}"
-                        )
-                    else:
-                        loop_act, boss_hit, act_name = self._handle_boss_anomaly_retry_or_skip(frame, now, post_game, recheck_s)
-                        if boss_hit is not None:
-                            used_fallback = True
-                            action_name = act_name
-                        else:
-                            return loop_act
-                else:
-                    self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
-                    print(f"[med] {decision.reason}，零输入等待")
-                    return LoopAction.Continue
+                self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
+                print(
+                    f"[med] {decision.reason}，零输入等待 "
+                    f"({self._boss_challenge_unresolved_attempts}/{self._POST_GAME_BOSS_UNRESOLVED_LIMIT})"
+                )
+                return LoopAction.Continue
 
         self._boss_challenge_attempts += 1
         delay = (

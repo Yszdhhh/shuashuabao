@@ -285,14 +285,158 @@ def test_unconfigured_target_scrolls_to_bottom_then_selects_last():
     )
     assert dec_scroll.action == BossOrderAction.SCROLL_DOWN
 
-    # At bottom: selects last card
+    # At bottom with the L+1 slot proven empty: selects last card immediately
     dec_bottom = decide_boss_order_action(
         target_no=None,
         visible_cards=cards,
         at_bottom=True,
+        slot_empty_checker=lambda _box: True,
     )
     assert dec_bottom.action == BossOrderAction.CLICK_LAST_NOT_UNLOCKED
     assert dec_bottom.target_card.no == 2
+
+
+# ---- Path A (P2) + 未决收口回到纯策略 -------------------------------------
+
+_ROW3 = [
+    VisibleCard(no=9, name="09摩拉迪姆", x=100, y=360, w=58, h=58, score=0.88),
+    VisibleCard(no=10, name="10奥斯里安", x=178, y=360, w=58, h=58, score=0.88),
+    VisibleCard(no=11, name="11拉什凡", x=256, y=360, w=58, h=58, score=0.88),
+]
+_VIEWPORT = (80, 200, 420, 520)
+
+
+def _decide_unconfigured(attempts: int, checker=lambda _box: False, **kw):
+    return decide_boss_order_action(
+        target_no=None,
+        visible_cards=_ROW3,
+        at_bottom=True,
+        viewport_box=_VIEWPORT,
+        slot_empty_checker=checker,
+        unresolved_attempts=attempts,
+        unresolved_limit=3,
+        **kw,
+    )
+
+
+def test_path_a_unconfigured_unproven_last_card_reobserves_then_falls_back():
+    """未配置目标到底、L+1 格位有未识别卡：前 2 次重观察，第 3 次按用户规则点最后已识别卡。"""
+    first = _decide_unconfigured(0)
+    second = _decide_unconfigured(1)
+    third = _decide_unconfigured(2)
+    assert first.action == BossOrderAction.WAIT
+    assert "未证明" in first.reason
+    assert second.action == BossOrderAction.WAIT
+    assert third.action == BossOrderAction.CLICK_LAST_VISIBLE_FALLBACK
+    assert third.target_card.no == 11
+    assert "3/3" in third.reason
+
+
+def test_path_a_unconfigured_proven_last_card_clicks_without_waiting():
+    proven = _decide_unconfigured(0, checker=lambda _box: True)
+    assert proven.action == BossOrderAction.CLICK_LAST_NOT_UNLOCKED
+    assert proven.target_card.no == 11
+
+    # 已达目录上限的末卡本身就是证明，不需要看 L+1
+    catalog_last = decide_boss_order_action(
+        target_no=None,
+        visible_cards=[VisibleCard(no=20, name="20鲁克玛", x=100, y=360, w=58, h=58, score=0.9)],
+        at_bottom=True,
+        page_type="HEIRLOOM_DIALOG",
+        slot_empty_checker=lambda _box: False,
+    )
+    assert catalog_last.action == BossOrderAction.CLICK_LAST_NOT_UNLOCKED
+
+
+def test_path_a_unconfigured_offscreen_next_slot_is_not_proof():
+    # 行尾末卡的 L+1 在下一行、超出视野：不算证明，只能有限重观察后兜底
+    cards = [VisibleCard(no=12, name="12卡尔加", x=334, y=460, w=58, h=58, score=0.9),
+             VisibleCard(no=11, name="11拉什凡", x=256, y=460, w=58, h=58, score=0.9)]
+    wait = decide_boss_order_action(
+        target_no=None, visible_cards=cards, at_bottom=True, viewport_box=_VIEWPORT,
+        slot_empty_checker=lambda _box: True, unresolved_attempts=0,
+    )
+    assert wait.action == BossOrderAction.WAIT
+    assert "超出视野" in wait.reason
+    closed = decide_boss_order_action(
+        target_no=None, visible_cards=cards, at_bottom=True, viewport_box=_VIEWPORT,
+        slot_empty_checker=lambda _box: True, unresolved_attempts=2,
+    )
+    assert closed.action == BossOrderAction.CLICK_LAST_VISIBLE_FALLBACK
+    assert closed.target_card.no == 12
+
+
+def test_unresolved_closure_applies_to_every_wait_branch():
+    """3B：滚动预算耗尽且未到底 -> WAIT；第 3 次未决时策略直接给出最终兜底。"""
+    kwargs = dict(
+        target_no=55,
+        visible_cards=_ROW3,
+        at_bottom=False,
+        scroll_attempts=16,
+        scroll_limit=16,
+    )
+    assert decide_boss_order_action(**kwargs, unresolved_attempts=1).action == BossOrderAction.WAIT
+    closed = decide_boss_order_action(**kwargs, unresolved_attempts=2)
+    assert closed.action == BossOrderAction.CLICK_LAST_VISIBLE_FALLBACK
+    assert closed.target_card.no == 11
+
+
+def test_unresolved_closure_without_cards_is_anomaly_not_click():
+    kwargs = dict(target_no=18, visible_cards=[], at_bottom=True)
+    assert decide_boss_order_action(**kwargs, unresolved_attempts=0).action == BossOrderAction.WAIT
+    closed = decide_boss_order_action(**kwargs, unresolved_attempts=2)
+    assert closed.action == BossOrderAction.NO_CARD_ANOMALY
+    assert closed.target_card is None
+    # 超过上限后持续给出异常动作（执行层靠它推进 重试 -> skip）
+    assert decide_boss_order_action(**kwargs, unresolved_attempts=5).action == BossOrderAction.NO_CARD_ANOMALY
+
+
+def test_unresolved_closure_never_overrides_non_wait_decisions():
+    """T≤L 预测格位待确认、T>L 已证明末卡：未决计数再高也不改写。"""
+    confirm = decide_boss_order_action(
+        target_no=10,
+        visible_cards=[_ROW3[0], _ROW3[2]],
+        at_bottom=True,
+        viewport_box=_VIEWPORT,
+        unresolved_attempts=9,
+    )
+    assert confirm.action == BossOrderAction.CONFIRM_PREDICTED
+    assert confirm.target_card is None
+
+    not_unlocked = decide_boss_order_action(
+        target_no=18,
+        visible_cards=_ROW3,
+        at_bottom=True,
+        viewport_box=_VIEWPORT,
+        slot_empty_checker=lambda _box: True,
+        unresolved_attempts=9,
+    )
+    assert not_unlocked.action == BossOrderAction.CLICK_LAST_NOT_UNLOCKED
+    assert not_unlocked.target_card.no == 11
+
+    exhausted = decide_boss_order_action(
+        target_no=10,
+        visible_cards=_ROW3[:1] + _ROW3[2:],
+        at_bottom=True,
+        locate_exhausted=True,
+        viewport_box=_VIEWPORT,
+        slot_empty_checker=lambda _box: True,
+        unresolved_attempts=9,
+    )
+    assert exhausted.action == BossOrderAction.CLICK_LAST_LOCATE_FAILED
+
+
+def test_heirloom_closure_only_targets_orders_1_to_20():
+    moam = VisibleCard(no=54, name="54莫阿姆", x=334, y=460, w=58, h=58, score=0.95)
+    card3 = VisibleCard(no=3, name="03洛卡纳哈", x=100, y=300, w=58, h=58, score=0.8)
+    # 未配置目标、滚动预算耗尽仍未到底 -> WAIT；第 3 次未决收口时 54 不得成为兜底目标
+    kwargs = dict(target_no=None, at_bottom=False, scroll_attempts=16, scroll_limit=16,
+                  page_type="HEIRLOOM_DIALOG", unresolved_attempts=2)
+    mixed = decide_boss_order_action(visible_cards=[card3, moam], **kwargs)
+    assert mixed.action == BossOrderAction.CLICK_LAST_VISIBLE_FALLBACK
+    assert mixed.target_card.no == 3
+    only_moam = decide_boss_order_action(visible_cards=[moam], **kwargs)
+    assert only_moam.action == BossOrderAction.NO_CARD_ANOMALY
 
 
 def test_l_unknown_no_cards_visible():

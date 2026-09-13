@@ -7,8 +7,12 @@ Rules:
    并在预测位置附近重新确认后再点。若尝试耗尽，按具名常量 LOCATE_FAILURE_FALLBACK_DEFAULT
    收口（默认点末卡，并单独打日志 BossOrderLocateFailed、记录 incident）。
 2. T > L（目标还没解锁出来）：选末卡（兜底，BossNotUnlockedLast）。
-3. 没配置目标：保持现状，探底后选末卡（BossBottomFallback）。
+3. 没配置目标：探底后，末卡经 L+1 空格证明就选末卡（BossBottomFallback）；
+   未证明时先有限重观察。
 4. 识别不出末卡序号时（L 未知）：有界等待，不套用规则 1 或 2。
+5. 未决收口（用户规则）：连续未决达到 unresolved_limit 时，策略直接给出最终动作——
+   还能识别出卡就点当前物理最后一张（CLICK_LAST_VISIBLE_FALLBACK），
+   一张都认不出就进入异常重试 / 跳过（NO_CARD_ANOMALY）。执行层不再自行升格 WAIT。
 """
 
 from __future__ import annotations
@@ -63,6 +67,8 @@ class BossOrderAction(str, Enum):
     CONFIRM_PREDICTED = "CONFIRM_PREDICTED"
     CLICK_LAST_NOT_UNLOCKED = "CLICK_LAST_NOT_UNLOCKED"
     CLICK_LAST_LOCATE_FAILED = "CLICK_LAST_LOCATE_FAILED"
+    CLICK_LAST_VISIBLE_FALLBACK = "CLICK_LAST_VISIBLE_FALLBACK"
+    NO_CARD_ANOMALY = "NO_CARD_ANOMALY"
     WAIT = "WAIT"
 
 
@@ -250,6 +256,29 @@ def predict_card_slot(
     return (px, py, med_w, med_h)
 
 
+def _next_slot_evidence(
+    last_no: int,
+    visible_cards: Sequence[VisibleCard],
+    *,
+    cols: int,
+    default_pitch: tuple[float, float],
+    viewport_box: tuple[int, int, int, int] | None,
+    slot_empty_checker: Callable[[tuple[int, int, int, int]], bool] | None,
+) -> tuple[str, tuple[int, int, int, int] | None]:
+    """Classify the L+1 slot: "empty"（末卡已证明）/ "card" / "offscreen" / "unknown"."""
+    next_slot = predict_card_slot(last_no + 1, visible_cards, cols_per_row=cols, default_pitch=default_pitch)
+    if next_slot is None:
+        return "unknown", None
+    nx, ny, nw, nh = next_slot
+    ncx, ncy = nx + nw // 2, ny + nh // 2
+    if viewport_box is not None:
+        vx0, vy0, vx1, vy1 = viewport_box
+        if not ((vx0 <= ncx <= vx1) and (vy0 <= ncy <= vy1)):
+            return "offscreen", next_slot
+    slot_is_empty = slot_empty_checker(next_slot) if slot_empty_checker is not None else False
+    return ("empty" if slot_is_empty else "card"), next_slot
+
+
 def decide_boss_order_action(
     target_no: int | None,
     visible_cards: Sequence[VisibleCard],
@@ -270,8 +299,84 @@ def decide_boss_order_action(
     frame_bgr: Any = None,
     catalog: dict | None = None,
     max_catalog_no: int | None = None,
+    unresolved_attempts: int = 0,
+    unresolved_limit: int = 3,
 ) -> BossOrderDecision:
-    """Pure decision function for post-game boss selection with unlock order fallback."""
+    """Pure decision function for post-game boss selection with unlock order fallback.
+
+    ``unresolved_attempts`` is the number of consecutive WAIT observations
+    already spent on this list (reset by the caller after a successful scroll).
+    When this observation would be the ``unresolved_limit``-th WAIT, the policy
+    returns the final user-rule decision instead of WAIT.
+    """
+    decision = _decide_boss_order_core(
+        target_no,
+        visible_cards,
+        at_bottom=at_bottom,
+        at_top=at_top,
+        scroll_attempts=scroll_attempts,
+        scroll_limit=scroll_limit,
+        locate_attempts=locate_attempts,
+        locate_limit=locate_limit,
+        locate_exhausted=locate_exhausted,
+        bottom_scroll_attempts=bottom_scroll_attempts,
+        bottom_scroll_limit=bottom_scroll_limit,
+        page_type=page_type,
+        can_scroll=can_scroll,
+        viewport_box=viewport_box,
+        slot_empty_checker=slot_empty_checker,
+        frame_bgr=frame_bgr,
+        catalog=catalog,
+        max_catalog_no=max_catalog_no,
+    )
+    if decision.action != BossOrderAction.WAIT:
+        return decision
+    observed = unresolved_attempts + 1
+    if observed < unresolved_limit:
+        return decision
+
+    # 用户规则：未决收口时点当前能识别出的物理最后一张卡；传家宝只认序号 1–20。
+    candidates = [
+        c for c in visible_cards
+        if page_type != "HEIRLOOM_DIALOG" or 1 <= c.no <= 20
+    ]
+    if candidates:
+        last_card = max(candidates, key=lambda c: (c.y + c.h, c.x + c.w))
+        return BossOrderDecision(
+            action=BossOrderAction.CLICK_LAST_VISIBLE_FALLBACK,
+            target_card=last_card,
+            reason=f"{decision.reason}；未决达到上限 ({observed}/{unresolved_limit})，点当前能识别的最后一张卡",
+            stage=decision.stage,
+        )
+    return BossOrderDecision(
+        action=BossOrderAction.NO_CARD_ANOMALY,
+        reason=f"{decision.reason}；未决达到上限 ({observed}/{unresolved_limit}) 且一张卡都认不出，进入异常重试",
+        stage=decision.stage,
+    )
+
+
+def _decide_boss_order_core(
+    target_no: int | None,
+    visible_cards: Sequence[VisibleCard],
+    *,
+    at_bottom: bool,
+    at_top: bool,
+    scroll_attempts: int,
+    scroll_limit: int,
+    locate_attempts: int,
+    locate_limit: int,
+    locate_exhausted: bool,
+    bottom_scroll_attempts: int,
+    bottom_scroll_limit: int,
+    page_type: str,
+    can_scroll: bool | None,
+    viewport_box: tuple[int, int, int, int] | None,
+    slot_empty_checker: Callable[[tuple[int, int, int, int]], bool] | None,
+    frame_bgr: Any,
+    catalog: dict | None,
+    max_catalog_no: int | None,
+) -> BossOrderDecision:
+    """Single-observation decision; WAIT here is closed by decide_boss_order_action."""
     if can_scroll is None:
         can_scroll = True
 
@@ -288,15 +393,36 @@ def decide_boss_order_action(
             return is_slot_empty(frame_bgr[y0:y1, x0:x1])
         slot_empty_checker = _check_empty
 
-    # 1. 没配置目标：保持现状，探底后选末卡
+    # 1. 没配置目标：探底后选末卡；末卡与 T>L 共用 L+1 空格证明，未证明先有限重观察
     if target_no is None:
         if at_bottom:
             if visible_cards:
                 last_card = max(visible_cards, key=lambda c: (c.y + c.h, c.x + c.w))
+                if last_card.no >= max_catalog_no:
+                    evidence = "empty"
+                else:
+                    evidence, _slot = _next_slot_evidence(
+                        last_card.no,
+                        visible_cards,
+                        cols=cols,
+                        default_pitch=default_pitch,
+                        viewport_box=viewport_box,
+                        slot_empty_checker=slot_empty_checker,
+                    )
+                if evidence == "empty":
+                    return BossOrderDecision(
+                        action=BossOrderAction.CLICK_LAST_NOT_UNLOCKED,
+                        target_card=last_card,
+                        reason=f"未配置目标 Boss，列表已确认到底，末卡 L={last_card.no} 已证明（L+1 空格或目录上限），选择物理最后一张卡",
+                    )
+                detail = {
+                    "card": "后续格位存在未识别卡片",
+                    "offscreen": "后续格位超出视野",
+                    "unknown": "无法推算后续格位",
+                }[evidence]
                 return BossOrderDecision(
-                    action=BossOrderAction.CLICK_LAST_NOT_UNLOCKED,
-                    target_card=last_card,
-                    reason="未配置目标 Boss，列表已确认到底，选择物理最后一张卡",
+                    action=BossOrderAction.WAIT,
+                    reason=f"未配置目标 Boss，列表已到底但末卡 L={last_card.no} 未证明（{detail}），重新观察",
                 )
             return BossOrderDecision(
                 action=BossOrderAction.WAIT,

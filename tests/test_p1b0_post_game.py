@@ -790,7 +790,11 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual(reason, "BossNotUnlockedLast")
 
     def test_unconfigured_post_game_lists_scroll_to_bottom_then_choose_last_card(self):
-        """未设 Boss 时，两类列表都必须到底后才选物理最后卡。"""
+        """未设 Boss 时，两类列表都必须到底后才选物理最后卡。
+
+        这张夹具在两类 ROI 里末卡的 L+1 格位都还有未识别卡（末卡未证明），
+        所以到底后先有限重观察 2 帧，第 3 帧按用户规则点当前能识别的最后一张。
+        """
         frame = load_fixture_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
         last = MatchResult("12卡尔加", 0.91, 1110, 470, 62, 62, 1110, 470)
         for page, settings in (
@@ -802,23 +806,18 @@ class P1B0PostGameTests(unittest.TestCase):
                 med._post_game_pending = True
                 with patch.object(med, "_post_game_state", return_value=page), \
                      patch.object(med, "_find_last_recognized_post_game_boss", return_value=last), \
-                     patch.object(med, "_post_game_boss_list_at_bottom", side_effect=[False, False, True]), \
+                     patch.object(med, "_post_game_boss_list_at_bottom", side_effect=[False, False, True, True, True]), \
                      patch.object(med, "act_scroll", return_value=True) as scroll, \
                      patch.object(med, "act_click", return_value=True) as click:
-                    self.assertEqual(
-                        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=1.0),
-                        LoopAction.Continue,
-                    )
-                    self.assertEqual(
-                        med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=1.0),
-                        LoopAction.Continue,
-                    )
-                    self.assertEqual(
-                        med._maybe_challenge_configured_boss(frame, 14.0, recheck_s=1.0),
-                        LoopAction.Continue,
-                    )
+                    for index, now in enumerate((10.0, 12.0, 14.0, 16.0, 18.0)):
+                        self.assertEqual(
+                            med._maybe_challenge_configured_boss(frame, now, recheck_s=1.0),
+                            LoopAction.Continue,
+                        )
+                        if index < 4:
+                            click.assert_not_called()
                 self.assertEqual(scroll.call_count, 2)
-                click.assert_called_once_with(last, "BossBottomFallback")
+                click.assert_called_once_with(last, "BossLastVisibleFallback")
 
     def test_unavailable_boss_stays_fail_closed_without_fallback_template(self):
         """An exhausted classified list still emits zero click when no card is recognized."""

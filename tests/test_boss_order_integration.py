@@ -380,7 +380,15 @@ def test_boss_order_locate_failed_fallback_clicks_last_card(base_patches):
 
 
 def test_boss_last_visible_fallback_when_unresolved_limit_exceeded(base_patches):
-    """When list is not at bottom and unresolved limit exceeded, falls back to physically last card."""
+    """Layered contract: the policy closes the 3rd unresolved WAIT; the mediator only executes it.
+
+    Scroll budget exhausted and list not proven at bottom -> the policy returns WAIT twice
+    (zero input), then CLICK_LAST_VISIBLE_FALLBACK on the 3rd observation; the mediator
+    executes it as BossLastVisibleFallback on the ROI-constrained last recognized card.
+    """
+    import shuabao.mediator as mediator_mod
+    from shuabao.policy.boss_order import BossOrderAction
+
     frame = load_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
     settings = Settings(sgzx_boss="55吞咽者布鲁", mode_id="solo", ocr_mode="off")
     med = Mediator(settings, ROOT)
@@ -388,25 +396,249 @@ def test_boss_last_visible_fallback_when_unresolved_limit_exceeded(base_patches)
     med._post_game_pending = True
     med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
 
+    real_decide = mediator_mod.decide_boss_order_action
+    decisions = []
+
+    def spy_decide(*args, **kwargs):
+        decision = real_decide(*args, **kwargs)
+        decisions.append((kwargs["unresolved_attempts"], kwargs["unresolved_limit"], decision.action))
+        return decision
+
     clicked = []
     with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
          patch.object(med, "find", return_value=None), \
          patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
+         patch("shuabao.mediator.decide_boss_order_action", side_effect=spy_decide), \
          patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
          contextlib.redirect_stdout(io.StringIO()):
-        # Ticks 1 and 2: unresolved attempts 1, 2
         med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=0.1)
         med._maybe_challenge_configured_boss(frame, 11.0, recheck_s=0.1)
-        # Tick 3: unresolved limit (3) exceeded -> falls back to physically last visible card
+        assert clicked == []
         action = med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=0.1)
 
+    assert decisions == [
+        (0, 3, BossOrderAction.WAIT),
+        (1, 3, BossOrderAction.WAIT),
+        (2, 3, BossOrderAction.CLICK_LAST_VISIBLE_FALLBACK),
+    ]
     assert action == LoopAction.Continue
     assert len(clicked) == 1
     hit, reason = clicked[0]
     assert reason == "BossLastVisibleFallback"
     assert "09" in hit.name or "摩拉迪姆" in hit.name
+    assert med._boss_challenge_unresolved_attempts == 0
     assert med.phase != Phase.ERROR
     assert not med.stop_signal.is_set()
+
+
+def test_mediator_never_escalates_wait_on_its_own(base_patches):
+    """If the policy keeps answering WAIT, the executor stays zero-input forever."""
+    from shuabao.policy.boss_order import BossOrderAction, BossOrderDecision
+
+    frame = load_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+    med = Mediator(Settings(sgzx_boss="55吞咽者布鲁", mode_id="solo", ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+
+    seen_attempts = []
+
+    def always_wait(*_args, **kwargs):
+        seen_attempts.append(kwargs["unresolved_attempts"])
+        return BossOrderDecision(action=BossOrderAction.WAIT, reason="scripted wait")
+
+    clicked, moved, scrolled = [], [], []
+    with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+         patch.object(med, "find", return_value=None), \
+         patch("shuabao.mediator.decide_boss_order_action", side_effect=always_wait), \
+         patch.object(med, "act_click", side_effect=lambda *a, **k: clicked.append(a) or True), \
+         patch.object(med, "act_move", side_effect=lambda *a, **k: moved.append(a) or True), \
+         patch.object(med, "act_scroll", side_effect=lambda *a, **k: scrolled.append(a) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        for t in range(1, 13):
+            assert med._maybe_challenge_configured_boss(frame, float(t), recheck_s=0.1) == LoopAction.Continue
+
+    assert seen_attempts == list(range(12))
+    assert clicked == [] and moved == [] and scrolled == []
+    assert med.phase != Phase.ERROR
+
+
+def test_successful_scroll_resets_unresolved_counter(base_patches):
+    """WAIT, WAIT, scroll, WAIT, WAIT: the counter restarts after the scroll, so no fallback."""
+    from shuabao.policy.boss_order import BossOrderAction, BossOrderDecision
+
+    frame = load_frame("fixtures/reborn_wow/endgame/archive_challenge_panel.png")
+    med = Mediator(Settings(sgzx_boss="55吞咽者布鲁", mode_id="solo", ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+
+    script = [BossOrderAction.WAIT, BossOrderAction.WAIT, BossOrderAction.SCROLL_DOWN,
+              BossOrderAction.WAIT, BossOrderAction.WAIT]
+    seen_attempts = []
+
+    def scripted(*_args, **kwargs):
+        seen_attempts.append(kwargs["unresolved_attempts"])
+        return BossOrderDecision(action=script[len(seen_attempts) - 1], reason="scripted")
+
+    clicked, scrolled = [], []
+    with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+         patch.object(med, "find", return_value=None), \
+         patch("shuabao.mediator.decide_boss_order_action", side_effect=scripted), \
+         patch.object(med, "act_click", side_effect=lambda *a, **k: clicked.append(a) or True), \
+         patch.object(med, "act_scroll", side_effect=lambda *a, **k: scrolled.append(a) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        for t in range(1, 6):
+            med._maybe_challenge_configured_boss(frame, float(t), recheck_s=0.1)
+
+    assert seen_attempts == [0, 1, 2, 0, 1]
+    assert len(scrolled) == 1
+    assert clicked == []
+    assert med._boss_challenge_unresolved_attempts == 2
+
+
+def test_unconfigured_missing_real_last_card_reobserves_then_clicks_last_recognized(base_patches):
+    """Path A: real card 03 is present but not recognized by the policy scan.
+
+    Bottom is proven, L=2 and the L+1 slot really holds a card -> 2 zero-input
+    re-observations, then the user-rule fallback clicks the ROI-constrained last
+    recognized card (the real finder sees 03 on this fixture).
+    """
+    from shuabao.policy.boss_order import VisibleCard
+
+    frame = load_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+    med = Mediator(Settings(cjb_boss="", mode_id="solo", ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+    sim_visible = [
+        (VisibleCard(1, "01暴掠龙", 607, 279, 58, 58, 0.8), MagicMock(name="01暴掠龙")),
+        (VisibleCard(2, "02血腥猛犸", 686, 278, 58, 58, 0.8), MagicMock(name="02血腥猛犸")),
+    ]
+
+    clicked = []
+    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+         patch.object(med, "find", return_value=None), \
+         patch.object(med, "_find_visible_post_game_boss_cards", return_value=sim_visible), \
+         patch.object(med, "_post_game_boss_list_at_bottom", return_value=True), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=0.1)
+        med._maybe_challenge_configured_boss(frame, 11.0, recheck_s=0.1)
+        assert clicked == []
+        med._maybe_challenge_configured_boss(frame, 12.0, recheck_s=0.1)
+
+    assert len(clicked) == 1
+    hit, reason = clicked[0]
+    assert reason == "BossLastVisibleFallback"
+    assert "03" in hit.name or "洛卡纳哈" in hit.name
+
+
+def test_unconfigured_proven_last_card_clicks_without_reobserving(base_patches):
+    """Path A: heirloom fixture with 3 cards, L+1 slot empty -> BossBottomFallback on the bottom frame."""
+    frame = load_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+    med = Mediator(Settings(cjb_boss="", mode_id="solo", ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+
+    clicked = []
+    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+         patch.object(med, "_post_game_boss_list_at_bottom", return_value=True), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        med._maybe_challenge_configured_boss(frame, 10.0, recheck_s=0.1)
+
+    assert len(clicked) == 1
+    hit, reason = clicked[0]
+    assert reason == "BossBottomFallback"
+    assert "03" in hit.name or "洛卡纳哈" in hit.name
+
+
+def test_t_le_l_unconfirmed_predicted_slot_never_clicks(base_patches):
+    """T≤L: unconfirmed predicted slot stays zero-click on every tick, even with the unresolved counter at its limit."""
+    from shuabao.policy.boss_order import VisibleCard
+
+    frame = load_frame("fixtures/reborn_wow/endgame/heirloom_challenge_bosses.png")
+    med = Mediator(Settings(cjb_boss="02血腥猛犸", mode_id="solo", ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+    med._boss_challenge_unresolved_attempts = med._POST_GAME_BOSS_UNRESOLVED_LIMIT - 1
+    # 目标 02 夹在已识别的 01 与 03 之间（T≤L），但自身没被识别出来
+    sim_visible = [
+        (VisibleCard(1, "01暴掠龙", 607, 279, 58, 58, 0.8), MagicMock(name="01暴掠龙")),
+        (VisibleCard(3, "03洛卡纳哈", 765, 281, 58, 58, 0.8), MagicMock(name="03洛卡纳哈")),
+    ]
+
+    clicked = []
+    with patch.object(med, "_post_game_state", return_value="HEIRLOOM_DIALOG"), \
+         patch.object(med, "find", return_value=None), \
+         patch.object(med, "_find_visible_post_game_boss_cards", return_value=sim_visible), \
+         patch.object(med, "_post_game_boss_list_at_bottom", return_value=True), \
+         patch.object(med, "_verify_boss_predicted_slot", return_value=None) as verify, \
+         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        for t in range(1, med._POST_GAME_BOSS_LOCATE_LIMIT + 1):
+            med._maybe_challenge_configured_boss(frame, float(t * 10), recheck_s=0.1)
+
+    assert verify.call_count == med._POST_GAME_BOSS_LOCATE_LIMIT
+    assert clicked == []
+    assert med._boss_challenge_locate_exhausted is True
+
+
+def test_zero_card_anomaly_skips_with_incident_and_no_stop(base_patches):
+    """0 cards: 2 zero-input WAITs, then anomaly retries (pointer park), then skip + incident; never ERROR/STOP."""
+    from shuabao.policy.boss_order import BossOrderAction
+    import shuabao.mediator as mediator_mod
+
+    black_frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
+    med = Mediator(Settings(sgzx_boss="01霍格", mode_id="solo", ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE, "integration test")
+    med._post_game_pending = True
+    med._boss_challenge_scroll_attempts = med._POST_GAME_BOSS_SCROLL_LIMIT
+
+    real_decide = mediator_mod.decide_boss_order_action
+    actions = []
+
+    def spy_decide(*args, **kwargs):
+        decision = real_decide(*args, **kwargs)
+        actions.append(decision.action)
+        return decision
+
+    clicked, moved = [], []
+    with patch.object(med, "_post_game_state", return_value="ARCHIVE_PANEL"), \
+         patch.object(med, "_post_game_boss_list_at_bottom", return_value=False), \
+         patch("shuabao.mediator.decide_boss_order_action", side_effect=spy_decide), \
+         patch.object(med, "_record_boss_challenge_skipped_incident") as incident, \
+         patch.object(med, "act_move", side_effect=lambda x, y, reason="": moved.append(reason) or True), \
+         patch.object(med, "act_click", side_effect=lambda hit, reason="": clicked.append((hit, reason)) or True), \
+         contextlib.redirect_stdout(io.StringIO()):
+        for t in range(1, 9):
+            assert med._maybe_challenge_configured_boss(black_frame, float(t), recheck_s=0.1) == LoopAction.Continue
+
+    assert actions[:2] == [BossOrderAction.WAIT, BossOrderAction.WAIT]
+    assert actions[2:] == [BossOrderAction.NO_CARD_ANOMALY] * 6
+    assert clicked == []
+    assert moved and all(reason == "BossAnomalyParkPointer" for reason in moved)
+    incident.assert_called_once_with("ARCHIVE_PANEL", reason="anomaly")
+    assert med.phase != Phase.ERROR
+    assert not med.stop_signal.is_set()
+    assert med._time_cave_boss_done is True
+
+
+def test_heirloom_fallback_finder_rejects_54_and_unknown_orders():
+    """_find_last_recognized_post_game_boss: heirloom accepts only 1–20, drops 54 and unparseable stems."""
+    from shuabao.mediator import MatchResult
+
+    med = Mediator(Settings(), ROOT)
+    frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=1)
+    card3 = MatchResult("chuanjiaobao/03洛卡纳哈", 0.80, 700, 300, 58, 58, 729, 329)
+    moam = MatchResult("chuanjiaobao/54莫阿姆", 0.95, 900, 500, 58, 58, 929, 529)
+    unknown = MatchResult("chuanjiaobao/未知卡", 0.95, 950, 520, 58, 58, 979, 549)
+
+    with patch("shuabao.mediator.match_all", return_value=[card3, moam, unknown]):
+        assert med._find_last_recognized_post_game_boss(frame, "HEIRLOOM_DIALOG") is card3
+    with patch("shuabao.mediator.match_all", return_value=[moam, unknown]):
+        assert med._find_last_recognized_post_game_boss(frame, "HEIRLOOM_DIALOG") is None
+    # 存档列表不受传家宝序号范围约束
+    with patch("shuabao.mediator.match_all", return_value=[card3, moam]):
+        assert med._find_last_recognized_post_game_boss(frame, "ARCHIVE_PANEL") is moam
 
 
 def test_boss_challenge_skipped_on_all_black_frame(base_patches):
