@@ -3689,7 +3689,14 @@ class Mediator:
             or (self._l1_cycle_owned_panel and self._panel_kind == kind)
         )
         reason = str(decision.reason or "")
-        skip_confirm = "差一张合成" in reason or "已持有合成" in reason
+        skip_confirm = (
+            "差一张合成" in reason
+            or "已持有合成" in reason
+            or (
+                decision.action == PolicyAction.SELECT_SLOT
+                and self._is_unambiguous_high_confidence_pick(decision, slots, reason)
+            )
+        )
         if owned and not skip_confirm and decision.action in {PolicyAction.SELECT_SLOT, PolicyAction.REFRESH}:
             key = (
                 kind,
@@ -3735,6 +3742,24 @@ class Mediator:
     def _live_ocr_miss_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         """OCR 没读到名字时禁止刷新。预选卡可能已经在画面上。"""
         return None
+
+    @staticmethod
+    def _is_unambiguous_high_confidence_pick(
+        decision: "PolicyDecision", slots: tuple, reason: str
+    ) -> bool:
+        """B2 拿卡提速：卡名完整命中白名单预设、OCR>=0.95、四槽无重名歧义时免二次确认。
+
+        其余情形（刷新、模糊/低置信/重名槽位、非预设兜底如品质降级/套装进度）
+        仍保留 _ocr_reward_choice 现有的两帧确认。
+        """
+        if "预设命中" not in reason and "严格命中" not in reason:
+            return False
+        chosen = next((s for s in slots if s.index == decision.index), None)
+        if chosen is None or not chosen.name or float(chosen.confidence or 0.0) < 0.95:
+            return False
+        named = [str(s.name).strip() for s in slots if s.name and str(s.name).strip()]
+        return len(named) == len(set(named))
+
 
     def _rarity_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
         """按边框颜色选最高品质：红UR>橙SSR>紫SR>蓝R>其他N。"""
@@ -14393,6 +14418,11 @@ class Mediator:
             return "close"
         return "select"
 
+    # B2 拿卡提速：局内选卡面板（skill/bond/treasure）关闭（本次没有可拿卡）→
+    # 下次可重开该面板的间隔。刻意与全局 ui_action_interval_s（1.5s，UI 输入
+    # 最小间隔）解耦，不改后者的默认值/其它用途。
+    _L1_PANEL_REOPEN_INTERVAL_S = 0.5
+
     def _arm_panel_reopen_cooldown(self, kind: str | None, now: float) -> None:
         if kind not in ("skill", "bond", "treasure"):
             return
@@ -14745,13 +14775,13 @@ class Mediator:
                     # normal, not a failure.  Retry after new choices had
                     # time to accrue instead of burning the per-round cap.
                     self._hitch_treasure_retry_at = now + self._HITCH_TREASURE_RETRY_S
-                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                    self._panel_cooldown_until[kind] = now + self._L1_PANEL_REOPEN_INTERVAL_S
                     cur_kills = self._merchant_kill_balance(frame)
                     if cur_kills is not None:
                         self._hitch_last_treasure_kill_balance = cur_kills
                 elif kind in ("skill", "bond", "treasure"):
                     self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
-                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                    self._panel_cooldown_until[kind] = now + self._L1_PANEL_REOPEN_INTERVAL_S
                 self._panel_opened_by_us = None
                 return LoopAction.Continue
             else:

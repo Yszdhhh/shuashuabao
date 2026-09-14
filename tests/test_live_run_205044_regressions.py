@@ -28,7 +28,8 @@ def frame() -> Frame:
 
 
 class LiveRun205044Tests(unittest.TestCase):
-    def test_owned_bond_select_waits_for_second_ocr_frame(self) -> None:
+    def test_owned_bond_select_skips_second_frame_when_unambiguous_and_confident(self) -> None:
+        """B2 拿卡提速：预设命中 + OCR>=0.95 + 四槽无重名 → 首帧即选中，不再等第二帧。"""
         med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
         med._panel_opened_by_us = "bond"
         med._panel_kind = "bond"
@@ -39,10 +40,44 @@ class LiveRun205044Tests(unittest.TestCase):
             {"index": 3, "name": "刀刀", "confidence": 0.99, "raw_text": "刀刀"},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=slots):
+            hit = med._ocr_reward_choice(frame(), "bond")
+        self.assertIsNotNone(hit)
+        self.assertIn("祝福", hit.name)
+
+    def test_owned_bond_select_still_waits_for_second_frame_below_confidence_bar(self) -> None:
+        """预设命中但 OCR<0.95 时仍保留两帧确认（B2 只放行高置信无歧义命中）。"""
+        med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
+        med._panel_opened_by_us = "bond"
+        med._panel_kind = "bond"
+        slots = [
+            {"index": 0, "name": "祝福", "confidence": 0.80, "raw_text": "祝福"},
+            {"index": 1, "name": "体术", "confidence": 0.99, "raw_text": "体术"},
+            {"index": 2, "name": "亡灵", "confidence": 0.99, "raw_text": "亡灵"},
+            {"index": 3, "name": "刀刀", "confidence": 0.99, "raw_text": "刀刀"},
+        ]
+        with patch.object(med, "_ocr_panel_slots", return_value=slots):
             self.assertIsNone(med._ocr_reward_choice(frame(), "bond"))
             hit = med._ocr_reward_choice(frame(), "bond")
         self.assertIsNotNone(hit)
         self.assertIn("祝福", hit.name)
+
+    def test_owned_bond_select_still_waits_for_second_frame_on_duplicate_slot_names(self) -> None:
+        """四槽出现重名（OCR 歧义）时仍保留两帧确认，即使目标槽自身高置信。"""
+        med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
+        med._panel_opened_by_us = "bond"
+        med._panel_kind = "bond"
+        slots = [
+            {"index": 0, "name": "祝福", "confidence": 0.99, "raw_text": "祝福"},
+            {"index": 1, "name": "祝福", "confidence": 0.96, "raw_text": "祝福"},
+            {"index": 2, "name": "亡灵", "confidence": 0.99, "raw_text": "亡灵"},
+            {"index": 3, "name": "刀刀", "confidence": 0.99, "raw_text": "刀刀"},
+        ]
+        with patch.object(med, "_ocr_panel_slots", return_value=slots):
+            self.assertIsNone(med._ocr_reward_choice(frame(), "bond"))
+            hit = med._ocr_reward_choice(frame(), "bond")
+        self.assertIsNotNone(hit)
+        self.assertIn("祝福", hit.name)
+
 
     def test_live_ocr_miss_waits_instead_of_refreshing_bond_panel(self) -> None:
         med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)

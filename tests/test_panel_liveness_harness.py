@@ -82,7 +82,9 @@ class PanelLivenessHarnessTests(unittest.TestCase):
 
                 # The normal short cooldown expires, allowing the next
                 # episode to prove that the count survives episode cleanup.
-                clock.advance(0.2)
+                # B2: reopen cooldown is now a dedicated 0.5s constant
+                # (_L1_PANEL_REOPEN_INTERVAL_S), decoupled from ui_action_interval_s.
+                clock.advance(med._L1_PANEL_REOPEN_INTERVAL_S + 0.1)
                 self.assertIsNone(med._tick_panel_fsm(frame, None, clock.now()))
                 self.assertIs(med._panel_state, PanelState.CLOSED)
 
@@ -213,7 +215,7 @@ class PanelLivenessHarnessTests(unittest.TestCase):
                 self.assertIs(med._tick_panel_fsm(frame, None, clock.now()), LoopAction.Continue)
                 expected_counts[kind] = 1
                 self.assertEqual(med._panel_episode_count, expected_counts)
-                clock.advance(0.2)
+                clock.advance(med._L1_PANEL_REOPEN_INTERVAL_S + 0.1)
                 self.assertIsNone(med._tick_panel_fsm(frame, None, clock.now()))
 
         self.assertEqual(med._panel_episode_count, {"skill": 1, "bond": 1, "treasure": 1})
