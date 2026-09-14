@@ -14882,19 +14882,23 @@ class Mediator:
                 waited = now - float(self._hitch_heirloom_exit_since)
                 timer_due = waited >= window and (on_plaza or waited >= 2 * window)
                 if self._solo_heirloom_secret():
-                    if (loot or timer_due) and not self._passenger_heirloom_for_secret:
-                        self._passenger_heirloom_for_secret = True
+                    if loot or timer_due:
+                        # Solo has no heirloom Victory page (live 2026-09-14
+                        # f0570-f0584: the Boss dies on the plaza and the game
+                        # stays there), so the trigger goes straight to the
+                        # rift NPC via the NPC_HUB "secret" route.
                         trigger = "掉落已确认" if loot else f"已等 {window:.0f}s"
-                        print(f"[med] 单人传家宝{trigger}，已开自动秘境：等待 Victory 后进入秘境")
-                    if waited >= 2 * window:
-                        why = f"heirloom {2 * window:.0f}s without Victory"
-                        print(f"[med] 传家宝后退出：{why}")
+                        print(f"[med] 单人传家宝{trigger}，已开自动秘境：去大秘境 NPC 开启秘境")
                         self._hitch_heirloom_exit_since = None
                         self._passenger_heirloom_for_secret = False
-                        self._record_round_outcome(RoundOutcome.TIMEOUT, why)
-                        self.set_phase(Phase.QUIT, why)
+                        self._post_game_pending = True
+                        self._post_game_route = "secret"
+                        self._secret_realm_request_pending = False
+                        self._secret_realm_request_since = None
+                        self._secret_realm_request_attempts = 0
+                        self._secret_realm_next_observe_at = 0.0
+                        self._hitch_postgame_started_at = now
                         return LoopAction.Continue
-                    # Fall through: the POST_VICTORY branch continues into the rift.
                 elif loot:
                     if self._follow_enabled() and self.settings.auto_secret_realm:
                         self._hitch_heirloom_exit_since = None
@@ -15451,6 +15455,24 @@ class Mediator:
             return LoopAction.Continue
 
         if post_game == "GREAT_RIFT_CONFIRM":
+            if (
+                self.settings.auto_secret_realm
+                and not self._secret_realm_request_pending
+                and not self._hitch_enabled()
+                and (
+                    (self._post_game_pending and getattr(self, "_post_game_route", "") == "secret")
+                    or (self._solo_heirloom_secret() and getattr(self, "_hitch_heirloom_exit_since", None))
+                )
+            ):
+                # The rift dialog can open before our own right-click (live
+                # 2026-09-14 f0584, 37s after the heirloom); on the rift
+                # route it is ours to accept, not a stray dialog to cancel.
+                print("[med] 秘境路由上出现大秘境确认框，视为本次秘境请求")
+                self._hitch_heirloom_exit_since = None
+                self._post_game_pending = True
+                self._post_game_route = "secret"
+                self._secret_realm_request_pending = True
+                self._secret_realm_request_since = now
             if (
                 self.settings.auto_secret_realm
                 and self._post_game_pending

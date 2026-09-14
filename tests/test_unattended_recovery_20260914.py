@@ -230,30 +230,28 @@ def test_solo_heirloom_window_is_120s() -> None:
     assert med.phase is Phase.QUIT
 
 
-def test_solo_heirloom_loot_with_secret_arms_rift_and_waits_for_victory() -> None:
+def test_solo_heirloom_loot_with_secret_goes_straight_to_the_rift() -> None:
+    # Solo has no heirloom Victory page (live 2026-09-14 f0570-f0584).
     med = _med(auto_secret_realm=True)
     _heirloom_wait(med, 10.0)
     _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=True)
     assert med.phase is Phase.MAIN_LINE
-    assert med._passenger_heirloom_for_secret is True
-    assert med._hitch_heirloom_exit_since is not None
+    assert med._post_game_pending is True and med._post_game_route == "secret"
+    assert med._hitch_heirloom_exit_since is None
 
 
-def test_solo_heirloom_timer_with_secret_arms_rift() -> None:
+def test_solo_heirloom_timer_with_secret_goes_straight_to_the_rift() -> None:
     med = _med(auto_secret_realm=True)
     _heirloom_wait(med, 121.0)
     _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=False)
-    assert med.phase is Phase.MAIN_LINE
-    assert med._passenger_heirloom_for_secret is True
+    assert med._post_game_pending is True and med._post_game_route == "secret"
 
 
-def test_solo_heirloom_secret_wait_is_bounded() -> None:
+def test_solo_heirloom_secret_waits_before_the_window() -> None:
     med = _med(auto_secret_realm=True)
-    _heirloom_wait(med, 241.0)
-    med._passenger_heirloom_for_secret = True
+    _heirloom_wait(med, 60.0)
     _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=False)
-    assert med.phase is Phase.QUIT
-    assert med._passenger_heirloom_for_secret is False
+    assert med._post_game_route == "boss_active" and med._post_game_pending is False
 
 
 def test_solo_heirloom_victory_continues_into_rift_with_fresh_budget() -> None:
