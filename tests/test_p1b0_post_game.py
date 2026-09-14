@@ -331,11 +331,11 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertLess(points[0][1], points[4][1])
 
     def test_archive_walks_all_eight_cards_left_to_right(self):
-        """Owner ruling 20260910: click every card once, left to right.
+        """Click every card once, left to right - except a 0/8 card.
 
-        The 20260910 run clicked two of eight — four slots were never in the
-        team plan and OCR skipped two more. A 0/8 card now costs one wasted
-        click instead of silently dropping the card.
+        Owner ruling 20260910 clicked every card (a 0/8 cost one wasted
+        click); owner rule 2026-09-14 supersedes it: 0/8 and 已挑战 cards are
+        never clicked, the rest are swept 1->8 once.
         """
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
@@ -343,7 +343,7 @@ class P1B0PostGameTests(unittest.TestCase):
         clicked_labels: list[str] = []
 
         def fake_completed(_frame, index):
-            return index < len(clicked_labels)
+            return index in med._archive_challenge_clicked  # clicked -> green
 
         with patch.object(med, "_archive_challenge_completed", side_effect=fake_completed), \
              patch.object(med, "_archive_hitch_card_progress_state",
@@ -352,14 +352,15 @@ class P1B0PostGameTests(unittest.TestCase):
              patch.object(med, "act_click", return_value=True) as click:
             click.side_effect = lambda _hit, reason: clicked_labels.append(reason) or True
             now = 1.0
-            for _ in range(8):
-                self.assertEqual(med._maybe_click_archive_challenge(frame, now), LoopAction.Continue)
+            for _ in range(20):
+                if med._maybe_click_archive_challenge(frame, now) is None:
+                    break
                 now = med._archive_challenge_next_at + 0.1
             self.assertIsNone(med._maybe_click_archive_challenge(frame, now))
 
         self.assertEqual(
             clicked_labels,
-            [f"ArchiveChallenge-{name}" for name in med._ARCHIVE_CHALLENGE_NAMES],
+            [f"ArchiveChallenge-{name}" for name in med._ARCHIVE_CHALLENGE_NAMES if name != "gem"],
         )
 
     def test_archive_card_advances_on_the_green_challenged_overlay(self):
