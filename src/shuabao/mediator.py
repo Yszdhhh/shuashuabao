@@ -4131,11 +4131,65 @@ class Mediator:
         """Top-bar wood counter (left of the kill skull), OCR like the kill counter."""
         return self._hud_counter(frame, self._WOOD_BALANCE_ROI, "wood")
 
+    def _refresh_solo_signals(self, frame: Frame, now: float) -> None:
+        """Wood / unspent skill picks / pending treasure, read at most every 3s."""
+        if now < getattr(self, "_wood_next_read_at", 0.0):
+            return
+        self._wood_next_read_at = now + self._WOOD_READ_INTERVAL_S
+        self._wood_balance = self._hud_wood_balance(frame)
+        # Badges stay at their last reading while the button is hidden
+        # (monster selected / panel covering); None only until first seen.
+        skill = self._hud_skill_points(frame)
+        if skill is not None:
+            self._skill_points_seen = skill
+        treasure = self._hud_treasure_pending(frame)
+        if treasure is not None:
+            self._treasure_pending_seen = treasure
+
+    # Unspent skill picks that pre-empt the early bond priority (Owner:
+    # 前期 羁绊>技能>其它, but live 000229 banked 32 picks and lost 4-5).
+    _SKILL_BACKLOG_FORCE = 6
+    # A skill visit that picked nothing (no legal card) backs the force off.
+    _SKILL_IDLE_BACKOFF_S = 30.0
+
+    def _panel_kind_available(self, kind: str, now: float) -> bool:
+        if self._panel_episode_count.get(kind, 0) >= self.settings.panel_episode_limit_per_kind:
+            return False
+        return self._panel_cooldown_until.get(kind, 0.0) - now <= self._BOND_LONG_COOLDOWN_S
+
+    def _solo_plan_panel(self, frame: Frame, now: float, step: str) -> tuple[str | None, str]:
+        """Solo panel choice for this tick: (target, why); target None = skip step.
+
+        Order of reasons:
+          1. skill backlog >= 6 -> G (unless the last G visit found nothing)
+          2. basic bonds < 80% and F can progress (wood >= 500 ...) -> F
+          3. the cycle step, skipping F without wood and G/V with a 0 badge
+        Unreadable badges never skip a step (old behaviour).
+        """
+        self._refresh_solo_signals(frame, now)
+        skill = getattr(self, "_skill_points_seen", None)
+        treasure = getattr(self, "_treasure_pending_seen", None)
+        if (
+            skill is not None
+            and skill >= self._SKILL_BACKLOG_FORCE
+            and now >= getattr(self, "_skill_idle_until", 0.0)
+            and self._panel_kind_available("skill", now)
+        ):
+            return "skill", f"技能积压 {skill} ≥ {self._SKILL_BACKLOG_FORCE}，先点技能"
+        bond_blocked = self._bond_step_blocked(frame, now)
+        if bond_blocked is None and self._bond_base_progress_pending():
+            return "bond", "基础羁绊未满 80%，羁绊优先"
+        if step == "bond" and bond_blocked is not None:
+            return None, f"羁绊暂不推进（{bond_blocked}）"
+        if step == "skill" and skill == 0:
+            return None, "技能角标为 0，没有可点的技能"
+        if step == "treasure" and treasure == 0:
+            return None, "宝物角标为 0，没有待拿宝物"
+        return step, "按轮换"
+
     def _bond_step_blocked(self, frame: Frame, now: float) -> str | None:
         """Why the bond step cannot progress right now, or None when it can."""
-        if now >= getattr(self, "_wood_next_read_at", 0.0):
-            self._wood_next_read_at = now + self._WOOD_READ_INTERVAL_S
-            self._wood_balance = self._hud_wood_balance(frame)
+        self._refresh_solo_signals(frame, now)
         wood = getattr(self, "_wood_balance", None)
         if wood is not None and wood < self._BOND_MIN_WOOD:
             return f"木材 {wood} < {self._BOND_MIN_WOOD}"
@@ -4172,13 +4226,14 @@ class Mediator:
         # 木材 <500 先处理技能，技能处理完再宝物/进化/物品栏/神器/黑商；
         # 实机 000229 木材耗尽后 F 冷却 60s 仍被锁在羁绊，技能 20+ 点一次没点。
         if not self._passenger_mode():
-            bond_blocked = self._bond_step_blocked(frame, now)
-            if bond_blocked is None and self._bond_base_progress_pending():
-                target = "bond"
-            elif bond_blocked is not None and target == "bond":
-                print(f"[L1] 羁绊暂不推进（{bond_blocked}），转下一步")
-                self._advance_l1_cycle("bond")
+            planned, why = self._solo_plan_panel(frame, now, target)
+            if planned is None:
+                print(f"[L1] {why}，转下一步")
+                self._advance_l1_cycle(target)
                 return LoopAction.Continue
+            if planned != target:
+                print(f"[L1] 编排：{why}（轮换停在 {target}）")
+            target = planned
         if target in ("skill", "bond", "treasure"):
             panel_enabled = (
                 target == "skill"
@@ -14561,6 +14616,13 @@ class Mediator:
             and not self._passenger_mode()
         ):
             self._bond_idle_until = time.time() + self._BOND_IDLE_BACKOFF_S
+        if (
+            cycle_owned
+            and cycle_kind == "skill"
+            and not cycle_selected
+            and not self._passenger_mode()
+        ):
+            self._skill_idle_until = time.time() + self._SKILL_IDLE_BACKOFF_S
         if (
             cycle_owned
             and cycle_kind == self._l1_cycle_step
