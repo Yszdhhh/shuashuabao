@@ -7503,7 +7503,10 @@ class Mediator:
         5 秒观察窗超时则清 pending 允许有界重试。
         """
         if getattr(self, "_tqtz_abandoned", False):
-            return LoopAction.Continue
+            # Abandoned means "stop trying", not "own the tick": returning
+            # Continue here pre-empted every later main-line action for the
+            # rest of the round (live solo 2026-09-14: zero input from 12min).
+            return None
         if getattr(self, "_tqtz_pending", False):
             # C5 修复：同 generation / same request frame => ZERO INPUT => NOT CONFIRMED
             req_gen = getattr(self, "_tqtz_request_generation", None)
