@@ -4090,12 +4090,20 @@ class Mediator:
         if current == "hitch_idle" and self._passenger_mode():
             # 旧状态落点：直接回到环首，不再永久停车。
             self._l1_cycle_step = order[0]
+            self._l1_cycle_index = 0
             return
-        try:
-            index = order.index(current)
-        except ValueError:
-            index = -1
-        nxt = order[(index + 1) % len(order)]
+        # The order repeats bond/skill, so the name alone does not say where we
+        # are: order.index() always found the first pair and skill -> bond ->
+        # skill looped forever, never reaching treasure/evolve/equipment/
+        # pickup/merchant/artifact (live solo 2026-09-14/15).
+        index = getattr(self, "_l1_cycle_index", None)
+        if index is None or not (0 <= index < len(order)) or order[index] != current:
+            try:
+                index = order.index(current)
+            except ValueError:
+                index = -1
+        self._l1_cycle_index = (index + 1) % len(order)
+        nxt = order[self._l1_cycle_index]
         if nxt == "evolve":
             self._evolve_ok_this_cycle = False
             self._evolve_awaiting_hero_pick = False
@@ -4107,6 +4115,37 @@ class Mediator:
             self._inventory_next_at = 0.0
             self._devour_dan_consecutive_clicks = 0
         self._l1_cycle_step = nxt
+
+    # Owner 2026-09-15: below 500 wood the bond panel cannot buy anything.
+    _BOND_MIN_WOOD = 500
+    _WOOD_BALANCE_ROI = (1178 / 1600, 8 / 900, 1240 / 1600, 34 / 900)
+    _WOOD_READ_INTERVAL_S = 3.0
+    # A bond visit that ended without a pick (no wood / nothing eligible) lets
+    # the other steps run for this long before the 80% lock resumes.
+    _BOND_IDLE_BACKOFF_S = 30.0
+    # Short post-pick reopen cooldowns (3s) keep the bond step; only long ones
+    # (episode cap = 60s) release it.
+    _BOND_LONG_COOLDOWN_S = 10.0
+
+    def _hud_wood_balance(self, frame: Frame) -> int | None:
+        """Top-bar wood counter (left of the kill skull), OCR like the kill counter."""
+        return self._hud_counter(frame, self._WOOD_BALANCE_ROI, "wood")
+
+    def _bond_step_blocked(self, frame: Frame, now: float) -> str | None:
+        """Why the bond step cannot progress right now, or None when it can."""
+        if now >= getattr(self, "_wood_next_read_at", 0.0):
+            self._wood_next_read_at = now + self._WOOD_READ_INTERVAL_S
+            self._wood_balance = self._hud_wood_balance(frame)
+        wood = getattr(self, "_wood_balance", None)
+        if wood is not None and wood < self._BOND_MIN_WOOD:
+            return f"木材 {wood} < {self._BOND_MIN_WOOD}"
+        if self._panel_episode_count.get("bond", 0) >= self.settings.panel_episode_limit_per_kind:
+            return "羁绊 episode 已达上限"
+        if self._panel_cooldown_until.get("bond", 0.0) - now > self._BOND_LONG_COOLDOWN_S:
+            return "羁绊长冷却中"
+        if now < getattr(self, "_bond_idle_until", 0.0):
+            return "上次开 F 没有可拿的卡"
+        return None
 
     def _maybe_open_choice_panel(self, frame: Frame, anchor: MatchResult | None = None) -> LoopAction | None:
         """Proactive skill (G) / bond (F) / treasure (V) panel opening.
@@ -4129,10 +4168,17 @@ class Mediator:
             self._passenger_mode() and target == "treasure"
         ):
             return None
-        # 木材数值尚无经验证的 HUD 读取链；在基础卡未满 80% 时直接锁定 F，
-        # 比猜测木材数更保守，也保证高木材阶段不会被 G/V/进化抢占。
-        if not self._passenger_mode() and self._bond_base_progress_pending():
-            target = "bond"
+        # 基础卡未满 80% 时锁定 F —— 但只在羁绊确实能推进时。Owner 2026-09-15：
+        # 木材 <500 先处理技能，技能处理完再宝物/进化/物品栏/神器/黑商；
+        # 实机 000229 木材耗尽后 F 冷却 60s 仍被锁在羁绊，技能 20+ 点一次没点。
+        if not self._passenger_mode():
+            bond_blocked = self._bond_step_blocked(frame, now)
+            if bond_blocked is None and self._bond_base_progress_pending():
+                target = "bond"
+            elif bond_blocked is not None and target == "bond":
+                print(f"[L1] 羁绊暂不推进（{bond_blocked}），转下一步")
+                self._advance_l1_cycle("bond")
+                return LoopAction.Continue
         if target in ("skill", "bond", "treasure"):
             panel_enabled = (
                 target == "skill"
@@ -4178,6 +4224,21 @@ class Mediator:
                     print("[L1] 蹭车宝物重试窗口到期，重置 V episode 预算并重新探测")
             if (
                 panel_enabled
+                and not self._passenger_mode()
+                and self._panel_episode_count.get(target, 0)
+                >= self.settings.panel_episode_limit_per_kind
+            ):
+                # Solo: the cap is a 60s backoff for this panel only.  Parking
+                # here re-armed the 60s every tick, so the panel never came
+                # back and the whole L1 cycle stood still (live 000229: F
+                # capped at 6:40, wood back at 3346, no F/G/V/evolve after).
+                self._panel_episode_count[target] = 0
+                self._panel_cooldown_until[target] = now + 60.0
+                print(f"[L1] {target} 异常 episode 已达上限，该面板 60s 后再试，轮换转下一步")
+                self._advance_l1_cycle(target)
+                return LoopAction.Continue
+            if (
+                panel_enabled
                 and self._panel_episode_count.get(target, 0)
                 >= self.settings.panel_episode_limit_per_kind
             ):
@@ -4191,6 +4252,13 @@ class Mediator:
                 print(f"[L1] {target} episode 上限已达，进入 60s 冷却（本局不再重开该面板）")
                 return LoopAction.Continue
             reopen_at = self._panel_cooldown_until.get(target, 0.0)
+            if (
+                not self._passenger_mode()
+                and reopen_at - now > self._BOND_LONG_COOLDOWN_S
+            ):
+                print(f"[L1] {target} 长冷却 {reopen_at - now:.0f}s，轮换转下一步")
+                self._advance_l1_cycle(target)
+                return LoopAction.Continue
             if now < reopen_at:
                 print(f"[L1] {target} 隐藏后冷却 {reopen_at - now:.1f}s，仍留在本步（不跳到下一步）")
                 return LoopAction.Continue
@@ -5506,6 +5574,50 @@ class Mediator:
                     )
                 )
         return items
+
+    def _hud_counter(self, frame: Frame, roi: tuple[float, float, float, float], key: str) -> int | None:
+        """OCR one integer from a top-bar HUD counter; None when not trusted."""
+        if frame.bgr is None or frame.bgr.size == 0:
+            return None
+        bbox = self._normalized_bbox(frame, roi)
+        x0, y0, x1, y1 = bbox
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        fingerprint = hashlib.md5(crop.tobytes()).hexdigest()
+        cache = getattr(self, "_hud_counter_cache", None)
+        if cache is None:
+            cache = self._hud_counter_cache = {}
+        hit = cache.get(key)
+        if hit is not None and hit[0] == fingerprint:
+            return hit[1]
+        cache[key] = (fingerprint, None)
+        client = getattr(self, "_ocr_client", None)
+        if client is None or not bool(getattr(client, "is_available", False)):
+            return None
+        try:
+            response = client.shadow_predict(
+                frame,
+                f"hud-{key}:{fingerprint}",
+                {"index": 0, "bbox": bbox, "kind": "counter"},
+                fingerprint=fingerprint,
+                panel_bbox=bbox,
+            )
+        except (AttributeError, OSError, TypeError, ValueError):
+            return None
+        if str(getattr(response, "status", "")) != "ok":
+            return None
+        if float(getattr(response, "rec_score", 0.0) or 0.0) < self._MERCHANT_KILL_BALANCE_MIN_SCORE:
+            return None
+        raw = str(getattr(response, "raw_text", "") or "")
+        if not raw:
+            candidates = tuple(getattr(response, "candidates", ()) or ())
+            raw = str(getattr(candidates[0], "name", "") or "") if candidates else ""
+        values = re.findall(r"(?<!\d)(\d{1,6})(?!\d)", raw)
+        if len(values) != 1:
+            return None
+        cache[key] = (fingerprint, int(values[0]))
+        return cache[key][1]
 
     def _merchant_kill_balance(self, frame: Frame) -> int | None:
         """Read the top-right skull counter used by black-merchant prices.
@@ -14332,6 +14444,13 @@ class Mediator:
             return
         if (
             cycle_owned
+            and cycle_kind == "bond"
+            and not cycle_selected
+            and not self._passenger_mode()
+        ):
+            self._bond_idle_until = time.time() + self._BOND_IDLE_BACKOFF_S
+        if (
+            cycle_owned
             and cycle_kind == self._l1_cycle_step
             and not cycle_selected
             and cycle_kind in ("skill", "bond", "treasure")
@@ -14844,6 +14963,12 @@ class Mediator:
             return LoopAction.Continue
 
         if st == PanelState.COOLDOWN:
+            if anchor is None and not self._passenger_mode():
+                # The per-kind reopen gate (_panel_cooldown_until) still holds
+                # this panel back; everything else on the HUD may run.  Live
+                # 000229: a 60s bond cooldown froze skills/V/evolve/merchant.
+                self._finish_panel_episode()
+                return None
             if now >= self._panel_cooldown_until.get(self._panel_kind, 0):
                 if self._passenger_mode() and anchor is not None:
                     print(f"[L1] 蹭车 COOLDOWN 到期但面板仍未消失，转 CLOSING 物理关闭避免遮挡主线")

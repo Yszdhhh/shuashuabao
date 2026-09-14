@@ -86,35 +86,27 @@ class PanelLivenessHarnessTests(unittest.TestCase):
                 self.assertIsNone(med._tick_panel_fsm(frame, None, clock.now()))
                 self.assertIs(med._panel_state, PanelState.CLOSED)
 
-            # The third open attempt is quarantined with a long bounded
-            # cooldown.  It neither clicks nor advances the cycle.
-            before_cycle = med._l1_cycle_step
+            # The third open attempt does not click.  Solo (Owner 2026-09-15):
+            # the cap is a 60s backoff for this panel only -- the cycle moves on
+            # instead of parking the whole main line on it.
             self.assertIs(med._maybe_open_choice_panel(frame), LoopAction.Continue)
-            self.assertIs(med._panel_state, PanelState.COOLDOWN)
-            self.assertEqual(med._panel_kind, "skill")
-            self.assertEqual(med._panel_episode_count["skill"], 2)
+            self.assertIs(med._panel_state, PanelState.CLOSED)
             self.assertGreaterEqual(med._panel_cooldown_until["skill"], clock.now() + 59.0)
-            self.assertEqual(med._l1_cycle_step, before_cycle)
+            self.assertEqual(med._l1_cycle_step, "bond", "skill capped -> next step")
 
-            # During the cooldown the FSM stays in COOLDOWN; no hidden
-            # reopen is possible before it expires.
+            # No hidden reopen of the capped panel before its backoff expires.
+            med._choice_target = "skill"
             clock.advance(1.0)
-            self.assertIs(
-                med._tick_panel_fsm(frame, None, clock.now()),
-                LoopAction.Continue,
-            )
-            self.assertIs(med._panel_state, PanelState.COOLDOWN)
-
-            # Once the cooldown expires the FSM resets to CLOSED and the
-            # panel FSM no longer blocks main-line steps.
-            clock.advance(70.0)
-            self.assertIsNone(
-                med._tick_panel_fsm(frame, None, clock.now()),
-            )
+            self.assertIs(med._maybe_open_choice_panel(frame), LoopAction.Continue)
             self.assertIs(med._panel_state, PanelState.CLOSED)
 
+            # After the backoff the panel is tried again.
+            clock.advance(70.0)
+            self.assertIs(med._maybe_open_choice_panel(frame), LoopAction.Continue)
+            self.assertIs(med._panel_state, PanelState.OPEN_REQUESTED)
+
         reasons = [record.reason for record in probe._records]
-        self.assertEqual(reasons, ["OpenSkillPanel", "OpenSkillPanel"])
+        self.assertEqual(reasons, ["OpenSkillPanel", "OpenSkillPanel", "OpenSkillPanel"])
 
     def test_persistent_natural_anchor_is_not_ignored_after_episode_cap(self) -> None:
         """A still-visible natural panel cannot be bypassed after quarantine."""
