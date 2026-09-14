@@ -889,7 +889,18 @@ class L1RuntimeAccountingTests(unittest.TestCase):
         self.assertEqual(self.med._last_bond_attempt, 0.0)
         self.assertEqual(self.med._last_treasure_attempt, 0.0)
 
-    def test_hide_cooldown_blocks_reopen_without_leaving_skill(self):
+    def test_short_hide_cooldown_blocks_reopen_without_leaving_skill(self):
+        self.med._l1_cycle_step = "skill"
+        self.med._panel_cooldown_until["skill"] = 203.0
+        with patch("shuabao.mediator.time.time", return_value=200.0), \
+                patch.object(self.med, "act_click") as click:
+            result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
+        self.assertIs(result, LoopAction.Continue)
+        click.assert_not_called()
+        self.assertEqual(self.med._l1_cycle_step, "skill")
+
+    def test_long_cooldown_moves_the_cycle_on_without_reopening(self):
+        """Owner 2026-09-15: a long panel cooldown never parks the L1 cycle."""
         self.med._l1_cycle_step = "skill"
         self.med._panel_cooldown_until["skill"] = 250.0
         with patch("shuabao.mediator.time.time", return_value=200.0), \
@@ -897,7 +908,7 @@ class L1RuntimeAccountingTests(unittest.TestCase):
             result = self.med._maybe_open_choice_panel(self.frame, anchor=None)
         self.assertIs(result, LoopAction.Continue)
         click.assert_not_called()
-        self.assertEqual(self.med._l1_cycle_step, "skill")
+        self.assertNotEqual(self.med._l1_cycle_step, "skill")
 
     def test_choice_interval_first_open_immediately_allowed(self):
         # 首次（时间戳 0.0）：立即允许打开并记录成功时间戳。
