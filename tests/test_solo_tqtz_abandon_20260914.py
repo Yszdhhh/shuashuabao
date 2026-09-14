@@ -72,3 +72,16 @@ def test_tqtz_click_lands_on_the_phoenix_icon_not_the_caption() -> None:
     assert targets and targets[0][0] == "ClickTQTZ"
     x, y = targets[0][1]
     assert 444 <= x <= 515 and 6 <= y <= 78, targets
+
+
+def test_tqtz_is_clicked_as_soon_as_the_icon_shows_even_at_six_minutes() -> None:
+    """Owner 2026-09-14：提前挑战开放 10/8/6 分钟不等（时间管理大师 / EX 圣剑），只认图标。"""
+    image = cv2.imdecode(np.fromfile(str(TQTZ), dtype=np.uint8), cv2.IMREAD_COLOR)
+    frame = Frame(image, window_title="英雄三国KK", hwnd=10001, role="l1")
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    med._round_started_at = time.time() - 6 * 60
+    reasons = []
+    with patch.object(med, "act_click", side_effect=lambda hit, reason, *a, **k: reasons.append(reason) or True):
+        med._maybe_click_tqtz(frame, time.time())
+    assert reasons == ["ClickTQTZ"]

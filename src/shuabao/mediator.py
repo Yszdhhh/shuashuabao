@@ -7670,7 +7670,11 @@ class Mediator:
         return LoopAction.Continue
 
     def _maybe_click_tqtz(self, frame: Frame, now: float) -> LoopAction | None:
-        """局内检测到 10 分钟『提前挑战』图标（tqtz.png）时主动点击触发打 Boss。
+        """局内检测到『提前挑战』图标（tqtz.png）时主动点击触发打 Boss。
+
+        开放时间因人而异（Owner 2026-09-14）：常规 10 分钟，UR「时间管理大师」
+        8 分钟，再叠远古神藏 EX「圣剑」6 分钟；前提都是 5-5 已打完。因此这里
+        只认图标出现，绝不按固定时长门控或推断。
 
         点击成功 ≠ 挑战已接受（B1 修复）：点击只挂起 pending，随后必须在
         fresh 帧上确认图标消失（或 Boss 目标面出现）才落定 `_tqtz_clicked`；
@@ -7784,7 +7788,7 @@ class Mediator:
             tqtz_hit.w, tqtz_hit.h, tqtz_hit.screen_x, tqtz_hit.screen_y - lift,
         )
         print(
-            f"[early] tqtz 出现（游戏侧 5-5+10min 条件证据）"
+            f"[early] tqtz 出现（游戏侧 5-5 已过 + 开放时间到，常规10/8/6min）"
             f" takeover_elapsed={takeover_elapsed}s，点击提前挑战图标 @ {icon_hit.center}"
         )
         if self.act_click(icon_hit, "ClickTQTZ"):
@@ -16052,7 +16056,7 @@ class Mediator:
         f1_res = self._maybe_ensure_hero_panel_focus(frame, now)
         if f1_res is not None:
             return f1_res
-        # 局内提前挑战图标扫描（tqtz.png，10分钟打完5-5出现）
+        # 局内提前挑战图标扫描（tqtz.png：5-5 打完后 10/8/6 分钟出现，只认图标）
         tqtz_res = self._maybe_click_tqtz(frame, now)
         if tqtz_res is not None:
             return tqtz_res
