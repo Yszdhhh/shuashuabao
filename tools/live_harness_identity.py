@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-HARNESS_BASE_SHA = "04cc18adbe2c9a83c224b86fed7cfd6e925dd25e"
-FROZEN_PRODUCTION_CODE_BASELINE = "04cc18adbe2c9a83c224b86fed7cfd6e925dd25e"
+HARNESS_BASE_SHA = "7f3f68ec5c4bd48e3e817f8daec99ee9a6162bad"
+FROZEN_PRODUCTION_CODE_BASELINE = "7f3f68ec5c4bd48e3e817f8daec99ee9a6162bad"
 FORBIDDEN_RUNTIME_SHAS = (
     "144c0c9adc366a35548f6e1c2e52fad8387da090",
     "b15da05f4fd7313b02b2cc466e319d9683aa979c",
