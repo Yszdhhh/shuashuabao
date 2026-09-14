@@ -378,6 +378,9 @@ class PolicySettings:
         )
 
 
+_ATTRIBUTE_BOND_NAMES = {"int": "智力", "str": "力量", "agi": "敏捷"}
+
+
 def assemble_policy_settings(
     *,
     settings: Any,
@@ -406,6 +409,14 @@ def assemble_policy_settings(
     bond_presets: list[str] = []
     for item in getattr(settings, "bonds", None) or ():
         text = str(item or "").strip()
+        if text and text not in bond_presets:
+            bond_presets.append(text)
+    # The dashboard's 基础卡组 stores the three attribute lines separately as
+    # wire ids (ui-v2 strategy_codec: int/str/agi).  They are basic bonds too;
+    # left out here they were never picked (live solo 2026-09-14: 0 of 35).
+    for item in getattr(settings, "attributes", None) or ():
+        raw_item = str(item or "").strip()
+        text = _ATTRIBUTE_BOND_NAMES.get(raw_item, raw_item)
         if text and text not in bond_presets:
             bond_presets.append(text)
     card_presets: list[str] = []
