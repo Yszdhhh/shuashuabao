@@ -936,6 +936,11 @@ class Mediator:
         # 面板消失后由既有 MAIN_LINE/胜利链继续收敛。
         self._archive_challenge_index: int = 0
         self._archive_challenge_next_at: float = 0.0
+        # Sweep bookkeeping (owner 2026-09-14): cards clicked in the 1->8
+        # sweep, and those already re-checked by the single verify pass.
+        self._archive_challenge_clicked: set[int] = set()
+        self._archive_challenge_verified: set[int] = set()
+        self._archive_verify_started: bool = False
         self._archive_challenge_observe_attempts: int = 0
         self._archive_challenge_click_attempts: int = 0
         # 同一张卡点了几次却还没出现绿色「已挑战」。
@@ -5947,7 +5952,7 @@ class Mediator:
         - 'COMPLETED': 明确解析为 8/8（已满）
         - 'UNKNOWN': 无法可信解析；UNKNOWN 绝不授权判定为不可挑战（Fail-Open 允许尝试或零输入等待）
         """
-        if frame.bgr is None or card_index not in {2, 3}:
+        if frame.bgr is None or card_index not in {2, 3, 4, 6}:
             return "AVAILABLE"
         col, row = card_index % 4, card_index // 4
         cx = int(frame.width * self._ARCHIVE_CHALLENGE_X[col])
@@ -5979,7 +5984,8 @@ class Mediator:
                 text = (getattr(resp, "raw_text", "") or "").strip()
                 score = float(getattr(resp, "rec_score", 0.0) or 0.0)
                 import re
-                m = re.search(r"(\d+)\s*/\s*(\d+)", text)
+                # OCR often reads the slash as "1" or "|" ("018", "0|8").
+                m = re.search(r"(\d+)\s*/\s*(\d+)", text) or re.fullmatch(r"(\d)[1|](8)", text.replace(" ", ""))
                 if status == "ok" and m and score >= 0.75:
                     num, den = int(m.group(1)), int(m.group(2))
                     if den == 8:
@@ -6010,67 +6016,102 @@ class Mediator:
         """
         return tuple((label, index) for index, label in enumerate(self._ARCHIVE_CHALLENGE_NAMES))
 
+    # Pause after the sweep so the last clicks can render their green mark
+    # before the verify pass re-reads them.
+    _ARCHIVE_VERIFY_SETTLE_S = 1.0
+
+    def _archive_card_skip_reason(self, frame: Frame, card_index: int) -> str | None:
+        """Never click a card that shows 已挑战 or a 0/8 counter."""
+        if self._archive_challenge_completed(frame, card_index):
+            return "已挑战"
+        if self._archive_hitch_card_unavailable(frame, card_index):
+            return "0/8 次数已用完"
+        return None
+
     def _maybe_click_archive_challenge(self, frame: Frame, now: float) -> LoopAction | None:
-        """Try each visible archive challenge card once on the classified page."""
+        """Sweep the eight archive cards once, then one verify pass.
+
+        Owner rule (2026-09-14): speed comes from clicking 1 -> 8 in one go,
+        not from re-clicking one card until it turns green.
+          * sweep: left to right, skip 已挑战 / 0/8, click every other card
+            exactly once and move on without waiting for its green mark;
+          * verify: re-read only the cards clicked in the sweep; one that is
+            neither 已挑战 nor 0/8 gets at most one more click.
+        No card is clicked more than twice; 已挑战 / 0/8 cards never.
+        """
         recheck_s = self._post_game_action_recheck(self._ARCHIVE_CHALLENGE_RECHECK_S)
-        index = int(getattr(self, "_archive_challenge_index", 0) or 0)
         plan = self._archive_challenge_plan()
-        if index >= len(plan):
+        index = int(getattr(self, "_archive_challenge_index", 0) or 0)
+        clicked = self._archive_challenge_clicked
+        verified = self._archive_challenge_verified
+        verify_queue = [
+            (label, card_index) for label, card_index in plan
+            if card_index in clicked and card_index not in verified
+        ]
+        if index >= len(plan) and not verify_queue:
             return None
         if now < getattr(self, "_archive_challenge_next_at", 0.0):
             return LoopAction.Continue
-        while index < len(plan) and self._archive_challenge_completed(frame, plan[index][1]):
-            # 绿色「已挑战」是最强的完成证据，两种模式都据此推进。
-            print(f"[med] 存档挑战 {plan[index][0]} 已显示「已挑战」，转下一张卡")
-            index += 1
-            self._archive_challenge_confirm_attempts = 0
-        self._archive_challenge_index = index
-        if index >= len(plan):
-            print("[med] 存档挑战计划已完成，关闭面板并转传家宝")
-            return None
-        label, card_index = plan[index]
-        # OCR 进度既不授权点击、也不授权跳过。逐卡走 sidecar 会把结算
-        # 热路径拉慢；绿色「已挑战」是唯一的完成证据。
-        hit = self._find_archive_challenge_card(frame, card_index)
-        if hit is None:
-            self._archive_challenge_observe_attempts += 1
-            if self._archive_challenge_observe_attempts >= 5:
-                print(f"[med] 存档挑战卡位 {card_index + 1}/8 连续 5 次无卡面证据，跳过并继续")
-                self._archive_challenge_index = index + 1
-                self._archive_challenge_observe_attempts = 0
+
+        if index < len(plan):
+            while index < len(plan):
+                reason = self._archive_card_skip_reason(frame, plan[index][1])
+                if reason is None:
+                    break
+                print(f"[med] 存档挑战 {plan[index][0]} {reason}，不点击，转下一张")
+                index += 1
+            self._archive_challenge_index = index
+            if index < len(plan):
+                label, card_index = plan[index]
+                hit = self._find_archive_challenge_card(frame, card_index)
+                if hit is None:
+                    self._archive_challenge_observe_attempts += 1
+                    if self._archive_challenge_observe_attempts >= 5:
+                        print(f"[med] 存档挑战卡位 {card_index + 1}/8 连续 5 次无卡面证据，跳过并继续")
+                        self._archive_challenge_index = index + 1
+                        self._archive_challenge_observe_attempts = 0
+                        return LoopAction.Continue
+                    self._archive_challenge_next_at = now + recheck_s
+                    print(f"[med] 存档挑战卡位 {card_index + 1}/8 无有效卡面证据，零输入复核 ({self._archive_challenge_observe_attempts}/5)")
+                    return LoopAction.Continue
+                print(f"[med] 存档挑战扫卡 {index + 1}/{len(plan)}：点击 {label} @ {hit.center}（每张只点一次）")
+                if self.act_click(hit, f"ArchiveChallenge-{label}"):
+                    clicked.add(card_index)
+                    self._archive_challenge_index = index + 1
+                    self._archive_challenge_observe_attempts = 0
+                    self._archive_challenge_click_attempts = 0
+                    self._post_game_route = "archive_active"
+                else:
+                    # An input-layer refusal is not a game answer: bounded retry.
+                    self._archive_challenge_click_attempts = getattr(self, "_archive_challenge_click_attempts", 0) + 1
+                    if self._archive_challenge_click_attempts >= 3:
+                        print(f"[med] 存档挑战 {label} 点击被拒达 3 次，跳过并转下一张卡")
+                        self._archive_challenge_index = index + 1
+                        self._archive_challenge_click_attempts = 0
+                        self._archive_challenge_observe_attempts = 0
+                    else:
+                        print(f"[med] 存档挑战 {label} 点击被拒，冷却后重试 ({self._archive_challenge_click_attempts}/3)")
+                self._archive_challenge_next_at = now + recheck_s
                 return LoopAction.Continue
+            if verify_queue and not self._archive_verify_started:
+                self._archive_verify_started = True
+                self._archive_challenge_next_at = now + self._ARCHIVE_VERIFY_SETTLE_S
+                print(f"[med] 存档挑战 1-8 已扫完（点击 {len(clicked)} 张），{self._ARCHIVE_VERIFY_SETTLE_S:.0f}s 后复查一轮")
+                return LoopAction.Continue
+
+        for label, card_index in verify_queue:
+            verified.add(card_index)
+            if self._archive_card_skip_reason(frame, card_index) is not None:
+                continue
+            hit = self._find_archive_challenge_card(frame, card_index)
+            if hit is None:
+                continue
+            print(f"[med] 存档挑战复查：{label} 未变绿也非 0/8，补点一次 @ {hit.center}")
+            self.act_click(hit, f"ArchiveChallenge-{label}-verify")
             self._archive_challenge_next_at = now + recheck_s
-            print(f"[med] 存档挑战卡位 {card_index + 1}/8 无有效卡面证据，零输入复核 ({self._archive_challenge_observe_attempts}/5)")
             return LoopAction.Continue
-        print(
-            f"[med] 存档挑战 {index + 1}/{len(plan)}：点击 {label} @ {hit.center}"
-            "（绿色已挑战为唯一完成证据）"
-        )
-        clicked = self.act_click(hit, f"ArchiveChallenge-{label}")
-        self._archive_challenge_next_at = now + recheck_s
-        if clicked:
-            # 不盲目推进：下一 tick 由页首的绿色「已挑战」检测确认这一张真的
-            # 打上了，确认不了就在有界次数内重点同一张。
-            self._archive_challenge_observe_attempts = 0
-            self._archive_challenge_click_attempts = 0
-            self._archive_challenge_confirm_attempts = (
-                getattr(self, "_archive_challenge_confirm_attempts", 0) + 1
-            )
-            if self._archive_challenge_confirm_attempts >= 3:
-                print(f"[med] 存档挑战 {label} 点击 3 次仍未出现「已挑战」，跳过并转下一张卡")
-                self._archive_challenge_index = index + 1
-                self._archive_challenge_confirm_attempts = 0
-            self._post_game_route = "archive_active"
-        else:
-            self._archive_challenge_click_attempts = getattr(self, "_archive_challenge_click_attempts", 0) + 1
-            if self._archive_challenge_click_attempts >= 3:
-                print(f"[med] 存档挑战 {label} 点击被拒达 3 次，跳过并转下一张卡")
-                self._archive_challenge_index = index + 1
-                self._archive_challenge_click_attempts = 0
-                self._archive_challenge_observe_attempts = 0
-            else:
-                print(f"[med] 存档挑战 {label} 点击被拒，冷却后重试 ({self._archive_challenge_click_attempts}/3)")
-        return LoopAction.Continue
+        print("[med] 存档挑战扫卡与复查完成")
+        return None
 
     def _post_game_boss_scroll_point(self, frame: Frame, post_game: str | None) -> tuple[int, int] | None:
         """Return a point inside a classified Boss list, if one is known."""
@@ -8890,6 +8931,9 @@ class Mediator:
             self._post_game_route = "secret"
             self._time_cave_boss_done = False
             self._archive_challenge_index = 0
+            self._archive_challenge_clicked = set()
+            self._archive_challenge_verified = set()
+            self._archive_verify_started = False
             self._archive_challenge_observe_attempts = 0
             self._archive_challenge_click_attempts = 0
             self._archive_challenge_confirm_attempts = 0
@@ -15024,6 +15068,9 @@ class Mediator:
             if route == "heirloom_active":
                 # 下一次胜利重新从存档挑战 1/8 开始；本轮游标仍保留在 trace。
                 self._archive_challenge_index = 0
+                self._archive_challenge_clicked = set()
+                self._archive_challenge_verified = set()
+                self._archive_verify_started = False
                 self._archive_challenge_next_at = 0.0
             return LoopAction.Continue
         if not challenge_hud:
