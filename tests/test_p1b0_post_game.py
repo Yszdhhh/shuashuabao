@@ -396,8 +396,8 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual([label for label, _ in plan], list(med._ARCHIVE_CHALLENGE_NAMES))
         self.assertEqual([index for _, index in plan], list(range(8)))
 
-    def test_unconfirmed_card_is_reclicked_then_skipped_after_three_tries(self):
-        """点了没出现「已挑战」就在有界次数内重点同一张，不静默跳过。"""
+    def test_unconfirmed_card_is_clicked_once_and_the_sweep_moves_on(self):
+        """Owner 2026-09-14：点了没立刻变绿也立即转下一张，绝不在原地重点同一张。"""
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
         card = MatchResult("archive_challenge_skill", 0.9, 600, 300, 40, 40, 620, 320)
@@ -405,12 +405,9 @@ class P1B0PostGameTests(unittest.TestCase):
                 patch.object(med, "_archive_hitch_card_progress_state", return_value="AVAILABLE"), \
                 patch.object(med, "_find_archive_challenge_card", return_value=card), \
                 patch.object(med, "act_click", return_value=True) as click:
-            now = 1.0
-            for _ in range(3):
-                med._maybe_click_archive_challenge(frame, now)
-                now = med._archive_challenge_next_at + 0.1
-        self.assertEqual(click.call_count, 3)
-        self.assertEqual(med._archive_challenge_index, 1, "三次未确认后才允许跳到下一张")
+            med._maybe_click_archive_challenge(frame, 1.0)
+        self.assertEqual(click.call_count, 1)
+        self.assertEqual(med._archive_challenge_index, 1, "点一次就转下一张")
 
     def test_hitch_archive_unknown_is_bounded_and_skips_without_click(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)

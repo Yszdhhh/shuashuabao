@@ -5944,7 +5944,7 @@ class Mediator:
         return int(np.count_nonzero(green)) >= 100
 
     def _archive_hitch_card_progress_state(self, frame: Frame, card_index: int) -> str:
-        """C6 修复：解析存档挑战进度状态，彻底废除单纯以红像素 >= 60 作为业务 authority。
+        """解析存档挑战进度状态。
 
         状态取值：
         - 'UNAVAILABLE': 明确解析为 0/8（资源不足无法挑战）
@@ -5957,47 +5957,54 @@ class Mediator:
         col, row = card_index % 4, card_index // 4
         cx = int(frame.width * self._ARCHIVE_CHALLENGE_X[col])
         cy = int(frame.height * self._ARCHIVE_CHALLENGE_Y[row])
-        counter = frame.bgr[
-            max(0, cy - int(frame.height * 0.078)):max(0, cy - int(frame.height * 0.039)),
-            min(frame.width, cx + int(frame.width * 0.002)):min(frame.width, cx + int(frame.width * 0.027)),
-        ]
+        x0 = min(frame.width, cx + int(frame.width * 0.002))
+        y0 = max(0, cy - int(frame.height * 0.078))
+        x1 = min(frame.width, cx + int(frame.width * 0.027))
+        y1 = max(0, cy - int(frame.height * 0.039))
+        counter = frame.bgr[y0:y1, x0:x1]
         if counter.size == 0:
             return "UNKNOWN"
 
-        # 优先使用 OCR client（若启用且可用）解析 typed counter ROI。
-        # C6 收紧：UNAVAILABLE 只有在 OCR 响应 status=="ok" 且可信
-        # （rec_score >= 0.75）明确解析出分母 == 8 且分子 == 0 时才成立；
-        # status 异常/低置信度或非 8 分母（如 0/3）绝不授权 UNAVAILABLE。
+        # 红色像素检测（当次数为 0 时，数字 0 呈现红色警告色；可用次数为白色或绿色）
+        b, g, r = cv2.split(counter)
+        red_pixels = int(np.count_nonzero((r > 150) & (g < 100) & (b < 100)))
+
+        # 优先使用 OCR client 解析 counter ROI
         ocr_client = getattr(self, "_ocr_client", None)
         if ocr_client and getattr(ocr_client, "is_available", False):
             try:
-                x0 = min(frame.width, cx + int(frame.width * 0.002))
-                y0 = max(0, cy - int(frame.height * 0.078))
-                x1 = min(frame.width, cx + int(frame.width * 0.027))
-                y1 = max(0, cy - int(frame.height * 0.039))
                 resp = ocr_client.shadow_predict(
                     frame,
                     "archive_counter",
-                    {"index": card_index, "bbox": (x0, y0, x1, y1), "kind": "counter"}
+                    {"index": card_index, "bbox": (x0, y0, x1, y1), "kind": "counter"},
                 )
                 status = str(getattr(resp, "status", "") or "").lower()
                 text = (getattr(resp, "raw_text", "") or "").strip()
                 score = float(getattr(resp, "rec_score", 0.0) or 0.0)
-                import re
-                # OCR often reads the slash as "1" or "|" ("018", "0|8").
-                m = re.search(r"(\d+)\s*/\s*(\d+)", text) or re.fullmatch(r"(\d)[1|](8)", text.replace(" ", ""))
-                if status == "ok" and m and score >= 0.75:
-                    num, den = int(m.group(1)), int(m.group(2))
-                    if den == 8:
-                        if num == 0:
-                            return "UNAVAILABLE"
-                        if num >= den:
-                            return "COMPLETED"
+                if status == "ok" and score >= 0.75:
+                    import re
+                    # 1. 结构化正则匹配带有标点者：如 "0/8", "0|8", "0-8"
+                    m_slash = re.search(r"(\d+)\s*[/|\\-]\s*(\d+)", text)
+                    if m_slash:
+                        num, den = int(m_slash.group(1)), int(m_slash.group(2))
+                        if den == 8:
+                            if num == 0:
+                                return "UNAVAILABLE"
+                            if num >= den:
+                                return "COMPLETED"
+                            return "AVAILABLE"
+                    # 2. 识别为 "018"（0 + 斜杠识别为1 + 8）
+                    if text == "018" or re.fullmatch(r"01?8", text):
+                        return "UNAVAILABLE"
+                    # 3. 识别为 "18" 或包含 "8" 且伴随明显红色 0 像素证据（red_pixels >= 40）
+                    if red_pixels >= 40 and ("8" in text or text.endswith("8")):
+                        return "UNAVAILABLE"
+                    # 4. 正常解析 1/8..7/8
+                    m_num = re.search(r"^([1-7])1?8$", text)
+                    if m_num:
                         return "AVAILABLE"
             except Exception:
                 pass
-        # OCR 离线/低置信度/非 8 分母：绿色像素只能作为辅助证据，绝不单独授权
-        # AVAILABLE；未取得可信 OCR 结构化证据时统一 UNKNOWN（零输入等待）。
         return "UNKNOWN"
 
     def _archive_hitch_card_unavailable(self, frame: Frame, card_index: int) -> bool:
@@ -6005,15 +6012,40 @@ class Mediator:
         state = self._archive_hitch_card_progress_state(frame, card_index)
         return state == "UNAVAILABLE"
 
-    def _archive_challenge_plan(self) -> tuple[tuple[str, int], ...]:
-        """All eight cards, left to right, in both solo and team modes.
+    def _archive_challenge_insufficient_notice(self, frame: Frame) -> bool:
+        """第二证据：检测是否弹出「今日挑战次数不足」或类似提示。"""
+        if frame.bgr is None or frame.bgr.size == 0:
+            return False
+        # Toast 区域位于屏幕居中偏下 (730, 540, 880, 590)
+        x0, y0 = int(frame.width * 0.456), int(frame.height * 0.600)
+        x1, y1 = int(frame.width * 0.550), int(frame.height * 0.656)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return False
+        # 快速颜色筛选：Toast 文本包含明亮金黄色/白色字符
+        b, g, r = cv2.split(crop)
+        bright = (r > 180) & (g > 160) & (b < 180)
+        if np.count_nonzero(bright) < 15:
+            return False
+        ocr_client = getattr(self, "_ocr_client", None)
+        if ocr_client and getattr(ocr_client, "is_available", False):
+            try:
+                resp = ocr_client.shadow_predict(
+                    frame,
+                    "archive_toast",
+                    {"bbox": (x0, y0, x1, y1), "kind": "toast"},
+                )
+                text = (getattr(resp, "raw_text", "") or "").strip()
+                score = float(getattr(resp, "rec_score", 0.0) or 0.0)
+                if score >= 0.60 and any(k in text for k in ("今日", "次数不足", "不足", "无法")):
+                    return True
+            except Exception:
+                pass
+        # 像素兜底：若有强黄色字符像素群（>= 60）
+        return bool(np.count_nonzero(bright) >= 60)
 
-        The old team plan covered four slots (gem/loot/key/blessing); the
-        20260910 run therefore left 技能/强化/重铸/技能挑战2 untouched, and the
-        OCR progress gate skipped gem/loot on top of that — two clicks out of
-        eight.  Owner ruling: click every card once; a card that is genuinely
-        unavailable costs one wasted click and nothing else.
-        """
+    def _archive_challenge_plan(self) -> tuple[tuple[str, int], ...]:
+        """All eight cards, left to right, in both solo and team modes."""
         return tuple((label, index) for index, label in enumerate(self._ARCHIVE_CHALLENGE_NAMES))
 
     # Pause after the sweep so the last clicks can render their green mark
@@ -6113,6 +6145,23 @@ class Mediator:
         print("[med] 存档挑战扫卡与复查完成")
         return None
 
+    @property
+    def _post_game_boss_scroll_step(self) -> int:
+        """Configurable scroll step (clicks) for post-game boss list."""
+        return int(getattr(self.settings, "post_game_boss_scroll_clicks", self._POST_GAME_BOSS_SCROLL_CLICKS) or self._POST_GAME_BOSS_SCROLL_CLICKS)
+
+    def _post_game_boss_grid_fingerprint(self, frame: Frame, post_game: str | None) -> str | None:
+        """Compute visual fingerprint of the post-game boss grid area."""
+        roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
+        if frame.bgr is None or frame.bgr.size == 0 or roi is None:
+            return None
+        x0, y0, x1, y1 = self._normalized_bbox(frame, roi)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        from shuabao.interaction_surface import compute_frame_roi_fingerprint
+        return compute_frame_roi_fingerprint(crop)
+
     def _post_game_boss_scroll_point(self, frame: Frame, post_game: str | None) -> tuple[int, int] | None:
         """Return a point inside a classified Boss list, if one is known."""
         roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
@@ -6145,17 +6194,34 @@ class Mediator:
         return (
             not has_bright_comp
             and 15.0 <= mean_val < 60.0
-            and 5.0 <= std_val < 25.0
+            and std_val < 25.0
         )
 
     def _post_game_boss_list_at_bottom(self, frame: Frame, post_game: str | None) -> bool:
-        """Require two bottom-thumb observations before selecting a fallback.
+        """Require bottom confirmation before selecting a fallback.
 
-        If list has no scrollbar, both at_top and at_bottom hold (requires 2 stable frames).
+        通用证据：若发生过向下滚动，且滚动后网格指纹未发生变化，证明已到底（停止空滚）。
+        若无滚动条（fits on 1 screen），需要双帧稳定。
         """
         scrollbar_roi = self._POST_GAME_BOSS_SCROLLBAR_ROIS.get(post_game or "")
         if frame.bgr is None or frame.bgr.size == 0 or scrollbar_roi is None:
             return False
+
+        # 通用证据：滚动后网格指纹不变 = 到底
+        last_fp = getattr(self, "_boss_challenge_scroll_grid_fp", None)
+        curr_fp = self._post_game_boss_grid_fingerprint(frame, post_game)
+        if (
+            getattr(self, "_boss_challenge_scroll_attempts", 0) > 0
+            and last_fp is not None
+            and curr_fp is not None
+            and last_fp == curr_fp
+        ):
+            print(f"[med] post-game {post_game} 滚动后网格指纹未变化（{curr_fp}），通用证据确认到底")
+            self._boss_challenge_scroll_stable_frames = (
+                int(getattr(self, "_boss_challenge_scroll_stable_frames", 0) or 0) + 1
+            )
+            return True
+
         if self._post_game_boss_has_no_scrollbar(frame, post_game):
             self._boss_challenge_scroll_stable_frames = (
                 int(getattr(self, "_boss_challenge_scroll_stable_frames", 0) or 0) + 1
@@ -7217,7 +7283,8 @@ class Mediator:
                 self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
                 x, y = scroll_point
                 print(f"[med] {decision.reason}，向下滚动挑战列表 ({log_limit})")
-                if self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, scroll_tag):
+                self._boss_challenge_scroll_grid_fp = self._post_game_boss_grid_fingerprint(frame, post_game)
+                if self.act_scroll(x, y, self._post_game_boss_scroll_step, scroll_tag):
                     if is_bottom_fallback:
                         self._boss_challenge_bottom_scroll_attempts = next_attempt
                     else:
@@ -7236,7 +7303,7 @@ class Mediator:
                     f"[med] {decision.reason}，"
                     f"向上滚动挑战列表 ({next_attempt}/{self._POST_GAME_BOSS_SCROLL_LIMIT})"
                 )
-                if self.act_scroll(x, y, abs(self._POST_GAME_BOSS_SCROLL_CLICKS), "BossConfigured-scroll-up"):
+                if self.act_scroll(x, y, abs(self._post_game_boss_scroll_step), "BossConfigured-scroll-up"):
                     self._boss_challenge_scroll_attempts = next_attempt
                     self._boss_challenge_unresolved_attempts = 0
                 return LoopAction.Continue
@@ -14308,7 +14375,10 @@ class Mediator:
             if self.act_click(close_hit, "HitchPanelFailClosed"):
                 self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
                 kind = self._panel_kind or "skill"
-                self._panel_state = PanelState.COOLDOWN
+                self._stage_panel_choice_action("close", (kind, close_hit.name))
+                self._panel_state = PanelState.WAIT_MUTATION
+                self._panel_mutation_baseline = self._panel_roi_region(frame)
+                self._panel_last_input_at = now
                 self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                 self._panel_opened_by_us = None
             return True
@@ -14337,13 +14407,20 @@ class Mediator:
                         f"panel_episode_timeout: kind={self._panel_kind} "
                         f"ep_id={self._panel_episode_id} duration={episode_duration:.2f}s"
                     )
-                    self._panel_state = PanelState.COOLDOWN
                     kind = self._panel_kind or "unknown"
                     if kind in ("skill", "bond", "treasure"):
                         self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
-                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                     self._panel_opened_by_us = None
                     self._skill_refresh_attempts = 0
+                    self._panel_episode_started = None
+                    if self._passenger_mode() and anchor is not None:
+                        print(f"[L1] 蹭车面板超时脱困但画面仍有锚点，转 CLOSING 物理隐藏面板避免遮挡主线")
+                        self._panel_state = PanelState.CLOSING
+                        self._panel_closing_attempts = 0
+                        self._panel_closing_started_at = now
+                        return LoopAction.Continue
+                    self._panel_state = PanelState.COOLDOWN
+                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                     return LoopAction.Continue
 
         if st == PanelState.CLOSED:
@@ -14360,15 +14437,18 @@ class Mediator:
                 >= self.settings.panel_episode_limit_per_kind
             ):
                 # 遮挡面板达到 episode 上限：不再用 float("inf") 永久冻结。
-                # 非蹭车：60s 长冷却后归位；蹭车：直接结束面板会话，
-                # 把控制权交还压力转移/自动任务/黑商等主线步骤。
+                # 蹭车模式：放弃选择面板时必须点"暂时隐藏"并以面板消失为后置条件，绝不能直接 finish 放行主线遮挡画面；
+                # 非蹭车模式：60s 长冷却后归位。
                 self._panel_kind = kind
                 self._panel_opened_by_us = None
                 self._skill_refresh_attempts = 0
                 if self._passenger_mode():
-                    print(f"[L1] 蹭车 {kind} natural episode 上限已达，结束面板会话并放行主线")
-                    self._finish_panel_episode()
-                    return None
+                    print(f"[L1] 蹭车 {kind} episode 上限已达 ({self._panel_episode_count.get(kind, 0)} >= {self.settings.panel_episode_limit_per_kind})，"
+                          f"转 CLOSING 物理隐藏面板避免遮挡主线")
+                    self._panel_state = PanelState.CLOSING
+                    self._panel_closing_attempts = 0
+                    self._panel_closing_started_at = now
+                    return LoopAction.Continue
                 self._panel_state = PanelState.COOLDOWN
                 self._panel_cooldown_until[kind] = now + 60.0
                 print(f"[L1] {kind} natural episode 上限已达，进入 60s 冷却（本局不再重入）")
@@ -14605,6 +14685,14 @@ class Mediator:
                 self._commit_pending_bond_cards()
                 self._finish_panel_episode()
                 return LoopAction.Continue
+            if self._panel_pending_choice_action == "close":
+                # 关闭动作必须以面板完全消失（anchor is None）为后置条件，不能仅因画面扰动就重返 ACTIVE
+                if now - self._panel_last_input_at >= self._panel_confirm_window:
+                    print("[L1] 关闭动作确认窗超时，面板仍未消失，转 CLOSING 重试物理关闭")
+                    self._panel_state = PanelState.CLOSING
+                    self._panel_closing_attempts = 0
+                    self._panel_closing_started_at = now
+                return LoopAction.Continue
             if self._panel_mutation_confirmed(frame):
                 # 内容变化（新候选/选卡消费/关闭过渡）后才确认成功。
                 self._panel_confirmed_actions += 1
@@ -14663,6 +14751,12 @@ class Mediator:
 
         if st == PanelState.COOLDOWN:
             if now >= self._panel_cooldown_until.get(self._panel_kind, 0):
+                if self._passenger_mode() and anchor is not None:
+                    print(f"[L1] 蹭车 COOLDOWN 到期但面板仍未消失，转 CLOSING 物理关闭避免遮挡主线")
+                    self._panel_state = PanelState.CLOSING
+                    self._panel_closing_attempts = 0
+                    self._panel_closing_started_at = now
+                    return LoopAction.Continue
                 self._finish_panel_episode()
                 return None  # 落到无面板链
             return LoopAction.Continue
@@ -15188,6 +15282,8 @@ class Mediator:
             self._victory_continue_attempts += 1
             print(f"[med] 胜利结算 点击继续游戏 @ {hit.center} (尝试 {self._victory_continue_attempts}/3)")
             if self.act_click(hit, "ContinueGame"):
+                if self._panel_state != PanelState.CLOSED:
+                    self._finish_panel_episode()
                 route_before_continue = getattr(self, "_post_game_route", "archive")
                 self._post_game_pending = True
                 # A real Boss challenge owns the post-victory transition. Do
@@ -15674,6 +15770,9 @@ class Mediator:
             if res is not None:
                 self._main_line_since = now
                 return res
+            if self._passenger_mode() and anchor is not None:
+                # 蹭车模式：面板未消失严禁穿透到主线 HUD 动作（防止面板遮挡结算/继续游戏）
+                return LoopAction.Continue
         elif surface == InteractionSurface.MERCHANT:
             merchant_res = self._maybe_black_merchant(frame)
             if merchant_res is not None:
