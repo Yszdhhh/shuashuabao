@@ -1232,6 +1232,10 @@ class Mediator:
                 startup_timeout_ms=30000,
                 trace_path=(Path(incident_dir) / "ocr_shadow.jsonl") if incident_dir else None,
             )
+        self._main_line_ocr_next_at: float = 0.0
+        self._close_main_line_triggered: bool = False
+        self._main_line_closed_done: bool = False
+
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -7856,12 +7860,57 @@ class Mediator:
             self._pause_resume_next_at = now + 1.0
         return LoopAction.Continue
 
+    _MAIN_LINE_TASKBAR_ROI = (1410 / 1600, 295 / 900, 1585 / 1600, 335 / 900)
+    _MAIN_LINE_STAGE_RE = re.compile(r"主线\s*(\d+)\s*[-一—]\s*(\d+)")
+
+    def _read_main_line_stage(self, frame: Frame, now: float) -> tuple[int, int] | None:
+        """从右上角任务栏 OCR 识别当前主线 (章, 节)。
+
+        局内最多每 10s OCR 一次（复用现有 OCR worker，禁止新进程）。
+        """
+        if now < getattr(self, "_main_line_ocr_next_at", 0.0):
+            return None
+        self._main_line_ocr_next_at = now + 10.0
+
+        client = getattr(self, "_ocr_client", None)
+        if client is None or bool(getattr(client, "disabled", False)):
+            return None
+
+        bbox = self._normalized_bbox(frame, self._MAIN_LINE_TASKBAR_ROI)
+        try:
+            resp = client.shadow_predict(
+                frame,
+                "main_line_taskbar",
+                {"index": 0, "bbox": bbox, "kind": "main_line"},
+            )
+        except Exception:
+            return None
+
+        if not resp or str(getattr(resp, "status", "ok")) != "ok":
+            return None
+
+        raw_text = str(resp.raw_text or "")
+        match = self._MAIN_LINE_STAGE_RE.search(raw_text)
+        if match:
+            try:
+                return (int(match.group(1)), int(match.group(2)))
+            except (ValueError, TypeError):
+                pass
+        if "已完成当前难度全部主线" in raw_text or "全部主线" in raw_text:
+            return (6, 1)
+        return None
+
     def _maybe_close_main_line_after_5_5(self, frame: Frame, now: float) -> LoopAction | None:
         """打完 5-5 后取消右侧『自动任务』勾选，避免挑战 5-10 主线 Boss 翻车。"""
         if not getattr(self.settings, "auto_close_main_line", False) and not getattr(self.settings, "early_challenge", False):
             return None
         if not getattr(self, "_close_main_line_triggered", False):
-            return None
+            stage = self._read_main_line_stage(frame, now)
+            if stage is not None and stage > (5, 5):
+                print(f"[med] 任务栏识别主线进度为 {stage[0]}-{stage[1]}（>(5,5)），触发取消【自动任务】")
+                self._close_main_line_triggered = True
+            else:
+                return None
         if getattr(self, "_main_line_closed_done", False):
             return None
         state, hit = self._auto_task_state(frame)
@@ -7876,6 +7925,7 @@ class Mediator:
                 self._main_line_since = now
                 return LoopAction.Continue
         return None
+
 
     def _maybe_clear_pressure_monsters(self, frame: Frame, now: float) -> LoopAction | None:
         """周期性触发 F4 清除挑怪（压力转移）。"""
@@ -9031,6 +9081,7 @@ class Mediator:
             self._pause_resume_next_at = 0.0
             self._close_main_line_triggered = False
             self._main_line_closed_done = False
+            self._main_line_ocr_next_at = 0.0
             self._challenge_recheck_at.clear()
             # Per-round panel caps.  Hitch rounds never pass STAGE_SELECT,
             # where these used to reset, so round 2 inherited a capped V.
