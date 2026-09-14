@@ -54,3 +54,21 @@ def test_abandoned_tqtz_lets_5_5_auto_task_close_run_on_real_frame() -> None:
             if "DisableAutoTask" in clicks:
                 break
     assert "DisableAutoTask" in clicks, clicks
+
+
+TQTZ = ROOT / "tests" / "fixtures" / "solo_live_20260914" / "tqtz_button_visible_f0511.png"
+
+
+def test_tqtz_click_lands_on_the_phoenix_icon_not_the_caption() -> None:
+    """实机 f0511：模板是「提前挑战」字样 (480,90)，按钮是上方图标 (444..515, 6..78)。"""
+    image = cv2.imdecode(np.fromfile(str(TQTZ), dtype=np.uint8), cv2.IMREAD_COLOR)
+    frame = Frame(image, window_title="英雄三国KK", hwnd=10001, role="l1")
+    med = Mediator(Settings(ocr_mode="off"), ROOT)
+    med.set_phase(Phase.MAIN_LINE)
+    med._round_started_at = time.time() - 600
+    targets = []
+    with patch.object(med, "act_click", side_effect=lambda hit, reason, *a, **k: targets.append((reason, hit.center)) or True):
+        med._maybe_click_tqtz(frame, time.time())
+    assert targets and targets[0][0] == "ClickTQTZ"
+    x, y = targets[0][1]
+    assert 444 <= x <= 515 and 6 <= y <= 78, targets

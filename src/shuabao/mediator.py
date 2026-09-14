@@ -7536,6 +7536,9 @@ class Mediator:
         self._hero_focus_last_frame_id = None
         self._hero_focus_next_check_at = now + 1.5
         return LoopAction.Continue
+    # Icon centre sits 48px above the caption centre at 900px height.
+    _TQTZ_ICON_LIFT = 48 / 900
+
     def _maybe_click_tqtz(self, frame: Frame, now: float) -> LoopAction | None:
         """局内检测到 10 分钟『提前挑战』图标（tqtz.png）时主动点击触发打 Boss。
 
@@ -7641,11 +7644,20 @@ class Mediator:
             if self._round_started_at is not None
             else None
         )
+        # The template is the 提前挑战 caption; the clickable button is the
+        # phoenix icon right above it (live 2026-09-14 f0511: caption centre
+        # (480,90), icon centre (479,42) at 1600x900).  Three clicks on the
+        # caption never triggered the challenge.
+        lift = int(round(frame.height * self._TQTZ_ICON_LIFT))
+        icon_hit = MatchResult(
+            "tqtz_icon", tqtz_hit.score, tqtz_hit.x, max(0, tqtz_hit.y - lift),
+            tqtz_hit.w, tqtz_hit.h, tqtz_hit.screen_x, tqtz_hit.screen_y - lift,
+        )
         print(
             f"[early] tqtz 出现（游戏侧 5-5+10min 条件证据）"
-            f" takeover_elapsed={takeover_elapsed}s @ {tqtz_hit.center}，点击提前挑战"
+            f" takeover_elapsed={takeover_elapsed}s，点击提前挑战图标 @ {icon_hit.center}"
         )
-        if self.act_click(tqtz_hit, "ClickTQTZ"):
+        if self.act_click(icon_hit, "ClickTQTZ"):
             self._tqtz_attempts = getattr(self, "_tqtz_attempts", 0) + 1
             self._tqtz_pending = True
             self._tqtz_pending_since = now
