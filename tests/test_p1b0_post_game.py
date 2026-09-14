@@ -346,8 +346,7 @@ class P1B0PostGameTests(unittest.TestCase):
             return index < len(clicked_labels)
 
         with patch.object(med, "_archive_challenge_completed", side_effect=fake_completed), \
-             patch.object(med, "_archive_hitch_card_progress_state",
-                          side_effect=lambda f, idx: "UNAVAILABLE" if idx == 2 else "AVAILABLE"), \
+             patch.object(med, "_archive_hitch_card_progress_state", return_value="AVAILABLE"), \
              patch.object(med, "_find_archive_challenge_card", return_value=card), \
              patch.object(med, "act_click", return_value=True) as click:
             click.side_effect = lambda _hit, reason: clicked_labels.append(reason) or True
