@@ -4803,6 +4803,7 @@ class Mediator:
             "ARCHIVE_PANEL",
             "HEIRLOOM_DIALOG",
             "GREAT_RIFT_CONFIRM",
+            "TQTZ_CONFIRM",
         }:
             return False
         if self._is_in_game_hud(frame):
@@ -6966,7 +6967,11 @@ class Mediator:
                 m and w * 0.30 <= m.x <= w * 0.60 and h * 0.40 <= m.y <= h * 0.65
                 and self._find_exit_confirm(frame) is None
             ):
-                return "GREAT_RIFT_CONFIRM"
+                # 提前挑战确认框用同一个灰色「是」。标题区分：大秘境=红字「大秘境」
+                # + 黄字「是否开启大秘境挑战？」；提前挑战=白字「是否确认提前挑战？」。
+                kind = self._grey_yes_dialog_kind(frame, m)
+                self._great_rift_title_verified = kind == "rift"
+                return "TQTZ_CONFIRM" if kind == "tqtz" else "GREAT_RIFT_CONFIRM"
 
             # 新版挑战广场底部的普通物品会误命中 heroRefresh；在前景弹窗
             # 均被排除后，三个页面专属锚点足以确认 NPC_HUB。
@@ -8123,6 +8128,54 @@ class Mediator:
         if not (frame.height * 0.15 <= hit.y <= frame.height * 0.55):
             return None
         return hit
+
+    # 标题行 / 副标题行相对「是」按钮中心的位置（@900p）：大秘境框 f0584 是(713,447)
+    # 标题 y≈270，提前挑战框 f0582 是(711,388) 标题 y≈212。
+    _GREY_YES_TITLE_BANDS = ((-190, -158), (-150, -118))
+
+    def _grey_yes_dialog_kind(self, frame: Frame, yes: MatchResult) -> str | None:
+        """'rift' / 'tqtz' / None for a dialog carrying the grey 是 button.
+
+        Title templates first (real frames: 1.0 on their own dialog, no hit on
+        the other); OCR of the lines above 是 as the font-change fallback.
+        """
+        scales = self._hot_scales()
+        if self.find(frame, ["env/great_rift_title"], threshold=0.80, scales=scales, roi=(0.40, 0.15, 0.60, 0.35)):
+            return "rift"
+        if self.find(frame, ["env/tqtz_confirm_title"], threshold=0.80, scales=scales, roi=(0.36, 0.15, 0.64, 0.35)):
+            return "tqtz"
+        client = getattr(self, "_ocr_client", None)
+        if client is None or not bool(getattr(client, "is_available", False)) or frame.bgr is None:
+            return None
+        unit = frame.height / 900.0
+        bx = yes.x + yes.w // 2
+        by = yes.y + yes.h // 2
+        texts: list[str] = []
+        for dy0, dy1 in self._GREY_YES_TITLE_BANDS:
+            bbox = (
+                max(0, bx - int(110 * unit)), max(0, by + int(dy0 * unit)),
+                min(frame.width, bx + int(290 * unit)), max(1, by + int(dy1 * unit)),
+            )
+            crop = frame.bgr[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+            if crop.size == 0:
+                continue
+            fingerprint = hashlib.md5(crop.tobytes()).hexdigest()
+            try:
+                response = client.shadow_predict(
+                    frame, f"grey-yes-title:{fingerprint}",
+                    {"index": 0, "bbox": bbox, "kind": "counter"},
+                    fingerprint=fingerprint, panel_bbox=bbox,
+                )
+            except (AttributeError, OSError, TypeError, ValueError):
+                continue
+            if str(getattr(response, "status", "")) == "ok":
+                texts.append(str(getattr(response, "raw_text", "") or ""))
+        joined = "".join(texts)
+        if "秘境" in joined:
+            return "rift"
+        if "提前" in joined or "BOSS" in joined.upper():
+            return "tqtz"
+        return None
 
     def _find_great_rift_accept(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
@@ -15789,7 +15842,14 @@ class Mediator:
             self._main_line_since = now
             return LoopAction.Continue
 
-        if post_game == "GREAT_RIFT_CONFIRM" and self._tqtz_confirm_dialog_expected(frame, now):
+        if post_game == "TQTZ_CONFIRM":
+            return self._confirm_tqtz_dialog(frame, now)
+        if (
+            post_game == "GREAT_RIFT_CONFIRM"
+            and not getattr(self, "_great_rift_title_verified", False)
+            and self._tqtz_confirm_dialog_expected(frame, now)
+        ):
+            # Neither title could be read; fall back to our own click context.
             return self._confirm_tqtz_dialog(frame, now)
         if post_game == "GREAT_RIFT_CONFIRM":
             if (

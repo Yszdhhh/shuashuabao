@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 import cv2
 import numpy as np
 
@@ -47,8 +49,52 @@ def _tick(med: Mediator, frame: Frame) -> list[tuple[str, tuple[int, int]]]:
     return clicks
 
 
-def test_real_dialog_is_the_one_misread_as_great_rift() -> None:
-    assert _med()._post_game_state(_frame(DIALOG)) == "GREAT_RIFT_CONFIRM"
+def test_real_tqtz_dialog_is_classified_by_its_title() -> None:
+    """标题模板 env/tqtz_confirm_title：不再和大秘境框共用 GREAT_RIFT_CONFIRM。"""
+    assert _med()._post_game_state(_frame(DIALOG)) == "TQTZ_CONFIRM"
+
+
+def test_real_rift_dialogs_are_classified_by_the_red_title() -> None:
+    for name in ("great_rift_confirm_f0584.png",):
+        med = _med()
+        assert med._post_game_state(_frame(name)) == "GREAT_RIFT_CONFIRM"
+        assert med._great_rift_title_verified
+    replay = ROOT / "fixtures" / "replay" / "great_rift_confirm.png"
+    image = cv2.imdecode(np.fromfile(str(replay), dtype=np.uint8), cv2.IMREAD_COLOR)
+    med = _med()
+    assert med._post_game_state(Frame(image, window_title="英雄三国KK", hwnd=10001)) == "GREAT_RIFT_CONFIRM"
+    assert med._great_rift_title_verified
+
+
+def test_verified_rift_title_is_never_confirmed_as_tqtz_even_right_after_the_icon_click() -> None:
+    med = _med()
+    med._tqtz_dialog_expected_until = time.time() + 29
+    clicks = _tick(med, _frame("great_rift_confirm_f0584.png"))
+    assert "ConfirmTQTZ" not in [c[0] for c in clicks], clicks
+
+
+@pytest.mark.parametrize("name, kind", [(DIALOG, "tqtz"), ("great_rift_confirm_f0584.png", "rift")])
+def test_title_ocr_fallback_when_templates_miss(name: str, kind: str) -> None:
+    """换字体后模板失效：以「是」为锚读标题/副标题行，含「秘境」/「提前」判定。"""
+    med = Mediator(Settings(), ROOT)
+    client = med._ocr_client
+    if not client.start():
+        pytest.skip(f"OCR worker unavailable: {client.ready_reason}")
+    try:
+        frame = _frame(name)
+        yes = med._find_great_rift_accept(frame)
+        assert yes is not None
+        real_find = med.find
+
+        def no_titles(fr, names, *a, **k):
+            if any("title" in n for n in names):
+                return None
+            return real_find(fr, names, *a, **k)
+
+        with patch.object(med, "find", side_effect=no_titles):
+            assert med._grey_yes_dialog_kind(frame, yes) == kind
+    finally:
+        client.close()
 
 
 def test_dialog_after_our_icon_click_is_confirmed_with_yes() -> None:
