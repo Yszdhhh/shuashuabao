@@ -5939,7 +5939,7 @@ class Mediator:
         return int(np.count_nonzero(green)) >= 100
 
     def _archive_hitch_card_progress_state(self, frame: Frame, card_index: int) -> str:
-        """C6 修复：解析存档挑战进度状态，彻底废除单纯以红像素 >= 60 作为业务 authority。
+        """解析存档挑战进度状态。
 
         状态取值：
         - 'UNAVAILABLE': 明确解析为 0/8（资源不足无法挑战）
@@ -5947,51 +5947,59 @@ class Mediator:
         - 'COMPLETED': 明确解析为 8/8（已满）
         - 'UNKNOWN': 无法可信解析；UNKNOWN 绝不授权判定为不可挑战（Fail-Open 允许尝试或零输入等待）
         """
-        if frame.bgr is None or card_index not in {2, 3}:
+        if frame.bgr is None or card_index not in {2, 3, 4, 6}:
             return "AVAILABLE"
         col, row = card_index % 4, card_index // 4
         cx = int(frame.width * self._ARCHIVE_CHALLENGE_X[col])
         cy = int(frame.height * self._ARCHIVE_CHALLENGE_Y[row])
-        counter = frame.bgr[
-            max(0, cy - int(frame.height * 0.078)):max(0, cy - int(frame.height * 0.039)),
-            min(frame.width, cx + int(frame.width * 0.002)):min(frame.width, cx + int(frame.width * 0.027)),
-        ]
+        x0 = min(frame.width, cx + int(frame.width * 0.002))
+        y0 = max(0, cy - int(frame.height * 0.078))
+        x1 = min(frame.width, cx + int(frame.width * 0.027))
+        y1 = max(0, cy - int(frame.height * 0.039))
+        counter = frame.bgr[y0:y1, x0:x1]
         if counter.size == 0:
             return "UNKNOWN"
 
-        # 优先使用 OCR client（若启用且可用）解析 typed counter ROI。
-        # C6 收紧：UNAVAILABLE 只有在 OCR 响应 status=="ok" 且可信
-        # （rec_score >= 0.75）明确解析出分母 == 8 且分子 == 0 时才成立；
-        # status 异常/低置信度或非 8 分母（如 0/3）绝不授权 UNAVAILABLE。
+        # 红色像素检测（当次数为 0 时，数字 0 呈现红色警告色；可用次数为白色或绿色）
+        b, g, r = cv2.split(counter)
+        red_pixels = int(np.count_nonzero((r > 150) & (g < 100) & (b < 100)))
+
+        # 优先使用 OCR client 解析 counter ROI
         ocr_client = getattr(self, "_ocr_client", None)
         if ocr_client and getattr(ocr_client, "is_available", False):
             try:
-                x0 = min(frame.width, cx + int(frame.width * 0.002))
-                y0 = max(0, cy - int(frame.height * 0.078))
-                x1 = min(frame.width, cx + int(frame.width * 0.027))
-                y1 = max(0, cy - int(frame.height * 0.039))
                 resp = ocr_client.shadow_predict(
                     frame,
                     "archive_counter",
-                    {"index": card_index, "bbox": (x0, y0, x1, y1), "kind": "counter"}
+                    {"index": card_index, "bbox": (x0, y0, x1, y1), "kind": "counter"},
                 )
                 status = str(getattr(resp, "status", "") or "").lower()
                 text = (getattr(resp, "raw_text", "") or "").strip()
                 score = float(getattr(resp, "rec_score", 0.0) or 0.0)
-                import re
-                m = re.search(r"(\d+)\s*/\s*(\d+)", text)
-                if status == "ok" and m and score >= 0.75:
-                    num, den = int(m.group(1)), int(m.group(2))
-                    if den == 8:
-                        if num == 0:
-                            return "UNAVAILABLE"
-                        if num >= den:
-                            return "COMPLETED"
+                if status == "ok" and score >= 0.75:
+                    import re
+                    # 1. 结构化正则匹配带有标点者：如 "0/8", "0|8", "0-8"
+                    m_slash = re.search(r"(\d+)\s*[/|\\-]\s*(\d+)", text)
+                    if m_slash:
+                        num, den = int(m_slash.group(1)), int(m_slash.group(2))
+                        if den == 8:
+                            if num == 0:
+                                return "UNAVAILABLE"
+                            if num >= den:
+                                return "COMPLETED"
+                            return "AVAILABLE"
+                    # 2. 识别为 "018"（0 + 斜杠识别为1 + 8）
+                    if text == "018" or re.fullmatch(r"01?8", text):
+                        return "UNAVAILABLE"
+                    # 3. 识别为 "18" 或包含 "8" 且伴随明显红色 0 像素证据（red_pixels >= 40）
+                    if red_pixels >= 40 and ("8" in text or text.endswith("8")):
+                        return "UNAVAILABLE"
+                    # 4. 正常解析 1/8..7/8
+                    m_num = re.search(r"^([1-7])1?8$", text)
+                    if m_num:
                         return "AVAILABLE"
             except Exception:
                 pass
-        # OCR 离线/低置信度/非 8 分母：绿色像素只能作为辅助证据，绝不单独授权
-        # AVAILABLE；未取得可信 OCR 结构化证据时统一 UNKNOWN（零输入等待）。
         return "UNKNOWN"
 
     def _archive_hitch_card_unavailable(self, frame: Frame, card_index: int) -> bool:
@@ -5999,15 +6007,40 @@ class Mediator:
         state = self._archive_hitch_card_progress_state(frame, card_index)
         return state == "UNAVAILABLE"
 
-    def _archive_challenge_plan(self) -> tuple[tuple[str, int], ...]:
-        """All eight cards, left to right, in both solo and team modes.
+    def _archive_challenge_insufficient_notice(self, frame: Frame) -> bool:
+        """第二证据：检测是否弹出「今日挑战次数不足」或类似提示。"""
+        if frame.bgr is None or frame.bgr.size == 0:
+            return False
+        # Toast 区域位于屏幕居中偏下 (730, 540, 880, 590)
+        x0, y0 = int(frame.width * 0.456), int(frame.height * 0.600)
+        x1, y1 = int(frame.width * 0.550), int(frame.height * 0.656)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return False
+        # 快速颜色筛选：Toast 文本包含明亮金黄色/白色字符
+        b, g, r = cv2.split(crop)
+        bright = (r > 180) & (g > 160) & (b < 180)
+        if np.count_nonzero(bright) < 15:
+            return False
+        ocr_client = getattr(self, "_ocr_client", None)
+        if ocr_client and getattr(ocr_client, "is_available", False):
+            try:
+                resp = ocr_client.shadow_predict(
+                    frame,
+                    "archive_toast",
+                    {"bbox": (x0, y0, x1, y1), "kind": "toast"},
+                )
+                text = (getattr(resp, "raw_text", "") or "").strip()
+                score = float(getattr(resp, "rec_score", 0.0) or 0.0)
+                if score >= 0.60 and any(k in text for k in ("今日", "次数不足", "不足", "无法")):
+                    return True
+            except Exception:
+                pass
+        # 像素兜底：若有强黄色字符像素群（>= 60）
+        return bool(np.count_nonzero(bright) >= 60)
 
-        The old team plan covered four slots (gem/loot/key/blessing); the
-        20260910 run therefore left 技能/强化/重铸/技能挑战2 untouched, and the
-        OCR progress gate skipped gem/loot on top of that — two clicks out of
-        eight.  Owner ruling: click every card once; a card that is genuinely
-        unavailable costs one wasted click and nothing else.
-        """
+    def _archive_challenge_plan(self) -> tuple[tuple[str, int], ...]:
+        """All eight cards, left to right, in both solo and team modes."""
         return tuple((label, index) for index, label in enumerate(self._ARCHIVE_CHALLENGE_NAMES))
 
     def _maybe_click_archive_challenge(self, frame: Frame, now: float) -> LoopAction | None:
@@ -6019,18 +6052,42 @@ class Mediator:
             return None
         if now < getattr(self, "_archive_challenge_next_at", 0.0):
             return LoopAction.Continue
-        while index < len(plan) and self._archive_challenge_completed(frame, plan[index][1]):
-            # 绿色「已挑战」是最强的完成证据，两种模式都据此推进。
-            print(f"[med] 存档挑战 {plan[index][0]} 已显示「已挑战」，转下一张卡")
-            index += 1
-            self._archive_challenge_confirm_attempts = 0
+
+        # 先处理上一轮点击的确认证据：
+        if getattr(self, "_archive_challenge_confirm_attempts", 0) > 0:
+            if self._archive_challenge_completed(frame, plan[index][1]):
+                print(f"[med] 存档挑战 {plan[index][0]} 已显示「已挑战」，确认成功转下一张卡")
+                index += 1
+                self._archive_challenge_confirm_attempts = 0
+            elif self._archive_challenge_insufficient_notice(frame):
+                print(f"[med] 存档挑战 {plan[index][0]} 检测到「今日挑战次数不足」提示（第二证据），停止重试转下一张卡")
+                index += 1
+                self._archive_challenge_confirm_attempts = 0
+                self._archive_challenge_index = index
+                self._archive_challenge_next_at = now + recheck_s
+                return LoopAction.Continue
+
+        # 第一证据：已完成（绿色已挑战）或明确不可挑战（0/8 UNAVAILABLE）自动推进
+        while index < len(plan):
+            target_idx = plan[index][1]
+            if self._archive_challenge_completed(frame, target_idx):
+                print(f"[med] 存档挑战 {plan[index][0]} 已显示「已挑战」，转下一张卡")
+                index += 1
+                self._archive_challenge_confirm_attempts = 0
+            elif self._archive_hitch_card_unavailable(frame, target_idx):
+                print(f"[med] 存档挑战 {plan[index][0]} 判定为不可用 (0/8 UNAVAILABLE)，跳过转下一张卡")
+                index += 1
+                self._archive_challenge_confirm_attempts = 0
+            else:
+                break
+
         self._archive_challenge_index = index
         if index >= len(plan):
             print("[med] 存档挑战计划已完成，关闭面板并转传家宝")
             return None
+
         label, card_index = plan[index]
-        # OCR 进度既不授权点击、也不授权跳过。逐卡走 sidecar 会把结算
-        # 热路径拉慢；绿色「已挑战」是唯一的完成证据。
+
         hit = self._find_archive_challenge_card(frame, card_index)
         if hit is None:
             self._archive_challenge_observe_attempts += 1
@@ -6049,8 +6106,7 @@ class Mediator:
         clicked = self.act_click(hit, f"ArchiveChallenge-{label}")
         self._archive_challenge_next_at = now + recheck_s
         if clicked:
-            # 不盲目推进：下一 tick 由页首的绿色「已挑战」检测确认这一张真的
-            # 打上了，确认不了就在有界次数内重点同一张。
+            # 不盲目推进：下一 tick 由页首的绿色「已挑战」或「今日挑战次数不足」确认
             self._archive_challenge_observe_attempts = 0
             self._archive_challenge_click_attempts = 0
             self._archive_challenge_confirm_attempts = (
