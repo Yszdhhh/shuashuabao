@@ -114,7 +114,9 @@ class P1B0PostGameTests(unittest.TestCase):
         right_click.assert_called_once()
         npc_hit, reason = right_click.call_args.args
         self.assertEqual(reason, "OpenGreatRift")
-        self.assertEqual(npc_hit.name, "damijing")
+        self.assertEqual(npc_hit.name, "damijing_npc")
+        # The NPC body under the 大秘境 caption, not the caption text itself.
+        self.assertGreater(npc_hit.center[1], 307 + 25)
         self.assertTrue(med._secret_realm_request_pending)
         self.assertTrue(med._post_game_pending)
 

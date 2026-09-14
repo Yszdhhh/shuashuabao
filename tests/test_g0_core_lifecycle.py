@@ -246,10 +246,30 @@ class G0LeaveOldRoomTests(unittest.TestCase):
     """契约 #5：同房返回证明 → leave-old-room episode；fresh room-list authority 才 PLATFORM_MAP。"""
 
     def _farm_mediator(self, clock: FakeClock) -> Mediator:
-        med = Mediator(Settings(dry_run=False, auto_create_room=True, query_timeout=30), ROOT)
+        med = Mediator(Settings(
+            dry_run=False, auto_create_room=True, new_room_every_times=True, query_timeout=30,
+        ), ROOT)
         med.executor = FakeInputExecutor(StopSignal(), clock)
         med._capture_best = lambda *a, **k: _noise_frame(seed=73)
         return med
+
+    def test_same_room_without_new_room_every_time_starts_next_round_in_place(self) -> None:
+        """Owner 2026-09-14：单人第二局留在原房间直接开始，不离房。"""
+        clock = FakeClock(start=100.0)
+        med = Mediator(Settings(dry_run=False, auto_create_room=True, query_timeout=30), ROOT)
+        med.executor = FakeInputExecutor(StopSignal(), clock)
+        med._capture_best = lambda *a, **k: _noise_frame(seed=73)
+        med.set_phase(Phase.STAGE_SELECT, "round 1")
+        med.set_phase(Phase.MAIN_LINE, "round 1")
+        med._record_round_outcome(RoundOutcome.VICTORY, "round 1 victory chain verified")
+        med._awaiting_room_return = True
+        med.set_phase(Phase.PREPARE, "exit confirmed")
+        with clock.install(), patch.object(med, "_find_room_start", return_value=_hit("room_start", 700, 500)):
+            clock.set(100.5)
+            med.tick()
+        self.assertEqual(med.game_count, 1)
+        self.assertFalse(med._room_leave_pending)
+        self.assertIs(med.phase, Phase.ROOM_WAITING)
 
     def test_same_room_return_proof_enters_leave_old_room_episode(self) -> None:
         clock = FakeClock(start=100.0)

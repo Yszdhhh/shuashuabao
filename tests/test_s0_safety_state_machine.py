@@ -655,7 +655,7 @@ class S0CrossRoundTests(unittest.TestCase):
         self._room_return(med, clock)
 
     def test_three_failed_rounds_fail_closed_and_victory_resets_streak(self) -> None:
-        med = self._round_mediator(FakeClock(start=100.0), failure_streak_limit=3)
+        med = self._round_mediator(FakeClock(start=100.0), failure_streak_limit=3, new_room_every_times=True)
         clock = FakeClock(start=100.0)
         med.executor = FakeInputExecutor(StopSignal(), clock)
         with clock.install():
@@ -687,7 +687,7 @@ class S0CrossRoundTests(unittest.TestCase):
             self.assertFalse(med._running)
 
     def test_cycle_num_two_stops_before_third_room_start(self) -> None:
-        med = self._round_mediator(FakeClock(start=100.0), cycle_num=2)
+        med = self._round_mediator(FakeClock(start=100.0), cycle_num=2, new_room_every_times=True)
         clock = FakeClock(start=100.0)
         med.executor = FakeInputExecutor(StopSignal(), clock)
         with clock.install():
