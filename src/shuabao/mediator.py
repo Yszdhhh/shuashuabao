@@ -84,6 +84,7 @@ from shuabao.policy.boss_order import (
     LOCATE_FAILURE_FALLBACK_DEFAULT,
 )
 from shuabao.vision.ocr_shadow.client import ShadowClient
+from shuabao.vision.label_boxes import white_text_word_boxes
 from shuabao.log_sink import LOGGER, emit_print as print  # noqa: A001
 from shuabao.lobby_hitch import (
     JOIN_ATTEMPTS,
@@ -944,6 +945,9 @@ class Mediator:
         self._heirloom_boss_confirm_unconfirmed: bool = False
         self._hitch_heirloom_exit_since: float | None = None
         self._passenger_heirloom_for_secret = False
+        # Heirloom label OCR fallback: last (box, frame) sighting + throttle.
+        self._hub_label_ocr_last: tuple | None = None
+        self._hub_label_ocr_next_at: float = 0.0
         self._time_cave_boss_search_attempts: int = 0
         self._time_cave_boss_done: bool = False
         self._hitch_postgame_hero_selected: bool = False
@@ -6529,7 +6533,9 @@ class Mediator:
         hit = self.find(
             frame,
             names,
-            threshold=0.58,
+            # Cloud audit A1: real 传家宝 hits are >=0.83 while the bold template
+            # scores 0.573 on 存档挑战; 0.58 left a 0.007 margin.
+            threshold=self._HUB_ENTRY_THRESHOLD.get(route, 0.58),
             scales=self._adapt_scales((0.60, 0.70, 0.80, 0.90, 1.00, 1.10, 1.20)),
             roi=roi,
             mode=f"post-game-hub:{route}",
@@ -6565,9 +6571,77 @@ class Mediator:
         gap = heirloom.x - (archive.x + archive.w)
         return -frame.width * 0.01 <= gap <= frame.width * 0.10
 
+    _HUB_ENTRY_THRESHOLD = {"heirloom": 0.70}
+    _HUB_LABEL_OCR_MIN_SCORE = 0.80
+    _HUB_LABEL_OCR_INTERVAL_S = 1.0
+    _HUB_LABEL_OCR_MAX_BOXES = 4
+    _HUB_LABEL_OCR_STABLE_PX = 8
+
+    def _heirloom_label_ocr_fallback(self, frame: Frame) -> MatchResult | None:
+        """Every heirloom template missed: find the label by reading it.
+
+        Only inside a running post-game chain on the confirmed plaza (top-bar
+        存档) and only inside the heirloom ROI: white word boxes from
+        ``white_text_word_boxes`` go to the existing box OCR, and a box that
+        reads 传家宝 must repeat within a few pixels on a second, different
+        frame before it is returned.  OCR text alone never authorises input;
+        the caller still clicks the fixed offset below the label.
+        """
+        if not self._post_game_pending or self._top_bar_mode(frame) != "plaza":
+            self._hub_label_ocr_last = None
+            return None
+        client = getattr(self, "_ocr_client", None)
+        if client is None or frame.bgr is None:
+            return None
+        now = time.time()
+        if now < self._hub_label_ocr_next_at:
+            return None
+        self._hub_label_ocr_next_at = now + self._HUB_LABEL_OCR_INTERVAL_S
+        roi = self._POST_GAME_HUB_ENTRY_ROIS["heirloom"]
+        boxes = white_text_word_boxes(frame.bgr, roi)[: self._HUB_LABEL_OCR_MAX_BOXES]
+        found: tuple[int, int, int, int, float] | None = None
+        for index, (x, y, w, h) in enumerate(boxes):
+            bbox = (max(0, x - 3), max(0, y - 3), min(frame.width, x + w + 3), min(frame.height, y + h + 3))
+            try:
+                resp = client.shadow_predict(
+                    frame, "post_game_hub_label", {"index": index, "bbox": bbox, "kind": "text"}
+                )
+            except Exception as exc:  # OCR is advisory; a worker hiccup is a miss.
+                print(f"[med] 传家宝标签 OCR 兜底调用失败：{exc}")
+                continue
+            text = str(getattr(resp, "raw_text", "") or "").replace(" ", "")
+            score = float(getattr(resp, "rec_score", 0.0) or 0.0)
+            if (
+                str(getattr(resp, "status", "") or "").lower() == "ok"
+                and "传家宝" in text
+                and score >= self._HUB_LABEL_OCR_MIN_SCORE
+            ):
+                found = (x, y, w, h, score)
+                break
+        last = self._hub_label_ocr_last
+        self._hub_label_ocr_last = (found, frame) if found is not None else None
+        if found is None:
+            return None
+        x, y, w, h, score = found
+        stable = (
+            last is not None
+            and last[1] is not frame
+            and abs(last[0][0] - x) <= self._HUB_LABEL_OCR_STABLE_PX
+            and abs(last[0][1] - y) <= self._HUB_LABEL_OCR_STABLE_PX
+        )
+        if not stable:
+            print(f"[med] 传家宝标签模板未命中，OCR 兜底首帧读到 @ ({x},{y})，等待第二帧确认（零动作）")
+            return None
+        print(f"[med] 传家宝标签 OCR 兜底两帧确认 @ ({x},{y}) score={score:.2f}")
+        return MatchResult(
+            "heirloom_label_ocr", score, x, y, w, h, frame.left + x + w // 2, frame.top + y + h // 2
+        )
+
     def _post_game_hub_entry_click(self, frame: Frame, route: str) -> MatchResult | None:
         """Turn a verified hub label into a click on the corresponding NPC."""
         label = self._find_post_game_hub_entry(frame, route)
+        if label is None and route == "heirloom":
+            label = self._heirloom_label_ocr_fallback(frame)
         if label is None:
             return None
         # The label is above the NPC in both the real 1600x900 capture and the
