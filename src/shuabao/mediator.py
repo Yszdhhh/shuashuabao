@@ -6128,6 +6128,23 @@ class Mediator:
                 print(f"[med] 存档挑战 {label} 点击被拒，冷却后重试 ({self._archive_challenge_click_attempts}/3)")
         return LoopAction.Continue
 
+    @property
+    def _post_game_boss_scroll_step(self) -> int:
+        """Configurable scroll step (clicks) for post-game boss list."""
+        return int(getattr(self.settings, "post_game_boss_scroll_clicks", self._POST_GAME_BOSS_SCROLL_CLICKS) or self._POST_GAME_BOSS_SCROLL_CLICKS)
+
+    def _post_game_boss_grid_fingerprint(self, frame: Frame, post_game: str | None) -> str | None:
+        """Compute visual fingerprint of the post-game boss grid area."""
+        roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
+        if frame.bgr is None or frame.bgr.size == 0 or roi is None:
+            return None
+        x0, y0, x1, y1 = self._normalized_bbox(frame, roi)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        from shuabao.interaction_surface import compute_frame_roi_fingerprint
+        return compute_frame_roi_fingerprint(crop)
+
     def _post_game_boss_scroll_point(self, frame: Frame, post_game: str | None) -> tuple[int, int] | None:
         """Return a point inside a classified Boss list, if one is known."""
         roi = self._POST_GAME_BOSS_ROIS.get(post_game or "")
@@ -6160,17 +6177,34 @@ class Mediator:
         return (
             not has_bright_comp
             and 15.0 <= mean_val < 60.0
-            and 5.0 <= std_val < 25.0
+            and std_val < 25.0
         )
 
     def _post_game_boss_list_at_bottom(self, frame: Frame, post_game: str | None) -> bool:
-        """Require two bottom-thumb observations before selecting a fallback.
+        """Require bottom confirmation before selecting a fallback.
 
-        If list has no scrollbar, both at_top and at_bottom hold (requires 2 stable frames).
+        通用证据：若发生过向下滚动，且滚动后网格指纹未发生变化，证明已到底（停止空滚）。
+        若无滚动条（fits on 1 screen），需要双帧稳定。
         """
         scrollbar_roi = self._POST_GAME_BOSS_SCROLLBAR_ROIS.get(post_game or "")
         if frame.bgr is None or frame.bgr.size == 0 or scrollbar_roi is None:
             return False
+
+        # 通用证据：滚动后网格指纹不变 = 到底
+        last_fp = getattr(self, "_boss_challenge_scroll_grid_fp", None)
+        curr_fp = self._post_game_boss_grid_fingerprint(frame, post_game)
+        if (
+            getattr(self, "_boss_challenge_scroll_attempts", 0) > 0
+            and last_fp is not None
+            and curr_fp is not None
+            and last_fp == curr_fp
+        ):
+            print(f"[med] post-game {post_game} 滚动后网格指纹未变化（{curr_fp}），通用证据确认到底")
+            self._boss_challenge_scroll_stable_frames = (
+                int(getattr(self, "_boss_challenge_scroll_stable_frames", 0) or 0) + 1
+            )
+            return True
+
         if self._post_game_boss_has_no_scrollbar(frame, post_game):
             self._boss_challenge_scroll_stable_frames = (
                 int(getattr(self, "_boss_challenge_scroll_stable_frames", 0) or 0) + 1
@@ -7232,7 +7266,8 @@ class Mediator:
                 self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
                 x, y = scroll_point
                 print(f"[med] {decision.reason}，向下滚动挑战列表 ({log_limit})")
-                if self.act_scroll(x, y, self._POST_GAME_BOSS_SCROLL_CLICKS, scroll_tag):
+                self._boss_challenge_scroll_grid_fp = self._post_game_boss_grid_fingerprint(frame, post_game)
+                if self.act_scroll(x, y, self._post_game_boss_scroll_step, scroll_tag):
                     if is_bottom_fallback:
                         self._boss_challenge_bottom_scroll_attempts = next_attempt
                     else:
@@ -7251,7 +7286,7 @@ class Mediator:
                     f"[med] {decision.reason}，"
                     f"向上滚动挑战列表 ({next_attempt}/{self._POST_GAME_BOSS_SCROLL_LIMIT})"
                 )
-                if self.act_scroll(x, y, abs(self._POST_GAME_BOSS_SCROLL_CLICKS), "BossConfigured-scroll-up"):
+                if self.act_scroll(x, y, abs(self._post_game_boss_scroll_step), "BossConfigured-scroll-up"):
                     self._boss_challenge_scroll_attempts = next_attempt
                     self._boss_challenge_unresolved_attempts = 0
                 return LoopAction.Continue
