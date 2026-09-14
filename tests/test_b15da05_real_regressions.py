@@ -116,6 +116,32 @@ def test_real_archive_panel_cold_start_reconcile() -> None:
     assert med2.phase is Phase.MAIN_LINE
     stop2.assert_not_called()
 
+
+def test_hitch_heirloom_route_survives_archive_close_transition_false_stage_page() -> None:
+    """存档关闭后的过渡帧不能被选关页误判抢先退出，必须继续点传家宝。"""
+    med = _hitch_mediator()
+    med.set_phase(Phase.MAIN_LINE)
+    med._post_game_pending = True
+    med._post_game_route = "heirloom"
+    frame = _game_frame("archive")
+    entry = MatchResult("cjb", 0.95, 900, 250, 40, 40, 900, 250)
+    with patch.object(med, "_post_game_state", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=False), \
+         patch.object(med, "_host_choosing_difficulty", return_value=False), \
+         patch.object(med, "_top_bar_mode", return_value="plaza"), \
+         patch.object(med, "find_scene", return_value=None), \
+         patch.object(med, "_post_game_hub_entry_click", return_value=entry), \
+         patch.object(med, "_find_stage_page", return_value=True), \
+         patch.object(med, "_find_failure_gift", return_value=None), \
+         patch.object(med, "_find_exit_confirm", return_value=None), \
+         patch.object(med, "_maybe_close_game_chat", return_value=None), \
+         patch.object(med, "_maybe_click_hitch_pressure_transfer", return_value=None), \
+         patch.object(med, "act_click", return_value=True) as click:
+        assert med._tick_main_line(frame) is LoopAction.Continue
+    click.assert_called_once()
+    assert click.call_args[0][1] == "OpenHeirloomChallenges"
+    assert med._post_game_route == "heirloom_active"
+
 def test_see_minimized_zero_activation() -> None:
     """P0-C：窗口最小化时 see() 全程零 activate_window 调用，仅标记 is_minimized。"""
     med = Mediator(Settings(dry_run=True, ocr_mode="off"), ROOT)

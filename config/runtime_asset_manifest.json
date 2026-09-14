@@ -1098,6 +1098,14 @@
       "sha256": "f924a0f036b300de1be6d16b3ef84b77a95eee80d7f8e1ebe294dd60ffb8a194"
     },
     {
+      "path": "assets/Images/chuanjiabao_thin.png",
+      "purpose": "runtime_ui",
+      "provenance": "repository runtime asset reviewed for ShuaBao.spec",
+      "reason_required": "runtime UI/status/icon asset",
+      "size_bytes": 7756,
+      "sha256": "1f791290e9fff8aca1499caf24cfa453402d48f958d215abec9e7d06628c43c4"
+    },
+    {
       "path": "assets/Images/chuanjiaobao/01暴掠龙.png",
       "purpose": "runtime_template",
       "provenance": "repository runtime asset reviewed for ShuaBao.spec",

@@ -79,6 +79,7 @@ from shuabao.policy.boss_order import (
     VisibleCard,
     decide_boss_order_action,
     is_slot_empty,
+    predict_card_slot,
     parse_boss_order_number,
     LOCATE_FAILURE_FALLBACK_DEFAULT,
 )
@@ -109,6 +110,7 @@ from shuabao.choice_policy import (
     assemble_policy_settings,
     choose_action,
     hitch_treasure_pick,
+    is_negative_treasure,
     matches_bond_preset,
     slot_fingerprint,
 )
@@ -2429,21 +2431,17 @@ class Mediator:
         if opened == "treasure":
             # 放弃钮是技能独有；宝物面板绝无放弃按钮。
             skill_giveup = self.find(
-                frame, ["skill_giveup_btn"],
+                frame, ["giveUp"],
                 threshold=min(0.70, self.settings.match_threshold),
                 scales=self._hot_scales(),
                 roi=self._PANEL_BUTTONS_ROI,
             )
             if skill_giveup is not None:
                 return "skill"
-            # 宝物必须有专用锚点联合确认（通用 hide 不得作为宝物依据）
-            has_treasure_anchor = self.find(
-                frame, ["treasure_lock_btn", "treasure_hide_btn", "treasure_refresh_btn"],
-                threshold=min(0.70, self.settings.match_threshold),
-                scales=self._hot_scales(),
-                roi=self._PANEL_BUTTONS_ROI,
-            ) is not None
-            if has_treasure_anchor:
+            # 锁等专用锚点可强化判定；旧版真 V 面板偶有只在宽尺度命中锁。
+            if self._treasure_panel_joint_confirmed(
+                frame, min(0.70, self.settings.match_threshold), self._hot_scales()
+            ):
                 return "treasure"
             return None
         elif opened in ("skill", "bond"):
@@ -2490,6 +2488,21 @@ class Mediator:
         if self.find(frame, ["card_hide"], threshold=threshold, scales=scales, roi=roi):
             return "card"
         return None
+
+    def _treasure_panel_joint_confirmed(
+        self, frame: Frame, threshold: float, scales: tuple[float, ...]
+    ) -> bool:
+        """A V request needs a lock; giveUp preemption above keeps skill panels out."""
+        special_hits = tuple(
+            self.find(
+                frame, [name], threshold=threshold, scales=scales, roi=self._PANEL_BUTTONS_ROI
+            )
+            for name in ("treasure_lock_btn", "treasure_hide_btn", "treasure_refresh_btn")
+        )
+        if sum(hit is not None for hit in special_hits) >= 2:
+            return True
+        has_lock = special_hits[0] is not None
+        return has_lock
 
     @staticmethod
     def _preferred_choice(hits: list[MatchResult], preferred: list[str]) -> MatchResult | None:
@@ -3598,7 +3611,13 @@ class Mediator:
             if pick is not None:
                 self._treasure_consecutive_no_pick = 0
                 decision = PolicyDecision.select(pick.index, reason)
-            elif not has_valid_names:
+            elif (
+                not has_valid_names
+                and can_refresh
+                and getattr(self, "_hitch_treasure_total_refreshes", 0) < 3
+                and self._choice_session.refreshes < self._choice_session.max_refreshes
+                and getattr(self, "_treasure_consecutive_no_pick", 0) < 2
+            ):
                 # OCR 没读到有效候选名：保持零输入或安全关闭，不要把识别失败当成“无共享道具后刷新”
                 self._treasure_consecutive_no_pick += 1
                 decision = PolicyDecision.close("蹭车宝物 OCR 未读出有效候选，安全关闭（不刷新）")
@@ -3614,8 +3633,28 @@ class Mediator:
                     "蹭车宝物无可共享道具（神符/吞噬丹/英雄卡/EX），刷新后重试",
                 )
             else:
-                self._treasure_consecutive_no_pick += 1
-                decision = PolicyDecision.close("蹭车宝物无可共享道具或刷新预算耗尽，关闭后等待结算")
+                # 末段没有刷新次数时不能把面板关掉：关闭会让主循环再次
+                # 看到同一张 V 面板并重开/隐藏，造成“空宝物堆积”和重复开关。
+                # 此时接受一个确定可点的候选；优先非负面、再退化到任意
+                # 已识别槽位，OCR 完全没名字时也允许点第一格，符合蹭车
+                # 末段“随便拿一个继续流程”的容错要求。
+                candidates = [
+                    s for s in slots
+                    if s.name and str(s.name).strip()
+                    and s.confidence >= policy_settings.min_confidence
+                ]
+                candidates = candidates or list(slots)
+                if candidates:
+                    positive = [s for s in candidates if not is_negative_treasure(s, policy_settings)]
+                    fallback = positive[0] if positive else candidates[0]
+                    self._treasure_consecutive_no_pick = 0
+                    decision = PolicyDecision.select(
+                        fallback.index,
+                        f"蹭车宝物末段兜底选择【{fallback.name or 'slot '+str(fallback.index)}】（刷新预算耗尽）",
+                    )
+                else:
+                    self._treasure_consecutive_no_pick += 1
+                    decision = PolicyDecision.close("蹭车宝物无可点击槽位，安全关闭")
         else:
             decision = choose_action(
                 PanelCandidates(
@@ -4020,7 +4059,9 @@ class Mediator:
     # 这里不再留终点停车位：merchant→treasure→pickup→public_bag 循环滚动，
     # 整局持续捡东西、持续往公共背包丢。
     _HITCH_L1_CYCLE_ORDER = ("merchant", "treasure", "pickup", "public_bag")
-    _HITCH_TREASURE_RETRY_S = 30.0
+    # 宝物次数与黑商杀敌货币不是同一个量；V 空开后短暂退避即可，不能用
+    # 会被黑商消耗的余额长期阻止后续宝物领取。
+    _HITCH_TREASURE_RETRY_S = 8.0
     _MERCHANT_KILL_BALANCE_ROI = (1340 / 1600, 10 / 900, 1390 / 1600, 35 / 900)
     _MERCHANT_KILL_BALANCE_MIN_SCORE = 0.95
     _MERCHANT_DEVOUR_PILL_KILL_COST = 400
@@ -4095,18 +4136,12 @@ class Mediator:
                     self._panel_episode_count.get(target, 0)
                     >= self.settings.panel_episode_limit_per_kind
                 )
-                cur_kills = self._merchant_kill_balance(frame)
-                last_kills = getattr(self, "_hitch_last_treasure_kill_balance", None)
-                has_kill_growth = (
-                    last_kills is None
-                    or (cur_kills is not None and cur_kills > last_kills)
-                )
                 if capped and retry_at <= 0.0:
                     # An abnormal V episode still needs a backoff, but its
                     # per-round cap must not permanently disable treasure for
                     # the rest of a long hitch game.
                     self._hitch_treasure_retry_at = now + self._HITCH_TREASURE_RETRY_S
-                    print("[L1] 蹭车宝物异常 episode 已达上限，30s 后重置该窗口再试")
+                    print("[L1] 蹭车宝物异常 episode 已达上限，8s 后重置该窗口再试")
                     self._advance_l1_cycle("treasure")
                     return LoopAction.Continue
                 if now < retry_at:
@@ -4114,7 +4149,7 @@ class Mediator:
                     # accrue; pickup, bag and merchant remain reachable.
                     self._advance_l1_cycle("treasure")
                     return LoopAction.Continue
-                # 选卡点击 mutation 未确认保护：实际比较物理面板指纹，且杀敌未增长时禁止重开
+                # 选卡点击 mutation 未确认保护：只比较实际物理面板指纹。
                 cur_fp = self._panel_physical_fingerprint(frame)
                 unconfirmed_fp = getattr(self, "_hitch_last_treasure_unconfirmed_fp", None)
                 if unconfirmed_fp is not None:
@@ -4122,49 +4157,8 @@ class Mediator:
                         print(f"[L1] 画面仍为上次未确认的宝物物理面板指纹（{cur_fp}），跳过 V 推进循环避免重复点击")
                         self._advance_l1_cycle("treasure")
                         return LoopAction.Continue
-                    if not has_kill_growth:
-                        print(f"[L1] 蹭车宝物上次选卡 mutation 未确认且杀敌未增长（当前 {cur_kills} <= 上次 {last_kills}），跳过 V 避免重复点击")
-                        self._advance_l1_cycle("treasure")
-                        return LoopAction.Continue
-                    elif has_kill_growth and (cur_fp is None or cur_fp != unconfirmed_fp):
+                    if cur_fp is None or cur_fp != unconfirmed_fp:
                         self._hitch_last_treasure_unconfirmed_fp = None
-                # 杀敌余额门槛检查：
-                # 1. 已有上次杀敌数，但当前杀敌 OCR=None：
-                # 连续跳过 N 个周期或超过 T 秒后，允许开一次 V 看面板（是否有面板以画面为准），避免持续遮挡导致整局不再开 V
-                if last_kills is not None and cur_kills is None:
-                    skips = getattr(self, "_hitch_treasure_kill_none_skips", 0) + 1
-                    self._hitch_treasure_kill_none_skips = skips
-                    first_at = getattr(self, "_hitch_treasure_kill_none_first_at", None)
-                    if first_at is None:
-                        self._hitch_treasure_kill_none_first_at = now
-                        first_at = now
-                    elapsed = now - first_at
-                    if skips >= 5 or elapsed >= 15.0:
-                        print(
-                            f"[L1] 蹭车宝物已有历史杀敌数 {last_kills} 但杀敌 OCR 持续为空（跳过 {skips} 次 / {elapsed:.1f}s），"
-                            f"触发有界探测，允许尝试打开 V 看面板（以画面为准）"
-                        )
-                        self._hitch_treasure_kill_none_skips = 0
-                        self._hitch_treasure_kill_none_first_at = None
-                    else:
-                        print(
-                            f"[L1] 蹭车宝物已有历史杀敌数 {last_kills}，但当前杀敌 OCR 为空，"
-                            f"缺乏新次数凭据，跳过 V 推进循环 ({skips}/5, {elapsed:.1f}s/15s)"
-                        )
-                        self._advance_l1_cycle("treasure")
-                        return LoopAction.Continue
-                elif cur_kills is not None:
-                    self._hitch_treasure_kill_none_skips = 0
-                    self._hitch_treasure_kill_none_first_at = None
-                # 2. 当前读出杀敌余额未增长，说明无新次数
-                if (
-                    last_kills is not None
-                    and cur_kills is not None
-                    and cur_kills <= last_kills
-                ):
-                    print(f"[L1] 蹭车宝物无新杀敌余额（当前 {cur_kills} <= 上次 {last_kills}），跳过 V 推进循环")
-                    self._advance_l1_cycle("treasure")
-                    return LoopAction.Continue
                 if capped:
                     # The bounded retry window elapsed.  Reset only V's
                     # abnormal-episode accounting, then allow one fresh
@@ -4217,8 +4211,10 @@ class Mediator:
                 print("[L1] F 羁绊按钮点击被拒绝（不推进循环）")
             return LoopAction.Continue
         if target == "treasure" and getattr(self.settings, "auto_treasure", True):
+            treasure_request_fp = self._panel_physical_fingerprint(frame)
             if self.act_click(self._hud_button_hit(frame, "treasure_button", self.CHOICE_BUTTON_RATIOS["treasure"]), "OpenTreasurePanel"):
                 self._last_treasure_attempt = now
+                self._treasure_open_request_fp = treasure_request_fp
                 self._panel_opened_by_us = "treasure"
                 self._panel_kind = "treasure"
                 self._panel_state = PanelState.OPEN_REQUESTED
@@ -5873,6 +5869,10 @@ class Mediator:
     # 依据真实 1596x921/1597x929 战后 fixture；仅在 ARCHIVE_PANEL 已分类后使用。
     _ARCHIVE_CHALLENGE_X = (0.396, 0.465, 0.535, 0.604)
     _ARCHIVE_CHALLENGE_Y = (0.350, 0.466)
+    # Eight fixed post-game card slots only need the next rendered frame to
+    # confirm their green completion overlay; do not inherit the slower
+    # generic panel cadence between every one of the eight clicks.
+    _ARCHIVE_CHALLENGE_RECHECK_S = 0.35
 
     def _post_game_action_recheck(self, requested_s: float | None = None) -> float:
         """Keep the serialized post-game chain responsive after each input."""
@@ -6008,6 +6008,7 @@ class Mediator:
 
     def _maybe_click_archive_challenge(self, frame: Frame, now: float) -> LoopAction | None:
         """Try each visible archive challenge card once on the classified page."""
+        recheck_s = self._post_game_action_recheck(self._ARCHIVE_CHALLENGE_RECHECK_S)
         index = int(getattr(self, "_archive_challenge_index", 0) or 0)
         plan = self._archive_challenge_plan()
         if index >= len(plan):
@@ -6034,7 +6035,7 @@ class Mediator:
                 self._archive_challenge_index = index + 1
                 self._archive_challenge_observe_attempts = 0
                 return LoopAction.Continue
-            self._archive_challenge_next_at = now + self._post_game_action_recheck()
+            self._archive_challenge_next_at = now + recheck_s
             print(f"[med] 存档挑战卡位 {card_index + 1}/8 无有效卡面证据，零输入复核 ({self._archive_challenge_observe_attempts}/5)")
             return LoopAction.Continue
         print(
@@ -6042,7 +6043,7 @@ class Mediator:
             "（绿色已挑战为唯一完成证据）"
         )
         clicked = self.act_click(hit, f"ArchiveChallenge-{label}")
-        self._archive_challenge_next_at = now + self._post_game_action_recheck()
+        self._archive_challenge_next_at = now + recheck_s
         if clicked:
             # 不盲目推进：下一 tick 由页首的绿色「已挑战」检测确认这一张真的
             # 打上了，确认不了就在有界次数内重点同一张。
@@ -6373,6 +6374,56 @@ class Mediator:
             results.append((vc, hit))
         return sorted(results, key=lambda pair: (pair[0].y, pair[0].x))
 
+    def _post_game_boss_grid_end_card(
+        self,
+        frame: Frame,
+        post_game: str | None,
+        visible_pairs: list[tuple[VisibleCard, MatchResult]],
+        slot_empty_checker,
+    ) -> tuple[MatchResult | None, bool]:
+        """Prove the end from a full row followed by a partial row and an empty next slot."""
+        if not visible_pairs:
+            self._boss_grid_end_signature = None
+            self._boss_grid_end_stable_frames = 0
+            return None, False
+        by_no = {card.no: (card, hit) for card, hit in visible_pairs}
+        last_no = max(by_no)
+        last_row, last_col = divmod(last_no - 1, 4)
+        if last_row <= 0 or last_col >= 3:
+            self._boss_grid_end_signature = None
+            self._boss_grid_end_stable_frames = 0
+            return None, False
+        preceding = range((last_row - 1) * 4 + 1, last_row * 4 + 1)
+        partial = range(last_row * 4 + 1, last_no + 1)
+        if not all(no in by_no for no in preceding) or not all(no in by_no for no in partial):
+            self._boss_grid_end_signature = None
+            self._boss_grid_end_stable_frames = 0
+            return None, False
+        next_slot = predict_card_slot(
+            last_no + 1, [card for card, _ in visible_pairs], cols_per_row=4
+        )
+        if next_slot is None or not slot_empty_checker(next_slot):
+            self._boss_grid_end_signature = None
+            self._boss_grid_end_stable_frames = 0
+            return None, False
+        signature = (post_game, last_no, tuple(sorted(by_no)))
+        if signature == getattr(self, "_boss_grid_end_signature", None):
+            self._boss_grid_end_stable_frames = int(
+                getattr(self, "_boss_grid_end_stable_frames", 0) or 0
+            ) + 1
+        else:
+            self._boss_grid_end_signature = signature
+            self._boss_grid_end_stable_frames = 1
+        card, hit = by_no[last_no]
+        if self._boss_grid_end_stable_frames >= 2:
+            print(
+                f"[med] Boss 网格末行确认：上一行满、{last_no + 1} 空，"
+                f"末卡 {card.name} @ {hit.center}"
+            )
+            return hit, True
+        print(f"[med] Boss 网格末行候选：上一行满、{last_no + 1} 空，等待第二帧确认")
+        return None, True
+
     def _verify_boss_predicted_slot(
         self,
         frame: Frame,
@@ -6464,9 +6515,13 @@ class Mediator:
         anchor form the page evidence; this method alone never grants action
         authority outside the classified NPC hub.
         """
+        # The hovered plaza label renders bold, the other one thin.  Live
+        # 2026-09-14 f0707 (pointer parked on 存档挑战) scored the bold-only
+        # 传家宝 template 0.45-0.57, so the hub never classified; the thin
+        # variant scores 0.83-1.0 there and <=0.53 off-label.
         names = {
             "archive": ["archiveChallenge"],
-            "heirloom": ["chuanjiabao", "cjbtiaozhan"],
+            "heirloom": ["chuanjiabao", "chuanjiabao_thin", "cjbtiaozhan"],
         }.get(route)
         roi = self._POST_GAME_HUB_ENTRY_ROIS.get(route)
         if not names or roi is None:
@@ -6958,8 +7013,6 @@ class Mediator:
             visible_pairs = self._find_visible_post_game_boss_cards(frame, post_game)
             visible_cards = [vc for vc, mr in visible_pairs]
             card_map = {vc.no: mr for vc, mr in visible_pairs}
-            at_bottom = self._post_game_boss_list_at_bottom(frame, post_game)
-            at_top = self._post_game_boss_list_at_top(frame, post_game)
 
             vx0 = int(frame.width * compact_roi[0])
             vy0 = int(frame.height * compact_roi[1])
@@ -6974,6 +7027,15 @@ class Mediator:
                 bx1, by1 = min(frame.width, b[0] + b[2]), min(frame.height, b[1] + b[3])
                 crop = frame.bgr[by0:by1, bx0:bx1]
                 return is_slot_empty(crop)
+
+            grid_end_hit, grid_end_candidate = self._post_game_boss_grid_end_card(
+                frame, post_game, visible_pairs, check_slot_empty
+            )
+            if grid_end_candidate and grid_end_hit is None:
+                self._boss_challenge_next_at = now + self._post_game_action_recheck(recheck_s)
+                return LoopAction.Continue
+            at_bottom = self._post_game_boss_list_at_bottom(frame, post_game) or grid_end_hit is not None
+            at_top = self._post_game_boss_list_at_top(frame, post_game)
 
             decision = decide_boss_order_action(
                 target_no,
@@ -7087,7 +7149,17 @@ class Mediator:
             elif decision.action == BossOrderAction.WAIT:
                 self._boss_challenge_unresolved_attempts += 1
                 if self._boss_challenge_unresolved_attempts >= self._POST_GAME_BOSS_UNRESOLVED_LIMIT:
-                    last_card = self._find_last_recognized_post_game_boss(frame, post_game)
+                    # A lower-right card visible mid-list is not a fallback.
+                    # It becomes one only once the scrollbar or the explicit
+                    # full-row/partial-row-empty-slot witness proves the end.
+                    last_card = (
+                        grid_end_hit
+                        if grid_end_hit is not None
+                        else (
+                            self._find_last_recognized_post_game_boss(frame, post_game)
+                            if at_bottom else None
+                        )
+                    )
                     if last_card is not None:
                         boss_hit = last_card
                         used_fallback = True
@@ -13742,31 +13814,19 @@ class Mediator:
         if anchor.name in {"skill_giveup_btn"}:
             return "skill"
         if opened == "treasure":
-            # 宝物面板必须有 treasure 专用锚点联合确认，不能把 skill_giveup_btn/skill_refresh_btn/skill_hide/通用 hide 当作宝物依据
-            if anchor.name in {"treasure_hide_btn", "treasure_lock_btn", "treasure_refresh_btn"}:
+            # V 前后选卡区域未变化，说明打开请求落在已有面板上，不能借 V
+            # 把该面板误判为宝物；发生变化才是本轮 V 真正打开的新面板。
+            requested_fp = getattr(self, "_treasure_open_request_fp", None)
+            current_fp = self._panel_physical_fingerprint(frame)
+            if requested_fp is None:
+                # 兼容旧会话及回放：它们没有按键前画面，沿用主动 V 标记。
                 return "treasure"
-            has_giveup = self.find(
-                frame, ["skill_giveup_btn"],
-                threshold=min(0.70, self.settings.match_threshold),
-                scales=self._hot_scales(),
-                roi=self._PANEL_BUTTONS_ROI,
-            )
-            if has_giveup is not None:
-                return "skill"
-            has_treasure_anchor = self.find(
-                frame, ["treasure_lock_btn", "treasure_hide_btn", "treasure_refresh_btn"],
-                threshold=min(0.70, self.settings.match_threshold),
-                scales=self._hot_scales(),
-                roi=self._PANEL_BUTTONS_ROI,
-            )
-            if has_treasure_anchor is not None:
+            if current_fp is not None and current_fp != requested_fp:
                 return "treasure"
-            classified = self._classify_choice_panel(frame)
-            if classified in ("skill", "treasure", "bond"):
-                return classified
-            if anchor.name in {"skill_hide", "skill_refresh_btn"}:
-                return "skill"
-            return "unknown"
+            generic = self._classify_choice_panel_at(
+                frame, min(0.70, self.settings.match_threshold), self._hot_scales()
+            )
+            return generic or "unknown"
         if opened in ("skill", "bond"):
             return opened
         if anchor.name in {"bond_hide_btn", "bond_refresh_btn"}:
@@ -14691,17 +14751,6 @@ class Mediator:
             if self._hitch_enabled():
                 self.set_phase(Phase.ROOM_WAITING, "guest waits for player 1 difficulty")
             return LoopAction.Continue
-        if (
-            self._passenger_mode()
-            and post_game is None
-            and not self._is_in_game_hud(frame)
-            and self._find_stage_page(frame)
-        ):
-            if self._hitch_pending_room_key is not None:
-                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-            print("[med] hitch 误开选关/游戏大厅，退出当前游戏")
-            self.set_phase(Phase.QUIT, "hitch misopened stage page")
-            return LoopAction.Continue
         # The bag page covers the post-game controls it opened over.  Live
         # 2026-09-11 it hid the archive plaza after ContinueGame, so the page
         # never classified and the chain waited with zero input.  Close it on
@@ -14732,6 +14781,48 @@ class Mediator:
                 return LoopAction.Continue
             if fsm.phase is PublicBagPhase.CLOSE_REQUESTED:
                 self._public_bag_fsm = fsm.observe(now, bag_visible=False)
+        # 结算面板关闭后有一个短暂的“存档”过渡帧：旧分类器可能暂时既
+        # 识别不到 ARCHIVE_PANEL，也还没识别成 NPC_HUB。此时不能被选关页
+        # 误判抢先退出，否则传家宝入口永远没有机会点击。优先保留已确定
+        # 的 heirloom/archive 路由，等广场锚点出现后由下方统一入口点击。
+        # 放在关背包之后：背包盖住广场时入口不可见，先关背包。
+        if (
+            self._passenger_mode()
+            and post_game is None
+            and self._post_game_pending
+            and getattr(self, "_post_game_route", "") in {"archive", "heirloom"}
+            and (
+                self._top_bar_mode(frame) == "plaza"
+                or self.find_scene(frame, "archive") is not None
+            )
+        ):
+            route = getattr(self, "_post_game_route", "")
+            entry = self._post_game_hub_entry_click(frame, route)
+            if entry is not None:
+                reason = "OpenArchiveChallenges" if route == "archive" else "OpenHeirloomChallenges"
+                print(f"[med] 战后过渡帧确认广场入口：打开{('存档' if route == 'archive' else '传家宝')}挑战 @ {entry.center}")
+                if self.act_click(entry, reason):
+                    self._post_game_route = f"{route}_active"
+                    self._main_line_since = now
+            else:
+                print(f"[med] 战后{route}路由仍在过渡帧，等待广场入口（零动作）")
+            return LoopAction.Continue
+        if (
+            self._passenger_mode()
+            and post_game is None
+            and not self._is_in_game_hud(frame)
+            and self._find_stage_page(frame)
+            # The top-bar mode label (存档/团本) only exists inside a game.
+            # Live 2026-09-14 f0353/f0707: the post-game plaza read as a
+            # stage page and quit before the heirloom click / 60s rule; the
+            # real stage pages (f0034/f0410) carry no mode label.
+            and self._top_bar_mode(frame) is None
+        ):
+            if self._hitch_pending_room_key is not None:
+                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+            print("[med] hitch 误开选关/游戏大厅，退出当前游戏")
+            self.set_phase(Phase.QUIT, "hitch misopened stage page")
+            return LoopAction.Continue
         if post_game == "ARCHIVE_PANEL" and self._post_game_archive_pending_only:
             if frame is getattr(self, "_prev_frame", None):
                 print("[med] 存档 pending+X 捕获未变化，不计入第二帧（零动作）")
@@ -15081,11 +15172,16 @@ class Mediator:
                 self._boss_challenge_scroll_stable_frames = 0
                 self._boss_challenge_next_at = 0.0
                 self._boss_challenge_page = post_game
-            if (
-                self._post_game_pending
-                and getattr(self, "_post_game_route", "") == "heirloom_active"
-                and self._boss_challenge_attempts < 3
-            ):
+            heirloom_chain_active = (
+                getattr(self, "_post_game_route", "") in {"heirloom", "heirloom_active"}
+                and (
+                    self._post_game_pending
+                    or
+                    bool(str(getattr(self.settings, "cjb_boss", "") or "").strip())
+                    or self._passenger_mode()
+                )
+            )
+            if heirloom_chain_active and self._boss_challenge_attempts < 3:
                 # The page remains open after a successful click and displays
                 # a short “已挑战” toast. Once visible, close the dialog once
                 # and continue the already-selected post-game route; before
@@ -15114,7 +15210,7 @@ class Mediator:
             self._aux_dialog_attempts[post_game] = attempts + 1
             print(f"[med] 关闭传家宝弹窗 @ {close_hit.center} (尝试 {attempts + 1}/3)")
             if self.act_click(close_hit, "DismissHeirloomDialog"):
-                if self._post_game_pending and getattr(self, "_post_game_route", "") == "heirloom_active":
+                if getattr(self, "_post_game_route", "") == "heirloom_active":
                     self._post_game_route = "boss_active"
                     self._post_game_pending = False
                     self._post_game_close_attempts = 0
@@ -15410,7 +15506,14 @@ class Mediator:
         # 20260828（实机 20260828_001049）：本守卫必须先于自动任务门禁——
         # 选关页上永远等不到【自动任务】复选框，旧顺序被门禁 return 阻断，
         # MAIN_LINE 卡死按 F1 直到 LivenessTimeout。
-        if self._find_stage_page(frame) and not self._is_in_game_hud(frame):
+        # A top-bar mode label (存档/团本) proves we are still in a game:
+        # live 2026-09-14 f0353 the heirloom plaza read as a stage page and
+        # quit 14s into the 60s heirloom wait.
+        if (
+            self._find_stage_page(frame)
+            and not self._is_in_game_hud(frame)
+            and self._top_bar_mode(frame) is None
+        ):
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
 
