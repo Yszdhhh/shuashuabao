@@ -30,6 +30,7 @@ F0250 = FIXTURES / "f0250_action_after.png"
 F0410 = FIXTURES / "f0410_action_after.png"
 F0581 = FIXTURES / "f0581_action_before.png"
 F0582 = FIXTURES / "tqtz_confirm_dialog_f0582.png"
+TQTZ_AT_SIX_MINUTES = FIXTURES / "tqtz_button_visible_f0511.png"
 
 
 def _load_frame(path: Path) -> Frame:
@@ -109,3 +110,20 @@ def test_taskbar_ocr_interval_throttling() -> None:
     # 10 秒后再次调用，冷却到期，允许重新识别
     stage_after_cd = med._read_main_line_stage(frame, now + 10.1)
     assert stage_after_cd == (5, 6)
+
+
+def test_tqtz_icon_at_six_minutes_is_not_time_gated() -> None:
+    """UR/圣剑可让图标第 6 分钟出现；只认图标，不等待固定时长。"""
+    frame = _load_frame(TQTZ_AT_SIX_MINUTES)
+    med = Mediator(Settings(ocr_mode="off", auto_close_main_line=True), ROOT)
+    now = 1000.0
+    med._round_started_at = now - 360.0
+    clicks: list[str] = []
+    with patch.object(
+        med, "act_click", side_effect=lambda _hit, reason: clicks.append(reason) or True
+    ):
+        res = med._maybe_click_tqtz(frame, now)
+    assert res == LoopAction.Continue
+    assert clicks == ["ClickTQTZ"]
+    assert med._tqtz_pending
+    assert med._close_main_line_triggered
