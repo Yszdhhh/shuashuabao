@@ -1,0 +1,9 @@
+#!/bin/sh
+# main 只能通过 PR 的 merge commit 前进（AGENTS.md「分支纪律」）。
+# 在 main 上直接提交的实例：4ed44d4 / 45c3520 / b66f1ce（2026-09-14）。
+branch=$(git symbolic-ref --short -q HEAD)
+if [ "$branch" = "main" ]; then
+  echo "pre-commit: 禁止在 main 上提交。先 git switch -c <topic> origin/main，再走 PR。" >&2
+  exit 1
+fi
+exit 0

@@ -6,6 +6,16 @@
 
 ## 硬规矩（不要绕）
 
+### 0. 分支纪律：main 只经 PR 的 merge commit 前进
+
+- 任何改动开始前：`git fetch origin && git switch -c <topic> origin/main`（或新 worktree）。
+  **禁止在 main 上写代码或提交**，也禁止直接 `git push origin main`。
+- 合并只用 PR 的 merge commit（仓库已关闭 squash / rebase）。本地 main 只做 `git merge --ff-only origin/main`。
+- 克隆后执行一次 `git config core.hooksPath .githooks`：`pre-commit` 拒绝在 main 提交，
+  `pre-push` 拒绝推送 main。钩子能被绕过，只是第二道门；绕过即流程事故。
+- 发现本地 main 有未推送的提交：先把它们挪到 topic 分支（`git branch <topic> main`），
+  再把 main 对齐 `origin/main`，然后才能继续。2026-09-14 的 4ed44d4/45c3520/b66f1ce 就是这样补的 PR #21。
+
 ### 1. 提交前必须过门禁
 
 ```powershell
