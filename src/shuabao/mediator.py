@@ -14340,7 +14340,10 @@ class Mediator:
             if self.act_click(close_hit, "HitchPanelFailClosed"):
                 self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
                 kind = self._panel_kind or "skill"
-                self._panel_state = PanelState.COOLDOWN
+                self._stage_panel_choice_action("close", (kind, close_hit.name))
+                self._panel_state = PanelState.WAIT_MUTATION
+                self._panel_mutation_baseline = self._panel_roi_region(frame)
+                self._panel_last_input_at = now
                 self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                 self._panel_opened_by_us = None
             return True
@@ -14369,13 +14372,20 @@ class Mediator:
                         f"panel_episode_timeout: kind={self._panel_kind} "
                         f"ep_id={self._panel_episode_id} duration={episode_duration:.2f}s"
                     )
-                    self._panel_state = PanelState.COOLDOWN
                     kind = self._panel_kind or "unknown"
                     if kind in ("skill", "bond", "treasure"):
                         self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
-                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                     self._panel_opened_by_us = None
                     self._skill_refresh_attempts = 0
+                    self._panel_episode_started = None
+                    if self._passenger_mode() and anchor is not None:
+                        print(f"[L1] 蹭车面板超时脱困但画面仍有锚点，转 CLOSING 物理隐藏面板避免遮挡主线")
+                        self._panel_state = PanelState.CLOSING
+                        self._panel_closing_attempts = 0
+                        self._panel_closing_started_at = now
+                        return LoopAction.Continue
+                    self._panel_state = PanelState.COOLDOWN
+                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
                     return LoopAction.Continue
 
         if st == PanelState.CLOSED:
@@ -14392,15 +14402,18 @@ class Mediator:
                 >= self.settings.panel_episode_limit_per_kind
             ):
                 # 遮挡面板达到 episode 上限：不再用 float("inf") 永久冻结。
-                # 非蹭车：60s 长冷却后归位；蹭车：直接结束面板会话，
-                # 把控制权交还压力转移/自动任务/黑商等主线步骤。
+                # 蹭车模式：放弃选择面板时必须点"暂时隐藏"并以面板消失为后置条件，绝不能直接 finish 放行主线遮挡画面；
+                # 非蹭车模式：60s 长冷却后归位。
                 self._panel_kind = kind
                 self._panel_opened_by_us = None
                 self._skill_refresh_attempts = 0
                 if self._passenger_mode():
-                    print(f"[L1] 蹭车 {kind} natural episode 上限已达，结束面板会话并放行主线")
-                    self._finish_panel_episode()
-                    return None
+                    print(f"[L1] 蹭车 {kind} episode 上限已达 ({self._panel_episode_count.get(kind, 0)} >= {self.settings.panel_episode_limit_per_kind})，"
+                          f"转 CLOSING 物理隐藏面板避免遮挡主线")
+                    self._panel_state = PanelState.CLOSING
+                    self._panel_closing_attempts = 0
+                    self._panel_closing_started_at = now
+                    return LoopAction.Continue
                 self._panel_state = PanelState.COOLDOWN
                 self._panel_cooldown_until[kind] = now + 60.0
                 print(f"[L1] {kind} natural episode 上限已达，进入 60s 冷却（本局不再重入）")
@@ -14637,6 +14650,14 @@ class Mediator:
                 self._commit_pending_bond_cards()
                 self._finish_panel_episode()
                 return LoopAction.Continue
+            if self._panel_pending_choice_action == "close":
+                # 关闭动作必须以面板完全消失（anchor is None）为后置条件，不能仅因画面扰动就重返 ACTIVE
+                if now - self._panel_last_input_at >= self._panel_confirm_window:
+                    print("[L1] 关闭动作确认窗超时，面板仍未消失，转 CLOSING 重试物理关闭")
+                    self._panel_state = PanelState.CLOSING
+                    self._panel_closing_attempts = 0
+                    self._panel_closing_started_at = now
+                return LoopAction.Continue
             if self._panel_mutation_confirmed(frame):
                 # 内容变化（新候选/选卡消费/关闭过渡）后才确认成功。
                 self._panel_confirmed_actions += 1
@@ -14695,6 +14716,12 @@ class Mediator:
 
         if st == PanelState.COOLDOWN:
             if now >= self._panel_cooldown_until.get(self._panel_kind, 0):
+                if self._passenger_mode() and anchor is not None:
+                    print(f"[L1] 蹭车 COOLDOWN 到期但面板仍未消失，转 CLOSING 物理关闭避免遮挡主线")
+                    self._panel_state = PanelState.CLOSING
+                    self._panel_closing_attempts = 0
+                    self._panel_closing_started_at = now
+                    return LoopAction.Continue
                 self._finish_panel_episode()
                 return None  # 落到无面板链
             return LoopAction.Continue
@@ -15213,6 +15240,8 @@ class Mediator:
             self._victory_continue_attempts += 1
             print(f"[med] 胜利结算 点击继续游戏 @ {hit.center} (尝试 {self._victory_continue_attempts}/3)")
             if self.act_click(hit, "ContinueGame"):
+                if self._panel_state != PanelState.CLOSED:
+                    self._finish_panel_episode()
                 route_before_continue = getattr(self, "_post_game_route", "archive")
                 self._post_game_pending = True
                 # A real Boss challenge owns the post-victory transition. Do
@@ -15681,6 +15710,9 @@ class Mediator:
             if res is not None:
                 self._main_line_since = now
                 return res
+            if self._passenger_mode() and anchor is not None:
+                # 蹭车模式：面板未消失严禁穿透到主线 HUD 动作（防止面板遮挡结算/继续游戏）
+                return LoopAction.Continue
         elif surface == InteractionSurface.MERCHANT:
             merchant_res = self._maybe_black_merchant(frame)
             if merchant_res is not None:
