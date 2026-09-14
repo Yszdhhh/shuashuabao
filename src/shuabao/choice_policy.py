@@ -217,6 +217,9 @@ class PolicySettings:
     bond_base_presets: tuple[str, ...] = ()
     bond_advanced_presets: tuple[str, ...] = ()
     bond_advanced_groups: tuple[tuple[str, ...], ...] = ()
+    # 属性线门卡之后的链路卡（秘法师→法神→湮灭者 等）：在白名单里、任何阶段都可拿，
+    # 但不计入基础卡 80% 进度，也不是高级卡组。
+    bond_chain_presets: tuple[str, ...] = ()
     bond_base_completion_ratio: float = 0.80
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
@@ -280,6 +283,9 @@ class PolicySettings:
         object.__setattr__(self, "bond_advanced_presets", tuple(dict.fromkeys(
             str(s).strip() for s in self.bond_advanced_presets if str(s).strip()
         )))
+        object.__setattr__(self, "bond_chain_presets", tuple(dict.fromkeys(
+            str(s).strip() for s in self.bond_chain_presets if str(s).strip()
+        )))
         object.__setattr__(self, "bond_advanced_groups", tuple(
             tuple(dict.fromkeys(str(s).strip() for s in group if str(s).strip()))
             for group in self.bond_advanced_groups
@@ -337,6 +343,7 @@ class PolicySettings:
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
             bond_base_presets=tuple(str(s) for s in (raw.get("bond_base_presets") or ())),
             bond_advanced_presets=tuple(str(s) for s in (raw.get("bond_advanced_presets") or ())),
+            bond_chain_presets=tuple(str(s) for s in (raw.get("bond_chain_presets") or ())),
             bond_advanced_groups=tuple(
                 tuple(str(x).strip() for x in group if str(x).strip())
                 for group in (raw.get("bond_advanced_groups") or ())
@@ -378,7 +385,19 @@ class PolicySettings:
         )
 
 
-_ATTRIBUTE_BOND_NAMES = {"int": "智力", "str": "力量", "agi": "敏捷"}
+# 属性线 = 门卡(4) → 中环(4) → 次环(3) → UR(3)，与 config/official_strategy_defaults.json
+# attr_routes.*.chain 一致（tests 校验不漂移）。support 卡（法术/魔法师/箭术…）不是属性线，
+# 由看板基础卡组单独勾选。
+_ATTRIBUTE_CHAINS = {
+    "int": ("智力", "秘法师", "法神", "湮灭者"),
+    "str": ("力量", "野蛮人", "战神", "屠戮者"),
+    "agi": ("敏捷", "猎魔人", "弓神", "收割者"),
+}
+_ATTRIBUTE_IDS = {
+    "int": "int", "intelligence": "int", "智力": "int",
+    "str": "str", "strength": "str", "力量": "str",
+    "agi": "agi", "agility": "agi", "敏捷": "agi",
+}
 
 
 def assemble_policy_settings(
@@ -414,11 +433,20 @@ def assemble_policy_settings(
     # The dashboard's 基础卡组 stores the three attribute lines separately as
     # wire ids (ui-v2 strategy_codec: int/str/agi).  They are basic bonds too;
     # left out here they were never picked (live solo 2026-09-14: 0 of 35).
+    # Each line is walked gate card -> UR; only the gate card counts as basic.
+    chain_presets: list[str] = []
     for item in getattr(settings, "attributes", None) or ():
-        raw_item = str(item or "").strip()
-        text = _ATTRIBUTE_BOND_NAMES.get(raw_item, raw_item)
-        if text and text not in bond_presets:
-            bond_presets.append(text)
+        chain = _ATTRIBUTE_CHAINS.get(_ATTRIBUTE_IDS.get(str(item or "").strip(), ""))
+        if not chain:
+            continue
+        gate, followers = chain[0], chain[1:]
+        if gate not in bond_presets:
+            bond_presets.append(gate)
+        for name in followers:
+            if name not in bond_presets:
+                bond_presets.append(name)
+            if name not in chain_presets:
+                chain_presets.append(name)
     card_presets: list[str] = []
     for item in getattr(settings, "cards", None) or ():
         text = str(item or "").strip()
@@ -437,7 +465,10 @@ def assemble_policy_settings(
     advanced_presets = tuple(
         item for item in bond_presets if matches_bond_preset(item, advanced_names)
     )
-    base_presets = tuple(item for item in bond_presets if item not in advanced_presets)
+    base_presets = tuple(
+        item for item in bond_presets
+        if item not in advanced_presets and item not in chain_presets
+    )
     catalog_groups: list[tuple[str, ...]] = []
     for group in (bond_cfg.get("advanced_groups") or ()):
         names = tuple(str(x).strip() for x in (group or ()) if str(x).strip())
@@ -522,6 +553,7 @@ def assemble_policy_settings(
             "bond_presets": tuple(bond_presets),
             "bond_base_presets": base_presets,
             "bond_advanced_presets": advanced_presets,
+            "bond_chain_presets": tuple(chain_presets),
             "bond_advanced_groups": tuple(selected_groups),
             "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
             "treasure_presets": (),
@@ -1233,6 +1265,7 @@ def _decide_collectible(
                     slot for slot in eligible
                     if (
                         matches_bond_preset(slot.name, settings.bond_base_presets)
+                        or matches_bond_preset(slot.name, settings.bond_chain_presets)
                         # A past run may already contain an advanced card. Let
                         # its duplicate finish/merge, but never start another.
                         or str(slot.name or "").strip() in owned_bonds
@@ -1253,6 +1286,7 @@ def _decide_collectible(
                         slot for slot in eligible
                         if (
                             matches_bond_preset(slot.name, settings.bond_base_presets)
+                            or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
                             or str(slot.name or "").strip() in owned_bonds
                         )

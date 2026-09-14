@@ -7605,6 +7605,65 @@ class Mediator:
         return LoopAction.Continue
     # Icon centre sits 48px above the caption centre at 900px height.
     _TQTZ_ICON_LIFT = 48 / 900
+    # The icon opens 「是否确认提前挑战？」 with the same grey 是/否 buttons as
+    # the great-rift dialog (live 2026-09-14 f0582: classified
+    # GREAT_RIFT_CONFIRM, mijingOk 0.91 @ (711,388), no rift 否 anchor ->
+    # zero input until the Owner clicked 是 by hand).
+    _TQTZ_DIALOG_WINDOW_S = 30.0
+
+    def _tqtz_confirm_dialog_expected(self, frame: Frame, now: float) -> bool:
+        """In-round 是/否 dialog that belongs to our own 提前挑战 click."""
+        # _post_game_route defaults to "secret" inside the round, so only the
+        # states that really are post-game exclude the dialog.
+        if (
+            self._post_game_pending
+            or self._secret_realm_request_pending
+            or getattr(self, "_hitch_heirloom_exit_since", None)
+            or str(getattr(self, "_post_game_route", "")).endswith("_active")
+        ):
+            return False
+        if getattr(self, "_tqtz_abandoned", False):
+            return False
+        if now <= getattr(self, "_tqtz_dialog_expected_until", 0.0):
+            return True
+        # Dialog opened without our click (manual / after the window): the
+        # 提前挑战 caption is still on the HUD, which never happens on the
+        # post-game plaza where the real rift dialog lives.
+        return self._is_in_game_hud(frame) and self.find(
+            frame, ["tqtz"], threshold=0.80, roi=(0.20, 0.03, 0.45, 0.15)
+        ) is not None
+
+    def _confirm_tqtz_dialog(self, frame: Frame, now: float) -> LoopAction:
+        if now < getattr(self, "_tqtz_confirm_next_at", 0.0):
+            return LoopAction.Continue
+        attempts = getattr(self, "_tqtz_confirm_attempts", 0)
+        if attempts >= 3:
+            print("[early] 提前挑战确认框点「是」3 次未消失，放弃提前挑战（不再点）")
+            self._tqtz_abandoned = True
+            self._tqtz_pending = False
+            self._early_challenge_pending = False
+            self._tqtz_dialog_expected_until = 0.0
+            return LoopAction.Continue
+        accept_hit = self._find_great_rift_accept(frame)
+        if accept_hit is None:
+            print("[early] 提前挑战确认框未找到受锚定的「是」，零动作等待")
+            return LoopAction.Continue
+        self._tqtz_confirm_attempts = attempts + 1
+        self._tqtz_confirm_next_at = now + 1.5
+        self._tqtz_dialog_expected_until = max(
+            getattr(self, "_tqtz_dialog_expected_until", 0.0), now + 5.0
+        )
+        print(f"[early] 提前挑战确认框：点击「是」@ {accept_hit.center}（{attempts + 1}/3）")
+        if self.act_click(accept_hit, "ConfirmTQTZ"):
+            # 是 summons the attack/final Boss directly; there is no Boss
+            # picker to wait for, so the main loop resumes right away.
+            self._tqtz_clicked = True
+            self._tqtz_pending = False
+            self._tqtz_pending_frame = None
+            self._early_challenge_pending = False
+            self._early_challenge_clicked_at = None
+            self._main_line_since = now
+        return LoopAction.Continue
 
     def _maybe_click_tqtz(self, frame: Frame, now: float) -> LoopAction | None:
         """局内检测到 10 分钟『提前挑战』图标（tqtz.png）时主动点击触发打 Boss。
@@ -7726,6 +7785,7 @@ class Mediator:
         )
         if self.act_click(icon_hit, "ClickTQTZ"):
             self._tqtz_attempts = getattr(self, "_tqtz_attempts", 0) + 1
+            self._tqtz_dialog_expected_until = now + self._TQTZ_DIALOG_WINDOW_S
             self._tqtz_pending = True
             self._tqtz_pending_since = now
             self._tqtz_next_check_at = now + 1.0
@@ -7912,6 +7972,25 @@ class Mediator:
             print(f"[med] 蹭车开局压力转移门禁已武装（{why}）")
         self._hitch_opening_pressure_armed = natural
         return natural
+
+    # After a right-click the hero first walks to the NPC; the dialog opens
+    # only on arrival (live 2026-09-14: 3 clicks 3s apart, gave up 2s after
+    # the last one, no dialog).
+    _RIFT_NPC_WALK_S = 5.0
+
+    def _rift_npc_body_hit(self, frame: Frame, label: MatchResult) -> MatchResult:
+        """The 大秘境 template is the floating caption; the NPC stands under it.
+
+        Live f0578/f0657 (1600x900): caption centre (1183,213), robed NPC at
+        about (1163,266) — left of the caption centre and ~40px below it.  A
+        right-click on the caption text opened nothing.
+        """
+        x = label.x + label.w // 2 - int(label.w * 0.28)
+        y = min(frame.height - 1, label.y + label.h + max(18, int(frame.height * 0.045)))
+        return MatchResult(
+            "damijing_npc", label.score, max(0, x - label.w // 2), y,
+            label.w, label.h, frame.left + x, frame.top + y,
+        )
 
     def _find_secret_realm_npc(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
@@ -8782,6 +8861,9 @@ class Mediator:
         self._tqtz_request_generation = -1
         self._tqtz_attempts = 0
         self._tqtz_abandoned = False
+        self._tqtz_dialog_expected_until = 0.0
+        self._tqtz_confirm_attempts = 0
+        self._tqtz_confirm_next_at = 0.0
 
     def set_phase(self, phase: Phase, note: str = "") -> None:
         if phase != self.phase:
@@ -12973,10 +13055,18 @@ class Mediator:
                     self.set_phase(Phase.COMPLETE, "cycle_num reached")
                     self.stop()
                     return LoopAction.Break
-                if self._auto_room_enabled() and not self._hitch_enabled() and not self._follow_enabled():
-                    # G0 P0 contract #7：同房返回证明完成 → 先用既有语义控件
+                if (
+                    self._auto_room_enabled()
+                    and getattr(self.settings, "new_room_every_times", False)
+                    and not self._hitch_enabled()
+                    and not self._follow_enabled()
+                ):
+                    # G0 P0 contract #7 (only with 每局新建房间)：先用既有语义控件
                     # （lobby_home/lobby_back/room_exit_btn）离开旧房，fresh
                     # room-list authority 后才进 PLATFORM_MAP 创建下一房。
+                    # Owner 2026-09-14: otherwise the solo player stays host in
+                    # the same room and just presses 开始游戏 — the leave click
+                    # moved the host from seat 1 to row 2 (live f0662→f0664).
                     self._room_leave_pending = True
                     self._room_leave_next_at = 0.0
                     self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
@@ -15454,10 +15544,20 @@ class Mediator:
             else:
                 self._post_game_active_wait_since = None
             if self.settings.auto_secret_realm and not self._hitch_enabled():
-                timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
+                # Three walks to the NPC plus the wait after the last one.
+                timeout = max(
+                    3.0,
+                    min(float(self.settings.query_timeout), 15.0),
+                    3 * self._RIFT_NPC_WALK_S + 2.0,
+                )
                 if self._secret_realm_request_since is None:
                     self._secret_realm_request_since = now
                 elapsed = now - self._secret_realm_request_since
+                # Let the hero arrive after each right-click before judging it,
+                # including the third one.
+                if now < self._secret_realm_next_observe_at and elapsed < timeout:
+                    print("[med] 已右键大秘境 NPC，英雄走向 NPC，等待确认框（零动作）")
+                    return LoopAction.Continue
                 if self._secret_realm_request_attempts >= 3 or elapsed >= timeout:
                     if self._unattended_recovery_enabled():
                         return self._abandon_secret_realm("NPC 未能打开确认框")
@@ -15465,19 +15565,17 @@ class Mediator:
                     self.set_phase(Phase.ERROR, "great rift npc request timeout")
                     self.stop()
                     return LoopAction.Break
-                if now < self._secret_realm_next_observe_at:
-                    print("[med] 已右键大秘境 NPC，等待确认框（零动作）")
-                    return LoopAction.Continue
-                rift_npc = self._find_secret_realm_npc(frame)
-                if not rift_npc:
+                rift_label = self._find_secret_realm_npc(frame)
+                if not rift_label:
                     print("[med] 挑战广场未找到受锚定的大秘境 NPC，零动作等待")
                     return LoopAction.Continue
+                rift_npc = self._rift_npc_body_hit(frame, rift_label)
                 self._secret_realm_request_attempts += 1
                 print(
-                    f"[med] 自动秘境开启，右键大秘境 NPC @ {rift_npc.center} "
-                    f"(尝试 {self._secret_realm_request_attempts}/3)"
+                    f"[med] 自动秘境开启，右键大秘境 NPC 本体 @ {rift_npc.center} "
+                    f"（标签 @ {rift_label.center}，尝试 {self._secret_realm_request_attempts}/3）"
                 )
-                self._secret_realm_next_observe_at = now + self.settings.ui_action_interval_s
+                self._secret_realm_next_observe_at = now + self._RIFT_NPC_WALK_S
                 if self.act_right_click(rift_npc, "OpenGreatRift"):
                     self._secret_realm_request_pending = True
                     self._main_line_since = now
@@ -15562,6 +15660,8 @@ class Mediator:
             self._main_line_since = now
             return LoopAction.Continue
 
+        if post_game == "GREAT_RIFT_CONFIRM" and self._tqtz_confirm_dialog_expected(frame, now):
+            return self._confirm_tqtz_dialog(frame, now)
         if post_game == "GREAT_RIFT_CONFIRM":
             if (
                 self.settings.auto_secret_realm

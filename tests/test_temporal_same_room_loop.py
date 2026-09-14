@@ -31,7 +31,8 @@ class TemporalSameRoomLoopTests(unittest.TestCase):
         settings = Settings(
             stage_targets=["1-12"],
             auto_create_room=True,
-            new_room_every_times=False,
+            # Leave-old-room only runs with 每局新建房间 (Owner 2026-09-14).
+            new_room_every_times=True,
             query_timeout=30,
             # 本文件验证观察模式契约（OBSERVE incident 只记录不终止）；
             # 1d8f101 把 dry_run 默认翻成 False，显式钉回测试出生时的模式。

@@ -45,3 +45,67 @@ def test_no_attributes_selected_means_no_attribute_presets() -> None:
     policy = _policy(attributes=[])
     for name in ("智力", "力量", "敏捷"):
         assert name not in policy.bond_presets
+
+
+def test_attribute_line_is_walked_from_gate_card_to_ur() -> None:
+    """Owner 2026-09-14：属性线 = 开启卡组到 UR；门卡之后的整条链都要拿。"""
+    policy = _policy()
+    for chain in (("智力", "秘法师", "法神", "湮灭者"),
+                  ("力量", "野蛮人", "战神", "屠戮者"),
+                  ("敏捷", "猎魔人", "弓神", "收割者")):
+        for name in chain:
+            assert name in policy.bond_presets, name
+        for name in chain[1:]:
+            assert name in policy.bond_chain_presets, name
+            assert name not in policy.bond_base_presets, name
+            assert name not in policy.bond_advanced_presets, name
+
+
+def test_only_selected_attribute_lines_are_expanded() -> None:
+    policy = _policy(attributes=["int"])
+    assert "法神" in policy.bond_presets
+    for name in ("力量", "野蛮人", "屠戮者", "敏捷", "猎魔人", "收割者"):
+        assert name not in policy.bond_presets, name
+
+
+def test_intelligence_support_cards_are_not_part_of_the_attribute_line() -> None:
+    """魔法师/元素师偏智力，但属于看板基础卡组选项，不随属性线自动拿。"""
+    policy = _policy(attributes=["int"])
+    for name in ("魔法师", "元素师"):
+        assert name not in policy.bond_presets, name
+    picked = _policy(attributes=["int"], cards=[*OWNER["cards"], "魔法师", "元素师"])
+    for name in ("魔法师", "元素师"):
+        assert name in picked.bond_base_presets, name
+
+
+def test_chain_constants_match_the_kb_attr_routes() -> None:
+    import json
+
+    from shuabao.choice_policy import _ATTRIBUTE_CHAINS
+
+    doc = json.loads((ROOT / "config" / "official_strategy_defaults.json").read_text(encoding="utf-8"))
+    routes = doc["attr_routes"]
+    assert _ATTRIBUTE_CHAINS["int"] == tuple(routes["intelligence"]["chain"])
+    assert _ATTRIBUTE_CHAINS["str"] == tuple(routes["strength"]["chain"])
+    assert _ATTRIBUTE_CHAINS["agi"] == tuple(routes["agility"]["chain"])
+
+
+def test_chain_card_is_selectable_before_basic_bonds_reach_80_percent() -> None:
+    from shuabao.choice_policy import (
+        PANEL_BOND, PanelCandidates, PolicyAction, SessionState, SlotCandidate, choose_action,
+    )
+
+    policy = _policy()
+    cands = PanelCandidates(
+        panel_kind=PANEL_BOND,
+        slots=(
+            SlotCandidate(index=0, name="白赚海盗", confidence=0.99),
+            SlotCandidate(index=1, name="秘法师", confidence=0.99),
+        ),
+        owned_bond_cards=("智力",),
+        can_refresh=True,
+        settings=policy,
+    )
+    decision = choose_action(cands, SessionState())
+    assert decision.action == PolicyAction.SELECT_SLOT, decision.reason
+    assert decision.index == 1

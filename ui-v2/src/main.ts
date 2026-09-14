@@ -653,7 +653,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
         const packId = cardToPack.get(card) ?? (ADV_PACK_CARDS[card] ? card : "");
         if (packId && !restoredAdv.includes(packId)) restoredAdv.push(packId);
       }
-      const basicNames = ["法术", "急速", "魔能", "魔术", "箭术", "战术", "暴击", "固守", "陷阵"];
+      const basicNames = ["法术", "急速", "魔能", "魔术", "魔法师", "元素师", "箭术", "战术", "暴击", "固守", "陷阵"];
       state.adv = restoredAdv;
       state.advDraft = restoredAdv.slice();
       state.basic = new Set(basicNames.filter((name) => savedCards.includes(name)));
