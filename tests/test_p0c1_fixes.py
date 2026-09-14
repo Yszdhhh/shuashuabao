@@ -83,6 +83,8 @@ class P0C1FixesTests(unittest.TestCase):
         路由属于战后链自身状态，必须豁免，否则过渡帧被误杀紧急停机。
         boss_entry 20260822 起是 Boss 提前挑战入口——未配置挑战 Boss 时零输入
         等待（不停机、零输入），配置后点击；longzhu 色相检查移至 LONGZHU 阶段。"""
+        # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
+        self.settings = Settings(mode_id="lab")
         frame = create_dummy_frame()
 
         # 1) 无战后上下文（pending=False + 局尾窗口）→ 未验证 archive 仍 Fail-Closed

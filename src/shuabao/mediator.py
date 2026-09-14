@@ -6789,7 +6789,17 @@ class Mediator:
 
     _HITCH_INSTANCE_FRAMES = 3
     _HITCH_HEIRLOOM_EXIT_S = 60.0
+    # Solo fights its own heirloom Boss, so it gets a longer window (user,
+    # 2026-09-14: "逻辑一样时间放长一点").
+    _SOLO_HEIRLOOM_EXIT_S = 120.0
     _HITCH_POSTGAME_HARD_CAP_S = 300.0
+
+    def _heirloom_exit_window_s(self) -> float:
+        return self._HITCH_HEIRLOOM_EXIT_S if self._passenger_mode() else self._SOLO_HEIRLOOM_EXIT_S
+
+    def _solo_heirloom_secret(self) -> bool:
+        """Solo with auto secret realm: the heirloom rule arms the rift."""
+        return not self._passenger_mode() and bool(getattr(self.settings, "auto_secret_realm", False))
 
     def _hitch_left_plaza(self, frame: Frame) -> bool:
         """After the heirloom click: were we moved into 秘境 / 团本?
@@ -7561,8 +7571,8 @@ class Mediator:
         """
         attempts = int(getattr(self, "_pause_resume_attempts", 0) or 0)
         if attempts >= 5:
-            if self._passenger_mode():
-                print("[med] 蹭车暂停恢复重试已达上限（5次），保持零输入观察，不终止运行")
+            if self._unattended_recovery_enabled():
+                print("[med] 暂停恢复重试已达上限（5次），保持零输入观察，不终止运行")
                 return LoopAction.Continue
             print("[med] 暂停恢复重试已达上限（5 次），Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "pause resume attempts exhausted")
@@ -9525,6 +9535,22 @@ class Mediator:
         """Hitch and follow share the in-game/post-game passenger contract."""
         return self._hitch_enabled() or self._follow_enabled()
 
+    # Desktop live modes that run unattended for many rounds (mode_specs:
+    # live_enabled + desktop_start).  Cloud audit 2026-09-14 B0: recovery
+    # used to ride on _passenger_mode(), so normal_farm stopped the whole
+    # run on UI hiccups that hitch already recovers from.
+    _UNATTENDED_RECOVERY_MODES = frozenset({"normal_farm", "lobby_hitch", "follow_team"})
+
+    def _unattended_recovery_enabled(self) -> bool:
+        """May a recoverable UI failure end the round instead of the run?
+
+        Only the lifecycle changes: action authority stays fail-closed (an
+        unknown page still gets zero input), and every re-armed wait stays
+        bounded by the liveness supervisor, the post-game cap and the round
+        deadline.  Passenger business rules keep using _passenger_mode().
+        """
+        return str(getattr(self.settings, "mode_id", "") or "") in self._UNATTENDED_RECOVERY_MODES
+
     def _team_mode_enabled(self) -> bool:
         mode = str(getattr(self.settings, "mode_id", "") or "")
         return mode in {"lobby_hitch", "follow_team", "lead_team", "lead"}
@@ -10847,7 +10873,7 @@ class Mediator:
             fsm = self._public_bag_fsm
             self._public_bag_fsm = PublicBagFSM(deposits=fsm.deposits, aborts=fsm.aborts)
             self._public_bag_open_since = None
-            self._l1_cycle_step = "merchant"
+            self._l1_cycle_step = "merchant" if self._passenger_mode() else "bond"
             self._auto_task_recheck_at = now
             self._pause_resume_attempts = 0
             self._pause_resume_next_at = 0.0
@@ -10883,7 +10909,15 @@ class Mediator:
         A running round's legitimate idle only ever gets the soft reset; the
         round hard deadline bounds it.
         """
-        if not self._hitch_enabled() or self.settings.dry_run or self.stop_signal.is_set():
+        if self.settings.dry_run or self.stop_signal.is_set():
+            return
+        hitch = self._hitch_enabled()
+        if not hitch and not (
+            self._unattended_recovery_enabled()
+            and self.phase in self._UNATTENDED_SUPERVISED_PHASES
+        ):
+            # Solo/follow: only the in-game phases share this ladder; their
+            # lobby/room flows keep their own bounded transactions.
             return
         if self.phase in (Phase.ERROR, Phase.COMPLETE):
             return
@@ -10916,8 +10950,11 @@ class Mediator:
             # The exit chain owns any game page; a swallowed menu goes back to
             # the exit button instead of back into the round.
             target = Phase.QUIT
+        if not hitch and target not in (Phase.QUIT, Phase.MAIN_LINE):
+            # The KK room/lobby targets belong to the hitch search flow.
+            target = None
         if self.phase == Phase.MAIN_LINE and world == "game_round":
-            print(f"[med] 蹭车无进展监督：局内 {stalled:.0f}s 无输入，软复位局内瞬态（不退局）")
+            print(f"[med] 无进展监督：局内 {stalled:.0f}s 无输入，软复位局内瞬态（不退局）")
             self._liveness_level_at = now
             self._hitch_soft_reset(now)
             return
@@ -10925,7 +10962,7 @@ class Mediator:
         self._liveness_level_at = now
         level = self._liveness_level
         print(
-            f"[med] 蹭车无进展监督：{self.phase.name} 已 {stalled:.0f}s 无有效输入，"
+            f"[med] 无进展监督：{self.phase.name} 已 {stalled:.0f}s 无有效输入，"
             f"实际画面={world}，升级第 {level} 级"
         )
         self._record_environment_incident(f"hitch_liveness_stall_l{level}", stalled)
@@ -10935,10 +10972,12 @@ class Mediator:
             else:
                 self._hitch_soft_reset(now)
             return
-        if level == 2:
+        if level == 2 and (hitch or world.startswith("game")):
+            # Non-hitch modes can only leave a running game; a vanished game
+            # window has no solo lobby path here and goes to BLOCKED.
             self._hitch_liveness_leave(world, now)
             return
-        print(f"[med] 蹭车无进展监督：校正/撤离后仍无有效输入（{world}），BLOCKED 停止")
+        print(f"[med] 无进展监督：校正/撤离后仍无有效输入（{world}），BLOCKED 停止")
         self.set_phase(Phase.ERROR, f"hitch liveness blocked ({world})")
         self.stop()
 
@@ -10981,7 +11020,7 @@ class Mediator:
         if world.startswith("game"):
             self._recovery_state = None
             self._recovery_step = "DONE"
-            print(f"[med] 蹭车无进展监督：离开卡住的游戏（{world}）")
+            print(f"[med] 无进展监督：离开卡住的游戏（{world}）")
             self.set_phase(Phase.QUIT, f"hitch liveness: leave stalled game ({world})")
             return
         if world == "kk_room":
@@ -11481,6 +11520,10 @@ class Mediator:
         Phase.NEXT: 60.0,
     }
     _HITCH_STALL_DEFAULT_S = 150.0
+    # Non-hitch unattended modes share the ladder only inside a game.
+    _UNATTENDED_SUPERVISED_PHASES = frozenset(
+        {Phase.MAIN_LINE, Phase.RECOVER_FAILURE, Phase.QUIT, Phase.NEXT}
+    )
     # Observed world -> the phase that owns it.
     _HITCH_WORLD_PHASE = {
         "game_failure": Phase.QUIT,
@@ -14570,11 +14613,35 @@ class Mediator:
             return LoopAction.Continue
 
         if elapsed >= timeout:
+            if self._unattended_recovery_enabled():
+                return self._abandon_secret_realm("确认后未出现连续局内 HUD")
             print("[med] 大秘境确认后未出现连续局内 HUD，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "great rift entry verification timeout")
             self.stop()
             return LoopAction.Break
         print("[med] 大秘境载入中，等待连续局内 HUD（零动作）")
+        return LoopAction.Continue
+
+    def _abandon_secret_realm(self, why: str) -> LoopAction:
+        """Unattended: a secret-realm step we cannot prove ends this round.
+
+        The round itself was won (the rift is only offered after Victory), so
+        the outcome stays VICTORY; the exit chain then leaves the game and the
+        next round starts as usual instead of stopping the whole run.
+        """
+        print(f"[med] 大秘境{why}：放弃本局秘境，退出当前局（不停整个运行）")
+        self._record_environment_incident("secret_realm_abandoned", 0.0)
+        self._secret_realm_request_pending = False
+        self._secret_realm_request_since = None
+        self._secret_realm_request_attempts = 0
+        self._secret_realm_next_observe_at = 0.0
+        self._secret_realm_entering_since = None
+        self._secret_realm_confirm_attempts = 0
+        self._secret_realm_hud_confirmations = 0
+        self._secret_realm_last_hud_frame_id = None
+        self._post_game_pending = False
+        self._record_round_outcome(RoundOutcome.VICTORY, f"secret realm abandoned: {why}")
+        self.set_phase(Phase.QUIT, f"secret realm abandoned: {why}")
         return LoopAction.Continue
 
     def _tick_main_line(self, frame: Frame) -> LoopAction:
@@ -14601,20 +14668,25 @@ class Mediator:
             self.set_phase(Phase.QUIT, "round deadline expired")
             return LoopAction.Continue
 
-        if not secret_entry_observation and self._passenger_mode() and (
+        if not secret_entry_observation and self._unattended_recovery_enabled() and (
             post_game is not None or self._post_game_pending
         ):
+            if post_game == "POST_VICTORY" and getattr(self, "_hitch_heirloom_exit_since", None):
+                # The heirloom Boss's own Victory opens a new post-game
+                # transaction; the old budget (from the first Victory, kept
+                # across the heirloom wait) would quit before the rift.
+                self._hitch_postgame_started_at = now
             if self._hitch_postgame_started_at is None:
                 self._hitch_postgame_started_at = now
             elif now - self._hitch_postgame_started_at >= self._HITCH_POSTGAME_HARD_CAP_S:
                 why = f"post-game UI {self._HITCH_POSTGAME_HARD_CAP_S:.0f}s hard cap"
-                print(f"[med] 蹭车战后界面总预算到期，转 QUIT（{why}）")
+                print(f"[med] 战后界面总预算到期，转 QUIT（{why}）")
                 self._record_round_outcome(RoundOutcome.TIMEOUT, why)
                 self.set_phase(Phase.QUIT, why)
                 return LoopAction.Continue
         elif (
             not secret_entry_observation
-            and self._passenger_mode()
+            and self._unattended_recovery_enabled()
             and not self._hitch_heirloom_exit_since
         ):
             # A one-frame false candidate must not age the next real
@@ -14661,7 +14733,7 @@ class Mediator:
                 self._pending_action = None
         if (
             not secret_entry_observation
-            and self._passenger_mode()
+            and self._unattended_recovery_enabled()
             and getattr(self, "_hitch_heirloom_exit_since", None)
         ):
             # User rule (2026-09-12) after the heirloom Boss is sent:
@@ -14670,6 +14742,10 @@ class Mediator:
             #   3. a failed game exits through the failure chain.
             # Teleported into 秘境 / 团本 -> never exit here; that run ends
             # in its own failure (or victory) page, which exits as usual.
+            # Solo (user, 2026-09-14): the same rule with a 120s window; with
+            # auto_secret_realm the trigger arms the rift instead of exiting
+            # and the heirloom Victory then continues into it (bounded 2x).
+            window = self._heirloom_exit_window_s()
             if not self._follow_enabled() and self._hitch_left_plaza(frame):
                 self._hitch_postgame_started_at = None
                 if not getattr(self, "_hitch_instance_announced", False):
@@ -14683,10 +14759,22 @@ class Mediator:
                 on_plaza = self._follow_enabled() or self._top_bar_mode(frame) == "plaza"
                 loot = on_plaza and self._heirloom_loot_popup_visible(frame)
                 waited = now - float(self._hitch_heirloom_exit_since)
-                timer_due = waited >= self._HITCH_HEIRLOOM_EXIT_S and (
-                    on_plaza or waited >= 2 * self._HITCH_HEIRLOOM_EXIT_S
-                )
-                if loot:
+                timer_due = waited >= window and (on_plaza or waited >= 2 * window)
+                if self._solo_heirloom_secret():
+                    if (loot or timer_due) and not self._passenger_heirloom_for_secret:
+                        self._passenger_heirloom_for_secret = True
+                        trigger = "掉落已确认" if loot else f"已等 {window:.0f}s"
+                        print(f"[med] 单人传家宝{trigger}，已开自动秘境：等待 Victory 后进入秘境")
+                    if waited >= 2 * window:
+                        why = f"heirloom {2 * window:.0f}s without Victory"
+                        print(f"[med] 传家宝后退出：{why}")
+                        self._hitch_heirloom_exit_since = None
+                        self._passenger_heirloom_for_secret = False
+                        self._record_round_outcome(RoundOutcome.TIMEOUT, why)
+                        self.set_phase(Phase.QUIT, why)
+                        return LoopAction.Continue
+                    # Fall through: the POST_VICTORY branch continues into the rift.
+                elif loot:
                     if self._follow_enabled() and self.settings.auto_secret_realm:
                         self._hitch_heirloom_exit_since = None
                         self._passenger_heirloom_for_secret = True
@@ -14698,11 +14786,11 @@ class Mediator:
                     self._record_round_outcome(RoundOutcome.VICTORY, why)
                     self.set_phase(Phase.QUIT, why)
                     return LoopAction.Continue
-                if timer_due:
+                elif timer_due:
                     if self._follow_enabled() and self.settings.auto_secret_realm:
                         print("[med] 跟车传家宝掉落未识别，继续等待 Victory/失败，不提前退出")
                         return LoopAction.Continue
-                    why = f"heirloom {self._HITCH_HEIRLOOM_EXIT_S:.0f}s timeout"
+                    why = f"heirloom {window:.0f}s timeout"
                     print(f"[med] 传家宝后退出：{why}")
                     self._hitch_heirloom_exit_since = None
                     self._record_round_outcome(RoundOutcome.TIMEOUT, why)
@@ -14759,7 +14847,7 @@ class Mediator:
         bag_blocks_post_game = post_game in {
             "NPC_HUB", "POST_VICTORY", "ARCHIVE_PANEL", "HEIRLOOM_DIALOG",
         } or (post_game is None and getattr(self, "_post_game_pending", False))
-        if self._passenger_mode() and bag_blocks_post_game:
+        if self._unattended_recovery_enabled() and bag_blocks_post_game:
             bag_open = self._bag_layout(frame) is not None
             fsm = self._public_bag_fsm
             if bag_open:
@@ -14870,6 +14958,8 @@ class Mediator:
             and self._secret_realm_request_since is not None
             and now - self._secret_realm_request_since >= max(3.0, min(float(self.settings.query_timeout), 15.0))
         ):
+            if self._unattended_recovery_enabled():
+                return self._abandon_secret_realm("请求超时")
             print("[med] 大秘境请求超时，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "secret realm request timeout")
             self.stop()
@@ -14884,8 +14974,8 @@ class Mediator:
                 and getattr(self, "_post_game_route", "") not in {"boss_active", "archive", "archive_active", "heirloom", "heirloom_active"}
                 and self.find_scene(frame, "archive")
             ):
-                if self._passenger_mode():
-                    print("[med] 蹭车识别到未验证战后入口 archive，保持零输入观察（不直接停机）")
+                if self._unattended_recovery_enabled():
+                    print("[med] 识别到未验证战后入口 archive，保持零输入观察（不直接停机）")
                     return LoopAction.Continue
                 print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "unverified archive entry")
@@ -14907,11 +14997,14 @@ class Mediator:
             self._main_line_since = now
             return self._maybe_resume_paused(frame, now)
         if post_game == "POST_VICTORY":
-            if self._passenger_mode() and getattr(self, "_hitch_heirloom_exit_since", None):
+            if self._unattended_recovery_enabled() and getattr(self, "_hitch_heirloom_exit_since", None):
                 self._hitch_heirloom_exit_since = None
                 if self._follow_enabled() and self.settings.auto_secret_realm:
                     self._passenger_heirloom_for_secret = True
                     print("[med] 跟车传家宝 Victory 已确认，继续游戏后进入秘境")
+                elif self._solo_heirloom_secret():
+                    self._passenger_heirloom_for_secret = True
+                    print("[med] 单人传家宝 Victory 已确认，继续游戏后进入秘境")
                 else:
                     print("[med] 传家宝后出现胜利页，直接退出当前游戏")
                     self._record_round_outcome(RoundOutcome.VICTORY, "heirloom victory")
@@ -14926,8 +15019,8 @@ class Mediator:
             if self._post_game_pending and self._victory_continue_since is not None:
                 elapsed = now - self._victory_continue_since
                 if elapsed >= min(self.settings.query_timeout, 30):
-                    if self._passenger_mode():
-                        print("[med] 蹭车继续游戏后胜利页仍在，重新武装有界点击并继续观察")
+                    if self._unattended_recovery_enabled():
+                        print("[med] 继续游戏后胜利页仍在，重新武装有界点击并继续观察")
                         self._post_game_pending = False
                         self._victory_continue_attempts = 0
                         self._victory_continue_since = None
@@ -14940,8 +15033,8 @@ class Mediator:
                 return LoopAction.Continue
 
             if self._victory_continue_attempts >= 3:
-                if self._passenger_mode():
-                    print("[med] 蹭车继续游戏重试预算耗尽，重新武装并保持运行")
+                if self._unattended_recovery_enabled():
+                    print("[med] 继续游戏重试预算耗尽，重新武装并保持运行")
                     self._victory_continue_attempts = 0
                     return LoopAction.Continue
                 print("[med] 胜利结算点击继续游戏重试已达上限，Fail-Closed 停止运行")
@@ -14986,8 +15079,8 @@ class Mediator:
 
         if post_game == "ARCHIVE_PANEL":
             if not self._post_game_pending:
-                if self._passenger_mode():
-                    print("[med] 蹭车直接识别到存档挑战页，接管战后链并继续")
+                if self._unattended_recovery_enabled():
+                    print("[med] 未经胜利页直接识别到存档挑战页，接管战后链并继续")
                     self._post_game_pending = True
                     self._post_game_route = "archive"
                     return LoopAction.Continue
@@ -15044,8 +15137,8 @@ class Mediator:
                     return LoopAction.Continue
 
             if self._post_game_close_attempts >= 3:
-                if self._passenger_mode():
-                    print("[med] 蹭车存档面板关闭重试预算耗尽，重新武装并继续等待专用关闭按钮")
+                if self._unattended_recovery_enabled():
+                    print("[med] 存档面板关闭重试预算耗尽，重新武装并继续等待专用关闭按钮")
                     self._post_game_close_attempts = 0
                     return LoopAction.Continue
                 print("[med] 存档面板关闭重试已达上限，Fail-Closed 停止运行")
@@ -15064,8 +15157,8 @@ class Mediator:
             return LoopAction.Continue
         if post_game == "NPC_HUB":
             if not self._post_game_pending:
-                if self._passenger_mode():
-                    print("[med] 蹭车直接识别到战后挑战广场，接管存档→传家宝链")
+                if self._unattended_recovery_enabled():
+                    print("[med] 未经胜利页直接识别到战后挑战广场，接管存档→传家宝链")
                     self._post_game_pending = True
                     self._post_game_route = "archive"
                     return LoopAction.Continue
@@ -15081,6 +15174,8 @@ class Mediator:
                 elapsed = now - self._secret_realm_entering_since
                 timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
                 if elapsed >= timeout:
+                    if self._unattended_recovery_enabled():
+                        return self._abandon_secret_realm("确认后仍停留挑战广场")
                     print("[med] 大秘境确认后仍停留挑战广场，Fail-Closed 停止运行")
                     self.set_phase(Phase.ERROR, "great rift entry remained on npc hub")
                     self.stop()
@@ -15128,6 +15223,8 @@ class Mediator:
                     self._secret_realm_request_since = now
                 elapsed = now - self._secret_realm_request_since
                 if self._secret_realm_request_attempts >= 3 or elapsed >= timeout:
+                    if self._unattended_recovery_enabled():
+                        return self._abandon_secret_realm("NPC 未能打开确认框")
                     print("[med] 大秘境 NPC 未能打开确认框，Fail-Closed 停止运行")
                     self.set_phase(Phase.ERROR, "great rift npc request timeout")
                     self.stop()
@@ -15195,8 +15292,8 @@ class Mediator:
                     return self._maybe_challenge_configured_boss(frame, now, recheck_s=1.0)
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
-                if self._passenger_mode():
-                    print("[med] 蹭车传家宝弹窗关闭重试预算耗尽，重新武装并继续观察")
+                if self._unattended_recovery_enabled():
+                    print("[med] 传家宝弹窗关闭重试预算耗尽，重新武装并继续观察")
                     self._aux_dialog_attempts[post_game] = 0
                     return LoopAction.Continue
                 print("[med] 传家宝弹窗关闭重试已达上限，Fail-Closed 停止运行")
@@ -15214,14 +15311,15 @@ class Mediator:
                     self._post_game_route = "boss_active"
                     self._post_game_pending = False
                     self._post_game_close_attempts = 0
-                    if self._passenger_mode():
+                    if self._unattended_recovery_enabled():
                         self._hitch_heirloom_exit_since = now
                         self._hitch_instance_seen = False
                         self._hitch_instance_frames = 0
                         self._hitch_instance_announced = False
+                        then = "进入秘境" if self._solo_heirloom_secret() else "退出"
                         print(
-                            "[med] 传家宝 Boss 已点：广场上识别到装备获取信息立刻退出，"
-                            f"否则 {self._HITCH_HEIRLOOM_EXIT_S:.0f}s 后退出；进入秘境/团本则等失败再退"
+                            f"[med] 传家宝 Boss 已点：广场上识别到装备获取信息立刻{then}，"
+                            f"否则 {self._heirloom_exit_window_s():.0f}s 后{then}；进入秘境/团本则等失败再退"
                         )
                     else:
                         print("[med] 传家宝 Boss 已进入挑战进行中，等待真实 Victory（零动作）")
@@ -15237,6 +15335,8 @@ class Mediator:
                 started = self._secret_realm_request_since or now
                 timeout = max(3.0, min(float(self.settings.query_timeout), 15.0))
                 if self._secret_realm_confirm_attempts >= 3 or now - started >= timeout:
+                    if self._unattended_recovery_enabled():
+                        return self._abandon_secret_realm("确认框“是”超时")
                     self.set_phase(Phase.ERROR, "great rift confirm timeout")
                     self.stop()
                     return LoopAction.Break
@@ -15262,6 +15362,10 @@ class Mediator:
 
             attempts = self._aux_dialog_attempts[post_game]
             if attempts >= 3:
+                if self._unattended_recovery_enabled():
+                    print("[med] 大秘境确认框取消重试预算耗尽，重新武装并继续观察")
+                    self._aux_dialog_attempts[post_game] = 0
+                    return LoopAction.Continue
                 print("[med] 大秘境确认框取消重试已达上限，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "great rift cancel attempts exhausted")
                 self.stop()
@@ -15276,8 +15380,8 @@ class Mediator:
             self._main_line_since = now
             return LoopAction.Continue
         if post_game:
-            if self._passenger_mode():
-                print(f"[med] 蹭车遇到未实现战后页面 {post_game}，零输入等待可识别页面")
+            if self._unattended_recovery_enabled():
+                print(f"[med] 遇到未实现战后页面 {post_game}，零输入等待可识别页面")
                 return LoopAction.Continue
             print(f"[med] 识别到尚未实现的战后页面 {post_game}，Fail-Closed 停止运行（零输入）")
             self.set_phase(Phase.ERROR, f"unverified post-game page {post_game}")
@@ -15460,8 +15564,8 @@ class Mediator:
                 and "archive" in self.scenes
                 and self.find_scene(frame, "archive")
             ):
-                if self._passenger_mode():
-                    print("[med] 蹭车识别到未验证战后入口 archive，保持零输入观察（不直接停机）")
+                if self._unattended_recovery_enabled():
+                    print("[med] 识别到未验证战后入口 archive，保持零输入观察（不直接停机）")
                     return LoopAction.Continue
                 print("[med] 识别到未验证战后入口 archive，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "unverified archive entry")
@@ -15480,8 +15584,8 @@ class Mediator:
         if self._post_game_pending:
             elapsed = now - self._victory_continue_since if self._victory_continue_since else 0.0
             if elapsed >= min(self.settings.query_timeout, 30):
-                if self._passenger_mode():
-                    print("[med] 蹭车战后转场超时，保持零输入等待存档面板/挑战广场")
+                if self._unattended_recovery_enabled():
+                    print("[med] 战后转场超时，保持零输入等待存档面板/挑战广场")
                     return LoopAction.Continue
                 print("[med] 继续游戏后未确认到存档面板或挑战广场，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "post-game transition timeout")
@@ -15753,8 +15857,8 @@ class Mediator:
                 self.set_phase(Phase.NEXT, "exit confirmation already visible")
                 return LoopAction.Continue
             if self._exit_button_attempts >= 3 or elapsed >= timeout:
-                if self._passenger_mode():
-                    print("[med] 蹭车局内退出按钮观察窗到期，重新武装并继续等待专用锨点")
+                if self._unattended_recovery_enabled():
+                    print("[med] 局内退出按钮观察窗到期，重新武装并继续等待专用锚点")
                     self._exit_button_attempts = 0
                     self._exit_since = time.time()
                     return LoopAction.Continue
@@ -15777,8 +15881,8 @@ class Mediator:
 
         if self.phase == Phase.NEXT:
             if self._exit_confirm_attempts >= 3 or elapsed >= timeout:
-                if self._passenger_mode():
-                    print("[med] 蹭车退出确认观察窗到期，重新武装并继续等待专用按钮")
+                if self._unattended_recovery_enabled():
+                    print("[med] 退出确认观察窗到期，重新武装并继续等待专用按钮")
                     self._exit_confirm_attempts = 0
                     self._exit_since = time.time()
                     return LoopAction.Continue

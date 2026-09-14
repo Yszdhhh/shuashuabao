@@ -54,6 +54,10 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_post_game_pages_fail_closed_with_zero_input(self):
         """Archive/hub/heirloom/rift pages must cause Fail-Closed stop with zero executor calls."""
+        # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
+        self.settings = Settings(mode_id="lab")
+        self.med = Mediator(self.settings, ROOT)
+        self.med.set_phase(Phase.MAIN_LINE, "p1b0 setup")
         fail_closed_ids = {"archive_challenge_panel", "challenge_npc_hub"}
         for shot in sorted(ENDGAME.glob("*.png")) + sorted(ENDGAME.glob("*.jpg")):
             if shot.stem not in fail_closed_ids:
@@ -169,7 +173,7 @@ class P1B0PostGameTests(unittest.TestCase):
         extra_right_click.assert_not_called()
 
     def test_secret_realm_dialog_timeout_fails_closed_without_guessing(self):
-        settings = Settings(auto_secret_realm=True)
+        settings = Settings(auto_secret_realm=True, mode_id="lab")  # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
         med = Mediator(settings, ROOT)
         med.set_phase(Phase.MAIN_LINE, "secret realm timeout")
         med._post_game_pending = True
@@ -1286,6 +1290,10 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_victory_continue_retry_limit_fails_closed(self):
         """3 failed continue attempts must Fail-Closed into ERROR."""
+        # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
+        self.settings = Settings(mode_id="lab")
+        self.med = Mediator(self.settings, ROOT)
+        self.med.set_phase(Phase.MAIN_LINE, "p1b0 setup")
         frame = load_fixture_frame("fixtures/replay/victory_continue.png")
         self.med._victory_continue_attempts = 3
         with patch.object(self.med, "act_click") as mock_act:

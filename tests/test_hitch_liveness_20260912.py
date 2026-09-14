@@ -310,9 +310,20 @@ def test_lobby_search_and_running_round_have_no_dwell_cap() -> None:
         assert med.phase == phase
 
 
-def test_supervisor_is_off_outside_hitch_and_in_dry_run() -> None:
+def test_supervisor_is_off_outside_unattended_modes_and_in_dry_run() -> None:
+    # Cloud audit 2026-09-14 B0: solo now shares the ladder inside a game
+    # (tests/test_unattended_recovery_20260914.py); lab and solo lobby
+    # phases stay unsupervised.
+    lab = Mediator(Settings(mode_id="lab", ocr_mode="off"), ROOT)
+    lab.set_phase(Phase.MAIN_LINE, "test")
+    lab._liveness_last_progress_at = time.time() - 10_000.0
+    lab._tick_input_executed = False
+    with patch.object(lab, "_hitch_observe_world") as observe:
+        lab._hitch_liveness_supervise()
+    assert observe.call_count == 0
+
     solo = Mediator(Settings(ocr_mode="off"), ROOT)
-    solo.set_phase(Phase.MAIN_LINE, "test")
+    solo.set_phase(Phase.PREPARE, "test")
     solo._liveness_last_progress_at = time.time() - 10_000.0
     solo._tick_input_executed = False
     with patch.object(solo, "_hitch_observe_world") as observe:
