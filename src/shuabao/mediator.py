@@ -5576,8 +5576,16 @@ class Mediator:
                 )
         return items
 
-    def _hud_counter(self, frame: Frame, roi: tuple[float, float, float, float], key: str) -> int | None:
-        """OCR one integer from a top-bar HUD counter; None when not trusted."""
+    def _hud_counter(
+        self,
+        frame: Frame,
+        roi: tuple[float, float, float, float],
+        key: str,
+        *,
+        min_score: float | None = None,
+        max_value: int | None = None,
+    ) -> int | None:
+        """OCR one integer from a HUD counter/badge; None when not trusted."""
         if frame.bgr is None or frame.bgr.size == 0:
             return None
         bbox = self._normalized_bbox(frame, roi)
@@ -5608,7 +5616,8 @@ class Mediator:
             return None
         if str(getattr(response, "status", "")) != "ok":
             return None
-        if float(getattr(response, "rec_score", 0.0) or 0.0) < self._MERCHANT_KILL_BALANCE_MIN_SCORE:
+        floor = self._MERCHANT_KILL_BALANCE_MIN_SCORE if min_score is None else min_score
+        if float(getattr(response, "rec_score", 0.0) or 0.0) < floor:
             return None
         raw = str(getattr(response, "raw_text", "") or "")
         if not raw:
@@ -5617,8 +5626,58 @@ class Mediator:
         values = re.findall(r"(?<!\d)(\d{1,6})(?!\d)", raw)
         if len(values) != 1:
             return None
-        cache[key] = (fingerprint, int(values[0]))
-        return cache[key][1]
+        value = int(values[0])
+        if max_value is not None and value > max_value:
+            return None
+        cache[key] = (fingerprint, value)
+        return value
+
+    # Yellow badge digits on the hero command card (live 000229 f0200: G 技能
+    # "13" at (1464,781), V 宝物 "2" at (1407,719) @1600x900).  No badge =
+    # nothing pending.  OCR reads the digits right but with 0.2-0.97 scores
+    # (the sparkling border also reads as "-"), hence the lower floor.
+    _SKILL_BADGE_ROI = (1448 / 1600, 768 / 900, 1482 / 1600, 794 / 900)
+    _TREASURE_BADGE_ROI = (1394 / 1600, 707 / 900, 1422 / 1600, 731 / 900)
+    _BADGE_MIN_SCORE = 0.6
+
+    # Icon bodies that prove the button itself is on screen (a selected
+    # monster replaces the command card; an open panel only dims it).
+    _SKILL_ICON_ROI = (1432 / 1600, 787 / 900, 1472 / 1600, 810 / 900)
+    _TREASURE_ICON_ROI = (1372 / 1600, 700 / 900, 1402 / 1600, 745 / 900)
+
+    def _hud_button_visible(self, frame: Frame, key: str) -> bool:
+        if key == "skill_badge":
+            x0, y0, x1, y1 = self._normalized_bbox(frame, self._SKILL_ICON_ROI)
+            hsv = cv2.cvtColor(frame.bgr[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+            hit = ((hsv[:, :, 0] < 8) | (hsv[:, :, 0] > 172)) & (hsv[:, :, 1] > 150) & (hsv[:, :, 2] > 110)
+        else:
+            x0, y0, x1, y1 = self._normalized_bbox(frame, self._TREASURE_ICON_ROI)
+            hsv = cv2.cvtColor(frame.bgr[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+            hit = (hsv[:, :, 0] > 70) & (hsv[:, :, 0] < 100) & (hsv[:, :, 1] > 80) & (hsv[:, :, 2] > 80)
+        return int(hit.sum()) >= 60
+
+    def _hud_badge(self, frame: Frame, roi: tuple[float, float, float, float], key: str) -> int | None:
+        if frame.bgr is None or frame.bgr.size == 0:
+            return None
+        if not self._hud_button_visible(frame, key):
+            return None
+        x0, y0, x1, y1 = self._normalized_bbox(frame, roi)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        yellow = (hsv[:, :, 0] > 15) & (hsv[:, :, 0] < 40) & (hsv[:, :, 1] > 90) & (hsv[:, :, 2] > 100)
+        if int(yellow.sum()) < 6:
+            return 0
+        return self._hud_counter(frame, roi, key, min_score=self._BADGE_MIN_SCORE, max_value=99)
+
+    def _hud_skill_points(self, frame: Frame) -> int | None:
+        """Unspent skill picks shown on the G 技能 button (None = unreadable)."""
+        return self._hud_badge(frame, self._SKILL_BADGE_ROI, "skill_badge")
+
+    def _hud_treasure_pending(self, frame: Frame) -> int | None:
+        """Pending treasure picks shown on the V 宝物 button (None = unreadable)."""
+        return self._hud_badge(frame, self._TREASURE_BADGE_ROI, "treasure_badge")
 
     def _merchant_kill_balance(self, frame: Frame) -> int | None:
         """Read the top-right skull counter used by black-merchant prices.
