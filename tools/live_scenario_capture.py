@@ -4008,6 +4008,23 @@ def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Fr
             "requested_title": title,
             "reason": f"window capture exception: {exc}",
         }
+    if (
+        target == "solo_ingame_chain"
+        and not _frame_is_valid(frame)
+        and getattr(frame, "error", None) != "Window is minimized"
+    ):
+        # The solo contract starts on the KK map / create-room / room page,
+        # before any game client exists (live 2026-09-14: every KK start was
+        # BLOCKED on "Target window not found: '英雄三国'").  Fall back to the
+        # KK window only; _start_surface_preflight must still classify it as
+        # a production L0 start surface before any input.
+        try:
+            kk = capture("", role="l0", allow_fallback=True)
+        except Exception:
+            kk = None
+        kk_title = str(getattr(kk, "window_title", "") or "").lower()
+        if _frame_is_valid(kk) and any(token in kk_title for token in ("kk", "英雄三国", "warcraft")):
+            frame, role, title = kk, "l0", ""
     window_title = str(getattr(frame, "window_title", "") or "")
     is_minimized = getattr(frame, "error", None) == "Window is minimized"
     if is_minimized and getattr(frame, "hwnd", None):
