@@ -815,6 +815,63 @@ def test_black_merchant_integrated_routes_and_secret_probe_are_guarded() -> None
     assert _capture_input_guard("time_cave", "target_handler")("click", "BossConfigured") is None
 
 
+def test_recording_executor_move_is_guarded_and_recorded() -> None:
+    calls: list[tuple[object, ...]] = []
+    results: list[ActionResult] = []
+    guards: list[tuple[str, str, str]] = []
+
+    class Delegate:
+        stop_signal = StopSignal()
+
+        def move(self, *args, **kwargs):
+            calls.append(args)
+            return ActionResult(True, "SUCCESS", "delegate moved")
+
+    integrated = RecordingInputExecutor(
+        Delegate(),
+        lambda _method, _args, _kwargs, result: results.append(result),
+        reason_provider=lambda: "ParkPointer",
+        input_guard=lambda _method, _reason: None,
+        on_guard=lambda method, reason, denial: guards.append((method, reason, denial)),
+    )
+
+    result = integrated.move(10, 20, dry_run=False)
+
+    assert result.success is True
+    assert calls == [(10, 20)]
+    assert [item.status for item in results] == ["SUCCESS"]
+    assert guards == []
+
+
+def test_recording_executor_move_stops_at_harness_guard() -> None:
+    calls: list[tuple[object, ...]] = []
+    results: list[ActionResult] = []
+    guards: list[tuple[str, str, str]] = []
+
+    class Delegate:
+        stop_signal = StopSignal()
+
+        def move(self, *args, **kwargs):
+            calls.append(args)
+            return ActionResult(True, "SUCCESS", "delegate should not run")
+
+    integrated = RecordingInputExecutor(
+        Delegate(),
+        lambda _method, _args, _kwargs, result: results.append(result),
+        reason_provider=lambda: "ParkPointer",
+        input_guard=lambda _method, _reason: "test guard denial",
+        on_guard=lambda method, reason, denial: guards.append((method, reason, denial)),
+    )
+
+    result = integrated.move(10, 20, dry_run=False)
+
+    assert result.success is False
+    assert result.status == "CANCELLED_PROBE_GUARD"
+    assert calls == []
+    assert [item.status for item in results] == ["CANCELLED_PROBE_GUARD"]
+    assert guards == [("move", "ParkPointer", "test guard denial")]
+
+
 def test_black_merchant_probe_composes_existing_handlers_one_input_per_tick() -> None:
     calls: list[str] = []
 

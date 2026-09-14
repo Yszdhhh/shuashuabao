@@ -2999,6 +2999,9 @@ class RecordingInputExecutor(InputExecutor):
     def click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 120) -> ActionResult:
         return self._call("click", x, y, target_hwnd=target_hwnd, dry_run=dry_run, delay_ms=delay_ms)
 
+    def move(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True) -> ActionResult:
+        return self._call("move", x, y, target_hwnd=target_hwnd, dry_run=dry_run)
+
     def right_click(self, x: int, y: int, target_hwnd: int | None = None, dry_run: bool = True, delay_ms: int = 120) -> ActionResult:
         return self._call("right_click", x, y, target_hwnd=target_hwnd, dry_run=dry_run, delay_ms=delay_ms)
 
