@@ -6515,9 +6515,13 @@ class Mediator:
         anchor form the page evidence; this method alone never grants action
         authority outside the classified NPC hub.
         """
+        # The hovered plaza label renders bold, the other one thin.  Live
+        # 2026-09-14 f0707 (pointer parked on 存档挑战) scored the bold-only
+        # 传家宝 template 0.45-0.57, so the hub never classified; the thin
+        # variant scores 0.83-1.0 there and <=0.53 off-label.
         names = {
             "archive": ["archiveChallenge"],
-            "heirloom": ["chuanjiabao", "cjbtiaozhan"],
+            "heirloom": ["chuanjiabao", "chuanjiabao_thin", "cjbtiaozhan"],
         }.get(route)
         roi = self._POST_GAME_HUB_ENTRY_ROIS.get(route)
         if not names or roi is None:
@@ -14747,42 +14751,6 @@ class Mediator:
             if self._hitch_enabled():
                 self.set_phase(Phase.ROOM_WAITING, "guest waits for player 1 difficulty")
             return LoopAction.Continue
-        # 结算面板关闭后有一个短暂的“存档”过渡帧：旧分类器可能暂时既
-        # 识别不到 ARCHIVE_PANEL，也还没识别成 NPC_HUB。此时不能被选关页
-        # 误判抢先退出，否则传家宝入口永远没有机会点击。优先保留已确定
-        # 的 heirloom/archive 路由，等广场锚点出现后由下方统一入口点击。
-        if (
-            self._passenger_mode()
-            and post_game is None
-            and self._post_game_pending
-            and getattr(self, "_post_game_route", "") in {"archive", "heirloom"}
-            and (
-                self._top_bar_mode(frame) == "plaza"
-                or self.find_scene(frame, "archive") is not None
-            )
-        ):
-            route = getattr(self, "_post_game_route", "")
-            entry = self._post_game_hub_entry_click(frame, route)
-            if entry is not None:
-                reason = "OpenArchiveChallenges" if route == "archive" else "OpenHeirloomChallenges"
-                print(f"[med] 战后过渡帧确认广场入口：打开{('存档' if route == 'archive' else '传家宝')}挑战 @ {entry.center}")
-                if self.act_click(entry, reason):
-                    self._post_game_route = f"{route}_active"
-                    self._main_line_since = now
-            else:
-                print(f"[med] 战后{route}路由仍在过渡帧，等待广场入口（零动作）")
-            return LoopAction.Continue
-        if (
-            self._passenger_mode()
-            and post_game is None
-            and not self._is_in_game_hud(frame)
-            and self._find_stage_page(frame)
-        ):
-            if self._hitch_pending_room_key is not None:
-                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
-            print("[med] hitch 误开选关/游戏大厅，退出当前游戏")
-            self.set_phase(Phase.QUIT, "hitch misopened stage page")
-            return LoopAction.Continue
         # The bag page covers the post-game controls it opened over.  Live
         # 2026-09-11 it hid the archive plaza after ContinueGame, so the page
         # never classified and the chain waited with zero input.  Close it on
@@ -14813,6 +14781,48 @@ class Mediator:
                 return LoopAction.Continue
             if fsm.phase is PublicBagPhase.CLOSE_REQUESTED:
                 self._public_bag_fsm = fsm.observe(now, bag_visible=False)
+        # 结算面板关闭后有一个短暂的“存档”过渡帧：旧分类器可能暂时既
+        # 识别不到 ARCHIVE_PANEL，也还没识别成 NPC_HUB。此时不能被选关页
+        # 误判抢先退出，否则传家宝入口永远没有机会点击。优先保留已确定
+        # 的 heirloom/archive 路由，等广场锚点出现后由下方统一入口点击。
+        # 放在关背包之后：背包盖住广场时入口不可见，先关背包。
+        if (
+            self._passenger_mode()
+            and post_game is None
+            and self._post_game_pending
+            and getattr(self, "_post_game_route", "") in {"archive", "heirloom"}
+            and (
+                self._top_bar_mode(frame) == "plaza"
+                or self.find_scene(frame, "archive") is not None
+            )
+        ):
+            route = getattr(self, "_post_game_route", "")
+            entry = self._post_game_hub_entry_click(frame, route)
+            if entry is not None:
+                reason = "OpenArchiveChallenges" if route == "archive" else "OpenHeirloomChallenges"
+                print(f"[med] 战后过渡帧确认广场入口：打开{('存档' if route == 'archive' else '传家宝')}挑战 @ {entry.center}")
+                if self.act_click(entry, reason):
+                    self._post_game_route = f"{route}_active"
+                    self._main_line_since = now
+            else:
+                print(f"[med] 战后{route}路由仍在过渡帧，等待广场入口（零动作）")
+            return LoopAction.Continue
+        if (
+            self._passenger_mode()
+            and post_game is None
+            and not self._is_in_game_hud(frame)
+            and self._find_stage_page(frame)
+            # The top-bar mode label (存档/团本) only exists inside a game.
+            # Live 2026-09-14 f0353/f0707: the post-game plaza read as a
+            # stage page and quit before the heirloom click / 60s rule; the
+            # real stage pages (f0034/f0410) carry no mode label.
+            and self._top_bar_mode(frame) is None
+        ):
+            if self._hitch_pending_room_key is not None:
+                self._hitch_blacklisted_room_keys.add(self._hitch_pending_room_key)
+            print("[med] hitch 误开选关/游戏大厅，退出当前游戏")
+            self.set_phase(Phase.QUIT, "hitch misopened stage page")
+            return LoopAction.Continue
         if post_game == "ARCHIVE_PANEL" and self._post_game_archive_pending_only:
             if frame is getattr(self, "_prev_frame", None):
                 print("[med] 存档 pending+X 捕获未变化，不计入第二帧（零动作）")
@@ -15496,7 +15506,14 @@ class Mediator:
         # 20260828（实机 20260828_001049）：本守卫必须先于自动任务门禁——
         # 选关页上永远等不到【自动任务】复选框，旧顺序被门禁 return 阻断，
         # MAIN_LINE 卡死按 F1 直到 LivenessTimeout。
-        if self._find_stage_page(frame) and not self._is_in_game_hud(frame):
+        # A top-bar mode label (存档/团本) proves we are still in a game:
+        # live 2026-09-14 f0353 the heirloom plaza read as a stage page and
+        # quit 14s into the 60s heirloom wait.
+        if (
+            self._find_stage_page(frame)
+            and not self._is_in_game_hud(frame)
+            and self._top_bar_mode(frame) is None
+        ):
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
 
