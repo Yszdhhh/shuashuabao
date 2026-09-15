@@ -27,18 +27,25 @@ def _policy(**overrides):
     return med._policy_settings()
 
 
-def test_owner_attribute_lines_are_basic_bond_presets() -> None:
+def test_owner_attribute_lines_are_whitelisted_outside_the_80_percent_gate() -> None:
+    """2026-09-15：属性线整条（含门卡）都可拿，但不计入基础卡 80% 分母。
+
+    实机 000229：门卡进分母后 13 个基础家族需碰到 11 个，只到 10，门槛再没解开。
+    """
     policy = _policy()
     for name in ("智力", "力量", "敏捷"):
         assert name in policy.bond_presets, name
-        assert name in policy.bond_base_presets, name
+        assert name in policy.bond_chain_presets, name
+        assert name not in policy.bond_base_presets, name
         assert name not in policy.bond_advanced_presets, name
+    assert len(policy.bond_base_presets) == 10
 
 
-def test_existing_bond_order_is_kept_ahead_of_attributes() -> None:
+def test_whitelist_order_economy_by_payback_then_basic_then_attribute_lines() -> None:
+    """KB 卡面：祝福净赚木材、经济~10 分钟回本、贪婪钥匙+150 木、挑战间接、成长~22 分钟。"""
     presets = list(_policy().bond_presets)
-    assert presets[:5] == OWNER["bonds"]
-    assert presets.index("智力") > presets.index("祝福")
+    assert presets[:5] == ["祝福", "经济", "贪婪", "挑战", "成长"]
+    assert presets.index("魔术") < presets.index("智力") < presets.index("封神")
 
 
 def test_no_attributes_selected_means_no_attribute_presets() -> None:

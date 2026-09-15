@@ -3277,6 +3277,10 @@ class Mediator:
         bases = policy.bond_base_presets
         if not bases or not policy.bond_advanced_presets:
             return False
+        unlock = float(policy.bond_advanced_unlock_s or 0.0)
+        elapsed = self._round_elapsed_s()
+        if unlock > 0 and elapsed is not None and elapsed >= unlock:
+            return False
         required = math.ceil(len(bases) * policy.bond_base_completion_ratio)
         owned = self._confirmed_bond_cards()
         completed = sum(
@@ -3284,6 +3288,11 @@ class Mediator:
             for base in bases
         )
         return completed < required
+
+    def _round_elapsed_s(self) -> float | None:
+        started = getattr(self, "_round_started_at", None)
+        return None if started is None else max(0.0, time.time() - started)
+
     def _reset_choice_session(self) -> None:
         self._choice_session = SessionState(
             max_attempts=DEFAULT_MAX_ATTEMPTS,
@@ -3677,6 +3686,7 @@ class Mediator:
                     settings=policy_settings,
                     owned_skill_cards=self._confirmed_skill_cards(),
                     owned_bond_cards=self._confirmed_bond_cards(),
+                    round_elapsed_s=self._round_elapsed_s(),
                 ),
                 self._choice_session,
             )
@@ -3686,6 +3696,21 @@ class Mediator:
         )
         reason = str(decision.reason or "")
         skip_confirm = "差一张合成" in reason or "已持有合成" in reason
+        if (
+            not skip_confirm
+            and kind in ("bond", "skill")
+            and decision.action == PolicyAction.SELECT_SLOT
+        ):
+            # The policy already required a whitelist/focus match; a title read
+            # at >= 0.95 is not worth another tick (08-29 e2a2714 added the
+            # second frame: bond 1.4s -> 2.9-5.2s, skill 1.4s -> 5.8-7.3s).
+            chosen = next((s for s in slots if s.index == decision.index), None)
+            if (
+                chosen is not None
+                and str(chosen.name or "").strip()
+                and float(chosen.confidence or 0.0) >= self._SINGLE_FRAME_PICK_CONFIDENCE
+            ):
+                skip_confirm = True
         if owned and not skip_confirm and decision.action in {PolicyAction.SELECT_SLOT, PolicyAction.REFRESH}:
             key = (
                 kind,
@@ -3727,6 +3752,8 @@ class Mediator:
         if mapped is None:
             return None
         return mapped[1]
+
+    _SINGLE_FRAME_PICK_CONFIDENCE = 0.95
 
     def _live_ocr_miss_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         """OCR 没读到名字时禁止刷新。预选卡可能已经在画面上。"""
@@ -4131,14 +4158,135 @@ class Mediator:
         """Top-bar wood counter (left of the kill skull), OCR like the kill counter."""
         return self._hud_counter(frame, self._WOOD_BALANCE_ROI, "wood")
 
+    def _reset_solo_plan_state(self) -> None:
+        """Per-round orchestration state (draw price, visit caps, backoffs, badges)."""
+        self._bond_picks_round = 0
+        self._visit_kind = None
+        self._visit_picks = 0
+        self._bond_priority_suspended_at = None
+        self._skill_priority_suspended_at = None
+        self._bond_idle_until = 0.0
+        self._skill_idle_until = 0.0
+        self._skill_points_seen = None
+        self._treasure_pending_seen = None
+        self._wood_balance = None
+        self._wood_next_read_at = 0.0
+
+    def _refresh_solo_signals(self, frame: Frame, now: float) -> None:
+        """Wood / unspent skill picks / pending treasure, read at most every 3s."""
+        if now < getattr(self, "_wood_next_read_at", 0.0):
+            return
+        self._wood_next_read_at = now + self._WOOD_READ_INTERVAL_S
+        self._wood_balance = self._hud_wood_balance(frame)
+        # Badges stay at their last reading while the button is hidden
+        # (monster selected / panel covering); None only until first seen.
+        skill = self._hud_skill_points(frame)
+        if skill is not None:
+            self._skill_points_seen = skill
+        treasure = self._hud_treasure_pending(frame)
+        if treasure is not None:
+            self._treasure_pending_seen = treasure
+
+    # Unspent skill picks that pre-empt the early bond priority (Owner:
+    # 前期 羁绊>技能>其它, but live 000229 banked 32 picks and lost 4-5).
+    _SKILL_BACKLOG_FORCE = 4
+    # Picks per visit before the cycle moves on (live data 2026-09-15: F
+    # drained wood to 0 by 5-6 min while 16-18 skill picks and 12-17 V picks
+    # waited).  The first minute is F's cheap window (20/40/60/80 wood).
+    _BOND_VISIT_PICKS = 3
+    _BOND_VISIT_PICKS_OPENING = 6
+    _SKILL_VISIT_PICKS = 5
+    # F draw price: 20/40/60/80 for the first draws, then 100 (live panel text).
+    _BOND_REFRESH_MARGIN = 40
+
+    def _bond_next_price(self) -> int:
+        picks = int(getattr(self, "_bond_picks_round", 0) or 0)
+        return 100 if picks >= 4 else 20 * (picks + 1)
+
+    def _visit_capped(self, kind: str) -> bool:
+        if getattr(self, "_visit_kind", None) != kind:
+            return False
+        if kind == "bond":
+            elapsed = self._round_elapsed_s()
+            cap = self._BOND_VISIT_PICKS_OPENING if elapsed is not None and elapsed < 60 else self._BOND_VISIT_PICKS
+        elif kind == "skill":
+            cap = self._SKILL_VISIT_PICKS
+        else:
+            return False
+        return int(getattr(self, "_visit_picks", 0) or 0) >= cap
+    # A skill visit that picked nothing (no legal card) backs the force off.
+    _SKILL_IDLE_BACKOFF_S = 30.0
+
+    def _panel_kind_available(self, kind: str, now: float) -> bool:
+        if self._panel_episode_count.get(kind, 0) >= self.settings.panel_episode_limit_per_kind:
+            return False
+        return self._panel_cooldown_until.get(kind, 0.0) - now <= self._BOND_LONG_COOLDOWN_S
+
+    def _solo_plan_panel(self, frame: Frame, now: float, step: str) -> tuple[str | None, str]:
+        """Solo panel choice for this tick: (target, why); target None = skip step.
+
+        Order of reasons:
+          1. skill backlog >= 6 -> G (unless the last G visit found nothing)
+          2. basic bonds < 80% and F can progress (wood >= 500 ...) -> F
+          3. the cycle step, skipping F without wood and G/V with a 0 badge
+        Unreadable badges never skip a step (old behaviour).
+        """
+        self._refresh_solo_signals(frame, now)
+        skill = getattr(self, "_skill_points_seen", None)
+        treasure = getattr(self, "_treasure_pending_seen", None)
+        idx = getattr(self, "_l1_cycle_index", None)
+        # A capped visit suspends that kind's priority until the cycle comes
+        # back to one of its own steps; otherwise the lock would pull the
+        # panel straight back and the cap would mean nothing.
+        for kind in ("bond", "skill"):
+            if self._visit_capped(kind):
+                setattr(self, f"_{kind}_priority_suspended_at", idx if idx is not None else -1)
+                self._visit_kind = None
+                self._visit_picks = 0
+            held = getattr(self, f"_{kind}_priority_suspended_at", None)
+            if held is not None and step == kind and idx != held:
+                setattr(self, f"_{kind}_priority_suspended_at", None)
+        bond_held = getattr(self, "_bond_priority_suspended_at", None) is not None
+        skill_held = getattr(self, "_skill_priority_suspended_at", None) is not None
+        if (
+            skill is not None
+            and skill >= self._SKILL_BACKLOG_FORCE
+            and not skill_held
+            and now >= getattr(self, "_skill_idle_until", 0.0)
+            and self._panel_kind_available("skill", now)
+        ):
+            return "skill", f"技能积压 {skill} ≥ {self._SKILL_BACKLOG_FORCE}，先点技能"
+        bond_blocked = self._bond_step_blocked(frame, now)
+        wood = getattr(self, "_wood_balance", None)
+        if (
+            bond_blocked is None
+            and not bond_held
+            and (wood is None or wood >= self._BOND_MIN_WOOD)
+            and self._bond_base_progress_pending()
+        ):
+            return "bond", "基础羁绊未满 80% 且木材充足，羁绊优先"
+        if step == "bond" and bond_blocked is not None:
+            return None, f"羁绊暂不推进（{bond_blocked}）"
+        if step == "bond" and bond_held:
+            return None, "本轮羁绊已拿满，轮换下一步"
+        if step == "skill" and skill == 0:
+            return None, "技能角标为 0，没有可点的技能"
+        if step == "skill" and skill_held:
+            return None, "本轮技能已点满，轮换下一步"
+        if step == "treasure" and treasure == 0:
+            return None, "宝物角标为 0，没有待拿宝物"
+        return step, "按轮换"
+
     def _bond_step_blocked(self, frame: Frame, now: float) -> str | None:
         """Why the bond step cannot progress right now, or None when it can."""
-        if now >= getattr(self, "_wood_next_read_at", 0.0):
-            self._wood_next_read_at = now + self._WOOD_READ_INTERVAL_S
-            self._wood_balance = self._hud_wood_balance(frame)
+        self._refresh_solo_signals(frame, now)
         wood = getattr(self, "_wood_balance", None)
-        if wood is not None and wood < self._BOND_MIN_WOOD:
-            return f"木材 {wood} < {self._BOND_MIN_WOOD}"
+        # Owner 2026-09-15: below 500 wood go to skills first.  The draw price
+        # (<=100, live panel text) plus a refresh margin is always below that.
+        price = self._bond_next_price()
+        floor = max(self._BOND_MIN_WOOD, price + self._BOND_REFRESH_MARGIN)
+        if wood is not None and wood < floor:
+            return f"木材 {wood} < {floor}"
         if self._panel_episode_count.get("bond", 0) >= self.settings.panel_episode_limit_per_kind:
             return "羁绊 episode 已达上限"
         if self._panel_cooldown_until.get("bond", 0.0) - now > self._BOND_LONG_COOLDOWN_S:
@@ -4172,13 +4320,17 @@ class Mediator:
         # 木材 <500 先处理技能，技能处理完再宝物/进化/物品栏/神器/黑商；
         # 实机 000229 木材耗尽后 F 冷却 60s 仍被锁在羁绊，技能 20+ 点一次没点。
         if not self._passenger_mode():
-            bond_blocked = self._bond_step_blocked(frame, now)
-            if bond_blocked is None and self._bond_base_progress_pending():
-                target = "bond"
-            elif bond_blocked is not None and target == "bond":
-                print(f"[L1] 羁绊暂不推进（{bond_blocked}），转下一步")
-                self._advance_l1_cycle("bond")
+            planned, why = self._solo_plan_panel(frame, now, target)
+            if planned is None:
+                print(f"[L1] {why}，转下一步")
+                self._advance_l1_cycle(target)
                 return LoopAction.Continue
+            if planned != target:
+                print(f"[L1] 编排：{why}（轮换停在 {target}）")
+            target = planned
+            if target in ("skill", "bond") and getattr(self, "_visit_kind", None) != target:
+                self._visit_kind = target
+                self._visit_picks = 0
         if target in ("skill", "bond", "treasure"):
             panel_enabled = (
                 target == "skill"
@@ -4803,6 +4955,7 @@ class Mediator:
             "ARCHIVE_PANEL",
             "HEIRLOOM_DIALOG",
             "GREAT_RIFT_CONFIRM",
+            "TQTZ_CONFIRM",
         }:
             return False
         if self._is_in_game_hud(frame):
@@ -5575,8 +5728,16 @@ class Mediator:
                 )
         return items
 
-    def _hud_counter(self, frame: Frame, roi: tuple[float, float, float, float], key: str) -> int | None:
-        """OCR one integer from a top-bar HUD counter; None when not trusted."""
+    def _hud_counter(
+        self,
+        frame: Frame,
+        roi: tuple[float, float, float, float],
+        key: str,
+        *,
+        min_score: float | None = None,
+        max_value: int | None = None,
+    ) -> int | None:
+        """OCR one integer from a HUD counter/badge; None when not trusted."""
         if frame.bgr is None or frame.bgr.size == 0:
             return None
         bbox = self._normalized_bbox(frame, roi)
@@ -5607,7 +5768,8 @@ class Mediator:
             return None
         if str(getattr(response, "status", "")) != "ok":
             return None
-        if float(getattr(response, "rec_score", 0.0) or 0.0) < self._MERCHANT_KILL_BALANCE_MIN_SCORE:
+        floor = self._MERCHANT_KILL_BALANCE_MIN_SCORE if min_score is None else min_score
+        if float(getattr(response, "rec_score", 0.0) or 0.0) < floor:
             return None
         raw = str(getattr(response, "raw_text", "") or "")
         if not raw:
@@ -5616,8 +5778,58 @@ class Mediator:
         values = re.findall(r"(?<!\d)(\d{1,6})(?!\d)", raw)
         if len(values) != 1:
             return None
-        cache[key] = (fingerprint, int(values[0]))
-        return cache[key][1]
+        value = int(values[0])
+        if max_value is not None and value > max_value:
+            return None
+        cache[key] = (fingerprint, value)
+        return value
+
+    # Yellow badge digits on the hero command card (live 000229 f0200: G 技能
+    # "13" at (1464,781), V 宝物 "2" at (1407,719) @1600x900).  No badge =
+    # nothing pending.  OCR reads the digits right but with 0.2-0.97 scores
+    # (the sparkling border also reads as "-"), hence the lower floor.
+    _SKILL_BADGE_ROI = (1448 / 1600, 768 / 900, 1482 / 1600, 794 / 900)
+    _TREASURE_BADGE_ROI = (1394 / 1600, 707 / 900, 1422 / 1600, 731 / 900)
+    _BADGE_MIN_SCORE = 0.6
+
+    # Icon bodies that prove the button itself is on screen (a selected
+    # monster replaces the command card; an open panel only dims it).
+    _SKILL_ICON_ROI = (1432 / 1600, 787 / 900, 1472 / 1600, 810 / 900)
+    _TREASURE_ICON_ROI = (1372 / 1600, 700 / 900, 1402 / 1600, 745 / 900)
+
+    def _hud_button_visible(self, frame: Frame, key: str) -> bool:
+        if key == "skill_badge":
+            x0, y0, x1, y1 = self._normalized_bbox(frame, self._SKILL_ICON_ROI)
+            hsv = cv2.cvtColor(frame.bgr[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+            hit = ((hsv[:, :, 0] < 8) | (hsv[:, :, 0] > 172)) & (hsv[:, :, 1] > 150) & (hsv[:, :, 2] > 110)
+        else:
+            x0, y0, x1, y1 = self._normalized_bbox(frame, self._TREASURE_ICON_ROI)
+            hsv = cv2.cvtColor(frame.bgr[y0:y1, x0:x1], cv2.COLOR_BGR2HSV)
+            hit = (hsv[:, :, 0] > 70) & (hsv[:, :, 0] < 100) & (hsv[:, :, 1] > 80) & (hsv[:, :, 2] > 80)
+        return int(hit.sum()) >= 60
+
+    def _hud_badge(self, frame: Frame, roi: tuple[float, float, float, float], key: str) -> int | None:
+        if frame.bgr is None or frame.bgr.size == 0:
+            return None
+        if not self._hud_button_visible(frame, key):
+            return None
+        x0, y0, x1, y1 = self._normalized_bbox(frame, roi)
+        crop = frame.bgr[y0:y1, x0:x1]
+        if crop.size == 0:
+            return None
+        hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+        yellow = (hsv[:, :, 0] > 15) & (hsv[:, :, 0] < 40) & (hsv[:, :, 1] > 90) & (hsv[:, :, 2] > 100)
+        if int(yellow.sum()) < 6:
+            return 0
+        return self._hud_counter(frame, roi, key, min_score=self._BADGE_MIN_SCORE, max_value=99)
+
+    def _hud_skill_points(self, frame: Frame) -> int | None:
+        """Unspent skill picks shown on the G 技能 button (None = unreadable)."""
+        return self._hud_badge(frame, self._SKILL_BADGE_ROI, "skill_badge")
+
+    def _hud_treasure_pending(self, frame: Frame) -> int | None:
+        """Pending treasure picks shown on the V 宝物 button (None = unreadable)."""
+        return self._hud_badge(frame, self._TREASURE_BADGE_ROI, "treasure_badge")
 
     def _merchant_kill_balance(self, frame: Frame) -> int | None:
         """Read the top-right skull counter used by black-merchant prices.
@@ -6966,7 +7178,11 @@ class Mediator:
                 m and w * 0.30 <= m.x <= w * 0.60 and h * 0.40 <= m.y <= h * 0.65
                 and self._find_exit_confirm(frame) is None
             ):
-                return "GREAT_RIFT_CONFIRM"
+                # 提前挑战确认框用同一个灰色「是」。标题区分：大秘境=红字「大秘境」
+                # + 黄字「是否开启大秘境挑战？」；提前挑战=白字「是否确认提前挑战？」。
+                kind = self._grey_yes_dialog_kind(frame, m)
+                self._great_rift_title_verified = kind == "rift"
+                return "TQTZ_CONFIRM" if kind == "tqtz" else "GREAT_RIFT_CONFIRM"
 
             # 新版挑战广场底部的普通物品会误命中 heroRefresh；在前景弹窗
             # 均被排除后，三个页面专属锚点足以确认 NPC_HUB。
@@ -8124,6 +8340,54 @@ class Mediator:
             return None
         return hit
 
+    # 标题行 / 副标题行相对「是」按钮中心的位置（@900p）：大秘境框 f0584 是(713,447)
+    # 标题 y≈270，提前挑战框 f0582 是(711,388) 标题 y≈212。
+    _GREY_YES_TITLE_BANDS = ((-190, -158), (-150, -118))
+
+    def _grey_yes_dialog_kind(self, frame: Frame, yes: MatchResult) -> str | None:
+        """'rift' / 'tqtz' / None for a dialog carrying the grey 是 button.
+
+        Title templates first (real frames: 1.0 on their own dialog, no hit on
+        the other); OCR of the lines above 是 as the font-change fallback.
+        """
+        scales = self._hot_scales()
+        if self.find(frame, ["env/great_rift_title"], threshold=0.80, scales=scales, roi=(0.40, 0.15, 0.60, 0.35)):
+            return "rift"
+        if self.find(frame, ["env/tqtz_confirm_title"], threshold=0.80, scales=scales, roi=(0.36, 0.15, 0.64, 0.35)):
+            return "tqtz"
+        client = getattr(self, "_ocr_client", None)
+        if client is None or not bool(getattr(client, "is_available", False)) or frame.bgr is None:
+            return None
+        unit = frame.height / 900.0
+        bx = yes.x + yes.w // 2
+        by = yes.y + yes.h // 2
+        texts: list[str] = []
+        for dy0, dy1 in self._GREY_YES_TITLE_BANDS:
+            bbox = (
+                max(0, bx - int(110 * unit)), max(0, by + int(dy0 * unit)),
+                min(frame.width, bx + int(290 * unit)), max(1, by + int(dy1 * unit)),
+            )
+            crop = frame.bgr[bbox[1]:bbox[3], bbox[0]:bbox[2]]
+            if crop.size == 0:
+                continue
+            fingerprint = hashlib.md5(crop.tobytes()).hexdigest()
+            try:
+                response = client.shadow_predict(
+                    frame, f"grey-yes-title:{fingerprint}",
+                    {"index": 0, "bbox": bbox, "kind": "counter"},
+                    fingerprint=fingerprint, panel_bbox=bbox,
+                )
+            except (AttributeError, OSError, TypeError, ValueError):
+                continue
+            if str(getattr(response, "status", "")) == "ok":
+                texts.append(str(getattr(response, "raw_text", "") or ""))
+        joined = "".join(texts)
+        if "秘境" in joined:
+            return "rift"
+        if "提前" in joined or "BOSS" in joined.upper():
+            return "tqtz"
+        return None
+
     def _find_great_rift_accept(self, frame: Frame) -> MatchResult | None:
         hit = self.find(
             frame,
@@ -9089,6 +9353,7 @@ class Mediator:
         if entering_main_line:
             self._stage_attempt_budget = None
             self._l1_cycle_step = "merchant" if self._passenger_mode() else "bond"
+            self._reset_solo_plan_state()
             self._public_bag_fsm = PublicBagFSM()
             self._public_bag_failed_sources = {}
             self._public_bag_personal_leftover = False
@@ -14365,6 +14630,13 @@ class Mediator:
                 and self._panel_kind in ("skill", "bond", "treasure")
             ):
                 self._l1_cycle_selected = True
+            if self._panel_kind in ("skill", "bond"):
+                if getattr(self, "_visit_kind", None) != self._panel_kind:
+                    self._visit_kind = self._panel_kind
+                    self._visit_picks = 0
+                self._visit_picks = getattr(self, "_visit_picks", 0) + 1
+            if self._panel_kind == "bond":
+                self._bond_picks_round = getattr(self, "_bond_picks_round", 0) + 1
             if self._panel_kind == "skill":
                 self._last_skill_panel = 0.0
             elif self._panel_kind == "bond":
@@ -14449,6 +14721,13 @@ class Mediator:
             and not self._passenger_mode()
         ):
             self._bond_idle_until = time.time() + self._BOND_IDLE_BACKOFF_S
+        if (
+            cycle_owned
+            and cycle_kind == "skill"
+            and not cycle_selected
+            and not self._passenger_mode()
+        ):
+            self._skill_idle_until = time.time() + self._SKILL_IDLE_BACKOFF_S
         if (
             cycle_owned
             and cycle_kind == self._l1_cycle_step
@@ -14698,6 +14977,15 @@ class Mediator:
                     cur_kills = self._merchant_kill_balance(frame)
                     if cur_kills is not None:
                         self._hitch_last_treasure_kill_balance = cur_kills
+                elif kind in ("skill", "bond", "treasure") and not self._passenger_mode():
+                    # Solo: G/V without points and F without wood simply do not
+                    # open.  Counting that as an abnormal episode (08-29
+                    # 59563fd) capped the panel after 5 presses (live 000229).
+                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                    if kind == "bond":
+                        self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
+                    elif kind == "skill":
+                        self._skill_idle_until = now + self._SKILL_IDLE_BACKOFF_S
                 elif kind in ("skill", "bond", "treasure"):
                     self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
                     self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
@@ -15789,7 +16077,14 @@ class Mediator:
             self._main_line_since = now
             return LoopAction.Continue
 
-        if post_game == "GREAT_RIFT_CONFIRM" and self._tqtz_confirm_dialog_expected(frame, now):
+        if post_game == "TQTZ_CONFIRM":
+            return self._confirm_tqtz_dialog(frame, now)
+        if (
+            post_game == "GREAT_RIFT_CONFIRM"
+            and not getattr(self, "_great_rift_title_verified", False)
+            and self._tqtz_confirm_dialog_expected(frame, now)
+        ):
+            # Neither title could be read; fall back to our own click context.
             return self._confirm_tqtz_dialog(frame, now)
         if post_game == "GREAT_RIFT_CONFIRM":
             if (

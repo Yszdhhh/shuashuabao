@@ -1442,6 +1442,22 @@
       "sha256": "6b64fe66a9cbc067d5e5f170aa569968c7bd553691dc6390a2fb2d78f25a1c25"
     },
     {
+      "path": "assets/Images/env/great_rift_title.png",
+      "purpose": "runtime_ui",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260914_212509/f0584 (red 大秘境 dialog title)",
+      "reason_required": "tell the great-rift confirm dialog from the 提前挑战 confirm that shares the grey 是 button",
+      "size_bytes": 4134,
+      "sha256": "797c88f3e9ccedb845d3663b1d83d90e45138a3f8c9e1aae36131d59ada5473f"
+    },
+    {
+      "path": "assets/Images/env/tqtz_confirm_title.png",
+      "purpose": "runtime_ui",
+      "provenance": "cropped from live solo capture solo_ingame_chain_20260914_225835/f0582 (是否确认提前挑战？ title)",
+      "reason_required": "recognise the 提前挑战 confirm dialog so 是 is clicked instead of treating it as the rift dialog",
+      "size_bytes": 8617,
+      "sha256": "4ad65209aef24ab8ff1d9e888ea2db48b3706f18245991f5a20e5d001f97e205"
+    },
+    {
       "path": "assets/Images/env/victory_banner.png",
       "purpose": "runtime_ui",
       "provenance": "cropped from live game capture hitch_lobby_chain_20260912_120333_103843/f0234",
