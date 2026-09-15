@@ -16,6 +16,8 @@ def test_frozen_bundle_resolves_worker_and_model(monkeypatch, tmp_path: Path) ->
     model = tmp_path / "vision" / "_internal" / "models" / "ocr"
     model.mkdir(parents=True)
 
+    monkeypatch.delenv("SHUABAO_OCR_MODEL_DIR", raising=False)
+    monkeypatch.delenv("SHUABAO_OCR_PYTHON", raising=False)
     monkeypatch.setattr(production.sys, "frozen", True, raising=False)
     monkeypatch.setattr(production.sys, "executable", str(app))
     monkeypatch.setattr(production.sys, "_MEIPASS", str(tmp_path / "_internal"), raising=False)
