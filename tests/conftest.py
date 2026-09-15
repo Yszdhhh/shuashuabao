@@ -50,7 +50,28 @@ for _name in _LIVE_SUBSCRIPTION_ENV:
 # tmp 里，不再触碰宿主机上的真实 AppData 日志/设置/锁文件。
 import tempfile as _tempfile
 
-os.environ["SHUABAO_APP_DATA"] = _tempfile.mkdtemp(prefix="shuabao-pytest-appdata-")
+_tmp_appdata = Path(_tempfile.mkdtemp(prefix="shuabao-pytest-appdata-")) / "ShuaBao"
+_tmp_appdata.mkdir(parents=True, exist_ok=True)
+os.environ["SHUABAO_APP_DATA"] = str(_tmp_appdata)
+
+if not os.environ.get("SHUABAO_OCR_PYTHON"):
+    for _candidate in (
+        ROOT.parent.parent / "GameScript-Local" / ".venv-ocr" / "Scripts" / "python.exe",
+        ROOT.parent / "live-solo-cc17962" / ".venv-ocr" / "Scripts" / "python.exe",
+    ):
+        if _candidate.is_file():
+            os.environ["SHUABAO_OCR_PYTHON"] = str(_candidate)
+            break
+
+if not os.environ.get("SHUABAO_OCR_MODEL_DIR"):
+    for _candidate in (
+        ROOT.parent.parent / "GameScript-Local" / "models" / "ocr",
+        ROOT.parent / "live-solo-cc17962" / "models" / "ocr",
+    ):
+        if _candidate.is_dir():
+            os.environ["SHUABAO_OCR_MODEL_DIR"] = str(_candidate)
+            break
+
 
 
 def _install_linux_win_shims() -> None:
