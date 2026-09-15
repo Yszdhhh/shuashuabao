@@ -769,8 +769,8 @@ class MediatorPublicBagTests(unittest.TestCase):
         self.assertIs(self.med._public_bag_fsm.phase, PublicBagPhase.CLOSE_REQUESTED)
         click.assert_not_called()
 
-    def test_hitch_pickup_clicks_the_hud_z_button_only_when_item_bar_overflows(self):
-        """装备栏确认满格时才用 Z；吞噬丹始终是队伍资产，蹭车不吃。
+    def test_hitch_pickup_clicks_the_hud_z_button_only_with_verified_bag_space(self):
+        """物品栏满格且背包有已确认空位才用 Z；无法判读时绝不猜测。
 
         和 B 一样走 HUD 按钮：键盘注入在这台机器上没有实机证据。
         """
@@ -781,6 +781,7 @@ class MediatorPublicBagTests(unittest.TestCase):
             for name in self._MAIN_LINE_GATES:
                 stack.enter_context(patch.object(self.med, name, return_value=None))
             stack.enter_context(patch.object(self.med, "_hud_item_bar_overflowed", return_value=True))
+            stack.enter_context(patch.object(self.med, "_pickup_bag_has_space", return_value=True))
             stack.enter_context(patch.object(self.med, "_hud_hotkey_button", return_value=button))
             click = stack.enter_context(patch.object(self.med, "act_click", return_value=True))
             key = stack.enter_context(patch.object(self.med, "act_key", return_value=True))
@@ -790,6 +791,31 @@ class MediatorPublicBagTests(unittest.TestCase):
         key.assert_not_called()
         use.assert_not_called()
         self.assertEqual(self.med._l1_cycle_step, "public_bag")
+
+    def test_hitch_pickup_does_not_press_z_when_bag_space_is_unreadable(self):
+        self.med._l1_cycle_step = "pickup"
+        self.med._hitch_pressure_transferred = True
+        with ExitStack() as stack:
+            for name in self._MAIN_LINE_GATES:
+                stack.enter_context(patch.object(self.med, name, return_value=None))
+            stack.enter_context(patch.object(self.med, "_hud_item_bar_overflowed", return_value=True))
+            stack.enter_context(patch.object(self.med, "_pickup_bag_has_space", return_value=False))
+            click = stack.enter_context(patch.object(self.med, "act_click"))
+            key = stack.enter_context(patch.object(self.med, "act_key"))
+            self.med._tick_main_line(self.frame)
+        click.assert_not_called()
+        key.assert_not_called()
+        self.assertEqual(self.med._l1_cycle_step, "public_bag")
+
+    def test_pickup_bag_space_accepts_public_or_personal_empty_cell(self):
+        empty = (0, 0, MatchResult("bag_slot", 1.0, 1, 1, 0, 0, 1, 1))
+        with self._patch_layout(self.layout), \
+             patch.object(self.med, "_public_bag_empty_slot", return_value=None), \
+             patch.object(self.med, "_public_bag_empty_personal_slot", return_value=empty):
+            self.assertTrue(self.med._pickup_bag_has_space(self.frame))
+
+        with self._patch_layout(None):
+            self.assertFalse(self.med._pickup_bag_has_space(self.frame))
 
     def test_devour_pill_is_never_consumed_while_a_transfer_is_in_flight(self):
         self.med._public_bag_fsm = PublicBagFSM(phase=PublicBagPhase.SOURCE_SELECTED)

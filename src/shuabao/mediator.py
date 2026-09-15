@@ -5280,6 +5280,20 @@ class Mediator:
             )
         return None
 
+    def _pickup_bag_has_space(self, frame: Frame) -> bool:
+        """Allow range pickup only with one freshly verified bag cell.
+
+        The item bar being full alone is not permission to press Z: if the
+        bag page or either grid cannot be read, leave the ground item alone.
+        """
+        layout = self._bag_layout(frame)
+        if layout is None:
+            return False
+        return (
+            self._public_bag_empty_slot(frame, layout) is not None
+            or self._public_bag_empty_personal_slot(frame, layout) is not None
+        )
+
     def _public_bag_source(self, frame: Frame, layout: BagLayout) -> dict | None:
         """Spec step 1: fresh-confirm the next thing to hand to the team.
 
@@ -16724,7 +16738,11 @@ class Mediator:
             # 1. 拾取 Z 不是常驻战斗按键。只有可移动装备栏 2-6 已全部
             #    占满、确有溢出风险时才做范围拾取；空栏/不确定画面零输入。
             #    和背包同理：优先点 HUD 上的 [Z] 按钮，键盘只作兜底。
-            if now >= self._pickup_next_at and self._hud_item_bar_overflowed(frame):
+            if (
+                now >= self._pickup_next_at
+                and self._hud_item_bar_overflowed(frame)
+                and self._pickup_bag_has_space(frame)
+            ):
                 pickup_button = self._hud_hotkey_button(frame, "bag/hud_pickup_button")
                 picked = (
                     self.act_click(pickup_button, "Pickup-Z")
