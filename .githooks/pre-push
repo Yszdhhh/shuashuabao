@@ -1,0 +1,9 @@
+#!/bin/sh
+# 拒绝从本地直接更新远端 main；main 只接受 PR 的 merge commit。
+while read local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "pre-push: 禁止直接推送 main（$local_ref -> $remote_ref），请推 topic 分支并开 PR。" >&2
+    exit 1
+  fi
+done
+exit 0
