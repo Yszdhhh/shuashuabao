@@ -10,6 +10,7 @@ Owner 规则：木材 <500 先处理技能，技能处理完再宝物/进化/物
 """
 from __future__ import annotations
 import contextlib
+import dataclasses
 import io
 import json
 
@@ -21,7 +22,9 @@ import cv2
 import numpy as np
 import pytest
 
+from shuabao.interaction_surface import InteractionSurface
 from shuabao.mediator import LoopAction, Mediator, PanelState, Phase
+from shuabao.policy.merchant_fsm import MerchantPhase
 from shuabao.settings import Settings
 from shuabao.vision.capture import Frame
 from shuabao.vision.matcher import MatchResult
@@ -500,5 +503,100 @@ def test_equipment_transaction_ownership_and_affix_preemption() -> None:
         res = med._tick_main_line(frame)
         assert res == LoopAction.Continue
         assert med._l1_cycle_step == "pickup", "pending 解锁且无词缀才 advance 到下一步"
+
+
+@pytest.mark.parametrize("merchant_phase", [
+    MerchantPhase.CONFIRMING,
+    MerchantPhase.READY,
+    MerchantPhase.VERIFYING,
+])
+def test_merchant_surface_blocks_opportunistic_hud_actions(merchant_phase: MerchantPhase) -> None:
+    """MERCHANT 页面下（无论 CONFIRMING / READY / VERIFYING），
+    神器、吞噬丹、Z 拾取等 HUD micro-actions 全部严格不得调用。
+    """
+    med = _med()
+    med._l1_cycle_step = "merchant"
+    med._l1_cycle_index = med._L1_CYCLE_ORDER.index("merchant")
+    med.settings.auto_artifact = True
+    med.settings.auto_devour_dan = True
+    med._main_line_started_at = 100.0
+    med._auto_task_done = True
+    frame = _frame("hud_wood_1111_f0200.png")
+    now = 200.0
+
+    med._merchant_fsm = dataclasses.replace(med._merchant_fsm, phase=merchant_phase)
+    med._pickup_next_at = now - 1.0
+    med._devour_dan_next_at = now - 1.0
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(patch("time.time", return_value=now))
+        stack.enter_context(patch.object(med, "_post_game_state", return_value=None))
+        stack.enter_context(patch.object(med, "_find_stage_page", return_value=False))
+        stack.enter_context(patch.object(med, "_selection_anchor", return_value=None))
+        stack.enter_context(patch.object(med, "_ensure_auto_task_enabled", return_value=None))
+        stack.enter_context(patch.object(med, "_ensure_challenge_buttons", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_click_tqtz", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_clear_pressure_monsters", return_value=None))
+        stack.enter_context(patch.object(med, "_handle_self_opened_compact_panel", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_open_choice_panel", return_value=None))
+        stack.enter_context(patch.object(med, "_is_in_game_hud", return_value=True))
+        # Surface is resolved to MERCHANT (merchant present on screen)
+        stack.enter_context(patch.object(med, "_black_merchant_present", return_value=True))
+        # Black merchant handler yields (e.g. no item bought this tick)
+        stack.enter_context(patch.object(med, "_maybe_black_merchant", return_value=None))
+        # Opportunistic conditions all primed
+        stack.enter_context(patch.object(med, "_slot_has_artifact", return_value=True))
+        stack.enter_context(patch.object(med, "_hud_button_hit", return_value=MatchResult("artifact_q", 1.0, 100, 100, 10, 10, 100, 100)))
+        stack.enter_context(patch.object(med, "_can_consume_inventory_swallow_pill", return_value=True))
+        stack.enter_context(patch.object(med, "_hud_item_bar_overflowed", return_value=True))
+        stack.enter_context(patch.object(med, "_pickup_bag_has_space", return_value=True))
+
+        mock_art = stack.enter_context(patch.object(med, "_maybe_fire_artifacts"))
+        mock_dan = stack.enter_context(patch.object(med, "_maybe_use_inventory_item"))
+        mock_key = stack.enter_context(patch.object(med, "act_key"))
+        mock_click = stack.enter_context(patch.object(med, "act_click"))
+
+        res = med._tick_main_line(frame)
+        assert res == LoopAction.Continue
+        mock_art.assert_not_called()
+        mock_dan.assert_not_called()
+        mock_key.assert_not_called()
+        mock_click.assert_not_called()
+
+
+def test_hud_only_surface_allows_opportunistic_hud_actions() -> None:
+    """HUD_ONLY 且无活跃 transaction 时，原 opportunistic 行为正常触发。"""
+    med = _med()
+    med._l1_cycle_step = "bond"
+    med.settings.auto_artifact = True
+    med._main_line_started_at = 100.0
+    med._auto_task_done = True
+    frame = _frame("hud_wood_1111_f0200.png")
+    now = 200.0
+
+    fired: list[str] = []
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(patch("time.time", return_value=now))
+        stack.enter_context(patch.object(med, "_post_game_state", return_value=None))
+        stack.enter_context(patch.object(med, "_find_stage_page", return_value=False))
+        stack.enter_context(patch.object(med, "_selection_anchor", return_value=None))
+        stack.enter_context(patch.object(med, "_ensure_auto_task_enabled", return_value=None))
+        stack.enter_context(patch.object(med, "_ensure_challenge_buttons", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_click_tqtz", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_clear_pressure_monsters", return_value=None))
+        stack.enter_context(patch.object(med, "_handle_self_opened_compact_panel", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_open_choice_panel", return_value=None))
+        stack.enter_context(patch.object(med, "_is_in_game_hud", return_value=True))
+        stack.enter_context(patch.object(med, "_black_merchant_present", return_value=False))
+        stack.enter_context(patch.object(med, "_slot_has_artifact", return_value=True))
+        stack.enter_context(patch.object(med, "_hud_button_hit", return_value=MatchResult("artifact_q", 1.0, 100, 100, 10, 10, 100, 100)))
+        stack.enter_context(patch.object(med, "act_click", side_effect=lambda _hit, reason, *a, **k: fired.append(reason) or True))
+
+        res = med._tick_main_line(frame)
+        assert res == LoopAction.Continue
+        assert "Artifact-Q" in fired
+
 
 

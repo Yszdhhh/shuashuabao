@@ -4266,7 +4266,6 @@ class Mediator:
 
     _BOND_HIGH_WOOD = 1000
     _BOND_LOW_WOOD = 300
-    _BOND_MIN_WOOD = 300
     _WOOD_BALANCE_ROI = (1178 / 1600, 8 / 900, 1240 / 1600, 34 / 900)
     _WOOD_READ_INTERVAL_S = 3.0
     # A bond visit that ended without a pick (no wood / nothing eligible) lets
@@ -16932,6 +16931,7 @@ class Mediator:
             and self._panel_state == PanelState.CLOSED
             and anchor is None
             and not self._has_active_transaction(frame)
+            and surface == InteractionSurface.HUD_ONLY
         ):
             # HUD Opportunistic 微操：神器 CD 到期独立触发
             artifact_res = self._maybe_fire_artifacts(frame)
