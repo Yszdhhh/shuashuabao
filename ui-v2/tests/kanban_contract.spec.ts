@@ -36,6 +36,7 @@ export const CONTRACT = {
     "skillRank",
     "bonds",
     "negatives",
+    "downgradeAfterFailures",
     // 房间与组队（注：用户已拍板确认跟车业务无配对码设计，移除 followPairForm / followPairCode）
     "roomName",
     "roomPass",

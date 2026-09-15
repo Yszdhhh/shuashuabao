@@ -474,13 +474,6 @@ def assemble_policy_settings(
     for text in card_presets:
         if text not in bond_presets:
             bond_presets.append(text)
-    advanced_presets = tuple(
-        item for item in bond_presets if matches_bond_preset(item, advanced_names)
-    )
-    base_presets = tuple(
-        item for item in bond_presets
-        if item not in advanced_presets and item not in chain_presets
-    )
     catalog_groups: list[tuple[str, ...]] = []
     for group in (bond_cfg.get("advanced_groups") or ()):
         names = tuple(str(x).strip() for x in (group or ()) if str(x).strip())
@@ -488,16 +481,25 @@ def assemble_policy_settings(
             catalog_groups.append(names)
     selected_groups: list[tuple[str, ...]] = []
     used_groups: set[tuple[str, ...]] = set()
-    for item in bond_presets:
+    for item in card_presets:
         for group in catalog_groups:
             if group in used_groups:
                 continue
             if item in group or matches_bond_preset(item, group):
                 used_groups.add(group)
-                selected = tuple(name for name in group if name in advanced_presets)
-                if selected:
-                    selected_groups.append(selected)
+                selected_groups.append(group)
+                for name in group:
+                    if name not in bond_presets:
+                        bond_presets.append(name)
                 break
+
+    advanced_presets = tuple(
+        item for item in bond_presets if matches_bond_preset(item, advanced_names)
+    )
+    base_presets = tuple(
+        item for item in bond_presets
+        if item not in advanced_presets and item not in chain_presets
+    )
 
     allow_neg = getattr(settings, "treasure_allow_negative", None)
     if allow_neg is None:

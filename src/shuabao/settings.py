@@ -81,7 +81,7 @@ _INT_RANGES: dict[str, tuple[int, int]] = {
     "reputation_stage1": (0, 50), "reputation_stage2": (0, 50),
     "round_timeout_s": (60, 7200), "round_tail_window_s": (30, 600),
     "recovery_timeout_s": (10, 120), "recovery_action_limit": (1, 10),
-    "failure_streak_limit": (1, 10),
+    "failure_streak_limit": (1, 10), "downgrade_after_failures": (0, 20),
     "panel_action_limit_per_fingerprint": (1, 10),
     "panel_episode_limit_per_kind": (1, 50), "ocr_timeout_ms": (200, 5000),
     "ocr_warmup_timeout_ms": (10000, 30000),
@@ -215,6 +215,10 @@ class Settings:
     recovery_action_limit: int = 3      # 每恢复步骤动作/观测尝试上限
     recovery_retry_interval_s: float = 1.5  # 恢复动作最小间隔
     failure_streak_limit: int = 3       # 连续不成功局上限（FAILURE/TIMEOUT/DISCONNECT 均累计）
+    # 打不过自动降级（Owner 2026-09-15）：连续 N 局非胜利后，本次运行内把选关
+    # 目标降一级（同章节 index-1，最低 1-1），并清零 _failure_streak 避免降级
+    # 那局还没打就被熔断；不回写 user_settings.json。0 = 关闭。
+    downgrade_after_failures: int = 0
     panel_visible_timeout_s: float = 2.0    # 主动打开面板的可见确认窗
     ui_action_interval_s: float = 1.5       # UI-changing 输入最小间隔
     panel_reopen_cooldown_s: float = 3.0    # 物理隐藏后同类 G/F/V 重开冷却
@@ -324,6 +328,7 @@ class Settings:
             "recovery_action_limit", "failure_streak_limit",
             "panel_action_limit_per_fingerprint", "panel_episode_limit_per_kind",
             "ocr_timeout_ms", "ocr_warmup_timeout_ms", "merchant_max_rerolls", "merchant_gold_reserve",
+            "downgrade_after_failures",
         }
         float_fields = {
             "recovery_retry_interval_s", "panel_visible_timeout_s", "panel_hard_deadline_s",

@@ -65,6 +65,7 @@ from shuabao.vision.matcher import (
     resolve_template,
 )
 from shuabao.vision.stage_selector import (
+    StageId,
     configured_stage_id,
     find_stage_in_range,
     find_stage_labels,
@@ -1084,6 +1085,11 @@ class Mediator:
         self._l1_cycle_step = "merchant" if self._passenger_mode() else "bond"
         self._l1_cycle_owned_panel = False
         self._l1_cycle_selected = False
+        # B1 抽干上限：同一步骤单次停留最多 3 次成功选择或 30s（见
+        # _l1_step_visit_exhausted）；set_phase(MAIN_LINE) 每局重置。
+        self._l1_cycle_last_advance_at: float = time.time()
+        self._l1_cycle_step_successes: int = 0
+        self._panel_visit_force_advance: bool = False
         # 三面板主动打开时间戳（G/F/V）：0.0 = 本局从未成功打开 → 首次立即允许；
         # 成功打开后按 settings.choice_interval 限制同 kind 重开。set_phase(MAIN_LINE)
         # 每局重置。
@@ -1232,6 +1238,10 @@ class Mediator:
                 startup_timeout_ms=30000,
                 trace_path=(Path(incident_dir) / "ocr_shadow.jsonl") if incident_dir else None,
             )
+        self._main_line_ocr_next_at: float = 0.0
+        self._close_main_line_triggered: bool = False
+        self._main_line_closed_done: bool = False
+
 
     # ---------- 感知 / 执行（Jobs 唯一入口）----------
 
@@ -3695,22 +3705,14 @@ class Mediator:
             or (self._l1_cycle_owned_panel and self._panel_kind == kind)
         )
         reason = str(decision.reason or "")
-        skip_confirm = "差一张合成" in reason or "已持有合成" in reason
-        if (
-            not skip_confirm
-            and kind in ("bond", "skill")
-            and decision.action == PolicyAction.SELECT_SLOT
-        ):
-            # The policy already required a whitelist/focus match; a title read
-            # at >= 0.95 is not worth another tick (08-29 e2a2714 added the
-            # second frame: bond 1.4s -> 2.9-5.2s, skill 1.4s -> 5.8-7.3s).
-            chosen = next((s for s in slots if s.index == decision.index), None)
-            if (
-                chosen is not None
-                and str(chosen.name or "").strip()
-                and float(chosen.confidence or 0.0) >= self._SINGLE_FRAME_PICK_CONFIDENCE
-            ):
-                skip_confirm = True
+        skip_confirm = (
+            "差一张合成" in reason
+            or "已持有合成" in reason
+            or (
+                decision.action == PolicyAction.SELECT_SLOT
+                and self._is_unambiguous_high_confidence_pick(decision, slots, reason)
+            )
+        )
         if owned and not skip_confirm and decision.action in {PolicyAction.SELECT_SLOT, PolicyAction.REFRESH}:
             key = (
                 kind,
@@ -3758,6 +3760,24 @@ class Mediator:
     def _live_ocr_miss_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         """OCR 没读到名字时禁止刷新。预选卡可能已经在画面上。"""
         return None
+
+    @staticmethod
+    def _is_unambiguous_high_confidence_pick(
+        decision: "PolicyDecision", slots: tuple, reason: str
+    ) -> bool:
+        """B2 拿卡提速：卡名完整命中白名单预设、OCR>=0.95、四槽无重名歧义时免二次确认。
+
+        其余情形（刷新、模糊/低置信/重名槽位、非预设兜底如品质降级/套装进度）
+        仍保留 _ocr_reward_choice 现有的两帧确认。
+        """
+        if "预设命中" not in reason and "严格命中" not in reason:
+            return False
+        chosen = next((s for s in slots if s.index == decision.index), None)
+        if chosen is None or not chosen.name or float(chosen.confidence or 0.0) < 0.95:
+            return False
+        named = [str(s.name).strip() for s in slots if s.name and str(s.name).strip()]
+        return len(named) == len(set(named))
+
 
     def _rarity_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
         """按边框颜色选最高品质：红UR>橙SSR>紫SR>蓝R>其他N。"""
@@ -4118,6 +4138,8 @@ class Mediator:
             # 旧状态落点：直接回到环首，不再永久停车。
             self._l1_cycle_step = order[0]
             self._l1_cycle_index = 0
+            self._l1_cycle_last_advance_at = time.time()
+            self._l1_cycle_step_successes = 0
             return
         # The order repeats bond/skill, so the name alone does not say where we
         # are: order.index() always found the first pair and skill -> bond ->
@@ -4142,6 +4164,20 @@ class Mediator:
             self._inventory_next_at = 0.0
             self._devour_dan_consecutive_clicks = 0
         self._l1_cycle_step = nxt
+        self._l1_cycle_last_advance_at = time.time()
+        self._l1_cycle_step_successes = 0
+
+    # B1 抽干上限：同一步骤（skill/bond/treasure 抽卡面板）单次停留最多
+    # 3 次成功选择或 30s 即强制推进，避免面板持续有货（如羁绊一直有新卡）
+    # 时把整环卡死在同一步，饿死其余步骤（live 000229 复盘）。
+    _L1_STEP_VISIT_MAX_SUCCESSES = 3
+    _L1_STEP_VISIT_MAX_SECONDS = 30.0
+
+    def _l1_step_visit_exhausted(self, now: float) -> bool:
+        if getattr(self, "_l1_cycle_step_successes", 0) >= self._L1_STEP_VISIT_MAX_SUCCESSES:
+            return True
+        started = getattr(self, "_l1_cycle_last_advance_at", None)
+        return started is not None and now - started >= self._L1_STEP_VISIT_MAX_SECONDS
 
     # Owner 2026-09-15: below 500 wood the bond panel cannot buy anything.
     _BOND_MIN_WOOD = 500
@@ -4332,6 +4368,12 @@ class Mediator:
                 self._visit_kind = target
                 self._visit_picks = 0
         if target in ("skill", "bond", "treasure"):
+            if target == self._l1_cycle_step and self._l1_step_visit_exhausted(now):
+                if target == "bond":
+                    self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
+                print(f"[L1] {target} 本次停留已达 3 次成功选择/30s 上限，推进下一步（抽干上限）")
+                self._advance_l1_cycle(target)
+                return LoopAction.Continue
             panel_enabled = (
                 target == "skill"
                 or (target == "bond" and getattr(self.settings, "auto_bond", True))
@@ -8188,12 +8230,57 @@ class Mediator:
             self._pause_resume_next_at = now + 1.0
         return LoopAction.Continue
 
+    _MAIN_LINE_TASKBAR_ROI = (1410 / 1600, 295 / 900, 1585 / 1600, 335 / 900)
+    _MAIN_LINE_STAGE_RE = re.compile(r"主线\s*(\d+)\s*[-一—]\s*(\d+)")
+
+    def _read_main_line_stage(self, frame: Frame, now: float) -> tuple[int, int] | None:
+        """从右上角任务栏 OCR 识别当前主线 (章, 节)。
+
+        局内最多每 10s OCR 一次（复用现有 OCR worker，禁止新进程）。
+        """
+        if now < getattr(self, "_main_line_ocr_next_at", 0.0):
+            return None
+        self._main_line_ocr_next_at = now + 10.0
+
+        client = getattr(self, "_ocr_client", None)
+        if client is None or bool(getattr(client, "disabled", False)):
+            return None
+
+        bbox = self._normalized_bbox(frame, self._MAIN_LINE_TASKBAR_ROI)
+        try:
+            resp = client.shadow_predict(
+                frame,
+                "main_line_taskbar",
+                {"index": 0, "bbox": bbox, "kind": "main_line"},
+            )
+        except Exception:
+            return None
+
+        if not resp or str(getattr(resp, "status", "ok")) != "ok":
+            return None
+
+        raw_text = str(resp.raw_text or "")
+        match = self._MAIN_LINE_STAGE_RE.search(raw_text)
+        if match:
+            try:
+                return (int(match.group(1)), int(match.group(2)))
+            except (ValueError, TypeError):
+                pass
+        if "已完成当前难度全部主线" in raw_text or "全部主线" in raw_text:
+            return (6, 1)
+        return None
+
     def _maybe_close_main_line_after_5_5(self, frame: Frame, now: float) -> LoopAction | None:
         """打完 5-5 后取消右侧『自动任务』勾选，避免挑战 5-10 主线 Boss 翻车。"""
         if not getattr(self.settings, "auto_close_main_line", False) and not getattr(self.settings, "early_challenge", False):
             return None
         if not getattr(self, "_close_main_line_triggered", False):
-            return None
+            stage = self._read_main_line_stage(frame, now)
+            if stage is not None and stage > (5, 5):
+                print(f"[med] 任务栏识别主线进度为 {stage[0]}-{stage[1]}（>(5,5)），触发取消【自动任务】")
+                self._close_main_line_triggered = True
+            else:
+                return None
         if getattr(self, "_main_line_closed_done", False):
             return None
         state, hit = self._auto_task_state(frame)
@@ -8208,6 +8295,7 @@ class Mediator:
                 self._main_line_since = now
                 return LoopAction.Continue
         return None
+
 
     def _maybe_clear_pressure_monsters(self, frame: Frame, now: float) -> LoopAction | None:
         """周期性触发 F4 清除挑怪（压力转移）。"""
@@ -9358,6 +9446,8 @@ class Mediator:
             self._public_bag_failed_sources = {}
             self._public_bag_personal_leftover = False
             self._l1_cycle_last_advance_at = time.time()
+            self._l1_cycle_step_successes = 0
+            self._panel_visit_force_advance = False
             self._hitch_last_treasure_kill_balance = None
             self._hitch_treasure_total_refreshes = 0
             self._hitch_last_treasure_unconfirmed_fp = None
@@ -9412,6 +9502,7 @@ class Mediator:
             self._pause_resume_next_at = 0.0
             self._close_main_line_triggered = False
             self._main_line_closed_done = False
+            self._main_line_ocr_next_at = 0.0
             self._challenge_recheck_at.clear()
             # Per-round panel caps.  Hitch rounds never pass STAGE_SELECT,
             # where these used to reset, so round 2 inherited a capped V.
@@ -9963,6 +10054,25 @@ class Mediator:
             self._failure_streak += 1
             print(f"[med] outcome={outcome.name}（{reason}）failure_streak={self._failure_streak}"
                   f"/{self.settings.failure_streak_limit}")
+            self._maybe_downgrade_stage_target()
+
+    def _maybe_downgrade_stage_target(self) -> None:
+        """打不过自动降级（Owner 2026-09-15）：连续 N 局非胜利后选关目标降一级。
+
+        复用 `_failure_streak`（与熔断同一口径）；降级成功即清零，避免降级
+        那局还没打就被 `failure_streak_limit` 熔断停机。已在 1-1 时不再降级，
+        让 streak 继续累积直到熔断——「熔断只对降到 1-1 仍失败生效」。
+        """
+        n = int(getattr(self.settings, "downgrade_after_failures", 0) or 0)
+        if n <= 0 or self._failure_streak < n:
+            return
+        current = configured_stage_id(self.settings.stage_targets, self.settings.stage1, self.settings.stage2)
+        if current is None or current.index <= 1:
+            return
+        downgraded = StageId(current.chapter, current.index - 1)
+        self.settings.stage_targets = [str(downgraded)]
+        print(f"[med] 降级 {current}→{downgraded}（连续失败 {self._failure_streak} 局）")
+        self._failure_streak = 0
 
     # ---------- B1-2 incident 归档辅助（无 incident_dir 时全部空转）----------
 
@@ -14607,6 +14717,11 @@ class Mediator:
             return "close"
         return "select"
 
+    # B2 拿卡提速：局内选卡面板（skill/bond/treasure）关闭（本次没有可拿卡）→
+    # 下次可重开该面板的间隔。刻意与全局 ui_action_interval_s（1.5s，UI 输入
+    # 最小间隔）解耦，不改后者的默认值/其它用途。
+    _L1_PANEL_REOPEN_INTERVAL_S = 0.5
+
     def _arm_panel_reopen_cooldown(self, kind: str | None, now: float) -> None:
         if kind not in ("skill", "bond", "treasure"):
             return
@@ -14637,6 +14752,8 @@ class Mediator:
                 self._visit_picks = getattr(self, "_visit_picks", 0) + 1
             if self._panel_kind == "bond":
                 self._bond_picks_round = getattr(self, "_bond_picks_round", 0) + 1
+            if self._panel_kind in ("skill", "bond", "treasure"):
+                self._l1_cycle_step_successes = getattr(self, "_l1_cycle_step_successes", 0) + 1
             if self._panel_kind == "skill":
                 self._last_skill_panel = 0.0
             elif self._panel_kind == "bond":
@@ -14686,6 +14803,8 @@ class Mediator:
         cycle_kind = self._panel_kind
         cycle_owned = self._l1_cycle_owned_panel
         cycle_selected = self._l1_cycle_selected
+        force_advance = getattr(self, "_panel_visit_force_advance", False)
+        self._panel_visit_force_advance = False
         self._panel_state = PanelState.CLOSED
         self._panel_kind = None
         self._panel_episode_id = None
@@ -14731,15 +14850,18 @@ class Mediator:
         if (
             cycle_owned
             and cycle_kind == self._l1_cycle_step
-            and not cycle_selected
             and cycle_kind in ("skill", "bond", "treasure")
+            and (not cycle_selected or force_advance)
         ):
             nxt = {
                 "bond": "技能 G",
                 "skill": "宝物 V",
                 "treasure": "支线（进化/装备/黑商）",
             }.get(cycle_kind, "下一步")
-            print(f"[L1] {cycle_kind} 没有新的可拿，转入{nxt}")
+            if force_advance:
+                print(f"[L1] {cycle_kind} 单次停留已达 3 次成功选择/30s 抽干上限，转入{nxt}")
+            else:
+                print(f"[L1] {cycle_kind} 没有新的可拿，转入{nxt}")
             self._advance_l1_cycle(cycle_kind)
 
     def panel_episode_diagnostics(self) -> dict:
@@ -14973,7 +15095,7 @@ class Mediator:
                     # normal, not a failure.  Retry after new choices had
                     # time to accrue instead of burning the per-round cap.
                     self._hitch_treasure_retry_at = now + self._HITCH_TREASURE_RETRY_S
-                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                    self._panel_cooldown_until[kind] = now + self._L1_PANEL_REOPEN_INTERVAL_S
                     cur_kills = self._merchant_kill_balance(frame)
                     if cur_kills is not None:
                         self._hitch_last_treasure_kill_balance = cur_kills
@@ -14988,7 +15110,7 @@ class Mediator:
                         self._skill_idle_until = now + self._SKILL_IDLE_BACKOFF_S
                 elif kind in ("skill", "bond", "treasure"):
                     self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
-                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                    self._panel_cooldown_until[kind] = now + self._L1_PANEL_REOPEN_INTERVAL_S
                 self._panel_opened_by_us = None
                 return LoopAction.Continue
             else:
@@ -15001,6 +15123,20 @@ class Mediator:
                 self._finish_panel_episode()
                 return LoopAction.Continue
             if self._hitch_fail_close_choice_panel(frame, now):
+                return LoopAction.Continue
+            if (
+                self._l1_cycle_owned_panel
+                and self._panel_kind == self._l1_cycle_step
+                and self._panel_kind in ("skill", "bond", "treasure")
+                and self._l1_step_visit_exhausted(now)
+            ):
+                if self._panel_kind == "bond":
+                    self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
+                print(f"[L1] {self._panel_kind} 单次停留已达 3 次成功选择/30s 上限，转 CLOSING 收口推进下一步")
+                self._panel_visit_force_advance = True
+                self._panel_state = PanelState.CLOSING
+                self._panel_closing_attempts = 0
+                self._panel_closing_started_at = now
                 return LoopAction.Continue
             if now < self._selection_click_cooldown_until:
                 print("[L1] 选择面板等待输入间隔…")
