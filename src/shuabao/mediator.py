@@ -65,6 +65,7 @@ from shuabao.vision.matcher import (
     resolve_template,
 )
 from shuabao.vision.stage_selector import (
+    StageId,
     configured_stage_id,
     find_stage_in_range,
     find_stage_labels,
@@ -9803,6 +9804,25 @@ class Mediator:
             self._failure_streak += 1
             print(f"[med] outcome={outcome.name}（{reason}）failure_streak={self._failure_streak}"
                   f"/{self.settings.failure_streak_limit}")
+            self._maybe_downgrade_stage_target()
+
+    def _maybe_downgrade_stage_target(self) -> None:
+        """打不过自动降级（Owner 2026-09-15）：连续 N 局非胜利后选关目标降一级。
+
+        复用 `_failure_streak`（与熔断同一口径）；降级成功即清零，避免降级
+        那局还没打就被 `failure_streak_limit` 熔断停机。已在 1-1 时不再降级，
+        让 streak 继续累积直到熔断——「熔断只对降到 1-1 仍失败生效」。
+        """
+        n = int(getattr(self.settings, "downgrade_after_failures", 0) or 0)
+        if n <= 0 or self._failure_streak < n:
+            return
+        current = configured_stage_id(self.settings.stage_targets, self.settings.stage1, self.settings.stage2)
+        if current is None or current.index <= 1:
+            return
+        downgraded = StageId(current.chapter, current.index - 1)
+        self.settings.stage_targets = [str(downgraded)]
+        print(f"[med] 降级 {current}→{downgraded}（连续失败 {self._failure_streak} 局）")
+        self._failure_streak = 0
 
     # ---------- B1-2 incident 归档辅助（无 incident_dir 时全部空转）----------
 
