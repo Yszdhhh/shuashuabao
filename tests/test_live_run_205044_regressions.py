@@ -711,14 +711,16 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertGreaterEqual(hit.y, int(900 * 0.75))
         self.assertLessEqual(hit.y, int(900 * 0.81))
 
-    def test_orange_border_not_classified_as_green(self) -> None:
+    def test_rarity_choice_uses_badge_letters_not_card_border(self) -> None:
         med = Mediator(Settings(), ROOT)
-        image = np.zeros((900, 1600, 3), dtype=np.uint8)
-        cx, cy = 800, 300
-        cv2.rectangle(image, (cx - 80, cy - 80), (cx + 80, cy + 80), (0, 140, 230), 8)
-        scored = med._card_rarity_score(Frame(image), cx, cy, "treasure")
-        self.assertIsNotNone(scored)
-        self.assertEqual(scored[1], "orange")
+        with patch.object(
+            med,
+            "_read_slot_rarity_badge",
+            side_effect=[("R", "blue"), ("SSR", "orange"), (None, None)],
+        ):
+            hit = med._rarity_choice(frame(), "treasure")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit.name, "rarity_orange")
 
     # ---------- P0-3：面板锚点双帧确认 + 联合分类 + 自然面板 OCR（215302） ----------
 

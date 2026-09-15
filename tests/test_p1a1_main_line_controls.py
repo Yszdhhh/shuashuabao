@@ -467,7 +467,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         self.assertEqual(self.med.phase, Phase.MAIN_LINE)
         scene.assert_not_called()
         click.assert_called_once()
-        self.assertEqual(click.call_args.args[1], "treasure选择")
+        self.assertTrue(click.call_args.args[1].startswith("treasure"))
 
     def test_non_skill_choice_materials_never_click_configured_skill(self):
         # A3：bond 硬禁用后无 cards 偏好 → 关闭/隐藏，绝不再品质色乱点；

@@ -627,24 +627,6 @@ class Mediator:
             "scan_y1": 0.550,
         },
     }
-    _RARITY_SAMPLE_XS = {
-        "treasure": (0.348, 0.497, 0.646),
-        "bond": (0.331, 0.450, 0.569),
-        "card": (0.331, 0.420, 0.500, 0.580, 0.669),
-        "skill": (0.354, 0.420, 0.500, 0.580, 0.646),
-    }
-    _RARITY_SAMPLE_XS_4 = {
-        "treasure": (0.270, 0.415, 0.560, 0.705),
-        "bond": (0.255, 0.410, 0.565, 0.720),
-        "card": (0.255, 0.410, 0.565, 0.720),
-        "skill": (0.270, 0.415, 0.560, 0.705),
-    }
-    _RARITY_SAMPLE_CY = {
-        "treasure": 0.300,
-        "skill": 0.280,
-        "bond": 0.333,
-        "card": 0.333,
-    }
     _RARITY_LETTER_TO_BAND = {
         "EX": "red",
         "UR": "red",
@@ -2831,7 +2813,7 @@ class Mediator:
         return None
 
 
-    # 卡牌品质色（用户规则）：红 > 橙 > 紫 > 蓝 > 白 > 绿（最低档）
+    # Card-badge rarity order: EX/UR > SSR > SR > R > N.
     RARITY_BANDS = (
         ("red", 5),
         ("orange", 4),
@@ -2840,62 +2822,6 @@ class Mediator:
         ("white", 1),
         ("green", 0),
     )
-
-    def _card_rarity_score(
-        self,
-        frame: Frame,
-        cx: int,
-        cy: int,
-        panel_kind: str = "card",
-    ) -> tuple[int, str, int] | None:
-        """Score a card's border-ring color by rarity band.
-
-        Returns (score, band, saturated_pixels) or None when no rarity color.
-        """
-        try:
-            import numpy as np
-            import cv2 as _cv2
-        except Exception:
-            return None
-        if panel_kind == "treasure":
-            w, h = int(frame.width * 0.128), int(frame.height * 0.180)
-            minimum = 400
-        else:
-            w, h = int(frame.width * 0.094), int(frame.height * 0.122)
-            minimum = 30
-        x0, y0 = max(0, cx - w // 2), max(0, cy - h // 2)
-        roi = frame.bgr[y0 : y0 + h, x0 : x0 + w]
-        if roi is None or roi.size == 0:
-            return None
-        ring = np.concatenate(
-            [
-                roi[:5, :].reshape(-1, 3),
-                roi[-5:, :].reshape(-1, 3),
-                roi[:, :5].reshape(-1, 3),
-                roi[:, -5:].reshape(-1, 3),
-            ]
-        )
-        hsv = _cv2.cvtColor(ring.reshape(-1, 1, 3), _cv2.COLOR_BGR2HSV)
-        hues = hsv[:, 0, 0]
-        sat = hsv[:, 0, 1]
-        value = hsv[:, 0, 2]
-        best: tuple[int, str, int] | None = None
-        masks = {
-            "red": (((hues <= 10) | (hues >= 170)) & (sat > 70) & (value > 60)),
-            # SSR 金/橙边 hue 常到 32–38；旧 green 从 35 起会把橙当绿。
-            "orange": ((hues > 10) & (hues <= 38) & (sat > 70) & (value > 60)),
-            "green": ((hues > 45) & (hues < 90) & (sat > 70) & (value > 60)),
-            "purple": ((hues >= 125) & (hues < 170) & (sat > 60) & (value > 50)),
-            "blue": ((hues >= 90) & (hues < 125) & (sat > 60) & (value > 50)),
-            "white": ((sat < 45) & (value > 150)),
-        }
-        for band, score in self.RARITY_BANDS:
-            count = int(masks[band].sum())
-            if count >= minimum and (
-                best is None or count > best[2]
-            ):
-                best = (score, band, count)
-        return best
 
     @staticmethod
     def _normalized_bbox(frame: Frame, roi: tuple[float, float, float, float]) -> tuple[int, int, int, int]:
@@ -3048,12 +2974,8 @@ class Mediator:
         # 统一采样该 layout 下所有槽位的 rarity
         for slot in slots:
             letter, band = self._read_slot_rarity_badge(frame, kind, slot["index"], slot_count=slot_count)
-            if band is not None:
-                slot["rarity"] = band
-                slot["rarity_letter"] = letter
-            else:
-                slot["rarity"] = self._slot_rarity_band(frame, kind, slot["index"], slot_count=slot_count)
-                slot["rarity_letter"] = None
+            slot["rarity"] = band
+            slot["rarity_letter"] = letter
 
         # 描述 ROI：宝物负面判定必须匹配对应 layout
         if desc_spec is not None:
@@ -3225,24 +3147,8 @@ class Mediator:
         return None, None
 
     def _slot_rarity_band(self, frame: Frame, kind: str, index: int, slot_count: int = 3) -> str | None:
-        """Map slot index → rarity band via OCR letter badge or fallback border color."""
-        letter, band = self._read_slot_rarity_badge(frame, kind, index, slot_count=slot_count)
-        if band is not None:
-            return band
-        if slot_count == 4:
-            xs = self._RARITY_SAMPLE_XS_4.get(kind) or self._RARITY_SAMPLE_XS_4.get("card")
-        else:
-            xs = self._RARITY_SAMPLE_XS.get(kind) or self._RARITY_SAMPLE_XS.get("card")
-        if xs is None or index < 0 or index >= len(xs):
-            return None
-        cx = int(frame.width * xs[index])
-        best: tuple[int, str, int] | None = None
-        for cy_ratio in (0.300, 0.360, 0.420):
-            cy = int(frame.height * cy_ratio)
-            scored = self._card_rarity_score(frame, cx, cy, kind)
-            if scored is not None and (best is None or scored[0] > best[0]):
-                best = scored
-        return best[1] if best is not None else None
+        """Map slot index to a badge-OCR rarity band; unreadable stays unknown."""
+        return self._read_slot_rarity_badge(frame, kind, index, slot_count=slot_count)[1]
 
     def _slots_to_candidates(self, frame: Frame, kind: str, slots: list[dict]) -> tuple[SlotCandidate, ...]:
         """Map OCR slot dicts → SlotCandidate (rarity/description filled when present)."""
@@ -3253,11 +3159,8 @@ class Mediator:
             rarity_letter = slot.get("rarity_letter")
             if rarity is None and frame is not None:
                 letter, band = self._read_slot_rarity_badge(frame, kind, index, slot_count=len(slots))
-                if band is not None:
-                    rarity = band
-                    rarity_letter = letter
-                else:
-                    rarity = self._slot_rarity_band(frame, kind, index, slot_count=len(slots))
+                rarity = band
+                rarity_letter = letter
             description = str(slot.get("description") or "")
             name = slot.get("name")
             family = slot.get("family")
@@ -3914,28 +3817,26 @@ class Mediator:
 
 
     def _rarity_choice(self, frame: Frame, panel_kind: str) -> MatchResult | None:
-        """按边框颜色选最高品质：红UR>橙SSR>紫SR>蓝R>其他N。"""
+        """Pick the highest readable N/R/SR/SSR/UR/EX badge; never sample color."""
         if panel_kind not in ("treasure", "skill", "bond", "card"):
             return None
-        xs = self._RARITY_SAMPLE_XS.get(panel_kind, (0.348, 0.497, 0.646))
-        cy_ratio = self._RARITY_SAMPLE_CY.get(panel_kind, 0.300)
-        best: tuple[int, str, int, int, int] | None = None
-        for x_ratio in xs:
-            cx = int(frame.width * x_ratio)
-            cy = int(frame.height * cy_ratio)
-            r = self._card_rarity_score(frame, cx, cy, panel_kind)
-            if r is None:
+        centers = self._CHOICE_SLOT_CENTERS.get(panel_kind, self._CHOICE_SLOT_CENTERS["skill"])
+        ranks = dict(self.RARITY_BANDS)
+        best: tuple[int, str, str, int, int] | None = None
+        for index, (x_ratio, y_ratio) in enumerate(centers):
+            letter, band = self._read_slot_rarity_badge(frame, panel_kind, index)
+            if band is None:
                 continue
-            score, band, count = r
-            if best is None or score > best[0] or (score == best[0] and count > best[2]):
-                best = (score, band, count, cx, cy)
+            score = ranks.get(band, -1)
+            if best is None or score > best[0]:
+                best = (score, band, letter or "?", int(frame.width * x_ratio), int(frame.height * y_ratio))
         if best is None:
             return None
-        _, band, count, cx, cy = best
-        print(f"[L1] 按品质色选卡：{band} (饱和像素 {count}) @ ({cx},{cy})")
+        score, band, letter, cx, cy = best
+        print(f"[L1] 按品质徽标选卡：{letter}/{band} @ ({cx},{cy})")
         return MatchResult(
             name=f"rarity_{band}",
-            score=min(1.0, count / 200.0),
+            score=max(0.0, score / max(1, len(self.RARITY_BANDS) - 1)),
             x=cx,
             y=cy,
             w=0,
