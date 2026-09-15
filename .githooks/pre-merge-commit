@@ -1,0 +1,10 @@
+#!/bin/sh
+# main 只允许从 origin/main 快进；禁止在本地 main 生成 merge commit。
+# fast-forward 不会触发本 hook，因此 AGENTS.md 允许的
+# `git merge --ff-only origin/main` 仍可正常使用。
+branch=$(git symbolic-ref --short -q HEAD)
+if [ "$branch" = "main" ]; then
+  echo "pre-merge-commit: 禁止在本地 main 生成 merge commit。请在 topic 分支完成改动，并通过 GitHub PR 合并。" >&2
+  exit 1
+fi
+exit 0
