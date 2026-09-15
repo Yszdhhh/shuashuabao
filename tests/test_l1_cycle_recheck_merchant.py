@@ -620,7 +620,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
             ["BlackMerchant-refresh", "BlackMerchant-refresh"],
         )
 
-    def test_merchant_wood_is_skipped_by_the_integrated_flow(self):
+    def test_solo_merchant_buys_wood_before_refreshing(self):
         self.med.settings.merchant_enabled = True
         self.med._merchant_next_at = 0.0
         wood = hit("merchant_wood", 1280, 650)
@@ -636,7 +636,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
             self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
 
         click.assert_called_once()
-        self.assertEqual(click.call_args.args[1], "BlackMerchant-refresh")
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-wood")
 
     def test_merchant_pill_purchase_does_not_use_inventory_bond_gate(self):
         self.med.settings.merchant_enabled = True
@@ -745,7 +745,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0]["bbox"], (1340, 10, 1390, 35))
 
-    def test_merchant_explicit_two_or_five_fold_ocr_is_not_purchased(self):
+    def test_solo_merchant_buys_explicit_two_or_five_fold_ocr(self):
         self.med.settings.merchant_enabled = True
         self.med._merchant_next_at = 0.0
         calls = []
@@ -776,7 +776,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(calls[0][1], (1150, 617, 1190, 640))
         self.assertEqual(calls[4][1], (1370, 617, 1410, 640))
         self.assertEqual(len(calls[0][2].rsplit(":", 1)[1]), 32)
-        click.assert_not_called()
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-discount")
 
     def test_merchant_normalizes_only_observed_discount_ocr_aliases(self):
         self.assertEqual(self.med._normalize_merchant_discount("15折"), "5折")
@@ -784,7 +784,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
         self.assertEqual(self.med._normalize_merchant_discount("12折"), "2折")
         self.assertEqual(self.med._normalize_merchant_discount("2S"), "2S")
 
-    def test_merchant_wood_match_never_authorizes_a_slot_click(self):
+    def test_solo_merchant_wood_match_authorizes_a_slot_click(self):
         self.med.settings.merchant_enabled = True
         self.med._merchant_next_at = 0.0
         # The old equal-width ROI mapping would classify this fifth-slot match
@@ -798,9 +798,9 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
             self.med._maybe_black_merchant(self.frame)
             self.med._maybe_black_merchant(self.frame)
 
-        click.assert_not_called()
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-wood")
 
-    def test_discount_fingerprint_does_not_authorize_a_purchase(self):
+    def test_solo_discount_fingerprint_authorizes_a_purchase(self):
         class FakeOcr:
             is_available = True
 
@@ -829,9 +829,9 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 patch.object(self.med, "act_click", return_value=True) as click:
             self.assertEqual(self.med._maybe_black_merchant(self.frame), LoopAction.Continue)
 
-        click.assert_not_called()
+        self.assertEqual(click.call_args.args[1], "BlackMerchant-discount")
         self.assertTrue(any(kind == "discount" for _, kind in fingerprints[-1]))
-        self.assertEqual(self.med._merchant_fsm.pending_fingerprint, "")
+        self.assertEqual(self.med._merchant_fsm.pending_fingerprint, "with_discount")
 
     def test_merchant_uses_only_high_confidence_full_item_templates(self):
         observed = {}

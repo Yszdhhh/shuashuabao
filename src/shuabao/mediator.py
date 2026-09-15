@@ -5927,10 +5927,16 @@ class Mediator:
     def _merchant_kill_budget_allows(
         self, frame: Frame, now: float, required: int, action: str
     ) -> bool:
-        """Grant a merchant spend only when the live kill balance proves it."""
+        """Grant a merchant spend when the balance proves it, with solo fallback."""
         balance = self._merchant_kill_balance(frame)
         if balance is not None and balance >= required:
             self._merchant_budget_retry_at = 0.0
+            return True
+        if balance is None and not self._passenger_mode():
+            # Solo historically used verified merchant controls without a
+            # kill-counter OCR gate.  Do not turn an unreadable HUD into a
+            # permanent merchant starvation loop; hitch remains fail-closed.
+            print(f"[L1] 黑商{action}杀敌数不可读，单人按已验证控件继续")
             return True
         self._merchant_budget_retry_at = max(
             float(getattr(self, "_merchant_budget_retry_at", 0.0) or 0.0),
@@ -5943,7 +5949,7 @@ class Mediator:
         return False
 
     def _maybe_black_merchant(self, frame: Frame) -> MatchResult | None:
-        """黑商只买可信吞噬丹；其它商品一律跳过并走既有刷新路径。"""
+        """Buy only mode-authorized merchant stock, then use the existing refresh path."""
         now = time.time()
         present = self._black_merchant_present(frame)
         cards_present = self._black_merchant_cards_present(frame)
@@ -6030,7 +6036,7 @@ class Mediator:
         # Buying a merchant pill is independent from consuming it in the
         # inventory. The latter keeps its own bond-bar guard in
         # _maybe_use_inventory_item; do not hide merchant recognition behind it.
-        ranked = scanner.rank_purchases(detected_slots)
+        ranked = scanner.rank_purchases(detected_slots, solo=not self._passenger_mode())
         # 0 means no script cap: keep refreshing while the recycle control is up.
         reroll_cap = int(getattr(self.settings, "merchant_max_rerolls", 0)) or 20
 
