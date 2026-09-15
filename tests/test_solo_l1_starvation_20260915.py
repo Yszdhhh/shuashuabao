@@ -344,11 +344,11 @@ def test_wood_tiers_visit_cap() -> None:
     med = _med()
     med._l1_cycle_step = "bond"
 
-    # >= 1000: 5
+    # >= 1000: 15 (充分转化高额木材资源)
     med._wood_balance = 1200
-    med._l1_cycle_step_successes = 4
+    med._l1_cycle_step_successes = 14
     assert not med._l1_step_visit_exhausted(100.0)
-    med._l1_cycle_step_successes = 5
+    med._l1_cycle_step_successes = 15
     assert med._l1_step_visit_exhausted(100.0)
 
     # 300..1000: 2

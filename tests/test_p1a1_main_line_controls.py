@@ -402,7 +402,7 @@ class P1A1MainLineControlsTests(unittest.TestCase):
             choice = self.med._find_reward_choice(f3)
             self.assertIsNotNone(choice)
             self.assertEqual(choice[0], "技能刷新")
-            self.assertEqual(choice[1].name, "skill_refresh_btn")
+            self.assertIn(choice[1].name, ("refresh", "skill_refresh_btn"))
     def test_treasure_fixture_uses_real_card_centers_and_not_skill_layout(self):
         # A3：禁止无脑第一张；无 cards 偏好时宝物可走品质色（负面剔除后），
         # 坐标仍必须是宝物布局而非技能布局。

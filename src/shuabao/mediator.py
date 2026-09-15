@@ -3415,10 +3415,10 @@ class Mediator:
 
     def _find_panel_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         names = {
-            "skill": ["skill_refresh_btn", "refresh", "cardRefresh", "heroRefresh", "bwRefresh"],
+            "skill": ["refresh", "bwRefresh", "cardRefresh", "heroRefresh"],
             "bond": ["bond_refresh_btn", "refresh", "cardRefresh", "heroRefresh", "bwRefresh"],
             "treasure": ["treasure_refresh_btn", "refresh", "cardRefresh", "bwRefresh"],
-        }.get(kind, ["skill_refresh_btn", "refresh", "cardRefresh"])
+        }.get(kind, ["refresh", "bwRefresh", "cardRefresh"])
         def preferred(scales: tuple[float, ...]) -> MatchResult | None:
             # Do not let a high-scoring generic `bwRefresh` template replace
             # the panel-specific refresh button at a different coordinate.
@@ -4242,16 +4242,16 @@ class Mediator:
 
     def _l1_step_visit_exhausted(self, now: float) -> bool:
         # One visit rule with the solo planner:
-        # F: wood >= 1000 -> 5 (狂暴抽卡), 300..1000 -> 2 (让步给技能与支线), < 300 -> 1;
-        # G 5, everything else 3; plus the 30s ceiling below.
+        # F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源), 300..1000 -> 2 (让步给技能与支线), < 300 -> 1;
+        # G 5, everything else 3; plus the 30s/60s ceiling below.
         cap = self._L1_STEP_VISIT_MAX_SUCCESSES
         step = getattr(self, "_l1_cycle_step", None)
+        wood = getattr(self, "_wood_balance", None)
         if not self._passenger_mode() and step == "skill":
             cap = self._SKILL_VISIT_PICKS
         elif not self._passenger_mode() and step == "bond":
-            wood = getattr(self, "_wood_balance", None)
             if wood is not None and wood >= self._BOND_HIGH_WOOD:
-                cap = 5
+                cap = 15
             elif wood is not None and wood < self._BOND_LOW_WOOD:
                 cap = 1
             elif wood is not None:
@@ -4262,7 +4262,8 @@ class Mediator:
         if getattr(self, "_l1_cycle_step_successes", 0) >= cap:
             return True
         started = getattr(self, "_l1_cycle_last_advance_at", None)
-        return started is not None and now - started >= self._L1_STEP_VISIT_MAX_SECONDS
+        max_s = 60.0 if (not self._passenger_mode() and step == "bond" and wood is not None and wood >= self._BOND_HIGH_WOOD) else self._L1_STEP_VISIT_MAX_SECONDS
+        return started is not None and now - started >= max_s
 
     _BOND_HIGH_WOOD = 1000
     _BOND_LOW_WOOD = 300
@@ -4350,7 +4351,7 @@ class Mediator:
         if kind == "bond":
             wood = getattr(self, "_wood_balance", None)
             if wood is not None and wood >= self._BOND_HIGH_WOOD:
-                cap = 5
+                cap = 15
             elif wood is not None and wood >= self._BOND_LOW_WOOD:
                 cap = 2
             elif wood is not None:
@@ -4430,7 +4431,7 @@ class Mediator:
         skill_held = getattr(self, "_skill_priority_suspended_at", None) is not None
         wood = getattr(self, "_wood_balance", None)
 
-        # 1. 紧急强抢占：技能积压 >= 8，无论木材多少必须先点技能
+        # 1. 紧急强抢占：技能积压 >= 8，无论木材多少先点技能（清出 5 个技能点）
         if (
             skill is not None
             and skill >= 8
@@ -4440,16 +4441,17 @@ class Mediator:
         ):
             return "skill", f"技能积压 {skill} ≥ 8（紧急强抢占），先点技能"
 
-        # 2. 基础羁绊 < 80% 优先级：木材 >= 1000 狂暴发育期，羁绊优先强抢占
+        # 2. 狂暴发育期/基础羁绊：木材 >= 1000 优先消耗木材转战力，或基础羁绊未满 80% 且木材充足
         bond_blocked = self._bond_step_blocked(frame, now)
         bond_priority_affordable = wood is None or wood >= self._BOND_HIGH_WOOD
         if (
             bond_blocked is None
             and not bond_held
             and bond_priority_affordable
-            and self._bond_base_progress_pending()
+            and (self._bond_base_progress_pending() or (wood is not None and wood >= self._BOND_HIGH_WOOD))
         ):
-            return "bond", "基础羁绊未满 80% 且木材充足，羁绊优先"
+            why = f"木材充足（{wood} ≥ {self._BOND_HIGH_WOOD}），羁绊优先转化战力" if (wood is not None and wood >= self._BOND_HIGH_WOOD) else "基础羁绊未满 80% 且木材充足，羁绊优先"
+            return "bond", why
 
         # 3. 高优先技能：技能积压 4~7，木材 < 1000 时先于普通轮换
         if (
@@ -4530,9 +4532,10 @@ class Mediator:
                 self._visit_picks = 0
         if target in ("skill", "bond", "treasure"):
             if target == self._l1_cycle_step and self._l1_step_visit_exhausted(now):
-                if target == "bond":
+                wood = getattr(self, "_wood_balance", None)
+                if target == "bond" and (wood is None or wood < self._BOND_HIGH_WOOD):
                     self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
-                print(f"[L1] {target} 本次停留已达 3 次成功选择/30s 上限，推进下一步（抽干上限）")
+                print(f"[L1] {target} 本次停留已达成功选择/时间上限，推进下一步（抽干上限）")
                 self._advance_l1_cycle(target)
                 return LoopAction.Continue
             panel_enabled = (
@@ -4987,7 +4990,11 @@ class Mediator:
         """
         if self._pending_action is not None and not self._pending_action.is_confirmed(frame):
             return LoopAction.Continue
-        if self._black_merchant_present(frame) or self._panel_state != PanelState.CLOSED:
+        if (
+            self._panel_state != PanelState.CLOSED
+            or self._merchant_fsm.phase is MerchantPhase.VERIFYING
+            or self._black_merchant_cards_present(frame)
+        ):
             return LoopAction.Continue
         now = time.time()
         if self._equipment_fsm.pending_slot is not None:
@@ -6260,10 +6267,19 @@ class Mediator:
                 )
                 self._merchant_next_at = now + retry_s
             return LoopAction.Continue
-        if self._passenger_mode() and self._merchant_fsm.rerolls >= reroll_cap:
-            print("[L1] 蹭车黑商刷新预算已用完，转宝物神符，不终止本局")
+        if self._merchant_fsm.rerolls >= reroll_cap and not ranked:
+            print(f"[L1] 黑商刷新预算已用完（{self._merchant_fsm.rerolls}/{reroll_cap}），推进轮换下一步")
             self._advance_l1_cycle("merchant")
-            return LoopAction.Continue
+            if self._passenger_mode():
+                return LoopAction.Continue
+            return None
+        if (
+            self._merchant_fsm.phase is MerchantPhase.READY
+            and not ranked
+            and (not refresh_available or not self._merchant_fsm.can_reroll(reroll_cap))
+        ):
+            self._advance_l1_cycle("merchant")
+            return None
         if self._passenger_mode():
             # 蹭车只拿吞噬丹；已识别到的木头/折扣不是购买授权，
             # 且没有可刷新控件时必须把控制权交给宝物步骤。
@@ -15400,9 +15416,10 @@ class Mediator:
                 and self._panel_kind in ("skill", "bond", "treasure")
                 and self._l1_step_visit_exhausted(now)
             ):
-                if self._panel_kind == "bond":
+                wood = getattr(self, "_wood_balance", None)
+                if self._panel_kind == "bond" and (wood is None or wood < self._BOND_HIGH_WOOD):
                     self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
-                print(f"[L1] {self._panel_kind} 单次停留已达 3 次成功选择/30s 上限，转 CLOSING 收口推进下一步")
+                print(f"[L1] {self._panel_kind} 单次停留已达成功选择/时间上限，转 CLOSING 收口推进下一步")
                 self._panel_visit_force_advance = True
                 self._panel_state = PanelState.CLOSING
                 self._panel_closing_attempts = 0
@@ -15438,7 +15455,13 @@ class Mediator:
                     self._panel_closing_attempts = 0
                     self._panel_closing_started_at = now
                     self._panel_opened_by_us = None
-                    self._skill_refresh_attempts = 0
+                    if kind == "skill":
+                        self._skill_refresh_attempts = 0
+                        self._skill_idle_until = now + self._SKILL_IDLE_BACKOFF_S
+                    elif kind == "bond":
+                        self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
+                    else:
+                        self._skill_refresh_attempts = 0
                     return LoopAction.Continue
                 action_kind = self._panel_choice_action_kind(hit.name)
                 if kind == "treasure":
