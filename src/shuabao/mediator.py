@@ -4212,22 +4212,32 @@ class Mediator:
     _L1_STEP_VISIT_MAX_SECONDS = 30.0
 
     def _l1_step_visit_exhausted(self, now: float) -> bool:
-        # One visit rule with the solo planner: F 3 (6 in the opening minute),
+        # One visit rule with the solo planner:
+        # F: wood >= 1000 -> 5 (狂暴抽卡), 300..1000 -> 2 (让步给技能与支线), < 300 -> 1;
         # G 5, everything else 3; plus the 30s ceiling below.
         cap = self._L1_STEP_VISIT_MAX_SUCCESSES
         step = getattr(self, "_l1_cycle_step", None)
         if not self._passenger_mode() and step == "skill":
             cap = self._SKILL_VISIT_PICKS
         elif not self._passenger_mode() and step == "bond":
-            elapsed = self._round_elapsed_s()
-            cap = self._BOND_VISIT_PICKS_OPENING if elapsed is not None and elapsed < 60 else self._BOND_VISIT_PICKS
+            wood = getattr(self, "_wood_balance", None)
+            if wood is not None and wood >= self._BOND_HIGH_WOOD:
+                cap = 5
+            elif wood is not None and wood < self._BOND_LOW_WOOD:
+                cap = 1
+            elif wood is not None:
+                cap = 2
+            else:
+                elapsed = self._round_elapsed_s()
+                cap = self._BOND_VISIT_PICKS_OPENING if elapsed is not None and elapsed < 60 else self._BOND_VISIT_PICKS
         if getattr(self, "_l1_cycle_step_successes", 0) >= cap:
             return True
         started = getattr(self, "_l1_cycle_last_advance_at", None)
         return started is not None and now - started >= self._L1_STEP_VISIT_MAX_SECONDS
 
-    # Owner 2026-09-15: below 500 wood the bond panel cannot buy anything.
-    _BOND_MIN_WOOD = 500
+    _BOND_HIGH_WOOD = 1000
+    _BOND_LOW_WOOD = 300
+    _BOND_MIN_WOOD = 300
     _WOOD_BALANCE_ROI = (1178 / 1600, 8 / 900, 1240 / 1600, 34 / 900)
     _WOOD_READ_INTERVAL_S = 3.0
     # A bond visit that ended without a pick (no wood / nothing eligible) lets
@@ -4310,8 +4320,16 @@ class Mediator:
         if getattr(self, "_visit_kind", None) != kind:
             return False
         if kind == "bond":
-            elapsed = self._round_elapsed_s()
-            cap = self._BOND_VISIT_PICKS_OPENING if elapsed is not None and elapsed < 60 else self._BOND_VISIT_PICKS
+            wood = getattr(self, "_wood_balance", None)
+            if wood is not None and wood >= self._BOND_HIGH_WOOD:
+                cap = 5
+            elif wood is not None and wood < self._BOND_LOW_WOOD:
+                cap = 1
+            elif wood is not None:
+                cap = 2
+            else:
+                elapsed = self._round_elapsed_s()
+                cap = self._BOND_VISIT_PICKS_OPENING if elapsed is not None and elapsed < 60 else self._BOND_VISIT_PICKS
         elif kind == "skill":
             cap = self._SKILL_VISIT_PICKS
         else:
@@ -4357,10 +4375,13 @@ class Mediator:
         """Solo panel choice for this tick: (target, why); target None = skip step.
 
         Order of reasons:
-          1. skill backlog >= 6 -> G (unless the last G visit found nothing)
-          2. basic bonds < 80% and F can progress (wood >= 500 ...) -> F
-          3. the cycle step, skipping F without wood and G/V with a 0 badge
-        Unreadable badges never skip a step (old behaviour).
+          1. skill backlog >= 8 -> G (urgent pre-emption, regardless of wood)
+          2. basic bonds < 80% and F can progress (wood >= 1000, or 300-1000 with no skill backlog) -> F
+          3. skill backlog >= 4 -> G (high priority over normal cycle when wood < 1000)
+          4. normal cycle step:
+             - bond: skip if blocked (wood < price), visit capped, or wood < 300
+             - skill/treasure: skip if badge 0 or visit capped
+        Unreadable badges/balances never skip a step.
         """
         self._refresh_solo_signals(frame, now)
         skill = getattr(self, "_skill_points_seen", None)
@@ -4379,6 +4400,31 @@ class Mediator:
                 setattr(self, f"_{kind}_priority_suspended_at", None)
         bond_held = getattr(self, "_bond_priority_suspended_at", None) is not None
         skill_held = getattr(self, "_skill_priority_suspended_at", None) is not None
+        wood = getattr(self, "_wood_balance", None)
+
+        # 1. 紧急强抢占：技能积压 >= 8，无论木材多少必须先点技能
+        if (
+            skill is not None
+            and skill >= 8
+            and not skill_held
+            and now >= getattr(self, "_skill_idle_until", 0.0)
+            and self._panel_kind_available("skill", now)
+        ):
+            return "skill", f"技能积压 {skill} ≥ 8（紧急强抢占），先点技能"
+
+        # 2. 基础羁绊 < 80% 优先级：木材 >= 1000 狂暴发育，或 300~1000 均衡期且技能无积压时，羁绊优先
+        bond_blocked = self._bond_step_blocked(frame, now)
+        skill_backlog = skill is not None and skill >= self._skill_backlog_force()
+        bond_priority_affordable = wood is None or wood >= self._BOND_HIGH_WOOD or (wood >= self._BOND_LOW_WOOD and not skill_backlog)
+        if (
+            bond_blocked is None
+            and not bond_held
+            and bond_priority_affordable
+            and self._bond_base_progress_pending()
+        ):
+            return "bond", "基础羁绊未满 80% 且木材充足，羁绊优先"
+
+        # 3. 高优先技能：技能积压 4~7，木材 < 1000 时先于普通轮换
         if (
             skill is not None
             and skill >= self._skill_backlog_force()
@@ -4387,19 +4433,17 @@ class Mediator:
             and self._panel_kind_available("skill", now)
         ):
             return "skill", f"技能积压 {skill} ≥ {self._skill_backlog_force()}，先点技能"
-        bond_blocked = self._bond_step_blocked(frame, now)
-        wood = getattr(self, "_wood_balance", None)
-        if (
-            bond_blocked is None
-            and not bond_held
-            and (wood is None or wood >= self._BOND_MIN_WOOD)
-            and self._bond_base_progress_pending()
-        ):
-            return "bond", "基础羁绊未满 80% 且木材充足，羁绊优先"
-        if step == "bond" and bond_blocked is not None:
-            return None, f"羁绊暂不推进（{bond_blocked}）"
-        if step == "bond" and bond_held:
-            return None, "本轮羁绊已拿满，轮换下一步"
+
+        # 4. 轮换到 bond 时的调度：木材不足/受限时让步
+        if step == "bond":
+            if bond_blocked is not None:
+                return None, f"羁绊暂不推进（{bond_blocked}）"
+            if bond_held:
+                return None, "本轮羁绊已拿满，轮换下一步"
+            if wood is not None and wood < self._BOND_LOW_WOOD:
+                return None, f"木材 {wood} < {self._BOND_LOW_WOOD}，低木材先处理技能，转下一步"
+
+        # 5. 轮换到 skill/treasure 时的调度
         if step == "skill" and skill == 0:
             return None, "技能角标为 0，没有可点的技能"
         if step == "skill" and skill_held:
@@ -4412,12 +4456,9 @@ class Mediator:
         """Why the bond step cannot progress right now, or None when it can."""
         self._refresh_solo_signals(frame, now)
         wood = getattr(self, "_wood_balance", None)
-        # Owner 2026-09-15: below 500 wood go to skills first.  The draw price
-        # (<=100, live panel text) plus a refresh margin is always below that.
         price = self._bond_next_price()
-        floor = max(self._BOND_MIN_WOOD, price + self._BOND_REFRESH_MARGIN)
-        if wood is not None and wood < floor:
-            return f"木材 {wood} < {floor}"
+        if wood is not None and wood < price:
+            return f"木材 {wood} < {price}"
         if self._panel_episode_count.get("bond", 0) >= self.settings.panel_episode_limit_per_kind:
             return "羁绊 episode 已达上限"
         if self._panel_cooldown_until.get("bond", 0.0) - now > self._BOND_LONG_COOLDOWN_S:
@@ -8037,14 +8078,36 @@ class Mediator:
                         return True
         return False
 
-    def _solo_heirloom_boss_is_clear(self, frame: Frame) -> bool:
-        """Two-frame reward proxy; not a visual proof that the Boss is absent.
+    def _solo_boss_is_alive(self, frame: Frame) -> bool:
+        """Visual detection of a live Boss health bar in the plaza."""
+        if frame.bgr is None or frame.width <= 0 or frame.height <= 0:
+            return False
+        h, w = frame.height, frame.width
+        x0, x1 = int(w * 0.25), int(w * 0.85)
+        y0, y1 = int(h * 0.15), int(h * 0.65)
+        plaza = frame.bgr[y0:y1, x0:x1]
+        hsv = cv2.cvtColor(plaza, cv2.COLOR_BGR2HSV)
+        red1 = (hsv[:, :, 0] <= 10) & (hsv[:, :, 1] >= 140) & (hsv[:, :, 2] >= 100)
+        red2 = (hsv[:, :, 0] >= 170) & (hsv[:, :, 1] >= 140) & (hsv[:, :, 2] >= 100)
+        red = (red1 | red2).astype(np.uint8) * 255
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 3))
+        closed = cv2.morphologyEx(red, cv2.MORPH_CLOSE, kernel)
+        n_labels, _, stats, _ = cv2.connectedComponentsWithStats(closed, 8)
+        for i in range(1, n_labels):
+            bx, by, bw, bh, area = stats[i]
+            if bw >= 80 and 8 <= bh <= 28 and area >= 800 and (bw / max(1, bh)) >= 3.8:
+                roi_red = red[by:by + bh, bx:bx + bw]
+                fill_ratio = np.count_nonzero(roi_red) / float(bw * bh)
+                if fill_ratio >= 0.60:
+                    return True
+        return False
 
-        No shipped target-panel/Boss-health template or paired live fixture
-        exists yet. Until one is supplied, this deliberately remains a
-        fail-closed reward proxy: uncertain frames keep observing and the
-        round deadline is the only terminal bound.
-        """
+    def _solo_heirloom_boss_is_clear(self, frame: Frame) -> bool:
+        """Two-frame reward proxy; vetoed if Boss health bar is visually alive."""
+        if self._solo_boss_is_alive(frame):
+            self._solo_heirloom_boss_clear_frames = 0
+            self._solo_heirloom_boss_clear_last_frame = None
+            return False
         clear = (
             self._top_bar_mode(frame) == "plaza"
             and self._heirloom_loot_popup_visible(frame)
@@ -16838,6 +16901,45 @@ class Mediator:
             self._main_line_since = now
             return compact_res
 
+        if (
+            not self._passenger_mode()
+            and self._panel_state == PanelState.CLOSED
+            and anchor is None
+        ):
+            # HUD Opportunistic 微操：神器 CD 到期独立触发
+            artifact_res = self._maybe_fire_artifacts(frame)
+            if artifact_res is not None:
+                self._main_line_since = now
+                return artifact_res
+
+            # 吞噬丹在羁绊卡位充足时安全使用
+            if (
+                self.settings.auto_devour_dan
+                and self._can_consume_inventory_swallow_pill(frame)
+                and now >= getattr(self, "_devour_dan_next_at", 0.0)
+            ):
+                dan_res = self._maybe_use_inventory_item(frame)
+                if dan_res is not None:
+                    self._main_line_since = now
+                    return dan_res
+
+            # 溢出安全拾取：只有物品栏已满且背包有空位时触发 [Z]
+            if (
+                now >= self._pickup_next_at
+                and self._hud_item_bar_overflowed(frame)
+                and self._pickup_bag_has_space(frame)
+            ):
+                pickup_button = self._hud_hotkey_button(frame, "bag/hud_pickup_button")
+                picked = (
+                    self.act_click(pickup_button, "Pickup-Z")
+                    if pickup_button is not None
+                    else self.act_key("z", "Pickup-Z")
+                )
+                if picked:
+                    self._pickup_next_at = now + 10.0
+                    self._main_line_since = now
+                    return LoopAction.Continue
+
         # 技能/羁绊/宝物优先于会重复出现的进化按钮，避免 G/F/V 饿死。
         opened = self._maybe_open_choice_panel(frame, anchor=anchor)
         if opened is not None:
@@ -16916,6 +17018,8 @@ class Mediator:
                 self._advance_l1_cycle("equipment")
                 return LoopAction.Continue
             result = self._maybe_upgrade_equipment(frame)
+            if self._find_equipment_affix_choice(frame) is None:
+                self._advance_l1_cycle("equipment")
             self._main_line_since = now
             return result
         if self._l1_cycle_step == "public_bag":

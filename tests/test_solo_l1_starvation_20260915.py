@@ -275,7 +275,7 @@ def test_third_run_real_frames_cover_every_l1_step_without_twenty_second_input_g
         stack.enter_context(patch.object(
             med,
             "_maybe_upgrade_equipment",
-            side_effect=lambda _f: med._advance_l1_cycle("equipment") or LoopAction.Continue,
+            return_value=LoopAction.Continue,
         ))
         stack.enter_context(patch.object(med, "_hud_item_bar_overflowed", return_value=False))
         stack.enter_context(patch.object(med, "_maybe_use_inventory_item", return_value=None))
@@ -298,3 +298,116 @@ def test_third_run_real_frames_cover_every_l1_step_without_twenty_second_input_g
     observed = [simulation_start, *input_times, clock[0]]
     gaps = [b - a for a, b in zip(observed, observed[1:])]
     assert max(gaps) <= 20.0
+
+
+def test_equipment_step_advances_without_deadlock() -> None:
+    med = _med()
+    med.settings.auto_weapon = True
+    med._l1_cycle_step = "equipment"
+    frame = _frame("hud_wood_1111_f0200.png")
+    with patch.object(med, "_maybe_open_choice_panel", return_value=None), \
+         patch.object(med, "_find_equipment_affix_choice", return_value=None), \
+         patch.object(med, "_maybe_upgrade_equipment", return_value=LoopAction.Continue), \
+         patch.object(med, "_selection_anchor", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=True):
+        res = med._tick_main_line(frame)
+    assert res is LoopAction.Continue
+    assert med._l1_cycle_step == "pickup", "equipment 巡检后必须推进到 pickup，不得死锁"
+
+
+def test_opportunistic_artifact_fires_on_hud() -> None:
+    med = _med()
+    med._l1_cycle_step = "bond"
+    med.settings.auto_artifact = True
+    med._main_line_started_at = 100.0
+    frame = _frame("hud_wood_1111_f0200.png")
+    fired: list[str] = []
+
+    with patch("shuabao.mediator.time.time", return_value=200.0), \
+         patch.object(med, "_slot_has_artifact", return_value=True), \
+         patch.object(med, "_hud_button_hit", return_value=MatchResult("artifact_q", 1.0, 100, 100, 10, 10, 100, 100)), \
+         patch.object(med, "act_click", side_effect=lambda _hit, reason, *a, **k: fired.append(reason) or True), \
+         patch.object(med, "_selection_anchor", return_value=None), \
+         patch.object(med, "_is_in_game_hud", return_value=True):
+        res = med._tick_main_line(frame)
+
+    assert res is LoopAction.Continue
+    assert "Artifact-Q" in fired, "神器 CD 到期时应独立触发，不需要等到轮换至 artifact 步"
+    assert med._l1_cycle_step == "bond", "微操触发后原轮换位置保持不变"
+
+
+def test_wood_tiers_visit_cap() -> None:
+    med = _med()
+    med._l1_cycle_step = "bond"
+
+    # >= 1000: 5
+    med._wood_balance = 1200
+    med._l1_cycle_step_successes = 4
+    assert not med._l1_step_visit_exhausted(100.0)
+    med._l1_cycle_step_successes = 5
+    assert med._l1_step_visit_exhausted(100.0)
+
+    # 300..1000: 2
+    med._wood_balance = 600
+    med._l1_cycle_step_successes = 1
+    assert not med._l1_step_visit_exhausted(100.0)
+    med._l1_cycle_step_successes = 2
+    assert med._l1_step_visit_exhausted(100.0)
+
+    # < 300: 1
+    med._wood_balance = 200
+    med._l1_cycle_step_successes = 0
+    assert not med._l1_step_visit_exhausted(100.0)
+    med._l1_cycle_step_successes = 1
+    assert med._l1_step_visit_exhausted(100.0)
+
+
+def test_skill_backlog_urgent_preempt() -> None:
+    frame = _frame("hud_wood_1111_f0200.png")
+    now = 100.0
+
+    # skill >= 8: urgent preempt over F even with 5000 wood
+    med1 = _med()
+    with patch.object(med1, "_hud_wood_balance", return_value=5000), \
+         patch.object(med1, "_hud_skill_points", return_value=8), \
+         patch.object(med1, "_hud_treasure_pending", return_value=0), \
+         patch.object(med1, "_bond_base_progress_pending", return_value=True):
+        target, why = med1._solo_plan_panel(frame, now, "bond")
+        assert target == "skill"
+        assert "紧急强抢占" in why
+
+    # skill == 4 and wood == 500 (< 1000): skill priority
+    med2 = _med()
+    with patch.object(med2, "_hud_wood_balance", return_value=500), \
+         patch.object(med2, "_hud_skill_points", return_value=4), \
+         patch.object(med2, "_hud_treasure_pending", return_value=0), \
+         patch.object(med2, "_bond_base_progress_pending", return_value=True):
+        target, why = med2._solo_plan_panel(frame, now, "bond")
+        assert target == "skill"
+
+    # skill == 4 and wood == 1500 (>= 1000): bond priority holds for狂暴发育
+    med3 = _med()
+    with patch.object(med3, "_hud_wood_balance", return_value=1500), \
+         patch.object(med3, "_hud_skill_points", return_value=4), \
+         patch.object(med3, "_hud_treasure_pending", return_value=0), \
+         patch.object(med3, "_bond_base_progress_pending", return_value=True):
+        target, why = med3._solo_plan_panel(frame, now, "bond")
+        assert target == "bond"
+
+
+def test_boss_alive_veto_blocks_heirloom_clear() -> None:
+    med = _med()
+    frame = _frame("hud_wood_1111_f0200.png")
+    with patch.object(med, "_top_bar_mode", return_value="plaza"), \
+         patch.object(med, "_heirloom_loot_popup_visible", return_value=True):
+        # Boss alive -> Vetoed!
+        with patch.object(med, "_solo_boss_is_alive", return_value=True):
+            assert not med._solo_heirloom_boss_is_clear(frame)
+            assert med._solo_heirloom_boss_clear_frames == 0
+
+        # Boss dead -> 2 frames clear
+        with patch.object(med, "_solo_boss_is_alive", return_value=False):
+            frame2 = _frame("hud_wood_221_f0300.png")
+            assert not med._solo_heirloom_boss_is_clear(frame)
+            assert med._solo_heirloom_boss_is_clear(frame2)
+
