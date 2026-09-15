@@ -1431,7 +1431,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
                 }
             },
         )
-        self.assertEqual(ps.bond_base_presets, ("成长", "经济", "贪婪", "挑战", "祝福"))
+        self.assertEqual(ps.bond_base_presets, ("祝福", "经济", "贪婪", "挑战", "成长"))
         self.assertEqual(ps.bond_advanced_presets, ("封神", "封神榜", "海盗"))
         self.assertEqual(ps.bond_advanced_groups[0][0], "封神")
         self.assertEqual(ps.bond_advanced_groups[1][0], "海盗")

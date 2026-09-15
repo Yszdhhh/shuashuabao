@@ -3700,6 +3700,12 @@ class Mediator:
                 ),
                 self._choice_session,
             )
+        if kind == "bond" and decision.action == PolicyAction.REFRESH:
+            affordable, wood, price = self._bond_refresh_affordable(frame)
+            if not affordable:
+                decision = PolicyDecision.close(
+                    f"羁绊刷新需 {price} 木，当前木头 {wood if wood is not None else '未读出'}，隐藏面板"
+                )
         owned = (
             getattr(self, "_panel_opened_by_us", None) == kind
             or (self._l1_cycle_owned_panel and self._panel_kind == kind)
@@ -4234,10 +4240,24 @@ class Mediator:
     _SKILL_VISIT_PICKS = 5
     # F draw price: 20/40/60/80 for the first draws, then 100 (live panel text).
     _BOND_REFRESH_MARGIN = 40
+    _BOND_REFRESH_MAX_PER_GROUP = 2
+    _BOND_REFRESH_PRICES = (40, 60, 80, 100)
 
     def _bond_next_price(self) -> int:
         picks = int(getattr(self, "_bond_picks_round", 0) or 0)
         return 100 if picks >= 4 else 20 * (picks + 1)
+
+    def _bond_refresh_price(self) -> int:
+        """Return the visible F-refresh cost for the current bond draw tier."""
+        picks = int(getattr(self, "_bond_picks_round", 0) or 0)
+        return self._BOND_REFRESH_PRICES[min(picks, len(self._BOND_REFRESH_PRICES) - 1)]
+
+    def _bond_refresh_affordable(self, frame: Frame) -> tuple[bool, int | None, int]:
+        """Refresh only with a current, readable wood balance; unknown is not spend authority."""
+        price = self._bond_refresh_price()
+        wood = self._hud_wood_balance(frame)
+        self._wood_balance = wood
+        return (wood is not None and wood >= price, wood, price)
 
     def _visit_capped(self, kind: str) -> bool:
         if getattr(self, "_visit_kind", None) != kind:
@@ -14804,6 +14824,11 @@ class Mediator:
         self._panel_f1_used_this_episode = False
         self._clear_pending_skill_cards()
         self._reset_choice_session()
+        if kind == "bond":
+            self._choice_session = replace(
+                self._choice_session,
+                max_refreshes=self._BOND_REFRESH_MAX_PER_GROUP,
+            )
 
     def _finish_panel_episode(self) -> None:
         cycle_kind = self._panel_kind
