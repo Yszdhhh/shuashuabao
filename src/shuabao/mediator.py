@@ -4993,7 +4993,6 @@ class Mediator:
         if (
             self._panel_state != PanelState.CLOSED
             or self._merchant_fsm.phase is MerchantPhase.VERIFYING
-            or self._black_merchant_cards_present(frame)
         ):
             return LoopAction.Continue
         now = time.time()
