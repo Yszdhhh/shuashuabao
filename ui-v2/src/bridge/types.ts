@@ -17,6 +17,7 @@ export interface SettingsDTO {
   new_room_every_times?: boolean;
   find_longzhu_where_multi_game?: boolean;
   downgrade_after_failures?: number;
+  skill_archive_levels?: Record<string, number>;
   [field: string]: unknown;
 }
 
