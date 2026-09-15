@@ -54,7 +54,8 @@ def test_refresh_action_still_waits_two_frames_even_when_confident() -> None:
         {"index": 3, "name": "海盗", "confidence": 0.99, "raw_text": "海盗"},
     ]
     with patch.object(med, "_ocr_panel_slots", return_value=slots), \
-            patch.object(med, "_panel_can_refresh", return_value=True):
+            patch.object(med, "_panel_can_refresh", return_value=True), \
+            patch.object(med, "_bond_refresh_affordable", return_value=(True, 1000, 40)):
         first = med._ocr_reward_choice(_frame(), "bond")
         assert first is None, "无预设命中槽位时刷新决策必须仍走两帧确认"
         second = med._ocr_reward_choice(_frame(), "bond")
@@ -111,7 +112,8 @@ def test_offline_tick_count_for_one_card_pick_drops_by_one_ocr_confirm_tick() ->
     # 验证「改前」确实要多打一次 _ocr_panel_slots 调用（多 1 个 tick）。
     med2 = _med()
     with patch.object(med2, "_ocr_panel_slots", return_value=UNAMBIGUOUS_SLOTS), \
-            patch.object(Mediator, "_is_unambiguous_high_confidence_pick", return_value=False):
+            patch.object(Mediator, "_is_unambiguous_high_confidence_pick", return_value=False), \
+            patch.object(Mediator, "_SINGLE_FRAME_PICK_CONFIDENCE", 1.01):
         ticks_before = 0
         hit2 = None
         while hit2 is None and ticks_before < 5:

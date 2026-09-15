@@ -167,6 +167,7 @@ def test_monster_selected_during_bond_cooldown_gets_f1_hero_focus() -> None:
 
 def test_bond_visit_advances_after_three_confirmed_picks() -> None:
     med = _med()
+    med._round_started_at = 0.0
     med._l1_cycle_step = "bond"
     med._l1_cycle_index = 0
     med._l1_cycle_last_advance_at = 100.0
@@ -207,6 +208,7 @@ def test_choice_step_advances_after_thirty_seconds_without_a_pick() -> None:
 
 def test_open_bond_panel_closes_and_advances_at_pick_cap() -> None:
     med = _med()
+    med._round_started_at = 0.0
     med._l1_cycle_step = "bond"
     med._l1_cycle_index = 0
     med._l1_cycle_last_advance_at = 100.0

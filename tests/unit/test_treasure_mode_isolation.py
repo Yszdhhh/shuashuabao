@@ -56,14 +56,14 @@ def _select(dec, expected_index: int, reason_frag: str | None = None):
 # ---------------------------------------------------------------------------
 
 
-def test_normal_mode_orange_beats_lower_quality_must_take():
-    """更高品质（橙）胜过更低品质（蓝/绿）必拿。"""
+def test_normal_mode_must_take_ignores_quality():
+    """Owner 2026-09-15：EX 必拿出现就拿，不再输给更高品质的普通宝物。"""
     dec = _decide((
         SlotCandidate(index=0, name="卡牌大师", rarity="blue", confidence=0.90),
         SlotCandidate(index=1, name="全都要", rarity="green", confidence=0.90),
         SlotCandidate(index=2, name="普通宝物", rarity="orange", confidence=0.90),
     ))
-    _select(dec, 2)
+    _select(dec, 0)
 
 
 def test_normal_mode_red_beats_white_synthesis():

@@ -1225,7 +1225,17 @@ def _decide_collectible(
                 return PolicyDecision.select(pick.index, reason)
 
         # 普通模式（及蹭车无绿色神符时）：
-        # 产品裁决：先过滤黑名单，剩余只按现有品质顺序选择，不再让 must_take / presets / synthesis 压过更高品质。
+        # Owner 2026-09-15：EX（ONEPIECE/至高进化/一身神装/满级大佬/全都要/卡牌大师）
+        # 出现就拿——EX 本身就是最高品质，不再受边框品质采样约束（d4aa92c 曾限在最高档内）。
+        for slot in eligible if getattr(settings, "mode_id", "normal_farm") != "lobby_hitch" else ():
+            if (
+                slot.confidence >= settings.min_confidence
+                and _is_must_take(slot.name, settings.treasure_must_take)
+            ):
+                return PolicyDecision.select(
+                    slot.index, f"宝物必拿秒选【{slot.name}】（EX 不看品质） @ slot {slot.index}"
+                )
+        # 其余先过滤黑名单，只按现有品质顺序选择，不让 presets / synthesis 压过更高品质。
         best_quality_hit = _match_quality(cands, settings, slots=eligible, allow_unnamed=True)
         if best_quality_hit is None:
             return _no_safe_candidate(cands, state, kind, "无安全候选")

@@ -3725,6 +3725,23 @@ class Mediator:
                 and self._is_unambiguous_high_confidence_pick(decision, slots, reason)
             )
         )
+        if (
+            not skip_confirm
+            and kind in ("bond", "skill")
+            and decision.action == PolicyAction.SELECT_SLOT
+        ):
+            # The policy already required a whitelist/focus match; a title read
+            # at >= 0.95 is not worth another tick (08-29 e2a2714 added the
+            # second frame: bond 1.4s -> 2.9-5.2s, skill 1.4s -> 5.8-7.3s).
+            # Same-family duplicates (祝福(0/3) x3) are equivalent picks, so the
+            # executor's "no duplicate names" rule is not needed for them.
+            chosen = next((s for s in slots if s.index == decision.index), None)
+            if (
+                chosen is not None
+                and str(chosen.name or "").strip()
+                and float(chosen.confidence or 0.0) >= self._SINGLE_FRAME_PICK_CONFIDENCE
+            ):
+                skip_confirm = True
         if owned and not skip_confirm and decision.action in {PolicyAction.SELECT_SLOT, PolicyAction.REFRESH}:
             key = (
                 kind,
@@ -4186,7 +4203,16 @@ class Mediator:
     _L1_STEP_VISIT_MAX_SECONDS = 30.0
 
     def _l1_step_visit_exhausted(self, now: float) -> bool:
-        if getattr(self, "_l1_cycle_step_successes", 0) >= self._L1_STEP_VISIT_MAX_SUCCESSES:
+        # One visit rule with the solo planner: F 3 (6 in the opening minute),
+        # G 5, everything else 3; plus the 30s ceiling below.
+        cap = self._L1_STEP_VISIT_MAX_SUCCESSES
+        step = getattr(self, "_l1_cycle_step", None)
+        if not self._passenger_mode() and step == "skill":
+            cap = self._SKILL_VISIT_PICKS
+        elif not self._passenger_mode() and step == "bond":
+            elapsed = self._round_elapsed_s()
+            cap = self._BOND_VISIT_PICKS_OPENING if elapsed is not None and elapsed < 60 else self._BOND_VISIT_PICKS
+        if getattr(self, "_l1_cycle_step_successes", 0) >= cap:
             return True
         started = getattr(self, "_l1_cycle_last_advance_at", None)
         return started is not None and now - started >= self._L1_STEP_VISIT_MAX_SECONDS

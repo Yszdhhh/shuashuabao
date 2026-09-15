@@ -61,8 +61,8 @@ class LiveRun205044Tests(unittest.TestCase):
         self.assertIsNotNone(hit)
         self.assertIn("祝福", hit.name)
 
-    def test_owned_bond_select_still_waits_for_second_frame_on_duplicate_slot_names(self) -> None:
-        """四槽出现重名（OCR 歧义）时仍保留两帧确认，即使目标槽自身高置信。"""
+    def test_same_family_duplicate_titles_do_not_need_a_second_frame(self) -> None:
+        """同屏同名羁绊（同一套装）>=0.95 允许单帧直点，无需第二帧确认。"""
         med = Mediator(Settings(ocr_mode="live", cards=["祝福"]), ROOT)
         med._panel_opened_by_us = "bond"
         med._panel_kind = "bond"
@@ -73,7 +73,6 @@ class LiveRun205044Tests(unittest.TestCase):
             {"index": 3, "name": "刀刀", "confidence": 0.99, "raw_text": "刀刀"},
         ]
         with patch.object(med, "_ocr_panel_slots", return_value=slots):
-            self.assertIsNone(med._ocr_reward_choice(frame(), "bond"))
             hit = med._ocr_reward_choice(frame(), "bond")
         self.assertIsNotNone(hit)
         self.assertIn("祝福", hit.name)

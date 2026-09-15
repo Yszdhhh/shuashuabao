@@ -237,6 +237,7 @@ class L1CycleRecheckMerchantTests(unittest.TestCase):
                 patch.object(self.med, "_maybe_open_choice_panel", return_value=None), \
                 patch.object(self.med, "_maybe_ensure_hero_panel_focus", return_value=None), \
                 patch.object(self.med, "_hud_item_bar_overflowed", return_value=True), \
+                patch.object(self.med, "_pickup_bag_has_space", return_value=True), \
                 patch.object(self.med, "act_key", return_value=True) as key:
             self.assertIs(self.med._tick_main_line(self.frame), LoopAction.Continue)
         key.assert_called_once_with("z", "Pickup-Z")
