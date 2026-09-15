@@ -37,7 +37,9 @@
       ["海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"],
       ["亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"]
     ],
-    "must_take_names": []
+    "must_take_names": [],
+    "advanced_unlock_s": 480,
+    "_advanced_unlock_note": "2026-09-15：基础卡门槛（base_completion_ratio）的时间兜底。实机 000229 碰到 10/13 个基础家族后木材见底，门槛再没解开，封神/海盗一张没拿；开局 8 分钟后高级卡组不再等基础卡。待 A/B 实测校准。"
   },
   "treasure": {
     "refresh_on_no_safe": true,

@@ -221,6 +221,8 @@ class PolicySettings:
     # 但不计入基础卡 80% 进度，也不是高级卡组。
     bond_chain_presets: tuple[str, ...] = ()
     bond_base_completion_ratio: float = 0.80
+    # 基础卡进度门槛的时间兜底：开局这么多秒后高级卡组不再等基础卡（0 = 关）。
+    bond_advanced_unlock_s: float = 0.0
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
     min_confidence: float = 0.0
@@ -350,6 +352,7 @@ class PolicySettings:
                 if group
             ),
             bond_base_completion_ratio=float(raw.get("bond_base_completion_ratio", 0.80)),
+            bond_advanced_unlock_s=float(raw.get("bond_advanced_unlock_s", 0.0) or 0.0),
             treasure_presets=tuple(str(s) for s in (raw.get("treasure_presets") or ())),
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
             min_confidence=0.0 if min_conf is None else float(min_conf),
@@ -393,6 +396,7 @@ _ATTRIBUTE_CHAINS = {
     "str": ("力量", "野蛮人", "战神", "屠戮者"),
     "agi": ("敏捷", "猎魔人", "弓神", "收割者"),
 }
+_ECONOMY_BOND_ORDER = ("祝福", "经济", "贪婪", "挑战", "成长")
 _ATTRIBUTE_IDS = {
     "int": "int", "intelligence": "int", "智力": "int",
     "str": "str", "strength": "str", "力量": "str",
@@ -425,28 +429,26 @@ def assemble_policy_settings(
             seen.add(text)
             skill_families.append(text)
 
+    advanced_names = tuple(
+        str(item).strip() for item in (bond_cfg.get("advanced_names") or ()) if str(item).strip()
+    )
+    # Whitelist order = pick priority (_match_bond_preset ranks by position):
+    #   1. economy bonds by payback (KB 2026-09-15 card text: 祝福 nets wood
+    #      at once, 经济 ~10 min, 贪婪 key +150 wood, 挑战 indirect, 成长
+    #      ~22 min -- outside the 5-5 window)
+    #   2. basic cards ticked on the dashboard
+    #   3. attribute lines gate -> UR (live 000229: taking them early cost
+    #      8-14 extra F draws and ran wood dry at 5:24)
+    #   4. advanced packs
+    # Attribute-line cards never count toward the 80% basic gate.
     bond_presets: list[str] = []
+    economy: list[str] = []
     for item in getattr(settings, "bonds", None) or ():
         text = str(item or "").strip()
-        if text and text not in bond_presets:
-            bond_presets.append(text)
-    # The dashboard's 基础卡组 stores the three attribute lines separately as
-    # wire ids (ui-v2 strategy_codec: int/str/agi).  They are basic bonds too;
-    # left out here they were never picked (live solo 2026-09-14: 0 of 35).
-    # Each line is walked gate card -> UR; only the gate card counts as basic.
-    chain_presets: list[str] = []
-    for item in getattr(settings, "attributes", None) or ():
-        chain = _ATTRIBUTE_CHAINS.get(_ATTRIBUTE_IDS.get(str(item or "").strip(), ""))
-        if not chain:
-            continue
-        gate, followers = chain[0], chain[1:]
-        if gate not in bond_presets:
-            bond_presets.append(gate)
-        for name in followers:
-            if name not in bond_presets:
-                bond_presets.append(name)
-            if name not in chain_presets:
-                chain_presets.append(name)
+        if text and text not in economy:
+            economy.append(text)
+    economy.sort(key=lambda name: _ECONOMY_BOND_ORDER.index(name) if name in _ECONOMY_BOND_ORDER else len(_ECONOMY_BOND_ORDER))
+    bond_presets.extend(economy)
     card_presets: list[str] = []
     for item in getattr(settings, "cards", None) or ():
         text = str(item or "").strip()
@@ -456,12 +458,22 @@ def assemble_policy_settings(
         text = str(fetter_labels.get(stem, stem))
         if text and text not in card_presets:
             card_presets.append(text)
-        if text and text not in bond_presets:
+    for text in card_presets:
+        if not matches_bond_preset(text, advanced_names) and text not in bond_presets:
             bond_presets.append(text)
-
-    advanced_names = tuple(
-        str(item).strip() for item in (bond_cfg.get("advanced_names") or ()) if str(item).strip()
-    )
+    chain_presets: list[str] = []
+    for item in getattr(settings, "attributes", None) or ():
+        chain = _ATTRIBUTE_CHAINS.get(_ATTRIBUTE_IDS.get(str(item or "").strip(), ""))
+        if not chain:
+            continue
+        for name in chain:
+            if name not in bond_presets:
+                bond_presets.append(name)
+            if name not in chain_presets:
+                chain_presets.append(name)
+    for text in card_presets:
+        if text not in bond_presets:
+            bond_presets.append(text)
     advanced_presets = tuple(
         item for item in bond_presets if matches_bond_preset(item, advanced_names)
     )
@@ -556,6 +568,7 @@ def assemble_policy_settings(
             "bond_chain_presets": tuple(chain_presets),
             "bond_advanced_groups": tuple(selected_groups),
             "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
+            "bond_advanced_unlock_s": bond_cfg.get("advanced_unlock_s", 0.0),
             "treasure_presets": (),
             "quality_order": raw.get("quality_order"),
             "min_confidence": 0.60 if min_conf is None else min_conf,
@@ -622,6 +635,8 @@ class PanelCandidates:
     owned_skill_cards: tuple[str, ...] = ()
     owned_bond_cards: tuple[str, ...] = ()
     free_slots: int | None = None
+    # Seconds since the round started (None = unknown); drives time releases.
+    round_elapsed_s: float | None = None
     def __post_init__(self) -> None:
         if self.panel_kind is not None and self.panel_kind not in VALID_PANEL_KINDS:
             raise ValueError(
@@ -1374,9 +1389,13 @@ def _decide_collectible(
 
 
 def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
-    """高级卡只在已确认取得 80% 配置基础卡后才有选择权。"""
+    """高级卡只在已确认取得 80% 配置基础卡后才有选择权（或到了时间兜底）。"""
     bases = settings.bond_base_presets
     if not bases or not settings.bond_advanced_presets:
+        return True
+    unlock = float(settings.bond_advanced_unlock_s or 0.0)
+    elapsed = cands.round_elapsed_s
+    if unlock > 0 and elapsed is not None and elapsed >= unlock:
         return True
     required = math.ceil(len(bases) * settings.bond_base_completion_ratio)
     owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())

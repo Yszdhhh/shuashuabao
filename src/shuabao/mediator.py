@@ -3277,6 +3277,10 @@ class Mediator:
         bases = policy.bond_base_presets
         if not bases or not policy.bond_advanced_presets:
             return False
+        unlock = float(policy.bond_advanced_unlock_s or 0.0)
+        elapsed = self._round_elapsed_s()
+        if unlock > 0 and elapsed is not None and elapsed >= unlock:
+            return False
         required = math.ceil(len(bases) * policy.bond_base_completion_ratio)
         owned = self._confirmed_bond_cards()
         completed = sum(
@@ -3284,6 +3288,11 @@ class Mediator:
             for base in bases
         )
         return completed < required
+
+    def _round_elapsed_s(self) -> float | None:
+        started = getattr(self, "_round_started_at", None)
+        return None if started is None else max(0.0, time.time() - started)
+
     def _reset_choice_session(self) -> None:
         self._choice_session = SessionState(
             max_attempts=DEFAULT_MAX_ATTEMPTS,
@@ -3677,6 +3686,7 @@ class Mediator:
                     settings=policy_settings,
                     owned_skill_cards=self._confirmed_skill_cards(),
                     owned_bond_cards=self._confirmed_bond_cards(),
+                    round_elapsed_s=self._round_elapsed_s(),
                 ),
                 self._choice_session,
             )
@@ -3686,6 +3696,21 @@ class Mediator:
         )
         reason = str(decision.reason or "")
         skip_confirm = "差一张合成" in reason or "已持有合成" in reason
+        if (
+            not skip_confirm
+            and kind in ("bond", "skill")
+            and decision.action == PolicyAction.SELECT_SLOT
+        ):
+            # The policy already required a whitelist/focus match; a title read
+            # at >= 0.95 is not worth another tick (08-29 e2a2714 added the
+            # second frame: bond 1.4s -> 2.9-5.2s, skill 1.4s -> 5.8-7.3s).
+            chosen = next((s for s in slots if s.index == decision.index), None)
+            if (
+                chosen is not None
+                and str(chosen.name or "").strip()
+                and float(chosen.confidence or 0.0) >= self._SINGLE_FRAME_PICK_CONFIDENCE
+            ):
+                skip_confirm = True
         if owned and not skip_confirm and decision.action in {PolicyAction.SELECT_SLOT, PolicyAction.REFRESH}:
             key = (
                 kind,
@@ -3727,6 +3752,8 @@ class Mediator:
         if mapped is None:
             return None
         return mapped[1]
+
+    _SINGLE_FRAME_PICK_CONFIDENCE = 0.95
 
     def _live_ocr_miss_refresh(self, frame: Frame, kind: str) -> MatchResult | None:
         """OCR 没读到名字时禁止刷新。预选卡可能已经在画面上。"""
@@ -4131,6 +4158,20 @@ class Mediator:
         """Top-bar wood counter (left of the kill skull), OCR like the kill counter."""
         return self._hud_counter(frame, self._WOOD_BALANCE_ROI, "wood")
 
+    def _reset_solo_plan_state(self) -> None:
+        """Per-round orchestration state (draw price, visit caps, backoffs, badges)."""
+        self._bond_picks_round = 0
+        self._visit_kind = None
+        self._visit_picks = 0
+        self._bond_priority_suspended_at = None
+        self._skill_priority_suspended_at = None
+        self._bond_idle_until = 0.0
+        self._skill_idle_until = 0.0
+        self._skill_points_seen = None
+        self._treasure_pending_seen = None
+        self._wood_balance = None
+        self._wood_next_read_at = 0.0
+
     def _refresh_solo_signals(self, frame: Frame, now: float) -> None:
         """Wood / unspent skill picks / pending treasure, read at most every 3s."""
         if now < getattr(self, "_wood_next_read_at", 0.0):
@@ -4148,7 +4189,31 @@ class Mediator:
 
     # Unspent skill picks that pre-empt the early bond priority (Owner:
     # 前期 羁绊>技能>其它, but live 000229 banked 32 picks and lost 4-5).
-    _SKILL_BACKLOG_FORCE = 6
+    _SKILL_BACKLOG_FORCE = 4
+    # Picks per visit before the cycle moves on (live data 2026-09-15: F
+    # drained wood to 0 by 5-6 min while 16-18 skill picks and 12-17 V picks
+    # waited).  The first minute is F's cheap window (20/40/60/80 wood).
+    _BOND_VISIT_PICKS = 3
+    _BOND_VISIT_PICKS_OPENING = 6
+    _SKILL_VISIT_PICKS = 5
+    # F draw price: 20/40/60/80 for the first draws, then 100 (live panel text).
+    _BOND_REFRESH_MARGIN = 40
+
+    def _bond_next_price(self) -> int:
+        picks = int(getattr(self, "_bond_picks_round", 0) or 0)
+        return 100 if picks >= 4 else 20 * (picks + 1)
+
+    def _visit_capped(self, kind: str) -> bool:
+        if getattr(self, "_visit_kind", None) != kind:
+            return False
+        if kind == "bond":
+            elapsed = self._round_elapsed_s()
+            cap = self._BOND_VISIT_PICKS_OPENING if elapsed is not None and elapsed < 60 else self._BOND_VISIT_PICKS
+        elif kind == "skill":
+            cap = self._SKILL_VISIT_PICKS
+        else:
+            return False
+        return int(getattr(self, "_visit_picks", 0) or 0) >= cap
     # A skill visit that picked nothing (no legal card) backs the force off.
     _SKILL_IDLE_BACKOFF_S = 30.0
 
@@ -4169,20 +4234,45 @@ class Mediator:
         self._refresh_solo_signals(frame, now)
         skill = getattr(self, "_skill_points_seen", None)
         treasure = getattr(self, "_treasure_pending_seen", None)
+        idx = getattr(self, "_l1_cycle_index", None)
+        # A capped visit suspends that kind's priority until the cycle comes
+        # back to one of its own steps; otherwise the lock would pull the
+        # panel straight back and the cap would mean nothing.
+        for kind in ("bond", "skill"):
+            if self._visit_capped(kind):
+                setattr(self, f"_{kind}_priority_suspended_at", idx if idx is not None else -1)
+                self._visit_kind = None
+                self._visit_picks = 0
+            held = getattr(self, f"_{kind}_priority_suspended_at", None)
+            if held is not None and step == kind and idx != held:
+                setattr(self, f"_{kind}_priority_suspended_at", None)
+        bond_held = getattr(self, "_bond_priority_suspended_at", None) is not None
+        skill_held = getattr(self, "_skill_priority_suspended_at", None) is not None
         if (
             skill is not None
             and skill >= self._SKILL_BACKLOG_FORCE
+            and not skill_held
             and now >= getattr(self, "_skill_idle_until", 0.0)
             and self._panel_kind_available("skill", now)
         ):
             return "skill", f"技能积压 {skill} ≥ {self._SKILL_BACKLOG_FORCE}，先点技能"
         bond_blocked = self._bond_step_blocked(frame, now)
-        if bond_blocked is None and self._bond_base_progress_pending():
-            return "bond", "基础羁绊未满 80%，羁绊优先"
+        wood = getattr(self, "_wood_balance", None)
+        if (
+            bond_blocked is None
+            and not bond_held
+            and (wood is None or wood >= self._BOND_MIN_WOOD)
+            and self._bond_base_progress_pending()
+        ):
+            return "bond", "基础羁绊未满 80% 且木材充足，羁绊优先"
         if step == "bond" and bond_blocked is not None:
             return None, f"羁绊暂不推进（{bond_blocked}）"
+        if step == "bond" and bond_held:
+            return None, "本轮羁绊已拿满，轮换下一步"
         if step == "skill" and skill == 0:
             return None, "技能角标为 0，没有可点的技能"
+        if step == "skill" and skill_held:
+            return None, "本轮技能已点满，轮换下一步"
         if step == "treasure" and treasure == 0:
             return None, "宝物角标为 0，没有待拿宝物"
         return step, "按轮换"
@@ -4191,8 +4281,12 @@ class Mediator:
         """Why the bond step cannot progress right now, or None when it can."""
         self._refresh_solo_signals(frame, now)
         wood = getattr(self, "_wood_balance", None)
-        if wood is not None and wood < self._BOND_MIN_WOOD:
-            return f"木材 {wood} < {self._BOND_MIN_WOOD}"
+        # Owner 2026-09-15: below 500 wood go to skills first.  The draw price
+        # (<=100, live panel text) plus a refresh margin is always below that.
+        price = self._bond_next_price()
+        floor = max(self._BOND_MIN_WOOD, price + self._BOND_REFRESH_MARGIN)
+        if wood is not None and wood < floor:
+            return f"木材 {wood} < {floor}"
         if self._panel_episode_count.get("bond", 0) >= self.settings.panel_episode_limit_per_kind:
             return "羁绊 episode 已达上限"
         if self._panel_cooldown_until.get("bond", 0.0) - now > self._BOND_LONG_COOLDOWN_S:
@@ -4234,6 +4328,9 @@ class Mediator:
             if planned != target:
                 print(f"[L1] 编排：{why}（轮换停在 {target}）")
             target = planned
+            if target in ("skill", "bond") and getattr(self, "_visit_kind", None) != target:
+                self._visit_kind = target
+                self._visit_picks = 0
         if target in ("skill", "bond", "treasure"):
             panel_enabled = (
                 target == "skill"
@@ -9256,6 +9353,7 @@ class Mediator:
         if entering_main_line:
             self._stage_attempt_budget = None
             self._l1_cycle_step = "merchant" if self._passenger_mode() else "bond"
+            self._reset_solo_plan_state()
             self._public_bag_fsm = PublicBagFSM()
             self._public_bag_failed_sources = {}
             self._public_bag_personal_leftover = False
@@ -14532,6 +14630,13 @@ class Mediator:
                 and self._panel_kind in ("skill", "bond", "treasure")
             ):
                 self._l1_cycle_selected = True
+            if self._panel_kind in ("skill", "bond"):
+                if getattr(self, "_visit_kind", None) != self._panel_kind:
+                    self._visit_kind = self._panel_kind
+                    self._visit_picks = 0
+                self._visit_picks = getattr(self, "_visit_picks", 0) + 1
+            if self._panel_kind == "bond":
+                self._bond_picks_round = getattr(self, "_bond_picks_round", 0) + 1
             if self._panel_kind == "skill":
                 self._last_skill_panel = 0.0
             elif self._panel_kind == "bond":
@@ -14872,6 +14977,15 @@ class Mediator:
                     cur_kills = self._merchant_kill_balance(frame)
                     if cur_kills is not None:
                         self._hitch_last_treasure_kill_balance = cur_kills
+                elif kind in ("skill", "bond", "treasure") and not self._passenger_mode():
+                    # Solo: G/V without points and F without wood simply do not
+                    # open.  Counting that as an abnormal episode (08-29
+                    # 59563fd) capped the panel after 5 presses (live 000229).
+                    self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
+                    if kind == "bond":
+                        self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
+                    elif kind == "skill":
+                        self._skill_idle_until = now + self._SKILL_IDLE_BACKOFF_S
                 elif kind in ("skill", "bond", "treasure"):
                     self._panel_episode_count[kind] = self._panel_episode_count.get(kind, 0) + 1
                     self._panel_cooldown_until[kind] = now + self.settings.ui_action_interval_s
