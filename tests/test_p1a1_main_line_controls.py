@@ -41,6 +41,9 @@ class P1A1MainLineControlsTests(unittest.TestCase):
         """20260831 实机复盘：未验证 archive 守卫只对"无战后上下文"的帧
         Fail-Closed；`_post_game_pending=True` 属于战后链过渡窗，必须豁免
         （Continue 零输入），否则过渡帧误杀停机。见 mediator 未验证入口分支。"""
+        # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
+        self.settings = Settings(ocr_mode="off", mode_id="lab")
+        self.med = Mediator(self.settings, ROOT)
         f = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), window_title="英雄三国KK", hwnd=10001)
         self.med._last_frame = f
         self.med.phase = Phase.MAIN_LINE
@@ -85,6 +88,8 @@ class P1A1MainLineControlsTests(unittest.TestCase):
 
 
     def test_all_unverified_post_game_scenes_halt_before_any_input(self):
+        # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
+        self.settings = Settings(ocr_mode="off", mode_id="lab")
         # 20260831 实机复盘：未验证 archive 守卫只对"无战后上下文"的帧
         # Fail-Closed（pending=False + 局尾窗口）；`_post_game_pending=True`
         # 属于战后链过渡窗 → 豁免、零输入 Continue。

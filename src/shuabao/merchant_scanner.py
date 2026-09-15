@@ -2,7 +2,7 @@
 
 规则体系:
 1. 固定 5 槽 ROI 扫描。
-2. 实际只买吞噬丹 icon 小模板 (danGif)；其它商品一律不拿并交给刷新路径。
+2. 蹭车只买吞噬丹；单人依次购买吞噬丹、木材礼包、已识别的 2/5 折。
 3. 商店指纹用槽位占用 + 已识别目标，不用整条商品 ROI 逐像素哈希。
    倒计时、图标动画和局部 HUD 变化不得打断 CONFIRMING→READY。
 """
@@ -120,8 +120,10 @@ class MerchantScanner:
         self,
         slots: Sequence[MerchantSlotItem],
         bond_bar_nonempty: bool = True,
+        *,
+        solo: bool = False,
     ) -> list[MerchantSlotItem]:
-        """只返回可安全确认的吞噬丹，按槽位序保持确定性。"""
+        """Return the mode-authorized purchases in deterministic priority order."""
         candidates: list[MerchantSlotItem] = []
 
         for item in slots:
@@ -134,4 +136,9 @@ class MerchantScanner:
             if item.item_type == "devour_pill" or "danGif" in item.label or "吞噬" in item.label:
                 if bond_bar_nonempty:
                     candidates.append(item)
-        return sorted(candidates, key=lambda item: item.slot_index)
+            elif solo and item.item_type == "wood":
+                candidates.append(item)
+            elif solo and item.item_type == "discount" and item.label in DISCOUNT_KEYWORDS:
+                candidates.append(item)
+        priority = {"devour_pill": 0, "wood": 1, "discount": 2}
+        return sorted(candidates, key=lambda item: (priority.get(item.item_type, 99), item.slot_index))

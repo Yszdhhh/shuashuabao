@@ -33,11 +33,13 @@ import io
 import json
 import os
 from pathlib import Path
+import queue
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from typing import Any, Callable
 
@@ -3055,6 +3057,15 @@ class BundleRecorder:
         self._blocked_recorded = False
         self._clock_start = time.monotonic()
         self.inputs_this_tick: list[dict[str, Any]] = []
+        self._frame_write_queue: queue.Queue[tuple[Path, Frame] | None] = queue.Queue()
+        self._frame_write_errors: list[str] = []
+        self._frame_writer = threading.Thread(
+            target=self._write_frame_queue,
+            name="shuabao-frame-writer",
+            daemon=True,
+        )
+        self._frame_writer.start()
+        self._frame_writer_closed = False
         contract = _target_contract(target)
         production_fact = _production_fact(target)
         settings_snapshot = _settings_snapshot(settings)
@@ -3277,6 +3288,7 @@ class BundleRecorder:
         at_s = self.elapsed() if at_s is None else float(at_s)
         current_frame = _copy_frame(frame) or _copy_frame(getattr(med, "_last_frame", None))
         frame_id = self._save_frame(current_frame, f"bookmark_{status.lower()}", at_s)
+        self._flush_frame_writes()
         self._read_trace()
         bookmark_id = f"b{len(self.manifest['bookmarks']) + len(self.manifest['automatic_failures']):04d}"
         state = _state_snapshot(med, getattr(med, "_context_cache_value", None))
@@ -3449,7 +3461,9 @@ class BundleRecorder:
         safe_kind = re.sub(r"[^A-Za-z0-9_.-]+", "_", kind).strip("_") or "frame"
         frame_id = f"f{self._frame_number:04d}_{safe_kind}"
         path = self.frames_dir / f"{frame_id}.png"
-        _write_png(path, frame)
+        # PNG compression is expensive enough to distort the live tick cadence.
+        # The immutable copy keeps evidence intact after capture moves to its next frame.
+        self._frame_write_queue.put((path, _copy_frame(frame) or frame))
         self._frame_number += 1
         self._saved_by_signature[signature] = frame_id
         self.manifest["frames"].append({
@@ -3470,6 +3484,32 @@ class BundleRecorder:
             "error": frame.error,
         })
         return frame_id
+
+    def _write_frame_queue(self) -> None:
+        while True:
+            job = self._frame_write_queue.get()
+            try:
+                if job is None:
+                    return
+                path, frame = job
+                _write_png(path, frame)
+            except OSError as exc:
+                self._frame_write_errors.append(str(exc))
+            finally:
+                self._frame_write_queue.task_done()
+
+    def _flush_frame_writes(self) -> None:
+        self._frame_write_queue.join()
+        if self._frame_write_errors:
+            raise OSError("; ".join(self._frame_write_errors))
+
+    def _close_frame_writer(self) -> None:
+        if self._frame_writer_closed:
+            return
+        self._flush_frame_writes()
+        self._frame_write_queue.put(None)
+        self._frame_writer.join()
+        self._frame_writer_closed = True
 
     def _fallback_trace(
         self,
@@ -3696,6 +3736,7 @@ class BundleRecorder:
         self.manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def finalize(self) -> Path:
+        self._close_frame_writer()
         self._read_trace()
         self.manifest["completed_at_utc"] = _utc_now()
         if self.solo_observer is not None:
@@ -4008,6 +4049,23 @@ def _window_preflight(settings: Settings, target: str | None = None) -> tuple[Fr
             "requested_title": title,
             "reason": f"window capture exception: {exc}",
         }
+    if (
+        target == "solo_ingame_chain"
+        and not _frame_is_valid(frame)
+        and getattr(frame, "error", None) != "Window is minimized"
+    ):
+        # The solo contract starts on the KK map / create-room / room page,
+        # before any game client exists (live 2026-09-14: every KK start was
+        # BLOCKED on "Target window not found: '英雄三国'").  Fall back to the
+        # KK window only; _start_surface_preflight must still classify it as
+        # a production L0 start surface before any input.
+        try:
+            kk = capture("", role="l0", allow_fallback=True)
+        except Exception:
+            kk = None
+        kk_title = str(getattr(kk, "window_title", "") or "").lower()
+        if _frame_is_valid(kk) and any(token in kk_title for token in ("kk", "英雄三国", "warcraft")):
+            frame, role, title = kk, "l0", ""
     window_title = str(getattr(frame, "window_title", "") or "")
     is_minimized = getattr(frame, "error", None) == "Window is minimized"
     if is_minimized and getattr(frame, "hwnd", None):

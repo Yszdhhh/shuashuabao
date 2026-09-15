@@ -7,10 +7,11 @@ not claim a real-machine LIVE PASS; that remains the Natural E2E gate.
 from __future__ import annotations
 
 import json
+import threading
+import time
 import hashlib
 from pathlib import Path
 import shutil
-import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -139,6 +140,39 @@ def test_bundle_saves_static_pixels_once_and_scrubs_password(tmp_path: Path) -> 
     assert payload["tested_commit_sha"]
     assert "room_password" not in json.dumps(payload, ensure_ascii=False)
     assert payload["verification"]["natural_e2e"] == "REQUIRED_LIVE_PASS"
+
+
+def test_bundle_writes_action_frames_off_the_tick_thread(tmp_path: Path, monkeypatch) -> None:
+    recorder = BundleRecorder(
+        tmp_path / "bundle",
+        repo_root=ROOT,
+        target="black_merchant",
+        settings={},
+        initial_phase="MAIN_LINE",
+        execution_mode="mediator_tick",
+    )
+    started = threading.Event()
+    release = threading.Event()
+    original = live_capture._write_png
+
+    def delayed_write(path: Path, frame: Frame) -> None:
+        started.set()
+        assert release.wait(timeout=2.0)
+        original(path, frame)
+
+    monkeypatch.setattr(live_capture, "_write_png", delayed_write)
+    try:
+        started_at = time.perf_counter()
+        frame_id = recorder._save_frame(_fixture_frame(), "action_before", 0.0)
+        elapsed = time.perf_counter() - started_at
+        assert frame_id == "f0000_action_before"
+        assert elapsed < 0.2
+        assert started.wait(timeout=1.0)
+        assert not (tmp_path / "bundle" / "frames" / "f0000_action_before.png").exists()
+    finally:
+        release.set()
+        recorder.finalize()
+    assert (tmp_path / "bundle" / "frames" / "f0000_action_before.png").exists()
 
 
 def test_bookmark_saves_key_frame_trace_and_invalidates_natural_e2e_after_manual(tmp_path: Path) -> None:

@@ -54,6 +54,10 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_post_game_pages_fail_closed_with_zero_input(self):
         """Archive/hub/heirloom/rift pages must cause Fail-Closed stop with zero executor calls."""
+        # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
+        self.settings = Settings(mode_id="lab")
+        self.med = Mediator(self.settings, ROOT)
+        self.med.set_phase(Phase.MAIN_LINE, "p1b0 setup")
         fail_closed_ids = {"archive_challenge_panel", "challenge_npc_hub"}
         for shot in sorted(ENDGAME.glob("*.png")) + sorted(ENDGAME.glob("*.jpg")):
             if shot.stem not in fail_closed_ids:
@@ -110,7 +114,9 @@ class P1B0PostGameTests(unittest.TestCase):
         right_click.assert_called_once()
         npc_hit, reason = right_click.call_args.args
         self.assertEqual(reason, "OpenGreatRift")
-        self.assertEqual(npc_hit.name, "damijing")
+        self.assertEqual(npc_hit.name, "damijing_npc")
+        # The NPC body under the 大秘境 caption, not the caption text itself.
+        self.assertGreater(npc_hit.center[1], 307 + 25)
         self.assertTrue(med._secret_realm_request_pending)
         self.assertTrue(med._post_game_pending)
 
@@ -169,7 +175,7 @@ class P1B0PostGameTests(unittest.TestCase):
         extra_right_click.assert_not_called()
 
     def test_secret_realm_dialog_timeout_fails_closed_without_guessing(self):
-        settings = Settings(auto_secret_realm=True)
+        settings = Settings(auto_secret_realm=True, mode_id="lab")  # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
         med = Mediator(settings, ROOT)
         med.set_phase(Phase.MAIN_LINE, "secret realm timeout")
         med._post_game_pending = True
@@ -327,11 +333,11 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertLess(points[0][1], points[4][1])
 
     def test_archive_walks_all_eight_cards_left_to_right(self):
-        """Owner ruling 20260910: click every card once, left to right.
+        """Click every card once, left to right - except a 0/8 card.
 
-        The 20260910 run clicked two of eight — four slots were never in the
-        team plan and OCR skipped two more. A 0/8 card now costs one wasted
-        click instead of silently dropping the card.
+        Owner ruling 20260910 clicked every card (a 0/8 cost one wasted
+        click); owner rule 2026-09-14 supersedes it: 0/8 and 已挑战 cards are
+        never clicked, the rest are swept 1->8 once.
         """
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
@@ -339,7 +345,7 @@ class P1B0PostGameTests(unittest.TestCase):
         clicked_labels: list[str] = []
 
         def fake_completed(_frame, index):
-            return index < len(clicked_labels)
+            return index in med._archive_challenge_clicked  # clicked -> green
 
         with patch.object(med, "_archive_challenge_completed", side_effect=fake_completed), \
              patch.object(med, "_archive_hitch_card_progress_state",
@@ -348,14 +354,15 @@ class P1B0PostGameTests(unittest.TestCase):
              patch.object(med, "act_click", return_value=True) as click:
             click.side_effect = lambda _hit, reason: clicked_labels.append(reason) or True
             now = 1.0
-            for _ in range(8):
-                self.assertEqual(med._maybe_click_archive_challenge(frame, now), LoopAction.Continue)
+            for _ in range(20):
+                if med._maybe_click_archive_challenge(frame, now) is None:
+                    break
                 now = med._archive_challenge_next_at + 0.1
             self.assertIsNone(med._maybe_click_archive_challenge(frame, now))
 
         self.assertEqual(
             clicked_labels,
-            [f"ArchiveChallenge-{name}" for name in med._ARCHIVE_CHALLENGE_NAMES],
+            [f"ArchiveChallenge-{name}" for name in med._ARCHIVE_CHALLENGE_NAMES if name != "gem"],
         )
 
     def test_archive_card_advances_on_the_green_challenged_overlay(self):
@@ -391,8 +398,8 @@ class P1B0PostGameTests(unittest.TestCase):
         self.assertEqual([label for label, _ in plan], list(med._ARCHIVE_CHALLENGE_NAMES))
         self.assertEqual([index for _, index in plan], list(range(8)))
 
-    def test_unconfirmed_card_is_reclicked_then_skipped_after_three_tries(self):
-        """点了没出现「已挑战」就在有界次数内重点同一张，不静默跳过。"""
+    def test_unconfirmed_card_is_clicked_once_and_the_sweep_moves_on(self):
+        """Owner 2026-09-14：点了没立刻变绿也立即转下一张，绝不在原地重点同一张。"""
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
         frame = Frame(np.zeros((900, 1600, 3), dtype=np.uint8), hwnd=10001)
         card = MatchResult("archive_challenge_skill", 0.9, 600, 300, 40, 40, 620, 320)
@@ -400,12 +407,9 @@ class P1B0PostGameTests(unittest.TestCase):
                 patch.object(med, "_archive_hitch_card_progress_state", return_value="AVAILABLE"), \
                 patch.object(med, "_find_archive_challenge_card", return_value=card), \
                 patch.object(med, "act_click", return_value=True) as click:
-            now = 1.0
-            for _ in range(3):
-                med._maybe_click_archive_challenge(frame, now)
-                now = med._archive_challenge_next_at + 0.1
-        self.assertEqual(click.call_count, 3)
-        self.assertEqual(med._archive_challenge_index, 1, "三次未确认后才允许跳到下一张")
+            med._maybe_click_archive_challenge(frame, 1.0)
+        self.assertEqual(click.call_count, 1)
+        self.assertEqual(med._archive_challenge_index, 1, "点一次就转下一张")
 
     def test_hitch_archive_unknown_is_bounded_and_skips_without_click(self):
         med = Mediator(Settings(mode_id="lobby_hitch"), ROOT)
@@ -1286,6 +1290,10 @@ class P1B0PostGameTests(unittest.TestCase):
 
     def test_victory_continue_retry_limit_fails_closed(self):
         """3 failed continue attempts must Fail-Closed into ERROR."""
+        # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
+        self.settings = Settings(mode_id="lab")
+        self.med = Mediator(self.settings, ROOT)
+        self.med.set_phase(Phase.MAIN_LINE, "p1b0 setup")
         frame = load_fixture_frame("fixtures/replay/victory_continue.png")
         self.med._victory_continue_attempts = 3
         with patch.object(self.med, "act_click") as mock_act:

@@ -130,9 +130,13 @@ class C2InGameStateIsolation(unittest.TestCase):
 
     # 明确属于局内的可变状态；若新增局内字段，建议一并加进来。
     INGAME_POLLUTION = {
+        "_hub_label_ocr_next_at": 9e18,
         "_l1_cycle_step": "equipment",
         "_l1_cycle_owned_panel": True,
         "_l1_cycle_selected": True,
+        "_l1_cycle_last_advance_at": 1.0e9,
+        "_l1_cycle_step_successes": 3,
+        "_panel_visit_force_advance": True,
         "_evolve_ok_this_cycle": True,
         "_evolve_fail_count": 7,
         "_evolve_feedback_pending": True,

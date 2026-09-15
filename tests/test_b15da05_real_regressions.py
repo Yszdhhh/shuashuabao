@@ -758,7 +758,7 @@ def test_c_tqtz_two_round_reset_allows_attempt_in_second_round() -> None:
         assert med._tqtz_clicked is False
         assert med._tqtz_pending is False
         # ABANDONED 短路：后续调用零输入、零点击
-        assert med._maybe_click_tqtz(frame, 101.0) is LoopAction.Continue
+        assert med._maybe_click_tqtz(frame, 101.0) is None  # abandoned yields the tick (live solo 2026-09-14)
         assert click.call_count == 0
     assert med._tqtz_clicked is False, "ABANDONED 绝不允许伪装成已点击成功"
 
@@ -1144,7 +1144,7 @@ def test_tqtz_third_pending_timeout_becomes_abandoned() -> None:
     with patch.object(med, "find", return_value=tqtz_hit), \
          patch.object(med, "find_scene", return_value=None), \
          patch.object(med, "act_click", return_value=True) as click4:
-        assert med._maybe_click_tqtz(frame, 107.0) is LoopAction.Continue
+        assert med._maybe_click_tqtz(frame, 107.0) is None  # abandoned yields the tick (live solo 2026-09-14)
         click4.assert_not_called()
     assert med._tqtz_clicked is False, "ABANDONED 绝不允许伪装成已点击成功"
 

@@ -1177,10 +1177,10 @@ class TestSkillPriorityVerifiedEvidence(unittest.TestCase):
 
 
 class TestTreasureMustTake(unittest.TestCase):
-    """宝物必拿名单来自 settings.treasure_must_take；仅在最高品质带内生效（2026-09 裁决）。"""
+    """宝物必拿名单来自 settings.treasure_must_take；Owner 2026-09-15：EX 出现就拿，不看品质。"""
 
     def test_must_take_comes_from_settings(self):
-        # 产品裁决：高品质（绿）优先于低品质（白）必拿卡（必拿只在最高品质带内生效）。
+        # Owner 2026-09-15：EX 本身就是最高品质，出现即拿（推翻 09-09 的「只在最高品质带内」）。
         d = choose_action(
             treasure_cands(
                 [slot(0, "双倍神符", rarity="green"),
@@ -1189,10 +1189,10 @@ class TestTreasureMustTake(unittest.TestCase):
             ),
             SessionState(),
         )
-        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
 
     def test_must_take_case_insensitive_substring(self):
-        # 子串 + 大小写不敏感：onepiece 命中 ONEPIECE；产品裁决红卡品质优先，必拿不跨品质。
+        # 子串 + 大小写不敏感：onepiece 命中 ONEPIECE；EX 跨品质必拿。
         d = choose_action(
             treasure_cands(
                 [slot(0, "双倍神符", rarity="red", confidence=0.99),
@@ -1201,10 +1201,10 @@ class TestTreasureMustTake(unittest.TestCase):
             ),
             SessionState(),
         )
-        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
+        self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
 
-    def test_quality_beats_legacy_substring_privilege(self):
-        # 产品裁决：高品质（红）优先于低品质（白）特权卡（缺省名单不再跨品质秒选）。
+    def test_legacy_substring_privilege_ignores_quality(self):
+        # Owner 2026-09-15：缺省名单（全都要/卡牌大师）出现即拿，边框品质不压过它。
         for name in ("我全都要", "卡牌大师"):
             with self.subTest(name=name):
                 d = choose_action(
@@ -1214,7 +1214,7 @@ class TestTreasureMustTake(unittest.TestCase):
                     ),
                     SessionState(),
                 )
-                self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
+                self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 0))
 
     def test_must_take_does_not_bypass_negative(self):
         # 负面剔除优先：必拿名单内的卡带负面描述仍不可选。
@@ -1251,7 +1251,7 @@ class TestTreasureMustTake(unittest.TestCase):
             SessionState(),
         )
         self.assertEqual((d.action, d.index), (PolicyAction.SELECT_SLOT, 1))
-        # 对照：缺省名单下产品裁决同样红卡品质优先（子串特权不再跨品质秒选）。
+        # 对照：缺省名单含「全都要」→ EX 出现即拿（Owner 2026-09-15）。
         d_default = choose_action(
             treasure_cands(
                 [slot(0, "我全都要", rarity="white", confidence=0.99),
@@ -1261,7 +1261,7 @@ class TestTreasureMustTake(unittest.TestCase):
             SessionState(),
         )
         self.assertEqual((d_default.action, d_default.index),
-                         (PolicyAction.SELECT_SLOT, 1))
+                         (PolicyAction.SELECT_SLOT, 0))
 
 
 class TestAssemblePolicySettings(unittest.TestCase):
@@ -1431,7 +1431,7 @@ class TestAssemblePolicySettings(unittest.TestCase):
                 }
             },
         )
-        self.assertEqual(ps.bond_base_presets, ("成长", "经济", "贪婪", "挑战", "祝福"))
+        self.assertEqual(ps.bond_base_presets, ("经济", "祝福", "贪婪", "挑战", "成长"))
         self.assertEqual(ps.bond_advanced_presets, ("封神", "封神榜", "海盗"))
         self.assertEqual(ps.bond_advanced_groups[0][0], "封神")
         self.assertEqual(ps.bond_advanced_groups[1][0], "海盗")

@@ -285,6 +285,10 @@ class TestP1A2ChallengeControls(unittest.TestCase):
         "无战后上下文"的帧 Fail-Closed（pending=False + 局尾窗口）；
         `_post_game_pending=True` 战后过渡窗豁免为零输入 Continue。
         boss_entry/longzhu 门控不变（见 p1a1/p0c1 契约）。"""
+        # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
+        self.settings = Settings(mode_id="lab")
+        self.med = Mediator(self.settings, self.root, stop_signal=self.stop_signal)
+        self.med.set_phase(Phase.MAIN_LINE, "test setup")
         self.med._auto_task_done = True
         self.med._post_game_pending = False
         self.med._round_deadline = time.time() + 5  # 局尾窗口内

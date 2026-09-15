@@ -1,0 +1,13 @@
+{
+  "bundle_id": "solo_ingame_chain_20260915_000229_642428",
+  "source": "C:\\Users\\10639\\AppData\\Local\\Temp\\shuabao-captures\\solo_ingame_chain_20260915_000229_642428",
+  "frames": [
+    {"at_s": 31.407, "file": "tests/fixtures/solo_round2_b1_20260915/f0008_state_change.png"},
+    {"at_s": 132.438, "file": "tests/fixtures/solo_round2_b1_20260915/f0048_state_change.png"},
+    {"at_s": 231.782, "file": "tests/fixtures/solo_round2_b1_20260915/f0135_action_before.png"},
+    {"at_s": 332.266, "file": "tests/fixtures/solo_round2_b1_20260915/f0221_action_before.png"},
+    {"at_s": 432.0, "file": "tests/fixtures/solo_round2_b1_20260915/f0308_action_before.png"},
+    {"at_s": 518.141, "file": "tests/fixtures/solo_round2_b1_20260915/f0361_state_change.png"},
+    {"at_s": 642.188, "file": "tests/fixtures/solo_round2_b1_20260915/f0365_action_before.png"}
+  ]
+}

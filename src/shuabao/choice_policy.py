@@ -98,6 +98,12 @@ _CATALOG_RARITY_TO_BAND = {
     "粉": "pink",
     "红": "red",
     "绿": "green",
+    "N": "green",
+    "R": "blue",
+    "SR": "purple",
+    "SSR": "orange",
+    "UR": "red",
+    "EX": "red",
 }
 DEFAULT_NEGATIVE_PATTERNS = (
     "不再获得",
@@ -174,6 +180,7 @@ class SlotCandidate:
     confidence: float = 0.0
     evidence: str = ""
     rarity: str | None = None
+    rarity_letter: str | None = None
     description: str = ""
     family: str | None = None
     prereq_marker: bool = False
@@ -217,7 +224,12 @@ class PolicySettings:
     bond_base_presets: tuple[str, ...] = ()
     bond_advanced_presets: tuple[str, ...] = ()
     bond_advanced_groups: tuple[tuple[str, ...], ...] = ()
+    # 属性线门卡之后的链路卡（秘法师→法神→湮灭者 等）：在白名单里、任何阶段都可拿，
+    # 但不计入基础卡 80% 进度，也不是高级卡组。
+    bond_chain_presets: tuple[str, ...] = ()
     bond_base_completion_ratio: float = 0.80
+    # 基础卡进度门槛的时间兜底：开局这么多秒后高级卡组不再等基础卡（0 = 关）。
+    bond_advanced_unlock_s: float = 0.0
     treasure_presets: tuple[str, ...] = ()
     quality_order: tuple[str, ...] = DEFAULT_QUALITY_ORDER
     min_confidence: float = 0.0
@@ -280,6 +292,9 @@ class PolicySettings:
         object.__setattr__(self, "bond_advanced_presets", tuple(dict.fromkeys(
             str(s).strip() for s in self.bond_advanced_presets if str(s).strip()
         )))
+        object.__setattr__(self, "bond_chain_presets", tuple(dict.fromkeys(
+            str(s).strip() for s in self.bond_chain_presets if str(s).strip()
+        )))
         object.__setattr__(self, "bond_advanced_groups", tuple(
             tuple(dict.fromkeys(str(s).strip() for s in group if str(s).strip()))
             for group in self.bond_advanced_groups
@@ -337,12 +352,14 @@ class PolicySettings:
             bond_presets=tuple(str(s) for s in (raw.get("bond_presets") or ())),
             bond_base_presets=tuple(str(s) for s in (raw.get("bond_base_presets") or ())),
             bond_advanced_presets=tuple(str(s) for s in (raw.get("bond_advanced_presets") or ())),
+            bond_chain_presets=tuple(str(s) for s in (raw.get("bond_chain_presets") or ())),
             bond_advanced_groups=tuple(
                 tuple(str(x).strip() for x in group if str(x).strip())
                 for group in (raw.get("bond_advanced_groups") or ())
                 if group
             ),
             bond_base_completion_ratio=float(raw.get("bond_base_completion_ratio", 0.80)),
+            bond_advanced_unlock_s=float(raw.get("bond_advanced_unlock_s", 0.0) or 0.0),
             treasure_presets=tuple(str(s) for s in (raw.get("treasure_presets") or ())),
             quality_order=(tuple(str(s) for s in qo) if qo is not None else DEFAULT_QUALITY_ORDER),
             min_confidence=0.0 if min_conf is None else float(min_conf),
@@ -378,6 +395,22 @@ class PolicySettings:
         )
 
 
+# 属性线 = 门卡(4) → 中环(4) → 次环(3) → UR(3)，与 config/official_strategy_defaults.json
+# attr_routes.*.chain 一致（tests 校验不漂移）。support 卡（法术/魔法师/箭术…）不是属性线，
+# 由看板基础卡组单独勾选。
+_ATTRIBUTE_CHAINS = {
+    "int": ("智力", "秘法师", "法神", "湮灭者"),
+    "str": ("力量", "野蛮人", "战神", "屠戮者"),
+    "agi": ("敏捷", "猎魔人", "弓神", "收割者"),
+}
+_ECONOMY_BOND_ORDER = ("经济", "祝福", "贪婪", "挑战", "成长")
+_ATTRIBUTE_IDS = {
+    "int": "int", "intelligence": "int", "智力": "int",
+    "str": "str", "strength": "str", "力量": "str",
+    "agi": "agi", "agility": "agi", "敏捷": "agi",
+}
+
+
 def assemble_policy_settings(
     *,
     settings: Any,
@@ -403,11 +436,26 @@ def assemble_policy_settings(
             seen.add(text)
             skill_families.append(text)
 
+    advanced_names = tuple(
+        str(item).strip() for item in (bond_cfg.get("advanced_names") or ()) if str(item).strip()
+    )
+    # Whitelist order = pick priority (_match_bond_preset ranks by position):
+    #   1. economy bonds by payback (KB 2026-09-15 card text: 祝福 nets wood
+    #      at once, 经济 ~10 min, 贪婪 key +150 wood, 挑战 indirect, 成长
+    #      ~22 min -- outside the 5-5 window)
+    #   2. basic cards ticked on the dashboard
+    #   3. attribute lines gate -> UR (live 000229: taking them early cost
+    #      8-14 extra F draws and ran wood dry at 5:24)
+    #   4. advanced packs
+    # Attribute-line cards never count toward the 80% basic gate.
     bond_presets: list[str] = []
+    economy: list[str] = []
     for item in getattr(settings, "bonds", None) or ():
         text = str(item or "").strip()
-        if text and text not in bond_presets:
-            bond_presets.append(text)
+        if text and text not in economy:
+            economy.append(text)
+    economy.sort(key=lambda name: _ECONOMY_BOND_ORDER.index(name) if name in _ECONOMY_BOND_ORDER else len(_ECONOMY_BOND_ORDER))
+    bond_presets.extend(economy)
     card_presets: list[str] = []
     for item in getattr(settings, "cards", None) or ():
         text = str(item or "").strip()
@@ -417,16 +465,22 @@ def assemble_policy_settings(
         text = str(fetter_labels.get(stem, stem))
         if text and text not in card_presets:
             card_presets.append(text)
-        if text and text not in bond_presets:
+    for text in card_presets:
+        if not matches_bond_preset(text, advanced_names) and text not in bond_presets:
             bond_presets.append(text)
-
-    advanced_names = tuple(
-        str(item).strip() for item in (bond_cfg.get("advanced_names") or ()) if str(item).strip()
-    )
-    advanced_presets = tuple(
-        item for item in bond_presets if matches_bond_preset(item, advanced_names)
-    )
-    base_presets = tuple(item for item in bond_presets if item not in advanced_presets)
+    chain_presets: list[str] = []
+    for item in getattr(settings, "attributes", None) or ():
+        chain = _ATTRIBUTE_CHAINS.get(_ATTRIBUTE_IDS.get(str(item or "").strip(), ""))
+        if not chain:
+            continue
+        for name in chain:
+            if name not in bond_presets:
+                bond_presets.append(name)
+            if name not in chain_presets:
+                chain_presets.append(name)
+    for text in card_presets:
+        if text not in bond_presets:
+            bond_presets.append(text)
     catalog_groups: list[tuple[str, ...]] = []
     for group in (bond_cfg.get("advanced_groups") or ()):
         names = tuple(str(x).strip() for x in (group or ()) if str(x).strip())
@@ -434,16 +488,25 @@ def assemble_policy_settings(
             catalog_groups.append(names)
     selected_groups: list[tuple[str, ...]] = []
     used_groups: set[tuple[str, ...]] = set()
-    for item in bond_presets:
+    for item in card_presets:
         for group in catalog_groups:
             if group in used_groups:
                 continue
             if item in group or matches_bond_preset(item, group):
                 used_groups.add(group)
-                selected = tuple(name for name in group if name in advanced_presets)
-                if selected:
-                    selected_groups.append(selected)
+                selected_groups.append(group)
+                for name in group:
+                    if name not in bond_presets:
+                        bond_presets.append(name)
                 break
+
+    advanced_presets = tuple(
+        item for item in bond_presets if matches_bond_preset(item, advanced_names)
+    )
+    base_presets = tuple(
+        item for item in bond_presets
+        if item not in advanced_presets and item not in chain_presets
+    )
 
     allow_neg = getattr(settings, "treasure_allow_negative", None)
     if allow_neg is None:
@@ -511,8 +574,10 @@ def assemble_policy_settings(
             "bond_presets": tuple(bond_presets),
             "bond_base_presets": base_presets,
             "bond_advanced_presets": advanced_presets,
+            "bond_chain_presets": tuple(chain_presets),
             "bond_advanced_groups": tuple(selected_groups),
             "bond_base_completion_ratio": bond_cfg.get("base_completion_ratio", 0.80),
+            "bond_advanced_unlock_s": bond_cfg.get("advanced_unlock_s", 0.0),
             "treasure_presets": (),
             "quality_order": raw.get("quality_order"),
             "min_confidence": 0.60 if min_conf is None else min_conf,
@@ -579,6 +644,8 @@ class PanelCandidates:
     owned_skill_cards: tuple[str, ...] = ()
     owned_bond_cards: tuple[str, ...] = ()
     free_slots: int | None = None
+    # Seconds since the round started (None = unknown); drives time releases.
+    round_elapsed_s: float | None = None
     def __post_init__(self) -> None:
         if self.panel_kind is not None and self.panel_kind not in VALID_PANEL_KINDS:
             raise ValueError(
@@ -1165,7 +1232,17 @@ def _decide_collectible(
                 return PolicyDecision.select(pick.index, reason)
 
         # 普通模式（及蹭车无绿色神符时）：
-        # 产品裁决：先过滤黑名单，剩余只按现有品质顺序选择，不再让 must_take / presets / synthesis 压过更高品质。
+        # Owner 2026-09-15：EX（ONEPIECE/至高进化/一身神装/满级大佬/全都要/卡牌大师）
+        # 出现就拿——EX 本身就是最高品质，不再受边框品质采样约束（d4aa92c 曾限在最高档内）。
+        for slot in eligible if getattr(settings, "mode_id", "normal_farm") != "lobby_hitch" else ():
+            if (
+                slot.confidence >= settings.min_confidence
+                and _is_must_take(slot.name, settings.treasure_must_take)
+            ):
+                return PolicyDecision.select(
+                    slot.index, f"宝物必拿秒选【{slot.name}】（EX 不看品质） @ slot {slot.index}"
+                )
+        # 其余先过滤黑名单，只按现有品质顺序选择，不让 presets / synthesis 压过更高品质。
         best_quality_hit = _match_quality(cands, settings, slots=eligible, allow_unnamed=True)
         if best_quality_hit is None:
             return _no_safe_candidate(cands, state, kind, "无安全候选")
@@ -1222,6 +1299,7 @@ def _decide_collectible(
                     slot for slot in eligible
                     if (
                         matches_bond_preset(slot.name, settings.bond_base_presets)
+                        or matches_bond_preset(slot.name, settings.bond_chain_presets)
                         # A past run may already contain an advanced card. Let
                         # its duplicate finish/merge, but never start another.
                         or str(slot.name or "").strip() in owned_bonds
@@ -1242,6 +1320,7 @@ def _decide_collectible(
                         slot for slot in eligible
                         if (
                             matches_bond_preset(slot.name, settings.bond_base_presets)
+                            or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
                             or str(slot.name or "").strip() in owned_bonds
                         )
@@ -1329,9 +1408,13 @@ def _decide_collectible(
 
 
 def _bond_base_ready(cands: PanelCandidates, settings: PolicySettings) -> bool:
-    """高级卡只在已确认取得 80% 配置基础卡后才有选择权。"""
+    """高级卡只在已确认取得 80% 配置基础卡后才有选择权（或到了时间兜底）。"""
     bases = settings.bond_base_presets
     if not bases or not settings.bond_advanced_presets:
+        return True
+    unlock = float(settings.bond_advanced_unlock_s or 0.0)
+    elapsed = cands.round_elapsed_s
+    if unlock > 0 and elapsed is not None and elapsed >= unlock:
         return True
     required = math.ceil(len(bases) * settings.bond_base_completion_ratio)
     owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
@@ -1435,9 +1518,24 @@ def _match_bond_preset(
     return min(hits)[2] if hits else None
 
 
+_RARITY_LETTER_TO_BAND = {
+    "EX": "red",
+    "UR": "red",
+    "SSR": "orange",
+    "SR": "purple",
+    "R": "blue",
+    "N": "green",
+}
+
+
 def _rarity_rank(rarity: str | None, quality_order: tuple[str, ...]) -> int:
-    if rarity and rarity in quality_order:
+    if not rarity:
+        return len(quality_order)
+    if rarity in quality_order:
         return quality_order.index(rarity)
+    band = _RARITY_LETTER_TO_BAND.get(str(rarity).upper())
+    if band and band in quality_order:
+        return quality_order.index(band)
     return len(quality_order)
 
 

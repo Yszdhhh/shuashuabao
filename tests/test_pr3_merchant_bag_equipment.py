@@ -35,8 +35,8 @@ def make_test_frame(width: int = 1600, height: int = 900) -> Frame:
     )
 
 class TestMerchantScanner(unittest.TestCase):
-    def test_scanner_returns_only_swallow_pills(self):
-        """黑商策略只能授权吞噬丹，折扣和木材必须被忽略。"""
+    def test_scanner_keeps_hitch_to_swallow_pills(self):
+        """蹭车策略只能授权吞噬丹。"""
         scanner = MerchantScanner(
             attr_routes=["intelligence"],
             focus_skills=["奥术箭"],
@@ -51,6 +51,16 @@ class TestMerchantScanner(unittest.TestCase):
         ]
         ranked = scanner.rank_purchases(items, bond_bar_nonempty=True)
         self.assertEqual([item.item_type for item in ranked], ["devour_pill"])
+
+    def test_scanner_restores_solo_wood_and_verified_discounts(self):
+        scanner = MerchantScanner()
+        items = [
+            MerchantSlotItem(slot_index=3, center_ratio=(0.88, 0.72), item_type="discount", label="5折"),
+            MerchantSlotItem(slot_index=2, center_ratio=(0.78, 0.72), item_type="wood", label="merchant_wood"),
+            MerchantSlotItem(slot_index=1, center_ratio=(0.74, 0.72), item_type="devour_pill", label="吞噬丹"),
+        ]
+        ranked = scanner.rank_purchases(items, bond_bar_nonempty=True, solo=True)
+        self.assertEqual([item.item_type for item in ranked], ["devour_pill", "wood", "discount"])
 
     def test_scanner_filters_negative_items(self):
         """Negative treasures must be strictly filtered out."""

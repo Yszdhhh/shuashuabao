@@ -238,7 +238,7 @@ const ADV_PACK_CARDS: Record<string, string[]> = {
   yihuo: ["异火", "焚诀·黄阶", "阴阳双炎", "风怒龙炎", "幽冥毒火", "玄黄炎"],
   dasheng: ["齐天大圣", "大圣", "天命人", "大圣残躯", "大圣套装"],
   xiuxian: ["修仙", "筑基丹", "金丹大道", "元神出窍", "修仙萌新", "修仙大成"],
-  fengshen: ["封神", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀"],
+  fengshen: ["封神", "封神榜", "打神鞭", "杏黄旗", "斩仙飞刀", "肉身成圣"],
   haidao: ["海盗", "白赚海盗", "海盗劫掠者", "海盗宝藏"],
   wangling: ["亡灵", "亡灵天灾", "白骨复生", "魂火收割", "巫妖之躯"],
 };
@@ -457,6 +457,12 @@ function applyStageTargets(settings: SettingsDTO): void {
   state.stage = Math.max(1, Math.min(Number(m[2]), STAGE_MAX[chapter] ?? Number(m[2])));
 }
 
+function applyDowngradeFailures(v: unknown): void {
+  if (typeof v !== "number" || !Number.isFinite(v)) return;
+  const input = document.getElementById("downgradeAfterFailures") as HTMLInputElement | null;
+  if (input) input.value = String(Math.max(0, Math.min(20, Math.trunc(v))));
+}
+
 function applyBuildAndSkills(settings: SettingsDTO): void {
   const skills = asStringList(settings.skills).slice(0, 4);
   if (!skills.length) return; // 空技能保持壳内现状，交给 preflight 报错
@@ -653,7 +659,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
         const packId = cardToPack.get(card) ?? (ADV_PACK_CARDS[card] ? card : "");
         if (packId && !restoredAdv.includes(packId)) restoredAdv.push(packId);
       }
-      const basicNames = ["法术", "急速", "魔能", "魔术", "箭术", "战术", "暴击", "固守", "陷阵"];
+      const basicNames = ["法术", "急速", "魔能", "魔术", "魔法师", "元素师", "箭术", "战术", "暴击", "固守", "陷阵"];
       state.adv = restoredAdv;
       state.advDraft = restoredAdv.slice();
       state.basic = new Set(basicNames.filter((name) => savedCards.includes(name)));
@@ -684,6 +690,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
     applySwitches(settings);
     applyPrestige(settings);
     applyStageTargets(settings);
+    applyDowngradeFailures(settings.downgrade_after_failures);
     applyBuildAndSkills(settings);
     applyVisibleSettings();
     const roomName = asString(settings.room_name);
@@ -838,6 +845,12 @@ function wireIntents(): void {
   // 全局函数后钩子：每个全局操作挂一次钩子
   afterGlobalCall("setCycle", () => pushConfig({ cycle_num: clampCycle(Number(state.cycle)) }));
   afterGlobalCall("renderChapterStage", () => pushConfig({ stage_targets: [`${state.chapter}-${state.stage}`] }));
+  const downgrade = document.getElementById("downgradeAfterFailures") as HTMLInputElement | null;
+  downgrade?.addEventListener("change", () => {
+    const value = Math.max(0, Math.min(20, Math.trunc(Number(downgrade.value) || 0)));
+    downgrade.value = String(value);
+    pushConfig({ downgrade_after_failures: value });
+  });
   afterGlobalCall("renderSkillRank", pushSkills);
   // 羁绊配置按用户显式点击“保存羁绊”落盘，避免每次重绘都产生一次配置请求。
   afterGlobalCall("renderNegatives", pushNegatives);

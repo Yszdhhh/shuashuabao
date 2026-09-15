@@ -51,8 +51,13 @@ def _mediator(clock: FakeClock, *, limit: int = 2) -> tuple[Mediator, Frame]:
 
 
 class PanelLivenessHarnessTests(unittest.TestCase):
-    def test_invisible_open_timeout_cannot_reopen_same_kind_after_failure_cap(self) -> None:
-        """Only the abnormal OPEN_REQUESTED→WAIT_VISIBLE timeout is budgeted."""
+    def test_invisible_open_timeout_is_not_an_abnormal_episode_in_solo(self) -> None:
+        """Owner 2026-09-15: G/V without points and F without wood do not open.
+
+        That is the game's normal answer, not a failure: 08-29 59563fd counted
+        it toward the per-kind cap and live 000229 lost F after 5 presses.
+        Solo now only waits the short reopen interval and backs the kind off.
+        """
         clock = FakeClock(start=100.0)
         med, frame = _mediator(clock)
         med._l1_cycle_step = "skill"
@@ -61,60 +66,21 @@ class PanelLivenessHarnessTests(unittest.TestCase):
 
         with clock.install(), patch.object(med, "_selection_anchor", return_value=None), \
                 patch.object(med, "_bond_base_progress_pending", return_value=False):
-            for expected_count in (1, 2):
+            for _ in range(3):
                 self.assertIs(med._maybe_open_choice_panel(frame), LoopAction.Continue)
                 self.assertIs(med._panel_state, PanelState.OPEN_REQUESTED)
-                self.assertEqual(med._panel_episode_count.get("skill", 0), expected_count - 1)
-
-                # Advance the real FSM through the visible wait timeout.
-                self.assertIs(
-                    med._tick_panel_fsm(frame, None, clock.now()),
-                    LoopAction.Continue,
-                )
+                self.assertIs(med._tick_panel_fsm(frame, None, clock.now()), LoopAction.Continue)
                 self.assertIs(med._panel_state, PanelState.WAIT_VISIBLE)
                 clock.advance(0.6)
-                self.assertIs(
-                    med._tick_panel_fsm(frame, None, clock.now()),
-                    LoopAction.Continue,
-                )
-                self.assertIs(med._panel_state, PanelState.COOLDOWN)
-                self.assertEqual(med._panel_episode_count["skill"], expected_count)
-
-                # The normal short cooldown expires, allowing the next
-                # episode to prove that the count survives episode cleanup.
+                self.assertIs(med._tick_panel_fsm(frame, None, clock.now()), LoopAction.Continue)
+                self.assertEqual(med._panel_episode_count.get("skill", 0), 0)
+                self.assertGreater(med._skill_idle_until, clock.now() + 20)
                 clock.advance(0.2)
                 self.assertIsNone(med._tick_panel_fsm(frame, None, clock.now()))
                 self.assertIs(med._panel_state, PanelState.CLOSED)
 
-            # The third open attempt is quarantined with a long bounded
-            # cooldown.  It neither clicks nor advances the cycle.
-            before_cycle = med._l1_cycle_step
-            self.assertIs(med._maybe_open_choice_panel(frame), LoopAction.Continue)
-            self.assertIs(med._panel_state, PanelState.COOLDOWN)
-            self.assertEqual(med._panel_kind, "skill")
-            self.assertEqual(med._panel_episode_count["skill"], 2)
-            self.assertGreaterEqual(med._panel_cooldown_until["skill"], clock.now() + 59.0)
-            self.assertEqual(med._l1_cycle_step, before_cycle)
-
-            # During the cooldown the FSM stays in COOLDOWN; no hidden
-            # reopen is possible before it expires.
-            clock.advance(1.0)
-            self.assertIs(
-                med._tick_panel_fsm(frame, None, clock.now()),
-                LoopAction.Continue,
-            )
-            self.assertIs(med._panel_state, PanelState.COOLDOWN)
-
-            # Once the cooldown expires the FSM resets to CLOSED and the
-            # panel FSM no longer blocks main-line steps.
-            clock.advance(70.0)
-            self.assertIsNone(
-                med._tick_panel_fsm(frame, None, clock.now()),
-            )
-            self.assertIs(med._panel_state, PanelState.CLOSED)
-
         reasons = [record.reason for record in probe._records]
-        self.assertEqual(reasons, ["OpenSkillPanel", "OpenSkillPanel"])
+        self.assertEqual(reasons, ["OpenSkillPanel"] * 3, "no cap: the next lap may press G again")
 
     def test_persistent_natural_anchor_is_not_ignored_after_episode_cap(self) -> None:
         """A still-visible natural panel cannot be bypassed after quarantine."""
@@ -207,9 +173,8 @@ class PanelLivenessHarnessTests(unittest.TestCase):
         self.assertEqual(med._panel_episode_count, {})
         self.assertEqual(med._panel_cooldown_until, {})
 
-        # One failed reopen of each kind produces three independent counters;
-        # no kind can spend another kind's budget.
-        expected_counts: dict[str, int] = {}
+        # An unopened panel of each kind only arms that kind's own short
+        # reopen gate; no kind spends a cap or blocks another kind (solo).
         with clock.install(), patch.object(med, "_selection_anchor", return_value=None), \
                 patch.object(med, "_bond_base_progress_pending", return_value=False):
             for kind in ("skill", "bond", "treasure"):
@@ -219,12 +184,11 @@ class PanelLivenessHarnessTests(unittest.TestCase):
                 self.assertIs(med._tick_panel_fsm(frame, None, clock.now()), LoopAction.Continue)
                 clock.advance(0.6)
                 self.assertIs(med._tick_panel_fsm(frame, None, clock.now()), LoopAction.Continue)
-                expected_counts[kind] = 1
-                self.assertEqual(med._panel_episode_count, expected_counts)
+                self.assertGreater(med._panel_cooldown_until[kind], clock.now())
                 clock.advance(0.2)
                 self.assertIsNone(med._tick_panel_fsm(frame, None, clock.now()))
 
-        self.assertEqual(med._panel_episode_count, {"skill": 1, "bond": 1, "treasure": 1})
+        self.assertEqual(med._panel_episode_count, {})
 
     def test_new_round_clears_terminal_panel_quarantine(self) -> None:
         med, _ = _mediator(FakeClock())

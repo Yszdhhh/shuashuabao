@@ -40,6 +40,39 @@ _LIVE_SUBSCRIPTION_ENV = (
 for _name in _LIVE_SUBSCRIPTION_ENV:
     os.environ.pop(_name, None)
 
+# B6：pytest 曾经把打印写进真实的 %LOCALAPPDATA%\ShuaBao\logs\ShuaBao.log ——
+# shuabao.shell.main_window 在模块加载时用 get_canonical_app_data_dir() 给
+# 共享的 "ShuaBao" logger 挂一个真实 RotatingFileHandler（GameScript-Local
+# AGENTS.md 记录的 1970 时间戳污染即此：某些用例 patch("time.time", ...) 把
+# 全局时钟冻结到极小 epoch，日志的 asctime 随之写出 1970 年时间戳）。
+# 必须在任何 shuabao.* 模块被导入前把 SHUABAO_APP_DATA 重定向到临时目录，
+# 让 get_canonical_app_data_dir()（及沿用它的 main_window.APP_DATA）全部落在
+# tmp 里，不再触碰宿主机上的真实 AppData 日志/设置/锁文件。
+import tempfile as _tempfile
+
+_tmp_appdata = Path(_tempfile.mkdtemp(prefix="shuabao-pytest-appdata-")) / "ShuaBao"
+_tmp_appdata.mkdir(parents=True, exist_ok=True)
+os.environ["SHUABAO_APP_DATA"] = str(_tmp_appdata)
+
+if not os.environ.get("SHUABAO_OCR_PYTHON"):
+    for _candidate in (
+        ROOT.parent.parent / "GameScript-Local" / ".venv-ocr" / "Scripts" / "python.exe",
+        ROOT.parent / "live-solo-cc17962" / ".venv-ocr" / "Scripts" / "python.exe",
+    ):
+        if _candidate.is_file():
+            os.environ["SHUABAO_OCR_PYTHON"] = str(_candidate)
+            break
+
+if not os.environ.get("SHUABAO_OCR_MODEL_DIR"):
+    for _candidate in (
+        ROOT.parent.parent / "GameScript-Local" / "models" / "ocr",
+        ROOT.parent / "live-solo-cc17962" / "models" / "ocr",
+    ):
+        if _candidate.is_dir():
+            os.environ["SHUABAO_OCR_MODEL_DIR"] = str(_candidate)
+            break
+
+
 
 def _install_linux_win_shims() -> None:
     """让面向 Windows 的输入模块能在 Linux 上被导入（仅为单测收集，不改行为）。"""

@@ -37,7 +37,8 @@ def test_simple_pause_without_verified_template_is_zero_input():
 
 
 def test_pause_resume_retries_are_bounded_and_fail_closed():
-    med = Mediator(Settings(), ROOT)
+    # lab 不属于无人值守模式，仍走 Fail-Closed；normal_farm 的零输入不停机见 test_unattended_recovery_20260914。
+    med = Mediator(Settings(mode_id="lab"), ROOT)
     frame = _frame()
     continue_hit = MatchResult("pause_continue_game", .98, 700, 400, 200, 50, 980, 480)
     with patch.object(med, "find", return_value=continue_hit), \
