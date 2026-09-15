@@ -1239,6 +1239,9 @@ class Mediator:
                 trace_path=(Path(incident_dir) / "ocr_shadow.jsonl") if incident_dir else None,
             )
         self._main_line_ocr_next_at: float = 0.0
+        self._main_line_stall_stage: tuple[int, int] | None = None
+        self._main_line_stall_since: float | None = None
+        self._main_line_stall_reason: str | None = None
         self._close_main_line_triggered: bool = False
         self._main_line_closed_done: bool = False
 
@@ -3629,6 +3632,9 @@ class Mediator:
 
         can_refresh = self._panel_can_refresh(frame, kind)
         policy_settings = self._policy_settings()
+        if kind == "bond" and self._main_line_stalled():
+            slots = self._stall_combat_bond_slots(slots)
+            policy_settings = self._stall_combat_bond_policy(policy_settings)
         if self._passenger_mode() and kind == "treasure":
             has_valid_names = any(
                 s.name is not None and bool(str(s.name).strip()) and s.confidence >= policy_settings.min_confidence
@@ -4232,6 +4238,12 @@ class Mediator:
     # Unspent skill picks that pre-empt the early bond priority (Owner:
     # 前期 羁绊>技能>其它, but live 000229 banked 32 picks and lost 4-5).
     _SKILL_BACKLOG_FORCE = 4
+    _MAIN_LINE_STALL_SECONDS = 90.0
+    # Only cards whose direct combat effect is documented in the 2026-09-15
+    # mechanics synthesis may survive a stalled-main-line bond choice.
+    _STALL_COMBAT_BOND_PRESETS = (
+        "挑战", "法术", "急速", "魔能", "魔术", "体术", "元素师",
+    )
     # Picks per visit before the cycle moves on (live data 2026-09-15: F
     # drained wood to 0 by 5-6 min while 16-18 skill picks and 12-17 V picks
     # waited).  The first minute is F's cheap window (20/40/60/80 wood).
@@ -4278,6 +4290,34 @@ class Mediator:
             return False
         return self._panel_cooldown_until.get(kind, 0.0) - now <= self._BOND_LONG_COOLDOWN_S
 
+    def _main_line_stalled(self) -> bool:
+        return getattr(self, "_main_line_stall_reason", None) is not None
+
+    def _skill_backlog_force(self) -> int:
+        return 1 if self._main_line_stalled() else self._SKILL_BACKLOG_FORCE
+
+    def _stall_combat_bond_slots(
+        self, slots: tuple[SlotCandidate, ...]
+    ) -> tuple[SlotCandidate, ...]:
+        """Keep only documented combat bonds after a main-line stall."""
+        return tuple(
+            slot for slot in slots
+            if matches_bond_preset(slot.name, self._STALL_COMBAT_BOND_PRESETS)
+        )
+
+    @staticmethod
+    def _stall_combat_bond_policy(policy: PolicySettings) -> PolicySettings:
+        """Remove the economic/base-card gates while stalled."""
+        return replace(
+            policy,
+            bond_presets=Mediator._STALL_COMBAT_BOND_PRESETS,
+            bond_base_presets=(),
+            bond_advanced_presets=(),
+            bond_advanced_groups=(),
+            bond_chain_presets=(),
+            bond_must_take=(),
+        )
+
     def _solo_plan_panel(self, frame: Frame, now: float, step: str) -> tuple[str | None, str]:
         """Solo panel choice for this tick: (target, why); target None = skip step.
 
@@ -4306,12 +4346,12 @@ class Mediator:
         skill_held = getattr(self, "_skill_priority_suspended_at", None) is not None
         if (
             skill is not None
-            and skill >= self._SKILL_BACKLOG_FORCE
+            and skill >= self._skill_backlog_force()
             and not skill_held
             and now >= getattr(self, "_skill_idle_until", 0.0)
             and self._panel_kind_available("skill", now)
         ):
-            return "skill", f"技能积压 {skill} ≥ {self._SKILL_BACKLOG_FORCE}，先点技能"
+            return "skill", f"技能积压 {skill} ≥ {self._skill_backlog_force()}，先点技能"
         bond_blocked = self._bond_step_blocked(frame, now)
         wood = getattr(self, "_wood_balance", None)
         if (
@@ -8273,6 +8313,29 @@ class Mediator:
     _MAIN_LINE_TASKBAR_ROI = (1410 / 1600, 295 / 900, 1585 / 1600, 335 / 900)
     _MAIN_LINE_STAGE_RE = re.compile(r"主线\s*(\d+)\s*[-一—]\s*(\d+)")
 
+    def _record_main_line_stage(self, stage: tuple[int, int], now: float) -> None:
+        previous = getattr(self, "_main_line_stall_stage", None)
+        if stage != previous:
+            self._main_line_stall_stage = stage
+            self._main_line_stall_since = now
+            self._main_line_stall_reason = None
+            return
+        since = getattr(self, "_main_line_stall_since", None)
+        if (
+            since is not None
+            and now - since >= self._MAIN_LINE_STALL_SECONDS
+            and not self._main_line_stalled()
+        ):
+            self._main_line_stall_reason = "same_stage"
+            print(f"[L1] 主线 {stage[0]}-{stage[1]} 停滞 {now - since:.0f}s，技能优先")
+
+    def _record_main_line_failure(self, raw_text: str) -> None:
+        normalized = re.sub(r"\s+", "", raw_text)
+        if "主线挑战失败" in normalized or "提升实力后再来挑战" in normalized:
+            if not self._main_line_stalled():
+                print("[L1] OCR 读到主线挑战失败，技能优先")
+            self._main_line_stall_reason = "challenge_failure"
+
     def _read_main_line_stage(self, frame: Frame, now: float) -> tuple[int, int] | None:
         """从右上角任务栏 OCR 识别当前主线 (章, 节)。
 
@@ -8300,14 +8363,19 @@ class Mediator:
             return None
 
         raw_text = str(resp.raw_text or "")
+        self._record_main_line_failure(raw_text)
         match = self._MAIN_LINE_STAGE_RE.search(raw_text)
         if match:
             try:
-                return (int(match.group(1)), int(match.group(2)))
+                stage = (int(match.group(1)), int(match.group(2)))
+                self._record_main_line_stage(stage, now)
+                return stage
             except (ValueError, TypeError):
                 pass
         if "已完成当前难度全部主线" in raw_text or "全部主线" in raw_text:
-            return (6, 1)
+            stage = (6, 1)
+            self._record_main_line_stage(stage, now)
+            return stage
         return None
 
     def _maybe_close_main_line_after_5_5(self, frame: Frame, now: float) -> LoopAction | None:
@@ -9543,6 +9611,9 @@ class Mediator:
             self._close_main_line_triggered = False
             self._main_line_closed_done = False
             self._main_line_ocr_next_at = 0.0
+            self._main_line_stall_stage = None
+            self._main_line_stall_since = None
+            self._main_line_stall_reason = None
             self._challenge_recheck_at.clear()
             # Per-round panel caps.  Hitch rounds never pass STAGE_SELECT,
             # where these used to reset, so round 2 inherited a capped V.
@@ -16610,6 +16681,14 @@ class Mediator:
         tqtz_res = self._maybe_click_tqtz(frame, now)
         if tqtz_res is not None:
             return tqtz_res
+
+        # B3's taskbar OCR also drives the stalled-main-line recovery path.
+        # The close-after-5-5 helper performs this same scan when enabled.
+        if not (
+            getattr(self.settings, "auto_close_main_line", False)
+            or getattr(self.settings, "early_challenge", False)
+        ):
+            self._read_main_line_stage(frame, now)
 
         # 5-5 完成后取消自动主线挑战（避免挑战 5-10 翻车）
         close_ml_res = self._maybe_close_main_line_after_5_5(frame, now)
