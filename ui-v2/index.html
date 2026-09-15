@@ -984,6 +984,8 @@
     }
     .stepper input:focus { outline: none; background: var(--p-gold-soft); }
     .switch-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; font-size: 14px; }
+    .compact-number { width: 78px; flex: 0 0 78px; text-align: center; }
+    .switch-row .sub-label { color: var(--p-muted); font-size: 11px; }
     .switch {
       width: 36px; height: 20px; border-radius: 99px; border: 1px solid var(--p-line);
       background: var(--p-bg); position: relative; flex: 0 0 36px; padding: 0;
@@ -2750,6 +2752,7 @@
             <div class="field grow"><label id="lblStage">关卡</label><div class="dd" data-dd="stage"><button type="button" class="dd-btn" id="stageBtn" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="lblStage"><b>2-1</b><i>▾</i></button><div class="dd-menu" id="stageMenu" role="listbox" aria-labelledby="lblStage"></div></div></div>
             <div class="field" style="width:100px"><label id="lblCycle">目标局数</label><div class="stepper" role="group" aria-labelledby="lblCycle"><button type="button" id="cycleMinus" aria-label="减少目标局数">−</button><input id="cycleOut" type="text" inputmode="numeric" value="2" aria-label="目标局数" autocomplete="off" /><button type="button" id="cyclePlus" aria-label="增加目标局数">+</button></div></div>
           </div>
+          <div class="switch-row"><label for="downgradeAfterFailures">连续失败 N 局降一档 <span class="sub-label">0 = 关闭</span></label><input class="compact-number" id="downgradeAfterFailures" type="number" inputmode="numeric" min="0" max="20" step="1" value="0" aria-label="连续失败几局后关卡降一档，0为关闭" /></div>
           <div class="switch-row"><span id="lblHero">声望挑战</span><button type="button" class="switch" id="swHero" role="switch" aria-checked="false" aria-pressed="false" aria-labelledby="lblHero"></button></div>
           <div class="prestige" id="heroBox">
             <div class="rep-picked" id="repTags"></div>

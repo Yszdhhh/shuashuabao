@@ -74,6 +74,14 @@ def test_floor_at_1_1_lets_the_hard_fuse_trip_instead_of_looping_forever() -> No
     assert med._failure_streak >= med.settings.failure_streak_limit
 
 
+def test_downgrade_setting_accepts_zero_and_rejects_out_of_range_values() -> None:
+    fallback = Settings()
+    assert Settings.validate_patch({"downgrade_after_failures": 0}, fallback) == []
+    assert Settings.validate_patch({"downgrade_after_failures": 20}, fallback) == []
+    assert Settings.validate_patch({"downgrade_after_failures": -1}, fallback)
+    assert Settings.validate_patch({"downgrade_after_failures": 21}, fallback)
+
+
 def _frame():
     import numpy as np
     from shuabao.vision.capture import Frame

@@ -457,6 +457,12 @@ function applyStageTargets(settings: SettingsDTO): void {
   state.stage = Math.max(1, Math.min(Number(m[2]), STAGE_MAX[chapter] ?? Number(m[2])));
 }
 
+function applyDowngradeFailures(v: unknown): void {
+  if (typeof v !== "number" || !Number.isFinite(v)) return;
+  const input = document.getElementById("downgradeAfterFailures") as HTMLInputElement | null;
+  if (input) input.value = String(Math.max(0, Math.min(20, Math.trunc(v))));
+}
+
 function applyBuildAndSkills(settings: SettingsDTO): void {
   const skills = asStringList(settings.skills).slice(0, 4);
   if (!skills.length) return; // 空技能保持壳内现状，交给 preflight 报错
@@ -684,6 +690,7 @@ export function applySnapshot(snap: SnapshotDTO): void {
     applySwitches(settings);
     applyPrestige(settings);
     applyStageTargets(settings);
+    applyDowngradeFailures(settings.downgrade_after_failures);
     applyBuildAndSkills(settings);
     applyVisibleSettings();
     const roomName = asString(settings.room_name);
@@ -838,6 +845,12 @@ function wireIntents(): void {
   // 全局函数后钩子：每个全局操作挂一次钩子
   afterGlobalCall("setCycle", () => pushConfig({ cycle_num: clampCycle(Number(state.cycle)) }));
   afterGlobalCall("renderChapterStage", () => pushConfig({ stage_targets: [`${state.chapter}-${state.stage}`] }));
+  const downgrade = document.getElementById("downgradeAfterFailures") as HTMLInputElement | null;
+  downgrade?.addEventListener("change", () => {
+    const value = Math.max(0, Math.min(20, Math.trunc(Number(downgrade.value) || 0)));
+    downgrade.value = String(value);
+    pushConfig({ downgrade_after_failures: value });
+  });
   afterGlobalCall("renderSkillRank", pushSkills);
   // 羁绊配置按用户显式点击“保存羁绊”落盘，避免每次重绘都产生一次配置请求。
   afterGlobalCall("renderNegatives", pushNegatives);
