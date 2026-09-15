@@ -57,6 +57,8 @@ def _live_ocr():
     def shadow_predict(_frame, pid, slot_spec, panel_bbox=None):
         if ":desc:" in pid:
             return _Response()
+        if slot_spec.get("kind") == "rarity":
+            return _Response("N", 0.99)
         table = LIVE_TITLES_4 if pid.endswith(":4s") else LIVE_TITLES_3
         return table[slot_spec["index"]]
 

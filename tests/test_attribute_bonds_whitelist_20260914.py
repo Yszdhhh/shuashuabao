@@ -42,9 +42,9 @@ def test_owner_attribute_lines_are_whitelisted_outside_the_80_percent_gate() -> 
 
 
 def test_whitelist_order_economy_by_payback_then_basic_then_attribute_lines() -> None:
-    """KB 卡面：祝福净赚木材、经济~10 分钟回本、贪婪钥匙+150 木、挑战间接、成长~22 分钟。"""
+    """Owner 2026-09-15: economy precedes blessing, then payback order."""
     presets = list(_policy().bond_presets)
-    assert presets[:5] == ["祝福", "经济", "贪婪", "挑战", "成长"]
+    assert presets[:5] == ["经济", "祝福", "贪婪", "挑战", "成长"]
     assert presets.index("魔术") < presets.index("智力") < presets.index("封神")
 
 

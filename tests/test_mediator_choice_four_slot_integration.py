@@ -191,22 +191,14 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
 
     def test_5_four_slot_treasure_slot3_rarity_and_description_reading(self):
         med = self.med
-        # 4-slot treasure x center for slot3 = 1600 * 0.705 = 1128, cy for treasure sample in 900 = 0.300*900 = 270
-        # Card bbox width in 1600x900 is ~204x162
         bgr = np.zeros((900, 1600, 3), dtype=np.uint8)
-        w, h = int(1600 * 0.128), int(900 * 0.180) # 204 x 162
-        cx3, cy3 = int(1600 * 0.705), int(900 * 0.300)
-        x0, y0 = cx3 - w // 2, cy3 - h // 2
-        # Fill border ring with bright red/orange pixels to trigger 'red' rarity band
-        bgr[y0:y0+5, x0:x0+w] = [0, 0, 255] # Red BGR
-        bgr[y0+h-5:y0+h, x0:x0+w] = [0, 0, 255]
-        bgr[y0:y0+h, x0:x0+5] = [0, 0, 255]
-        bgr[y0:y0+h, x0+w-5:x0+w] = [0, 0, 255]
         frame = Frame(bgr, window_title="game", hwnd=1)
 
         mock_ocr = MagicMock()
         def shadow_predict(f, pid, slot_spec, panel_bbox=None):
             idx = slot_spec["index"]
+            if slot_spec.get("kind") == "rarity":
+                return DummyResponse(raw_text=["N", "R", "SR", "EX"][idx])
             if ":desc:" in pid or slot_spec.get("kind") == "treasure_desc":
                 desc = ["增伤", "增加暴击", "增加攻速", "降低攻速"][idx]
                 return DummyResponse(candidates=[DummyCandidate(desc)], raw_text=desc)
@@ -219,7 +211,7 @@ class TestMediatorChoiceFourSlotIntegration(unittest.TestCase):
         self.assertEqual(len(slots), 4)
         self.assertIn("降低攻速", slots[3]["description"])
         self.assertEqual(slots[3]["index"], 3)
-        # Assert rarity is extracted and matches red
+        # Rarity is read from the top badge, not the card border.
         self.assertEqual(slots[3]["rarity"], "red")
 
     def test_5b_ambiguous_four_slot_treasure_falls_back_to_three_slot_layout(self):
