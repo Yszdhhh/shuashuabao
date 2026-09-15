@@ -8038,7 +8038,13 @@ class Mediator:
         return False
 
     def _solo_heirloom_boss_is_clear(self, frame: Frame) -> bool:
-        """Require two fresh plaza reward frames before solo may leave Boss."""
+        """Two-frame reward proxy; not a visual proof that the Boss is absent.
+
+        No shipped target-panel/Boss-health template or paired live fixture
+        exists yet. Until one is supplied, this deliberately remains a
+        fail-closed reward proxy: uncertain frames keep observing and the
+        round deadline is the only terminal bound.
+        """
         clear = (
             self._top_bar_mode(frame) == "plaza"
             and self._heirloom_loot_popup_visible(frame)
@@ -15788,7 +15794,8 @@ class Mediator:
         ):
             # Solo owns the Boss damage. Do not borrow the passenger's
             # loot-or-timer exit: a live Boss still shares the plaza HUD.
-            # Only two fresh reward frames prove the Boss is gone.
+            # Two fresh reward frames are only a conservative proxy here;
+            # a true Boss-absence detector needs paired live evidence.
             if not self._solo_heirloom_boss_is_clear(frame):
                 print("[med] 单人传家宝 Boss 仍未确认结束，保持零输入观察")
                 return LoopAction.Continue
@@ -16435,7 +16442,7 @@ class Mediator:
                         self._solo_heirloom_boss_waiting = True
                         self._solo_heirloom_boss_clear_frames = 0
                         self._solo_heirloom_boss_clear_last_frame = None
-                        print("[med] 单人传家宝 Boss 已点，等待 Boss 消失后的两帧掉落证据（零动作）")
+                        print("[med] 单人传家宝 Boss 已点，等待两帧掉落代理证据（当前无 Boss 血条模板，零动作）")
             self._main_line_since = now
             return LoopAction.Continue
 

@@ -226,7 +226,7 @@ def _heirloom_wait(med: Mediator, _waited: float) -> None:
     med._solo_heirloom_boss_clear_frames = 0
 
 
-def test_solo_heirloom_loot_without_secret_quits_as_victory() -> None:
+def test_solo_heirloom_two_reward_proxy_frames_without_secret_quit_as_victory() -> None:
     med = _med()
     _heirloom_wait(med, 10.0)
     _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=True)
@@ -246,7 +246,7 @@ def test_solo_heirloom_old_timer_never_authorizes_exit_while_boss_is_unclear() -
     assert med._solo_heirloom_boss_waiting
 
 
-def test_solo_heirloom_loot_with_secret_goes_straight_to_the_rift() -> None:
+def test_solo_heirloom_two_reward_proxy_frames_with_secret_enter_rift_route() -> None:
     med = _med(auto_secret_realm=True)
     _heirloom_wait(med, 10.0)
     _tick_post_game(med, None, _top_bar_mode="plaza", _heirloom_loot_popup_visible=True)
