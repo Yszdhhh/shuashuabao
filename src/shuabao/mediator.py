@@ -2277,6 +2277,35 @@ class Mediator:
         self._pointer_needs_park = False
         return None
 
+    def _has_active_transaction(self, frame: Frame | None = None) -> bool:
+        """Unified arbitration guard: True if any transaction is in progress.
+
+        Opportunistic inputs (artifacts, devour dan, Z pickup) must yield
+        whenever another subsystem is mid-transaction.
+        """
+        # 1. Generic pending action awaiting verification/confirmation
+        if self._pending_action is not None:
+            return True
+        # 2. Equipment FSM pending slot lease/verification
+        eq_fsm = getattr(self, "_equipment_fsm", None)
+        if eq_fsm is not None and eq_fsm.pending_slot is not None:
+            return True
+        # 3. Equipment affix choice modal visible on frame
+        if frame is not None and self._find_equipment_affix_choice(frame) is not None:
+            return True
+        # 4. Evolve transaction: feedback pending or awaiting hero pick
+        if self._evolve_hero_choice_pending():
+            return True
+        # 5. Merchant transaction: VERIFYING phase
+        merchant_fsm = getattr(self, "_merchant_fsm", None)
+        if merchant_fsm is not None and getattr(merchant_fsm, "phase", None) is MerchantPhase.VERIFYING:
+            return True
+        # 6. Public bag transfer in progress
+        bag_fsm = getattr(self, "_public_bag_fsm", None)
+        if bag_fsm is not None and getattr(bag_fsm, "active", False):
+            return True
+        return False
+
     def act_move(self, x: int, y: int, reason: str = "") -> bool:
         """Move the pointer to frame point (x, y) without pressing a button."""
         mover = getattr(self.executor, "move", None)
@@ -4323,10 +4352,10 @@ class Mediator:
             wood = getattr(self, "_wood_balance", None)
             if wood is not None and wood >= self._BOND_HIGH_WOOD:
                 cap = 5
-            elif wood is not None and wood < self._BOND_LOW_WOOD:
-                cap = 1
-            elif wood is not None:
+            elif wood is not None and wood >= self._BOND_LOW_WOOD:
                 cap = 2
+            elif wood is not None:
+                cap = 1
             else:
                 elapsed = self._round_elapsed_s()
                 cap = self._BOND_VISIT_PICKS_OPENING if elapsed is not None and elapsed < 60 else self._BOND_VISIT_PICKS
@@ -4376,10 +4405,10 @@ class Mediator:
 
         Order of reasons:
           1. skill backlog >= 8 -> G (urgent pre-emption, regardless of wood)
-          2. basic bonds < 80% and F can progress (wood >= 1000, or 300-1000 with no skill backlog) -> F
+          2. basic bonds < 80% and F can progress (wood >= 1000) -> F
           3. skill backlog >= 4 -> G (high priority over normal cycle when wood < 1000)
           4. normal cycle step:
-             - bond: skip if blocked (wood < price), visit capped, or wood < 300
+             - bond: skip if blocked (wood < price) or visit capped
              - skill/treasure: skip if badge 0 or visit capped
         Unreadable badges/balances never skip a step.
         """
@@ -4412,10 +4441,9 @@ class Mediator:
         ):
             return "skill", f"技能积压 {skill} ≥ 8（紧急强抢占），先点技能"
 
-        # 2. 基础羁绊 < 80% 优先级：木材 >= 1000 狂暴发育，或 300~1000 均衡期且技能无积压时，羁绊优先
+        # 2. 基础羁绊 < 80% 优先级：木材 >= 1000 狂暴发育期，羁绊优先强抢占
         bond_blocked = self._bond_step_blocked(frame, now)
-        skill_backlog = skill is not None and skill >= self._skill_backlog_force()
-        bond_priority_affordable = wood is None or wood >= self._BOND_HIGH_WOOD or (wood >= self._BOND_LOW_WOOD and not skill_backlog)
+        bond_priority_affordable = wood is None or wood >= self._BOND_HIGH_WOOD
         if (
             bond_blocked is None
             and not bond_held
@@ -4434,14 +4462,12 @@ class Mediator:
         ):
             return "skill", f"技能积压 {skill} ≥ {self._skill_backlog_force()}，先点技能"
 
-        # 4. 轮换到 bond 时的调度：木材不足/受限时让步
+        # 4. 轮换到 bond 时的调度
         if step == "bond":
             if bond_blocked is not None:
                 return None, f"羁绊暂不推进（{bond_blocked}）"
             if bond_held:
                 return None, "本轮羁绊已拿满，轮换下一步"
-            if wood is not None and wood < self._BOND_LOW_WOOD:
-                return None, f"木材 {wood} < {self._BOND_LOW_WOOD}，低木材先处理技能，转下一步"
 
         # 5. 轮换到 skill/treasure 时的调度
         if step == "skill" and skill == 0:
@@ -16905,6 +16931,7 @@ class Mediator:
             not self._passenger_mode()
             and self._panel_state == PanelState.CLOSED
             and anchor is None
+            and not self._has_active_transaction(frame)
         ):
             # HUD Opportunistic 微操：神器 CD 到期独立触发
             artifact_res = self._maybe_fire_artifacts(frame)
@@ -16923,9 +16950,10 @@ class Mediator:
                     self._main_line_since = now
                     return dan_res
 
-            # 溢出安全拾取：只有物品栏已满且背包有空位时触发 [Z]
+            # 溢出安全拾取：非 pickup 轮换步时，当物品栏溢出且背包有空位触发 [Z]
             if (
-                now >= self._pickup_next_at
+                self._l1_cycle_step != "pickup"
+                and now >= self._pickup_next_at
                 and self._hud_item_bar_overflowed(frame)
                 and self._pickup_bag_has_space(frame)
             ):
@@ -17018,7 +17046,11 @@ class Mediator:
                 self._advance_l1_cycle("equipment")
                 return LoopAction.Continue
             result = self._maybe_upgrade_equipment(frame)
-            if self._find_equipment_affix_choice(frame) is None:
+            if (
+                self._equipment_fsm.pending_slot is None
+                and self._pending_action is None
+                and self._find_equipment_affix_choice(frame) is None
+            ):
                 self._advance_l1_cycle("equipment")
             self._main_line_since = now
             return result

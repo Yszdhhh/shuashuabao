@@ -58,10 +58,12 @@ def _run(med: Mediator, *, zero_eight: set[int], turns_green: set[int], max_tick
 
 
 def test_sweep_clicks_each_available_card_once_and_never_0_8() -> None:
-    clicks = _run(_med(), zero_eight={2, 3, 4, 6}, turns_green={0, 1, 5, 7})
+    # 4 (key) ignores ambiguous 0/8 visual noise per commit 6164768 and gets clicked;
+    # 2 (gem), 3 (loot), 6 (blessing) are true 0/8 and skipped.
+    clicks = _run(_med(), zero_eight={2, 3, 4, 6}, turns_green={0, 1, 4, 5, 7})
     assert clicks == [
         "ArchiveChallenge-skill", "ArchiveChallenge-strengthen",
-        "ArchiveChallenge-recast", "ArchiveChallenge-skill2",
+        "ArchiveChallenge-key", "ArchiveChallenge-recast", "ArchiveChallenge-skill2",
     ]
 
 

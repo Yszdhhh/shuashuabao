@@ -69,7 +69,8 @@ def test_a_skill_visit_without_a_pick_backs_the_force_off() -> None:
 
 
 def test_low_wood_goes_to_skills() -> None:
-    assert _open(_med(), wood=300, skill=3, treasure=2) == ["OpenSkillPanel"]
+    # wood < price (e.g. 10 < 20) skips F and goes to skills
+    assert _open(_med(), wood=10, skill=3, treasure=2) == ["OpenSkillPanel"]
 
 
 def test_zero_badges_skip_skill_and_treasure_steps() -> None:
@@ -109,20 +110,20 @@ def test_skill_visit_without_selection_arms_the_idle_backoff() -> None:
 
 
 def test_bond_visit_cap_rotates_and_resumes_at_the_next_bond_step() -> None:
-    """一次 F 最多 3 张（开局 1 分钟 6 张），轮换走过别的步骤后回到另一个 bond 位再恢复。"""
+    """轮换走过别的步骤后回到另一个 bond 位再恢复。wood=500 时 cap=2。"""
     med = _med()
     med._round_started_at = time.time() - 300
     med._visit_kind = "bond"
-    med._visit_picks = 3
+    med._visit_picks = 2
     med._l1_cycle_step = "bond"
     med._l1_cycle_index = 0
-    clicks = _open(med, wood=1800, skill=2, treasure=0, ticks=1)
+    clicks = _open(med, wood=500, skill=2, treasure=0, ticks=1)
     assert clicks == [] and med._l1_cycle_step == "skill", "capped F -> the lock yields"
-    assert _open(med, wood=1800, skill=2, treasure=0) == ["OpenSkillPanel"]
+    assert _open(med, wood=500, skill=2, treasure=0) == ["OpenSkillPanel"]
     med._panel_state = med._panel_state.__class__.CLOSED
     med._l1_cycle_step = "bond"
     med._l1_cycle_index = 2
-    assert _open(med, wood=1800, skill=2, treasure=0) == ["OpenBondPanel"], "next bond step resumes F"
+    assert _open(med, wood=500, skill=2, treasure=0) == ["OpenBondPanel"], "next bond step resumes F"
 
 
 def test_opening_minute_allows_six_bond_picks_per_visit() -> None:

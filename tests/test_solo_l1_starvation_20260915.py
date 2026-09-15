@@ -81,7 +81,8 @@ def _open(med: Mediator, frame: Frame, wood: int | None) -> list[str]:
 def test_low_wood_releases_the_80_percent_bond_lock_to_skills() -> None:
     med = _med()
     assert med._bond_base_progress_pending(), "fresh round: basic bonds far below 80%"
-    assert _open(med, _frame("hud_wood_221_f0300.png"), wood=221) == ["OpenSkillPanel"]
+    # wood < _bond_next_price() (10 < 20): skips F and advances to skill
+    assert _open(med, _frame("hud_wood_221_f0300.png"), wood=10) == ["OpenSkillPanel"]
 
 
 def test_enough_wood_keeps_the_bond_lock() -> None:
@@ -410,4 +411,94 @@ def test_boss_alive_veto_blocks_heirloom_clear() -> None:
             frame2 = _frame("hud_wood_221_f0300.png")
             assert not med._solo_heirloom_boss_is_clear(frame)
             assert med._solo_heirloom_boss_is_clear(frame2)
+
+
+def test_equipment_transaction_ownership_and_affix_preemption() -> None:
+    """真实时序测试：
+    1. 刚点击不 advance；
+    2. pending 期间不 advance；
+    3. pending 解锁且无词缀才 advance；
+    4. 延迟词缀出现时不得让 pickup/神器等先动作。
+    """
+    med = _med()
+    med._l1_cycle_step = "equipment"
+    med._l1_cycle_index = med._L1_CYCLE_ORDER.index("equipment")
+    med.settings.auto_weapon = True
+    med._auto_task_done = True
+    frame = _frame("hud_wood_1111_f0200.png")
+
+    now = 100.0
+    hit = MatchResult("slot_1", 0.95, 1087, 737, 40, 40, 1107, 757)
+    affix_hit = MatchResult("affix_row_0", 0.95, 650, 240, 300, 35, 800, 257)
+
+    with contextlib.ExitStack() as stack:
+        stack.enter_context(patch("time.time", return_value=now))
+        stack.enter_context(patch.object(med, "_post_game_state", return_value=None))
+        stack.enter_context(patch.object(med, "_find_stage_page", return_value=False))
+        stack.enter_context(patch.object(med, "_selection_anchor", return_value=None))
+        stack.enter_context(patch.object(med, "_ensure_auto_task_enabled", return_value=None))
+        stack.enter_context(patch.object(med, "_ensure_challenge_buttons", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_ensure_hero_panel_focus", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_click_tqtz", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_clear_pressure_monsters", return_value=None))
+        stack.enter_context(patch.object(med, "_handle_self_opened_compact_panel", return_value=None))
+        stack.enter_context(patch.object(med, "_maybe_open_choice_panel", return_value=None))
+        stack.enter_context(patch.object(med, "_equipment_slot_one_occupied", return_value=True))
+        stack.enter_context(patch.object(med, "_black_merchant_present", return_value=False))
+        stack.enter_context(patch.object(med, "_hud_button_hit", return_value=hit))
+        stack.enter_context(patch.object(med, "_equipment_slot_fingerprint", return_value="fp_initial"))
+        stack.enter_context(patch.object(med, "act_right_click", return_value=True))
+        overflow_mock = stack.enter_context(patch.object(med, "_hud_item_bar_overflowed", return_value=False))
+        stack.enter_context(patch.object(med, "_pickup_bag_has_space", return_value=True))
+        mock_art = stack.enter_context(patch.object(med, "_maybe_fire_artifacts", return_value=None))
+        mock_key = stack.enter_context(patch.object(med, "act_key", return_value=True))
+        find_affix_mock = stack.enter_context(patch.object(med, "_find_equipment_affix_choice", return_value=None))
+
+        # 1. 刚点击：发送右键升级，进入 pending，不得 advance
+        med._equipment_next_at = now - 1.0
+        med._pickup_next_at = now + 10.0
+        res = med._tick_main_line(frame)
+        assert res == LoopAction.Continue
+        assert med._equipment_fsm.pending_slot == 1
+        assert med._l1_cycle_step == "equipment", "刚点击必须留在 equipment"
+        assert med._has_active_transaction(frame) is True, "pending 期间事务处于活跃状态"
+
+        # 2. pending 期间（租约未到期）：继续留在 equipment，不得 advance，神器/拾取不得抢占
+        med._equipment_pending_until = now + 1.0
+        med._pickup_next_at = now - 1.0
+        overflow_mock.return_value = True
+        mock_art.return_value = LoopAction.Continue
+        mock_art.reset_mock()
+        mock_key.reset_mock()
+        res = med._tick_main_line(frame)
+        assert res == LoopAction.Continue
+        assert med._l1_cycle_step == "equipment", "pending 期间必须留在 equipment"
+        mock_art.assert_not_called()
+        mock_key.assert_not_called()
+
+        # 3. 延迟词缀出现：pending 解锁但有词缀弹窗，不得 advance，且微操层不得抢占
+        med._equipment_pending_until = 0.0
+        med._equipment_fsm = med._equipment_fsm.observe(now, current_fingerprint="fp_changed")
+        assert med._equipment_fsm.pending_slot is None
+        find_affix_mock.return_value = affix_hit
+        mock_art.reset_mock()
+        mock_key.reset_mock()
+        assert med._has_active_transaction(frame) is True
+        res = med._tick_main_line(frame)
+        assert res == LoopAction.Continue
+        assert med._l1_cycle_step == "equipment", "有词缀弹窗时不得 advance"
+        mock_art.assert_not_called()
+        mock_key.assert_not_called()
+
+        # 4. pending 解锁且无词缀：正常 advance 到下一步（pickup）
+        find_affix_mock.return_value = None
+        overflow_mock.return_value = False
+        mock_art.return_value = None
+        med._equipment_next_at = now + 10.0
+        med._equipment_round_next_at = now + 10.0
+        assert med._has_active_transaction(frame) is False
+        res = med._tick_main_line(frame)
+        assert res == LoopAction.Continue
+        assert med._l1_cycle_step == "pickup", "pending 解锁且无词缀才 advance 到下一步"
+
 
