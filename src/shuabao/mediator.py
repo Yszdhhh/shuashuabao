@@ -988,6 +988,9 @@ class Mediator:
         self._heirloom_boss_clicked_at: float | None = None
         self._heirloom_boss_confirm_unconfirmed: bool = False
         self._hitch_heirloom_exit_since: float | None = None
+        self._solo_heirloom_boss_waiting: bool = False
+        self._solo_heirloom_boss_clear_frames: int = 0
+        self._solo_heirloom_boss_clear_last_frame: Frame | None = None
         self._passenger_heirloom_for_secret = False
         # Heirloom label OCR fallback: last (box, frame) sighting + throttle.
         self._hub_label_ocr_last: tuple | None = None
@@ -6534,6 +6537,12 @@ class Mediator:
         """Never click a card that shows 已挑战 or a 0/8 counter."""
         if self._archive_challenge_completed(frame, card_index):
             return "已挑战"
+        # The key card's tiny 0/8 counter was repeatedly read from its
+        # decorative border in solo live runs. A visible green completion
+        # mark remains authoritative; every other key state gets one sweep
+        # click and the normal single verify click.
+        if card_index == 4:
+            return None
         if self._archive_hitch_card_unavailable(frame, card_index):
             return "0/8 次数已用完"
         return None
@@ -8028,6 +8037,21 @@ class Mediator:
                         return True
         return False
 
+    def _solo_heirloom_boss_is_clear(self, frame: Frame) -> bool:
+        """Require two fresh plaza reward frames before solo may leave Boss."""
+        clear = (
+            self._top_bar_mode(frame) == "plaza"
+            and self._heirloom_loot_popup_visible(frame)
+        )
+        if not clear:
+            self._solo_heirloom_boss_clear_frames = 0
+            self._solo_heirloom_boss_clear_last_frame = None
+            return False
+        if frame is not self._solo_heirloom_boss_clear_last_frame:
+            self._solo_heirloom_boss_clear_last_frame = frame
+            self._solo_heirloom_boss_clear_frames += 1
+        return self._solo_heirloom_boss_clear_frames >= 2
+
     def _maybe_ensure_hero_panel_focus(self, frame: Frame, now: float) -> LoopAction | None:
         """Only recover hero focus from two distinct, positively identified HUD frames."""
         if self._panel_state != PanelState.CLOSED:
@@ -8059,7 +8083,7 @@ class Mediator:
             self._hero_focus_last_frame_id = None
             return None
         # The bag page and its item tooltips cover the hero strip; that is our
-        # own UI, not lost hero focus.  F1 there only fights the bag hop.
+        # own UI, not lost hero focus. F2 there would only fight the bag hop.
         bag_fsm = getattr(self, "_public_bag_fsm", None)
         if (bag_fsm is not None and bag_fsm.active) or self._bag_layout(frame) is not None:
             self._hero_focus_lost_count = 0
@@ -8078,9 +8102,9 @@ class Mediator:
             print("[med] 英雄面板缺失候选第 1 帧，等待不同 HUD 帧确认（零动作）")
             return None
 
-        print("[med] 连续两个不同 HUD 帧均缺英雄面板，发送 F1 切回英雄")
+        print("[med] 连续两个不同 HUD 帧均缺英雄面板，发送 F2 回归阵地")
         if not getattr(self.settings, "dry_run", False):
-            self.act_key("F1", "HeroFocusFallback")
+            self.act_key("F2", "HeroFocusFallback")
         self._hero_focus_lost_count = 0
         self._hero_focus_last_frame_id = None
         self._hero_focus_next_check_at = now + 1.5
@@ -8537,6 +8561,7 @@ class Mediator:
     # only on arrival (live 2026-09-14: 3 clicks 3s apart, gave up 2s after
     # the last one, no dialog).
     _RIFT_NPC_WALK_S = 5.0
+    _RIFT_NPC_RETRY_COOLDOWN_S = 15.0
 
     def _rift_npc_body_hit(self, frame: Frame, label: MatchResult) -> MatchResult:
         """The 大秘境 template is the floating caption; the NPC stands under it.
@@ -9715,6 +9740,9 @@ class Mediator:
             self._archive_challenge_confirm_attempts = 0
             self._heirloom_boss_clicked_at = None
             self._heirloom_boss_confirm_unconfirmed = False
+            self._solo_heirloom_boss_waiting = False
+            self._solo_heirloom_boss_clear_frames = 0
+            self._solo_heirloom_boss_clear_last_frame = None
             self._passenger_heirloom_for_secret = False
             self._time_cave_boss_search_attempts = 0
             self._hitch_postgame_hero_selected = False
@@ -15689,7 +15717,10 @@ class Mediator:
         if not secret_entry_observation and self._unattended_recovery_enabled() and (
             post_game is not None or self._post_game_pending
         ):
-            if post_game == "POST_VICTORY" and getattr(self, "_hitch_heirloom_exit_since", None):
+            if post_game == "POST_VICTORY" and (
+                getattr(self, "_hitch_heirloom_exit_since", None)
+                or getattr(self, "_solo_heirloom_boss_waiting", False)
+            ):
                 # The heirloom Boss's own Victory opens a new post-game
                 # transaction; the old budget (from the first Victory, kept
                 # across the heirloom wait) would quit before the rift.
@@ -15752,7 +15783,36 @@ class Mediator:
         if (
             not secret_entry_observation
             and self._unattended_recovery_enabled()
+            and getattr(self, "_solo_heirloom_boss_waiting", False)
+            and post_game != "POST_VICTORY"
+        ):
+            # Solo owns the Boss damage. Do not borrow the passenger's
+            # loot-or-timer exit: a live Boss still shares the plaza HUD.
+            # Only two fresh reward frames prove the Boss is gone.
+            if not self._solo_heirloom_boss_is_clear(frame):
+                print("[med] 单人传家宝 Boss 仍未确认结束，保持零输入观察")
+                return LoopAction.Continue
+            self._solo_heirloom_boss_waiting = False
+            self._hitch_heirloom_exit_since = None
+            self._hitch_postgame_started_at = now
+            if self.settings.auto_secret_realm:
+                print("[med] 单人传家宝 Boss 已清除，进入大秘境路线")
+                self._post_game_pending = True
+                self._post_game_route = "secret"
+                self._secret_realm_request_pending = False
+                self._secret_realm_request_since = None
+                self._secret_realm_request_attempts = 0
+                self._secret_realm_next_observe_at = 0.0
+                return LoopAction.Continue
+            print("[med] 单人传家宝 Boss 已清除，退出当前局")
+            self._record_round_outcome(RoundOutcome.VICTORY, "solo heirloom boss clear")
+            self.set_phase(Phase.QUIT, "solo heirloom boss clear")
+            return LoopAction.Continue
+        if (
+            not secret_entry_observation
+            and self._unattended_recovery_enabled()
             and getattr(self, "_hitch_heirloom_exit_since", None)
+            and self._passenger_mode()
         ):
             # User rule (2026-09-12) after the heirloom Boss is sent:
             #   1. the right-side equipment list and still on the plaza -> exit;
@@ -15982,9 +16042,11 @@ class Mediator:
             and self._secret_realm_request_pending
             and self._secret_realm_request_since is not None
             and now - self._secret_realm_request_since >= max(3.0, min(float(self.settings.query_timeout), 15.0))
+            and post_game != "NPC_HUB"
         ):
             if self._unattended_recovery_enabled():
-                return self._abandon_secret_realm("请求超时")
+                print("[med] 大秘境请求未回到 NPC 广场，保持零输入等待页面归类（不退出当前局）")
+                return LoopAction.Continue
             print("[med] 大秘境请求超时，Fail-Closed 停止运行")
             self.set_phase(Phase.ERROR, "secret realm request timeout")
             self.stop()
@@ -16022,8 +16084,12 @@ class Mediator:
             self._main_line_since = now
             return self._maybe_resume_paused(frame, now)
         if post_game == "POST_VICTORY":
-            if self._unattended_recovery_enabled() and getattr(self, "_hitch_heirloom_exit_since", None):
+            if self._unattended_recovery_enabled() and (
+                getattr(self, "_hitch_heirloom_exit_since", None)
+                or getattr(self, "_solo_heirloom_boss_waiting", False)
+            ):
                 self._hitch_heirloom_exit_since = None
+                self._solo_heirloom_boss_waiting = False
                 if self._follow_enabled() and self.settings.auto_secret_realm:
                     self._passenger_heirloom_for_secret = True
                     print("[med] 跟车传家宝 Victory 已确认，继续游戏后进入秘境")
@@ -16261,7 +16327,16 @@ class Mediator:
                     return LoopAction.Continue
                 if self._secret_realm_request_attempts >= 3 or elapsed >= timeout:
                     if self._unattended_recovery_enabled():
-                        return self._abandon_secret_realm("NPC 未能打开确认框")
+                        # A right-click only proves that SendInput accepted it;
+                        # it does not prove the hero reached the NPC. Keep the
+                        # rift route alive, then retry a small batch after a
+                        # quiet cooldown. The round deadline remains the only
+                        # normal terminal bound for an unconfirmed request.
+                        self._secret_realm_request_attempts = 0
+                        self._secret_realm_request_since = now
+                        self._secret_realm_next_observe_at = now + self._RIFT_NPC_RETRY_COOLDOWN_S
+                        print("[med] 大秘境 NPC 未出现确认框，15s 零输入后重新尝试（不退出当前局）")
+                        return LoopAction.Continue
                     print("[med] 大秘境 NPC 未能打开确认框，Fail-Closed 停止运行")
                     self.set_phase(Phase.ERROR, "great rift npc request timeout")
                     self.stop()
@@ -16346,7 +16421,7 @@ class Mediator:
                     self._post_game_route = "boss_active"
                     self._post_game_pending = False
                     self._post_game_close_attempts = 0
-                    if self._unattended_recovery_enabled():
+                    if self._passenger_mode() and self._unattended_recovery_enabled():
                         self._hitch_heirloom_exit_since = now
                         self._hitch_instance_seen = False
                         self._hitch_instance_frames = 0
@@ -16357,7 +16432,10 @@ class Mediator:
                             f"否则 {self._heirloom_exit_window_s():.0f}s 后{then}；进入秘境/团本则等失败再退"
                         )
                     else:
-                        print("[med] 传家宝 Boss 已进入挑战进行中，等待真实 Victory（零动作）")
+                        self._solo_heirloom_boss_waiting = True
+                        self._solo_heirloom_boss_clear_frames = 0
+                        self._solo_heirloom_boss_clear_last_frame = None
+                        print("[med] 单人传家宝 Boss 已点，等待 Boss 消失后的两帧掉落证据（零动作）")
             self._main_line_since = now
             return LoopAction.Continue
 

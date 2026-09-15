@@ -250,6 +250,21 @@ class HitchTimeCaveBossTests(unittest.TestCase):
 
 
 class HitchArchiveChallengeRejectionTests(unittest.TestCase):
+    def test_key_card_ignores_ambiguous_zero_of_eight_and_is_verified(self) -> None:
+        med = _hitch_mediator()
+        frame = _frame()
+        med._archive_challenge_index = 4
+        key = MatchResult("key", 0.95, 300, 200, 80, 60, 340, 230)
+        reasons: list[str] = []
+        with patch.object(med, "_archive_challenge_completed", return_value=False), \
+                patch.object(med, "_archive_hitch_card_unavailable", return_value=True), \
+                patch.object(med, "_find_archive_challenge_card", return_value=key), \
+                patch.object(med, "act_click", side_effect=lambda _hit, reason: reasons.append(reason) or True):
+            self.assertIs(med._maybe_click_archive_challenge(frame, 1.0), LoopAction.Continue)
+            med._archive_challenge_index = 8
+            self.assertIs(med._maybe_click_archive_challenge(frame, 2.0), LoopAction.Continue)
+        self.assertEqual(reasons, ["ArchiveChallenge-key", "ArchiveChallenge-key-verify"])
+
     def test_hitch_archive_challenge_click_rejection_cooldown_and_skip(self) -> None:
         med = _hitch_mediator()
         med.settings.ui_action_interval_s = 1.0  # 明确冷却时长，时间线可推演

@@ -134,8 +134,8 @@ def test_wood_counter_ocr_on_real_frames(name: str, wood: int) -> None:
         client.close()
 
 
-def test_monster_selected_during_bond_cooldown_gets_f1_hero_focus() -> None:
-    """实机 000229 末段：选中「龙人卫士」，英雄面板标志全无；F 冷却占住 tick，F1 恢复从未执行。"""
+def test_monster_selected_during_bond_cooldown_gets_f2_hero_focus() -> None:
+    """选中小怪时，两个独立 HUD 帧后才以 F2 回归阵地。"""
     med = _med()
     med._round_started_at = time.time() - 900
     med._round_deadline = time.time() + 2700
@@ -144,7 +144,7 @@ def test_monster_selected_during_bond_cooldown_gets_f1_hero_focus() -> None:
     med._panel_kind = "bond"
     med._panel_state = PanelState.COOLDOWN
     med._panel_cooldown_until["bond"] = time.time() + 60
-    keys: list[str] = []
+    keys: list[tuple[str, str]] = []
     clock = [time.time()]
 
     def tick_clock() -> float:  # live ticks are ~1.5s apart; the focus check is 1s-throttled
@@ -152,7 +152,7 @@ def test_monster_selected_during_bond_cooldown_gets_f1_hero_focus() -> None:
 
     with patch("shuabao.mediator.time.time", side_effect=tick_clock), \
          patch("shuabao.input.keyboard_mouse.is_current_process_elevated", return_value=True), \
-         patch.object(med, "act_key", side_effect=lambda key, reason, *a, **k: keys.append(reason) or True), \
+         patch.object(med, "act_key", side_effect=lambda key, reason, *a, **k: keys.append((key, reason)) or True), \
          patch.object(med, "act_click", return_value=True), \
          patch.object(med, "act_right_click", return_value=True), \
          patch.object(med, "_hud_wood_balance", return_value=3346):
@@ -160,9 +160,9 @@ def test_monster_selected_during_bond_cooldown_gets_f1_hero_focus() -> None:
                      "monster_selected_f0408.png", "monster_selected_f0412.png"):
             med._tick_main_line(_frame(name))
             clock[0] += 1.5
-            if "HeroFocusFallback" in keys:
+            if ("F2", "HeroFocusFallback") in keys:
                 break
-    assert "HeroFocusFallback" in keys, keys
+    assert ("F2", "HeroFocusFallback") in keys, keys
 
 
 def test_bond_visit_advances_after_three_confirmed_picks() -> None:
