@@ -1084,6 +1084,11 @@ class Mediator:
         self._l1_cycle_step = "merchant" if self._passenger_mode() else "bond"
         self._l1_cycle_owned_panel = False
         self._l1_cycle_selected = False
+        # B1 抽干上限：同一步骤单次停留最多 3 次成功选择或 30s（见
+        # _l1_step_visit_exhausted）；set_phase(MAIN_LINE) 每局重置。
+        self._l1_cycle_last_advance_at: float = time.time()
+        self._l1_cycle_step_successes: int = 0
+        self._panel_visit_force_advance: bool = False
         # 三面板主动打开时间戳（G/F/V）：0.0 = 本局从未成功打开 → 首次立即允许；
         # 成功打开后按 settings.choice_interval 限制同 kind 重开。set_phase(MAIN_LINE)
         # 每局重置。
@@ -4120,6 +4125,8 @@ class Mediator:
             # 旧状态落点：直接回到环首，不再永久停车。
             self._l1_cycle_step = order[0]
             self._l1_cycle_index = 0
+            self._l1_cycle_last_advance_at = time.time()
+            self._l1_cycle_step_successes = 0
             return
         # The order repeats bond/skill, so the name alone does not say where we
         # are: order.index() always found the first pair and skill -> bond ->
@@ -4144,6 +4151,20 @@ class Mediator:
             self._inventory_next_at = 0.0
             self._devour_dan_consecutive_clicks = 0
         self._l1_cycle_step = nxt
+        self._l1_cycle_last_advance_at = time.time()
+        self._l1_cycle_step_successes = 0
+
+    # B1 抽干上限：同一步骤（skill/bond/treasure 抽卡面板）单次停留最多
+    # 3 次成功选择或 30s 即强制推进，避免面板持续有货（如羁绊一直有新卡）
+    # 时把整环卡死在同一步，饿死其余步骤（live 000229 复盘）。
+    _L1_STEP_VISIT_MAX_SUCCESSES = 3
+    _L1_STEP_VISIT_MAX_SECONDS = 30.0
+
+    def _l1_step_visit_exhausted(self, now: float) -> bool:
+        if getattr(self, "_l1_cycle_step_successes", 0) >= self._L1_STEP_VISIT_MAX_SUCCESSES:
+            return True
+        started = getattr(self, "_l1_cycle_last_advance_at", None)
+        return started is not None and now - started >= self._L1_STEP_VISIT_MAX_SECONDS
 
     # Owner 2026-09-15: below 500 wood the bond panel cannot buy anything.
     _BOND_MIN_WOOD = 500
@@ -4209,6 +4230,12 @@ class Mediator:
                 self._advance_l1_cycle("bond")
                 return LoopAction.Continue
         if target in ("skill", "bond", "treasure"):
+            if target == self._l1_cycle_step and self._l1_step_visit_exhausted(now):
+                if target == "bond":
+                    self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
+                print(f"[L1] {target} 本次停留已达 3 次成功选择/30s 上限，推进下一步（抽干上限）")
+                self._advance_l1_cycle(target)
+                return LoopAction.Continue
             panel_enabled = (
                 target == "skill"
                 or (target == "bond" and getattr(self.settings, "auto_bond", True))
@@ -9168,6 +9195,8 @@ class Mediator:
             self._public_bag_failed_sources = {}
             self._public_bag_personal_leftover = False
             self._l1_cycle_last_advance_at = time.time()
+            self._l1_cycle_step_successes = 0
+            self._panel_visit_force_advance = False
             self._hitch_last_treasure_kill_balance = None
             self._hitch_treasure_total_refreshes = 0
             self._hitch_last_treasure_unconfirmed_fp = None
@@ -14446,6 +14475,7 @@ class Mediator:
                 and self._panel_kind in ("skill", "bond", "treasure")
             ):
                 self._l1_cycle_selected = True
+                self._l1_cycle_step_successes = getattr(self, "_l1_cycle_step_successes", 0) + 1
             if self._panel_kind == "skill":
                 self._last_skill_panel = 0.0
             elif self._panel_kind == "bond":
@@ -14495,6 +14525,8 @@ class Mediator:
         cycle_kind = self._panel_kind
         cycle_owned = self._l1_cycle_owned_panel
         cycle_selected = self._l1_cycle_selected
+        force_advance = getattr(self, "_panel_visit_force_advance", False)
+        self._panel_visit_force_advance = False
         self._panel_state = PanelState.CLOSED
         self._panel_kind = None
         self._panel_episode_id = None
@@ -14533,15 +14565,18 @@ class Mediator:
         if (
             cycle_owned
             and cycle_kind == self._l1_cycle_step
-            and not cycle_selected
             and cycle_kind in ("skill", "bond", "treasure")
+            and (not cycle_selected or force_advance)
         ):
             nxt = {
                 "bond": "技能 G",
                 "skill": "宝物 V",
                 "treasure": "支线（进化/装备/黑商）",
             }.get(cycle_kind, "下一步")
-            print(f"[L1] {cycle_kind} 没有新的可拿，转入{nxt}")
+            if force_advance:
+                print(f"[L1] {cycle_kind} 单次停留已达 3 次成功选择/30s 抽干上限，转入{nxt}")
+            else:
+                print(f"[L1] {cycle_kind} 没有新的可拿，转入{nxt}")
             self._advance_l1_cycle(cycle_kind)
 
     def panel_episode_diagnostics(self) -> dict:
@@ -14794,6 +14829,20 @@ class Mediator:
                 self._finish_panel_episode()
                 return LoopAction.Continue
             if self._hitch_fail_close_choice_panel(frame, now):
+                return LoopAction.Continue
+            if (
+                self._l1_cycle_owned_panel
+                and self._panel_kind == self._l1_cycle_step
+                and self._panel_kind in ("skill", "bond", "treasure")
+                and self._l1_step_visit_exhausted(now)
+            ):
+                if self._panel_kind == "bond":
+                    self._bond_idle_until = now + self._BOND_IDLE_BACKOFF_S
+                print(f"[L1] {self._panel_kind} 单次停留已达 3 次成功选择/30s 上限，转 CLOSING 收口推进下一步")
+                self._panel_visit_force_advance = True
+                self._panel_state = PanelState.CLOSING
+                self._panel_closing_attempts = 0
+                self._panel_closing_started_at = now
                 return LoopAction.Continue
             if now < self._selection_click_cooldown_until:
                 print("[L1] 选择面板等待输入间隔…")
