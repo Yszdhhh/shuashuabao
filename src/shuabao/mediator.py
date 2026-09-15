@@ -645,6 +645,62 @@ class Mediator:
         "bond": 0.333,
         "card": 0.333,
     }
+    _RARITY_LETTER_TO_BAND = {
+        "EX": "red",
+        "UR": "red",
+        "SSR": "orange",
+        "SR": "purple",
+        "R": "blue",
+        "N": "green",
+    }
+    _RARITY_BADGE_ROIS_4 = {
+        "bond": (
+            (0.224, 0.150, 0.266, 0.195),
+            (0.396, 0.150, 0.438, 0.195),
+            (0.568, 0.150, 0.610, 0.195),
+            (0.740, 0.150, 0.782, 0.195),
+        ),
+        "skill": (
+            (0.248, 0.150, 0.292, 0.195),
+            (0.393, 0.150, 0.437, 0.195),
+            (0.538, 0.150, 0.582, 0.195),
+            (0.683, 0.150, 0.727, 0.195),
+        ),
+        "treasure": (
+            (0.248, 0.150, 0.292, 0.195),
+            (0.393, 0.150, 0.437, 0.195),
+            (0.538, 0.150, 0.582, 0.195),
+            (0.683, 0.150, 0.727, 0.195),
+        ),
+        "card": (
+            (0.224, 0.150, 0.266, 0.195),
+            (0.396, 0.150, 0.438, 0.195),
+            (0.568, 0.150, 0.610, 0.195),
+            (0.740, 0.150, 0.782, 0.195),
+        ),
+    }
+    _RARITY_BADGE_ROIS = {
+        "bond": (
+            (0.306, 0.150, 0.356, 0.195),
+            (0.478, 0.150, 0.528, 0.195),
+            (0.651, 0.150, 0.701, 0.195),
+        ),
+        "skill": (
+            (0.328, 0.150, 0.378, 0.195),
+            (0.475, 0.150, 0.525, 0.195),
+            (0.622, 0.150, 0.672, 0.195),
+        ),
+        "treasure": (
+            (0.327, 0.150, 0.377, 0.195),
+            (0.475, 0.150, 0.525, 0.195),
+            (0.623, 0.150, 0.673, 0.195),
+        ),
+        "card": (
+            (0.306, 0.150, 0.356, 0.195),
+            (0.478, 0.150, 0.528, 0.195),
+            (0.651, 0.150, 0.701, 0.195),
+        ),
+    }
     # cards/*.png title glyphs: 0.80 < live baoji/tz/jj, > next-best false ~0.54
     _BOND_TITLE_TEMPLATE_MIN = 0.80
 
@@ -2991,7 +3047,13 @@ class Mediator:
 
         # 统一采样该 layout 下所有槽位的 rarity
         for slot in slots:
-            slot["rarity"] = self._slot_rarity_band(frame, kind, slot["index"], slot_count=slot_count)
+            letter, band = self._read_slot_rarity_badge(frame, kind, slot["index"], slot_count=slot_count)
+            if band is not None:
+                slot["rarity"] = band
+                slot["rarity_letter"] = letter
+            else:
+                slot["rarity"] = self._slot_rarity_band(frame, kind, slot["index"], slot_count=slot_count)
+                slot["rarity_letter"] = None
 
         # 描述 ROI：宝物负面判定必须匹配对应 layout
         if desc_spec is not None:
@@ -3130,8 +3192,43 @@ class Mediator:
             slot["reason"] = f"title_template:{best_code}:{best_s:.3f}"
             print(f"[L1] 羁绊标题模板 slot{slot.get('index')} {best_label} {best_s:.3f}")
 
+    def _read_slot_rarity_badge(
+        self,
+        frame: Frame,
+        kind: str,
+        index: int,
+        slot_count: int = 3,
+    ) -> tuple[str | None, str | None]:
+        """Read card rarity letter (N/R/SR/SSR/UR/EX) via OCR on the top badge ROI.
+
+        Returns (letter, band), e.g. ('SR', 'purple'), or (None, None).
+        """
+        if self._ocr_client is None or not getattr(self._ocr_client, "is_ready", False):
+            return None, None
+        if not LayoutTransform.is_supported(frame.width, frame.height):
+            return None, None
+        rois_dict = self._RARITY_BADGE_ROIS_4 if slot_count == 4 else self._RARITY_BADGE_ROIS
+        rois = rois_dict.get(kind) or rois_dict.get("bond")
+        if not rois or index < 0 or index >= len(rois):
+            return None, None
+        roi = rois[index]
+        bbox = self._normalized_bbox(frame, roi)
+        resp = self._ocr_client.shadow_predict(
+            frame,
+            f"{kind}:rarity_badge",
+            {"index": index, "bbox": bbox, "kind": "rarity"},
+        )
+        raw = str(resp.raw_text or "").strip()
+        clean = re.sub(r"[^A-Za-z]", "", raw).upper()
+        if clean in self._RARITY_LETTER_TO_BAND:
+            return clean, self._RARITY_LETTER_TO_BAND[clean]
+        return None, None
+
     def _slot_rarity_band(self, frame: Frame, kind: str, index: int, slot_count: int = 3) -> str | None:
-        """Map slot index → rarity band via border color for layout 3 or 4."""
+        """Map slot index → rarity band via OCR letter badge or fallback border color."""
+        letter, band = self._read_slot_rarity_badge(frame, kind, index, slot_count=slot_count)
+        if band is not None:
+            return band
         if slot_count == 4:
             xs = self._RARITY_SAMPLE_XS_4.get(kind) or self._RARITY_SAMPLE_XS_4.get("card")
         else:
@@ -3153,8 +3250,14 @@ class Mediator:
         for slot in slots:
             index = int(slot.get("index", 0))
             rarity = slot.get("rarity")
+            rarity_letter = slot.get("rarity_letter")
             if rarity is None and frame is not None:
-                rarity = self._slot_rarity_band(frame, kind, index, slot_count=len(slots))
+                letter, band = self._read_slot_rarity_badge(frame, kind, index, slot_count=len(slots))
+                if band is not None:
+                    rarity = band
+                    rarity_letter = letter
+                else:
+                    rarity = self._slot_rarity_band(frame, kind, index, slot_count=len(slots))
             description = str(slot.get("description") or "")
             name = slot.get("name")
             family = slot.get("family")
@@ -3171,6 +3274,7 @@ class Mediator:
                     confidence=float(slot.get("confidence") or 0.0),
                     evidence=str(slot.get("raw_text") or ""),
                     rarity=rarity if isinstance(rarity, str) else None,
+                    rarity_letter=rarity_letter if isinstance(rarity_letter, str) else None,
                     description=description,
                     family=family or (card_fact.family if card_fact else None),
                     prereq_marker=bool(slot.get("prereq_marker", False)),
@@ -3178,6 +3282,7 @@ class Mediator:
                     skill_level=slot.get("skill_level"),
                     card_fact=card_fact,
                     family_source=str(family_source or "unknown"),
+                    zero_cost=bool(slot.get("zero_cost", False)),
                 )
             )
         return tuple(out)

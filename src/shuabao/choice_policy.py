@@ -98,6 +98,12 @@ _CATALOG_RARITY_TO_BAND = {
     "粉": "pink",
     "红": "red",
     "绿": "green",
+    "N": "green",
+    "R": "blue",
+    "SR": "purple",
+    "SSR": "orange",
+    "UR": "red",
+    "EX": "red",
 }
 DEFAULT_NEGATIVE_PATTERNS = (
     "不再获得",
@@ -174,6 +180,7 @@ class SlotCandidate:
     confidence: float = 0.0
     evidence: str = ""
     rarity: str | None = None
+    rarity_letter: str | None = None
     description: str = ""
     family: str | None = None
     prereq_marker: bool = False
@@ -1511,9 +1518,24 @@ def _match_bond_preset(
     return min(hits)[2] if hits else None
 
 
+_RARITY_LETTER_TO_BAND = {
+    "EX": "red",
+    "UR": "red",
+    "SSR": "orange",
+    "SR": "purple",
+    "R": "blue",
+    "N": "green",
+}
+
+
 def _rarity_rank(rarity: str | None, quality_order: tuple[str, ...]) -> int:
-    if rarity and rarity in quality_order:
+    if not rarity:
+        return len(quality_order)
+    if rarity in quality_order:
         return quality_order.index(rarity)
+    band = _RARITY_LETTER_TO_BAND.get(str(rarity).upper())
+    if band and band in quality_order:
+        return quality_order.index(band)
     return len(quality_order)
 
 

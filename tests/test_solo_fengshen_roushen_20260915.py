@@ -47,3 +47,16 @@ def test_real_f0245_selects_roushen_when_fengshen_pack_is_active() -> None:
     kind, hit = choice
     assert kind == "bond"
     assert "肉身成圣" in hit.name
+
+
+def test_real_f0245_reads_card_rarity_badge_letters_and_bands() -> None:
+    image = cv2.imdecode(np.fromfile(str(REAL_FRAME), dtype=np.uint8), cv2.IMREAD_COLOR)
+    assert image is not None
+    med = Mediator(Settings(ocr_mode="live", cards=["封神"], bonds=[], attributes=[]), ROOT)
+    slots = med._ocr_panel_slots(Frame(image), "bond")
+    assert len(slots) == 4
+    letters = [s.get("rarity_letter") for s in slots]
+    bands = [s.get("rarity") for s in slots]
+    assert letters == ["SR", "R", "N", "R"]
+    assert bands == ["purple", "blue", "green", "blue"]
+
