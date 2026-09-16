@@ -392,7 +392,70 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
     assert dec_done_plain.action == PolicyAction.REFRESH
     assert dec_done_plain.action != PolicyAction.SELECT_SLOT
 
-    # 7. 完成债务后不能自动开启不需要的下一层 chain（秘法师）
+    # 7. runtime 真实形态：name="智力", evidence="智力(2/4)" + owned 智力 -> SELECT
+    cands_runtime_24 = PanelCandidates(
+        panel_kind="bond",
+        slots=(SlotCandidate(index=0, name="智力", evidence="智力(2/4)", confidence=0.95),),
+        owned_bond_cards=("智力",),
+        can_refresh=True,
+        settings=off_whitelist_settings,
+    )
+    dec_runtime_24 = choose_action(cands_runtime_24, SessionState())
+    assert dec_runtime_24.action == PolicyAction.SELECT_SLOT
+    assert "已持有合成优先" in dec_runtime_24.reason
+
+    # 8. runtime 真实形态：name="智力", evidence="智力(4/4)" -> 债务释放，REFRESH
+    cands_runtime_44 = PanelCandidates(
+        panel_kind="bond",
+        slots=(SlotCandidate(index=0, name="智力", evidence="智力(4/4)", confidence=0.95),),
+        owned_bond_cards=("智力", "智力", "智力", "智力"),
+        can_refresh=True,
+        settings=off_whitelist_settings,
+    )
+    dec_runtime_44 = choose_action(cands_runtime_44, SessionState())
+    assert dec_runtime_44.action == PolicyAction.REFRESH
+    assert dec_runtime_44.action != PolicyAction.SELECT_SLOT
+
+    # 9. 严格 identity 隔离：owned 智力 + 智力祝福(2/3) -> 不得误判同卡或被 near-complete 秒选
+    cands_zhufu_not_debt = PanelCandidates(
+        panel_kind="bond",
+        slots=(SlotCandidate(index=0, name="智力祝福(2/3)", confidence=0.95),),
+        owned_bond_cards=("智力",),
+        can_refresh=True,
+        settings=off_whitelist_settings,
+    )
+    dec_zhufu = choose_action(cands_zhufu_not_debt, SessionState())
+    assert dec_zhufu.action == PolicyAction.REFRESH
+    assert dec_zhufu.action != PolicyAction.SELECT_SLOT
+
+    # 10. 严格 identity 隔离：owned 力量 + 力量祝福 / 力量提升 -> 不得误判同卡
+    cands_str_isolation = PanelCandidates(
+        panel_kind="bond",
+        slots=(
+            SlotCandidate(index=0, name="力量祝福", confidence=0.95),
+            SlotCandidate(index=1, name="力量提升", confidence=0.95),
+        ),
+        owned_bond_cards=("力量",),
+        can_refresh=True,
+        settings=off_whitelist_settings,
+    )
+    dec_str = choose_action(cands_str_isolation, SessionState())
+    assert dec_str.action == PolicyAction.REFRESH
+    assert dec_str.action != PolicyAction.SELECT_SLOT
+
+    # 11. 严格 identity 隔离：owned 敏捷 + 敏捷祝福 -> 不得误判同卡
+    cands_agi_isolation = PanelCandidates(
+        panel_kind="bond",
+        slots=(SlotCandidate(index=0, name="敏捷祝福", confidence=0.95),),
+        owned_bond_cards=("敏捷",),
+        can_refresh=True,
+        settings=off_whitelist_settings,
+    )
+    dec_agi = choose_action(cands_agi_isolation, SessionState())
+    assert dec_agi.action == PolicyAction.REFRESH
+    assert dec_agi.action != PolicyAction.SELECT_SLOT
+
+    # 12. 完成债务后不能自动开启不需要的下一层 chain（秘法师）
     cands_next_chain = PanelCandidates(
         panel_kind="bond",
         slots=(SlotCandidate(index=0, name="秘法师", confidence=0.95),),
@@ -404,11 +467,22 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
     assert dec_next_chain.action == PolicyAction.REFRESH
     assert dec_next_chain.action != PolicyAction.SELECT_SLOT
 
-    # 8. 正常 preset 与 must_take 优先级保持不变
+    # 13. 如果这些卡本身显式存在于 Dashboard preset，则仍按正常 preset 规则允许选择
     whitelisted_settings = PolicySettings(
-        bond_presets=("智力", "经济"),
+        bond_presets=("智力", "智力祝福", "经济"),
         bond_whitelist_mode=WHITELIST_HARD,
     )
+    cands_preset_zhufu = PanelCandidates(
+        panel_kind="bond",
+        slots=(SlotCandidate(index=0, name="智力祝福(1/3)", confidence=0.95),),
+        owned_bond_cards=(),
+        can_refresh=True,
+        settings=whitelisted_settings,
+    )
+    dec_preset_zhufu = choose_action(cands_preset_zhufu, SessionState())
+    assert dec_preset_zhufu.action == PolicyAction.SELECT_SLOT
+    assert "预设命中" in dec_preset_zhufu.reason
+
     cands_preset = PanelCandidates(
         panel_kind="bond",
         slots=(SlotCandidate(index=0, name="智力(1/4)", confidence=0.95),),
@@ -420,6 +494,7 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
     assert dec_preset.action == PolicyAction.SELECT_SLOT
     assert "预设命中" in dec_preset.reason
 
+    # 14. must_take 优先级保持最高
     must_take_settings = PolicySettings(
         bond_must_take=("祝福",),
         bond_presets=("经济",),
@@ -439,4 +514,18 @@ def test_owned_off_whitelist_debt_lifecycle_and_release():
     assert dec_must.action == PolicyAction.SELECT_SLOT
     assert dec_must.index == 1
     assert "羁绊系统必拿" in dec_must.reason
+
+    # 15. free_slots=0/1 下真实未完成同卡债务仍不能被 capacity 意外过滤
+    for free in (0, 1):
+        cands_cap = PanelCandidates(
+            panel_kind="bond",
+            slots=(SlotCandidate(index=0, name="智力(2/4)", confidence=0.95),),
+            owned_bond_cards=("智力",),
+            free_slots=free,
+            can_refresh=True,
+            settings=off_whitelist_settings,
+        )
+        dec_cap = choose_action(cands_cap, SessionState())
+        assert dec_cap.action == PolicyAction.SELECT_SLOT
+        assert "已持有合成优先" in dec_cap.reason
 

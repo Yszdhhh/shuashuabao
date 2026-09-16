@@ -1120,6 +1120,45 @@ def _slot_stack_progress(slot: SlotCandidate) -> tuple[int, int] | None:
     return None
 
 
+_BOND_PROGRESS_RATIO_RE = re.compile(r"[\[（(]\s*\d+\s*/\s*\d+\s*[\])）)]")
+
+
+def canonical_bond_identity(name: str | None) -> str:
+    """返回严格的规范化羁绊卡牌身份名（纯函数）。
+
+    1. 剥离 OCR (x/y) 等级/进度数字串；
+    2. 经由 choice_lexicon 查表映射 alias -> canonical；
+    3. 若词典未收录，退避为去除进度后缀与多余空白的基础名称；
+    4. 绝不使用 substring/family 包含作为身份判定。
+    """
+    if not name:
+        return ""
+    text = str(name).strip()
+    if not text:
+        return ""
+    try:
+        from shuabao.vision.choice_ocr import lookup_lexicon
+
+        looked = lookup_lexicon(text, kind="bond").canonical
+        if looked:
+            return looked
+    except Exception:
+        pass
+    return _BOND_PROGRESS_RATIO_RE.sub("", text).strip()
+
+
+def same_bond_identity(name1: str | None, name2: str | None) -> bool:
+    """严格判断两个卡名是否代表同一张羁绊卡（Same Card Identity）。
+
+    必须 canonical card identity 相等，严禁用 preset in text 这种 family substring。
+    """
+    if not name1 or not name2:
+        return False
+    c1 = canonical_bond_identity(name1)
+    c2 = canonical_bond_identity(name2)
+    return bool(c1 and c2 and c1 == c2)
+
+
 def _near_complete_bond_slots(
     cands: PanelCandidates, settings: PolicySettings
 ) -> tuple[SlotCandidate, ...]:
@@ -1132,13 +1171,15 @@ def _near_complete_bond_slots(
         name = str(slot.name or "").strip()
         if not name or float(slot.confidence or 0.0) < _BOND_NEAR_COMPLETE_CONF:
             continue
-        allowed = matches_bond_preset(name, settings.bond_presets) or matches_bond_preset(name, owned)
+        allowed = matches_bond_preset(name, settings.bond_presets) or any(
+            same_bond_identity(name, have) for have in owned
+        )
         if not allowed:
             continue
         progress = _slot_stack_progress(slot)
         if progress is None:
             need = stack_need(name)
-            have = sum(1 for item in owned if matches_bond_preset(item, (name,)))
+            have = sum(1 for item in owned if same_bond_identity(name, item))
         else:
             have, need = progress
         if need and have is not None and int(need) - int(have) == 1:
@@ -1153,12 +1194,13 @@ def _is_uncompleted_merge_upgrade(
 
     1/4～3/4 或拥有张数未达 need 时返回 True，允许补债；
     若卡片已达完成态（如 4/4、已拥有张数 >= need），返回 False，不得仅因历史 owned 记录无限优先拿。
+    使用严格 canonical card identity 匹配，绝不使用 family substring。
     """
     if not slot.name or not owned_cards:
         return False
     matching = [
         b for b in owned_cards
-        if b and (slot.name == b or matches_bond_preset(slot.name, (b,)) or matches_bond_preset(b, (slot.name,)))
+        if b and same_bond_identity(slot.name, b)
     ]
     if not matching:
         return False
@@ -1169,6 +1211,7 @@ def _is_uncompleted_merge_upgrade(
             return False
         return True
     from shuabao.bond_capacity import stack_need
+
     need = stack_need(slot.name)
     if need is not None:
         have = len(matching)
@@ -1224,10 +1267,10 @@ def _bond_capacity_candidates(
     progress = _bond_progress_hits(cands, slots)
     progress_names = {slot.name for slot, _tier, _gap, _set in progress}
     tier_names = {slot.name for slot, tier, _gap, _set in progress if tier == 0}
-    owned = {name for name in cands.owned_bond_cards if name}
+    owned = tuple(name for name in cands.owned_bond_cards if name)
     kept: list[SlotCandidate] = []
     for slot in slots:
-        merge = bool(slot.name and slot.name in owned)
+        merge = bool(slot.name and _is_uncompleted_merge_upgrade(slot, owned))
         core = _is_must_take(slot.name, settings.bond_must_take) or matches_bond_preset(
             slot.name, settings.bond_presets
         )
