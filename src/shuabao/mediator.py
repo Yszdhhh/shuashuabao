@@ -4188,6 +4188,7 @@ class Mediator:
     _MERCHANT_KILL_BALANCE_ROI = (1340 / 1600, 10 / 900, 1390 / 1600, 35 / 900)
     _MERCHANT_KILL_BALANCE_MIN_SCORE = 0.95
     _MERCHANT_DEVOUR_PILL_KILL_COST = 400
+    _MERCHANT_WOOD_KILL_COST = 300
     _MERCHANT_REFRESH_KILL_COST = 350
     # Refreshing is useful only when its result can still be bought.  Reserve
     # both the reroll and one pill rather than spending the last 350 points.
@@ -4207,6 +4208,18 @@ class Mediator:
             self._l1_cycle_index = 0
             self._l1_cycle_last_advance_at = time.time()
             self._l1_cycle_step_successes = 0
+            return
+        if not self._passenger_mode() and self._should_hold_core_development():
+            # 核心发育期（wood >= 1000）：严格优先 F ↔ G 轮转快速消耗木材转化为战力，
+            # 绝不落入完整支线大环（treasure/evolve/equipment/pickup/merchant/artifact）。
+            nxt = "skill" if current == "bond" else "bond"
+            self._l1_cycle_step = nxt
+            self._l1_cycle_last_advance_at = time.time()
+            self._l1_cycle_step_successes = 0
+            if nxt == "bond":
+                self._bond_priority_suspended_at = None
+            elif nxt == "skill":
+                self._skill_priority_suspended_at = None
             return
         # The order repeats bond/skill, so the name alone does not say where we
         # are: order.index() always found the first pair and skill -> bond ->
@@ -4400,6 +4413,18 @@ class Mediator:
             bond_must_take=(),
         )
 
+    def _should_hold_core_development(self, frame: Frame | None = None, now: float | None = None) -> bool:
+        """True when solo script should remain strictly in core development (F <-> G).
+
+        Triggered when:
+        1. Not passenger mode
+        2. wood >= 1000 (abundant wood must be converted into combat power via bond draws)
+        """
+        if self._passenger_mode():
+            return False
+        wood = getattr(self, "_wood_balance", None)
+        return wood is not None and wood >= self._BOND_HIGH_WOOD
+
     def _solo_plan_panel(self, frame: Frame, now: float, step: str) -> tuple[str | None, str]:
         """Solo panel choice for this tick: (target, why); target None = skip step.
 
@@ -4425,7 +4450,7 @@ class Mediator:
                 self._visit_kind = None
                 self._visit_picks = 0
             held = getattr(self, f"_{kind}_priority_suspended_at", None)
-            if held is not None and step == kind and idx != held:
+            if held is not None and step == kind and (idx != held or self._should_hold_core_development()):
                 setattr(self, f"_{kind}_priority_suspended_at", None)
         bond_held = getattr(self, "_bond_priority_suspended_at", None) is not None
         skill_held = getattr(self, "_skill_priority_suspended_at", None) is not None
@@ -4865,6 +4890,36 @@ class Mediator:
         if roi is None or roi.shape != baseline.shape:
             return roi is not None  # 尺寸变化本身即画面异变
         return self._hero_changed_pixels(baseline, roi) >= 2000
+
+    def _maybe_opportunistic_evolve(self, frame: Frame, now: float) -> LoopAction | None:
+        """HUD_ONLY 机会动作：当金色点击进化高亮且不在冷却中时执行快速事务。"""
+        if getattr(self, "_evolve_feedback_pending", False):
+            if self._evolve_feedback_seen(frame):
+                print("[L1] 机会进化反馈已确认")
+                self._evolve_feedback_pending = False
+                self._evolve_fail_count = 0
+                return LoopAction.Continue
+            if now - getattr(self, "_evolve_click_at", 0.0) >= 2.0:
+                self._evolve_feedback_pending = False
+                self._evolve_fail_count = getattr(self, "_evolve_fail_count", 0) + 1
+                print(f"[L1] 机会点击进化无反馈（第 {self._evolve_fail_count} 次失败）")
+                return LoopAction.Continue
+            return LoopAction.Continue
+
+        if now < getattr(self, "_evolve_click_cooldown_until", 0.0):
+            return None
+        if not self._has_evolve_button(frame):
+            return None
+        evolve_hit = self._evolve_button_hit(frame)
+        if evolve_hit:
+            print(f"[L1] 机会点击进化 @ {evolve_hit.center}")
+            if self.act_click(evolve_hit, "ClickEvolve"):
+                self._evolve_click_cooldown_until = now + 5.0
+                self._evolve_feedback_pending = True
+                self._evolve_click_at = now
+                self._evolve_baseline = self._panel_roi_region(frame)
+                return LoopAction.Continue
+        return None
 
     def _maybe_use_inventory_item(self, frame: Frame) -> LoopAction | None:
         """Use inventory consumables in the verified bottom-right inventory ROI (HUD_ONLY)."""
@@ -6223,11 +6278,21 @@ class Mediator:
 
         if ranked and self._merchant_fsm.can_purchase(5):
             target_item = ranked[0]
+            cost = (
+                self._MERCHANT_WOOD_KILL_COST
+                if target_item.item_type == "wood"
+                else self._MERCHANT_DEVOUR_PILL_KILL_COST
+            )
+            item_label = {
+                "devour_pill": "吞噬丹",
+                "wood": "木材",
+                "discount": "折扣商品",
+            }.get(target_item.item_type, target_item.item_type)
             if not self._merchant_kill_budget_allows(
                 frame,
                 now,
-                self._MERCHANT_DEVOUR_PILL_KILL_COST,
-                "吞噬丹购买",
+                cost,
+                f"{item_label}购买",
             ):
                 return None
             hit = self._hud_button_hit(
@@ -15047,6 +15112,16 @@ class Mediator:
             if "giveup" in hit_name:
                 self._l1_cycle_selected = True
             self._arm_panel_reopen_cooldown(self._panel_kind, now)
+        elif action == "refresh":
+            self._skill_refresh_attempts = getattr(self, "_skill_refresh_attempts", 0) + 1
+            if self._panel_kind == "treasure":
+                self._hitch_treasure_total_refreshes = (
+                    getattr(self, "_hitch_treasure_total_refreshes", 0) + 1
+                )
+            self._sync_choice_session_refreshes()
+            self._skill_refresh_failed_attempts = 0
+            if self._panel_kind == "skill":
+                self._panel_opened_by_us = "skill"
         self._panel_pending_choice_action = None
         self._panel_pending_choice_fingerprint = None
 
@@ -15124,7 +15199,9 @@ class Mediator:
             and not cycle_selected
             and not self._passenger_mode()
         ):
-            self._bond_idle_until = time.time() + self._BOND_IDLE_BACKOFF_S
+            wood = getattr(self, "_wood_balance", None)
+            if wood is None or wood < self._BOND_HIGH_WOOD:
+                self._bond_idle_until = time.time() + self._BOND_IDLE_BACKOFF_S
         if (
             cycle_owned
             and cycle_kind == "skill"
@@ -15206,7 +15283,14 @@ class Mediator:
         roi = self._panel_roi_region(frame)
         if roi is None or roi.shape != baseline.shape:
             return True  # 尺寸变化本身即画面异变
-        return self._hero_changed_pixels(baseline, roi) >= 2000
+        if self._hero_changed_pixels(baseline, roi) >= 2000:
+            return True
+        if getattr(self, "_panel_pending_choice_action", None) == "refresh":
+            cur_fp = self._panel_physical_fingerprint(frame)
+            prev_fp = getattr(self, "_choice_fp_before_refresh_physical", None)
+            if cur_fp and prev_fp and cur_fp != prev_fp:
+                return True
+        return False
 
     def _panel_f1_shadow_record(self, would_trigger: bool, correct: bool | None) -> None:
         """F1 兜底 shadow 灰度：累计 20 次正确、0 误触才写 LIVE 标志。
@@ -15520,14 +15604,12 @@ class Mediator:
                     self._selection_click_cooldown_until = now + self.settings.ui_action_interval_s
                     self._panel_last_input_at = now
                     if "refresh" in (hit.name or "").lower():
-                        self._skill_refresh_attempts += 1
-                        if kind == "treasure":
-                            self._hitch_treasure_total_refreshes = (
-                                getattr(self, "_hitch_treasure_total_refreshes", 0) + 1
-                            )
-                        self._sync_choice_session_refreshes()
-                        self._panel_state = PanelState.ACTIVE
-                        self._panel_mutation_baseline = None
+                        self._choice_fp_before_refresh_physical = self._panel_physical_fingerprint(frame)
+                        self._panel_mutation_baseline = self._panel_roi_region(frame)
+                        self._panel_state = PanelState.WAIT_MUTATION
+                        self._panel_confirm_window = max(
+                            5.0, min(15.0, self.settings.recovery_timeout_s)
+                        )
                         self._panel_opened_by_us = "skill" if kind == "skill" else None
                     else:
                         self._panel_mutation_baseline = self._panel_roi_region(frame)
@@ -15645,6 +15727,16 @@ class Mediator:
                     self._panel_state = PanelState.CLOSING
                     self._panel_closing_attempts = 0
                     self._panel_closing_started_at = now
+                elif failed_action == "refresh":
+                    self._skill_refresh_failed_attempts = getattr(self, "_skill_refresh_failed_attempts", 0) + 1
+                    print(f"[L1] 刷新点击未观察到 mutation（第 {self._skill_refresh_failed_attempts} 次失败）；不消耗刷新预算")
+                    if self._skill_refresh_failed_attempts >= 2:
+                        print("[L1] 刷新连续 2 次无 mutation 响应，放弃刷新，转物理关闭")
+                        self._panel_state = PanelState.CLOSING
+                        self._panel_closing_attempts = 0
+                        self._panel_closing_started_at = now
+                    else:
+                        self._panel_state = PanelState.ACTIVE
                 else:
                     print("[L1] 面板 mutation 确认窗超时，回到 ACTIVE（零输入）")
                     self._panel_state = PanelState.ACTIVE
@@ -16995,6 +17087,19 @@ class Mediator:
         if opened is not None:
             self._main_line_since = now
             return opened
+
+        if (
+            not self._passenger_mode()
+            and self._panel_state == PanelState.CLOSED
+            and anchor is None
+            and not self._has_active_transaction(frame)
+            and surface == InteractionSurface.HUD_ONLY
+            and self._l1_cycle_step != "evolve"
+        ):
+            evolve_res = self._maybe_opportunistic_evolve(frame, now)
+            if evolve_res is not None:
+                self._main_line_since = now
+                return evolve_res
 
         if self._passenger_mode() and self._l1_cycle_step == "hitch_idle":
             # legacy 停车位：新环不再产生这个步，留作旧状态的安全落点。
