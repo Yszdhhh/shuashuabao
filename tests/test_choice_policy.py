@@ -1842,8 +1842,8 @@ class TestLiveRegressions20260822(unittest.TestCase):
         )
 
     def test_treasure_unnamed_high_rarity_beats_readable_green(self):
-        """宝物橙/紫卡 OCR 读不出名时按边框稀有度参与品质链（trace 203910
-        20:42:19/22：两张可读绿卡压过不可读橙卡）。羁绊不放宽。"""
+        """Pre-GT 2026-09-16 安全收口：宝物卡若卡名与描述均未知，即使边框为高品质（orange），
+        亦禁止盲选以免绕过负面宝物门禁，优先选择已知安全的有效槽位。"""
         ps = PolicySettings(treasure_presets=())
         cands = treasure_cands(
             [slot(0, "属性神符", confidence=0.84, rarity="green"),
@@ -1853,7 +1853,7 @@ class TestLiveRegressions20260822(unittest.TestCase):
         )
         d = choose_action(cands, session=SessionState())
         self.assertEqual(d.action, PolicyAction.SELECT_SLOT)
-        self.assertEqual(d.index, 1)
+        self.assertEqual(d.index, 0)
 
     def test_bond_unnamed_still_not_clickable(self):
         """羁绊未读名槽位保持不可选（安全语义不随宝物放宽）。"""

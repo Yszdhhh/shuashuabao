@@ -1167,16 +1167,19 @@ def _is_bond_must_take(name: str | None, must_take: tuple[str, ...]) -> bool:
 
 
 def _near_complete_bond_slots(
-    cands: PanelCandidates, settings: PolicySettings
+    cands: PanelCandidates,
+    settings: PolicySettings,
+    slots: tuple[SlotCandidate, ...] | None = None,
 ) -> tuple[SlotCandidate, ...]:
-    """差一张就能合成的预设/已持有卡，无脑拿。"""
+    """差一张就能合成的预设/已持有卡。"""
     owned = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
     from shuabao.bond_capacity import stack_need
 
+    eval_slots = cands.slots if slots is None else slots
     found: list[SlotCandidate] = []
-    for slot in cands.slots:
+    for slot in eval_slots:
         name = str(slot.name or "").strip()
-        if not name or float(slot.confidence or 0.0) < _BOND_NEAR_COMPLETE_CONF:
+        if not name or float(slot.confidence or 0.0) < settings.min_confidence:
             continue
         allowed = matches_bond_preset(name, settings.bond_presets) or any(
             same_bond_identity(name, have) for have in owned
@@ -1308,8 +1311,12 @@ def _decide_collectible(
         return _no_safe_candidate(cands, state, kind, "卡名未读出/无安全候选")
     if kind == PANEL_TREASURE:
         eligible = _drop_negative_treasures(cands.slots, settings)
+        eligible = tuple(
+            slot for slot in eligible
+            if bool(slot.name and str(slot.name).strip()) or bool(slot.description and str(slot.description).strip())
+        )
         if not eligible:
-            return _no_safe_candidate(cands, state, kind, "无安全候选（全部为负面宝物）")
+            return _no_safe_candidate(cands, state, kind, "无安全候选（卡名与描述均未知或全部为负面宝物）")
 
         # 蹭车模式：只拿能交给车队的共享道具
         if getattr(settings, "mode_id", "normal_farm") == "lobby_hitch":
@@ -1329,7 +1336,7 @@ def _decide_collectible(
                     slot.index, f"宝物必拿秒选【{slot.name}】（EX 不看品质） @ slot {slot.index}"
                 )
         # 其余先过滤黑名单，只按现有品质顺序选择，不让 presets / synthesis 压过更高品质。
-        best_quality_hit = _match_quality(cands, settings, slots=eligible, allow_unnamed=True)
+        best_quality_hit = _match_quality(cands, settings, slots=eligible, allow_unnamed=False)
         if best_quality_hit is None:
             return _no_safe_candidate(cands, state, kind, "无安全候选")
 
@@ -1371,13 +1378,6 @@ def _decide_collectible(
     else:
         eligible = cands.slots
         if kind == PANEL_BOND:
-            near = _near_complete_bond_slots(cands, settings)
-            if near:
-                slot = max(near, key=lambda item: (float(item.confidence or 0.0), -int(item.index)))
-                return PolicyDecision.select(
-                    slot.index,
-                    f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
-                )
             eligible = _bond_capacity_candidates(cands, eligible, settings)
             owned_bonds = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
             if not _bond_base_ready(cands, settings):
@@ -1426,7 +1426,8 @@ def _decide_collectible(
                     or matches_bond_preset(slot.name, settings.bond_presets)
                     or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 )
-        if kind == PANEL_BOND:
+
+            # 1. 必拿名单优先级最高（不受 near_complete 抢占）
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
@@ -1435,7 +1436,19 @@ def _decide_collectible(
                     return PolicyDecision.select(
                         slot.index, f"羁绊系统必拿【{slot.name}】 @ slot {slot.index}"
                     )
-            # 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
+
+            # 2. 差一张合成秒选（受容量与门禁约束；满槽仅限已持有同卡合并）
+            near = _near_complete_bond_slots(cands, settings, slots=eligible)
+            if cands.free_slots is not None and cands.free_slots <= 0:
+                near = tuple(s for s in near if _is_uncompleted_merge_upgrade(s, owned_bonds))
+            if near:
+                slot = max(near, key=lambda item: (float(item.confidence or 0.0), -int(item.index)))
+                return PolicyDecision.select(
+                    slot.index,
+                    f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
+                )
+
+            # 3. 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
             # 只要手中已持有过某羁绊卡，且当前面板再次出现该卡，优先合成升级，绝不可刷新丢弃！
             for slot in eligible:
                 if (
@@ -1483,7 +1496,7 @@ def _decide_collectible(
     # 橙→紫优先链，未读名的槽位按边框采样稀有度参与排序（按槽位坐标点击）。
     # 羁绊/英雄卡保持"未读名不可选"的安全语义不变。
     quality_hit = _match_quality(
-        cands, settings, slots=eligible, allow_unnamed=(kind == PANEL_TREASURE)
+        cands, settings, slots=eligible, allow_unnamed=False
     )
     if quality_hit is not None:
         name = _slot_name(cands.slots, quality_hit)
@@ -1730,6 +1743,8 @@ def _match_quality(
             continue
         if not slot.name:
             if not allow_unnamed or not slot.rarity:
+                continue
+            if not (slot.description and str(slot.description).strip()):
                 continue
         key = (
             _rarity_rank(slot.rarity, settings.quality_order),
