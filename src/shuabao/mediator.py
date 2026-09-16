@@ -725,6 +725,7 @@ class Mediator:
         self._stage_candidate_frames = 0
         self._stage_select_attempts = 0
         self._room_dialog_filled = False
+        self._room_form_step = 0
         self._room_action_deadline: float | None = None
         self._room_action_attempts = 0
         # ROOM_STARTING is a transition alignment episode.  The deadline is
@@ -9829,6 +9830,7 @@ class Mediator:
             self._stage_target_name = None
             self._stage_target_position = None
             self._room_dialog_filled = False
+            self._room_form_step = 0
             self._create_room_pending_since = None
             self._create_room_next_observe_at = None
             self._create_room_flow_deadline = None
@@ -9839,6 +9841,7 @@ class Mediator:
             self._room_action_deadline = time.time() + self.settings.query_timeout
         if phase == Phase.CREATE_ROOM:
             self._room_dialog_filled = False
+            self._room_form_step = 0
         if phase in (Phase.ROOM_STARTING, Phase.STAGE_STARTING):
             # 不覆盖调用方已设置的重试上下文（deadline/attempts 由点击发起方写入）；
             # 仅当未设置时才填默认值，避免 15s 验证窗被改写成 60s、attempts 被清零。
@@ -13774,30 +13777,46 @@ class Mediator:
         if len(boxes) < 2:
             print("[L0] 建房弹窗未安全识别到房间名/密码输入框，拒绝盲填")
             return False
-        values = (self.settings.room_name, self.settings.room_password)
+
         target_hwnd = self._last_frame.hwnd if self._last_frame else None
-        sent_any = False
-        for box, value in zip(boxes[:2], values):
-            if not self.act_click(box, "CreateRoom-focus-input"):
+
+        if self._room_form_step == 0:
+            if self.settings.room_name:
+                if not self.act_click(boxes[0], "CreateRoom-focus-name"):
+                    return False
+                res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                if not getattr(res_hk, "success", bool(res_hk)):
+                    print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {res_hk.message}")
+                    return False
+                res_paste = self.executor.paste_text(self.settings.room_name, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                if not getattr(res_paste, "success", bool(res_paste)):
+                    print(f"[L0] 建房弹窗 paste_text 失败/取消: {res_paste.message}")
+                    return False
+                self._room_form_step = 1
                 return False
-            res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_hk, "success", bool(res_hk)):
-                print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {res_hk.message}")
+            self._room_form_step = 1
+
+        if self._room_form_step == 1:
+            if self.settings.room_password:
+                if not self.act_click(boxes[1], "CreateRoom-focus-pwd"):
+                    return False
+                res_hk = self.executor.hotkey("ctrl", "a", target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                if not getattr(res_hk, "success", bool(res_hk)):
+                    print(f"[L0] 建房弹窗 hotkey ctrl+a 失败/取消: {res_hk.message}")
+                    return False
+                res_paste = self.executor.paste_text(self.settings.room_password, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
+                if not getattr(res_paste, "success", bool(res_paste)):
+                    print(f"[L0] 建房弹窗 paste_text 失败/取消: {res_paste.message}")
+                    return False
+                self._room_form_step = 2
                 return False
-            res_paste = self.executor.paste_text(value, target_hwnd=target_hwnd, dry_run=self.settings.dry_run)
-            if not getattr(res_paste, "success", bool(res_paste)):
-                print(f"[L0] 建房弹窗 paste_text 失败/取消: {res_paste.message}")
-                return False
-            sent_any = True
-        if sent_any:
-            self._tick_input_executed = True
-            self._input_seq += 1  # N2-REVIEW #3：与 _finish_input 同语义
-            if not self.settings.dry_run:
-                # 填写是同一逻辑动作序列（目标来自本帧证据）；序列结束后统一失效，
-                # 防止下一 tick 用填写前的旧证据授权动作。
-                self.invalidate_evidence("input")
-        print("[L0] 建房弹窗已填写房间名/密码")
-        return True
+            self._room_form_step = 2
+
+        if self._room_form_step >= 2:
+            self._room_form_step = 0
+            print("[L0] 建房弹窗已分步完成房间名与密码填写")
+            return True
+        return False
 
     def _l0_transition_timeout(self) -> float:
         """Macro timeout for recoverable L0 alignment episodes."""
@@ -17159,6 +17178,11 @@ class Mediator:
             self.set_phase(Phase.STAGE_SELECT, "guarded stage page detected from MAIN_LINE")
             return LoopAction.Continue
 
+        # P1 正证据门禁：进入局内动作分支前，必须存在正向 HUD 证据。
+        # 未知画面 / 无正向 HUD 证据时保持严格零输入，绝不盲目点击或按键。
+        if not self._is_in_game_hud(frame):
+            return LoopAction.Continue
+
         # 右侧“自动任务”复选框（左键点击）
         auto_res = self._ensure_auto_task_enabled(frame)
         if auto_res is not None:
@@ -17485,12 +17509,28 @@ class Mediator:
         elapsed = time.time() - self._exit_since if self._exit_since else 0.0
 
         if self.phase == Phase.QUIT:
+            if self._find_room_start(frame):
+                print("[med] 局内退出阶段检测到已在房间准备界面，退出完成")
+                self._awaiting_room_return = True
+                self.set_phase(Phase.PREPARE, "already back in room")
+                self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
+                self._longzhu_deadline = None
+                self._f1_fallback_done = False
+                return LoopAction.Continue
             if self._find_exit_confirm(frame):
                 self.set_phase(Phase.NEXT, "exit confirmation already visible")
                 return LoopAction.Continue
             if self._exit_button_attempts >= 3 or elapsed >= timeout:
-                if self._unattended_recovery_enabled():
-                    print("[med] 局内退出按钮观察窗到期，重新武装并继续等待专用锚点")
+                if self._find_room_start(frame):
+                    print("[med] 局内退出超时但检测到房间准备界面，退出完成")
+                    self._awaiting_room_return = True
+                    self.set_phase(Phase.PREPARE, "room detected after quit timeout")
+                    self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
+                    self._longzhu_deadline = None
+                    self._f1_fallback_done = False
+                    return LoopAction.Continue
+                if self._unattended_recovery_enabled() and self._is_in_game_hud(frame):
+                    print("[med] 局内退出按钮观察窗到期，HUD 依然可见，重新武装重试")
                     self._exit_button_attempts = 0
                     self._exit_since = time.time()
                     return LoopAction.Continue
@@ -17512,31 +17552,63 @@ class Mediator:
             return LoopAction.Continue
 
         if self.phase == Phase.NEXT:
-            if self._exit_confirm_attempts >= 3 or elapsed >= timeout:
-                if self._unattended_recovery_enabled():
-                    print("[med] 退出确认观察窗到期，重新武装并继续等待专用按钮")
-                    self._exit_confirm_attempts = 0
+            if self._find_room_start(frame):
+                print("[med] 退出确认阶段检测到已在房间准备界面")
+                if self._hitch_enabled():
+                    return self._finish_hitch_round(time.time(), "exit confirmed; hitch re-search")
+                self._awaiting_room_return = True
+                self.set_phase(Phase.PREPARE, "room detected after exit confirm")
+                self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
+                self._longzhu_deadline = None
+                self._f1_fallback_done = False
+                return LoopAction.Continue
+
+            confirm_hit = self._find_exit_confirm(frame)
+            if confirm_hit is not None:
+                if self._exit_confirm_attempts >= 3:
+                    print("[med] 退出确认按钮点击已达 3 次仍未退出，Fail-Closed 停止")
+                    self.set_phase(Phase.ERROR, "exit confirmation attempts exhausted")
+                    self.stop()
+                    return LoopAction.Break
+                self._exit_confirm_attempts += 1
+                print(f"[med] 确认退出当前游戏 @ {confirm_hit.center} (尝试 {self._exit_confirm_attempts}/3)")
+                if not self.act_click(confirm_hit, "QuitGame-confirm"):
+                    return LoopAction.Continue
+                if self._hitch_enabled():
+                    return self._finish_hitch_round(time.time(), "exit confirmed; hitch re-search")
+                self._awaiting_room_return = True
+                self.set_phase(Phase.PREPARE, "exit confirmed; verify same room")
+                self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
+                self._longzhu_deadline = None
+                self._f1_fallback_done = False
+                return LoopAction.Continue
+
+            # confirm_hit is None:
+            if elapsed >= timeout or self._exit_confirm_attempts >= 3:
+                # 重新分类 surface
+                if self._find_room_start(frame):
+                    print("[med] 确认按钮消失且已在房间界面，退出完成")
+                    self._awaiting_room_return = True
+                    self.set_phase(Phase.PREPARE, "room detected after confirm disappeared")
+                    self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
+                    self._longzhu_deadline = None
+                    self._f1_fallback_done = False
+                    return LoopAction.Continue
+                if self._is_in_game_hud(frame):
+                    print("[med] 确认按钮消失但仍在局内 HUD，退回 Phase.QUIT 重新打开退出确认")
+                    self.set_phase(Phase.QUIT, "confirm disappeared, fallback to quit")
+                    self._exit_button_attempts = 0
                     self._exit_since = time.time()
+                    return LoopAction.Continue
+                if self._unattended_recovery_enabled() and elapsed < timeout * 2:
+                    print("[med] 退出后过渡中/未知界面，零输入有限等待")
                     return LoopAction.Continue
                 print("[med] 退出确认框未能安全确认，Fail-Closed 停止运行")
                 self.set_phase(Phase.ERROR, "exit confirmation timeout")
                 self.stop()
                 return LoopAction.Break
-            confirm_hit = self._find_exit_confirm(frame)
-            if not confirm_hit:
-                print("[med] 等待专用退出确认按钮（零动作）")
-                return LoopAction.Continue
-            self._exit_confirm_attempts += 1
-            print(f"[med] 确认退出当前游戏 @ {confirm_hit.center} (尝试 {self._exit_confirm_attempts}/3)")
-            if not self.act_click(confirm_hit, "QuitGame-confirm"):
-                return LoopAction.Continue
-            if self._hitch_enabled():
-                return self._finish_hitch_round(time.time(), "exit confirmed; hitch re-search")
-            self._awaiting_room_return = True
-            self.set_phase(Phase.PREPARE, "exit confirmed; verify same room")
-            self._room_action_deadline = time.time() + min(self.settings.query_timeout, 30)
-            self._longzhu_deadline = None
-            self._f1_fallback_done = False
+
+            print("[med] 等待专用退出确认按钮（零动作）")
             return LoopAction.Continue
 
         print(f"[med] unhandled phase {self.phase}")
