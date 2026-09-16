@@ -17,7 +17,7 @@
 | **Main 最新远端** | `7ebf4b2` | 生产主线最新提交（Merge PR #26，`7ebf4b205a1fd3acd8d9d64fd84d184db6447ebc`） |
 | **当前代码 HEAD** | `origin/fix/solo-live-regression-20260915` | 本分支核心代码冻结点 |
 | **Harness 基线** | `7a6c36b` | 严格保持冻结，**未 Rebaseline** |
-| **验证总状态** | **CODE AUDIT GO / READY FOR CLOUD RE-AUDIT** | 单元测试全绿，P1 阻断项全面修复，实机 GT 处于 HOLD |
+| **验证总状态** | **CODE AUDIT GO / GT READY** | 0 failed（2324 passed，6 warnings 测试卫生债务），P1 阻断项全面修复，Owner 决策确认（cap=15），零输入 candidate identity 闭环，就绪进入 GT |
 
 ---
 
@@ -84,7 +84,7 @@
   - `wood < _bond_next_price()`：禁止打开 F 面板，避免无意义空开；
   - `draw_price <= wood < 300`：允许开启 F，但单次最大选卡上限 `cap = 1`；
   - `300 <= wood < 1000`：单次最大选卡上限 `cap = 2`；
-  - `wood >= 1000`：高木材狂暴模式，单次访问上限 `cap = 15`（**历史依据**：提交 `2884df2`，真实 commit message 为 `fix(solo): optimize wood expenditure, skill refresh accuracy, merchant cycle and equipment gates`，2026-09-16 02:23:52，作者为解决高木材木头烧不掉的问题，在 `_l1_step_visit_exhausted` 与 `_visit_capped` 中将上限提升为 15，注释：`F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源)`；**口径说明**：当前实现及历史代码意图 = 15；owner contract 的 5/15 最终决策仍待明确，本轮保持代码现状与待定状态）。
+  - `wood >= 1000`：高木材狂暴模式，单次访问上限 `cap = 15`（**历史依据**：提交 `2884df2`，真实 commit message 为 `fix(solo): optimize wood expenditure, skill refresh accuracy, merchant cycle and equipment gates`，2026-09-16 02:23:52，作者为解决高木材木头烧不掉的问题，在 `_l1_step_visit_exhausted` 与 `_visit_capped` 中将上限提升为 15，注释：`F: wood >= 1000 -> 15 (狂暴抽卡，充分转化木材资源)`；**Owner 最终决策**：正式确认高木材狂暴模式单次选卡上限为 `cap = 15` 作为正式产品合同，保持生产代码现状，不回退为 5，以确保中后期高额木材充分转化为战力）。
 * **对称测试与退避保护**：
   - `wood >= 1000` 时，若因为候选卡均不在预设而主动关闭 F 面板，**严禁设置 30s 的 `_bond_idle_until`**，避免因候选不合规导致大量积压木材被饿死 30 秒；保留 `wood < 1000` 下的普通冷却。
 * **技能积压紧急调度**：
@@ -94,7 +94,7 @@
 ### 3.5 传家宝 120s 局部超时与 Boss ALIVE 否决权
 * **分层治理架构与语义严密性**：
   - **业务证据层（ALIVE Veto）**：若 `_solo_boss_is_alive(frame)` 检测到明确的 Boss 血条存活证据，属于正面存活证据，**一票否决**判定为通关或盲目转场大秘境，局部超时到达时禁止将存活 Boss 误当做通关；
-  - **局部兜底硬截止（120s Timeout）**：120s 超时仅属于单人传家宝 Boss 结算分支局部的兜底等待上限（系统全局单局硬截止是 `round_timeout_s=900`），仅在局部等待超时且证据为 `TIMEOUT-UNKNOWN`（既无 CLEAR 也无 ALIVE 明确阳性证据）时触发安全退避与大秘境回退逻辑；
+  - **局部兜底硬截止（120s Timeout）**：120s 是传家宝局部分支等待上限；系统默认单局 hard deadline 为 `round_timeout_s=3600`，实际 GT 以本次加载配置值为准。仅在局部等待超时且证据为 `TIMEOUT-UNKNOWN`（既无 CLEAR 也无 ALIVE 明确阳性证据）时触发安全退避与大秘境回退逻辑；
   - **严格分层**：必须严格区分 **CLEAR（击杀清空）**、**ALIVE（明确存活，一票否决秘境输入）** 与 **TIMEOUT-UNKNOWN（传家宝局部超时未定兜底）**，传家宝 120s 局部超时绝不等于 Boss CLEAR。
 
 ### 3.6 海岛/海盗卡组与悬赏令专项只读审计
@@ -140,12 +140,16 @@
   python tools/live_scenario_capture.py identity --repo-root . --production-source-root . --production-source-sha <HEAD_SHA> --json
   python tools/live_scenario_capture.py readiness --repo-root . --production-source-root . --production-source-sha <HEAD_SHA> --quick --json
   ```
-* 结果：
+* 结果与归档：
   - `candidate_source_injection: ACTIVE`
   - `production_source_clean: true`
   - `ready_for_gt: true`
   - `match: READY`
   - 零硬件物理输入，闭环验证通过。
+  - 核心长链目标 `solo_ingame_chain` 与 `hitch_lobby_chain` 等 8 大目标均达到就绪。
+  - 原始 JSON 证据归档：
+    * [`candidate_injection_identity_20260916.json`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916/test_reports/candidate_injection_identity_20260916.json)
+    * [`candidate_injection_readiness_20260916.json`](file:///G:/刷刷宝/GameScript-Local/docs/reviews/evidence_20260916/test_reports/candidate_injection_readiness_20260916.json)
 
 ---
 
