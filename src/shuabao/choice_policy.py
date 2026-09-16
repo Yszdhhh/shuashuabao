@@ -1132,9 +1132,7 @@ def _near_complete_bond_slots(
         name = str(slot.name or "").strip()
         if not name or float(slot.confidence or 0.0) < _BOND_NEAR_COMPLETE_CONF:
             continue
-        allowed = matches_bond_preset(name, settings.bond_presets) or any(
-            matches_bond_preset(have, (name,)) for have in owned
-        )
+        allowed = matches_bond_preset(name, settings.bond_presets) or matches_bond_preset(name, owned)
         if not allowed:
             continue
         progress = _slot_stack_progress(slot)
@@ -1146,6 +1144,37 @@ def _near_complete_bond_slots(
         if need and have is not None and int(need) - int(have) == 1:
             found.append(slot)
     return tuple(found)
+
+
+def _is_uncompleted_merge_upgrade(
+    slot: SlotCandidate, owned_cards: tuple[str, ...]
+) -> bool:
+    """已持有羁绊卡是否处于未满星/未完成的待补债合成状态。
+
+    1/4～3/4 或拥有张数未达 need 时返回 True，允许补债；
+    若卡片已达完成态（如 4/4、已拥有张数 >= need），返回 False，不得仅因历史 owned 记录无限优先拿。
+    """
+    if not slot.name or not owned_cards:
+        return False
+    matching = [
+        b for b in owned_cards
+        if b and (slot.name == b or matches_bond_preset(slot.name, (b,)) or matches_bond_preset(b, (slot.name,)))
+    ]
+    if not matching:
+        return False
+    prog = _slot_stack_progress(slot)
+    if prog is not None:
+        have, need = prog
+        if have >= need:
+            return False
+        return True
+    from shuabao.bond_capacity import stack_need
+    need = stack_need(slot.name)
+    if need is not None:
+        have = len(matching)
+        if have >= need:
+            return False
+    return True
 
 
 def _bond_progress_hits(
@@ -1293,7 +1322,7 @@ def _decide_collectible(
                     f"羁绊差一张合成秒选【{slot.name}】 @ slot {slot.index}",
                 )
             eligible = _bond_capacity_candidates(cands, eligible, settings)
-            owned_bonds = {str(name).strip() for name in cands.owned_bond_cards if str(name).strip()}
+            owned_bonds = tuple(str(name).strip() for name in cands.owned_bond_cards if str(name).strip())
             if not _bond_base_ready(cands, settings):
                 eligible = tuple(
                     slot for slot in eligible
@@ -1302,7 +1331,7 @@ def _decide_collectible(
                         or matches_bond_preset(slot.name, settings.bond_chain_presets)
                         # A past run may already contain an advanced card. Let
                         # its duplicate finish/merge, but never start another.
-                        or matches_bond_preset(slot.name, tuple(owned_bonds))
+                        or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                     )
                 )
                 if not eligible:
@@ -1322,7 +1351,7 @@ def _decide_collectible(
                             matches_bond_preset(slot.name, settings.bond_base_presets)
                             or matches_bond_preset(slot.name, settings.bond_chain_presets)
                             or matches_bond_preset(slot.name, active_adv)
-                            or matches_bond_preset(slot.name, tuple(owned_bonds))
+                            or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                         )
                     )
                     if not eligible:
@@ -1338,7 +1367,7 @@ def _decide_collectible(
                     slot for slot in eligible
                     if _is_must_take(slot.name, settings.bond_must_take)
                     or matches_bond_preset(slot.name, settings.bond_presets)
-                    or matches_bond_preset(slot.name, tuple(owned_bonds))
+                    or _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 )
         if kind == PANEL_BOND:
             for slot in eligible:
@@ -1351,11 +1380,10 @@ def _decide_collectible(
                     )
             # 20260822：已持有的羁绊卡合成跃升（如 1/3, 2/3 未满星卡牌）
             # 只要手中已持有过某羁绊卡，且当前面板再次出现该卡，优先合成升级，绝不可刷新丢弃！
-            owned_bonds_set = {b for b in getattr(cands, "owned_bond_cards", ()) if b}
             for slot in eligible:
                 if (
                     slot.confidence >= settings.min_confidence
-                    and (slot.name in owned_bonds_set or matches_bond_preset(slot.name, tuple(owned_bonds_set)))
+                    and _is_uncompleted_merge_upgrade(slot, owned_bonds)
                 ):
                     return PolicyDecision.select(
                         slot.index, f"羁绊已持有合成优先：{slot.name} @ slot {slot.index}"
