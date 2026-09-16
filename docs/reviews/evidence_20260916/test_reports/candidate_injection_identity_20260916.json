@@ -1,0 +1,30 @@
+{
+  "harness_head": "082eeed4d8a10bebd3343930083f63b7271b1d6f",
+  "harness_branch": "fix/solo-live-regression-20260915",
+  "harness_base": "7a6c36bbbdc39064ceed1aebd9ffc301bfeea342",
+  "runtime_worktree": "G:\\刷刷宝\\GameScript-Local",
+  "runtime_worktree_sha": "082eeed4d8a10bebd3343930083f63b7271b1d6f",
+  "runtime_source_path": "G:\\刷刷宝\\GameScript-Local\\src\\shuabao\\__init__.py",
+  "runtime_source_verified": true,
+  "frozen_production_code_baseline": "7a6c36bbbdc39064ceed1aebd9ffc301bfeea342",
+  "production_code_diff": "NOT_CLEAN",
+  "production_code_diff_files": [
+    "src/shuabao/choice_policy.py",
+    "src/shuabao/mediator.py",
+    "src/shuabao/runtime_mediator.py"
+  ],
+  "automation_exe": {
+    "path": null,
+    "source_sha": null,
+    "status": "NOT_PROVIDED",
+    "blocked_reasons": []
+  },
+  "ready_for_gt": true,
+  "match": "READY",
+  "blocked_reasons": [],
+  "production_source_root": "G:\\刷刷宝\\GameScript-Local",
+  "production_source_expected_sha": "082eeed4d8a10bebd3343930083f63b7271b1d6f",
+  "production_source_sha": "082eeed4d8a10bebd3343930083f63b7271b1d6f",
+  "production_source_clean": true,
+  "candidate_source_injection": "ACTIVE"
+}
